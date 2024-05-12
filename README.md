@@ -6,11 +6,11 @@ This repository contains Helm charts for:
 ```bash
 helm repo add dimpact https://Dimpact-Samenwerking.github.io/helm-charts
 helm search repo dimpact
-helm install my-release dimpact/<chart>
+helm install my-release dimpact/<chart-name>
 ```
 or
 ```bash
 helm repo update
 helm search repo dimpact
-helm install my-release dimpact/<chart>
+helm install my-release dimpact/<chart-name>
 ```
