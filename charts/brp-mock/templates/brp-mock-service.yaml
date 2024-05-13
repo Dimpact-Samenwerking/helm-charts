@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: brp-mock
+  labels:
+    app.kubernetes.io/name: brp-mock
+    {{- include "bm.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: {{ include "bm.name" . }}-brp-proxy
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

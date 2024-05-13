@@ -2,6 +2,7 @@
 This repository contains Helm charts for:
 
 - [zac](./charts/zac/README.md)
+- [brp-mock](./charts/brp-mock/README.md)
 
 
 ```bash

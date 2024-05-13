@@ -1,0 +1,6 @@
+image:
+  brpProxyName: iswish/haal-centraal-brp-bevragen-proxy
+  brpProxyTag: 2.0.20
+  gbaMockName: iswish/haal-centraal-brp-bevragen-gba-mock
+  gbaMockTag: 2.0.8
+  pullPolicy: IfNotPresent
