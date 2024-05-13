@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "vrl.name" . }}
+  labels:
+    app.kubernetes.io/name: {{ include "vrl.name" . }}
+    {{- include "vrl.labels" . | nindent 4 }}
+data:
+  db-host: {{ required ".Values.db.host is required" .Values.db.host  | quote}}
+  db-name: {{ required ".Values.db.name is required" .Values.db.name  | quote}}
+  db-user: {{ required ".Values.db.user is required" .Values.db.user  | quote}}

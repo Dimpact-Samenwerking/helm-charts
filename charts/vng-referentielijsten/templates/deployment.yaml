@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "vrl.name" . }}
+  labels:
+    app.kubernetes.io/name: {{ include "vrl.name" . }}
+    {{- include "vrl.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "vrl.name" . }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "vrl.name" . }}
+        {{- include "vrl.labels" . | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+    spec:
+      containers:
+        - name: {{ include "vrl.name" . }}
+          image: "{{ .Values.image.name }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          resources:
+            requests:
+              cpu: 50m
+              memory: 150Mi
+          ports:
+            - name: http
+              containerPort: 8000
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+              httpHeaders:
+                - name: Host
+                  value: "{{ include "vrl.name" . }}.{{ .Release.Namespace }}"
+            initialDelaySeconds: 30
+            periodSeconds: 60
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+              httpHeaders:
+                - name: Host
+                  value: "{{ include "vrl.name" . }}.{{ .Release.Namespace }}"
+            initialDelaySeconds: 30
+            periodSeconds: 60
+          env:
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "vrl.name" . }}
+                  key: db-host
+            - name: DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "vrl.name" . }}
+                  key: db-name
+            - name: DB_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "vrl.name" . }}
+                  key: db-user
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "vrl.name" . }}
+                  key: db-password
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "vrl.name" . }}
+                  key: secret-key
+            - name: DJANGO_SETTINGS_MODULE
+              value: vrl.conf.docker

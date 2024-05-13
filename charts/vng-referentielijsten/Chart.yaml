@@ -1,0 +1,5 @@
+apiVersion: v2
+name: vng-referentielijsten
+description: A Helm chart for VNG Referentielijsten reference implementation
+version: 1.0.0
+appVersion: "0.6.1"
