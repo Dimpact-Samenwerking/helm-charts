@@ -10,6 +10,16 @@ entries:
     urls:
     - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/brp-mock-1.0.0/brp-mock-1.0.0.tgz
     version: 1.0.0
+  vng-referentielijsten:
+  - apiVersion: v2
+    appVersion: 0.6.1
+    created: "2024-05-13T09:15:59.961238494Z"
+    description: A Helm chart for VNG Referentielijsten reference implementation
+    digest: 7177912a5cd4ffc651cb0df46805b15c1d7bb7428599dce35e85f1b273c151c5
+    name: vng-referentielijsten
+    urls:
+    - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/vng-referentielijsten-1.0.0/vng-referentielijsten-1.0.0.tgz
+    version: 1.0.0
   zaakafhandelcomponent:
   - apiVersion: v2
     appVersion: latest
@@ -28,4 +38,4 @@ entries:
     urls:
     - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/zaakafhandelcomponent-0.4.0/zaakafhandelcomponent-0.4.0.tgz
     version: 0.4.0
-generated: "2024-05-13T08:51:16.078751517Z"
+generated: "2024-05-13T09:15:59.961245036Z"
