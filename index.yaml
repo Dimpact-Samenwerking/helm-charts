@@ -66,6 +66,23 @@ entries:
   zaakafhandelcomponent:
   - apiVersion: v2
     appVersion: latest
+    created: "2024-05-23T07:18:46.05893502Z"
+    dependencies:
+    - condition: opentelemetry-collector.enabled
+      name: opentelemetry-collector
+      repository: https://open-telemetry.github.io/opentelemetry-helm-charts
+      version: 0.55.2
+    - name: solr
+      repository: https://charts.bitnami.com/bitnami
+      version: 9.1.3
+    description: A Helm chart for installing Zaakafhandelcomponent
+    digest: c7748a58331171b8c58a7acf694761f8900127ca1213b368f070d6aa0b09015b
+    name: zaakafhandelcomponent
+    urls:
+    - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/zaakafhandelcomponent-0.4.2/zaakafhandelcomponent-0.4.2.tgz
+    version: 0.4.2
+  - apiVersion: v2
+    appVersion: latest
     created: "2024-05-23T07:11:53.552736038Z"
     dependencies:
     - condition: opentelemetry-collector.enabled
@@ -98,4 +115,4 @@ entries:
     urls:
     - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/zaakafhandelcomponent-0.4.0/zaakafhandelcomponent-0.4.0.tgz
     version: 0.4.0
-generated: "2024-05-23T07:11:53.552748521Z"
+generated: "2024-05-23T07:18:46.058952903Z"
