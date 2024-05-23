@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keycloak-config
+data:
+  realm.yaml: |
+      enabled: true
+      realm: "podiumd"
+      displayName: {{ required ".Values.keycloak.config.realmDisplayName is missing" .Values.keycloak.config.realmDisplayName | quote }}
+      loginWithEmailAllowed: true
+      rememberMe: true
+      attributes:
+        frontendUrl: {{ required ".Values.keycloak.config.realmFrontendUrl is missing" .Values.keycloak.config.realmFrontendUrl | quote }}

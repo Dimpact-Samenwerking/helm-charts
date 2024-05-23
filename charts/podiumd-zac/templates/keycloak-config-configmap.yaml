@@ -1,0 +1,60 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keycloak-config
+data:
+  realm.yaml: |
+      components:
+        org.keycloak.storage.UserStorageProvider:
+          - name: OpenLDAP
+            providerId: ldap
+            config:
+              vendor:
+                - "other"
+              connectionUrl:
+                - "ldap://openldap.openldap:1389"
+              connectionPooling:
+                - "true"
+              bindDn:
+                - "cn=admin,dc=dimpact-lab,dc=org"
+              bindCredential:
+                - "admin"
+              editMode:
+                - "WRITABLE"
+              usersDn:
+                - "ou=podiumd, dc=dimpact-lab, dc=org"
+              usernameLDAPAttribute:
+                - "cn"
+              rdnLDAPAttribute:
+                - "cn"
+              uuidLDAPAttribute:
+                - "entryUUID"
+              userObjectClasses:
+                - "inetOrgPerson"
+              pagination:
+                - "true"
+              importEnabled:
+                - "false"
+              batchSizeForSync:
+                - "1000"
+              fullSyncPeriod:
+                - "-1"
+              changedSyncPeriod:
+                - "-1"
+            subComponents:
+              org.keycloak.storage.ldap.mappers.LDAPStorageMapper:
+                - name: "groups"
+                  providerId: "group-ldap-mapper"
+                  config:
+                    groups.dn:
+                      - "ou=podiumd,dc=dimpact-lab,dc=org"
+                    group.object.classes:
+                      - "groupOfUniqueNames,extensibleObject"
+                    preserve.group.inheritance:
+                      - "false"
+                    membership.ldap.attribute:
+                      - "uniqueMember"
+                    mapped.group.attributes:
+                      - "description,email"
+                    drop.non.existing.groups.during.sync:
+                      - "true"

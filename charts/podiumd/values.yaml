@@ -2,6 +2,9 @@ keycloak:
   enabled: true
   postgresql:
     enabled: false
+  keycloakConfigCli:
+    enabled: true
+    existingConfigmap: keycloak-config
 
 openzaak:
   enabled: true
