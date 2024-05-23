@@ -1,0 +1,82 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keycloak-config
+data:
+  realm.yaml: |
+      enabled: true
+      realm: "podiumd"
+      displayName: {{ required ".Values.keycloak.config.realmDisplayName is missing" .Values.keycloak.config.realmDisplayName | quote }}
+      loginWithEmailAllowed: true
+      rememberMe: true
+      attributes:
+        frontendUrl: {{ required ".Values.keycloak.config.realmFrontendUrl is missing" .Values.keycloak.config.realmFrontendUrl | quote }}
+      clients:
+        - clientId: openzaak
+          name: Open Zaak
+          enabled: true
+          clientAuthenticatorType: "client-secret"
+          redirectUris:
+            - "{{ required ".Values.global.configuration.openzaakUrlExtern is missing" .Values.global.configuration.openzaakUrlExtern }}/*"
+          webOrigins:
+            - "{{ .Values.global.configuration.openzaakUrlExtern }}/*"
+          secret: {{ required ".Values.global.configuration.openzaakOidcSecret is missing" .Values.global.configuration.openzaakOidcSecret | quote }}
+        - clientId: opennotificaties
+          name: Open Notificaties
+          enabled: true
+          clientAuthenticatorType: "client-secret"
+          redirectUris:
+            - "{{ required ".Values.global.configuration.opennotificatiesUrlExtern is missing" .Values.global.configuration.opennotificatiesUrlExtern }}/*"
+          webOrigins:
+            - "{{ .Values.global.configuration.opennotificatiesUrlExtern }}/*"
+          secret: {{ required ".Values.global.configuration.opennotificatiesOidcSecret is missing" .Values.global.configuration.opennotificatiesOidcSecret | quote }}
+        - clientId: objecten
+          name: Objecten
+          enabled: true
+          clientAuthenticatorType: "client-secret"
+          redirectUris:
+            - "{{ required ".Values.global.configuration.objectenUrlExtern is missing" .Values.global.configuration.objectenUrlExtern }}/*"
+          webOrigins:
+            - "{{ .Values.global.configuration.objectenUrlExtern }}/*"
+          secret: {{ required ".Values.global.configuration.objectenOidcSecret is missing" .Values.global.configuration.objectenOidcSecret | quote }}
+        - clientId: objecttypen
+          name: Objecttypen
+          enabled: true
+          clientAuthenticatorType: "client-secret"
+          redirectUris:
+            - "{{ required ".Values.global.configuration.objecttypenUrlExtern is missing" .Values.global.configuration.objecttypenUrlExtern }}/*"
+          webOrigins:
+            - "{{ .Values.global.configuration.objecttypenUrlExtern }}/*"
+          secret: {{ required ".Values.global.configuration.objecttypenOidcSecret is missing" .Values.global.configuration.objecttypenOidcSecret | quote }}
+        - clientId: openforms
+          name: Open Forms
+          enabled: true
+          clientAuthenticatorType: "client-secret"
+          redirectUris:
+            - "{{ required ".Values.global.configuration.openformsUrlExtern is missing" .Values.global.configuration.openformsUrlExtern }}/*"
+          webOrigins:
+            - "{{ .Values.global.configuration.openformsUrlExtern }}/*"
+          secret: {{ required ".Values.global.configuration.openformsOidcSecret is missing" .Values.global.configuration.openformsOidcSecret | quote }}
+        - clientId: openklant
+          name: Open Klant
+          enabled: true
+          clientAuthenticatorType: "client-secret"
+          redirectUris:
+            - "{{ required ".Values.global.configuration.openklantUrlExtern is missing" .Values.global.configuration.openklantUrlExtern }}/*"
+          webOrigins:
+            - "{{ .Values.global.configuration.openklantUrlExtern }}/*"
+          secret: {{ required ".Values.global.configuration.openklantOidcSecret is missing" .Values.global.configuration.openklantOidcSecret | quote }}
+        - clientId: openinwoner
+          name: Open Inwoner
+          enabled: true
+          clientAuthenticatorType: "client-secret"
+          redirectUris:
+            - "{{ required ".Values.global.configuration.openinwonerUrlExtern is missing" .Values.global.configuration.openinwonerUrlExtern }}/*"
+          webOrigins:
+            - "{{ .Values.global.configuration.openinwonerUrlExtern }}/*"
+          secret: {{ required ".Values.global.configuration.openinwonerOidcSecret is missing" .Values.global.configuration.openinwonerOidcSecret | quote }}
+      roles:
+        realm:
+          - name: podiumd-admin
+            description: "PodiumD Administrator"
+            
