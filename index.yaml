@@ -10,6 +10,49 @@ entries:
     urls:
     - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/brp-mock-1.0.0/brp-mock-1.0.0.tgz
     version: 1.0.0
+  podiumd:
+  - apiVersion: v2
+    appVersion: 1.3.0
+    created: "2024-05-23T07:11:53.436904397Z"
+    dependencies:
+    - name: keycloak
+      repository: https://charts.bitnami.com/bitnami
+      version: 21.2.2
+    - condition: openzaak.enabled
+      name: openzaak
+      repository: https://maykinmedia.github.io/charts
+      version: 1.3.1
+    - condition: opennotificaties.enabled
+      name: opennotificaties
+      repository: https://maykinmedia.github.io/charts
+      version: 1.3.1
+    - condition: objecten.enabled
+      name: objecten
+      repository: https://maykinmedia.github.io/charts
+      version: 2.3.1
+    - condition: objecttypen.enabled
+      name: objecttypen
+      repository: https://maykinmedia.github.io/charts
+      version: 1.0.5
+    - condition: openforms.enabled
+      name: openforms
+      repository: https://maykinmedia.github.io/charts
+      version: 1.3.0
+    - condition: openklant.enabled
+      name: openklant
+      repository: https://maykinmedia.github.io/charts
+      version: 1.3.2
+    - condition: openinwoner.enabled
+      name: openinwoner
+      repository: https://maykinmedia.github.io/charts
+      version: 1.3.2
+    description: A Helm chart for PodiumD
+    digest: d37faebd9bec9947660d81c5ecffb9ce77882363fc81b3ccf5211ebe74917e05
+    name: podiumd
+    type: application
+    urls:
+    - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/podiumd-0.1.0/podiumd-0.1.0.tgz
+    version: 0.1.0
   vng-referentielijsten:
   - apiVersion: v2
     appVersion: 0.6.1
@@ -21,6 +64,23 @@ entries:
     - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/vng-referentielijsten-1.0.0/vng-referentielijsten-1.0.0.tgz
     version: 1.0.0
   zaakafhandelcomponent:
+  - apiVersion: v2
+    appVersion: latest
+    created: "2024-05-23T07:11:53.552736038Z"
+    dependencies:
+    - condition: opentelemetry-collector.enabled
+      name: opentelemetry-collector
+      repository: https://open-telemetry.github.io/opentelemetry-helm-charts
+      version: 0.55.2
+    - name: solr
+      repository: https://charts.bitnami.com/bitnami
+      version: 9.1.3
+    description: A Helm chart for installing Zaakafhandelcomponent
+    digest: 90b3eb13b6754af1f6f61d4800c278a970e66ff314cdb19c9b0e3f538c83bd89
+    name: zaakafhandelcomponent
+    urls:
+    - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/zaakafhandelcomponent-0.4.1/zaakafhandelcomponent-0.4.1.tgz
+    version: 0.4.1
   - apiVersion: v2
     appVersion: latest
     created: "2024-05-12T17:08:20.789095111Z"
@@ -38,4 +98,4 @@ entries:
     urls:
     - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/zaakafhandelcomponent-0.4.0/zaakafhandelcomponent-0.4.0.tgz
     version: 0.4.0
-generated: "2024-05-13T09:15:59.961245036Z"
+generated: "2024-05-23T07:11:53.552748521Z"
