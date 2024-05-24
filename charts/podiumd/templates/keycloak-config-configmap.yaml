@@ -137,3 +137,73 @@ data:
             - name: coordinator
             - name: recordmanager
             - name: domein_elk_zaaktype
+      components:
+        org.keycloak.storage.UserStorageProvider:
+          - name: OpenLDAP
+            providerId: ldap
+            config:
+              vendor:
+                - other
+              connectionUrl:
+                - ldap://openldap.openldap:1389
+              connectionPooling:
+                - true
+              bindDn:
+                - cn=admin,dc=dimpact-lab,dc=org
+              bindCredential:
+                - admin
+              editMode:
+                - WRITABLE
+              usersDn:
+                - ou=lab3,dc=dimpact-lab,dc=org
+              usernameLDAPAttribute:
+                - cn
+              rdnLDAPAttribute:
+                - cn
+              uuidLDAPAttribute:
+                - entryUUID
+              userObjectClasses:
+                - inetOrgPerson
+              pagination:
+                - true
+              importEnabled:
+                - false
+              batchSizeForSync:
+                - "1000"
+              fullSyncPeriod:
+                - "-1"
+              changedSyncPeriod:
+                - "-1"
+            subComponents:
+              org.keycloak.storage.ldap.mappers.LDAPStorageMapper:
+                - name: groups
+                  providerId: group-ldap-mapper
+                  config:
+                    groups.dn:
+                      - ou=lab3,dc=dimpact-lab,dc=org
+                    group.name.ldap.attribute:
+                      - cn
+                    group.object.classes:
+                      - groupOfUniqueNames,extensibleObject
+                    preserve.group.inheritance:
+                      - false
+                    ignore.missing.groups:
+                      - false
+                    membership.ldap.attribute:
+                      - uniqueMember
+                    membership.attribute.type:
+                      - DN
+                    membership.user.ldap.attribute:
+                      - cn
+                    mode:
+                      - LDAP_ONLY
+                    user.roles.retrieve.strategy:
+                      - LOAD_GROUPS_BY_MEMBER_ATTRIBUTE
+                    memberof.ldap.attribute:
+                      - memberOf
+                    mapped.group.attributes:
+                      - description,email
+                    drop.non.existing.groups.during.sync:
+                      - true
+                    groups.path:
+                      - "/"
