@@ -78,6 +78,7 @@ data:
           webOrigins:
             - "{{ .Values.global.configuration.openinwonerUrlExtern }}/*"
           secret: {{ required ".Values.global.configuration.openinwonerOidcSecret is missing" .Values.global.configuration.openinwonerOidcSecret | quote }}
+        {{- if .Values.kiss.enabled }}
         - clientId: kiss
           name: Kiss
           enabled: true
@@ -100,6 +101,8 @@ data:
                 lightweight.claim: true
                 userinfo.token.claim: true
                 introspection.token.claim: true
+        {{- end }}
+        {{- if .Values.zac.enabled }}
         - clientId: zac
           name: Zaakafhandelcomponent
           enabled: true
@@ -122,14 +125,19 @@ data:
                 lightweight.claim: true
                 userinfo.token.claim: true
                 introspection.token.claim: true
+        {{- end }}
       roles:
         realm:
           - name: podiumd-admin
             description: PodiumD Administrator
+        {{- if or .Values.kiss.enabled .Values.zac.enabled }}
         client:
+          {{- if .Values.kiss.enabled }}
           kiss:
             - name: Redacteur
             - name: Klantcontactmedewerker
+          {{- end }}
+          {{- if .Values.zac.enabled }}
           zac:
             - name: zaakafhandelcomponent_user
             - name: behandelaar
@@ -137,6 +145,9 @@ data:
             - name: coordinator
             - name: recordmanager
             - name: domein_elk_zaaktype
+          {{- end }}
+        {{- end}}
+      {{- if .Values.zac.enabled }}
       components:
         org.keycloak.storage.UserStorageProvider:
           - name: OpenLDAP
@@ -181,29 +192,14 @@ data:
                   config:
                     groups.dn:
                       - ou=lab3,dc=dimpact-lab,dc=org
-                    group.name.ldap.attribute:
-                      - cn
                     group.object.classes:
                       - groupOfUniqueNames,extensibleObject
                     preserve.group.inheritance:
                       - false
-                    ignore.missing.groups:
-                      - false
                     membership.ldap.attribute:
                       - uniqueMember
-                    membership.attribute.type:
-                      - DN
-                    membership.user.ldap.attribute:
-                      - cn
                     mode:
                       - LDAP_ONLY
-                    user.roles.retrieve.strategy:
-                      - LOAD_GROUPS_BY_MEMBER_ATTRIBUTE
-                    memberof.ldap.attribute:
-                      - memberOf
                     mapped.group.attributes:
                       - description,email
-                    drop.non.existing.groups.during.sync:
-                      - true
-                    groups.path:
-                      - "/"
+      {{- end }}
