@@ -4,7 +4,7 @@ keycloak:
     enabled: false
   keycloakConfigCli:
     enabled: true
-    existingConfigmap: keycloak-config
+    existingConfigmap: podiumd-keycloak-config
 
 openzaak:
   enabled: true
@@ -129,3 +129,9 @@ openinwoner:
     nameOverride: open-inwoner-redis
   elasticsearch:
     nameOverride: open-inwoner-elasticsearch
+
+serviceAccount:
+  create: true
+  automount: true
+  annotations: {}
+  name: ""

@@ -1,11 +1,14 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: keycloak-config
+  name: {{ .Values.keycloak.keycloakConfigCli.existingConfigmap }}
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: keycloak-config-cli
 data:
   realm.yaml: |
       enabled: true
-      realm: "podiumd"
+      realm: podiumd
       displayName: {{ required ".Values.keycloak.config.realmDisplayName is missing" .Values.keycloak.config.realmDisplayName | quote }}
       loginWithEmailAllowed: true
       rememberMe: true
@@ -15,7 +18,7 @@ data:
         - clientId: openzaak
           name: Open Zaak
           enabled: true
-          clientAuthenticatorType: "client-secret"
+          clientAuthenticatorType: client-secret
           redirectUris:
             - "{{ required ".Values.global.configuration.openzaakUrlExtern is missing" .Values.global.configuration.openzaakUrlExtern }}/*"
           webOrigins:
@@ -24,7 +27,7 @@ data:
         - clientId: opennotificaties
           name: Open Notificaties
           enabled: true
-          clientAuthenticatorType: "client-secret"
+          clientAuthenticatorType: client-secret
           redirectUris:
             - "{{ required ".Values.global.configuration.opennotificatiesUrlExtern is missing" .Values.global.configuration.opennotificatiesUrlExtern }}/*"
           webOrigins:
@@ -33,7 +36,7 @@ data:
         - clientId: objecten
           name: Objecten
           enabled: true
-          clientAuthenticatorType: "client-secret"
+          clientAuthenticatorType: client-secret
           redirectUris:
             - "{{ required ".Values.global.configuration.objectenUrlExtern is missing" .Values.global.configuration.objectenUrlExtern }}/*"
           webOrigins:
@@ -42,7 +45,7 @@ data:
         - clientId: objecttypen
           name: Objecttypen
           enabled: true
-          clientAuthenticatorType: "client-secret"
+          clientAuthenticatorType: client-secret
           redirectUris:
             - "{{ required ".Values.global.configuration.objecttypenUrlExtern is missing" .Values.global.configuration.objecttypenUrlExtern }}/*"
           webOrigins:
@@ -51,7 +54,7 @@ data:
         - clientId: openforms
           name: Open Forms
           enabled: true
-          clientAuthenticatorType: "client-secret"
+          clientAuthenticatorType: client-secret
           redirectUris:
             - "{{ required ".Values.global.configuration.openformsUrlExtern is missing" .Values.global.configuration.openformsUrlExtern }}/*"
           webOrigins:
@@ -60,7 +63,7 @@ data:
         - clientId: openklant
           name: Open Klant
           enabled: true
-          clientAuthenticatorType: "client-secret"
+          clientAuthenticatorType: client-secret
           redirectUris:
             - "{{ required ".Values.global.configuration.openklantUrlExtern is missing" .Values.global.configuration.openklantUrlExtern }}/*"
           webOrigins:
@@ -69,14 +72,68 @@ data:
         - clientId: openinwoner
           name: Open Inwoner
           enabled: true
-          clientAuthenticatorType: "client-secret"
+          clientAuthenticatorType: client-secret
           redirectUris:
             - "{{ required ".Values.global.configuration.openinwonerUrlExtern is missing" .Values.global.configuration.openinwonerUrlExtern }}/*"
           webOrigins:
             - "{{ .Values.global.configuration.openinwonerUrlExtern }}/*"
           secret: {{ required ".Values.global.configuration.openinwonerOidcSecret is missing" .Values.global.configuration.openinwonerOidcSecret | quote }}
+        - clientId: kiss
+          name: Kiss
+          enabled: true
+          clientAuthenticatorType: client-secret
+          redirectUris:
+            - "{{ required ".Values.global.configuration.kissUrlExtern is missing" .Values.global.configuration.kissUrlExtern }}/*"
+          webOrigins:
+            - "{{ .Values.global.configuration.kissUrlExtern }}/*"
+          secret: {{ required ".Values.global.configuration.kissOidcSecret is missing" .Values.global.configuration.kissOidcSecret | quote }}
+          protocolMappers:
+            - name: kiss-roles
+              protocol: openid-connect
+              protocolMapper: oidc-usermodel-client-role-mapper
+              config:
+                usermodel.clientRoleMapping.clientId: kiss
+                multivalued: true
+                claim.name: roles
+                id.token.claim: true
+                access.token.claim: true
+                lightweight.claim: true
+                userinfo.token.claim: true
+                introspection.token.claim: true
+        - clientId: zac
+          name: Zaakafhandelcomponent
+          enabled: true
+          clientAuthenticatorType: client-secret
+          redirectUris:
+            - "{{ required ".Values.global.configuration.zacUrlExtern is missing" .Values.global.configuration.zacUrlExtern }}/*"
+          webOrigins:
+            - "{{ .Values.global.configuration.zacUrlExtern }}/*"
+          secret: {{ required ".Values.global.configuration.zacOidcSecret is missing" .Values.global.configuration.zacOidcSecret | quote }}
+          protocolMappers:
+            - name: zac-roles
+              protocol: openid-connect
+              protocolMapper: oidc-usermodel-client-role-mapper
+              config:
+                usermodel.clientRoleMapping.clientId: zac
+                multivalued: true
+                claim.name: roles
+                id.token.claim: true
+                access.token.claim: true
+                lightweight.claim: true
+                userinfo.token.claim: true
+                introspection.token.claim: true
       roles:
         realm:
           - name: podiumd-admin
-            description: "PodiumD Administrator"
-            
+            description: PodiumD Administrator
+        client:
+          kiss:
+            - name: Redacteur
+            - name: Klantcontactmedewerker
+          zac:
+            - name: zaakafhandelcomponent_user
+            - name: behandelaar
+            - name: beheerder
+            - name: coordinator
+            - name: recordmanager
+            - name: domein_elk_zaaktype
