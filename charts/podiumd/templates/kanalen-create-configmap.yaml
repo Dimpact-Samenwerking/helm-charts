@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kanalen-create-config
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+data:
+  kanalen.http: |
+    ### Create Kanaal test
+    POST {{ .Values.global.configuration.notificatiesApi }}kanaal
+    Content-Type: application/json
+    Authorization: Bearer {{`{{jwt}}`}}
+
+    {
+      "naam": "test3"
+    }
