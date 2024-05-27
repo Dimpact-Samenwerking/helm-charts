@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ include "podiumd.fullname" . }}-kanalen-create
+  name: {{ include "podiumd.fullname" . }}-http-request-job
   labels:
     {{- include "podiumd.labels" . | nindent 4 }}
   annotations:
@@ -21,19 +21,20 @@ spec:
         - name: intellij-http-client
           image: jetbrains/intellij-http-client
           args:
+            - --log-level
+            - VERBOSE
             - --env-file
-            - /shared/http-client.private.env.json
+            - /shared/http-client.env.json
             - --env
             - tmp
-            - /config/kanalen.http
+            - /http-request-files/kanalen.http
           volumeMounts:
             - name: shared-volume
               mountPath: /shared
-            - name: config-volume
-              mountPath: /config/kanalen.http
-              subPath: kanalen.http
+            - name: http-request-files-volume
+              mountPath: /http-request-files
       initContainers:
-        - name: jwt-cli
+        - name: create-notificaties-jwt
           image: bitnami/jwt-cli
           args:
             - encode
@@ -44,27 +45,35 @@ spec:
             - --payload
             - client_id={{ .Values.global.configuration.openzaakNotificatiesClientId }}
             - --out
-            - /shared/jwt
+            - /shared/notificaties-jwt
           volumeMounts:
             - mountPath: /shared
               name: shared-volume
-        - name: wait-and-create-http-client-env
+        - name: create-http-client-env-and-wait
           image: alpine
           command: ["/bin/sh", "-c"]
           args:
             - |
-              echo "Wait for 120 seconds ..." && \
-              sleep 120 && \
               apk add --no-cache jq > /dev/null && \
-              JWT_CONTENT=$(cat /shared/jwt) && \
-              echo $(jq -n --arg jwt "$JWT_CONTENT" '{"tmp": {"jwt": $jwt}}') > /shared/http-client.private.env.json
+              NOTIFICATIES_JWT=$(cat /shared/notificaties-jwt) && \
+              echo $(jq -n --arg notificatiesJwt "$NOTIFICATIES_JWT" \
+              '{
+                 "tmp": {
+                   "notificatiesJwt": $notificatiesJwt,
+                   "notificatiesApi" : {{ .Values.global.configuration.notificatiesApi  | quote }}
+                 }
+              }' \
+              ) > /shared/http-client.env.json && \
+              jq . /shared/http-client.env.json && \
+              echo "Wait for 120 seconds ..." && \
+              sleep 120 
           volumeMounts:
             - mountPath: /shared
               name: shared-volume
       volumes:
         - name: shared-volume
           emptyDir: {}
-        - name: config-volume
+        - name: http-request-files-volume
           configMap:
-            name: kanalen-create-config
+            name: {{ include "podiumd.fullname" . }}-http-request-files-configmap
 

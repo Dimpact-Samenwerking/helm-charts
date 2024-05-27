@@ -1,0 +1,109 @@
+### Create Kanaal autorisaties
+POST {{notificatiesApi}}kanaal
+Content-Type: application/json
+Authorization: Bearer {{notificatiesJwt}}
+
+{
+  "naam": "autorisaties"
+}
+
+### Create Kanaal besluiten
+POST {{notificatiesApi}}kanaal
+Content-Type: application/json
+Authorization: Bearer {{notificatiesJwt}}
+
+{
+  "naam": "besluiten",
+  "filters": [
+    "verantwoordelijke_organisatie",
+    "besluittype"
+  ]
+}
+
+### Create Kanaal besluittypen
+POST {{notificatiesApi}}kanaal
+Content-Type: application/json
+Authorization: Bearer {{notificatiesJwt}}
+
+{
+  "naam": "besluittypen",
+  "filters": [
+    "catalogus"
+  ]
+}
+
+### Create Kanaal documenten
+POST {{notificatiesApi}}kanaal
+Content-Type: application/json
+Authorization: Bearer {{notificatiesJwt}}
+
+{
+  "naam": "documenten",
+  "filters": [
+    "bronorganisatie",
+    "informatieobjecttype",
+    "vertrouwelijkheidaanduiding"
+  ]
+}
+
+### Create Kanaal informatieobjecttypen
+POST {{notificatiesApi}}kanaal
+Content-Type: application/json
+Authorization: Bearer {{notificatiesJwt}}
+
+{
+  "naam": "informatieobjecttypen",
+  "filters": [
+    "catalogus"
+  ]
+}
+
+### Create Kanaal objecten
+POST {{notificatiesApi}}kanaal
+Content-Type: application/json
+Authorization: Bearer {{notificatiesJwt}}
+
+{
+  "naam": "objecten",
+  "filters": [
+    "object_type"
+  ]
+}
+
+### Create Kanaal statustypen
+POST {{notificatiesApi}}kanaal
+Content-Type: application/json
+Authorization: Bearer {{notificatiesJwt}}
+
+{
+  "naam": "statustypen",
+  "filters": [
+    "catalogus"
+  ]
+}
+
+### Create Kanaal zaaktypen
+POST {{notificatiesApi}}kanaal
+Content-Type: application/json
+Authorization: Bearer {{notificatiesJwt}}
+
+{
+  "naam": "zaaktypen",
+  "filters": [
+    "catalogus"
+  ]
+}
+
+### Create Kanaal zaken
+POST {{notificatiesApi}}kanaal
+Content-Type: application/json
+Authorization: Bearer {{notificatiesJwt}}
+
+{
+  "naam": "zaken",
+  "filters": [
+    "bronorganisatie",
+    "zaaktype",
+    "vertrouwelijkheidaanduiding"
+  ]
+}
