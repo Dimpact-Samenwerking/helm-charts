@@ -1,0 +1,21 @@
+### Create Kanaal autorisaties
+POST {{ .Values.global.configuration.notificatiesApi }}kanaal
+Content-Type: application/json
+Authorization: Bearer {{`{{jwt}}`}}
+
+{
+  "naam": "autorisaties"
+}
+
+### Create Kanaal besluiten
+POST {{ .Values.global.configuration.notificatiesApi }}kanaal
+Content-Type: application/json
+Authorization: Bearer {{`{{jwt}}`}}
+
+{
+  "naam": "besluiten",
+   "filters": [
+     "verantwoordelijke_organisatie",
+     "besluittype"
+   ]
+}

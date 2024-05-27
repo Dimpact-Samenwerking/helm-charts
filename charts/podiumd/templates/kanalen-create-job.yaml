@@ -38,30 +38,29 @@ spec:
           args:
             - encode
             - --iss
-            - test-client-id
+            - {{ .Values.global.configuration.openzaakNotificatiesClientId }}
             - --secret
-            - test-secret
+            - {{ .Values.global.configuration.openzaakNotificatiesSecret }}
             - --payload
-            - client_id=test-client-id
+            - client_id={{ .Values.global.configuration.openzaakNotificatiesClientId }}
             - --out
             - /shared/jwt
           volumeMounts:
             - mountPath: /shared
               name: shared-volume
-        - name: create-http-client-env
+        - name: wait-and-create-http-client-env
           image: alpine
           command: ["/bin/sh", "-c"]
           args:
             - |
+              echo "Wait for 120 seconds ..." && \
+              sleep 120 && \
               apk add --no-cache jq > /dev/null && \
               JWT_CONTENT=$(cat /shared/jwt) && \
               echo $(jq -n --arg jwt "$JWT_CONTENT" '{"tmp": {"jwt": $jwt}}') > /shared/http-client.private.env.json
           volumeMounts:
             - mountPath: /shared
               name: shared-volume
-        - name: wait-before-start
-          image: alpine
-          command: ["sh", "-c", "sleep 120"]
       volumes:
         - name: shared-volume
           emptyDir: {}

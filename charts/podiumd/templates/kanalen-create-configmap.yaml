@@ -6,11 +6,24 @@ metadata:
     {{- include "podiumd.labels" . | nindent 4 }}
 data:
   kanalen.http: |
-    ### Create Kanaal test
+    ### Create Kanaal autorisaties
     POST {{ .Values.global.configuration.notificatiesApi }}kanaal
     Content-Type: application/json
     Authorization: Bearer {{`{{jwt}}`}}
 
     {
-      "naam": "test3"
+      "naam": "autorisaties"
+    }
+
+    ### Create Kanaal besluiten
+    POST {{ .Values.global.configuration.notificatiesApi }}kanaal
+    Content-Type: application/json
+    Authorization: Bearer {{`{{jwt}}`}}
+
+    {
+      "naam": "besluiten",
+      "filters": [
+        "verantwoordelijke_organisatie",
+        "besluittype"
+      ]
     }
