@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "podiumd.fullname" . }}-http-request-files-configmap
+  name: http-request-files-configmap
   labels:
     {{- include "podiumd.labels" . | nindent 4 }}
 data:

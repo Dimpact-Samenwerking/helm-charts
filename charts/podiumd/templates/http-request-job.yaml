@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ include "podiumd.fullname" . }}-http-request-job
+  name: http-request-job
   labels:
     {{- include "podiumd.labels" . | nindent 4 }}
   annotations:
@@ -60,7 +60,7 @@ spec:
               '{
                  "tmp": {
                    "notificatiesJwt": $notificatiesJwt,
-                   "notificatiesApi" : {{ .Values.global.configuration.notificatiesApi  | quote }}
+                   "notificatiesApi" : "{{ printf "http://%s.%s.svc.cluster.local/api/v1/" .Values.opennotificaties.fullnameOverride .Release.Namespace }}"
                  }
               }' \
               ) > /shared/http-client.env.json && \
@@ -75,5 +75,5 @@ spec:
           emptyDir: {}
         - name: http-request-files-volume
           configMap:
-            name: {{ include "podiumd.fullname" . }}-http-request-files-configmap
+            name: http-request-files-configmap
 

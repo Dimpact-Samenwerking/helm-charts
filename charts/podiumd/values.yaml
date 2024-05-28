@@ -4,18 +4,19 @@ keycloak:
     enabled: false
   keycloakConfigCli:
     enabled: true
-    existingConfigmap: podiumd-keycloak-config
+    existingConfigmap: keycloak-config
 
 openzaak:
   enabled: true
+  nameOverride: open-zaak
+  fullnameOverride: open-zaak
+  image:
+    tag: 1.12.3
   configuration:
     initContainer:
       enabled: true
     cronjob:
       enabled: false
-  nameOverride: open-zaak
-  image:
-    tag: 1.12.3
   resources:
     requests:
       cpu: 100m
@@ -24,15 +25,17 @@ openzaak:
     enabled: false
   redis:
     nameOverride: open-zaak-redis
+    fullnameOverride: open-zaak-redis
 
 opennotificaties:
   enabled: true
+  nameOverride: open-notificaties
+  fullnameOverride: open-notificaties
   configuration:
     initContainer:
       enabled: true
     cronjob:
       enabled: false
-  nameOverride: open-notificaties
   image:
     tag: 1.5.2
   resources:
@@ -43,15 +46,19 @@ opennotificaties:
     enabled: false
   rabbitmq:
     nameOverride: open-notificaties-rabbitmq
+    fullnameOverride: open-notificaties-rabbitmq
     auth:
       username: guest
       password: guest
       erlangCookie: SUPER-SECRET
   redis:
     nameOverride: open-notificaties-redis
+    fullnameOverride: open-notificaties-redis
 
 objecten:
   enabled: true
+  nameOverride: objecten
+  fullnameOverride: objecten
   image:
     tag: 2.3.1
   resources:
@@ -64,9 +71,12 @@ objecten:
     enabled: false
   redis:
     nameOverride: objecten-redis
+    fullnameOverride: objecten-redis
 
 objecttypen:
   enabled: true
+  nameOverride: objecttypen
+  fullnameOverride: objecttypen
   image:
     tag: 2.1.2
   resources:
@@ -80,9 +90,10 @@ objecttypen:
 
 openforms:
   enabled: true
+  nameOverride: open-forms
+  fullnameOverride: open-forms
   image:
     tag: 2.6.6
-  nameOverride: open-forms
   resources:
     requests:
       cpu: 10m
@@ -95,12 +106,14 @@ openforms:
     enabled: false
   redis:
     nameOverride: open-forms-redis
+    fullnameOverride: open-forms-redis
 
 openklant:
   enabled: true
+  nameOverride: open-klant
+  fullnameOverride: open-klant
   image:
     tag: 2.0.0
-  nameOverride: open-klant
   resources:
     requests:
       cpu: 10m
@@ -111,12 +124,14 @@ openklant:
       patchAdmin: false
   redis:
     nameOverride: open-klant-redis
+    fullnameOverride: open-klant-redis
 
 openinwoner:
   enabled: true
+  nameOverride: open-inwoner
+  fullnameOverride: open-inwoner
   image:
     tag: 1.16.5
-  nameOverride: open-inwoner
   resources:
     requests:
       cpu: 10m
@@ -127,8 +142,10 @@ openinwoner:
       patchAdmin: false
   redis:
     nameOverride: open-inwoner-redis
+    fullnameOverride: open-inwoner-redis
   elasticsearch:
     nameOverride: open-inwoner-elasticsearch
+    fullnameOverride: open-inwoner-elasticsearch
 
 serviceAccount:
   create: true
