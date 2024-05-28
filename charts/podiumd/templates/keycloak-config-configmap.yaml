@@ -16,79 +16,93 @@ data:
       attributes:
         frontendUrl: {{ required ".Values.keycloak.config.realmFrontendUrl is missing" .Values.keycloak.config.realmFrontendUrl | quote }}
       clients:
+        {{- if .Values.openzaak.enabled }}
         - clientId: openzaak
           name: Open Zaak
           enabled: true
           clientAuthenticatorType: client-secret
           redirectUris:
-            - "{{ required ".Values.global.configuration.openzaakUrlExtern is missing" .Values.global.configuration.openzaakUrlExtern }}/*"
+            - "{{ required ".Values.global.configuration.openzaakUrl is missing" .Values.global.configuration.openzaakUrl }}/*"
           webOrigins:
-            - "{{ .Values.global.configuration.openzaakUrlExtern }}/*"
-          secret: {{ required ".Values.global.configuration.openzaakOidcSecret is missing" .Values.global.configuration.openzaakOidcSecret | quote }}
+            - "{{ .Values.global.configuration.openzaakUrl }}/*"
+          secret: {{ required ".Values.openzaak.configuration.oidcSecret" .Values.openzaak.configuration.oidcSecret | quote }}
+        {{- end }}
+        {{- if .Values.opennotificaties.enabled }}
         - clientId: opennotificaties
           name: Open Notificaties
           enabled: true
           clientAuthenticatorType: client-secret
           redirectUris:
-            - "{{ required ".Values.global.configuration.opennotificatiesUrlExtern is missing" .Values.global.configuration.opennotificatiesUrlExtern }}/*"
+            - "{{ required ".Values.global.configuration.opennotificatiesUrl is missing" .Values.global.configuration.opennotificatiesUrl }}/*"
           webOrigins:
-            - "{{ .Values.global.configuration.opennotificatiesUrlExtern }}/*"
-          secret: {{ required ".Values.global.configuration.opennotificatiesOidcSecret is missing" .Values.global.configuration.opennotificatiesOidcSecret | quote }}
+            - "{{ .Values.global.configuration.opennotificatiesUrl }}/*"
+          secret: {{ required ".Values.opennotificaties.configuration.oidcSecret is missing" .Values.opennotificaties.configuration.oidcSecret | quote }}
+        {{- end }}
+        {{- if .Values.objecten.enabled }}
         - clientId: objecten
           name: Objecten
           enabled: true
           clientAuthenticatorType: client-secret
           redirectUris:
-            - "{{ required ".Values.global.configuration.objectenUrlExtern is missing" .Values.global.configuration.objectenUrlExtern }}/*"
+            - "{{ required ".Values.global.configuration.objectenUrl is missing" .Values.global.configuration.objectenUrl }}/*"
           webOrigins:
-            - "{{ .Values.global.configuration.objectenUrlExtern }}/*"
-          secret: {{ required ".Values.global.configuration.objectenOidcSecret is missing" .Values.global.configuration.objectenOidcSecret | quote }}
+            - "{{ .Values.global.configuration.objectenUrl }}/*"
+          secret: {{ required ".Values.objecten.configuration.oidcSecret is missing" .Values.objecten.configuration.oidcSecret | quote }}
+        {{- end }}
+        {{- if .Values.objecttypen.enabled }}
         - clientId: objecttypen
           name: Objecttypen
           enabled: true
           clientAuthenticatorType: client-secret
           redirectUris:
-            - "{{ required ".Values.global.configuration.objecttypenUrlExtern is missing" .Values.global.configuration.objecttypenUrlExtern }}/*"
+            - "{{ required ".Values.global.configuration.objecttypenUrl is missing" .Values.global.configuration.objecttypenUrl }}/*"
           webOrigins:
-            - "{{ .Values.global.configuration.objecttypenUrlExtern }}/*"
-          secret: {{ required ".Values.global.configuration.objecttypenOidcSecret is missing" .Values.global.configuration.objecttypenOidcSecret | quote }}
+            - "{{ .Values.global.configuration.objecttypenUrl }}/*"
+          secret: {{ required ".Values.objecttypen.configuration.oidcSecret is missing" .Values.objecttypen.configuration.oidcSecret | quote }}
+        {{- end }}
+        {{- if .Values.openforms.enabled }}
         - clientId: openforms
           name: Open Forms
           enabled: true
           clientAuthenticatorType: client-secret
           redirectUris:
-            - "{{ required ".Values.global.configuration.openformsUrlExtern is missing" .Values.global.configuration.openformsUrlExtern }}/*"
+            - "{{ required ".Values.global.configuration.openformsUrl is missing" .Values.global.configuration.openformsUrl }}/*"
           webOrigins:
-            - "{{ .Values.global.configuration.openformsUrlExtern }}/*"
-          secret: {{ required ".Values.global.configuration.openformsOidcSecret is missing" .Values.global.configuration.openformsOidcSecret | quote }}
+            - "{{ .Values.global.configuration.openformsUrl }}/*"
+          secret: {{ required ".Values.openforms.configuration.oidcSecret is missing" .Values.openforms.configuration.oidcSecret | quote }}
+        {{- end }}
+        {{- if .Values.openklant.enabled }}
         - clientId: openklant
           name: Open Klant
           enabled: true
           clientAuthenticatorType: client-secret
           redirectUris:
-            - "{{ required ".Values.global.configuration.openklantUrlExtern is missing" .Values.global.configuration.openklantUrlExtern }}/*"
+            - "{{ required ".Values.global.configuration.openklantUrl is missing" .Values.global.configuration.openklantUrl }}/*"
           webOrigins:
-            - "{{ .Values.global.configuration.openklantUrlExtern }}/*"
-          secret: {{ required ".Values.global.configuration.openklantOidcSecret is missing" .Values.global.configuration.openklantOidcSecret | quote }}
+            - "{{ .Values.global.configuration.openklantUrl }}/*"
+          secret: {{ required ".Values.openklant.configuration.oidcSecret is missing" .Values.openklant.configuration.oidcSecret | quote }}
+        {{- end }}
+        {{- if .Values.openinwoner.enabled }}
         - clientId: openinwoner
           name: Open Inwoner
           enabled: true
           clientAuthenticatorType: client-secret
           redirectUris:
-            - "{{ required ".Values.global.configuration.openinwonerUrlExtern is missing" .Values.global.configuration.openinwonerUrlExtern }}/*"
+            - "{{ required ".Values.global.configuration.openinwonerUrl is missing" .Values.global.configuration.openinwonerUrl }}/*"
           webOrigins:
-            - "{{ .Values.global.configuration.openinwonerUrlExtern }}/*"
-          secret: {{ required ".Values.global.configuration.openinwonerOidcSecret is missing" .Values.global.configuration.openinwonerOidcSecret | quote }}
+            - "{{ .Values.global.configuration.openinwonerUrl }}/*"
+          secret: {{ required ".Values.openinwoner.configuration.oidcSecret is missing" .Values.openinwoner.configuration.oidcSecret | quote }}
+        {{- end }}
         {{- if .Values.kiss.enabled }}
         - clientId: kiss
           name: Kiss
           enabled: true
           clientAuthenticatorType: client-secret
           redirectUris:
-            - "{{ required ".Values.global.configuration.kissUrlExtern is missing" .Values.global.configuration.kissUrlExtern }}/*"
+            - "{{ required ".Values.global.configuration.kissUrl is missing" .Values.global.configuration.kissUrl }}/*"
           webOrigins:
-            - "{{ .Values.global.configuration.kissUrlExtern }}/*"
-          secret: {{ required ".Values.global.configuration.kissOidcSecret is missing" .Values.global.configuration.kissOidcSecret | quote }}
+            - "{{ .Values.global.configuration.kissUrl }}/*"
+          secret: {{ required ".Values.kiss.configuration.oidcSecret is missing" .Values.kiss.configuration.oidcSecret | quote }}
           protocolMappers:
             - name: kiss-roles
               protocol: openid-connect
@@ -109,10 +123,10 @@ data:
           enabled: true
           clientAuthenticatorType: client-secret
           redirectUris:
-            - "{{ required ".Values.global.configuration.zacUrlExtern is missing" .Values.global.configuration.zacUrlExtern }}/*"
+            - "{{ required ".Values.global.configuration.zacUrl is missing" .Values.global.configuration.zacUrl }}/*"
           webOrigins:
-            - "{{ .Values.global.configuration.zacUrlExtern }}/*"
-          secret: {{ required ".Values.global.configuration.zacOidcSecret is missing" .Values.global.configuration.zacOidcSecret | quote }}
+            - "{{ .Values.global.configuration.zacUrl }}/*"
+          secret: {{ required ".Values.zac.configuration.oidcSecret is missing" .Values.zac.configuration.oidcSecret | quote }}
           protocolMappers:
             - name: zac-roles
               protocol: openid-connect
@@ -204,4 +218,4 @@ data:
                     mapped.group.attributes:
                       - description,email
       {{- end }}
-  {{- end }}
+      {{- end }}
