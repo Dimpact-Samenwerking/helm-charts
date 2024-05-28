@@ -1,5 +1,10 @@
+configuration:
+  enabled: true
+
 keycloak:
   enabled: true
+  nameOverride: keycloak
+  fullnameOverride: keycloak
   postgresql:
     enabled: false
   keycloakConfigCli:
