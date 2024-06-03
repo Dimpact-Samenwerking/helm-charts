@@ -10,47 +10,48 @@ dependencies:
     repository: "@bitnami"
     condition: keycloak.enabled
     tags:
-      - formulier
-      - contact
-      - portaal
+      - formulierEsuite
+      - contactEsuite
+      - portaalEsuite
       - zaak
   - name: openzaak
-    version: 1.3.1
+    version: 1.3.2
     repository: "@maykinmedia"
     condition: openzaak.enabled
     tags:
       - zaak
   - name: opennotificaties
-    version: 1.3.1
+    version: 1.3.2
     repository: "@maykinmedia"
     condition: opennotificaties.enabled
     tags:
-      - formulier
+      - formulierEsuite
+      - contactEsuite
+      - portaalEsuite
       - zaak
   - name: objecten
     version: 2.3.1
     repository: "@maykinmedia"
     condition: objecten.enabled
     tags:
-      - formulier
-      - contact
+      - formulierEsuite
+      - contactEsuite
       - zaak
   - name: objecttypen
     version: 1.0.5
     repository: "@maykinmedia"
-    condition: objecttypen.enabled
+    condition: objecten.enabled
     tags:
-      - formulier
-      - contact
+      - formulierEsuite
+      - contactEsuite
       - zaak
   - name: openforms
     version: 1.3.0
     repository: "@maykinmedia"
     condition: openforms.enabled
     tags:
-      - formulier
-      - contact
-      - portaal
+      - formulierEsuite
+      - portaalEsuite
       - zaak
   - name: openklant
     version: 1.3.2
@@ -61,11 +62,10 @@ dependencies:
     repository: "@maykinmedia"
     condition: openinwoner.enabled
     tags:
-      - portaal
-      - zaak
+      - portaalEsuite
   - name: clamav
     version: 3.1.0
     repository: "@wiremind"
     condition: clamav.enabled
     tags:
-      - formulier
+      - formulierEsuite

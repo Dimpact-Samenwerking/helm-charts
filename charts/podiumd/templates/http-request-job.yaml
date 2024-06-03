@@ -1,4 +1,4 @@
-{{- if .Values.global.configuration.enabled -}}
+{{- if and .Values.global.configuration.enabled .Values.opennotificaties.configuration.enabled -}}
 apiVersion: batch/v1
 kind: Job
 metadata:

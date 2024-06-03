@@ -1,4 +1,4 @@
-{{- if .Values.keycloak.keycloakConfigCli.enabled -}}
+{{- if and .Values.global.configuration.enabled .Values.keycloak.keycloakConfigCli.enabled -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -16,7 +16,7 @@ data:
       attributes:
         frontendUrl: {{ required ".Values.keycloak.config.realmFrontendUrl is missing" .Values.keycloak.config.realmFrontendUrl | quote }}
       clients:
-        {{- if .Values.openzaak.enabled }}
+        {{- if and .Values.tags.zaak .Values.openzaak.enabled }}
         - clientId: openzaak
           name: Open Zaak
           enabled: true
@@ -38,7 +38,7 @@ data:
             - "{{ .Values.opennotificaties.configuration.url }}/*"
           secret: {{ required ".Values.opennotificaties.configuration.oidcSecret is missing" .Values.opennotificaties.configuration.oidcSecret | quote }}
         {{- end }}
-        {{- if .Values.objecten.enabled }}
+        {{- if and (or .Values.tags.formulierEsuite .Values.tags.contactEsuite .Values.tags.zaak) .Values.objecten.enabled }}
         - clientId: objecten
           name: Objecten
           enabled: true
@@ -48,8 +48,6 @@ data:
           webOrigins:
             - "{{ .Values.objecten.configuration.url }}/*"
           secret: {{ required ".Values.objecten.configuration.oidcSecret is missing" .Values.objecten.configuration.oidcSecret | quote }}
-        {{- end }}
-        {{- if .Values.objecttypen.enabled }}
         - clientId: objecttypen
           name: Objecttypen
           enabled: true
@@ -60,7 +58,7 @@ data:
             - "{{ .Values.objecttypen.configuration.url }}/*"
           secret: {{ required ".Values.objecttypen.configuration.oidcSecret is missing" .Values.objecttypen.configuration.oidcSecret | quote }}
         {{- end }}
-        {{- if .Values.openforms.enabled }}
+        {{- if and (or .Values.tags.formulierEsuite .Values.tags.portaalEsuite .Values.tags.zaak) .Values.openforms.enabled }}
         - clientId: openforms
           name: Open Forms
           enabled: true
@@ -82,7 +80,7 @@ data:
             - "{{ .Values.openklant.configuration.url }}/*"
           secret: {{ required ".Values.openklant.configuration.oidcSecret is missing" .Values.openklant.configuration.oidcSecret | quote }}
         {{- end }}
-        {{- if .Values.openinwoner.enabled }}
+        {{- if and .Values.tags.portaalEsuite .Values.openinwoner.enabled }}
         - clientId: openinwoner
           name: Open Inwoner
           enabled: true
@@ -93,7 +91,7 @@ data:
             - "{{ .Values.openinwoner.configuration.url }}/*"
           secret: {{ required ".Values.openinwoner.configuration.oidcSecret is missing" .Values.openinwoner.configuration.oidcSecret | quote }}
         {{- end }}
-        {{- if .Values.kiss.enabled }}
+        {{- if and .Values.tags.contactEsuite .Values.kiss.enabled }}
         - clientId: kiss
           name: Kiss
           enabled: true

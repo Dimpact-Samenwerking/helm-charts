@@ -1,7 +1,7 @@
 tags:
-  formulier: true
-  contact: false
-  portaal: false
+  formulierEsuite: false
+  contactEsuite: false
+  portaalEsuite: false
   zaak: false
 
 global:
@@ -99,7 +99,7 @@ openforms:
   nameOverride: open-forms
   fullnameOverride: open-forms
   image:
-    tag: 2.6.6
+    tag: 2.6.7
   resources:
     requests:
       cpu: 10m
@@ -109,6 +109,8 @@ openforms:
       forceOtpAdmin: false
       patchAdmin: false
   flower:
+    enabled: false
+  beat:
     enabled: false
   redis:
     nameOverride: open-forms-redis
