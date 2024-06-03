@@ -3,6 +3,8 @@ This repository contains Helm charts for:
 
 - [zac](./charts/zac/README.md)
 - [brp-mock](./charts/brp-mock/README.md)
+- [podiumd](./charts/podiumd/README.md)
+- [vng-referentielijsten](./charts/vng-referentielijsten/README.md)
 
 
 ```bash
