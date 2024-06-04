@@ -2,11 +2,11 @@ apiVersion: v2
 name: podiumd
 description: A Helm chart for PodiumD
 type: application
-version: 0.1.0
+version: 1.0.0-alpha.1
 appVersion: "1.3.0"
 dependencies:
   - name: keycloak
-    version: 21.2.2
+    version: ~21.2.2
     repository: "@bitnami"
     condition: keycloak.enabled
     tags:
@@ -15,13 +15,13 @@ dependencies:
       - portaalEsuite
       - zaak
   - name: openzaak
-    version: 1.3.2
+    version: ~1.3.2
     repository: "@maykinmedia"
     condition: openzaak.enabled
     tags:
       - zaak
   - name: opennotificaties
-    version: 1.3.2
+    version: ~1.3.2
     repository: "@maykinmedia"
     condition: opennotificaties.enabled
     tags:
@@ -30,7 +30,7 @@ dependencies:
       - portaalEsuite
       - zaak
   - name: objecten
-    version: 2.3.1
+    version: ~2.3.1
     repository: "@maykinmedia"
     condition: objecten.enabled
     tags:
@@ -38,7 +38,7 @@ dependencies:
       - contactEsuite
       - zaak
   - name: objecttypen
-    version: 1.0.5
+    version: ~1.0.5
     repository: "@maykinmedia"
     condition: objecten.enabled
     tags:
@@ -46,7 +46,7 @@ dependencies:
       - contactEsuite
       - zaak
   - name: openforms
-    version: 1.3.0
+    version: ~1.3.0
     repository: "@maykinmedia"
     condition: openforms.enabled
     tags:
@@ -54,17 +54,17 @@ dependencies:
       - portaalEsuite
       - zaak
   - name: openklant
-    version: 1.3.2
+    version: ~1.3.2
     repository: "@maykinmedia"
     condition: openklant.enabled
   - name: openinwoner
-    version: 1.3.2
+    version: ~1.3.2
     repository: "@maykinmedia"
     condition: openinwoner.enabled
     tags:
       - portaalEsuite
   - name: clamav
-    version: 3.1.0
+    version: ~3.1.0
     repository: "@wiremind"
     condition: clamav.enabled
     tags:
