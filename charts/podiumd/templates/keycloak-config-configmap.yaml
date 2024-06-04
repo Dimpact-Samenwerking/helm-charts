@@ -10,93 +10,84 @@ data:
   realm.yaml: |
       enabled: true
       realm: podiumd
-      displayName: {{ required ".Values.keycloak.config.realmDisplayName is missing" .Values.keycloak.config.realmDisplayName | quote }}
+      displayName: {{ .Values.keycloak.config.realmDisplayName | quote }}
       loginWithEmailAllowed: true
       rememberMe: true
       attributes:
-        frontendUrl: {{ required ".Values.keycloak.config.realmFrontendUrl is missing" .Values.keycloak.config.realmFrontendUrl | quote }}
+        frontendUrl: {{ .Values.keycloak.config.realmFrontendUrl | quote }}
       clients:
-        {{- if .Values.tags.zaak }}
         - clientId: openzaak
           name: Open Zaak
           enabled: true
           clientAuthenticatorType: client-secret
           redirectUris:
-            - "{{ required ".Values.openzaak.configuration.url is missing" .Values.openzaak.configuration.url }}/*"
+            - "{{ .Values.openzaak.configuration.url }}/*"
           webOrigins:
             - "{{ .Values.openzaak.configuration.url }}/*"
-          secret: {{ required ".Values.openzaak.configuration.oidcSecret" .Values.openzaak.configuration.oidcSecret | quote }}
-        {{- end }}
+          secret: {{ .Values.openzaak.configuration.oidcSecret | quote }}
         - clientId: opennotificaties
           name: Open Notificaties
           enabled: true
           clientAuthenticatorType: client-secret
           redirectUris:
-            - "{{ required ".Values.opennotificaties.configuration.url is missing" .Values.opennotificaties.configuration.url }}/*"
+            - "{{ .Values.opennotificaties.configuration.url }}/*"
           webOrigins:
             - "{{ .Values.opennotificaties.configuration.url }}/*"
-          secret: {{ required ".Values.opennotificaties.configuration.oidcSecret is missing" .Values.opennotificaties.configuration.oidcSecret | quote }}
-        {{- if or .Values.tags.formulierEsuite .Values.tags.contactEsuite .Values.tags.zaak }}
+          secret: {{ .Values.opennotificaties.configuration.oidcSecret | quote }}
         - clientId: objecten
           name: Objecten
           enabled: true
           clientAuthenticatorType: client-secret
           redirectUris:
-            - "{{ required ".Values.objecten.configuration.url is missing" .Values.objecten.configuration.url }}/*"
+            - "{{ .Values.objecten.configuration.url }}/*"
           webOrigins:
             - "{{ .Values.objecten.configuration.url }}/*"
-          secret: {{ required ".Values.objecten.configuration.oidcSecret is missing" .Values.objecten.configuration.oidcSecret | quote }}
+          secret: {{ .Values.objecten.configuration.oidcSecret | quote }}
         - clientId: objecttypen
           name: Objecttypen
           enabled: true
           clientAuthenticatorType: client-secret
           redirectUris:
-            - "{{ required ".Values.objecttypen.configuration.url is missing" .Values.objecttypen.configuration.url }}/*"
+            - "{{ .Values.objecttypen.configuration.url }}/*"
           webOrigins:
             - "{{ .Values.objecttypen.configuration.url }}/*"
-          secret: {{ required ".Values.objecttypen.configuration.oidcSecret is missing" .Values.objecttypen.configuration.oidcSecret | quote }}
-        {{- end }}
-        {{- if or .Values.tags.formulierEsuite .Values.tags.portaalEsuite .Values.tags.zaak }}
-        - clientId: openforms
-          name: Open Forms
-          enabled: true
-          clientAuthenticatorType: client-secret
-          redirectUris:
-            - "{{ required ".Values.openforms.configuration.url is missing" .Values.openforms.configuration.url }}/*"
-          webOrigins:
-            - "{{ .Values.openforms.configuration.url }}/*"
-          secret: {{ required ".Values.openforms.configuration.oidcSecret is missing" .Values.openforms.configuration.oidcSecret | quote }}
-        {{- end }}
+          secret: {{ .Values.objecttypen.configuration.oidcSecret | quote }}
         - clientId: openklant
           name: Open Klant
           enabled: true
           clientAuthenticatorType: client-secret
           redirectUris:
-            - "{{ required ".Values.openklant.configuration.url is missing" .Values.openklant.configuration.url }}/*"
+            - "{{ .Values.openklant.configuration.url }}/*"
           webOrigins:
             - "{{ .Values.openklant.configuration.url }}/*"
-          secret: {{ required ".Values.openklant.configuration.oidcSecret is missing" .Values.openklant.configuration.oidcSecret | quote }}
-        {{- if .Values.tags.portaalEsuite }}
+          secret: {{ .Values.openklant.configuration.oidcSecret | quote }}
+        - clientId: openforms
+          name: Open Forms
+          enabled: true
+          clientAuthenticatorType: client-secret
+          redirectUris:
+            - "{{ .Values.openforms.configuration.url }}/*"
+          webOrigins:
+            - "{{ .Values.openforms.configuration.url }}/*"
+          secret: {{ .Values.openforms.configuration.oidcSecret | quote }}
         - clientId: openinwoner
           name: Open Inwoner
           enabled: true
           clientAuthenticatorType: client-secret
           redirectUris:
-            - "{{ required ".Values.openinwoner.configuration.url is missing" .Values.openinwoner.configuration.url }}/*"
+            - "{{ .Values.openinwoner.configuration.url }}/*"
           webOrigins:
             - "{{ .Values.openinwoner.configuration.url }}/*"
-          secret: {{ required ".Values.openinwoner.configuration.oidcSecret is missing" .Values.openinwoner.configuration.oidcSecret | quote }}
-        {{- end }}
-        {{- if .Values.tags.contactEsuite }}
+          secret: {{ .Values.openinwoner.configuration.oidcSecret | quote }}
         - clientId: kiss
           name: Kiss
           enabled: true
           clientAuthenticatorType: client-secret
           redirectUris:
-            - "{{ required ".Values.kiss.configuration.url is missing" .Values.kiss.configuration.url }}/*"
+            - "{{ .Values.kiss.configuration.url }}/*"
           webOrigins:
             - "{{ .Values.kiss.configuration.url }}/*"
-          secret: {{ required ".Values.kiss.configuration.oidcSecret is missing" .Values.kiss.configuration.oidcSecret | quote }}
+          secret: {{ .Values.kiss.configuration.oidcSecret | quote }}
           protocolMappers:
             - name: kiss-roles
               protocol: openid-connect
@@ -110,17 +101,15 @@ data:
                 lightweight.claim: true
                 userinfo.token.claim: true
                 introspection.token.claim: true
-        {{- end }}
-        {{- if .Values.tags.zaak }}
         - clientId: zac
           name: Zaakafhandelcomponent
           enabled: true
           clientAuthenticatorType: client-secret
           redirectUris:
-            - "{{ required ".Values.zac.configuration.url is missing" .Values.zac.configuration.url }}/*"
+            - "{{ .Values.zac.configuration.url }}/*"
           webOrigins:
             - "{{ .Values.zac.configuration.url }}/*"
-          secret: {{ required ".Values.zac.configuration.oidcSecret is missing" .Values.zac.configuration.oidcSecret | quote }}
+          secret: {{ .Values.zac.configuration.oidcSecret | quote }}
           protocolMappers:
             - name: zac-roles
               protocol: openid-connect
@@ -134,19 +123,14 @@ data:
                 lightweight.claim: true
                 userinfo.token.claim: true
                 introspection.token.claim: true
-        {{- end }}
       roles:
         realm:
           - name: podiumd-admin
             description: PodiumD Administrator
-        {{- if or .Values.tags.contactEsuite .Values.tags.zaak }}
         client:
-          {{- if .Values.tags.contactEsuite }}
           kiss:
             - name: Redacteur
             - name: Klantcontactmedewerker
-          {{- end }}
-          {{- if .Values.tags.zaak }}
           zac:
             - name: zaakafhandelcomponent_user
             - name: behandelaar
@@ -154,8 +138,6 @@ data:
             - name: coordinator
             - name: recordmanager
             - name: domein_elk_zaaktype
-          {{- end }}
-        {{- end}}
       {{- if .Values.tags.zaak }}
       components:
         org.keycloak.storage.UserStorageProvider:

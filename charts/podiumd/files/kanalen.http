@@ -7,6 +7,12 @@ Authorization: Bearer {{notificatiesJwt}}
   "naam": "autorisaties"
 }
 
+> {%
+    client.test("Moet kanaal 'autorisaties' aanmaken", function () {
+        client.assert(response.status === 201)
+    });
+%}
+
 ### Create Kanaal besluiten
 POST {{notificatiesApi}}kanaal
 Content-Type: application/json
@@ -20,6 +26,12 @@ Authorization: Bearer {{notificatiesJwt}}
   ]
 }
 
+> {%
+    client.test("Moet kanaal 'besluiten' aanmaken", function () {
+        client.assert(response.status === 201)
+    });
+%}
+
 ### Create Kanaal besluittypen
 POST {{notificatiesApi}}kanaal
 Content-Type: application/json
@@ -31,6 +43,12 @@ Authorization: Bearer {{notificatiesJwt}}
     "catalogus"
   ]
 }
+
+> {%
+    client.test("Moet kanaal 'besluittypen' aanmaken", function () {
+        client.assert(response.status === 201)
+    });
+%}
 
 ### Create Kanaal documenten
 POST {{notificatiesApi}}kanaal
@@ -46,6 +64,12 @@ Authorization: Bearer {{notificatiesJwt}}
   ]
 }
 
+> {%
+    client.test("Moet kanaal 'documenten' aanmaken", function () {
+        client.assert(response.status === 201)
+    });
+%}
+
 ### Create Kanaal informatieobjecttypen
 POST {{notificatiesApi}}kanaal
 Content-Type: application/json
@@ -57,6 +81,12 @@ Authorization: Bearer {{notificatiesJwt}}
     "catalogus"
   ]
 }
+
+> {%
+    client.test("Moet kanaal 'informatieobjecttypen' aanmaken", function () {
+        client.assert(response.status === 201)
+    });
+%}
 
 ### Create Kanaal objecten
 POST {{notificatiesApi}}kanaal
@@ -70,6 +100,12 @@ Authorization: Bearer {{notificatiesJwt}}
   ]
 }
 
+> {%
+    client.test("Moet kanaal 'objecten' aanmaken", function () {
+        client.assert(response.status === 201)
+    });
+%}
+
 ### Create Kanaal statustypen
 POST {{notificatiesApi}}kanaal
 Content-Type: application/json
@@ -82,6 +118,12 @@ Authorization: Bearer {{notificatiesJwt}}
   ]
 }
 
+> {%
+    client.test("Moet kanaal 'statustypen' aanmaken", function () {
+        client.assert(response.status === 201)
+    });
+%}
+
 ### Create Kanaal zaaktypen
 POST {{notificatiesApi}}kanaal
 Content-Type: application/json
@@ -93,6 +135,12 @@ Authorization: Bearer {{notificatiesJwt}}
     "catalogus"
   ]
 }
+
+> {%
+    client.test("Moet kanaal 'zaaktypen' aanmaken", function () {
+        client.assert(response.status === 201)
+    });
+%}
 
 ### Create Kanaal zaken
 POST {{notificatiesApi}}kanaal
@@ -107,3 +155,9 @@ Authorization: Bearer {{notificatiesJwt}}
     "vertrouwelijkheidaanduiding"
   ]
 }
+
+> {%
+    client.test("Moet kanaal ´zaken' aanmaken", function () {
+        client.assert(response.status === 201)
+    });
+%}

@@ -9,8 +9,8 @@ metadata:
     "helm.sh/hook": post-install
     "helm.sh/hook-weight": "-5"
 spec:
-  backoffLimit: 1
-  ttlSecondsAfterFinished: 60
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 3600
   template:
     metadata:
       labels:

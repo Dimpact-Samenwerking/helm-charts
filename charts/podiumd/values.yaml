@@ -9,20 +9,25 @@ global:
     enabled: true
 
 keycloak:
-  nameOverride: keycloak
-  fullnameOverride: keycloak
-  postgresql:
-    enabled: false
+  image:
+    tag: 24.0.4-debian-12-r1
+  config:
+    realmDisplayName: ""
+    realmFrontendUrl: ""
   keycloakConfigCli:
     enabled: true
     existingConfigmap: keycloak-config
+  postgresql:
+    enabled: false
+  nameOverride: keycloak
+  fullnameOverride: keycloak
 
 openzaak:
-  nameOverride: open-zaak
-  fullnameOverride: open-zaak
   image:
     tag: 1.12.3
   configuration:
+    url: ""
+    oidcSecret: ""
     initContainer:
       enabled: true
     cronjob:
@@ -31,6 +36,8 @@ openzaak:
     requests:
       cpu: 100m
       memory: 400Mi
+  nameOverride: open-zaak
+  fullnameOverride: open-zaak
   flower:
     enabled: false
   redis:
@@ -38,19 +45,21 @@ openzaak:
     fullnameOverride: open-zaak-redis
 
 opennotificaties:
-  nameOverride: open-notificaties
-  fullnameOverride: open-notificaties
+  image:
+    tag: 1.6.0
   configuration:
+    url: ""
+    oidcSecret: ""
     initContainer:
       enabled: true
     cronjob:
       enabled: false
-  image:
-    tag: 1.5.2
   resources:
     requests:
       cpu: 10m
       memory: 200Mi
+  nameOverride: open-notificaties
+  fullnameOverride: open-notificaties
   flower:
     enabled: false
   rabbitmq:
@@ -65,16 +74,19 @@ opennotificaties:
     fullnameOverride: open-notificaties-redis
 
 objecten:
-  nameOverride: objecten
-  fullnameOverride: objecten
   image:
     tag: 2.3.1
+  configuration:
+    url: ""
+    oidcSecret: ""
+  settings:
+    disable2fa: true
   resources:
     requests:
       cpu: 10m
       memory: 250Mi
-  settings:
-    disable2fa: true
+  nameOverride: objecten
+  fullnameOverride: objecten
   flower:
     enabled: false
   redis:
@@ -82,32 +94,38 @@ objecten:
     fullnameOverride: objecten-redis
 
 objecttypen:
-  nameOverride: objecttypen
-  fullnameOverride: objecttypen
   image:
     tag: 2.1.2
+  configuration:
+    url: ""
+    oidcSecret: ""
+  settings:
+    twoFactorAuthentication:
+      forceOtpAdmin: false
+      patchAdmin: false
   resources:
     requests:
       cpu: 10m
       memory: 250Mi
+  nameOverride: objecttypen
+  fullnameOverride: objecttypen
+
+openforms:
+  image:
+    tag: 2.6.7
+  configuration:
+    url: ""
+    oidcSecret: ""
   settings:
     twoFactorAuthentication:
       forceOtpAdmin: false
       patchAdmin: false
-
-openforms:
-  nameOverride: open-forms
-  fullnameOverride: open-forms
-  image:
-    tag: 2.6.7
   resources:
     requests:
       cpu: 10m
       memory: 600Mi
-  settings:
-    twoFactorAuthentication:
-      forceOtpAdmin: false
-      patchAdmin: false
+  nameOverride: open-forms
+  fullnameOverride: open-forms
   flower:
     enabled: false
   beat:
@@ -117,41 +135,57 @@ openforms:
     fullnameOverride: open-forms-redis
 
 openklant:
-  nameOverride: open-klant
-  fullnameOverride: open-klant
   image:
     tag: 2.0.0
-  resources:
-    requests:
-      cpu: 10m
-      memory: 600Mi
+  configuration:
+    url: ""
+    oidcSecret: ""
   settings:
     twoFactorAuthentication:
       forceOtpAdmin: false
       patchAdmin: false
+  resources:
+    requests:
+      cpu: 10m
+      memory: 600Mi
+  nameOverride: open-klant
+  fullnameOverride: open-klant
   redis:
     nameOverride: open-klant-redis
     fullnameOverride: open-klant-redis
 
 openinwoner:
-  nameOverride: open-inwoner
-  fullnameOverride: open-inwoner
   image:
     tag: 1.16.5
-  resources:
-    requests:
-      cpu: 10m
-      memory: 600Mi
+  configuration:
+    url: ""
+    oidcSecret: ""
   settings:
     twoFactorAuthentication:
       forceOtpAdmin: false
       patchAdmin: false
+  resources:
+    requests:
+      cpu: 10m
+      memory: 600Mi
+  nameOverride: open-inwoner
+  fullnameOverride: open-inwoner
   redis:
     nameOverride: open-inwoner-redis
     fullnameOverride: open-inwoner-redis
   elasticsearch:
     nameOverride: open-inwoner-elasticsearch
     fullnameOverride: open-inwoner-elasticsearch
+
+kiss:
+  configuration:
+    url: ""
+    oidcSecret: ""
+
+zac:
+  configuration:
+    oidcSecret: ""
+    url: ""
 
 clamav:
   image:
