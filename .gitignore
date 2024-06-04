@@ -1,2 +1,4 @@
 /.idea/
 /charts/**/charts/
+/http-client.private.env.json
+

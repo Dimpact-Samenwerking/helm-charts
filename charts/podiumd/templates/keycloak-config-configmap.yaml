@@ -16,7 +16,7 @@ data:
       attributes:
         frontendUrl: {{ required ".Values.keycloak.config.realmFrontendUrl is missing" .Values.keycloak.config.realmFrontendUrl | quote }}
       clients:
-        {{- if and .Values.tags.zaak .Values.openzaak.enabled }}
+        {{- if .Values.tags.zaak }}
         - clientId: openzaak
           name: Open Zaak
           enabled: true
@@ -27,7 +27,6 @@ data:
             - "{{ .Values.openzaak.configuration.url }}/*"
           secret: {{ required ".Values.openzaak.configuration.oidcSecret" .Values.openzaak.configuration.oidcSecret | quote }}
         {{- end }}
-        {{- if .Values.opennotificaties.enabled }}
         - clientId: opennotificaties
           name: Open Notificaties
           enabled: true
@@ -37,8 +36,7 @@ data:
           webOrigins:
             - "{{ .Values.opennotificaties.configuration.url }}/*"
           secret: {{ required ".Values.opennotificaties.configuration.oidcSecret is missing" .Values.opennotificaties.configuration.oidcSecret | quote }}
-        {{- end }}
-        {{- if and (or .Values.tags.formulierEsuite .Values.tags.contactEsuite .Values.tags.zaak) .Values.objecten.enabled }}
+        {{- if or .Values.tags.formulierEsuite .Values.tags.contactEsuite .Values.tags.zaak }}
         - clientId: objecten
           name: Objecten
           enabled: true
@@ -58,7 +56,7 @@ data:
             - "{{ .Values.objecttypen.configuration.url }}/*"
           secret: {{ required ".Values.objecttypen.configuration.oidcSecret is missing" .Values.objecttypen.configuration.oidcSecret | quote }}
         {{- end }}
-        {{- if and (or .Values.tags.formulierEsuite .Values.tags.portaalEsuite .Values.tags.zaak) .Values.openforms.enabled }}
+        {{- if or .Values.tags.formulierEsuite .Values.tags.portaalEsuite .Values.tags.zaak }}
         - clientId: openforms
           name: Open Forms
           enabled: true
@@ -69,7 +67,6 @@ data:
             - "{{ .Values.openforms.configuration.url }}/*"
           secret: {{ required ".Values.openforms.configuration.oidcSecret is missing" .Values.openforms.configuration.oidcSecret | quote }}
         {{- end }}
-        {{- if .Values.openklant.enabled }}
         - clientId: openklant
           name: Open Klant
           enabled: true
@@ -79,8 +76,7 @@ data:
           webOrigins:
             - "{{ .Values.openklant.configuration.url }}/*"
           secret: {{ required ".Values.openklant.configuration.oidcSecret is missing" .Values.openklant.configuration.oidcSecret | quote }}
-        {{- end }}
-        {{- if and .Values.tags.portaalEsuite .Values.openinwoner.enabled }}
+        {{- if .Values.tags.portaalEsuite }}
         - clientId: openinwoner
           name: Open Inwoner
           enabled: true
@@ -91,7 +87,7 @@ data:
             - "{{ .Values.openinwoner.configuration.url }}/*"
           secret: {{ required ".Values.openinwoner.configuration.oidcSecret is missing" .Values.openinwoner.configuration.oidcSecret | quote }}
         {{- end }}
-        {{- if and .Values.tags.contactEsuite .Values.kiss.enabled }}
+        {{- if .Values.tags.contactEsuite }}
         - clientId: kiss
           name: Kiss
           enabled: true
@@ -115,7 +111,7 @@ data:
                 userinfo.token.claim: true
                 introspection.token.claim: true
         {{- end }}
-        {{- if .Values.zac.enabled }}
+        {{- if .Values.tags.zaak }}
         - clientId: zac
           name: Zaakafhandelcomponent
           enabled: true
@@ -143,14 +139,14 @@ data:
         realm:
           - name: podiumd-admin
             description: PodiumD Administrator
-        {{- if or .Values.kiss.enabled .Values.zac.enabled }}
+        {{- if or .Values.tags.contactEsuite .Values.tags.zaak }}
         client:
-          {{- if .Values.kiss.enabled }}
+          {{- if .Values.tags.contactEsuite }}
           kiss:
             - name: Redacteur
             - name: Klantcontactmedewerker
           {{- end }}
-          {{- if .Values.zac.enabled }}
+          {{- if .Values.tags.zaak }}
           zac:
             - name: zaakafhandelcomponent_user
             - name: behandelaar
@@ -160,7 +156,7 @@ data:
             - name: domein_elk_zaaktype
           {{- end }}
         {{- end}}
-      {{- if .Values.zac.enabled }}
+      {{- if .Values.tags.zaak }}
       components:
         org.keycloak.storage.UserStorageProvider:
           - name: OpenLDAP
