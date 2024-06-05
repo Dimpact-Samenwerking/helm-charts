@@ -1,4 +1,4 @@
-{{- if and .Values.global.configuration.enabled .Values.keycloak.keycloakConfigCli.enabled -}}
+{{- if .Values.keycloak.keycloakConfigCli.enabled -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -8,6 +8,7 @@ metadata:
     app.kubernetes.io/component: keycloak-config-cli
 data:
   realm.yaml: |
+  {{- if .Values.global.configuration.enabled -}}
       enabled: true
       realm: podiumd
       displayName: {{ .Values.keycloak.config.realmDisplayName | quote }}
@@ -61,15 +62,15 @@ data:
           webOrigins:
             - "{{ .Values.openklant.configuration.url }}/*"
           secret: {{ .Values.openklant.configuration.oidcSecret | quote }}
-        - clientId: openforms
-          name: Open Forms
+        - clientId: openformulieren
+          name: Open Formulieren
           enabled: true
           clientAuthenticatorType: client-secret
           redirectUris:
-            - "{{ .Values.openforms.configuration.url }}/*"
+            - "{{ .Values.openformulieren.configuration.url }}/*"
           webOrigins:
-            - "{{ .Values.openforms.configuration.url }}/*"
-          secret: {{ .Values.openforms.configuration.oidcSecret | quote }}
+            - "{{ .Values.openformulieren.configuration.url }}/*"
+          secret: {{ .Values.openformulieren.configuration.oidcSecret | quote }}
         - clientId: openinwoner
           name: Open Inwoner
           enabled: true
@@ -194,4 +195,5 @@ data:
                     mapped.group.attributes:
                       - description,email
       {{- end }}
-      {{- end }}
+  {{- end }}
+{{- end }}

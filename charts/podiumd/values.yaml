@@ -1,7 +1,7 @@
 tags:
-  formulierEsuite: false
-  contactEsuite: false
-  portaalEsuite: false
+  formulier: false
+  contact: false
+  portaal: false
   zaak: false
 
 global:
@@ -10,7 +10,7 @@ global:
 
 keycloak:
   image:
-    tag: 24.0.4-debian-12-r1
+    tag: "24.0.4-debian-12-r1"
   config:
     realmDisplayName: ""
     realmFrontendUrl: ""
@@ -24,62 +24,67 @@ keycloak:
 
 openzaak:
   image:
-    tag: 1.12.3
+    tag: "1.12.3"
   configuration:
-    url: ""
-    oidcSecret: ""
+    url: "http://openzaak.podiumd.svc.cluster.local"
+    oidcSecret: "<openzaak>"
     initContainer:
       enabled: true
     cronjob:
       enabled: false
+  settings:
+    isHttps: false
   resources:
     requests:
       cpu: 100m
       memory: 400Mi
-  nameOverride: open-zaak
-  fullnameOverride: open-zaak
+  nameOverride: openzaak
+  fullnameOverride: openzaak
   flower:
     enabled: false
   redis:
-    nameOverride: open-zaak-redis
-    fullnameOverride: open-zaak-redis
+    nameOverride: openzaak-redis
+    fullnameOverride: openzaak-redis
 
 opennotificaties:
   image:
-    tag: 1.6.0
+    tag: "1.6.0"
   configuration:
-    url: ""
-    oidcSecret: ""
+    url: "http://opennotificaties.podiumd.svc.cluster.local"
+    oidcSecret: "<opennotificaties>"
     initContainer:
       enabled: true
     cronjob:
       enabled: false
+  settings:
+    isHttps: false
   resources:
     requests:
       cpu: 10m
       memory: 200Mi
-  nameOverride: open-notificaties
-  fullnameOverride: open-notificaties
+  nameOverride: opennotificaties
+  fullnameOverride: opennotificaties
   flower:
     enabled: false
   rabbitmq:
-    nameOverride: open-notificaties-rabbitmq
-    fullnameOverride: open-notificaties-rabbitmq
+    nameOverride: opennotificaties-rabbitmq
+    fullnameOverride: opennotificaties-rabbitmq
     auth:
       username: guest
       password: guest
       erlangCookie: SUPER-SECRET
   redis:
-    nameOverride: open-notificaties-redis
-    fullnameOverride: open-notificaties-redis
+    nameOverride: opennotificaties-redis
+    fullnameOverride: opennotificaties-redis
 
 objecten:
   image:
-    tag: 2.3.1
+    tag: "2.3.1"
   configuration:
-    url: ""
-    oidcSecret: ""
+    url: "http://objecten.podiumd.svc.cluster.local"
+    oidcSecret: "<objecten>"
   settings:
+    isHttps: false
     disable2fa: true
   resources:
     requests:
@@ -95,10 +100,10 @@ objecten:
 
 objecttypen:
   image:
-    tag: 2.1.2
+    tag: "2.1.2"
   configuration:
-    url: ""
-    oidcSecret: ""
+    url: "http://objecttypen.podiumd.svc.cluster.local"
+    oidcSecret: "<objecttypen>"
   settings:
     twoFactorAuthentication:
       forceOtpAdmin: false
@@ -110,12 +115,33 @@ objecttypen:
   nameOverride: objecttypen
   fullnameOverride: objecttypen
 
-openforms:
+openklant:
   image:
-    tag: 2.6.7
+    tag: "2.0.0"
   configuration:
-    url: ""
-    oidcSecret: ""
+    url: "http://openklant.podiumd.svc.cluster.local"
+    oidcSecret: "<openklant>"
+  settings:
+    isHttps: false
+    twoFactorAuthentication:
+      forceOtpAdmin: false
+      patchAdmin: false
+  resources:
+    requests:
+      cpu: 10m
+      memory: 600Mi
+  nameOverride: openklant
+  fullnameOverride: openklant
+  redis:
+    nameOverride: openklant-redis
+    fullnameOverride: openklant-redis
+
+openformulieren:
+  image:
+    tag: "2.6.7"
+  configuration:
+    url: "http://openformulieren.podiumd.svc.cluster.local"
+    oidcSecret: "<openformulieren>"
   settings:
     twoFactorAuthentication:
       forceOtpAdmin: false
@@ -124,43 +150,24 @@ openforms:
     requests:
       cpu: 10m
       memory: 600Mi
-  nameOverride: open-forms
-  fullnameOverride: open-forms
+  nameOverride: openformulieren
+  fullnameOverride: openformulieren
   flower:
     enabled: false
   beat:
     enabled: false
   redis:
-    nameOverride: open-forms-redis
-    fullnameOverride: open-forms-redis
-
-openklant:
-  image:
-    tag: 2.0.0
-  configuration:
-    url: ""
-    oidcSecret: ""
-  settings:
-    twoFactorAuthentication:
-      forceOtpAdmin: false
-      patchAdmin: false
-  resources:
-    requests:
-      cpu: 10m
-      memory: 600Mi
-  nameOverride: open-klant
-  fullnameOverride: open-klant
-  redis:
-    nameOverride: open-klant-redis
-    fullnameOverride: open-klant-redis
+    nameOverride: openformulieren-redis
+    fullnameOverride: openformulieren-redis
 
 openinwoner:
   image:
-    tag: 1.16.5
+    tag: "1.16.5"
   configuration:
-    url: ""
-    oidcSecret: ""
+    url: "http://openinwoner.podiumd.svc.cluster.local"
+    oidcSecret: "<openinwoner>"
   settings:
+    isHttps: false
     twoFactorAuthentication:
       forceOtpAdmin: false
       patchAdmin: false
@@ -168,28 +175,28 @@ openinwoner:
     requests:
       cpu: 10m
       memory: 600Mi
-  nameOverride: open-inwoner
-  fullnameOverride: open-inwoner
+  nameOverride: openinwoner
+  fullnameOverride: openinwoner
   redis:
-    nameOverride: open-inwoner-redis
-    fullnameOverride: open-inwoner-redis
+    nameOverride: openinwoner-redis
+    fullnameOverride: openinwoner-redis
   elasticsearch:
-    nameOverride: open-inwoner-elasticsearch
-    fullnameOverride: open-inwoner-elasticsearch
+    nameOverride: openinwoner-elasticsearch
+    fullnameOverride: openinwoner-elasticsearch
 
 kiss:
   configuration:
-    url: ""
-    oidcSecret: ""
+    url: "http://kiss.podiumd.svc.cluster.local"
+    oidcSecret: "<kiss>"
 
 zac:
   configuration:
-    oidcSecret: ""
-    url: ""
+    url: "http://zac.podiumd.svc.cluster.local"
+    oidcSecret: "<zac>"
 
 clamav:
   image:
-    tag: stable_base
+    tag: "stable_base"
   Resources:
     limits:
       cpu: 100m
@@ -277,3 +284,17 @@ serviceAccount:
   annotations: {}
   name: ""
 
+httpRequestJob:
+  intellijHttpClient:
+    image:
+      repository: "jetbrains/intellij-http-client"
+      tag: "242.14146.16"
+  jwtCli:
+    image:
+      repository: "bitnami/jwt-cli"
+      tag: "6.1.0"
+  alpine:
+    image:
+      repository: "alpine"
+      tag: "3.20"
+  nodeSelector: {}

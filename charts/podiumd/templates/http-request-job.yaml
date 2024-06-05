@@ -20,7 +20,7 @@ spec:
       restartPolicy: Never
       containers:
         - name: intellij-http-client
-          image: jetbrains/intellij-http-client
+          image: "{{ .Values.httpRequestJob.intellijHttpClient.image.repository }}:{{ .Values.httpRequestJob.intellijHttpClient.image.tag }}"
           args:
             - --log-level
             - VERBOSE
@@ -36,7 +36,7 @@ spec:
               mountPath: /http-request-files
       initContainers:
         - name: create-notificaties-jwt
-          image: bitnami/jwt-cli
+          image: "{{ .Values.httpRequestJob.jwtCli.image.repository }}:{{ .Values.httpRequestJob.jwtCli.image.tag }}"
           args:
             - encode
             - --iss
@@ -51,7 +51,7 @@ spec:
             - mountPath: /shared
               name: shared-volume
         - name: create-http-client-env-and-wait
-          image: alpine
+          image: "{{ .Values.httpRequestJob.alpine.image.repository }}:{{ .Values.httpRequestJob.alpine.image.tag }}"
           command: ["/bin/sh", "-c"]
           args:
             - |
@@ -66,8 +66,8 @@ spec:
               }' \
               ) > /shared/http-client.env.json && \
               jq . /shared/http-client.env.json && \
-              echo "Wait for 120 seconds ..." && \
-              sleep 120 
+              echo "Wait for 3 minutes ..." && \
+              sleep 180
           volumeMounts:
             - mountPath: /shared
               name: shared-volume
@@ -77,4 +77,8 @@ spec:
         - name: http-request-files-volume
           configMap:
             name: http-request-files-configmap
+      {{- with .Values.httpRequestJob.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
 {{- end }}
