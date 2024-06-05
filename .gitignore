@@ -1,4 +1,4 @@
 /.idea/
 /charts/**/charts/
 /http-client.private.env.json
-
+/charts/**/Chart.lock
