@@ -62,6 +62,7 @@ data:
           webOrigins:
             - "{{ .Values.openklant.configuration.url }}/*"
           secret: {{ .Values.openklant.configuration.oidcSecret | quote }}
+        {{- if .Values.tags.formulier -}}
         - clientId: openformulieren
           name: Open Formulieren
           enabled: true
@@ -71,6 +72,8 @@ data:
           webOrigins:
             - "{{ .Values.openformulieren.configuration.url }}/*"
           secret: {{ .Values.openformulieren.configuration.oidcSecret | quote }}
+        {{- end }}
+        {{- if .Values.tags.portaal -}}
         - clientId: openinwoner
           name: Open Inwoner
           enabled: true
@@ -80,6 +83,8 @@ data:
           webOrigins:
             - "{{ .Values.openinwoner.configuration.url }}/*"
           secret: {{ .Values.openinwoner.configuration.oidcSecret | quote }}
+        {{- end }}
+        {{- if .Values.tags.contact -}}
         - clientId: kiss
           name: Kiss
           enabled: true
@@ -102,6 +107,8 @@ data:
                 lightweight.claim: true
                 userinfo.token.claim: true
                 introspection.token.claim: true
+        {{- end }}
+        {{- if .Values.tags.zaak -}}
         - clientId: zac
           name: Zaakafhandelcomponent
           enabled: true
@@ -124,14 +131,19 @@ data:
                 lightweight.claim: true
                 userinfo.token.claim: true
                 introspection.token.claim: true
+        {{- end }}
       roles:
         realm:
           - name: podiumd-admin
             description: PodiumD Administrator
+        {{- if or .Values.tags.contact .Values.tags.zaak -}}
         client:
+          {{- if .Values.tags.contact -}}
           kiss:
             - name: Redacteur
             - name: Klantcontactmedewerker
+          {{- end }}
+          {{- if .Values.tags.zaak -}}
           zac:
             - name: zaakafhandelcomponent_user
             - name: behandelaar
@@ -139,6 +151,8 @@ data:
             - name: coordinator
             - name: recordmanager
             - name: domein_elk_zaaktype
+          {{- end }}
+        {{- end }}
       {{- if .Values.tags.zaak }}
       components:
         org.keycloak.storage.UserStorageProvider:
