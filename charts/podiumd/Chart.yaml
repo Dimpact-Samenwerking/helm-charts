@@ -3,6 +3,7 @@ name: podiumd
 description: A Helm chart for PodiumD
 type: application
 version: 1.0.0-alpha.2
+appVersion: "latest"
 dependencies:
   - name: keycloak
     version: ~21.2.2
