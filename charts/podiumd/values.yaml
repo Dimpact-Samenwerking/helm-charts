@@ -26,7 +26,7 @@ openzaak:
   image:
     tag: "1.12.3"
   configuration:
-    url: "http://openzaak.podiumd.svc.cluster.local"
+    oidcUrl: "http://openzaak.podiumd.svc.cluster.local"
     oidcSecret: "<openzaak>"
     initContainer:
       enabled: true
@@ -50,7 +50,7 @@ opennotificaties:
   image:
     tag: "1.6.0"
   configuration:
-    url: "http://opennotificaties.podiumd.svc.cluster.local"
+    oidcUrl: "http://opennotificaties.podiumd.svc.cluster.local"
     oidcSecret: "<opennotificaties>"
     initContainer:
       enabled: true
@@ -81,7 +81,7 @@ objecten:
   image:
     tag: "2.3.1"
   configuration:
-    url: "http://objecten.podiumd.svc.cluster.local"
+    oidcUrl: "http://objecten.podiumd.svc.cluster.local"
     oidcSecret: "<objecten>"
   settings:
     isHttps: false
@@ -102,7 +102,7 @@ objecttypen:
   image:
     tag: "2.1.2"
   configuration:
-    url: "http://objecttypen.podiumd.svc.cluster.local"
+    oidcUrl: "http://objecttypen.podiumd.svc.cluster.local"
     oidcSecret: "<objecttypen>"
   settings:
     twoFactorAuthentication:
@@ -119,7 +119,7 @@ openklant:
   image:
     tag: "2.0.0"
   configuration:
-    url: "http://openklant.podiumd.svc.cluster.local"
+    oidcUrl: "http://openklant.podiumd.svc.cluster.local"
     oidcSecret: "<openklant>"
   settings:
     isHttps: false
@@ -140,7 +140,7 @@ openformulieren:
   image:
     tag: "2.6.7"
   configuration:
-    url: "http://openformulieren.podiumd.svc.cluster.local"
+    oidcUrl: "http://openformulieren.podiumd.svc.cluster.local"
     oidcSecret: "<openformulieren>"
   settings:
     twoFactorAuthentication:
@@ -164,7 +164,7 @@ openinwoner:
   image:
     tag: "1.16.5"
   configuration:
-    url: "http://openinwoner.podiumd.svc.cluster.local"
+    oidcUrl: "http://openinwoner.podiumd.svc.cluster.local"
     oidcSecret: "<openinwoner>"
   settings:
     isHttps: false
@@ -186,12 +186,12 @@ openinwoner:
 
 kiss:
   configuration:
-    url: "http://kiss.podiumd.svc.cluster.local"
+    oidcUrl: "http://kiss.podiumd.svc.cluster.local"
     oidcSecret: "<kiss>"
 
 zac:
   configuration:
-    url: "http://zac.podiumd.svc.cluster.local"
+    oidcUrl: "http://zac.podiumd.svc.cluster.local"
     oidcSecret: "<zac>"
 
 clamav:
