@@ -180,6 +180,60 @@ entries:
     version: 1.0.0-alpha.2
   - apiVersion: v2
     appVersion: 1.3.0
+    created: "2024-06-06T09:17:50.856175382Z"
+    dependencies:
+    - condition: keycloak.enabled
+      name: keycloak
+      repository: '@bitnami'
+      version: ~21.2.2
+    - condition: clamav.enabled
+      name: clamav
+      repository: '@wiremind'
+      tags:
+      - formulier
+      version: ~3.1.0
+    - condition: openzaak.enabled
+      name: openzaak
+      repository: '@maykinmedia'
+      version: ~1.3.2
+    - condition: opennotificaties.enabled
+      name: opennotificaties
+      repository: '@maykinmedia'
+      version: ~1.3.2
+    - condition: objecten.enabled
+      name: objecten
+      repository: '@maykinmedia'
+      version: ~2.3.1
+    - condition: objecttypen.enabled
+      name: objecttypen
+      repository: '@maykinmedia'
+      version: ~1.0.5
+    - condition: openklant.enabled
+      name: openklant
+      repository: '@maykinmedia'
+      version: ~1.3.2
+    - alias: openformulieren
+      condition: openformulieren.enabled
+      name: openforms
+      repository: '@maykinmedia'
+      tags:
+      - formulier
+      version: ~1.3.0
+    - condition: openinwoner.enabled
+      name: openinwoner
+      repository: '@maykinmedia'
+      tags:
+      - portaal
+      version: ~1.3.2
+    description: A Helm chart for PodiumD
+    digest: 3320f3fca1090505bbc7a538e8f415f7cf87b9f7500dfedcafcd4c3b994c842c
+    name: podiumd
+    type: application
+    urls:
+    - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/podiumd-1.0.0-alpha.2/podiumd-1.0.0-alpha.2.tgz
+    version: 1.0.0-alpha.2
+  - apiVersion: v2
+    appVersion: 1.3.0
     created: "2024-05-23T07:11:53.436904397Z"
     dependencies:
     - name: keycloak
@@ -299,4 +353,4 @@ entries:
     urls:
     - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/zaakafhandelcomponent-0.4.0/zaakafhandelcomponent-0.4.0.tgz
     version: 0.4.0
-generated: "2024-06-05T11:29:53.451667155Z"
+generated: "2024-06-06T09:17:50.856218012Z"
