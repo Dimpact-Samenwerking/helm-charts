@@ -12,7 +12,7 @@ keycloak:
   image:
     tag: "24.0.4-debian-12-r1"
   config:
-    realmDisplayName: ""
+    realmDisplayName: "PodiumD"
     realmFrontendUrl: ""
   keycloakConfigCli:
     enabled: true
