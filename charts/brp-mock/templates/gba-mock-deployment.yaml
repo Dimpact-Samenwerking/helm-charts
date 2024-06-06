@@ -18,8 +18,8 @@ spec:
     spec:
       containers:
         - name: gba-mock
-          image: "{{ .Values.image.gbaMockName }}:{{ .Values.image.gbaMockTag }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          image: "{{ .Values.gbaMock.image.repository }}:{{ .Values.gbaMock.image.tag }}"
+          imagePullPolicy: {{ .Values.gbaMock.image.pullPolicy }}
           env:
             - name: ASPNETCORE_ENVIRONMENT
               value: Release

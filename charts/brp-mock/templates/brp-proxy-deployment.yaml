@@ -18,8 +18,8 @@ spec:
     spec:
       containers:
         - name: brp-proxy
-          image: "{{ .Values.image.brpProxyName }}:{{ .Values.image.brpProxyTag }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          image: "{{ .Values.brpProxy.image.repository }}:{{ .Values.brpProxy.image.tag }}"
+          imagePullPolicy: {{ .Values.brpProxy.image.pullPolicy }}
           env:
             - name: ASPNETCORE_ENVIRONMENT
               value: Release
