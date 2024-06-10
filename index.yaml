@@ -19,6 +19,26 @@ entries:
     urls:
     - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/brp-mock-1.0.0/brp-mock-1.0.0.tgz
     version: 1.0.0
+  brpmock:
+  - apiVersion: v2
+    appVersion: 2.0.x
+    created: "2024-06-10T11:25:00.523772695Z"
+    description: A Helm chart for the BRP Proxy and GBA Mock combination
+    digest: 7b3592e89406157967a7efc68d53ee554360013aaff3a5e222b3417acc8760e7
+    name: brpmock
+    urls:
+    - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/brpmock-1.2.0/brpmock-1.2.0.tgz
+    version: 1.2.0
+  openldap:
+  - apiVersion: v2
+    appVersion: 2.6.8
+    created: "2024-06-10T11:25:00.720098709Z"
+    description: A Helm chart for Open LDAP
+    digest: 48dbfa50197502212e7064b8196eceee25da5dd378ad26e0bc6c75d1e19470c7
+    name: openldap
+    urls:
+    - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/openldap-1.0.0/openldap-1.0.0.tgz
+    version: 1.0.0
   podiumd:
   - apiVersion: v2
     appVersion: 1.3.0
@@ -84,6 +104,16 @@ entries:
     urls:
     - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/vng-referentielijsten-1.0.0/vng-referentielijsten-1.0.0.tgz
     version: 1.0.0
+  vngreferentielijsten:
+  - apiVersion: v2
+    appVersion: 0.6.1
+    created: "2024-06-10T11:25:00.917309809Z"
+    description: A Helm chart for VNG Referentielijsten reference implementation
+    digest: 59d3cd3113bdc90dfa5d5f66c55b18f5f36a626c579dcef587a3a53f6cff0b01
+    name: vngreferentielijsten
+    urls:
+    - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/vngreferentielijsten-1.1.0/vngreferentielijsten-1.1.0.tgz
+    version: 1.1.0
   zaakafhandelcomponent:
   - apiVersion: v2
     appVersion: latest
@@ -153,4 +183,4 @@ entries:
     urls:
     - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/zaakafhandelcomponent-0.4.0/zaakafhandelcomponent-0.4.0.tgz
     version: 0.4.0
-generated: "2024-06-06T13:46:21.089081833Z"
+generated: "2024-06-10T11:25:00.917327493Z"
