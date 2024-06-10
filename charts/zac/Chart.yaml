@@ -1,6 +1,6 @@
 apiVersion: v2
-name: zaakafhandelcomponent
-description: A Helm chart for installing Zaakafhandelcomponent
+name: zac
+description: A Helm chart for installing Zac
 version: 1.0.0
 appVersion: "latest"
 dependencies:
