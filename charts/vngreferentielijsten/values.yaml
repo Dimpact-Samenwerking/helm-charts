@@ -1,6 +1,6 @@
 image:
   name: ghcr.io/infonl/vng-referentielijsten
-  tag: 0.6.1
+  tag: "0.6.1"
   pullPolicy: IfNotPresent
 
 db:
@@ -10,3 +10,9 @@ db:
   password: ""
 
 secretKey: ""
+
+nodeSelector: { }
+
+tolerations: [ ]
+
+affinity: { }

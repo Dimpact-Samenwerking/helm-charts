@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "openldap.fullname" . }}
+  labels:
+    {{- include "openldap.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "openldap.selectorLabels" . | nindent 6 }}
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        {{- include "openldap.labels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "openldap.serviceAccountName" . }}
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: LDAP_ADMIN_USERNAME
+              value: {{ .Values.adminUsername }}
+            - name: LDAP_ADMIN_PASSWORD
+              value: {{ .Values.adminPassword }}
+            - name: LDAP_ROOT
+              value: {{ .Values.root }}
+            - name: LDAP_USERS
+              value: "dummy"
+            - name: LDAP_PASSWORDS
+              value: "dummy"
+          ports:
+            - name: tcp-ldap
+              containerPort: {{ .Values.service.port }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: openldap-data
+              mountPath: /bitnami/openldap
+              subPath: {{ .Values.persistence.subpath }}
+      volumes:
+        - name: openldap-data
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.existingClaim }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

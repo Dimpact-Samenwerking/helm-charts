@@ -1,15 +1,15 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: brp-mock
+  name: gbamock
   labels:
-    app.kubernetes.io/name: brp-mock
+    app.kubernetes.io/name: gbamock
     {{- include "bm.labels" . | nindent 4 }}
 spec:
   type: ClusterIP
   selector:
-    app.kubernetes.io/name: {{ include "bm.name" . }}-brp-proxy
+    app.kubernetes.io/name: {{ include "bm.name" . }}-gbamock
   ports:
-    - name: http
-      port: 80
+    - name: "5010"
+      port: 5010
       targetPort: http
