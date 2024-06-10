@@ -1,24 +1,5 @@
 apiVersion: v1
 entries:
-  brp-mock:
-  - apiVersion: v2
-    appVersion: 2.0.x
-    created: "2024-06-06T13:46:20.807412728Z"
-    description: A Helm chart for the BRP Proxy and GBA Mock combination
-    digest: a67261d5977f663733e27cb5ab4641fec2fddf198e5223d5dff96510765e93d4
-    name: brp-mock
-    urls:
-    - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/brp-mock-1.1.0/brp-mock-1.1.0.tgz
-    version: 1.1.0
-  - apiVersion: v2
-    appVersion: 2.0.8
-    created: "2024-05-13T08:51:16.078741178Z"
-    description: A Helm chart for the BRP Proxy and GBA Mock combination
-    digest: d5ad9af47ee2b38adc728af0f6dcf35e769c0f9bcf0be7abecdca832de2572b1
-    name: brp-mock
-    urls:
-    - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/brp-mock-1.0.0/brp-mock-1.0.0.tgz
-    version: 1.0.0
   brpmock:
   - apiVersion: v2
     appVersion: 2.0.x
@@ -94,16 +75,6 @@ entries:
     urls:
     - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/podiumd-1.0.0-alpha.2/podiumd-1.0.0-alpha.2.tgz
     version: 1.0.0-alpha.2
-  vng-referentielijsten:
-  - apiVersion: v2
-    appVersion: 0.6.1
-    created: "2024-05-13T09:15:59.961238494Z"
-    description: A Helm chart for VNG Referentielijsten reference implementation
-    digest: 7177912a5cd4ffc651cb0df46805b15c1d7bb7428599dce35e85f1b273c151c5
-    name: vng-referentielijsten
-    urls:
-    - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/vng-referentielijsten-1.0.0/vng-referentielijsten-1.0.0.tgz
-    version: 1.0.0
   vngreferentielijsten:
   - apiVersion: v2
     appVersion: 0.6.1
