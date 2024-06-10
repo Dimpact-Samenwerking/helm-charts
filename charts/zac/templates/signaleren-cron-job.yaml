@@ -22,7 +22,7 @@ spec:
           {{- end }}
           serviceAccountName: {{ include "zaakafhandelcomponent.serviceAccountName" . }}
           securityContext:
-            {{- toYaml .Values.officeConverter.podSecurityContext | nindent 12 }}
+            {{- toYaml .Values.signalerenCronjob.podSecurityContext | nindent 12 }}
           restartPolicy: {{ .Values.signalerenCronjob.restartPolicy }}
           containers:
             - name: {{ include "zaakafhandelcomponent.fullname" . }}-signaleren
@@ -32,7 +32,7 @@ spec:
                 {{- toYaml .Values.signalerenCronjob.resources | nindent 16 }}
               args:
                 - -s
-                - {{ printf "http://%s.%s/rest/signaleren" (include "zaakafhandelcomponent.fullname" .) .Release.Namespace }}
+                - {{ printf "http://%s.%s/rest/admin/signaleringen/send-signaleringen" (include "zaakafhandelcomponent.fullname" .) .Release.Namespace }}
           {{- with .Values.signalerenCronjob.nodeSelector }}
           nodeSelector:
             {{- toYaml . | nindent 12 }}

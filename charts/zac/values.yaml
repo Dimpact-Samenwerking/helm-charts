@@ -104,7 +104,7 @@ smartDocuments:
   authentication: ""
   fixedUserName: ""
 
-# signalerenCronjob Configuration of the signaleren job
+# signalerenCronjob Configuration of the signaleren cron job
 signalerenCronjob:
   schedule: "0 2 * * *"
   successfulJobsHistoryLimit: 1
@@ -121,11 +121,23 @@ signalerenCronjob:
   affinity: { }
   tolerations: [ ]
 
-
-# opentelemetry_zaakafhandelcomponent Overrides for opentelemetry
-#opentelemetry_zaakafhandelcomponent:
-#  sampler_type: "-off"
-#  endpoint: "http://otel-collector:4317"
+# deleteSignaleringenCronjob Configuration of the delete signaleringen cron job
+deleteSignaleringenCronjob:
+  deleteOlderThanDays: "14"
+  schedule: "0 3 * * *"
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  restartPolicy: Never
+  image:
+    repository: curlimages/curl
+    tag: latest
+    pullPolicy: IfNotPresent
+  imagePullSecrets: [ ]
+  resources: { }
+  podSecurityContext: { }
+  nodeSelector: { }
+  affinity: { }
+  tolerations: [ ]
 
 
 # maxFileSizeMB Maximum size (in Mega Bytes) of files that can be uploaded.
@@ -302,8 +314,7 @@ officeConverter:
   affinity: { }
   tolerations: [ ]
 
-opentelemetry-collector:
-  enabled: false
+opentelemetrycollector:
   mode: deployment
   replicaCount: 1
   presets:
