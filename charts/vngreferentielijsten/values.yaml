@@ -3,7 +3,7 @@ image:
   tag: "0.6.1"
   pullPolicy: IfNotPresent
 
-db:
+database:
   host: ""
   name: ""
   user: ""
