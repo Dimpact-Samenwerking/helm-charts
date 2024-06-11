@@ -3,14 +3,6 @@ image:
   tag: "0.6.1"
   pullPolicy: IfNotPresent
 
-database:
-  host: ""
-  name: ""
-  user: ""
-  password: ""
-
-secretKey: ""
-
 nodeSelector: { }
 
 tolerations: [ ]
