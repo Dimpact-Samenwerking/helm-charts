@@ -15,3 +15,5 @@ gbamock:
   nodeSelector: { }
   tolerations: [ ]
   affinity: { }
+
+nameOverride: ""

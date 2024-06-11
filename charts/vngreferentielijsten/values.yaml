@@ -3,6 +3,8 @@ image:
   tag: "0.6.1"
   pullPolicy: IfNotPresent
 
+nameOverride: ""
+
 nodeSelector: { }
 
 tolerations: [ ]

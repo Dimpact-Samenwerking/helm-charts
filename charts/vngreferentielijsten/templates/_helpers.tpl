@@ -1,8 +1,8 @@
 {{/*
-Create chart name.
+Expand the name of the chart.
 */}}
 {{- define "vrl.name" -}}
-{{- .Release.Name }}
+{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
