@@ -9,7 +9,7 @@ brpproxy:
 
 gbamock:
   image:
-    repository: iswish/haal-centraal-brp-bevragen-gba-mock
+    repository: ghcr.io/brp-api/haal-centraal-brp-bevragen-gba-mock
     tag: 2.0.8
     pullPolicy: IfNotPresent
   nodeSelector: { }
