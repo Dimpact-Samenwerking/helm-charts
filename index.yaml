@@ -3,6 +3,15 @@ entries:
   brpmock:
   - apiVersion: v2
     appVersion: 2.0.x
+    created: "2024-06-11T06:17:26.609080955Z"
+    description: A Helm chart for the BRP Proxy and GBA Mock combination
+    digest: bb9db241ae584aee1fe40c658de87c5eac9e43888b53d97db207157763df07a1
+    name: brpmock
+    urls:
+    - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/brpmock-1.2.1/brpmock-1.2.1.tgz
+    version: 1.2.1
+  - apiVersion: v2
+    appVersion: 2.0.x
     created: "2024-06-10T11:25:00.523772695Z"
     description: A Helm chart for the BRP Proxy and GBA Mock combination
     digest: 7b3592e89406157967a7efc68d53ee554360013aaff3a5e222b3417acc8760e7
@@ -30,6 +39,15 @@ entries:
     - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/openldap-1.0.0/openldap-1.0.0.tgz
     version: 1.0.0
   vngreferentielijsten:
+  - apiVersion: v2
+    appVersion: 0.6.1
+    created: "2024-06-11T06:17:26.724451935Z"
+    description: A Helm chart for VNG Referentielijsten reference implementation
+    digest: de9c51cb8b1acd6359177f60d9ee1c3df8b19d22743be487e6ec06a4441c341b
+    name: vngreferentielijsten
+    urls:
+    - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/vngreferentielijsten-1.1.3/vngreferentielijsten-1.1.3.tgz
+    version: 1.1.3
   - apiVersion: v2
     appVersion: 0.6.1
     created: "2024-06-11T05:50:37.421723134Z"
@@ -76,4 +94,4 @@ entries:
     urls:
     - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/zac-1.0.0/zac-1.0.0.tgz
     version: 1.0.0
-generated: "2024-06-11T05:55:09.244266765Z"
+generated: "2024-06-11T06:17:26.724478364Z"
