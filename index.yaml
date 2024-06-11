@@ -23,6 +23,15 @@ entries:
   vngreferentielijsten:
   - apiVersion: v2
     appVersion: 0.6.1
+    created: "2024-06-11T05:44:19.61487624Z"
+    description: A Helm chart for VNG Referentielijsten reference implementation
+    digest: b453b57556c3b45e1400c3ffa8fe9680b066101488bcaebb40ada78c7a70ac3b
+    name: vngreferentielijsten
+    urls:
+    - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/vngreferentielijsten-1.1.1/vngreferentielijsten-1.1.1.tgz
+    version: 1.1.1
+  - apiVersion: v2
+    appVersion: 0.6.1
     created: "2024-06-10T11:25:00.917309809Z"
     description: A Helm chart for VNG Referentielijsten reference implementation
     digest: 59d3cd3113bdc90dfa5d5f66c55b18f5f36a626c579dcef587a3a53f6cff0b01
@@ -49,4 +58,4 @@ entries:
     urls:
     - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/zac-1.0.0/zac-1.0.0.tgz
     version: 1.0.0
-generated: "2024-06-10T15:50:32.505550089Z"
+generated: "2024-06-11T05:44:19.764738335Z"
