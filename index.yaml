@@ -13,6 +13,15 @@ entries:
   openldap:
   - apiVersion: v2
     appVersion: 2.6.8
+    created: "2024-06-11T05:55:09.244252037Z"
+    description: A Helm chart for Open LDAP
+    digest: 0f8f72203db774532af20133e689442f4a515a9a4a3c03590e2673b4165d1917
+    name: openldap
+    urls:
+    - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/openldap-1.0.1/openldap-1.0.1.tgz
+    version: 1.0.1
+  - apiVersion: v2
+    appVersion: 2.6.8
     created: "2024-06-10T11:25:00.720098709Z"
     description: A Helm chart for Open LDAP
     digest: 48dbfa50197502212e7064b8196eceee25da5dd378ad26e0bc6c75d1e19470c7
@@ -67,4 +76,4 @@ entries:
     urls:
     - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/zac-1.0.0/zac-1.0.0.tgz
     version: 1.0.0
-generated: "2024-06-11T05:50:37.421740477Z"
+generated: "2024-06-11T05:55:09.244266765Z"
