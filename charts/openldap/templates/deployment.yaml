@@ -14,7 +14,6 @@ spec:
       labels:
         {{- include "openldap.labels" . | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "openldap.serviceAccountName" . }}
       containers:
         - name: {{ .Chart.Name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
