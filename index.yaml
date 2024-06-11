@@ -2,6 +2,15 @@ apiVersion: v1
 entries:
   brpmock:
   - apiVersion: v2
+    appVersion: 2.0.8
+    created: "2024-06-11T06:39:59.284120486Z"
+    description: A Helm chart for the BRP Proxy and GBA Mock combination
+    digest: 9455660c26276c0674fd87a665a648f4df01ec9503b0fb82ff13a887d8ae4ef4
+    name: brpmock
+    urls:
+    - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/brpmock-1.2.2/brpmock-1.2.2.tgz
+    version: 1.2.2
+  - apiVersion: v2
     appVersion: 2.0.x
     created: "2024-06-11T06:17:26.609080955Z"
     description: A Helm chart for the BRP Proxy and GBA Mock combination
@@ -94,4 +103,4 @@ entries:
     urls:
     - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/zac-1.0.0/zac-1.0.0.tgz
     version: 1.0.0
-generated: "2024-06-11T06:17:26.724478364Z"
+generated: "2024-06-11T06:39:59.284150151Z"
