@@ -62,7 +62,7 @@ data:
         webOrigins:
           - "{{ .Values.openklant.configuration.oidcUrl }}/*"
         secret: {{ .Values.openklant.configuration.oidcSecret | quote }}
-      {{- if .Values.tags.formulier -}}
+      {{- if .Values.tags.formulier }}
       - clientId: openformulieren
         name: Open Formulieren
         enabled: true
@@ -73,7 +73,7 @@ data:
           - "{{ .Values.openformulieren.configuration.oidcUrl }}/*"
         secret: {{ .Values.openformulieren.configuration.oidcSecret | quote }}
       {{- end }}
-      {{- if .Values.tags.portaal -}}
+      {{- if .Values.tags.portaal }}
       - clientId: openinwoner
         name: Open Inwoner
         enabled: true
@@ -84,7 +84,7 @@ data:
           - "{{ .Values.openinwoner.configuration.oidcUrl }}/*"
         secret: {{ .Values.openinwoner.configuration.oidcSecret | quote }}
       {{- end }}
-      {{- if .Values.tags.contact -}}
+      {{- if .Values.tags.contact }}
       - clientId: kiss
         name: Kiss
         enabled: true
@@ -108,7 +108,7 @@ data:
               userinfo.token.claim: true
               introspection.token.claim: true
       {{- end }}
-      {{- if .Values.tags.zaak -}}
+      {{- if .Values.tags.zaak }}
       - clientId: zac
         name: Zaakafhandelcomponent
         enabled: true
@@ -136,14 +136,14 @@ data:
       realm:
         - name: podiumd-admin
           description: PodiumD Administrator
-      {{- if or .Values.tags.contact .Values.tags.zaak -}}
+      {{- if or .Values.tags.contact .Values.tags.zaak }}
       client:
-        {{- if .Values.tags.contact -}}
+        {{- if .Values.tags.contact }}
         kiss:
           - name: Redacteur
           - name: Klantcontactmedewerker
         {{- end }}
-        {{- if .Values.tags.zaak -}}
+        {{- if .Values.tags.zaak }}
         zac:
           - name: zaakafhandelcomponent_user
           - name: behandelaar

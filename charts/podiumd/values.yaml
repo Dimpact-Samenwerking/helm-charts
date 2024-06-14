@@ -22,6 +22,10 @@ keycloak:
   nameOverride: keycloak
   fullnameOverride: keycloak
 
+openldap:
+  nameOverride: "openldap"
+  fullnameOverride: "openldap"
+
 openzaak:
   image:
     tag: "1.12.3"
@@ -136,6 +140,13 @@ openklant:
     nameOverride: openklant-redis
     fullnameOverride: openklant-redis
 
+vngreferentielijsten:
+  nameOverride: "vngreferentielijsten"
+
+brpmock:
+  enabled: false
+  nameOverride: "brpmock"
+
 openformulieren:
   image:
     tag: "2.6.7"
@@ -193,6 +204,8 @@ zac:
   configuration:
     oidcUrl: "http://zac.podiumd.svc.cluster.local"
     oidcSecret: "<zac>"
+  nameOverride: "zac"
+  fullnameOverride: "zac"
 
 clamav:
   image:
