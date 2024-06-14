@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: podiumd-adapter-config
+  labels:
+    {{- include "kiss.labels" . | nindent 4 }}
+    app.kubernetes.io/name: {{ include "kiss.name" . }}-adapter-config
+data:
+  {{- range $index, $contactverzoektype := .Values.esuite.contactverzoektypen }}
+  {{ printf "CONTACTVERZOEK_TYPES__%d" $index }}: {{ $contactverzoektype | quote }}
+  {{- end  }}
+  ESUITE_BASE_URL: {{ .Values.esuite.baseUrl | quote }}
+  INTERNE_TAAK_OBJECT_TYPE_URL: {{ printf "%s/api/v2/objecttypes/%s" .Values.objecttypen.baseUrlIntern .Values.objecttypen.interneTaakUUID | quote }}
+  SMOELENBOEK_BASE_URL: {{ .Values.objecten.baseUrl | quote }}
+  SMOELENBOEK_OBJECT_TYPE_URL: {{ printf "%s/api/v2/objecttypes/%s" .Values.objecttypen.baseUrlIntern .Values.objecttypen.afdelingUUID | quote }}
