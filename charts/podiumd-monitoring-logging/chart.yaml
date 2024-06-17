@@ -20,11 +20,11 @@ dependencies:
     repository: "https://charts.enix.io"
     tags: 
       - x509-certificate-exporter
-  - name: loki
+  - name: loki-stack
     version: "~6.6.2"
     repository: "https://grafana.github.io/helm-charts"
     tags: 
-      - loki
+      - loki-stack
   - name: promtail
     version: "~6.15.5"
     repository: "https://grafana.github.io/helm-charts"
