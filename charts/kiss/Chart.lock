@@ -1,13 +1,9 @@
 dependencies:
-- name: eck-operator
-  repository: https://helm.elastic.co
-  version: 2.9.0
 - name: kiss-frontend
   repository: https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/KISS-frontend/main/helm
   version: 1.0.51
 - name: podiumd-adapter
   repository: https://raw.githubusercontent.com/ICATT-Menselijk-Digitaal/podiumd-adapter/main/helm
   version: 1.0.0
-- name: kiss-elastic
-  repository: https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/.github/main/docs/scripts/elastic
-  version: 0.2.0
+digest: sha256:8582d1e841c957247460dde75920d31b0fe021e1bcb699f27ec1377bb16eae36
+generated: "2024-06-17T07:58:12.881405028+02:00"

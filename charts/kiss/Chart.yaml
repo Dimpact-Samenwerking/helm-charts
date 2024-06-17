@@ -4,10 +4,6 @@ description: A Helm chart for KISS
 version: 1.0.0-alpha.1
 appVersion: "latest"
 dependencies:
-  - name: eck-operator
-    alias: eckOperator
-    version: "~2.9.0"
-    repository: "@elastic"
   - name: kiss-frontend
     alias: frontend
     version: ~1.0.51
@@ -16,8 +12,4 @@ dependencies:
     alias: adapter
     version: ~1.0.0
     repository: "@kiss-adapter"
-  - name: kiss-elastic
-    alias: elasticConfig
-    version: ~0.2.0
-    repository: "@kiss-elastic"
 

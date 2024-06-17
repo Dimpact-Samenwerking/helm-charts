@@ -1,6 +1,3 @@
-global:
-  kibanaEnabled=true
-
 brp:
   baseUrl: ""
   apiKey: ""
@@ -70,18 +67,3 @@ adapter:
   fullnameOverride: kiss-adapter
   service:
     port: 80
-
-eckOperator:
-  managedNamespaces:
-    - podiumd
-  createClusterScopedResources: false
-  config:
-    # no RBAC access to cluster-wide storage classes, hence disable storage class validation
-    validateStorageClass: false
-  installCRDs: false
-  webhook:
-    enabled: false
-
-elasticConfig:
-  privateApiKey: ""
-  publicApiKey: ""
