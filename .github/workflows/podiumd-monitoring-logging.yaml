@@ -1,0 +1,48 @@
+name: Deploy Grafana
+on:
+  workflow_dispatch:
+
+env:
+  AZURE_CONTAINER_REGISTRY: "crlabdimpact.azurecr.io"
+  NAMESPACE: "monitoring"
+  RESOURCE_GROUP: "rg-lab"
+  CLUSTER_NAME: "lab"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Set Kubernetes Context
+        uses: azure/aks-set-context@v3
+        with:
+          resource-group: ${{ env.RESOURCE_GROUP }}
+          cluster-name: ${{ env.CLUSTER_NAME }}
+
+      - name: Install Helm Repos
+        run: |
+          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+          helm repo add grafana https://grafana.github.io/helm-charts
+          helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
+          helm repo add enix https://charts.enix.io
+          helm repo update
+          
+      - name: Install podiumd-monitoring-logging helm chart
+        run: |
+          helm upgrade --install \
+            podiumd-monitoring-logging \
+            podiumd-monitoring-logging/chart.yaml \
+            --values podiumd-monitoring-logging/values.yaml 
+            --create-namespace \
+            --namespace ${{ env.NAMESPACE }} \
+            
+            
+            
+
+            

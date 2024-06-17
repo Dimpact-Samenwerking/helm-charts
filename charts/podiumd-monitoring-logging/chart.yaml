@@ -1,0 +1,42 @@
+apiVersion: v2
+name: podiumd-monitoring-logging
+description: A Helm chart for deploying monitoring and logging
+version: 1.0.0-alpha.1
+appVersion: "1.0"
+
+dependencies:
+  - name: kube-prometheus-stack
+    version: "~59.1.0"
+    repository: "https://prometheus-community.github.io/helm-charts"
+    tags: 
+      - kube-prometheus-stack
+  - name: prometheus-blackbox-exporter
+    version: "~8.17.0"
+    repository: "https://prometheus-community.github.io/helm-charts"
+    tags:
+      - prometheus-blackbox-exporter
+  - name: x509-certificate-exporter
+    version: "~3.14.0"
+    repository: "https://charts.enix.io"
+    tags: 
+      - x509-certificate-exporter
+  - name: loki-stack
+    version: "~6.6.2"
+    repository: "https://grafana.github.io/helm-charts"
+    tags: 
+      - loki-stack
+  - name: promtail
+    version: "~6.15.5"
+    repository: "https://grafana.github.io/helm-charts"
+    tags: 
+      - promtail
+  - name: opentelemetry-collector
+    version: "~0.92.0"
+    repository: "https://open-telemetry.github.io/opentelemetry-helm-charts"
+    tags: 
+      - opentelemetry-collector
+  - name: tempo
+    version: "~1.7.3"
+    repository: "https://grafana.github.io/helm-charts"
+    tags: 
+      - tempo
