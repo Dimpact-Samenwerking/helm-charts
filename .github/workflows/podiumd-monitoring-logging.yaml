@@ -1,0 +1,58 @@
+name: Deploy Grafana
+on:
+  workflow_dispatch:
+
+env:
+  AZURE_CONTAINER_REGISTRY: "crlabdimpact.azurecr.io"
+  NAMESPACE: "monitoring"
+  RESOURCE_GROUP: "rg-lab"
+  CLUSTER_NAME: "lab"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Set Kubernetes Context
+        uses: azure/aks-set-context@v3
+        with:
+          resource-group: ${{ env.RESOURCE_GROUP }}
+          cluster-name: ${{ env.CLUSTER_NAME }}
+
+      - name: Install Helm Repos
+        run: |
+          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+          helm repo add grafana https://grafana.github.io/helm-charts
+          helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
+          helm repo add enix https://charts.enix.io
+          helm repo update
+
+      - name: Install Prometheus, Alertmanager, Grafana, Prometheus Operator
+        run: |
+          helm upgrade --install \
+            kube-prometheus-stack prometheus-community/kube-prometheus-stack \
+            --create-namespace \
+            --namespace ${{ env.NAMESPACE }} \
+            --set grafana.admin.adminPassword=${{ secrets.GRAFANA_ADMIN_PASSWORD }} \
+            --set grafana.admin.adminUser=${{ secrets.GRAFANA_ADMIN_USERNAME }}
+          
+            
+      - name: Install OpenTelemetry Collector
+        run: |
+          helm upgrade --install \
+            my-opentelemetry-collector open-telemetry/opentelemetry-collector \
+            --create-namespace \
+            --namespace ${{ env.NAMESPACE }} \
+            --set mode=deployment \
+            --set image.repository="otel/opentelemetry-collector-k8s" \
+            --set command.name="otelcol-k8s" 
+    
+            
+
+            
