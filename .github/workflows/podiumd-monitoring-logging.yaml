@@ -32,27 +32,17 @@ jobs:
           helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
           helm repo add enix https://charts.enix.io
           helm repo update
-
-      - name: Install Prometheus, Alertmanager, Grafana, Prometheus Operator
-        run: |
-          helm upgrade --install \
-            kube-prometheus-stack prometheus-community/kube-prometheus-stack \
-            --create-namespace \
-            --namespace ${{ env.NAMESPACE }} \
-            --set grafana.admin.adminPassword=${{ secrets.GRAFANA_ADMIN_PASSWORD }} \
-            --set grafana.admin.adminUser=${{ secrets.GRAFANA_ADMIN_USERNAME }}
           
-            
-      - name: Install OpenTelemetry Collector
+      - name: Install podiumd-monitoring-logging helm chart
         run: |
           helm upgrade --install \
-            my-opentelemetry-collector open-telemetry/opentelemetry-collector \
+            podiumd-monitoring-logging \
+            podiumd-monitoring-logging/chart.yaml \
+            --values podiumd-monitoring-logging/values.yaml 
             --create-namespace \
             --namespace ${{ env.NAMESPACE }} \
-            --set mode=deployment \
-            --set image.repository="otel/opentelemetry-collector-k8s" \
-            --set command.name="otelcol-k8s" 
-    
+            
+            
             
 
             
