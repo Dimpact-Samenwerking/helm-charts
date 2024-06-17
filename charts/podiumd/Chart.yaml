@@ -67,9 +67,3 @@ dependencies:
     condition: openinwoner.enabled
     tags:
       - portaal
-  - name: zac
-    version: ~1.0.0
-    repository: "@dimpact"
-    condition: zac.enabled
-    tags:
-      - zaak

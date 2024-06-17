@@ -35,8 +35,5 @@ dependencies:
 - name: openinwoner
   repository: https://maykinmedia.github.io/charts/
   version: 1.3.2
-- name: zac
-  repository: https://Dimpact-Samenwerking.github.io/helm-charts/
-  version: 1.0.0
-digest: sha256:e24c515968e65f70e9621e5074d656b5b5e0088d7408c385c27589fca4f97ded
-generated: "2024-06-11T08:42:05.588948773+02:00"
+digest: sha256:aa29c6b20de84f562808d34f9161f3ca58bc37780f5a14f17da10f99f80925fb
+generated: "2024-06-17T14:47:38.420465615+02:00"
