@@ -37,8 +37,8 @@ jobs:
         run: |
           helm upgrade --install \
             podiumd-monitoring-logging \
-            ./charts/podiumd-monitoring-logging \
-            --values ./charts/podiumd-monitoring-logging/values.yaml \
+              charts/podiumd-monitoring-logging \
+            --values charts/podiumd-monitoring-logging/values.yaml \
             --create-namespace \
             --namespace ${{ env.NAMESPACE }} 
             
