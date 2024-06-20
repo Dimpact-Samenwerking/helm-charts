@@ -315,9 +315,6 @@ officeConverter:
   tolerations: [ ]
 
 opentelemetrycollector:
-  enabled: true
-  samplerType: "off"
-  endpoint: "http://zac-opentelemetrycollector:4317"
   mode: deployment
   replicaCount: 1
   presets:
