@@ -24,6 +24,25 @@ kube-prometheus-stack:
       url: http://tempo.loki.svc.cluster.local:3100
       access: proxy
       version: 1
+    - name: Azure Monitor
+      type: grafana-azure-monitor-datasource
+      orgId: 1
+      typeLogoUrl: public/plugins/grafana-azure-monitor-datasource/img/logo.jpg
+      access: proxy
+      url: /api/datasources/proxy/2
+      isDefault: false
+      readOnly: false
+      editable: true
+      jsonData:
+        cloudName: azuremonitor
+        subscriptionId: XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
+        tenantId: XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
+        clientId: XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
+        logAnalyticsDefaultWorkspace: XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
+        azureLogAnalyticsSameAs: true
+        keepCookies: []
+      secureJsonData:
+        clientSecret: LOG_ANALYTICS_CLIENT_SECRET
     admin:
       existingSecret: ""
       passwordKey: admin-password
