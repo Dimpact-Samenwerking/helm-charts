@@ -35,6 +35,8 @@ jobs:
           
       - name: Install podiumd-monitoring-logging helm chart
         run: |
+          cd charts/podiumd-monitoring-logging
+          helm dependency build
           helm upgrade --install \
             podiumd-monitoring-logging \
               charts/podiumd-monitoring-logging \
