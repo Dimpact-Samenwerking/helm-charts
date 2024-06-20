@@ -482,7 +482,7 @@ x509-certificate-exporter:
     extraLabels:
         release: "grafana"
 
-loki-stack:
+loki:
   loki:
     commonConfig:
       replication_factor: 1
