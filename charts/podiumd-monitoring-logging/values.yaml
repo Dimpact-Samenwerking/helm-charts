@@ -559,3 +559,10 @@ promtail:
     clients:
       - url: http://loki-stack-gateway.loki.svc.cluster.local/loki/api/v1/push
         tenant_id: 1
+
+opentelemetry-collector:
+  mode: deployment
+  image:
+    repository: otel/opentelemetry-collector-k8s
+  command:
+    name: otelcol-k8s
