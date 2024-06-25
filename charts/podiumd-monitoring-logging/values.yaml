@@ -590,3 +590,8 @@ opentelemetry-collector:
     repository: otel/opentelemetry-collector-k8s
   command:
     name: otelcol-k8s
+    
+helm-exporter:
+  serviceMonitor:
+  # Specifies whether a ServiceMonitor should be created
+  create: true
