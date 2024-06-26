@@ -493,7 +493,7 @@ kubePrometheusStack:
           - kube-prometheus-stack-grafana:80
           - prometheus-operated:9090
 
-x509-certificate-exporter:
+x509CertificateExporter:
   prometheusServiceMonitor:
     extraLabels:
         release: "grafana"
@@ -571,8 +571,6 @@ loki:
     replicas: 0
   bloomGateway:
     replicas: 0
-
- 
   monitoring:
     serviceMonitor:
       enabled: true   
@@ -584,14 +582,14 @@ promtail:
       - url: http://loki-stack-gateway.loki.svc.cluster.local/loki/api/v1/push
         tenant_id: 1
 
-opentelemetry-collector:
+opentelemetryCollector:
   mode: deployment
   image:
     repository: otel/opentelemetry-collector-k8s
   command:
     name: otelcol-k8s
     
-helm-exporter:
+helmExporter:
   serviceMonitor:
   # Specifies whether a ServiceMonitor should be created
   create: true
