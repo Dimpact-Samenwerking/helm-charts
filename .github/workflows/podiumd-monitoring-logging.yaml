@@ -43,6 +43,9 @@ jobs:
               --values charts/podiumd-monitoring-logging/values.yaml \
               --create-namespace \
               --namespace ${{ env.NAMESPACE }} 
+
+            --set smtpUsername=${{ secrets.SMTP_USERNAME }} \
+            --set grafana.admin.adminUser=${{ secrets.GRAFANA_SMTP }}
             
             
             
