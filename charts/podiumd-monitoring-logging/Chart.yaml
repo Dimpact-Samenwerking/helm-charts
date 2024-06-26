@@ -37,4 +37,10 @@ dependencies:
     version: "~1.7.3"
     repository: "https://grafana.github.io/helm-charts"
     condition: tempo.enabled
+  - name: helm-exporter
+    alias: helmExporter
+    version: "~1.2.16+77ad21d"
+    repository: "https://shanestarcher.com/helm-charts"
+    condition: helmExporter.enabled
+  
   
