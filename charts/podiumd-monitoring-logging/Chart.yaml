@@ -6,15 +6,14 @@ appVersion: "1.0"
 
 dependencies:
   - name: kube-prometheus-stack
+    alias: kubePrometheusStack
     version: "~59.1.0"
     repository: "https://prometheus-community.github.io/helm-charts"
-    tags: 
-      - kube-prometheus-stack
+    condition: kubePrometheusStack.enabled
   - name: prometheus-blackbox-exporter
     version: "~8.17.0"
     repository: "https://prometheus-community.github.io/helm-charts"
-    tags:
-      - prometheus-blackbox-exporter
+    condition: prometheus-blackbox-exporter.enabled 
   - name: x509-certificate-exporter
     version: "~3.14.0"
     repository: "https://charts.enix.io"
@@ -33,10 +32,8 @@ dependencies:
   - name: opentelemetry-collector
     version: "~0.92.0"
     repository: "https://open-telemetry.github.io/opentelemetry-helm-charts"
-    tags: 
-      - opentelemetry-collector
+    
   - name: tempo
     version: "~1.7.3"
     repository: "https://grafana.github.io/helm-charts"
-    tags: 
-      - tempo
+  
