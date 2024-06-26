@@ -1,4 +1,4 @@
-kube-prometheus-stack:
+kubePrometheusStack:
   grafana:
     additionalDataSources:
     - name: loki
