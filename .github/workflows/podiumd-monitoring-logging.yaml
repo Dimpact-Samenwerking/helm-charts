@@ -44,8 +44,8 @@ jobs:
               --create-namespace \
               --namespace ${{ env.NAMESPACE }} 
 
-            --set smtpUsername=${{ secrets.SMTP_USERNAME }} \
-            --set grafana.admin.adminUser=${{ secrets.GRAFANA_SMTP }}
+            --set smtp.username=${{ secrets.SMTP_USERNAME }} \
+            --set smtp.password=${{ secrets.SMTP_PASSWORD }} 
             
             
             
