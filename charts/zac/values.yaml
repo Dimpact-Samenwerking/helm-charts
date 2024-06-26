@@ -315,6 +315,7 @@ officeConverter:
   tolerations: [ ]
 
 opentelemetrycollector:
+  samplerType: "off"
   mode: deployment
   replicaCount: 1
   presets:
