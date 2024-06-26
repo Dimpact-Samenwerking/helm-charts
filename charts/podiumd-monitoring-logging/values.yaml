@@ -1,4 +1,4 @@
-kube-prometheus-stack:
+kubePrometheusStack:
   grafana:
     additionalDataSources:
     - name: loki
@@ -24,6 +24,25 @@ kube-prometheus-stack:
       url: http://tempo.loki.svc.cluster.local:3100
       access: proxy
       version: 1
+    - name: Azure Monitor
+      type: grafana-azure-monitor-datasource
+      orgId: 1
+      typeLogoUrl: public/plugins/grafana-azure-monitor-datasource/img/logo.jpg
+      access: proxy
+      url: /api/datasources/proxy/2
+      isDefault: false
+      readOnly: false
+      editable: true
+      jsonData:
+        cloudName: azuremonitor
+        subscriptionId: XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
+        tenantId: XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
+        clientId: XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
+        logAnalyticsDefaultWorkspace: XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
+        azureLogAnalyticsSameAs: true
+        keepCookies: []
+      secureJsonData:
+        clientSecret: LOG_ANALYTICS_CLIENT_SECRET
     admin:
       existingSecret: ""
       passwordKey: admin-password
@@ -474,7 +493,7 @@ kube-prometheus-stack:
           - kube-prometheus-stack-grafana:80
           - prometheus-operated:9090
 
-x509-certificate-exporter:
+x509CertificateExporter:
   prometheusServiceMonitor:
     extraLabels:
         release: "grafana"
@@ -482,7 +501,7 @@ x509-certificate-exporter:
     extraLabels:
         release: "grafana"
 
-loki-stack:
+loki:
   loki:
     commonConfig:
       replication_factor: 1
@@ -552,6 +571,9 @@ loki-stack:
     replicas: 0
   bloomGateway:
     replicas: 0
+  monitoring:
+    serviceMonitor:
+      enabled: true   
     
 promtail:
   config:
@@ -559,3 +581,15 @@ promtail:
     clients:
       - url: http://loki-stack-gateway.loki.svc.cluster.local/loki/api/v1/push
         tenant_id: 1
+
+opentelemetryCollector:
+  mode: deployment
+  image:
+    repository: otel/opentelemetry-collector-k8s
+  command:
+    name: otelcol-k8s
+    
+helmExporter:
+  serviceMonitor:
+  # Specifies whether a ServiceMonitor should be created
+  create: true

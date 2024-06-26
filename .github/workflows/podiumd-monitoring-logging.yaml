@@ -4,7 +4,7 @@ on:
 
 env:
   AZURE_CONTAINER_REGISTRY: "crlabdimpact.azurecr.io"
-  NAMESPACE: "monitoring"
+  NAMESPACE: "test"
   RESOURCE_GROUP: "rg-lab"
   CLUSTER_NAME: "lab"
 
@@ -35,12 +35,17 @@ jobs:
           
       - name: Install podiumd-monitoring-logging helm chart
         run: |
+          cd charts/podiumd-monitoring-logging
+          helm dependency build
           helm upgrade --install \
             podiumd-monitoring-logging \
-            podiumd-monitoring-logging/chart.yaml \
-            --values podiumd-monitoring-logging/values.yaml 
-            --create-namespace \
-            --namespace ${{ env.NAMESPACE }} \
+              charts/podiumd-monitoring-logging \
+              --values charts/podiumd-monitoring-logging/values.yaml \
+              --create-namespace \
+              --namespace ${{ env.NAMESPACE }} 
+
+            --set smtp.username=${{ secrets.SMTP_USERNAME }} \
+            --set smtp.password=${{ secrets.SMTP_PASSWORD }} 
             
             
             
