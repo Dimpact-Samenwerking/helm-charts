@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "kiss.fullname" . }}-adapter
+  labels:
+    {{- include "kiss.labelsAdapter" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "kiss.selectorLabelsAdapter" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/adapter-config.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/adapter-secret.yaml") . | sha256sum }}
+      labels:
+        {{- include "kiss.labelsAdapter" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "kiss.serviceAccountName" . }}
+      containers:
+        - name: adapter
+          image: "{{ .Values.adapter.image.repository }}:{{ .Values.adapter.image.tag }}"
+          imagePullPolicy: {{ .Values.adapter.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          envFrom:
+            - configMapRef:
+                name: adapter-config
+            - secretRef:
+                name: adapter-secret
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

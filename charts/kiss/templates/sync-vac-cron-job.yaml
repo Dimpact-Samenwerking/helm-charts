@@ -1,0 +1,36 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: kiss-sync-vac-cron-job
+  labels:
+    {{- include "kiss.labels" . | nindent 4 }}
+    app.kubernetes.io/name: {{ include "kiss.name" . }}-sync-vac-cron-job
+spec:
+  schedule: {{ .Values.sync.schedule.vac | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: {{ .Values.sync.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.sync.failedJobsHistoryLimit }}
+  jobTemplate:
+    metadata:
+      labels:
+        {{- include "kiss.labels" . | nindent 8 }}
+        app.kubernetes.io/name: {{ include "kiss.name" . }}-sync-vac-cron-job
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: sync-vac
+              image: "{{ .Values.sync.image.repository }}:{{ .Values.sync.image.tag }}"
+              imagePullPolicy: {{ .Values.sync.image.pullPolicy }}
+              args:
+                - vac
+              envFrom:
+                - configMapRef:
+                    name: kiss-sync-config
+                - secretRef:
+                    name: kiss-sync-secret
+          {{- with .Values.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}

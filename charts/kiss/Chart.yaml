@@ -1,15 +1,5 @@
 apiVersion: v2
 name: kiss
 description: A Helm chart for KISS
-version: 1.0.0-alpha.1
+version: 1.0.0
 appVersion: "latest"
-dependencies:
-  - name: kiss-frontend
-    alias: frontend
-    version: ~1.0.51
-    repository: "@kiss-frontend"
-  - name: podiumd-adapter
-    alias: adapter
-    version: ~1.0.0
-    repository: "@kiss-adapter"
-

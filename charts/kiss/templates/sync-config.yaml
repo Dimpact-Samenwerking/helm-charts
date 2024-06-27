@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kiss-sync-config
+  labels:
+    {{- include "kiss.labels" . | nindent 4 }}
+    app.kubernetes.io/name: {{ include "kiss.name" . }}-sync-config
+data:
+  ELASTIC_BASE_URL: {{ .Values.elastic.baseUrl | quote }}
+  ENTERPRISE_SEARCH_BASE_URL: {{ .Values.enterpriseSearch.baseUrl | quote }}
+  ENTERPRISE_SEARCH_ENGINE: {{ .Values.enterpriseSearch.engine | quote }}
+  MEDEWERKER_OBJECTEN_BASE_URL: {{ .Values.adapter.baseUrl | quote }}
+  MEDEWERKER_OBJECT_TYPE_URL: {{ printf "%s/api/v2/objecttypes/%s" .Values.objecttypen.baseUrlExtern .Values.objecttypen.medewerkerUUID | quote }}
+  SDG_OBJECTEN_BASE_URL: {{ .Values.objecten.baseUrl | quote }}
+  SDG_OBJECT_TYPE_URL: {{ printf "%s/api/v2/objecttypes/%s" .Values.objecttypen.baseUrlIntern .Values.objecttypen.kennisartikelUUID | quote }}
+  VAC_OBJECTEN_BASE_URL: {{ .Values.objecten.baseUrl | quote }}
+  VAC_OBJECT_TYPE_URL: {{ printf "%s/api/v2/objecttypes/%s" .Values.objecttypen.baseUrlIntern .Values.objecttypen.vacUUID | quote }}

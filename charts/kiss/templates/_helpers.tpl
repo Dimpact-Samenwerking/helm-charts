@@ -35,7 +35,7 @@ Common labels
 */}}
 {{- define "kiss.labels" -}}
 helm.sh/chart: {{ include "kiss.chart" . }}
-{{ include "kiss.selectorLabels" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
@@ -43,9 +43,44 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end }}
 
 {{/*
-Selector labels
+Frontend labels
 */}}
-{{- define "kiss.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "kiss.name" . }}
+{{- define "kiss.labelsFrontend" -}}
+app.kubernetes.io/name: {{ include "kiss.name" . }}-frontend
+{{ include "kiss.labels" . }}
+{{- end }}
+
+{{/*
+Frontend selector labels
+*/}}
+{{- define "kiss.selectorLabelsFrontend" -}}
+app.kubernetes.io/name: {{ include "kiss.name" . }}-frontend
 app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
+
+{{/*
+Adapter labels
+*/}}
+{{- define "kiss.labelsAdapter" -}}
+app.kubernetes.io/name: {{ include "kiss.name" . }}-adapter
+{{ include "kiss.labels" . }}
+{{- end }}
+
+{{/*
+Adapter selector labels
+*/}}
+{{- define "kiss.selectorLabelsAdapter" -}}
+app.kubernetes.io/name: {{ include "kiss.name" . }}-adapter
+app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
+
+{{/*
+Create the name of the service account to use
+*/}}
+{{- define "kiss.serviceAccountName" -}}
+{{- if .Values.serviceAccount.create }}
+{{- default (include "kiss.fullname" .) .Values.serviceAccount.name }}
+{{- else }}
+{{- default "default" .Values.serviceAccount.name }}
+{{- end }}
 {{- end }}

@@ -11,6 +11,7 @@ enterpriseSearch:
   baseUrl: ""
   privateApikey: ""
   publicApikey: ""
+  engine: kiss-engine
 
 database:
   host: ""
@@ -35,6 +36,7 @@ objecttypen:
   interneTaakUUID: ""
   kennisartikelUUID: ""
   medewerkerUUID: ""
+  vacUUID: ""
 
 oidc:
   authority: ""
@@ -49,21 +51,58 @@ esuite:
   secret: ""
   contactverzoektypen: []
 
+imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  automount: true
+  annotations: {}
+  name: ""
+
+nodeSelector: {}
+
 frontend:
-  replicaCount: 1
-  nameOverride: kiss-frontend
-  fullnameOverride: kiss-frontend
-  service:
-    port: 80
-  postgresql:
-    enabled: false
+  image:
+    repository: ghcr.io/klantinteractie-servicesysteem/kiss-frontend
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 100m
+      memory: 100Mi
+  aspNetCoreEnvironment: Production
 
 adapter:
   baseUrl: ""
   clientId: ""
   secret: ""
-  replicaCount: 1
-  nameOverride: kiss-adapter
-  fullnameOverride: kiss-adapter
-  service:
-    port: 80
+  image:
+    repository: ghcr.io/icatt-menselijk-digitaal/podiumd-adapter
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 100m
+      memory: 100Mi
+
+sync:
+  initialSync: true
+  schedule:
+    kennisbank: "*/59 * * * *"
+    medewerkers: "*/59 * * * *"
+    vac: "*/59 * * * *"
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  image:
+    repository: "ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync"
+    tag: "latest"
+    pullPolicy: IfNotPresent
+
+alpine:
+  image:
+    repository: "alpine"
+    tag: "3.20"
+    pullPolicy: IfNotPresent

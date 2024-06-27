@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: kiss-config
+  name: frontend-config
   labels:
     {{- include "kiss.labels" . | nindent 4 }}
     app.kubernetes.io/name: {{ include "kiss.name" . }}-frontend-config
@@ -28,5 +28,5 @@ data:
   SDG_OBJECT_BASE_URL: {{ .Values.objecten.baseUrl | quote }}
   SDG_OBJECT_TYPE_URL: {{ printf "%s/api/v2/objecttypes/%s" .Values.objecttypen.baseUrlIntern .Values.objecttypen.kennisartikelUUID | quote }}
   ZAAKSYSTEEM_DEEPLINK_PROPERTY: "identificatie"
-  ZAAKSYSTEEM_DEEPLINK_URL: {{ printf "%/mp/zaak/" .Values.esuite.baseUrl | quote }}
+  ZAAKSYSTEEM_DEEPLINK_URL: {{ printf "%s/mp/zaak/" .Values.esuite.baseUrl | quote }}
   ZAKEN_BASE_URL: {{ .Values.adapter.baseUrl | quote }}

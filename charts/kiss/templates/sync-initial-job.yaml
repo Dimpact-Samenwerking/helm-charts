@@ -1,0 +1,61 @@
+{{- if .Values.sync.initialSync }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kiss-sync-initial-job
+  labels:
+    {{- include "kiss.labels" . | nindent 4 }}
+    app.kubernetes.io/name: {{ include "kiss.name" . }}-sync-initial-job
+  annotations:
+    "helm.sh/hook": post-install
+    "helm.sh/hook-weight": "-5"
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        {{- include "kiss.labels" . | nindent 8 }}
+        app.kubernetes.io/name: {{ include "kiss.name" . }}-sync-initial-job
+    spec:
+      restartPolicy: Never
+      initContainers:
+        - name: wait
+          image: "{{ .Values.alpine.image.repository }}:{{ .Values.alpine.image.tag }}"
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              echo "Wait for 1 minute ..." && \
+              sleep 60
+      containers:
+        - name: sync-medewerkers
+          image: "{{ .Values.sync.image.repository }}:{{ .Values.sync.image.tag }}"
+          imagePullPolicy: {{ .Values.sync.image.pullPolicy }}
+          args:
+            - smoelenboek
+          envFrom:
+            - configMapRef:
+                name: kiss-sync-config
+            - secretRef:
+                name: kiss-sync-secret
+        - name: sync-vacs
+          image: "{{ .Values.sync.image.repository }}:{{ .Values.sync.image.tag }}"
+          args:
+            - vac
+          envFrom:
+            - configMapRef:
+                name: kiss-sync-config
+            - secretRef:
+                name: kiss-sync-secret
+        - name: sync-kennisbank
+          image: "{{ .Values.sync.image.repository }}:{{ .Values.sync.image.tag }}"
+          envFrom:
+            - configMapRef:
+                name: kiss-sync-config
+            - secretRef:
+                name: kiss-sync-secret
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}
