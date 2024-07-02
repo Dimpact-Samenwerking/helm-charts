@@ -622,3 +622,11 @@ helmExporter:
   serviceMonitor:
   # Specifies whether a ServiceMonitor should be created
   create: true
+
+tempo:
+  tempo:
+    persistence:
+      accessModes:
+      - ReadWriteOnce
+      enabled: true
+      size: 10Gi 
