@@ -122,21 +122,27 @@ kubePrometheusStack:
   
     persistence:
       enabled: true
+      accessModes:
+      - ReadWriteOnce
       size: 10Gi
       type: pvc
       
   prometheus:
     prometheusSpec:
-  #    # read all serviceMonitors from all namespaces
+     # basicAuth:
+     #   enabled: true
+     #   username: admin
+     #   password: password
+      # read all serviceMonitors from all namespaces
       serviceMonitorSelectorNilUsesHelmValues: false
-  #    storageSpec:
-  #      volumeClaimTemplate:
-  #        spec:
-  #          storageClassName: default
-  #          accessModes: ["ReadWriteOnce"]
-  #          resources:
-  #            requests:
-  #              storage: 10Gi
+      retention: 30d
+      storageSpec:
+        volumeClaimTemplate:
+          spec:
+            accessModes: ["ReadWriteOnce"]
+            resources:
+              requests:
+                storage: 50Gi
       
       additionalScrapeConfigs:
       - job_name: blackbox-dimpact
@@ -537,6 +543,8 @@ loki:
           index:
             prefix: loki_index_
             period: 24h
+      retention_config:
+        retention_period: 30d
     ingester:
       chunk_encoding: snappy
     tracing:
