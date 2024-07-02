@@ -624,9 +624,8 @@ helmExporter:
   create: true
 
 tempo:
-  tempo:
-    persistence:
-      accessModes:
-      - ReadWriteOnce
-      enabled: true
-      size: 10Gi 
+  persistence:
+    accessModes:
+    - ReadWriteOnce
+    enabled: true
+    size: 10Gi 
