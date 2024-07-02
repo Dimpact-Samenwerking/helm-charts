@@ -28,7 +28,7 @@ spec:
               echo "Wait for 1 minute ..." && \
               sleep 60
       containers:
-        - name: sync-medewerkers
+        - name: sync-smoelenboek
           image: "{{ .Values.sync.image.repository }}:{{ .Values.sync.image.tag }}"
           imagePullPolicy: {{ .Values.sync.image.pullPolicy }}
           args:
@@ -38,7 +38,7 @@ spec:
                 name: kiss-sync-config
             - secretRef:
                 name: kiss-sync-secret
-        - name: sync-vacs
+        - name: sync-vac
           image: "{{ .Values.sync.image.repository }}:{{ .Values.sync.image.tag }}"
           args:
             - vac

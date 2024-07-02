@@ -92,7 +92,7 @@ sync:
   initialSync: true
   schedule:
     kennisbank: "*/59 * * * *"
-    medewerkers: "*/59 * * * *"
+    smoelenboek: "*/59 * * * *"
     vac: "*/59 * * * *"
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 1
