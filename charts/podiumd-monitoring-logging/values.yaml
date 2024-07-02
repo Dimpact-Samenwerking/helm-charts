@@ -43,6 +43,26 @@ kubePrometheusStack:
         keepCookies: []
       secureJsonData:
         clientSecret: LOG_ANALYTICS_CLIENT_SECRET
+    - name: Infinity
+      editable: true
+      readOnly: false
+      type: yesoreyeram-infinity-datasource
+      uid: yesoreyeram-infinity-datasource
+      access: proxy
+      jsonData:
+        enableSecureSocksProxy: true
+        auth_method: oauth2
+        oauth2:
+          client_id: xxxxxxx ## Replace xxxxxxx with actual client id
+          token_url: https://login.microsoftonline.com/xxxxxxx/oauth2/token ## Replace xxxxxxx with actual tenant id
+        oauth2EndPointParamsName1: resource
+        customHealthCheckEnabled: true
+        customHealthCheckUrl: https://management.azure.com/subscriptions?api-version=2020-01-01
+        allowedHosts:
+          - https://management.azure.com/
+      secureJsonData:
+        oauth2ClientSecret: xxxxxxx ## Replace xxxxxxx with actual client secret
+        oauth2EndPointParamsValue1: https://management.azure.com/
     admin:
       existingSecret: ""
       passwordKey: admin-password
@@ -102,21 +122,27 @@ kubePrometheusStack:
   
     persistence:
       enabled: true
+      accessModes:
+      - ReadWriteOnce
       size: 10Gi
       type: pvc
       
   prometheus:
     prometheusSpec:
-  #    # read all serviceMonitors from all namespaces
+     # basicAuth:
+     #   enabled: true
+     #   username: admin
+     #   password: password
+      # read all serviceMonitors from all namespaces
       serviceMonitorSelectorNilUsesHelmValues: false
-  #    storageSpec:
-  #      volumeClaimTemplate:
-  #        spec:
-  #          storageClassName: default
-  #          accessModes: ["ReadWriteOnce"]
-  #          resources:
-  #            requests:
-  #              storage: 10Gi
+      retention: 30d
+      storageSpec:
+        volumeClaimTemplate:
+          spec:
+            accessModes: ["ReadWriteOnce"]
+            resources:
+              requests:
+                storage: 50Gi
       
       additionalScrapeConfigs:
       - job_name: blackbox-dimpact
@@ -517,6 +543,8 @@ loki:
           index:
             prefix: loki_index_
             period: 24h
+      retention_config:
+        retention_period: 30d
     ingester:
       chunk_encoding: snappy
     tracing:
