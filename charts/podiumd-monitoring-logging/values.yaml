@@ -543,8 +543,6 @@ loki:
           index:
             prefix: loki_index_
             period: 24h
-      retention_config:
-        retention_period: 30d
     ingester:
       chunk_encoding: snappy
     tracing:
@@ -573,6 +571,9 @@ loki:
   # create prometheus operator monitoring resources  
   serviceMonitor:
     enabled: true
+  
+  tableManager:
+    retention_period: 30
   
   # Zero out replica counts of other deployment modes
   backend:
@@ -621,3 +622,10 @@ helmExporter:
   serviceMonitor:
   # Specifies whether a ServiceMonitor should be created
   create: true
+
+tempo:
+  persistence:
+    accessModes:
+    - ReadWriteOnce
+    enabled: true
+    size: 10Gi 
