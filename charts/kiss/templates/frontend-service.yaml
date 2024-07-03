@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "kiss.fullname" . }}-frontend
+  name: {{ default (printf "%s-frontend" (include "kiss.fullname" .)) .Values.frontend.service.name }}
   labels:
     {{- include "kiss.labelsFrontend" . | nindent 4 }}
 spec:

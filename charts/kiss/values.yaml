@@ -65,6 +65,8 @@ serviceAccount:
 nodeSelector: {}
 
 frontend:
+  service:
+    name: ""
   image:
     repository: ghcr.io/klantinteractie-servicesysteem/kiss-frontend
     tag: "latest"
