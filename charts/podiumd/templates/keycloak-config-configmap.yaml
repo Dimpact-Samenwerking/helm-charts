@@ -166,13 +166,13 @@ data:
             connectionPooling:
               - true
             bindDn:
-              - cn=admin,dc=dimpact-lab,dc=org
+              - cn=admin,dc=dimpact,dc=org
             bindCredential:
               - admin
             editMode:
               - WRITABLE
             usersDn:
-              - ou=lab3,dc=dimpact-lab,dc=org
+              - ou=lab3,dc=dimpact,dc=org
             usernameLDAPAttribute:
               - cn
             rdnLDAPAttribute:
