@@ -12,8 +12,4 @@
 | gbamock.image.repository  | Mock image repository                                   | `ghcr.io/brp-api/haal-centraal-brp-bevragen-gba-mock` |
 | gbamock.image.tag         | Mock image tag                                          | `2.0.8`                                               |
 | gbamock.image.pullPolicy  | Mock image pull policy                                  | `IfNotPresent`                                        |
-| 
-
-
-
-
+ 

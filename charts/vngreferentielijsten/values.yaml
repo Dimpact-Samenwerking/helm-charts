@@ -1,12 +1,8 @@
+nameOverride: ""
+
+nodeSelector: {}
+
 image:
   name: ghcr.io/infonl/vng-referentielijsten
   tag: "0.6.1"
   pullPolicy: IfNotPresent
-
-nameOverride: ""
-
-nodeSelector: { }
-
-tolerations: [ ]
-
-affinity: { }
