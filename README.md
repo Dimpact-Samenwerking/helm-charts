@@ -1,10 +1,13 @@
 # Dimpact Helm charts
 This repository contains Helm charts for:
 
-- [zac](./charts/zac/README.md)
-- [brp-mock](./charts/brp-mock/README.md)
+- [brp mock](./charts/brpmock/README.md)
+- [kiss](./charts/kiss/README.md)
+- [open ldap](./charts/openldap/README.md)
 - [podiumd](./charts/podiumd/README.md)
-- [vng-referentielijsten](./charts/vng-referentielijsten/README.md)
+- [podiumd monitoring and logging](./charts/podiumd-monitoring-logging/README.md)
+- [vng referentielijsten](./charts/vngreferentielijsten/README.md)
+- [zac](./charts/zac/README.md)
 
 
 ```bash

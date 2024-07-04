@@ -28,15 +28,7 @@ spec:
           ports:
             - name: http
               containerPort: 5010
-      {{- with .Values.gbamock.nodeSelector }}
+      {{- with .Values.nodeSelector }}
       nodeSelector:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with .Values.gbamock.affinity }}
-      affinity:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with .Values.gbamock.tolerations }}
-      tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}

@@ -28,15 +28,7 @@ spec:
           ports:
             - name: http
               containerPort: 5000
-      {{- with .Values.brpproxy.nodeSelector }}
+      {{- with .Values.nodeSelector }}
       nodeSelector:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with .Values.brpproxy.affinity }}
-      affinity:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with .Values.brpproxy.tolerations }}
-      tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
