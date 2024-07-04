@@ -11,7 +11,7 @@ dependencies:
     repository: "@bitnami"
     condition: keycloak.enabled
   - name: openldap
-    version: 1.0.1
+    version: 1.0.2
     # appVersion: 2.6.8
     repository: "@dimpact"
     condition: openldap.enabled
@@ -24,6 +24,19 @@ dependencies:
     condition: clamav.enabled
     tags:
       - formulier
+  - name: brpmock
+    version: ~1.2.4
+    repository: "@dimpact"
+    condition: brpmock.enabled
+    tags:
+      - contact
+      - zaak
+  - name: vngreferentielijsten
+    version: ~1.1.5
+    repository: "@dimpact"
+    condition: vngreferentielijsten.enabled
+    tags:
+      - zaak
   - name: openzaak
     version: 1.3.2
     # appVersion: 1.12.1
@@ -58,19 +71,6 @@ dependencies:
     # appVersion: 0.5-pre -> 2.0.0
     repository: "@maykinmedia"
     condition: openklantv2.enabled
-  - name: brpmock
-    version: ~1.2.2
-    repository: "@dimpact"
-    condition: brpmock.enabled
-    tags:
-      - contact
-      - zaak
-  - name: vngreferentielijsten
-    version: ~1.1.3
-    repository: "@dimpact"
-    condition: vngreferentielijsten.enabled
-    tags:
-      - zaak
   - name: openforms
     alias: openformulieren
     version: 1.3.0
