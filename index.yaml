@@ -3,6 +3,15 @@ entries:
   brpmock:
   - apiVersion: v2
     appVersion: 2.0.8
+    created: "2024-07-04T14:14:37.834811049Z"
+    description: A Helm chart for the BRP Proxy and GBA Mock combination
+    digest: 08ca2f9705879cbc9b02b2c23618d3fbf70ab3edb27c08026bce2f7b21d560b2
+    name: brpmock
+    urls:
+    - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/brpmock-1.2.4/brpmock-1.2.4.tgz
+    version: 1.2.4
+  - apiVersion: v2
+    appVersion: 2.0.8
     created: "2024-06-11T06:39:59.284120486Z"
     description: A Helm chart for the BRP Proxy and GBA Mock combination
     digest: 9455660c26276c0674fd87a665a648f4df01ec9503b0fb82ff13a887d8ae4ef4
@@ -28,7 +37,26 @@ entries:
     urls:
     - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/brpmock-1.2.0/brpmock-1.2.0.tgz
     version: 1.2.0
+  kiss:
+  - apiVersion: v2
+    appVersion: latest
+    created: "2024-07-04T14:14:37.974608015Z"
+    description: A Helm chart for KISS
+    digest: ab482a57983497e36508fc31619a2732fc4af229f72d90ec9f6de3cb44ea0938
+    name: kiss
+    urls:
+    - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/kiss-1.0.3/kiss-1.0.3.tgz
+    version: 1.0.3
   openldap:
+  - apiVersion: v2
+    appVersion: 2.6.8
+    created: "2024-07-04T14:14:38.115990328Z"
+    description: A Helm chart for Open LDAP
+    digest: 0cd2618dd0503b918eeae6f02f0b58ed8a4f492b979a1be230cf1e986fef747f
+    name: openldap
+    urls:
+    - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/openldap-1.0.2/openldap-1.0.2.tgz
+    version: 1.0.2
   - apiVersion: v2
     appVersion: 2.6.8
     created: "2024-06-11T05:55:09.244252037Z"
@@ -47,7 +75,146 @@ entries:
     urls:
     - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/openldap-1.0.0/openldap-1.0.0.tgz
     version: 1.0.0
+  podiumd:
+  - apiVersion: v2
+    appVersion: 1.3.0
+    created: "2024-07-04T14:14:38.386780163Z"
+    dependencies:
+    - condition: keycloak.enabled
+      name: keycloak
+      repository: '@bitnami'
+      version: 21.4.4
+    - condition: openldap.enabled
+      name: openldap
+      repository: '@dimpact'
+      tags:
+      - zaak
+      version: 1.0.1
+    - condition: clamav.enabled
+      name: clamav
+      repository: '@wiremind'
+      tags:
+      - formulier
+      version: 3.1.0
+    - condition: openzaak.enabled
+      name: openzaak
+      repository: '@maykinmedia'
+      version: 1.3.2
+    - condition: opennotificaties.enabled
+      name: opennotificaties
+      repository: '@maykinmedia'
+      version: 1.3.2
+    - condition: objecten.enabled
+      name: objecten
+      repository: '@maykinmedia'
+      version: 2.3.1
+    - condition: objecttypen.enabled
+      name: objecttypen
+      repository: '@maykinmedia'
+      version: 1.0.5
+    - alias: openklantv1
+      condition: openklantv1.enabled
+      name: openklant
+      repository: '@maykinmedia'
+      tags:
+      - zaak
+      version: ~1.3.2
+    - alias: openklantv2
+      condition: openklantv2.enabled
+      name: openklant
+      repository: '@maykinmedia'
+      version: ~1.3.2
+    - condition: brpmock.enabled
+      name: brpmock
+      repository: '@dimpact'
+      tags:
+      - contact
+      - zaak
+      version: ~1.2.2
+    - condition: vngreferentielijsten.enabled
+      name: vngreferentielijsten
+      repository: '@dimpact'
+      tags:
+      - zaak
+      version: ~1.1.3
+    - alias: openformulieren
+      condition: openformulieren.enabled
+      name: openforms
+      repository: '@maykinmedia'
+      tags:
+      - formulier
+      version: 1.3.0
+    - condition: openinwoner.enabled
+      name: openinwoner
+      repository: '@maykinmedia'
+      tags:
+      - portaal
+      version: 1.4.0
+    description: PodiumD Helm chart
+    digest: bd344f721ebdff7eae464d6d0ad82de85df27dbc1d087c4fe31f6d6169871d85
+    name: podiumd
+    type: application
+    urls:
+    - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/podiumd-1.0.0/podiumd-1.0.0.tgz
+    version: 1.0.0
+  podiumd-monitoring-logging:
+  - apiVersion: v2
+    appVersion: "1.0"
+    created: "2024-07-04T14:14:38.610615144Z"
+    dependencies:
+    - alias: kubePrometheusStack
+      condition: kubePrometheusStack.enabled
+      name: kube-prometheus-stack
+      repository: https://prometheus-community.github.io/helm-charts
+      version: ~59.1.0
+    - alias: prometheusBlackboxExporter
+      condition: prometheusBlackboxExporter.enabled
+      name: prometheus-blackbox-exporter
+      repository: https://prometheus-community.github.io/helm-charts
+      version: ~8.17.0
+    - alias: x509CertificateExporter
+      condition: x509CertificateExporter.enabled
+      name: x509-certificate-exporter
+      repository: https://charts.enix.io
+      version: ~3.14.0
+    - condition: loki.enabled
+      name: loki
+      repository: https://grafana.github.io/helm-charts
+      version: ~6.6.2
+    - condition: promtail.enabled
+      name: promtail
+      repository: https://grafana.github.io/helm-charts
+      version: ~6.15.5
+    - alias: opentelemetryCollector
+      condition: opentelemetryCollector.enabled
+      name: opentelemetry-collector
+      repository: https://open-telemetry.github.io/opentelemetry-helm-charts
+      version: ~0.92.0
+    - condition: tempo.enabled
+      name: tempo
+      repository: https://grafana.github.io/helm-charts
+      version: ~1.7.3
+    - alias: helmExporter
+      condition: helmExporter.enabled
+      name: helm-exporter
+      repository: https://shanestarcher.com/helm-charts
+      version: ~1.2.16+77ad21d
+    description: A Helm chart for deploying monitoring and logging
+    digest: f2210de86d1b2f565552eb7ace7e07d861a4ffac41735eed2c79e858aef012a9
+    name: podiumd-monitoring-logging
+    urls:
+    - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/podiumd-monitoring-logging-1.0.0-alpha.1/podiumd-monitoring-logging-1.0.0-alpha.1.tgz
+    version: 1.0.0-alpha.1
   vngreferentielijsten:
+  - apiVersion: v2
+    appVersion: 0.6.1
+    created: "2024-07-04T14:14:38.751664674Z"
+    description: A Helm chart for VNG Referentielijsten reference implementation
+    digest: 92331284c989633ee15b4b352e21da0a36156055e14d5f7b55cea38b90269049
+    name: vngreferentielijsten
+    urls:
+    - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/vngreferentielijsten-1.1.5/vngreferentielijsten-1.1.5.tgz
+    version: 1.1.5
   - apiVersion: v2
     appVersion: 0.6.1
     created: "2024-06-11T06:17:26.724451935Z"
@@ -87,6 +254,24 @@ entries:
   zac:
   - apiVersion: v2
     appVersion: latest
+    created: "2024-07-04T14:14:38.911217635Z"
+    dependencies:
+    - alias: opentelemetrycollector
+      condition: opentelemetrycollector.enabled
+      name: opentelemetry-collector
+      repository: https://open-telemetry.github.io/opentelemetry-helm-charts
+      version: 0.55.2
+    - name: solr
+      repository: https://charts.bitnami.com/bitnami
+      version: 9.1.3
+    description: A Helm chart for installing Zac
+    digest: d365a8117cbd8c14936ef13e9827a55294b879dc09e33155a629f5ba740d288c
+    name: zac
+    urls:
+    - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/zac-1.0.1/zac-1.0.1.tgz
+    version: 1.0.1
+  - apiVersion: v2
+    appVersion: latest
     created: "2024-06-10T15:50:32.505540901Z"
     dependencies:
     - alias: opentelemetrycollector
@@ -103,4 +288,4 @@ entries:
     urls:
     - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/zac-1.0.0/zac-1.0.0.tgz
     version: 1.0.0
-generated: "2024-06-11T06:39:59.284150151Z"
+generated: "2024-07-04T14:14:38.911251468Z"
