@@ -2,29 +2,22 @@ adminUsername: "admin"
 adminPassword: "admin"
 root: "dc=dimpact,dc=org"
 
+nameOverride: ""
+fullnameOverride: ""
+
+nodeSelector: {}
+
 image:
   repository: bitnami/openldap
   tag: "2.6.8"
   pullPolicy: IfNotPresent
 
-nameOverride: ""
-fullnameOverride: ""
-
 persistence:
-  existingClaim: null
+  existingClaim: ""
   subpath: openldap
-
-service:
-  type: ClusterIP
-  port: 1389
 
 resources:
   requests:
-    cpu: 50m
-    memory: 30Mi
+    cpu: 10m
+    memory: 50Mi
 
-nodeSelector: {}
-
-tolerations: []
-
-affinity: {}

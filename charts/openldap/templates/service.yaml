@@ -5,10 +5,10 @@ metadata:
   labels:
     {{- include "openldap.labels" . | nindent 4 }}
 spec:
-  type: {{ .Values.service.type }}
+  type: ClusterIP
   ports:
     - name: tcp-ldap
-      port: {{ .Values.service.port }}
+      port: 1389
       targetPort: tcp-ldap
   selector:
     {{- include "openldap.selectorLabels" . | nindent 4 }}

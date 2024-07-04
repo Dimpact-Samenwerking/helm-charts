@@ -28,6 +28,8 @@ spec:
           ports:
             - name: http
               containerPort: 5000
+          resources:
+            {{- toYaml .Values.brpproxy.resources | nindent 12 }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

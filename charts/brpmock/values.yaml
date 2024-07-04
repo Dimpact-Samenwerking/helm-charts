@@ -7,9 +7,18 @@ brpproxy:
     repository: iswish/haal-centraal-brp-bevragen-proxy
     tag: 2.0.20
     pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 10m
+      memory: 150Mi
+
 
 gbamock:
   image:
     repository: ghcr.io/brp-api/haal-centraal-brp-bevragen-gba-mock
     tag: 2.0.8
     pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 10m
+      memory: 150Mi

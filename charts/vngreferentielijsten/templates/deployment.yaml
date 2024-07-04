@@ -24,9 +24,7 @@ spec:
           image: "{{ .Values.image.name }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           resources:
-            requests:
-              cpu: 50m
-              memory: 150Mi
+            {{- toYaml .Values.resources | nindent 12 }}
           ports:
             - name: http
               containerPort: 8000

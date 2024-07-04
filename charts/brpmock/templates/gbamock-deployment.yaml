@@ -28,6 +28,8 @@ spec:
           ports:
             - name: http
               containerPort: 5010
+          resources:
+            {{- toYaml .Values.gbamock.resources | nindent 12 }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

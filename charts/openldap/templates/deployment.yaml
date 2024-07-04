@@ -31,7 +31,7 @@ spec:
               value: "dummy"
           ports:
             - name: tcp-ldap
-              containerPort: {{ .Values.service.port }}
+              containerPort: 1389
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           volumeMounts:
@@ -44,13 +44,5 @@ spec:
             claimName: {{ .Values.persistence.existingClaim }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with .Values.affinity }}
-      affinity:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with .Values.tolerations }}
-      tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
