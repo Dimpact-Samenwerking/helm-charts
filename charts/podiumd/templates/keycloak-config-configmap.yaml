@@ -1,4 +1,4 @@
-{{- if .Values.keycloak.keycloakConfigCli.enabled -}}
+{{- if and .Values.global.configuration.enabled .Values.keycloak.keycloakConfigCli.enabled -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -15,7 +15,7 @@ data:
     loginWithEmailAllowed: true
     rememberMe: true
     attributes:
-      frontendUrl: {{ .Values.keycloak.config.realmFrontendUrl | quote }}
+      frontendUrl: {{ printf "%s/" .Values.keycloak.config.realmFrontendUrl | quote }}
     clients:
       - clientId: openzaak
         name: Open Zaak
@@ -53,15 +53,26 @@ data:
         webOrigins:
           - "{{ .Values.objecttypen.configuration.oidcUrl }}/*"
         secret: {{ .Values.objecttypen.configuration.oidcSecret | quote }}
-      - clientId: openklant
-        name: Open Klant
+      {{- if .Values.tags.zaak }}
+      - clientId: openklantv1
+        name: Open Klant V1
         enabled: true
         clientAuthenticatorType: client-secret
         redirectUris:
-          - "{{ .Values.openklant.configuration.oidcUrl }}/*"
+          - "{{ .Values.openklantv1.configuration.oidcUrl }}/*"
         webOrigins:
-          - "{{ .Values.openklant.configuration.oidcUrl }}/*"
-        secret: {{ .Values.openklant.configuration.oidcSecret | quote }}
+          - "{{ .Values.openklantv1.configuration.oidcUrl }}/*"
+        secret: {{ .Values.openklantv1.configuration.oidcSecret | quote }}
+      {{- end }}
+      - clientId: openklantv2
+        name: Open Klant V2
+        enabled: true
+        clientAuthenticatorType: client-secret
+        redirectUris:
+          - "{{ .Values.openklantv2.configuration.oidcUrl }}/*"
+        webOrigins:
+          - "{{ .Values.openklantv2.configuration.oidcUrl }}/*"
+        secret: {{ .Values.openklantv2.configuration.oidcSecret | quote }}
       {{- if .Values.tags.formulier }}
       - clientId: openformulieren
         name: Open Formulieren

@@ -7,29 +7,41 @@ tags:
 global:
   configuration:
     enabled: true
+    organization: "Example gemeente"
+    openzaakAutorisatiesApi: "https://openzaak.example.nl/autorisaties/api/v1/"
+    notificatiesApi: "https://opennotificaties.example.nl/api/v1/"
+    notificatiesOpenzaakClientId: "notificaties"
+    notificatiesOpenzaakSecret: "notificaties-secret"
+    openzaakNotificatiesClientId: "openzaak"
+    openzaakNotificatiesSecret: "openzaak-secret"
+  imageRegistry: ""
 
 keycloak:
   config:
     realmDisplayName: "PodiumD"
-    realmFrontendUrl: ""
+    realmFrontendUrl: "https://keycloak.example.nl"
   auth:
     adminUser: admin
     adminPassword: ChangeMeNow
-  production: true
-  proxy: edge
-  resources:
-    requests:
-      cpu: 100m
-      memory: 512Mi
-    limits:
-      memory: 1024Mi
+  externalDatabase:
+    database: ""
+    user: ""
   keycloakConfigCli:
     enabled: true
     existingConfigmap: keycloak-config
+  resources:
+    requests:
+      cpu: 50m
+      memory: 512Mi
+    limits:
+      memory: 1024Mi
+  production: true
+  proxy: edge
   postgresql:
     enabled: false
   nameOverride: keycloak
   fullnameOverride: keycloak
+  extraEnvVarsCM: keycloak-extra-env-vars
 
 openldap:
   nameOverride: "openldap"
@@ -128,12 +140,10 @@ objecttypen:
   nameOverride: objecttypen
   fullnameOverride: objecttypen
 
-openklant:
+openklantv1:
   configuration:
     oidcUrl: "http://openklant.podiumd.svc.cluster.local"
     oidcSecret: "<openklant>"
-
-openklantv1:
   image:
     tag: "1.0.0"
   settings:
@@ -153,6 +163,9 @@ openklantv1:
 
 openklantv2:
   enabled: false
+  configuration:
+    oidcUrl: "http://openklant.podiumd.svc.cluster.local"
+    oidcSecret: "<openklant>"
   image:
     tag: "2.0.0"
   settings:

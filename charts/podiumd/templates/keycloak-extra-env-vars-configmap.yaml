@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keycloak-extra-env-vars
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+data:
+  KC_HOSTNAME_URL: {{ .Values.keycloak.config.realmFrontendUrl | quote }}
+  KC_HOSTNAME_ADMIN_URL: {{ .Values.keycloak.config.realmFrontendUrl | quote }}
+
