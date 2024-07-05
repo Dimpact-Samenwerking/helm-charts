@@ -43,25 +43,26 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 
 ### keycloak
 
-| Name                                        | Description                                                                 | Value                             |
-|---------------------------------------------|-----------------------------------------------------------------------------|-----------------------------------|
-| keycloak.enabled                            | Boolean to override the installation of Keycloak                            |                                   |
-| keycloak.config.realmDisplayName            | Name displayed in Keycloak when logging into the podiumd realm              | `PodiumD`                         |
-| keycloak.config.realmFrontendUrl            | URL of keycloak                                                             | `https://keycloak.example.nl`     |
-| keycloak.auth.adminUser                     | Keycloak administrator user                                                 | `admin`                           |
-| keycloak.auth.adminPassword                 | Keycloak administrator password                                             | `ChangeMeNow`                     |
-| keycloak.externalDatabase.host              | Database host                                                               | `""`                              |
-| keycloak.externalDatabase.database          | Database name                                                               | `""`                              |
-| keycloak.externalDatabase.user              | Database username                                                           | `""`                              |
-| keycloak.externalDatabase.password          | Database user password                                                      | `""`                              |
-| keycloak.image.repository                   | Keycloak image repository                                                   | `bitnami/keycloak`                |
-| keycloak.image.tag                          | Keycloak image tag                                                          | `24.0.5-debian-12-r0`             |
-| keycloak.nodeSelector                       | Node labels for Keycloak pod assignment. Evaluated as a template            | `{}`                              |
-| keycloak.keycloakConfigCli.enabled          | Whether Keycloak configuration is enabled                                   | `true`                            |
-| keycloak.keycloakConfigCli.image.repository | Keycloak config cli image repository                                        | `bitnami/keycloak-config-cli`     |
-| keycloak.keycloakConfigCli.image.tag        | Keycloak config cli image tag                                               | `5.12.0-debian-12-r5`             |
-| keycloak.keycloakConfigCli.nodeSelector     | Node labels for Keycloak config cli pod assignment. Evaluated as a template | `{}`                              |
-| keycloak.resources                          | Container requests and limits                                               | `requests: cpu:10m, memory:512Mi` |
+| Name                                        | Description                                                                 | Value                               |
+|---------------------------------------------|-----------------------------------------------------------------------------|-------------------------------------|
+| keycloak.enabled                            | Boolean to override the installation of Keycloak                            |                                     |
+| keycloak.config.realmDisplayName            | Name displayed in Keycloak when logging into the podiumd realm              | `PodiumD`                           |
+| keycloak.config.realmFrontendUrl            | URL of keycloak for logging in to podiumd applications (podiumd realm)      | `https://keycloak.example.nl`       |
+| keycloak.config.adminFrontendUrl            | URL of keycloak for logging in to admin console (master realm)              | `https://keycloak-admin.example.nl` |
+| keycloak.auth.adminUser                     | Keycloak administrator user                                                 | `admin`                             |
+| keycloak.auth.adminPassword                 | Keycloak administrator password                                             | `ChangeMeNow`                       |
+| keycloak.externalDatabase.host              | Database host                                                               | `""`                                |
+| keycloak.externalDatabase.database          | Database name                                                               | `""`                                |
+| keycloak.externalDatabase.user              | Database username                                                           | `""`                                |
+| keycloak.externalDatabase.password          | Database user password                                                      | `""`                                |
+| keycloak.image.repository                   | Keycloak image repository                                                   | `bitnami/keycloak`                  |
+| keycloak.image.tag                          | Keycloak image tag                                                          | `24.0.5-debian-12-r0`               |
+| keycloak.nodeSelector                       | Node labels for Keycloak pod assignment. Evaluated as a template            | `{}`                                |
+| keycloak.keycloakConfigCli.enabled          | Whether Keycloak configuration is enabled                                   | `true`                              |
+| keycloak.keycloakConfigCli.image.repository | Keycloak config cli image repository                                        | `bitnami/keycloak-config-cli`       |
+| keycloak.keycloakConfigCli.image.tag        | Keycloak config cli image tag                                               | `5.12.0-debian-12-r5`               |
+| keycloak.keycloakConfigCli.nodeSelector     | Node labels for Keycloak config cli pod assignment. Evaluated as a template | `{}`                                |
+| keycloak.resources                          | Container requests and limits                                               | `requests: cpu:10m, memory:512Mi`   |
 
 
 

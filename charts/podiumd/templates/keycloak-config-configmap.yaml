@@ -1,4 +1,4 @@
-{{- if and .Values.global.configuration.enabled .Values.keycloak.keycloakConfigCli.enabled -}}
+{{- if .Values.keycloak.keycloakConfigCli.enabled -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -7,15 +7,18 @@ metadata:
     {{- include "podiumd.labels" . | nindent 4 }}
     app.kubernetes.io/component: keycloak-config-cli
 data:
+  master.yaml: |
+    realm: master
+    attributes:
+      frontendUrl: {{ .Values.keycloak.config.adminFrontendUrl | quote }}
   realm.yaml: |
-  {{- if .Values.global.configuration.enabled }}
     enabled: true
     realm: podiumd
     displayName: {{ .Values.keycloak.config.realmDisplayName | quote }}
     loginWithEmailAllowed: true
     rememberMe: true
     attributes:
-      frontendUrl: {{ printf "%s/" .Values.keycloak.config.realmFrontendUrl | quote }}
+      frontendUrl: {{ .Values.keycloak.config.realmFrontendUrl | quote }}
     clients:
       - clientId: openzaak
         name: Open Zaak
@@ -220,5 +223,4 @@ data:
                   mapped.group.attributes:
                     - description,email
     {{- end }}
-  {{- end }}
 {{- end }}

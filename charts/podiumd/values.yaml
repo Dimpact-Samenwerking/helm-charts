@@ -20,6 +20,7 @@ keycloak:
   config:
     realmDisplayName: "PodiumD"
     realmFrontendUrl: "https://keycloak.example.nl"
+    adminFrontendUrl: "https://keycloak-admin.example.nl"
   auth:
     adminUser: admin
     adminPassword: ChangeMeNow
