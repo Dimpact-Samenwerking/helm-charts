@@ -78,6 +78,87 @@ entries:
   podiumd:
   - apiVersion: v2
     appVersion: 1.3.0
+    created: "2024-07-08T06:14:48.108189621Z"
+    dependencies:
+    - condition: keycloak.enabled
+      name: keycloak
+      repository: '@bitnami'
+      version: 21.4.4
+    - condition: openldap.enabled
+      name: openldap
+      repository: '@dimpact'
+      tags:
+      - zaak
+      version: 1.0.2
+    - condition: clamav.enabled
+      name: clamav
+      repository: '@wiremind'
+      tags:
+      - formulier
+      version: 3.1.0
+    - condition: brpmock.enabled
+      name: brpmock
+      repository: '@dimpact'
+      tags:
+      - contact
+      - zaak
+      version: ~1.2.4
+    - condition: vngreferentielijsten.enabled
+      name: vngreferentielijsten
+      repository: '@dimpact'
+      tags:
+      - zaak
+      version: ~1.1.5
+    - condition: openzaak.enabled
+      name: openzaak
+      repository: '@maykinmedia'
+      version: 1.3.2
+    - condition: opennotificaties.enabled
+      name: opennotificaties
+      repository: '@maykinmedia'
+      version: 1.3.2
+    - condition: objecten.enabled
+      name: objecten
+      repository: '@maykinmedia'
+      version: 2.3.1
+    - condition: objecttypen.enabled
+      name: objecttypen
+      repository: '@maykinmedia'
+      version: 1.0.5
+    - alias: openklantv1
+      condition: openklantv1.enabled
+      name: openklant
+      repository: '@maykinmedia'
+      tags:
+      - zaak
+      version: ~1.3.2
+    - alias: openklantv2
+      condition: openklantv2.enabled
+      name: openklant
+      repository: '@maykinmedia'
+      version: ~1.3.2
+    - alias: openformulieren
+      condition: openformulieren.enabled
+      name: openforms
+      repository: '@maykinmedia'
+      tags:
+      - formulier
+      version: 1.3.0
+    - condition: openinwoner.enabled
+      name: openinwoner
+      repository: '@maykinmedia'
+      tags:
+      - portaal
+      version: 1.4.0
+    description: PodiumD Helm chart
+    digest: 7fc1d9a21363093a65425ae0621820b29993d25d1238cb78d4e45687e8ec4236
+    name: podiumd
+    type: application
+    urls:
+    - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/podiumd-1.0.2/podiumd-1.0.2.tgz
+    version: 1.0.2
+  - apiVersion: v2
+    appVersion: 1.3.0
     created: "2024-07-04T14:24:25.210167984Z"
     dependencies:
     - condition: keycloak.enabled
@@ -369,4 +450,4 @@ entries:
     urls:
     - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/zac-1.0.0/zac-1.0.0.tgz
     version: 1.0.0
-generated: "2024-07-04T14:24:25.210208269Z"
+generated: "2024-07-08T06:14:48.108218505Z"
