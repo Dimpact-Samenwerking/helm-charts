@@ -1,17 +1,23 @@
 brp:
-  baseUrl: ""
+  baseUrl: http://brpmock.podiumd.svc.cluster.local/haalcentraal/api
   apiKey: ""
 
 elastic:
-  baseUrl: ""
+  baseUrl: https://kiss-es-http.podiumd.svc.cluster.local:9200
   username: elastic
   password: ""
 
 enterpriseSearch:
-  baseUrl: ""
+  baseUrl: https://kiss-ent-http.podiumd.svc.cluster.local:3002
   privateApikey: ""
   publicApikey: ""
   engine: kiss-engine
+
+esuite:
+  baseUrl: https://esuite.example.nl
+  clientId: kiss
+  secret: ""
+  contactverzoektypen: []
 
 database:
   host: ""
@@ -20,16 +26,16 @@ database:
   password: ""
 
 kvk:
-  baseUrl: ""
+  baseUrl: https://api.kvk.nl/test/api
   apikey: ""
 
 objecten:
-  baseUrl: ""
+  baseUrl:  http://objecten.podiumd.svc.cluster.local
   token: ""
 
 objecttypen:
-  baseUrlIntern: ""
-  baseUrlExtern: ""
+  baseUrlIntern: http://objecttypen.podiumd.svc.cluster.local
+  baseUrlExtern: https://objecttypen.example.nl
   token: ""
   afdelingUUID: ""
   groepUUID: ""
@@ -39,17 +45,11 @@ objecttypen:
   vacUUID: ""
 
 oidc:
-  authority: ""
-  clientId: ""
+  authority: https://keycloak.example.nl/realms/podiumd/
+  clientId: kiss
   secret: ""
 
 organisatieIds: ""
-
-esuite:
-  baseUrl: ""
-  clientId: ""
-  secret: ""
-  contactverzoektypen: []
 
 imagePullSecrets: []
 
@@ -73,13 +73,13 @@ frontend:
     pullPolicy: IfNotPresent
   resources:
     requests:
-      cpu: 100m
+      cpu: 10m
       memory: 100Mi
   aspNetCoreEnvironment: Production
 
 adapter:
-  baseUrl: ""
-  clientId: ""
+  baseUrl: http://kiss-adapter.podiumd.svc.cluster.local
+  clientId: kiss_intern
   secret: ""
   image:
     repository: ghcr.io/icatt-menselijk-digitaal/podiumd-adapter
@@ -87,7 +87,7 @@ adapter:
     pullPolicy: IfNotPresent
   resources:
     requests:
-      cpu: 100m
+      cpu: 10m
       memory: 100Mi
 
 sync:
