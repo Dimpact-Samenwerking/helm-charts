@@ -25,6 +25,15 @@ database:
   user: ""
   password: ""
 
+email:
+  host: ""
+  port: null
+  username: ""
+  password: ""
+  enableSSL: null
+  feedbackFrom: ""
+  feedbackTo: ""
+
 kvk:
   baseUrl: https://api.kvk.nl/test/api
   apikey: ""
@@ -48,7 +57,9 @@ oidc:
   authority: https://keycloak.example.nl/realms/podiumd/
   clientId: kiss
   secret: ""
-
+  medewerkerIdentificatieClaim: preferred_username
+  medewerkerIdentificatieTruncate: null
+  
 organisatieIds: ""
 
 imagePullSecrets: []

@@ -10,7 +10,22 @@ data:
   AFDELINGEN_OBJECT_TYPE_URL: {{ printf "%s/api/v2/objecttypes/%s" .Values.objecttypen.baseUrlExtern .Values.objecttypen.afdelingUUID | quote }}
   CONTACTMOMENTEN_BASE_URL: {{ .Values.adapter.baseUrl | quote }}
   ELASTIC_BASE_URL: {{ .Values.elastic.baseUrl | quote }}
+  {{- if .Values.email.host }}
+  EMAIL_HOST: {{ .Values.email.host | quote }}
+  {{- end }}
+  {{- if .Values.email.port }}
+  EMAIL_PORT:  {{ .Values.email.port }}
+  {{- end }}
   ENTERPRISE_SEARCH_BASE_URL: {{ .Values.enterpriseSearch.baseUrl | quote }}
+  {{- if .Values.email.enableSSL }}
+  EMAIL_ENABLE_SSL: {{ .Values.email.enableSSL }}
+  {{- end }}
+  {{- if .Values.email.feedbackFrom }}
+  FEEDBACK_EMAIL_FROM: {{ .Values.email.feedbackFrom | quote }}
+  {{- end }}
+  {{- if .Values.email.feedbackTo }}
+  FEEDBACK_EMAIL_TO:  {{ .Values.email.feedbackTo | quote }}
+  {{- end }}
   GROEPEN_BASE_URL: {{ .Values.objecten.baseUrl | quote }}
   GROEPEN_OBJECT_TYPE_URL: {{ printf "%s/api/v2/objecttypes/%s" .Values.objecttypen.baseUrlExtern .Values.objecttypen.groepUUID | quote }}
   HAAL_CENTRAAL_BASE_URL: {{ .Values.brp.baseUrl | quote }}
@@ -21,7 +36,10 @@ data:
   MEDEWERKER_OBJECTEN_BASE_URL: {{ .Values.adapter.baseUrl | quote }}
   MEDEWERKER_OBJECTTYPES_BASE_URL: {{ .Values.objecttypen.baseUrlExtern | quote }}
   OIDC_AUTHORITY: {{ .Values.oidc.authority | quote }}
-  OIDC_MEDEWERKER_IDENTIFICATIE_CLAIM: "preferred_username"
+  OIDC_MEDEWERKER_IDENTIFICATIE_CLAIM: {{ .Values.oidc.medewerkerIdentificatieClaim | quote }}
+  {{- if .Values.oidc.medewerkerIdentificatieTruncate }}
+  OIDC_MEDEWERKER_IDENTIFICATIE_TRUNCATE: {{ .Values.oidc.medewerkerIdentificatieTruncate }}
+  {{- end }}
   ORGANISATIE_IDS: {{ .Values.organisatieIds | quote }}
   POSTGRES_DB: {{ .Values.database.name | quote }}
   POSTGRES_HOST: {{ .Values.database.host | quote }}
