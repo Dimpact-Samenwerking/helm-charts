@@ -40,6 +40,15 @@ entries:
   kiss:
   - apiVersion: v2
     appVersion: latest
+    created: "2024-07-08T10:33:34.951535613Z"
+    description: A Helm chart for KISS
+    digest: 5d82020a871f786c2a17555681cdaf1962f08c702aada2b78431325431a57465
+    name: kiss
+    urls:
+    - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/kiss-1.0.5/kiss-1.0.5.tgz
+    version: 1.0.5
+  - apiVersion: v2
+    appVersion: latest
     created: "2024-07-08T08:16:05.587701825Z"
     description: A Helm chart for KISS
     digest: a96c359101b121eaf6e7899fd9c80434a9707bd2b64ccb3c802f33f0ccbccb0d
@@ -459,4 +468,4 @@ entries:
     urls:
     - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/zac-1.0.0/zac-1.0.0.tgz
     version: 1.0.0
-generated: "2024-07-08T08:16:05.587743293Z"
+generated: "2024-07-08T10:33:34.951602107Z"
