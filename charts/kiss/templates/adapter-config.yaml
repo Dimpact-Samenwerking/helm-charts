@@ -10,6 +10,6 @@ data:
   {{ printf "CONTACTVERZOEK_TYPES__%d" $index }}: {{ $contactverzoektype | quote }}
   {{- end  }}
   ESUITE_BASE_URL: {{ .Values.esuite.baseUrl | quote }}
-  INTERNE_TAAK_OBJECT_TYPE_URL: {{ printf "%s/api/v2/objecttypes/%s" .Values.objecttypen.baseUrlIntern .Values.objecttypen.interneTaakUUID | quote }}
-  SMOELENBOEK_BASE_URL: {{ .Values.objecten.baseUrl | quote }}
+  INTERNE_TAAK_OBJECT_TYPE_URL: {{ printf "%s/api/v2/objecttypes/%s" (default (printf "http://objecttypen.%s.svc.cluster.local" .Release.Namespace) .Values.objecttypen.baseUrlIntern) .Values.objecttypen.interneTaakUUID | quote }}
+  SMOELENBOEK_BASE_URL: {{ default (printf "http://objecten.%s.svc.cluster.local" .Release.Namespace) .Values.objecten.baseUrl | quote }}
   SMOELENBOEK_OBJECT_TYPE_URL: {{ printf "%s/api/v2/objecttypes/%s" .Values.objecttypen.baseUrlExtern .Values.objecttypen.medewerkerUUID | quote }}

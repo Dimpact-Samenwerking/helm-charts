@@ -39,11 +39,11 @@ kvk:
   apikey: ""
 
 objecten:
-  baseUrl:  http://objecten.podiumd.svc.cluster.local
+  baseUrl: ""
   token: ""
 
 objecttypen:
-  baseUrlIntern: http://objecttypen.podiumd.svc.cluster.local
+  baseUrlIntern: ""
   baseUrlExtern: https://objecttypen.example.nl
   token: ""
   afdelingUUID: ""
@@ -89,7 +89,7 @@ frontend:
   aspNetCoreEnvironment: Production
 
 adapter:
-  baseUrl: http://kiss-adapter.podiumd.svc.cluster.local
+  baseUrl: ""
   clientId: kiss_intern
   secret: ""
   image:

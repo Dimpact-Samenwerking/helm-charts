@@ -9,9 +9,9 @@ data:
   ELASTIC_BASE_URL: {{ default (printf "https://kiss-es-http.%s.svc.cluster.local:9200" .Release.Namespace) .Values.elastic.baseUrl | quote }}
   ENTERPRISE_SEARCH_BASE_URL: {{ default (printf "https://kiss-ent-http.%s.svc.cluster.local:3002" .Release.Namespace) .Values.enterpriseSearch.baseUrl | quote }}
   ENTERPRISE_SEARCH_ENGINE: {{ .Values.enterpriseSearch.engine | quote }}
-  MEDEWERKER_OBJECTEN_BASE_URL: {{ .Values.adapter.baseUrl | quote }}
+  MEDEWERKER_OBJECTEN_BASE_URL:  {{ default (printf "http://kiss-adapter.%s.svc.cluster.local" .Release.Namespace) .Values.adapter.baseUrl | quote }}
   MEDEWERKER_OBJECT_TYPE_URL: {{ printf "%s/api/v2/objecttypes/%s" .Values.objecttypen.baseUrlExtern .Values.objecttypen.medewerkerUUID | quote }}
-  SDG_OBJECTEN_BASE_URL: {{ .Values.objecten.baseUrl | quote }}
-  SDG_OBJECT_TYPE_URL: {{ printf "%s/api/v2/objecttypes/%s" .Values.objecttypen.baseUrlIntern .Values.objecttypen.kennisartikelUUID | quote }}
-  VAC_OBJECTEN_BASE_URL: {{ .Values.objecten.baseUrl | quote }}
-  VAC_OBJECT_TYPE_URL: {{ printf "%s/api/v2/objecttypes/%s" .Values.objecttypen.baseUrlIntern .Values.objecttypen.vacUUID | quote }}
+  SDG_OBJECTEN_BASE_URL: {{ default (printf "http://objecten.%s.svc.cluster.local" .Release.Namespace) .Values.objecten.baseUrl | quote }}
+  SDG_OBJECT_TYPE_URL: {{ printf "%s/api/v2/objecttypes/%s" (default (printf "http://objecttypen.%s.svc.cluster.local" .Release.Namespace) .Values.objecttypen.baseUrlIntern) .Values.objecttypen.kennisartikelUUID | quote }}
+  VAC_OBJECTEN_BASE_URL: {{ default (printf "http://objecten.%s.svc.cluster.local" .Release.Namespace) .Values.objecten.baseUrl | quote }}
+  VAC_OBJECT_TYPE_URL: {{ printf "%s/api/v2/objecttypes/%s" (default (printf "http://objecttypen.%s.svc.cluster.local" .Release.Namespace) .Values.objecttypen.baseUrlIntern) .Values.objecttypen.vacUUID | quote }}
