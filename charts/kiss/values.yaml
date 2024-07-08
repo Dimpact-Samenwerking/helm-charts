@@ -1,14 +1,14 @@
 brp:
-  baseUrl: http://brpmock.podiumd.svc.cluster.local/haalcentraal/api
+  baseUrl: ""
   apiKey: ""
 
 elastic:
-  baseUrl: https://kiss-es-http.podiumd.svc.cluster.local:9200
+  baseUrl: ""
   username: elastic
   password: ""
 
 enterpriseSearch:
-  baseUrl: https://kiss-ent-http.podiumd.svc.cluster.local:3002
+  baseUrl: ""
   privateApikey: ""
   publicApikey: ""
   engine: kiss-engine
