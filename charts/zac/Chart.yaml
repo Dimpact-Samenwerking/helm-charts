@@ -1,6 +1,6 @@
 apiVersion: v2
 name: zac
-description: A Helm chart for installing Zac
+description: ZAC Helm chart
 version: 1.0.1
 appVersion: "latest"
 dependencies:

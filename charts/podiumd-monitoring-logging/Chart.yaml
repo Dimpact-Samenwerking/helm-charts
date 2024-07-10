@@ -1,6 +1,6 @@
 apiVersion: v2
 name: podiumd-monitoring-logging
-description: A Helm chart for deploying monitoring and logging
+description: PodiumD monitoring and logging Helm chart
 version: 1.0.0-alpha.1
 appVersion: "1.0"
 
