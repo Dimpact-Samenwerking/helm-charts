@@ -65,6 +65,9 @@ openzaak:
       enabled: false
   settings:
     allowedHosts: openzaak-nginx.podiumd.svc.cluster.local
+    email:
+      port: 587
+      useTLS: true
     database:
       host: ""
       name: ""
@@ -75,13 +78,19 @@ openzaak:
     tag: "1.12.3"
   resources:
     requests:
-      cpu: 10m
-      memory: 400Mi
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 200m
+      memory: 512Mi
   worker:
     resources:
       requests:
         cpu: 10m
-        memory: 400Mi
+        memory: 480Mi
+      limits:
+        cpu: 50m
+        memory: 860Mi
   nameOverride: openzaak
   fullnameOverride: openzaak
   flower:
@@ -89,11 +98,22 @@ openzaak:
   nginx:
     resources:
       requests:
-        cpu: 1m
-        memory: 10Mi
+        cpu: 10m
+        memory: 16Mi
+      limits:
+        cpu: 50m
+        memory: 32Mi
   redis:
     nameOverride: openzaak-redis
     fullnameOverride: openzaak-redis
+    master:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 16Mi
+        limits:
+          cpu: 50m
+          memory: 32Mi
 
 opennotificaties:
   configuration:
@@ -108,6 +128,9 @@ opennotificaties:
     maxRetries: 5
     retryBackoff: 3
     retryBackoffMax: 48
+    email:
+      port: 587
+      useTLS: true
     cleanOldNotifications:
       enabled: true
       daysRetained: 30
@@ -119,13 +142,19 @@ opennotificaties:
     tag: "1.6.0"
   resources:
     requests:
-      cpu: 10m
-      memory: 200Mi
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 200m
+      memory: 512Mi
   worker:
     resources:
       requests:
-        cpu: 10m
-        memory: 400Mi
+        cpu: 50m
+        memory: 386Mi
+      limits:
+        cpu: 200m
+        memory: 640Mi
   nameOverride: opennotificaties
   fullnameOverride: opennotificaties
   flower:
@@ -133,8 +162,11 @@ opennotificaties:
   rabbitmq:
     resources:
       requests:
-        cpu: 100m
-        memory: 200Mi
+        cpu: 300m
+        memory: 256Mi
+      limits:
+        cpu: 512m
+        memory: 384Mi
     nameOverride: opennotificaties-rabbitmq
     fullnameOverride: opennotificaties-rabbitmq
     auth:
@@ -144,6 +176,14 @@ opennotificaties:
   redis:
     nameOverride: opennotificaties-redis
     fullnameOverride: opennotificaties-redis
+    master:
+      resources: 
+        requests:
+          cpu: 300m
+          memory: 256Mi
+        limits:
+          cpu: 512m
+          memory: 384Mi
 
 objecten:
   configuration:
@@ -151,19 +191,27 @@ objecten:
     oidcSecret: "<objecten>"
   settings:
     allowedHosts: objecten.podiumd.svc.cluster.local
+    email:
+      port: 587
+      useTLS: true
     isHttps: false
     disable2fa: true
   image:
     tag: "2.3.1"
   resources:
     requests:
-      cpu: 10m
-      memory: 250Mi
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 200m
+      memory: 512Mi
   worker:
-    resources:
-      requests:
-        cpu: 10m
-        memory: 200Mi
+    requests:
+      cpu: 50m
+      memory: 192Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
   nameOverride: objecten
   fullnameOverride: objecten
   flower:
@@ -171,6 +219,14 @@ objecten:
   redis:
     nameOverride: objecten-redis
     fullnameOverride: objecten-redis
+    master:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 16Mi
+        limits:
+          cpu: 50m
+          memory: 32Mi
 
 objecttypen:
   configuration:
@@ -178,6 +234,9 @@ objecttypen:
     oidcSecret: "<objecttypen>"
   settings:
     allowedHosts: objecttypen.podiumd.svc.cluster.local
+    email:
+      port: 587
+      useTLS: true
     twoFactorAuthentication:
       forceOtpAdmin: false
       patchAdmin: false
@@ -186,7 +245,10 @@ objecttypen:
   resources:
     requests:
       cpu: 10m
-      memory: 250Mi
+      memory: 160Mi
+    limits:
+      cpu: 1
+      memory: 320Mi
   nameOverride: objecttypen
   fullnameOverride: objecttypen
 
@@ -196,6 +258,9 @@ openklantv1:
     oidcSecret: "<openklantv1>"
   settings:
     allowedHosts: openklantv1.podiumd.svc.cluster.local
+    email:
+      port: 587
+      useTLS: true
     isHttps: false
     twoFactorAuthentication:
       forceOtpAdmin: false
@@ -204,18 +269,32 @@ openklantv1:
     tag: "1.0.0"
   resources:
     requests:
-      cpu: 10m
+      cpu: 100m
       memory: 300Mi
+    limits:
+      cpu: 200m
+      memory: 512Mi
   worker:
     resources:
       requests:
-        cpu: 10m
+        cpu: 50m
         memory: 200Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
   nameOverride: openklantv1
   fullnameOverride: openklantv1
   redis:
     nameOverride: openklantv1-redis
     fullnameOverride: openklantv1-redis
+    master:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 16Mi
+        limits:
+          cpu: 50m
+          memory: 32Mi
 
 openklantv2:
   enabled: false
@@ -224,6 +303,9 @@ openklantv2:
     oidcSecret: "<openklant>"
   settings:
     allowedHosts: openklantv2.podiumd.svc.cluster.local
+    email:
+      port: 587
+      useTLS: true
     isHttps: false
     twoFactorAuthentication:
       forceOtpAdmin: false
@@ -232,13 +314,19 @@ openklantv2:
     tag: "2.0.0"
   resources:
     requests:
-      cpu: 10m
+      cpu: 100m
       memory: 300Mi
+    limits:
+      cpu: 200m
+      memory: 512Mi
   worker:
     resources:
       requests:
-        cpu: 10m
+        cpu: 50m
         memory: 200Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
   nameOverride: openklantv2
   fullnameOverride: openklantv2
   redis:
@@ -251,6 +339,10 @@ openformulieren:
     oidcSecret: "<openformulieren>"
   settings:
     allowedHosts: openformulieren-nginx.podiumd.svc.cluster.local
+    email:
+      port: 587
+      useTLS: true
+    isHttps: false
     twoFactorAuthentication:
       forceOtpAdmin: false
       patchAdmin: false
@@ -261,13 +353,19 @@ openformulieren:
     tag: "2.6.7"
   resources:
     requests:
-      cpu: 10m
-      memory: 600Mi
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 200m
+      memory: 512Mi
   worker:
     resources:
       requests:
-        cpu: 10m
-        memory: 500Mi
+        cpu: 50m
+        memory: 192Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
   nameOverride: openformulieren
   fullnameOverride: openformulieren
   flower:
@@ -281,11 +379,22 @@ openformulieren:
   nginx:
     resources:
       requests:
-        cpu: 1m
-        memory: 10Mi
+        cpu: 10m
+        memory: 16Mi
+      limits:
+        cpu: 50m
+        memory: 32Mi
   redis:
     nameOverride: openformulieren-redis
     fullnameOverride: openformulieren-redis
+    master:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 16Mi
+        limits:
+          cpu: 50m
+          memory: 32Mi
 
 openinwoner:
   configuration:
@@ -293,34 +402,63 @@ openinwoner:
     oidcSecret: "<openinwoner>"
   settings:
     allowedHosts: openinwoner-nginx.podiumd.svc.cluster.local
+    email:
+      port: 587
+      useTLS: true
     isHttps: false
     twoFactorAuthentication:
       forceOtpAdmin: false
       patchAdmin: false
   resources:
     requests:
-      cpu: 10m
-      memory: 600Mi
+      cpu: 200m
+      memory: 1Gi
+    limits:
+      cpu: 500m
+      memory: 1.5Gi
   worker:
     resources:
       requests:
-        cpu: 10m
-        memory: 400Mi
+        cpu: 200m
+        memory: 640Mi
+      limits:
+        cpu: 400m
+        memory: 1Gi
   nameOverride: openinwoner
   fullnameOverride: openinwoner
   nginx:
+    config:
+      clientMaxBodySize: 100M
     resources:
       requests:
-        cpu: 1m
-        memory: 10Mi
+        cpu: 30m
+        memory: 8Mi
+      limits:
+        cpu: 60m
+        memory: 16Mi
   redis:
     nameOverride: openinwoner-redis
     fullnameOverride: openinwoner-redis
+    master:
+      resources:
+        requests:
+          cpu: 20m
+          memory: 32Mi
+        limits:
+          cpu: 100m
+          memory: 64Mi
   elasticsearch:
     nameOverride: openinwoner-elasticsearch
     fullnameOverride: openinwoner-elasticsearch
     master:
       masterOnly: false
+      resources:
+        requests:
+          cpu: 100m
+          memory: 1.5Gi
+        limits:
+          cpu: 1
+          memory: 2Gi
     data:
       replicaCount: 0
     coordinating:
@@ -350,10 +488,10 @@ clamav:
   nameOverride: clamav
   fullnameOverride: clamav
   resources:
-    limits:
+    requests:
       cpu: 100m
       memory: 2Gi
-    requests:
+    limits:
       cpu: 100m
       memory: 2Gi
   # Ref: https://linux.die.net/man/5/clamd.conf
