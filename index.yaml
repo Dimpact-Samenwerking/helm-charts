@@ -475,6 +475,53 @@ entries:
     urls:
     - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/podiumd-monitoring-logging-1.0.0-alpha.1/podiumd-monitoring-logging-1.0.0-alpha.1.tgz
     version: 1.0.0-alpha.1
+  - apiVersion: v2
+    appVersion: "1.0"
+    created: "2024-07-10T12:22:39.937570632Z"
+    dependencies:
+    - alias: kubePrometheusStack
+      condition: kubePrometheusStack.enabled
+      name: kube-prometheus-stack
+      repository: https://prometheus-community.github.io/helm-charts
+      version: ~59.1.0
+    - alias: prometheusBlackboxExporter
+      condition: prometheusBlackboxExporter.enabled
+      name: prometheus-blackbox-exporter
+      repository: https://prometheus-community.github.io/helm-charts
+      version: ~8.17.0
+    - alias: x509CertificateExporter
+      condition: x509CertificateExporter.enabled
+      name: x509-certificate-exporter
+      repository: https://charts.enix.io
+      version: ~3.14.0
+    - condition: loki.enabled
+      name: loki
+      repository: https://grafana.github.io/helm-charts
+      version: ~6.6.2
+    - condition: promtail.enabled
+      name: promtail
+      repository: https://grafana.github.io/helm-charts
+      version: ~6.15.5
+    - alias: opentelemetryCollector
+      condition: opentelemetryCollector.enabled
+      name: opentelemetry-collector
+      repository: https://open-telemetry.github.io/opentelemetry-helm-charts
+      version: ~0.92.0
+    - condition: tempo.enabled
+      name: tempo
+      repository: https://grafana.github.io/helm-charts
+      version: ~1.7.3
+    - alias: helmExporter
+      condition: helmExporter.enabled
+      name: helm-exporter
+      repository: https://shanestarcher.com/helm-charts
+      version: ~1.2.16+77ad21d
+    description: PodiumD monitoring and logging Helm chart
+    digest: 5715ec2cbcf76dca7f923fef9432db11868090bfa528fbcd21188476f0f6d839
+    name: podiumd-monitoring-logging
+    urls:
+    - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/podiumd-monitoring-logging-1.0.0-alpha.1/podiumd-monitoring-logging-1.0.0-alpha.1.tgz
+    version: 1.0.0-alpha.1
   vngreferentielijsten:
   - apiVersion: v2
     appVersion: 0.6.1
@@ -558,4 +605,4 @@ entries:
     urls:
     - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/zac-1.0.0/zac-1.0.0.tgz
     version: 1.0.0
-generated: "2024-07-10T12:17:23.267928867Z"
+generated: "2024-07-10T12:22:40.163318064Z"
