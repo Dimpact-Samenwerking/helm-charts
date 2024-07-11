@@ -1,5 +1,24 @@
 # KISS
 
+## Preparation
+
+### Retrieve the password of the 'elastic' user 
+
+    kubectl get secret kiss-es-elastic-user -o go-template='{{.data.elastic | base64decode }}'  -n <namespace>
+
+Value should be stored in parameter: elastic.password
+
+### Obtain Enterprise Search public and private key
+
+    k port-forward svc/kiss-kb-http -n <namespace> 5601 --address 0.0.0.0
+
+Opn browser: https://localhost:5601/app/enterprise_search/app_search/credentials
+(Log in with 'elastic' and password retrieved in previous step)
+
+values should be stored in parameters:
+- enterpriseSearch.privateApikey
+- enterpriseSearch.publicApikey
+
 ## Parameters
 
 | Name                                 | Description                                                                                                         | Value                                                      |
