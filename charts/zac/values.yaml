@@ -139,7 +139,6 @@ deleteSignaleringenCronjob:
   affinity: { }
   tolerations: [ ]
 
-
 # maxFileSizeMB Maximum size (in Mega Bytes) of files that can be uploaded.
 maxFileSizeMB: 80
 
@@ -154,8 +153,6 @@ replicaCount: 1
 image:
   repository: ghcr.io/infonl/zaakafhandelcomponent
   pullPolicy: IfNotPresent
-  # Overrides the image tag whose default is the chart appVersion.
-  tag: ""
 
 imagePullSecrets: [ ]
 nameOverride: ""
@@ -245,6 +242,12 @@ solr:
   coreNames: [ "zac" ]
   persistence:
     size: 1Gi
+    existingClaim: zac-solr
+  persistentVolume:
+    volumeAttributeShareName: zac-solr
+    volumeAttributeResourceGroup: ""
+    nodeStageSecretRefName: ""
+    nodeStageSecretRefNamespace: ""
   replicaCount: 1
   collectionReplicas: 1
   cloudBootstrap: false

@@ -1,0 +1,58 @@
+{{- if .Release.IsInstall -}}
+{{- if not (lookup "v1" "PersistentVolumeClaim" .Release.Namespace .Values.solr.persistence.existingClaim) -}}
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ printf "%s-zac-solr" .Release.Namespace }}
+  labels:
+    {{- include "zaakafhandelcomponent.labels" . | nindent 4 }}
+  annotations:
+    pv.kubernetes.io/provisioned-by: file.csi.azure.com
+    helm.sh/resource-policy: keep
+spec:
+  capacity:
+    storage: {{ .Values.solr.persistence.size }}
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: podiumd-standard
+  csi:
+    driver: file.csi.azure.com
+    volumeHandle: {{ printf "%s-zac-solr" .Release.Namespace }}
+    volumeAttributes:
+      {{- if .Values.solr.persistentVolume.volumeAttributeResourceGroup }}
+      resourceGroup: {{ .Values.persistentVolume.volumeAttributeResourceGroup }}
+      {{- end }}
+      shareName: {{ .Values.solr.persistentVolume.volumeAttributeShareName }}
+    nodeStageSecretRef:
+      name: {{ .Values.solr.persistentVolume.nodeStageSecretRefName }}
+      namespace: {{ .Values.solr.persistentVolume.nodeStageSecretRefNamespace }}
+  mountOptions:
+    - dir_mode=0777
+    - file_mode=0777
+    - uid=1001
+    - gid=0
+    - mfsymlinks
+    - cache=strict
+    - nosharesock
+    - nobrl
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.solr.persistence.existingClaim }}
+  labels:
+    {{- include "zaakafhandelcomponent.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  volumeName: {{ printf "%s-zac-solr" .Release.Namespace }}
+  resources:
+    requests:
+      storage: {{ .Values.solr.persistence.size }}
+  accessModes:
+    - ReadWriteMany
+  storageClassName: podiumd-standard
+{{- end }}
+{{- end }}
