@@ -1,0 +1,62 @@
+{{- if and .Release.IsInstall (or .Values.opennotificaties.enabled (not (hasKey .Values.opennotificaties "enabled"))) -}}
+{{- if not (lookup "v1" "PersistentVolumeClaim" .Release.Namespace .Values.opennotificaties.persistence.existingClaim) -}}
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ printf "%s-opennotificaties" .Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+  annotations:
+    pv.kubernetes.io/provisioned-by: file.csi.azure.com
+    helm.sh/resource-policy: keep
+spec:
+  capacity:
+    storage: {{ .Values.opennotificaties.persistence.size }}
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: podiumd-standard
+  csi:
+    driver: file.csi.azure.com
+    volumeHandle: {{ printf "%s-opennotificaties" .Release.Namespace }}
+    volumeAttributes:
+      {{- if .Values.persistentVolume.volumeAttributeResourceGroup }}
+      resourceGroup: {{ .Values.persistentVolume.volumeAttributeResourceGroup }}
+      {{- end }}
+      {{- if .Values.persistentVolume.volumeAttributeShareName }}
+      shareName: {{ .Values.persistentVolume.volumeAttributeShareName }}
+      {{- else }}
+      shareName: {{ .Values.opennotificaties.persistentVolume.volumeAttributeShareName }}
+      {{- end }}
+    nodeStageSecretRef:
+      name: {{ .Values.persistentVolume.nodeStageSecretRefName }}
+      namespace: {{ .Values.persistentVolume.nodeStageSecretRefNamespace }}
+  mountOptions:
+    - dir_mode=0777
+    - file_mode=0777
+    - uid=1000
+    - gid=1000
+    - mfsymlinks
+    - cache=strict
+    - nosharesock
+    - nobrl
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.opennotificaties.persistence.existingClaim }}
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  volumeName: {{ printf "%s-opennotificaties" .Release.Namespace }}
+  resources:
+    requests:
+      storage: {{ .Values.opennotificaties.persistence.size }}
+  accessModes:
+    - ReadWriteMany
+  storageClassName: podiumd-standard
+{{- end }}
+{{- end }}

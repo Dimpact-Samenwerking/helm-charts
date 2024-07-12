@@ -16,6 +16,12 @@ global:
     openzaakNotificatiesSecret: openzaak-secret
   imageRegistry: ""
 
+persistentVolume:
+  volumeAttributeShareName: ""
+  volumeAttributeResourceGroup: ""
+  nodeStageSecretRefName: ""
+  nodeStageSecretRefNamespace: ""
+
 keycloak:
   config:
     realmDisplayName: PodiumD
@@ -45,6 +51,11 @@ keycloak:
   extraEnvVarsCM: keycloak-extra-env-vars
 
 openldap:
+  persistence:
+    size: 1Gi
+    existingClaim: openldap
+  persistentVolume:
+    volumeAttributeShareName: openldap
   nameOverride: openldap
   fullnameOverride: openldap
 
@@ -74,6 +85,11 @@ openzaak:
       username: ""
       password: ""
     isHttps: false
+  persistence:
+    size: 10Gi
+    existingClaim: openzaak
+  persistentVolume:
+    volumeAttributeShareName: openzaak
   image:
     tag: "1.12.3"
   resources:
@@ -138,6 +154,11 @@ opennotificaties:
         schedule: "0 0 * * *"
         historyLimit: 1
     isHttps: false
+  persistence:
+    size: 10Gi
+    existingClaim: opennotificaties
+  persistentVolume:
+    volumeAttributeShareName: opennotificaties
   image:
     tag: "1.6.0"
   resources:
@@ -179,11 +200,11 @@ opennotificaties:
     master:
       resources: 
         requests:
-          cpu: 300m
-          memory: 256Mi
+          cpu: 10m
+          memory: 16Mi
         limits:
-          cpu: 512m
-          memory: 384Mi
+          cpu: 50m
+          memory: 32Mi
 
 objecten:
   configuration:
@@ -196,6 +217,11 @@ objecten:
       useTLS: true
     isHttps: false
     disable2fa: true
+  persistence:
+    size: 10Gi
+    existingClaim: objecten
+  persistentVolume:
+    volumeAttributeShareName: objecten
   image:
     tag: "2.3.1"
   resources:
@@ -347,35 +373,41 @@ openformulieren:
       forceOtpAdmin: false
       patchAdmin: false
   persistence:
+    size: 10Gi
+    existingClaim: openformulieren
     mediaMountSubpath: openformulieren/media
     privateMediaMountSubpath: openformulieren/private_media
+  persistentVolume:
+    volumeAttributeShareName: openformulieren
   image:
     tag: "2.6.7"
   resources:
     requests:
       cpu: 100m
-      memory: 256Mi
+      memory: 650Mi
     limits:
-      cpu: 200m
-      memory: 512Mi
+      cpu: 400m
+      memory: 1.5Gi
   worker:
     resources:
       requests:
         cpu: 50m
-        memory: 192Mi
+        memory: 512Mi
       limits:
-        cpu: 200m
-        memory: 256Mi
+        cpu: 100m
+        memory: 800Mi
   nameOverride: openformulieren
   fullnameOverride: openformulieren
   flower:
     enabled: false
   beat:
-    enabled: false
     resources:
       requests:
-        cpu: 1m
-        memory: 150Mi
+        cpu: 10m
+        memory: 160Mi
+    limits:
+      cpu: 50m
+      memory: 320Mi
   nginx:
     resources:
       requests:
@@ -394,7 +426,7 @@ openformulieren:
           memory: 16Mi
         limits:
           cpu: 50m
-          memory: 32Mi
+          memory: 64Mi
 
 openinwoner:
   configuration:
@@ -409,6 +441,13 @@ openinwoner:
     twoFactorAuthentication:
       forceOtpAdmin: false
       patchAdmin: false
+  persistence:
+    size: 10Gi
+    existingClaim: openinwoner
+  persistentVolume:
+    volumeAttributeShareName: openinwoner
+  image:
+    tag: "1.17.2"
   resources:
     requests:
       cpu: 200m
