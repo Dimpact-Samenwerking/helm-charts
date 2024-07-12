@@ -105,6 +105,87 @@ entries:
   podiumd:
   - apiVersion: v2
     appVersion: 1.3.0
+    created: "2024-07-12T08:18:29.971593729Z"
+    dependencies:
+    - condition: keycloak.enabled
+      name: keycloak
+      repository: '@bitnami'
+      version: 21.4.4
+    - condition: openldap.enabled
+      name: openldap
+      repository: '@dimpact'
+      tags:
+      - zaak
+      version: 1.0.2
+    - condition: clamav.enabled
+      name: clamav
+      repository: '@wiremind'
+      tags:
+      - formulier
+      version: 3.1.0
+    - condition: brpmock.enabled
+      name: brpmock
+      repository: '@dimpact'
+      tags:
+      - contact
+      - zaak
+      version: ~1.2.4
+    - condition: vngreferentielijsten.enabled
+      name: vngreferentielijsten
+      repository: '@dimpact'
+      tags:
+      - zaak
+      version: ~1.1.5
+    - condition: openzaak.enabled
+      name: openzaak
+      repository: '@maykinmedia'
+      version: 1.3.2
+    - condition: opennotificaties.enabled
+      name: opennotificaties
+      repository: '@maykinmedia'
+      version: 1.3.2
+    - condition: objecten.enabled
+      name: objecten
+      repository: '@maykinmedia'
+      version: 2.3.1
+    - condition: objecttypen.enabled
+      name: objecttypen
+      repository: '@maykinmedia'
+      version: 1.0.5
+    - alias: openklantv1
+      condition: openklantv1.enabled
+      name: openklant
+      repository: '@maykinmedia'
+      tags:
+      - zaak
+      version: ~1.3.2
+    - alias: openklantv2
+      condition: openklantv2.enabled
+      name: openklant
+      repository: '@maykinmedia'
+      version: ~1.3.2
+    - alias: openformulieren
+      condition: openformulieren.enabled
+      name: openforms
+      repository: '@maykinmedia'
+      tags:
+      - formulier
+      version: 1.3.0
+    - condition: openinwoner.enabled
+      name: openinwoner
+      repository: '@maykinmedia'
+      tags:
+      - portaal
+      version: 1.4.0
+    description: PodiumD Helm chart
+    digest: 5b10985fec986852a9823a36f6b90ba990464e54e8f16e664317114e030aafde
+    name: podiumd
+    type: application
+    urls:
+    - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/podiumd-1.1.0/podiumd-1.1.0.tgz
+    version: 1.1.0
+  - apiVersion: v2
+    appVersion: 1.3.0
     created: "2024-07-10T12:17:23.267878993Z"
     dependencies:
     - condition: keycloak.enabled
@@ -569,6 +650,53 @@ entries:
     urls:
     - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/podiumd-monitoring-logging-1.0.0-alpha.1/podiumd-monitoring-logging-1.0.0-alpha.1.tgz
     version: 1.0.0-alpha.1
+  - apiVersion: v2
+    appVersion: "1.0"
+    created: "2024-07-12T08:18:30.176641334Z"
+    dependencies:
+    - alias: kubePrometheusStack
+      condition: kubePrometheusStack.enabled
+      name: kube-prometheus-stack
+      repository: https://prometheus-community.github.io/helm-charts
+      version: ~59.1.0
+    - alias: prometheusBlackboxExporter
+      condition: prometheusBlackboxExporter.enabled
+      name: prometheus-blackbox-exporter
+      repository: https://prometheus-community.github.io/helm-charts
+      version: ~8.17.0
+    - alias: x509CertificateExporter
+      condition: x509CertificateExporter.enabled
+      name: x509-certificate-exporter
+      repository: https://charts.enix.io
+      version: ~3.14.0
+    - condition: loki.enabled
+      name: loki
+      repository: https://grafana.github.io/helm-charts
+      version: ~6.6.2
+    - condition: promtail.enabled
+      name: promtail
+      repository: https://grafana.github.io/helm-charts
+      version: ~6.15.5
+    - alias: opentelemetryCollector
+      condition: opentelemetryCollector.enabled
+      name: opentelemetry-collector
+      repository: https://open-telemetry.github.io/opentelemetry-helm-charts
+      version: ~0.92.0
+    - condition: tempo.enabled
+      name: tempo
+      repository: https://grafana.github.io/helm-charts
+      version: ~1.7.3
+    - alias: helmExporter
+      condition: helmExporter.enabled
+      name: helm-exporter
+      repository: https://shanestarcher.com/helm-charts
+      version: ~1.2.16+77ad21d
+    description: PodiumD monitoring and logging Helm chart
+    digest: 80cf791519e85592fdf4f8f4b83880064e1c0eabf8d1a01296b858cef1de8d78
+    name: podiumd-monitoring-logging
+    urls:
+    - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/podiumd-monitoring-logging-1.0.0-alpha.1/podiumd-monitoring-logging-1.0.0-alpha.1.tgz
+    version: 1.0.0-alpha.1
   vngreferentielijsten:
   - apiVersion: v2
     appVersion: 0.6.1
@@ -652,4 +780,4 @@ entries:
     urls:
     - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/zac-1.0.0/zac-1.0.0.tgz
     version: 1.0.0
-generated: "2024-07-11T06:48:11.632516632Z"
+generated: "2024-07-12T08:18:30.406011658Z"
