@@ -59,9 +59,6 @@ openldap:
   nameOverride: openldap
   fullnameOverride: openldap
 
-vngreferentielijsten:
-  nameOverride: vngreferentielijsten
-
 brpmock:
   enabled: false
   nameOverride: brpmock
@@ -85,6 +82,9 @@ openzaak:
       username: ""
       password: ""
     isHttps: false
+  extraEnvVars:
+    - name: DISABLE_2FA
+      value: "True"
   persistence:
     size: 10Gi
     existingClaim: openzaak

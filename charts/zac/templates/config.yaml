@@ -38,15 +38,14 @@ data:
   SIGNALERINGEN_DELETE_OLDER_THAN_DAYS: {{ required "Valid .Values.deleteSignaleringenCronjob.deleteOlderThanDays entry required!" .Values.deleteSignaleringenCronjob.deleteOlderThanDays | quote }}
   SMTP_PORT: {{ required "Valid .Values.mail.smtp.port entry required!" .Values.mail.smtp.port | quote }}
   SMTP_SERVER: {{ required "Valid .Values.mail.smtp.server entry required!" .Values.mail.smtp.server }}
-  SUBSYSTEM_OPENTELEMETRY__SAMPLER_TYPE: {{ .Values.opentelemetrycollector.samplerType | quote }}
-  SUBSYSTEM_OPENTELEMETRY__ENDPOINT: {{ .Values.opentelemetrycollector.endpoint | default (printf "http://%s-opentelemetry-collector:4317" .Release.Name) }}
+  SUBSYSTEM_OPENTELEMETRY__SAMPLER_TYPE: {{ .Values.opentelemetryCollector.samplerType | quote }}
+  SUBSYSTEM_OPENTELEMETRY__ENDPOINT: {{ .Values.opentelemetryCollector.endpoint | default (printf "http://%s-opentelemetry-collector:4317" .Release.Name) }}
   SD_CLIENT_MP_REST_URL: {{ required "Valid .Values.smartDocuments.url entry required!" .Values.smartDocuments.url }}
   {{- if .Values.smartDocuments.fixedUserName }}
   SD_FIXED_USER_NAME: {{ .Values.smartDocuments.fixedUserName }}
   {{- end}}
   SOLR_URL: {{ printf "http://%s-solr.%s" (include "zaakafhandelcomponent.fullname" .) .Release.Namespace }}
   TZ: Europe/Amsterdam
-  VRL_API_CLIENT_MP_REST_URL: {{ required "Valid .Values.vrlApi.url entry required!" .Values.vrlApi.url }}
   ZGW_API_CLIENT_MP_REST_URL: {{ required "Valid .Values.zgwApis.url entry required!" .Values.zgwApis.url }}
   ZGW_API_CLIENTID: {{ required "Valid .Values.zgwApis.clientId entry required!" .Values.zgwApis.clientId }}
   ZGW_API_URL_EXTERN: {{ required "Valid .Values.zgwApis.urlExtern entry required!" .Values.zgwApis.urlExtern }}

@@ -88,9 +88,7 @@ spec:
           image: "{{ .Values.opa.image.repository }}:{{ .Values.opa.image.tag }}"
           imagePullPolicy: {{ .Values.opa.image.pullPolicy }}
           resources:
-            requests:
-              cpu: 10m
-              memory: 20Mi
+            {{- toYaml .Values.opa.resources | nindent 12 }}
           ports:
             - name: http
               containerPort: 8181

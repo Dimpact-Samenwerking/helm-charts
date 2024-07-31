@@ -2,7 +2,7 @@ apiVersion: v2
 name: podiumd
 description: PodiumD Helm chart
 type: application
-version: 1.1.0
+version: 1.1.1
 appVersion: "1.3.0"
 dependencies:
   - name: keycloak
@@ -30,12 +30,6 @@ dependencies:
     condition: brpmock.enabled
     tags:
       - contact
-      - zaak
-  - name: vngreferentielijsten
-    version: ~1.1.5
-    repository: "@dimpact"
-    condition: vngreferentielijsten.enabled
-    tags:
       - zaak
   - name: openzaak
     version: 1.3.2
