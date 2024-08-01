@@ -14,7 +14,7 @@ enterpriseSearch:
   engine: kiss-engine
 
 esuite:
-  baseUrl: https://esuite.example.nl
+  baseUrl: ""
   clientId: kiss
   secret: ""
   contactverzoektypen: []
@@ -35,7 +35,7 @@ email:
   feedbackTo: ""
 
 kvk:
-  baseUrl: https://api.kvk.nl/test/api
+  baseUrl: ""
   apikey: ""
 
 objecten:
@@ -44,7 +44,7 @@ objecten:
 
 objecttypen:
   baseUrlIntern: ""
-  baseUrlExtern: https://objecttypen.example.nl
+  baseUrlExtern: ""
   token: ""
   afdelingUUID: ""
   groepUUID: ""
@@ -54,7 +54,7 @@ objecttypen:
   vacUUID: ""
 
 oidc:
-  authority: https://keycloak.example.nl/realms/podiumd/
+  authority: ""
   clientId: kiss
   secret: ""
   medewerkerIdentificatieClaim: preferred_username
