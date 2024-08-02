@@ -135,8 +135,8 @@ deleteSignaleringenCronjob:
   affinity: { }
   tolerations: [ ]
 
-# maxFileSizeMB Maximum size (in Mega Bytes) of files that can be uploaded.
-maxFileSizeMB: 80
+# maxFileSize Maximum size (in Mega Bytes) of files that can be uploaded.
+maxFileSize: 80
 
 # additionalAllowedFileTypes An optional list of additional file extensions that can be uploaded
 # additionalAllowedFileTypes: aaa,bbb,ccc
