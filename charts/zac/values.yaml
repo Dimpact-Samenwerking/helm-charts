@@ -241,6 +241,8 @@ opa:
 
 # solr provision the SOLR subchart
 solr:
+  nameOverride: zac-solr
+  fullnameOverride: zac-solr
   coreNames: [ "zac" ]
   persistence:
     size: 1Gi
@@ -308,6 +310,8 @@ officeConverter:
 
 # opentelemetryCollector provision the opentelemetry collector sub chart
 opentelemetryCollector:
+  nameOverride: zac-opentelemetry-collector
+  fullnameOverride: zac-opentelemetry-collector
   samplerType: "off"
   mode: deployment
   replicaCount: 1
