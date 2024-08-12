@@ -37,6 +37,26 @@ entries:
     urls:
     - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/brpmock-1.2.0/brpmock-1.2.0.tgz
     version: 1.2.0
+  flowable-rest:
+  - apiVersion: v2
+    appVersion: 7.0.1
+    created: "2024-08-12T15:40:45.122998742Z"
+    description: Flowable REST Helm chart
+    digest: d608b10d8578aacc7bacd688f0bbba40c7396daeb137e2de99f1c8abfbfbbf82
+    name: flowable-rest
+    urls:
+    - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/flowable-rest-1.0.0/flowable-rest-1.0.0.tgz
+    version: 1.0.0
+  flowable-ui:
+  - apiVersion: v2
+    appVersion: 6.8.0
+    created: "2024-08-12T15:40:45.300315319Z"
+    description: Flowable UI Helm chart
+    digest: 4e3d874186b668492336fe9f095fc9dc433e33cdf2fe6710db541394e19665dc
+    name: flowable-ui
+    urls:
+    - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/flowable-ui-1.0.0/flowable-ui-1.0.0.tgz
+    version: 1.0.0
   kiss:
   - apiVersion: v2
     appVersion: latest
@@ -945,4 +965,4 @@ entries:
     urls:
     - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/zac-1.0.0/zac-1.0.0.tgz
     version: 1.0.0
-generated: "2024-08-12T08:47:02.932601968Z"
+generated: "2024-08-12T15:40:45.30040146Z"
