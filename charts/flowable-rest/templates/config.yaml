@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "flowable-rest.fullname" . }}
+  labels:
+    {{- include "flowable-rest.labels" . | nindent 4 }}
+data:
+  FLOWABLE_REST_APP_ADMIN_FIRST-NAME: {{ .Values.admin.firstName | quote }}
+  FLOWABLE_REST_APP_ADMIN_LAST-NAME: {{ .Values.admin.lastName | quote }}
+  FLOWABLE_REST_APP_AUTHENTICATION-MODE: ""
+  SERVER_PORT: {{ .Values.serverPort | quote}}
+  SPRING_DATASOURCE_DRIVER-CLASS-NAME: {{ .Values.database.datasourceDriverClassName | quote }}
+  SPRING_DATASOURCE_URL: {{ .Values.database.datasourceUrl | quote }}
