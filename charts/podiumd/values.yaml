@@ -291,6 +291,9 @@ openklant:
     twoFactorAuthentication:
       forceOtpAdmin: false
       patchAdmin: false
+  extraEnvVars:
+    - name: DISABLE_2FA
+      value: "True"
   image:
     tag: "2.1.0"
   resources:
