@@ -278,57 +278,12 @@ objecttypen:
   nameOverride: objecttypen
   fullnameOverride: objecttypen
 
-openklantv1:
-  enabled: false
+openklant:
   configuration:
-    oidcUrl: https://openklantv1.example.nl
-    oidcSecret: "<openklantv1>"
-  settings:
-    allowedHosts: openklantv1.podiumd.svc.cluster.local
-    email:
-      port: 587
-      useTLS: true
-    isHttps: false
-    twoFactorAuthentication:
-      forceOtpAdmin: false
-      patchAdmin: false
-  image:
-    tag: "1.0.0"
-  resources:
-    requests:
-      cpu: 100m
-      memory: 300Mi
-    limits:
-      cpu: 200m
-      memory: 512Mi
-  worker:
-    resources:
-      requests:
-        cpu: 50m
-        memory: 200Mi
-      limits:
-        cpu: 200m
-        memory: 256Mi
-  nameOverride: openklantv1
-  fullnameOverride: openklantv1
-  redis:
-    nameOverride: openklantv1-redis
-    fullnameOverride: openklantv1-redis
-    master:
-      resources:
-        requests:
-          cpu: 10m
-          memory: 16Mi
-        limits:
-          cpu: 50m
-          memory: 32Mi
-
-openklantv2:
-  configuration:
-    oidcUrl: https://openklantv2.example.nl
+    oidcUrl: https://openklant.example.nl
     oidcSecret: "<openklant>"
   settings:
-    allowedHosts: openklantv2.podiumd.svc.cluster.local
+    allowedHosts: openklant.podiumd.svc.cluster.local
     email:
       port: 587
       useTLS: true
@@ -353,11 +308,19 @@ openklantv2:
       limits:
         cpu: 200m
         memory: 256Mi
-  nameOverride: openklantv2
-  fullnameOverride: openklantv2
+  nameOverride: openklant
+  fullnameOverride: openklant
   redis:
-    nameOverride: openklantv2-redis
-    fullnameOverride: openklantv2-redis
+    nameOverride: openklant-redis
+    fullnameOverride: openklant-redis
+    master:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 16Mi
+        limits:
+          cpu: 50m
+          memory: 32Mi
 
 openformulieren:
   configuration:
