@@ -279,6 +279,7 @@ objecttypen:
   fullnameOverride: objecttypen
 
 openklantv1:
+  enabled: false
   configuration:
     oidcUrl: https://openklantv1.example.nl
     oidcSecret: "<openklantv1>"
@@ -323,7 +324,6 @@ openklantv1:
           memory: 32Mi
 
 openklantv2:
-  enabled: false
   configuration:
     oidcUrl: https://openklantv2.example.nl
     oidcSecret: "<openklant>"
@@ -337,7 +337,7 @@ openklantv2:
       forceOtpAdmin: false
       patchAdmin: false
   image:
-    tag: "2.0.0"
+    tag: "2.1.0"
   resources:
     requests:
       cpu: 100m
