@@ -1054,6 +1054,24 @@ entries:
   zac:
   - apiVersion: v2
     appVersion: latest
+    created: "2024-08-13T13:38:17.247254116Z"
+    dependencies:
+    - alias: opentelemetryCollector
+      condition: opentelemetryCollector.enabled
+      name: opentelemetry-collector
+      repository: https://open-telemetry.github.io/opentelemetry-helm-charts
+      version: 0.55.2
+    - name: solr
+      repository: https://charts.bitnami.com/bitnami
+      version: 9.1.3
+    description: ZAC Helm chart
+    digest: aef3c7fce723e54e45cc48a03b5c106f140f42feab61a12c2f4d67c9d64124d6
+    name: zac
+    urls:
+    - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/zac-1.1.5/zac-1.1.5.tgz
+    version: 1.1.5
+  - apiVersion: v2
+    appVersion: latest
     created: "2024-08-12T08:47:02.932502311Z"
     dependencies:
     - alias: opentelemetryCollector
@@ -1178,4 +1196,4 @@ entries:
     urls:
     - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/zac-1.0.0/zac-1.0.0.tgz
     version: 1.0.0
-generated: "2024-08-13T12:53:42.040147851Z"
+generated: "2024-08-13T13:38:17.247311422Z"
