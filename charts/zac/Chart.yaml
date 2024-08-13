@@ -1,7 +1,7 @@
 apiVersion: v2
 name: zac
 description: ZAC Helm chart
-version: 1.1.4
+version: 1.1.5
 appVersion: "latest"
 dependencies:
   - name: opentelemetry-collector
