@@ -125,6 +125,75 @@ entries:
   podiumd:
   - apiVersion: v2
     appVersion: 1.3.0
+    created: "2024-08-14T07:45:57.346788413Z"
+    dependencies:
+    - condition: keycloak.enabled
+      name: keycloak
+      repository: '@bitnami'
+      version: 21.4.4
+    - condition: openldap.enabled
+      name: openldap
+      repository: '@dimpact'
+      tags:
+      - zaak
+      version: 1.0.2
+    - condition: clamav.enabled
+      name: clamav
+      repository: '@wiremind'
+      tags:
+      - formulier
+      version: 3.1.0
+    - condition: brpmock.enabled
+      name: brpmock
+      repository: '@dimpact'
+      tags:
+      - contact
+      - zaak
+      version: ~1.2.4
+    - condition: openzaak.enabled
+      name: openzaak
+      repository: '@maykinmedia'
+      version: 1.3.2
+    - condition: opennotificaties.enabled
+      name: opennotificaties
+      repository: '@maykinmedia'
+      version: 1.3.2
+    - condition: objecten.enabled
+      name: objecten
+      repository: '@maykinmedia'
+      version: 2.4.1
+    - condition: objecttypen.enabled
+      name: objecttypen
+      repository: '@maykinmedia'
+      version: 1.1.0
+    - condition: openklant.enabled
+      name: openklant
+      repository: '@maykinmedia'
+      tags:
+      - zaak
+      version: ~1.3.2
+    - alias: openformulieren
+      condition: openformulieren.enabled
+      name: openforms
+      repository: '@maykinmedia'
+      tags:
+      - formulier
+      version: 1.3.0
+    - condition: openinwoner.enabled
+      name: openinwoner
+      repository: '@maykinmedia'
+      tags:
+      - portaal
+      version: 1.4.0
+    description: PodiumD Helm chart
+    digest: d6876fca832ac5d2e511ae1b9bb45d66001bc39928409dd5b39555eeafcc942d
+    name: podiumd
+    type: application
+    urls:
+    - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/podiumd-1.1.5/podiumd-1.1.5.tgz
+    version: 1.1.5
+  - apiVersion: v2
+    appVersion: 1.3.0
     created: "2024-08-13T12:53:42.040040491Z"
     dependencies:
     - condition: keycloak.enabled
@@ -1196,4 +1265,4 @@ entries:
     urls:
     - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/zac-1.0.0/zac-1.0.0.tgz
     version: 1.0.0
-generated: "2024-08-13T13:38:17.247311422Z"
+generated: "2024-08-14T07:45:57.346871638Z"
