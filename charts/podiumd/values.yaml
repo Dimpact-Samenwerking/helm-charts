@@ -277,6 +277,14 @@ objecttypen:
       memory: 320Mi
   nameOverride: objecttypen
   fullnameOverride: objecttypen
+  redis:
+    nameOverride: objecttypen-redis
+    fullnameOverride: objecttypen-redis
+    master:
+      resources:
+        limits:
+          cpu: 50m
+          memory: 32Mi
 
 openklant:
   configuration:
