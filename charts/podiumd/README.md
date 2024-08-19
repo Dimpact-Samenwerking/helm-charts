@@ -184,6 +184,7 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 | openzaak.nginx.image.tag                           | Mginx image tag                                                                                                                                       | `stable`                                                       |
 | openzaak.nginx.image.pullPolicy                    | Nginx image pull policy                                                                                                                               | `IfNotPresent`                                                 |
 | openzaak.nginx.resources                           | Nginx container requests and limits                                                                                                                   | See values.yaml                                                |
+| openzaak.redis.image.registry                      | Redis image registry                                                                                                                                  | `docker.io`                                                    |
 | openzaak.redis.image.repository                    | Redis image repository                                                                                                                                | `bitnami/redis`                                                |
 | openzaak.redis.image.tag                           | Redis image tag                                                                                                                                       | `7.0.5-debian-11-r25`                                          |
 | openzaak.redis.image.pullPolicy                    | Redis image pul policy                                                                                                                                | `IfNotPresent`                                                 |
@@ -242,6 +243,7 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 | opennotificaties.rabbitmq.image.pullPolicy                           | RabitMQ image pul policy                                                                                                                              | `IfNotPresent`                               |
 | opennotificaties.rabbitmq.nodeSelector                               | RabitMQ node labels for pod assignment. Evaluated as a template                                                                                       | `{}`                                         |
 | opennotificaties.rabbitmq.resources                                  | RabitMQ container requests and limits                                                                                                                 | See values.yaml                              |
+| opennotificaties.redis.image.registry                                | Redis image registry                                                                                                                                  | `docker.io`                                  |
 | opennotificaties.redis.image.repository                              | Redis image repository                                                                                                                                | `bitnami/redis`                              |
 | opennotificaties.redis.image.tag                                     | Redis image tag                                                                                                                                       | `7.0.5-debian-11-r25`                        |
 | opennotificaties.redis.image.pullPolicy                              | Redis image pul policy                                                                                                                                | `IfNotPresent`                               |
@@ -276,11 +278,12 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 | objecten.persistence.size                          | Size of created PersistentVolume                                                                                                                      | `10Gi`                               |
 | objecten.persistentVolume.volumeAttributeShareName | Value of created PersistentVolume paramer `spec.csi.volumeAttributes.shareName`.<br/>Overriden by `.Values.persistentVolume.volumeAttributeShareName` | `objecten`                           |
 | objecten.image.repository                          | Image repository                                                                                                                                      | `maykinmedia/objects-api`            |
-| objecten.image.tag                                 | Image tag                                                                                                                                             | `2.3.1`                              |
+| objecten.image.tag                                 | Image tag                                                                                                                                             | `2.4.1`                              |
 | objecten.image.pullPolicy                          | Image pull policy                                                                                                                                     | `IfNotPresent`                       |
 | objecten.nodeSelector                              | Node labels for pod assignment. Evaluated as a template                                                                                               | `{}`                                 |
 | objecten.resources                                 | Container requests and limits                                                                                                                         | see values.yaml                      |
 | objecten.worker.resources                          | Worker container requests and limits                                                                                                                  | see values.yaml                      |
+| objecten.redis.image.registry                      | Redis image registry                                                                                                                                  | `docker.io`                          |
 | objecten.redis.image.repository                    | Redis image repository                                                                                                                                | `bitnami/redis`                      |
 | objecten.redis.image.tag                           | Redis image tag                                                                                                                                       | `7.0.5-debian-11-r25`                |
 | objecten.redis.image.pullPolicy                    | Redis image pul policy                                                                                                                                | `IfNotPresent`                       |
@@ -309,80 +312,51 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 | objecttypen.settings.secretKey         | Django secret key. Generate secret key at https://djecrety.ir/                                      | `""`                                    |
 | objecttypen.settings.environment       | Sets the `ENVIRONMENT` variable                                                                     | `""`                                    |
 | objecttypen.image.repository           | Image repository                                                                                    | `maykinmedia/objecttypes-api`           |
-| objecttypen.image.tag                  | Image tag                                                                                           | `2.1.2`                                 |
+| objecttypen.image.tag                  | Image tag                                                                                           | `2.2.0`                                 |
 | objecttypen.image.pullPolicy           | Image pull policy                                                                                   | `IfNotPresent`                          |
 | objecttypen.nodeSelector               | Node labels for pod assignment. Evaluated as a template                                             | `{}`                                    |
 | objecttypen.resources                  | Container requests and limits                                                                       | See values.yaml                         |
+| objecttypen.redis.image.registry       | Redis image registry                                                                                | `docker.io`                             |
+| objecttypen.redis.image.repository     | Redis image repository                                                                              | `bitnami/redis`                         |
+| objecttypen.redis.image.tag            | Redis image tag                                                                                     | `7.0.5-debian-11-r25`                   |
+| objecttypen.redis.image.pullPolicy     | Redis image pul policy                                                                              | `IfNotPresent`                          |
+| objecttypen.redis.master.nodeSelector  | Redis node labels for pod assignment. Evaluated as a template                                       | `{}`                                    |
+| objecttypen.redis.master.resources     | Redis container requests and limits                                                                 | see values.yaml                         |
 
-### Open Klant versie 1
+### Open Klant
 
-| Name                                   | Description                                                                                         | Value                                   |
-|----------------------------------------|-----------------------------------------------------------------------------------------------------|-----------------------------------------|
-| openklantv1.enabled                    | Boolean to override the installation of Open Klant versie 1                                         |                                         |
-| openklantv1.configuration.oidcUrl      | OpenID Connect client url                                                                           | `https://openklantv1.example.nl`        |
-| openklantv1.configuration.oidcSecret   | OpenID Connect client secret                                                                        | `<openklantv1>`                         |
-| openklantv1.settings.allowedHosts      | List if allowed hostnames<br/>(i.e. "openklantv1.example.nl,openklantv1.podiumd.svc.cluster.local") | `openklantv1.podiumd.svc.cluster.local` |
-| openklantv1.settings.database.host     | Database host                                                                                       | `""`                                    |
-| openklantv1.settings.database.port     | Database port                                                                                       | `5432`                                  |
-| openklantv1.settings.database.name     | Database name                                                                                       | `""`                                    |
-| openklantv1.settings.database.username | Database username                                                                                   | `""`                                    |
-| openklantv1.settings.database.password | Database user password                                                                              | `""`                                    |
-| openklantv1.settings.database.sslmode  | Database SSL mode                                                                                   | `prefer`                                |
-| openklantv1.settings.email.host        | Email host                                                                                          | `localhost`                             |
-| openklantv1.settings.email.port        | Email port                                                                                          | `587`                                   |
-| openklantv1.settings.email.username    | Email username                                                                                      | `""`                                    |
-| openklantv1.settings.email.password    | Email user password                                                                                 | `""`                                    |
-| openklantv1.settings.email.useTLS      | Email use TLS                                                                                       | `true`                                  |
-| openklantv1.settings.secretKey         | Django secret key. Generate secret key at https://djecrety.ir/                                      | `""`                                    |
-| openklantv1.settings.environment       | Sets the `ENVIRONMENT` variable                                                                     | `""`                                    |
-| openklantv1.settings.isHttps           | Use HTTPS                                                                                           | `false`                                 |
-| openklantv1.settings.debug             | Enable debug mode                                                                                   | `false`                                 |
-| openklantv1.image.repository           | Image repository                                                                                    | `maykinmedia/objects-api`               |
-| openklantv1.image.tag                  | Image tag                                                                                           | `1.0.0`                                 |
-| openklantv1.image.pullPolicy           | Image pull policy                                                                                   | `IfNotPresent`                          |
-| openklantv1.nodeSelector               | Node labels for pod assignment. Evaluated as a template                                             | `{}`                                    |
-| openklantv1.resources                  | Container requests and limits                                                                       | See values.yaml                         |
-| openklantv1.worker.resources           | Worker container requests and limits                                                                | See values.yaml                         |
-| openklantv1.redis.image.repository     | Redis image repository                                                                              | `bitnami/redis`                         |
-| openklantv1.redis.image.tag            | Redis image tag                                                                                     | `7.0.5-debian-11-r25`                   |
-| openklantv1.redis.image.pullPolicy     | Redis image pul policy                                                                              | `IfNotPresent`                          |
-| openklantv1.redis.master.nodeSelector  | Redis node labels for pod assignment. Evaluated as a template                                       | `{}`                                    |
-| openklantv1.redis.master.resources     | Redis container requests and limts                                                                  | See values.yaml                         |
-
-### Open Klant versie 2
-
-| Name                                   | Description                                                                                         | Value                                   |
-|----------------------------------------|-----------------------------------------------------------------------------------------------------|-----------------------------------------|
-| openklantv2.enabled                    | Boolean to override the installation of Open Klant versie 2                                         | `false`                                 |
-| openklantv2.configuration.oidcUrl      | OpenID Connect client url                                                                           | `https://openklantv2.example.nl`        |
-| openklantv2.configuration.oidcSecret   | OpenID Connect client secret                                                                        | `<openklantv2>`                         |
-| openklantv2.settings.allowedHosts      | List if allowed hostnames<br/>(i.e. "openklantv2.example.nl,openklantv2.podiumd.svc.cluster.local") | `openklantv2.podiumd.svc.cluster.local` |
-| openklantv2.settings.database.host     | Database host                                                                                       | `""`                                    |
-| openklantv2.settings.database.port     | Database port                                                                                       | `5432`                                  |
-| openklantv2.settings.database.name     | Database name                                                                                       | `""`                                    |
-| openklantv2.settings.database.username | Database username                                                                                   | `""`                                    |
-| openklantv2.settings.database.password | Database user password                                                                              | `""`                                    |
-| openklantv2.settings.database.sslmode  | Database SSL mode                                                                                   | `prefer`                                |
-| openklantv2.settings.email.host        | Email host                                                                                          | `localhost`                             |
-| openklantv2.settings.email.port        | Email port                                                                                          | `587`                                   |
-| openklantv2.settings.email.username    | Email username                                                                                      | `""`                                    |
-| openklantv2.settings.email.password    | Email user password                                                                                 | `""`                                    |
-| openklantv2.settings.email.useTLS      | Email use TLS                                                                                       | `true`                                  |
-| openklantv2.settings.secretKey         | Django secret key. Generate secret key at https://djecrety.ir/                                      | `""`                                    |
-| openklantv2.settings.environment       | Sets the `ENVIRONMENT` variable                                                                     | `""`                                    |
-| openklantv2.settings.isHttps           | Use HTTPS                                                                                           | `false`                                 |
-| openklantv2.settings.debug             | Enable debug mode                                                                                   | `false`                                 |
-| openklantv2.image.repository           | Image repository                                                                                    | `maykinmedia/objects-api`               |
-| openklantv2.image.tag                  | Image tag                                                                                           | `2.0.0`                                 |
-| openklantv2.image.pullPolicy           | Image pull policy                                                                                   | `IfNotPresent`                          |
-| openklantv2.nodeSelector               | Node labels for pod assignment. Evaluated as a template                                             | `{}`                                    |
-| openklantv2.resources                  | Container requests and limits                                                                       | See values.yaml                         |
-| openklantv2.worker.resources           | Worker container requests and limits                                                                | See values.yaml                         |
-| openklantv2.redis.image.repository     | Redis image repository                                                                              | `bitnami/redis`                         |
-| openklantv2.redis.image.tag            | Redis image tag                                                                                     | `7.0.5-debian-11-r25`                   |
-| openklantv2.redis.image.pullPolicy     | Redis image pul policy                                                                              | `IfNotPresent`                          |
-| openklantv2.redis.master.nodeSelector  | Redis node labels for pod assignment. Evaluated as a template                                       | `{}`                                    |
-| openklantv2.redis.master.resources     | Redis container requests and limits                                                                 | See values.yaml                         |
+| Name                                 | Description                                                                                     | Value                                 |
+|--------------------------------------|-------------------------------------------------------------------------------------------------|---------------------------------------|
+| openklant.configuration.oidcUrl      | OpenID Connect client url                                                                       | `https://openklant.example.nl`        |
+| openklant.configuration.oidcSecret   | OpenID Connect client secret                                                                    | `<openklant>`                         |
+| openklant.settings.allowedHosts      | List if allowed hostnames<br/>(i.e. "openklant.example.nl,openklant.podiumd.svc.cluster.local") | `openklant.podiumd.svc.cluster.local` |
+| openklant.settings.database.host     | Database host                                                                                   | `""`                                  |
+| openklant.settings.database.port     | Database port                                                                                   | `5432`                                |
+| openklant.settings.database.name     | Database name                                                                                   | `""`                                  |
+| openklant.settings.database.username | Database username                                                                               | `""`                                  |
+| openklant.settings.database.password | Database user password                                                                          | `""`                                  |
+| openklant.settings.database.sslmode  | Database SSL mode                                                                               | `prefer`                              |
+| openklant.settings.email.host        | Email host                                                                                      | `localhost`                           |
+| openklant.settings.email.port        | Email port                                                                                      | `587`                                 |
+| openklant.settings.email.username    | Email username                                                                                  | `""`                                  |
+| openklant.settings.email.password    | Email user password                                                                             | `""`                                  |
+| openklant.settings.email.useTLS      | Email use TLS                                                                                   | `true`                                |
+| openklant.settings.secretKey         | Django secret key. Generate secret key at https://djecrety.ir/                                  | `""`                                  |
+| openklant.settings.environment       | Sets the `ENVIRONMENT` variable                                                                 | `""`                                  |
+| openklant.settings.isHttps           | Use HTTPS                                                                                       | `false`                               |
+| openklant.settings.debug             | Enable debug mode                                                                               | `false`                               |
+| openklant.image.repository           | Image repository                                                                                | `maykinmedia/objects-api`             |
+| openklant.image.tag                  | Image tag                                                                                       | `2.1.0`                               |
+| openklant.image.pullPolicy           | Image pull policy                                                                               | `IfNotPresent`                        |
+| openklant.nodeSelector               | Node labels for pod assignment. Evaluated as a template                                         | `{}`                                  |
+| openklant.resources                  | Container requests and limits                                                                   | See values.yaml                       |
+| openklant.worker.resources           | Worker container requests and limits                                                            | See values.yaml                       |
+| openklant.redis.image.registry       | Redis image registry                                                                            | `docker.io`                           |
+| openklant.redis.image.repository     | Redis image repository                                                                          | `bitnami/redis`                       |
+| openklant.redis.image.tag            | Redis image tag                                                                                 | `7.0.5-debian-11-r25`                 |
+| openklant.redis.image.pullPolicy     | Redis image pul policy                                                                          | `IfNotPresent`                        |
+| openklant.redis.master.nodeSelector  | Redis node labels for pod assignment. Evaluated as a template                                   | `{}`                                  |
+| openklant.redis.master.resources     | Redis container requests and limits                                                             | See values.yaml                       |
 
 ### Open Formulieren
 
@@ -424,6 +398,7 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 | openformulieren.nginx.image.tag                           | Mginx image tag                                                                                                                                       | `stable`                                          |
 | openformulieren.nginx.image.pullPolicy                    | Nginx image pull policy                                                                                                                               | `IfNotPresent`                                    |
 | openformulieren.nginx.resources                           | Nginx container requests and limits                                                                                                                   | See values.yaml                                   |
+| openformulieren.redis.image.registry                      | Redis image registry                                                                                                                                  | `docker.io`                                       |
 | openformulieren.redis.image.repository                    | Redis image repository                                                                                                                                | `bitnami/redis`                                   |
 | openformulieren.redis.image.tag                           | Redis image tag                                                                                                                                       | `7.0.5-debian-11-r25`                             |
 | openformulieren.redis.image.pullPolicy                    | Redis image pul policy                                                                                                                                | `IfNotPresent`                                    |
@@ -471,6 +446,7 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 | openinwoner.nginx.image.tag                           | Mginx image tag                                                                                                                                       | `stable`                                      |
 | openinwoner.nginx.image.pullPolicy                    | Nginx image pull policy                                                                                                                               | `IfNotPresent`                                |
 | openinwoner.nginx.resources                           | Nginx container requests and limits                                                                                                                   | See values.yaml                               |
+| openinwoner.redis.image.registry                      | Redis image registry                                                                                                                                  | `docker.io`                                   |
 | openinwoner.redis.image.repository                    | Redis image repository                                                                                                                                | `bitnami/redis`                               |
 | openinwoner.redis.image.tag                           | Redis image tag                                                                                                                                       | `7.0.5-debian-11-r25`                         |
 | openinwoner.redis.image.pullPolicy                    | Redis image pul policy                                                                                                                                | `IfNotPresent`                                |
