@@ -4,7 +4,7 @@
 
 ### 1.3.0
 
-**PodiumD Helm chart versie: 1.1.8**
+**PodiumD Helm chart versie: 1.1.9**
 
 | Component         | Versie |
 |-------------------|--------|
