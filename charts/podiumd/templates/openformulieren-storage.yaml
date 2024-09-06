@@ -1,4 +1,4 @@
-{{- if and .Release.IsInstall (and .Values.tags.formulier (or .Values.openformulieren.enabled (not (hasKey .Values.openformulieren "enabled")))) -}}
+{{- if and .Release.IsInstall (or .Values.openformulieren.enabled (not (hasKey .Values.openformulieren "enabled"))) -}}
 {{- if not (lookup "v1" "PersistentVolumeClaim" .Release.Namespace .Values.openformulieren.persistence.existingClaim) -}}
 ---
 apiVersion: v1

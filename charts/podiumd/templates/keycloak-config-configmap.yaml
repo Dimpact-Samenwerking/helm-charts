@@ -56,7 +56,6 @@ data:
         webOrigins:
           - "{{ .Values.objecttypen.configuration.oidcUrl }}/*"
         secret: {{ .Values.objecttypen.configuration.oidcSecret | quote }}
-      {{- if .Values.tags.zaak }}
       - clientId: openklant
         name: Open Klant
         enabled: true
@@ -66,8 +65,6 @@ data:
         webOrigins:
           - "{{ .Values.openklant.configuration.oidcUrl }}/*"
         secret: {{ .Values.openklant.configuration.oidcSecret | quote }}
-      {{- end }}
-      {{- if .Values.tags.formulier }}
       - clientId: openformulieren
         name: Open Formulieren
         enabled: true
@@ -77,7 +74,6 @@ data:
         webOrigins:
           - "{{ .Values.openformulieren.configuration.oidcUrl }}/*"
         secret: {{ .Values.openformulieren.configuration.oidcSecret | quote }}
-      {{- end }}
       {{- if .Values.tags.portaal }}
       - clientId: openinwoner
         name: Open Inwoner

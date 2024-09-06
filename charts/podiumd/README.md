@@ -4,7 +4,7 @@
 
 ### 1.3.0
 
-**PodiumD Helm chart versie: 1.1.9**
+**PodiumD Helm chart versie: 1.1.10**
 
 | Component         | Versie |
 |-------------------|--------|
@@ -57,29 +57,12 @@
 | Open Notificaties | 1.5.2  |
 | Open Zaak         | 1.12.1 |
 
-
-
-
 ## Add Used chart repositories:
 
     helm repo add bitnami https://charts.bitnami.com/bitnami
     helm repo add dimpact https://Dimpact-Samenwerking.github.io/helm-charts/
     helm repo add maykinmedia https://maykinmedia.github.io/charts
     helm repo add wiremind https://wiremind.github.io/wiremind-helm-charts
-
-## Parameters
-
-### Tags
-
-Tags define which PodiumD component will be installed.
-
-| Name           | Description                            | Value   |
-|----------------|----------------------------------------|---------|
-| tags.formulier | Whether PodiumD Formulier is installed | `true`  |
-| tags.portaal   | Whether PodiumD Portaal is installed   | `false` |
-| tags.contact   | Whether PodiumD Contact is installed   | `false` |
-| tags.zaak      | Whether PodiumD ZAAK is installed      | `false` |
-
 
 ## PersistentVolume and PersistVolumeClaim resources
 
@@ -104,6 +87,8 @@ The following parameters impact the creation of PersistentVolume reources
 | persistentVolume.volumeAttributeResourceGroup | Value of created PersistentVolume paramer `spec.csi.volumeAttributes.resourceGroup`                                                                  | `""`  |
 | persistentVolume.nodeStageSecretRefName       | Value of created PersistentVolume paramer `spec.csi.nodeStageSecretRef.name`                                                                         | `""`  |
 | persistentVolume.nodeStageSecretRefNamespace  | Value of created PersistentVolume paramer `spec.csi.nodeStageSecretRef.namespace`                                                                    | `""`  |
+
+## Parameters
 
 ### Global
 
@@ -517,3 +502,13 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 | openinwoner.elasticsearch.image.pullPolicy            | Elastic search image pul policy                                                                                                                       | `IfNotPresent`                                |
 | openinwoner.elasticsearch.master.nodeSelector         | Elastic search node labels for pod assignment. Evaluated as a template                                                                                | `{}`                                          |
 | openinwoner.elasticsearch.master.resources            | Elastic search container requests and limits                                                                                                          | See values.yaml                               |
+
+### Tags
+
+Tags to add additional unreleased PodiumD functionality.
+
+| Name           | Description                            | Value   |
+|----------------|----------------------------------------|---------|
+| tags.portaal   | Whether PodiumD Portaal is installed   | `false` |
+| tags.contact   | Whether PodiumD Contact is installed   | `false` |
+| tags.zaak      | Whether PodiumD Zak is installed       | `false` |
