@@ -1,4 +1,4 @@
-{{- if and .Release.IsInstall (and .Values.tags.zaak (or .Values.openldap.enabled (not (hasKey .Values.openldap "enabled")))) -}}
+{{- if and .Values.tags.zaak (or .Values.openldap.enabled (not (hasKey .Values.openldap "enabled"))) -}}
 {{- if not (lookup "v1" "PersistentVolumeClaim" .Release.Namespace .Values.openldap.persistence.existingClaim) -}}
 ---
 apiVersion: v1

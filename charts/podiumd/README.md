@@ -4,14 +4,14 @@
 
 ### 1.3.0
 
-**PodiumD Helm chart versie: 1.1.10**
+**PodiumD Helm chart versie: 1.1.11**
 
 | Component         | Versie |
 |-------------------|--------|
 | ClamAV            | 1.3.1  |
 | Keycloak          | 24.0.5 |
 | Objecten          | 2.4.1  |
-| Objecttypen       | 2.2.0  |
+| Objecttypen       | 2.2.1  |
 | Open Formulieren  | 2.6.7  |
 | Open Klant        | 2.1.0  |
 | Open Notificaties | 1.5.2  |
@@ -24,7 +24,7 @@
 | ClamAV            | 1.3.1  |
 | Keycloak          | 24.0.5 |
 | Objecten          | 2.4.1  |
-| Objecttypen       | 2.2.0  |
+| Objecttypen       | 2.2.1  |
 | Open Formulieren  | 2.6.14 |
 | Open Klant        | 2.1.0  |
 | Open Notificaties | 1.5.2  |
@@ -37,7 +37,7 @@
 | ClamAV            | 1.3.1  |
 | Keycloak          | 24.0.5 |
 | Objecten          | 2.4.1  |
-| Objecttypen       | 2.2.0  |
+| Objecttypen       | 2.2.1  |
 | Open Formulieren  | 2.7.4  |
 | Open Klant        | 2.1.0  |
 | Open Notificaties | 1.5.2  |
@@ -50,7 +50,7 @@
 | ClamAV            | 1.3.1  |
 | Keycloak          | 24.0.5 |
 | Objecten          | 2.4.1  |
-| Objecttypen       | 2.2.0  |
+| Objecttypen       | 2.2.1  |
 | Open Formulieren  | 2.7.4  |
 | Open Inwoner      | 1.20.0 |
 | Open Klant        | 2.1.0  |
@@ -67,8 +67,7 @@
 ## PersistentVolume and PersistVolumeClaim resources
 
 PersistentVolume and PersistentVolumeClaim resources are:
-- created during a Helm install if the PersistentVolumeClaim referenced by the `persistence.existingClaim` parameter does not yet exist
-- never created during a Helm upgrade
+- created during a Helm install or upgrade if the PersistentVolumeClaim referenced by the `persistence.existingClaim` parameter does not yet exist
 - never deleted during a Helm uninstall
                      
 In order to determine whether the combination of PersistentVolume and PersistentVolumeClaim should be created,
@@ -98,17 +97,19 @@ The following components can be partially configured:
 
 Kanalen will only be added to Open Notificaties during Helm install, not on Helm upgrade.
 
-| Name                                              | Description                                                   | Value                                              |
-|---------------------------------------------------|---------------------------------------------------------------|----------------------------------------------------|
-| global.configuration.enabled                      | Whether component configuration is enabled                    | `true`                                             |
-| global.configuration.organization                 | Organization name                                             | `Example gemeente`                                 |
-| global.configuration.openzaakAutorisatiesApi      | Autorisaties API                                              | `https://openzaak.example.nl/autorisaties/api/v1/` |
-| global.configuration.notificatiesApi              | Notificaties API                                              | `https://opennotificaties.example.nl/api/v1/`      |
-| global.configuration.notificatiesOpenzaakClientId | ClientId used by Open Notificaties to access autorisaties API | `notificaties`                                     |
-| global.configuration.notificatiesOpenzaakSecret   | Secret used by Open Notificaties to access autorisaties API   | `notificaties-secret`                              |
-| global.configuration.openzaakNotificatiesClientId | ClientId used by Open Zaak to send notifications              | `openzaak`                                         |
-| global.configuration.openzaakNotificatiesSecret   | Secret used by Open Zaak to send notifications                | `openzaak-secret`                                  |
-| global.imageRegistry                              | Image registry used by Keycloak, Redis, RabitMQ and Elastic   | `""`                                               | 
+| Name                                              | Description                                                                 | Value                                              |
+|---------------------------------------------------|-----------------------------------------------------------------------------|----------------------------------------------------|
+| global.configuration.enabled                      | Whether component configuration is enabled                                  | `true`                                             |
+| global.configuration.overwrite                    | Whether existing component configuration is overwritten                     | `true`                                             |
+| global.configuration.organization                 | Organization name                                                           | `Example gemeente`                                 |
+| global.configuration.openzaakAutorisatiesApi      | Autorisaties API                                                            | `https://openzaak.example.nl/autorisaties/api/v1/` |
+| global.configuration.notificatiesApi              | Notificaties API                                                            | `https://opennotificaties.example.nl/api/v1/`      |
+| global.configuration.notificatiesOpenzaakClientId | ClientId used by Open Notificaties to access autorisaties API               | `notificaties`                                     |
+| global.configuration.notificatiesOpenzaakSecret   | Secret used by Open Notificaties to access autorisaties API                 | `notificaties-secret`                              |
+| global.configuration.openzaakNotificatiesClientId | ClientId used by Open Zaak to send notifications                            | `openzaak`                                         |
+| global.configuration.openzaakNotificatiesSecret   | Secret used by Open Zaak to send notifications                              | `openzaak-secret`                                  |
+| global.imageRegistry                              | Image registry used by Keycloak, Redis, RabitMQ and Elastic                 | `""`                                               | 
+| global.settings.databaseHost                      | Database host used bij objecten, objecttypen, openinwoner, opennotificaties | `""`                                               | 
 
 ### keycloak
 
@@ -188,6 +189,8 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 | Name                                               | Description                                                                                                                                           | Value                                                          |
 |----------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------|
 | openzaak.enabled                                   | Boolean to override the installation of Open Zaak                                                                                                     |                                                                |
+| openzaak.configuration.enabled                     | Boolean to override whether Open Zaak configuration is enabled                                                                                        | `true`                                                         |
+| openzaak.configuration.overwrite                   | Boolean to override whether existing Open Zaak configuration is overwritten                                                                           | `true`                                                         |
 | openzaak.configuration.oidcUrl                     | OpenID Connect client url                                                                                                                             | `https://openzaak.example.nl`                                  |
 | openzaak.configuration.oidcSecret                  | OpenID Connect client secret                                                                                                                          | `<openzaak>`                                                   |
 | openzaak.configuration.sites.openzaakDomain        | Domein (i.e. openzaak.example.nl)                                                                                                                     | `""`                                                           |
@@ -234,13 +237,14 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 | openzaak.redis.image.tag                           | Redis image tag                                                                                                                                       | `7.0.5-debian-11-r25`                                          |
 | openzaak.redis.image.pullPolicy                    | Redis image pul policy                                                                                                                                | `IfNotPresent`                                                 |
 | openzaak.redis.master.nodeSelector                 | Redis node labels for pod assignment. Evaluated as a template                                                                                         | `{}`                                                           |
-| openzaak.redis.master.resources                    | Redis container requests and limits                                                                                                                   | See values.yaml                                                |
 
 ### Open Notificaties
 
 | Name                                                                 | Description                                                                                                                                           | Value                                        |
 |----------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------|
-| opennotificaties.enabled                                             | Boolean to override the installation of Open Notificatues                                                                                             |                                              |
+| opennotificaties.enabled                                             | Boolean to override the installation of Open Notificatues                                                                                             | `true`                                       |
+| opennotificaties.configuration.enabled                               | Boolean to override whether Open Notificaties configuration is enabled                                                                                | `true`                                       |
+| opennotificaties.configuration.overwrite                             | Boolean to override whether existing Open Notificaties configuration is overwritten                                                                   | `true`                                       |
 | opennotificaties.configuration.oidcUrl                               | OpenID Connect client url                                                                                                                             | `https://opennotificaties.example.nl`        |
 | opennotificaties.configuration.oidcSecret                            | OpenID Connect client secret                                                                                                                          | `<opennotificaties>`                         |
 | opennotificaties.configuration.sites.notificatiesDomain              | Domein (i.e. opennotificaties.example.nl)                                                                                                             | `""`                                         |
@@ -248,7 +252,7 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 | opennotificaties.configuration.superuser.password                    | Superuser password                                                                                                                                    | `""`                                         |
 | opennotificaties.configuration.superuser.email                       | Superuser email                                                                                                                                       | `""`                                         |
 | opennotificaties.settings.allowedHosts                               | List if allowed hostnames<br/>(i.e. "openzaak.example.nl,openzaak-nginx.podiumd.svc.cluster.local")                                                   | `opennotificaties.podiumd.svc.cluster.local` |
-| opennotificaties.settings.database.host                              | Database host                                                                                                                                         | `""`                                         |
+| opennotificaties.settings.database.host                              | Database host. Overides global.settings.databaseHost                                                                                                  | `""`                                         |
 | opennotificaties.settings.database.port                              | Database port                                                                                                                                         | `5432`                                       |
 | opennotificaties.settings.database.name                              | Database name                                                                                                                                         | `""`                                         |
 | opennotificaties.settings.database.username                          | Database username                                                                                                                                     | `""`                                         |
@@ -293,7 +297,6 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 | opennotificaties.redis.image.tag                                     | Redis image tag                                                                                                                                       | `7.0.5-debian-11-r25`                        |
 | opennotificaties.redis.image.pullPolicy                              | Redis image pul policy                                                                                                                                | `IfNotPresent`                               |
 | opennotificaties.redis.master.nodeSelector                           | Redis node labels for pod assignment. Evaluated as a template                                                                                         | `{}`                                         |
-| opennotificaties.redis.master.resources                              | Redis container requests and limits                                                                                                                   | See values.yaml                              |
 
 ### Objecten
 
@@ -303,7 +306,7 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 | objecten.configuration.oidcUrl                     | OpenID Connect client url                                                                                                                             | `https://objecten.example.nl`        |
 | objecten.configuration.oidcSecret                  | OpenID Connect client secret                                                                                                                          | `<objecten>`                         |
 | objecten.settings.allowedHosts                     | List if allowed hostnames<br/>(i.e. "objecten.example.nl,objecten.podiumd.svc.cluster.local")                                                         | `objecten.podiumd.svc.cluster.local` |
-| objecten.settings.database.host                    | Database host                                                                                                                                         | `""`                                 |
+| objecten.settings.database.host                    | Database host. Overides global.settings.databaseHost                                                                                                  | `""`                                 |
 | objecten.settings.database.port                    | Database port                                                                                                                                         | `5432`                               |
 | objecten.settings.database.name                    | Database name                                                                                                                                         | `""`                                 |
 | objecten.settings.database.username                | Database username                                                                                                                                     | `""`                                 |
@@ -332,76 +335,82 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 | objecten.redis.image.repository                    | Redis image repository                                                                                                                                | `bitnami/redis`                      |
 | objecten.redis.image.tag                           | Redis image tag                                                                                                                                       | `7.0.5-debian-11-r25`                |
 | objecten.redis.image.pullPolicy                    | Redis image pul policy                                                                                                                                | `IfNotPresent`                       |
+| objecten.redis.master.persistence.enabled          | Redis master persistence enabled                                                                                                                      | `true`                               |
+| objecten.redis.master.persistence.size             | Redis master persistence size                                                                                                                         | `"8Gi"`                              |
+| objecten.redis.master.persistence.storageClass     | Redis master persistence storage class                                                                                                                | `""`                                 |
 | objecten.redis.master.nodeSelector                 | Redis node labels for pod assignment. Evaluated as a template                                                                                         | `{}`                                 |
-| objecten.redis.master.resources                    | Redis container requests and limits                                                                                                                   | see values.yaml                      |
 
 ### Objecttypen
 
-| Name                                   | Description                                                                                         | Value                                   |
-|----------------------------------------|-----------------------------------------------------------------------------------------------------|-----------------------------------------|
-| objecttypen.enabled                    | Boolean to override the installation of objecttypen                                                 |                                         |
-| objecttypen.configuration.oidcUrl      | OpenID Connect client url                                                                           | `https://objecttypen.example.nl`        |
-| objecttypen.configuration.oidcSecret   | OpenID Connect client secret                                                                        | `<objecttypen>`                         |
-| objecttypen.settings.allowedHosts      | List if allowed hostnames<br/>(i.e. "objecttypen.example.nl,objecttypen.podiumd.svc.cluster.local") | `objecttypen.podiumd.svc.cluster.local` |
-| objecttypen.settings.database.host     | Database host                                                                                       | `""`                                    |
-| objecttypen.settings.database.port     | Database port                                                                                       | `5432`                                  |
-| objecttypen.settings.database.name     | Database name                                                                                       | `""`                                    |
-| objecttypen.settings.database.username | Database username                                                                                   | `""`                                    |
-| objecttypen.settings.database.password | Database user password                                                                              | `""`                                    |
-| objecttypen.settings.database.sslmode  | Database SSL mode                                                                                   | `prefer`                                |
-| objecttypen.settings.email.host        | Email host                                                                                          | `localhost`                             |
-| objecttypen.settings.email.port        | Email port                                                                                          | `587`                                   |
-| objecttypen.settings.email.username    | Email username                                                                                      | `""`                                    |
-| objecttypen.settings.email.password    | Email user password                                                                                 | `""`                                    |
-| objecttypen.settings.email.useTLS      | Email use TLS                                                                                       | `true`                                  |
-| objecttypen.settings.secretKey         | Django secret key. Generate secret key at https://djecrety.ir/                                      | `""`                                    |
-| objecttypen.settings.environment       | Sets the `ENVIRONMENT` variable                                                                     | `""`                                    |
-| objecttypen.image.repository           | Image repository                                                                                    | `maykinmedia/objecttypes-api`           |
-| objecttypen.image.tag                  | Image tag                                                                                           | `2.2.0`                                 |
-| objecttypen.image.pullPolicy           | Image pull policy                                                                                   | `IfNotPresent`                          |
-| objecttypen.nodeSelector               | Node labels for pod assignment. Evaluated as a template                                             | `{}`                                    |
-| objecttypen.resources                  | Container requests and limits                                                                       | See values.yaml                         |
-| objecttypen.redis.image.registry       | Redis image registry                                                                                | `docker.io`                             |
-| objecttypen.redis.image.repository     | Redis image repository                                                                              | `bitnami/redis`                         |
-| objecttypen.redis.image.tag            | Redis image tag                                                                                     | `7.0.5-debian-11-r25`                   |
-| objecttypen.redis.image.pullPolicy     | Redis image pul policy                                                                              | `IfNotPresent`                          |
-| objecttypen.redis.master.nodeSelector  | Redis node labels for pod assignment. Evaluated as a template                                       | `{}`                                    |
-| objecttypen.redis.master.resources     | Redis container requests and limits                                                                 | see values.yaml                         |
+| Name                                              | Description                                                                                         | Value                                   |
+|---------------------------------------------------|-----------------------------------------------------------------------------------------------------|-----------------------------------------|
+| objecttypen.enabled                               | Boolean to override the installation of objecttypen                                                 |                                         |
+| objecttypen.configuration.oidcUrl                 | OpenID Connect client url                                                                           | `https://objecttypen.example.nl`        |
+| objecttypen.configuration.oidcSecret              | OpenID Connect client secret                                                                        | `<objecttypen>`                         |
+| objecttypen.settings.allowedHosts                 | List if allowed hostnames<br/>(i.e. "objecttypen.example.nl,objecttypen.podiumd.svc.cluster.local") | `objecttypen.podiumd.svc.cluster.local` |
+| objecttypen.settings.database.host                | Database host. Overides global.settings.databaseHost                                                | `""`                                    |
+| objecttypen.settings.database.port                | Database port                                                                                       | `5432`                                  |
+| objecttypen.settings.database.name                | Database name                                                                                       | `""`                                    |
+| objecttypen.settings.database.username            | Database username                                                                                   | `""`                                    |
+| objecttypen.settings.database.password            | Database user password                                                                              | `""`                                    |
+| objecttypen.settings.database.sslmode             | Database SSL mode                                                                                   | `prefer`                                |
+| objecttypen.settings.email.host                   | Email host                                                                                          | `localhost`                             |
+| objecttypen.settings.email.port                   | Email port                                                                                          | `587`                                   |
+| objecttypen.settings.email.username               | Email username                                                                                      | `""`                                    |
+| objecttypen.settings.email.password               | Email user password                                                                                 | `""`                                    |
+| objecttypen.settings.email.useTLS                 | Email use TLS                                                                                       | `true`                                  |
+| objecttypen.settings.secretKey                    | Django secret key. Generate secret key at https://djecrety.ir/                                      | `""`                                    |
+| objecttypen.settings.environment                  | Sets the `ENVIRONMENT` variable                                                                     | `""`                                    |
+| objecttypen.image.repository                      | Image repository                                                                                    | `maykinmedia/objecttypes-api`           |
+| objecttypen.image.tag                             | Image tag                                                                                           | `2.2.0`                                 |
+| objecttypen.image.pullPolicy                      | Image pull policy                                                                                   | `IfNotPresent`                          |
+| objecttypen.nodeSelector                          | Node labels for pod assignment. Evaluated as a template                                             | `{}`                                    |
+| objecttypen.resources                             | Container requests and limits                                                                       | See values.yaml                         |
+| objecttypen.redis.image.registry                  | Redis image registry                                                                                | `docker.io`                             |
+| objecttypen.redis.image.repository                | Redis image repository                                                                              | `bitnami/redis`                         |
+| objecttypen.redis.image.tag                       | Redis image tag                                                                                     | `7.0.5-debian-11-r25`                   |
+| objecttypen.redis.image.pullPolicy                | Redis image pul policy                                                                              | `IfNotPresent`                          |
+| objecttypen.redis.master.persistence.enabled      | Redis master persistence enabled                                                                    | `true`                                  |
+| objecttypen.redis.master.persistence.size         | Redis master persistence size                                                                       | `"8Gi"`                                 |
+| objecttypen.redis.master.persistence.storageClass | Redis master persistence storage class                                                              | `""`                                    |
+| objecttypen.redis.master.nodeSelector             | Redis node labels for pod assignment. Evaluated as a template                                       | `{}`                                    |
 
 ### Open Klant
 
-| Name                                 | Description                                                                                     | Value                                 |
-|--------------------------------------|-------------------------------------------------------------------------------------------------|---------------------------------------|
-| openklant.configuration.oidcUrl      | OpenID Connect client url                                                                       | `https://openklant.example.nl`        |
-| openklant.configuration.oidcSecret   | OpenID Connect client secret                                                                    | `<openklant>`                         |
-| openklant.settings.allowedHosts      | List if allowed hostnames<br/>(i.e. "openklant.example.nl,openklant.podiumd.svc.cluster.local") | `openklant.podiumd.svc.cluster.local` |
-| openklant.settings.database.host     | Database host                                                                                   | `""`                                  |
-| openklant.settings.database.port     | Database port                                                                                   | `5432`                                |
-| openklant.settings.database.name     | Database name                                                                                   | `""`                                  |
-| openklant.settings.database.username | Database username                                                                               | `""`                                  |
-| openklant.settings.database.password | Database user password                                                                          | `""`                                  |
-| openklant.settings.database.sslmode  | Database SSL mode                                                                               | `prefer`                              |
-| openklant.settings.email.host        | Email host                                                                                      | `localhost`                           |
-| openklant.settings.email.port        | Email port                                                                                      | `587`                                 |
-| openklant.settings.email.username    | Email username                                                                                  | `""`                                  |
-| openklant.settings.email.password    | Email user password                                                                             | `""`                                  |
-| openklant.settings.email.useTLS      | Email use TLS                                                                                   | `true`                                |
-| openklant.settings.secretKey         | Django secret key. Generate secret key at https://djecrety.ir/                                  | `""`                                  |
-| openklant.settings.environment       | Sets the `ENVIRONMENT` variable                                                                 | `""`                                  |
-| openklant.settings.isHttps           | Use HTTPS                                                                                       | `false`                               |
-| openklant.settings.debug             | Enable debug mode                                                                               | `false`                               |
-| openklant.image.repository           | Image repository                                                                                | `maykinmedia/objects-api`             |
-| openklant.image.tag                  | Image tag                                                                                       | `2.1.0`                               |
-| openklant.image.pullPolicy           | Image pull policy                                                                               | `IfNotPresent`                        |
-| openklant.nodeSelector               | Node labels for pod assignment. Evaluated as a template                                         | `{}`                                  |
-| openklant.resources                  | Container requests and limits                                                                   | See values.yaml                       |
-| openklant.worker.resources           | Worker container requests and limits                                                            | See values.yaml                       |
-| openklant.redis.image.registry       | Redis image registry                                                                            | `docker.io`                           |
-| openklant.redis.image.repository     | Redis image repository                                                                          | `bitnami/redis`                       |
-| openklant.redis.image.tag            | Redis image tag                                                                                 | `7.0.5-debian-11-r25`                 |
-| openklant.redis.image.pullPolicy     | Redis image pul policy                                                                          | `IfNotPresent`                        |
-| openklant.redis.master.nodeSelector  | Redis node labels for pod assignment. Evaluated as a template                                   | `{}`                                  |
-| openklant.redis.master.resources     | Redis container requests and limits                                                             | See values.yaml                       |
+| Name                                            | Description                                                                                     | Value                                 |
+|-------------------------------------------------|-------------------------------------------------------------------------------------------------|---------------------------------------|
+| openklant.configuration.oidcUrl                 | OpenID Connect client url                                                                       | `https://openklant.example.nl`        |
+| openklant.configuration.oidcSecret              | OpenID Connect client secret                                                                    | `<openklant>`                         |
+| openklant.settings.allowedHosts                 | List if allowed hostnames<br/>(i.e. "openklant.example.nl,openklant.podiumd.svc.cluster.local") | `openklant.podiumd.svc.cluster.local` |
+| openklant.settings.database.host                | Database host                                                                                   | `""`                                  |
+| openklant.settings.database.port                | Database port                                                                                   | `5432`                                |
+| openklant.settings.database.name                | Database name                                                                                   | `""`                                  |
+| openklant.settings.database.username            | Database username                                                                               | `""`                                  |
+| openklant.settings.database.password            | Database user password                                                                          | `""`                                  |
+| openklant.settings.database.sslmode             | Database SSL mode                                                                               | `prefer`                              |
+| openklant.settings.email.host                   | Email host                                                                                      | `localhost`                           |
+| openklant.settings.email.port                   | Email port                                                                                      | `587`                                 |
+| openklant.settings.email.username               | Email username                                                                                  | `""`                                  |
+| openklant.settings.email.password               | Email user password                                                                             | `""`                                  |
+| openklant.settings.email.useTLS                 | Email use TLS                                                                                   | `true`                                |
+| openklant.settings.secretKey                    | Django secret key. Generate secret key at https://djecrety.ir/                                  | `""`                                  |
+| openklant.settings.environment                  | Sets the `ENVIRONMENT` variable                                                                 | `""`                                  |
+| openklant.settings.isHttps                      | Use HTTPS                                                                                       | `false`                               |
+| openklant.settings.debug                        | Enable debug mode                                                                               | `false`                               |
+| openklant.image.repository                      | Image repository                                                                                | `maykinmedia/objects-api`             |
+| openklant.image.tag                             | Image tag                                                                                       | `2.1.0`                               |
+| openklant.image.pullPolicy                      | Image pull policy                                                                               | `IfNotPresent`                        |
+| openklant.nodeSelector                          | Node labels for pod assignment. Evaluated as a template                                         | `{}`                                  |
+| openklant.resources                             | Container requests and limits                                                                   | See values.yaml                       |
+| openklant.worker.resources                      | Worker container requests and limits                                                            | See values.yaml                       |
+| openklant.redis.image.registry                  | Redis image registry                                                                            | `docker.io`                           |
+| openklant.redis.image.repository                | Redis image repository                                                                          | `bitnami/redis`                       |
+| openklant.redis.image.tag                       | Redis image tag                                                                                 | `7.0.5-debian-11-r25`                 |
+| openklant.redis.image.pullPolicy                | Redis image pul policy                                                                          | `IfNotPresent`                        |
+| openklant.redis.master.persistence.enabled      | Redis master persistence enabled                                                                | `true`                                |
+| openklant.redis.master.persistence.size         | Redis master persistence size                                                                   | `"8Gi"`                               |
+| openklant.redis.master.persistence.storageClass | Redis master persistence storage class                                                          | `""`                                  |
+| openklant.redis.master.nodeSelector             | Redis node labels for pod assignment. Evaluated as a template                                   | `{}`                                  |
 
 ### Open Formulieren
 
@@ -447,61 +456,76 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 | openformulieren.redis.image.repository                    | Redis image repository                                                                                                                                | `bitnami/redis`                                   |
 | openformulieren.redis.image.tag                           | Redis image tag                                                                                                                                       | `7.0.5-debian-11-r25`                             |
 | openformulieren.redis.image.pullPolicy                    | Redis image pul policy                                                                                                                                | `IfNotPresent`                                    |
+| openformulieren.redis.master.persistence.enabled          | Redis master persistence enabled                                                                                                                      | `true`                                            |
+| openformulieren.redis.master.persistence.size             | Redis master persistence size                                                                                                                         | `"8Gi"`                                           |
+| openformulieren.redis.master.persistence.storageClass     | Redis master persistence storage class                                                                                                                | `""`                                              |
 | openformulieren.redis.master.nodeSelector                 | Redis node labels for pod assignment. Evaluated as a template                                                                                         | `{}`                                              |
-| openformulieren.redis.master.resources                    | Redis container requests and limits                                                                                                                   | See values.yaml                                   |
 
 ### Open Inwoner
 
-| Name                                                  | Description                                                                                                                                           | Value                                         |
-|-------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------|
-| openinwoner.enabled                                   | Boolean to override the installation of Open Inwoner                                                                                                  |                                               |
-| openinwoner.configuration.oidcUrl                     | OpenID Connect client url                                                                                                                             | `https://openinwoner.example.nl`              |
-| openinwoner.configuration.oidcSecret                  | OpenID Connect client secret                                                                                                                          | `<openinwoner>`                               |
-| openinwoner.settings.allowedHosts                     | List if allowed hostnames<br/>(i.e. "openinwoner.example.nl,openinwoner-nginx.podiumd.svc.cluster.local")                                             | `openinwoner-nginx.podiumd.svc.cluster.local` |
-| openinwoner.settings.database.host                    | Database host                                                                                                                                         | `""`                                          |
-| openinwoner.settings.database.port                    | Database port                                                                                                                                         | `5432`                                        |
-| openinwoner.settings.database.name                    | Database name                                                                                                                                         | `""`                                          |
-| openinwoner.settings.database.username                | Database username                                                                                                                                     | `""`                                          |
-| openinwoner.settings.database.password                | Database user password                                                                                                                                | `""`                                          |
-| openinwoner.settings.database.sslmode                 | Database SSL mode                                                                                                                                     | `prefer`                                      |
-| openinwoner.settings.email.host                       | Email host                                                                                                                                            | `localhost`                                   |
-| openinwoner.settings.email.port                       | Email port                                                                                                                                            | `587`                                         |
-| openinwoner.settings.email.username                   | Email username                                                                                                                                        | `""`                                          |
-| openinwoner.settings.email.password                   | Email user password                                                                                                                                   | `""`                                          |
-| openinwoner.settings.email.useTLS                     | Email use TLS                                                                                                                                         | `true`                                        |
-| openinwoner.settings.email.defaultFrom                | Email default `from` email address                                                                                                                    | `""`                                          |
-| openinwoner.settings.secretKey                        | Django secret key. Generate secret key at https://djecrety.ir/                                                                                        | `""`                                          |
-| openinwoner.settings.environment                      | Sets the `ENVIRONMENT` variable                                                                                                                       | `""`                                          |
-| openinwoner.settings.digidMock                        | Enable the DigiD mock                                                                                                                                 | `""`                                          |
-| openinwoner.settings.isHttps                          | Use HTTPS                                                                                                                                             | `false`                                       |
-| openinwoner.settings.debug                            | Enable debug mode                                                                                                                                     | `false`                                       |
-| openinwoner.persistence.existingClaim                 | Manually managed Persistent Volume and Claim                                                                                                          | `openinwoner`                                 |
-| openinwoner.persistence.mediaMountSubpath             | Media mount subpath                                                                                                                                   | `openinwoner/media`                           |
-| openinwoner.persistence.privateMediaMountSubpath      | Private media mount subpath                                                                                                                           | `openinwoner/private_media`                   |
-| openinwoner.persistence.size                          | Size of created PersistentVolume                                                                                                                      | `10Gi`                                        |
-| openinwoner.persistentVolume.volumeAttributeShareName | Value of created PersistentVolume paramer `spec.csi.volumeAttributes.shareName`.<br/>Overriden by `.Values.persistentVolume.volumeAttributeShareName` | `openinwoner`                                 |
-| openinwoner.image.repository                          | Image repository                                                                                                                                      | `openinwoner/open-forms`                      |
-| openinwoner.image.tag                                 | Image tag                                                                                                                                             | `1.17.2`                                      |
-| openinwoner.image.pullPolicy                          | Image pull policy                                                                                                                                     | `IfNotPresent`                                |
-| openinwoner.nodeSelector                              | Node labels for pod assignment. Evaluated as a template                                                                                               | `{}`                                          |
-| openinwoner.resources                                 | Container requests and limits                                                                                                                         | See values.yaml                               |
-| openinwoner.worker.resources                          | Worker container requests and limits                                                                                                                  | See values.yaml                               |
-| openinwoner.nginx.config.clientMaxBodySize            | Nginx Client max body size                                                                                                                            | `100M`                                        |
-| openinwoner.nginx.image.repository                    | Nginx image repository                                                                                                                                | `nginxinc/nginx-unprivileged`                 |
-| openinwoner.nginx.image.tag                           | Mginx image tag                                                                                                                                       | `stable`                                      |
-| openinwoner.nginx.image.pullPolicy                    | Nginx image pull policy                                                                                                                               | `IfNotPresent`                                |
-| openinwoner.nginx.resources                           | Nginx container requests and limits                                                                                                                   | See values.yaml                               |
-| openinwoner.redis.image.registry                      | Redis image registry                                                                                                                                  | `docker.io`                                   |
-| openinwoner.redis.image.repository                    | Redis image repository                                                                                                                                | `bitnami/redis`                               |
-| openinwoner.redis.image.tag                           | Redis image tag                                                                                                                                       | `7.0.5-debian-11-r25`                         |
-| openinwoner.redis.image.pullPolicy                    | Redis image pul policy                                                                                                                                | `IfNotPresent`                                |
-| openinwoner.redis.master.nodeSelector                 | Redis node labels for pod assignment. Evaluated as a template                                                                                         | `{}`                                          |
-| openinwoner.redis.master.resources.requests           | Redis container requests                                                                                                                              | See values.yaml                               |
-| openinwoner.elasticsearch.image.repository            | Elastic search image repository                                                                                                                       | `bitnami/elasticsearch`                       |
-| openinwoner.elasticsearch.image.tag                   | Elastic search image tag                                                                                                                              | `8.6.2-debian-11-r0`                          |
-| openinwoner.elasticsearch.image.pullPolicy            | Elastic search image pul policy                                                                                                                       | `IfNotPresent`                                |
-| openinwoner.elasticsearch.master.nodeSelector         | Elastic search node labels for pod assignment. Evaluated as a template                                                                                | `{}`                                          |
-| openinwoner.elasticsearch.master.resources            | Elastic search container requests and limits                                                                                                          | See values.yaml                               |
+| Name                                                      | Description                                                                                                                                           | Value                                         |
+|-----------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------|
+| openinwoner.enabled                                       | Boolean to override the installation of Open Inwoner                                                                                                  |                                               |
+| openinwoner.configuration.oidcUrl                         | OpenID Connect client url                                                                                                                             | `https://openinwoner.example.nl`              |
+| openinwoner.configuration.oidcSecret                      | OpenID Connect client secret                                                                                                                          | `<openinwoner>`                               |
+| openinwoner.settings.allowedHosts                         | List if allowed hostnames<br/>(i.e. "openinwoner.example.nl,openinwoner-nginx.podiumd.svc.cluster.local")                                             | `openinwoner-nginx.podiumd.svc.cluster.local` |
+| openinwoner.settings.database.host                        | Database host. Overides global.settings.databaseHost                                                                                                  | `""`                                          |
+| openinwoner.settings.database.port                        | Database port                                                                                                                                         | `5432`                                        |
+| openinwoner.settings.database.name                        | Database name                                                                                                                                         | `""`                                          |
+| openinwoner.settings.database.username                    | Database username                                                                                                                                     | `""`                                          |
+| openinwoner.settings.database.password                    | Database user password                                                                                                                                | `""`                                          |
+| openinwoner.settings.database.sslmode                     | Database SSL mode                                                                                                                                     | `prefer`                                      |
+| openinwoner.settings.email.host                           | Email host                                                                                                                                            | `localhost`                                   |
+| openinwoner.settings.email.port                           | Email port                                                                                                                                            | `587`                                         |
+| openinwoner.settings.email.username                       | Email username                                                                                                                                        | `""`                                          |
+| openinwoner.settings.email.password                       | Email user password                                                                                                                                   | `""`                                          |
+| openinwoner.settings.email.useTLS                         | Email use TLS                                                                                                                                         | `true`                                        |
+| openinwoner.settings.email.defaultFrom                    | Email default `from` email address                                                                                                                    | `""`                                          |
+| openinwoner.settings.secretKey                            | Django secret key. Generate secret key at https://djecrety.ir/                                                                                        | `""`                                          |
+| openinwoner.settings.environment                          | Sets the `ENVIRONMENT` variable                                                                                                                       | `""`                                          |
+| openinwoner.settings.brpVersion                           |                                                                                                                                                       | `""`                                          |
+| openinwoner.settings.digidMock                            | Enable the DigiD mock                                                                                                                                 | `""`                                          |
+| openinwoner.settings.eherkenningMock                      | Enable the eHerkenning mock                                                                                                                           | `""`                                          |
+| openinwoner.settings.isHttps                              | Use HTTPS                                                                                                                                             | `false`                                       |
+| openinwoner.settings.debug                                | Enable debug mode                                                                                                                                     | `false`                                       |
+| openinwoner.settings.smsgateway.apikey                    | SMS gateway api key                                                                                                                                   | `""`                                          |
+| openinwoner.settings.smsgateway.backend                   | SMS gateway backend                                                                                                                                   | `""`                                          |
+| openinwoner.persistence.existingClaim                     | Manually managed Persistent Volume and Claim                                                                                                          | `openinwoner`                                 |
+| openinwoner.persistence.mediaMountSubpath                 | Media mount subpath                                                                                                                                   | `openinwoner/media`                           |
+| openinwoner.persistence.privateMediaMountSubpath          | Private media mount subpath                                                                                                                           | `openinwoner/private_media`                   |
+| openinwoner.persistence.size                              | Size of created PersistentVolume                                                                                                                      | `10Gi`                                        |
+| openinwoner.persistentVolume.volumeAttributeShareName     | Value of created PersistentVolume paramer `spec.csi.volumeAttributes.shareName`.<br/>Overriden by `.Values.persistentVolume.volumeAttributeShareName` | `openinwoner`                                 |
+| openinwoner.image.repository                              | Image repository                                                                                                                                      | `openinwoner/open-forms`                      |
+| openinwoner.image.tag                                     | Image tag                                                                                                                                             | `1.17.2`                                      |
+| openinwoner.image.pullPolicy                              | Image pull policy                                                                                                                                     | `IfNotPresent`                                |
+| openinwoner.nodeSelector                                  | Node labels for pod assignment. Evaluated as a template                                                                                               | `{}`                                          |
+| openinwoner.resources                                     | Container requests and limits                                                                                                                         | See values.yaml                               |
+| openinwoner.worker.resources                              | Worker container requests and limits                                                                                                                  | See values.yaml                               |
+| openinwoner.nginx.config.clientMaxBodySize                | Nginx Client max body size                                                                                                                            | `100M`                                        |
+| openinwoner.nginx.image.repository                        | Nginx image repository                                                                                                                                | `nginxinc/nginx-unprivileged`                 |
+| openinwoner.nginx.image.tag                               | Mginx image tag                                                                                                                                       | `stable`                                      |
+| openinwoner.nginx.image.pullPolicy                        | Nginx image pull policy                                                                                                                               | `IfNotPresent`                                |
+| openinwoner.nginx.resources                               | Nginx container requests and limits                                                                                                                   | See values.yaml                               |
+| openinwoner.redis.image.registry                          | Redis image registry                                                                                                                                  | `docker.io`                                   |
+| openinwoner.redis.image.repository                        | Redis image repository                                                                                                                                | `bitnami/redis`                               |
+| openinwoner.redis.image.tag                               | Redis image tag                                                                                                                                       | `7.0.5-debian-11-r25`                         |
+| openinwoner.redis.image.pullPolicy                        | Redis image pul policy                                                                                                                                | `IfNotPresent`                                |
+| openinwoner.redis.master.persistence.enabled              | Redis master persistence enabled                                                                                                                      | `true`                                        |
+| openinwoner.redis.master.persistence.size                 | Redis master persistence size                                                                                                                         | `"8Gi"`                                       |
+| openinwoner.redis.master.persistence.storageClass         | Redis master persistence storage class                                                                                                                | `""`                                          |
+| openinwoner.redis.master.nodeSelector                     | Redis node labels for pod assignment. Evaluated as a template                                                                                         | `{}`                                          |
+| openinwoner.elasticsearch.image.repository                | Elastic search image repository                                                                                                                       | `bitnami/elasticsearch`                       |
+| openinwoner.elasticsearch.image.tag                       | Elastic search image tag                                                                                                                              | `8.6.2-debian-11-r0`                          |
+| openinwoner.elasticsearch.image.pullPolicy                | Elastic search image pul policy                                                                                                                       | `IfNotPresent`                                |
+| openinwoner.elasticsearch.master.persistence.enabled      | Elastic search master persistence enabled                                                                                                             | `true`                                        |
+| openinwoner.elasticsearch.master.persistence.size         | Elastic search master persistence storage size                                                                                                        | `"8Gi"`                                       |
+| openinwoner.elasticsearch.master.persistence.storageClass | Elastic search master persistence storage class                                                                                                       | `""`                                          |
+| openinwoner.elasticsearch.master.nodeSelector             | Elastic search master node labels for pod assignment. Evaluated as a template                                                                                | `{}`                                          |
+| openinwoner.elasticsearch.data.persistence.enabled        | Elastic search data persistence enabled                                                                                                               | `true`                                        |
+| openinwoner.elasticsearch.data.persistence.size           | Elastic search data persistence storage size                                                                                                          | `"8Gi"`                                       |
+| openinwoner.elasticsearch.data.persistence.storageClass   | Elastic search data persistence storage class                                                                                                         | `""`                                          |
+| openinwoner.elasticsearch.data.nodeSelector               | Elastic search data node labels for pod assignment. Evaluated as a template                                                                                | `{}`                                          |
+| openinwoner.elasticsearch.coordinating.nodeSelector       | Elastic search coordinating node labels for pod assignment. Evaluated as a template                                                                                | `{}`                                          |
 
 ### Tags
 
@@ -512,3 +536,12 @@ Tags to add additional unreleased PodiumD functionality.
 | tags.portaal   | Whether PodiumD Portaal is installed   | `false` |
 | tags.contact   | Whether PodiumD Contact is installed   | `false` |
 | tags.zaak      | Whether PodiumD Zak is installed       | `false` |
+                
+## Upgrading
+
+If an Helm upgrade of a component fails because of a forbidden update to a statefullset spec the stafullset needs to be deleted prior to the Helm upgrade by the following command:
+                                                                                                                                                                   
+$ kubectl delete sts <component>-redis-master -n podiumd --cascade=orphan
+
+
+

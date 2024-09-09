@@ -1,4 +1,4 @@
-{{- if and .Release.IsInstall (or .Values.opennotificaties.enabled (not (hasKey .Values.opennotificaties "enabled"))) -}}
+{{- if or .Values.opennotificaties.enabled (not (hasKey .Values.opennotificaties "enabled")) -}}
 {{- if not (lookup "v1" "PersistentVolumeClaim" .Release.Namespace .Values.opennotificaties.persistence.existingClaim) -}}
 ---
 apiVersion: v1

@@ -1,4 +1,4 @@
-{{- if and .Release.IsInstall (or .Values.objecten.enabled (not (hasKey .Values.objecten "enabled"))) -}}
+{{- if or .Values.objecten.enabled (not (hasKey .Values.objecten "enabled")) -}}
 {{- if not (lookup "v1" "PersistentVolumeClaim" .Release.Namespace .Values.objecten.persistence.existingClaim) -}}
 ---
 apiVersion: v1

@@ -6,6 +6,7 @@ tags:
 global:
   configuration:
     enabled: true
+    overwrite: true
     organization: Example gemeente
     openzaakAutorisatiesApi: https://openzaak.example.nl/autorisaties/api/v1/
     notificatiesApi: https://opennotificaties.example.nl/api/v1/
@@ -68,7 +69,7 @@ openzaak:
     oidcSecret: "<openzaak>"
     initContainer:
       enabled: true
-    cronjob:
+    job:
       enabled: false
   settings:
     allowedHosts: openzaak-nginx.podiumd.svc.cluster.local
@@ -121,23 +122,13 @@ openzaak:
   redis:
     nameOverride: openzaak-redis
     fullnameOverride: openzaak-redis
-    master:
-      resources:
-        requests:
-          cpu: 10m
-          memory: 16Mi
-        limits:
-          cpu: 50m
-          memory: 32Mi
 
 opennotificaties:
   configuration:
+    enabled: true
+    overwrite: true
     oidcUrl: https://opennotificaties.example.nl
     oidcSecret: "<opennotificaties>"
-    initContainer:
-      enabled: true
-    cronjob:
-      enabled: false
   settings:
     allowedHosts: opennotificaties.podiumd.svc.cluster.local
     maxRetries: 5
@@ -153,6 +144,7 @@ opennotificaties:
         schedule: "0 0 * * *"
         historyLimit: 1
     isHttps: false
+    disable2fa: true
   persistence:
     size: 10Gi
     existingClaim: opennotificaties
@@ -196,14 +188,6 @@ opennotificaties:
   redis:
     nameOverride: opennotificaties-redis
     fullnameOverride: opennotificaties-redis
-    master:
-      resources: 
-        requests:
-          cpu: 10m
-          memory: 16Mi
-        limits:
-          cpu: 50m
-          memory: 32Mi
 
 objecten:
   configuration:
@@ -231,12 +215,13 @@ objecten:
       cpu: 200m
       memory: 512Mi
   worker:
-    requests:
-      cpu: 50m
-      memory: 192Mi
-    limits:
-      cpu: 200m
-      memory: 256Mi
+    resources:
+      requests:
+        cpu: 50m
+        memory: 192Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
   nameOverride: objecten
   fullnameOverride: objecten
   flower:
@@ -244,14 +229,6 @@ objecten:
   redis:
     nameOverride: objecten-redis
     fullnameOverride: objecten-redis
-    master:
-      resources:
-        requests:
-          cpu: 10m
-          memory: 16Mi
-        limits:
-          cpu: 50m
-          memory: 32Mi
 
 objecttypen:
   configuration:
@@ -262,11 +239,9 @@ objecttypen:
     email:
       port: 587
       useTLS: true
-    twoFactorAuthentication:
-      forceOtpAdmin: false
-      patchAdmin: false
+    disable2fa: true
   image:
-    tag: "2.2.0"
+    tag: "2.2.1"
   resources:
     requests:
       cpu: 10m
@@ -279,11 +254,6 @@ objecttypen:
   redis:
     nameOverride: objecttypen-redis
     fullnameOverride: objecttypen-redis
-    master:
-      resources:
-        limits:
-          cpu: 50m
-          memory: 32Mi
 
 openklant:
   configuration:
@@ -323,14 +293,6 @@ openklant:
   redis:
     nameOverride: openklant-redis
     fullnameOverride: openklant-redis
-    master:
-      resources:
-        requests:
-          cpu: 10m
-          memory: 16Mi
-        limits:
-          cpu: 50m
-          memory: 32Mi
 
 openformulieren:
   configuration:
@@ -395,13 +357,10 @@ openformulieren:
     nameOverride: openformulieren-redis
     fullnameOverride: openformulieren-redis
     master:
-      resources:
-        requests:
-          cpu: 10m
-          memory: 16Mi
-        limits:
-          cpu: 50m
-          memory: 64Mi
+      persistence:
+        enabled: true
+        size: 8Gi
+        storageClass: ""
 
 openinwoner:
   configuration:
@@ -413,9 +372,6 @@ openinwoner:
       port: 587
       useTLS: true
     isHttps: false
-    twoFactorAuthentication:
-      forceOtpAdmin: false
-      patchAdmin: false
   persistence:
     size: 10Gi
     existingClaim: openinwoner
@@ -453,31 +409,10 @@ openinwoner:
   redis:
     nameOverride: openinwoner-redis
     fullnameOverride: openinwoner-redis
-    master:
-      resources:
-        requests:
-          cpu: 20m
-          memory: 32Mi
-        limits:
-          cpu: 100m
-          memory: 64Mi
   elasticsearch:
     nameOverride: openinwoner-elasticsearch
     fullnameOverride: openinwoner-elasticsearch
-    master:
-      masterOnly: false
-      resources:
-        requests:
-          cpu: 100m
-          memory: 1.5Gi
-        limits:
-          cpu: 1
-          memory: 2Gi
-    data:
-      replicaCount: 0
-    coordinating:
-      replicaCount: 0
-      
+
 kisselastic:
   kibanaDomain: kiss-kb-http.podiumd.svc.cluster.local:5601
   eck-operator:
