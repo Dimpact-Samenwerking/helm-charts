@@ -17,7 +17,9 @@
 | Open Notificaties | 1.5.2  |
 | Open Zaak         | 1.12.1 |
 
-### 1.3.1 (candidate)
+### 1.3.1
+
+**PodiumD Helm chart versie: 1.1.12**
 
 | Component         | Versie |
 |-------------------|--------|
