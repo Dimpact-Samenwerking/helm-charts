@@ -5,6 +5,9 @@
 # contextUrl External URL to the zaakafhandelcomponent. (https://zaakafhandelcomponent.example.com)
 contextUrl: ""
 
+feature:
+  bpmnSupport: false
+
 # db Configuration of database connection
 db:
   host: "" # database.internal or 1.2.3.4
