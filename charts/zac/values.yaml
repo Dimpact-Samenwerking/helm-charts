@@ -306,9 +306,9 @@ officeConverter:
 
 # opentelemetryCollector provision the opentelemetry collector sub chart
 opentelemetryCollector:
+  enabled: false
   nameOverride: zac-opentelemetry-collector
   fullnameOverride: zac-opentelemetry-collector
-  samplerType: "off"
   mode: deployment
   replicaCount: 1
   presets:
