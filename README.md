@@ -7,7 +7,6 @@ This repository contains Helm charts for:
 - [podiumd](./charts/podiumd/README.md)
 - [podiumd monitoring and logging](./charts/podiumd-monitoring-logging/README.md)
 - [vng referentielijsten](./charts/vngreferentielijsten/README.md)
-- [zac](./charts/zac/README.md)
 
 
 ```bash
