@@ -4,14 +4,14 @@
 
 ### 1.3.0
 
-**PodiumD Helm chart versie: 1.1.11**
+**PodiumD Helm chart versie: 1.1.10**
 
 | Component         | Versie |
 |-------------------|--------|
 | ClamAV            | 1.3.1  |
 | Keycloak          | 24.0.5 |
 | Objecten          | 2.4.1  |
-| Objecttypen       | 2.2.1  |
+| Objecttypen       | 2.2.0  |
 | Open Formulieren  | 2.6.7  |
 | Open Klant        | 2.1.0  |
 | Open Notificaties | 1.5.2  |
@@ -19,7 +19,7 @@
 
 ### 1.3.1
 
-**PodiumD Helm chart versie: 1.1.13**
+**PodiumD Helm chart versie: 1.1.14**
 
 | Component         | Versie |
 |-------------------|--------|
@@ -54,7 +54,7 @@
 | Objecten          | 2.4.1  |
 | Objecttypen       | 2.2.1  |
 | Open Formulieren  | 2.7.4  |
-| Open Inwoner      | 1.20.0 |
+| Open Inwoner      | 1.21.1 |
 | Open Klant        | 2.1.0  |
 | Open Notificaties | 1.5.2  |
 | Open Zaak         | 1.12.1 |
