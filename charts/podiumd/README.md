@@ -1,63 +1,65 @@
 # PodiumD
 
-## PodiumD versies
+## PodiumD versions
 
 ### 1.3.0
 
-**PodiumD Helm chart versie: 1.1.10**
+**PodiumD Helm chart version: 1.1.10**
 
-| Component         | Versie |
-|-------------------|--------|
-| ClamAV            | 1.3.1  |
-| Keycloak          | 24.0.5 |
-| Objecten          | 2.4.1  |
-| Objecttypen       | 2.2.0  |
-| Open Formulieren  | 2.6.7  |
-| Open Klant        | 2.1.0  |
-| Open Notificaties | 1.5.2  |
-| Open Zaak         | 1.12.1 |
+| Component         | Version |
+|-------------------|---------|
+| ClamAV            | 1.3.1   |
+| Keycloak          | 24.0.5  |
+| Objecten          | 2.4.1   |
+| Objecttypen       | 2.2.0   |
+| Open Formulieren  | 2.6.7   |
+| Open Klant        | 2.1.0   |
+| Open Notificaties | 1.5.2   |
+| Open Zaak         | 1.12.1  |
 
 ### 1.3.1
 
-**PodiumD Helm chart versie: 1.1.14**
+**PodiumD Helm chart version: 1.1.14**
 
-| Component         | Versie |
-|-------------------|--------|
-| ClamAV            | 1.3.1  |
-| Keycloak          | 24.0.5 |
-| Objecten          | 2.4.1  |
-| Objecttypen       | 2.2.1  |
-| Open Formulieren  | 2.6.14 |
-| Open Klant        | 2.1.0  |
-| Open Notificaties | 1.5.2  |
-| Open Zaak         | 1.12.1 |
+| Component         | Version |
+|-------------------|---------|
+| ClamAV            | 1.3.1   |
+| Keycloak          | 24.0.5  |
+| Objecten          | 2.4.1   |
+| Objecttypen       | 2.2.1   |
+| Open Formulieren  | 2.6.14  |
+| Open Inwoner      | 1.21.1  | (Optional)
+| Open Klant        | 2.1.0   |
+| Open Notificaties | 1.5.2   |
+| Open Zaak         | 1.12.1  |
 
 ### 1.4.0 (candidate)
 
-| Component         | Versie |
-|-------------------|--------|
-| ClamAV            | 1.3.1  |
-| Keycloak          | 24.0.5 |
-| Objecten          | 2.4.1  |
-| Objecttypen       | 2.2.1  |
-| Open Formulieren  | 2.7.4  |
-| Open Klant        | 2.1.0  |
-| Open Notificaties | 1.5.2  |
-| Open Zaak         | 1.12.1 |
+| Component         | Version |
+|-------------------|---------|
+| ClamAV            | 1.3.1   |
+| Keycloak          | 24.0.5  |
+| Objecten          | 2.4.1   |
+| Objecttypen       | 2.2.1   |
+| Open Formulieren  | 2.7.4   |
+| Open Inwoner      | 1.21.1  | (Optional)
+| Open Klant        | 2.1.0   |
+| Open Notificaties | 1.5.2   |
+| Open Zaak         | 1.12.1  |
 
 ### 2.0.0 (candidate)
 
-| Component         | Versie |
-|-------------------|--------|
-| ClamAV            | 1.3.1  |
-| Keycloak          | 24.0.5 |
-| Objecten          | 2.4.1  |
-| Objecttypen       | 2.2.1  |
-| Open Formulieren  | 2.7.4  |
-| Open Inwoner      | 1.21.1 |
-| Open Klant        | 2.1.0  |
-| Open Notificaties | 1.5.2  |
-| Open Zaak         | 1.12.1 |
+| Component         | Version |
+|-------------------|---------|
+| ClamAV            | 1.3.1   |
+| Keycloak          | 24.0.5  |
+| Objecten          | 2.4.1   |
+| Objecttypen       | 2.2.1   |
+| Open Formulieren  | 2.7.4   |
+| Open Inwoner      | 1.21.1  |
+| Open Klant        | 2.1.0   |
+| Open Notificaties | 1.5.2   |
+| Open Zaak         | 1.12.1  |
 
 ## Add Used chart repositories:
 
