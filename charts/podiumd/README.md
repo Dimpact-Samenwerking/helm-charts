@@ -14,8 +14,8 @@
 | Objecttypen       | 2.2.0   |
 | Open Formulieren  | 2.6.7   |
 | Open Klant        | 2.1.0   |
-| Open Notificaties | 1.5.2   |
-| Open Zaak         | 1.12.1  |
+| Open Notificaties | 1.6.0   |
+| Open Zaak         | 1.12.3  |
 
 ### 1.3.1
 
@@ -30,8 +30,8 @@
 | Open Formulieren  | 2.6.14  |
 | Open Inwoner      | 1.21.1  | (Optional)
 | Open Klant        | 2.1.0   |
-| Open Notificaties | 1.5.2   |
-| Open Zaak         | 1.12.1  |
+| Open Notificaties | 1.6.0   |
+| Open Zaak         | 1.12.3  |
 
 ### 1.4.0 (candidate)
 
