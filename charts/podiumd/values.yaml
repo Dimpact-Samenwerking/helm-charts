@@ -40,8 +40,6 @@ keycloak:
     requests:
       cpu: 50m
       memory: 512Mi
-    limits:
-      memory: 1024Mi
   production: true
   proxy: edge
   postgresql:
@@ -81,7 +79,6 @@ openzaak:
       name: ""
       username: ""
       password: ""
-    isHttps: false
   extraEnvVars:
     - name: DISABLE_2FA
       value: "True"
@@ -96,17 +93,11 @@ openzaak:
     requests:
       cpu: 100m
       memory: 256Mi
-    limits:
-      cpu: 200m
-      memory: 512Mi
   worker:
     resources:
       requests:
         cpu: 10m
         memory: 480Mi
-      limits:
-        cpu: 50m
-        memory: 860Mi
   nameOverride: openzaak
   fullnameOverride: openzaak
   flower:
@@ -116,9 +107,6 @@ openzaak:
       requests:
         cpu: 10m
         memory: 16Mi
-      limits:
-        cpu: 50m
-        memory: 32Mi
   redis:
     nameOverride: openzaak-redis
     fullnameOverride: openzaak-redis
@@ -143,7 +131,6 @@ opennotificaties:
       cronjob:
         schedule: "0 0 * * *"
         historyLimit: 1
-    isHttps: false
     disable2fa: true
   persistence:
     size: 10Gi
@@ -156,17 +143,11 @@ opennotificaties:
     requests:
       cpu: 100m
       memory: 256Mi
-    limits:
-      cpu: 200m
-      memory: 512Mi
   worker:
     resources:
       requests:
         cpu: 50m
         memory: 386Mi
-      limits:
-        cpu: 200m
-        memory: 640Mi
   nameOverride: opennotificaties
   fullnameOverride: opennotificaties
   flower:
@@ -176,9 +157,6 @@ opennotificaties:
       requests:
         cpu: 300m
         memory: 256Mi
-      limits:
-        cpu: 512m
-        memory: 384Mi
     nameOverride: opennotificaties-rabbitmq
     fullnameOverride: opennotificaties-rabbitmq
     auth:
@@ -198,7 +176,6 @@ objecten:
     email:
       port: 587
       useTLS: true
-    isHttps: false
     disable2fa: true
   persistence:
     size: 10Gi
@@ -211,17 +188,11 @@ objecten:
     requests:
       cpu: 100m
       memory: 256Mi
-    limits:
-      cpu: 200m
-      memory: 512Mi
   worker:
     resources:
       requests:
         cpu: 50m
         memory: 192Mi
-      limits:
-        cpu: 200m
-        memory: 256Mi
   nameOverride: objecten
   fullnameOverride: objecten
   flower:
@@ -246,9 +217,6 @@ objecttypen:
     requests:
       cpu: 10m
       memory: 160Mi
-    limits:
-      cpu: 1
-      memory: 320Mi
   nameOverride: objecttypen
   fullnameOverride: objecttypen
   redis:
@@ -264,7 +232,6 @@ openklant:
     email:
       port: 587
       useTLS: true
-    isHttps: false
     twoFactorAuthentication:
       forceOtpAdmin: false
       patchAdmin: false
@@ -277,22 +244,21 @@ openklant:
     requests:
       cpu: 100m
       memory: 300Mi
-    limits:
-      cpu: 200m
-      memory: 512Mi
   worker:
     resources:
       requests:
         cpu: 50m
         memory: 200Mi
-      limits:
-        cpu: 200m
-        memory: 256Mi
   nameOverride: openklant
   fullnameOverride: openklant
   redis:
     nameOverride: openklant-redis
     fullnameOverride: openklant-redis
+    master:
+      resources:
+        requests:
+          cpu: 20m
+          memory: 24Mi
 
 openformulieren:
   configuration:
@@ -303,7 +269,6 @@ openformulieren:
     email:
       port: 587
       useTLS: true
-    isHttps: false
     twoFactorAuthentication:
       forceOtpAdmin: false
       patchAdmin: false
@@ -320,9 +285,6 @@ openformulieren:
     requests:
       cpu: 100m
       memory: 650Mi
-    limits:
-      cpu: 400m
-      memory: 1.5Gi
   worker:
     livenessProbe:
       initialDelaySeconds: 120
@@ -330,9 +292,6 @@ openformulieren:
       requests:
         cpu: 50m
         memory: 512Mi
-      limits:
-        cpu: 100m
-        memory: 800Mi
   nameOverride: openformulieren
   fullnameOverride: openformulieren
   flower:
@@ -342,17 +301,11 @@ openformulieren:
       requests:
         cpu: 10m
         memory: 160Mi
-    limits:
-      cpu: 50m
-      memory: 320Mi
   nginx:
     resources:
       requests:
         cpu: 10m
         memory: 16Mi
-      limits:
-        cpu: 50m
-        memory: 32Mi
   redis:
     nameOverride: openformulieren-redis
     fullnameOverride: openformulieren-redis
@@ -361,6 +314,10 @@ openformulieren:
         enabled: true
         size: 8Gi
         storageClass: ""
+      resources:
+        requests:
+          cpu: 10m
+          memory: 64Mi
 
 openinwoner:
   configuration:
@@ -371,7 +328,6 @@ openinwoner:
     email:
       port: 587
       useTLS: true
-    isHttps: false
   persistence:
     size: 10Gi
     existingClaim: openinwoner
@@ -383,17 +339,11 @@ openinwoner:
     requests:
       cpu: 200m
       memory: 1Gi
-    limits:
-      cpu: 500m
-      memory: 1.5Gi
   worker:
     resources:
       requests:
         cpu: 200m
         memory: 640Mi
-      limits:
-        cpu: 400m
-        memory: 1Gi
   nameOverride: openinwoner
   fullnameOverride: openinwoner
   nginx:
@@ -403,15 +353,31 @@ openinwoner:
       requests:
         cpu: 30m
         memory: 8Mi
-      limits:
-        cpu: 60m
-        memory: 16Mi
   redis:
     nameOverride: openinwoner-redis
     fullnameOverride: openinwoner-redis
+    master:
+      resources:
+        requests:
+          cpu: 20m
+          memory: 64Mi
   elasticsearch:
     nameOverride: openinwoner-elasticsearch
     fullnameOverride: openinwoner-elasticsearch
+    master:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 640Mi
+    data:
+      resources:
+        requests:
+          cpu: 100m
+    coordinating:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 512Mi
 
 kisselastic:
   kibanaDomain: kiss-kb-http.podiumd.svc.cluster.local:5601
@@ -518,10 +484,7 @@ clamav:
   resources:
     requests:
       cpu: 1000m
-      memory: 2Gi
-    limits:
-      cpu: 1000m
-      memory: 2Gi
+      memory: 4Gi
 
 serviceAccount:
   create: true
