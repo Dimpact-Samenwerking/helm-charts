@@ -101,19 +101,19 @@ The following components can be partially configured:
 
 Kanalen will only be added to Open Notificaties during Helm install, not on Helm upgrade.
 
-| Name                                              | Description                                                                 | Value                                              |
-|---------------------------------------------------|-----------------------------------------------------------------------------|----------------------------------------------------|
-| global.configuration.enabled                      | Whether component configuration is enabled                                  | `true`                                             |
-| global.configuration.overwrite                    | Whether existing component configuration is overwritten                     | `true`                                             |
-| global.configuration.organization                 | Organization name                                                           | `Example gemeente`                                 |
-| global.configuration.openzaakAutorisatiesApi      | Autorisaties API                                                            | `https://openzaak.example.nl/autorisaties/api/v1/` |
-| global.configuration.notificatiesApi              | Notificaties API                                                            | `https://opennotificaties.example.nl/api/v1/`      |
-| global.configuration.notificatiesOpenzaakClientId | ClientId used by Open Notificaties to access autorisaties API               | `notificaties`                                     |
-| global.configuration.notificatiesOpenzaakSecret   | Secret used by Open Notificaties to access autorisaties API                 | `notificaties-secret`                              |
-| global.configuration.openzaakNotificatiesClientId | ClientId used by Open Zaak to send notifications                            | `openzaak`                                         |
-| global.configuration.openzaakNotificatiesSecret   | Secret used by Open Zaak to send notifications                              | `openzaak-secret`                                  |
-| global.imageRegistry                              | Image registry used by Keycloak, Redis, RabitMQ and Elastic                 | `""`                                               | 
-| global.settings.databaseHost                      | Database host used bij objecten, objecttypen, openinwoner, opennotificaties | `""`                                               | 
+| Name                                              | Description                                                                 | Value                                                           |
+|---------------------------------------------------|-----------------------------------------------------------------------------|-----------------------------------------------------------------|
+| global.configuration.enabled                      | Whether component configuration is enabled                                  | `true`                                                          |
+| global.configuration.overwrite                    | Whether existing component configuration is overwritten                     | `true`                                                          |
+| global.configuration.organization                 | Organization name                                                           | `Example gemeente`                                              |
+| global.configuration.openzaakAutorisatiesApi      | Autorisaties API                                                            | `http//openzaak.podiumd.svc.cluster.local/autorisaties/api/v1/` |
+| global.configuration.notificatiesApi              | Notificaties API                                                            | `http://opennotificaties.podiumd.svc.cluster.local/api/v1/`     |
+| global.configuration.notificatiesOpenzaakClientId | ClientId used by Open Notificaties to access autorisaties API               | `notificaties`                                                  |
+| global.configuration.notificatiesOpenzaakSecret   | Secret used by Open Notificaties to access autorisaties API                 | `notificaties-secret`                                           |
+| global.configuration.openzaakNotificatiesClientId | ClientId used by Open Zaak to send notifications                            | `openzaak`                                                      |
+| global.configuration.openzaakNotificatiesSecret   | Secret used by Open Zaak to send notifications                              | `openzaak-secret`                                               |
+| global.imageRegistry                              | Image registry used by Keycloak, Redis, RabitMQ and Elastic                 | `""`                                                            | 
+| global.settings.databaseHost                      | Database host used bij objecten, objecttypen, openinwoner, opennotificaties | `""`                                                            | 
 
 ### keycloak
 
