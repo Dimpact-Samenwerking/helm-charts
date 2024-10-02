@@ -306,6 +306,8 @@ openformulieren:
       requests:
         cpu: 10m
         memory: 16Mi
+    config:
+      clientMaxBodySize: 100M
   redis:
     nameOverride: openformulieren-redis
     fullnameOverride: openformulieren-redis
