@@ -51,15 +51,15 @@
 
 | Component         | Version |
 |-------------------|---------|
-| ClamAV            | 1.3.1   |
+| ClamAV            | 1.4.1   |
 | Keycloak          | 24.0.5  |
-| Objecten          | 2.4.1   |
-| Objecttypen       | 2.2.1   |
-| Open Formulieren  | 2.7.4   |
-| Open Inwoner      | 1.21.1  |
-| Open Klant        | 2.1.0   |
-| Open Notificaties | 1.5.2   |
-| Open Zaak         | 1.12.1  |
+| Objecten          | 2.4.4   |
+| Objecttypen       | 2.2.2   |
+| Open Formulieren  | 2.7.8   |
+| Open Inwoner      | 1.21.2  |
+| Open Klant        | 2.3.0   |
+| Open Notificaties | 1.7.1   |
+| Open Zaak         | 1.15.0  |
 
 ## Add Used chart repositories:
 
@@ -229,7 +229,7 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 | openzaak.persistence.size                          | Size of created PersistentVolume                                                                                                                      | `10Gi`                                                         |
 | openzaak.persistentVolume.volumeAttributeShareName | Value of created PersistentVolume paramer `spec.csi.volumeAttributes.shareName`.<br/>Overriden by `.Values.persistentVolume.volumeAttributeShareName` | `openzaak`                                                     |
 | openzaak.image.repository                          | Image repository                                                                                                                                      | `openzaak/open-zaak`                                           |
-| openzaak.image.tag                                 | Image tag                                                                                                                                             | `1.12.3`                                                       |
+| openzaak.image.tag                                 | Image tag                                                                                                                                             | `1.15.0`                                                       |
 | openzaak.image.pullPolicy                          | Image pull policy                                                                                                                                     | `IfNotPresent`                                                 |
 | openzaak.nodeSelector                              | Node labels for pod assignment. Evaluated as a template                                                                                               | `{}`                                                           |
 | openzaak.resources                                 | Container requests and limits                                                                                                                         | See values.yaml                                                |
@@ -287,7 +287,7 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 | opennotificaties.persistence.size                                    | Size of created PersistentVolume                                                                                                                      | `10Gi`                                       |
 | opennotificaties.persistentVolume.volumeAttributeShareName           | Value of created PersistentVolume paramer `spec.csi.volumeAttributes.shareName`.<br/>Overriden by `.Values.persistentVolume.volumeAttributeShareName` | `opennotificaties`                           |
 | opennotificaties.image.repository                                    | Image repository                                                                                                                                      | `openzaak/open-notificaties`                 |
-| opennotificaties.image.tag                                           | Image tag                                                                                                                                             | `1.6.0`                                      |
+| opennotificaties.image.tag                                           | Image tag                                                                                                                                             | `1.7.1`                                      |
 | opennotificaties.image.pullPolicy                                    | Image pull policy                                                                                                                                     | `IfNotPresent`                               |
 | opennotificaties.nodeSelector                                        | Node labels for pod assignment. Evaluated as a template                                                                                               | `{}`                                         |
 | opennotificaties.resources                                           | Container requests and limits                                                                                                                         | See values.yaml                              |
@@ -335,7 +335,7 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 | objecten.persistence.size                          | Size of created PersistentVolume                                                                                                                      | `10Gi`                               |
 | objecten.persistentVolume.volumeAttributeShareName | Value of created PersistentVolume paramer `spec.csi.volumeAttributes.shareName`.<br/>Overriden by `.Values.persistentVolume.volumeAttributeShareName` | `objecten`                           |
 | objecten.image.repository                          | Image repository                                                                                                                                      | `maykinmedia/objects-api`            |
-| objecten.image.tag                                 | Image tag                                                                                                                                             | `2.4.1`                              |
+| objecten.image.tag                                 | Image tag                                                                                                                                             | `2.4.4`                              |
 | objecten.image.pullPolicy                          | Image pull policy                                                                                                                                     | `IfNotPresent`                       |
 | objecten.nodeSelector                              | Node labels for pod assignment. Evaluated as a template                                                                                               | `{}`                                 |
 | objecten.resources                                 | Container requests and limits                                                                                                                         | see values.yaml                      |
@@ -373,7 +373,7 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 | objecttypen.settings.debug                        | Enable debug mode                                                                                   | `false`                                 |
 | objecttypen.settings.sentry.dsn                   | Url to Sentry (i.e https://sentry.example.com/111)                                                  | `""`                                    |
 | objecttypen.image.repository                      | Image repository                                                                                    | `maykinmedia/objecttypes-api`           |
-| objecttypen.image.tag                             | Image tag                                                                                           | `2.2.0`                                 |
+| objecttypen.image.tag                             | Image tag                                                                                           | `2.2.2`                                 |
 | objecttypen.image.pullPolicy                      | Image pull policy                                                                                   | `IfNotPresent`                          |
 | objecttypen.nodeSelector                          | Node labels for pod assignment. Evaluated as a template                                             | `{}`                                    |
 | objecttypen.resources                             | Container requests and limits                                                                       | See values.yaml                         |
@@ -410,7 +410,7 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 | openklant.settings.debug                        | Enable debug mode                                                                               | `false`                               |
 | openklant.settings.sentry.dsn                   | Url to Sentry (i.e https://sentry.example.com/111)                                              | `""`                                  |
 | openklant.image.repository                      | Image repository                                                                                | `maykinmedia/objects-api`             |
-| openklant.image.tag                             | Image tag                                                                                       | `2.1.0`                               |
+| openklant.image.tag                             | Image tag                                                                                       | `2.3.0`                               |
 | openklant.image.pullPolicy                      | Image pull policy                                                                               | `IfNotPresent`                        |
 | openklant.nodeSelector                          | Node labels for pod assignment. Evaluated as a template                                         | `{}`                                  |
 | openklant.resources                             | Container requests and limits                                                                   | See values.yaml                       |
@@ -459,7 +459,7 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 | openformulieren.persistence.size                          | Size of created PersistentVolume                                                                                                                      | `10Gi`                                            |
 | openformulieren.persistentVolume.volumeAttributeShareName | Value of created PersistentVolume paramer `spec.csi.volumeAttributes.shareName`.<br/>Overriden by `.Values.persistentVolume.volumeAttributeShareName` | `openformulieren`                                 |
 | openformulieren.image.repository                          | Image repository                                                                                                                                      | `openformulieren/open-forms`                      |
-| openformulieren.image.tag                                 | Image tag                                                                                                                                             | `2.6.7`                                           |
+| openformulieren.image.tag                                 | Image tag                                                                                                                                             | `2.7.8`                                           |
 | openformulieren.image.pullPolicy                          | Image pull policy                                                                                                                                     | `IfNotPresent`                                    |
 | openformulieren.extraVolumes                              | Optionally specify extra list of additional volumes                                                                                                   | `[]`                                              |
 | openformulieren.extraVolumeMounts                         | Optionally specify extra list of additional volumeMounts                                                                                              | `[]]`                                             |
@@ -519,7 +519,7 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 | openinwoner.persistence.size                              | Size of created PersistentVolume                                                                                                                      | `10Gi`                                        |
 | openinwoner.persistentVolume.volumeAttributeShareName     | Value of created PersistentVolume paramer `spec.csi.volumeAttributes.shareName`.<br/>Overriden by `.Values.persistentVolume.volumeAttributeShareName` | `openinwoner`                                 |
 | openinwoner.image.repository                              | Image repository                                                                                                                                      | `openinwoner/open-forms`                      |
-| openinwoner.image.tag                                     | Image tag                                                                                                                                             | `1.17.2`                                      |
+| openinwoner.image.tag                                     | Image tag                                                                                                                                             | `1.21.2`                                      |
 | openinwoner.image.pullPolicy                              | Image pull policy                                                                                                                                     | `IfNotPresent`                                |
 | openinwoner.nodeSelector                                  | Node labels for pod assignment. Evaluated as a template                                                                                               | `{}`                                          |
 | openinwoner.resources                                     | Container requests and limits                                                                                                                         | See values.yaml                               |
