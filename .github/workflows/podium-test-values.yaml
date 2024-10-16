@@ -16,6 +16,15 @@ jobs:
     steps:
     - name: checkout
       uses: actions/checkout@v4
+
+    - name: install helm
+      uses: azure/setup-helm@v4.2.0
+    
+    - name: add required helm repository
+      shell: bash
+      run: | 
+        helm repo add maykinmedia https://maykinmedia.github.io/charts/
+    
     - name: bake deployment
       id: bake
       uses: azure/k8s-bake@v3
