@@ -23,7 +23,10 @@ jobs:
     - name: add required helm repository
       shell: bash
       run: | 
+        helm repo add bitnami https://charts.bitnami.com/bitnami
+        helm repo add dimpact https://Dimpact-Samenwerking.github.io/helm-charts/
         helm repo add maykinmedia https://maykinmedia.github.io/charts/
+        helm repo add wiremind https://wiremind.github.io/charts/
     
     - name: bake deployment
       id: bake
