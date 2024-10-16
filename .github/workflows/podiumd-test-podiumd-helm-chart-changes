@@ -7,6 +7,8 @@ on:
     branches:
       - main
       - 'feature/**'
+    paths:
+      - charts/podiumd/**
 
 jobs:
   Powershell:
