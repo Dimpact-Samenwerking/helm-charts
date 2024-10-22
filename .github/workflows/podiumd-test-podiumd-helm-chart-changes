@@ -1,0 +1,42 @@
+name: Test values.yaml with podiumd helm chart
+
+on:
+  workflow_dispatch:
+
+  push:
+    branches:
+      - main
+      - 'feature/**'
+    paths:
+      - charts/podiumd/**
+
+jobs:
+  Powershell:
+    runs-on: ubuntu-latest
+    env:
+      branch_name: ${{ github.head_ref || github.ref_name }}
+    steps:
+    - name: checkout
+      uses: actions/checkout@v4
+
+    - name: install helm
+      uses: azure/setup-helm@v4.2.0
+    
+    - name: add required helm repository
+      shell: bash
+      run: | 
+        helm repo add bitnami https://charts.bitnami.com/bitnami
+        helm repo add dimpact https://Dimpact-Samenwerking.github.io/helm-charts/
+        helm repo add kiss-elastic https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/.github/main/docs/scripts/elastic
+        helm repo add maykinmedia https://maykinmedia.github.io/charts/
+        helm repo add wiremind https://wiremind.github.io/wiremind-helm-charts
+    
+    - name: bake deployment
+      id: bake
+      uses: azure/k8s-bake@v3
+      with:
+        renderEngine: "helm"
+        releaseName: github-test
+        helmChart: 'charts/podiumd'        
+        namespace: podiumd
+        
