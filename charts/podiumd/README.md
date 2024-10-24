@@ -56,7 +56,7 @@
 | Objecten          | 2.4.4   |
 | Objecttypen       | 2.2.2   |
 | Open Formulieren  | 2.7.8   |
-| Open Inwoner      | 1.21.2  |
+| Open Inwoner      | 1.21.3  |
 | Open Klant        | 2.3.0   |
 | Open Notificaties | 1.7.1   |
 | Open Zaak         | 1.15.0  |
