@@ -49,6 +49,8 @@
 
 ### 2.0.0 (candidate)
 
+**PodiumD Helm chart version: 1.1.18**
+
 | Component         | Version |
 |-------------------|---------|
 | ClamAV            | 1.4.1   |
@@ -57,6 +59,23 @@
 | Objecttypen       | 2.2.2   |
 | Open Formulieren  | 2.7.8   |
 | Open Inwoner      | 1.21.2  |
+| Open Klant        | 2.3.0   |
+| Open Notificaties | 1.7.1   |
+| Open Zaak         | 1.15.0  |
+
+
+### 2.0.1 (candidate)
+
+**PodiumD Helm chart version: 1.1.19**
+
+| Component         | Version |
+|-------------------|---------|
+| ClamAV            | 1.4.1   |
+| Keycloak          | 24.0.5  |
+| Objecten          | 2.4.4   |
+| Objecttypen       | 2.2.2   |
+| Open Formulieren  | 2.7.8   |
+| Open Inwoner      | 1.21.3  |
 | Open Klant        | 2.3.0   |
 | Open Notificaties | 1.7.1   |
 | Open Zaak         | 1.15.0  |
