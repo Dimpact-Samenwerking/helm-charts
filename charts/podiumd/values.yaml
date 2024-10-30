@@ -16,7 +16,7 @@ global:
     openzaakNotificatiesSecret: openzaak-secret
 
   settings:
-    databaseHost: "podiumd-postgresql"
+    databaseHost: ""
 
   imageRegistry: ""
 
@@ -312,7 +312,7 @@ openformulieren:
   persistentVolume:
     volumeAttributeShareName: openformulieren
   image:
-    tag: "2.7.9"
+    tag: "2.7.8"
   resources:
     requests:
       cpu: 100m
