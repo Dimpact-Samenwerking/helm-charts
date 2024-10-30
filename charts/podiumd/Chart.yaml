@@ -2,8 +2,8 @@ apiVersion: v2
 name: podiumd
 description: PodiumD Helm chart
 type: application
-version: 1.1.19
-appVersion: "2.0.1"
+version: 1.1.20
+appVersion: "2.0.2"
 dependencies:
   - name: keycloak
     version: 21.4.4
@@ -27,28 +27,28 @@ dependencies:
       - contact
       - zaak
   - name: openzaak
-    version: 1.3.3
+    version: 1.5.2
     repository: "@maykinmedia"
     condition: openzaak.enabled
   - name: opennotificaties
-    version: 1.3.6
+    version: 1.5.1
     repository: "@maykinmedia"
     condition: opennotificaties.enabled
   - name: objecten
-    version: 2.4.3
+    version: 2.4.4
     repository: "@maykinmedia"
     condition: objecten.enabled
   - name: objecttypen
-    version: 1.1.2
+    version: 1.1.3
     repository: "@maykinmedia"
     condition: objecttypen.enabled
   - name: openklant
-    version: 1.3.3
+    version: 1.3.5
     repository: "@maykinmedia"
     condition: openklant.enabled
   - name: openforms
     alias: openformulieren
-    version: 1.3.0
+    version: 1.4.4
     repository: "@maykinmedia"
     condition: openformulieren.enabled
   - name: openinwoner
