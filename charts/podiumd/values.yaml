@@ -14,6 +14,10 @@ global:
     notificatiesOpenzaakSecret: notificaties-secret
     openzaakNotificatiesClientId: openzaak
     openzaakNotificatiesSecret: openzaak-secret
+
+  settings:
+    databaseHost: ""
+
   imageRegistry: ""
 
 persistentVolume:
@@ -74,14 +78,7 @@ openzaak:
     email:
       port: 587
       useTLS: true
-    database:
-      host: ""
-      name: ""
-      username: ""
-      password: ""
-  extraEnvVars:
-    - name: DISABLE_2FA
-      value: "True"
+    disable2fa: true
   persistence:
     size: 10Gi
     existingClaim: openzaak
@@ -94,6 +91,7 @@ openzaak:
       cpu: 100m
       memory: 256Mi
   worker:
+    replicaCount: 1
     resources:
       requests:
         cpu: 10m
@@ -102,6 +100,11 @@ openzaak:
   fullnameOverride: openzaak
   flower:
     enabled: false
+  beat:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 160Mi    
   nginx:
     resources:
       requests:
@@ -110,6 +113,15 @@ openzaak:
   redis:
     nameOverride: openzaak-redis
     fullnameOverride: openzaak-redis
+    master:
+      persistence:
+        enabled: true
+        size: 8Gi
+        storageClass: ""
+      resources:
+        requests:
+          cpu: 10m
+          memory: 64Mi        
 
 opennotificaties:
   configuration:
@@ -125,12 +137,6 @@ opennotificaties:
     email:
       port: 587
       useTLS: true
-    cleanOldNotifications:
-      enabled: true
-      daysRetained: 30
-      cronjob:
-        schedule: "0 0 * * *"
-        historyLimit: 1
     disable2fa: true
   persistence:
     size: 10Gi
@@ -144,6 +150,7 @@ opennotificaties:
       cpu: 100m
       memory: 256Mi
   worker:
+    replicaCount: 1
     resources:
       requests:
         cpu: 50m
@@ -166,6 +173,15 @@ opennotificaties:
   redis:
     nameOverride: opennotificaties-redis
     fullnameOverride: opennotificaties-redis
+    master:
+      persistence:
+        enabled: true
+        size: 8Gi
+        storageClass: ""
+      resources:
+        requests:
+          cpu: 10m
+          memory: 64Mi        
 
 objecten:
   configuration:
@@ -189,6 +205,7 @@ objecten:
       cpu: 100m
       memory: 256Mi
   worker:
+    replicaCount: 1
     resources:
       requests:
         cpu: 50m
@@ -200,6 +217,15 @@ objecten:
   redis:
     nameOverride: objecten-redis
     fullnameOverride: objecten-redis
+    master:
+      persistence:
+        enabled: true
+        size: 8Gi
+        storageClass: ""
+      resources:
+        requests:
+          cpu: 10m
+          memory: 64Mi        
 
 objecttypen:
   configuration:
@@ -222,6 +248,15 @@ objecttypen:
   redis:
     nameOverride: objecttypen-redis
     fullnameOverride: objecttypen-redis
+    master:
+      persistence:
+        enabled: true
+        size: 8Gi
+        storageClass: ""    
+      resources:
+        requests:
+          cpu: 10m
+          memory: 64Mi
 
 openklant:
   configuration:
@@ -232,12 +267,7 @@ openklant:
     email:
       port: 587
       useTLS: true
-    twoFactorAuthentication:
-      forceOtpAdmin: false
-      patchAdmin: false
-  extraEnvVars:
-    - name: DISABLE_2FA
-      value: "True"
+    disable2fa: true
   image:
     tag: "2.3.0"
   resources:
@@ -245,6 +275,7 @@ openklant:
       cpu: 100m
       memory: 300Mi
   worker:
+    replicaCount: 1
     resources:
       requests:
         cpu: 50m
@@ -255,11 +286,15 @@ openklant:
     nameOverride: openklant-redis
     fullnameOverride: openklant-redis
     master:
+      persistence:
+        enabled: true
+        size: 8Gi
+        storageClass: ""
       resources:
         requests:
-          cpu: 20m
-          memory: 24Mi
-
+          cpu: 10m
+          memory: 64Mi        
+        
 openformulieren:
   configuration:
     oidcUrl: https://openformulieren.example.nl
@@ -269,9 +304,6 @@ openformulieren:
     email:
       port: 587
       useTLS: true
-    twoFactorAuthentication:
-      forceOtpAdmin: false
-      patchAdmin: false
   persistence:
     size: 10Gi
     existingClaim: openformulieren
@@ -286,8 +318,7 @@ openformulieren:
       cpu: 100m
       memory: 650Mi
   worker:
-    livenessProbe:
-      initialDelaySeconds: 120
+    replicaCount: 1
     resources:
       requests:
         cpu: 50m
@@ -342,6 +373,7 @@ openinwoner:
       cpu: 200m
       memory: 1Gi
   worker:
+    replicaCount: 1
     resources:
       requests:
         cpu: 200m
@@ -359,6 +391,10 @@ openinwoner:
     nameOverride: openinwoner-redis
     fullnameOverride: openinwoner-redis
     master:
+      persistence:
+        enabled: true
+        size: 8Gi
+        storageClass: ""    
       resources:
         requests:
           cpu: 20m
