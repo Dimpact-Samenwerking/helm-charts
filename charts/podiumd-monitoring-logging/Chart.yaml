@@ -30,7 +30,7 @@ dependencies:
     condition: promtail.enabled
   - name: opentelemetry-collector
     alias: opentelemetryCollector
-    version: "~0.92.0"
+    version: "~0.108.0"
     repository: "https://open-telemetry.github.io/opentelemetry-helm-charts"
     condition: opentelemetryCollector.enabled
   - name: tempo
