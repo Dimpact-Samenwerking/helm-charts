@@ -2,6 +2,11 @@ name: Release Charts kopie
 
 on:
   workflow_dispatch:
+     inputs:
+      release_version:
+        description: 'Specify the release version number'
+        required: true
+        default: '1.0.0'  # Optional: provide a default version
 
 jobs:
   release:
