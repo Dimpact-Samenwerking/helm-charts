@@ -1,4 +1,4 @@
-name: Test values.yaml with podiumd helm chart
+name: Test values.yaml with podiumd helm chart kopie
 
 on:
   workflow_dispatch:
