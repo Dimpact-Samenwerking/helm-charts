@@ -47,7 +47,7 @@
 | Open Notificaties | 1.5.2   |
 | Open Zaak         | 1.12.1  |
 
-### 2.0.0 (candidate)
+### 2.0.0
 
 **PodiumD Helm chart version: 1.1.18**
 
@@ -64,7 +64,7 @@
 | Open Zaak         | 1.15.0  |
 
 
-### 2.0.1 (candidate)
+### 2.0.1
 
 **PodiumD Helm chart version: 1.1.19**
 
@@ -80,9 +80,25 @@
 | Open Notificaties | 1.7.1   |
 | Open Zaak         | 1.15.0  |
 
-### 2.0.2 (candidate)
+### 2.0.2
 
 **PodiumD Helm chart version: 1.1.20**
+
+| Component         | Version |
+|-------------------|---------|
+| ClamAV            | 1.4.1   |
+| Keycloak          | 24.0.5  |
+| Objecten          | 2.4.4   |
+| Objecttypen       | 2.2.2   |
+| Open Formulieren  | 2.7.9   |
+| Open Inwoner      | 1.21.3  |
+| Open Klant        | 2.3.0   |
+| Open Notificaties | 1.7.1   |
+| Open Zaak         | 1.15.0  |
+
+### 2.0.3
+
+**PodiumD Helm chart version: 1.1.21**
 
 | Component         | Version |
 |-------------------|---------|
