@@ -17,7 +17,7 @@ dependencies:
     condition: prometheusBlackboxExporter.enabled 
   - name: x509-certificate-exporter
     alias: x509CertificateExporter
-    version: "~3.14.0"
+    version: "~3.17.0"
     repository: "https://charts.enix.io"
     condition: x509CertificateExporter.enabled
   - name: loki
