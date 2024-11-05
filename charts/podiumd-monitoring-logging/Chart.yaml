@@ -34,7 +34,7 @@ dependencies:
     repository: "https://open-telemetry.github.io/opentelemetry-helm-charts"
     condition: opentelemetryCollector.enabled
   - name: tempo
-    version: "~1.7.3"
+    version: "~1.11.0"
     repository: "https://grafana.github.io/helm-charts"
     condition: tempo.enabled
   - name: helm-exporter
