@@ -1,8 +1,0 @@
-apiVersion: v1
-kind: Secret
-metadata:
-  name: kube-prometheus-stack-grafana
-type: Opaque
-data:
-  user: {{ .Values.grafana.username | base64  | quote }}
-  password: {{  .Values.grafana.password | base64  | quote }}
