@@ -7,7 +7,7 @@ appVersion: "1.0"
 dependencies:
   - name: kube-prometheus-stack
     alias: kubePrometheusStack
-    version: "~59.1.0"
+    version: "~65.7.0"
     repository: "https://prometheus-community.github.io/helm-charts"
     condition: kubePrometheusStack.enabled
   - name: prometheus-blackbox-exporter
