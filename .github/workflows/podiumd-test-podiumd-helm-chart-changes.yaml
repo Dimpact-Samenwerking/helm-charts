@@ -3,13 +3,6 @@ name: Test values.yaml with podiumd helm chart
 on:
   workflow_dispatch:
 
-  push:
-    branches:
-      - main
-      - 'feature/**'
-    paths:
-      - charts/podiumd/**
-
 jobs:
   Powershell:
     runs-on: ubuntu-latest
