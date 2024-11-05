@@ -12,7 +12,7 @@ dependencies:
     condition: kubePrometheusStack.enabled
   - name: prometheus-blackbox-exporter
     alias: prometheusBlackboxExporter
-    version: "~8.17.0"
+    version: "~9.0.0"
     repository: "https://prometheus-community.github.io/helm-charts"
     condition: prometheusBlackboxExporter.enabled 
   - name: x509-certificate-exporter
