@@ -358,6 +358,9 @@ openinwoner:
     oidcSecret: "<openinwoner>"
   settings:
     allowedHosts: openinwoner-nginx.podiumd.svc.cluster.local
+    brpVersion: ""
+    digidMock: ""
+    eherkenningMock: ""    
     email:
       port: 587
       useTLS: true
@@ -382,6 +385,13 @@ openinwoner:
   fullnameOverride: openinwoner
   nginx:
     config:
+      basicAuth:
+        # Enable this when digid mock is set to digidMock: "true"
+        enabled: false
+        # You need to generate the encrypted basic auth password yourself with htpasswd or openssl.
+        # This is an example user
+        users: |-
+          dimpact:$apr1$E03dZmYK$npjTaXfI05tMJ63gB8dxm. 
       clientMaxBodySize: 100M
     resources:
       requests:
