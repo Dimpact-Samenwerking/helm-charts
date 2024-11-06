@@ -22,6 +22,9 @@ jobs:
           git config user.name "$GITHUB_ACTOR"
           git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
 
+      - name: Set Chart Version
+        run: |
+          sed -i "s/^version: .*/version: ${{ github.event.inputs.release_version }}/" charts/podiumd/Chart.yaml
       - name: Add dependency chart repos
         run: |
           helm repo add bitnami https://charts.bitnami.com/bitnami
@@ -42,7 +45,7 @@ jobs:
 
       - name: Create GitHub Release
         run: |
-          VERSION=sed -i "s/^version: .*/version: ${{ github.event.inputs.release_version }}/" charts/podiumd/Chart.yaml
+          VERSION="${{ github.event.inputs.release_version }}"
           echo "Creating release for version $VERSION"
 
           # Add release notes and information from websites (URLs)
