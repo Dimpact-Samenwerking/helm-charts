@@ -1,9 +1,11 @@
-name: Release Charts
+name: Release Charts kopie
 
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch:
+     inputs:
+      release_version:
+        description: 'Specify the release version number'
+        required: true
 
 jobs:
   release:
