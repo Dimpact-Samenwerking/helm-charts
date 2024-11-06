@@ -2,12 +2,9 @@ name: Release Charts
 
 on:
   workflow_dispatch:
-    inputs:
+     inputs:
       release_version:
         description: 'Specify the release version number'
-        required: true
-      url1:
-        description: 'Specify the url'
         required: true
 
 jobs:
@@ -20,23 +17,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Fetch Content from URL 1
-        id: fetch_url1
-        run: |
-          content1=$(curl -s "${{ github.event.inputs.url1 }}")
-          echo "CONTENT_1=$content1" >> $GITHUB_ENV
-      
-      
-      - name: Combine Content for Release Description
-        id: combine_content
-        run: |
-          combined_content="### Release Notes\n\n"
-          combined_content+="Content from URL 1:\n\n${{ env.CONTENT_1 }}\n\n"
-          echo "COMBINED_CONTENT<<EOF" >> $GITHUB_ENV
-          echo "$combined_content" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
-
       - name: Configure Git
         run: |
           git config user.name "$GITHUB_ACTOR"
@@ -56,23 +36,9 @@ jobs:
           helm repo add kiss-frontend https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/KISS-frontend/main/helm
           helm repo add kiss-adapter https://raw.githubusercontent.com/ICATT-Menselijk-Digitaal/podiumd-adapter/main/helm
           helm repo add kiss-elastic https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/.github/main/docs/scripts/elastic
-
       - name: Run chart-releaser
         uses: helm/chart-releaser-action@v1.6.0
+        with:
+          skip_existing: true
         env:
           CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
-
-      - name: Create GitHub Release with Description
-        # Create a GitHub release to include the version and description
-        uses: actions/create-release@v1
-        with:
-          tag_name: ${{ github.event.inputs.release_version }}
-          release_name: "Release v${{ github.event.inputs.release_version }}"
-          body: "${{ env.COMBINED_CONTENT }}"
-          draft: false
-          prerelease: false
-          skip_existing: true
-
-        env:
-          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
-        
