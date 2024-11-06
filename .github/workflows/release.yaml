@@ -59,6 +59,12 @@ jobs:
 
       - name: Run chart-releaser
         uses: helm/chart-releaser-action@v1.6.0
+        env:
+          CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Create GitHub Release with Description
+        # Create a GitHub release to include the version and description
+        uses: actions/create-release@v1
         with:
           tag_name: ${{ github.event.inputs.release_version }}
           release_name: "Release v${{ github.event.inputs.release_version }}"
@@ -68,4 +74,5 @@ jobs:
           skip_existing: true
 
         env:
-          CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+        
