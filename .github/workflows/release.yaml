@@ -51,12 +51,16 @@ jobs:
           # Add release notes and information from websites (URLs)
           RELEASE_NOTES="## Release Notes for $VERSION
 
-          This release includes several improvements and bug fixes.
+          Changelog and bugfixes
 
           ## Important Links:
-          - [Website 1](https://github.com/open-formulieren/open-forms/blob/master/CHANGELOG.rst#281-2024-10-29)
-          - [Website 2](https://website2.example)
-          - [Docs](https://docs.example)
+          - [Open Formulieren](https://github.com/open-formulieren/open-forms/blob/master/CHANGELOG.rst#281-2024-10-29)
+          - [Portaal](https://website2.example)
+          - [Open Zaak](https://website2.example)
+          - [Open Notifcaties](https://website2.example)
+          - [Objecten](https://website2.example)
+          - [Objecttypen](https://website2.example)
+          - [Open Klant](https://website2.example)
 
           Please see the changelog for a detailed list of changes."
 
