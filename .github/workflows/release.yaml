@@ -2,7 +2,7 @@ name: Release Charts
 
 on:
   workflow_dispatch:
-     inputs:
+    inputs:
       release_version:
         description: 'Specify the release version number'
         required: true
