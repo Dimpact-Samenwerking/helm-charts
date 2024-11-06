@@ -42,7 +42,7 @@ jobs:
 
       - name: Create GitHub Release
         run: |
-          VERSION="${{ github.event.inputs.release_version }}/" charts/podiumd/Chart.yaml
+          VERSION=sed -i "s/^version: .*/version: ${{ github.event.inputs.release_version }}/" charts/podiumd/Chart.yaml
           echo "Creating release for version $VERSION"
 
           # Add release notes and information from websites (URLs)
