@@ -65,6 +65,6 @@ jobs:
           Please see the changelog for a detailed list of changes."
 
           # Create a release using GitHub CLI
-          gh release create "$VERSION" charts/podiumd/target/*.{tgz,zip,tar.gz} --notes "$RELEASE_NOTES" --target "feature/IN-177_PodiumD_helm_chart_release"
+          gh release create "$VERSION" --notes "$RELEASE_NOTES" --target "feature/IN-177_PodiumD_helm_chart_release"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Provide the token for authentication
