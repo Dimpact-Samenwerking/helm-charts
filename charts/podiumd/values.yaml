@@ -1,5 +1,5 @@
 tags:
-  portaal: false
+  portaal: true
   contact: false
   zaak: false
 
@@ -35,6 +35,7 @@ keycloak:
     adminUser: admin
     adminPassword: ChangeMeNow
   externalDatabase:
+    host: ""
     database: ""
     user: ""
   keycloakConfigCli:
@@ -312,7 +313,7 @@ openformulieren:
   persistentVolume:
     volumeAttributeShareName: openformulieren
   image:
-    tag: "2.7.8"
+    tag: "2.7.9"
   resources:
     requests:
       cpu: 100m
