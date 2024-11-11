@@ -1,4 +1,4 @@
-name: Test
+name: Release Charts for changelogs
 
 on:
   workflow_dispatch:
