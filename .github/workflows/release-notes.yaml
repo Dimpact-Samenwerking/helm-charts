@@ -1,4 +1,4 @@
-name: Release Notes with Changelog
+name: Release Notes with Changelogs
 
 on:
   workflow_dispatch:
