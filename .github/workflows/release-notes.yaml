@@ -1,0 +1,30 @@
+name: Release Notes with Changelogs
+
+on:
+  release:
+    types: [created, published]
+
+jobs:
+  changelog:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Generate Release Notes with Changelogs
+        id: generate_notes
+        run: |
+          # Custom script to aggregate changelog information
+          # This is where you'd typically use a tool or script to gather the changelog data
+          # Renovate typically creates PRs with changelog details, so you can collect those.
+          echo "Generating release notes with fetched changelogs..."
+          # Example: append each PR description with changelog links into release notes
+          # You could use GitHub CLI or a similar tool to populate notes here.
+
+      - name: Publish Release Notes
+        uses: softprops/action-gh-release@v1
+        with:
+          body: ${{ steps.generate_notes.outputs.notes }}
+          files: ""  # Any assets to attach
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
