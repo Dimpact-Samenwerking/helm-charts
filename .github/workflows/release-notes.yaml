@@ -1,4 +1,4 @@
-name: Release Notes with Changelogs
+name: Release Notes with Changelog
 
 on:
   release:
