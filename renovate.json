@@ -3,11 +3,10 @@
   "extends": [
     "config:recommended"
   ],
-  "fetchChangelogs": true,
+  "fetchChangelogs": "branch",
   "packageRules": [
     {
-      "matchUpdateTypes": ["minor", "patch"],
-      "fetchChangelogs": true
+      "matchUpdateTypes": ["minor", "patch"]
     }
   ]
 }
