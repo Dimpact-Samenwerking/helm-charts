@@ -2,8 +2,8 @@ apiVersion: v2
 name: podiumd
 description: PodiumD Helm chart
 type: application
-version: 1.1.21
-appVersion: "2.0.3"
+version: 3.0.0
+appVersion: "3.0.0"
 dependencies:
   - name: keycloak
     version: 21.8.0
@@ -55,8 +55,6 @@ dependencies:
     version: 1.5.3
     repository: "@maykinmedia"
     condition: openinwoner.enabled
-    tags:
-      - portaal
   - name: kiss-elastic
     alias: kisselastic
     version: 1.0.0
