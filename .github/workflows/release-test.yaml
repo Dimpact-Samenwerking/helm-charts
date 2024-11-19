@@ -84,35 +84,40 @@ jobs:
           echo "OBJECTTYPEN_IMAGE_TAG_LATEST=$OBJECTTYPEN_IMAGE_TAG_LATEST" >> $GITHUB_ENV
           echo "OPENINWONER_IMAGE_TAG_LATEST=$OPENINWONER_IMAGE_TAG_LATEST" >> $GITHUB_ENV
           
-      - name: Get Website1 Changelog
+      - name: Fetch changelog of Open Formulieren
+        id: fetch_changelogs_openforms
         run: |
           WEBSITE1_CHANGELOG=$(curl -s https://raw.githubusercontent.com/open-formulieren/open-forms/refs/heads/master/CHANGELOG.rst | awk '/^${{ env.OPENFORMS_IMAGE_TAG }} /,/^${{ env.OPENFORMS_IMAGE_TAG_LATEST }} /')
 
-      - name: Fetch changelogs from websites
+      - name: Fetch changelogs of Open Zaak 
         id: fetch_changelogs_openzaak
         run: |
-          WEBSITE2_CHANGELOG=$(curl -s https://raw.githubusercontent.com/open-zaak/open-zaak/main/CHANGELOG.rst | sed -n '5,20p')
+          WEBSITE2_CHANGELOG=$(curl -s https://raw.githubusercontent.com/open-zaak/open-zaak/main/CHANGELOG.rst | awk '/^${{ env.OPENZAAK_IMAGE_TAG }} /,/^${{ env.OPENZAAK_IMAGE_TAG_LATEST }} /')
           
-      - name: Fetch changelogs from websites
+      - name: Fetch changelog of Open Klant
         id: fetch_changelogs_openklant
         run: |
-          WEBSITE3_CHANGELOG=$(curl -s https://raw.githubusercontent.com/maykinmedia/open-klant/refs/heads/master/CHANGELOG.rst | sed -n '5,20p')
-      - name: Fetch changelogs from websites
+          WEBSITE3_CHANGELOG=$(curl -s https://raw.githubusercontent.com/maykinmedia/open-klant/refs/heads/master/CHANGELOG.rst | awk '/^${{ env.OPENKLANT_IMAGE_TAG }} /,/^${{ env.OPENKLANT_IMAGE_TAG_LATEST }} /')
+
+      - name: Fetch changelogs of Open Notificaties
         id: fetch_changelogs_opennotificaties
         run: |
-          WEBSITE4_CHANGELOG=$(curl -s https://raw.githubusercontent.com/open-zaak/open-notificaties/refs/heads/main/CHANGELOG.rst | sed -n '5,20p')
-      - name: Fetch changelogs from websites
+          WEBSITE4_CHANGELOG=$(curl -s https://raw.githubusercontent.com/open-zaak/open-notificaties/refs/heads/main/CHANGELOG.rst | awk '/^${{ env.OPENNOTIFICATIES_IMAGE_TAG }} /,/^${{ env.OPENNOTIFICATIES_IMAGE_TAG_LATEST }} /')
+
+      - name: Fetch changelogs of Objecten
         id: fetch_changelogs_objecten
         run: |
-           WEBSITE5_CHANGELOG=$(curl -s https://raw.githubusercontent.com/maykinmedia/objects-api/refs/heads/stable/2.4.x/CHANGELOG.rst | sed -n '5,20p')
-      - name: Fetch changelogs from websites
+           WEBSITE5_CHANGELOG=$(curl -s https://raw.githubusercontent.com/maykinmedia/objects-api/refs/heads/stable/2.4.x/CHANGELOG.rst | awk '/^${{ env.OBJECTEN_IMAGE_TAG }} /,/^${{ env.OBJECTEN_IMAGE_TAG_LATEST }} /')
+
+      - name: Fetch changelogs of Objecttypen
         id: fetch_changelogs_objecttypen
         run: |
-          WEBSITE6_CHANGELOG=$(curl -s https://raw.githubusercontent.com/maykinmedia/objecttypes-api/refs/heads/master/CHANGELOG.rst | sed -n '5,20p')
-      - name: Fetch changelogs from websites
+          WEBSITE6_CHANGELOG=$(curl -s https://raw.githubusercontent.com/maykinmedia/objecttypes-api/refs/heads/master/CHANGELOG.rst | awk '/^${{ env.OBJECTTYPEN_IMAGE_TAG }} /,/^${{ env.OBJECTTYPEN_IMAGE_TAG_LATEST }} /')
+
+      - name: Fetch changelogs of Open Inwoner
         id: fetch_changelogs_openinwoner
         run: |
-          WEBSITE7_CHANGELOG=$(curl -s https://api.github.com/repos/maykinmedia/open-inwoner/releases/latest | jq -r '.body')
+          WEBSITE7_CHANGELOG=$(curl -s https://api.github.com/repos/maykinmedia/open-inwoner/releases/latest | awk '/^${{ env.OPENINWONER_IMAGE_TAG }} /,/^${{ env.OPENINWONER_IMAGE_TAG_LATEST }} /')
           
           
           # Aggregate changelogs into an environment variable
@@ -140,8 +145,6 @@ jobs:
           echo "" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
-          
-          
       - name: Add dependency chart repos
         run: |
           helm repo add bitnami https://charts.bitnami.com/bitnami
