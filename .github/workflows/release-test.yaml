@@ -1,0 +1,175 @@
+name: Release Charts test
+
+on:
+  workflow_dispatch:
+     inputs:
+      release_version:
+        description: 'Specify the release version number'
+        required: true
+      
+jobs:
+  release:
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install yq
+        run: | 
+          python -m pip install yq
+          
+      - name: Delete existing tag if it exists
+        run: |
+          TAG=${{ github.event.inputs.release_version }}
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            git push --delete origin "$TAG"
+            git tag -d "$TAG"
+          fi
+          
+      - name: Configure Git
+        run: |
+          git config user.name "$GITHUB_ACTOR"
+          git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
+
+      - name: Set Chart and App Versions
+        run: |
+          sed -i "s/^version: .*/version: ${{ github.event.inputs.release_version }}/" charts/podiumd/Chart.yaml
+          sed -i "s/^appVersion: .*/appVersion: ${{ github.event.inputs.release_version }}/" charts/podiumd/Chart.yaml
+
+      - name: Get latest release commit hash
+        id: get_release_commit
+        run: |
+          LATEST_RELEASE_COMMIT=$(curl -s https://api.github.com/repos/Dimpact-Samenwerking/helm-charts/releases/latest | jq -r .target_commitish)
+          echo "LATEST_RELEASE_COMMIT=$LATEST_RELEASE_COMMIT" >> $GITHUB_ENV
+
+      - name: Get current version from latest release
+        id: get_current_version
+        run: |
+          COMMIT_HASH=${{ env.LATEST_RELEASE_COMMIT }}
+          OPENFORMS_IMAGE_TAG=$(git show -q $COMMIT_HASH:charts/podiumd/values.yaml | yq -r .openformulieren.image.tag)
+          OPENZAAK_IMAGE_TAG=$(git show -q $COMMIT_HASH:charts/podiumd/values.yaml | yq -r .openzaak.image.tag)
+          OPENKLANT_IMAGE_TAG=$(git show -q $COMMIT_HASH:charts/podiumd/values.yaml | yq -r .openklant.image.tag)
+          OPENNOTIFICATIES_IMAGE_TAG=$(git show -q $COMMIT_HASH:charts/podiumd/values.yaml | yq -r .opennotificaties.image.tag)
+          OBJECTEN_IMAGE_TAG=$(git show -q $COMMIT_HASH:charts/podiumd/values.yaml | yq -r .objecten.image.tag)
+          OBJECTTYPEN_IMAGE_TAG=$(git show -q $COMMIT_HASH:charts/podiumd/values.yaml | yq -r .objecttypen.image.tag)
+          OPENINWONER_IMAGE_TAG=$(git show -q $COMMIT_HASH:charts/podiumd/values.yaml | yq -r .openinwoner.image.tag)
+          echo "OPENFORMS_IMAGE_TAG=$OPENFORMS_IMAGE_TAG" >> $GITHUB_ENV
+          echo "OPENZAAK_IMAGE_TAG=$OPENZAAK_IMAGE_TAG" >> $GITHUB_ENV
+          echo "OPENKLANT_IMAGE_TAG=$OPENKLANT_IMAGE_TAG" >> $GITHUB_ENV
+          echo "OPENNOTIFICATIES_IMAGE_TAG=$OPENNOTIFICATIES_IMAGE_TAG" >> $GITHUB_ENV
+          echo "OBJECTEN_IMAGE_TAG=$OBJECTEN_IMAGE_TAG" >> $GITHUB_ENV
+          echo "OBJECTTYPEN_IMAGE_TAG=$OBJECTTYPEN_IMAGE_TAG" >> $GITHUB_ENV
+          echo "OPENINWONER_IMAGE_TAG=$OPENINWONER_IMAGE_TAG" >> $GITHUB_ENV
+
+          
+      - name: Get latest version from HEAD
+        id: get_latest_version
+        run: |
+          OPENFORMS_IMAGE_TAG_LATEST=$(git show -q HEAD:charts/podiumd/values.yaml | yq -r .openformulieren.image.tag)
+          OPENZAAK_IMAGE_TAG_LATEST=$(git show -q HEAD:charts/podiumd/values.yaml | yq -r .openzaak.image.tag)
+          OPENKLANT_IMAGE_TAG_LATEST=$(git show -q HEAD:charts/podiumd/values.yaml | yq -r .openklant.image.tag)
+          OPENNOTIFICATIES_IMAGE_TAG_LATEST=$(git show -q HEAD:charts/podiumd/values.yaml | yq -r .opennotificaties.image.tag)
+          OBJECTEN_IMAGE_TAG_LATEST=$(git show -q HEAD:charts/podiumd/values.yaml | yq -r .objecten.image.tag)
+          OBJECTTYPEN_IMAGE_TAG_LATEST=$(git show -q HEAD:charts/podiumd/values.yaml | yq -r .objecttypen.image.tag)
+          OPENINWONER_IMAGE_TAG_LATEST=$(git show -q HEAD:charts/podiumd/values.yaml | yq -r .openinwoner.image.tag)
+          echo "OPENFORMS_IMAGE_TAG_LATEST=$OPENFORMS_IMAGE_LATEST" >> $GITHUB_ENV
+          echo "OPENZAAK_IMAGE_TAG_LATEST=$OPENZAAK_IMAGE_TAG_LATEST" >> $GITHUB_ENV
+          echo "OPENKLANT_IMAGE_TAG_LATEST=$OPENKLANT_IMAGE_TAG_LATEST" >> $GITHUB_ENV
+          echo "OPENNOTIFICATIES_IMAGE_TAG_LATEST=$OPENNOTIFICATIES_IMAGE_TAG_LATEST" >> $GITHUB_ENV
+          echo "OBJECTEN_IMAGE_TAG_LATEST=$OBJECTEN_IMAGE_TAG_LATEST" >> $GITHUB_ENV
+          echo "OBJECTTYPEN_IMAGE_TAG_LATEST=$OBJECTTYPEN_IMAGE_TAG_LATEST" >> $GITHUB_ENV
+          echo "OPENINWONER_IMAGE_TAG_LATEST=$OPENINWONER_IMAGE_TAG_LATEST" >> $GITHUB_ENV
+          
+      - name: Get Website1 Changelog
+        run: |
+          WEBSITE1_CHANGELOG=$(curl -s https://raw.githubusercontent.com/open-formulieren/open-forms/refs/heads/master/CHANGELOG.rst | awk '/^${{ env.OPENFORMS_IMAGE_TAG }} /,/^${{ env.OPENFORMS_IMAGE_TAG_LATEST }} /')
+
+      - name: Fetch changelogs from websites
+        id: fetch_changelogs_openzaak
+        run: |
+          WEBSITE2_CHANGELOG=$(curl -s https://raw.githubusercontent.com/open-zaak/open-zaak/main/CHANGELOG.rst | sed -n '5,20p')
+          
+      - name: Fetch changelogs from websites
+        id: fetch_changelogs_openklant
+        run: |
+          WEBSITE3_CHANGELOG=$(curl -s https://raw.githubusercontent.com/maykinmedia/open-klant/refs/heads/master/CHANGELOG.rst | sed -n '5,20p')
+      - name: Fetch changelogs from websites
+        id: fetch_changelogs_opennotificaties
+        run: |
+          WEBSITE4_CHANGELOG=$(curl -s https://raw.githubusercontent.com/open-zaak/open-notificaties/refs/heads/main/CHANGELOG.rst | sed -n '5,20p')
+      - name: Fetch changelogs from websites
+        id: fetch_changelogs_objecten
+        run: |
+           WEBSITE5_CHANGELOG=$(curl -s https://raw.githubusercontent.com/maykinmedia/objects-api/refs/heads/stable/2.4.x/CHANGELOG.rst | sed -n '5,20p')
+      - name: Fetch changelogs from websites
+        id: fetch_changelogs_objecttypen
+        run: |
+          WEBSITE6_CHANGELOG=$(curl -s https://raw.githubusercontent.com/maykinmedia/objecttypes-api/refs/heads/master/CHANGELOG.rst | sed -n '5,20p')
+      - name: Fetch changelogs from websites
+        id: fetch_changelogs_openinwoner
+        run: |
+          WEBSITE7_CHANGELOG=$(curl -s https://api.github.com/repos/maykinmedia/open-inwoner/releases/latest | jq -r '.body')
+          
+          
+          # Aggregate changelogs into an environment variable
+          echo "changelogs<<EOF" >> $GITHUB_ENV
+          echo "### Open Formulieren" >> $GITHUB_ENV
+          echo "$WEBSITE1_CHANGELOG" >> $GITHUB_ENV
+          echo "" >> $GITHUB_ENV
+          echo "### Open Zaak" >> $GITHUB_ENV
+          echo "$WEBSITE2_CHANGELOG" >> $GITHUB_ENV
+          echo "" >> $GITHUB_ENV
+          echo "### Open Klant" >> $GITHUB_ENV
+          echo "$WEBSITE3_CHANGELOG" >> $GITHUB_ENV
+          echo "" >> $GITHUB_ENV
+          echo "### Open Notificaties" >> $GITHUB_ENV
+          echo "$WEBSITE4_CHANGELOG" >> $GITHUB_ENV
+          echo "" >> $GITHUB_ENV
+          echo "### Objecten" >> $GITHUB_ENV
+          echo "$WEBSITE5_CHANGELOG" >> $GITHUB_ENV
+          echo "" >> $GITHUB_ENV
+          echo "### Objecttypen" >> $GITHUB_ENV
+          echo "$WEBSITE6_CHANGELOG" >> $GITHUB_ENV
+          echo "" >> $GITHUB_ENV
+          echo "### Open Inwoner" >> $GITHUB_ENV
+          echo "$WEBSITE7_CHANGELOG" >> $GITHUB_ENV
+          echo "" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+          
+          
+      - name: Add dependency chart repos
+        run: |
+          helm repo add bitnami https://charts.bitnami.com/bitnami
+          helm repo add maykinmedia https://maykinmedia.github.io/charts
+          helm repo add opentelemetry https://open-telemetry.github.io/opentelemetry-helm-charts
+          helm repo add wiremind https://wiremind.github.io/wiremind-helm-charts
+          helm repo add dimpact https://Dimpact-Samenwerking.github.io/helm-charts
+          helm repo add elastic https://helm.elastic.co
+          helm repo add kiss-frontend https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/KISS-frontend/main/helm
+          helm repo add kiss-adapter https://raw.githubusercontent.com/ICATT-Menselijk-Digitaal/podiumd-adapter/main/helm
+          helm repo add kiss-elastic https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/.github/main/docs/scripts/elastic
+
+      - name: Run chart-releaser
+        uses: helm/chart-releaser-action@v1.6.0
+        with:
+          skip_existing: true
+        env:
+          CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"   
+
+      - name: Create GitHub Release
+        uses: actions/create-release@v1
+        with:
+          tag_name: ${{ github.event.inputs.release_version }}
+          release_name: "Release ${{ github.event.inputs.release_version }}"
+          body: |
+            ## Changes in this Release
+            ${{ env.commits }}
+            ## Changelogs
+            ${{ env.changelogs }}
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
