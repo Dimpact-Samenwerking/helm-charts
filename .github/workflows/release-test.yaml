@@ -88,7 +88,8 @@ jobs:
         id: fetch_changelogs_openforms
         run: |
           WEBSITE1_CHANGELOG=$(curl -s https://raw.githubusercontent.com/open-formulieren/open-forms/refs/heads/master/CHANGELOG.rst | awk '/^${{ env.OPENFORMS_IMAGE_TAG }} /,/^${{ env.OPENFORMS_IMAGE_TAG_LATEST }} /')
-
+          echo "Open Forms: $WEBSITE1_CHANGELOG"
+          
       - name: Fetch changelogs of Open Zaak 
         id: fetch_changelogs_openzaak
         run: |
