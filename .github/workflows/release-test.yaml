@@ -88,7 +88,7 @@ jobs:
         id: fetch_changelogs_openforms
         run: |
           WEBSITE1_CHANGELOG=$(curl -s https://raw.githubusercontent.com/open-formulieren/open-forms/refs/heads/master/CHANGELOG.rst | awk '/^${{ env.OPENFORMS_IMAGE_TAG_LATEST }} /,/^${{ env.OPENFORMS_IMAGE_TAG }} /')
-          echo "opeforms<<EOF" >> $GITHUB_ENV
+          echo "openforms<<EOF" >> $GITHUB_ENV
           echo "### Open Formulieren" >> $GITHUB_ENV
           echo "$WEBSITE1_CHANGELOG" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
@@ -97,7 +97,6 @@ jobs:
         id: fetch_changelogs_openzaak
         run: |
           WEBSITE2_CHANGELOG=$(curl -s https://raw.githubusercontent.com/open-zaak/open-zaak/main/CHANGELOG.rst | awk '/^${{ env.OPENZAAK_IMAGE_TAG_LATEST }} /,/^${{ env.OPENZAAK_IMAGE_TAG }} /')
-          echo "Open Zaak Changelog: $WEBSITE2_CHANGELOG"
           echo "openzaak<<EOF" >> $GITHUB_ENV
           echo "### Open Zaak" >> $GITHUB_ENV
           echo "$WEBSITE2_CHANGELOG" >> $GITHUB_ENV
@@ -107,7 +106,6 @@ jobs:
         id: fetch_changelogs_openklant
         run: |
           WEBSITE3_CHANGELOG=$(curl -s https://raw.githubusercontent.com/maykinmedia/open-klant/refs/heads/master/CHANGELOG.rst | awk '/^${{ env.OPENKLANT_IMAGE_TAG_LATEST }} /,/^${{ env.OPENKLANT_IMAGE_TAG }} /')
-          echo "Open Klant Changelog: $WEBSITE3_CHANGELOG"
           echo "openklant<<EOF" >> $GITHUB_ENV
           echo "### Open Klant" >> $GITHUB_ENV
           echo "$WEBSITE3_CHANGELOG" >> $GITHUB_ENV
@@ -117,7 +115,6 @@ jobs:
         id: fetch_changelogs_opennotificaties
         run: |
           WEBSITE4_CHANGELOG=$(curl -s https://raw.githubusercontent.com/open-zaak/open-notificaties/refs/heads/main/CHANGELOG.rst | awk '/^${{ env.OPENNOTIFICATIES_IMAGE_TAG_LATEST }} /,/^${{ env.OPENNOTIFICATIES_IMAGE_TAG }} /')
-          echo "Open Notificaties Changelog: $WEBSITE4_CHANGELOG"
           echo "opennotificaties<<EOF" >> $GITHUB_ENV
           echo "### Open Notificaties" >> $GITHUB_ENV
           echo "$WEBSITE4_CHANGELOG" >> $GITHUB_ENV
@@ -127,7 +124,6 @@ jobs:
         id: fetch_changelogs_objecten
         run: |
            WEBSITE5_CHANGELOG=$(curl -s https://raw.githubusercontent.com/maykinmedia/objects-api/refs/heads/stable/2.4.x/CHANGELOG.rst | awk '/^${{ env.OBJECTEN_IMAGE_TAG_LATEST }} /,/^${{ env.OBJECTEN_IMAGE_TAG }} /')
-           echo "Open Klant Changelog: $WEBSITE5_CHANGELOG"
            echo "objecten<<EOF" >> $GITHUB_ENV
            echo "### Open Klant" >> $GITHUB_ENV
            echo "$WEBSITE5_CHANGELOG" >> $GITHUB_ENV
@@ -137,7 +133,6 @@ jobs:
         id: fetch_changelogs_objecttypen
         run: |
           WEBSITE6_CHANGELOG=$(curl -s https://raw.githubusercontent.com/maykinmedia/objecttypes-api/refs/heads/master/CHANGELOG.rst | awk '/^${{ env.OBJECTTYPEN_IMAGE_TAG_LATEST }} /,/^${{ env.OBJECTTYPEN_IMAGE_TAG }} /')
-          echo "Objecttypen Changelog: $WEBSITE6_CHANGELOG"
           echo "objecttypen<<EOF" >> $GITHUB_ENV
           echo "### Objecttypen" >> $GITHUB_ENV
           echo "$WEBSITE6_CHANGELOG" >> $GITHUB_ENV
@@ -147,7 +142,6 @@ jobs:
         id: fetch_changelogs_openinwoner
         run: |
           WEBSITE7_CHANGELOG=$(curl -s https://api.github.com/repos/maykinmedia/open-inwoner/releases/latest | awk '/^${{ env.OPENINWONER_IMAGE_TAG_LATEST }} /,/^${{ env.OPENINWONER_IMAGE_TAG }} /')
-          echo "Open Inwoner Changelog: $WEBSITE7_CHANGELOG"
           echo "openinwoner<<EOF" >> $GITHUB_ENV
           echo "### Open Inwoner" >> $GITHUB_ENV
           echo "$WEBSITE7_CHANGELOG" >> $GITHUB_ENV
@@ -184,6 +178,7 @@ jobs:
             ${{ env.openforms }}
             ${{ env.openzaak }}
             ${{ env.openklant }}
+            ${{ env.opennotificaties }}
             ${{ env.objecten }}
             ${{ env.objecttypen }}
             ${{ env.openinwoner }}
