@@ -88,7 +88,6 @@ jobs:
         id: fetch_changelogs_openforms
         run: |
           WEBSITE1_CHANGELOG=$(curl -s https://raw.githubusercontent.com/open-formulieren/open-forms/refs/heads/master/CHANGELOG.rst | awk '/^${{ env.OPENFORMS_IMAGE_TAG }} /,/^${{ env.OPENFORMS_IMAGE_TAG_LATEST }} /')
-          echo "Open Formulieren Changelog: $WEBSITE1_CHANGELOG"
           echo "changelogs<<EOF" >> $GITHUB_ENV
           echo "### Open Formulieren" >> $GITHUB_ENV
           echo "$WEBSITE1_CHANGELOG" >> $GITHUB_ENV
