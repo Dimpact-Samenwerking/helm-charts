@@ -87,14 +87,20 @@ jobs:
       - name: Fetch changelog of Open Formulieren
         id: fetch_changelogs_openforms
         run: |
-          VERSION1_CONTENT=$(curl -s https://raw.githubusercontent.com/open-formulieren/open-forms/refs/heads/master/CHANGELOG.rst | awk '/^${{ env.OPENFORMS_IMAGE_TAG_LATEST }} /,/^## /') 
-          VERSION2_CONTENT=$(curl -s https://raw.githubusercontent.com/open-formulieren/open-forms/refs/heads/master/CHANGELOG.rst | awk '/^${{ env.OPENFORMS_IMAGE_TAG }} /,/^## /')
-           
-          # Combine the results 
-          WEBSITE1_CHANGELOG="${VERSION1_CONTENT}\n${VERSION2_CONTENT}"  
+          WEBSITE1_CHANGELOG=$(curl -s https://raw.githubusercontent.com/open-formulieren/open-forms/refs/heads/master/CHANGELOG.rst)
+          # Extract the section for OPENFORMS_IMAGE_TAG
+          VERSION1_CONTENT=$(echo "$WEBSITE1_CHANGELOG" | awk "/^${{ env.OPENFORMS_IMAGE_TAG }}/,/^$/" | head -n -1)
+
+          # Extract the section for OPENFORMS_IMAGE_TAG_LATEST
+          VERSION2_CONTENT=$(echo "$WEBSITE1_CHANGELOG" | awk "/^${{ env.OPENFORMS_IMAGE_TAG_LATEST }}/,/^$/" | head -n -1)
+
+          # Combine both versions into an environment variable
           echo "openforms<<EOF" >> $GITHUB_ENV
           echo "### Open Formulieren" >> $GITHUB_ENV
-          echo "$WEBSITE1_CHANGELOG" >> $GITHUB_ENV
+          echo "#### Version old: ${{ env.OPENFORMS_IMAGE_TAG }}" >> $GITHUB_ENV
+          echo "$VERSION1_CONTENT" >> $GITHUB_ENV
+          echo "#### Version new: ${{ env.OPENFORMS_IMAGE_TAG_LATEST }}" >> $GITHUB_ENV
+          echo "$VERSION2_CONTENT" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
       - name: Fetch changelogs of Open Zaak 
