@@ -88,24 +88,10 @@ jobs:
         id: fetch_changelogs_openforms
         run: |
           # Fetch and process the changelog content
-          WEBSITE1_CHANGELOG=$(curl -s https://raw.githubusercontent.com/open-formulieren/open-forms/refs/heads/master/CHANGELOG.rst)
-
-          # Extract content for the latest version (OPENFORMS_IMAGE_TAG_LATEST)
-          VERSION_LATEST_CONTENT=$(echo "$WEBSITE1_CHANGELOG" | awk '/^'"$OPENFORMS_IMAGE_TAG_LATEST"' / {flag=1} flag {if (/^## /) {flag=0} print}')
-
-          # Extract content for the previous version (OPENFORMS_IMAGE_TAG)
-          VERSION_PREVIOUS_CONTENT=$(echo "$WEBSITE1_CHANGELOG" | awk '/^'"$OPENFORMS_IMAGE_TAG"' / {flag=1} flag {if (/^## /) {flag=0} print}')
-
-          # Combine the results for the specified versions
-          COMBINED_CHANGELOG="${VERSION_LATEST_CONTENT}"$'\n'"${VERSION_PREVIOUS_CONTENT}"
-
-          # Output combined changelog to GitHub environment variable
-          echo "Website1 Changelog: $COMBINED_CHANGELOG"
-
-          # Store the combined changelog in an environment variable
+          WEBSITE1_CHANGELOG=$(curl -s https://raw.githubusercontent.com/open-formulieren/open-forms/refs/heads/master/CHANGELOG.rst | awk '/^${{ env.OPENFORMS_IMAGE_TAG_LATEST }} /,/^${{ env.OPENFORMS_IMAGE_TAG }} /')
           echo "openforms<<EOF" >> $GITHUB_ENV
           echo "### Open Formulieren" >> $GITHUB_ENV
-          echo "$COMBINED_CHANGELOG" >> $GITHUB_ENV
+          echo "$WEBSITE1_CHANGELOG" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
       - name: Fetch changelogs of Open Zaak 
