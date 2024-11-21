@@ -87,7 +87,7 @@ jobs:
       - name: Fetch changelog of Open Formulieren
         id: fetch_changelogs_openforms
         run: |
-          WEBSITE1_CHANGELOG=$(curl -s https://raw.githubusercontent.com/open-formulieren/open-forms/refs/heads/master/CHANGELOG.rst | awk '/^${{ env.OPENFORMS_IMAGE_TAG_LATEST }} /{flag=1} /^${{ env.OPENFORMS_IMAGE_TAG }} /{flag=1} flag')
+          WEBSITE1_CHANGELOG=$(curl -s https://raw.githubusercontent.com/open-formulieren/open-forms/refs/heads/master/CHANGELOG.rst | awk '/^${{ env.OPENFORMS_IMAGE_TAG_LATEST }} /{flag=1} /^${{ env.OPENFORMS_IMAGE_TAG }} /{print;flag=0} flag')
           echo "openforms<<EOF" >> $GITHUB_ENV
           echo "### Open Formulieren" >> $GITHUB_ENV
           echo "$WEBSITE1_CHANGELOG" >> $GITHUB_ENV
