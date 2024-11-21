@@ -92,7 +92,7 @@ jobs:
           VERSION1_CONTENT=$(echo "$WEBSITE1_CHANGELOG" | awk "/^${{ env.OPENFORMS_IMAGE_TAG }} /,/^## /" | sed '$d')
 
           # Extract the section for OPENFORMS_IMAGE_TAG_LATEST
-          VERSION2_CONTENT=$(echo "$WEBSITE1_CHANGELOG" | awk "/^${{ env.OPENFORMS_IMAGE_TAG_LATEST }} /,/^## /")
+          VERSION2_CONTENT=$(echo "$WEBSITE1_CHANGELOG" | awk "/^${{ env.OPENFORMS_IMAGE_TAG_LATEST }} /,/^## /" | sed '$d')
 
           # Combine both versions into an environment variable
           echo "openforms<<EOF" >> $GITHUB_ENV
