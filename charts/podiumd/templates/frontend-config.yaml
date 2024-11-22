@@ -20,7 +20,7 @@ data:
   {{- if .Values.kiss.email.enableSSL }}
   EMAIL_ENABLE_SSL: {{ .Values.kiss.email.enableSSL }}
   {{- end }}
-  {{- if .Value.kiss.email.feedbackFrom }}
+  {{- if .Values.kiss.email.feedbackFrom }}
   FEEDBACK_EMAIL_FROM: {{ .Values.kiss.email.feedbackFrom | quote }}
   {{- end }}
   {{- if .Values.kiss.email.feedbackTo }}
