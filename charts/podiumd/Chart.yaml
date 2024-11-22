@@ -62,8 +62,8 @@ dependencies:
     condition: kisselastic.enabled
     tags:
       - contact
-  - name: kiss
-    version: 1.0.6
+  - name: kiss-frontend
+    version: 1.0.51
     repository: "@kiss-frontend"
     condition: kiss.enabled
     tags:
