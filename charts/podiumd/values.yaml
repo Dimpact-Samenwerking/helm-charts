@@ -544,7 +544,7 @@ httpRequestJob:
   intellijHttpClient:
     image:
       repository: jetbrains/intellij-http-client
-      tag: "243.21565.23"
+      tag: "243.22562.13"
   jwtCli:
     image:
       repository: bitnami/jwt-cli
