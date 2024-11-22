@@ -62,3 +62,9 @@ dependencies:
     condition: kisselastic.enabled
     tags:
       - contact
+  - name: kiss
+    version: 1.0.6
+    repository: "@kiss"
+    condition: kiss.enabled
+    tags:
+      - contact

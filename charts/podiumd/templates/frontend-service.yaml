@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ default (printf "%s-frontend" (include "podiumd.fullname" .)) .Values.kiss.frontend.service.name }}
+  labels:
+    {{- include "podiumd.labelsFrontend" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "podiumd.selectorLabelsFrontend" . | nindent 4 }}

@@ -60,3 +60,35 @@ Create the name of the service account to use
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
 {{- end }}
+
+{{/*
+Frontend labels
+*/}}
+{{- define "podiumd.labelsFrontend" -}}
+app.kubernetes.io/name: {{ include "podiumd.name" . }}-frontend
+{{ include "podiumd.labels" . }}
+{{- end }}
+
+{{/*
+Frontend selector labels
+*/}}
+{{- define "podiumd.selectorLabelsFrontend" -}}
+app.kubernetes.io/name: {{ include "podiumd.name" . }}-frontend
+app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
+
+{{/*
+Adapter labels
+*/}}
+{{- define "podiumd.labelsAdapter" -}}
+app.kubernetes.io/name: {{ include "podiumd.name" . }}-adapter
+{{ include "podiumd.labels" . }}
+{{- end }}
+
+{{/*
+Adapter selector labels
+*/}}
+{{- define "podiumd.selectorLabelsAdapter" -}}
+app.kubernetes.io/name: {{ include "podiumd.name" . }}-adapter
+app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}

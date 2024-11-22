@@ -112,10 +112,29 @@
 | Open Notificaties | 1.7.1   |
 | Open Zaak         | 1.15.0  |
 
+### 3.0.0
+
+**PodiumD Helm chart version: 1.1.22**
+
+| Component         | Version |
+|-------------------|---------|
+| ClamAV            | 1.4.1   |
+| Keycloak          | 24.0.5  |
+| Objecten          | 2.4.4   |
+| Objecttypen       | 2.2.2   |
+| Open Formulieren  | 2.7.9   |
+| Open Inwoner      | 1.21.3  |
+| Open Klant        | 2.3.0   |
+| Open Notificaties | 1.7.1   |
+| Open Zaak         | 1.15.0  |
+| KISS              | 0.5.0   |
+
 ## Add Used chart repositories:
 
     helm repo add bitnami https://charts.bitnami.com/bitnami
     helm repo add dimpact https://Dimpact-Samenwerking.github.io/helm-charts/
+    helm repo add kiss-frontend https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/KISS-frontend/main/helm
+    helm repo add kiss-adapter https://raw.githubusercontent.com/ICATT-Menselijk-Digitaal/podiumd-adapter/main/helm
     helm repo add kiss-elastic https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/.github/main/docs/scripts/elastic
     helm repo add maykinmedia https://maykinmedia.github.io/charts
     helm repo add wiremind https://wiremind.github.io/wiremind-helm-charts

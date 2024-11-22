@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "podiumd.fullname" . }}-adapter
+  labels:
+    {{- include "podiumd.labelsAdapter" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "podiumd.selectorLabelsAdapter" . | nindent 4 }}
