@@ -434,6 +434,10 @@ kisselastic:
       - podiumd
 
 kiss:
+  configuration:
+    oidcUrl: https://kiss.example.nl
+    oidcSecret: "<kiss>"
+
   brp:
     baseUrl: ""
     apiKey: ""
