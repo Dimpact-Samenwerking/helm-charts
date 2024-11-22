@@ -21,7 +21,7 @@ spec:
           restartPolicy: Never
           containers:
             - name: sync-vac
-              image: "{{ .Values.kiss.sync.image.repository }}:{{ .Values.sync.image.tag }}"
+              image: "{{ .Values.kiss.sync.image.repository }}:{{ .Values.kiss.sync.image.tag }}"
               imagePullPolicy: {{ .Values.kiss.sync.image.pullPolicy }}
               args:
                 - vac
