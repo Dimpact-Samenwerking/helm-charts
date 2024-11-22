@@ -548,6 +548,12 @@ kiss:
       tag: "latest"
       pullPolicy: IfNotPresent
 
+  alpine:
+     image:
+       repository: "alpine"
+       tag: "3.20"
+       pullPolicy: IfNotPresent
+
 nameOverride: ""
 fullnameOverride: ""
 
