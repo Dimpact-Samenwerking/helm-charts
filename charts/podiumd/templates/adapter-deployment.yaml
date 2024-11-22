@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "podiumd.fullname" . }}-adapter
+  labels:
+    {{- include "podiumd.labelsAdapter" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "podiumd.selectorLabelsAdapter" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/adapter-config.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/adapter-secret.yaml") . | sha256sum }}
+      labels:
+        {{- include "podiumd.labelsAdapter" . | nindent 8 }}
+    spec:
+      {{- with .Values.kiss.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "podiumd.serviceAccountName" . }}
+      containers:
+        - name: adapter
+          image: "{{ .Values.kiss.adapter.image.repository }}:{{ .Values.kiss.adapter.image.tag }}"
+          imagePullPolicy: {{ .Values.kiss.adapter.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          resources:
+            {{- toYaml .Values.kiss.adapter.resources | nindent 12 }}
+          envFrom:
+            - configMapRef:
+                name: adapter-config
+            - secretRef:
+                name: adapter-secret
+      {{- with .Values.kiss.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

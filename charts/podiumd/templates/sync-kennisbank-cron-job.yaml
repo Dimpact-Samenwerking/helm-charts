@@ -1,0 +1,34 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: podiumd-sync-kennisbank-cron-job
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/name: {{ include "podiumd.name" . }}-sync-kennisbank-cron-job
+spec:
+  schedule: {{ .Values.kiss.sync.schedule.kennisbank | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: {{ .Values.kiss.sync.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.kiss.sync.failedJobsHistoryLimit }}
+  jobTemplate:
+    metadata:
+      labels:
+        {{- include "podiumd.labels" . | nindent 8 }}
+        app.kubernetes.io/name: {{ include "podiumd.name" . }}-sync-kennisbank-cron-job
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: sync-kennisbank
+              image: "{{ .Values.kiss.sync.image.repository }}:{{ .Values.sync.image.tag }}"
+              imagePullPolicy: {{ .Values.kiss.sync.image.pullPolicy }}
+              envFrom:
+                - configMapRef:
+                    name: podiumd-sync-config
+                - secretRef:
+                    name: podiumd-sync-secret
+          {{- with .Values.kiss.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}

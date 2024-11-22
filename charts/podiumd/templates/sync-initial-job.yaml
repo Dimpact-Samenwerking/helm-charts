@@ -1,0 +1,61 @@
+{{- if .Values.kiss.sync.initialSync }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: podiumd-sync-initial-job
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/name: {{ include "podiumd.name" . }}-sync-initial-job
+  annotations:
+    "helm.sh/hook": post-install
+    "helm.sh/hook-weight": "-5"
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        {{- include "podiumd.labels" . | nindent 8 }}
+        app.kubernetes.io/name: {{ include "podiumd.name" . }}-sync-initial-job
+    spec:
+      restartPolicy: Never
+      initContainers:
+        - name: wait
+          image: "{{ .Values.kiss.alpine.image.repository }}:{{ .Values.kiss.alpine.image.tag }}"
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              echo "Wait for 1 minute ..." && \
+              sleep 60
+      containers:
+        - name: sync-smoelenboek
+          image: "{{ .Values.kiss.sync.image.repository }}:{{ .Values.kiss.sync.image.tag }}"
+          imagePullPolicy: {{ .Values.kiss.sync.image.pullPolicy }}
+          args:
+            - smoelenboek
+          envFrom:
+            - configMapRef:
+                name: podiumd-sync-config
+            - secretRef:
+                name: podiumd-sync-secret
+        - name: sync-vac
+          image: "{{ .Values.kiss.sync.image.repository }}:{{ .Values.kiss.sync.image.tag }}"
+          args:
+            - vac
+          envFrom:
+            - configMapRef:
+                name: podiumd-sync-config
+            - secretRef:
+                name: podiumd-sync-secret
+        - name: sync-kennisbank
+          image: "{{ .Values.kiss.sync.image.repository }}:{{ .Values.kiss.sync.image.tag }}"
+          envFrom:
+            - configMapRef:
+                name: podiumd-sync-config
+            - secretRef:
+                name: podiumd-sync-secret
+      {{- with .Values.kiss.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

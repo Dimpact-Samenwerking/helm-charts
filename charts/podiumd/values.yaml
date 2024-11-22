@@ -434,9 +434,117 @@ kisselastic:
       - podiumd
 
 kiss:
-  configuration:
-    oidcUrl: https://kiss.example.nl
-    oidcSecret: "<kiss>"
+  brp:
+    baseUrl: ""
+    apiKey: ""
+
+  elastic:
+    baseUrl: ""
+    username: elastic
+    password: ""
+
+  enterpriseSearch:
+    baseUrl: ""
+    privateApikey: ""
+    publicApikey: ""
+    engine: kiss-engine
+
+  esuite:
+    baseUrl: ""
+    clientId: kiss
+    secret: ""
+    contactverzoektypen: []
+
+  database:
+    host: ""
+    name: ""
+    user: ""
+    password: ""
+
+  email:
+    host: ""
+    port: null
+    username: ""
+    password: ""
+    enableSSL: null
+    feedbackFrom: ""
+    feedbackTo: ""
+
+  kvk:
+    baseUrl: ""
+    apikey: ""
+
+  objecten:
+    baseUrl: ""
+    token: ""
+
+  objecttypen:
+    baseUrlIntern: ""
+    baseUrlExtern: ""
+    token: ""
+    afdelingUUID: ""
+    groepUUID: ""
+    interneTaakUUID: ""
+    kennisartikelUUID: ""
+    medewerkerUUID: ""
+    vacUUID: ""
+
+  oidc:
+    authority: ""
+    clientId: kiss
+    secret: ""
+    medewerkerIdentificatieClaim: preferred_username
+    medewerkerIdentificatieTruncate: null
+
+  organisatieIds: ""
+
+  imagePullSecrets: []
+
+
+
+  nodeSelector: {}
+
+  frontend:
+    service:
+      name: ""
+    image:
+      repository: ghcr.io/klantinteractie-servicesysteem/kiss-frontend
+      tag: "v0.5.0"
+      pullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 10m
+        memory: 100Mi
+    aspNetCoreEnvironment: Production
+
+  adapter:
+    baseUrl: ""
+    clientId: kiss_intern
+    secret: ""
+    image:
+      repository: ghcr.io/icatt-menselijk-digitaal/podiumd-adapter
+      tag: "latest"
+      pullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 10m
+        memory: 100Mi
+
+  sync:
+    initialSync: true
+    schedule:
+      kennisbank: "*/59 * * * *"
+      smoelenboek: "*/59 * * * *"
+      vac: "*/59 * * * *"
+    successfulJobsHistoryLimit: 1
+    failedJobsHistoryLimit: 1
+    image:
+      repository: "ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync"
+      tag: "latest"
+      pullPolicy: IfNotPresent
+
+nameOverride: ""
+fullnameOverride: ""
 
 zac:
   configuration:
