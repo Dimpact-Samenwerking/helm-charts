@@ -64,7 +64,7 @@ dependencies:
       - contact
   - name: kiss
     version: 1.0.6
-    repository: "@kiss"
+    repository: "@kiss-frontend"
     condition: kiss.enabled
     tags:
       - contact

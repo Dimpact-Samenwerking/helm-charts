@@ -434,6 +434,7 @@ kisselastic:
       - podiumd
 
 kiss:
+  enabled: true
   configuration:
     oidcUrl: https://kiss.example.nl
     oidcSecret: "<kiss>"
