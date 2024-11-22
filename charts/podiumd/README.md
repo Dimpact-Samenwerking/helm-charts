@@ -133,7 +133,6 @@
 
     helm repo add bitnami https://charts.bitnami.com/bitnami
     helm repo add dimpact https://Dimpact-Samenwerking.github.io/helm-charts/
-    helm repo add kiss https://Dimpact-Samenwerking.github.io/helm-charts/
     helm repo add kiss-frontend https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/KISS-frontend/main/helm
     helm repo add kiss-adapter https://raw.githubusercontent.com/ICATT-Menselijk-Digitaal/podiumd-adapter/main/helm
     helm repo add kiss-elastic https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/.github/main/docs/scripts/elastic
