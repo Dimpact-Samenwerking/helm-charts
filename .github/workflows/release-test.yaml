@@ -87,13 +87,21 @@ jobs:
       - name: Fetch changelog of Open Formulieren
         id: fetch_changelogs_openforms
         run: |
-          # Fetch and process the changelog content
-          WEBSITE1_CHANGELOG=$(curl -s https://raw.githubusercontent.com/open-formulieren/open-forms/refs/heads/master/CHANGELOG.rst)
+          START_VERSION=${{ env.OPENFORMS_IMAGE_TAG_LATEST }}
+          END_VERSION=${{ env.OPENFORMS_IMAGE_TAG }}
+          CHANGELOG_URL="https://raw.githubusercontent.com/open-formulieren/open-forms/refs/heads/master/CHANGELOG.rst"
+
+          # Extract changelog content between versions
+          CHANGELOG_CONTENT=$(curl -s "$CHANGELOG_URL" | awk "/^$START_VERSION /,/^$END_VERSION /")
+          # Remove markers from awk output
+          CHANGELOG_CLEAN=$(echo "$CHANGELOG_CONTENT" | sed "s/^$START_VERSION//" | sed "s/^$END_VERSION//")
+
+          # Save changelog content to environment variable
           echo "openforms<<EOF" >> $GITHUB_ENV
           echo "### Open Formulieren" >> $GITHUB_ENV
-          echo "$WEBSITE1_CHANGELOG" >> $GITHUB_ENV
+          echo "$CHANGELOG_CLEAN" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
-
+         
       - name: Fetch changelogs of Open Zaak 
         id: fetch_changelogs_openzaak
         run: |
