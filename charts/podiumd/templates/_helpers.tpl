@@ -67,6 +67,7 @@ Frontend labels
 {{- define "podiumd.labelsFrontend" -}}
 app.kubernetes.io/name: {{ include "podiumd.name" . }}-frontend
 {{ include "podiumd.labels" . }}
+{{ include "podiumd.selectorLabelsFrontend" . }}
 {{- end }}
 
 {{/*
