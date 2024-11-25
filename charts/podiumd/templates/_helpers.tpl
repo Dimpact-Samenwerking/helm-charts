@@ -65,8 +65,8 @@ Create the name of the service account to use
 Frontend labels
 */}}
 {{- define "podiumd.labelsFrontend" -}}
-app.kubernetes.io/name: {{ include "podiumd.name" . }}-frontend
 {{ include "podiumd.labels" . }}
+{{ include "podiumd.selectorLabelsFrontend" . }}
 {{- end }}
 
 {{/*
@@ -81,7 +81,6 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 Adapter labels
 */}}
 {{- define "podiumd.labelsAdapter" -}}
-app.kubernetes.io/name: {{ include "podiumd.name" . }}-adapter
 {{ include "podiumd.labels" . }}
 {{ include "podiumd.selectorLabelsAdapter" . }}
 {{- end }}
