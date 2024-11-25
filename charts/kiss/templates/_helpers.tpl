@@ -62,8 +62,8 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 Adapter labels
 */}}
 {{- define "kiss.labelsAdapter" -}}
-app.kubernetes.io/name: {{ include "kiss.name" . }}-adapter
 {{ include "kiss.labels" . }}
+{{ include "kiss.selectorLabelsAdapter" . }}
 {{- end }}
 
 {{/*
