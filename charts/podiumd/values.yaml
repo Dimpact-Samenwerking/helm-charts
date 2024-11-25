@@ -34,7 +34,7 @@ keycloak:
     adminUser: admin
     adminPassword: ChangeMeNow
   externalDatabase:
-    host: ""
+    host: "dummy"
     database: ""
     user: ""
   keycloakConfigCli:
