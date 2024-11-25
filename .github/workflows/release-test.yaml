@@ -87,18 +87,34 @@ jobs:
       - name: Fetch changelog of Open Formulieren
         id: fetch_changelogs_openforms
         run: |
-          # Fetch the changelog content
+          # Define the changelog URL
           CHANGELOG_URL="https://raw.githubusercontent.com/open-formulieren/open-forms/refs/heads/master/CHANGELOG.rst"
-          START_TAG=${{ env.OPENFORMS_IMAGE_TAG }}
-          END_TAG=${{ env.OPENFORMS_IMAGE_TAG_LATEST }}
           
-          # Extract changelog content for the specified version range
-          CHANGELOG=$(curl -s "$CHANGELOG_URL" | awk "/^$START_TAG /,/^$END_TAG /")
+          # Define the version tags
+          TARGET_VERSION=${{ env.OPENFORMS_IMAGE_TAG }}
+          PREVIOUS_VERSION=${{ env.OPENFORMS_IMAGE_TAG_LATEST }}
+
+          # Fetch the entire changelog file
+          CHANGELOG=$(curl -s "$CHANGELOG_URL")
           
-          # Save it to the environment
+          # Extract the changelog section for the target version
+          VERSION_CONTENT=$(echo "$CHANGELOG" | awk "/^$TARGET_VERSION /,/^$PREVIOUS_VERSION /")
+          
+          # If the section is empty, fallback to single version block extraction
+          if [[ -z "$VERSION_CONTENT" ]]; then
+            VERSION_CONTENT=$(echo "$CHANGELOG" | awk "/^$TARGET_VERSION /,/^$/")
+          fi
+          
+          # Check if content was found and save to the environment variable
+          if [[ -z "$VERSION_CONTENT" ]]; then
+            echo "No changelog content found for version $TARGET_VERSION" >&2
+            exit 1
+          fi
+
+          # Save the extracted changelog to the environment variable
           echo "openforms<<EOF" >> $GITHUB_ENV
           echo "### Open Formulieren" >> $GITHUB_ENV
-          echo "$CHANGELOG" >> $GITHUB_ENV
+          echo "$VERSION_CONTENT" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
          
       - name: Fetch changelogs of Open Zaak 
