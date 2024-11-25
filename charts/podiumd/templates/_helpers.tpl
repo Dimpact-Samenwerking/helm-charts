@@ -83,6 +83,7 @@ Adapter labels
 {{- define "podiumd.labelsAdapter" -}}
 app.kubernetes.io/name: {{ include "podiumd.name" . }}-adapter
 {{ include "podiumd.labels" . }}
+{{ include "podiumd.selectorLabelsAdapter" . }}
 {{- end }}
 
 {{/*
