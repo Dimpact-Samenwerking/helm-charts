@@ -1,4 +1,4 @@
-  name: niet gebruiken ivm testfase
+name: niet gebruiken ivm testfase
 
 on:
   workflow_dispatch:
