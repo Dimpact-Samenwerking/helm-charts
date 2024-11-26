@@ -44,12 +44,12 @@ jobs:
         id: get_release_commit
         run: |
           LATEST_RELEASE_COMMIT=$(curl -s https://api.github.com/repos/Dimpact-Samenwerking/helm-charts/releases/latest | jq -r .target_commitish)
+          COMMIT_HASH=${{ env.LATEST_RELEASE_COMMIT }}
           echo "LATEST_RELEASE_COMMIT=$LATEST_RELEASE_COMMIT" >> $GITHUB_ENV
 
       - name: Get current version from latest release
         id: get_current_version
         run: |
-          COMMIT_HASH=${{ env.LATEST_RELEASE_COMMIT }}
           OPENFORMS_IMAGE_TAG=$(git show -q $COMMIT_HASH:charts/podiumd/values.yaml | yq -r .openformulieren.image.tag)
           OPENZAAK_IMAGE_TAG=$(git show -q $COMMIT_HASH:charts/podiumd/values.yaml | yq -r .openzaak.image.tag)
           OPENKLANT_IMAGE_TAG=$(git show -q $COMMIT_HASH:charts/podiumd/values.yaml | yq -r .openklant.image.tag)
@@ -88,7 +88,7 @@ jobs:
         id: fetch_changelogs_openforms
         run: |
           # Define the changelog URL
-          WEBSITE1_CHANGELOG=$(curl -s https://raw.githubusercontent.com/open-formulieren/open-forms/refs/heads/master/CHANGELOG.rst | awk '/^${{ env.OPENFORMS_IMAGE_TAG }} /,/ ${{ env.OPENFORMS_IMAGE_TAG_LATEST }} /')
+          WEBSITE1_CHANGELOG=$(curl -s https://raw.githubusercontent.com/open-formulieren/open-forms/refs/heads/master/CHANGELOG.rst | awk '/^${{ env.OPENFORMS_IMAGE_TAG }} /,/^ ${{ env.OPENFORMS_IMAGE_TAG_LATEST }} /')
           echo "openforms<<EOF" >> $GITHUB_ENV
           echo "### Open Formulieren" >> $GITHUB_ENV
           echo "$WEBSITE1_CHANGELOG" >> $GITHUB_ENV
