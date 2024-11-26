@@ -100,6 +100,8 @@ jobs:
           WEBSITE2_CHANGELOG=$(curl -s https://raw.githubusercontent.com/open-zaak/open-zaak/main/CHANGELOG.rst | awk "/^${OPENZAAK_IMAGE_TAG_LATEST} / {flag=1} /^1\\.[0-9]+\\.[0-9]+ / && \$1 != \"${OPENZAAK_IMAGE_TAG_LATEST}\" {flag=0} flag")
           echo "Changelog for version ${OPENZAAK_IMAGE_TAG_LATEST}:"
           echo "$WEBSITE2_CHANGELOG" >> $GITHUB_ENV
+          env:
+            OPENZAAK_IMAGE_TAG_LATEST: ${{ env.OPENZAAK_IMAGE_TAG_LATEST }}
           
       - name: Fetch changelog of Open Klant
         id: fetch_changelogs_openklant
