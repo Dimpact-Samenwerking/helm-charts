@@ -87,68 +87,71 @@ jobs:
       - name: Fetch changelog of Open Formulieren
         id: fetch_changelogs_openforms
         run: |
-          # Define the changelog URL
-          WEBSITE1_CHANGELOG=$(curl -s https://raw.githubusercontent.com/open-formulieren/open-forms/refs/heads/master/CHANGELOG.rst | awk '/^${{ env.OPENFORMS_IMAGE_TAG }} /,/^ ${{ env.OPENFORMS_IMAGE_TAG_LATEST }} /')
-          echo "openforms<<EOF" >> $GITHUB_ENV
+          OPENFORMS_CHANGELOG=$(curl -s https://raw.githubusercontent.com/open-formulieren/open-forms/refs/heads/master/CHANGELOG.rst | awk "/^${OPENZAAK_IMAGE_TAG_LATEST} / {flag=1} /^1\\.[0-9]+\\.[0-9]+ / && \$1 != \"${OPENZAAK_IMAGE_TAG_LATEST}\" {flag=0} flag")
+          echo "$OPENFORMS_CHANGELOG"
+          echo "OPENFORMS_CHANGELOG<<EOF" >> $GITHUB_ENV
           echo "### Open Formulieren" >> $GITHUB_ENV
-          echo "$WEBSITE1_CHANGELOG" >> $GITHUB_ENV
+          echo "$OPENFORMS_CHANGELOG" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
          
       - name: Fetch changelogs of Open Zaak 
         id: fetch_changelogs_openzaak
         run: |
-          WEBSITE2_CHANGELOG=$(curl -s https://raw.githubusercontent.com/open-zaak/open-zaak/main/CHANGELOG.rst | awk "/^${OPENZAAK_IMAGE_TAG_LATEST} / {flag=1} /^1\\.[0-9]+\\.[0-9]+ / && \$1 != \"${OPENZAAK_IMAGE_TAG_LATEST}\" {flag=0} flag")
-          # Debugging output
-          echo "$WEBSITE2_CHANGELOG"
-          # Set the WEBSITE2_CHANGELOG variable to an environment variable, making sure it handles newlines properly
-          echo "WEBSITE2_CHANGELOG<<EOF" >> $GITHUB_ENV
+          OPENZAAK_CHANGELOG=$(curl -s https://raw.githubusercontent.com/open-zaak/open-zaak/main/CHANGELOG.rst | awk "/^${OPENZAAK_IMAGE_TAG_LATEST} / {flag=1} /^1\\.[0-9]+\\.[0-9]+ / && \$1 != \"${OPENZAAK_IMAGE_TAG_LATEST}\" {flag=0} flag")
+          echo "$OPENZAAK_CHANGELOG"
+          echo "OPENZAAK_CHANGELOG<<EOF" >> $GITHUB_ENV
           echo "### Open Zaak" >> $GITHUB_ENV
-          echo "$WEBSITE2_CHANGELOG" >> $GITHUB_ENV
+          echo "$OPENZAAK_CHANGELOG" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
           
       - name: Fetch changelog of Open Klant
         id: fetch_changelogs_openklant
         run: |
-          WEBSITE3_CHANGELOG=$(curl -s https://raw.githubusercontent.com/maykinmedia/open-klant/refs/heads/master/CHANGELOG.rst | awk '/^${{ env.OPENKLANT_IMAGE_TAG }} /,/^${{ env.OPENKLANT_IMAGE_TAG_LATEST }} /')
-          echo "openklant<<EOF" >> $GITHUB_ENV
+          OPENKLANT_CHANGELOG=$(curl -s https://raw.githubusercontent.com/maykinmedia/open-klant/refs/heads/master/CHANGELOG.rst | awk "/^${OPENKLANT_IMAGE_TAG_LATEST} / {flag=1} /^1\\.[0-9]+\\.[0-9]+ / && \$1 != \"${OPENKLANT_IMAGE_TAG_LATEST}\" {flag=0} flag")
+          echo "$OPENKLANT_CHANGELOG"
+          echo "OPENKLANT_CHANGELOG<<EOF" >> $GITHUB_ENV
           echo "### Open Klant" >> $GITHUB_ENV
-          echo "$WEBSITE3_CHANGELOG" >> $GITHUB_ENV
+          echo "$OPENZAAK_CHANGELOG" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
           
       - name: Fetch changelogs of Open Notificaties
         id: fetch_changelogs_opennotificaties
         run: |
-          WEBSITE4_CHANGELOG=$(curl -s https://raw.githubusercontent.com/open-zaak/open-notificaties/refs/heads/main/CHANGELOG.rst | awk '/^${{ env.OPENNOTIFICATIES_IMAGE_TAG }} /,/^${{ env.OPENNOTIFICATIES_IMAGE_TAG_LATEST }} /')
-          echo "opennotificaties<<EOF" >> $GITHUB_ENV
+          OPENNOTIFICATIES_CHANGELOG=$(curl -s https://raw.githubusercontent.com/open-zaak/open-notificaties/refs/heads/main/CHANGELOG.rst | awk "/^${OPENNOTIFICATIES_IMAGE_TAG_LATEST} / {flag=1} /^1\\.[0-9]+\\.[0-9]+ / && \$1 != \"${OPENNOTIFICATIES_IMAGE_TAG_LATEST}\" {flag=0} flag")
+          echo "$OPENNOTIFICATIES_CHANGELOG"
+          echo "OPENNOTIFICATIES_CHANGELOG<<EOF" >> $GITHUB_ENV
           echo "### Open Notificaties" >> $GITHUB_ENV
-          echo "$WEBSITE4_CHANGELOG" >> $GITHUB_ENV
+          echo "$OPENNOTIFICATIES_CHANGELOG" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
           
       - name: Fetch changelogs of Objecten
         id: fetch_changelogs_objecten
         run: |
-           WEBSITE5_CHANGELOG=$(curl -s https://raw.githubusercontent.com/maykinmedia/objects-api/refs/heads/stable/2.4.x/CHANGELOG.rst | awk '/^${{ env.OBJECTEN_IMAGE_TAG }} /,/^${{ env.OBJECTEN_IMAGE_TAG_LATEST }} /')
-           echo "objecten<<EOF" >> $GITHUB_ENV
-           echo "### Open Klant" >> $GITHUB_ENV
-           echo "$WEBSITE5_CHANGELOG" >> $GITHUB_ENV
+           OBJECTEN_CHANGELOG=$(curl -s https://raw.githubusercontent.com/maykinmedia/objects-api/refs/heads/stable/2.4.x/CHANGELOG.rst | awk "/^${OBJECTEN_IMAGE_TAG_LATEST} / {flag=1} /^1\\.[0-9]+\\.[0-9]+ / && \$1 != \"${OPENZAAK_IMAGE_TAG_LATEST}\" {flag=0} flag")
+           echo "$OBJECTEN_CHANGELOG"
+           echo "OBJECTEN_CHANGELOG<<EOF" >> $GITHUB_ENV
+           echo "### Objecten" >> $GITHUB_ENV
+           echo "$OBJECTEN_CHANGELOG" >> $GITHUB_ENV
            echo "EOF" >> $GITHUB_ENV
            
       - name: Fetch changelogs of Objecttypen
         id: fetch_changelogs_objecttypen
         run: |
-          WEBSITE6_CHANGELOG=$(curl -s https://raw.githubusercontent.com/maykinmedia/objecttypes-api/refs/heads/master/CHANGELOG.rst | awk '/^${{ env.OBJECTTYPEN_IMAGE_TAG }} /,/^${{ env.OBJECTTYPEN_IMAGE_TAG_LATEST }} /')
-          echo "objecttypen<<EOF" >> $GITHUB_ENV
+          OBJECTTYPEN_CHANGELOG=$(curl -s https://raw.githubusercontent.com/maykinmedia/objecttypes-api/refs/heads/master/CHANGELOG.rst | awk "/^${OBJECTTYPEN_IMAGE_TAG_LATEST} / {flag=1} /^1\\.[0-9]+\\.[0-9]+ / && \$1 != \"${OBJECTTYPEN_IMAGE_TAG_LATEST}\" {flag=0} flag")
+          echo "$OBJECTTYPEN_CHANGELOG"
+          echo "OBJECTTYPEN_CHANGELOG<<EOF" >> $GITHUB_ENV
           echo "### Objecttypen" >> $GITHUB_ENV
-          echo "$WEBSITE6_CHANGELOG" >> $GITHUB_ENV
+          echo "$OBJECTTYPEN_CHANGELOG" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
           
       - name: Fetch changelogs of Open Inwoner
         id: fetch_changelogs_openinwoner
         run: |
-          WEBSITE7_CHANGELOG=$(curl -s https://api.github.com/repos/maykinmedia/open-inwoner/releases/latest | awk '/^${{ env.OPENINWONER_IMAGE_TAG_LATEST }} /,/^${{ env.OPENINWONER_IMAGE_TAG }} /')
-          echo "openinwoner<<EOF" >> $GITHUB_ENV
+          OPENINWONER_CHANGELOG=$(curl -s https://api.github.com/repos/maykinmedia/open-inwoner/releases/latest | awk "/^${OPENINWONER_IMAGE_TAG_LATEST} / {flag=1} /^1\\.[0-9]+\\.[0-9]+ / && \$1 != \"${OPENINWONER_IMAGE_TAG_LATEST}\" {flag=0} flag")
+          echo "$OPENINWONER_CHANGELOG"
+          echo "OPENINWONER_CHANGELOG<<EOF" >> $GITHUB_ENV
           echo "### Open Inwoner" >> $GITHUB_ENV
-          echo "$WEBSITE7_CHANGELOG" >> $GITHUB_ENV
+          echo "$OPENINWONER_CHANGELOG" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
       - name: Add dependency chart repos
@@ -179,6 +182,12 @@ jobs:
             ## Changes in this Release
             ${{ env.commits }}
             ## Changelogs
-            ${{ env.WEBSITE2_CHANGELOG }}
+            ${{ env.OPENFORMS_CHANGELOG }}
+            ${{ env.OPENZAAK_CHANGELOG }}
+            ${{ env.OPENKLANT_CHANGELOG }}
+            ${{ env.OPENNOTIFICATIES_CHANGELOG }}
+            ${{ env.OBJECTEN_CHANGELOG }}
+            ${{ env.OBJECTTYPEN_CHANGELOG }}
+            ${{ env.OPENINWONER_CHANGELOG }}
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
