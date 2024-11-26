@@ -1,4 +1,4 @@
-name: Release Charts test
+  name: niet gebruiken ivm testfase
 
 on:
   workflow_dispatch:
