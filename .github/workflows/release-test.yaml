@@ -178,6 +178,6 @@ jobs:
             ## Changelogs
             ${{ env.openforms }}
             ${{ env.openinwoner }}
-            
+            ${{ env.openzaak }}
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
