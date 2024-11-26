@@ -101,7 +101,8 @@ jobs:
           # Debugging output
           echo "$WEBSITE2_CHANGELOG"
           # Set the WEBSITE2_CHANGELOG variable to an environment variable, making sure it handles newlines properly
-          echo "### Open Zaak<<EOF" >> $GITHUB_ENV
+          echo "WEBSITE2_CHANGELOG<<EOF" >> $GITHUB_ENV
+          echo "### Open Zaak" >> $GITHUB_ENV
           echo "$WEBSITE2_CHANGELOG" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
           
