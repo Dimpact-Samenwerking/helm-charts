@@ -97,7 +97,7 @@ jobs:
       - name: Fetch changelogs of Open Zaak 
         id: fetch_changelogs_openzaak
         run: |
-          WEBSITE2_CHANGELOG=$(curl -s https://raw.githubusercontent.com/open-zaak/open-zaak/main/CHANGELOG.rst)
+          WEBSITE2_CHANGELOG=$(curl -s https://raw.githubusercontent.com/open-zaak/open-zaak/main/CHANGELOG.rst | awk '/^${{ env.OPENZAAK_IMAGE_TAG_LATEST }}/ {flag=1} /^1.[0-9]+\.[0-9]+ / && $1 != "{{ env.OPENZAAK_IMAGE_TAG_LATEST }" {flag=0} flag')
           echo "openzaak<<EOF" >> $GITHUB_ENV
           echo "### Open Zaak" >> $GITHUB_ENV
           echo "$WEBSITE2_CHANGELOG" >> $GITHUB_ENV
