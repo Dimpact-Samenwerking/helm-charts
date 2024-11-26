@@ -176,8 +176,6 @@ jobs:
             ## Changes in this Release
             ${{ env.commits }}
             ## Changelogs
-            ${{ env.openforms }}
-            ${{ env.openinwoner }}
-            ${{ env.OPENZAAK_IMAGE_TAG_LATEST }}
+            ${{ env.WEBSITE2_CHANGELOG }}
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
