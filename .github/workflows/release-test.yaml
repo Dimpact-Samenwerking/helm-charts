@@ -87,7 +87,7 @@ jobs:
       - name: Fetch changelog of Open Formulieren
         id: fetch_changelogs_openforms
         run: |
-          OPENFORMS_CHANGELOG=$(curl -s https://raw.githubusercontent.com/open-formulieren/open-forms/refs/heads/master/CHANGELOG.rst | awk "/^${OPENZAAK_IMAGE_TAG_LATEST} / {flag=1} /^1\\.[0-9]+\\.[0-9]+ / && \$1 != \"${OPENZAAK_IMAGE_TAG_LATEST}\" {flag=0} flag")
+          OPENFORMS_CHANGELOG=$(curl -s https://raw.githubusercontent.com/open-formulieren/open-forms/refs/heads/master/CHANGELOG.rst | awk "/^${OPENFORMS_IMAGE_TAG_LATEST} / {flag=1} /^1\\.[0-9]+\\.[0-9]+ / && \$1 != \"${OPENFORMS_IMAGE_TAG_LATEST}\" {flag=0} flag")
           echo "$OPENFORMS_CHANGELOG"
           echo "OPENFORMS_CHANGELOG<<EOF" >> $GITHUB_ENV
           echo "### Open Formulieren" >> $GITHUB_ENV
@@ -111,7 +111,7 @@ jobs:
           echo "$OPENKLANT_CHANGELOG"
           echo "OPENKLANT_CHANGELOG<<EOF" >> $GITHUB_ENV
           echo "### Open Klant" >> $GITHUB_ENV
-          echo "$OPENZAAK_CHANGELOG" >> $GITHUB_ENV
+          echo "$OPENKLANT_CHANGELOG" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
           
       - name: Fetch changelogs of Open Notificaties
@@ -127,7 +127,7 @@ jobs:
       - name: Fetch changelogs of Objecten
         id: fetch_changelogs_objecten
         run: |
-           OBJECTEN_CHANGELOG=$(curl -s https://raw.githubusercontent.com/maykinmedia/objects-api/refs/heads/stable/2.4.x/CHANGELOG.rst | awk "/^${OBJECTEN_IMAGE_TAG_LATEST} / {flag=1} /^1\\.[0-9]+\\.[0-9]+ / && \$1 != \"${OPENZAAK_IMAGE_TAG_LATEST}\" {flag=0} flag")
+           OBJECTEN_CHANGELOG=$(curl -s https://raw.githubusercontent.com/maykinmedia/objects-api/refs/heads/stable/2.4.x/CHANGELOG.rst | awk "/^${OBJECTEN_IMAGE_TAG_LATEST} / {flag=1} /^1\\.[0-9]+\\.[0-9]+ / && \$1 != \"${OBJECTEN_IMAGE_TAG_LATEST}\" {flag=0} flag")
            echo "$OBJECTEN_CHANGELOG"
            echo "OBJECTEN_CHANGELOG<<EOF" >> $GITHUB_ENV
            echo "### Objecten" >> $GITHUB_ENV
@@ -147,7 +147,7 @@ jobs:
       - name: Fetch changelogs of Open Inwoner
         id: fetch_changelogs_openinwoner
         run: |
-          OPENINWONER_CHANGELOG=$(curl -s https://api.github.com/repos/maykinmedia/open-inwoner/releases/latest | awk "/^${OPENINWONER_IMAGE_TAG_LATEST} / {flag=1} /^1\\.[0-9]+\\.[0-9]+ / && \$1 != \"${OPENINWONER_IMAGE_TAG_LATEST}\" {flag=0} flag")
+          OPENINWONER_CHANGELOG=$(curl -s https://api.github.com/repos/maykinmedia/open-inwoner/releases/latest | jq -r '.body')
           echo "$OPENINWONER_CHANGELOG"
           echo "OPENINWONER_CHANGELOG<<EOF" >> $GITHUB_ENV
           echo "### Open Inwoner" >> $GITHUB_ENV
