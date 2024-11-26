@@ -97,7 +97,7 @@ jobs:
       - name: Fetch changelogs of Open Zaak 
         id: fetch_changelogs_openzaak
         run: |
-          WEBSITE2_CHANGELOG=$(curl -s https://raw.githubusercontent.com/open-zaak/open-zaak/main/CHANGELOG.rst | awk '/^${{ env.OPENZAAK_IMAGE_TAG }} /,/^${{ env.OPENZAAK_IMAGE_TAG_LATEST }} /')
+          WEBSITE2_CHANGELOG=$(curl -s https://raw.githubusercontent.com/open-zaak/open-zaak/main/CHANGELOG.rst | awk '/^${{ env.OPENZAAK_IMAGE_TAG_LATEST }} /,/^${{ env.OPENZAAK_IMAGE_TAG }} /')
           echo "openzaak<<EOF" >> $GITHUB_ENV
           echo "### Open Zaak" >> $GITHUB_ENV
           echo "$WEBSITE2_CHANGELOG" >> $GITHUB_ENV
@@ -142,7 +142,7 @@ jobs:
       - name: Fetch changelogs of Open Inwoner
         id: fetch_changelogs_openinwoner
         run: |
-          WEBSITE7_CHANGELOG=$(curl -s https://api.github.com/repos/maykinmedia/open-inwoner/releases/latest | awk '/^${{ env.OPENINWONER_IMAGE_TAG }} /,/^${{ env.OPENINWONER_IMAGE_TAG_LATEST }} /')
+          WEBSITE7_CHANGELOG=$(curl -s https://api.github.com/repos/maykinmedia/open-inwoner/releases/latest | awk '/^${{ env.OPENINWONER_IMAGE_TAG_LATEST }} /,/^${{ env.OPENINWONER_IMAGE_TAG }} /')
           echo "openinwoner<<EOF" >> $GITHUB_ENV
           echo "### Open Inwoner" >> $GITHUB_ENV
           echo "$WEBSITE7_CHANGELOG" >> $GITHUB_ENV
