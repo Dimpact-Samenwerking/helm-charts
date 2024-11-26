@@ -183,4 +183,3 @@ jobs:
             ${{ env.WEBSITE2_CHANGELOG }}
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
-          WEBSITE2_CHANGELOG: ${{ env.WEBSITE2_CHANGELOG }}
