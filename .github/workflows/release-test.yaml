@@ -50,8 +50,8 @@ jobs:
       - name: Get current version from latest release
         id: get_current_version
         run: |
-          OPENFORMS_IMAGE_TAG=$(git show -q $COMMIT_HASH:charts/podiumd/values.yaml | yq -r .openformulieren.image.tag)
           OPENZAAK_IMAGE_TAG=$(git show -q $COMMIT_HASH:charts/podiumd/values.yaml | yq -r .openzaak.image.tag)
+          OPENFORMS_IMAGE_TAG=$(git show -q $COMMIT_HASH:charts/podiumd/values.yaml | yq -r .openformulieren.image.tag)
           OPENKLANT_IMAGE_TAG=$(git show -q $COMMIT_HASH:charts/podiumd/values.yaml | yq -r .openklant.image.tag)
           OPENNOTIFICATIES_IMAGE_TAG=$(git show -q $COMMIT_HASH:charts/podiumd/values.yaml | yq -r .opennotificaties.image.tag)
           OBJECTEN_IMAGE_TAG=$(git show -q $COMMIT_HASH:charts/podiumd/values.yaml | yq -r .objecten.image.tag)
@@ -69,8 +69,8 @@ jobs:
       - name: Get latest version from HEAD
         id: get_latest_version
         run: |
-          OPENFORMS_IMAGE_TAG_LATEST=$(git show -q HEAD:charts/podiumd/values.yaml | yq -r .openformulieren.image.tag)
           OPENZAAK_IMAGE_TAG_LATEST=$(git show -q HEAD:charts/podiumd/values.yaml | yq -r .openzaak.image.tag)
+          OPENFORMS_IMAGE_TAG_LATEST=$(git show -q HEAD:charts/podiumd/values.yaml | yq -r .openformulieren.image.tag)
           OPENKLANT_IMAGE_TAG_LATEST=$(git show -q HEAD:charts/podiumd/values.yaml | yq -r .openklant.image.tag)
           OPENNOTIFICATIES_IMAGE_TAG_LATEST=$(git show -q HEAD:charts/podiumd/values.yaml | yq -r .opennotificaties.image.tag)
           OBJECTEN_IMAGE_TAG_LATEST=$(git show -q HEAD:charts/podiumd/values.yaml | yq -r .objecten.image.tag)
