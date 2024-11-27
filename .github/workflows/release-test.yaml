@@ -147,7 +147,7 @@ jobs:
       - name: Fetch changelogs of Open Inwoner
         id: fetch_changelogs_openinwoner
         run: |
-          OPENINWONER_CHANGELOG=$(curl -s https://api.github.com/repos/maykinmedia/open-inwoner/releases/latest | jq -r '.body')
+          OPENINWONER_CHANGELOG=$(curl -s https://api.github.com/repos/maykinmedia/open-inwoner/releases/latest | jq -r '"Version: \(.tag_name)\n\n\(.body)"')
           echo "$OPENINWONER_CHANGELOG"
           echo "OPENINWONER_CHANGELOG<<EOF" >> $GITHUB_ENV
           echo "# Open Inwoner" >> $GITHUB_ENV
