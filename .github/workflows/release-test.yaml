@@ -179,9 +179,7 @@ jobs:
           tag_name: ${{ github.event.inputs.release_version }}
           release_name: "Release ${{ github.event.inputs.release_version }}"
           body: |
-            ## Changes in this Release
-            ${{ env.commits }}
-            ## Changelogs
+            # Changelogs
             ${{ env.OPENFORMS_CHANGELOG }}
             ${{ env.OPENZAAK_CHANGELOG }}
             ${{ env.OPENKLANT_CHANGELOG }}
