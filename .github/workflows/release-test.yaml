@@ -90,7 +90,7 @@ jobs:
           OPENFORMS_CHANGELOG=$(curl -s https://raw.githubusercontent.com/open-formulieren/open-forms/refs/heads/master/CHANGELOG.rst | awk "/^${OPENFORMS_IMAGE_TAG_LATEST}/ {flag=1} /^[0-9]+\\.[0-9]+\\.[0-9]+/  && !/^${OPENFORMS_IMAGE_TAG_LATEST}/ {flag=0} flag")
           echo "$OPENFORMS_CHANGELOG"
           echo "OPENFORMS_CHANGELOG<<EOF" >> $GITHUB_ENV
-          echo "# Open Formulieren" >> $GITHUB_ENV
+          echo "## Open Formulieren" >> $GITHUB_ENV
           echo "$OPENFORMS_CHANGELOG" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
          
@@ -100,7 +100,7 @@ jobs:
           OPENZAAK_CHANGELOG=$(curl -s https://raw.githubusercontent.com/open-zaak/open-zaak/main/CHANGELOG.rst | awk "/^${OPENZAAK_IMAGE_TAG_LATEST}/ {flag=1} /^[0-9]+\\.[0-9]+\\.[0-9]+/  && !/^${OPENZAAK_IMAGE_TAG_LATEST}/ {flag=0} flag")
           echo "$OPENZAAK_CHANGELOG"
           echo "OPENZAAK_CHANGELOG<<EOF" >> $GITHUB_ENV
-          echo "# Open Zaak" >> $GITHUB_ENV
+          echo "## Open Zaak" >> $GITHUB_ENV
           echo "$OPENZAAK_CHANGELOG" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
           
@@ -110,7 +110,7 @@ jobs:
           OPENKLANT_CHANGELOG=$(curl -s https://raw.githubusercontent.com/maykinmedia/open-klant/refs/heads/master/CHANGELOG.rst | awk "/^${OPENKLANT_IMAGE_TAG_LATEST}/ {flag=1} /^[0-9]+\\.[0-9]+\\.[0-9]+/  && !/^${OPENKLANT_IMAGE_TAG_LATEST}/ {flag=0} flag")
           echo "$OPENKLANT_CHANGELOG"
           echo "OPENKLANT_CHANGELOG<<EOF" >> $GITHUB_ENV
-          echo "# Open Klant" >> $GITHUB_ENV
+          echo "## Open Klant" >> $GITHUB_ENV
           echo "$OPENKLANT_CHANGELOG" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
           
@@ -120,7 +120,7 @@ jobs:
           OPENNOTIFICATIES_CHANGELOG=$(curl -s https://raw.githubusercontent.com/open-zaak/open-notificaties/refs/heads/main/CHANGELOG.rst | awk "/^${OPENNOTIFICATIES_IMAGE_TAG_LATEST}/ {flag=1} /^[0-9]+\\.[0-9]+\\.[0-9]+/  && !/^${OPENNOTIFICATIES_IMAGE_TAG_LATEST}/ {flag=0} flag")
           echo "$OPENNOTIFICATIES_CHANGELOG"
           echo "OPENNOTIFICATIES_CHANGELOG<<EOF" >> $GITHUB_ENV
-          echo "# Open Notificaties" >> $GITHUB_ENV
+          echo "## Open Notificaties" >> $GITHUB_ENV
           echo "$OPENNOTIFICATIES_CHANGELOG" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
           
@@ -130,7 +130,7 @@ jobs:
            OBJECTEN_CHANGELOG=$(curl -s https://raw.githubusercontent.com/maykinmedia/objects-api/refs/heads/stable/2.4.x/CHANGELOG.rst | awk "/^${OBJECTEN_IMAGE_TAG_LATEST}/ {flag=1} /^[0-9]+\\.[0-9]+\\.[0-9]+/  && !/^${OBJECTEN_IMAGE_TAG_LATEST}/ {flag=0} flag")
            echo "$OBJECTEN_CHANGELOG"
            echo "OBJECTEN_CHANGELOG<<EOF" >> $GITHUB_ENV
-           echo "# Objecten" >> $GITHUB_ENV
+           echo "## Objecten" >> $GITHUB_ENV
            echo "$OBJECTEN_CHANGELOG" >> $GITHUB_ENV
            echo "EOF" >> $GITHUB_ENV
            
@@ -140,17 +140,17 @@ jobs:
           OBJECTTYPEN_CHANGELOG=$(curl -s https://raw.githubusercontent.com/maykinmedia/objecttypes-api/refs/heads/master/CHANGELOG.rst | awk "/^${OBJECTTYPEN_IMAGE_TAG_LATEST}/ {flag=1} /^[0-9]+\\.[0-9]+\\.[0-9]+/  && !/^${OBJECTTYPEN_IMAGE_TAG_LATEST}/ {flag=0} flag")
           echo "$OBJECTTYPEN_CHANGELOG"
           echo "OBJECTTYPEN_CHANGELOG<<EOF" >> $GITHUB_ENV
-          echo "# Objecttypen" >> $GITHUB_ENV
+          echo "## Objecttypen" >> $GITHUB_ENV
           echo "$OBJECTTYPEN_CHANGELOG" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
           
       - name: Fetch changelogs of Open Inwoner
         id: fetch_changelogs_openinwoner
         run: |
-          OPENINWONER_CHANGELOG=$(curl -s https://api.github.com/repos/maykinmedia/open-inwoner/releases/latest | jq -r '"Version: \(.tag_name)\n\n\(.body)"')
+          OPENINWONER_CHANGELOG=$(curl -s https://api.github.com/repos/maykinmedia/open-inwoner/releases/latest | jq -r '"## Version: \(.tag_name)\n\n\(.body)"')
           echo "$OPENINWONER_CHANGELOG"
           echo "OPENINWONER_CHANGELOG<<EOF" >> $GITHUB_ENV
-          echo "# Open Inwoner" >> $GITHUB_ENV
+          echo "## Open Inwoner" >> $GITHUB_ENV
           echo "$OPENINWONER_CHANGELOG" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
