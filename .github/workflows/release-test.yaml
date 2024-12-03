@@ -72,7 +72,6 @@ jobs:
           echo "$OPENFORMS_CHANGELOG"
           echo "OPENFORMS_CHANGELOG<<EOF" >> $GITHUB_ENV
           echo "## Open Formulieren" >> $GITHUB_ENV
-          echo "### OPENFORMS_IMAGE_TAG_LATEST: $OPENFORMS_IMAGE_TAG_LATEST" >> $GITHUB_ENV
           echo "$OPENFORMS_CHANGELOG" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
          
