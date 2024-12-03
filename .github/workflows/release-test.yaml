@@ -46,25 +46,6 @@ jobs:
           LATEST_RELEASE_COMMIT=$(curl -s https://api.github.com/repos/Dimpact-Samenwerking/helm-charts/releases/latest | jq -r .target_commitish)
           COMMIT_HASH=${{ env.LATEST_RELEASE_COMMIT }}
           echo "LATEST_RELEASE_COMMIT=$LATEST_RELEASE_COMMIT" >> $GITHUB_ENV
-
-      - name: Get current version from latest release
-        id: get_current_version
-        run: |
-          OPENZAAK_IMAGE_TAG=$(git show -q $COMMIT_HASH:charts/podiumd/values.yaml | yq -r .openzaak.image.tag)
-          OPENFORMS_IMAGE_TAG=$(git show -q $COMMIT_HASH:charts/podiumd/values.yaml | yq -r .openformulieren.image.tag)
-          OPENKLANT_IMAGE_TAG=$(git show -q $COMMIT_HASH:charts/podiumd/values.yaml | yq -r .openklant.image.tag)
-          OPENNOTIFICATIES_IMAGE_TAG=$(git show -q $COMMIT_HASH:charts/podiumd/values.yaml | yq -r .opennotificaties.image.tag)
-          OBJECTEN_IMAGE_TAG=$(git show -q $COMMIT_HASH:charts/podiumd/values.yaml | yq -r .objecten.image.tag)
-          OBJECTTYPEN_IMAGE_TAG=$(git show -q $COMMIT_HASH:charts/podiumd/values.yaml | yq -r .objecttypen.image.tag)
-          OPENINWONER_IMAGE_TAG=$(git show -q $COMMIT_HASH:charts/podiumd/values.yaml | yq -r .openinwoner.image.tag)
-          echo "OPENFORMS_IMAGE_TAG=$OPENFORMS_IMAGE_TAG" >> $GITHUB_ENV
-          echo "OPENZAAK_IMAGE_TAG=$OPENZAAK_IMAGE_TAG" >> $GITHUB_ENV
-          echo "OPENKLANT_IMAGE_TAG=$OPENKLANT_IMAGE_TAG" >> $GITHUB_ENV
-          echo "OPENNOTIFICATIES_IMAGE_TAG=$OPENNOTIFICATIES_IMAGE_TAG" >> $GITHUB_ENV
-          echo "OBJECTEN_IMAGE_TAG=$OBJECTEN_IMAGE_TAG" >> $GITHUB_ENV
-          echo "OBJECTTYPEN_IMAGE_TAG=$OBJECTTYPEN_IMAGE_TAG" >> $GITHUB_ENV
-          echo "OPENINWONER_IMAGE_TAG=$OPENINWONER_IMAGE_TAG" >> $GITHUB_ENV
-
           
       - name: Get latest version from HEAD
         id: get_latest_version
