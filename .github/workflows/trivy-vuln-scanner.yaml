@@ -1,0 +1,59 @@
+name: Vulnerability Scan
+
+on:
+  workflow_dispatch:
+
+jobs:
+  scan:
+    name: Daily Vulnerability Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pull Docker images
+        run: |
+          docker pull openformulieren/open-forms
+          docker pull openzaak/open-zaak
+          docker pull openzaak/open-notificaties
+          docker pull maykinmedia/objects-api
+          docker pull maykinmedia/objecttypes-api
+          docker pull maykinmedia/open-inwoner
+          docker pull maykinmedia/open-klant
+          docker pull clamav/clamav
+          docker pull ghcr.io/klantinteractie-servicesysteem/kiss-frontend
+          docker pull ghcr.io/icatt-menselijk-digitaal/podiumd-adapter
+          docker pull ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync
+          docker pull alpine
+
+      - name: Run Trivy scans and generate a single report
+        run: |
+          echo "Scanning openformulieren/open-forms..." > combined_report.txt
+          docker run --rm aquasec/trivy:latest image --ignore-unfixed --scanners vuln --format table openformulieren/open-forms >> combined_report.txt
+          echo "" >> combined_report.txt
+          echo "Scanning openzaak/open-zaak..." >> combined_report.txt
+          docker run --rm aquasec/trivy:latest image --ignore-unfixed --scanners vuln --format table openzaak/open-zaak >> combined_report.txt
+          echo "Scanning openzaak/open-notificaties..." >> combined_report.txt
+          docker run --rm aquasec/trivy:latest image --ignore-unfixed --scanners vuln --format table openzaak/open-notificaties >> combined_report.txt
+          echo "Scanning maykinmedia/objects-api..." >> combined_report.txt
+          docker run --rm aquasec/trivy:latest image --ignore-unfixed --scanners vuln --format table maykinmedia/objects-api >> combined_report.txt
+          echo "Scanning maykinmedia/objecttypes-api..." >> combined_report.txt
+          docker run --rm aquasec/trivy:latest image --ignore-unfixed --scanners vuln --format table maykinmedia/objecttypes-api >> combined_report.txt
+          echo "Scanning maykinmedia/open-inwoner..." >> combined_report.txt
+          docker run --rm aquasec/trivy:latest image --ignore-unfixed --scanners vuln --format table maykinmedia/open-inwoner >> combined_report.txt
+          echo "Scanning maykinmedia/open-klant..." >> combined_report.txt
+          docker run --rm aquasec/trivy:latest image --ignore-unfixed --scanners vuln --format table maykinmedia/open-klant >> combined_report.txt
+          echo "Scanning clamav/clamav..." >> combined_report.txt
+          docker run --rm aquasec/trivy:latest image --ignore-unfixed --scanners vuln --format table clamav/clamav >> combined_report.txt
+          echo "Scanning ghcr.io/klantinteractie-servicesysteem/kiss-frontend..." >> combined_report.txt
+          docker run --rm aquasec/trivy:latest image --ignore-unfixed --scanners vuln --format table ghcr.io/klantinteractie-servicesysteem/kiss-frontend >> combined_report.txt
+          echo "Scanning ghcr.io/icatt-menselijk-digitaal/podiumd-adapter..." >> combined_report.txt
+          docker run --rm aquasec/trivy:latest image --ignore-unfixed --scanners vuln --format table ghcr.io/icatt-menselijk-digitaal/podiumd-adapter >> combined_report.txt
+          echo "Scanning ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync..." >> combined_report.txt
+          docker run --rm aquasec/trivy:latest image --ignore-unfixed --scanners vuln --format table ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync >> combined_report.txt
+          
+      - name: Display combined report
+        run: cat combined_report.txt
+
+      - name: Upload combined report as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: combined-trivy-report
+          path: combined_report.txt
