@@ -1,0 +1,82 @@
+{
+    "baseUrl": "https://ontw-objecten.dimpact.icatt.nl",
+    "loginEndpoint": "/admin/login/?next=/admin/",
+    "username": "pascal@icatt.nl",
+    "password": "dit-weet-Sander",
+    "requests": [
+        {
+            "url": "/admin/zgw_consumers/service/add/",
+            "formFields": {
+                "label": "objecttypen - extern",
+                "oas": "https://ontw-objecttypen.dimpact.icatt.nl/api/v2/schema/openapi.yaml",
+                "uuid": "921b6f94-0955-4acb-a258-17205205da82",
+                "api_type": "orc",
+                "api_root": "https://ontw-objecttypen.dimpact.icatt.nl/api/v2/",
+                "auth_type": "api_key",
+                "header_key": "Authorization",
+                "header_value": "Token [staat-in-objecttypen]]",
+                "_save": "Save"
+            },
+            "output_key": "serviceId",
+            "extractPattern": "/admin/zgw_consumers/service/(\\d+)/change/",
+            "children": [
+                {
+                    "url": "/admin/core/objecttype/add/",
+                    "formFields": {
+                        "uuid": "371325c2-b02e-4538-ac6b-579d9e1b5bfe",
+                        "service": "$serviceId",
+                        "_save": "Save"
+                    },
+                    "output_key": "objecttype1",
+                    "extractPattern": "/admin/core/objecttype/(\\d+)/change/"
+                },
+                {
+                    "url": "/admin/core/objecttype/add/",
+                    "formFields": {
+                        "uuid": "a3892d7b-cad7-41ec-8c7d-ed37ae8213ae",
+                        "service": "$serviceId",
+                        "_save": "Save"
+                    },
+                    "output_key": "objecttype2",
+                    "extractPattern": "/admin/core/objecttype/(\\d+)/change/"
+                }
+            ]
+        },
+        {
+            "url": "/admin/token/tokenauth/add/",
+            "formFields": {
+                "contact_person": "podiumd beheer",
+                "email": "beheer@dimpact.nl",
+                "organisation": "Dimpact",
+                "application": "podiumd - esuite koppeling",
+                "permissions-TOTAL_FORMS": 0,
+                "permissions-INITIAL_FORMS": 0,
+                "permissions-MIN_NUM_FORMS": 0,
+                "permissions-MAX_NUM_FORMS": 0,
+                "_save": "Save"
+            },
+            "output_key": "tokenId",
+            "extractPattern": "/admin/token/tokenauth/(\\d+)/change/",
+            "children": [
+                {
+                    "url": "/admin/token/permission/add/",
+                    "formFields": {
+                        "token_auth": "$tokenId",
+                        "object_type": "$objecttype1",
+                        "mode": "read_only",
+                        "_save": "Save"
+                    }
+                },
+                {
+                    "url": "/admin/token/permission/add/",
+                    "formFields": {
+                        "token_auth": "$tokenId",
+                        "object_type": "$objecttype2",
+                        "mode": "read_and_write",
+                        "_save": "Save"
+                    }
+                }
+            ]
+        }
+    ]
+}
