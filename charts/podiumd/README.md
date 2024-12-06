@@ -47,7 +47,7 @@
 | Open Notificaties | 1.5.2   |
 | Open Zaak         | 1.12.1  |
 
-### 2.0.0
+### [2.0.0](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-2.0.0)
 
 **PodiumD Helm chart version: 1.1.18**
 
@@ -64,7 +64,7 @@
 | Open Zaak         | 1.15.0  |
 
 
-### 2.0.1
+### [2.0.1](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-2.0.1)
 
 **PodiumD Helm chart version: 1.1.19**
 
@@ -80,7 +80,7 @@
 | Open Notificaties | 1.7.1   |
 | Open Zaak         | 1.15.0  |
 
-### 2.0.2
+### [2.0.2](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-2.0.2)
 
 **PodiumD Helm chart version: 1.1.20**
 
@@ -96,7 +96,7 @@
 | Open Notificaties | 1.7.1   |
 | Open Zaak         | 1.15.0  |
 
-### 2.0.3
+### [2.0.3](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-2.0.3)
 
 **PodiumD Helm chart version: 1.1.21**
 
@@ -112,7 +112,25 @@
 | Open Notificaties | 1.7.1   |
 | Open Zaak         | 1.15.0  |
 
-### 3.0.0
+### [2.0.4](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-2.0.4)
+
+**PodiumD Helm chart version: 1.1.21**
+
+Patch release for Open Inwoner bug fix.
+
+| Component         | Version | Change  |
+|-------------------|---------|---------|
+| ClamAV            | 1.4.1   |         |
+| Keycloak          | 24.0.5  |         |
+| Objecten          | 2.4.4   |         |
+| Objecttypen       | 2.2.2   |         |
+| Open Formulieren  | 2.7.9   |         |
+| Open Inwoner      | 1.21.4  | Bug fix |
+| Open Klant        | 2.3.0   |         |
+| Open Notificaties | 1.7.1   |         |
+| Open Zaak         | 1.15.0  |         |
+
+### [3.0.0](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-3.0.0)
 
 **PodiumD Helm chart version: 3.0.0**
 
@@ -128,6 +146,26 @@
 | Open Notificaties | 1.7.1   |
 | Open Zaak         | 1.15.0  |
 | KISS              | 0.5.0   |
+
+### [3.0.1](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-3.0.1)
+
+**PodiumD Helm chart version: 3.0.1**
+
+Patch release for Open Inwoner bug fix.
+
+| Component         | Version | Change  |
+|-------------------|---------|---------|
+| ClamAV            | 1.4.1   |         |
+| Keycloak          | 24.0.5  |         |
+| Objecten          | 2.4.4   |         |
+| Objecttypen       | 2.2.2   |         |
+| Open Formulieren  | 2.7.9   |         |
+| Open Inwoner      | 1.21.4  | Bug fix |
+| Open Klant        | 2.3.0   |         |
+| Open Notificaties | 1.7.1   |         |
+| Open Zaak         | 1.15.0  |         |
+| KISS              | 0.5.0   |         |
+
 
 ## Add Used chart repositories:
 
