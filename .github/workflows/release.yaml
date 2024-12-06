@@ -1,11 +1,10 @@
 name: Release Charts 
 
 on:
-  workflow_dispatch:
-     inputs:
-      release_version:
-        description: 'Specify the release version number'
-        required: true
+  push:
+    branches:
+      - main
+      - release/*
 
 jobs:
   release:
@@ -21,10 +20,6 @@ jobs:
         run: |
           git config user.name "$GITHUB_ACTOR"
           git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
-
-      - name: Set Chart Version
-        run: |
-          sed -i "s/^version: .*/version: ${{ github.event.inputs.release_version }}/" charts/podiumd/Chart.yaml
       - name: Add dependency chart repos
         run: |
           helm repo add bitnami https://charts.bitnami.com/bitnami
@@ -36,6 +31,7 @@ jobs:
           helm repo add kiss-frontend https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/KISS-frontend/main/helm
           helm repo add kiss-adapter https://raw.githubusercontent.com/ICATT-Menselijk-Digitaal/podiumd-adapter/main/helm
           helm repo add kiss-elastic https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/.github/main/docs/scripts/elastic
+
       - name: Run chart-releaser
         uses: helm/chart-releaser-action@v1.6.0
         with:
