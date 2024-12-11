@@ -370,7 +370,7 @@ openinwoner:
   persistentVolume:
     volumeAttributeShareName: openinwoner
   image:
-    tag: "1.24.0"
+    tag: "1.25.0"
   resources:
     requests:
       cpu: 200m
