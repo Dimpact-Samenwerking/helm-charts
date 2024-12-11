@@ -2,21 +2,6 @@
 
 ## PodiumD versions
 
-### 1.3.0
-
-**PodiumD Helm chart version: 1.1.10**
-
-| Component         | Version |
-|-------------------|---------|
-| ClamAV            | 1.3.1   |
-| Keycloak          | 24.0.5  |
-| Objecten          | 2.4.1   |
-| Objecttypen       | 2.2.0   |
-| Open Formulieren  | 2.6.7   |
-| Open Klant        | 2.1.0   |
-| Open Notificaties | 1.6.0   |
-| Open Zaak         | 1.12.3  |
-
 ### 1.3.1
 
 **PodiumD Helm chart version: 1.1.17**
@@ -33,7 +18,7 @@
 | Open Notificaties | 1.6.0   |
 | Open Zaak         | 1.12.3  |
 
-### 1.4.0 (candidate)
+### 1.4.0
 
 | Component         | Version |
 |-------------------|---------|
@@ -47,74 +32,9 @@
 | Open Notificaties | 1.5.2   |
 | Open Zaak         | 1.12.1  |
 
-### [2.0.0](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-2.0.0)
+### [2.0.5](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-2.0.5)
 
-**PodiumD Helm chart version: 1.1.18**
-
-| Component         | Version |
-|-------------------|---------|
-| ClamAV            | 1.4.1   |
-| Keycloak          | 24.0.5  |
-| Objecten          | 2.4.4   |
-| Objecttypen       | 2.2.2   |
-| Open Formulieren  | 2.7.8   |
-| Open Inwoner      | 1.21.2  |
-| Open Klant        | 2.3.0   |
-| Open Notificaties | 1.7.1   |
-| Open Zaak         | 1.15.0  |
-
-
-### [2.0.1](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-2.0.1)
-
-**PodiumD Helm chart version: 1.1.19**
-
-| Component         | Version |
-|-------------------|---------|
-| ClamAV            | 1.4.1   |
-| Keycloak          | 24.0.5  |
-| Objecten          | 2.4.4   |
-| Objecttypen       | 2.2.2   |
-| Open Formulieren  | 2.7.8   |
-| Open Inwoner      | 1.21.3  |
-| Open Klant        | 2.3.0   |
-| Open Notificaties | 1.7.1   |
-| Open Zaak         | 1.15.0  |
-
-### [2.0.2](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-2.0.2)
-
-**PodiumD Helm chart version: 1.1.20**
-
-| Component         | Version |
-|-------------------|---------|
-| ClamAV            | 1.4.1   |
-| Keycloak          | 24.0.5  |
-| Objecten          | 2.4.4   |
-| Objecttypen       | 2.2.2   |
-| Open Formulieren  | 2.7.9   |
-| Open Inwoner      | 1.21.3  |
-| Open Klant        | 2.3.0   |
-| Open Notificaties | 1.7.1   |
-| Open Zaak         | 1.15.0  |
-
-### [2.0.3](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-2.0.3)
-
-**PodiumD Helm chart version: 1.1.21**
-
-| Component         | Version |
-|-------------------|---------|
-| ClamAV            | 1.4.1   |
-| Keycloak          | 24.0.5  |
-| Objecten          | 2.4.4   |
-| Objecttypen       | 2.2.2   |
-| Open Formulieren  | 2.7.9   |
-| Open Inwoner      | 1.21.3  |
-| Open Klant        | 2.3.0   |
-| Open Notificaties | 1.7.1   |
-| Open Zaak         | 1.15.0  |
-
-### [2.0.4](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-2.0.4)
-
-**PodiumD Helm chart version: 1.1.21**
+**PodiumD Helm chart version: 2.0.5**
 
 Patch release for Open Inwoner bug fix.
 
@@ -125,31 +45,14 @@ Patch release for Open Inwoner bug fix.
 | Objecten          | 2.4.4   |         |
 | Objecttypen       | 2.2.2   |         |
 | Open Formulieren  | 2.7.9   |         |
-| Open Inwoner      | 1.21.4  | Bug fix |
+| Open Inwoner      | 1.21.5  | Bug fix |
 | Open Klant        | 2.3.0   |         |
 | Open Notificaties | 1.7.1   |         |
 | Open Zaak         | 1.15.0  |         |
 
-### [3.0.0](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-3.0.0)
+### [3.0.6](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-3.0.1)
 
-**PodiumD Helm chart version: 3.0.0**
-
-| Component         | Version |
-|-------------------|---------|
-| ClamAV            | 1.4.1   |
-| Keycloak          | 24.0.5  |
-| Objecten          | 2.4.4   |
-| Objecttypen       | 2.2.2   |
-| Open Formulieren  | 2.7.9   |
-| Open Inwoner      | 1.21.3  |
-| Open Klant        | 2.3.0   |
-| Open Notificaties | 1.7.1   |
-| Open Zaak         | 1.15.0  |
-| KISS              | 0.5.0   |
-
-### [3.0.1](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-3.0.1)
-
-**PodiumD Helm chart version: 3.0.1**
+**PodiumD Helm chart version: 3.0.6**
 
 Patch release for Open Inwoner bug fix.
 
@@ -160,12 +63,11 @@ Patch release for Open Inwoner bug fix.
 | Objecten          | 2.4.4   |         |
 | Objecttypen       | 2.2.2   |         |
 | Open Formulieren  | 2.7.9   |         |
-| Open Inwoner      | 1.21.4  | Bug fix |
+| Open Inwoner      | 1.21.5  | Bug fix |
 | Open Klant        | 2.3.0   |         |
-| Open Notificaties | 1.7.1   |         |
+| Open Notificaties | 1.7.9   |         |
 | Open Zaak         | 1.15.0  |         |
 | KISS              | 0.5.0   |         |
-
 
 ## Add Used chart repositories:
 
