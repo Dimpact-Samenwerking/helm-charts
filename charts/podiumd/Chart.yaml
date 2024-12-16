@@ -10,7 +10,7 @@ dependencies:
     repository: "@bitnami"
     condition: keycloak.enabled
   - name: openldap
-    version: 1.0.2
+    version: 1.2.7
     repository: "@dimpact"
     condition: openldap.enabled
     tags:
