@@ -667,7 +667,7 @@ httpRequestJob:
   jwtCli:
     image:
       repository: bitnami/jwt-cli
-      tag: "6.1.1"
+      tag: "6.2.0"
   alpine:
     image:
       repository: alpine
