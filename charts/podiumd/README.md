@@ -2,106 +2,7 @@
 
 ## PodiumD versions
 
-### 1.3.1
-
-**PodiumD Helm chart version: 1.1.17**
-
-| Component         | Version |
-|-------------------|---------|
-| ClamAV            | 1.3.1   |
-| Keycloak          | 24.0.5  |
-| Objecten          | 2.4.1   |
-| Objecttypen       | 2.2.1   |
-| Open Formulieren  | 2.6.14  |
-| Open Inwoner      | 1.21.1  | (Optional)
-| Open Klant        | 2.1.0   |
-| Open Notificaties | 1.6.0   |
-| Open Zaak         | 1.12.3  |
-
-### 1.4.0
-
-| Component         | Version |
-|-------------------|---------|
-| ClamAV            | 1.3.1   |
-| Keycloak          | 24.0.5  |
-| Objecten          | 2.4.1   |
-| Objecttypen       | 2.2.1   |
-| Open Formulieren  | 2.7.4   |
-| Open Inwoner      | 1.21.1  | (Optional)
-| Open Klant        | 2.1.0   |
-| Open Notificaties | 1.5.2   |
-| Open Zaak         | 1.12.1  |
-
-### [2.0.5](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-2.0.5)
-
-**PodiumD Helm chart version: 2.0.5**
-
-Patch release for Open Inwoner bug fix.
-
-| Component         | Version | Change  |
-|-------------------|---------|---------|
-| ClamAV            | 1.4.1   |         |
-| Keycloak          | 24.0.5  |         |
-| Objecten          | 2.4.4   |         |
-| Objecttypen       | 2.2.2   |         |
-| Open Formulieren  | 2.7.9   |         |
-| Open Inwoner      | 1.21.5  | Bug fix |
-| Open Klant        | 2.3.0   |         |
-| Open Notificaties | 1.7.1   |         |
-| Open Zaak         | 1.15.0  |         |
-
-### [3.0.6](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-3.0.1)
-
-**PodiumD Helm chart version: 3.0.6**
-
-Patch release for Open Inwoner bug fix.
-
-| Component         | Version | Change  |
-|-------------------|---------|---------|
-| ClamAV            | 1.4.1   |         |
-| Keycloak          | 24.0.5  |         |
-| Objecten          | 2.4.4   |         |
-| Objecttypen       | 2.2.2   |         |
-| Open Formulieren  | 2.7.9   |         |
-| Open Inwoner      | 1.21.5  | Bug fix |
-| Open Klant        | 2.3.0   |         |
-| Open Notificaties | 1.7.9   |         |
-| Open Zaak         | 1.15.0  |         |
-| KISS              | 0.5.0   |         |
-
-### 2.0.4
-
-**PodiumD Helm chart version: 2.0.4**
-
-| Component         | Version |
-|-------------------|---------|
-| ClamAV            | 1.4.1   |
-| Keycloak          | 24.0.5  |
-| Objecten          | 2.4.4   |
-| Objecttypen       | 2.2.2   |
-| Open Formulieren  | 2.7.9   |
-| Open Inwoner      | 1.21.4  |
-| Open Klant        | 2.3.0   |
-| Open Notificaties | 1.7.1   |
-| Open Zaak         | 1.15.0  |
-
-### 2.0.5
-
-**PodiumD Helm chart version: 2.0.5**
-
-| Component         | Version |
-|-------------------|---------|
-| ClamAV            | 1.4.1   |
-| Keycloak          | 24.0.5  |
-| Objecten          | 2.4.4   |
-| Objecttypen       | 2.2.2   |
-| Open Formulieren  | 2.7.9   |
-| Open Inwoner      | 1.21.5  |
-| Open Klant        | 2.3.0   |
-| Open Notificaties | 1.7.1   |
-| Open Zaak         | 1.15.0  |
-
-### 2.1.0
+### [2.1.0](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-2.1.0)
 
 **PodiumD Helm chart version: 2.1.0**
 
@@ -116,6 +17,25 @@ Patch release for Open Inwoner bug fix.
 | Open Klant        | 2.3.0   |
 | Open Notificaties | 1.7.1   |
 | Open Zaak         | 1.15.0  |
+
+### [3.1.1](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-3.1.1)
+
+**PodiumD Helm chart version: 3.1.1**
+
+Patch release for Open Inwoner bug fix.
+
+| Component         | Version | Change  |
+|-------------------|---------|---------|
+| ClamAV            | 1.4.1   |         |
+| Keycloak          | 24.0.5  |         |
+| Objecten          | 2.4.4   |         |
+| Objecttypen       | 2.2.2   |         |
+| Open Formulieren  | 2.7.11  | Security Patch |       
+| Open Inwoner      | 1.21.5  | Bug fix |
+| Open Klant        | 2.3.0   |         |
+| Open Notificaties | 1.7.9   |         |
+| Open Zaak         | 1.15.0  |         |
+| KISS              | 0.5.0   |         |
 
 ## Add Used chart repositories:
 
