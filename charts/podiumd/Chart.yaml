@@ -2,19 +2,13 @@ apiVersion: v2
 name: podiumd
 description: PodiumD Helm chart
 type: application
-version: 3.1.0
-appVersion: "3.1.0"
+version: 4.0.0
+appVersion: "4.0.0"
 dependencies:
   - name: keycloak
-    version: 21.8.0
+    version: 24.3.0
     repository: "@bitnami"
     condition: keycloak.enabled
-  - name: openldap
-    version: 1.0.2
-    repository: "@dimpact"
-    condition: openldap.enabled
-    tags:
-      - zaak
   - name: clamav
     version: 3.2.0
     repository: "@wiremind"
@@ -62,3 +56,13 @@ dependencies:
     condition: kisselastic.enabled
     tags:
       - contact
+  - name: infinispan
+    version: 0.4.1
+    repository: "@openshift"
+    condition: infinispan.enabled
+  - name: zac
+    version: 0.4.0
+    repository: "@zac"
+    condition: zac.enabled
+    tags:
+      - zaak

@@ -126,6 +126,8 @@ Patch release for Open Inwoner bug fix.
     helm repo add kiss-elastic https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/.github/main/docs/scripts/elastic
     helm repo add maykinmedia https://maykinmedia.github.io/charts
     helm repo add wiremind https://wiremind.github.io/wiremind-helm-charts
+    helm repo add openshift https://charts.openshift.io
+    helm repo add zac https://dimpact-zaakafhandelcomponent.github.io/charts
 
 ## PersistentVolume and PersistVolumeClaim resources
 
