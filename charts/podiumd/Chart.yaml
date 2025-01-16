@@ -2,8 +2,8 @@ apiVersion: v2
 name: podiumd
 description: PodiumD Helm chart
 type: application
-version: 2.1.0
-appVersion: "2.1.0"
+version: 2.2.0
+appVersion: "2.2.0"
 dependencies:
   - name: keycloak
     version: 21.4.4
