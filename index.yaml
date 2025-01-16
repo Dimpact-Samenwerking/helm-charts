@@ -982,6 +982,76 @@ entries:
     - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/podiumd-2.8.0/podiumd-2.8.0.tgz
     version: 2.8.0
   - apiVersion: v2
+    appVersion: 2.2.0
+    created: "2025-01-16T12:46:50.695484912Z"
+    dependencies:
+    - condition: keycloak.enabled
+      name: keycloak
+      repository: '@bitnami'
+      version: 21.4.4
+    - condition: openldap.enabled
+      name: openldap
+      repository: '@dimpact'
+      tags:
+      - zaak
+      version: 1.0.2
+    - condition: clamav.enabled
+      name: clamav
+      repository: '@wiremind'
+      version: 3.2.0
+    - condition: brpmock.enabled
+      name: brpmock
+      repository: '@dimpact'
+      tags:
+      - contact
+      - zaak
+      version: ~1.2.4
+    - condition: openzaak.enabled
+      name: openzaak
+      repository: '@maykinmedia'
+      version: 1.5.2
+    - condition: opennotificaties.enabled
+      name: opennotificaties
+      repository: '@maykinmedia'
+      version: 1.5.1
+    - condition: objecten.enabled
+      name: objecten
+      repository: '@maykinmedia'
+      version: 2.4.4
+    - condition: objecttypen.enabled
+      name: objecttypen
+      repository: '@maykinmedia'
+      version: 1.1.3
+    - condition: openklant.enabled
+      name: openklant
+      repository: '@maykinmedia'
+      version: 1.3.5
+    - alias: openformulieren
+      condition: openformulieren.enabled
+      name: openforms
+      repository: '@maykinmedia'
+      version: 1.4.4
+    - condition: openinwoner.enabled
+      name: openinwoner
+      repository: '@maykinmedia'
+      tags:
+      - portaal
+      version: 1.5.3
+    - alias: kisselastic
+      condition: kisselastic.enabled
+      name: kiss-elastic
+      repository: '@kiss-elastic'
+      tags:
+      - contact
+      version: 1.0.0
+    description: PodiumD Helm chart
+    digest: a3b62c1a376388e9b2da0bca2b41ad86833cfae44022b562aa07442c2c8cb43e
+    name: podiumd
+    type: application
+    urls:
+    - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/podiumd-2.2.0/podiumd-2.2.0.tgz
+    version: 2.2.0
+  - apiVersion: v2
     appVersion: 2.1.0
     created: "2024-12-17T00:44:45.75714681Z"
     dependencies:
@@ -3766,4 +3836,4 @@ entries:
     urls:
     - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/zac-1.0.0/zac-1.0.0.tgz
     version: 1.0.0
-generated: "2025-01-09T13:22:35.740823463Z"
+generated: "2025-01-16T12:46:50.695902473Z"
