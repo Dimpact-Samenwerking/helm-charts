@@ -1,6 +1,6 @@
 tags:
   contact: true
-  zaak: false
+  zaak: true
 
 global:
   configuration:
@@ -26,33 +26,303 @@ persistentVolume:
   nodeStageSecretRefNamespace: ""
 
 keycloak:
-  config:
-    realmDisplayName: PodiumD
-    realmFrontendUrl: https://keycloak.example.nl
-    adminFrontendUrl: https://keycloak-admin.example.nl
   auth:
     adminUser: admin
-    adminPassword: ChangeMeNow
+    adminPassword: "changemenow"
+  # -- cache setting for keycloak, if there are multiple instances they will automatically form a cluster for the cache
+  cache:
+    enabled: true
+    stackName: kubernetes
+  config:
+    adminFrontendUrl: https://keycloak-admin.example.nl
+    # Example configuration
+    #     - alias: "oidc-admin-users"
+    #      displayName: "podiumd admin users"
+    #      providerId: "oidc"
+    #      enabled: true
+    #      updateProfileFirstLoginMode: "on"
+    #      config:
+    #        tokenUrl: "https://login.microsoftonline.com/organizations/oauth2/v2.0/token"
+    #        jwksUrl: "https://login.microsoftonline.com/organizations/discovery/v2.0/keys"
+    #        issuer: "https://login.microsoftonline.com/{ tenantId }/v2.0"
+    #        clientSecret: "{ clientSecret }"
+    #        clientId: "{ clientId }"
+    #        syncMode: "FORCE"
+    #        userInfoUrl: "https://graph.microsoft.com/oidc/userinfo"
+    #        metadataDescriptorUrl: "https://login.microsoftonline.com/organizations/v2.0/.well-known/openid-configuration"
+    #        authorizationUrl: "https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize"
+    #        logoutUrl: "https://login.microsoftonline.com/organizations/oauth2/v2.0/logout"
+    # -- identity providers for the admin realm (usually master)
+    adminIdentityProviders: {}
+    # Example configuration
+    #    - name: "admin-group-mapper"
+    #      identityProviderAlias: "oidc-admin-users"
+    #      identityProviderMapper: "oidc-hardcoded-role-idp-mapper"
+    #      config:
+    #        syncMode: "FORCE"
+    #        role: "admin"
+    # -- identity provider mapper for the admin realm
+    adminIdentityProviderMappers: {}
+    adminOtpEnabled: false
+    realm: podiumd
+    realmDisplayName: PodiumD
+    realmFrontendUrl: https://keycloak.example.nl
+    realmIdentityProviders: {}
+    realmIdentityProviderMappers: {}
+    smtp:
+      server: mail.example.nl
+      port: "587"
+      from: "Test"
+      fromDisplayName: "noreply@example.nl"
+      starttls: "true"
+      ssl: "false"
+  # -- required to activate infinispan
+  # customCaExistingSecret: ispn-secret
+  # -- enable keycloak by default
+  enabled: true
+  # -- required to activate infinispan
+  #extraEnvVars: |
+  #  - name: KC_TRUSTSTORE_PATHS
+  #    value: "/opt/bitnami/keycloak/custom-ca"
+  # -- required to activate infinispan
+  #extraStartupArgs: "--cache-remote-host=ispn --cache-remote-port=11222 --cache-remote-username=keycloak --cache-remote-password=changemenow --log-level=INFO --spi-connections-infinispan-quarkus-site-name=ontw-dimp"
+  # image parameters for keycloak
+  image:
+    registry: ""
+    repository: keycloak
+    tag: 25.0.6
   externalDatabase:
-    host: "dummy"
+    host: "postgres"
     database: ""
     user: ""
+    password: ""
+  fullnameOverride: keycloak
   keycloakConfigCli:
+    cleanupAfterFinished:
+      enabled: true
+      seconds: 600
     enabled: true
-    existingConfigmap: keycloak-config
+    existingConfigmap: podiumd-config
+    # image parameters for keycloak-config-cli
+    image:
+      registry: ""
+      repository: keycloak-config-cli
+      # -- image tag for keycloak-config-cli, this must be a version that is compatible with the keycloak image tag
+      tag: "6.1.6"
+  metrics:
+    enabled: true
+  pdb:
+    create: false
+  postgres:
+    enabled: false
+  replicaCount: 1
   resources:
     requests:
       cpu: 50m
       memory: 512Mi
+  serviceMonitor:
+    enabled: true
   production: true
   proxy: edge
+  proxyHeaders: forwarded
   postgresql:
     enabled: false
   nameOverride: keycloak
-  fullnameOverride: keycloak
   extraEnvVarsCM: keycloak-extra-env-vars
 
+infinispan:
+  deploy:
+    nameOverride: ispn
+    replicas: 2
+    container:
+      imagePullPolicy: IfNotPresent
+      storage:
+        storageClassName: podiumd-standard
+    security:
+      batch: |
+        credentials add keystore -c password -p secret --path="internal-credentials.pfx"
+        user create keycloak -p changemenow -g deployer
+        user create admin -p changemetoo -g admin
+    # how to generate your own secret for use:
+    # openssl req -nodes -x509 -sha256 -newkey rsa:4096 -keyout ispn.key -out ispn.crt -days 3560 -subj "/C=NL/ST=Noord Holland/L=Amsterdam/O=INFO/OU=integratieteam/CN=ispn" -addext "subjectAltName = DNS:ispn,DNS:ispn.podiumd,DNS:ispn.podiumd.svc.cluster.local"
+    # openssl pkcs12 -export -out ispn.pfx -inkey ispn.key -in ispn.crt -name server
+    # use password as passphrase (as added under credentials add command above)
+    # keytool -list -keystore ispn.keystore -storepass password
+    # kubectl create secret generic ispn-secret --from-file=tls.crt=ispn.crt --from-file=tls.key=ispn.key --from-file=keystore.p12=ispn.pfx --from-literal=password=password --from-literal=alias=server -n podiumd
+    # kubectl create secret generic ispn-transport-secret --from-file=tls.crt=ispn.crt --from-file=tls.key=ispn.key --from-file=cert.p12=ispn.pfx --from-literal=password=password --from-literal=alias=server -n podiumd
+    # -- which secrets can be used for ssl, see above how to generate a proper secret for use with infinispan
+    ssl:
+      endpointSecretName: "ispn-secret"
+      transportSecretName: "ispn-transport-secret"
+    # see https://docs.jboss.org/infinispan/15.0/configdocs/infinispan-config-15.0.html for possible options
+    # infinispan configuration yaml preferences for usage with keycloak
+    infinispan:
+      cacheContainer:
+        serialization:
+          allow-list:
+            regex: "org.keycloak.*"
+        transport:
+          stack: "kubernetes"
+          lock-timeout: "60000"
+          urn:infinispan:server:15.0:securityRealm: "cluster-transport"
+        caches:
+          actionTokens:
+            distributedCache:
+              statistics: "true"
+              owners: 2
+              mode: "SYNC"
+              encoding:
+                mediaType: "application/x-jboss-marshalling"
+              expiration:
+                maxIdle: "-1"
+                lifespan: "-1"
+                interval: "300000"
+              memory:
+                maxCount: "-1"
+              persistence:
+                fileStore:
+                  path: cache
+          sessions:
+            distributedCache:
+              statistics: "true"
+              owners: 2
+              mode: "SYNC"
+              encoding:
+                mediaType: "application/x-jboss-marshalling"
+              expiration:
+                lifespan: "-1"
+              persistence:
+                fileStore:
+                  path: cache
+          authenticationSessions:
+            distributedCache:
+              statistics: "true"
+              owners: 2
+              mode: "SYNC"
+              encoding:
+                mediaType: "application/x-jboss-marshalling"
+              expiration:
+                lifespan: "-1"
+              persistence:
+                fileStore:
+                  path: cache
+          offlineSessions:
+            distributedCache:
+              statistics: "true"
+              owners: 2
+              mode: "SYNC"
+              encoding:
+                mediaType: "application/x-jboss-marshalling"
+              expiration:
+                lifespan: "-1"
+              persistence:
+                fileStore:
+                  path: cache
+          clientSessions:
+            distributedCache:
+              statistics: "true"
+              owners: 2
+              mode: "SYNC"
+              encoding:
+                mediaType: "application/x-jboss-marshalling"
+              expiration:
+                lifespan: "-1"
+              persistence:
+                fileStore:
+                  path: cache
+          offlineClientSessions:
+            distributedCache:
+              statistics: "true"
+              owners: 2
+              mode: "SYNC"
+              encoding:
+                mediaType: "application/x-jboss-marshalling"
+              expiration:
+                lifespan: "-1"
+              persistence:
+                fileStore:
+                  path: cache
+          loginFailures:
+            distributedCache:
+              statistics: "true"
+              owners: 2
+              mode: "SYNC"
+              encoding:
+                mediaType: "application/x-jboss-marshalling"
+              expiration:
+                lifespan: "-1"
+              persistence:
+                fileStore:
+                  path: cache
+          work:
+            replicatedCache:
+              statistics: "true"
+              encoding:
+                mediaType: "application/x-jboss-marshalling"
+              expiration:
+                lifespan: "-1"
+      server:
+        security:
+          credentialStores:
+            - name: credentials
+              path: internal-credentials.pfx
+              clearTextCredential:
+                clearText: "secret"
+          securityRealms:
+            - name: default
+              # [USER] Comment or remove this properties realm to disable authentication.
+              propertiesRealm:
+                groupProperties:
+                  path: groups.properties
+                groupsAttribute: Roles
+                userProperties:
+                  path: users.properties
+              serverIdentities:
+                ssl:
+                  keystore:
+                    alias: "server"
+                    path: "/etc/encrypt/endpoint/keystore.p12"
+                    credentialReference:
+                      store: credentials
+                      alias: keystore
+            - name: "cluster-transport"
+              # Security realm for cluster transport. This setup is for encryption only, no authentication.
+              # All the cluster server will use the same certificate both for key and trust store.
+              propertiesRealm:
+                groupProperties:
+                  path: groups.properties
+                groupsAttribute: Roles
+                userProperties:
+                  path: users.properties
+              serverIdentities:
+                ssl:
+                  keystore:
+                    alias: "server"
+                    path: "/etc/encrypt/transport/cert.p12"
+                    credentialReference:
+                      store: credentials
+                      alias: keystore
+                  truststore:
+                    path: "/etc/encrypt/transport/cert.p12"
+                    credentialReference:
+                      store: credentials
+                      alias: keystore
+            - name: metrics
+              # [METRICS] Security realm for the metrics endpoint.
+              propertiesRealm:
+                groupProperties:
+                  path: metrics-groups.properties
+                  relativeTo: infinispan.server.config.path
+                groupsAttribute: Roles
+                userProperties:
+                  path: metrics-users.properties
+                  relativeTo: infinispan.server.config.path
+  enabled: false
+  monitoring:
+    enabled: true
+
 openldap:
+  enabled: false
   persistence:
     size: 1Gi
     existingClaim: openldap
@@ -558,11 +828,114 @@ nameOverride: ""
 fullnameOverride: ""
 
 zac:
-  configuration:
-    oidcUrl: https://zac.example.nl
-    oidcSecret: "<zac>"
+  auth:
+    server: http://keycloak.example.nl
+    realm: podiumd
+    clientId: zac
+    secret: changeme
+  bagApi:
+    url: ""
+    apiKey: ""
+  brpApi:
+    url: ""
+    apiKey: ""
+  catalogusDomein: ALG
+  contextUrl: http://zac.example.nl
+  db:
+    host: postgres
+    name: zac
+    user: zac
+    password: changeme
+  enabled: true
   nameOverride: zac
   fullnameOverride: zac
+  gemeente:
+    code: "007"
+    naam: "Example Gemeente"
+    mail: "noreply@example.nl"
+  image:
+    repository: ghcr.io/infonl/zaakafhandelcomponent
+    pullPolicy: IfNotPresent
+    tag: "1.12.660"
+  keycloak:
+    adminClient:
+      id: zac-admin-client
+      secret: changeme
+  klantinteractiesApi:
+    url: http://open-klant.example.nl
+    token: openklanttoken
+  mail:
+    smtp:
+      server: "mail.example.nl"
+      port: "587"
+      username: ""
+      password: ""
+  maxFileSizeMB: 150
+  nginx:
+    enabled: true
+    client_max_body_size: 150M
+  notificationSecretKey: "changeme"
+  objectenApi:
+    url: http://objecten.example.nl
+    token: objectentoken
+  objecttypenApi:
+    url: http://objecttypen.example.nl
+    token: objecttypentoken
+  openForms:
+    url: http://open-forms.example.nl
+  organizations:
+    bron:
+      rsin: 000000000
+    verantwoordelijke:
+      rsin: 000000000
+  smartDocuments:
+    enabled: false
+    url: ""
+    authentication: ""
+    fixedUserName: ""
+  solr-operator:
+    enabled: true
+    image:
+      #repository:
+      #tag:
+    nodeSelector: {}
+    solr:
+      #busyBoxImage:
+        #repository:
+        #tag
+      # -- set enabled to provision solrcloud as well
+      enabled: true
+      #image:
+        #repository:
+        #tag:
+      javaMem: -Xms512m -Xmx768m
+      jobs:
+        createZacCore: true
+        #image:
+          #repository:
+          #tag:
+    # -- namespaces to watch for solr-operator
+    watchNamespaces: "podiumd"
+    zookeeper-operator:
+      #hooks:
+        #image:
+          #repository:
+          #tag:
+      #image:
+        #repository:
+        #tag:
+      # -- namespaces to watch for zookeeper-operator
+      watchNamespace: "podiumd"
+      #zookeeper:
+        #repository:
+        #tag:
+  zgwApis:
+    url: http://open-zaak.internal
+    urlExtern: http://open-zaak.example.nl
+    clientId: zac
+    secret: changeme
+
+
 
 clamav:
   image:

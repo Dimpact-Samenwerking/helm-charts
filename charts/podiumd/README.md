@@ -49,6 +49,8 @@ Patch release for Open Inwoner bug fix.
     helm repo add maykinmedia https://maykinmedia.github.io/charts
     helm repo add wiremind https://wiremind.github.io/wiremind-helm-charts
     helm repo add openshift https://charts.openshift.io
+    helm repo add solr https://solr.apache.org/charts
+    helm repo add opentelemetry https://open-telemetry.github.io/opentelemetry-helm-charts
     helm repo add zac https://dimpact-zaakafhandelcomponent.github.io/charts
 
 ## PersistentVolume and PersistVolumeClaim resources
@@ -537,11 +539,11 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 
 Tags to add additional unreleased PodiumD functionality.
 
-| Name           | Description                            | Value   |
-|----------------|----------------------------------------|---------|
-| tags.portaal   | Whether PodiumD Portaal is installed   | `false` |
-| tags.contact   | Whether PodiumD Contact is installed   | `false` |
-| tags.zaak      | Whether PodiumD Zak is installed       | `false` |
+| Name           | Description                          | Value   |
+|----------------|--------------------------------------|---------|
+| tags.portaal   | Whether PodiumD Portaal is installed | `false` |
+| tags.contact   | Whether PodiumD Contact is installed | `false` |
+| tags.zaak      | Whether PodiumD Zaak is installed    | `false` |
                 
 ## Upgrading
 
