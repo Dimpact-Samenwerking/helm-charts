@@ -50,7 +50,7 @@ Patch release for Open Inwoner bug fix.
 | Objecttypen       | 3.0.0   | Major update |
 | Open Formulieren  | 3.0.0   | Major update |
 | Open Inwoner      | 1.26.0  | Minor update |
-| Open Klant        | 2.5.0   | Minor update |
+| Open Klant        | 2.4.0   | Minor update |
 | Open Notificaties | 1.8.0   | Minor update |
 | Open Zaak         | 1.17.0  | Minor update |
 | Kiss              | 0.6.0   | Minor update |

@@ -893,7 +893,9 @@ zac:
     url: ""
     authentication: ""
     fixedUserName: ""
+  # solr operator settings
   solr-operator:
+    # -- turn functionality on/off
     enabled: true
     image:
       #repository:
@@ -908,6 +910,7 @@ zac:
       #image:
         #repository:
         #tag:
+      # -- define memory settings for solr in the solrcloud
       javaMem: -Xms512m -Xmx768m
       jobs:
         createZacCore: true
