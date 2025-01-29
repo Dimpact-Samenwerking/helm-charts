@@ -39,6 +39,23 @@ Patch release for Open Inwoner bug fix.
 | Open Zaak         | 1.15.0  |         |
 | Kiss              | 0.5.1   | Patch update |
 
+**PodiumD Helm chart version: 4.0.0**
+
+
+| Component         | Version | Change       |
+|-------------------|---------|--------------|
+| ClamAV            | 1.4.1   |              |
+| Keycloak          | 25.0.6  | Major update |
+| Objecten          | 3.0.0   | Major update |
+| Objecttypen       | 3.0.0   | Major update |
+| Open Formulieren  | 3.0.0   | Major update |
+| Open Inwoner      | 1.26.0  | Minor update |
+| Open Klant        | 2.5.0   | Minor update |
+| Open Notificaties | 1.8.0   | Minor update |
+| Open Zaak         | 1.17.0  | Minor update |
+| Kiss              | 0.6.0   | Minor update |
+
+
 ## Add Used chart repositories:
 
     helm repo add bitnami https://charts.bitnami.com/bitnami
