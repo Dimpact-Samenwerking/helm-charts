@@ -66,7 +66,8 @@ dependencies:
     version: 0.4.1
     repository: "@openshift"
     condition: infinispan.enabled
-  - name: zac
+  - name: zaakafhandelcomponent
+    alias: zac
     version: 0.4.6
     repository: "@zac"
     condition: zac.enabled
