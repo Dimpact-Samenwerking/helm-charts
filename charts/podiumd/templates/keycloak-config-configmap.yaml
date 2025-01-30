@@ -404,11 +404,11 @@ data:
               access.token.claim: "true"
               claim.name: "client_id"
               jsonType.label: "String"
-        users:
-          - username: "service-account-zaakafhandelcomponent-admin-client"
-            enabled: "true"
-            totp: "false"
-            serviceAccountClientId: "zaakafhandelcomponent-admin-client"
+      users:
+        - username: "service-account-zaakafhandelcomponent-admin-client"
+          enabled: "true"
+          totp: "false"
+          serviceAccountClientId: "zaakafhandelcomponent-admin-client"
     {{- end }}
 
     smtpServer:
