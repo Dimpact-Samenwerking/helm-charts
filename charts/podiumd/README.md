@@ -42,18 +42,19 @@ Patch release for Open Inwoner bug fix.
 **PodiumD Helm chart version: 4.0.0**
 
 
-| Component         | Version | Change       |
-|-------------------|---------|--------------|
-| ClamAV            | 1.4.1   |              |
-| Keycloak          | 25.0.6  | Major update |
-| Objecten          | 3.0.0   | Major update |
-| Objecttypen       | 3.0.0   | Major update |
-| Open Formulieren  | 3.0.0   | Major update |
-| Open Inwoner      | 1.26.0  | Minor update |
-| Open Klant        | 2.4.0   | Minor update |
-| Open Notificaties | 1.8.0   | Minor update |
-| Open Zaak         | 1.17.0  | Minor update |
-| Kiss              | 0.6.0   | Minor update |
+| Component         | Version | Change          |
+|-------------------|---------|-----------------|
+| ClamAV            | 1.4.1   |                 |
+| Keycloak          | 25.0.6  | Major update    |
+| Objecten          | 3.0.0   | Major update    |
+| Objecttypen       | 3.0.0   | Major update    |
+| Open Formulieren  | 3.0.0   | Major update    |
+| Open Inwoner      | 1.26.0  | Minor update    |
+| Open Klant        | 2.4.0   | Minor update    |
+| Open Notificaties | 1.8.0   | Minor update    |
+| Open Zaak         | 1.17.0  | Minor update    |
+| Kiss              | 0.6.0   | Minor update    |
+| Zac               | 2.0.0   | Nieuw component |
 
 
 ## Add Used chart repositories:
@@ -564,7 +565,7 @@ Tags to add additional unreleased PodiumD functionality.
                 
 ## Upgrading
 
-If an Helm upgrade of a component fails because of a forbidden update to a statefullset spec the stafullset needs to be deleted prior to the Helm upgrade by the following command:
+If an Helm upgrade of a component fails because of a forbidden update to a statefullset spec the statefullset needs to be deleted prior to the Helm upgrade by the following command:
                                                                                                                                                                    
 $ kubectl delete sts <component>-redis-master -n podiumd --cascade=orphan
 
