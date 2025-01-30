@@ -874,7 +874,7 @@ zac:
   nginx:
     enabled: true
     client_max_body_size: 150M
-  notificationSecretKey: "changeme"
+  notificationsSecretKey: "changeme"
   objectenApi:
     url: http://objecten.example.nl
     token: objectentoken
