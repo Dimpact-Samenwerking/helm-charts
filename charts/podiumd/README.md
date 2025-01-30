@@ -46,9 +46,10 @@ Patch release for Open Inwoner bug fix.
 |-------------------|---------|-----------------|
 | ClamAV            | 1.4.1   |                 |
 | Keycloak          | 25.0.6  | Major update    |
+| Infinispan        | 15.1    | Nieuw component |
 | Objecten          | 3.0.0   | Major update    |
 | Objecttypen       | 3.0.0   | Major update    |
-| Open Formulieren  | 3.0.0   | Major update    |
+| Open Formulieren  | 3.0.1   | Major update    |
 | Open Inwoner      | 1.26.0  | Minor update    |
 | Open Klant        | 2.4.0   | Minor update    |
 | Open Notificaties | 1.8.0   | Minor update    |
