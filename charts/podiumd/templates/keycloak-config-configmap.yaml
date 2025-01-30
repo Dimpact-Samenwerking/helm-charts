@@ -272,10 +272,10 @@ data:
         enabled: true
         clientAuthenticatorType: client-secret
         redirectUris:
-          - "{{ .Values.portaal.configuration.oidcUrl }}/*"
+          - "{{ .Values.openinwoner.configuration.oidcUrl }}/*"
         webOrigins:
-          - "{{ .Values.portaal.configuration.oidcUrl }}/*"
-        secret: {{ .Values.portaal.configuration.oidcSecret | quote }}
+          - "{{ .Values.openinwoner.configuration.oidcUrl }}/*"
+        secret: {{ .Values.openinwoner.configuration.oidcSecret | quote }}
         protocolMappers:
           - name: "username"
             protocol: "openid-connect"
