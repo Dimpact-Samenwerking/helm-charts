@@ -871,8 +871,8 @@ zac:
     smtp:
       server: "mail.example.nl"
       port: "587"
-      username: ""
-      password: ""
+      username: "dummy"
+      password: "dummy"
   maxFileSizeMB: 150
   nginx:
     enabled: true
