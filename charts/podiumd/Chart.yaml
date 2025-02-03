@@ -68,7 +68,7 @@ dependencies:
     condition: infinispan.enabled
   - name: zaakafhandelcomponent
     alias: zac
-    version: 0.4.16
+    version: 0.4.17
     repository: "@zac"
     condition: zac.enabled
     tags:
