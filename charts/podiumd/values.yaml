@@ -834,11 +834,11 @@ zac:
     clientId: zac
     secret: changeme
   bagApi:
-    url: ""
-    apiKey: ""
+    url: http://bag.example.nl
+    apiKey: "dummy"
   brpApi:
-    url: ""
-    apiKey: ""
+    url: http://brp.example.nl
+    apiKey: "dummy"
   catalogusDomein: ALG
   contextUrl: http://zac.example.nl
   db:
@@ -864,6 +864,9 @@ zac:
   klantinteractiesApi:
     url: http://open-klant.example.nl
     token: openklanttoken
+  kvkApi:
+    url: http://kvk.example.nl
+    apiKey: "dummy"
   mail:
     smtp:
       server: "mail.example.nl"
