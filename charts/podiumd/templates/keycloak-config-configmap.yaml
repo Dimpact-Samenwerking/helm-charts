@@ -92,6 +92,41 @@ data:
               lightweight.claim: "false"
               access.token.claim: "true"
               claim.name: "groups"
+      - clientId: abc
+        name: Open Archiefbeheer
+        enabled: true
+        clientAuthenticatorType: client-secret
+        redirectUris:
+          - "{{ .Values.abc.configuration.oidcUrl }}/*"
+        webOrigins:
+          - "{{ .Values.abc.configuration.oidcUrl }}/*"
+        secret: {{ .Values.abc.configuration.oidcSecret | quote }}
+        protocolMappers:
+          - name: "username"
+            protocol: "openid-connect"
+            protocolMapper: oidc-usermodel-property-mapper
+            config:
+              introspection.token.claim: "true"
+              userinfo.token.claim: "true"
+              user.attribute: "username"
+              id.token.claim: "true"
+              lightweight.claim: "false"
+              access.token.claim: "true"
+              claim.name: "preferred_username"
+              jsonType.label: "String"
+          - name: "groups-member"
+            protocol: "openid-connect"
+            protocolMapper: "oidc-group-membership-mapper"
+            consentRequired: false
+            config:
+              full.path: "false"
+              introspection.token.claim: "true"
+              userinfo.token.claim: "true"
+              multivalued: "true"
+              id.token.claim: "true"
+              lightweight.claim: "false"
+              access.token.claim: "true"
+              claim.name: "groups"
       - clientId: opennotificaties
         name: Open Notificaties
         enabled: true
@@ -408,7 +443,12 @@ data:
         - username: "service-account-zaakafhandelcomponent-admin-client"
           enabled: "true"
           totp: "false"
-          serviceAccountClientId: "zaakafhandelcomponent-admin-client"
+          serviceAccountClientId: "{{ .Values.zac.keycloak.adminClient.id }}"
+          clientRoles:
+            realm-management:
+              - "view-users"
+            account:
+              - "view-groups"
     {{- end }}
 
     smtpServer:
@@ -430,6 +470,8 @@ data:
         - name: podiumd-admin
           description: PodiumD Administrator
       client:
+        abc:
+          - name: administrators
         openklant:
           - name: administrators
         objecten:
@@ -474,6 +516,8 @@ data:
             - "coordinator"
             - "behandelaar"
           {{- end }}
+          abc:
+            - "administrators"
           objecten:
             - "administrators"
           objecttypen:

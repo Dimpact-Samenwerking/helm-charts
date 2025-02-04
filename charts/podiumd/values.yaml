@@ -331,6 +331,12 @@ openldap:
   nameOverride: openldap
   fullnameOverride: openldap
 
+abc:
+  configuration:
+    oidcUrl: https://abc.example.nl
+    oidcSecret: "abc"
+  enabled: false
+
 brpmock:
   enabled: false
   nameOverride: brpmock
