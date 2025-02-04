@@ -888,9 +888,9 @@ zac:
     url: http://open-forms.example.nl
   organizations:
     bron:
-      rsin: 000000000
+      rsin: "000000000"
     verantwoordelijke:
-      rsin: 000000000
+      rsin: "000000000"
   smartDocuments:
     enabled: false
     url: ""
