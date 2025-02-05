@@ -7,7 +7,7 @@ global:
     enabled: true
     overwrite: true
     organization: Example gemeente
-    openzaakAutorisatiesApi: http//openzaak.podiumd.svc.cluster.local/autorisaties/api/v1/
+    openzaakAutorisatiesApi: http://openzaak.podiumd.svc.cluster.local/autorisaties/api/v1/
     notificatiesApi: http://opennotificaties.podiumd.svc.cluster.local/api/v1/
     notificatiesOpenzaakClientId: notificaties
     notificatiesOpenzaakSecret: notificaties-secret
@@ -939,8 +939,9 @@ zac:
       # -- namespaces to watch for zookeeper-operator
       watchNamespace: "podiumd"
       #zookeeper:
-        #repository:
-        #tag:
+        #image:
+          #repository:
+          #tag:
   zgwApis:
     url: http://open-zaak.internal
     urlExtern: http://open-zaak.example.nl
