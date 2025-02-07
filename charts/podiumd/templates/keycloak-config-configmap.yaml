@@ -440,16 +440,16 @@ data:
               access.token.claim: "true"
               claim.name: "client_id"
               jsonType.label: "String"
-      users:
-        - username: "service-account-zaakafhandelcomponent-admin-client"
-          enabled: "true"
-          totp: "false"
-          serviceAccountClientId: "{{ .Values.zac.keycloak.adminClient.id }}"
-          clientRoles:
-            realm-management:
-              - "view-users"
-            account:
-              - "view-groups"
+    users:
+      - username: "service-account-zaakafhandelcomponent-admin-client"
+        enabled: "true"
+        totp: "false"
+        serviceAccountClientId: "{{ .Values.zac.keycloak.adminClient.id }}"
+        clientRoles:
+          realm-management:
+            - "view-users"
+          account:
+            - "view-groups"
     {{- end }}
 
     smtpServer:
