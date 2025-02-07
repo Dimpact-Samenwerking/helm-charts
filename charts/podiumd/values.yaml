@@ -420,7 +420,7 @@ opennotificaties:
   persistentVolume:
     volumeAttributeShareName: opennotificaties
   image:
-    tag: "1.7.1"
+    tag: "1.8.0"
   resources:
     requests:
       cpu: 100m
@@ -475,7 +475,7 @@ objecten:
   persistentVolume:
     volumeAttributeShareName: objecten
   image:
-    tag: "2.4.4"
+    tag: "3.0.0"
   resources:
     requests:
       cpu: 100m
@@ -514,7 +514,7 @@ objecttypen:
       useTLS: true
     disable2fa: true
   image:
-    tag: "2.2.2"
+    tag: "3.0.0"
   resources:
     requests:
       cpu: 10m
@@ -545,7 +545,7 @@ openklant:
       useTLS: true
     disable2fa: true
   image:
-    tag: "2.3.0"
+    tag: "2.4.0"
   resources:
     requests:
       cpu: 100m
