@@ -514,7 +514,7 @@ kiss:
       name: ""
     image:
       repository: ghcr.io/klantinteractie-servicesysteem/kiss-frontend
-      tag: "v0.5.1-20250107153635-2d5264c"
+      tag: "main-20250129154544-b179b49"
       pullPolicy: IfNotPresent
     resources:
       requests:
