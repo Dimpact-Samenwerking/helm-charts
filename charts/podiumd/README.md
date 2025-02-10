@@ -41,7 +41,7 @@ Patch release for Open Inwoner bug fix.
 
 ### [3.3.0](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-3.3.0)
 
-**PodiumD Helm chart version: 3.2.0**
+**PodiumD Helm chart version: 3.3.0**
 
 
 | Component         | Version | Change  |
