@@ -36,6 +36,7 @@ keycloak:
   config:
     adminFrontendUrl: https://keycloak-admin.example.nl
     # Example configuration
+    #     identityProviders:
     #     - alias: "oidc-admin-users"
     #      displayName: "podiumd admin users"
     #      providerId: "oidc"
@@ -55,6 +56,7 @@ keycloak:
     # -- identity providers for the admin realm (usually master)
     adminIdentityProviders: {}
     # Example configuration
+    #    identityProviderMappers:
     #    - name: "admin-group-mapper"
     #      identityProviderAlias: "oidc-admin-users"
     #      identityProviderMapper: "oidc-hardcoded-role-idp-mapper"
@@ -515,6 +517,8 @@ objecttypen:
     disable2fa: true
   image:
     tag: "3.0.0"
+  job:
+    productaanvraag: false
   resources:
     requests:
       cpu: 10m

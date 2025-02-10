@@ -28,11 +28,9 @@ data:
         alias: CONFIGURE_TOTP
 {{- end }}
 {{- with .Values.keycloak.config.adminIdentityProviders }}
-    identityProviders:
     {{- toYaml . | nindent 4 }}
 {{- end }}
 {{- with .Values.keycloak.config.adminIdentityProviderMappers }}
-    identityProviderMappers:
     {{- toYaml . | nindent 4 }}
 {{- end }}
   realm.yaml: |
@@ -591,11 +589,9 @@ data:
     eventsExpiration: "10800"
     adminEventsEnabled: "true"
 {{- with .Values.keycloak.config.realmIdentityProviders }}
-    identityProviders:
     {{- toYaml . | nindent 4 }}
 {{- end }}
 {{- with .Values.keycloak.config.realmIdentityProviderMappers }}
-    identityProviderMappers:
     {{- toYaml . | nindent 4 }}
 {{- end }}
 {{- end }}
