@@ -50,7 +50,7 @@ Patch release for Open Inwoner bug fix.
 | Keycloak          | 24.0.5  |         |
 | Objecten          | 3.0.0   | Major update |
 | Objecttypen       | 3.0.0   | Major update |
-| Open Formulieren  | 2.8.4  | Minor app update |
+| Open Formulieren  | 2.8.5  | Minor app update |
 | Open Inwoner      | 1.27.0  | Minor app update |
 | Open Klant        | 2.4.0   | Minor update |
 | Open Notificaties | 1.8.0   | Minor update |
