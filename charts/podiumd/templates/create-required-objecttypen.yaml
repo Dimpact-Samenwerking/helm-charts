@@ -1,3 +1,4 @@
+{{- if .Values.objecttypen.enabled }}
 {{- if .Values.objecttypen.create_required_objecttypen_job.enabled }}
 apiVersion: v1
 kind: ConfigMap
@@ -39,6 +40,16 @@ data:
       { "documentationUrl": "https://raw.githubusercontent.com/open-objecten/objecttypes/refs/heads/main/community-concepts/productaanvraag/productaanvraag-dimpact.json", "namePlural": "Productaanvragen-Dimpact","name":"Productaanvraag-Dimpact", "dataClassification":"open", "updateFrequency":"unknown" }
     ]
 
+    objecttypes_uuid = [
+        {"uuid":"90984726-2692-49d8-8f9d-742075cb761d","name":"Medewerker"},
+        {"uuid":"c8d301f9-80b8-4575-8b29-3e9431f92994","name":"Afdeling"},
+        {"uuid":"cbec27ac-157b-490b-b586-9e8a8f5bbb85","name":"Groep"},
+        {"uuid":"72240cd6-29bb-4a66-b1c3-ab6589a39a22","name":"InterneTaak"},
+        {"uuid":"e4d2e353-80ea-4962-8276-920d59a3e8de","name":"Kennisartikel"},
+        {"uuid":"6a0d8f9d-f7e2-4e57-a91b-01656968a62d","name":"VAC"},
+        {"uuid":"11a5f7fd-013e-4e29-9cd1-738249fc3479","name":"Productaanvraag-Dimpact"}
+    ]
+
     existing_objecttypes = []
     json=json_response.json()
     # Find existing uuid and latest version of objecttypes
@@ -54,6 +65,7 @@ data:
       if not any ('uuid' in item for item in objecttype):
         #create objecttype
         print(f"creating objecttype for {objecttype['name']}")
+        objecttype['uuid']=next((item['uuid'] for item in objecttypes_uuid if item['name']==objecttype['name']), None)
         response = requests.post(
           f"{objecttypes_url}/objecttypes",
           json=objecttype,
@@ -84,7 +96,7 @@ kind: Job
 metadata:
   name: create-required-objecttypen-job
   labels:
-    {{- include "objecttypen.configLbels" . | nindent 4 }}
+    {{- include "objecttypen.configLabels" . | nindent 4 }}
 spec:
   ttlSecondsAfterFinished: 600
   template:
@@ -111,4 +123,5 @@ spec:
       restartPolicy: OnFailure
   backoffLimit: 4
   activeDeadlineSeconds: 300
+{{- end }}
 {{- end }}
