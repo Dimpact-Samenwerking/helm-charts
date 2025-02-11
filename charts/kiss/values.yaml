@@ -117,5 +117,5 @@ sync:
 alpine:
   image:
     repository: "alpine"
-    tag: "3.20"
+    tag: "3.21"
     pullPolicy: IfNotPresent
