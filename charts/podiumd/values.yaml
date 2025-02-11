@@ -517,8 +517,9 @@ objecttypen:
     disable2fa: true
   image:
     tag: "3.0.0"
-  job:
-    productaanvraag: false
+  # used for create-required-objecttypen podiumd job only
+  create_required_objecttypen_job:
+    enabled: true
   resources:
     requests:
       cpu: 10m
