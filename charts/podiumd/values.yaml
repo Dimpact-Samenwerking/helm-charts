@@ -917,8 +917,9 @@ zac:
     nodeSelector: {}
     solr:
       #busyBoxImage:
-        #repository:
-        #tag
+        #image:
+          #repository:
+          #tag:
       # -- set enabled to provision solrcloud as well
       enabled: true
       #image:
@@ -953,11 +954,9 @@ zac:
     clientId: zac
     secret: changeme
 
-
-
 clamav:
   image:
-    tag: "1.4.1"
+    tag: "1.4.2"
   nameOverride: clamav
   fullnameOverride: clamav
   clamdConfig: |
