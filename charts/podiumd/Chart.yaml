@@ -52,7 +52,7 @@ dependencies:
     repository: "@maykinmedia"
     condition: openformulieren.enabled
   - name: openinwoner
-    version: 1.5.3
+    version: 1.7.0
     repository: "@maykinmedia"
     condition: openinwoner.enabled
   - name: kiss-elastic
