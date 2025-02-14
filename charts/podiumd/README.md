@@ -569,6 +569,3 @@ Tags to add additional unreleased PodiumD functionality.
 If an Helm upgrade of a component fails because of a forbidden update to a statefullset spec the statefullset needs to be deleted prior to the Helm upgrade by the following command:
                                                                                                                                                                    
 $ kubectl delete sts <component>-redis-master -n podiumd --cascade=orphan
-
-
-
