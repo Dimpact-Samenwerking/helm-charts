@@ -407,6 +407,8 @@ opennotificaties:
     overwrite: true
     oidcUrl: https://opennotificaties.example.nl
     oidcSecret: "<opennotificaties>"
+    http_request_job:
+      enabled: false
   settings:
     allowedHosts: opennotificaties.podiumd.svc.cluster.local
     maxRetries: 5
