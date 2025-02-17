@@ -135,6 +135,8 @@ infinispan:
       storage:
         storageClassName: podiumd-standard
     security:
+      monitor:
+        password: changememonitor
       batch: |
         credentials add keystore -c password -p secret --path="internal-credentials.pfx"
         user create keycloak -p changemenow -g deployer
