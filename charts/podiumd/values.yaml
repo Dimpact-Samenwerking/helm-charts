@@ -137,6 +137,7 @@ infinispan:
     security:
       monitor:
         password: changememonitor
+      secretName: ispn-generated-secret
       batch: |
         credentials add keystore -c password -p secret --path="internal-credentials.pfx"
         user create keycloak -p changemenow -g deployer
