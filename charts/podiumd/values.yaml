@@ -136,6 +136,7 @@ infinispan:
         storageClassName: podiumd-standard
     secretName: ispn-generated-secret
     security:
+      secretName: ispn-generated-secret
       monitor:
         secret: changememonitor
       batch: |
