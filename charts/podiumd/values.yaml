@@ -137,7 +137,7 @@ infinispan:
     secretName: ispn-generated-secret
     security:
       monitor:
-        password: changememonitor
+        secret: changememonitor
       batch: |
         credentials add keystore -c password -p secret --path="internal-credentials.pfx"
         user create keycloak -p changemenow -g deployer
@@ -348,12 +348,16 @@ openzaak:
       enabled: true
     job:
       enabled: false
+  create_required_catalogi_job:
+    client_id: "<openzaak_client_id>"
+    secret: "<openzaak_secret>"
+    enabled: true
   settings:
     allowedHosts: openzaak-nginx.podiumd.svc.cluster.local
     email:
       port: 587
       useTLS: true
-    disable2fa: true
+    disable2fa: false
   persistence:
     size: 10Gi
     existingClaim: openzaak
@@ -414,7 +418,7 @@ opennotificaties:
     email:
       port: 587
       useTLS: true
-    disable2fa: true
+    disable2fa: false
   persistence:
     size: 10Gi
     existingClaim: opennotificaties
@@ -469,7 +473,7 @@ objecten:
     email:
       port: 587
       useTLS: true
-    disable2fa: true
+    disable2fa: false
   persistence:
     size: 10Gi
     existingClaim: objecten
@@ -513,7 +517,7 @@ objecttypen:
     email:
       port: 587
       useTLS: true
-    disable2fa: true
+    disable2fa: false
   image:
     tag: "3.0.0"
   # used for create-required-objecttypen podiumd job only
@@ -547,7 +551,7 @@ openklant:
     email:
       port: 587
       useTLS: true
-    disable2fa: true
+    disable2fa: false
   image:
     tag: "2.4.0"
   resources:
