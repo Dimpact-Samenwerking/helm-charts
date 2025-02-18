@@ -1,3 +1,4 @@
+{{- if .Values.kiss.enabled -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -15,3 +16,4 @@ data:
   SDG_OBJECT_TYPE_URL: {{ printf "%s/api/v2/objecttypes/%s" (default (printf "http://objecttypen.%s.svc.cluster.local" .Release.Namespace) .Values.kiss.objecttypen.baseUrlIntern) .Values.kiss.objecttypen.kennisartikelUUID | quote }}
   VAC_OBJECTEN_BASE_URL: {{ default (printf "http://objecten.%s.svc.cluster.local" .Release.Namespace) .Values.kiss.objecten.baseUrl | quote }}
   VAC_OBJECT_TYPE_URL: {{ printf "%s/api/v2/objecttypes/%s" (default (printf "http://objecttypen.%s.svc.cluster.local" .Release.Namespace) .Values.kiss.objecttypen.baseUrlIntern) .Values.kiss.objecttypen.vacUUID | quote }}
+{{- end }}
