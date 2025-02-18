@@ -108,7 +108,7 @@ spec:
             defaultMode: 0755
             name: create-required-catalogi-configmap
           name: jobs
-      {{- with .Values.objecttypen.nodeSelector }}
+      {{- with .Values.openzaak.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
