@@ -497,8 +497,9 @@ kiss:
   vac:
     useVacs: false
     objectenBaseUrl: ""
+    objectenToken: ""
     objectTypeUrl: ""
-    objectTypeVersion: ""
+    objectTypeVersion: ""    
 
   oidc:
     authority: ""
