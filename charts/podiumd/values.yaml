@@ -494,6 +494,12 @@ kiss:
     medewerkerUUID: ""
     vacUUID: ""
 
+  vac:
+    useVacs: false
+    objectenBaseUrl: ""
+    objectTypeUrl: ""
+    objectTypeVersion: ""
+
   oidc:
     authority: ""
     clientId: kiss
