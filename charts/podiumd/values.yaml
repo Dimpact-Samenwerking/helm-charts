@@ -558,7 +558,7 @@ kiss:
   alpine:
      image:
        repository: "alpine"
-       tag: "3.20"
+       tag: "3.21"
        pullPolicy: IfNotPresent
 
 nameOverride: ""
@@ -678,5 +678,5 @@ httpRequestJob:
   alpine:
     image:
       repository: alpine
-      tag: "3.20"
+      tag: "3.21"
   nodeSelector: {}
