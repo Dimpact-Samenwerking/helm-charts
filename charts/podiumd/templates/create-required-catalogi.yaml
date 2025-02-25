@@ -1,0 +1,119 @@
+{{- if .Values.openzaak.enabled }}
+{{- if .Values.openzaak.create_required_catalogi_job.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: create-required-catalogi-configmap
+  labels:
+    {{- include "openzaak.labels" . | nindent 4 }}
+data:
+  CLIENT_ID: {{ .Values.openzaak.create_required_catalogi_job.client_id | quote }}
+  OPENZAAK_URL: {{ .Values.openzaak.configuration.oidcUrl | quote }}
+  SECRET: {{ .Values.openzaak.create_required_catalogi_job.secret | quote }}
+  DOMEIN: {{ .Values.zac.catalogusDomein | quote }}
+  RSIN: {{ .Values.zac.organizations.bron.rsin | quote }}
+  CONTACT_PERSON: {{ .Values.zac.gemeente.naam | quote }}
+  CONTACT_EMAIL: {{ .Values.zac.gemeente.mail | quote }}
+  create-required-catalogi.py: |
+    #!/usr/local/bin/python
+
+    import requests
+    import time
+    import os
+    import jwt
+
+    client_id = os.environ['CLIENT_ID']
+    openzaak_url = os.environ['OPENZAAK_URL']
+    secret = os.environ['SECRET']
+    domein = os.environ['DOMEIN']
+    rsin = os.environ['RSIN']
+    contact_person = os.environ['CONTACT_PERSON']
+    contact_email = os.environ['CONTACT_EMAIL']
+
+    payload = {
+      "iss": f"{client_id}",
+      "iat": int(time.time()),
+      "client_id": f"{client_id}",
+      "user_id": "integratieteam@dimpact.nl",
+      "user_representation": "Integratieteam"
+    }
+
+    jwt_token = jwt.encode(payload, f"{secret}", algorithm="HS256")
+    headers = {"Authorization": "Bearer {token}".format(token=jwt_token)}
+
+    catalogi_url = openzaak_url + "catalogi/api/v1/"
+
+
+    catalogi_url = "https://ontw-openzaak.dimpact.info.nl/catalogi/api/v1/"
+    headers = {"Authorization": "Bearer {token}".format(token=jwt_token), "Content-Type": "application/json"}
+    response = requests.get(
+      catalogi_url+"catalogussen",
+      headers=headers
+    )
+
+    print(response.json())
+
+    zac_catalogus={ "domein": f"{domein}", "rsin": f"{rsin}", "contactpersoonBeheerNaam": f"{contact_person}", "contactpersoonBeheerEmailadres": f"{contact_email}" }
+
+    catalogi = response.json()['results']
+
+    for catalogus in catalogi:
+      if(catalogus['domein']==zac_catalogus['domein'] and catalogus['rsin']==zac_catalogus['rsin']):
+        print(f"found zac catalogus for {zac_catalogus}")
+        zac_catalogus=catalogus
+
+
+    if not any ('naam' in item for item in zac_catalogus):
+      zac_catalogus['naam']="zac"
+      print(f"create zac catalogus for {zac_catalogus}")
+      response = requests.post(
+      catalogi_url+"catalogussen",
+      json = zac_catalogus,
+      headers = headers
+      )
+      print(response)
+      if(response.status>=200 or response.status<=201):
+        zac_catalogus['url']=response.json()['url']
+
+    print(f"{zac_catalogus}")
+
+
+
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: create-required-catalogi-job
+  labels:
+    {{- include "openzaak.configLabels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-install
+    "helm.sh/hook-weight": "-5"
+spec:
+  ttlSecondsAfterFinished: 600
+  template:
+    spec:
+      containers:
+        - image: {{ .Values.objecttypen.image.repository }}:{{ .Values.objecttypen.image.tag }}
+          command: ["/jobs/create-required-catalogi.py"]
+          name: create-required-catalogi
+          envFrom:
+            - configMapRef:
+                name: create-required-catalogi-configmap
+          volumeMounts:
+            - mountPath: /jobs
+              name: jobs
+      volumes:
+        - configMap:
+            defaultMode: 0755
+            name: create-required-catalogi-configmap
+          name: jobs
+      {{- with .Values.objecttypen.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      restartPolicy: OnFailure
+  backoffLimit: 4
+  activeDeadlineSeconds: 300
+{{- end }}
+{{- end }}

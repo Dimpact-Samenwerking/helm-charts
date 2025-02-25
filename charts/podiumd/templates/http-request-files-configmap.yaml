@@ -1,4 +1,4 @@
-{{- if and .Values.global.configuration.enabled .Values.opennotificaties.configuration.enabled -}}
+{{- if and .Values.global.configuration.enabled .Values.opennotificaties.configuration.enabled .Values.opennotificaties.configuration.http_request_job.enabled -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:

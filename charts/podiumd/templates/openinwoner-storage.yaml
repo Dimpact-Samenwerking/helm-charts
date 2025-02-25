@@ -1,4 +1,4 @@
-{{- if and .Values.tags.portaal (or .Values.openinwoner.enabled (not (hasKey .Values.openinwoner "enabled"))) -}}
+{{- if or .Values.openinwoner.enabled (not (hasKey .Values.openinwoner "enabled")) -}}
 {{- if not (lookup "v1" "PersistentVolumeClaim" .Release.Namespace .Values.openinwoner.persistence.existingClaim) -}}
 ---
 apiVersion: v1
