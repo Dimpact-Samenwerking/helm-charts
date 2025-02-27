@@ -1,3 +1,4 @@
+{{- if .Values.kiss.enabled -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -52,3 +53,4 @@ data:
   ZAAKSYSTEEM_DEEPLINK_PROPERTY: "identificatie"
   ZAAKSYSTEEM_DEEPLINK_URL: {{ printf "%s/mp/zaak/" .Values.kiss.esuite.baseUrl | quote }}
   ZAKEN_BASE_URL:  {{ default (printf "http://kiss-adapter.%s.svc.cluster.local" .Release.Namespace) .Values.kiss.adapter.baseUrl | quote }}
+{{- end }}

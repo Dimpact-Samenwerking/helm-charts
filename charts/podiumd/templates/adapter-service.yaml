@@ -1,3 +1,4 @@
+{{- if .Values.kiss.enabled -}}
 apiVersion: v1
 kind: Service
 metadata:
@@ -13,3 +14,4 @@ spec:
       name: http
   selector:
     {{- include "podiumd.selectorLabelsAdapter" . | nindent 4 }}
+  {{- end }}
