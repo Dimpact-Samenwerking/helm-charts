@@ -560,8 +560,6 @@ Tags to add additional unreleased PodiumD functionality.
 
 | Name           | Description                          | Value   |
 |----------------|--------------------------------------|---------|
-| tags.portaal   | Whether PodiumD Portaal is installed | `false` |
-| tags.contact   | Whether PodiumD Contact is installed | `false` |
 | tags.zaak      | Whether PodiumD Zaak is installed    | `false` |
                 
 ## Upgrading
