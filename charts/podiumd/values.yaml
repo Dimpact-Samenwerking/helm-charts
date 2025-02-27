@@ -670,7 +670,7 @@ httpRequestJob:
   intellijHttpClient:
     image:
       repository: jetbrains/intellij-http-client
-      tag: "243.22562.13"
+      tag: "243.25659.39"
   jwtCli:
     image:
       repository: bitnami/jwt-cli
