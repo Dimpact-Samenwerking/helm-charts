@@ -779,6 +779,13 @@ kiss:
     medewerkerUUID: ""
     vacUUID: ""
 
+  vac:
+    useVacs: false
+    objectenBaseUrl: ""
+    objectenToken: ""
+    objectTypeUrl: ""
+    objectTypeVersion: ""    
+
   oidc:
     authority: ""
     clientId: kiss
@@ -799,7 +806,7 @@ kiss:
       name: ""
     image:
       repository: ghcr.io/klantinteractie-servicesysteem/kiss-frontend
-      tag: "v0.5.1-20250107153635-2d5264c"
+      tag: "release-0.6.x-20250225135203-7183543"
       pullPolicy: IfNotPresent
     resources:
       requests:
@@ -813,7 +820,7 @@ kiss:
     secret: ""
     image:
       repository: ghcr.io/icatt-menselijk-digitaal/podiumd-adapter
-      tag: "latest"
+      tag: "v0.6.x-20250225135230-fc9468b"
       pullPolicy: IfNotPresent
     resources:
       requests:

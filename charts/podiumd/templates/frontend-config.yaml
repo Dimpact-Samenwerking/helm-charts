@@ -46,6 +46,10 @@ data:
   POSTGRES_HOST: {{ .Values.kiss.database.host | quote }}
   SDG_OBJECT_BASE_URL: {{ default (printf "http://objecten.%s.svc.cluster.local" .Release.Namespace) .Values.kiss.objecten.baseUrl | quote }}
   SDG_OBJECT_TYPE_URL: {{ printf "%s/api/v2/objecttypes/%s" (default (printf "http://objecttypen.%s.svc.cluster.local" .Release.Namespace) .Values.kiss.objecttypen.baseUrlIntern) .Values.kiss.objecttypen.kennisartikelUUID | quote }}
+  USE_VACS: {{ .Values.kiss.vac.useVacs | quote }}
+  VAC_OBJECTEN_BASE_URL: {{ default (printf "http://objecten.%s.svc.cluster.local" .Release.Namespace) .Values.kiss.vac.objectenBaseUrl | quote }}
+  VAC_OBJECT_TYPE_URL: {{ .Values.kiss.vac.objectTypeUrl | quote }}
+  VAC_OBJECT_TYPE_VERSION: {{ .Values.kiss.vac.objectTypeVersion | quote }}
   ZAAKSYSTEEM_DEEPLINK_PROPERTY: "identificatie"
   ZAAKSYSTEEM_DEEPLINK_URL: {{ printf "%s/mp/zaak/" .Values.kiss.esuite.baseUrl | quote }}
   ZAKEN_BASE_URL:  {{ default (printf "http://kiss-adapter.%s.svc.cluster.local" .Release.Namespace) .Values.kiss.adapter.baseUrl | quote }}
