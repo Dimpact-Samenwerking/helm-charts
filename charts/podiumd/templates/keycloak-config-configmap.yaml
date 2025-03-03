@@ -438,6 +438,25 @@ data:
               access.token.claim: "true"
               claim.name: "client_id"
               jsonType.label: "String"
+    clientScopes:
+      - name: roles
+        description: OpenID Connect scope for add user roles to the access token
+        protocol: openid-connect
+        protocolMappers:
+          - config:
+              access.token.claim: "true"
+              claim.name: roles
+              id.token.claim: "false"
+              introspection.token.claim: "false"
+              jsonType.label: String
+              lightweight.claim: "false"
+              multivalued: "true"
+              userinfo.token.claim: "false"
+              usermodel.clientRoleMapping.clientId: {{ .Values.zac.auth.clientId }}
+            consentRequired: false
+            name: zac roles
+            protocol: openid-connect
+            protocolMapper: oidc-usermodel-client-role-mapper
     users:
       - username: "service-account-zaakafhandelcomponent-admin-client"
         enabled: "true"
@@ -595,4 +614,4 @@ data:
     {{- toYaml . | nindent 4 }}
 {{- end }}
 {{- end }}
-{{- end }}
+    {{- end }}
