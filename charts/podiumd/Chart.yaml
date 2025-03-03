@@ -27,7 +27,7 @@ dependencies:
       - contact
       - zaak
   - name: openzaak
-    version: 1.8.0-beta.0
+    version: 1.8.0
     repository: "@maykinmedia"
     condition: openzaak.enabled
   - name: opennotificaties
