@@ -1,0 +1,9 @@
+brp-personen-mock:
+  image:
+    repository: ghcr.io/brp-api/personen-mock
+    tag: 2.6.0-202502261446
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 10m
+      memory: 150Mi
