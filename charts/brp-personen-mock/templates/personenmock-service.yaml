@@ -1,17 +1,16 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "bm.name" . }}-brp-personen-mock
+  name: brp-personen-mock
   labels:
-    app.kubernetes.io/instance: {{ .Values.instance }}
-    app.kubernetes.io/name: {{ include "bm.name" . }}-brp-personen-mock
-    {{- include "bm.labels" . | nindent 4 }}
+    app.kubernetes.io/instance: podiumd
+    app.kubernetes.io/name: brp-personen-mock
 spec:
   type: ClusterIP
   ports:
     - name: http-brp-mock
-      port: {{ .Values.service.port }}
+      port: 5010
       targetPort: http-brp-mock
       protocol: TCP
   selector:
-    app.kubernetes.io/instance: {{ .Values.instance }}
+    app.kubernetes.io/instance: podiumd
