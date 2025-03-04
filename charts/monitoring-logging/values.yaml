@@ -52,4 +52,16 @@ grafana:
     - ReadWriteOnce
     size: 50Gi
     type: pvc
-    
+
+promtail:
+  image:
+    registry: REP_ACR_NAME_REP.azurecr.io
+    repository: promtail
+    tag: "3.0.0"
+  resources:
+    requests:
+      cpu: 50m
+      memory: 96Mi
+    limits:
+      cpu: 100m
+      memory: 256Mi
