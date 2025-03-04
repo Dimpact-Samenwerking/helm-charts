@@ -1,4 +1,4 @@
-brp-personen-mock:
+brppersonenmock:
   image:
     repository: ghcr.io/brp-api/personen-mock
     tag: 2.6.0-202502261446
