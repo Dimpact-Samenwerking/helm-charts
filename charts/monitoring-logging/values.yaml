@@ -42,7 +42,7 @@ grafana:
   dashboards:
     default:
       Monitoring:
-        url: https://raw.githubusercontent.com/Dimpact-Samenwerking/dashboard/main/Monitoring.json
+        url:
         token: ''
         datasource: Loki
 
