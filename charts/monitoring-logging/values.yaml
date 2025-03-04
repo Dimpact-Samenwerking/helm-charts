@@ -6,7 +6,7 @@ grafana:
     readOnly: false
     editable: true
     access: proxy
-    url: http://loki:3100
+    url: http://loki-distributed-gateway
     jsonData:
         derivedFields:
           - datasourceUid: tempo
