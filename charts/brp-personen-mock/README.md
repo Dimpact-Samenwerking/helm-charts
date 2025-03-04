@@ -4,7 +4,7 @@
 
 BRP personen mock Helm chart
 
-## Values
+## Parameters
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
