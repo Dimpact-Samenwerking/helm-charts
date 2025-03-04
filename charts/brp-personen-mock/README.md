@@ -1,7 +1,5 @@
 # brp-personen-mock
 
-![Version: 1.2.4](https://img.shields.io/badge/Version-1.2.4-informational?style=flat-square) ![AppVersion: 2.6.0](https://img.shields.io/badge/AppVersion-2.6.0-informational?style=flat-square)
-
 BRP personen mock Helm chart
 
 ## Parameters
