@@ -61,6 +61,13 @@
             options:
               path: /var/lib/grafana/dashboards/default
     
+    dashboards: 
+      default: 
+        Logging_PodiumD:
+          url: https://github.com/Dimpact-Samenwerking/helm-charts/blob/feature/IN-72_monitoring-logging/charts/monitoring-logging/grafana/dashboards/logging_PodiumD.json
+          token: ''
+          datasource: Loki
+
     dashboardsConfigMaps:
       default: "loki-dashboard"
     
