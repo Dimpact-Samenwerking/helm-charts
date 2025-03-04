@@ -4,7 +4,7 @@ BRP personen mock Helm chart
 
 ## Parameters
 
-| Key | Type | Default | Description |
+| Name | Type | Value | Description |
 |-----|------|---------|-------------|
 | brp-personen-mock.image.pullPolicy | string | `"IfNotPresent"` |  |
 | brp-personen-mock.image.repository | string | `"ghcr.io/brp-api/personen-mock"` |  |
