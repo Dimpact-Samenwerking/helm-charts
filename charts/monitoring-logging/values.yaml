@@ -1,0 +1,55 @@
+grafana:
+  additionalDataSources:
+  - name: loki
+    type: loki
+    uid: loki
+    readOnly: false
+    editable: true
+    access: proxy
+    url: http://loki:3100
+    jsonData:
+        derivedFields:
+          - datasourceUid: tempo
+            matcherRegex: ((\d+|[a-z]+)(\d+|[a-z]+)(\d+|[a-z]+)(\d+|[a-z]+)(\d+|[a-z]+)(\d+|[a-z]+)(\d+|[a-z]+)(\d+|[a-z]+)(\d+|[a-z]+)(\d+|[a-z]+)(\d+|[a-z]+))
+            name: TraceID
+            url: $${__value.raw}
+        maxLines: 1000
+    version: 1
+  - name: Tempo
+    type: tempo
+    readOnly: false
+    editable: true
+    uid: tempo
+    url: http://tempo:3100
+    access: proxy
+    version: 1
+
+  assertNoLeakedSecrets: false
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+      - name: 'default'
+        orgId: 1
+        folder: ''
+        type: file
+        updateIntervalSeconds: 10
+        disableDeletion: false
+        allowUiUpdates: true
+        editable: true
+        options:
+          path: /var/lib/grafana/dashboards/default
+  dashboards:
+    default:
+      Monitoring:
+        url: https://raw.githubusercontent.com/Dimpact-Samenwerking/dashboard/main/Monitoring.json
+        token: ''
+        datasource: Loki
+
+  persistence:
+    enabled: true
+    accessModes:
+    - ReadWriteOnce
+    size: 50Gi
+    type: pvc
+    

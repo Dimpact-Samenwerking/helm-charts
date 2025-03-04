@@ -1,0 +1,2323 @@
+{
+    "annotations": {
+      "list": [
+        {
+          "builtIn": 1,
+          "datasource": {
+            "type": "grafana",
+            "uid": "-- Grafana --"
+          },
+          "enable": true,
+          "hide": true,
+          "iconColor": "rgba(0, 211, 255, 1)",
+          "name": "Annotations & Alerts",
+          "target": {
+            "limit": 100,
+            "matchAny": false,
+            "tags": [],
+            "type": "dashboard"
+          },
+          "type": "dashboard"
+        }
+      ]
+    },
+    "editable": true,
+    "fiscalYearStartMonth": 0,
+    "graphTooltip": 0,
+    "id": 245,
+    "links": [],
+    "panels": [
+      {
+        "collapsed": false,
+        "gridPos": {
+          "h": 1,
+          "w": 24,
+          "x": 0,
+          "y": 0
+        },
+        "id": 69,
+        "panels": [],
+        "title": "Keten formulieren -> e-Suite",
+        "type": "row"
+      },
+      {
+        "datasource": {
+          "type": "loki",
+          "uid": "P8E80F9AEF21F6940"
+        },
+        "description": "",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              }
+            },
+            "mappings": []
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "openformulieren"
+              },
+              "properties": [
+                {
+                  "id": "displayName",
+                  "value": "openformulieren"
+                },
+                {
+                  "id": "links",
+                  "value": [
+                    {
+                      "title": "",
+                      "url": "https://test-podiumd-logs.rotterdam.nl/d/e970a83d-adc2-4d33-af93-2349c0b77e5/logging-openformulieren-3e-e-suite?from=2025-01-23T12:45:18.649Z&to=2025-01-23T13:45:18.649Z&var-App=openformulieren&var-Pod=$__all&var-Container=$__all&var-stream=$__all&var-search=&var-filter=&var-Dashboard_versie_Rotterdam=1.1&var-LogLevel=$__all&refresh=5m&var-query0=&var-Deployment=objecten&var-Subapp=$__all&var-Subapp1=objecten&var-Subapp-2=$__all&var-App-2=$__all&var-query0-2=&viewPanel=panel-48"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "objecten"
+              },
+              "properties": [
+                {
+                  "id": "links",
+                  "value": [
+                    {
+                      "title": "",
+                      "url": "https://test-podiumd-logs.rotterdam.nl/d/e970a83d-adc2-4d33-af93-2349c0b77e5/logging-openformulieren-3e-e-suite?from=2025-01-21T10:40:29.177Z&to=2025-01-21T10:55:29.177Z&var-App=objecten&var-Pod=$__all&var-Container=$__all&var-stream=$__all&var-search=&var-filter=&var-Dashboard_versie_Rotterdam=1.1&refresh=5m&viewPanel=panel-48"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "e-Suite"
+              },
+              "properties": [
+                {
+                  "id": "links",
+                  "value": [
+                    {
+                      "title": "",
+                      "url": "https://test-podiumd-logs.rotterdam.nl/d/e970a83d-adc2-4d33-af93-2349c0b77e5/logging-openformulieren-3e-e-suite?from=2025-01-23T12:45:18.649Z&to=2025-01-23T13:45:18.649Z&var-App=openformulieren&var-Pod=$__all&var-Container=$__all&var-stream=$__all&var-search=&var-filter=&var-Dashboard_versie_Rotterdam=1.1&var-LogLevel=$__all&refresh=5m&var-query0=&var-Deployment=objecten&var-Subapp=openformulieren-worker&var-Subapp1=objecten&var-Subapp-2=$__all&var-App-2=$__all&var-query0-2=&viewPanel=panel-51"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "DRC"
+              },
+              "properties": [
+                {
+                  "id": "links",
+                  "value": [
+                    {
+                      "title": "",
+                      "url": "https://test-podiumd-logs.rotterdam.nl/d/e970a83d-adc2-4d33-af93-2349c0b77e5/logging-openformulieren-3e-e-suite?from=2025-01-23T12:45:18.649Z&to=2025-01-23T13:45:18.649Z&var-App=openformulieren&var-Pod=$__all&var-Container=$__all&var-stream=$__all&var-search=&var-filter=&var-Dashboard_versie_Rotterdam=1.1&var-LogLevel=$__all&refresh=5m&var-query0=&var-Deployment=objecten&var-Subapp=openformulieren-worker&var-Subapp1=objecten&var-Subapp-2=$__all&var-App-2=$__all&var-query0-2=&viewPanel=panel-51"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "opennotificaties"
+              },
+              "properties": [
+                {
+                  "id": "links",
+                  "value": [
+                    {
+                      "title": "",
+                      "url": "https://test-podiumd-logs.rotterdam.nl/d/e970a83d-adc2-4d33-af93-2349c0b77e5/logging-openformulieren-3e-e-suite?from=2025-01-21T09:17:30.906Z&to=2025-01-21T12:17:30.906Z&var-App=opennotificaties&var-Pod=$__all&var-Container=$__all&var-stream=$__all&var-search=&var-filter=&var-Dashboard_versie_Rotterdam=1.1&refresh=5m&viewPanel=panel-48"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "objecttypen"
+              },
+              "properties": [
+                {
+                  "id": "links",
+                  "value": [
+                    {
+                      "title": "",
+                      "url": "https://test-podiumd-logs.rotterdam.nl/d/e970a83d-adc2-4d33-af93-2349c0b77e5/logging-openformulieren-3e-e-suite?from=2025-01-22T14:19:18.791Z&to=2025-01-22T15:19:18.791Z&var-App=objecttypen&var-Pod=$__all&var-Container=$__all&var-stream=$__all&var-search=&var-filter=&var-Dashboard_versie_Rotterdam=1.1&refresh=5m&var-LogLevel=$__all&viewPanel=panel-48"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": {
+          "h": 11,
+          "w": 12,
+          "x": 0,
+          "y": 1
+        },
+        "id": 62,
+        "options": {
+          "displayLabels": [
+            "name",
+            "value"
+          ],
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "pieType": "pie",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "tooltip": {
+            "mode": "single",
+            "sort": "none"
+          }
+        },
+        "pluginVersion": "11.3.0",
+        "targets": [
+          {
+            "datasource": {
+              "type": "loki",
+              "uid": "loki"
+            },
+            "editorMode": "code",
+            "expr": "sum(count_over_time ({app=\"opennotificaties\"} |~ `POST /api/v1/notificaties` [$__range]))",
+            "legendFormat": "Notificatie",
+            "queryType": "range",
+            "refId": "A",
+            "step": ""
+          },
+          {
+            "datasource": {
+              "type": "loki",
+              "uid": "P8E80F9AEF21F6940"
+            },
+            "editorMode": "code",
+            "expr": "sum(count_over_time({app=\"objecten\"} |~ \"POST /api/v2/objects\" [$__range]))",
+            "hide": false,
+            "legendFormat": "Objecten",
+            "queryType": "range",
+            "refId": "B"
+          },
+          {
+            "datasource": {
+              "type": "loki",
+              "uid": "P8E80F9AEF21F6940"
+            },
+            "editorMode": "code",
+            "expr": "sum(count_over_time ({app=\"openformulieren-nginx\"} |~ \"POST /api/v2/submissions/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/_complete\" [$__range]))",
+            "hide": false,
+            "legendFormat": "Inzending formulier",
+            "queryType": "range",
+            "refId": "D"
+          },
+          {
+            "datasource": {
+              "type": "loki",
+              "uid": "P8E80F9AEF21F6940"
+            },
+            "editorMode": "code",
+            "expr": "sum(count_over_time(\r\n        {app=\"openformulieren-worker\"}  \r\n        |~ \"/zgw-apis-provider/drc/api/v1/enkelvoudiginformatieobjecten/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\"\r\n        |~ `\"public_reference\":\"OF-[0-9a-zA-Z]{6}\"`\r\n        |~ \".pdf\"\r\n        [$__range]))\r\n",
+            "hide": false,
+            "legendFormat": "DRC",
+            "queryType": "range",
+            "refId": "C"
+          },
+          {
+            "datasource": {
+              "type": "loki",
+              "uid": "P8E80F9AEF21F6940"
+            },
+            "editorMode": "code",
+            "expr": "sum(\r\n    count_over_time({app=\"openformulieren-worker\"}  |~ `\"public_reference\":\"OF-[0-9a-zA-Z]{6}\"` |~ \"/api/v2/objects/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\" [$__range]))",
+            "hide": false,
+            "legendFormat": "Inzending succes",
+            "queryType": "range",
+            "refId": "E"
+          }
+        ],
+        "title": "Keten formulieren -> e-Suite",
+        "type": "piechart"
+      },
+      {
+        "datasource": {
+          "uid": "P8E80F9AEF21F6940"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "custom": {
+              "align": "auto",
+              "cellOptions": {
+                "type": "auto"
+              },
+              "inspect": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Field"
+              },
+              "properties": [
+                {
+                  "id": "displayName",
+                  "value": "Naam OF"
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Total"
+              },
+              "properties": [
+                {
+                  "id": "custom.hidden",
+                  "value": false
+                },
+                {
+                  "id": "displayName",
+                  "value": "Totaal"
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": {
+          "h": 11,
+          "w": 12,
+          "x": 12,
+          "y": 1
+        },
+        "id": 61,
+        "options": {
+          "cellHeight": "sm",
+          "footer": {
+            "countRows": false,
+            "fields": "",
+            "reducer": [
+              "sum"
+            ],
+            "show": false
+          },
+          "showHeader": true,
+          "sortBy": [
+            {
+              "desc": false,
+              "displayName": "Max"
+            }
+          ]
+        },
+        "pluginVersion": "11.3.0",
+        "targets": [
+          {
+            "datasource": {
+              "type": "loki",
+              "uid": "P8E80F9AEF21F6940"
+            },
+            "editorMode": "code",
+            "expr": "sum by (of_id) (\r\n  count_over_time(\r\n    {app=\"openformulieren-worker\"} \r\n    |~ \"\\\"public_reference\\\":\\\"OF-[0-9a-zA-Z]{6}\\\"\"\r\n    |~ \"/api/v2/objects/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\"\r\n    | regexp `.*(?P<of_id>OF-[A-Za-z0-9]{6}).*` \r\n    [$__interval]\r\n  )\r\n)",
+            "hide": false,
+            "legendFormat": "{{of_id}}",
+            "queryType": "range",
+            "refId": "B"
+          },
+          {
+            "datasource": {
+              "type": "loki",
+              "uid": "P8E80F9AEF21F6940"
+            },
+            "editorMode": "code",
+            "expr": "sum (\r\n  count_over_time(\r\n    {app=\"openformulieren-worker\"} \r\n    |~ \"\\\"public_reference\\\":\\\"OF-[0-9a-zA-Z]{6}\\\"\"\r\n    |~ \"/api/v2/objects/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\" \r\n    | regexp `.*(?P<of_id>OF-[A-Za-z0-9]{6}).*`\r\n    [$__interval]\r\n  )\r\n)",
+            "hide": false,
+            "legendFormat": "Totaal",
+            "queryType": "range",
+            "refId": "A"
+          }
+        ],
+        "title": "Succesvol ingezonden formulieren OF-nummers",
+        "transformations": [
+          {
+            "id": "reduce",
+            "options": {
+              "includeTimeField": false,
+              "labelsToFields": false,
+              "mode": "seriesToRows",
+              "reducers": [
+                "sum"
+              ]
+            }
+          }
+        ],
+        "type": "table"
+      },
+      {
+        "datasource": {
+          "type": "loki",
+          "uid": "P8E80F9AEF21F6940"
+        },
+        "description": "",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              }
+            },
+            "fieldMinMax": false,
+            "mappings": []
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "openformulieren"
+              },
+              "properties": [
+                {
+                  "id": "displayName",
+                  "value": "openformulieren"
+                },
+                {
+                  "id": "links",
+                  "value": [
+                    {
+                      "title": "",
+                      "url": "https://test-podiumd-logs.rotterdam.nl/d/e970a83d-adc2-4d33-af93-2349c0b77e5/logging-openformulieren-3e-e-suite?from=2025-01-23T12:45:18.649Z&to=2025-01-23T13:45:18.649Z&var-App=openformulieren&var-Pod=$__all&var-Container=$__all&var-stream=$__all&var-search=&var-filter=&var-Dashboard_versie_Rotterdam=1.1&var-LogLevel=$__all&refresh=5m&var-query0=&var-Deployment=objecten&var-Subapp=$__all&var-Subapp1=objecten&var-Subapp-2=$__all&var-App-2=$__all&var-query0-2=&viewPanel=panel-48"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "objecten"
+              },
+              "properties": [
+                {
+                  "id": "links",
+                  "value": [
+                    {
+                      "title": "",
+                      "url": "https://test-podiumd-logs.rotterdam.nl/d/e970a83d-adc2-4d33-af93-2349c0b77e5/logging-openformulieren-3e-e-suite?from=2025-01-21T10:40:29.177Z&to=2025-01-21T10:55:29.177Z&var-App=objecten&var-Pod=$__all&var-Container=$__all&var-stream=$__all&var-search=&var-filter=&var-Dashboard_versie_Rotterdam=1.1&refresh=5m&viewPanel=panel-48"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "e-Suite"
+              },
+              "properties": [
+                {
+                  "id": "links",
+                  "value": [
+                    {
+                      "title": "",
+                      "url": "https://test-podiumd-logs.rotterdam.nl/d/e970a83d-adc2-4d33-af93-2349c0b77e5/logging-openformulieren-3e-e-suite?from=2025-01-23T12:45:18.649Z&to=2025-01-23T13:45:18.649Z&var-App=openformulieren&var-Pod=$__all&var-Container=$__all&var-stream=$__all&var-search=&var-filter=&var-Dashboard_versie_Rotterdam=1.1&var-LogLevel=$__all&refresh=5m&var-query0=&var-Deployment=objecten&var-Subapp=openformulieren-worker&var-Subapp1=objecten&var-Subapp-2=$__all&var-App-2=$__all&var-query0-2=&viewPanel=panel-51"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "DRC"
+              },
+              "properties": [
+                {
+                  "id": "links",
+                  "value": [
+                    {
+                      "title": "",
+                      "url": "https://test-podiumd-logs.rotterdam.nl/d/e970a83d-adc2-4d33-af93-2349c0b77e5/logging-openformulieren-3e-e-suite?from=2025-01-23T12:45:18.649Z&to=2025-01-23T13:45:18.649Z&var-App=openformulieren&var-Pod=$__all&var-Container=$__all&var-stream=$__all&var-search=&var-filter=&var-Dashboard_versie_Rotterdam=1.1&var-LogLevel=$__all&refresh=5m&var-query0=&var-Deployment=objecten&var-Subapp=openformulieren-worker&var-Subapp1=objecten&var-Subapp-2=$__all&var-App-2=$__all&var-query0-2=&viewPanel=panel-51"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "opennotificaties"
+              },
+              "properties": [
+                {
+                  "id": "links",
+                  "value": [
+                    {
+                      "title": "",
+                      "url": "https://test-podiumd-logs.rotterdam.nl/d/e970a83d-adc2-4d33-af93-2349c0b77e5/logging-openformulieren-3e-e-suite?from=2025-01-21T09:17:30.906Z&to=2025-01-21T12:17:30.906Z&var-App=opennotificaties&var-Pod=$__all&var-Container=$__all&var-stream=$__all&var-search=&var-filter=&var-Dashboard_versie_Rotterdam=1.1&refresh=5m&viewPanel=panel-48"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "objecttypen"
+              },
+              "properties": [
+                {
+                  "id": "links",
+                  "value": [
+                    {
+                      "title": "",
+                      "url": "https://test-podiumd-logs.rotterdam.nl/d/e970a83d-adc2-4d33-af93-2349c0b77e5/logging-openformulieren-3e-e-suite?from=2025-01-22T14:19:18.791Z&to=2025-01-22T15:19:18.791Z&var-App=objecttypen&var-Pod=$__all&var-Container=$__all&var-stream=$__all&var-search=&var-filter=&var-Dashboard_versie_Rotterdam=1.1&refresh=5m&var-LogLevel=$__all&viewPanel=panel-48"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Difference"
+              },
+              "properties": []
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Totaal succesvol"
+              },
+              "properties": [
+                {
+                  "id": "unit",
+                  "value": "percentunit"
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": {
+          "h": 11,
+          "w": 12,
+          "x": 0,
+          "y": 12
+        },
+        "id": 60,
+        "options": {
+          "displayLabels": [
+            "name",
+            "value"
+          ],
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "pieType": "pie",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "tooltip": {
+            "mode": "single",
+            "sort": "none"
+          }
+        },
+        "pluginVersion": "11.3.0",
+        "targets": [
+          {
+            "datasource": {
+              "type": "loki",
+              "uid": "P8E80F9AEF21F6940"
+            },
+            "editorMode": "code",
+            "expr": "sum(count_over_time({app=\"openformulieren-nginx\"} |~ \"POST /api/v2/submissions/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/_complete\" [$__range]))",
+            "hide": false,
+            "legendFormat": "Alle inzendingen",
+            "queryType": "range",
+            "refId": "D"
+          },
+          {
+            "datasource": {
+              "type": "loki",
+              "uid": "P8E80F9AEF21F6940"
+            },
+            "editorMode": "code",
+            "expr": "sum(count_over_time({app=\"openformulieren-worker\"} |~ \"\\\"public_reference\\\":\\\"OF-[0-9a-zA-Z]{6}\\\"\" |~ \"/api/v2/objects/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\" [$__range]))",
+            "hide": false,
+            "legendFormat": "Inzending met succes (zaak?)",
+            "queryType": "range",
+            "refId": "A"
+          }
+        ],
+        "title": "Alle inzendingen en niet-succesvolle inzendingen",
+        "transformations": [
+          {
+            "id": "calculateField",
+            "options": {
+              "alias": "Totaal succesvol",
+              "binary": {
+                "left": {
+                  "matcher": {
+                    "id": "byName",
+                    "options": "Inzending met succes (zaak?)"
+                  }
+                },
+                "operator": "/",
+                "right": {
+                  "matcher": {
+                    "id": "byName",
+                    "options": "Alle inzendingen"
+                  }
+                }
+              },
+              "mode": "binary",
+              "reduce": {
+                "include": [
+                  "Inzending met succes (zaak?)",
+                  "Alle inzendingen"
+                ],
+                "reducer": "diff"
+              },
+              "replaceFields": false
+            }
+          }
+        ],
+        "type": "piechart"
+      },
+      {
+        "datasource": {
+          "uid": "P8E80F9AEF21F6940"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "custom": {
+              "align": "auto",
+              "cellOptions": {
+                "type": "auto"
+              },
+              "inspect": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Field"
+              },
+              "properties": [
+                {
+                  "id": "displayName",
+                  "value": "Naam formulier"
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Total"
+              },
+              "properties": [
+                {
+                  "id": "custom.hidden",
+                  "value": false
+                },
+                {
+                  "id": "displayName",
+                  "value": "Totaal"
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": {
+          "h": 11,
+          "w": 12,
+          "x": 12,
+          "y": 12
+        },
+        "id": 66,
+        "options": {
+          "cellHeight": "sm",
+          "footer": {
+            "countRows": false,
+            "fields": "",
+            "reducer": [
+              "sum"
+            ],
+            "show": false
+          },
+          "showHeader": true,
+          "sortBy": [
+            {
+              "desc": false,
+              "displayName": "Max"
+            }
+          ]
+        },
+        "pluginVersion": "11.3.0",
+        "targets": [
+          {
+            "datasource": {
+              "type": "loki",
+              "uid": "P8E80F9AEF21F6940"
+            },
+            "editorMode": "code",
+            "expr": "sum by (formulier) (count_over_time({app=\"openformulieren-nginx\"} \r\n|~ `https?://[^/\\s]+/([^/\\s]+)` \r\n|~ \"POST /api/v2/submissions/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/_complete\" \r\n| regexp `https?://(?P<url>[^/\\s]+)/(?P<formulier>[^/\\s]+)` \r\n!= \"maykinmedia\" != \"maykin\" != \"sentry\" [$__interval])) ",
+            "hide": false,
+            "legendFormat": "{{formulier}}",
+            "queryType": "range",
+            "refId": "B"
+          },
+          {
+            "datasource": {
+              "type": "loki",
+              "uid": "P8E80F9AEF21F6940"
+            },
+            "editorMode": "code",
+            "expr": "sum (count_over_time({app=\"openformulieren-nginx\"} \r\n|~ `https?://[^/\\s]+/([^/\\s]+)` \r\n|~ \"POST /api/v2/submissions/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/_complete\" \r\n| regexp `https?://(?P<url>[^/\\s]+)/(?P<formulier>[^/\\s]+)` \r\n!= \"maykinmedia\" != \"maykin\" != \"sentry\" [$__interval])) ",
+            "hide": false,
+            "legendFormat": "Totaal",
+            "queryType": "range",
+            "refId": "A"
+          }
+        ],
+        "title": "Alle ingezonden formulier namen",
+        "transformations": [
+          {
+            "id": "reduce",
+            "options": {
+              "includeTimeField": false,
+              "labelsToFields": false,
+              "mode": "seriesToRows",
+              "reducers": [
+                "sum"
+              ]
+            }
+          }
+        ],
+        "type": "table"
+      },
+      {
+        "datasource": {
+          "uid": "P8E80F9AEF21F6940"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisBorderShow": false,
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "barWidthFactor": 0.6,
+              "drawStyle": "bars",
+              "fillOpacity": 0,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "insertNulls": false,
+              "lineInterpolation": "linear",
+              "lineWidth": 1,
+              "pointSize": 8,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "auto",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "normal"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byFrameRefID",
+                "options": "A"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "mode": "continuous-GrYlRd",
+                    "seriesBy": "last"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byFrameRefID",
+                "options": "B"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "mode": "continuous-BlPu",
+                    "seriesBy": "last"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": {
+          "h": 12,
+          "w": 24,
+          "x": 0,
+          "y": 23
+        },
+        "id": 67,
+        "options": {
+          "legend": {
+            "calcs": [],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "single",
+            "sort": "none"
+          }
+        },
+        "pluginVersion": "11.3.0",
+        "targets": [
+          {
+            "datasource": {
+              "type": "loki",
+              "uid": "P8E80F9AEF21F6940"
+            },
+            "editorMode": "code",
+            "expr": "sum by (formulier) (count_over_time({app=\"openformulieren-nginx\"}\r\n|~ `https?://[^/\\s]+/([^/\\s]+)` \r\n|~ \"POST /api/v2/submissions/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/_complete\" \r\n| regexp `https?://(?P<url>[^/\\s]+)/(?P<formulier>[^/\\s]+)`  \r\n[$__interval])) ",
+            "hide": false,
+            "legendFormat": "{{formulier}}",
+            "queryType": "range",
+            "refId": "B"
+          },
+          {
+            "datasource": {
+              "type": "loki",
+              "uid": "P8E80F9AEF21F6940"
+            },
+            "editorMode": "code",
+            "expr": "sum by (of_id) (\r\n  count_over_time(\r\n    {app=\"openformulieren-worker\"} \r\n    |~ \"\\\"public_reference\\\":\\\"OF-[0-9a-zA-Z]{6}\\\"\"\r\n    |~ \"/api/v2/objects/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\" \r\n    | regexp `.*(?P<of_id>OF-[A-Za-z0-9]{6}).*`\r\n    [$__interval]\r\n  )\r\n)",
+            "hide": false,
+            "legendFormat": "{{of_id}}",
+            "queryType": "range",
+            "refId": "A"
+          }
+        ],
+        "title": "Alle ingezonden formulieren en OF nummers historisch",
+        "type": "timeseries"
+      },
+      {
+        "collapsed": true,
+        "gridPos": {
+          "h": 1,
+          "w": 24,
+          "x": 0,
+          "y": 35
+        },
+        "id": 41,
+        "panels": [
+          {
+            "datasource": {
+              "type": "loki",
+              "uid": "P8E80F9AEF21F6940"
+            },
+            "description": "Total  Count of log lines in the specified time range",
+            "fieldConfig": {
+              "defaults": {
+                "color": {
+                  "mode": "thresholds"
+                },
+                "mappings": [
+                  {
+                    "options": {
+                      "match": "null",
+                      "result": {
+                        "color": "rgb(31, 255, 7)",
+                        "text": "0"
+                      }
+                    },
+                    "type": "special"
+                  }
+                ],
+                "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "rgb(31, 255, 7)"
+                    },
+                    {
+                      "color": "rgb(31, 255, 7)",
+                      "value": 10
+                    },
+                    {
+                      "color": "rgb(31, 255, 7)",
+                      "value": 50
+                    }
+                  ]
+                },
+                "unit": "short"
+              },
+              "overrides": []
+            },
+            "gridPos": {
+              "h": 3,
+              "w": 12,
+              "x": 0,
+              "y": 609
+            },
+            "id": 39,
+            "maxDataPoints": 100,
+            "options": {
+              "colorMode": "value",
+              "graphMode": "area",
+              "justifyMode": "auto",
+              "orientation": "horizontal",
+              "percentChangeColorMode": "standard",
+              "reduceOptions": {
+                "calcs": [
+                  "sum"
+                ],
+                "fields": "",
+                "values": false
+              },
+              "showPercentChange": false,
+              "textMode": "auto",
+              "wideLayout": true
+            },
+            "pluginVersion": "11.3.0",
+            "targets": [
+              {
+                "datasource": {
+                  "type": "loki",
+                  "uid": "loki"
+                },
+                "editorMode": "code",
+                "expr": "sum(count_over_time(({app=~\"$Subapp\"} )[$__interval]))",
+                "queryType": "range",
+                "refId": "A"
+              }
+            ],
+            "title": "Totate logs",
+            "type": "stat"
+          },
+          {
+            "datasource": {
+              "type": "loki",
+              "uid": "P8E80F9AEF21F6940"
+            },
+            "description": "Total Count: of $search in the specified time range",
+            "fieldConfig": {
+              "defaults": {
+                "color": {
+                  "mode": "thresholds"
+                },
+                "mappings": [
+                  {
+                    "options": {
+                      "match": "null",
+                      "result": {
+                        "color": "rgb(222, 15, 43)",
+                        "text": "0"
+                      }
+                    },
+                    "type": "special"
+                  }
+                ],
+                "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "rgb(222, 15, 43)"
+                    },
+                    {
+                      "color": "rgb(222, 15, 43)",
+                      "value": 10
+                    },
+                    {
+                      "color": "rgb(222, 15, 43)",
+                      "value": 50
+                    }
+                  ]
+                },
+                "unit": "short"
+              },
+              "overrides": []
+            },
+            "gridPos": {
+              "h": 3,
+              "w": 12,
+              "x": 12,
+              "y": 609
+            },
+            "id": 40,
+            "maxDataPoints": 100,
+            "options": {
+              "colorMode": "value",
+              "graphMode": "area",
+              "justifyMode": "auto",
+              "orientation": "horizontal",
+              "percentChangeColorMode": "standard",
+              "reduceOptions": {
+                "calcs": [
+                  "sum"
+                ],
+                "fields": "",
+                "values": false
+              },
+              "showPercentChange": false,
+              "textMode": "auto",
+              "wideLayout": true
+            },
+            "pluginVersion": "11.3.0",
+            "targets": [
+              {
+                "datasource": {
+                  "type": "loki",
+                  "uid": "loki"
+                },
+                "editorMode": "code",
+                "expr": "sum(count_over_time(({app=~\"$Subapp\"} |~ \"(?i)$search\" |~ \"(?i)$LogLevel\" |~ \"(?i)$Methode\") [$__interval]))",
+                "queryType": "range",
+                "refId": "A"
+              }
+            ],
+            "title": "Totale logs: zoekwoord: \"$search\" en logniveau: \"$LogLevel\" en HTTP methode: \"$Methode\"",
+            "type": "stat"
+          },
+          {
+            "datasource": {
+              "type": "loki",
+              "uid": "P8E80F9AEF21F6940"
+            },
+            "fieldConfig": {
+              "defaults": {
+                "color": {
+                  "mode": "palette-classic"
+                },
+                "custom": {
+                  "hideFrom": {
+                    "legend": false,
+                    "tooltip": false,
+                    "viz": false
+                  }
+                },
+                "mappings": []
+              },
+              "overrides": []
+            },
+            "gridPos": {
+              "h": 11,
+              "w": 12,
+              "x": 0,
+              "y": 612
+            },
+            "id": 43,
+            "interval": "1m",
+            "maxDataPoints": "",
+            "options": {
+              "displayLabels": [
+                "value",
+                "name"
+              ],
+              "legend": {
+                "displayMode": "list",
+                "placement": "bottom",
+                "showLegend": true,
+                "values": []
+              },
+              "pieType": "pie",
+              "reduceOptions": {
+                "calcs": [
+                  "lastNotNull"
+                ],
+                "fields": "",
+                "values": false
+              },
+              "tooltip": {
+                "mode": "single",
+                "sort": "none"
+              }
+            },
+            "pluginVersion": "11.3.0",
+            "targets": [
+              {
+                "datasource": {
+                  "type": "loki",
+                  "uid": "loki"
+                },
+                "editorMode": "code",
+                "expr": "sum(count_over_time(({app=~\"$Subapp\"} |~ \"(?i)$search\" |~ \"(?i)$LogLevel\" |~ \"(?i)$Methode\")[$__interval])) by (app)",
+                "legendFormat": "{{app}}",
+                "queryType": "range",
+                "refId": "A"
+              }
+            ],
+            "title": "Zoekwoord: \"$search\" en logniveau: \"$LogLevel\" en HTTP methode: \"$Methode\" match in (sub)component",
+            "type": "piechart"
+          },
+          {
+            "datasource": {
+              "type": "loki",
+              "uid": "P8E80F9AEF21F6940"
+            },
+            "fieldConfig": {
+              "defaults": {
+                "color": {
+                  "mode": "palette-classic"
+                },
+                "custom": {
+                  "hideFrom": {
+                    "legend": false,
+                    "tooltip": false,
+                    "viz": false
+                  }
+                },
+                "mappings": []
+              },
+              "overrides": [
+                {
+                  "matcher": {
+                    "id": "byName",
+                    "options": "HTTP2x (Succes)"
+                  },
+                  "properties": [
+                    {
+                      "id": "color",
+                      "value": {
+                        "fixedColor": "semi-dark-green",
+                        "mode": "fixed"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "matcher": {
+                    "id": "byName",
+                    "options": "HTTP3x (Redirect)"
+                  },
+                  "properties": [
+                    {
+                      "id": "color",
+                      "value": {
+                        "fixedColor": "semi-dark-yellow",
+                        "mode": "fixed"
+                      }
+                    },
+                    {
+                      "id": "links",
+                      "value": []
+                    }
+                  ]
+                },
+                {
+                  "matcher": {
+                    "id": "byName",
+                    "options": "HTTP4x (Error)"
+                  },
+                  "properties": [
+                    {
+                      "id": "color",
+                      "value": {
+                        "fixedColor": "orange",
+                        "mode": "fixed"
+                      }
+                    },
+                    {
+                      "id": "links",
+                      "value": []
+                    }
+                  ]
+                },
+                {
+                  "matcher": {
+                    "id": "byName",
+                    "options": "HTTP5x (Kritisch)"
+                  },
+                  "properties": [
+                    {
+                      "id": "color",
+                      "value": {
+                        "fixedColor": "red",
+                        "mode": "fixed"
+                      }
+                    },
+                    {
+                      "id": "links",
+                      "value": []
+                    }
+                  ]
+                }
+              ]
+            },
+            "gridPos": {
+              "h": 11,
+              "w": 12,
+              "x": 12,
+              "y": 612
+            },
+            "id": 50,
+            "options": {
+              "displayLabels": [
+                "value",
+                "name"
+              ],
+              "legend": {
+                "displayMode": "table",
+                "placement": "bottom",
+                "showLegend": true,
+                "values": [
+                  "value"
+                ]
+              },
+              "pieType": "pie",
+              "reduceOptions": {
+                "calcs": [
+                  "lastNotNull"
+                ],
+                "fields": "",
+                "values": false
+              },
+              "tooltip": {
+                "maxHeight": 400,
+                "mode": "single",
+                "sort": "none"
+              }
+            },
+            "pluginVersion": "11.3.0",
+            "targets": [
+              {
+                "datasource": {
+                  "type": "loki",
+                  "uid": "loki"
+                },
+                "editorMode": "code",
+                "expr": "sum(count_over_time({app=~\"$Subapp\"} |~ \"HTTP/1.1\\\" 5[0-9]{2}\" |~ \"(?i)$search\" |~ \"(?i)$LogLevel\" |~ \"(?i)$Methode\" [$__interval]))",
+                "legendFormat": "HTTP5x (Kritisch)",
+                "queryType": "range",
+                "refId": "A"
+              },
+              {
+                "datasource": {
+                  "type": "loki",
+                  "uid": "loki"
+                },
+                "editorMode": "code",
+                "expr": "sum(count_over_time({app=~\"$Subapp\"} |~ \"HTTP/1.1\\\" 4[0-9]{2}\" |~ \"(?i)$search\" |~ \"(?i)$LogLevel\" |~ \"(?i)$Methode\" [$__interval]))",
+                "hide": false,
+                "legendFormat": "HTTP4x (Error)",
+                "queryType": "range",
+                "refId": "B"
+              },
+              {
+                "datasource": {
+                  "type": "loki",
+                  "uid": "loki"
+                },
+                "editorMode": "code",
+                "expr": "sum(count_over_time({app=~\"$Subapp\"} |~ \"HTTP/1.1\\\" 3[0-9]{2}\" |~ \"(?i)$search\" |~ \"(?i)$LogLevel\" |~ \"(?i)$Methode\" [$__interval]))",
+                "hide": false,
+                "legendFormat": "HTTP3x (Redirect)",
+                "queryType": "range",
+                "refId": "C"
+              },
+              {
+                "datasource": {
+                  "type": "loki",
+                  "uid": "loki"
+                },
+                "editorMode": "code",
+                "expr": "sum(\r\n  count_over_time({app=~\"$Subapp\"} |~ \"HTTP/1.1\\\" 2[0-9]{2}\" |~ \"(?i)$search\" |~ \"(?i)$LogLevel\" |~ \"(?i)$Methode\"[$__interval]))",
+                "hide": false,
+                "legendFormat": "HTTP2x (Succes)",
+                "queryType": "range",
+                "refId": "D"
+              }
+            ],
+            "title": "HTTP codes component: \"$App\"",
+            "type": "piechart"
+          },
+          {
+            "datasource": {
+              "type": "loki",
+              "uid": "P8E80F9AEF21F6940"
+            },
+            "fieldConfig": {
+              "defaults": {
+                "color": {
+                  "mode": "palette-classic"
+                },
+                "custom": {
+                  "axisBorderShow": false,
+                  "axisCenteredZero": false,
+                  "axisColorMode": "text",
+                  "axisLabel": "",
+                  "axisPlacement": "auto",
+                  "barAlignment": 0,
+                  "barWidthFactor": 0.6,
+                  "drawStyle": "bars",
+                  "fillOpacity": 2,
+                  "gradientMode": "none",
+                  "hideFrom": {
+                    "legend": false,
+                    "tooltip": false,
+                    "viz": false
+                  },
+                  "insertNulls": false,
+                  "lineInterpolation": "linear",
+                  "lineWidth": 1,
+                  "pointSize": 5,
+                  "scaleDistribution": {
+                    "type": "linear"
+                  },
+                  "showPoints": "auto",
+                  "spanNulls": false,
+                  "stacking": {
+                    "group": "A",
+                    "mode": "none"
+                  },
+                  "thresholdsStyle": {
+                    "mode": "off"
+                  }
+                },
+                "mappings": [],
+                "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green"
+                    },
+                    {
+                      "color": "red",
+                      "value": 80
+                    }
+                  ]
+                }
+              },
+              "overrides": []
+            },
+            "gridPos": {
+              "h": 11,
+              "w": 12,
+              "x": 0,
+              "y": 623
+            },
+            "id": 56,
+            "options": {
+              "legend": {
+                "calcs": [],
+                "displayMode": "list",
+                "placement": "bottom",
+                "showLegend": true
+              },
+              "tooltip": {
+                "mode": "multi",
+                "sort": "none"
+              }
+            },
+            "pluginVersion": "11.3.0",
+            "targets": [
+              {
+                "datasource": {
+                  "type": "loki",
+                  "uid": "loki"
+                },
+                "editorMode": "code",
+                "expr": "sum by(app) (count_over_time({app=~\"$Subapp\"} |~ \"(?i)$search\" |~ \"(?i)$LogLevel\" |~ \"(?i)$Methode\" |= `` [$__interval]))",
+                "legendFormat": "{{app}}",
+                "queryType": "range",
+                "refId": "A"
+              }
+            ],
+            "title": "Totale logs component: \"$App\" historisch",
+            "type": "timeseries"
+          },
+          {
+            "datasource": {
+              "type": "loki",
+              "uid": "P8E80F9AEF21F6940"
+            },
+            "fieldConfig": {
+              "defaults": {
+                "color": {
+                  "mode": "palette-classic"
+                },
+                "custom": {
+                  "axisBorderShow": false,
+                  "axisCenteredZero": false,
+                  "axisColorMode": "text",
+                  "axisLabel": "Totaal",
+                  "axisPlacement": "auto",
+                  "barAlignment": 0,
+                  "barWidthFactor": 0.6,
+                  "drawStyle": "bars",
+                  "fillOpacity": 100,
+                  "gradientMode": "opacity",
+                  "hideFrom": {
+                    "legend": false,
+                    "tooltip": false,
+                    "viz": false
+                  },
+                  "insertNulls": false,
+                  "lineInterpolation": "linear",
+                  "lineWidth": 3,
+                  "pointSize": 5,
+                  "scaleDistribution": {
+                    "type": "linear"
+                  },
+                  "showPoints": "never",
+                  "spanNulls": false,
+                  "stacking": {
+                    "group": "A",
+                    "mode": "none"
+                  },
+                  "thresholdsStyle": {
+                    "mode": "off"
+                  }
+                },
+                "decimals": 0,
+                "mappings": [],
+                "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green"
+                    },
+                    {
+                      "color": "red",
+                      "value": 80
+                    }
+                  ]
+                },
+                "unit": "short"
+              },
+              "overrides": []
+            },
+            "gridPos": {
+              "h": 11,
+              "w": 12,
+              "x": 12,
+              "y": 623
+            },
+            "id": 57,
+            "options": {
+              "legend": {
+                "calcs": [],
+                "displayMode": "list",
+                "placement": "bottom",
+                "showLegend": true
+              },
+              "tooltip": {
+                "mode": "multi",
+                "sort": "desc"
+              }
+            },
+            "pluginVersion": "11.3.0",
+            "targets": [
+              {
+                "datasource": {
+                  "type": "loki",
+                  "uid": "loki"
+                },
+                "editorMode": "code",
+                "expr": "sum(count_over_time({app=~\"$Subapp\"} |~ \"HTTP/1.1\\\" 5[0-9]{2}\" |~ \"(?i)$search\" |~ \"(?i)$LogLevel\" |~ \"(?i)$Methode\" [$__interval]))",
+                "legendFormat": "HTTP5x",
+                "queryType": "range",
+                "refId": "A"
+              },
+              {
+                "datasource": {
+                  "type": "loki",
+                  "uid": "loki"
+                },
+                "editorMode": "code",
+                "expr": "sum(count_over_time({app=~\"$Subapp\"} |~ \"HTTP/1.1\\\" 4[0-9]{2}\" |~ \"(?i)$search\" |~ \"(?i)$LogLevel\" |~ \"(?i)$Methode\" [$__interval]))",
+                "hide": false,
+                "legendFormat": "HTTP4x",
+                "queryType": "range",
+                "refId": "B"
+              },
+              {
+                "datasource": {
+                  "type": "loki",
+                  "uid": "loki"
+                },
+                "editorMode": "code",
+                "expr": "sum(count_over_time({app=~\"$Subapp\"} |~ \"HTTP/1.1\\\" 3[0-9]{2}\" |~ \"(?i)$search\" |~ \"(?i)$LogLevel\" |~ \"(?i)$Methode\" [$__interval]))",
+                "hide": false,
+                "legendFormat": "HTTP3x",
+                "queryType": "range",
+                "refId": "C"
+              },
+              {
+                "datasource": {
+                  "type": "loki",
+                  "uid": "loki"
+                },
+                "editorMode": "code",
+                "expr": "sum(count_over_time({app=~\"$Subapp\"} |~ \"HTTP/1.1\\\" 2[0-9]{2}\" |~ \"(?i)$search\" |~ \"(?i)$LogLevel\" |~ \"(?i)$Methode\" [$__interval]))",
+                "hide": false,
+                "legendFormat": "HTTP2x",
+                "queryType": "range",
+                "refId": "D"
+              }
+            ],
+            "title": "HTTP codes component: \"$App\" historisch",
+            "type": "timeseries"
+          },
+          {
+            "datasource": {
+              "type": "loki",
+              "uid": "P8E80F9AEF21F6940"
+            },
+            "fieldConfig": {
+              "defaults": {
+                "color": {
+                  "mode": "palette-classic"
+                },
+                "custom": {
+                  "axisBorderShow": false,
+                  "axisCenteredZero": false,
+                  "axisColorMode": "text",
+                  "axisLabel": "",
+                  "axisPlacement": "auto",
+                  "barAlignment": 0,
+                  "barWidthFactor": 0.6,
+                  "drawStyle": "line",
+                  "fillOpacity": 40,
+                  "gradientMode": "opacity",
+                  "hideFrom": {
+                    "legend": false,
+                    "tooltip": false,
+                    "viz": false
+                  },
+                  "insertNulls": false,
+                  "lineInterpolation": "linear",
+                  "lineWidth": 1,
+                  "pointSize": 1,
+                  "scaleDistribution": {
+                    "type": "linear"
+                  },
+                  "showPoints": "always",
+                  "spanNulls": false,
+                  "stacking": {
+                    "group": "A",
+                    "mode": "none"
+                  },
+                  "thresholdsStyle": {
+                    "mode": "off"
+                  }
+                },
+                "links": [],
+                "mappings": [],
+                "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green"
+                    },
+                    {
+                      "color": "red",
+                      "value": 80
+                    }
+                  ]
+                },
+                "unit": "none"
+              },
+              "overrides": [
+                {
+                  "matcher": {
+                    "id": "byName",
+                    "options": "{stream=\"stderr\"} stderr"
+                  },
+                  "properties": [
+                    {
+                      "id": "color",
+                      "value": {
+                        "fixedColor": "#C4162A",
+                        "mode": "fixed"
+                      }
+                    },
+                    {
+                      "id": "custom.lineWidth",
+                      "value": 2
+                    }
+                  ]
+                },
+                {
+                  "matcher": {
+                    "id": "byName",
+                    "options": "{stream=\"stdout\"} stdout"
+                  },
+                  "properties": [
+                    {
+                      "id": "color",
+                      "value": {
+                        "fixedColor": "#56A64B",
+                        "mode": "fixed"
+                      }
+                    },
+                    {
+                      "id": "custom.lineWidth",
+                      "value": 2
+                    }
+                  ]
+                }
+              ]
+            },
+            "gridPos": {
+              "h": 10,
+              "w": 24,
+              "x": 0,
+              "y": 634
+            },
+            "id": 47,
+            "maxDataPoints": 100,
+            "options": {
+              "legend": {
+                "calcs": [
+                  "lastNotNull"
+                ],
+                "displayMode": "table",
+                "placement": "bottom",
+                "showLegend": true
+              },
+              "tooltip": {
+                "mode": "multi",
+                "sort": "desc"
+              }
+            },
+            "pluginVersion": "11.3.0",
+            "targets": [
+              {
+                "datasource": {
+                  "type": "loki",
+                  "uid": "loki"
+                },
+                "editorMode": "code",
+                "expr": "sum(count_over_time(({app=~\"$Subapp\"} |~ \"(?i)$LogLevel\" )[$__interval]))",
+                "legendFormat": "Totale logs log niveau $LogLevel",
+                "queryType": "range",
+                "refId": "A"
+              }
+            ],
+            "title": "Totaal logs logniveau: \"$LogLevel\" historisch ",
+            "type": "timeseries"
+          }
+        ],
+        "title": "Logs visueel",
+        "type": "row"
+      },
+      {
+        "collapsed": false,
+        "gridPos": {
+          "h": 1,
+          "w": 24,
+          "x": 0,
+          "y": 36
+        },
+        "id": 4,
+        "panels": [],
+        "title": "Alle logs",
+        "type": "row"
+      },
+      {
+        "datasource": {
+          "type": "loki",
+          "uid": "P8E80F9AEF21F6940"
+        },
+        "description": "",
+        "fieldConfig": {
+          "defaults": {},
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 19,
+          "w": 24,
+          "x": 0,
+          "y": 37
+        },
+        "id": 68,
+        "options": {
+          "dedupStrategy": "none",
+          "enableLogDetails": true,
+          "prettifyLogMessage": true,
+          "showCommonLabels": false,
+          "showLabels": false,
+          "showTime": true,
+          "sortOrder": "Descending",
+          "wrapLogMessage": true
+        },
+        "pluginVersion": "11.3.0",
+        "targets": [
+          {
+            "datasource": {
+              "type": "loki",
+              "uid": "loki"
+            },
+            "direction": "backward",
+            "editorMode": "code",
+            "expr": "{app=~\"$Subapp\"}  |~ \"(?i)$search\" |~ \"(?i)$Methode\" |~ \"(?i)$LogLevel\" !~ `$excluded_log_levels`",
+            "maxLines": 100,
+            "queryType": "range",
+            "refId": "A"
+          }
+        ],
+        "title": "Logs component: $App",
+        "type": "logs"
+      },
+      {
+        "collapsed": false,
+        "gridPos": {
+          "h": 1,
+          "w": 24,
+          "x": 0,
+          "y": 56
+        },
+        "id": 71,
+        "panels": [],
+        "title": "Logs met HTTP code",
+        "type": "row"
+      },
+      {
+        "datasource": {
+          "type": "loki",
+          "uid": "P8E80F9AEF21F6940"
+        },
+        "description": "",
+        "fieldConfig": {
+          "defaults": {},
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 19,
+          "w": 24,
+          "x": 0,
+          "y": 57
+        },
+        "id": 70,
+        "options": {
+          "dedupStrategy": "none",
+          "enableLogDetails": true,
+          "prettifyLogMessage": true,
+          "showCommonLabels": false,
+          "showLabels": false,
+          "showTime": true,
+          "sortOrder": "Descending",
+          "wrapLogMessage": true
+        },
+        "pluginVersion": "11.3.0",
+        "targets": [
+          {
+            "datasource": {
+              "type": "loki",
+              "uid": "loki"
+            },
+            "direction": "backward",
+            "editorMode": "code",
+            "expr": "{app=~\"$Subapp\"} !~ `$excluded_log_levels` |~ \"(?i)$search\" |~ `HTTP/1.1[\\\" ]*$http_code` ",
+            "hide": false,
+            "maxLines": 100,
+            "queryType": "range",
+            "refId": "A"
+          }
+        ],
+        "title": "Logs met HTTP code: $http_code",
+        "type": "logs"
+      },
+      {
+        "collapsed": true,
+        "gridPos": {
+          "h": 1,
+          "w": 24,
+          "x": 0,
+          "y": 76
+        },
+        "id": 52,
+        "panels": [
+          {
+            "datasource": {
+              "type": "loki",
+              "uid": "P8E80F9AEF21F6940"
+            },
+            "description": "",
+            "fieldConfig": {
+              "defaults": {},
+              "overrides": [
+                {
+                  "matcher": {
+                    "id": "byName",
+                    "options": "openformulieren-nginx"
+                  },
+                  "properties": []
+                }
+              ]
+            },
+            "gridPos": {
+              "h": 13,
+              "w": 24,
+              "x": 0,
+              "y": 77
+            },
+            "id": 51,
+            "options": {
+              "dedupStrategy": "none",
+              "enableLogDetails": true,
+              "prettifyLogMessage": true,
+              "showCommonLabels": false,
+              "showLabels": false,
+              "showTime": true,
+              "sortOrder": "Descending",
+              "wrapLogMessage": true
+            },
+            "pluginVersion": "11.3.0",
+            "targets": [
+              {
+                "datasource": {
+                  "type": "loki",
+                  "uid": "loki"
+                },
+                "editorMode": "code",
+                "expr": "{app=\"openformulieren-worker\"} |~ \"\\\"public_reference\\\":\\\"OF-[0-9a-zA-Z]{6}\\\"\" ",
+                "legendFormat": "",
+                "maxLines": 100,
+                "queryType": "range",
+                "refId": "A"
+              }
+            ],
+            "title": "Logs inzending formulieren",
+            "type": "logs"
+          }
+        ],
+        "title": "Logs inzending OF formulieren",
+        "type": "row"
+      },
+      {
+        "collapsed": true,
+        "gridPos": {
+          "h": 1,
+          "w": 24,
+          "x": 0,
+          "y": 77
+        },
+        "id": 64,
+        "panels": [
+          {
+            "datasource": {
+              "uid": "P8E80F9AEF21F6940"
+            },
+            "fieldConfig": {
+              "defaults": {},
+              "overrides": [
+                {
+                  "matcher": {
+                    "id": "byName",
+                    "options": "Line"
+                  },
+                  "properties": []
+                }
+              ]
+            },
+            "gridPos": {
+              "h": 11,
+              "w": 24,
+              "x": 0,
+              "y": 78
+            },
+            "id": 63,
+            "options": {
+              "dedupStrategy": "none",
+              "enableLogDetails": true,
+              "prettifyLogMessage": true,
+              "showCommonLabels": false,
+              "showLabels": false,
+              "showTime": true,
+              "sortOrder": "Descending",
+              "wrapLogMessage": false
+            },
+            "pluginVersion": "11.3.0",
+            "targets": [
+              {
+                "datasource": {
+                  "type": "loki",
+                  "uid": "P8E80F9AEF21F6940"
+                },
+                "editorMode": "code",
+                "expr": "{app=\"openformulieren-nginx\"} \r\n|~ `https?://[^/\\s]+/([^/\\s]+)` \r\n|~ \"POST /api/v2/submissions/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/_complete\" \r\n| regexp `POST /api/v2/submissions/(?P<id>[0-9a-fA-F-]+)`\r\n| regexp `https?://(?P<url>[^/\\s]+)/(?P<formulier>[^/\\s]+)` \r\n| line_format \"URL: https://{{.url}}/{{.formulier}}, Formulier: {{.formulier}}, SubmissionID: {{.id}}\"\r\n!~ `$excluded_log_levels`",
+                "hide": false,
+                "maxLines": 100,
+                "queryType": "range",
+                "refId": "B"
+              }
+            ],
+            "title": "Naam van formulier",
+            "type": "logs"
+          }
+        ],
+        "title": "Logs formulieren",
+        "type": "row"
+      }
+    ],
+    "preload": false,
+    "refresh": "5m",
+    "schemaVersion": 40,
+    "tags": [],
+    "templating": {
+      "list": [
+        {
+          "current": {
+            "text": [
+              "All"
+            ],
+            "value": [
+              "$__all"
+            ]
+          },
+          "datasource": {
+            "type": "loki",
+            "uid": "P8E80F9AEF21F6940"
+          },
+          "definition": "",
+          "description": "Selecteer PodiumD component",
+          "includeAll": true,
+          "label": "Component",
+          "multi": true,
+          "name": "App",
+          "options": [],
+          "query": {
+            "label": "app",
+            "refId": "LokiVariableQueryEditor-VariableQuery",
+            "stream": "{namespace=\"podiumd\"}",
+            "type": 1
+          },
+          "refresh": 2,
+          "regex": "^(openformulieren|objecttypen|objecten|opennotificaties|kiss|openinwoner|openzaak|openklant|zac).*",
+          "sort": 1,
+          "type": "query"
+        },
+        {
+          "current": {
+            "text": [
+              "All"
+            ],
+            "value": [
+              "$__all"
+            ]
+          },
+          "definition": "",
+          "description": "Wordt automatisch geselecteerd als je een PodiumD component hebt gekozen. Voor diepere analyse kan er eventueel een subcomponent geselecteerd worden",
+          "includeAll": true,
+          "label": "Subcomponent",
+          "multi": true,
+          "name": "Subapp",
+          "options": [],
+          "query": {
+            "label": "app",
+            "refId": "LokiVariableQueryEditor-VariableQuery",
+            "stream": "{namespace=\"podiumd\", app=~\"($App).*\"}",
+            "type": 1
+          },
+          "refresh": 2,
+          "regex": "",
+          "type": "query"
+        },
+        {
+          "allValue": ".*",
+          "current": {
+            "text": "$__all",
+            "value": "$__all"
+          },
+          "description": "Selecteer log niveau",
+          "includeAll": true,
+          "label": "Log niveau",
+          "multi": true,
+          "name": "LogLevel",
+          "options": [
+            {
+              "selected": false,
+              "text": "warning",
+              "value": "warning"
+            },
+            {
+              "selected": false,
+              "text": "error",
+              "value": "error"
+            }
+          ],
+          "query": "warning,error",
+          "type": "custom"
+        },
+        {
+          "allValue": ".*",
+          "current": {
+            "text": "$__all",
+            "value": "$__all"
+          },
+          "description": "Selecteer een HTTP methode",
+          "includeAll": true,
+          "label": "HTTP methode",
+          "multi": true,
+          "name": "Methode",
+          "options": [
+            {
+              "selected": false,
+              "text": "GET",
+              "value": "GET"
+            },
+            {
+              "selected": false,
+              "text": "POST",
+              "value": "POST"
+            },
+            {
+              "selected": false,
+              "text": "PUT",
+              "value": "PUT"
+            },
+            {
+              "selected": false,
+              "text": "DELETE",
+              "value": "DELETE"
+            },
+            {
+              "selected": false,
+              "text": "PATCH",
+              "value": "PATCH"
+            },
+            {
+              "selected": false,
+              "text": "HEAD",
+              "value": "HEAD"
+            },
+            {
+              "selected": false,
+              "text": "OPTIONS",
+              "value": "OPTIONS"
+            },
+            {
+              "selected": false,
+              "text": "TRACE",
+              "value": "TRACE"
+            },
+            {
+              "selected": false,
+              "text": "CONNECT",
+              "value": "CONNECT"
+            }
+          ],
+          "query": "GET,POST,PUT,DELETE,PATCH,HEAD,OPTIONS,TRACE,CONNECT",
+          "type": "custom"
+        },
+        {
+          "allValue": ".*",
+          "current": {
+            "text": "$__all",
+            "value": "$__all"
+          },
+          "description": "Kies een HTTP code en bekijk 'Logs met HTTP code' voor de specifieke logs",
+          "includeAll": true,
+          "multi": true,
+          "name": "http_code",
+          "options": [
+            {
+              "selected": false,
+              "text": "200",
+              "value": "200"
+            },
+            {
+              "selected": false,
+              "text": "201",
+              "value": "201"
+            },
+            {
+              "selected": false,
+              "text": "204",
+              "value": "204"
+            },
+            {
+              "selected": false,
+              "text": "301",
+              "value": "301"
+            },
+            {
+              "selected": false,
+              "text": "302",
+              "value": "302"
+            },
+            {
+              "selected": false,
+              "text": "304",
+              "value": "304"
+            },
+            {
+              "selected": false,
+              "text": "400",
+              "value": "400"
+            },
+            {
+              "selected": false,
+              "text": "401",
+              "value": "401"
+            },
+            {
+              "selected": false,
+              "text": "403",
+              "value": "403"
+            },
+            {
+              "selected": false,
+              "text": "404",
+              "value": "404"
+            },
+            {
+              "selected": false,
+              "text": "405",
+              "value": "405"
+            },
+            {
+              "selected": false,
+              "text": "429",
+              "value": "429"
+            },
+            {
+              "selected": false,
+              "text": "500",
+              "value": "500"
+            },
+            {
+              "selected": false,
+              "text": "502",
+              "value": "502"
+            },
+            {
+              "selected": false,
+              "text": "503",
+              "value": "503"
+            },
+            {
+              "selected": false,
+              "text": "504",
+              "value": "504"
+            }
+          ],
+          "query": "200,201,204,301,302,304,400,401,403,404,405,429,500,502,503,504",
+          "type": "custom"
+        },
+        {
+          "current": {
+            "text": "",
+            "value": ""
+          },
+          "description": "Vul hier je zoekwoord in. Voorbeeld: formulier",
+          "label": "Zoeken",
+          "name": "search",
+          "options": [
+            {
+              "selected": true,
+              "text": "",
+              "value": ""
+            }
+          ],
+          "query": "",
+          "type": "textbox"
+        },
+        {
+          "current": {
+            "text": "1.1",
+            "value": "1.1"
+          },
+          "name": "Dashboard_versie_Rotterdam",
+          "options": [
+            {
+              "selected": true,
+              "text": "1.1",
+              "value": "1.1"
+            }
+          ],
+          "query": "1.1",
+          "type": "textbox"
+        },
+        {
+          "current": {
+            "text": [
+              "$__all"
+            ],
+            "value": [
+              "$__all"
+            ]
+          },
+          "hide": 2,
+          "includeAll": true,
+          "multi": true,
+          "name": "excluded_log_levels",
+          "options": [
+            {
+              "selected": false,
+              "text": "DEBUG",
+              "value": "DEBUG"
+            },
+            {
+              "selected": false,
+              "text": "INFO",
+              "value": "INFO"
+            },
+            {
+              "selected": false,
+              "text": "maykin",
+              "value": "maykin"
+            },
+            {
+              "selected": false,
+              "text": "maykinmedia",
+              "value": "maykinmedia"
+            },
+            {
+              "selected": false,
+              "text": "Datadog",
+              "value": "Datadog"
+            },
+            {
+              "selected": false,
+              "text": "sentry",
+              "value": "sentry"
+            },
+            {
+              "selected": false,
+              "text": "GET / =>",
+              "value": "GET / =>"
+            },
+            {
+              "selected": false,
+              "text": "GET /_health/",
+              "value": "GET /_health/"
+            },
+            {
+              "selected": false,
+              "text": "GET /admin",
+              "value": "GET /admin"
+            },
+            {
+              "selected": false,
+              "text": "GET /api/ent",
+              "value": "GET /api/ent"
+            },
+            {
+              "selected": false,
+              "text": "WARN",
+              "value": "WARN"
+            }
+          ],
+          "query": "DEBUG, INFO, maykin, maykinmedia, Datadog, sentry, GET / =>, GET /_health/, GET /admin, GET /api/ent, WARN",
+          "type": "custom"
+        }
+      ]
+    },
+    "time": {
+      "from": "now-15m",
+      "to": "now"
+    },
+    "timepicker": {},
+    "timezone": "",
+    "title": "Logging openformulieren -> e-Suite",
+    "uid": "e970a83d-adc2-4d33-af93-2349c0b77e5",
+    "version": 179,
+    "weekStart": ""
+  }
