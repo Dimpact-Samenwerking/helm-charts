@@ -1,12 +1,16 @@
 apiVersion: v2
-name: monitoring
+name: monitoring en logging
 description: A monitoring stack using Loki, Promtail and Grafana
 type: application
 version: 0.1.0
 appVersion: "1.0"
+dependencies:
   - name: loki
+    version:
     repository: "https://grafana.github.io/helm-charts"
   - name: promtail
     repository: "https://grafana.github.io/helm-charts"
+    version:
   - name: grafana
     repository: "https://grafana.github.io/helm-charts"
+    version:
