@@ -19,14 +19,6 @@ Helm chart for Grafana Loki and Grafana Enterprise Logs supporting both simple, 
 * <https://grafana.com/oss/loki/>
 * <https://grafana.com/docs/loki/latest/>
 
-## Requirements
-
-| Repository | Name | Version |
-|------------|------|---------|
-| https://charts.min.io/ | minio(minio) | 5.4.0 |
-| https://grafana.github.io/helm-charts | grafana-agent-operator(grafana-agent-operator) | 0.5.1 |
-| https://grafana.github.io/helm-charts | rollout_operator(rollout-operator) | 0.23.0 |
-
 ## Values
 
 | Key | Type | Default | Description |
