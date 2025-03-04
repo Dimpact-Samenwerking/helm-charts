@@ -6,25 +6,11 @@ The leading tool for querying and visualizing time series and metrics.
 
 **Homepage:** <https://grafana.com>
 
-## Maintainers
-
-| Name | Email | Url |
-| ---- | ------ | --- |
-| zanhsieh | <zanhsieh@gmail.com> |  |
-| rtluckie | <rluckie@cisco.com> |  |
-| maorfr | <maor.friedman@redhat.com> |  |
-| Xtigyro | <miroslav.hadzhiev@gmail.com> |  |
-| torstenwalter | <mail@torstenwalter.de> |  |
-| jkroepke | <github@jkroepke.de> |  |
 
 ## Source Code
 
 * <https://github.com/grafana/grafana>
 * <https://github.com/grafana/helm-charts>
-
-## Requirements
-
-Kubernetes: `^1.8.0-0`
 
 ## Values
 
