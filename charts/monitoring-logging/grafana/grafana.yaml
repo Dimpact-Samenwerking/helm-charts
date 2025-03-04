@@ -4,7 +4,7 @@
     image:
       registry: REP_ACR_NAME_REP.azurecr.io
       repository: grafana
-      tag: 11.3.0
+      tag: 11.5.2
     
     downloadDashboardsImage:
       registry: REP_ACR_NAME_REP.azurecr.io
