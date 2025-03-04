@@ -1,18 +1,10 @@
 apiVersion: v2
 name: monitoring
-description: A monitoring stack using Prometheus, Loki, Promtail, OpenTelemetry, and Grafana
+description: A monitoring stack using Loki, Promtail, OpenTelemetry and Grafana
 type: application
 version: 0.1.0
 appVersion: "1.0"
-
-dependencies:
-  - name: kube-prometheus-stack
-    repository: "https://prometheus-community.github.io/helm-charts"
   - name: loki
     repository: "https://grafana.github.io/helm-charts"
   - name: promtail
-    repository: "https://grafana.github.io/helm-charts"
-  - name: opentelemetry-collector
-    repository: "https://open-telemetry.github.io/opentelemetry-helm-charts"
-  - name: tempo
     repository: "https://grafana.github.io/helm-charts"
