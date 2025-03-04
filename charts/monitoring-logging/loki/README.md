@@ -6,13 +6,6 @@ Helm chart for Grafana Loki and Grafana Enterprise Logs supporting both simple, 
 
 **Homepage:** <https://grafana.github.io/helm-charts>
 
-## Maintainers
-
-| Name | Email | Url |
-| ---- | ------ | --- |
-| trevorwhitney |  |  |
-| jeschkies |  |  |
-
 ## Source Code
 
 * <https://github.com/grafana/loki>
