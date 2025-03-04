@@ -1,50 +1,69 @@
 grafana:
-  additionalDataSources:
-  - name: loki
-    type: loki
-    uid: loki
-    readOnly: false
-    editable: true
-    access: proxy
-    url: http://loki-distributed-gateway
-    jsonData:
-        derivedFields:
-          - datasourceUid: tempo
-            matcherRegex: ((\d+|[a-z]+)(\d+|[a-z]+)(\d+|[a-z]+)(\d+|[a-z]+)(\d+|[a-z]+)(\d+|[a-z]+)(\d+|[a-z]+)(\d+|[a-z]+)(\d+|[a-z]+)(\d+|[a-z]+)(\d+|[a-z]+))
-            name: TraceID
-            url: $${__value.raw}
-        maxLines: 1000
-    version: 1
-  - name: Tempo
-    type: tempo
-    readOnly: false
-    editable: true
-    uid: tempo
-    url: http://tempo:3100
-    access: proxy
-    version: 1
+  image:
+    registry: REP_ACR_NAME_REP.azurecr.io
+    repository: grafana
+    tag: 11.5.2
 
-  assertNoLeakedSecrets: false
+  downloadDashboardsImage:
+    registry: REP_ACR_NAME_REP.azurecr.io
+    repository: curl
+    tag: 7.85.0
+
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+        - name: Loki
+          editable: false
+          type: loki
+          url: http://loki:3100
+          isDefault: true
+          jsonData:
+            timeout: 300
+      deleteDatasources:
+        - name: Prometheus
+        - name: Alertmanager
+
+  adminPassword: "KV_GRAFANA_ADMIN_KV"
+
+  resources:
+    requests:
+      cpu: 10m
+      memory: 96Mi
+    limits:
+      cpu: 50m
+      memory: 128Mi
+
+  nodeSelector:
+    kubernetes.azure.com/mode: system
+
+  containerSecurityContext:
+    readOnlyRootFilesystem: true
+    allowPrivilegeEscalation: false
+    runAsNonRoot: true
+
+  envFromSecrets:
+    - name: gf-database-password
+    - name: gf-client-secret
+
   dashboardProviders:
     dashboardproviders.yaml:
       apiVersion: 1
       providers:
-      - name: 'default'
-        orgId: 1
-        folder: ''
-        type: file
-        updateIntervalSeconds: 10
-        disableDeletion: false
-        allowUiUpdates: true
-        editable: true
-        options:
-          path: /var/lib/grafana/dashboards/default
-  dashboards:
-    default:
-      Monitoring:
-        url:
-        token: ''
-        datasource: Loki
+        - name: "default"
+          orgId: 1
+          folder: "loki"
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/default
+
+  dashboards: 
+    default: 
+      Logging_PodiumD:
+        url: https://github.com/Dimpact-Samenwerking/helm-charts/bl
+
 
   persistence:
     enabled: true
