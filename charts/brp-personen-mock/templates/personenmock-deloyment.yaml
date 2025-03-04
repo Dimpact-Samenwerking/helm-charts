@@ -21,19 +21,13 @@ spec:
       serviceAccountName: brp-personen-mock
       containers:
         - name: brp-personen-mock
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          image: "{{ .Values.brppersonenmock.image.repository }}:{{ .Values.brppersonenmock.image.tag }}"
+          imagePullPolicy: {{ .Values.brppersonenmock.image.pullPolicy }}
           envFrom:
             - configMapRef:
-                name: {{ .Values.configMap }}
+                name: brp-personen-mock
           ports:
             - name: http-brp-mock
-              containerPort: {{ .Values.containerPort }}
+              containerPort: 5010
               protocol: TCP
-          resources:
-            {{- toYaml .Values.resources | nindent 12 }}
       restartPolicy: Always
-      {{- with .Values.nodeSelector }}
-      nodeSelector:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
