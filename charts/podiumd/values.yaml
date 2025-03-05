@@ -109,6 +109,10 @@ keycloak:
     enabled: true
   pdb:
     create: false
+  networkPolicy:
+    enabled: false
+  podSecurity:
+    enabled: false
   postgres:
     enabled: false
   replicaCount: 1
@@ -511,6 +515,7 @@ objecten:
 
 objecttypen:
   configuration:
+    token: "<token>"
     oidcUrl: https://objecttypen.example.nl
     oidcSecret: "<objecttypen>"
   settings:
@@ -655,7 +660,7 @@ openinwoner:
   persistentVolume:
     volumeAttributeShareName: openinwoner
   image:
-    tag: "1.27.0"
+    tag: "1.27.2"
   resources:
     requests:
       cpu: 200m
