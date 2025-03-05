@@ -221,7 +221,7 @@ data:
       ]
 
     zac_eigenschappen=[
-        { "catalogus": f"{zac_catalogus_url}", "naam": "textField", "definitie": "textField", "specificatie": {"formaat": "tekst", "lengte": "100", "kardinaliteit": "1"} }
+        { "catalogus": f"{zac_catalogus_url}", "naam": "textField", "definitie": "textField", "specificatie": {"formaat": "tekst", "lengte": "100", "kardinaliteit": "1"} },
         { "catalogus": f"{zac_catalogus_url}", "naam": "email", "definitie": "email adres", "specificatie": {"formaat": "tekst", "lengte": "320", "kardinaliteit": "1"} }
       ]
 
