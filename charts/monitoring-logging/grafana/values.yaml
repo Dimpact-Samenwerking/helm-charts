@@ -64,7 +64,7 @@ dashboardProviders:
 dashboards:
   default:
     Logging_PodiumD:
-      url: https://github.com/Dimpact-Samenwerking/helm-charts/blob/feature/IN-72_monitoring-logging/charts/monitoring-logging/grafana/dashboards/logging_PodiumD.json
+      url: https://raw.githubusercontent.com/Dimpact-Samenwerking/helm-charts/refs/heads/feature/IN-72_monitoring-logging/charts/monitoring-logging/grafana/dashboards/logging_PodiumD.json
       token: ""
       datasource: Loki
 
