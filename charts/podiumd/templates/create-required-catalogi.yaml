@@ -81,10 +81,10 @@ data:
     exit()
 
     zac_informatieobjecttypen=[
-        { "catalogus": f"{zac_catalogus_url}", "omschrijving": "aanvraag", "vertrouwelijkheidaanduiding":"openbaar", "beginGeldigheid": "2025-01-01", "informatieobjectcategorie": "onbekend"},
-        { "catalogus": f"{zac_catalogus_url}", "omschrijving": "bijlage", "vertrouwelijkheidaanduiding":"openbaar", "beginGeldigheid": "2025-01-01", "informatieobjectcategorie": "onbekend"},
-        { "catalogus": f"{zac_catalogus_url}", "omschrijving": "e-mail", "vertrouwelijkheidaanduiding":"openbaar", "beginGeldigheid": "2025-01-01", "informatieobjectcategorie": "onbekend"}
-        { "catalogus": f"{zac_catalogus_url}", "omschrijving": "besluit", "vertrouwelijkheidaanduiding":"openbaar", "beginGeldigheid": "2025-01-01", "informatieobjectcategorie": "onbekend"}
+        { "catalogus": f"{zac_catalogus_url}", "omschrijving": "aanvraag", "vertrouwelijkheidaanduiding":"openbaar", "beginGeldigheid": "2025-01-01", "informatieobjectcategorie": "onbekend", "trefwoord":["aanvraag","e2e"]},
+        { "catalogus": f"{zac_catalogus_url}", "omschrijving": "bijlage", "vertrouwelijkheidaanduiding":"openbaar", "beginGeldigheid": "2025-01-01", "informatieobjectcategorie": "onbekend", "trefwoord":["bijlage","e2e"]},
+        { "catalogus": f"{zac_catalogus_url}", "omschrijving": "e-mail", "vertrouwelijkheidaanduiding":"openbaar", "beginGeldigheid": "2025-01-01", "informatieobjectcategorie": "onbekend", "trefwoord":["e-mail","e2e"]},
+        { "catalogus": f"{zac_catalogus_url}", "omschrijving": "besluit", "vertrouwelijkheidaanduiding":"openbaar", "beginGeldigheid": "2025-01-01", "informatieobjectcategorie": "onbekend", "trefwoord":["besluit","e2e"]}
     ]
 
     besluit_informatieobjecttype={}
