@@ -8,8 +8,7 @@ A monitoring stack using Loki, Promtail and Grafana
 
 | Repository | Name | Version |
 |------------|------|---------|
-|  | loki |  |
-| https://grafana.github.io/helm-charts |  | 3.4.2 |
+| https://grafana.github.io/helm-charts | loki  | 3.4.2 |
 | https://grafana.github.io/helm-charts | grafana | 11.5.2 |
 | https://grafana.github.io/helm-charts | promtail | 3.0.0 |
 
