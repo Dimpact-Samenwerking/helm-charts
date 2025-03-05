@@ -1,3 +1,4 @@
+{{- if .Values.keycloak.enabled -}}
 {{- if .Values.keycloak.keycloakConfigCli.enabled -}}
 apiVersion: v1
 kind: ConfigMap
@@ -11,14 +12,49 @@ data:
     realm: master
     attributes:
       frontendUrl: {{ .Values.keycloak.config.adminFrontendUrl | quote }}
+    browserSecurityHeaders:
+      xContentTypeOptions: "nosniff"
+      xRobotsTag: "none"
+      xFrameOptions: "SAMEORIGIN"
+      contentSecurityPolicy: "frame-src 'self'; frame-ancestors 'self'; object-src 'none';"
+      xXSSProtection: "1; mode=block"
+      strictTransportSecurity: ""
+{{- if .Values.keycloak.config.adminOtpEnabled }}
+    requiredActions:
+      - name: "Configure OTP"
+        providerId: CONFIGURE_TOTP
+        enabled: "true"
+        defaultAction: "true"
+        alias: CONFIGURE_TOTP
+{{- end }}
+{{- with .Values.keycloak.config.adminIdentityProviders }}
+    {{- toYaml . | nindent 4 }}
+{{- end }}
+{{- with .Values.keycloak.config.adminIdentityProviderMappers }}
+    {{- toYaml . | nindent 4 }}
+{{- end }}
   realm.yaml: |
+    realm: {{ .Values.keycloak.config.realm }}
     enabled: true
-    realm: podiumd
-    displayName: {{ .Values.keycloak.config.realmDisplayName | quote }}
+    displayName: {{ .Values.keycloak.config.realmDisplayName }}
     loginWithEmailAllowed: true
     rememberMe: true
     attributes:
-      frontendUrl: {{ .Values.keycloak.config.realmFrontendUrl | quote }}
+      frontendUrl: {{ .Values.keycloak.config.realmFrontendUrl }}
+      adminEventsExpiration: 10800
+    browserSecurityHeaders:
+      xContentTypeOptions: "nosniff"
+      xRobotsTag: "none"
+      xFrameOptions: "SAMEORIGIN"
+      contentSecurityPolicy: "frame-src 'self'; frame-ancestors 'self'; object-src 'none';"
+      xXSSProtection: "1; mode=block"
+      strictTransportSecurity: ""
+    requiredActions:
+      - name: "Configure OTP"
+        providerId: CONFIGURE_TOTP
+        enabled: "true"
+        defaultAction: "true"
+        alias: CONFIGURE_TOTP
     clients:
       - clientId: openzaak
         name: Open Zaak
@@ -29,6 +65,67 @@ data:
         webOrigins:
           - "{{ .Values.openzaak.configuration.oidcUrl }}/*"
         secret: {{ .Values.openzaak.configuration.oidcSecret | quote }}
+        protocolMappers:
+          - name: "username"
+            protocol: "openid-connect"
+            protocolMapper: oidc-usermodel-property-mapper
+            config:
+              introspection.token.claim: "true"
+              userinfo.token.claim: "true"
+              user.attribute: "username"
+              id.token.claim: "true"
+              lightweight.claim: "false"
+              access.token.claim: "true"
+              claim.name: "preferred_username"
+              jsonType.label: "String"
+          - name: "groups-member"
+            protocol: "openid-connect"
+            protocolMapper: "oidc-group-membership-mapper"
+            consentRequired: false
+            config:
+              full.path: "false"
+              introspection.token.claim: "true"
+              userinfo.token.claim: "true"
+              multivalued: "true"
+              id.token.claim: "true"
+              lightweight.claim: "false"
+              access.token.claim: "true"
+              claim.name: "groups"
+      - clientId: abc
+        name: Open Archiefbeheer
+        enabled: true
+        clientAuthenticatorType: client-secret
+        redirectUris:
+          - "{{ .Values.abc.configuration.oidcUrl }}/*"
+        webOrigins:
+          - "{{ .Values.abc.configuration.oidcUrl }}/*"
+        secret: {{ .Values.abc.configuration.oidcSecret | quote }}
+        protocolMappers:
+          - name: "username"
+            protocol: "openid-connect"
+            protocolMapper: oidc-usermodel-property-mapper
+            config:
+              introspection.token.claim: "true"
+              userinfo.token.claim: "true"
+              user.attribute: "username"
+              id.token.claim: "true"
+              lightweight.claim: "false"
+              access.token.claim: "true"
+              claim.name: "preferred_username"
+              jsonType.label: "String"
+          - name: "groups-member"
+            protocol: "openid-connect"
+            protocolMapper: "oidc-group-membership-mapper"
+            consentRequired: false
+            config:
+              full.path: "false"
+              introspection.token.claim: "true"
+              userinfo.token.claim: "true"
+              multivalued: "true"
+              id.token.claim: "true"
+              lightweight.claim: "false"
+              access.token.claim: "true"
+              claim.name: "groups"
       - clientId: opennotificaties
         name: Open Notificaties
         enabled: true
@@ -38,6 +135,32 @@ data:
         webOrigins:
           - "{{ .Values.opennotificaties.configuration.oidcUrl }}/*"
         secret: {{ .Values.opennotificaties.configuration.oidcSecret | quote }}
+        protocolMappers:
+          - name: "username"
+            protocol: "openid-connect"
+            protocolMapper: oidc-usermodel-property-mapper
+            config:
+              introspection.token.claim: "true"
+              userinfo.token.claim: "true"
+              user.attribute: "username"
+              id.token.claim: "true"
+              lightweight.claim: "false"
+              access.token.claim: "true"
+              claim.name: "preferred_username"
+              jsonType.label: "String"
+          - name: "groups-member"
+            protocol: "openid-connect"
+            protocolMapper: "oidc-group-membership-mapper"
+            consentRequired: false
+            config:
+              full.path: "false"
+              introspection.token.claim: "true"
+              userinfo.token.claim: "true"
+              multivalued: "true"
+              id.token.claim: "true"
+              lightweight.claim: "false"
+              access.token.claim: "true"
+              claim.name: "groups"
       - clientId: objecten
         name: Objecten
         enabled: true
@@ -47,6 +170,32 @@ data:
         webOrigins:
           - "{{ .Values.objecten.configuration.oidcUrl }}/*"
         secret: {{ .Values.objecten.configuration.oidcSecret | quote }}
+        protocolMappers:
+          - name: "username"
+            protocol: "openid-connect"
+            protocolMapper: oidc-usermodel-property-mapper
+            config:
+              introspection.token.claim: "true"
+              userinfo.token.claim: "true"
+              user.attribute: "username"
+              id.token.claim: "true"
+              lightweight.claim: "false"
+              access.token.claim: "true"
+              claim.name: "preferred_username"
+              jsonType.label: "String"
+          - name: "groups-member"
+            protocol: "openid-connect"
+            protocolMapper: "oidc-group-membership-mapper"
+            consentRequired: false
+            config:
+              full.path: "false"
+              introspection.token.claim: "true"
+              userinfo.token.claim: "true"
+              multivalued: "true"
+              id.token.claim: "true"
+              lightweight.claim: "false"
+              access.token.claim: "true"
+              claim.name: "groups"
       - clientId: objecttypen
         name: Objecttypen
         enabled: true
@@ -56,6 +205,32 @@ data:
         webOrigins:
           - "{{ .Values.objecttypen.configuration.oidcUrl }}/*"
         secret: {{ .Values.objecttypen.configuration.oidcSecret | quote }}
+        protocolMappers:
+          - name: "username"
+            protocol: "openid-connect"
+            protocolMapper: oidc-usermodel-property-mapper
+            config:
+              introspection.token.claim: "true"
+              userinfo.token.claim: "true"
+              user.attribute: "username"
+              id.token.claim: "true"
+              lightweight.claim: "false"
+              access.token.claim: "true"
+              claim.name: "preferred_username"
+              jsonType.label: "String"
+          - name: "groups-member"
+            protocol: "openid-connect"
+            protocolMapper: "oidc-group-membership-mapper"
+            consentRequired: false
+            config:
+              full.path: "false"
+              introspection.token.claim: "true"
+              userinfo.token.claim: "true"
+              multivalued: "true"
+              id.token.claim: "true"
+              lightweight.claim: "false"
+              access.token.claim: "true"
+              claim.name: "groups"
       - clientId: openklant
         name: Open Klant
         enabled: true
@@ -65,6 +240,32 @@ data:
         webOrigins:
           - "{{ .Values.openklant.configuration.oidcUrl }}/*"
         secret: {{ .Values.openklant.configuration.oidcSecret | quote }}
+        protocolMappers:
+          - name: "username"
+            protocol: "openid-connect"
+            protocolMapper: oidc-usermodel-property-mapper
+            config:
+              introspection.token.claim: "true"
+              userinfo.token.claim: "true"
+              user.attribute: "username"
+              id.token.claim: "true"
+              lightweight.claim: "false"
+              access.token.claim: "true"
+              claim.name: "preferred_username"
+              jsonType.label: "String"
+          - name: "groups-member"
+            protocol: "openid-connect"
+            protocolMapper: "oidc-group-membership-mapper"
+            consentRequired: false
+            config:
+              full.path: "false"
+              introspection.token.claim: "true"
+              userinfo.token.claim: "true"
+              multivalued: "true"
+              id.token.claim: "true"
+              lightweight.claim: "false"
+              access.token.claim: "true"
+              claim.name: "groups"
       - clientId: openformulieren
         name: Open Formulieren
         enabled: true
@@ -74,7 +275,32 @@ data:
         webOrigins:
           - "{{ .Values.openformulieren.configuration.oidcUrl }}/*"
         secret: {{ .Values.openformulieren.configuration.oidcSecret | quote }}
-      {{- if .Values.tags.portaal }}
+        protocolMappers:
+          - name: "username"
+            protocol: "openid-connect"
+            protocolMapper: oidc-usermodel-property-mapper
+            config:
+              introspection.token.claim: "true"
+              userinfo.token.claim: "true"
+              user.attribute: "username"
+              id.token.claim: "true"
+              lightweight.claim: "false"
+              access.token.claim: "true"
+              claim.name: "preferred_username"
+              jsonType.label: "String"
+          - name: "groups-member"
+            protocol: "openid-connect"
+            protocolMapper: "oidc-group-membership-mapper"
+            consentRequired: false
+            config:
+              full.path: "false"
+              introspection.token.claim: "true"
+              userinfo.token.claim: "true"
+              multivalued: "true"
+              id.token.claim: "true"
+              lightweight.claim: "false"
+              access.token.claim: "true"
+              claim.name: "groups"
       - clientId: openinwoner
         name: Open Inwoner
         enabled: true
@@ -84,8 +310,32 @@ data:
         webOrigins:
           - "{{ .Values.openinwoner.configuration.oidcUrl }}/*"
         secret: {{ .Values.openinwoner.configuration.oidcSecret | quote }}
-      {{- end }}
-      {{- if .Values.tags.contact }}
+        protocolMappers:
+          - name: "username"
+            protocol: "openid-connect"
+            protocolMapper: oidc-usermodel-property-mapper
+            config:
+              introspection.token.claim: "true"
+              userinfo.token.claim: "true"
+              user.attribute: "username"
+              id.token.claim: "true"
+              lightweight.claim: "false"
+              access.token.claim: "true"
+              claim.name: "preferred_username"
+              jsonType.label: "String"
+          - name: "groups-member"
+            protocol: "openid-connect"
+            protocolMapper: "oidc-group-membership-mapper"
+            consentRequired: false
+            config:
+              full.path: "false"
+              introspection.token.claim: "true"
+              userinfo.token.claim: "true"
+              multivalued: "true"
+              id.token.claim: "true"
+              lightweight.claim: "false"
+              access.token.claim: "true"
+              claim.name: "groups"
       - clientId: kiss
         name: Kiss
         enabled: true
@@ -108,43 +358,185 @@ data:
               lightweight.claim: true
               userinfo.token.claim: true
               introspection.token.claim: true
-      {{- end }}
-      {{- if .Values.tags.zaak }}
-      - clientId: zac
+    {{- if .Values.zac.enabled }}
+      - clientId: {{ .Values.zac.auth.clientId }}
         name: Zaakafhandelcomponent
         enabled: true
         clientAuthenticatorType: client-secret
         redirectUris:
-          - "{{ .Values.zac.configuration.oidcUrl }}/*"
+          - "{{ .Values.zac.contextUrl }}/*"
         webOrigins:
-          - "{{ .Values.zac.configuration.oidcUrl }}/*"
-        secret: {{ .Values.zac.configuration.oidcSecret | quote }}
+          - "{{ .Values.zac.contextUrl }}/*"
+        secret: {{ .Values.zac.auth.secret | quote }}
         protocolMappers:
-          - name: zac-roles
+          - name: "username"
+            protocol: "openid-connect"
+            protocolMapper: oidc-usermodel-property-mapper
+            config:
+              introspection.token.claim: "true"
+              userinfo.token.claim: "true"
+              user.attribute: "username"
+              id.token.claim: "true"
+              lightweight.claim: "false"
+              access.token.claim: "true"
+              claim.name: "preferred_username"
+              jsonType.label: "String"
+          - name: "groups-member"
+            protocol: "openid-connect"
+            protocolMapper: "oidc-group-membership-mapper"
+            consentRequired: false
+            config:
+              full.path: "false"
+              introspection.token.claim: "true"
+              userinfo.token.claim: "true"
+              multivalued: "true"
+              id.token.claim: "true"
+              lightweight.claim: "false"
+              access.token.claim: "true"
+              claim.name: "group_membership"
+      - clientId: {{ .Values.zac.keycloak.adminClient.id }}
+        name: Zaakafhandelcomponent Admin Client
+        enabled: true
+        clientAuthenticatorType: client-secret
+        secret: {{ .Values.zac.keycloak.adminClient.secret | quote }}
+        redirectUris:
+          - "{{ .Values.zac.contextUrl }}/*"
+        webOrigins:
+          - "{{ .Values.zac.contextUrl }}/*"
+        serviceAccountsEnabled: true
+        protocolMappers:
+          - name: "Client Host"
+            protocol: "openid-connect"
+            protocolMapper: "oidc-usersessionmodel-note-mapper"
+            consentRequired: false
+            config:
+              user.session.note: "clientHost"
+              id.token.claim: "true"
+              introspection.token.claim: "true"
+              access.token.claim: "true"
+              claim.name: "clientHost"
+              jsonType.label: "String"
+          - name: "Client IP Address"
+            protocol: "openid-connect"
+            protocolMapper: "oidc-usersessionmodel-note-mapper"
+            consentRequired: false
+            config:
+              user.session.note: "clientAddress"
+              id.token.claim: "true"
+              introspection.token.claim: "true"
+              access.token.claim: "true"
+              claim.name: "clientAddress"
+              jsonType.label: "String"
+          - name: "Client ID"
+            protocol: "openid-connect"
+            protocolMapper: "oidc-usersessionmodel-note-mapper"
+            consentRequired: false
+            config:
+              user.session.note: "client_id"
+              id.token.claim: "true"
+              introspection.token.claim: "true"
+              access.token.claim: "true"
+              claim.name: "client_id"
+              jsonType.label: "String"
+    clientScopes:
+      - name: roles
+        description: OpenID Connect scope for add user roles to the access token
+        protocol: openid-connect
+        protocolMappers:
+          - config:
+              access.token.claim: "true"
+              claim.name: roles
+              id.token.claim: "false"
+              introspection.token.claim: "false"
+              jsonType.label: String
+              lightweight.claim: "false"
+              multivalued: "true"
+              userinfo.token.claim: "false"
+              usermodel.clientRoleMapping.clientId: {{ .Values.zac.auth.clientId }}
+            consentRequired: false
+            name: zac roles
             protocol: openid-connect
             protocolMapper: oidc-usermodel-client-role-mapper
-            config:
-              usermodel.clientRoleMapping.clientId: zac
-              multivalued: true
-              claim.name: roles
-              id.token.claim: true
-              access.token.claim: true
-              lightweight.claim: true
-              userinfo.token.claim: true
-              introspection.token.claim: true
-      {{- end }}
+          - config:
+              access.token.claim: "true"
+              introspection.token.claim: "true"
+            consentRequired: false
+            name: audience resolve
+            protocol: openid-connect
+            protocolMapper: oidc-audience-resolve-mapper
+          - config:
+              access.token.claim: "true"
+              claim.name: resource_access.${client_id}.roles
+              introspection.token.claim: "true"
+              jsonType.label: String
+              multivalued: "true"
+              user.attribute: foo
+            consentRequired: false
+            name: client roles
+            protocol: openid-connect
+            protocolMapper: oidc-usermodel-client-role-mapper
+          - config:
+              access.token.claim: "true"
+              claim.name: realm_access.roles
+              introspection.token.claim: "true"
+              jsonType.label: String
+              multivalued: "true"
+              user.attribute: foo
+            consentRequired: false
+            name: realm roles
+            protocol: openid-connect
+            protocolMapper: oidc-usermodel-realm-role-mapper
+    users:
+      - username: "service-account-zaakafhandelcomponent-admin-client"
+        enabled: "true"
+        totp: "false"
+        serviceAccountClientId: "{{ .Values.zac.keycloak.adminClient.id }}"
+        clientRoles:
+          realm-management:
+            - "view-users"
+          account:
+            - "view-groups"
+    {{- end }}
+
+    smtpServer:
+      starttls: {{ .Values.keycloak.config.smtp.starttls }}
+      port: {{ .Values.keycloak.config.smtp.port }}
+      host: {{ .Values.keycloak.config.smtp.server }}
+      from: {{ .Values.keycloak.config.smtp.from }}
+      fromDisplayName: {{ .Values.keycloak.config.smtp.fromDisplayName }}
+      ssl: {{ .Values.keycloak.config.smtp.ssl }}
+    browserSecurityHeaders:
+      xContentTypeOptions: "nosniff"
+      xRobotsTag: "none"
+      xFrameOptions: "SAMEORIGIN"
+      contentSecurityPolicy: "frame-src 'self'; frame-ancestors 'self'; object-src 'none';"
+      xXSSProtection: "1; mode=block"
+      strictTransportSecurity: ""
     roles:
       realm:
         - name: podiumd-admin
           description: PodiumD Administrator
-      {{- if or .Values.tags.contact .Values.tags.zaak }}
       client:
-        {{- if .Values.tags.contact }}
+        abc:
+          - name: administrators
+        openklant:
+          - name: administrators
+        objecten:
+          - name: administrators
+        objecttypen:
+          - name: administrators
+        openzaak:
+          - name: administrators
+        opennotificaties:
+          - name: administrators
+        openformulieren:
+          - name: administrators
+        openinwoner:
+          - name: administrators
         kiss:
           - name: Redacteur
           - name: Klantcontactmedewerker
-        {{- end }}
-        {{- if .Values.tags.zaak }}
+        {{- if .Values.zac.enabled }}
         zac:
           - name: zaakafhandelcomponent_user
           - name: behandelaar
@@ -153,61 +545,102 @@ data:
           - name: recordmanager
           - name: domein_elk_zaaktype
         {{- end }}
+    groups:
+      - name: administrators
+        path: /administrators
+        attributes:
+          description:
+            - "Administrators"
+        realmRoles:
+          - "podiumd-admin"
+        clientRoles:
+          {{- if .Values.zac.enabled }}
+          zac:
+            - "recordmanager"
+            - "zaakafhandelcomponent_user"
+            - "domein_elk_zaaktype"
+            - "beheerder"
+            - "coordinator"
+            - "behandelaar"
+          {{- end }}
+          abc:
+            - "administrators"
+          objecten:
+            - "administrators"
+          objecttypen:
+            - "administrators"
+          openzaak:
+            - "administrators"
+          openklant:
+            - "administrators"
+          openformulieren:
+            - "administrators"
+          openinwoner:
+            - "administrators"
+          opennotificaties:
+            - "administrators"
+      {{- if .Values.zac.enabled }}
+      - name: "behandelaars"
+        path: "/behandelaars"
+        attributes:
+          description:
+            - "Behandelaars"
+        clientRoles:
+          zac:
+            - "domein_elk_zaaktype"
+            - "zaakafhandelcomponent_user"
+            - "behandelaar"
+      - name: coordinators
+        path: /coordinators
+        attributes:
+          description:
+            - "Coordinators"
+        clientRoles:
+          zac:
+            - "zaakafhandelcomponent_user"
+            - "domein_elk_zaaktype"
+            - "coordinator"
+            - "behandelaar"
+      - name: recordmanagers
+        path: /recordmanagers
+        attributes:
+          description:
+            - "Recordmanagers"
+        clientRoles:
+          zac:
+            - "zaakafhandelcomponent_user"
+            - "domein_elk_zaaktype"
+            - "coordinator"
+            - "behandelaar"
+            - "recordmanager"
+      - name: beheerders
+        path: /beheerders
+        attributes:
+          description:
+            - "Beheerders"
+        clientRoles:
+          zac:
+            - "zaakafhandelcomponent_user"
+            - "domein_elk_zaaktype"
+            - "coordinator"
+            - "behandelaar"
+            - "beheerder"
+            - "recordmanager"
       {{- end }}
-    {{- if .Values.tags.zaak }}
-    components:
-      org.keycloak.storage.UserStorageProvider:
-        - name: OpenLDAP
-          providerId: ldap
-          config:
-            vendor:
-              - other
-            connectionUrl:
-              - ldap://openldap.openldap:1389
-            connectionPooling:
-              - true
-            bindDn:
-              - cn=admin,dc=dimpact,dc=org
-            bindCredential:
-              - admin
-            editMode:
-              - WRITABLE
-            usersDn:
-              - ou=lab3,dc=dimpact,dc=org
-            usernameLDAPAttribute:
-              - cn
-            rdnLDAPAttribute:
-              - cn
-            uuidLDAPAttribute:
-              - entryUUID
-            userObjectClasses:
-              - inetOrgPerson
-            pagination:
-              - true
-            importEnabled:
-              - false
-            batchSizeForSync:
-              - "1000"
-            fullSyncPeriod:
-              - "-1"
-            changedSyncPeriod:
-              - "-1"
-          subComponents:
-            org.keycloak.storage.ldap.mappers.LDAPStorageMapper:
-              - name: groups
-                providerId: group-ldap-mapper
-                config:
-                  groups.dn:
-                    - ou=lab3,dc=dimpact-lab,dc=org
-                  group.object.classes:
-                    - groupOfUniqueNames,extensibleObject
-                  preserve.group.inheritance:
-                    - false
-                  membership.ldap.attribute:
-                    - uniqueMember
-                  mode:
-                    - LDAP_ONLY
-                  mapped.group.attributes:
-                    - description,email
-    {{- end }}
+    requiredActions:
+      - name: "Configure OTP"
+        providerId: CONFIGURE_TOTP
+        enabled: "true"
+        defaultAction: "true"
+        alias: CONFIGURE_TOTP
+    eventsEnabled: "true"
+    eventsExpiration: "10800"
+    adminEventsEnabled: "true"
+{{- with .Values.keycloak.config.realmIdentityProviders }}
+    {{- toYaml . | nindent 4 }}
 {{- end }}
+{{- with .Values.keycloak.config.realmIdentityProviderMappers }}
+    {{- toYaml . | nindent 4 }}
+{{- end }}
+{{- end }}
+    {{- end }}

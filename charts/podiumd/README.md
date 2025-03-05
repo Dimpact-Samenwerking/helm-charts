@@ -57,6 +57,27 @@ Patch release for Open Inwoner bug fix.
 | Open Zaak         | 1.17.0  | Minor update |
 | Kiss              | 0.6.0   | Minor app update |
 
+### [4.0.0](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.0.0)
+
+**PodiumD Helm chart version: 4.0.0**
+
+
+| Component         | Version | Change          |
+|-------------------|---------|-----------------|
+| ClamAV            | 1.4.1   |                 |
+| Keycloak          | 25.0.6  | Major update    |
+| Infinispan        | 15.1    | Nieuw component |
+| Objecten          | 3.0.0   | Major update    |
+| Objecttypen       | 3.0.0   | Major update    |
+| Open Formulieren  | 3.0.1   | Major update    |
+| Open Inwoner      | 1.26.0  | Minor update    |
+| Open Klant        | 2.4.0   | Minor update    |
+| Open Notificaties | 1.8.0   | Minor update    |
+| Open Zaak         | 1.17.0  | Minor update    |
+| Kiss              | 0.6.0   | Minor update    |
+| Zac               | 2.0.0   | Nieuw component |
+
+
 ## Add Used chart repositories:
 
     helm repo add bitnami https://charts.bitnami.com/bitnami
@@ -66,6 +87,10 @@ Patch release for Open Inwoner bug fix.
     helm repo add kiss-elastic https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/.github/main/docs/scripts/elastic
     helm repo add maykinmedia https://maykinmedia.github.io/charts
     helm repo add wiremind https://wiremind.github.io/wiremind-helm-charts
+    helm repo add openshift https://charts.openshift.io
+    helm repo add solr https://solr.apache.org/charts
+    helm repo add opentelemetry https://open-telemetry.github.io/opentelemetry-helm-charts
+    helm repo add zac https://infonl.github.io/dimpact-zaakafhandelcomponent/
 
 ## PersistentVolume and PersistVolumeClaim resources
 
@@ -553,17 +578,12 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 
 Tags to add additional unreleased PodiumD functionality.
 
-| Name           | Description                            | Value   |
-|----------------|----------------------------------------|---------|
-| tags.portaal   | Whether PodiumD Portaal is installed   | `false` |
-| tags.contact   | Whether PodiumD Contact is installed   | `false` |
-| tags.zaak      | Whether PodiumD Zak is installed       | `false` |
+| Name           | Description                          | Value   |
+|----------------|--------------------------------------|---------|
+| tags.zaak      | Whether PodiumD Zaak is installed    | `false` |
                 
 ## Upgrading
 
-If an Helm upgrade of a component fails because of a forbidden update to a statefullset spec the stafullset needs to be deleted prior to the Helm upgrade by the following command:
+If an Helm upgrade of a component fails because of a forbidden update to a statefullset spec the statefullset needs to be deleted prior to the Helm upgrade by the following command:
                                                                                                                                                                    
 $ kubectl delete sts <component>-redis-master -n podiumd --cascade=orphan
-
-
-

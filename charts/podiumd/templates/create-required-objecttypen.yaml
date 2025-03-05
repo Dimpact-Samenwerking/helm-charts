@@ -1,0 +1,127 @@
+{{- if .Values.objecttypen.configuration.enabled }}
+{{- if .Values.objecttypen.create_required_objecttypen_job.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: create-required-objecttypen-configmap
+  labels:
+    {{- include "objecttypen.labels" . | nindent 4 }}
+data:
+  AUTHORIZATION_TOKEN: {{ .Values.objecttypen.configuration.token | quote }}
+  OBJECTTYPES_URL: {{ printf "%s%s" .Values.objecttypen.configuration.oidcUrl "/api/v2" | quote}}
+  create-required-objecttypen.py: |
+    #!/usr/local/bin/python
+    import requests
+    import os
+    import re
+
+    authorization_token = os.environ['AUTHORIZATION_TOKEN']
+    objecttypes_url = os.environ['OBJECTTYPES_URL']
+
+    authorization="Token " + authorization_token
+    def findHighestVersion(versions):
+      pattern = r'/(\d+)$'
+      numbers = [int(match.group(1)) for url in versions if (match := re.search(pattern, url))]
+      return max(numbers) if numbers else None
+
+    json_response = requests.get(
+      f"{objecttypes_url}/objecttypes",
+      params={"pageSize": "10000","dataClassification": "open"},
+      headers={"Authorization": authorization}
+    )
+
+    objecttypes_data = [
+      { "documentationUrl": "https://raw.githubusercontent.com/open-objecten/objecttypes/refs/heads/main/community-concepts/Medewerker/medewerker-schema.json", "namePlural": "Medewerkers", "name": "Medewerker", "dataClassification":"open", "updateFrequency":"unknown"  },
+      { "documentationUrl": "https://raw.githubusercontent.com/open-objecten/objecttypes/refs/heads/main/community-concepts/Afdeling%20en%20Groep/afdeling-schema.json", "namePlural": "Afdelingen","name": "Afdeling", "dataClassification":"open", "updateFrequency":"unknown" },
+      { "documentationUrl": "https://raw.githubusercontent.com/open-objecten/objecttypes/refs/heads/main/community-concepts/Afdeling%20en%20Groep/groep-schema.json", "namePlural": "Groepen","name":"Groep", "dataClassification":"open", "updateFrequency":"unknown" },
+      { "documentationUrl": "https://raw.githubusercontent.com/open-objecten/objecttypes/refs/heads/main/community-concepts/Interne%20taak/internetaak-schema.json", "namePlural": "InterneTaken","name":"InterneTaak", "dataClassification":"open", "updateFrequency":"unknown" },
+      { "documentationUrl": "https://raw.githubusercontent.com/open-objecten/objecttypes/refs/heads/main/community-concepts/PDC%20-%20kennisartikel/kennisartikel-schema.json", "namePlural": "Kennisartikelen","name":"Kennisartikel", "dataClassification":"open", "updateFrequency":"unknown"},
+      { "documentationUrl": "https://raw.githubusercontent.com/open-objecten/objecttypes/refs/heads/main/community-concepts/VAC/vac-schema.json", "namePlural": "VAC's","name":"VAC", "dataClassification":"open", "updateFrequency":"unknown" },
+      { "documentationUrl": "https://raw.githubusercontent.com/open-objecten/objecttypes/refs/heads/main/community-concepts/productaanvraag/productaanvraag-dimpact.json", "namePlural": "Productaanvragen-Dimpact","name":"Productaanvraag-Dimpact", "dataClassification":"open", "updateFrequency":"unknown" }
+    ]
+
+    objecttypes_uuid = [
+        {"uuid":"90984726-2692-49d8-8f9d-742075cb761d","name":"Medewerker"},
+        {"uuid":"c8d301f9-80b8-4575-8b29-3e9431f92994","name":"Afdeling"},
+        {"uuid":"cbec27ac-157b-490b-b586-9e8a8f5bbb85","name":"Groep"},
+        {"uuid":"72240cd6-29bb-4a66-b1c3-ab6589a39a22","name":"InterneTaak"},
+        {"uuid":"e4d2e353-80ea-4962-8276-920d59a3e8de","name":"Kennisartikel"},
+        {"uuid":"6a0d8f9d-f7e2-4e57-a91b-01656968a62d","name":"VAC"},
+        {"uuid":"11a5f7fd-013e-4e29-9cd1-738249fc3479","name":"Productaanvraag-Dimpact"}
+    ]
+
+    existing_objecttypes = []
+    json=json_response.json()
+    # Find existing uuid and latest version of objecttypes
+    for result in json["results"]:
+      for objecttype in objecttypes_data:
+        if(result["name"] == objecttype['name']):
+          objecttype['uuid']=result["uuid"]
+          objecttype['version']=findHighestVersion(result['versions'])
+          existing_objecttypes.append(objecttype)
+          print(f"found existing objecttype for {objecttype['name']}")
+
+    for objecttype in objecttypes_data:
+      if not any ('uuid' in item for item in objecttype):
+        #create objecttype
+        print(f"creating objecttype for {objecttype['name']}")
+        objecttype['uuid']=next((item['uuid'] for item in objecttypes_uuid if item['name']==objecttype['name']), None)
+        response = requests.post(
+          f"{objecttypes_url}/objecttypes",
+          json=objecttype,
+          headers={
+            "Authorization": authorization,
+            "Content-Type": "application/json"
+          }
+        )
+        objecttype['uuid']=response.json().get('uuid')
+        print(f"created objecttype for {objecttype['name']}: {objecttype['uuid']}")
+
+      if not any ('version' in item for item in objecttype):
+        #create version
+        jsonSchema=requests.get(f"{objecttype['documentationUrl']}",headers={"Content-type":"application/json"}).json()
+        versionData={"status":"published","jsonSchema":jsonSchema}
+        response = requests.post(
+          f"{objecttypes_url}/objecttypes/{objecttype['uuid']}/versions",
+          json=versionData,
+          headers={
+            "Authorization": authorization,
+            "Content-Type": "application/json"
+          }
+        )
+        print(f"created version for objecttype {objecttype['uuid']}")
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: create-required-objecttypen-job
+  labels:
+    {{- include "objecttypen.configLabels" . | nindent 4 }}
+spec:
+  ttlSecondsAfterFinished: 600
+  template:
+    spec:
+      containers:
+        - image: {{ .Values.objecttypen.image.repository }}:{{ .Values.objecttypen.image.tag }}
+          command: ["/jobs/create-required-objecttypen.py"]
+          name: create-required-objecttypen
+          envFrom:
+            - configMapRef:
+                name: create-required-objecttypen-configmap
+          volumeMounts:
+            - mountPath: /jobs
+              name: jobs
+      volumes:
+        - configMap:
+            defaultMode: 0755
+            name: create-required-objecttypen-configmap
+          name: jobs
+      {{- with .Values.objecttypen.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      restartPolicy: OnFailure
+  backoffLimit: 4
+  activeDeadlineSeconds: 300
+{{- end }}
+{{- end }}
