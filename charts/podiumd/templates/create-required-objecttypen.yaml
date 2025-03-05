@@ -97,9 +97,6 @@ metadata:
   name: create-required-objecttypen-job
   labels:
     {{- include "objecttypen.configLabels" . | nindent 4 }}
-  annotations:
-    "helm.sh/hook": post-install
-    "helm.sh/hook-weight": "-5"
 spec:
   ttlSecondsAfterFinished: 600
   template:
