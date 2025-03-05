@@ -2,12 +2,18 @@
 # https://github.com/grafana/helm-charts/blob/main/charts/promtail/values.yaml
 image:
   registry: REP_ACR_NAME_REP.azurecr.io
+  # Repository name for the Promtail image
   repository: promtail
+  # Image tag version
   tag: "3.0.0"
 resources:
   requests:
+    # Minimum CPU allocation
     cpu: 50m
+    # Minimum memory allocation
     memory: 96Mi
   limits:
+    # Maximum CPU allocation
     cpu: 100m
+    # Maximum memory allocation
     memory: 256Mi
