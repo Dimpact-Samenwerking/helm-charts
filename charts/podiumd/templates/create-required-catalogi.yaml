@@ -41,7 +41,7 @@ data:
     jwt_token = jwt.encode(payload, f"{secret}", algorithm="HS256")
     headers = {"Authorization": "Bearer {token}".format(token=jwt_token)}
 
-    catalogi_url = openzaak_url + "catalogi/api/v1/"
+    catalogi_url = openzaak_url + "/catalogi/api/v1/"
 
     headers = {"Authorization": "Bearer {token}".format(token=jwt_token), "Content-Type": "application/json"}
     response = requests.get(
