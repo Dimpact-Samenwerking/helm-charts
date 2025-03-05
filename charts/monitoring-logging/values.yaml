@@ -139,7 +139,6 @@ promtail:
       
 loki:
   enabled: true
-  auth_enabled: false
   deploymentMode: Distributed
 
   ingester:
