@@ -230,10 +230,10 @@ resultsCache:
 chunksCache:
   enabled: false
 
-# Keep log data up to 1 year
+# Keep log data up to 3 months
 table_manager:
   retention_deletes_enabled: true
-  retention_period: 365d
+  retention_period: 90d
 
 monitoring:
   selfMonitoring:
