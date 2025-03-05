@@ -7,13 +7,13 @@ appVersion: "1.0"
 dependencies:
   - name: loki
     repository: "https://grafana.github.io/helm-charts"
-    version: 3.4.2
+    version: 6.27.0
     condition: loki.enabled
   - name: promtail
     repository: "https://grafana.github.io/helm-charts"
-    version: 3.0.0
+    version: 6.16.6
     condition: promtail.enabled
   - name: grafana
     repository: "https://grafana.github.io/helm-charts"
-    version: 11.5.2
+    version: 8.10.1
     condition: grafana.enabled
