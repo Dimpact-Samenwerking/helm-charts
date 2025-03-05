@@ -1,125 +1,122 @@
- ---
-    # https://github.com/grafana/helm-charts/blob/main/charts/grafana/values.yaml
-    
-    image:
-      registry: REP_ACR_NAME_REP.azurecr.io
-      repository: grafana
-      tag: 11.5.2
-    
-    downloadDashboardsImage:
-      registry: REP_ACR_NAME_REP.azurecr.io
-      repository: curl
-      tag: 7.85.0
-    
-    datasources:
-      datasources.yaml:
-        apiVersion: 1
-        datasources:
-          - name: Loki
-            editable: false
-            type: loki
-            url: http://loki:3100
-            isDefault: true
-            jsonData:
-              timeout: 300
-        deleteDatasources:
-          - name: Prometheus
-          - name: Alertmanager
-    
-    adminPassword: "KV_GRAFANA_ADMIN_KV"
-    
-    resources:
-      requests:
-        cpu: 10m
-        memory: 96Mi
-      limits:
-        cpu: 50m
-        memory: 128Mi
-    
-    nodeSelector:
-      kubernetes.azure.com/mode: system
-    
-    containerSecurityContext:
-      readOnlyRootFilesystem: true
-      allowPrivilegeEscalation: false
-      runAsNonRoot: true
-    
-    envFromSecrets:
-      - name: gf-database-password
-      - name: gf-client-secret
-    
-    dashboardProviders:
-      dashboardproviders.yaml:
-        apiVersion: 1
-        providers:
-          - name: "default"
-            orgId: 1
-            folder: "loki"
-            type: file
-            disableDeletion: false
-            editable: true
-            options:
-              path: /var/lib/grafana/dashboards/default
-    
-    dashboards: 
-      default: 
-        Logging_PodiumD:
-          url: https://github.com/Dimpact-Samenwerking/helm-charts/blob/feature/IN-72_monitoring-logging/charts/monitoring-logging/grafana/dashboards/logging_PodiumD.json
-          token: ''
-          datasource: Loki
+---
+# https://github.com/grafana/helm-charts/blob/main/charts/grafana/values.yaml
 
-    dashboardsConfigMaps:
-      default: "loki-dashboard"
-    
-    grafana.ini:
-      server:
-        root_url: https://REP_DOMAIN_REP
-      database:
-        type: postgres
-        host: psql-REP_ENVIRONMENT_REP-REP_GEMEENTE_REP.postgres.database.azure.com:5432
-        name: grafana
-        user: grafana
-        password: $__env{gf-database-password}
-        ssl_mode: require
-      dataproxy:
-        timeout: 300
-        keep_alive_seconds: 300
-      smtp:
-        enabled: true
-        host: mail.enschede.nl:587
-        # existingSecret: ""
-        from_address: noreply@REP_GRAFANA_DOMAIN_REP
-        # passwordKey: ""
-        # userKey: ""
-        skip_verify: true
-      auth.azuread:
-        name: Azure AD
-        enabled: true
-        allow_sign_up: true
-        auto_login: true
-        client_id: REP_GRAFANA_ID_REP
-        client_secret: $__env{gf-client-secret}
-        scopes: openid email profile
-        auth_url: https://login.microsoftonline.com/996a05f9-6875-4960-a833-6e3aff171400/oauth2/v2.0/authorize
-        token_url: https://login.microsoftonline.com/996a05f9-6875-4960-a833-6e3aff171400/oauth2/v2.0/token
-        allowed_domains:
-        allowed_groups:
-        allowed_organizations: 996a05f9-6875-4960-a833-6e3aff171400
-        role_attribute_strict: false
-        allow_assign_grafana_admin: true
-        skip_org_role_sync: false
-        use_pkce: true
-      auth.basic:
-        enabled: false # disable standaard login
-        disable_login_form: true
-        allow_sign_up: false
-      metrics:
-        enabled: false
-      dashboards:
-        default_home_dashboard_path: /var/lib/grafana/dashboards/default/loki-dashboard.json
-    
-    initChownData:
-      image:
-        registry: REP_ACR_NAME_REP.azurecr.io
-        repository: grafana-init-chown-data
-        tag: 1.31.1
+image:
+  registry: REP_ACR_NAME_REP.azurecr.io
+  repository: grafana
+  tag: "11.5.2"
+
+downloadDashboardsImage:
+  registry: REP_ACR_NAME_REP.azurecr.io
+  repository: curl
+  tag: "7.85.0"
+
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+      - name: Loki
+        editable: false
+        type: loki
+        url: http://loki:3100
+        isDefault: true
+        jsonData:
+          timeout: 300
+    deleteDatasources:
+      - name: Prometheus
+      - name: Alertmanager
+
+adminPassword: "KV_GRAFANA_ADMIN_KV"
+
+resources:
+  requests:
+    cpu: "10m"
+    memory: "96Mi"
+  limits:
+    cpu: "50m"
+    memory: "128Mi"
+
+nodeSelector:
+  kubernetes.azure.com/mode: system
+
+containerSecurityContext:
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  runAsNonRoot: true
+
+envFromSecrets:
+  - name: gf-database-password
+  - name: gf-client-secret
+
+dashboardProviders:
+  dashboardproviders.yaml:
+    apiVersion: 1
+    providers:
+      - name: "default"
+        orgId: 1
+        folder: "loki"
+        type: file
+        disableDeletion: false
+        editable: true
+        options:
+          path: /var/lib/grafana/dashboards/default
+
+dashboards:
+  default:
+    Logging_PodiumD:
+      url: https://github.com/Dimpact-Samenwerking/helm-charts/blob/feature/IN-72_monitoring-logging/charts/monitoring-logging/grafana/dashboards/logging_PodiumD.json
+      token: ""
+      datasource: Loki
+
+dashboardsConfigMaps:
+  default: "loki-dashboard"
+
+grafana.ini:
+  server:
+    root_url: https://REP_DOMAIN_REP
+  database:
+    type: postgres
+    host: psql-REP_ENVIRONMENT_REP-REP_GEMEENTE_REP.postgres.database.azure.com:5432
+    name: grafana
+    user: grafana
+    password: $__env{gf-database-password}
+    ssl_mode: require
+  dataproxy:
+    timeout: 300
+    keep_alive_seconds: 300
+  smtp:
+    enabled: true
+    host: mail.enschede.nl:587
+    from_address: noreply@REP_GRAFANA_DOMAIN_REP
+    skip_verify: true
+  auth.azuread:
+    name: Azure AD
+    enabled: true
+    allow_sign_up: true
+    auto_login: true
+    client_id: REP_GRAFANA_ID_REP
+    client_secret: $__env{gf-client-secret}
+    scopes: openid email profile
+    auth_url: https://login.microsoftonline.com/996a05f9-6875-4960-a833-6e3aff171400/oauth2/v2.0/authorize
+    token_url: https://login.microsoftonline.com/996a05f9-6875-4960-a833-6e3aff171400/oauth2/v2.0/token
+    allowed_domains: []
+    allowed_groups: []
+    allowed_organizations: 996a05f9-6875-4960-a833-6e3aff171400
+    role_attribute_strict: false
+    allow_assign_grafana_admin: true
+    skip_org_role_sync: false
+    use_pkce: true
+  auth.basic:
+    enabled: false  # disable standaard login
+    disable_login_form: true
+    allow_sign_up: false
+  metrics:
+    enabled: false
+  dashboards:
+    default_home_dashboard_path: /var/lib/grafana/dashboards/default/loki-dashboard.json
+
+initChownData:
+  image:
+    registry: REP_ACR_NAME_REP.azurecr.io
+    repository: grafana-init-chown-data
+    tag: "1.31.1"
