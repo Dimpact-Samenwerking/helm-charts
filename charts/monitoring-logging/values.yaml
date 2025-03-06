@@ -139,6 +139,10 @@ promtail:
       
 loki:
   enabled: true
+  image:
+    registry: REP_ACR_NAME_REP.azurecr.io
+    repository: loki
+    tag: "3.4.2"
   schemaConfig:
     configs:
       - from: 2024-04-01
@@ -148,6 +152,19 @@ loki:
         index:
           prefix: index_
           period: 24h
+  storage:
+    bucketNames:
+      chunks: chunks
+      ruler: ruler
+    type: azure
+    azure:
+      accountKey: "REP_STORAGE_ACCOUNT_KEY_REP"
+      accountName: REP_STORAGE_ACCOUNT_REP
+      container: logs
+      request_timeout: 0
+  auth_enabled: false
+  frontend:
+    max_outstanding_per_tenant: 4096
   ingester:
     chunk_encoding: snappy
   tracing:
@@ -195,24 +212,6 @@ write:
   replicas: 0
 singleBinary:
   replicas: 0
-
-  image:
-    registry: REP_ACR_NAME_REP.azurecr.io
-    repository: loki
-    tag: "3.4.2"
-  storage:
-    bucketNames:
-      chunks: chunks
-      ruler: ruler
-    type: azure
-    azure:
-      accountKey: "REP_STORAGE_ACCOUNT_KEY_REP"
-      accountName: REP_STORAGE_ACCOUNT_REP
-      container: logs
-      request_timeout: 0
-  auth_enabled: false
-  frontend:
-    max_outstanding_per_tenant: 4096
 
 gateway:
   enabled: true
@@ -264,3 +263,4 @@ test:
 
 lokiCanary:
   enabled: false
+
