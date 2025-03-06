@@ -158,13 +158,13 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "sum(count_over_time(({app=~\"$Subapp\"} |~ \"(?i)$LogLevel\" )[$__interval]))",
-          "legendFormat": "Totale logs log niveau $LogLevel",
+          "expr": "sum(count_over_time(({app=~\"$Subapp\"}  )[$__interval]))",
+          "legendFormat": "Totale logs $App",
           "queryType": "range",
           "refId": "A"
         }
       ],
-      "title": "Totaal logs component: \"$App\" en logniveau: \"$LogLevel\" historisch ",
+      "title": "Totaal logs component: \"$App\" historisch ",
       "type": "timeseries"
     },
     {
@@ -1251,7 +1251,7 @@
             "h": 19,
             "w": 24,
             "x": 0,
-            "y": 327
+            "y": 373
           },
           "id": 68,
           "options": {
@@ -1310,7 +1310,7 @@
             "h": 19,
             "w": 24,
             "x": 0,
-            "y": 561
+            "y": 607
           },
           "id": 70,
           "options": {
@@ -1378,7 +1378,7 @@
             "h": 13,
             "w": 24,
             "x": 0,
-            "y": 696
+            "y": 742
           },
           "id": 51,
           "options": {
@@ -1443,7 +1443,7 @@
             "h": 11,
             "w": 24,
             "x": 0,
-            "y": 697
+            "y": 743
           },
           "id": 63,
           "options": {
@@ -1545,8 +1545,12 @@
       {
         "allValue": ".*",
         "current": {
-          "text": "$__all",
-          "value": "$__all"
+          "text": [
+            "$__all"
+          ],
+          "value": [
+            "$__all"
+          ]
         },
         "description": "Selecteer log niveau",
         "includeAll": true,
@@ -1571,8 +1575,12 @@
       {
         "allValue": ".*",
         "current": {
-          "text": "$__all",
-          "value": "$__all"
+          "text": [
+            "$__all"
+          ],
+          "value": [
+            "$__all"
+          ]
         },
         "description": "Selecteer een HTTP methode",
         "includeAll": true,
@@ -1852,6 +1860,6 @@
   "timezone": "",
   "title": "Logging openformulieren -> e-Suite",
   "uid": "e970a83d-adc2-4d33-af93-2349c0b77e5",
-  "version": 183,
+  "version": 185,
   "weekStart": ""
 }
