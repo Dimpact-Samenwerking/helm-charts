@@ -57,24 +57,24 @@ Patch release for Open Inwoner bug fix.
 | Open Zaak         | 1.17.0  | Minor update |
 | Kiss              | 0.6.0   | Minor app update |
 
-### [4.0.0](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.0.0)
+### [4.0.1](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.0.1)
 
-**PodiumD Helm chart version: 4.0.0**
+**PodiumD Helm chart version: 4.0.1**
 
 
 | Component         | Version | Change          |
 |-------------------|---------|-----------------|
-| ClamAV            | 1.4.1   |                 |
+| ClamAV            | 1.4.2   |                 |
 | Keycloak          | 25.0.6  | Major update    |
 | Infinispan        | 15.1    | Nieuw component |
-| Objecten          | 3.0.0   | Major update    |
-| Objecttypen       | 3.0.0   | Major update    |
-| Open Formulieren  | 3.0.1   | Major update    |
-| Open Inwoner      | 1.26.0  | Minor update    |
-| Open Klant        | 2.4.0   | Minor update    |
-| Open Notificaties | 1.8.0   | Minor update    |
-| Open Zaak         | 1.17.0  | Minor update    |
-| Kiss              | 0.6.0   | Minor update    |
+| Objecten          | 3.0.0   |     |
+| Objecttypen       | 3.0.0   |     |
+| Open Formulieren  | 2.8.5   |     |
+| Open Inwoner      | 1.27.2  |     |
+| Open Klant        | 2.4.0   |     |
+| Open Notificaties | 1.8.0   |     |
+| Open Zaak         | 1.17.0  |     |
+| Kiss              | 0.6.1   |     |
 | Zac               | 2.0.0   | Nieuw component |
 
 
