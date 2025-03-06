@@ -16,7 +16,15 @@ A monitoring stack using Loki, Promtail and Grafana
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
+| backend | object | `{"replicas":0}` | Zero out replica counts of other deployment modes |
+| bloomBuilder.replicas | int | `0` |  |
+| bloomGateway.replicas | int | `0` |  |
+| bloomPlanner | object | `{"replicas":0}` | Optional experimental components |
 | chunksCache.enabled | bool | `false` |  |
+| compactor.replicas | int | `1` |  |
+| deploymentMode | string | `"Distributed"` |  |
+| distributor.maxUnavailable | int | `2` |  |
+| distributor.replicas | int | `3` |  |
 | gateway.enabled | bool | `true` |  |
 | gateway.image.registry | string | `"REP_ACR_NAME_REP.azurecr.io"` |  |
 | gateway.image.repository | string | `"nginx"` |  |
@@ -74,7 +82,7 @@ A monitoring stack using Loki, Promtail and Grafana
 | grafana.dashboardProviders."dashboardproviders.yaml".providers[0].type | string | `"file"` |  |
 | grafana.dashboards.default.Logging_PodiumD.datasource | string | `"Loki"` |  |
 | grafana.dashboards.default.Logging_PodiumD.token | string | `""` |  |
-| grafana.dashboards.default.Logging_PodiumD.url | string | `"https://github.com/Dimpact-Samenwerking/helm-charts/blob/feature/IN-72_monitoring-logging/charts/monitoring-logging/grafana/dashboards/logging_PodiumD.json"` |  |
+| grafana.dashboards.default.Logging_PodiumD.url | string | `"https://raw.githubusercontent.com/Dimpact-Samenwerking/helm-charts/refs/heads/feature/IN-72_monitoring-logging/charts/monitoring-logging/grafana/dashboards/logging_PodiumD.json"` |  |
 | grafana.dashboardsConfigMaps.default | string | `"loki-dashboard"` |  |
 | grafana.datasources."datasources.yaml".apiVersion | int | `1` |  |
 | grafana.datasources."datasources.yaml".datasources[0].editable | bool | `false` |  |
@@ -82,12 +90,13 @@ A monitoring stack using Loki, Promtail and Grafana
 | grafana.datasources."datasources.yaml".datasources[0].jsonData.timeout | int | `300` |  |
 | grafana.datasources."datasources.yaml".datasources[0].name | string | `"Loki"` |  |
 | grafana.datasources."datasources.yaml".datasources[0].type | string | `"loki"` |  |
-| grafana.datasources."datasources.yaml".datasources[0].url | string | `"http://loki:3100"` |  |
+| grafana.datasources."datasources.yaml".datasources[0].url | string | `"http://loki-gateway"` |  |
 | grafana.datasources."datasources.yaml".deleteDatasources[0].name | string | `"Prometheus"` |  |
 | grafana.datasources."datasources.yaml".deleteDatasources[1].name | string | `"Alertmanager"` |  |
 | grafana.downloadDashboardsImage.registry | string | `"REP_ACR_NAME_REP.azurecr.io"` |  |
 | grafana.downloadDashboardsImage.repository | string | `"curl"` |  |
 | grafana.downloadDashboardsImage.tag | string | `"7.85.0"` |  |
+| grafana.enabled | bool | `true` |  |
 | grafana.envFromSecrets[0].name | string | `"gf-database-password"` |  |
 | grafana.envFromSecrets[1].name | string | `"gf-client-secret"` |  |
 | grafana.image.registry | string | `"REP_ACR_NAME_REP.azurecr.io"` |  |
@@ -101,34 +110,23 @@ A monitoring stack using Loki, Promtail and Grafana
 | grafana.resources.limits.memory | string | `"128Mi"` |  |
 | grafana.resources.requests.cpu | string | `"10m"` |  |
 | grafana.resources.requests.memory | string | `"96Mi"` |  |
+| indexGateway.maxUnavailable | int | `1` |  |
+| indexGateway.replicas | int | `2` |  |
+| ingester.replicas | int | `3` |  |
 | loki.auth_enabled | bool | `false` |  |
-| loki.backend.replicas | int | `0` |  |
-| loki.bloomBuilder.replicas | int | `0` |  |
-| loki.bloomGateway.replicas | int | `0` |  |
-| loki.bloomPlanner.replicas | int | `0` |  |
-| loki.compactor.replicas | int | `1` |  |
-| loki.deploymentMode | string | `"Distributed"` |  |
-| loki.distributor.maxUnavailable | int | `2` |  |
-| loki.distributor.replicas | int | `3` |  |
+| loki.enabled | bool | `true` |  |
+| loki.frontend.max_outstanding_per_tenant | int | `4096` |  |
 | loki.image.registry | string | `"REP_ACR_NAME_REP.azurecr.io"` |  |
 | loki.image.repository | string | `"loki"` |  |
-| loki.image.tag | string | `"3.1.0"` |  |
-| loki.indexGateway.maxUnavailable | int | `1` |  |
-| loki.indexGateway.replicas | int | `2` |  |
-| loki.ingester.replicas | int | `3` |  |
-| loki.querier.maxUnavailable | int | `2` |  |
-| loki.querier.replicas | int | `3` |  |
-| loki.queryFrontend.maxUnavailable | int | `1` |  |
-| loki.queryFrontend.replicas | int | `2` |  |
-| loki.queryScheduler.replicas | int | `2` |  |
-| loki.read.replicas | int | `0` |  |
+| loki.image.tag | string | `"3.4.2"` |  |
+| loki.ingester.chunk_encoding | string | `"snappy"` |  |
+| loki.querier.max_concurrent | int | `4` | Default is 4, if you have enough memory and CPU you can increase, reduce if OOMing |
 | loki.schemaConfig.configs[0].from | string | `"2024-04-01"` |  |
 | loki.schemaConfig.configs[0].index.period | string | `"24h"` |  |
 | loki.schemaConfig.configs[0].index.prefix | string | `"index_"` |  |
 | loki.schemaConfig.configs[0].object_store | string | `"azure"` |  |
 | loki.schemaConfig.configs[0].schema | string | `"v13"` |  |
 | loki.schemaConfig.configs[0].store | string | `"tsdb"` |  |
-| loki.singleBinary.replicas | int | `0` |  |
 | loki.storage.azure.accountKey | string | `"REP_STORAGE_ACCOUNT_KEY_REP"` |  |
 | loki.storage.azure.accountName | string | `"REP_STORAGE_ACCOUNT_REP"` |  |
 | loki.storage.azure.container | string | `"logs"` |  |
@@ -136,12 +134,13 @@ A monitoring stack using Loki, Promtail and Grafana
 | loki.storage.bucketNames.chunks | string | `"chunks"` |  |
 | loki.storage.bucketNames.ruler | string | `"ruler"` |  |
 | loki.storage.type | string | `"azure"` |  |
-| loki.write.replicas | int | `0` |  |
+| loki.tracing.enabled | bool | `true` |  |
 | lokiCanary.enabled | bool | `false` |  |
 | monitoring.dashboards.enabled | bool | `false` |  |
 | monitoring.rules.enabled | bool | `false` |  |
 | monitoring.selfMonitoring.enabled | bool | `false` |  |
 | monitoring.selfMonitoring.grafanaAgent.installOperator | bool | `false` |  |
+| promtail.enabled | bool | `true` |  |
 | promtail.image.registry | string | `"REP_ACR_NAME_REP.azurecr.io"` |  |
 | promtail.image.repository | string | `"promtail"` |  |
 | promtail.image.tag | string | `"3.0.0"` |  |
@@ -149,11 +148,18 @@ A monitoring stack using Loki, Promtail and Grafana
 | promtail.resources.limits.memory | string | `"256Mi"` |  |
 | promtail.resources.requests.cpu | string | `"50m"` |  |
 | promtail.resources.requests.memory | string | `"96Mi"` |  |
+| querier.maxUnavailable | int | `2` |  |
+| querier.replicas | int | `3` |  |
+| queryFrontend.maxUnavailable | int | `1` |  |
+| queryFrontend.replicas | int | `2` |  |
+| queryScheduler.replicas | int | `2` |  |
+| read.replicas | int | `0` |  |
 | resultsCache.enabled | bool | `false` |  |
 | sidecar.dashboards.skipReload | bool | `true` |  |
 | sidecar.image.registry | string | `"REP_ACR_NAME_REP.azurecr.io"` |  |
 | sidecar.image.repository | string | `"REP_ACR_NAME_REP.azurecr.io/grafana-sidecar"` |  |
 | sidecar.image.tag | string | `"1.26.1"` |  |
-| table_manager.retention_deletes_enabled | bool | `true` |  |
-| table_manager.retention_period | string | `"90d"` |  |
+| singleBinary.replicas | int | `0` |  |
+| table_manager | object | `{"retention_deletes_enabled":true,"retention_period":"90d"}` | Keep log data up to 3 months |
 | test.enabled | bool | `false` |  |
+| write.replicas | int | `0` |  |
