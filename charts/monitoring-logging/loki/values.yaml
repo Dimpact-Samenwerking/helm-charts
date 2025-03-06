@@ -108,6 +108,9 @@ table_manager:
   retention_deletes_enabled: true
   retention_period: 90d
 
+chunksCache:
+  allocatedMemory: 512
+  
 monitoring:
   selfMonitoring:
     enabled: false
