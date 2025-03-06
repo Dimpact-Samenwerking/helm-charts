@@ -8,17 +8,17 @@
 
 Patch release for Open Inwoner bug fix.
 
-| Component         | Version | Change  |
-|-------------------|---------|---------|
-| ClamAV            | 1.4.1   |         |
-| Keycloak          | 24.0.5  |         |
-| Objecten          | 2.4.4   |         |
-| Objecttypen       | 2.2.2   |         |
+| Component         | Version | Change         |
+|-------------------|---------|----------------|
+| ClamAV            | 1.4.1   |                |
+| Keycloak          | 24.0.5  |                |
+| Objecten          | 2.4.4   |                |
+| Objecttypen       | 2.2.2   |                |
 | Open Formulieren  | 2.7.11  | Security patch |
-| Open Inwoner      | 1.25.0  | Minor update |
-| Open Klant        | 2.3.0   |         |
-| Open Notificaties | 1.7.1   |         |
-| Open Zaak         | 1.15.0  |         |
+| Open Inwoner      | 1.25.0  | Minor update   |
+| Open Klant        | 2.3.0   |                |
+| Open Notificaties | 1.7.1   |                |
+| Open Zaak         | 1.15.0  |                |
 
 
 ### [3.2.0](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-3.2.0)
@@ -26,71 +26,73 @@ Patch release for Open Inwoner bug fix.
 **PodiumD Helm chart version: 3.2.0**
 
 
-| Component         | Version | Change  |
-|-------------------|---------|---------|
-| ClamAV            | 1.4.1   |         |
-| Keycloak          | 24.0.5  |         |
-| Objecten          | 2.4.4   |         |
-| Objecttypen       | 2.2.2   |         |
+| Component         | Version | Change         |
+|-------------------|---------|----------------|
+| ClamAV            | 1.4.1   |                |
+| Keycloak          | 24.0.5  |                |
+| Objecten          | 2.4.4   |                |
+| Objecttypen       | 2.2.2   |                |
 | Open Formulieren  | 2.7.11  | Security patch |
-| Open Inwoner      | 1.25.0  | Minor update |
-| Open Klant        | 2.3.0   |         |
-| Open Notificaties | 1.7.1   |         |
-| Open Zaak         | 1.15.0  |         |
-| Kiss              | 0.5.1   | Patch update |
+| Open Inwoner      | 1.25.0  | Minor update   |
+| Open Klant        | 2.3.0   |                |
+| Open Notificaties | 1.7.1   |                |
+| Open Zaak         | 1.15.0  |                |
+| Kiss              | 0.5.1   | Patch update   |
 
 ### [3.3.2](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-3.3.2)
 
 **PodiumD Helm chart version: 3.3.2**
 
 
-| Component         | Version | Change  |
-|-------------------|---------|---------|
-| ClamAV            | 1.4.2   | Minor update |
-| Keycloak          | 24.0.5  |         |
-| Objecten          | 3.0.0   | Major update |
-| Objecttypen       | 3.0.0   | Major update |
+| Component         | Version | Change           |
+|-------------------|---------|------------------|
+| ClamAV            | 1.4.2   | Minor update     |
+| Keycloak          | 24.0.5  |                  |
+| Objecten          | 3.0.0   | Major update     |
+| Objecttypen       | 3.0.0   | Major update     |
 | Open Formulieren  | 2.8.5  | Minor app update |
 | Open Inwoner      | 1.27.2  | Minor app update |
-| Open Klant        | 2.4.0   | Minor update |
-| Open Notificaties | 1.8.0   | Minor update |
-| Open Zaak         | 1.17.0  | Minor update |
+| Open Klant        | 2.4.0   | Minor update     |
+| Open Notificaties | 1.8.0   | Minor update     |
+| Open Zaak         | 1.17.0  | Minor update     |
 | Kiss              | 0.6.0   | Minor app update |
 
-### [4.0.0](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.0.0)
+### [4.0.1](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.0.1)
 
-**PodiumD Helm chart version: 4.0.0**
+**PodiumD Helm chart version: 4.0.1**
 
 
 | Component         | Version | Change          |
 |-------------------|---------|-----------------|
-| ClamAV            | 1.4.1   |                 |
+| ClamAV            | 1.4.2   |                 |
 | Keycloak          | 25.0.6  | Major update    |
 | Infinispan        | 15.1    | Nieuw component |
-| Objecten          | 3.0.0   | Major update    |
-| Objecttypen       | 3.0.0   | Major update    |
-| Open Formulieren  | 3.0.1   | Major update    |
-| Open Inwoner      | 1.26.0  | Minor update    |
-| Open Klant        | 2.4.0   | Minor update    |
-| Open Notificaties | 1.8.0   | Minor update    |
-| Open Zaak         | 1.17.0  | Minor update    |
-| Kiss              | 0.6.0   | Minor update    |
+| Objecten          | 3.0.0   |                 |
+| Objecttypen       | 3.0.0   |                 |
+| Open Formulieren  | 2.8.5   |                 |
+| Open Inwoner      | 1.27.2  |                 |
+| Open Klant        | 2.4.0   |                 |
+| Open Notificaties | 1.8.0   |                 |
+| Open Zaak         | 1.18.0  | Major update    |
+| Kiss              | 0.6.1   |                 |
 | Zac               | 2.0.0   | Nieuw component |
 
 
 ## Add Used chart repositories:
 
-    helm repo add bitnami https://charts.bitnami.com/bitnami
-    helm repo add dimpact https://Dimpact-Samenwerking.github.io/helm-charts/
-    helm repo add kiss-frontend https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/KISS-frontend/main/helm
-    helm repo add kiss-adapter https://raw.githubusercontent.com/ICATT-Menselijk-Digitaal/podiumd-adapter/main/helm
-    helm repo add kiss-elastic https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/.github/main/docs/scripts/elastic
-    helm repo add maykinmedia https://maykinmedia.github.io/charts
-    helm repo add wiremind https://wiremind.github.io/wiremind-helm-charts
-    helm repo add openshift https://charts.openshift.io
-    helm repo add solr https://solr.apache.org/charts
-    helm repo add opentelemetry https://open-telemetry.github.io/opentelemetry-helm-charts
-    helm repo add zac https://infonl.github.io/dimpact-zaakafhandelcomponent/
+```shell
+helm repo add bitnami https://charts.bitnami.com/bitnami
+helm repo add dimpact https://Dimpact-Samenwerking.github.io/helm-charts/
+helm repo add kiss-frontend https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/KISS-frontend/main/helm
+helm repo add kiss-adapter https://raw.githubusercontent.com/ICATT-Menselijk-Digitaal/podiumd-adapter/main/helm
+helm repo add kiss-elastic https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/.github/main/docs/scripts/elastic
+helm repo add maykinmedia https://maykinmedia.github.io/charts
+helm repo add wiremind https://wiremind.github.io/wiremind-helm-charts
+helm repo add openshift https://charts.openshift.io
+helm repo add solr https://solr.apache.org/charts
+helm repo add opentelemetry https://open-telemetry.github.io/opentelemetry-helm-charts
+helm repo add zac https://infonl.github.io/dimpact-zaakafhandelcomponent/
+```
 
 ## PersistentVolume and PersistVolumeClaim resources
 
