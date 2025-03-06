@@ -16,10 +16,10 @@ Helm chart for Grafana Loki and Grafana Enterprise Logs supporting both simple, 
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| backend.replicas | int | `0` |  |
+| backend | object | `{"replicas":0}` | Zero out replica counts of other deployment modes |
 | bloomBuilder.replicas | int | `0` |  |
 | bloomGateway.replicas | int | `0` |  |
-| bloomPlanner.replicas | int | `0` |  |
+| bloomPlanner | object | `{"replicas":0}` | Optional experimental components |
 | chunksCache.enabled | bool | `false` |  |
 | compactor.replicas | int | `1` |  |
 | deploymentMode | string | `"Distributed"` |  |
@@ -38,9 +38,12 @@ Helm chart for Grafana Loki and Grafana Enterprise Logs supporting both simple, 
 | indexGateway.replicas | int | `2` |  |
 | ingester.replicas | int | `3` |  |
 | loki.auth_enabled | bool | `false` |  |
+| loki.frontend.max_outstanding_per_tenant | int | `4096` |  |
 | loki.image.registry | string | `"REP_ACR_NAME_REP.azurecr.io"` |  |
 | loki.image.repository | string | `"loki"` |  |
-| loki.image.tag | string | `"3.1.0"` |  |
+| loki.image.tag | string | `"3.4.2"` |  |
+| loki.ingester.chunk_encoding | string | `"snappy"` |  |
+| loki.querier.max_concurrent | int | `4` | Default is 4, if you have enough memory and CPU you can increase, reduce if OOMing |
 | loki.schemaConfig.configs[0].from | string | `"2024-04-01"` |  |
 | loki.schemaConfig.configs[0].index.period | string | `"24h"` |  |
 | loki.schemaConfig.configs[0].index.prefix | string | `"index_"` |  |
@@ -54,6 +57,7 @@ Helm chart for Grafana Loki and Grafana Enterprise Logs supporting both simple, 
 | loki.storage.bucketNames.chunks | string | `"chunks"` |  |
 | loki.storage.bucketNames.ruler | string | `"ruler"` |  |
 | loki.storage.type | string | `"azure"` |  |
+| loki.tracing.enabled | bool | `true` |  |
 | lokiCanary.enabled | bool | `false` |  |
 | monitoring.dashboards.enabled | bool | `false` |  |
 | monitoring.rules.enabled | bool | `false` |  |
@@ -71,7 +75,6 @@ Helm chart for Grafana Loki and Grafana Enterprise Logs supporting both simple, 
 | sidecar.image.repository | string | `"REP_ACR_NAME_REP.azurecr.io/grafana-sidecar"` |  |
 | sidecar.image.tag | string | `"1.26.1"` |  |
 | singleBinary.replicas | int | `0` |  |
-| table_manager.retention_deletes_enabled | bool | `true` |  |
-| table_manager.retention_period | string | `"90d"` |  |
+| table_manager | object | `{"retention_deletes_enabled":true,"retention_period":"90d"}` | Keep log data up to 3 months |
 | test.enabled | bool | `false` |  |
 | write.replicas | int | `0` |  |
