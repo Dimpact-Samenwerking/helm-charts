@@ -1251,7 +1251,7 @@
             "h": 19,
             "w": 24,
             "x": 0,
-            "y": 373
+            "y": 419
           },
           "id": 68,
           "options": {
@@ -1310,7 +1310,7 @@
             "h": 19,
             "w": 24,
             "x": 0,
-            "y": 607
+            "y": 653
           },
           "id": 70,
           "options": {
@@ -1378,7 +1378,7 @@
             "h": 13,
             "w": 24,
             "x": 0,
-            "y": 742
+            "y": 788
           },
           "id": 51,
           "options": {
@@ -1443,7 +1443,7 @@
             "h": 11,
             "w": 24,
             "x": 0,
-            "y": 743
+            "y": 789
           },
           "id": 63,
           "options": {
@@ -1756,7 +1756,7 @@
           "text": "1.1",
           "value": "1.1"
         },
-        "name": "Dashboard_versie_Rotterdam",
+        "name": "Dashboard_versie",
         "options": [
           {
             "selected": true,
@@ -1860,6 +1860,6 @@
   "timezone": "",
   "title": "Logging openformulieren -> e-Suite",
   "uid": "e970a83d-adc2-4d33-af93-2349c0b77e5",
-  "version": 185,
+  "version": 186,
   "weekStart": ""
 }
