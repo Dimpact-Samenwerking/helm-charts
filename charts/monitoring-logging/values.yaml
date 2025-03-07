@@ -125,6 +125,12 @@ grafana:
 
 promtail:
   enabled: true
+  config:
+    logLevel: warn
+  # -- publish data to loki
+    clients:
+      - url: http://loki-gateway/loki/api/v1/push
+        tenant_id: 1 
   image:
     registry: REP_ACR_NAME_REP.azurecr.io
     repository: promtail
