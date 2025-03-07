@@ -176,29 +176,14 @@ loki:
     chunk_encoding: snappy
     chunk_idle_period: 30m # Flush chunks faster = less memory
     wal:
-      enabled: true # Prevent data loss
       dir: /var/loki/wal
-    resources:
-      requests:
-        cpu: 1
-        memory: 2Gi
-      limits:
-        cpu: 2
-        memory: 8Gi
-      
   tracing:
     enabled: false
     
   querier:
     max_concurrent: 8 # Per-pod parallelism
     timeout: 10m # Fail fast on slow queries
-    resources:
-      requests:
-        cpu: 2
-        memory: 4Gi
-      limits:
-        cpu: 4
-        memory: 8Gi
+
     
   # -- Query Performance  
   limits_config:
@@ -213,32 +198,14 @@ deploymentMode: Distributed
 ingester:
   replicas: 2 # 2-3 for HA, fewer for cost
   maxUnavailable: 1 # 1/2 pods can update at once
-  resources:
-    requests:
-      cpu: 1
-      memory: 2Gi
-    limits:
-      cpu: 2
-      memory: 4Gi
 
 querier:
   replicas: 3 # Scale based on query load
   maxUnavailable: 1 # 1/3 pods unavailable during updates
-  resources:
-    requests:
-      cpu: 2
-      memory: 4Gi
-    limits:
-      cpu: 4
-      memory: 8Gi
       
 queryFrontend:
   replicas: 2
   maxUnavailable: 1 # 1/2 pods can update
-  resources:
-    requests:
-      cpu: 1
-      memory: 2Gi
       
 queryScheduler:
   replicas: 2
@@ -255,13 +222,6 @@ compactor:
 indexGateway:
   replicas: 2
   maxUnavailable: 1 # 1/2 pods can update
-  resources:
-    requests:
-      memory: 2Gi
-  index_cache:
-    enable_fifocache: true
-    fifocache:
-      max_size_bytes: 1073741824
       
 # -- Optional experimental components
 bloomPlanner:
