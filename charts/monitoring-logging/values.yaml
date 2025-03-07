@@ -182,8 +182,9 @@ loki:
     
   # -- Query Performance  
   limits_config:
-    ingestion_rate_strategy: local
+    ingestion_rate_strategy: local # Default: global
     max_global_streams_per_user: 10000
+    max_query_length: 0h # Default: 721h
     max_query_parallelism: 48 # Utilize Azure's high throughput
     max_streams_per_user: 0 # Old Default: 10000 
     split_queries_by_interval: 6h # Smaller splits = faster parallelization
