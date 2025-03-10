@@ -145,6 +145,8 @@ promtail:
       
 loki:
   enabled: true
+  podLabels:
+    "azure.workload.identity/use": "true" # Add this label to the Loki pods to enable workload identity
   image:
     registry: REP_ACR_NAME_REP.azurecr.io
     repository: loki
@@ -156,19 +158,24 @@ loki:
         store: tsdb
         schema: v13
         index:
-          prefix: index_
+          prefix: loki_index_
           period: 24h
+  storage_config:
+     azure:
+      account_name: "<INSERT-STORAGE-ACCOUNT-NAME>" 
+      container_name: "<CHUNK-CONTAINER-NAME>" # Your actual Azure Blob Storage container name (loki-azure-dev-chunks)
+      use_federated_token: true # Use federated token for authentication
           
   storage:
     bucketNames:
-      chunks: chunks
-      ruler: ruler
+      chunks: "<CHUNK-CONTAINER-NAME>" # Your actual Azure Blob Storage container name (loki-azure-dev-chunks)
+      ruler: "<RULER-CONTAINER-NAME>" # Your actual Azure Blob Storage container name (loki-azure-dev-ruler)
+        # admin: "admin-loki-devrel" # Your actual Azure Blob Storage container name (loki-azure-dev-admin)
     type: azure
     azure:
-      accountKey: "REP_STORAGE_ACCOUNT_KEY_REP"
-      accountName: REP_STORAGE_ACCOUNT_REP
-      container: logs
-      request_timeout: 0
+      useFederatedToken: true # Use federated token for authentication
+      accountName: <INSERT-STORAGE-ACCOUNT-NAME>
+
   auth_enabled: false
   frontend:
     max_outstanding_per_tenant: 6144 # Queue size for parallel processing
@@ -176,9 +183,8 @@ loki:
   ingester:
     chunk_encoding: snappy
     chunk_idle_period: 30m # Flush chunks faster = less memory
-    wal:
-      enabled: true # Prevent data loss
-      dir: /var/loki/wal
+  pattern_ingester:
+       enabled: true
       
   tracing:
     enabled: false
@@ -188,42 +194,69 @@ loki:
     
   # -- Query Performance  
   limits_config:
+    allow_structured_metadata: true
+    volume_enabled: true
+    retention_period: 672h # 28 days retention
     ingestion_rate_strategy: local # Default: global
     max_global_streams_per_user: 10000
-    max_query_length: 0h # Default: 721h
+    max_query_length: 721h # Default: 721h
     max_query_parallelism: 48 # Utilize Azure's high throughput
     max_streams_per_user: 0 # Old Default: 10000 
     split_queries_by_interval: 6h # Smaller splits = faster parallelization
+
+  compactor:
+    retention_enabled: true 
+    delete_request_store: azure
+  
+  ruler:
+    enable_api: true
+    storage:
+      type: azure
+      azure:
+        account_name: <INSERT-STORAGE-ACCOUNT-NAME>
+        container_name: <RULER-CONTAINER-NAME> # Your actual Azure Blob Storage container name (loki-azure-dev-ruler)
+        use_federated_token: true # Use federated token for authentication
+
+# Define the Azure workload identity
+serviceAccount:
+  name: loki
+  annotations:
+    "azure.workload.identity/client-id": "<APP-ID>" # The app ID of the Azure AD app
+  labels:
+    "azure.workload.identity/use": "true"
     
 deploymentMode: Distributed
 
 ingester:
   replicas: 3 # 2-3 for HA, fewer for cost
-  maxUnavailable: 1 # 1/2 pods can update at once
+  zoneAwareReplication:
+    enabled: false
 
 querier:
   replicas: 3 # Scale based on query load
   maxUnavailable: 2 # 2/3 pods unavailable during updates
-      
+
 queryFrontend:
   replicas: 2
   maxUnavailable: 1 # 1/2 pods can update
       
 queryScheduler:
   replicas: 2
-  maxUnavailable: 1 # 1/2 pods unavailable
-  
+
 distributor:
   replicas: 3
   maxUnavailable: 2 # 2/3 pods down during updates
   
 compactor:
   replicas: 1
-  maxUnavailable: 0 # Zero downtime for single-replica
   
 indexGateway:
   replicas: 2
   maxUnavailable: 1 # 1/2 pods can update
+
+ruler:
+ replicas: 1
+ maxUnavailable: 1
       
 # -- Optional experimental components
 bloomPlanner:
@@ -232,7 +265,11 @@ bloomBuilder:
   replicas: 0
 bloomGateway:
   replicas: 0
-  
+
+# Enable minio for storage
+minio:
+ enabled: false
+
 # -- Zero out replica counts of other deployment modes
 backend:
   replicas: 0
@@ -240,6 +277,7 @@ read:
   replicas: 0
 write:
   replicas: 0
+
 singleBinary:
   replicas: 0
 
@@ -258,6 +296,9 @@ gateway:
       memory: 32Mi
   nodeSelector:
     kubernetes.azure.com/mode: system
+  basicAuth: 
+    enabled: true
+    existingSecret: loki-basic-auth
 
 sidecar:
   image:
@@ -269,15 +310,12 @@ sidecar:
 
 # -- Caching --
 resultsCache:
-  enabled: true
-  defaultValidity: 6h
+  enabled: false
   
 chunksCache:
-  enabled: true
-  defaultValidity: 6h # Shorter TTL = fresher results
-  allocatedMemory: 1536
-  defaultValidity: 8h
-  
+  enabled: false
+  allocatedMemory: 1536Mi
+
 # -- Keep log data up to 3 months
 table_manager:
   retention_deletes_enabled: true
