@@ -31,11 +31,11 @@ data:
     contact_email = os.environ['CONTACT_EMAIL']
 
     payload = {
-      "iss": f"{client_id}",
-      "iat": int(time.time()),
-      "client_id": f"{client_id}",
-      "user_id": "integratieteam@dimpact.nl",
-      "user_representation": "Integratieteam"
+        "iss": f"{client_id}",
+        "iat": int(time.time()),
+        "client_id": f"{client_id}",
+        "user_id": "integratieteam@dimpact.nl",
+        "user_representation": "Integratieteam"
     }
 
     jwt_token = jwt.encode(payload, f"{secret}", algorithm="HS256")
@@ -45,8 +45,8 @@ data:
 
     headers = {"Authorization": "Bearer {token}".format(token=jwt_token), "Content-Type": "application/json"}
     response = requests.get(
-      catalogi_url+"catalogussen",
-      headers=headers
+        catalogi_url+"catalogussen",
+        headers=headers
     )
 
     print(response.json())
@@ -56,29 +56,27 @@ data:
     catalogi = response.json()['results']
 
     for catalogus in catalogi:
-      if(catalogus['domein']==zac_catalogus['domein'] and catalogus['rsin']==zac_catalogus['rsin']):
-        print(f"found zac catalogus for {zac_catalogus}")
-        zac_catalogus=catalogus
+        if(catalogus['domein']==zac_catalogus['domein'] and catalogus['rsin']==zac_catalogus['rsin']):
+            print(f"found zac catalogus for {zac_catalogus}")
+            zac_catalogus=catalogus
 
 
     if not any ('naam' in item for item in zac_catalogus):
-      zac_catalogus['naam']="zac"
-      print(f"create zac catalogus for {zac_catalogus}")
-      response = requests.post(
-      catalogi_url+"catalogussen",
-      json = zac_catalogus,
-      headers = headers
-      )
-      print(response)
-      if(response.status_code==200 or response.status_code==201):
-        zac_catalogus['url']=response.json()['url']
+        zac_catalogus['naam']="zac"
+        print(f"create zac catalogus for {zac_catalogus}")
+        response = requests.post(
+            catalogi_url+"catalogussen",
+            json = zac_catalogus,
+            headers = headers
+        )
+        print(response)
+        if(response.status_code==200 or response.status_code==201):
+            zac_catalogus['url']=response.json()['url']
 
     print(f"{zac_catalogus}")
 
     zac_zaaktype={ "catalogus": f"{zac_catalogus['url']}" }
     zac_catalogus_url=zac_catalogus['url']
-
-    exit()
 
     zac_informatieobjecttypen=[
         { "catalogus": f"{zac_catalogus_url}", "omschrijving": "aanvraag", "vertrouwelijkheidaanduiding":"openbaar", "beginGeldigheid": "2025-01-01", "informatieobjectcategorie": "onbekend", "trefwoord":["aanvraag","e2e"]},
@@ -90,6 +88,7 @@ data:
     besluit_informatieobjecttype={}
     existing_informatieobjecttypen=[]
     topublish_informatieobjecttypen=[]
+    informatieobjecttypen_urls=[]
     for url in zac_catalogus["informatieobjecttypen"]:
         response = requests.get(
             url,
@@ -97,6 +96,7 @@ data:
         )
         if(response.status_code in [200,201]):
             if("e2e" in response.json()['trefwoord']):
+                informatieobjecttypen_urls.append(response.json()['url'])
                 if("besluit" in response.json()['trefwoord']):
                     besluit_informatieobjecttype=response.json()
                 existing_informatieobjecttypen.append(response.json()['omschrijving'])
@@ -116,6 +116,7 @@ data:
                 besluit_informatieobjecttype=response.json()
             topublish_informatieobjecttypen.append(response.json()['url'])
             existing_informatieobjecttypen.append(response.json()['url'])
+            informatieobjecttypen_urls.append(response.json()['url'])
             print(response.text)
 
     print(f"publishing informatieobjecttypen {topublish_informatieobjecttypen}")
@@ -133,6 +134,7 @@ data:
     ]
 
     existing_besluittypen=[]
+    existing_besluittypen_url=[]
     topublish_besluittypen=[]
     for url in zac_catalogus["besluittypen"]:
         response = requests.get(
@@ -142,6 +144,7 @@ data:
         if(response.status_code in [200,201]):
             if("e2e" in response.json()['omschrijvingGeneriek']):
                 existing_besluittypen.append(response.json()['omschrijving'])
+                existing_besluittypen_url.append(response.json()['url'])
                 if(response.json()['concept']==True):
                     topublish_besluittypen.append(response.json()['url'])
 
@@ -155,7 +158,7 @@ data:
         )
         if(response.status_code in [200, 201]):
             topublish_besluittypen.append(response.json()['url'])
-            existing_besluittypen.append(response.json()['url'])
+            existing_besluittypen_url.append(response.json()['url'])
             print(response.text)
 
     print(f"publishing besluittypen {topublish_besluittypen}")
@@ -167,13 +170,14 @@ data:
         if(response.status_code in [200,201]):
             print(response.text)
 
+    null=None
     zac_zaaktype={
         "omschrijving": "zaaktype-voor-e2e-testen",
         "identificatie": "zaaktype-voor-e2e-testen",
         "doel": "zaaktype-voor-e2e-testen",
         "aanleiding": "zaaktype-voor-e2e-testen",
         "vertrouwelijkheidaanduiding": "openbaar",
-        "indicatieInternOfExtern": "inkomend",
+        "indicatieInternOfExtern": "intern",
         "handelingInitiator": "Melden",
         "onderwerp": "Openbare orde & veiligheid",
         "handelingBehandelaar": "Behandelen",
@@ -181,51 +185,200 @@ data:
         "servicenorm": "P14D",
         "verlengingMogelijk": True,
         "verlengingstermijn": "P14D",
-        "opschortenEnAanhoudingMogelijk": True,
+        "opschortingEnAanhoudingMogelijk": True,
         "selectielijstProcestype": "https://selectielijst.openzaak.nl/api/v1/procestypen/7ff2b005-4d84-47fe-983a-732bfa958ff5",
         "publicatieIndicatie": False,
-        "procuctenOfDiensten": [],
+        "productenOfDiensten": [],
         "referentieproces": { "naam": "melding klein evenement", "link": "" },
         "verantwoordelijke": "000000000",
         "versiedatum": "2025-01-01",
         "beginGeldigheid": "2025-01-01",
-        "eindeGeldigheid": "null",
+        "eindeGeldigheid": null,
         "catalogus": f"{zac_catalogus_url}",
-        "besluittypen": [],
+        "besluittypen": existing_besluittypen_url,
         "gerelateerdeZaaktypen": []
     }
 
+    topublish_zaaktype={}
+    response = requests.get(
+        catalogi_url+"zaaktypen",
+        params={"catalogus":f"{zac_catalogus_url}","identificatie": "zaaktype-voor-e2e-testen","status":"alles"},
+        headers=headers
+    )
+    if(response.status_code in [200,201] and response.json()['count']==1):
+        zac_zaaktype=response.json()['results'][0]
+
+    if('url' in zac_zaaktype):
+        print(f"found zaaktype: {zac_zaaktype}")
+        if(zac_zaaktype['concept']==True):
+            topublish_zaaktype=zac_zaaktype
+    else:
+        print(f"creating zaaktype: {zac_zaaktype}")
+        response=requests.post(
+            catalogi_url+"zaaktypen",
+            json=zac_zaaktype,
+            headers=headers
+        )
+        if(response.status_code in [200,201]):
+            zac_zaaktype=response.json()
+            topublish_zaaktype=zac_zaaktype
+
     zac_resultaattypen=[
-        { "catalogus": f"{zac_catalogus_url}", "omschrijving": "Afgebroken", "resultaattypeomschrijving":"Afgebroken", "selectielijstklasse":"https://selectielijst.openzaak.nl/api/v1/resultaten/0d978967-6bf2-452f-951a-c16bff338f42", "beginGeldigheid": "2025-01-01" },
-        { "catalogus": f"{zac_catalogus_url}", "omschrijving": "Geweigerd", "resultaattypeomschrijving":"Geweigerd", "selectielijstklasse":"https://selectielijst.openzaak.nl/api/v1/resultaten/f572cb0e-244a-4682-b57e-0c044c468387", "beginGeldigheid": "2025-01-01" },
-        { "catalogus": f"{zac_catalogus_url}", "omschrijving": "Verleend", "resultaattypeomschrijving":"Verleend", "selectielijstklasse":"https://selectielijst.openzaak.nl/api/v1/resultaten/5038528b-0eb7-4502-a415-a3093987d69b", "beginGeldigheid": "2025-01-01" }
-      ]
+        { "catalogus": f"{zac_catalogus_url}", "omschrijving": "Afgebroken e2e", "resultaattypeomschrijving":"https://selectielijst.openzaak.nl/api/v1/resultaattypeomschrijvingen/ce8cf476-0b59-496f-8eee-957a7c6e2506", "selectielijstklasse":"https://selectielijst.openzaak.nl/api/v1/resultaten/0d978967-6bf2-452f-951a-c16bff338f42", "beginGeldigheid": "2025-01-01", "archiefNominatie": "vernietigen", "brondatumArchiefprocedure": { "afleidingswijze": "afgehandeld", "procestermijn": null, "datumkenmerk": "", "einddatumBekend": False, "objecttype": "", "registratie": ""} },
+        { "catalogus": f"{zac_catalogus_url}", "omschrijving": "Geweigerd e2e", "resultaattypeomschrijving":"https://selectielijst.openzaak.nl/api/v1/resultaattypeomschrijvingen/1f750958-431c-4916-bc01-af5d3a753b41", "selectielijstklasse":"https://selectielijst.openzaak.nl/api/v1/resultaten/f572cb0e-244a-4682-b57e-0c044c468387", "beginGeldigheid": "2025-01-01", "archiefNominatie": "vernietigen", "brondatumArchiefprocedure": { "afleidingswijze": "afgehandeld", "procestermijn": null, "datumkenmerk": "", "einddatumBekend": False, "objecttype": "", "registratie": ""} },
+        { "catalogus": f"{zac_catalogus_url}", "omschrijving": "Verleend e2e", "resultaattypeomschrijving":"https://selectielijst.openzaak.nl/api/v1/resultaattypeomschrijvingen/f7d2dc14-1b71-4179-aed3-4e7abcfbeb0d", "selectielijstklasse":"https://selectielijst.openzaak.nl/api/v1/resultaten/5038528b-0eb7-4502-a415-a3093987d69b", "beginGeldigheid": "2025-01-01", "archiefNominatie": "vernietigen", "brondatumArchiefprocedure": { "afleidingswijze": "afgehandeld", "procestermijn": null, "datumkenmerk": "", "einddatumBekend": False, "objecttype": "", "registratie": ""} }
+    ]
+
+    existing_resultaattypen=[]
+    for url in zac_zaaktype['resultaattypen']:
+        response=requests.get(
+            url,
+            headers=headers
+        )
+        if(response.status_code in [200,201]):
+            existing_resultaattypen.append(response.json())
+
+    print(f"found resultaattypen: {existing_resultaattypen}")
+    for resultaattype in zac_resultaattypen:
+        if(not any(entry['omschrijving']==resultaattype['omschrijving'] for entry in existing_resultaattypen)):
+            resultaattype['zaaktype']=zac_zaaktype['url']
+            print(f"creating resultaattype {resultaattype}")
+            response=requests.post(
+                catalogi_url+"resultaattypen",
+                json=resultaattype,
+                headers=headers
+            )
+            if(response.status_code in [200,201]):
+                existing_resultaattypen.append(response.json())
 
     zac_roltypen=[
-        { "omschrijving":"Behandelaar","omschrijvingGeneriek": "behandelaar", "beginGeldigheid":"2025-01-01"},
-        { "omschrijving":"Melder","omschrijvingGeneriek": "initiator", "beginGeldigheid":"2025-01-01"},
-        { "omschrijving":"Medeaanvrager","omschrijvingGeneriek": "initiator", "beginGeldigheid":"2025-01-01"},
-        { "omschrijving":"Belanghebbende ","omschrijvingGeneriek": "belanghebbende ", "beginGeldigheid":"2025-01-01"},
-        { "omschrijving":"Contactpersoon","omschrijvingGeneriek": "belanghebbende ", "beginGeldigheid":"2025-01-01"},
-        { "omschrijving":"Gemachtigde","omschrijvingGeneriek": "belanghebbende ", "beginGeldigheid":"2025-01-01"},
-        { "omschrijving":"Plaatsvervanger","omschrijvingGeneriek": "belanghebbende ", "beginGeldigheid":"2025-01-01"},
-        { "omschrijving":"Bewindvoerder","omschrijvingGeneriek": "belanghebbende ", "beginGeldigheid":"2025-01-01"}
-      ]
+        { "omschrijving":"Behandelaar e2e","omschrijvingGeneriek": "behandelaar", "beginGeldigheid":"2025-01-01"},
+        { "omschrijving":"Melder e2e","omschrijvingGeneriek": "initiator", "beginGeldigheid":"2025-01-01"},
+        { "omschrijving":"Medeaanvrager e2e","omschrijvingGeneriek": "initiator", "beginGeldigheid":"2025-01-01"},
+        { "omschrijving":"Belanghebbende e2e","omschrijvingGeneriek": "belanghebbende", "beginGeldigheid":"2025-01-01"},
+        { "omschrijving":"Contactpersoon e2e","omschrijvingGeneriek": "belanghebbende", "beginGeldigheid":"2025-01-01"},
+        { "omschrijving":"Gemachtigde e2e","omschrijvingGeneriek": "belanghebbende", "beginGeldigheid":"2025-01-01"},
+        { "omschrijving":"Plaatsvervanger e2e","omschrijvingGeneriek": "belanghebbende", "beginGeldigheid":"2025-01-01"},
+        { "omschrijving":"Bewindvoerder e2e","omschrijvingGeneriek": "belanghebbende", "beginGeldigheid":"2025-01-01"}
+    ]
+
+    existing_roltypen=[]
+    for url in zac_zaaktype['roltypen']:
+        response=requests.get(
+            url,
+            headers=headers
+        )
+        if(response.status_code in [200,201]):
+            existing_roltypen.append(response.json())
+
+    print(f"found roltypen: {existing_roltypen}")
+    for roltype in zac_roltypen:
+        if(not any(entry['omschrijving']==roltype['omschrijving'] for entry in existing_roltypen)):
+            roltype['zaaktype']=zac_zaaktype['url']
+            print(f"creating roltype {roltype}")
+            response=requests.post(
+                catalogi_url+"roltypen",
+                json=roltype,
+                headers=headers
+            )
+            if(response.status_code in [200,201]):
+                existing_roltypen.append(response.json())
 
     zac_statustypen=[
         {"omschrijving":"Afgerond", "volgnummer": 5, "beginGeldigheid":"2025-01-01"},
         {"omschrijving":"Aanvullende informatie vereist", "volgnummer": 4, "beginGeldigheid":"2025-01-01"},
         {"omschrijving":"Heropend", "volgnummer": 3, "beginGeldigheid":"2025-01-01"},
         {"omschrijving":"In behandeling", "volgnummer": 2, "beginGeldigheid":"2025-01-01"},
-        {"omschrijving":"Intake", "volgnummer": 1, "beginGeldigheid":"2025-01-01"},
-      ]
+        {"omschrijving":"Intake", "volgnummer": 1, "beginGeldigheid":"2025-01-01"}
+    ]
+
+    existing_statustypen=[]
+    for url in zac_zaaktype['statustypen']:
+        response=requests.get(
+            url,
+            headers=headers
+        )
+        if(response.status_code in [200,201]):
+            existing_statustypen.append(response.json())
+
+    print(f"found statustypen: {existing_statustypen}")
+    for statustype in zac_statustypen:
+        if(not any(entry['omschrijving']==statustype['omschrijving'] for entry in existing_statustypen)):
+            statustype['zaaktype']=zac_zaaktype['url']
+            print(f"creating statustype {statustype}")
+            response=requests.post(
+                catalogi_url+"statustypen",
+                json=statustype,
+                headers=headers
+            )
+            if(response.status_code in [200,201]):
+                existing_statustypen.append(response.json())
 
     zac_eigenschappen=[
         { "catalogus": f"{zac_catalogus_url}", "naam": "textField", "definitie": "textField", "specificatie": {"formaat": "tekst", "lengte": "100", "kardinaliteit": "1"} },
-        { "catalogus": f"{zac_catalogus_url}", "naam": "email", "definitie": "email adres", "specificatie": {"formaat": "tekst", "lengte": "320", "kardinaliteit": "1"} }
-      ]
+        { "catalogus": f"{zac_catalogus_url}", "naam": "email", "definitie": "email adres", "specificatie": {"formaat": "tekst", "lengte": "255", "kardinaliteit": "1"} }
+    ]
 
+    existing_eigenschappen=[]
+    for url in zac_zaaktype['eigenschappen']:
+        response=requests.get(
+            url,
+            headers=headers
+        )
+        if(response.status_code in [200,201]):
+            existing_eigenschappen.append(response.json())
 
+    print(f"found eigenschappen: {existing_eigenschappen}")
+    for eigenschap in zac_eigenschappen:
+        if(not any(entry['naam']==eigenschap['naam'] for entry in existing_eigenschappen)):
+            eigenschap['zaaktype']=zac_zaaktype['url']
+            print(f"creating eigenschap {eigenschap}")
+            response=requests.post(
+                catalogi_url+"eigenschappen",
+                json=eigenschap,
+                headers=headers
+            )
+            if(response.status_code in [200,201]):
+                existing_eigenschappen.append(response.json())
+
+    existing_zaak_informatieobjecttypen=[]
+    for url in informatieobjecttypen_urls:
+        response=requests.get(
+            catalogi_url+"zaaktype-informatieobjecttypen",
+            params={"zaaktype": zac_zaaktype['url'], "informatieobjecttype": url, "richting": "inkomend", "status": "alles" },
+            headers=headers
+        )
+        if(response.status_code in [200,201]):
+            for result in response.json()['results']:
+                existing_zaak_informatieobjecttypen.append(result)
+
+    print(f"found zaak informatieobjecttypen: {existing_zaak_informatieobjecttypen}")
+    volgnummer=len(existing_zaak_informatieobjecttypen)
+    for informatieobjecttype in informatieobjecttypen_urls:
+        if(not any(entry['informatieobjecttype']==informatieobjecttype for entry in existing_zaak_informatieobjecttypen)):
+            volgnummer += 1
+            zaak_informatieobjecttype={}
+            zaak_informatieobjecttype['zaaktype']=zac_zaaktype['url']
+            zaak_informatieobjecttype['richting']="inkomend"
+            zaak_informatieobjecttype['informatieobjecttype']=informatieobjecttype
+            zaak_informatieobjecttype['volgnummer']=volgnummer
+            print(f"creating zaak_informatieobjecttype {zaak_informatieobjecttype}")
+            response=requests.post(
+                catalogi_url+"zaaktype-informatieobjecttypen",
+                json=zaak_informatieobjecttype,
+                headers=headers
+            )
+            if(response.status_code in [200,201]):
+                existing_zaak_informatieobjecttypen.append(response.json())
+
+    print(f"publishing zaaktype {topublish_zaaktype}")
+    if topublish_zaaktype.get("url"):
+        response=requests.post(
+            zac_zaaktype['url']+"/publish",
+            headers=headers
+        )
+        if(response.status_code in [200,201]):
+            print(f"published zaaktype {response.json()}")
 
 ---
 apiVersion: batch/v1
