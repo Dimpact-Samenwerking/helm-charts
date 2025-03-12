@@ -51,7 +51,7 @@ data:
 
     print(response.json())
 
-    zac_catalogus={ "domein": f"{domein}", "rsin": f"{rsin}", "contactpersoonBeheerNaam": f"{contact_person}", "contactpersoonBeheerEmailadres": f"{contact_email}" }
+    zac_catalogus={ "domein": f"{domein}", "rsin": f"{rsin}", "contactpersoonBeheerNaam": f"{contact_person}", "contactpersoonBeheerEmailadres": f"{contact_email}", "zaaktypen": [], "informatieobjecttypen": [], "besluittypen": [] }
 
     catalogi = response.json()['results']
 
@@ -205,7 +205,7 @@ data:
         params={"catalogus":f"{zac_catalogus_url}","identificatie": "zaaktype-voor-e2e-testen","status":"alles"},
         headers=headers
     )
-    if(response.status_code in [200,201] and response.json()['count']==1):
+    if(response.status_code in [200,201] and response.json()['count']>0):
         zac_zaaktype=response.json()['results'][0]
 
     if('url' in zac_zaaktype):
@@ -286,7 +286,7 @@ data:
 
     zac_statustypen=[
         {"omschrijving":"Afgerond", "volgnummer": 5, "beginGeldigheid":"2025-01-01"},
-        {"omschrijving":"Aanvullende informatie vereist", "volgnummer": 4, "beginGeldigheid":"2025-01-01"},
+        {"omschrijving":"Wacht op aanvullende informatie", "volgnummer": 4, "beginGeldigheid":"2025-01-01"},
         {"omschrijving":"Heropend", "volgnummer": 3, "beginGeldigheid":"2025-01-01"},
         {"omschrijving":"In behandeling", "volgnummer": 2, "beginGeldigheid":"2025-01-01"},
         {"omschrijving":"Intake", "volgnummer": 1, "beginGeldigheid":"2025-01-01"}
