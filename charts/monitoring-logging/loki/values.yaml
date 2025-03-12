@@ -38,7 +38,7 @@ loki:
     chunk_encoding: snappy
     chunk_idle_period: 30m # Flush chunks faster = less memory
   pattern_ingester:
-       enabled: true
+    enabled: true
       
   tracing:
     enabled: false
