@@ -1,5 +1,10 @@
 ---
 # https://github.com/grafana/helm-charts/blob/main/charts/promtail/values.yaml
+config:
+    logLevel: warn
+  # -- publish data to loki
+    clients:
+      - tenant_id: 1 
 image:
   registry: REP_ACR_NAME_REP.azurecr.io
   # Repository name for the Promtail image
