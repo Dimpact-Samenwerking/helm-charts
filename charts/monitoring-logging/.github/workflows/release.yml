@@ -28,7 +28,10 @@ jobs:
 
       - name: Add dependency chart repos
         run: |
+          helm repo add dimpact https://Dimpact-Samenwerking.github.io/helm-charts
           helm repo add grafana https://grafana.github.io/helm-charts
+          helm repo add opentelemetry https://open-telemetry.github.io/opentelemetry-helm-charts
+          helm repo update
 
       - name: Run chart-releaser
         uses: helm/chart-releaser-action@v1.6.0
