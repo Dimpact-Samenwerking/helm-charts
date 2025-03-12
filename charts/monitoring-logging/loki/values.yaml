@@ -53,7 +53,7 @@ loki:
     retention_period: 672h # 28 days retention
     ingestion_rate_strategy: local # Default: global
     max_global_streams_per_user: 10000
-    max_query_length: 721h # Default: 721h
+    max_query_length: 744h # 1 month. Default: 721h
     max_query_parallelism: 48 # Utilize Azure's high throughput
     max_streams_per_user: 0 # Old Default: 10000 
     split_queries_by_interval: 6h # Smaller splits = faster parallelization
@@ -83,8 +83,6 @@ deploymentMode: Distributed
 
 ingester:
   replicas: 3 # 2-3 for HA, fewer for cost
-  zoneAwareReplication:
-    enabled: false
 
 querier:
   replicas: 3 # Scale based on query load
@@ -164,11 +162,14 @@ sidecar:
 
 # -- Caching --
 resultsCache:
-  enabled: false
+  enabled: true
+  defaultValidity: 6h
   
 chunksCache:
-  enabled: false
-  allocatedMemory: 1536Mi
+  enabled: true
+  defaultValidity: 6h # Shorter TTL = fresher results
+  allocatedMemory: 1024
+  defaultValidity: 8h
 
 # -- Keep log data up to 3 months
 table_manager:
