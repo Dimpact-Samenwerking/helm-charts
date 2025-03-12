@@ -487,7 +487,7 @@ data:
             protocol: openid-connect
             protocolMapper: oidc-usermodel-realm-role-mapper
     users:
-      - username: "service-account-zaakafhandelcomponent-admin-client"
+      - username: "service-account-zac-admin-client"
         enabled: "true"
         totp: "false"
         serviceAccountClientId: "{{ .Values.zac.keycloak.adminClient.id }}"
