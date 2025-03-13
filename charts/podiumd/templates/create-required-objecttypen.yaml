@@ -55,7 +55,7 @@ data:
     # Find existing uuid and latest version of objecttypes
     for result in json["results"]:
       for objecttype in objecttypes_data:
-        if(result["name"] == objecttype['name']):
+        if(result["name"] == objecttype['name'] or result["namePlural"] == objecttype['namePlural']):
           objecttype['uuid']=result["uuid"]
           objecttype['version']=findHighestVersion(result['versions'])
           existing_objecttypes.append(objecttype)
