@@ -1,0 +1,122 @@
+loki:
+  schemaConfig:
+    configs:
+      - from: 2024-04-01
+        object_store: s3
+        store: tsdb
+        schema: v13
+        index:
+          prefix: index_
+          period: 24h
+          
+  auth_enabled: false
+  frontend:
+    max_outstanding_per_tenant: 6144 # Queue size for parallel processing
+    
+  ingester:
+    chunk_encoding: snappy
+    chunk_idle_period: 30m # Flush chunks faster = less memory
+    wal:
+      enabled: true # Prevent data loss
+      dir: /var/loki/wal
+      
+  tracing:
+    enabled: false
+    
+  querier:
+    max_concurrent: 6 # Per-pod parallelism
+    
+  # -- Query Performance  
+  limits_config:
+    ingestion_rate_strategy: local # Default: global
+    max_global_streams_per_user: 10000
+    max_query_length: 0h # Default: 721h
+    max_query_parallelism: 48 # Utilize Azure's high throughput
+    max_streams_per_user: 0 # Old Default: 10000 
+    split_queries_by_interval: 6h # Smaller splits = faster parallelization
+    
+deploymentMode: Distributed
+
+ingester:
+  replicas: 3 # 2-3 for HA, fewer for cost
+  maxUnavailable: 1 # 1/2 pods can update at once
+
+querier:
+  replicas: 3 # Scale based on query load
+  maxUnavailable: 2 # 2/3 pods unavailable during updates
+      
+queryFrontend:
+  replicas: 2
+  maxUnavailable: 1 # 1/2 pods can update
+      
+queryScheduler:
+  replicas: 2
+  maxUnavailable: 1 # 1/2 pods unavailable
+  
+distributor:
+  replicas: 3
+  maxUnavailable: 2 # 2/3 pods down during updates
+  
+compactor:
+  replicas: 1
+  maxUnavailable: 0 # Zero downtime for single-replica
+  
+indexGateway:
+  replicas: 2
+  maxUnavailable: 1 # 1/2 pods can update
+      
+# -- Optional experimental components
+bloomPlanner:
+  replicas: 0
+bloomBuilder:
+  replicas: 0
+bloomGateway:
+  replicas: 0
+
+# Enable minio for storage
+minio:
+  enabled: true
+ 
+# -- Zero out replica counts of other deployment modes
+backend:
+  replicas: 0
+read:
+  replicas: 0
+write:
+  replicas: 0
+singleBinary:
+  replicas: 0
+
+
+# -- Caching --
+resultsCache:
+  enabled: true
+  defaultValidity: 6h
+  
+chunksCache:
+  enabled: true
+  defaultValidity: 6h # Shorter TTL = fresher results
+  allocatedMemory: 1536
+  defaultValidity: 8h
+  
+# -- Keep log data up to 3 months
+table_manager:
+  retention_deletes_enabled: true
+  retention_period: 90d
+  
+monitoring:
+  selfMonitoring:
+    enabled: false
+    grafanaAgent:
+      installOperator: false
+  dashboards:
+    enabled: false
+  rules:
+    enabled: false
+
+test:
+  enabled: false
+
+lokiCanary:
+  enabled: false
+  
