@@ -29,11 +29,11 @@ grafana:
 
   resources:
     requests:
-      cpu: 10m
-      memory: 96Mi
+      cpu: 100m
+      memory: 256Mi
     limits:
-      cpu: 50m
-      memory: 128Mi
+      cpu: 200m
+      memory: 512Mi
 
   nodeSelector:
     kubernetes.azure.com/mode: system
@@ -189,8 +189,18 @@ loki:
   tracing:
     enabled: false
     
+  # Query performance optimizations
+  queryFrontend:
+    max_body_size: 20MB
+    log_queries_longer_than: 15s
+
+  query_scheduler:
+  # the TSDB index dispatches many more, but each individually smaller, requests. 
+  # We increase the pending request queue sizes to compensate.
+    max_outstanding_requests_per_tenant: 32768
+  
   querier:
-    max_concurrent: 6 # Per-pod parallelism
+    max_concurrent: 16 # Per-pod parallelism
     
   # -- Query Performance  
   limits_config:
@@ -203,14 +213,14 @@ loki:
     max_query_length: 744h # 1 month. Default: 721h
     max_query_parallelism: 48 # Utilize Azure's high throughput
     max_streams_per_user: 0 # Old Default: 10000 
-    split_queries_by_interval: 6h # Smaller splits = faster parallelization
+    split_queries_by_interval: 15m # Smaller splits = faster parallelization
+    max_cache_freshness_per_query: 10m
 
   compactor:
     retention_enabled: true 
     delete_request_store: azure
-    working_directory: /data/retention
+    working_directory: /etc/loki/
     compaction_interval: 10m
-    retention_enabled: true
     retention_delete_delay: 2h
     retention_delete_worker_count: 150
   
@@ -321,7 +331,6 @@ chunksCache:
   enabled: true
   defaultValidity: 6h # Shorter TTL = fresher results
   allocatedMemory: 1024
-  defaultValidity: 8h
   
 monitoring:
   selfMonitoring:
