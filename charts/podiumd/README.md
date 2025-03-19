@@ -69,13 +69,13 @@ Patch release for Open Inwoner bug fix.
 | Infinispan        | 15.1    | Nieuw component |
 | Objecten          | 3.0.0   |                |
 | Objecttypen       | 3.0.0   |                |
-| Open Formulieren  | 2.8.5   |                |
+| Open Formulieren  | 2.8.6   |                |
 | Open Inwoner      | 1.27.2  |                |
 | Open Klant        | 2.4.0   |                |
 | Open Notificaties | 1.8.0   |                |
 | Open Zaak         | 1.18.0  | Minor update   |
 | Kiss              | 0.6.1   |                |
-| Zac               | 3.2.83   | Nieuw component |
+| Zac               | 3.2     | Nieuw component |
 
 
 ## Add Used chart repositories:
