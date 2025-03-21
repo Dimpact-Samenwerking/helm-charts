@@ -9,7 +9,7 @@ nodeSelector: {}
 
 image:
   repository: bitnami/openldap
-  tag: "2.6.8"
+  tag: "2.6.9"
   pullPolicy: IfNotPresent
 
 persistence:
