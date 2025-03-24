@@ -19,7 +19,7 @@ data:
   {{- end }}
   ENTERPRISE_SEARCH_BASE_URL: {{ default (printf "https://kiss-ent-http.%s.svc.cluster.local:3002" .Release.Namespace) .Values.kiss.enterpriseSearch.baseUrl | quote }}
   {{- if .Values.kiss.email.enableSSL }}
-  EMAIL_ENABLE_SSL: {{ .Values.kiss.email.enableSSL }}
+  EMAIL_ENABLE_SSL: {{ .Values.kiss.email.enableSSL | quote }}
   {{- end }}
   {{- if .Values.kiss.email.feedbackFrom }}
   FEEDBACK_EMAIL_FROM: {{ .Values.kiss.email.feedbackFrom | quote }}
