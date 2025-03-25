@@ -1,6 +1,3 @@
----
-# https://github.com/grafana/helm-charts/blob/main/charts/grafana/values.yaml
-
 image:
   registry: REP_ACR_NAME_REP.azurecr.io
   repository: grafana
@@ -129,3 +126,9 @@ persistence:
   type: pvc
   finalizers:
     - kubernetes.io/pvc-protection
+
+prometheus: 
+  enabled: true
+
+alertmanager:
+  enabled: false

@@ -17,3 +17,7 @@ dependencies:
     repository: "@grafana"
     version: 8.10.1
     condition: grafana.enabled
+  - name: prometheus
+    repository: "@prometheus-community"
+    version: 70.3.0
+    condition: prometheus.enabled

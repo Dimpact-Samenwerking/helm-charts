@@ -22,7 +22,6 @@ grafana:
           jsonData:
             timeout: 300
       deleteDatasources:
-        - name: Prometheus
         - name: Alertmanager
 
   adminPassword: "KV_GRAFANA_ADMIN_KV"
@@ -122,6 +121,16 @@ grafana:
       registry: REP_ACR_NAME_REP.azurecr.io
       repository: grafana-init-chown-data
       tag: 1.31.1
+
+  persistence:
+    enabled: true
+    storageClassName: default
+    accessModes:
+      - ReadWriteOnce
+    size: 20Gi
+    type: pvc
+    finalizers:
+      - kubernetes.io/pvc-protection
 
 promtail:
   enabled: true
@@ -346,4 +355,10 @@ test:
   enabled: false
 
 lokiCanary:
+  enabled: false
+
+prometheus: 
+  enabled: true
+
+alertmanager:
   enabled: false
