@@ -132,12 +132,6 @@ grafana:
     finalizers:
       - kubernetes.io/pvc-protection
 
-prometheus: 
-  enabled: true
-
-alertmanager:
-  enabled: false
-
 promtail:
   enabled: true
   config:
