@@ -468,10 +468,10 @@ kiss:
 
   email:
     host: ""
-    port: null
+    port: "587"
     username: ""
     password: ""
-    enableSSL: null
+    enableSSL: "true"
     feedbackFrom: ""
     feedbackTo: ""
 
