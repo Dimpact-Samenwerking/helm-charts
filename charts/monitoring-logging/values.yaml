@@ -33,8 +33,9 @@ datasources:
     apiVersion: 1
     datasources:
       - name: Prometheus
-        editable: false
+        editable: true
         type: prometheus
+        readOnly: false
         url: http://prometheus-prometheus:9090
         access: proxy
         isDefault: false
@@ -70,10 +71,8 @@ dashboardProviders:
 
 dashboards:
   default:
-    Logging_PodiumD:
+    Logging-PodiumD:
       url: https://raw.githubusercontent.com/Dimpact-Samenwerking/helm-charts/refs/heads/feature/IN-72_monitoring-logging/charts/monitoring-logging/grafana/dashboards/logging_PodiumD.json
-      token: ""
-      datasource: Loki
 
 dashboardsConfigMaps:
   default: "loki-dashboard"
