@@ -361,9 +361,3 @@ test:
 
 lokiCanary:
   enabled: false
-
-prometheus: 
-  enabled: true
-
-alertmanager:
-  enabled: false
