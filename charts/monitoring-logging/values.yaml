@@ -1,12 +1,15 @@
+global:
+  imageRegistry: REP_ACR_NAME_REP.azurecr.io  # Centralized registry config
+  
 grafana:
   enabled: true
   image:
-    registry: REP_ACR_NAME_REP.azurecr.io
+    registry: "{{ .Values.global.imageRegistry }}"
     repository: grafana
     tag: "11.5.2"
 
 downloadDashboardsImage:
-  registry: REP_ACR_NAME_REP.azurecr.io
+  registry: "{{ .Values.global.imageRegistry }}" 
   repository: curl
   tag: "7.85.0"
 
@@ -121,7 +124,7 @@ grafana.ini:
 
 initChownData:
   image:
-    registry: REP_ACR_NAME_REP.azurecr.io
+    registry: "{{ .Values.global.imageRegistry }}" 
     repository: grafana-init-chown-data
     tag: "1.31.1"
 
@@ -156,13 +159,38 @@ prometheus:
 
 alertmanager:
   enabled: false
-      
+
+promtail:
+  enabled: true
+  config:
+    logLevel: warn
+  # -- publish data to loki
+    clients:
+      - url: http://loki-gateway/loki/api/v1/push
+        tenant_id: 1 
+  image:
+    registry: "{{ .Values.global.imageRegistry }}"
+    # Repository name for the Promtail image
+    repository: promtail
+    # Image tag version
+    tag: "3.0.0"
+  resources:
+    requests:
+      # Minimum CPU allocation
+      cpu: 50m
+      # Minimum memory allocation
+      memory: 96Mi
+    limits:
+      # Maximum CPU allocation
+      cpu: 100m
+      # Maximum memory allocation
+      memory: 256Mi
 loki:
   enabled: true
   podLabels:
     "azure.workload.identity/use": "true" # Add this label to the Loki pods to enable workload identity
   image:
-    registry: REP_ACR_NAME_REP.azurecr.io
+    registry: "{{ .Values.global.imageRegistry }}"
     repository: loki
     tag: "3.4.2"
   schemaConfig:
@@ -312,7 +340,7 @@ singleBinary:
 gateway:
   enabled: true
   image:
-    registry: REP_ACR_NAME_REP.azurecr.io
+    registry: "{{ .Values.global.imageRegistry }}"
     repository: nginx
     tag: stable
   resources:
@@ -330,8 +358,8 @@ gateway:
 
 sidecar:
   image:
-    registry: REP_ACR_NAME_REP.azurecr.io
-    repository: REP_ACR_NAME_REP.azurecr.io/grafana-sidecar
+    registry: "{{ .Values.global.imageRegistry }}" 
+    repository: "{{ .Values.global.imageRegistry }}" /grafana-sidecar
     tag: 1.26.1
   dashboards:
     skipReload: true
