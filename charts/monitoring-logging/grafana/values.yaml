@@ -11,30 +11,36 @@ downloadDashboardsImage:
   repository: curl
   tag: "7.85.0"
 
+additionalDataSources:
+- name: Loki
+  type: loki
+  uid: loki
+  readOnly: false
+  editable: true
+  access: proxy
+  isDefault: true
+  url: http://loki-gateway
+  version: 1
+  jsonData:
+    timeout: 300
+    
 datasources:
+  alertmanager:
+    enabled: false
   datasources.yaml:
     apiVersion: 1
     datasources:
-      - name: Loki
+      - name: Prometheus
         editable: false
-        type: loki
-        url: http://loki:3100
-        isDefault: true
-        jsonData:
-          timeout: 300
+        type: prometheus
+        url: http://prometheus-prometheus:9090
+        access: proxy
+        isDefault: false
     deleteDatasources:
       - name: Alertmanager
 
 adminPassword: "KV_GRAFANA_ADMIN_KV"
 
-resources:
-  requests:
-    cpu: 100m
-    memory: 256Mi
-  limits:
-    cpu: 200m
-    memory: 512Mi
-    
 nodeSelector:
   kubernetes.azure.com/mode: system
 
@@ -53,7 +59,7 @@ dashboardProviders:
     providers:
       - name: "default"
         orgId: 1
-        folder: "loki"
+        folder: ''
         type: file
         disableDeletion: false
         editable: true
@@ -129,3 +135,25 @@ persistence:
   type: pvc
   finalizers:
     - kubernetes.io/pvc-protection
+
+prometheus:
+  enabled: true
+  prometheusSpec:
+  # read all serviceMonitors from all namespaces
+   # basicAuth:
+   #   enabled: true
+   #   username: admin
+   #   password: password
+    logLevel: debug
+    serviceMonitorSelectorNilUsesHelmValues: false
+    retention: 72h
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 50Gi
+
+alertmanager:
+  enabled: false
