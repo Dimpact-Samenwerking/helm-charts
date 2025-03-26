@@ -4,12 +4,12 @@ global:
 grafana:
   enabled: true
   image:
-    registry: "{{ .Values.global.imageRegistry }}"
+    registry: {{ .Values.global.imageRegistry }}
     repository: grafana
     tag: "11.5.2"
 
 downloadDashboardsImage:
-  registry: "{{ .Values.global.imageRegistry }}" 
+  registry: {{ .Values.global.imageRegistry }} 
   repository: curl
   tag: "7.85.0"
 
@@ -124,7 +124,7 @@ grafana.ini:
 
 initChownData:
   image:
-    registry: "{{ .Values.global.imageRegistry }}" 
+    registry: {{ .Values.global.imageRegistry }} 
     repository: grafana-init-chown-data
     tag: "1.31.1"
 
@@ -169,7 +169,7 @@ promtail:
       - url: http://loki-gateway/loki/api/v1/push
         tenant_id: 1 
   image:
-    registry: "{{ .Values.global.imageRegistry }}"
+    registry: {{ .Values.global.imageRegistry }}
     # Repository name for the Promtail image
     repository: promtail
     # Image tag version
@@ -190,7 +190,7 @@ loki:
   podLabels:
     "azure.workload.identity/use": "true" # Add this label to the Loki pods to enable workload identity
   image:
-    registry: "{{ .Values.global.imageRegistry }}"
+    registry: {{ .Values.global.imageRegistry }}
     repository: loki
     tag: "3.4.2"
   schemaConfig:
@@ -340,7 +340,7 @@ singleBinary:
 gateway:
   enabled: true
   image:
-    registry: "{{ .Values.global.imageRegistry }}"
+    registry: {{ .Values.global.imageRegistry }}
     repository: nginx
     tag: stable
   resources:
@@ -358,8 +358,8 @@ gateway:
 
 sidecar:
   image:
-    registry: "{{ .Values.global.imageRegistry }}" 
-    repository: "{{ .Values.global.imageRegistry }}" /grafana-sidecar
+    registry: {{ .Values.global.imageRegistry }} 
+    repository: {{ .Values.global.imageRegistry }}/grafana-sidecar
     tag: 1.26.1
   dashboards:
     skipReload: true
