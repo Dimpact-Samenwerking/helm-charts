@@ -1,4 +1,4 @@
-grafana:
+prometheus:
   enabled: true
   image:
     registry: REP_ACR_NAME_REP.azurecr.io
