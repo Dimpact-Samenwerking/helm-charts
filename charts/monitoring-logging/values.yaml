@@ -21,7 +21,7 @@ additionalDataSources:
   editable: true
   access: proxy
   isDefault: true
-  url: http://loki-gateway
+  url: http://{{ .Release.Name }}-gateway
   version: 1
   jsonData:
     timeout: 300
@@ -36,7 +36,7 @@ datasources:
         editable: true
         type: prometheus
         readOnly: false
-        url: http://prometheus-prometheus:9090
+        url: http://{{ .Release.Name }}-prometheus:9090
         access: proxy
         isDefault: false
     deleteDatasources:
@@ -73,7 +73,8 @@ dashboards:
   default:
     Logging-PodiumD:
       url: https://raw.githubusercontent.com/Dimpact-Samenwerking/helm-charts/refs/heads/feature/IN-72_monitoring-logging/charts/monitoring-logging/grafana/dashboards/logging_PodiumD.json
-
+      token: ''
+      datasource: Loki
 dashboardsConfigMaps:
   default: "loki-dashboard"
 
@@ -165,7 +166,7 @@ promtail:
     logLevel: warn
   # -- publish data to loki
     clients:
-      - url: http://loki-gateway/loki/api/v1/push
+      - url: http://{{ .Release.Name }}-gateway/loki/api/v1/push
         tenant_id: 1 
   image:
     registry: {{ .Values.global.imageRegistry }}
