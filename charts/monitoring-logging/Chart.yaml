@@ -1,6 +1,6 @@
 apiVersion: v2
 name: monitoring en logging
-description: A monitoring stack using Loki, Promtail and Grafana
+description: A monitoring stack using Loki, Prometheus, Promtail and Grafana
 type: application
 version: 0.1.0-dev
 appVersion: "1.0-dev"
