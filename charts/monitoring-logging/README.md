@@ -2,7 +2,7 @@
 
 ![Version: 0.1.0](https://img.shields.io/badge/Version-0.1.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 1.0](https://img.shields.io/badge/AppVersion-1.0-informational?style=flat-square)
 
-A monitoring stack using Loki, Promtail and Grafana
+A monitoring stack using Loki, Prometheus, Promtail and Grafana
 
 ## Requirements
 
@@ -11,7 +11,7 @@ A monitoring stack using Loki, Promtail and Grafana
 | https://grafana.github.io/helm-charts | loki  | 6.27.0 |
 | https://grafana.github.io/helm-charts | grafana | 8.10.1 |
 | https://grafana.github.io/helm-charts | promtail | 6.16.6 |
-
+| https://prometheus-community.github.io/helm-charts| prometheus | 70.30.0 |
 ## Values
 
 | Key | Type | Default | Description |
