@@ -2,9 +2,9 @@ loki:
   podLabels:
     "azure.workload.identity/use": "true" # Add this label to the Loki pods to enable workload identity
   image:
-    registry: REP_ACR_NAME_REP.azurecr.io
+    registry: ""
     repository: loki
-    tag: "3.4.2"
+    tag: ""
   schemaConfig:
     configs:
       - from: 2024-04-01
@@ -42,11 +42,6 @@ loki:
       
   tracing:
     enabled: false
-    
-  # Query performance optimizations
-  queryFrontend:
-    max_body_size: 20MB
-    log_queries_longer_than: 15s
 
   query_scheduler:
   # the TSDB index dispatches many more, but each individually smaller, requests. 
@@ -54,7 +49,7 @@ loki:
     max_outstanding_requests_per_tenant: 32768
   
   querier:
-    max_concurrent: 16 # Per-pod parallelism
+    max_concurrent: 6 # Per-pod parallelism
     
   # -- Query Performance  
   limits_config:
@@ -73,7 +68,6 @@ loki:
   compactor:
     retention_enabled: true 
     delete_request_store: azure
-    working_directory: /etc/loki/
     compaction_interval: 10m
     retention_delete_delay: 2h
     retention_delete_worker_count: 150
@@ -149,30 +143,19 @@ write:
 singleBinary:
   replicas: 0
 
+# This exposes the Loki gateway so it can be written to and queried externaly
 gateway:
-  enabled: true
-  image:
-    registry: REP_ACR_NAME_REP.azurecr.io
-    repository: nginx
-    tag: stable
-  resources:
-    requests:
-      cpu: 10m
-      memory: 16Mi
-    limits:
-      cpu: 50m
-      memory: 32Mi
-  nodeSelector:
-    kubernetes.azure.com/mode: system
-  basicAuth: 
-    enabled: true
-    existingSecret: loki-basic-auth
+ service:
+   type: LoadBalancer
+ basicAuth: 
+     enabled: true
+     existingSecret: loki-basic-auth
 
 sidecar:
   image:
-    registry: REP_ACR_NAME_REP.azurecr.io
-    repository: REP_ACR_NAME_REP.azurecr.io/grafana-sidecar
-    tag: 1.26.1
+    registry: ""
+    repository: ""
+    tag: ""
   dashboards:
     skipReload: true
 
