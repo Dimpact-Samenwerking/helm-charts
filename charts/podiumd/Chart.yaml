@@ -73,3 +73,7 @@ dependencies:
     condition: zac.enabled
     tags:
       - zaak
+  - name: podiumd-proxy
+    version: 1.0.0
+    repository: file://charts/podiumd-proxy
+    condition: proxy.enabled

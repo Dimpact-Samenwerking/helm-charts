@@ -37,7 +37,7 @@ Patch release for Open Inwoner bug fix.
 | Open Klant        | 2.3.0   |                |
 | Open Notificaties | 1.7.1   |                |
 | Open Zaak         | 1.15.0  |                |
-| Kiss              | 0.5.1   | Patch update   |
+| Kiss              | 0.7.1   | Patch update   |
 
 ### [3.3.2](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-3.3.2)
 
@@ -57,16 +57,16 @@ Patch release for Open Inwoner bug fix.
 | Open Zaak         | 1.17.0  | Minor update     |
 | Kiss              | 0.6.0   | Minor app update |
 
-### [4.0.2](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.0.2)
+### [4.0.2](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.0.4)
 
-**PodiumD Helm chart version: 4.0.2**
+**PodiumD Helm chart version: 4.0.4**
 
 
 | Component         | Version | Change         |
 |-------------------|---------|----------------|
 | ClamAV            | 1.4.2   |                |
 | Keycloak          | 25.0.6  | Major update   |
-| Infinispan        | 15.1    | Nieuw component |
+| Infinispan        | 15.1    | Nieuw component|
 | Objecten          | 3.0.0   |                |
 | Objecttypen       | 3.0.0   |                |
 | Open Formulieren  | 2.8.6   |                |
@@ -74,8 +74,9 @@ Patch release for Open Inwoner bug fix.
 | Open Klant        | 2.4.0   |                |
 | Open Notificaties | 1.8.0   |                |
 | Open Zaak         | 1.18.0  | Minor update   |
-| Kiss              | 0.6.1   |                |
-| Zac               | 3.0.0   | Nieuw component |
+| Kiss              | 0.7.1   | Minor update   |
+| Zac               | 3.0.0   | Nieuw component|
+| Podiumd Proxy     | 1.0.0   | Nieuw component|
 
 
 ## Add Used chart repositories:
@@ -575,6 +576,40 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 | openinwoner.elasticsearch.data.persistence.storageClass   | Elastic search data persistence storage class                                                                                                         | `""`                                          |
 | openinwoner.elasticsearch.data.nodeSelector               | Elastic search data node labels for pod assignment. Evaluated as a template                                                                           | `{}`                                          |
 | openinwoner.elasticsearch.coordinating.nodeSelector       | Elastic search coordinating node labels for pod assignment. Evaluated as a template                                                                   | `{}`                                          |
+
+### Podiumd Proxy 
+
+| Name                    | Description                                   | Value                       |
+|-------------------------|-----------------------------------------------|------------------------------|
+| replicaCount            | Number of replicas to deploy                  | `1`                          |
+| nameOverride            | Override for the deployment name              | `""`                         |
+| fullnameOverride        | Override for the full deployment name         | `""`                         |
+| image.repository        | Container image repository                    | `nginx`                      |
+| image.tag               | Container image tag                           | `"1.25-alpine"`              |
+| image.pullPolicy        | Image pull policy                             | `IfNotPresent`               |
+| service.port            | Service port                                  | `8081`                       |
+| resources.limits.cpu    | CPU resource limit                            | `"0.5"`                      |
+| resources.limits.memory | Memory resource limit                         | `"256Mi"`                    |
+| resources.requests.cpu  | CPU resource request                          | `"0.1"`                      |
+| resources.requests.memory | Memory resource request                     | `"128Mi"`                    |
+| nginxCertsSecret        | Secret containing NGINX certificates          | `"podiumd-proxy-certs"`      |
+| livenessProbe.initialDelaySeconds | Initial delay for liveness probe    | `5`                          |
+| livenessProbe.periodSeconds | Period between liveness probe checks      | `10`                         |
+| readinessProbe.initialDelaySeconds | Initial delay for readiness probe  | `5`                          |
+| readinessProbe.periodSeconds | Period between readiness probe checks    | `10`                         |
+| locations.*.sslVerify   | SSL verification setting for all locations    | `"off"`                      |
+| locations.*.hostHeader  | Host header for all locations                 | `"lab.api.mijniconnect.nl"` |
+| locations.bag.targetUrl | Target URL for BAG location                   | `"https://lab.api.mijniconnect.nl/iconnect/apihcbrp/actueel/v2/"` |
+| locations.brp.targetUrl | Target URL for BRP location                   | `"https://lab.api.mijniconnect.nl/iconnect/apihcbrp/actueel/prtcl/v2/personen"` |
+| locations.kvkSearch.targetUrl | Target URL for KVK search               | `"https://lab.api.mijniconnect.nl/iconnect/apikvk/zoeken/v2/zoeken"` |
+| locations.kvkBasic.targetUrl | Target URL for KVK basic profiles        | `"https://lab.api.mijniconnect.nl/iconnect/apikvk/basprof/v1/v1/basisprofielen"` |
+| locations.kvkBranch.targetUrl | Target URL for KVK branch profiles      | `"https://lab.api.mijniconnect.nl/iconnect/apikvk/vesprof/v1/v1/vestigingsprofielen"` |
+
+#### Create certificate example
+$ kubectl create secret generic api-proxy-certs \
+  --from-file=client.crt="C:\labtenant1.lab.api.mijniconnect.nl.crt" \
+  --from-file=client.key="C:\labtenant1.lab.api.mijniconnect.nl.key.decrypted" \
+  --from-file=ca.crt="C:\lab_api_mijniconnect_nl.crt"
 
 ### Tags
 

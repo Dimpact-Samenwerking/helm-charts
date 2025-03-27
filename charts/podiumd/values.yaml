@@ -811,7 +811,7 @@ kiss:
       name: ""
     image:
       repository: ghcr.io/klantinteractie-servicesysteem/kiss-frontend
-      tag: "release-0.6.x-20250225135203-7183543"
+      tag: "specifieke-header-per-type-zoekopdracht-20250326144323-e3743b6"
       pullPolicy: IfNotPresent
     resources:
       requests:
@@ -1058,6 +1058,51 @@ clamav:
     requests:
       cpu: 1000m
       memory: 4Gi
+
+podiumd-proxy:
+  enabled: false
+  replicaCount: 1
+  nameOverride: ""
+  fullnameOverride: ""
+  image:
+    repository: nginx
+    tag: "1.25-alpine"
+    pullPolicy: IfNotPresent
+  service:
+    port: 8081
+  resources:
+    limits:
+      cpu: "0.5"
+      memory: "256Mi"
+    requests:
+      cpu: "0.1"
+      memory: "128Mi"
+  nginxCertsSecret: "podiumd-proxy-certs"
+  livenessProbe:
+    initialDelaySeconds: 5
+    periodSeconds: 10
+  readinessProbe:
+    initialDelaySeconds: 5
+    periodSeconds: 10
+  locations:
+    commonSettings: &commonLocation
+      sslVerify: "off"
+      hostHeader: "lab.api.mijniconnect.nl"
+    bag:
+      <<: *commonLocation
+      targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apihcbrp/actueel/v2/"
+    brp:
+      <<: *commonLocation
+      targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apihcbrp/actueel/prtcl/v2/personen"
+    kvkSearch:
+      <<: *commonLocation
+      targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apikvk/zoeken/v2/zoeken"
+    kvkBasic:
+      <<: *commonLocation
+      targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apikvk/basprof/v1/v1/basisprofielen"
+    kvkBranch:
+      <<: *commonLocation
+      targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apikvk/vesprof/v1/v1/vestigingsprofielen"
 
 serviceAccount:
   create: true
