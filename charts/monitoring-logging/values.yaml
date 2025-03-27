@@ -1,17 +1,17 @@
 global:
-  imageRegistry: REP_ACR_NAME_REP.azurecr.io  # Centralized registry config
+  imageRegistry: ""
   
 grafana:
   enabled: true
   image:
-    registry: {{ .Values.global.imageRegistry }}
-    repository: grafana
-    tag: "11.5.2"
+    registry: ""
+    repository: "" 
+    tag: ""
 
 downloadDashboardsImage:
-  registry: {{ .Values.global.imageRegistry }} 
-  repository: curl
-  tag: "7.85.0"
+  registry: ""
+  repository: ""
+  tag: ""
 
 additionalDataSources:
 - name: Loki
@@ -42,7 +42,7 @@ datasources:
     deleteDatasources:
       - name: Alertmanager
 
-adminPassword: "KV_GRAFANA_ADMIN_KV"
+adminPassword: ""
 
 nodeSelector:
   kubernetes.azure.com/mode: system
@@ -53,8 +53,8 @@ containerSecurityContext:
   runAsNonRoot: true
 
 envFromSecrets:
-  - name: gf-database-password
-  - name: gf-client-secret
+  - name: ""
+  - name: ""
 
 dashboardProviders:
   dashboardproviders.yaml:
@@ -80,35 +80,35 @@ dashboardsConfigMaps:
 
 grafana.ini:
   server:
-    root_url: https://REP_DOMAIN_REP
+    root_url: ""
   database:
-    type: postgres
-    host: psql-REP_ENVIRONMENT_REP-REP_GEMEENTE_REP.postgres.database.azure.com:5432
-    name: grafana
-    user: grafana
-    password: $__env{gf-database-password}
-    ssl_mode: require
+    type: 
+    host: ""
+    name: ""
+    user: ""
+    password: ""
+    ssl_mode: ""
   dataproxy:
     timeout: 300
     keep_alive_seconds: 300
   smtp:
     enabled: true
-    host: mail.enschede.nl:587
-    from_address: noreply@REP_GRAFANA_DOMAIN_REP
+    host: ""
+    from_address: ""
     skip_verify: true
   auth.azuread:
     name: Azure AD
     enabled: true
     allow_sign_up: true
     auto_login: true
-    client_id: REP_GRAFANA_ID_REP
-    client_secret: $__env{gf-client-secret}
-    scopes: openid email profile
-    auth_url: https://login.microsoftonline.com/996a05f9-6875-4960-a833-6e3aff171400/oauth2/v2.0/authorize
-    token_url: https://login.microsoftonline.com/996a05f9-6875-4960-a833-6e3aff171400/oauth2/v2.0/token
+    client_id: ""
+    client_secret: ""
+    scopes: ""
+    auth_url: ""
+    token_url: ""
     allowed_domains: []
     allowed_groups: []
-    allowed_organizations: 996a05f9-6875-4960-a833-6e3aff171400
+    allowed_organizations: ""
     role_attribute_strict: false
     allow_assign_grafana_admin: true
     skip_org_role_sync: false
@@ -124,13 +124,13 @@ grafana.ini:
 
 initChownData:
   image:
-    registry: {{ .Values.global.imageRegistry }} 
-    repository: grafana-init-chown-data
-    tag: "1.31.1"
+    registry: "" 
+    repository: ""
+    tag: ""
 
 persistence:
   enabled: true
-  storageClassName: default
+  storageClassName: ""
   accessModes:
     - ReadWriteOnce
   size: 20Gi
@@ -169,11 +169,11 @@ promtail:
       - url: http://{{ .Release.Name }}-gateway/loki/api/v1/push
         tenant_id: 1 
   image:
-    registry: {{ .Values.global.imageRegistry }}
+    registry: ""
     # Repository name for the Promtail image
-    repository: promtail
+    repository: ""
     # Image tag version
-    tag: "3.0.0"
+    tag: ""
   resources:
     requests:
       # Minimum CPU allocation
@@ -190,9 +190,9 @@ loki:
   podLabels:
     "azure.workload.identity/use": "true" # Add this label to the Loki pods to enable workload identity
   image:
-    registry: {{ .Values.global.imageRegistry }}
+    registry: ""
     repository: loki
-    tag: "3.4.2"
+    tag: ""
   schemaConfig:
     configs:
       - from: 2024-04-01
@@ -230,11 +230,6 @@ loki:
       
   tracing:
     enabled: false
-    
-  # Query performance optimizations
-  queryFrontend:
-    max_body_size: 20MB
-    log_queries_longer_than: 15s
 
   query_scheduler:
   # the TSDB index dispatches many more, but each individually smaller, requests. 
@@ -242,7 +237,7 @@ loki:
     max_outstanding_requests_per_tenant: 32768
   
   querier:
-    max_concurrent: 16 # Per-pod parallelism
+    max_concurrent: 6 # Per-pod parallelism
     
   # -- Query Performance  
   limits_config:
@@ -261,7 +256,6 @@ loki:
   compactor:
     retention_enabled: true 
     delete_request_store: azure
-    working_directory: /etc/loki/
     compaction_interval: 10m
     retention_delete_delay: 2h
     retention_delete_worker_count: 150
@@ -337,30 +331,19 @@ write:
 singleBinary:
   replicas: 0
 
+# This exposes the Loki gateway so it can be written to and queried externaly
 gateway:
-  enabled: true
-  image:
-    registry: {{ .Values.global.imageRegistry }}
-    repository: nginx
-    tag: stable
-  resources:
-    requests:
-      cpu: 10m
-      memory: 16Mi
-    limits:
-      cpu: 50m
-      memory: 32Mi
-  nodeSelector:
-    kubernetes.azure.com/mode: system
-  basicAuth: 
-    enabled: true
-    existingSecret: loki-basic-auth
+ service:
+   type: LoadBalancer
+ basicAuth: 
+     enabled: true
+     existingSecret: loki-basic-auth
 
 sidecar:
   image:
-    registry: {{ .Values.global.imageRegistry }} 
-    repository: grafana-sidecar
-    tag: 1.26.1
+    registry: ""
+    repository: ""
+    tag: ""
   dashboards:
     skipReload: true
 
