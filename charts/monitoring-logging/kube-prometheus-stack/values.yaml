@@ -144,7 +144,7 @@ prometheus:
    #   enabled: true
    #   username: admin
    #   password: password
-    logLevel: debug
+    logLevel: warn
     serviceMonitorSelectorNilUsesHelmValues: false
     retention: 72h
     storageSpec:
