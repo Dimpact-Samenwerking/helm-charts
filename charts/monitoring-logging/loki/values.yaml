@@ -16,19 +16,19 @@ loki:
           period: 24h
   storage_config:
     azure:
-      account_name: "<INSERT-STORAGE-ACCOUNT-NAME>" 
-      container_name: "<CHUNK-CONTAINER-NAME>" # Your actual Azure Blob Storage container name (loki-azure-dev-chunks)
+      account_name: "" 
+      container_name: "" # Your actual Azure Blob Storage container name (loki-azure-dev-chunks)
       use_federated_token: true # Use federated token for authentication
           
   storage:
     bucketNames:
-      chunks: "<CHUNK-CONTAINER-NAME>" # Your actual Azure Blob Storage container name (loki-azure-dev-chunks)
-      ruler: "<RULER-CONTAINER-NAME>" # Your actual Azure Blob Storage container name (loki-azure-dev-ruler)
+      chunks: "" # Your actual Azure Blob Storage container name (loki-azure-dev-chunks)
+      ruler: "" # Your actual Azure Blob Storage container name (loki-azure-dev-ruler)
         # admin: "admin-loki-devrel" # Your actual Azure Blob Storage container name (loki-azure-dev-admin)
     type: azure
     azure:
       useFederatedToken: true # Use federated token for authentication
-      accountName: <INSERT-STORAGE-ACCOUNT-NAME>
+      accountName: ""
 
   auth_enabled: false
   frontend:
