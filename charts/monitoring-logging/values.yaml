@@ -152,6 +152,7 @@ prometheus:
     storageSpec:
       volumeClaimTemplate:
         spec:
+          storageClassName: default
           accessModes: ["ReadWriteOnce"]
           resources:
             requests:
