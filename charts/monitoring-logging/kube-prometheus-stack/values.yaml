@@ -138,7 +138,6 @@ grafana:
       - kubernetes.io/pvc-protection
 
 prometheus:
-  enabled: true
   prometheusSpec:
   # read all serviceMonitors from all namespaces
    # basicAuth:
@@ -151,6 +150,7 @@ prometheus:
     storageSpec:
       volumeClaimTemplate:
         spec:
+          storageClassName: default
           accessModes: ["ReadWriteOnce"]
           resources:
             requests:
