@@ -12,6 +12,7 @@ grafana:
     repository: ""
     tag: ""
 
+  assertNoLeakedSecrets: false
   additionalDataSources:
   - name: Loki
     type: loki
