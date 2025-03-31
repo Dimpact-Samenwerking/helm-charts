@@ -12,7 +12,7 @@ kube-prometheus-stack:
     registry: ""
     repository: ""
     tag: ""
-
+  assertNoLeakedSecrets: false
   additionalDataSources:
   - name: Loki
     type: loki
