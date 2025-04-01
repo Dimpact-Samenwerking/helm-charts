@@ -37,6 +37,8 @@ loki:
   ingester:
     chunk_encoding: snappy
     chunk_idle_period: 30m # Flush chunks faster = less memory
+    chunk_block_size: 262144
+    chunk_retain_period: 1m
   pattern_ingester:
     enabled: true
       
@@ -64,7 +66,9 @@ loki:
     max_streams_per_user: 0 # Old Default: 10000 
     split_queries_by_interval: 15m # Smaller splits = faster parallelization
     max_cache_freshness_per_query: 10m
-
+    ingestion_rate_mb: 10
+    ingestion_burst_size_mb: 20
+    
   compactor:
     retention_enabled: true 
     delete_request_store: azure
@@ -110,7 +114,7 @@ distributor:
   maxUnavailable: 2 # 2/3 pods down during updates
   
 compactor:
-  replicas: 1
+  replicas: 2
   
 indexGateway:
   replicas: 2
