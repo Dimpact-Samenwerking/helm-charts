@@ -70,6 +70,7 @@ loki:
     ingestion_burst_size_mb: 20
     
   compactor:
+    working_directory: /data/retention
     retention_enabled: true 
     delete_request_store: azure
     compaction_interval: 10m
