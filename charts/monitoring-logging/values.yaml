@@ -226,6 +226,8 @@ loki:
   ingester:
     chunk_encoding: snappy
     chunk_idle_period: 30m # Flush chunks faster = less memory
+    chunk_block_size: 262144
+    chunk_retain_period: 1m
   pattern_ingester:
     enabled: true
       
@@ -247,12 +249,14 @@ loki:
     retention_period: 744h # 1 month retention
     max_query_lookback: 744h # 1 month
     ingestion_rate_strategy: local # Default: global
-    max_global_streams_per_user: 10000
+    max_global_streams_per_user: 5000
     max_query_length: 744h # 1 month. Default: 721h
     max_query_parallelism: 48 # Utilize Azure's high throughput
     max_streams_per_user: 0 # Old Default: 10000 
     split_queries_by_interval: 15m # Smaller splits = faster parallelization
     max_cache_freshness_per_query: 10m
+    ingestion_rate_mb: 10 
+    ingestion_burst_size_mb: 20
 
   compactor:
     retention_enabled: true 
@@ -299,7 +303,7 @@ distributor:
   maxUnavailable: 2 # 2/3 pods down during updates
   
 compactor:
-  replicas: 1
+  replicas: 2
   
 indexGateway:
   replicas: 2
