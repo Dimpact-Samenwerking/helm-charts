@@ -34,13 +34,13 @@ kube-prometheus-stack:
       datasources:
         - name: Prometheus
           editable: true
-          type: prometheus
+          type: Prometheus
           readOnly: false
           url: http://{{ .Release.Name }}-prometheus:9090
           access: proxy
           isDefault: false
-      deleteDatasources:
-        - name: Alertmanager
+    deleteDatasources:
+      - name: Alertmanager
 
   adminPassword: ""
 
