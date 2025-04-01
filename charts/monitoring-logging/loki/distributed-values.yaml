@@ -6,9 +6,9 @@ loki:
         store: tsdb
         schema: v13
         index:
-          prefix: index_
+          prefix: loki_index_
           period: 24h
-          
+
   auth_enabled: false
   frontend:
     max_outstanding_per_tenant: 6144 # Queue size for parallel processing
@@ -16,50 +16,61 @@ loki:
   ingester:
     chunk_encoding: snappy
     chunk_idle_period: 30m # Flush chunks faster = less memory
-    wal:
-      enabled: true # Prevent data loss
-      dir: /var/loki/wal
+    chunk_block_size: 262144
+    chunk_retain_period: 1m
+  pattern_ingester:
+    enabled: true
       
   tracing:
     enabled: false
+
+ 
+  query_scheduler:
+  # the TSDB index dispatches many more, but each individually smaller, requests. 
+  # We increase the pending request queue sizes to compensate.
+    max_outstanding_requests_per_tenant: 32768
     
   querier:
     max_concurrent: 6 # Per-pod parallelism
     
   # -- Query Performance  
   limits_config:
+    allow_structured_metadata: true
+    volume_enabled: true
+    retention_period: 744h # 1 month retention
+    max_query_lookback: 744h # 1 month
     ingestion_rate_strategy: local # Default: global
-    max_global_streams_per_user: 10000
-    max_query_length: 0h # Default: 721h
-    max_query_parallelism: 48 # Utilize Azure's high throughput
+    max_global_streams_per_user: 5000
+    max_query_length: 744h # 1 month. Default: 721h
+    max_query_parallelism: 96 # Utilize Azure's high throughput
     max_streams_per_user: 0 # Old Default: 10000 
-    split_queries_by_interval: 6h # Smaller splits = faster parallelization
+    split_queries_by_interval: 15m # Smaller splits = faster parallelization
+    max_cache_freshness_per_query: 10m
+    ingestion_rate_mb: 10 
+    ingestion_burst_size_mb: 20
     
 deploymentMode: Distributed
 
 ingester:
   replicas: 3 # 2-3 for HA, fewer for cost
-  maxUnavailable: 1 # 1/2 pods can update at once
 
 querier:
   replicas: 3 # Scale based on query load
   maxUnavailable: 2 # 2/3 pods unavailable during updates
-      
+
 queryFrontend:
   replicas: 2
   maxUnavailable: 1 # 1/2 pods can update
       
 queryScheduler:
   replicas: 2
-  maxUnavailable: 1 # 1/2 pods unavailable
-  
+
 distributor:
   replicas: 3
   maxUnavailable: 2 # 2/3 pods down during updates
   
 compactor:
-  replicas: 1
-  maxUnavailable: 0 # Zero downtime for single-replica
+  replicas: 2
   
 indexGateway:
   replicas: 2
@@ -75,8 +86,8 @@ bloomGateway:
 
 # Enable minio for storage
 minio:
-  enabled: true
- 
+ enabled: true
+
 # -- Zero out replica counts of other deployment modes
 backend:
   replicas: 0
@@ -84,6 +95,7 @@ read:
   replicas: 0
 write:
   replicas: 0
+
 singleBinary:
   replicas: 0
 
@@ -96,13 +108,7 @@ resultsCache:
 chunksCache:
   enabled: true
   defaultValidity: 6h # Shorter TTL = fresher results
-  allocatedMemory: 1536
-  defaultValidity: 8h
-  
-# -- Keep log data up to 3 months
-table_manager:
-  retention_deletes_enabled: true
-  retention_period: 90d
+  allocatedMemory: 1024
   
 monitoring:
   selfMonitoring:
@@ -119,4 +125,3 @@ test:
 
 lokiCanary:
   enabled: false
-  
