@@ -7,7 +7,7 @@ metadata:
   name: logging-podiumd-dashboard
   namespace: podiumd
 data:
-  Logging_PodiumD.json: |-
+  logging-podiumd-dashboard.json: |-
     {
   "annotations": {
     "list": [
