@@ -905,7 +905,7 @@ zac:
   nginx:
     enabled: true
     client_max_body_size: 150M
-  notificationsSecretKey: "changeme"
+  # notificationsSecretKey: "changeme"
   objectenApi:
     url: http://objecten.example.nl
     token: objectentoken
@@ -934,9 +934,8 @@ zac:
     nodeSelector: {}
     solr:
       #busyBoxImage:
-        #image:
-          #repository:
-          #tag:
+        #repository:
+        #tag:
       # -- set enabled to provision solrcloud as well
       enabled: true
       #image:
@@ -1060,17 +1059,17 @@ clamav:
       cpu: 1000m
       memory: 4Gi
 
-podiumd-proxy:
+apiproxy:
   enabled: false
   replicaCount: 1
   nameOverride: ""
   fullnameOverride: ""
   image:
     repository: nginx
-    tag: "1.25-alpine"
+    tag: "1.27.4"
     pullPolicy: IfNotPresent
   service:
-    port: 8081
+    port: 80
   resources:
     limits:
       cpu: "0.5"
@@ -1078,7 +1077,7 @@ podiumd-proxy:
     requests:
       cpu: "0.1"
       memory: "128Mi"
-  nginxCertsSecret: "podiumd-proxy-certs"
+  nginxCertsSecret: "iconnect-proxy-certs"
   livenessProbe:
     initialDelaySeconds: 5
     periodSeconds: 10
@@ -1091,10 +1090,12 @@ podiumd-proxy:
       hostHeader: "lab.api.mijniconnect.nl"
     bag:
       <<: *commonLocation
+      path: /lvbag/individuelebevragingen/v2/
       targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apihcbrp/actueel/v2/"
     brp:
       <<: *commonLocation
-      targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apihcbrp/actueel/prtcl/v2/personen"
+      path: /haalcentraal/api/brp/
+      targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apihcbrp/actueel/prtcl/v2/"
     kvkSearch:
       <<: *commonLocation
       targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apikvk/zoeken/v2/zoeken"
