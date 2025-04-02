@@ -124,6 +124,85 @@ entries:
     version: 1.0.0
   podiumd:
   - apiVersion: v2
+    appVersion: 4.0.4
+    created: "2025-04-02T15:07:13.750641667Z"
+    dependencies:
+    - condition: keycloak.enabled
+      name: keycloak
+      repository: '@bitnami'
+      version: 24.3.0
+    - condition: openldap.enabled
+      name: openldap
+      repository: '@dimpact'
+      tags:
+      - zaak
+      version: 1.0.2
+    - condition: clamav.enabled
+      name: clamav
+      repository: '@wiremind'
+      version: 3.2.0
+    - condition: brpmock.enabled
+      name: brpmock
+      repository: '@dimpact'
+      tags:
+      - contact
+      - zaak
+      version: ~1.2.4
+    - condition: openzaak.enabled
+      name: openzaak
+      repository: '@maykinmedia'
+      version: 1.8.0
+    - condition: opennotificaties.enabled
+      name: opennotificaties
+      repository: '@maykinmedia'
+      version: 1.8.0
+    - condition: objecten.enabled
+      name: objecten
+      repository: '@maykinmedia'
+      version: 2.7.1
+    - condition: objecttypen.enabled
+      name: objecttypen
+      repository: '@maykinmedia'
+      version: 1.3.0
+    - condition: openklant.enabled
+      name: openklant
+      repository: '@maykinmedia'
+      version: 1.5.0
+    - alias: openformulieren
+      condition: openformulieren.enabled
+      name: openforms
+      repository: '@maykinmedia'
+      version: 1.4.4
+    - condition: openinwoner.enabled
+      name: openinwoner
+      repository: '@maykinmedia'
+      version: 1.7.0
+    - alias: kisselastic
+      condition: kisselastic.enabled
+      name: kiss-elastic
+      repository: '@kiss-elastic'
+      tags:
+      - contact
+      version: 1.0.0
+    - condition: infinispan.enabled
+      name: infinispan
+      repository: '@openshift'
+      version: 0.4.1
+    - alias: zac
+      condition: zac.enabled
+      name: zaakafhandelcomponent
+      repository: '@zac'
+      tags:
+      - zaak
+      version: 1.0.25
+    description: PodiumD Helm chart
+    digest: 256d19b63a3777b77ff4f3f955f58bdb28ca561855c81a39f9600959a42759d4
+    name: podiumd
+    type: application
+    urls:
+    - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/podiumd-4.0.4/podiumd-4.0.4.tgz
+    version: 4.0.4
+  - apiVersion: v2
     appVersion: 4.0.3
     created: "2025-03-21T09:09:47.547247807Z"
     dependencies:
@@ -4696,4 +4775,4 @@ entries:
     urls:
     - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/zac-1.0.0/zac-1.0.0.tgz
     version: 1.0.0
-generated: "2025-03-26T08:12:42.002605508Z"
+generated: "2025-04-02T15:07:13.927009484Z"
