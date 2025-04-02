@@ -139,7 +139,6 @@ kube-prometheus-stack:
       - kubernetes.io/pvc-protection
 
 prometheus:
-  enabled: true
   prometheusSpec:
   # read all serviceMonitors from all namespaces
    # basicAuth:
