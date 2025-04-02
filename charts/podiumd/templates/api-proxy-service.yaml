@@ -1,3 +1,4 @@
+{{- if .Values.apiproxy.enabled -}}
 apiVersion: v1
 kind: Service
 metadata:
@@ -10,3 +11,4 @@ spec:
     targetPort: http
     name: http
   type: ClusterIP
+{{- end }}
