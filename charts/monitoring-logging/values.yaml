@@ -13,6 +13,8 @@ kube-prometheus-stack:
     repository: ""
     tag: ""
   assertNoLeakedSecrets: false
+  deleteDatasources:
+      - name: Alertmanager
   additionalDataSources:
   - name: Loki
     type: loki
@@ -39,8 +41,6 @@ kube-prometheus-stack:
           url: http://{{ .Release.Name }}-prometheus:9090
           access: proxy
           isDefault: false
-    deleteDatasources:
-      - name: Alertmanager
 
   adminPassword: ""
 
@@ -137,7 +137,11 @@ kube-prometheus-stack:
     type: pvc
     finalizers:
       - kubernetes.io/pvc-protection
-
+      
+  sidecar:
+    datasources:
+      alertmanager:
+        enabled: false
 prometheus:
   prometheusSpec:
   # read all serviceMonitors from all namespaces
