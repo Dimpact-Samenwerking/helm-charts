@@ -680,7 +680,7 @@
             "h": 11,
             "w": 12,
             "x": 0,
-            "y": 22
+            "y": 60
           },
           "id": 62,
           "options": {
@@ -837,7 +837,7 @@
             "h": 11,
             "w": 12,
             "x": 12,
-            "y": 22
+            "y": 60
           },
           "id": 66,
           "options": {
@@ -999,7 +999,7 @@
             "h": 12,
             "w": 12,
             "x": 0,
-            "y": 33
+            "y": 71
           },
           "id": 72,
           "options": {
@@ -1175,7 +1175,7 @@
             "h": 12,
             "w": 24,
             "x": 0,
-            "y": 45
+            "y": 83
           },
           "id": 67,
           "options": {
@@ -1225,7 +1225,7 @@
       "type": "row"
     },
     {
-      "collapsed": true,
+      "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -1233,55 +1233,54 @@
         "y": 11
       },
       "id": 4,
-      "panels": [
+      "panels": [],
+      "title": "Alle logs",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "P8E80F9AEF21F6940"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 19,
+        "w": 24,
+        "x": 0,
+        "y": 12
+      },
+      "id": 68,
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "prettifyLogMessage": true,
+        "showCommonLabels": false,
+        "showLabels": false,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true
+      },
+      "pluginVersion": "11.3.0",
+      "targets": [
         {
           "datasource": {
             "type": "loki",
-            "uid": "P8E80F9AEF21F6940"
+            "uid": "loki"
           },
-          "description": "",
-          "fieldConfig": {
-            "defaults": {},
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 19,
-            "w": 24,
-            "x": 0,
-            "y": 419
-          },
-          "id": 68,
-          "options": {
-            "dedupStrategy": "none",
-            "enableLogDetails": true,
-            "prettifyLogMessage": true,
-            "showCommonLabels": false,
-            "showLabels": false,
-            "showTime": true,
-            "sortOrder": "Descending",
-            "wrapLogMessage": true
-          },
-          "pluginVersion": "11.3.0",
-          "targets": [
-            {
-              "datasource": {
-                "type": "loki",
-                "uid": "loki"
-              },
-              "direction": "backward",
-              "editorMode": "code",
-              "expr": "{app=~\"$Subapp\"}  |~ \"(?i)$search\" |~ \"(?i)$Methode\" |~ \"(?i)$LogLevel\" !~ `$excluded_log_levels`",
-              "maxLines": 100,
-              "queryType": "range",
-              "refId": "A"
-            }
-          ],
-          "title": "Logs component: $App",
-          "type": "logs"
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "{app=~\"$Subapp\"}  |~ \"(?i)$search\" |~ \"(?i)$Methode\" |~ \"(?i)$LogLevel\" !~ `$excluded_log_levels` != `HTTP/1.1\" 0 \"`",
+          "maxLines": 100,
+          "queryType": "range",
+          "refId": "A"
         }
       ],
-      "title": "Alle logs",
-      "type": "row"
+      "title": "Logs component: $App",
+      "type": "logs"
     },
     {
       "collapsed": true,
@@ -1289,7 +1288,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 12
+        "y": 31
       },
       "id": 71,
       "panels": [
@@ -1307,7 +1306,7 @@
             "h": 19,
             "w": 24,
             "x": 0,
-            "y": 653
+            "y": 32
           },
           "id": 70,
           "options": {
@@ -1329,7 +1328,7 @@
               },
               "direction": "backward",
               "editorMode": "code",
-              "expr": "{app=~\"$Subapp\"} !~ `$excluded_log_levels` |~ \"(?i)$search\" |~ `HTTP/1.1[\\\" ]*$http_code` ",
+              "expr": "{app=~\"$Subapp\"} !~ `$excluded_log_levels` |~ \"(?i)$search\" |~ `HTTP/1.1[\\\" ]*$http_code` != `HTTP/1.1\" 0 \"`",
               "hide": false,
               "maxLines": 100,
               "queryType": "range",
@@ -1349,7 +1348,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 13
+        "y": 32
       },
       "id": 52,
       "panels": [
@@ -1375,7 +1374,7 @@
             "h": 13,
             "w": 24,
             "x": 0,
-            "y": 788
+            "y": 826
           },
           "id": 51,
           "options": {
@@ -1416,7 +1415,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 14
+        "y": 33
       },
       "id": 64,
       "panels": [
@@ -1440,7 +1439,7 @@
             "h": 11,
             "w": 24,
             "x": 0,
-            "y": 789
+            "y": 827
           },
           "id": 63,
           "options": {
@@ -1637,8 +1636,12 @@
       {
         "allValue": ".*",
         "current": {
-          "text": "$__all",
-          "value": "$__all"
+          "text": [
+            "$__all"
+          ],
+          "value": [
+            "$__all"
+          ]
         },
         "description": "Kies een HTTP code en bekijk 'Logs met HTTP code' voor de specifieke logs",
         "includeAll": true,
@@ -1857,6 +1860,6 @@
   "timezone": "",
   "title": "Monitoring en logging PodiumD",
   "uid": "e970a83d-adc2-4d33-af93-2349c0b77e5",
-  "version": 187,
+  "version": 188,
   "weekStart": ""
 }
