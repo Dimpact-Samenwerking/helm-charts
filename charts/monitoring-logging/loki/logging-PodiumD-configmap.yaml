@@ -449,7 +449,8 @@ data:
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -690,7 +691,7 @@ data:
             "h": 11,
             "w": 12,
             "x": 0,
-            "y": 60
+            "y": 41
           },
           "id": 62,
           "options": {
@@ -803,7 +804,8 @@ data:
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -847,7 +849,7 @@ data:
             "h": 11,
             "w": 12,
             "x": 12,
-            "y": 60
+            "y": 41
           },
           "id": 66,
           "options": {
@@ -1009,7 +1011,7 @@ data:
             "h": 12,
             "w": 12,
             "x": 0,
-            "y": 71
+            "y": 52
           },
           "id": 72,
           "options": {
@@ -1139,7 +1141,8 @@ data:
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -1183,9 +1186,9 @@ data:
           },
           "gridPos": {
             "h": 12,
-            "w": 24,
-            "x": 0,
-            "y": 83
+            "w": 12,
+            "x": 12,
+            "y": 52
           },
           "id": 67,
           "options": {
@@ -1227,7 +1230,7 @@ data:
               "refId": "A"
             }
           ],
-          "title": "Alle ingezonden formulieren en OF nummers historisch",
+          "title": "Alle ingezonden formulier namen en OF-nummers historisch",
           "type": "timeseries"
         }
       ],
@@ -1316,7 +1319,7 @@ data:
             "h": 19,
             "w": 24,
             "x": 0,
-            "y": 32
+            "y": 323
           },
           "id": 70,
           "options": {
@@ -1349,7 +1352,7 @@ data:
           "type": "logs"
         }
       ],
-      "title": "Logs met HTTP code",
+      "title": "Logs met ALLEEN een HTTP code",
       "type": "row"
     },
     {
@@ -1384,7 +1387,7 @@ data:
             "h": 13,
             "w": 24,
             "x": 0,
-            "y": 826
+            "y": 449
           },
           "id": 51,
           "options": {
@@ -1416,7 +1419,7 @@ data:
           "type": "logs"
         }
       ],
-      "title": "Logs inzending OF formulieren",
+      "title": "Logs inzending formulieren met OF-nummer",
       "type": "row"
     },
     {
@@ -1449,7 +1452,7 @@ data:
             "h": 11,
             "w": 24,
             "x": 0,
-            "y": 827
+            "y": 401
           },
           "id": 63,
           "options": {
@@ -1566,8 +1569,8 @@ data:
         "options": [
           {
             "selected": false,
-            "text": "warning",
-            "value": "warning"
+            "text": "warn",
+            "value": "warn"
           },
           {
             "selected": false,
@@ -1575,7 +1578,7 @@ data:
             "value": "error"
           }
         ],
-        "query": "warning,error",
+        "query": "warn,error",
         "type": "custom"
       },
       {
@@ -1745,8 +1748,8 @@ data:
       },
       {
         "current": {
-          "text": "",
-          "value": ""
+          "text": "err",
+          "value": "err"
         },
         "description": "Vul hier je zoekwoord in. Voorbeeld: formulier",
         "label": "Zoeken",
@@ -1754,11 +1757,11 @@ data:
         "options": [
           {
             "selected": true,
-            "text": "",
-            "value": ""
+            "text": "err",
+            "value": "err"
           }
         ],
-        "query": "",
+        "query": "err",
         "type": "textbox"
       },
       {
@@ -1870,6 +1873,6 @@ data:
   "timezone": "",
   "title": "Monitoring en logging PodiumD",
   "uid": "e970a83d-adc2-4d33-af93-2349c0b77e5",
-  "version": 188,
+  "version": 189,
   "weekStart": ""
 }
