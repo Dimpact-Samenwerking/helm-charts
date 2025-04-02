@@ -24,7 +24,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 146,
+  "id": 34,
   "links": [],
   "panels": [
     {
@@ -40,7 +40,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "P8E80F9AEF21F6940"
+            "uid": "fehobyf45eghsb"
           },
           "fieldConfig": {
             "defaults": {
@@ -113,7 +113,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "P8E80F9AEF21F6940"
+            "uid": "fehobyf45eghsb"
           },
           "fieldConfig": {
             "defaults": {
@@ -211,7 +211,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "P8E80F9AEF21F6940"
+            "uid": "fehobyf45eghsb"
           },
           "fieldConfig": {
             "defaults": {
@@ -353,7 +353,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "P8E80F9AEF21F6940"
+            "uid": "fehobyf45eghsb"
           },
           "fieldConfig": {
             "defaults": {
@@ -495,7 +495,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "P8E80F9AEF21F6940"
+            "uid": "fehobyf45eghsb"
           },
           "fieldConfig": {
             "defaults": {
@@ -634,7 +634,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "P8E80F9AEF21F6940"
+            "uid": "fehobyf45eghsb"
           },
           "fieldConfig": {
             "defaults": {
@@ -984,7 +984,7 @@
             "h": 11,
             "w": 12,
             "x": 0,
-            "y": 141
+            "y": 2
           },
           "id": 60,
           "options": {
@@ -1141,7 +1141,7 @@
             "h": 11,
             "w": 12,
             "x": 12,
-            "y": 141
+            "y": 2
           },
           "id": 61,
           "options": {
@@ -1338,7 +1338,7 @@
             "h": 11,
             "w": 12,
             "x": 0,
-            "y": 190
+            "y": 32
           },
           "id": 62,
           "options": {
@@ -1497,7 +1497,7 @@
             "h": 11,
             "w": 12,
             "x": 12,
-            "y": 190
+            "y": 32
           },
           "id": 66,
           "options": {
@@ -1655,7 +1655,7 @@
             "h": 12,
             "w": 24,
             "x": 0,
-            "y": 201
+            "y": 43
           },
           "id": 67,
           "options": {
@@ -1723,7 +1723,7 @@
     {
       "datasource": {
         "type": "loki",
-        "uid": "P8E80F9AEF21F6940"
+        "uid": "fehobyf45eghsb"
       },
       "description": "",
       "fieldConfig": {
@@ -1757,7 +1757,7 @@
           },
           "direction": "backward",
           "editorMode": "code",
-          "expr": "{app=~\"$App\"}  |~ \"(?i)$search\" |~ \"(?i)$Methode\" |~ \"(?i)$LogLevel\" !~ `$excluded_log_levels`",
+          "expr": "{app=~\"$App\"}  |~ \"(?i)$search\" |~ \"(?i)$Methode\" |~ \"(?i)$LogLevel\" !~ `$excluded_log_levels` != `HTTP/1.1\" 0 \"`",
           "maxLines": 100,
           "queryType": "range",
           "refId": "A"
@@ -1779,7 +1779,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "P8E80F9AEF21F6940"
+            "uid": "fehobyf45eghsb"
           },
           "description": "",
           "fieldConfig": {
@@ -1790,7 +1790,7 @@
             "h": 19,
             "w": 24,
             "x": 0,
-            "y": 162
+            "y": 105
           },
           "id": 70,
           "options": {
@@ -1813,7 +1813,7 @@
               },
               "direction": "backward",
               "editorMode": "code",
-              "expr": "{app=~\"$App\"} !~ `$excluded_log_levels` |~ \"(?i)$search\" |~ `HTTP/1.1[\\\" ]*$http_code` ",
+              "expr": "{app=~\"$App\"} !~ `$excluded_log_levels` |~ \"(?i)$search\" |~ `HTTP/1.1[\\\" ]*$http_code` |~ `$http_code[\"\\ ]*$Methode` != `HTTP/1.1\" 0 \"`",
               "hide": false,
               "maxLines": 100,
               "queryType": "range",
@@ -1859,7 +1859,7 @@
             "h": 13,
             "w": 24,
             "x": 0,
-            "y": 1023
+            "y": 1181
           },
           "id": 51,
           "options": {
@@ -1926,7 +1926,7 @@
             "h": 11,
             "w": 24,
             "x": 0,
-            "y": 1024
+            "y": 1182
           },
           "id": 63,
           "options": {
@@ -1973,15 +1973,15 @@
       {
         "current": {
           "text": [
-            "monitoring"
+            "All"
           ],
           "value": [
-            "monitoring"
+            "$__all"
           ]
         },
         "datasource": {
           "type": "loki",
-          "uid": "P8E80F9AEF21F6940"
+          "uid": "fehobyf45eghsb"
         },
         "definition": "",
         "includeAll": true,
@@ -2008,7 +2008,7 @@
         },
         "datasource": {
           "type": "loki",
-          "uid": "P8E80F9AEF21F6940"
+          "uid": "fehobyf45eghsb"
         },
         "definition": "",
         "description": "Wordt automatisch geselecteerd als je een PodiumD component hebt gekozen. Voor diepere analyse kan er eventueel een subcomponent geselecteerd worden",
@@ -2350,6 +2350,6 @@
   "timezone": "",
   "title": "Monitoring en logging PodiumD",
   "uid": "e970a83d-adc2-4d33-af93-2349c0b77",
-  "version": 6,
+  "version": 4,
   "weekStart": ""
 }
