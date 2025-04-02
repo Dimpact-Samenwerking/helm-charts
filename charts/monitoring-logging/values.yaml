@@ -281,7 +281,16 @@ serviceAccount:
     "azure.workload.identity/client-id": "<APP-ID>" # The app ID of the Azure AD app
   labels:
     "azure.workload.identity/use": "true"
-    
+
+#gateway:
+#  ingress:
+#    enabled: true
+#    hosts:
+#      - host: FIXME
+#        paths:
+#          - path: /
+#            pathType: Prefix
+
 deploymentMode: Distributed
 
 ingester:
