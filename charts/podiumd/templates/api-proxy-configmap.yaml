@@ -3,7 +3,7 @@ kind: ConfigMap
 metadata:
   name: {{ include "api-proxy.fullname" . }}-nginx-config
 data:
-  nginx.conf: |
+  nginx.conf: |-
     user nginx;
     worker_processes auto;
     error_log /var/log/nginx/error.log notice;
