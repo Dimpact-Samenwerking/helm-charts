@@ -76,7 +76,6 @@ Patch release for Open Inwoner bug fix.
 | Open Zaak         | 1.18.0  | Minor update   |
 | Kiss              | 0.7.1   | Minor update   |
 | Zac               | 3.0.0   | Nieuw component|
-| Podiumd Proxy     | 1.0.0   | Nieuw component|
 
 
 ## Add Used chart repositories:

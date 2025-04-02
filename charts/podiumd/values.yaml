@@ -1077,7 +1077,7 @@ apiproxy:
     requests:
       cpu: "0.1"
       memory: "128Mi"
-  nginxCertsSecret: "iconnect-proxy-certs"
+  nginxCertsSecret: "api-proxy-certs"
   livenessProbe:
     initialDelaySeconds: 5
     periodSeconds: 10
