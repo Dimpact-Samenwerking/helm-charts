@@ -56,7 +56,16 @@ loki:
     compaction_interval: 10m
     retention_delete_delay: 2h
     retention_delete_worker_count: 150
-    
+
+#gateway:
+#  ingress:
+#    enabled: true
+#    hosts:
+#      - host: FIXME
+#        paths:
+#          - path: /
+#            pathType: Prefix
+
 deploymentMode: Distributed
 
 ingester:
