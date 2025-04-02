@@ -1,13 +1,13 @@
-{{- if .Values.apiproxy.enabled -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ default "api-proxy" .Values.apiproxy.nameOverride }}-nginx-config
+  name: {{ include "api-proxy.fullname" . }}-nginx-config
 data:
   nginx.conf: |
-    pid /tmp/nginx.pid;
+    user nginx;
     worker_processes auto;
     error_log /var/log/nginx/error.log notice;
+    pid /var/run/nginx.pid;
 
     events {
       worker_connections 1024;
@@ -31,50 +31,38 @@ data:
         
         # BAG API (Dutch Building and Address Registry)
         location {{ .Values.apiproxy.locations.bag.path }} {
-    {{- if .Values.apiproxy.nginxCertsSecret }}
           proxy_ssl_certificate_key /etc/nginx/certs/client.key;
           proxy_ssl_certificate /etc/nginx/certs/client.crt;
           proxy_ssl_trusted_certificate /etc/nginx/certs/ca.crt;
-    {{- end }}
-
-    {{- if .Values.apiproxy.locations.bag.apikey }}
-          proxy_set_header X-Api-Key {{ .Values.apiproxy.locations.bag.apikey }};
-    {{- end }}
+          
           proxy_pass {{ .Values.apiproxy.locations.bag.targetUrl }};
-          proxy_ssl_verify {{ .Values.apiproxy.locations.bag.sslVerify }};
+          proxy_ssl_verify {{ .Values.locations.bag.sslVerify }};
           proxy_ssl_session_reuse on;
           proxy_ssl_server_name on;
-          proxy_set_header Host {{ .Values.apiproxy.locations.bag.hostHeader }};
+          proxy_set_header Host {{ .Values.locations.bag.hostHeader }};
           proxy_http_version 1.1;
         }
         
         # BRP API (Dutch Personal Records Database)
         location {{ .Values.apiproxy.locations.brp.path }} {
-    {{- if .Values.apiproxy.nginxCertsSecret }}
           proxy_ssl_certificate_key /etc/nginx/certs/client.key;
           proxy_ssl_certificate /etc/nginx/certs/client.crt;
           proxy_ssl_trusted_certificate /etc/nginx/certs/ca.crt;
-    {{- end }}
-
+          
           proxy_pass {{ .Values.apiproxy.locations.brp.targetUrl }};
-          proxy_ssl_verify {{ .Values.apiproxy.locations.brp.sslVerify }};
+          proxy_ssl_verify {{ .Values.locations.brp.sslVerify }};
           proxy_ssl_session_reuse on;
           proxy_ssl_server_name on;
-          proxy_set_header Host {{ .Values.apiproxy.locations.brp.hostHeader }};
+          proxy_set_header Host {{ .Values.locations.brp.hostHeader }};
           proxy_http_version 1.1;
         }
         
         # KVK API - Search (Dutch Chamber of Commerce)
-        location {{ .Values.apiproxy.locations.kvkSearch.path }} {
-    {{- if .Values.apiproxy.nginxCertsSecret }}
+        location /kvk/v2/zoeken {
           proxy_ssl_certificate_key /etc/nginx/certs/client.key;
           proxy_ssl_certificate /etc/nginx/certs/client.crt;
           proxy_ssl_trusted_certificate /etc/nginx/certs/ca.crt;
-    {{- end }}
-
-    {{- if .Values.apiproxy.locations.kvkSearch.apikey }}
-          proxy_set_header apikey {{ .Values.apiproxy.locations.kvkSearch.apikey }};
-    {{- end }}
+          
           proxy_pass {{ .Values.apiproxy.locations.kvkSearch.targetUrl }};
           proxy_ssl_verify {{ .Values.apiproxy.locations.kvkSearch.sslVerify }};
           proxy_ssl_session_reuse on;
@@ -84,16 +72,11 @@ data:
         }
         
         # KVK API - Basic Profile
-        location {{ .Values.apiproxy.locations.kvkBasic.path }} {
-    {{- if .Values.apiproxy.nginxCertsSecret }}
+        location /kvk/v1/basisprofielen {
           proxy_ssl_certificate_key /etc/nginx/certs/client.key;
           proxy_ssl_certificate /etc/nginx/certs/client.crt;
           proxy_ssl_trusted_certificate /etc/nginx/certs/ca.crt;
-    {{- end }}
-
-    {{- if .Values.apiproxy.locations.kvkBasic.apikey }}
-          proxy_set_header apikey {{ .Values.apiproxy.locations.kvkBasic.apikey }};
-    {{- end }}
+          
           proxy_pass {{ .Values.apiproxy.locations.kvkBasic.targetUrl }};
           proxy_ssl_verify {{ .Values.apiproxy.locations.kvkBasic.sslVerify }};
           proxy_ssl_session_reuse on;
@@ -103,16 +86,11 @@ data:
         }
         
         # KVK API - Branch Profile
-        location {{ .Values.apiproxy.locations.kvkBranch.path }} {
-    {{- if .Values.apiproxy.nginxCertsSecret }}
+        location /kvk/v1/vestigingsprofielen {
           proxy_ssl_certificate_key /etc/nginx/certs/client.key;
           proxy_ssl_certificate /etc/nginx/certs/client.crt;
           proxy_ssl_trusted_certificate /etc/nginx/certs/ca.crt;
-    {{- end }}
-
-    {{- if .Values.apiproxy.locations.kvkBranch.apikey }}
-          proxy_set_header apikey {{ .Values.apiproxy.locations.kvkBranch.apikey }}
-    {{- end }}
+          
           proxy_pass {{ .Values.apiproxy.locations.kvkBranch.targetUrl }};
           proxy_ssl_verify {{ .Values.apiproxy.locations.kvkBranch.sslVerify }};
           proxy_ssl_session_reuse on;
@@ -128,4 +106,3 @@ data:
         }
       }
     }
-{{- end }}
