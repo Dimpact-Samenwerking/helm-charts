@@ -72,11 +72,11 @@ kube-prometheus-stack:
   dashboards:
     default:
       Logging-PodiumD:
-        url: https://raw.githubusercontent.com/Dimpact-Samenwerking/helm-charts/refs/heads/feature/IN-72_monitoring-logging/charts/monitoring-logging/grafana/dashboards/logging_PodiumD.json
+        url: ""
         token: ''
-        datasource: Loki
+        datasource: ""
   dashboardsConfigMaps:
-    default: "loki-dashboard"
+    default: "logging-podiumd-dashboard"
 
   grafana.ini:
     server:
