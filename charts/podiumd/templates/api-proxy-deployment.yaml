@@ -1,0 +1,56 @@
+{{- if .Values.apiproxy.enabled -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ default "api-proxy" .Values.apiproxy.nameOverride }}
+  labels:
+    app: {{ default "api-proxy" .Values.apiproxy.nameOverride }}
+spec:
+  replicas: {{ .Values.apiproxy.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ default "api-proxy" .Values.apiproxy.nameOverride }}
+  template:
+    metadata:
+      labels:
+        app: {{ default "api-proxy" .Values.apiproxy.nameOverride }}
+    spec:
+      containers:
+      - name: nginx
+        image: {{ .Values.apiproxy.image.repository }}:{{ .Values.apiproxy.image.tag }}
+        ports:
+        - containerPort: 8080
+          name: http
+        volumeMounts:
+        - name: nginx-config
+          mountPath: /etc/nginx/nginx.conf
+          subPath: nginx.conf
+        - name: nginx-certs
+          mountPath: /etc/nginx/certs
+        resources:
+          limits:
+            cpu: {{ .Values.apiproxy.resources.limits.cpu }}
+            memory: {{ .Values.apiproxy.resources.limits.memory }}
+          requests:
+            cpu: {{ .Values.apiproxy.resources.requests.cpu }}
+            memory: {{ .Values.apiproxy.resources.requests.memory }}
+        livenessProbe:
+          httpGet:
+            path: /_health/
+            port: {{ .Values.apiproxy.service.port }}
+          initialDelaySeconds: {{ .Values.apiproxy.livenessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.apiproxy.livenessProbe.periodSeconds }}
+        readinessProbe:
+          httpGet:
+            path: /_health/
+            port: {{ .Values.apiproxy.service.port }}
+          initialDelaySeconds: {{ .Values.apiproxy.readinessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.apiproxy.readinessProbe.periodSeconds }}
+      volumes:
+      - name: nginx-config
+        configMap:
+          name: {{ default "api-proxy" .Values.apiproxy.nameOverride }}-nginx-config
+      - name: nginx-certs
+        secret:
+          secretName: {{ .Values.apiproxy.nginxCertsSecret }}
+{{- end }}

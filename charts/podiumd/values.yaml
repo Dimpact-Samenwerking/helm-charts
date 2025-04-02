@@ -758,10 +758,10 @@ kiss:
 
   email:
     host: ""
-    port: null
+    port: "587"
     username: ""
     password: ""
-    enableSSL: null
+    enableSSL: "true"
     feedbackFrom: ""
     feedbackTo: ""
 
@@ -811,7 +811,8 @@ kiss:
       name: ""
     image:
       repository: ghcr.io/klantinteractie-servicesysteem/kiss-frontend
-      tag: "release-0.6.x-20250225135203-7183543"
+      tag: "release-0.7.x-20250331101502-2fe19fb"
+
       pullPolicy: IfNotPresent
     resources:
       requests:
@@ -904,7 +905,7 @@ zac:
   nginx:
     enabled: true
     client_max_body_size: 150M
-  notificationsSecretKey: "changeme"
+  # notificationsSecretKey: "changeme"
   objectenApi:
     url: http://objecten.example.nl
     token: objectentoken
@@ -933,9 +934,8 @@ zac:
     nodeSelector: {}
     solr:
       #busyBoxImage:
-        #image:
-          #repository:
-          #tag:
+        #repository:
+        #tag:
       # -- set enabled to provision solrcloud as well
       enabled: true
       #image:
@@ -1058,6 +1058,52 @@ clamav:
     requests:
       cpu: 1000m
       memory: 4Gi
+
+apiproxy:
+  enabled: false
+  replicaCount: 1
+  #nameOverride: "iconnect-proxy"
+  image:
+    repository: nginx
+    tag: "1.27.4"
+    pullPolicy: IfNotPresent
+  service:
+    port: 80
+  resources:
+    limits:
+      cpu: "0.5"
+      memory: "256Mi"
+    requests:
+      cpu: "0.1"
+      memory: "128Mi"
+  nginxCertsSecret: "api-proxy-certs"
+  livenessProbe:
+    initialDelaySeconds: 5
+    periodSeconds: 10
+  readinessProbe:
+    initialDelaySeconds: 5
+    periodSeconds: 10
+  locations:
+    commonSettings: &commonLocation
+      sslVerify: "off"
+      hostHeader: "lab.api.mijniconnect.nl"
+    bag:
+      <<: *commonLocation
+      path: /lvbag/individuelebevragingen/v2/
+      targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apihcbrp/actueel/v2/"
+    brp:
+      <<: *commonLocation
+      path: /haalcentraal/api/brp/
+      targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apihcbrp/actueel/prtcl/v2/"
+    kvkSearch:
+      <<: *commonLocation
+      targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apikvk/zoeken/v2/zoeken"
+    kvkBasic:
+      <<: *commonLocation
+      targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apikvk/basprof/v1/v1/basisprofielen"
+    kvkBranch:
+      <<: *commonLocation
+      targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apikvk/vesprof/v1/v1/vestigingsprofielen"
 
 serviceAccount:
   create: true
