@@ -2,57 +2,57 @@ apiVersion: v2
 name: podiumd
 description: PodiumD Helm chart
 type: application
-<<<<<<< HEAD
-version: 4.1.1
-appVersion: "4.1.1"
-=======
 version: 4.0.4
 appVersion: "4.0.4"
->>>>>>> 91fc98b (feat: bumped helm chart version)
 dependencies:
   - name: keycloak
     version: 24.3.0
     repository: "@bitnami"
     condition: keycloak.enabled
+  - name: openldap
+    version: 1.0.2
+    repository: "@dimpact"
+    condition: openldap.enabled
+    tags:
+      - zaak
   - name: clamav
     version: 3.2.0
     repository: "@wiremind"
     condition: clamav.enabled
-  - name: brp-personen-mock
+  - name: brpmock
     version: ~1.2.4
     repository: "@dimpact"
-    condition: brp-personen-mock.enabled
+    condition: brpmock.enabled
+    tags:
+      - contact
+      - zaak
   - name: openzaak
-    version: 1.8.1
+    version: 1.8.0
     repository: "@maykinmedia"
     condition: openzaak.enabled
   - name: opennotificaties
-    version: 1.8.2
+    version: 1.8.0
     repository: "@maykinmedia"
     condition: opennotificaties.enabled
   - name: objecten
-    version: 2.7.4
+    version: 2.7.1
     repository: "@maykinmedia"
     condition: objecten.enabled
   - name: objecttypen
-    version: 1.3.2
+    version: 1.3.0
     repository: "@maykinmedia"
     condition: objecttypen.enabled
-  - name: openarchiefbeheer
-    version: 1.3.8
-    repository: "@maykinmedia"
-    condition: openarchiefbeheer.enabled
   - name: openklant
-    version: 1.6.3
+    version: 1.5.0
     repository: "@maykinmedia"
     condition: openklant.enabled
   - name: openforms
     alias: openformulieren
-    version: 1.8.2
+    version: 1.4.4
     repository: "@maykinmedia"
     condition: openformulieren.enabled
   - name: openinwoner
-    version: 1.7.2
+    version: 1.7.0
     repository: "@maykinmedia"
     condition: openinwoner.enabled
   - name: kiss-elastic
@@ -68,12 +68,8 @@ dependencies:
     condition: infinispan.enabled
   - name: zaakafhandelcomponent
     alias: zac
-    version: 1.0.46
+    version: 1.0.25
     repository: "@zac"
     condition: zac.enabled
     tags:
       - zaak
-  - name: podiumd-proxy
-    version: 1.0.0
-    repository: file://charts/podiumd-proxy
-    condition: proxy.enabled

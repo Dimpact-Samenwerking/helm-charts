@@ -72,12 +72,6 @@ keycloak:
       fromDisplayName: "noreply@example.nl"
       starttls: "true"
       ssl: "false"
-    clients:
-      monitoring:
-        name: Monitoring (Grafana)
-        enabled: true
-        secret: "monitoring_secret"
-        oidcUrl: "https://monitoring.example.nl"
   # -- required to activate infinispan
   # customCaExistingSecret: ispn-secret
   # -- enable keycloak by default
@@ -331,6 +325,26 @@ infinispan:
   monitoring:
     enabled: true
 
+openldap:
+  enabled: false
+  persistence:
+    size: 1Gi
+    existingClaim: openldap
+  persistentVolume:
+    volumeAttributeShareName: openldap
+  nameOverride: openldap
+  fullnameOverride: openldap
+
+abc:
+  configuration:
+    oidcUrl: https://abc.example.nl
+    oidcSecret: "abc"
+  enabled: false
+
+brpmock:
+  enabled: false
+  nameOverride: brpmock
+
 openzaak:
   configuration:
     oidcUrl: https://openzaak.example.nl
@@ -416,7 +430,7 @@ opennotificaties:
   persistentVolume:
     volumeAttributeShareName: opennotificaties
   image:
-    tag: "1.8.2"
+    tag: "1.8.0"
   resources:
     requests:
       cpu: 100m
@@ -471,7 +485,7 @@ objecten:
   persistentVolume:
     volumeAttributeShareName: objecten
   image:
-    tag: "3.0.3"
+    tag: "3.0.0"
   resources:
     requests:
       cpu: 100m
@@ -511,7 +525,7 @@ objecttypen:
       useTLS: true
     disable2fa: false
   image:
-    tag: "3.0.2"
+    tag: "3.0.0"
   # used for create-required-objecttypen podiumd job only
   create_required_objecttypen_job:
     enabled: true
@@ -534,380 +548,8 @@ objecttypen:
           cpu: 10m
           memory: 64Mi
 
-
-openarchiefbeheer:
-  enabled: true
-  nameOverride: openarchiefbeheer
-  fullnameOverride: openarchiefbeheer
-  configuration:
-    enabled: false
-    oidcUrl: https://abc.example.nl
-    oidcSecret: "abc"
-    job:
-      enabled: true
-      backoffLimit: 6
-      ttlSecondsAfterFinished: 0    
-      restartPolicy: OnFailure
-    secrets: {}
-    data: ""
-    # data: |-
-    #   zgw_consumers_config_enable: true
-    #   zgw_consumers:
-    #     services:
-    #     - identifier: zaken-dimpact-acc
-    #       label: Open Zaak - Zaken API
-    #       api_root: https://example.openzaak.nl/zaken/api/v1/
-    #       api_type: zrc
-    #       auth_type: zgw
-    #       client_id: openarchiefbeheer
-    #       secret: ${oab_openzaak_secret}
-    #     - identifier: documenten-dimpact-acc
-    #       label: Open Zaak - Documenten API
-    #       api_root: https://example.openzaak.nl/documenten/api/v1/
-    #       api_type: drc
-    #       auth_type: zgw
-    #       client_id: openarchiefbeheer
-    #       secret: ${oab_openzaak_secret}
-    #     - identifier: catalogus-dimpact-acc
-    #       label: Open Zaak - Catalogi API
-    #       api_root: https://example.openzaak.nl/catalogi/api/v1/
-    #       api_type: ztc
-    #       auth_type: zgw
-    #       client_id: openarchiefbeheer
-    #       secret: ${oab_openzaak_secret}
-    #     - identifier: besluiten-dimpact-acc
-    #       label: Open Zaak - Besluiten API
-    #       api_root: https://example.openzaak.nl/besluiten/api/v1/
-    #       api_type: brc
-    #       auth_type: zgw
-    #       client_id: openarchiefbeheer
-    #       secret: ${oab_openzaak_secret}
-    #     - identifier: selectielijst
-    #       label: Open Zaak (public) - Selectielijst API
-    #       api_root: https://selectielijst.openzaak.nl/api/v1/
-    #       api_type: orc
-    #       auth_type: no_auth
-
-    #   api_configuration_enabled: true
-    #   api_configuration:
-    #     selectielijst_service_identifier: selectielijst
-
-    #   oidc_db_config_enable: true
-    #   oidc_db_config_admin_auth:
-    #     items:
-    #     - identifier: admin-oidc
-    #       enabled: true
-    #       oidc_rp_client_id: example-client-id
-    #       oidc_rp_client_secret: ${keycloak_client_secret}
-    #       oidc_rp_sign_algo: "RS256"
-    #       oidc_token_use_basic_auth: false
-    #       username_claim:
-    #         - preferred_username
-    #       groups_claim:
-    #         - resource_access
-    #         - example-client-id
-    #         - roles
-    #       superuser_group_names:
-    #         - Superuser
-    #       userinfo_claims_source: userinfo_endpoint
-    #       oidc_rp_idp_sign_key: ""
-    #       endpoint_config:
-    #         oidc_op_discovery_endpoint: https://example.keycloak.nl/realms/podiumd-poc/
-  
-
-  tags:
-    redis: true
-
-  replicaCount: 1
-
-  image:
-    tag: "1.0.0"
-
-  service:
-    type: ClusterIP
-    port: 80
-
-  ingress:
-    enabled: false
-    annotations: {}
-    className: ""
-    hosts: []
-    tls: []
-
-  extraIngress: []
-
-  resources:
-    limits: {}
-    requests:
-      cpu: 250m
-      memory: 256Mi
-
-  autoscaling:
-    enabled: false
-    minReplicas: 1
-    maxReplicas: 100
-    targetCPUUtilizationPercentage: 80
-    targetMemoryUtilizationPercentage: 80
-
-  pdb:
-    create: false
-    minAvailable: 1
-    maxUnavailable: ""
-
-  nodeSelector: {}
-
-  tolerations: []
-
-  affinity: {}
-
-  persistence:
-    enabled: true
-    size: 10Gi
-    existingClaim: openarchiefbeheer
-    storageClassName: ""
-    mediaMountSubpath: openarchiefbeheer/media
-    privateMediaMountSubpath: openarchiefbeheer/private_media
-  persistentVolume:
-    volumeAttributeShareName: openarchiefbeheer
-
-  existingSecret: null
-
-  azureVaultSecret:
-    vaultName: null
-    objectName: ""
-    contentType: ""
-    secretName: "{{ .Values.existingSecret }}"
-
-  extraEnvVars: []
-  extraVolumes: []
-  extraVolumeMounts: []
-
-  pythonAppName: openarchiefbeheer
-  settings:
-    allowedHosts: openarchiefbeheer.podiumd.svc.cluster.local
-    # -- Name of the environment (used for displaying purposes)
-    environment: ""
-    requestsReadTimeout: "5000"
-    # -- Number of days to wait before destroying a list. Defaults to 7 in the application.
-    waitingPeriod: ""
-
-    # -- Settings for the database. Note: Open-Archiefbeheer needs the POSTGIS extension to be installed in the database.
-    database:
-      host: ""
-      port: 5432
-      username: ""
-      password: ""
-      name: ""
-      sslmode: prefer
-
-    cookie:
-      sessionCookieSamesite: 'Lax'
-      sessionCookieSecure: true
-      csrfCookieSamesite: 'Lax'
-      csrfCookieSecure: true
-
-    cors:
-      allowedOrigins: ""
-      allowedOriginsRegexes: ""
-      allowAllOrigins: false
-      extraAllowHeaders: ""
-
-    throttling:
-      enable: true
-      rateAnonymous: "2500/hour"
-      rateUser: "15000/hour"
-
-    twoFactorAuthentication:
-      forceOtpAdmin: true
-      patchAdmin: true
-
-    csrf:
-      trustedOrigins: ""
-
-    sentry:
-      dsn: ""
-
-    cache:
-      default: ""
-      axes: ""
-      choices: ""
-
-    celery:
-      brokerUrl: ""
-      resultBackend: ""
-      logLevel: debug
-
-    email:
-      port: 587
-      useTLS: true
-      
-    uwsgi:
-      master: ''
-      threads: ''
-      processes: ''
-      maxRequests: ''
-      harakiri: ''
-
-    frontend:
-      apiUrl: ""
-      apiPath: "/api/v1"
-      zaakUrlTemplate: ""
-
-    frontendUrl: ""
-    retry:
-      total: ""
-      backoffFactor: ""
-      statusForcelist: ""
-
-  worker:
-    label: "1"
-    name: ""
-    queueName: ""
-    replicaCount: 1
-    concurrency: 4
-    podLabels: {}
-    resources: {}
-    livenessProbe: 
-      enabled: false
-      exec:
-        command:
-          - /app/liveness/liveness-probe.sh
-      initialDelaySeconds: 60
-      periodSeconds: 30
-      timeoutSeconds: 10
-      failureThreshold: 3
-      successThreshold: 1
-    autoscaling:
-      enabled: false
-      minReplicas: 1
-      maxReplicas: 100
-      targetCPUUtilizationPercentage: 80
-      targetMemoryUtilizationPercentage: 80
-
-  flower:
-    enabled: true
-    replicaCount: 1
-    podLabels: {}
-    service:
-      type: ClusterIP
-      port: 80
-    livenessProbe: {}
-    readinessProbe: {}
-    resources: {}
-
-  beat:
-    enabled: true
-    replicaCount: 1
-    podLabels: {}
-    livenessProbe: {}
-    readinessProbe: {}
-    resources: {}
-
-  nginx:
-    image:
-      repository: nginxinc/nginx-unprivileged
-      pullPolicy: IfNotPresent
-      tag: stable
-    resources:
-      requests:
-        cpu: 10m
-        memory: 16Mi
-    existingConfigmap: null
-    service:
-      type: ClusterIP
-      port: 8080
-      annotations: {}
-    replicaCount: 1
-    podLabels: {}
-    securityContext:
-      capabilities:
-        drop:
-        - ALL
-      readOnlyRootFilesystem: false
-      runAsNonRoot: true
-      runAsUser: 101
-    autoscaling:
-      enabled: false
-    livenessProbe: {}
-    readinessProbe: {}
-    resources: {}
-
-  redis:
-    nameOverride: openarchiefbeheer-redis
-    fullnameOverride: openarchiefbeheer-redis
-    architecture: standalone
-    auth:
-      enabled: false
-    master:
-      persistence:
-        enabled: true
-        size: 8Gi
-        storageClass: ""
-      resources:
-        requests:
-          cpu: 10m
-          memory: 20Mi
-
 openklant:
   configuration:
-    enabled: true
-    initContainer:
-      enabled: false    
-    job:
-      enabled: true
-      backoffLimit: 6
-      ttlSecondsAfterFinished: 0    
-      restartPolicy: OnFailure
-      resources: {}
-    secrets: {}      
-    data: ""        
-    # data: |-
-    #   oidc_db_config_enable: True
-    #   oidc_db_config_admin_auth:
-    #     items:
-    #     - identifier: admin-oidc
-    #       enabled: True
-    #       oidc_rp_client_id: openklant.example.nl
-    #       oidc_rp_client_secret: ${keycloak_client_secret}
-    #       oidc_rp_scopes_list:
-    #       - openid
-    #       - email
-    #       - profile
-    #       - roles
-    #       oidc_rp_sign_algo: RS256
-    #       endpoint_config:
-    #         oidc_op_discovery_endpoint: https://keycloak.example.nl/realms/gemeente-x/
-    #       username_claim:
-    #       - sub
-    #       groups_claim:
-    #       - roles
-    #       claim_mapping:
-    #         first_name:
-    #         - given_name
-    #         last_name:
-    #         - family_name
-    #         email:
-    #         - email
-    #       sync_groups: true
-    #       sync_groups_glob_pattern: "*"
-    #       default_groups: []
-    #       make_users_staff: true
-    #       superuser_group_names:
-    #       - Superuser
-    #       oidc_use_nonce: true
-    #       oidc_nonce_size: 32
-    #       oidc_state_size: 32
-    #       userinfo_claims_source: id_token  
-    #   tokenauth_config_enable: true
-    #   tokenauth:
-    #     items:
-    #       - identifier: token-1
-    #         token: ${openklant_token}
-    #         contact_person: Person 1
-    #         email: test@example.com
-    #         organization: Organization XYZ
-    #         application: Application XYZ
-    #         administration: Administration XYZ    
     oidcUrl: https://openklant.example.nl
     oidcSecret: "<openklant>"
   settings:
@@ -917,7 +559,7 @@ openklant:
       useTLS: true
     disable2fa: false
   image:
-    tag: "2.7.0"
+    tag: "2.4.0"
   resources:
     requests:
       cpu: 100m
@@ -945,111 +587,8 @@ openklant:
         
 openformulieren:
   configuration:
-    enabled: true
-    job:
-      enabled: true
-      backoffLimit: 6
-      ttlSecondsAfterFinished: 0    
-      restartPolicy: OnFailure
-    secrets: {}      
-    data: ""  
-    # data: |-
-    #   oidc_db_config_enable: True
-    #   oidc_db_config_admin_auth:
-    #     items:
-    #     - identifier: admin-oidc
-    #       enabled: True
-    #       oidc_rp_client_id: openformulieren.example.nl
-    #       oidc_rp_client_secret: ${keycloak_client_secret}
-    #       oidc_rp_scopes_list:
-    #       - openid
-    #       - email
-    #       - profile
-    #       - roles
-    #       oidc_rp_sign_algo: RS256
-    #       endpoint_config:
-    #         oidc_op_discovery_endpoint: https://keycloak.example.nl/realms/gemeente-x/
-    #       username_claim:
-    #       - sub
-    #       groups_claim:
-    #       - roles
-    #       claim_mapping:
-    #         first_name:
-    #         - given_name
-    #         last_name:
-    #         - family_name
-    #         email:
-    #         - email
-    #       sync_groups: true
-    #       sync_groups_glob_pattern: "*"
-    #       default_groups: []
-    #       make_users_staff: true
-    #       superuser_group_names:
-    #       - Superuser
-    #       oidc_use_nonce: true
-    #       oidc_nonce_size: 32
-    #       oidc_state_size: 32
-    #       userinfo_claims_source: id_token
-    #   zgw_consumers_config_enable: True
-    #   zgw_consumers:
-    #     services:
-    #     - identifier: objecttypen-api
-    #       label: Objecttypen API
-    #       api_root: https://objecten.example.nl/api/v2/
-    #       api_type: orc
-    #       auth_type: api_key
-    #       header_key: Authorization
-    #       header_value: Token ${openformulieren_objecten_token}
-
-    #     - identifier: objecten-api
-    #       label: Objecten API test
-    #       api_root: https://objecttypen.example.nl/api/v2/
-    #       api_type: orc
-    #       auth_type: api_key
-    #       header_key: Authorization
-    #       header_value: Token ${openformulieren_objecten_token}
-
-    #     - identifier: documenten-api
-    #       label: Documenten API
-    #       api_root: https://openzaak.example.nl/documenten/api/v1/
-    #       api_type: drc
-    #       auth_type: zgw
-    #       client_id: open-formulieren
-    #       secret: ${openzaak_openformulieren_secret}
-
-    #     - identifier: zaken-api
-    #       label: Zaken API
-    #       api_root: https://openzaak.example.nl/zaken/api/v1/
-    #       api_type: zrc
-    #       auth_type: zgw
-    #       client_id: open-formulieren
-    #       secret: ${openzaak_openformulieren_secret}
-
-    #     - identifier: catalogus-api
-    #       label: Catalogus API
-    #       api_root: https://openzaak.example.nl/catalogi/api/v1/
-    #       api_type: ztc
-    #       auth_type: zgw
-    #       client_id: open-formulieren
-    #       secret: ${openzaak_openformulieren_secret}
-    #   objects_api_config_enable: True
-    #   objects_api:
-    #     groups:
-    #     - name: Objects APIs
-    #       identifier: objects-api
-    #       objects_service_identifier: objecten-api
-    #       objecttypes_service_identifier: objecttypen-api
-    #       documenten_service_identifier: documenten-api
-    #       catalogi_service_identifier: catalogus-api
-    #       organisatie_rsin: "001876387"
-    #       document_type_submission_report: PDF Informatieobjecttype
-    #       document_type_submission_csv: CSV Informatieobjecttype
-    #       document_type_attachment: Attachment Informatieobjecttype
-    #       catalogue_domain: TEST
-    #       catalogue_rsin: "000000000"
-    #       organisatie_rsin: "000000000"
     oidcUrl: https://openformulieren.example.nl
-    oidcSecret: "<openformulieren>"          
+    oidcSecret: "<openformulieren>"
   settings:
     allowedHosts: openformulieren-nginx.podiumd.svc.cluster.local
     email:
@@ -1063,7 +602,7 @@ openformulieren:
   persistentVolume:
     volumeAttributeShareName: openformulieren
   image:
-    tag: "3.0.7"
+    tag: "2.8.7"
   resources:
     requests:
       cpu: 100m
@@ -1105,116 +644,6 @@ openformulieren:
 
 openinwoner:
   configuration:
-    enabled: true
-    initContainer:
-      enabled: false
-    job:
-      enabled: true
-      backoffLimit: 6
-      ttlSecondsAfterFinished: 0
-      restartPolicy: OnFailure
-      resources: {}
-    data: ""
-    # data: |-
-    #   oidc_db_config_enable: True
-    #   oidc_db_config_admin_auth:
-    #     items:
-    #     - identifier: admin-oidc
-    #       enabled: True
-    #       oidc_rp_client_id: openinwoner.example.nl
-    #       oidc_rp_client_secret: ${keycloak_client_secret}
-    #       oidc_rp_scopes_list:
-    #       - openid
-    #       - email
-    #       - profile
-    #       - roles
-    #       oidc_rp_sign_algo: RS256
-    #       endpoint_config:
-    #         oidc_op_discovery_endpoint: https://keycloak.example.nl/realms/gemeente-x/
-    #       username_claim:
-    #       - sub
-    #       groups_claim:
-    #       - roles
-    #       claim_mapping:
-    #         first_name:
-    #         - given_name
-    #         last_name:
-    #         - family_name
-    #       sync_groups: true
-    #       sync_groups_glob_pattern: "*"
-    #       default_groups: []
-    #       make_users_staff: true
-    #       superuser_group_names:
-    #       - Superuser
-    #       oidc_use_nonce: true
-    #       oidc_nonce_size: 32
-    #       oidc_state_size: 32
-    #       userinfo_claims_source: id_token
-    #   zgw_consumers_config_enable: True
-    #   zgw_consumers:
-    #     services:
-    #       - identifier: zaken-test
-    #         label: Open Zaak - Zaken API
-    #         api_root: https://openzaak.example.nl/zaken/api/v1/
-    #         api_type: zrc
-    #         auth_type: zgw
-    #         client_id: openinwoner
-    #         secret: ${openzaak_openinwoner_secret}
-    #       - identifier: documenten-test
-    #         label: Open Zaak - Documenten API
-    #         api_root: https://openzaak.example.nl/documenten/api/v1/
-    #         api_type: drc
-    #         auth_type: zgw
-    #         client_id: openinwoner
-    #         secret: ${openzaak_openinwoner_secret}
-    #       - identifier: catalogi-test
-    #         label: Open Zaak - Catalogi API
-    #         api_root: https://openzaak.example.nl/catalogi/api/v1/
-    #         api_type: ztc
-    #         auth_type: zgw
-    #         client_id: openinwoner
-    #         secret: ${openzaak_openinwoner_secret}
-    #       - identifier: besluiten-test
-    #         label: Open Zaak - Besluiten API
-    #         api_root: https://openzaak.example.nl/besluiten/api/v1/
-    #         api_type: brc
-    #         auth_type: zgw
-    #         client_id: openinwoner
-    #         secret: ${openzaak_openinwoner_secret}
-    #       - identifier: selectielijst
-    #         label: Open Zaak (public) - Selectielijst API
-    #         api_root: https://selectielijst.openzaak.nl/api/v1/
-    #         api_type: orc
-    #         auth_type: no_auth
-    #   openzaak_config_enable: true
-    #   openzaak_config:
-    #     zaak_max_confidentiality: openbaar
-    #     document_max_confidentiality: vertrouwelijk
-    #     max_upload_size: 50
-    #     skip_notification_statustype_informeren: false
-    #     reformat_esuite_zaak_identificatie: true
-    #     derive_zaak_titel_from: zaaktype_omschrijving
-    #     order_statuses_by_date_set: false
-    #     title_text: title text from setup configuration
-    #     enable_categories_filtering_with_zaken: true
-    #     action_required_deadline_days: 1874
-    #     zaken_filter_enabled: 'true'
-    #     allowed_file_extensions:
-    #       - .pdf
-    #       - .txt
-    #       - .doc
-    #       - .docx        
-    #     api_groups:
-    #       - zaken_api_identifier: zaken-test
-    #         documenten_api_identifier: documenten-test
-    #         catalogi_api_identifier: catalogi-test
-    #         fetch_eherkenning_zaken_with_rsin: true    
-    #   sites_config_enable: true
-    #   sites_config:
-    #     items:
-    #       - domain: openinwoner.example.nl
-    #         name: Gemeente X
-    secrets: {}    
     oidcUrl: https://openinwoner.example.nl
     oidcSecret: "<openinwoner>"
   settings:
@@ -1231,7 +660,7 @@ openinwoner:
   persistentVolume:
     volumeAttributeShareName: openinwoner
   image:
-    tag: "1.29.0"
+    tag: "1.27.2"
   resources:
     requests:
       cpu: 200m
@@ -1320,7 +749,6 @@ kiss:
     clientId: kiss
     secret: ""
     contactverzoektypen: []
-    isDefault: true
 
   database:
     host: ""
@@ -1383,18 +811,8 @@ kiss:
       name: ""
     image:
       repository: ghcr.io/klantinteractie-servicesysteem/kiss-frontend
-<<<<<<< HEAD
-<<<<<<< HEAD
-      tag: "release-1.0.x-20250418091744-8936963"
-
-
-=======
-      tag: "specifieke-header-per-type-zoekopdracht-20250326144323-e3743b6"
->>>>>>> 9f89a13 (podiumd-proxy 1.0)
-=======
       tag: "release-0.7.x-20250331101502-2fe19fb"
 
->>>>>>> 2e485a3 (Update charts/podiumd/values.yaml)
       pullPolicy: IfNotPresent
     resources:
       requests:
@@ -1466,7 +884,7 @@ zac:
   image:
     repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
-    tag: "3.5.0"
+    tag: "3.0.0"
   keycloak:
     adminClient:
       id: zac-admin-client
@@ -1641,31 +1059,17 @@ clamav:
       cpu: 1000m
       memory: 4Gi
 
-<<<<<<< HEAD
 apiproxy:
-  enabled: false
-  replicaCount: 1
-  #nameOverride: "iconnect-proxy"
-  image:
-    repository: nginx
-    tag: "1.27.4"
-    pullPolicy: IfNotPresent
-  service:
-    port: 80
-    containerPort: 8080
-=======
-podiumd-proxy:
   enabled: false
   replicaCount: 1
   nameOverride: ""
   fullnameOverride: ""
   image:
     repository: nginx
-    tag: "1.25-alpine"
+    tag: "1.27.4"
     pullPolicy: IfNotPresent
   service:
-    port: 8081
->>>>>>> 9f89a13 (podiumd-proxy 1.0)
+    port: 80
   resources:
     limits:
       cpu: "0.5"
@@ -1673,11 +1077,7 @@ podiumd-proxy:
     requests:
       cpu: "0.1"
       memory: "128Mi"
-<<<<<<< HEAD
-  nginxCertsSecret: "api-proxy-certs"
-=======
-  nginxCertsSecret: "podiumd-proxy-certs"
->>>>>>> 9f89a13 (podiumd-proxy 1.0)
+  nginxCertsSecret: "iconnect-proxy-certs"
   livenessProbe:
     initialDelaySeconds: 5
     periodSeconds: 10
@@ -1685,49 +1085,19 @@ podiumd-proxy:
     initialDelaySeconds: 5
     periodSeconds: 10
   locations:
-<<<<<<< HEAD
-    #-- mix and match depending on needs
     commonSettings: &commonLocation
       sslVerify: "off"
       hostHeader: "lab.api.mijniconnect.nl"
-      apikey: ""
     bag:
       <<: *commonLocation
       path: /lvbag/individuelebevragingen/v2/
-      targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apibagib/v2/"
-      apikey: ""
+      targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apihcbrp/actueel/v2/"
     brp:
       <<: *commonLocation
       path: /haalcentraal/api/brp/
       targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apihcbrp/actueel/prtcl/v2/"
     kvkSearch:
       <<: *commonLocation
-      path: /kvk/v2/zoeken
-      targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apikvk/zoeken/v2/zoeken"
-    kvkBasic:
-      <<: *commonLocation
-      path: /kvk/v1/basisprofielen
-      targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apikvk/basprof/v1/v1/basisprofielen"
-    kvkBranch:
-      <<: *commonLocation
-      path: /kvk/v1/vestigingsprofielen
-      targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apikvk/vesprof/v1/v1/vestigingsprofielen"
-
-brp-personen-mock:
-  enabled: false
-
-=======
-    commonSettings: &commonLocation
-      sslVerify: "off"
-      hostHeader: "lab.api.mijniconnect.nl"
-    bag:
-      <<: *commonLocation
-      targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apihcbrp/actueel/v2/"
-    brp:
-      <<: *commonLocation
-      targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apihcbrp/actueel/prtcl/v2/personen"
-    kvkSearch:
-      <<: *commonLocation
       targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apikvk/zoeken/v2/zoeken"
     kvkBasic:
       <<: *commonLocation
@@ -1736,11 +1106,23 @@ brp-personen-mock:
       <<: *commonLocation
       targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apikvk/vesprof/v1/v1/vestigingsprofielen"
 
->>>>>>> 9f89a13 (podiumd-proxy 1.0)
 serviceAccount:
   create: true
   automount: true
   annotations: {}
   name: ""
 
-
+httpRequestJob:
+  intellijHttpClient:
+    image:
+      repository: jetbrains/intellij-http-client
+      tag: "243.22562.13"
+  jwtCli:
+    image:
+      repository: bitnami/jwt-cli
+      tag: "6.2.0"
+  alpine:
+    image:
+      repository: alpine
+      tag: "3.20"
+  nodeSelector: {}

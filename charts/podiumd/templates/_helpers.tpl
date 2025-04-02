@@ -92,3 +92,22 @@ Adapter selector labels
 app.kubernetes.io/name: {{ include "podiumd.name" . }}-adapter
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
+
+{{/*
+Expand the name of the chart.
+*/}}
+{{- define "api-proxy.name" -}}
+{{- default "api-proxy" .Values.apiproxy.nameOverride | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{/*
+Create a default fully qualified name for api-proxy.
+We truncate at 52 chars in order to provide space for the "-api-proxy" suffix
+*/}}
+{{- define "api-proxy.fullname" -}}
+{{- if .Values.apiproxy.fullnameOverride }}
+{{- .Values.apiproxy.fullnameOverride | trunc 63 | trimSuffix "-" }}
+{{- else }}
+{{ include "podiumd.fullname" . | trunc 53 | trimSuffix "-" }}-api-proxy
+{{- end }}
+{{- end }}
