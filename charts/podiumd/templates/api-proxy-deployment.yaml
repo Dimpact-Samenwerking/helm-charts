@@ -1,3 +1,4 @@
+{{- if .Values.apiproxy.enabled -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -48,7 +49,8 @@ spec:
       volumes:
       - name: nginx-config
         configMap:
-          name: {{ default "api-proxy" .Values.apiproxy.nameOverride }}}-nginx-config
+          name: {{ default "api-proxy" .Values.apiproxy.nameOverride }}-nginx-config
       - name: nginx-certs
         secret:
           secretName: {{ .Values.apiproxy.nginxCertsSecret }}
+{{- end }}
