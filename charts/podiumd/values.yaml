@@ -1062,8 +1062,7 @@ clamav:
 apiproxy:
   enabled: false
   replicaCount: 1
-  nameOverride: ""
-  fullnameOverride: ""
+  #nameOverride: "iconnect-proxy"
   image:
     repository: nginx
     tag: "1.27.4"

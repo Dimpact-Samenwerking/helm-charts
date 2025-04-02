@@ -1,18 +1,18 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "api-proxy.fullname" . }}
+  name: {{ default "api-proxy" .Values.apiproxy.nameOverride }}
   labels:
-    app: {{ include "api-proxy.name" . }}
+    app: {{ default "api-proxy" .Values.apiproxy.nameOverride }}
 spec:
   replicas: {{ .Values.apiproxy.replicaCount }}
   selector:
     matchLabels:
-      app: {{ include "api-proxy.name" . }}
+      app: {{ default "api-proxy" .Values.apiproxy.nameOverride }}
   template:
     metadata:
       labels:
-        app: {{ include "api-proxy.name" . }}
+        app: {{ default "api-proxy" .Values.apiproxy.nameOverride }}
     spec:
       containers:
       - name: nginx
@@ -48,7 +48,7 @@ spec:
       volumes:
       - name: nginx-config
         configMap:
-          name: {{ include "api-proxy.fullname" . }}-nginx-config
+          name: {{ default "api-proxy" .Values.apiproxy.nameOverride }}}-nginx-config
       - name: nginx-certs
         secret:
           secretName: {{ .Values.apiproxy.nginxCertsSecret }}
