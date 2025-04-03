@@ -3,390 +3,370 @@ global:
   
 kube-prometheus-stack:
   enabled: true
-  image:
-    registry: ""
-    repository: "" 
-    tag: ""
-
-  downloadDashboardsImage:
-    registry: ""
-    repository: ""
-    tag: ""
-  assertNoLeakedSecrets: false
-  deleteDatasources:
-      - name: Alertmanager
-  additionalDataSources:
-  - name: Loki
-    type: loki
-    uid: loki
-    readOnly: false
-    editable: true
-    access: proxy
-    isDefault: true
-    url: http://{{ .Release.Name }}-gateway
-    version: 1
-    jsonData:
-      timeout: 300
-      
-  datasources:
-    alertmanager:
-      enabled: false
-    datasources.yaml:
-      apiVersion: 1
-      datasources:
-        - name: Prometheus
-          editable: true
-          type: Prometheus
-          readOnly: false
-          url: http://{{ .Release.Name }}-prometheus:9090
-          access: proxy
-          isDefault: false
-
-  adminPassword: ""
-
-  nodeSelector:
-    kubernetes.azure.com/mode: system
-
-  containerSecurityContext:
-    readOnlyRootFilesystem: true
-    allowPrivilegeEscalation: false
-    runAsNonRoot: true
-
-  envFromSecrets:
-    - name: ""
-    - name: ""
-
-  dashboardProviders:
-    dashboardproviders.yaml:
-      apiVersion: 1
-      providers:
-        - name: "default"
-          orgId: 1
-          folder: 'PodiumD_Monitoring_Logging'
-          type: file
-          disableDeletion: false
-          editable: true
-          options:
-            path: /var/lib/grafana/dashboards/default
-
-  dashboards:
-    default:
-      Logging-PodiumD:
-        url: ""
-        token: ''
-        datasource: ""
-  dashboardsConfigMaps:
-    default: "logging-podiumd-dashboard"
-
-  grafana.ini:
-    server:
-      root_url: ""
-    database:
-      type: 
-      host: ""
-      name: ""
-      user: ""
-      password: ""
-      ssl_mode: ""
-    dataproxy:
-      timeout: 300
-      keep_alive_seconds: 300
-    smtp:
-      enabled: true
-      host: ""
-      from_address: ""
-      skip_verify: true
-    auth.azuread:
-      name: Azure AD
-      enabled: true
-      allow_sign_up: true
-      auto_login: true
-      client_id: ""
-      client_secret: ""
-      scopes: ""
-      auth_url: ""
-      token_url: ""
-      allowed_domains: []
-      allowed_groups: []
-      allowed_organizations: ""
-      role_attribute_strict: false
-      allow_assign_grafana_admin: true
-      skip_org_role_sync: false
-      use_pkce: true
-    auth.basic:
-      enabled: false  # disable standaard login
-      disable_login_form: true
-      allow_sign_up: false
-    metrics:
-      enabled: false
-    dashboards:
-      default_home_dashboard_path: /var/lib/grafana/dashboards/default/loki-dashboard.json
-
-  initChownData:
+  
+  grafana:
     image:
-      registry: "" 
+      registry: ""
+      repository: "" 
+      tag: ""
+
+    downloadDashboardsImage:
+      registry: ""
       repository: ""
       tag: ""
 
-  persistence:
-    enabled: true
-    storageClassName: ""
-    accessModes:
-      - ReadWriteOnce
-    size: 20Gi
-    type: pvc
-    finalizers:
-      - kubernetes.io/pvc-protection
-      
-  sidecar:
+    assertNoLeakedSecrets: false
+    deleteDatasources:
+      - name: Alertmanager
+
+    additionalDataSources:
+      - name: Loki
+        type: loki
+        uid: loki
+        readOnly: false
+        editable: true
+        access: proxy
+        isDefault: true
+        url: http://{{ .Release.Name }}-gateway
+        version: 1
+        jsonData:
+          timeout: 300
+
     datasources:
       alertmanager:
         enabled: false
-prometheus:
-  prometheusSpec:
-  # read all serviceMonitors from all namespaces
-   # basicAuth:
-   #   enabled: true
-   #   username: admin
-   #   password: password
-    logLevel: warn
-    serviceMonitorSelectorNilUsesHelmValues: false
-    retention: 72h
-    storageSpec:
-      volumeClaimTemplate:
-        spec:
-          storageClassName: ""
-          accessModes: ["ReadWriteOnce"]
-          resources:
-            requests:
-              storage: 50Gi
+      datasources.yaml:
+        apiVersion: 1
+        datasources:
+          - name: Prometheus
+            editable: true
+            type: Prometheus
+            readOnly: false
+            url: http://{{ .Release.Name }}-prometheus:9090
+            access: proxy
+            isDefault: false
 
-alertmanager:
-  enabled: false
+    adminPassword: ""
 
-promtail:
-  enabled: true
-  config:
-    logLevel: warn
-  # -- publish data to loki
-    clients:
-      - url: http://{{ .Release.Name }}-gateway/loki/api/v1/push
-        tenant_id: 1 
-  image:
-    registry: ""
-    # Repository name for the Promtail image
-    repository: ""
-    # Image tag version
-    tag: ""
-  resources:
-    requests:
-      # Minimum CPU allocation
-      cpu: 50m
-      # Minimum memory allocation
-      memory: 96Mi
-    limits:
-      # Maximum CPU allocation
-      cpu: 100m
-      # Maximum memory allocation
-      memory: 256Mi
-loki:
-  enabled: true
-  podLabels:
-    "azure.workload.identity/use": "true" # Add this label to the Loki pods to enable workload identity
-  image:
-    registry: ""
-    repository: loki
-    tag: ""
-  schemaConfig:
-    configs:
-      - from: 2024-04-01
-        object_store: azure
-        store: tsdb
-        schema: v13
-        index:
-          prefix: loki_index_
-          period: 24h
-  storage_config:
-    azure:
-      account_name: "<INSERT-STORAGE-ACCOUNT-NAME>" 
-      container_name: "<CHUNK-CONTAINER-NAME>" # Your actual Azure Blob Storage container name (loki-azure-dev-chunks)
-      use_federated_token: true # Use federated token for authentication
-          
-  storage:
-    bucketNames:
-      chunks: "<CHUNK-CONTAINER-NAME>" # Your actual Azure Blob Storage container name (loki-azure-dev-chunks)
-      ruler: "<RULER-CONTAINER-NAME>" # Your actual Azure Blob Storage container name (loki-azure-dev-ruler)
-        # admin: "admin-loki-devrel" # Your actual Azure Blob Storage container name (loki-azure-dev-admin)
-    type: azure
-    azure:
-      useFederatedToken: true # Use federated token for authentication
-      accountName: <INSERT-STORAGE-ACCOUNT-NAME>
+    nodeSelector:
+      kubernetes.azure.com/mode: system
 
-  auth_enabled: false
-  frontend:
-    max_outstanding_per_tenant: 6144 # Queue size for parallel processing
-    
-  ingester:
-    chunk_encoding: snappy
-    chunk_idle_period: 30m # Flush chunks faster = less memory
-    chunk_block_size: 262144
-    chunk_retain_period: 1m
-  pattern_ingester:
-    enabled: true
-      
-  tracing:
+    containerSecurityContext:
+      readOnlyRootFilesystem: true
+      allowPrivilegeEscalation: false
+      runAsNonRoot: true
+
+    envFromSecrets:
+      - name: ""
+      - name: ""
+
+    dashboardProviders:
+      dashboardproviders.yaml:
+        apiVersion: 1
+        providers:
+          - name: "default"
+            orgId: 1
+            folder: 'PodiumD_Monitoring_Logging'
+            type: file
+            disableDeletion: false
+            editable: true
+            options:
+              path: /var/lib/grafana/dashboards/default
+
+    dashboards:
+      default:
+        Logging-PodiumD:
+          url: ""
+          token: ''
+          datasource: ""
+
+    dashboardsConfigMaps:
+      default: "logging-podiumd-dashboard"
+
+    grafana.ini:
+      server:
+        root_url: ""
+      database:
+        type: 
+        host: ""
+        name: ""
+        user: ""
+        password: ""
+        ssl_mode: ""
+      dataproxy:
+        timeout: 300
+        keep_alive_seconds: 300
+      smtp:
+        enabled: true
+        host: ""
+        from_address: ""
+        skip_verify: true
+      auth.azuread:
+        name: Azure AD
+        enabled: true
+        allow_sign_up: true
+        auto_login: true
+        client_id: ""
+        client_secret: ""
+        scopes: ""
+        auth_url: ""
+        token_url: ""
+        allowed_domains: []
+        allowed_groups: []
+        allowed_organizations: ""
+        role_attribute_strict: false
+        allow_assign_grafana_admin: true
+        skip_org_role_sync: false
+        use_pkce: true
+      auth.basic:
+        enabled: false  # disable standaard login
+        disable_login_form: true
+        allow_sign_up: false
+      metrics:
+        enabled: false
+      dashboards:
+        default_home_dashboard_path: /var/lib/grafana/dashboards/default/loki-dashboard.json
+
+    initChownData:
+      image:
+        registry: "" 
+        repository: ""
+        tag: ""
+
+    persistence:
+      enabled: true
+      storageClassName: ""
+      accessModes:
+        - ReadWriteOnce
+      size: 20Gi
+      type: pvc
+      finalizers:
+        - kubernetes.io/pvc-protection
+
+    sidecar:
+      datasources:
+        alertmanager:
+          enabled: false
+
+  prometheus:
+    prometheusSpec:
+      logLevel: warn
+      serviceMonitorSelectorNilUsesHelmValues: false
+      retention: 72h
+      storageSpec:
+        volumeClaimTemplate:
+          spec:
+            storageClassName: ""
+            accessModes: ["ReadWriteOnce"]
+            resources:
+              requests:
+                storage: 50Gi
+
+  alertmanager:
     enabled: false
 
-  query_scheduler:
-  # the TSDB index dispatches many more, but each individually smaller, requests. 
-  # We increase the pending request queue sizes to compensate.
-    max_outstanding_requests_per_tenant: 32768
-  
-  querier:
-    max_concurrent: 6 # Per-pod parallelism
-    
-  # -- Query Performance  
-  limits_config:
-    allow_structured_metadata: true
-    volume_enabled: true
-    retention_period: 744h # 1 month retention
-    max_query_lookback: 744h # 1 month
-    ingestion_rate_strategy: local # Default: global
-    max_global_streams_per_user: 5000
-    max_query_length: 744h # 1 month. Default: 721h
-    max_query_parallelism: 48 # Utilize Azure's high throughput
-    max_streams_per_user: 0 # Old Default: 10000 
-    split_queries_by_interval: 15m # Smaller splits = faster parallelization
-    max_cache_freshness_per_query: 10m
-    ingestion_rate_mb: 10 
-    ingestion_burst_size_mb: 20
+  promtail:
+    enabled: true
+    config:
+      logLevel: warn
+      clients:
+        - url: http://{{ .Release.Name }}-gateway/loki/api/v1/push
+          tenant_id: 1
+    image:
+      registry: ""
+      repository: ""
+      tag: ""
+    resources:
+      requests:
+        cpu: 50m
+        memory: 96Mi
+      limits:
+        cpu: 100m
+        memory: 256Mi
 
-  compactor:
-    working_directory: /data/retention
-    retention_enabled: true 
-    delete_request_store: azure
-    compaction_interval: 10m
-    retention_delete_delay: 2h
-    retention_delete_worker_count: 150
-  
-  ruler:
-    enable_api: true
+  loki:
+    enabled: true
+    podLabels:
+      "azure.workload.identity/use": "true"
+    image:
+      registry: ""
+      repository: loki
+      tag: ""
+    schemaConfig:
+      configs:
+        - from: 2024-04-01
+          object_store: azure
+          store: tsdb
+          schema: v13
+          index:
+            prefix: loki_index_
+            period: 24h
+    storage_config:
+      azure:
+        account_name: "<INSERT-STORAGE-ACCOUNT-NAME>" 
+        container_name: "<CHUNK-CONTAINER-NAME>" 
+        use_federated_token: true
+
     storage:
+      bucketNames:
+        chunks: "<CHUNK-CONTAINER-NAME>"
+        ruler: "<RULER-CONTAINER-NAME>"
       type: azure
       azure:
-        account_name: <INSERT-STORAGE-ACCOUNT-NAME>
-        container_name: <RULER-CONTAINER-NAME> # Your actual Azure Blob Storage container name (loki-azure-dev-ruler)
-        use_federated_token: true # Use federated token for authentication
+        useFederatedToken: true
+        accountName: <INSERT-STORAGE-ACCOUNT-NAME>
 
-# Define the Azure workload identity
-serviceAccount:
-  name: loki
-  annotations:
-    "azure.workload.identity/client-id": "<APP-ID>" # The app ID of the Azure AD app
-  labels:
-    "azure.workload.identity/use": "true"
+    auth_enabled: false
+    frontend:
+      max_outstanding_per_tenant: 6144
 
-#gateway:
-#  ingress:
-#    enabled: true
-#    hosts:
-#      - host: FIXME
-#        paths:
-#          - path: /
-#            pathType: Prefix
+    ingester:
+      chunk_encoding: snappy
+      chunk_idle_period: 30m
+      chunk_block_size: 262144
+      chunk_retain_period: 1m
 
-deploymentMode: Distributed
+    pattern_ingester:
+      enabled: true
 
-ingester:
-  replicas: 3 # 2-3 for HA, fewer for cost
+    tracing:
+      enabled: false
 
-querier:
-  replicas: 3 # Scale based on query load
-  maxUnavailable: 2 # 2/3 pods unavailable during updates
+    query_scheduler:
+      max_outstanding_requests_per_tenant: 32768
 
-queryFrontend:
-  replicas: 2
-  maxUnavailable: 1 # 1/2 pods can update
-      
-queryScheduler:
-  replicas: 2
+    querier:
+      max_concurrent: 6
 
-distributor:
-  replicas: 3
-  maxUnavailable: 2 # 2/3 pods down during updates
-  
-compactor:
-  replicas: 2
-  
-indexGateway:
-  replicas: 2
-  maxUnavailable: 1 # 1/2 pods can update
+    limits_config:
+      allow_structured_metadata: true
+      volume_enabled: true
+      retention_period: 744h
+      max_query_lookback: 744h
+      ingestion_rate_strategy: local
+      max_global_streams_per_user: 5000
+      max_query_length: 744h
+      max_query_parallelism: 48
+      max_streams_per_user: 0
+      split_queries_by_interval: 15m
+      max_cache_freshness_per_query: 10m
+      ingestion_rate_mb: 10 
+      ingestion_burst_size_mb: 20
 
-ruler:
- replicas: 1
- maxUnavailable: 1
-      
-# -- Optional experimental components
-bloomPlanner:
-  replicas: 0
-bloomBuilder:
-  replicas: 0
-bloomGateway:
-  replicas: 0
+    compactor:
+      working_directory: /data/retention
+      retention_enabled: true
+      delete_request_store: azure
+      compaction_interval: 10m
+      retention_delete_delay: 2h
+      retention_delete_worker_count: 150
 
-# Enable minio for storage
-minio:
- enabled: false
+    ruler:
+      enable_api: true
+      storage:
+        type: azure
+        azure:
+          account_name: <INSERT-STORAGE-ACCOUNT-NAME>
+          container_name: <RULER-CONTAINER-NAME>
+          use_federated_token: true
 
-# -- Zero out replica counts of other deployment modes
-backend:
-  replicas: 0
-read:
-  replicas: 0
-write:
-  replicas: 0
+  serviceAccount:
+    name: loki
+    annotations:
+      "azure.workload.identity/client-id": "<APP-ID>"
+    labels:
+      "azure.workload.identity/use": "true"
 
-singleBinary:
-  replicas: 0
+  deploymentMode: Distributed
 
-# This exposes the Loki gateway so it can be written to and queried externaly
-gateway:
- service:
-   type: LoadBalancer
- basicAuth: 
-     enabled: true
-     existingSecret: loki-basic-auth
+  ingester:
+    replicas: 3
 
-sidecar:
-  image:
-    registry: ""
-    repository: ""
-    tag: ""
-  dashboards:
-    skipReload: true
+  querier:
+    replicas: 3
+    maxUnavailable: 2
 
-# -- Caching --
-resultsCache:
-  enabled: true
-  defaultValidity: 6h
-  
-chunksCache:
-  enabled: true
-  defaultValidity: 6h # Shorter TTL = fresher results
-  allocatedMemory: 1024
-  
-monitoring:
-  selfMonitoring:
-    enabled: false
-    grafanaAgent:
-      installOperator: false
-  dashboards:
-    enabled: false
-  rules:
+  queryFrontend:
+    replicas: 2
+    maxUnavailable: 1
+
+  queryScheduler:
+    replicas: 2
+
+  distributor:
+    replicas: 3
+    maxUnavailable: 2
+
+  compactor:
+    replicas: 2
+
+  indexGateway:
+    replicas: 2
+    maxUnavailable: 1
+
+  ruler:
+    replicas: 1
+    maxUnavailable: 1
+
+  bloomPlanner:
+    replicas: 0
+
+  bloomBuilder:
+    replicas: 0
+
+  bloomGateway:
+    replicas: 0
+
+  minio:
     enabled: false
 
-test:
-  enabled: false
+  backend:
+    replicas: 0
+  read:
+    replicas: 0
+  write:
+    replicas: 0
 
-lokiCanary:
-  enabled: false
+  singleBinary:
+    replicas: 0
+
+  gateway:
+    service:
+      type: LoadBalancer
+    basicAuth: 
+      enabled: true
+      existingSecret: loki-basic-auth
+
+  sidecar:
+    image:
+      registry: ""
+      repository: ""
+      tag: ""
+    dashboards:
+      skipReload: true
+
+  resultsCache:
+    enabled: true
+    defaultValidity: 6h
+
+  chunksCache:
+    enabled: true
+    defaultValidity: 6h
+    allocatedMemory: 1024
+
+  monitoring:
+    selfMonitoring:
+      enabled: false
+      grafanaAgent:
+        installOperator: false
+    dashboards:
+      enabled: false
+    rules:
+      enabled: false
+
+  test:
+    enabled: false
+
+  lokiCanary:
+    enabled: false
+
