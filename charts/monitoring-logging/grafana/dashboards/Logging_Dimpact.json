@@ -28,798 +28,146 @@
   "links": [],
   "panels": [
     {
-      "collapsed": true,
+      "datasource": {
+        "type": "loki",
+        "uid": "fehobyf45eghsb"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 40,
+            "gradientMode": "opacity",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 1,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "always",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "links": [],
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "{stream=\"stderr\"} stderr"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#C4162A",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "{stream=\"stdout\"} stdout"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#56A64B",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 2
+              }
+            ]
+          }
+        ]
+      },
       "gridPos": {
-        "h": 1,
+        "h": 8,
         "w": 24,
         "x": 0,
         "y": 0
       },
-      "id": 73,
-      "panels": [
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "fehobyf45eghsb"
-          },
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                }
-              },
-              "mappings": []
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 9,
-            "w": 12,
-            "x": 0,
-            "y": 1
-          },
-          "id": 74,
-          "interval": "1m",
-          "maxDataPoints": "",
-          "options": {
-            "displayLabels": [
-              "value",
-              "name"
-            ],
-            "legend": {
-              "displayMode": "list",
-              "placement": "bottom",
-              "showLegend": true,
-              "values": []
-            },
-            "pieType": "pie",
-            "reduceOptions": {
-              "calcs": [
-                "lastNotNull"
-              ],
-              "fields": "",
-              "values": false
-            },
-            "tooltip": {
-              "hideZeros": false,
-              "mode": "single",
-              "sort": "none"
-            }
-          },
-          "pluginVersion": "11.5.2",
-          "targets": [
-            {
-              "datasource": {
-                "type": "loki",
-                "uid": "loki"
-              },
-              "direction": "backward",
-              "editorMode": "code",
-              "expr": "sum(count_over_time(({app=~\"$App\"} |~ \"(?i)$search\" |~ \"(?i)$LogLevel\" |~ \"(?i)$Methode\")[$__interval])) by (app)",
-              "legendFormat": "{{app}}",
-              "queryType": "range",
-              "refId": "A"
-            }
+      "id": 79,
+      "maxDataPoints": 100,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
           ],
-          "title": "Zoekwoord: \"$search\" en logniveau: \"$LogLevel\" en HTTP methode: \"$Methode\" match in (sub)component",
-          "type": "piechart"
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
         },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
         {
           "datasource": {
             "type": "loki",
             "uid": "fehobyf45eghsb"
           },
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "axisBorderShow": false,
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "barAlignment": 0,
-                "barWidthFactor": 0.6,
-                "drawStyle": "bars",
-                "fillOpacity": 2,
-                "gradientMode": "none",
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                },
-                "insertNulls": false,
-                "lineInterpolation": "linear",
-                "lineWidth": 1,
-                "pointSize": 5,
-                "scaleDistribution": {
-                  "type": "linear"
-                },
-                "showPoints": "auto",
-                "spanNulls": false,
-                "stacking": {
-                  "group": "A",
-                  "mode": "none"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 9,
-            "w": 12,
-            "x": 12,
-            "y": 1
-          },
-          "id": 75,
-          "options": {
-            "legend": {
-              "calcs": [],
-              "displayMode": "list",
-              "placement": "bottom",
-              "showLegend": true
-            },
-            "tooltip": {
-              "hideZeros": false,
-              "mode": "multi",
-              "sort": "none"
-            }
-          },
-          "pluginVersion": "11.5.2",
-          "targets": [
-            {
-              "datasource": {
-                "type": "loki",
-                "uid": "loki"
-              },
-              "direction": "backward",
-              "editorMode": "code",
-              "expr": "sum by(app) (count_over_time({app=~\"$App\"} |~ \"(?i)$search\" |~ \"(?i)$LogLevel\" |~ \"(?i)$Methode\" |= `` [$__interval]))",
-              "legendFormat": "{{app}}",
-              "queryType": "range",
-              "refId": "A"
-            }
-          ],
-          "title": "Totale logs component: \"$App\" historisch",
-          "type": "timeseries"
-        },
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "fehobyf45eghsb"
-          },
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "axisBorderShow": false,
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "barAlignment": 0,
-                "barWidthFactor": 0.6,
-                "drawStyle": "line",
-                "fillOpacity": 40,
-                "gradientMode": "opacity",
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                },
-                "insertNulls": false,
-                "lineInterpolation": "linear",
-                "lineWidth": 1,
-                "pointSize": 1,
-                "scaleDistribution": {
-                  "type": "linear"
-                },
-                "showPoints": "always",
-                "spanNulls": false,
-                "stacking": {
-                  "group": "A",
-                  "mode": "none"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
-              },
-              "links": [],
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              },
-              "unit": "none"
-            },
-            "overrides": [
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "{stream=\"stderr\"} stderr"
-                },
-                "properties": [
-                  {
-                    "id": "color",
-                    "value": {
-                      "fixedColor": "#C4162A",
-                      "mode": "fixed"
-                    }
-                  },
-                  {
-                    "id": "custom.lineWidth",
-                    "value": 2
-                  }
-                ]
-              },
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "{stream=\"stdout\"} stdout"
-                },
-                "properties": [
-                  {
-                    "id": "color",
-                    "value": {
-                      "fixedColor": "#56A64B",
-                      "mode": "fixed"
-                    }
-                  },
-                  {
-                    "id": "custom.lineWidth",
-                    "value": 2
-                  }
-                ]
-              }
-            ]
-          },
-          "gridPos": {
-            "h": 8,
-            "w": 12,
-            "x": 0,
-            "y": 29
-          },
-          "id": 76,
-          "maxDataPoints": 100,
-          "options": {
-            "legend": {
-              "calcs": [
-                "lastNotNull"
-              ],
-              "displayMode": "table",
-              "placement": "bottom",
-              "showLegend": true
-            },
-            "tooltip": {
-              "hideZeros": false,
-              "mode": "multi",
-              "sort": "desc"
-            }
-          },
-          "pluginVersion": "11.5.2",
-          "targets": [
-            {
-              "datasource": {
-                "type": "loki",
-                "uid": "loki"
-              },
-              "direction": "backward",
-              "editorMode": "code",
-              "expr": "sum(count_over_time(({app=~\"$App\"} |~ \"(?i)$LogLevel\" )[$__interval]))",
-              "legendFormat": "Totale logs log niveau $LogLevel",
-              "queryType": "range",
-              "refId": "A"
-            }
-          ],
-          "title": "Totaal logs logniveau: \"$LogLevel\" historisch ",
-          "type": "timeseries"
-        },
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "fehobyf45eghsb"
-          },
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "axisBorderShow": false,
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "barAlignment": 0,
-                "barWidthFactor": 0.6,
-                "drawStyle": "line",
-                "fillOpacity": 40,
-                "gradientMode": "opacity",
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                },
-                "insertNulls": false,
-                "lineInterpolation": "linear",
-                "lineWidth": 1,
-                "pointSize": 1,
-                "scaleDistribution": {
-                  "type": "linear"
-                },
-                "showPoints": "always",
-                "spanNulls": false,
-                "stacking": {
-                  "group": "A",
-                  "mode": "none"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
-              },
-              "links": [],
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              },
-              "unit": "none"
-            },
-            "overrides": [
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "{stream=\"stderr\"} stderr"
-                },
-                "properties": [
-                  {
-                    "id": "color",
-                    "value": {
-                      "fixedColor": "#C4162A",
-                      "mode": "fixed"
-                    }
-                  },
-                  {
-                    "id": "custom.lineWidth",
-                    "value": 2
-                  }
-                ]
-              },
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "{stream=\"stdout\"} stdout"
-                },
-                "properties": [
-                  {
-                    "id": "color",
-                    "value": {
-                      "fixedColor": "#56A64B",
-                      "mode": "fixed"
-                    }
-                  },
-                  {
-                    "id": "custom.lineWidth",
-                    "value": 2
-                  }
-                ]
-              }
-            ]
-          },
-          "gridPos": {
-            "h": 8,
-            "w": 12,
-            "x": 12,
-            "y": 29
-          },
-          "id": 47,
-          "maxDataPoints": 100,
-          "options": {
-            "legend": {
-              "calcs": [
-                "lastNotNull"
-              ],
-              "displayMode": "table",
-              "placement": "bottom",
-              "showLegend": true
-            },
-            "tooltip": {
-              "hideZeros": false,
-              "mode": "multi",
-              "sort": "desc"
-            }
-          },
-          "pluginVersion": "11.5.2",
-          "targets": [
-            {
-              "datasource": {
-                "type": "loki",
-                "uid": "loki"
-              },
-              "direction": "backward",
-              "editorMode": "code",
-              "expr": "sum(count_over_time(({app=~\"$App\", namespace=~\"$Namespace\"}  )[$__interval]))",
-              "legendFormat": "Totale logs $App",
-              "queryType": "range",
-              "refId": "A"
-            }
-          ],
-          "title": "Totaal logs component: \"$App\" historisch ",
-          "type": "timeseries"
-        },
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "fehobyf45eghsb"
-          },
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "axisBorderShow": false,
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "Totaal",
-                "axisPlacement": "auto",
-                "barAlignment": 0,
-                "barWidthFactor": 0.6,
-                "drawStyle": "bars",
-                "fillOpacity": 100,
-                "gradientMode": "opacity",
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                },
-                "insertNulls": false,
-                "lineInterpolation": "linear",
-                "lineWidth": 3,
-                "pointSize": 5,
-                "scaleDistribution": {
-                  "type": "linear"
-                },
-                "showPoints": "never",
-                "spanNulls": false,
-                "stacking": {
-                  "group": "A",
-                  "mode": "none"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
-              },
-              "decimals": 0,
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              },
-              "unit": "short"
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 12,
-            "w": 12,
-            "x": 0,
-            "y": 37
-          },
-          "id": 77,
-          "options": {
-            "legend": {
-              "calcs": [],
-              "displayMode": "list",
-              "placement": "bottom",
-              "showLegend": true
-            },
-            "tooltip": {
-              "hideZeros": false,
-              "mode": "multi",
-              "sort": "desc"
-            }
-          },
-          "pluginVersion": "11.5.2",
-          "targets": [
-            {
-              "datasource": {
-                "type": "loki",
-                "uid": "loki"
-              },
-              "direction": "backward",
-              "editorMode": "code",
-              "expr": "sum(count_over_time({app=~\"$App\"} |~ \"HTTP/1.1\\\" 5[0-9]{2}\" |~ \"(?i)$search\" |~ \"(?i)$LogLevel\" |~ \"(?i)$Methode\" [$__interval]))",
-              "legendFormat": "HTTP5x",
-              "queryType": "range",
-              "refId": "A"
-            },
-            {
-              "datasource": {
-                "type": "loki",
-                "uid": "loki"
-              },
-              "direction": "backward",
-              "editorMode": "code",
-              "expr": "sum(count_over_time({app=~\"$App\"} |~ \"HTTP/1.1\\\" 4[0-9]{2}\" |~ \"(?i)$search\" |~ \"(?i)$LogLevel\" |~ \"(?i)$Methode\" [$__interval]))",
-              "hide": false,
-              "legendFormat": "HTTP4x",
-              "queryType": "range",
-              "refId": "B"
-            },
-            {
-              "datasource": {
-                "type": "loki",
-                "uid": "loki"
-              },
-              "direction": "backward",
-              "editorMode": "code",
-              "expr": "sum(count_over_time({app=~\"$App\"} |~ \"HTTP/1.1\\\" 3[0-9]{2}\" |~ \"(?i)$search\" |~ \"(?i)$LogLevel\" |~ \"(?i)$Methode\" [$__interval]))",
-              "hide": false,
-              "legendFormat": "HTTP3x",
-              "queryType": "range",
-              "refId": "C"
-            },
-            {
-              "datasource": {
-                "type": "loki",
-                "uid": "loki"
-              },
-              "direction": "backward",
-              "editorMode": "code",
-              "expr": "sum(count_over_time({app=~\"$App\"} |~ \"HTTP/1.1\\\" 2[0-9]{2}\" |~ \"(?i)$search\" |~ \"(?i)$LogLevel\" |~ \"(?i)$Methode\" [$__interval]))",
-              "hide": false,
-              "legendFormat": "HTTP2x",
-              "queryType": "range",
-              "refId": "D"
-            }
-          ],
-          "title": "HTTP codes component: \"$App\" historisch",
-          "type": "timeseries"
-        },
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "fehobyf45eghsb"
-          },
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                }
-              },
-              "mappings": []
-            },
-            "overrides": [
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "HTTP2x (Succes)"
-                },
-                "properties": [
-                  {
-                    "id": "color",
-                    "value": {
-                      "fixedColor": "semi-dark-green",
-                      "mode": "fixed"
-                    }
-                  }
-                ]
-              },
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "HTTP3x (Redirect)"
-                },
-                "properties": [
-                  {
-                    "id": "color",
-                    "value": {
-                      "fixedColor": "semi-dark-yellow",
-                      "mode": "fixed"
-                    }
-                  },
-                  {
-                    "id": "links",
-                    "value": []
-                  }
-                ]
-              },
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "HTTP4x (Error)"
-                },
-                "properties": [
-                  {
-                    "id": "color",
-                    "value": {
-                      "fixedColor": "orange",
-                      "mode": "fixed"
-                    }
-                  },
-                  {
-                    "id": "links",
-                    "value": []
-                  }
-                ]
-              },
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "HTTP5x (Kritisch)"
-                },
-                "properties": [
-                  {
-                    "id": "color",
-                    "value": {
-                      "fixedColor": "red",
-                      "mode": "fixed"
-                    }
-                  },
-                  {
-                    "id": "links",
-                    "value": []
-                  }
-                ]
-              }
-            ]
-          },
-          "gridPos": {
-            "h": 12,
-            "w": 12,
-            "x": 12,
-            "y": 37
-          },
-          "id": 72,
-          "options": {
-            "displayLabels": [
-              "value",
-              "name"
-            ],
-            "legend": {
-              "displayMode": "table",
-              "placement": "bottom",
-              "showLegend": true,
-              "values": [
-                "value"
-              ]
-            },
-            "pieType": "pie",
-            "reduceOptions": {
-              "calcs": [
-                "lastNotNull"
-              ],
-              "fields": "",
-              "values": false
-            },
-            "tooltip": {
-              "hideZeros": false,
-              "maxHeight": 400,
-              "mode": "single",
-              "sort": "none"
-            }
-          },
-          "pluginVersion": "11.5.2",
-          "targets": [
-            {
-              "datasource": {
-                "type": "loki",
-                "uid": "loki"
-              },
-              "direction": "backward",
-              "editorMode": "code",
-              "expr": "sum(count_over_time({app=~\"$App\"} |~ \"HTTP/1.1\\\" 5[0-9]{2}\" |~ \"(?i)$search\" |~ \"(?i)$LogLevel\" |~ \"(?i)$Methode\" [$__interval]))",
-              "legendFormat": "HTTP5x (Kritisch)",
-              "queryType": "range",
-              "refId": "A"
-            },
-            {
-              "datasource": {
-                "type": "loki",
-                "uid": "loki"
-              },
-              "direction": "backward",
-              "editorMode": "code",
-              "expr": "sum(count_over_time({app=~\"$App\"} |~ \"HTTP/1.1\\\" 4[0-9]{2}\" |~ \"(?i)$search\" |~ \"(?i)$LogLevel\" |~ \"(?i)$Methode\" [$__interval]))",
-              "hide": false,
-              "legendFormat": "HTTP4x (Error)",
-              "queryType": "range",
-              "refId": "B"
-            },
-            {
-              "datasource": {
-                "type": "loki",
-                "uid": "loki"
-              },
-              "direction": "backward",
-              "editorMode": "code",
-              "expr": "sum(count_over_time({app=~\"$App\"} |~ \"HTTP/1.1\\\" 3[0-9]{2}\" |~ \"(?i)$search\" |~ \"(?i)$LogLevel\" |~ \"(?i)$Methode\" [$__interval]))",
-              "hide": false,
-              "legendFormat": "HTTP3x (Redirect)",
-              "queryType": "range",
-              "refId": "C"
-            },
-            {
-              "datasource": {
-                "type": "loki",
-                "uid": "loki"
-              },
-              "direction": "backward",
-              "editorMode": "code",
-              "expr": "sum(\r\n  count_over_time({app=~\"$App\"} |~ \"HTTP/1.1\\\" 2[0-9]{2}\" |~ \"(?i)$search\" |~ \"(?i)$LogLevel\" |~ \"(?i)$Methode\"[$__interval]))",
-              "hide": false,
-              "legendFormat": "HTTP2x (Succes)",
-              "queryType": "range",
-              "refId": "D"
-            }
-          ],
-          "title": "HTTP codes component: \"$App\"",
-          "type": "piechart"
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "sum(count_over_time(({app=~\"$App\"}  )[$__interval]))",
+          "legendFormat": "Totale logs $App",
+          "queryType": "range",
+          "refId": "A"
         }
       ],
-      "title": "Logs visueel",
-      "type": "row"
+      "title": "Totaal logs component: \"$App\" historisch ",
+      "type": "timeseries"
     },
     {
       "collapsed": true,
@@ -827,14 +175,14 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 1
+        "y": 8
       },
-      "id": 69,
+      "id": 78,
       "panels": [
         {
           "datasource": {
             "type": "loki",
-            "uid": "P8E80F9AEF21F6940"
+            "uid": "fehobyf45eghsb"
           },
           "description": "",
           "fieldConfig": {
@@ -981,12 +329,12 @@
             ]
           },
           "gridPos": {
-            "h": 11,
+            "h": 10,
             "w": 12,
             "x": 0,
-            "y": 2
+            "y": 9
           },
-          "id": 60,
+          "id": 80,
           "options": {
             "displayLabels": [
               "name",
@@ -1016,28 +364,27 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "P8E80F9AEF21F6940"
+                "uid": "fehobyf45eghsb"
               },
               "direction": "backward",
               "editorMode": "code",
               "expr": "sum(count_over_time({app=\"openformulieren-nginx\"} |~ \"POST /api/v2/submissions/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/_complete\" [$__range]))",
-              "hide": false,
-              "legendFormat": "Alle inzendingen",
+              "legendFormat": "All inzendingen",
               "queryType": "range",
-              "refId": "D"
+              "refId": "A"
             },
             {
               "datasource": {
                 "type": "loki",
-                "uid": "P8E80F9AEF21F6940"
+                "uid": "fehobyf45eghsb"
               },
               "direction": "backward",
               "editorMode": "code",
               "expr": "sum(count_over_time({app=\"openformulieren-worker\"} |~ \"\\\"public_reference\\\":\\\"OF-[0-9a-zA-Z]{6}\\\"\" |~ \"/api/v2/objects/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\" [$__range]))",
               "hide": false,
-              "legendFormat": "Inzending met succes (zaak?)",
+              "legendFormat": "Inzending met succes",
               "queryType": "range",
-              "refId": "A"
+              "refId": "B"
             }
           ],
           "title": "Alle inzendingen en niet-succesvolle inzendingen",
@@ -1077,7 +424,8 @@
         },
         {
           "datasource": {
-            "uid": "P8E80F9AEF21F6940"
+            "type": "loki",
+            "uid": "fehobyf45eghsb"
           },
           "fieldConfig": {
             "defaults": {
@@ -1138,12 +486,12 @@
             ]
           },
           "gridPos": {
-            "h": 11,
+            "h": 10,
             "w": 12,
             "x": 12,
-            "y": 2
+            "y": 9
           },
-          "id": 61,
+          "id": 81,
           "options": {
             "cellHeight": "sm",
             "footer": {
@@ -1167,26 +515,27 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "P8E80F9AEF21F6940"
+                "uid": "fehobyf45eghsb"
               },
+              "direction": "backward",
               "editorMode": "code",
               "expr": "sum by (of_id) (\r\n  count_over_time(\r\n    {app=\"openformulieren-worker\"} \r\n    |~ \"\\\"public_reference\\\":\\\"OF-[0-9a-zA-Z]{6}\\\"\"\r\n    |~ \"/api/v2/objects/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\"\r\n    | regexp `.*(?P<of_id>OF-[A-Za-z0-9]{6}).*` \r\n    [$__interval]\r\n  )\r\n)",
-              "hide": false,
               "legendFormat": "{{of_id}}",
               "queryType": "range",
-              "refId": "B"
+              "refId": "A"
             },
             {
               "datasource": {
                 "type": "loki",
-                "uid": "P8E80F9AEF21F6940"
+                "uid": "fehobyf45eghsb"
               },
+              "direction": "backward",
               "editorMode": "code",
               "expr": "sum (\r\n  count_over_time(\r\n    {app=\"openformulieren-worker\"} \r\n    |~ \"\\\"public_reference\\\":\\\"OF-[0-9a-zA-Z]{6}\\\"\"\r\n    |~ \"/api/v2/objects/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\" \r\n    | regexp `.*(?P<of_id>OF-[A-Za-z0-9]{6}).*`\r\n    [$__interval]\r\n  )\r\n)",
               "hide": false,
               "legendFormat": "Totaal",
               "queryType": "range",
-              "refId": "A"
+              "refId": "B"
             }
           ],
           "title": "Succesvol ingezonden formulieren OF-nummers",
@@ -1208,7 +557,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "P8E80F9AEF21F6940"
+            "uid": "fehobyf45eghsb"
           },
           "description": "",
           "fieldConfig": {
@@ -1335,12 +684,12 @@
             ]
           },
           "gridPos": {
-            "h": 11,
+            "h": 10,
             "w": 12,
             "x": 0,
-            "y": 32
+            "y": 19
           },
-          "id": 62,
+          "id": 82,
           "options": {
             "displayLabels": [
               "name",
@@ -1372,8 +721,9 @@
                 "type": "loki",
                 "uid": "loki"
               },
+              "direction": "backward",
               "editorMode": "code",
-              "expr": "sum(count_over_time ({app=\"opennotificaties\"} |~ `POST /api/v1/notificaties` [$__range]))",
+              "expr": "sum(count_over_time ({app=\"opennotificaties\"} |~ `POST /api/v1/notificaties` |~ \"HTTP/1.1 201\" [$__range]))",
               "legendFormat": "Notificatie",
               "queryType": "range",
               "refId": "A",
@@ -1384,8 +734,9 @@
                 "type": "loki",
                 "uid": "P8E80F9AEF21F6940"
               },
+              "direction": "backward",
               "editorMode": "code",
-              "expr": "sum(count_over_time({app=\"objecten\"} |~ \"POST /api/v2/objects\" [$__range]))",
+              "expr": "sum(count_over_time({app=\"objecten\"} |~ \"POST /api/v2/objects\" |~ \"HTTP/1.1 201\" [$__range]))",
               "hide": false,
               "legendFormat": "Objecten",
               "queryType": "range",
@@ -1396,6 +747,7 @@
                 "type": "loki",
                 "uid": "P8E80F9AEF21F6940"
               },
+              "direction": "backward",
               "editorMode": "code",
               "expr": "sum(count_over_time ({app=\"openformulieren-nginx\"} |~ \"POST /api/v2/submissions/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/_complete\" [$__range]))",
               "hide": false,
@@ -1408,6 +760,7 @@
                 "type": "loki",
                 "uid": "P8E80F9AEF21F6940"
               },
+              "direction": "backward",
               "editorMode": "code",
               "expr": "sum(count_over_time(\r\n        {app=\"openformulieren-worker\"}  \r\n        |~ \"/zgw-apis-provider/drc/api/v1/enkelvoudiginformatieobjecten/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\"\r\n        |~ `\"public_reference\":\"OF-[0-9a-zA-Z]{6}\"`\r\n        |~ \".pdf\"\r\n        [$__range]))\r\n",
               "hide": false,
@@ -1420,6 +773,7 @@
                 "type": "loki",
                 "uid": "P8E80F9AEF21F6940"
               },
+              "direction": "backward",
               "editorMode": "code",
               "expr": "sum(\r\n    count_over_time({app=\"openformulieren-worker\"}  |~ `\"public_reference\":\"OF-[0-9a-zA-Z]{6}\"` |~ \"/api/v2/objects/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\" [$__range]))",
               "hide": false,
@@ -1433,7 +787,8 @@
         },
         {
           "datasource": {
-            "uid": "P8E80F9AEF21F6940"
+            "type": "loki",
+            "uid": "fehobyf45eghsb"
           },
           "fieldConfig": {
             "defaults": {
@@ -1494,12 +849,12 @@
             ]
           },
           "gridPos": {
-            "h": 11,
+            "h": 10,
             "w": 12,
             "x": 12,
-            "y": 32
+            "y": 19
           },
-          "id": 66,
+          "id": 85,
           "options": {
             "cellHeight": "sm",
             "footer": {
@@ -1525,6 +880,7 @@
                 "type": "loki",
                 "uid": "P8E80F9AEF21F6940"
               },
+              "direction": "backward",
               "editorMode": "code",
               "expr": "sum by (formulier) (count_over_time({app=\"openformulieren-nginx\"} \r\n|~ `https?://[^/\\s]+/([^/\\s]+)` \r\n|~ \"POST /api/v2/submissions/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/_complete\" \r\n| regexp `https?://(?P<url>[^/\\s]+)/(?P<formulier>[^/\\s]+)` \r\n!= \"maykinmedia\" != \"maykin\" != \"sentry\" [$__interval])) ",
               "hide": false,
@@ -1537,6 +893,7 @@
                 "type": "loki",
                 "uid": "P8E80F9AEF21F6940"
               },
+              "direction": "backward",
               "editorMode": "code",
               "expr": "sum (count_over_time({app=\"openformulieren-nginx\"} \r\n|~ `https?://[^/\\s]+/([^/\\s]+)` \r\n|~ \"POST /api/v2/submissions/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/_complete\" \r\n| regexp `https?://(?P<url>[^/\\s]+)/(?P<formulier>[^/\\s]+)` \r\n!= \"maykinmedia\" != \"maykin\" != \"sentry\" [$__interval])) ",
               "hide": false,
@@ -1563,7 +920,8 @@
         },
         {
           "datasource": {
-            "uid": "P8E80F9AEF21F6940"
+            "type": "loki",
+            "uid": "fehobyf45eghsb"
           },
           "fieldConfig": {
             "defaults": {
@@ -1652,12 +1010,12 @@
             ]
           },
           "gridPos": {
-            "h": 12,
-            "w": 24,
-            "x": 0,
-            "y": 43
+            "h": 10,
+            "w": 12,
+            "x": 12,
+            "y": 29
           },
-          "id": 67,
+          "id": 83,
           "options": {
             "legend": {
               "calcs": [],
@@ -1700,7 +1058,7 @@
               "refId": "A"
             }
           ],
-          "title": "Alle ingezonden formulieren en OF nummers historisch",
+          "title": "Alle ingezonden formulier namen en OF-nummers historisch",
           "type": "timeseries"
         }
       ],
@@ -1708,63 +1066,802 @@
       "type": "row"
     },
     {
-      "collapsed": false,
+      "collapsed": true,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 2
+        "y": 9
       },
-      "id": 4,
-      "panels": [],
-      "title": "Alle logs",
-      "type": "row"
-    },
-    {
-      "datasource": {
-        "type": "loki",
-        "uid": "fehobyf45eghsb"
-      },
-      "description": "",
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 19,
-        "w": 24,
-        "x": 0,
-        "y": 3
-      },
-      "id": 68,
-      "options": {
-        "dedupStrategy": "none",
-        "enableInfiniteScrolling": false,
-        "enableLogDetails": true,
-        "prettifyLogMessage": true,
-        "showCommonLabels": false,
-        "showLabels": false,
-        "showTime": true,
-        "sortOrder": "Descending",
-        "wrapLogMessage": true
-      },
-      "pluginVersion": "11.5.2",
-      "targets": [
+      "id": 73,
+      "panels": [
         {
           "datasource": {
             "type": "loki",
-            "uid": "loki"
+            "uid": "fehobyf45eghsb"
           },
-          "direction": "backward",
-          "editorMode": "code",
-          "expr": "{app=~\"$App\"}  |~ \"(?i)$search\" |~ \"(?i)$Methode\" |~ \"(?i)$LogLevel\" !~ `$excluded_log_levels` != `HTTP/1.1\" 0 \"`",
-          "maxLines": 100,
-          "queryType": "range",
-          "refId": "A"
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                }
+              },
+              "mappings": []
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 9,
+            "w": 12,
+            "x": 0,
+            "y": 134
+          },
+          "id": 74,
+          "interval": "1m",
+          "maxDataPoints": "",
+          "options": {
+            "displayLabels": [
+              "value",
+              "name"
+            ],
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true,
+              "values": []
+            },
+            "pieType": "pie",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "11.5.2",
+          "targets": [
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "loki"
+              },
+              "direction": "backward",
+              "editorMode": "code",
+              "expr": "sum(count_over_time(({app=~\"$App\"} |~ \"(?i)$search\" |~ \"(?i)$LogLevel\" |~ \"(?i)$Methode\")[$__interval])) by (app)",
+              "legendFormat": "{{app}}",
+              "queryType": "range",
+              "refId": "A"
+            }
+          ],
+          "title": "Zoekwoord: \"$search\" en logniveau: \"$LogLevel\" en HTTP methode: \"$Methode\" match in (sub)component",
+          "type": "piechart"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "fehobyf45eghsb"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "bars",
+                "fillOpacity": 2,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 9,
+            "w": 12,
+            "x": 12,
+            "y": 134
+          },
+          "id": 75,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "11.5.2",
+          "targets": [
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "loki"
+              },
+              "direction": "backward",
+              "editorMode": "code",
+              "expr": "sum by(app) (count_over_time({app=~\"$App\"} |~ \"(?i)$search\" |~ \"(?i)$LogLevel\" |~ \"(?i)$Methode\" |= `` [$__interval]))",
+              "legendFormat": "{{app}}",
+              "queryType": "range",
+              "refId": "A"
+            }
+          ],
+          "title": "Totale logs component: \"$App\" historisch",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "fehobyf45eghsb"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 40,
+                "gradientMode": "opacity",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 1,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "always",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "links": [],
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "none"
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "{stream=\"stderr\"} stderr"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "#C4162A",
+                      "mode": "fixed"
+                    }
+                  },
+                  {
+                    "id": "custom.lineWidth",
+                    "value": 2
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "{stream=\"stdout\"} stdout"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "#56A64B",
+                      "mode": "fixed"
+                    }
+                  },
+                  {
+                    "id": "custom.lineWidth",
+                    "value": 2
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 143
+          },
+          "id": 76,
+          "maxDataPoints": 100,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "pluginVersion": "11.5.2",
+          "targets": [
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "loki"
+              },
+              "direction": "backward",
+              "editorMode": "code",
+              "expr": "sum(count_over_time(({app=~\"$App\"} |~ \"(?i)$LogLevel\" )[$__interval]))",
+              "legendFormat": "Totale logs log niveau $LogLevel",
+              "queryType": "range",
+              "refId": "A"
+            }
+          ],
+          "title": "Totaal logs logniveau: \"$LogLevel\" historisch ",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "fehobyf45eghsb"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 40,
+                "gradientMode": "opacity",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 1,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "always",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "links": [],
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "none"
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "{stream=\"stderr\"} stderr"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "#C4162A",
+                      "mode": "fixed"
+                    }
+                  },
+                  {
+                    "id": "custom.lineWidth",
+                    "value": 2
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "{stream=\"stdout\"} stdout"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "#56A64B",
+                      "mode": "fixed"
+                    }
+                  },
+                  {
+                    "id": "custom.lineWidth",
+                    "value": 2
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 143
+          },
+          "id": 47,
+          "maxDataPoints": 100,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "pluginVersion": "11.5.2",
+          "targets": [
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "loki"
+              },
+              "direction": "backward",
+              "editorMode": "code",
+              "expr": "sum(count_over_time(({app=~\"$App\", namespace=~\"$Namespace\"}  )[$__interval]))",
+              "legendFormat": "Totale logs $App",
+              "queryType": "range",
+              "refId": "A"
+            }
+          ],
+          "title": "Totaal logs component: \"$App\" historisch ",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "fehobyf45eghsb"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "Totaal",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "bars",
+                "fillOpacity": 100,
+                "gradientMode": "opacity",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 3,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "decimals": 0,
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 12,
+            "w": 12,
+            "x": 0,
+            "y": 151
+          },
+          "id": 77,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "pluginVersion": "11.5.2",
+          "targets": [
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "loki"
+              },
+              "direction": "backward",
+              "editorMode": "code",
+              "expr": "sum(count_over_time({app=~\"$App\"} |~ \"HTTP/1.1\\\" 5[0-9]{2}\" |~ \"(?i)$search\" |~ \"(?i)$LogLevel\" |~ \"(?i)$Methode\" [$__interval]))",
+              "legendFormat": "HTTP5x",
+              "queryType": "range",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "loki"
+              },
+              "direction": "backward",
+              "editorMode": "code",
+              "expr": "sum(count_over_time({app=~\"$App\"} |~ \"HTTP/1.1\\\" 4[0-9]{2}\" |~ \"(?i)$search\" |~ \"(?i)$LogLevel\" |~ \"(?i)$Methode\" [$__interval]))",
+              "hide": false,
+              "legendFormat": "HTTP4x",
+              "queryType": "range",
+              "refId": "B"
+            },
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "loki"
+              },
+              "direction": "backward",
+              "editorMode": "code",
+              "expr": "sum(count_over_time({app=~\"$App\"} |~ \"HTTP/1.1\\\" 3[0-9]{2}\" |~ \"(?i)$search\" |~ \"(?i)$LogLevel\" |~ \"(?i)$Methode\" [$__interval]))",
+              "hide": false,
+              "legendFormat": "HTTP3x",
+              "queryType": "range",
+              "refId": "C"
+            },
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "loki"
+              },
+              "direction": "backward",
+              "editorMode": "code",
+              "expr": "sum(count_over_time({app=~\"$App\"} |~ \"HTTP/1.1\\\" 2[0-9]{2}\" |~ \"(?i)$search\" |~ \"(?i)$LogLevel\" |~ \"(?i)$Methode\" [$__interval]))",
+              "hide": false,
+              "legendFormat": "HTTP2x",
+              "queryType": "range",
+              "refId": "D"
+            }
+          ],
+          "title": "HTTP codes component: \"$App\" historisch",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "fehobyf45eghsb"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                }
+              },
+              "mappings": []
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "HTTP2x (Succes)"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "semi-dark-green",
+                      "mode": "fixed"
+                    }
+                  },
+                  {
+                    "id": "links",
+                    "value": []
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "HTTP3x (Redirect)"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "semi-dark-yellow",
+                      "mode": "fixed"
+                    }
+                  },
+                  {
+                    "id": "links",
+                    "value": []
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "HTTP4x (Error)"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "orange",
+                      "mode": "fixed"
+                    }
+                  },
+                  {
+                    "id": "links",
+                    "value": []
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "HTTP5x (Kritisch)"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "red",
+                      "mode": "fixed"
+                    }
+                  },
+                  {
+                    "id": "links",
+                    "value": []
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 12,
+            "w": 12,
+            "x": 12,
+            "y": 151
+          },
+          "id": 84,
+          "options": {
+            "displayLabels": [
+              "value",
+              "name"
+            ],
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true,
+              "values": [
+                "value"
+              ]
+            },
+            "pieType": "pie",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "maxHeight": 400,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "11.5.2",
+          "targets": [
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "loki"
+              },
+              "direction": "backward",
+              "editorMode": "code",
+              "expr": "sum(count_over_time({app=~\"$App\"} |~ \"HTTP/1.1\\\" 5[0-9]{2}\" [$__interval]))",
+              "legendFormat": "HTTP5x (Kritisch)",
+              "queryType": "range",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "loki"
+              },
+              "direction": "backward",
+              "editorMode": "code",
+              "expr": "sum(count_over_time({app=~\"$App\"} |~ \"HTTP/1.1\\\" 4[0-9]{2}\" [$__interval]))",
+              "hide": false,
+              "legendFormat": "HTTP4x (Error)",
+              "queryType": "range",
+              "refId": "B"
+            },
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "loki"
+              },
+              "direction": "backward",
+              "editorMode": "code",
+              "expr": "sum(count_over_time({app=~\"$App\"} |~ \"HTTP/1.1\\\" 3[0-9]{2}\" [$__interval]))",
+              "hide": false,
+              "legendFormat": "HTTP3x (Redirect)",
+              "queryType": "range",
+              "refId": "C"
+            },
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "loki"
+              },
+              "direction": "backward",
+              "editorMode": "code",
+              "expr": "sum(\r\n  count_over_time({app=~\"$App\"} |~ \"HTTP/1.1\\\" 2[0-9]{2}\" [$__interval]))",
+              "hide": false,
+              "legendFormat": "HTTP2x (Succes)",
+              "queryType": "range",
+              "refId": "D"
+            }
+          ],
+          "title": "HTTP codes component: \"$App\"",
+          "type": "piechart"
         }
       ],
-      "title": "Logs component: $App",
-      "type": "logs"
+      "title": "Logs visueel",
+      "type": "row"
     },
     {
       "collapsed": true,
@@ -1772,7 +1869,67 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 22
+        "y": 10
+      },
+      "id": 4,
+      "panels": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "fehobyf45eghsb"
+          },
+          "description": "",
+          "fieldConfig": {
+            "defaults": {},
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 19,
+            "w": 24,
+            "x": 0,
+            "y": 194
+          },
+          "id": 68,
+          "options": {
+            "dedupStrategy": "none",
+            "enableInfiniteScrolling": false,
+            "enableLogDetails": true,
+            "prettifyLogMessage": true,
+            "showCommonLabels": false,
+            "showLabels": false,
+            "showTime": true,
+            "sortOrder": "Descending",
+            "wrapLogMessage": true
+          },
+          "pluginVersion": "11.5.2",
+          "targets": [
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "loki"
+              },
+              "direction": "backward",
+              "editorMode": "code",
+              "expr": "{app=~\"$App\"}  |~ \"(?i)$search\" |~ \"(?i)$Methode\" |~ \"(?i)$LogLevel\" !~ `$excluded_log_levels` != `HTTP/1.1\" 0 \"`",
+              "maxLines": 100,
+              "queryType": "range",
+              "refId": "A"
+            }
+          ],
+          "title": "Logs component: $App",
+          "type": "logs"
+        }
+      ],
+      "title": "Alle logs voor component: \"$App\"",
+      "type": "row"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 11
       },
       "id": 71,
       "panels": [
@@ -1790,7 +1947,7 @@
             "h": 19,
             "w": 24,
             "x": 0,
-            "y": 105
+            "y": 74
           },
           "id": 70,
           "options": {
@@ -1824,7 +1981,7 @@
           "type": "logs"
         }
       ],
-      "title": "Logs met HTTP code",
+      "title": "Logs met ALLEEN een HTTP code. Gekozen HTTP code: \"$http_code\"",
       "type": "row"
     },
     {
@@ -1833,14 +1990,14 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 23
+        "y": 12
       },
       "id": 52,
       "panels": [
         {
           "datasource": {
             "type": "loki",
-            "uid": "P8E80F9AEF21F6940"
+            "uid": "fehobyf45eghsb"
           },
           "description": "",
           "fieldConfig": {
@@ -1859,7 +2016,7 @@
             "h": 13,
             "w": 24,
             "x": 0,
-            "y": 1181
+            "y": 75
           },
           "id": 51,
           "options": {
@@ -1893,7 +2050,7 @@
           "type": "logs"
         }
       ],
-      "title": "Logs inzending OF formulieren",
+      "title": "Logs inzending formulieren met OF-nummer",
       "type": "row"
     },
     {
@@ -1902,7 +2059,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 24
+        "y": 13
       },
       "id": 64,
       "panels": [
@@ -1926,7 +2083,7 @@
             "h": 11,
             "w": 24,
             "x": 0,
-            "y": 1182
+            "y": 316
           },
           "id": 63,
           "options": {
@@ -2001,7 +2158,9 @@
       },
       {
         "current": {
-          "text": "All",
+          "text": [
+            "All"
+          ],
           "value": [
             "$__all"
           ]
@@ -2350,6 +2509,6 @@
   "timezone": "",
   "title": "Monitoring en logging PodiumD",
   "uid": "e970a83d-adc2-4d33-af93-2349c0b77",
-  "version": 4,
+  "version": 7,
   "weekStart": ""
 }
