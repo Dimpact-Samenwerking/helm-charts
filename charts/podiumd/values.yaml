@@ -549,7 +549,7 @@ openklant:
       useTLS: true
     disable2fa: false
   image:
-    tag: "2.4.0"
+    tag: "2.6.1"
   resources:
     requests:
       cpu: 100m
@@ -592,7 +592,7 @@ openformulieren:
   persistentVolume:
     volumeAttributeShareName: openformulieren
   image:
-    tag: "2.8.7"
+    tag: "3.0.6"
   resources:
     requests:
       cpu: 100m
@@ -650,7 +650,7 @@ openinwoner:
   persistentVolume:
     volumeAttributeShareName: openinwoner
   image:
-    tag: "1.29.0"
+    tag: "1.28.0"
   resources:
     requests:
       cpu: 200m
