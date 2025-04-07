@@ -8,17 +8,17 @@
 
 Patch release for Open Inwoner bug fix.
 
-| Component         | Version | Change  |
-|-------------------|---------|---------|
-| ClamAV            | 1.4.1   |         |
-| Keycloak          | 24.0.5  |         |
-| Objecten          | 2.4.4   |         |
-| Objecttypen       | 2.2.2   |         |
+| Component         | Version | Change         |
+|-------------------|---------|----------------|
+| ClamAV            | 1.4.1   |                |
+| Keycloak          | 24.0.5  |                |
+| Objecten          | 2.4.4   |                |
+| Objecttypen       | 2.2.2   |                |
 | Open Formulieren  | 2.7.11  | Security patch |
-| Open Inwoner      | 1.25.0  | Minor update |
-| Open Klant        | 2.3.0   |         |
-| Open Notificaties | 1.7.1   |         |
-| Open Zaak         | 1.15.0  |         |
+| Open Inwoner      | 1.25.0  | Minor update   |
+| Open Klant        | 2.3.0   |                |
+| Open Notificaties | 1.7.1   |                |
+| Open Zaak         | 1.15.0  |                |
 
 
 ### [3.2.0](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-3.2.0)
@@ -26,46 +26,73 @@ Patch release for Open Inwoner bug fix.
 **PodiumD Helm chart version: 3.2.0**
 
 
-| Component         | Version | Change  |
-|-------------------|---------|---------|
-| ClamAV            | 1.4.1   |         |
-| Keycloak          | 24.0.5  |         |
-| Objecten          | 2.4.4   |         |
-| Objecttypen       | 2.2.2   |         |
+| Component         | Version | Change         |
+|-------------------|---------|----------------|
+| ClamAV            | 1.4.1   |                |
+| Keycloak          | 24.0.5  |                |
+| Objecten          | 2.4.4   |                |
+| Objecttypen       | 2.2.2   |                |
 | Open Formulieren  | 2.7.11  | Security patch |
-| Open Inwoner      | 1.25.0  | Minor update |
-| Open Klant        | 2.3.0   |         |
-| Open Notificaties | 1.7.1   |         |
-| Open Zaak         | 1.15.0  |         |
-| Kiss              | 0.5.1   | Patch update |
+| Open Inwoner      | 1.25.0  | Minor update   |
+| Open Klant        | 2.3.0   |                |
+| Open Notificaties | 1.7.1   |                |
+| Open Zaak         | 1.15.0  |                |
+| Kiss              | 0.7.1   | Patch update   |
 
-### [3.3.0](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-3.3.0)
+### [3.3.2](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-3.3.2)
 
-**PodiumD Helm chart version: 3.3.0**
+**PodiumD Helm chart version: 3.3.2**
 
 
-| Component         | Version | Change  |
-|-------------------|---------|---------|
-| ClamAV            | 1.4.2   | Minor update |
-| Keycloak          | 24.0.5  |         |
-| Objecten          | 3.0.0   | Major update |
-| Objecttypen       | 3.0.0   | Major update |
+| Component         | Version | Change           |
+|-------------------|---------|------------------|
+| ClamAV            | 1.4.2   | Minor update     |
+| Keycloak          | 24.0.5  |                  |
+| Objecten          | 3.0.0   | Major update     |
+| Objecttypen       | 3.0.0   | Major update     |
 | Open Formulieren  | 2.8.5  | Minor app update |
-| Open Inwoner      | 1.27.0  | Minor app update |
-| Open Klant        | 2.4.0   | Minor update |
-| Open Notificaties | 1.8.0   | Minor update |
-| Open Zaak         | 1.17.0  | Minor update |
+| Open Inwoner      | 1.27.2  | Minor app update |
+| Open Klant        | 2.4.0   | Minor update     |
+| Open Notificaties | 1.8.0   | Minor update     |
+| Open Zaak         | 1.17.0  | Minor update     |
 | Kiss              | 0.6.0   | Minor app update |
+
+### [4.0.2](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.0.4)
+
+**PodiumD Helm chart version: 4.0.4**
+
+
+| Component         | Version | Change         |
+|-------------------|---------|----------------|
+| ClamAV            | 1.4.2   |                |
+| Keycloak          | 25.0.6  | Major update   |
+| Infinispan        | 15.1    | Nieuw component|
+| Objecten          | 3.0.0   |                |
+| Objecttypen       | 3.0.0   |                |
+| Open Formulieren  | 2.8.6   |                |
+| Open Inwoner      | 1.27.2  |                |
+| Open Klant        | 2.4.0   |                |
+| Open Notificaties | 1.8.0   |                |
+| Open Zaak         | 1.18.0  | Minor update   |
+| Kiss              | 0.7.1   | Minor update   |
+| Zac               | 3.0.0   | Nieuw component|
+
 
 ## Add Used chart repositories:
 
-    helm repo add bitnami https://charts.bitnami.com/bitnami
-    helm repo add dimpact https://Dimpact-Samenwerking.github.io/helm-charts/
-    helm repo add kiss-frontend https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/KISS-frontend/main/helm
-    helm repo add kiss-adapter https://raw.githubusercontent.com/ICATT-Menselijk-Digitaal/podiumd-adapter/main/helm
-    helm repo add kiss-elastic https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/.github/main/docs/scripts/elastic
-    helm repo add maykinmedia https://maykinmedia.github.io/charts
-    helm repo add wiremind https://wiremind.github.io/wiremind-helm-charts
+```shell
+helm repo add bitnami https://charts.bitnami.com/bitnami
+helm repo add dimpact https://Dimpact-Samenwerking.github.io/helm-charts/
+helm repo add kiss-frontend https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/KISS-frontend/main/helm
+helm repo add kiss-adapter https://raw.githubusercontent.com/ICATT-Menselijk-Digitaal/podiumd-adapter/main/helm
+helm repo add kiss-elastic https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/.github/main/docs/scripts/elastic
+helm repo add maykinmedia https://maykinmedia.github.io/charts
+helm repo add wiremind https://wiremind.github.io/wiremind-helm-charts
+helm repo add openshift https://charts.openshift.io
+helm repo add solr https://solr.apache.org/charts
+helm repo add opentelemetry https://open-telemetry.github.io/opentelemetry-helm-charts
+helm repo add zac https://infonl.github.io/dimpact-zaakafhandelcomponent/
+```
 
 ## PersistentVolume and PersistVolumeClaim resources
 
@@ -549,21 +576,52 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 | openinwoner.elasticsearch.data.nodeSelector               | Elastic search data node labels for pod assignment. Evaluated as a template                                                                           | `{}`                                          |
 | openinwoner.elasticsearch.coordinating.nodeSelector       | Elastic search coordinating node labels for pod assignment. Evaluated as a template                                                                   | `{}`                                          |
 
+### Podiumd Proxy 
+
+| Name                               | Description                                   | Value                       |
+|------------------------------------|-----------------------------------------------|------------------------------|
+| apiproxy.replicaCount              | Number of replicas to deploy                  | `1`                          |
+| apiproxy.nameOverride                       | Override for the deployment name              | `""`                         |
+| apiproxy.fullnameOverride                   | Override for the full deployment name         | `""`                         |
+| apiproxy.image.repository                   | Container image repository                    | `nginx`                      |
+| apiproxy.image.tag                          | Container image tag                           | `"1.25-alpine"`              |
+| apiproxy.image.pullPolicy                   | Image pull policy                             | `IfNotPresent`               |
+| apiproxy.service.port                       | Service port                                  | `8081`                       |
+| apiproxy.resources.limits.cpu               | CPU resource limit                            | `"0.5"`                      |
+| apiproxy.resources.limits.memory            | Memory resource limit                         | `"256Mi"`                    |
+| apiproxy.resources.requests.cpu             | CPU resource request                          | `"0.1"`                      |
+| apiproxy.resources.requests.memory          | Memory resource request                     | `"128Mi"`                    |
+| apiproxy.nginxCertsSecret                   | Secret containing NGINX certificates          | `"podiumd-proxy-certs"`      |
+| apiproxy.livenessProbe.initialDelaySeconds  | Initial delay for liveness probe    | `5`                          |
+| apiproxy.livenessProbe.periodSeconds        | Period between liveness probe checks      | `10`                         |
+| apiproxy.readinessProbe.initialDelaySeconds | Initial delay for readiness probe  | `5`                          |
+| apiproxy.readinessProbe.periodSeconds       | Period between readiness probe checks    | `10`                         |
+| apiproxy.locations.*.sslVerify              | SSL verification setting for all locations    | `"off"`                      |
+| apiproxy.locations.*.hostHeader             | Host header for all locations                 | `"lab.api.mijniconnect.nl"` |
+| apiproxy.locations.bag.path | Base path for BAG | `"/lvbag/individuelebevragingen/v2/"` |
+| apiproxy.locations.bag.targetUrl            | Target URL for BAG location                   | `"https://lab.api.mijniconnect.nl/iconnect/apihcbrp/actueel/v2/"` |
+| apiproxy.locations.brp.path | Base path for 
+| apiproxy.locations.brp.targetUrl            | Target URL for BRP location                   | `"https://lab.api.mijniconnect.nl/iconnect/apihcbrp/actueel/prtcl/v2/personen"` |
+| apiproxy.locations.kvkSearch.targetUrl      | Target URL for KVK search               | `"https://lab.api.mijniconnect.nl/iconnect/apikvk/zoeken/v2/zoeken"` |
+| apiproxy.locations.kvkBasic.targetUrl       | Target URL for KVK basic profiles        | `"https://lab.api.mijniconnect.nl/iconnect/apikvk/basprof/v1/v1/basisprofielen"` |
+| apiproxy.locations.kvkBranch.targetUrl      | Target URL for KVK branch profiles      | `"https://lab.api.mijniconnect.nl/iconnect/apikvk/vesprof/v1/v1/vestigingsprofielen"` |
+
+#### Create certificate example
+$ kubectl create secret generic api-proxy-certs \
+  --from-file=client.crt="C:\labtenant1.lab.api.mijniconnect.nl.crt" \
+  --from-file=client.key="C:\labtenant1.lab.api.mijniconnect.nl.key.decrypted" \
+  --from-file=ca.crt="C:\lab_api_mijniconnect_nl.crt"
+
 ### Tags
 
 Tags to add additional unreleased PodiumD functionality.
 
-| Name           | Description                            | Value   |
-|----------------|----------------------------------------|---------|
-| tags.portaal   | Whether PodiumD Portaal is installed   | `false` |
-| tags.contact   | Whether PodiumD Contact is installed   | `false` |
-| tags.zaak      | Whether PodiumD Zak is installed       | `false` |
+| Name           | Description                          | Value   |
+|----------------|--------------------------------------|---------|
+| tags.zaak      | Whether PodiumD Zaak is installed    | `false` |
                 
 ## Upgrading
 
-If an Helm upgrade of a component fails because of a forbidden update to a statefullset spec the stafullset needs to be deleted prior to the Helm upgrade by the following command:
+If an Helm upgrade of a component fails because of a forbidden update to a statefullset spec the statefullset needs to be deleted prior to the Helm upgrade by the following command:
                                                                                                                                                                    
 $ kubectl delete sts <component>-redis-master -n podiumd --cascade=orphan
-
-
-

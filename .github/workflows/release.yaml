@@ -33,6 +33,8 @@ jobs:
           helm repo add kiss-frontend https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/KISS-frontend/main/helm
           helm repo add kiss-adapter https://raw.githubusercontent.com/ICATT-Menselijk-Digitaal/podiumd-adapter/main/helm
           helm repo add kiss-elastic https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/.github/main/docs/scripts/elastic
+          helm repo add zac https://infonl.github.io/dimpact-zaakafhandelcomponent/
+          helm repo add openshift https://charts.openshift.io
 
       - name: Run chart-releaser
         uses: helm/chart-releaser-action@v1.6.0
