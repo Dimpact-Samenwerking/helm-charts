@@ -325,16 +325,6 @@ infinispan:
   monitoring:
     enabled: true
 
-openldap:
-  enabled: false
-  persistence:
-    size: 1Gi
-    existingClaim: openldap
-  persistentVolume:
-    volumeAttributeShareName: openldap
-  nameOverride: openldap
-  fullnameOverride: openldap
-
 abc:
   configuration:
     oidcUrl: https://abc.example.nl
@@ -430,7 +420,7 @@ opennotificaties:
   persistentVolume:
     volumeAttributeShareName: opennotificaties
   image:
-    tag: "1.8.0"
+    tag: "1.8.2"
   resources:
     requests:
       cpu: 100m
@@ -485,7 +475,7 @@ objecten:
   persistentVolume:
     volumeAttributeShareName: objecten
   image:
-    tag: "3.0.0"
+    tag: "3.0.3"
   resources:
     requests:
       cpu: 100m
@@ -525,7 +515,7 @@ objecttypen:
       useTLS: true
     disable2fa: false
   image:
-    tag: "3.0.0"
+    tag: "3.0.2"
   # used for create-required-objecttypen podiumd job only
   create_required_objecttypen_job:
     enabled: true
@@ -660,7 +650,7 @@ openinwoner:
   persistentVolume:
     volumeAttributeShareName: openinwoner
   image:
-    tag: "1.27.2"
+    tag: "1.29.0"
   resources:
     requests:
       cpu: 200m
@@ -884,7 +874,7 @@ zac:
   image:
     repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
-    tag: "3.0.0"
+    tag: "3.4.8"
   keycloak:
     adminClient:
       id: zac-admin-client
@@ -1110,18 +1100,3 @@ serviceAccount:
   automount: true
   annotations: {}
   name: ""
-
-httpRequestJob:
-  intellijHttpClient:
-    image:
-      repository: jetbrains/intellij-http-client
-      tag: "243.22562.13"
-  jwtCli:
-    image:
-      repository: bitnami/jwt-cli
-      tag: "6.2.0"
-  alpine:
-    image:
-      repository: alpine
-      tag: "3.20"
-  nodeSelector: {}

@@ -9,12 +9,6 @@ dependencies:
     version: 24.3.0
     repository: "@bitnami"
     condition: keycloak.enabled
-  - name: openldap
-    version: 1.0.2
-    repository: "@dimpact"
-    condition: openldap.enabled
-    tags:
-      - zaak
   - name: clamav
     version: 3.2.0
     repository: "@wiremind"
@@ -27,7 +21,7 @@ dependencies:
       - contact
       - zaak
   - name: openzaak
-    version: 1.8.0
+    version: 1.8.1
     repository: "@maykinmedia"
     condition: openzaak.enabled
   - name: opennotificaties
@@ -48,11 +42,11 @@ dependencies:
     condition: openklant.enabled
   - name: openforms
     alias: openformulieren
-    version: 1.4.4
+    version: 1.8.2
     repository: "@maykinmedia"
     condition: openformulieren.enabled
   - name: openinwoner
-    version: 1.7.0
+    version: 1.7.1
     repository: "@maykinmedia"
     condition: openinwoner.enabled
   - name: kiss-elastic
@@ -68,7 +62,7 @@ dependencies:
     condition: infinispan.enabled
   - name: zaakafhandelcomponent
     alias: zac
-    version: 1.0.25
+    version: 1.0.29
     repository: "@zac"
     condition: zac.enabled
     tags:
