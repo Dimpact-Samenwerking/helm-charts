@@ -37,7 +37,7 @@ dependencies:
     repository: "@maykinmedia"
     condition: objecttypen.enabled
   - name: openklant
-    version: 1.5.0
+    version: 1.6.3
     repository: "@maykinmedia"
     condition: openklant.enabled
   - name: openforms
