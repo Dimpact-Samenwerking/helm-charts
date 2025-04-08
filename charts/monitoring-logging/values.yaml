@@ -165,6 +165,7 @@ loki:
     ingestion_burst_size_mb: 20
 
   compactor:
+    working_directory: /tmp/loki/retention
     retention_enabled: true 
     delete_request_store: s3
     compaction_interval: 10m
