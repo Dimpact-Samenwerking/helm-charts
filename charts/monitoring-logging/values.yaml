@@ -83,8 +83,8 @@ prometheus:
   server:
     persistentVolume:
       enabled: true
-      storageClassName: default
-      size: 10Gi
+      storageClassName: ""
+      size: 20Gi
       accessModes: ["ReadWriteOnce"]
   prometheusSpec:
     logLevel: warn
@@ -231,7 +231,7 @@ chunksCache:
   
 monitoring:
   selfMonitoring:
-    enabled: false
+    enabled: true
     grafanaAgent:
       installOperator: false
   dashboards:
