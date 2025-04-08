@@ -1,0 +1,246 @@
+grafana:
+  enabled: true
+
+  assertNoLeakedSecrets: false
+  deleteDatasources:
+    - name: Alertmanager
+
+  additionalDataSources:
+    - name: Loki
+      type: loki
+      uid: loki
+      readOnly: false
+      editable: true
+      access: proxy
+      isDefault: true
+      url: http://loki-gateway
+      version: 1
+      jsonData:
+        timeout: 300
+
+  datasources:
+    alertmanager:
+      enabled: false
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+        - name: prometheus
+          editable: true
+          type: Prometheus
+          readOnly: false
+          url: http://podiumd-prometheus-server
+          access: proxy
+          isDefault: false
+
+  nodeSelector:
+    kubernetes.azure.com/mode: system
+
+  containerSecurityContext:
+    readOnlyRootFilesystem: true
+    allowPrivilegeEscalation: false
+    runAsNonRoot: true
+
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: "default"
+          orgId: 1
+          folder: 'PodiumD_Monitoring_Logging'
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/default
+
+  dashboards:
+    default:
+      Logging-PodiumD:
+        url: ""
+        token: ''
+        datasource: "Loki"
+
+  dashboardsConfigMaps:
+      default: "logging-podiumd-dashboard"
+
+  persistence:
+    enabled: true
+    storageClassName: "" # Specify your storage class
+    accessModes:
+      - ReadWriteOnce
+    size: 20Gi
+    type: pvc
+    finalizers:
+      - kubernetes.io/pvc-protection
+
+  sidecar:
+    datasources:
+      alertmanager:
+        enabled: false
+
+prometheus:
+  enabled: true
+  server:
+    persistentVolume:
+      enabled: true
+      storageClassName: default
+      size: 10Gi
+      accessModes: ["ReadWriteOnce"]
+  prometheusSpec:
+    logLevel: warn
+    serviceMonitorSelectorNilUsesHelmValues: false
+    retention: 72h
+
+  alertmanager:
+    enabled: false
+
+promtail:
+  enabled: true
+  config:
+    logLevel: warn
+    clients:
+      - url: http://loki-gateway/loki/api/v1/push
+        tenant_id: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 96Mi
+    limits:
+      cpu: 100m
+      memory: 256Mi
+
+loki:
+  enabled: true
+  schemaConfig:
+    configs:
+      - from: 2024-04-01
+        object_store: s3
+        store: tsdb
+        schema: v13
+        index:
+          prefix: loki_index_
+          period: 24h
+
+  auth_enabled: false
+
+  frontend:
+    max_outstanding_per_tenant: 6144 # Queue size for parallel processing
+    
+  ingester:
+    chunk_encoding: snappy
+    chunk_idle_period: 30m # Flush chunks faster = less memory
+    chunk_block_size: 262144
+    chunk_retain_period: 1m
+    
+  pattern_ingester:
+    enabled: true
+  
+  tracing:
+    enabled: false
+    
+  query_scheduler:
+  # the TSDB index dispatches many more, but each individually smaller, requests. 
+  # We increase the pending request queue sizes to compensate.
+    max_outstanding_requests_per_tenant: 32768
+    
+  querier:
+    max_concurrent: 6 # Per-pod parallelism
+  
+  # -- Query Performance  
+  limits_config:
+    allow_structured_metadata: true
+    volume_enabled: true
+    retention_period: 744h # 1 month retention
+    max_query_lookback: 744h # 1 month
+    ingestion_rate_strategy: local # Default: global
+    max_global_streams_per_user: 5000
+    max_query_length: 744h # 1 month. Default: 721h
+    max_query_parallelism: 48 # Utilize Azure's high throughput
+    max_streams_per_user: 0 # Old Default: 10000 
+    split_queries_by_interval: 15m # Smaller splits = faster parallelization
+    max_cache_freshness_per_query: 10m
+    ingestion_rate_mb: 10 
+    ingestion_burst_size_mb: 20
+
+  compactor:
+    retention_enabled: true 
+    delete_request_store: s3
+    compaction_interval: 10m
+    retention_delete_delay: 2h
+    retention_delete_worker_count: 150
+    
+deploymentMode: Distributed
+
+ingester:
+  replicas: 3 # 2-3 for HA, fewer for cost
+
+querier:
+  replicas: 3 # Scale based on query load
+  maxUnavailable: 2 # 2/3 pods unavailable during updates
+
+queryFrontend:
+  replicas: 2
+  maxUnavailable: 1 # 1/2 pods can update
+      
+queryScheduler:
+  replicas: 2
+
+distributor:
+  replicas: 3
+  maxUnavailable: 2 # 2/3 pods down during updates
+  
+compactor:
+  replicas: 2
+  
+indexGateway:
+  replicas: 2
+  maxUnavailable: 1 # 1/2 pods can update
+      
+# -- Optional experimental components
+bloomPlanner:
+  replicas: 0
+bloomBuilder:
+  replicas: 0
+bloomGateway:
+  replicas: 0
+
+# Enable minio for storage
+minio:
+  enabled: true
+
+# -- Zero out replica counts of other deployment modes
+backend:
+  replicas: 0
+read:
+  replicas: 0
+write:
+  replicas: 0
+
+singleBinary:
+  replicas: 0
+
+# -- Caching --
+resultsCache:
+  enabled: true
+  defaultValidity: 6h
+  
+chunksCache:
+  enabled: true
+  defaultValidity: 6h # Shorter TTL = fresher results
+  allocatedMemory: 1024
+  
+monitoring:
+  selfMonitoring:
+    enabled: false
+    grafanaAgent:
+      installOperator: false
+  dashboards:
+    enabled: false
+  rules:
+    enabled: false
+
+test:
+  enabled: false
+
+lokiCanary:
+  enabled: false
