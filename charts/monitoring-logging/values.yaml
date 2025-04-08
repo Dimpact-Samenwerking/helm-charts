@@ -1,6 +1,5 @@
 grafana:
   enabled: true
-
   assertNoLeakedSecrets: false
   deleteDatasources:
     - name: Alertmanager
