@@ -13,7 +13,11 @@ dependencies:
     repository: "@grafana"
     version: 6.16.6
     condition: promtail.enabled
-  - name: kube-prometheus-stack
+  - name: grafana
+    repository: "@grafana"
+    version: 8.11.3
+    condition: grafana.enabled
+  - name: prometheus
     repository: "@prometheus-community"
-    version: 70.3.0
-    condition: kube-prometheus-stack.enabled
+    version: 27.8.0
+    condition: prometheus.enabled
