@@ -233,7 +233,7 @@ chunksCache:
   
 monitoring:
   selfMonitoring:
-    enabled: true
+    enabled: false
     grafanaAgent:
       installOperator: false
   dashboards:
