@@ -90,6 +90,8 @@ prometheus:
     logLevel: warn
     serviceMonitorSelectorNilUsesHelmValues: false
     retention: 7d # 7 days retention
+    # Prometheus' data retention size. Supported units: B, KB, MB, GB, TB, PB, EB
+    retentionSize: ""
 
   alertmanager:
     enabled: false
