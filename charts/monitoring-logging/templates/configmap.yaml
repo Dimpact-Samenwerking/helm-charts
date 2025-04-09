@@ -7,4 +7,4 @@ metadata:
     grafana_dashboard: "1"
 data:
   logging-podiumd-dashboard.json: |-
-{{ .Files.Get "dashboards/logging-podiumd-dashboard.json" | indent 4 }}
+{{ .Files.Get "dashboards/logging-podiumd-dashboard.json" | replace "P8E80F9AEF21F6940" "loki" | indent 4 }}
