@@ -46,6 +46,8 @@ grafana:
           folder: 'PodiumD_Monitoring_Logging'
           type: file
           disableDeletion: false
+          updateIntervalSeconds: 30
+          allowUiUpdates: true
           editable: true
           options:
             path: /var/lib/grafana/dashboards/default
