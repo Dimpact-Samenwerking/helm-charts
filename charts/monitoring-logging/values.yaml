@@ -47,7 +47,7 @@ grafana:
           type: file
           disableDeletion: false
           updateIntervalSeconds: 30
-          allowUiUpdates: true
+          allowUiUpdates: true # modify dashboards
           editable: true
           options:
             path: /var/lib/grafana/dashboards/default
