@@ -4,19 +4,6 @@ grafana:
   deleteDatasources:
     - name: Alertmanager
 
-  additionalDataSources:
-    - name: Loki
-      type: loki
-      uid: loki
-      readOnly: false
-      editable: true
-      access: proxy
-      isDefault: true
-      url: http://loki-gateway
-      version: 1
-      jsonData:
-        timeout: 300
-
   datasources:
     alertmanager:
       enabled: false
@@ -30,6 +17,17 @@ grafana:
           url: http://{{ .Release.Name }}-prometheus-server
           access: proxy
           isDefault: false
+        - name: loki
+          type: loki
+          uid: loki
+          readOnly: false
+          editable: true
+          access: proxy
+          isDefault: true
+          url: http://loki-gateway
+          version: 1
+          jsonData:
+              timeout: 300
 
   nodeSelector:
     kubernetes.azure.com/mode: system
