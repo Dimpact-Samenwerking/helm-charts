@@ -27,7 +27,7 @@ grafana:
           editable: true
           type: Prometheus
           readOnly: false
-          url: http://podiumd-prometheus-server
+          url: http://{{ .Release.Name }}-prometheus-server
           access: proxy
           isDefault: false
 
@@ -52,15 +52,8 @@ grafana:
           options:
             path: /var/lib/grafana/dashboards/default
 
-  dashboards:
-    default:
-      Logging-PodiumD:
-        url: ""
-        token: ''
-        datasource: "Loki"
-
   dashboardsConfigMaps:
-      default: "logging-podiumd-dashboard"
+    default: "logging-podiumd-dashboard"
 
   persistence:
     enabled: true
