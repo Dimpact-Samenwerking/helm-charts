@@ -23,9 +23,9 @@ grafana:
     datasources.yaml:
       apiVersion: 1
       datasources:
-        - name: prometheus
+        - name: Prometheus
           editable: true
-          type: Prometheus
+          type: prometheus
           readOnly: false
           url: http://{{ .Release.Name }}-prometheus-server
           access: proxy
