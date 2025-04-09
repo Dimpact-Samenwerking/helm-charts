@@ -10,6 +10,7 @@ loki:
           period: 24h
 
   auth_enabled: false
+
   frontend:
     max_outstanding_per_tenant: 6144 # Queue size for parallel processing
     
@@ -32,14 +33,13 @@ loki:
     
   querier:
     max_concurrent: 6 # Per-pod parallelism
-
   
   # -- Query Performance  
   limits_config:
     allow_structured_metadata: true
     volume_enabled: true
-    retention_period: 744h # 1 month retention
-    max_query_lookback: 744h # 1 month
+    retention_period: 90d # 3 months retention
+    max_query_lookback: 90d # 3 months
     ingestion_rate_strategy: local # Default: global
     max_global_streams_per_user: 5000
     max_query_length: 744h # 1 month. Default: 721h
@@ -51,21 +51,13 @@ loki:
     ingestion_burst_size_mb: 20
 
   compactor:
+    working_directory: /tmp/loki/retention
     retention_enabled: true 
     delete_request_store: s3
     compaction_interval: 10m
     retention_delete_delay: 2h
     retention_delete_worker_count: 150
-
-#gateway:
-#  ingress:
-#    enabled: true
-#    hosts:
-#      - host: FIXME
-#        paths:
-#          - path: /
-#            pathType: Prefix
-
+    
 deploymentMode: Distributed
 
 ingester:
@@ -103,7 +95,7 @@ bloomGateway:
 
 # Enable minio for storage
 minio:
- enabled: true
+  enabled: true
 
 # -- Zero out replica counts of other deployment modes
 backend:
