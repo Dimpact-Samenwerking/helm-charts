@@ -103,8 +103,10 @@ promtail:
       cpu: 100m
       memory: 256Mi
 
+# -- Uitgeschakeld vanwege deployment issues bij het uitrollen van de master helm chart. Loki moet los uitgerold worden met 'helm install loki grafana/loki --values values.yaml met de values
+in de loki map
 loki:
-  enabled: true
+  enabled: false  
   schemaConfig:
     configs:
       - from: 2024-04-01
