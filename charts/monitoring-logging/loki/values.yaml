@@ -1,36 +1,16 @@
 loki:
-  podLabels:
-    "azure.workload.identity/use": "true" # Add this label to the Loki pods to enable workload identity
-  image:
-    registry: ""
-    repository: loki
-    tag: ""
   schemaConfig:
     configs:
       - from: 2024-04-01
-        object_store: azure
+        object_store: s3
         store: tsdb
         schema: v13
         index:
           prefix: loki_index_
           period: 24h
-  storage_config:
-    azure:
-      account_name: "" 
-      container_name: "" # Your actual Azure Blob Storage container name (loki-azure-dev-chunks)
-      use_federated_token: true # Use federated token for authentication
-          
-  storage:
-    bucketNames:
-      chunks: "" # Your actual Azure Blob Storage container name (loki-azure-dev-chunks)
-      ruler: "" # Your actual Azure Blob Storage container name (loki-azure-dev-ruler)
-        # admin: "admin-loki-devrel" # Your actual Azure Blob Storage container name (loki-azure-dev-admin)
-    type: azure
-    azure:
-      useFederatedToken: true # Use federated token for authentication
-      accountName: ""
 
   auth_enabled: false
+
   frontend:
     max_outstanding_per_tenant: 6144 # Queue size for parallel processing
     
@@ -39,60 +19,44 @@ loki:
     chunk_idle_period: 30m # Flush chunks faster = less memory
     chunk_block_size: 262144
     chunk_retain_period: 1m
+    
   pattern_ingester:
     enabled: true
-      
+  
   tracing:
     enabled: false
-
+    
   query_scheduler:
   # the TSDB index dispatches many more, but each individually smaller, requests. 
   # We increase the pending request queue sizes to compensate.
     max_outstanding_requests_per_tenant: 32768
-  
+    
   querier:
     max_concurrent: 6 # Per-pod parallelism
-    
+  
   # -- Query Performance  
   limits_config:
     allow_structured_metadata: true
     volume_enabled: true
-    retention_period: 744h # 1 month retention
-    max_query_lookback: 744h # 1 month
+    retention_period: 90d # 3 months retention
+    max_query_lookback: 90d # 3 months
     ingestion_rate_strategy: local # Default: global
-    max_global_streams_per_user: 10000
+    max_global_streams_per_user: 5000
     max_query_length: 744h # 1 month. Default: 721h
     max_query_parallelism: 48 # Utilize Azure's high throughput
     max_streams_per_user: 0 # Old Default: 10000 
     split_queries_by_interval: 15m # Smaller splits = faster parallelization
     max_cache_freshness_per_query: 10m
-    ingestion_rate_mb: 10
+    ingestion_rate_mb: 10 
     ingestion_burst_size_mb: 20
-    
+
   compactor:
-    working_directory: /data/retention
+    working_directory: /tmp/loki/retention
     retention_enabled: true 
-    delete_request_store: azure
+    delete_request_store: s3
     compaction_interval: 10m
     retention_delete_delay: 2h
     retention_delete_worker_count: 150
-  
-  ruler:
-    enable_api: true
-    storage:
-      type: azure
-      azure:
-        account_name: <INSERT-STORAGE-ACCOUNT-NAME>
-        container_name: <RULER-CONTAINER-NAME> # Your actual Azure Blob Storage container name (loki-azure-dev-ruler)
-        use_federated_token: true # Use federated token for authentication
-
-# Define the Azure workload identity
-serviceAccount:
-  name: loki
-  annotations:
-    "azure.workload.identity/client-id": "<APP-ID>" # The app ID of the Azure AD app
-  labels:
-    "azure.workload.identity/use": "true"
     
 deploymentMode: Distributed
 
@@ -120,10 +84,6 @@ compactor:
 indexGateway:
   replicas: 2
   maxUnavailable: 1 # 1/2 pods can update
-
-ruler:
- replicas: 1
- maxUnavailable: 1
       
 # -- Optional experimental components
 bloomPlanner:
@@ -135,7 +95,7 @@ bloomGateway:
 
 # Enable minio for storage
 minio:
- enabled: false
+  enabled: true
 
 # -- Zero out replica counts of other deployment modes
 backend:
@@ -147,22 +107,6 @@ write:
 
 singleBinary:
   replicas: 0
-
-# This exposes the Loki gateway so it can be written to and queried externaly
-gateway:
- service:
-   type: LoadBalancer
- basicAuth: 
-     enabled: true
-     existingSecret: loki-basic-auth
-
-sidecar:
-  image:
-    registry: ""
-    repository: ""
-    tag: ""
-  dashboards:
-    skipReload: true
 
 # -- Caching --
 resultsCache:
