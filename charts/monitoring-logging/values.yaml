@@ -54,7 +54,15 @@ grafana:
 
   dashboardsConfigMaps:
     default: "logging-podiumd-dashboard"
-
+    
+  image:
+    pullPolicy: IfNotPresent
+    pullSecrets: []
+    registry: docker.io
+    repository: grafana/grafana
+    sha: ""
+    tag: ""
+    
   persistence:
     enabled: true
     storageClassName: "" # Specify your storage class
@@ -73,6 +81,11 @@ grafana:
 prometheus:
   enabled: true
   server:
+    image:
+      digest: ""
+      pullPolicy: IfNotPresent
+      repository: quay.io/prometheus/prometheus
+      tag: ""
     persistentVolume:
       enabled: true
       storageClassName: ""
@@ -90,6 +103,11 @@ prometheus:
 
 promtail:
   enabled: true
+  image:
+    pullPolicy: IfNotPresent
+    registry: docker.io
+    repository: grafana/promtail
+    tag: ""
   config:
     logLevel: warn
     clients:
@@ -106,7 +124,13 @@ promtail:
 # -- Uitgeschakeld vanwege deployment issues bij het uitrollen van de master helm chart. Loki moet los uitgerold worden met 'helm install loki grafana/loki --values 
 # values.yaml met de values in de loki map
 loki:
-  enabled: false  
+  enabled: false
+  image:
+    digest: null
+    pullPolicy: IfNotPresent
+    registry: docker.io
+    repository: grafana/loki
+    tag: ""
   schemaConfig:
     configs:
       - from: 2024-04-01
