@@ -57,9 +57,9 @@ Patch release for Open Inwoner bug fix.
 | Open Zaak         | 1.17.0  | Minor update     |
 | Kiss              | 0.6.0   | Minor app update |
 
-### [4.0.2](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.0.4)
+### [4.0.5](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.0.5)
 
-**PodiumD Helm chart version: 4.0.4**
+**PodiumD Helm chart version: 4.0.5**
 
 
 | Component         | Version | Change         |
