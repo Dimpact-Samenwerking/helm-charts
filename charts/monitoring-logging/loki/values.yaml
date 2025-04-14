@@ -14,6 +14,13 @@ loki:
   frontend:
     max_outstanding_per_tenant: 6144 # Queue size for parallel processing
     
+  image:
+    digest: null
+    pullPolicy: IfNotPresent
+    registry: docker.io
+    repository: grafana/loki
+    tag: ""
+    
   ingester:
     chunk_encoding: snappy
     chunk_idle_period: 30m # Flush chunks faster = less memory
