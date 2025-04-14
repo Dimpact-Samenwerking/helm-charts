@@ -65,7 +65,7 @@ grafana:
     
   persistence:
     enabled: true
-    storageClassName: "" # Specify your storage class
+    storageClassName: "managed-csi" # Specify your storage class
     accessModes:
       - ReadWriteOnce
     size: 20Gi
@@ -88,7 +88,7 @@ prometheus:
       tag: ""
     persistentVolume:
       enabled: true
-      storageClassName: ""
+      storageClassName: "managed-csi"
       size: 20Gi
       accessModes: ["ReadWriteOnce"]
   prometheusSpec:
