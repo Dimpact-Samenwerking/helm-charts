@@ -52,6 +52,22 @@ grafana:
           options:
             path: /var/lib/grafana/dashboards/default
 
+  grafana.ini:
+    auth.generic_oauth:
+      enabled = true
+      name = Keycloak-podiumd
+      allow_sign_up = false
+      client_id = ""
+      client_secret = ""
+      scopes = openid email profile offline_access roles
+      email_attribute_path = email
+      login_attribute_path = username
+      name_attribute_path = name
+      auth_url = ""
+      token_url = ""
+      api_url = ""
+      role_attribute_path = ""
+      
   dashboardsConfigMaps:
     default: "logging-podiumd-dashboard"
     
