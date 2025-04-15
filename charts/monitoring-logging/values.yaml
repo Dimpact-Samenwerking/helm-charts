@@ -53,6 +53,7 @@ grafana:
             path: /var/lib/grafana/dashboards/default
 
   grafana.ini:
+  # -- Authentication and Authorization with Keycloak
     auth.generic_oauth:
       enabled = true
       name = Keycloak-podiumd
