@@ -25,9 +25,13 @@ grafana:
           access: proxy
           isDefault: true
           url: http://loki-gateway
+          basicAuth: true
+          basicAuthUser: ""
           version: 1
           jsonData:
               timeout: 300
+          secureJsonData:
+            basicAuthPassword: ""
 
   nodeSelector:
     kubernetes.azure.com/mode: system
@@ -282,3 +286,12 @@ test:
 
 lokiCanary:
   enabled: false
+
+gateway:
+  basicAuth:
+    # -- Enables basic authentication for the gateway
+    enabled: true
+    # -- The basic auth username for the gateway
+    username: ""
+    # -- The basic auth password for the gateway
+    password: ""
