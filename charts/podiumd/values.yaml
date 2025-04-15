@@ -549,7 +549,7 @@ openklant:
       useTLS: true
     disable2fa: false
   image:
-    tag: "2.6.1"
+    tag: "2.7.0"
   resources:
     requests:
       cpu: 100m
@@ -1080,7 +1080,7 @@ apiproxy:
     bag:
       <<: *commonLocation
       path: /lvbag/individuelebevragingen/v2/
-      targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apihcbrp/actueel/v2/"
+      targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apibagib/v2/"
     brp:
       <<: *commonLocation
       path: /haalcentraal/api/brp/
