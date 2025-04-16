@@ -30,7 +30,7 @@
     {
       "datasource": {
         "type": "loki",
-        "uid": "P8E80F9AEF21F6940"
+        "uid": "loki"
       },
       "fieldConfig": {
         "defaults": {
@@ -180,7 +180,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "P8E80F9AEF21F6940"
+            "uid": "loki"
           },
           "description": "",
           "fieldConfig": {
@@ -361,7 +361,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "P8E80F9AEF21F6940"
+                "uid": "loki"
               },
               "editorMode": "code",
               "expr": "sum(count_over_time({app=\"openformulieren-nginx\"} |~ \"POST /api/v2/submissions/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/_complete\" |~ `HTTP/1.1\\\" 200` [$__range]))",
@@ -373,7 +373,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "P8E80F9AEF21F6940"
+                "uid": "loki"
               },
               "editorMode": "code",
               "expr": "sum(count_over_time({app=\"openformulieren-worker\"} |~ \"\\\"public_reference\\\":\\\"OF-[0-9a-zA-Z]{6}\\\"\" |~ \"/api/v2/objects/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\" [$__range]))",
@@ -420,7 +420,7 @@
         },
         {
           "datasource": {
-            "uid": "P8E80F9AEF21F6940"
+            "uid": "loki"
           },
           "fieldConfig": {
             "defaults": {
@@ -510,7 +510,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "P8E80F9AEF21F6940"
+                "uid": "loki"
               },
               "editorMode": "code",
               "expr": "sum by (of_id) (\r\n  count_over_time(\r\n    {app=\"openformulieren-worker\"} \r\n    |~ \"\\\"public_reference\\\":\\\"OF-[0-9a-zA-Z]{6}\\\"\"\r\n    |~ \"/api/v2/objects/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\"\r\n    | regexp `.*(?P<of_id>OF-[A-Za-z0-9]{6}).*` \r\n    [$__interval]\r\n  )\r\n)",
@@ -522,7 +522,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "P8E80F9AEF21F6940"
+                "uid": "loki"
               },
               "editorMode": "code",
               "expr": "sum (\r\n  count_over_time(\r\n    {app=\"openformulieren-worker\"} \r\n    |~ \"\\\"public_reference\\\":\\\"OF-[0-9a-zA-Z]{6}\\\"\"\r\n    |~ \"/api/v2/objects/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\" \r\n    | regexp `.*(?P<of_id>OF-[A-Za-z0-9]{6}).*`\r\n    [$__interval]\r\n  )\r\n)",
@@ -551,7 +551,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "P8E80F9AEF21F6940"
+            "uid": "loki"
           },
           "description": "",
           "fieldConfig": {
@@ -724,7 +724,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "P8E80F9AEF21F6940"
+                "uid": "loki"
               },
               "editorMode": "code",
               "expr": "sum(count_over_time({app=\"objecten\"} |~ \"POST /api/v2/objects\" |~ \"HTTP/1.1 201\" [$__range]))",
@@ -736,7 +736,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "P8E80F9AEF21F6940"
+                "uid": "loki"
               },
               "editorMode": "code",
               "expr": "sum(count_over_time ({app=\"openformulieren-nginx\"} |~ \"POST /api/v2/submissions/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/_complete\" |~ `HTTP/1.1\\\" 200` [$__range]))",
@@ -748,7 +748,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "P8E80F9AEF21F6940"
+                "uid": "loki"
               },
               "editorMode": "code",
               "expr": "sum(count_over_time(\r\n        {app=\"openformulieren-worker\"}  \r\n        |~ \"/zgw-apis-provider/drc/api/v1/enkelvoudiginformatieobjecten/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\"\r\n        |~ `\"public_reference\":\"OF-[0-9a-zA-Z]{6}\"`\r\n        |~ \".pdf\"\r\n        [$__range]))\r\n",
@@ -760,7 +760,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "P8E80F9AEF21F6940"
+                "uid": "loki"
               },
               "editorMode": "code",
               "expr": "sum(\r\n    count_over_time({app=\"openformulieren-worker\"}  |~ `\"public_reference\":\"OF-[0-9a-zA-Z]{6}\"` |~ \"/api/v2/objects/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\" [$__range]))",
@@ -775,7 +775,7 @@
         },
         {
           "datasource": {
-            "uid": "P8E80F9AEF21F6940"
+            "uid": "loki"
           },
           "fieldConfig": {
             "defaults": {
@@ -865,7 +865,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "P8E80F9AEF21F6940"
+                "uid": "loki"
               },
               "editorMode": "code",
               "expr": "sum by (formulier) (count_over_time({app=\"openformulieren-nginx\"} \r\n|~ `https?://[^/\\s]+/([^/\\s]+)` \r\n|~ \"POST /api/v2/submissions/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/_complete\" \r\n| regexp `https?://(?P<url>[^/\\s]+)/(?P<formulier>[^/\\s]+)` \r\n!= \"maykinmedia\" != \"maykin\" != \"sentry\" [$__interval])) ",
@@ -877,7 +877,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "P8E80F9AEF21F6940"
+                "uid": "loki"
               },
               "editorMode": "code",
               "expr": "sum (count_over_time({app=\"openformulieren-nginx\"} \r\n|~ `https?://[^/\\s]+/([^/\\s]+)` \r\n|~ \"POST /api/v2/submissions/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/_complete\" \r\n| regexp `https?://(?P<url>[^/\\s]+)/(?P<formulier>[^/\\s]+)` \r\n!= \"maykinmedia\" != \"maykin\" != \"sentry\" [$__interval])) ",
@@ -906,7 +906,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "P8E80F9AEF21F6940"
+            "uid": "loki"
           },
           "fieldConfig": {
             "defaults": {
@@ -1074,7 +1074,7 @@
         },
         {
           "datasource": {
-            "uid": "P8E80F9AEF21F6940"
+            "uid": "loki"
           },
           "fieldConfig": {
             "defaults": {
@@ -1186,7 +1186,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "P8E80F9AEF21F6940"
+                "uid": "loki"
               },
               "editorMode": "code",
               "expr": "sum by (formulier) (count_over_time({app=\"openformulieren-nginx\"}\r\n|~ `https?://[^/\\s]+/([^/\\s]+)` \r\n|~ \"POST /api/v2/submissions/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/_complete\" \r\n| regexp `https?://(?P<url>[^/\\s]+)/(?P<formulier>[^/\\s]+)`  \r\n[$__interval])) ",
@@ -1198,7 +1198,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "P8E80F9AEF21F6940"
+                "uid": "loki"
               },
               "editorMode": "code",
               "expr": "sum by (of_id) (\r\n  count_over_time(\r\n    {app=\"openformulieren-worker\"} \r\n    |~ \"\\\"public_reference\\\":\\\"OF-[0-9a-zA-Z]{6}\\\"\"\r\n    |~ \"/api/v2/objects/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\" \r\n    | regexp `.*(?P<of_id>OF-[A-Za-z0-9]{6}).*`\r\n    [$__interval]\r\n  )\r\n)",
@@ -1228,7 +1228,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "P8E80F9AEF21F6940"
+            "uid": "loki"
           },
           "description": "",
           "fieldConfig": {
@@ -1287,7 +1287,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "P8E80F9AEF21F6940"
+            "uid": "loki"
           },
           "description": "",
           "fieldConfig": {
@@ -1347,7 +1347,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "P8E80F9AEF21F6940"
+            "uid": "loki"
           },
           "description": "",
           "fieldConfig": {
@@ -1399,7 +1399,7 @@
         },
         {
           "datasource": {
-            "uid": "P8E80F9AEF21F6940"
+            "uid": "loki"
           },
           "fieldConfig": {
             "defaults": {},
@@ -1435,7 +1435,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "P8E80F9AEF21F6940"
+                "uid": "loki"
               },
               "editorMode": "code",
               "expr": "{app=\"openformulieren-nginx\"} \r\n|~ `https?://[^/\\s]+/([^/\\s]+)` \r\n|~ \"POST /api/v2/submissions/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/_complete\" \r\n| regexp `POST /api/v2/submissions/(?P<id>[0-9a-fA-F-]+)`\r\n| regexp `https?://(?P<url>[^/\\s]+)/(?P<formulier>[^/\\s]+)` \r\n| line_format \"URL: https://{{.url}}/{{.formulier}}, Formulier: {{.formulier}}, SubmissionID: {{.id}}\"\r\n!~ `$excluded_log_levels`",
@@ -1465,7 +1465,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "P8E80F9AEF21F6940"
+            "uid": "loki"
           },
           "fieldConfig": {
             "defaults": {},
@@ -1522,7 +1522,7 @@
         },
         "datasource": {
           "type": "loki",
-          "uid": "P8E80F9AEF21F6940"
+          "uid": "loki"
         },
         "definition": "",
         "description": "Selecteer PodiumD component",
