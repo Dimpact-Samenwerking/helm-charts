@@ -25,15 +25,15 @@ dependencies:
     repository: "@maykinmedia"
     condition: openzaak.enabled
   - name: opennotificaties
-    version: 1.8.0
+    version: 1.8.2
     repository: "@maykinmedia"
     condition: opennotificaties.enabled
   - name: objecten
-    version: 2.7.1
+    version: 2.7.4
     repository: "@maykinmedia"
     condition: objecten.enabled
   - name: objecttypen
-    version: 1.3.0
+    version: 1.3.2
     repository: "@maykinmedia"
     condition: objecttypen.enabled
   - name: openklant
