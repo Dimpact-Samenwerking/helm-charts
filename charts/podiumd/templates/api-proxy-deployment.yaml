@@ -19,7 +19,7 @@ spec:
       - name: nginx
         image: {{ .Values.apiproxy.image.repository }}:{{ .Values.apiproxy.image.tag }}
         ports:
-        - containerPort: 8080
+        - containerPort: {{ .Values.apiproxy.service.containerPort }}
           name: http
         volumeMounts:
         - name: nginx-config
@@ -37,13 +37,13 @@ spec:
         livenessProbe:
           httpGet:
             path: /_health/
-            port: {{ .Values.apiproxy.service.port }}
+            port: {{ .Values.apiproxy.service.containerPort }}
           initialDelaySeconds: {{ .Values.apiproxy.livenessProbe.initialDelaySeconds }}
           periodSeconds: {{ .Values.apiproxy.livenessProbe.periodSeconds }}
         readinessProbe:
           httpGet:
             path: /_health/
-            port: {{ .Values.apiproxy.service.port }}
+            port: {{ .Values.apiproxy.service.containerPort }}
           initialDelaySeconds: {{ .Values.apiproxy.readinessProbe.initialDelaySeconds }}
           periodSeconds: {{ .Values.apiproxy.readinessProbe.periodSeconds }}
       volumes:
