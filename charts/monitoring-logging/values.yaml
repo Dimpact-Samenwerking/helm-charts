@@ -49,6 +49,18 @@ grafana:
   #        options:
   #          path: /var/lib/grafana/dashboards/default
   
+  # -- extra dashboard
+  #      - name: "monitoring"
+  #        orgId: 1
+  #        folder: 'PodiumD_Monitoring_Logging'
+  #        type: file
+  #        disableDeletion: false
+  #        updateIntervalSeconds: 30
+  #        allowUiUpdates: true # modify dashboards
+  #        editable: true
+  #        options:
+  #          path: /var/lib/grafana/dashboards/monitoring
+  
   grafana.ini:
     # -- Authentication and Authorization with Keycloak
     auth.generic_oauth:
@@ -83,7 +95,8 @@ grafana:
       root_url: "https://logs.test.nl/"
       
   #dashboardsConfigMaps:
-  #  default: "logging-podiumd-dashboard"
+  #  default: "logging-podiumd-dashboard" 
+  #  monitoring: "monitoring" 
   image:
     pullPolicy: IfNotPresent
     pullSecrets: []
