@@ -1091,7 +1091,7 @@ apiproxy:
     bag:
       <<: *commonLocation
       path: /lvbag/individuelebevragingen/v2/
-      targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apihcbrp/actueel/v2/"
+      targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apibagib/v2/"
     brp:
       <<: *commonLocation
       path: /haalcentraal/api/brp/
