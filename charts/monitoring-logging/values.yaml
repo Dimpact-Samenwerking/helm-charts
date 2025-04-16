@@ -3,6 +3,7 @@ grafana:
   assertNoLeakedSecrets: false
   deleteDatasources:
     - name: Alertmanager
+    
   datasources:
     alertmanager:
       enabled: false
@@ -24,17 +25,15 @@ grafana:
           access: proxy
           isDefault: true
           url: http://{{ .Release.Name }}-loki-gateway
-          basicAuth: true
-          basicAuthUser: ""
           version: 1
           jsonData:
             timeout: 300
-          secureJsonData:
-            basicAuthPassword: ""
+            
   containerSecurityContext:
     readOnlyRootFilesystem: false
     allowPrivilegeEscalation: false
     runAsNonRoot: true
+    
   #dashboardProviders:
   #  dashboardproviders.yaml:
   #    apiVersion: 1
@@ -49,6 +48,7 @@ grafana:
   #        editable: true
   #        options:
   #          path: /var/lib/grafana/dashboards/default
+  
   grafana.ini:
     # -- Authentication and Authorization with Keycloak
     auth.generic_oauth:
@@ -81,6 +81,7 @@ grafana:
     server:
       domain: "https://logs.test.nl/"
       root_url: "https://logs.test.nl/"
+      
   #dashboardsConfigMaps:
   #  default: "logging-podiumd-dashboard"
   image:
@@ -90,6 +91,7 @@ grafana:
     repository: grafana/grafana
     sha: ""
     tag: ""
+    
   persistence:
     enabled: true
     storageClassName: "managed-csi" # Specify your storage class
@@ -99,6 +101,7 @@ grafana:
     type: pvc
     finalizers:
       - kubernetes.io/pvc-protection
+      
   sidecar:
     datasources:
       alertmanager:
@@ -114,7 +117,7 @@ prometheus:
       tag: ""
     persistentVolume:
       enabled: true
-      storageClassName: "managed-csi"
+      storageClass: "managed-csi"
       size: 20Gi
       accessModes: ["ReadWriteOnce"]
   prometheusSpec:
@@ -136,7 +139,7 @@ promtail:
   config:
     logLevel: warn
     clients:
-      - url: http://loki-gateway/loki/api/v1/push
+      - url: http://{{ .Release.Name }}-loki-gateway/loki/api/v1/push
         tenant_id: 1
   resources:
     requests:
@@ -146,7 +149,6 @@ promtail:
       cpu: 100m
       memory: 256Mi
 
-#
 loki:
   enabled: true
   deploymentMode: Distributed
@@ -177,13 +179,13 @@ loki:
     replicas: 2
     maxUnavailable: 1
   distributor:
-    replicas: 2
-    maxUnavailable: 1
+    replicas: 3
+    maxUnavailable: 2
   querier:
-    replicas: 2
-    maxUnavailable: 1
+    replicas: 3
+    maxUnavailable: 2
   ingester:
-    replicas: 2
+    replicas: 3
   test:
     enabled: false
   backend:
@@ -194,6 +196,7 @@ loki:
     replicas: 0
   compactor:
     replicas: 2
+    
   loki:
     auth_enabled: false
     schemaConfig:
@@ -207,6 +210,7 @@ loki:
             period: 24h
     tracing:
       enabled: true
+      
     storage:
       type: azure
       azure:
@@ -215,6 +219,7 @@ loki:
         container_name: loki-data
       object_store:
         type: azure
+        
     compactor:
       delete_request_store: filesystem
       compaction_interval: 10m
@@ -222,6 +227,7 @@ loki:
       retention_delete_worker_count: 150
       working_directory: /tmp/loki/retention
       retention_enabled: true
+      
       # -- Query Performance
     limits_config:
       allow_structured_metadata: true
@@ -237,19 +243,24 @@ loki:
       max_cache_freshness_per_query: 10m
       ingestion_rate_mb: 10
       ingestion_burst_size_mb: 20
+      
     query_scheduler:
       # the TSDB index dispatches many more, but each individually smaller, requests.
       # We increase the pending request queue sizes to compensate.
       max_outstanding_requests_per_tenant: 32768
+      
     ingester:
       chunk_encoding: snappy
       chunk_idle_period: 30m # Flush chunks faster = less memory
       chunk_block_size: 262144
       chunk_retain_period: 1m
+      
     pattern_ingester:
       enabled: true
+      
     querier:
       max_concurrent: 6 # Per-pod parallelism
+      
     frontend:
       max_outstanding_per_tenant: 6144
   minio:
