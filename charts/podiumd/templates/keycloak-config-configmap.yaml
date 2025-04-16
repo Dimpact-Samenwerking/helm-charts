@@ -126,6 +126,32 @@ data:
               lightweight.claim: "false"
               access.token.claim: "true"
               claim.name: "groups"
+      - clientId: monitoring
+        name: {{ .Values.keycloak.config.clients.monitoring.name|quote }}
+        enabled: {{ .Values.keycloak.config.clients.monitoring.enabled }}
+        secret: {{ .Values.keycloak.config.clients.monitoring.secret|quote }}
+        clientAuthenticatorType: client-secret
+        redirectUris:
+          - "https://{{ .Values.keycloak.config.clients.monitoring.oidcUrl }}/*"
+        webOrigins:
+          - "https://{{ .Values.keycloak.config.clients.monitoring.oidcUrl }}/*"
+        authorizationServicesEnabled: "true"
+        serviceAccountsEnabled: "true"
+        protocolMappers:
+          - name: "user-roles"
+            protocol: "openid-connect"
+            protocolMapper: "oidc-usermodel-client-role-mapper"
+            consentRequired: false
+            config:
+              introspection.token.claim: "true"
+              multivalued: "true"
+              userinfo.token.claim: "true"
+              id.token.claim: "true"
+              lightweight.claim: "false"
+              access.token.claim: "true"
+              claim.name: "monitoring_roles"
+              jsonType.label: "String"
+              usermodel.clientRoleMapping.clientId: "monitoring"
       - clientId: opennotificaties
         name: Open Notificaties
         enabled: true
@@ -358,7 +384,6 @@ data:
               lightweight.claim: true
               userinfo.token.claim: true
               introspection.token.claim: true
-    {{- if .Values.zac.enabled }}
       - clientId: {{ .Values.zac.auth.clientId }}
         name: Zaakafhandelcomponent
         enabled: true
@@ -496,7 +521,10 @@ data:
             - "view-users"
           account:
             - "view-groups"
-    {{- end }}
+      - username: "service-account-monitoring"
+        enabled: "true"
+        totp: "false"
+        serviceAccountClientId: "monitoring"
 
     smtpServer:
       starttls: {{ .Values.keycloak.config.smtp.starttls }}
@@ -519,6 +547,9 @@ data:
       client:
         abc:
           - name: administrators
+        monitoring:
+          - name: admin
+          - name: editor
         openklant:
           - name: administrators
         objecten:
@@ -536,15 +567,14 @@ data:
         kiss:
           - name: Redacteur
           - name: Klantcontactmedewerker
-        {{- if .Values.zac.enabled }}
         zac:
           - name: zaakafhandelcomponent_user
           - name: behandelaar
           - name: beheerder
           - name: coordinator
+          - name: raadpleger
           - name: recordmanager
           - name: domein_elk_zaaktype
-        {{- end }}
     groups:
       - name: administrators
         path: /administrators
@@ -554,17 +584,18 @@ data:
         realmRoles:
           - "podiumd-admin"
         clientRoles:
-          {{- if .Values.zac.enabled }}
           zac:
             - "recordmanager"
             - "zaakafhandelcomponent_user"
             - "domein_elk_zaaktype"
             - "beheerder"
             - "coordinator"
+            - "raadpleger"
             - "behandelaar"
-          {{- end }}
           abc:
             - "administrators"
+          monitoring:
+            - "admin"
           objecten:
             - "administrators"
           objecttypen:
@@ -579,7 +610,6 @@ data:
             - "administrators"
           opennotificaties:
             - "administrators"
-      {{- if .Values.zac.enabled }}
       - name: "behandelaars"
         path: "/behandelaars"
         attributes:
@@ -590,6 +620,7 @@ data:
             - "domein_elk_zaaktype"
             - "zaakafhandelcomponent_user"
             - "behandelaar"
+            - "raadpleger"
       - name: coordinators
         path: /coordinators
         attributes:
@@ -600,6 +631,7 @@ data:
             - "zaakafhandelcomponent_user"
             - "domein_elk_zaaktype"
             - "coordinator"
+            - "raadpleger"
             - "behandelaar"
       - name: recordmanagers
         path: /recordmanagers
@@ -612,6 +644,7 @@ data:
             - "domein_elk_zaaktype"
             - "coordinator"
             - "behandelaar"
+            - "raadpleger"
             - "recordmanager"
       - name: beheerders
         path: /beheerders
@@ -625,8 +658,18 @@ data:
             - "coordinator"
             - "behandelaar"
             - "beheerder"
+            - "raadpleger"
             - "recordmanager"
-      {{- end }}
+      - name: raadplegers
+        path: /raadplegers
+        attributes:
+          description:
+            - "Raadplegers"
+        clientRoles:
+          zac:
+            - "zaakafhandelcomponent_user"
+            - "domein_elk_zaaktype"
+            - "raadpleger"
     requiredActions:
       - name: "Configure OTP"
         providerId: CONFIGURE_TOTP
@@ -643,4 +686,4 @@ data:
     {{- toYaml . | nindent 4 }}
 {{- end }}
 {{- end }}
-    {{- end }}
+{{- end }}
