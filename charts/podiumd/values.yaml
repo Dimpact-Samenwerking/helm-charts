@@ -72,6 +72,12 @@ keycloak:
       fromDisplayName: "noreply@example.nl"
       starttls: "true"
       ssl: "false"
+    clients:
+      monitoring:
+        name: Monitoring (Grafana)
+        enabled: true
+        secret: "monitoring_secret"
+        oidcUrl: "monitoring.example.nl"
   # -- required to activate infinispan
   # customCaExistingSecret: ispn-secret
   # -- enable keycloak by default

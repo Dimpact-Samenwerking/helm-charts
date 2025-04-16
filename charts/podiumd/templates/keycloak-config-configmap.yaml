@@ -96,10 +96,10 @@ data:
         enabled: true
         clientAuthenticatorType: client-secret
         redirectUris:
-          - "{{ .Values.openarchiefbeheer.configuration.oidcUrl }}/*"
+          - "{{ .Values.abc.configuration.oidcUrl }}/*"
         webOrigins:
-          - "{{ .Values.openarchiefbeheer.configuration.oidcUrl }}/*"
-        secret: {{ .Values.openarchiefbeheer.configuration.oidcSecret | quote }}
+          - "{{ .Values.abc.configuration.oidcUrl }}/*"
+        secret: {{ .Values.abc.configuration.oidcSecret | quote }}
         protocolMappers:
           - name: "username"
             protocol: "openid-connect"
@@ -132,9 +132,9 @@ data:
         secret: {{ .Values.keycloak.config.clients.monitoring.secret|quote }}
         clientAuthenticatorType: client-secret
         redirectUris:
-          - "{{ .Values.keycloak.config.clients.monitoring.oidcUrl }}/*"
+          - "https://{{ .Values.keycloak.config.clients.monitoring.oidcUrl }}/*"
         webOrigins:
-          - "{{ .Values.keycloak.config.clients.monitoring.oidcUrl }}/*"
+          - "https://{{ .Values.keycloak.config.clients.monitoring.oidcUrl }}/*"
         authorizationServicesEnabled: "true"
         serviceAccountsEnabled: "true"
         protocolMappers:
