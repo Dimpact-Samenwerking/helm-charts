@@ -60,6 +60,10 @@ grafana:
   #        editable: true
   #        options:
   #          path: /var/lib/grafana/dashboards/monitoring
+
+  #dashboardsConfigMaps:
+  #  default: "logging-podiumd-dashboard" 
+  #  monitoring: "monitoring" 
   
   grafana.ini:
     # -- Authentication and Authorization with Keycloak
@@ -94,9 +98,6 @@ grafana:
       domain: "https://logs.test.nl/"
       root_url: "https://logs.test.nl/"
       
-  #dashboardsConfigMaps:
-  #  default: "logging-podiumd-dashboard" 
-  #  monitoring: "monitoring" 
   image:
     pullPolicy: IfNotPresent
     pullSecrets: []
