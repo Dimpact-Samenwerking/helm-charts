@@ -57,9 +57,10 @@ Patch release for Open Inwoner bug fix.
 | Open Zaak         | 1.17.0  | Minor update     |
 | Kiss              | 0.6.0   | Minor app update |
 
-### [4.0.4](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.0.4)
 
-**PodiumD Helm chart version: 4.0.4**
+### [4.0.6](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.0.6)
+
+**PodiumD Helm chart version: 4.0.6**
 
 
 | Component         | Version | Change         |
@@ -91,9 +92,9 @@ Patch release for Open Inwoner bug fix.
 | Abc               | 1.0.0   | Nieuw component    |
 | Objecten          | 3.0.3   |                    |
 | Objecttypen       | 3.0.2   |                    |
-| Open Formulieren  | 2.8.6   | Major update (tbd) |
+| Open Formulieren  | 3.0.6   | Major update       |
 | Open Inwoner      | 1.29.0  | Minor update       |
-| Open Klant        | 2.4.0   | Minor update (tbd) |
+| Open Klant        | 2.7.0   | Minor update       |
 | Open Notificaties | 1.8.2   |                    |
 | Open Zaak         | 1.18.0  |                    |
 | Kiss              | 1.0.0   | Major update       |
@@ -620,7 +621,7 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 | apiproxy.locations.*.sslVerify               | SSL verification setting for all locations | `"off"`                                                                             |
 | apiproxy.locations.*.hostHeader              | Host header for all locations              | `"lab.api.mijniconnect.nl"`                                                         |
 | apiproxy.locations.bag.path                  | Base path for BAG                          | `"/lvbag/individuelebevragingen/v2/"`                                               |
-| apiproxy.locations.bag.targetUrl             | Target URL for BAG location                | `"https://lab.api.mijniconnect.nl/iconnect/apihcbrp/actueel/v2/"`                   |
+| apiproxy.locations.bag.targetUrl             | Target URL for BAG location                | `"https://lab.api.mijniconnect.nl/iconnect/apibagib/v2/"`                   |
 | apiproxy.locations.brp.path                  | Base path for BRP                          | `"/haalcentraal/api/brp"`                                                           |
 | apiproxy.locations.brp.targetUrl             | Target URL for BRP location                | `"https://lab.api.mijniconnect.nl/iconnect/apihcbrp/actueel/prtcl/v2/personen"`     |
 | apiproxy.locations.kvkSearch.targetUrl       | Target URL for KVK search                  | `"https://lab.api.mijniconnect.nl/iconnect/apikvk/zoeken/v2/zoeken"`                |
