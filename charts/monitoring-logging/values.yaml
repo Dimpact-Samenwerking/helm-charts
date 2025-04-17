@@ -225,14 +225,14 @@ loki:
     tracing:
       enabled: true
       
-    storage:
-      type: azure
-      azure:
-        account_key: "storage_account_key"
-        account_name: "storage_account_name"
-        container_name: loki-data
-      object_store:
-        type: azure
+#    storage:
+#      type: azure
+#      azure:
+#        account_key: "storage_account_key"
+#        account_name: "storage_account_name"
+#        container_name: loki-data
+#      object_store:
+#        type: azure
         
     compactor:
       delete_request_store: filesystem
