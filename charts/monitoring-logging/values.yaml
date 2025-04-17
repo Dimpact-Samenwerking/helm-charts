@@ -217,7 +217,7 @@ loki:
       configs:
         - from: 2024-04-01
           store: tsdb
-          object_store: filesystem
+          object_store: s3
           schema: v13
           index:
             prefix: loki_index_
@@ -235,7 +235,7 @@ loki:
 #        type: azure
         
     compactor:
-      delete_request_store: filesystem
+      delete_request_store: s3
       compaction_interval: 10m
       retention_delete_delay: 2h
       retention_delete_worker_count: 150
@@ -281,3 +281,4 @@ loki:
     enabled: true
     persistence:
       storageClass: managed-csi
+      size: 20Gi
