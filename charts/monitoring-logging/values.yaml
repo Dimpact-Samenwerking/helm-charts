@@ -225,14 +225,16 @@ loki:
     tracing:
       enabled: true
       
-#    storage:
-#      type: azure
-#      azure:
-#        account_key: "storage_account_key"
-#        account_name: "storage_account_name"
-#        container_name: loki-data
-#      object_store:
-#        type: azure
+    storage:
+      s3:
+        endpoint: http://{{ .Release.Name }}-minio-svc:9000
+        insecure: true
+        s3forcepathstyle: true
+      object_store:
+        type: s3
+        s3: 
+          endpoint: http://{{ .Release.Name }}-minio-svc:9000
+          insecure: true
         
     compactor:
       delete_request_store: s3
