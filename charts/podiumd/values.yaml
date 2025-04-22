@@ -77,7 +77,7 @@ keycloak:
         name: Monitoring (Grafana)
         enabled: true
         secret: "monitoring_secret"
-        oidcUrl: "monitoring.example.nl"
+        oidcUrl: "https://monitoring.example.nl"
   # -- required to activate infinispan
   # customCaExistingSecret: ispn-secret
   # -- enable keycloak by default
