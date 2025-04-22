@@ -132,9 +132,9 @@ data:
         secret: {{ .Values.keycloak.config.clients.monitoring.secret|quote }}
         clientAuthenticatorType: client-secret
         redirectUris:
-          - "https://{{ .Values.keycloak.config.clients.monitoring.oidcUrl }}/*"
+          - "{{ .Values.keycloak.config.clients.monitoring.oidcUrl }}/*"
         webOrigins:
-          - "https://{{ .Values.keycloak.config.clients.monitoring.oidcUrl }}/*"
+          - "{{ .Values.keycloak.config.clients.monitoring.oidcUrl }}/*"
         authorizationServicesEnabled: "true"
         serviceAccountsEnabled: "true"
         protocolMappers:
