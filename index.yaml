@@ -1,5 +1,15 @@
 apiVersion: v1
 entries:
+  brp-personen-mock:
+  - apiVersion: v2
+    appVersion: 2.6.0
+    created: "2025-04-23T14:01:03.347372218Z"
+    description: BRP personen mock Helm chart
+    digest: fce1cc22a2b178c982b509eddc919f54c74df58a01d143e5206d0be8dca2fed5
+    name: brp-personen-mock
+    urls:
+    - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/brp-personen-mock-1.2.4/brp-personen-mock-1.2.4.tgz
+    version: 1.2.4
   brpmock:
   - apiVersion: v2
     appVersion: 2.0.8
@@ -4933,4 +4943,4 @@ entries:
     urls:
     - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/zac-1.0.0/zac-1.0.0.tgz
     version: 1.0.0
-generated: "2025-04-16T15:56:00.913078835Z"
+generated: "2025-04-23T14:01:03.347794642Z"
