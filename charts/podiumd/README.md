@@ -92,7 +92,8 @@ Patch release for Open Inwoner bug fix.
 | Abc               | 1.0.0   | Nieuw component    |
 | Objecten          | 3.0.3   |                    |
 | Objecttypen       | 3.0.2   |                    |
-| Open Formulieren  | 3.0.6   | Major update       |
+| Open Formulieren  | 3.0.7   | Major update       |
+
 | Open Inwoner      | 1.29.0  | Minor update       |
 | Open Klant        | 2.7.0   | Minor update       |
 | Open Notificaties | 1.8.2   |                    |
