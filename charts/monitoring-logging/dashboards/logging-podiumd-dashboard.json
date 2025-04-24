@@ -24,7 +24,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 245,
+  "id": 2,
   "links": [],
   "panels": [
     {
@@ -76,8 +76,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -146,11 +145,12 @@
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "multi",
           "sort": "desc"
         }
       },
-      "pluginVersion": "11.3.0",
+      "pluginVersion": "11.6.0",
       "targets": [
         {
           "datasource": {
@@ -352,11 +352,12 @@
               "values": false
             },
             "tooltip": {
+              "hideZeros": false,
               "mode": "single",
               "sort": "none"
             }
           },
-          "pluginVersion": "11.3.0",
+          "pluginVersion": "11.6.0",
           "targets": [
             {
               "datasource": {
@@ -439,8 +440,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -505,7 +505,7 @@
               }
             ]
           },
-          "pluginVersion": "11.3.0",
+          "pluginVersion": "11.6.0",
           "targets": [
             {
               "datasource": {
@@ -681,7 +681,7 @@
             "h": 11,
             "w": 12,
             "x": 0,
-            "y": 22
+            "y": 41
           },
           "id": 62,
           "options": {
@@ -703,11 +703,12 @@
               "values": false
             },
             "tooltip": {
+              "hideZeros": false,
               "mode": "single",
               "sort": "none"
             }
           },
-          "pluginVersion": "11.3.0",
+          "pluginVersion": "11.6.0",
           "targets": [
             {
               "datasource": {
@@ -794,8 +795,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -839,7 +839,7 @@
             "h": 11,
             "w": 12,
             "x": 12,
-            "y": 22
+            "y": 41
           },
           "id": 66,
           "options": {
@@ -860,7 +860,7 @@
               }
             ]
           },
-          "pluginVersion": "11.3.0",
+          "pluginVersion": "11.6.0",
           "targets": [
             {
               "datasource": {
@@ -989,7 +989,7 @@
             "h": 12,
             "w": 12,
             "x": 0,
-            "y": 33
+            "y": 52
           },
           "id": 72,
           "options": {
@@ -1119,8 +1119,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -1166,7 +1165,7 @@
             "h": 12,
             "w": 12,
             "x": 12,
-            "y": 33
+            "y": 52
           },
           "id": 67,
           "options": {
@@ -1239,11 +1238,12 @@
             "h": 19,
             "w": 24,
             "x": 0,
-            "y": 46
+            "y": 12
           },
           "id": 68,
           "options": {
             "dedupStrategy": "none",
+            "enableInfiniteScrolling": false,
             "enableLogDetails": true,
             "prettifyLogMessage": true,
             "showCommonLabels": false,
@@ -1252,7 +1252,7 @@
             "sortOrder": "Descending",
             "wrapLogMessage": true
           },
-          "pluginVersion": "11.3.0",
+          "pluginVersion": "11.6.0",
           "targets": [
             {
               "datasource": {
@@ -1298,11 +1298,12 @@
             "h": 19,
             "w": 24,
             "x": 0,
-            "y": 47
+            "y": 138
           },
           "id": 70,
           "options": {
             "dedupStrategy": "none",
+            "enableInfiniteScrolling": false,
             "enableLogDetails": true,
             "prettifyLogMessage": true,
             "showCommonLabels": false,
@@ -1311,7 +1312,7 @@
             "sortOrder": "Descending",
             "wrapLogMessage": true
           },
-          "pluginVersion": "11.3.0",
+          "pluginVersion": "11.6.0",
           "targets": [
             {
               "datasource": {
@@ -1366,7 +1367,7 @@
             "h": 13,
             "w": 24,
             "x": 0,
-            "y": 86
+            "y": 249
           },
           "id": 51,
           "options": {
@@ -1417,7 +1418,7 @@
             "h": 11,
             "w": 24,
             "x": 0,
-            "y": 99
+            "y": 262
           },
           "id": 63,
           "options": {
@@ -1475,7 +1476,7 @@
             "h": 12,
             "w": 24,
             "x": 0,
-            "y": 87
+            "y": 250
           },
           "id": 73,
           "options": {
@@ -1507,7 +1508,7 @@
   ],
   "preload": false,
   "refresh": "5m",
-  "schemaVersion": 40,
+  "schemaVersion": 41,
   "tags": [],
   "templating": {
     "list": [
@@ -1538,15 +1539,13 @@
           "type": 1
         },
         "refresh": 2,
-        "regex": "^(openformulieren|objecttypen|objecten|opennotificaties|kiss|openinwoner|openzaak|openklant|zac).*",
+        "regex": "^(openformulieren|objecttypen|objecten|opennotificaties|kiss|openinwoner|openzaak|openklant|zac|clamav|keycloak|solr|elastic|infinispan).*",
         "sort": 1,
         "type": "query"
       },
       {
         "current": {
-          "text": [
-            "All"
-          ],
+          "text": "All",
           "value": [
             "$__all"
           ]
@@ -1922,13 +1921,12 @@
     ]
   },
   "time": {
-    "from": "now-5m",
+    "from": "now-30m",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "",
   "title": "Monitoring en logging PodiumD",
   "uid": "e970a83d-adc2-4d33-af93-2349c0b77e5",
-  "version": 210,
-  "weekStart": ""
+  "version": 4
 }
