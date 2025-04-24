@@ -34,20 +34,20 @@ grafana:
     allowPrivilegeEscalation: false
     runAsNonRoot: true
     
-  #dashboardProviders:
-  #  dashboardproviders.yaml:
-  #    apiVersion: 1
-  #    providers:
-  #      - name: "default"
-  #        orgId: 1
-  #        folder: 'PodiumD_Monitoring_Logging'
-  #        type: file
-  #        disableDeletion: false
-  #        updateIntervalSeconds: 30
-  #        allowUiUpdates: true # modify dashboards
-  #        editable: true
-  #        options:
-  #          path: /var/lib/grafana/dashboards/default
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: "default"
+          orgId: 1
+          folder: 'PodiumD_Monitoring_Logging'
+          type: file
+          disableDeletion: false
+          updateIntervalSeconds: 30
+          allowUiUpdates: true # modify dashboards
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/default
   
   # -- extra dashboard
   #      - name: "monitoring"
@@ -61,8 +61,8 @@ grafana:
   #        options:
   #          path: /var/lib/grafana/dashboards/monitoring
 
-  #dashboardsConfigMaps:
-  #  default: "logging-podiumd-dashboard" 
+  dashboardsConfigMaps:
+    default: "logging-podiumd-dashboard" 
   #  monitoring: "monitoring" 
   
   grafana.ini:
