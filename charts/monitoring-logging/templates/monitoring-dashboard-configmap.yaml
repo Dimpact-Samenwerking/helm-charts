@@ -1,9 +1,0 @@
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: {{ .Values.grafana.dashboardsConfigMaps.monitoring }}
-  labels:
-    grafana_dashboard: "1"
-data:
-  monitoring.json: |-
-{{ .Files.Get "dashboards/monitoring.json" | indent 4 }}
