@@ -241,7 +241,6 @@ loki:
       compaction_interval: 10m
       retention_delete_delay: 2h
       retention_delete_worker_count: 150
-      working_directory: /tmp/loki/retention
       retention_enabled: true
       
       # -- Query Performance
