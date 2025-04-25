@@ -587,8 +587,111 @@ openklant:
         
 openformulieren:
   configuration:
+    enabled: true
+    job:
+      enabled: true
+      backoffLimit: 6
+      ttlSecondsAfterFinished: 0    
+      restartPolicy: OnFailure
+    secrets: {}      
+    data: ""  
+    # data: |-
+    #   oidc_db_config_enable: True
+    #   oidc_db_config_admin_auth:
+    #     items:
+    #     - identifier: admin-oidc
+    #       enabled: True
+    #       oidc_rp_client_id: openformulieren.example.nl
+    #       oidc_rp_client_secret: ${keycloak_client_secret}
+    #       oidc_rp_scopes_list:
+    #       - openid
+    #       - email
+    #       - profile
+    #       - roles
+    #       oidc_rp_sign_algo: RS256
+    #       endpoint_config:
+    #         oidc_op_discovery_endpoint: https://keycloak.example.nl/realms/gemeente-x/
+    #       username_claim:
+    #       - sub
+    #       groups_claim:
+    #       - roles
+    #       claim_mapping:
+    #         first_name:
+    #         - given_name
+    #         last_name:
+    #         - family_name
+    #         email:
+    #         - email
+    #       sync_groups: true
+    #       sync_groups_glob_pattern: "*"
+    #       default_groups: []
+    #       make_users_staff: true
+    #       superuser_group_names:
+    #       - Superuser
+    #       oidc_use_nonce: true
+    #       oidc_nonce_size: 32
+    #       oidc_state_size: 32
+    #       userinfo_claims_source: id_token
+    #   zgw_consumers_config_enable: True
+    #   zgw_consumers:
+    #     services:
+    #     - identifier: objecttypen-api
+    #       label: Objecttypen API
+    #       api_root: https://objecten.example.nl/api/v2/
+    #       api_type: orc
+    #       auth_type: api_key
+    #       header_key: Authorization
+    #       header_value: Token ${openformulieren_objecten_token}
+
+    #     - identifier: objecten-api
+    #       label: Objecten API test
+    #       api_root: https://objecttypen.example.nl/api/v2/
+    #       api_type: orc
+    #       auth_type: api_key
+    #       header_key: Authorization
+    #       header_value: Token ${openformulieren_objecten_token}
+
+    #     - identifier: documenten-api
+    #       label: Documenten API
+    #       api_root: https://openzaak.example.nl/documenten/api/v1/
+    #       api_type: drc
+    #       auth_type: zgw
+    #       client_id: open-formulieren
+    #       secret: ${openzaak_openformulieren_secret}
+
+    #     - identifier: zaken-api
+    #       label: Zaken API
+    #       api_root: https://openzaak.example.nl/zaken/api/v1/
+    #       api_type: zrc
+    #       auth_type: zgw
+    #       client_id: open-formulieren
+    #       secret: ${openzaak_openformulieren_secret}
+
+    #     - identifier: catalogus-api
+    #       label: Catalogus API
+    #       api_root: https://openzaak.example.nl/catalogi/api/v1/
+    #       api_type: ztc
+    #       auth_type: zgw
+    #       client_id: open-formulieren
+    #       secret: ${openzaak_openformulieren_secret}
+    #   objects_api_config_enable: True
+    #   objects_api:
+    #     groups:
+    #     - name: Objects APIs
+    #       identifier: objects-api
+    #       objects_service_identifier: objecten-api
+    #       objecttypes_service_identifier: objecttypen-api
+    #       documenten_service_identifier: documenten-api
+    #       catalogi_service_identifier: catalogus-api
+    #       organisatie_rsin: "001876387"
+    #       document_type_submission_report: PDF Informatieobjecttype
+    #       document_type_submission_csv: CSV Informatieobjecttype
+    #       document_type_attachment: Attachment Informatieobjecttype
+    #       catalogue_domain: TEST
+    #       catalogue_rsin: "000000000"
+    #       organisatie_rsin: "000000000"
     oidcUrl: https://openformulieren.example.nl
-    oidcSecret: "<openformulieren>"
+    oidcSecret: "<openformulieren>"          
   settings:
     allowedHosts: openformulieren-nginx.podiumd.svc.cluster.local
     email:

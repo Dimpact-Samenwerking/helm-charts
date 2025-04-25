@@ -455,8 +455,15 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 | Name                                                      | Description                                                                                                                                           | Value                                             |
 |-----------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------|
 | openformulieren.enabled                                   | Boolean to override the installation of Open Formulieren                                                                                              |                                                   |
-| openformulieren.configuration.oidcUrl                     | OpenID Connect client url                                                                                                                             | `https://openformulieren.example.nl`              |
-| openformulieren.configuration.oidcSecret                  | OpenID Connect client secret                                                                                                                          | `<openformulieren>`                               |
+| openformulieren.configuration.data | string | `""` |  |
+| openformulieren.configuration.enabled | bool | `true` |  |
+| openformulieren.configuration.job.backoffLimit | int | `6` |  |
+| openformulieren.configuration.job.enabled | bool | `true` |  |
+| openformulieren.configuration.job.restartPolicy | string | `"OnFailure"` |  |
+| openformulieren.configuration.job.ttlSecondsAfterFinished | int | `0` |  |
+| openformulieren.configuration.oidcSecret | string | `"<openformulieren>"` |  |
+| openformulieren.configuration.oidcUrl | string | `"https://openformulieren.example.nl"` |  |
+| openformulieren.configuration.secrets | object | `{}` |  |
 | openformulieren.settings.allowedHosts                     | List of allowed hostnames<br/>(i.e. "openformulieren.example.nl,openformulieren-nginx.podiumd.svc.cluster.local")                                     | `openformulieren-nginx.podiumd.svc.cluster.local` |
 | openformulieren.settings.baseUrl                          | Base URL (i.e. "https://openformulieren.example.nl")                                                                                                  | `""`                                              |
 | openformulieren.settings.database.host                    | Database host                                                                                                                                         | `""`                                              |
