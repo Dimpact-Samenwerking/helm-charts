@@ -529,8 +529,17 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 | Name                                                      | Description                                                                                                                                           | Value                                         |
 |-----------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------|
 | openinwoner.enabled                                       | Boolean to override the installation of Open Inwoner                                                                                                  |                                               |
-| openinwoner.configuration.oidcUrl                         | OpenID Connect client url                                                                                                                             | `https://openinwoner.example.nl`              |
-| openinwoner.configuration.oidcSecret                      | OpenID Connect client secret                                                                                                                          | `<openinwoner>`                               |
+| openinwoner.configuration.data | string | `""` |  |
+| openinwoner.configuration.enabled | bool | `true` |  |
+| openinwoner.configuration.initContainer.enabled | bool | `false` |  |
+| openinwoner.configuration.job.backoffLimit | int | `6` |  |
+| openinwoner.configuration.job.enabled | bool | `true` |  |
+| openinwoner.configuration.job.resources | object | `{}` |  |
+| openinwoner.configuration.job.restartPolicy | string | `"OnFailure"` |  |
+| openinwoner.configuration.job.ttlSecondsAfterFinished | int | `0` |  |
+| openinwoner.configuration.oidcSecret | string | `"<openinwoner>"` |  |
+| openinwoner.configuration.oidcUrl | string | `"https://openinwoner.example.nl"` |  |
+| openinwoner.configuration.secrets | object | `{}` |  |
 | openinwoner.settings.allowedHosts                         | List if allowed hostnames<br/>(i.e. "openinwoner.example.nl,openinwoner-nginx.podiumd.svc.cluster.local")                                             | `openinwoner-nginx.podiumd.svc.cluster.local` |
 | openinwoner.settings.database.host                        | Database host. Overides global.settings.databaseHost                                                                                                  | `""`                                          |
 | openinwoner.settings.database.port                        | Database port                                                                                                                                         | `5432`                                        |
