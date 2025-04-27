@@ -416,8 +416,17 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 
 | Name                                            | Description                                                                                     | Value                                 |
 |-------------------------------------------------|-------------------------------------------------------------------------------------------------|---------------------------------------|
-| openklant.configuration.oidcUrl                 | OpenID Connect client url                                                                       | `https://openklant.example.nl`        |
-| openklant.configuration.oidcSecret              | OpenID Connect client secret                                                                    | `<openklant>`                         |
+| openklant.configuration.data | string | `""` |  |
+| openklant.configuration.enabled | bool | `true` |  |
+| openklant.configuration.initContainer.enabled | bool | `false` |  |
+| openklant.configuration.job.backoffLimit | int | `6` |  |
+| openklant.configuration.job.enabled | bool | `true` |  |
+| openklant.configuration.job.resources | object | `{}` |  |
+| openklant.configuration.job.restartPolicy | string | `"OnFailure"` |  |
+| openklant.configuration.job.ttlSecondsAfterFinished | int | `0` |  |
+| openklant.configuration.oidcSecret | string | `"<openklant>"` |  |
+| openklant.configuration.oidcUrl | string | `"https://openklant.example.nl"` |  |
+| openklant.configuration.secrets | object | `{}` |  |
 | openklant.settings.allowedHosts                 | List if allowed hostnames<br/>(i.e. "openklant.example.nl,openklant.podiumd.svc.cluster.local") | `openklant.podiumd.svc.cluster.local` |
 | openklant.settings.database.host                | Database host                                                                                   | `""`                                  |
 | openklant.settings.database.port                | Database port                                                                                   | `5432`                                |
