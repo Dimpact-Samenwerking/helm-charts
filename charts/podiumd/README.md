@@ -95,7 +95,8 @@ Patch release for Open Inwoner bug fix.
 | Open Formulieren  | 3.0.7   | Major update       |
 
 | Open Inwoner      | 1.29.0  | Minor update       |
-| Open Klant        | 2.7.0   | Minor update       |
+| Open Klant        | 2.7.0   | Major update       |
+
 | Open Notificaties | 1.8.2   |                    |
 | Open Zaak         | 1.18.0  |                    |
 | Kiss              | 1.0.0   | Major update       |
