@@ -18,6 +18,7 @@ esuite:
   clientId: kiss
   secret: ""
   contactverzoektypen: []
+  isDefault: true
 
 database:
   host: ""
@@ -80,7 +81,7 @@ frontend:
     name: ""
   image:
     repository: ghcr.io/klantinteractie-servicesysteem/kiss-frontend
-    tag: "deventer"
+    tag: "v1.0.1"
     pullPolicy: IfNotPresent
   resources:
     requests:

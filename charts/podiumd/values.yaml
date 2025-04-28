@@ -1328,6 +1328,7 @@ kiss:
     clientId: kiss
     secret: ""
     contactverzoektypen: []
+    isDefault: true
 
   database:
     host: ""
@@ -1390,7 +1391,8 @@ kiss:
       name: ""
     image:
       repository: ghcr.io/klantinteractie-servicesysteem/kiss-frontend
-      tag: "release-0.7.x-20250331101502-2fe19fb"
+      tag: "v1.0.1"
+
 
       pullPolicy: IfNotPresent
     resources:
