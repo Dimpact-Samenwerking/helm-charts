@@ -1065,7 +1065,7 @@ apiproxy:
   #nameOverride: "iconnect-proxy"
   image:
     repository: nginx
-    tag: "1.27.4"
+    tag: "1.28.0"
     pullPolicy: IfNotPresent
   service:
     port: 80
