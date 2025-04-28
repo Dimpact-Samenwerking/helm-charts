@@ -97,6 +97,8 @@ grafana:
     server:
       domain: "https://logs.test.nl/"
       root_url: "https://logs.test.nl/"
+    metrics:
+      enabled: false  
       
   image:
     pullPolicy: IfNotPresent
