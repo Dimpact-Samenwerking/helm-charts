@@ -1391,7 +1391,7 @@ kiss:
       name: ""
     image:
       repository: ghcr.io/klantinteractie-servicesysteem/kiss-frontend
-      tag: "v1.0.1"
+      tag: "release-1.0.x-20250418091744-8936963"
 
 
       pullPolicy: IfNotPresent
