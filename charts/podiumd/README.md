@@ -596,8 +596,17 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 
 | Name                                            | Description                                                                                     | Value                                 |
 |-------------------------------------------------|-------------------------------------------------------------------------------------------------|---------------------------------------|
-| openklant.configuration.oidcUrl                 | OpenID Connect client url                                                                       | `https://openklant.example.nl`        |
-| openklant.configuration.oidcSecret              | OpenID Connect client secret                                                                    | `<openklant>`                         |
+| openklant.configuration.data | string | `""` |  |
+| openklant.configuration.enabled | bool | `true` |  |
+| openklant.configuration.initContainer.enabled | bool | `false` |  |
+| openklant.configuration.job.backoffLimit | int | `6` |  |
+| openklant.configuration.job.enabled | bool | `true` |  |
+| openklant.configuration.job.resources | object | `{}` |  |
+| openklant.configuration.job.restartPolicy | string | `"OnFailure"` |  |
+| openklant.configuration.job.ttlSecondsAfterFinished | int | `0` |  |
+| openklant.configuration.oidcSecret | string | `"<openklant>"` |  |
+| openklant.configuration.oidcUrl | string | `"https://openklant.example.nl"` |  |
+| openklant.configuration.secrets | object | `{}` |  |
 | openklant.settings.allowedHosts                 | List if allowed hostnames<br/>(i.e. "openklant.example.nl,openklant.podiumd.svc.cluster.local") | `openklant.podiumd.svc.cluster.local` |
 | openklant.settings.database.host                | Database host                                                                                   | `""`                                  |
 | openklant.settings.database.port                | Database port                                                                                   | `5432`                                |
@@ -635,8 +644,15 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 | Name                                                      | Description                                                                                                                                           | Value                                             |
 |-----------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------|
 | openformulieren.enabled                                   | Boolean to override the installation of Open Formulieren                                                                                              |                                                   |
-| openformulieren.configuration.oidcUrl                     | OpenID Connect client url                                                                                                                             | `https://openformulieren.example.nl`              |
-| openformulieren.configuration.oidcSecret                  | OpenID Connect client secret                                                                                                                          | `<openformulieren>`                               |
+| openformulieren.configuration.data | string | `""` |  |
+| openformulieren.configuration.enabled | bool | `true` |  |
+| openformulieren.configuration.job.backoffLimit | int | `6` |  |
+| openformulieren.configuration.job.enabled | bool | `true` |  |
+| openformulieren.configuration.job.restartPolicy | string | `"OnFailure"` |  |
+| openformulieren.configuration.job.ttlSecondsAfterFinished | int | `0` |  |
+| openformulieren.configuration.oidcSecret | string | `"<openformulieren>"` |  |
+| openformulieren.configuration.oidcUrl | string | `"https://openformulieren.example.nl"` |  |
+| openformulieren.configuration.secrets | object | `{}` |  |
 | openformulieren.settings.allowedHosts                     | List of allowed hostnames<br/>(i.e. "openformulieren.example.nl,openformulieren-nginx.podiumd.svc.cluster.local")                                     | `openformulieren-nginx.podiumd.svc.cluster.local` |
 | openformulieren.settings.baseUrl                          | Base URL (i.e. "https://openformulieren.example.nl")                                                                                                  | `""`                                              |
 | openformulieren.settings.database.host                    | Database host                                                                                                                                         | `""`                                              |
@@ -693,8 +709,17 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 | Name                                                      | Description                                                                                                                                           | Value                                         |
 |-----------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------|
 | openinwoner.enabled                                       | Boolean to override the installation of Open Inwoner                                                                                                  |                                               |
-| openinwoner.configuration.oidcUrl                         | OpenID Connect client url                                                                                                                             | `https://openinwoner.example.nl`              |
-| openinwoner.configuration.oidcSecret                      | OpenID Connect client secret                                                                                                                          | `<openinwoner>`                               |
+| openinwoner.configuration.data | string | `""` |  |
+| openinwoner.configuration.enabled | bool | `true` |  |
+| openinwoner.configuration.initContainer.enabled | bool | `false` |  |
+| openinwoner.configuration.job.backoffLimit | int | `6` |  |
+| openinwoner.configuration.job.enabled | bool | `true` |  |
+| openinwoner.configuration.job.resources | object | `{}` |  |
+| openinwoner.configuration.job.restartPolicy | string | `"OnFailure"` |  |
+| openinwoner.configuration.job.ttlSecondsAfterFinished | int | `0` |  |
+| openinwoner.configuration.oidcSecret | string | `"<openinwoner>"` |  |
+| openinwoner.configuration.oidcUrl | string | `"https://openinwoner.example.nl"` |  |
+| openinwoner.configuration.secrets | object | `{}` |  |
 | openinwoner.settings.allowedHosts                         | List if allowed hostnames<br/>(i.e. "openinwoner.example.nl,openinwoner-nginx.podiumd.svc.cluster.local")                                             | `openinwoner-nginx.podiumd.svc.cluster.local` |
 | openinwoner.settings.database.host                        | Database host. Overides global.settings.databaseHost                                                                                                  | `""`                                          |
 | openinwoner.settings.database.port                        | Database port                                                                                                                                         | `5432`                                        |
