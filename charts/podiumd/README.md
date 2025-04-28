@@ -57,9 +57,9 @@ Patch release for Open Inwoner bug fix.
 | Open Zaak         | 1.17.0  | Minor update     |
 | Kiss              | 0.6.0   | Minor app update |
 
-### [4.0.5](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.0.5)
+### [4.0.6](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.0.6)
 
-**PodiumD Helm chart version: 4.0.5**
+**PodiumD Helm chart version: 4.0.6**
 
 
 | Component         | Version | Change         |
@@ -586,7 +586,8 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 | apiproxy.image.repository                   | Container image repository                    | `nginx`                      |
 | apiproxy.image.tag                          | Container image tag                           | `"1.25-alpine"`              |
 | apiproxy.image.pullPolicy                   | Image pull policy                             | `IfNotPresent`               |
-| apiproxy.service.port                       | Service port                                  | `8081`                       |
+| apiproxy.service.port                       | Service port                                  | `80`                       |
+| apiproxy.service.containerPort              | Service container port                        | `8080`                       |
 | apiproxy.resources.limits.cpu               | CPU resource limit                            | `"0.5"`                      |
 | apiproxy.resources.limits.memory            | Memory resource limit                         | `"256Mi"`                    |
 | apiproxy.resources.requests.cpu             | CPU resource request                          | `"0.1"`                      |
