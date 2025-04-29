@@ -58,7 +58,7 @@ Patch release for Open Inwoner bug fix.
 | Kiss              | 0.6.0   | Minor app update |
 
 
-### [4.0.6](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.0.6)
+### [4.0.7](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.0.7)
 
 **PodiumD Helm chart version: 4.0.6**
 
@@ -70,7 +70,7 @@ Patch release for Open Inwoner bug fix.
 | Infinispan        | 15.1    | Nieuw component|
 | Objecten          | 3.0.0   |                |
 | Objecttypen       | 3.0.0   |                |
-| Open Formulieren  | 2.8.6   |                |
+| Open Formulieren  | 2.8.9   |                |
 | Open Inwoner      | 1.27.2  |                |
 | Open Klant        | 2.4.0   |                |
 | Open Notificaties | 1.8.0   |                |
@@ -93,10 +93,8 @@ Patch release for Open Inwoner bug fix.
 | Objecten          | 3.0.3   |                    |
 | Objecttypen       | 3.0.2   |                    |
 | Open Formulieren  | 3.0.7   | Major update       |
-
 | Open Inwoner      | 1.29.0  | Minor update       |
 | Open Klant        | 2.7.0   | Major update       |
-
 | Open Notificaties | 1.8.2   |                    |
 | Open Zaak         | 1.18.0  |                    |
 | Kiss              | 1.0.0   | Major update       |
