@@ -214,7 +214,7 @@
                     "value": [
                       {
                         "title": "",
-                        "url": "https://test-podiumd-logs.rotterdam.nl/d/e970a83d-adc2-4d33-af93-2349c0b77e5/logging-openformulieren-3e-e-suite?from=2025-01-23T12:45:18.649Z&to=2025-01-23T13:45:18.649Z&var-App=openformulieren&var-Pod=$__all&var-Container=$__all&var-stream=$__all&var-search=&var-filter=&var-Dashboard_versie_Rotterdam=1.1&var-LogLevel=$__all&refresh=5m&var-query0=&var-Deployment=objecten&var-Subapp=$__all&var-Subapp1=objecten&var-Subapp-2=$__all&var-App-2=$__all&var-query0-2=&viewPanel=panel-48"
+                        "url": ""
                       }
                     ]
                   }
@@ -231,7 +231,7 @@
                     "value": [
                       {
                         "title": "",
-                        "url": "https://test-podiumd-logs.rotterdam.nl/d/e970a83d-adc2-4d33-af93-2349c0b77e5/logging-openformulieren-3e-e-suite?from=2025-01-21T10:40:29.177Z&to=2025-01-21T10:55:29.177Z&var-App=objecten&var-Pod=$__all&var-Container=$__all&var-stream=$__all&var-search=&var-filter=&var-Dashboard_versie_Rotterdam=1.1&refresh=5m&viewPanel=panel-48"
+                        "url": ""
                       }
                     ]
                   }
@@ -248,7 +248,7 @@
                     "value": [
                       {
                         "title": "",
-                        "url": "https://test-podiumd-logs.rotterdam.nl/d/e970a83d-adc2-4d33-af93-2349c0b77e5/logging-openformulieren-3e-e-suite?from=2025-01-23T12:45:18.649Z&to=2025-01-23T13:45:18.649Z&var-App=openformulieren&var-Pod=$__all&var-Container=$__all&var-stream=$__all&var-search=&var-filter=&var-Dashboard_versie_Rotterdam=1.1&var-LogLevel=$__all&refresh=5m&var-query0=&var-Deployment=objecten&var-Subapp=openformulieren-worker&var-Subapp1=objecten&var-Subapp-2=$__all&var-App-2=$__all&var-query0-2=&viewPanel=panel-51"
+                        "url": ""
                       }
                     ]
                   }
@@ -265,7 +265,7 @@
                     "value": [
                       {
                         "title": "",
-                        "url": "https://test-podiumd-logs.rotterdam.nl/d/e970a83d-adc2-4d33-af93-2349c0b77e5/logging-openformulieren-3e-e-suite?from=2025-01-23T12:45:18.649Z&to=2025-01-23T13:45:18.649Z&var-App=openformulieren&var-Pod=$__all&var-Container=$__all&var-stream=$__all&var-search=&var-filter=&var-Dashboard_versie_Rotterdam=1.1&var-LogLevel=$__all&refresh=5m&var-query0=&var-Deployment=objecten&var-Subapp=openformulieren-worker&var-Subapp1=objecten&var-Subapp-2=$__all&var-App-2=$__all&var-query0-2=&viewPanel=panel-51"
+                        "url": ""
                       }
                     ]
                   }
@@ -282,7 +282,7 @@
                     "value": [
                       {
                         "title": "",
-                        "url": "https://test-podiumd-logs.rotterdam.nl/d/e970a83d-adc2-4d33-af93-2349c0b77e5/logging-openformulieren-3e-e-suite?from=2025-01-21T09:17:30.906Z&to=2025-01-21T12:17:30.906Z&var-App=opennotificaties&var-Pod=$__all&var-Container=$__all&var-stream=$__all&var-search=&var-filter=&var-Dashboard_versie_Rotterdam=1.1&refresh=5m&viewPanel=panel-48"
+                        "url": ""
                       }
                     ]
                   }
@@ -299,7 +299,7 @@
                     "value": [
                       {
                         "title": "",
-                        "url": "https://test-podiumd-logs.rotterdam.nl/d/e970a83d-adc2-4d33-af93-2349c0b77e5/logging-openformulieren-3e-e-suite?from=2025-01-22T14:19:18.791Z&to=2025-01-22T15:19:18.791Z&var-App=objecttypen&var-Pod=$__all&var-Container=$__all&var-stream=$__all&var-search=&var-filter=&var-Dashboard_versie_Rotterdam=1.1&refresh=5m&var-LogLevel=$__all&viewPanel=panel-48"
+                        "url": ""
                       }
                     ]
                   }
@@ -584,7 +584,7 @@
                     "value": [
                       {
                         "title": "",
-                        "url": "https://test-podiumd-logs.rotterdam.nl/d/e970a83d-adc2-4d33-af93-2349c0b77e5/logging-openformulieren-3e-e-suite?from=2025-01-23T12:45:18.649Z&to=2025-01-23T13:45:18.649Z&var-App=openformulieren&var-Pod=$__all&var-Container=$__all&var-stream=$__all&var-search=&var-filter=&var-Dashboard_versie_Rotterdam=1.1&var-LogLevel=$__all&refresh=5m&var-query0=&var-Deployment=objecten&var-Subapp=$__all&var-Subapp1=objecten&var-Subapp-2=$__all&var-App-2=$__all&var-query0-2=&viewPanel=panel-48"
+                        "url": ""
                       }
                     ]
                   }
@@ -601,7 +601,7 @@
                     "value": [
                       {
                         "title": "",
-                        "url": "https://test-podiumd-logs.rotterdam.nl/d/e970a83d-adc2-4d33-af93-2349c0b77e5/logging-openformulieren-3e-e-suite?from=2025-01-21T10:40:29.177Z&to=2025-01-21T10:55:29.177Z&var-App=objecten&var-Pod=$__all&var-Container=$__all&var-stream=$__all&var-search=&var-filter=&var-Dashboard_versie_Rotterdam=1.1&refresh=5m&viewPanel=panel-48"
+                        "url": ""
                       }
                     ]
                   }
@@ -618,7 +618,7 @@
                     "value": [
                       {
                         "title": "",
-                        "url": "https://test-podiumd-logs.rotterdam.nl/d/e970a83d-adc2-4d33-af93-2349c0b77e5/logging-openformulieren-3e-e-suite?from=2025-01-23T12:45:18.649Z&to=2025-01-23T13:45:18.649Z&var-App=openformulieren&var-Pod=$__all&var-Container=$__all&var-stream=$__all&var-search=&var-filter=&var-Dashboard_versie_Rotterdam=1.1&var-LogLevel=$__all&refresh=5m&var-query0=&var-Deployment=objecten&var-Subapp=openformulieren-worker&var-Subapp1=objecten&var-Subapp-2=$__all&var-App-2=$__all&var-query0-2=&viewPanel=panel-51"
+                        "url": ""
                       }
                     ]
                   }
@@ -635,7 +635,7 @@
                     "value": [
                       {
                         "title": "",
-                        "url": "https://test-podiumd-logs.rotterdam.nl/d/e970a83d-adc2-4d33-af93-2349c0b77e5/logging-openformulieren-3e-e-suite?from=2025-01-23T12:45:18.649Z&to=2025-01-23T13:45:18.649Z&var-App=openformulieren&var-Pod=$__all&var-Container=$__all&var-stream=$__all&var-search=&var-filter=&var-Dashboard_versie_Rotterdam=1.1&var-LogLevel=$__all&refresh=5m&var-query0=&var-Deployment=objecten&var-Subapp=openformulieren-worker&var-Subapp1=objecten&var-Subapp-2=$__all&var-App-2=$__all&var-query0-2=&viewPanel=panel-51"
+                        "url": ""
                       }
                     ]
                   }
@@ -652,7 +652,7 @@
                     "value": [
                       {
                         "title": "",
-                        "url": "https://test-podiumd-logs.rotterdam.nl/d/e970a83d-adc2-4d33-af93-2349c0b77e5/logging-openformulieren-3e-e-suite?from=2025-01-21T09:17:30.906Z&to=2025-01-21T12:17:30.906Z&var-App=opennotificaties&var-Pod=$__all&var-Container=$__all&var-stream=$__all&var-search=&var-filter=&var-Dashboard_versie_Rotterdam=1.1&refresh=5m&viewPanel=panel-48"
+                        "url": ""
                       }
                     ]
                   }
@@ -669,7 +669,7 @@
                     "value": [
                       {
                         "title": "",
-                        "url": "https://test-podiumd-logs.rotterdam.nl/d/e970a83d-adc2-4d33-af93-2349c0b77e5/logging-openformulieren-3e-e-suite?from=2025-01-22T14:19:18.791Z&to=2025-01-22T15:19:18.791Z&var-App=objecttypen&var-Pod=$__all&var-Container=$__all&var-stream=$__all&var-search=&var-filter=&var-Dashboard_versie_Rotterdam=1.1&refresh=5m&var-LogLevel=$__all&viewPanel=panel-48"
+                        "url": ""
                       }
                     ]
                   }
