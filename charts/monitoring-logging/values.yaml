@@ -1,6 +1,8 @@
 grafana:
   enabled: true
   assertNoLeakedSecrets: false
+  nodeSelector:
+    agentpool: userpool
   deleteDatasources:
     - name: Alertmanager
     
@@ -148,6 +150,8 @@ prometheus:
       storageClass: "managed-csi"
       size: 20Gi
       accessModes: ["ReadWriteOnce"]
+    nodeSelector:
+      agentpool: userpool
   prometheusSpec:
     logLevel: warn
     serviceMonitorSelectorNilUsesHelmValues: false
@@ -156,6 +160,9 @@ prometheus:
     retentionSize: ""
   alertmanager:
     enabled: false
+  prometheus-node-exporter:
+    nodeSelector:
+      agentpool: userpool
 
 promtail:
   enabled: true
@@ -164,6 +171,8 @@ promtail:
     registry: docker.io
     repository: grafana/promtail
     tag: ""
+  nodeSelector:
+    agentpool: userpool
   config:
     logLevel: warn
     clients:
@@ -185,10 +194,14 @@ loki:
   resultsCache:
     enabled: true
     defaultValidity: 6h
+    nodeSelector:
+      agentpool: userpool
   chunksCache:
     enabled: true
     defaultValidity: 6h # Shorter TTL = fresher results
     allocatedMemory: 1024
+    nodeSelector:
+      agentpool: userpool
   monitoring:
     selfMonitoring:
       enabled: false
@@ -201,19 +214,44 @@ loki:
   indexGateway:
     replicas: 2
     maxUnavailable: 1
+    nodeSelector:
+      agentpool: userpool
   queryScheduler:
     replicas: 2
+    nodeSelector:
+      agentpool: userpool
   queryFrontend:
     replicas: 2
     maxUnavailable: 1
+    nodeSelector:
+      agentpool: userpool
   distributor:
     replicas: 3
     maxUnavailable: 2
+    nodeSelector:
+      agentpool: userpool
   querier:
     replicas: 3
     maxUnavailable: 2
+    nodeSelector:
+      agentpool: userpool
+  gateway:
+    nodeSelector:
+      agentpool: userpool
   ingester:
     replicas: 3
+    nodeSelector:
+      agentpool: userpool
+    zoneAwareReplication:
+      zoneA:
+        nodeSelector:
+          agentpool: userpool
+      zoneB:
+        nodeSelector:
+          agentpool: userpool
+      zoneC:
+        nodeSelector:
+          agentpool: userpool
   test:
     enabled: false
   backend:
@@ -224,6 +262,8 @@ loki:
     replicas: 0
   compactor:
     replicas: 1
+    nodeSelector:
+      agentpool: userpool
     
   loki:
     auth_enabled: false
