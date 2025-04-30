@@ -166,6 +166,9 @@ prometheus:
   prometheus-pushgateway:
     nodeSelector:
       agentpool: userpool
+  kube-state-metrics:
+    nodeSelector:
+      agentpool: userpool
 
 promtail:
   enabled: true
