@@ -337,3 +337,5 @@ loki:
     persistence:
       storageClass: managed-csi
       size: 20Gi
+    nodeSelector:
+      agentpool: userpool
