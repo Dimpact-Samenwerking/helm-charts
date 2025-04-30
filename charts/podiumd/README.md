@@ -219,19 +219,17 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 | Name                                               | Description                                                                                                                                           | Value                                                          |
 |----------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------|
 | openzaak.enabled                                   | Boolean to override the installation of Open Zaak                                                                                                     |                                                                |
-| openzaak.configuration.enabled                     | Boolean to override whether Open Zaak configuration is enabled                                                                                        | `true`                                                         |
-| openzaak.configuration.overwrite                   | Boolean to override whether existing Open Zaak configuration is overwritten                                                                           | `true`                                                         |
-| openzaak.configuration.oidcUrl                     | OpenID Connect client url                                                                                                                             | `https://openzaak.example.nl`                                  |
-| openzaak.configuration.oidcSecret                  | OpenID Connect client secret                                                                                                                          | `<openzaak>`                                                   |
-| openzaak.configuration.sites.openzaakDomain        | Domein (i.e. openzaak.example.nl)                                                                                                                     | `""`                                                           |
-| openzaak.configuration.superuser.username          | Superuser username                                                                                                                                    | `""`                                                           |
-| openzaak.configuration.superuser.password          | Superuser password                                                                                                                                    | `""`                                                           |
-| openzaak.configuration.superuser.email             | Superuser email                                                                                                                                       | `""`                                                           |
-| openzaak.configuration.selectieLijst.enabled       | Configure selectie lijsten                                                                                                                            | `false`                                                        |
-| openzaak.configuration.selectieLijst.ApiRoot       | Selectie lijsten API root                                                                                                                             | `https://selectielijst.openzaak.nl/api/v1/`                    |
-| openzaak.configuration.selectieLijst.ApiOas        | Selectie lijsten OAS                                                                                                                                  | `https://selectielijst.openzaak.nl/api/v1/schema/openapi.yaml` |
-| openzaak.configuration.selectieLijst.AllowedYears  | Selectie lijsten allowed years                                                                                                                        | `[2017, 2020]`                                                 |
-| openzaak.configuration.selectieLijst.DefaultYear   | Selectie lijsten default year                                                                                                                         | `2020`                                                         |
+| openzaak.configuration.data | string | `""` |  |
+| openzaak.configuration.enabled | bool | `true` |  |
+| openzaak.configuration.initContainer.enabled | bool | `false` |  |
+| openzaak.configuration.job.backoffLimit | int | `6` |  |
+| openzaak.configuration.job.enabled | bool | `true` |  |
+| openzaak.configuration.job.resources | object | `{}` |  |
+| openzaak.configuration.job.restartPolicy | string | `"Never"` |  |
+| openzaak.configuration.job.ttlSecondsAfterFinished | int | `0` |  |
+| openzaak.configuration.oidcSecret | string | `"<openzaak>"` |  |
+| openzaak.configuration.oidcUrl | string | `"https://openzaak.example.nl"` |  |
+| openzaak.configuration.secrets | object | `{}` |  |
 | openzaak.settings.allowedHosts                     | List if allowed hostnames<br/>(i.e. "openzaak.example.nl,openzaak-nginx.podiumd.svc.cluster.local")                                                   | `openzaak-nginx.podiumd.svc.cluster.local`                     |
 | openzaak.settings.database.host                    | Database host                                                                                                                                         | `""`                                                           |
 | openzaak.settings.database.name                    | Database name                                                                                                                                         | `""`                                                           |
