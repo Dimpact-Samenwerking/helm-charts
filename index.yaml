@@ -70,6 +70,15 @@ entries:
   kiss:
   - apiVersion: v2
     appVersion: latest
+    created: "2025-04-30T13:08:22.350458461Z"
+    description: KISS Helm chart
+    digest: 59905acf68bbf8217423e7da6ad8d9700435349ad5a95c2b5361395792295d7f
+    name: kiss
+    urls:
+    - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/kiss-1.1.0/kiss-1.1.0.tgz
+    version: 1.1.0
+  - apiVersion: v2
+    appVersion: latest
     created: "2024-07-08T15:15:56.526917278Z"
     description: A Helm chart for KISS
     digest: e4e78e6fb684481abbdb93dc936656ef519dcc53c89f68300695844b1ff2590d
@@ -133,6 +142,83 @@ entries:
     - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/openldap-1.0.0/openldap-1.0.0.tgz
     version: 1.0.0
   podiumd:
+  - apiVersion: v2
+    appVersion: 4.1.0
+    created: "2025-04-30T13:08:22.655303808Z"
+    dependencies:
+    - condition: keycloak.enabled
+      name: keycloak
+      repository: '@bitnami'
+      version: 24.3.0
+    - condition: clamav.enabled
+      name: clamav
+      repository: '@wiremind'
+      version: 3.2.0
+    - condition: brpmock.enabled
+      name: brpmock
+      repository: '@dimpact'
+      tags:
+      - contact
+      - zaak
+      version: ~1.2.4
+    - condition: openzaak.enabled
+      name: openzaak
+      repository: '@maykinmedia'
+      version: 1.8.1
+    - condition: opennotificaties.enabled
+      name: opennotificaties
+      repository: '@maykinmedia'
+      version: 1.8.2
+    - condition: objecten.enabled
+      name: objecten
+      repository: '@maykinmedia'
+      version: 2.7.4
+    - condition: objecttypen.enabled
+      name: objecttypen
+      repository: '@maykinmedia'
+      version: 1.3.2
+    - condition: openarchiefbeheer.enabled
+      name: openarchiefbeheer
+      repository: '@maykinmedia'
+      version: 1.3.8
+    - condition: openklant.enabled
+      name: openklant
+      repository: '@maykinmedia'
+      version: 1.6.3
+    - alias: openformulieren
+      condition: openformulieren.enabled
+      name: openforms
+      repository: '@maykinmedia'
+      version: 1.8.2
+    - condition: openinwoner.enabled
+      name: openinwoner
+      repository: '@maykinmedia'
+      version: 1.7.2
+    - alias: kisselastic
+      condition: kisselastic.enabled
+      name: kiss-elastic
+      repository: '@kiss-elastic'
+      tags:
+      - contact
+      version: 1.0.0
+    - condition: infinispan.enabled
+      name: infinispan
+      repository: '@openshift'
+      version: 0.4.1
+    - alias: zac
+      condition: zac.enabled
+      name: zaakafhandelcomponent
+      repository: '@zac'
+      tags:
+      - zaak
+      version: 1.0.46
+    description: PodiumD Helm chart
+    digest: 80ad813b176dbfd53ef04e2cdae0861dd46765d9dc4cfad5a1ac07be05f3aa9d
+    name: podiumd
+    type: application
+    urls:
+    - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/podiumd-4.1.0/podiumd-4.1.0.tgz
+    version: 4.1.0
   - apiVersion: v2
     appVersion: 4.0.7
     created: "2025-04-24T13:43:54.938012091Z"
@@ -5022,4 +5108,4 @@ entries:
     urls:
     - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/zac-1.0.0/zac-1.0.0.tgz
     version: 1.0.0
-generated: "2025-04-24T13:43:54.938373396Z"
+generated: "2025-04-30T13:08:22.6555866Z"
