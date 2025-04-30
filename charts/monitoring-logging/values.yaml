@@ -50,8 +50,8 @@ grafana:
           options:
             path: /var/lib/grafana/dashboards/default
   
-  # -- extra dashboard
-  #      - name: "monitoring"
+  # -- Extra dashboard voor intern gebruik Dimpact
+  #      - name: "Dimpact"
   #        orgId: 1
   #        folder: 'PodiumD_Monitoring_Logging'
   #        type: file
@@ -60,12 +60,12 @@ grafana:
   #        allowUiUpdates: true # modify dashboards
   #        editable: true
   #        options:
-  #          path: /var/lib/grafana/dashboards/monitoring
+  #          path: /var/lib/grafana/dashboards/Dimpact
 
   # -- Dashboard opgenomen in ConfigMap
   dashboardsConfigMaps:
     default: "logging-podiumd-dashboard" 
-  #  monitoring: "monitoring" 
+  #  Dimpact: "logging_Dimpact" 
   
   grafana.ini:
     # -- Authentication and Authorization with Keycloak
