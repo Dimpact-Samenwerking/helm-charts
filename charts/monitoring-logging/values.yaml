@@ -163,6 +163,9 @@ prometheus:
   prometheus-node-exporter:
     nodeSelector:
       agentpool: userpool
+  prometheus-pushgateway:
+    nodeSelector:
+      agentpool: userpool
 
 promtail:
   enabled: true
