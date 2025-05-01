@@ -393,8 +393,18 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 | Name                                              | Description                                                                                         | Value                                   |
 |---------------------------------------------------|-----------------------------------------------------------------------------------------------------|-----------------------------------------|
 | objecttypen.enabled                               | Boolean to override the installation of objecttypen                                                 |                                         |
-| objecttypen.configuration.oidcUrl                 | OpenID Connect client url                                                                           | `https://objecttypen.example.nl`        |
-| objecttypen.configuration.oidcSecret              | OpenID Connect client secret                                                                        | `<objecttypen>`                         |
+| objecttypen.configuration.data | string | `""` |  |
+| objecttypen.configuration.enabled | bool | `true` |  |
+| objecttypen.configuration.initContainer.enabled | bool | `false` |  |
+| objecttypen.configuration.job.backoffLimit | int | `6` |  |
+| objecttypen.configuration.job.enabled | bool | `true` |  |
+| objecttypen.configuration.job.resources | object | `{}` |  |
+| objecttypen.configuration.job.restartPolicy | string | `"OnFailure"` |  |
+| objecttypen.configuration.job.ttlSecondsAfterFinished | int | `0` |  |
+| objecttypen.configuration.oidcSecret | string | `"<objecttypen>"` |  |
+| objecttypen.configuration.oidcUrl | string | `"https://objecttypen.example.nl"` |  |
+| objecttypen.configuration.secrets | object | `{}` |  |
+| objecttypen.configuration.token | string | `"<token>"` |  |
 | objecttypen.settings.allowedHosts                 | List if allowed hostnames<br/>(i.e. "objecttypen.example.nl,objecttypen.podiumd.svc.cluster.local") | `objecttypen.podiumd.svc.cluster.local` |
 | objecttypen.settings.database.host                | Database host. Overides global.settings.databaseHost                                                | `""`                                    |
 | objecttypen.settings.database.port                | Database port                                                                                       | `5432`                                  |
