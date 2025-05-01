@@ -273,14 +273,19 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 | Name                                                                 | Description                                                                                                                                           | Value                                        |
 |----------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------|
 | opennotificaties.enabled                                             | Boolean to override the installation of Open Notificatues                                                                                             | `true`                                       |
-| opennotificaties.configuration.enabled                               | Boolean to override whether Open Notificaties configuration is enabled                                                                                | `true`                                       |
-| opennotificaties.configuration.overwrite                             | Boolean to override whether existing Open Notificaties configuration is overwritten                                                                   | `true`                                       |
-| opennotificaties.configuration.oidcUrl                               | OpenID Connect client url                                                                                                                             | `https://opennotificaties.example.nl`        |
-| opennotificaties.configuration.oidcSecret                            | OpenID Connect client secret                                                                                                                          | `<opennotificaties>`                         |
-| opennotificaties.configuration.sites.notificatiesDomain              | Domein (i.e. opennotificaties.example.nl)                                                                                                             | `""`                                         |
-| opennotificaties.configuration.superuser.username                    | Superuser username                                                                                                                                    | `""`                                         |
-| opennotificaties.configuration.superuser.password                    | Superuser password                                                                                                                                    | `""`                                         |
-| opennotificaties.configuration.superuser.email                       | Superuser email                                                                                                                                       | `""`                                         |
+| opennotificaties.configuration.data | string | `""` |  |
+| opennotificaties.configuration.enabled | bool | `true` |  |
+| opennotificaties.configuration.http_request_job.enabled | bool | `false` |  |
+| opennotificaties.configuration.initContainer.enabled | bool | `false` |  |
+| opennotificaties.configuration.job.backoffLimit | int | `6` |  |
+| opennotificaties.configuration.job.enabled | bool | `true` |  |
+| opennotificaties.configuration.job.resources | object | `{}` |  |
+| opennotificaties.configuration.job.restartPolicy | string | `"OnFailure"` |  |
+| opennotificaties.configuration.job.ttlSecondsAfterFinished | int | `0` |  |
+| opennotificaties.configuration.oidcSecret | string | `"<opennotificaties>"` |  |
+| opennotificaties.configuration.oidcUrl | string | `"https://opennotificaties.example.nl"` |  |
+| opennotificaties.configuration.overwrite | bool | `true` |  |
+| opennotificaties.configuration.secrets | object | `{}` |  |                                 |
 | opennotificaties.settings.allowedHosts                               | List if allowed hostnames<br/>(i.e. "openzaak.example.nl,openzaak-nginx.podiumd.svc.cluster.local")                                                   | `opennotificaties.podiumd.svc.cluster.local` |
 | opennotificaties.settings.database.host                              | Database host. Overides global.settings.databaseHost                                                                                                  | `""`                                         |
 | opennotificaties.settings.database.port                              | Database port                                                                                                                                         | `5432`                                       |

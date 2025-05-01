@@ -527,10 +527,171 @@ opennotificaties:
   configuration:
     enabled: true
     overwrite: true
-    oidcUrl: https://opennotificaties.example.nl
-    oidcSecret: "<opennotificaties>"
     http_request_job:
       enabled: false
+    initContainer:
+      enabled: false
+    job:
+      enabled: true
+      backoffLimit: 6
+      ttlSecondsAfterFinished: 0
+      restartPolicy: OnFailure
+      resources: {}
+    secrets: {}
+      # keycloak_client_secret: "<keycloak_client_secret>"
+      # opennotificaties_autorisatie_api_secret: "<opennotificaties_autorisatie_api_secret>"
+      # opennotificaties_opennotificaties_secret: "<opennotificaties_opennotificaties_secret>"
+      # openzaak_opennotificaties_secret: "<openzaak_opennotificaties_secret>"
+    data: ""  
+    # data: |-
+    #   oidc_db_config_enable: True
+    #   oidc_db_config_admin_auth:
+    #     items:
+    #     - identifier: admin-oidc
+    #       enabled: True
+    #       oidc_rp_client_id: opennotificaties.example.nl
+    #       oidc_rp_client_secret: ${keycloak_client_secret}
+    #       oidc_rp_scopes_list:
+    #       - openid
+    #       - email
+    #       - profile
+    #       - roles
+    #       oidc_rp_sign_algo: RS256
+    #       endpoint_config:
+    #         oidc_op_discovery_endpoint: https://keycloak.example.nl/realms/gemeente-x/
+    #       username_claim:
+    #       - sub
+    #       groups_claim:
+    #       - roles
+    #       claim_mapping:
+    #         first_name:
+    #         - given_name
+    #         last_name:
+    #         - family_name
+    #         email:
+    #         - email
+    #       sync_groups: true
+    #       sync_groups_glob_pattern: "*"
+    #       default_groups: []
+    #       make_users_staff: true
+    #       superuser_group_names:
+    #       - Superuser
+    #       oidc_use_nonce: true
+    #       oidc_nonce_size: 32
+    #       oidc_state_size: 32
+    #       userinfo_claims_source: id_token
+    #   zgw_consumers_config_enable: true
+    #   zgw_consumers:
+    #     services:
+    #       - identifier: autorisaties-api
+    #         label: Autorisaties API
+    #         api_root: https://openzaak.example.nl/autorisaties/api/v1/
+    #         api_type: ac
+    #         auth_type: zgw
+    #         client_id: open-notificaties
+    #         secret: ${opennotificaties_autorisatie_api_secret}
+    #         user_id: open-notificaties
+    #         user_representation: Open Notificaties
+    #       - identifier: notificaties-api
+    #         label: Notificaties API
+    #         api_root: https://opennotificaties.example.nl/api/v1/
+    #         api_type: nrc
+    #         auth_type: zgw
+    #         client_id: open-notificaties
+    #         secret: ${opennotificaties_opennotificaties_secret}
+    #   autorisaties_api_config_enable: true
+    #   autorisaties_api:
+    #     # Configure Open Notificaties to make use of Open Zaak's Autorisaties API
+    #     authorizations_api_service_identifier: autorisaties-api
+    #   notifications_config_enable: true
+    #   notifications_config:
+    #     notifications_api_service_identifier: notificaties-api
+    #     notification_delivery_max_retries: 5
+    #     notification_delivery_retry_backoff: 3
+    #     notification_delivery_retry_backoff_max: 48
+    #   vng_api_common_credentials_config_enable: true
+    #   vng_api_common_credentials:
+    #     items:
+    #     # Credentials for Open Zaak to be able to make requests to Open Notificaties
+    #     - identifier: open-zaak
+    #       secret: ${openzaak_opennotificaties_secret}
+    #     # Credentials for Open Notificaties to talk to itself
+    #     - identifier: open-notificaties
+    #       secret: ${opennotificaties_opennotificaties_secret}
+    #   notifications_kanalen_config_enable: true
+    #   notifications_kanalen_config:
+    #     items:
+    #       - naam: autorisaties
+    #         documentatie_link: https://openzaak.example.nl/ref/kanalen/#/autorisaties         
+    #         filters: 
+    #           - autorisaties
+    #       - naam: besluittypen
+    #         documentatie_link: https://openzaak.example.nl/ref/kanalen/#/besluittypen
+    #         filters:
+    #           - catalogus
+    #       - naam: informatieobjecttypen
+    #         documentatie_link: https://openzaak.example.nl/ref/kanalen/#/informatieobjecttypen
+    #         filters:
+    #           - catalogus
+    #       - naam: zaaktypen
+    #         documentatie_link: https://openzaak.example.nl/ref/kanalen/#/zaaktypen
+    #         filters:
+    #           - catalogus
+    #       - naam: zaken
+    #         documentatie_link: https://openzaak.example.nl/ref/kanalen/#/zaken
+    #         filters:
+    #           - bronorganisatie
+    #           - zaaktype
+    #           - vertrouwelijkheidaanduiding
+    #       - naam: documenten
+    #         documentatie_link: https://openzaak.example.nl/ref/kanalen/#/documenten
+    #         filters:
+    #           - bronorganisatie
+    #           - informatieobjecttype
+    #           - vertrouwelijkheidaanduiding
+    #       - naam: besluiten
+    #         documentatie_link: https://openzaak.example.nl/ref/kanalen/#/besluiten
+    #         filters:
+    #           - verantwoordelijke_organisatie
+    #           - besluittype
+    #   # The configuration check view will show a checkmark, but for it to actually work an 
+    #   # Abonnement also has to be configured via notifications_abonnementen_config. This does not work right now, 
+    #   # because the spec doesn't properly support JWT. See issue open-zaak/open-zaak#1694
+    #   notifications_subscriptions_config_enable: true
+    #   notifications_subscriptions_config:
+    #     items:
+    #       - uuid: 02907e89-1ba8-43e9-a86c-d0534d461316
+    #         channels:
+    #           - autorisaties
+    #         identifier: open-notificaties
+    #         callback_url: https://opennotificaties.example.nl/api/v1/callbacks
+    #         client_id: open-notificaties
+    #         secret: ${opennotificaties_opennotificaties_secret}
+    #   notifications_abonnementen_config_enable: true
+    #   notifications_abonnementen_config:
+    #     items:
+    #       - uuid: 1d4a40cd-d5dd-49c8-a570-712a5daa61b8
+    #         callback_url: https://openzaak.example.nl/api/v1/callback
+    #         auth: Token foo
+    #         kanalen:
+    #           - filters:
+    #               zaaktype: https://openzaak.example.nl/catalogi/api/v1/zaaktypen/d7d70285-6157-480d-8e22-6d2b3e80a856
+    #             naam: zaken
+    #           - filters:
+    #               vertrouwelijkheidaanduiding: beperkt_openbaar
+    #             naam: zaken
+    #       - uuid: df62ca62-3e02-4ebe-bfb8-c224e7c08f3f
+    #         callback_url: https://ontw-openzaak.dimpact.opengem.nl/api/v1/other-callback
+    #         auth: Token bar
+    #         kanalen:
+    #           - naam: zaken
+    #   sites_config_enable: true
+    #   sites_config:
+    #     items:
+    #       - domain: opennotificaties.example.nl
+    #         name: Open Notificaties Gemeente-x
+    oidcUrl: https://opennotificaties.example.nl
+    oidcSecret: "<opennotificaties>"
   settings:
     allowedHosts: opennotificaties.podiumd.svc.cluster.local
     maxRetries: 5
