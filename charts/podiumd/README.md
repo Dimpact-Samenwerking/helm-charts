@@ -340,8 +340,18 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 | Name                                               | Description                                                                                                                                           | Value                                |
 |----------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------|
 | objecten.enabled                                   | Boolean to override the installation of Objecten                                                                                                      |                                      |
-| objecten.configuration.oidcUrl                     | OpenID Connect client url                                                                                                                             | `https://objecten.example.nl`        |
-| objecten.configuration.oidcSecret                  | OpenID Connect client secret                                                                                                                          | `<objecten>`                         |
+| objecten.configuration.data | string | `""` |  |
+| objecten.configuration.demo.enabled | bool | `false` |  |
+| objecten.configuration.enabled | bool | `true` |  |
+| objecten.configuration.initContainer.enabled | bool | `false` |  |
+| objecten.configuration.job.backoffLimit | int | `6` |  |
+| objecten.configuration.job.enabled | bool | `true` |  |
+| objecten.configuration.job.resources | object | `{}` |  |
+| objecten.configuration.job.restartPolicy | string | `"OnFailure"` |  |
+| objecten.configuration.job.ttlSecondsAfterFinished | int | `0` |  |
+| objecten.configuration.oidcSecret | string | `"<objecten>"` |  |
+| objecten.configuration.oidcUrl | string | `"https://objecten.example.nl"` |  |
+| objecten.configuration.secrets | object | `{}` |  |
 | objecten.settings.allowedHosts                     | List if allowed hostnames<br/>(i.e. "objecten.example.nl,objecten.podiumd.svc.cluster.local")                                                         | `objecten.podiumd.svc.cluster.local` |
 | objecten.settings.database.host                    | Database host. Overides global.settings.databaseHost                                                                                                  | `""`                                 |
 | objecten.settings.database.port                    | Database port                                                                                                                                         | `5432`                               |

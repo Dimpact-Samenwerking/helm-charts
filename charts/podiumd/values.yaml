@@ -748,8 +748,111 @@ opennotificaties:
 
 objecten:
   configuration:
+    enabled: true  
+    demo:
+      enabled: false
+    initContainer:
+      enabled: false
+    job:
+      enabled: true
+      backoffLimit: 6
+      ttlSecondsAfterFinished: 0
+      restartPolicy: OnFailure
+      resources: {}
+    secrets: {}
+      # keycloak_client_secret: "<keycloak_client_secret>"  
+      # object_objecttypes_token: "<object_objecttypes_token>"
+      # object_notificaties_token: "<object_notificaties_token>"
+      # openformulieren_objecten_token: "<openformulieren_objecten_token>"
+    data: ""  
+    # data: |-
+    #   oidc_db_config_enable: true
+    #   oidc_db_config_admin_auth:
+    #     items:
+    #     - identifier: admin-oidc
+    #       enabled: True
+    #       oidc_rp_client_id: objecten.example.nl
+    #       oidc_rp_client_secret: '${keycloak_client_secret}'
+    #       oidc_rp_scopes_list:
+    #       - openid
+    #       - email
+    #       - profile
+    #       - roles
+    #       oidc_rp_sign_algo: RS256
+    #       endpoint_config:
+    #         oidc_op_discovery_endpoint: https://keycloak.example.nl/realms/gemeente-x/
+    #       username_claim:
+    #       - sub
+    #       groups_claim:
+    #       - roles
+    #       claim_mapping:
+    #         first_name:
+    #         - given_name
+    #         last_name:
+    #         - family_name
+    #         email:
+    #         - email
+    #       sync_groups: true
+    #       sync_groups_glob_pattern: "*"
+    #       default_groups: []
+    #       make_users_staff: true
+    #       superuser_group_names:
+    #       - Superuser
+    #       oidc_use_nonce: true
+    #       oidc_nonce_size: 32
+    #       oidc_state_size: 32
+    #       userinfo_claims_source: id_token    
+    #   zgw_consumers_config_enable: true
+    #   zgw_consumers:
+    #     services:
+    #     - identifier: objecttypes-api
+    #       label: Objecttypes API
+    #       api_root: https://objecttypen.example.nl/api/v2/
+    #       api_connection_check_path: objecttypes
+    #       api_type: orc
+    #       auth_type: api_key
+    #       header_key: Authorization
+    #       header_value: Token ${object_objecttypes_token}
+    #     - identifier: notifications-api
+    #       label: Notificaties API
+    #       api_root: https://notificaties.example.nl/api/v1/
+    #       api_connection_check_path: notificaties
+    #       api_type: nrc
+    #       auth_type: api_key
+    #       header_key: Authorization
+    #       header_value: Token ${object_notificaties_token}
+    #   notifications_config_enable: true
+    #   notifications_config:
+    #     notifications_api_service_identifier: notifications-api
+    #     notification_delivery_max_retries: 1
+    #     notification_delivery_retry_backoff: 2
+    #     notification_delivery_retry_backoff_max: 3
+    #   tokenauth_config_enable: true
+    #   tokenauth:
+    #     items:
+    #       - identifier: openformulier-token
+    #         token: ${openformulieren_objecten_token}
+    #         contact_person: Person 1
+    #         email: person-1@example.com
+    #         organization: Organization 1
+    #         application: Application 1
+    #         administration: Administration 1
+    #         permissions:
+    #           - object_type: 66518702-59fd-4de4-a1d7-e160e29964a4
+    #             mode: read_and_write
+    #   objecttypes_config_enable: true
+    #   objecttypes:
+    #     items:
+    #       - uuid: 66518702-59fd-4de4-a1d7-e160e29964a4
+    #         name: demo
+    #         service_identifier: objecttypes-api
+    #   sites_config_enable: true
+    #   sites_config:
+    #     items:
+    #       - domain: objecten.example.nl
+    #         name: objecten
     oidcUrl: https://objecten.example.nl
-    oidcSecret: "<objecten>"
+    oidcSecret: "<objecten>" 
   settings:
     allowedHosts: objecten.podiumd.svc.cluster.local
     email:
