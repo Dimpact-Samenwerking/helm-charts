@@ -1012,7 +1012,9 @@ openklant:
       ttlSecondsAfterFinished: 0    
       restartPolicy: OnFailure
       resources: {}
-    secrets: {}      
+    secrets: {}
+      # openklant_token: "<openklant_token>"
+      # keycloak_client_secret: "<keycloak_client_secret>"   
     data: ""        
     # data: |-
     #   oidc_db_config_enable: True
@@ -1060,7 +1062,24 @@ openklant:
     #         email: test@example.com
     #         organization: Organization XYZ
     #         application: Application XYZ
-    #         administration: Administration XYZ    
+    #         administration: Administration XYZ
+    #   zgw_consumers_config_enable: true
+    #   zgw_consumers:
+    #     services:
+    #     - identifier: open-notificaties
+    #       label: Open Notificaties
+    #       api_root: https://notificaties.example.nl/api/v1/
+    #       api_type: nrc
+    #       auth_type: zgw
+    #       client_id: open-klant
+    #       user_id: open-klant
+    #       secret: ${openklant_token}
+    #   notifications_config_enable: true
+    #   notifications_config:
+    #     notifications_api_service_identifier: open-notificaties
+    #     notification_delivery_max_retries: 1
+    #     notification_delivery_retry_backoff: 2
+    #   notification_delivery_retry_backoff_max: 3  
     oidcUrl: https://openklant.example.nl
     oidcSecret: "<openklant>"
   settings:
