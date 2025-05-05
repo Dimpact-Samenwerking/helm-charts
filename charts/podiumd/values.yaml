@@ -331,10 +331,6 @@ infinispan:
   monitoring:
     enabled: true
 
-brpmock:
-  enabled: false
-  nameOverride: brpmock
-
 openzaak:
   configuration:
     oidcUrl: https://openzaak.example.nl
@@ -1662,29 +1658,40 @@ apiproxy:
     initialDelaySeconds: 5
     periodSeconds: 10
   locations:
+    #-- mix and match depending on needs
     commonSettings: &commonLocation
       sslVerify: "off"
       hostHeader: "lab.api.mijniconnect.nl"
+      apikey: ""
     bag:
       <<: *commonLocation
       path: /lvbag/individuelebevragingen/v2/
       targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apibagib/v2/"
+      apikey: ""
     brp:
       <<: *commonLocation
       path: /haalcentraal/api/brp/
       targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apihcbrp/actueel/prtcl/v2/"
     kvkSearch:
       <<: *commonLocation
+      path: /kvk/v2/zoeken
       targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apikvk/zoeken/v2/zoeken"
     kvkBasic:
       <<: *commonLocation
+      path: /kvk/v1/basisprofielen
       targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apikvk/basprof/v1/v1/basisprofielen"
     kvkBranch:
       <<: *commonLocation
+      path: /kvk/v1/vestigingsprofielen
       targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apikvk/vesprof/v1/v1/vestigingsprofielen"
+
+brp-personen-mock:
+  enabled: false
 
 serviceAccount:
   create: true
   automount: true
   annotations: {}
   name: ""
+
+
