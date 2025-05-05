@@ -72,6 +72,12 @@ keycloak:
       fromDisplayName: "noreply@example.nl"
       starttls: "true"
       ssl: "false"
+    clients:
+      monitoring:
+        name: Monitoring (Grafana)
+        enabled: true
+        secret: "monitoring_secret"
+        oidcUrl: "https://monitoring.example.nl"
   # -- required to activate infinispan
   # customCaExistingSecret: ispn-secret
   # -- enable keycloak by default
@@ -324,16 +330,6 @@ infinispan:
   enabled: false
   monitoring:
     enabled: true
-
-openldap:
-  enabled: false
-  persistence:
-    size: 1Gi
-    existingClaim: openldap
-  persistentVolume:
-    volumeAttributeShareName: openldap
-  nameOverride: openldap
-  fullnameOverride: openldap
 
 abc:
   configuration:
@@ -707,7 +703,7 @@ opennotificaties:
   persistentVolume:
     volumeAttributeShareName: opennotificaties
   image:
-    tag: "1.8.0"
+    tag: "1.8.2"
   resources:
     requests:
       cpu: 100m
@@ -865,7 +861,7 @@ objecten:
   persistentVolume:
     volumeAttributeShareName: objecten
   image:
-    tag: "3.0.0"
+    tag: "3.0.3"
   resources:
     requests:
       cpu: 100m
@@ -978,7 +974,7 @@ objecttypen:
       useTLS: true
     disable2fa: false
   image:
-    tag: "3.0.0"
+    tag: "3.0.2"
   # used for create-required-objecttypen podiumd job only
   create_required_objecttypen_job:
     enabled: true
@@ -1000,6 +996,318 @@ objecttypen:
         requests:
           cpu: 10m
           memory: 64Mi
+
+
+openarchiefbeheer:
+  enabled: false
+  nameOverride: openarchiefbeheer
+  fullnameOverride: openarchiefbeheer
+  configuration:
+    enabled: false
+    job:
+      enabled: true
+      backoffLimit: 6
+      ttlSecondsAfterFinished: 0    
+      restartPolicy: OnFailure
+    secrets: {}
+    data: ""
+    # data: |-
+    #   zgw_consumers_config_enable: true
+    #   zgw_consumers:
+    #     services:
+    #     - identifier: zaken-dimpact-acc
+    #       label: Open Zaak - Zaken API
+    #       api_root: https://example.openzaak.nl/zaken/api/v1/
+    #       api_type: zrc
+    #       auth_type: zgw
+    #       client_id: openarchiefbeheer
+    #       secret: ${oab_openzaak_secret}
+    #     - identifier: documenten-dimpact-acc
+    #       label: Open Zaak - Documenten API
+    #       api_root: https://example.openzaak.nl/documenten/api/v1/
+    #       api_type: drc
+    #       auth_type: zgw
+    #       client_id: openarchiefbeheer
+    #       secret: ${oab_openzaak_secret}
+    #     - identifier: catalogus-dimpact-acc
+    #       label: Open Zaak - Catalogi API
+    #       api_root: https://example.openzaak.nl/catalogi/api/v1/
+    #       api_type: ztc
+    #       auth_type: zgw
+    #       client_id: openarchiefbeheer
+    #       secret: ${oab_openzaak_secret}
+    #     - identifier: besluiten-dimpact-acc
+    #       label: Open Zaak - Besluiten API
+    #       api_root: https://example.openzaak.nl/besluiten/api/v1/
+    #       api_type: brc
+    #       auth_type: zgw
+    #       client_id: openarchiefbeheer
+    #       secret: ${oab_openzaak_secret}
+    #     - identifier: selectielijst
+    #       label: Open Zaak (public) - Selectielijst API
+    #       api_root: https://selectielijst.openzaak.nl/api/v1/
+    #       api_type: orc
+    #       auth_type: no_auth
+
+    #   api_configuration_enabled: true
+    #   api_configuration:
+    #     selectielijst_service_identifier: selectielijst
+
+    #   oidc_db_config_enable: true
+    #   oidc_db_config_admin_auth:
+    #     items:
+    #     - identifier: admin-oidc
+    #       enabled: true
+    #       oidc_rp_client_id: example-client-id
+    #       oidc_rp_client_secret: ${keycloak_client_secret}
+    #       oidc_rp_sign_algo: "RS256"
+    #       oidc_token_use_basic_auth: false
+    #       username_claim:
+    #         - preferred_username
+    #       groups_claim:
+    #         - resource_access
+    #         - example-client-id
+    #         - roles
+    #       superuser_group_names:
+    #         - Superuser
+    #       userinfo_claims_source: userinfo_endpoint
+    #       oidc_rp_idp_sign_key: ""
+    #       endpoint_config:
+    #         oidc_op_discovery_endpoint: https://example.keycloak.nl/realms/podiumd-poc/
+  
+
+  tags:
+    redis: true
+
+  replicaCount: 1
+
+  image:
+    tag: "1.0.0"
+
+  service:
+    type: ClusterIP
+    port: 80
+
+  ingress:
+    enabled: false
+    annotations: {}
+    className: ""
+    hosts: []
+    tls: []
+
+  extraIngress: []
+
+  resources:
+    limits: {}
+    requests:
+      cpu: 250m
+      memory: 256Mi
+
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 100
+    targetCPUUtilizationPercentage: 80
+    targetMemoryUtilizationPercentage: 80
+
+  pdb:
+    create: false
+    minAvailable: 1
+    maxUnavailable: ""
+
+  nodeSelector: {}
+
+  tolerations: []
+
+  affinity: {}
+
+  persistence:
+    enabled: true
+    size: 10Gi
+    existingClaim: openarchiefbeheer
+    storageClassName: ""
+    mediaMountSubpath: openarchiefbeheer/media
+    privateMediaMountSubpath: openarchiefbeheer/private_media
+  persistentVolume:
+    volumeAttributeShareName: openarchiefbeheer
+
+  existingSecret: null
+
+  azureVaultSecret:
+    vaultName: null
+    objectName: ""
+    contentType: ""
+    secretName: "{{ .Values.existingSecret }}"
+
+  extraEnvVars: []
+  extraVolumes: []
+  extraVolumeMounts: []
+
+  pythonAppName: openarchiefbeheer
+  settings:
+    allowedHosts: openarchiefbeheer.podiumd.svc.cluster.local
+    # -- Name of the environment (used for displaying purposes)
+    environment: ""
+    requestsReadTimeout: "5000"
+    # -- Number of days to wait before destroying a list. Defaults to 7 in the application.
+    waitingPeriod: ""
+
+    # -- Settings for the database. Note: Open-Archiefbeheer needs the POSTGIS extension to be installed in the database.
+    database:
+      host: ""
+      port: 5432
+      username: ""
+      password: ""
+      name: ""
+      sslmode: prefer
+
+    cookie:
+      sessionCookieSamesite: 'Lax'
+      sessionCookieSecure: true
+      csrfCookieSamesite: 'Lax'
+      csrfCookieSecure: true
+
+    cors:
+      allowedOrigins: ""
+      allowedOriginsRegexes: ""
+      allowAllOrigins: false
+      extraAllowHeaders: ""
+
+    throttling:
+      enable: true
+      rateAnonymous: "2500/hour"
+      rateUser: "15000/hour"
+
+    twoFactorAuthentication:
+      forceOtpAdmin: true
+      patchAdmin: true
+
+    csrf:
+      trustedOrigins: ""
+
+    sentry:
+      dsn: ""
+
+    cache:
+      default: ""
+      axes: ""
+      choices: ""
+
+    celery:
+      brokerUrl: ""
+      resultBackend: ""
+      logLevel: debug
+
+    email:
+      port: 587
+      useTLS: true
+      
+    uwsgi:
+      master: ''
+      threads: ''
+      processes: ''
+      maxRequests: ''
+      harakiri: ''
+
+    frontend:
+      apiUrl: ""
+      apiPath: "/api/v1"
+      zaakUrlTemplate: ""
+
+    frontendUrl: ""
+    retry:
+      total: ""
+      backoffFactor: ""
+      statusForcelist: ""
+
+  worker:
+    label: "1"
+    name: ""
+    queueName: ""
+    replicaCount: 1
+    concurrency: 4
+    podLabels: {}
+    resources: {}
+    livenessProbe: 
+      enabled: false
+      exec:
+        command:
+          - /app/liveness/liveness-probe.sh
+      initialDelaySeconds: 60
+      periodSeconds: 30
+      timeoutSeconds: 10
+      failureThreshold: 3
+      successThreshold: 1
+    autoscaling:
+      enabled: false
+      minReplicas: 1
+      maxReplicas: 100
+      targetCPUUtilizationPercentage: 80
+      targetMemoryUtilizationPercentage: 80
+
+  flower:
+    enabled: true
+    replicaCount: 1
+    podLabels: {}
+    service:
+      type: ClusterIP
+      port: 80
+    livenessProbe: {}
+    readinessProbe: {}
+    resources: {}
+
+  beat:
+    enabled: true
+    replicaCount: 1
+    podLabels: {}
+    livenessProbe: {}
+    readinessProbe: {}
+    resources: {}
+
+  nginx:
+    image:
+      repository: nginxinc/nginx-unprivileged
+      pullPolicy: IfNotPresent
+      tag: stable
+    resources:
+      requests:
+        cpu: 10m
+        memory: 16Mi
+    existingConfigmap: null
+    service:
+      type: ClusterIP
+      port: 8080
+      annotations: {}
+    replicaCount: 1
+    podLabels: {}
+    securityContext:
+      capabilities:
+        drop:
+        - ALL
+      readOnlyRootFilesystem: false
+      runAsNonRoot: true
+      runAsUser: 101
+    autoscaling:
+      enabled: false
+    livenessProbe: {}
+    readinessProbe: {}
+    resources: {}
+
+  redis:
+    nameOverride: openarchiefbeheer-redis
+    fullnameOverride: openarchiefbeheer-redis
+    architecture: standalone
+    auth:
+      enabled: false
+    master:
+      persistence:
+        enabled: true
+        size: 8Gi
+        storageClass: ""
+      resources:
+        requests:
+          cpu: 10m
+          memory: 20Mi
 
 openklant:
   configuration:
@@ -1089,7 +1397,7 @@ openklant:
       useTLS: true
     disable2fa: false
   image:
-    tag: "2.4.0"
+    tag: "2.7.0"
   resources:
     requests:
       cpu: 100m
@@ -1235,7 +1543,7 @@ openformulieren:
   persistentVolume:
     volumeAttributeShareName: openformulieren
   image:
-    tag: "2.8.9"
+    tag: "3.0.7"
   resources:
     requests:
       cpu: 100m
@@ -1403,7 +1711,7 @@ openinwoner:
   persistentVolume:
     volumeAttributeShareName: openinwoner
   image:
-    tag: "1.27.2"
+    tag: "1.29.0"
   resources:
     requests:
       cpu: 200m
@@ -1492,6 +1800,7 @@ kiss:
     clientId: kiss
     secret: ""
     contactverzoektypen: []
+    isDefault: true
 
   database:
     host: ""
@@ -1554,7 +1863,8 @@ kiss:
       name: ""
     image:
       repository: ghcr.io/klantinteractie-servicesysteem/kiss-frontend
-      tag: "release-0.7.x-20250331101502-2fe19fb"
+      tag: "release-1.0.x-20250418091744-8936963"
+
 
       pullPolicy: IfNotPresent
     resources:
@@ -1627,7 +1937,7 @@ zac:
   image:
     repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
-    tag: "3.0.0"
+    tag: "3.5.0"
   keycloak:
     adminClient:
       id: zac-admin-client
@@ -1854,18 +2164,3 @@ serviceAccount:
   automount: true
   annotations: {}
   name: ""
-
-httpRequestJob:
-  intellijHttpClient:
-    image:
-      repository: jetbrains/intellij-http-client
-      tag: "243.22562.13"
-  jwtCli:
-    image:
-      repository: bitnami/jwt-cli
-      tag: "6.2.0"
-  alpine:
-    image:
-      repository: alpine
-      tag: "3.20"
-  nodeSelector: {}
