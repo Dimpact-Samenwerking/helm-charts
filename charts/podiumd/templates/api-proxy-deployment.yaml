@@ -25,8 +25,10 @@ spec:
         - name: nginx-config
           mountPath: /etc/nginx/nginx.conf
           subPath: nginx.conf
+        {{- if .Values.apiproxy.nginxCertsSecret }}
         - name: nginx-certs
           mountPath: /etc/nginx/certs
+        {{- end }}
         resources:
           limits:
             cpu: {{ .Values.apiproxy.resources.limits.cpu }}
@@ -50,7 +52,9 @@ spec:
       - name: nginx-config
         configMap:
           name: {{ default "api-proxy" .Values.apiproxy.nameOverride }}-nginx-config
+      {{- if .Values.apiproxy.nginxCertsSecret }}
       - name: nginx-certs
         secret:
           secretName: {{ .Values.apiproxy.nginxCertsSecret }}
+      {{- end }}
 {{- end }}
