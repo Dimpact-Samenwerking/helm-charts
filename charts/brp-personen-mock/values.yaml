@@ -1,3 +1,5 @@
+nodeSelector: {}
+
 brppersonenmock:
   image:
     # -- Personen mock image repository
@@ -11,4 +13,3 @@ brppersonenmock:
     # -- Personen mock container requests and limits
       cpu: 10m
       memory: 150Mi
-  nodeSelector: {}
