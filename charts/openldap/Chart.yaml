@@ -1,5 +1,0 @@
-apiVersion: v2
-name: openldap
-description: Open LDAP Helm chart
-version: 1.0.2
-appVersion: "2.6.8"
