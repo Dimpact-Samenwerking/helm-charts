@@ -943,6 +943,11 @@ openklant:
         memory: 200Mi
   nameOverride: openklant
   fullnameOverride: openklant
+  nginx:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 16Mi
   redis:
     nameOverride: openklant-redis
     fullnameOverride: openklant-redis
