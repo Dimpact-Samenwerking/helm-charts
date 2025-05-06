@@ -3,7 +3,6 @@ This repository contains Helm charts for:
 
 - [brp mock](./charts/brpmock/README.md)
 - [kiss](./charts/kiss/README.md)
-- [open ldap](./charts/openldap/README.md)
 - [podiumd](./charts/podiumd/README.md)
 - [podiumd monitoring and logging](./charts/podiumd-monitoring-logging/README.md)
 - [vng referentielijsten](./charts/vngreferentielijsten/README.md)

@@ -187,24 +187,7 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 | keycloak.keycloakConfigCli.image.tag        | Keycloak config cli image tag                                               | `5.12.0-debian-12-r5`               |
 | keycloak.keycloakConfigCli.image.pullPolicy | Keycloak config cli image pull policy                                       | `IfNotPresent`                      |
 | keycloak.keycloakConfigCli.nodeSelector     | Node labels for Keycloak config cli pod assignment. Evaluated as a template | `{}`                                |
- 
-### Open LDAP
 
-| Name                                               | Description                                                                                                                                           | Value                 |
-|----------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------|
-| openldap.enabled                                   | Boolean to override the installation of OpenLDAP                                                                                                      |                       |
-| openldap.adminUsername                             | LDAP administrator username                                                                                                                           | `"admin"`             |
-| openldap.adminPassword                             | LDAP administrator password                                                                                                                           | `"admin"`             |
-| openldap.root                                      | Root of LDAP tree                                                                                                                                     | `"dc=dimpact,dc=org"` |
-| openldap.persistence.existingClaim                 | Manually managed Persistent Volume and Claim                                                                                                          | `openldap`            |
-| openldap.persistence.subpath                       | Path within the volume                                                                                                                                | `openldap`            |
-| openldap.persistence.size                          | Size of created PersistentVolume                                                                                                                      | `1Gi`                 |
-| openldap.persistentVolume.volumeAttributeShareName | Value of created PersistentVolume paramer `spec.csi.volumeAttributes.shareName`.<br/>Overriden by `.Values.persistentVolume.volumeAttributeShareName` | `openldap`            |
-| openldap.image.repository                          | Image repository                                                                                                                                      | `bitnami/openldap`    |
-| openldap.image.tag                                 | Image tag                                                                                                                                             | `2.6.8`               |
-| openldap.image.pullPolicy                          | Image pull policy                                                                                                                                     | `IfNotPresent`        |
-| openldap.nodeSelector                              | Node labels for pod assignment. Evaluated as a template                                                                                               | `{}`                  |
-| openldap.resources                                 | Container requests and limits                                                                                                                         | See values.yaml       |
 
 ### ClamAV
 
