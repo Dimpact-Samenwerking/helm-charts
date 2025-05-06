@@ -308,10 +308,10 @@ loki:
       allow_structured_metadata: true
       volume_enabled: true
       retention_period: 30d # 1 month retention
-      max_query_lookback: 31d # 1 month query lookback
+      max_query_lookback: 30d # 1 month query lookback
       ingestion_rate_strategy: local # Default: global
       max_global_streams_per_user: 5000
-      max_query_length: 744h # 1 month. Default: 721h
+      max_query_length: 721h # 1 month. Default: 721h
       max_query_parallelism: 48 # Utilize Azure's high throughput
       max_streams_per_user: 0 # Old Default: 10000
       split_queries_by_interval: 15m # Smaller splits = faster parallelization
