@@ -24,7 +24,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 2,
+  "id": 5,
   "links": [],
   "panels": [
     {
@@ -1215,7 +1215,7 @@
       "type": "row"
     },
     {
-      "collapsed": true,
+      "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -1223,56 +1223,55 @@
         "y": 11
       },
       "id": 4,
-      "panels": [
+      "panels": [],
+      "title": "Alle logs voor component: \"$App\"",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 19,
+        "w": 24,
+        "x": 0,
+        "y": 12
+      },
+      "id": 68,
+      "options": {
+        "dedupStrategy": "none",
+        "enableInfiniteScrolling": false,
+        "enableLogDetails": true,
+        "prettifyLogMessage": true,
+        "showCommonLabels": false,
+        "showLabels": false,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true
+      },
+      "pluginVersion": "11.6.0",
+      "targets": [
         {
           "datasource": {
             "type": "loki",
             "uid": "loki"
           },
-          "description": "",
-          "fieldConfig": {
-            "defaults": {},
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 19,
-            "w": 24,
-            "x": 0,
-            "y": 12
-          },
-          "id": 68,
-          "options": {
-            "dedupStrategy": "none",
-            "enableInfiniteScrolling": false,
-            "enableLogDetails": true,
-            "prettifyLogMessage": true,
-            "showCommonLabels": false,
-            "showLabels": false,
-            "showTime": true,
-            "sortOrder": "Descending",
-            "wrapLogMessage": true
-          },
-          "pluginVersion": "11.6.0",
-          "targets": [
-            {
-              "datasource": {
-                "type": "loki",
-                "uid": "loki"
-              },
-              "direction": "backward",
-              "editorMode": "code",
-              "expr": "{app=~\"$Subapp\"}  |~ \"(?i)$search\" |~ \"(?i)$Methode\" |~ \"(?i)$LogLevel\" !~ `$excluded_log_levels` != `HTTP/1.1\" 0 \"` ",
-              "maxLines": 100,
-              "queryType": "range",
-              "refId": "A"
-            }
-          ],
-          "title": "Logs component: $App",
-          "type": "logs"
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "{app=~\"$Subapp\"}  |~ \"(?i)$search\" |~ \"(?i)$Methode\" |~ \"(?i)$LogLevel\" !~ `$excluded_log_levels` != `HTTP/1.1\" 0 \"` ",
+          "maxLines": 100,
+          "queryType": "range",
+          "refId": "A"
         }
       ],
-      "title": "Alle logs voor component: \"$App\"",
-      "type": "row"
+      "title": "Logs component: $App",
+      "type": "logs"
     },
     {
       "collapsed": true,
@@ -1280,7 +1279,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 12
+        "y": 31
       },
       "id": 71,
       "panels": [
@@ -1298,7 +1297,7 @@
             "h": 19,
             "w": 24,
             "x": 0,
-            "y": 138
+            "y": 173
           },
           "id": 70,
           "options": {
@@ -1341,7 +1340,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 13
+        "y": 32
       },
       "id": 74,
       "panels": [
@@ -1367,7 +1366,7 @@
             "h": 13,
             "w": 24,
             "x": 0,
-            "y": 249
+            "y": 497
           },
           "id": 51,
           "options": {
@@ -1418,7 +1417,7 @@
             "h": 11,
             "w": 24,
             "x": 0,
-            "y": 262
+            "y": 510
           },
           "id": 63,
           "options": {
@@ -1459,7 +1458,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 14
+        "y": 33
       },
       "id": 64,
       "panels": [
@@ -1476,11 +1475,12 @@
             "h": 12,
             "w": 24,
             "x": 0,
-            "y": 250
+            "y": 194
           },
           "id": 73,
           "options": {
             "dedupStrategy": "none",
+            "enableInfiniteScrolling": false,
             "enableLogDetails": true,
             "prettifyLogMessage": true,
             "showCommonLabels": false,
@@ -1489,7 +1489,7 @@
             "sortOrder": "Descending",
             "wrapLogMessage": true
           },
-          "pluginVersion": "11.3.0",
+          "pluginVersion": "11.6.0",
           "targets": [
             {
               "editorMode": "code",
@@ -1514,9 +1514,7 @@
     "list": [
       {
         "current": {
-          "text": [
-            "All"
-          ],
+          "text": "All",
           "value": [
             "$__all"
           ]
@@ -1526,7 +1524,7 @@
           "uid": "loki"
         },
         "definition": "",
-        "description": "Selecteer PodiumD component",
+        "description": "Kies een PodiumD component",
         "includeAll": true,
         "label": "Component",
         "multi": true,
@@ -1551,7 +1549,7 @@
           ]
         },
         "definition": "",
-        "description": "Wordt automatisch geselecteerd als je een PodiumD component hebt gekozen. Voor diepere analyse kan er eventueel een subcomponent geselecteerd worden",
+        "description": "Wordt automatisch geselecteerd als je een PodiumD component hebt gekozen. Voor een diepere analyse kan er eventueel een subcomponent geselecteerd worden",
         "includeAll": true,
         "label": "Subcomponent",
         "multi": true,
@@ -1577,7 +1575,7 @@
             "$__all"
           ]
         },
-        "description": "Selecteer log niveau",
+        "description": "Kies een log niveau. Warn=waarschuwing en error=fout",
         "includeAll": true,
         "label": "Log niveau",
         "multi": true,
@@ -1607,7 +1605,7 @@
             "$__all"
           ]
         },
-        "description": "Selecteer een HTTP methode",
+        "description": "Kies een HTTP methode",
         "includeAll": true,
         "label": "HTTP methode",
         "multi": true,
@@ -1672,7 +1670,7 @@
             "$__all"
           ]
         },
-        "description": "Kies een HTTP code en bekijk 'Logs met HTTP code' voor de specifieke logs",
+        "description": "Kies een HTTP code en bekijk rij 'Logs met ALLEEN een HTTP code' voor de specifieke logs",
         "includeAll": true,
         "label": "HTTP code",
         "multi": true,
@@ -1772,6 +1770,7 @@
             "$__all"
           ]
         },
+        "description": "Kies een ZGW API en bekijk rij 'ZGW API' voor de specifieke logs",
         "includeAll": true,
         "label": "ZGW API",
         "multi": true,
@@ -1779,26 +1778,21 @@
         "options": [
           {
             "selected": false,
-            "text": "drc",
-            "value": "drc"
+            "text": "DRC",
+            "value": "DRC"
           },
           {
             "selected": false,
-            "text": "ztc",
-            "value": "ztc"
+            "text": "ZTC",
+            "value": "ZTC"
           },
           {
             "selected": false,
-            "text": "orc",
-            "value": "orc"
-          },
-          {
-            "selected": false,
-            "text": "zrc",
-            "value": "zrc"
+            "text": "ZRC",
+            "value": "ZRC"
           }
         ],
-        "query": "drc,ztc,orc,zrc",
+        "query": "DRC,ZTC,ZRC",
         "type": "custom"
       },
       {
@@ -1806,7 +1800,7 @@
           "text": "",
           "value": ""
         },
-        "description": "Vul hier je zoekwoord in. Voorbeeld: formulier",
+        "description": "Vul hier een zoekwoord in en bekijk het in de logs. Voorbeeld: formulier",
         "label": "Zoeken",
         "name": "search",
         "options": [
@@ -1824,6 +1818,7 @@
           "text": "1.1",
           "value": "1.1"
         },
+        "label": "Dashboard versie",
         "name": "Dashboard_versie",
         "options": [
           {
@@ -1927,6 +1922,6 @@
   "timepicker": {},
   "timezone": "",
   "title": "Monitoring en logging PodiumD",
-  "uid": "e970a83d-adc2-4d33-af93-2349c0b77e5",
-  "version": 4
+  "uid": "e970a83d-adc2-4d33-af93-2349c0b77e",
+  "version": 3
 }
