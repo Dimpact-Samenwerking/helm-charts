@@ -11,3 +11,4 @@ brppersonenmock:
     # -- Personen mock container requests and limits
       cpu: 10m
       memory: 150Mi
+  nodeSelector: {}
