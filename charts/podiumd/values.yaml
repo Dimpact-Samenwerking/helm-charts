@@ -1649,6 +1649,10 @@ clamav:
 apiproxy:
   enabled: false
   replicaCount: 1
+  imagePullSecrets: []
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
   #nameOverride: "iconnect-proxy"
   image:
     repository: nginx
