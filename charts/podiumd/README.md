@@ -98,7 +98,7 @@ Patch release for Open Inwoner bug fix.
 | Open Notificaties | 1.8.2   |                    |
 | Open Zaak         | 1.18.0  |                    |
 | Kiss              | 1.0.0   | Major update       |
-| Zac               | 3.4.8   | Minor update       |
+| Zac               | 3.5.0   | Minor update       |
 
 ## Add Used chart repositories:
 
