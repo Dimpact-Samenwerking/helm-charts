@@ -1,7 +1,3 @@
-tags:
-  contact: true
-  zaak: true
-
 global:
   configuration:
     enabled: true
