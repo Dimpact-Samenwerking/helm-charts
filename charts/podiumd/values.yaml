@@ -374,7 +374,7 @@ openzaak:
     resources:
       requests:
         cpu: 10m
-        memory: 160Mi    
+        memory: 160Mi
   nginx:
     resources:
       requests:
@@ -391,7 +391,7 @@ openzaak:
       resources:
         requests:
           cpu: 10m
-          memory: 64Mi        
+          memory: 64Mi
 
 opennotificaties:
   configuration:
@@ -453,7 +453,7 @@ opennotificaties:
       resources:
         requests:
           cpu: 10m
-          memory: 64Mi        
+          memory: 64Mi
 
 objecten:
   configuration:
@@ -497,7 +497,7 @@ objecten:
       resources:
         requests:
           cpu: 10m
-          memory: 64Mi        
+          memory: 64Mi
 
 objecttypen:
   configuration:
@@ -528,7 +528,7 @@ objecttypen:
       persistence:
         enabled: true
         size: 8Gi
-        storageClass: ""    
+        storageClass: ""
       resources:
         requests:
           cpu: 10m
@@ -546,7 +546,7 @@ openarchiefbeheer:
     job:
       enabled: true
       backoffLimit: 6
-      ttlSecondsAfterFinished: 0    
+      ttlSecondsAfterFinished: 0
       restartPolicy: OnFailure
     secrets: {}
     data: ""
@@ -897,7 +897,7 @@ openklant:
     #       oidc_use_nonce: true
     #       oidc_nonce_size: 32
     #       oidc_state_size: 32
-    #       userinfo_claims_source: id_token  
+    #       userinfo_claims_source: id_token
     #   tokenauth_config_enable: true
     #   tokenauth:
     #     items:
@@ -954,10 +954,10 @@ openformulieren:
     job:
       enabled: true
       backoffLimit: 6
-      ttlSecondsAfterFinished: 0    
+      ttlSecondsAfterFinished: 0
       restartPolicy: OnFailure
-    secrets: {}      
-    data: ""  
+    secrets: {}
+    data: ""
     # data: |-
     #   oidc_db_config_enable: True
     #   oidc_db_config_admin_auth:
@@ -1054,7 +1054,7 @@ openformulieren:
     #       catalogue_rsin: "000000000"
     #       organisatie_rsin: "000000000"
     oidcUrl: https://openformulieren.example.nl
-    oidcSecret: "<openformulieren>"          
+    oidcSecret: "<openformulieren>"
   settings:
     allowedHosts: openformulieren-nginx.podiumd.svc.cluster.local
     email:
@@ -1208,25 +1208,25 @@ openinwoner:
     #       - .pdf
     #       - .txt
     #       - .doc
-    #       - .docx        
+    #       - .docx
     #     api_groups:
     #       - zaken_api_identifier: zaken-test
     #         documenten_api_identifier: documenten-test
     #         catalogi_api_identifier: catalogi-test
-    #         fetch_eherkenning_zaken_with_rsin: true    
+    #         fetch_eherkenning_zaken_with_rsin: true
     #   sites_config_enable: true
     #   sites_config:
     #     items:
     #       - domain: openinwoner.example.nl
     #         name: Gemeente X
-    secrets: {}    
+    secrets: {}
     oidcUrl: https://openinwoner.example.nl
     oidcSecret: "<openinwoner>"
   settings:
     allowedHosts: openinwoner-nginx.podiumd.svc.cluster.local
     brpVersion: ""
     digidMock: ""
-    eherkenningMock: ""    
+    eherkenningMock: ""
     email:
       port: 587
       useTLS: true
@@ -1270,7 +1270,7 @@ openinwoner:
       persistence:
         enabled: true
         size: 8Gi
-        storageClass: ""    
+        storageClass: ""
       resources:
         requests:
           cpu: 20m
@@ -1366,7 +1366,7 @@ kiss:
     objectenBaseUrl: ""
     objectenToken: ""
     objectTypeUrl: ""
-    objectTypeVersion: ""    
+    objectTypeVersion: ""
 
   oidc:
     authority: ""
