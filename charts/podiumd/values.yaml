@@ -852,15 +852,15 @@ openklant:
   configuration:
     enabled: true
     initContainer:
-      enabled: false    
+      enabled: false
     job:
       enabled: true
       backoffLimit: 6
-      ttlSecondsAfterFinished: 0    
+      ttlSecondsAfterFinished: 0
       restartPolicy: OnFailure
       resources: {}
-    secrets: {}      
-    data: ""        
+    secrets: {}
+    data: ""
     # data: |-
     #   oidc_db_config_enable: True
     #   oidc_db_config_admin_auth:
@@ -907,7 +907,7 @@ openklant:
     #         email: test@example.com
     #         organization: Organization XYZ
     #         application: Application XYZ
-    #         administration: Administration XYZ    
+    #         administration: Administration XYZ
     oidcUrl: https://openklant.example.nl
     oidcSecret: "<openklant>"
   settings:
@@ -916,6 +916,11 @@ openklant:
       port: 587
       useTLS: true
     disable2fa: false
+  persistence:
+    size: 10Gi
+    existingClaim: openklant
+  persistentVolume:
+    volumeAttributeShareName: openklant
   image:
     tag: "2.7.0"
   resources:
@@ -941,7 +946,7 @@ openklant:
       resources:
         requests:
           cpu: 10m
-          memory: 64Mi        
+          memory: 64Mi
         
 openformulieren:
   configuration:
