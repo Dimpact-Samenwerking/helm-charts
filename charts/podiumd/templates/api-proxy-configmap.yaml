@@ -31,10 +31,15 @@ data:
         
         # BAG API (Dutch Building and Address Registry)
         location {{ .Values.apiproxy.locations.bag.path }} {
+    {{- if .Values.apiproxy.nginxCertsSecret }}
           proxy_ssl_certificate_key /etc/nginx/certs/client.key;
           proxy_ssl_certificate /etc/nginx/certs/client.crt;
           proxy_ssl_trusted_certificate /etc/nginx/certs/ca.crt;
-          
+    {{- end }}
+
+    {{- if .Values.apiproxy.locations.bag.apikey }}
+          proxy_set_header X-Api-Key {{ .Values.apiproxy.locations.bag.apikey }};
+    {{- end }}
           proxy_pass {{ .Values.apiproxy.locations.bag.targetUrl }};
           proxy_ssl_verify {{ .Values.apiproxy.locations.bag.sslVerify }};
           proxy_ssl_session_reuse on;
@@ -45,10 +50,12 @@ data:
         
         # BRP API (Dutch Personal Records Database)
         location {{ .Values.apiproxy.locations.brp.path }} {
+    {{- if .Values.apiproxy.nginxCertsSecret }}
           proxy_ssl_certificate_key /etc/nginx/certs/client.key;
           proxy_ssl_certificate /etc/nginx/certs/client.crt;
           proxy_ssl_trusted_certificate /etc/nginx/certs/ca.crt;
-          
+    {{- end }}
+
           proxy_pass {{ .Values.apiproxy.locations.brp.targetUrl }};
           proxy_ssl_verify {{ .Values.apiproxy.locations.brp.sslVerify }};
           proxy_ssl_session_reuse on;
@@ -58,11 +65,16 @@ data:
         }
         
         # KVK API - Search (Dutch Chamber of Commerce)
-        location /kvk/v2/zoeken {
+        location {{ .Values.apiproxy.locations.kvkSearch.path }} {
+    {{- if .Values.apiproxy.nginxCertsSecret }}
           proxy_ssl_certificate_key /etc/nginx/certs/client.key;
           proxy_ssl_certificate /etc/nginx/certs/client.crt;
           proxy_ssl_trusted_certificate /etc/nginx/certs/ca.crt;
-          
+    {{- end }}
+
+    {{- if .Values.apiproxy.locations.kvkSearch.apikey }}
+          proxy_set_header apikey {{ .Values.apiproxy.locations.kvkSearch.apikey }};
+    {{- end }}
           proxy_pass {{ .Values.apiproxy.locations.kvkSearch.targetUrl }};
           proxy_ssl_verify {{ .Values.apiproxy.locations.kvkSearch.sslVerify }};
           proxy_ssl_session_reuse on;
@@ -72,11 +84,16 @@ data:
         }
         
         # KVK API - Basic Profile
-        location /kvk/v1/basisprofielen {
+        location {{ .Values.apiproxy.locations.kvkBasic.path }} {
+    {{- if .Values.apiproxy.nginxCertsSecret }}
           proxy_ssl_certificate_key /etc/nginx/certs/client.key;
           proxy_ssl_certificate /etc/nginx/certs/client.crt;
           proxy_ssl_trusted_certificate /etc/nginx/certs/ca.crt;
-          
+    {{- end }}
+
+    {{- if .Values.apiproxy.locations.kvkBasic.apikey }}
+          proxy_set_header apikey {{ .Values.apiproxy.locations.kvkBasic.apikey }};
+    {{- end }}
           proxy_pass {{ .Values.apiproxy.locations.kvkBasic.targetUrl }};
           proxy_ssl_verify {{ .Values.apiproxy.locations.kvkBasic.sslVerify }};
           proxy_ssl_session_reuse on;
@@ -86,11 +103,16 @@ data:
         }
         
         # KVK API - Branch Profile
-        location /kvk/v1/vestigingsprofielen {
+        location {{ .Values.apiproxy.locations.kvkBranch.path }} {
+    {{- if .Values.apiproxy.nginxCertsSecret }}
           proxy_ssl_certificate_key /etc/nginx/certs/client.key;
           proxy_ssl_certificate /etc/nginx/certs/client.crt;
           proxy_ssl_trusted_certificate /etc/nginx/certs/ca.crt;
-          
+    {{- end }}
+
+    {{- if .Values.apiproxy.locations.kvkBranch.apikey }}
+          proxy_set_header apikey {{ .Values.apiproxy.locations.kvkBranch.apikey }};
+    {{- end }}
           proxy_pass {{ .Values.apiproxy.locations.kvkBranch.targetUrl }};
           proxy_ssl_verify {{ .Values.apiproxy.locations.kvkBranch.sslVerify }};
           proxy_ssl_session_reuse on;

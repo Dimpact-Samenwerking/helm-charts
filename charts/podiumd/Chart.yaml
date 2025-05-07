@@ -2,8 +2,8 @@ apiVersion: v2
 name: podiumd
 description: PodiumD Helm chart
 type: application
-version: 4.1.0
-appVersion: "4.1.0"
+version: 4.1.1
+appVersion: "4.1.1"
 dependencies:
   - name: keycloak
     version: 24.3.0
@@ -13,13 +13,10 @@ dependencies:
     version: 3.2.0
     repository: "@wiremind"
     condition: clamav.enabled
-  - name: brpmock
+  - name: brp-personen-mock
     version: ~1.2.4
     repository: "@dimpact"
-    condition: brpmock.enabled
-    tags:
-      - contact
-      - zaak
+    condition: brp-personen-mock.enabled
   - name: openzaak
     version: 1.8.1
     repository: "@maykinmedia"

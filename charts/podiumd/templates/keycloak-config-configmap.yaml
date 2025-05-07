@@ -96,10 +96,10 @@ data:
         enabled: true
         clientAuthenticatorType: client-secret
         redirectUris:
-          - "{{ .Values.abc.configuration.oidcUrl }}/*"
+          - "{{ .Values.openarchiefbeheer.configuration.oidcUrl }}/*"
         webOrigins:
-          - "{{ .Values.abc.configuration.oidcUrl }}/*"
-        secret: {{ .Values.abc.configuration.oidcSecret | quote }}
+          - "{{ .Values.openarchiefbeheer.configuration.oidcUrl }}/*"
+        secret: {{ .Values.openarchiefbeheer.configuration.oidcSecret | quote }}
         protocolMappers:
           - name: "username"
             protocol: "openid-connect"

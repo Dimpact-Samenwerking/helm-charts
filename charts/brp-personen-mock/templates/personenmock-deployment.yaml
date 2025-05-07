@@ -17,6 +17,10 @@ spec:
         app.kubernetes.io/instance: podiumd
         app.kubernetes.io/name: brp-personen-mock
     spec:
+      {{- with .Values.brppersonenmock.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       serviceAccount: brp-personen-mock
       serviceAccountName: brp-personen-mock
       containers:
@@ -31,3 +35,15 @@ spec:
               containerPort: 5010
               protocol: TCP
       restartPolicy: Always
+      {{- with .Values.brppersonenmock.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.brppersonenmock.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.brppersonenmock.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

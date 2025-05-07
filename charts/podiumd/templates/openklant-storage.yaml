@@ -1,10 +1,10 @@
-{{- if and .Values.tags.zaak (or .Values.openldap.enabled (not (hasKey .Values.openldap "enabled"))) -}}
-{{- if not (lookup "v1" "PersistentVolumeClaim" .Release.Namespace .Values.openldap.persistence.existingClaim) -}}
+{{- if or .Values.openklant.enabled (not (hasKey .Values.openklant "enabled")) -}}
+{{- if not (lookup "v1" "PersistentVolumeClaim" .Release.Namespace .Values.openklant.persistence.existingClaim) -}}
 ---
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: {{ printf "%s-openldap" .Release.Namespace }}
+  name: {{ printf "%s-openklant" .Release.Namespace }}
   labels:
     {{- include "podiumd.labels" . | nindent 4 }}
   annotations:
@@ -12,14 +12,14 @@ metadata:
     helm.sh/resource-policy: keep
 spec:
   capacity:
-    storage: {{ .Values.openldap.persistence.size }}
+    storage: {{ .Values.openklant.persistence.size }}
   accessModes:
     - ReadWriteMany
   persistentVolumeReclaimPolicy: Retain
   storageClassName: podiumd-standard
   csi:
     driver: file.csi.azure.com
-    volumeHandle: {{ printf "%s-openldap" .Release.Namespace }}
+    volumeHandle: {{ printf "%s-openklant" .Release.Namespace }}
     volumeAttributes:
       {{- if .Values.persistentVolume.volumeAttributeResourceGroup }}
       resourceGroup: {{ .Values.persistentVolume.volumeAttributeResourceGroup }}
@@ -27,7 +27,7 @@ spec:
       {{- if .Values.persistentVolume.volumeAttributeShareName }}
       shareName: {{ .Values.persistentVolume.volumeAttributeShareName }}
       {{- else }}
-      shareName: {{ .Values.openldap.persistentVolume.volumeAttributeShareName }}
+      shareName: {{ .Values.openklant.persistentVolume.volumeAttributeShareName }}
       {{- end }}
     nodeStageSecretRef:
       name: {{ .Values.persistentVolume.nodeStageSecretRefName }}
@@ -45,16 +45,16 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: {{ .Values.openldap.persistence.existingClaim }}
+  name: {{ .Values.openklant.persistence.existingClaim }}
   labels:
     {{- include "podiumd.labels" . | nindent 4 }}
   annotations:
     helm.sh/resource-policy: keep
 spec:
-  volumeName: {{ printf "%s-openldap" .Release.Namespace }}
+  volumeName: {{ printf "%s-openklant" .Release.Namespace }}
   resources:
     requests:
-      storage: {{ .Values.openldap.persistence.size }}
+      storage: {{ .Values.openklant.persistence.size }}
   accessModes:
     - ReadWriteMany
   storageClassName: podiumd-standard

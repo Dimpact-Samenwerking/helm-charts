@@ -1,3 +1,5 @@
+nodeSelector: {}
+
 brppersonenmock:
   image:
     # -- Personen mock image repository
@@ -6,6 +8,10 @@ brppersonenmock:
     tag: 2.6.0-202502261446
     # -- Personen mock image pull policy
     pullPolicy: IfNotPresent
+  imagePullSecrets: []
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
   resources:
     requests:
     # -- Personen mock container requests and limits

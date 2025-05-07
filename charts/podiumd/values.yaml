@@ -1,7 +1,3 @@
-tags:
-  contact: true
-  zaak: true
-
 global:
   configuration:
     enabled: true
@@ -331,16 +327,6 @@ infinispan:
   monitoring:
     enabled: true
 
-abc:
-  configuration:
-    oidcUrl: https://abc.example.nl
-    oidcSecret: "abc"
-  enabled: false
-
-brpmock:
-  enabled: false
-  nameOverride: brpmock
-
 openzaak:
   configuration:
     enabled: true
@@ -500,7 +486,7 @@ openzaak:
     resources:
       requests:
         cpu: 10m
-        memory: 160Mi    
+        memory: 160Mi
   nginx:
     resources:
       requests:
@@ -517,7 +503,7 @@ openzaak:
       resources:
         requests:
           cpu: 10m
-          memory: 64Mi        
+          memory: 64Mi
 
 opennotificaties:
   configuration:
@@ -740,7 +726,7 @@ opennotificaties:
       resources:
         requests:
           cpu: 10m
-          memory: 64Mi        
+          memory: 64Mi
 
 objecten:
   configuration:
@@ -887,7 +873,7 @@ objecten:
       resources:
         requests:
           cpu: 10m
-          memory: 64Mi        
+          memory: 64Mi
 
 objecttypen:
   configuration:
@@ -991,7 +977,7 @@ objecttypen:
       persistence:
         enabled: true
         size: 8Gi
-        storageClass: ""    
+        storageClass: ""
       resources:
         requests:
           cpu: 10m
@@ -999,15 +985,17 @@ objecttypen:
 
 
 openarchiefbeheer:
-  enabled: false
+  enabled: true
   nameOverride: openarchiefbeheer
   fullnameOverride: openarchiefbeheer
   configuration:
     enabled: false
+    oidcUrl: https://abc.example.nl
+    oidcSecret: "abc"
     job:
       enabled: true
       backoffLimit: 6
-      ttlSecondsAfterFinished: 0    
+      ttlSecondsAfterFinished: 0
       restartPolicy: OnFailure
     secrets: {}
     data: ""
@@ -1313,11 +1301,11 @@ openklant:
   configuration:
     enabled: true
     initContainer:
-      enabled: false    
+      enabled: false
     job:
       enabled: true
       backoffLimit: 6
-      ttlSecondsAfterFinished: 0    
+      ttlSecondsAfterFinished: 0
       restartPolicy: OnFailure
       resources: {}
     secrets: {}
@@ -1360,7 +1348,7 @@ openklant:
     #       oidc_use_nonce: true
     #       oidc_nonce_size: 32
     #       oidc_state_size: 32
-    #       userinfo_claims_source: id_token  
+    #       userinfo_claims_source: id_token
     #   tokenauth_config_enable: true
     #   tokenauth:
     #     items:
@@ -1387,7 +1375,6 @@ openklant:
     #     notifications_api_service_identifier: open-notificaties
     #     notification_delivery_max_retries: 1
     #     notification_delivery_retry_backoff: 2
-    #   notification_delivery_retry_backoff_max: 3  
     oidcUrl: https://openklant.example.nl
     oidcSecret: "<openklant>"
   settings:
@@ -1396,6 +1383,11 @@ openklant:
       port: 587
       useTLS: true
     disable2fa: false
+  persistence:
+    size: 10Gi
+    existingClaim: openklant
+  persistentVolume:
+    volumeAttributeShareName: openklant
   image:
     tag: "2.7.0"
   resources:
@@ -1410,6 +1402,11 @@ openklant:
         memory: 200Mi
   nameOverride: openklant
   fullnameOverride: openklant
+  nginx:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 16Mi
   redis:
     nameOverride: openklant-redis
     fullnameOverride: openklant-redis
@@ -1421,7 +1418,7 @@ openklant:
       resources:
         requests:
           cpu: 10m
-          memory: 64Mi        
+          memory: 64Mi
         
 openformulieren:
   configuration:
@@ -1429,10 +1426,10 @@ openformulieren:
     job:
       enabled: true
       backoffLimit: 6
-      ttlSecondsAfterFinished: 0    
+      ttlSecondsAfterFinished: 0
       restartPolicy: OnFailure
-    secrets: {}      
-    data: ""  
+    secrets: {}
+    data: ""
     # data: |-
     #   oidc_db_config_enable: True
     #   oidc_db_config_admin_auth:
@@ -1529,7 +1526,7 @@ openformulieren:
     #       catalogue_rsin: "000000000"
     #       organisatie_rsin: "000000000"
     oidcUrl: https://openformulieren.example.nl
-    oidcSecret: "<openformulieren>"          
+    oidcSecret: "<openformulieren>"
   settings:
     allowedHosts: openformulieren-nginx.podiumd.svc.cluster.local
     email:
@@ -1683,25 +1680,25 @@ openinwoner:
     #       - .pdf
     #       - .txt
     #       - .doc
-    #       - .docx        
+    #       - .docx
     #     api_groups:
     #       - zaken_api_identifier: zaken-test
     #         documenten_api_identifier: documenten-test
     #         catalogi_api_identifier: catalogi-test
-    #         fetch_eherkenning_zaken_with_rsin: true    
+    #         fetch_eherkenning_zaken_with_rsin: true
     #   sites_config_enable: true
     #   sites_config:
     #     items:
     #       - domain: openinwoner.example.nl
     #         name: Gemeente X
-    secrets: {}    
+    secrets: {}
     oidcUrl: https://openinwoner.example.nl
     oidcSecret: "<openinwoner>"
   settings:
     allowedHosts: openinwoner-nginx.podiumd.svc.cluster.local
     brpVersion: ""
     digidMock: ""
-    eherkenningMock: ""    
+    eherkenningMock: ""
     email:
       port: 587
       useTLS: true
@@ -1745,7 +1742,7 @@ openinwoner:
       persistence:
         enabled: true
         size: 8Gi
-        storageClass: ""    
+        storageClass: ""
       resources:
         requests:
           cpu: 20m
@@ -1841,7 +1838,7 @@ kiss:
     objectenBaseUrl: ""
     objectenToken: ""
     objectTypeUrl: ""
-    objectTypeVersion: ""    
+    objectTypeVersion: ""
 
   oidc:
     authority: ""
@@ -2115,6 +2112,10 @@ clamav:
 apiproxy:
   enabled: false
   replicaCount: 1
+  imagePullSecrets: []
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
   #nameOverride: "iconnect-proxy"
   image:
     repository: nginx
@@ -2138,29 +2139,40 @@ apiproxy:
     initialDelaySeconds: 5
     periodSeconds: 10
   locations:
+    #-- mix and match depending on needs
     commonSettings: &commonLocation
       sslVerify: "off"
       hostHeader: "lab.api.mijniconnect.nl"
+      apikey: ""
     bag:
       <<: *commonLocation
       path: /lvbag/individuelebevragingen/v2/
       targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apibagib/v2/"
+      apikey: ""
     brp:
       <<: *commonLocation
       path: /haalcentraal/api/brp/
       targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apihcbrp/actueel/prtcl/v2/"
     kvkSearch:
       <<: *commonLocation
+      path: /kvk/v2/zoeken
       targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apikvk/zoeken/v2/zoeken"
     kvkBasic:
       <<: *commonLocation
+      path: /kvk/v1/basisprofielen
       targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apikvk/basprof/v1/v1/basisprofielen"
     kvkBranch:
       <<: *commonLocation
+      path: /kvk/v1/vestigingsprofielen
       targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apikvk/vesprof/v1/v1/vestigingsprofielen"
+
+brp-personen-mock:
+  enabled: false
 
 serviceAccount:
   create: true
   automount: true
   annotations: {}
   name: ""
+
+
