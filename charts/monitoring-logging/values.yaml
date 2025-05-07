@@ -1,0 +1,347 @@
+grafana:
+  enabled: true
+  assertNoLeakedSecrets: false
+  nodeSelector:
+    agentpool: userpool
+  deleteDatasources:
+    - name: Alertmanager
+    
+  datasources:
+    alertmanager:
+      enabled: false
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+        - name: Prometheus
+          editable: true
+          type: prometheus
+          readOnly: false
+          url: http://{{ .Release.Name }}-prometheus-server
+          access: proxy
+          isDefault: false
+        - name: loki
+          type: loki
+          uid: loki
+          readOnly: false
+          editable: true
+          access: proxy
+          isDefault: true
+          url: http://{{ .Release.Name }}-loki-gateway
+          version: 1
+          jsonData:
+            timeout: 300
+            
+  containerSecurityContext:
+    readOnlyRootFilesystem: false
+    allowPrivilegeEscalation: false
+    runAsNonRoot: true
+    
+ # -- Dashboard voor gemeenten
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: "default"
+          orgId: 1
+          folder: 'PodiumD_Monitoring_Logging'
+          type: file
+          disableDeletion: false
+          updateIntervalSeconds: 30
+          allowUiUpdates: true # modify dashboards
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/default
+  
+  # -- Extra dashboard voor intern gebruik Dimpact
+  #      - name: "Dimpact"
+  #        orgId: 1
+  #        folder: 'PodiumD_Monitoring_Logging'
+  #        type: file
+  #        disableDeletion: false
+  #        updateIntervalSeconds: 30
+  #        allowUiUpdates: true # modify dashboards
+  #        editable: true
+  #        options:
+  #          path: /var/lib/grafana/dashboards/Dimpact
+
+  # -- Dashboard opgenomen in ConfigMap
+  dashboardsConfigMaps:
+    default: "logging-podiumd-dashboard" 
+  #  Dimpact: "logging_Dimpact" 
+  
+  grafana.ini:
+    # -- Authentication and Authorization with Keycloak
+    auth.generic_oauth:
+      enabled: true
+      name: Keycloak-podiumd
+      allow_sign_up: true
+      allow_assign_grafana_admin: true
+      client_id: ""
+      client_secret: ""
+      scopes: openid email profile offline_access roles
+      email_attribute_path: email
+      login_attribute_path: username
+      name_attribute_path: name
+      auth_url: "https://keycloak.test.nl/realms/podiumd/protocol/openid-connect/auth"
+      token_url: "https://keycloak.test.nl/realms/podiumd/protocol/openid-connect/token"
+      api_url: "https://keycloak.test.nl/realms/podiumd/protocol/openid-connect/userinfo"
+      role_attribute_path: "contains(monitoring_roles[*], 'admin') && 'Admin' || contains(monitoring_roles[*], 'editor') && 'Editor' || 'Viewer'"
+      role_attribute_strict: true
+      skip_org_role_sync: false
+      groups_attribute_path: groups
+      use_refresh_token: true
+      sync_ttl: 60
+      use_pkce: true
+    auth:
+      oauth_skip_org_role_update_sync: false
+      oauth_auto_login: true
+      disable_login_form: true
+      disable_signout_menu: false
+      allow_sign_up: true
+    server:
+      domain: "https://logs.test.nl/"
+      enforce_domain: true
+      root_url: "https://logs.test.nl/"
+    metrics:
+      enabled: false  
+    security:
+      cookie_secure: true
+      cookie_samesite: lax
+      content_security_policy: true
+      content_security_policy_template: "script-src 'self' 'unsafe-eval' 'unsafe-inline' 'strict-dynamic' $NONCE;object-src 'none';font-src 'self';style-src 'self' 'unsafe-inline' blob:;img-src * data:;base-uri 'self';connect-src 'self' grafana.com ws://$ROOT_PATH wss://$ROOT_PATH;manifest-src 'self';media-src 'none';form-action 'self';"
+      hide_version: true
+    auth.anonymous:
+      enabled: false     # Ensure anonymous access is disabled
+      hide_version: true # Add this to explicitly hide version for anonymous users
+      
+  image:
+    pullPolicy: IfNotPresent
+    pullSecrets: []
+    registry: docker.io
+    repository: grafana/grafana
+    sha: ""
+    tag: ""
+    
+  persistence:
+    enabled: true
+    storageClassName: "managed-csi" # Specify your storage class
+    accessModes:
+      - ReadWriteOnce
+    size: 20Gi
+    type: pvc
+    finalizers:
+      - kubernetes.io/pvc-protection
+      
+  sidecar:
+    datasources:
+      alertmanager:
+        enabled: false
+
+prometheus:
+  enabled: true
+  server:
+    image:
+      digest: ""
+      pullPolicy: IfNotPresent
+      repository: quay.io/prometheus/prometheus
+      tag: ""
+    persistentVolume:
+      enabled: true
+      storageClass: "managed-csi"
+      size: 20Gi
+      accessModes: ["ReadWriteOnce"]
+    nodeSelector:
+      agentpool: userpool
+  prometheusSpec:
+    logLevel: warn
+    serviceMonitorSelectorNilUsesHelmValues: false
+    retention: 7d # 7 days retention
+    # Prometheus' data retention size. Supported units: B, KB, MB, GB, TB, PB, EB
+    retentionSize: ""
+  alertmanager:
+    enabled: false
+  prometheus-node-exporter:
+    nodeSelector:
+      agentpool: userpool
+  prometheus-pushgateway:
+    nodeSelector:
+      agentpool: userpool
+  kube-state-metrics:
+    nodeSelector:
+      agentpool: userpool
+
+promtail:
+  enabled: true
+  image:
+    pullPolicy: IfNotPresent
+    registry: docker.io
+    repository: grafana/promtail
+    tag: ""
+  nodeSelector:
+    agentpool: userpool
+  config:
+    logLevel: warn
+    clients:
+      - url: http://{{ .Release.Name }}-loki-gateway/loki/api/v1/push
+        tenant_id: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 96Mi
+    limits:
+      cpu: 100m
+      memory: 256Mi
+
+loki:
+  enabled: true
+  deploymentMode: Distributed
+  lokiCanary:
+    enabled: false
+  resultsCache:
+    enabled: true
+    defaultValidity: 6h
+    nodeSelector:
+      agentpool: userpool
+  chunksCache:
+    enabled: true
+    defaultValidity: 6h # Shorter TTL = fresher results
+    allocatedMemory: 1024
+    nodeSelector:
+      agentpool: userpool
+  monitoring:
+    selfMonitoring:
+      enabled: false
+      grafanaAgent:
+        installOperator: false
+    dashboards:
+      enabled: false
+    rules:
+      enabled: false
+  indexGateway:
+    replicas: 2
+    maxUnavailable: 1
+    nodeSelector:
+      agentpool: userpool
+  queryScheduler:
+    replicas: 2
+    nodeSelector:
+      agentpool: userpool
+  queryFrontend:
+    replicas: 2
+    maxUnavailable: 1
+    nodeSelector:
+      agentpool: userpool
+  distributor:
+    replicas: 3
+    maxUnavailable: 2
+    nodeSelector:
+      agentpool: userpool
+  querier:
+    replicas: 3
+    maxUnavailable: 2
+    nodeSelector:
+      agentpool: userpool
+  gateway:
+    nodeSelector:
+      agentpool: userpool
+  ingester:
+    replicas: 3
+    nodeSelector:
+      agentpool: userpool
+    zoneAwareReplication:
+      zoneA:
+        nodeSelector:
+          agentpool: userpool
+      zoneB:
+        nodeSelector:
+          agentpool: userpool
+      zoneC:
+        nodeSelector:
+          agentpool: userpool
+  test:
+    enabled: false
+  backend:
+    replicas: 0
+  read:
+    replicas: 0
+  write:
+    replicas: 0
+  compactor:
+    replicas: 1
+    nodeSelector:
+      agentpool: userpool
+    
+  loki:
+    auth_enabled: false
+    schemaConfig:
+      configs:
+        - from: 2024-04-01
+          store: tsdb
+          object_store: s3
+          schema: v13
+          index:
+            prefix: loki_index_
+            period: 24h
+    tracing:
+      enabled: true
+      
+    storage:
+      s3:
+        endpoint: http://{{ .Release.Name }}-minio-svc:9000
+        insecure: true
+        s3forcepathstyle: true
+      object_store:
+        type: s3
+        s3: 
+          endpoint: http://{{ .Release.Name }}-minio-svc:9000
+          insecure: true
+        
+    compactor:
+      delete_request_store: s3
+      compaction_interval: 10m
+      retention_delete_delay: 2h
+      retention_delete_worker_count: 150
+      retention_enabled: true
+      
+      # -- Query Performance
+    limits_config:
+      allow_structured_metadata: true
+      volume_enabled: true
+      retention_period: 30d # 1 month retention
+      max_query_lookback: 30d # 1 month query lookback
+      ingestion_rate_strategy: local # Default: global
+      max_global_streams_per_user: 5000
+      max_query_length: 721h # 1 month. Default: 721h
+      max_query_parallelism: 48 # Utilize Azure's high throughput
+      max_streams_per_user: 0 # Old Default: 10000
+      split_queries_by_interval: 15m # Smaller splits = faster parallelization
+      max_cache_freshness_per_query: 10m
+      ingestion_rate_mb: 10
+      ingestion_burst_size_mb: 20
+      
+    query_scheduler:
+      # the TSDB index dispatches many more, but each individually smaller, requests.
+      # We increase the pending request queue sizes to compensate.
+      max_outstanding_requests_per_tenant: 32768
+      
+    ingester:
+      chunk_encoding: snappy
+      chunk_idle_period: 30m # Flush chunks faster = less memory
+      chunk_block_size: 262144
+      chunk_retain_period: 1m
+      
+    pattern_ingester:
+      enabled: true
+      
+    querier:
+      max_concurrent: 6 # Per-pod parallelism
+      
+    frontend:
+      max_outstanding_per_tenant: 6144
+  minio:
+    enabled: true
+    persistence:
+      storageClass: managed-csi
+      size: 20Gi
+    nodeSelector:
+      agentpool: userpool
