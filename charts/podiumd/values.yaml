@@ -1080,66 +1080,12 @@ openarchiefbeheer:
   image:
     tag: "1.0.0"
 
-  service:
-    type: ClusterIP
-    port: 80
-
-  ingress:
-    enabled: false
-    annotations: {}
-    className: ""
-    hosts: []
-    tls: []
-
-  extraIngress: []
-
   resources:
     limits: {}
     requests:
       cpu: 250m
       memory: 256Mi
 
-  autoscaling:
-    enabled: false
-    minReplicas: 1
-    maxReplicas: 100
-    targetCPUUtilizationPercentage: 80
-    targetMemoryUtilizationPercentage: 80
-
-  pdb:
-    create: false
-    minAvailable: 1
-    maxUnavailable: ""
-
-  nodeSelector: {}
-
-  tolerations: []
-
-  affinity: {}
-
-  persistence:
-    enabled: true
-    size: 10Gi
-    existingClaim: openarchiefbeheer
-    storageClassName: ""
-    mediaMountSubpath: openarchiefbeheer/media
-    privateMediaMountSubpath: openarchiefbeheer/private_media
-  persistentVolume:
-    volumeAttributeShareName: openarchiefbeheer
-
-  existingSecret: null
-
-  azureVaultSecret:
-    vaultName: null
-    objectName: ""
-    contentType: ""
-    secretName: "{{ .Values.existingSecret }}"
-
-  extraEnvVars: []
-  extraVolumes: []
-  extraVolumeMounts: []
-
-  pythonAppName: openarchiefbeheer
   settings:
     allowedHosts: openarchiefbeheer.podiumd.svc.cluster.local
     # -- Name of the environment (used for displaying purposes)
@@ -1147,63 +1093,6 @@ openarchiefbeheer:
     requestsReadTimeout: "5000"
     # -- Number of days to wait before destroying a list. Defaults to 7 in the application.
     waitingPeriod: ""
-
-    # -- Settings for the database. Note: Open-Archiefbeheer needs the POSTGIS extension to be installed in the database.
-    database:
-      host: ""
-      port: 5432
-      username: ""
-      password: ""
-      name: ""
-      sslmode: prefer
-
-    cookie:
-      sessionCookieSamesite: 'Lax'
-      sessionCookieSecure: true
-      csrfCookieSamesite: 'Lax'
-      csrfCookieSecure: true
-
-    cors:
-      allowedOrigins: ""
-      allowedOriginsRegexes: ""
-      allowAllOrigins: false
-      extraAllowHeaders: ""
-
-    throttling:
-      enable: true
-      rateAnonymous: "2500/hour"
-      rateUser: "15000/hour"
-
-    twoFactorAuthentication:
-      forceOtpAdmin: true
-      patchAdmin: true
-
-    csrf:
-      trustedOrigins: ""
-
-    sentry:
-      dsn: ""
-
-    cache:
-      default: ""
-      axes: ""
-      choices: ""
-
-    celery:
-      brokerUrl: ""
-      resultBackend: ""
-      logLevel: debug
-
-    email:
-      port: 587
-      useTLS: true
-      
-    uwsgi:
-      master: ''
-      threads: ''
-      processes: ''
-      maxRequests: ''
-      harakiri: ''
 
     frontend:
       apiUrl: ""
@@ -1215,79 +1104,6 @@ openarchiefbeheer:
       total: ""
       backoffFactor: ""
       statusForcelist: ""
-
-  worker:
-    label: "1"
-    name: ""
-    queueName: ""
-    replicaCount: 1
-    concurrency: 4
-    podLabels: {}
-    resources: {}
-    livenessProbe: 
-      enabled: false
-      exec:
-        command:
-          - /app/liveness/liveness-probe.sh
-      initialDelaySeconds: 60
-      periodSeconds: 30
-      timeoutSeconds: 10
-      failureThreshold: 3
-      successThreshold: 1
-    autoscaling:
-      enabled: false
-      minReplicas: 1
-      maxReplicas: 100
-      targetCPUUtilizationPercentage: 80
-      targetMemoryUtilizationPercentage: 80
-
-  flower:
-    enabled: true
-    replicaCount: 1
-    podLabels: {}
-    service:
-      type: ClusterIP
-      port: 80
-    livenessProbe: {}
-    readinessProbe: {}
-    resources: {}
-
-  beat:
-    enabled: true
-    replicaCount: 1
-    podLabels: {}
-    livenessProbe: {}
-    readinessProbe: {}
-    resources: {}
-
-  nginx:
-    image:
-      repository: nginxinc/nginx-unprivileged
-      pullPolicy: IfNotPresent
-      tag: stable
-    resources:
-      requests:
-        cpu: 10m
-        memory: 16Mi
-    existingConfigmap: null
-    service:
-      type: ClusterIP
-      port: 8080
-      annotations: {}
-    replicaCount: 1
-    podLabels: {}
-    securityContext:
-      capabilities:
-        drop:
-        - ALL
-      readOnlyRootFilesystem: false
-      runAsNonRoot: true
-      runAsUser: 101
-    autoscaling:
-      enabled: false
-    livenessProbe: {}
-    readinessProbe: {}
-    resources: {}
 
   redis:
     nameOverride: openarchiefbeheer-redis
