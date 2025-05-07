@@ -111,7 +111,7 @@ data:
     {{- end }}
 
     {{- if .Values.apiproxy.locations.kvkBranch.apikey }}
-          proxy_set_header apikey {{ .Values.apiproxy.locations.kvkBranch.apikey }}
+          proxy_set_header apikey {{ .Values.apiproxy.locations.kvkBranch.apikey }};
     {{- end }}
           proxy_pass {{ .Values.apiproxy.locations.kvkBranch.targetUrl }};
           proxy_ssl_verify {{ .Values.apiproxy.locations.kvkBranch.sslVerify }};
