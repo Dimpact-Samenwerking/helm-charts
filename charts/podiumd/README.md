@@ -57,7 +57,8 @@ Patch release for Open Inwoner bug fix.
 | Open Zaak         | 1.17.0  | Minor update     |
 | Kiss              | 0.6.0   | Minor app update |
 
-### [4.0.6](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.0.6)
+
+### [4.0.7](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.0.7)
 
 **PodiumD Helm chart version: 4.0.6**
 
@@ -69,7 +70,7 @@ Patch release for Open Inwoner bug fix.
 | Infinispan        | 15.1    | Nieuw component|
 | Objecten          | 3.0.0   |                |
 | Objecttypen       | 3.0.0   |                |
-| Open Formulieren  | 2.8.6   |                |
+| Open Formulieren  | 2.8.9   |                |
 | Open Inwoner      | 1.27.2  |                |
 | Open Klant        | 2.4.0   |                |
 | Open Notificaties | 1.8.0   |                |
@@ -77,6 +78,27 @@ Patch release for Open Inwoner bug fix.
 | Kiss              | 0.7.1   | Minor update   |
 | Zac               | 3.0.0   | Nieuw component|
 
+
+### [4.1.0](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.1.0)
+
+**PodiumD Helm chart version: 4.1.0**
+
+
+| Component         | Version | Change             |
+|-------------------|---------|--------------------|
+| ClamAV            | 1.4.2   |                    |
+| Keycloak          | 25.0.6  |                    |
+| Infinispan        | 15.1    |                    |
+| Abc               | 1.0.0   | Nieuw component    |
+| Objecten          | 3.0.3   |                    |
+| Objecttypen       | 3.0.2   |                    |
+| Open Formulieren  | 3.0.7   | Major update       |
+| Open Inwoner      | 1.29.0  | Minor update       |
+| Open Klant        | 2.7.0   | Major update       |
+| Open Notificaties | 1.8.2   |                    |
+| Open Zaak         | 1.18.0  |                    |
+| Kiss              | 1.0.0   | Major update       |
+| Zac               | 3.4.8   | Minor update       |
 
 ## Add Used chart repositories:
 
@@ -412,12 +434,178 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 | objecttypen.redis.master.persistence.storageClass | Redis master persistence storage class                                                              | `""`                                    |
 | objecttypen.redis.master.nodeSelector             | Redis node labels for pod assignment. Evaluated as a template                                       | `{}`                                    |
 
+### Open Archiefbeheer
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| openarchiefbeheer.affinity | object | `{}` |  |
+| openarchiefbeheer.autoscaling.enabled | bool | `false` |  |
+| openarchiefbeheer.autoscaling.maxReplicas | int | `100` |  |
+| openarchiefbeheer.autoscaling.minReplicas | int | `1` |  |
+| openarchiefbeheer.autoscaling.targetCPUUtilizationPercentage | int | `80` |  |
+| openarchiefbeheer.autoscaling.targetMemoryUtilizationPercentage | int | `80` |  |
+| openarchiefbeheer.azureVaultSecret.contentType | string | `""` |  |
+| openarchiefbeheer.azureVaultSecret.objectName | string | `""` |  |
+| openarchiefbeheer.azureVaultSecret.secretName | string | `"{{ .Values.existingSecret }}"` |  |
+| openarchiefbeheer.azureVaultSecret.vaultName | string | `nil` |  |
+| openarchiefbeheer.beat.enabled | bool | `true` |  |
+| openarchiefbeheer.beat.livenessProbe | object | `{}` |  |
+| openarchiefbeheer.beat.podLabels | object | `{}` |  |
+| openarchiefbeheer.beat.readinessProbe | object | `{}` |  |
+| openarchiefbeheer.beat.replicaCount | int | `1` |  |
+| openarchiefbeheer.beat.resources | object | `{}` |  |
+| openarchiefbeheer.configuration.data | string | `""` |  |
+| openarchiefbeheer.configuration.enabled | bool | `false` |  |
+| openarchiefbeheer.configuration.job.backoffLimit | int | `6` |  |
+| openarchiefbeheer.configuration.job.enabled | bool | `true` |  |
+| openarchiefbeheer.configuration.job.restartPolicy | string | `"OnFailure"` |  |
+| openarchiefbeheer.configuration.job.ttlSecondsAfterFinished | int | `0` |  |
+| openarchiefbeheer.configuration.secrets | object | `{}` |  |
+| openarchiefbeheer.enabled | bool | `false` |  |
+| openarchiefbeheer.existingSecret | string | `nil` |  |
+| openarchiefbeheer.extraEnvVars | list | `[]` |  |
+| openarchiefbeheer.extraIngress | list | `[]` |  |
+| openarchiefbeheer.extraVolumeMounts | list | `[]` |  |
+| openarchiefbeheer.extraVolumes | list | `[]` |  |
+| openarchiefbeheer.flower.enabled | bool | `true` |  |
+| openarchiefbeheer.flower.livenessProbe | object | `{}` |  |
+| openarchiefbeheer.flower.podLabels | object | `{}` |  |
+| openarchiefbeheer.flower.readinessProbe | object | `{}` |  |
+| openarchiefbeheer.flower.replicaCount | int | `1` |  |
+| openarchiefbeheer.flower.resources | object | `{}` |  |
+| openarchiefbeheer.flower.service.port | int | `80` |  |
+| openarchiefbeheer.flower.service.type | string | `"ClusterIP"` |  |
+| openarchiefbeheer.fullnameOverride | string | `"openarchiefbeheer"` |  |
+| openarchiefbeheer.image.tag | string | `"1.0.0"` |  |
+| openarchiefbeheer.ingress.annotations | object | `{}` |  |
+| openarchiefbeheer.ingress.className | string | `""` |  |
+| openarchiefbeheer.ingress.enabled | bool | `false` |  |
+| openarchiefbeheer.ingress.hosts | list | `[]` |  |
+| openarchiefbeheer.ingress.tls | list | `[]` |  |
+| openarchiefbeheer.nameOverride | string | `"openarchiefbeheer"` |  |
+| openarchiefbeheer.nginx.autoscaling.enabled | bool | `false` |  |
+| openarchiefbeheer.nginx.existingConfigmap | string | `nil` |  |
+| openarchiefbeheer.nginx.image.pullPolicy | string | `"IfNotPresent"` |  |
+| openarchiefbeheer.nginx.image.repository | string | `"nginxinc/nginx-unprivileged"` |  |
+| openarchiefbeheer.nginx.image.tag | string | `"stable"` |  |
+| openarchiefbeheer.nginx.livenessProbe | object | `{}` |  |
+| openarchiefbeheer.nginx.podLabels | object | `{}` |  |
+| openarchiefbeheer.nginx.readinessProbe | object | `{}` |  |
+| openarchiefbeheer.nginx.replicaCount | int | `1` |  |
+| openarchiefbeheer.nginx.resources | object | `{}` |  |
+| openarchiefbeheer.nginx.resources.requests.cpu | string | `"10m"` |  |
+| openarchiefbeheer.nginx.resources.requests.memory | string | `"16Mi"` |  |
+| openarchiefbeheer.nginx.securityContext.capabilities.drop[0] | string | `"ALL"` |  |
+| openarchiefbeheer.nginx.securityContext.readOnlyRootFilesystem | bool | `false` |  |
+| openarchiefbeheer.nginx.securityContext.runAsNonRoot | bool | `true` |  |
+| openarchiefbeheer.nginx.securityContext.runAsUser | int | `101` |  |
+| openarchiefbeheer.nginx.service.annotations | object | `{}` |  |
+| openarchiefbeheer.nginx.service.port | int | `8080` |  |
+| openarchiefbeheer.nginx.service.type | string | `"ClusterIP"` |  |
+| openarchiefbeheer.nodeSelector | object | `{}` |  |
+| openarchiefbeheer.pdb.create | bool | `false` |  |
+| openarchiefbeheer.pdb.maxUnavailable | string | `""` |  |
+| openarchiefbeheer.pdb.minAvailable | int | `1` |  |
+| openarchiefbeheer.persistence.enabled | bool | `true` |  |
+| openarchiefbeheer.persistence.existingClaim | string | `"openarchiefbeheer"` |  |
+| openarchiefbeheer.persistence.mediaMountSubpath | string | `"openarchiefbeheer/media"` |  |
+| openarchiefbeheer.persistence.privateMediaMountSubpath | string | `"openarchiefbeheer/private_media"` |  |
+| openarchiefbeheer.persistence.size | string | `"10Gi"` |  |
+| openarchiefbeheer.persistence.storageClassName | string | `""` |  |
+| openarchiefbeheer.persistentVolume.volumeAttributeShareName | string | `"openarchiefbeheer"` |  |
+| openarchiefbeheer.pythonAppName | string | `"openarchiefbeheer"` |  |
+| openarchiefbeheer.redis.architecture | string | `"standalone"` |  |
+| openarchiefbeheer.redis.auth.enabled | bool | `false` |  |
+| openarchiefbeheer.redis.fullnameOverride | string | `"openarchiefbeheer-redis"` |  |
+| openarchiefbeheer.redis.master.persistence.enabled | bool | `true` |  |
+| openarchiefbeheer.redis.master.persistence.size | string | `"8Gi"` |  |
+| openarchiefbeheer.redis.master.persistence.storageClass | string | `""` |  |
+| openarchiefbeheer.redis.master.resources.requests.cpu | string | `"10m"` |  |
+| openarchiefbeheer.redis.master.resources.requests.memory | string | `"20Mi"` |  |
+| openarchiefbeheer.redis.nameOverride | string | `"openarchiefbeheer-redis"` |  |
+| openarchiefbeheer.replicaCount | int | `1` |  |
+| openarchiefbeheer.resources.limits | object | `{}` |  |
+| openarchiefbeheer.resources.requests.cpu | string | `"250m"` |  |
+| openarchiefbeheer.resources.requests.memory | string | `"256Mi"` |  |
+| openarchiefbeheer.service.port | int | `80` |  |
+| openarchiefbeheer.service.type | string | `"ClusterIP"` |  |
+| openarchiefbeheer.settings.allowedHosts | string | `"openarchiefbeheer.podiumd.svc.cluster.local"` |  |
+| openarchiefbeheer.settings.cache.axes | string | `""` |  |
+| openarchiefbeheer.settings.cache.choices | string | `""` |  |
+| openarchiefbeheer.settings.cache.default | string | `""` |  |
+| openarchiefbeheer.settings.celery.brokerUrl | string | `""` |  |
+| openarchiefbeheer.settings.celery.logLevel | string | `"debug"` |  |
+| openarchiefbeheer.settings.celery.resultBackend | string | `""` |  |
+| openarchiefbeheer.settings.cookie.csrfCookieSamesite | string | `"Lax"` |  |
+| openarchiefbeheer.settings.cookie.csrfCookieSecure | bool | `true` |  |
+| openarchiefbeheer.settings.cookie.sessionCookieSamesite | string | `"Lax"` |  |
+| openarchiefbeheer.settings.cookie.sessionCookieSecure | bool | `true` |  |
+| openarchiefbeheer.settings.cors.allowAllOrigins | bool | `false` |  |
+| openarchiefbeheer.settings.cors.allowedOrigins | string | `""` |  |
+| openarchiefbeheer.settings.cors.allowedOriginsRegexes | string | `""` |  |
+| openarchiefbeheer.settings.cors.extraAllowHeaders | string | `""` |  |
+| openarchiefbeheer.settings.csrf.trustedOrigins | string | `""` |  |
+| openarchiefbeheer.settings.database | object | `{"host":"","name":"","password":"","port":5432,"sslmode":"prefer","username":""}` | Settings for the database. Note: Open-Archiefbeheer needs the POSTGIS extension to be installed in the database. |
+| openarchiefbeheer.settings.email.port | int | `587` |  |
+| openarchiefbeheer.settings.email.useTLS | bool | `true` |  |
+| openarchiefbeheer.settings.environment | string | `""` | Name of the environment (used for displaying purposes) |
+| openarchiefbeheer.settings.frontend.apiPath | string | `"/api/v1"` |  |
+| openarchiefbeheer.settings.frontend.apiUrl | string | `""` |  |
+| openarchiefbeheer.settings.frontend.zaakUrlTemplate | string | `""` |  |
+| openarchiefbeheer.settings.frontendUrl | string | `""` |  |
+| openarchiefbeheer.settings.requestsReadTimeout | string | `"5000"` |  |
+| openarchiefbeheer.settings.retry.backoffFactor | string | `""` |  |
+| openarchiefbeheer.settings.retry.statusForcelist | string | `""` |  |
+| openarchiefbeheer.settings.retry.total | string | `""` |  |
+| openarchiefbeheer.settings.sentry.dsn | string | `""` |  |
+| openarchiefbeheer.settings.throttling.enable | bool | `true` |  |
+| openarchiefbeheer.settings.throttling.rateAnonymous | string | `"2500/hour"` |  |
+| openarchiefbeheer.settings.throttling.rateUser | string | `"15000/hour"` |  |
+| openarchiefbeheer.settings.twoFactorAuthentication.forceOtpAdmin | bool | `true` |  |
+| openarchiefbeheer.settings.twoFactorAuthentication.patchAdmin | bool | `true` |  |
+| openarchiefbeheer.settings.uwsgi.harakiri | string | `""` |  |
+| openarchiefbeheer.settings.uwsgi.master | string | `""` |  |
+| openarchiefbeheer.settings.uwsgi.maxRequests | string | `""` |  |
+| openarchiefbeheer.settings.uwsgi.processes | string | `""` |  |
+| openarchiefbeheer.settings.uwsgi.threads | string | `""` |  |
+| openarchiefbeheer.settings.waitingPeriod | string | `""` | Number of days to wait before destroying a list. Defaults to 7 in the application. |
+| openarchiefbeheer.tags.redis | bool | `true` |  |
+| openarchiefbeheer.tolerations | list | `[]` |  |
+| openarchiefbeheer.worker.autoscaling.enabled | bool | `false` |  |
+| openarchiefbeheer.worker.autoscaling.maxReplicas | int | `100` |  |
+| openarchiefbeheer.worker.autoscaling.minReplicas | int | `1` |  |
+| openarchiefbeheer.worker.autoscaling.targetCPUUtilizationPercentage | int | `80` |  |
+| openarchiefbeheer.worker.autoscaling.targetMemoryUtilizationPercentage | int | `80` |  |
+| openarchiefbeheer.worker.concurrency | int | `4` |  |
+| openarchiefbeheer.worker.label | string | `"1"` |  |
+| openarchiefbeheer.worker.livenessProbe.enabled | bool | `false` |  |
+| openarchiefbeheer.worker.livenessProbe.exec.command[0] | string | `"/app/liveness/liveness-probe.sh"` |  |
+| openarchiefbeheer.worker.livenessProbe.failureThreshold | int | `3` |  |
+| openarchiefbeheer.worker.livenessProbe.initialDelaySeconds | int | `60` |  |
+| openarchiefbeheer.worker.livenessProbe.periodSeconds | int | `30` |  |
+| openarchiefbeheer.worker.livenessProbe.successThreshold | int | `1` |  |
+| openarchiefbeheer.worker.livenessProbe.timeoutSeconds | int | `10` |  |
+| openarchiefbeheer.worker.name | string | `""` |  |
+| openarchiefbeheer.worker.podLabels | object | `{}` |  |
+| openarchiefbeheer.worker.queueName | string | `""` |  |
+| openarchiefbeheer.worker.replicaCount | int | `1` |  |
+| openarchiefbeheer.worker.resources | object | `{}` |  |
+
 ### Open Klant
 
 | Name                                            | Description                                                                                     | Value                                 |
 |-------------------------------------------------|-------------------------------------------------------------------------------------------------|---------------------------------------|
-| openklant.configuration.oidcUrl                 | OpenID Connect client url                                                                       | `https://openklant.example.nl`        |
-| openklant.configuration.oidcSecret              | OpenID Connect client secret                                                                    | `<openklant>`                         |
+| openklant.configuration.data | string | `""` |  |
+| openklant.configuration.enabled | bool | `true` |  |
+| openklant.configuration.initContainer.enabled | bool | `false` |  |
+| openklant.configuration.job.backoffLimit | int | `6` |  |
+| openklant.configuration.job.enabled | bool | `true` |  |
+| openklant.configuration.job.resources | object | `{}` |  |
+| openklant.configuration.job.restartPolicy | string | `"OnFailure"` |  |
+| openklant.configuration.job.ttlSecondsAfterFinished | int | `0` |  |
+| openklant.configuration.oidcSecret | string | `"<openklant>"` |  |
+| openklant.configuration.oidcUrl | string | `"https://openklant.example.nl"` |  |
+| openklant.configuration.secrets | object | `{}` |  |
 | openklant.settings.allowedHosts                 | List if allowed hostnames<br/>(i.e. "openklant.example.nl,openklant.podiumd.svc.cluster.local") | `openklant.podiumd.svc.cluster.local` |
 | openklant.settings.database.host                | Database host                                                                                   | `""`                                  |
 | openklant.settings.database.port                | Database port                                                                                   | `5432`                                |
@@ -455,8 +643,15 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 | Name                                                      | Description                                                                                                                                           | Value                                             |
 |-----------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------|
 | openformulieren.enabled                                   | Boolean to override the installation of Open Formulieren                                                                                              |                                                   |
-| openformulieren.configuration.oidcUrl                     | OpenID Connect client url                                                                                                                             | `https://openformulieren.example.nl`              |
-| openformulieren.configuration.oidcSecret                  | OpenID Connect client secret                                                                                                                          | `<openformulieren>`                               |
+| openformulieren.configuration.data | string | `""` |  |
+| openformulieren.configuration.enabled | bool | `true` |  |
+| openformulieren.configuration.job.backoffLimit | int | `6` |  |
+| openformulieren.configuration.job.enabled | bool | `true` |  |
+| openformulieren.configuration.job.restartPolicy | string | `"OnFailure"` |  |
+| openformulieren.configuration.job.ttlSecondsAfterFinished | int | `0` |  |
+| openformulieren.configuration.oidcSecret | string | `"<openformulieren>"` |  |
+| openformulieren.configuration.oidcUrl | string | `"https://openformulieren.example.nl"` |  |
+| openformulieren.configuration.secrets | object | `{}` |  |
 | openformulieren.settings.allowedHosts                     | List of allowed hostnames<br/>(i.e. "openformulieren.example.nl,openformulieren-nginx.podiumd.svc.cluster.local")                                     | `openformulieren-nginx.podiumd.svc.cluster.local` |
 | openformulieren.settings.baseUrl                          | Base URL (i.e. "https://openformulieren.example.nl")                                                                                                  | `""`                                              |
 | openformulieren.settings.database.host                    | Database host                                                                                                                                         | `""`                                              |
@@ -513,8 +708,17 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 | Name                                                      | Description                                                                                                                                           | Value                                         |
 |-----------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------|
 | openinwoner.enabled                                       | Boolean to override the installation of Open Inwoner                                                                                                  |                                               |
-| openinwoner.configuration.oidcUrl                         | OpenID Connect client url                                                                                                                             | `https://openinwoner.example.nl`              |
-| openinwoner.configuration.oidcSecret                      | OpenID Connect client secret                                                                                                                          | `<openinwoner>`                               |
+| openinwoner.configuration.data | string | `""` |  |
+| openinwoner.configuration.enabled | bool | `true` |  |
+| openinwoner.configuration.initContainer.enabled | bool | `false` |  |
+| openinwoner.configuration.job.backoffLimit | int | `6` |  |
+| openinwoner.configuration.job.enabled | bool | `true` |  |
+| openinwoner.configuration.job.resources | object | `{}` |  |
+| openinwoner.configuration.job.restartPolicy | string | `"OnFailure"` |  |
+| openinwoner.configuration.job.ttlSecondsAfterFinished | int | `0` |  |
+| openinwoner.configuration.oidcSecret | string | `"<openinwoner>"` |  |
+| openinwoner.configuration.oidcUrl | string | `"https://openinwoner.example.nl"` |  |
+| openinwoner.configuration.secrets | object | `{}` |  |
 | openinwoner.settings.allowedHosts                         | List if allowed hostnames<br/>(i.e. "openinwoner.example.nl,openinwoner-nginx.podiumd.svc.cluster.local")                                             | `openinwoner-nginx.podiumd.svc.cluster.local` |
 | openinwoner.settings.database.host                        | Database host. Overides global.settings.databaseHost                                                                                                  | `""`                                          |
 | openinwoner.settings.database.port                        | Database port                                                                                                                                         | `5432`                                        |
@@ -578,34 +782,33 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 
 ### Podiumd Proxy 
 
-| Name                               | Description                                   | Value                       |
-|------------------------------------|-----------------------------------------------|------------------------------|
-| apiproxy.replicaCount              | Number of replicas to deploy                  | `1`                          |
-| apiproxy.nameOverride                       | Override for the deployment name              | `""`                         |
-| apiproxy.fullnameOverride                   | Override for the full deployment name         | `""`                         |
-| apiproxy.image.repository                   | Container image repository                    | `nginx`                      |
-| apiproxy.image.tag                          | Container image tag                           | `"1.25-alpine"`              |
-| apiproxy.image.pullPolicy                   | Image pull policy                             | `IfNotPresent`               |
-| apiproxy.service.port                       | Service port                                  | `80`                       |
-| apiproxy.service.containerPort              | Service container port                        | `8080`                       |
-| apiproxy.resources.limits.cpu               | CPU resource limit                            | `"0.5"`                      |
-| apiproxy.resources.limits.memory            | Memory resource limit                         | `"256Mi"`                    |
-| apiproxy.resources.requests.cpu             | CPU resource request                          | `"0.1"`                      |
-| apiproxy.resources.requests.memory          | Memory resource request                     | `"128Mi"`                    |
-| apiproxy.nginxCertsSecret                   | Secret containing NGINX certificates          | `"podiumd-proxy-certs"`      |
-| apiproxy.livenessProbe.initialDelaySeconds  | Initial delay for liveness probe    | `5`                          |
-| apiproxy.livenessProbe.periodSeconds        | Period between liveness probe checks      | `10`                         |
-| apiproxy.readinessProbe.initialDelaySeconds | Initial delay for readiness probe  | `5`                          |
-| apiproxy.readinessProbe.periodSeconds       | Period between readiness probe checks    | `10`                         |
-| apiproxy.locations.*.sslVerify              | SSL verification setting for all locations    | `"off"`                      |
-| apiproxy.locations.*.hostHeader             | Host header for all locations                 | `"lab.api.mijniconnect.nl"` |
-| apiproxy.locations.bag.path | Base path for BAG | `"/lvbag/individuelebevragingen/v2/"` |
-| apiproxy.locations.bag.targetUrl            | Target URL for BAG location                   | `"https://lab.api.mijniconnect.nl/iconnect/apihcbrp/actueel/v2/"` |
-| apiproxy.locations.brp.path | Base path for 
-| apiproxy.locations.brp.targetUrl            | Target URL for BRP location                   | `"https://lab.api.mijniconnect.nl/iconnect/apihcbrp/actueel/prtcl/v2/personen"` |
-| apiproxy.locations.kvkSearch.targetUrl      | Target URL for KVK search               | `"https://lab.api.mijniconnect.nl/iconnect/apikvk/zoeken/v2/zoeken"` |
-| apiproxy.locations.kvkBasic.targetUrl       | Target URL for KVK basic profiles        | `"https://lab.api.mijniconnect.nl/iconnect/apikvk/basprof/v1/v1/basisprofielen"` |
-| apiproxy.locations.kvkBranch.targetUrl      | Target URL for KVK branch profiles      | `"https://lab.api.mijniconnect.nl/iconnect/apikvk/vesprof/v1/v1/vestigingsprofielen"` |
+| Name                                         | Description                                | Value                                                                               |
+|----------------------------------------------|--------------------------------------------|-------------------------------------------------------------------------------------|
+| apiproxy.replicaCount                        | Number of replicas to deploy               | `1`                                                                                 |
+| apiproxy.nameOverride                        | Override for the deployment name           | `""`                                                                                |
+| apiproxy.fullnameOverride                    | Override for the full deployment name      | `""`                                                                                |
+| apiproxy.image.repository                    | Container image repository                 | `nginx`                                                                             |
+| apiproxy.image.tag                           | Container image tag                        | `"1.25-alpine"`                                                                     |
+| apiproxy.image.pullPolicy                    | Image pull policy                          | `IfNotPresent`                                                                      |
+| apiproxy.service.port                        | Service port                               | `8081`                                                                              |
+| apiproxy.resources.limits.cpu                | CPU resource limit                         | `"0.5"`                                                                             |
+| apiproxy.resources.limits.memory             | Memory resource limit                      | `"256Mi"`                                                                           |
+| apiproxy.resources.requests.cpu              | CPU resource request                       | `"0.1"`                                                                             |
+| apiproxy.resources.requests.memory           | Memory resource request                    | `"128Mi"`                                                                           |
+| apiproxy.nginxCertsSecret                    | Secret containing NGINX certificates       | `"podiumd-proxy-certs"`                                                             |
+| apiproxy.livenessProbe.initialDelaySeconds   | Initial delay for liveness probe           | `5`                                                                                 |
+| apiproxy.livenessProbe.periodSeconds         | Period between liveness probe checks       | `10`                                                                                |
+| apiproxy.readinessProbe.initialDelaySeconds  | Initial delay for readiness probe          | `5`                                                                                 |
+| apiproxy.readinessProbe.periodSeconds        | Period between readiness probe checks      | `10`                                                                                |
+| apiproxy.locations.*.sslVerify               | SSL verification setting for all locations | `"off"`                                                                             |
+| apiproxy.locations.*.hostHeader              | Host header for all locations              | `"lab.api.mijniconnect.nl"`                                                         |
+| apiproxy.locations.bag.path                  | Base path for BAG                          | `"/lvbag/individuelebevragingen/v2/"`                                               |
+| apiproxy.locations.bag.targetUrl             | Target URL for BAG location                | `"https://lab.api.mijniconnect.nl/iconnect/apibagib/v2/"`                   |
+| apiproxy.locations.brp.path                  | Base path for BRP                          | `"/haalcentraal/api/brp"`                                                           |
+| apiproxy.locations.brp.targetUrl             | Target URL for BRP location                | `"https://lab.api.mijniconnect.nl/iconnect/apihcbrp/actueel/prtcl/v2/personen"`     |
+| apiproxy.locations.kvkSearch.targetUrl       | Target URL for KVK search                  | `"https://lab.api.mijniconnect.nl/iconnect/apikvk/zoeken/v2/zoeken"`                |
+| apiproxy.locations.kvkBasic.targetUrl        | Target URL for KVK basic profiles          | `"https://lab.api.mijniconnect.nl/iconnect/apikvk/basprof/v1/v1/basisprofielen"`    |
+| apiproxy.locations.kvkBranch.targetUrl       | Target URL for KVK branch profiles         | `"https://lab.api.mijniconnect.nl/iconnect/apikvk/vesprof/v1/v1/vestigingsprofielen"` |
 
 #### Create certificate example
 $ kubectl create secret generic api-proxy-certs \
