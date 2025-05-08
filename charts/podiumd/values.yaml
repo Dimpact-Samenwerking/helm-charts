@@ -1108,6 +1108,8 @@ openarchiefbeheer:
   persistence:
     size: 10Gi
     existingClaim: openarchiefbeheer
+  persistentVolume:
+    volumeAttributeShareName: openarchiefbeheer
 
   redis:
     nameOverride: openarchiefbeheer-redis
