@@ -1105,6 +1105,10 @@ openarchiefbeheer:
       backoffFactor: ""
       statusForcelist: ""
 
+  persistence:
+    size: 10Gi
+    existingClaim: openarchiefbeheer
+
   redis:
     nameOverride: openarchiefbeheer-redis
     fullnameOverride: openarchiefbeheer-redis
