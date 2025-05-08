@@ -99,7 +99,7 @@ grafana:
       disable_signout_menu: false
       allow_sign_up: true
     server:
-      domain: "https://logs.test.nl/"
+      domain: "logs.test.nl/"
       enforce_domain: true
       root_url: "https://logs.test.nl/"
     metrics:

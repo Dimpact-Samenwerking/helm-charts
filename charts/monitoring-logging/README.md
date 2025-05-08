@@ -1,6 +1,6 @@
-# podiumd monitoring en logging
+# monitoring-logging
 
-![Version: 0.1.0-dev](https://img.shields.io/badge/Version-0.1.0--dev-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 1.0-dev](https://img.shields.io/badge/AppVersion-1.0--dev-informational?style=flat-square)
+![Version: 1.0.0](https://img.shields.io/badge/Version-1.0.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 1.0.0](https://img.shields.io/badge/AppVersion-1.0.0-informational?style=flat-square)
 
 A monitoring stack using Loki, Prometheus, Promtail and Grafana
 
@@ -11,13 +11,14 @@ https://dimpact.atlassian.net/wiki/spaces/PCP/pages/392855594/Handleiding+rollen
 ## Add Used chart repositories:
 
 helm repo add grafana https://grafana.github.io/helm-charts
+
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 
 ## Requirements
 
 | Repository | Name | Version |
 |------------|------|---------|
-| @grafana | grafana | 8.15.0 |
+| @grafana | grafana | 9.0.0 |
 | @grafana | loki | 6.29.0 |
 | @grafana | promtail | 6.16.6 |
 | @prometheus-community | prometheus | 27.12.0 |
@@ -40,7 +41,7 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 | grafana."grafana.ini".security.cookie_samesite | string | `"lax"` |  |
 | grafana."grafana.ini".security.cookie_secure | bool | `true` |  |
 | grafana."grafana.ini".security.hide_version | bool | `true` |  |
-| grafana."grafana.ini".server.domain | string | `"https://logs.test.nl/"` |  |
+| grafana."grafana.ini".server.domain | string | `"logs.test.nl/"` |  |
 | grafana."grafana.ini".server.enforce_domain | bool | `true` |  |
 | grafana."grafana.ini".server.root_url | string | `"https://logs.test.nl/"` |  |
 | grafana.assertNoLeakedSecrets | bool | `false` |  |
@@ -85,6 +86,7 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 | grafana.image.repository | string | `"grafana/grafana"` |  |
 | grafana.image.sha | string | `""` |  |
 | grafana.image.tag | string | `""` |  |
+| grafana.nodeSelector.agentpool | string | `"userpool"` |  |
 | grafana.persistence.accessModes[0] | string | `"ReadWriteOnce"` |  |
 | grafana.persistence.enabled | bool | `true` |  |
 | grafana.persistence.finalizers[0] | string | `"kubernetes.io/pvc-protection"` |  |
@@ -96,14 +98,23 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 | loki.chunksCache.allocatedMemory | int | `1024` |  |
 | loki.chunksCache.defaultValidity | string | `"6h"` |  |
 | loki.chunksCache.enabled | bool | `true` |  |
+| loki.chunksCache.nodeSelector.agentpool | string | `"userpool"` |  |
+| loki.compactor.nodeSelector.agentpool | string | `"userpool"` |  |
 | loki.compactor.replicas | int | `1` |  |
 | loki.deploymentMode | string | `"Distributed"` |  |
 | loki.distributor.maxUnavailable | int | `2` |  |
+| loki.distributor.nodeSelector.agentpool | string | `"userpool"` |  |
 | loki.distributor.replicas | int | `3` |  |
 | loki.enabled | bool | `true` |  |
+| loki.gateway.nodeSelector.agentpool | string | `"userpool"` |  |
 | loki.indexGateway.maxUnavailable | int | `1` |  |
+| loki.indexGateway.nodeSelector.agentpool | string | `"userpool"` |  |
 | loki.indexGateway.replicas | int | `2` |  |
+| loki.ingester.nodeSelector.agentpool | string | `"userpool"` |  |
 | loki.ingester.replicas | int | `3` |  |
+| loki.ingester.zoneAwareReplication.zoneA.nodeSelector.agentpool | string | `"userpool"` |  |
+| loki.ingester.zoneAwareReplication.zoneB.nodeSelector.agentpool | string | `"userpool"` |  |
+| loki.ingester.zoneAwareReplication.zoneC.nodeSelector.agentpool | string | `"userpool"` |  |
 | loki.loki.auth_enabled | bool | `false` |  |
 | loki.loki.compactor.compaction_interval | string | `"10m"` |  |
 | loki.loki.compactor.delete_request_store | string | `"s3"` |  |
@@ -121,8 +132,8 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 | loki.loki.limits_config.ingestion_rate_strategy | string | `"local"` |  |
 | loki.loki.limits_config.max_cache_freshness_per_query | string | `"10m"` |  |
 | loki.loki.limits_config.max_global_streams_per_user | int | `5000` |  |
-| loki.loki.limits_config.max_query_length | string | `"744h"` |  |
-| loki.loki.limits_config.max_query_lookback | string | `"31d"` |  |
+| loki.loki.limits_config.max_query_length | string | `"721h"` |  |
+| loki.loki.limits_config.max_query_lookback | string | `"30d"` |  |
 | loki.loki.limits_config.max_query_parallelism | int | `48` |  |
 | loki.loki.limits_config.max_streams_per_user | int | `0` |  |
 | loki.loki.limits_config.retention_period | string | `"30d"` |  |
@@ -146,6 +157,7 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 | loki.loki.tracing.enabled | bool | `true` |  |
 | loki.lokiCanary.enabled | bool | `false` |  |
 | loki.minio.enabled | bool | `true` |  |
+| loki.minio.nodeSelector.agentpool | string | `"userpool"` |  |
 | loki.minio.persistence.size | string | `"20Gi"` |  |
 | loki.minio.persistence.storageClass | string | `"managed-csi"` |  |
 | loki.monitoring.dashboards.enabled | bool | `false` |  |
@@ -153,17 +165,24 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 | loki.monitoring.selfMonitoring.enabled | bool | `false` |  |
 | loki.monitoring.selfMonitoring.grafanaAgent.installOperator | bool | `false` |  |
 | loki.querier.maxUnavailable | int | `2` |  |
+| loki.querier.nodeSelector.agentpool | string | `"userpool"` |  |
 | loki.querier.replicas | int | `3` |  |
 | loki.queryFrontend.maxUnavailable | int | `1` |  |
+| loki.queryFrontend.nodeSelector.agentpool | string | `"userpool"` |  |
 | loki.queryFrontend.replicas | int | `2` |  |
+| loki.queryScheduler.nodeSelector.agentpool | string | `"userpool"` |  |
 | loki.queryScheduler.replicas | int | `2` |  |
 | loki.read.replicas | int | `0` |  |
 | loki.resultsCache.defaultValidity | string | `"6h"` |  |
 | loki.resultsCache.enabled | bool | `true` |  |
+| loki.resultsCache.nodeSelector.agentpool | string | `"userpool"` |  |
 | loki.test.enabled | bool | `false` |  |
 | loki.write.replicas | int | `0` |  |
 | prometheus.alertmanager.enabled | bool | `false` |  |
 | prometheus.enabled | bool | `true` |  |
+| prometheus.kube-state-metrics.nodeSelector.agentpool | string | `"userpool"` |  |
+| prometheus.prometheus-node-exporter.nodeSelector.agentpool | string | `"userpool"` |  |
+| prometheus.prometheus-pushgateway.nodeSelector.agentpool | string | `"userpool"` |  |
 | prometheus.prometheusSpec.logLevel | string | `"warn"` |  |
 | prometheus.prometheusSpec.retention | string | `"7d"` |  |
 | prometheus.prometheusSpec.retentionSize | string | `""` |  |
@@ -172,6 +191,7 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 | prometheus.server.image.pullPolicy | string | `"IfNotPresent"` |  |
 | prometheus.server.image.repository | string | `"quay.io/prometheus/prometheus"` |  |
 | prometheus.server.image.tag | string | `""` |  |
+| prometheus.server.nodeSelector.agentpool | string | `"userpool"` |  |
 | prometheus.server.persistentVolume.accessModes[0] | string | `"ReadWriteOnce"` |  |
 | prometheus.server.persistentVolume.enabled | bool | `true` |  |
 | prometheus.server.persistentVolume.size | string | `"20Gi"` |  |
@@ -184,6 +204,7 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 | promtail.image.registry | string | `"docker.io"` |  |
 | promtail.image.repository | string | `"grafana/promtail"` |  |
 | promtail.image.tag | string | `""` |  |
+| promtail.nodeSelector.agentpool | string | `"userpool"` |  |
 | promtail.resources.limits.cpu | string | `"100m"` |  |
 | promtail.resources.limits.memory | string | `"256Mi"` |  |
 | promtail.resources.requests.cpu | string | `"50m"` |  |

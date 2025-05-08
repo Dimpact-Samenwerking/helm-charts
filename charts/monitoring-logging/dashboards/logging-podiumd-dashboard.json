@@ -24,7 +24,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 5,
+  "id": 2,
   "links": [],
   "panels": [
     {
@@ -150,7 +150,7 @@
           "sort": "desc"
         }
       },
-      "pluginVersion": "11.6.0",
+      "pluginVersion": "12.0.0",
       "targets": [
         {
           "datasource": {
@@ -1255,7 +1255,7 @@
         "sortOrder": "Descending",
         "wrapLogMessage": true
       },
-      "pluginVersion": "11.6.0",
+      "pluginVersion": "12.0.0",
       "targets": [
         {
           "datasource": {
@@ -1514,7 +1514,9 @@
     "list": [
       {
         "current": {
-          "text": "All",
+          "text": [
+            "All"
+          ],
           "value": [
             "$__all"
           ]
@@ -1544,9 +1546,7 @@
       {
         "current": {
           "text": "All",
-          "value": [
-            "$__all"
-          ]
+          "value": "$__all"
         },
         "definition": "",
         "description": "Wordt automatisch geselecteerd als je een PodiumD component hebt gekozen. Voor een diepere analyse kan er eventueel een subcomponent geselecteerd worden",
@@ -1815,19 +1815,19 @@
       },
       {
         "current": {
-          "text": "1.1",
-          "value": "1.1"
+          "text": "1.0.0",
+          "value": "1.0.0"
         },
         "label": "Dashboard versie",
         "name": "Dashboard_versie",
         "options": [
           {
             "selected": true,
-            "text": "1.1",
-            "value": "1.1"
+            "text": "1.0.0",
+            "value": "1.0.0"
           }
         ],
-        "query": "1.1",
+        "query": "1.0.0",
         "type": "textbox"
       },
       {
@@ -1923,5 +1923,5 @@
   "timezone": "",
   "title": "Monitoring en logging PodiumD",
   "uid": "e970a83d-adc2-4d33-af93-2349c0b77e",
-  "version": 3
+  "version": 2
 }
