@@ -1383,9 +1383,13 @@ kiss:
       name: ""
     image:
       repository: ghcr.io/klantinteractie-servicesysteem/kiss-frontend
+<<<<<<< HEAD
       tag: "release-1.0.x-20250418091744-8936963"
 
 
+=======
+      tag: "specifieke-header-per-type-zoekopdracht-20250326144323-e3743b6"
+>>>>>>> 9f89a13 (podiumd-proxy 1.0)
       pullPolicy: IfNotPresent
     resources:
       requests:
@@ -1632,6 +1636,7 @@ clamav:
       cpu: 1000m
       memory: 4Gi
 
+<<<<<<< HEAD
 apiproxy:
   enabled: false
   replicaCount: 1
@@ -1643,6 +1648,19 @@ apiproxy:
   service:
     port: 80
     containerPort: 8080
+=======
+podiumd-proxy:
+  enabled: false
+  replicaCount: 1
+  nameOverride: ""
+  fullnameOverride: ""
+  image:
+    repository: nginx
+    tag: "1.25-alpine"
+    pullPolicy: IfNotPresent
+  service:
+    port: 8081
+>>>>>>> 9f89a13 (podiumd-proxy 1.0)
   resources:
     limits:
       cpu: "0.5"
@@ -1650,7 +1668,11 @@ apiproxy:
     requests:
       cpu: "0.1"
       memory: "128Mi"
+<<<<<<< HEAD
   nginxCertsSecret: "api-proxy-certs"
+=======
+  nginxCertsSecret: "podiumd-proxy-certs"
+>>>>>>> 9f89a13 (podiumd-proxy 1.0)
   livenessProbe:
     initialDelaySeconds: 5
     periodSeconds: 10
@@ -1658,6 +1680,7 @@ apiproxy:
     initialDelaySeconds: 5
     periodSeconds: 10
   locations:
+<<<<<<< HEAD
     #-- mix and match depending on needs
     commonSettings: &commonLocation
       sslVerify: "off"
@@ -1688,6 +1711,27 @@ apiproxy:
 brp-personen-mock:
   enabled: false
 
+=======
+    commonSettings: &commonLocation
+      sslVerify: "off"
+      hostHeader: "lab.api.mijniconnect.nl"
+    bag:
+      <<: *commonLocation
+      targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apihcbrp/actueel/v2/"
+    brp:
+      <<: *commonLocation
+      targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apihcbrp/actueel/prtcl/v2/personen"
+    kvkSearch:
+      <<: *commonLocation
+      targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apikvk/zoeken/v2/zoeken"
+    kvkBasic:
+      <<: *commonLocation
+      targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apikvk/basprof/v1/v1/basisprofielen"
+    kvkBranch:
+      <<: *commonLocation
+      targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apikvk/vesprof/v1/v1/vestigingsprofielen"
+
+>>>>>>> 9f89a13 (podiumd-proxy 1.0)
 serviceAccount:
   create: true
   automount: true
