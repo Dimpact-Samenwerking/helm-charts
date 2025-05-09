@@ -15,6 +15,10 @@ spec:
       labels:
         app: {{ default "api-proxy" .Values.apiproxy.nameOverride }}
     spec:
+      {{- with .Values.apiproxy.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
       - name: nginx
         image: {{ .Values.apiproxy.image.repository }}:{{ .Values.apiproxy.image.tag }}
@@ -25,8 +29,10 @@ spec:
         - name: nginx-config
           mountPath: /etc/nginx/nginx.conf
           subPath: nginx.conf
+        {{- if .Values.apiproxy.nginxCertsSecret }}
         - name: nginx-certs
           mountPath: /etc/nginx/certs
+        {{- end }}
         resources:
           limits:
             cpu: {{ .Values.apiproxy.resources.limits.cpu }}
@@ -50,7 +56,21 @@ spec:
       - name: nginx-config
         configMap:
           name: {{ default "api-proxy" .Values.apiproxy.nameOverride }}-nginx-config
+      {{- if .Values.apiproxy.nginxCertsSecret }}
       - name: nginx-certs
         secret:
           secretName: {{ .Values.apiproxy.nginxCertsSecret }}
+      {{- end }}
+      {{- with .Values.apiproxy.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.apiproxy.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.apiproxy.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
 {{- end }}

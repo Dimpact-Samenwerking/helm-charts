@@ -1,0 +1,19 @@
+nodeSelector: {}
+
+brppersonenmock:
+  image:
+    # -- Personen mock image repository
+    repository: ghcr.io/brp-api/personen-mock
+    # -- Personen mock tag
+    tag: 2.6.0-202502261446
+    # -- Personen mock image pull policy
+    pullPolicy: IfNotPresent
+  imagePullSecrets: []
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  resources:
+    requests:
+    # -- Personen mock container requests and limits
+      cpu: 10m
+      memory: 150Mi

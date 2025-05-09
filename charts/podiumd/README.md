@@ -98,7 +98,7 @@ Patch release for Open Inwoner bug fix.
 | Open Notificaties | 1.8.2   |                    |
 | Open Zaak         | 1.18.0  |                    |
 | Kiss              | 1.0.0   | Major update       |
-| Zac               | 3.4.8   | Minor update       |
+| Zac               | 3.5.0   | Minor update       |
 
 ## Add Used chart repositories:
 
@@ -187,24 +187,7 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 | keycloak.keycloakConfigCli.image.tag        | Keycloak config cli image tag                                               | `5.12.0-debian-12-r5`               |
 | keycloak.keycloakConfigCli.image.pullPolicy | Keycloak config cli image pull policy                                       | `IfNotPresent`                      |
 | keycloak.keycloakConfigCli.nodeSelector     | Node labels for Keycloak config cli pod assignment. Evaluated as a template | `{}`                                |
- 
-### Open LDAP
 
-| Name                                               | Description                                                                                                                                           | Value                 |
-|----------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------|
-| openldap.enabled                                   | Boolean to override the installation of OpenLDAP                                                                                                      |                       |
-| openldap.adminUsername                             | LDAP administrator username                                                                                                                           | `"admin"`             |
-| openldap.adminPassword                             | LDAP administrator password                                                                                                                           | `"admin"`             |
-| openldap.root                                      | Root of LDAP tree                                                                                                                                     | `"dc=dimpact,dc=org"` |
-| openldap.persistence.existingClaim                 | Manually managed Persistent Volume and Claim                                                                                                          | `openldap`            |
-| openldap.persistence.subpath                       | Path within the volume                                                                                                                                | `openldap`            |
-| openldap.persistence.size                          | Size of created PersistentVolume                                                                                                                      | `1Gi`                 |
-| openldap.persistentVolume.volumeAttributeShareName | Value of created PersistentVolume paramer `spec.csi.volumeAttributes.shareName`.<br/>Overriden by `.Values.persistentVolume.volumeAttributeShareName` | `openldap`            |
-| openldap.image.repository                          | Image repository                                                                                                                                      | `bitnami/openldap`    |
-| openldap.image.tag                                 | Image tag                                                                                                                                             | `2.6.8`               |
-| openldap.image.pullPolicy                          | Image pull policy                                                                                                                                     | `IfNotPresent`        |
-| openldap.nodeSelector                              | Node labels for pod assignment. Evaluated as a template                                                                                               | `{}`                  |
-| openldap.resources                                 | Container requests and limits                                                                                                                         | See values.yaml       |
 
 ### ClamAV
 
@@ -241,19 +224,17 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 | Name                                               | Description                                                                                                                                           | Value                                                          |
 |----------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------|
 | openzaak.enabled                                   | Boolean to override the installation of Open Zaak                                                                                                     |                                                                |
-| openzaak.configuration.enabled                     | Boolean to override whether Open Zaak configuration is enabled                                                                                        | `true`                                                         |
-| openzaak.configuration.overwrite                   | Boolean to override whether existing Open Zaak configuration is overwritten                                                                           | `true`                                                         |
-| openzaak.configuration.oidcUrl                     | OpenID Connect client url                                                                                                                             | `https://openzaak.example.nl`                                  |
-| openzaak.configuration.oidcSecret                  | OpenID Connect client secret                                                                                                                          | `<openzaak>`                                                   |
-| openzaak.configuration.sites.openzaakDomain        | Domein (i.e. openzaak.example.nl)                                                                                                                     | `""`                                                           |
-| openzaak.configuration.superuser.username          | Superuser username                                                                                                                                    | `""`                                                           |
-| openzaak.configuration.superuser.password          | Superuser password                                                                                                                                    | `""`                                                           |
-| openzaak.configuration.superuser.email             | Superuser email                                                                                                                                       | `""`                                                           |
-| openzaak.configuration.selectieLijst.enabled       | Configure selectie lijsten                                                                                                                            | `false`                                                        |
-| openzaak.configuration.selectieLijst.ApiRoot       | Selectie lijsten API root                                                                                                                             | `https://selectielijst.openzaak.nl/api/v1/`                    |
-| openzaak.configuration.selectieLijst.ApiOas        | Selectie lijsten OAS                                                                                                                                  | `https://selectielijst.openzaak.nl/api/v1/schema/openapi.yaml` |
-| openzaak.configuration.selectieLijst.AllowedYears  | Selectie lijsten allowed years                                                                                                                        | `[2017, 2020]`                                                 |
-| openzaak.configuration.selectieLijst.DefaultYear   | Selectie lijsten default year                                                                                                                         | `2020`                                                         |
+| openzaak.configuration.data | string | `""` |  |
+| openzaak.configuration.enabled | bool | `true` |  |
+| openzaak.configuration.initContainer.enabled | bool | `false` |  |
+| openzaak.configuration.job.backoffLimit | int | `6` |  |
+| openzaak.configuration.job.enabled | bool | `true` |  |
+| openzaak.configuration.job.resources | object | `{}` |  |
+| openzaak.configuration.job.restartPolicy | string | `"Never"` |  |
+| openzaak.configuration.job.ttlSecondsAfterFinished | int | `0` |  |
+| openzaak.configuration.oidcSecret | string | `"<openzaak>"` |  |
+| openzaak.configuration.oidcUrl | string | `"https://openzaak.example.nl"` |  |
+| openzaak.configuration.secrets | object | `{}` |  |
 | openzaak.settings.allowedHosts                     | List if allowed hostnames<br/>(i.e. "openzaak.example.nl,openzaak-nginx.podiumd.svc.cluster.local")                                                   | `openzaak-nginx.podiumd.svc.cluster.local`                     |
 | openzaak.settings.database.host                    | Database host                                                                                                                                         | `""`                                                           |
 | openzaak.settings.database.name                    | Database name                                                                                                                                         | `""`                                                           |
@@ -297,14 +278,19 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 | Name                                                                 | Description                                                                                                                                           | Value                                        |
 |----------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------|
 | opennotificaties.enabled                                             | Boolean to override the installation of Open Notificatues                                                                                             | `true`                                       |
-| opennotificaties.configuration.enabled                               | Boolean to override whether Open Notificaties configuration is enabled                                                                                | `true`                                       |
-| opennotificaties.configuration.overwrite                             | Boolean to override whether existing Open Notificaties configuration is overwritten                                                                   | `true`                                       |
-| opennotificaties.configuration.oidcUrl                               | OpenID Connect client url                                                                                                                             | `https://opennotificaties.example.nl`        |
-| opennotificaties.configuration.oidcSecret                            | OpenID Connect client secret                                                                                                                          | `<opennotificaties>`                         |
-| opennotificaties.configuration.sites.notificatiesDomain              | Domein (i.e. opennotificaties.example.nl)                                                                                                             | `""`                                         |
-| opennotificaties.configuration.superuser.username                    | Superuser username                                                                                                                                    | `""`                                         |
-| opennotificaties.configuration.superuser.password                    | Superuser password                                                                                                                                    | `""`                                         |
-| opennotificaties.configuration.superuser.email                       | Superuser email                                                                                                                                       | `""`                                         |
+| opennotificaties.configuration.data | string | `""` |  |
+| opennotificaties.configuration.enabled | bool | `true` |  |
+| opennotificaties.configuration.http_request_job.enabled | bool | `false` |  |
+| opennotificaties.configuration.initContainer.enabled | bool | `false` |  |
+| opennotificaties.configuration.job.backoffLimit | int | `6` |  |
+| opennotificaties.configuration.job.enabled | bool | `true` |  |
+| opennotificaties.configuration.job.resources | object | `{}` |  |
+| opennotificaties.configuration.job.restartPolicy | string | `"OnFailure"` |  |
+| opennotificaties.configuration.job.ttlSecondsAfterFinished | int | `0` |  |
+| opennotificaties.configuration.oidcSecret | string | `"<opennotificaties>"` |  |
+| opennotificaties.configuration.oidcUrl | string | `"https://opennotificaties.example.nl"` |  |
+| opennotificaties.configuration.overwrite | bool | `true` |  |
+| opennotificaties.configuration.secrets | object | `{}` |  |                                 |
 | opennotificaties.settings.allowedHosts                               | List if allowed hostnames<br/>(i.e. "openzaak.example.nl,openzaak-nginx.podiumd.svc.cluster.local")                                                   | `opennotificaties.podiumd.svc.cluster.local` |
 | opennotificaties.settings.database.host                              | Database host. Overides global.settings.databaseHost                                                                                                  | `""`                                         |
 | opennotificaties.settings.database.port                              | Database port                                                                                                                                         | `5432`                                       |
@@ -359,8 +345,18 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 | Name                                               | Description                                                                                                                                           | Value                                |
 |----------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------|
 | objecten.enabled                                   | Boolean to override the installation of Objecten                                                                                                      |                                      |
-| objecten.configuration.oidcUrl                     | OpenID Connect client url                                                                                                                             | `https://objecten.example.nl`        |
-| objecten.configuration.oidcSecret                  | OpenID Connect client secret                                                                                                                          | `<objecten>`                         |
+| objecten.configuration.data | string | `""` |  |
+| objecten.configuration.demo.enabled | bool | `false` |  |
+| objecten.configuration.enabled | bool | `true` |  |
+| objecten.configuration.initContainer.enabled | bool | `false` |  |
+| objecten.configuration.job.backoffLimit | int | `6` |  |
+| objecten.configuration.job.enabled | bool | `true` |  |
+| objecten.configuration.job.resources | object | `{}` |  |
+| objecten.configuration.job.restartPolicy | string | `"OnFailure"` |  |
+| objecten.configuration.job.ttlSecondsAfterFinished | int | `0` |  |
+| objecten.configuration.oidcSecret | string | `"<objecten>"` |  |
+| objecten.configuration.oidcUrl | string | `"https://objecten.example.nl"` |  |
+| objecten.configuration.secrets | object | `{}` |  |
 | objecten.settings.allowedHosts                     | List if allowed hostnames<br/>(i.e. "objecten.example.nl,objecten.podiumd.svc.cluster.local")                                                         | `objecten.podiumd.svc.cluster.local` |
 | objecten.settings.database.host                    | Database host. Overides global.settings.databaseHost                                                                                                  | `""`                                 |
 | objecten.settings.database.port                    | Database port                                                                                                                                         | `5432`                               |
@@ -402,8 +398,18 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 | Name                                              | Description                                                                                         | Value                                   |
 |---------------------------------------------------|-----------------------------------------------------------------------------------------------------|-----------------------------------------|
 | objecttypen.enabled                               | Boolean to override the installation of objecttypen                                                 |                                         |
-| objecttypen.configuration.oidcUrl                 | OpenID Connect client url                                                                           | `https://objecttypen.example.nl`        |
-| objecttypen.configuration.oidcSecret              | OpenID Connect client secret                                                                        | `<objecttypen>`                         |
+| objecttypen.configuration.data | string | `""` |  |
+| objecttypen.configuration.enabled | bool | `true` |  |
+| objecttypen.configuration.initContainer.enabled | bool | `false` |  |
+| objecttypen.configuration.job.backoffLimit | int | `6` |  |
+| objecttypen.configuration.job.enabled | bool | `true` |  |
+| objecttypen.configuration.job.resources | object | `{}` |  |
+| objecttypen.configuration.job.restartPolicy | string | `"OnFailure"` |  |
+| objecttypen.configuration.job.ttlSecondsAfterFinished | int | `0` |  |
+| objecttypen.configuration.oidcSecret | string | `"<objecttypen>"` |  |
+| objecttypen.configuration.oidcUrl | string | `"https://objecttypen.example.nl"` |  |
+| objecttypen.configuration.secrets | object | `{}` |  |
+| objecttypen.configuration.token | string | `"<token>"` |  |
 | objecttypen.settings.allowedHosts                 | List if allowed hostnames<br/>(i.e. "objecttypen.example.nl,objecttypen.podiumd.svc.cluster.local") | `objecttypen.podiumd.svc.cluster.local` |
 | objecttypen.settings.database.host                | Database host. Overides global.settings.databaseHost                                                | `""`                                    |
 | objecttypen.settings.database.port                | Database port                                                                                       | `5432`                                  |
@@ -438,82 +444,19 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| openarchiefbeheer.affinity | object | `{}` |  |
-| openarchiefbeheer.autoscaling.enabled | bool | `false` |  |
-| openarchiefbeheer.autoscaling.maxReplicas | int | `100` |  |
-| openarchiefbeheer.autoscaling.minReplicas | int | `1` |  |
-| openarchiefbeheer.autoscaling.targetCPUUtilizationPercentage | int | `80` |  |
-| openarchiefbeheer.autoscaling.targetMemoryUtilizationPercentage | int | `80` |  |
-| openarchiefbeheer.azureVaultSecret.contentType | string | `""` |  |
-| openarchiefbeheer.azureVaultSecret.objectName | string | `""` |  |
-| openarchiefbeheer.azureVaultSecret.secretName | string | `"{{ .Values.existingSecret }}"` |  |
-| openarchiefbeheer.azureVaultSecret.vaultName | string | `nil` |  |
-| openarchiefbeheer.beat.enabled | bool | `true` |  |
-| openarchiefbeheer.beat.livenessProbe | object | `{}` |  |
-| openarchiefbeheer.beat.podLabels | object | `{}` |  |
-| openarchiefbeheer.beat.readinessProbe | object | `{}` |  |
-| openarchiefbeheer.beat.replicaCount | int | `1` |  |
-| openarchiefbeheer.beat.resources | object | `{}` |  |
 | openarchiefbeheer.configuration.data | string | `""` |  |
 | openarchiefbeheer.configuration.enabled | bool | `false` |  |
 | openarchiefbeheer.configuration.job.backoffLimit | int | `6` |  |
 | openarchiefbeheer.configuration.job.enabled | bool | `true` |  |
 | openarchiefbeheer.configuration.job.restartPolicy | string | `"OnFailure"` |  |
 | openarchiefbeheer.configuration.job.ttlSecondsAfterFinished | int | `0` |  |
+| openarchiefbeheer.configuration.oidcSecret | string | `"abc"` |  |
+| openarchiefbeheer.configuration.oidcUrl | string | `"https://abc.example.nl"` |  |
 | openarchiefbeheer.configuration.secrets | object | `{}` |  |
-| openarchiefbeheer.enabled | bool | `false` |  |
-| openarchiefbeheer.existingSecret | string | `nil` |  |
-| openarchiefbeheer.extraEnvVars | list | `[]` |  |
-| openarchiefbeheer.extraIngress | list | `[]` |  |
-| openarchiefbeheer.extraVolumeMounts | list | `[]` |  |
-| openarchiefbeheer.extraVolumes | list | `[]` |  |
-| openarchiefbeheer.flower.enabled | bool | `true` |  |
-| openarchiefbeheer.flower.livenessProbe | object | `{}` |  |
-| openarchiefbeheer.flower.podLabels | object | `{}` |  |
-| openarchiefbeheer.flower.readinessProbe | object | `{}` |  |
-| openarchiefbeheer.flower.replicaCount | int | `1` |  |
-| openarchiefbeheer.flower.resources | object | `{}` |  |
-| openarchiefbeheer.flower.service.port | int | `80` |  |
-| openarchiefbeheer.flower.service.type | string | `"ClusterIP"` |  |
+| openarchiefbeheer.enabled | bool | `true` |  |
 | openarchiefbeheer.fullnameOverride | string | `"openarchiefbeheer"` |  |
 | openarchiefbeheer.image.tag | string | `"1.0.0"` |  |
-| openarchiefbeheer.ingress.annotations | object | `{}` |  |
-| openarchiefbeheer.ingress.className | string | `""` |  |
-| openarchiefbeheer.ingress.enabled | bool | `false` |  |
-| openarchiefbeheer.ingress.hosts | list | `[]` |  |
-| openarchiefbeheer.ingress.tls | list | `[]` |  |
 | openarchiefbeheer.nameOverride | string | `"openarchiefbeheer"` |  |
-| openarchiefbeheer.nginx.autoscaling.enabled | bool | `false` |  |
-| openarchiefbeheer.nginx.existingConfigmap | string | `nil` |  |
-| openarchiefbeheer.nginx.image.pullPolicy | string | `"IfNotPresent"` |  |
-| openarchiefbeheer.nginx.image.repository | string | `"nginxinc/nginx-unprivileged"` |  |
-| openarchiefbeheer.nginx.image.tag | string | `"stable"` |  |
-| openarchiefbeheer.nginx.livenessProbe | object | `{}` |  |
-| openarchiefbeheer.nginx.podLabels | object | `{}` |  |
-| openarchiefbeheer.nginx.readinessProbe | object | `{}` |  |
-| openarchiefbeheer.nginx.replicaCount | int | `1` |  |
-| openarchiefbeheer.nginx.resources | object | `{}` |  |
-| openarchiefbeheer.nginx.resources.requests.cpu | string | `"10m"` |  |
-| openarchiefbeheer.nginx.resources.requests.memory | string | `"16Mi"` |  |
-| openarchiefbeheer.nginx.securityContext.capabilities.drop[0] | string | `"ALL"` |  |
-| openarchiefbeheer.nginx.securityContext.readOnlyRootFilesystem | bool | `false` |  |
-| openarchiefbeheer.nginx.securityContext.runAsNonRoot | bool | `true` |  |
-| openarchiefbeheer.nginx.securityContext.runAsUser | int | `101` |  |
-| openarchiefbeheer.nginx.service.annotations | object | `{}` |  |
-| openarchiefbeheer.nginx.service.port | int | `8080` |  |
-| openarchiefbeheer.nginx.service.type | string | `"ClusterIP"` |  |
-| openarchiefbeheer.nodeSelector | object | `{}` |  |
-| openarchiefbeheer.pdb.create | bool | `false` |  |
-| openarchiefbeheer.pdb.maxUnavailable | string | `""` |  |
-| openarchiefbeheer.pdb.minAvailable | int | `1` |  |
-| openarchiefbeheer.persistence.enabled | bool | `true` |  |
-| openarchiefbeheer.persistence.existingClaim | string | `"openarchiefbeheer"` |  |
-| openarchiefbeheer.persistence.mediaMountSubpath | string | `"openarchiefbeheer/media"` |  |
-| openarchiefbeheer.persistence.privateMediaMountSubpath | string | `"openarchiefbeheer/private_media"` |  |
-| openarchiefbeheer.persistence.size | string | `"10Gi"` |  |
-| openarchiefbeheer.persistence.storageClassName | string | `""` |  |
-| openarchiefbeheer.persistentVolume.volumeAttributeShareName | string | `"openarchiefbeheer"` |  |
-| openarchiefbeheer.pythonAppName | string | `"openarchiefbeheer"` |  |
 | openarchiefbeheer.redis.architecture | string | `"standalone"` |  |
 | openarchiefbeheer.redis.auth.enabled | bool | `false` |  |
 | openarchiefbeheer.redis.fullnameOverride | string | `"openarchiefbeheer-redis"` |  |
@@ -527,27 +470,7 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 | openarchiefbeheer.resources.limits | object | `{}` |  |
 | openarchiefbeheer.resources.requests.cpu | string | `"250m"` |  |
 | openarchiefbeheer.resources.requests.memory | string | `"256Mi"` |  |
-| openarchiefbeheer.service.port | int | `80` |  |
-| openarchiefbeheer.service.type | string | `"ClusterIP"` |  |
 | openarchiefbeheer.settings.allowedHosts | string | `"openarchiefbeheer.podiumd.svc.cluster.local"` |  |
-| openarchiefbeheer.settings.cache.axes | string | `""` |  |
-| openarchiefbeheer.settings.cache.choices | string | `""` |  |
-| openarchiefbeheer.settings.cache.default | string | `""` |  |
-| openarchiefbeheer.settings.celery.brokerUrl | string | `""` |  |
-| openarchiefbeheer.settings.celery.logLevel | string | `"debug"` |  |
-| openarchiefbeheer.settings.celery.resultBackend | string | `""` |  |
-| openarchiefbeheer.settings.cookie.csrfCookieSamesite | string | `"Lax"` |  |
-| openarchiefbeheer.settings.cookie.csrfCookieSecure | bool | `true` |  |
-| openarchiefbeheer.settings.cookie.sessionCookieSamesite | string | `"Lax"` |  |
-| openarchiefbeheer.settings.cookie.sessionCookieSecure | bool | `true` |  |
-| openarchiefbeheer.settings.cors.allowAllOrigins | bool | `false` |  |
-| openarchiefbeheer.settings.cors.allowedOrigins | string | `""` |  |
-| openarchiefbeheer.settings.cors.allowedOriginsRegexes | string | `""` |  |
-| openarchiefbeheer.settings.cors.extraAllowHeaders | string | `""` |  |
-| openarchiefbeheer.settings.csrf.trustedOrigins | string | `""` |  |
-| openarchiefbeheer.settings.database | object | `{"host":"","name":"","password":"","port":5432,"sslmode":"prefer","username":""}` | Settings for the database. Note: Open-Archiefbeheer needs the POSTGIS extension to be installed in the database. |
-| openarchiefbeheer.settings.email.port | int | `587` |  |
-| openarchiefbeheer.settings.email.useTLS | bool | `true` |  |
 | openarchiefbeheer.settings.environment | string | `""` | Name of the environment (used for displaying purposes) |
 | openarchiefbeheer.settings.frontend.apiPath | string | `"/api/v1"` |  |
 | openarchiefbeheer.settings.frontend.apiUrl | string | `""` |  |
@@ -557,39 +480,8 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 | openarchiefbeheer.settings.retry.backoffFactor | string | `""` |  |
 | openarchiefbeheer.settings.retry.statusForcelist | string | `""` |  |
 | openarchiefbeheer.settings.retry.total | string | `""` |  |
-| openarchiefbeheer.settings.sentry.dsn | string | `""` |  |
-| openarchiefbeheer.settings.throttling.enable | bool | `true` |  |
-| openarchiefbeheer.settings.throttling.rateAnonymous | string | `"2500/hour"` |  |
-| openarchiefbeheer.settings.throttling.rateUser | string | `"15000/hour"` |  |
-| openarchiefbeheer.settings.twoFactorAuthentication.forceOtpAdmin | bool | `true` |  |
-| openarchiefbeheer.settings.twoFactorAuthentication.patchAdmin | bool | `true` |  |
-| openarchiefbeheer.settings.uwsgi.harakiri | string | `""` |  |
-| openarchiefbeheer.settings.uwsgi.master | string | `""` |  |
-| openarchiefbeheer.settings.uwsgi.maxRequests | string | `""` |  |
-| openarchiefbeheer.settings.uwsgi.processes | string | `""` |  |
-| openarchiefbeheer.settings.uwsgi.threads | string | `""` |  |
 | openarchiefbeheer.settings.waitingPeriod | string | `""` | Number of days to wait before destroying a list. Defaults to 7 in the application. |
 | openarchiefbeheer.tags.redis | bool | `true` |  |
-| openarchiefbeheer.tolerations | list | `[]` |  |
-| openarchiefbeheer.worker.autoscaling.enabled | bool | `false` |  |
-| openarchiefbeheer.worker.autoscaling.maxReplicas | int | `100` |  |
-| openarchiefbeheer.worker.autoscaling.minReplicas | int | `1` |  |
-| openarchiefbeheer.worker.autoscaling.targetCPUUtilizationPercentage | int | `80` |  |
-| openarchiefbeheer.worker.autoscaling.targetMemoryUtilizationPercentage | int | `80` |  |
-| openarchiefbeheer.worker.concurrency | int | `4` |  |
-| openarchiefbeheer.worker.label | string | `"1"` |  |
-| openarchiefbeheer.worker.livenessProbe.enabled | bool | `false` |  |
-| openarchiefbeheer.worker.livenessProbe.exec.command[0] | string | `"/app/liveness/liveness-probe.sh"` |  |
-| openarchiefbeheer.worker.livenessProbe.failureThreshold | int | `3` |  |
-| openarchiefbeheer.worker.livenessProbe.initialDelaySeconds | int | `60` |  |
-| openarchiefbeheer.worker.livenessProbe.periodSeconds | int | `30` |  |
-| openarchiefbeheer.worker.livenessProbe.successThreshold | int | `1` |  |
-| openarchiefbeheer.worker.livenessProbe.timeoutSeconds | int | `10` |  |
-| openarchiefbeheer.worker.name | string | `""` |  |
-| openarchiefbeheer.worker.podLabels | object | `{}` |  |
-| openarchiefbeheer.worker.queueName | string | `""` |  |
-| openarchiefbeheer.worker.replicaCount | int | `1` |  |
-| openarchiefbeheer.worker.resources | object | `{}` |  |
 
 ### Open Klant
 
