@@ -35,6 +35,8 @@ jobs:
           helm repo add kiss-elastic https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/.github/main/docs/scripts/elastic
           helm repo add zac https://infonl.github.io/dimpact-zaakafhandelcomponent/
           helm repo add openshift https://charts.openshift.io
+          helm repo add grafana https://grafana.github.io/helm-charts
+          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 
       - name: Run chart-releaser
         uses: helm/chart-releaser-action@v1.7.0
