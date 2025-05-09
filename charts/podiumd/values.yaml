@@ -1328,6 +1328,7 @@ kiss:
     clientId: kiss
     secret: ""
     contactverzoektypen: []
+    isDefault: true
 
   database:
     host: ""
