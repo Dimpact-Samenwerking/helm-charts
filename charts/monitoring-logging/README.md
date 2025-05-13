@@ -6,7 +6,7 @@ A monitoring stack using Loki, Prometheus, Promtail and Grafana
 
 ## Rollenbeheer in Grafana op basis van Keycloak-groepen:
 
-https://dimpact.atlassian.net/wiki/spaces/PCP/pages/392855594/Handleiding+rollen+toekennen+in+Grafana+via+Keycloak
+https://dimpact.atlassian.net/wiki/spaces/PCP/pages/412090380/Keycloak+roles+for+monitoring
 
 ## Add Used chart repositories:
 
