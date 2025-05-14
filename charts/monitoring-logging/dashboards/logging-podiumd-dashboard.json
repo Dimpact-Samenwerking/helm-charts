@@ -24,7 +24,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 2,
+  "id": 3,
   "links": [],
   "panels": [
     {
@@ -150,7 +150,7 @@
           "sort": "desc"
         }
       },
-      "pluginVersion": "12.0.0",
+      "pluginVersion": "11.6.1",
       "targets": [
         {
           "datasource": {
@@ -357,7 +357,7 @@
               "sort": "none"
             }
           },
-          "pluginVersion": "11.6.0",
+          "pluginVersion": "11.6.1",
           "targets": [
             {
               "datasource": {
@@ -505,7 +505,7 @@
               }
             ]
           },
-          "pluginVersion": "11.6.0",
+          "pluginVersion": "11.6.1",
           "targets": [
             {
               "datasource": {
@@ -681,7 +681,7 @@
             "h": 11,
             "w": 12,
             "x": 0,
-            "y": 41
+            "y": 22
           },
           "id": 62,
           "options": {
@@ -708,7 +708,7 @@
               "sort": "none"
             }
           },
-          "pluginVersion": "11.6.0",
+          "pluginVersion": "11.6.1",
           "targets": [
             {
               "datasource": {
@@ -839,7 +839,7 @@
             "h": 11,
             "w": 12,
             "x": 12,
-            "y": 41
+            "y": 22
           },
           "id": 66,
           "options": {
@@ -860,7 +860,7 @@
               }
             ]
           },
-          "pluginVersion": "11.6.0",
+          "pluginVersion": "11.6.1",
           "targets": [
             {
               "datasource": {
@@ -989,7 +989,7 @@
             "h": 12,
             "w": 12,
             "x": 0,
-            "y": 52
+            "y": 33
           },
           "id": 72,
           "options": {
@@ -1165,7 +1165,7 @@
             "h": 12,
             "w": 12,
             "x": 12,
-            "y": 52
+            "y": 33
           },
           "id": 67,
           "options": {
@@ -1215,7 +1215,7 @@
       "type": "row"
     },
     {
-      "collapsed": false,
+      "collapsed": true,
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -1223,55 +1223,56 @@
         "y": 11
       },
       "id": 4,
-      "panels": [],
-      "title": "Alle logs voor component: \"$App\"",
-      "type": "row"
-    },
-    {
-      "datasource": {
-        "type": "loki",
-        "uid": "loki"
-      },
-      "description": "",
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 19,
-        "w": 24,
-        "x": 0,
-        "y": 12
-      },
-      "id": 68,
-      "options": {
-        "dedupStrategy": "none",
-        "enableInfiniteScrolling": false,
-        "enableLogDetails": true,
-        "prettifyLogMessage": true,
-        "showCommonLabels": false,
-        "showLabels": false,
-        "showTime": true,
-        "sortOrder": "Descending",
-        "wrapLogMessage": true
-      },
-      "pluginVersion": "12.0.0",
-      "targets": [
+      "panels": [
         {
           "datasource": {
             "type": "loki",
             "uid": "loki"
           },
-          "direction": "backward",
-          "editorMode": "code",
-          "expr": "{app=~\"$Subapp\"}  |~ \"(?i)$search\" |~ \"(?i)$Methode\" |~ \"(?i)$LogLevel\" !~ `$excluded_log_levels` != `HTTP/1.1\" 0 \"` ",
-          "maxLines": 100,
-          "queryType": "range",
-          "refId": "A"
+          "description": "",
+          "fieldConfig": {
+            "defaults": {},
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 19,
+            "w": 24,
+            "x": 0,
+            "y": 144
+          },
+          "id": 68,
+          "options": {
+            "dedupStrategy": "none",
+            "enableInfiniteScrolling": false,
+            "enableLogDetails": true,
+            "prettifyLogMessage": true,
+            "showCommonLabels": false,
+            "showLabels": false,
+            "showTime": true,
+            "sortOrder": "Descending",
+            "wrapLogMessage": true
+          },
+          "pluginVersion": "11.6.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "loki"
+              },
+              "direction": "backward",
+              "editorMode": "code",
+              "expr": "{app=~\"$Subapp\"}  |~ \"(?i)$search\" |~ \"(?i)$Methode\" |~ \"(?i)$LogLevel\" !~ `$excluded_log_levels` != `HTTP/1.1\" 0 \"` ",
+              "maxLines": 100,
+              "queryType": "range",
+              "refId": "A"
+            }
+          ],
+          "title": "Logs component: $App",
+          "type": "logs"
         }
       ],
-      "title": "Logs component: $App",
-      "type": "logs"
+      "title": "Alle logs voor component: \"$App\"",
+      "type": "row"
     },
     {
       "collapsed": true,
@@ -1279,7 +1280,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 31
+        "y": 12
       },
       "id": 71,
       "panels": [
@@ -1297,7 +1298,7 @@
             "h": 19,
             "w": 24,
             "x": 0,
-            "y": 173
+            "y": 164
           },
           "id": 70,
           "options": {
@@ -1311,7 +1312,7 @@
             "sortOrder": "Descending",
             "wrapLogMessage": true
           },
-          "pluginVersion": "11.6.0",
+          "pluginVersion": "11.6.1",
           "targets": [
             {
               "datasource": {
@@ -1340,7 +1341,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 32
+        "y": 13
       },
       "id": 74,
       "panels": [
@@ -1366,11 +1367,12 @@
             "h": 13,
             "w": 24,
             "x": 0,
-            "y": 497
+            "y": 184
           },
           "id": 51,
           "options": {
             "dedupStrategy": "none",
+            "enableInfiniteScrolling": false,
             "enableLogDetails": true,
             "prettifyLogMessage": true,
             "showCommonLabels": false,
@@ -1379,7 +1381,7 @@
             "sortOrder": "Descending",
             "wrapLogMessage": true
           },
-          "pluginVersion": "11.3.0",
+          "pluginVersion": "11.6.1",
           "targets": [
             {
               "datasource": {
@@ -1417,11 +1419,12 @@
             "h": 11,
             "w": 24,
             "x": 0,
-            "y": 510
+            "y": 197
           },
           "id": 63,
           "options": {
             "dedupStrategy": "none",
+            "enableInfiniteScrolling": false,
             "enableLogDetails": true,
             "prettifyLogMessage": true,
             "showCommonLabels": false,
@@ -1430,7 +1433,7 @@
             "sortOrder": "Descending",
             "wrapLogMessage": false
           },
-          "pluginVersion": "11.3.0",
+          "pluginVersion": "11.6.1",
           "targets": [
             {
               "datasource": {
@@ -1458,7 +1461,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 33
+        "y": 14
       },
       "id": 64,
       "panels": [
@@ -1475,7 +1478,7 @@
             "h": 12,
             "w": 24,
             "x": 0,
-            "y": 194
+            "y": 233
           },
           "id": 73,
           "options": {
@@ -1489,7 +1492,7 @@
             "sortOrder": "Descending",
             "wrapLogMessage": true
           },
-          "pluginVersion": "11.6.0",
+          "pluginVersion": "11.6.1",
           "targets": [
             {
               "editorMode": "code",
@@ -1514,9 +1517,7 @@
     "list": [
       {
         "current": {
-          "text": [
-            "All"
-          ],
+          "text": "All",
           "value": [
             "$__all"
           ]
@@ -1778,21 +1779,21 @@
         "options": [
           {
             "selected": false,
-            "text": "DRC",
-            "value": "DRC"
+            "text": "drc",
+            "value": "drc"
           },
           {
             "selected": false,
-            "text": "ZTC",
-            "value": "ZTC"
+            "text": "ztc",
+            "value": "ztc"
           },
           {
             "selected": false,
-            "text": "ZRC",
-            "value": "ZRC"
+            "text": "zrc",
+            "value": "zrc"
           }
         ],
-        "query": "DRC,ZTC,ZRC",
+        "query": "drc,ztc,zrc",
         "type": "custom"
       },
       {
@@ -1922,6 +1923,6 @@
   "timepicker": {},
   "timezone": "",
   "title": "Monitoring en logging PodiumD",
-  "uid": "e970a83d-adc2-4d33-af93-2349c0b77e",
-  "version": 2
+  "uid": "e970a83d-adc2-4d33-af93-2349c0b77",
+  "version": 4
 }
