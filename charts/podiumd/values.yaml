@@ -1355,6 +1355,28 @@ openformulieren:
     #       catalogue_domain: TEST
     #       catalogue_rsin: "000000000"
     #       organisatie_rsin: "000000000"
+    #   zgw_api_config_enable: true
+    #   zgw_api:
+    #     groups:
+    #     - name: Open Zaak SCC
+    #       identifier: openzaak-scc
+    #       zaken_service_identifier: zaken-api
+    #       documenten_service_identifier: documenten-api
+    #       catalogi_service_identifier: catalogus-api
+    #       catalogue_domain: TEST
+    #       catalogue_rsin: "000000000"
+    #       organisatie_rsin: "000000000"
+    #       auteur: Aanvrager
+    #       zaak_vertrouwelijkheidaanduiding: openbaar
+    #       doc_vertrouwelijkheidaanduiding: openbaar
+    #       objects_api_json_content_template: |-
+    #         {
+    #           "data": {% json_summary %},
+    #           "type": "{{ "{{" }} productaanvraag_type {{ "}}" }}",
+    #           "bsn": "{{ "{{" }} variables.auth_bsn {{ "}}" }}",
+    #           "submission_id": "{{ "{{" }} submission.kenmerk {{ "}}" }}",
+    #           "language_code": "{{ "{{" }} submission.language_code {{ "}}" }}"
+    #         }
     oidcUrl: https://openformulieren.example.nl
     oidcSecret: "<openformulieren>"
   settings:
