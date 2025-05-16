@@ -95,7 +95,7 @@ Patch release for Open Inwoner bug fix.
 | Open Formulieren  | 3.0.7   | Major update       |
 | Open Inwoner      | 1.29.0  | Minor update       |
 | Open Klant        | 2.7.0   | Major update       |
-| Open Notificaties | 1.8.2   |                    |
+| Open Notificaties | 1.8.4   |                    |
 | Open Zaak         | 1.18.0  |                    |
 | Kiss              | 1.0.0   | Major update       |
 | Zac               | 3.5.0   | Minor update       |
@@ -314,6 +314,7 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 | opennotificaties.settings.maxRetries                                 | Maximum number of automatic retries. After this amount of retries,<br/>Open Notificaties stops trying to deliver the message                          | `5`                                          |
 | opennotificaties.settings.retryBackoff                               | A factor applied to the exponential backoff.<br/>This allows you to tune how quickly automatic retries are performed                                  | `3`                                          |
 | opennotificaties.settings.retryBackoffMax                            | Upper limit to the exponential backoff time                                                                                                           | `48`                                         |
+| opennotificaties.settings.requestsTimeout                            | Timeout in seconds for HTTP requests.                                                                                                           | `60`                                         |
 | opennotificaties.settings.numProxies                                 | Number of proxies                                                                                                                                     | `1`                                          |
 | opennotificaties.settings.sentry.dsn                                 | Url to Sentry (i.e https://sentry.example.com/111)                                                                                                    | `""`                                         |
 | opennotificaties.persistence.existingClaim                           | Manually managed Persistent Volume and Claim                                                                                                          | `opennotificaties`                           |
