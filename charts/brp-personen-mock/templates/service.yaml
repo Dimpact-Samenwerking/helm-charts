@@ -1,0 +1,15 @@
+piVersion: v1
+kind: Service
+metadata:
+  name: {{ include "brppersonenmock.name" . }}
+  labels:
+    {{- include "brppersonenmock.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: http-brp-mock
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "brppersonenmock.selectorLabels" . | nindent 4 }}
