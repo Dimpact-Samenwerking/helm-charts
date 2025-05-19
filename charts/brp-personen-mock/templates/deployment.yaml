@@ -33,6 +33,10 @@ spec:
             - name: http-brp-mock
               containerPort: 5010
               protocol: TCP
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
       restartPolicy: Always
       {{- with .Values.nodeSelector }}
       nodeSelector:
