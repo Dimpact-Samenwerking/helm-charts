@@ -84,21 +84,22 @@ Patch release for Open Inwoner bug fix.
 **PodiumD Helm chart version: 4.1.0**
 
 
-| Component         | Version | Change             |
-|-------------------|---------|--------------------|
-| ClamAV            | 1.4.2   |                    |
-| Keycloak          | 25.0.6  |                    |
-| Infinispan        | 15.1    |                    |
-| Abc               | 1.0.0   | Nieuw component    |
-| Objecten          | 3.0.3   |                    |
-| Objecttypen       | 3.0.2   |                    |
-| Open Formulieren  | 3.0.7   | Major update       |
-| Open Inwoner      | 1.29.0  | Minor update       |
-| Open Klant        | 2.7.0   | Major update       |
-| Open Notificaties | 1.8.4   |                    |
-| Open Zaak         | 1.18.0  |                    |
-| Kiss              | 1.0.0   | Major update       |
-| Zac               | 3.5.0   | Minor update       |
+| Component          | AppVersion   | Change          | ChartVersion | Change         |
+|--------------------|--------------|-----------------|--------------|----------------|
+| ClamAV             | 1.4.2        |                 | 3.2.0        |                |
+| Keycloak           | 25.0.6       |                 | 24.3.0       |                |
+| Infinispan         | 15.1         |                 | 0.4.1        |                |
+| Abc                | 1.0.0        | Nieuw component |              |                |
+| Objecten           | 3.0.3        |                 | 2.7.4        |                |
+| Objecttypen        | 3.0.2        |                 | 1.3.2        |                |
+| Open Formulieren   | 3.0.7        | Major update    | 1.8.2        |                |
+| Open Inwoner       | 1.29.0       | Minor update    | 1.7.2        |                |
+| Open Klant         | 2.7.0        | Major update    | 1.6.6        | Minor Update   |
+| Open Notificaties  | 1.8.2        |                 | 1.8.4        |                |
+| Open Zaak          | 1.18.0       |                 | 1.8.1        |                |
+| Open Archiefbeheer |              |                 | 1.3.8        |                |
+| Kiss               | 1.0.0        | Major update    | 1.0.0        |                |
+| Zac                | 3.5.0        | Minor update    | 1.0.46       |                |
 
 ## Add Used chart repositories:
 
