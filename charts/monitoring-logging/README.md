@@ -21,7 +21,7 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 | @grafana | grafana | 9.0.0 |
 | @grafana | loki | 6.29.0 |
 | @grafana | promtail | 6.16.6 |
-| @prometheus-community | prometheus | 27.12.0 |
+| @prometheus-community | prometheus | 27.16.0 |
 
 ## Values
 
