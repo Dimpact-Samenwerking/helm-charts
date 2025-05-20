@@ -5,7 +5,8 @@ kind: ConfigMap
 metadata:
   name: create-required-catalogi-configmap
   labels:
-    {{- include "openzaak.labels" . | nindent 4 }}
+    app.kubernetes.io/version: "1.0"
+    app.kubernetes.io/name: "create-required-catalogi"
 data:
   CLIENT_ID: {{ .Values.openzaak.create_required_catalogi_job.client_id | quote }}
   OPENZAAK_URL: {{ .Values.openzaak.configuration.oidcUrl | quote }}
@@ -386,7 +387,8 @@ kind: Job
 metadata:
   name: create-required-catalogi-job
   labels:
-    {{- include "openzaak.configLabels" . | nindent 4 }}
+    app.kubernetes.io/version: "1.0"
+    app.kubernetes.io/name: "create-required-catalogi"
 spec:
   ttlSecondsAfterFinished: 600
   template:

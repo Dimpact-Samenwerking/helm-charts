@@ -9,6 +9,25 @@ global:
 
   imageRegistry: ""
 
+cnpg:
+  enabled: true
+
+pgcluster:
+  enabled: true
+  type: postgis
+  mode: standalone
+  fullnameOverride: pgcluster
+  version:
+    postgis: "3.4"
+    postgresql: "15"
+  cluster:
+    instances: 1
+    initdb:
+      database: podiumd
+  backups:
+    enabled: false
+
+
 persistentVolume:
   volumeAttributeShareName: ""
   volumeAttributeResourceGroup: ""

@@ -5,7 +5,8 @@ kind: ConfigMap
 metadata:
   name: create-required-objecttypen-configmap
   labels:
-    {{- include "objecttypen.labels" . | nindent 4 }}
+    app.kubernetes.io/version: "1.0"
+    app.kubernetes.io/name: "create-required-objecttypen"
 data:
   AUTHORIZATION_TOKEN: {{ .Values.objecttypen.configuration.token | quote }}
   OBJECTTYPES_URL: {{ printf "%s%s" .Values.objecttypen.configuration.oidcUrl "/api/v2" | quote}}
@@ -96,7 +97,8 @@ kind: Job
 metadata:
   name: create-required-objecttypen-job
   labels:
-    {{- include "objecttypen.configLabels" . | nindent 4 }}
+    app.kubernetes.io/version: "1.0"
+    app.kubernetes.io/name: "create-required-objecttypen"
 spec:
   ttlSecondsAfterFinished: 600
   template:
