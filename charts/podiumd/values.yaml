@@ -689,6 +689,7 @@ opennotificaties:
     maxRetries: 5
     retryBackoff: 3
     retryBackoffMax: 48
+    requestsTimeout: 60
     email:
       port: 587
       useTLS: true
@@ -699,7 +700,7 @@ opennotificaties:
   persistentVolume:
     volumeAttributeShareName: opennotificaties
   image:
-    tag: "1.8.2"
+    tag: "1.8.4"
   resources:
     requests:
       cpu: 100m
