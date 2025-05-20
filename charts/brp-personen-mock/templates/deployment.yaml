@@ -17,16 +17,15 @@ spec:
         app.kubernetes.io/instance: podiumd
         app.kubernetes.io/name: brp-personen-mock
     spec:
-      {{- with .Values.brppersonenmock.imagePullSecrets }}
+      {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      serviceAccount: brp-personen-mock
       serviceAccountName: brp-personen-mock
       containers:
         - name: brp-personen-mock
-          image: "{{ .Values.brppersonenmock.image.repository }}:{{ .Values.brppersonenmock.image.tag }}"
-          imagePullPolicy: {{ .Values.brppersonenmock.image.pullPolicy }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
           envFrom:
             - configMapRef:
                 name: brp-personen-mock
@@ -34,16 +33,20 @@ spec:
             - name: http-brp-mock
               containerPort: 5010
               protocol: TCP
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
       restartPolicy: Always
-      {{- with .Values.brppersonenmock.nodeSelector }}
+      {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.brppersonenmock.affinity }}
+      {{- with .Values.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.brppersonenmock.tolerations }}
+      {{- with .Values.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}

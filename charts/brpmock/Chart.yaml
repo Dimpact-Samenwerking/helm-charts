@@ -1,6 +1,0 @@
-apiVersion: v2
-name: brpmock
-description: BRP Proxy and GBA Mock combination Helm chart
-version: 1.2.4
-appVersion: "2.0.8"
-
