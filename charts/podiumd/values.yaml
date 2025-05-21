@@ -858,7 +858,7 @@ objecten:
   persistentVolume:
     volumeAttributeShareName: objecten
   image:
-    tag: "3.0.3"
+    tag: "3.0.4"
   resources:
     requests:
       cpu: 100m

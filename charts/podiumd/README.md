@@ -53,7 +53,7 @@
 | Keycloak           | 25.0.6       |                 | 24.3.0       |                |
 | Infinispan         | 15.1         |                 | 0.4.1        |                |
 | Abc                | 1.0.0        | Nieuw component |              |                |
-| Objecten           | 3.0.3        |                 | 2.7.4        |                |
+| Objecten           | 3.0.4        |                 | 2.8.0        |                |
 | Objecttypen        | 3.0.2        |                 | 1.3.2        |                |
 | Open Formulieren   | 3.0.7        | Major update    | 1.8.2        |                |
 | Open Inwoner       | 1.29.0       | Minor update    | 1.7.2        |                |
