@@ -700,7 +700,7 @@ opennotificaties:
   persistentVolume:
     volumeAttributeShareName: opennotificaties
   image:
-    tag: "1.8.4"
+    tag: "1.8.2"
   resources:
     requests:
       cpu: 100m
@@ -858,7 +858,7 @@ objecten:
   persistentVolume:
     volumeAttributeShareName: objecten
   image:
-    tag: "3.0.3"
+    tag: "3.0.4"
   resources:
     requests:
       cpu: 100m
