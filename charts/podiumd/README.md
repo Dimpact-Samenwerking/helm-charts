@@ -60,7 +60,7 @@
 | Open Klant         | 2.7.0        | Major update    | 1.6.6        | Minor Update   |
 | Open Notificaties  | 1.8.2        |                 | 1.8.4        |                |
 | Open Zaak          | 1.18.0       |                 | 1.8.1        |                |
-| Open Archiefbeheer |              |                 | 1.3.8        |                |
+| Open Archiefbeheer |              |                 | 1.3.10       |                |
 | Kiss               | 1.0.0        | Major update    | 1.0.0        |                |
 | Zac                | 3.5.0        | Minor update    | 1.0.46       |                |
 
