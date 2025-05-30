@@ -59,8 +59,9 @@ keycloak:
     realm: podiumd
     realmDisplayName: PodiumD
     realmFrontendUrl: https://keycloak.example.nl
-    realmIdentityProviders: {}
-    realmIdentityProviderMappers: {}
+    # Dont include the realmIdentityProviders and realmIdentityProviderMappers by default as it overwrites currently configured entra providers for multiple gemeentes
+    # realmIdentityProviders: {}
+    # realmIdentityProviderMappers: {}
     smtp:
       server: mail.example.nl
       port: "587"
