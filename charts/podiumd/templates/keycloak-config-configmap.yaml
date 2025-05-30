@@ -384,6 +384,18 @@ data:
               lightweight.claim: true
               userinfo.token.claim: true
               introspection.token.claim: true
+          - name: samaccountname
+            protocol: openid-connect
+            protocolMapper: oidc-usermodel-attribute-mapper
+            config:
+              introspection.token.claim: true
+              userinfo.token.claim: true
+              user.attribute: samaccountname
+              id.token.claim: true
+              lightweight.claim: false
+              access.token.claim: true
+              claim.name: samaccountname
+              jsonType.label: String
       - clientId: {{ .Values.zac.auth.clientId }}
         name: Zaakafhandelcomponent
         enabled: true
