@@ -328,16 +328,6 @@ infinispan:
   monitoring:
     enabled: true
 
-abc:
-  configuration:
-    oidcUrl: https://abc.example.nl
-    oidcSecret: "abc"
-  enabled: false
-
-brpmock:
-  enabled: false
-  nameOverride: brpmock
-
 openzaak:
   configuration:
     enabled: true
@@ -1002,6 +992,8 @@ openarchiefbeheer:
   fullnameOverride: openarchiefbeheer
   configuration:
     enabled: false
+    oidcUrl: https://abc.example.nl
+    oidcSecret: "abc"
     job:
       enabled: true
       backoffLimit: 6
