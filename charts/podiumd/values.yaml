@@ -1780,7 +1780,7 @@ zac:
   image:
     repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
-    tag: "3.5.0"
+    tag: "3.7.71"
   keycloak:
     adminClient:
       id: zac-admin-client
