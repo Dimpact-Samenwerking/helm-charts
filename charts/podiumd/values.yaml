@@ -12,11 +12,11 @@ global:
 cnpg:
   enabled: true
 
-pgcluster:
+cluster:
+  #fullnameOverride: cluster
   enabled: true
   type: postgis
   mode: standalone
-  fullnameOverride: pgcluster
   version:
     postgis: "3.4"
     postgresql: "15"
@@ -26,6 +26,27 @@ pgcluster:
       database: podiumd
   backups:
     enabled: false
+
+nfs-server-provisioner:
+  persistence:
+    enabled: true
+    size: 10Gi
+
+traefik:
+  persistence:
+    enabled: true
+    storageClass: nfs
+    accessMode: ReadWriteMany
+    size: 1Gi
+    subPath: "traefik"
+  additionalArguments:
+    - --certificatesresolvers.myresolver.acme.tlschallenge
+    - --certificatesresolvers.myresolver.acme.email=itops@info.nl
+    - --certificatesresolvers.myresolver.acme.storage=/data/acme.json
+      #- --certificatesresolvers.myresolver.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory
+    - --certificatesresolvers.myresolver.acme.httpChallenge.entryPoint=web
+      #- --entryPoints.test.address=":80"
+      #- --entryPoints.testsecure.address=":443"
 
 
 persistentVolume:
@@ -106,7 +127,7 @@ keycloak:
   # image parameters for keycloak
   image:
     registry: ""
-    repository: keycloak
+    repository: bitnami/keycloak
     tag: 25.0.6
   externalDatabase:
     host: "postgres"
@@ -123,7 +144,7 @@ keycloak:
     # image parameters for keycloak-config-cli
     image:
       registry: ""
-      repository: keycloak-config-cli
+      repository: bitnami/keycloak-config-cli
       # -- image tag for keycloak-config-cli, this must be a version that is compatible with the keycloak image tag
       tag: "6.1.6"
   metrics:
@@ -145,7 +166,7 @@ keycloak:
     enabled: true
   production: true
   proxy: edge
-  proxyHeaders: forwarded
+  proxyHeaders: xforwarded
   postgresql:
     enabled: false
   nameOverride: keycloak
@@ -351,10 +372,6 @@ abc:
     oidcUrl: https://abc.example.nl
     oidcSecret: "abc"
   enabled: false
-
-brpmock:
-  enabled: false
-  nameOverride: brpmock
 
 openzaak:
   configuration:
@@ -872,12 +889,10 @@ objecten:
       useTLS: true
     disable2fa: false
   persistence:
-    size: 10Gi
-    existingClaim: objecten
-  persistentVolume:
-    volumeAttributeShareName: objecten
+    storageClassName: nfs
+    size: 1Gi
   image:
-    tag: "3.0.3"
+    tag: "3.0.4"
   resources:
     requests:
       cpu: 100m
@@ -898,8 +913,8 @@ objecten:
     master:
       persistence:
         enabled: true
-        size: 8Gi
-        storageClass: ""
+        size: 1Gi
+        storageClass: default
       resources:
         requests:
           cpu: 10m
@@ -1006,8 +1021,8 @@ objecttypen:
     master:
       persistence:
         enabled: true
-        size: 8Gi
-        storageClass: ""
+        size: 1Gi
+        storageClassName: default
       resources:
         requests:
           cpu: 10m
