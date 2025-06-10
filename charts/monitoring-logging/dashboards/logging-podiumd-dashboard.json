@@ -24,7 +24,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 5,
+  "id": 3,
   "links": [],
   "panels": [
     {
@@ -150,7 +150,7 @@
           "sort": "desc"
         }
       },
-      "pluginVersion": "11.6.0",
+      "pluginVersion": "12.0.0",
       "targets": [
         {
           "datasource": {
@@ -357,7 +357,7 @@
               "sort": "none"
             }
           },
-          "pluginVersion": "11.6.0",
+          "pluginVersion": "12.0.0",
           "targets": [
             {
               "datasource": {
@@ -505,7 +505,7 @@
               }
             ]
           },
-          "pluginVersion": "11.6.0",
+          "pluginVersion": "12.0.0",
           "targets": [
             {
               "datasource": {
@@ -681,7 +681,7 @@
             "h": 11,
             "w": 12,
             "x": 0,
-            "y": 41
+            "y": 22
           },
           "id": 62,
           "options": {
@@ -708,13 +708,14 @@
               "sort": "none"
             }
           },
-          "pluginVersion": "11.6.0",
+          "pluginVersion": "12.0.0",
           "targets": [
             {
               "datasource": {
                 "type": "loki",
                 "uid": "loki"
               },
+              "direction": "backward",
               "editorMode": "code",
               "expr": "sum(count_over_time ({app=\"opennotificaties\"} |~ `POST /api/v1/notificaties` |~ \"HTTP/1.1 201\" [$__range]))",
               "legendFormat": "Notificatie",
@@ -727,6 +728,7 @@
                 "type": "loki",
                 "uid": "loki"
               },
+              "direction": "backward",
               "editorMode": "code",
               "expr": "sum(count_over_time({app=\"objecten\"} |~ \"POST /api/v2/objects\" |~ \"HTTP/1.1 201\" [$__range]))",
               "hide": false,
@@ -739,6 +741,7 @@
                 "type": "loki",
                 "uid": "loki"
               },
+              "direction": "backward",
               "editorMode": "code",
               "expr": "sum(count_over_time ({app=\"openformulieren-nginx\"} |~ \"POST /api/v2/submissions/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/_complete\" |~ `HTTP/1.1\\\" 200` [$__range]))",
               "hide": false,
@@ -751,6 +754,7 @@
                 "type": "loki",
                 "uid": "loki"
               },
+              "direction": "backward",
               "editorMode": "code",
               "expr": "sum(count_over_time(\r\n        {app=\"openformulieren-worker\"}  \r\n        |~ \"/zgw-apis-provider/drc/api/v1/enkelvoudiginformatieobjecten/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\"\r\n        |~ `\"public_reference\":\"OF-[0-9a-zA-Z]{6}\"`\r\n        |~ \".pdf\"\r\n        [$__range]))\r\n",
               "hide": false,
@@ -763,6 +767,7 @@
                 "type": "loki",
                 "uid": "loki"
               },
+              "direction": "backward",
               "editorMode": "code",
               "expr": "sum(\r\n    count_over_time({app=\"openformulieren-worker\"}  |~ `\"public_reference\":\"OF-[0-9a-zA-Z]{6}\"` |~ \"/api/v2/objects/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\" [$__range]))",
               "hide": false,
@@ -773,6 +778,217 @@
           ],
           "title": "Keten formulieren -> e-Suite",
           "type": "piechart"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "description": "",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                }
+              },
+              "mappings": []
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 11,
+            "w": 12,
+            "x": 12,
+            "y": 22
+          },
+          "id": 75,
+          "options": {
+            "displayLabels": [
+              "name",
+              "value"
+            ],
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "pieType": "pie",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.0.0",
+          "targets": [
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "loki"
+              },
+              "direction": "backward",
+              "editorMode": "code",
+              "expr": "sum(count_over_time({app=\"openzaak\"} |~ \"POST /zaken/api/v1/zaken\" |~ \"HTTP/1.1 201\" [$__range]))",
+              "hide": false,
+              "legendFormat": "Aangemaakte zaken",
+              "queryType": "range",
+              "refId": "E"
+            }
+          ],
+          "title": "Zaken in Open Zaak",
+          "type": "piechart"
+        },
+        {
+          "datasource": {
+            "uid": "loki"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "bars",
+                "fillOpacity": 0,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 8,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "normal"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green"
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byFrameRefID",
+                  "options": "A"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "continuous-GrYlRd",
+                      "seriesBy": "last"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byFrameRefID",
+                  "options": "B"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "continuous-BlPu",
+                      "seriesBy": "last"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 12,
+            "w": 12,
+            "x": 0,
+            "y": 33
+          },
+          "id": 67,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.0.0",
+          "targets": [
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "loki"
+              },
+              "editorMode": "code",
+              "expr": "sum by (formulier) (count_over_time({app=\"openformulieren-nginx\"}\r\n|~ `https?://[^/\\s]+/([^/\\s]+)` \r\n|~ \"POST /api/v2/submissions/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/_complete\" \r\n| regexp `https?://(?P<url>[^/\\s]+)/(?P<formulier>[^/\\s]+)`  \r\n[$__interval])) ",
+              "hide": false,
+              "legendFormat": "{{formulier}}",
+              "queryType": "range",
+              "refId": "B"
+            },
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "loki"
+              },
+              "editorMode": "code",
+              "expr": "sum by (of_id) (\r\n  count_over_time(\r\n    {app=\"openformulieren-worker\"} \r\n    |~ \"\\\"public_reference\\\":\\\"OF-[0-9a-zA-Z]{6}\\\"\"\r\n    |~ \"/api/v2/objects/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\" \r\n    | regexp `.*(?P<of_id>OF-[A-Za-z0-9]{6}).*`\r\n    [$__interval]\r\n  )\r\n)",
+              "hide": false,
+              "legendFormat": "{{of_id}}",
+              "queryType": "range",
+              "refId": "A"
+            }
+          ],
+          "title": "Alle ingezonden formulier namen en OF-nummers historisch",
+          "type": "timeseries"
         },
         {
           "datasource": {
@@ -836,10 +1052,10 @@
             ]
           },
           "gridPos": {
-            "h": 11,
+            "h": 12,
             "w": 12,
             "x": 12,
-            "y": 41
+            "y": 33
           },
           "id": 66,
           "options": {
@@ -860,7 +1076,7 @@
               }
             ]
           },
-          "pluginVersion": "11.6.0",
+          "pluginVersion": "12.0.0",
           "targets": [
             {
               "datasource": {
@@ -989,7 +1205,7 @@
             "h": 12,
             "w": 12,
             "x": 0,
-            "y": 52
+            "y": 45
           },
           "id": 72,
           "options": {
@@ -1014,12 +1230,13 @@
               "values": false
             },
             "tooltip": {
+              "hideZeros": false,
               "maxHeight": 400,
               "mode": "single",
               "sort": "none"
             }
           },
-          "pluginVersion": "11.3.0",
+          "pluginVersion": "12.0.0",
           "targets": [
             {
               "datasource": {
@@ -1071,207 +1288,10 @@
           ],
           "title": "HTTP codes component: \"$App\"",
           "type": "piechart"
-        },
-        {
-          "datasource": {
-            "uid": "loki"
-          },
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "axisBorderShow": false,
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "barAlignment": 0,
-                "barWidthFactor": 0.6,
-                "drawStyle": "bars",
-                "fillOpacity": 0,
-                "gradientMode": "none",
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                },
-                "insertNulls": false,
-                "lineInterpolation": "linear",
-                "lineWidth": 1,
-                "pointSize": 8,
-                "scaleDistribution": {
-                  "type": "linear"
-                },
-                "showPoints": "auto",
-                "spanNulls": false,
-                "stacking": {
-                  "group": "A",
-                  "mode": "normal"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green"
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              }
-            },
-            "overrides": [
-              {
-                "matcher": {
-                  "id": "byFrameRefID",
-                  "options": "A"
-                },
-                "properties": [
-                  {
-                    "id": "color",
-                    "value": {
-                      "mode": "continuous-GrYlRd",
-                      "seriesBy": "last"
-                    }
-                  }
-                ]
-              },
-              {
-                "matcher": {
-                  "id": "byFrameRefID",
-                  "options": "B"
-                },
-                "properties": [
-                  {
-                    "id": "color",
-                    "value": {
-                      "mode": "continuous-BlPu",
-                      "seriesBy": "last"
-                    }
-                  }
-                ]
-              }
-            ]
-          },
-          "gridPos": {
-            "h": 12,
-            "w": 12,
-            "x": 12,
-            "y": 52
-          },
-          "id": 67,
-          "options": {
-            "legend": {
-              "calcs": [],
-              "displayMode": "table",
-              "placement": "bottom",
-              "showLegend": true
-            },
-            "tooltip": {
-              "mode": "single",
-              "sort": "none"
-            }
-          },
-          "pluginVersion": "11.3.0",
-          "targets": [
-            {
-              "datasource": {
-                "type": "loki",
-                "uid": "loki"
-              },
-              "editorMode": "code",
-              "expr": "sum by (formulier) (count_over_time({app=\"openformulieren-nginx\"}\r\n|~ `https?://[^/\\s]+/([^/\\s]+)` \r\n|~ \"POST /api/v2/submissions/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/_complete\" \r\n| regexp `https?://(?P<url>[^/\\s]+)/(?P<formulier>[^/\\s]+)`  \r\n[$__interval])) ",
-              "hide": false,
-              "legendFormat": "{{formulier}}",
-              "queryType": "range",
-              "refId": "B"
-            },
-            {
-              "datasource": {
-                "type": "loki",
-                "uid": "loki"
-              },
-              "editorMode": "code",
-              "expr": "sum by (of_id) (\r\n  count_over_time(\r\n    {app=\"openformulieren-worker\"} \r\n    |~ \"\\\"public_reference\\\":\\\"OF-[0-9a-zA-Z]{6}\\\"\"\r\n    |~ \"/api/v2/objects/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\" \r\n    | regexp `.*(?P<of_id>OF-[A-Za-z0-9]{6}).*`\r\n    [$__interval]\r\n  )\r\n)",
-              "hide": false,
-              "legendFormat": "{{of_id}}",
-              "queryType": "range",
-              "refId": "A"
-            }
-          ],
-          "title": "Alle ingezonden formulier namen en OF-nummers historisch",
-          "type": "timeseries"
         }
       ],
-      "title": "Keten formulieren -> e-Suite",
+      "title": "Keten formulieren -> e-Suite en Open Zaak",
       "type": "row"
-    },
-    {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 11
-      },
-      "id": 4,
-      "panels": [],
-      "title": "Alle logs voor component: \"$App\"",
-      "type": "row"
-    },
-    {
-      "datasource": {
-        "type": "loki",
-        "uid": "loki"
-      },
-      "description": "",
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 19,
-        "w": 24,
-        "x": 0,
-        "y": 12
-      },
-      "id": 68,
-      "options": {
-        "dedupStrategy": "none",
-        "enableInfiniteScrolling": false,
-        "enableLogDetails": true,
-        "prettifyLogMessage": true,
-        "showCommonLabels": false,
-        "showLabels": false,
-        "showTime": true,
-        "sortOrder": "Descending",
-        "wrapLogMessage": true
-      },
-      "pluginVersion": "11.6.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "direction": "backward",
-          "editorMode": "code",
-          "expr": "{app=~\"$Subapp\"}  |~ \"(?i)$search\" |~ \"(?i)$Methode\" |~ \"(?i)$LogLevel\" !~ `$excluded_log_levels` != `HTTP/1.1\" 0 \"` ",
-          "maxLines": 100,
-          "queryType": "range",
-          "refId": "A"
-        }
-      ],
-      "title": "Logs component: $App",
-      "type": "logs"
     },
     {
       "collapsed": true,
@@ -1279,7 +1299,67 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 31
+        "y": 11
+      },
+      "id": 4,
+      "panels": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "description": "",
+          "fieldConfig": {
+            "defaults": {},
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 19,
+            "w": 24,
+            "x": 0,
+            "y": 178
+          },
+          "id": 68,
+          "options": {
+            "dedupStrategy": "none",
+            "enableInfiniteScrolling": false,
+            "enableLogDetails": true,
+            "prettifyLogMessage": true,
+            "showCommonLabels": false,
+            "showLabels": false,
+            "showTime": true,
+            "sortOrder": "Descending",
+            "wrapLogMessage": true
+          },
+          "pluginVersion": "11.6.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "loki"
+              },
+              "direction": "backward",
+              "editorMode": "code",
+              "expr": "{app=~\"$Subapp\"}  |~ \"(?i)$search\" |~ \"(?i)$Methode\" |~ \"(?i)$LogLevel\" !~ `$excluded_log_levels` != `HTTP/1.1\" 0 \"` ",
+              "maxLines": 100,
+              "queryType": "range",
+              "refId": "A"
+            }
+          ],
+          "title": "Logs component: $App",
+          "type": "logs"
+        }
+      ],
+      "title": "Alle logs voor component: \"$App\"",
+      "type": "row"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 12
       },
       "id": 71,
       "panels": [
@@ -1297,7 +1377,7 @@
             "h": 19,
             "w": 24,
             "x": 0,
-            "y": 173
+            "y": 198
           },
           "id": 70,
           "options": {
@@ -1311,7 +1391,7 @@
             "sortOrder": "Descending",
             "wrapLogMessage": true
           },
-          "pluginVersion": "11.6.0",
+          "pluginVersion": "11.6.1",
           "targets": [
             {
               "datasource": {
@@ -1340,7 +1420,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 32
+        "y": 13
       },
       "id": 74,
       "panels": [
@@ -1366,11 +1446,12 @@
             "h": 13,
             "w": 24,
             "x": 0,
-            "y": 497
+            "y": 218
           },
           "id": 51,
           "options": {
             "dedupStrategy": "none",
+            "enableInfiniteScrolling": false,
             "enableLogDetails": true,
             "prettifyLogMessage": true,
             "showCommonLabels": false,
@@ -1379,7 +1460,7 @@
             "sortOrder": "Descending",
             "wrapLogMessage": true
           },
-          "pluginVersion": "11.3.0",
+          "pluginVersion": "11.6.1",
           "targets": [
             {
               "datasource": {
@@ -1417,11 +1498,12 @@
             "h": 11,
             "w": 24,
             "x": 0,
-            "y": 510
+            "y": 231
           },
           "id": 63,
           "options": {
             "dedupStrategy": "none",
+            "enableInfiniteScrolling": false,
             "enableLogDetails": true,
             "prettifyLogMessage": true,
             "showCommonLabels": false,
@@ -1430,7 +1512,7 @@
             "sortOrder": "Descending",
             "wrapLogMessage": false
           },
-          "pluginVersion": "11.3.0",
+          "pluginVersion": "11.6.1",
           "targets": [
             {
               "datasource": {
@@ -1458,7 +1540,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 33
+        "y": 14
       },
       "id": 64,
       "panels": [
@@ -1475,7 +1557,7 @@
             "h": 12,
             "w": 24,
             "x": 0,
-            "y": 194
+            "y": 267
           },
           "id": 73,
           "options": {
@@ -1489,7 +1571,7 @@
             "sortOrder": "Descending",
             "wrapLogMessage": true
           },
-          "pluginVersion": "11.6.0",
+          "pluginVersion": "11.6.1",
           "targets": [
             {
               "editorMode": "code",
@@ -1515,9 +1597,7 @@
       {
         "current": {
           "text": "All",
-          "value": [
-            "$__all"
-          ]
+          "value": "$__all"
         },
         "datasource": {
           "type": "loki",
@@ -1544,9 +1624,7 @@
       {
         "current": {
           "text": "All",
-          "value": [
-            "$__all"
-          ]
+          "value": "$__all"
         },
         "definition": "",
         "description": "Wordt automatisch geselecteerd als je een PodiumD component hebt gekozen. Voor een diepere analyse kan er eventueel een subcomponent geselecteerd worden",
@@ -1778,21 +1856,21 @@
         "options": [
           {
             "selected": false,
-            "text": "DRC",
-            "value": "DRC"
+            "text": "drc",
+            "value": "drc"
           },
           {
             "selected": false,
-            "text": "ZTC",
-            "value": "ZTC"
+            "text": "ztc",
+            "value": "ztc"
           },
           {
             "selected": false,
-            "text": "ZRC",
-            "value": "ZRC"
+            "text": "zrc",
+            "value": "zrc"
           }
         ],
-        "query": "DRC,ZTC,ZRC",
+        "query": "drc,ztc,zrc",
         "type": "custom"
       },
       {
@@ -1815,19 +1893,19 @@
       },
       {
         "current": {
-          "text": "1.1",
-          "value": "1.1"
+          "text": "1.0.0",
+          "value": "1.0.0"
         },
         "label": "Dashboard versie",
         "name": "Dashboard_versie",
         "options": [
           {
             "selected": true,
-            "text": "1.1",
-            "value": "1.1"
+            "text": "1.0.0",
+            "value": "1.0.0"
           }
         ],
-        "query": "1.1",
+        "query": "1.0.0",
         "type": "textbox"
       },
       {
@@ -1922,6 +2000,6 @@
   "timepicker": {},
   "timezone": "",
   "title": "Monitoring en logging PodiumD",
-  "uid": "e970a83d-adc2-4d33-af93-2349c0b77e",
+  "uid": "e970a83d-adc2-4d33-af93-2349c0b77",
   "version": 3
 }
