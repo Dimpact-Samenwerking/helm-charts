@@ -7,17 +7,17 @@ appVersion: "1.0.0"
 dependencies:
   - name: loki
     repository: "@grafana"
-    version: 6.29.0
+    version: 6.30.1
     condition: loki.enabled
   - name: promtail
     repository: "@grafana"
-    version: 6.16.6
+    version: 6.17.0
     condition: promtail.enabled
   - name: grafana
     repository: "@grafana"
-    version: 9.0.0
+    version: 9.2.2
     condition: grafana.enabled
   - name: prometheus
     repository: "@prometheus-community"
-    version: 27.16.0
+    version: 27.20.0
     condition: prometheus.enabled
