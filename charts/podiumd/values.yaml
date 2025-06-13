@@ -28,6 +28,11 @@ cluster:
     enabled: false
 
 nfs-server-provisioner:
+  storageClass:
+    mountOptions:
+      - vers=4
+      - retrans=2
+      - timeo=30
   persistence:
     enabled: true
     size: 10Gi
@@ -736,7 +741,7 @@ opennotificaties:
   persistentVolume:
     volumeAttributeShareName: opennotificaties
   image:
-    tag: "1.8.4"
+    tag: "1.8.2"
   resources:
     requests:
       cpu: 100m

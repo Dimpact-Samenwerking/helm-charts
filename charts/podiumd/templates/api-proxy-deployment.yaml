@@ -14,6 +14,8 @@ spec:
     metadata:
       labels:
         app: {{ default "api-proxy" .Values.apiproxy.nameOverride }}
+      annotations:
+        checksum/configmap-nginx: {{ include (print $.Template.BasePath "/api-proxy-configmap.yaml") . | sha256sum }}
     spec:
       {{- with .Values.apiproxy.imagePullSecrets }}
       imagePullSecrets:

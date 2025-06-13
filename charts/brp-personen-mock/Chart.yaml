@@ -1,6 +1,6 @@
 apiVersion: v2
 name: brp-personen-mock
 description: BRP personen mock Helm chart
-version: 1.2.5
+version: 1.2.6
 appVersion: "2.6.0"
 alias: brppersonenmock
