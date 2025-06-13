@@ -114,6 +114,7 @@ helm repo add openshift https://charts.openshift.io
 helm repo add solr https://solr.apache.org/charts
 helm repo add opentelemetry https://open-telemetry.github.io/opentelemetry-helm-charts
 helm repo add zac https://infonl.github.io/dimpact-zaakafhandelcomponent/
+helm repo add nfs-ganesha-server-and-external-provisioner https://kubernetes-sigs.github.io/nfs-ganesha-server-and-external-provisioner/
 ```
 
 ## PersistentVolume and PersistVolumeClaim resources

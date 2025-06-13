@@ -513,10 +513,8 @@ openzaak:
       useTLS: true
     disable2fa: false
   persistence:
-    size: 10Gi
-    existingClaim: openzaak
-  persistentVolume:
-    volumeAttributeShareName: openzaak
+    storageClassName: nfs
+    size: 1Gi
   image:
     tag: "1.18.0"
   resources:
@@ -549,8 +547,8 @@ openzaak:
     master:
       persistence:
         enabled: true
-        size: 8Gi
-        storageClass: ""
+        size: 1Gi
+        storageClass: default
       resources:
         requests:
           cpu: 10m
@@ -1027,7 +1025,7 @@ objecttypen:
       persistence:
         enabled: true
         size: 1Gi
-        storageClassName: default
+        storageClass: default
       resources:
         requests:
           cpu: 10m
