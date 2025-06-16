@@ -114,6 +114,12 @@ grafana:
       enabled: false     # Ensure anonymous access is disabled
       hide_version: true # Add this to explicitly hide version for anonymous users
       
+    # -- Git Sync for Grafana dashboards
+    feature_toggles:
+      provisioning: true
+      kubernetesClientDashboardsFolders: true
+      kubernetesDashboards: true
+      grafanaAPIServerEnsureKubectlAccess: true
   image:
     pullPolicy: IfNotPresent
     pullSecrets: []
