@@ -2,8 +2,13 @@ apiVersion: v2
 name: monitoring-logging
 description: A monitoring stack using Loki, Prometheus, Promtail and Grafana
 type: application
+<<<<<<< HEAD
 version: 1.0.2
 appVersion: "1.0.2"
+=======
+version: 1.0.1
+appVersion: "1.0.1"
+>>>>>>> 71c3ff26 (changes for brp personen mock & monitoring+logging (#102))
 dependencies:
   - name: loki
     repository: "@grafana"
