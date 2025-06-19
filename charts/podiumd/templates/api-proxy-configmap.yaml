@@ -1,13 +1,13 @@
+{{- if .Values.apiproxy.enabled -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "podiumd-proxy.fullname" . }}-nginx-config
+  name: {{ default "api-proxy" .Values.apiproxy.nameOverride }}-nginx-config
 data:
   nginx.conf: |
     user nginx;
     worker_processes auto;
     error_log /var/log/nginx/error.log notice;
-    pid /var/run/nginx.pid;
 
     events {
       worker_connections 1024;
@@ -26,34 +26,34 @@ data:
       keepalive_timeout 65;
       
       server {
-        listen {{ .Values.service.port }};
+        listen 8080;
         server_tokens off;
         
         # BAG API (Dutch Building and Address Registry)
-        location /bag/ {
+        location {{ .Values.apiproxy.locations.bag.path }} {
           proxy_ssl_certificate_key /etc/nginx/certs/client.key;
           proxy_ssl_certificate /etc/nginx/certs/client.crt;
           proxy_ssl_trusted_certificate /etc/nginx/certs/ca.crt;
           
-          proxy_pass {{ .Values.locations.bag.targetUrl }};
-          proxy_ssl_verify {{ .Values.locations.bag.sslVerify }};
+          proxy_pass {{ .Values.apiproxy.locations.bag.targetUrl }};
+          proxy_ssl_verify {{ .Values.apiproxy.locations.bag.sslVerify }};
           proxy_ssl_session_reuse on;
           proxy_ssl_server_name on;
-          proxy_set_header Host {{ .Values.locations.bag.hostHeader }};
+          proxy_set_header Host {{ .Values.apiproxy.locations.bag.hostHeader }};
           proxy_http_version 1.1;
         }
         
         # BRP API (Dutch Personal Records Database)
-        location /brp/personen {
+        location {{ .Values.apiproxy.locations.brp.path }} {
           proxy_ssl_certificate_key /etc/nginx/certs/client.key;
           proxy_ssl_certificate /etc/nginx/certs/client.crt;
           proxy_ssl_trusted_certificate /etc/nginx/certs/ca.crt;
           
-          proxy_pass {{ .Values.locations.brp.targetUrl }};
-          proxy_ssl_verify {{ .Values.locations.brp.sslVerify }};
+          proxy_pass {{ .Values.apiproxy.locations.brp.targetUrl }};
+          proxy_ssl_verify {{ .Values.apiproxy.locations.brp.sslVerify }};
           proxy_ssl_session_reuse on;
           proxy_ssl_server_name on;
-          proxy_set_header Host {{ .Values.locations.brp.hostHeader }};
+          proxy_set_header Host {{ .Values.apiproxy.locations.brp.hostHeader }};
           proxy_http_version 1.1;
         }
         
@@ -63,11 +63,11 @@ data:
           proxy_ssl_certificate /etc/nginx/certs/client.crt;
           proxy_ssl_trusted_certificate /etc/nginx/certs/ca.crt;
           
-          proxy_pass {{ .Values.locations.kvkSearch.targetUrl }};
-          proxy_ssl_verify {{ .Values.locations.kvkSearch.sslVerify }};
+          proxy_pass {{ .Values.apiproxy.locations.kvkSearch.targetUrl }};
+          proxy_ssl_verify {{ .Values.apiproxy.locations.kvkSearch.sslVerify }};
           proxy_ssl_session_reuse on;
           proxy_ssl_server_name on;
-          proxy_set_header Host {{ .Values.locations.kvkSearch.hostHeader }};
+          proxy_set_header Host {{ .Values.apiproxy.locations.kvkSearch.hostHeader }};
           proxy_http_version 1.1;
         }
         
@@ -77,11 +77,11 @@ data:
           proxy_ssl_certificate /etc/nginx/certs/client.crt;
           proxy_ssl_trusted_certificate /etc/nginx/certs/ca.crt;
           
-          proxy_pass {{ .Values.locations.kvkBasic.targetUrl }};
-          proxy_ssl_verify {{ .Values.locations.kvkBasic.sslVerify }};
+          proxy_pass {{ .Values.apiproxy.locations.kvkBasic.targetUrl }};
+          proxy_ssl_verify {{ .Values.apiproxy.locations.kvkBasic.sslVerify }};
           proxy_ssl_session_reuse on;
           proxy_ssl_server_name on;
-          proxy_set_header Host {{ .Values.locations.kvkBasic.hostHeader }};
+          proxy_set_header Host {{ .Values.apiproxy.locations.kvkBasic.hostHeader }};
           proxy_http_version 1.1;
         }
         
@@ -91,11 +91,11 @@ data:
           proxy_ssl_certificate /etc/nginx/certs/client.crt;
           proxy_ssl_trusted_certificate /etc/nginx/certs/ca.crt;
           
-          proxy_pass {{ .Values.locations.kvkBranch.targetUrl }};
-          proxy_ssl_verify {{ .Values.locations.kvkBranch.sslVerify }};
+          proxy_pass {{ .Values.apiproxy.locations.kvkBranch.targetUrl }};
+          proxy_ssl_verify {{ .Values.apiproxy.locations.kvkBranch.sslVerify }};
           proxy_ssl_session_reuse on;
           proxy_ssl_server_name on;
-          proxy_set_header Host {{ .Values.locations.kvkBranch.hostHeader }};
+          proxy_set_header Host {{ .Values.apiproxy.locations.kvkBranch.hostHeader }};
           proxy_http_version 1.1;
         }
         
@@ -106,3 +106,4 @@ data:
         }
       }
     }
+{{- end }}

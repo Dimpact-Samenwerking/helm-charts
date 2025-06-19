@@ -68,12 +68,8 @@ dependencies:
     condition: infinispan.enabled
   - name: zaakafhandelcomponent
     alias: zac
-    version: 1.0.21
+    version: 1.0.25
     repository: "@zac"
     condition: zac.enabled
     tags:
       - zaak
-  - name: podiumd-proxy
-    version: 1.0.0
-    repository: file://charts/podiumd-proxy
-    condition: proxy.enabled

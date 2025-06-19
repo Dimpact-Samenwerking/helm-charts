@@ -91,6 +91,7 @@ Adapter selector labels
 {{- define "podiumd.selectorLabelsAdapter" -}}
 app.kubernetes.io/name: {{ include "podiumd.name" . }}-adapter
 app.kubernetes.io/instance: {{ .Release.Name }}
+<<<<<<< HEAD
 {{- end }}
 
 {{/*
@@ -105,3 +106,6 @@ Usage:
         {{- tpl (.value | toYaml) .context }}
     {{- end }}
 {{- end -}}
+=======
+{{- end }}
+>>>>>>> 7b8c57f7868dbf2b8c7f2f19cd9a70a0bfce904b

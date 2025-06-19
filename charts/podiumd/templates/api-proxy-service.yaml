@@ -1,0 +1,14 @@
+{{- if .Values.apiproxy.enabled -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ default "api-proxy" .Values.apiproxy.nameOverride }}
+spec:
+  selector:
+    app: {{ default "api-proxy" .Values.apiproxy.nameOverride }}
+  ports:
+  - port: {{ .Values.apiproxy.service.port }}
+    targetPort: http
+    name: http
+  type: ClusterIP
+{{- end }}

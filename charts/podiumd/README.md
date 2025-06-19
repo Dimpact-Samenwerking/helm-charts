@@ -76,7 +76,6 @@ Patch release for Open Inwoner bug fix.
 | Open Zaak         | 1.18.0  | Minor update   |
 | Kiss              | 0.7.1   | Minor update   |
 | Zac               | 3.0.0   | Nieuw component|
-| Podiumd Proxy     | 1.0.0   | Nieuw component|
 
 
 ## Add Used chart repositories:
@@ -579,31 +578,33 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 
 ### Podiumd Proxy 
 
-| Name                    | Description                                   | Value                       |
-|-------------------------|-----------------------------------------------|------------------------------|
-| replicaCount            | Number of replicas to deploy                  | `1`                          |
-| nameOverride            | Override for the deployment name              | `""`                         |
-| fullnameOverride        | Override for the full deployment name         | `""`                         |
-| image.repository        | Container image repository                    | `nginx`                      |
-| image.tag               | Container image tag                           | `"1.25-alpine"`              |
-| image.pullPolicy        | Image pull policy                             | `IfNotPresent`               |
-| service.port            | Service port                                  | `8081`                       |
-| resources.limits.cpu    | CPU resource limit                            | `"0.5"`                      |
-| resources.limits.memory | Memory resource limit                         | `"256Mi"`                    |
-| resources.requests.cpu  | CPU resource request                          | `"0.1"`                      |
-| resources.requests.memory | Memory resource request                     | `"128Mi"`                    |
-| nginxCertsSecret        | Secret containing NGINX certificates          | `"podiumd-proxy-certs"`      |
-| livenessProbe.initialDelaySeconds | Initial delay for liveness probe    | `5`                          |
-| livenessProbe.periodSeconds | Period between liveness probe checks      | `10`                         |
-| readinessProbe.initialDelaySeconds | Initial delay for readiness probe  | `5`                          |
-| readinessProbe.periodSeconds | Period between readiness probe checks    | `10`                         |
-| locations.*.sslVerify   | SSL verification setting for all locations    | `"off"`                      |
-| locations.*.hostHeader  | Host header for all locations                 | `"lab.api.mijniconnect.nl"` |
-| locations.bag.targetUrl | Target URL for BAG location                   | `"https://lab.api.mijniconnect.nl/iconnect/apihcbrp/actueel/v2/"` |
-| locations.brp.targetUrl | Target URL for BRP location                   | `"https://lab.api.mijniconnect.nl/iconnect/apihcbrp/actueel/prtcl/v2/personen"` |
-| locations.kvkSearch.targetUrl | Target URL for KVK search               | `"https://lab.api.mijniconnect.nl/iconnect/apikvk/zoeken/v2/zoeken"` |
-| locations.kvkBasic.targetUrl | Target URL for KVK basic profiles        | `"https://lab.api.mijniconnect.nl/iconnect/apikvk/basprof/v1/v1/basisprofielen"` |
-| locations.kvkBranch.targetUrl | Target URL for KVK branch profiles      | `"https://lab.api.mijniconnect.nl/iconnect/apikvk/vesprof/v1/v1/vestigingsprofielen"` |
+| Name                               | Description                                   | Value                       |
+|------------------------------------|-----------------------------------------------|------------------------------|
+| apiproxy.replicaCount              | Number of replicas to deploy                  | `1`                          |
+| apiproxy.nameOverride                       | Override for the deployment name              | `""`                         |
+| apiproxy.fullnameOverride                   | Override for the full deployment name         | `""`                         |
+| apiproxy.image.repository                   | Container image repository                    | `nginx`                      |
+| apiproxy.image.tag                          | Container image tag                           | `"1.25-alpine"`              |
+| apiproxy.image.pullPolicy                   | Image pull policy                             | `IfNotPresent`               |
+| apiproxy.service.port                       | Service port                                  | `8081`                       |
+| apiproxy.resources.limits.cpu               | CPU resource limit                            | `"0.5"`                      |
+| apiproxy.resources.limits.memory            | Memory resource limit                         | `"256Mi"`                    |
+| apiproxy.resources.requests.cpu             | CPU resource request                          | `"0.1"`                      |
+| apiproxy.resources.requests.memory          | Memory resource request                     | `"128Mi"`                    |
+| apiproxy.nginxCertsSecret                   | Secret containing NGINX certificates          | `"podiumd-proxy-certs"`      |
+| apiproxy.livenessProbe.initialDelaySeconds  | Initial delay for liveness probe    | `5`                          |
+| apiproxy.livenessProbe.periodSeconds        | Period between liveness probe checks      | `10`                         |
+| apiproxy.readinessProbe.initialDelaySeconds | Initial delay for readiness probe  | `5`                          |
+| apiproxy.readinessProbe.periodSeconds       | Period between readiness probe checks    | `10`                         |
+| apiproxy.locations.*.sslVerify              | SSL verification setting for all locations    | `"off"`                      |
+| apiproxy.locations.*.hostHeader             | Host header for all locations                 | `"lab.api.mijniconnect.nl"` |
+| apiproxy.locations.bag.path | Base path for BAG | `"/lvbag/individuelebevragingen/v2/"` |
+| apiproxy.locations.bag.targetUrl            | Target URL for BAG location                   | `"https://lab.api.mijniconnect.nl/iconnect/apihcbrp/actueel/v2/"` |
+| apiproxy.locations.brp.path | Base path for 
+| apiproxy.locations.brp.targetUrl            | Target URL for BRP location                   | `"https://lab.api.mijniconnect.nl/iconnect/apihcbrp/actueel/prtcl/v2/personen"` |
+| apiproxy.locations.kvkSearch.targetUrl      | Target URL for KVK search               | `"https://lab.api.mijniconnect.nl/iconnect/apikvk/zoeken/v2/zoeken"` |
+| apiproxy.locations.kvkBasic.targetUrl       | Target URL for KVK basic profiles        | `"https://lab.api.mijniconnect.nl/iconnect/apikvk/basprof/v1/v1/basisprofielen"` |
+| apiproxy.locations.kvkBranch.targetUrl      | Target URL for KVK branch profiles      | `"https://lab.api.mijniconnect.nl/iconnect/apikvk/vesprof/v1/v1/vestigingsprofielen"` |
 
 #### Create certificate example
 $ kubectl create secret generic api-proxy-certs \
