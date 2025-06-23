@@ -1694,7 +1694,7 @@ kiss:
     medewerkerIdentificatieTruncate: null
 
   organisatieIds: ""
-
+  managementApiKey: ""
   imagePullSecrets: []
 
 
@@ -1773,7 +1773,7 @@ kiss:
       enabled: true
       schedule: "*/59 * * * *"
     domain:
-      enabled: false  # Add this if you want domain sync
+      enabled: false
       schedule: "0 5 * * *"
       url: "https://www.my-website.nl"
     successfulJobsHistoryLimit: 1
