@@ -1731,10 +1731,19 @@ kiss:
 
   sync:
     initialSync: true
-    schedule:
-      kennisbank: "*/59 * * * *"
-      smoelenboek: "*/59 * * * *"
-      vac: "*/59 * * * *"
+    kennisbank:
+      enabled: true
+      schedule: "*/59 * * * *"
+    smoelenboek:
+      enabled: true 
+      schedule: "*/59 * * * *"
+    vac:
+      enabled: true
+      schedule: "*/59 * * * *"
+    domain:
+      enabled: false  # Add this if you want domain sync
+      schedule: "0 5 * * *"
+      url: "https://www.my-website.nl"
     successfulJobsHistoryLimit: 1
     failedJobsHistoryLimit: 1
     image:
