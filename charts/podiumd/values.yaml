@@ -1694,7 +1694,7 @@ kiss:
     medewerkerIdentificatieTruncate: null
 
   organisatieIds: ""
-
+  managementApiKey: ""
   imagePullSecrets: []
 
 
@@ -1715,6 +1715,22 @@ kiss:
         cpu: 10m
         memory: 100Mi
     aspNetCoreEnvironment: Production
+    # -- Optionally specify extra list of additional volumes, for example to trust extra ca certificates.
+    extraVolumes: []
+    # e.g:
+    # extraVolumes:
+    #   - name: my-secret-mount
+    #     secret:
+    #       secretName: my-secret-containing-my-custom-ca
+
+    # -- Optionally specify extra list of additional volumeMounts, for example to trust extra ca certificates.
+    extraVolumeMounts: []
+    # e.g:
+    # extraVolumeMounts:
+    #  - name: my-secret-mount
+    #    readOnly: true
+    #    subPath: ca.crt
+    #    mountPath: /etc/ssl/certs/my-custom-ca.crt
 
   adapter:
     baseUrl: ""
@@ -1728,13 +1744,38 @@ kiss:
       requests:
         cpu: 10m
         memory: 100Mi
+    # -- Optionally specify extra list of additional volumes, for example to trust extra ca certificates.
+    extraVolumes: []
+    # e.g:
+    # extraVolumes:
+    #   - name: my-secret-mount
+    #     secret:
+    #       secretName: my-secret-containing-my-custom-ca
+
+    # -- Optionally specify extra list of additional volumeMounts, for example to trust extra ca certificates.
+    extraVolumeMounts: []
+    # e.g:
+    # extraVolumeMounts:
+    #  - name: my-secret-mount
+    #    readOnly: true
+    #    subPath: ca.crt
+    #    mountPath: /etc/ssl/certs/my-custom-ca.crt
 
   sync:
     initialSync: true
-    schedule:
-      kennisbank: "*/59 * * * *"
-      smoelenboek: "*/59 * * * *"
-      vac: "*/59 * * * *"
+    kennisbank:
+      enabled: true
+      schedule: "*/59 * * * *"
+    smoelenboek:
+      enabled: true 
+      schedule: "*/59 * * * *"
+    vac:
+      enabled: true
+      schedule: "*/59 * * * *"
+    domain:
+      enabled: false
+      schedule: "0 5 * * *"
+      url: "https://www.my-website.nl"
     successfulJobsHistoryLimit: 1
     failedJobsHistoryLimit: 1
     image:
