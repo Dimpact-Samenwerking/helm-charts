@@ -1,4 +1,5 @@
 {{- if .Values.kiss.enabled -}}
+{{- if .Values.kiss.sync.smoelenboek.enabled | default true }}
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -7,7 +8,7 @@ metadata:
     {{- include "podiumd.labels" . | nindent 4 }}
     app.kubernetes.io/name: {{ include "podiumd.name" . }}-sync-smoelenboek-cron-job
 spec:
-  schedule: {{ .Values.kiss.sync.schedule.smoelenboek | quote }}
+  schedule: {{ .Values.kiss.sync.smoelenboek.schedule | quote }}
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: {{ .Values.kiss.sync.successfulJobsHistoryLimit }}
   failedJobsHistoryLimit: {{ .Values.kiss.sync.failedJobsHistoryLimit }}
@@ -35,4 +36,5 @@ spec:
           nodeSelector:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-  {{- end }}
+{{- end }}
+{{- end }}

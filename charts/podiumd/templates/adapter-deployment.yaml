@@ -46,6 +46,14 @@ spec:
                 name: adapter-config
             - secretRef:
                 name: adapter-secret
+            {{- if .Values.kiss.frontend.extraVolumeMounts }}
+            volumeMounts:
+              {{- include "kiss-frontend.tplvalues.render" ( dict "value" .Values.kiss.frontend.extraVolumeMounts "context" $ ) | nindent 12 }}
+            {{- end }}
+            {{- if .Values.kiss.frontend.extraVolumes }}
+            volumes:
+              {{- include "kiss-frontend.tplvalues.render" ( dict "value" .Values.kiss.frontend.extraVolumes "context" $ ) | nindent 8 }}
+            {{- end }}
       {{- with .Values.kiss.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
