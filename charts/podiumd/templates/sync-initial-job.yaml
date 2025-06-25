@@ -29,6 +29,7 @@ spec:
               echo "Wait for 1 minute ..." && \
               sleep 60
       containers:
+        {{- if .Values.kiss.sync.smoelenboek.enabled }}
         - name: sync-smoelenboek
           image: "{{ .Values.kiss.sync.image.repository }}:{{ .Values.kiss.sync.image.tag }}"
           imagePullPolicy: {{ .Values.kiss.sync.image.pullPolicy }}
@@ -39,8 +40,11 @@ spec:
                 name: podiumd-sync-config
             - secretRef:
                 name: podiumd-sync-secret
+        {{- end }}
+        {{- if .Values.kiss.sync.vac.enabled }}
         - name: sync-vac
           image: "{{ .Values.kiss.sync.image.repository }}:{{ .Values.kiss.sync.image.tag }}"
+          imagePullPolicy: {{ .Values.kiss.sync.image.pullPolicy }}
           args:
             - vac
           envFrom:
@@ -48,13 +52,30 @@ spec:
                 name: podiumd-sync-config
             - secretRef:
                 name: podiumd-sync-secret
+        {{- end }}
+        {{- if .Values.kiss.sync.kennisbank.enabled }}
         - name: sync-kennisbank
           image: "{{ .Values.kiss.sync.image.repository }}:{{ .Values.kiss.sync.image.tag }}"
+          imagePullPolicy: {{ .Values.kiss.sync.image.pullPolicy }}
           envFrom:
             - configMapRef:
                 name: podiumd-sync-config
             - secretRef:
                 name: podiumd-sync-secret
+        {{- end }}
+        {{- if .Values.kiss.sync.domain.enabled }}
+        - name: sync-domain
+          image: "{{ .Values.kiss.sync.image.repository }}:{{ .Values.kiss.sync.image.tag }}"
+          imagePullPolicy: {{ .Values.kiss.sync.image.pullPolicy }}
+          args:
+            - domain
+            - {{ .Values.kiss.sync.domain.url | quote }}
+          envFrom:
+            - configMapRef:
+                name: podiumd-sync-config
+            - secretRef:
+                name: podiumd-sync-secret
+        {{- end }}
       {{- with .Values.kiss.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
