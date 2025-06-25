@@ -7,6 +7,8 @@ A monitoring stack using Loki, Prometheus, Promtail and Grafana
 ## Rollenbeheer in Grafana op basis van Keycloak-groepen:
 
 https://dimpact.atlassian.net/wiki/spaces/PCP/pages/412090380/Keycloak+roles+for+monitoring
+https://dimpact.atlassian.net/wiki/spaces/PCP/pages/448528393/Rollenbeheer+in+Grafana+via+Keycloak
+
 
 ## Add Used chart repositories:
 
@@ -18,10 +20,10 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 
 | Repository | Name | Version |
 |------------|------|---------|
-| @grafana | grafana | 9.0.0 |
-| @grafana | loki | 6.29.0 |
-| @grafana | promtail | 6.16.6 |
-| @prometheus-community | prometheus | 27.16.0 |
+| @grafana | grafana | 9.2.7 |
+| @grafana | loki | 6.30.1 |
+| @grafana | promtail | 6.17.0 |
+| @prometheus-community | prometheus | 27.20.1 |
 
 ## Values
 
