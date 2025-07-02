@@ -1,56 +1,45 @@
-# Open Formulieren
+# Formulier (Open Formulieren)
 
 ## Architectuur context binnen PodiumD
 
 
 ```mermaid
-
 C4Context
 
     Person(Citizen, "Inwoner")
 
     Enterprise_Boundary(b0, "PodiumD") {
         System_Boundary(products, "Producten") {
-            Boundary(kiss, "KISS") {
-                System(Contact,"Contact (KISS)")
-                System(kpa, "KISS PodiumD Adapter")
-                System(elastic, "Elastic")
-                System(esync, "🔄 KISS Elastic Sync")
-            }
+            System(OpenFormulieren, "Formulier (Open Formulieren)")
+            System(ZAC, "Zaak - ZAC")
         }
 
         System_Boundary(registers, "Registers") {
             System(OpenZaak, "Open Zaak")
+            System(OpenNotificaties, "Open Notificaties")
             System(Objecten, "Objecten")
+            System(Objecttypen, "Objecttypen")
         }
 
         System_Boundary(andersteunend, "Ondersteunenende componenten") {
             System(keycloak, "Keycloak")
+            System(clamav, "Clamav")
         }
     }
 
-    Enterprise_Boundary(ext, "Externe diensten") {
-        System_Ext(BRP, "BRP")
-        System_Ext(KVK, "KVK")
-    }
-
     Enterprise_Boundary(b1, "e-Suite") {
-        System_Ext(esuite, "e-Suite")
+        System(esuite, "e-Suite")
     }
 
-    Rel(Citizen, Contact, "Vraag")
-    Rel(Contact, kpa, "")
-    Rel(Contact, elastic, "")
-    Rel(Contact, keycloak, "")
-    Rel(Contact, BRP, "")
-    Rel(Contact, KVK, "")
+    Rel(Citizen, OpenFormulieren, "Indienen")
+    Rel(OpenFormulieren, clamav, "Scan", "Documenten scannen")
+    Rel(OpenFormulieren, OpenZaak, "Opslaan", "Documenten & Formulier")
+    Rel(OpenFormulieren, Objecten, "Maak", "Productaanvraag")
+    Rel(Objecten, OpenNotificaties, "Notificeer", "Productaanvraag ingediend")
+    Rel(OpenNotificaties, ZAC, "Notificeer", "Productaanvraag ingediend")
+    Rel(OpenNotificaties, esuite, "Notificeer", "Productaanvraag ingediend")
 
-    Rel(kpa, Objecten, "")
-    Rel(kpa, esuite, "")
-
-    Rel(esync, elastic, "")
-    Rel(esync, Objecten, "")
-
-    UpdateElementStyle(keycloak, $bgColor="green")
-    UpdateElementStyle(OpenZaak, $bgColor="lightblue")
+    UpdateElementStyle(keycloak, $bgColor="green", $borderColor="black")
+    UpdateElementStyle(clamav, $bgColor="green", $borderColor="black")
+    UpdateElementStyle(esuite, $bgColor="grey", $borderColor="black")
 ```

@@ -61,3 +61,6 @@ C4Context
 
 ### Formulier (Open Formulieren)
 Zie voor architectuur context diagram van Open Formulieren de [Open Formulieren documentatie](./formulieren.md).
+
+### Contact (KISS)
+Zie voor architectuur context diagram van Contact (KISS) de [Contact documentatie](./contact.md).
