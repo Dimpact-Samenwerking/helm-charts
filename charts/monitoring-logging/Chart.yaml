@@ -15,9 +15,9 @@ dependencies:
     condition: promtail.enabled
   - name: grafana
     repository: "@grafana"
-    version: 9.2.7
+    version: 9.2.9
     condition: grafana.enabled
   - name: prometheus
     repository: "@prometheus-community"
-    version: 27.20.1
+    version: 27.23.0
     condition: prometheus.enabled
