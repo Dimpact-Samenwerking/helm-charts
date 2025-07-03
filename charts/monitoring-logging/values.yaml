@@ -120,14 +120,23 @@ grafana:
       kubernetesClientDashboardsFolders: true
       kubernetesDashboards: true
       grafanaAPIServerEnsureKubectlAccess: true
+      
   image:
     pullPolicy: IfNotPresent
     pullSecrets: []
-    registry: docker.io
-    repository: grafana/grafana
+    registry: ""
+    repository:
     sha: ""
     tag: ""
-    
+
+  initChownData:
+    image:
+      pullPolicy: IfNotPresent
+      registry: ""
+      repository: ""
+      sha: ""
+      tag: ""
+
   persistence:
     enabled: true
     storageClassName: "managed-csi" # Specify your storage class
@@ -149,7 +158,7 @@ prometheus:
     image:
       digest: ""
       pullPolicy: IfNotPresent
-      repository: quay.io/prometheus/prometheus
+      repository: ""
       tag: ""
     persistentVolume:
       enabled: true
@@ -180,8 +189,8 @@ promtail:
   enabled: true
   image:
     pullPolicy: IfNotPresent
-    registry: docker.io
-    repository: grafana/promtail
+    registry: ""
+    repository: ""
     tag: ""
   nodeSelector:
     agentpool: userpool
@@ -301,7 +310,11 @@ loki:
         s3: 
           endpoint: http://{{ .Release.Name }}-minio-svc:9000
           insecure: true
-        
+    image:
+      pullPolicy: IfNotPresent
+      registry: ""
+      repository: ""
+      tag: ""    
     compactor:
       delete_request_store: s3
       compaction_interval: 10m
