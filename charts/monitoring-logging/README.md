@@ -1,12 +1,13 @@
 # monitoring-logging
 
-![Version: 1.0.0](https://img.shields.io/badge/Version-1.0.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 1.0.0](https://img.shields.io/badge/AppVersion-1.0.0-informational?style=flat-square)
+![Version: 1.0.4](https://img.shields.io/badge/Version-1.0.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 1.0.4](https://img.shields.io/badge/AppVersion-1.0.0-informational?style=flat-square)
 
 A monitoring stack using Loki, Prometheus, Promtail and Grafana
 
 ## Rollenbeheer in Grafana op basis van Keycloak-groepen:
 
 https://dimpact.atlassian.net/wiki/spaces/PCP/pages/412090380/Keycloak+roles+for+monitoring
+
 https://dimpact.atlassian.net/wiki/spaces/PCP/pages/448528393/Rollenbeheer+in+Grafana+via+Keycloak
 
 
@@ -37,13 +38,14 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 | grafana."grafana.ini".auth.disable_signout_menu | bool | `false` |  |
 | grafana."grafana.ini".auth.oauth_auto_login | bool | `true` |  |
 | grafana."grafana.ini".auth.oauth_skip_org_role_update_sync | bool | `false` |  |
+| grafana."grafana.ini".feature_toggles | object | `{"grafanaAPIServerEnsureKubectlAccess":true,"kubernetesClientDashboardsFolders":true,"kubernetesDashboards":true,"provisioning":true}` | Git Sync for Grafana dashboards |
 | grafana."grafana.ini".metrics.enabled | bool | `false` |  |
 | grafana."grafana.ini".security.content_security_policy | bool | `true` |  |
 | grafana."grafana.ini".security.content_security_policy_template | string | `"script-src 'self' 'unsafe-eval' 'unsafe-inline' 'strict-dynamic' $NONCE;object-src 'none';font-src 'self';style-src 'self' 'unsafe-inline' blob:;img-src * data:;base-uri 'self';connect-src 'self' grafana.com ws://$ROOT_PATH wss://$ROOT_PATH;manifest-src 'self';media-src 'none';form-action 'self';"` |  |
 | grafana."grafana.ini".security.cookie_samesite | string | `"lax"` |  |
 | grafana."grafana.ini".security.cookie_secure | bool | `true` |  |
 | grafana."grafana.ini".security.hide_version | bool | `true` |  |
-| grafana."grafana.ini".server.domain | string | `"logs.test.nl/"` |  |
+| grafana."grafana.ini".server.domain | string | `"logs.test.nl"` |  |
 | grafana."grafana.ini".server.enforce_domain | bool | `true` |  |
 | grafana."grafana.ini".server.root_url | string | `"https://logs.test.nl/"` |  |
 | grafana.assertNoLeakedSecrets | bool | `false` |  |
@@ -84,10 +86,20 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 | grafana.enabled | bool | `true` |  |
 | grafana.image.pullPolicy | string | `"IfNotPresent"` |  |
 | grafana.image.pullSecrets | list | `[]` |  |
-| grafana.image.registry | string | `"docker.io"` |  |
-| grafana.image.repository | string | `"grafana/grafana"` |  |
+| grafana.image.registry | string | `"acrprodmgmt.azurecr.io"` |  |
+| grafana.image.repository | string | `"grafana"` |  |
 | grafana.image.sha | string | `""` |  |
 | grafana.image.tag | string | `""` |  |
+| grafana.imageRenderer.image.pullPolicy | string | `"Always"` |  |
+| grafana.imageRenderer.image.pullSecrets | list | `[]` |  |
+| grafana.imageRenderer.image.registry | string | `"acrprodmgmt.azurecr.io"` |  |
+| grafana.imageRenderer.image.repository | string | `"grafana-image-renderer"` |  |
+| grafana.imageRenderer.image.sha | string | `""` |  |
+| grafana.imageRenderer.image.tag | string | `"latest"` |  |
+| grafana.initChownData.image.pullPolicy | string | `"IfNotPresent"` |  |
+| grafana.initChownData.image.registry | string | `"acrprodmgmt.azurecr.io"` |  |
+| grafana.initChownData.image.repository | string | `"busybox"` |  |
+| grafana.initChownData.image.tag | string | `"1.31.1"` |  |
 | grafana.nodeSelector.agentpool | string | `"userpool"` |  |
 | grafana.persistence.accessModes[0] | string | `"ReadWriteOnce"` |  |
 | grafana.persistence.enabled | bool | `true` |  |
@@ -96,6 +108,10 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 | grafana.persistence.storageClassName | string | `"managed-csi"` |  |
 | grafana.persistence.type | string | `"pvc"` |  |
 | grafana.sidecar.datasources.alertmanager.enabled | bool | `false` |  |
+| grafana.testFramework.image.registry | string | `"acrprodmgmt.azurecr.io"` |  |
+| grafana.testFramework.image.repository | string | `"bats"` |  |
+| grafana.testFramework.image.tag | string | `"v1.4.1"` |  |
+| grafana.testFramework.imagePullPolicy | string | `"IfNotPresent"` |  |
 | loki.backend.replicas | int | `0` |  |
 | loki.chunksCache.allocatedMemory | int | `1024` |  |
 | loki.chunksCache.defaultValidity | string | `"6h"` |  |
@@ -108,10 +124,30 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 | loki.distributor.nodeSelector.agentpool | string | `"userpool"` |  |
 | loki.distributor.replicas | int | `3` |  |
 | loki.enabled | bool | `true` |  |
+| loki.enterprise.image.digest | string | `nil` |  |
+| loki.enterprise.image.pullPolicy | string | `"IfNotPresent"` |  |
+| loki.enterprise.image.registry | string | `"acrprodmgmt.azurecr.io"` |  |
+| loki.enterprise.image.repository | string | `"enterprise-logs"` |  |
+| loki.enterprise.image.tag | string | `"3.5.1"` |  |
+| loki.enterprise.provisioner.image.digest | string | `nil` |  |
+| loki.enterprise.provisioner.image.pullPolicy | string | `"IfNotPresent"` |  |
+| loki.enterprise.provisioner.image.registry | string | `"acrprodmgmt.azurecr.io"` |  |
+| loki.enterprise.provisioner.image.repository | string | `"enterprise-logs-provisioner"` |  |
+| loki.enterprise.provisioner.image.tag | string | `nil` |  |
+| loki.gateway.image.digest | string | `nil` |  |
+| loki.gateway.image.pullPolicy | string | `"IfNotPresent"` |  |
+| loki.gateway.image.registry | string | `"acrprodmgmt.azurecr.io"` |  |
+| loki.gateway.image.repository | string | `"nginx-unprivileged"` |  |
+| loki.gateway.image.tag | string | `"1.28-alpine"` |  |
 | loki.gateway.nodeSelector.agentpool | string | `"userpool"` |  |
 | loki.indexGateway.maxUnavailable | int | `1` |  |
 | loki.indexGateway.nodeSelector.agentpool | string | `"userpool"` |  |
 | loki.indexGateway.replicas | int | `2` |  |
+| loki.ingester.image.digest | string | `nil` |  |
+| loki.ingester.image.pullPolicy | string | `"IfNotPresent"` |  |
+| loki.ingester.image.registry | string | `"acrprodmgmt.azurecr.io"` |  |
+| loki.ingester.image.repository | string | `"loki"` |  |
+| loki.ingester.image.tag | string | `"3.5.0"` |  |
 | loki.ingester.nodeSelector.agentpool | string | `"userpool"` |  |
 | loki.ingester.replicas | int | `3` |  |
 | loki.ingester.zoneAwareReplication.zoneA.nodeSelector.agentpool | string | `"userpool"` |  |
@@ -124,6 +160,11 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 | loki.loki.compactor.retention_delete_worker_count | int | `150` |  |
 | loki.loki.compactor.retention_enabled | bool | `true` |  |
 | loki.loki.frontend.max_outstanding_per_tenant | int | `6144` |  |
+| loki.loki.image.digest | string | `nil` |  |
+| loki.loki.image.pullPolicy | string | `"IfNotPresent"` |  |
+| loki.loki.image.registry | string | `"acrprodmgmt.azurecr.io"` |  |
+| loki.loki.image.repository | string | `"loki"` |  |
+| loki.loki.image.tag | string | `""` |  |
 | loki.loki.ingester.chunk_block_size | int | `262144` |  |
 | loki.loki.ingester.chunk_encoding | string | `"snappy"` |  |
 | loki.loki.ingester.chunk_idle_period | string | `"30m"` |  |
@@ -158,7 +199,24 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 | loki.loki.storage.s3.s3forcepathstyle | bool | `true` |  |
 | loki.loki.tracing.enabled | bool | `true` |  |
 | loki.lokiCanary.enabled | bool | `false` |  |
+| loki.lokiCanary.image.digest | string | `nil` |  |
+| loki.lokiCanary.image.pullPolicy | string | `"IfNotPresent"` |  |
+| loki.lokiCanary.image.registry | string | `"acrprodmgmt.azurecr.io"` |  |
+| loki.lokiCanary.image.repository | string | `"loki-canary"` |  |
+| loki.lokiCanary.image.tag | string | `nil` |  |
+| loki.memcached.image.pullPolicy | string | `"IfNotPresent"` |  |
+| loki.memcached.image.registry | string | `"acrprodmgmt.azurecr.io"` |  |
+| loki.memcached.image.repository | string | `"memcached"` |  |
+| loki.memcached.image.tag | string | `"1.6.38-alpine"` |  |
+| loki.memcachedExporter.image.pullPolicy | string | `"IfNotPresent"` |  |
+| loki.memcachedExporter.image.registry | string | `"acrprodmgmt.azurecr.io"` |  |
+| loki.memcachedExporter.image.repository | string | `"memcached-exporter"` |  |
+| loki.memcachedExporter.image.tag | string | `"v0.15.2"` |  |
 | loki.minio.enabled | bool | `true` |  |
+| loki.minio.image.pullPolicy | string | `"IfNotPresent"` |  |
+| loki.minio.image.registry | string | `"acrprodmgmt.azurecr.io"` |  |
+| loki.minio.image.repository | string | `"minio"` |  |
+| loki.minio.image.tag | string | `"RELEASE.2024-12-18T13-15-44Z"` |  |
 | loki.minio.nodeSelector.agentpool | string | `"userpool"` |  |
 | loki.minio.persistence.size | string | `"20Gi"` |  |
 | loki.minio.persistence.storageClass | string | `"managed-csi"` |  |
@@ -178,12 +236,46 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 | loki.resultsCache.defaultValidity | string | `"6h"` |  |
 | loki.resultsCache.enabled | bool | `true` |  |
 | loki.resultsCache.nodeSelector.agentpool | string | `"userpool"` |  |
+| loki.sidecar.image.pullPolicy | string | `"IfNotPresent"` |  |
+| loki.sidecar.image.registry | string | `"acrprodmgmt.azurecr.io"` |  |
+| loki.sidecar.image.repository | string | `"k8s-sidecar"` |  |
+| loki.sidecar.image.sha | string | `""` |  |
+| loki.sidecar.image.tag | string | `"1.30.3"` |  |
 | loki.test.enabled | bool | `false` |  |
+| loki.test.image.digest | string | `nil` |  |
+| loki.test.image.pullPolicy | string | `"IfNotPresent"` |  |
+| loki.test.image.registry | string | `"acrprodmgmt.azurecr.io"` |  |
+| loki.test.image.repository | string | `"loki-helm-test"` |  |
+| loki.test.image.tag | string | `"ewelch-distributed-helm-chart-17db5ee"` |  |
 | loki.write.replicas | int | `0` |  |
 | prometheus.alertmanager.enabled | bool | `false` |  |
+| prometheus.configmapReload.prometheus.image.digest | string | `""` |  |
+| prometheus.configmapReload.prometheus.image.pullPolicy | string | `"IfNotPresent"` |  |
+| prometheus.configmapReload.prometheus.image.registry | string | `"acrprodmgmt.azurecr.io"` |  |
+| prometheus.configmapReload.prometheus.image.repository | string | `"prometheus-config-reloader"` |  |
+| prometheus.configmapReload.prometheus.image.tag | string | `"v0.83.0"` |  |
 | prometheus.enabled | bool | `true` |  |
+| prometheus.kube-state-metrics.image.pullPolicy | string | `"IfNotPresent"` |  |
+| prometheus.kube-state-metrics.image.registry | string | `"acrprodmgmt.azurecr.io"` |  |
+| prometheus.kube-state-metrics.image.repository | string | `"kube-state-metrics"` |  |
+| prometheus.kube-state-metrics.image.sha | string | `""` |  |
+| prometheus.kube-state-metrics.image.tag | string | `""` |  |
 | prometheus.kube-state-metrics.nodeSelector.agentpool | string | `"userpool"` |  |
+| prometheus.prometheus-node-exporter.image.digest | string | `""` |  |
+| prometheus.prometheus-node-exporter.image.pullPolicy | string | `"IfNotPresent"` |  |
+| prometheus.prometheus-node-exporter.image.registry | string | `"acrprodmgmt.azurecr.io"` |  |
+| prometheus.prometheus-node-exporter.image.repository | string | `"node-exporter"` |  |
+| prometheus.prometheus-node-exporter.image.tag | string | `""` |  |
+| prometheus.prometheus-node-exporter.kubeRBACProxy.image.pullPolicy | string | `"IfNotPresent"` |  |
+| prometheus.prometheus-node-exporter.kubeRBACProxy.image.registry | string | `"acrprodmgmt.azurecr.io"` |  |
+| prometheus.prometheus-node-exporter.kubeRBACProxy.image.repository | string | `"kube-rbac-proxy"` |  |
+| prometheus.prometheus-node-exporter.kubeRBACProxy.image.sha | string | `""` |  |
+| prometheus.prometheus-node-exporter.kubeRBACProxy.image.tag | string | `"v0.19.1"` |  |
 | prometheus.prometheus-node-exporter.nodeSelector.agentpool | string | `"userpool"` |  |
+| prometheus.prometheus-pushgateway.image.pullPolicy | string | `"IfNotPresent"` |  |
+| prometheus.prometheus-pushgateway.image.registry | string | `"acrprodmgmt.azurecr.io"` |  |
+| prometheus.prometheus-pushgateway.image.repository | string | `"pushgateway"` |  |
+| prometheus.prometheus-pushgateway.image.tag | string | `""` |  |
 | prometheus.prometheus-pushgateway.nodeSelector.agentpool | string | `"userpool"` |  |
 | prometheus.prometheusSpec.logLevel | string | `"warn"` |  |
 | prometheus.prometheusSpec.retention | string | `"7d"` |  |
@@ -191,7 +283,8 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 | prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues | bool | `false` |  |
 | prometheus.server.image.digest | string | `""` |  |
 | prometheus.server.image.pullPolicy | string | `"IfNotPresent"` |  |
-| prometheus.server.image.repository | string | `"quay.io/prometheus/prometheus"` |  |
+| prometheus.server.image.registry | string | `"acrprodmgmt.azurecr.io"` |  |
+| prometheus.server.image.repository | string | `"prometheus"` |  |
 | prometheus.server.image.tag | string | `""` |  |
 | prometheus.server.nodeSelector.agentpool | string | `"userpool"` |  |
 | prometheus.server.persistentVolume.accessModes[0] | string | `"ReadWriteOnce"` |  |
@@ -203,11 +296,15 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 | promtail.config.logLevel | string | `"warn"` |  |
 | promtail.enabled | bool | `true` |  |
 | promtail.image.pullPolicy | string | `"IfNotPresent"` |  |
-| promtail.image.registry | string | `"docker.io"` |  |
-| promtail.image.repository | string | `"grafana/promtail"` |  |
+| promtail.image.registry | string | `"acrprodmgmt.azurecr.io"` |  |
+| promtail.image.repository | string | `"promtail"` |  |
 | promtail.image.tag | string | `""` |  |
 | promtail.nodeSelector.agentpool | string | `"userpool"` |  |
 | promtail.resources.limits.cpu | string | `"100m"` |  |
 | promtail.resources.limits.memory | string | `"256Mi"` |  |
 | promtail.resources.requests.cpu | string | `"50m"` |  |
 | promtail.resources.requests.memory | string | `"96Mi"` |  |
+| promtail.sidecar.image.pullPolicy | string | `"IfNotPresent"` |  |
+| promtail.sidecar.image.registry | string | `"acrprodmgmt.azurecr.io"` |  |
+| promtail.sidecar.image.repository | string | `"configmap-reload"` |  |
+| promtail.sidecar.image.tag | string | `"v0.12.0"` |  |
