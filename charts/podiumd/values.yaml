@@ -468,7 +468,7 @@ openzaak:
   persistentVolume:
     volumeAttributeShareName: openzaak
   image:
-    tag: "1.18.0"
+    tag: "1.21.2"
   resources:
     requests:
       cpu: 100m
@@ -630,13 +630,15 @@ opennotificaties:
     #         documentatie_link: https://openzaak.example.nl/ref/kanalen/#/documenten
     #         filters:
     #           - bronorganisatie
-    #           - informatieobjecttype
+    #           - informatieobjecttype 
+    #           - informatieobjecttype.catalogus # new feature
     #           - vertrouwelijkheidaanduiding
     #       - naam: besluiten
     #         documentatie_link: https://openzaak.example.nl/ref/kanalen/#/besluiten
     #         filters:
     #           - verantwoordelijke_organisatie
     #           - besluittype
+    #           - besluittype.catalogus  # new feature
     #   # The configuration check view will show a checkmark, but for it to actually work an 
     #   # Abonnement also has to be configured via notifications_abonnementen_config. This does not work right now, 
     #   # because the spec doesn't properly support JWT. See issue open-zaak/open-zaak#1694
