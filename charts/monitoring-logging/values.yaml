@@ -178,8 +178,7 @@ prometheus:
     image:
       digest: ""
       pullPolicy: IfNotPresent
-      registry: acrprodmgmt.azurecr.io
-      repository: prometheus
+      repository: acrprodmgmt.azurecr.io/prometheus
       tag: ""
     persistentVolume:
       enabled: true
@@ -234,8 +233,7 @@ prometheus:
       image:
         digest: ""
         pullPolicy: IfNotPresent
-        registry: acrprodmgmt.azurecr.io
-        repository: prometheus-config-reloader
+        repository: acrprodmgmt.azurecr.io/prometheus-config-reloader
         tag: v0.83.0
 
 promtail:
@@ -282,14 +280,12 @@ loki:
   memcached:
     image:
       pullPolicy: IfNotPresent
-      registry: acrprodmgmt.azurecr.io
-      repository: memcached
+      repository: acrprodmgmt.azurecr.io/memcached
       tag: 1.6.38-alpine
   memcachedExporter:
     image:
       pullPolicy: IfNotPresent
-      registry: acrprodmgmt.azurecr.io
-      repository: memcached-exporter
+      repository: acrprodmgmt.azurecr.io/memcached-exporter
       tag: v0.15.2
 
   resultsCache:
@@ -487,6 +483,9 @@ loki:
 
   minio:
     enabled: true
+    global:
+      image:
+        registry: acrprodmgmt.azurecr.io
     persistence:
       storageClass: managed-csi
       size: 20Gi
@@ -494,11 +493,9 @@ loki:
       agentpool: userpool
     image:
       pullPolicy: IfNotPresent
-      registry: acrprodmgmt.azurecr.io
-      repository: minio
+      registry: acrprodmgmt.azurecr.io/minio
       tag: RELEASE.2024-12-18T13-15-44Z
     mcImage:
       pullPolicy: IfNotPresent
-      registry: acrprodmgmt.azurecr.io
-      repository: mc
+      registry: acrprodmgmt.azurecr.io/mc
       tag: RELEASE.2024-11-21T17-21-54Z
