@@ -33,8 +33,6 @@ grafana:
 
   downloadDashboardsImage:
     pullPolicy: IfNotPresent
-    registry: acrprodmgmt.azurecr.io
-    repository: curl
     sha: ""
     tag: 8.9.1         
 
@@ -127,35 +125,26 @@ grafana:
       kubernetesClientDashboardsFolders: true
       kubernetesDashboards: true
       grafanaAPIServerEnsureKubectlAccess: true
+  # -- Grafana image settings
   image:
     pullPolicy: IfNotPresent
-    pullSecrets: []
-    registry: acrprodmgmt.azurecr.io
-    repository: grafana
-    sha: ""
-    tag: ""
+    tag: 12.0.1
 
   initChownData:
+    # -- Busybox image settings
     image:
       pullPolicy: IfNotPresent
-      registry: acrprodmgmt.azurecr.io
-      repository: busybox
       tag: 1.31.1
-      sha: ""
 
   imageRenderer:
+    # -- Grafana image renderer settings
     image:
       pullPolicy: Always
-      pullSecrets: []
-      registry: acrprodmgmt.azurecr.io
-      repository: grafana-image-renderer
-      sha: ""
-      tag: latest
+      tag: 3.12.9
   testFramework:
+    # -- bats image settings
     image:
-      registry: acrprodmgmt.azurecr.io
-      repository: bats
-      tag: latest
+      tag: 1.12.0
     imagePullPolicy: IfNotPresent
   persistence:
     enabled: true
@@ -175,11 +164,9 @@ grafana:
 prometheus:
   enabled: true
   server:
+    # -- prometheus image settings
     image:
-      digest: ""
-      pullPolicy: IfNotPresent
-      repository: acrprodmgmt.azurecr.io/prometheus
-      tag: ""
+      tag: v3.4.2
     persistentVolume:
       enabled: true
       storageClass: "managed-csi"
@@ -198,51 +185,41 @@ prometheus:
   prometheus-node-exporter:
     nodeSelector:
       agentpool: userpool
+    # node-exporter image settings
     image:
-      digest: ""
       pullPolicy: IfNotPresent
-      registry: acrprodmgmt.azurecr.io
-      repository: node-exporter
-      tag: ""
+      tag: v1.9.1
     kubeRBACProxy:
+      # kube-rbac-proxy image settings
       image:
         pullPolicy: IfNotPresent
-        registry: acrprodmgmt.azurecr.io
-        repository: kube-rbac-proxy
-        sha: ""
         tag: v0.19.1
   prometheus-pushgateway:
     nodeSelector:
       agentpool: userpool
+    # pushgateway image settings
     image:
       pullPolicy: IfNotPresent
-      registry: acrprodmgmt.azurecr.io
-      repository: pushgateway
-      tag: ""
+      tag: v1.11.1
   kube-state-metrics:
     nodeSelector:
       agentpool: userpool
+    # kube-state-metrics image settings
     image:
       pullPolicy: IfNotPresent
-      registry: acrprodmgmt.azurecr.io
-      repository: kube-state-metrics
-      sha: ""
-      tag: ""
+      tag: 2.16.0
   configmapReload:
     prometheus:
+      # prometheus-config-reloader image settings
       image:
-        digest: ""
-        pullPolicy: IfNotPresent
-        repository: acrprodmgmt.azurecr.io/prometheus-config-reloader
         tag: v0.83.0
 
 promtail:
   enabled: true
+  # promtail image settings
   image:
     pullPolicy: IfNotPresent
-    registry: acrprodmgmt.azurecr.io
-    repository: promtail
-    tag: ""
+    tag: 3.5.1
   nodeSelector:
     agentpool: userpool
   config:
@@ -258,34 +235,32 @@ promtail:
       cpu: 100m
       memory: 256Mi
   sidecar:
+    # configmap-reload image settings
     image:
       pullPolicy: IfNotPresent
-      registry: acrprodmgmt.azurecr.io
-      repository: configmap-reload
       tag: v0.12.0
 loki:
   enabled: true
-  global:
-    image:
-      registry: acrprodmgmt.azurecr.io
+  # loki image settings
+  #global:
+  #  image:
+  #    registry: acrprodmgmt.azurecr.io
   deploymentMode: Distributed
   lokiCanary:
     enabled: false
+    # loki-canary image settings
     image:
-      digest: null
       pullPolicy: IfNotPresent
-      registry: acrprodmgmt.azurecr.io
-      repository: loki-canary
-      tag: null
+      tag: k262-d64ced2
   memcached:
+    # memcached image settings
     image:
       pullPolicy: IfNotPresent
-      repository: acrprodmgmt.azurecr.io/memcached
       tag: 1.6.38-alpine
   memcachedExporter:
+    # memcached-export image settings
     image:
       pullPolicy: IfNotPresent
-      repository: acrprodmgmt.azurecr.io/memcached-exporter
       tag: v0.15.2
 
   resultsCache:
@@ -295,11 +270,9 @@ loki:
       agentpool: userpool
 
   sidecar:
+    # k8s-sidecar image settings
     image:
       pullPolicy: IfNotPresent
-      registry: acrprodmgmt.azurecr.io
-      repository: k8s-sidecar
-      sha: ""
       tag: 1.30.3
 
 
@@ -310,19 +283,15 @@ loki:
     nodeSelector:
       agentpool: userpool
   enterprise:
+    # enterprise-logs image settings
     image:
-      digest: null
       pullPolicy: IfNotPresent
-      registry: acrprodmgmt.azurecr.io
-      repository: enterprise-logs
       tag: 3.5.1
     provisioner:
+      # enterprise-logs-provisioner image settings
       image:
-        digest: null
         pullPolicy: IfNotPresent
-        registry: acrprodmgmt.azurecr.io
-        repository: enterprise-logs-provisioner
-        tag: null
+        tag: 1.9.3
 
   monitoring:
     selfMonitoring:
@@ -360,11 +329,9 @@ loki:
   gateway:
     nodeSelector:
       agentpool: userpool
+    # nginx-unprivileged image settings
     image:
-      digest: null
       pullPolicy: IfNotPresent
-      registry: acrprodmgmt.azurecr.io
-      repository: nginx-unprivileged
       tag: 1.28-alpine
   ingester:
     replicas: 3
@@ -381,19 +348,15 @@ loki:
         nodeSelector:
           agentpool: userpool
 
+  # kubectl image settings
   kubectlImage:
-    registry: acrprodmgmt.azurecr.io
-    repository: kubectl
-    tag: null
-    digest: null
+    tag: 1.33.2-debian-12-r2
     pullPolicy: IfNotPresent
   test:
     enabled: false
+    # loki-helm-test image settings
     image:
-      digest: null
       pullPolicy: IfNotPresent
-      registry: acrprodmgmt.azurecr.io
-      repository: loki-helm-test
       tag: ewelch-distributed-helm-chart-17db5ee
   backend:
     replicas: 0
@@ -472,30 +435,29 @@ loki:
       
     frontend:
       max_outstanding_per_tenant: 6144
-    
+
+    # loki image settings
     image:
-      digest: null
       pullPolicy: IfNotPresent
-      registry: acrprodmgmt.azurecr.io
-      repository: loki
       tag: 3.5.0
     
 
   minio:
     enabled: true
     global:
-      image:
-        registry: acrprodmgmt.azurecr.io
+      # minio image settings
+      #image:
+      #  registry: acrprodmgmt.azurecr.io
     persistence:
       storageClass: managed-csi
       size: 20Gi
     nodeSelector:
       agentpool: userpool
+    # minio image settings
     image:
       pullPolicy: IfNotPresent
-      registry: acrprodmgmt.azurecr.io/minio
       tag: RELEASE.2024-12-18T13-15-44Z
+    # mc image settings
     mcImage:
       pullPolicy: IfNotPresent
-      registry: acrprodmgmt.azurecr.io/mc
       tag: RELEASE.2024-11-21T17-21-54Z
