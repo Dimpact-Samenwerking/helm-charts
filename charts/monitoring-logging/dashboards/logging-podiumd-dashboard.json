@@ -1340,7 +1340,7 @@
               },
               "direction": "backward",
               "editorMode": "code",
-              "expr": "{app=~\"$Subapp\"}  |~ \"(?i)$search\" |~ \"(?i)$Methode\" |~ \"(?i)$LogLevel\" !~ `$excluded_log_levels` != `HTTP/1.1\" 0 \"` ",
+              "expr": "{app=~\"$Subapp\"}  |~ \"(?i)$search\" |~ \"(?i)$Methode\" |~ \"(?i)$LogLevel\" !~ `(?i)$excluded_log_levels` != `HTTP/1.1\" 0 \"` ",
               "maxLines": 100,
               "queryType": "range",
               "refId": "A"
@@ -1377,7 +1377,7 @@
             "h": 19,
             "w": 24,
             "x": 0,
-            "y": 32
+            "y": 162
           },
           "id": 70,
           "options": {
@@ -1400,7 +1400,7 @@
               },
               "direction": "backward",
               "editorMode": "code",
-              "expr": "{app=~\"$Subapp\"} !~ `$excluded_log_levels` |~ \"(?i)$search\" |~ `HTTP/1.1[\\\" ]*$http_code` != `HTTP/1.1\" 0 \"` |~ \"(?i)$Methode\" |~ \"(?i)$LogLevel\"",
+              "expr": "{app=~\"$Subapp\"} !~ `(?i)$excluded_log_levels` |~ \"(?i)$search\" |~ `HTTP/1.1[\\\" ]*$http_code` != `HTTP/1.1\" 0 \"` |~ \"(?i)$Methode\" |~ \"(?i)$LogLevel\"",
               "hide": false,
               "maxLines": 100,
               "queryType": "range",
@@ -1446,7 +1446,7 @@
             "h": 13,
             "w": 24,
             "x": 0,
-            "y": 155
+            "y": 182
           },
           "id": 51,
           "options": {
@@ -1499,7 +1499,7 @@
             "h": 11,
             "w": 24,
             "x": 0,
-            "y": 168
+            "y": 195
           },
           "id": 63,
           "options": {
@@ -1559,7 +1559,7 @@
             "h": 12,
             "w": 24,
             "x": 0,
-            "y": 156
+            "y": 183
           },
           "id": 73,
           "options": {
@@ -1994,11 +1994,6 @@
           },
           {
             "selected": false,
-            "text": "Token",
-            "value": "Token"
-          },
-          {
-            "selected": false,
             "text": "token",
             "value": "token"
           },
@@ -2006,16 +2001,6 @@
             "selected": false,
             "text": "secret",
             "value": "secret"
-          },
-          {
-            "selected": false,
-            "text": "Secret",
-            "value": "Secret"
-          },
-          {
-            "selected": false,
-            "text": "ConnectionId",
-            "value": "ConnectionId"
           },
           {
             "selected": false,
@@ -2029,18 +2014,8 @@
           },
           {
             "selected": false,
-            "text": "Admin",
-            "value": "Admin"
-          },
-          {
-            "selected": false,
             "text": "root",
             "value": "root"
-          },
-          {
-            "selected": false,
-            "text": "Root",
-            "value": "Root"
           },
           {
             "selected": false,
@@ -2054,18 +2029,8 @@
           },
           {
             "selected": false,
-            "text": "Username",
-            "value": "Username"
-          },
-          {
-            "selected": false,
             "text": "password",
             "value": "password"
-          },
-          {
-            "selected": false,
-            "text": "Password",
-            "value": "Password"
           },
           {
             "selected": false,
@@ -2074,28 +2039,13 @@
           },
           {
             "selected": false,
-            "text": "Pass",
-            "value": "Pass"
-          },
-          {
-            "selected": false,
             "text": "pwd",
             "value": "pwd"
           },
           {
             "selected": false,
-            "text": "Pwd",
-            "value": "Pwd"
-          },
-          {
-            "selected": false,
-            "text": "apiKey",
-            "value": "apiKey"
-          },
-          {
-            "selected": false,
-            "text": "ApiKey",
-            "value": "ApiKey"
+            "text": "apikey",
+            "value": "apikey"
           },
           {
             "selected": false,
@@ -2104,28 +2054,13 @@
           },
           {
             "selected": false,
-            "text": "Api_key",
-            "value": "Api_key"
-          },
-          {
-            "selected": false,
             "text": "access_token",
             "value": "access_token"
           },
           {
             "selected": false,
-            "text": "Access_token",
-            "value": "Access_token"
-          },
-          {
-            "selected": false,
             "text": "auth_token",
             "value": "auth_token"
-          },
-          {
-            "selected": false,
-            "text": "Auth_token",
-            "value": "Auth_token"
           },
           {
             "selected": false,
@@ -2144,18 +2079,8 @@
           },
           {
             "selected": false,
-            "text": "Client_id",
-            "value": "Client_id"
-          },
-          {
-            "selected": false,
             "text": "client_secret",
             "value": "client_secret"
-          },
-          {
-            "selected": false,
-            "text": "Client_secret",
-            "value": "Client_secret"
           },
           {
             "selected": false,
@@ -2164,18 +2089,8 @@
           },
           {
             "selected": false,
-            "text": "Session",
-            "value": "Session"
-          },
-          {
-            "selected": false,
             "text": "cookie",
             "value": "cookie"
-          },
-          {
-            "selected": false,
-            "text": "Cookie",
-            "value": "Cookie"
           },
           {
             "selected": false,
@@ -2184,28 +2099,8 @@
           },
           {
             "selected": false,
-            "text": "Csrf",
-            "value": "Csrf"
-          },
-          {
-            "selected": false,
-            "text": "CSRF",
-            "value": "CSRF"
-          },
-          {
-            "selected": false,
             "text": "jwt",
             "value": "jwt"
-          },
-          {
-            "selected": false,
-            "text": "Jwt",
-            "value": "Jwt"
-          },
-          {
-            "selected": false,
-            "text": "JWT",
-            "value": "JWT"
           },
           {
             "selected": false,
@@ -2214,33 +2109,8 @@
           },
           {
             "selected": false,
-            "text": "Refresh_token",
-            "value": "Refresh_token"
-          },
-          {
-            "selected": false,
-            "text": "Authorization",
-            "value": "Authorization"
-          },
-          {
-            "selected": false,
-            "text": "Bearer",
-            "value": "Bearer"
-          },
-          {
-            "selected": false,
             "text": "keys",
             "value": "keys"
-          },
-          {
-            "selected": false,
-            "text": "Keys",
-            "value": "Keys"
-          },
-          {
-            "selected": false,
-            "text": "User",
-            "value": "User"
           },
           {
             "selected": false,
@@ -2249,8 +2119,8 @@
           },
           {
             "selected": false,
-            "text": "Name",
-            "value": "Name"
+            "text": "name",
+            "value": "name"
           },
           {
             "selected": false,
@@ -2259,18 +2129,8 @@
           },
           {
             "selected": false,
-            "text": "Fullname",
-            "value": "Fullname"
-          },
-          {
-            "selected": false,
             "text": "first_name",
             "value": "first_name"
-          },
-          {
-            "selected": false,
-            "text": "First_name",
-            "value": "First_name"
           },
           {
             "selected": false,
@@ -2329,16 +2189,6 @@
           },
           {
             "selected": false,
-            "text": "CVV",
-            "value": "CVV"
-          },
-          {
-            "selected": false,
-            "text": "CVC",
-            "value": "CVC"
-          },
-          {
-            "selected": false,
             "text": "paypal",
             "value": "paypal"
           },
@@ -2354,18 +2204,8 @@
           },
           {
             "selected": false,
-            "text": "RSA",
-            "value": "RSA"
-          },
-          {
-            "selected": false,
             "text": "pem",
             "value": "pem"
-          },
-          {
-            "selected": false,
-            "text": "PEM",
-            "value": "PEM"
           },
           {
             "selected": false,
@@ -2379,11 +2219,6 @@
           },
           {
             "selected": false,
-            "text": "SSH",
-            "value": "SSH"
-          },
-          {
-            "selected": false,
             "text": "cert",
             "value": "cert"
           },
@@ -2391,11 +2226,6 @@
             "selected": false,
             "text": "certificate",
             "value": "certificate"
-          },
-          {
-            "selected": false,
-            "text": "Key",
-            "value": "Key"
           },
           {
             "selected": false,
@@ -2443,7 +2273,7 @@
             "value": "adres"
           }
         ],
-        "query": "DEBUG, INFO, maykin, maykinmedia, Datadog, sentry, GET / =>, GET /_health/, GET /admin, GET /api/ent, WARN, uWSGI, NO MERCY, Token, token, secret, Secret, ConnectionId, connectionid, admin, Admin, root, Root, user, username, Username, password, Password, pass, Pass, pwd, Pwd, apiKey, ApiKey, api_key, Api_key, access_token, Access_token, auth_token, Auth_token, authorization, bearer, client_id, Client_id, client_secret, Client_secret, session, Session, cookie, Cookie, csrf, Csrf, CSRF, jwt, Jwt, JWT, refresh_token, Refresh_token, Authorization, Bearer, keys, Keys, User, bsn, Name, fullname, Fullname, first_name, First_name, ip, ip_address, iban, bic, BIC, bank, creditcard, cc_number, card_number, cvv, cvc, CVV, CVC, paypal, transaction, rsa, RSA, pem, PEM, private_key, ssh, SSH, cert, certificate, Key, key, passwd, credentials, vault, secrets, ssn, location, address, adres",
+        "query": "DEBUG, INFO, maykin, maykinmedia, Datadog, sentry, GET / =>, GET /_health/, GET /admin, GET /api/ent, WARN, uWSGI, NO MERCY, token, secret, connectionid, admin, root, user, username, password, pass, pwd, apikey, api_key, access_token, auth_token, authorization, bearer, client_id, client_secret, session, cookie, csrf, jwt, refresh_token, keys, bsn, name, fullname, first_name, ip, ip_address, iban, bic, BIC, bank, creditcard, cc_number, card_number, cvv, cvc, paypal, transaction, rsa, pem, private_key, ssh, cert, certificate, key, passwd, credentials, vault, secrets, ssn, location, address, adres",
         "type": "custom"
       }
     ]
@@ -2454,7 +2284,7 @@
   },
   "timepicker": {},
   "timezone": "",
-  "title": "Monitoring en logging PodiumD test",
+  "title": "Monitoring en logging PodiumD",
   "uid": "caf685",
   "version": 0
 }
