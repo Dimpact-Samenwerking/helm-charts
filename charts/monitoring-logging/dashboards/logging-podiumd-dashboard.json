@@ -24,7 +24,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 3,
+  "id": 0,
   "links": [],
   "panels": [
     {
@@ -150,7 +150,7 @@
           "sort": "desc"
         }
       },
-      "pluginVersion": "12.0.0",
+      "pluginVersion": "12.0.2",
       "targets": [
         {
           "datasource": {
@@ -357,7 +357,7 @@
               "sort": "none"
             }
           },
-          "pluginVersion": "12.0.0",
+          "pluginVersion": "12.0.2",
           "targets": [
             {
               "datasource": {
@@ -505,7 +505,7 @@
               }
             ]
           },
-          "pluginVersion": "12.0.0",
+          "pluginVersion": "12.0.2",
           "targets": [
             {
               "datasource": {
@@ -681,7 +681,7 @@
             "h": 11,
             "w": 12,
             "x": 0,
-            "y": 22
+            "y": 60
           },
           "id": 62,
           "options": {
@@ -708,7 +708,7 @@
               "sort": "none"
             }
           },
-          "pluginVersion": "12.0.0",
+          "pluginVersion": "12.0.2",
           "targets": [
             {
               "datasource": {
@@ -805,7 +805,7 @@
             "h": 11,
             "w": 12,
             "x": 12,
-            "y": 22
+            "y": 60
           },
           "id": 75,
           "options": {
@@ -832,7 +832,7 @@
               "sort": "none"
             }
           },
-          "pluginVersion": "12.0.0",
+          "pluginVersion": "12.0.2",
           "targets": [
             {
               "datasource": {
@@ -944,7 +944,7 @@
             "h": 12,
             "w": 12,
             "x": 0,
-            "y": 33
+            "y": 71
           },
           "id": 67,
           "options": {
@@ -960,7 +960,7 @@
               "sort": "none"
             }
           },
-          "pluginVersion": "12.0.0",
+          "pluginVersion": "12.0.2",
           "targets": [
             {
               "datasource": {
@@ -1055,7 +1055,7 @@
             "h": 12,
             "w": 12,
             "x": 12,
-            "y": 33
+            "y": 71
           },
           "id": 66,
           "options": {
@@ -1076,7 +1076,7 @@
               }
             ]
           },
-          "pluginVersion": "12.0.0",
+          "pluginVersion": "12.0.2",
           "targets": [
             {
               "datasource": {
@@ -1205,7 +1205,7 @@
             "h": 12,
             "w": 12,
             "x": 0,
-            "y": 45
+            "y": 83
           },
           "id": 72,
           "options": {
@@ -1236,7 +1236,7 @@
               "sort": "none"
             }
           },
-          "pluginVersion": "12.0.0",
+          "pluginVersion": "12.0.2",
           "targets": [
             {
               "datasource": {
@@ -1317,7 +1317,7 @@
             "h": 19,
             "w": 24,
             "x": 0,
-            "y": 178
+            "y": 12
           },
           "id": 68,
           "options": {
@@ -1331,7 +1331,7 @@
             "sortOrder": "Descending",
             "wrapLogMessage": true
           },
-          "pluginVersion": "11.6.1",
+          "pluginVersion": "12.0.2",
           "targets": [
             {
               "datasource": {
@@ -1377,7 +1377,7 @@
             "h": 19,
             "w": 24,
             "x": 0,
-            "y": 198
+            "y": 32
           },
           "id": 70,
           "options": {
@@ -1391,7 +1391,7 @@
             "sortOrder": "Descending",
             "wrapLogMessage": true
           },
-          "pluginVersion": "11.6.1",
+          "pluginVersion": "12.0.2",
           "targets": [
             {
               "datasource": {
@@ -1446,7 +1446,7 @@
             "h": 13,
             "w": 24,
             "x": 0,
-            "y": 218
+            "y": 155
           },
           "id": 51,
           "options": {
@@ -1460,15 +1460,16 @@
             "sortOrder": "Descending",
             "wrapLogMessage": true
           },
-          "pluginVersion": "11.6.1",
+          "pluginVersion": "12.0.2",
           "targets": [
             {
               "datasource": {
                 "type": "loki",
                 "uid": "loki"
               },
+              "direction": "backward",
               "editorMode": "code",
-              "expr": "{app=\"openformulieren-worker\"} |~ \"\\\"public_reference\\\":\\\"OF-[0-9a-zA-Z]{6}\\\"\" ",
+              "expr": "{app=\"openformulieren-worker\"} |~ \"\\\"public_reference\\\":\\\"OF-[0-9a-zA-Z]{6}\\\"\"",
               "legendFormat": "",
               "maxLines": 100,
               "queryType": "range",
@@ -1498,7 +1499,7 @@
             "h": 11,
             "w": 24,
             "x": 0,
-            "y": 231
+            "y": 168
           },
           "id": 63,
           "options": {
@@ -1512,13 +1513,14 @@
             "sortOrder": "Descending",
             "wrapLogMessage": false
           },
-          "pluginVersion": "11.6.1",
+          "pluginVersion": "12.0.2",
           "targets": [
             {
               "datasource": {
                 "type": "loki",
                 "uid": "loki"
               },
+              "direction": "backward",
               "editorMode": "code",
               "expr": "{app=\"openformulieren-nginx\"} \r\n|~ `https?://[^/\\s]+/([^/\\s]+)` \r\n|~ \"POST /api/v2/submissions/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/_complete\" \r\n| regexp `POST /api/v2/submissions/(?P<id>[0-9a-fA-F-]+)`\r\n| regexp `https?://(?P<url>[^/\\s]+)/(?P<formulier>[^/\\s]+)` \r\n| line_format \"URL: https://{{.url}}/{{.formulier}}, Formulier: {{.formulier}}, SubmissionID: {{.id}}\"\r\n!~ `$excluded_log_levels`",
               "hide": false,
@@ -1557,7 +1559,7 @@
             "h": 12,
             "w": 24,
             "x": 0,
-            "y": 267
+            "y": 156
           },
           "id": 73,
           "options": {
@@ -1571,9 +1573,10 @@
             "sortOrder": "Descending",
             "wrapLogMessage": true
           },
-          "pluginVersion": "11.6.1",
+          "pluginVersion": "12.0.2",
           "targets": [
             {
+              "direction": "backward",
               "editorMode": "code",
               "expr": "{app=~\"$Subapp\"} |~ `zgw-apis-provider/${api_provider}` | pattern `<_> zgw-apis-provider/<api> <_>`",
               "queryType": "range",
@@ -1597,7 +1600,9 @@
       {
         "current": {
           "text": "All",
-          "value": "$__all"
+          "value": [
+            "$__all"
+          ]
         },
         "datasource": {
           "type": "loki",
@@ -1617,7 +1622,7 @@
           "type": 1
         },
         "refresh": 2,
-        "regex": "^(openformulieren|objecttypen|objecten|opennotificaties|kiss|openinwoner|openzaak|openklant|zac|clamav|keycloak|solr|elastic|infinispan).*",
+        "regex": "^(openformulieren|objecttypen|objecten|opennotificaties|openarchiefbeheer|kiss|openinwoner|openzaak|openklant|zac|zookeeper|podiumd|clamav|keycloak|solr|elastic|infinispan).*",
         "sort": 1,
         "type": "query"
       },
@@ -1893,19 +1898,19 @@
       },
       {
         "current": {
-          "text": "1.0.0",
-          "value": "1.0.0"
+          "text": "1.0.4",
+          "value": "1.0.4"
         },
         "label": "Dashboard versie",
         "name": "Dashboard_versie",
         "options": [
           {
             "selected": true,
-            "text": "1.0.0",
-            "value": "1.0.0"
+            "text": "1.0.4",
+            "value": "1.0.4"
           }
         ],
-        "query": "1.0.0",
+        "query": "1.0.4",
         "type": "textbox"
       },
       {
@@ -1986,9 +1991,459 @@
             "selected": false,
             "text": "NO MERCY",
             "value": "NO MERCY"
+          },
+          {
+            "selected": false,
+            "text": "Token",
+            "value": "Token"
+          },
+          {
+            "selected": false,
+            "text": "token",
+            "value": "token"
+          },
+          {
+            "selected": false,
+            "text": "secret",
+            "value": "secret"
+          },
+          {
+            "selected": false,
+            "text": "Secret",
+            "value": "Secret"
+          },
+          {
+            "selected": false,
+            "text": "ConnectionId",
+            "value": "ConnectionId"
+          },
+          {
+            "selected": false,
+            "text": "connectionid",
+            "value": "connectionid"
+          },
+          {
+            "selected": false,
+            "text": "admin",
+            "value": "admin"
+          },
+          {
+            "selected": false,
+            "text": "Admin",
+            "value": "Admin"
+          },
+          {
+            "selected": false,
+            "text": "root",
+            "value": "root"
+          },
+          {
+            "selected": false,
+            "text": "Root",
+            "value": "Root"
+          },
+          {
+            "selected": false,
+            "text": "user",
+            "value": "user"
+          },
+          {
+            "selected": false,
+            "text": "username",
+            "value": "username"
+          },
+          {
+            "selected": false,
+            "text": "Username",
+            "value": "Username"
+          },
+          {
+            "selected": false,
+            "text": "password",
+            "value": "password"
+          },
+          {
+            "selected": false,
+            "text": "Password",
+            "value": "Password"
+          },
+          {
+            "selected": false,
+            "text": "pass",
+            "value": "pass"
+          },
+          {
+            "selected": false,
+            "text": "Pass",
+            "value": "Pass"
+          },
+          {
+            "selected": false,
+            "text": "pwd",
+            "value": "pwd"
+          },
+          {
+            "selected": false,
+            "text": "Pwd",
+            "value": "Pwd"
+          },
+          {
+            "selected": false,
+            "text": "apiKey",
+            "value": "apiKey"
+          },
+          {
+            "selected": false,
+            "text": "ApiKey",
+            "value": "ApiKey"
+          },
+          {
+            "selected": false,
+            "text": "api_key",
+            "value": "api_key"
+          },
+          {
+            "selected": false,
+            "text": "Api_key",
+            "value": "Api_key"
+          },
+          {
+            "selected": false,
+            "text": "access_token",
+            "value": "access_token"
+          },
+          {
+            "selected": false,
+            "text": "Access_token",
+            "value": "Access_token"
+          },
+          {
+            "selected": false,
+            "text": "auth_token",
+            "value": "auth_token"
+          },
+          {
+            "selected": false,
+            "text": "Auth_token",
+            "value": "Auth_token"
+          },
+          {
+            "selected": false,
+            "text": "authorization",
+            "value": "authorization"
+          },
+          {
+            "selected": false,
+            "text": "bearer",
+            "value": "bearer"
+          },
+          {
+            "selected": false,
+            "text": "client_id",
+            "value": "client_id"
+          },
+          {
+            "selected": false,
+            "text": "Client_id",
+            "value": "Client_id"
+          },
+          {
+            "selected": false,
+            "text": "client_secret",
+            "value": "client_secret"
+          },
+          {
+            "selected": false,
+            "text": "Client_secret",
+            "value": "Client_secret"
+          },
+          {
+            "selected": false,
+            "text": "session",
+            "value": "session"
+          },
+          {
+            "selected": false,
+            "text": "Session",
+            "value": "Session"
+          },
+          {
+            "selected": false,
+            "text": "cookie",
+            "value": "cookie"
+          },
+          {
+            "selected": false,
+            "text": "Cookie",
+            "value": "Cookie"
+          },
+          {
+            "selected": false,
+            "text": "csrf",
+            "value": "csrf"
+          },
+          {
+            "selected": false,
+            "text": "Csrf",
+            "value": "Csrf"
+          },
+          {
+            "selected": false,
+            "text": "CSRF",
+            "value": "CSRF"
+          },
+          {
+            "selected": false,
+            "text": "jwt",
+            "value": "jwt"
+          },
+          {
+            "selected": false,
+            "text": "Jwt",
+            "value": "Jwt"
+          },
+          {
+            "selected": false,
+            "text": "JWT",
+            "value": "JWT"
+          },
+          {
+            "selected": false,
+            "text": "refresh_token",
+            "value": "refresh_token"
+          },
+          {
+            "selected": false,
+            "text": "Refresh_token",
+            "value": "Refresh_token"
+          },
+          {
+            "selected": false,
+            "text": "Authorization",
+            "value": "Authorization"
+          },
+          {
+            "selected": false,
+            "text": "Bearer",
+            "value": "Bearer"
+          },
+          {
+            "selected": false,
+            "text": "keys",
+            "value": "keys"
+          },
+          {
+            "selected": false,
+            "text": "Keys",
+            "value": "Keys"
+          },
+          {
+            "selected": false,
+            "text": "User",
+            "value": "User"
+          },
+          {
+            "selected": false,
+            "text": "bsn",
+            "value": "bsn"
+          },
+          {
+            "selected": false,
+            "text": "Name",
+            "value": "Name"
+          },
+          {
+            "selected": false,
+            "text": "fullname",
+            "value": "fullname"
+          },
+          {
+            "selected": false,
+            "text": "Fullname",
+            "value": "Fullname"
+          },
+          {
+            "selected": false,
+            "text": "first_name",
+            "value": "first_name"
+          },
+          {
+            "selected": false,
+            "text": "First_name",
+            "value": "First_name"
+          },
+          {
+            "selected": false,
+            "text": "ip",
+            "value": "ip"
+          },
+          {
+            "selected": false,
+            "text": "ip_address",
+            "value": "ip_address"
+          },
+          {
+            "selected": false,
+            "text": "iban",
+            "value": "iban"
+          },
+          {
+            "selected": false,
+            "text": "bic",
+            "value": "bic"
+          },
+          {
+            "selected": false,
+            "text": "BIC",
+            "value": "BIC"
+          },
+          {
+            "selected": false,
+            "text": "bank",
+            "value": "bank"
+          },
+          {
+            "selected": false,
+            "text": "creditcard",
+            "value": "creditcard"
+          },
+          {
+            "selected": false,
+            "text": "cc_number",
+            "value": "cc_number"
+          },
+          {
+            "selected": false,
+            "text": "card_number",
+            "value": "card_number"
+          },
+          {
+            "selected": false,
+            "text": "cvv",
+            "value": "cvv"
+          },
+          {
+            "selected": false,
+            "text": "cvc",
+            "value": "cvc"
+          },
+          {
+            "selected": false,
+            "text": "CVV",
+            "value": "CVV"
+          },
+          {
+            "selected": false,
+            "text": "CVC",
+            "value": "CVC"
+          },
+          {
+            "selected": false,
+            "text": "paypal",
+            "value": "paypal"
+          },
+          {
+            "selected": false,
+            "text": "transaction",
+            "value": "transaction"
+          },
+          {
+            "selected": false,
+            "text": "rsa",
+            "value": "rsa"
+          },
+          {
+            "selected": false,
+            "text": "RSA",
+            "value": "RSA"
+          },
+          {
+            "selected": false,
+            "text": "pem",
+            "value": "pem"
+          },
+          {
+            "selected": false,
+            "text": "PEM",
+            "value": "PEM"
+          },
+          {
+            "selected": false,
+            "text": "private_key",
+            "value": "private_key"
+          },
+          {
+            "selected": false,
+            "text": "ssh",
+            "value": "ssh"
+          },
+          {
+            "selected": false,
+            "text": "SSH",
+            "value": "SSH"
+          },
+          {
+            "selected": false,
+            "text": "cert",
+            "value": "cert"
+          },
+          {
+            "selected": false,
+            "text": "certificate",
+            "value": "certificate"
+          },
+          {
+            "selected": false,
+            "text": "Key",
+            "value": "Key"
+          },
+          {
+            "selected": false,
+            "text": "key",
+            "value": "key"
+          },
+          {
+            "selected": false,
+            "text": "passwd",
+            "value": "passwd"
+          },
+          {
+            "selected": false,
+            "text": "credentials",
+            "value": "credentials"
+          },
+          {
+            "selected": false,
+            "text": "vault",
+            "value": "vault"
+          },
+          {
+            "selected": false,
+            "text": "secrets",
+            "value": "secrets"
+          },
+          {
+            "selected": false,
+            "text": "ssn",
+            "value": "ssn"
+          },
+          {
+            "selected": false,
+            "text": "location",
+            "value": "location"
+          },
+          {
+            "selected": false,
+            "text": "address",
+            "value": "address"
+          },
+          {
+            "selected": false,
+            "text": "adres",
+            "value": "adres"
           }
         ],
-        "query": "DEBUG, INFO, maykin, maykinmedia, Datadog, sentry, GET / =>, GET /_health/, GET /admin, GET /api/ent, WARN, uWSGI, NO MERCY",
+        "query": "DEBUG, INFO, maykin, maykinmedia, Datadog, sentry, GET / =>, GET /_health/, GET /admin, GET /api/ent, WARN, uWSGI, NO MERCY, Token, token, secret, Secret, ConnectionId, connectionid, admin, Admin, root, Root, user, username, Username, password, Password, pass, Pass, pwd, Pwd, apiKey, ApiKey, api_key, Api_key, access_token, Access_token, auth_token, Auth_token, authorization, bearer, client_id, Client_id, client_secret, Client_secret, session, Session, cookie, Cookie, csrf, Csrf, CSRF, jwt, Jwt, JWT, refresh_token, Refresh_token, Authorization, Bearer, keys, Keys, User, bsn, Name, fullname, Fullname, first_name, First_name, ip, ip_address, iban, bic, BIC, bank, creditcard, cc_number, card_number, cvv, cvc, CVV, CVC, paypal, transaction, rsa, RSA, pem, PEM, private_key, ssh, SSH, cert, certificate, Key, key, passwd, credentials, vault, secrets, ssn, location, address, adres",
         "type": "custom"
       }
     ]
@@ -1999,7 +2454,7 @@
   },
   "timepicker": {},
   "timezone": "",
-  "title": "Monitoring en logging PodiumD",
-  "uid": "e970a83d-adc2-4d33-af93-2349c0b77",
-  "version": 3
+  "title": "Monitoring en logging PodiumD test",
+  "uid": "caf685",
+  "version": 0
 }
