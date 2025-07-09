@@ -30,7 +30,14 @@ grafana:
           version: 1
           jsonData:
             timeout: 300
-            
+
+  downloadDashboardsImage:
+    pullPolicy: IfNotPresent
+    registry: acrprodmgmt.azurecr.io
+    repository: curl
+    sha: ""
+    tag: 8.9.1         
+
   containerSecurityContext:
     readOnlyRootFilesystem: false
     allowPrivilegeEscalation: false
@@ -260,6 +267,9 @@ promtail:
       tag: v0.12.0
 loki:
   enabled: true
+  global:
+    image:
+      registry: acrprodmgmt.azurecr.io
   deploymentMode: Distributed
   lokiCanary:
     enabled: false
@@ -487,3 +497,8 @@ loki:
       registry: acrprodmgmt.azurecr.io
       repository: minio
       tag: RELEASE.2024-12-18T13-15-44Z
+    mcImage:
+      pullPolicy: IfNotPresent
+      registry: acrprodmgmt.azurecr.io
+      repository: mc
+      tag: RELEASE.2024-11-21T17-21-54Z
