@@ -155,7 +155,7 @@ grafana:
     image:
       registry: acrprodmgmt.azurecr.io
       repository: bats
-      tag: v1.4.1
+      tag: latest
     imagePullPolicy: IfNotPresent
   persistence:
     enabled: true
