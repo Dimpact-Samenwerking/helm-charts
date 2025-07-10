@@ -22,7 +22,7 @@ keycloak:
   # -- cache setting for keycloak, if there are multiple instances they will automatically form a cluster for the cache
   cache:
     enabled: true
-    stackName: kubernetes
+    stackName: jdbc-ping
   config:
     adminFrontendUrl: https://keycloak-admin.example.nl
     # Example configuration
@@ -79,6 +79,11 @@ keycloak:
   # customCaExistingSecret: ispn-secret
   # -- enable keycloak by default
   enabled: true
+  # keycloak image scanner only checks repo url/path not image hash
+  # the allowInsecureImages needs to be set to true when using an ACR
+  global:
+    security:
+      allowInsecureImages: true
   # -- required to activate infinispan
   #extraEnvVars: |
   #  - name: KC_TRUSTSTORE_PATHS
@@ -86,10 +91,11 @@ keycloak:
   # -- required to activate infinispan
   #extraStartupArgs: "--cache-remote-host=ispn --cache-remote-port=11222 --cache-remote-username=keycloak --cache-remote-password=changemenow --log-level=INFO --spi-connections-infinispan-quarkus-site-name=ontw-dimp"
   # image parameters for keycloak
+  # docker.io/bitnami/keycloak:26.3.1
   image:
     registry: ""
     repository: keycloak
-    tag: 25.0.6
+    tag: 26.3.1
   externalDatabase:
     host: "postgres"
     database: ""
@@ -103,11 +109,12 @@ keycloak:
     enabled: true
     existingConfigmap: podiumd-config
     # image parameters for keycloak-config-cli
+    # docker.io/bitnami/keycloak-config-cli:6.4.0
     image:
       registry: ""
       repository: keycloak-config-cli
       # -- image tag for keycloak-config-cli, this must be a version that is compatible with the keycloak image tag
-      tag: "6.1.6"
+      tag: "6.4.0"
   metrics:
     enabled: true
   pdb:
@@ -126,7 +133,6 @@ keycloak:
   serviceMonitor:
     enabled: true
   production: true
-  proxy: edge
   proxyHeaders: forwarded
   postgresql:
     enabled: false
@@ -134,6 +140,10 @@ keycloak:
   extraEnvVarsCM: keycloak-extra-env-vars
 
 infinispan:
+  # -- image data for infinispan containers
+  #images:
+  #  server: quay.io/infinispan/server:15.1
+  #  initContainer: registry.access.redhat.com/ubi8-micro:8.10-1751466198
   deploy:
     nameOverride: ispn
     replicas: 2
@@ -179,7 +189,7 @@ infinispan:
               owners: 2
               mode: "SYNC"
               encoding:
-                mediaType: "application/x-jboss-marshalling"
+                mediaType: "application/x-protostream"
               expiration:
                 maxIdle: "-1"
                 lifespan: "-1"
@@ -189,25 +199,13 @@ infinispan:
               persistence:
                 fileStore:
                   path: cache
-          sessions:
-            distributedCache:
-              statistics: "true"
-              owners: 2
-              mode: "SYNC"
-              encoding:
-                mediaType: "application/x-jboss-marshalling"
-              expiration:
-                lifespan: "-1"
-              persistence:
-                fileStore:
-                  path: cache
           authenticationSessions:
             distributedCache:
               statistics: "true"
               owners: 2
               mode: "SYNC"
               encoding:
-                mediaType: "application/x-jboss-marshalling"
+                mediaType: "application/x-protostream"
               expiration:
                 lifespan: "-1"
               persistence:
@@ -219,7 +217,7 @@ infinispan:
               owners: 2
               mode: "SYNC"
               encoding:
-                mediaType: "application/x-jboss-marshalling"
+                mediaType: "application/x-protostream"
               expiration:
                 lifespan: "-1"
               persistence:
@@ -231,7 +229,7 @@ infinispan:
               owners: 2
               mode: "SYNC"
               encoding:
-                mediaType: "application/x-jboss-marshalling"
+                mediaType: "application/x-protostream"
               expiration:
                 lifespan: "-1"
               persistence:
@@ -243,7 +241,7 @@ infinispan:
               owners: 2
               mode: "SYNC"
               encoding:
-                mediaType: "application/x-jboss-marshalling"
+                mediaType: "application/x-protostream"
               expiration:
                 lifespan: "-1"
               persistence:
@@ -255,7 +253,7 @@ infinispan:
               owners: 2
               mode: "SYNC"
               encoding:
-                mediaType: "application/x-jboss-marshalling"
+                mediaType: "application/x-protostream"
               expiration:
                 lifespan: "-1"
               persistence:
@@ -265,7 +263,7 @@ infinispan:
             replicatedCache:
               statistics: "true"
               encoding:
-                mediaType: "application/x-jboss-marshalling"
+                mediaType: "application/x-protostream"
               expiration:
                 lifespan: "-1"
       server:
