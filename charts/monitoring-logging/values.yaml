@@ -91,7 +91,8 @@ grafana:
       token_url: "https://keycloak.test.nl/realms/podiumd/protocol/openid-connect/token"
       api_url: "https://keycloak.test.nl/realms/podiumd/protocol/openid-connect/userinfo"
       role_attribute_path: "contains(monitoring_roles[*], 'admin') && 'Admin' || contains(monitoring_roles[*], 'editor') && 'Editor' || 'Viewer'"
-      role_attribute_strict: true
+      role_attribute_strict: false
+      org_mapping: *:Viewer
       skip_org_role_sync: false
       groups_attribute_path: groups
       use_refresh_token: true
