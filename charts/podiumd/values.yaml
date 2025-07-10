@@ -44,7 +44,7 @@ keycloak:
     #        authorizationUrl: "https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize"
     #        logoutUrl: "https://login.microsoftonline.com/organizations/oauth2/v2.0/logout"
     # -- identity providers for the admin realm (usually master)
-    adminIdentityProviders: {}
+    #adminIdentityProviders: {}
     # Example configuration
     #    identityProviderMappers:
     #    - name: "admin-group-mapper"
@@ -54,7 +54,7 @@ keycloak:
     #        syncMode: "FORCE"
     #        role: "admin"
     # -- identity provider mapper for the admin realm
-    adminIdentityProviderMappers: {}
+    #adminIdentityProviderMappers: {}
     adminOtpEnabled: false
     realm: podiumd
     realmDisplayName: PodiumD
