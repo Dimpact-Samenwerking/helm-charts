@@ -7,7 +7,7 @@ appVersion: "1.0.4"
 dependencies:
   - name: loki
     repository: "@grafana"
-    version: 6.30.1
+    version: 6.31.0
     condition: loki.enabled
   - name: promtail
     repository: "@grafana"
