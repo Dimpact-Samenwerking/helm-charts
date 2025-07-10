@@ -250,9 +250,11 @@ loki:
   lokiCanary:
     enabled: false
     # loki-canary image settings
-    image:
-      pullPolicy: IfNotPresent
-      tag: k262-d64ced2
+    # image is not used
+    
+   # image:
+   #  pullPolicy: IfNotPresent
+   #   tag: k262-d64ced2
   memcached:
     # memcached image settings
     image:
@@ -356,9 +358,11 @@ loki:
   test:
     enabled: false
     # loki-helm-test image settings
-    image:
-      pullPolicy: IfNotPresent
-      tag: ewelch-distributed-helm-chart-17db5ee
+    # image is not used
+
+    #  image:
+    #    pullPolicy: IfNotPresent
+    #     tag: ewelch-distributed-helm-chart-17db5ee
   backend:
     replicas: 0
   read:
