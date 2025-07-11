@@ -30,7 +30,12 @@ grafana:
           version: 1
           jsonData:
             timeout: 300
-            
+
+  downloadDashboardsImage:
+    pullPolicy: IfNotPresent
+    sha: ""
+    tag: 8.9.1         
+
   containerSecurityContext:
     readOnlyRootFilesystem: false
     allowPrivilegeEscalation: false
@@ -86,7 +91,8 @@ grafana:
       token_url: "https://keycloak.test.nl/realms/podiumd/protocol/openid-connect/token"
       api_url: "https://keycloak.test.nl/realms/podiumd/protocol/openid-connect/userinfo"
       role_attribute_path: "contains(monitoring_roles[*], 'admin') && 'Admin' || contains(monitoring_roles[*], 'editor') && 'Editor' || 'Viewer'"
-      role_attribute_strict: true
+      role_attribute_strict: false
+      org_mapping: *:Viewer
       skip_org_role_sync: false
       groups_attribute_path: groups
       use_refresh_token: true
@@ -120,14 +126,27 @@ grafana:
       kubernetesClientDashboardsFolders: true
       kubernetesDashboards: true
       grafanaAPIServerEnsureKubectlAccess: true
+  # -- Grafana image settings
   image:
     pullPolicy: IfNotPresent
-    pullSecrets: []
-    registry: docker.io
-    repository: grafana/grafana
-    sha: ""
-    tag: ""
-    
+    tag: 12.0.2
+
+  initChownData:
+    # -- Busybox image settings
+    image:
+      pullPolicy: IfNotPresent
+      tag: 1.31.1
+
+  imageRenderer:
+    # -- Grafana image renderer settings
+    image:
+      pullPolicy: Always
+      tag: 3.12.9
+  testFramework:
+    # -- bats image settings
+    image:
+      tag: 1.12.0
+    imagePullPolicy: IfNotPresent
   persistence:
     enabled: true
     storageClassName: "managed-csi" # Specify your storage class
@@ -146,11 +165,9 @@ grafana:
 prometheus:
   enabled: true
   server:
+    # -- prometheus image settings
     image:
-      digest: ""
-      pullPolicy: IfNotPresent
-      repository: quay.io/prometheus/prometheus
-      tag: ""
+      tag: v3.4.2
     persistentVolume:
       enabled: true
       storageClass: "managed-csi"
@@ -169,20 +186,41 @@ prometheus:
   prometheus-node-exporter:
     nodeSelector:
       agentpool: userpool
+    # node-exporter image settings
+    image:
+      pullPolicy: IfNotPresent
+      tag: v1.9.1
+    kubeRBACProxy:
+      # kube-rbac-proxy image settings
+      image:
+        pullPolicy: IfNotPresent
+        tag: v0.19.1
   prometheus-pushgateway:
     nodeSelector:
       agentpool: userpool
+    # pushgateway image settings
+    image:
+      pullPolicy: IfNotPresent
+      tag: v1.11.1
   kube-state-metrics:
     nodeSelector:
       agentpool: userpool
+    # kube-state-metrics image settings
+    image:
+      pullPolicy: IfNotPresent
+      tag: 2.16.0
+  configmapReload:
+    prometheus:
+      # prometheus-config-reloader image settings
+      image:
+        tag: v0.83.0
 
 promtail:
   enabled: true
+  # promtail image settings
   image:
     pullPolicy: IfNotPresent
-    registry: docker.io
-    repository: grafana/promtail
-    tag: ""
+    tag: 3.5.1
   nodeSelector:
     agentpool: userpool
   config:
@@ -197,23 +235,67 @@ promtail:
     limits:
       cpu: 100m
       memory: 256Mi
-
+  sidecar:
+    # configmap-reload image settings
+    image:
+      pullPolicy: IfNotPresent
+      tag: v0.12.0
 loki:
   enabled: true
+  # loki image settings
+  #global:
+  #  image:
+  #    registry: acrprodmgmt.azurecr.io
   deploymentMode: Distributed
   lokiCanary:
     enabled: false
+    # loki-canary image settings
+    # image is not used
+    
+   # image:
+   #  pullPolicy: IfNotPresent
+   #   tag: k262-d64ced2
+  memcached:
+    # memcached image settings
+    image:
+      pullPolicy: IfNotPresent
+      tag: 1.6.38-alpine
+  memcachedExporter:
+    # memcached-export image settings
+    image:
+      pullPolicy: IfNotPresent
+      tag: v0.15.2
+
   resultsCache:
     enabled: true
     defaultValidity: 6h
     nodeSelector:
       agentpool: userpool
+
+  sidecar:
+    # k8s-sidecar image settings
+    image:
+      pullPolicy: IfNotPresent
+      tag: 1.30.3
+
+
   chunksCache:
     enabled: true
     defaultValidity: 6h # Shorter TTL = fresher results
     allocatedMemory: 1024
     nodeSelector:
       agentpool: userpool
+  enterprise:
+    # enterprise-logs image settings
+    image:
+      pullPolicy: IfNotPresent
+      tag: 3.5.1
+    provisioner:
+      # enterprise-logs-provisioner image settings
+      image:
+        pullPolicy: IfNotPresent
+        tag: 1.9.3
+
   monitoring:
     selfMonitoring:
       enabled: false
@@ -250,6 +332,10 @@ loki:
   gateway:
     nodeSelector:
       agentpool: userpool
+    # nginx-unprivileged image settings
+    image:
+      pullPolicy: IfNotPresent
+      tag: 1.28-alpine
   ingester:
     replicas: 3
     nodeSelector:
@@ -264,8 +350,19 @@ loki:
       zoneC:
         nodeSelector:
           agentpool: userpool
+
+  # kubectl image settings
+  kubectlImage:
+    tag: 1.33.2-debian-12-r2
+    pullPolicy: IfNotPresent
   test:
     enabled: false
+    # loki-helm-test image settings
+    # image is not used
+
+    #  image:
+    #    pullPolicy: IfNotPresent
+    #     tag: ewelch-distributed-helm-chart-17db5ee
   backend:
     replicas: 0
   read:
@@ -276,7 +373,6 @@ loki:
     replicas: 1
     nodeSelector:
       agentpool: userpool
-    
   loki:
     auth_enabled: false
     schemaConfig:
@@ -344,10 +440,29 @@ loki:
       
     frontend:
       max_outstanding_per_tenant: 6144
+
+    # loki image settings
+    image:
+      pullPolicy: IfNotPresent
+      tag: 3.5.0
+    
+
   minio:
     enabled: true
+    global:
+      # minio image settings
+      #image:
+      #  registry: acrprodmgmt.azurecr.io
     persistence:
       storageClass: managed-csi
       size: 20Gi
     nodeSelector:
       agentpool: userpool
+    # minio image settings
+    image:
+      pullPolicy: IfNotPresent
+      tag: RELEASE.2024-12-18T13-15-44Z
+    # mc image settings
+    mcImage:
+      pullPolicy: IfNotPresent
+      tag: RELEASE.2024-11-21T17-21-54Z
