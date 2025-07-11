@@ -24,7 +24,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 3,
+  "id": 1866085080600576,
   "links": [],
   "panels": [
     {
@@ -150,7 +150,7 @@
           "sort": "desc"
         }
       },
-      "pluginVersion": "12.0.0",
+      "pluginVersion": "12.0.2",
       "targets": [
         {
           "datasource": {
@@ -357,7 +357,7 @@
               "sort": "none"
             }
           },
-          "pluginVersion": "12.0.0",
+          "pluginVersion": "12.0.2",
           "targets": [
             {
               "datasource": {
@@ -505,7 +505,7 @@
               }
             ]
           },
-          "pluginVersion": "12.0.0",
+          "pluginVersion": "12.0.2",
           "targets": [
             {
               "datasource": {
@@ -708,7 +708,7 @@
               "sort": "none"
             }
           },
-          "pluginVersion": "12.0.0",
+          "pluginVersion": "12.0.2",
           "targets": [
             {
               "datasource": {
@@ -832,7 +832,7 @@
               "sort": "none"
             }
           },
-          "pluginVersion": "12.0.0",
+          "pluginVersion": "12.0.2",
           "targets": [
             {
               "datasource": {
@@ -960,7 +960,7 @@
               "sort": "none"
             }
           },
-          "pluginVersion": "12.0.0",
+          "pluginVersion": "12.0.2",
           "targets": [
             {
               "datasource": {
@@ -1076,7 +1076,7 @@
               }
             ]
           },
-          "pluginVersion": "12.0.0",
+          "pluginVersion": "12.0.2",
           "targets": [
             {
               "datasource": {
@@ -1236,7 +1236,7 @@
               "sort": "none"
             }
           },
-          "pluginVersion": "12.0.0",
+          "pluginVersion": "12.0.2",
           "targets": [
             {
               "datasource": {
@@ -1331,7 +1331,7 @@
             "sortOrder": "Descending",
             "wrapLogMessage": true
           },
-          "pluginVersion": "11.6.1",
+          "pluginVersion": "12.0.2",
           "targets": [
             {
               "datasource": {
@@ -1340,7 +1340,7 @@
               },
               "direction": "backward",
               "editorMode": "code",
-              "expr": "{app=~\"$Subapp\"}  |~ \"(?i)$search\" |~ \"(?i)$Methode\" |~ \"(?i)$LogLevel\" !~ `$excluded_log_levels` != `HTTP/1.1\" 0 \"` ",
+              "expr": "{app=~\"$Subapp\"}  |~ \"(?i)$search\" |~ \"(?i)$Methode\" |~ \"(?i)$LogLevel\" !~ `(?i)$excluded_log_levels` != `HTTP/1.1\" 0 \"` ",
               "maxLines": 100,
               "queryType": "range",
               "refId": "A"
@@ -1377,7 +1377,7 @@
             "h": 19,
             "w": 24,
             "x": 0,
-            "y": 198
+            "y": 299
           },
           "id": 70,
           "options": {
@@ -1391,7 +1391,7 @@
             "sortOrder": "Descending",
             "wrapLogMessage": true
           },
-          "pluginVersion": "11.6.1",
+          "pluginVersion": "12.0.2",
           "targets": [
             {
               "datasource": {
@@ -1400,7 +1400,7 @@
               },
               "direction": "backward",
               "editorMode": "code",
-              "expr": "{app=~\"$Subapp\"} !~ `$excluded_log_levels` |~ \"(?i)$search\" |~ `HTTP/1.1[\\\" ]*$http_code` != `HTTP/1.1\" 0 \"` |~ \"(?i)$Methode\" |~ \"(?i)$LogLevel\"",
+              "expr": "{app=~\"$Subapp\"} !~ `(?i)$excluded_log_levels` |~ \"(?i)$search\" |~ `HTTP/1.1[\\\" ]*$http_code` != `HTTP/1.1\" 0 \"` |~ \"(?i)$Methode\" |~ \"(?i)$LogLevel\"",
               "hide": false,
               "maxLines": 100,
               "queryType": "range",
@@ -1446,7 +1446,7 @@
             "h": 13,
             "w": 24,
             "x": 0,
-            "y": 218
+            "y": 199
           },
           "id": 51,
           "options": {
@@ -1460,15 +1460,16 @@
             "sortOrder": "Descending",
             "wrapLogMessage": true
           },
-          "pluginVersion": "11.6.1",
+          "pluginVersion": "12.0.2",
           "targets": [
             {
               "datasource": {
                 "type": "loki",
                 "uid": "loki"
               },
+              "direction": "backward",
               "editorMode": "code",
-              "expr": "{app=\"openformulieren-worker\"} |~ \"\\\"public_reference\\\":\\\"OF-[0-9a-zA-Z]{6}\\\"\" ",
+              "expr": "{app=\"openformulieren-worker\"} |~ \"\\\"public_reference\\\":\\\"OF-[0-9a-zA-Z]{6}\\\"\"",
               "legendFormat": "",
               "maxLines": 100,
               "queryType": "range",
@@ -1498,7 +1499,7 @@
             "h": 11,
             "w": 24,
             "x": 0,
-            "y": 231
+            "y": 212
           },
           "id": 63,
           "options": {
@@ -1512,15 +1513,16 @@
             "sortOrder": "Descending",
             "wrapLogMessage": false
           },
-          "pluginVersion": "11.6.1",
+          "pluginVersion": "12.0.2",
           "targets": [
             {
               "datasource": {
                 "type": "loki",
                 "uid": "loki"
               },
+              "direction": "backward",
               "editorMode": "code",
-              "expr": "{app=\"openformulieren-nginx\"} \r\n|~ `https?://[^/\\s]+/([^/\\s]+)` \r\n|~ \"POST /api/v2/submissions/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/_complete\" \r\n| regexp `POST /api/v2/submissions/(?P<id>[0-9a-fA-F-]+)`\r\n| regexp `https?://(?P<url>[^/\\s]+)/(?P<formulier>[^/\\s]+)` \r\n| line_format \"URL: https://{{.url}}/{{.formulier}}, Formulier: {{.formulier}}, SubmissionID: {{.id}}\"\r\n!~ `$excluded_log_levels`",
+              "expr": "{app=\"openformulieren-nginx\"} \r\n|~ `https?://[^/\\s]+/([^/\\s]+)` \r\n|~ \"POST /api/v2/submissions/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/_complete\" \r\n| regexp `POST /api/v2/submissions/(?P<id>[0-9a-fA-F-]+)`\r\n| regexp `https?://(?P<url>[^/\\s]+)/(?P<formulier>[^/\\s]+)` \r\n| line_format \"URL: https://{{.url}}/{{.formulier}}, Formulier: {{.formulier}}, SubmissionID: {{.id}}\"",
               "hide": false,
               "maxLines": 100,
               "queryType": "range",
@@ -1557,7 +1559,7 @@
             "h": 12,
             "w": 24,
             "x": 0,
-            "y": 267
+            "y": 224
           },
           "id": 73,
           "options": {
@@ -1571,9 +1573,10 @@
             "sortOrder": "Descending",
             "wrapLogMessage": true
           },
-          "pluginVersion": "11.6.1",
+          "pluginVersion": "12.0.2",
           "targets": [
             {
+              "direction": "backward",
               "editorMode": "code",
               "expr": "{app=~\"$Subapp\"} |~ `zgw-apis-provider/${api_provider}` | pattern `<_> zgw-apis-provider/<api> <_>`",
               "queryType": "range",
@@ -1597,7 +1600,9 @@
       {
         "current": {
           "text": "All",
-          "value": "$__all"
+          "value": [
+            "$__all"
+          ]
         },
         "datasource": {
           "type": "loki",
@@ -1617,7 +1622,7 @@
           "type": 1
         },
         "refresh": 2,
-        "regex": "^(openformulieren|objecttypen|objecten|opennotificaties|kiss|openinwoner|openzaak|openklant|zac|clamav|keycloak|solr|elastic|infinispan).*",
+        "regex": "^(openformulieren|objecttypen|objecten|opennotificaties|openarchiefbeheer|kiss|openinwoner|openzaak|openklant|zac|zookeeper|podiumd|clamav|keycloak|solr|elastic|infinispan).*",
         "sort": 1,
         "type": "query"
       },
@@ -1893,19 +1898,19 @@
       },
       {
         "current": {
-          "text": "1.0.0",
-          "value": "1.0.0"
+          "text": "1.0.4",
+          "value": "1.0.4"
         },
         "label": "Dashboard versie",
         "name": "Dashboard_versie",
         "options": [
           {
             "selected": true,
-            "text": "1.0.0",
-            "value": "1.0.0"
+            "text": "1.0.4",
+            "value": "1.0.4"
           }
         ],
-        "query": "1.0.0",
+        "query": "1.0.4",
         "type": "textbox"
       },
       {
@@ -1986,20 +1991,90 @@
             "selected": false,
             "text": "NO MERCY",
             "value": "NO MERCY"
+          },
+          {
+            "selected": false,
+            "text": "token",
+            "value": "token"
+          },
+          {
+            "selected": false,
+            "text": "secret",
+            "value": "secret"
+          },
+          {
+            "selected": false,
+            "text": "connectionid",
+            "value": "connectionid"
+          },
+          {
+            "selected": false,
+            "text": "admin",
+            "value": "admin"
+          },
+          {
+            "selected": false,
+            "text": "root",
+            "value": "root"
+          },
+          {
+            "selected": false,
+            "text": "user",
+            "value": "user"
+          },
+          {
+            "selected": false,
+            "text": "username",
+            "value": "username"
+          },
+          {
+            "selected": false,
+            "text": "password",
+            "value": "password"
+          },
+          {
+            "selected": false,
+            "text": "pwd",
+            "value": "pwd"
+          },
+          {
+            "selected": false,
+            "text": "apikey",
+            "value": "apikey"
+          },
+          {
+            "selected": false,
+            "text": "authorization",
+            "value": "authorization"
+          },
+          {
+            "selected": false,
+            "text": "bearer",
+            "value": "bearer"
+          },
+          {
+            "selected": false,
+            "text": "client_id",
+            "value": "client_id"
+          },
+          {
+            "selected": false,
+            "text": "client_secret",
+            "value": "client_secret"
           }
         ],
-        "query": "DEBUG, INFO, maykin, maykinmedia, Datadog, sentry, GET / =>, GET /_health/, GET /admin, GET /api/ent, WARN, uWSGI, NO MERCY",
+        "query": "DEBUG, INFO, maykin, maykinmedia, Datadog, sentry, GET / =>, GET /_health/, GET /admin, GET /api/ent, WARN, uWSGI, NO MERCY, token, secret, connectionid, admin, root, user, username, password, pwd, apikey, authorization, bearer, client_id, client_secret",
         "type": "custom"
       }
     ]
   },
   "time": {
-    "from": "now-30m",
+    "from": "now-1h",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "",
   "title": "Monitoring en logging PodiumD",
-  "uid": "e970a83d-adc2-4d33-af93-2349c0b77",
-  "version": 3
+  "uid": "cawvpt6",
+  "version": 1
 }
