@@ -1215,7 +1215,7 @@ openklant:
   persistentVolume:
     volumeAttributeShareName: openklant
   image:
-    tag: "2.7.0"
+    tag: "2.9.0"
   resources:
     requests:
       cpu: 100m

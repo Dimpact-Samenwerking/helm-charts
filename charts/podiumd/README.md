@@ -78,8 +78,8 @@
 | Objecten           | 3.0.4        |                 | 2.8.0        |                |
 | Objecttypen        | 3.0.2        |                 | 1.3.2        |                |
 | Open Formulieren   | 3.0.7        |                 | 1.8.2        |                |
-| Open Inwoner       | 1.32.0       |   Minor update  | 1.7.5        | Minor update   |
-| Open Klant         | 2.7.0        |                 | 1.6.6        |                |
+| Open Inwoner       | 1.32.0       |  Minor update   | 1.7.5        |  Minor update  |
+| Open Klant         | 2.9.0        |  Minor update   | 1.7.0        |  Minor update  |
 | Open Notificaties  | 1.8.2        |                 | 1.8.4        |                |
 | Open Zaak          | 1.21.2       |  Minor update   | 1.9.0        |  Minor update  |
 | Open Archiefbeheer | 1.0.0        |                 | 1.3.10       |                |
