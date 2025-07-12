@@ -19,15 +19,15 @@ dependencies:
     condition: brppersonenmock.enabled
     alias: brppersonenmock
   - name: openzaak
-    version: 1.8.1
+    version: 1.9.0
     repository: "@maykinmedia"
     condition: openzaak.enabled
   - name: opennotificaties
-    version: 1.8.4
+    version: 1.9.2
     repository: "@maykinmedia"
     condition: opennotificaties.enabled
   - name: objecten
-    version: 2.8.0
+    version: 2.8.1
     repository: "@maykinmedia"
     condition: objecten.enabled
   - name: objecttypen
@@ -39,7 +39,7 @@ dependencies:
     repository: "@maykinmedia"
     condition: openarchiefbeheer.enabled
   - name: openklant
-    version: 1.6.6
+    version: 1.7.0
     repository: "@maykinmedia"
     condition: openklant.enabled
   - name: openforms
@@ -48,7 +48,7 @@ dependencies:
     repository: "@maykinmedia"
     condition: openformulieren.enabled
   - name: openinwoner
-    version: 1.7.2
+    version: 1.7.5
     repository: "@maykinmedia"
     condition: openinwoner.enabled
   - name: kiss-elastic
