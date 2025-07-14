@@ -1906,7 +1906,7 @@ zac:
       # -- namespaces to watch for zookeeper-operator
       watchNamespace: "podiumd"
       zookeeper:
-        # pravega-zookeeper:0.2.15
+        # pravega/zookeeper:0.2.15
         image:
           #repository:
           tag: 0.2.15
