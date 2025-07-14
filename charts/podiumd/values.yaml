@@ -1867,42 +1867,49 @@ zac:
   solr-operator:
     # -- turn functionality on/off
     enabled: true
+    # apache/solr-operator:v0.9.1
     image:
       #repository:
-      #tag:
+      tag: v0.9.1
     nodeSelector: {}
     solr:
-      #busyBoxImage:
+      # library/busybox:1.37.0-glibc
+      busyBoxImage:
         #repository:
-        #tag:
+        tag: 1.37.0-glibc
       # -- set enabled to provision solrcloud as well
       enabled: true
-      #image:
+      # library/solr:9.8.1
+      image:
         #repository:
-        #tag:
+        tag: 9.8.1
       # -- define memory settings for solr in the solrcloud
       javaMem: -Xms512m -Xmx768m
       jobs:
         createZacCore: true
-        #image:
+        # curlimages/curl:8.14.1
+        image:
           #repository:
-          #tag:
+          tag: 8.14.1
     # -- namespaces to watch for solr-operator
     watchNamespaces: "podiumd"
     zookeeper-operator:
-      #hooks:
-        #image:
+      hooks:
+        # lachlanevenson/k8s-kubectl:v1.25.4
+        image:
           #repository:
-          #tag:
-      #image:
+          tag: v1.25.4
+      # pravega/zookeeper-operator:0.2.15
+      image:
         #repository:
-        #tag:
+        tag: 0.2.15
       # -- namespaces to watch for zookeeper-operator
       watchNamespace: "podiumd"
-      #zookeeper:
-        #image:
+      zookeeper:
+        # pravega-zookeeper:0.2.15
+        image:
           #repository:
-          #tag:
+          tag: 0.2.15
   zgwApis:
     url: http://open-zaak.internal
     urlExtern: http://open-zaak.example.nl
