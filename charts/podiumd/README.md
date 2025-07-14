@@ -75,12 +75,12 @@
 | Keycloak           | 25.0.6       |                 | 24.3.0       |                |
 | Infinispan         | 15.1         |                 | 0.4.1        |                |
 | Abc                | 1.0.0        |                 |              |                |
-| Objecten           | 3.0.4        |                 | 2.8.0        |                |
-| Objecttypen        | 3.0.2        |                 | 1.3.2        |                |
-| Open Formulieren   | 3.0.7        |                 | 1.8.2        |                |
-| Open Inwoner       | 1.29.0       |                 | 1.7.2        |                |
-| Open Klant         | 2.7.0        |                 | 1.6.6        |                |
-| Open Notificaties  | 1.8.2        |                 | 1.8.4        |                |
+| Objecten           | 3.1.0        |  Minor update   | 2.8.1        |  Minor update  |
+| Objecttypen        | 3.0.4        |  Minor update   | 1.3.3        |  Minor update  |
+| Open Formulieren   | 3.1.4        |  Major update   | 1.8.6        |  Minor update  |
+| Open Inwoner       | 1.32.0       |  Minor update   | 1.7.5        |  Minor update  |
+| Open Klant         | 2.9.0        |  Minor update   | 1.7.0        |  Minor update  |
+| Open Notificaties  | 1.10.0       |  Minor update   | 1.9.2        |  Minor update  |
 | Open Zaak          | 1.21.2       |  Minor update   | 1.9.0        |  Minor update  |
 | Open Archiefbeheer | 1.0.0        |                 | 1.3.10       |                |
 | Kiss               | 1.0.0        |                 | 1.0.0        |                |

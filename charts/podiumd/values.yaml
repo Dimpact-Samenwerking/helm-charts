@@ -693,7 +693,7 @@ opennotificaties:
   persistentVolume:
     volumeAttributeShareName: opennotificaties
   image:
-    tag: "1.8.2"
+    tag: "1.10.0"
   resources:
     requests:
       cpu: 100m
@@ -851,7 +851,7 @@ objecten:
   persistentVolume:
     volumeAttributeShareName: objecten
   image:
-    tag: "3.0.4"
+    tag: "3.1.0"
   resources:
     requests:
       cpu: 100m
@@ -964,7 +964,7 @@ objecttypen:
       useTLS: true
     disable2fa: false
   image:
-    tag: "3.0.2"
+    tag: "3.0.4"
   # used for create-required-objecttypen podiumd job only
   create_required_objecttypen_job:
     enabled: true
@@ -1215,7 +1215,7 @@ openklant:
   persistentVolume:
     volumeAttributeShareName: openklant
   image:
-    tag: "2.7.0"
+    tag: "2.9.0"
   resources:
     requests:
       cpu: 100m
@@ -1388,7 +1388,7 @@ openformulieren:
   persistentVolume:
     volumeAttributeShareName: openformulieren
   image:
-    tag: "3.0.7"
+    tag: "3.1.4"
   resources:
     requests:
       cpu: 100m
@@ -1556,7 +1556,7 @@ openinwoner:
   persistentVolume:
     volumeAttributeShareName: openinwoner
   image:
-    tag: "1.29.0"
+    tag: "1.32.0"
   resources:
     requests:
       cpu: 200m
