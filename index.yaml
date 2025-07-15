@@ -133,6 +133,33 @@ entries:
     version: 1.0.3
   monitoring-logging:
   - apiVersion: v2
+    appVersion: 1.0.5
+    created: "2025-07-15T09:12:49.865709798Z"
+    dependencies:
+    - condition: loki.enabled
+      name: loki
+      repository: '@grafana'
+      version: 6.31.0
+    - condition: promtail.enabled
+      name: promtail
+      repository: '@grafana'
+      version: 6.17.0
+    - condition: grafana.enabled
+      name: grafana
+      repository: '@grafana'
+      version: 9.2.10
+    - condition: prometheus.enabled
+      name: prometheus
+      repository: '@prometheus-community'
+      version: 27.24.0
+    description: A monitoring stack using Loki, Prometheus, Promtail and Grafana
+    digest: 72fd204cf0e79436ef749f6122c91a90848e93364374adeee7749c6bac02f10a
+    name: monitoring-logging
+    type: application
+    urls:
+    - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/monitoring-logging-1.0.5/monitoring-logging-1.0.5.tgz
+    version: 1.0.5
+  - apiVersion: v2
     appVersion: 1.0.2
     created: "2025-06-25T13:23:59.477706746Z"
     dependencies:
@@ -5508,4 +5535,4 @@ entries:
     urls:
     - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/zac-1.0.0/zac-1.0.0.tgz
     version: 1.0.0
-generated: "2025-06-25T13:23:59.478065583Z"
+generated: "2025-07-15T09:12:49.865920811Z"
