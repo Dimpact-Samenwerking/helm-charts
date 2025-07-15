@@ -202,6 +202,8 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 | loki.sidecar.image.pullPolicy | string | `"IfNotPresent"` |  |
 | loki.sidecar.image.tag | string | `"1.30.7"` |  |
 | loki.test.enabled | bool | `false` |  |
+| loki.test.image.pullPolicy | string | `"IfNotPresent"` |  |
+| loki.test.image.tag | string | `"ewelch-distributed-helm-chart-17db5ee"` |  |
 | loki.write.replicas | int | `0` |  |
 | prometheus.alertmanager.enabled | bool | `false` |  |
 | prometheus.configmapReload.prometheus.image.tag | string | `"v0.83.0"` |  |
