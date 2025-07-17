@@ -167,7 +167,7 @@ prometheus:
   server:
     # -- prometheus image settings
     image:
-      tag: v3.4.2
+      tag: v3.5.0
     persistentVolume:
       enabled: true
       storageClass: "managed-csi"
@@ -444,7 +444,7 @@ loki:
     # loki image settings
     image:
       pullPolicy: IfNotPresent
-      tag: 3.5.0
+      tag: 3.5.2
     
 
   minio:
