@@ -1,6 +1,6 @@
 # monitoring-logging
 
-![Version: 1.0.4](https://img.shields.io/badge/Version-1.0.4-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 1.0.4](https://img.shields.io/badge/AppVersion-1.0.4-informational?style=flat-square)
+![Version: 1.0.6](https://img.shields.io/badge/Version-1.0.6-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 1.0.6](https://img.shields.io/badge/AppVersion-1.0.6-informational?style=flat-square)
 
 A monitoring stack using Loki, Prometheus, Promtail and Grafana
 
@@ -22,9 +22,9 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 | Repository | Name | Version |
 |------------|------|---------|
 | @grafana | grafana | 9.2.10 |
-| @grafana | loki | 6.31.0 |
+| @grafana | loki | 6.32.0 |
 | @grafana | promtail | 6.17.0 |
-| @prometheus-community | prometheus | 27.24.0 |
+| @prometheus-community | prometheus | 27.26.0 |
 
 ## Values
 
@@ -135,7 +135,7 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 | loki.loki.compactor.retention_enabled | bool | `true` |  |
 | loki.loki.frontend.max_outstanding_per_tenant | int | `6144` |  |
 | loki.loki.image.pullPolicy | string | `"IfNotPresent"` |  |
-| loki.loki.image.tag | string | `"3.5.0"` |  |
+| loki.loki.image.tag | string | `"3.5.2"` |  |
 | loki.loki.ingester.chunk_block_size | int | `262144` |  |
 | loki.loki.ingester.chunk_encoding | string | `"snappy"` |  |
 | loki.loki.ingester.chunk_idle_period | string | `"30m"` |  |
@@ -202,8 +202,6 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 | loki.sidecar.image.pullPolicy | string | `"IfNotPresent"` |  |
 | loki.sidecar.image.tag | string | `"1.30.7"` |  |
 | loki.test.enabled | bool | `false` |  |
-| loki.test.image.pullPolicy | string | `"IfNotPresent"` |  |
-| loki.test.image.tag | string | `"ewelch-distributed-helm-chart-17db5ee"` |  |
 | loki.write.replicas | int | `0` |  |
 | prometheus.alertmanager.enabled | bool | `false` |  |
 | prometheus.configmapReload.prometheus.image.tag | string | `"v0.83.0"` |  |
@@ -223,7 +221,7 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 | prometheus.prometheusSpec.retention | string | `"7d"` |  |
 | prometheus.prometheusSpec.retentionSize | string | `""` |  |
 | prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues | bool | `false` |  |
-| prometheus.server.image | object | `{"tag":"v3.4.2"}` | prometheus image settings |
+| prometheus.server.image | object | `{"tag":"v3.5.0"}` | prometheus image settings |
 | prometheus.server.nodeSelector.agentpool | string | `"userpool"` |  |
 | prometheus.server.persistentVolume.accessModes[0] | string | `"ReadWriteOnce"` |  |
 | prometheus.server.persistentVolume.enabled | bool | `true` |  |
