@@ -44,7 +44,7 @@ dependencies:
     condition: openklant.enabled
   - name: openforms
     alias: openformulieren
-    version: 1.8.6
+    version: 1.8.7
     repository: "@maykinmedia"
     condition: openformulieren.enabled
   - name: openinwoner
