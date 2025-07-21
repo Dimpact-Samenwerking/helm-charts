@@ -19,5 +19,5 @@ dependencies:
     condition: grafana.enabled
   - name: prometheus
     repository: "@prometheus-community"
-    version: 27.26.0
+    version: 27.28.0
     condition: prometheus.enabled

@@ -24,7 +24,7 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 | @grafana | grafana | 9.2.10 |
 | @grafana | loki | 6.32.0 |
 | @grafana | promtail | 6.17.0 |
-| @prometheus-community | prometheus | 27.26.0 |
+| @prometheus-community | prometheus | 27.28.0 |
 
 ## Values
 
@@ -83,7 +83,7 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 | grafana.datasources."datasources.yaml".datasources[1].version | int | `1` |  |
 | grafana.datasources.alertmanager.enabled | bool | `false` |  |
 | grafana.deleteDatasources[0].name | string | `"Alertmanager"` |  |
-| grafana.downloadDashboardsImage | object | `{"pullPolicy":"IfNotPresent","sha":"","tag":"8.14.1"}` | curl image settings |
+| grafana.downloadDashboardsImage | object | `{"pullPolicy":"IfNotPresent","sha":"","tag":"8.15.0"}` | curl image settings |
 | grafana.enabled | bool | `true` |  |
 | grafana.image | object | `{"pullPolicy":"IfNotPresent","tag":"12.0.2"}` | Grafana image settings |
 | grafana.imageRenderer.image | object | `{"pullPolicy":"Always","tag":"3.12.9"}` | Grafana image renderer settings |
@@ -115,7 +115,7 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 | loki.enterprise.provisioner.image.pullPolicy | string | `"IfNotPresent"` |  |
 | loki.enterprise.provisioner.image.tag | string | `"3.5.2"` |  |
 | loki.gateway.image.pullPolicy | string | `"IfNotPresent"` |  |
-| loki.gateway.image.tag | string | `"1.29-alpine3.22-perl"` |  |
+| loki.gateway.image.tag | string | `"1.28-alpine3.21-perl"` |  |
 | loki.gateway.nodeSelector.agentpool | string | `"userpool"` |  |
 | loki.indexGateway.maxUnavailable | int | `1` |  |
 | loki.indexGateway.nodeSelector.agentpool | string | `"userpool"` |  |
@@ -126,7 +126,7 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 | loki.ingester.zoneAwareReplication.zoneB.nodeSelector.agentpool | string | `"userpool"` |  |
 | loki.ingester.zoneAwareReplication.zoneC.nodeSelector.agentpool | string | `"userpool"` |  |
 | loki.kubectlImage.pullPolicy | string | `"IfNotPresent"` |  |
-| loki.kubectlImage.tag | string | `"1.33.2-debian-12-r3"` |  |
+| loki.kubectlImage.tag | string | `"1.33.3-debian-12-r1"` |  |
 | loki.loki.auth_enabled | bool | `false` |  |
 | loki.loki.compactor.compaction_interval | string | `"10m"` |  |
 | loki.loki.compactor.delete_request_store | string | `"s3"` |  |
@@ -171,7 +171,7 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 | loki.loki.tracing.enabled | bool | `true` |  |
 | loki.lokiCanary.enabled | bool | `false` |  |
 | loki.memcached.image.pullPolicy | string | `"IfNotPresent"` |  |
-| loki.memcached.image.tag | string | `"1.6.38"` |  |
+| loki.memcached.image.tag | string | `"1.6.38-alpine3.22"` |  |
 | loki.memcachedExporter.image.pullPolicy | string | `"IfNotPresent"` |  |
 | loki.memcachedExporter.image.tag | string | `"v0.15.3"` |  |
 | loki.minio.enabled | bool | `true` |  |
@@ -204,10 +204,10 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 | loki.test.enabled | bool | `false` |  |
 | loki.write.replicas | int | `0` |  |
 | prometheus.alertmanager.enabled | bool | `false` |  |
-| prometheus.configmapReload.prometheus.image.tag | string | `"v0.83.0"` |  |
+| prometheus.configmapReload.prometheus.image.tag | string | `"v0.84.0"` |  |
 | prometheus.enabled | bool | `true` |  |
 | prometheus.kube-state-metrics.image.pullPolicy | string | `"IfNotPresent"` |  |
-| prometheus.kube-state-metrics.image.tag | string | `"2.16.0-debian-12-r1"` |  |
+| prometheus.kube-state-metrics.image.tag | string | `"2.16.0-debian-12-r3"` |  |
 | prometheus.kube-state-metrics.nodeSelector.agentpool | string | `"userpool"` |  |
 | prometheus.prometheus-node-exporter.image.pullPolicy | string | `"IfNotPresent"` |  |
 | prometheus.prometheus-node-exporter.image.tag | string | `"v1.9.1"` |  |
@@ -239,4 +239,4 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 | promtail.resources.requests.cpu | string | `"50m"` |  |
 | promtail.resources.requests.memory | string | `"96Mi"` |  |
 | promtail.sidecar.image.pullPolicy | string | `"IfNotPresent"` |  |
-| promtail.sidecar.image.tag | string | `"v0.12.0"` |  |
+| promtail.sidecar.image.tag | string | `"v0.15.0"` |  |

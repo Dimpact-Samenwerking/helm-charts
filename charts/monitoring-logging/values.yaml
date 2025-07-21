@@ -34,7 +34,7 @@ grafana:
   downloadDashboardsImage:
     pullPolicy: IfNotPresent
     sha: ""
-    tag: 8.14.1        
+    tag: 8.15.0       
 
   containerSecurityContext:
     readOnlyRootFilesystem: false
@@ -208,12 +208,12 @@ prometheus:
     # kube-state-metrics image settings
     image:
       pullPolicy: IfNotPresent
-      tag: 2.16.0-debian-12-r1
+      tag: 2.16.0-debian-12-r3
   configmapReload:
     prometheus:
       # prometheus-config-reloader image settings
       image:
-        tag: v0.83.0
+        tag: v0.84.0
 
 promtail:
   enabled: true
@@ -239,7 +239,7 @@ promtail:
     # configmap-reload image settings
     image:
       pullPolicy: IfNotPresent
-      tag: v0.12.0
+      tag: v0.15.0
 loki:
   enabled: true
   # loki image settings
@@ -259,7 +259,7 @@ loki:
     # memcached image settings
     image:
       pullPolicy: IfNotPresent
-      tag: 1.6.38
+      tag: 1.6.38-alpine3.22
   memcachedExporter:
     # memcached-export image settings
     image:
@@ -335,7 +335,7 @@ loki:
     # nginx-unprivileged image settings
     image:
       pullPolicy: IfNotPresent
-      tag: 1.29-alpine3.22-perl
+      tag: 1.28-alpine3.21-perl
   ingester:
     replicas: 3
     nodeSelector:
@@ -353,7 +353,7 @@ loki:
 
   # kubectl image settings
   kubectlImage:
-    tag: 1.33.2-debian-12-r3
+    tag: 1.33.3-debian-12-r1
     pullPolicy: IfNotPresent
   test:
     enabled: false
