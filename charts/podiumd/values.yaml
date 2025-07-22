@@ -22,7 +22,7 @@ keycloak:
   # -- cache setting for keycloak, if there are multiple instances they will automatically form a cluster for the cache
   cache:
     enabled: true
-    stackName: jdbc-ping
+    stack: jdbc-ping
   config:
     adminFrontendUrl: https://keycloak-admin.example.nl
     # Example configuration
