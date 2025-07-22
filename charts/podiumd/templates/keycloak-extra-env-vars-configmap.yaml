@@ -8,4 +8,7 @@ metadata:
 data:
   #KC_HOSTNAME_URL: {{ .Values.keycloak.config.realmFrontendUrl | quote }}
   #KC_HOSTNAME_ADMIN_URL: {{ .Values.keycloak.config.adminFrontendUrl | quote }}
+  KEYCLOAK_HOSTNAME: {{ .Values.keycloak.ingress.hostname | quote }}
+  KEYCLOAK_ADMIN_HOSTNAME: {{ .Values.keycloak.adminIngress.hostname | quote }}
+  KEYCLOAK_HOSTNAME_STRICT: {{ .Values.keycloak.ingress.hostnameStrict | quote }}
 {{- end }}
