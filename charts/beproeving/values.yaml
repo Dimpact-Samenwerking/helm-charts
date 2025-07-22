@@ -1,5 +1,6 @@
 
 zgw-office-addin:
+  enabled: true
   fullnameOverride: "zgw-office-addin"
   frontend:
     # ghcr.io/infonl/zgw-office-add-in-frontend:v0.0.205
