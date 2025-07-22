@@ -104,6 +104,11 @@ keycloak:
     user: ""
     password: ""
   fullnameOverride: keycloak
+  ingress:
+    hostname: keycloak.example.nl
+    hostnameStrict: true
+  adminIngress:
+    hostname: keycloak-admin.example.nl
   keycloakConfigCli:
     cleanupAfterFinished:
       enabled: true
