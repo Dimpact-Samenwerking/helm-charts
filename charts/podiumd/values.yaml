@@ -91,7 +91,7 @@ keycloak:
   #  - name: KC_TRUSTSTORE_PATHS
   #    value: "/opt/bitnami/keycloak/custom-ca"
   # -- required to activate infinispan
-  #extraStartupArgs: "--cache-remote-host=ispn --cache-remote-port=11222 --cache-remote-username=keycloak --cache-remote-password=changemenow --log-level=INFO --spi-cache-embedded-default-site-name=ontw-dimp --features=multi-site"
+  #extraStartupArgs: "--cache-remote-host=ispn --cache-remote-port=11222 --cache-remote-username=keycloak --cache-remote-password=changemenow --log-level=INFO --spi-cache-embedded-default-site-name=ontw-dimp --features=multi-site --cache=ispn"
   # image parameters for keycloak
   # docker.io/bitnami/keycloak:26.3.1
   image:
