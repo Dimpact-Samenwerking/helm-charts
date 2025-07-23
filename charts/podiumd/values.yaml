@@ -192,6 +192,9 @@ infinispan:
               statistics: "true"
               owners: 2
               mode: "SYNC"
+              transactional: "true"
+              transaction:
+                mode: "NON_XA"
               encoding:
                 mediaType: "application/x-protostream"
               expiration:
@@ -208,6 +211,9 @@ infinispan:
               statistics: "true"
               owners: 2
               mode: "SYNC"
+              transactional: "true"
+              transaction:
+                mode: "NON_XA"
               encoding:
                 mediaType: "application/x-protostream"
               expiration:
@@ -220,6 +226,9 @@ infinispan:
               statistics: "true"
               owners: 2
               mode: "SYNC"
+              transactional: "true"
+              transaction:
+                mode: "NON_XA"
               encoding:
                 mediaType: "application/x-protostream"
               expiration:
@@ -244,6 +253,9 @@ infinispan:
               statistics: "true"
               owners: 2
               mode: "SYNC"
+              transactional: "true"
+              transaction:
+                mode: "NON_XA"
               encoding:
                 mediaType: "application/x-protostream"
               expiration:
@@ -256,6 +268,9 @@ infinispan:
               statistics: "true"
               owners: 2
               mode: "SYNC"
+              transactional: "true"
+              transaction:
+                mode: "NON_XA"
               encoding:
                 mediaType: "application/x-protostream"
               expiration:
