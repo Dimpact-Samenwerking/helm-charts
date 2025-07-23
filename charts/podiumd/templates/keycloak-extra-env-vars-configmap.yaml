@@ -9,4 +9,6 @@ data:
   KEYCLOAK_HOSTNAME: {{ .Values.keycloak.config.realmFrontendUrl | quote }}
   KEYCLOAK_HOSTNAME_ADMIN: {{ .Values.keycloak.config.adminFrontendUrl | quote }}
   KEYCLOAK_HOSTNAME_STRICT: {{ default "true" .Values.keycloak.ingress.hostnameStrict | quote }}
+  KC_CACHE: "ispn"
+  KC_CACHE_STACK: "jdbc-ping"
 {{- end }}
