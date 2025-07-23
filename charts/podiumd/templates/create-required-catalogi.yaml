@@ -14,6 +14,7 @@ data:
   RSIN: {{ .Values.zac.organizations.bron.rsin | quote }}
   CONTACT_PERSON: {{ .Values.zac.gemeente.naam | quote }}
   CONTACT_EMAIL: {{ .Values.zac.gemeente.mail | quote }}
+  CREATE_E2E_ZAAKTYPE: {{ .Values.openzaak.create_required_catalogi_job.e2eTestZaaktype.create | quote }}
   create-required-catalogi.py: |
     #!/usr/local/bin/python
 
@@ -29,6 +30,7 @@ data:
     rsin = os.environ['RSIN']
     contact_person = os.environ['CONTACT_PERSON']
     contact_email = os.environ['CONTACT_EMAIL']
+    create_e2e = os.environ['CREATE_E2E_ZAAKTYPE']
 
     payload = {
         "iss": f"{client_id}",
@@ -77,6 +79,10 @@ data:
 
     zac_zaaktype={ "catalogus": f"{zac_catalogus['url']}" }
     zac_catalogus_url=zac_catalogus['url']
+
+    if(create_e2e.strip().lower() not in ('1','true','yes','on')):
+        print("creation of e2e-test zaaktype has been disabled, skipping checks")
+        exit()
 
     zac_informatieobjecttypen=[
         { "catalogus": f"{zac_catalogus_url}", "omschrijving": "aanvraag", "vertrouwelijkheidaanduiding":"openbaar", "beginGeldigheid": "2025-01-01", "informatieobjectcategorie": "onbekend", "trefwoord":["aanvraag","e2e"]},
