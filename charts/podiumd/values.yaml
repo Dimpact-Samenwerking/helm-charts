@@ -457,7 +457,7 @@ openzaak:
     secret: "<openzaak_secret>"
     enabled: true
     e2eTestZaaktype:
-      # set to false to disable automatic creation of the e2e-test zaaktype if it does not exist yet
+      # set to false to disable automatic creation and publishing of the e2e-test zaaktype if it does not exist yet
       create: true
   settings:
     allowedHosts: openzaak-nginx.podiumd.svc.cluster.local
