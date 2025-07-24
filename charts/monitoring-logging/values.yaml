@@ -30,11 +30,11 @@ grafana:
           version: 1
           jsonData:
             timeout: 300
-
+  # -- curl image settings
   downloadDashboardsImage:
     pullPolicy: IfNotPresent
     sha: ""
-    tag: 8.9.1         
+    tag: 8.14.1        
 
   containerSecurityContext:
     readOnlyRootFilesystem: false
@@ -92,7 +92,7 @@ grafana:
       api_url: "https://keycloak.test.nl/realms/podiumd/protocol/openid-connect/userinfo"
       role_attribute_path: "contains(monitoring_roles[*], 'admin') && 'Admin' || contains(monitoring_roles[*], 'editor') && 'Editor' || 'Viewer'"
       role_attribute_strict: false
-      org_mapping: *:Viewer
+      org_mapping: "*:Viewer"
       skip_org_role_sync: false
       groups_attribute_path: groups
       use_refresh_token: true
@@ -135,7 +135,7 @@ grafana:
     # -- Busybox image settings
     image:
       pullPolicy: IfNotPresent
-      tag: 1.31.1
+      tag: 1.37.0-glibc
 
   imageRenderer:
     # -- Grafana image renderer settings
@@ -194,7 +194,7 @@ prometheus:
       # kube-rbac-proxy image settings
       image:
         pullPolicy: IfNotPresent
-        tag: v0.19.1
+        tag: 0.19.1-debian-12-r5
   prometheus-pushgateway:
     nodeSelector:
       agentpool: userpool
@@ -208,7 +208,7 @@ prometheus:
     # kube-state-metrics image settings
     image:
       pullPolicy: IfNotPresent
-      tag: 2.16.0
+      tag: 2.16.0-debian-12-r1
   configmapReload:
     prometheus:
       # prometheus-config-reloader image settings
@@ -254,17 +254,17 @@ loki:
     
    # image:
    #  pullPolicy: IfNotPresent
-   #   tag: k262-d64ced2
+   #   tag: 3.5
   memcached:
     # memcached image settings
     image:
       pullPolicy: IfNotPresent
-      tag: 1.6.38-alpine
+      tag: 1.6.38
   memcachedExporter:
     # memcached-export image settings
     image:
       pullPolicy: IfNotPresent
-      tag: v0.15.2
+      tag: v0.15.3
 
   resultsCache:
     enabled: true
@@ -276,7 +276,7 @@ loki:
     # k8s-sidecar image settings
     image:
       pullPolicy: IfNotPresent
-      tag: 1.30.3
+      tag: 1.30.7
 
 
   chunksCache:
@@ -289,12 +289,12 @@ loki:
     # enterprise-logs image settings
     image:
       pullPolicy: IfNotPresent
-      tag: 3.5.1
+      tag: 3.5.2
     provisioner:
       # enterprise-logs-provisioner image settings
       image:
         pullPolicy: IfNotPresent
-        tag: 1.9.3
+        tag: 3.5.2
 
   monitoring:
     selfMonitoring:
@@ -335,7 +335,7 @@ loki:
     # nginx-unprivileged image settings
     image:
       pullPolicy: IfNotPresent
-      tag: 1.28-alpine
+      tag: 1.29-alpine3.22-perl
   ingester:
     replicas: 3
     nodeSelector:
@@ -353,7 +353,7 @@ loki:
 
   # kubectl image settings
   kubectlImage:
-    tag: 1.33.2-debian-12-r2
+    tag: 1.33.2-debian-12-r3
     pullPolicy: IfNotPresent
   test:
     enabled: false
@@ -461,8 +461,8 @@ loki:
     # minio image settings
     image:
       pullPolicy: IfNotPresent
-      tag: RELEASE.2024-12-18T13-15-44Z
+      tag: RELEASE.2025-06-13T11-33-47Z-cpuv1
     # mc image settings
     mcImage:
       pullPolicy: IfNotPresent
-      tag: RELEASE.2024-11-21T17-21-54Z
+      tag: RELEASE.2025-05-21T01-59-54Z-cpuv1
