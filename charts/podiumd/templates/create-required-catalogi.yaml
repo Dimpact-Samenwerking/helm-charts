@@ -14,7 +14,7 @@ data:
   RSIN: {{ .Values.zac.organizations.bron.rsin | quote }}
   CONTACT_PERSON: {{ .Values.zac.gemeente.naam | quote }}
   CONTACT_EMAIL: {{ .Values.zac.gemeente.mail | quote }}
-  CREATE_E2E_ZAAKTYPE: {{ .Values.openzaak.create_required_catalogi_job.e2eTestZaaktype.create | quote }}
+  CREATE_E2E_ZAAKTYPE: {{ .Values.openzaak.create_required_catalogi_job.e2eTestZaaktype.create | default false | quote }}
   create-required-catalogi.py: |
     #!/usr/local/bin/python
 
