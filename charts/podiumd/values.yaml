@@ -146,7 +146,7 @@ keycloak:
 infinispan:
   # -- image data for infinispan containers
   #images:
-  #  server: quay.io/infinispan/server:15.1
+  #  server: quay.io/infinispan/server:15.2
   #  initContainer: registry.access.redhat.com/ubi8-micro:8.10-1751466198
   deploy:
     nameOverride: ispn
