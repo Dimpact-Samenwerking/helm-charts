@@ -1,6 +1,6 @@
 # monitoring-logging
 
-![Version: 1.0.4](https://img.shields.io/badge/Version-1.0.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 1.0.4](https://img.shields.io/badge/AppVersion-1.0.0-informational?style=flat-square)
+![Version: 1.0.4](https://img.shields.io/badge/Version-1.0.4-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 1.0.4](https://img.shields.io/badge/AppVersion-1.0.4-informational?style=flat-square)
 
 A monitoring stack using Loki, Prometheus, Promtail and Grafana
 
@@ -24,7 +24,7 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 | @grafana | grafana | 9.2.10 |
 | @grafana | loki | 6.31.0 |
 | @grafana | promtail | 6.17.0 |
-| @prometheus-community | prometheus | 27.23.0 |
+| @prometheus-community | prometheus | 27.24.0 |
 
 ## Values
 
@@ -32,7 +32,7 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 |-----|------|---------|-------------|
 | grafana."grafana.ini"."auth.anonymous".enabled | bool | `false` |  |
 | grafana."grafana.ini"."auth.anonymous".hide_version | bool | `true` |  |
-| grafana."grafana.ini"."auth.generic_oauth" | object | `{"allow_assign_grafana_admin":true,"allow_sign_up":true,"api_url":"https://keycloak.test.nl/realms/podiumd/protocol/openid-connect/userinfo","auth_url":"https://keycloak.test.nl/realms/podiumd/protocol/openid-connect/auth","client_id":"","client_secret":"","email_attribute_path":"email","enabled":true,"groups_attribute_path":"groups","login_attribute_path":"username","name":"Keycloak-podiumd","name_attribute_path":"name","role_attribute_path":"contains(monitoring_roles[*], 'admin') && 'Admin' || contains(monitoring_roles[*], 'editor') && 'Editor' || 'Viewer'","role_attribute_strict":true,"scopes":"openid email profile offline_access roles","skip_org_role_sync":false,"sync_ttl":60,"token_url":"https://keycloak.test.nl/realms/podiumd/protocol/openid-connect/token","use_pkce":true,"use_refresh_token":true}` | Authentication and Authorization with Keycloak |
+| grafana."grafana.ini"."auth.generic_oauth" | object | `{"allow_assign_grafana_admin":true,"allow_sign_up":true,"api_url":"https://keycloak.test.nl/realms/podiumd/protocol/openid-connect/userinfo","auth_url":"https://keycloak.test.nl/realms/podiumd/protocol/openid-connect/auth","client_id":"","client_secret":"","email_attribute_path":"email","enabled":true,"groups_attribute_path":"groups","login_attribute_path":"username","name":"Keycloak-podiumd","name_attribute_path":"name","org_mapping":"*:Viewer","role_attribute_path":"contains(monitoring_roles[*], 'admin') && 'Admin' || contains(monitoring_roles[*], 'editor') && 'Editor' || 'Viewer'","role_attribute_strict":false,"scopes":"openid email profile offline_access roles","skip_org_role_sync":false,"sync_ttl":60,"token_url":"https://keycloak.test.nl/realms/podiumd/protocol/openid-connect/token","use_pkce":true,"use_refresh_token":true}` | Authentication and Authorization with Keycloak |
 | grafana."grafana.ini".auth.allow_sign_up | bool | `true` |  |
 | grafana."grafana.ini".auth.disable_login_form | bool | `true` |  |
 | grafana."grafana.ini".auth.disable_signout_menu | bool | `false` |  |
@@ -83,13 +83,11 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 | grafana.datasources."datasources.yaml".datasources[1].version | int | `1` |  |
 | grafana.datasources.alertmanager.enabled | bool | `false` |  |
 | grafana.deleteDatasources[0].name | string | `"Alertmanager"` |  |
-| grafana.downloadDashboardsImage.pullPolicy | string | `"IfNotPresent"` |  |
-| grafana.downloadDashboardsImage.sha | string | `""` |  |
-| grafana.downloadDashboardsImage.tag | string | `"8.9.1"` |  |
+| grafana.downloadDashboardsImage | object | `{"pullPolicy":"IfNotPresent","sha":"","tag":"8.14.1"}` | curl image settings |
 | grafana.enabled | bool | `true` |  |
 | grafana.image | object | `{"pullPolicy":"IfNotPresent","tag":"12.0.2"}` | Grafana image settings |
 | grafana.imageRenderer.image | object | `{"pullPolicy":"Always","tag":"3.12.9"}` | Grafana image renderer settings |
-| grafana.initChownData.image | object | `{"pullPolicy":"IfNotPresent","tag":"1.31.1"}` | Busybox image settings |
+| grafana.initChownData.image | object | `{"pullPolicy":"IfNotPresent","tag":"1.37.0-glibc"}` | Busybox image settings |
 | grafana.nodeSelector.agentpool | string | `"userpool"` |  |
 | grafana.persistence.accessModes[0] | string | `"ReadWriteOnce"` |  |
 | grafana.persistence.enabled | bool | `true` |  |
@@ -113,11 +111,11 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 | loki.distributor.replicas | int | `3` |  |
 | loki.enabled | bool | `true` |  |
 | loki.enterprise.image.pullPolicy | string | `"IfNotPresent"` |  |
-| loki.enterprise.image.tag | string | `"3.5.1"` |  |
+| loki.enterprise.image.tag | string | `"3.5.2"` |  |
 | loki.enterprise.provisioner.image.pullPolicy | string | `"IfNotPresent"` |  |
-| loki.enterprise.provisioner.image.tag | string | `"1.9.3"` |  |
+| loki.enterprise.provisioner.image.tag | string | `"3.5.2"` |  |
 | loki.gateway.image.pullPolicy | string | `"IfNotPresent"` |  |
-| loki.gateway.image.tag | string | `"1.28-alpine"` |  |
+| loki.gateway.image.tag | string | `"1.29-alpine3.22-perl"` |  |
 | loki.gateway.nodeSelector.agentpool | string | `"userpool"` |  |
 | loki.indexGateway.maxUnavailable | int | `1` |  |
 | loki.indexGateway.nodeSelector.agentpool | string | `"userpool"` |  |
@@ -128,7 +126,7 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 | loki.ingester.zoneAwareReplication.zoneB.nodeSelector.agentpool | string | `"userpool"` |  |
 | loki.ingester.zoneAwareReplication.zoneC.nodeSelector.agentpool | string | `"userpool"` |  |
 | loki.kubectlImage.pullPolicy | string | `"IfNotPresent"` |  |
-| loki.kubectlImage.tag | string | `"1.33.2-debian-12-r2"` |  |
+| loki.kubectlImage.tag | string | `"1.33.2-debian-12-r3"` |  |
 | loki.loki.auth_enabled | bool | `false` |  |
 | loki.loki.compactor.compaction_interval | string | `"10m"` |  |
 | loki.loki.compactor.delete_request_store | string | `"s3"` |  |
@@ -172,18 +170,16 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 | loki.loki.storage.s3.s3forcepathstyle | bool | `true` |  |
 | loki.loki.tracing.enabled | bool | `true` |  |
 | loki.lokiCanary.enabled | bool | `false` |  |
-| loki.lokiCanary.image.pullPolicy | string | `"IfNotPresent"` |  |
-| loki.lokiCanary.image.tag | string | `"k262-d64ced2"` |  |
 | loki.memcached.image.pullPolicy | string | `"IfNotPresent"` |  |
-| loki.memcached.image.tag | string | `"1.6.38-alpine"` |  |
+| loki.memcached.image.tag | string | `"1.6.38"` |  |
 | loki.memcachedExporter.image.pullPolicy | string | `"IfNotPresent"` |  |
-| loki.memcachedExporter.image.tag | string | `"v0.15.2"` |  |
+| loki.memcachedExporter.image.tag | string | `"v0.15.3"` |  |
 | loki.minio.enabled | bool | `true` |  |
 | loki.minio.global | string | `nil` |  |
 | loki.minio.image.pullPolicy | string | `"IfNotPresent"` |  |
-| loki.minio.image.tag | string | `"RELEASE.2024-12-18T13-15-44Z"` |  |
+| loki.minio.image.tag | string | `"RELEASE.2025-06-13T11-33-47Z-cpuv1"` |  |
 | loki.minio.mcImage.pullPolicy | string | `"IfNotPresent"` |  |
-| loki.minio.mcImage.tag | string | `"RELEASE.2024-11-21T17-21-54Z"` |  |
+| loki.minio.mcImage.tag | string | `"RELEASE.2025-05-21T01-59-54Z-cpuv1"` |  |
 | loki.minio.nodeSelector.agentpool | string | `"userpool"` |  |
 | loki.minio.persistence.size | string | `"20Gi"` |  |
 | loki.minio.persistence.storageClass | string | `"managed-csi"` |  |
@@ -204,7 +200,7 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 | loki.resultsCache.enabled | bool | `true` |  |
 | loki.resultsCache.nodeSelector.agentpool | string | `"userpool"` |  |
 | loki.sidecar.image.pullPolicy | string | `"IfNotPresent"` |  |
-| loki.sidecar.image.tag | string | `"1.30.3"` |  |
+| loki.sidecar.image.tag | string | `"1.30.7"` |  |
 | loki.test.enabled | bool | `false` |  |
 | loki.test.image.pullPolicy | string | `"IfNotPresent"` |  |
 | loki.test.image.tag | string | `"ewelch-distributed-helm-chart-17db5ee"` |  |
@@ -213,12 +209,12 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 | prometheus.configmapReload.prometheus.image.tag | string | `"v0.83.0"` |  |
 | prometheus.enabled | bool | `true` |  |
 | prometheus.kube-state-metrics.image.pullPolicy | string | `"IfNotPresent"` |  |
-| prometheus.kube-state-metrics.image.tag | string | `"2.16.0"` |  |
+| prometheus.kube-state-metrics.image.tag | string | `"2.16.0-debian-12-r1"` |  |
 | prometheus.kube-state-metrics.nodeSelector.agentpool | string | `"userpool"` |  |
 | prometheus.prometheus-node-exporter.image.pullPolicy | string | `"IfNotPresent"` |  |
 | prometheus.prometheus-node-exporter.image.tag | string | `"v1.9.1"` |  |
 | prometheus.prometheus-node-exporter.kubeRBACProxy.image.pullPolicy | string | `"IfNotPresent"` |  |
-| prometheus.prometheus-node-exporter.kubeRBACProxy.image.tag | string | `"v0.19.1"` |  |
+| prometheus.prometheus-node-exporter.kubeRBACProxy.image.tag | string | `"0.19.1-debian-12-r5"` |  |
 | prometheus.prometheus-node-exporter.nodeSelector.agentpool | string | `"userpool"` |  |
 | prometheus.prometheus-pushgateway.image.pullPolicy | string | `"IfNotPresent"` |  |
 | prometheus.prometheus-pushgateway.image.tag | string | `"v1.11.1"` |  |
