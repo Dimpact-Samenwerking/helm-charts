@@ -552,6 +552,7 @@ data:
       contentSecurityPolicy: "frame-src 'self'; frame-ancestors 'self'; object-src 'none';"
       xXSSProtection: "1; mode=block"
       strictTransportSecurity: ""
+    {{- if not .Values.keycloak.config.skipRoles }}
     roles:
       realm:
         - name: podiumd-admin
@@ -587,6 +588,8 @@ data:
           - name: raadpleger
           - name: recordmanager
           - name: domein_elk_zaaktype
+    {{- end }}
+    {{- if not .Values.keycloak.config.skipGroups }}
     groups:
       - name: administrators
         path: /administrators
@@ -682,6 +685,7 @@ data:
             - "zaakafhandelcomponent_user"
             - "domein_elk_zaaktype"
             - "raadpleger"
+    {{- end }}
     requiredActions:
       - name: "Configure OTP"
         providerId: CONFIGURE_TOTP
