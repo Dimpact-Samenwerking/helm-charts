@@ -141,7 +141,7 @@ grafana:
     # -- Grafana image renderer settings
     image:
       pullPolicy: Always
-      tag: 3.12.9
+      tag: v4.0.7
   testFramework:
     # -- bats image settings
     image:
@@ -194,7 +194,7 @@ prometheus:
       # kube-rbac-proxy image settings
       image:
         pullPolicy: IfNotPresent
-        tag: 0.19.1-debian-12-r5
+        tag: 0.19.1
   prometheus-pushgateway:
     nodeSelector:
       agentpool: userpool
@@ -259,7 +259,7 @@ loki:
     # memcached image settings
     image:
       pullPolicy: IfNotPresent
-      tag: 1.6.38-alpine3.22
+      tag: alpine3.22
   memcachedExporter:
     # memcached-export image settings
     image:
@@ -335,7 +335,7 @@ loki:
     # nginx-unprivileged image settings
     image:
       pullPolicy: IfNotPresent
-      tag: 1.28-alpine3.21-perl
+      tag: alpine3.22-perl
   ingester:
     replicas: 3
     nodeSelector:
@@ -461,8 +461,8 @@ loki:
     # minio image settings
     image:
       pullPolicy: IfNotPresent
-      tag: RELEASE.2025-06-13T11-33-47Z-cpuv1
+      tag: RELEASE.2025-07-23T15-54-02Z-cpuv1
     # mc image settings
     mcImage:
       pullPolicy: IfNotPresent
-      tag: RELEASE.2025-05-21T01-59-54Z-cpuv1
+      tag: RELEASE.2025-07-21T05-28-08Z-cpuv1
