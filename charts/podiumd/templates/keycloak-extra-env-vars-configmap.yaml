@@ -6,7 +6,6 @@ metadata:
   labels:
     {{- include "podiumd.labels" . | nindent 4 }}
 data:
-  KEYCLOAK_HOSTNAME: {{ .Values.keycloak.config.realmFrontendUrl | quote }}
-  KEYCLOAK_HOSTNAME_ADMIN: {{ .Values.keycloak.config.adminFrontendUrl | quote }}
-  KEYCLOAK_HOSTNAME_STRICT: {{ default "true" .Values.keycloak.ingress.hostnameStrict | quote }}
+  KC_HOSTNAME_URL: {{ .Values.keycloak.config.realmFrontendUrl | quote }}
+  KC_ADMIN_HOSTNAME_URL: {{ .Values.keycloak.config.adminFrontendUrl | quote }}
 {{- end }}
