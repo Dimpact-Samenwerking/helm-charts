@@ -156,6 +156,12 @@ data:
               claim.name: "monitoring_roles"
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "monitoring"
+          - name: "all-users-are-viewers"
+            protocol: "openid-connect"
+            protocolMapper: "oidc-hardcoded-role-mapper"
+            consentRequired: false
+            config:
+              role: "monitoring.viewer"
       - clientId: opennotificaties
         name: Open Notificaties
         enabled: true
@@ -579,6 +585,7 @@ data:
         monitoring:
           - name: admin
           - name: editor
+          - name: viewer
         openklant:
           - name: administrators
         objecten:
