@@ -129,7 +129,7 @@ grafana:
   # -- Grafana image settings
   image:
     pullPolicy: IfNotPresent
-    tag: 12.1.0
+    tag: 12.1.0-16509090662-ubuntu
 
   initChownData:
     # -- Busybox image settings
