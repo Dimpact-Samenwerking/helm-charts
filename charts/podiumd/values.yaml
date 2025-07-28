@@ -95,8 +95,8 @@ keycloak:
   # image parameters for keycloak
   # docker.io/bitnami/keycloak:26.3.1
   image:
-    registry: ""
-    repository: keycloak
+    #registry: ""
+    #repository: keycloak
     tag: 26.3.1
   externalDatabase:
     host: "postgres"
@@ -115,10 +115,10 @@ keycloak:
     # image parameters for keycloak-config-cli
     # docker.io/bitnami/keycloak-config-cli:6.4.0
     image:
-      registry: ""
-      repository: keycloak-config-cli
-      # -- image tag for keycloak-config-cli, this must be a version that is compatible with the keycloak image tag
-      tag: "6.4.0"
+      #registry: ""
+      #repository: keycloak-config-cli
+      # -- this must be a version of keycloak-config-cli that is compatible with the keycloak image tag
+      tag: 6.4.0
   metrics:
     enabled: true
   pdb:
