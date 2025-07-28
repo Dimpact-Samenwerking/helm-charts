@@ -471,7 +471,7 @@ openzaak:
   persistentVolume:
     volumeAttributeShareName: openzaak
   image:
-    tag: "1.18.0"
+    tag: "1.21.2"
   resources:
     requests:
       cpu: 100m
@@ -633,13 +633,15 @@ opennotificaties:
     #         documentatie_link: https://openzaak.example.nl/ref/kanalen/#/documenten
     #         filters:
     #           - bronorganisatie
-    #           - informatieobjecttype
+    #           - informatieobjecttype 
+    #           - informatieobjecttype.catalogus # new feature
     #           - vertrouwelijkheidaanduiding
     #       - naam: besluiten
     #         documentatie_link: https://openzaak.example.nl/ref/kanalen/#/besluiten
     #         filters:
     #           - verantwoordelijke_organisatie
     #           - besluittype
+    #           - besluittype.catalogus  # new feature
     #   # The configuration check view will show a checkmark, but for it to actually work an 
     #   # Abonnement also has to be configured via notifications_abonnementen_config. This does not work right now, 
     #   # because the spec doesn't properly support JWT. See issue open-zaak/open-zaak#1694
@@ -694,7 +696,7 @@ opennotificaties:
   persistentVolume:
     volumeAttributeShareName: opennotificaties
   image:
-    tag: "1.8.2"
+    tag: "1.10.0"
   resources:
     requests:
       cpu: 100m
@@ -852,7 +854,7 @@ objecten:
   persistentVolume:
     volumeAttributeShareName: objecten
   image:
-    tag: "3.0.4"
+    tag: "3.1.0"
   resources:
     requests:
       cpu: 100m
@@ -965,7 +967,7 @@ objecttypen:
       useTLS: true
     disable2fa: false
   image:
-    tag: "3.0.2"
+    tag: "3.0.4"
   # used for create-required-objecttypen podiumd job only
   create_required_objecttypen_job:
     enabled: true
@@ -1216,7 +1218,7 @@ openklant:
   persistentVolume:
     volumeAttributeShareName: openklant
   image:
-    tag: "2.7.0"
+    tag: "2.9.0"
   resources:
     requests:
       cpu: 100m
@@ -1389,7 +1391,7 @@ openformulieren:
   persistentVolume:
     volumeAttributeShareName: openformulieren
   image:
-    tag: "3.0.7"
+    tag: "3.0.8"
   resources:
     requests:
       cpu: 100m
@@ -1557,7 +1559,7 @@ openinwoner:
   persistentVolume:
     volumeAttributeShareName: openinwoner
   image:
-    tag: "1.29.0"
+    tag: "1.32.0"
   resources:
     requests:
       cpu: 200m
@@ -1868,42 +1870,49 @@ zac:
   solr-operator:
     # -- turn functionality on/off
     enabled: true
+    # apache/solr-operator:v0.9.1
     image:
       #repository:
-      #tag:
+      tag: v0.9.1
     nodeSelector: {}
     solr:
-      #busyBoxImage:
+      # library/busybox:1.37.0-glibc
+      busyBoxImage:
         #repository:
-        #tag:
+        tag: 1.37.0-glibc
       # -- set enabled to provision solrcloud as well
       enabled: true
-      #image:
+      # library/solr:9.8.1
+      image:
         #repository:
-        #tag:
+        tag: 9.8.1
       # -- define memory settings for solr in the solrcloud
       javaMem: -Xms512m -Xmx768m
       jobs:
         createZacCore: true
-        #image:
+        # curlimages/curl:8.14.1
+        image:
           #repository:
-          #tag:
+          tag: 8.14.1
     # -- namespaces to watch for solr-operator
     watchNamespaces: "podiumd"
     zookeeper-operator:
-      #hooks:
-        #image:
+      hooks:
+        # lachlanevenson/k8s-kubectl:v1.25.4
+        image:
           #repository:
-          #tag:
-      #image:
+          tag: v1.25.4
+      # pravega/zookeeper-operator:0.2.15
+      image:
         #repository:
-        #tag:
+        tag: 0.2.15
       # -- namespaces to watch for zookeeper-operator
       watchNamespace: "podiumd"
-      #zookeeper:
-        #image:
+      zookeeper:
+        # pravega/zookeeper:0.2.15
+        image:
           #repository:
-          #tag:
+          tag: 0.2.15
   zgwApis:
     url: http://open-zaak.internal
     urlExtern: http://open-zaak.example.nl
