@@ -78,19 +78,21 @@ data:
               access.token.claim: "true"
               claim.name: "preferred_username"
               jsonType.label: "String"
-          - name: "groups-member"
+          - name: "client roles"
             protocol: "openid-connect"
-            protocolMapper: "oidc-group-membership-mapper"
+            protocolMapper: "oidc-usermodel-client-role-mapper"
             consentRequired: false
             config:
-              full.path: "false"
               introspection.token.claim: "true"
-              userinfo.token.claim: "true"
               multivalued: "true"
+              userinfo.token.claim: "false"
+              user.attribute: "foo"
               id.token.claim: "true"
               lightweight.claim: "false"
               access.token.claim: "true"
               claim.name: "groups"
+              jsonType.label: "String"
+              usermodel.clientRoleMapping.clientId: "openzaak"
       - clientId: abc
         name: Open Archiefbeheer
         enabled: true
@@ -113,19 +115,21 @@ data:
               access.token.claim: "true"
               claim.name: "preferred_username"
               jsonType.label: "String"
-          - name: "groups-member"
+          - name: "client roles"
             protocol: "openid-connect"
-            protocolMapper: "oidc-group-membership-mapper"
+            protocolMapper: "oidc-usermodel-client-role-mapper"
             consentRequired: false
             config:
-              full.path: "false"
               introspection.token.claim: "true"
-              userinfo.token.claim: "true"
               multivalued: "true"
+              userinfo.token.claim: "false"
+              user.attribute: "foo"
               id.token.claim: "true"
               lightweight.claim: "false"
               access.token.claim: "true"
               claim.name: "groups"
+              jsonType.label: "String"
+              usermodel.clientRoleMapping.clientId: "abc"
       - clientId: monitoring
         name: {{ .Values.keycloak.config.clients.monitoring.name|quote }}
         enabled: {{ .Values.keycloak.config.clients.monitoring.enabled }}
@@ -174,19 +178,21 @@ data:
               access.token.claim: "true"
               claim.name: "preferred_username"
               jsonType.label: "String"
-          - name: "groups-member"
+          - name: "client roles"
             protocol: "openid-connect"
-            protocolMapper: "oidc-group-membership-mapper"
+            protocolMapper: "oidc-usermodel-client-role-mapper"
             consentRequired: false
             config:
-              full.path: "false"
               introspection.token.claim: "true"
-              userinfo.token.claim: "true"
               multivalued: "true"
+              userinfo.token.claim: "false"
+              user.attribute: "foo"
               id.token.claim: "true"
               lightweight.claim: "false"
               access.token.claim: "true"
               claim.name: "groups"
+              jsonType.label: "String"
+              usermodel.clientRoleMapping.clientId: "opennotificaties"
       - clientId: objecten
         name: Objecten
         enabled: true
@@ -209,19 +215,21 @@ data:
               access.token.claim: "true"
               claim.name: "preferred_username"
               jsonType.label: "String"
-          - name: "groups-member"
+          - name: "client roles"
             protocol: "openid-connect"
-            protocolMapper: "oidc-group-membership-mapper"
+            protocolMapper: "oidc-usermodel-client-role-mapper"
             consentRequired: false
             config:
-              full.path: "false"
               introspection.token.claim: "true"
-              userinfo.token.claim: "true"
               multivalued: "true"
+              userinfo.token.claim: "false"
+              user.attribute: "foo"
               id.token.claim: "true"
               lightweight.claim: "false"
               access.token.claim: "true"
               claim.name: "groups"
+              jsonType.label: "String"
+              usermodel.clientRoleMapping.clientId: "objecten"
       - clientId: objecttypen
         name: Objecttypen
         enabled: true
@@ -244,19 +252,21 @@ data:
               access.token.claim: "true"
               claim.name: "preferred_username"
               jsonType.label: "String"
-          - name: "groups-member"
+          - name: "client roles"
             protocol: "openid-connect"
-            protocolMapper: "oidc-group-membership-mapper"
+            protocolMapper: "oidc-usermodel-client-role-mapper"
             consentRequired: false
             config:
-              full.path: "false"
               introspection.token.claim: "true"
-              userinfo.token.claim: "true"
               multivalued: "true"
+              userinfo.token.claim: "false"
+              user.attribute: "foo"
               id.token.claim: "true"
               lightweight.claim: "false"
               access.token.claim: "true"
               claim.name: "groups"
+              jsonType.label: "String"
+              usermodel.clientRoleMapping.clientId: "objecttypen"
       - clientId: openklant
         name: Open Klant
         enabled: true
@@ -279,19 +289,21 @@ data:
               access.token.claim: "true"
               claim.name: "preferred_username"
               jsonType.label: "String"
-          - name: "groups-member"
+          - name: "client roles"
             protocol: "openid-connect"
-            protocolMapper: "oidc-group-membership-mapper"
+            protocolMapper: "oidc-usermodel-client-role-mapper"
             consentRequired: false
             config:
-              full.path: "false"
               introspection.token.claim: "true"
-              userinfo.token.claim: "true"
               multivalued: "true"
+              userinfo.token.claim: "false"
+              user.attribute: "foo"
               id.token.claim: "true"
               lightweight.claim: "false"
               access.token.claim: "true"
               claim.name: "groups"
+              jsonType.label: "String"
+              usermodel.clientRoleMapping.clientId: "openklant"
       - clientId: openformulieren
         name: Open Formulieren
         enabled: true
@@ -314,19 +326,21 @@ data:
               access.token.claim: "true"
               claim.name: "preferred_username"
               jsonType.label: "String"
-          - name: "groups-member"
+          - name: "client roles"
             protocol: "openid-connect"
-            protocolMapper: "oidc-group-membership-mapper"
+            protocolMapper: "oidc-usermodel-client-role-mapper"
             consentRequired: false
             config:
-              full.path: "false"
               introspection.token.claim: "true"
-              userinfo.token.claim: "true"
               multivalued: "true"
+              userinfo.token.claim: "false"
+              user.attribute: "foo"
               id.token.claim: "true"
               lightweight.claim: "false"
               access.token.claim: "true"
               claim.name: "groups"
+              jsonType.label: "String"
+              usermodel.clientRoleMapping.clientId: "openformulieren"
       - clientId: openinwoner
         name: Open Inwoner
         enabled: true
@@ -349,19 +363,21 @@ data:
               access.token.claim: "true"
               claim.name: "preferred_username"
               jsonType.label: "String"
-          - name: "groups-member"
+          - name: "client roles"
             protocol: "openid-connect"
-            protocolMapper: "oidc-group-membership-mapper"
+            protocolMapper: "oidc-usermodel-client-role-mapper"
             consentRequired: false
             config:
-              full.path: "false"
               introspection.token.claim: "true"
-              userinfo.token.claim: "true"
               multivalued: "true"
+              userinfo.token.claim: "false"
+              user.attribute: "foo"
               id.token.claim: "true"
               lightweight.claim: "false"
               access.token.claim: "true"
               claim.name: "groups"
+              jsonType.label: "String"
+              usermodel.clientRoleMapping.clientId: "openinwoner"
       - clientId: kiss
         name: Kiss
         enabled: true
