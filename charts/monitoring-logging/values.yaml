@@ -123,6 +123,7 @@ grafana:
     # -- Git Sync for Grafana dashboards
     feature_toggles:
       provisioning: true
+      grafanaAdvisor: true
       kubernetesClientDashboardsFolders: true
       kubernetesDashboards: true
       grafanaAPIServerEnsureKubectlAccess: true
