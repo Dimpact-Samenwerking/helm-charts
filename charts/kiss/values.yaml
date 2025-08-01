@@ -81,7 +81,7 @@ frontend:
     name: ""
   image:
     repository: ghcr.io/klantinteractie-servicesysteem/kiss-frontend
-    tag: "release-1.0.x-20250418091744-8936963"
+    tag: "release-1.1.x-20250731163435-40bff18"
     pullPolicy: IfNotPresent
   resources:
     requests:
