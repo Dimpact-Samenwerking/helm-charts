@@ -1,7 +1,7 @@
 # Dimpact Helm charts
 This repository contains Helm charts for:
 
-- [brp mock](./charts/brpmock/README.md)
+- [brp mock](./charts/brp-personen-mock/)
 - [kiss](./charts/kiss/README.md)
 - [podiumd](./charts/podiumd/README.md)
 - [podiumd monitoring and logging](./charts/monitoring-logging/README.md)
