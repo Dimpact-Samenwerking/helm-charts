@@ -1843,7 +1843,7 @@ zac:
     pullPolicy: IfNotPresent
     tag: 3.10.0
   initContainer:
-    enabled: false
+    enabled: true
     # curlimages/curl:8.15.0
     image:
       #repository: curlimages/curl
@@ -1885,7 +1885,7 @@ zac:
       #repository: ghcr.io/eugenmayer/kontextwork-converter
       tag: 1.8.0
   opa:
-    sidecar: true
+    sidecar: false
     # openpolicyagent/opa:1.6.0-static
     image:
       #repository: openpolicyagent/opa
