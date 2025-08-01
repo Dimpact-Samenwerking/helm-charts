@@ -1837,10 +1837,17 @@ zac:
     code: "007"
     naam: "Example Gemeente"
     mail: "noreply@example.nl"
+  # ghcr.io/infonl/zaakafhandelcomponent:3.10.0
   image:
-    repository: ghcr.io/infonl/zaakafhandelcomponent
+    #repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
-    tag: "3.5.0"
+    tag: 3.10.0
+  initContainer:
+    enabled: true
+    # curlimages/curl:8.15.0
+    image:
+      #repository: curlimages/curl
+      tag: 8.15.0
   keycloak:
     adminClient:
       id: zac-admin-client
@@ -1861,6 +1868,10 @@ zac:
   nginx:
     enabled: true
     client_max_body_size: 150M
+    # nginxinc/nginx-unprivileged:1.29.0
+    image:
+      # repository: nginxinc/nginx-unprivileged
+      tag: 1.29.0
   # notificationsSecretKey: "changeme"
   objectenApi:
     url: http://objecten.example.nl
@@ -1868,6 +1879,17 @@ zac:
   objecttypenApi:
     url: http://objecttypen.example.nl
     token: objecttypentoken
+  office_converter:
+    # ghcr.io/eugenmayer/kontextwork-converter:1.8.0
+    image:
+      #repository: ghcr.io/eugenmayer/kontextwork-converter
+      tag: 1.8.0
+  opa:
+    sidecar: false
+    # openpolicyagent/opa:1.6.0-static
+    image:
+      #repository: openpolicyagent/opa
+      tag: 1.6.0-static
   openForms:
     url: http://open-forms.example.nl
   organizations:
@@ -1875,6 +1897,7 @@ zac:
       rsin: "000000000"
     verantwoordelijke:
       rsin: "000000000"
+  zacInternalEndpointsApiKey: "dummy"
   smartDocuments:
     enabled: false
     url: ""
