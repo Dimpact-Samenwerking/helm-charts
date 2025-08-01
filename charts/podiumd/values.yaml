@@ -1897,6 +1897,7 @@ zac:
       rsin: "000000000"
     verantwoordelijke:
       rsin: "000000000"
+  zacInternalEndpointsApiKey: "dummy"
   smartDocuments:
     enabled: false
     url: ""
