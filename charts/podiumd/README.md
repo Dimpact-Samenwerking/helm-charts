@@ -13,7 +13,7 @@
 | Keycloak          | 24.0.5  |                  |
 | Objecten          | 3.0.0   | Major update     |
 | Objecttypen       | 3.0.0   | Major update     |
-| Open Formulieren  | 2.8.5  | Minor app update |
+| Open Formulieren  | 2.8.5   | Minor app update |
 | Open Inwoner      | 1.27.2  | Minor app update |
 | Open Klant        | 2.4.0   | Minor update     |
 | Open Notificaties | 1.8.0   | Minor update     |
@@ -77,7 +77,7 @@
 | Abc                | 1.0.0        |                 |              |                |
 | Objecten           | 3.1.0        |  Minor update   | 2.8.1        |  Minor update  |
 | Objecttypen        | 3.0.4        |  Minor update   | 1.3.3        |  Minor update  |
-| Open Formulieren   | 3.0.8        |  Major update   | 1.8.5        |  Minor update  |
+| Open Formulieren   | 3.0.8        |  Minor update   | 1.8.5        |  Minor update  |
 | Open Inwoner       | 1.32.0       |  Minor update   | 1.7.5        |  Minor update  |
 | Open Klant         | 2.9.0        |  Minor update   | 1.7.0        |  Minor update  |
 | Open Notificaties  | 1.10.0       |  Minor update   | 1.9.2        |  Minor update  |
