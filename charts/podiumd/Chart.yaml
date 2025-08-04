@@ -14,7 +14,7 @@ dependencies:
     repository: "@wiremind"
     condition: clamav.enabled
   - name: brp-personen-mock
-    version: 1.2.5
+    version: 1.2.6
     repository: "@dimpact"
     condition: brppersonenmock.enabled
     alias: brppersonenmock
@@ -69,3 +69,4 @@ dependencies:
     condition: zac.enabled
     tags:
       - zaak
+
