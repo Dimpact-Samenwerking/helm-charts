@@ -137,7 +137,7 @@ keycloak:
   serviceMonitor:
     enabled: true
   production: true
-  proxyHeaders: forwarded
+  proxyHeaders: xforwarded
   postgresql:
     enabled: false
   nameOverride: keycloak
