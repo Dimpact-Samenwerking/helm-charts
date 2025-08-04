@@ -2,11 +2,11 @@ apiVersion: v2
 name: podiumd
 description: PodiumD Helm chart
 type: application
-version: 4.1.4
-appVersion: "4.1.4"
+version: 4.2.0
+appVersion: "4.2.0"
 dependencies:
   - name: keycloak
-    version: 24.3.0
+    version: 24.8.0
     repository: "@bitnami"
     condition: keycloak.enabled
   - name: clamav
@@ -14,24 +14,24 @@ dependencies:
     repository: "@wiremind"
     condition: clamav.enabled
   - name: brp-personen-mock
-    version: 1.2.5
+    version: 1.2.6
     repository: "@dimpact"
     condition: brppersonenmock.enabled
     alias: brppersonenmock
   - name: openzaak
-    version: 1.8.1
+    version: 1.9.0
     repository: "@maykinmedia"
     condition: openzaak.enabled
   - name: opennotificaties
-    version: 1.8.4
+    version: 1.9.2
     repository: "@maykinmedia"
     condition: opennotificaties.enabled
   - name: objecten
-    version: 2.8.0
+    version: 2.8.1
     repository: "@maykinmedia"
     condition: objecten.enabled
   - name: objecttypen
-    version: 1.3.2
+    version: 1.3.3
     repository: "@maykinmedia"
     condition: objecttypen.enabled
   - name: openarchiefbeheer
@@ -39,16 +39,16 @@ dependencies:
     repository: "@maykinmedia"
     condition: openarchiefbeheer.enabled
   - name: openklant
-    version: 1.6.6
+    version: 1.7.0
     repository: "@maykinmedia"
     condition: openklant.enabled
   - name: openforms
     alias: openformulieren
-    version: 1.8.2
+    version: 1.8.5
     repository: "@maykinmedia"
     condition: openformulieren.enabled
   - name: openinwoner
-    version: 1.7.2
+    version: 1.7.5
     repository: "@maykinmedia"
     condition: openinwoner.enabled
   - name: kiss-elastic
@@ -59,13 +59,14 @@ dependencies:
     tags:
       - contact
   - name: infinispan
-    version: 0.4.1
+    version: 0.5.0
     repository: "@openshift"
     condition: infinispan.enabled
   - name: zaakafhandelcomponent
     alias: zac
-    version: 1.0.46
+    version: 1.0.98
     repository: "@zac"
     condition: zac.enabled
     tags:
       - zaak
+
