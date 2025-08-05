@@ -64,7 +64,7 @@
 | Kiss               | 1.0.0        | Major update    | 1.0.0        |                |
 | Zac                | 3.5.0        | Minor update    | 1.0.46       |                |
 
-### [4.2.1](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.2)
+### [4.2.1](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.2.1)
 
 **PodiumD Helm chart version: 4.2.1 **
 
