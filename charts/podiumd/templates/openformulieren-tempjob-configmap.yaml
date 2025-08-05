@@ -1,0 +1,16 @@
+{{- if and .Values.openformulieren.enabled (default false .Values.openformulieren.tempjobdjango.enabled) ( default false .Values.openformulieren.tempjobdjango.configMap.enabled ) -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.openformulieren.tempjobdjango.configMap.name | default (printf "%s-tempjobdjango-script" (.Values.openformulieren.tempjobdjango.subchartName | default "openformulieren")) }}
+  labels:
+    helm.sh/chart: {{ .Values.openformulieren.tempjobdjango.subchartName | default "openformulieren" }}-{{ .Values.openformulieren.image.tag | default "latest" }}
+    app.kubernetes.io/instance: {{ .Values.openformulieren.tempjobdjango.subchartName | default "openformulieren" }}
+    app.kubernetes.io/name: {{ .Values.openformulieren.tempjobdjango.subchartName | default "openformulieren" }}-tempjobdjango-script
+    app.kubernetes.io/component: tempjobdjango-script
+data:
+  {{- if .Values.openformulieren.tempjobdjango.configMap.scriptCode }}
+  {{ .Values.openformulieren.tempjobdjango.configMap.scriptName | default "custom_script.py" }}: |
+    {{- .Values.openformulieren.tempjobdjango.configMap.scriptCode | nindent 4 }}
+  {{- end }}
+{{- end }} 

@@ -1,0 +1,114 @@
+{{- if and .Values.openformulieren.enabled (default false .Values.openformulieren.tempjobdjango.enabled) -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Values.openformulieren.tempjobdjango.subchartName | default "openformulieren" }}-tempjobdjango
+  labels:
+    helm.sh/chart: {{ .Values.openformulieren.tempjobdjango.subchartName | default "openformulieren" }}-{{ .Values.openformulieren.image.tag | default "latest" }}
+    app.kubernetes.io/instance: {{ .Values.openformulieren.tempjobdjango.subchartName | default "openformulieren" }}
+    app.kubernetes.io/name: {{ .Values.openformulieren.tempjobdjango.subchartName | default "openformulieren" }}-tempjobdjango
+    app.kubernetes.io/component: tempjobdjango
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "10"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: {{ .Values.openformulieren.tempjobdjango.backoffLimit | default 6 }}
+  ttlSecondsAfterFinished: {{ .Values.openformulieren.tempjobdjango.ttlSecondsAfterFinished | default 0 }}
+  activeDeadlineSeconds: {{ .Values.openformulieren.tempjobdjango.activeDeadlineSeconds | default 21600 }}
+  parallelism: {{ .Values.openformulieren.tempjobdjango.parallelism | default 1 }}
+  completions: {{ .Values.openformulieren.tempjobdjango.completions | default 1 }}
+  template:
+    metadata:
+      annotations:
+      {{- with .Values.openformulieren.podAnnotations }}
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        helm.sh/chart: {{ .Values.openformulieren.tempjobdjango.subchartName | default "openformulieren" }}-{{ .Values.openformulieren.image.tag | default "latest" }}
+        app.kubernetes.io/instance: {{ .Values.openformulieren.tempjobdjango.subchartName | default "openformulieren" }}
+        app.kubernetes.io/name: {{ .Values.openformulieren.tempjobdjango.subchartName | default "openformulieren" }}-tempjobdjango
+        app.kubernetes.io/component: tempjobdjango
+        {{- with .Values.openformulieren.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.openformulieren.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ .Values.openformulieren.tempjobdjango.subchartName | default "openformulieren" }}
+      securityContext:
+        {{- toYaml .Values.openformulieren.podSecurityContext | nindent 8 }}
+      restartPolicy: {{ .Values.openformulieren.tempjobdjango.restartPolicy | default "OnFailure" }}
+      containers:
+        - name: {{ .Values.openformulieren.tempjobdjango.subchartName | default "openformulieren" }}-tempjobdjango
+          securityContext:
+            {{- toYaml .Values.openformulieren.securityContext | nindent 12 }}
+          image: "{{ .Values.openformulieren.image.repository | default "maykinmedia/openforms" }}:{{ .Values.openformulieren.image.tag | default .Values.openformulieren.image.tag }}"
+          imagePullPolicy: {{ .Values.openformulieren.image.pullPolicy | default "IfNotPresent" }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.openformulieren.existingSecret | default (.Values.openformulieren.tempjobdjango.subchartName | default "openformulieren") }}
+            - configMapRef:
+                name: {{ .Values.openformulieren.tempjobdjango.subchartName | default "openformulieren" }}
+          env:
+            {{- if .Values.openformulieren.extraEnvVars }}
+            {{- toYaml .Values.openformulieren.extraEnvVars | nindent 12 }}
+            {{- end }} 
+          # Django job commands ->  
+          command: ["/bin/bash", "-c"]
+          args: ["{{ (default "echo no command provided" .Values.openformulieren.tempjobdjango.bashCommand) }}{{ if (default false .Values.openformulieren.tempjobdjango.logging.enabled ) }} 2>&1 | tee /app/log/tempjobdjango.log{{ end }}"]
+          # End job commands 
+          resources:
+          {{- toYaml .Values.openformulieren.tempjobdjango.resources | nindent 12 }} 
+          volumeMounts:
+            - name: media
+              mountPath: /app/private-media
+              subPath: {{ .Values.openformulieren.persistence.privateMediaMountSubpath | default "openformulieren/private_media" }}
+            - name: media
+              mountPath: /app/media
+              subPath: {{ .Values.openformulieren.persistence.mediaMountSubpath  | default "openformulieren/media" }}
+            {{- if and (default false .Values.openformulieren.tempjobdjango.enabled) (default false .Values.openformulieren.tempjobdjango.configMap.enabled) }}
+            - name: script-volume
+              mountPath: {{ .Values.openformulieren.tempjobdjango.configMap.scriptMountPath | default "/app/bin" }}
+              readOnly: true
+            {{- end }}
+            {{- if .Values.openformulieren.tempjobdjango.logging.enabled | default false }}
+            - name: media
+              mountPath: /app/log
+              subPath: {{ .Values.openformulieren.persistence.tempjobMountSubpath  | default "openformulieren/media/temp-job-log" }}
+            {{- end }}
+            {{- if .Values.openformulieren.extraVolumeMounts }}
+            {{- toYaml .Values.openformulieren.extraVolumeMounts | nindent 12 }}
+            {{- end }}
+      volumes:
+        - name: media
+          persistentVolumeClaim:
+          {{- if .Values.openformulieren.persistence.enabled | default true }}
+            claimName: {{ if .Values.openformulieren.persistence.existingClaim }}{{ .Values.openformulieren.persistence.existingClaim }}{{- else }}{{ .Values.openformulieren.tempjobdjango.subchartName | default "openformulieren" }}{{- end }}
+          {{- else }}
+          emptyDir: { }
+          {{- end }}
+        {{- if and (default false .Values.openformulieren.tempjobdjango.enabled) (default false .Values.openformulieren.tempjobdjango.configMap.enabled) }}
+        - name: script-volume
+          configMap:
+            name: {{ .Values.openformulieren.tempjobdjango.configMap.name | default (printf "%s-tempjobdjango-script" (.Values.openformulieren.tempjobdjango.subchartName | default "openformulieren")) }}
+            defaultMode: 0755
+        {{- end }}      
+        {{- if .Values.openformulieren.extraVolumes }}
+        {{- toYaml .Values.openformulieren.extraVolumes | nindent 8 }}
+        {{- end }}
+      {{- with .Values.openformulieren.nodeSelector }}
+      nodeSelector:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.openformulieren.affinity }}
+      affinity:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.openformulieren.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}
