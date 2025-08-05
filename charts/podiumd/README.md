@@ -52,7 +52,6 @@
 | ClamAV             | 1.4.2        |                 | 3.2.0        |                |
 | Keycloak           | 25.0.6       |                 | 24.3.0       |                |
 | Infinispan         | 15.1         |                 | 0.4.1        |                |
-| Abc                | 1.0.0        | Nieuw component |              |                |
 | Objecten           | 3.0.4        |                 | 2.8.0        |                |
 | Objecttypen        | 3.0.2        |                 | 1.3.2        |                |
 | Open Formulieren   | 3.0.7        | Major update    | 1.8.2        |                |
@@ -60,31 +59,30 @@
 | Open Klant         | 2.7.0        | Major update    | 1.6.6        | Minor Update   |
 | Open Notificaties  | 1.8.2        |                 | 1.8.4        |                |
 | Open Zaak          | 1.18.0       |                 | 1.8.1        |                |
-| Open Archiefbeheer | 1.0.0        |                 | 1.3.10       |                |
+| Open Archiefbeheer | 1.0.0        | Nieuw Component | 1.3.10       |                |
 | Kiss               | 1.0.0        | Major update    | 1.0.0        |                |
 | Zac                | 3.5.0        | Minor update    | 1.0.46       |                |
 
-### [4.2](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.2)
+### [4.2.1](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.2.1)
 
-**PodiumD Helm chart version: 4.2**
+**PodiumD Helm chart version: 4.2.1 **
 
 
-| Component          | AppVersion   | Change          | ChartVersion | Change         |
-|--------------------|--------------|-----------------|--------------|----------------|
-| ClamAV             | 1.4.2        |                 | 3.2.0        |                |
-| Keycloak           | 26.3.1       |  Major update   | 24.8.0       |  Minor update  |
-| Infinispan         | 15.2         |  Minor update   | 0.5          |  Minor update  |
-| Abc                | 1.0.0        |                 |              |                |
-| Objecten           | 3.1.0        |  Minor update   | 2.8.1        |  Minor update  |
-| Objecttypen        | 3.0.4        |  Minor update   | 1.3.3        |  Minor update  |
-| Open Formulieren   | 3.0.8        |  Minor update   | 1.8.5        |  Minor update  |
-| Open Inwoner       | 1.32.0       |  Minor update   | 1.7.5        |  Minor update  |
-| Open Klant         | 2.9.0        |  Minor update   | 1.7.0        |  Minor update  |
-| Open Notificaties  | 1.10.0       |  Minor update   | 1.9.2        |  Minor update  |
-| Open Zaak          | 1.21.2       |  Minor update   | 1.9.0        |  Minor update  |
-| Open Archiefbeheer | 1.0.0        |                 | 1.3.10       |                |
-| Kiss               | 1.1.0        |  Minor update   | 1.0.0        |                |
-| Zac                | 3.10.0       |  Minor update   | 1.0.98       |                |
+| Component          | AppVersion | Change       | ChartVersion | Change       |
+|--------------------|------------|--------------|--------------|--------------|
+| ClamAV             | 1.4.2      |              | 3.2.0        |              |
+| Keycloak           | 26.3.1     | Major update | 24.8.0       | Minor update |
+| Infinispan         | 15.2       | Minor update | 0.5          | Minor update |
+| Objecten           | 3.1.3      | Minor update | 2.8.1        |              |
+| Objecttypen        | 3.0.4      |              | 1.3.3        |              |
+| Open Formulieren   | 3.0.8      |              | 1.8.5        |              |
+| Open Inwoner       | 1.32.0     | Minor update | 1.7.5        |              |
+| Open Klant         | 2.9.0      | Minor update | 1.7.0        | Minor update |
+| Open Notificaties  | 1.10.0     | Minor update | 1.9.2        | Minor update |
+| Open Zaak          | 1.21.2     | Minor update | 1.9.0        | Minor update |
+| Open Archiefbeheer | 1.0.0      |              | 1.3.10       |              |
+| Kiss               | 1.1.0      | Minor update | 1.0.0        |              |
+| Zac                | 3.10.0     | Minor update | 1.0.98       |              |
 
 ## Add Used chart repositories:
 
