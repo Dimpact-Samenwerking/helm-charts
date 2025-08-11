@@ -3,7 +3,6 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: {{ .Values.openformulieren.tempjobdjango.subchartName | default "openformulieren" }}-tempjobdjango
-  namespace: {{ .Release.Namespace | default "podiumd" }}
   labels:
     helm.sh/chart: {{ .Values.openformulieren.tempjobdjango.subchartName | default "openformulieren" }}-{{ .Values.openformulieren.image.tag | default "latest" }}
     app.kubernetes.io/instance: {{ .Values.openformulieren.tempjobdjango.subchartName | default "openformulieren" }}
