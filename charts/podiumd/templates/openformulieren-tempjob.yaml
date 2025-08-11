@@ -3,6 +3,7 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: {{ .Values.openformulieren.tempjobdjango.subchartName | default "openformulieren" }}-tempjobdjango
+  namespace: {{ .Release.Namespace | default "podiumd" }}
   labels:
     helm.sh/chart: {{ .Values.openformulieren.tempjobdjango.subchartName | default "openformulieren" }}-{{ .Values.openformulieren.image.tag | default "latest" }}
     app.kubernetes.io/instance: {{ .Values.openformulieren.tempjobdjango.subchartName | default "openformulieren" }}
@@ -45,7 +46,7 @@ spec:
         - name: {{ .Values.openformulieren.tempjobdjango.subchartName | default "openformulieren" }}-tempjobdjango
           securityContext:
             {{- toYaml .Values.openformulieren.securityContext | nindent 12 }}
-          image: "{{ .Values.openformulieren.image.repository | default "maykinmedia/openforms" }}:{{ .Values.openformulieren.image.tag | default .Values.openformulieren.image.tag }}"
+          image: "{{ .Values.openformulieren.image.repository | default "openformulieren/open-forms" }}:{{ .Values.openformulieren.image.tag | default .Values.openformulieren.image.tag }}"
           imagePullPolicy: {{ .Values.openformulieren.image.pullPolicy | default "IfNotPresent" }}
           envFrom:
             - secretRef:
@@ -77,7 +78,7 @@ spec:
             {{- if .Values.openformulieren.tempjobdjango.logging.enabled | default false }}
             - name: media
               mountPath: /app/log
-              subPath: {{ .Values.openformulieren.persistence.tempjobMountSubpath  | default "openformulieren/media/temp-job-log" }}
+              subPath: {{ .Values.openformulieren.tempjobdjango.logging.tempjobMountSubpath  | default "openformulieren/temp-job/log-temp-job" }}
             {{- end }}
             {{- if .Values.openformulieren.extraVolumeMounts }}
             {{- toYaml .Values.openformulieren.extraVolumeMounts | nindent 12 }}
