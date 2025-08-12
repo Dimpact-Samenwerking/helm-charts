@@ -581,6 +581,25 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 | openformulieren.redis.master.persistence.size             | Redis master persistence size                                                                                                                         | `"8Gi"`                                           |
 | openformulieren.redis.master.persistence.storageClass     | Redis master persistence storage class                                                                                                                | `""`                                              |
 | openformulieren.redis.master.nodeSelector                 | Redis node labels for pod assignment. Evaluated as a template                                                                                         | `{}`                                              |
+| tempjobdjango | object | `{"activeDeadlineSeconds":21600,"backoffLimit":3,"bashCommand":"echo this is a test","completions":1,"configMap":{"enabled":false,"name":"","scriptCode":"","scriptMountPath":"/app/bin","scriptName":"custom_script.py"},"enabled":false,"logging":{"enabled":false,"tempjobMountSubpath":""},"parallelism":1,"resources":{},"restartPolicy":"Never","subchartName":"openformulieren","ttlSecondsAfterFinished":0}` | Temporary Django job configuration    # for executing custom Django commands     # with Python scripts                      #    ########################################### |
+| openformulieren.tempjobdjango.activeDeadlineSeconds | int | `21600` | Job timeout in seconds (default: 6 hours = 21600) |
+| openformulieren.tempjobdjango.backoffLimit | int | `3` | Volume configuration for the script file |
+| openformulieren.tempjobdjango.bashCommand | string | `"echo this is a test"` | 4) Django shell script "python /app/src/manage.py shell < /app/bin/custom_script.py" |
+| openformulieren.tempjobdjango.completions | int | `1` | Number of completions required (default: 1) |
+| openformulieren.tempjobdjango.configMap | object | `{"enabled":false,"name":"","scriptCode":"","scriptMountPath":"/app/bin","scriptName":"custom_script.py"}` | ConfigMap configuration for Python scripts |
+| openformulieren.tempjobdjango.configMap.enabled | bool | `false` | REQUIRED: When set to true -> please provide scriptCode  |
+| openformulieren.tempjobdjango.configMap.name | string | `""` | Optional: name of the configmap, defaults to appname-tempjobdjango |
+| openformulieren.tempjobdjango.configMap.scriptCode | string | `""` | print(f"Total users: {User.objects.count()}")     |
+| openformulieren.tempjobdjango.configMap.scriptMountPath | string | `"/app/bin"` | Optional: Mount path for scripts (default: /app/bin) |
+| openformulieren.tempjobdjango.configMap.scriptName | string | `"custom_script.py"` | Optional: Shell script filename (default: custom_script.py)     |
+| openformulieren.tempjobdjango.logging | object | `{"enabled":false,"tempjobMountSubpath":""}` | Saving the logs resulting from the the django commands |
+| openformulieren.tempjobdjango.logging.enabled | bool | `false` | Enable persistent logging volume using the existing pvc |
+| openformulieren.tempjobdjango.logging.tempjobMountSubpath | string | `""` | The path for the logs to be mounted to the Open Formulieren pvc ; defaults to -> "openformulieren/temp-job/log-temp-job" |
+| openformulieren.tempjobdjango.parallelism | int | `1` | Number of parallel pods (default: 1) |
+| openformulieren.tempjobdjango.restartPolicy | string | `"Never"` | Restart policy: Never, OnFailure, or Always (Never is recommended for jobs) |
+| openformulieren.tempjobdjango.subchartName | string | `"openformulieren"` | This references the Open Formulieren subchart alias   |
+| openformulieren.tempjobdjango.ttlSecondsAfterFinished | int | `0` | 0 Will clean the job after it is finished |
+
 
 ### Open Inwoner
 
