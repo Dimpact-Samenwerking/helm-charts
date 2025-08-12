@@ -748,6 +748,63 @@ opennotificaties:
         requests:
           cpu: 10m
           memory: 64Mi
+  tempjobdjango:
+    enabled: false
+    # -- The subchart name is used here because the parent chart cannot access subchart values
+    # -- This references the Open Formulieren subchart alias
+    subchartName: "openformulieren"
+    # -- Four(or more) types of commands:
+    # -- -> Available on the container image (configMap: false)
+    # -- 1) Python script, e.g. "python /app/bin/fix_component_default_values.py"
+    # -- 2) Django management command to execute (e.g., "echo 'yes' | /app/src/manage.py generate_data --generate-superuser-credentials")
+    # -- -> Using custom script mounted as a configmap on the container (requirement: configMap to be set to true)
+    # -- 3) Python script, e.g. "python /app/bin/custom_script.py"
+    # -- 4) Django shell script "python /app/src/manage.py shell < /app/bin/custom_script.py"
+    bashCommand: "echo this is a test"
+    # -- ConfigMap configuration for Python scripts
+    configMap:
+      # -- Enable ConfigMap creation for Python scripts or Django shell scripts
+      # -- REQUIRED: When set to true -> please provide scriptCode 
+      enabled: false
+      # -- Required: Python script code to execute (MUST be specified if custom python script to be used)
+      # -- Example:
+      # -- scriptCode: |
+      # --   #!/usr/bin/env python
+      # --   print("Hello from Python!")
+      # -- Required: Python script code to execute in Django shell (MUST be specified if a shell script has to be executed)
+      # -- Example:
+      # -- scriptCode: |
+      # --   from django.contrib.auth.models import User
+      # --   print(f"Total users: {User.objects.count()}")    
+      scriptCode: ""
+      # -- Optional: Shell script filename (default: custom_script.py)    
+      scriptName: "custom_script.py"
+      # -- Optional: name of the configmap, defaults to openformulieren-tempjobdjango-script
+      name: ""
+      # -- Optional: Mount path for scripts (default: /app/bin)
+      scriptMountPath: "/app/bin"
+    # -- Volume configuration for the script file
+    backoffLimit: 3
+    # -- 0 Will clean the job after it is finished
+    ttlSecondsAfterFinished: 0    
+    # -- Job timeout in seconds (default: 6 hours = 21600)
+    activeDeadlineSeconds: 21600
+    # -- Number of parallel pods (default: 1)
+    parallelism: 1
+    # -- Number of completions required (default: 1)
+    completions: 1
+    # -- Restart policy: Never, OnFailure, or Always (Never is recommended for jobs)
+    restartPolicy: Never
+    resources: {}
+      # requests:
+      #   cpu: 100m
+      #   memory: 128Mi    
+    # -- Saving the logs resulting from the the django commands
+    logging:
+      # -- Enable persistent logging volume using the existing pvc
+      enabled: false
+      # -- The path for the logs to be mounted to the Open Formulieren pvc ; defaults to -> "openformulieren/temp-job/log-temp-job"
+      tempjobMountSubpath: ""
 
 objecten:
   configuration:
