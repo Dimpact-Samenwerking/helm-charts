@@ -1632,7 +1632,9 @@ openinwoner:
 
 kisselastic:
   kibanaDomain: kiss-kb-http.podiumd.svc.cluster.local:5601
+  # -- install crds using https://github.com/elastic/cloud-on-k8s/blob/main/deploy/eck-operator/charts/eck-operator-crds/templates/all-crds.yaml
   eck-operator:
+    installCRDs: false
     managedNamespaces:
       - podiumd
 
@@ -1903,6 +1905,7 @@ zac:
     fixedUserName: ""
   # solr operator settings
   solr-operator:
+    # -- install crds using https://solr.apache.org/operator/downloads/crds/v0.10.0-prerelease/all-with-dependencies.yaml
     # -- turn functionality on/off
     enabled: true
     # apache/solr-operator:v0.9.1
@@ -1931,7 +1934,10 @@ zac:
           tag: 8.14.1
     # -- namespaces to watch for solr-operator
     watchNamespaces: "podiumd"
+    # -- install crds using https://github.com/pravega/zookeeper-operator/blob/master/charts/zookeeper-operator/templates/zookeeper.pravega.io_zookeeperclusters_crd.yaml
     zookeeper-operator:
+      crd:
+        create: false
       hooks:
         # lachlanevenson/k8s-kubectl:v1.25.4
         image:
