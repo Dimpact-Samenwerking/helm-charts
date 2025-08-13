@@ -260,7 +260,6 @@ data:
     zac_roltypen=[
         { "omschrijving":"Behandelaar e2e","omschrijvingGeneriek": "behandelaar", "beginGeldigheid":"2025-01-01"},
         { "omschrijving":"Melder e2e","omschrijvingGeneriek": "initiator", "beginGeldigheid":"2025-01-01"},
-        { "omschrijving":"Medeaanvrager e2e","omschrijvingGeneriek": "initiator", "beginGeldigheid":"2025-01-01"},
         { "omschrijving":"Belanghebbende e2e","omschrijvingGeneriek": "belanghebbende", "beginGeldigheid":"2025-01-01"},
         { "omschrijving":"Contactpersoon e2e","omschrijvingGeneriek": "belanghebbende", "beginGeldigheid":"2025-01-01"},
         { "omschrijving":"Gemachtigde e2e","omschrijvingGeneriek": "belanghebbende", "beginGeldigheid":"2025-01-01"},
