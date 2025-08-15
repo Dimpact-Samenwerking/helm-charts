@@ -24,4 +24,7 @@ helm repo add eso https://charts.external-secrets.io
 
 ## tested with
 getting secrets from another namespace using bundle.yaml to create a clusterrolebinding to be able to fetch the secrets
+
 getting secrets from an external provider infisical, create an account with them and follow https://infisical.com/docs/documentation/platform/identities/universal-auth
+
+more discussions here: https://github.com/external-secrets/external-secrets/discussions/2782
