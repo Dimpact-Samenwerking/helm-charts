@@ -13,3 +13,15 @@ We will stop delivering new components directly in the podiumd Helm chart. Inste
 If a municipality wants to beproef a component that is not yet included in the podiumd Helm chart, we can configure the same Azure DevOps pipeline to deploy to a municipal beproeving environment.
 
 This approach allows components to be tested while the required configuration and other prerequisites are still being finalized.
+
+# Beproeving zgw-office-addin
+
+helm repo add zgw-office-addin https://infonl.github.io/zgw-office-addin
+
+# Beproeving external-secret
+
+helm repo add eso https://charts.external-secrets.io
+
+## tested with
+getting secrets from another namespace using bundle.yaml to create a clusterrolebinding to be able to fetch the secrets
+getting secrets from an external provider infisical, create an account with them and follow https://infisical.com/docs/documentation/platform/identities/universal-auth

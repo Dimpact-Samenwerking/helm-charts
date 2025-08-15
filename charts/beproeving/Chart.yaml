@@ -10,3 +10,8 @@ dependencies:
     repository: "@zgw-office-addin"
     version: 0.0.25
     condition: zgw-office-addin.enabled
+  # helm repo add eso https://charts.external-secrets.io
+  - name: external-secrets
+    repository: "@eso"
+    version: 0.19.2
+    condition: external-secrets-operator.enabled

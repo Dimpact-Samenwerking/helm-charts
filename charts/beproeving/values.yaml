@@ -20,3 +20,12 @@ zgw-office-addin:
     jwtSecret: "YOUR_SECRET_KEY"
     # the base url of the openzaak api's
     apiBaseUrl: "http://openzaak.example.com"
+
+external-secrets:
+  enabled: true
+  installCRDs: false
+  secretstores:
+    infisical:
+      projectSlug: dummy
+      clientId: dummy
+      clientSecret: dummy
