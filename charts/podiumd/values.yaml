@@ -783,6 +783,7 @@ opennotificaties:
       name: ""
       # -- Optional: Mount path for scripts (default: /app/bin)
       scriptMountPath: "/app/bin"
+
     # -- Volume configuration for the script file
     backoffLimit: 3
     # -- 0 Will clean the job after it is finished
@@ -805,7 +806,10 @@ opennotificaties:
       enabled: false
       # -- The path for the logs to be mounted to the Open Formulieren pvc ; defaults to -> "openformulieren/temp-job/log-temp-job"
       tempjobMountSubpath: ""
-
+  # extraVolumeMounts:
+  # - name: media
+  #   mountPath: /app/log
+  #   subPath: openformulieren/temp-job
 objecten:
   configuration:
     enabled: true  
