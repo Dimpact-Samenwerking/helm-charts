@@ -1727,7 +1727,7 @@ kiss:
       name: ""
     image:
       repository: ghcr.io/klantinteractie-servicesysteem/kiss-frontend
-      tag: "1.2.0"
+      tag: "1.2.1"
       pullPolicy: IfNotPresent
     resources:
       requests:
