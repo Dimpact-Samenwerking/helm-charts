@@ -34,7 +34,7 @@ grafana:
   downloadDashboardsImage:
     pullPolicy: IfNotPresent
     sha: ""
-    tag: 8.14.1        
+    tag: 8.15.0       
 
   containerSecurityContext:
     readOnlyRootFilesystem: false
@@ -123,13 +123,14 @@ grafana:
     # -- Git Sync for Grafana dashboards
     feature_toggles:
       provisioning: true
+      grafanaAdvisor: true
       kubernetesClientDashboardsFolders: true
       kubernetesDashboards: true
       grafanaAPIServerEnsureKubectlAccess: true
   # -- Grafana image settings
   image:
     pullPolicy: IfNotPresent
-    tag: 12.0.2
+    tag: 12.1.0
 
   initChownData:
     # -- Busybox image settings
@@ -141,7 +142,7 @@ grafana:
     # -- Grafana image renderer settings
     image:
       pullPolicy: Always
-      tag: 3.12.9
+      tag: v4.0.7
   testFramework:
     # -- bats image settings
     image:
@@ -167,7 +168,7 @@ prometheus:
   server:
     # -- prometheus image settings
     image:
-      tag: v3.4.2
+      tag: v3.5.0
     persistentVolume:
       enabled: true
       storageClass: "managed-csi"
@@ -194,7 +195,7 @@ prometheus:
       # kube-rbac-proxy image settings
       image:
         pullPolicy: IfNotPresent
-        tag: 0.19.1-debian-12-r5
+        tag: 0.19.1
   prometheus-pushgateway:
     nodeSelector:
       agentpool: userpool
@@ -208,12 +209,12 @@ prometheus:
     # kube-state-metrics image settings
     image:
       pullPolicy: IfNotPresent
-      tag: 2.16.0-debian-12-r1
+      tag: 2.16.0-debian-12-r3
   configmapReload:
     prometheus:
       # prometheus-config-reloader image settings
       image:
-        tag: v0.83.0
+        tag: v0.84.0
 
 promtail:
   enabled: true
@@ -239,7 +240,7 @@ promtail:
     # configmap-reload image settings
     image:
       pullPolicy: IfNotPresent
-      tag: v0.12.0
+      tag: v0.15.0
 loki:
   enabled: true
   # loki image settings
@@ -259,7 +260,7 @@ loki:
     # memcached image settings
     image:
       pullPolicy: IfNotPresent
-      tag: 1.6.38
+      tag: alpine3.22
   memcachedExporter:
     # memcached-export image settings
     image:
@@ -335,7 +336,7 @@ loki:
     # nginx-unprivileged image settings
     image:
       pullPolicy: IfNotPresent
-      tag: 1.29-alpine3.22-perl
+      tag: alpine3.22-perl
   ingester:
     replicas: 3
     nodeSelector:
@@ -353,7 +354,7 @@ loki:
 
   # kubectl image settings
   kubectlImage:
-    tag: 1.33.2-debian-12-r3
+    tag: 1.33.3-debian-12-r1
     pullPolicy: IfNotPresent
   test:
     enabled: false
@@ -444,7 +445,7 @@ loki:
     # loki image settings
     image:
       pullPolicy: IfNotPresent
-      tag: 3.5.0
+      tag: 3.5.2
     
 
   minio:
@@ -461,8 +462,8 @@ loki:
     # minio image settings
     image:
       pullPolicy: IfNotPresent
-      tag: RELEASE.2025-06-13T11-33-47Z-cpuv1
+      tag: RELEASE.2025-07-23T15-54-02Z-cpuv1
     # mc image settings
     mcImage:
       pullPolicy: IfNotPresent
-      tag: RELEASE.2025-05-21T01-59-54Z-cpuv1
+      tag: RELEASE.2025-07-21T05-28-08Z-cpuv1
