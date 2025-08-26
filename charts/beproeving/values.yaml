@@ -1,4 +1,3 @@
-
 # zgw-office-addin:
 #   enabled: true
 #   fullnameOverride: "zgw-office-addin"
@@ -21,120 +20,134 @@
 #     # the base url of the openzaak api's
 #     apiBaseUrl: "http://openzaak.example.com"
 
-
-ita:
-  postgresql:
-    enabled: true
+# Global PostgreSQL configuration
+postgresql:
+  enabled: true
+  image:
+    repository: bitnamilegacy/postgresql
+  auth:
+    username: "postgres"
+    password: "@Th1sIsASecret@"
+    database: "ita"
+    postgresPassword: "@Th1sIsASecret@"
+  primary:
+    persistence:
+      enabled: true
+      size: 8Gi
+  metrics:
+    enabled: false
     image:
-      repository: bitnamilegacy/postgresql
-    auth:
-      username: "ita"
-      password: "MyP@$$w0rdishere"
-      database: "interneTaakAfhandeling"
-      postgresPassword: "MyP@$$w0rdishere"
-    primary:
-      persistence:
-        enabled: true
-        size: 8Gi
-    metrics:
-      enabled: false
-      image:
-        repository: bitnamilegacy/postgres-exporter
-    volumePermissions:
-      image:
-        repository: bitnamilegacy/os-shell
+      repository: bitnamilegacy/postgres-exporter
+  volumePermissions:
+    image:
+      repository: bitnamilegacy/os-shell
+
+# Certificate configuration
+certificates:
+  enabled: false # JIM
+  installClusterIssuer: false # JIM
+  issuerName: "letsencrypt-prod" # JIM
+  commonName: "" # JIM
+  email: "" # JIM
+
+# Ingress Configuration
+ingress:
+  enabled: false # JIM
+  host: ""
+  port: 80
+
+# Database Configuration
+database:
+  # When postgresql.enabled=true, host is auto-set to {Release.Name}-postgresql
+  # Specify this host only when postgresql.enabled=false
+  # host: ""
+  # port: "5432"
+  name: "ita"
+  username: "ita"
+  password: "@Th1sIsASecret@"
+
+# API Connections
+apiConnections:
+  openKlant:
+    baseUrl: "https://ontw-openklant.dimpact.icatt.nl"
+    apiKey: ""
+  object:
+    baseUrl: "https://ontw-objecten.dimpact.icatt.nl"
+    apiKey: "50JV0uczS7W1LMa8Voc0QzEsz0aRbsfZ"
+  zaakSysteem:
+    baseUrl: "https://ontw-openzaak.dimpact.icatt.nl"
+    clientId: ""
+    key: "50JV0uczS7W1LMa8Voc0QzEsz0aRbsfZ"
+
+logboek:
+  type: ""
+  typeVersion: 1
+
+# Web Application Configuration
+web:
+  image:
+    repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web"
+    tag: "latest"
+    pullPolicy: Always
   
-  # Certificate configuration
-  certificates:
-    enabled: false # JIM
-    installClusterIssuer: false # JIM
-    issuerName: "letsencrypt-prod" # JIM
-    commonName: "" # JIM
-    email: "" # JIM
-  
-  # Ingress Configuration
-  ingress:
-    enabled: false # JIM
-    host: ""
+  service:
+    type: ClusterIP
     port: 80
   
-  # Database Configuration
-  database:
-    # When postgresql.enabled=true, host is auto-set to {Release.Name}-postgresql
-    # Specify this host only when postgresql.enabled=false
-    # host: ""
-    # port: "5432"
-    name: "interneTaakAfhandeling"
-    username: "ita"
-    password: "MyP@$$w0rdishere"
-  
-  # API Connections
-  apiConnections:
-    openKlant:
-      baseUrl: ""
-      apiKey: ""
-    object:
-      baseUrl: ""
-      apiKey: ""
-    zaakSysteem:
-      baseUrl: ""
-      clientId: ""
-      key: ""
-  
-  logboek:
-    type: ""
-    typeVersion: 1
-  
-  # Web Application Configuration
-  web:
+  # Database initialization configuration
+  initContainer:
+    enabled: true
     image:
-      repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web"
-      tag: "latest"
-      pullPolicy: Always
-    
-    service:
-      type: ClusterIP
-      port: 80
-    
-    oidc:
-      authority: ""
-      clientId: ""
-      clientSecret: ""
-      itaSystemAccessRole: ""
-      nameClaimType: ""
-      roleClaimType: ""
-      objectregisterMedewerkerIdClaimType: ""
-      emailClaimType: ""
-    
+      repository: "postgres"
+      tag: "15"
+      pullPolicy: "IfNotPresent"
     resources:
-      logoUrl: ""
-      faviconUrl: ""
-      designTokensUrl: ""
-      webFontSources: []
-    
-    appsettings:
-      setting1: ""
-      setting2: ""
+      requests:
+        cpu: "100m"
+        memory: "128Mi"
+      limits:
+        cpu: "200m"
+        memory: "256Mi"
   
-  # Poller Configuration
-  poller:
-    schedule: "*/15 * * * *"
-    
-    image:
-      repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller"
-      tag: "latest"
-      pullPolicy: Always
-    
-    notification:
-      pollerMessage: "Poller uitgevoerd om:"
-      hourThreshold: "-24"
-    
-    smtp:
-      host: ""
-      port: "25"
-      username: ""
-      password: ""
-      fromEmail: ""
-      enableSsl: "true"
+  oidc:
+    authority: "https://ontw-keycloak-admin.dimpact.icatt.nl/realms/podiumd"
+    clientId: "ita"
+    # clientSecret: "your-ita-client-secret"
+    itaSystemAccessRole: "ita-system-access"
+    nameClaimType: "preferred_username"
+    roleClaimType: "roles"
+    objectregisterMedewerkerIdClaimType: "preferred_username"
+    emailClaimType: "email"
+  
+  resources:
+    logoUrl: ""
+    faviconUrl: ""
+    designTokensUrl: ""
+    webFontSources: []
+  
+  appsettings:
+    setting1: ""
+    setting2: ""
+
+# Poller Configuration
+poller:
+  schedule: "*/15 * * * *"
+  
+  image:
+    repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller"
+    tag: "latest"
+    pullPolicy: Always
+  
+  notification:
+    pollerMessage: "Poller uitgevoerd om:"
+    hourThreshold: "-24"
+  
+  smtp:
+    host: ""
+    port: "25"
+    username: ""
+    password: ""
+    fromEmail: ""
+    enableSsl: "true"
   
   
