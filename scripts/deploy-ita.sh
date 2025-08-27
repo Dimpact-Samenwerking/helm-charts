@@ -36,6 +36,37 @@ print_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+# Build common Helm --set flags from environment variables
+build_helm_set_flags() {
+    HELM_SET_FLAGS=()
+
+    # Required secrets (fail fast if missing)
+    : "${PG_PASSWORD:?Set PG_PASSWORD (postgresql.auth.password)}"
+    : "${PG_ADMIN_PASSWORD:?Set PG_ADMIN_PASSWORD (postgresql.auth.postgresPassword)}"
+    : "${DB_PASSWORD:?Set DB_PASSWORD (database.password for user 'ita')}"
+    : "${OPENKLANT_API_KEY:?Set OPENKLANT_API_KEY}"
+    : "${OBJECT_API_KEY:?Set OBJECT_API_KEY}"
+    : "${ZAAKSYSTEEM_KEY:?Set ZAAKSYSTEEM_KEY}"
+    : "${ITA_CLIENT_SECRET:?Set ITA_CLIENT_SECRET (web.oidc.clientSecret)}"
+
+    # Optional
+    : "${POLLER_SMTP_PASSWORD:=}"
+
+    HELM_SET_FLAGS+=(
+        --set postgresql.auth.password="${PG_PASSWORD}"
+        --set postgresql.auth.postgresPassword="${PG_ADMIN_PASSWORD}"
+        --set database.password="${DB_PASSWORD}"
+        --set apiConnections.openKlant.apiKey="${OPENKLANT_API_KEY}"
+        --set apiConnections.object.apiKey="${OBJECT_API_KEY}"
+        --set apiConnections.zaakSysteem.key="${ZAAKSYSTEEM_KEY}"
+        --set web.oidc.clientSecret="${ITA_CLIENT_SECRET}"
+    )
+
+    if [[ -n "${POLLER_SMTP_PASSWORD}" ]]; then
+        HELM_SET_FLAGS+=(--set poller.smtp.password="${POLLER_SMTP_PASSWORD}")
+    fi
+}
+
 # Function to check if namespace exists
 check_namespace() {
     if kubectl get namespace "$NAMESPACE" >/dev/null 2>&1; then
@@ -55,7 +86,7 @@ deploy_postgresql() {
         --version "$CHART_VERSION" \
         --namespace "$NAMESPACE" \
         --values "$VALUES_FILE" \
-        --set web.oidc.clientSecret="${ITA_CLIENT_SECRET:-test-secret}" \
+        "${HELM_SET_FLAGS[@]}" \
         --wait \
         --timeout 10m
     
@@ -100,17 +131,18 @@ run_db_init() {
         -o jsonpath='{.items[0].metadata.name}')
     print_status "Using PostgreSQL service: $POSTGRES_SERVICE"
     
-    # Display PostgreSQL connection command
-    print_status "🔗 PostgreSQL connection command:"
-    echo "  PGPASSWORD=MyP@\$\$w0rdishere psql -h $POSTGRES_SERVICE -p 5432 -U postgres -d ita"
-    echo ""
     
     # Apply the database initialization job with the correct service name
-    kubectl apply -f charts/beproeving/db-init-job.yaml
-    
-    # Update the job with the correct service name
-    kubectl patch job ita-db-init -n "$NAMESPACE" --type='json' \
-        -p="[{\"op\": \"replace\", \"path\": \"/spec/template/spec/containers/0/env/0/value\", \"value\": \"$POSTGRES_SERVICE\"}]"
+    TMP_JOB_MANIFEST=$(mktemp)
+    awk -v host="$POSTGRES_SERVICE" -v dbpw="${DB_PASSWORD}" -v pgpw="${PG_ADMIN_PASSWORD}" '
+      /name: DB_HOST/ { print; getline; sub(/value: ".*"/, "value: \"" host "\""); print; next }
+      /name: DB_PASSWORD/ { print; getline; sub(/value: ".*"/, "value: \"" dbpw "\""); print; next }
+      /name: POSTGRES_PASSWORD/ { print; getline; sub(/value: ".*"/, "value: \"" pgpw "\""); print; next }
+      { print }
+    ' charts/beproeving/db-init-job.yaml > "$TMP_JOB_MANIFEST"
+
+    kubectl apply -f "$TMP_JOB_MANIFEST"
+    rm -f "$TMP_JOB_MANIFEST"
     
     # Wait for the job to complete
     print_status "Waiting for database initialization to complete..."
@@ -142,7 +174,7 @@ deploy_ita() {
         --version "$CHART_VERSION" \
         --namespace "$NAMESPACE" \
         --values "$VALUES_FILE" \
-        --set web.oidc.clientSecret="${ITA_CLIENT_SECRET:-test-secret}" \
+        "${HELM_SET_FLAGS[@]}" \
         --wait \
         --timeout 10m
     
@@ -185,11 +217,8 @@ show_status() {
 main() {
     print_status "Starting ITA deployment with database initialization..."
     
-    # Check if ITA_CLIENT_SECRET is set
-    if [[ -z "${ITA_CLIENT_SECRET}" ]]; then
-        print_warning "ITA_CLIENT_SECRET not set. Using test secret."
-        print_warning "For production, set ITA_CLIENT_SECRET with your actual Keycloak client secret."
-    fi
+    # Build helm flags from environment and validate presence of required vars
+    build_helm_set_flags
     
     # Step 1: Check/create namespace
     check_namespace

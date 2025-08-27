@@ -27,9 +27,9 @@ postgresql:
     repository: bitnamilegacy/postgresql
   auth:
     username: "postgres"
-    password: "@Th1sIsASecret@"
+    password: "SECRET__SECRET__SECRET"
     database: "ita"
-    postgresPassword: "@Th1sIsASecret@"
+    postgresPassword: "SECRET__SECRET__SECRET"
   primary:
     persistence:
       enabled: true
@@ -44,17 +44,11 @@ postgresql:
 
 # Certificate configuration
 certificates:
-  enabled: false # JIM
-  installClusterIssuer: false # JIM
-  issuerName: "letsencrypt-prod" # JIM
-  commonName: "" # JIM
-  email: "" # JIM
+  enabled: false 
 
 # Ingress Configuration
 ingress:
-  enabled: false # JIM
-  host: ""
-  port: 80
+  enabled: false
 
 # Database Configuration
 database:
@@ -64,20 +58,20 @@ database:
   # port: "5432"
   name: "ita"
   username: "ita"
-  password: "@Th1sIsASecret@"
+  password: "SECRET__SECRET__SECRET"
 
 # API Connections
 apiConnections:
   openKlant:
-    baseUrl: "https://ontw-openklant.dimpact.icatt.nl"
-    apiKey: ""
+    baseUrl: "https://ontw-openklant.dimpact.icatt.nl/klantinteracties/api/v1/"
+    apiKey: "SECRET__SECRET__SECRET"
   object:
-    baseUrl: "https://ontw-objecten.dimpact.icatt.nl"
-    apiKey: "50JV0uczS7W1LMa8Voc0QzEsz0aRbsfZ"
+    baseUrl: "https://ontw-objecten.dimpact.icatt.nll/api/v2/"
+    apiKey: "SECRET__SECRET__SECRET"
   zaakSysteem:
     baseUrl: "https://ontw-openzaak.dimpact.icatt.nl"
-    clientId: ""
-    key: "50JV0uczS7W1LMa8Voc0QzEsz0aRbsfZ"
+    clientId: "ita"
+    key: "SECRET__SECRET__SECRET"
 
 logboek:
   type: ""
@@ -112,10 +106,10 @@ web:
   oidc:
     authority: "https://ontw-keycloak-admin.dimpact.icatt.nl/realms/podiumd"
     clientId: "ita"
-    # clientSecret: "your-ita-client-secret"
-    itaSystemAccessRole: "ita-system-access"
-    nameClaimType: "preferred_username"
-    roleClaimType: "roles"
+    clientSecret: "SECRET__SECRET__SECRET"
+    itaSystemAccessRole: "ITA-Gebruiker"
+    nameClaimType: "name"
+    roleClaimType: "groups"
     objectregisterMedewerkerIdClaimType: "preferred_username"
     emailClaimType: "email"
   
@@ -131,7 +125,9 @@ web:
 
 # Poller Configuration
 poller:
-  schedule: "*/15 * * * *"
+  schedule: "*/2 * * * *"
+  # schedule: "*/15 * * * *"
+
   
   image:
     repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller"
@@ -146,7 +142,7 @@ poller:
     host: ""
     port: "25"
     username: ""
-    password: ""
+    password: "SECRET__SECRET__SECRET"
     fromEmail: ""
     enableSsl: "true"
   
