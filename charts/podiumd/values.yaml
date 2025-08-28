@@ -1837,17 +1837,18 @@ zac:
     code: "007"
     naam: "Example Gemeente"
     mail: "noreply@example.nl"
+  # curlimages/curl:8.15.0
+  global:
+    curlImage:
+      #repository: curlimages/curl
+      tag: 8.15.0
   # ghcr.io/infonl/zaakafhandelcomponent:3.10.0-1
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
-    tag: 3.10.0-1
+    tag: 3.13.0
   initContainer:
-    enabled: true
-    # curlimages/curl:8.15.0
-    image:
-      #repository: curlimages/curl
-      tag: 8.15.0
+    enabled: false
   keycloak:
     adminClient:
       id: zac-admin-client
@@ -1871,7 +1872,7 @@ zac:
     # nginxinc/nginx-unprivileged:1.29.0
     image:
       # repository: nginxinc/nginx-unprivileged
-      tag: 1.29.0
+      tag: 1.29.1
   # notificationsSecretKey: "changeme"
   objectenApi:
     url: http://objecten.example.nl
@@ -1885,11 +1886,11 @@ zac:
       #repository: ghcr.io/eugenmayer/kontextwork-converter
       tag: 1.8.0
   opa:
-    sidecar: false
+    sidecar: true
     # openpolicyagent/opa:1.6.0-static
     image:
       #repository: openpolicyagent/opa
-      tag: 1.6.0-static
+      tag: 1.7.1-static
   openForms:
     url: http://open-forms.example.nl
   organizations:
@@ -1923,15 +1924,11 @@ zac:
       # library/solr:9.8.1
       image:
         #repository:
-        tag: 9.8.1
+        tag: 9.9.0
       # -- define memory settings for solr in the solrcloud
       javaMem: -Xms512m -Xmx768m
       jobs:
         createZacCore: true
-        # curlimages/curl:8.14.1
-        image:
-          #repository:
-          tag: 8.14.1
     # -- namespaces to watch for solr-operator
     watchNamespaces: "podiumd"
     # -- install crds using https://github.com/pravega/zookeeper-operator/blob/master/charts/zookeeper-operator/templates/zookeeper.pravega.io_zookeeperclusters_crd.yaml
