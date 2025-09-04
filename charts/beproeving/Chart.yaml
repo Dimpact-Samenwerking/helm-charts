@@ -2,7 +2,7 @@ apiVersion: v2
 name: beproeving
 description: The right place for first time implementations and learning
 type: application
-version: 0.0.1
+version: 0.0.2
 appVersion: "0.0.1"
 dependencies:
   # helm repo add zgw-office-addin https://infonl.github.io/zgw-office-addin
@@ -10,3 +10,7 @@ dependencies:
     repository: "@zgw-office-addin"
     version: 0.0.25
     condition: zgw-office-addin.enabled
+  - name: internetaakafhandeling
+    repository: oci://ghcr.io/interne-taak-afhandeling
+    version: 1.0.0
+    condition: internetaakafhandeling.enabled
