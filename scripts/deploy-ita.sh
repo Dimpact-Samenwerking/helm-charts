@@ -9,7 +9,7 @@ set -e
 NAMESPACE="beproeving"
 RELEASE_NAME="ita"
 CHART_URL="oci://ghcr.io/interne-taak-afhandeling/internetaakafhandeling"
-CHART_VERSION="0.2.2"
+CHART_VERSION="1.0.0"
 VALUES_FILE="charts/beproeving/values.yaml"
 
 # Colors for output

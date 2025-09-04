@@ -23,28 +23,24 @@
 # Global PostgreSQL configuration
 postgresql:
   enabled: true
-  image:
-    repository: bitnamilegacy/postgresql
+  # image:
+  #   repository: bitnamilegacy/postgresql
   auth:
     username: "postgres"
     password: "SECRET__SECRET__SECRET"
     database: "ita"
     postgresPassword: "SECRET__SECRET__SECRET"
-  primary:
-    persistence:
-      enabled: true
-      size: 8Gi
-  metrics:
-    enabled: false
-    image:
-      repository: bitnamilegacy/postgres-exporter
-  volumePermissions:
-    image:
-      repository: bitnamilegacy/os-shell
-
-# Certificate configuration
-certificates:
-  enabled: false 
+  # primary:
+  #   persistence:
+  #     enabled: true
+  #     size: 8Gi
+  # metrics:
+  #   enabled: false
+  #   image:
+  #     repository: bitnamilegacy/postgres-exporter
+  # volumePermissions:
+  #   image:
+  #     repository: bitnamilegacy/os-shell
 
 # Ingress Configuration
 ingress:
@@ -66,7 +62,7 @@ apiConnections:
     baseUrl: "https://ontw-openklant.dimpact.icatt.nl/klantinteracties/api/v1/"
     apiKey: "SECRET__SECRET__SECRET"
   object:
-    baseUrl: "https://ontw-objecten.dimpact.icatt.nll/api/v2/"
+    baseUrl: "https://ontw-objecten.dimpact.icatt.nl/api/v2/"
     apiKey: "SECRET__SECRET__SECRET"
   zaakSysteem:
     baseUrl: "https://ontw-openzaak.dimpact.icatt.nl"
@@ -74,19 +70,35 @@ apiConnections:
     key: "SECRET__SECRET__SECRET"
 
 logboek:
-  type: ""
+  type: "https://ontw-objecttypen.dimpact.icatt.nl/api/v2/objecttypes/1eaa9001-aa93-466f-b920-ad9caccf115b"
   typeVersion: 1
+
+afdeling:
+  type: "https://ontw-objecttypen.dimpact.icatt.nl/api/v2/objecttypes/c8d301f9-80b8-4575-8b29-3e9431f92994"
+  typeVersion: 1
+
+groep:
+  type: "https://ontw-objecttypen.dimpact.icatt.nl/api/v2/objecttypes/cbec27ac-157b-490b-b586-9e8a8f5bbb85"
+  typeVersion: 1
+
+smtp:
+  host: ""
+  port: "25"
+  username: ""
+  password: "SECRET__SECRET__SECRET"
+  fromEmail: ""
+  enableSsl: "true"
 
 # Web Application Configuration
 web:
   image:
-    repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web"
-    tag: "latest"
+    # repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web"
+    # tag: "1.0.0"
     pullPolicy: Always
   
-  service:
-    type: ClusterIP
-    port: 80
+  # service:
+  #   type: ClusterIP
+  #   port: 80
   
   # Database initialization configuration
   initContainer:
@@ -113,15 +125,15 @@ web:
     objectregisterMedewerkerIdClaimType: "preferred_username"
     emailClaimType: "email"
   
-  resources:
-    logoUrl: ""
-    faviconUrl: ""
-    designTokensUrl: ""
-    webFontSources: []
+  # resources:
+  #   logoUrl: ""
+  #   faviconUrl: ""
+  #   designTokensUrl: ""
+  #   webFontSources: []
   
-  appsettings:
-    setting1: ""
-    setting2: ""
+  # appsettings:
+  #   setting1: ""
+  #   setting2: ""
 
 # Poller Configuration
 poller:
@@ -130,20 +142,10 @@ poller:
 
   
   image:
-    repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller"
-    tag: "latest"
+    # repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller"
+    tag: "1.0.0"
     pullPolicy: Always
   
   notification:
     pollerMessage: "Poller uitgevoerd om:"
     hourThreshold: "-24"
-  
-  smtp:
-    host: ""
-    port: "25"
-    username: ""
-    password: "SECRET__SECRET__SECRET"
-    fromEmail: ""
-    enableSsl: "true"
-  
-  
