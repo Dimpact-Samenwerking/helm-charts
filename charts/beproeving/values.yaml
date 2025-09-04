@@ -107,7 +107,7 @@ internetaakafhandeling:
       itaSystemAccessRole: "ITA-Gebruiker"
       nameClaimType: "name"
       roleClaimType: "groups"
-      objectregisterMedewerkerIdClaimType: "preferred_username"
+      objectregisterMedewerkerIdClaimType: "email"
       emailClaimType: "email"
     
     # resources:
