@@ -97,7 +97,7 @@ keycloak:
   image:
     #registry: ""
     #repository: keycloak
-    tag: 26.3.1
+    tag: 26.3.3
   externalDatabase:
     host: "postgres"
     database: ""
@@ -1090,8 +1090,10 @@ openarchiefbeheer:
 
   replicaCount: 1
 
+  # maykinmedia/open-archiefbeheer:1.1.0
   image:
-    tag: "1.0.0"
+    #repository: maykinmedia/open-archiefbeheer
+    tag: "1.1.0"
 
   resources:
     limits: {}
@@ -1842,11 +1844,11 @@ zac:
     curlImage:
       #repository: curlimages/curl
       tag: 8.15.0
-  # ghcr.io/infonl/zaakafhandelcomponent:3.10.0-1
+  # ghcr.io/infonl/zaakafhandelcomponent:3.14.0
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
-    tag: 3.13.0
+    tag: 3.14.0
   initContainer:
     enabled: false
   keycloak:
@@ -1869,7 +1871,7 @@ zac:
   nginx:
     enabled: true
     client_max_body_size: 150M
-    # nginxinc/nginx-unprivileged:1.29.0
+    # nginxinc/nginx-unprivileged:1.29.1
     image:
       # repository: nginxinc/nginx-unprivileged
       tag: 1.29.1
@@ -1887,10 +1889,10 @@ zac:
       tag: 1.8.0
   opa:
     sidecar: true
-    # openpolicyagent/opa:1.6.0-static
+    # openpolicyagent/opa:1.8.0-static
     image:
       #repository: openpolicyagent/opa
-      tag: 1.7.1-static
+      tag: 1.8.0-static
   openForms:
     url: http://open-forms.example.nl
   organizations:
@@ -1921,7 +1923,7 @@ zac:
         tag: 1.37.0-glibc
       # -- set enabled to provision solrcloud as well
       enabled: true
-      # library/solr:9.8.1
+      # library/solr:9.9.0
       image:
         #repository:
         tag: 9.9.0
