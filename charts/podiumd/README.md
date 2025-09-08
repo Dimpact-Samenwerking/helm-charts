@@ -84,6 +84,29 @@
 | Kiss               | 1.2.0      | Minor update | 1.0.0        |              |
 | Zac                | 3.10.0-1   | Minor update | 1.0.98       |              |
 
+### [4.3.0](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.3.0)
+
+**PodiumD Helm chart version: 4.3.0 **
+
+
+| Component          | AppVersion | Change           | ChartVersion | Change          |
+|--------------------|------------|------------------|--------------|-----------------|
+| ClamAV             | 1.4.2      |                  | 3.2.0        |                 |
+| Keycloak           | 26.3.3     | Minor update     | 25.2.0       | Major update    |
+| Infinispan         | 15.2       | Minor update     | 0.5          | Minor update    |
+| ITA                |            | Nieuw Component  |              | Nieuw component |
+| Objecten           | 3.1.4      |                  | 2.8.1        |                 |
+| Objecttypen        | 3.0.4      |                  | 1.3.3        |                 |
+| Open Formulieren   | 3.0.8      |                  | 1.8.5        |                 |
+| Open Inwoner       | 1.34.0     | Minor update     | 1.7.5        |                 |
+| Open Klant         | 2.9.0      | Minor update     | 1.7.0        | Minor update    |
+| Open Notificaties  | 1.10.0     | Minor update     | 1.9.2        | Minor update    |
+| Open Zaak          | 1.24.0     | Minor update     | 1.9.0        | Minor update    |
+| Open Archiefbeheer | 1.1.0      | Minor update     | 1.3.10       |                 |
+| Kiss               | 1.2.1      |                  | 1.0.0        |                 |
+| Zac                | 3.14.11    | Minor update     | 1.0.116      |                 |
+| ZGW Office Addin   |            | Nieuw component  | 0.0.25       | Nieuw component | 
+
 ## Add Used chart repositories:
 
 ```shell
@@ -98,6 +121,7 @@ helm repo add openshift https://charts.openshift.io
 helm repo add solr https://solr.apache.org/charts
 helm repo add opentelemetry https://open-telemetry.github.io/opentelemetry-helm-charts
 helm repo add zac https://infonl.github.io/dimpact-zaakafhandelcomponent/
+helm repo add zgw-office-addin https://infonl.github.io/zgw-office-addin
 ```
 
 ## PersistentVolume and PersistVolumeClaim resources
