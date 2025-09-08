@@ -71,6 +71,6 @@ dependencies:
       - zaak
   - name: zgw-office-addin
     repository: "@zgw-office-addin"
-    version: 0.0.25
+    version: 0.0.31
     condition: zgw-office-addin.enabled
 
