@@ -1963,7 +1963,7 @@ zgw-office-addin:
   enabled: true
   fullnameOverride: "zgw-office-addin"
   frontend:
-    # ghcr.io/infonl/zgw-office-add-in-frontend:v0.0.205
+    # ghcr.io/infonl/zgw-office-add-in-frontend:v0.0.299
     image:
       tag: v0.0.299
     # the public url where manifest.xml and static js files are served
@@ -1973,7 +1973,7 @@ zgw-office-addin:
     # can be enabled if needed, if for instance you don't want an ingress
     enableHttps: false
   backend:
-    # ghcr.io/infonl/zgw-office-add-in-backend:v0.0.205
+    # ghcr.io/infonl/zgw-office-add-in-backend:v0.0.299
     image:
       tag: v0.0.299
     # secret that is configured in openzaak
