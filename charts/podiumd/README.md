@@ -97,7 +97,7 @@
 | Infinispan         | 15.2       | Minor update     | 0.5          | Minor update    |
 | ITA                |            | Nieuw Component  |              | Nieuw component |
 | Objecten           | 3.1.4      | Patch update     | 2.9.0        | Minor update    |
-| Objecttypen        | 3.0.4      |                  | 1.3.3        |                 |
+| Objecttypen        | 3.2.1      | Minor update     | 1.4.0        | Minor update    |
 | Open Formulieren   | 3.2.2      | Minor update     | 1.9.0        | Minor update    |
 | Open Inwoner       | 1.34.0     | Minor update     | 1.7.5        |                 |
 | Open Klant         | 2.9.0      | Minor update     | 1.7.0        | Minor update    |
