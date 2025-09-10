@@ -497,6 +497,15 @@ data:
               access.token.claim: "true"
               claim.name: "client_id"
               jsonType.label: "String"
+	  - clientId: ita
+	    name: Internaal Taak Afhandelcomponent
+	    enabled: true
+	    clientAuthenticatorType: client-secret
+	    redirectUris:
+	      - "{{ .Values.ita.configuration.oidcUrl }}/*"
+	    webOrigins:
+	      - "{{ .Values.ita.configuration.oidcUrl }}/*"
+	    secret: {{ .Values.ita.configuration.oidcSecret | quote }}
     clientScopes:
       - name: roles
         description: OpenID Connect scope for add user roles to the access token
@@ -604,7 +613,6 @@ data:
           - name: Redacteur
           - name: Klantcontactmedewerker
         zac:
-          - name: zaakafhandelcomponent_user
           - name: behandelaar
           - name: beheerder
           - name: coordinator
@@ -624,7 +632,6 @@ data:
         clientRoles:
           zac:
             - "recordmanager"
-            - "zaakafhandelcomponent_user"
             - "domein_elk_zaaktype"
             - "beheerder"
             - "coordinator"
@@ -656,7 +663,6 @@ data:
         clientRoles:
           zac:
             - "domein_elk_zaaktype"
-            - "zaakafhandelcomponent_user"
             - "behandelaar"
             - "raadpleger"
       - name: coordinators
@@ -666,7 +672,6 @@ data:
             - "Coordinators"
         clientRoles:
           zac:
-            - "zaakafhandelcomponent_user"
             - "domein_elk_zaaktype"
             - "coordinator"
             - "raadpleger"
@@ -678,7 +683,6 @@ data:
             - "Recordmanagers"
         clientRoles:
           zac:
-            - "zaakafhandelcomponent_user"
             - "domein_elk_zaaktype"
             - "coordinator"
             - "behandelaar"
@@ -691,7 +695,6 @@ data:
             - "Beheerders"
         clientRoles:
           zac:
-            - "zaakafhandelcomponent_user"
             - "domein_elk_zaaktype"
             - "coordinator"
             - "behandelaar"
@@ -705,7 +708,6 @@ data:
             - "Raadplegers"
         clientRoles:
           zac:
-            - "zaakafhandelcomponent_user"
             - "domein_elk_zaaktype"
             - "raadpleger"
     {{- end }}
