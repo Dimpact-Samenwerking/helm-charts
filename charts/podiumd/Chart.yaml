@@ -27,7 +27,7 @@ dependencies:
     repository: "@maykinmedia"
     condition: opennotificaties.enabled
   - name: objecten
-    version: 2.8.1
+    version: 2.9.0
     repository: "@maykinmedia"
     condition: objecten.enabled
   - name: objecttypen

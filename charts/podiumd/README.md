@@ -96,7 +96,7 @@
 | Keycloak           | 26.3.3     | Minor update     | 25.2.0       | Major update    |
 | Infinispan         | 15.2       | Minor update     | 0.5          | Minor update    |
 | ITA                |            | Nieuw Component  |              | Nieuw component |
-| Objecten           | 3.1.4      |                  | 2.8.1        |                 |
+| Objecten           | 3.1.4      | Patch update     | 2.9.0        | Minor update    |
 | Objecttypen        | 3.0.4      |                  | 1.3.3        |                 |
 | Open Formulieren   | 3.2.2      | Minor update     | 1.9.0        | Minor update    |
 | Open Inwoner       | 1.34.0     | Minor update     | 1.7.5        |                 |
