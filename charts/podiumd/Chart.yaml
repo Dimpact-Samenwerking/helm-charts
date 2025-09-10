@@ -39,7 +39,7 @@ dependencies:
     repository: "@maykinmedia"
     condition: openarchiefbeheer.enabled
   - name: openklant
-    version: 1.7.0
+    version: 1.8.0
     repository: "@maykinmedia"
     condition: openklant.enabled
   - name: openforms

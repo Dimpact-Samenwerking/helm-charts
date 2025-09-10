@@ -100,7 +100,7 @@
 | Objecttypen        | 3.2.1      | Minor update     | 1.4.0        | Minor update    |
 | Open Formulieren   | 3.2.2      | Minor update     | 1.9.0        | Minor update    |
 | Open Inwoner       | 1.34.0     | Minor update     | 1.7.5        |                 |
-| Open Klant         | 2.9.0      | Minor update     | 1.7.0        | Minor update    |
+| Open Klant         | 2.12.1     | Minor update     | 1.8.0        | Minor update    |
 | Open Notificaties  | 1.12.0     | Minor update     | 1.11.1       | Minor update    |
 | Open Zaak          | 1.24.0     | Minor update     | 1.11.0       | Minor update    |
 | Open Archiefbeheer | 1.1.0      | Minor update     | 1.3.10       |                 |
