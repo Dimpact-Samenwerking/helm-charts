@@ -710,7 +710,7 @@ opennotificaties:
   persistentVolume:
     volumeAttributeShareName: opennotificaties
   image:
-    tag: "1.10.0"
+    tag: "1.12.0"
   resources:
     requests:
       cpu: 100m
