@@ -10,7 +10,7 @@ jobs:
       branch_name: ${{ github.head_ref || github.ref_name }}
     steps:
     - name: checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     - name: install helm
       uses: azure/setup-helm@v4.3.1

@@ -97,7 +97,7 @@ keycloak:
   image:
     #registry: ""
     #repository: keycloak
-    tag: 26.3.3
+    tag: 26.3.1
   externalDatabase:
     host: "postgres"
     database: ""
@@ -1848,7 +1848,7 @@ zac:
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
-    tag: 3.14.11
+    tag: 3.14.12
   initContainer:
     enabled: false
   keycloak:
