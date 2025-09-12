@@ -497,31 +497,31 @@ data:
               access.token.claim: "true"
               claim.name: "client_id"
               jsonType.label: "String"
-	  - clientId: ita
-	    name: Interne Taak Afhandeling
-	    enabled: true
-	    clientAuthenticatorType: client-secret
-	    redirectUris:
-	      - "{{ .Values.ita.configuration.oidcUrl }}/*"
-	    webOrigins:
-	      - "{{ .Values.ita.configuration.oidcUrl }}/*"
-	    secret: {{ .Values.ita.configuration.oidcSecret | quote }}
-		protocolMappers:
-		  - name: "client roles"
-		    protocol: "openid-connect"
-			protocolMapper: "oidc-usermodel-client-role-mapper"
-			consentRequired: false
-			config:
-			  introspection.token.claim: "true"
-			  multivalued: "true"
-			  userinfo.token.claim: "false"
-			  id.token.claim: "true"
-			  user.atttribute: "foo"
-			  lightweight.claim: "false"
-			  access.token.claim: "true"
-			  claim.name: "groups"
-			  jsonType.label: "String"
-			  usermodel.clientRoleMapping.clientId: "ita"			  
+      - clientId: ita
+        name: Interne Taak Afhandeling
+        enabled: true
+        clientAuthenticatorType: client-secret
+        redirectUris:
+          - "{{ .Values.ita.configuration.oidcUrl }}/*"
+        webOrigins:
+          - "{{ .Values.ita.configuration.oidcUrl }}/*"
+        secret: {{ .Values.ita.configuration.oidcSecret | quote }}
+        protocolMappers:
+          - name: "client roles"
+            protocol: "openid-connect"
+            protocolMapper: "oidc-usermodel-client-role-mapper"
+            consentRequired: false
+            config:
+              introspection.token.claim: "true"
+              multivalued: "true"
+              userinfo.token.claim: "false"
+              id.token.claim: "true"
+              user.atttribute: "foo"
+              lightweight.claim: "false"
+              access.token.claim: "true"
+              claim.name: "groups"
+              jsonType.label: "String"
+              usermodel.clientRoleMapping.clientId: "ita"			  
     clientScopes:
       - name: roles
         description: OpenID Connect scope for add user roles to the access token
@@ -630,8 +630,8 @@ data:
           - name: raadpleger
           - name: recordmanager
           - name: domein_elk_zaaktype
-		ita:
-		  - name: ITA-Gebruiker
+        ita:
+          - name: ITA-Gebruiker
     {{- end }}
     {{- if not .Values.keycloak.config.skipGroups }}
     groups:
@@ -652,8 +652,8 @@ data:
             - "behandelaar"
           abc:
             - "administrators"
-		  ita:
-			- "ITA-Gebruiker"
+          ita:
+            - "ITA-Gebruiker"
           monitoring:
             - "admin"
           objecten:
