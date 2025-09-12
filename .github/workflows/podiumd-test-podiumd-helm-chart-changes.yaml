@@ -10,7 +10,7 @@ jobs:
       branch_name: ${{ github.head_ref || github.ref_name }}
     steps:
     - name: checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     - name: install helm
       uses: azure/setup-helm@v4.3.1
@@ -23,6 +23,7 @@ jobs:
         helm repo add kiss-elastic https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/.github/main/docs/scripts/elastic
         helm repo add maykinmedia https://maykinmedia.github.io/charts/
         helm repo add wiremind https://wiremind.github.io/wiremind-helm-charts
+        helm repo add zgw-office-addin https://infonl.github.io/zgw-office-addin
     
     - name: bake deployment
       id: bake
