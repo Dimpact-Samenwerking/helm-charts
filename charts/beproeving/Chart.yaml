@@ -2,11 +2,11 @@ apiVersion: v2
 name: beproeving
 description: The right place for first time implementations and learning
 type: application
-version: 0.0.1
-appVersion: "0.0.1"
+version: 0.0.2
+appVersion: "0.0.2"
 dependencies:
   # helm repo add zgw-office-addin https://infonl.github.io/zgw-office-addin
   - name: zgw-office-addin
     repository: "@zgw-office-addin"
-    version: 0.0.25
+    version: 0.0.31
     condition: zgw-office-addin.enabled

@@ -1090,8 +1090,10 @@ openarchiefbeheer:
 
   replicaCount: 1
 
+  # maykinmedia/open-archiefbeheer:1.1.0
   image:
-    tag: "1.0.0"
+    #repository: maykinmedia/open-archiefbeheer
+    tag: "1.1.0"
 
   resources:
     limits: {}
@@ -1837,17 +1839,18 @@ zac:
     code: "007"
     naam: "Example Gemeente"
     mail: "noreply@example.nl"
-  # ghcr.io/infonl/zaakafhandelcomponent:3.10.0-1
+  # curlimages/curl:8.15.0
+  global:
+    curlImage:
+      #repository: curlimages/curl
+      tag: 8.15.0
+  # ghcr.io/infonl/zaakafhandelcomponent:3.14.0
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
-    tag: 3.10.0-1
+    tag: 3.14.12
   initContainer:
-    enabled: true
-    # curlimages/curl:8.15.0
-    image:
-      #repository: curlimages/curl
-      tag: 8.15.0
+    enabled: false
   keycloak:
     adminClient:
       id: zac-admin-client
@@ -1868,10 +1871,10 @@ zac:
   nginx:
     enabled: true
     client_max_body_size: 150M
-    # nginxinc/nginx-unprivileged:1.29.0
+    # nginxinc/nginx-unprivileged:1.29.1
     image:
       # repository: nginxinc/nginx-unprivileged
-      tag: 1.29.0
+      tag: 1.29.1
   # notificationsSecretKey: "changeme"
   objectenApi:
     url: http://objecten.example.nl
@@ -1885,11 +1888,11 @@ zac:
       #repository: ghcr.io/eugenmayer/kontextwork-converter
       tag: 1.8.0
   opa:
-    sidecar: false
-    # openpolicyagent/opa:1.6.0-static
+    sidecar: true
+    # openpolicyagent/opa:1.8.0-static
     image:
       #repository: openpolicyagent/opa
-      tag: 1.6.0-static
+      tag: 1.8.0-static
   openForms:
     url: http://open-forms.example.nl
   organizations:
@@ -1920,18 +1923,14 @@ zac:
         tag: 1.37.0-glibc
       # -- set enabled to provision solrcloud as well
       enabled: true
-      # library/solr:9.8.1
+      # library/solr:9.9.0
       image:
         #repository:
-        tag: 9.8.1
+        tag: 9.9.0
       # -- define memory settings for solr in the solrcloud
       javaMem: -Xms512m -Xmx768m
       jobs:
         createZacCore: true
-        # curlimages/curl:8.14.1
-        image:
-          #repository:
-          tag: 8.14.1
     # -- namespaces to watch for solr-operator
     watchNamespaces: "podiumd"
     # -- install crds using https://github.com/pravega/zookeeper-operator/blob/master/charts/zookeeper-operator/templates/zookeeper.pravega.io_zookeeperclusters_crd.yaml
@@ -1959,6 +1958,29 @@ zac:
     urlExtern: http://open-zaak.example.nl
     clientId: zac
     secret: changeme
+
+zgw-office-addin:
+  enabled: true
+  fullnameOverride: "zgw-office-addin"
+  frontend:
+    # ghcr.io/infonl/zgw-office-add-in-frontend:v0.0.299
+    image:
+      tag: v0.0.299
+    # the public url where manifest.xml and static js files are served
+    frontendUrl: https://office-addin.example.nl
+    # by default this is not needed as it is proxied by the frontend host
+    backendPublicUrl: ""
+    # can be enabled if needed, if for instance you don't want an ingress
+    enableHttps: false
+  backend:
+    # ghcr.io/infonl/zgw-office-add-in-backend:v0.0.299
+    image:
+      tag: v0.0.299
+    # secret that is configured in openzaak
+    jwtSecret: "my openzaak-office-addin-zgw-api-key"
+    # the base url of the openzaak zgw api's
+    apiBaseUrl: "https://openzaak.example.nl"
+
 
 clamav:
   image:
@@ -2105,4 +2127,3 @@ serviceAccount:
   automount: true
   annotations: {}
   name: ""
-
