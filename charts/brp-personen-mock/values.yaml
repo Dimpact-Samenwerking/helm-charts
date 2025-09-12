@@ -2,7 +2,7 @@ image:
   # -- Personen mock image repository
   repository: ghcr.io/brp-api/personen-mock
   # -- Personen mock tag
-  tag: 2.6.0-202502261446
+  tag: 2.7.0-202508211438
   # -- Personen mock image pull policy
   pullPolicy: IfNotPresent
 service:
