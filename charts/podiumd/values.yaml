@@ -1466,7 +1466,9 @@ openinwoner:
     #     - identifier: admin-oidc
     #       enabled: True
     #       oidc_rp_client_id: openinwoner.example.nl
-    #       oidc_rp_client_secret: ${keycloak_client_secret}
+    #       oidc_rp_client_secret:
+    #         value_from:
+    #           env: keycloak_client_secret       
     #       oidc_rp_scopes_list:
     #       - openid
     #       - email
@@ -1503,33 +1505,50 @@ openinwoner:
     #         api_type: zrc
     #         auth_type: zgw
     #         client_id: openinwoner
-    #         secret: ${openzaak_openinwoner_secret}
+    #         secret:
+    #           value_from:
+    #             env: openzaak_openinwoner_secret     
     #       - identifier: documenten-test
     #         label: Open Zaak - Documenten API
     #         api_root: https://openzaak.example.nl/documenten/api/v1/
     #         api_type: drc
     #         auth_type: zgw
     #         client_id: openinwoner
-    #         secret: ${openzaak_openinwoner_secret}
+    #         secret:
+    #           value_from:
+    #             env: openzaak_openinwoner_secret     
     #       - identifier: catalogi-test
     #         label: Open Zaak - Catalogi API
     #         api_root: https://openzaak.example.nl/catalogi/api/v1/
     #         api_type: ztc
     #         auth_type: zgw
     #         client_id: openinwoner
-    #         secret: ${openzaak_openinwoner_secret}
+    #         secret:
+    #           value_from:
+    #             env: openzaak_openinwoner_secret     
     #       - identifier: besluiten-test
     #         label: Open Zaak - Besluiten API
     #         api_root: https://openzaak.example.nl/besluiten/api/v1/
     #         api_type: brc
     #         auth_type: zgw
     #         client_id: openinwoner
-    #         secret: ${openzaak_openinwoner_secret}
+    #         secret:
+    #           value_from:
+    #             env: openzaak_openinwoner_secret     
     #       - identifier: selectielijst
     #         label: Open Zaak (public) - Selectielijst API
     #         api_root: https://selectielijst.openzaak.nl/api/v1/
     #         api_type: orc
     #         auth_type: no_auth
+    #       - identifier: klanten-test
+    #         label: Open klanten API
+    #         api_root: https://openklant.example.nl/klanten/api/v1/
+    #         api_type: kc
+    #         auth_type: zgw
+    #         client_id: openinwoner
+    #         secret:
+    #           value_from:
+    #             env: openklant_openinwoner_token    
     #   openzaak_config_enable: true
     #   openzaak_config:
     #     zaak_max_confidentiality: openbaar
