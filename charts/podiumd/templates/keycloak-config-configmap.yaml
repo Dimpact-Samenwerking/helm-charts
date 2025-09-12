@@ -521,7 +521,7 @@ data:
               access.token.claim: "true"
               claim.name: "groups"
               jsonType.label: "String"
-              usermodel.clientRoleMapping.clientId: "ita"			  
+              usermodel.clientRoleMapping.clientId: "ita"
     clientScopes:
       - name: roles
         description: OpenID Connect scope for add user roles to the access token
