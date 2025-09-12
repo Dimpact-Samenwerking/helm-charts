@@ -516,7 +516,7 @@ data:
               multivalued: "true"
               userinfo.token.claim: "false"
               id.token.claim: "true"
-              user.atttribute: "foo"
+              user.attribute: "foo"
               lightweight.claim: "false"
               access.token.claim: "true"
               claim.name: "groups"
