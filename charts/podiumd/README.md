@@ -94,7 +94,7 @@
 | ClamAV             | 1.4.2      |                  | 3.2.0        |                 |
 | Keycloak           | 26.3.3     | Minor update     | 25.2.0       | Major update    |
 | Infinispan         | 15.2       | Minor update     | 0.5          | Minor update    |
-| ITA                |            | Nieuw Component  |              | Nieuw component |
+| ITA                | 1.0.0      | Nieuw Component  |              | Nieuw component |
 | Objecten           | 3.1.4      |                  | 2.8.1        |                 |
 | Objecttypen        | 3.0.4      |                  | 1.3.3        |                 |
 | Open Formulieren   | 3.0.8      |                  | 1.8.5        |                 |
@@ -104,7 +104,7 @@
 | Open Zaak          | 1.24.0     | Minor update     | 1.9.0        | Minor update    |
 | Open Archiefbeheer | 1.1.0      | Minor update     | 1.3.10       |                 |
 | Kiss               | 1.2.1      |                  | 1.0.0        |                 |
-| Zac                | 3.14.11    | Minor update     | 1.0.116      |                 |
+| Zac                | 3.14.12    | Minor update     | 1.0.116      |                 |
 | ZGW Office Addin   | v0.0.299   | Nieuw component  | 0.0.31       | Nieuw component | 
 
 ## Add Used chart repositories:
