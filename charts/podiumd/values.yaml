@@ -895,6 +895,11 @@ objecten:
         requests:
           cpu: 10m
           memory: 64Mi
+    architecture: standalone
+    sentinel:
+      enabled: false
+      masterService:
+        enabled: false
 
 objecttypen:
   configuration:
@@ -1003,7 +1008,6 @@ objecttypen:
         requests:
           cpu: 10m
           memory: 64Mi
-
 
 openarchiefbeheer:
   enabled: false
@@ -1141,6 +1145,10 @@ openarchiefbeheer:
         requests:
           cpu: 10m
           memory: 20Mi
+    sentinel:
+      enabled: false
+      masterService:
+        enabled: false
 
 openklant:
   configuration:
