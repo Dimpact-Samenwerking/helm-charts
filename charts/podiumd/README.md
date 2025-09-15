@@ -102,7 +102,7 @@
 | Open Klant         | 2.12.1     | Minor update     | 1.8.0        | Minor update    |
 | Open Notificaties  | 1.12.0     | Minor update     | 1.11.1       | Minor update    |
 | Open Zaak          | 1.24.0     | Minor update     | 1.11.0       | Minor update    |
-| Open Archiefbeheer | 1.1.0      | Minor update     | 1.3.10       |                 |
+| Open Archiefbeheer | 1.1.0      | Minor update     | 1.4.0        | Minor update    |
 | Kiss               | 1.2.1      |                  | 1.0.0        |                 |
 | Zac                | 3.14.12    | Minor update     | 1.0.116      |                 |
 | ZGW Office Addin   | v0.0.299   | Nieuw component  | 0.0.31       | Nieuw component | 
