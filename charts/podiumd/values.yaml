@@ -2122,6 +2122,92 @@ apiproxy:
       <<: *commonLocation
       targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apikvk/vesprof/v1/v1/vestigingsprofielen"
 
+ita:
+  enabled: false
+  replicaCount: 1
+  imagePullSecrets: []
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  nameOverride: "ita"
+  fullnameOverride: "ita"
+
+  postgresql:
+    enabled: false
+
+  database:
+    host: "postgres"
+    port: "5432"
+    name: "interneTaakAfhandeling"
+    username: "REP_ITA_DATABASE_USERNAME_REP"
+    password: "REP_ITA_DATABASE_PASSWORD_REP"
+
+  apiConnections:
+    openKlant:
+      baseUrl: "http://openklant.podiumd.svc.cluster.local"
+      apiKey: "REP_OPENKLANT_CREDENTIALS_ITA_TOKEN_REP"
+    object:
+      baseUrl: "http://objecten.podiumd.svc.cluster.local"
+      apiKey: "REP_OBJECTEN_CREDENTIALS_ITA_TOKEN_REP"
+    zaakSysteem:
+      baseUrl: "http://openzaak-nginx.podiumd.svc.cluster.local"
+      clientId: "ita"
+      key: "REP_OPENZAAK_CREDENTIALS_ITA_SECRET_REP"
+
+  logboek:
+    type: ""
+    typeVersion: 1
+
+  afdeling:
+    type: ""
+    typeVersion: 1
+
+  groep:
+    type: ""
+    typeVersion: 1
+
+  smtp:
+    host: "REP_ITA_SMTP_HOST_REP"
+    port: "587"
+    username: "REP_ITA_SMTP_USERNAME_REP"
+    password: "REP_ITA_SMTP_PASSWORD_REP"
+    fromEmail: "REP_ITA_SMTP_FROM_EMAIL_REP"
+    enableSsl: "true"
+
+  web:
+    image:
+      repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web"
+      tag: "latest"
+      pullPolicy: Always
+
+    service:
+      type: ClusterIP
+      port: 80
+
+    oidc:
+      authority: "http://keycloak.podiumd.svc.cluster.local/realms/podiumd"
+      frontendUrl: "REP_ITA_FRONTEND_URL_REP"
+      clientId: "ita"
+      clientSecret: "REP_ITA_OIDC_SECRET_REP"
+      itaSystemAccessRole: "ITA_SystemAccess"
+      nameClaimType: "preferred_username"
+      roleClaimType: "roles"
+      objectregisterMedewerkerIdClaimType: "samaccountname"
+      emailClaimType: "email"
+
+    resources:
+      logoUrl: ""
+      faviconUrl: ""
+      designTokensUrl: ""
+      webFontSources: []
+
+  ingress:
+    enabled: false
+    annotations: {}
+    className: ""
+    hosts: []
+    tls: []
+
 serviceAccount:
   create: true
   automount: true
