@@ -1729,7 +1729,7 @@ kiss:
       name: ""
     image:
       repository: ghcr.io/klantinteractie-servicesysteem/kiss-frontend
-      tag: "1.2.0"
+      tag: "1.2.1 "
       pullPolicy: IfNotPresent
     resources:
       requests:
@@ -1759,7 +1759,7 @@ kiss:
     secret: ""
     image:
       repository: ghcr.io/icatt-menselijk-digitaal/podiumd-adapter
-      tag: "v0.6.x-20250225135230-fc9468b"
+      tag: "v0.6.x-20250820085615-4a18a7f,"
       pullPolicy: IfNotPresent
     resources:
       requests:
@@ -1796,12 +1796,12 @@ kiss:
     domain:
       enabled: false
       schedule: "0 5 * * *"
-      url: "https://www.my-website.nl"
+      url: "https://www.dimpact.nl"
     successfulJobsHistoryLimit: 1
     failedJobsHistoryLimit: 1
     image:
       repository: "ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync"
-      tag: "latest"
+      tag: "main-20250820085729-dd3e442"
       pullPolicy: IfNotPresent
 
   alpine:
