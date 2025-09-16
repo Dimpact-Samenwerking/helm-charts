@@ -2155,7 +2155,7 @@ apiproxy:
 
 
 ita:
-  enabled: false
+  enabled: true
   replicaCount: 1
   imagePullSecrets: []
   nodeSelector: {}
