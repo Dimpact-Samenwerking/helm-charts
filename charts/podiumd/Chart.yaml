@@ -53,7 +53,7 @@ dependencies:
     condition: openinwoner.enabled
   - name: kiss-elastic
     alias: kisselastic
-    version: 1.0.0
+    version: 1.1.0
     repository: "@kiss-elastic"
     condition: kisselastic.enabled
     tags:
