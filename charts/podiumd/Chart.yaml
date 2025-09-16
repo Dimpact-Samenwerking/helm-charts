@@ -13,11 +13,6 @@ dependencies:
     version: 3.2.0
     repository: "@wiremind"
     condition: clamav.enabled
-  - name: brp-personen-mock
-    version: 1.2.7
-    repository: "@dimpact"
-    condition: brppersonenmock.enabled
-    alias: brppersonenmock
   - name: openzaak
     version: 1.11.0
     repository: "@maykinmedia"
