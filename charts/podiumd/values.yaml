@@ -1634,11 +1634,15 @@ openinwoner:
 
 kisselastic:
   kibanaDomain: kiss-kb-http.podiumd.svc.cluster.local:5601
+  elasticVersion: "8.19.3"
+  elasticsearchCount: 3
   # -- install crds using https://github.com/elastic/cloud-on-k8s/blob/main/deploy/eck-operator/charts/eck-operator-crds/templates/all-crds.yaml
   eck-operator:
     installCRDs: false
     managedNamespaces:
       - podiumd
+    image:
+      tag: "3.1.0"
 
 kiss:
   enabled: true
@@ -1651,14 +1655,14 @@ kiss:
     apiKey: ""
 
   elastic:
-    baseUrl: ""
+    baseUrl: "https://kiss-es-http.podiumd.svc.cluster.local:9200"
     username: elastic
-    password: ""
+    password: "REP_ELASTIC_PASSWORD_REP"
 
   enterpriseSearch:
-    baseUrl: ""
-    privateApikey: ""
-    publicApikey: ""
+    baseUrl: "https://kiss-ent-http.podiumd.svc.cluster.local:3002"
+    privateApikey: "REP_ENTERPRISE_SEARCH_PRIVATE_API_KEY_REP"
+    publicApikey: "REP_ENTERPRISE_SEARCH_PUBLIC_API_KEY_REP"
     engine: kiss-engine
 
   esuite:
