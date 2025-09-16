@@ -2126,6 +2126,9 @@ apiproxy:
       <<: *commonLocation
       targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apikvk/vesprof/v1/v1/vestigingsprofielen"
 
+brppersonenmock:
+  enabled: false
+
 ita:
   enabled: false
   replicaCount: 1
