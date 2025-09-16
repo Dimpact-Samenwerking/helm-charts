@@ -2154,7 +2154,7 @@ apiproxy:
       targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apikvk/vesprof/v1/v1/vestigingsprofielen"
 
 ita:
-  enabled: true
+  enabled: false
   replicaCount: 1
   imagePullSecrets: []
   nodeSelector: {}
