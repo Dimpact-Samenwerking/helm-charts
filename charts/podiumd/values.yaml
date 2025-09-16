@@ -2174,8 +2174,8 @@ ita:
   database:
     host: "postgres"
     port: "5432"
-    name: "interneTaakAfhandeling"
-    username: "REP_ITA_DATABASE_USERNAME_REP"
+    name: "ita"
+    username: "ita"
     password: "REP_ITA_DATABASE_PASSWORD_REP"
 
   apiConnections:
@@ -2222,7 +2222,7 @@ ita:
 
     oidc:
       authority: "http://keycloak.podiumd.svc.cluster.local/realms/podiumd"
-      frontendUrl: "REP_ITA_FRONTEND_URL_REP"
+      frontendUrl: "https://ontw-ita.dimpact.icatt.nl/"
       clientId: "ita"
       clientSecret: "REP_ITA_OIDC_SECRET_REP"
       itaSystemAccessRole: "ITA_SystemAccess"
