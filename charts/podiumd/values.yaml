@@ -2168,11 +2168,11 @@ ita:
     typeVersion: 1
 
   afdeling:
-    type: ""
+    type: "https://ontw-objecttypen.dimpact.icatt.nl/api/v2/objecttypes/c8d301f9-80b8-4575-8b29-3e9431f92994"
     typeVersion: 1
 
   groep:
-    type: ""
+    type: "https://ontw-objecttypen.dimpact.icatt.nl/api/v2/objecttypes/cbec27ac-157b-490b-b586-9e8a8f5bbb85"
     typeVersion: 1
 
   smtp:
