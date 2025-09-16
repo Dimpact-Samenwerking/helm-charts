@@ -2136,6 +2136,10 @@ ita:
   tolerations: []
   nameOverride: "ita"
   fullnameOverride: "ita"
+  configMapName: "ita-config"
+  secretName: "ita-secret"
+  serviceName: "ita-service"
+  deploymentName: "ita-deployment"
 
   postgresql:
     enabled: false
