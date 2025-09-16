@@ -73,7 +73,7 @@ dependencies:
     repository: "@zgw-office-addin"
     version: 0.0.31
     condition: zgw-office-addin.enabled
-  - name: internetaakafhandeling
+  - name: internetaakafhandeling.web
     alias: ita
     repository: "oci://ghcr.io/interne-taak-afhandeling/internetaakafhandeling"
     version: 1.0.0
