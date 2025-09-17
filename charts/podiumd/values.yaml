@@ -1763,7 +1763,7 @@ kiss:
     secret: ""
     image:
       repository: ghcr.io/icatt-menselijk-digitaal/podiumd-adapter
-      tag: "v0.6.x-20250820085615-4a18a7f,"
+      tag: "v0.6.x-20250820085615-4a18a7f"
       pullPolicy: IfNotPresent
     resources:
       requests:
