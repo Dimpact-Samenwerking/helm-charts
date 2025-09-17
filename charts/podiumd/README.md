@@ -95,14 +95,14 @@
 | Keycloak           | 26.3.3     | Minor update     | 25.2.0       | Major update    |
 | Infinispan         | 15.2       | Minor update     | 0.5          | Minor update    |
 | ITA                | 1.0.0      | Nieuw Component  |              | Nieuw component |
-| Objecten           | 3.1.4      |                  | 2.8.1        |                 |
-| Objecttypen        | 3.0.4      |                  | 1.3.3        |                 |
-| Open Formulieren   | 3.0.8      |                  | 1.8.5        |                 |
-| Open Inwoner       | 1.34.0     | Minor update     | 1.7.5        |                 |
-| Open Klant         | 2.9.0      | Minor update     | 1.7.0        | Minor update    |
-| Open Notificaties  | 1.10.0     | Minor update     | 1.9.2        | Minor update    |
-| Open Zaak          | 1.24.0     | Minor update     | 1.9.0        | Minor update    |
-| Open Archiefbeheer | 1.1.0      | Minor update     | 1.3.10       |                 |
+| Objecten           | 3.1.4      | Patch update     | 2.9.0        | Minor update    |
+| Objecttypen        | 3.2.1      | Minor update     | 1.4.0        | Minor update    |
+| Open Formulieren   | 3.2.4      | Minor update     | 1.9.0        | Minor update    |
+| Open Inwoner       | 1.34.0     | Minor update     | 1.11.0       | Minor update    |
+| Open Klant         | 2.12.1     | Minor update     | 1.8.0        | Minor update    |
+| Open Notificaties  | 1.12.0     | Minor update     | 1.11.1       | Minor update    |
+| Open Zaak          | 1.24.0     | Minor update     | 1.11.0       | Minor update    |
+| Open Archiefbeheer | 1.1.0      | Minor update     | 1.4.0        | Minor update    |
 | Kiss               | 1.2.1      |                  | 1.0.0        |                 |
 | Zac                | 3.14.12    | Minor update     | 1.0.116      |                 |
 | ZGW Office Addin   | v0.0.299   | Nieuw component  | 0.0.31       | Nieuw component | 
