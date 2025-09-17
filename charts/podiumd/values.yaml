@@ -2190,7 +2190,7 @@ ita:
       port: 80
 
     oidc:
-      authority: "https://keycloak.podiumd.svc.cluster.local/realms/podiumd"
+      authority: "https://ontw-keycloak-admin.dimpact.icatt.nl/realms/podiumd"
       frontendUrl: "https://ontw-ita.dimpact.icatt.nl/"
       clientId: "ita"
       clientSecret: "REP_ITA_OIDC_SECRET_REP"
