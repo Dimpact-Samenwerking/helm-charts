@@ -4,7 +4,9 @@
       "WebFetch(domain:raw.githubusercontent.com)",
       "Bash(curl:*)",
       "WebFetch(domain:www.elastic.co)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Read(//c/repos/github/Dimpact-Samenwerking/**)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []
