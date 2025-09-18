@@ -1655,14 +1655,14 @@ kiss:
     apiKey: ""
 
   elastic:
-    baseUrl: "https://kiss-es-http.podiumd.svc.cluster.local:9200"
+    baseUrl: ""
     username: elastic
-    password: "REP_ELASTIC_PASSWORD_REP"
+    password: ""
 
   enterpriseSearch:
-    baseUrl: "https://kiss-ent-http.podiumd.svc.cluster.local:3002"
-    privateApikey: "REP_ENTERPRISE_SEARCH_PRIVATE_API_KEY_REP"
-    publicApikey: "REP_ENTERPRISE_SEARCH_PUBLIC_API_KEY_REP"
+    baseUrl: ""
+    privateApikey: ""
+    publicApikey: ""
     engine: kiss-engine
 
   esuite:
@@ -2141,7 +2141,7 @@ ita:
     enabled: false
 
   database:
-    host: "postgres"
+    host: "REP_ITA_DATABASE_HOST_REP"
     port: "5432"
     name: "ita"
     username: "ita"
@@ -2164,25 +2164,25 @@ ita:
     typeVersion: 1
 
   afdeling:
-    type: "https://ontw-objecttypen.dimpact.icatt.nl/api/v2/objecttypes/c8d301f9-80b8-4575-8b29-3e9431f92994"
+    type: "REP_ITA_AFDELING_TYPE_REP"
     typeVersion: 1
 
   groep:
-    type: "https://ontw-objecttypen.dimpact.icatt.nl/api/v2/objecttypes/cbec27ac-157b-490b-b586-9e8a8f5bbb85"
+    type: "REP_ITA_GROEP_TYPE_REP"
     typeVersion: 1
 
   smtp:
-    host: "REP_ITA_SMTP_HOST_REP"
+    host: "mail.example.nl"
     port: "587"
-    username: "REP_ITA_SMTP_USERNAME_REP"
-    password: "REP_ITA_SMTP_PASSWORD_REP"
-    fromEmail: "REP_ITA_SMTP_FROM_EMAIL_REP"
+    username: "dummy"
+    password: "dummy"
+    fromEmail: "from@domain.ext"
     enableSsl: "true"
 
   web:
     image:
       repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web"
-      tag: "1.0.0"
+      tag: "1.0.1"
       pullPolicy: Always
 
     service:
@@ -2190,10 +2190,10 @@ ita:
       port: 80
 
     oidc:
-      authority: "https://ontw-keycloak-admin.dimpact.icatt.nl/realms/podiumd"
-      frontendUrl: "https://ontw-ita.dimpact.icatt.nl/"
+      authority: "REP_ITA_OIDC_AUTHORITY_REP"
+      frontendUrl: "REP_ITA_OIDC_FRONTEND_URL_REP"
       clientId: "ita"
-      clientSecret: "REP_ITA_OIDC_SECRET_REP"
+      clientSecret: "REP_ITA_OIDC_CLIENT_SECRET_REP"
       itaSystemAccessRole: "ITA_SystemAccess"
       nameClaimType: "preferred_username"
       roleClaimType: "roles"
@@ -2206,8 +2206,22 @@ ita:
       designTokensUrl: ""
       webFontSources: []
 
+  poller:
+    schedule: "*/15 * * * *"
+    
+    image:
+      repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller"
+      tag: "1.0.1"
+      pullPolicy: Always
+    
+    notification:
+      pollerMessage: "Poller uitgevoerd om:"
+      hourThreshold: "-24"  
+
   ingress:
     enabled: false
+
+  
 
 serviceAccount:
   create: true
