@@ -82,8 +82,8 @@ grafana:
   # -- Dashboard opgenomen in ConfigMap
   dashboardsConfigMaps:
     default: "logging-podiumd-dashboard"
-    maykin: "Logging_Maykin_components" 
-    development: "Logging_Maykin_development" 
+    maykin: "logging-maykin-components" 
+    development: "logging-maykin-development" 
   
   grafana.ini:
     # -- Authentication and Authorization with Keycloak

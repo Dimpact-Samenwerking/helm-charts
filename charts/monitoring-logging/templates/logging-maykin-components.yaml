@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.grafana.dashboardsConfigMaps.maykin}}
+  labels:
+    grafana_dashboard: "1"
+data:
+  logging-podiumd-dashboard.json: |-
+{{ .Files.Get "dashboards/logging-maykin-components.json" | indent 4 }}
