@@ -1,6 +1,6 @@
 # monitoring-logging
 
-![Version: 1.0.7](https://img.shields.io/badge/Version-1.0.7-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 1.0.7](https://img.shields.io/badge/AppVersion-1.0.7-informational?style=flat-square)
+![Version: 1.0.8](https://img.shields.io/badge/Version-1.0.8-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 1.0.8](https://img.shields.io/badge/AppVersion-1.0.8-informational?style=flat-square)
 
 A monitoring stack using Loki, Prometheus, Promtail and Grafana
 
@@ -21,10 +21,10 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 
 | Repository | Name | Version |
 |------------|------|---------|
-| @grafana | grafana | 9.3.0 |
-| @grafana | loki | 6.33.0 |
+| @grafana | grafana | 10.0.0 |
+| @grafana | loki | 6.40.0 |
 | @grafana | promtail | 6.17.0 |
-| @prometheus-community | prometheus | 27.28.2 |
+| @prometheus-community | prometheus | 27.37.0 |
 
 ## Values
 

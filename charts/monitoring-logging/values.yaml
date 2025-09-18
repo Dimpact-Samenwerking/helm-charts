@@ -57,22 +57,33 @@ grafana:
           options:
             path: /var/lib/grafana/dashboards/default
   
-  # -- Extra dashboard voor intern gebruik Dimpact
-  #      - name: "Dimpact"
-  #        orgId: 1
-  #        folder: 'PodiumD_Monitoring_Logging'
-  #        type: file
-  #        disableDeletion: false
-  #        updateIntervalSeconds: 30
-  #        allowUiUpdates: true # modify dashboards
-  #        editable: true
-  #        options:
-  #          path: /var/lib/grafana/dashboards/Dimpact
+        - name: "maykin"
+          orgId: 1
+          folder: 'PodiumD_Monitoring_Logging'
+          type: file
+          disableDeletion: false
+          updateIntervalSeconds: 30
+          allowUiUpdates: true # modify dashboards
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/maykin
+
+        - name: "development"
+          orgId: 1
+          folder: 'PodiumD_Monitoring_Logging'
+          type: file
+          disableDeletion: false
+          updateIntervalSeconds: 30
+          allowUiUpdates: true # modify dashboards
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/development
 
   # -- Dashboard opgenomen in ConfigMap
   dashboardsConfigMaps:
-    default: "logging-podiumd-dashboard" 
-  #  Dimpact: "logging_Dimpact" 
+    default: "logging-podiumd-dashboard"
+    maykin: "Logging_Maykin_components" 
+    development: "Logging_Maykin_development" 
   
   grafana.ini:
     # -- Authentication and Authorization with Keycloak
@@ -130,7 +141,7 @@ grafana:
   # -- Grafana image settings
   image:
     pullPolicy: IfNotPresent
-    tag: 12.1.0
+    tag: 12.1.1
 
   initChownData:
     # -- Busybox image settings
@@ -445,7 +456,7 @@ loki:
     # loki image settings
     image:
       pullPolicy: IfNotPresent
-      tag: 3.5.2
+      tag: 3.5.3
     
 
   minio:
