@@ -1658,6 +1658,8 @@ openinwoner:
         requests:
           cpu: 100m
           memory: 512Mi
+    image:
+      tag: 9.0.3-debian-12-r1 
 
 kisselastic:
   kibanaDomain: kiss-kb-http.podiumd.svc.cluster.local:5601
