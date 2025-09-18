@@ -34,7 +34,7 @@ grafana:
   downloadDashboardsImage:
     pullPolicy: IfNotPresent
     sha: ""
-    tag: 8.15.0       
+    tag: 8.16.0     
 
   containerSecurityContext:
     readOnlyRootFilesystem: false
@@ -141,19 +141,19 @@ grafana:
   # -- Grafana image settings
   image:
     pullPolicy: IfNotPresent
-    tag: 12.1.1
+    tag: 12.3.0-17814087142-ubuntu
 
   initChownData:
     # -- Busybox image settings
     image:
       pullPolicy: IfNotPresent
-      tag: 1.37.0-glibc
+      tag: 1.37.0-uclibc
 
   imageRenderer:
     # -- Grafana image renderer settings
     image:
       pullPolicy: Always
-      tag: v4.0.7
+      tag: v4.0.14
   testFramework:
     # -- bats image settings
     image:
@@ -220,19 +220,19 @@ prometheus:
     # kube-state-metrics image settings
     image:
       pullPolicy: IfNotPresent
-      tag: 2.16.0-debian-12-r3
+      tag: v2.17.0
   configmapReload:
     prometheus:
       # prometheus-config-reloader image settings
       image:
-        tag: v0.84.0
+        tag: v0.85.0
 
 promtail:
   enabled: true
   # promtail image settings
   image:
     pullPolicy: IfNotPresent
-    tag: 3.5.1
+    tag: 3.5.5
   nodeSelector:
     agentpool: userpool
   config:
@@ -288,7 +288,7 @@ loki:
     # k8s-sidecar image settings
     image:
       pullPolicy: IfNotPresent
-      tag: 1.30.7
+      tag: 1.30.10
 
 
   chunksCache:
@@ -301,7 +301,7 @@ loki:
     # enterprise-logs image settings
     image:
       pullPolicy: IfNotPresent
-      tag: 3.5.2
+      tag: 3.5.4
     provisioner:
       # enterprise-logs-provisioner image settings
       image:
@@ -456,7 +456,7 @@ loki:
     # loki image settings
     image:
       pullPolicy: IfNotPresent
-      tag: 3.5.3
+      tag: 3.5.5
     
 
   minio:
@@ -477,4 +477,4 @@ loki:
     # mc image settings
     mcImage:
       pullPolicy: IfNotPresent
-      tag: RELEASE.2025-07-21T05-28-08Z-cpuv1
+      tag: RELEASE.2025-08-13T08-35-41Z-cpuv1
