@@ -25,7 +25,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 4,
+  "id": 0,
   "links": [],
   "panels": [
     {
@@ -586,22 +586,9 @@
         "x": 0,
         "y": 20
       },
-      "id": 80,
-      "panels": [],
-      "title": "Open Zaak",
-      "type": "row"
-    },
-    {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 21
-      },
       "id": 94,
       "panels": [],
-      "title": "Zaken",
+      "title": "Open Zaak",
       "type": "row"
     },
     {
@@ -641,7 +628,7 @@
         "h": 11,
         "w": 5,
         "x": 0,
-        "y": 22
+        "y": 21
       },
       "id": 62,
       "options": {
@@ -707,7 +694,7 @@
         "h": 11,
         "w": 3,
         "x": 5,
-        "y": 22
+        "y": 21
       },
       "id": 84,
       "options": {
@@ -775,7 +762,7 @@
         "h": 11,
         "w": 3,
         "x": 8,
-        "y": 22
+        "y": 21
       },
       "id": 83,
       "options": {
@@ -851,7 +838,7 @@
         "h": 11,
         "w": 13,
         "x": 11,
-        "y": 22
+        "y": 21
       },
       "id": 75,
       "options": {
@@ -955,7 +942,7 @@
         "h": 9,
         "w": 16,
         "x": 0,
-        "y": 33
+        "y": 32
       },
       "id": 91,
       "options": {
@@ -1052,928 +1039,462 @@
       "type": "table"
     },
     {
-      "collapsed": true,
+      "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 42
+        "y": 41
       },
       "id": 81,
-      "panels": [
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "description": "",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "thresholds"
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green"
-                  },
-                  {
-                    "color": "orange",
-                    "value": 0.05
-                  },
-                  {
-                    "color": "red",
-                    "value": 0.1
-                  }
-                ]
-              },
-              "unit": "percentunit"
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 11,
-            "w": 5,
-            "x": 0,
-            "y": 43
-          },
-          "id": 88,
-          "options": {
-            "minVizHeight": 75,
-            "minVizWidth": 75,
-            "orientation": "auto",
-            "reduceOptions": {
-              "calcs": [
-                "lastNotNull"
-              ],
-              "fields": "",
-              "values": false
-            },
-            "showThresholdLabels": false,
-            "showThresholdMarkers": true,
-            "sizing": "auto"
-          },
-          "pluginVersion": "12.0.2",
-          "targets": [
-            {
-              "datasource": {
-                "type": "loki",
-                "uid": "loki"
-              },
-              "direction": "backward",
-              "editorMode": "code",
-              "expr": "1 - (\n  sum(\n    count_over_time(\n      {app=\"objecten\"}\n      | json\n      | event=\"object_created\"\n      [$__range]\n    )\n  ) or vector(0)\n) / sum(\n  count_over_time(\n    {app=\"objecten\"}\n        | json \n        | event = \"request\" \n        | source = \"uwsgi\" \n        | method = \"POST\"\n        | path = \"/api/v2/objects\"\n    [$__range]\n  )\n)",
-              "queryType": "range",
-              "refId": "A"
-            }
-          ],
-          "title": "Failed requests to create objects",
-          "type": "gauge"
-        },
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "thresholds"
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green"
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 11,
-            "w": 3,
-            "x": 5,
-            "y": 43
-          },
-          "id": 87,
-          "options": {
-            "colorMode": "value",
-            "graphMode": "area",
-            "justifyMode": "auto",
-            "orientation": "auto",
-            "percentChangeColorMode": "standard",
-            "reduceOptions": {
-              "calcs": [
-                "lastNotNull"
-              ],
-              "fields": "",
-              "values": false
-            },
-            "showPercentChange": false,
-            "textMode": "auto",
-            "wideLayout": true
-          },
-          "pluginVersion": "12.0.2",
-          "targets": [
-            {
-              "datasource": {
-                "type": "loki",
-                "uid": "loki"
-              },
-              "direction": "backward",
-              "editorMode": "code",
-              "expr": "sum(\n    count_over_time (\n        {app=\"objecten\"}\n        | json \n        | event = \"request\" \n        | source = \"uwsgi\" \n        | method = \"POST\"\n        | path = \"/api/v2/objects\"\n        [$__range]\n    )\n) or vector(0)",
-              "queryType": "range",
-              "refId": "A"
-            }
-          ],
-          "title": "Requests to create objects",
-          "type": "stat"
-        },
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "thresholds"
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green"
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 11,
-            "w": 3,
-            "x": 8,
-            "y": 43
-          },
-          "id": 86,
-          "options": {
-            "colorMode": "value",
-            "graphMode": "area",
-            "justifyMode": "auto",
-            "orientation": "auto",
-            "percentChangeColorMode": "standard",
-            "reduceOptions": {
-              "calcs": [
-                "lastNotNull"
-              ],
-              "fields": "",
-              "values": false
-            },
-            "showPercentChange": false,
-            "textMode": "auto",
-            "wideLayout": true
-          },
-          "pluginVersion": "12.0.2",
-          "targets": [
-            {
-              "datasource": {
-                "type": "loki",
-                "uid": "loki"
-              },
-              "direction": "backward",
-              "editorMode": "code",
-              "expr": "sum(\n    count_over_time (\n        {app=\"objecten\"}\n        | json \n        | event = `object_created` \n        [$__range]\n    )\n) or vector(0)",
-              "queryType": "range",
-              "refId": "A"
-            }
-          ],
-          "title": "Successfully created objects",
-          "type": "stat"
-        },
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "thresholds"
-              },
-              "custom": {
-                "align": "auto",
-                "cellOptions": {
-                  "type": "auto"
-                },
-                "inspect": false
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green"
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 11,
-            "w": 13,
-            "x": 11,
-            "y": 43
-          },
-          "id": 85,
-          "options": {
-            "cellHeight": "sm",
-            "footer": {
-              "countRows": false,
-              "fields": "",
-              "reducer": [
-                "sum"
-              ],
-              "show": false
-            },
-            "showHeader": true
-          },
-          "pluginVersion": "12.0.2",
-          "targets": [
-            {
-              "datasource": {
-                "type": "loki",
-                "uid": "loki"
-              },
-              "direction": "backward",
-              "editorMode": "code",
-              "expr": "{app=\"objecten\"} | json | event = \"object_created\"",
-              "queryType": "range",
-              "refId": "A"
-            }
-          ],
-          "title": "Created objects",
-          "transformations": [
-            {
-              "id": "extractFields",
-              "options": {
-                "format": "json",
-                "jsonPaths": [
-                  {
-                    "alias": "Object",
-                    "path": "object_uuid"
-                  },
-                  {
-                    "alias": "Client",
-                    "path": "token_application"
-                  },
-                  {
-                    "alias": "Objecttype",
-                    "path": "objecttype_uuid"
-                  }
-                ],
-                "source": "labels"
-              }
-            },
-            {
-              "id": "organize",
-              "options": {
-                "excludeByName": {
-                  "Line": true,
-                  "Objecttype": true,
-                  "id": true,
-                  "labelTypes": true,
-                  "labels": true,
-                  "tsNs": true
-                },
-                "includeByName": {},
-                "indexByName": {
-                  "Client": 8,
-                  "Line": 2,
-                  "Object": 6,
-                  "Objecttype": 7,
-                  "Time": 1,
-                  "id": 5,
-                  "labelTypes": 4,
-                  "labels": 0,
-                  "tsNs": 3
-                },
-                "renameByName": {}
-              }
-            }
-          ],
-          "type": "table"
-        },
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "thresholds"
-              },
-              "custom": {
-                "align": "auto",
-                "cellOptions": {
-                  "type": "auto"
-                },
-                "inspect": false
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green"
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 9,
-            "w": 16,
-            "x": 0,
-            "y": 54
-          },
-          "id": 90,
-          "options": {
-            "cellHeight": "sm",
-            "footer": {
-              "countRows": false,
-              "fields": "",
-              "reducer": [
-                "sum"
-              ],
-              "show": false
-            },
-            "showHeader": true
-          },
-          "pluginVersion": "12.0.2",
-          "targets": [
-            {
-              "datasource": {
-                "type": "loki",
-                "uid": "loki"
-              },
-              "direction": "backward",
-              "editorMode": "code",
-              "expr": "{app=\"objecten\"}\n| json\n| event = \"request_finished\"\n| request = \"POST /api/v2/objects\"\n| code >= 400",
-              "queryType": "range",
-              "refId": "A"
-            }
-          ],
-          "title": "Failures",
-          "transformations": [
-            {
-              "id": "extractFields",
-              "options": {
-                "format": "json",
-                "jsonPaths": [
-                  {
-                    "alias": "Code",
-                    "path": "code"
-                  },
-                  {
-                    "alias": "Request Id",
-                    "path": "request_id"
-                  }
-                ],
-                "source": "labels"
-              }
-            },
-            {
-              "id": "organize",
-              "options": {
-                "excludeByName": {
-                  "Line": true,
-                  "app": true,
-                  "client": true,
-                  "code": false,
-                  "container": true,
-                  "detected_level": true,
-                  "event": true,
-                  "id": true,
-                  "instance": true,
-                  "labelTypes": true,
-                  "labels": true,
-                  "level": true,
-                  "logger": true,
-                  "logstream": true,
-                  "request": true,
-                  "service_name": true,
-                  "target": true,
-                  "timestamp": true,
-                  "tsNs": true
-                },
-                "includeByName": {},
-                "indexByName": {},
-                "renameByName": {}
-              }
-            }
-          ],
-          "type": "table"
-        }
-      ],
+      "panels": [],
       "title": "Objects API",
       "type": "row"
     },
     {
-      "collapsed": true,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 43
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
       },
-      "id": 82,
-      "panels": [
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
           },
-          "description": "Notifications received from Open Zaak and Objects API",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "thresholds"
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
               },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green"
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
+              {
+                "color": "orange",
+                "value": 0.05
+              },
+              {
+                "color": "red",
+                "value": 0.1
               }
-            },
-            "overrides": []
+            ]
           },
-          "gridPos": {
-            "h": 10,
-            "w": 7,
-            "x": 0,
-            "y": 44
-          },
-          "id": 93,
-          "options": {
-            "colorMode": "value",
-            "graphMode": "area",
-            "justifyMode": "auto",
-            "orientation": "auto",
-            "percentChangeColorMode": "standard",
-            "reduceOptions": {
-              "calcs": [
-                "lastNotNull"
-              ],
-              "fields": "",
-              "values": false
-            },
-            "showPercentChange": false,
-            "textMode": "auto",
-            "wideLayout": true
-          },
-          "pluginVersion": "12.0.2",
-          "targets": [
-            {
-              "datasource": {
-                "type": "loki",
-                "uid": "loki"
-              },
-              "direction": "backward",
-              "editorMode": "code",
-              "expr": "sum(\n    count_over_time (\n        {app=\"opennotificaties\"}\n        | json \n        | request=\"POST /api/v1/notificaties\" \n        | event=\"request_started\"\n        [$__range]\n    )\n) or vector(0)",
-              "queryType": "range",
-              "refId": "A"
-            }
-          ],
-          "title": "Notifications received from applications",
-          "type": "stat"
+          "unit": "percentunit"
         },
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "description": "",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "thresholds"
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green"
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 10,
-            "w": 7,
-            "x": 7,
-            "y": 44
-          },
-          "id": 95,
-          "options": {
-            "colorMode": "value",
-            "graphMode": "area",
-            "justifyMode": "auto",
-            "orientation": "auto",
-            "percentChangeColorMode": "standard",
-            "reduceOptions": {
-              "calcs": [
-                "lastNotNull"
-              ],
-              "fields": "",
-              "values": false
-            },
-            "showPercentChange": false,
-            "textMode": "auto",
-            "wideLayout": true
-          },
-          "pluginVersion": "12.0.2",
-          "targets": [
-            {
-              "datasource": {
-                "type": "loki",
-                "uid": "loki"
-              },
-              "direction": "backward",
-              "editorMode": "code",
-              "expr": "sum(\n    count_over_time (\n        {app=\"opennotificaties-worker\"}\n        | json \n        | task=\"nrc.api.tasks.deliver_message\" \n        | event=\"task_started\"\n        [$__range]\n    )\n) or vector(0)",
-              "queryType": "range",
-              "refId": "A"
-            }
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 11,
+        "w": 5,
+        "x": 0,
+        "y": 42
+      },
+      "id": 88,
+      "options": {
+        "minVizHeight": 75,
+        "minVizWidth": 75,
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
           ],
-          "title": "Notifications sent to subscribers",
-          "type": "stat"
+          "fields": "",
+          "values": false
         },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "sizing": "auto"
+      },
+      "pluginVersion": "12.1.0",
+      "targets": [
         {
           "datasource": {
             "type": "loki",
             "uid": "loki"
           },
-          "description": "",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "thresholds"
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green"
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 10,
-            "w": 6,
-            "x": 14,
-            "y": 44
-          },
-          "id": 96,
-          "options": {
-            "colorMode": "value",
-            "graphMode": "area",
-            "justifyMode": "auto",
-            "orientation": "auto",
-            "percentChangeColorMode": "standard",
-            "reduceOptions": {
-              "calcs": [
-                "lastNotNull"
-              ],
-              "fields": "",
-              "values": false
-            },
-            "showPercentChange": false,
-            "textMode": "auto",
-            "wideLayout": true
-          },
-          "pluginVersion": "12.0.2",
-          "targets": [
-            {
-              "datasource": {
-                "type": "loki",
-                "uid": "loki"
-              },
-              "direction": "backward",
-              "editorMode": "code",
-              "expr": "sum(\n    count_over_time (\n        {app=\"opennotificaties-worker\"}\n        | json \n        | event=\"notification_successful\"\n        [$__range]\n    )\n) or vector(0)",
-              "queryType": "range",
-              "refId": "A"
-            }
-          ],
-          "title": "Notifications, successfully received by subscribers",
-          "type": "stat"
-        },
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "thresholds"
-              },
-              "custom": {
-                "align": "auto",
-                "cellOptions": {
-                  "type": "auto"
-                },
-                "inspect": false
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green"
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 9,
-            "w": 24,
-            "x": 0,
-            "y": 54
-          },
-          "id": 98,
-          "options": {
-            "cellHeight": "sm",
-            "footer": {
-              "countRows": false,
-              "fields": "",
-              "reducer": [
-                "sum"
-              ],
-              "show": false
-            },
-            "showHeader": true
-          },
-          "pluginVersion": "12.0.2",
-          "targets": [
-            {
-              "direction": "backward",
-              "editorMode": "code",
-              "expr": "{app=\"opennotificaties-worker\"}\n| json \n| event=\"notification_successful\"\n",
-              "queryType": "range",
-              "refId": "A"
-            }
-          ],
-          "title": "Successful notifications",
-          "transformations": [
-            {
-              "id": "extractFields",
-              "options": {
-                "delimiter": ",",
-                "format": "json",
-                "jsonPaths": [
-                  {
-                    "alias": "Subscriber",
-                    "path": "subscription_callback"
-                  },
-                  {
-                    "alias": "Channel",
-                    "path": "channel_name"
-                  },
-                  {
-                    "alias": "Action",
-                    "path": "action"
-                  },
-                  {
-                    "alias": "Resource",
-                    "path": "resource"
-                  },
-                  {
-                    "alias": "Url",
-                    "path": "resource_url"
-                  }
-                ],
-                "source": "labels"
-              }
-            },
-            {
-              "id": "organize",
-              "options": {
-                "excludeByName": {
-                  "Line": true,
-                  "id": true,
-                  "labelTypes": true,
-                  "labels": true,
-                  "tsNs": true
-                },
-                "includeByName": {},
-                "indexByName": {},
-                "renameByName": {}
-              }
-            }
-          ],
-          "type": "table"
-        },
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "thresholds"
-              },
-              "custom": {
-                "align": "auto",
-                "cellOptions": {
-                  "type": "auto"
-                },
-                "inspect": false
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green"
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 9,
-            "w": 24,
-            "x": 0,
-            "y": 63
-          },
-          "id": 97,
-          "options": {
-            "cellHeight": "sm",
-            "footer": {
-              "countRows": false,
-              "fields": "",
-              "reducer": [
-                "sum"
-              ],
-              "show": false
-            },
-            "showHeader": true
-          },
-          "pluginVersion": "12.0.2",
-          "targets": [
-            {
-              "datasource": {
-                "type": "loki",
-                "uid": "loki"
-              },
-              "direction": "backward",
-              "editorMode": "code",
-              "expr": "{app=\"opennotificaties-worker\"} \n| json \n| event=\"notification_failed\" or event=\"notification_error\"  ",
-              "queryType": "range",
-              "refId": "A"
-            }
-          ],
-          "title": "Failures",
-          "transformations": [
-            {
-              "id": "extractFields",
-              "options": {
-                "format": "json",
-                "jsonPaths": [
-                  {
-                    "alias": "Resource",
-                    "path": "resource"
-                  },
-                  {
-                    "alias": "Action",
-                    "path": "action"
-                  },
-                  {
-                    "alias": "Url",
-                    "path": "resource_url"
-                  },
-                  {
-                    "alias": "Subscriber",
-                    "path": "subscription_callback"
-                  },
-                  {
-                    "alias": "Channel",
-                    "path": "channel_name"
-                  },
-                  {
-                    "alias": "Attempt",
-                    "path": "task_attempt_count"
-                  },
-                  {
-                    "alias": "Status",
-                    "path": "http_status_code"
-                  }
-                ],
-                "keepTime": false,
-                "replace": false,
-                "source": "labels"
-              }
-            },
-            {
-              "id": "organize",
-              "options": {
-                "excludeByName": {
-                  "Line": true,
-                  "Status": true,
-                  "id": true,
-                  "labelTypes": true,
-                  "labels": true,
-                  "tsNs": true
-                },
-                "includeByName": {},
-                "indexByName": {
-                  "Action": 8,
-                  "Attempt": 6,
-                  "Channel": 9,
-                  "Line": 2,
-                  "Resource": 7,
-                  "Status": 12,
-                  "Subscriber": 10,
-                  "Time": 1,
-                  "Url": 11,
-                  "id": 5,
-                  "labelTypes": 4,
-                  "labels": 0,
-                  "tsNs": 3
-                },
-                "renameByName": {}
-              }
-            }
-          ],
-          "type": "table"
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "1 - (\n  sum(\n    count_over_time(\n      {app=\"objecten\"}\n      | json\n      | event=\"object_created\"\n      [$__range]\n    )\n  ) or vector(0)\n) / sum(\n  count_over_time(\n    {app=\"objecten\"}\n        | json \n        | event = \"request\" \n        | source = \"uwsgi\" \n        | method = \"POST\"\n        | path = \"/api/v2/objects\"\n    [$__range]\n  )\n)",
+          "queryType": "range",
+          "refId": "A"
         }
       ],
-      "title": "Notifications",
-      "type": "row"
+      "title": "Failed requests to create objects",
+      "type": "gauge"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 11,
+        "w": 3,
+        "x": 5,
+        "y": 42
+      },
+      "id": 87,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.1.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "sum(\n    count_over_time (\n        {app=\"objecten\"}\n        | json \n        | event = \"request\" \n        | source = \"uwsgi\" \n        | method = \"POST\"\n        | path = \"/api/v2/objects\"\n        [$__range]\n    )\n) or vector(0)",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "Requests to create objects",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 11,
+        "w": 3,
+        "x": 8,
+        "y": 42
+      },
+      "id": 86,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.1.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "sum(\n    count_over_time (\n        {app=\"objecten\"}\n        | json \n        | event = `object_created` \n        [$__range]\n    )\n) or vector(0)",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "Successfully created objects",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 11,
+        "w": 13,
+        "x": 11,
+        "y": 42
+      },
+      "id": 85,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "pluginVersion": "12.1.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "{app=\"objecten\"} | json | event = \"object_created\"",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "Created objects",
+      "transformations": [
+        {
+          "id": "extractFields",
+          "options": {
+            "format": "json",
+            "jsonPaths": [
+              {
+                "alias": "Object",
+                "path": "object_uuid"
+              },
+              {
+                "alias": "Client",
+                "path": "token_application"
+              },
+              {
+                "alias": "Objecttype",
+                "path": "objecttype_uuid"
+              }
+            ],
+            "source": "labels"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Line": true,
+              "Objecttype": true,
+              "id": true,
+              "labelTypes": true,
+              "labels": true,
+              "tsNs": true
+            },
+            "includeByName": {},
+            "indexByName": {
+              "Client": 8,
+              "Line": 2,
+              "Object": 6,
+              "Objecttype": 7,
+              "Time": 1,
+              "id": 5,
+              "labelTypes": 4,
+              "labels": 0,
+              "tsNs": 3
+            },
+            "renameByName": {}
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 16,
+        "x": 0,
+        "y": 53
+      },
+      "id": 90,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "pluginVersion": "12.1.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "{app=\"objecten\"}\n| json\n| event = \"request_finished\"\n| request = \"POST /api/v2/objects\"\n| code >= 400",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "Failures",
+      "transformations": [
+        {
+          "id": "extractFields",
+          "options": {
+            "format": "json",
+            "jsonPaths": [
+              {
+                "alias": "Code",
+                "path": "code"
+              },
+              {
+                "alias": "Request Id",
+                "path": "request_id"
+              }
+            ],
+            "source": "labels"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Line": true,
+              "app": true,
+              "client": true,
+              "code": false,
+              "container": true,
+              "detected_level": true,
+              "event": true,
+              "id": true,
+              "instance": true,
+              "labelTypes": true,
+              "labels": true,
+              "level": true,
+              "logger": true,
+              "logstream": true,
+              "request": true,
+              "service_name": true,
+              "target": true,
+              "timestamp": true,
+              "tsNs": true
+            },
+            "includeByName": {},
+            "indexByName": {},
+            "renameByName": {}
+          }
+        }
+      ],
+      "type": "table"
     },
     {
       "collapsed": false,
@@ -1981,7 +1502,481 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 44
+        "y": 62
+      },
+      "id": 82,
+      "panels": [],
+      "title": "Notifications",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "description": "Notifications received from Open Zaak and Objects API",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 7,
+        "x": 0,
+        "y": 63
+      },
+      "id": 93,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.1.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "sum(\n    count_over_time (\n        {app=\"opennotificaties\"}\n        | json \n        | request=\"POST /api/v1/notificaties\" \n        | event=\"request_started\"\n        [$__range]\n    )\n) or vector(0)",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "Notifications received from applications",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 7,
+        "x": 7,
+        "y": 63
+      },
+      "id": 95,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.1.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "sum(\n    count_over_time (\n        {app=\"opennotificaties-worker\"}\n        | json \n        | task=\"nrc.api.tasks.deliver_message\" \n        | event=\"task_started\"\n        [$__range]\n    )\n) or vector(0)",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "Notifications sent to subscribers",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 6,
+        "x": 14,
+        "y": 63
+      },
+      "id": 96,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.1.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "sum(\n    count_over_time (\n        {app=\"opennotificaties-worker\"}\n        | json \n        | event=\"notification_successful\"\n        [$__range]\n    )\n) or vector(0)",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "Notifications, successfully received by subscribers",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 73
+      },
+      "id": 98,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "pluginVersion": "12.1.0",
+      "targets": [
+        {
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "{app=\"opennotificaties-worker\"}\n| json \n| event=\"notification_successful\"\n",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "Successful notifications",
+      "transformations": [
+        {
+          "id": "extractFields",
+          "options": {
+            "delimiter": ",",
+            "format": "json",
+            "jsonPaths": [
+              {
+                "alias": "Subscriber",
+                "path": "subscription_callback"
+              },
+              {
+                "alias": "Channel",
+                "path": "channel_name"
+              },
+              {
+                "alias": "Action",
+                "path": "action"
+              },
+              {
+                "alias": "Resource",
+                "path": "resource"
+              },
+              {
+                "alias": "Url",
+                "path": "resource_url"
+              }
+            ],
+            "source": "labels"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Line": true,
+              "id": true,
+              "labelTypes": true,
+              "labels": true,
+              "tsNs": true
+            },
+            "includeByName": {},
+            "indexByName": {},
+            "renameByName": {}
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 82
+      },
+      "id": 97,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "pluginVersion": "12.1.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "{app=\"opennotificaties-worker\"} \n| json \n| event=\"notification_failed\" or event=\"notification_error\"  ",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "Failures",
+      "transformations": [
+        {
+          "id": "extractFields",
+          "options": {
+            "format": "json",
+            "jsonPaths": [
+              {
+                "alias": "Resource",
+                "path": "resource"
+              },
+              {
+                "alias": "Action",
+                "path": "action"
+              },
+              {
+                "alias": "Url",
+                "path": "resource_url"
+              },
+              {
+                "alias": "Subscriber",
+                "path": "subscription_callback"
+              },
+              {
+                "alias": "Channel",
+                "path": "channel_name"
+              },
+              {
+                "alias": "Attempt",
+                "path": "task_attempt_count"
+              },
+              {
+                "alias": "Status",
+                "path": "http_status_code"
+              }
+            ],
+            "keepTime": false,
+            "replace": false,
+            "source": "labels"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Line": true,
+              "Status": true,
+              "id": true,
+              "labelTypes": true,
+              "labels": true,
+              "tsNs": true
+            },
+            "includeByName": {},
+            "indexByName": {
+              "Action": 8,
+              "Attempt": 6,
+              "Channel": 9,
+              "Line": 2,
+              "Resource": 7,
+              "Status": 12,
+              "Subscriber": 10,
+              "Time": 1,
+              "Url": 11,
+              "id": 5,
+              "labelTypes": 4,
+              "labels": 0,
+              "tsNs": 3
+            },
+            "renameByName": {}
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 91
       },
       "id": 4,
       "panels": [],
@@ -2050,7 +2045,7 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 45
+        "y": 92
       },
       "id": 47,
       "maxDataPoints": 100,
@@ -2076,12 +2071,13 @@
           },
           "direction": "backward",
           "editorMode": "code",
-          "expr": "sum by (app) (count_over_time({app=\"$app\"}[$__interval]))",
+          "expr": "sum by (app) (count_over_time({app=~\"$subapp\"}[$__interval]))",
+          "legendFormat": "{{app}}",
           "queryType": "range",
           "refId": "A"
         }
       ],
-      "title": "The amount of log records for particular component",
+      "title": "The logs component: $app",
       "type": "timeseries"
     },
     {
@@ -2098,14 +2094,14 @@
         "h": 19,
         "w": 24,
         "x": 0,
-        "y": 55
+        "y": 102
       },
       "id": 68,
       "options": {
         "dedupStrategy": "none",
         "enableInfiniteScrolling": false,
         "enableLogDetails": true,
-        "prettifyLogMessage": false,
+        "prettifyLogMessage": true,
         "showCommonLabels": false,
         "showLabels": false,
         "showTime": true,
@@ -2121,7 +2117,7 @@
           },
           "direction": "backward",
           "editorMode": "code",
-          "expr": "{app=\"$subapp\"}",
+          "expr": "{app=~\"$subapp\"} |~ \"(?i)$search\" !~ `(?i)$excluded_log_levels`",
           "queryType": "range",
           "refId": "A"
         }
@@ -2138,8 +2134,10 @@
     "list": [
       {
         "current": {
-          "text": "openformulieren",
-          "value": "openformulieren"
+          "text": "All",
+          "value": [
+            "$__all"
+          ]
         },
         "datasource": {
           "type": "loki",
@@ -2147,7 +2145,9 @@
         },
         "definition": "",
         "description": "The application",
+        "includeAll": true,
         "label": "Component",
+        "multi": true,
         "name": "app",
         "options": [],
         "query": {
@@ -2156,17 +2156,23 @@
           "stream": "{namespace=\"podiumd\"}",
           "type": 1
         },
-        "refresh": 1,
+        "refresh": 2,
         "regex": "^(openformulieren|objecttypen|objecten|opennotificaties|openarchiefbeheer|kiss|openinwoner|openzaak|openklant|zac|zookeeper|podiumd|clamav|keycloak|solr|elastic|infinispan).*",
+        "sort": 1,
         "type": "query"
       },
       {
         "current": {
-          "text": "openformulieren-worker",
-          "value": "openformulieren-worker"
+          "text": "All",
+          "value": [
+            "$__all"
+          ]
         },
         "definition": "",
-        "label": "Sub component",
+        "description": "Wordt automatisch geselecteerd als je een PodiumD component hebt gekozen. Voor een diepere analyse kan er eventueel een subcomponent geselecteerd worden",
+        "includeAll": true,
+        "label": "Subcomponent",
+        "multi": true,
         "name": "subapp",
         "options": [],
         "query": {
@@ -2175,19 +2181,162 @@
           "stream": "{namespace=\"podiumd\", app=~\"($app).*\"}",
           "type": 1
         },
-        "refresh": 1,
+        "refresh": 2,
         "regex": "",
         "type": "query"
+      },
+      {
+        "current": {
+          "text": "",
+          "value": ""
+        },
+        "description": "Vul hier een zoekwoord in en bekijk het in de logs. Voorbeeld: formulier",
+        "label": "Zoeken",
+        "name": "search",
+        "options": [
+          {
+            "selected": true,
+            "text": "",
+            "value": ""
+          }
+        ],
+        "query": "",
+        "type": "textbox"
+      },
+      {
+        "allValue": "",
+        "current": {
+          "text": [
+            "$__all"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "description": "",
+        "hide": 2,
+        "includeAll": true,
+        "multi": true,
+        "name": "excluded_log_levels",
+        "options": [
+          {
+            "selected": false,
+            "text": "DEBUG",
+            "value": "DEBUG"
+          },
+          {
+            "selected": false,
+            "text": "INFO",
+            "value": "INFO"
+          },
+          {
+            "selected": false,
+            "text": "maykin",
+            "value": "maykin"
+          },
+          {
+            "selected": false,
+            "text": "maykinmedia",
+            "value": "maykinmedia"
+          },
+          {
+            "selected": false,
+            "text": "Datadog",
+            "value": "Datadog"
+          },
+          {
+            "selected": false,
+            "text": "sentry",
+            "value": "sentry"
+          },
+          {
+            "selected": false,
+            "text": "NO MERCY",
+            "value": "NO MERCY"
+          },
+          {
+            "selected": false,
+            "text": "token",
+            "value": "token"
+          },
+          {
+            "selected": false,
+            "text": "secret",
+            "value": "secret"
+          },
+          {
+            "selected": false,
+            "text": "connectionid",
+            "value": "connectionid"
+          },
+          {
+            "selected": false,
+            "text": "admin",
+            "value": "admin"
+          },
+          {
+            "selected": false,
+            "text": "root",
+            "value": "root"
+          },
+          {
+            "selected": false,
+            "text": "user",
+            "value": "user"
+          },
+          {
+            "selected": false,
+            "text": "username",
+            "value": "username"
+          },
+          {
+            "selected": false,
+            "text": "password",
+            "value": "password"
+          },
+          {
+            "selected": false,
+            "text": "pwd",
+            "value": "pwd"
+          },
+          {
+            "selected": false,
+            "text": "apikey",
+            "value": "apikey"
+          },
+          {
+            "selected": false,
+            "text": "authorization",
+            "value": "authorization"
+          },
+          {
+            "selected": false,
+            "text": "bearer",
+            "value": "bearer"
+          },
+          {
+            "selected": false,
+            "text": "client_id",
+            "value": "client_id"
+          },
+          {
+            "selected": false,
+            "text": "client_secret",
+            "value": "client_secret"
+          }
+        ],
+        "query": "DEBUG, INFO, maykin, maykinmedia, Datadog, sentry, NO MERCY, token, secret, connectionid, admin, root, user, username, password, pwd, apikey, authorization, bearer, client_id, client_secret",
+        "type": "custom"
       }
     ]
   },
   "time": {
-    "from": "now-12h",
+    "from": "now-1h",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "",
   "title": "Logging Maykin components",
   "uid": "cawvpt6dd",
-  "version": 40
+  "version": 56
 }
