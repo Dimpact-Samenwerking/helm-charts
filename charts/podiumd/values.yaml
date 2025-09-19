@@ -485,7 +485,7 @@ openzaak:
   persistentVolume:
     volumeAttributeShareName: openzaak
   image:
-    tag: "1.21.2"
+    tag: "1.24.0"
   resources:
     requests:
       cpu: 100m
@@ -710,7 +710,7 @@ opennotificaties:
   persistentVolume:
     volumeAttributeShareName: opennotificaties
   image:
-    tag: "1.10.0"
+    tag: "1.12.0"
   resources:
     requests:
       cpu: 100m
@@ -868,7 +868,7 @@ objecten:
   persistentVolume:
     volumeAttributeShareName: objecten
   image:
-    tag: "3.1.3"
+    tag: "3.1.4"
   resources:
     requests:
       cpu: 100m
@@ -895,6 +895,11 @@ objecten:
         requests:
           cpu: 10m
           memory: 64Mi
+    architecture: standalone
+    sentinel:
+      enabled: false
+      masterService:
+        enabled: false
 
 objecttypen:
   configuration:
@@ -981,7 +986,7 @@ objecttypen:
       useTLS: true
     disable2fa: false
   image:
-    tag: "3.0.4"
+    tag: "3.2.1"
   # used for create-required-objecttypen podiumd job only
   create_required_objecttypen_job:
     enabled: true
@@ -1003,7 +1008,6 @@ objecttypen:
         requests:
           cpu: 10m
           memory: 64Mi
-
 
 openarchiefbeheer:
   enabled: false
@@ -1090,8 +1094,10 @@ openarchiefbeheer:
 
   replicaCount: 1
 
+  # maykinmedia/open-archiefbeheer:1.1.0
   image:
-    tag: "1.0.0"
+    #repository: maykinmedia/open-archiefbeheer
+    tag: "1.1.0"
 
   resources:
     limits: {}
@@ -1139,6 +1145,10 @@ openarchiefbeheer:
         requests:
           cpu: 10m
           memory: 20Mi
+    sentinel:
+      enabled: false
+      masterService:
+        enabled: false
 
 openklant:
   configuration:
@@ -1232,7 +1242,7 @@ openklant:
   persistentVolume:
     volumeAttributeShareName: openklant
   image:
-    tag: "2.9.0"
+    tag: "2.12.1"
   resources:
     requests:
       cpu: 100m
@@ -1405,7 +1415,7 @@ openformulieren:
   persistentVolume:
     volumeAttributeShareName: openformulieren
   image:
-    tag: "3.0.8"
+    tag: "3.2.4"
   resources:
     requests:
       cpu: 100m
@@ -1464,7 +1474,9 @@ openinwoner:
     #     - identifier: admin-oidc
     #       enabled: True
     #       oidc_rp_client_id: openinwoner.example.nl
-    #       oidc_rp_client_secret: ${keycloak_client_secret}
+    #       oidc_rp_client_secret:
+    #         value_from:
+    #           env: keycloak_client_secret       
     #       oidc_rp_scopes_list:
     #       - openid
     #       - email
@@ -1501,33 +1513,50 @@ openinwoner:
     #         api_type: zrc
     #         auth_type: zgw
     #         client_id: openinwoner
-    #         secret: ${openzaak_openinwoner_secret}
+    #         secret:
+    #           value_from:
+    #             env: openzaak_openinwoner_secret     
     #       - identifier: documenten-test
     #         label: Open Zaak - Documenten API
     #         api_root: https://openzaak.example.nl/documenten/api/v1/
     #         api_type: drc
     #         auth_type: zgw
     #         client_id: openinwoner
-    #         secret: ${openzaak_openinwoner_secret}
+    #         secret:
+    #           value_from:
+    #             env: openzaak_openinwoner_secret     
     #       - identifier: catalogi-test
     #         label: Open Zaak - Catalogi API
     #         api_root: https://openzaak.example.nl/catalogi/api/v1/
     #         api_type: ztc
     #         auth_type: zgw
     #         client_id: openinwoner
-    #         secret: ${openzaak_openinwoner_secret}
+    #         secret:
+    #           value_from:
+    #             env: openzaak_openinwoner_secret     
     #       - identifier: besluiten-test
     #         label: Open Zaak - Besluiten API
     #         api_root: https://openzaak.example.nl/besluiten/api/v1/
     #         api_type: brc
     #         auth_type: zgw
     #         client_id: openinwoner
-    #         secret: ${openzaak_openinwoner_secret}
+    #         secret:
+    #           value_from:
+    #             env: openzaak_openinwoner_secret     
     #       - identifier: selectielijst
     #         label: Open Zaak (public) - Selectielijst API
     #         api_root: https://selectielijst.openzaak.nl/api/v1/
     #         api_type: orc
     #         auth_type: no_auth
+    #       - identifier: klanten-test
+    #         label: Open klanten API
+    #         api_root: https://openklant.example.nl/klanten/api/v1/
+    #         api_type: kc
+    #         auth_type: zgw
+    #         client_id: openinwoner
+    #         secret:
+    #           value_from:
+    #             env: openklant_openinwoner_token    
     #   openzaak_config_enable: true
     #   openzaak_config:
     #     zaak_max_confidentiality: openbaar
@@ -1573,7 +1602,7 @@ openinwoner:
   persistentVolume:
     volumeAttributeShareName: openinwoner
   image:
-    tag: "1.32.1"
+    tag: "1.34.0"
   resources:
     requests:
       cpu: 200m
@@ -1629,14 +1658,20 @@ openinwoner:
         requests:
           cpu: 100m
           memory: 512Mi
+    image:
+      tag: 9.0.3-debian-12-r1 
 
 kisselastic:
   kibanaDomain: kiss-kb-http.podiumd.svc.cluster.local:5601
+  elasticVersion: "8.19.3"
+  elasticsearchCount: 3
   # -- install crds using https://github.com/elastic/cloud-on-k8s/blob/main/deploy/eck-operator/charts/eck-operator-crds/templates/all-crds.yaml
   eck-operator:
     installCRDs: false
     managedNamespaces:
       - podiumd
+    image:
+      tag: "3.1.0"
 
 kiss:
   enabled: true
@@ -1727,7 +1762,7 @@ kiss:
       name: ""
     image:
       repository: ghcr.io/klantinteractie-servicesysteem/kiss-frontend
-      tag: "1.2.0"
+      tag: "1.2.1"
       pullPolicy: IfNotPresent
     resources:
       requests:
@@ -1757,7 +1792,7 @@ kiss:
     secret: ""
     image:
       repository: ghcr.io/icatt-menselijk-digitaal/podiumd-adapter
-      tag: "v0.6.x-20250225135230-fc9468b"
+      tag: "v0.6.x-20250820085615-4a18a7f"
       pullPolicy: IfNotPresent
     resources:
       requests:
@@ -1794,12 +1829,12 @@ kiss:
     domain:
       enabled: false
       schedule: "0 5 * * *"
-      url: "https://www.my-website.nl"
+      url: "https://www.dimpact.nl"
     successfulJobsHistoryLimit: 1
     failedJobsHistoryLimit: 1
     image:
       repository: "ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync"
-      tag: "latest"
+      tag: "main-20250820085729-dd3e442"
       pullPolicy: IfNotPresent
 
   alpine:
@@ -1837,17 +1872,18 @@ zac:
     code: "007"
     naam: "Example Gemeente"
     mail: "noreply@example.nl"
-  # ghcr.io/infonl/zaakafhandelcomponent:3.10.0-1
+  # curlimages/curl:8.15.0
+  global:
+    curlImage:
+      #repository: curlimages/curl
+      tag: 8.15.0
+  # ghcr.io/infonl/zaakafhandelcomponent:3.14.0
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
-    tag: 3.10.0-1
+    tag: 3.14.12
   initContainer:
-    enabled: true
-    # curlimages/curl:8.15.0
-    image:
-      #repository: curlimages/curl
-      tag: 8.15.0
+    enabled: false
   keycloak:
     adminClient:
       id: zac-admin-client
@@ -1868,10 +1904,10 @@ zac:
   nginx:
     enabled: true
     client_max_body_size: 150M
-    # nginxinc/nginx-unprivileged:1.29.0
+    # nginxinc/nginx-unprivileged:1.29.1
     image:
       # repository: nginxinc/nginx-unprivileged
-      tag: 1.29.0
+      tag: 1.29.1
   # notificationsSecretKey: "changeme"
   objectenApi:
     url: http://objecten.example.nl
@@ -1885,11 +1921,11 @@ zac:
       #repository: ghcr.io/eugenmayer/kontextwork-converter
       tag: 1.8.0
   opa:
-    sidecar: false
-    # openpolicyagent/opa:1.6.0-static
+    sidecar: true
+    # openpolicyagent/opa:1.8.0-static
     image:
       #repository: openpolicyagent/opa
-      tag: 1.6.0-static
+      tag: 1.8.0-static
   openForms:
     url: http://open-forms.example.nl
   organizations:
@@ -1920,18 +1956,14 @@ zac:
         tag: 1.37.0-glibc
       # -- set enabled to provision solrcloud as well
       enabled: true
-      # library/solr:9.8.1
+      # library/solr:9.9.0
       image:
         #repository:
-        tag: 9.8.1
+        tag: 9.9.0
       # -- define memory settings for solr in the solrcloud
       javaMem: -Xms512m -Xmx768m
       jobs:
         createZacCore: true
-        # curlimages/curl:8.14.1
-        image:
-          #repository:
-          tag: 8.14.1
     # -- namespaces to watch for solr-operator
     watchNamespaces: "podiumd"
     # -- install crds using https://github.com/pravega/zookeeper-operator/blob/master/charts/zookeeper-operator/templates/zookeeper.pravega.io_zookeeperclusters_crd.yaml
@@ -1959,6 +1991,29 @@ zac:
     urlExtern: http://open-zaak.example.nl
     clientId: zac
     secret: changeme
+
+zgw-office-addin:
+  enabled: true
+  fullnameOverride: "zgw-office-addin"
+  frontend:
+    # ghcr.io/infonl/zgw-office-add-in-frontend:v0.0.299
+    image:
+      tag: v0.0.299
+    # the public url where manifest.xml and static js files are served
+    frontendUrl: https://office-addin.example.nl
+    # by default this is not needed as it is proxied by the frontend host
+    backendPublicUrl: ""
+    # can be enabled if needed, if for instance you don't want an ingress
+    enableHttps: false
+  backend:
+    # ghcr.io/infonl/zgw-office-add-in-backend:v0.0.299
+    image:
+      tag: v0.0.299
+    # secret that is configured in openzaak
+    jwtSecret: "my openzaak-office-addin-zgw-api-key"
+    # the base url of the openzaak zgw api's
+    apiBaseUrl: "https://openzaak.example.nl"
+
 
 clamav:
   image:
@@ -2100,9 +2155,107 @@ apiproxy:
       <<: *commonLocation
       targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apikvk/vesprof/v1/v1/vestigingsprofielen"
 
+
+ita:
+  enabled: true
+  replicaCount: 1
+  imagePullSecrets: []
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  nameOverride: ""
+  fullnameOverride: "ita"
+
+  postgresql:
+    enabled: false
+
+  database:
+    host: "REP_ITA_DATABASE_HOST_REP"
+    port: "5432"
+    name: "ita"
+    username: "ita"
+    password: "REP_ITA_DATABASE_PASSWORD_REP"
+
+  apiConnections:
+    openKlant:
+      baseUrl: "http://openklant.podiumd.svc.cluster.local"
+      apiKey: "REP_OPENKLANT_CREDENTIALS_ITA_TOKEN_REP"
+    object:
+      baseUrl: "http://objecten.podiumd.svc.cluster.local"
+      apiKey: "REP_OBJECTEN_CREDENTIALS_ITA_TOKEN_REP"
+    zaakSysteem:
+      baseUrl: "http://openzaak-nginx.podiumd.svc.cluster.local"
+      clientId: "ita"
+      key: "REP_OPENZAAK_CREDENTIALS_ITA_SECRET_REP"
+
+  logboek:
+    type: ""
+    typeVersion: 1
+
+  afdeling:
+    uuid: "REP_CONTACT_AFDELING_UUID_REP"
+    type: https://ontw-objecttypen.sschosting.nl/api/v2/objecttypes/{{ .Values.ita.afdeling.uuid }}
+    typeVersion: 1
+
+  groep:
+    uuid: "REP_CONTACT_GROEP_UUID_REP"
+    type: https://ontw-objecttypen.sschosting.nl/api/v2/objecttypes/{{ .Values.ita.groep.uuid }}
+    typeVersion: 1
+
+  smtp:
+    host: "mail.example.nl"
+    port: "587"
+    username: "dummy"
+    password: "dummy"
+    fromEmail: "from@domain.ext"
+    enableSsl: "true"
+
+  web:
+    image:
+      repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web"
+      tag: "1.0.1"
+      pullPolicy: Always
+
+    service:
+      type: ClusterIP
+      port: 80
+
+    oidc:
+      authority: "REP_ITA_OIDC_AUTHORITY_REP"
+      frontendUrl: "REP_ITA_OIDC_FRONTEND_URL_REP"
+      clientId: "ita"
+      clientSecret: "REP_ITA_OIDC_CLIENT_SECRET_REP"
+      itaSystemAccessRole: "ITA_SystemAccess"
+      nameClaimType: "preferred_username"
+      roleClaimType: "roles"
+      objectregisterMedewerkerIdClaimType: "samaccountname"
+      emailClaimType: "email"
+
+    resources:
+      logoUrl: ""
+      faviconUrl: ""
+      designTokensUrl: ""
+      webFontSources: []
+
+  poller:
+    schedule: "*/15 * * * *"
+    
+    image:
+      repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller"
+      tag: "1.0.1"
+      pullPolicy: Always
+    
+    notification:
+      pollerMessage: "Poller uitgevoerd om:"
+      hourThreshold: "-24"  
+
+  ingress:
+    enabled: false
+
+  
+
 serviceAccount:
   create: true
   automount: true
   annotations: {}
   name: ""
-
