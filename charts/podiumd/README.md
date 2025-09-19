@@ -92,7 +92,8 @@
 | Component          | AppVersion | Change           | ChartVersion | Change          |
 |--------------------|------------|------------------|--------------|-----------------|
 | ClamAV             | 1.4.2      |                  | 3.2.0        |                 |
-| Keycloak           | 26.3.3     | Minor update     | 25.2.0       | Major update    |
+| Keycloak           | 26.3.1     |     | 24.8.0       |     |
+
 | Infinispan         | 15.2       | Minor update     | 0.5          | Minor update    |
 | ITA                | 1.0.1      | Nieuw Component  |   1.0.1        | Nieuw component |
 
