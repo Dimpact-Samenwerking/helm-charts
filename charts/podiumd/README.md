@@ -107,7 +107,8 @@
 | Open Archiefbeheer | 1.1.0      | Minor update     | 1.4.0        | Minor update    |
 | Kiss               | 1.2.1      |  Patch update                | 1.0.1        |         Patch update        |
 | Zac                | 3.14.12    | Minor update     | 1.0.116      |                 |
-| ZGW Office Addin   | v0.0.299   | Nieuw component  | 0.0.31       | Nieuw component | 
+| ZGW Office Addin   | 0.0.299   | Nieuw component  | 0.0.31       | Nieuw component | 
+
 
 ## Add Used chart repositories:
 
