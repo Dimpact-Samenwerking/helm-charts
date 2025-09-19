@@ -94,7 +94,8 @@
 | ClamAV             | 1.4.2      |                  | 3.2.0        |                 |
 | Keycloak           | 26.3.3     | Minor update     | 25.2.0       | Major update    |
 | Infinispan         | 15.2       | Minor update     | 0.5          | Minor update    |
-| ITA                | 1.0.0      | Nieuw Component  |              | Nieuw component |
+| ITA                | 1.0.1      | Nieuw Component  |   1.0.1        | Nieuw component |
+
 | Objecten           | 3.1.4      | Patch update     | 2.9.0        | Minor update    |
 | Objecttypen        | 3.2.1      | Minor update     | 1.4.0        | Minor update    |
 | Open Formulieren   | 3.2.4      | Minor update     | 1.9.0        | Minor update    |
