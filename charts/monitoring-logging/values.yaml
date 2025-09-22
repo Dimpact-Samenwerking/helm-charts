@@ -179,7 +179,7 @@ prometheus:
   server:
     # -- prometheus image settings
     image:
-      tag: v3.5.0
+      tag: v3.6.0
     persistentVolume:
       enabled: true
       storageClass: "managed-csi"
