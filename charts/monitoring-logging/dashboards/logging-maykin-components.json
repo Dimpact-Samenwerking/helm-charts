@@ -25,7 +25,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 4,
+  "id": 0,
   "links": [],
   "panels": [
     {
@@ -223,14 +223,14 @@
               "left": {
                 "matcher": {
                   "id": "byName",
-                  "options": "Successfully registered forms (plugin=zgw-create-zaak)"
+                  "options": "Created cases"
                 }
               },
               "operator": "/",
               "right": {
                 "matcher": {
                   "id": "byName",
-                  "options": "Created cases"
+                  "options": "Successfully registered forms (plugin=zgw-create-zaak)"
                 }
               }
             },
@@ -318,7 +318,7 @@
           "placement": "right",
           "showLegend": true,
           "values": [
-            "percent"
+            "value"
           ]
         },
         "pieType": "pie",
@@ -395,14 +395,14 @@
               "left": {
                 "matcher": {
                   "id": "byName",
-                  "options": "Successfully registered forms"
+                  "options": "Sent Notifications (channel=objects)"
                 }
               },
               "operator": "/",
               "right": {
                 "matcher": {
                   "id": "byName",
-                  "options": "Sent notifications (channel=objects)"
+                  "options": "Successfully registered forms"
                 }
               }
             },
@@ -453,7 +453,7 @@
       },
       "gridPos": {
         "h": 9,
-        "w": 10,
+        "w": 12,
         "x": 0,
         "y": 9
       },
@@ -501,7 +501,7 @@
           },
           "direction": "backward",
           "editorMode": "code",
-          "expr": "sum (\r\n  count_over_time(\r\n    {app=\"openformulieren-worker\"}\r\n    | json\r\n    | event=\"registration_failure\"\r\n    | action=\"registrations.main_registration\"\r\n    [$__range]\r\n    ) \r\n)\r\nor vector(0)",
+          "expr": "sum (\r\n  count_over_time(\r\n    {app=\"openformulieren-worker\"}\r\n    | json\r\n    | event=\"registration_failure\"\r\n    | action=\"registrations.main_registration\"\r\n    [$__range]\r\n    ) \r\n) or vector(0)",
           "hide": false,
           "legendFormat": "Submission fail",
           "queryType": "range",
@@ -531,20 +531,30 @@
               "left": {
                 "matcher": {
                   "id": "byName",
-                  "options": "Submission"
+                  "options": "Submission registered"
                 }
               },
               "operator": "/",
               "right": {
                 "matcher": {
                   "id": "byName",
-                  "options": "Submission registered"
+                  "options": "Submission"
                 }
               }
             },
             "mode": "binary",
             "reduce": {
+              "include": [
+                "Submission",
+                "Submission registered"
+              ],
               "reducer": "sum"
+            },
+            "window": {
+              "reducer": "mean",
+              "windowAlignment": "trailing",
+              "windowSize": 0.1,
+              "windowSizeMode": "percentage"
             }
           }
         }
@@ -642,8 +652,8 @@
       },
       "gridPos": {
         "h": 9,
-        "w": 10,
-        "x": 10,
+        "w": 12,
+        "x": 12,
         "y": 9
       },
       "id": 99,
@@ -718,7 +728,7 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
+        "h": 9,
         "w": 12,
         "x": 0,
         "y": 18
@@ -877,7 +887,7 @@
         ]
       },
       "gridPos": {
-        "h": 8,
+        "h": 9,
         "w": 12,
         "x": 12,
         "y": 18
@@ -952,7 +962,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 26
+        "y": 27
       },
       "id": 69,
       "panels": [
@@ -1005,9 +1015,9 @@
           },
           "gridPos": {
             "h": 5,
-            "w": 21,
+            "w": 24,
             "x": 0,
-            "y": 27
+            "y": 28
           },
           "id": 61,
           "options": {
@@ -1156,9 +1166,9 @@
           },
           "gridPos": {
             "h": 6,
-            "w": 21,
+            "w": 24,
             "x": 0,
-            "y": 67
+            "y": 33
           },
           "id": 89,
           "options": {
@@ -1302,7 +1312,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 27
+        "y": 28
       },
       "id": 94,
       "panels": [
@@ -1345,7 +1355,7 @@
             "h": 7,
             "w": 24,
             "x": 0,
-            "y": 28
+            "y": 66
           },
           "id": 75,
           "options": {
@@ -1449,7 +1459,7 @@
             "h": 5,
             "w": 24,
             "x": 0,
-            "y": 58
+            "y": 143
           },
           "id": 91,
           "options": {
@@ -1555,7 +1565,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 28
+        "y": 29
       },
       "id": 81,
       "panels": [
@@ -1594,10 +1604,10 @@
             "overrides": []
           },
           "gridPos": {
-            "h": 5,
-            "w": 16,
+            "h": 6,
+            "w": 24,
             "x": 0,
-            "y": 29
+            "y": 67
           },
           "id": 85,
           "options": {
@@ -1714,9 +1724,9 @@
           },
           "gridPos": {
             "h": 9,
-            "w": 16,
+            "w": 24,
             "x": 0,
-            "y": 43
+            "y": 73
           },
           "id": 90,
           "options": {
@@ -1806,7 +1816,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 29
+        "y": 30
       },
       "id": 82,
       "panels": [
@@ -1848,7 +1858,7 @@
             "h": 5,
             "w": 24,
             "x": 0,
-            "y": 30
+            "y": 31
           },
           "id": 98,
           "options": {
@@ -1961,7 +1971,7 @@
             "h": 4,
             "w": 24,
             "x": 0,
-            "y": 35
+            "y": 36
           },
           "id": 97,
           "options": {
@@ -2065,163 +2075,164 @@
           "type": "table"
         }
       ],
-      "title": "Notifications",
+      "title": "Open Notificaties",
       "type": "row"
     },
     {
-      "collapsed": false,
+      "collapsed": true,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 30
-      },
-      "id": 4,
-      "panels": [],
-      "title": "All logs for \"$app\"",
-      "type": "row"
-    },
-    {
-      "datasource": {
-        "type": "loki",
-        "uid": "loki"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 40,
-            "gradientMode": "opacity",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 1,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "always",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "links": [],
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              }
-            ]
-          },
-          "unit": "none"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 24,
-        "x": 0,
         "y": 31
       },
-      "id": 47,
-      "maxDataPoints": 100,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": false
+      "id": 4,
+      "panels": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 40,
+                "gradientMode": "opacity",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 1,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "always",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "links": [],
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  }
+                ]
+              },
+              "unit": "none"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 24,
+            "x": 0,
+            "y": 32
+          },
+          "id": 47,
+          "maxDataPoints": 100,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": false
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "pluginVersion": "12.1.0",
+          "targets": [
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "loki"
+              },
+              "direction": "backward",
+              "editorMode": "code",
+              "expr": "sum by (app) (count_over_time({app=~\"$subapp\"}[$__interval]))",
+              "legendFormat": "{{app}}",
+              "queryType": "range",
+              "refId": "A"
+            }
+          ],
+          "title": "The logs component: $app",
+          "type": "timeseries"
         },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "pluginVersion": "12.1.0",
-      "targets": [
         {
           "datasource": {
             "type": "loki",
             "uid": "loki"
           },
-          "direction": "backward",
-          "editorMode": "code",
-          "expr": "sum by (app) (count_over_time({app=~\"$subapp\"}[$__interval]))",
-          "legendFormat": "{{app}}",
-          "queryType": "range",
-          "refId": "A"
-        }
-      ],
-      "title": "The logs component: $app",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "loki",
-        "uid": "loki"
-      },
-      "description": "",
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 19,
-        "w": 24,
-        "x": 0,
-        "y": 35
-      },
-      "id": 68,
-      "options": {
-        "dedupStrategy": "none",
-        "enableInfiniteScrolling": false,
-        "enableLogDetails": true,
-        "prettifyLogMessage": true,
-        "showCommonLabels": false,
-        "showLabels": false,
-        "showTime": true,
-        "sortOrder": "Descending",
-        "wrapLogMessage": true
-      },
-      "pluginVersion": "12.1.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
+          "description": "",
+          "fieldConfig": {
+            "defaults": {},
+            "overrides": []
           },
-          "direction": "backward",
-          "editorMode": "code",
-          "expr": "{app=~\"$subapp\"} |~ \"(?i)$search\" !~ `(?i)$excluded_log_levels`",
-          "queryType": "range",
-          "refId": "A"
+          "gridPos": {
+            "h": 19,
+            "w": 24,
+            "x": 0,
+            "y": 36
+          },
+          "id": 68,
+          "options": {
+            "dedupStrategy": "none",
+            "enableInfiniteScrolling": false,
+            "enableLogDetails": true,
+            "prettifyLogMessage": true,
+            "showCommonLabels": false,
+            "showLabels": false,
+            "showTime": true,
+            "sortOrder": "Descending",
+            "wrapLogMessage": true
+          },
+          "pluginVersion": "12.1.0",
+          "targets": [
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "loki"
+              },
+              "direction": "backward",
+              "editorMode": "code",
+              "expr": "{app=~\"$subapp\"} |~ \"(?i)$search\" !~ `(?i)$excluded_log_levels`",
+              "queryType": "range",
+              "refId": "A"
+            }
+          ],
+          "title": "Logs component: $app",
+          "type": "logs"
         }
       ],
-      "title": "Logs component: $app",
-      "type": "logs"
+      "title": "All logs for \"$app\"",
+      "type": "row"
     }
   ],
   "preload": false,
@@ -2435,5 +2446,5 @@
   "timezone": "",
   "title": "Monitoring en logging (with structlog)",
   "uid": "cawvpt6dd",
-  "version": 99
+  "version": 110
 }
