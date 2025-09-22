@@ -38,7 +38,7 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 | grafana."grafana.ini".auth.disable_signout_menu | bool | `false` |  |
 | grafana."grafana.ini".auth.oauth_auto_login | bool | `true` |  |
 | grafana."grafana.ini".auth.oauth_skip_org_role_update_sync | bool | `false` |  |
-| grafana."grafana.ini".feature_toggles | object | `{"grafanaAPIServerEnsureKubectlAccess":true,"kubernetesClientDashboardsFolders":true,"kubernetesDashboards":true,"provisioning":true}` | Git Sync for Grafana dashboards |
+| grafana."grafana.ini".feature_toggles | object | `{"grafanaAPIServerEnsureKubectlAccess":true,"grafanaAdvisor":true,"kubernetesClientDashboardsFolders":true,"kubernetesDashboards":true,"provisioning":true}` | Git Sync for Grafana dashboards |
 | grafana."grafana.ini".metrics.enabled | bool | `false` |  |
 | grafana."grafana.ini".security.content_security_policy | bool | `true` |  |
 | grafana."grafana.ini".security.content_security_policy_template | string | `"script-src 'self' 'unsafe-eval' 'unsafe-inline' 'strict-dynamic' $NONCE;object-src 'none';font-src 'self';style-src 'self' 'unsafe-inline' blob:;img-src * data:;base-uri 'self';connect-src 'self' grafana.com ws://$ROOT_PATH wss://$ROOT_PATH;manifest-src 'self';media-src 'none';form-action 'self';"` |  |
@@ -62,7 +62,25 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 | grafana.dashboardProviders."dashboardproviders.yaml".providers[0].orgId | int | `1` |  |
 | grafana.dashboardProviders."dashboardproviders.yaml".providers[0].type | string | `"file"` |  |
 | grafana.dashboardProviders."dashboardproviders.yaml".providers[0].updateIntervalSeconds | int | `30` |  |
-| grafana.dashboardsConfigMaps | object | `{"default":"logging-podiumd-dashboard"}` | Dashboard opgenomen in ConfigMap |
+| grafana.dashboardProviders."dashboardproviders.yaml".providers[1].allowUiUpdates | bool | `true` |  |
+| grafana.dashboardProviders."dashboardproviders.yaml".providers[1].disableDeletion | bool | `false` |  |
+| grafana.dashboardProviders."dashboardproviders.yaml".providers[1].editable | bool | `true` |  |
+| grafana.dashboardProviders."dashboardproviders.yaml".providers[1].folder | string | `"PodiumD_Monitoring_Logging"` |  |
+| grafana.dashboardProviders."dashboardproviders.yaml".providers[1].name | string | `"maykin"` |  |
+| grafana.dashboardProviders."dashboardproviders.yaml".providers[1].options.path | string | `"/var/lib/grafana/dashboards/maykin"` |  |
+| grafana.dashboardProviders."dashboardproviders.yaml".providers[1].orgId | int | `1` |  |
+| grafana.dashboardProviders."dashboardproviders.yaml".providers[1].type | string | `"file"` |  |
+| grafana.dashboardProviders."dashboardproviders.yaml".providers[1].updateIntervalSeconds | int | `30` |  |
+| grafana.dashboardProviders."dashboardproviders.yaml".providers[2].allowUiUpdates | bool | `true` |  |
+| grafana.dashboardProviders."dashboardproviders.yaml".providers[2].disableDeletion | bool | `false` |  |
+| grafana.dashboardProviders."dashboardproviders.yaml".providers[2].editable | bool | `true` |  |
+| grafana.dashboardProviders."dashboardproviders.yaml".providers[2].folder | string | `"PodiumD_Monitoring_Logging"` |  |
+| grafana.dashboardProviders."dashboardproviders.yaml".providers[2].name | string | `"development"` |  |
+| grafana.dashboardProviders."dashboardproviders.yaml".providers[2].options.path | string | `"/var/lib/grafana/dashboards/development"` |  |
+| grafana.dashboardProviders."dashboardproviders.yaml".providers[2].orgId | int | `1` |  |
+| grafana.dashboardProviders."dashboardproviders.yaml".providers[2].type | string | `"file"` |  |
+| grafana.dashboardProviders."dashboardproviders.yaml".providers[2].updateIntervalSeconds | int | `30` |  |
+| grafana.dashboardsConfigMaps | object | `{"default":"logging-podiumd-dashboard","development":"logging-maykin-development","maykin":"logging-maykin-components"}` | Dashboard opgenomen in ConfigMap |
 | grafana.datasources."datasources.yaml".apiVersion | int | `1` |  |
 | grafana.datasources."datasources.yaml".datasources[0].access | string | `"proxy"` |  |
 | grafana.datasources."datasources.yaml".datasources[0].editable | bool | `true` |  |
@@ -83,11 +101,11 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 | grafana.datasources."datasources.yaml".datasources[1].version | int | `1` |  |
 | grafana.datasources.alertmanager.enabled | bool | `false` |  |
 | grafana.deleteDatasources[0].name | string | `"Alertmanager"` |  |
-| grafana.downloadDashboardsImage | object | `{"pullPolicy":"IfNotPresent","sha":"","tag":"8.15.0"}` | curl image settings |
+| grafana.downloadDashboardsImage | object | `{"pullPolicy":"IfNotPresent","sha":"","tag":"8.16.0"}` | curl image settings |
 | grafana.enabled | bool | `true` |  |
-| grafana.image | object | `{"pullPolicy":"IfNotPresent","tag":"12.0.2"}` | Grafana image settings |
-| grafana.imageRenderer.image | object | `{"pullPolicy":"Always","tag":"v4.0.7"}` | Grafana image renderer settings |
-| grafana.initChownData.image | object | `{"pullPolicy":"IfNotPresent","tag":"1.37.0-glibc"}` | Busybox image settings |
+| grafana.image | object | `{"pullPolicy":"IfNotPresent","tag":"12.3.0-17814087142-ubuntu"}` | Grafana image settings |
+| grafana.imageRenderer.image | object | `{"pullPolicy":"Always","tag":"v4.0.14"}` | Grafana image renderer settings |
+| grafana.initChownData.image | object | `{"pullPolicy":"IfNotPresent","tag":"1.37.0-uclibc"}` | Busybox image settings |
 | grafana.nodeSelector.agentpool | string | `"userpool"` |  |
 | grafana.persistence.accessModes[0] | string | `"ReadWriteOnce"` |  |
 | grafana.persistence.enabled | bool | `true` |  |
@@ -111,7 +129,7 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 | loki.distributor.replicas | int | `3` |  |
 | loki.enabled | bool | `true` |  |
 | loki.enterprise.image.pullPolicy | string | `"IfNotPresent"` |  |
-| loki.enterprise.image.tag | string | `"3.5.2"` |  |
+| loki.enterprise.image.tag | string | `"3.5.4"` |  |
 | loki.enterprise.provisioner.image.pullPolicy | string | `"IfNotPresent"` |  |
 | loki.enterprise.provisioner.image.tag | string | `"3.5.2"` |  |
 | loki.gateway.image.pullPolicy | string | `"IfNotPresent"` |  |
@@ -135,7 +153,7 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 | loki.loki.compactor.retention_enabled | bool | `true` |  |
 | loki.loki.frontend.max_outstanding_per_tenant | int | `6144` |  |
 | loki.loki.image.pullPolicy | string | `"IfNotPresent"` |  |
-| loki.loki.image.tag | string | `"3.5.2"` |  |
+| loki.loki.image.tag | string | `"3.5.5"` |  |
 | loki.loki.ingester.chunk_block_size | int | `262144` |  |
 | loki.loki.ingester.chunk_encoding | string | `"snappy"` |  |
 | loki.loki.ingester.chunk_idle_period | string | `"30m"` |  |
@@ -179,7 +197,7 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 | loki.minio.image.pullPolicy | string | `"IfNotPresent"` |  |
 | loki.minio.image.tag | string | `"RELEASE.2025-07-23T15-54-02Z-cpuv1"` |  |
 | loki.minio.mcImage.pullPolicy | string | `"IfNotPresent"` |  |
-| loki.minio.mcImage.tag | string | `"RELEASE.2025-07-21T05-28-08Z-cpuv1"` |  |
+| loki.minio.mcImage.tag | string | `"RELEASE.2025-08-13T08-35-41Z-cpuv1"` |  |
 | loki.minio.nodeSelector.agentpool | string | `"userpool"` |  |
 | loki.minio.persistence.size | string | `"20Gi"` |  |
 | loki.minio.persistence.storageClass | string | `"managed-csi"` |  |
@@ -200,14 +218,14 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 | loki.resultsCache.enabled | bool | `true` |  |
 | loki.resultsCache.nodeSelector.agentpool | string | `"userpool"` |  |
 | loki.sidecar.image.pullPolicy | string | `"IfNotPresent"` |  |
-| loki.sidecar.image.tag | string | `"1.30.7"` |  |
+| loki.sidecar.image.tag | string | `"1.30.10"` |  |
 | loki.test.enabled | bool | `false` |  |
 | loki.write.replicas | int | `0` |  |
 | prometheus.alertmanager.enabled | bool | `false` |  |
-| prometheus.configmapReload.prometheus.image.tag | string | `"v0.84.0"` |  |
+| prometheus.configmapReload.prometheus.image.tag | string | `"v0.85.0"` |  |
 | prometheus.enabled | bool | `true` |  |
 | prometheus.kube-state-metrics.image.pullPolicy | string | `"IfNotPresent"` |  |
-| prometheus.kube-state-metrics.image.tag | string | `"2.16.0-debian-12-r3"` |  |
+| prometheus.kube-state-metrics.image.tag | string | `"v2.17.0"` |  |
 | prometheus.kube-state-metrics.nodeSelector.agentpool | string | `"userpool"` |  |
 | prometheus.prometheus-node-exporter.image.pullPolicy | string | `"IfNotPresent"` |  |
 | prometheus.prometheus-node-exporter.image.tag | string | `"v1.9.1"` |  |
@@ -232,7 +250,7 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 | promtail.config.logLevel | string | `"warn"` |  |
 | promtail.enabled | bool | `true` |  |
 | promtail.image.pullPolicy | string | `"IfNotPresent"` |  |
-| promtail.image.tag | string | `"3.5.1"` |  |
+| promtail.image.tag | string | `"3.5.5"` |  |
 | promtail.nodeSelector.agentpool | string | `"userpool"` |  |
 | promtail.resources.limits.cpu | string | `"100m"` |  |
 | promtail.resources.limits.memory | string | `"256Mi"` |  |
