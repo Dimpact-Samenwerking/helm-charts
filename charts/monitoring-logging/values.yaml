@@ -57,33 +57,22 @@ grafana:
           options:
             path: /var/lib/grafana/dashboards/default
   
-        - name: "maykin"
-          orgId: 1
-          folder: 'PodiumD_Monitoring_Logging'
-          type: file
-          disableDeletion: false
-          updateIntervalSeconds: 30
-          allowUiUpdates: true # modify dashboards
-          editable: true
-          options:
-            path: /var/lib/grafana/dashboards/maykin
+# -- Dashboard voor development (niet in gebruik)
 
-        - name: "development"
-          orgId: 1
-          folder: 'PodiumD_Monitoring_Logging'
-          type: file
-          disableDeletion: false
-          updateIntervalSeconds: 30
-          allowUiUpdates: true # modify dashboards
-          editable: true
-          options:
-            path: /var/lib/grafana/dashboards/development
+#        - name: "development"
+#          orgId: 1
+#          folder: 'PodiumD_Monitoring_Logging'
+#          type: file
+#          disableDeletion: false
+#          updateIntervalSeconds: 30
+#          allowUiUpdates: true # modify dashboards
+#          editable: true
+#          options:
+#            path: /var/lib/grafana/dashboards/development
 
   # -- Dashboard opgenomen in ConfigMap
   dashboardsConfigMaps:
-    default: "logging-podiumd-dashboard"
-    maykin: "logging-maykin-components" 
-    development: "logging-maykin-development" 
+    default: "logging-main-dashboard"
   
   grafana.ini:
     # -- Authentication and Authorization with Keycloak

@@ -96,12 +96,27 @@
                 }
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Sent notifications"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "purple",
+                  "mode": "fixed"
+                }
+              }
+            ]
           }
         ]
       },
       "gridPos": {
-        "h": 8,
-        "w": 12,
+        "h": 7,
+        "w": 24,
         "x": 0,
         "y": 1
       },
@@ -141,9 +156,9 @@
           },
           "direction": "backward",
           "editorMode": "code",
-          "expr": "sum(\r\n    count_over_time (\r\n        {app=\"opennotificaties-worker\"}\r\n        | json \r\n        | event=\"notification_successful\"\r\n        | channel_name = \"zaken\"\r\n        [$__range]\r\n    )\r\n) or vector(0)",
+          "expr": "sum(\r\n    count_over_time (\r\n        {app=\"opennotificaties-worker\"}\r\n        | json \r\n        | event=\"notification_successful\"\r\n        [$__range]\r\n    )\r\n) or vector(0)",
           "hide": false,
-          "legendFormat": "Sent notifications (channel = zaken)",
+          "legendFormat": "Sent notifications",
           "queryType": "range",
           "refId": "B"
         },
@@ -193,19 +208,6 @@
           },
           "direction": "backward",
           "editorMode": "code",
-          "expr": "sum(\r\n    count_over_time (\r\n        {app=\"opennotificaties-worker\"}\r\n        | json \r\n        | event=\"notification_successful\"\r\n        | channel_name = \"documenten\"\r\n        [$__range]\r\n    )\r\n) or vector(0)",
-          "hide": false,
-          "legendFormat": "Sent notifications (channel = documenten)",
-          "queryType": "range",
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "direction": "backward",
-          "editorMode": "code",
           "expr": "sum (\r\n  count_over_time(\r\n    {app=\"openformulieren-worker\"}\r\n    | json\r\n    | event=\"registration_failure\"\r\n    | action=\"registrations.main_registration\"\r\n    | plugin = \"zgw-create-zaak\"\r\n    [$__range]\r\n    ) \r\n)\r\nor vector(0)",
           "hide": false,
           "legendFormat": "Registration fail",
@@ -213,7 +215,7 @@
           "refId": "D"
         }
       ],
-      "title": "Chain formulieren -> Open Zaak",
+      "title": "Chain Open Forms -> Open Zaak",
       "transformations": [
         {
           "id": "calculateField",
@@ -303,10 +305,10 @@
         ]
       },
       "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 1
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 8
       },
       "id": 112,
       "options": {
@@ -455,7 +457,7 @@
         "h": 9,
         "w": 12,
         "x": 0,
-        "y": 9
+        "y": 15
       },
       "id": 109,
       "options": {
@@ -493,19 +495,6 @@
           "legendFormat": "Submission",
           "queryType": "range",
           "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "direction": "backward",
-          "editorMode": "code",
-          "expr": "sum (\r\n  count_over_time(\r\n    {app=\"openformulieren-worker\"}\r\n    | json\r\n    | event=\"registration_failure\"\r\n    | action=\"registrations.main_registration\"\r\n    [$__range]\r\n    ) \r\n) or vector(0)",
-          "hide": false,
-          "legendFormat": "Submission fail",
-          "queryType": "range",
-          "refId": "B"
         },
         {
           "datasource": {
@@ -654,7 +643,7 @@
         "h": 9,
         "w": 12,
         "x": 12,
-        "y": 9
+        "y": 15
       },
       "id": 99,
       "options": {
@@ -725,13 +714,42 @@
           "mappings": [],
           "unit": "short"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "__systemRef": "hideSeriesFrom",
+            "matcher": {
+              "id": "byNames",
+              "options": {
+                "mode": "exclude",
+                "names": [
+                  "channel = ZAKEN, resource = ZAAKINFORMATIEOBJECT",
+                  "channel = INFORMATIEOBJECTEN, resource= INFORMATIEOBJECT",
+                  "channel = ZAKEN, resource = ZAKEN",
+                  "Total Notifications",
+                  "channel = ZAKEN, resource = ROL"
+                ],
+                "prefix": "All except:",
+                "readOnly": true
+              }
+            },
+            "properties": [
+              {
+                "id": "custom.hideFrom",
+                "value": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": true
+                }
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
-        "h": 9,
-        "w": 12,
+        "h": 7,
+        "w": 24,
         "x": 0,
-        "y": 18
+        "y": 24
       },
       "id": 107,
       "options": {
@@ -811,18 +829,6 @@
         }
       ],
       "title": "Received Notifications ZAC",
-      "transformations": [
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Total Notifications",
-            "mode": "reduceRow",
-            "reduce": {
-              "reducer": "sum"
-            }
-          }
-        }
-      ],
       "type": "piechart"
     },
     {
@@ -887,10 +893,10 @@
         ]
       },
       "gridPos": {
-        "h": 9,
-        "w": 12,
-        "x": 12,
-        "y": 18
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 31
       },
       "id": 104,
       "options": {
@@ -962,7 +968,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 27
+        "y": 39
       },
       "id": 69,
       "panels": [
@@ -1017,7 +1023,7 @@
             "h": 5,
             "w": 24,
             "x": 0,
-            "y": 28
+            "y": 40
           },
           "id": 61,
           "options": {
@@ -1168,7 +1174,7 @@
             "h": 6,
             "w": 24,
             "x": 0,
-            "y": 33
+            "y": 68
           },
           "id": 89,
           "options": {
@@ -1312,7 +1318,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 28
+        "y": 40
       },
       "id": 94,
       "panels": [
@@ -1355,7 +1361,7 @@
             "h": 7,
             "w": 24,
             "x": 0,
-            "y": 66
+            "y": 41
           },
           "id": 75,
           "options": {
@@ -1459,7 +1465,7 @@
             "h": 5,
             "w": 24,
             "x": 0,
-            "y": 143
+            "y": 71
           },
           "id": 91,
           "options": {
@@ -1565,7 +1571,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 29
+        "y": 41
       },
       "id": 81,
       "panels": [
@@ -1607,7 +1613,7 @@
             "h": 6,
             "w": 24,
             "x": 0,
-            "y": 67
+            "y": 42
           },
           "id": 85,
           "options": {
@@ -1726,7 +1732,7 @@
             "h": 9,
             "w": 24,
             "x": 0,
-            "y": 73
+            "y": 71
           },
           "id": 90,
           "options": {
@@ -1816,7 +1822,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 30
+        "y": 42
       },
       "id": 82,
       "panels": [
@@ -1858,7 +1864,7 @@
             "h": 5,
             "w": 24,
             "x": 0,
-            "y": 31
+            "y": 43
           },
           "id": 98,
           "options": {
@@ -1971,7 +1977,7 @@
             "h": 4,
             "w": 24,
             "x": 0,
-            "y": 36
+            "y": 71
           },
           "id": 97,
           "options": {
@@ -2084,7 +2090,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 31
+        "y": 43
       },
       "id": 4,
       "panels": [
@@ -2150,7 +2156,7 @@
             "h": 4,
             "w": 24,
             "x": 0,
-            "y": 32
+            "y": 44
           },
           "id": 47,
           "maxDataPoints": 100,
@@ -2199,7 +2205,7 @@
             "h": 19,
             "w": 24,
             "x": 0,
-            "y": 36
+            "y": 48
           },
           "id": 68,
           "options": {
@@ -2446,5 +2452,5 @@
   "timezone": "",
   "title": "Monitoring en logging (with structlog)",
   "uid": "cawvpt6dd",
-  "version": 110
+  "version": 115
 }
