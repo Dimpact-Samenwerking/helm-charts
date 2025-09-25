@@ -1866,6 +1866,8 @@ zac:
     user: zac
     password: changeme
   enabled: true
+  featureFlags
+    bpmnSupport: true
   nameOverride: zac
   fullnameOverride: zac
   gemeente:
@@ -1881,7 +1883,7 @@ zac:
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
-    tag: 3.14.12
+    tag: 3.15.0
   initContainer:
     enabled: false
   keycloak:
@@ -1998,7 +2000,7 @@ zgw-office-addin:
   frontend:
     # ghcr.io/infonl/zgw-office-add-in-frontend:v0.0.299
     image:
-      tag: v0.0.299
+      tag: v0.1.0
     # the public url where manifest.xml and static js files are served
     frontendUrl: https://office-addin.example.nl
     # by default this is not needed as it is proxied by the frontend host
@@ -2008,7 +2010,7 @@ zgw-office-addin:
   backend:
     # ghcr.io/infonl/zgw-office-add-in-backend:v0.0.299
     image:
-      tag: v0.0.299
+      tag: v0.1.0
     # secret that is configured in openzaak
     jwtSecret: "my openzaak-office-addin-zgw-api-key"
     # the base url of the openzaak zgw api's
