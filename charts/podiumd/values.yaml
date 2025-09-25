@@ -1866,7 +1866,7 @@ zac:
     user: zac
     password: changeme
   enabled: true
-  featureFlags
+  featureFlags:
     bpmnSupport: true
   nameOverride: zac
   fullnameOverride: zac
