@@ -1168,9 +1168,18 @@ openklant:
     # data: |-
     #   oidc_db_config_enable: True
     #   oidc_db_config_admin_auth:
+    #     providers:
+    #     - identifier: admin-oidc-provider  # must be same as oidc_provider_identifier
+    #       oidc_token_use_basic_auth: true
+    #       oidc_use_nonce: false
+    #       oidc_nonce_size: 32
+    #       oidc_state_size: 32
+    #       endpoint_config:
+    #         oidc_op_discovery_endpoint: ${KEYCLOAK_HOST}/realms/${KEYCLOAK_REALM}/   
     #     items:
-    #     - identifier: admin-oidc
+    #     - identifier: admin-oidc 
     #       enabled: True
+    #       oidc_provider_identifier: admin-oidc-provider      
     #       oidc_rp_client_id: openklant.example.nl
     #       oidc_rp_client_secret: ${keycloak_client_secret}
     #       oidc_rp_scopes_list:
