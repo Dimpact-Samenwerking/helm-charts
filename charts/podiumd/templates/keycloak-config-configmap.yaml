@@ -61,9 +61,9 @@ data:
         enabled: true
         clientAuthenticatorType: client-secret
         redirectUris:
-          - "{{ .Values.openzaak.configuration.oidcUrl }}/*"
+          - "{{ .Values.openzaak.configuration.oidcUrl | trimSuffix "/" }}/*"
         webOrigins:
-          - "{{ .Values.openzaak.configuration.oidcUrl }}/*"
+          - "{{ .Values.openzaak.configuration.oidcUrl | trimSuffix "/" }}/*"
         secret: {{ .Values.openzaak.configuration.oidcSecret | quote }}
         protocolMappers:
           - name: "username"
@@ -98,9 +98,9 @@ data:
         enabled: true
         clientAuthenticatorType: client-secret
         redirectUris:
-          - "{{ .Values.openarchiefbeheer.configuration.oidcUrl }}/*"
+          - "{{ .Values.openarchiefbeheer.configuration.oidcUrl | trimSuffix "/" }}/*"
         webOrigins:
-          - "{{ .Values.openarchiefbeheer.configuration.oidcUrl }}/*"
+          - "{{ .Values.openarchiefbeheer.configuration.oidcUrl | trimSuffix "/" }}/*"
         secret: {{ .Values.openarchiefbeheer.configuration.oidcSecret | quote }}
         protocolMappers:
           - name: "username"
@@ -136,9 +136,9 @@ data:
         secret: {{ .Values.keycloak.config.clients.monitoring.secret|quote }}
         clientAuthenticatorType: client-secret
         redirectUris:
-          - "{{ .Values.keycloak.config.clients.monitoring.oidcUrl }}/*"
+          - "{{ .Values.keycloak.config.clients.monitoring.oidcUrl | trimSuffix "/" }}/*"
         webOrigins:
-          - "{{ .Values.keycloak.config.clients.monitoring.oidcUrl }}/*"
+          - "{{ .Values.keycloak.config.clients.monitoring.oidcUrl | trimSuffix "/" }}/*"
         authorizationServicesEnabled: "true"
         serviceAccountsEnabled: "true"
         protocolMappers:
@@ -167,9 +167,9 @@ data:
         enabled: true
         clientAuthenticatorType: client-secret
         redirectUris:
-          - "{{ .Values.opennotificaties.configuration.oidcUrl }}/*"
+          - "{{ .Values.opennotificaties.configuration.oidcUrl | trimSuffix "/" }}/*"
         webOrigins:
-          - "{{ .Values.opennotificaties.configuration.oidcUrl }}/*"
+          - "{{ .Values.opennotificaties.configuration.oidcUrl | trimSuffix "/" }}/*"
         secret: {{ .Values.opennotificaties.configuration.oidcSecret | quote }}
         protocolMappers:
           - name: "username"
@@ -204,9 +204,9 @@ data:
         enabled: true
         clientAuthenticatorType: client-secret
         redirectUris:
-          - "{{ .Values.objecten.configuration.oidcUrl }}/*"
+          - "{{ .Values.objecten.configuration.oidcUrl | trimSuffix "/" }}/*"
         webOrigins:
-          - "{{ .Values.objecten.configuration.oidcUrl }}/*"
+          - "{{ .Values.objecten.configuration.oidcUrl | trimSuffix "/" }}/*"
         secret: {{ .Values.objecten.configuration.oidcSecret | quote }}
         protocolMappers:
           - name: "username"
@@ -241,9 +241,9 @@ data:
         enabled: true
         clientAuthenticatorType: client-secret
         redirectUris:
-          - "{{ .Values.objecttypen.configuration.oidcUrl }}/*"
+          - "{{ .Values.objecttypen.configuration.oidcUrl | trimSuffix "/" }}/*"
         webOrigins:
-          - "{{ .Values.objecttypen.configuration.oidcUrl }}/*"
+          - "{{ .Values.objecttypen.configuration.oidcUrl | trimSuffix "/" }}/*"
         secret: {{ .Values.objecttypen.configuration.oidcSecret | quote }}
         protocolMappers:
           - name: "username"
@@ -278,9 +278,9 @@ data:
         enabled: true
         clientAuthenticatorType: client-secret
         redirectUris:
-          - "{{ .Values.openklant.configuration.oidcUrl }}/*"
+          - "{{ .Values.openklant.configuration.oidcUrl | trimSuffix "/" }}/*"
         webOrigins:
-          - "{{ .Values.openklant.configuration.oidcUrl }}/*"
+          - "{{ .Values.openklant.configuration.oidcUrl | trimSuffix "/" }}/*"
         secret: {{ .Values.openklant.configuration.oidcSecret | quote }}
         protocolMappers:
           - name: "username"
@@ -315,9 +315,9 @@ data:
         enabled: true
         clientAuthenticatorType: client-secret
         redirectUris:
-          - "{{ .Values.openformulieren.configuration.oidcUrl }}/*"
+          - "{{ .Values.openformulieren.configuration.oidcUrl | trimSuffix "/" }}/*"
         webOrigins:
-          - "{{ .Values.openformulieren.configuration.oidcUrl }}/*"
+          - "{{ .Values.openformulieren.configuration.oidcUrl | trimSuffix "/" }}/*"
         secret: {{ .Values.openformulieren.configuration.oidcSecret | quote }}
         protocolMappers:
           - name: "username"
@@ -352,9 +352,9 @@ data:
         enabled: true
         clientAuthenticatorType: client-secret
         redirectUris:
-          - "{{ .Values.openinwoner.configuration.oidcUrl }}/*"
+          - "{{ .Values.openinwoner.configuration.oidcUrl | trimSuffix "/" }}/*"
         webOrigins:
-          - "{{ .Values.openinwoner.configuration.oidcUrl }}/*"
+          - "{{ .Values.openinwoner.configuration.oidcUrl | trimSuffix "/" }}/*"
         secret: {{ .Values.openinwoner.configuration.oidcSecret | quote }}
         protocolMappers:
           - name: "username"
@@ -389,9 +389,9 @@ data:
         enabled: true
         clientAuthenticatorType: client-secret
         redirectUris:
-          - "{{ .Values.kiss.configuration.oidcUrl }}/*"
+          - "{{ .Values.kiss.configuration.oidcUrl | trimSuffix "/" }}/*"
         webOrigins:
-          - "{{ .Values.kiss.configuration.oidcUrl }}/*"
+          - "{{ .Values.kiss.configuration.oidcUrl | trimSuffix "/" }}/*"
         secret: {{ .Values.kiss.configuration.oidcSecret | quote }}
         protocolMappers:
           - name: kiss-roles
@@ -423,9 +423,9 @@ data:
         enabled: true
         clientAuthenticatorType: client-secret
         redirectUris:
-          - "{{ .Values.zac.contextUrl }}/*"
+          - "{{ .Values.zac.contextUrl | trimSuffix "/" }}/*"
         webOrigins:
-          - "{{ .Values.zac.contextUrl }}/*"
+          - "{{ .Values.zac.contextUrl | trimSuffix "/" }}/*"
         secret: {{ .Values.zac.auth.secret | quote }}
         protocolMappers:
           - name: "username"
@@ -459,9 +459,9 @@ data:
         clientAuthenticatorType: client-secret
         secret: {{ .Values.zac.keycloak.adminClient.secret | quote }}
         redirectUris:
-          - "{{ .Values.zac.contextUrl }}/*"
+          - "{{ .Values.zac.contextUrl | trimSuffix "/" }}/*"
         webOrigins:
-          - "{{ .Values.zac.contextUrl }}/*"
+          - "{{ .Values.zac.contextUrl | trimSuffix "/" }}/*"
         serviceAccountsEnabled: true
         protocolMappers:
           - name: "Client Host"
@@ -502,9 +502,9 @@ data:
         enabled: true
         clientAuthenticatorType: client-secret
         redirectUris:
-          - "{{ .Values.ita.web.oidc.frontendUrl }}/*"
+          - "{{ .Values.ita.web.oidc.frontendUrl | trimSuffix "/" }}/*"
         webOrigins:
-          - "{{ .Values.ita.web.oidc.frontendUrl }}/*"
+          - "{{ .Values.ita.web.oidc.frontendUrl | trimSuffix "/" }}/*"
         secret: {{ .Values.ita.web.oidc.clientSecret | quote }}
         protocolMappers:
           - name: "client roles"
