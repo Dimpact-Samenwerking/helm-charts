@@ -2223,7 +2223,7 @@ ita:
     image:
       repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web"
       tag: "1.0.1"
-      pullPolicy: Always
+      pullPolicy: IfNotPresent
 
     service:
       type: ClusterIP
