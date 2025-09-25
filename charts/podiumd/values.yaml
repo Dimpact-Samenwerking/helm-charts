@@ -1175,7 +1175,7 @@ openklant:
     #       oidc_nonce_size: 32
     #       oidc_state_size: 32
     #       endpoint_config:
-    #         oidc_op_discovery_endpoint: ${KEYCLOAK_HOST}/realms/${KEYCLOAK_REALM}/   
+    #         oidc_op_discovery_endpoint: https://keycloak.example.nl/realms/gemeente-x/   
     #     items:
     #     - identifier: admin-oidc 
     #       enabled: True
@@ -1188,8 +1188,6 @@ openklant:
     #       - profile
     #       - roles
     #       oidc_rp_sign_algo: RS256
-    #       endpoint_config:
-    #         oidc_op_discovery_endpoint: https://keycloak.example.nl/realms/gemeente-x/
     #       username_claim:
     #       - sub
     #       groups_claim:
