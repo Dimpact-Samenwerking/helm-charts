@@ -1168,9 +1168,18 @@ openklant:
     # data: |-
     #   oidc_db_config_enable: True
     #   oidc_db_config_admin_auth:
+    #     providers:
+    #     - identifier: admin-oidc-provider  # must be same as oidc_provider_identifier
+    #       oidc_token_use_basic_auth: true
+    #       oidc_use_nonce: false
+    #       oidc_nonce_size: 32
+    #       oidc_state_size: 32
+    #       endpoint_config:
+    #         oidc_op_discovery_endpoint: https://keycloak.example.nl/realms/gemeente-x/   
     #     items:
-    #     - identifier: admin-oidc
+    #     - identifier: admin-oidc 
     #       enabled: True
+    #       oidc_provider_identifier: admin-oidc-provider      
     #       oidc_rp_client_id: openklant.example.nl
     #       oidc_rp_client_secret: ${keycloak_client_secret}
     #       oidc_rp_scopes_list:
@@ -1179,8 +1188,6 @@ openklant:
     #       - profile
     #       - roles
     #       oidc_rp_sign_algo: RS256
-    #       endpoint_config:
-    #         oidc_op_discovery_endpoint: https://keycloak.example.nl/realms/gemeente-x/
     #       username_claim:
     #       - sub
     #       groups_claim:
@@ -2194,12 +2201,12 @@ ita:
 
   afdeling:
     uuid: "REP_CONTACT_AFDELING_UUID_REP"
-    type: https://ontw-objecttypen.sschosting.nl/api/v2/objecttypes/{{ .Values.ita.afdeling.uuid }}
+    type: https://ontw-objecttypen.example.nl/api/v2/objecttypes/{{ .Values.ita.afdeling.uuid }}
     typeVersion: 1
 
   groep:
     uuid: "REP_CONTACT_GROEP_UUID_REP"
-    type: https://ontw-objecttypen.sschosting.nl/api/v2/objecttypes/{{ .Values.ita.groep.uuid }}
+    type: https://ontw-objecttypen.example.nl/api/v2/objecttypes/{{ .Values.ita.groep.uuid }}
     typeVersion: 1
 
   smtp:
@@ -2213,8 +2220,8 @@ ita:
   web:
     image:
       repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web"
-      tag: "1.0.1"
-      pullPolicy: Always
+      tag: "1.0.2"
+      pullPolicy: IfNotPresent
 
     service:
       type: ClusterIP
@@ -2242,7 +2249,7 @@ ita:
     
     image:
       repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller"
-      tag: "1.0.1"
+      tag: "1.0.2"
       pullPolicy: Always
     
     notification:

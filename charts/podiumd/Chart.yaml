@@ -2,8 +2,8 @@ apiVersion: v2
 name: podiumd
 description: PodiumD Helm chart
 type: application
-version: 4.3.0
-appVersion: "4.3.0"
+version: 4.3.1
+appVersion: "4.3.1"
 dependencies:
   - name: keycloak
     version: 24.8.0
@@ -14,7 +14,7 @@ dependencies:
     repository: "@wiremind"
     condition: clamav.enabled
   - name: brp-personen-mock
-    version: 1.2.7
+    version: 1.2.8
     repository: "@dimpact"
     condition: brppersonenmock.enabled
     alias: brppersonenmock
@@ -71,12 +71,10 @@ dependencies:
       - zaak
   - name: zgw-office-addin
     repository: "@zgw-office-addin"
-    version: 0.0.31
+    version: 0.0.37
     condition: zgw-office-addin.enabled
   - name: internetaakafhandeling
     alias: ita
     repository: "oci://ghcr.io/interne-taak-afhandeling"
-    version: 1.0.1
+    version: 1.0.2
     condition: ita.enabled
-
-
