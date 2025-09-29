@@ -2249,7 +2249,7 @@ ita:
     
     image:
       repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller"
-      tag: "1.0.1"
+      tag: "1.0.2"
       pullPolicy: Always
     
     notification:
