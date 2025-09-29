@@ -2213,7 +2213,7 @@ ita:
   web:
     image:
       repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web"
-      tag: "1.0.1"
+      tag: "1.0.2"
       pullPolicy: Always
 
     service:
