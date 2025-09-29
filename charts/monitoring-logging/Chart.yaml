@@ -2,12 +2,12 @@ apiVersion: v2
 name: monitoring-logging
 description: A monitoring stack using Loki, Prometheus, Promtail and Grafana
 type: application
-version: 1.0.7
-appVersion: "1.0.7"
+version: 1.0.8
+appVersion: "1.0.8"
 dependencies:
   - name: loki
     repository: "@grafana"
-    version: 6.33.0
+    version: 6.40.0
     condition: loki.enabled
   - name: promtail
     repository: "@grafana"
@@ -15,9 +15,9 @@ dependencies:
     condition: promtail.enabled
   - name: grafana
     repository: "@grafana"
-    version: 9.3.0
+    version: 10.0.0
     condition: grafana.enabled
   - name: prometheus
     repository: "@prometheus-community"
-    version: 27.28.2
+    version: 27.39.0
     condition: prometheus.enabled
