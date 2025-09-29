@@ -76,7 +76,7 @@ dependencies:
   - name: internetaakafhandeling
     alias: ita
     repository: "oci://ghcr.io/interne-taak-afhandeling"
-    version: 1.0.1
+    version: 1.0.2
     condition: ita.enabled
 
 
