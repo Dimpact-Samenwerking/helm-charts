@@ -34,6 +34,15 @@ entries:
   brp-personen-mock:
   - apiVersion: v2
     appVersion: 2.7.0
+    created: "2025-09-29T13:43:14.480891942Z"
+    description: BRP personen mock Helm chart
+    digest: b5c53484ef4d2838d64d0af399403d09c27c2642ac32a805e93539dc203e13fd
+    name: brp-personen-mock
+    urls:
+    - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/brp-personen-mock-1.2.8/brp-personen-mock-1.2.8.tgz
+    version: 1.2.8
+  - apiVersion: v2
+    appVersion: 2.7.0
     created: "2025-09-10T09:20:14.011881316Z"
     description: BRP personen mock Helm chart
     digest: 865b5b20f7ab693667fad880cf901e2caa577095110e49c4fbccd5a7a6ce472a
@@ -363,6 +372,90 @@ entries:
     - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/openldap-1.0.0/openldap-1.0.0.tgz
     version: 1.0.0
   podiumd:
+  - apiVersion: v2
+    appVersion: 4.3.1
+    created: "2025-09-29T13:43:14.837817097Z"
+    dependencies:
+    - condition: keycloak.enabled
+      name: keycloak
+      repository: '@bitnami'
+      version: 24.8.0
+    - condition: clamav.enabled
+      name: clamav
+      repository: '@wiremind'
+      version: 3.2.0
+    - alias: brppersonenmock
+      condition: brppersonenmock.enabled
+      name: brp-personen-mock
+      repository: '@dimpact'
+      version: 1.2.7
+    - condition: openzaak.enabled
+      name: openzaak
+      repository: '@maykinmedia'
+      version: 1.11.0
+    - condition: opennotificaties.enabled
+      name: opennotificaties
+      repository: '@maykinmedia'
+      version: 1.11.1
+    - condition: objecten.enabled
+      name: objecten
+      repository: '@maykinmedia'
+      version: 2.9.0
+    - condition: objecttypen.enabled
+      name: objecttypen
+      repository: '@maykinmedia'
+      version: 1.4.0
+    - condition: openarchiefbeheer.enabled
+      name: openarchiefbeheer
+      repository: '@maykinmedia'
+      version: 1.4.0
+    - condition: openklant.enabled
+      name: openklant
+      repository: '@maykinmedia'
+      version: 1.8.0
+    - alias: openformulieren
+      condition: openformulieren.enabled
+      name: openforms
+      repository: '@maykinmedia'
+      version: 1.9.0
+    - condition: openinwoner.enabled
+      name: openinwoner
+      repository: '@maykinmedia'
+      version: 1.11.0
+    - alias: kisselastic
+      condition: kisselastic.enabled
+      name: kiss-elastic
+      repository: '@kiss-elastic'
+      tags:
+      - contact
+      version: 1.1.0
+    - condition: infinispan.enabled
+      name: infinispan
+      repository: '@openshift'
+      version: 0.5.0
+    - alias: zac
+      condition: zac.enabled
+      name: zaakafhandelcomponent
+      repository: '@zac'
+      tags:
+      - zaak
+      version: 1.0.116
+    - condition: zgw-office-addin.enabled
+      name: zgw-office-addin
+      repository: '@zgw-office-addin'
+      version: 0.0.37
+    - alias: ita
+      condition: ita.enabled
+      name: internetaakafhandeling
+      repository: oci://ghcr.io/interne-taak-afhandeling
+      version: 1.0.2
+    description: PodiumD Helm chart
+    digest: c0e8afd5ee19e83fe886f8dfd0897460928adfac369464557ba0126a8a2720a3
+    name: podiumd
+    type: application
+    urls:
+    - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/podiumd-4.3.1/podiumd-4.3.1.tgz
+    version: 4.3.1
   - apiVersion: v2
     appVersion: 4.3.0
     created: "2025-09-19T12:57:37.284744121Z"
@@ -6013,4 +6106,4 @@ entries:
     urls:
     - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/zac-1.0.0/zac-1.0.0.tgz
     version: 1.0.0
-generated: "2025-09-24T14:17:57.835012985Z"
+generated: "2025-09-29T13:43:14.838143327Z"
