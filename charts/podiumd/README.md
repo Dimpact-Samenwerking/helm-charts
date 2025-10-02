@@ -93,7 +93,7 @@
 | ClamAV             | 1.4.2      |                  | 3.2.0        |                 |
 | Keycloak           | 26.3.1     |                  | 24.8.0       |                 |
 | Infinispan         | 15.2       | Minor update     | 0.5          | Minor update    |
-| ITA                | 1.0.1      | Nieuw Component  | 1.0.1      | Nieuw component |
+| ITA                | 1.0.1      | Nieuw Component  | 1.0.1        | Nieuw component |
 | Objecten           | 3.1.4      | Patch update     | 2.9.0        | Minor update    |
 | Objecttypen        | 3.2.1      | Minor update     | 1.4.0        | Minor update    |
 | Open Formulieren   | 3.2.4      | Minor update     | 1.9.0        | Minor update    |
@@ -115,19 +115,19 @@
 |--------------------|------------|------------------|--------------|-----------------|
 | ClamAV             | 1.4.2      |                  | 3.2.0        |                 |
 | Keycloak           | 26.3.1     |                  | 24.8.0       |                 |
-| Infinispan         | 15.2       | Minor update     | 0.5          | Minor update    |
-| ITA                | 1.0.1      | Nieuw Component  | 1.0.1      | Nieuw component |
-| Objecten           | 3.1.4      | Patch update     | 2.9.0        | Minor update    |
-| Objecttypen        | 3.2.1      | Minor update     | 1.4.0        | Minor update    |
-| Open Formulieren   | 3.2.4      | Minor update     | 1.9.0        | Minor update    |
-| Open Inwoner       | 1.34.1     | Minor update     | 1.11.0       | Minor update    |
-| Open Klant         | 2.12.1     | Minor update     | 1.8.0        | Minor update    |
-| Open Notificaties  | 1.12.0     | Minor update     | 1.11.1       | Minor update    |
-| Open Zaak          | 1.24.0     | Minor update     | 1.11.0       | Minor update    |
-| Open Archiefbeheer | 1.1.0      | Minor update     | 1.4.0        | Minor update    |
-| Kiss               | 1.2.1      |  Patch update    | 1.0.1        | Patch update    |
-| Zac                | 3.14.12    | Minor update     | 1.0.116      |                 |
-| ZGW Office Addin   | 0.0.299    | Nieuw component  | 0.0.31       | Nieuw component | 
+| Infinispan         | 15.2       |                  | 0.5          |                 |
+| ITA                | 1.0.1      |                  | 1.0.1        |                 |
+| Objecten           | 3.1.4      |                  | 2.9.0        |                 |
+| Objecttypen        | 3.2.1      |                  | 1.4.0        |                 |
+| Open Formulieren   | 3.2.4      |                  | 1.9.0        |                 |
+| Open Inwoner       | 1.34.1     |   Minor update   | 1.11.0       |                 |
+| Open Klant         | 2.12.1     |                  | 1.8.0        |                 |
+| Open Notificaties  | 1.12.0     |                  | 1.11.1       |                 |
+| Open Zaak          | 1.24.0     |                  | 1.11.0       |                 |
+| Open Archiefbeheer | 1.1.0      |                  | 1.4.1        |  Minor update   |
+| Kiss               | 1.2.1      |                  | 1.0.1        |                 |
+| Zac                | 3.14.12    |                  | 1.0.116      |                 |
+| ZGW Office Addin   | 0.0.299    |                  | 0.0.31       |                 |
 
 
 
