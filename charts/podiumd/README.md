@@ -107,7 +107,7 @@
 | ZGW Office Addin   | 0.0.299    | Nieuw component  | 0.0.31       | Nieuw component | 
 
 
-### [4.3.3](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.3.0)
+### [4.3.4](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.3.4)
 
 **PodiumD Helm chart version: 4.3.3 **
 
@@ -120,7 +120,7 @@
 | Objecten           | 3.1.4      |                  | 2.9.0        |                 |
 | Objecttypen        | 3.2.1      |                  | 1.4.0        |                 |
 | Open Formulieren   | 3.2.4      |                  | 1.9.0        |                 |
-| Open Inwoner       | 1.34.1     |   Minor update   | 1.11.0       |                 |
+| Open Inwoner       | 1.34.2     |   Minor update   | 1.11.0       |                 |
 | Open Klant         | 2.12.1     |                  | 1.8.0        |                 |
 | Open Notificaties  | 1.12.0     |                  | 1.11.1       |                 |
 | Open Zaak          | 1.24.0     |                  | 1.11.0       |                 |
@@ -754,3 +754,4 @@ Tags to add additional unreleased PodiumD functionality.
 If an Helm upgrade of a component fails because of a forbidden update to a statefullset spec the statefullset needs to be deleted prior to the Helm upgrade by the following command:
                                                                                                                                                                    
 $ kubectl delete sts <component>-redis-master -n podiumd --cascade=orphan
+
