@@ -143,7 +143,7 @@
 | Objecten           | 3.1.4      |                  | 2.9.0        |                 |
 | Objecttypen        | 3.2.1      |                  | 1.4.0        |                 |
 | Open Formulieren   | 3.2.4      |                  | 1.10.1       |  Minor update   |
-| Open Inwoner       | 1.34.2     |                  | 1.11.0       |                 |
+| Open Inwoner       | 1.34.2     |                  | 1.11.2       |  Minor update   |
 | Open Klant         | 2.12.1     |                  | 1.8.0        |                 |
 | Open Notificaties  | 1.12.0     |                  | 1.11.1       |                 |
 | Open Zaak          | 1.24.0     |                  | 1.11.0       |                 |
