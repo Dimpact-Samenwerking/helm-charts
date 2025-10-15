@@ -1884,7 +1884,7 @@ zac:
   global:
     curlImage:
       #repository: curlimages/curl
-      tag: 8.15.0
+      tag: 8.16.0
   # ghcr.io/infonl/zaakafhandelcomponent:3.14.0
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
@@ -1915,7 +1915,7 @@ zac:
     # nginxinc/nginx-unprivileged:1.29.1
     image:
       # repository: nginxinc/nginx-unprivileged
-      tag: 1.29.1
+      tag: 1.29.2
   # notificationsSecretKey: "changeme"
   objectenApi:
     url: http://objecten.example.nl
