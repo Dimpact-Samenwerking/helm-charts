@@ -36,9 +36,570 @@
         "x": 0,
         "y": 0
       },
-      "id": 102,
+      "id": 120,
       "panels": [],
       "title": "Summary",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 3,
+        "x": 0,
+        "y": 1
+      },
+      "id": 113,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "value",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.1.0",
+      "targets": [
+        {
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "sum(\n    count_over_time (\n        {app=\"openformulieren\"}\n        | json \n        | event = `submission_completed` \n        [$__range]\n    )\n) ",
+          "legendFormat": "Submissions",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "OF Submissions",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 2,
+        "x": 3,
+        "y": 1
+      },
+      "id": 114,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.1.0",
+      "targets": [
+        {
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "sum(\n    count_over_time (\n        {app=\"openformulieren-worker\"}\n        | json \n        | event = `registration_success` \n        | action = `registrations.main_registration`\n        [$__range]\n    )\n) ",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "OF success",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 3,
+        "x": 5,
+        "y": 1
+      },
+      "id": 116,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.1.0",
+      "targets": [
+        {
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "sum(\n    count_over_time (\n        {app=\"objecten\"}\n        | json \n        | event = `object_created` \n        [$__range]\n    ) or vector(0)\n) ",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "Objects success",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 3,
+        "x": 8,
+        "y": 1
+      },
+      "id": 118,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.1.0",
+      "targets": [
+        {
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "sum(\n    count_over_time (\n        {app=\"opennotificaties-worker\"}\n        | json \n        | task=\"nrc.api.tasks.deliver_message\" \n        | event=\"task_started\"\n        [$__range]\n    )\n) ",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "Notifications success",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 3,
+        "x": 12,
+        "y": 1
+      },
+      "id": 123,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.1.0",
+      "targets": [
+        {
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "sum(\n    count_over_time (\n        {app=\"openzaak\"}\n        | json \n        | event = `zaak_created` \n        [$__range]\n    ) or vector(0)\n) ",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "Zaak success (Open Zaak)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 2,
+        "x": 3,
+        "y": 4
+      },
+      "id": 115,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "distinctCount"
+          ],
+          "fields": "/^public_reference$/",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.1.0",
+      "targets": [
+        {
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "sum by (public_reference)(\n  count_over_time(\n    {app=\"openformulieren-worker\"}\n    | json\n    | event=\"registration_failure\"\n    | action=\"registrations.main_registration\"\n    [$__range]\n    ) \n)",
+          "queryType": "instant",
+          "refId": "A"
+        }
+      ],
+      "title": "OF fails",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 3,
+        "x": 5,
+        "y": 4
+      },
+      "id": 117,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.1.0",
+      "targets": [
+        {
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "sum(\n    count_over_time (\n        {app=\"objecten\"}\n        | json\n        | event = \"request_finished\"\n        | request = \"POST /api/v2/objects\"\n        | code >= 400\n        [$__range]\n    ) or vector(0)\n) ",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "Objects fails",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 3,
+        "x": 8,
+        "y": 4
+      },
+      "id": 119,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.1.0",
+      "targets": [
+        {
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "sum(\n    count_over_time (\n        {app=\"opennotificaties-worker\"}\n        | json \n        | event=\"notification_failed\" or event=\"notification_error\"  \n        [$__range]\n    )\n    or vector(0)\n) ",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "Notifications failed",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 3,
+        "x": 12,
+        "y": 4
+      },
+      "id": 124,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.1.0",
+      "targets": [
+        {
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "sum(\n    count_over_time (\n        {app=\"openzaak\"}\n        | json\n        | event = \"request_finished\"\n        | request = \"POST /zaken/api/v1/zaken\"\n        | code >= 400\n        [$__range]\n    ) or vector(0)\n) ",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "Zaak fails (Open Zaak)",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 7
+      },
+      "id": 102,
+      "panels": [],
+      "title": "Detailed summary",
       "type": "row"
     },
     {
@@ -66,17 +627,13 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Total success"
+              "options": "Failures"
             },
             "properties": [
               {
-                "id": "unit",
-                "value": "percentunit"
-              },
-              {
                 "id": "color",
                 "value": {
-                  "fixedColor": "green",
+                  "fixedColor": "semi-dark-red",
                   "mode": "fixed"
                 }
               }
@@ -85,369 +642,15 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Gestuurde notificaties"
+              "options": "Successes"
             },
             "properties": [
               {
                 "id": "color",
                 "value": {
-                  "fixedColor": "purple",
+                  "fixedColor": "semi-dark-green",
                   "mode": "fixed"
                 }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Sent notifications"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "purple",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          }
-        ]
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 24,
-        "x": 0,
-        "y": 1
-      },
-      "id": 106,
-      "options": {
-        "displayLabels": [
-          "value"
-        ],
-        "legend": {
-          "displayMode": "table",
-          "placement": "right",
-          "showLegend": true,
-          "values": [
-            "value"
-          ]
-        },
-        "pieType": "pie",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "12.1.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "direction": "backward",
-          "editorMode": "code",
-          "expr": "sum(\r\n    count_over_time (\r\n        {app=\"opennotificaties-worker\"}\r\n        | json \r\n        | event=\"notification_successful\"\r\n        [$__range]\r\n    )\r\n) or vector(0)",
-          "hide": false,
-          "legendFormat": "Sent notifications",
-          "queryType": "range",
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "direction": "backward",
-          "editorMode": "code",
-          "expr": "sum(\r\n    count_over_time (\r\n        {app=\"openformulieren-worker\"}\r\n        | json \r\n        | event = `registration_success` \r\n        | action = `registrations.main_registration`\r\n        | plugin = \"zgw-create-zaak\"\r\n        [$__range]\r\n    )\r\n) or vector(0)",
-          "hide": false,
-          "legendFormat": "Successfully registered forms (plugin=zgw-create-zaak)",
-          "queryType": "range",
-          "refId": "E"
-        },
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "direction": "backward",
-          "editorMode": "code",
-          "expr": "sum(\r\n    count_over_time (\r\n        {app=\"openzaak\"}\r\n        | json \r\n        | event = `zaak_created` \r\n        [$__range]\r\n    )\r\n) or vector(0)",
-          "hide": false,
-          "legendFormat": "Created cases",
-          "queryType": "range",
-          "refId": "F"
-        },
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "direction": "backward",
-          "editorMode": "code",
-          "expr": "sum(count_over_time (\r\n        {app=\"zac\"}\r\n        |~ \"action=CREATE\"\r\n        |~ \"nl.info.zac.notification.NotificationReceiver\"\r\n        [$__range]\r\n    )\r\n) or vector(0)",
-          "hide": false,
-          "legendFormat": "Received notifications ZAC",
-          "queryType": "range",
-          "refId": "C"
-        },
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "direction": "backward",
-          "editorMode": "code",
-          "expr": "sum (\r\n  count_over_time(\r\n    {app=\"openformulieren-worker\"}\r\n    | json\r\n    | event=\"registration_failure\"\r\n    | action=\"registrations.main_registration\"\r\n    | plugin = \"zgw-create-zaak\"\r\n    [$__range]\r\n    ) \r\n)\r\nor vector(0)",
-          "hide": false,
-          "legendFormat": "Registration fail",
-          "queryType": "range",
-          "refId": "D"
-        }
-      ],
-      "title": "Chain Open Forms -> Open Zaak",
-      "transformations": [
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Total success",
-            "binary": {
-              "left": {
-                "matcher": {
-                  "id": "byName",
-                  "options": "Created cases"
-                }
-              },
-              "operator": "/",
-              "right": {
-                "matcher": {
-                  "id": "byName",
-                  "options": "Successfully registered forms (plugin=zgw-create-zaak)"
-                }
-              }
-            },
-            "mode": "binary",
-            "reduce": {
-              "reducer": "sum"
-            },
-            "replaceFields": false
-          }
-        }
-      ],
-      "type": "piechart"
-    },
-    {
-      "datasource": {
-        "type": "loki",
-        "uid": "loki"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            }
-          },
-          "fieldMinMax": false,
-          "mappings": [],
-          "unit": "short"
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Total success"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "percentunit"
-              },
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "green",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Created Objects"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "purple",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          }
-        ]
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 24,
-        "x": 0,
-        "y": 8
-      },
-      "id": 112,
-      "options": {
-        "displayLabels": [
-          "value"
-        ],
-        "legend": {
-          "displayMode": "table",
-          "placement": "right",
-          "showLegend": true,
-          "values": [
-            "value"
-          ]
-        },
-        "pieType": "pie",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "12.1.0",
-      "targets": [
-        {
-          "direction": "backward",
-          "editorMode": "code",
-          "expr": "sum(\n    count_over_time (\n        {app=\"objecten\"}\n        | json \n        | event = `object_created` \n        [$__range]\n    )\n) or vector(0)",
-          "legendFormat": "Created Objects",
-          "queryType": "range",
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "direction": "backward",
-          "editorMode": "code",
-          "expr": "sum(\r\n    count_over_time (\r\n        {app=\"opennotificaties-worker\"}\r\n        | json \r\n        | event=\"notification_successful\"\r\n        | channel_name = \"objecten\"\r\n        [$__range]\r\n    )\r\n) or vector(0)",
-          "hide": false,
-          "legendFormat": "Sent Notifications (channel=objects)",
-          "queryType": "range",
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "direction": "backward",
-          "editorMode": "code",
-          "expr": "sum(\r\n    count_over_time (\r\n        {app=\"openformulieren-worker\"}\r\n        | json \r\n        | event = `registration_success` \r\n        | action = `registrations.main_registration`\r\n        | plugin = `objects_api`\r\n        [$__range]\r\n    )\r\n) or vector(0)",
-          "hide": false,
-          "legendFormat": "Successfully registered forms",
-          "queryType": "range",
-          "refId": "E"
-        },
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "direction": "backward",
-          "editorMode": "code",
-          "expr": "sum (\r\n  count_over_time(\r\n    {app=\"openformulieren-worker\"}\r\n    | json\r\n    | event=\"registration_failure\"\r\n    | action=\"registrations.main_registration\"\r\n    | plugin = \"zgw-create-zaak\"\r\n    [$__range]\r\n    ) \r\n)\r\nor vector(0)",
-          "hide": false,
-          "legendFormat": "Registration fail",
-          "queryType": "range",
-          "refId": "C"
-        }
-      ],
-      "title": "Chain Open Forms -> Objects API",
-      "transformations": [
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Total success",
-            "binary": {
-              "left": {
-                "matcher": {
-                  "id": "byName",
-                  "options": "Sent Notifications (channel=objects)"
-                }
-              },
-              "operator": "/",
-              "right": {
-                "matcher": {
-                  "id": "byName",
-                  "options": "Successfully registered forms"
-                }
-              }
-            },
-            "mode": "binary",
-            "reduce": {
-              "reducer": "sum"
-            }
-          }
-        }
-      ],
-      "type": "piechart"
-    },
-    {
-      "datasource": {
-        "type": "loki",
-        "uid": "loki"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            }
-          },
-          "fieldMinMax": false,
-          "mappings": [],
-          "unit": "short"
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Total success"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "percentunit"
               }
             ]
           }
@@ -457,7 +660,7 @@
         "h": 9,
         "w": 12,
         "x": 0,
-        "y": 15
+        "y": 8
       },
       "id": 109,
       "options": {
@@ -491,8 +694,8 @@
         {
           "direction": "backward",
           "editorMode": "code",
-          "expr": "sum(\n    count_over_time (\n        {app=\"openformulieren\"}\n        | json \n        | event = `submission_completed` \n        [$__range]\n    ) \n) or vector(0)",
-          "legendFormat": "Submission",
+          "expr": "sum(\n    count_over_time (\n        {app=\"openformulieren\"}\n        | json \n        | event = `submission_completed` \n        [$__range]\n    ) or vector(0)\n) \n- sum(\n    count_over_time (\n        {app=\"openformulieren-worker\"}\n        | json \n        | event = `registration_success` \n        | action = `registrations.main_registration`\n        [$__range]\n    ) or vector(0)\n) ",
+          "legendFormat": "Failures",
           "queryType": "range",
           "refId": "A"
         },
@@ -503,51 +706,14 @@
           },
           "direction": "backward",
           "editorMode": "code",
-          "expr": "sum(\r\n    count_over_time (\r\n        {app=\"openformulieren-worker\"}\r\n        | json \r\n        | event = `registration_success` \r\n        | action = `registrations.main_registration`\r\n        [$__range]\r\n    )\r\n) or vector(0)",
+          "expr": "sum(\r\n    count_over_time (\r\n        {app=\"openformulieren-worker\"}\r\n        | json \r\n        | event = `registration_success` \r\n        | action = `registrations.main_registration`\r\n        [$__range]\r\n    ) or vector(0)\r\n) ",
           "hide": false,
-          "legendFormat": "Submission registered",
+          "legendFormat": "Successes",
           "queryType": "range",
           "refId": "C"
         }
       ],
       "title": "Open Forms stats",
-      "transformations": [
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Total success",
-            "binary": {
-              "left": {
-                "matcher": {
-                  "id": "byName",
-                  "options": "Submission registered"
-                }
-              },
-              "operator": "/",
-              "right": {
-                "matcher": {
-                  "id": "byName",
-                  "options": "Submission"
-                }
-              }
-            },
-            "mode": "binary",
-            "reduce": {
-              "include": [
-                "Submission",
-                "Submission registered"
-              ],
-              "reducer": "sum"
-            },
-            "window": {
-              "reducer": "mean",
-              "windowAlignment": "trailing",
-              "windowSize": 0.1,
-              "windowSizeMode": "percentage"
-            }
-          }
-        }
-      ],
       "type": "piechart"
     },
     {
@@ -555,7 +721,7 @@
         "type": "loki",
         "uid": "loki"
       },
-      "description": "Failed numbers can be duplicated due to repeated attempts",
+      "description": "",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -643,7 +809,7 @@
         "h": 9,
         "w": 12,
         "x": 12,
-        "y": 15
+        "y": 8
       },
       "id": 99,
       "options": {
@@ -680,7 +846,7 @@
           "refId": "A"
         }
       ],
-      "title": "Open Forms - registrations",
+      "title": "Open Forms stats by registration plugin",
       "transformations": [
         {
           "id": "groupingToMatrix",
@@ -710,59 +876,25 @@
               "viz": false
             }
           },
-          "fieldMinMax": false,
-          "mappings": [],
-          "unit": "short"
+          "mappings": []
         },
-        "overrides": [
-          {
-            "__systemRef": "hideSeriesFrom",
-            "matcher": {
-              "id": "byNames",
-              "options": {
-                "mode": "exclude",
-                "names": [
-                  "channel = ZAKEN, resource = ZAAKINFORMATIEOBJECT",
-                  "channel = INFORMATIEOBJECTEN, resource= INFORMATIEOBJECT",
-                  "channel = ZAKEN, resource = ZAKEN",
-                  "Total Notifications",
-                  "channel = ZAKEN, resource = ROL"
-                ],
-                "prefix": "All except:",
-                "readOnly": true
-              }
-            },
-            "properties": [
-              {
-                "id": "custom.hideFrom",
-                "value": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": true
-                }
-              }
-            ]
-          }
-        ]
+        "overrides": []
       },
       "gridPos": {
-        "h": 7,
-        "w": 24,
+        "h": 8,
+        "w": 12,
         "x": 0,
-        "y": 24
+        "y": 17
       },
-      "id": 107,
+      "id": 121,
       "options": {
         "displayLabels": [
           "value"
         ],
         "legend": {
-          "displayMode": "table",
-          "placement": "right",
-          "showLegend": true,
-          "values": [
-            "value"
-          ]
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
         },
         "pieType": "pie",
         "reduceOptions": {
@@ -783,53 +915,134 @@
         {
           "direction": "backward",
           "editorMode": "code",
-          "expr": "sum(count_over_time (\n        {app=\"zac\"}\n        |~ \"action=CREATE\"\n        |~ \"resource=ZAAKINFORMATIEOBJECT\"\n        |~ \"channel=ZAKEN\"\n        [$__range]\n    )\n) \n",
-          "legendFormat": "channel = ZAKEN, resource = ZAAKINFORMATIEOBJECT",
+          "expr": "sum by (subscription_callback)(\n    count_over_time (\n        {app=\"opennotificaties-worker\"}\n        | json \n        | event = `notification_successful` \n        [$__range]\n    )\n) ",
+          "legendFormat": "{{subscription_callback}}",
           "queryType": "range",
           "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "direction": "backward",
-          "editorMode": "code",
-          "expr": "sum(count_over_time (\r\n        {app=\"zac\"}\r\n        |~ \"action=CREATE\"\r\n        |~ \"resource=INFORMATIEOBJECT\"\r\n        |~ \"channel=INFORMATIEOBJECTEN\"\r\n        [$__range]\r\n    )\r\n) ",
-          "hide": false,
-          "legendFormat": "channel = INFORMATIEOBJECTEN, resource= INFORMATIEOBJECT",
-          "queryType": "range",
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "direction": "backward",
-          "editorMode": "code",
-          "expr": "sum(count_over_time (\r\n        {app=\"zac\"}\r\n        |~ \"action=CREATE\"\r\n        |~ \"resource=ZAAK\"\r\n        |~ \"channel=ZAKEN\" \r\n        [$__range]\r\n    )\r\n) ",
-          "hide": false,
-          "legendFormat": "channel = ZAKEN, resource = ZAKEN",
-          "queryType": "range",
-          "refId": "C"
-        },
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "direction": "backward",
-          "editorMode": "code",
-          "expr": "sum(count_over_time (\n        {app=\"zac\"}\n        |~ \"action=CREATE\"\n        |~ \"resource=ROL\"\n        |~ \"channel=ZAKEN\"\n        [$__range]\n    )\n) \n",
-          "hide": false,
-          "legendFormat": "channel = ZAKEN, resource = ROL",
-          "queryType": "range",
-          "refId": "D"
         }
       ],
-      "title": "Received Notifications ZAC",
+      "title": "Nofications by subscriber",
+      "transformations": [
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "https://(.*?)/.*",
+            "renamePattern": "$1"
+          }
+        }
+      ],
       "type": "piechart"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "red",
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineWidth": 1,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 17
+      },
+      "id": 122,
+      "options": {
+        "barRadius": 0,
+        "barWidth": 0.97,
+        "fullHighlight": false,
+        "groupWidth": 0.7,
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "orientation": "auto",
+        "showValue": "always",
+        "stacking": "none",
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        },
+        "xField": "resource\\subscription_callback",
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0
+      },
+      "pluginVersion": "12.1.0",
+      "targets": [
+        {
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "sum by(subscription_callback, resource) (\n  count_over_time(\n    {app=\"opennotificaties-worker\"} \n    | json \n    | event=\"notification_successful\" \n    |__error__=``\n    [$__range]\n  )\n)",
+          "legendFormat": "",
+          "queryType": "instant",
+          "refId": "A"
+        }
+      ],
+      "title": "Notifications by subscriber and resource",
+      "transformations": [
+        {
+          "id": "groupingToMatrix",
+          "options": {
+            "columnField": "subscription_callback",
+            "rowField": "resource",
+            "valueField": "Value #A"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "https://(.*?)/.*",
+            "renamePattern": "$1"
+          }
+        }
+      ],
+      "type": "barchart"
     },
     {
       "datasource": {
@@ -862,6 +1075,7 @@
               "mode": "off"
             }
           },
+          "decimals": 0,
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
@@ -872,7 +1086,7 @@
               }
             ]
           },
-          "unit": "string"
+          "unit": "short"
         },
         "overrides": [
           {
@@ -896,12 +1110,12 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 31
+        "y": 26
       },
       "id": 104,
       "options": {
         "barRadius": 0,
-        "barWidth": 0.97,
+        "barWidth": 1,
         "fullHighlight": false,
         "groupWidth": 0.7,
         "legend": {
@@ -963,14 +1177,363 @@
       "type": "barchart"
     },
     {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 34
+      },
+      "id": 69,
+      "panels": [],
+      "title": "Open Forms",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Reference"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 212
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 24,
+        "x": 0,
+        "y": 35
+      },
+      "id": 61,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": []
+      },
+      "pluginVersion": "12.1.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "{app=\"openformulieren-worker\"} \n| json \n| action=\"registrations.main_registration\", event=\"registration_success\"",
+          "queryType": "range",
+          "refId": "B"
+        }
+      ],
+      "title": "Successes",
+      "transformations": [
+        {
+          "id": "extractFields",
+          "options": {
+            "delimiter": ",",
+            "format": "json",
+            "jsonPaths": [
+              {
+                "alias": "Plugin",
+                "path": "plugin"
+              },
+              {
+                "alias": "Reference",
+                "path": "public_reference"
+              },
+              {
+                "alias": "Form",
+                "path": "form"
+              },
+              {
+                "alias": "Submission UUID",
+                "path": "submission_uuid"
+              }
+            ],
+            "source": "labels"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Line": true,
+              "id": true,
+              "labelTypes": true,
+              "labels": true,
+              "tsNs": true
+            },
+            "includeByName": {},
+            "indexByName": {
+              "Form": 8,
+              "Line": 2,
+              "Plugin": 9,
+              "Reference": 7,
+              "Submission UUID": 6,
+              "Time": 1,
+              "id": 5,
+              "labelTypes": 4,
+              "labels": 0,
+              "tsNs": 3
+            },
+            "renameByName": {}
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "description": "Detected registration failures",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Submission UUID"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 320
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Reference"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 210
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 40
+      },
+      "id": 89,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": []
+      },
+      "pluginVersion": "12.1.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "{app=\"openformulieren-worker\"} | json | event=\"registration_failure\"",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "Failures",
+      "transformations": [
+        {
+          "id": "extractFields",
+          "options": {
+            "delimiter": ",",
+            "format": "json",
+            "jsonPaths": [
+              {
+                "alias": "Reference",
+                "path": "public_reference"
+              },
+              {
+                "alias": "Form",
+                "path": "form"
+              },
+              {
+                "alias": "Submission UUID",
+                "path": "submission_uuid"
+              },
+              {
+                "alias": "Action",
+                "path": "action"
+              },
+              {
+                "alias": "Trigger type",
+                "path": "trigger"
+              },
+              {
+                "alias": "Plugin",
+                "path": "plugin"
+              },
+              {
+                "alias": "Event",
+                "path": "event"
+              },
+              {
+                "alias": "Exception",
+                "path": "exception"
+              }
+            ],
+            "source": "labels"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Action": true,
+              "Event": true,
+              "Exception": true,
+              "Line": true,
+              "Trigger type": false,
+              "id": true,
+              "labelTypes": true,
+              "labels": true,
+              "tsNs": true
+            },
+            "includeByName": {},
+            "indexByName": {
+              "Action": 11,
+              "Event": 6,
+              "Form": 9,
+              "Line": 2,
+              "Plugin": 10,
+              "Reference": 8,
+              "Submission UUID": 7,
+              "Time": 1,
+              "Trigger type": 12,
+              "id": 5,
+              "labelTypes": 4,
+              "labels": 0,
+              "tsNs": 3
+            },
+            "renameByName": {}
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "desc": true,
+                "field": "Time"
+              }
+            ]
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "desc": false,
+                "field": "Reference"
+              }
+            ]
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
       "collapsed": true,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 39
+        "y": 46
       },
-      "id": 69,
+      "id": 81,
       "panels": [
         {
           "datasource": {
@@ -1004,28 +1567,15 @@
                 ]
               }
             },
-            "overrides": [
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "Reference"
-                },
-                "properties": [
-                  {
-                    "id": "custom.width",
-                    "value": 212
-                  }
-                ]
-              }
-            ]
+            "overrides": []
           },
           "gridPos": {
-            "h": 5,
+            "h": 6,
             "w": 24,
             "x": 0,
-            "y": 40
+            "y": 73
           },
-          "id": 61,
+          "id": 85,
           "options": {
             "cellHeight": "sm",
             "footer": {
@@ -1036,8 +1586,7 @@
               ],
               "show": false
             },
-            "showHeader": true,
-            "sortBy": []
+            "showHeader": true
           },
           "pluginVersion": "12.1.0",
           "targets": [
@@ -1048,12 +1597,12 @@
               },
               "direction": "backward",
               "editorMode": "code",
-              "expr": "{app=\"openformulieren-worker\"} \n| json \n| action=\"registrations.main_registration\", event=\"registration_success\"",
+              "expr": "{app=\"objecten\"} | json | event = \"object_created\"",
               "queryType": "range",
-              "refId": "B"
+              "refId": "A"
             }
           ],
-          "title": "Successes",
+          "title": "Created objects",
           "transformations": [
             {
               "id": "extractFields",
@@ -1062,20 +1611,16 @@
                 "format": "json",
                 "jsonPaths": [
                   {
-                    "alias": "Plugin",
-                    "path": "plugin"
+                    "alias": "Object",
+                    "path": "object_uuid"
                   },
                   {
-                    "alias": "Reference",
-                    "path": "public_reference"
+                    "alias": "Client",
+                    "path": "token_identifier"
                   },
                   {
-                    "alias": "Form",
-                    "path": "form"
-                  },
-                  {
-                    "alias": "Submission UUID",
-                    "path": "submission_uuid"
+                    "alias": "Objecttype",
+                    "path": "objecttype_uuid"
                   }
                 ],
                 "source": "labels"
@@ -1086,6 +1631,7 @@
               "options": {
                 "excludeByName": {
                   "Line": true,
+                  "Objecttype": true,
                   "id": true,
                   "labelTypes": true,
                   "labels": true,
@@ -1093,11 +1639,10 @@
                 },
                 "includeByName": {},
                 "indexByName": {
-                  "Form": 8,
+                  "Client": 8,
                   "Line": 2,
-                  "Plugin": 9,
-                  "Reference": 7,
-                  "Submission UUID": 6,
+                  "Object": 6,
+                  "Objecttype": 7,
                   "Time": 1,
                   "id": 5,
                   "labelTypes": 4,
@@ -1115,7 +1660,6 @@
             "type": "loki",
             "uid": "loki"
           },
-          "description": "Detected registration failures",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -1143,40 +1687,15 @@
                 ]
               }
             },
-            "overrides": [
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "Submission UUID"
-                },
-                "properties": [
-                  {
-                    "id": "custom.width",
-                    "value": 320
-                  }
-                ]
-              },
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "Reference"
-                },
-                "properties": [
-                  {
-                    "id": "custom.width",
-                    "value": 210
-                  }
-                ]
-              }
-            ]
+            "overrides": []
           },
           "gridPos": {
-            "h": 6,
+            "h": 9,
             "w": 24,
             "x": 0,
-            "y": 68
+            "y": 79
           },
-          "id": 89,
+          "id": 90,
           "options": {
             "cellHeight": "sm",
             "footer": {
@@ -1187,8 +1706,7 @@
               ],
               "show": false
             },
-            "showHeader": true,
-            "sortBy": []
+            "showHeader": true
           },
           "pluginVersion": "12.1.0",
           "targets": [
@@ -1199,7 +1717,7 @@
               },
               "direction": "backward",
               "editorMode": "code",
-              "expr": "{app=\"openformulieren-worker\"} | json | event=\"registration_failure\" | trigger = \"on_completion\"",
+              "expr": "{app=\"objecten\"}\n| json\n| event = \"request_finished\"\n| request = \"POST /api/v2/objects\"\n| code >= 400",
               "queryType": "range",
               "refId": "A"
             }
@@ -1209,40 +1727,15 @@
             {
               "id": "extractFields",
               "options": {
-                "delimiter": ",",
                 "format": "json",
                 "jsonPaths": [
                   {
-                    "alias": "Reference",
-                    "path": "public_reference"
+                    "alias": "Code",
+                    "path": "code"
                   },
                   {
-                    "alias": "Form",
-                    "path": "form"
-                  },
-                  {
-                    "alias": "Submission UUID",
-                    "path": "submission_uuid"
-                  },
-                  {
-                    "alias": "Action",
-                    "path": "action"
-                  },
-                  {
-                    "alias": "Trigger type",
-                    "path": "trigger"
-                  },
-                  {
-                    "alias": "Plugin",
-                    "path": "plugin"
-                  },
-                  {
-                    "alias": "Event",
-                    "path": "event"
-                  },
-                  {
-                    "alias": "Exception",
-                    "path": "exception"
+                    "alias": "Request Id",
+                    "path": "request_id"
                   }
                 ],
                 "source": "labels"
@@ -1252,65 +1745,304 @@
               "id": "organize",
               "options": {
                 "excludeByName": {
-                  "Action": true,
-                  "Event": true,
-                  "Exception": true,
                   "Line": true,
-                  "Trigger type": true,
+                  "app": true,
+                  "client": true,
+                  "code": false,
+                  "container": true,
+                  "detected_level": true,
+                  "event": true,
                   "id": true,
+                  "instance": true,
                   "labelTypes": true,
                   "labels": true,
+                  "level": true,
+                  "logger": true,
+                  "logstream": true,
+                  "request": true,
+                  "service_name": true,
+                  "target": true,
+                  "timestamp": true,
                   "tsNs": true
                 },
                 "includeByName": {},
-                "indexByName": {
-                  "Action": 11,
-                  "Event": 6,
-                  "Form": 9,
-                  "Line": 2,
-                  "Plugin": 10,
-                  "Reference": 8,
-                  "Submission UUID": 7,
-                  "Time": 1,
-                  "Trigger type": 12,
-                  "id": 5,
-                  "labelTypes": 4,
-                  "labels": 0,
-                  "tsNs": 3
-                },
+                "indexByName": {},
                 "renameByName": {}
-              }
-            },
-            {
-              "id": "sortBy",
-              "options": {
-                "fields": {},
-                "sort": [
-                  {
-                    "desc": true,
-                    "field": "Time"
-                  }
-                ]
-              }
-            },
-            {
-              "id": "sortBy",
-              "options": {
-                "fields": {},
-                "sort": [
-                  {
-                    "desc": false,
-                    "field": "Plugin"
-                  }
-                ]
               }
             }
           ],
           "type": "table"
         }
       ],
-      "title": "Open Forms",
+      "title": "Objects API",
       "type": "row"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 47
+      },
+      "id": 82,
+      "panels": [],
+      "title": "Open Notificaties",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 24,
+        "x": 0,
+        "y": 48
+      },
+      "id": 98,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "pluginVersion": "12.1.0",
+      "targets": [
+        {
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "{app=\"opennotificaties-worker\"}\n| json \n| event=\"notification_successful\"\n",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "Successful notifications",
+      "transformations": [
+        {
+          "id": "extractFields",
+          "options": {
+            "delimiter": ",",
+            "format": "json",
+            "jsonPaths": [
+              {
+                "alias": "Subscriber",
+                "path": "subscription_callback"
+              },
+              {
+                "alias": "Channel",
+                "path": "channel_name"
+              },
+              {
+                "alias": "Action",
+                "path": "action"
+              },
+              {
+                "alias": "Resource",
+                "path": "resource"
+              },
+              {
+                "alias": "Url",
+                "path": "resource_url"
+              }
+            ],
+            "source": "labels"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Line": true,
+              "id": true,
+              "labelTypes": true,
+              "labels": true,
+              "tsNs": true
+            },
+            "includeByName": {},
+            "indexByName": {},
+            "renameByName": {}
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 53
+      },
+      "id": 97,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "pluginVersion": "12.1.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "{app=\"opennotificaties-worker\"} \n| json \n| event=\"notification_failed\" or event=\"notification_error\"  ",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "Failures",
+      "transformations": [
+        {
+          "id": "extractFields",
+          "options": {
+            "format": "json",
+            "jsonPaths": [
+              {
+                "alias": "Resource",
+                "path": "resource"
+              },
+              {
+                "alias": "Action",
+                "path": "action"
+              },
+              {
+                "alias": "Url",
+                "path": "resource_url"
+              },
+              {
+                "alias": "Subscriber",
+                "path": "subscription_callback"
+              },
+              {
+                "alias": "Channel",
+                "path": "channel_name"
+              },
+              {
+                "alias": "Attempt",
+                "path": "task_attempt_count"
+              },
+              {
+                "alias": "Status",
+                "path": "http_status_code"
+              }
+            ],
+            "keepTime": false,
+            "replace": false,
+            "source": "labels"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Line": true,
+              "Status": true,
+              "id": true,
+              "labelTypes": true,
+              "labels": true,
+              "tsNs": true
+            },
+            "includeByName": {},
+            "indexByName": {
+              "Action": 8,
+              "Attempt": 6,
+              "Channel": 9,
+              "Line": 2,
+              "Resource": 7,
+              "Status": 12,
+              "Subscriber": 10,
+              "Time": 1,
+              "Url": 11,
+              "id": 5,
+              "labelTypes": 4,
+              "labels": 0,
+              "tsNs": 3
+            },
+            "renameByName": {}
+          }
+        }
+      ],
+      "type": "table"
     },
     {
       "collapsed": true,
@@ -1318,7 +2050,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 40
+        "y": 57
       },
       "id": 94,
       "panels": [
@@ -1361,7 +2093,7 @@
             "h": 7,
             "w": 24,
             "x": 0,
-            "y": 41
+            "y": 99
           },
           "id": 75,
           "options": {
@@ -1465,7 +2197,7 @@
             "h": 5,
             "w": 24,
             "x": 0,
-            "y": 71
+            "y": 106
           },
           "id": 91,
           "options": {
@@ -1571,526 +2303,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 41
-      },
-      "id": 81,
-      "panels": [
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "thresholds"
-              },
-              "custom": {
-                "align": "auto",
-                "cellOptions": {
-                  "type": "auto"
-                },
-                "inspect": false
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": 0
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 6,
-            "w": 24,
-            "x": 0,
-            "y": 42
-          },
-          "id": 85,
-          "options": {
-            "cellHeight": "sm",
-            "footer": {
-              "countRows": false,
-              "fields": "",
-              "reducer": [
-                "sum"
-              ],
-              "show": false
-            },
-            "showHeader": true
-          },
-          "pluginVersion": "12.1.0",
-          "targets": [
-            {
-              "datasource": {
-                "type": "loki",
-                "uid": "loki"
-              },
-              "direction": "backward",
-              "editorMode": "code",
-              "expr": "{app=\"objecten\"} | json | event = \"object_created\"",
-              "queryType": "range",
-              "refId": "A"
-            }
-          ],
-          "title": "Created objects",
-          "transformations": [
-            {
-              "id": "extractFields",
-              "options": {
-                "format": "json",
-                "jsonPaths": [
-                  {
-                    "alias": "Object",
-                    "path": "object_uuid"
-                  },
-                  {
-                    "alias": "Client",
-                    "path": "token_application"
-                  },
-                  {
-                    "alias": "Objecttype",
-                    "path": "objecttype_uuid"
-                  }
-                ],
-                "source": "labels"
-              }
-            },
-            {
-              "id": "organize",
-              "options": {
-                "excludeByName": {
-                  "Line": true,
-                  "Objecttype": true,
-                  "id": true,
-                  "labelTypes": true,
-                  "labels": true,
-                  "tsNs": true
-                },
-                "includeByName": {},
-                "indexByName": {
-                  "Client": 8,
-                  "Line": 2,
-                  "Object": 6,
-                  "Objecttype": 7,
-                  "Time": 1,
-                  "id": 5,
-                  "labelTypes": 4,
-                  "labels": 0,
-                  "tsNs": 3
-                },
-                "renameByName": {}
-              }
-            }
-          ],
-          "type": "table"
-        },
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "thresholds"
-              },
-              "custom": {
-                "align": "auto",
-                "cellOptions": {
-                  "type": "auto"
-                },
-                "inspect": false
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": 0
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 9,
-            "w": 24,
-            "x": 0,
-            "y": 71
-          },
-          "id": 90,
-          "options": {
-            "cellHeight": "sm",
-            "footer": {
-              "countRows": false,
-              "fields": "",
-              "reducer": [
-                "sum"
-              ],
-              "show": false
-            },
-            "showHeader": true
-          },
-          "pluginVersion": "12.1.0",
-          "targets": [
-            {
-              "datasource": {
-                "type": "loki",
-                "uid": "loki"
-              },
-              "direction": "backward",
-              "editorMode": "code",
-              "expr": "{app=\"objecten\"}\n| json\n| event = \"request_finished\"\n| request = \"POST /api/v2/objects\"\n| code >= 400",
-              "queryType": "range",
-              "refId": "A"
-            }
-          ],
-          "title": "Failures",
-          "transformations": [
-            {
-              "id": "extractFields",
-              "options": {
-                "format": "json",
-                "jsonPaths": [
-                  {
-                    "alias": "Code",
-                    "path": "code"
-                  },
-                  {
-                    "alias": "Request Id",
-                    "path": "request_id"
-                  }
-                ],
-                "source": "labels"
-              }
-            },
-            {
-              "id": "organize",
-              "options": {
-                "excludeByName": {
-                  "Line": true,
-                  "app": true,
-                  "client": true,
-                  "code": false,
-                  "container": true,
-                  "detected_level": true,
-                  "event": true,
-                  "id": true,
-                  "instance": true,
-                  "labelTypes": true,
-                  "labels": true,
-                  "level": true,
-                  "logger": true,
-                  "logstream": true,
-                  "request": true,
-                  "service_name": true,
-                  "target": true,
-                  "timestamp": true,
-                  "tsNs": true
-                },
-                "includeByName": {},
-                "indexByName": {},
-                "renameByName": {}
-              }
-            }
-          ],
-          "type": "table"
-        }
-      ],
-      "title": "Objects API",
-      "type": "row"
-    },
-    {
-      "collapsed": true,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 42
-      },
-      "id": 82,
-      "panels": [
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "thresholds"
-              },
-              "custom": {
-                "align": "auto",
-                "cellOptions": {
-                  "type": "auto"
-                },
-                "inspect": false
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": 0
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 5,
-            "w": 24,
-            "x": 0,
-            "y": 43
-          },
-          "id": 98,
-          "options": {
-            "cellHeight": "sm",
-            "footer": {
-              "countRows": false,
-              "fields": "",
-              "reducer": [
-                "sum"
-              ],
-              "show": false
-            },
-            "showHeader": true
-          },
-          "pluginVersion": "12.1.0",
-          "targets": [
-            {
-              "direction": "backward",
-              "editorMode": "code",
-              "expr": "{app=\"opennotificaties-worker\"}\n| json \n| event=\"notification_successful\"\n",
-              "queryType": "range",
-              "refId": "A"
-            }
-          ],
-          "title": "Successful notifications",
-          "transformations": [
-            {
-              "id": "extractFields",
-              "options": {
-                "delimiter": ",",
-                "format": "json",
-                "jsonPaths": [
-                  {
-                    "alias": "Subscriber",
-                    "path": "subscription_callback"
-                  },
-                  {
-                    "alias": "Channel",
-                    "path": "channel_name"
-                  },
-                  {
-                    "alias": "Action",
-                    "path": "action"
-                  },
-                  {
-                    "alias": "Resource",
-                    "path": "resource"
-                  },
-                  {
-                    "alias": "Url",
-                    "path": "resource_url"
-                  }
-                ],
-                "source": "labels"
-              }
-            },
-            {
-              "id": "organize",
-              "options": {
-                "excludeByName": {
-                  "Line": true,
-                  "id": true,
-                  "labelTypes": true,
-                  "labels": true,
-                  "tsNs": true
-                },
-                "includeByName": {},
-                "indexByName": {},
-                "renameByName": {}
-              }
-            }
-          ],
-          "type": "table"
-        },
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "thresholds"
-              },
-              "custom": {
-                "align": "auto",
-                "cellOptions": {
-                  "type": "auto"
-                },
-                "inspect": false
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": 0
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 4,
-            "w": 24,
-            "x": 0,
-            "y": 71
-          },
-          "id": 97,
-          "options": {
-            "cellHeight": "sm",
-            "footer": {
-              "countRows": false,
-              "fields": "",
-              "reducer": [
-                "sum"
-              ],
-              "show": false
-            },
-            "showHeader": true
-          },
-          "pluginVersion": "12.1.0",
-          "targets": [
-            {
-              "datasource": {
-                "type": "loki",
-                "uid": "loki"
-              },
-              "direction": "backward",
-              "editorMode": "code",
-              "expr": "{app=\"opennotificaties-worker\"} \n| json \n| event=\"notification_failed\" or event=\"notification_error\"  ",
-              "queryType": "range",
-              "refId": "A"
-            }
-          ],
-          "title": "Failures",
-          "transformations": [
-            {
-              "id": "extractFields",
-              "options": {
-                "format": "json",
-                "jsonPaths": [
-                  {
-                    "alias": "Resource",
-                    "path": "resource"
-                  },
-                  {
-                    "alias": "Action",
-                    "path": "action"
-                  },
-                  {
-                    "alias": "Url",
-                    "path": "resource_url"
-                  },
-                  {
-                    "alias": "Subscriber",
-                    "path": "subscription_callback"
-                  },
-                  {
-                    "alias": "Channel",
-                    "path": "channel_name"
-                  },
-                  {
-                    "alias": "Attempt",
-                    "path": "task_attempt_count"
-                  },
-                  {
-                    "alias": "Status",
-                    "path": "http_status_code"
-                  }
-                ],
-                "keepTime": false,
-                "replace": false,
-                "source": "labels"
-              }
-            },
-            {
-              "id": "organize",
-              "options": {
-                "excludeByName": {
-                  "Line": true,
-                  "Status": true,
-                  "id": true,
-                  "labelTypes": true,
-                  "labels": true,
-                  "tsNs": true
-                },
-                "includeByName": {},
-                "indexByName": {
-                  "Action": 8,
-                  "Attempt": 6,
-                  "Channel": 9,
-                  "Line": 2,
-                  "Resource": 7,
-                  "Status": 12,
-                  "Subscriber": 10,
-                  "Time": 1,
-                  "Url": 11,
-                  "id": 5,
-                  "labelTypes": 4,
-                  "labels": 0,
-                  "tsNs": 3
-                },
-                "renameByName": {}
-              }
-            }
-          ],
-          "type": "table"
-        }
-      ],
-      "title": "Open Notificaties",
-      "type": "row"
-    },
-    {
-      "collapsed": true,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 43
+        "y": 58
       },
       "id": 4,
       "panels": [
@@ -2156,7 +2369,7 @@
             "h": 4,
             "w": 24,
             "x": 0,
-            "y": 44
+            "y": 298
           },
           "id": 47,
           "maxDataPoints": 100,
@@ -2205,7 +2418,7 @@
             "h": 19,
             "w": 24,
             "x": 0,
-            "y": 48
+            "y": 302
           },
           "id": 68,
           "options": {
@@ -2452,5 +2665,5 @@
   "timezone": "",
   "title": "Monitoring en logging (with structlog)",
   "uid": "cawvpt6dd",
-  "version": 115
+  "version": 158
 }
