@@ -1852,6 +1852,8 @@ nameOverride: ""
 fullnameOverride: ""
 
 zac:
+  featureFlags:
+    bpmnSupport: true
   auth:
     server: http://keycloak.example.nl
     realm: podiumd
