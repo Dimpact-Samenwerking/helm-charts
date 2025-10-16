@@ -102,33 +102,32 @@
 | Open Notificaties  | 1.12.0     | Minor update     | 1.11.1       | Minor update    |
 | Open Zaak          | 1.24.0     | Minor update     | 1.11.0       | Minor update    |
 | Open Archiefbeheer | 1.1.0      | Minor update     | 1.4.0        | Minor update    |
-| Kiss               | 1.2.1      |  Patch update    | 1.0.1        | Patch update    |
+| Kiss               | 1.2.1      | Patch update     | 1.0.1        | Patch update    |
 | Zac                | 3.14.12    | Minor update     | 1.0.116      |                 |
-| ZGW Office Addin   | 0.0.299    | Nieuw component  | 0.0.31       | Nieuw component | 
+| ZGW Office Addin   | 0.0.299    | Nieuw component  | 0.0.31       | Nieuw component |
 
 
-### [4.3.4](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.3.4)
+### [4.3.5](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.3.5)
 
-**PodiumD Helm chart version: 4.3.4 **
+**PodiumD Helm chart version: 4.3.5 **
 
-| Component          | AppVersion | Change           | ChartVersion | Change          |
-|--------------------|------------|------------------|--------------|-----------------|
-| ClamAV             | 1.4.2      |                  | 3.2.0        |                 |
-| Keycloak           | 26.3.1     |                  | 24.8.0       |                 |
-| Infinispan         | 15.2       |                  | 0.5          |                 |
-| ITA                | 1.0.1      |                  | 1.0.1        |                 |
-| Objecten           | 3.1.4      |                  | 2.9.0        |                 |
-| Objecttypen        | 3.2.1      |                  | 1.4.0        |                 |
-| Open Formulieren   | 3.2.4      |                  | 1.9.0        |                 |
-| Open Inwoner       | 1.34.2     |   Minor update   | 1.11.0       |                 |
-| Open Klant         | 2.12.1     |                  | 1.8.0        |                 |
-| Open Notificaties  | 1.12.0     |                  | 1.11.1       |                 |
-| Open Zaak          | 1.24.0     |                  | 1.11.0       |                 |
-| Open Archiefbeheer | 1.1.0      |                  | 1.4.1        |  Minor update   |
-| Kiss               | 1.2.1      |                  | 1.0.1        |                 |
-| Zac                | 3.14.12    |                  | 1.0.116      |                 |
-| ZGW Office Addin   | 0.0.299    |                  | 0.0.31       |                 |
-
+| Component          | AppVersion | Change       | ChartVersion | Change          |
+|--------------------|------------|--------------|--------------|-----------------|
+| ClamAV             | 1.4.2      |              | 3.2.0        |                 |
+| Keycloak           | 26.3.1     |              | 24.8.0       |                 |
+| Infinispan         | 15.2       |              | 0.5          |                 |
+| ITA                | 1.0.1      |              | 1.0.1        |                 |
+| Objecten           | 3.1.4      |              | 2.9.0        |                 |
+| Objecttypen        | 3.2.1      |              | 1.4.0        |                 |
+| Open Formulieren   | 3.2.4      |              | 1.10.1       |  Minor update   |
+| Open Inwoner       | 1.34.2     | Minor update | 1.11.2       |  Minor update   |
+| Open Klant         | 2.12.1     |              | 1.8.0        |                 |
+| Open Notificaties  | 1.12.0     |              | 1.11.1       |                 |
+| Open Zaak          | 1.24.0     |              | 1.11.0       |                 |
+| Open Archiefbeheer | 1.1.0      |              | 1.4.1        |  Minor update   |
+| Kiss               | 1.2.1      |              | 1.0.1        |                 |
+| Zac                | 3.17.0     | Minor update | 1.0.133      |                 |
+| ZGW Office Addin   | 0.0.299    |              | 0.0.31       |                 |
 
 
 ## Add Used chart repositories:
@@ -153,7 +152,7 @@ helm repo add zgw-office-addin https://infonl.github.io/zgw-office-addin
 PersistentVolume and PersistentVolumeClaim resources are:
 - created during a Helm install or upgrade if the PersistentVolumeClaim referenced by the `persistence.existingClaim` parameter does not yet exist
 - never deleted during a Helm uninstall
-                     
+
 In order to determine whether the combination of PersistentVolume and PersistentVolumeClaim should be created,
 the existence of the PersistentVolumeClaim referenced by the `persistence.existingClaim` parameter of the subchart, is checked.
 If the referenced PersistentVolumeClaim does not exist both the PersistentVolume and PersistentVolumeClaim are created during Helm install.
@@ -162,7 +161,7 @@ As the PersistentVolume and PersistentVolumeClaim are never deleted during a Hel
 PersistentVolume and PersistentVolumeClaim resources can only be manually deleted or updated after a Helm uninstall.
 If they are deleted they will be recreated during the next Helm install.
 If they are updated they will be reused by the next Helm install.
-The following parameters impact the creation of PersistentVolume reources    
+The following parameters impact the creation of PersistentVolume reources
 
 | Name                                          | Description                                                                                                                                          | Value |
 |-----------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------|-------|
@@ -192,8 +191,8 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 | global.configuration.notificatiesOpenzaakSecret   | Secret used by Open Notificaties to access autorisaties API                 | `notificaties-secret`                                           |
 | global.configuration.openzaakNotificatiesClientId | ClientId used by Open Zaak to send notifications                            | `openzaak`                                                      |
 | global.configuration.openzaakNotificatiesSecret   | Secret used by Open Zaak to send notifications                              | `openzaak-secret`                                               |
-| global.imageRegistry                              | Image registry used by Keycloak, Redis, RabitMQ and Elastic                 | `""`                                                            | 
-| global.settings.databaseHost                      | Database host used bij objecten, objecttypen, openinwoner, opennotificaties | `""`                                                            | 
+| global.imageRegistry                              | Image registry used by Keycloak, Redis, RabitMQ and Elastic                 | `""`                                                            |
+| global.settings.databaseHost                      | Database host used bij objecten, objecttypen, openinwoner, opennotificaties | `""`                                                            |
 
 ### keycloak
 
@@ -705,7 +704,7 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 | openinwoner.elasticsearch.data.nodeSelector               | Elastic search data node labels for pod assignment. Evaluated as a template                                                                           | `{}`                                          |
 | openinwoner.elasticsearch.coordinating.nodeSelector       | Elastic search coordinating node labels for pod assignment. Evaluated as a template                                                                   | `{}`                                          |
 
-### Podiumd Proxy 
+### Podiumd Proxy
 
 | Name                                         | Description                                | Value                                                                               |
 |----------------------------------------------|--------------------------------------------|-------------------------------------------------------------------------------------|
@@ -748,10 +747,9 @@ Tags to add additional unreleased PodiumD functionality.
 | Name           | Description                          | Value   |
 |----------------|--------------------------------------|---------|
 | tags.zaak      | Whether PodiumD Zaak is installed    | `false` |
-                
+
 ## Upgrading
 
 If an Helm upgrade of a component fails because of a forbidden update to a statefullset spec the statefullset needs to be deleted prior to the Helm upgrade by the following command:
-                                                                                                                                                                   
-$ kubectl delete sts <component>-redis-master -n podiumd --cascade=orphan
 
+$ kubectl delete sts <component>-redis-master -n podiumd --cascade=orphan
