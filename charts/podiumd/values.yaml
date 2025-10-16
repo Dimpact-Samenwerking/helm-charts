@@ -350,10 +350,10 @@ openzaak:
     job:
       enabled: true
       backoffLimit: 6
-      ttlSecondsAfterFinished: 0    
+      ttlSecondsAfterFinished: 0
       restartPolicy: Never
       resources: {}
-    data: ""  
+    data: ""
     # data: |-
     #   oidc_db_config_enable: true
     #   oidc_db_config_admin_auth:
@@ -390,7 +390,7 @@ openzaak:
     #       oidc_use_nonce: true
     #       oidc_nonce_size: 32
     #       oidc_state_size: 32
-    #       userinfo_claims_source: id_token          
+    #       userinfo_claims_source: id_token
     #   zgw_consumers_config_enable: true
     #   zgw_consumers:
     #     services:
@@ -401,12 +401,12 @@ openzaak:
     #       api_type: nrc
     #       auth_type: zgw
     #       client_id: open-zaak
-    #       secret: ${openzaak_opennotificaties_secret}        
+    #       secret: ${openzaak_opennotificaties_secret}
     #     - identifier: selectielijst-api
     #       label: Selectielijst API
     #       api_root: https://selectielijst.openzaak.nl/api/v1/
     #       api_type: orc
-    #       auth_type: no_auth      
+    #       auth_type: no_auth
     #   vng_api_common_credentials_config_enable: true
     #   vng_api_common_credentials:
     #     items:
@@ -417,7 +417,7 @@ openzaak:
     #     - identifier: open-notificaties
     #       secret: ${opennotificaties_autorisatie_api_secret}
     #     - identifier: open-zaak
-    #       secret: ${openzaak_opennotificaties_secret}         
+    #       secret: ${openzaak_opennotificaties_secret}
     #   sites_config_enable: true
     #   sites_config:
     #     items:
@@ -465,7 +465,7 @@ openzaak:
       # opennotificaties_autorisatie_api_secret: "<opennotificaties_autorisatie_api_secret>"
       # openzaak_opennotificaties_secret: "<openzaak_opennotificaties_secret>"
     oidcUrl: https://openzaak.example.nl
-    oidcSecret: "<openzaak>"             
+    oidcSecret: "<openzaak>"
   create_required_catalogi_job:
     client_id: "<openzaak_client_id>"
     secret: "<openzaak_secret>"
@@ -542,7 +542,7 @@ opennotificaties:
       # opennotificaties_autorisatie_api_secret: "<opennotificaties_autorisatie_api_secret>"
       # opennotificaties_opennotificaties_secret: "<opennotificaties_opennotificaties_secret>"
       # openzaak_opennotificaties_secret: "<openzaak_opennotificaties_secret>"
-    data: ""  
+    data: ""
     # data: |-
     #   oidc_db_config_enable: True
     #   oidc_db_config_admin_auth:
@@ -622,8 +622,8 @@ opennotificaties:
     #   notifications_kanalen_config:
     #     items:
     #       - naam: autorisaties
-    #         documentatie_link: https://openzaak.example.nl/ref/kanalen/#/autorisaties         
-    #         filters: 
+    #         documentatie_link: https://openzaak.example.nl/ref/kanalen/#/autorisaties
+    #         filters:
     #           - autorisaties
     #       - naam: besluittypen
     #         documentatie_link: https://openzaak.example.nl/ref/kanalen/#/besluittypen
@@ -647,7 +647,7 @@ opennotificaties:
     #         documentatie_link: https://openzaak.example.nl/ref/kanalen/#/documenten
     #         filters:
     #           - bronorganisatie
-    #           - informatieobjecttype 
+    #           - informatieobjecttype
     #           - informatieobjecttype.catalogus # new feature
     #           - vertrouwelijkheidaanduiding
     #       - naam: besluiten
@@ -656,8 +656,8 @@ opennotificaties:
     #           - verantwoordelijke_organisatie
     #           - besluittype
     #           - besluittype.catalogus  # new feature
-    #   # The configuration check view will show a checkmark, but for it to actually work an 
-    #   # Abonnement also has to be configured via notifications_abonnementen_config. This does not work right now, 
+    #   # The configuration check view will show a checkmark, but for it to actually work an
+    #   # Abonnement also has to be configured via notifications_abonnementen_config. This does not work right now,
     #   # because the spec doesn't properly support JWT. See issue open-zaak/open-zaak#1694
     #   notifications_subscriptions_config_enable: true
     #   notifications_subscriptions_config:
@@ -751,7 +751,7 @@ opennotificaties:
 
 objecten:
   configuration:
-    enabled: true  
+    enabled: true
     demo:
       enabled: false
     initContainer:
@@ -763,11 +763,11 @@ objecten:
       restartPolicy: OnFailure
       resources: {}
     secrets: {}
-      # keycloak_client_secret: "<keycloak_client_secret>"  
+      # keycloak_client_secret: "<keycloak_client_secret>"
       # object_objecttypes_token: "<object_objecttypes_token>"
       # object_notificaties_token: "<object_notificaties_token>"
       # openformulieren_objecten_token: "<openformulieren_objecten_token>"
-    data: ""  
+    data: ""
     # data: |-
     #   oidc_db_config_enable: true
     #   oidc_db_config_admin_auth:
@@ -804,7 +804,7 @@ objecten:
     #       oidc_use_nonce: true
     #       oidc_nonce_size: 32
     #       oidc_state_size: 32
-    #       userinfo_claims_source: id_token    
+    #       userinfo_claims_source: id_token
     #   zgw_consumers_config_enable: true
     #   zgw_consumers:
     #     services:
@@ -855,7 +855,7 @@ objecten:
     #       - domain: objecten.example.nl
     #         name: objecten
     oidcUrl: https://objecten.example.nl
-    oidcSecret: "<objecten>" 
+    oidcSecret: "<objecten>"
   settings:
     allowedHosts: objecten.podiumd.svc.cluster.local
     email:
@@ -916,7 +916,7 @@ objecttypen:
       # keycloak_client_secret: "<keycloak_client_secret>"
       # object_objecttypes_token: "<object_objecttypes_token>"
       # openformulieren_objecten_token: "<openformulieren_objecten_token>"
-    data: ""  
+    data: ""
     # data: |-
     #   oidc_db_config_enable: true
     #   oidc_db_config_admin_auth:
@@ -953,7 +953,7 @@ objecttypen:
     #       oidc_use_nonce: true
     #       oidc_nonce_size: 32
     #       oidc_state_size: 32
-    #       userinfo_claims_source: id_token      
+    #       userinfo_claims_source: id_token
     #   tokenauth_config_enable: true
     #   tokenauth:
     #     items:
@@ -975,7 +975,7 @@ objecttypen:
     #   sites_config:
     #       items:
     #         - domain: objecttypen.example.nl
-    #           name: objecttypen  
+    #           name: objecttypen
     token: "<token>"
     oidcUrl: https://objecttypen.example.nl
     oidcSecret: "<objecttypen>"
@@ -1087,7 +1087,6 @@ openarchiefbeheer:
     #       oidc_rp_idp_sign_key: ""
     #       endpoint_config:
     #         oidc_op_discovery_endpoint: https://example.keycloak.nl/realms/podiumd-poc/
-  
 
   tags:
     redis: true
@@ -1163,8 +1162,8 @@ openklant:
       resources: {}
     secrets: {}
       # openklant_token: "<openklant_token>"
-      # keycloak_client_secret: "<keycloak_client_secret>"   
-    data: ""        
+      # keycloak_client_secret: "<keycloak_client_secret>"
+    data: ""
     # data: |-
     #   oidc_db_config_enable: True
     #   oidc_db_config_admin_auth:
@@ -1175,7 +1174,7 @@ openklant:
     #         oidc_nonce_size: 32
     #         oidc_state_size: 32
     #         endpoint_config:
-    #           oidc_op_discovery_endpoint: https://keycloak.example.nl/realms/gemeente-x/   
+    #           oidc_op_discovery_endpoint: https://keycloak.example.nl/realms/gemeente-x/
     #   items:
     #     - identifier: admin-oidc
     #       enabled: true
@@ -1280,7 +1279,7 @@ openklant:
         requests:
           cpu: 10m
           memory: 64Mi
-        
+
 openformulieren:
   configuration:
     enabled: true
@@ -1484,7 +1483,7 @@ openinwoner:
     #       oidc_rp_client_id: openinwoner.example.nl
     #       oidc_rp_client_secret:
     #         value_from:
-    #           env: keycloak_client_secret       
+    #           env: keycloak_client_secret
     #       oidc_rp_scopes_list:
     #       - openid
     #       - email
@@ -1523,7 +1522,7 @@ openinwoner:
     #         client_id: openinwoner
     #         secret:
     #           value_from:
-    #             env: openzaak_openinwoner_secret     
+    #             env: openzaak_openinwoner_secret
     #       - identifier: documenten-test
     #         label: Open Zaak - Documenten API
     #         api_root: https://openzaak.example.nl/documenten/api/v1/
@@ -1532,7 +1531,7 @@ openinwoner:
     #         client_id: openinwoner
     #         secret:
     #           value_from:
-    #             env: openzaak_openinwoner_secret     
+    #             env: openzaak_openinwoner_secret
     #       - identifier: catalogi-test
     #         label: Open Zaak - Catalogi API
     #         api_root: https://openzaak.example.nl/catalogi/api/v1/
@@ -1541,7 +1540,7 @@ openinwoner:
     #         client_id: openinwoner
     #         secret:
     #           value_from:
-    #             env: openzaak_openinwoner_secret     
+    #             env: openzaak_openinwoner_secret
     #       - identifier: besluiten-test
     #         label: Open Zaak - Besluiten API
     #         api_root: https://openzaak.example.nl/besluiten/api/v1/
@@ -1550,7 +1549,7 @@ openinwoner:
     #         client_id: openinwoner
     #         secret:
     #           value_from:
-    #             env: openzaak_openinwoner_secret     
+    #             env: openzaak_openinwoner_secret
     #       - identifier: selectielijst
     #         label: Open Zaak (public) - Selectielijst API
     #         api_root: https://selectielijst.openzaak.nl/api/v1/
@@ -1564,7 +1563,7 @@ openinwoner:
     #         client_id: openinwoner
     #         secret:
     #           value_from:
-    #             env: openklant_openinwoner_token    
+    #             env: openklant_openinwoner_token
     #   openzaak_config_enable: true
     #   openzaak_config:
     #     zaak_max_confidentiality: openbaar
@@ -1631,7 +1630,7 @@ openinwoner:
         # You need to generate the encrypted basic auth password yourself with htpasswd or openssl.
         # This is an example user
         users: |-
-          dimpact:$apr1$E03dZmYK$npjTaXfI05tMJ63gB8dxm. 
+          dimpact:$apr1$E03dZmYK$npjTaXfI05tMJ63gB8dxm.
       clientMaxBodySize: 100M
     resources:
       requests:
@@ -1667,7 +1666,7 @@ openinwoner:
           cpu: 100m
           memory: 512Mi
     image:
-      tag: 9.0.3-debian-12-r1 
+      tag: 9.0.3-debian-12-r1
 
 kisselastic:
   kibanaDomain: kiss-kb-http.podiumd.svc.cluster.local:5601
@@ -1761,8 +1760,6 @@ kiss:
   managementApiKey: ""
   imagePullSecrets: []
 
-
-
   nodeSelector: {}
 
   frontend:
@@ -1829,7 +1826,7 @@ kiss:
       enabled: true
       schedule: "*/59 * * * *"
     smoelenboek:
-      enabled: true 
+      enabled: true
       schedule: "*/59 * * * *"
     vac:
       enabled: true
@@ -1846,10 +1843,10 @@ kiss:
       pullPolicy: IfNotPresent
 
   alpine:
-     image:
-       repository: "alpine"
-       tag: "3.20"
-       pullPolicy: IfNotPresent
+    image:
+      repository: "alpine"
+      tag: "3.20"
+      pullPolicy: IfNotPresent
 
 nameOverride: ""
 fullnameOverride: ""
@@ -1866,6 +1863,9 @@ zac:
   brpApi:
     url: http://brp.example.nl
     apiKey: "dummy"
+    # Protocollering aanbieder mag zijn "", "iConnect", "2Secure"
+    protocollering:
+      aanbieder: ""
   catalogusDomein: ALG
   contextUrl: http://zac.example.nl
   db:
@@ -1885,11 +1885,11 @@ zac:
     curlImage:
       #repository: curlimages/curl
       tag: 8.16.0
-  # ghcr.io/infonl/zaakafhandelcomponent:3.14.0
+  # ghcr.io/infonl/zaakafhandelcomponent:3.17.0
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
-    tag: 3.14.12
+    tag: 3.17.0
   initContainer:
     enabled: false
   keycloak:
@@ -2021,7 +2021,6 @@ zgw-office-addin:
     jwtSecret: "my openzaak-office-addin-zgw-api-key"
     # the base url of the openzaak zgw api's
     apiBaseUrl: "https://openzaak.example.nl"
-
 
 clamav:
   image:
@@ -2163,7 +2162,6 @@ apiproxy:
       <<: *commonLocation
       targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apikvk/vesprof/v1/v1/vestigingsprofielen"
 
-
 ita:
   enabled: true
   replicaCount: 1
@@ -2247,20 +2245,18 @@ ita:
 
   poller:
     schedule: "*/15 * * * *"
-    
+
     image:
       repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller"
       tag: "1.0.2"
       pullPolicy: Always
-    
+
     notification:
       pollerMessage: "Poller uitgevoerd om:"
-      hourThreshold: "-24"  
+      hourThreshold: "-24"
 
   ingress:
     enabled: false
-
-  
 
 serviceAccount:
   create: true
