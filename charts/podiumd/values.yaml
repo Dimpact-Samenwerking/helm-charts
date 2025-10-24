@@ -1924,16 +1924,16 @@ zac:
     url: http://objecttypen.example.nl
     token: objecttypentoken
   office_converter:
-    # ghcr.io/eugenmayer/kontextwork-converter:1.8.0
+    # ghcr.io/eugenmayer/kontextwork-converter:1.8.1
     image:
       #repository: ghcr.io/eugenmayer/kontextwork-converter
-      tag: 1.8.0
+      tag: 1.8.1
   opa:
     sidecar: true
-    # openpolicyagent/opa:1.8.0-static
+    # openpolicyagent/opa:1.9.0-static
     image:
       #repository: openpolicyagent/opa
-      tag: 1.8.0-static
+      tag: 1.9.0-static
   openForms:
     url: http://open-forms.example.nl
   organizations:
@@ -2006,7 +2006,7 @@ zgw-office-addin:
   frontend:
     # ghcr.io/infonl/zgw-office-add-in-frontend:v0.0.299
     image:
-      tag: v0.0.299
+      tag: v0.2.50
     # the public url where manifest.xml and static js files are served
     frontendUrl: https://office-addin.example.nl
     # by default this is not needed as it is proxied by the frontend host
@@ -2016,9 +2016,9 @@ zgw-office-addin:
   backend:
     # ghcr.io/infonl/zgw-office-add-in-backend:v0.0.299
     image:
-      tag: v0.0.299
+      tag: v0.2.50
     # secret that is configured in openzaak
-    jwtSecret: "my openzaak-office-addin-zgw-api-key"
+    jwtSecret: "my-openzaak-office-addin-zgw-api-key"
     # the base url of the openzaak zgw api's
     apiBaseUrl: "https://openzaak.example.nl"
 
