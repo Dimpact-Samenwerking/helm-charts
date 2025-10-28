@@ -103,7 +103,7 @@
 | Open Zaak          | 1.24.0     | Minor update    | 1.11.0       | Minor update    |
 | Open Archiefbeheer | 1.1.0      | Minor update    | 1.4.1        | Minor update    |
 | Kiss               | 1.2.1      | Patch update    | 1.0.1        | Patch update    |
-| Zac                | 3.17.16    | Minor update    | 1.0.134      | Minor update    |
+| Zac                | 3.17.66    | Minor update    | 1.0.134      | Minor update    |
 | ZGW Office Add-in  | 0.0.299    | Nieuw component | 0.0.37       | Nieuw component |
 
 ## Add Used chart repositories:
