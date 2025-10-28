@@ -1291,42 +1291,65 @@ openformulieren:
     secrets: {}
     data: ""
     # data: |-
-    #   oidc_db_config_enable: True
+    #   oidc_db_config_enable: true
     #   oidc_db_config_admin_auth:
+    #     providers:
+    #     - identifier: keycloak-provider
+    #       oidc_use_nonce: true
+    #       oidc_nonce_size: 32
+    #       oidc_state_size: 32
+    #       endpoint_config:
+    #         oidc_op_discovery_endpoint:  https://keycloak.example.nl/realms/gemeente-x/
     #     items:
     #     - identifier: admin-oidc
-    #       enabled: True
+    #       enabled: true
     #       oidc_rp_client_id: openformulieren.example.nl
     #       oidc_rp_client_secret: ${keycloak_client_secret}
     #       oidc_rp_scopes_list:
     #       - openid
     #       - email
     #       - profile
-    #       - roles
     #       oidc_rp_sign_algo: RS256
-    #       endpoint_config:
-    #         oidc_op_discovery_endpoint: https://keycloak.example.nl/realms/gemeente-x/
-    #       username_claim:
-    #       - sub
-    #       groups_claim:
-    #       - roles
-    #       claim_mapping:
-    #         first_name:
-    #         - given_name
-    #         last_name:
-    #         - family_name
-    #         email:
-    #         - email
-    #       sync_groups: true
-    #       sync_groups_glob_pattern: "*"
-    #       default_groups: []
-    #       make_users_staff: true
-    #       superuser_group_names:
-    #       - Superuser
-    #       oidc_use_nonce: true
-    #       oidc_nonce_size: 32
-    #       oidc_state_size: 32
+    #       oidc_provider_identifier: keycloak-provider
     #       userinfo_claims_source: id_token
+    #       options:
+    #         user_settings:
+    #           claim_mappings:
+    #             username:
+    #               - sub
+    #             first_name:
+    #               - given_name
+    #             email:
+    #               - email
+    #           username_case_sensitive: true
+    #         groups_settings:
+    #           claim_mapping:
+    #             - groups
+    #           sync: true
+    #           sync_pattern: '*'
+    #           default_groups: []
+    #           make_users_staff: true
+    #           superuser_group_names:
+    #             - Superuser
+    #     - identifier: oidc-digid
+    #       enabled: true
+    #       oidc_rp_client_id: testid
+    #       oidc_rp_client_secret: even-more-secret
+    #       oidc_rp_scopes_list:
+    #       - openid
+    #       - email
+    #       - profile
+    #       - bsn
+    #       oidc_rp_sign_algo: RS256
+    #       oidc_provider_identifier: keycloak-provider
+    #       userinfo_claims_source: id_token
+    #       options:
+    #         loa_settings:
+    #           claim_path: ["loa"]
+    #           default: "urn:oasis:names:tc:SAML:2.0:ac:classes:MobileTwoFactorContract"
+    #           value_mapping: []
+    #         identity_settings: 
+    #           bsn_claim_path: ["bsn"]    
     #   zgw_consumers_config_enable: True
     #   zgw_consumers:
     #     services:
