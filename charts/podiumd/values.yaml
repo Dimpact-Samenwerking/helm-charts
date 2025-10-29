@@ -361,7 +361,9 @@ openzaak:
     #     - identifier: admin-oidc
     #       enabled: True
     #       oidc_rp_client_id: openzaak.example.nl
-    #       oidc_rp_client_secret: ${keycloak_client_secret}
+    #       oidc_rp_client_secret:
+    #         value_from:
+    #           env: keycloak_client_secret
     #       oidc_rp_scopes_list:
     #       - openid
     #       - email
@@ -401,7 +403,9 @@ openzaak:
     #       api_type: nrc
     #       auth_type: zgw
     #       client_id: open-zaak
-    #       secret: ${openzaak_opennotificaties_secret}
+    #       secret: 
+    #         value_from:
+    #           env: openzaak_opennotificaties_secret
     #     - identifier: selectielijst-api
     #       label: Selectielijst API
     #       api_root: https://selectielijst.openzaak.nl/api/v1/
@@ -411,13 +415,21 @@ openzaak:
     #   vng_api_common_credentials:
     #     items:
     #     - identifier: open-formulieren
-    #       secret: ${openzaak_openforms_secret}
+    #       secret:
+    #         value_from:
+    #           env: openzaak_openforms_secret
     #     - identifier: openinwoner
-    #       secret: ${openzaak_openinwoner_secret}
+    #       secret:
+    #         value_from:
+    #           env: openzaak_openinwoner_secret
     #     - identifier: open-notificaties
-    #       secret: ${opennotificaties_autorisatie_api_secret}
+    #       secret:
+    #         value_from:
+    #           env: opennotificaties_autorisatie_api_secret
     #     - identifier: open-zaak
-    #       secret: ${openzaak_opennotificaties_secret}
+    #       secret: 
+    #         value_from:
+    #           env: openzaak_opennotificaties_secret
     #   sites_config_enable: true
     #   sites_config:
     #     items:
@@ -550,7 +562,9 @@ opennotificaties:
     #     - identifier: admin-oidc
     #       enabled: True
     #       oidc_rp_client_id: opennotificaties.example.nl
-    #       oidc_rp_client_secret: ${keycloak_client_secret}
+    #       oidc_rp_client_secret:
+    #         value_from:
+    #           env: keycloak_client_secret
     #       oidc_rp_scopes_list:
     #       - openid
     #       - email
@@ -589,7 +603,9 @@ opennotificaties:
     #         api_type: ac
     #         auth_type: zgw
     #         client_id: open-notificaties
-    #         secret: ${opennotificaties_autorisatie_api_secret}
+    #         secret: 
+    #           value_from:
+    #             env: opennotificaties_autorisatie_api_secret
     #         user_id: open-notificaties
     #         user_representation: Open Notificaties
     #       - identifier: notificaties-api
@@ -598,7 +614,9 @@ opennotificaties:
     #         api_type: nrc
     #         auth_type: zgw
     #         client_id: open-notificaties
-    #         secret: ${opennotificaties_opennotificaties_secret}
+    #         secret:
+    #           value_from:
+    #             env: opennotificaties_opennotificaties_secret
     #   autorisaties_api_config_enable: true
     #   autorisaties_api:
     #     # Configure Open Notificaties to make use of Open Zaak's Autorisaties API
@@ -614,10 +632,14 @@ opennotificaties:
     #     items:
     #     # Credentials for Open Zaak to be able to make requests to Open Notificaties
     #     - identifier: open-zaak
-    #       secret: ${openzaak_opennotificaties_secret}
+    #       secret:
+    #         value_from:
+    #           env: openzaak_opennotificaties_secret
     #     # Credentials for Open Notificaties to talk to itself
     #     - identifier: open-notificaties
-    #       secret: ${opennotificaties_opennotificaties_secret}
+    #       secret: 
+    #         value_from:
+    #           env: opennotificaties_opennotificaties_secret
     #   notifications_kanalen_config_enable: true
     #   notifications_kanalen_config:
     #     items:
@@ -668,7 +690,9 @@ opennotificaties:
     #         identifier: open-notificaties
     #         callback_url: https://opennotificaties.example.nl/api/v1/callbacks
     #         client_id: open-notificaties
-    #         secret: ${opennotificaties_opennotificaties_secret}
+    #         secret: 
+    #           value_from:
+    #             env: opennotificaties_opennotificaties_secret
     #   notifications_abonnementen_config_enable: true
     #   notifications_abonnementen_config:
     #     items:
@@ -775,7 +799,9 @@ objecten:
     #     - identifier: admin-oidc
     #       enabled: True
     #       oidc_rp_client_id: objecten.example.nl
-    #       oidc_rp_client_secret: '${keycloak_client_secret}'
+    #       oidc_rp_client_secret: 
+    #         value_from:
+    #           env: keycloak_client_secret
     #       oidc_rp_scopes_list:
     #       - openid
     #       - email
@@ -815,7 +841,9 @@ objecten:
     #       api_type: orc
     #       auth_type: api_key
     #       header_key: Authorization
-    #       header_value: Token ${object_objecttypes_token}
+    #       header_value:
+    #         value_from:
+    #           env: object_objecttypes_token # object_objecttypes_token='Token my-token'
     #     - identifier: notifications-api
     #       label: Notificaties API
     #       api_root: https://notificaties.example.nl/api/v1/
@@ -823,7 +851,9 @@ objecten:
     #       api_type: nrc
     #       auth_type: api_key
     #       header_key: Authorization
-    #       header_value: Token ${object_notificaties_token}
+    #       header_value:
+    #         value_from:
+    #           env: object_notificaties_token # object_notificaties_token='Token object_notificaties_token'
     #   notifications_config_enable: true
     #   notifications_config:
     #     notifications_api_service_identifier: notifications-api
@@ -834,7 +864,9 @@ objecten:
     #   tokenauth:
     #     items:
     #       - identifier: openformulier-token
-    #         token: ${openformulieren_objecten_token}
+    #         token:
+    #           value_from:
+    #             env: openformulieren_objecten_token
     #         contact_person: Person 1
     #         email: person-1@example.com
     #         organization: Organization 1
@@ -924,7 +956,9 @@ objecttypen:
     #     - identifier: admin-oidc
     #       enabled: True
     #       oidc_rp_client_id: objecttypen.example.nl
-    #       oidc_rp_client_secret: '${keycloak_client_secret}'
+    #       oidc_rp_client_secret:
+    #         value_from:
+    #           env: keycloak_client_secret
     #       oidc_rp_scopes_list:
     #       - openid
     #       - email
@@ -958,14 +992,18 @@ objecttypen:
     #   tokenauth:
     #     items:
     #       - identifier: objecten-token
-    #         token: ${object_objecttypes_token}
+    #         token:
+    #           value_from:
+    #             env: object_objecttypes_token
     #         contact_person: Person 1
     #         email: person-1@example.com
     #         organization: Organization 1
     #         application: Objecten API
     #         administration: Administration 1
     #       - identifier: openformulier-token
-    #         token: ${openformulieren_objecten_token}
+    #         token: 
+    #           value_from:
+    #             env: openformulieren_objecten_token
     #         contact_person: Person 1
     #         email: person-1@example.com
     #         organization: Organization 1
@@ -1185,7 +1223,7 @@ openklant:
     #         - profile
     #         - roles
     #       oidc_rp_client_id: openklant
-    #       oidc_rp_client_secret: REP_OPENKLANT_OIDC_SECRET_REP
+    #       oidc_rp_client_secret: REP_OPENKLANT_OIDC_SECRET_REP # also allowed to have direct value
     #       oidc_rp_sign_algo: RS256
     #       userinfo_claims_source: id_token
     #       options:
@@ -1213,7 +1251,9 @@ openklant:
     #   tokenauth:
     #     items:
     #       - identifier: token-1
-    #         token: ${openklant_token}
+    #         token:
+    #           value_from:
+    #             env: openklant_token
     #         contact_person: Person 1
     #         email: test@example.com
     #         organization: Organization XYZ
@@ -1229,7 +1269,9 @@ openklant:
     #       auth_type: zgw
     #       client_id: open-klant
     #       user_id: open-klant
-    #       secret: ${openklant_token}
+    #       secret: 
+    #         value_from:
+    #           env: openklant_token
     #   notifications_config_enable: true
     #   notifications_config:
     #     notifications_api_service_identifier: open-notificaties
