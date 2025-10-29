@@ -35,12 +35,6 @@ email:
   feedbackFrom: ""
   feedbackTo: ""
 
-logboek:
-  baseUrl: "TESTbaseUrlTEST"
-  token: "TESTtokenTEST"
-  objectTypeUrl: "TESTobjectTypeUrlTEST"
-  objectTypeVersion: "TESTobjectTypeVersionTEST"
-
 kvk:
   baseUrl: ""
   apikey: ""
