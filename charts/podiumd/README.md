@@ -130,6 +130,28 @@
 | ZGW Office Addin   | 0.0.299    |              | 0.0.31       |                 |
 
 
+### [4.4.0](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.4.0)
+
+**PodiumD Helm chart version: 4.4.0 **
+
+| Component          | AppVersion | Change       | ChartVersion | Change          |
+|--------------------|------------|--------------|--------------|-----------------|
+| ClamAV             | 1.4.2      |              | 3.2.0        |                 |
+| Keycloak           | 26.3.1     |              | 24.8.0       |                 |
+| Infinispan         | 15.2       |              | 0.5          |                 |
+| ITA                | 1.0.1      |              | 1.0.1        |                 |
+| Objecten           | 3.3.1      | Minor update | 2.10.0       |  Minor update   |
+| Objecttypen        | 3.3.0      | Minor update | 1.5.0        |  Minor update   |
+| Open Formulieren   | 3.3.0      | Major Update | 1.11.1       |  Major update   |
+| Open Inwoner       | 1.35.1     | Minor update | 1.11.3       |  Minor update   |
+| Open Klant         | 2.13.0     | Minor update | 1.9.0        |  Minor update   |
+| Open Notificaties  | 1.13.0     | Minor update | 1.12.0       |  Minor update   |
+| Open Zaak          | 1.25.0     | Minor update | 1.12.0       |  Minor update   |
+| Open Archiefbeheer | 1.1.0      |              | 1.4.1        |                 |
+| Kiss               | 1.2.1      |              | 1.0.1        |                 |
+| Zac                | 3.17.0     |              | 1.0.133      |                 |
+| ZGW Office Addin   | 0.0.299    |              | 0.0.31       |                 |
+
 ## Add Used chart repositories:
 
 ```shell
