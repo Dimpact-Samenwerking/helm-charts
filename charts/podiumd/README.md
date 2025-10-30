@@ -137,7 +137,7 @@
 | ClamAV             | 1.4.2      |              | 3.2.0        |                 |
 | Keycloak           | 26.3.1     |              | 24.8.0       |                 |
 | Infinispan         | 15.2       |              | 0.5          |                 |
-| ITA                | 1.0.1      |              | 1.0.1        |                 |
+| ITA                | 2.0.0      |              | 2.0.0        |                 |
 | Objecten           | 3.1.4      |              | 2.9.0        |                 |
 | Objecttypen        | 3.2.1      |              | 1.4.0        |                 |
 | Open Formulieren   | 3.2.4      |              | 1.10.1       |  Minor update   |
