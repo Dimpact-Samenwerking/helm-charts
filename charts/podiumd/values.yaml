@@ -497,7 +497,7 @@ openzaak:
   persistentVolume:
     volumeAttributeShareName: openzaak
   image:
-    tag: "1.24.0"
+    tag: "1.25.0"
   resources:
     requests:
       cpu: 100m
@@ -734,7 +734,7 @@ opennotificaties:
   persistentVolume:
     volumeAttributeShareName: opennotificaties
   image:
-    tag: "1.12.0"
+    tag: "1.13.0"
   resources:
     requests:
       cpu: 100m
@@ -900,7 +900,7 @@ objecten:
   persistentVolume:
     volumeAttributeShareName: objecten
   image:
-    tag: "3.1.4"
+    tag: "3.3.1"
   resources:
     requests:
       cpu: 100m
@@ -1024,7 +1024,7 @@ objecttypen:
       useTLS: true
     disable2fa: false
   image:
-    tag: "3.2.1"
+    tag: "3.3.0"
   # used for create-required-objecttypen podiumd job only
   create_required_objecttypen_job:
     enabled: true
@@ -1134,7 +1134,7 @@ openarchiefbeheer:
   # maykinmedia/open-archiefbeheer:1.1.0
   image:
     #repository: maykinmedia/open-archiefbeheer
-    tag: "1.1.0"
+    tag: "1.1.1"
 
   resources:
     limits: {}
@@ -1291,7 +1291,7 @@ openklant:
   persistentVolume:
     volumeAttributeShareName: openklant
   image:
-    tag: "2.12.1"
+    tag: "2.13.0"
   resources:
     requests:
       cpu: 100m
@@ -1487,7 +1487,7 @@ openformulieren:
   persistentVolume:
     volumeAttributeShareName: openformulieren
   image:
-    tag: "3.3.0"
+    tag: "3.3.1"
   resources:
     requests:
       cpu: 100m
