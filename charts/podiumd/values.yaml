@@ -1880,16 +1880,16 @@ zac:
     code: "007"
     naam: "Example Gemeente"
     mail: "noreply@example.nl"
-  # curlimages/curl:8.15.0
+  # curlimages/curl:8.16.0
   global:
     curlImage:
       #repository: curlimages/curl
       tag: 8.16.0
-  # ghcr.io/infonl/zaakafhandelcomponent:3.17.66
+  # ghcr.io/infonl/zaakafhandelcomponent:3.18.0
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
-    tag: 3.17.66
+    tag: 3.18.0
   initContainer:
     enabled: false
   keycloak:
