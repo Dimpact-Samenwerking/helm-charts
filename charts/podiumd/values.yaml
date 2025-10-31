@@ -1832,7 +1832,7 @@ kiss:
       name: ""
     image:
       repository: ghcr.io/klantinteractie-servicesysteem/kiss-frontend
-      tag: "1.2.1"
+      tag: "1.3.1"
       pullPolicy: IfNotPresent
     resources:
       requests:
@@ -1862,7 +1862,7 @@ kiss:
     secret: ""
     image:
       repository: ghcr.io/icatt-menselijk-digitaal/podiumd-adapter
-      tag: "v0.6.x-20250820085615-4a18a7f"
+      tag: "0.6.4"
       pullPolicy: IfNotPresent
     resources:
       requests:
@@ -1904,7 +1904,7 @@ kiss:
     failedJobsHistoryLimit: 1
     image:
       repository: "ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync"
-      tag: "main-20250820085729-dd3e442"
+      tag: "0.1.2"
       pullPolicy: IfNotPresent
 
   alpine:
@@ -2228,6 +2228,7 @@ apiproxy:
       targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apikvk/vesprof/v1/v1/vestigingsprofielen"
 
 ita:
+  baseUrl: ""
   enabled: true
   replicaCount: 1
   imagePullSecrets: []
@@ -2284,7 +2285,7 @@ ita:
   web:
     image:
       repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web"
-      tag: "1.0.2"
+      tag: "2.0.0"
       pullPolicy: IfNotPresent
 
     service:
@@ -2297,6 +2298,7 @@ ita:
       clientId: "ita"
       clientSecret: "REP_ITA_OIDC_CLIENT_SECRET_REP"
       itaSystemAccessRole: "ITA_SystemAccess"
+      functioneelBeheerderRole: "ITA_Functioneel_Beheerder"
       nameClaimType: "preferred_username"
       roleClaimType: "roles"
       objectregisterMedewerkerIdClaimType: "samaccountname"
@@ -2313,7 +2315,7 @@ ita:
 
     image:
       repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller"
-      tag: "1.0.2"
+      tag: "2.0.0"
       pullPolicy: Always
 
     notification:
