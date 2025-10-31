@@ -64,14 +64,14 @@ dependencies:
     condition: infinispan.enabled
   - name: zaakafhandelcomponent
     alias: zac
-    version: 1.0.134
+    version: 1.0.137
     repository: "@zac"
     condition: zac.enabled
     tags:
       - zaak
   - name: zgw-office-addin
     repository: "@zgw-office-addin"
-    version: 0.0.37
+    version: 0.0.50
     condition: zgw-office-addin.enabled
   - name: internetaakafhandeling
     alias: ita
