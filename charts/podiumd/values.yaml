@@ -361,7 +361,9 @@ openzaak:
     #     - identifier: admin-oidc
     #       enabled: True
     #       oidc_rp_client_id: openzaak.example.nl
-    #       oidc_rp_client_secret: ${keycloak_client_secret}
+    #       oidc_rp_client_secret:
+    #         value_from:
+    #           env: keycloak_client_secret
     #       oidc_rp_scopes_list:
     #       - openid
     #       - email
@@ -401,7 +403,9 @@ openzaak:
     #       api_type: nrc
     #       auth_type: zgw
     #       client_id: open-zaak
-    #       secret: ${openzaak_opennotificaties_secret}
+    #       secret: 
+    #         value_from:
+    #           env: openzaak_opennotificaties_secret
     #     - identifier: selectielijst-api
     #       label: Selectielijst API
     #       api_root: https://selectielijst.openzaak.nl/api/v1/
@@ -411,13 +415,21 @@ openzaak:
     #   vng_api_common_credentials:
     #     items:
     #     - identifier: open-formulieren
-    #       secret: ${openzaak_openforms_secret}
+    #       secret:
+    #         value_from:
+    #           env: openzaak_openforms_secret
     #     - identifier: openinwoner
-    #       secret: ${openzaak_openinwoner_secret}
+    #       secret:
+    #         value_from:
+    #           env: openzaak_openinwoner_secret
     #     - identifier: open-notificaties
-    #       secret: ${opennotificaties_autorisatie_api_secret}
+    #       secret:
+    #         value_from:
+    #           env: opennotificaties_autorisatie_api_secret
     #     - identifier: open-zaak
-    #       secret: ${openzaak_opennotificaties_secret}
+    #       secret: 
+    #         value_from:
+    #           env: openzaak_opennotificaties_secret
     #   sites_config_enable: true
     #   sites_config:
     #     items:
@@ -485,7 +497,7 @@ openzaak:
   persistentVolume:
     volumeAttributeShareName: openzaak
   image:
-    tag: "1.24.0"
+    tag: "1.25.0"
   resources:
     requests:
       cpu: 100m
@@ -550,7 +562,9 @@ opennotificaties:
     #     - identifier: admin-oidc
     #       enabled: True
     #       oidc_rp_client_id: opennotificaties.example.nl
-    #       oidc_rp_client_secret: ${keycloak_client_secret}
+    #       oidc_rp_client_secret:
+    #         value_from:
+    #           env: keycloak_client_secret
     #       oidc_rp_scopes_list:
     #       - openid
     #       - email
@@ -589,7 +603,9 @@ opennotificaties:
     #         api_type: ac
     #         auth_type: zgw
     #         client_id: open-notificaties
-    #         secret: ${opennotificaties_autorisatie_api_secret}
+    #         secret: 
+    #           value_from:
+    #             env: opennotificaties_autorisatie_api_secret
     #         user_id: open-notificaties
     #         user_representation: Open Notificaties
     #       - identifier: notificaties-api
@@ -598,7 +614,9 @@ opennotificaties:
     #         api_type: nrc
     #         auth_type: zgw
     #         client_id: open-notificaties
-    #         secret: ${opennotificaties_opennotificaties_secret}
+    #         secret:
+    #           value_from:
+    #             env: opennotificaties_opennotificaties_secret
     #   autorisaties_api_config_enable: true
     #   autorisaties_api:
     #     # Configure Open Notificaties to make use of Open Zaak's Autorisaties API
@@ -614,10 +632,14 @@ opennotificaties:
     #     items:
     #     # Credentials for Open Zaak to be able to make requests to Open Notificaties
     #     - identifier: open-zaak
-    #       secret: ${openzaak_opennotificaties_secret}
+    #       secret:
+    #         value_from:
+    #           env: openzaak_opennotificaties_secret
     #     # Credentials for Open Notificaties to talk to itself
     #     - identifier: open-notificaties
-    #       secret: ${opennotificaties_opennotificaties_secret}
+    #       secret: 
+    #         value_from:
+    #           env: opennotificaties_opennotificaties_secret
     #   notifications_kanalen_config_enable: true
     #   notifications_kanalen_config:
     #     items:
@@ -668,7 +690,9 @@ opennotificaties:
     #         identifier: open-notificaties
     #         callback_url: https://opennotificaties.example.nl/api/v1/callbacks
     #         client_id: open-notificaties
-    #         secret: ${opennotificaties_opennotificaties_secret}
+    #         secret: 
+    #           value_from:
+    #             env: opennotificaties_opennotificaties_secret
     #   notifications_abonnementen_config_enable: true
     #   notifications_abonnementen_config:
     #     items:
@@ -710,7 +734,7 @@ opennotificaties:
   persistentVolume:
     volumeAttributeShareName: opennotificaties
   image:
-    tag: "1.12.0"
+    tag: "1.13.0"
   resources:
     requests:
       cpu: 100m
@@ -775,7 +799,9 @@ objecten:
     #     - identifier: admin-oidc
     #       enabled: True
     #       oidc_rp_client_id: objecten.example.nl
-    #       oidc_rp_client_secret: '${keycloak_client_secret}'
+    #       oidc_rp_client_secret: 
+    #         value_from:
+    #           env: keycloak_client_secret
     #       oidc_rp_scopes_list:
     #       - openid
     #       - email
@@ -815,7 +841,9 @@ objecten:
     #       api_type: orc
     #       auth_type: api_key
     #       header_key: Authorization
-    #       header_value: Token ${object_objecttypes_token}
+    #       header_value:
+    #         value_from:
+    #           env: object_objecttypes_token # object_objecttypes_token='Token my-token'
     #     - identifier: notifications-api
     #       label: Notificaties API
     #       api_root: https://notificaties.example.nl/api/v1/
@@ -823,7 +851,9 @@ objecten:
     #       api_type: nrc
     #       auth_type: api_key
     #       header_key: Authorization
-    #       header_value: Token ${object_notificaties_token}
+    #       header_value:
+    #         value_from:
+    #           env: object_notificaties_token # object_notificaties_token='Token object_notificaties_token'
     #   notifications_config_enable: true
     #   notifications_config:
     #     notifications_api_service_identifier: notifications-api
@@ -834,7 +864,9 @@ objecten:
     #   tokenauth:
     #     items:
     #       - identifier: openformulier-token
-    #         token: ${openformulieren_objecten_token}
+    #         token:
+    #           value_from:
+    #             env: openformulieren_objecten_token
     #         contact_person: Person 1
     #         email: person-1@example.com
     #         organization: Organization 1
@@ -868,7 +900,7 @@ objecten:
   persistentVolume:
     volumeAttributeShareName: objecten
   image:
-    tag: "3.1.4"
+    tag: "3.3.1"
   resources:
     requests:
       cpu: 100m
@@ -924,7 +956,9 @@ objecttypen:
     #     - identifier: admin-oidc
     #       enabled: True
     #       oidc_rp_client_id: objecttypen.example.nl
-    #       oidc_rp_client_secret: '${keycloak_client_secret}'
+    #       oidc_rp_client_secret:
+    #         value_from:
+    #           env: keycloak_client_secret
     #       oidc_rp_scopes_list:
     #       - openid
     #       - email
@@ -958,14 +992,18 @@ objecttypen:
     #   tokenauth:
     #     items:
     #       - identifier: objecten-token
-    #         token: ${object_objecttypes_token}
+    #         token:
+    #           value_from:
+    #             env: object_objecttypes_token
     #         contact_person: Person 1
     #         email: person-1@example.com
     #         organization: Organization 1
     #         application: Objecten API
     #         administration: Administration 1
     #       - identifier: openformulier-token
-    #         token: ${openformulieren_objecten_token}
+    #         token: 
+    #           value_from:
+    #             env: openformulieren_objecten_token
     #         contact_person: Person 1
     #         email: person-1@example.com
     #         organization: Organization 1
@@ -986,7 +1024,7 @@ objecttypen:
       useTLS: true
     disable2fa: false
   image:
-    tag: "3.2.1"
+    tag: "3.3.0"
   # used for create-required-objecttypen podiumd job only
   create_required_objecttypen_job:
     enabled: true
@@ -1096,7 +1134,7 @@ openarchiefbeheer:
   # maykinmedia/open-archiefbeheer:1.1.0
   image:
     #repository: maykinmedia/open-archiefbeheer
-    tag: "1.1.0"
+    tag: "1.1.1"
 
   resources:
     limits: {}
@@ -1185,7 +1223,7 @@ openklant:
     #         - profile
     #         - roles
     #       oidc_rp_client_id: openklant
-    #       oidc_rp_client_secret: REP_OPENKLANT_OIDC_SECRET_REP
+    #       oidc_rp_client_secret: REP_OPENKLANT_OIDC_SECRET_REP # also allowed to have direct value
     #       oidc_rp_sign_algo: RS256
     #       userinfo_claims_source: id_token
     #       options:
@@ -1213,7 +1251,9 @@ openklant:
     #   tokenauth:
     #     items:
     #       - identifier: token-1
-    #         token: ${openklant_token}
+    #         token:
+    #           value_from:
+    #             env: openklant_token
     #         contact_person: Person 1
     #         email: test@example.com
     #         organization: Organization XYZ
@@ -1229,7 +1269,9 @@ openklant:
     #       auth_type: zgw
     #       client_id: open-klant
     #       user_id: open-klant
-    #       secret: ${openklant_token}
+    #       secret: 
+    #         value_from:
+    #           env: openklant_token
     #   notifications_config_enable: true
     #   notifications_config:
     #     notifications_api_service_identifier: open-notificaties
@@ -1249,7 +1291,7 @@ openklant:
   persistentVolume:
     volumeAttributeShareName: openklant
   image:
-    tag: "2.12.1"
+    tag: "2.13.0"
   resources:
     requests:
       cpu: 100m
@@ -1291,42 +1333,65 @@ openformulieren:
     secrets: {}
     data: ""
     # data: |-
-    #   oidc_db_config_enable: True
+    #   oidc_db_config_enable: true
     #   oidc_db_config_admin_auth:
+    #     providers:
+    #     - identifier: keycloak-provider
+    #       oidc_use_nonce: true
+    #       oidc_nonce_size: 32
+    #       oidc_state_size: 32
+    #       endpoint_config:
+    #         oidc_op_discovery_endpoint:  https://keycloak.example.nl/realms/gemeente-x/
     #     items:
     #     - identifier: admin-oidc
-    #       enabled: True
+    #       enabled: true
     #       oidc_rp_client_id: openformulieren.example.nl
     #       oidc_rp_client_secret: ${keycloak_client_secret}
     #       oidc_rp_scopes_list:
     #       - openid
     #       - email
     #       - profile
-    #       - roles
     #       oidc_rp_sign_algo: RS256
-    #       endpoint_config:
-    #         oidc_op_discovery_endpoint: https://keycloak.example.nl/realms/gemeente-x/
-    #       username_claim:
-    #       - sub
-    #       groups_claim:
-    #       - roles
-    #       claim_mapping:
-    #         first_name:
-    #         - given_name
-    #         last_name:
-    #         - family_name
-    #         email:
-    #         - email
-    #       sync_groups: true
-    #       sync_groups_glob_pattern: "*"
-    #       default_groups: []
-    #       make_users_staff: true
-    #       superuser_group_names:
-    #       - Superuser
-    #       oidc_use_nonce: true
-    #       oidc_nonce_size: 32
-    #       oidc_state_size: 32
+    #       oidc_provider_identifier: keycloak-provider
     #       userinfo_claims_source: id_token
+    #       options:
+    #         user_settings:
+    #           claim_mappings:
+    #             username:
+    #               - sub
+    #             first_name:
+    #               - given_name
+    #             email:
+    #               - email
+    #           username_case_sensitive: true
+    #         groups_settings:
+    #           claim_mapping:
+    #             - groups
+    #           sync: true
+    #           sync_pattern: '*'
+    #           default_groups: []
+    #           make_users_staff: true
+    #           superuser_group_names:
+    #             - Superuser
+    #     - identifier: oidc-digid
+    #       enabled: true
+    #       oidc_rp_client_id: testid
+    #       oidc_rp_client_secret: even-more-secret
+    #       oidc_rp_scopes_list:
+    #       - openid
+    #       - email
+    #       - profile
+    #       - bsn
+    #       oidc_rp_sign_algo: RS256
+    #       oidc_provider_identifier: keycloak-provider
+    #       userinfo_claims_source: id_token
+    #       options:
+    #         loa_settings:
+    #           claim_path: ["loa"]
+    #           default: "urn:oasis:names:tc:SAML:2.0:ac:classes:MobileTwoFactorContract"
+    #           value_mapping: []
+    #         identity_settings: 
+    #           bsn_claim_path: ["bsn"]    
     #   zgw_consumers_config_enable: True
     #   zgw_consumers:
     #     services:
@@ -1422,7 +1487,7 @@ openformulieren:
   persistentVolume:
     volumeAttributeShareName: openformulieren
   image:
-    tag: "3.2.4"
+    tag: "3.3.1"
   resources:
     requests:
       cpu: 100m
@@ -1609,7 +1674,7 @@ openinwoner:
   persistentVolume:
     volumeAttributeShareName: openinwoner
   image:
-    tag: "1.34.2"
+    tag: "1.35.1"
   resources:
     requests:
       cpu: 200m
@@ -1880,16 +1945,16 @@ zac:
     code: "007"
     naam: "Example Gemeente"
     mail: "noreply@example.nl"
-  # curlimages/curl:8.15.0
+  # curlimages/curl:8.16.0
   global:
     curlImage:
       #repository: curlimages/curl
       tag: 8.16.0
-  # ghcr.io/infonl/zaakafhandelcomponent:3.17.16
+  # ghcr.io/infonl/zaakafhandelcomponent:3.18.0
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
-    tag: 3.17.16
+    tag: 3.18.0
   initContainer:
     enabled: false
   keycloak:
@@ -1924,16 +1989,16 @@ zac:
     url: http://objecttypen.example.nl
     token: objecttypentoken
   office_converter:
-    # ghcr.io/eugenmayer/kontextwork-converter:1.8.0
+    # ghcr.io/eugenmayer/kontextwork-converter:1.8.1
     image:
       #repository: ghcr.io/eugenmayer/kontextwork-converter
-      tag: 1.8.0
+      tag: 1.8.1
   opa:
     sidecar: true
-    # openpolicyagent/opa:1.8.0-static
+    # openpolicyagent/opa:1.9.0-static
     image:
       #repository: openpolicyagent/opa
-      tag: 1.8.0-static
+      tag: 1.9.0-static
   openForms:
     url: http://open-forms.example.nl
   organizations:
@@ -2006,7 +2071,7 @@ zgw-office-addin:
   frontend:
     # ghcr.io/infonl/zgw-office-add-in-frontend:v0.0.299
     image:
-      tag: v0.0.299
+      tag: v0.2.50
     # the public url where manifest.xml and static js files are served
     frontendUrl: https://office-addin.example.nl
     # by default this is not needed as it is proxied by the frontend host
@@ -2016,9 +2081,9 @@ zgw-office-addin:
   backend:
     # ghcr.io/infonl/zgw-office-add-in-backend:v0.0.299
     image:
-      tag: v0.0.299
+      tag: v0.2.50
     # secret that is configured in openzaak
-    jwtSecret: "my openzaak-office-addin-zgw-api-key"
+    jwtSecret: "my-openzaak-office-addin-zgw-api-key"
     # the base url of the openzaak zgw api's
     apiBaseUrl: "https://openzaak.example.nl"
 
