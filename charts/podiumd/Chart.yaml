@@ -71,7 +71,7 @@ dependencies:
       - zaak
   - name: zgw-office-addin
     repository: "@zgw-office-addin"
-    version: 0.0.50
+    version: 0.0.42
     condition: zgw-office-addin.enabled
   - name: internetaakafhandeling
     alias: ita
