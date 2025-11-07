@@ -7,6 +7,9 @@ metadata:
   labels:
     {{- include "podiumd.labels" . | nindent 4 }}
     app.kubernetes.io/component: keycloak-config-cli
+  {{- if .Values.keycloak.commonAnnotations }}
+  annotations: {{- include "common.tplvalues.merge" (dict "values" (list .Values.keycloak.commonAnnotations) "context" .) | nindent 4 }}
+  {{- end }}
 data:
   master.yaml: |
     realm: master
