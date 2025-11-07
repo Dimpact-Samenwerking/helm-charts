@@ -1,3 +1,4 @@
+{{- if .Values.objecttypen.enabled }}
 {{- if .Values.objecttypen.configuration.enabled }}
 {{- if .Values.objecttypen.create_required_objecttypen_job.enabled }}
 apiVersion: v1
@@ -123,5 +124,6 @@ spec:
       restartPolicy: OnFailure
   backoffLimit: 4
   activeDeadlineSeconds: 300
+{{- end }}
 {{- end }}
 {{- end }}
