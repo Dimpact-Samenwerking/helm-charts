@@ -2213,6 +2213,12 @@ apiproxy:
       <<: *commonLocation
       path: /lvbag/individuelebevragingen/v2/
       targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apibagib/v2/"
+      # URL rewriting in response bodies - replaces external URLs with internal proxy URLs
+      urlRewrite:
+        enabled: false  # Set to true to enable response URL rewriting
+        # The internal URL that will be used in rewritten responses
+        # Should be the public-facing URL where this api-proxy is accessible
+        internalUrl: "https://api-proxy.example.nl/lvbag/individuelebevragingen/v2/"
     brp:
       <<: *commonLocation
       path: /haalcentraal/api/brp/

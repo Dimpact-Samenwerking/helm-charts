@@ -46,6 +46,14 @@ data:
           proxy_ssl_server_name on;
           proxy_set_header Host {{ .Values.apiproxy.locations.bag.hostHeader }};
           proxy_http_version 1.1;
+          
+          # Response URL rewriting - Replace external URLs with internal proxy URLs
+    {{- if .Values.apiproxy.locations.bag.urlRewrite.enabled }}
+          proxy_set_header Accept-Encoding "";  # Disable compression for sub_filter
+          sub_filter '{{ .Values.apiproxy.locations.bag.targetUrl }}' '{{ .Values.apiproxy.locations.bag.urlRewrite.internalUrl }}';
+          sub_filter_once off;  # Replace all occurrences, not just first
+          sub_filter_types application/json application/hal+json text/html;
+    {{- end }}
         }
         
         # BRP API (Dutch Personal Records Database)
