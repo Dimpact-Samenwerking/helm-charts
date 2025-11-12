@@ -3,7 +3,7 @@ name: podiumd
 description: PodiumD Helm chart
 type: application
 version: 4.4.1
-appVersion: "4.4."
+appVersion: "4.4.1"
 dependencies:
   - name: keycloak
     version: 24.8.0
