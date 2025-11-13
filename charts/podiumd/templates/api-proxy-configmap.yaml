@@ -16,19 +16,19 @@ data:
     http {
       include /etc/nginx/mime.types;
       default_type application/octet-stream;
-      
+
       log_format main '$remote_addr - $remote_user [$time_local] "$request" '
                       '$status $body_bytes_sent "$http_referer" '
                       '"$http_user_agent" "$http_x_forwarded_for"';
-      
+
       access_log /var/log/nginx/access.log main;
       sendfile on;
       keepalive_timeout 65;
-      
+
       server {
         listen 8080;
         server_tokens off;
-        
+
         # BAG API (Dutch Building and Address Registry)
         location {{ .Values.apiproxy.locations.bag.path }} {
     {{- if .Values.apiproxy.nginxCertsSecret }}
@@ -46,16 +46,16 @@ data:
           proxy_ssl_server_name on;
           proxy_set_header Host {{ .Values.apiproxy.locations.bag.hostHeader }};
           proxy_http_version 1.1;
-          
-          # Response URL rewriting - Replace external URLs with internal proxy URLs
+
     {{- if .Values.apiproxy.locations.bag.urlRewrite.enabled }}
+          # BAG Response URL rewriting - Replace external URLs with internal proxy URLs
           proxy_set_header Accept-Encoding "";  # Disable compression for sub_filter
           sub_filter '{{ .Values.apiproxy.locations.bag.targetUrl }}' '{{ .Values.apiproxy.locations.bag.urlRewrite.internalUrl }}';
           sub_filter_once off;  # Replace all occurrences, not just first
           sub_filter_types application/json application/hal+json text/html;
     {{- end }}
         }
-        
+
         # BRP API (Dutch Personal Records Database)
         location {{ .Values.apiproxy.locations.brp.path }} {
     {{- if .Values.apiproxy.nginxCertsSecret }}
@@ -71,7 +71,7 @@ data:
           proxy_set_header Host {{ .Values.apiproxy.locations.brp.hostHeader }};
           proxy_http_version 1.1;
         }
-        
+
         # KVK API - Search (Dutch Chamber of Commerce)
         location {{ .Values.apiproxy.locations.kvkSearch.path }} {
     {{- if .Values.apiproxy.nginxCertsSecret }}
@@ -90,7 +90,7 @@ data:
           proxy_set_header Host {{ .Values.apiproxy.locations.kvkSearch.hostHeader }};
           proxy_http_version 1.1;
         }
-        
+
         # KVK API - Basic Profile
         location {{ .Values.apiproxy.locations.kvkBasic.path }} {
     {{- if .Values.apiproxy.nginxCertsSecret }}
@@ -109,7 +109,7 @@ data:
           proxy_set_header Host {{ .Values.apiproxy.locations.kvkBasic.hostHeader }};
           proxy_http_version 1.1;
         }
-        
+
         # KVK API - Branch Profile
         location {{ .Values.apiproxy.locations.kvkBranch.path }} {
     {{- if .Values.apiproxy.nginxCertsSecret }}
@@ -128,7 +128,7 @@ data:
           proxy_set_header Host {{ .Values.apiproxy.locations.kvkBranch.hostHeader }};
           proxy_http_version 1.1;
         }
-        
+
         # Health check endpoint
         location /_health {
           access_log off;
