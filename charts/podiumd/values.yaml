@@ -403,7 +403,7 @@ openzaak:
     #       api_type: nrc
     #       auth_type: zgw
     #       client_id: open-zaak
-    #       secret: 
+    #       secret:
     #         value_from:
     #           env: openzaak_opennotificaties_secret
     #     - identifier: selectielijst-api
@@ -427,7 +427,7 @@ openzaak:
     #         value_from:
     #           env: opennotificaties_autorisatie_api_secret
     #     - identifier: open-zaak
-    #       secret: 
+    #       secret:
     #         value_from:
     #           env: openzaak_opennotificaties_secret
     #   sites_config_enable: true
@@ -603,7 +603,7 @@ opennotificaties:
     #         api_type: ac
     #         auth_type: zgw
     #         client_id: open-notificaties
-    #         secret: 
+    #         secret:
     #           value_from:
     #             env: opennotificaties_autorisatie_api_secret
     #         user_id: open-notificaties
@@ -637,7 +637,7 @@ opennotificaties:
     #           env: openzaak_opennotificaties_secret
     #     # Credentials for Open Notificaties to talk to itself
     #     - identifier: open-notificaties
-    #       secret: 
+    #       secret:
     #         value_from:
     #           env: opennotificaties_opennotificaties_secret
     #   notifications_kanalen_config_enable: true
@@ -690,7 +690,7 @@ opennotificaties:
     #         identifier: open-notificaties
     #         callback_url: https://opennotificaties.example.nl/api/v1/callbacks
     #         client_id: open-notificaties
-    #         secret: 
+    #         secret:
     #           value_from:
     #             env: opennotificaties_opennotificaties_secret
     #   notifications_abonnementen_config_enable: true
@@ -799,7 +799,7 @@ objecten:
     #     - identifier: admin-oidc
     #       enabled: True
     #       oidc_rp_client_id: objecten.example.nl
-    #       oidc_rp_client_secret: 
+    #       oidc_rp_client_secret:
     #         value_from:
     #           env: keycloak_client_secret
     #       oidc_rp_scopes_list:
@@ -1001,7 +1001,7 @@ objecttypen:
     #         application: Objecten API
     #         administration: Administration 1
     #       - identifier: openformulier-token
-    #         token: 
+    #         token:
     #           value_from:
     #             env: openformulieren_objecten_token
     #         contact_person: Person 1
@@ -1269,7 +1269,7 @@ openklant:
     #       auth_type: zgw
     #       client_id: open-klant
     #       user_id: open-klant
-    #       secret: 
+    #       secret:
     #         value_from:
     #           env: openklant_token
     #   notifications_config_enable: true
@@ -1390,8 +1390,8 @@ openformulieren:
     #           claim_path: ["loa"]
     #           default: "urn:oasis:names:tc:SAML:2.0:ac:classes:MobileTwoFactorContract"
     #           value_mapping: []
-    #         identity_settings: 
-    #           bsn_claim_path: ["bsn"]    
+    #         identity_settings:
+    #           bsn_claim_path: ["bsn"]
     #   zgw_consumers_config_enable: True
     #   zgw_consumers:
     #     services:
@@ -2213,6 +2213,12 @@ apiproxy:
       <<: *commonLocation
       path: /lvbag/individuelebevragingen/v2/
       targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apibagib/v2/"
+      # BAG URL rewriting in response bodies - replaces external URLs with internal proxy URLs
+      urlRewrite:
+        enabled: false # Set to true to enable response URL rewriting
+        # The internal URL that will be used in rewritten responses
+        # Should be the public-facing URL where this api-proxy is accessible
+        internalUrl: "http://api-proxy/lvbag/individuelebevragingen/v2/"
     brp:
       <<: *commonLocation
       path: /haalcentraal/api/brp/
