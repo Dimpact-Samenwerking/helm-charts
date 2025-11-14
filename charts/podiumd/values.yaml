@@ -2228,7 +2228,7 @@ apiproxy:
       targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apikvk/vesprof/v1/v1/vestigingsprofielen"
 
 ita:
-  baseUrl: ""
+  baseUrl: "https://ontw-ita.example.nl"
   enabled: true
   replicaCount: 1
   imagePullSecrets: []
@@ -2250,10 +2250,10 @@ ita:
 
   apiConnections:
     openKlant:
-      baseUrl: "http://openklant.podiumd.svc.cluster.local"
+      baseUrl: "http://openklant.example.nl"
       apiKey: "REP_OPENKLANT_CREDENTIALS_ITA_TOKEN_REP"
     object:
-      baseUrl: "http://objecten.podiumd.svc.cluster.local"
+      baseUrl: "http://objecten.podiumd.svc.cluster.local/api/v2/"
       apiKey: "REP_OBJECTEN_CREDENTIALS_ITA_TOKEN_REP"
     zaakSysteem:
       baseUrl: "http://openzaak-nginx.podiumd.svc.cluster.local"
@@ -2261,17 +2261,17 @@ ita:
       key: "REP_OPENZAAK_CREDENTIALS_ITA_SECRET_REP"
 
   logboek:
-    type: ""
+    type: https://ontw-objecttypen.example.nl/api/v2/objecttypes/uuid-van-objecttype-activiteitenlog
     typeVersion: 1
 
   afdeling:
     uuid: "REP_CONTACT_AFDELING_UUID_REP"
-    type: https://ontw-objecttypen.example.nl/api/v2/objecttypes/{{ .Values.ita.afdeling.uuid }}
+    type: https://ontw-objecttypen.example.nl/api/v2/objecttypes/uuid-van-objecttype-afdeling
     typeVersion: 1
 
   groep:
     uuid: "REP_CONTACT_GROEP_UUID_REP"
-    type: https://ontw-objecttypen.example.nl/api/v2/objecttypes/{{ .Values.ita.groep.uuid }}
+    type: https://ontw-objecttypen.example.nl/api/v2/objecttypes/uuid-van-objecttype-groep
     typeVersion: 1
 
   smtp:
@@ -2297,7 +2297,7 @@ ita:
       frontendUrl: "REP_ITA_OIDC_FRONTEND_URL_REP"
       clientId: "ita"
       clientSecret: "REP_ITA_OIDC_CLIENT_SECRET_REP"
-      itaSystemAccessRole: "ITA_SystemAccess"
+      itaSystemAccessRole: "ITA_Gebruiker"
       functioneelBeheerderRole: "ITA_Functioneel_Beheerder"
       nameClaimType: "preferred_username"
       roleClaimType: "roles"
