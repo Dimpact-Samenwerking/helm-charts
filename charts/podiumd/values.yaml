@@ -2256,7 +2256,7 @@ ita:
 
   apiConnections:
     openKlant:
-      baseUrl: "http://openklant.example.nl"
+      baseUrl: "https://openklant.example.nl"
       apiKey: "REP_OPENKLANT_CREDENTIALS_ITA_TOKEN_REP"
     object:
       baseUrl: "http://objecten.podiumd.svc.cluster.local/api/v2/"
