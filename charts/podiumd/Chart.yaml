@@ -2,8 +2,8 @@ apiVersion: v2
 name: podiumd
 description: PodiumD Helm chart
 type: application
-version: 4.4.1
-appVersion: "4.4.1"
+version: 4.4.2
+appVersion: "4.4.2"
 dependencies:
   - name: keycloak
     version: 24.8.0
@@ -76,5 +76,5 @@ dependencies:
   - name: internetaakafhandeling
     alias: ita
     repository: "oci://ghcr.io/interne-taak-afhandeling"
-    version: 2.0.0
+    version: 2.0.1
     condition: ita.enabled
