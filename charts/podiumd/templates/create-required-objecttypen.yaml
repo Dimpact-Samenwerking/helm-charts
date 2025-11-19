@@ -37,7 +37,8 @@ data:
       { "documentationUrl": "https://raw.githubusercontent.com/open-objecten/objecttypes/refs/heads/main/community-concepts/Interne%20taak/internetaak-schema.json", "namePlural": "InterneTaken","name":"InterneTaak", "dataClassification":"open", "updateFrequency":"unknown" },
       { "documentationUrl": "https://raw.githubusercontent.com/open-objecten/objecttypes/refs/heads/main/community-concepts/PDC%20-%20kennisartikel/kennisartikel-schema.json", "namePlural": "Kennisartikelen","name":"Kennisartikel", "dataClassification":"open", "updateFrequency":"unknown"},
       { "documentationUrl": "https://raw.githubusercontent.com/open-objecten/objecttypes/refs/heads/main/community-concepts/VAC/vac-schema.json", "namePlural": "VAC's","name":"VAC", "dataClassification":"open", "updateFrequency":"unknown" },
-      { "documentationUrl": "https://raw.githubusercontent.com/open-objecten/objecttypes/refs/heads/main/community-concepts/productaanvraag/productaanvraag-dimpact.json", "namePlural": "Productaanvragen-Dimpact","name":"Productaanvraag-Dimpact", "dataClassification":"open", "updateFrequency":"unknown" }
+      { "documentationUrl": "https://raw.githubusercontent.com/open-objecten/objecttypes/refs/heads/main/community-concepts/productaanvraag/productaanvraag-dimpact.json", "namePlural": "Productaanvragen-Dimpact","name":"Productaanvraag-Dimpact", "dataClassification":"open", "updateFrequency":"unknown" },
+      { "documentationUrl": "https://raw.githubusercontent.com/Interne-Taak-Afhandeling/ITA/refs/heads/main/docs/schema/Logboek-schema.json", "namePlural": "Activiteitenlogs","name":"Activiteitenlog", "dataClassification":"open", "updateFrequency":"unknown" }
     ]
 
     objecttypes_uuid = [
@@ -47,7 +48,8 @@ data:
         {"uuid":"72240cd6-29bb-4a66-b1c3-ab6589a39a22","name":"InterneTaak"},
         {"uuid":"e4d2e353-80ea-4962-8276-920d59a3e8de","name":"Kennisartikel"},
         {"uuid":"6a0d8f9d-f7e2-4e57-a91b-01656968a62d","name":"VAC"},
-        {"uuid":"11a5f7fd-013e-4e29-9cd1-738249fc3479","name":"Productaanvraag-Dimpact"}
+        {"uuid":"11a5f7fd-013e-4e29-9cd1-738249fc3479","name":"Productaanvraag-Dimpact"},
+        {"uuid":"2eb81bd1-0d2b-4123-84ab-d55b99b9e75a","name":"Activiteitenlog"}
     ]
 
     existing_objecttypes = []

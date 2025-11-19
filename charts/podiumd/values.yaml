@@ -2234,7 +2234,7 @@ apiproxy:
       targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apikvk/vesprof/v1/v1/vestigingsprofielen"
 
 ita:
-  baseUrl: ""
+  baseUrl: "https://ontw-ita.example.nl"
   enabled: true
   replicaCount: 1
   imagePullSecrets: []
@@ -2256,29 +2256,32 @@ ita:
 
   apiConnections:
     openKlant:
-      baseUrl: "http://openklant.podiumd.svc.cluster.local"
+      baseUrl: "https://openklant.example.nl"
       apiKey: "REP_OPENKLANT_CREDENTIALS_ITA_TOKEN_REP"
     object:
-      baseUrl: "http://objecten.podiumd.svc.cluster.local"
+      baseUrl: "https://objecten.example.nl/api/v2/"
       apiKey: "REP_OBJECTEN_CREDENTIALS_ITA_TOKEN_REP"
     zaakSysteem:
-      baseUrl: "http://openzaak-nginx.podiumd.svc.cluster.local"
+      baseUrl: "https://openzaak.example.nl"
       clientId: "ita"
       key: "REP_OPENZAAK_CREDENTIALS_ITA_SECRET_REP"
 
   logboek:
-    type: ""
+    type: https://ontw-objecttypen.example.nl/api/v2/objecttypes/2eb81bd1-0d2b-4123-84ab-d55b99b9e75a
     typeVersion: 1
+    # uuid in bovenstaande waarde kan afwijken als het objecttype handmatig is aangemaakt 
 
   afdeling:
-    uuid: "REP_CONTACT_AFDELING_UUID_REP"
-    type: https://ontw-objecttypen.example.nl/api/v2/objecttypes/{{ .Values.ita.afdeling.uuid }}
+    uuid: "c8d301f9-80b8-4575-8b29-3e9431f92994"
+    type: https://ontw-objecttypen.example.nl/api/v2/objecttypes/c8d301f9-80b8-4575-8b29-3e9431f92994
     typeVersion: 1
+    # uuid in bovenstaande waarden kan afwijken als het objecttype handmatig is aangemaakt 
 
   groep:
-    uuid: "REP_CONTACT_GROEP_UUID_REP"
-    type: https://ontw-objecttypen.example.nl/api/v2/objecttypes/{{ .Values.ita.groep.uuid }}
+    uuid: "cbec27ac-157b-490b-b586-9e8a8f5bbb85"
+    type: https://ontw-objecttypen.example.nl/api/v2/objecttypes/cbec27ac-157b-490b-b586-9e8a8f5bbb85
     typeVersion: 1
+    # uuid in bovenstaande waarden kan afwijken als het objecttype handmatig is aangemaakt 
 
   smtp:
     host: "mail.example.nl"
@@ -2303,7 +2306,7 @@ ita:
       frontendUrl: "REP_ITA_OIDC_FRONTEND_URL_REP"
       clientId: "ita"
       clientSecret: "REP_ITA_OIDC_CLIENT_SECRET_REP"
-      itaSystemAccessRole: "ITA_SystemAccess"
+      itaSystemAccessRole: "ITA_Gebruiker"
       functioneelBeheerderRole: "ITA_Functioneel_Beheerder"
       nameClaimType: "preferred_username"
       roleClaimType: "roles"
