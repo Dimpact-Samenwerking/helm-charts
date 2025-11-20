@@ -15,8 +15,8 @@ data:
     import os
     import re
 
-    authorization_token = os.environ['AUTHORIZATION_TOKEN']
-    objecttypes_url = os.environ['OBJECTTYPES_URL']
+    authorization_token = "32ca882e7a3af6e31ab4581f6e501c53f5e2deda"
+    objecttypes_url = "https://objecttypen.jim00.pd.test-rig.nl/api/v2"
 
     authorization="Token " + authorization_token
     def findHighestVersion(versions):
