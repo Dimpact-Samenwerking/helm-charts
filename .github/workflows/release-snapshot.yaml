@@ -1,0 +1,181 @@
+name: Release Snapshot Charts
+
+on:
+  workflow_dispatch:
+
+jobs:
+  release-snapshot:
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "${GITHUB_ACTOR}"
+          git config user.email "${GITHUB_ACTOR}@users.noreply.github.com"
+
+      - name: Get branch name
+        id: branch
+        run: |
+          BRANCH_NAME="${GITHUB_REF#refs/heads/}"
+          # Sanitize branch name for use in version (replace / with -, remove special chars)
+          SAFE_BRANCH_NAME=$(echo "${BRANCH_NAME}" | sed 's/\//-/g' | sed 's/[^a-zA-Z0-9._-]/-/g')
+          echo "name=${BRANCH_NAME}" >> "${GITHUB_OUTPUT}"
+          echo "safe_name=${SAFE_BRANCH_NAME}" >> "${GITHUB_OUTPUT}"
+
+      - name: Modify Chart versions for snapshot
+        run: |
+          SAFE_BRANCH="${{ steps.branch.outputs.safe_name }}"
+          
+          # Only process the podiumd chart
+          chart_dir="charts/podiumd/"
+          
+          if [[ ! -d "${chart_dir}" ]]; then
+            echo "Error: podiumd chart directory not found"
+            exit 1
+          fi
+          
+          chart_yaml="${chart_dir}Chart.yaml"
+          
+          if [[ ! -f "${chart_yaml}" ]]; then
+            echo "Error: podiumd Chart.yaml not found"
+            exit 1
+          fi
+          
+          # Read current version
+          current_version=$(grep '^version:' "${chart_yaml}" | awk '{print $2}')
+          
+          # Create snapshot version: version-branchname-snapshot
+          snapshot_version="${current_version}-${SAFE_BRANCH}-snapshot"
+          
+          # Update Chart.yaml with snapshot version
+          sed -i.bak "s/^version: .*/version: ${snapshot_version}/" "${chart_yaml}"
+          rm "${chart_yaml}.bak"
+          
+          echo "Updated podiumd to version ${snapshot_version}"
+
+      - name: Add dependency chart repos
+        run: |
+          helm repo add bitnami https://charts.bitnami.com/bitnami
+          helm repo add maykinmedia https://maykinmedia.github.io/charts
+          helm repo add opentelemetry https://open-telemetry.github.io/opentelemetry-helm-charts
+          helm repo add wiremind https://wiremind.github.io/wiremind-helm-charts
+          helm repo add dimpact https://Dimpact-Samenwerking.github.io/helm-charts
+          helm repo add elastic https://helm.elastic.co
+          helm repo add kiss-frontend https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/KISS-frontend/main/helm
+          helm repo add kiss-adapter https://raw.githubusercontent.com/ICATT-Menselijk-Digitaal/podiumd-adapter/main/helm
+          helm repo add kiss-elastic https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/.github/main/docs/scripts/elastic
+          helm repo add zac https://infonl.github.io/dimpact-zaakafhandelcomponent/
+          helm repo add openshift https://charts.openshift.io
+          helm repo add grafana https://grafana.github.io/helm-charts
+          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+          helm repo add zgw-office-addin https://infonl.github.io/zgw-office-addin
+
+      - name: Delete existing snapshot releases for this branch
+        run: |
+          SAFE_BRANCH="${{ steps.branch.outputs.safe_name }}"
+          
+          # Find and delete existing snapshot releases for this branch
+          gh release list --limit 1000 | grep -- "-${SAFE_BRANCH}-snapshot" | while read -r line; do
+            release_tag=$(echo "${line}" | awk '{print $1}')
+            echo "Deleting existing snapshot release: ${release_tag}"
+            gh release delete "${release_tag}" --yes --cleanup-tag || true
+          done
+        env:
+          GH_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Run chart-releaser
+        uses: helm/chart-releaser-action@v1.7.0
+        with:
+          skip_existing: false
+          mark_as_latest: false
+        env:
+          CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Mark releases as pre-release
+        run: |
+          SAFE_BRANCH="${{ steps.branch.outputs.safe_name }}"
+          BRANCH_NAME="${{ steps.branch.outputs.name }}"
+          
+          # Create release notes
+          NOTES="⚠️ **Snapshot Release** - Not production ready
+
+          This is a snapshot release from branch: ${BRANCH_NAME}
+
+          Snapshot releases are:
+          - Intended for testing purposes only
+          - Not recommended for production use
+          - Overwritten each time the snapshot workflow runs
+          - Automatically cleaned up after 3 weeks"
+          
+          # Get all releases with snapshot in the name from this branch
+          gh release list --limit 100 | grep -- "-${SAFE_BRANCH}-snapshot" | while read -r line; do
+            release_tag=$(echo "${line}" | awk '{print $1}')
+            
+            # Check if this release was just created (within last 5 minutes)
+            release_date=$(gh release view "${release_tag}" --json createdAt --jq .createdAt)
+            release_ts=$(date -d "${release_date}" +%s 2>/dev/null || date -j -f "%Y-%m-%dT%H:%M:%SZ" "${release_date}" +%s 2>/dev/null)
+            current_ts=$(date +%s)
+            age=$((current_ts - release_ts))
+            
+            if [[ ${age} -lt 300 ]]; then
+              echo "Marking ${release_tag} as pre-release"
+              gh release edit "${release_tag}" --prerelease --notes "${NOTES}"
+            fi
+          done
+        env:
+          GH_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+
+  cleanup-old-snapshots:
+    needs: release-snapshot
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Clean up old snapshot releases
+        run: |
+          # Calculate cutoff date (3 weeks ago)
+          if [[ "$(uname)" == "Darwin" ]]; then
+            # macOS
+            cutoff_date=$(date -v-3w +%s)
+          else
+            # Linux
+            cutoff_date=$(date -d "3 weeks ago" +%s)
+          fi
+          
+          echo "Cleaning up snapshot releases older than 3 weeks..."
+          
+          # List all releases
+          gh release list --limit 1000 | grep -- "-snapshot" | while read -r line; do
+            release_tag=$(echo "${line}" | awk '{print $1}')
+            
+            # Get release creation date
+            release_date=$(gh release view "${release_tag}" --json createdAt --jq .createdAt)
+            
+            # Convert to timestamp (handle both macOS and Linux)
+            if [[ "$(uname)" == "Darwin" ]]; then
+              release_timestamp=$(date -j -f "%Y-%m-%dT%H:%M:%SZ" "${release_date}" +%s 2>/dev/null || echo "0")
+            else
+              release_timestamp=$(date -d "${release_date}" +%s 2>/dev/null || echo "0")
+            fi
+            
+            # Check if release is older than cutoff
+            if [[ ${release_timestamp} -gt 0 ]] && [[ ${release_timestamp} -lt ${cutoff_date} ]]; then
+              echo "Deleting old snapshot release: ${release_tag} (created: ${release_date})"
+              gh release delete "${release_tag}" --yes --cleanup-tag
+            else
+              echo "Keeping snapshot release: ${release_tag} (created: ${release_date})"
+            fi
+          done
+          
+          echo "Cleanup completed."
+        env:
+          GH_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
