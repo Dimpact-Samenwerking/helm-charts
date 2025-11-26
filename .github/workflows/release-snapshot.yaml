@@ -1,7 +1,6 @@
----
 name: Release Snapshot Charts
 
-"on":
+on:
   workflow_dispatch:
     inputs:
       charts:
