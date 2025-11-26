@@ -350,7 +350,7 @@ openzaak:
     job:
       enabled: true
       backoffLimit: 6
-      ttlSecondsAfterFinished: 0
+      ttlSecondsAfterFinished: 600
       restartPolicy: Never
       resources: {}
     data: ""
@@ -546,7 +546,7 @@ opennotificaties:
     job:
       enabled: true
       backoffLimit: 6
-      ttlSecondsAfterFinished: 0
+      ttlSecondsAfterFinished: 600
       restartPolicy: OnFailure
       resources: {}
     secrets: {}
@@ -783,7 +783,7 @@ objecten:
     job:
       enabled: true
       backoffLimit: 6
-      ttlSecondsAfterFinished: 0
+      ttlSecondsAfterFinished: 600
       restartPolicy: OnFailure
       resources: {}
     secrets: {}
@@ -941,7 +941,7 @@ objecttypen:
     job:
       enabled: true
       backoffLimit: 6
-      ttlSecondsAfterFinished: 0
+      ttlSecondsAfterFinished: 600
       restartPolicy: OnFailure
       resources: {}
     secrets: {}
@@ -1058,7 +1058,7 @@ openarchiefbeheer:
     job:
       enabled: true
       backoffLimit: 6
-      ttlSecondsAfterFinished: 0
+      ttlSecondsAfterFinished: 600
       restartPolicy: OnFailure
     secrets: {}
     data: ""
@@ -1195,7 +1195,7 @@ openklant:
     job:
       enabled: true
       backoffLimit: 6
-      ttlSecondsAfterFinished: 0
+      ttlSecondsAfterFinished: 600
       restartPolicy: OnFailure
       resources: {}
     secrets: {}
@@ -1328,7 +1328,7 @@ openformulieren:
     job:
       enabled: true
       backoffLimit: 6
-      ttlSecondsAfterFinished: 0
+      ttlSecondsAfterFinished: 600
       restartPolicy: OnFailure
     secrets: {}
     data: ""
@@ -1535,7 +1535,7 @@ openinwoner:
     job:
       enabled: true
       backoffLimit: 6
-      ttlSecondsAfterFinished: 0
+      ttlSecondsAfterFinished: 600
       restartPolicy: OnFailure
       resources: {}
     data: ""
