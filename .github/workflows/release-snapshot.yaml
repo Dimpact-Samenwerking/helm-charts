@@ -2,11 +2,6 @@ name: Release Snapshot Charts
 
 on:
   workflow_dispatch:
-    inputs:
-      charts:
-        description: 'Charts to release (comma-separated, leave empty for all changed charts)'
-        required: false
-        type: string
 
 jobs:
   release-snapshot:
@@ -37,23 +32,32 @@ jobs:
         run: |
           SAFE_BRANCH="${{ steps.branch.outputs.safe_name }}"
           
-          for chart_dir in charts/*/; do
-            [[ -d "${chart_dir}" ]] || continue
-            chart_yaml="${chart_dir}Chart.yaml"
-            [[ -f "${chart_yaml}" ]] || continue
-            
-            # Read current version
-            current_version=$(grep '^version:' "${chart_yaml}" | awk '{print $2}')
-            
-            # Create snapshot version: version-branchname-snapshot
-            snapshot_version="${current_version}-${SAFE_BRANCH}-snapshot"
-            
-            # Update Chart.yaml with snapshot version
-            sed -i.bak "s/^version: .*/version: ${snapshot_version}/" "${chart_yaml}"
-            rm "${chart_yaml}.bak"
-            
-            echo "Updated $(basename "${chart_dir}") to version ${snapshot_version}"
-          done
+          # Only process the podiumd chart
+          chart_dir="charts/podiumd/"
+          
+          if [[ ! -d "${chart_dir}" ]]; then
+            echo "Error: podiumd chart directory not found"
+            exit 1
+          fi
+          
+          chart_yaml="${chart_dir}Chart.yaml"
+          
+          if [[ ! -f "${chart_yaml}" ]]; then
+            echo "Error: podiumd Chart.yaml not found"
+            exit 1
+          fi
+          
+          # Read current version
+          current_version=$(grep '^version:' "${chart_yaml}" | awk '{print $2}')
+          
+          # Create snapshot version: version-branchname-snapshot
+          snapshot_version="${current_version}-${SAFE_BRANCH}-snapshot"
+          
+          # Update Chart.yaml with snapshot version
+          sed -i.bak "s/^version: .*/version: ${snapshot_version}/" "${chart_yaml}"
+          rm "${chart_yaml}.bak"
+          
+          echo "Updated podiumd to version ${snapshot_version}"
 
       - name: Add dependency chart repos
         run: |
