@@ -1,6 +1,7 @@
+---
 name: Release Snapshot Charts
 
-on:
+"on":
   workflow_dispatch:
     inputs:
       charts:
@@ -96,6 +97,18 @@ jobs:
       - name: Mark releases as pre-release
         run: |
           SAFE_BRANCH="${{ steps.branch.outputs.safe_name }}"
+          BRANCH_NAME="${{ steps.branch.outputs.name }}"
+          
+          # Create release notes
+          NOTES="⚠️ **Snapshot Release** - Not production ready
+
+          This is a snapshot release from branch: ${BRANCH_NAME}
+
+          Snapshot releases are:
+          - Intended for testing purposes only
+          - Not recommended for production use
+          - Overwritten each time the snapshot workflow runs
+          - Automatically cleaned up after 3 weeks"
           
           # Get all releases with snapshot in the name from this branch
           gh release list --limit 100 | grep -- "-${SAFE_BRANCH}-snapshot" | while read -r line; do
@@ -103,21 +116,13 @@ jobs:
             
             # Check if this release was just created (within last 5 minutes)
             release_date=$(gh release view "${release_tag}" --json createdAt --jq .createdAt)
-            release_timestamp=$(date -d "${release_date}" +%s 2>/dev/null || date -j -f "%Y-%m-%dT%H:%M:%SZ" "${release_date}" +%s 2>/dev/null)
-            current_timestamp=$(date +%s)
-            age=$((current_timestamp - release_timestamp))
+            release_ts=$(date -d "${release_date}" +%s 2>/dev/null || date -j -f "%Y-%m-%dT%H:%M:%SZ" "${release_date}" +%s 2>/dev/null)
+            current_ts=$(date +%s)
+            age=$((current_ts - release_ts))
             
             if [[ ${age} -lt 300 ]]; then
               echo "Marking ${release_tag} as pre-release"
-              gh release edit "${release_tag}" --prerelease --notes "⚠️ **Snapshot Release** - Not production ready
-
-This is a snapshot release from branch: ${{ steps.branch.outputs.name }}
-
-Snapshot releases are:
-- Intended for testing purposes only
-- Not recommended for production use
-- Overwritten each time the snapshot workflow runs
-- Automatically cleaned up after 3 weeks"
+              gh release edit "${release_tag}" --prerelease --notes "${NOTES}"
             fi
           done
         env:
@@ -171,4 +176,3 @@ Snapshot releases are:
           echo "Cleanup completed."
         env:
           GH_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
-
