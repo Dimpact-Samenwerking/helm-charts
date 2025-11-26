@@ -1,26 +1,3 @@
-
-zgw-office-addin:
-  enabled: true
-  fullnameOverride: "zgw-office-addin"
-  frontend:
-    # ghcr.io/infonl/zgw-office-add-in-frontend:v0.0.205
-    image:
-      tag: v0.0.205
-    # the public url where manifest.xml and static js files are served
-    frontendUrl: http://office-addin.example.com
-    # by default this is not needed as it is proxied by the frontend host
-    backendPublicUrl: ""
-    # can be enabled if needed, if for instance you don't want an ingress
-    enableHttps: false
-  backend:
-    # ghcr.io/infonl/zgw-office-add-in-backend:
-    image:
-      tag: v0.0.205
-    # secret used to generate and validate JWT tokens
-    jwtSecret: "YOUR_SECRET_KEY"
-    # the base url of the openzaak api's
-    apiBaseUrl: "http://openzaak.example.com"
-
 external-secrets:
   enabled: true
   installCRDs: false
