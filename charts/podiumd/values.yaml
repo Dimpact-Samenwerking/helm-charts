@@ -350,7 +350,7 @@ openzaak:
     job:
       enabled: true
       backoffLimit: 6
-      ttlSecondsAfterFinished: 0
+      ttlSecondsAfterFinished: 600
       restartPolicy: Never
       resources: {}
     data: ""
@@ -546,7 +546,7 @@ opennotificaties:
     job:
       enabled: true
       backoffLimit: 6
-      ttlSecondsAfterFinished: 0
+      ttlSecondsAfterFinished: 600
       restartPolicy: OnFailure
       resources: {}
     secrets: {}
@@ -783,7 +783,7 @@ objecten:
     job:
       enabled: true
       backoffLimit: 6
-      ttlSecondsAfterFinished: 0
+      ttlSecondsAfterFinished: 600
       restartPolicy: OnFailure
       resources: {}
     secrets: {}
@@ -941,7 +941,7 @@ objecttypen:
     job:
       enabled: true
       backoffLimit: 6
-      ttlSecondsAfterFinished: 0
+      ttlSecondsAfterFinished: 600
       restartPolicy: OnFailure
       resources: {}
     secrets: {}
@@ -1058,7 +1058,7 @@ openarchiefbeheer:
     job:
       enabled: true
       backoffLimit: 6
-      ttlSecondsAfterFinished: 0
+      ttlSecondsAfterFinished: 600
       restartPolicy: OnFailure
     secrets: {}
     data: ""
@@ -1195,7 +1195,7 @@ openklant:
     job:
       enabled: true
       backoffLimit: 6
-      ttlSecondsAfterFinished: 0
+      ttlSecondsAfterFinished: 600
       restartPolicy: OnFailure
       resources: {}
     secrets: {}
@@ -1328,7 +1328,7 @@ openformulieren:
     job:
       enabled: true
       backoffLimit: 6
-      ttlSecondsAfterFinished: 0
+      ttlSecondsAfterFinished: 600
       restartPolicy: OnFailure
     secrets: {}
     data: ""
@@ -1487,7 +1487,7 @@ openformulieren:
   persistentVolume:
     volumeAttributeShareName: openformulieren
   image:
-    tag: "3.3.1"
+    tag: "3.3.7"
   resources:
     requests:
       cpu: 100m
@@ -1535,7 +1535,7 @@ openinwoner:
     job:
       enabled: true
       backoffLimit: 6
-      ttlSecondsAfterFinished: 0
+      ttlSecondsAfterFinished: 600
       restartPolicy: OnFailure
       resources: {}
     data: ""
@@ -1674,7 +1674,7 @@ openinwoner:
   persistentVolume:
     volumeAttributeShareName: openinwoner
   image:
-    tag: "1.35.2"
+    tag: "1.35.3"
   resources:
     requests:
       cpu: 200m
