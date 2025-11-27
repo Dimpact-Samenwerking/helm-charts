@@ -1,4 +1,4 @@
-name: Release Charts met changelogs
+name: Release Chart
 on:
   workflow_dispatch:
      inputs:
