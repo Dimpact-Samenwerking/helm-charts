@@ -1917,6 +1917,8 @@ nameOverride: ""
 fullnameOverride: ""
 
 zac:
+  featureFlags:
+    bpmnSupport: true
   auth:
     server: http://keycloak.example.nl
     realm: podiumd
@@ -1950,11 +1952,11 @@ zac:
     curlImage:
       #repository: curlimages/curl
       tag: 8.16.0
-  # ghcr.io/infonl/zaakafhandelcomponent:3.18.0
+  # ghcr.io/infonl/zaakafhandelcomponent:3.20.0
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
-    tag: 3.18.0
+    tag: 3.20.0
   initContainer:
     enabled: false
   keycloak:
@@ -2069,9 +2071,9 @@ zgw-office-addin:
   enabled: true
   fullnameOverride: "zgw-office-addin"
   frontend:
-    # ghcr.io/infonl/zgw-office-add-in-frontend:v0.0.299
+    # ghcr.io/infonl/zgw-office-add-in-frontend:v0.2.147
     image:
-      tag: v0.2.50
+      tag: v0.2.147
     # the public url where manifest.xml and static js files are served
     frontendUrl: https://office-addin.example.nl
     # by default this is not needed as it is proxied by the frontend host
@@ -2079,9 +2081,9 @@ zgw-office-addin:
     # can be enabled if needed, if for instance you don't want an ingress
     enableHttps: false
   backend:
-    # ghcr.io/infonl/zgw-office-add-in-backend:v0.0.299
+    # ghcr.io/infonl/zgw-office-add-in-backend:v0.2.147
     image:
-      tag: v0.2.50
+      tag: v0.2.147
     # secret that is configured in openzaak
     jwtSecret: "my-openzaak-office-addin-zgw-api-key"
     # the base url of the openzaak zgw api's
