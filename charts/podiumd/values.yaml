@@ -2339,3 +2339,43 @@ serviceAccount:
   automount: true
   annotations: {}
   name: ""
+
+
+
+pabc:
+  enabled: false
+  fullnameOverride: "pabc"
+  postgresql:
+    enabled: false
+  image:
+    # this is the same version as the chart by default, so consider leaving this empty
+    tag: v0.0.1-rc.5
+  migrations:
+    image:
+      # this is the same version as the chart by default, so consider leaving this empty
+      tag: v0.0.1-rc.5
+  
+  settings:
+    database:
+      host: ""
+      port: 5432
+      name: "pabc"
+      username: "pabc"
+      password: ""
+
+    apiKeys: [""]
+    
+    oidc:
+      authority: "https://ontw-keycloak-admin.dimpact.icatt.nl/realms/podiumd"
+      clientId: "pabc"
+      clientSecret: ""
+      functioneelBeheerderRole: "administrator"
+      nameClaimType: "preferred_username"
+      roleClaimType: "roles"
+      emailClaimType: "email"
+
+    # this will be use in the next version
+    keycloakAdmin:
+      clientId: "pabc-keycloak-admin"
+      clientSecret: ""
+  
