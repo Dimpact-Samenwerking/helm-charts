@@ -1733,6 +1733,139 @@ openinwoner:
     image:
       tag: 9.0.3-debian-12-r1
 
+openbeheer:
+  configuration:
+    enabled: false
+    overwrite: true
+    job:
+      enabled: false
+      backoffLimit: 6
+      ttlSecondsAfterFinished: 0
+      restartPolicy: OnFailure
+      resources: {}
+    # data: ""
+    # e.g.
+    # data: |-
+    #   oidc_db_config_enable: true
+    #   oidc_db_config_admin_auth:
+    #     providers:
+    #     - identifier: keycloak-provider
+    #       oidc_use_nonce: true
+    #       oidc_nonce_size: 32
+    #       oidc_state_size: 32
+    #       endpoint_config:
+    #         oidc_op_discovery_endpoint: http://keycloak.example.nl/realms/test/
+    #     items:
+    #     - identifier: admin-oidc
+    #       enabled: true
+    #       oidc_rp_client_id: testid
+    #       oidc_rp_client_secret: very-secret
+    #       oidc_rp_scopes_list:
+    #       - openid
+    #       - email
+    #       - profile
+    #       oidc_rp_sign_algo: RS256
+    #       oidc_provider_identifier: keycloak-provider
+    #       userinfo_claims_source: id_token
+    #       options:
+    #         user_settings:
+    #           claim_mappings:
+    #             username:
+    #               - sub
+    #             first_name:
+    #               - given_name
+    #             email:
+    #               - email
+    #           username_case_sensitive: true
+    #         groups_settings:
+    #           claim_mapping:
+    #             - groups
+    #           sync: true
+    #           sync_pattern: '*'
+    #           default_groups: []
+    #           make_users_staff: true
+    #           superuser_group_names:
+    #             - Superuser
+  replicaCount: 2
+  image:
+    repository: maykinmedia/openbeheer
+    pullPolicy: IfNotPresent
+    tag: "0.9.0"
+  nameOverride: openbeheer
+  fullnameOverride: openbeheer
+  securityContext:
+    capabilities:
+      drop:
+      - ALL
+    readOnlyRootFilesystem: false
+    runAsNonRoot: true
+    runAsUser: 1000
+  resources: {}
+  persistence:
+    enabled: true
+    size: 1Gi
+    storageClassName: ""
+    existingClaim: null
+    mediaMountSubpath: openbeheer/media
+  settings:
+    allowedHosts: ""
+    djangoSettingsModule: openbeheer.conf.docker
+    useXForwardedHost: false
+    apiDomain: ""
+    apiPath: /api/v1
+    sessionCookieAge: 900
+    secretKey: ""
+    environment: ""
+    elasticapm:
+      url: ""
+      token: ""
+      serviceName: ""
+    database:
+      host: ""
+      port: 5432
+      username: ""
+      password: ""
+      name: ""
+      sslmode: prefer
+    email:
+      host: localhost
+      port: 25
+      username: ""
+      password: ""
+      useTLS: false
+      defaultFrom: ""
+    sentry:
+      dsn: ""
+    cache:
+      default: ""
+      axes: ""
+    isHttps: true
+    debug: false
+    uwsgi:
+      master: ''
+      threads: ''
+      processes: ''
+      maxRequests: ''
+      harakiri: ''
+    throttling:
+      enable: true
+      rateAnonymous: "2500/hour"
+      rateUser: "15000/hour"
+  nginx:
+    resources: {}
+  redis:
+    nameOverride: openbeheer-redis
+    fullnameOverride: openbeheer-redis
+    master:
+      persistence:
+        enabled: true
+        size: 8Gi
+        storageClass: ""
+      resources:
+        requests:
+          cpu: 250m
+          memory: 256Mi
+
 kisselastic:
   kibanaDomain: kiss-kb-http.podiumd.svc.cluster.local:5601
   elasticVersion: "8.19.3"
