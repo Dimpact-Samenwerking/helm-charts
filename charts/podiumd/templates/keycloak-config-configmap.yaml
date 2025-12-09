@@ -657,6 +657,8 @@ data:
           - name: domein_elk_zaaktype
         ita:
           - name: ITA-Gebruiker
+        pabc:
+          - name: administrator
     {{- end }}
     {{- if not .Values.keycloak.config.skipGroups }}
     groups:
@@ -695,6 +697,8 @@ data:
             - "administrators"
           opennotificaties:
             - "administrators"
+          pabc:
+            - "administrator"
       - name: "behandelaars"
         path: "/behandelaars"
         attributes:
