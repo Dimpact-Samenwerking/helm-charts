@@ -2373,6 +2373,7 @@ pabc:
       nameClaimType: "preferred_username"
       roleClaimType: "roles"
       emailClaimType: "email"
+      oidcUrl: "https://externeUrl.naar.pabc"
 
     # this will be use in the next version
     keycloakAdmin:
