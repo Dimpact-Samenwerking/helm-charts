@@ -1805,7 +1805,7 @@ openbeheer:
     enabled: true
     size: 1Gi
     storageClassName: ""
-    existingClaim: null
+    existingClaim: openbeheer
     mediaMountSubpath: openbeheer/media
   settings:
     allowedHosts: ""
