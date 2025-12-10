@@ -2349,11 +2349,11 @@ pabc:
     enabled: false
   image:
     # this is the same version as the chart by default, so consider leaving this empty
-    tag: 0.0.1-rc.7
+    tag: 0.0.1-rc.8
   migrations:
     image:
       # this is the same version as the chart by default, so consider leaving this empty
-      tag: 0.0.1-rc.7
+      tag: 0.0.1-rc.8
   
   settings:
     database:
