@@ -522,8 +522,8 @@ data:
               claim.name: "groups"
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "ita"
-      - clientId: pabc
-        name: PABC
+      - clientId: {{ .Values.pabc.settings.oidc.clientId }}
+        name: PABC OIDC Client
         enabled: true
         clientAuthenticatorType: client-secret
         redirectUris:
@@ -547,6 +547,11 @@ data:
               claim.name: "roles"
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "pabc"
+      - clientId: {{ .Values.pabc.settings.keycloakAdmin.clientId }}
+        name: PABC Keycloak Admin REST API client
+        enabled: true
+        clientAuthenticatorType: client-secret
+        secret: {{ .Values.pabc.settings.keycloakAdmin.clientSecret | quote }}
     clientScopes:
       - name: roles
         description: OpenID Connect scope for add user roles to the access token
@@ -603,6 +608,16 @@ data:
         clientRoles:
           realm-management:
             - "view-users"
+          account:
+            - "view-groups"
+      - username: "service-account-{{ .Values.pabc.settings.keycloakAdmin.clientId }}"
+        enabled: "true"
+        totp: "false"
+        serviceAccountClientId: "{{ .Values.pabc.settings.keycloakAdmin.clientId }}"
+        clientRoles:
+          realm-management:
+            - "view-users"
+            - "view-realm"
           account:
             - "view-groups"
     smtpServer:
