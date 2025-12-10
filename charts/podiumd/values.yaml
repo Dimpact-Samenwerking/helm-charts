@@ -1807,6 +1807,8 @@ openbeheer:
     storageClassName: ""
     existingClaim: openbeheer
     mediaMountSubpath: openbeheer/media
+  persistentVolume:
+    volumeAttributeShareName: openbeheer
   settings:
     allowedHosts: ""
     djangoSettingsModule: openbeheer.conf.docker
