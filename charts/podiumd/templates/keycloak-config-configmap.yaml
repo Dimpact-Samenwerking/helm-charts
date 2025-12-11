@@ -552,6 +552,7 @@ data:
         enabled: true
         clientAuthenticatorType: client-secret
         secret: {{ .Values.pabc.settings.keycloakAdmin.clientSecret | quote }}
+        serviceAccountsEnabled: true
     clientScopes:
       - name: roles
         description: OpenID Connect scope for add user roles to the access token
