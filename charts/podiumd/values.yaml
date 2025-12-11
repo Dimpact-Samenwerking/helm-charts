@@ -1940,6 +1940,8 @@ zac:
     password: changeme
   enabled: true
   nameOverride: zac
+  featureFlags:
+    pabcIntegration: false 
   fullnameOverride: zac
   gemeente:
     code: "007"
@@ -2006,6 +2008,9 @@ zac:
       rsin: "000000000"
     verantwoordelijke:
       rsin: "000000000"
+  pabc:
+    apiKey: ""
+    url: ""
   zacInternalEndpointsApiKey: "dummy"
   smartDocuments:
     enabled: false
@@ -2339,3 +2344,44 @@ serviceAccount:
   automount: true
   annotations: {}
   name: ""
+
+
+
+pabc:
+  enabled: true
+  fullnameOverride: "pabc"
+  postgresql:
+    enabled: false
+  # image:
+  #   # this is the same version as the chart by default, so consider leaving this empty
+  #   tag: 0.0.1-rc.9
+  # migrations:
+  #   image:
+  #     # this is the same version as the chart by default, so consider leaving this empty
+  #     tag: 0.0.1-rc.9
+  
+  settings:
+    database:
+      host: ""
+      # port: 5432
+      name: "pabc"
+      username: "pabc"
+      password: ""
+
+    apiKeys: [""]
+    
+    oidc:
+      authority: ""
+      clientId: "pabc"
+      clientSecret: ""
+      functioneelBeheerderRole: "administrator"
+      nameClaimType: "preferred_username"
+      roleClaimType: "roles"
+      emailClaimType: "email"
+      oidcUrl: "https://pabc.example.nl"
+
+    # this will be use in the next version
+    keycloakAdmin:
+      clientId: "pabc-keycloak-admin"
+      clientSecret: ""
+  
