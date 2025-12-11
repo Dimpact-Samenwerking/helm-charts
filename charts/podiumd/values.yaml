@@ -1788,7 +1788,7 @@ openbeheer:
     #             - Superuser
   replicaCount: 2
   image:
-    repository: maykinmedia/openbeheer
+    repository: maykinmedia/open-beheer
     pullPolicy: IfNotPresent
     tag: "0.9.0"
   nameOverride: openbeheer
