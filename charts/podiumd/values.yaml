@@ -1839,6 +1839,17 @@ kiss:
         cpu: 10m
         memory: 100Mi
     aspNetCoreEnvironment: Production
+    # -- Optionally specify extra list of additional environment variables.
+    extraEnvVars: []
+    # e.g:
+    # extraEnvVars:
+    #   - name: MY_CUSTOM_VAR
+    #     value: "my-value"
+    #   - name: ANOTHER_VAR
+    #     valueFrom:
+    #       secretKeyRef:
+    #         name: my-secret
+    #         key: my-key
     # -- Optionally specify extra list of additional volumes, for example to trust extra ca certificates.
     extraVolumes: []
     # e.g:
@@ -1868,6 +1879,17 @@ kiss:
       requests:
         cpu: 10m
         memory: 100Mi
+    # -- Optionally specify extra list of additional environment variables.
+    extraEnvVars: []
+    # e.g:
+    # extraEnvVars:
+    #   - name: MY_CUSTOM_VAR
+    #     value: "my-value"
+    #   - name: ANOTHER_VAR
+    #     valueFrom:
+    #       secretKeyRef:
+    #         name: my-secret
+    #         key: my-key
     # -- Optionally specify extra list of additional volumes, for example to trust extra ca certificates.
     extraVolumes: []
     # e.g:

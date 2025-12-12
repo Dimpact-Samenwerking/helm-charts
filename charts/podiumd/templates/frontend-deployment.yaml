@@ -53,6 +53,9 @@ spec:
           env:
             - name: ASPNETCORE_ENVIRONMENT
               value: {{ .Values.kiss.frontend.aspNetCoreEnvironment | quote }}
+            {{- if .Values.kiss.frontend.extraEnvVars }}
+            {{- toYaml .Values.kiss.frontend.extraEnvVars | nindent 12 }}
+            {{- end }}
           {{- if .Values.kiss.frontend.extraVolumeMounts }}
           volumeMounts:
             {{- include "kiss-frontend.tplvalues.render" ( dict "value" .Values.kiss.frontend.extraVolumeMounts "context" $ ) | nindent 12 }}
