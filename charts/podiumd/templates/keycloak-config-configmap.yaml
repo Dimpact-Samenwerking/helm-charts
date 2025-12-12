@@ -672,7 +672,8 @@ data:
           - name: recordmanager
           - name: domein_elk_zaaktype
         ita:
-          - name: ITA-Gebruiker
+          - name: ITA_Gebruiker
+          - name: ITA_Functioneel_Beheerder
         pabc:
           - name: administrator
     {{- end }}
@@ -696,7 +697,8 @@ data:
           abc:
             - "administrators"
           ita:
-            - "ITA-Gebruiker"
+            - "ITA_Gebruiker"
+            - "ITA_Functioneel_Beheerder"
           monitoring:
             - "admin"
           objecten:
