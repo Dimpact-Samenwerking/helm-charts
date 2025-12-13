@@ -2236,7 +2236,7 @@ apiproxy:
       targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apikvk/vesprof/v1/v1/vestigingsprofielen"
 
 ita:
-  baseUrl: "https://ontw-ita.example.nl"
+  baseUrl: "https://ita.example.nl"
   enabled: true
   replicaCount: 1
   imagePullSecrets: []
