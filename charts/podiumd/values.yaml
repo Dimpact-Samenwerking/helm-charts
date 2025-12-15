@@ -1843,13 +1843,14 @@ kiss:
     extraEnvVars: []
     # e.g:
     # extraEnvVars:
-    #   - name: MY_CUSTOM_VAR
-    #     value: "my-value"
-    #   - name: ANOTHER_VAR
-    #     valueFrom:
-    #       secretKeyRef:
-    #         name: my-secret
-    #         key: my-key
+    #   - name: HAAL_CENTRAAL_CUSTOM_HEADERS__x-request-afnemerscode
+    #     value: "510225"
+    #   - name: HAAL_CENTRAAL_CUSTOM_HEADERS__x-request-application
+    #     value: "gemeente-env-kiss-podiumd-contact"
+    #   - name: HAAL_CENTRAAL_CUSTOM_HEADERS__x-request-organization
+    #     value: "00000000000000000000"
+    #   - name: HAAL_CENTRAAL_USER_HEADER_NAME
+    #     value: "x-request-user"
     # -- Optionally specify extra list of additional volumes, for example to trust extra ca certificates.
     extraVolumes: []
     # e.g:
