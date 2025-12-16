@@ -2,8 +2,8 @@ apiVersion: v2
 name: podiumd
 description: PodiumD Helm chart
 type: application
-version: 4.4.4
-appVersion: "4.4.4"
+version: 4.5.0
+appVersion: "4.5.0"
 dependencies:
   - name: keycloak
     version: 24.8.0
@@ -64,14 +64,14 @@ dependencies:
     condition: infinispan.enabled
   - name: zaakafhandelcomponent
     alias: zac
-    version: 1.0.137
+    version: 1.0.148
     repository: "@zac"
     condition: zac.enabled
     tags:
       - zaak
   - name: zgw-office-addin
     repository: "@zgw-office-addin"
-    version: 0.0.42
+    version: 0.0.55
     condition: zgw-office-addin.enabled
   - name: internetaakafhandeling
     alias: ita
