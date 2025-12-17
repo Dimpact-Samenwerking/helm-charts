@@ -1740,8 +1740,8 @@ openbeheer:
     job:
       enabled: false
       backoffLimit: 6
-      ttlSecondsAfterFinished: 0
-      restartPolicy: OnFailure
+      ttlSecondsAfterFinished: 600
+      restartPolicy: Never
       resources: {}
     # data: ""
     # e.g.
