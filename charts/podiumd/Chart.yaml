@@ -78,3 +78,8 @@ dependencies:
     repository: "oci://ghcr.io/interne-taak-afhandeling"
     version: 2.0.1
     condition: ita.enabled
+  - name: pabc
+    alias: pabc
+    repository: "oci://ghcr.io/platform-autorisatie-beheer-component"
+    version: 1.0.0
+    condition: pabc.enabled
