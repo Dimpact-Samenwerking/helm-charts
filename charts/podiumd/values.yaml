@@ -1933,7 +1933,7 @@ kiss:
   alpine:
     image:
       repository: "alpine"
-      tag: "3.20"
+      tag: "3.23"
       pullPolicy: IfNotPresent
 
 nameOverride: ""
