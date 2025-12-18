@@ -702,6 +702,28 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 | openinwoner.elasticsearch.data.nodeSelector               | Elastic search data node labels for pod assignment. Evaluated as a template                                                                           | `{}`                                          |
 | openinwoner.elasticsearch.coordinating.nodeSelector       | Elastic search coordinating node labels for pod assignment. Evaluated as a template                                                                   | `{}`                                          |
 
+### KISS
+
+| Name                                    | Description                                                                                     | Value                                 |
+|-----------------------------------------|-------------------------------------------------------------------------------------------------|---------------------------------------|
+| kiss.enabled                             | Boolean to override the installation of KISS                                                                 | `true`                                |
+| kiss.frontend.image.repository           | Frontend image repository                                                                       | `ghcr.io/klantinteractie-servicesysteem/kiss-frontend` |
+| kiss.frontend.image.tag                  | Frontend image tag                                                                              | `"1.3.1"`                             |
+| kiss.frontend.image.pullPolicy           | Frontend image pull policy                                                                      | `IfNotPresent`                        |
+| kiss.frontend.resources                  | Frontend container requests and limits                                                         | See values.yaml                       |
+| kiss.frontend.aspNetCoreEnvironment      | ASP.NET Core environment                                                                        | `Production`                          |
+| kiss.frontend.extraEnvVars               | Optionally specify extra list of additional environment variables                               | `[]`                                  |
+| kiss.adapter.image.repository             | Adapter image repository                                                                        | `ghcr.io/icatt-menselijk-digitaal/podiumd-adapter` |
+| kiss.adapter.image.tag                   | Adapter image tag                                                                               | `"0.6.4"`                             |
+| kiss.adapter.image.pullPolicy            | Adapter image pull policy                                                                       | `IfNotPresent`                        |
+| kiss.adapter.resources                   | Adapter container requests and limits                                                          | See values.yaml                       |
+| kiss.adapter.extraEnvVars                | Optionally specify extra list of additional environment variables                               | `[]`                                  |
+| kiss.frontend.extraVolumes               | Optionally specify extra list of additional volumes                                             | `[]`                                  |
+| kiss.frontend.extraVolumeMounts          | Optionally specify extra list of additional volumeMounts                                        | `[]`                                  |
+| kiss.adapter.extraVolumes                | Optionally specify extra list of additional volumes                                             | `[]`                                  |
+| kiss.adapter.extraVolumeMounts           | Optionally specify extra list of additional volumeMounts                                        | `[]`                                  |
+| kiss.nodeSelector                        | Node labels for pod assignment. Evaluated as a template                                         | `{}`                                  |
+
 ### Podiumd Proxy
 
 | Name                                         | Description                                | Value                                                                               |
