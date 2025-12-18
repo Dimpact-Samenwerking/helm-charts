@@ -81,5 +81,5 @@ dependencies:
   - name: pabc
     alias: pabc
     repository: "oci://ghcr.io/platform-autorisatie-beheer-component"
-    version: 0.0.1-rc.9
+    version: 1.0.0
     condition: pabc.enabled
