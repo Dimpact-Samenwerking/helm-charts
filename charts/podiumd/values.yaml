@@ -1487,7 +1487,7 @@ openformulieren:
   persistentVolume:
     volumeAttributeShareName: openformulieren
   image:
-    tag: "3.3.7"
+    tag: "3.3.9"
   resources:
     requests:
       cpu: 100m
@@ -1839,6 +1839,18 @@ kiss:
         cpu: 10m
         memory: 100Mi
     aspNetCoreEnvironment: Production
+    # -- Optionally specify extra list of additional environment variables.
+    extraEnvVars: []
+    # e.g:
+    # extraEnvVars:
+    #   - name: HAAL_CENTRAAL_CUSTOM_HEADERS__x-request-afnemerscode
+    #     value: "510225"
+    #   - name: HAAL_CENTRAAL_CUSTOM_HEADERS__x-request-application
+    #     value: "gemeente-env-kiss-podiumd-contact"
+    #   - name: HAAL_CENTRAAL_CUSTOM_HEADERS__x-request-organization
+    #     value: "00000000000000000000"
+    #   - name: HAAL_CENTRAAL_USER_HEADER_NAME
+    #     value: "x-request-user"
     # -- Optionally specify extra list of additional volumes, for example to trust extra ca certificates.
     extraVolumes: []
     # e.g:
@@ -1868,6 +1880,17 @@ kiss:
       requests:
         cpu: 10m
         memory: 100Mi
+    # -- Optionally specify extra list of additional environment variables.
+    extraEnvVars: []
+    # e.g:
+    # extraEnvVars:
+    #   - name: MY_CUSTOM_VAR
+    #     value: "my-value"
+    #   - name: ANOTHER_VAR
+    #     valueFrom:
+    #       secretKeyRef:
+    #         name: my-secret
+    #         key: my-key
     # -- Optionally specify extra list of additional volumes, for example to trust extra ca certificates.
     extraVolumes: []
     # e.g:
@@ -1910,7 +1933,7 @@ kiss:
   alpine:
     image:
       repository: "alpine"
-      tag: "3.20"
+      tag: "3.23"
       pullPolicy: IfNotPresent
 
 nameOverride: ""
@@ -2276,19 +2299,19 @@ ita:
   logboek:
     type: https://ontw-objecttypen.example.nl/api/v2/objecttypes/2eb81bd1-0d2b-4123-84ab-d55b99b9e75a
     typeVersion: 1
-    # uuid in bovenstaande waarde kan afwijken als het objecttype handmatig is aangemaakt 
+    # uuid in bovenstaande waarde kan afwijken als het objecttype handmatig is aangemaakt
 
   afdeling:
     uuid: "c8d301f9-80b8-4575-8b29-3e9431f92994"
     type: https://ontw-objecttypen.example.nl/api/v2/objecttypes/c8d301f9-80b8-4575-8b29-3e9431f92994
     typeVersion: 1
-    # uuid in bovenstaande waarden kan afwijken als het objecttype handmatig is aangemaakt 
+    # uuid in bovenstaande waarden kan afwijken als het objecttype handmatig is aangemaakt
 
   groep:
     uuid: "cbec27ac-157b-490b-b586-9e8a8f5bbb85"
     type: https://ontw-objecttypen.example.nl/api/v2/objecttypes/cbec27ac-157b-490b-b586-9e8a8f5bbb85
     typeVersion: 1
-    # uuid in bovenstaande waarden kan afwijken als het objecttype handmatig is aangemaakt 
+    # uuid in bovenstaande waarden kan afwijken als het objecttype handmatig is aangemaakt
 
   smtp:
     host: "mail.example.nl"
