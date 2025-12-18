@@ -1927,7 +1927,7 @@ kiss:
     failedJobsHistoryLimit: 1
     image:
       repository: "ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync"
-      tag: "0.1.2"
+      tag: "0.3.0"
       pullPolicy: IfNotPresent
 
   alpine:
