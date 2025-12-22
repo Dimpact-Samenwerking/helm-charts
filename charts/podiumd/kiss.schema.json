@@ -1,0 +1,7 @@
+{
+    "properties": {
+        "kiss": {
+            "$ref": "https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/KISS-frontend/refs/heads/PC-2094-helm-charts-actualiseren/helm/kiss-chart/values.schema.json"
+        }
+    }
+}
