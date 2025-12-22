@@ -1750,14 +1750,6 @@ kiss:
   enabled: true
   fullnameOverride: contact
 
-  # this is used by the adapter...
-  esuite:
-    baseUrl: ""
-    clientId: kiss
-    secret: ""
-    contactverzoektypen: []
-    isDefault: true
-
   # -- Optionally specify extra list of additional environment variables. Not necesarry for KvK / BRP headers, use the settings for these
   extraEnvVars: []
   # -- Optionally specify extra list of additional volumes, for example to trust extra ca certificates.
@@ -1991,6 +1983,26 @@ kiss:
     #    readOnly: true
     #    subPath: ca.crt
     #    mountPath: /etc/ssl/certs/my-custom-ca.crt
+    objecten:
+      baseUrl: ""
+      token: ""
+
+    objecttypen:
+      baseUrlIntern: ""
+      baseUrlExtern: ""
+      token: ""
+      afdelingUUID: ""
+      groepUUID: ""
+      interneTaakUUID: ""
+      kennisartikelUUID: ""
+      medewerkerUUID: ""
+      vacUUID: ""
+    esuite:
+      baseUrl: ""
+      clientId: kiss
+      secret: ""
+      contactverzoektypen: []
+      isDefault: true
 
 nameOverride: ""
 fullnameOverride: ""
