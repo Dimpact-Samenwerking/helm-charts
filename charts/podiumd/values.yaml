@@ -1787,7 +1787,7 @@ kiss:
       port: 5432
       host: ""
       name: ""
-      user: ""
+      username: ""
       password: ""
 
     elastic:
