@@ -1899,13 +1899,15 @@ kiss:
         schedule: "*/59 * * * *"
         token: ""
 
-      medewerkers: 
+      medewerkers:
+        # should be url to adapter
         baseUrl: ""
+        clientId: ""
+        clientSecret: ""
         historyLimit: 1
         objectTypeUrl: ""
         resources: {}
         schedule: "*/59 * * * *"
-        token: ""
           
       vac:
         manageFromKiss: false
