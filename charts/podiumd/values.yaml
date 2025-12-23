@@ -1802,8 +1802,8 @@ kiss:
       engine: "kiss-engine"
 
     feedback:
-      emailFrom: 
-      emailTo: 
+      emailFrom: ""
+      emailTo: ""
 
     groepen: 
       baseUrl: ""
@@ -1895,6 +1895,7 @@ kiss:
         baseUrl: ""
         historyLimit: 1
         objectTypeUrl: ""
+        resources: {}
         schedule: "*/59 * * * *"
         token: ""
 
