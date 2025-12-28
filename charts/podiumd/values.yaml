@@ -1942,6 +1942,7 @@ fullnameOverride: ""
 zac:
   featureFlags:
     bpmnSupport: true
+    pabcIntegration: false 
   auth:
     server: http://keycloak.example.nl
     realm: podiumd
@@ -1965,8 +1966,6 @@ zac:
     password: changeme
   enabled: true
   nameOverride: zac
-  featureFlags:
-    pabcIntegration: false 
   fullnameOverride: zac
   gemeente:
     code: "007"
