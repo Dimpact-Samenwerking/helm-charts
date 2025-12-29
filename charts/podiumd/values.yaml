@@ -2307,6 +2307,7 @@ ita:
     typeVersion: 1
 
   groep:
+    # Aanname: uuid van objecttype wordt gemeentespecifiek vervangen door Replacementscripts
     uuid: "REP_CONTACT_GROEP_UUID_REP"
     type: https://ontw-objecttypen.example.nl/api/v2/objecttypes/REP_CONTACT_GROEP_UUID_REP
     typeVersion: 1
