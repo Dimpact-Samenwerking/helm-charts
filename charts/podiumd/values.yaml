@@ -2263,7 +2263,6 @@ apiproxy:
       targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apikvk/vesprof/v1/v1/vestigingsprofielen"
 
 ita:
-  baseUrl: "https://ita.example.nl"
   enabled: true
   replicaCount: 1
   imagePullSecrets: []
@@ -2320,6 +2319,9 @@ ita:
     fromEmail: ""
     enableSsl: "true"
 
+  ita:
+    baseUrl: "https://ita.example.nl"
+    
   web:
     image:
       repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web"
