@@ -2399,7 +2399,7 @@ pabc:
       clientId: "pabc"
       clientSecret: ""
       functioneelBeheerderRole: "administrator"
-      nameClaimType: "preferred_username"
+      nameClaimType: "name"
       roleClaimType: "roles"
       emailClaimType: "email"
       oidcUrl: "https://pabc.example.nl"
