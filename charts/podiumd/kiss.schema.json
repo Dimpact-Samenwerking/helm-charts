@@ -1,7 +1,7 @@
 {
     "properties": {
         "kiss": {
-            "$ref": "https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/KISS-frontend/refs/tags/v2.0.0-rc.0/helm/kiss-chart/values.schema.json"
+            "$ref": "https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/KISS-frontend/refs/tags/v2.0.0-rc.1/helm/kiss-chart/values.schema.json"
         }
     }
 }
