@@ -2406,7 +2406,6 @@ pabc:
       emailClaimType: "email"
       oidcUrl: "https://pabc.example.nl"
 
-    # this will be use in the next version
     keycloakAdmin:
       clientId: "pabc-keycloak-admin"
       clientSecret: ""
