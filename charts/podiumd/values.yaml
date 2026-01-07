@@ -354,106 +354,104 @@ openzaak:
       restartPolicy: Never
       resources: {}
     data: ""
-    # e.g.
-    # oidcUrl: https://openzaak.example.nl
-    # oidcSecret: "<openzaak>"
-    # data: |-
-    #   sites_config_enable: true
-    #   sites_config:
-    #     items:
-    #     - domain: openzaak.example.nl
-    #       name: Open-Zaak Test
-    #   zgw_consumers_config_enable: true
-    #   zgw_consumers:
-    #     services:
-    #     - identifier: notifications-api
-    #       label: Notificaties API
-    #       api_root: https://opennotificaties.example.nl/api/v1/
-    #       api_connection_check_path: notificaties
-    #       api_type: nrc
-    #       auth_type: api_key
-    #       header_key: Authorization
-    #       header_value:
-    #         value_from:
-    #            env: opennotificaties_openzaak_secret
-    #     - identifier: selectielijst-api
-    #       label: Selectielijst API
-    #       api_root: https://selectielijst.openzaak.nl/api/v1/
-    #       api_type: orc
-    #       auth_type: no_auth
-    #   notifications_config_enable: true
-    #   notifications_config:
-    #     notifications_api_service_identifier: notifications-api
-    #     notification_delivery_max_retries: 1
-    #     notification_delivery_retry_backoff: 2
-    #     notification_delivery_retry_backoff_max: 3
-    #   openzaak_selectielijst_config_enable: true
-    #   openzaak_selectielijst_config:
-    #     selectielijst_api_service_identifier: selectielijst-api
-    #     allowed_years:
-    #       - 2020
-    #       - 2017
-    #     default_year: 2020
+  # e.g. 
+  # data: |-
+  #   sites_config_enable: true
+  #   sites_config:
+  #     items:
+  #     - domain: openzaak.example.nl
+  #       name: Open-Zaak Test
+  #   zgw_consumers_config_enable: true
+  #   zgw_consumers:
+  #     services:
+  #     - identifier: notifications-api
+  #       label: Notificaties API
+  #       api_root: https://opennotificaties.example.nl/api/v1/
+  #       api_connection_check_path: notificaties
+  #       api_type: nrc
+  #       auth_type: api_key
+  #       header_key: Authorization
+  #       header_value: 
+  #         value_from: 
+  #            env: opennotificaties_openzaak_secret
+  #     - identifier: selectielijst-api
+  #       label: Selectielijst API
+  #       api_root: https://selectielijst.openzaak.nl/api/v1/
+  #       api_type: orc
+  #       auth_type: no_auth
+  #   notifications_config_enable: true
+  #   notifications_config:
+  #     notifications_api_service_identifier: notifications-api
+  #     notification_delivery_max_retries: 1
+  #     notification_delivery_retry_backoff: 2
+  #     notification_delivery_retry_backoff_max: 3
+  #   openzaak_selectielijst_config_enable: true
+  #   openzaak_selectielijst_config:
+  #     selectielijst_api_service_identifier: selectielijst-api
+  #     allowed_years:
+  #       - 2020
+  #       - 2017
+  #     default_year: 2020
 
-    #   # These are all the applications that need to talk to Open Zaak.
-    #   # Their secrets are configured in the `vng_api_common_credentials` values below!
-    #   vng_api_common_applicaties_config_enable: true
-    #   vng_api_common_applicaties:
-    #     items:
-    #     - uuid: 78591bab-9a00-4887-849c-53b21a67782f
-    #       client_ids:
-    #       - open-formulieren
-    #       label: Open Formulieren
-    #       heeft_alle_autorisaties: true
-    #   vng_api_common_credentials_config_enable: true
-    #   vng_api_common_credentials:
-    #     items:
-    #     - identifier: open-formulieren
-    #       secret:
-    #         value_from:
-    #            env: openzaak_openforms_secret
-    #   oidc_db_config_enable: true
-    #   oidc_db_config_admin_auth:
-    #     providers:
-    #     - identifier: keycloak-provider
-    #       oidc_use_nonce: true
-    #       oidc_nonce_size: 32
-    #       oidc_state_size: 32
-    #       endpoint_config:
-    #         oidc_op_discovery_endpoint: http://keycloak.example.nl/realms/test/
-    #     items:
-    #     - identifier: admin-oidc
-    #       enabled: true
-    #       oidc_rp_client_id: testid
-    #       oidc_rp_client_secret:
-    #         value_from:
-    #            env: keycloak_client_secret
-    #       oidc_rp_scopes_list:
-    #       - openid
-    #       - email
-    #       - profile
-    #       oidc_rp_sign_algo: RS256
-    #       oidc_provider_identifier: keycloak-provider
-    #       userinfo_claims_source: id_token
-    #       options:
-    #         user_settings:
-    #           claim_mappings:
-    #             username:
-    #               - sub
-    #             first_name:
-    #               - given_name
-    #             email:
-    #               - email
-    #           username_case_sensitive: true
-    #         groups_settings:
-    #           claim_mapping:
-    #             - groups
-    #           sync: true
-    #           sync_pattern: '*'
-    #           default_groups: []
-    #           make_users_staff: true
-    #           superuser_group_names:
-    #             - Registreerders
+  #   # These are all the applications that need to talk to Open Zaak. 
+  #   # Their secrets are configured in the `vng_api_common_credentials` values below! 
+  #   vng_api_common_applicaties_config_enable: true
+  #   vng_api_common_applicaties:
+  #     items:
+  #     - uuid: 78591bab-9a00-4887-849c-53b21a67782f
+  #       client_ids:
+  #       - open-formulieren
+  #       label: Open Formulieren
+  #       heeft_alle_autorisaties: true
+  #   vng_api_common_credentials_config_enable: true
+  #   vng_api_common_credentials:
+  #     items:
+  #     - identifier: open-formulieren
+  #       secret: 
+  #         value_from: 
+  #            env: openzaak_openforms_secret
+  #   oidc_db_config_enable: true
+  #   oidc_db_config_admin_auth:
+  #     providers:
+  #     - identifier: keycloak-provider
+  #       oidc_use_nonce: true
+  #       oidc_nonce_size: 32
+  #       oidc_state_size: 32
+  #       endpoint_config:
+  #         oidc_op_discovery_endpoint: http://keycloak.example.nl/realms/test/
+  #     items:
+  #     - identifier: admin-oidc
+  #       enabled: true
+  #       oidc_rp_client_id: testid
+  #       oidc_rp_client_secret: 
+  #         value_from: 
+  #            env: keycloak_client_secret
+  #       oidc_rp_scopes_list:
+  #       - openid
+  #       - email
+  #       - profile
+  #       oidc_rp_sign_algo: RS256
+  #       oidc_provider_identifier: keycloak-provider
+  #       userinfo_claims_source: id_token
+  #       options:
+  #         user_settings:
+  #           claim_mappings:
+  #             username:
+  #               - sub
+  #             first_name:
+  #               - given_name
+  #             email:
+  #               - email
+  #           username_case_sensitive: true
+  #         groups_settings:
+  #           claim_mapping:
+  #             - groups
+  #           sync: true
+  #           sync_pattern: '*'
+  #           default_groups: []
+  #           make_users_staff: true
+  #           superuser_group_names:
+  #             - Registreerders
     secrets: {}
       # openzaak_openforms_secret: "<openzaak_openforms_secret>"
       # openzaak_openinwoner_secret: "<openzaak_openinwoner_secret>"
@@ -515,6 +513,8 @@ openzaak:
         requests:
           cpu: 10m
           memory: 64Mi
+  otel:
+    disabled: true
 
 opennotificaties:
   configuration:
