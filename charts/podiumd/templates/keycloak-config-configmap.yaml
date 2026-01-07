@@ -519,9 +519,52 @@ data:
               user.attribute: "foo"
               lightweight.claim: "false"
               access.token.claim: "true"
-              claim.name: "groups"
+              claim.name: "roles"
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "ita"
+          - name: "samaccountname"
+            protocol: "openid-connect"
+            protocolMapper: "oidc-usermodel-attribute-mapper"
+            config:
+              introspection.token.claim: "true"
+              userinfo.token.claim: "true"
+              user.attribute: "samaccountname"
+              id.token.claim: "true"
+              lightweight.claim: "false"
+              access.token.claim: "true"
+              claim.name: "samaccountname"
+              jsonType.label: "String"
+      - clientId: {{ .Values.pabc.settings.oidc.clientId }}
+        name: PABC OIDC Client
+        enabled: true
+        clientAuthenticatorType: client-secret
+        redirectUris:
+          - "{{ .Values.pabc.settings.oidc.oidcUrl | trimSuffix "/" }}/*"
+        webOrigins:
+          - "{{ .Values.pabc.settings.oidc.oidcUrl | trimSuffix "/" }}/*"
+        secret: {{ .Values.pabc.settings.oidc.clientSecret | quote }}
+        protocolMappers:
+          - name: "client roles"
+            protocol: "openid-connect"
+            protocolMapper: "oidc-usermodel-client-role-mapper"
+            consentRequired: false
+            config:
+              introspection.token.claim: "true"
+              multivalued: "true"
+              userinfo.token.claim: "false"
+              id.token.claim: "true"
+              user.attribute: "foo"
+              lightweight.claim: "false"
+              access.token.claim: "true"
+              claim.name: "roles"
+              jsonType.label: "String"
+              usermodel.clientRoleMapping.clientId: "pabc"
+      - clientId: {{ .Values.pabc.settings.keycloakAdmin.clientId }}
+        name: PABC Keycloak Admin REST API client
+        enabled: true
+        clientAuthenticatorType: client-secret
+        secret: {{ .Values.pabc.settings.keycloakAdmin.clientSecret | quote }}
+        serviceAccountsEnabled: true
     clientScopes:
       - name: roles
         description: OpenID Connect scope for add user roles to the access token
@@ -580,6 +623,16 @@ data:
             - "view-users"
           account:
             - "view-groups"
+      - username: "service-account-{{ .Values.pabc.settings.keycloakAdmin.clientId }}"
+        enabled: "true"
+        totp: "false"
+        serviceAccountClientId: "{{ .Values.pabc.settings.keycloakAdmin.clientId }}"
+        clientRoles:
+          realm-management:
+            - "view-users"
+            - "view-realm"
+          account:
+            - "view-groups"
     smtpServer:
       starttls: {{ .Values.keycloak.config.smtp.starttls }}
       port: {{ .Values.keycloak.config.smtp.port }}
@@ -633,6 +686,8 @@ data:
         ita:
           - name: ITA_Gebruiker
           - name: ITA_Functioneel_Beheerder
+        pabc:
+          - name: administrator
     {{- end }}
     {{- if not .Values.keycloak.config.skipGroups }}
     groups:
@@ -672,6 +727,8 @@ data:
             - "administrators"
           opennotificaties:
             - "administrators"
+          pabc:
+            - "administrator"
       - name: "behandelaars"
         path: "/behandelaars"
         attributes:
