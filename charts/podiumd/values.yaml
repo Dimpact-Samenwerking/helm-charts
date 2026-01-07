@@ -2312,7 +2312,7 @@ ita:
     typeVersion: 1
 
   smtp:
-    host: "mail.enschede.nl"
+    host: "mail.example.nl"
     port: "587"
     username: ""
     password: ""
