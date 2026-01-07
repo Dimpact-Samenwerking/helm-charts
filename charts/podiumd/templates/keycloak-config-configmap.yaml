@@ -522,18 +522,18 @@ data:
               claim.name: "roles"
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "ita"
-          - name: samaccountname
-            protocol: openid-connect
-            protocolMapper: oidc-usermodel-attribute-mapper
+          - name: "samaccountname"
+            protocol: "openid-connect"
+            protocolMapper: "oidc-usermodel-attribute-mapper"
             config:
-              introspection.token.claim: true
-              userinfo.token.claim: true
-              user.attribute: samaccountname
-              id.token.claim: true
-              lightweight.claim: false
-              access.token.claim: true
-              claim.name: samaccountname
-              jsonType.label: String
+              introspection.token.claim: "true"
+              userinfo.token.claim: "true"
+              user.attribute: "samaccountname"
+              id.token.claim: "true"
+              lightweight.claim: "false"
+              access.token.claim: "true"
+              claim.name: "samaccountname"
+              jsonType.label: "String"
       - clientId: {{ .Values.pabc.settings.oidc.clientId }}
         name: PABC OIDC Client
         enabled: true
