@@ -81,6 +81,6 @@ dependencies:
   - name: kiss-chart
     alias: kiss
     repository: "oci://ghcr.io/klantinteractie-servicesysteem"
-    version: 2.0.0-rc.1
+    version: 2.0.0
     condition: kiss.enabled
 
