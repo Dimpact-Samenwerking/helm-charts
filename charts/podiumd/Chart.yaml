@@ -19,7 +19,7 @@ dependencies:
     condition: brppersonenmock.enabled
     alias: brppersonenmock
   - name: openzaak
-    version: 1.12.0
+    version: 1.13.0
     repository: "@maykinmedia"
     condition: openzaak.enabled
   - name: opennotificaties
@@ -84,3 +84,8 @@ dependencies:
     version: 2.0.0
     condition: kiss.enabled
 
+  - name: pabc
+    alias: pabc
+    repository: "oci://ghcr.io/platform-autorisatie-beheer-component"
+    version: 1.0.0
+    condition: pabc.enabled
