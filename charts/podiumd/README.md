@@ -21,7 +21,7 @@
 | Open Notificaties  | 1.13.0     |              | 1.12.0       |                 |
 | Open Zaak          | 1.26.0     | Patch update | 1.13.0       | Patch update    |
 | Open Archiefbeheer | 1.1.1      |              | 1.4.1        |                 |
-| Kiss               | 1.3.1      |              |              |                 |
+| Kiss               | 2.0.0      | Minor update | 2.0.0        | Major update    |
 | Zac                | 4.0.12     | Major update | 1.0.165      | Minor update    |
 | ZGW Office Addin   | 0.9.0      | Minor update | 0.0.63       | Minor update    |
 
