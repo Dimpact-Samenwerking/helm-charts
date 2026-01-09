@@ -392,7 +392,7 @@ data:
           - "{{ .Values.kiss.configuration.oidcUrl | trimSuffix "/" }}/*"
         webOrigins:
           - "{{ .Values.kiss.configuration.oidcUrl | trimSuffix "/" }}/*"
-        secret: {{ .Values.kiss.configuration.oidcSecret | quote }}
+        secret: {{ .Values.kiss.settings.oidc.clientSecret | quote }}
         protocolMappers:
           - name: kiss-roles
             protocol: openid-connect

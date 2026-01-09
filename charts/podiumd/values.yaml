@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=./kiss.schema.json
 global:
   configuration:
     enabled: true
@@ -1728,126 +1729,204 @@ kisselastic:
 
 kiss:
   enabled: true
+  fullnameOverride: contact
+
+  # -- Optionally specify extra list of additional environment variables. Not necesarry for KvK / BRP headers, use the settings for these
+  extraEnvVars: []
+  # -- Optionally specify extra list of additional volumes, for example to trust extra ca certificates.
+  extraVolumes: []
+  # e.g:
+  # extraVolumes:
+  #   - name: my-secret-mount
+  #     secret:
+  #       secretName: my-secret-containing-my-custom-ca
+
+  # -- Optionally specify extra list of additional volumeMounts, for example to trust extra ca certificates.
+  extraVolumeMounts: []
+  # e.g:
+  # extraVolumeMounts:
+  #  - name: my-secret-mount
+  #    readOnly: true
+  #    subPath: ca.crt
+  #    mountPath: /etc/ssl/certs/my-custom-ca.crt
+
+  settings:
+    afdelingen:
+      baseUrl: ""
+      objectTypeUrl: ""
+      token: ""
+
+    database:
+      port: 5432
+      host: ""
+      name: ""
+      username: ""
+      password: ""
+
+    elastic:
+      baseUrl: ""
+      password: ""
+      username: "elastic"
+      excludedFieldsKennisbank: []
+
+    email:
+      enableSsl: true
+      host: ""
+      password: ""
+      port: 587
+      username: ""
+
+    enterpriseSearch:
+      baseUrl: ""
+      privateApiKey: ""
+      publicApiKey: ""
+      engine: "kiss-engine"
+
+    feedback:
+      emailFrom: ""
+      emailTo: ""
+
+    groepen: 
+      baseUrl: ""
+      objectTypeUrl: ""
+      token: ""
+
+    haalCentraal:
+      apiKey: ""
+      baseUrl: ""
+      customHeaders:
+        my-generic-header: ""
+        my-specific-header:
+          RaadpleegMetBurgerservicenummer: ""
+          ZoekMetGeslachtsnaamEnGeboortedatum: ""
+          ZoekMetPostcodeEnHuisnummer: ""
+      userHeaderName: ""
+
+    kvk:
+      apiKey: ""
+      baseUrl: ""
+      userHeaderName: ""
+      customHeaders:
+        my-generic-header: ""
+
+    logboek:
+      baseUrl: ""
+      objectTypeUrl: ""
+      objectTypeVersion: "1"
+      token: ""
+
+    managementInformatie:
+      apiKey: ""
+
+    oidc:
+      authority: ""
+      clientId: kiss
+      clientSecret: ""
+      medewerkerIdentificatie:
+        claim: preferred_username
+        truncate: 
+
+    organisatieIds: []
+
+    registers: []
+      # # voorbeeld openzaak + openklant 2
+      # - isDefault: false
+      #   klantinteractie:
+      #     baseUrl: https://openklant.example.com/klantinteracties
+      #     token: super-secret
+      #   zaaksysteem:
+      #     catalogiBaseUrl: https://openzaak.example.com/catalogi/api/v1
+      #     clientId: kiss
+      #     clientSecret: super-secret
+      #     deeplink:
+      #       property: identificatie
+      #       url: https://openzaak.example.com/admin/zaken/zaak/?q=
+      #     documentenBaseUrl: https://openzaak.example.com/documenten/api/v1
+      #     useExperimentalQueries: true
+      #     zakenBaseUrl: https://openzaak.example.com/zaken/api/v1
+      # # voorbeeld esuite
+      # - contactmomenten:
+      #     baseUrl: http://kiss-adapter.%s.svc.cluster.local
+      #     clientId: kiss
+      #     clientSecret: super-secret
+      #   interneTaak:
+      #     baseUrl: http://kiss-adapter.%s.svc.cluster.local
+      #     clientId: kiss
+      #     clientSecret: super-secret
+      #     objectTypeUrl: https://objecttypen.example.com/api/v2/objecttypes/1df73259-1a58-4180-bf98-598eefc184d4
+      #     objectTypeVersion: 1
+      #   isDefault: true
+      #   klanten:
+      #     baseUrl: http://kiss-adapter.%s.svc.cluster.local/klanten
+      #     clientId: kiss
+      #     clientSecret: super-secret
+      #   zaaksysteem:
+      #     catalogiBaseUrl: http://kiss-adapter.%s.svc.cluster.local/zgw-apis-provider/ztc/api/v1
+      #     clientId: kiss
+      #     clientSecret: super-secret
+      #     deeplink:
+      #       property: identificatie
+      #       url: https://esuite.example.com/mp/zaak/
+      #     documentenBaseUrl: http://kiss-adapter.%s.svc.cluster.local/zgw-apis-provider/drc/api/v1
+      #     useExperimentalQueries: false
+      #     zakenBaseUrl: http://kiss-adapter.%s.svc.cluster.local/zgw-apis-provider/zrc/api/v1
+      
+    syncJobs:
+      kennisbank:
+        baseUrl: ""
+        historyLimit: 1
+        objectTypeUrl: ""
+        resources: {}
+        schedule: "*/59 * * * *"
+        token: ""
+
+      medewerkers:
+        # should be url to adapter
+        baseUrl: ""
+        clientId: ""
+        clientSecret: ""
+        historyLimit: 1
+        objectTypeUrl: ""
+        resources: {}
+        schedule: "*/59 * * * *"
+          
+      vac:
+        manageFromKiss: false
+        baseUrl: 
+        historyLimit: 1
+        objectTypeUrl: 
+        objectTypeVersion: 1
+        resources: {}
+        schedule: "*/59 * * * *"
+        token: ""
+
+      sharepoint: []
+        # - clientId: 
+        #   clientSecret: 
+        #   siteUrl: 
+        #   sourceName: 
+        #   tenantId: 
+        #   historyLimit: 1
+        #   resources: {}
+        #   schedule: "*/59 * * * *"
+
+      website: []
+        # - backoffLimit: 1
+        #   domain: "https://www.example.com"
+        #   resources: {}
+        #   restartPolicy: "OnFailure"
+        #   sourceName: "my website"
+        #   ttlSecondsAfterFinished: 0
+
+
+  # this is used for keycloak
   configuration:
     oidcUrl: https://kiss.example.nl
     oidcSecret: "<kiss>"
 
-  brp:
-    baseUrl: ""
-    apiKey: ""
-
-  elastic:
-    baseUrl: ""
-    username: elastic
-    password: ""
-
-  enterpriseSearch:
-    baseUrl: ""
-    privateApikey: ""
-    publicApikey: ""
-    engine: kiss-engine
-
-  esuite:
-    baseUrl: ""
-    clientId: kiss
-    secret: ""
-    contactverzoektypen: []
-    isDefault: true
-
-  database:
-    host: ""
-    name: ""
-    user: ""
-    password: ""
-
-  email:
-    host: ""
-    port: "587"
-    username: ""
-    password: ""
-    enableSSL: "true"
-    feedbackFrom: ""
-    feedbackTo: ""
-
-  kvk:
-    baseUrl: ""
-    apikey: ""
-
-  objecten:
-    baseUrl: ""
-    token: ""
-
-  objecttypen:
-    baseUrlIntern: ""
-    baseUrlExtern: ""
-    token: ""
-    afdelingUUID: ""
-    groepUUID: ""
-    interneTaakUUID: ""
-    kennisartikelUUID: ""
-    medewerkerUUID: ""
-    vacUUID: ""
-
-  vac:
-    useVacs: false
-    objectenBaseUrl: ""
-    objectenToken: ""
-    objectTypeUrl: ""
-    objectTypeVersion: ""
-
-  oidc:
-    authority: ""
-    clientId: kiss
-    secret: ""
-    medewerkerIdentificatieClaim: preferred_username
-    medewerkerIdentificatieTruncate: null
-
-  organisatieIds: ""
-  managementApiKey: ""
   imagePullSecrets: []
 
   nodeSelector: {}
-
-  frontend:
-    service:
-      name: ""
-    image:
-      repository: ghcr.io/klantinteractie-servicesysteem/kiss-frontend
-      tag: "1.3.1"
-      pullPolicy: IfNotPresent
-    resources:
-      requests:
-        cpu: 10m
-        memory: 100Mi
-    aspNetCoreEnvironment: Production
-    # -- Optionally specify extra list of additional environment variables.
-    extraEnvVars: []
-    # e.g:
-    # extraEnvVars:
-    #   - name: HAAL_CENTRAAL_CUSTOM_HEADERS__x-request-afnemerscode
-    #     value: "510225"
-    #   - name: HAAL_CENTRAAL_CUSTOM_HEADERS__x-request-application
-    #     value: "gemeente-env-kiss-podiumd-contact"
-    #   - name: HAAL_CENTRAAL_CUSTOM_HEADERS__x-request-organization
-    #     value: "00000000000000000000"
-    #   - name: HAAL_CENTRAAL_USER_HEADER_NAME
-    #     value: "x-request-user"
-    # -- Optionally specify extra list of additional volumes, for example to trust extra ca certificates.
-    extraVolumes: []
-    # e.g:
-    # extraVolumes:
-    #   - name: my-secret-mount
-    #     secret:
-    #       secretName: my-secret-containing-my-custom-ca
-
-    # -- Optionally specify extra list of additional volumeMounts, for example to trust extra ca certificates.
-    extraVolumeMounts: []
-    # e.g:
-    # extraVolumeMounts:
-    #  - name: my-secret-mount
-    #    readOnly: true
-    #    subPath: ca.crt
-    #    mountPath: /etc/ssl/certs/my-custom-ca.crt
 
   adapter:
     baseUrl: ""
@@ -1888,34 +1967,26 @@ kiss:
     #    readOnly: true
     #    subPath: ca.crt
     #    mountPath: /etc/ssl/certs/my-custom-ca.crt
+    objecten:
+      baseUrl: ""
+      token: ""
 
-  sync:
-    initialSync: true
-    kennisbank:
-      enabled: true
-      schedule: "*/59 * * * *"
-    smoelenboek:
-      enabled: true
-      schedule: "*/59 * * * *"
-    vac:
-      enabled: true
-      schedule: "*/59 * * * *"
-    domain:
-      enabled: false
-      schedule: "0 5 * * *"
-      url: "https://www.dimpact.nl"
-    successfulJobsHistoryLimit: 1
-    failedJobsHistoryLimit: 1
-    image:
-      repository: "ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync"
-      tag: "0.1.2"
-      pullPolicy: IfNotPresent
-
-  alpine:
-    image:
-      repository: "alpine"
-      tag: "3.23"
-      pullPolicy: IfNotPresent
+    objecttypen:
+      baseUrlIntern: ""
+      baseUrlExtern: ""
+      token: ""
+      afdelingUUID: ""
+      groepUUID: ""
+      interneTaakUUID: ""
+      kennisartikelUUID: ""
+      medewerkerUUID: ""
+      vacUUID: ""
+    esuite:
+      baseUrl: ""
+      clientId: kiss
+      secret: ""
+      contactverzoektypen: []
+      isDefault: true
 
 nameOverride: ""
 fullnameOverride: ""

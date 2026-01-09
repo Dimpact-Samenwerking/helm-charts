@@ -78,6 +78,12 @@ dependencies:
     repository: "oci://ghcr.io/interne-taak-afhandeling"
     version: 2.0.1
     condition: ita.enabled
+  - name: kiss-chart
+    alias: kiss
+    repository: "oci://ghcr.io/klantinteractie-servicesysteem"
+    version: 2.0.0
+    condition: kiss.enabled
+
   - name: pabc
     alias: pabc
     repository: "oci://ghcr.io/platform-autorisatie-beheer-component"
