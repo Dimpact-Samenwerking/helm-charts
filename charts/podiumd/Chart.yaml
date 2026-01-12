@@ -2,8 +2,8 @@ apiVersion: v2
 name: podiumd
 description: PodiumD Helm chart
 type: application
-version: 4.4.5
-appVersion: "4.4.5"
+version: 4.5.0
+appVersion: "4.5.0"
 dependencies:
   - name: keycloak
     version: 24.8.0
@@ -19,19 +19,19 @@ dependencies:
     condition: brppersonenmock.enabled
     alias: brppersonenmock
   - name: openzaak
-    version: 1.12.0
+    version: 1.13.0
     repository: "@maykinmedia"
     condition: openzaak.enabled
   - name: opennotificaties
-    version: 1.12.0
+    version: 1.13.0
     repository: "@maykinmedia"
     condition: opennotificaties.enabled
   - name: objecten
-    version: 2.10.0
+    version: 2.11.0
     repository: "@maykinmedia"
     condition: objecten.enabled
   - name: objecttypen
-    version: 1.5.0
+    version: 1.6.0
     repository: "@maykinmedia"
     condition: objecttypen.enabled
   - name: openarchiefbeheer
@@ -39,7 +39,7 @@ dependencies:
     repository: "@maykinmedia"
     condition: openarchiefbeheer.enabled
   - name: openklant
-    version: 1.9.0
+    version: 1.10.0
     repository: "@maykinmedia"
     condition: openklant.enabled
   - name: openforms
@@ -48,7 +48,7 @@ dependencies:
     repository: "@maykinmedia"
     condition: openformulieren.enabled
   - name: openinwoner
-    version: 1.12.0
+    version: 2.1.0
     repository: "@maykinmedia"
     condition: openinwoner.enabled
   - name: kiss-elastic
@@ -64,17 +64,27 @@ dependencies:
     condition: infinispan.enabled
   - name: zaakafhandelcomponent
     alias: zac
-    version: 1.0.137
+    version: 1.0.165
     repository: "@zac"
     condition: zac.enabled
     tags:
       - zaak
   - name: zgw-office-addin
     repository: "@zgw-office-addin"
-    version: 0.0.42
+    version: 0.0.63
     condition: zgw-office-addin.enabled
   - name: internetaakafhandeling
     alias: ita
     repository: "oci://ghcr.io/interne-taak-afhandeling"
     version: 2.0.1
     condition: ita.enabled
+  - name: kiss-chart
+    alias: kiss
+    repository: "oci://ghcr.io/klantinteractie-servicesysteem"
+    version: 2.0.0
+    condition: kiss.enabled
+  - name: pabc
+    alias: pabc
+    repository: "oci://ghcr.io/platform-autorisatie-beheer-component"
+    version: 1.0.0
+    condition: pabc.enabled
