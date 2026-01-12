@@ -595,11 +595,11 @@ opennotificaties:
     #             env: opennotificaties_autorisatie_api_secret
     #         user_id: open-notificaties
     #         user_representation: Open Notificaties
-    #   autorisaties_api_config_enable: True
+    #   autorisaties_api_config_enable: true
     #   autorisaties_api:
     #     # Configure Open Notificaties to make use of Open Zaak's Autorisaties API
     #     authorizations_api_service_identifier: autorisaties-api
-    #   vng_api_common_credentials_config_enable: True
+    #   vng_api_common_credentials_config_enable: true
     #   vng_api_common_credentials:
     #     items:
     #     # Credentials for Open Zaak to be able to make requests to Open Notificaties
@@ -1168,7 +1168,7 @@ openklant:
     #         organization: Organization XYZ
     #         application: Application XYZ
     #         administration: Administration XYZ
-    #   oidc_db_config_enable: True
+    #   oidc_db_config_enable: true
     #   oidc_db_config_admin_auth:
     #     providers:
     #       - identifier: admin-oidc-provider
@@ -1180,7 +1180,7 @@ openklant:
     #           oidc_op_discovery_endpoint: https://keycloak.example.nl/realms/example/
     #     items:
     #     - identifier: admin-oidc
-    #       enabled: True
+    #       enabled: true
     #       oidc_provider_identifier: admin-oidc-provider
     #       oidc_rp_client_id: openklant.example.nl
     #       oidc_rp_client_secret:
@@ -1331,7 +1331,7 @@ openformulieren:
     #           value_mapping: []
     #         identity_settings:
     #           bsn_claim_path: ["bsn"]
-    #   zgw_consumers_config_enable: True
+    #   zgw_consumers_config_enable: true
     #   zgw_consumers:
     #     services:
     #     - identifier: objecttypen-api
@@ -1373,7 +1373,7 @@ openformulieren:
     #       auth_type: zgw
     #       client_id: open-formulieren
     #       secret: ${openzaak_openformulieren_secret}
-    #   objects_api_config_enable: True
+    #   objects_api_config_enable: true
     #   objects_api:
     #     groups:
     #     - name: Objects APIs
@@ -1479,11 +1479,11 @@ openinwoner:
       resources: {}
     data: ""
     # data: |-
-    #   oidc_db_config_enable: True
+    #   oidc_db_config_enable: true
     #   oidc_db_config_admin_auth:
     #     items:
     #     - identifier: admin-oidc
-    #       enabled: True
+    #       enabled: true
     #       oidc_rp_client_id: openinwoner.example.nl
     #       oidc_rp_client_secret:
     #         value_from:
@@ -1515,7 +1515,7 @@ openinwoner:
     #       oidc_nonce_size: 32
     #       oidc_state_size: 32
     #       userinfo_claims_source: id_token
-    #   zgw_consumers_config_enable: True
+    #   zgw_consumers_config_enable: true
     #   zgw_consumers:
     #     services:
     #       - identifier: zaken-test
