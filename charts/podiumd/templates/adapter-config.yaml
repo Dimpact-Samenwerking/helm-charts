@@ -7,11 +7,11 @@ metadata:
     {{- include "podiumd.labels" . | nindent 4 }}
     app.kubernetes.io/name: {{ include "podiumd.name" . }}-adapter-config
 data:
-  {{- range $index, $contactverzoektype := .Values.kiss.esuite.contactverzoektypen }}
+  {{- range $index, $contactverzoektype := .Values.kiss.adapter.esuite.contactverzoektypen }}
   {{ printf "CONTACTVERZOEK_TYPES__%d" $index }}: {{ $contactverzoektype | quote }}
   {{- end  }}
-  ESUITE_BASE_URL: {{ .Values.kiss.esuite.baseUrl | quote }}
-  INTERNE_TAAK_OBJECT_TYPE_URL: {{ printf "%s/api/v2/objecttypes/%s" (default (printf "http://objecttypen.%s.svc.cluster.local" .Release.Namespace) .Values.kiss.objecttypen.baseUrlIntern) .Values.kiss.objecttypen.interneTaakUUID | quote }}
-  SMOELENBOEK_BASE_URL: {{ default (printf "http://objecten.%s.svc.cluster.local" .Release.Namespace) .Values.kiss.objecten.baseUrl | quote }}
-  SMOELENBOEK_OBJECT_TYPE_URL: {{ printf "%s/api/v2/objecttypes/%s" .Values.kiss.objecttypen.baseUrlExtern .Values.kiss.objecttypen.medewerkerUUID | quote }}
+  ESUITE_BASE_URL: {{ .Values.kiss.adapter.esuite.baseUrl | quote }}
+  INTERNE_TAAK_OBJECT_TYPE_URL: {{ printf "%s/api/v2/objecttypes/%s" (default (printf "http://objecttypen.%s.svc.cluster.local" .Release.Namespace) .Values.kiss.adapter.objecttypen.baseUrlIntern) .Values.kiss.adapter.objecttypen.interneTaakUUID | quote }}
+  SMOELENBOEK_BASE_URL: {{ default (printf "http://objecten.%s.svc.cluster.local" .Release.Namespace) .Values.kiss.adapter.objecten.baseUrl | quote }}
+  SMOELENBOEK_OBJECT_TYPE_URL: {{ printf "%s/api/v2/objecttypes/%s" .Values.kiss.adapter.objecttypen.baseUrlExtern .Values.kiss.adapter.objecttypen.medewerkerUUID | quote }}
 {{- end }}

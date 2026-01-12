@@ -64,17 +64,28 @@ dependencies:
     condition: infinispan.enabled
   - name: zaakafhandelcomponent
     alias: zac
-    version: 1.0.148
+    version: 1.0.165
     repository: "@zac"
     condition: zac.enabled
     tags:
       - zaak
   - name: zgw-office-addin
     repository: "@zgw-office-addin"
-    version: 0.0.55
+    version: 0.0.63
     condition: zgw-office-addin.enabled
   - name: internetaakafhandeling
     alias: ita
     repository: "oci://ghcr.io/interne-taak-afhandeling"
     version: 2.0.1
     condition: ita.enabled
+  - name: kiss-chart
+    alias: kiss
+    repository: "oci://ghcr.io/klantinteractie-servicesysteem"
+    version: 2.0.0
+    condition: kiss.enabled
+
+  - name: pabc
+    alias: pabc
+    repository: "oci://ghcr.io/platform-autorisatie-beheer-component"
+    version: 1.0.0
+    condition: pabc.enabled

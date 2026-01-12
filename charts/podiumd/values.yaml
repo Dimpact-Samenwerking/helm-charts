@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=./kiss.schema.json
 global:
   configuration:
     enabled: true
@@ -354,111 +355,109 @@ openzaak:
       restartPolicy: Never
       resources: {}
     data: ""
-    # e.g. 
-    # data: |-
-    #   sites_config_enable: true
-    #   sites_config:
-    #     items:
-    #     - domain: openzaak.example.nl
-    #       name: Open-Zaak Test
-    #   zgw_consumers_config_enable: true
-    #   zgw_consumers:
-    #     services:
-    #     - identifier: notifications-api
-    #       label: Notificaties API
-    #       api_root: https://opennotificaties.example.nl/api/v1/
-    #       api_connection_check_path: notificaties
-    #       api_type: nrc
-    #       auth_type: api_key
-    #       header_key: Authorization
-    #       header_value: 
-    #         value_from: 
-    #            env: opennotificaties_openzaak_secret
-    #     - identifier: selectielijst-api
-    #       label: Selectielijst API
-    #       api_root: https://selectielijst.openzaak.nl/api/v1/
-    #       api_type: orc
-    #       auth_type: no_auth
-    #   notifications_config_enable: true
-    #   notifications_config:
-    #     notifications_api_service_identifier: notifications-api
-    #     notification_delivery_max_retries: 1
-    #     notification_delivery_retry_backoff: 2
-    #     notification_delivery_retry_backoff_max: 3
-    #   openzaak_selectielijst_config_enable: true
-    #   openzaak_selectielijst_config:
-    #     selectielijst_api_service_identifier: selectielijst-api
-    #     allowed_years:
-    #       - 2020
-    #       - 2017
-    #     default_year: 2020
+  # e.g. 
+  # data: |-
+  #   sites_config_enable: true
+  #   sites_config:
+  #     items:
+  #     - domain: openzaak.example.nl
+  #       name: Open-Zaak Test
+  #   zgw_consumers_config_enable: true
+  #   zgw_consumers:
+  #     services:
+  #     - identifier: notifications-api
+  #       label: Notificaties API
+  #       api_root: https://opennotificaties.example.nl/api/v1/
+  #       api_connection_check_path: notificaties
+  #       api_type: nrc
+  #       auth_type: api_key
+  #       header_key: Authorization
+  #       header_value: 
+  #         value_from: 
+  #            env: opennotificaties_openzaak_secret
+  #     - identifier: selectielijst-api
+  #       label: Selectielijst API
+  #       api_root: https://selectielijst.openzaak.nl/api/v1/
+  #       api_type: orc
+  #       auth_type: no_auth
+  #   notifications_config_enable: true
+  #   notifications_config:
+  #     notifications_api_service_identifier: notifications-api
+  #     notification_delivery_max_retries: 1
+  #     notification_delivery_retry_backoff: 2
+  #     notification_delivery_retry_backoff_max: 3
+  #   openzaak_selectielijst_config_enable: true
+  #   openzaak_selectielijst_config:
+  #     selectielijst_api_service_identifier: selectielijst-api
+  #     allowed_years:
+  #       - 2020
+  #       - 2017
+  #     default_year: 2020
 
-    #   # These are all the applications that need to talk to Open Zaak. 
-    #   # Their secrets are configured in the `vng_api_common_credentials` values below! 
-    #   vng_api_common_applicaties_config_enable: true
-    #   vng_api_common_applicaties:
-    #     items:
-    #     - uuid: 78591bab-9a00-4887-849c-53b21a67782f
-    #       client_ids:
-    #       - open-formulieren
-    #       label: Open Formulieren
-    #       heeft_alle_autorisaties: true
-    #   vng_api_common_credentials_config_enable: true
-    #   vng_api_common_credentials:
-    #     items:
-    #     - identifier: open-formulieren
-    #       secret: 
-    #         value_from: 
-    #            env: openzaak_openforms_secret
-    #   oidc_db_config_enable: true
-    #   oidc_db_config_admin_auth:
-    #     providers:
-    #     - identifier: keycloak-provider
-    #       oidc_use_nonce: true
-    #       oidc_nonce_size: 32
-    #       oidc_state_size: 32
-    #       endpoint_config:
-    #         oidc_op_discovery_endpoint: http://keycloak.example.nl/realms/test/
-    #     items:
-    #     - identifier: admin-oidc
-    #       enabled: true
-    #       oidc_rp_client_id: testid
-    #       oidc_rp_client_secret: 
-    #         value_from: 
-    #            env: keycloak_client_secret
-    #       oidc_rp_scopes_list:
-    #       - openid
-    #       - email
-    #       - profile
-    #       oidc_rp_sign_algo: RS256
-    #       oidc_provider_identifier: keycloak-provider
-    #       userinfo_claims_source: id_token
-    #       options:
-    #         user_settings:
-    #           claim_mappings:
-    #             username:
-    #               - sub
-    #             first_name:
-    #               - given_name
-    #             email:
-    #               - email
-    #           username_case_sensitive: true
-    #         groups_settings:
-    #           claim_mapping:
-    #             - groups
-    #           sync: true
-    #           sync_pattern: '*'
-    #           default_groups: []
-    #           make_users_staff: true
-    #           superuser_group_names:
-    #             - Registreerders
+  #   # These are all the applications that need to talk to Open Zaak. 
+  #   # Their secrets are configured in the `vng_api_common_credentials` values below! 
+  #   vng_api_common_applicaties_config_enable: true
+  #   vng_api_common_applicaties:
+  #     items:
+  #     - uuid: 78591bab-9a00-4887-849c-53b21a67782f
+  #       client_ids:
+  #       - open-formulieren
+  #       label: Open Formulieren
+  #       heeft_alle_autorisaties: true
+  #   vng_api_common_credentials_config_enable: true
+  #   vng_api_common_credentials:
+  #     items:
+  #     - identifier: open-formulieren
+  #       secret: 
+  #         value_from: 
+  #            env: openzaak_openforms_secret
+  #   oidc_db_config_enable: true
+  #   oidc_db_config_admin_auth:
+  #     providers:
+  #     - identifier: keycloak-provider
+  #       oidc_use_nonce: true
+  #       oidc_nonce_size: 32
+  #       oidc_state_size: 32
+  #       endpoint_config:
+  #         oidc_op_discovery_endpoint: http://keycloak.example.nl/realms/test/
+  #     items:
+  #     - identifier: admin-oidc
+  #       enabled: true
+  #       oidc_rp_client_id: testid
+  #       oidc_rp_client_secret: 
+  #         value_from: 
+  #            env: keycloak_client_secret
+  #       oidc_rp_scopes_list:
+  #       - openid
+  #       - email
+  #       - profile
+  #       oidc_rp_sign_algo: RS256
+  #       oidc_provider_identifier: keycloak-provider
+  #       userinfo_claims_source: id_token
+  #       options:
+  #         user_settings:
+  #           claim_mappings:
+  #             username:
+  #               - sub
+  #             first_name:
+  #               - given_name
+  #             email:
+  #               - email
+  #           username_case_sensitive: true
+  #         groups_settings:
+  #           claim_mapping:
+  #             - groups
+  #           sync: true
+  #           sync_pattern: '*'
+  #           default_groups: []
+  #           make_users_staff: true
+  #           superuser_group_names:
+  #             - Registreerders
     secrets: {}
       # openzaak_openforms_secret: "<openzaak_openforms_secret>"
       # openzaak_openinwoner_secret: "<openzaak_openinwoner_secret>"
       # opennotificaties_autorisatie_api_secret: "<opennotificaties_autorisatie_api_secret>"
       # openzaak_opennotificaties_secret: "<openzaak_opennotificaties_secret>"
-    oidcUrl: https://openzaak.example.nl
-    oidcSecret: "<openzaak>"
   create_required_catalogi_job:
     client_id: "<openzaak_client_id>"
     secret: "<openzaak_secret>"
@@ -1687,126 +1686,204 @@ kisselastic:
 
 kiss:
   enabled: true
+  fullnameOverride: contact
+
+  # -- Optionally specify extra list of additional environment variables. Not necesarry for KvK / BRP headers, use the settings for these
+  extraEnvVars: []
+  # -- Optionally specify extra list of additional volumes, for example to trust extra ca certificates.
+  extraVolumes: []
+  # e.g:
+  # extraVolumes:
+  #   - name: my-secret-mount
+  #     secret:
+  #       secretName: my-secret-containing-my-custom-ca
+
+  # -- Optionally specify extra list of additional volumeMounts, for example to trust extra ca certificates.
+  extraVolumeMounts: []
+  # e.g:
+  # extraVolumeMounts:
+  #  - name: my-secret-mount
+  #    readOnly: true
+  #    subPath: ca.crt
+  #    mountPath: /etc/ssl/certs/my-custom-ca.crt
+
+  settings:
+    afdelingen:
+      baseUrl: ""
+      objectTypeUrl: ""
+      token: ""
+
+    database:
+      port: 5432
+      host: ""
+      name: ""
+      username: ""
+      password: ""
+
+    elastic:
+      baseUrl: ""
+      password: ""
+      username: "elastic"
+      excludedFieldsKennisbank: []
+
+    email:
+      enableSsl: true
+      host: ""
+      password: ""
+      port: 587
+      username: ""
+
+    enterpriseSearch:
+      baseUrl: ""
+      privateApiKey: ""
+      publicApiKey: ""
+      engine: "kiss-engine"
+
+    feedback:
+      emailFrom: ""
+      emailTo: ""
+
+    groepen: 
+      baseUrl: ""
+      objectTypeUrl: ""
+      token: ""
+
+    haalCentraal:
+      apiKey: ""
+      baseUrl: ""
+      customHeaders:
+        my-generic-header: ""
+        my-specific-header:
+          RaadpleegMetBurgerservicenummer: ""
+          ZoekMetGeslachtsnaamEnGeboortedatum: ""
+          ZoekMetPostcodeEnHuisnummer: ""
+      userHeaderName: ""
+
+    kvk:
+      apiKey: ""
+      baseUrl: ""
+      userHeaderName: ""
+      customHeaders:
+        my-generic-header: ""
+
+    logboek:
+      baseUrl: ""
+      objectTypeUrl: ""
+      objectTypeVersion: "1"
+      token: ""
+
+    managementInformatie:
+      apiKey: ""
+
+    oidc:
+      authority: ""
+      clientId: kiss
+      clientSecret: ""
+      medewerkerIdentificatie:
+        claim: preferred_username
+        truncate: 
+
+    organisatieIds: []
+
+    registers: []
+      # # voorbeeld openzaak + openklant 2
+      # - isDefault: false
+      #   klantinteractie:
+      #     baseUrl: https://openklant.example.com/klantinteracties
+      #     token: super-secret
+      #   zaaksysteem:
+      #     catalogiBaseUrl: https://openzaak.example.com/catalogi/api/v1
+      #     clientId: kiss
+      #     clientSecret: super-secret
+      #     deeplink:
+      #       property: identificatie
+      #       url: https://openzaak.example.com/admin/zaken/zaak/?q=
+      #     documentenBaseUrl: https://openzaak.example.com/documenten/api/v1
+      #     useExperimentalQueries: true
+      #     zakenBaseUrl: https://openzaak.example.com/zaken/api/v1
+      # # voorbeeld esuite
+      # - contactmomenten:
+      #     baseUrl: http://kiss-adapter.%s.svc.cluster.local
+      #     clientId: kiss
+      #     clientSecret: super-secret
+      #   interneTaak:
+      #     baseUrl: http://kiss-adapter.%s.svc.cluster.local
+      #     clientId: kiss
+      #     clientSecret: super-secret
+      #     objectTypeUrl: https://objecttypen.example.com/api/v2/objecttypes/1df73259-1a58-4180-bf98-598eefc184d4
+      #     objectTypeVersion: 1
+      #   isDefault: true
+      #   klanten:
+      #     baseUrl: http://kiss-adapter.%s.svc.cluster.local/klanten
+      #     clientId: kiss
+      #     clientSecret: super-secret
+      #   zaaksysteem:
+      #     catalogiBaseUrl: http://kiss-adapter.%s.svc.cluster.local/zgw-apis-provider/ztc/api/v1
+      #     clientId: kiss
+      #     clientSecret: super-secret
+      #     deeplink:
+      #       property: identificatie
+      #       url: https://esuite.example.com/mp/zaak/
+      #     documentenBaseUrl: http://kiss-adapter.%s.svc.cluster.local/zgw-apis-provider/drc/api/v1
+      #     useExperimentalQueries: false
+      #     zakenBaseUrl: http://kiss-adapter.%s.svc.cluster.local/zgw-apis-provider/zrc/api/v1
+      
+    syncJobs:
+      kennisbank:
+        baseUrl: ""
+        historyLimit: 1
+        objectTypeUrl: ""
+        resources: {}
+        schedule: "*/59 * * * *"
+        token: ""
+
+      medewerkers:
+        # should be url to adapter
+        baseUrl: ""
+        clientId: ""
+        clientSecret: ""
+        historyLimit: 1
+        objectTypeUrl: ""
+        resources: {}
+        schedule: "*/59 * * * *"
+          
+      vac:
+        manageFromKiss: false
+        baseUrl: 
+        historyLimit: 1
+        objectTypeUrl: 
+        objectTypeVersion: 1
+        resources: {}
+        schedule: "*/59 * * * *"
+        token: ""
+
+      sharepoint: []
+        # - clientId: 
+        #   clientSecret: 
+        #   siteUrl: 
+        #   sourceName: 
+        #   tenantId: 
+        #   historyLimit: 1
+        #   resources: {}
+        #   schedule: "*/59 * * * *"
+
+      website: []
+        # - backoffLimit: 1
+        #   domain: "https://www.example.com"
+        #   resources: {}
+        #   restartPolicy: "OnFailure"
+        #   sourceName: "my website"
+        #   ttlSecondsAfterFinished: 0
+
+
+  # this is used for keycloak
   configuration:
     oidcUrl: https://kiss.example.nl
     oidcSecret: "<kiss>"
 
-  brp:
-    baseUrl: ""
-    apiKey: ""
-
-  elastic:
-    baseUrl: ""
-    username: elastic
-    password: ""
-
-  enterpriseSearch:
-    baseUrl: ""
-    privateApikey: ""
-    publicApikey: ""
-    engine: kiss-engine
-
-  esuite:
-    baseUrl: ""
-    clientId: kiss
-    secret: ""
-    contactverzoektypen: []
-    isDefault: true
-
-  database:
-    host: ""
-    name: ""
-    user: ""
-    password: ""
-
-  email:
-    host: ""
-    port: "587"
-    username: ""
-    password: ""
-    enableSSL: "true"
-    feedbackFrom: ""
-    feedbackTo: ""
-
-  kvk:
-    baseUrl: ""
-    apikey: ""
-
-  objecten:
-    baseUrl: ""
-    token: ""
-
-  objecttypen:
-    baseUrlIntern: ""
-    baseUrlExtern: ""
-    token: ""
-    afdelingUUID: ""
-    groepUUID: ""
-    interneTaakUUID: ""
-    kennisartikelUUID: ""
-    medewerkerUUID: ""
-    vacUUID: ""
-
-  vac:
-    useVacs: false
-    objectenBaseUrl: ""
-    objectenToken: ""
-    objectTypeUrl: ""
-    objectTypeVersion: ""
-
-  oidc:
-    authority: ""
-    clientId: kiss
-    secret: ""
-    medewerkerIdentificatieClaim: preferred_username
-    medewerkerIdentificatieTruncate: null
-
-  organisatieIds: ""
-  managementApiKey: ""
   imagePullSecrets: []
 
   nodeSelector: {}
-
-  frontend:
-    service:
-      name: ""
-    image:
-      repository: ghcr.io/klantinteractie-servicesysteem/kiss-frontend
-      tag: "1.3.1"
-      pullPolicy: IfNotPresent
-    resources:
-      requests:
-        cpu: 10m
-        memory: 100Mi
-    aspNetCoreEnvironment: Production
-    # -- Optionally specify extra list of additional environment variables.
-    extraEnvVars: []
-    # e.g:
-    # extraEnvVars:
-    #   - name: HAAL_CENTRAAL_CUSTOM_HEADERS__x-request-afnemerscode
-    #     value: "510225"
-    #   - name: HAAL_CENTRAAL_CUSTOM_HEADERS__x-request-application
-    #     value: "gemeente-env-kiss-podiumd-contact"
-    #   - name: HAAL_CENTRAAL_CUSTOM_HEADERS__x-request-organization
-    #     value: "00000000000000000000"
-    #   - name: HAAL_CENTRAAL_USER_HEADER_NAME
-    #     value: "x-request-user"
-    # -- Optionally specify extra list of additional volumes, for example to trust extra ca certificates.
-    extraVolumes: []
-    # e.g:
-    # extraVolumes:
-    #   - name: my-secret-mount
-    #     secret:
-    #       secretName: my-secret-containing-my-custom-ca
-
-    # -- Optionally specify extra list of additional volumeMounts, for example to trust extra ca certificates.
-    extraVolumeMounts: []
-    # e.g:
-    # extraVolumeMounts:
-    #  - name: my-secret-mount
-    #    readOnly: true
-    #    subPath: ca.crt
-    #    mountPath: /etc/ssl/certs/my-custom-ca.crt
 
   adapter:
     baseUrl: ""
@@ -1847,41 +1924,33 @@ kiss:
     #    readOnly: true
     #    subPath: ca.crt
     #    mountPath: /etc/ssl/certs/my-custom-ca.crt
+    objecten:
+      baseUrl: ""
+      token: ""
 
-  sync:
-    initialSync: true
-    kennisbank:
-      enabled: true
-      schedule: "*/59 * * * *"
-    smoelenboek:
-      enabled: true
-      schedule: "*/59 * * * *"
-    vac:
-      enabled: true
-      schedule: "*/59 * * * *"
-    domain:
-      enabled: false
-      schedule: "0 5 * * *"
-      url: "https://www.dimpact.nl"
-    successfulJobsHistoryLimit: 1
-    failedJobsHistoryLimit: 1
-    image:
-      repository: "ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync"
-      tag: "0.1.2"
-      pullPolicy: IfNotPresent
-
-  alpine:
-    image:
-      repository: "alpine"
-      tag: "3.23"
-      pullPolicy: IfNotPresent
+    objecttypen:
+      baseUrlIntern: ""
+      baseUrlExtern: ""
+      token: ""
+      afdelingUUID: ""
+      groepUUID: ""
+      interneTaakUUID: ""
+      kennisartikelUUID: ""
+      medewerkerUUID: ""
+      vacUUID: ""
+    esuite:
+      baseUrl: ""
+      clientId: kiss
+      secret: ""
+      contactverzoektypen: []
+      isDefault: true
 
 nameOverride: ""
 fullnameOverride: ""
 
 zac:
   featureFlags:
-    bpmnSupport: true
+    pabcIntegration: false
   auth:
     server: http://keycloak.example.nl
     realm: podiumd
@@ -1915,11 +1984,11 @@ zac:
     curlImage:
       #repository: curlimages/curl
       tag: 8.16.0
-  # ghcr.io/infonl/zaakafhandelcomponent:3.20.0
+  # ghcr.io/infonl/zaakafhandelcomponent:4.0.12
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
-    tag: 3.20.0
+    tag: 4.0.12
   initContainer:
     enabled: false
   keycloak:
@@ -1971,6 +2040,9 @@ zac:
       rsin: "000000000"
     verantwoordelijke:
       rsin: "000000000"
+  pabc:
+    apiKey: ""
+    url: ""
   zacInternalEndpointsApiKey: "dummy"
   smartDocuments:
     enabled: false
@@ -2034,9 +2106,9 @@ zgw-office-addin:
   enabled: true
   fullnameOverride: "zgw-office-addin"
   frontend:
-    # ghcr.io/infonl/zgw-office-add-in-frontend:v0.2.147
+    # ghcr.io/infonl/zgw-office-add-in-frontend:v0.9.0
     image:
-      tag: v0.2.147
+      tag: v0.9.0
     # the public url where manifest.xml and static js files are served
     frontendUrl: https://office-addin.example.nl
     # by default this is not needed as it is proxied by the frontend host
@@ -2044,9 +2116,9 @@ zgw-office-addin:
     # can be enabled if needed, if for instance you don't want an ingress
     enableHttps: false
   backend:
-    # ghcr.io/infonl/zgw-office-add-in-backend:v0.2.147
+    # ghcr.io/infonl/zgw-office-add-in-backend:v0.9.0
     image:
-      tag: v0.2.147
+      tag: v0.9.0
     # secret that is configured in openzaak
     jwtSecret: "my-openzaak-office-addin-zgw-api-key"
     # the base url of the openzaak zgw api's
@@ -2199,7 +2271,6 @@ apiproxy:
       targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apikvk/vesprof/v1/v1/vestigingsprofielen"
 
 ita:
-  baseUrl: "https://ontw-ita.example.nl"
   enabled: true
   replicaCount: 1
   imagePullSecrets: []
@@ -2221,7 +2292,7 @@ ita:
 
   apiConnections:
     openKlant:
-      baseUrl: "https://openklant.example.nl"
+      baseUrl: "https://openklant.example.nl/klantinteracties/api/v1/"
       apiKey: "REP_OPENKLANT_CREDENTIALS_ITA_TOKEN_REP"
     object:
       baseUrl: "https://objecten.example.nl/api/v2/"
@@ -2232,30 +2303,33 @@ ita:
       key: "REP_OPENZAAK_CREDENTIALS_ITA_SECRET_REP"
 
   logboek:
-    type: https://ontw-objecttypen.example.nl/api/v2/objecttypes/2eb81bd1-0d2b-4123-84ab-d55b99b9e75a
+    # Aanname: uuid van objecttype wordt gemeentespecifiek vervangen door Replacementscripts
+    type: https://ontw-objecttypen.example.nl/api/v2/objecttypes/REP_ITA_ACTIVITEITENLOG_UUID_REP
     typeVersion: 1
-    # uuid in bovenstaande waarde kan afwijken als het objecttype handmatig is aangemaakt
 
   afdeling:
-    uuid: "c8d301f9-80b8-4575-8b29-3e9431f92994"
-    type: https://ontw-objecttypen.example.nl/api/v2/objecttypes/c8d301f9-80b8-4575-8b29-3e9431f92994
+    # Aanname: uuid van objecttype wordt gemeentespecifiek vervangen door Replacementscripts
+    uuid: "REP_CONTACT_AFDELING_UUID_REP"
+    type: https://ontw-objecttypen.example.nl/api/v2/objecttypes/REP_CONTACT_AFDELING_UUID_REP
     typeVersion: 1
-    # uuid in bovenstaande waarden kan afwijken als het objecttype handmatig is aangemaakt
 
   groep:
-    uuid: "cbec27ac-157b-490b-b586-9e8a8f5bbb85"
-    type: https://ontw-objecttypen.example.nl/api/v2/objecttypes/cbec27ac-157b-490b-b586-9e8a8f5bbb85
+    # Aanname: uuid van objecttype wordt gemeentespecifiek vervangen door Replacementscripts
+    uuid: "REP_CONTACT_GROEP_UUID_REP"
+    type: https://ontw-objecttypen.example.nl/api/v2/objecttypes/REP_CONTACT_GROEP_UUID_REP
     typeVersion: 1
-    # uuid in bovenstaande waarden kan afwijken als het objecttype handmatig is aangemaakt
 
   smtp:
     host: "mail.example.nl"
     port: "587"
-    username: "dummy"
-    password: "dummy"
-    fromEmail: "from@domain.ext"
+    username: ""
+    password: ""
+    fromEmail: ""
     enableSsl: "true"
 
+  ita:
+    baseUrl: "https://ita.example.nl"
+    
   web:
     image:
       repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web"
@@ -2273,7 +2347,7 @@ ita:
       clientSecret: "REP_ITA_OIDC_CLIENT_SECRET_REP"
       itaSystemAccessRole: "ITA_Gebruiker"
       functioneelBeheerderRole: "ITA_Functioneel_Beheerder"
-      nameClaimType: "preferred_username"
+      nameClaimType: "name"
       roleClaimType: "roles"
       objectregisterMedewerkerIdClaimType: "samaccountname"
       emailClaimType: "email"
@@ -2304,3 +2378,41 @@ serviceAccount:
   automount: true
   annotations: {}
   name: ""
+
+pabc:
+  enabled: true
+  fullnameOverride: "pabc"
+  postgresql:
+    enabled: false
+  # image:
+  #   # this is the same version as the chart by default, so consider leaving this empty
+  #   tag: 1.0.0
+  # migrations:
+  #   image:
+  #     # this is the same version as the chart by default, so consider leaving this empty
+  #     tag: 1.0.0
+  
+  settings:
+    database:
+      host: ""
+      # port: 5432
+      name: "pabc"
+      username: "pabc"
+      password: ""
+
+    apiKeys: [""]
+    
+    oidc:
+      authority: ""
+      clientId: "pabc"
+      clientSecret: ""
+      functioneelBeheerderRole: "administrator"
+      nameClaimType: "name"
+      roleClaimType: "roles"
+      emailClaimType: "email"
+      oidcUrl: "https://pabc.example.nl"
+
+    keycloakAdmin:
+      clientId: "pabc-keycloak-admin"
+      clientSecret: ""
+  
