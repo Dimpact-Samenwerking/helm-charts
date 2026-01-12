@@ -374,7 +374,7 @@ openzaak:
     #       header_key: Authorization
     #       header_value:
     #         value_from:
-    #            env: opennotificaties_openzaak_secret
+    #           env: opennotificaties_openzaak_secret
     #     - identifier: selectielijst-api
     #       label: Selectielijst API
     #       api_root: https://selectielijst.openzaak.nl/api/v1/
@@ -581,7 +581,7 @@ opennotificaties:
     #           make_users_staff: true
     #           superuser_group_names:
     #             - Superusers
-    #   zgw_consumers_config_enable: True
+    #   zgw_consumers_config_enable: true
     #   zgw_consumers:
     #     services:
     #       - identifier: autorisaties-api
@@ -1156,64 +1156,64 @@ openklant:
       # keycloak_client_secret: "<keycloak_client_secret>"
     data: ""
     # data: |-
-    # tokenauth_config_enable: true
-    # tokenauth:
-    #   items:
-    #     - identifier: openinwoner-token
-    #       token:
+    #   tokenauth_config_enable: true
+    #   tokenauth:
+    #     items:
+    #       - identifier: openinwoner-token
+    #         token:
+    #           value_from:
+    #             env: openklant_openinwoner_token
+    #         contact_person: Person 1
+    #         email: test@example.com
+    #         organization: Organization XYZ
+    #         application: Application XYZ
+    #         administration: Administration XYZ
+    #   oidc_db_config_enable: True
+    #   oidc_db_config_admin_auth:
+    #     providers:
+    #       - identifier: admin-oidc-provider
+    #         oidc_token_use_basic_auth: true
+    #         oidc_use_nonce: false
+    #         oidc_nonce_size: 32
+    #         oidc_state_size: 32
+    #         endpoint_config:
+    #           oidc_op_discovery_endpoint: https://keycloak.example.nl/realms/example/
+    #     items:
+    #     - identifier: admin-oidc
+    #       enabled: True
+    #       oidc_provider_identifier: admin-oidc-provider
+    #       oidc_rp_client_id: openklant.example.nl
+    #       oidc_rp_client_secret:
     #         value_from:
-    #           env: openklant_openinwoner_token
-    #       contact_person: Person 1
-    #       email: test@example.com
-    #       organization: Organization XYZ
-    #       application: Application XYZ
-    #       administration: Administration XYZ
-    # oidc_db_config_enable: True
-    # oidc_db_config_admin_auth:
-    #   providers:
-    #     - identifier: admin-oidc-provider
-    #       oidc_token_use_basic_auth: true
-    #       oidc_use_nonce: false
-    #       oidc_nonce_size: 32
-    #       oidc_state_size: 32
-    #       endpoint_config:
-    #         oidc_op_discovery_endpoint: https://keycloak.example.nl/realms/example/
-    #   items:
-    #   - identifier: admin-oidc
-    #     enabled: True
-    #     oidc_provider_identifier: admin-oidc-provider
-    #     oidc_rp_client_id: openklant.example.nl
-    #     oidc_rp_client_secret:
-    #       value_from:
-    #         env: keycloak_client_secret
-    #     oidc_rp_scopes_list:
-    #     - openid
-    #     - email
-    #     - profile
-    #     - roles
-    #     oidc_rp_sign_algo: RS256
-    #     userinfo_claims_source: id_token
-    #     options:
-    #       user_settings:
-    #         claim_mappings:
-    #           username:
-    #             - sub
-    #           email:
-    #             - email
-    #           first_name:
-    #             - given_name
-    #           last_name:
-    #             - family_name
-    #         username_case_sensitive: true
-    #       groups_settings:
-    #         claim_mapping:
-    #           - roles
-    #         superuser_group_names:
-    #           - Superuser
-    #         make_users_staff: true
-    #         sync: true
-    #         sync_pattern: "*"
-    #         default_groups: []
+    #           env: keycloak_client_secret
+    #       oidc_rp_scopes_list:
+    #       - openid
+    #       - email
+    #       - profile
+    #       - roles
+    #       oidc_rp_sign_algo: RS256
+    #       userinfo_claims_source: id_token
+    #       options:
+    #         user_settings:
+    #           claim_mappings:
+    #             username:
+    #               - sub
+    #             email:
+    #               - email
+    #             first_name:
+    #               - given_name
+    #             last_name:
+    #               - family_name
+    #           username_case_sensitive: true
+    #         groups_settings:
+    #           claim_mapping:
+    #             - roles
+    #           superuser_group_names:
+    #             - Superuser
+    #           make_users_staff: true
+    #           sync: true
+    #           sync_pattern: "*"
+    #           default_groups: []
     oidcUrl: https://openklant.example.nl
     oidcSecret: "<openklant>"
   settings:
