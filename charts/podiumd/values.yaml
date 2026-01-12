@@ -354,104 +354,104 @@ openzaak:
       restartPolicy: Never
       resources: {}
     data: ""
-  # e.g. 
-  # data: |-
-  #   sites_config_enable: true
-  #   sites_config:
-  #     items:
-  #     - domain: openzaak.example.nl
-  #       name: Open-Zaak Test
-  #   zgw_consumers_config_enable: true
-  #   zgw_consumers:
-  #     services:
-  #     - identifier: notifications-api
-  #       label: Notificaties API
-  #       api_root: https://opennotificaties.example.nl/api/v1/
-  #       api_connection_check_path: notificaties
-  #       api_type: nrc
-  #       auth_type: api_key
-  #       header_key: Authorization
-  #       header_value: 
-  #         value_from: 
-  #            env: opennotificaties_openzaak_secret
-  #     - identifier: selectielijst-api
-  #       label: Selectielijst API
-  #       api_root: https://selectielijst.openzaak.nl/api/v1/
-  #       api_type: orc
-  #       auth_type: no_auth
-  #   notifications_config_enable: true
-  #   notifications_config:
-  #     notifications_api_service_identifier: notifications-api
-  #     notification_delivery_max_retries: 1
-  #     notification_delivery_retry_backoff: 2
-  #     notification_delivery_retry_backoff_max: 3
-  #   openzaak_selectielijst_config_enable: true
-  #   openzaak_selectielijst_config:
-  #     selectielijst_api_service_identifier: selectielijst-api
-  #     allowed_years:
-  #       - 2020
-  #       - 2017
-  #     default_year: 2020
+    # e.g. 
+    # data: |-
+    #   sites_config_enable: true
+    #   sites_config:
+    #     items:
+    #     - domain: openzaak.example.nl
+    #       name: Open-Zaak Test
+    #   zgw_consumers_config_enable: true
+    #   zgw_consumers:
+    #     services:
+    #     - identifier: notifications-api
+    #       label: Notificaties API
+    #       api_root: https://opennotificaties.example.nl/api/v1/
+    #       api_connection_check_path: notificaties
+    #       api_type: nrc
+    #       auth_type: api_key
+    #       header_key: Authorization
+    #       header_value: 
+    #         value_from: 
+    #            env: opennotificaties_openzaak_secret
+    #     - identifier: selectielijst-api
+    #       label: Selectielijst API
+    #       api_root: https://selectielijst.openzaak.nl/api/v1/
+    #       api_type: orc
+    #       auth_type: no_auth
+    #   notifications_config_enable: true
+    #   notifications_config:
+    #     notifications_api_service_identifier: notifications-api
+    #     notification_delivery_max_retries: 1
+    #     notification_delivery_retry_backoff: 2
+    #     notification_delivery_retry_backoff_max: 3
+    #   openzaak_selectielijst_config_enable: true
+    #   openzaak_selectielijst_config:
+    #     selectielijst_api_service_identifier: selectielijst-api
+    #     allowed_years:
+    #       - 2020
+    #       - 2017
+    #     default_year: 2020
 
-  #   # These are all the applications that need to talk to Open Zaak. 
-  #   # Their secrets are configured in the `vng_api_common_credentials` values below! 
-  #   vng_api_common_applicaties_config_enable: true
-  #   vng_api_common_applicaties:
-  #     items:
-  #     - uuid: 78591bab-9a00-4887-849c-53b21a67782f
-  #       client_ids:
-  #       - open-formulieren
-  #       label: Open Formulieren
-  #       heeft_alle_autorisaties: true
-  #   vng_api_common_credentials_config_enable: true
-  #   vng_api_common_credentials:
-  #     items:
-  #     - identifier: open-formulieren
-  #       secret: 
-  #         value_from: 
-  #            env: openzaak_openforms_secret
-  #   oidc_db_config_enable: true
-  #   oidc_db_config_admin_auth:
-  #     providers:
-  #     - identifier: keycloak-provider
-  #       oidc_use_nonce: true
-  #       oidc_nonce_size: 32
-  #       oidc_state_size: 32
-  #       endpoint_config:
-  #         oidc_op_discovery_endpoint: http://keycloak.example.nl/realms/test/
-  #     items:
-  #     - identifier: admin-oidc
-  #       enabled: true
-  #       oidc_rp_client_id: testid
-  #       oidc_rp_client_secret: 
-  #         value_from: 
-  #            env: keycloak_client_secret
-  #       oidc_rp_scopes_list:
-  #       - openid
-  #       - email
-  #       - profile
-  #       oidc_rp_sign_algo: RS256
-  #       oidc_provider_identifier: keycloak-provider
-  #       userinfo_claims_source: id_token
-  #       options:
-  #         user_settings:
-  #           claim_mappings:
-  #             username:
-  #               - sub
-  #             first_name:
-  #               - given_name
-  #             email:
-  #               - email
-  #           username_case_sensitive: true
-  #         groups_settings:
-  #           claim_mapping:
-  #             - groups
-  #           sync: true
-  #           sync_pattern: '*'
-  #           default_groups: []
-  #           make_users_staff: true
-  #           superuser_group_names:
-  #             - Registreerders
+    #   # These are all the applications that need to talk to Open Zaak. 
+    #   # Their secrets are configured in the `vng_api_common_credentials` values below! 
+    #   vng_api_common_applicaties_config_enable: true
+    #   vng_api_common_applicaties:
+    #     items:
+    #     - uuid: 78591bab-9a00-4887-849c-53b21a67782f
+    #       client_ids:
+    #       - open-formulieren
+    #       label: Open Formulieren
+    #       heeft_alle_autorisaties: true
+    #   vng_api_common_credentials_config_enable: true
+    #   vng_api_common_credentials:
+    #     items:
+    #     - identifier: open-formulieren
+    #       secret: 
+    #         value_from: 
+    #            env: openzaak_openforms_secret
+    #   oidc_db_config_enable: true
+    #   oidc_db_config_admin_auth:
+    #     providers:
+    #     - identifier: keycloak-provider
+    #       oidc_use_nonce: true
+    #       oidc_nonce_size: 32
+    #       oidc_state_size: 32
+    #       endpoint_config:
+    #         oidc_op_discovery_endpoint: http://keycloak.example.nl/realms/test/
+    #     items:
+    #     - identifier: admin-oidc
+    #       enabled: true
+    #       oidc_rp_client_id: testid
+    #       oidc_rp_client_secret: 
+    #         value_from: 
+    #            env: keycloak_client_secret
+    #       oidc_rp_scopes_list:
+    #       - openid
+    #       - email
+    #       - profile
+    #       oidc_rp_sign_algo: RS256
+    #       oidc_provider_identifier: keycloak-provider
+    #       userinfo_claims_source: id_token
+    #       options:
+    #         user_settings:
+    #           claim_mappings:
+    #             username:
+    #               - sub
+    #             first_name:
+    #               - given_name
+    #             email:
+    #               - email
+    #           username_case_sensitive: true
+    #         groups_settings:
+    #           claim_mapping:
+    #             - groups
+    #           sync: true
+    #           sync_pattern: '*'
+    #           default_groups: []
+    #           make_users_staff: true
+    #           superuser_group_names:
+    #             - Registreerders
     secrets: {}
       # openzaak_openforms_secret: "<openzaak_openforms_secret>"
       # openzaak_openinwoner_secret: "<openzaak_openinwoner_secret>"
@@ -538,139 +538,139 @@ opennotificaties:
       # opennotificaties_opennotificaties_secret: "<opennotificaties_opennotificaties_secret>"
       # openzaak_opennotificaties_secret: "<openzaak_opennotificaties_secret>"
     data: ""
-  # e.g.
-  # data: |-
-  #   oidc_db_config_enable: true
-  #   oidc_db_config_admin_auth:
-  #     providers:
-  #     - identifier: keycloak-provider
-  #       oidc_use_nonce: true
-  #       oidc_nonce_size: 32
-  #       oidc_state_size: 32
-  #       endpoint_config:
-  #         oidc_op_discovery_endpoint: http://keycloak.example.nl/realms/test/
-  #     items:
-  #     - identifier: admin-oidc
-  #       enabled: true
-  #       oidc_rp_client_id: testid
-  #       oidc_rp_client_secret: 
-  #         value_from:
-  #           env: CLIENT_SECRET
-  #       oidc_rp_scopes_list:
-  #       - openid
-  #       - email
-  #       - profile
-  #       oidc_rp_sign_algo: RS256
-  #       oidc_provider_identifier: keycloak-provider
-  #       userinfo_claims_source: id_token
-  #       options:
-  #         user_settings:
-  #           claim_mappings:
-  #             username:
-  #               - sub
-  #             first_name:
-  #               - given_name
-  #             email:
-  #               - email
-  #           username_case_sensitive: true
-  #         groups_settings:
-  #           claim_mapping:
-  #             - groups
-  #           sync: true
-  #           sync_pattern: '*'
-  #           default_groups: []
-  #           make_users_staff: true
-  #           superuser_group_names:
-  #             - Superusers
-  #   zgw_consumers_config_enable: True
-  #   zgw_consumers:
-  #     services:
-  #       - identifier: autorisaties-api
-  #         label: Autorisaties API
-  #         api_root: https://openzaak.example.nl/autorisaties/api/v1/
-  #         api_type: ac
-  #         auth_type: zgw
-  #         client_id: open-notificaties
-  #         secret: 
-  #           value_from:
-  #             env: opennotificaties_autorisatie_api_secret
-  #         user_id: open-notificaties
-  #         user_representation: Open Notificaties
-  #   autorisaties_api_config_enable: True
-  #   autorisaties_api:
-  #     # Configure Open Notificaties to make use of Open Zaak's Autorisaties API
-  #     authorizations_api_service_identifier: autorisaties-api
-  #   vng_api_common_credentials_config_enable: True
-  #   vng_api_common_credentials:
-  #     items:
-  #     # Credentials for Open Zaak to be able to make requests to Open Notificaties
-  #     - identifier: open-zaak
-  #       secret: 
-  #         value_from:
-  #           env: opennotificaties_openzaak_vng_api_common_secret
-  #     # Credentials for Open Notificaties, required for autorisaties subscription
-  #     - identifier: open-notificaties
-  #       secret: 
-  #         value_from:
-  #           env: opennotificaties_autorisaties_vng_api_common_secret
-  #   notifications_kanalen_config_enable: true
-  #   notifications_kanalen_config:
-  #     items:
-  #       - naam: autorisaties
-  #         documentatie_link: https://openzaak.example.nl/ref/kanalen/#/autorisaties
-  #         filters: []
-  #       - naam: besluittypen
-  #         documentatie_link: https://openzaak.example.nl/ref/kanalen/#/besluittypen
-  #         filters:
-  #           - catalogus
-  #       - naam: informatieobjecttypen
-  #         documentatie_link: https://openzaak.example.nl/ref/kanalen/#/informatieobjecttypen
-  #         filters:
-  #           - catalogus
-  #       - naam: zaaktypen
-  #         documentatie_link: https://openzaak.example.nl/ref/kanalen/#/zaaktypen
-  #         filters:
-  #           - catalogus
-  #       - naam: zaken
-  #         documentatie_link: https://openzaak.example.nl/ref/kanalen/#/zaken
-  #         filters:
-  #           - bronorganisatie
-  #           - zaaktype
-  #           - vertrouwelijkheidaanduiding
-  #       - naam: documenten
-  #         documentatie_link: https://openzaak.example.nl/ref/kanalen/#/documenten
-  #         filters:
-  #           - bronorganisatie
-  #           - informatieobjecttype
-  #           - vertrouwelijkheidaanduiding
-  #       - naam: besluiten
-  #         documentatie_link: https://openzaak.example.nl/ref/kanalen/#/besluiten
-  #         filters:
-  #           - verantwoordelijke_organisatie
-  #           - besluittype
-  #   notifications_abonnementen_config_enable: true
-  #   notifications_abonnementen_config:
-  #     items:
-  #       - uuid: ff5a9438-6512-4c2d-b69e-6c512c466fb8
-  #         callback_url: https://openzaak.example.nl/api/v1/callback
-  #         auth: Token foo
-  #         kanalen:
-  #           - filters:
-  #               zaaktype: https://openzaak.example.nl/catalogi/api/v1/zaaktypen/d0b3a90d-7959-4699-8bdb-bf228aef5e21
-  #             naam: zaken
-  #           - filters:
-  #               vertrouwelijkheidaanduiding: beperkt_openbaar
-  #             naam: zaken
-  #       - uuid: 03baec5a-93ef-4ba6-bb73-c548c12009a2
-  #         callback_url: https://openzaak.example.nl/api/v1/other-callback
-  #         auth: Token bar
-  #         kanalen:
-  #           - naam: zaken
-  #   sites_config_enable: true
-  #   sites_config:
-  #     items:
-  #       - domain: opennotificaties.test.opengem.nl
-  #         name: Open Notificaties
+    # e.g.
+    # data: |-
+    #   oidc_db_config_enable: true
+    #   oidc_db_config_admin_auth:
+    #     providers:
+    #     - identifier: keycloak-provider
+    #       oidc_use_nonce: true
+    #       oidc_nonce_size: 32
+    #       oidc_state_size: 32
+    #       endpoint_config:
+    #         oidc_op_discovery_endpoint: http://keycloak.example.nl/realms/test/
+    #     items:
+    #     - identifier: admin-oidc
+    #       enabled: true
+    #       oidc_rp_client_id: testid
+    #       oidc_rp_client_secret: 
+    #         value_from:
+    #           env: CLIENT_SECRET
+    #       oidc_rp_scopes_list:
+    #       - openid
+    #       - email
+    #       - profile
+    #       oidc_rp_sign_algo: RS256
+    #       oidc_provider_identifier: keycloak-provider
+    #       userinfo_claims_source: id_token
+    #       options:
+    #         user_settings:
+    #           claim_mappings:
+    #             username:
+    #               - sub
+    #             first_name:
+    #               - given_name
+    #             email:
+    #               - email
+    #           username_case_sensitive: true
+    #         groups_settings:
+    #           claim_mapping:
+    #             - groups
+    #           sync: true
+    #           sync_pattern: '*'
+    #           default_groups: []
+    #           make_users_staff: true
+    #           superuser_group_names:
+    #             - Superusers
+    #   zgw_consumers_config_enable: True
+    #   zgw_consumers:
+    #     services:
+    #       - identifier: autorisaties-api
+    #         label: Autorisaties API
+    #         api_root: https://openzaak.example.nl/autorisaties/api/v1/
+    #         api_type: ac
+    #         auth_type: zgw
+    #         client_id: open-notificaties
+    #         secret: 
+    #           value_from:
+    #             env: opennotificaties_autorisatie_api_secret
+    #         user_id: open-notificaties
+    #         user_representation: Open Notificaties
+    #   autorisaties_api_config_enable: True
+    #   autorisaties_api:
+    #     # Configure Open Notificaties to make use of Open Zaak's Autorisaties API
+    #     authorizations_api_service_identifier: autorisaties-api
+    #   vng_api_common_credentials_config_enable: True
+    #   vng_api_common_credentials:
+    #     items:
+    #     # Credentials for Open Zaak to be able to make requests to Open Notificaties
+    #     - identifier: open-zaak
+    #       secret: 
+    #         value_from:
+    #           env: opennotificaties_openzaak_vng_api_common_secret
+    #     # Credentials for Open Notificaties, required for autorisaties subscription
+    #     - identifier: open-notificaties
+    #       secret: 
+    #         value_from:
+    #           env: opennotificaties_autorisaties_vng_api_common_secret
+    #   notifications_kanalen_config_enable: true
+    #   notifications_kanalen_config:
+    #     items:
+    #       - naam: autorisaties
+    #         documentatie_link: https://openzaak.example.nl/ref/kanalen/#/autorisaties
+    #         filters: []
+    #       - naam: besluittypen
+    #         documentatie_link: https://openzaak.example.nl/ref/kanalen/#/besluittypen
+    #         filters:
+    #           - catalogus
+    #       - naam: informatieobjecttypen
+    #         documentatie_link: https://openzaak.example.nl/ref/kanalen/#/informatieobjecttypen
+    #         filters:
+    #           - catalogus
+    #       - naam: zaaktypen
+    #         documentatie_link: https://openzaak.example.nl/ref/kanalen/#/zaaktypen
+    #         filters:
+    #           - catalogus
+    #       - naam: zaken
+    #         documentatie_link: https://openzaak.example.nl/ref/kanalen/#/zaken
+    #         filters:
+    #           - bronorganisatie
+    #           - zaaktype
+    #           - vertrouwelijkheidaanduiding
+    #       - naam: documenten
+    #         documentatie_link: https://openzaak.example.nl/ref/kanalen/#/documenten
+    #         filters:
+    #           - bronorganisatie
+    #           - informatieobjecttype
+    #           - vertrouwelijkheidaanduiding
+    #       - naam: besluiten
+    #         documentatie_link: https://openzaak.example.nl/ref/kanalen/#/besluiten
+    #         filters:
+    #           - verantwoordelijke_organisatie
+    #           - besluittype
+    #   notifications_abonnementen_config_enable: true
+    #   notifications_abonnementen_config:
+    #     items:
+    #       - uuid: ff5a9438-6512-4c2d-b69e-6c512c466fb8
+    #         callback_url: https://openzaak.example.nl/api/v1/callback
+    #         auth: Token foo
+    #         kanalen:
+    #           - filters:
+    #               zaaktype: https://openzaak.example.nl/catalogi/api/v1/zaaktypen/d0b3a90d-7959-4699-8bdb-bf228aef5e21
+    #             naam: zaken
+    #           - filters:
+    #               vertrouwelijkheidaanduiding: beperkt_openbaar
+    #             naam: zaken
+    #       - uuid: 03baec5a-93ef-4ba6-bb73-c548c12009a2
+    #         callback_url: https://openzaak.example.nl/api/v1/other-callback
+    #         auth: Token bar
+    #         kanalen:
+    #           - naam: zaken
+    #   sites_config_enable: true
+    #   sites_config:
+    #     items:
+    #       - domain: opennotificaties.test.opengem.nl
+    #         name: Open Notificaties
     oidcUrl: https://opennotificaties.example.nl
     oidcSecret: "<opennotificaties>"
   settings:
@@ -729,7 +729,7 @@ opennotificaties:
           memory: 64Mi
   otel:
     disabled: true
-    
+
 objecten:
   configuration:
     enabled: true
@@ -749,102 +749,102 @@ objecten:
       # object_notificaties_token: "<object_notificaties_token>"
       # openformulieren_objecten_token: "<openformulieren_objecten_token>"
     data: ""
-      # data: |-
-      #   zgw_consumers_config_enable: true
-      #   zgw_consumers:
-      #     services:
-      #     - identifier: objecttypes-api
-      #       label: Objecttypes API
-      #       api_root: https://objecttypen.example.nl/api/v2/
-      #       api_connection_check_path: objecttypes
-      #       api_type: orc
-      #       auth_type: api_key
-      #       header_key: Authorization
-      #       header_value:
-      #         value_from:
-      #           env: object_objecttypes_token
-      #     - identifier: notifications-api
-      #       label: Notificaties API
-      #       api_root: https://opennotificaties.example.nl/api/v1/
-      #       api_connection_check_path: notificaties
-      #       api_type: nrc
-      #       auth_type: api_key
-      #       header_key: Authorization
-      #       header_value:
-      #         value_from:
-      #           env: object_notificaties_token 
-      #   notifications_config_enable: true
-      #   notifications_config:
-      #     notifications_api_service_identifier: notifications-api
-      #     notification_delivery_max_retries: 1
-      #     notification_delivery_retry_backoff: 2
-      #     notification_delivery_retry_backoff_max: 3
-      #   tokenauth_config_enable: true
-      #   tokenauth:
-      #     items:
-      #       - identifier: openformulier-token
-      #         token:
-      #           value_from:
-      #             env: openformulieren_objecten_token
-      #         contact_person: Person 1
-      #         email: person-1@example.com
-      #         organization: Organization 1
-      #         application: Application 1
-      #         administration: Administration 1
-      #         permissions:
-      #           - object_type: 366c9b88-a870-438c-b0ec-a121cd51f1dd
-      #             mode: read_and_write
-      #   objecttypes_config_enable: true
-      #   objecttypes:
-      #     items:
-      #       - uuid: 366c9b88-a870-438c-b0ec-a121cd51f1dd
-      #         name: demo
-      #         service_identifier: objecttypes-api
-      #   sites_config_enable: true
-      #   sites_config:
-      #     items:
-      #       - domain: objecten.example.nl
-      #         name: objecten
-      #   oidc_db_config_enable: true
-      #   oidc_db_config_admin_auth:
-      #     providers:
-      #     - identifier: keycloak-provider
-      #       oidc_use_nonce: true
-      #       oidc_nonce_size: 32
-      #       oidc_state_size: 32
-      #       endpoint_config:
-      #         oidc_op_discovery_endpoint: http://keycloak.example.nl/realms/test/
-      #     items:
-      #     - identifier: admin-oidc
-      #       enabled: true
-      #       oidc_rp_client_id: testid
-      #       oidc_rp_client_secret: very-secret
-      #       oidc_rp_scopes_list:
-      #       - openid
-      #       - email
-      #       - profile
-      #       oidc_rp_sign_algo: RS256
-      #       oidc_provider_identifier: keycloak-provider
-      #       userinfo_claims_source: id_token
-      #       options:
-      #         user_settings:
-      #           claim_mappings:
-      #             username:
-      #               - sub
-      #             first_name:
-      #               - given_name
-      #             email:
-      #               - email
-      #           username_case_sensitive: true
-      #         groups_settings:
-      #           claim_mapping:
-      #             - groups
-      #           sync: true
-      #           sync_pattern: '*'
-      #           default_groups: []
-      #           make_users_staff: true
-      #           superuser_group_names:
-      #             - Registreerders
+    # data: |-
+    #   zgw_consumers_config_enable: true
+    #   zgw_consumers:
+    #     services:
+    #     - identifier: objecttypes-api
+    #       label: Objecttypes API
+    #       api_root: https://objecttypen.example.nl/api/v2/
+    #       api_connection_check_path: objecttypes
+    #       api_type: orc
+    #       auth_type: api_key
+    #       header_key: Authorization
+    #       header_value:
+    #         value_from:
+    #           env: object_objecttypes_token
+    #     - identifier: notifications-api
+    #       label: Notificaties API
+    #       api_root: https://opennotificaties.example.nl/api/v1/
+    #       api_connection_check_path: notificaties
+    #       api_type: nrc
+    #       auth_type: api_key
+    #       header_key: Authorization
+    #       header_value:
+    #         value_from:
+    #           env: object_notificaties_token 
+    #   notifications_config_enable: true
+    #   notifications_config:
+    #     notifications_api_service_identifier: notifications-api
+    #     notification_delivery_max_retries: 1
+    #     notification_delivery_retry_backoff: 2
+    #     notification_delivery_retry_backoff_max: 3
+    #   tokenauth_config_enable: true
+    #   tokenauth:
+    #     items:
+    #       - identifier: openformulier-token
+    #         token:
+    #           value_from:
+    #             env: openformulieren_objecten_token
+    #         contact_person: Person 1
+    #         email: person-1@example.com
+    #         organization: Organization 1
+    #         application: Application 1
+    #         administration: Administration 1
+    #         permissions:
+    #           - object_type: 366c9b88-a870-438c-b0ec-a121cd51f1dd
+    #             mode: read_and_write
+    #   objecttypes_config_enable: true
+    #   objecttypes:
+    #     items:
+    #       - uuid: 366c9b88-a870-438c-b0ec-a121cd51f1dd
+    #         name: demo
+    #         service_identifier: objecttypes-api
+    #   sites_config_enable: true
+    #   sites_config:
+    #     items:
+    #       - domain: objecten.example.nl
+    #         name: objecten
+    #   oidc_db_config_enable: true
+    #   oidc_db_config_admin_auth:
+    #     providers:
+    #     - identifier: keycloak-provider
+    #       oidc_use_nonce: true
+    #       oidc_nonce_size: 32
+    #       oidc_state_size: 32
+    #       endpoint_config:
+    #         oidc_op_discovery_endpoint: http://keycloak.example.nl/realms/test/
+    #     items:
+    #     - identifier: admin-oidc
+    #       enabled: true
+    #       oidc_rp_client_id: testid
+    #       oidc_rp_client_secret: very-secret
+    #       oidc_rp_scopes_list:
+    #       - openid
+    #       - email
+    #       - profile
+    #       oidc_rp_sign_algo: RS256
+    #       oidc_provider_identifier: keycloak-provider
+    #       userinfo_claims_source: id_token
+    #       options:
+    #         user_settings:
+    #           claim_mappings:
+    #             username:
+    #               - sub
+    #             first_name:
+    #               - given_name
+    #             email:
+    #               - email
+    #           username_case_sensitive: true
+    #         groups_settings:
+    #           claim_mapping:
+    #             - groups
+    #           sync: true
+    #           sync_pattern: '*'
+    #           default_groups: []
+    #           make_users_staff: true
+    #           superuser_group_names:
+    #             - Registreerders
     oidcUrl: https://objecten.example.nl
     oidcSecret: "<objecten>"
   settings:
