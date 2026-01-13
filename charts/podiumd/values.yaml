@@ -1685,10 +1685,12 @@ kisselastic:
       tag: "3.1.0"
 
 kiss:
+  image:
+    pullPolicy: IfNotPresent
+    tag: "2.0.0"
   enabled: true
   nameOverride: contact
   fullnameOverride: contact
-
   # -- Optionally specify extra list of additional environment variables. Not necesarry for KvK / BRP headers, use the settings for these
   extraEnvVars: []
   # -- Optionally specify extra list of additional volumes, for example to trust extra ca certificates.
