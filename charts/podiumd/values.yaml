@@ -2384,13 +2384,11 @@ pabc:
   fullnameOverride: "pabc"
   postgresql:
     enabled: false
-  # image:
-  #   # this is the same version as the chart by default, so consider leaving this empty
-  #   tag: 1.0.0
-  # migrations:
-  #   image:
-  #     # this is the same version as the chart by default, so consider leaving this empty
-  #     tag: 1.0.0
+  image:
+    tag: 1.0.0
+  migrations:
+    image:
+      tag: 1.0.0
 
   settings:
     database:
