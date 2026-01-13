@@ -1686,6 +1686,7 @@ kisselastic:
 
 kiss:
   image:
+    #   repository: "ghcr.io/klantinteractie-servicesysteem/kiss-frontend"
     pullPolicy: IfNotPresent
     tag: "2.0.0"
   enabled: true
