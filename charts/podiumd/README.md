@@ -4,26 +4,26 @@
 
 ### [4.5.0](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.5.0)
 
-**PodiumD Helm chart version: 4.5.0**
+**PodiumD Helm chart version: 4.5.1**
 
-| Component          | AppVersion | Change       | ChartVersion | Change          |
-|--------------------|------------|--------------|--------------|-----------------|
-| ClamAV             | 1.4.2      |              | 3.2.0        |                 |
-| Keycloak           | 26.3.1     |              | 24.8.0       |                 |
-| Infinispan         | 15.2       |              | 0.5.0        |                 |
-| ITA                | 2.0.1      | Patch update | 2.0.1        | Patch update    |
-| PABC               | 1.0.0      | New          | 1.0.0        | New             |
-| Objecten           | 3.3.1      |              | 2.10.0       |                 |
-| Objecttypen        | 3.3.0      |              | 1.5.0        |                 |
-| Open Formulieren   | 3.3.9      | Patch update | 1.11.6       | Patch update    |
-| Open Inwoner       | 1.35.3     | Patch update | 1.12.0       | Patch update    |
-| Open Klant         | 2.13.0     |              | 1.9.0        |                 |
-| Open Notificaties  | 1.13.0     |              | 1.12.0       |                 |
-| Open Zaak          | 1.26.0     | Patch update | 1.13.0       | Patch update    |
-| Open Archiefbeheer | 1.1.1      |              | 1.4.1        |                 |
-| Kiss               | 2.0.0      | Minor update | 2.0.0        | Major update    |
-| Zac                | 4.0.12     | Major update | 1.0.165      | Minor update    |
-| ZGW Office Addin   | 0.9.0      | Minor update | 0.0.63       | Minor update    |
+| Component          | AppVersion | Change       | ChartVersion | Change       |
+|--------------------|------------|--------------|--------------|--------------|
+| ClamAV             | 1.4.2      |              | 3.2.0        |              |
+| Keycloak           | 26.3.1     |              | 24.8.0       |              |
+| Infinispan         | 15.2       |              | 0.5.0        |              |
+| ITA                | 2.0.1      | Patch update | 2.0.1        | Patch update |
+| PABC               | 1.0.0      | New          | 1.0.0        | New          |
+| Objecten           | 3.3.1      |              | 2.10.0       |              |
+| Objecttypen        | 3.3.0      |              | 1.5.0        |              |
+| Open Formulieren   | 3.3.9      | Patch update | 1.11.6       | Patch update |
+| Open Inwoner       | 2.0.0      | Patch update | 1.12.0       | Major update |
+| Open Klant         | 2.14.0     |              | 1.9.0        |              |
+| Open Notificaties  | 1.13.0     |              | 1.12.0       |              |
+| Open Zaak          | 1.26.0     | Patch update | 1.13.0       | Patch update |
+| Open Archiefbeheer | 1.1.1      |              | 1.4.1        |              |
+| Kiss               | 2.0.0      | Minor update | 2.0.0        | Major update |
+| Zac                | 4.0.12     | Major update | 1.0.165      | Minor update |
+| ZGW Office Addin   | 0.9.0      | Minor update | 0.0.63       | Minor update |
 
 ### [4.4.5](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.4.5)
 
