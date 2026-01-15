@@ -1688,7 +1688,7 @@ kiss:
   image:
     #   repository: "ghcr.io/klantinteractie-servicesysteem/kiss-frontend"
     pullPolicy: IfNotPresent
-    tag: "2.0.0"
+    tag: 2.1.0
   enabled: true
   nameOverride: contact
   fullnameOverride: contact
@@ -1833,6 +1833,10 @@ kiss:
       #     zakenBaseUrl: http://kiss-adapter.%s.svc.cluster.local/zgw-apis-provider/zrc/api/v1
 
     syncJobs:
+      image: 
+        # repository: "ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync"
+        tag: "0.3.0"
+        pullPolicy: IfNotPresent
       kennisbank:
         baseUrl: ""
         historyLimit: 1
@@ -1872,12 +1876,11 @@ kiss:
         #   schedule: "*/59 * * * *"
 
       website: []
-        # - backoffLimit: 1
         #   domain: "https://www.example.com"
+        #   historyLimit: 1
         #   resources: {}
-        #   restartPolicy: "OnFailure"
+        #   schedule: "*/59 * * * *"
         #   sourceName: "my website"
-        #   ttlSecondsAfterFinished: 0
 
   # this is used for keycloak
   configuration:
@@ -1893,7 +1896,7 @@ kiss:
     clientId: kiss_intern
     secret: ""
     image:
-      repository: ghcr.io/icatt-menselijk-digitaal/podiumd-adapter
+      # repository: ghcr.io/icatt-menselijk-digitaal/podiumd-adapter
       tag: "0.6.4"
       pullPolicy: IfNotPresent
     resources:
@@ -2332,7 +2335,7 @@ ita:
 
   web:
     image:
-      repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web"
+      # repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web"
       tag: "2.0.1"
       pullPolicy: IfNotPresent
 
