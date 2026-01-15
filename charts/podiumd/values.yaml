@@ -1833,6 +1833,10 @@ kiss:
       #     zakenBaseUrl: http://kiss-adapter.%s.svc.cluster.local/zgw-apis-provider/zrc/api/v1
 
     syncJobs:
+      image: 
+        repository: "ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync"
+        tag: "0.3.0"
+        pullPolicy: IfNotPresent
       kennisbank:
         baseUrl: ""
         historyLimit: 1
