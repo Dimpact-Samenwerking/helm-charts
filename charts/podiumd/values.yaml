@@ -1834,7 +1834,7 @@ kiss:
 
     syncJobs:
       image: 
-        repository: "ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync"
+        # repository: "ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync"
         tag: "0.3.0"
         pullPolicy: IfNotPresent
       kennisbank:
@@ -1896,7 +1896,7 @@ kiss:
     clientId: kiss_intern
     secret: ""
     image:
-      repository: ghcr.io/icatt-menselijk-digitaal/podiumd-adapter
+      # repository: ghcr.io/icatt-menselijk-digitaal/podiumd-adapter
       tag: "0.6.4"
       pullPolicy: IfNotPresent
     resources:
@@ -2335,7 +2335,7 @@ ita:
 
   web:
     image:
-      repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web"
+      # repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web"
       tag: "2.0.1"
       pullPolicy: IfNotPresent
 
