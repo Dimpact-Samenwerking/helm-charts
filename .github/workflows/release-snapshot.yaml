@@ -50,8 +50,8 @@ jobs:
           # Read current version
           current_version=$(grep '^version:' "${chart_yaml}" | awk '{print $2}')
           
-          # Create snapshot version: version-branchname-snapshot
-          snapshot_version="${current_version}-${SAFE_BRANCH}-snapshot"
+          # Create snapshot version: version-snapshot
+          snapshot_version="${current_version}-snapshot"
           
           # Update Chart.yaml with snapshot version
           sed -i.bak "s/^version: .*/version: ${snapshot_version}/" "${chart_yaml}"
