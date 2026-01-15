@@ -1872,12 +1872,11 @@ kiss:
         #   schedule: "*/59 * * * *"
 
       website: []
-        # - backoffLimit: 1
         #   domain: "https://www.example.com"
+        #   historyLimit: 1
         #   resources: {}
-        #   restartPolicy: "OnFailure"
+        #   schedule: "*/59 * * * *"
         #   sourceName: "my website"
-        #   ttlSecondsAfterFinished: 0
 
   # this is used for keycloak
   configuration:
