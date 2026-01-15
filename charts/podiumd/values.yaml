@@ -1688,7 +1688,7 @@ kiss:
   image:
     #   repository: "ghcr.io/klantinteractie-servicesysteem/kiss-frontend"
     pullPolicy: IfNotPresent
-    tag: "2.0.0"
+    tag: "version: 2.1.0-rc.0"
   enabled: true
   nameOverride: contact
   fullnameOverride: contact
