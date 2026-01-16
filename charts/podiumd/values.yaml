@@ -10,6 +10,9 @@ global:
 
   imageRegistry: ""
 
+tags:
+  eck-operator.enabled: false
+
 persistentVolume:
   volumeAttributeShareName: ""
   volumeAttributeResourceGroup: ""
@@ -1652,25 +1655,11 @@ openinwoner:
         requests:
           cpu: 20m
           memory: 64Mi
-  elasticsearch:
-    nameOverride: openinwoner-elasticsearch
-    fullnameOverride: openinwoner-elasticsearch
-    master:
-      resources:
-        requests:
-          cpu: 100m
-          memory: 640Mi
-    data:
-      resources:
-        requests:
-          cpu: 100m
-    coordinating:
-      resources:
-        requests:
-          cpu: 100m
-          memory: 512Mi
-    image:
-      tag: 9.0.3-debian-12-r1
+  eck-elasticsearch:
+    enabled: true
+    version: "9.2.0"
+  eck-operator:
+    enabled: false
 
 kisselastic:
   kibanaDomain: kiss-kb-http.podiumd.svc.cluster.local:5601
@@ -1773,7 +1762,7 @@ kiss:
     logboek:
       baseUrl: ""
       objectTypeUrl: ""
-      objectTypeVersion: "1"
+      objectTypeVersion: 1
       token: ""
 
     managementInformatie:
@@ -1782,9 +1771,9 @@ kiss:
     oidc:
       authority: ""
       clientId: kiss
-      clientSecret: ""
+      clientSecret: "<kiss>"
       medewerkerIdentificatie:
-        claim: preferred_username
+        claim: samaccountname
         truncate:
 
     organisatieIds: []
@@ -1833,7 +1822,7 @@ kiss:
       #     zakenBaseUrl: http://kiss-adapter.%s.svc.cluster.local/zgw-apis-provider/zrc/api/v1
 
     syncJobs:
-      image: 
+      image:
         # repository: "ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync"
         tag: "0.3.0"
         pullPolicy: IfNotPresent
@@ -1857,9 +1846,9 @@ kiss:
 
       vac:
         manageFromKiss: false
-        baseUrl:
+        baseUrl: ""
         historyLimit: 1
-        objectTypeUrl:
+        objectTypeUrl: ""
         objectTypeVersion: 1
         resources: {}
         schedule: "*/59 * * * *"
@@ -1946,7 +1935,7 @@ kiss:
       vacUUID: ""
     esuite:
       baseUrl: ""
-      clientId: kiss
+      clientId: "<kiss>"
       secret: ""
       contactverzoektypen: []
       isDefault: true
@@ -2123,9 +2112,20 @@ zgw-office-addin:
     image:
       tag: v0.9.0
     # secret that is configured in openzaak
-    jwtSecret: "my-openzaak-office-addin-zgw-api-key"
-    # the base url of the openzaak zgw api's
-    apiBaseUrl: "https://openzaak.example.nl"
+    jwtSecret: ""
+    # -- The base url of the openzaak zgw api's
+    # bv. https://openzaak.gemeente.nl
+    apiBaseUrl: ""
+    # -- Client ID of the Azure AD App Registration supplied by the municipality
+    msalClientId: ""
+    # -- Authority URL for MSAL authentication towards Azure AD
+    msalAuthorityUrl: ""
+    # -- Scope for MSAL authentication towards Azure AD
+    msalScope: ""
+    # -- Redirect URI for MSAL authentication towards Azure AD
+    msalRedirectUri: ""
+    # -- Client secret for MSAL authentication towards Azure AD
+    msalSecret: ""
 
 clamav:
   image:
@@ -2307,19 +2307,19 @@ ita:
 
   logboek:
     # Aanname: uuid van objecttype wordt gemeentespecifiek vervangen door Replacementscripts
-    type: https://ontw-objecttypen.example.nl/api/v2/objecttypes/REP_ITA_ACTIVITEITENLOG_UUID_REP
+    type: "https://ontw-objecttypen.example.nl/api/v2/objecttypes/REP_ITA_ACTIVITEITENLOG_UUID_REP"
     typeVersion: 1
 
   afdeling:
     # Aanname: uuid van objecttype wordt gemeentespecifiek vervangen door Replacementscripts
     uuid: "REP_CONTACT_AFDELING_UUID_REP"
-    type: https://ontw-objecttypen.example.nl/api/v2/objecttypes/REP_CONTACT_AFDELING_UUID_REP
+    type: "https://ontw-objecttypen.example.nl/api/v2/objecttypes/REP_CONTACT_AFDELING_UUID_REP"
     typeVersion: 1
 
   groep:
     # Aanname: uuid van objecttype wordt gemeentespecifiek vervangen door Replacementscripts
     uuid: "REP_CONTACT_GROEP_UUID_REP"
-    type: https://ontw-objecttypen.example.nl/api/v2/objecttypes/REP_CONTACT_GROEP_UUID_REP
+    type: "https://ontw-objecttypen.example.nl/api/v2/objecttypes/REP_CONTACT_GROEP_UUID_REP"
     typeVersion: 1
 
   smtp:
