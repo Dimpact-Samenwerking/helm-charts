@@ -10,6 +10,9 @@ global:
 
   imageRegistry: ""
 
+tags:
+  eck-operator.enabled: false
+
 persistentVolume:
   volumeAttributeShareName: ""
   volumeAttributeResourceGroup: ""
@@ -1657,8 +1660,6 @@ openinwoner:
     version: "9.2.0"
   eck-operator:
     enabled: false
-  tags:
-    eck-operator.enabled: false
 
 kisselastic:
   kibanaDomain: kiss-kb-http.podiumd.svc.cluster.local:5601
