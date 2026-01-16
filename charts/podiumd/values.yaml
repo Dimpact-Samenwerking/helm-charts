@@ -1658,7 +1658,8 @@ openinwoner:
   eck-operator:
     enabled: false
   tags:
-    eck-operator.enabled: false
+    eck-operator:
+      enabled: false
 
 kisselastic:
   kibanaDomain: kiss-kb-http.podiumd.svc.cluster.local:5601
