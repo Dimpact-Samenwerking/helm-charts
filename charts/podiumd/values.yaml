@@ -1657,8 +1657,7 @@ openinwoner:
     enabled: false
   eck-elasticsearch:
     enabled: true
-    image:
-      tag: "9.2.0"
+    version: "9.2.0"
 
 kisselastic:
   kibanaDomain: kiss-kb-http.podiumd.svc.cluster.local:5601
