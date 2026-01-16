@@ -1655,6 +1655,8 @@ openinwoner:
   eck-elasticsearch:
     enabled: true
     version: "9.2.0"
+  eck-operator:
+    enabled: false
   tags:
     eck-operator.enabled: false
 
