@@ -1822,7 +1822,7 @@ kiss:
       #     zakenBaseUrl: http://kiss-adapter.%s.svc.cluster.local/zgw-apis-provider/zrc/api/v1
 
     syncJobs:
-      image: 
+      image:
         # repository: "ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync"
         tag: "0.3.0"
         pullPolicy: IfNotPresent
@@ -2112,9 +2112,20 @@ zgw-office-addin:
     image:
       tag: v0.9.0
     # secret that is configured in openzaak
-    jwtSecret: "my-openzaak-office-addin-zgw-api-key"
-    # the base url of the openzaak zgw api's
-    apiBaseUrl: "https://openzaak.example.nl"
+    jwtSecret: ""
+    # -- The base url of the openzaak zgw api's
+    # bv. https://openzaak.gemeente.nl
+    apiBaseUrl: ""
+    # -- Client ID of the Azure AD App Registration supplied by the municipality
+    msalClientId: ""
+    # -- Authority URL for MSAL authentication towards Azure AD
+    msalAuthorityUrl: ""
+    # -- Scope for MSAL authentication towards Azure AD
+    msalScope: ""
+    # -- Redirect URI for MSAL authentication towards Azure AD
+    msalRedirectUri: ""
+    # -- Client secret for MSAL authentication towards Azure AD
+    msalSecret: ""
 
 clamav:
   image:
