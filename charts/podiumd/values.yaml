@@ -1652,25 +1652,13 @@ openinwoner:
         requests:
           cpu: 20m
           memory: 64Mi
-  elasticsearch:
-    nameOverride: openinwoner-elasticsearch
-    fullnameOverride: openinwoner-elasticsearch
-    master:
-      resources:
-        requests:
-          cpu: 100m
-          memory: 640Mi
-    data:
-      resources:
-        requests:
-          cpu: 100m
-    coordinating:
-      resources:
-        requests:
-          cpu: 100m
-          memory: 512Mi
+  eck-operator:
+    installCRDs: false
+    enabled: false
+  eck-elasticsearch:
+    enabled: true
     image:
-      tag: 9.0.3-debian-12-r1
+      tag: "9.2.0"
 
 kisselastic:
   kibanaDomain: kiss-kb-http.podiumd.svc.cluster.local:5601
