@@ -1760,7 +1760,7 @@ kiss:
     logboek:
       baseUrl: ""
       objectTypeUrl: ""
-      objectTypeVersion: "1"
+      objectTypeVersion: 1
       token: ""
 
     managementInformatie:
