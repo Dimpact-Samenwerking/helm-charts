@@ -1652,12 +1652,11 @@ openinwoner:
         requests:
           cpu: 20m
           memory: 64Mi
-  eck-operator:
-    installCRDs: false
-    enabled: false
   eck-elasticsearch:
     enabled: true
     version: "9.2.0"
+  tags:
+    eck-operator.enabled: false
 
 kisselastic:
   kibanaDomain: kiss-kb-http.podiumd.svc.cluster.local:5601
