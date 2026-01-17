@@ -10,6 +10,9 @@ global:
 
   imageRegistry: ""
 
+tags:
+  eck-operator.enabled: false
+
 persistentVolume:
   volumeAttributeShareName: ""
   volumeAttributeResourceGroup: ""
@@ -1652,25 +1655,11 @@ openinwoner:
         requests:
           cpu: 20m
           memory: 64Mi
-  elasticsearch:
-    nameOverride: openinwoner-elasticsearch
-    fullnameOverride: openinwoner-elasticsearch
-    master:
-      resources:
-        requests:
-          cpu: 100m
-          memory: 640Mi
-    data:
-      resources:
-        requests:
-          cpu: 100m
-    coordinating:
-      resources:
-        requests:
-          cpu: 100m
-          memory: 512Mi
-    image:
-      tag: 9.0.3-debian-12-r1
+  eck-elasticsearch:
+    enabled: true
+    version: "9.2.0"
+  eck-operator:
+    enabled: false
 
 kisselastic:
   kibanaDomain: kiss-kb-http.podiumd.svc.cluster.local:5601
@@ -1685,10 +1674,13 @@ kisselastic:
       tag: "3.1.0"
 
 kiss:
+  image:
+    #   repository: "ghcr.io/klantinteractie-servicesysteem/kiss-frontend"
+    pullPolicy: IfNotPresent
+    tag: 2.1.0
   enabled: true
   nameOverride: contact
   fullnameOverride: contact
-
   # -- Optionally specify extra list of additional environment variables. Not necesarry for KvK / BRP headers, use the settings for these
   extraEnvVars: []
   # -- Optionally specify extra list of additional volumes, for example to trust extra ca certificates.
@@ -1770,7 +1762,7 @@ kiss:
     logboek:
       baseUrl: ""
       objectTypeUrl: ""
-      objectTypeVersion: "1"
+      objectTypeVersion: 1
       token: ""
 
     managementInformatie:
@@ -1779,9 +1771,9 @@ kiss:
     oidc:
       authority: ""
       clientId: kiss
-      clientSecret: ""
+      clientSecret: "<kiss>"
       medewerkerIdentificatie:
-        claim: preferred_username
+        claim: samaccountname
         truncate:
 
     organisatieIds: []
@@ -1830,6 +1822,10 @@ kiss:
       #     zakenBaseUrl: http://kiss-adapter.%s.svc.cluster.local/zgw-apis-provider/zrc/api/v1
 
     syncJobs:
+      image:
+        # repository: "ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync"
+        tag: "0.3.0"
+        pullPolicy: IfNotPresent
       kennisbank:
         baseUrl: ""
         historyLimit: 1
@@ -1850,9 +1846,9 @@ kiss:
 
       vac:
         manageFromKiss: false
-        baseUrl:
+        baseUrl: ""
         historyLimit: 1
-        objectTypeUrl:
+        objectTypeUrl: ""
         objectTypeVersion: 1
         resources: {}
         schedule: "*/59 * * * *"
@@ -1869,12 +1865,11 @@ kiss:
         #   schedule: "*/59 * * * *"
 
       website: []
-        # - backoffLimit: 1
         #   domain: "https://www.example.com"
+        #   historyLimit: 1
         #   resources: {}
-        #   restartPolicy: "OnFailure"
+        #   schedule: "*/59 * * * *"
         #   sourceName: "my website"
-        #   ttlSecondsAfterFinished: 0
 
   # this is used for keycloak
   configuration:
@@ -1890,7 +1885,7 @@ kiss:
     clientId: kiss_intern
     secret: ""
     image:
-      repository: ghcr.io/icatt-menselijk-digitaal/podiumd-adapter
+      # repository: ghcr.io/icatt-menselijk-digitaal/podiumd-adapter
       tag: "0.6.4"
       pullPolicy: IfNotPresent
     resources:
@@ -1940,7 +1935,7 @@ kiss:
       vacUUID: ""
     esuite:
       baseUrl: ""
-      clientId: kiss
+      clientId: "<kiss>"
       secret: ""
       contactverzoektypen: []
       isDefault: true
@@ -2117,9 +2112,20 @@ zgw-office-addin:
     image:
       tag: v0.9.0
     # secret that is configured in openzaak
-    jwtSecret: "my-openzaak-office-addin-zgw-api-key"
-    # the base url of the openzaak zgw api's
-    apiBaseUrl: "https://openzaak.example.nl"
+    jwtSecret: ""
+    # -- The base url of the openzaak zgw api's
+    # bv. https://openzaak.gemeente.nl
+    apiBaseUrl: ""
+    # -- Client ID of the Azure AD App Registration supplied by the municipality
+    msalClientId: ""
+    # -- Authority URL for MSAL authentication towards Azure AD
+    msalAuthorityUrl: ""
+    # -- Scope for MSAL authentication towards Azure AD
+    msalScope: ""
+    # -- Redirect URI for MSAL authentication towards Azure AD
+    msalRedirectUri: ""
+    # -- Client secret for MSAL authentication towards Azure AD
+    msalSecret: ""
 
 clamav:
   image:
@@ -2301,19 +2307,19 @@ ita:
 
   logboek:
     # Aanname: uuid van objecttype wordt gemeentespecifiek vervangen door Replacementscripts
-    type: https://ontw-objecttypen.example.nl/api/v2/objecttypes/REP_ITA_ACTIVITEITENLOG_UUID_REP
+    type: "https://ontw-objecttypen.example.nl/api/v2/objecttypes/REP_ITA_ACTIVITEITENLOG_UUID_REP"
     typeVersion: 1
 
   afdeling:
     # Aanname: uuid van objecttype wordt gemeentespecifiek vervangen door Replacementscripts
     uuid: "REP_CONTACT_AFDELING_UUID_REP"
-    type: https://ontw-objecttypen.example.nl/api/v2/objecttypes/REP_CONTACT_AFDELING_UUID_REP
+    type: "https://ontw-objecttypen.example.nl/api/v2/objecttypes/REP_CONTACT_AFDELING_UUID_REP"
     typeVersion: 1
 
   groep:
     # Aanname: uuid van objecttype wordt gemeentespecifiek vervangen door Replacementscripts
     uuid: "REP_CONTACT_GROEP_UUID_REP"
-    type: https://ontw-objecttypen.example.nl/api/v2/objecttypes/REP_CONTACT_GROEP_UUID_REP
+    type: "https://ontw-objecttypen.example.nl/api/v2/objecttypes/REP_CONTACT_GROEP_UUID_REP"
     typeVersion: 1
 
   smtp:
@@ -2329,7 +2335,7 @@ ita:
 
   web:
     image:
-      repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web"
+      # repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web"
       tag: "2.0.1"
       pullPolicy: IfNotPresent
 
@@ -2360,7 +2366,7 @@ ita:
 
     image:
       repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller"
-      tag: "2.0.0"
+      tag: "2.0.1"
       pullPolicy: Always
 
     notification:
@@ -2381,13 +2387,11 @@ pabc:
   fullnameOverride: "pabc"
   postgresql:
     enabled: false
-  # image:
-  #   # this is the same version as the chart by default, so consider leaving this empty
-  #   tag: 1.0.0
-  # migrations:
-  #   image:
-  #     # this is the same version as the chart by default, so consider leaving this empty
-  #     tag: 1.0.0
+  image:
+    tag: 1.0.0
+  migrations:
+    image:
+      tag: 1.0.0
 
   settings:
     database:
