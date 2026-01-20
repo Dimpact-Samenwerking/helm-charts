@@ -2097,19 +2097,21 @@ zac:
 zgw-office-addin:
   enabled: true
   fullnameOverride: "zgw-office-addin"
+  common:
+    # -- The frontend public URL where the manifest files and static js file are served
+    frontendUrl: "https://office-addin.example.nl"
+    # -- MS Azure Tenant ID of the Office Add-in application
+    msalTenantId: ""
+    # -- MS Azure Client ID assigned to the Office Add-in application
+    msalClientId: ""
   frontend:
-    # ghcr.io/infonl/zgw-office-add-in-frontend:v0.9.0
+    # ghcr.io/infonl/zgw-office-add-in-frontend:v0.9.28
     image:
-      tag: v0.9.0
-    # the public url where manifest.xml and static js files are served
-    frontendUrl: https://office-addin.example.nl
-    # by default this is not needed as it is proxied by the frontend host
-    backendPublicUrl: ""
-    # can be enabled if needed, if for instance you don't want an ingress
-    enableHttps: false
+      tag: v0.9.28
   backend:
-    # ghcr.io/infonl/zgw-office-add-in-backend:v0.9.0
+    # ghcr.io/infonl/zgw-office-add-in-backend:v0.9.28
     image:
+<<<<<<< HEAD
       tag: v0.9.0
     # secret that is configured in openzaak
     jwtSecret: ""
@@ -2126,7 +2128,19 @@ zgw-office-addin:
     msalRedirectUri: ""
     # -- Client secret for MSAL authentication towards Azure AD
     msalSecret: ""
-
+||||||| parent of f237bcc (PodiumD 4.5.4 changes for Office Add-in)
+      tag: v0.9.0
+    # secret that is configured in openzaak
+    jwtSecret: "my-openzaak-office-addin-zgw-api-key"
+    # the base url of the openzaak zgw api's
+    apiBaseUrl: "https://openzaak.example.nl"
+=======
+      tag: v0.9.28
+    # -- ZGW API configuration for integration with the ZGW APIs provider (OpenZaak)
+    zgwApis:
+      url: "https://openzaak.example.nl"
+      secret: ""
+>>>>>>> f237bcc (PodiumD 4.5.4 changes for Office Add-in)
 clamav:
   image:
     tag: "1.4.2"
