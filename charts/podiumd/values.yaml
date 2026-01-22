@@ -2097,35 +2097,25 @@ zac:
 zgw-office-addin:
   enabled: true
   fullnameOverride: "zgw-office-addin"
-  frontend:
-    # ghcr.io/infonl/zgw-office-add-in-frontend:v0.9.0
-    image:
-      tag: v0.9.0
-    # the public url where manifest.xml and static js files are served
-    frontendUrl: https://office-addin.example.nl
-    # by default this is not needed as it is proxied by the frontend host
-    backendPublicUrl: ""
-    # can be enabled if needed, if for instance you don't want an ingress
-    enableHttps: false
-  backend:
-    # ghcr.io/infonl/zgw-office-add-in-backend:v0.9.0
-    image:
-      tag: v0.9.0
-    # secret that is configured in openzaak
-    jwtSecret: ""
-    # -- The base url of the openzaak zgw api's
-    # bv. https://openzaak.gemeente.nl
-    apiBaseUrl: ""
-    # -- Client ID of the Azure AD App Registration supplied by the municipality
+  common:
+    # -- The frontend public URL where the manifest files and static js file are served
+    frontendUrl: "https://office-addin.example.nl"
+    # -- MS Azure Tenant ID of the Office Add-in application
+    msalTenantId: ""
+    # -- MS Azure Client ID assigned to the Office Add-in application
     msalClientId: ""
-    # -- Authority URL for MSAL authentication towards Azure AD
-    msalAuthorityUrl: ""
-    # -- Scope for MSAL authentication towards Azure AD
-    msalScope: ""
-    # -- Redirect URI for MSAL authentication towards Azure AD
-    msalRedirectUri: ""
-    # -- Client secret for MSAL authentication towards Azure AD
-    msalSecret: ""
+  frontend:
+    # ghcr.io/infonl/zgw-office-add-in-frontend:v0.9.28
+    image:
+      tag: v0.9.28
+  backend:
+    # ghcr.io/infonl/zgw-office-add-in-backend:v0.9.28
+    image:
+      tag: v0.9.28
+    # -- ZGW API configuration for integration with the ZGW APIs provider (OpenZaak)
+    zgwApis:
+      url: "https://openzaak.example.nl"
+      secret: ""
 
 clamav:
   image:
