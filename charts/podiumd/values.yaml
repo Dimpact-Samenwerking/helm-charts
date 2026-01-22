@@ -2397,7 +2397,7 @@ pabc:
       authority: ""
       clientId: "pabc"
       clientSecret: ""
-      functioneelBeheerderRole: "administrator"
+      functioneelBeheerderRole: ""
       nameClaimType: "name"
       roleClaimType: "roles"
       emailClaimType: "email"
