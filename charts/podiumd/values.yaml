@@ -1943,6 +1943,8 @@ kiss:
 zac:
   featureFlags:
     pabcIntegration: false
+  image:
+    tag: 4.1.0 
   auth:
     server: http://keycloak.example.nl
     realm: podiumd
@@ -2397,7 +2399,7 @@ pabc:
       authority: ""
       clientId: "pabc"
       clientSecret: ""
-      functioneelBeheerderRole: "administrator"
+      functioneelBeheerderRole: ""
       nameClaimType: "name"
       roleClaimType: "roles"
       emailClaimType: "email"
