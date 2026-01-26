@@ -1744,20 +1744,22 @@ kiss:
     haalCentraal:
       apiKey: ""
       baseUrl: ""
-      customHeaders:
-        my-generic-header: ""
-        my-specific-header:
-          RaadpleegMetBurgerservicenummer: ""
-          ZoekMetGeslachtsnaamEnGeboortedatum: ""
-          ZoekMetPostcodeEnHuisnummer: ""
-      userHeaderName: ""
+      # the following values can be used for connections with Haal Centraal via services like iConnect
+      # customHeaders:
+      #   my-generic-header: ""
+      #   my-specific-header:
+      #     RaadpleegMetBurgerservicenummer: ""
+      #     ZoekMetGeslachtsnaamEnGeboortedatum: ""
+      #     ZoekMetPostcodeEnHuisnummer: ""
+      # userHeaderName: ""
 
     kvk:
       apiKey: ""
       baseUrl: ""
-      userHeaderName: ""
-      customHeaders:
-        my-generic-header: ""
+      # the following values can be used for connections with KvK via services like iConnect
+      # userHeaderName: ""
+      # customHeaders:
+      #   my-generic-header: ""
 
     logboek:
       baseUrl: ""
