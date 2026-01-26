@@ -59,7 +59,7 @@ keycloak:
     #        role: "admin"
     # -- identity provider mapper for the admin realm
     #adminIdentityProviderMappers: {}
-    adminOtpEnabled: false
+    adminOtpEnabled: true
     realm: podiumd
     realmDisplayName: PodiumD
     realmFrontendUrl: https://keycloak.example.nl
@@ -109,7 +109,33 @@ keycloak:
     password: ""
   fullnameOverride: keycloak
   ingress:
+    enabled: true
+    hostname: keycloak.example.nl
+    ingressClassName: nginx
+    tls: true
     hostnameStrict: true
+  adminIngress:
+    enabled: true
+    hostname: keycloak-admin.example.nl
+    ingressClassName: nginx
+    tls: true
+    annotations:
+      # Restrict admin console access to specific IP ranges (VPN, office network, etc.)
+      # Replace these with your actual trusted IP ranges
+      # nginx.ingress.kubernetes.io/whitelist-source-range: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+      # Additional security headers
+      nginx.ingress.kubernetes.io/configuration-snippet: |
+        # Block direct access to sensitive paths
+        location ~ ^/admin/.*/console/config {
+          deny all;
+        }
+      #  location ~ ^/realms/master/protocol/openid-connect/token {
+      #    # Restrict master realm token endpoint
+      #    allow 10.0.0.0/8;
+      #    allow 172.16.0.0/12;
+      #    allow 192.168.0.0/16;
+      #    deny all;
+      #  }
   keycloakConfigCli:
     cleanupAfterFinished:
       enabled: true
@@ -128,9 +154,24 @@ keycloak:
   pdb:
     create: false
   networkPolicy:
-    enabled: false
-  podSecurity:
-    enabled: false
+    enabled: true
+    allowExternal: true
+    allowExternalEgress: true
+  podSecurityContext:
+    enabled: true
+    fsGroup: 1001
+  containerSecurityContext:
+    enabled: true
+    runAsUser: 1001
+    runAsGroup: 1001
+    runAsNonRoot: true
+    readOnlyRootFilesystem: true
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    seccompProfile:
+      type: RuntimeDefault
   postgres:
     enabled: false
   replicaCount: 1
@@ -146,6 +187,7 @@ keycloak:
     enabled: false
   nameOverride: keycloak
   extraEnvVarsCM: keycloak-extra-env-vars
+  extraStartupArgs: "--http-max-queued-requests=1000 --log-level=WARN"
 
 infinispan:
   # -- image data for infinispan containers
