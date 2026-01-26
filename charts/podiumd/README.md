@@ -4,7 +4,7 @@
 
 ### [4.5.0](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.5.0)
 
-**PodiumD Helm chart version: 4.5.1**
+**PodiumD Helm chart version: 4.5.5**
 
 | Component          | AppVersion | Change       | ChartVersion | Change       |
 |--------------------|------------|--------------|--------------|--------------|
