@@ -228,7 +228,7 @@ keycloak:
     enabled: false
   nameOverride: keycloak
   extraEnvVarsCM: keycloak-extra-env-vars
-  extraStartupArgs: "--http-max-queued-requests=1000 --log-level=WARN"
+  extraStartupArgs: "--http-max-queued-requests=1000 --features=admin-audit --log-level=WARN"
 
 infinispan:
   # -- image data for infinispan containers
