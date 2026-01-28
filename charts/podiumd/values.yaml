@@ -1702,6 +1702,7 @@ openinwoner:
     email:
       port: 587
       useTLS: true
+    searchIndexInitContainer: true
   persistence:
     size: 10Gi
     existingClaim: openinwoner
@@ -1750,6 +1751,10 @@ openinwoner:
   eck-elasticsearch:
     enabled: true
     version: "9.2.0"
+    http:
+      tls:
+        selfSignedCertificate:
+          disabled: true
   eck-operator:
     enabled: false
 
