@@ -117,33 +117,6 @@ keycloak:
     annotations:
       # Rate limiting for public endpoints
       nginx.ingress.kubernetes.io/limit-rps: "50"
-      # Block all admin paths on public ingress
-      nginx.ingress.kubernetes.io/configuration-snippet: |
-        # Block ALL admin paths on public ingress
-        location ~ ^/admin {
-          deny all;
-          return 404;
-        }
-        # Block resource paths on public ingress
-        location ~ ^/(resources|js) {
-          deny all;
-          return 404;
-        }
-        # Block self-service paths on public ingress
-        location ~ ^/realms/*/account/* {
-          deny all;
-          return 404;
-        }
-        # Block management/metrics endpoints
-        location ~ ^/(metrics|health) {
-          deny all;
-          return 404;
-        }
-        # Block master realm on public ingress
-        location ~ ^/realms/master/ {
-          deny all;
-          return 404;
-        }
   adminIngress:
     enabled: true
     hostname: "keycloak-admin.example.nl"
