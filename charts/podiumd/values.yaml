@@ -128,37 +128,6 @@ keycloak:
       # nginx.ingress.kubernetes.io/whitelist-source-range: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
       # Rate limiting to prevent brute force attacks
       nginx.ingress.kubernetes.io/limit-rps: "10"
-      # Additional security headers
-      nginx.ingress.kubernetes.io/configuration-snippet: |
-        # Block sensitive configuration endpoints
-        location ~ ^/admin/.*/console/config$ {
-          deny all;
-          return 403;
-        }
-        location ~ ^/admin/.*/console/whoami$ {
-          deny all;
-          return 403;
-        }
-        
-        # Block server info endpoint (version disclosure)
-        location = /admin/serverinfo {
-          deny all;
-          return 403;
-        }
-        
-        # Restrict master realm access, allow actual trusted IP ranges
-        # location ~ ^/realms/master/ {
-        #   allow 10.0.0.0/8;
-        #   allow 172.16.0.0/12;
-        #   allow 192.168.0.0/16;
-        #   deny all;
-        # }
-        
-        # Block management endpoints (should use port 9000 internally)
-        location ~ ^/(metrics|health) {
-          deny all;
-          return 404;
-        }
   keycloakConfigCli:
     cleanupAfterFinished:
       enabled: true
