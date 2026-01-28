@@ -109,7 +109,74 @@ keycloak:
     password: ""
   fullnameOverride: keycloak
   ingress:
+    enabled: true
     hostnameStrict: true
+    hostname: "keycloak.example.nl"
+    ingressClassName: nginx
+    annotations:
+      # Rate limiting for public endpoints
+      nginx.ingress.kubernetes.io/limit-rps: "50"
+      # Block all admin paths on public ingress
+      nginx.ingress.kubernetes.io/configuration-snippet: |
+        # Block ALL admin paths on public ingress
+        location ~ ^/admin {
+          deny all;
+          return 404;
+        }
+        
+        # Block management/metrics endpoints
+        location ~ ^/(metrics|health) {
+          deny all;
+          return 404;
+        }
+        
+        # Block master realm on public ingress
+        location ~ ^/realms/master/ {
+          deny all;
+          return 404;
+        }
+  adminIngress:
+    enabled: true
+    hostname: "keycloak-admin.example.nl"
+    ingressClassName: nginx
+    annotations:
+      # Restrict admin console access to specific IP ranges (VPN, office network, etc.)
+      # Replace these with your actual trusted IP ranges
+      # nginx.ingress.kubernetes.io/whitelist-source-range: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+      # Rate limiting to prevent brute force attacks
+      nginx.ingress.kubernetes.io/limit-rps: "10"
+      # Additional security headers
+      nginx.ingress.kubernetes.io/configuration-snippet: |
+        # Block sensitive configuration endpoints
+        location ~ ^/admin/.*/console/config$ {
+          deny all;
+          return 403;
+        }
+        location ~ ^/admin/.*/console/whoami$ {
+          deny all;
+          return 403;
+        }
+        
+        # Block server info endpoint (version disclosure)
+        location = /admin/serverinfo {
+          deny all;
+          return 403;
+        }        
+        
+        # Block management endpoints (should use port 9000 internally)
+        location ~ ^/(metrics|health) {
+          deny all;
+          return 404;
+        }
+        
+        # location ~ ^/realms/master {
+        #   # Restrict master realm access
+        # Set allow only for your actual trusted IP ranges
+        #   allow 10.0.0.0/8;
+        #   allow 172.16.0.0/12;
+        #   allow 192.168.0.0/16;
+        #   deny all;
+        # }
   keycloakConfigCli:
     cleanupAfterFinished:
       enabled: true
@@ -128,9 +195,24 @@ keycloak:
   pdb:
     create: false
   networkPolicy:
-    enabled: false
-  podSecurity:
-    enabled: false
+    enabled: true
+    allowExternal: true
+    allowExternalEgress: true
+  podSecurityContext:
+    enabled: true
+    fsGroup: 1001
+  containerSecurityContext:
+    enabled: true
+    runAsUser: 1001
+    runAsGroup: 1001
+    runAsNonRoot: true
+    readOnlyRootFilesystem: true
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    seccompProfile:
+      type: RuntimeDefault
   postgres:
     enabled: false
   replicaCount: 1
@@ -146,6 +228,7 @@ keycloak:
     enabled: false
   nameOverride: keycloak
   extraEnvVarsCM: keycloak-extra-env-vars
+  extraStartupArgs: "--http-max-queued-requests=1000 --features=admin-audit --log-level=WARN"
 
 infinispan:
   # -- image data for infinispan containers
@@ -1983,11 +2066,11 @@ zac:
     curlImage:
       #repository: curlimages/curl
       tag: 8.16.0
-  # ghcr.io/infonl/zaakafhandelcomponent:4.0.12
+  # ghcr.io/infonl/zaakafhandelcomponent:4.0.12-1
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
-    tag: 4.0.12
+    tag: 4.0.12-1
   initContainer:
     enabled: false
   keycloak:
