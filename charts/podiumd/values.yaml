@@ -109,19 +109,11 @@ keycloak:
     password: ""
   fullnameOverride: keycloak
   ingress:
-    enabled: true
-    hostname: "keycloak.example.nl"
-    ingressClassName: nginx
-    tls: true
     hostnameStrict: true
     annotations:
       # Rate limiting for public endpoints
       nginx.ingress.kubernetes.io/limit-rps: "50"
   adminIngress:
-    enabled: true
-    hostname: "keycloak-admin.example.nl"
-    ingressClassName: nginx
-    tls: true
     annotations:
       # Restrict admin console access to specific IP ranges (VPN, office network, etc.)
       # Replace these with your actual trusted IP ranges
