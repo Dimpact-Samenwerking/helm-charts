@@ -59,7 +59,7 @@ keycloak:
     #        role: "admin"
     # -- identity provider mapper for the admin realm
     #adminIdentityProviderMappers: {}
-    adminOtpEnabled: false
+    adminOtpEnabled: true
     realm: podiumd
     realmDisplayName: PodiumD
     realmFrontendUrl: https://keycloak.example.nl
@@ -109,74 +109,17 @@ keycloak:
     password: ""
   fullnameOverride: keycloak
   ingress:
-    enabled: true
     hostnameStrict: true
-    hostname: "keycloak.example.nl"
-    ingressClassName: nginx
     annotations:
       # Rate limiting for public endpoints
       nginx.ingress.kubernetes.io/limit-rps: "50"
-      # Block all admin paths on public ingress
-      nginx.ingress.kubernetes.io/configuration-snippet: |
-        # Block ALL admin paths on public ingress
-        location ~ ^/admin {
-          deny all;
-          return 404;
-        }
-        
-        # Block management/metrics endpoints
-        location ~ ^/(metrics|health) {
-          deny all;
-          return 404;
-        }
-        
-        # Block master realm on public ingress
-        location ~ ^/realms/master/ {
-          deny all;
-          return 404;
-        }
   adminIngress:
-    enabled: true
-    hostname: "keycloak-admin.example.nl"
-    ingressClassName: nginx
     annotations:
       # Restrict admin console access to specific IP ranges (VPN, office network, etc.)
       # Replace these with your actual trusted IP ranges
       # nginx.ingress.kubernetes.io/whitelist-source-range: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
       # Rate limiting to prevent brute force attacks
       nginx.ingress.kubernetes.io/limit-rps: "10"
-      # Additional security headers
-      nginx.ingress.kubernetes.io/configuration-snippet: |
-        # Block sensitive configuration endpoints
-        location ~ ^/admin/.*/console/config$ {
-          deny all;
-          return 403;
-        }
-        location ~ ^/admin/.*/console/whoami$ {
-          deny all;
-          return 403;
-        }
-        
-        # Block server info endpoint (version disclosure)
-        location = /admin/serverinfo {
-          deny all;
-          return 403;
-        }        
-        
-        # Block management endpoints (should use port 9000 internally)
-        location ~ ^/(metrics|health) {
-          deny all;
-          return 404;
-        }
-        
-        # location ~ ^/realms/master {
-        #   # Restrict master realm access
-        # Set allow only for your actual trusted IP ranges
-        #   allow 10.0.0.0/8;
-        #   allow 172.16.0.0/12;
-        #   allow 192.168.0.0/16;
-        #   deny all;
-        # }
   keycloakConfigCli:
     cleanupAfterFinished:
       enabled: true
