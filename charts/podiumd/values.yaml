@@ -59,7 +59,7 @@ keycloak:
     #        role: "admin"
     # -- identity provider mapper for the admin realm
     #adminIdentityProviderMappers: {}
-    adminOtpEnabled: true
+    adminOtpEnabled: false
     realm: podiumd
     realmDisplayName: PodiumD
     realmFrontendUrl: https://keycloak.example.nl
