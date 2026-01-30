@@ -110,16 +110,6 @@ keycloak:
   fullnameOverride: keycloak
   ingress:
     hostnameStrict: true
-    annotations:
-      # Rate limiting for public endpoints
-      nginx.ingress.kubernetes.io/limit-rps: "50"
-  adminIngress:
-    annotations:
-      # Restrict admin console access to specific IP ranges (VPN, office network, etc.)
-      # Replace these with your actual trusted IP ranges
-      # nginx.ingress.kubernetes.io/whitelist-source-range: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
-      # Rate limiting to prevent brute force attacks
-      nginx.ingress.kubernetes.io/limit-rps: "10"
   keycloakConfigCli:
     cleanupAfterFinished:
       enabled: true
@@ -138,24 +128,9 @@ keycloak:
   pdb:
     create: false
   networkPolicy:
-    enabled: true
-    allowExternal: true
-    allowExternalEgress: true
+    enabled: false
   podSecurityContext:
-    enabled: true
-    fsGroup: 1001
-  containerSecurityContext:
-    enabled: true
-    runAsUser: 1001
-    runAsGroup: 1001
-    runAsNonRoot: true
-    readOnlyRootFilesystem: true
-    allowPrivilegeEscalation: false
-    capabilities:
-      drop:
-        - ALL
-    seccompProfile:
-      type: RuntimeDefault
+    enabled: false
   postgres:
     enabled: false
   replicaCount: 1
@@ -171,7 +146,6 @@ keycloak:
     enabled: false
   nameOverride: keycloak
   extraEnvVarsCM: keycloak-extra-env-vars
-  extraStartupArgs: "--http-max-queued-requests=1000 --features=admin-audit --log-level=WARN"
 
 infinispan:
   # -- image data for infinispan containers
