@@ -1983,11 +1983,11 @@ zac:
     curlImage:
       #repository: curlimages/curl
       tag: 8.16.0
-  # ghcr.io/infonl/zaakafhandelcomponent:4.0.12
+  # ghcr.io/infonl/zaakafhandelcomponent:4.0.12-1
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
-    tag: 4.0.12
+    tag: 4.0.12-1
   initContainer:
     enabled: false
   keycloak:
