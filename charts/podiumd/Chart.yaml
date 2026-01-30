@@ -7,11 +7,11 @@ appVersion: "4.6.0"
 dependencies:
   - name: keycloak
     version: 24.8.0
-    repository: "@bitnami"
+    repository: "oci://registry-1.docker.io/bitnamicharts"
     condition: keycloak.enabled
   - name: clamav
     version: 3.2.0
-    repository: "@wiremind"
+    repository: "oci://ghcr.io/wiremind"
     condition: clamav.enabled
   - name: brp-personen-mock
     version: 1.2.8
@@ -60,7 +60,7 @@ dependencies:
       - contact
   - name: infinispan
     version: 0.5.0
-    repository: "@openshift"
+    repository: "oci://quay.io/openshift-helm-charts"
     condition: infinispan.enabled
   - name: zaakafhandelcomponent
     alias: zac
