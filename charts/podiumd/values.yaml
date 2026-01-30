@@ -1610,6 +1610,7 @@ openinwoner:
     email:
       port: 587
       useTLS: true
+    searchIndexInitContainer: true
   persistence:
     size: 10Gi
     existingClaim: openinwoner
@@ -1658,6 +1659,10 @@ openinwoner:
   eck-elasticsearch:
     enabled: true
     version: "9.2.0"
+    http:
+      tls:
+        selfSignedCertificate:
+          disabled: true
   eck-operator:
     enabled: false
 
@@ -1744,20 +1749,22 @@ kiss:
     haalCentraal:
       apiKey: ""
       baseUrl: ""
-      customHeaders:
-        my-generic-header: ""
-        my-specific-header:
-          RaadpleegMetBurgerservicenummer: ""
-          ZoekMetGeslachtsnaamEnGeboortedatum: ""
-          ZoekMetPostcodeEnHuisnummer: ""
-      userHeaderName: ""
+      # the following values can be used for connections with Haal Centraal via services like iConnect
+      # customHeaders:
+      #   my-generic-header: ""
+      #   my-specific-header:
+      #     RaadpleegMetBurgerservicenummer: ""
+      #     ZoekMetGeslachtsnaamEnGeboortedatum: ""
+      #     ZoekMetPostcodeEnHuisnummer: ""
+      # userHeaderName: ""
 
     kvk:
       apiKey: ""
       baseUrl: ""
-      userHeaderName: ""
-      customHeaders:
-        my-generic-header: ""
+      # the following values can be used for connections with KvK via services like iConnect
+      # userHeaderName: ""
+      # customHeaders:
+      #   my-generic-header: ""
 
     logboek:
       baseUrl: ""
@@ -1978,11 +1985,11 @@ zac:
     curlImage:
       #repository: curlimages/curl
       tag: 8.16.0
-  # ghcr.io/infonl/zaakafhandelcomponent:4.0.12
+  # ghcr.io/infonl/zaakafhandelcomponent:4.0.12-1
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
-    tag: 4.0.12
+    tag: 4.0.12-1
   initContainer:
     enabled: false
   keycloak:
