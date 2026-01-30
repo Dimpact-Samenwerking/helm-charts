@@ -129,7 +129,7 @@ keycloak:
     create: false
   networkPolicy:
     enabled: false
-  podSecurityContext:
+  podSecurity:
     enabled: false
   postgres:
     enabled: false
