@@ -50,14 +50,11 @@
 ## Add Used chart repositories:
 
 ```shell
-helm repo add bitnami https://charts.bitnami.com/bitnami
 helm repo add dimpact https://Dimpact-Samenwerking.github.io/helm-charts/
 helm repo add kiss-frontend https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/KISS-frontend/main/helm
 helm repo add kiss-adapter https://raw.githubusercontent.com/ICATT-Menselijk-Digitaal/podiumd-adapter/main/helm
 helm repo add kiss-elastic https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/.github/main/docs/scripts/elastic
 helm repo add maykinmedia https://maykinmedia.github.io/charts
-helm repo add wiremind https://wiremind.github.io/wiremind-helm-charts
-helm repo add openshift https://charts.openshift.io
 helm repo add solr https://solr.apache.org/charts
 helm repo add opentelemetry https://open-telemetry.github.io/opentelemetry-helm-charts
 helm repo add zac https://infonl.github.io/dimpact-zaakafhandelcomponent/
