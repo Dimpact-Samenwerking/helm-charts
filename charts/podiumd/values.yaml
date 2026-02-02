@@ -2087,7 +2087,7 @@ kiss:
 
 zac:
   featureFlags:
-    pabcIntegration: false
+    pabcIntegration: true
   image:
     tag: 4.1.0
   auth:
