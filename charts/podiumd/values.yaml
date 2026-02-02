@@ -1950,8 +1950,6 @@ kiss:
 zac:
   featureFlags:
     pabcIntegration: true
-  image:
-    tag: 4.1.0 
   auth:
     server: http://keycloak.example.nl
     realm: podiumd
@@ -1989,7 +1987,7 @@ zac:
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
-    tag: 4.0.12-1
+    tag: 4.1.0
   initContainer:
     enabled: false
   keycloak:
