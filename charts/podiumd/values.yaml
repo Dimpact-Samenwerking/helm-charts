@@ -2088,8 +2088,6 @@ kiss:
 zac:
   featureFlags:
     pabcIntegration: true
-  image:
-    tag: 4.1.0
   auth:
     server: http://keycloak.example.nl
     realm: podiumd
@@ -2132,7 +2130,7 @@ zac:
   # ghcr.io/infonl/zaakafhandelcomponent:4.4.0
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
-    pullPolicy: IfNotPresent
+    
     tag: 4.3.61 # ZAC Sprint 65 versie
   initContainer:
     enabled: true
