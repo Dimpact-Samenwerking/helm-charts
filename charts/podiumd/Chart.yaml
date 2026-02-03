@@ -88,3 +88,7 @@ dependencies:
     repository: "oci://ghcr.io/platform-autorisatie-beheer-component"
     version: 1.0.0
     condition: pabc.enabled
+  - name: zaakbrug
+    repository: "https://wearefrank.github.io/charts"
+    version: 2.3.19
+    condition: zaakbrug.enabled

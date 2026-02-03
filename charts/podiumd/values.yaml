@@ -2413,3 +2413,353 @@ pabc:
     keycloakAdmin:
       clientId: "pabc-keycloak-admin"
       clientSecret: ""
+
+zaakbrug:
+  enabled: true
+  nameOverride: ""
+  fullnameOverride: ""
+
+  image:
+    registry: wearefrank
+    repository: zaakbrug
+    tag: ""
+    pullPolicy: IfNotPresent
+    pullSecrets: []
+
+  frank:
+    memory:
+      percentage: false
+      minimum: 4G
+      maximum: 4G
+    dtap:
+      stage: "DEV"
+      side: ""
+    credentials:
+      secret: "zaakbrug-secrets"
+      key: "credentials.properties"
+    instance:
+      name: ""
+    configurations:
+      names: []
+    security:
+      certificateStores: []
+      http:
+        authentication: false
+        localUsers: []
+        localUsersExistingSecret: ""
+        activeDirectory:
+          enabled: false
+          url: ""
+          baseDn: ""
+          roleMapping:
+            tester: ""
+            dataAdmin: ""
+            admin: ""
+            webService: ""
+            observer: ""
+    server:
+      transactionManager: NARAYANA
+    environmentVariables: 
+    javaOpts: ""
+
+  connections:
+    create: true
+    jdbc:
+      - name: ""
+        type: postgresql
+        host: ""
+        port: "5432"
+        database: zaakbrug
+        username: zaakbrug-admin
+        password: ""
+        ssl: true
+    jms: []
+
+  replicaCount: 1
+
+  startupProbe:
+    initialDelaySeconds: 40
+    periodSeconds: 10
+    timeoutSeconds: 1
+    failureThreshold: 12
+    successThreshold: 1
+
+  livenessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 10
+    timeoutSeconds: 1
+    failureThreshold: 12
+    successThreshold: 1
+
+  readinessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 5
+    timeoutSeconds: 1
+    failureThreshold: 3
+    successThreshold: 1
+
+  probesEnabled:
+    startupProbe: false
+    livenessProbe: false
+    readinessProbe: false
+
+  resources: {}
+
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 100
+    targetCPUUtilizationPercentage: 80
+    targetMemoryUtilizationPercentage: 80
+
+  terminationGracePeriodSeconds: 60
+
+  nodeSelector: {}
+
+  tolerations: []
+
+  affinity: {}
+
+  timeZone: Etc/UTC
+
+  service:
+    type: ClusterIP
+    port: 80
+
+  ingress:
+    enabled: false
+    className: ""
+    annotations: {}
+    hosts:
+      - host: chart-example.local
+        paths:
+          - path: /
+            pathType: ImplementationSpecific
+    tls: []
+
+  serviceAccount:
+    create: true
+    annotations: {}
+    name: ""
+
+  podAnnotations: {}
+
+  podLabels: {}
+
+  podSecurityContext: {}
+
+  securityContext: {}
+
+  persistence:
+    enabled: false
+    storageClass: ""
+    accessModes:
+      - ReadWriteOnce
+    size: 5Gi
+    dataSource: {}
+    existingClaim: ""
+    selector: {}
+    annotations: {}
+
+  zaakbrug:
+    zds:
+      timezone: Etc/UTC
+    soap:
+      beantwoordVraag:
+        endpoint: "translate/generic/zds/BeantwoordVraag"
+        validationSoftFail: false
+      beantwoordVraag_v2:
+        endpoint: "translate/generic/zds/v2/BeantwoordVraag"
+        validationSoftFail: false
+      ontvangAsynchroon:
+        endpoint: "translate/generic/zds/OntvangAsynchroon"
+        validationSoftFail: false
+      ontvangAsynchroonMutatie_v2:
+        endpoint: "translate/generic/zds/v2/OntvangAsynchroonMutatie"
+        validationSoftFail: false
+      ontvangAsynchroonOverdragen_v2:
+        endpoint: "translate/generic/zds/v2/OntvangAsynchroonOverdragen"
+        validationSoftFail: false
+      vrijeBerichten:
+        endpoint: "translate/generic/zds/VrijBericht"
+        validationSoftFail: false
+      vrijeBerichten_v2:
+        endpoint: "translate/generic/zds/v2/VrijBericht"
+        validationSoftFail: false
+    zgw:
+      zaakIdentificatieTemplate: ZK{datetime:[Y0001]}-{id:D5}
+      documentIdentificatieTemplate: DC{datetime:[Y0001]}-{id:D5}
+      besluitIdentificatieTemplate: BS{datetime:[Y0001]}-{id:D5}
+      zakenApi:
+        rootUrl: ""
+        authType: jwt
+        authAlias: zaken-api.jwt
+        timeout: 20000
+        verifyHostname: true
+        allowSelfSignedCertificates: false
+        disableCookies: false
+        ignoreCertificateExpiredException: false
+        truststore:
+          uri: ""
+          authAlias: ""
+          type: ""
+      catalogiApi:
+        rootUrl: ""
+        authType: jwt
+        authAlias: zaken-api.jwt
+        timeout: 20000
+        verifyHostname: true
+        allowSelfSignedCertificates: false
+        disableCookies: false
+        ignoreCertificateExpiredException: false
+        truststore:
+          uri: ""
+          authAlias: ""
+          type: ""
+      documentenApi:
+        rootUrl: ""
+        authType: jwt
+        authAlias: zaken-api.jwt
+        timeout: 20000
+        verifyHostname: true
+        allowSelfSignedCertificates: false
+        disableCookies: false
+        ignoreCertificateExpiredException: false
+        truststore:
+          uri: ""
+          authAlias: ""
+          type: ""
+      besluitenApi:
+        rootUrl: ""
+        authType: jwt
+        authAlias: zaken-api.jwt
+        timeout: 20000
+        verifyHostname: true
+        allowSelfSignedCertificates: false
+        disableCookies: false
+        ignoreCertificateExpiredException: false
+        truststore:
+          uri: ""
+          authAlias: ""
+          type: ""
+    globals:
+      organizations: []
+      rolMapping:
+        heeftBetrekkingOp: "BetrekkingOp"
+        heeftAlsBelanghebbende: "Belanghebbende"
+        heeftAlsInitiator: "Initiator"
+        heeftAlsUitvoerende: "Uitvoerende"
+        heeftAlsVerantwoordelijke: "Verantwoordelijke"
+        heeftAlsGemachtigde: "Gemachtigde"
+        heeftAlsOverigBetrokkene: "OverigeBetrokkene"
+    routing:
+      profileDefaults:
+        geefZaakdocumentLezen_Lv01:
+          route: translate.beantwoord-vraag
+          stopOnError: true
+        geefZaakstatus_Lv01:
+          route: translate.beantwoord-vraag
+          stopOnError: true
+        geefZaakdetails_Lv01:
+          route: translate.beantwoord-vraag
+          stopOnError: true
+        geefLijstZaakdocumenten_Lv01:
+          route: translate.beantwoord-vraag
+          stopOnError: true
+        voegZaakdocumentToe_Lk01:
+          route: translate.ontvang-asynchroon
+          stopOnError: true
+        maakZaakdocument_Lk01:
+          route: translate.ontvang-asynchroon
+          stopOnError: true
+        actualiseerZaakstatus_Lk01:
+          route: translate.ontvang-asynchroon
+          stopOnError: true
+        creeerZaak_Lk01:
+          route: translate.ontvang-asynchroon
+          stopOnError: true
+        updateZaak_Lk01:
+          route: translate.ontvang-asynchroon
+          stopOnError: true
+        genereerDocumentIdentificatie_Di02:
+          route: translate.vrije-berichten
+          stopOnError: true
+        genereerZaakIdentificatie_Di02:
+          route: translate.vrije-berichten
+          stopOnError: true
+        geefZaakdocumentbewerken_Di02:
+          route: translate.vrije-berichten
+          stopOnError: true
+        updateZaakdocument_Di02:
+          route: translate.vrije-berichten
+          stopOnError: true
+        cancelCheckout_Di02:
+          route: translate.vrije-berichten
+          stopOnError: true
+
+  staging:
+    enabled: false
+    image:
+      tag: "1.9.0"
+    zakenApi:
+      rootUrl: http://zaakbrug-staging-nginx.zaakbrug/zaken/api/v1/
+    documentenApi:
+      rootUrl: http://zaakbrug-staging-nginx.zaakbrug/documenten/api/v1/
+    catalogiApi:
+      rootUrl: http://zaakbrug-staging-nginx.zaakbrug/catalogi/api/v1/
+    besluitenApi:
+      rootUrl: http://zaakbrug-staging-nginx.zaakbrug/besluiten/api/v1/
+    extraEnvVars:
+      - name: NOTIFICATIONS_DISABLED
+        value: "yes"
+    settings:
+      useXForwardedHost: false
+      debug: false
+      allowedHosts: "zaakbrug-staging.zaakbrug,zaakbrug-staging-nginx.zaakbrug,zaakbrug-staging.zaakbrug.svc.cluster.local,zaakbrug-staging-nginx.svc.cluster.local,localhost"
+      secretKey: ""
+      database:
+        host: ""
+        port: 5432
+        username: ""
+        password: ""
+        name: ""
+        sslmode: prefer
+    persistence:
+      enabled: true
+      storageClassName: ""
+
+    apiProxy:
+      nameOverride: ""
+      fullnameOverride: ""
+      autoscaling:
+        enabled: false
+      replicaCount: 1
+      podAnnotations: {}
+      podLabels: {}
+      securityContext:
+        readOnlyRootFilesystem: true
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+      image:
+        registry: ""
+        repository: nginxinc/nginx-unprivileged
+        tag: stable
+        pullPolicy: IfNotPresent
+        pullSecrets: []
+      resources: {}
+      existingConfigmap: ''
+      service:
+        type: ClusterIP
+        port: 80
+        annotations: {}
+      ingress:
+        enabled: false
+        className: ""
+        annotations: {}
+        hosts:
+          - host: chart-example.local
+            paths:
+              - path: /
+                pathType: ImplementationSpecific
+        tls: []
