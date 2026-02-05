@@ -1965,7 +1965,7 @@ zac:
     protocollering:
       aanbieder: ""
       # Voor aanbieder iConnect worden de volgende "standaard" waardes gebruikt
-      # Voor andere aanbieders zij deze waardes niet van belang en worden niet gebruikt
+      # Voor andere aanbieders zijn deze waardes niet van belang en worden niet gebruikt
       doelbinding:
         zoekmet: "BRPACT-ZoekenAlgemeen"
         raadpleegmet: "BRPACT-ZacPersoonBasis"
