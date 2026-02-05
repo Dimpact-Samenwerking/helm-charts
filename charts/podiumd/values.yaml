@@ -1978,12 +1978,12 @@ zac:
     code: "007"
     naam: "Example Gemeente"
     mail: "noreply@example.nl"
-  # curlimages/curl:8.16.0
+  # curlimages/curl:8.18.0
   global:
     curlImage:
       #repository: curlimages/curl
       tag: 8.18.0
-  # ghcr.io/infonl/zaakafhandelcomponent:4.0.12-1
+  # ghcr.io/infonl/zaakafhandelcomponent:4.2.0
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
@@ -2010,7 +2010,7 @@ zac:
   nginx:
     enabled: true
     client_max_body_size: 150M
-    # nginxinc/nginx-unprivileged:1.29.1
+    # nginxinc/nginx-unprivileged:1.29.3
     image:
       # repository: nginxinc/nginx-unprivileged
       tag: 1.29.3
@@ -2028,7 +2028,7 @@ zac:
       tag: 1.8.1
   opa:
     sidecar: true
-    # openpolicyagent/opa:1.9.0-static
+    # openpolicyagent/opa:1.13.1-static
     image:
       #repository: openpolicyagent/opa
       tag: 1.13.1-static
@@ -2065,7 +2065,7 @@ zac:
         tag: 1.37.0-glibc
       # -- set enabled to provision solrcloud as well
       enabled: true
-      # library/solr:9.9.0
+      # library/solr:9.10.1
       image:
         #repository:
         tag: 9.10.1
@@ -2112,11 +2112,11 @@ zgw-office-addin:
     # -- MS Azure Client ID assigned to the Office Add-in application
     msalClientId: ""
   frontend:
-    # ghcr.io/infonl/zgw-office-add-in-frontend:v0.9.28
+    # ghcr.io/infonl/zgw-office-add-in-frontend:v0.9.68
     image:
       tag: v0.9.68
   backend:
-    # ghcr.io/infonl/zgw-office-add-in-backend:v0.9.28
+    # ghcr.io/infonl/zgw-office-add-in-backend:v0.9.68
     image:
       tag: v0.9.68
     # -- ZGW API configuration for integration with the ZGW APIs provider (OpenZaak)
