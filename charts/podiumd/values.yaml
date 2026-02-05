@@ -1982,12 +1982,12 @@ zac:
   global:
     curlImage:
       #repository: curlimages/curl
-      tag: 8.16.0
+      tag: 8.18.0
   # ghcr.io/infonl/zaakafhandelcomponent:4.0.12-1
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
-    tag: 4.1.0
+    tag: 4.2.0
   initContainer:
     enabled: false
   keycloak:
@@ -2013,7 +2013,7 @@ zac:
     # nginxinc/nginx-unprivileged:1.29.1
     image:
       # repository: nginxinc/nginx-unprivileged
-      tag: 1.29.2
+      tag: 1.29.3
   # notificationsSecretKey: "changeme"
   objectenApi:
     url: http://objecten.example.nl
@@ -2031,7 +2031,7 @@ zac:
     # openpolicyagent/opa:1.9.0-static
     image:
       #repository: openpolicyagent/opa
-      tag: 1.9.0-static
+      tag: 1.13.1-static
   openForms:
     url: http://open-forms.example.nl
   organizations:
@@ -2068,7 +2068,7 @@ zac:
       # library/solr:9.9.0
       image:
         #repository:
-        tag: 9.9.0
+        tag: 9.10.1
       # -- define memory settings for solr in the solrcloud
       javaMem: -Xms512m -Xmx768m
       jobs:
@@ -2114,11 +2114,11 @@ zgw-office-addin:
   frontend:
     # ghcr.io/infonl/zgw-office-add-in-frontend:v0.9.28
     image:
-      tag: v0.9.28
+      tag: v0.9.68
   backend:
     # ghcr.io/infonl/zgw-office-add-in-backend:v0.9.28
     image:
-      tag: v0.9.28
+      tag: v0.9.68
     # -- ZGW API configuration for integration with the ZGW APIs provider (OpenZaak)
     zgwApis:
       url: "https://openzaak.example.nl"
