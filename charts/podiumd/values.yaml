@@ -1964,6 +1964,12 @@ zac:
     # Protocollering aanbieder mag zijn "", "iConnect", "2Secure"
     protocollering:
       aanbieder: ""
+      # Voor aanbieder iConnect worden de volgende "standaard" waardes gebruikt
+      # Voor andere aanbieders zijn deze waardes niet van belang en worden niet gebruikt
+      doelbinding:
+        zoekmet: "BRPACT-ZoekenAlgemeen"
+        raadpleegmet: "BRPACT-ZacPersoonBasis"
+      verwerkingsregister: "DigitaleDienstverlening"
   catalogusDomein: ALG
   contextUrl: http://zac.example.nl
   db:
