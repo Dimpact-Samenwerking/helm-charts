@@ -666,6 +666,104 @@ entries:
     - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/podiumd-4.5.9-feature-podiumd-4.5.10-snapshot/podiumd-4.5.9-feature-podiumd-4.5.10-snapshot.tgz
     version: 4.5.9-feature-podiumd-4.5.10-snapshot
   - apiVersion: v2
+    appVersion: 4.5.9
+    created: "2026-02-11T08:24:21.223886435Z"
+    dependencies:
+    - condition: keycloak.enabled
+      name: keycloak
+      repository: '@bitnami'
+      version: 24.8.0
+    - condition: clamav.enabled
+      name: clamav
+      repository: '@wiremind'
+      version: 3.2.0
+    - alias: brppersonenmock
+      condition: brppersonenmock.enabled
+      name: brp-personen-mock
+      repository: '@dimpact'
+      version: 1.2.8
+    - condition: openzaak.enabled
+      name: openzaak
+      repository: '@maykinmedia'
+      version: 1.13.0
+    - condition: opennotificaties.enabled
+      name: opennotificaties
+      repository: '@maykinmedia'
+      version: 1.13.0
+    - condition: objecten.enabled
+      name: objecten
+      repository: '@maykinmedia'
+      version: 2.11.0
+    - condition: objecttypen.enabled
+      name: objecttypen
+      repository: '@maykinmedia'
+      version: 1.6.0
+    - condition: openarchiefbeheer.enabled
+      name: openarchiefbeheer
+      repository: '@maykinmedia'
+      version: 1.4.1
+    - condition: openklant.enabled
+      name: openklant
+      repository: '@maykinmedia'
+      version: 1.10.0
+    - alias: openformulieren
+      condition: openformulieren.enabled
+      name: openforms
+      repository: '@maykinmedia'
+      version: 1.11.6
+    - condition: openinwoner.enabled
+      name: openinwoner
+      repository: '@maykinmedia'
+      version: 2.1.0
+    - alias: kisselastic
+      condition: kisselastic.enabled
+      name: kiss-elastic
+      repository: '@kiss-elastic'
+      tags:
+      - contact
+      version: 1.1.0
+    - condition: infinispan.enabled
+      name: infinispan
+      repository: '@openshift'
+      version: 0.5.0
+    - alias: zac
+      condition: zac.enabled
+      name: zaakafhandelcomponent
+      repository: '@zac'
+      tags:
+      - zaak
+      version: 1.0.165
+    - condition: zgw-office-addin.enabled
+      name: zgw-office-addin
+      repository: '@zgw-office-addin'
+      version: 0.0.65
+    - alias: ita
+      condition: ita.enabled
+      name: internetaakafhandeling
+      repository: oci://ghcr.io/interne-taak-afhandeling
+      version: 2.0.1
+    - alias: kiss
+      condition: kiss.enabled
+      name: kiss-chart
+      repository: oci://ghcr.io/klantinteractie-servicesysteem
+      version: 2.1.0
+    - alias: pabc
+      condition: pabc.enabled
+      name: pabc
+      repository: oci://ghcr.io/platform-autorisatie-beheer-component
+      version: 1.0.0
+    - condition: datamigratie.enabled
+      name: datamigratie
+      repository: oci://ghcr.io/icatt-menselijk-digitaal
+      version: 0.0.1
+    description: PodiumD Helm chart
+    digest: fade3be07bae93cd867eeebdf985fe8a6f81aa4511ac585482b288c1bdca4439
+    name: podiumd
+    type: application
+    urls:
+    - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/podiumd-4.5.9-feature-add-datamigratie-to-podiumd-snapshot/podiumd-4.5.9-feature-add-datamigratie-to-podiumd-snapshot.tgz
+    version: 4.5.9-feature-add-datamigratie-to-podiumd-snapshot
+  - apiVersion: v2
     appVersion: 4.5.8
     created: "2026-02-03T17:52:39.981159272Z"
     dependencies:
@@ -10867,4 +10965,4 @@ entries:
     urls:
     - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/zac-1.0.0/zac-1.0.0.tgz
     version: 1.0.0
-generated: "2026-02-10T13:56:12.133652211Z"
+generated: "2026-02-11T08:24:21.225209687Z"
