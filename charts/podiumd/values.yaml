@@ -2419,3 +2419,6 @@ pabc:
     keycloakAdmin:
       clientId: "pabc-keycloak-admin"
       clientSecret: ""
+
+datamigratie:
+  enabled: false
