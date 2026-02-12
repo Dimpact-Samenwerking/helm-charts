@@ -2422,7 +2422,45 @@ pabc:
 
 datamigratie:
   enabled: false
+  fullnameOverride: "datamigratie"
+  postgresql:
+    enabled: false
+  image:
+    tag: ""
+  migrations:
+    image:
+      tag: ""
+
+  settings:
+    database:
+      host: ""
+      name: "datamigratie"
+      username: "datamigratie"
+      password: ""
+
+    apiKeys: [""]
+
+  apiConnections:
+    openZaakApi:
+      baseUrl: ""
+      apiKey: ""
+      apiUser: ""
+    detApi:
+      baseUrl: ""
+      apiKey: ""
+
   oidc:
+    authority: ""
     clientId: "datamigratie"
     clientSecret: ""
+    functioneelBeheerderRole: "DMT-Functioneel-Beheerder"
+    nameClaimType: "name"
+    roleClaimType: "roles"
+    emailClaimType: "email"
     oidcUrl: "https://datamigratie.example.nl"
+
+  ingress:
+    enabled: false
+
+  featureFlags:
+    enableTestHelpers: false
