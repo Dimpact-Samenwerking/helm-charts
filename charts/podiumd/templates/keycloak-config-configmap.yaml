@@ -565,6 +565,31 @@ data:
         clientAuthenticatorType: client-secret
         secret: {{ .Values.pabc.settings.keycloakAdmin.clientSecret | quote }}
         serviceAccountsEnabled: true
+      - clientId: {{ .Values.datamigratie.oidc.clientId }}
+        name: Datamigratie
+        enabled: true
+        clientAuthenticatorType: client-secret
+        redirectUris:
+          - "{{ .Values.datamigratie.oidc.oidcUrl | trimSuffix "/" }}/*"
+        webOrigins:
+          - "{{ .Values.datamigratie.oidc.oidcUrl | trimSuffix "/" }}/*"
+        secret: {{ .Values.datamigratie.oidc.clientSecret | quote }}
+        protocolMappers:
+          - name: "client roles"
+            protocol: "openid-connect"
+            protocolMapper: "oidc-usermodel-client-role-mapper"
+            consentRequired: false
+            config:
+              introspection.token.claim: "true"
+              multivalued: "true"
+              userinfo.token.claim: "false"
+              id.token.claim: "true"
+              user.attribute: "foo"
+              lightweight.claim: "false"
+              access.token.claim: "true"
+              claim.name: "roles"
+              jsonType.label: "String"
+              usermodel.clientRoleMapping.clientId: "datamigratie"
     clientScopes:
       - name: roles
         description: OpenID Connect scope for add user roles to the access token
@@ -688,6 +713,8 @@ data:
           - name: ITA_Functioneel_Beheerder
         pabc:
           - name: administrator
+        datamigratie:
+          - name: DMT-Functioneel-Beheerder
     {{- end }}
     {{- if not .Values.keycloak.config.skipGroups }}
     groups:
@@ -729,6 +756,8 @@ data:
             - "administrators"
           pabc:
             - "administrator"
+          datamigratie:
+            - "DMT-Functioneel-Beheerder"
       - name: "behandelaars"
         path: "/behandelaars"
         attributes:

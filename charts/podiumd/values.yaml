@@ -2422,3 +2422,7 @@ pabc:
 
 datamigratie:
   enabled: false
+  oidc:
+    clientId: "datamigratie"
+    clientSecret: ""
+    oidcUrl: "https://datamigratie.example.nl"
