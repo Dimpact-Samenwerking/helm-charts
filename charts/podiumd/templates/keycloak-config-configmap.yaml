@@ -565,15 +565,15 @@ data:
         clientAuthenticatorType: client-secret
         secret: {{ .Values.pabc.settings.keycloakAdmin.clientSecret | quote }}
         serviceAccountsEnabled: true
-      - clientId: {{ .Values.datamigratie.oidc.clientId }}
+      - clientId: {{ .Values.datamigratie.settings.oidc.clientId }}
         name: Datamigratie
         enabled: true
         clientAuthenticatorType: client-secret
         redirectUris:
-          - "{{ .Values.datamigratie.oidc.oidcUrl | trimSuffix "/" }}/*"
+          - "{{ .Values.datamigratie.settings.oidc.oidcUrl | trimSuffix "/" }}/*"
         webOrigins:
-          - "{{ .Values.datamigratie.oidc.oidcUrl | trimSuffix "/" }}/*"
-        secret: {{ .Values.datamigratie.oidc.clientSecret | quote }}
+          - "{{ .Values.datamigratie.settings.oidc.oidcUrl | trimSuffix "/" }}/*"
+        secret: {{ .Values.datamigratie.settings.oidc.clientSecret | quote }}
         protocolMappers:
           - name: "client roles"
             protocol: "openid-connect"

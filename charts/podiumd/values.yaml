@@ -2440,6 +2440,16 @@ datamigratie:
 
     apiKeys: [""]
 
+    oidc:
+      authority: ""
+      clientId: "datamigratie"
+      clientSecret: ""
+      functioneelBeheerderRole: "DMT-Functioneel-Beheerder"
+      nameClaimType: "name"
+      roleClaimType: "roles"
+      emailClaimType: "email"
+      oidcUrl: "https://datamigratie.example.nl"
+
   apiConnections:
     openZaakApi:
       baseUrl: ""
@@ -2448,16 +2458,6 @@ datamigratie:
     detApi:
       baseUrl: ""
       apiKey: ""
-
-  oidc:
-    authority: ""
-    clientId: "datamigratie"
-    clientSecret: ""
-    functioneelBeheerderRole: "DMT-Functioneel-Beheerder"
-    nameClaimType: "name"
-    roleClaimType: "roles"
-    emailClaimType: "email"
-    oidcUrl: "https://datamigratie.example.nl"
 
   ingress:
     enabled: false
