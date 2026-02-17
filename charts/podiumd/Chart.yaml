@@ -90,5 +90,5 @@ dependencies:
     condition: pabc.enabled
   - name: datamigratie
     repository: "oci://ghcr.io/icatt-menselijk-digitaal"
-    version: 0.0.2
+    version: 0.0.3
     condition: datamigratie.enabled

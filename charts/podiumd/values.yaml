@@ -2450,17 +2450,14 @@ datamigratie:
       emailClaimType: "email"
       oidcUrl: "https://datamigratie.example.nl"
 
-  apiConnections:
-    openZaakApi:
-      baseUrl: ""
-      apiKey: ""
-      apiUser: ""
-    detApi:
-      baseUrl: ""
-      apiKey: ""
+    apiConnections:
+      openZaakApi:
+        baseUrl: ""
+        apiKey: ""
+        apiUser: ""
+      detApi:
+        baseUrl: ""
+        apiKey: ""
 
   ingress:
     enabled: false
-
-  featureFlags:
-    enableTestHelpers: false
