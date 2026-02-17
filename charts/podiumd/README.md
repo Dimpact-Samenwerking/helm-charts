@@ -50,7 +50,6 @@
 ## Add Used chart repositories:
 
 ```shell
-helm repo add bitnami https://charts.bitnami.com/bitnami
 helm repo add dimpact https://Dimpact-Samenwerking.github.io/helm-charts/
 helm repo add kiss-frontend https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/KISS-frontend/main/helm
 helm repo add kiss-adapter https://raw.githubusercontent.com/ICATT-Menselijk-Digitaal/podiumd-adapter/main/helm
@@ -692,3 +691,5 @@ Tags to add additional unreleased PodiumD functionality.
 If an Helm upgrade of a component fails because of a forbidden update to a statefullset spec the statefullset needs to be deleted prior to the Helm upgrade by the following command:
 
 $ kubectl delete sts <component>-redis-master -n podiumd --cascade=orphan
+
+
