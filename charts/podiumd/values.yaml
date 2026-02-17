@@ -2426,10 +2426,10 @@ datamigratie:
   postgresql:
     enabled: false
   image:
-    tag: ""
+    tag: "0.0.3"
   migrations:
     image:
-      tag: ""
+      tag: "0.0.3"
 
   settings:
     database:
