@@ -11,7 +11,7 @@ dependencies:
     condition: keycloak.enabled
   - name: clamav
     version: 3.2.0
-    repository: "oci://ghcr.io/wiremind"
+    repository: "@wiremind"
     condition: clamav.enabled
   - name: brp-personen-mock
     version: 1.2.8
