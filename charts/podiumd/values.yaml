@@ -2459,5 +2459,8 @@ datamigratie:
         baseUrl: ""
         apiKey: ""
 
+    featureFlags:
+      enableTestHelpers: false
+
   ingress:
     enabled: false
