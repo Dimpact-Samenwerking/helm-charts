@@ -66,7 +66,7 @@ dependencies:
   # DEPRECATED: Will be removed in a future release. Keycloak-operator manages its own caching.
   - name: infinispan
     version: 0.5.0
-    repository: "oci://quay.io/openshift-helm-charts"
+    repository: "@openshift"
     condition: infinispan.enabled
   - name: zaakafhandelcomponent
     alias: zac
