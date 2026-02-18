@@ -1983,7 +1983,7 @@ zac:
     curlImage:
       #repository: curlimages/curl
       tag: 8.18.0
-  # ghcr.io/infonl/zaakafhandelcomponent:4.2.0
+  # ghcr.io/infonl/zaakafhandelcomponent:4.3.0
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
@@ -2010,7 +2010,7 @@ zac:
   nginx:
     enabled: true
     client_max_body_size: 150M
-    # nginxinc/nginx-unprivileged:1.29.3
+    # nginxinc/nginx-unprivileged:1.29.5
     image:
       # repository: nginxinc/nginx-unprivileged
       tag: 1.29.5
