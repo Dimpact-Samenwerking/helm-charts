@@ -1987,7 +1987,7 @@ zac:
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
-    tag: 4.2.0
+    tag: 4.3.0 # ZAC Sprint 64 release
   initContainer:
     enabled: false
   keycloak:
@@ -2013,7 +2013,7 @@ zac:
     # nginxinc/nginx-unprivileged:1.29.3
     image:
       # repository: nginxinc/nginx-unprivileged
-      tag: 1.29.3
+      tag: 1.29.5
   # notificationsSecretKey: "changeme"
   objectenApi:
     url: http://objecten.example.nl
