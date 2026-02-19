@@ -25,7 +25,7 @@
 | Zac                | 4.3.0      | Minor update | 1.0.187      | Patch update |
 | - Curl             | 8.18.0     | Minor update |              |              |
 | - Nginx            | 1.29.5     | Patch update |              |              |
-| - Opa              | 1.9.0      |              |              |              |
+| - Opa              | 1.13.1     | Patch update |              |              |
 | - Solr             | 9.10.1     | Minor update |              |              |
 | ZGW Office Addin   | 0.9.28     |              | 0.0.70       | Patch update |
 
