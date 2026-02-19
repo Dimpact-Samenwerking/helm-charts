@@ -2028,10 +2028,10 @@ zac:
       tag: 1.8.1
   opa:
     sidecar: true
-    # openpolicyagent/opa:1.13.1-static
+    # openpolicyagent/opa:1.13.2-static
     image:
       #repository: openpolicyagent/opa
-      tag: 1.13.1-static
+      tag: 1.13.2-static
   openForms:
     url: http://open-forms.example.nl
   organizations:
@@ -2065,10 +2065,10 @@ zac:
         tag: 1.37.0-glibc
       # -- set enabled to provision solrcloud as well
       enabled: true
-      # library/solr:9.10.1
+      # library/solr:9.10.1-slim
       image:
         #repository:
-        tag: 9.10.1
+        tag: 9.10.1-slim
       # -- define memory settings for solr in the solrcloud
       javaMem: -Xms512m -Xmx768m
       jobs:
