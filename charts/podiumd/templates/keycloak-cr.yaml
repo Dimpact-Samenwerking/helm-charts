@@ -5,7 +5,7 @@ metadata:
   name: {{ default "keycloak" .Values.keycloak.name }}
 spec:
   instances: {{ .Values.keycloak.instances }}
-  image: {{ .Values.keycloak.image }}
+  image: {{ include "keycloak.image" . }}
   hostname:
     hostname: {{ coalesce .Values.keycloak.hostname.hostname .Values.keycloak.config.adminFrontendUrl }}
     admin: {{ coalesce .Values.keycloak.hostname.admin .Values.keycloak.config.adminFrontendUrl }}
@@ -59,7 +59,7 @@ spec:
 {{- $initContainers := list }}
 {{- range .Values.keycloak.podTemplate.spec.initContainers }}
 {{- $c := deepCopy . }}
-{{- if not $c.image }}{{- $_ := set $c "image" $.Values.keycloak.image }}{{- end }}
+{{- if not $c.image }}{{- $_ := set $c "image" (include "keycloak.image" $) }}{{- end }}
 {{- $initContainers = append $initContainers $c }}
 {{- end }}
 {{ toYaml $initContainers | indent 8 }}
