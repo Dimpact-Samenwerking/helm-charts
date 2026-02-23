@@ -33,7 +33,7 @@ data:
         default "";
       {{- with .Values.apiproxy.locations.brp.hostToepassingMapping }}
         {{- range . }}
-        {{ .host }}.podiumd.svc.cluster.local {{ .toepassing }};
+        {{ .host }} {{ .toepassing }};
         {{- end }}
       {{- end }}
       }
@@ -42,6 +42,7 @@ data:
       server {
         listen 8080;
         server_tokens off;
+        resolver {{ .Values.apiproxy.resolver-ip }};        
 
         # BAG API (Dutch Building and Address Registry)
         location {{ .Values.apiproxy.locations.bag.path }} {
