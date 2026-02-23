@@ -2231,7 +2231,7 @@ zgw-office-addin:
     # -- The frontend public URL where the manifest files and static js file are served
     frontendUrl: "https://office-addin.example.nl"
     # -- MS Azure Tenant ID of the Office Add-in application
-    msalTenantId: "summy"
+    msalTenantId: "dummy"
     # -- MS Azure Client ID assigned to the Office Add-in application
     msalClientId: "dummy"
   frontend:
