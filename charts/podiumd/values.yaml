@@ -103,7 +103,8 @@ keycloak:
     httpEnabled: true
   # image parameters for keycloak-operator
   # Official Keycloak image: quay.io/keycloak/keycloak:26.5.4
-  image: quay.io/keycloak/keycloak:26.5.4
+  image:
+    tag: 26.5.4
   # -- instances is the new operator-style replica count (falls back to replicaCount)
   instances: "2"
   ingress:
