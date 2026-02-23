@@ -2,16 +2,16 @@ apiVersion: v2
 name: podiumd
 description: PodiumD Helm chart
 type: application
-version: 4.6.0
-appVersion: "4.6.0"
+version: 4.5.9
+appVersion: "4.5.9"
 dependencies:
   - name: keycloak
     version: 24.8.0
-    repository: "oci://registry-1.docker.io/bitnamicharts"
+    repository: "@bitnami"
     condition: keycloak.enabled
   - name: clamav
     version: 3.2.0
-    repository: "oci://ghcr.io/wiremind"
+    repository: "@wiremind"
     condition: clamav.enabled
   - name: brp-personen-mock
     version: 1.2.8
@@ -60,7 +60,7 @@ dependencies:
       - contact
   - name: infinispan
     version: 0.5.0
-    repository: "oci://quay.io/openshift-helm-charts"
+    repository: "@openshift"
     condition: infinispan.enabled
   - name: zaakafhandelcomponent
     alias: zac
