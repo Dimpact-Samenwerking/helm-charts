@@ -2245,7 +2245,7 @@ zgw-office-addin:
     # -- ZGW API configuration for integration with the ZGW APIs provider (OpenZaak)
     zgwApis:
       url: "https://openzaak.example.nl"
-      secret: ""
+      secret: "dummy"
 
 clamav:
   image:
