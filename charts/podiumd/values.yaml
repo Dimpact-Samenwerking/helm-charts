@@ -21,7 +21,7 @@ persistentVolume:
 
 keycloak-operator:
   enabled: true
-  # Official Keycloak image: ghcr.io/hostzero-gmbh/charts/keycloak-operator:v0.4.0
+  # Official Keycloak image: ghcr.io/hostzero-gmbh/keycloak-operator:v0.4.0
   image:
     tag: v0.4.0
 
