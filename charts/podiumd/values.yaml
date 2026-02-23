@@ -2248,6 +2248,7 @@ apiproxy:
   readinessProbe:
     initialDelaySeconds: 5
     periodSeconds: 10
+  resolver-ip: 10.0.0.10 # KubeDNS resolver
   locations:
     commonSettings: &commonLocation
       sslVerify: "off"
@@ -2271,9 +2272,9 @@ apiproxy:
       # daarin de juiste toepassing zetten. Voor andere aanbieders zijn deze waardes niet van belang.
       toepassingHeaderRequired: false
       hostToepassingMapping:
-        - host: contact
+        - host: "^contact"
           toepassing: kiss
-        - host: zac
+        - host: "^zac"
           toepassing: zac
     kvkSearch:
       <<: *commonLocation
