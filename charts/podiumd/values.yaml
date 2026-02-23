@@ -2419,3 +2419,114 @@ pabc:
     keycloakAdmin:
       clientId: "pabc-keycloak-admin"
       clientSecret: ""
+
+omc:
+  enabled: false
+
+  ingress:
+    enabled: false
+    hostname: ""
+    ingressClass: traefik
+    tls:
+      enabled: false
+      secret: ""
+    annotations: {}
+
+  config:
+    aspnetcore:
+      environment: Production
+    sentry:
+      environment: ""
+    notify:
+      api:
+        baseUrl: ""
+        key: ""
+      templateId:
+        decisionMade: ""
+        email:
+          zaakCreate: ""
+          zaakUpdate: ""
+          zaakClose: ""
+          taskAssigned: ""
+          messageReceived: ""
+        sms:
+          zaakCreate: ""
+          zaakUpdate: ""
+          zaakClose: ""
+          taskAssigned: ""
+          messageReceived: ""
+          message: ""
+    omc:
+      auth:
+        jwt:
+          secret: ""
+          issuer: ""
+          audience: ""
+          expiresInMin: 60
+          userId: ""
+          userName: ""
+      context:
+        path: ""
+      feature:
+        workflow:
+          version: 2
+    zgw:
+      auth:
+        jwt:
+          secret: ""
+          issuer: ""
+          audience: ""
+          expiresInMin: 60
+          userId: ""
+          userName: ""
+        key:
+          openklant: ""
+          objecten: ""
+          objectTypen: ""
+      endpoint:
+        openNotificaties: ""
+        openZaak: ""
+        openKlant: ""
+        besluiten: ""
+        objecten: ""
+        objectTypen: ""
+        contactMomenten: ""
+      whitelist:
+        zaakCreate:
+          ids: "*"
+        zaakUpdate:
+          ids: "*"
+        zaakClose:
+          ids: "*"
+        taskAssigned:
+          ids: "*"
+        decisionMade:
+          ids: "*"
+        message:
+          allowed: true
+      variable:
+        objectType:
+          messageObjectType:
+            version: 1
+    kto:
+      auth:
+        jwt:
+          clientId: ""
+          secret: ""
+          scope: ""
+          issuer: ""
+      url: ""
+      caseTypeSettings: {}
+    keycloak:
+      authServerUrl: ""
+      clientId: ""
+      clientSecret: ""
+      tokenExchangeAudience: ""
+    brp:
+      baseUrl: ""
+      clientCert:
+        pem:
+          path: ""
+      clientKey:
+        pem:
+          path: ""

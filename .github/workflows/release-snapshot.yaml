@@ -75,6 +75,7 @@ jobs:
           helm repo add grafana https://grafana.github.io/helm-charts
           helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
           helm repo add zgw-office-addin https://infonl.github.io/zgw-office-addin
+          helm repo add worth-nl https://worth-nl.github.io/helm-charts
 
       - name: Delete existing snapshot releases for this branch
         run: |
