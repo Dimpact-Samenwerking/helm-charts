@@ -2434,7 +2434,7 @@ omc:
 
   config:
     aspnetcore:
-      environment: Production
+      environment: ""
     sentry:
       environment: ""
     notify:
