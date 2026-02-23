@@ -2239,6 +2239,7 @@ zgw-office-addin:
     image:
       tag: v0.9.28
   backend:
+    msalSecret: "dummy"
     # ghcr.io/infonl/zgw-office-add-in-backend:v0.9.28
     image:
       tag: v0.9.28
