@@ -2426,7 +2426,7 @@ omc:
   ingress:
     enabled: false
     hostname: ""
-    ingressClass: traefik
+    ingressClass: ""
     tls:
       enabled: false
       secret: ""
