@@ -2,13 +2,18 @@ apiVersion: v2
 name: podiumd
 description: PodiumD Helm chart
 type: application
-version: 4.5.9
-appVersion: "4.5.9"
+version: 4.5.11
+appVersion: "4.5.11"
 dependencies:
+  # DEPRECATED: Will be removed in a future release. Use keycloak-operator instead.
   - name: keycloak
     version: 24.8.0
     repository: "@bitnami"
     condition: keycloak.enabled
+  - name: keycloak-operator
+    version: 0.4.0
+    repository: "oci://ghcr.io/hostzero-gmbh/charts"
+    condition: keycloak-operator.enabled
   - name: clamav
     version: 3.2.0
     repository: "@wiremind"
@@ -58,6 +63,7 @@ dependencies:
     condition: kisselastic.enabled
     tags:
       - contact
+  # DEPRECATED: Will be removed in a future release. Keycloak-operator manages its own caching.
   - name: infinispan
     version: 0.5.0
     repository: "@openshift"
