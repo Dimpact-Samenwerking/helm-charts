@@ -1,0 +1,37 @@
+{{- if .Values.keycloak.enabled -}}
+{{- if .Values.keycloak.keycloakConfigCli.enabled -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keycloak-master-realm-config
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: keycloak-config-cli
+data:
+  master.yaml: |-
+    realm: master
+    attributes:
+      frontendUrl: {{ .Values.keycloak.config.adminFrontendUrl | quote }}
+    browserSecurityHeaders:
+      xContentTypeOptions: "nosniff"
+      xRobotsTag: "none"
+      xFrameOptions: "SAMEORIGIN"
+      contentSecurityPolicy: "frame-src 'self'; frame-ancestors 'self'; object-src 'none';"
+      xXSSProtection: "1; mode=block"
+      strictTransportSecurity: ""
+{{- if .Values.keycloak.config.adminOtpEnabled }}
+    requiredActions:
+      - name: "Configure OTP"
+        providerId: CONFIGURE_TOTP
+        enabled: "true"
+        defaultAction: "true"
+        alias: CONFIGURE_TOTP
+{{- end }}
+{{- with .Values.keycloak.config.adminIdentityProviders }}
+    {{- toYaml . | nindent 4 }}
+{{- end }}
+{{- with .Values.keycloak.config.adminIdentityProviderMappers }}
+    {{- toYaml . | nindent 4 }}
+{{- end }}
+{{- end -}}
+{{- end -}}

@@ -19,14 +19,33 @@ persistentVolume:
   nodeStageSecretRefName: ""
   nodeStageSecretRefNamespace: ""
 
+keycloak-operator:
+  enabled: true
+  # Adfinis Helm chart wrapping the official Keycloak Operator manifests.
+  # Chart: https://charts.adfinis.com / adfinis/keycloak-operator (appVersion 26.5.4)
+  # Note: it appears that the podname automatically appends -operator.
+  # Official operator image: quay.io/keycloak/keycloak-operator:26.5.4
+  fullnameOverride: keycloak
+  operator:
+    image:
+      repository: quay.io/keycloak/keycloak-operator
+      tag: "26.5.4"
+  serviceAccount:
+    create: false
+
 keycloak:
+  additionalOptions:
+    - name: health-enabled
+      value: "true"
+    - name: metrics-enabled
+      value: "true"
+    - name: cache
+      value: "ispn"
+    - name: cache-stack
+      value: ""
   auth:
     adminUser: admin
     adminPassword: "changemenow"
-  # -- cache setting for keycloak, if there are multiple instances they will automatically form a cluster for the cache
-  cache:
-    enabled: true
-    stack: jdbc-ping
   config:
     adminFrontendUrl: https://keycloak-admin.example.nl
     # Example configuration
@@ -81,71 +100,182 @@ keycloak:
         enabled: true
         secret: "monitoring_secret"
         oidcUrl: "https://monitoring.example.nl"
-  # -- required to activate infinispan
-  # customCaExistingSecret: ispn-secret
-  # -- enable keycloak by default
-  enabled: true
-  # keycloak image scanner only checks repo url/path not image hash
-  # the allowInsecureImages needs to be set to true when using an ACR
-  global:
-    security:
-      allowInsecureImages: true
-  # -- required to activate infinispan
-  #extraEnvVars: |
-  #  - name: KC_TRUSTSTORE_PATHS
-  #    value: "/opt/bitnami/keycloak/custom-ca"
-  # -- required to activate infinispan
-  #extraStartupArgs: "--cache-remote-host=ispn --cache-remote-port=11222 --cache-remote-username=keycloak --cache-remote-password=changemenow --log-level=INFO --spi-cache-embedded-default-site-name=ontw-dimp --features=multi-site --cache=ispn"
-  # image parameters for keycloak
-  # docker.io/bitnami/keycloak:26.3.1
+  name: "keycloak"
+  features:
+    enabled: []
+  # -- new hostname configuration for keycloak-operator, falls back to config.adminFrontendUrl if not defined
+  hostname:
+    hostname: ""
+    admin: ""
+  http:
+    httpEnabled: true
+  # image parameters for keycloak-operator
+  # Official Keycloak image: quay.io/keycloak/keycloak:26.5.4
   image:
-    #registry: ""
-    #repository: keycloak
-    tag: 26.3.1
+    repository: quay.io/keycloak/keycloak
+    tag: 26.5.4
+  # -- instances is the new operator-style replica count (falls back to replicaCount)
+  instances: "2"
+  ingress:
+    enabled: false
+    hostnameStrict: true
   externalDatabase:
+    vendor: "postgres"
     host: "postgres"
+    port: 5432
     database: ""
     user: ""
     password: ""
-  fullnameOverride: keycloak
-  ingress:
-    hostnameStrict: true
+  # -- db uses the new keycloak-operator CRD structure (falls back to externalDatabase.*)
+  db:
+    vendor: ""
+    host: ""
+    port: ""
+    database: ""
+    usernameSecret:
+      name: ""
+      key: ""
+    passwordSecret:
+      name: ""
+      key: ""
   keycloakConfigCli:
-    cleanupAfterFinished:
-      enabled: true
-      seconds: 600
-    enabled: true
-    existingConfigmap: podiumd-config
+    # disabled for now, will be reused for future configuration management of keycloak
+    enabled: false
     # image parameters for keycloak-config-cli
-    # docker.io/bitnami/keycloak-config-cli:6.4.0
+    # Official keycloak-config-cli image: quay.io/adorsys/keycloak-config-cli:6.4.0-28.5.0
     image:
-      #registry: ""
-      #repository: keycloak-config-cli
-      # -- this must be a version of keycloak-config-cli that is compatible with the keycloak image tag
-      tag: 6.4.0
-  metrics:
-    enabled: true
-  pdb:
-    create: false
-  networkPolicy:
-    enabled: false
-  podSecurity:
-    enabled: false
-  postgres:
-    enabled: false
-  replicaCount: 1
+      repository: quay.io/adorsys/keycloak-config-cli
+      tag: "6.4.0-28.5.0"
+  podTemplate:
+    metadata:
+      labels:
+        app: keycloak
+        version: 26.5.4
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - keycloak
+                topologyKey: kubernetes.io/hostname
+      initContainers:
+        - name: keycloak-builder
+          # image is intentionally not set here - it will be automatically populated
+          # by the keycloak-cr.yaml template to match the main Keycloak image version
+          # (see line 69 in templates/keycloak-cr.yaml)
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              export KC_DB=postgres
+              export KC_PROXY_HEADERS=xforwarded
+              export KC_CACHE=ispn
+              export KC_METRICS_ENABLED=true
+              export KC_HEALTH_ENABLED=true
+              /opt/keycloak/bin/kc.sh build
+              rm -rf /opt/keycloak/build/quarkus /opt/keycloak/build/providers
+              mkdir -p /opt/keycloak/build/quarkus /opt/keycloak/build/providers
+              cp -a /opt/keycloak/lib/quarkus/. /opt/keycloak/build/quarkus/
+              cp -a /opt/keycloak/providers/. /opt/keycloak/build/providers/ 2>/dev/null || true
+          volumeMounts:
+            - name: keycloak-build-data
+              mountPath: /opt/keycloak/build
+              subPath: ""
+      containers:
+        - name: keycloak
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 9000
+              scheme: HTTP
+            initialDelaySeconds: 120
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 5
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 9000
+              scheme: HTTP
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          startupProbe:
+            httpGet:
+              path: /health/started
+              port: 9000
+              scheme: HTTP
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
+          volumeMounts:
+            - name: keycloak-build-data
+              mountPath: /opt/keycloak/lib/quarkus
+              subPath: quarkus
+            - name: keycloak-build-data
+              mountPath: /opt/keycloak/providers
+              subPath: providers
+      volumes:
+        - name: keycloak-build-data
+          emptyDir: {}
+  # -- new keycloak entrypoint configuration, falls back to proxyHeaders if headers is not set
+  proxy:
+    headers: "xforwarded"
   resources:
     requests:
-      cpu: 50m
+      cpu: 100m
       memory: 512Mi
-  serviceMonitor:
-    enabled: true
-  production: true
-  proxyHeaders: xforwarded
-  postgresql:
-    enabled: false
-  nameOverride: keycloak
-  extraEnvVarsCM: keycloak-extra-env-vars
+    limits:
+      cpu: 500m
+      memory: 1Gi
+  secretsName: "keycloak-secrets"
 
 infinispan:
   # -- image data for infinispan containers
@@ -1617,7 +1747,7 @@ openinwoner:
   persistentVolume:
     volumeAttributeShareName: openinwoner
   image:
-    tag: "2.0.2"
+    tag: "2.0.3"
   resources:
     requests:
       cpu: 200m
@@ -2114,21 +2244,22 @@ zgw-office-addin:
     # -- The frontend public URL where the manifest files and static js file are served
     frontendUrl: "https://office-addin.example.nl"
     # -- MS Azure Tenant ID of the Office Add-in application
-    msalTenantId: ""
+    msalTenantId: "dummy"
     # -- MS Azure Client ID assigned to the Office Add-in application
-    msalClientId: ""
+    msalClientId: "dummy"
   frontend:
     # ghcr.io/infonl/zgw-office-add-in-frontend:v0.9.28
     image:
       tag: v0.9.28
   backend:
+    msalSecret: "dummy"
     # ghcr.io/infonl/zgw-office-add-in-backend:v0.9.28
     image:
       tag: v0.9.28
     # -- ZGW API configuration for integration with the ZGW APIs provider (OpenZaak)
     zgwApis:
       url: "https://openzaak.example.nl"
-      secret: ""
+      secret: "dummy"
 
 clamav:
   image:
