@@ -11,8 +11,8 @@ dependencies:
     repository: "@bitnami"
     condition: keycloak.enabled
   - name: keycloak-operator
-    version: 0.4.0
-    repository: "oci://ghcr.io/hostzero-gmbh/charts"
+    version: 1.11.2
+    repository: "@adfinis"
     condition: keycloak-operator.enabled
   - name: clamav
     version: 3.2.0
