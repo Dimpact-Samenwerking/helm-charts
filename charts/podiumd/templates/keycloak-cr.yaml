@@ -8,11 +8,8 @@ spec:
   image: {{ include "keycloak.image" . }}
   {{- if (index .Values "keycloak-operator").enabled }}
   bootstrapAdmin:
-    secret:
-      name: {{ printf "%s-initial-admin" (default "keycloak" .Values.keycloak.name) }}
-      key:
-        usernameKey: username
-        passwordKey: password
+    user:
+      secret: keycloak-podiumd-admin
   {{- end }}
   hostname:
     hostname: {{ coalesce .Values.keycloak.hostname.hostname .Values.keycloak.config.adminFrontendUrl }}

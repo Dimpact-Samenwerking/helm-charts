@@ -170,7 +170,9 @@ keycloak:
                 topologyKey: kubernetes.io/hostname
       initContainers:
         - name: keycloak-builder
-          image: quay.io/keycloak/keycloak:26.5.3
+          # image is intentionally not set here - it will be automatically populated
+          # by the keycloak-cr.yaml template to match the main Keycloak image version
+          # (see line 69 in templates/keycloak-cr.yaml)
           securityContext:
             allowPrivilegeEscalation: false
             runAsNonRoot: true
