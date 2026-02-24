@@ -13,11 +13,13 @@ spec:
     httpEnabled: {{ .Values.keycloak.http.httpEnabled }}
   proxy:
     headers: {{ .Values.keycloak.proxy.headers }}
+  {{- with .Values.keycloak.features.enabled }}
   features:
     enabled:
-    {{- range .Values.keycloak.features.enabled }}
+    {{- range . }}
     - {{ . }}
     {{- end }}
+  {{- end }}
   db:
     vendor: {{ coalesce .Values.keycloak.db.vendor .Values.keycloak.externalDatabase.vendor }}
     host: {{ coalesce .Values.keycloak.db.host .Values.keycloak.externalDatabase.host }}

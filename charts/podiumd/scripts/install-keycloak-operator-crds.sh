@@ -9,6 +9,9 @@
 #   Run this script before `helm upgrade` when upgrading the keycloak-operator chart
 #   to a new version so that the CRDs are in sync.
 #
+#   Note: the adfinis chart concatenates multiple CRD documents without YAML `---`
+#   separators, so this script inserts them before applying.
+#
 # Usage:
 #   ./install-keycloak-operator-crds.sh [OPTIONS]
 #
@@ -76,12 +79,16 @@ fi
 
 if [[ "${DRY_RUN}" == "true" ]]; then
   echo "==> [dry-run] CRDs that would be applied:"
-  echo "${CRD_YAML}"
+  echo "${CRD_YAML}" | awk '/^apiVersion:/ && NR>1 { print "---" } { print }'
   exit 0
 fi
 
 echo "==> Applying CRDs (server-side apply)..."
-echo "${CRD_YAML}" | kubectl apply --server-side -f -
+# The adfinis chart outputs multiple CRD documents without '---' separators.
+# Inject '---' before each top-level 'apiVersion:' line so kubectl parses all documents.
+echo "${CRD_YAML}" \
+  | awk '/^apiVersion:/ && NR>1 { print "---" } { print }' \
+  | kubectl apply --server-side -f -
 
 echo "==> Waiting for CRDs to reach Established condition..."
 # Extract CRD names from the YAML and wait for each
