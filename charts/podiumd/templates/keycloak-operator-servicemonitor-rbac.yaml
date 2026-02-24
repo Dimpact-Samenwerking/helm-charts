@@ -1,0 +1,60 @@
+{{- if (index .Values "keycloak-operator").enabled }}
+{{/*
+  Keycloak Operator 26.x always checks at startup whether the ServiceMonitor CRD
+  (monitoring.coreos.com/v1) is installed, by attempting a watch on the resource.
+  If the operator's ServiceAccount has no permission for that API group, Kubernetes
+  returns HTTP 403 instead of 404, which the operator treats as a hard error and
+  aborts the entire reconciliation — no Keycloak pods are ever created.
+
+  This ClusterRole + ClusterRoleBinding grants the operator's SA read access to
+  servicemonitors so it receives a proper 404 (API group unknown) when the CRD is
+  absent, allowing reconciliation to continue.
+
+  SA name derivation mirrors the adfinis keycloak-operator chart logic:
+    1. operator.serviceAccount.name if explicitly set
+    2. fullnameOverride if set
+    3. <release>-keycloak-operator (default fullname)
+*/}}
+{{- $kcOp := index .Values "keycloak-operator" }}
+{{- $saName := "" }}
+{{- if $kcOp.operator.serviceAccount.name }}
+{{-   $saName = $kcOp.operator.serviceAccount.name }}
+{{- else if $kcOp.fullnameOverride }}
+{{-   $saName = $kcOp.fullnameOverride }}
+{{- else }}
+{{-   $saName = printf "%s-keycloak-operator" .Release.Name }}
+{{- end }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ .Release.Name }}-keycloak-operator-servicemonitor-view
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: keycloak-operator
+rules:
+  - apiGroups:
+      - monitoring.coreos.com
+    resources:
+      - servicemonitors
+    verbs:
+      - get
+      - list
+      - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ .Release.Name }}-keycloak-operator-servicemonitor-view
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: keycloak-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ .Release.Name }}-keycloak-operator-servicemonitor-view
+subjects:
+  - kind: ServiceAccount
+    name: {{ $saName }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}
