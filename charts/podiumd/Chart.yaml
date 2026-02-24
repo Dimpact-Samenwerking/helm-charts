@@ -2,13 +2,8 @@ apiVersion: v2
 name: podiumd
 description: PodiumD Helm chart
 type: application
-<<<<<<< feature/podiumd-4.5.11-keycloak-upgrade
 version: 4.5.11
 appVersion: "4.5.11"
-=======
-version: 4.5.10
-appVersion: "4.5.10"
->>>>>>> main
 dependencies:
   # DEPRECATED: Will be removed in a future release. Use keycloak-operator instead.
   - name: keycloak
