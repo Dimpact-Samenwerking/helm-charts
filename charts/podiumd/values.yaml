@@ -2379,6 +2379,7 @@ apiproxy:
   readinessProbe:
     initialDelaySeconds: 5
     periodSeconds: 10
+  resolver-ip: 10.0.0.10 # KubeDNS resolver
   locations:
     commonSettings: &commonLocation
       sslVerify: "off"
@@ -2397,6 +2398,15 @@ apiproxy:
       <<: *commonLocation
       path: /haalcentraal/api/brp/
       targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apihcbrp/actueel/prtcl/v2/"
+      # Voor iConnect is het verplicht om een X-Toepassing header mee te sturen met de naam van de toepassing die
+      # de BRP API aanroept. In onderstaande mapping moet je alle hosts opnemen die gebruik maken van de apiproxy en
+      # daarin de juiste toepassing zetten. Voor andere aanbieders zijn deze waardes niet van belang.
+      toepassingHeaderRequired: false
+      hostToepassingMapping:
+        - host: "^contact"
+          toepassing: kiss
+        - host: "^zac"
+          toepassing: zac
     kvkSearch:
       <<: *commonLocation
       targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apikvk/zoeken/v2/zoeken"
