@@ -6,6 +6,14 @@ metadata:
 spec:
   instances: {{ .Values.keycloak.instances }}
   image: {{ include "keycloak.image" . }}
+  {{- if (index .Values "keycloak-operator").enabled }}
+  bootstrapAdmin:
+    secret:
+      name: {{ printf "%s-initial-admin" (default "keycloak" .Values.keycloak.name) }}
+      key:
+        usernameKey: username
+        passwordKey: password
+  {{- end }}
   hostname:
     hostname: {{ coalesce .Values.keycloak.hostname.hostname .Values.keycloak.config.adminFrontendUrl }}
     admin: {{ coalesce .Values.keycloak.hostname.admin .Values.keycloak.config.adminFrontendUrl }}

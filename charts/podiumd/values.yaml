@@ -30,6 +30,8 @@ keycloak-operator:
     image:
       repository: quay.io/keycloak/keycloak-operator
       tag: "26.5.4"
+  serviceAccount:
+    create: false
 
 keycloak:
   additionalOptions:

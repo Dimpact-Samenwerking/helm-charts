@@ -17,7 +17,7 @@
 */}}
 {{- $kcOp := index .Values "keycloak-operator" }}
 {{- $saName := "" }}
-{{- if $kcOp.operator.serviceAccount.name }}
+{{- if and $kcOp.operator.serviceAccount $kcOp.operator.serviceAccount.name }}
 {{-   $saName = $kcOp.operator.serviceAccount.name }}
 {{- else if $kcOp.fullnameOverride }}
 {{-   $saName = $kcOp.fullnameOverride }}
