@@ -23,8 +23,9 @@ keycloak-operator:
   enabled: true
   # Adfinis Helm chart wrapping the official Keycloak Operator manifests.
   # Chart: https://charts.adfinis.com / adfinis/keycloak-operator (appVersion 26.5.4)
+  # Note: it appears that the podname automatically appends -operator.
   # Official operator image: quay.io/keycloak/keycloak-operator:26.5.4
-  fullnameOverride: keycloak-operator
+  fullnameOverride: keycloak
   operator:
     image:
       repository: quay.io/keycloak/keycloak-operator
