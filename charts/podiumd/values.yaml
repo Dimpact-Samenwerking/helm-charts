@@ -2419,3 +2419,48 @@ pabc:
     keycloakAdmin:
       clientId: "pabc-keycloak-admin"
       clientSecret: ""
+
+datamigratie:
+  enabled: false
+  fullnameOverride: "datamigratie"
+  postgresql:
+    enabled: false
+  image:
+    tag: "0.0.3"
+  migrations:
+    image:
+      tag: "0.0.3"
+
+  settings:
+    database:
+      host: ""
+      name: "datamigratie"
+      username: "datamigratie"
+      password: ""
+
+    apiKeys: [""]
+
+    oidc:
+      authority: ""
+      clientId: "datamigratie"
+      clientSecret: ""
+      functioneelBeheerderRole: "DMT-Functioneel-Beheerder"
+      nameClaimType: "name"
+      roleClaimType: "roles"
+      emailClaimType: "email"
+      oidcUrl: "https://datamigratie.example.nl"
+
+    apiConnections:
+      openZaakApi:
+        baseUrl: ""
+        apiKey: ""
+        apiUser: ""
+      detApi:
+        baseUrl: ""
+        apiKey: ""
+
+    featureFlags:
+      enableTestHelpers: false
+
+  ingress:
+    enabled: false
