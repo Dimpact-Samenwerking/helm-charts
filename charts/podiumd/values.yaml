@@ -2424,6 +2424,7 @@ omc:
   enabled: false
   app:
     overrides:
+      # repository: ghcr.io/worth-nl/notifynl-omc
       tag: "1.17.18"
   config:
     aspnetcore:
