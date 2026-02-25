@@ -2429,8 +2429,6 @@ omc:
   config:
     aspnetcore:
       environment: ""
-    sentry:
-      dsn: ""
     notify:
       api:
         baseUrl: ""
