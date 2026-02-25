@@ -1137,6 +1137,8 @@ openarchiefbeheer:
   enabled: false
   nameOverride: openarchiefbeheer
   fullnameOverride: openarchiefbeheer
+  # Reference to an existing secret with the values needed for django-setup-configuration
+  # existingConfigurationSecrets: nil
   configuration:
     enabled: false
     oidcUrl: https://abc.example.nl
@@ -1235,7 +1237,12 @@ openarchiefbeheer:
     requestsReadTimeout: "5000"
     # -- Number of days to wait before destroying a list. Defaults to 7 in the application.
     waitingPeriod: ""
-
+    # logging:
+    # -- Controls whether the logs are output to standard output (true) or to a file (false, default)
+    #   toStdout: false
+    # -- Controls the log levels of project code and of the OIDC library. 
+    # Possible values: NOTSET, DEBUG, INFO, WARNING, ERROR, CRITICAL.
+    #   level: INFO
     frontend:
       apiUrl: ""
       apiPath: "/api/v1"
