@@ -2,6 +2,36 @@
 
 ## PodiumD versions
 
+
+### [4.6.0](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.6.0)
+
+**PodiumD Helm chart version: 4.6.0**
+Componenten op alphabetische volgorde, met sub-charts er onder:
+
+| Component                 | AppVersion | Change | ChartVersion | Change   | **Notes**                 |
+| ------------------------- | ---------- | ------ | ------------ | -------- | ------------------------- |
+| BRP Mock                  |            |        | 1.2.8        |          | Only on Test Environments |
+| ClamAV                    | 1.4.2      |        | 3.2.0        |          |                           |
+| Infinispan                | 15.2       |        | 0.5.0        |          | Deprecated                |
+| ITA                       | 2.0.1      | 2.1.0  | 2.0.1        | 2.1.0    |                           |
+| Keycloak                  | 26.5.4     |        | 1.11.2       | Operator |                           |
+| Kiss                      | 2.1.0      | 2.2.0  | 2.1.0        | 2.2.0    |                           |
+| - Kiss Elastic            |            |        | 1.1.0        |          |                           |
+| Objecten                  | 3.5.0      |        | 2.11.0       |          |                           |
+| Objecttypen               | 3.4.0      |        | 1.6.0        |          |                           |
+| Open Archiefbeheer        | 1.1.1      |        | 1.4.1        |          |                           |
+| Open Formulieren          | 3.3.9      |        | 1.11.6       |          |                           |
+| Open Inwoner              | 2.0.2      |        | 2.1.0        |          |                           |
+| Open Klant                | 2.14.0     |        | 1.10.0       |          |                           |
+| Open Notificaties         | 1.14.0     |        | 1.13.0       |          |                           |
+| Open Zaak                 | 1.26.0     |        | 1.13.0       |          |                           |
+| PABC                      | 1.0.0      |        | 1.0.0        |          |                           |
+| Zac                       | 4.0.12-1   |        | 1.0.166      |          |                           |
+| - Opentelemetry Collector |            |        | 0.142.1      |          |                           |
+| - Solr Operator           |            |        | 0.9.1        |          |                           |
+| ZGW Office Addin          | 0.9.28     |        | 0.0.65       |          |                           |
+
+
 ### [4.5.9](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.5.9)
 
 **PodiumD Helm chart version: 4.5.9**
@@ -50,7 +80,6 @@
 ## Add Used chart repositories:
 
 ```shell
-helm repo add bitnami https://charts.bitnami.com/bitnami
 helm repo add dimpact https://Dimpact-Samenwerking.github.io/helm-charts/
 helm repo add kiss-frontend https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/KISS-frontend/main/helm
 helm repo add kiss-adapter https://raw.githubusercontent.com/ICATT-Menselijk-Digitaal/podiumd-adapter/main/helm
@@ -699,5 +728,6 @@ Tags to add additional unreleased PodiumD functionality.
 If an Helm upgrade of a component fails because of a forbidden update to a statefullset spec the statefullset needs to be deleted prior to the Helm upgrade by the following command:
 
 $ kubectl delete sts <component>-redis-master -n podiumd --cascade=orphan
+
 
 
