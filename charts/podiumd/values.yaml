@@ -2123,7 +2123,7 @@ zac:
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
-    tag: 4.3.0 # ZAC Sprint 64 release
+    tag: 4.3.40 # ZAC Sprint 64 release & patches
   initContainer:
     enabled: false
   keycloak:
