@@ -24,7 +24,6 @@ jobs:
 
       - name: Add dependency chart repos
         run: |
-          helm repo add bitnami https://charts.bitnami.com/bitnami
           helm repo add maykinmedia https://maykinmedia.github.io/charts
           helm repo add opentelemetry https://open-telemetry.github.io/opentelemetry-helm-charts
           helm repo add wiremind https://wiremind.github.io/wiremind-helm-charts
@@ -38,6 +37,7 @@ jobs:
           helm repo add grafana https://grafana.github.io/helm-charts
           helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
           helm repo add zgw-office-addin https://infonl.github.io/zgw-office-addin
+          helm repo add adfinis https://charts.adfinis.com
 
       - name: Run chart-releaser
         uses: helm/chart-releaser-action@v1.7.0
