@@ -94,6 +94,25 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
+Render the Keycloak image string.
+Supports both a plain string and a map with registry/repository/tag fields:
+  image: quay.io/keycloak/keycloak:26.5.3          <- string, used as-is
+  image:                                            <- map, assembled into registry/repository:tag
+    registry: quay.io
+    repository: keycloak/keycloak
+    tag: "26.5.3"
+*/}}
+{{- define "keycloak.image" -}}
+{{- $image := .Values.keycloak.image -}}
+{{- if kindIs "string" $image -}}
+{{- $image -}}
+{{- else -}}
+{{- if $image.registry -}}{{ $image.registry }}/{{ end -}}
+{{- $image.repository -}}:{{- $image.tag -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Renders a value that contains template.
 Usage:
 {{ include "kiss-frontend.tplvalues.render" ( dict "value" .Values.path.to.the.Value "context" $) }}
