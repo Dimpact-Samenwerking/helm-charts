@@ -97,5 +97,5 @@ dependencies:
   - name: notifynl-omc-nodep
     alias: omc
     repository: "https://worth-nl.github.io/helm-charts"
-    version: 0.5.0
+    version: 0.8.0
     condition: omc.enabled
