@@ -70,7 +70,7 @@ dependencies:
     condition: infinispan.enabled
   - name: zaakafhandelcomponent
     alias: zac
-    version: 1.0.187 # ZAC Sprint 64 helm release
+    version: 1.0.192 # ZAC Sprint 64 helm release
     repository: "@zac"
     condition: zac.enabled
     tags:
