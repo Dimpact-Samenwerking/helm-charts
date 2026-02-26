@@ -2,9 +2,9 @@
 
 ## PodiumD versions
 
-### [4.5.9](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.5.9)
+### [4.5.12](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.5.12)
 
-**PodiumD Helm chart version: 4.5.9**
+**PodiumD Helm chart version: 4.5.12**
 
 | Component          | AppVersion | Change       | ChartVersion | Change       |
 |--------------------|------------|--------------|--------------|--------------|
@@ -20,7 +20,7 @@
 | Open Klant         | 2.14.0     | Minor update | 1.10.0       | Minor update |
 | Open Notificaties  | 1.14.0     | Minor update | 1.13.0       | Minor update |
 | Open Zaak          | 1.26.0     | Minor update | 1.13.0       | Minor update |
-| Open Archiefbeheer | 1.1.1      |              | 1.4.1        |              |
+| Open Archiefbeheer | 1.1.1      |              | 1.5.3        | Minor update |
 | Kiss               | 2.1.0      | Major update | 2.1.0        | Major update |
 | Zac                | 4.0.12-1   | Major update | 1.0.165      | Minor update |
 | ZGW Office Addin   | 0.9.28     | Minor update | 0.0.65       | Patch update |
@@ -699,5 +699,6 @@ Tags to add additional unreleased PodiumD functionality.
 If an Helm upgrade of a component fails because of a forbidden update to a statefullset spec the statefullset needs to be deleted prior to the Helm upgrade by the following command:
 
 $ kubectl delete sts <component>-redis-master -n podiumd --cascade=orphan
+
 
 
