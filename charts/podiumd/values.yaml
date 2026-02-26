@@ -2553,6 +2553,8 @@ pabc:
 
 omc:
   enabled: false
+  ingress:
+    enabled: false
   app:
     overrides:
       # repository: ghcr.io/worth-nl/notifynl-omc
@@ -2562,4 +2564,16 @@ omc:
       environment: ""
     notify:
       api:
-        baseUrl: ""
+        baseUrl: "https://api.notifynl.nl"
+    omc:
+      auth:
+        jwt:
+          # NEEDS new KeyVautl item: REP_OMC_AUTH_SECRET_REP
+          secret: ""
+          issuer: "OMC"
+          audience: "OMC"
+          userId: "OMC (Podiumd)"
+          userName: "OMC (Podiumd)"        
+      feature:
+        workflow:
+          version: 2
