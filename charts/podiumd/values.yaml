@@ -265,8 +265,8 @@ keycloak:
       volumes:
         - name: keycloak-build-data
           emptyDir: {}
-  # -- new keycloak entrypoint configuration, falls back to proxyHeaders if headers is not set
-  proxy:
+  # -- new keycloak entrypoint configuration for keycloak-operator CR
+  proxyConfig:
     headers: "xforwarded"
   resources:
     requests:

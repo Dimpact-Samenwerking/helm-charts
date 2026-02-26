@@ -17,7 +17,7 @@ spec:
   http:
     httpEnabled: {{ .Values.keycloak.http.httpEnabled }}
   proxy:
-    headers: {{ .Values.keycloak.proxy.headers }}
+    headers: {{ .Values.keycloak.proxyConfig.headers }}
   {{- with .Values.keycloak.features.enabled }}
   features:
     enabled:

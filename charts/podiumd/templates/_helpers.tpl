@@ -103,12 +103,16 @@ Supports both a plain string and a map with registry/repository/tag fields:
     tag: "26.5.3"
 */}}
 {{- define "keycloak.image" -}}
+{{- if and .Values.keycloak (hasKey .Values.keycloak "image") -}}
 {{- $image := .Values.keycloak.image -}}
 {{- if kindIs "string" $image -}}
 {{- $image -}}
 {{- else -}}
 {{- if $image.registry -}}{{ $image.registry }}/{{ end -}}
 {{- $image.repository -}}:{{- $image.tag -}}
+{{- end -}}
+{{- else -}}
+quay.io/keycloak/keycloak:26.5.4
 {{- end -}}
 {{- end -}}
 
