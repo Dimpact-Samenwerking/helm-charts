@@ -2,9 +2,9 @@
 
 ## PodiumD versions
 
-### [4.5.7](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.5.7)
+### [4.5.9](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.5.9)
 
-**PodiumD Helm chart version: 4.5.7**
+**PodiumD Helm chart version: 4.5.9**
 
 | Component          | AppVersion | Change       | ChartVersion | Change       |
 |--------------------|------------|--------------|--------------|--------------|
@@ -16,7 +16,7 @@
 | Objecten           | 3.5.0      | Minor update | 2.11.0       | Minor update |
 | Objecttypen        | 3.4.0      | Minor update | 1.6.0        | Minor update |
 | Open Formulieren   | 3.3.9      | Patch update | 1.11.6       |              |
-| Open Inwoner       | 2.0.0      | Major update | 2.1.0        | Major update |
+| Open Inwoner       | 2.0.2      | Major update | 2.1.0        | Major update |
 | Open Klant         | 2.14.0     | Minor update | 1.10.0       | Minor update |
 | Open Notificaties  | 1.14.0     | Minor update | 1.13.0       | Minor update |
 | Open Zaak          | 1.26.0     | Minor update | 1.13.0       | Minor update |
@@ -61,6 +61,7 @@ helm repo add solr https://solr.apache.org/charts
 helm repo add opentelemetry https://open-telemetry.github.io/opentelemetry-helm-charts
 helm repo add zac https://infonl.github.io/dimpact-zaakafhandelcomponent/
 helm repo add zgw-office-addin https://infonl.github.io/zgw-office-addin
+helm repo add adfinis https://charts.adfinis.com
 ```
 
 ## PersistentVolume and PersistVolumeClaim resources
@@ -110,30 +111,36 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 | global.imageRegistry                              | Image registry used by Keycloak, Redis, RabitMQ and Elastic                 | `""`                                                            |
 | global.settings.databaseHost                      | Database host used bij objecten, objecttypen, openinwoner, opennotificaties | `""`                                                            |
 
-### keycloak
+### keycloak-operator
 
-| Name                                        | Description                                                                 | Value                               |
-|---------------------------------------------|-----------------------------------------------------------------------------|-------------------------------------|
-| keycloak.enabled                            | Boolean to override the installation of Keycloak                            |                                     |
-| keycloak.config.realmDisplayName            | Name displayed in Keycloak when logging into the podiumd realm              | `PodiumD`                           |
-| keycloak.config.realmFrontendUrl            | URL of keycloak for logging in to podiumd applications (podiumd realm)      | `https://keycloak.example.nl`       |
-| keycloak.config.adminFrontendUrl            | URL of keycloak for logging in to admin console (master realm)              | `https://keycloak-admin.example.nl` |
-| keycloak.auth.adminUser                     | Keycloak administrator user                                                 | `admin`                             |
-| keycloak.auth.adminPassword                 | Keycloak administrator password                                             | `ChangeMeNow`                       |
-| keycloak.externalDatabase.host              | Database host                                                               | `""`                                |
-| keycloak.externalDatabase.database          | Database name                                                               | `""`                                |
-| keycloak.externalDatabase.user              | Database username                                                           | `""`                                |
-| keycloak.externalDatabase.password          | Database user password                                                      | `""`                                |
-| keycloak.image.repository                   | Keycloak image repository                                                   | `bitnami/keycloak`                  |
-| keycloak.image.tag                          | Keycloak image tag                                                          | `24.0.5-debian-12-r0`               |
-| keycloak.image.pullPolicy                   | Keycloak image pull policy                                                  | `IfNotPresent`                      |
-| keycloak.nodeSelector                       | Node labels for Keycloak pod assignment. Evaluated as a template            | `{}`                                |
-| keycloak.resources                          | Container requests and limits                                               | See values.yaml                     |
-| keycloak.keycloakConfigCli.enabled          | Whether Keycloak configuration is enabled                                   | `true`                              |
-| keycloak.keycloakConfigCli.image.repository | Keycloak config cli image repository                                        | `bitnami/keycloak-config-cli`       |
-| keycloak.keycloakConfigCli.image.tag        | Keycloak config cli image tag                                               | `5.12.0-debian-12-r5`               |
-| keycloak.keycloakConfigCli.image.pullPolicy | Keycloak config cli image pull policy                                       | `IfNotPresent`                      |
-| keycloak.keycloakConfigCli.nodeSelector     | Node labels for Keycloak config cli pod assignment. Evaluated as a template | `{}`                                |
+The Keycloak Operator is deployed via the [adfinis/keycloak-operator](https://artifacthub.io/packages/helm/adfinis/keycloak-operator) Helm chart, which wraps the official upstream Keycloak Operator manifests from [keycloak/keycloak-k8s-resources](https://github.com/keycloak/keycloak-k8s-resources). It installs the `Keycloak` CRD (`k8s.keycloak.org/v2alpha1`) and reconciles `Keycloak` custom resources into running pods.
+
+The deprecated Bitnami `keycloak` sub-chart (`keycloak.enabled`) is kept for rollback purposes only and will be removed in a future release. See `docs/migrating-to-keycloak-operator.md` for migration instructions.
+
+| Name                                           | Description                                                                          | Value                                    |
+|------------------------------------------------|--------------------------------------------------------------------------------------|------------------------------------------|
+| keycloak-operator.enabled                      | Deploy the Keycloak Operator (adfinis/keycloak-operator chart)                       | `true`                                   |
+| keycloak-operator.operator.image.repository    | Keycloak Operator controller image repository                                        | `quay.io/keycloak/keycloak-operator`     |
+| keycloak-operator.operator.image.tag           | Keycloak Operator controller image tag                                               | `26.5.4`                                 |
+| keycloak.enabled                               | Deploy legacy Bitnami Keycloak sub-chart (deprecated, use keycloak-operator instead) | `false`                                  |
+| keycloak.name                                  | Name of the `Keycloak` CR created by `keycloak-cr.yaml`                              | `keycloak`                               |
+| keycloak.instances                             | Number of Keycloak replicas                                                          | `2`                                      |
+| keycloak.image.tag                             | Keycloak application image tag                                                       | `26.5.4`                                 |
+| keycloak.hostname.hostname                     | Public hostname for the Keycloak service                                             | `""`                                     |
+| keycloak.hostname.admin                        | Hostname for the Keycloak admin console                                              | `""`                                     |
+| keycloak.http.httpEnabled                      | Enable plain HTTP (required when running behind a reverse proxy)                     | `true`                                   |
+| keycloak.proxy.headers                         | Proxy header forwarding mode (e.g. `xforwarded`)                                    | `""`                                     |
+| keycloak.auth.adminUser                        | Initial bootstrap admin username                                                     | `admin`                                  |
+| keycloak.auth.adminPassword                    | Initial bootstrap admin password                                                     | `ChangeMeNow`                            |
+| keycloak.externalDatabase.host                 | PostgreSQL database host                                                             | `""`                                     |
+| keycloak.externalDatabase.database             | PostgreSQL database name                                                             | `""`                                     |
+| keycloak.externalDatabase.user                 | PostgreSQL database username                                                         | `""`                                     |
+| keycloak.externalDatabase.password             | PostgreSQL database password                                                         | `""`                                     |
+| keycloak.secretsName                           | Name of the Secret containing DB credentials for the operator                        | `keycloak-secrets`                       |
+| keycloak.config.realmFrontendUrl               | URL of Keycloak for end-user login (podiumd realm)                                   | `https://keycloak.example.nl`            |
+| keycloak.config.adminFrontendUrl               | URL of Keycloak for admin console login (master realm)                               | `https://keycloak-admin.example.nl`      |
+| keycloak.nodeSelector                          | Node labels for Keycloak pod assignment                                              | `{}`                                     |
+| keycloak.resources                             | Container resource requests and limits                                               | See values.yaml                          |
 
 
 ### ClamAV
