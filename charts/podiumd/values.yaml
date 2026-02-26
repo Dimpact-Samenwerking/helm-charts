@@ -2079,7 +2079,7 @@ kiss:
 
 zac:
   featureFlags:
-    pabcIntegration: false
+    pabcIntegration: true
   auth:
     server: http://keycloak.example.nl
     realm: podiumd
@@ -2114,16 +2114,16 @@ zac:
     code: "007"
     naam: "Example Gemeente"
     mail: "noreply@example.nl"
-  # curlimages/curl:8.16.0
+  # curlimages/curl:8.18.0
   global:
     curlImage:
       #repository: curlimages/curl
-      tag: 8.16.0
-  # ghcr.io/infonl/zaakafhandelcomponent:4.0.12-1
+      tag: 8.18.0
+  # ghcr.io/infonl/zaakafhandelcomponent:4.3.0
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
-    tag: 4.0.12-1
+    tag: 4.3.40 # ZAC Sprint 64 release & patches
   initContainer:
     enabled: false
   keycloak:
@@ -2146,10 +2146,10 @@ zac:
   nginx:
     enabled: true
     client_max_body_size: 150M
-    # nginxinc/nginx-unprivileged:1.29.1
+    # nginxinc/nginx-unprivileged:1.29.5
     image:
       # repository: nginxinc/nginx-unprivileged
-      tag: 1.29.2
+      tag: 1.29.5
   # notificationsSecretKey: "changeme"
   objectenApi:
     url: http://objecten.example.nl
@@ -2164,10 +2164,10 @@ zac:
       tag: 1.8.1
   opa:
     sidecar: true
-    # openpolicyagent/opa:1.9.0-static
+    # openpolicyagent/opa:1.13.2-static
     image:
       #repository: openpolicyagent/opa
-      tag: 1.9.0-static
+      tag: 1.13.2-static
   openForms:
     url: http://open-forms.example.nl
   organizations:
@@ -2201,10 +2201,10 @@ zac:
         tag: 1.37.0-glibc
       # -- set enabled to provision solrcloud as well
       enabled: true
-      # library/solr:9.9.0
+      # library/solr:9.10.1-slim
       image:
         #repository:
-        tag: 9.9.0
+        tag: 9.10.1-slim
       # -- define memory settings for solr in the solrcloud
       javaMem: -Xms512m -Xmx768m
       jobs:
@@ -2248,14 +2248,13 @@ zgw-office-addin:
     # -- MS Azure Client ID assigned to the Office Add-in application
     msalClientId: "dummy"
   frontend:
-    # ghcr.io/infonl/zgw-office-add-in-frontend:v0.9.28
+    # ghcr.io/infonl/zgw-office-add-in-frontend:v0.9.68
     image:
-      tag: v0.9.28
+      tag: v0.9.68
   backend:
-    msalSecret: "dummy"
-    # ghcr.io/infonl/zgw-office-add-in-backend:v0.9.28
+    # ghcr.io/infonl/zgw-office-add-in-backend:v0.9.68
     image:
-      tag: v0.9.28
+      tag: v0.9.68
     # -- ZGW API configuration for integration with the ZGW APIs provider (OpenZaak)
     zgwApis:
       url: "https://openzaak.example.nl"
@@ -2541,7 +2540,7 @@ pabc:
       authority: ""
       clientId: "pabc"
       clientSecret: ""
-      functioneelBeheerderRole: "administrator"
+      functioneelBeheerderRole: ""
       nameClaimType: "name"
       roleClaimType: "roles"
       emailClaimType: "email"

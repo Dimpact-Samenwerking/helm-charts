@@ -70,14 +70,14 @@ dependencies:
     condition: infinispan.enabled
   - name: zaakafhandelcomponent
     alias: zac
-    version: 1.0.165
+    version: 1.0.192 # ZAC Sprint 64 helm release
     repository: "@zac"
     condition: zac.enabled
     tags:
       - zaak
   - name: zgw-office-addin
     repository: "@zgw-office-addin"
-    version: 0.0.65
+    version: 0.0.70
     condition: zgw-office-addin.enabled
   - name: internetaakafhandeling
     alias: ita

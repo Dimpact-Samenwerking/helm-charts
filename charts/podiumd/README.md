@@ -2,35 +2,37 @@
 
 ## PodiumD versions
 
-
 ### [4.6.0](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.6.0)
 
 **PodiumD Helm chart version: 4.6.0**
 Componenten op alphabetische volgorde, met sub-charts er onder:
 
-| Component                 | AppVersion | Change | ChartVersion | Change   | **Notes**                 |
-| ------------------------- | ---------- | ------ | ------------ | -------- | ------------------------- |
-| BRP Mock                  |            |        | 1.2.8        |          | Only on Test Environments |
-| ClamAV                    | 1.4.2      |        | 3.2.0        |          |                           |
-| Infinispan                | 15.2       |        | 0.5.0        |          | Deprecated                |
-| ITA                       | 2.0.1      |        | 2.0.1        |          |                           |
-| Keycloak                  | 26.5.4     |        | 1.11.2       | Operator |                           |
-| Kiss                      | 2.1.0      |        | 2.1.0        |          |                           |
-| - Kiss Elastic            |            |        | 1.1.0        |          |                           |
-| Objecten                  | 3.5.0      |        | 2.11.0       |          |                           |
-| Objecttypen               | 3.4.0      |        | 1.6.0        |          |                           |
-| Open Archiefbeheer        | 1.1.1      |        | 1.4.1        |          |                           |
-| Open Formulieren          | 3.3.9      |        | 1.11.6       |          |                           |
-| Open Inwoner              | 2.0.2      |        | 2.1.0        |          |                           |
-| Open Klant                | 2.14.0     |        | 1.10.0       |          |                           |
-| Open Notificaties         | 1.14.0     |        | 1.13.0       |          |                           |
-| Open Zaak                 | 1.26.0     |        | 1.13.0       |          |                           |
-| PABC                      | 1.0.0      |        | 1.0.0        |          |                           |
-| Zac                       | 4.0.12-1   |        | 1.0.166      |          |                           |
-| - Opentelemetry Collector |            |        | 0.142.1      |          |                           |
-| - Solr Operator           |            |        | 0.9.1        |          |                           |
-| ZGW Office Addin          | 0.9.28     |        | 0.0.65       |          |                           |
-
+| Component                 | AppVersion | Change       | ChartVersion | Change       | **Notes**                 |
+| ------------------------- | ---------- | ------------ | ------------ | ------------ | ------------------------- |
+| BRP Mock                  |            |              | 1.2.8        |              | Only on Test Environments |
+| ClamAV                    | 1.4.2      |              | 3.2.0        |              |                           |
+| Infinispan                | 15.2       |              | 0.5.0        |              | Deprecated                |
+| ITA                       | 2.0.1      |              | 2.0.1        |              |                           |
+| Keycloak                  | 26.5.4     |              | 1.11.2       | Operator     |                           |
+| Kiss                      | 2.1.0      |              | 2.1.0        |              |                           |
+| - Kiss Elastic            |            |              | 1.1.0        |              |                           |
+| Objecten                  | 3.5.0      |              | 2.11.0       |              |                           |
+| Objecttypen               | 3.4.0      |              | 1.6.0        |              |                           |
+| Open Archiefbeheer        | 1.1.1      |              | 1.4.1        |              |                           |
+| Open Formulieren          | 3.3.9      |              | 1.11.6       |              |                           |
+| Open Inwoner              | 2.0.2      |              | 2.1.0        |              |                           |
+| Open Klant                | 2.14.0     |              | 1.10.0       |              |                           |
+| Open Notificaties         | 1.14.0     |              | 1.13.0       |              |                           |
+| Open Zaak                 | 1.26.0     |              | 1.13.0       |              |                           |
+| PABC                      | 1.0.0      |              | 1.0.0        |              |                           |
+| Zac                       | 4.3.40     | Minor update | 1.0.192      | Patch update |                           |
+| - Curl                    | 8.18.0     | Minor update |              |              |                           |
+| - Nginx                   | 1.29.5     | Patch update |              |              |                           |
+| - Opa                     | 1.13.2     | Patch update |              |              |                           |
+| - Opentelemetry Collector | 0.146.1    | Minor update | 0.146.0      | Minor update |                           |
+| - Solr                    | 9.10.1     | Minor update | 0.9.1        |              |                           |
+| - Office Converter        | 1.8.2      | Patch update |              |              |                           |
+| ZGW Office Addin          | 0.9.28     |              | 0.0.65       |              |                           |
 
 ### [4.5.9](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.5.9)
 
