@@ -1812,7 +1812,7 @@ kiss:
   image:
     #   repository: "ghcr.io/klantinteractie-servicesysteem/kiss-frontend"
     pullPolicy: IfNotPresent
-    tag: 2.1.0
+    tag: 2.2.0
   enabled: true
   nameOverride: contact
   fullnameOverride: contact
@@ -2023,7 +2023,7 @@ kiss:
     secret: ""
     image:
       # repository: ghcr.io/icatt-menselijk-digitaal/podiumd-adapter
-      tag: "0.6.4"
+      tag: "0.6.5"
       pullPolicy: IfNotPresent
     resources:
       requests:
@@ -2470,7 +2470,7 @@ ita:
   web:
     image:
       # repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web"
-      tag: "2.0.1"
+      tag: "2.1.0"
       pullPolicy: IfNotPresent
 
     service:
@@ -2500,7 +2500,7 @@ ita:
 
     image:
       repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller"
-      tag: "2.0.1"
+      tag: "2.1.0"
       pullPolicy: Always
 
     notification:
