@@ -2584,3 +2584,8 @@ omc:
       feature:
         workflow:
           version: 2
+    zgw:
+      auth:
+        jwt:
+          userId: "OMC (PodiumD)"
+          userName: "OMC (PodiumD)"
