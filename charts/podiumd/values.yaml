@@ -2550,3 +2550,42 @@ pabc:
     keycloakAdmin:
       clientId: "pabc-keycloak-admin"
       clientSecret: ""
+
+omc:
+  enabled: false
+  ingress:
+    enabled: false
+  nameOverride: ""
+  fullnameOverride: "omc"
+  image:
+    # repository: ghcr.io/worth-nl/notifynl-omc
+    tag: "1.17.18"
+    pullPolicy: IfNotPresent
+  # app:
+  #   overrides:
+  #     # repository: ghcr.io/worth-nl/notifynl-omc
+  #     tag: "1.17.18"
+
+  settings:
+    aspnetcore:
+      environment: ""
+    notify:
+      api:
+        baseUrl: "https://api.notifynl.nl"
+    omc:
+      auth:
+        jwt:
+          # NEEDS new KeyVautl item: REP_OMC_AUTH_SECRET_REP
+          secret: ""
+          issuer: "omc"
+          audience: "omc"
+          userId: "OMC (Podiumd)"
+          userName: "OMC (Podiumd)"        
+      feature:
+        workflow:
+          version: 2
+    zgw:
+      auth:
+        jwt:
+          userId: "OMC (PodiumD)"
+          userName: "OMC (PodiumD)"

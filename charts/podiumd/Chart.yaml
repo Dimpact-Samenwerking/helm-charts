@@ -94,3 +94,8 @@ dependencies:
     repository: "oci://ghcr.io/platform-autorisatie-beheer-component"
     version: 1.0.0
     condition: pabc.enabled
+  - name: notifynl-omc-nodep
+    alias: omc
+    repository: "https://worth-nl.github.io/helm-charts"
+    version: 0.8.0
+    condition: omc.enabled
