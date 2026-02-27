@@ -2555,11 +2555,18 @@ omc:
   enabled: false
   ingress:
     enabled: false
-  app:
-    overrides:
-      # repository: ghcr.io/worth-nl/notifynl-omc
-      tag: "1.17.18"
-  config:
+  nameOverride: ""
+  fullnameOverride: "omc"
+  image:
+    # repository: ghcr.io/worth-nl/notifynl-omc
+    tag: "1.17.18"
+    pullPolicy: IfNotPresent
+  # app:
+  #   overrides:
+  #     # repository: ghcr.io/worth-nl/notifynl-omc
+  #     tag: "1.17.18"
+
+  settings:
     aspnetcore:
       environment: ""
     notify:
@@ -2570,8 +2577,8 @@ omc:
         jwt:
           # NEEDS new KeyVautl item: REP_OMC_AUTH_SECRET_REP
           secret: ""
-          issuer: "OMC"
-          audience: "OMC"
+          issuer: "omc"
+          audience: "omc"
           userId: "OMC (Podiumd)"
           userName: "OMC (Podiumd)"        
       feature:
