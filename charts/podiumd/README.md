@@ -700,4 +700,15 @@ If an Helm upgrade of a component fails because of a forbidden update to a state
 
 $ kubectl delete sts <component>-redis-master -n podiumd --cascade=orphan
 
+### Upgrading to 4.5.12
+
+The ClusterRole and ClusterRoleBinding for the Keycloak Operator ServiceMonitor permissions were renamed from `*-keycloak-operator-servicemonitor-view` to `*-keycloak-operator-servicemonitor`. Helm does not delete the old resources automatically. Before or after upgrading, run the following commands to remove the orphaned resources:
+
+```
+kubectl delete clusterrole <release>-keycloak-operator-servicemonitor-view --ignore-not-found
+kubectl delete clusterrolebinding <release>-keycloak-operator-servicemonitor-view --ignore-not-found
+```
+
+Replace `<release>` with your Helm release name (default: `podiumd`).
+
 
