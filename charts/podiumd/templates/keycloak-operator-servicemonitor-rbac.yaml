@@ -1,14 +1,13 @@
 {{- if (index .Values "keycloak-operator").enabled }}
 {{/*
-  Keycloak Operator 26.x always checks at startup whether the ServiceMonitor CRD
-  (monitoring.coreos.com/v1) is installed, by attempting a watch on the resource.
-  If the operator's ServiceAccount has no permission for that API group, Kubernetes
-  returns HTTP 403 instead of 404, which the operator treats as a hard error and
-  aborts the entire reconciliation — no Keycloak pods are ever created.
+  Keycloak Operator 26.x manages ServiceMonitor resources as part of reconciliation.
+  The operator's ServiceAccount needs full CRUD access to servicemonitors in the
+  monitoring.coreos.com API group. Without it, reconciliation fails with HTTP 403
+  and the Keycloak CR is stuck in HasErrors=True / Ready=Unknown.
 
-  This ClusterRole + ClusterRoleBinding grants the operator's SA read access to
-  servicemonitors so it receives a proper 404 (API group unknown) when the CRD is
-  absent, allowing reconciliation to continue.
+  When the ServiceMonitor CRD is absent, these permissions cause the API server to
+  return HTTP 404 (API group unknown) rather than 403, allowing reconciliation to
+  continue gracefully.
 
   SA name derivation mirrors the adfinis keycloak-operator chart logic:
     1. operator.serviceAccount.name if explicitly set
@@ -28,7 +27,7 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: {{ .Release.Name }}-keycloak-operator-servicemonitor-view
+  name: {{ .Release.Name }}-keycloak-operator-servicemonitor
   labels:
     {{- include "podiumd.labels" . | nindent 4 }}
     app.kubernetes.io/component: keycloak-operator
@@ -41,18 +40,22 @@ rules:
       - get
       - list
       - watch
+      - create
+      - update
+      - patch
+      - delete
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: {{ .Release.Name }}-keycloak-operator-servicemonitor-view
+  name: {{ .Release.Name }}-keycloak-operator-servicemonitor
   labels:
     {{- include "podiumd.labels" . | nindent 4 }}
     app.kubernetes.io/component: keycloak-operator
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: {{ .Release.Name }}-keycloak-operator-servicemonitor-view
+  name: {{ .Release.Name }}-keycloak-operator-servicemonitor
 subjects:
   - kind: ServiceAccount
     name: {{ $saName }}
