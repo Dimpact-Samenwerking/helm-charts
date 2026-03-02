@@ -711,4 +711,26 @@ kubectl delete clusterrolebinding <release>-keycloak-operator-servicemonitor-vie
 
 Replace `<release>` with your Helm release name (default: `podiumd`).
 
+#### ServiceMonitor CRD upgrade required
+
+Keycloak Operator 26.x creates `ServiceMonitor` resources that use the `spec.scrapeProtocols` field, introduced in Prometheus Operator v0.67. If your cluster has an older `ServiceMonitor` CRD (built with controller-gen ≤ v0.11.1), the Keycloak CR will be stuck in `HasErrors=True` with:
+
+```
+failed to create typed patch object: .spec.scrapeProtocols: field not declared in schema
+```
+
+The `monitoring-logging` chart does not manage this CRD. It was installed separately and must be upgraded manually. Delete the old CRD (this also removes all existing `ServiceMonitor` resources — they will be recreated by their operators) and reinstall it from a Prometheus Operator release ≥ v0.67:
+
+```
+kubectl delete crd servicemonitors.monitoring.coreos.com
+```
+
+You can verify the installed CRD version with:
+
+```
+kubectl get crd servicemonitors.monitoring.coreos.com -o jsonpath='{.metadata.annotations.controller-gen\.kubebuilder\.io/version}'
+```
+
+A value of `v0.12.0` or higher indicates the CRD is new enough.
+
 
