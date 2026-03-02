@@ -702,7 +702,9 @@ $ kubectl delete sts <component>-redis-master -n podiumd --cascade=orphan
 
 ### Upgrading to 4.5.12
 
-The ClusterRole and ClusterRoleBinding for the Keycloak Operator ServiceMonitor permissions were renamed from `*-keycloak-operator-servicemonitor-view` to `*-keycloak-operator-servicemonitor`. Helm does not delete the old resources automatically. Before or after upgrading, run the following commands to remove the orphaned resources:
+The Keycloak Operator ServiceMonitor RBAC resources have been removed from the chart. Helm will automatically delete the `*-keycloak-operator-servicemonitor` ClusterRole and ClusterRoleBinding on upgrade.
+
+However, if you previously ran an earlier version of 4.5.12 (where these resources were still present but renamed from `-view`), or if you are upgrading from 4.5.11, you must also manually remove the orphaned `-view` resources that Helm cannot track:
 
 ```
 kubectl delete clusterrole <release>-keycloak-operator-servicemonitor-view --ignore-not-found
@@ -711,26 +713,18 @@ kubectl delete clusterrolebinding <release>-keycloak-operator-servicemonitor-vie
 
 Replace `<release>` with your Helm release name (default: `podiumd`).
 
-#### ServiceMonitor CRD upgrade required
+#### ServiceMonitor CRD must be removed
 
-Keycloak Operator 26.x creates `ServiceMonitor` resources that use the `spec.scrapeProtocols` field, introduced in Prometheus Operator v0.67. If your cluster has an older `ServiceMonitor` CRD (built with controller-gen ≤ v0.11.1), the Keycloak CR will be stuck in `HasErrors=True` with:
+The `monitoring-logging` chart does not manage the `servicemonitors.monitoring.coreos.com` CRD. On clusters where this CRD is present but outdated (built with controller-gen ≤ v0.11.1), the Keycloak Operator will fail with:
 
 ```
 failed to create typed patch object: .spec.scrapeProtocols: field not declared in schema
 ```
 
-The `monitoring-logging` chart does not manage this CRD. It was installed separately and must be upgraded manually. Delete the old CRD (this also removes all existing `ServiceMonitor` resources — they will be recreated by their operators) and reinstall it from a Prometheus Operator release ≥ v0.67:
+Remove the CRD from the cluster. This also removes all existing `ServiceMonitor` resources — they will be recreated by their respective operators once a newer CRD is installed:
 
 ```
 kubectl delete crd servicemonitors.monitoring.coreos.com
 ```
-
-You can verify the installed CRD version with:
-
-```
-kubectl get crd servicemonitors.monitoring.coreos.com -o jsonpath='{.metadata.annotations.controller-gen\.kubebuilder\.io/version}'
-```
-
-A value of `v0.12.0` or higher indicates the CRD is new enough.
 
 
