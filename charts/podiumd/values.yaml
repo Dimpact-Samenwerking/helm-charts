@@ -2561,11 +2561,6 @@ omc:
     # repository: ghcr.io/worth-nl/notifynl-omc
     tag: "1.17.18"
     pullPolicy: IfNotPresent
-  # app:
-  #   overrides:
-  #     # repository: ghcr.io/worth-nl/notifynl-omc
-  #     tag: "1.17.18"
-
   settings:
     aspnetcore:
       environment: ""
