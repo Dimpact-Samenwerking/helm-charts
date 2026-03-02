@@ -1868,6 +1868,203 @@ openbeheer:
           cpu: 250m
           memory: 256Mi
 
+referentielijsten:
+  configuration:
+    enabled: true
+    overwrite: true
+
+    job:
+      enabled: false
+      backoffLimit: 6
+      ttlSecondsAfterFinished: 0
+      restartPolicy: OnFailure
+      resources: {}
+    secrets: {}
+    data: ""
+
+  tags:
+    redis: true
+
+  replicaCount: 1
+
+  image:
+    repository: maykinmedia/referentielijsten-api
+    pullPolicy: IfNotPresent
+    tag: ""
+
+  imagePullSecrets: []
+  nameOverride: ""
+  fullnameOverride: ""
+
+  serviceAccount:
+    create: true
+    annotations: {}
+    name: ""
+    automountServiceAccountToken: true
+
+  podAnnotations: {}
+
+  podLabels: {}
+
+  podSecurityContext:
+    fsGroup: 1000
+
+  securityContext:
+    capabilities:
+      drop:
+      - ALL
+    readOnlyRootFilesystem: false
+    runAsNonRoot: true
+    runAsUser: 1000
+
+  livenessProbe:
+    initialDelaySeconds: 60
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 6
+    successThreshold: 1
+
+  readinessProbe:
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 6
+    successThreshold: 1
+
+  service:
+    type: ClusterIP
+    port: 80
+
+  ingress:
+    enabled: false
+    annotations: {}
+    className: ""
+    hosts: []
+
+    tls: []
+  extraIngress: []
+  resources: {}
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 100
+    targetCPUUtilizationPercentage: 80
+    targetMemoryUtilizationPercentage: 80
+    behaviour: {}
+
+  pdb:
+    create: false
+    minAvailable: 1
+    maxUnavailable: ""
+
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+  persistence:
+    enabled: true
+    size: 1Gi
+    storageClassName: ""
+    existingClaim: null
+    mediaMountSubpath: referentielijsten/media
+    privateMediaMountSubpath: referentielijsten/private_media
+
+  existingSecret: null
+  existingConfigurationSecrets: null
+  # If no secret  exists with the values needed for django-setup-configuration, create it with the following name
+  configurationSecretsName: ""
+
+  settings:
+    allowedHosts: ""
+    djangoSettingsModule: referentielijsten.conf.docker
+    useXForwardedHost: false
+
+    # -- Disable two factor authentication
+    disable2fa: false
+    secretKey: ""
+    environment: ""
+
+    elasticapm:
+      url: ""
+      token: ""
+      serviceName: ""
+      transactionSampleRate: 0.1      
+
+    email:
+      host: localhost
+      port: 25
+      username: ""
+      password: ""
+      useTLS: false
+      defaultFrom: ""
+
+    sentry:
+      dsn: ""
+
+    cache:
+      default: ""
+      axes: ""
+
+    isHttps: true
+
+    debug: false
+
+    uwsgi:
+      master: ''
+      threads: ''
+      processes: ''
+      maxRequests: ''
+      harakiri: ''
+
+    # -- Defines the primary domain where the application is hosted. Defaults to ""
+    siteDomain: ""
+
+    # -- Logging configuration
+    logging:
+      # -- Whether to log to stdout or not
+      stdout: true
+      level: "INFO"
+      queries: false
+      requests: false
+      formatConsole: "json"
+      enableStructlogRequests: true
+      outgoingRequests:
+        emitBody: true
+        dbSave: false
+        dbSaveBody: true
+        maxAge: 7
+    cors:
+      allowAllOrigins: false
+      allowedOrigins: ""
+      allowedOriginRegexes: ""
+      extraAllowHeaders: ""      
+    csp:
+      extraDefaultSrc: ""
+      extraFormAction: ""
+      formAction: ""
+      extraImgSrc: ""
+      objectSrc: ""
+      reportUri: ""
+      reportPercentage: 0.0
+  redis:
+    architecture: standalone
+    auth:
+      enabled: false
+    master:
+      persistence:
+        enabled: true
+        size: 8Gi
+        storageClass: ""
+      resources:
+        requests:
+          cpu: 250m
+          memory: 256Mi
+    image:
+      registry: docker.io  
+      repository: redis  
+      tag: "8.0"  
+
+
 kisselastic:
   kibanaDomain: kiss-kb-http.podiumd.svc.cluster.local:5601
   elasticVersion: "8.19.3"
