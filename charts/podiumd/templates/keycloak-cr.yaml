@@ -1,4 +1,4 @@
-{{- if or (index .Values "keycloak-operator").enabled .Values.keycloak.enabled }}
+{{- if (index .Values "keycloak-operator").enabled }}
 apiVersion: k8s.keycloak.org/v2alpha1
 kind: Keycloak
 metadata:
@@ -17,7 +17,7 @@ spec:
   http:
     httpEnabled: {{ .Values.keycloak.http.httpEnabled }}
   proxy:
-    headers: {{ .Values.keycloak.proxy.headers }}
+    headers: {{ .Values.keycloak.proxyConfig.headers }}
   {{- with .Values.keycloak.features.enabled }}
   features:
     enabled:
