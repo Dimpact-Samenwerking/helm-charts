@@ -1237,12 +1237,15 @@ openarchiefbeheer:
     requestsReadTimeout: "5000"
     # -- Number of days to wait before destroying a list. Defaults to 7 in the application.
     waitingPeriod: ""
+<<<<<<< feature/oab_helm_update_1.5.3
     # logging:
     # -- Controls whether the logs are output to standard output (true) or to a file (false, default)
     #   toStdout: false
     # -- Controls the log levels of project code and of the OIDC library. 
     # Possible values: NOTSET, DEBUG, INFO, WARNING, ERROR, CRITICAL.
     #   level: INFO
+=======
+>>>>>>> feature/podiumd-4.5.12
     frontend:
       apiUrl: ""
       apiPath: "/api/v1"
@@ -1748,6 +1751,7 @@ openinwoner:
       port: 587
       useTLS: true
     searchIndexInitContainer: true
+    oidcFrontendLogoutWithHints: false    
   persistence:
     size: 10Gi
     existingClaim: openinwoner
