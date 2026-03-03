@@ -20,11 +20,7 @@
 | Open Klant         | 2.14.0     | Minor update | 1.10.0       | Minor update |
 | Open Notificaties  | 1.14.0     | Minor update | 1.13.0       | Minor update |
 | Open Zaak          | 1.26.0     | Minor update | 1.13.0       | Minor update |
-<<<<<<< feature/oab_helm_update_1.5.3
 | Open Archiefbeheer | 1.1.1      |              | 1.5.3        | Minor update |
-=======
-| Open Archiefbeheer | 1.1.1      |              | 1.4.1        | Minor update |
->>>>>>> feature/podiumd-4.5.12
 | Kiss               | 2.1.0      | Major update | 2.1.0        | Major update |
 | Zac                | 4.0.12-1   | Major update | 1.0.165      | Minor update |
 | ZGW Office Addin   | 0.9.28     | Minor update | 0.0.65       | Patch update |
@@ -730,6 +726,7 @@ Remove the CRD from the cluster. This also removes all existing `ServiceMonitor`
 ```
 kubectl delete crd servicemonitors.monitoring.coreos.com
 ```
+
 
 
 
