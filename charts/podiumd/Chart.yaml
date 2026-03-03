@@ -2,8 +2,8 @@ apiVersion: v2
 name: podiumd
 description: PodiumD Helm chart
 type: application
-version: 4.5.11
-appVersion: "4.5.11"
+version: 4.5.12
+appVersion: "4.5.12"
 dependencies:
   # DEPRECATED: Will be removed in a future release. Use keycloak-operator instead.
   - name: keycloak
@@ -40,7 +40,7 @@ dependencies:
     repository: "@maykinmedia"
     condition: objecttypen.enabled
   - name: openarchiefbeheer
-    version: 1.4.1
+    version: 1.5.3
     repository: "@maykinmedia"
     condition: openarchiefbeheer.enabled
   - name: openklant

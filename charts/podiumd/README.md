@@ -2,25 +2,25 @@
 
 ## PodiumD versions
 
-### [4.5.9](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.5.9)
+### [4.5.12](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.5.12)
 
-**PodiumD Helm chart version: 4.5.9**
+**PodiumD Helm chart version: 4.5.12**
 
 | Component          | AppVersion | Change       | ChartVersion | Change       |
 |--------------------|------------|--------------|--------------|--------------|
 | ClamAV             | 1.4.2      |              | 3.2.0        |              |
-| Keycloak           | 26.3.1     |              | 24.8.0       |              |
+| Keycloak           | 26.5.4     | Minor update | 26.5.4       | Bitnami vervangen met officiele Operator Chart |
 | Infinispan         | 15.2       |              | 0.5.0        |              |
 | ITA                | 2.0.1      | Patch update | 2.0.1        | Patch update |
 | PABC               | 1.0.0      | New          | 1.0.0        | New          |
 | Objecten           | 3.5.0      | Minor update | 2.11.0       | Minor update |
 | Objecttypen        | 3.4.0      | Minor update | 1.6.0        | Minor update |
 | Open Formulieren   | 3.3.9      | Patch update | 1.11.6       |              |
-| Open Inwoner       | 2.0.2      | Major update | 2.1.0        | Major update |
+| Open Inwoner       | 2.0.3      | Major update | 2.1.0        | Major update |
 | Open Klant         | 2.14.0     | Minor update | 1.10.0       | Minor update |
 | Open Notificaties  | 1.14.0     | Minor update | 1.13.0       | Minor update |
 | Open Zaak          | 1.26.0     | Minor update | 1.13.0       | Minor update |
-| Open Archiefbeheer | 1.1.1      |              | 1.4.1        |              |
+| Open Archiefbeheer | 1.1.1      |              | 1.5.3        | Minor update |
 | Kiss               | 2.1.0      | Major update | 2.1.0        | Major update |
 | Zac                | 4.0.12-1   | Major update | 1.0.165      | Minor update |
 | ZGW Office Addin   | 0.9.28     | Minor update | 0.0.65       | Patch update |
@@ -699,5 +699,35 @@ Tags to add additional unreleased PodiumD functionality.
 If an Helm upgrade of a component fails because of a forbidden update to a statefullset spec the statefullset needs to be deleted prior to the Helm upgrade by the following command:
 
 $ kubectl delete sts <component>-redis-master -n podiumd --cascade=orphan
+
+### Upgrading to 4.5.12
+
+The Keycloak Operator ServiceMonitor RBAC resources have been removed from the chart. Helm will automatically delete the `*-keycloak-operator-servicemonitor` ClusterRole and ClusterRoleBinding on upgrade.
+
+However, if you previously ran an earlier version of 4.5.12 (where these resources were still present but renamed from `-view`), or if you are upgrading from 4.5.11, you must also manually remove the orphaned `-view` resources that Helm cannot track:
+
+```
+kubectl delete clusterrole <release>-keycloak-operator-servicemonitor-view --ignore-not-found
+kubectl delete clusterrolebinding <release>-keycloak-operator-servicemonitor-view --ignore-not-found
+```
+
+Replace `<release>` with your Helm release name (default: `podiumd`).
+
+#### ServiceMonitor CRD must be removed
+
+The `monitoring-logging` chart does not manage the `servicemonitors.monitoring.coreos.com` CRD. On clusters where this CRD is present but outdated (built with controller-gen ≤ v0.11.1), the Keycloak Operator will fail with:
+
+```
+failed to create typed patch object: .spec.scrapeProtocols: field not declared in schema
+```
+
+Remove the CRD from the cluster. This also removes all existing `ServiceMonitor` resources — they will be recreated by their respective operators once a newer CRD is installed:
+
+```
+kubectl delete crd servicemonitors.monitoring.coreos.com
+```
+
+
+
 
 
