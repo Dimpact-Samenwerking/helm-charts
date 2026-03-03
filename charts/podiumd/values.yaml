@@ -1235,7 +1235,6 @@ openarchiefbeheer:
     requestsReadTimeout: "5000"
     # -- Number of days to wait before destroying a list. Defaults to 7 in the application.
     waitingPeriod: ""
-
     frontend:
       apiUrl: ""
       apiPath: "/api/v1"
@@ -1741,6 +1740,7 @@ openinwoner:
       port: 587
       useTLS: true
     searchIndexInitContainer: true
+    oidcFrontendLogoutWithHints: false    
   persistence:
     size: 10Gi
     existingClaim: openinwoner
