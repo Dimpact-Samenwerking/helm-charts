@@ -2567,6 +2567,9 @@ omc:
           audience: "omc"
           userId: "OMC (Podiumd)"
           userName: "OMC (Podiumd)"
+      feature:
+        workflow:
+          version: 2
     zgw:
       auth:
         jwt:
