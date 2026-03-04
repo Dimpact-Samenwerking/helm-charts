@@ -2574,7 +2574,7 @@ omc:
         jwt:
           # NEEDS new KeyVault item: REP_OMC_AUTH_SECRET_REP
           secret: ""
-          issuer: "omc"
+          issuer: ""
           audience: "omc"
           userId: "OMC (Podiumd)"
           userName: "OMC (Podiumd)"
@@ -2584,5 +2584,7 @@ omc:
     zgw:
       auth:
         jwt:
+          secret: ""
+          issuer: ""
           userId: "OMC (PodiumD)"
           userName: "OMC (PodiumD)"
