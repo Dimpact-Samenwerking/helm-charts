@@ -2574,10 +2574,10 @@ omc:
         jwt:
           # NEEDS new KeyVault item: REP_OMC_AUTH_SECRET_REP
           secret: ""
-          issuer: ""
+          issuer: "omc"
           audience: "omc"
-          userId: "OMC (Podiumd)"
-          userName: "OMC (Podiumd)"
+          userId: "OMC (PodiumD)"
+          userName: "OMC (PodiumD)"
       feature:
         workflow:
           version: 2
