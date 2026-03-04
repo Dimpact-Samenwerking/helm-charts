@@ -18,6 +18,7 @@ Componenten op alphabetische volgorde, met sub-charts er onder:
 | - Kiss Elastic            |            |        | 1.1.0        |          |                           |
 | Objecten                  | 3.5.0      |        | 2.11.0       |          |                           |
 | Objecttypen               | 3.4.0      |        | 1.6.0        |          |                           |
+| NotifyNL OMC              | 1.17.18    |        | 0.10.0       |          |                           |
 | Open Archiefbeheer        | 1.1.1      |        | 1.4.1        |          |                           |
 | Open Formulieren          | 3.3.9      |        | 1.11.6       |          |                           |
 | Open Inwoner              | 2.0.2      |        | 2.1.0        |          |                           |
@@ -29,7 +30,6 @@ Componenten op alphabetische volgorde, met sub-charts er onder:
 | - Opentelemetry Collector |            |        | 0.142.1      |          |                           |
 | - Solr Operator           |            |        | 0.9.1        |          |                           |
 | ZGW Office Addin          | 0.9.28     |        | 0.0.65       |          |                           |
-
 
 ### [4.5.12](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.5.12)
 
