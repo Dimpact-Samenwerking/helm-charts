@@ -2558,6 +2558,9 @@ omc:
     # repository: ghcr.io/worth-nl/notifynl-omc
     tag: "1.17.18"
   settings:
+    notify:
+      api:
+        baseUrl: "https://api.notifynl.nl"
     omc:
       auth:
         jwt:
