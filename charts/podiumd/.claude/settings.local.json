@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(tar:*)",
+      "Bash(do echo:*)",
+      "Bash(do:*)",
+      "Bash(echo === $name ===:*)"
+    ]
+  }
+}
