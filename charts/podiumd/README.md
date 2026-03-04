@@ -16,9 +16,9 @@ Componenten op alphabetische volgorde, met sub-charts er onder:
 | Keycloak                  | 26.5.4     |        | 1.11.2       | Operator |                           |
 | Kiss                      | 2.1.0      | 2.2.0  | 2.1.0        | 2.2.0    |                           |
 | - Kiss Elastic            |            |        | 1.1.0        |          |                           |
-| NotifyNL OMC              | 1.17.18    |        | 0.10.0       |          |                           |
 | Objecten                  | 3.5.0      |        | 2.11.0       |          |                           |
 | Objecttypen               | 3.4.0      |        | 1.6.0        |          |                           |
+| OMC for NotifyNL          | 1.17.18    |        | 0.10.0       |          |                           |
 | Open Archiefbeheer        | 1.1.1      |        | 1.4.1        |          |                           |
 | Open Formulieren          | 3.3.9      |        | 1.11.6       |          |                           |
 | Open Inwoner              | 2.0.2      |        | 2.1.0        |          |                           |
