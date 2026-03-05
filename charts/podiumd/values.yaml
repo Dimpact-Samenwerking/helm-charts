@@ -113,7 +113,7 @@ keycloak:
   # Official Keycloak image: quay.io/keycloak/keycloak:26.5.4
   image:
     repository: quay.io/keycloak/keycloak
-    tag: 26.5.4
+    tag: 26.5.5
   # -- instances is the new operator-style replica count (falls back to replicaCount)
   instances: "2"
   ingress:
