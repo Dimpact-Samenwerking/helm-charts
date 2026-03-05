@@ -1804,6 +1804,21 @@ openinwoner:
   eck-operator:
     enabled: false
 
+referentielijsten:
+  configuration:
+    enabled: true
+    initContainer:
+      enabled: false
+  job:
+    enabled: false
+    backoffLimit: 6
+    ttlSecondsAfterFinished: 0
+    restartPolicy: OnFailure
+    # Note, this field is immutable
+    resources: {}
+  data: ""
+
+
 kisselastic:
   kibanaDomain: kiss-kb-http.podiumd.svc.cluster.local:5601
   elasticVersion: "8.19.3"

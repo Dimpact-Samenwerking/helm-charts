@@ -94,3 +94,8 @@ dependencies:
     repository: "oci://ghcr.io/platform-autorisatie-beheer-component"
     version: 1.0.0
     condition: pabc.enabled
+  - name: referentielijsten
+    alias: referentielijsten
+    repository: "@maykinmedia"
+    version: 0.6.0
+    condition: referentielijsten.enabled
