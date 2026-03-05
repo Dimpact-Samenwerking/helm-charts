@@ -29,7 +29,7 @@ keycloak-operator:
   operator:
     image:
       repository: quay.io/keycloak/keycloak-operator
-      tag: "26.5.4"
+      tag: "26.5.5"
   serviceAccount:
     create: false
 
