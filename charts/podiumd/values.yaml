@@ -2127,13 +2127,13 @@ zac:
     curlImage:
       #repository: curlimages/curl
       tag: 8.18.0
-  # ghcr.io/infonl/zaakafhandelcomponent:4.3.0
+  # ghcr.io/infonl/zaakafhandelcomponent:4.4.0
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
-    tag: 4.3.40 # ZAC Sprint 64 release & patches
+    tag: 4.4.0 # ZAC Sprint 65 release & patches
   initContainer:
-    enabled: false
+    enabled: true
   keycloak:
     adminClient:
       id: zac-admin-client
@@ -2166,16 +2166,16 @@ zac:
     url: http://objecttypen.example.nl
     token: objecttypentoken
   office_converter:
-    # ghcr.io/eugenmayer/kontextwork-converter:1.8.1
+    # ghcr.io/eugenmayer/kontextwork-converter:1.8.2
     image:
       #repository: ghcr.io/eugenmayer/kontextwork-converter
-      tag: 1.8.1
+      tag: 1.8.2
   opa:
     sidecar: true
-    # openpolicyagent/opa:1.13.2-static
+    # openpolicyagent/opa:1.14.0-static
     image:
       #repository: openpolicyagent/opa
-      tag: 1.13.2-static
+      tag: 1.14.0-static
   openForms:
     url: http://open-forms.example.nl
   organizations:
