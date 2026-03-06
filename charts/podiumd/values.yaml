@@ -2256,13 +2256,13 @@ zgw-office-addin:
     # -- MS Azure Client ID assigned to the Office Add-in application
     msalClientId: "dummy"
   frontend:
-    # ghcr.io/infonl/zgw-office-add-in-frontend:v0.9.68
+    # ghcr.io/infonl/zgw-office-add-in-frontend:v0.9.122
     image:
-      tag: v0.9.68
+      tag: v0.9.122
   backend:
-    # ghcr.io/infonl/zgw-office-add-in-backend:v0.9.68
+    # ghcr.io/infonl/zgw-office-add-in-backend:v0.9.122
     image:
-      tag: v0.9.68
+      tag: v0.9.122
     # -- ZGW API configuration for integration with the ZGW APIs provider (OpenZaak)
     zgwApis:
       url: "https://openzaak.example.nl"
