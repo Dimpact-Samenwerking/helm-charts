@@ -17,6 +17,10 @@ metadata:
   labels:
     {{- include "podiumd.labels" . | nindent 4 }}
     app.kubernetes.io/component: keycloak
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "5"
+    helm.sh/hook-delete-policy: before-hook-creation
 spec:
   ttlSecondsAfterFinished: 86400
   backoffLimit: 3
@@ -72,6 +76,13 @@ spec:
           # Build $$ at runtime so Helm's template engine never sees it and collapses it to $
           DD = '$' + '$'
 
+          # Pre-compute all interpolated values before the f-string (secret_data JSON contains
+          # curly braces which would confuse the f-string parser if called inline)
+          new_user_id_lit   = sql_lit(str(uuid.uuid4()))
+          cred_id_lit       = sql_lit(str(uuid.uuid4()))
+          secret_data_lit   = sql_lit(secret_data)
+          cred_data_lit     = sql_lit(credential_data)
+
           sql = f"""DO {DD}
           DECLARE
             v_realm_id TEXT;
@@ -85,7 +96,7 @@ spec:
             WHERE username = 'podiumd-admin' AND realm_id = v_realm_id;
 
             IF v_existing IS NULL THEN
-              v_user_id := {sql_lit(str(uuid.uuid4()))};
+              v_user_id := {new_user_id_lit};
               INSERT INTO user_entity (
                 id, username, email_constraint, email_verified, enabled,
                 federation_link, first_name, last_name, realm_id,
@@ -95,10 +106,10 @@ spec:
                 'podiumd', 'integratieteam', v_realm_id,
                 extract(epoch from now())::bigint * 1000, 0, NULL
               );
-              RAISE NOTICE 'Created user podiumd-admin (id=%%)', v_user_id;
+              RAISE NOTICE 'Created user podiumd-admin (id=%)', v_user_id;
             ELSE
               v_user_id := v_existing;
-              RAISE NOTICE 'Found existing user podiumd-admin (id=%%)', v_user_id;
+              RAISE NOTICE 'Found existing user podiumd-admin (id=%)', v_user_id;
             END IF;
 
             UPDATE user_entity
@@ -111,9 +122,9 @@ spec:
               id, salt, type, user_id, created_date, user_label,
               secret_data, credential_data, priority
             ) VALUES (
-              {sql_lit(str(uuid.uuid4()))}, NULL, 'password', v_user_id,
+              {cred_id_lit}, NULL, 'password', v_user_id,
               extract(epoch from now())::bigint * 1000, NULL,
-              {sql_lit(secret_data)}, {sql_lit(credential_data)}, 10
+              {secret_data_lit}, {cred_data_lit}, 10
             );
 
             INSERT INTO user_role_mapping (role_id, user_id)
