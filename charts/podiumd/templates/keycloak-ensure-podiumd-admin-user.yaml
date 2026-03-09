@@ -6,8 +6,6 @@
 #   - assigns the master realm admin role
 #   - clears all required actions (e.g. Configure OTP) so the user can log in immediately
 #
-# Runs as hook-weight 5, before the master-realm-config-job (weight 10).
-#
 # Design: two-container approach to avoid runtime pip install (not viable in air-gapped clusters):
 #   init container — Python (stdlib only) computes the PBKDF2-SHA256 hash and writes a SQL
 #                    file to a shared emptyDir volume (/work/setup.sql).
@@ -19,10 +17,6 @@ metadata:
   labels:
     {{- include "podiumd.labels" . | nindent 4 }}
     app.kubernetes.io/component: keycloak
-  annotations:
-    helm.sh/hook: post-install,post-upgrade
-    helm.sh/hook-weight: "5"
-    helm.sh/hook-delete-policy: before-hook-creation
 spec:
   ttlSecondsAfterFinished: 86400
   backoffLimit: 3
