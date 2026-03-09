@@ -50,6 +50,9 @@ keycloak-operator:
       image:
         repository: curlimages/curl
         tag: "8.1.2"
+      # Client secret for the keycloak-operator client. Set this to a known value so Helm
+      # can create the K8s secret directly. The job will enforce this secret in Keycloak.
+      clientSecret: ""
     importPodiumdRealm:
       enabled: true
 
