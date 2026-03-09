@@ -42,6 +42,11 @@ keycloak-operator:
     image:
       repository: postgres
       tag: "16"
+  saOperatorJob:
+    # Container: curl-based job to provision the keycloak-operator service account client.
+    image:
+      repository: curlimages/curl
+      tag: "8.1.2"
 
 keycloak:
   additionalOptions:
