@@ -69,7 +69,10 @@ spec:
               """Wrap s as a SQL string literal, escaping internal single quotes."""
               return "'" + s.replace("'", "''") + "'"
 
-          sql = """DO $$
+          # Build $$ at runtime so Helm's template engine never sees it and collapses it to $
+          DD = '$' + '$'
+
+          sql = f"""DO {DD}
           DECLARE
             v_realm_id TEXT;
             v_user_id  TEXT;
@@ -82,7 +85,7 @@ spec:
             WHERE username = 'podiumd-admin' AND realm_id = v_realm_id;
 
             IF v_existing IS NULL THEN
-              v_user_id := {new_user_id};
+              v_user_id := {sql_lit(str(uuid.uuid4()))};
               INSERT INTO user_entity (
                 id, username, email_constraint, email_verified, enabled,
                 federation_link, first_name, last_name, realm_id,
@@ -92,10 +95,10 @@ spec:
                 'podiumd', 'integratieteam', v_realm_id,
                 extract(epoch from now())::bigint * 1000, 0, NULL
               );
-              RAISE NOTICE 'Created user podiumd-admin (id=%)', v_user_id;
+              RAISE NOTICE 'Created user podiumd-admin (id=%%)', v_user_id;
             ELSE
               v_user_id := v_existing;
-              RAISE NOTICE 'Found existing user podiumd-admin (id=%)', v_user_id;
+              RAISE NOTICE 'Found existing user podiumd-admin (id=%%)', v_user_id;
             END IF;
 
             UPDATE user_entity
@@ -108,9 +111,9 @@ spec:
               id, salt, type, user_id, created_date, user_label,
               secret_data, credential_data, priority
             ) VALUES (
-              {cred_id}, NULL, 'password', v_user_id,
+              {sql_lit(str(uuid.uuid4()))}, NULL, 'password', v_user_id,
               extract(epoch from now())::bigint * 1000, NULL,
-              {secret_data}, {credential_data}, 10
+              {sql_lit(secret_data)}, {sql_lit(credential_data)}, 10
             );
 
             INSERT INTO user_role_mapping (role_id, user_id)
@@ -127,13 +130,8 @@ spec:
             DELETE FROM user_required_action WHERE user_id = v_user_id;
 
             RAISE NOTICE 'User podiumd-admin configured successfully';
-          END $$;
-          """.format(
-              new_user_id   = sql_lit(str(uuid.uuid4())),
-              cred_id       = sql_lit(str(uuid.uuid4())),
-              secret_data   = sql_lit(secret_data),
-              credential_data = sql_lit(credential_data),
-          )
+          END {DD};
+          """
 
           with open('/work/setup.sql', 'w') as f:
               f.write(sql)
