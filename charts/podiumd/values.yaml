@@ -32,6 +32,16 @@ keycloak-operator:
       tag: "26.5.4"
   serviceAccount:
     create: false
+  adminUserJob:
+    # Init container: Python (stdlib only, no pip install) — computes the PBKDF2 hash
+    # and writes the SQL to a shared volume.
+    initImage:
+      repository: python
+      tag: "3.12-slim"
+    # Main container: runs psql to execute the generated SQL against the Keycloak DB.
+    image:
+      repository: postgres
+      tag: "16"
 
 keycloak:
   additionalOptions:
@@ -138,16 +148,6 @@ keycloak:
     passwordSecret:
       name: ""
       key: ""
-  adminUserJob:
-    # Init container: Python (stdlib only, no pip install) — computes the PBKDF2 hash
-    # and writes the SQL to a shared volume.
-    initImage:
-      repository: python
-      tag: "3.12-slim"
-    # Main container: runs psql to execute the generated SQL against the Keycloak DB.
-    image:
-      repository: postgres
-      tag: "16"
   keycloakConfigCli:
     # disabled for now, will be reused for future configuration management of keycloak
     enabled: false
