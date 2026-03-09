@@ -38,16 +38,19 @@ keycloak-operator:
       # Init container: Python (stdlib only, no pip install) — computes the PBKDF2 hash
       # and writes the SQL to a shared volume.
       initImage:
+        registry: ""
         repository: python
         tag: "3.12-slim"
       # Main container: runs psql to execute the generated SQL against the Keycloak DB.
       image:
+        registry: ""
         repository: postgres
         tag: "16"
     ensureOperatorSa:
       enabled: true
       # Container: curl-based job to provision the keycloak-operator service account client.
       image:
+        registry: ""
         repository: curlimages/curl
         tag: "8.1.2"
       # Client secret for the keycloak-operator client. Set this to a known value so Helm
@@ -101,7 +104,7 @@ keycloak:
     #        role: "admin"
     # -- identity provider mapper for the admin realm
     #adminIdentityProviderMappers: {}
-    adminOtpEnabled: false
+    adminOtpEnabled: true
     realm: podiumd
     realmDisplayName: PodiumD
     realmFrontendUrl: https://keycloak.example.nl
@@ -167,6 +170,7 @@ keycloak:
     # image parameters for keycloak-config-cli
     # Official keycloak-config-cli image: adorsys/keycloak-config-cli:6.4.1-26
     image:
+      registry: ""
       repository: adorsys/keycloak-config-cli
       tag: "6.4.1-26"
   podTemplate:

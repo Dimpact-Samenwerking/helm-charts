@@ -31,7 +31,7 @@ spec:
       restartPolicy: Never
       containers:
       - name: ensure-operator-sa
-        image: {{ (index .Values "keycloak-operator").jobs.ensureOperatorSa.image.repository }}:{{ (index .Values "keycloak-operator").jobs.ensureOperatorSa.image.tag }}
+        image: {{ include "podiumd.image" (index .Values "keycloak-operator").jobs.ensureOperatorSa.image }}
         command: ["/bin/sh", "-c"]
         args:
         - |

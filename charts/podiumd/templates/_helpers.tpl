@@ -102,6 +102,15 @@ Supports both a plain string and a map with registry/repository/tag fields:
     repository: keycloak/keycloak
     tag: "26.5.3"
 */}}
+{{/*
+Renders a container image from a dict with optional registry, repository, and tag.
+Usage: {{ include "podiumd.image" .Values.path.to.image }}
+*/}}
+{{- define "podiumd.image" -}}
+{{- if .registry -}}{{ .registry }}/{{ end -}}
+{{- .repository -}}:{{- .tag -}}
+{{- end -}}
+
 {{- define "keycloak.image" -}}
 {{- $image := .Values.keycloak.image -}}
 {{- if kindIs "string" $image -}}

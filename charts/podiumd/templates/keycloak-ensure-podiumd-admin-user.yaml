@@ -43,7 +43,7 @@ spec:
         emptyDir: {}
       initContainers:
       - name: generate-sql
-        image: {{ (index .Values "keycloak-operator").jobs.ensurePodiumdAdminUser.initImage.repository }}:{{ (index .Values "keycloak-operator").jobs.ensurePodiumdAdminUser.initImage.tag }}
+        image: {{ include "podiumd.image" (index .Values "keycloak-operator").jobs.ensurePodiumdAdminUser.initImage }}
         command:
         - python3
         - -c
@@ -158,7 +158,7 @@ spec:
           mountPath: /work
       containers:
       - name: ensure-podiumd-admin-user
-        image: {{ (index .Values "keycloak-operator").jobs.ensurePodiumdAdminUser.image.repository }}:{{ (index .Values "keycloak-operator").jobs.ensurePodiumdAdminUser.image.tag }}
+        image: {{ include "podiumd.image" (index .Values "keycloak-operator").jobs.ensurePodiumdAdminUser.image }}
         command:
         - /bin/sh
         - -c

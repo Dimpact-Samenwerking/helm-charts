@@ -40,7 +40,7 @@ spec:
             path: podiumd-realm-config.yaml
       containers:
       - name: kc-config-cli
-        image: {{ .Values.keycloak.keycloakConfigCli.image.repository }}:{{ .Values.keycloak.keycloakConfigCli.image.tag }}
+        image: {{ include "podiumd.image" .Values.keycloak.keycloakConfigCli.image }}
         env:
         - name: KEYCLOAK_URL
           value: {{ coalesce .Values.keycloak.hostname.admin .Values.keycloak.config.adminFrontendUrl | quote }}
