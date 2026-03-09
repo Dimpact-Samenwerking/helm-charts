@@ -47,6 +47,11 @@ keycloak-operator:
     image:
       repository: curlimages/curl
       tag: "8.1.2"
+  realmImportJob:
+    # Init container: Alpine with curl+openssl for JWT auth and client secret retrieval.
+    initImage:
+      repository: alpine
+      tag: "3.20"
 
 keycloak:
   additionalOptions:
