@@ -1,4 +1,4 @@
-{{- if (index .Values "keycloak-operator").enabled }}
+{{- if and (index .Values "keycloak-operator").enabled (index .Values "keycloak-operator").jobs.importPodiumdRealm.enabled }}
 ---
 # Job: import the podiumd realm config via keycloak-config-cli.
 #
@@ -48,7 +48,7 @@ spec:
         emptyDir: {}
       initContainers:
       - name: jwt-auth
-        image: {{ (index .Values "keycloak-operator").realmImportJob.initImage.repository }}:{{ (index .Values "keycloak-operator").realmImportJob.initImage.tag }}
+        image: {{ (index .Values "keycloak-operator").jobs.importPodiumdRealm.initImage.repository }}:{{ (index .Values "keycloak-operator").jobs.importPodiumdRealm.initImage.tag }}
         command: ["/bin/sh", "-c"]
         args:
         - |

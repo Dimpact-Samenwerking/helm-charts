@@ -32,26 +32,30 @@ keycloak-operator:
       tag: "26.5.4"
   serviceAccount:
     create: false
-  adminUserJob:
-    # Init container: Python (stdlib only, no pip install) — computes the PBKDF2 hash
-    # and writes the SQL to a shared volume.
-    initImage:
-      repository: python
-      tag: "3.12-slim"
-    # Main container: runs psql to execute the generated SQL against the Keycloak DB.
-    image:
-      repository: postgres
-      tag: "16"
-  saOperatorJob:
-    # Container: curl-based job to provision the keycloak-operator service account client.
-    image:
-      repository: curlimages/curl
-      tag: "8.1.2"
-  realmImportJob:
-    # Init container: Alpine with curl+openssl for JWT auth and client secret retrieval.
-    initImage:
-      repository: alpine
-      tag: "3.20"
+  jobs:
+    ensurePodiumdAdminUser:
+      enabled: true
+      # Init container: Python (stdlib only, no pip install) — computes the PBKDF2 hash
+      # and writes the SQL to a shared volume.
+      initImage:
+        repository: python
+        tag: "3.12-slim"
+      # Main container: runs psql to execute the generated SQL against the Keycloak DB.
+      image:
+        repository: postgres
+        tag: "16"
+    ensureOperatorSa:
+      enabled: true
+      # Container: curl-based job to provision the keycloak-operator service account client.
+      image:
+        repository: curlimages/curl
+        tag: "8.1.2"
+    importPodiumdRealm:
+      enabled: true
+      # Init container: Alpine with curl+openssl for JWT auth and client secret retrieval.
+      initImage:
+        repository: alpine
+        tag: "3.20"
 
 keycloak:
   additionalOptions:

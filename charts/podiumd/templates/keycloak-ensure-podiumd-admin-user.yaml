@@ -1,4 +1,4 @@
-{{- if (index .Values "keycloak-operator").enabled }}
+{{- if and (index .Values "keycloak-operator").enabled (index .Values "keycloak-operator").jobs.ensurePodiumdAdminUser.enabled }}
 ---
 # Job: ensure the `podiumd-admin` user exists in the Keycloak master realm.
 # Creates or updates the user on every install/upgrade:
@@ -43,7 +43,7 @@ spec:
         emptyDir: {}
       initContainers:
       - name: generate-sql
-        image: {{ (index .Values "keycloak-operator").adminUserJob.initImage.repository }}:{{ (index .Values "keycloak-operator").adminUserJob.initImage.tag }}
+        image: {{ (index .Values "keycloak-operator").jobs.ensurePodiumdAdminUser.initImage.repository }}:{{ (index .Values "keycloak-operator").jobs.ensurePodiumdAdminUser.initImage.tag }}
         command:
         - python3
         - -c
@@ -158,7 +158,7 @@ spec:
           mountPath: /work
       containers:
       - name: ensure-podiumd-admin-user
-        image: {{ (index .Values "keycloak-operator").adminUserJob.image.repository }}:{{ (index .Values "keycloak-operator").adminUserJob.image.tag }}
+        image: {{ (index .Values "keycloak-operator").jobs.ensurePodiumdAdminUser.image.repository }}:{{ (index .Values "keycloak-operator").jobs.ensurePodiumdAdminUser.image.tag }}
         command:
         - /bin/sh
         - -c
