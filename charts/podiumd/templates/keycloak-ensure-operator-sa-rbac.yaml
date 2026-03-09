@@ -1,0 +1,45 @@
+{{- if and (index .Values "keycloak-operator").enabled (index .Values "keycloak-operator").jobs.ensureOperatorSa.enabled }}
+---
+# ServiceAccount, Role and RoleBinding for the ensure-keycloak-operator-sa job.
+# The job needs to create/patch the keycloak-operator-client-secret Secret
+# so that the import-podiumd-realm-job can use it for client_credentials auth.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ensure-keycloak-operator-sa
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: keycloak
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ensure-keycloak-operator-sa
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: keycloak
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  resourceNames: ["keycloak-operator-client-secret"]
+  verbs: ["get", "create", "patch", "update"]
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ensure-keycloak-operator-sa
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: keycloak
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ensure-keycloak-operator-sa
+subjects:
+- kind: ServiceAccount
+  name: ensure-keycloak-operator-sa
+  namespace: {{ .Release.Namespace }}
+{{- end }}

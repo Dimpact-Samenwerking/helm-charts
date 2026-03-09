@@ -52,10 +52,6 @@ keycloak-operator:
         tag: "8.1.2"
     importPodiumdRealm:
       enabled: true
-      # Init container: Alpine with curl+openssl for JWT auth and client secret retrieval.
-      initImage:
-        repository: alpine
-        tag: "3.20"
 
 keycloak:
   additionalOptions:

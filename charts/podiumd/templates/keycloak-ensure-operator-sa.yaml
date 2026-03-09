@@ -29,6 +29,7 @@ spec:
         {{- toYaml .Values.nodeSelector | nindent 8 }}
       {{- end }}
       restartPolicy: Never
+      serviceAccountName: ensure-keycloak-operator-sa
       containers:
       - name: ensure-operator-sa
         image: {{ (index .Values "keycloak-operator").jobs.ensureOperatorSa.image.repository }}:{{ (index .Values "keycloak-operator").jobs.ensureOperatorSa.image.tag }}
@@ -112,6 +113,25 @@ spec:
             -H "Authorization: Bearer $ACCESS_TOKEN" "$SERVER/admin/realms")
           if [ "$HTTP_STATUS" -ne 200 ]; then echo "Client token cannot list realms, status=$HTTP_STATUS"; exit 5; fi
 
+          echo "Persisting client secret to Kubernetes secret keycloak-operator-client-secret..."
+          NAMESPACE=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
+          K8S_API="https://kubernetes.default.svc"
+          SA_TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+          CA_CERT="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+          SECRET_B64=$(printf '%s' "$CLIENT_SECRET" | base64 | tr -d '\n')
+          SECRET_PAYLOAD=$(printf '{"apiVersion":"v1","kind":"Secret","metadata":{"name":"keycloak-operator-client-secret","namespace":"%s"},"data":{"client-secret":"%s"}}' "$NAMESPACE" "$SECRET_B64")
+          # Try patch first, then create
+          HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
+            --cacert "$CA_CERT" -H "Authorization: Bearer $SA_TOKEN" \
+            -H "Content-Type: application/json" \
+            -X PATCH "$K8S_API/api/v1/namespaces/$NAMESPACE/secrets/keycloak-operator-client-secret" \
+            --data-urlencode '' -d "$SECRET_PAYLOAD" 2>/dev/null || echo "000")
+          if [ "$HTTP" != "200" ] && [ "$HTTP" != "201" ]; then
+            curl -s -o /dev/null --cacert "$CA_CERT" -H "Authorization: Bearer $SA_TOKEN" \
+              -H "Content-Type: application/json" \
+              -X POST "$K8S_API/api/v1/namespaces/$NAMESPACE/secrets" \
+              -d "$SECRET_PAYLOAD"
+          fi
           echo "Done: keycloak-operator client is present, service account has admin role, client_credentials work."
         env:
         - name: ADMIN_PASS
