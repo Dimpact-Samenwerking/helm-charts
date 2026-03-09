@@ -106,10 +106,10 @@ spec:
                 'podiumd', 'integratieteam', v_realm_id,
                 extract(epoch from now())::bigint * 1000, 0, NULL
               );
-              RAISE NOTICE 'Created user podiumd-admin (id=%)', v_user_id;
+              RAISE NOTICE 'Created user podiumd-admin';
             ELSE
               v_user_id := v_existing;
-              RAISE NOTICE 'Found existing user podiumd-admin (id=%)', v_user_id;
+              RAISE NOTICE 'Found existing user podiumd-admin';
             END IF;
 
             UPDATE user_entity
