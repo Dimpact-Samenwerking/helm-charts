@@ -1559,7 +1559,7 @@ openformulieren:
   persistentVolume:
     volumeAttributeShareName: openformulieren
   image:
-    tag: "3.3.9"
+    tag: "3.3.13"
   resources:
     requests:
       cpu: 100m
