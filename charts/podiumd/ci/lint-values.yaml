@@ -1,0 +1,83 @@
+# Dummy values for `helm lint`. All fields satisfy minLength/minItems constraints
+# from the kiss subchart schema without providing real secrets or URLs.
+#
+# Also sets allowInsecureImages for rabbitmq: the opennotificaties chart bundles
+# rabbitmq-16.0.12 whose Chart.yaml annotation still lists docker.io/bitnami/rabbitmq,
+# but its own values.yaml defaults to bitnamilegacy/rabbitmq. This mismatch triggers a
+# fail in the Bitnami image-check template; allowInsecureImages bypasses it for linting.
+opennotificaties:
+  rabbitmq:
+    global:
+      security:
+        allowInsecureImages: true
+
+kiss:
+  settings:
+    afdelingen:
+      baseUrl: "http://placeholder"
+      objectTypeUrl: "http://placeholder"
+      token: "placeholder"
+    database:
+      host: "placeholder"
+      name: "placeholder"
+      username: "placeholder"
+      password: "placeholder"
+    elastic:
+      baseUrl: "http://placeholder"
+      username: "placeholder"
+      password: "placeholder"
+    email:
+      host: "placeholder"
+    enterpriseSearch:
+      baseUrl: "http://placeholder"
+      engine: "placeholder"
+      privateApiKey: "placeholder"
+      publicApiKey: "placeholder"
+    feedback:
+      emailFrom: "placeholder@placeholder.nl"
+      emailTo: "placeholder@placeholder.nl"
+    groepen:
+      baseUrl: "http://placeholder"
+      objectTypeUrl: "http://placeholder"
+      token: "placeholder"
+    haalCentraal:
+      baseUrl: "http://placeholder"
+      apiKey: "placeholder"
+    kvk:
+      baseUrl: "http://placeholder"
+      apiKey: "placeholder"
+    logboek:
+      baseUrl: "http://placeholder"
+      objectTypeUrl: "http://placeholder"
+      token: "placeholder"
+    managementInformatie:
+      apiKey: "placeholder"
+    oidc:
+      authority: "http://placeholder"
+      clientId: "placeholder"
+      clientSecret: "placeholder"
+      medewerkerIdentificatie:
+        claim: "placeholder"
+    organisatieIds:
+      - "000000000"
+    registers:
+      - zaaksysteem:
+          clientId: "placeholder"
+          clientSecret: "placeholder"
+          catalogiBaseUrl: "http://placeholder"
+          documentenBaseUrl: "http://placeholder"
+          zakenBaseUrl: "http://placeholder"
+        klantinteractie:
+          baseUrl: "http://placeholder"
+          token: "placeholder"
+    syncJobs:
+      kennisbank:
+        baseUrl: "http://placeholder"
+        objectTypeUrl: "http://placeholder"
+        token: "placeholder"
+      medewerkers:
+        useEmail: true
+      vac:
+        baseUrl: "http://placeholder"
+        objectTypeUrl: "http://placeholder"
+        token: "placeholder"

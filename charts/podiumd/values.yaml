@@ -138,13 +138,13 @@ keycloak:
   # image parameters for keycloak-operator
   # Official Keycloak image: quay.io/keycloak/keycloak:26.5.4
   image:
+    registry: ""
     repository: quay.io/keycloak/keycloak
     tag: 26.5.4
   # -- instances is the new operator-style replica count (falls back to replicaCount)
   instances: "2"
   ingress:
     enabled: false
-    hostnameStrict: true
   externalDatabase:
     vendor: "postgres"
     host: "postgres"
@@ -506,6 +506,10 @@ infinispan:
 openzaak:
   configuration:
     enabled: true
+    notificatiesAuthorization:
+      enabled: true
+    notificaties:
+      enabled: true
     initContainer:
       enabled: false
     job:
@@ -864,6 +868,10 @@ opennotificaties:
   flower:
     enabled: false
   rabbitmq:
+    image:
+      registry: docker.io
+      repository: bitnamilegacy/rabbitmq
+      tag: 4.1.3-debian-12-r0
     resources:
       requests:
         cpu: 300m
@@ -2185,7 +2193,7 @@ zac:
     image:
       # repository: nginxinc/nginx-unprivileged
       tag: 1.29.2
-  # notificationsSecretKey: "changeme"
+  notificationsSecretKey: "changeme"
   objectenApi:
     url: http://objecten.example.nl
     token: objectentoken

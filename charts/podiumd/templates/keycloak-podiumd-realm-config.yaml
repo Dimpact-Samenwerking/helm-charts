@@ -1,4 +1,4 @@
-{{- if .Values.keycloak.enabled -}}
+{{- if (index .Values "keycloak-operator").enabled -}}
 {{- if .Values.keycloak.keycloakConfigCli.enabled -}}
 apiVersion: v1
 kind: ConfigMap
