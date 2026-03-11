@@ -4,7 +4,6 @@ description: PodiumD Helm chart
 type: application
 version: 4.5.13
 appVersion: "4.5.13"
-dependencies:
   # DEPRECATED: Will be removed in a future release. Use keycloak-operator instead.
   - name: keycloak
     version: 24.8.0
