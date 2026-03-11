@@ -1,5 +1,4 @@
-{{- if (index .Values "keycloak-operator").enabled -}}
-{{- if .Values.keycloak.keycloakConfigCli.enabled -}}
+{{- if and (index .Values "keycloak-operator").enabled (index .Values "keycloak-operator").jobs.importMasterRealm.enabled -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -33,5 +32,4 @@ data:
 {{- with .Values.keycloak.config.adminIdentityProviderMappers }}
     {{- toYaml . | nindent 4 }}
 {{- end }}
-{{- end -}}
 {{- end -}}

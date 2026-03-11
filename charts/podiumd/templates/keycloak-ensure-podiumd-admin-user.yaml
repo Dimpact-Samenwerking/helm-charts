@@ -17,13 +17,9 @@ metadata:
   labels:
     {{- include "podiumd.labels" . | nindent 4 }}
     app.kubernetes.io/component: keycloak
-  annotations:
-    helm.sh/hook: pre-install,pre-upgrade
-    helm.sh/hook-weight: "5"
-    helm.sh/hook-delete-policy: before-hook-creation
 spec:
-  ttlSecondsAfterFinished: 86400
-  backoffLimit: 3
+  ttlSecondsAfterFinished: 3600
+  backoffLimit: 10
   template:
     metadata:
       labels:
@@ -41,7 +37,51 @@ spec:
       volumes:
       - name: work
         emptyDir: {}
+      - name: skip-flag
+        emptyDir: {}
       initContainers:
+      - name: check-operator-sa
+        image: {{ include "podiumd.image" (index .Values "keycloak-operator").jobs.ensureOperatorSa.image }}
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+          if [ -z "$CLIENT_ID" ] || [ -z "$CLIENT_SECRET" ]; then
+            echo "keycloak-operator-client-secret not available — will run podiumd-admin setup"
+            exit 0
+          fi
+          TOKEN=$(curl -s -X POST \
+            "http://keycloak-service:8080/realms/master/protocol/openid-connect/token" \
+            -d "grant_type=client_credentials&client_id=$CLIENT_ID&client_secret=$CLIENT_SECRET" \
+            | sed -n 's/.*"access_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+          if [ -z "$TOKEN" ]; then
+            echo "keycloak-operator SA could not authenticate — will run podiumd-admin setup"
+            exit 0
+          fi
+          ADMIN_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer $TOKEN" \
+            "http://keycloak-service:8080/admin/realms")
+          if [ "$ADMIN_STATUS" = "200" ]; then
+            echo "keycloak-operator SA authenticated and has admin realm access — skipping podiumd-admin setup"
+            touch /skip/done
+          else
+            echo "keycloak-operator SA authenticated but admin API returned $ADMIN_STATUS — will run podiumd-admin setup"
+          fi
+        env:
+        - name: CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-operator-client-secret
+              key: clientId
+              optional: true
+        - name: CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-operator-client-secret
+              key: clientSecret
+              optional: true
+        volumeMounts:
+        - name: skip-flag
+          mountPath: /skip
       - name: generate-sql
         image: {{ include "podiumd.image" (index .Values "keycloak-operator").jobs.ensurePodiumdAdminUser.initImage }}
         command:
@@ -163,6 +203,10 @@ spec:
         - /bin/sh
         - -c
         - |
+          if [ -f /skip/done ]; then
+            echo "keycloak-operator SA already ready — skipping podiumd-admin DB update"
+            exit 0
+          fi
           set -e
           echo "Waiting for database to be ready..."
           for i in $(seq 1 15); do

@@ -1,16 +1,16 @@
-{{- if and (index .Values "keycloak-operator").enabled (index .Values "keycloak-operator").jobs.importPodiumdRealm.enabled }}
+{{- if and (index .Values "keycloak-operator").enabled (index .Values "keycloak-operator").jobs.importMasterRealm.enabled }}
 ---
-# Job: import the podiumd realm config via keycloak-config-cli.
+# Job: import the master realm config via keycloak-config-cli.
 # Uses the keycloak-operator client secret (stored by ensure-keycloak-operator-sa job)
-# to authenticate via client_credentials — no podiumd-admin or JWT key needed.
+# to authenticate via client_credentials.
 #
 # External dependencies:
-#   ConfigMap: keycloak-podiumd-realm-config  key: podiumd-realm-config.yaml
+#   ConfigMap: keycloak-master-realm-config  key: master.yaml
 #   Secret:    keycloak-operator-client-secret key: client-secret (written by ensure-keycloak-operator-sa)
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: import-podiumd-realm-job
+  name: import-master-realm-job
   labels:
     {{- include "podiumd.labels" . | nindent 4 }}
     app.kubernetes.io/component: keycloak
@@ -56,10 +56,10 @@ spec:
       volumes:
       - name: realm-configs
         configMap:
-          name: keycloak-podiumd-realm-config
+          name: keycloak-master-realm-config
           items:
-          - key: podiumd.yaml
-            path: podiumd.yaml
+          - key: master.yaml
+            path: master.yaml
       containers:
       - name: kc-config-cli
         image: {{ include "podiumd.image" .Values.keycloak.keycloakConfigCli.image }}
@@ -78,7 +78,7 @@ spec:
         - name: KEYCLOAK_REALM
           value: "master"
         - name: IMPORT_FILES_LOCATIONS
-          value: "/config/podiumd.yaml"
+          value: "/config/master.yaml"
         - name: IMPORT_REMOTESTATE_ENABLED
           value: "true"
         - name: IMPORT_MANAGED_ROLE
