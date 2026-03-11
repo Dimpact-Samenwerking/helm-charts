@@ -2,9 +2,9 @@
 
 ## PodiumD versions
 
-### [4.5.12](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.5.12)
+### [4.5.12](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.5.13)
 
-**PodiumD Helm chart version: 4.5.12**
+**PodiumD Helm chart version: 4.5.13**
 
 | Component          | AppVersion | Change       | ChartVersion | Change                                  |
 |--------------------|------------|--------------|--------------|-----------------------------------------|
