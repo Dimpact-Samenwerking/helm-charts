@@ -9,7 +9,7 @@
 | Component          | AppVersion | Change       | ChartVersion | Change       |
 |--------------------|------------|--------------|--------------|--------------|
 | ClamAV             | 1.4.2      |              | 3.2.0        |              |
-| Keycloak           | 26.5.4     | Minor update | 26.5.4       | Bitnami vervangen met officiele Operator Chart |
+| Keycloak           | 26.5.5     | Minor update | 26.5.4       | Bitnami vervangen met officiele Operator Chart |
 | Infinispan         | 15.2       |              | 0.5.0        |              |
 | ITA                | 2.0.1      | Patch update | 2.0.1        | Patch update |
 | PABC               | 1.0.0      | New          | 1.0.0        | New          |
@@ -726,6 +726,7 @@ Remove the CRD from the cluster. This also removes all existing `ServiceMonitor`
 ```
 kubectl delete crd servicemonitors.monitoring.coreos.com
 ```
+
 
 
 
