@@ -110,10 +110,10 @@ keycloak:
   http:
     httpEnabled: true
   # image parameters for keycloak-operator
-  # Official Keycloak image: quay.io/keycloak/keycloak:26.5.4
+  # Official Keycloak image: quay.io/keycloak/keycloak:26.5.5
   image:
     repository: quay.io/keycloak/keycloak
-    tag: 26.5.4
+    tag: 26.5.5
   # -- instances is the new operator-style replica count (falls back to replicaCount)
   instances: "2"
   ingress:
@@ -1240,7 +1240,7 @@ openarchiefbeheer:
     # logging:
     # -- Controls whether the logs are output to standard output (true) or to a file (false, default)
     #   toStdout: false
-    # -- Controls the log levels of project code and of the OIDC library. 
+    # -- Controls the log levels of project code and of the OIDC library.
     # Possible values: NOTSET, DEBUG, INFO, WARNING, ERROR, CRITICAL.
     #   level: INFO
     frontend:
@@ -1748,7 +1748,7 @@ openinwoner:
       port: 587
       useTLS: true
     searchIndexInitContainer: true
-    oidcFrontendLogoutWithHints: false    
+    oidcFrontendLogoutWithHints: false
   persistence:
     size: 10Gi
     existingClaim: openinwoner
