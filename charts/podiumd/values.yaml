@@ -2588,15 +2588,15 @@ omc:
           issuer: ""
           userId: "OMC (PodiumD)"
           userName: "OMC (PodiumD)"
-    variable:
-      # including dummy defaults for object types, because R'dam wants to POC with object-scenario's
-      objectType:
-        taskObjectType:
-          uuid: 00000000-0000-1000-b000-000000000000
-        messageObjectType:
-          uuid: 00000000-0000-1000-b000-000000000000
-          version: 1
-        decisionInfoObjectType:
-          uuids: ["00000000-0000-1000-b000-000000000000"]
-        ktoObjectType:
-          uuids: ["00000000-0000-1000-b000-000000000000"]
+      variable:
+        # including dummy defaults for object types, because R'dam wants to POC with object-scenario's
+        objectType:
+          taskObjectType:
+            uuid: 00000000-0000-1000-b000-000000000000
+          messageObjectType:
+            uuid: 00000000-0000-1000-b000-000000000000
+            version: 1
+          decisionInfoObjectType:
+            uuids: ["00000000-0000-1000-b000-000000000000"]
+          ktoObjectType:
+            uuids: ["00000000-0000-1000-b000-000000000000"]
