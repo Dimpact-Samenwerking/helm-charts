@@ -2508,7 +2508,7 @@ ita:
 
     image:
       repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller"
-      tag: "2.0.1"
+      tag: "2.1.1"
       pullPolicy: Always
 
     notification:
