@@ -22,14 +22,14 @@ persistentVolume:
 keycloak-operator:
   enabled: true
   # Adfinis Helm chart wrapping the official Keycloak Operator manifests.
-  # Chart: https://charts.adfinis.com / adfinis/keycloak-operator (appVersion 26.5.4)
+  # Chart: https://charts.adfinis.com / adfinis/keycloak-operator (appVersion 26.5.5)
   # Note: it appears that the podname automatically appends -operator.
-  # Official operator image: quay.io/keycloak/keycloak-operator:26.5.4
+  # Official operator image: quay.io/keycloak/keycloak-operator:26.5.5
   fullnameOverride: keycloak
   operator:
     image:
       repository: quay.io/keycloak/keycloak-operator
-      tag: "26.5.4"
+      tag: "26.5.5"
   serviceAccount:
     create: false
 
@@ -150,7 +150,7 @@ keycloak:
     metadata:
       labels:
         app: keycloak
-        version: 26.5.4
+        version: 26.5.5
     spec:
       securityContext:
         runAsNonRoot: true
@@ -991,7 +991,7 @@ objecten:
   persistentVolume:
     volumeAttributeShareName: objecten
   image:
-    tag: "3.5.0"
+    tag: "3.6.0"
   resources:
     requests:
       cpu: 100m
@@ -1108,7 +1108,7 @@ objecttypen:
       useTLS: true
     disable2fa: false
   image:
-    tag: "3.4.0"
+    tag: "3.5.0"
   # used for create-required-objecttypen podiumd job only
   create_required_objecttypen_job:
     enabled: true
@@ -1368,7 +1368,7 @@ openklant:
   persistentVolume:
     volumeAttributeShareName: openklant
   image:
-    tag: "2.14.0"
+    tag: "2.15.0"
   resources:
     requests:
       cpu: 100m
@@ -1566,7 +1566,7 @@ openformulieren:
   persistentVolume:
     volumeAttributeShareName: openformulieren
   image:
-    tag: "3.3.13"
+    tag: "3.4.5"
   resources:
     requests:
       cpu: 100m
@@ -1748,14 +1748,14 @@ openinwoner:
       port: 587
       useTLS: true
     searchIndexInitContainer: true
-    oidcFrontendLogoutWithHints: false    
+    oidcFrontendLogoutWithHints: false
   persistence:
     size: 10Gi
     existingClaim: openinwoner
   persistentVolume:
     volumeAttributeShareName: openinwoner
   image:
-    tag: "2.0.3"
+    tag: "2.1.0"
   resources:
     requests:
       cpu: 200m
@@ -2122,18 +2122,18 @@ zac:
     code: "007"
     naam: "Example Gemeente"
     mail: "noreply@example.nl"
-  # curlimages/curl:8.16.0
+  # curlimages/curl:8.18.0
   global:
     curlImage:
       #repository: curlimages/curl
-      tag: 8.16.0
-  # ghcr.io/infonl/zaakafhandelcomponent:4.0.12-1
+      tag: 8.18.0
+  # ghcr.io/infonl/zaakafhandelcomponent:4.3.61
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
-    tag: 4.0.12-1
+    tag: 4.3.61 # ZAC Sprint 65 versie
   initContainer:
-    enabled: false
+    enabled: true
   keycloak:
     adminClient:
       id: zac-admin-client
@@ -2154,10 +2154,10 @@ zac:
   nginx:
     enabled: true
     client_max_body_size: 150M
-    # nginxinc/nginx-unprivileged:1.29.1
+    # nginxinc/nginx-unprivileged:1.29.5
     image:
       # repository: nginxinc/nginx-unprivileged
-      tag: 1.29.2
+      tag: 1.29.5
   # notificationsSecretKey: "changeme"
   objectenApi:
     url: http://objecten.example.nl
@@ -2166,16 +2166,16 @@ zac:
     url: http://objecttypen.example.nl
     token: objecttypentoken
   office_converter:
-    # ghcr.io/eugenmayer/kontextwork-converter:1.8.1
+    # ghcr.io/eugenmayer/kontextwork-converter:1.8.2
     image:
       #repository: ghcr.io/eugenmayer/kontextwork-converter
-      tag: 1.8.1
+      tag: 1.8.2
   opa:
     sidecar: true
-    # openpolicyagent/opa:1.9.0-static
+    # openpolicyagent/opa:1.14.0-static
     image:
       #repository: openpolicyagent/opa
-      tag: 1.9.0-static
+      tag: 1.14.0-static
   openForms:
     url: http://open-forms.example.nl
   organizations:
@@ -2209,10 +2209,10 @@ zac:
         tag: 1.37.0-glibc
       # -- set enabled to provision solrcloud as well
       enabled: true
-      # library/solr:9.9.0
+      # library/solr:9.10.1-slim
       image:
         #repository:
-        tag: 9.9.0
+        tag: 9.10.1-slim
       # -- define memory settings for solr in the solrcloud
       javaMem: -Xms512m -Xmx768m
       jobs:
@@ -2256,14 +2256,14 @@ zgw-office-addin:
     # -- MS Azure Client ID assigned to the Office Add-in application
     msalClientId: "dummy"
   frontend:
-    # ghcr.io/infonl/zgw-office-add-in-frontend:v0.9.28
+    # ghcr.io/infonl/zgw-office-add-in-frontend:v0.9.133
     image:
-      tag: v0.9.28
+      tag: v0.9.133
   backend:
     msalSecret: "dummy"
-    # ghcr.io/infonl/zgw-office-add-in-backend:v0.9.28
+    # ghcr.io/infonl/zgw-office-add-in-backend:v0.9.133
     image:
-      tag: v0.9.28
+      tag: v0.9.133
     # -- ZGW API configuration for integration with the ZGW APIs provider (OpenZaak)
     zgwApis:
       url: "https://openzaak.example.nl"

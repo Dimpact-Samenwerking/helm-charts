@@ -61,7 +61,6 @@ jobs:
 
       - name: Add dependency chart repos
         run: |
-          helm repo add bitnami https://charts.bitnami.com/bitnami
           helm repo add maykinmedia https://maykinmedia.github.io/charts
           helm repo add opentelemetry https://open-telemetry.github.io/opentelemetry-helm-charts
           helm repo add wiremind https://wiremind.github.io/wiremind-helm-charts
