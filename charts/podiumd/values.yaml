@@ -2085,7 +2085,7 @@ kiss:
 
 zac:
   featureFlags:
-    pabcIntegration: true
+    pabcIntegration: false
   auth:
     server: http://keycloak.example.nl
     realm: podiumd
