@@ -30,7 +30,8 @@ keycloak-operator:
     image:
       repository: quay.io/keycloak/keycloak-operator
       tag: "26.5.5"
-
+  serviceAccount:
+    create: false
 keycloak:
   additionalOptions:
     - name: health-enabled
@@ -2125,7 +2126,7 @@ zac:
     curlImage:
       #repository: curlimages/curl
       tag: 8.18.0
-  # ghcr.io/infonl/zaakafhandelcomponent:4.4.61
+  # ghcr.io/infonl/zaakafhandelcomponent:4.3.61
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
     tag: 4.3.61 # ZAC Sprint 65 versie
