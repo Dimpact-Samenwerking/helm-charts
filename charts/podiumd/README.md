@@ -37,6 +37,7 @@ Componenten op alphabetische volgorde, met sub-charts er onder:
 | - Zookeeper               | 0.2.15     | Patch update | 0.2.15       |              | Operator                  |
 | ZGW Office Addin          | 0.9.133    |              | 0.0.73       |              |                           |
 
+
 ### [4.5.13](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.5.13)
 
 **PodiumD Helm chart version: 4.5.13**
