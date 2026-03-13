@@ -16,6 +16,8 @@ Componenten op alphabetische volgorde, met sub-charts er onder:
 | Keycloak                  | 26.5.4     |        | 1.11.2       | Operator |                           |
 | Kiss                      | 2.1.0      | 2.2.1  | 2.1.0        | 2.2.1    |                           |
 | - Kiss Elastic            |            |        | 1.1.0        |          |                           |
+| - Kiss ElasticSync        | 0.3.0      | 0.3.1  |              |          |                           |
+| - PodiumD Adapter         | 0.6.4      | 0.6.6  |              |          |                           |
 | Objecten                  | 3.5.0      |        | 2.11.0       |          |                           |
 | Objecttypen               | 3.4.0      |        | 1.6.0        |          |                           |
 | OMC for NotifyNL          | 1.17.18    |        | 0.14.0       |          |                           |
