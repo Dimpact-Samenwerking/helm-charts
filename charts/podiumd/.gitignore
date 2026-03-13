@@ -1,2 +1,4 @@
 charts
 Chart.lock
+temp-*.yaml
+*.swp

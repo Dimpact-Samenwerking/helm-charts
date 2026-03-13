@@ -1,0 +1,96 @@
+{{- if and (index .Values "keycloak-operator").enabled (index .Values "keycloak-operator").jobs.importPodiumdRealm.enabled }}
+---
+# Job: import the podiumd realm config via keycloak-config-cli.
+# Uses the keycloak-operator client secret (stored by ensure-keycloak-operator-sa job)
+# to authenticate via client_credentials — no podiumd-admin or JWT key needed.
+#
+# External dependencies:
+#   ConfigMap: keycloak-podiumd-realm-config  key: podiumd-realm-config.yaml
+#   Secret:    keycloak-operator-client-secret key: client-secret (written by ensure-keycloak-operator-sa)
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: import-podiumd-realm-job
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: keycloak
+spec:
+  ttlSecondsAfterFinished: 600
+  backoffLimit: 10
+  template:
+    metadata:
+      labels:
+        {{- include "podiumd.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: keycloak
+    spec:
+      {{- if .Values.keycloak.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.keycloak.nodeSelector | nindent 8 }}
+      {{- else if .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      {{- end }}
+      restartPolicy: Never
+      initContainers:
+      - name: wait-for-operator-sa
+        image: {{ include "podiumd.image" (index .Values "keycloak-operator").jobs.ensureOperatorSa.image }}
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+          echo "Waiting for keycloak-operator client credentials to work..."
+          for i in $(seq 1 60); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+              "http://keycloak-service:8080/realms/master/protocol/openid-connect/token" \
+              -d "grant_type=client_credentials&client_id=keycloak-operator&client_secret=$CLIENT_SECRET")
+            if [ "$STATUS" = "200" ]; then echo "keycloak-operator SA authenticated."; exit 0; fi
+            echo "Attempt $i/60 — status=$STATUS, retrying in 10s..."
+            sleep 10
+          done
+          echo "Timed out waiting for keycloak-operator SA"; exit 1
+        env:
+        - name: CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-operator-client-secret
+              key: client-secret
+      volumes:
+      - name: realm-configs
+        configMap:
+          name: keycloak-podiumd-realm-config
+          items:
+          - key: podiumd.yaml
+            path: podiumd.yaml
+      containers:
+      - name: kc-config-cli
+        image: {{ include "podiumd.image" .Values.keycloak.keycloakConfigCli.image }}
+        env:
+        - name: KEYCLOAK_URL
+          value: {{ coalesce .Values.keycloak.hostname.admin .Values.keycloak.config.adminFrontendUrl | quote }}
+        - name: KEYCLOAK_CLIENTID
+          value: "keycloak-operator"
+        - name: KEYCLOAK_CLIENTSECRET
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-operator-client-secret
+              key: client-secret
+        - name: KEYCLOAK_GRANTTYPE
+          value: "client_credentials"
+        - name: KEYCLOAK_REALM
+          value: "master"
+        - name: IMPORT_FILES_LOCATIONS
+          value: "/config/podiumd.yaml"
+        - name: IMPORT_REMOTESTATE_ENABLED
+          value: "true"
+        - name: IMPORT_MANAGED_ROLE
+          value: "no-delete"
+        - name: IMPORT_MANAGED_GROUP
+          value: "no-delete"
+        - name: IMPORT_MANAGED_IDENTITY_PROVIDER
+          value: "no-delete"
+        - name: IMPORT_MANAGED_IDENTITY_PROVIDER_MAPPER
+          value: "no-delete"
+        volumeMounts:
+        - name: realm-configs
+          mountPath: /config
+          readOnly: true
+{{- end }}

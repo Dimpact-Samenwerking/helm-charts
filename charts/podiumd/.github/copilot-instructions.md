@@ -70,5 +70,12 @@ Where to look
 AI assistant configs
 - CLAUDE.md (detailed guidance) and .claude/settings.local.json exist in the repo root; prefer CLAUDE.md for operational commands and CI details.
 
+AKS-blue cluster conventions
+- Changes to aks-blue clusters (e.g. aks-blue-ontw-dim1) must go through the pipeline. Never run helm install/upgrade/delete or kubectl apply/delete directly against these clusters.
+- Read-only operations are fine: kubectl get/logs/describe, helm status, helm get, helm template.
+- All components deployed to aks-blue environments must include the nodeSelector:
+    kubernetes.azure.com/mode: user
+  This applies to every component including keycloak-operator (operator pod), the Keycloak CR pod template spec, infinispan, and all application workloads.
+
 End
 If edits are needed or more coverage (CI, release workflow, or per-subchart notes) is desired, request specific areas to add.
