@@ -18,7 +18,7 @@ Componenten op alphabetische volgorde, met sub-charts er onder:
 | - Kiss Elastic            |            |        | 1.1.0        |          |                           |
 | Objecten                  | 3.5.0      |        | 2.11.0       |          |                           |
 | Objecttypen               | 3.4.0      |        | 1.6.0        |          |                           |
-| OMC for NotifyNL          | 1.17.18    |        | 0.11.0       |          |                           |
+| OMC for NotifyNL          | 1.17.18    |        | 0.13.0       |          |                           |
 | Open Archiefbeheer        | 1.1.1      |        | 1.4.1        |          |                           |
 | Open Formulieren          | 3.3.9      |        | 1.11.6       |          |                           |
 | Open Inwoner              | 2.0.2      |        | 2.1.0        |          |                           |
