@@ -8,7 +8,7 @@
 Componenten op alphabetische volgorde, met sub-charts er onder:
 
 | Component                 | AppVersion | Change        | ChartVersion | Change        | **Notes**                 |
-|---------------------------|------------| ------------ -|--------------| ------------  |---------------------------|
+|---------------------------|------------|---------------|--------------|---------------|---------------------------|
 | BRP Mock                  |            |               | 1.2.8        |               | Only on Test Environments |
 | ClamAV                    | 1.4.2      |               | 3.2.0        |               |                           |
 | Infinispan                | 15.2       |               | 0.5.0        |               | Deprecated                |
