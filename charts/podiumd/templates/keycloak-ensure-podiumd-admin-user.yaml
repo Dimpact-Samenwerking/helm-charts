@@ -18,7 +18,7 @@ metadata:
     {{- include "podiumd.labels" . | nindent 4 }}
     app.kubernetes.io/component: keycloak
 spec:
-  ttlSecondsAfterFinished: 3600
+  ttlSecondsAfterFinished: 600
   backoffLimit: 10
   template:
     metadata:
