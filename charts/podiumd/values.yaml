@@ -2478,7 +2478,7 @@ ita:
   web:
     image:
       # repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web"
-      tag: "2.1.0"
+      tag: "2.1.1"
       pullPolicy: IfNotPresent
 
     service:
@@ -2508,7 +2508,7 @@ ita:
 
     image:
       repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller"
-      tag: "2.1.0"
+      tag: "2.1.1"
       pullPolicy: Always
 
     notification:

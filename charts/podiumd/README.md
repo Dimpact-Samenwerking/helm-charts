@@ -12,7 +12,7 @@ Componenten op alphabetische volgorde, met sub-charts er onder:
 | BRP Mock                  |            |        | 1.2.8        |          | Only on Test Environments |
 | ClamAV                    | 1.4.2      |        | 3.2.0        |          |                           |
 | Infinispan                | 15.2       |        | 0.5.0        |          | Deprecated                |
-| ITA                       | 2.0.1      | 2.1.0  | 2.0.1        | 2.1.0    |                           |
+| ITA                       | 2.0.1      | 2.1.1  | 2.0.1        | 2.1.1    |                           |
 | Keycloak                  | 26.5.4     |        | 1.11.2       | Operator |                           |
 | Kiss                      | 2.1.0      | 2.2.1  | 2.1.0        | 2.2.1    |                           |
 | - Kiss Elastic            |            |        | 1.1.0        |          |                           |
