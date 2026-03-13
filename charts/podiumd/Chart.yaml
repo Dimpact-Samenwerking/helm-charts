@@ -82,15 +82,20 @@ dependencies:
   - name: internetaakafhandeling
     alias: ita
     repository: "oci://ghcr.io/interne-taak-afhandeling"
-    version: 2.0.1
+    version: 2.1.1
     condition: ita.enabled
   - name: kiss-chart
     alias: kiss
     repository: "oci://ghcr.io/klantinteractie-servicesysteem"
-    version: 2.1.0
+    version: 2.2.1
     condition: kiss.enabled
   - name: pabc
     alias: pabc
     repository: "oci://ghcr.io/platform-autorisatie-beheer-component"
     version: 1.0.0
     condition: pabc.enabled
+  - name: notifynl-omc-nodep
+    alias: omc
+    repository: "https://worth-nl.github.io/helm-charts"
+    version: 0.14.0
+    condition: omc.enabled
