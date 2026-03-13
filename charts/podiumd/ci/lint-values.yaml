@@ -5,6 +5,7 @@
 # rabbitmq-16.0.12 whose Chart.yaml annotation still lists docker.io/bitnami/rabbitmq,
 # but its own values.yaml defaults to bitnamilegacy/rabbitmq. This mismatch triggers a
 # fail in the Bitnami image-check template; allowInsecureImages bypasses it for linting.
+
 opennotificaties:
   rabbitmq:
     global:
