@@ -1819,7 +1819,7 @@ referentielijsten:
   replicaCount: 1
   persistence:
     size: 10Gi
-    existingClaim: referentielijsten
+    storageClass: ""
   persistentVolume:
     volumeAttributeShareName: referentielijsten
   image:
