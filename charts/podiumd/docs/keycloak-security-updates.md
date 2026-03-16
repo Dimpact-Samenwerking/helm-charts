@@ -79,6 +79,23 @@ Settings that are already at a secure default are logged for audit purposes but 
 
 ---
 
+### Password Policy
+
+| Setting | Value | Status |
+|---------|-------|--------|
+| `passwordPolicy` | `length(14) and notUsername(undefined) and notEmail(undefined) and passwordHistory(5)` | ✅ Configured (was empty) |
+
+**`passwordPolicy`** ← *changed from empty*
+- **Standard:** BIO 2.0 / ISO 27002:2022 maatregel **5.17** (Authenticatie-informatie); NIST SP 800-63B §5.1.1; **OWASP ASVS 4.0 V2.1.1**
+- **Why:** Admin accounts for the master realm have elevated privileges (full Keycloak administration). The password policy uses a stricter minimum length of 14 characters vs. 12 for the podiumd realm, reflecting the higher risk of admin account compromise. Complexity rules (uppercase, special chars) are deliberately omitted per NIST SP 800-63B §5.1.1 guidance.
+  - `length(14)` — minimum 14 characters (stricter than podiumd; admin accounts warrant higher bar)
+  - `notUsername` — cannot use the username as the password
+  - `notEmail` — cannot use the email address as the password
+  - `passwordHistory(5)` — prevents reuse of the last 5 passwords
+- **Implementation:** `keycloak-master-realm-config.yaml` → `passwordPolicy`
+
+---
+
 ### Token Lifespans
 
 | Setting | Current value | Keycloak default | Status |
