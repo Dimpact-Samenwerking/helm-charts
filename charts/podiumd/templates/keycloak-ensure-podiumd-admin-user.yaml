@@ -53,7 +53,9 @@ spec:
           fi
           TOKEN=$(curl -s -X POST \
             "http://keycloak-service:8080/realms/master/protocol/openid-connect/token" \
-            -d "grant_type=client_credentials&client_id=$CLIENT_ID&client_secret=$CLIENT_SECRET" \
+            --data-urlencode "grant_type=client_credentials" \
+            --data-urlencode "client_id=$CLIENT_ID" \
+            --data-urlencode "client_secret=$CLIENT_SECRET" \
             | sed -n 's/.*"access_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
           if [ -z "$TOKEN" ]; then
             echo "keycloak-operator SA could not authenticate — will run podiumd-admin setup"

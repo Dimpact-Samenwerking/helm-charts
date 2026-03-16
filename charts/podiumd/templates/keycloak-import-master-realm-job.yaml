@@ -43,7 +43,9 @@ spec:
           for i in $(seq 1 60); do
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
               "http://keycloak-service:8080/realms/master/protocol/openid-connect/token" \
-              -d "grant_type=client_credentials&client_id=keycloak-operator&client_secret=$CLIENT_SECRET")
+              --data-urlencode "grant_type=client_credentials" \
+              --data-urlencode "client_id=keycloak-operator" \
+              --data-urlencode "client_secret=$CLIENT_SECRET")
             if [ "$STATUS" = "200" ]; then echo "keycloak-operator SA authenticated."; exit 0; fi
             echo "Attempt $i/60 — status=$STATUS, retrying in 10s..."
             sleep 10

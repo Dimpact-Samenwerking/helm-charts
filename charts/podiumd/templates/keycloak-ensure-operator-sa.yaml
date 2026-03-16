@@ -41,7 +41,10 @@ spec:
           for i in $(seq 1 60); do
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
               "http://keycloak-service:8080/realms/master/protocol/openid-connect/token" \
-              -d "grant_type=password&client_id=admin-cli&username=podiumd-admin&password=$ADMIN_PASS")
+              --data-urlencode "grant_type=password" \
+              --data-urlencode "client_id=admin-cli" \
+              --data-urlencode "username=podiumd-admin" \
+              --data-urlencode "password=$ADMIN_PASS")
             if [ "$STATUS" = "200" ]; then echo "podiumd-admin authenticated."; exit 0; fi
             echo "Attempt $i/60 — status=$STATUS, retrying in 10s..."
             sleep 10
@@ -66,7 +69,10 @@ spec:
 
           echo "Obtaining admin token via ROPC..."
           ADMIN_TOKEN=$(curl -s -X POST "$SERVER/realms/master/protocol/openid-connect/token" \
-            -d "grant_type=password&client_id=admin-cli&username=$ADMIN_USER&password=$ADMIN_PASS" \
+            --data-urlencode "grant_type=password" \
+            --data-urlencode "client_id=admin-cli" \
+            --data-urlencode "username=$ADMIN_USER" \
+            --data-urlencode "password=$ADMIN_PASS" \
             | sed -n 's/.*"access_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
           if [ -z "$ADMIN_TOKEN" ]; then echo "Failed to obtain admin token"; exit 2; fi
 
@@ -112,7 +118,9 @@ spec:
 
           echo "Verifying client_credentials token..."
           TOKEN_RESPONSE=$(curl -s -X POST "$SERVER/realms/master/protocol/openid-connect/token" \
-            -d "grant_type=client_credentials&client_id=keycloak-operator&client_secret=$CLIENT_SECRET")
+            --data-urlencode "grant_type=client_credentials" \
+            --data-urlencode "client_id=keycloak-operator" \
+            --data-urlencode "client_secret=$CLIENT_SECRET")
           ACCESS_TOKEN=$(echo "$TOKEN_RESPONSE" | sed -n 's/.*"access_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1 || true)
           if [ -z "$ACCESS_TOKEN" ]; then echo "Failed to obtain client token: $TOKEN_RESPONSE"; exit 4; fi
 
