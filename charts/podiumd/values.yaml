@@ -1817,19 +1817,15 @@ referentielijsten:
     resources: {}
   data: ""
   replicaCount: 1
-
+  persistence:
+    size: 10Gi
+    existingClaim: referentielijsten
+  persistentVolume:
+    volumeAttributeShareName: referentielijsten
   image:
     repository: maykinmedia/referentielijsten-api
     pullPolicy: IfNotPresent
     tag: "0.7.1"
-
-  persistence:
-    size: 10Gi
-    existingClaim: referentielijsten
-    mediaMountSubpath: referentielijsten/media
-    privateMediaMountSubpath: referentielijsten/private_media
-  persistentVolume:
-    volumeAttributeShareName: referentielijsten
 
   settings:
     allowedHosts: "referentielijsten-nginx.podiumd.svc.cluster.local"
