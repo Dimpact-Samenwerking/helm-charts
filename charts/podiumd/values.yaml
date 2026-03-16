@@ -1810,13 +1810,55 @@ referentielijsten:
     initContainer:
       enabled: false
   job:
-    enabled: false
+    enabled: true
     backoffLimit: 6
-    ttlSecondsAfterFinished: 0
+    ttlSecondsAfterFinished: 600
     restartPolicy: OnFailure
-    # Note, this field is immutable
     resources: {}
   data: ""
+  replicaCount: 1
+
+  image:
+    repository: maykinmedia/referentielijsten-api
+    pullPolicy: IfNotPresent
+    tag: "0.7.1"
+
+  persistence:
+    size: 10Gi
+    existingClaim: referentielijsten
+    mediaMountSubpath: referentielijsten/media
+    privateMediaMountSubpath: referentielijsten/private_media
+  persistentVolume:
+    volumeAttributeShareName: referentielijsten
+
+  settings:
+    allowedHosts: "referentielijsten-nginx.podiumd.svc.cluster.local"
+    djangoSettingsModule: referentielijsten.conf.docker
+    useXForwardedHost: false
+    disable2fa: false
+    secretKey: ""
+    environment: ""     
+
+    email:
+      port: 587
+      useTLS: true
+
+    isHttps: true
+
+    debug: false
+
+  redis:
+    nameOverride: referentielijsten-redis
+    fullnameOverride: referentielijsten-redis
+    master:
+      persistence:
+        enabled: true
+        size: 8Gi
+        storageClass: ""
+      resources:
+        requests:
+          cpu: 10m
+          memory: 64Mi
 
 
 kisselastic:
