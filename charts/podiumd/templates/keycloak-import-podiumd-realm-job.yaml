@@ -1,6 +1,6 @@
 {{- $operatorJobs := (index .Values "keycloak-operator").jobs }}
 {{- $clientSecret := $operatorJobs.ensureOperatorSa.clientSecret }}
-{{- if and (index .Values "keycloak-operator").enabled $operatorJobs.importPodiumdRealm.enabled $clientSecret }}
+{{- if and (index .Values "keycloak-operator").enabled $operatorJobs.importPodiumdRealm.enabled $operatorJobs.ensureOperatorSa.enabled $clientSecret }}
 ---
 # Job: import the podiumd realm config via keycloak-config-cli.
 # Uses the keycloak-operator client secret (stored by ensure-keycloak-operator-sa job)
@@ -70,7 +70,7 @@ spec:
         image: {{ include "podiumd.image" .Values.keycloak.keycloakConfigCli.image }}
         env:
         - name: KEYCLOAK_URL
-          value: {{ coalesce .Values.keycloak.hostname.admin .Values.keycloak.config.adminFrontendUrl | quote }}
+          value: {{ coalesce .Values.keycloak.hostname.admin .Values.keycloak.config.adminFrontendUrl "http://keycloak-service:8080" | quote }}
         - name: KEYCLOAK_CLIENTID
           value: "keycloak-operator"
         - name: KEYCLOAK_CLIENTSECRET

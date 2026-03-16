@@ -1,6 +1,5 @@
 {{- $operatorJobs := (index .Values "keycloak-operator").jobs }}
-{{- $clientSecret := $operatorJobs.ensureOperatorSa.clientSecret }}
-{{- if and (index .Values "keycloak-operator").enabled $operatorJobs.ensurePodiumdAdminUser.enabled $clientSecret }}
+{{- if and (index .Values "keycloak-operator").enabled $operatorJobs.ensurePodiumdAdminUser.enabled }}
 ---
 # Job: ensure the `podiumd-admin` user exists in the Keycloak master realm.
 # Creates or updates the user on every install/upgrade:

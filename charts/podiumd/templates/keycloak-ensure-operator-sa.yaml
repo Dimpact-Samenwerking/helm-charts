@@ -6,7 +6,7 @@
 # and has the admin role assigned, so the Keycloak Operator can manage realms.
 #
 # Uses the podiumd-admin user (created by ensure-podiumd-admin-user job) to authenticate.
-# Hook weight 10 — runs after ensure-podiumd-admin-user (weight 5).
+# Ordering is enforced at runtime by the wait-for-podiumd-admin initContainer, not Helm hooks.
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -88,8 +88,7 @@ spec:
           if [ -z "$CLIENT_ID" ]; then
             echo "Creating client keycloak-operator..."
             curl -s -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
-              -d '{"clientId":"keycloak-operator","serviceAccountsEnabled":true,"publicClient":false,"directAccessGrantsEnabled":true,"protocol":"openid-connect"}' \
-              "$SERVER/admin/realms/master/clients"
+              -d '{"clientId":"keycloak-operator","serviceAccountsEnabled":true,"publicClient":false,"directAccessGrantsEnabled":false,"protocol":"openid-connect"}' \              "$SERVER/admin/realms/master/clients"
             sleep 1
             CLIENT_INFO=$(curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
               "$SERVER/admin/realms/master/clients?clientId=keycloak-operator")
@@ -99,9 +98,9 @@ spec:
             echo "Client exists: $CLIENT_ID"
           fi
 
-          echo "Ensuring directAccessGrantsEnabled=true..."
+          echo "Ensuring directAccessGrantsEnabled=false..."
           curl -s -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
-            -d '{"clientId":"keycloak-operator","serviceAccountsEnabled":true,"publicClient":false,"directAccessGrantsEnabled":true,"protocol":"openid-connect"}' \
+            -d '{"clientId":"keycloak-operator","serviceAccountsEnabled":true,"publicClient":false,"directAccessGrantsEnabled":false,"protocol":"openid-connect"}' \
             "$SERVER/admin/realms/master/clients/$CLIENT_ID" || true
 
           echo "Fetching service account user id..."
@@ -119,7 +118,7 @@ spec:
           echo "Setting client secret to known value..."
           CLIENT_SECRET_JSON=$(json_escape "$CLIENT_SECRET")
           curl -s -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
-            -d "{\"clientId\":\"keycloak-operator\",\"secret\":\"${CLIENT_SECRET_JSON}\",\"serviceAccountsEnabled\":true,\"publicClient\":false,\"directAccessGrantsEnabled\":true,\"protocol\":\"openid-connect\"}" \
+            -d "{\"clientId\":\"keycloak-operator\",\"secret\":\"${CLIENT_SECRET_JSON}\",\"serviceAccountsEnabled\":true,\"publicClient\":false,\"directAccessGrantsEnabled\":false,\"protocol\":\"openid-connect\"}" \
             "$SERVER/admin/realms/master/clients/$CLIENT_ID" || true
 
           echo "Verifying client_credentials token..."
