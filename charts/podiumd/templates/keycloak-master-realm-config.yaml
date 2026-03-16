@@ -17,7 +17,10 @@ data:
       xFrameOptions: "SAMEORIGIN"
       contentSecurityPolicy: "frame-src 'self'; frame-ancestors 'self'; object-src 'none';"
       xXSSProtection: "1; mode=block"
-      strictTransportSecurity: ""
+      strictTransportSecurity: "max-age=31536000; includeSubDomains"
+    bruteForceProtected: true
+    failureFactor: 5
+    revokeRefreshToken: true
 {{- if .Values.keycloak.config.adminOtpEnabled }}
     requiredActions:
       - name: "Configure OTP"
