@@ -215,7 +215,7 @@ The podiumd realm is the end-user facing realm. It federates identities from ext
 
 | Setting | Value | Status |
 |---------|-------|--------|
-| `passwordPolicy` | `length(12) notUsername notEmail passwordHistory(5)` | ✅ Configured (was empty) |
+| `passwordPolicy` | `length(12) and notUsername(undefined) and notEmail(undefined) and passwordHistory(5)` | ✅ Configured (was empty) |
 
 **`passwordPolicy`** ← *changed from empty*
 - **Standard:** BIO 2.0 / ISO 27002:2022 maatregel **5.17** (Authenticatie-informatie); NIST SP 800-63B §5.1.1
@@ -225,7 +225,7 @@ The podiumd realm is the end-user facing realm. It federates identities from ext
   - `notEmail` — cannot use the email address as the password
   - `passwordHistory(5)` — prevents reuse of the last 5 passwords
 - **Note:** Users authenticating via external IdPs (DigiD, Microsoft Entra ID) are not affected by this policy.
-- **Implementation:** `keycloak-podiumd-realm-config.yaml` → `passwordPolicy`
+- **Implementation:** `keycloak-podiumd-realm-config.yaml` → `passwordPolicy: "length(12) and notUsername(undefined) and notEmail(undefined) and passwordHistory(5)"`
 
 ---
 

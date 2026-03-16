@@ -34,7 +34,7 @@ data:
     offlineSessionMaxLifespanEnabled: true
     offlineSessionMaxLifespan: 7776000
     accessTokenLifespan: 60
-    passwordPolicy: "length(12) notUsername notEmail passwordHistory(5)"
+    passwordPolicy: "length(12) and notUsername(undefined) and notEmail(undefined) and passwordHistory(5)"
     requiredActions:
       - name: "Configure OTP"
         providerId: CONFIGURE_TOTP
