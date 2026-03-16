@@ -16,7 +16,7 @@ data:
     rememberMe: true
     attributes:
       frontendUrl: {{ .Values.keycloak.config.realmFrontendUrl }}
-      adminEventsExpiration: 10800
+      adminEventsExpiration: 2592000
     browserSecurityHeaders:
       xContentTypeOptions: "nosniff"
       xRobotsTag: "none"
@@ -27,6 +27,12 @@ data:
     bruteForceProtected: true
     failureFactor: 5
     revokeRefreshToken: true
+    eventsEnabled: true
+    adminEventsEnabled: true
+    adminEventsDetailsEnabled: true
+    eventsExpiration: 2592000
+    offlineSessionMaxLifespanEnabled: true
+    offlineSessionMaxLifespan: 7776000
     accessTokenLifespan: 60
     passwordPolicy: "length(12) notUsername notEmail passwordHistory(5)"
     requiredActions:
@@ -45,6 +51,8 @@ data:
         webOrigins:
           - "{{ .Values.openzaak.configuration.oidcUrl | trimSuffix "/" }}/*"
         secret: {{ .Values.openzaak.configuration.oidcSecret | quote }}
+        attributes:
+          pkce.code.challenge.method: S256
         protocolMappers:
           - name: "username"
             protocol: "openid-connect"
@@ -82,6 +90,8 @@ data:
         webOrigins:
           - "{{ .Values.openarchiefbeheer.configuration.oidcUrl | trimSuffix "/" }}/*"
         secret: {{ .Values.openarchiefbeheer.configuration.oidcSecret | quote }}
+        attributes:
+          pkce.code.challenge.method: S256
         protocolMappers:
           - name: "username"
             protocol: "openid-connect"
@@ -121,6 +131,8 @@ data:
           - "{{ .Values.keycloak.config.clients.monitoring.oidcUrl | trimSuffix "/" }}/*"
         authorizationServicesEnabled: "true"
         serviceAccountsEnabled: "true"
+        attributes:
+          pkce.code.challenge.method: S256
         protocolMappers:
           - name: "user-roles"
             protocol: "openid-connect"
@@ -151,6 +163,8 @@ data:
         webOrigins:
           - "{{ .Values.opennotificaties.configuration.oidcUrl | trimSuffix "/" }}/*"
         secret: {{ .Values.opennotificaties.configuration.oidcSecret | quote }}
+        attributes:
+          pkce.code.challenge.method: S256
         protocolMappers:
           - name: "username"
             protocol: "openid-connect"
@@ -188,6 +202,8 @@ data:
         webOrigins:
           - "{{ .Values.objecten.configuration.oidcUrl | trimSuffix "/" }}/*"
         secret: {{ .Values.objecten.configuration.oidcSecret | quote }}
+        attributes:
+          pkce.code.challenge.method: S256
         protocolMappers:
           - name: "username"
             protocol: "openid-connect"
@@ -225,6 +241,8 @@ data:
         webOrigins:
           - "{{ .Values.objecttypen.configuration.oidcUrl | trimSuffix "/" }}/*"
         secret: {{ .Values.objecttypen.configuration.oidcSecret | quote }}
+        attributes:
+          pkce.code.challenge.method: S256
         protocolMappers:
           - name: "username"
             protocol: "openid-connect"
@@ -262,6 +280,8 @@ data:
         webOrigins:
           - "{{ .Values.openklant.configuration.oidcUrl | trimSuffix "/" }}/*"
         secret: {{ .Values.openklant.configuration.oidcSecret | quote }}
+        attributes:
+          pkce.code.challenge.method: S256
         protocolMappers:
           - name: "username"
             protocol: "openid-connect"
@@ -299,6 +319,8 @@ data:
         webOrigins:
           - "{{ .Values.openformulieren.configuration.oidcUrl | trimSuffix "/" }}/*"
         secret: {{ .Values.openformulieren.configuration.oidcSecret | quote }}
+        attributes:
+          pkce.code.challenge.method: S256
         protocolMappers:
           - name: "username"
             protocol: "openid-connect"
@@ -336,6 +358,8 @@ data:
         webOrigins:
           - "{{ .Values.openinwoner.configuration.oidcUrl | trimSuffix "/" }}/*"
         secret: {{ .Values.openinwoner.configuration.oidcSecret | quote }}
+        attributes:
+          pkce.code.challenge.method: S256
         protocolMappers:
           - name: "username"
             protocol: "openid-connect"
@@ -373,6 +397,8 @@ data:
         webOrigins:
           - "{{ .Values.kiss.configuration.oidcUrl | trimSuffix "/" }}/*"
         secret: {{ .Values.kiss.settings.oidc.clientSecret | quote }}
+        attributes:
+          pkce.code.challenge.method: S256
         protocolMappers:
           - name: kiss-roles
             protocol: openid-connect
@@ -407,6 +433,8 @@ data:
         webOrigins:
           - "{{ .Values.zac.contextUrl | trimSuffix "/" }}/*"
         secret: {{ .Values.zac.auth.secret | quote }}
+        attributes:
+          pkce.code.challenge.method: S256
         protocolMappers:
           - name: "username"
             protocol: "openid-connect"
@@ -443,6 +471,8 @@ data:
         webOrigins:
           - "{{ .Values.zac.contextUrl | trimSuffix "/" }}/*"
         serviceAccountsEnabled: true
+        attributes:
+          pkce.code.challenge.method: S256
         protocolMappers:
           - name: "Client Host"
             protocol: "openid-connect"
@@ -486,6 +516,8 @@ data:
         webOrigins:
           - "{{ .Values.ita.web.oidc.frontendUrl | trimSuffix "/" }}/*"
         secret: {{ .Values.ita.web.oidc.clientSecret | quote }}
+        attributes:
+          pkce.code.challenge.method: S256
         protocolMappers:
           - name: "client roles"
             protocol: "openid-connect"
@@ -523,6 +555,8 @@ data:
         webOrigins:
           - "{{ .Values.pabc.settings.oidc.oidcUrl | trimSuffix "/" }}/*"
         secret: {{ .Values.pabc.settings.oidc.clientSecret | quote }}
+        attributes:
+          pkce.code.challenge.method: S256
         protocolMappers:
           - name: "client roles"
             protocol: "openid-connect"
@@ -544,6 +578,8 @@ data:
         enabled: true
         clientAuthenticatorType: client-secret
         secret: {{ .Values.pabc.settings.keycloakAdmin.clientSecret | quote }}
+        attributes:
+          pkce.code.challenge.method: S256
         serviceAccountsEnabled: true
     clientScopes:
       - name: roles
@@ -620,13 +656,6 @@ data:
       from: {{ .Values.keycloak.config.smtp.from }}
       fromDisplayName: {{ .Values.keycloak.config.smtp.fromDisplayName }}
       ssl: {{ .Values.keycloak.config.smtp.ssl }}
-    browserSecurityHeaders:
-      xContentTypeOptions: "nosniff"
-      xRobotsTag: "none"
-      xFrameOptions: "SAMEORIGIN"
-      contentSecurityPolicy: "frame-src 'self'; frame-ancestors 'self'; object-src 'none';"
-      xXSSProtection: "1; mode=block"
-      strictTransportSecurity: "max-age=31536000; includeSubDomains"
     {{- if not .Values.keycloak.config.skipRoles }}
     roles:
       realm:
@@ -765,15 +794,6 @@ data:
             - "domein_elk_zaaktype"
             - "raadpleger"
     {{- end }}
-    requiredActions:
-      - name: "Configure OTP"
-        providerId: CONFIGURE_TOTP
-        enabled: "true"
-        defaultAction: "true"
-        alias: CONFIGURE_TOTP
-    eventsEnabled: "true"
-    eventsExpiration: "10800"
-    adminEventsEnabled: "true"
 {{- with .Values.keycloak.config.realmIdentityProviders }}
     {{- toYaml . | nindent 4 }}
 {{- end }}
