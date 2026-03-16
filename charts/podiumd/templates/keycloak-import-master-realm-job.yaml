@@ -1,4 +1,6 @@
-{{- if and (index .Values "keycloak-operator").enabled (index .Values "keycloak-operator").jobs.importMasterRealm.enabled }}
+{{- $operatorJobs := (index .Values "keycloak-operator").jobs }}
+{{- $clientSecret := $operatorJobs.ensureOperatorSa.clientSecret }}
+{{- if and (index .Values "keycloak-operator").enabled $operatorJobs.importMasterRealm.enabled $clientSecret }}
 ---
 # Job: import the master realm config via keycloak-config-cli.
 # Uses the keycloak-operator client secret (stored by ensure-keycloak-operator-sa job)

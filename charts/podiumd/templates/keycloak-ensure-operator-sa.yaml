@@ -1,4 +1,6 @@
-{{- if and (index .Values "keycloak-operator").enabled (index .Values "keycloak-operator").jobs.ensureOperatorSa.enabled }}
+{{- $operatorJobs := (index .Values "keycloak-operator").jobs }}
+{{- $clientSecret := $operatorJobs.ensureOperatorSa.clientSecret }}
+{{- if and (index .Values "keycloak-operator").enabled $operatorJobs.ensureOperatorSa.enabled $clientSecret }}
 ---
 # Job: ensure the `keycloak-operator` service-account client exists in the Keycloak master realm
 # and has the admin role assigned, so the Keycloak Operator can manage realms.
