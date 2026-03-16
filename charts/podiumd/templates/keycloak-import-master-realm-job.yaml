@@ -41,13 +41,14 @@ spec:
         - |
           echo "Waiting for keycloak-operator client credentials to work..."
           for i in $(seq 1 60); do
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+            RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
               "http://keycloak-service:8080/realms/master/protocol/openid-connect/token" \
               --data-urlencode "grant_type=client_credentials" \
               --data-urlencode "client_id=keycloak-operator" \
               --data-urlencode "client_secret=$CLIENT_SECRET")
+            STATUS=$(printf '%s' "$RESPONSE" | tail -n1)
             if [ "$STATUS" = "200" ]; then echo "keycloak-operator SA authenticated."; exit 0; fi
-            echo "Attempt $i/60 — status=$STATUS, retrying in 10s..."
+            echo "Attempt $i/60 — status=$STATUS, body: $(printf '%s' "$RESPONSE" | head -n1)"
             sleep 10
           done
           echo "Timed out waiting for keycloak-operator SA"; exit 1
