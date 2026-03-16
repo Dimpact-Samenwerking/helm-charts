@@ -315,14 +315,14 @@ The podiumd realm is the end-user facing realm. It federates identities from ext
 
 | Setting | Value | Status |
 |---------|-------|--------|
-| `pkce.code.challenge.method` | `S256` | ✅ Configured on all 15 clients (was not set) |
+| `pkce.code.challenge.method` | not set | ⏳ Deferred — pending application support |
 
-**`pkce.code.challenge.method: S256`** ← *changed from not set* — applied to all 15 explicitly defined clients
+**`pkce.code.challenge.method: S256`** — deferred, not currently configured
 - **Standard:** **RFC 9700** (OAuth 2.0 Security BCP) §2.1.1 — PKCE verplicht voor alle clients die authorization code flow gebruiken, ook voor confidential clients; **OWASP ASVS 4.0 V2.10.3**; **Forum / OAuth NL GOV**
-- **Why:** Without PKCE, an attacker who intercepts the authorization code (e.g., via a misconfigured redirect, browser history, or referrer header) can exchange it for tokens without having the client secret. PKCE binds the authorization code to the device that initiated the flow via a cryptographic challenge/verifier pair. S256 (SHA-256 hash of the verifier) is required — plain method is insecure.
-- **Clients:** openzaak, abc, monitoring, opennotificaties, objecten, objecttypen, openklant, openformulieren, openinwoner, kiss, zac, zac-admin-client, ita, pabc, pabc-keycloak-admin
-- **Note on redirect URI wildcards:** All clients currently use path-wildcard redirect URIs (`https://app.example.nl/*`). RFC 9700 §4.1.3 recommends exact URI matching. This is accepted because all ingress terminates within the cluster and the NGINX ingress controller is managed and audited separately — the attack surface for redirect URI manipulation is confined to the cluster network boundary. Exact URIs will be evaluated per component when application callback paths are stable.
-- **Implementation:** `keycloak-podiumd-realm-config.yaml` → `clients[*].attributes.pkce.code.challenge.method`
+- **Why:** Without PKCE, an attacker who intercepts the authorization code can exchange it for tokens without the client secret. PKCE binds the authorization code to the device that initiated the flow via a cryptographic challenge/verifier pair. S256 (SHA-256 hash of the verifier) is required — plain method is insecure.
+- **Reason for deferral:** PKCE enforcement was deployed on 2026-03-16 and immediately caused HTTP 403 errors on all login pages. The PodiumD applications use `mozilla_django_oidc` which only added PKCE support in v4.0.0 (2024). The installed versions do not send a `code_challenge`, causing Keycloak to reject the authorization request. PKCE enforcement has been reverted until all component applications have been verified to support and are configured to use PKCE.
+- **Action required:** For each component, verify `mozilla_django_oidc >= 4.0.0` is installed and `OIDC_USE_PKCE = True` is configured, then re-enable `pkce.code.challenge.method: S256` per client.
+- **Note on redirect URI wildcards:** All clients currently use path-wildcard redirect URIs (`https://app.example.nl/*`). RFC 9700 §4.1.3 recommends exact URI matching. This is accepted because all ingress terminates within the cluster and the NGINX ingress controller is managed and audited separately. Exact URIs will be evaluated per component when application callback paths are stable.
 
 ---
 
