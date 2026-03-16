@@ -23,7 +23,12 @@ data:
       xFrameOptions: "SAMEORIGIN"
       contentSecurityPolicy: "frame-src 'self'; frame-ancestors 'self'; object-src 'none';"
       xXSSProtection: "1; mode=block"
-      strictTransportSecurity: ""
+      strictTransportSecurity: "max-age=31536000; includeSubDomains"
+    bruteForceProtected: true
+    failureFactor: 5
+    revokeRefreshToken: true
+    accessTokenLifespan: 60
+    passwordPolicy: "length(12) notUsername notEmail passwordHistory(5)"
     requiredActions:
       - name: "Configure OTP"
         providerId: CONFIGURE_TOTP
@@ -621,7 +626,7 @@ data:
       xFrameOptions: "SAMEORIGIN"
       contentSecurityPolicy: "frame-src 'self'; frame-ancestors 'self'; object-src 'none';"
       xXSSProtection: "1; mode=block"
-      strictTransportSecurity: ""
+      strictTransportSecurity: "max-age=31536000; includeSubDomains"
     {{- if not .Values.keycloak.config.skipRoles }}
     roles:
       realm:
