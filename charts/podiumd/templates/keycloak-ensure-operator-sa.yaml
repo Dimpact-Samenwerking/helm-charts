@@ -67,6 +67,10 @@ spec:
           ADMIN_USER="podiumd-admin"
           : "${ADMIN_PASS:?}"
 
+          # Safely escape a value for embedding in a JSON string literal.
+          # Escapes backslashes first, then double-quotes.
+          json_escape() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
+
           echo "Obtaining admin token via ROPC..."
           ADMIN_TOKEN=$(curl -s -X POST "$SERVER/realms/master/protocol/openid-connect/token" \
             --data-urlencode "grant_type=password" \
@@ -112,8 +116,9 @@ spec:
             -d "[$ROLE_JSON]" "$SERVER/admin/realms/master/users/$SA_USER_ID/role-mappings/realm" || true
 
           echo "Setting client secret to known value..."
+          CLIENT_SECRET_JSON=$(json_escape "$CLIENT_SECRET")
           curl -s -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
-            -d "{\"clientId\":\"keycloak-operator\",\"secret\":\"$CLIENT_SECRET\",\"serviceAccountsEnabled\":true,\"publicClient\":false,\"directAccessGrantsEnabled\":true,\"protocol\":\"openid-connect\"}" \
+            -d "{\"clientId\":\"keycloak-operator\",\"secret\":\"${CLIENT_SECRET_JSON}\",\"serviceAccountsEnabled\":true,\"publicClient\":false,\"directAccessGrantsEnabled\":true,\"protocol\":\"openid-connect\"}" \
             "$SERVER/admin/realms/master/clients/$CLIENT_ID" || true
 
           echo "Verifying client_credentials token..."
