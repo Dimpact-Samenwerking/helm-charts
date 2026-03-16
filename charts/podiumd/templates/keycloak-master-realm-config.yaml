@@ -27,6 +27,7 @@ data:
     eventsExpiration: 2592000
     offlineSessionMaxLifespanEnabled: true
     offlineSessionMaxLifespan: 7776000
+    passwordPolicy: "length(14) and notUsername(undefined) and notEmail(undefined) and passwordHistory(5)"
 {{- if .Values.keycloak.config.adminOtpEnabled }}
     requiredActions:
       - name: "Configure OTP"
