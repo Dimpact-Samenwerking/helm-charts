@@ -51,8 +51,6 @@ data:
         webOrigins:
           - "{{ .Values.openzaak.configuration.oidcUrl | trimSuffix "/" }}/*"
         secret: {{ .Values.openzaak.configuration.oidcSecret | quote }}
-        attributes:
-          pkce.code.challenge.method: S256
         protocolMappers:
           - name: "username"
             protocol: "openid-connect"
@@ -90,8 +88,6 @@ data:
         webOrigins:
           - "{{ .Values.openarchiefbeheer.configuration.oidcUrl | trimSuffix "/" }}/*"
         secret: {{ .Values.openarchiefbeheer.configuration.oidcSecret | quote }}
-        attributes:
-          pkce.code.challenge.method: S256
         protocolMappers:
           - name: "username"
             protocol: "openid-connect"
@@ -131,8 +127,6 @@ data:
           - "{{ .Values.keycloak.config.clients.monitoring.oidcUrl | trimSuffix "/" }}/*"
         authorizationServicesEnabled: "true"
         serviceAccountsEnabled: "true"
-        attributes:
-          pkce.code.challenge.method: S256
         protocolMappers:
           - name: "user-roles"
             protocol: "openid-connect"
@@ -163,8 +157,6 @@ data:
         webOrigins:
           - "{{ .Values.opennotificaties.configuration.oidcUrl | trimSuffix "/" }}/*"
         secret: {{ .Values.opennotificaties.configuration.oidcSecret | quote }}
-        attributes:
-          pkce.code.challenge.method: S256
         protocolMappers:
           - name: "username"
             protocol: "openid-connect"
@@ -202,8 +194,6 @@ data:
         webOrigins:
           - "{{ .Values.objecten.configuration.oidcUrl | trimSuffix "/" }}/*"
         secret: {{ .Values.objecten.configuration.oidcSecret | quote }}
-        attributes:
-          pkce.code.challenge.method: S256
         protocolMappers:
           - name: "username"
             protocol: "openid-connect"
@@ -241,8 +231,6 @@ data:
         webOrigins:
           - "{{ .Values.objecttypen.configuration.oidcUrl | trimSuffix "/" }}/*"
         secret: {{ .Values.objecttypen.configuration.oidcSecret | quote }}
-        attributes:
-          pkce.code.challenge.method: S256
         protocolMappers:
           - name: "username"
             protocol: "openid-connect"
@@ -280,8 +268,6 @@ data:
         webOrigins:
           - "{{ .Values.openklant.configuration.oidcUrl | trimSuffix "/" }}/*"
         secret: {{ .Values.openklant.configuration.oidcSecret | quote }}
-        attributes:
-          pkce.code.challenge.method: S256
         protocolMappers:
           - name: "username"
             protocol: "openid-connect"
@@ -319,8 +305,6 @@ data:
         webOrigins:
           - "{{ .Values.openformulieren.configuration.oidcUrl | trimSuffix "/" }}/*"
         secret: {{ .Values.openformulieren.configuration.oidcSecret | quote }}
-        attributes:
-          pkce.code.challenge.method: S256
         protocolMappers:
           - name: "username"
             protocol: "openid-connect"
@@ -358,8 +342,6 @@ data:
         webOrigins:
           - "{{ .Values.openinwoner.configuration.oidcUrl | trimSuffix "/" }}/*"
         secret: {{ .Values.openinwoner.configuration.oidcSecret | quote }}
-        attributes:
-          pkce.code.challenge.method: S256
         protocolMappers:
           - name: "username"
             protocol: "openid-connect"
@@ -397,8 +379,6 @@ data:
         webOrigins:
           - "{{ .Values.kiss.configuration.oidcUrl | trimSuffix "/" }}/*"
         secret: {{ .Values.kiss.settings.oidc.clientSecret | quote }}
-        attributes:
-          pkce.code.challenge.method: S256
         protocolMappers:
           - name: kiss-roles
             protocol: openid-connect
@@ -433,8 +413,6 @@ data:
         webOrigins:
           - "{{ .Values.zac.contextUrl | trimSuffix "/" }}/*"
         secret: {{ .Values.zac.auth.secret | quote }}
-        attributes:
-          pkce.code.challenge.method: S256
         protocolMappers:
           - name: "username"
             protocol: "openid-connect"
@@ -471,8 +449,6 @@ data:
         webOrigins:
           - "{{ .Values.zac.contextUrl | trimSuffix "/" }}/*"
         serviceAccountsEnabled: true
-        attributes:
-          pkce.code.challenge.method: S256
         protocolMappers:
           - name: "Client Host"
             protocol: "openid-connect"
@@ -516,8 +492,6 @@ data:
         webOrigins:
           - "{{ .Values.ita.web.oidc.frontendUrl | trimSuffix "/" }}/*"
         secret: {{ .Values.ita.web.oidc.clientSecret | quote }}
-        attributes:
-          pkce.code.challenge.method: S256
         protocolMappers:
           - name: "client roles"
             protocol: "openid-connect"
@@ -555,8 +529,6 @@ data:
         webOrigins:
           - "{{ .Values.pabc.settings.oidc.oidcUrl | trimSuffix "/" }}/*"
         secret: {{ .Values.pabc.settings.oidc.clientSecret | quote }}
-        attributes:
-          pkce.code.challenge.method: S256
         protocolMappers:
           - name: "client roles"
             protocol: "openid-connect"
@@ -578,8 +550,6 @@ data:
         enabled: true
         clientAuthenticatorType: client-secret
         secret: {{ .Values.pabc.settings.keycloakAdmin.clientSecret | quote }}
-        attributes:
-          pkce.code.challenge.method: S256
         serviceAccountsEnabled: true
     clientScopes:
       - name: roles
