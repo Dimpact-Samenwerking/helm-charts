@@ -2565,6 +2565,16 @@ omc:
   image:
     # repository: ghcr.io/worth-nl/notifynl-omc
     tag: "1.17.18"
+  # BELOW are the resource settings from the subchart, notifynl-omc-nodep which we do not override
+  # app:
+  #   port: 5270
+  #   resources:
+  #     requests:
+  #       cpu: 250m
+  #       memory: 128Mi
+  #     limits:
+  #       cpu: 500m
+  #       memory: 512Mi
   settings:
     notify:
       api:
