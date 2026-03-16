@@ -1808,7 +1808,7 @@ referentielijsten:
   configuration:
     enabled: true
     initContainer:
-      enabled: false
+      enabled: true
   job:
     enabled: true
     backoffLimit: 6
