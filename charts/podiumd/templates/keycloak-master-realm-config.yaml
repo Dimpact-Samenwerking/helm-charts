@@ -21,6 +21,12 @@ data:
     bruteForceProtected: true
     failureFactor: 5
     revokeRefreshToken: true
+    eventsEnabled: true
+    adminEventsEnabled: true
+    adminEventsDetailsEnabled: true
+    eventsExpiration: 2592000
+    offlineSessionMaxLifespanEnabled: true
+    offlineSessionMaxLifespan: 7776000
 {{- if .Values.keycloak.config.adminOtpEnabled }}
     requiredActions:
       - name: "Configure OTP"
