@@ -77,7 +77,7 @@ spec:
           valueFrom:
             secretKeyRef:
               name: keycloak-operator-client-secret
-              key: clientSecret
+              key: client-secret
               optional: true
         volumeMounts:
         - name: skip-flag
