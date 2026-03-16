@@ -1639,6 +1639,19 @@ openinwoner:
       tls:
         selfSignedCertificate:
           disabled: true
+    nodeSets:
+    - name: default
+      count: 1
+      config:
+        node.store.allow_mmap: false
+      podTemplate:
+        spec:
+          terminationGracePeriodSeconds: 60
+          containers:
+          - name: elasticsearch
+            env:
+            - name: PRE_STOP_ADDITIONAL_WAIT_SECONDS
+              value: "15"
   eck-operator:
     enabled: false
 
