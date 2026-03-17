@@ -1822,7 +1822,6 @@ referentielijsten:
     size: 1Gi
     storageClassName: ""
     existingClaim: referentielijsten
-    mediaMountSubpath: referentielijsten/media
   persistentVolume:
     volumeAttributeShareName: referentielijsten
   image:
