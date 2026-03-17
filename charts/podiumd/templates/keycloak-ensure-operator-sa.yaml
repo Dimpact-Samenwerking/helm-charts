@@ -1,10 +1,12 @@
-{{- if and (index .Values "keycloak-operator").enabled (index .Values "keycloak-operator").jobs.ensureOperatorSa.enabled }}
+{{- $operatorJobs := (index .Values "keycloak-operator").jobs }}
+{{- $clientSecret := $operatorJobs.ensureOperatorSa.clientSecret }}
+{{- if and (index .Values "keycloak-operator").enabled $operatorJobs.ensureOperatorSa.enabled $clientSecret }}
 ---
 # Job: ensure the `keycloak-operator` service-account client exists in the Keycloak master realm
 # and has the admin role assigned, so the Keycloak Operator can manage realms.
 #
 # Uses the podiumd-admin user (created by ensure-podiumd-admin-user job) to authenticate.
-# Hook weight 10 — runs after ensure-podiumd-admin-user (weight 5).
+# Ordering is enforced at runtime by the wait-for-podiumd-admin initContainer, not Helm hooks.
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -37,11 +39,15 @@ spec:
         - |
           echo "Waiting for podiumd-admin to be able to authenticate..."
           for i in $(seq 1 60); do
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+            RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
               "http://keycloak-service:8080/realms/master/protocol/openid-connect/token" \
-              -d "grant_type=password&client_id=admin-cli&username=podiumd-admin&password=$ADMIN_PASS")
+              --data-urlencode "grant_type=password" \
+              --data-urlencode "client_id=admin-cli" \
+              --data-urlencode "username=podiumd-admin" \
+              --data-urlencode "password=$ADMIN_PASS")
+            STATUS=$(printf '%s' "$RESPONSE" | tail -n1)
             if [ "$STATUS" = "200" ]; then echo "podiumd-admin authenticated."; exit 0; fi
-            echo "Attempt $i/60 — status=$STATUS, retrying in 10s..."
+            echo "Attempt $i/60 — status=$STATUS, body: $(printf '%s' "$RESPONSE" | head -n1)"
             sleep 10
           done
           echo "Timed out waiting for podiumd-admin"; exit 1
@@ -62,9 +68,16 @@ spec:
           ADMIN_USER="podiumd-admin"
           : "${ADMIN_PASS:?}"
 
+          # Safely escape a value for embedding in a JSON string literal.
+          # Escapes backslashes first, then double-quotes.
+          json_escape() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
+
           echo "Obtaining admin token via ROPC..."
           ADMIN_TOKEN=$(curl -s -X POST "$SERVER/realms/master/protocol/openid-connect/token" \
-            -d "grant_type=password&client_id=admin-cli&username=$ADMIN_USER&password=$ADMIN_PASS" \
+            --data-urlencode "grant_type=password" \
+            --data-urlencode "client_id=admin-cli" \
+            --data-urlencode "username=$ADMIN_USER" \
+            --data-urlencode "password=$ADMIN_PASS" \
             | sed -n 's/.*"access_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
           if [ -z "$ADMIN_TOKEN" ]; then echo "Failed to obtain admin token"; exit 2; fi
 
@@ -75,8 +88,7 @@ spec:
           if [ -z "$CLIENT_ID" ]; then
             echo "Creating client keycloak-operator..."
             curl -s -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
-              -d '{"clientId":"keycloak-operator","serviceAccountsEnabled":true,"publicClient":false,"directAccessGrantsEnabled":true,"protocol":"openid-connect"}' \
-              "$SERVER/admin/realms/master/clients"
+              -d '{"clientId":"keycloak-operator","serviceAccountsEnabled":true,"publicClient":false,"directAccessGrantsEnabled":false,"protocol":"openid-connect"}' \              "$SERVER/admin/realms/master/clients"
             sleep 1
             CLIENT_INFO=$(curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
               "$SERVER/admin/realms/master/clients?clientId=keycloak-operator")
@@ -86,9 +98,9 @@ spec:
             echo "Client exists: $CLIENT_ID"
           fi
 
-          echo "Ensuring directAccessGrantsEnabled=true..."
+          echo "Ensuring directAccessGrantsEnabled=false..."
           curl -s -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
-            -d '{"clientId":"keycloak-operator","serviceAccountsEnabled":true,"publicClient":false,"directAccessGrantsEnabled":true,"protocol":"openid-connect"}' \
+            -d '{"clientId":"keycloak-operator","serviceAccountsEnabled":true,"publicClient":false,"directAccessGrantsEnabled":false,"protocol":"openid-connect"}' \
             "$SERVER/admin/realms/master/clients/$CLIENT_ID" || true
 
           echo "Fetching service account user id..."
@@ -104,13 +116,16 @@ spec:
             -d "[$ROLE_JSON]" "$SERVER/admin/realms/master/users/$SA_USER_ID/role-mappings/realm" || true
 
           echo "Setting client secret to known value..."
+          CLIENT_SECRET_JSON=$(json_escape "$CLIENT_SECRET")
           curl -s -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
-            -d "{\"clientId\":\"keycloak-operator\",\"secret\":\"$CLIENT_SECRET\",\"serviceAccountsEnabled\":true,\"publicClient\":false,\"directAccessGrantsEnabled\":true,\"protocol\":\"openid-connect\"}" \
+            -d "{\"clientId\":\"keycloak-operator\",\"secret\":\"${CLIENT_SECRET_JSON}\",\"serviceAccountsEnabled\":true,\"publicClient\":false,\"directAccessGrantsEnabled\":false,\"protocol\":\"openid-connect\"}" \
             "$SERVER/admin/realms/master/clients/$CLIENT_ID" || true
 
           echo "Verifying client_credentials token..."
           TOKEN_RESPONSE=$(curl -s -X POST "$SERVER/realms/master/protocol/openid-connect/token" \
-            -d "grant_type=client_credentials&client_id=keycloak-operator&client_secret=$CLIENT_SECRET")
+            --data-urlencode "grant_type=client_credentials" \
+            --data-urlencode "client_id=keycloak-operator" \
+            --data-urlencode "client_secret=$CLIENT_SECRET")
           ACCESS_TOKEN=$(echo "$TOKEN_RESPONSE" | sed -n 's/.*"access_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1 || true)
           if [ -z "$ACCESS_TOKEN" ]; then echo "Failed to obtain client token: $TOKEN_RESPONSE"; exit 4; fi
 

@@ -1,11 +1,13 @@
-{{- if and (index .Values "keycloak-operator").enabled (index .Values "keycloak-operator").jobs.importPodiumdRealm.enabled }}
+{{- $operatorJobs := (index .Values "keycloak-operator").jobs }}
+{{- $clientSecret := $operatorJobs.ensureOperatorSa.clientSecret }}
+{{- if and (index .Values "keycloak-operator").enabled $operatorJobs.importPodiumdRealm.enabled $operatorJobs.ensureOperatorSa.enabled $clientSecret }}
 ---
 # Job: import the podiumd realm config via keycloak-config-cli.
 # Uses the keycloak-operator client secret (stored by ensure-keycloak-operator-sa job)
 # to authenticate via client_credentials — no podiumd-admin or JWT key needed.
 #
 # External dependencies:
-#   ConfigMap: keycloak-podiumd-realm-config  key: podiumd-realm-config.yaml
+#   ConfigMap: keycloak-podiumd-realm-config  key: podiumd.yaml
 #   Secret:    keycloak-operator-client-secret key: client-secret (written by ensure-keycloak-operator-sa)
 apiVersion: batch/v1
 kind: Job
@@ -39,11 +41,14 @@ spec:
         - |
           echo "Waiting for keycloak-operator client credentials to work..."
           for i in $(seq 1 60); do
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+            RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
               "http://keycloak-service:8080/realms/master/protocol/openid-connect/token" \
-              -d "grant_type=client_credentials&client_id=keycloak-operator&client_secret=$CLIENT_SECRET")
+              --data-urlencode "grant_type=client_credentials" \
+              --data-urlencode "client_id=keycloak-operator" \
+              --data-urlencode "client_secret=$CLIENT_SECRET")
+            STATUS=$(printf '%s' "$RESPONSE" | tail -n1)
             if [ "$STATUS" = "200" ]; then echo "keycloak-operator SA authenticated."; exit 0; fi
-            echo "Attempt $i/60 — status=$STATUS, retrying in 10s..."
+            echo "Attempt $i/60 — status=$STATUS, body: $(printf '%s' "$RESPONSE" | head -n1)"
             sleep 10
           done
           echo "Timed out waiting for keycloak-operator SA"; exit 1
@@ -65,7 +70,7 @@ spec:
         image: {{ include "podiumd.image" .Values.keycloak.keycloakConfigCli.image }}
         env:
         - name: KEYCLOAK_URL
-          value: {{ coalesce .Values.keycloak.hostname.admin .Values.keycloak.config.adminFrontendUrl | quote }}
+          value: {{ coalesce .Values.keycloak.hostname.admin .Values.keycloak.config.adminFrontendUrl "http://keycloak-service:8080" | quote }}
         - name: KEYCLOAK_CLIENTID
           value: "keycloak-operator"
         - name: KEYCLOAK_CLIENTSECRET
