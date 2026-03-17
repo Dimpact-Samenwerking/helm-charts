@@ -702,6 +702,9 @@ data:
             - "administrators"
           opennotificaties:
             - "administrators"
+          kiss:
+            - "Klantcontactmedewerker"
+            - "Redacteur"
           pabc:
             - "administrator"
       - name: "behandelaars"
