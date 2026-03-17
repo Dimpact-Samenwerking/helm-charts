@@ -1818,9 +1818,13 @@ referentielijsten:
   data: ""
   replicaCount: 1
   persistence:
-    size: 10Gi
+    enabled: true
+    size: 1Gi
+    storageClassName: ""
     existingClaim: referentielijsten
-    storageClass: ""
+    mediaMountSubpath: referentielijsten/media
+  persistentVolume:
+    volumeAttributeShareName: referentielijsten
   image:
     repository: maykinmedia/referentielijsten-api
     pullPolicy: IfNotPresent
