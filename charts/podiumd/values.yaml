@@ -167,8 +167,6 @@ keycloak:
       name: ""
       key: ""
   keycloakConfigCli:
-    # disabled for now, will be reused for future configuration management of keycloak
-    enabled: false
     # image parameters for keycloak-config-cli
     # Official keycloak-config-cli image: adorsys/keycloak-config-cli:6.4.1-26
     image:
