@@ -12,8 +12,14 @@ data:
     realm: {{ .Values.keycloak.config.realm }}
     enabled: true
     displayName: {{ .Values.keycloak.config.realmDisplayName }}
+    # This realm is exclusively for beheer (management) users and municipality staff.
+    # Citizens are not authenticated here — they use centralized login methods (e.g. DigiD)
+    # configured per application. Settings are therefore calibrated for privileged/internal users.
     loginWithEmailAllowed: true
-    rememberMe: true
+    # rememberMe disabled: persistent sessions are not appropriate for privileged/admin users.
+    # Recommended by BIO 2.0 §5.17, NCSC session management guidelines, and OWASP ASVS L2 §3.3.
+    rememberMe: false
+    registrationAllowed: false
     attributes:
       frontendUrl: {{ .Values.keycloak.config.realmFrontendUrl }}
       adminEventsExpiration: 2592000
