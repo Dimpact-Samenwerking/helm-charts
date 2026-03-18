@@ -89,6 +89,6 @@ dependencies:
     version: 1.0.0
     condition: pabc.enabled
   - name: zaakbrug
-    repository: "https://wearefrank.github.io/charts"
-    version: 2.3.19
+    repository: "@wearefrank"
+    version: 2.3.22
     condition: zaakbrug.enabled

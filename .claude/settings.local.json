@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -E '^[a-z][-a-z0-9]*:$' /Users/jim/src/Dimpact-Samenwerking/helm-charts/charts/podiumd/values.yaml)"
+    ]
+  }
+}
