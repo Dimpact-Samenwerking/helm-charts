@@ -1819,8 +1819,7 @@ referentielijsten:
   replicaCount: 1
   persistence:
     enabled: true
-    size: 1Gi
-    storageClassName: ""
+    size: 10Gi
     existingClaim: referentielijsten
   persistentVolume:
     volumeAttributeShareName: referentielijsten
