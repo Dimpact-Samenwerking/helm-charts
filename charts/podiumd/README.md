@@ -102,6 +102,7 @@ helm repo add opentelemetry https://open-telemetry.github.io/opentelemetry-helm-
 helm repo add zac https://infonl.github.io/dimpact-zaakafhandelcomponent/
 helm repo add zgw-office-addin https://infonl.github.io/zgw-office-addin
 helm repo add adfinis https://charts.adfinis.com
+helm repo add worth-nl https://worth-nl.github.io/helm-charts
 ```
 
 ## PersistentVolume and PersistVolumeClaim resources

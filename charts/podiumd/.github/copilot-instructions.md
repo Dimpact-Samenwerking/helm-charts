@@ -9,15 +9,21 @@ cd charts\podiumd
 
 Build / dependency / lint / template commands
 # Setup helm repos (run once before dependency operations)
+```
+helm repo add dimpact https://Dimpact-Samenwerking.github.io/helm-charts/
+helm repo add kiss-frontend https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/KISS-frontend/main/helm
+helm repo add kiss-adapter https://raw.githubusercontent.com/ICATT-Menselijk-Digitaal/podiumd-adapter/main/helm
+helm repo add kiss-elastic https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/.github/main/docs/scripts/elastic
 helm repo add bitnami https://charts.bitnami.com/bitnami
 helm repo add maykinmedia https://maykinmedia.github.io/charts/
 helm repo add wiremind https://wiremind.github.io/wiremind-helm-charts
-helm repo add dimpact https://Dimpact-Samenwerking.github.io/helm-charts/
-helm repo add kiss-elastic https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/.github/main/docs/scripts/elastic
 helm repo add openshift https://charts.openshift.io
+helm repo add solr https://solr.apache.org/charts
 helm repo add zac https://infonl.github.io/dimpact-zaakafhandelcomponent/
 helm repo add zgw-office-addin https://infonl.github.io/zgw-office-addin
 helm repo add adfinis https://charts.adfinis.com
+helm repo add worth-nl https://worth-nl.github.io/helm-charts
+```
 
 # Dependency management (from charts/podiumd/)
 helm dependency update
