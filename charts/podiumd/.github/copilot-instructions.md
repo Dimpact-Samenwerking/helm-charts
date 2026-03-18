@@ -59,6 +59,7 @@ Key conventions and patterns
 - Vendored charts: charts/ contains pinned .tgz packages for reproducible builds; Chart.lock also present.
 - Schema and validation: kiss.schema.json provides schema for values.yaml.
 - Documentation: check docs/ for migration notes (Keycloak) and API-proxy URL rewriting.
+- Keycloak security changes: whenever a security-relevant Keycloak setting is added or modified (realm config, token lifespans, brute force, password policy, session settings, etc.), always update docs/keycloak-security-updates.md to reflect the change, its rationale, and the applicable standard.
 
 Where to look
 - Chart.yaml — dependency versions and conditions

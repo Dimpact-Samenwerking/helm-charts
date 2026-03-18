@@ -186,7 +186,8 @@ Settings that are already at a secure default are logged for audit purposes but 
 
 ## Podiumd Realm
 
-The podiumd realm is the end-user facing realm. It federates identities from external IdPs (DigiD, Microsoft Entra ID, eHerkenning). Local accounts exist for back-office users. All settings apply on top of the same Keycloak version and infrastructure as the master realm.
+The podiumd realm exclusively serves beheer (management) users and municipality staff.
+**Citizens do not authenticate directly in this realm** — they use centralized login methods (e.g. DigiD, eHerkenning, Microsoft Entra ID) configured per application. Settings are therefore calibrated for privileged internal users, not a general public audience.
 
 ### Browser Security Headers
 
@@ -253,18 +254,17 @@ The podiumd realm is the end-user facing realm. It federates identities from ext
 | `accessTokenLifespan` | `60` s | `300` s (5 min) | ✅ Configured (was 300) |
 | `ssoSessionIdleTimeout` | `1800` s (30 min) | `1800` s | ✅ Default |
 | `ssoSessionMaxLifespan` | `36000` s (10 h) | `36000` s | ✅ Default |
-| `rememberMe` | `true` | `false` | ⚠️ Accepted risk (intentional) |
+| `rememberMe` | `false` | `false` | ✅ Configured (was true) |
 
 **`accessTokenLifespan: 60`** ← *changed from 300*
 - **Standard:** **Forum / OAuth NL GOV** — vereist korte token levensduur; BIO 2.0 / ISO 27002:2022 maatregel **8.5**; NIST SP 800-63B §7.1
 - **Why:** Access tokens should have a short lifespan to limit the damage if a token is stolen. The Keycloak default of 300 s (5 min) is too long. 60 s matches the master realm setting and is standard practice for OAuth2 flows used here.
 - **Implementation:** `keycloak-podiumd-realm-config.yaml` → `accessTokenLifespan`
 
-**`rememberMe: true`** — accepted risk, no change
-- **Standard:** BIO 2.0 / ISO 27002:2022 maatregel **8.5**; NCSC Webapplicaties — sectie Sessiebeheer
-- **Why:** "Remember me" allows persistent sessions across browser restarts (stores a long-lived session cookie). For a citizen-facing portal this is intentionally enabled to improve UX — citizens should not be forced to re-authenticate every browser session. This is an accepted risk documented here.
-- **Mitigating controls:** Brute force protection, short access token lifespan, refresh token rotation, and HSTS are all in place.
-- **Implementation:** No change — `rememberMe: true` is explicitly set in `keycloak-podiumd-realm-config.yaml`.
+**`rememberMe: false`** ← *changed from true*
+- **Standard:** BIO 2.0 / ISO 27002:2022 maatregel **8.5**; NCSC Webapplicaties — sectie Sessiebeheer; OWASP ASVS 4.0 §3.3
+- **Why:** The podiumd realm exclusively serves beheer and municipality staff — no citizens. Persistent sessions via "remember me" increase risk of unauthorized access from unattended or shared workstations, which is not acceptable for privileged internal users. There is no citizen UX argument to balance against the risk.
+- **Implementation:** `keycloak-podiumd-realm-config.yaml` → `rememberMe: false`
 
 ---
 
@@ -287,20 +287,20 @@ The podiumd realm is the end-user facing realm. It federates identities from ext
 
 | Setting | Current value | Keycloak default | Status |
 |---------|--------------|-----------------|--------|
-| `registrationAllowed` | `false` | `false` | ✅ Default — self-registration must be disabled on admin realm |
-| `resetPasswordAllowed` | `false` | `false` | ✅ Default — password reset via email disabled on admin realm |
-| `rememberMe` | `false` | `false` | ✅ Default — persistent sessions undesirable for admin realm |
-| `verifyEmail` | `false` | `false` | ✅ Default — not applicable for admin realm |
+| `registrationAllowed` | `false` | `false` | ✅ Configured (explicitly set) |
+| `resetPasswordAllowed` | `false` | `false` | ✅ Default — password reset via email disabled |
+| `rememberMe` | `false` | `false` | ✅ Configured (was true) — see Session Settings |
+| `verifyEmail` | `false` | `false` | ✅ Default — not applicable |
 | `loginWithEmailAllowed` | `true` | `true` | ✅ Default |
 | `duplicateEmailsAllowed` | `false` | `false` | ✅ Default |
 | `editUsernameAllowed` | `false` | `false` | ✅ Default |
 
-**`registrationAllowed: false`**
-- **Standard:** BIO 2.0 / ISO 27002:2022 maatregel **8.2** (Geprivilegieerde toegangsrechten) — toegang tot beheerfuncties mag uitsluitend worden verleend door een beheerder, nooit door zelfregistratie.
+**`registrationAllowed: false`** ← *explicitly set*
+- **Standard:** BIO 2.0 / ISO 27002:2022 maatregel **8.2** (Geprivilegieerde toegangsrechten) — toegang mag uitsluitend worden verleend door een beheerder, nooit door zelfregistratie.
+- **Why:** All accounts are pre-provisioned by administrators. Self-registration has no legitimate use case in a realm serving only internal beheer and municipality staff.
 
-**`rememberMe: false`**
-- **Standard:** BIO 2.0 / ISO 27002:2022 maatregel **8.5**; NCSC Webapplicaties — sectie Sessiebeheer
-- **Why:** "Remember me" creates persistent browser sessions that survive browser restarts, increasing risk from unattended or shared workstations.
+**`rememberMe: false`** ← *changed from true*
+- See Session Settings above for full rationale.
 
 ---
 
@@ -353,7 +353,7 @@ The podiumd realm is the end-user facing realm. It federates identities from ext
 
 **`offlineSessionMaxLifespanEnabled: true` / `offlineSessionMaxLifespan: 7776000`** ← *changed from disabled*
 - **Standard:** **RFC 9700** §2.2.2; **Forum / OAuth NL GOV**; BIO 2.0 / ISO 27002:2022 maatregel **8.5**; **OWASP ASVS 4.0 V3.3.4**
-- **Why:** Same rationale as master realm. 90-day maximum lifespan for citizen-facing persistent sessions (enabled by `rememberMe: true`) is a reasonable bound that balances UX with security.
+- **Why:** Same rationale as master realm. 90-day maximum lifespan is a reasonable absolute bound on offline sessions for internal users.
 - **Implementation:** `keycloak-podiumd-realm-config.yaml` → `offlineSessionMaxLifespanEnabled`, `offlineSessionMaxLifespan`
 
 ---
