@@ -20,8 +20,6 @@ Settings that are already at a secure default are logged for audit purposes but 
 | **OWASP ASVS 4.0** | OWASP Application Security Verification Standard 4.0 — Level 2 (Standard) | Internationaal aanbevolen; vult BIO 2.0 aan voor applicatiebeveiliging |
 | **RFC 9700** | OAuth 2.0 Security Best Current Practice (BCP) — vervangt RFC 6819 | Verplicht referentiekader voor OAuth 2.0 implementaties; onderdeel van Forum / OAuth NL GOV |
 
----
-
 ## Master Realm
 
 ### Browser Security Headers
@@ -47,12 +45,10 @@ Settings that are already at a secure default are logged for audit purposes but 
 - **Standard:** NCSC Webapplicaties — sectie Content Security Policy; BIO 2.0 / ISO 27002:2022 maatregel 8.23
 - **Why:** Restricts which origins can embed the page and blocks object/plugin execution, reducing XSS and injection attack surface.
 
-**`strictTransportSecurity: max-age=31536000; includeSubDomains`** ← *changed from empty*
+**`strictTransportSecurity: max-age=31536000; includeSubDomains`** ← changed from empty
 - **Standard:** **Forum / HTTPS+HSTS** — RFC 6797; wettelijk verplicht per 1 juli 2023 (Wet digitale overheid); NCSC Webapplicaties — sectie HTTPS/HSTS
 - **Why:** Without HSTS, browsers may downgrade to HTTP after the first visit. Keycloak sets this header on all its responses; an empty value means no HSTS is sent even though TLS is used at the ingress.
 - **Implementation:** `keycloak-master-realm-config.yaml` → `browserSecurityHeaders.strictTransportSecurity`
-
----
 
 ### Brute Force Protection
 
@@ -67,17 +63,15 @@ Settings that are already at a secure default are logged for audit purposes but 
 | `quickLoginCheckMilliSeconds` | `1000` | `1000` | ✅ Default acceptable |
 | `maxDeltaTimeSeconds` | `43200` (12 h) | `43200` | ✅ Default acceptable |
 
-**`bruteForceProtected: true`** ← *changed from false*
+**`bruteForceProtected: true`** ← changed from false
 - **Standard:** BIO 2.0 / ISO 27002:2022 maatregel **8.5** (Beveiligde authenticatie); NCSC Webapplicaties — sectie Authenticatie (begrens inlogpogingen); NIST SP 800-63B §5.2.2; **OWASP ASVS 4.0 V2.2.1** (vereist rate-limiting of lockout na herhaalde mislukte pogingen)
 - **Why:** Without brute force protection there is no lockout on failed login attempts. An attacker can make unlimited password guesses against the admin console.
 - **Implementation:** `keycloak-master-realm-config.yaml` → `bruteForceProtected: true`
 
-**`failureFactor: 5`** ← *changed from 30*
+**`failureFactor: 5`** ← changed from 30
 - **Standard:** BIO 2.0 / ISO 27002:2022 maatregel **8.5**; NIST SP 800-63B §5.2.2 (recommends throttling after a small number of consecutive failures); NCSC Webapplicaties — sectie Authenticatie; **OWASP ASVS 4.0 V2.2.1**
 - **Why:** 30 failed attempts is far too permissive. 5 consecutive failures is the widely accepted threshold before a temporary lockout is imposed.
 - **Implementation:** `keycloak-master-realm-config.yaml` → `failureFactor: 5`
-
----
 
 ### Password Policy
 
@@ -85,7 +79,7 @@ Settings that are already at a secure default are logged for audit purposes but 
 |---------|-------|--------|
 | `passwordPolicy` | `length(14) and notUsername(undefined) and notEmail(undefined) and passwordHistory(5)` | ✅ Configured (was empty) |
 
-**`passwordPolicy`** ← *changed from empty*
+**`passwordPolicy`** ← changed from empty
 - **Standard:** BIO 2.0 / ISO 27002:2022 maatregel **5.17** (Authenticatie-informatie); NIST SP 800-63B §5.1.1; **OWASP ASVS 4.0 V2.1.1**
 - **Why:** Admin accounts for the master realm have elevated privileges (full Keycloak administration). The password policy uses a stricter minimum length of 14 characters vs. 12 for the podiumd realm, reflecting the higher risk of admin account compromise. Complexity rules (uppercase, special chars) are deliberately omitted per NIST SP 800-63B §5.1.1 guidance.
   - `length(14)` — minimum 14 characters (stricter than podiumd; admin accounts warrant higher bar)
@@ -93,8 +87,6 @@ Settings that are already at a secure default are logged for audit purposes but 
   - `notEmail` — cannot use the email address as the password
   - `passwordHistory(5)` — prevents reuse of the last 5 passwords
 - **Implementation:** `keycloak-master-realm-config.yaml` → `passwordPolicy`
-
----
 
 ### Token Lifespans
 
@@ -121,8 +113,6 @@ Settings that are already at a secure default are logged for audit purposes but 
 - **Why:** Sessions must expire after inactivity to prevent session hijacking from unattended terminals. 30 min idle / 10 h max is acceptable for an admin console.
 - **Status:** No change needed — defaults are acceptable.
 
----
-
 ### Refresh Token Rotation
 
 | Setting | Current value | Keycloak default | Status |
@@ -130,11 +120,9 @@ Settings that are already at a secure default are logged for audit purposes but 
 | `revokeRefreshToken` | `true` | `false` | ✅ Configured (was false) |
 | `refreshTokenMaxReuse` | `0` | `0` | ✅ Default |
 
-**`revokeRefreshToken: true`** ← *changed from false*
+**`revokeRefreshToken: true`** ← changed from false
 - **Standard:** **Forum / OAuth NL GOV** (Logius NL GOV Assurance Profile for OAuth 2.0) — vereist gebruik van refresh token rotation om hergebruik te detecteren; RFC 9700 (OAuth 2.0 Security BCP) §2.2.2
 - **Why:** Each refresh token may only be used once. If a stolen refresh token is replayed after the legitimate client already used it, Keycloak detects the duplicate use and revokes the entire session — providing theft detection.
-
----
 
 ### OTP / MFA
 
@@ -147,8 +135,6 @@ Settings that are already at a secure default are logged for audit purposes but 
 - **Why:** Admin console access must require MFA to prevent account takeover from credential theft alone. TOTP provides a second factor that is not transmitted over the network.
 - **Implementation:** `keycloak.config.adminOtpEnabled: true` in `values.yaml` — sets `CONFIGURE_TOTP` as a default required action on the master realm via `keycloak-master-realm-config.yaml`
 
----
-
 ### Audit Logging
 
 | Setting | Current value | Keycloak default | Status |
@@ -158,18 +144,16 @@ Settings that are already at a secure default are logged for audit purposes but 
 | `adminEventsDetailsEnabled` | `true` | `false` | ✅ Configured (was false) |
 | `eventsExpiration` | `2592000` s (30 d) | not set | ✅ Configured (was not set) |
 
-**`eventsEnabled: true` / `adminEventsEnabled: true` / `adminEventsDetailsEnabled: true`** ← *changed from false*
+**`eventsEnabled: true` / `adminEventsEnabled: true` / `adminEventsDetailsEnabled: true`** ← changed from false
 - **Standard:** BIO 2.0 / ISO 27002:2022 maatregel **8.15** (Log-informatie — vastleggen, bewaren en beoordelen van logboeken); **NIS2 / Cbw** artikel 21(2)(h) (monitoring en logging als onderdeel van beveiligingsmaatregelen); **OWASP ASVS 4.0 V7.1.1** (alle authenticatiegebeurtenissen vastleggen); **NCSC Webapplicaties** — sectie Logging en monitoring
 - **Why:** Without event logging, there is no audit trail for authentication events, failed login attempts, or administrative changes. BIO 2.0 §8.15 requires that security-relevant events are logged and retained. `adminEventsDetailsEnabled` captures the full request representation for admin events (who changed what).
 - **Note:** Keycloak stores events in the application database. For long-term retention (BIO 2.0 requires ≥ 1 year for security logs), events should be shipped to a centralized log management system (e.g., Azure Monitor, Elasticsearch/OpenSearch). The in-DB retention of 30 days is a minimum buffer, not a substitute for SIEM integration.
 - **Implementation:** `keycloak-master-realm-config.yaml` → `eventsEnabled`, `adminEventsEnabled`, `adminEventsDetailsEnabled`
 
-**`eventsExpiration: 2592000`** ← *changed from unset*
+**`eventsExpiration: 2592000`** ← changed from unset
 - **Standard:** BIO 2.0 / ISO 27002:2022 maatregel **8.15**; **OWASP ASVS 4.0 V7.2.2**
 - **Why:** Without an expiration, Keycloak retains events indefinitely in the database, leading to unbounded table growth. 30 days provides a practical operational buffer. Long-term retention is the responsibility of the log shipping pipeline.
 - **Implementation:** `keycloak-master-realm-config.yaml` → `eventsExpiration`
-
----
 
 ### Offline Session Max Lifespan
 
@@ -179,7 +163,7 @@ Settings that are already at a secure default are logged for audit purposes but 
 | `offlineSessionMaxLifespan` | `7776000` s (90 d) | `5184000` s (60 d) | ✅ Configured |
 | `offlineSessionIdleTimeout` | `2592000` s (30 d) | `2592000` s | ✅ Default |
 
-**`offlineSessionMaxLifespanEnabled: true` / `offlineSessionMaxLifespan: 7776000`** ← *changed from disabled*
+**`offlineSessionMaxLifespanEnabled: true` / `offlineSessionMaxLifespan: 7776000`** ← changed from disabled
 - **Standard:** **RFC 9700** (OAuth 2.0 Security BCP) §2.2.2 — refresh tokens must be bounded by maximum lifetime; **Forum / OAuth NL GOV**; BIO 2.0 / ISO 27002:2022 maatregel **8.5**; **OWASP ASVS 4.0 V3.3.4**
 - **Why:** Without a maximum lifespan, offline sessions (used by native/mobile apps and persistent refresh tokens) never expire by absolute age — only by idle timeout. If a refresh token is stolen and used before the idle timeout resets, it can be kept alive indefinitely. Bounding lifetime to 90 days limits the maximum exposure window.
 - **Implementation:** `keycloak-master-realm-config.yaml` → `offlineSessionMaxLifespanEnabled`, `offlineSessionMaxLifespan`
@@ -200,12 +184,10 @@ The podiumd realm exclusively serves beheer (management) users and municipality 
 | `xXSSProtection` | `1; mode=block` | ✅ Configured |
 | `strictTransportSecurity` | `max-age=31536000; includeSubDomains` | ✅ Configured (was empty) |
 
-**`strictTransportSecurity: max-age=31536000; includeSubDomains`** ← *changed from empty*
+**`strictTransportSecurity: max-age=31536000; includeSubDomains`** ← changed from empty
 - **Standard:** **Forum / HTTPS+HSTS** — RFC 6797; wettelijk verplicht per 1 juli 2023 (Wet digitale overheid); NCSC Webapplicaties — sectie HTTPS/HSTS
 - **Why:** Same rationale as master realm. The citizen-facing login URL must enforce HSTS as it handles authentication for government services.
 - **Implementation:** `keycloak-podiumd-realm-config.yaml` → `browserSecurityHeaders.strictTransportSecurity`
-
----
 
 ### Brute Force Protection
 
@@ -217,17 +199,15 @@ The podiumd realm exclusively serves beheer (management) users and municipality 
 | `maxFailureWaitSeconds` | `900` | `900` | ✅ Default |
 | `minimumQuickLoginWaitSeconds` | `60` | `60` | ✅ Default |
 
-**`bruteForceProtected: true`** ← *changed from false*
+**`bruteForceProtected: true`** ← changed from false
 - **Standard:** BIO 2.0 / ISO 27002:2022 maatregel **8.5** (Authenticatie-informatie beveiligen); NCSC Webapplicaties — sectie Toegangsbeheer; NIST SP 800-63B §5.2.2
 - **Why:** Without brute force protection, an attacker can attempt unlimited login attempts. Required for all authentication mechanisms under BIO 2.0.
 - **Implementation:** `keycloak-podiumd-realm-config.yaml` → `bruteForceProtected`
 
-**`failureFactor: 5`** ← *changed from 30*
+**`failureFactor: 5`** ← changed from 30
 - **Standard:** BIO 2.0 / ISO 27002:2022 maatregel **8.5**; NIST SP 800-63B §5.2.2 — aanbevolen maximaal 5-10 pogingen voor account lockout
 - **Why:** 30 failed attempts is far too permissive. 5 attempts allows for typos while still preventing automated attacks.
 - **Implementation:** `keycloak-podiumd-realm-config.yaml` → `failureFactor`
-
----
 
 ### Password Policy
 
@@ -235,7 +215,7 @@ The podiumd realm exclusively serves beheer (management) users and municipality 
 |---------|-------|--------|
 | `passwordPolicy` | `length(12) and notUsername(undefined) and notEmail(undefined) and passwordHistory(5)` | ✅ Configured (was empty) |
 
-**`passwordPolicy`** ← *changed from empty*
+**`passwordPolicy`** ← changed from empty
 - **Standard:** BIO 2.0 / ISO 27002:2022 maatregel **5.17** (Authenticatie-informatie); NIST SP 800-63B §5.1.1
 - **Why:** Local back-office accounts need a password policy. Policy follows NIST SP 800-63B guidance: emphasize length over complexity, prevent credential stuffing by blocking username/email reuse, and reduce password reuse risk via history. Complexity rules (uppercase, special chars) are deliberately omitted per NIST SP 800-63B §5.1.1 which shows they encourage predictable substitutions without improving security.
   - `length(12)` — minimum 12 characters (exceeds NIST §5.1.1 minimum of 8; aligns with NCSC recommendations)
@@ -244,8 +224,6 @@ The podiumd realm exclusively serves beheer (management) users and municipality 
   - `passwordHistory(5)` — prevents reuse of the last 5 passwords
 - **Note:** Users authenticating via external IdPs (DigiD, Microsoft Entra ID) are not affected by this policy.
 - **Implementation:** `keycloak-podiumd-realm-config.yaml` → `passwordPolicy: "length(12) and notUsername(undefined) and notEmail(undefined) and passwordHistory(5)"`
-
----
 
 ### Session Settings
 
@@ -256,17 +234,15 @@ The podiumd realm exclusively serves beheer (management) users and municipality 
 | `ssoSessionMaxLifespan` | `36000` s (10 h) | `36000` s | ✅ Default |
 | `rememberMe` | `false` | `false` | ✅ Configured (was true) |
 
-**`accessTokenLifespan: 60`** ← *changed from 300*
+**`accessTokenLifespan: 60`** ← changed from 300
 - **Standard:** **Forum / OAuth NL GOV** — vereist korte token levensduur; BIO 2.0 / ISO 27002:2022 maatregel **8.5**; NIST SP 800-63B §7.1
 - **Why:** Access tokens should have a short lifespan to limit the damage if a token is stolen. The Keycloak default of 300 s (5 min) is too long. 60 s matches the master realm setting and is standard practice for OAuth2 flows used here.
 - **Implementation:** `keycloak-podiumd-realm-config.yaml` → `accessTokenLifespan`
 
-**`rememberMe: false`** ← *changed from true*
+**`rememberMe: false`** ← changed from true
 - **Standard:** BIO 2.0 / ISO 27002:2022 maatregel **8.5**; NCSC Webapplicaties — sectie Sessiebeheer; OWASP ASVS 4.0 §3.3
 - **Why:** The podiumd realm exclusively serves beheer and municipality staff — no citizens. Persistent sessions via "remember me" increase risk of unauthorized access from unattended or shared workstations, which is not acceptable for privileged internal users. There is no citizen UX argument to balance against the risk.
 - **Implementation:** `keycloak-podiumd-realm-config.yaml` → `rememberMe: false`
-
----
 
 ### Refresh Token Rotation
 
@@ -275,13 +251,11 @@ The podiumd realm exclusively serves beheer (management) users and municipality 
 | `revokeRefreshToken` | `true` | `false` | ✅ Configured (was false) |
 | `refreshTokenMaxReuse` | `0` | `0` | ✅ Default |
 
-**`revokeRefreshToken: true`** ← *changed from false*
+**`revokeRefreshToken: true`** ← changed from false
 - **Standard:** **Forum / OAuth NL GOV** (Logius NL GOV Assurance Profile for OAuth 2.0); RFC 9700 (OAuth 2.0 Security BCP) §2.2.2
 - **Why:** Same rationale as master realm — each refresh token may only be used once, enabling theft detection.
 - **Implementation:** `keycloak-podiumd-realm-config.yaml` → `revokeRefreshToken`
 - **Implementation:** `keycloak-master-realm-config.yaml` → `revokeRefreshToken: true`
-
----
 
 ### Login Settings
 
@@ -295,16 +269,12 @@ The podiumd realm exclusively serves beheer (management) users and municipality 
 | `duplicateEmailsAllowed` | `false` | `false` | ✅ Default |
 | `editUsernameAllowed` | `false` | `false` | ✅ Default |
 
-**`registrationAllowed: false`** ← *explicitly set*
+**`registrationAllowed: false`** ← explicitly set
 - **Standard:** BIO 2.0 / ISO 27002:2022 maatregel **8.2** (Geprivilegieerde toegangsrechten) — toegang mag uitsluitend worden verleend door een beheerder, nooit door zelfregistratie.
 - **Why:** All accounts are pre-provisioned by administrators. Self-registration has no legitimate use case in a realm serving only internal beheer and municipality staff.
 
-**`rememberMe: false`** ← *changed from true*
+**`rememberMe: false`** ← changed from true
 - See Session Settings above for full rationale.
-
----
-
----
 
 ### Audit Logging
 
@@ -321,12 +291,10 @@ The podiumd realm exclusively serves beheer (management) users and municipality 
 - **Note:** Same SIEM integration requirement applies as for master realm — in-DB retention of 30 days is a minimum operational buffer.
 - **Implementation:** `keycloak-podiumd-realm-config.yaml` → `eventsEnabled`, `adminEventsEnabled`, `adminEventsDetailsEnabled`
 
-**`eventsExpiration: 2592000` / `adminEventsExpiration: 2592000`** ← *changed from 10800 (3 h)*
+**`eventsExpiration: 2592000` / `adminEventsExpiration: 2592000`** ← changed from 10800 (3 h)
 - **Standard:** BIO 2.0 / ISO 27002:2022 maatregel **8.15**; **OWASP ASVS 4.0 V7.2.2**
 - **Why:** The previous value of 10800 s (3 hours) was far too short for any operational or forensic use. 30 days is the minimum practical buffer before events are expected to be in the SIEM.
 - **Implementation:** `keycloak-podiumd-realm-config.yaml` → `eventsExpiration`, `attributes.adminEventsExpiration`
-
----
 
 ### PKCE Enforcement
 
@@ -341,8 +309,6 @@ The podiumd realm exclusively serves beheer (management) users and municipality 
 - **Action required:** For each component, verify `mozilla_django_oidc >= 4.0.0` is installed and `OIDC_USE_PKCE = True` is configured, then re-enable `pkce.code.challenge.method: S256` per client.
 - **Note on redirect URI wildcards:** All clients currently use path-wildcard redirect URIs (`https://app.example.nl/*`). RFC 9700 §4.1.3 recommends exact URI matching. This is accepted because all ingress terminates within the cluster and the NGINX ingress controller is managed and audited separately. Exact URIs will be evaluated per component when application callback paths are stable.
 
----
-
 ### Offline Session Max Lifespan
 
 | Setting | Current value | Keycloak default | Status |
@@ -351,12 +317,10 @@ The podiumd realm exclusively serves beheer (management) users and municipality 
 | `offlineSessionMaxLifespan` | `7776000` s (90 d) | `5184000` s (60 d) | ✅ Configured |
 | `offlineSessionIdleTimeout` | `2592000` s (30 d) | `2592000` s | ✅ Default |
 
-**`offlineSessionMaxLifespanEnabled: true` / `offlineSessionMaxLifespan: 7776000`** ← *changed from disabled*
+**`offlineSessionMaxLifespanEnabled: true` / `offlineSessionMaxLifespan: 7776000`** ← changed from disabled
 - **Standard:** **RFC 9700** §2.2.2; **Forum / OAuth NL GOV**; BIO 2.0 / ISO 27002:2022 maatregel **8.5**; **OWASP ASVS 4.0 V3.3.4**
 - **Why:** Same rationale as master realm. 90-day maximum lifespan is a reasonable absolute bound on offline sessions for internal users.
 - **Implementation:** `keycloak-podiumd-realm-config.yaml` → `offlineSessionMaxLifespanEnabled`, `offlineSessionMaxLifespan`
-
----
 
 ### OTP Algorithm (Under Investigation)
 
