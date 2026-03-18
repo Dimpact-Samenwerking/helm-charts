@@ -11,10 +11,9 @@ Componenten op alphabetische volgorde, met sub-charts er onder:
 |---------------------------|------------|---------------|--------------|---------------|---------------------------|
 | BRP Mock                  |            |               | 1.2.8        |               | Only on Test Environments |
 | ClamAV                    | 1.4.2      |               | 3.2.0        |               |                           |
-| Infinispan                | 15.2       |               | 0.5.0        |               | Deprecated                |
 | ITA                       | 2.1.1      | Minor update  | 2.1.1        |               |                           |
 | - Ita poller              | 2.1.1      | Minor update  |              |               |                           |
-| Keycloak                  | 26.5.4     |               | 1.11.2       | Operator      |                           |
+| Keycloak                  | 26.5.5     |               | 1.11.2       | Operator      |                           |
 | Kiss                      | 2.2.1      | Minor update  | 2.2.1        |               |                           |
 | - Kiss Elastic            |            |               | 1.1.0        |               |                           |
 | - Kiss ElasticSync        | 0.3.1      | Minor update  |              |               |                           |
@@ -65,6 +64,7 @@ Componenten op alphabetische volgorde, met sub-charts er onder:
 | Zac                | 4.0.12-1   | Major update | 1.0.165      | Minor update                            |
 | ZGW Office Addin   | 0.9.28     | Minor update | 0.0.65       | Patch update                            |
 
+
 ### [4.4.5](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.4.5)
 
 **PodiumD Helm chart version: 4.4.5**
@@ -96,7 +96,6 @@ helm repo add kiss-adapter https://raw.githubusercontent.com/ICATT-Menselijk-Dig
 helm repo add kiss-elastic https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/.github/main/docs/scripts/elastic
 helm repo add maykinmedia https://maykinmedia.github.io/charts
 helm repo add wiremind https://wiremind.github.io/wiremind-helm-charts
-helm repo add openshift https://charts.openshift.io
 helm repo add solr https://solr.apache.org/charts
 helm repo add opentelemetry https://open-telemetry.github.io/opentelemetry-helm-charts
 helm repo add zac https://infonl.github.io/dimpact-zaakafhandelcomponent/
@@ -765,9 +764,5 @@ Remove the CRD from the cluster. This also removes all existing `ServiceMonitor`
 ```
 kubectl delete crd servicemonitors.monitoring.coreos.com
 ```
-
-
-
-
 
 
