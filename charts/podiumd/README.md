@@ -96,7 +96,6 @@ helm repo add kiss-adapter https://raw.githubusercontent.com/ICATT-Menselijk-Dig
 helm repo add kiss-elastic https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/.github/main/docs/scripts/elastic
 helm repo add maykinmedia https://maykinmedia.github.io/charts
 helm repo add wiremind https://wiremind.github.io/wiremind-helm-charts
-helm repo add openshift https://charts.openshift.io
 helm repo add solr https://solr.apache.org/charts
 helm repo add opentelemetry https://open-telemetry.github.io/opentelemetry-helm-charts
 helm repo add zac https://infonl.github.io/dimpact-zaakafhandelcomponent/
