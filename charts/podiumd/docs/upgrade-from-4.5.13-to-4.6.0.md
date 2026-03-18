@@ -107,25 +107,7 @@ Remove any explicit `initContainer.enabled: false` override if you want the new 
 
 1. **Add `REP_KEYCLOAK_OPERATOR_SA_CLIENT_SECRET_REP`** to the pipeline secrets/replacements.
 
-2. **Remove Infinispan** — Infinispan has been removed as a dependency in 4.6.0. It was previously used as the Keycloak session cache but is no longer needed with the Keycloak Operator.
-
-   Run the cleanup script before or after the upgrade to remove the leftover Infinispan resources:
-   ```shell
-   scripts/cleanup-keycloak-and-infinispan.sh
-   ```
-
-   Or remove manually:
-   ```shell
-   kubectl delete statefulset -n podiumd -l app.kubernetes.io/name=infinispan
-   kubectl delete service -n podiumd -l app.kubernetes.io/name=infinispan
-   kubectl delete configmap -n podiumd -l app.kubernetes.io/name=infinispan
-   kubectl delete secret -n podiumd infinispan-secret
-   kubectl delete pvc -n podiumd -l app.kubernetes.io/name=infinispan
-   ```
-
-   Also remove any `infinispan.*` overrides from environment values files — the key no longer exists in `values.yaml`.
-
-   Additionally, remove the `openshift` Helm repo if it was added solely for Infinispan:
+2. **Remove Infinispan** — Infinispan has been removed as a dependency in 4.6.0. Remove the `openshift` Helm repo if it was added solely for Infinispan:
    ```shell
    helm repo remove openshift
    ```
