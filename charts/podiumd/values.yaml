@@ -2408,6 +2408,14 @@ pabc:
       clientId: "pabc-keycloak-admin"
       clientSecret: ""
 
+  resources:
+    requests:
+      memory: "384Mi"
+      cpu: "10m"
+    limits:
+      memory: "768Mi"
+      cpu: "200m"
+
 omc:
   enabled: false
   fullnameOverride: "omc"

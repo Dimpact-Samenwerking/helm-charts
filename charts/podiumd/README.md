@@ -667,6 +667,31 @@ The deprecated Bitnami `keycloak` sub-chart (`keycloak.enabled`) is kept for rol
 | openinwoner.elasticsearch.data.nodeSelector               | Elastic search data node labels for pod assignment. Evaluated as a template                                                                           | `{}`                                          |
 | openinwoner.elasticsearch.coordinating.nodeSelector       | Elastic search coordinating node labels for pod assignment. Evaluated as a template                                                                   | `{}`                                          |
 
+### PABC
+
+| Name                                       | Description                                                          | Value                    |
+|--------------------------------------------|----------------------------------------------------------------------|--------------------------|
+| pabc.enabled                               | Boolean to override the installation of PABC                         | `false`                  |
+| pabc.fullnameOverride                      | Override for the full deployment name                                | `"pabc"`                 |
+| pabc.image.tag                             | Image tag                                                            | `"1.0.0"`                |
+| pabc.migrations.image.tag                  | Migrations image tag                                                 | `"1.0.0"`                |
+| pabc.settings.database.host                | Database host                                                        | `""`                     |
+| pabc.settings.database.name                | Database name                                                        | `"pabc"`                 |
+| pabc.settings.database.username            | Database username                                                    | `"pabc"`                 |
+| pabc.settings.database.password            | Database password                                                    | `""`                     |
+| pabc.settings.apiKeys                      | List of issued API keys                                              | `[""]`                   |
+| pabc.settings.oidc.authority               | URL of the OpenID Connect Identity Provider                          | `""`                     |
+| pabc.settings.oidc.clientId                | Client ID for accessing the OpenID Connect Identity Provider         | `"pabc"`                 |
+| pabc.settings.oidc.clientSecret            | Secret for the OpenID Connect Identity Provider                      | `""`                     |
+| pabc.settings.oidc.functioneelBeheerderRole | Role claim value required for management functions                   | `"administrator"`        |
+| pabc.settings.oidc.nameClaimType           | JWT claim name containing the full name of the user                  | `"name"`                 |
+| pabc.settings.oidc.roleClaimType           | JWT claim name containing the roles of the user                      | `"roles"`                |
+| pabc.settings.oidc.emailClaimType          | JWT claim name containing the email address of the user              | `"email"`                |
+| pabc.settings.oidc.oidcUrl                 | OIDC URL                                                             | `"https://pabc.example.nl"` |
+| pabc.settings.keycloakAdmin.clientId       | Client ID for accessing Keycloak Admin API                           | `"pabc-keycloak-admin"`  |
+| pabc.settings.keycloakAdmin.clientSecret   | Client secret for accessing Keycloak Admin API                       | `""`                     |
+| pabc.resources                             | Container requests and limits                                        | See values.yaml          |
+
 ### KISS
 
 | Name                                    | Description                                                                                     | Value                                 |
