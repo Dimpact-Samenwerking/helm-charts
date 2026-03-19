@@ -944,7 +944,7 @@ objecttypen:
       useTLS: true
     disable2fa: false
   image:
-    tag: "3.4.0"
+    tag: "3.5.0"
   # used for create-required-objecttypen podiumd job only
   create_required_objecttypen_job:
     enabled: true
