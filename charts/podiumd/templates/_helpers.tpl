@@ -94,21 +94,15 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
-Render the Keycloak image string.
-Supports both a plain string and a map with registry/repository/tag fields:
-  image: quay.io/keycloak/keycloak:26.5.3          <- string, used as-is
-  image:                                            <- map, assembled into registry/repository:tag
-    registry: quay.io
-    repository: keycloak/keycloak
-    tag: "26.5.3"
+Renders a container image from a string or a dict with optional registry, repository, and tag.
+Usage: {{ include "podiumd.image" .Values.path.to.image }}
 */}}
-{{- define "keycloak.image" -}}
-{{- $image := .Values.keycloak.image -}}
-{{- if kindIs "string" $image -}}
-{{- $image -}}
+{{- define "podiumd.image" -}}
+{{- if kindIs "string" . -}}
+{{- . -}}
 {{- else -}}
-{{- if $image.registry -}}{{ $image.registry }}/{{ end -}}
-{{- $image.repository -}}:{{- $image.tag -}}
+{{- if .registry -}}{{ .registry }}/{{ end -}}
+{{- .repository -}}:{{- .tag -}}
 {{- end -}}
 {{- end -}}
 

@@ -2,6 +2,45 @@
 
 ## PodiumD versions
 
+### [4.6.0](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.6.0)
+
+**PodiumD Helm chart version: 4.6.0**
+Componenten op alphabetische volgorde, met sub-charts er onder:
+
+| Component                 | AppVersion | Change        | ChartVersion | Change        | **Notes**                 |
+|---------------------------|------------|---------------|--------------|---------------|---------------------------|
+| BRP Mock                  |            |               | 1.2.8        |               | Only on Test Environments |
+| ClamAV                    | 1.4.2      |               | 3.2.0        |               |                           |
+| ITA                       | 2.1.1      | Minor update  | 2.1.1        |               |                           |
+| - Ita poller              | 2.1.1      | Minor update  |              |               |                           |
+| Keycloak                  | 26.5.5     |               | 1.11.2       | Operator      |                           |
+| Kiss                      | 2.2.1      | Minor update  | 2.2.1        |               |                           |
+| - Kiss Elastic            |            |               | 1.1.0        |               |                           |
+| - Kiss ElasticSync        | 0.3.1      | Minor update  |              |               |                           |
+| - PodiumD Adapter         | 0.6.6      | Minor update  |              |               |                           |
+| Objecten                  | 3.5.0      |               | 2.11.0       |               |                           |
+| Objecttypen               | 3.4.0      |               | 1.6.0        |               |                           |
+| OMC for NotifyNL          | 1.17.18    | New component | 0.14.0       | New component |                           |
+| Open Archiefbeheer        | 1.1.1      |               | 1.5.3        |               |                           |
+| Open Formulieren          | 3.3.9      |               | 1.12.0       |               |                           |
+| Open Inwoner              | 2.0.2      |               | 2.1.3        |               |                           |
+| Open Klant                | 2.14.0     |               | 1.11.0       |               |                           |
+| Open Notificaties         | 1.14.0     |               | 1.13.1       |               |                           |
+| Open Zaak                 | 1.26.0     |               | 1.13.1       |               |                           |
+| PABC                      | 1.0.0      |               | 1.0.0        |               |                           |
+| Zac                       | 4.3.61     | Minor update  | 1.0.194      | Patch update  |                           |
+| - Busybox                 | 1.37.0     | Minor update  |              |               |                           |
+| - Curl                    | 8.18.0     | Minor update  |              |               |                           |
+| - Kubectl                 | 1.25.4     | Patch update  |              |               |                           |
+| - Nginx                   | 1.29.5     | Patch update  |              |               |                           |
+| - Opa                     | 1.14.0     | Patch update  |              |               |                           |
+| - Opentelemetry Collector | 0.146.1    | Minor update  | 0.146.0      | Minor update  | Operator                  |
+| - Solr                    | 9.10.1     | Minor update  | 0.9.1        |               |                           |
+| - Office Converter        | 1.8.2      | Patch update  |              |               |                           |
+| - Zookeeper               | 0.2.15     | Patch update  | 0.2.15       |               | Operator                  |
+| ZGW Office Addin          | 0.9.133    |               | 0.0.73       |               |                           |
+
+
 ### [4.5.13](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.5.13)
 
 **PodiumD Helm chart version: 4.5.13**
@@ -15,7 +54,7 @@
 | PABC               | 1.0.0      | New          | 1.0.0        | New                                     |
 | Objecten           | 3.5.0      | Minor update | 2.11.0       | Minor update                            |
 | Objecttypen        | 3.4.0      | Minor update | 1.6.0        | Minor update                            |
-| Open Formulieren   | 3.3.9      | Patch update | 1.11.6       |                                         |
+| Open Formulieren   | 3.3.13     | Patch update | 1.11.6       |                                         |
 | Open Inwoner       | 2.0.3      | Major update | 2.1.0        | Major update                            |
 | Open Klant         | 2.14.0     | Minor update | 1.10.0       | Minor update                            |
 | Open Notificaties  | 1.14.0     | Minor update | 1.13.0       | Minor update                            |
@@ -24,6 +63,7 @@
 | Kiss               | 2.1.0      | Major update | 2.1.0        | Major update                            |
 | Zac                | 4.0.12-1   | Major update | 1.0.165      | Minor update                            |
 | ZGW Office Addin   | 0.9.28     | Minor update | 0.0.65       | Patch update                            |
+
 
 ### [4.4.5](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.4.5)
 
@@ -50,19 +90,18 @@
 ## Add Used chart repositories:
 
 ```shell
-helm repo add bitnami https://charts.bitnami.com/bitnami
 helm repo add dimpact https://Dimpact-Samenwerking.github.io/helm-charts/
 helm repo add kiss-frontend https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/KISS-frontend/main/helm
 helm repo add kiss-adapter https://raw.githubusercontent.com/ICATT-Menselijk-Digitaal/podiumd-adapter/main/helm
 helm repo add kiss-elastic https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/.github/main/docs/scripts/elastic
 helm repo add maykinmedia https://maykinmedia.github.io/charts
 helm repo add wiremind https://wiremind.github.io/wiremind-helm-charts
-helm repo add openshift https://charts.openshift.io
 helm repo add solr https://solr.apache.org/charts
 helm repo add opentelemetry https://open-telemetry.github.io/opentelemetry-helm-charts
 helm repo add zac https://infonl.github.io/dimpact-zaakafhandelcomponent/
 helm repo add zgw-office-addin https://infonl.github.io/zgw-office-addin
 helm repo add adfinis https://charts.adfinis.com
+helm repo add worth-nl https://worth-nl.github.io/helm-charts
 ```
 
 ## PersistentVolume and PersistVolumeClaim resources
@@ -628,6 +667,31 @@ The deprecated Bitnami `keycloak` sub-chart (`keycloak.enabled`) is kept for rol
 | openinwoner.elasticsearch.data.nodeSelector               | Elastic search data node labels for pod assignment. Evaluated as a template                                                                           | `{}`                                          |
 | openinwoner.elasticsearch.coordinating.nodeSelector       | Elastic search coordinating node labels for pod assignment. Evaluated as a template                                                                   | `{}`                                          |
 
+### PABC
+
+| Name                                       | Description                                                          | Value                    |
+|--------------------------------------------|----------------------------------------------------------------------|--------------------------|
+| pabc.enabled                               | Boolean to override the installation of PABC                         | `false`                  |
+| pabc.fullnameOverride                      | Override for the full deployment name                                | `"pabc"`                 |
+| pabc.image.tag                             | Image tag                                                            | `"1.0.0"`                |
+| pabc.migrations.image.tag                  | Migrations image tag                                                 | `"1.0.0"`                |
+| pabc.settings.database.host                | Database host                                                        | `""`                     |
+| pabc.settings.database.name                | Database name                                                        | `"pabc"`                 |
+| pabc.settings.database.username            | Database username                                                    | `"pabc"`                 |
+| pabc.settings.database.password            | Database password                                                    | `""`                     |
+| pabc.settings.apiKeys                      | List of issued API keys                                              | `[""]`                   |
+| pabc.settings.oidc.authority               | URL of the OpenID Connect Identity Provider                          | `""`                     |
+| pabc.settings.oidc.clientId                | Client ID for accessing the OpenID Connect Identity Provider         | `"pabc"`                 |
+| pabc.settings.oidc.clientSecret            | Secret for the OpenID Connect Identity Provider                      | `""`                     |
+| pabc.settings.oidc.functioneelBeheerderRole | Role claim value required for management functions                   | `"administrator"`        |
+| pabc.settings.oidc.nameClaimType           | JWT claim name containing the full name of the user                  | `"name"`                 |
+| pabc.settings.oidc.roleClaimType           | JWT claim name containing the roles of the user                      | `"roles"`                |
+| pabc.settings.oidc.emailClaimType          | JWT claim name containing the email address of the user              | `"email"`                |
+| pabc.settings.oidc.oidcUrl                 | OIDC URL                                                             | `"https://pabc.example.nl"` |
+| pabc.settings.keycloakAdmin.clientId       | Client ID for accessing Keycloak Admin API                           | `"pabc-keycloak-admin"`  |
+| pabc.settings.keycloakAdmin.clientSecret   | Client secret for accessing Keycloak Admin API                       | `""`                     |
+| pabc.resources                             | Container requests and limits                                        | See values.yaml          |
+
 ### KISS
 
 | Name                                    | Description                                                                                     | Value                                 |
@@ -726,3 +790,5 @@ Remove the CRD from the cluster. This also removes all existing `ServiceMonitor`
 ```
 kubectl delete crd servicemonitors.monitoring.coreos.com
 ```
+
+

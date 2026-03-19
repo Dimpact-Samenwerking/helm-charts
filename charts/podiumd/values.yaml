@@ -22,16 +22,44 @@ persistentVolume:
 keycloak-operator:
   enabled: true
   # Adfinis Helm chart wrapping the official Keycloak Operator manifests.
-  # Chart: https://charts.adfinis.com / adfinis/keycloak-operator (appVersion 26.5.4)
+  # Chart: https://charts.adfinis.com / adfinis/keycloak-operator (appVersion 26.5.5)
   # Note: it appears that the podname automatically appends -operator.
-  # Official operator image: quay.io/keycloak/keycloak-operator:26.5.4
+  # Official operator image: quay.io/keycloak/keycloak-operator:26.5.5
   fullnameOverride: keycloak
   operator:
     image:
       repository: quay.io/keycloak/keycloak-operator
-      tag: "26.5.4"
+      tag: "26.5.5"
   serviceAccount:
     create: false
+  jobs:
+    ensurePodiumdAdminUser:
+      enabled: true
+      # Init container: Python (stdlib only, no pip install) — computes the PBKDF2 hash
+      # and writes the SQL to a shared volume.
+      initImage:
+        registry: ""
+        repository: python
+        tag: "3.12-slim"
+      # Main container: runs psql to execute the generated SQL against the Keycloak DB.
+      image:
+        registry: ""
+        repository: postgres
+        tag: "16"
+    ensureOperatorSa:
+      enabled: true
+      # Container: curl-based job to provision the keycloak-operator service account client.
+      image:
+        registry: ""
+        repository: curlimages/curl
+        tag: "8.18.0"
+      # Client secret for the keycloak-operator client. Set this to a known value so Helm
+      # can create the K8s secret directly. The job will enforce this secret in Keycloak.
+      clientSecret: "changeme"
+    importPodiumdRealm:
+      enabled: true
+    importMasterRealm:
+      enabled: true
 
 keycloak:
   additionalOptions:
@@ -78,7 +106,7 @@ keycloak:
     #        role: "admin"
     # -- identity provider mapper for the admin realm
     #adminIdentityProviderMappers: {}
-    adminOtpEnabled: false
+    adminOtpEnabled: true
     realm: podiumd
     realmDisplayName: PodiumD
     realmFrontendUrl: https://keycloak.example.nl
@@ -112,13 +140,13 @@ keycloak:
   # image parameters for keycloak-operator
   # Official Keycloak image: quay.io/keycloak/keycloak:26.5.5
   image:
+    registry: ""
     repository: quay.io/keycloak/keycloak
     tag: 26.5.5
   # -- instances is the new operator-style replica count (falls back to replicaCount)
   instances: "2"
   ingress:
     enabled: false
-    hostnameStrict: true
   externalDatabase:
     vendor: "postgres"
     host: "postgres"
@@ -139,18 +167,17 @@ keycloak:
       name: ""
       key: ""
   keycloakConfigCli:
-    # disabled for now, will be reused for future configuration management of keycloak
-    enabled: false
     # image parameters for keycloak-config-cli
-    # Official keycloak-config-cli image: quay.io/adorsys/keycloak-config-cli:6.4.0-28.5.0
+    # Official keycloak-config-cli image: adorsys/keycloak-config-cli:6.4.1-26
     image:
-      repository: quay.io/adorsys/keycloak-config-cli
-      tag: "6.4.0-28.5.0"
+      registry: ""
+      repository: adorsys/keycloak-config-cli
+      tag: "6.4.1-26"
   podTemplate:
     metadata:
       labels:
         app: keycloak
-        version: 26.5.4
+        version: 26.5.5
     spec:
       securityContext:
         runAsNonRoot: true
@@ -277,208 +304,13 @@ keycloak:
       memory: 1Gi
   secretsName: "keycloak-secrets"
 
-infinispan:
-  # -- image data for infinispan containers
-  #images:
-  #  server: quay.io/infinispan/server:15.2
-  #  initContainer: registry.access.redhat.com/ubi8-micro:8.10-1751466198
-  deploy:
-    nameOverride: ispn
-    replicas: 2
-    container:
-      imagePullPolicy: IfNotPresent
-      storage:
-        storageClassName: podiumd-standard
-    secretName: ispn-generated-secret
-    security:
-      secretName: ispn-generated-secret
-      monitor:
-        secret: changememonitor
-      batch: |
-        credentials add keystore -c password -p secret --path="internal-credentials.pfx"
-        user create keycloak -p changemenow -g deployer
-        user create admin -p changemetoo -g admin
-    # how to generate your own secret for use:
-    # openssl req -nodes -x509 -sha256 -newkey rsa:4096 -keyout ispn.key -out ispn.crt -days 3560 -subj "/C=NL/ST=Noord Holland/L=Amsterdam/O=INFO/OU=integratieteam/CN=ispn" -addext "subjectAltName = DNS:ispn,DNS:ispn.podiumd,DNS:ispn.podiumd.svc.cluster.local"
-    # openssl pkcs12 -export -out ispn.pfx -inkey ispn.key -in ispn.crt -name server
-    # use password as passphrase (as added under credentials add command above)
-    # keytool -list -keystore ispn.keystore -storepass password
-    # kubectl create secret generic ispn-secret --from-file=tls.crt=ispn.crt --from-file=tls.key=ispn.key --from-file=keystore.p12=ispn.pfx --from-literal=password=password --from-literal=alias=server -n podiumd
-    # kubectl create secret generic ispn-transport-secret --from-file=tls.crt=ispn.crt --from-file=tls.key=ispn.key --from-file=cert.p12=ispn.pfx --from-literal=password=password --from-literal=alias=server -n podiumd
-    # -- which secrets can be used for ssl, see above how to generate a proper secret for use with infinispan
-    ssl:
-      endpointSecretName: "ispn-secret"
-      transportSecretName: "ispn-transport-secret"
-    # see https://docs.jboss.org/infinispan/15.0/configdocs/infinispan-config-15.0.html for possible options
-    # infinispan configuration yaml preferences for usage with keycloak
-    infinispan:
-      cacheContainer:
-        serialization:
-          allow-list:
-            regex: "org.keycloak.*"
-        transport:
-          stack: "kubernetes"
-          lock-timeout: "60000"
-          urn:infinispan:server:15.0:securityRealm: "cluster-transport"
-        caches:
-          actionTokens:
-            distributedCache:
-              statistics: "true"
-              owners: 2
-              mode: "SYNC"
-              transaction:
-                mode: "NON_XA"
-              encoding:
-                mediaType: "application/x-protostream"
-              expiration:
-                maxIdle: "-1"
-                lifespan: "-1"
-                interval: "300000"
-              memory:
-                maxCount: "-1"
-              persistence:
-                fileStore:
-                  path: cache
-          authenticationSessions:
-            distributedCache:
-              statistics: "true"
-              owners: 2
-              mode: "SYNC"
-              transaction:
-                mode: "NON_XA"
-              encoding:
-                mediaType: "application/x-protostream"
-              expiration:
-                lifespan: "-1"
-              persistence:
-                fileStore:
-                  path: cache
-          offlineSessions:
-            distributedCache:
-              statistics: "true"
-              owners: 2
-              mode: "SYNC"
-              transaction:
-                mode: "NON_XA"
-              encoding:
-                mediaType: "application/x-protostream"
-              expiration:
-                lifespan: "-1"
-              persistence:
-                fileStore:
-                  path: cache
-          clientSessions:
-            distributedCache:
-              statistics: "true"
-              owners: 2
-              mode: "SYNC"
-              transaction:
-                mode: "NON_XA"
-              encoding:
-                mediaType: "application/x-protostream"
-              expiration:
-                lifespan: "-1"
-              persistence:
-                fileStore:
-                  path: cache
-          offlineClientSessions:
-            distributedCache:
-              statistics: "true"
-              owners: 2
-              mode: "SYNC"
-              transaction:
-                mode: "NON_XA"
-              encoding:
-                mediaType: "application/x-protostream"
-              expiration:
-                lifespan: "-1"
-              persistence:
-                fileStore:
-                  path: cache
-          loginFailures:
-            distributedCache:
-              statistics: "true"
-              owners: 2
-              mode: "SYNC"
-              transaction:
-                mode: "NON_XA"
-              encoding:
-                mediaType: "application/x-protostream"
-              expiration:
-                lifespan: "-1"
-              persistence:
-                fileStore:
-                  path: cache
-          work:
-            replicatedCache:
-              statistics: "true"
-              encoding:
-                mediaType: "application/x-protostream"
-              expiration:
-                lifespan: "-1"
-      server:
-        security:
-          credentialStores:
-            - name: credentials
-              path: internal-credentials.pfx
-              clearTextCredential:
-                clearText: "secret"
-          securityRealms:
-            - name: default
-              # [USER] Comment or remove this properties realm to disable authentication.
-              propertiesRealm:
-                groupProperties:
-                  path: groups.properties
-                groupsAttribute: Roles
-                userProperties:
-                  path: users.properties
-              serverIdentities:
-                ssl:
-                  keystore:
-                    alias: "server"
-                    path: "/etc/encrypt/endpoint/keystore.p12"
-                    credentialReference:
-                      store: credentials
-                      alias: keystore
-            - name: "cluster-transport"
-              # Security realm for cluster transport. This setup is for encryption only, no authentication.
-              # All the cluster server will use the same certificate both for key and trust store.
-              propertiesRealm:
-                groupProperties:
-                  path: groups.properties
-                groupsAttribute: Roles
-                userProperties:
-                  path: users.properties
-              serverIdentities:
-                ssl:
-                  keystore:
-                    alias: "server"
-                    path: "/etc/encrypt/transport/cert.p12"
-                    credentialReference:
-                      store: credentials
-                      alias: keystore
-                  truststore:
-                    path: "/etc/encrypt/transport/cert.p12"
-                    credentialReference:
-                      store: credentials
-                      alias: keystore
-            - name: metrics
-              # [METRICS] Security realm for the metrics endpoint.
-              propertiesRealm:
-                groupProperties:
-                  path: metrics-groups.properties
-                  relativeTo: infinispan.server.config.path
-                groupsAttribute: Roles
-                userProperties:
-                  path: metrics-users.properties
-                  relativeTo: infinispan.server.config.path
-  enabled: false
-  monitoring:
-    enabled: true
-
 openzaak:
   configuration:
     enabled: true
+    notificatiesAuthorization:
+      enabled: true
+    notificaties:
+      enabled: true
     initContainer:
       enabled: false
     job:
@@ -837,6 +669,10 @@ opennotificaties:
   flower:
     enabled: false
   rabbitmq:
+    image:
+      registry: docker.io
+      repository: rabbitmq
+      tag: 4.1.3-debian-12-r0
     resources:
       requests:
         cpu: 300m
@@ -991,7 +827,7 @@ objecten:
   persistentVolume:
     volumeAttributeShareName: objecten
   image:
-    tag: "3.5.0"
+    tag: "3.6.0"
   resources:
     requests:
       cpu: 100m
@@ -1108,7 +944,7 @@ objecttypen:
       useTLS: true
     disable2fa: false
   image:
-    tag: "3.4.0"
+    tag: "3.4.1"
   # used for create-required-objecttypen podiumd job only
   create_required_objecttypen_job:
     enabled: true
@@ -1368,7 +1204,7 @@ openklant:
   persistentVolume:
     volumeAttributeShareName: openklant
   image:
-    tag: "2.14.0"
+    tag: "2.15.0"
   resources:
     requests:
       cpu: 100m
@@ -1566,7 +1402,7 @@ openformulieren:
   persistentVolume:
     volumeAttributeShareName: openformulieren
   image:
-    tag: "3.3.13"
+    tag: "3.4.5"
   resources:
     requests:
       cpu: 100m
@@ -1748,14 +1584,14 @@ openinwoner:
       port: 587
       useTLS: true
     searchIndexInitContainer: true
-    oidcFrontendLogoutWithHints: false    
+    oidcFrontendLogoutWithHints: false
   persistence:
     size: 10Gi
     existingClaim: openinwoner
   persistentVolume:
     volumeAttributeShareName: openinwoner
   image:
-    tag: "2.0.3"
+    tag: "2.1.0"
   resources:
     requests:
       cpu: 200m
@@ -1801,6 +1637,19 @@ openinwoner:
       tls:
         selfSignedCertificate:
           disabled: true
+    nodeSets:
+    - name: default
+      count: 1
+      config:
+        node.store.allow_mmap: false
+      podTemplate:
+        spec:
+          terminationGracePeriodSeconds: 60
+          containers:
+          - name: elasticsearch
+            env:
+            - name: PRE_STOP_ADDITIONAL_WAIT_SECONDS
+              value: "15"
   eck-operator:
     enabled: false
 
@@ -1820,7 +1669,7 @@ kiss:
   image:
     #   repository: "ghcr.io/klantinteractie-servicesysteem/kiss-frontend"
     pullPolicy: IfNotPresent
-    tag: 2.1.0
+    tag: 2.2.1
   enabled: true
   nameOverride: contact
   fullnameOverride: contact
@@ -1969,7 +1818,7 @@ kiss:
     syncJobs:
       image:
         # repository: "ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync"
-        tag: "0.3.0"
+        tag: "0.3.1"
         pullPolicy: IfNotPresent
       kennisbank:
         baseUrl: ""
@@ -2031,7 +1880,7 @@ kiss:
     secret: ""
     image:
       # repository: ghcr.io/icatt-menselijk-digitaal/podiumd-adapter
-      tag: "0.6.4"
+      tag: "0.6.6"
       pullPolicy: IfNotPresent
     resources:
       requests:
@@ -2122,18 +1971,18 @@ zac:
     code: "007"
     naam: "Example Gemeente"
     mail: "noreply@example.nl"
-  # curlimages/curl:8.16.0
+  # curlimages/curl:8.18.0
   global:
     curlImage:
       #repository: curlimages/curl
-      tag: 8.16.0
-  # ghcr.io/infonl/zaakafhandelcomponent:4.0.12-1
+      tag: 8.18.0
+  # ghcr.io/infonl/zaakafhandelcomponent:4.3.61
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
-    tag: 4.0.12-1
+    tag: 4.3.61 # ZAC Sprint 65 versie
   initContainer:
-    enabled: false
+    enabled: true
   keycloak:
     adminClient:
       id: zac-admin-client
@@ -2154,11 +2003,11 @@ zac:
   nginx:
     enabled: true
     client_max_body_size: 150M
-    # nginxinc/nginx-unprivileged:1.29.1
+    # nginxinc/nginx-unprivileged:1.29.5
     image:
       # repository: nginxinc/nginx-unprivileged
-      tag: 1.29.2
-  # notificationsSecretKey: "changeme"
+      tag: 1.29.5
+  notificationsSecretKey: "changeme"
   objectenApi:
     url: http://objecten.example.nl
     token: objectentoken
@@ -2166,16 +2015,16 @@ zac:
     url: http://objecttypen.example.nl
     token: objecttypentoken
   office_converter:
-    # ghcr.io/eugenmayer/kontextwork-converter:1.8.1
+    # ghcr.io/eugenmayer/kontextwork-converter:1.8.2
     image:
       #repository: ghcr.io/eugenmayer/kontextwork-converter
-      tag: 1.8.1
+      tag: 1.8.2
   opa:
     sidecar: true
-    # openpolicyagent/opa:1.9.0-static
+    # openpolicyagent/opa:1.14.0-static
     image:
       #repository: openpolicyagent/opa
-      tag: 1.9.0-static
+      tag: 1.14.0-static
   openForms:
     url: http://open-forms.example.nl
   organizations:
@@ -2209,10 +2058,10 @@ zac:
         tag: 1.37.0-glibc
       # -- set enabled to provision solrcloud as well
       enabled: true
-      # library/solr:9.9.0
+      # library/solr:9.10.1-slim
       image:
         #repository:
-        tag: 9.9.0
+        tag: 9.10.1-slim
       # -- define memory settings for solr in the solrcloud
       javaMem: -Xms512m -Xmx768m
       jobs:
@@ -2256,14 +2105,14 @@ zgw-office-addin:
     # -- MS Azure Client ID assigned to the Office Add-in application
     msalClientId: "dummy"
   frontend:
-    # ghcr.io/infonl/zgw-office-add-in-frontend:v0.9.28
+    # ghcr.io/infonl/zgw-office-add-in-frontend:v0.9.133
     image:
-      tag: v0.9.28
+      tag: v0.9.133
   backend:
     msalSecret: "dummy"
-    # ghcr.io/infonl/zgw-office-add-in-backend:v0.9.28
+    # ghcr.io/infonl/zgw-office-add-in-backend:v0.9.133
     image:
-      tag: v0.9.28
+      tag: v0.9.133
     # -- ZGW API configuration for integration with the ZGW APIs provider (OpenZaak)
     zgwApis:
       url: "https://openzaak.example.nl"
@@ -2478,7 +2327,7 @@ ita:
   web:
     image:
       # repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web"
-      tag: "2.0.1"
+      tag: "2.1.1"
       pullPolicy: IfNotPresent
 
     service:
@@ -2508,7 +2357,7 @@ ita:
 
     image:
       repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller"
-      tag: "2.0.1"
+      tag: "2.1.1"
       pullPolicy: Always
 
     notification:
@@ -2558,3 +2407,63 @@ pabc:
     keycloakAdmin:
       clientId: "pabc-keycloak-admin"
       clientSecret: ""
+
+  resources:
+    requests:
+      memory: "384Mi"
+      cpu: "10m"
+    limits:
+      memory: "768Mi"
+      cpu: "200m"
+
+omc:
+  enabled: false
+  fullnameOverride: "omc"
+  image:
+    # repository: ghcr.io/worth-nl/notifynl-omc
+    tag: "1.17.18"
+  # BELOW are the resource settings from the subchart, notifynl-omc-nodep which we do not override
+  # app:
+  #   port: 5270
+  #   resources:
+  #     requests:
+  #       cpu: 250m
+  #       memory: 128Mi
+  #     limits:
+  #       cpu: 500m
+  #       memory: 512Mi
+  settings:
+    notify:
+      api:
+        baseUrl: "https://api.notifynl.nl"
+    omc:
+      auth:
+        jwt:
+          # NEEDS new KeyVault item: REP_OMC_AUTH_SECRET_REP
+          secret: ""
+          issuer: "omc"
+          audience: "omc"
+          userId: "OMC (PodiumD)"
+          userName: "OMC (PodiumD)"
+      feature:
+        workflow:
+          version: 2
+    zgw:
+      auth:
+        jwt:
+          secret: ""
+          issuer: ""
+          userId: "OMC (PodiumD)"
+          userName: "OMC (PodiumD)"
+      variable:
+        # including dummy defaults for object types, because R'dam wants to POC with object-scenario's
+        objectType:
+          taskObjectType:
+            uuid: 00000000-0000-1000-b000-000000000000
+          messageObjectType:
+            uuid: 00000000-0000-1000-b000-000000000000
+            version: 1
+          decisionInfoObjectType:
+            uuids: "00000000-0000-1000-b000-000000000000"
+          ktoObjectType:
+            uuid: 00000000-0000-1000-b000-000000000000

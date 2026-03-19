@@ -5,7 +5,7 @@ on:
       release_version:
         description: 'Specify the release version number'
         required: true
-      
+
 jobs:
   release:
     permissions:
@@ -20,7 +20,7 @@ jobs:
       - name: Install yq
         run: | 
           python -m pip install yq
-          
+
       - name: Configure Git
         run: |
           git config user.name "$GITHUB_ACTOR"
@@ -30,7 +30,7 @@ jobs:
         run: |
           sed -i "s/^version: .*/version: ${{ github.event.inputs.release_version }}/" charts/podiumd/Chart.yaml
           sed -i "s/^appVersion: .*/appVersion: ${{ github.event.inputs.release_version }}/" charts/podiumd/Chart.yaml
-          
+
       - name: Get latest version of images from podiumd
         id: get_latest_version
         run: |
@@ -48,7 +48,7 @@ jobs:
           echo "OBJECTEN_IMAGE_TAG_LATEST=$OBJECTEN_IMAGE_TAG_LATEST" >> $GITHUB_ENV
           echo "OBJECTTYPEN_IMAGE_TAG_LATEST=$OBJECTTYPEN_IMAGE_TAG_LATEST" >> $GITHUB_ENV
           echo "OPENINWONER_IMAGE_TAG_LATEST=$OPENINWONER_IMAGE_TAG_LATEST" >> $GITHUB_ENV
-          
+
       - name: Fetch changelog of Open Formulieren
         id: fetch_changelogs_openforms
         run: |
@@ -58,8 +58,8 @@ jobs:
           echo "## Open Formulieren" >> $GITHUB_ENV
           echo "$OPENFORMS_CHANGELOG" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
-         
-      - name: Fetch changelogs of Open Zaak 
+
+      - name: Fetch changelogs of Open Zaak
         id: fetch_changelogs_openzaak
         run: |
           OPENZAAK_CHANGELOG=$(curl -s https://raw.githubusercontent.com/open-zaak/open-zaak/main/CHANGELOG.rst | awk "/^${OPENZAAK_IMAGE_TAG_LATEST}/ {flag=1} /^[0-9]+\\.[0-9]+\\.[0-9]+/  && !/^${OPENZAAK_IMAGE_TAG_LATEST}/ {flag=0} flag")
@@ -68,7 +68,7 @@ jobs:
           echo "## Open Zaak" >> $GITHUB_ENV
           echo "$OPENZAAK_CHANGELOG" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
-          
+
       - name: Fetch changelog of Open Klant
         id: fetch_changelogs_openklant
         run: |
@@ -78,7 +78,7 @@ jobs:
           echo "## Open Klant" >> $GITHUB_ENV
           echo "$OPENKLANT_CHANGELOG" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
-          
+
       - name: Fetch changelogs of Open Notificaties
         id: fetch_changelogs_opennotificaties
         run: |
@@ -88,7 +88,7 @@ jobs:
           echo "## Open Notificaties" >> $GITHUB_ENV
           echo "$OPENNOTIFICATIES_CHANGELOG" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
-          
+
       - name: Fetch changelogs of Objecten
         id: fetch_changelogs_objecten
         run: |
@@ -98,7 +98,7 @@ jobs:
            echo "## Objecten" >> $GITHUB_ENV
            echo "$OBJECTEN_CHANGELOG" >> $GITHUB_ENV
            echo "EOF" >> $GITHUB_ENV
-           
+
       - name: Fetch changelogs of Objecttypen
         id: fetch_changelogs_objecttypen
         run: |
@@ -108,7 +108,7 @@ jobs:
           echo "## Objecttypen" >> $GITHUB_ENV
           echo "$OBJECTTYPEN_CHANGELOG" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
-          
+
       - name: Fetch changelogs of Open Inwoner
         id: fetch_changelogs_openinwoner
         run: |
@@ -121,7 +121,6 @@ jobs:
 
       - name: Add dependency chart repos
         run: |
-          helm repo add bitnami https://charts.bitnami.com/bitnami
           helm repo add maykinmedia https://maykinmedia.github.io/charts
           helm repo add opentelemetry https://open-telemetry.github.io/opentelemetry-helm-charts
           helm repo add wiremind https://wiremind.github.io/wiremind-helm-charts
@@ -132,13 +131,14 @@ jobs:
           helm repo add kiss-elastic https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/.github/main/docs/scripts/elastic
           helm repo add zgw-office-addin https://infonl.github.io/zgw-office-addin
           helm repo add adfinis https://charts.adfinis.com
+          helm repo add worth-nl https://worth-nl.github.io/helm-charts
 
       - name: Run chart-releaser
         uses: helm/chart-releaser-action@v1.7.0
         with:
           skip_existing: true
         env:
-          CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"   
+          CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
 
       - name: Create GitHub Release
         uses: actions/create-release@v1
