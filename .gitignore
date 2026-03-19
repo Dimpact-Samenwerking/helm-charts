@@ -3,4 +3,4 @@
 /charts/**/Chart.lock
 /http-client.private.env.json
 # Claude Code local settings
-.claude/settings.local.json
+.claude/
