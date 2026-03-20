@@ -1,4 +1,4 @@
-name: Release Charts
+﻿name: Release Charts
 
 on:
   push:
@@ -38,7 +38,7 @@ jobs:
           helm repo add zgw-office-addin https://infonl.github.io/zgw-office-addin
           helm repo add adfinis https://charts.adfinis.com
           helm repo add opstree https://ot-container-kit.github.io/helm-charts/
-          helm repo add worth-nl https://worth-nl.github.io/helm-charts
+          helm repo add worth-nl https://worth-nl.github.io/helm-charts
 
       - name: Run chart-releaser
         uses: helm/chart-releaser-action@v1.7.0
