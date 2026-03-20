@@ -13,7 +13,7 @@
 #   ./install-redis-operator-crds.sh [OPTIONS]
 #
 # Options:
-#   --version VERSION   Chart version to fetch CRDs from (default: 0.15.11)
+#   --version VERSION   Chart version to fetch CRDs from (default: 0.24.0)
 #   --dry-run           Print the CRDs YAML without applying them
 #   -h, --help          Show this help message
 #
@@ -28,7 +28,7 @@
 
 set -euo pipefail
 
-CHART_VERSION="0.15.11"
+CHART_VERSION="0.24.0"
 DRY_RUN=false
 REPO_NAME="opstree"
 REPO_URL="https://ot-container-kit.github.io/helm-charts/"
