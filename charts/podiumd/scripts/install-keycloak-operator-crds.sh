@@ -92,7 +92,7 @@ echo "${CRD_YAML}" \
 
 echo "==> Waiting for CRDs to reach Established condition..."
 # Extract CRD names from the YAML and wait for each
-CRD_NAMES=$(echo "${CRD_YAML}" | grep '^  name:' | awk '{print $2}')
+CRD_NAMES=$(echo "${CRD_YAML}" | grep '^  name:' | awk '{gsub(/"/,"",$2); print $2}')
 for crd in ${CRD_NAMES}; do
   echo "    Waiting for CRD: ${crd}"
   kubectl wait --for=condition=Established "crd/${crd}" --timeout=60s

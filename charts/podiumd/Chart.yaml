@@ -2,8 +2,8 @@ apiVersion: v2
 name: podiumd
 description: PodiumD Helm chart
 type: application
-version: 4.6.0
-appVersion: "4.6.0"
+version: 4.7.0
+appVersion: "4.7.0"
 dependencies:
 
   - name: keycloak-operator
@@ -61,14 +61,14 @@ dependencies:
       - contact
   - name: zaakafhandelcomponent
     alias: zac
-    version: 1.0.194 # ZAC Sprint 65 helm release
+    version: 1.0.201 # ZAC Sprint 65 helm release
     repository: "@zac"
     condition: zac.enabled
     tags:
       - zaak
   - name: zgw-office-addin
     repository: "@zgw-office-addin"
-    version: 0.0.73
+    version: 0.0.76
     condition: zgw-office-addin.enabled
   - name: internetaakafhandeling
     alias: ita
