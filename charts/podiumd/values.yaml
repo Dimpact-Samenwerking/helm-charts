@@ -357,6 +357,8 @@ redis-operator:
           resources:
             requests:
               storage: 2Gi
+    redisConfig:
+      additionalRedisConfig: "databases 32"
 
 openzaak:
   configuration:

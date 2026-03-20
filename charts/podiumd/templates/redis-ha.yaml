@@ -19,6 +19,10 @@ spec:
   storage:
     {{- toYaml . | nindent 4 }}
   {{- end }}
+  {{- with $redisHa.redisConfig }}
+  redisConfig:
+    additionalRedisConfig: {{ .additionalRedisConfig | quote }}
+  {{- end }}
   redisExporter:
     enabled: false
   {{- if $redisHa.nodeSelector }}
