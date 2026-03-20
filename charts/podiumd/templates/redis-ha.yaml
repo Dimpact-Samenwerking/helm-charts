@@ -1,5 +1,6 @@
-{{- $redisHa := index (index .Values "redis-operator") "redis-ha" }}
-{{- if $redisHa.enabled }}
+{{- $redisOperator := index .Values "redis-operator" }}
+{{- $redisHa := index $redisOperator "redis-ha" }}
+{{- if and $redisOperator.enabled $redisHa.enabled }}
 apiVersion: redis.redis.opstreelabs.in/v1beta2
 kind: RedisReplication
 metadata:
