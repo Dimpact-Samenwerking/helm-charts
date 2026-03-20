@@ -1,6 +1,20 @@
 {{- $redisOperator := index .Values "redis-operator" }}
 {{- $redisHa := index $redisOperator "redis-ha" }}
 {{- if and $redisOperator.enabled $redisHa.enabled }}
+{{- with $redisHa.redisConfig }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redis-ha-config
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" $ | nindent 4 }}
+data:
+  redis.conf: |
+    {{- .additionalRedisConfig | nindent 4 }}
+{{- end }}
+---
 apiVersion: redis.redis.opstreelabs.in/v1beta2
 kind: RedisReplication
 metadata:
@@ -22,7 +36,7 @@ spec:
   {{- end }}
   {{- with $redisHa.redisConfig }}
   redisConfig:
-    additionalRedisConfig: {{ .additionalRedisConfig | quote }}
+    additionalRedisConfig: redis-ha-config
   {{- end }}
   redisExporter:
     enabled: false
