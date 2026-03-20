@@ -1793,19 +1793,49 @@ openinwoner:
       tls:
         selfSignedCertificate:
           disabled: true
-    nodeSets:
-    - name: default
-      count: 1
-      config:
-        node.store.allow_mmap: false
-      podTemplate:
-        spec:
-          terminationGracePeriodSeconds: 60
-          containers:
-          - name: elasticsearch
-            env:
-            - name: PRE_STOP_ADDITIONAL_WAIT_SECONDS
-              value: "15"
+    # -- nodeSets must be configured per environment. Example (override in your environment values file):
+    # nodeSets:
+    # - name: default
+    #   count: 1   # increase for larger environments (e.g. 3 for HA)
+    #   config:
+    #     node.store.allow_mmap: false
+    #     xpack.security.authc:
+    #       anonymous:
+    #         username: anonymous
+    #         roles: superuser
+    #         authz_exception: false
+    #   podTemplate:
+    #     spec:
+    #       terminationGracePeriodSeconds: 60
+    #       nodeSelector:
+    #         kubernetes.azure.com/mode: user
+    #       containers:
+    #       - name: elasticsearch
+    #         image: <acr>/elasticsearch   # override for ACR-based environments
+    #         resources:
+    #           # tune for larger environments; memory should match ES_JAVA_OPTS heap settings
+    #           requests:
+    #             cpu: 200m
+    #             memory: 1024Mi
+    #           limits:
+    #             cpu: 1000m
+    #             memory: 1536Mi
+    #         env:
+    #         - name: ES_JAVA_OPTS
+    #           value: "-Xms1g -Xmx1g"   # set heap to ~75% of memory limit; increase for larger envs
+    #         - name: PRE_STOP_ADDITIONAL_WAIT_SECONDS
+    #           value: "15"
+    #   # volumeClaimTemplates is immutable — changing it requires deleting the StatefulSet and PVC manually.
+    #   volumeClaimTemplates:
+    #   - metadata:
+    #       name: elasticsearch-data
+    #     spec:
+    #       accessModes:
+    #       - ReadWriteOnce
+    #       storageClassName: managed-csi
+    #       resources:
+    #         requests:
+    #           storage: 8Gi
   eck-operator:
     enabled: false
 
