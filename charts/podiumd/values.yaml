@@ -1811,7 +1811,6 @@ openinwoner:
     #         kubernetes.azure.com/mode: user
     #       containers:
     #       - name: elasticsearch
-    #         image: <acr>/elasticsearch   # override for ACR-based environments
     #         resources:
     #           # tune for larger environments; memory should match ES_JAVA_OPTS heap settings
     #           requests:
