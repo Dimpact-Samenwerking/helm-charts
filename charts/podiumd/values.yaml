@@ -338,9 +338,9 @@ redis-operator:
     enabled: false
     replicaCount: 3
     image:
-      registry: ""
-      repository: redis
-      tag: "7.4.1"
+      registry: quay.io
+      repository: opstree/redis
+      tag: "v7.0.15"
     redisExporter:
       image:
         registry: quay.io
@@ -361,7 +361,7 @@ redis-operator:
             - ReadWriteOnce
           resources:
             requests:
-              storage: 2Gi
+              storage: 8Gi
     redisConfig:
       additionalRedisConfig: "databases 32"
 
