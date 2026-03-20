@@ -28,6 +28,30 @@ openinwoner:
               value: "15"
 ```
 
+### openinwoner: Elasticsearch storage class (per-environment)
+
+The `volumeClaimTemplates` for the openinwoner Elasticsearch nodeSet must be configured **per environment** (not in chart defaults), because the PVC spec is immutable and varies per cluster. Add the following to each environment's values file under the existing `openinwoner.eck-elasticsearch.nodeSets[0]` block:
+
+```yaml
+openinwoner:
+  eck-elasticsearch:
+    nodeSets:
+    - name: default
+      # ... existing config ...
+      volumeClaimTemplates:
+      - metadata:
+          name: elasticsearch-data
+        spec:
+          accessModes:
+          - ReadWriteOnce
+          storageClassName: managed-csi
+          resources:
+            requests:
+              storage: 8Gi
+```
+
+> **Note:** Changing `volumeClaimTemplates` on an existing StatefulSet is not allowed by Kubernetes. If the PVC already exists with a different storageClass, the StatefulSet must be deleted (ECK will recreate it) and the old PVC deleted manually.
+
 ### keycloak-operator: new jobs
 Four new jobs are introduced under `keycloak-operator.jobs`:
 
