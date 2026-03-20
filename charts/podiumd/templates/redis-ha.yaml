@@ -1,0 +1,31 @@
+{{- $redisHa := index (index .Values "redis-operator") "redis-ha" }}
+{{- if $redisHa.enabled }}
+apiVersion: redis.redis.opstreelabs.in/v1beta2
+kind: RedisReplication
+metadata:
+  name: redis-ha
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+spec:
+  clusterSize: {{ $redisHa.replicaCount }}
+  kubernetesConfig:
+    image: {{ include "podiumd.image" $redisHa.kubernetesConfig }}
+    {{- with $redisHa.kubernetesConfig.resources }}
+    resources:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+  {{- with $redisHa.storage }}
+  storage:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  redisExporter:
+    enabled: false
+  {{- if $redisHa.nodeSelector }}
+  nodeSelector:
+    {{- toYaml $redisHa.nodeSelector | nindent 4 }}
+  {{- else if .Values.nodeSelector }}
+  nodeSelector:
+    {{- toYaml .Values.nodeSelector | nindent 4 }}
+  {{- end }}
+{{- end }}

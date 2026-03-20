@@ -12,6 +12,7 @@ global:
 
 tags:
   eck-operator.enabled: false
+  redis: false
 
 persistentVolume:
   volumeAttributeShareName: ""
@@ -304,6 +305,59 @@ keycloak:
       memory: 1Gi
   secretsName: "keycloak-secrets"
 
+redis-operator:
+  enabled: false
+  redisOperator:
+    imageName: quay.io/opstree/redis-operator
+    imageTag: "v0.24.0"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  # -- Shared Redis HA cluster using the RedisReplication CRD from the OT Redis Operator.
+  # When redis-operator.redis-ha.enabled is true, individual Redis subcharts per service should be disabled:
+  #   servicename:
+  #     tags:
+  #       redis: false   # disables template references to .Subcharts.redis
+  #     redis:
+  #       enabled: false # prevents subchart installation
+  #
+  # Database allocation:
+  #   objecttypen        : db 0  (cache)
+  #   objecten           : db 1  (cache), db 2  (celery)
+  #   opennotificaties   : db 3  (cache), db 6  (celery result backend; broker stays on RabbitMQ)
+  #   openzaak           : db 4  (cache), db 5  (celery)
+  #   openklant          : db 7  (cache), db 8  (celery)
+  #   openformulieren    : db 9  (cache), db 10 (celery)
+  #   openinwoner        : db 11 (cache), db 12 (celery)
+  #   openarchiefbeheer  : db 13 (cache+axes), db 14 (choices + celery)
+  redis-ha:
+    enabled: false
+    replicaCount: 3
+    kubernetesConfig:
+      registry: ""
+      repository: redis
+      tag: "7.4.1"
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: 500m
+          memory: 256Mi
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: managed-csi
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 2Gi
+
 openzaak:
   configuration:
     enabled: true
@@ -449,6 +503,9 @@ openzaak:
       memory: 256Mi
   worker:
     replicaCount: 1
+    livenessProbe:
+      enabled: true
+    maxWorkerLivenessDelta: "300"
     resources:
       requests:
         cpu: 10m
@@ -479,13 +536,24 @@ openzaak:
         requests:
           cpu: 10m
           memory: 64Mi
+  tags:
+    redis: false
+  redis:
+    enabled: false
+  settings:
+    cache:
+      default: redis-ha-master.podiumd.svc.cluster.local:6379/4
+      axes: redis-ha-master.podiumd.svc.cluster.local:6379/4
+    celery:
+      brokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/5
+      resultBackendl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/5
+      # -- Set to debug for test/acceptance environments
+      logLevel: warning
   otel:
     disabled: true
 
 opennotificaties:
   configuration:
-    enabled: true
-    overwrite: true
     http_request_job:
       enabled: false
     initContainer:
@@ -660,6 +728,9 @@ opennotificaties:
       memory: 256Mi
   worker:
     replicaCount: 1
+    livenessProbe:
+      enabled: true
+    maxWorkerLivenessDelta: "300"
     resources:
       requests:
         cpu: 50m
@@ -695,14 +766,24 @@ opennotificaties:
         requests:
           cpu: 10m
           memory: 64Mi
+  tags:
+    redis: false
+  redis:
+    enabled: false
+  settings:
+    cache:
+      default: redis-ha-master.podiumd.svc.cluster.local:6379/3
+      axes: redis-ha-master.podiumd.svc.cluster.local:6379/3
+    celery:
+      # -- Set to debug for test/acceptance environments
+      logLevel: warning
+    messageBroker:
+      celeryResultBackend: redis://redis-ha-master.podiumd.svc.cluster.local:6379/6
   otel:
     disabled: true
 
 objecten:
   configuration:
-    enabled: true
-    demo:
-      enabled: false
     initContainer:
       enabled: false
     job:
@@ -834,6 +915,9 @@ objecten:
       memory: 256Mi
   worker:
     replicaCount: 1
+    livenessProbe:
+      enabled: true
+    maxWorkerLivenessDelta: "300"
     resources:
       requests:
         cpu: 50m
@@ -859,6 +943,20 @@ objecten:
       enabled: false
       masterService:
         enabled: false
+  tags:
+    redis: false
+  redis:
+    enabled: false
+  settings:
+    cache:
+      default: redis-ha-master.podiumd.svc.cluster.local:6379/1
+      axes: redis-ha-master.podiumd.svc.cluster.local:6379/1
+      oidc: redis-ha-master.podiumd.svc.cluster.local:6379/1
+    celery:
+      brokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/2
+      resultBackendl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/2
+      # -- Set to debug for test/acceptance environments
+      logLevel: warning
   otel:
     disabled: true
 
@@ -966,6 +1064,14 @@ objecttypen:
         requests:
           cpu: 10m
           memory: 64Mi
+  tags:
+    redis: false
+  redis:
+    enabled: false
+  settings:
+    cache:
+      default: redis-ha-master.podiumd.svc.cluster.local:6379/0
+      axes: redis-ha-master.podiumd.svc.cluster.local:6379/0
   otel:
     disabled: true
 
@@ -1051,7 +1157,13 @@ openarchiefbeheer:
     #         oidc_op_discovery_endpoint: https://example.keycloak.nl/realms/podiumd-poc/
 
   tags:
-    redis: true
+    redis: false
+  redis:
+    enabled: false
+
+  worker:
+    livenessProbe:
+      enabled: true
 
   replicaCount: 1
 
@@ -1089,32 +1201,21 @@ openarchiefbeheer:
       total: ""
       backoffFactor: ""
       statusForcelist: ""
+    cache:
+      default: redis-ha-replication-master.podiumd.svc.cluster.local:6379/13
+      axes: redis-ha-replication-master.podiumd.svc.cluster.local:6379/13
+      choices: redis-ha-replication-master.podiumd.svc.cluster.local:6379/14
+    celery:
+      # -- Set to debug for test/acceptance environments
+      logLevel: warning
+      brokerUrl: redis://redis-ha-replication-master.podiumd.svc.cluster.local:6379/14
+      resultBackendl: redis://redis-ha-replication-master.podiumd.svc.cluster.local:6379/14
 
   persistence:
     size: 10Gi
     existingClaim: openarchiefbeheer
   persistentVolume:
     volumeAttributeShareName: openarchiefbeheer
-
-  redis:
-    nameOverride: openarchiefbeheer-redis
-    fullnameOverride: openarchiefbeheer-redis
-    architecture: standalone
-    auth:
-      enabled: false
-    master:
-      persistence:
-        enabled: true
-        size: 8Gi
-        storageClass: ""
-      resources:
-        requests:
-          cpu: 10m
-          memory: 20Mi
-    sentinel:
-      enabled: false
-      masterService:
-        enabled: false
 
 openklant:
   configuration:
@@ -1211,6 +1312,8 @@ openklant:
       memory: 300Mi
   worker:
     replicaCount: 1
+    livenessProbe:
+      enabled: true
     resources:
       requests:
         cpu: 50m
@@ -1234,6 +1337,19 @@ openklant:
         requests:
           cpu: 10m
           memory: 64Mi
+  tags:
+    redis: false
+  redis:
+    enabled: false
+  settings:
+    cache:
+      default: redis-ha-master.podiumd.svc.cluster.local:6379/7
+      axes: redis-ha-master.podiumd.svc.cluster.local:6379/7
+    celery:
+      brokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/8
+      resultBackendl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/8
+      # -- Set to debug for test/acceptance environments
+      logLevel: warning
   otel:
     disabled: true
 
@@ -1409,6 +1525,9 @@ openformulieren:
       memory: 650Mi
   worker:
     replicaCount: 1
+    livenessProbe:
+      enabled: true
+    maxWorkerLivenessDelta: "300"
     resources:
       requests:
         cpu: 50m
@@ -1441,6 +1560,19 @@ openformulieren:
         requests:
           cpu: 10m
           memory: 64Mi
+  tags:
+    redis: false
+  redis:
+    enabled: false
+  settings:
+    cache:
+      default: redis-ha-master.podiumd.svc.cluster.local:6379/9
+      axes: redis-ha-master.podiumd.svc.cluster.local:6379/9
+    celery:
+      brokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/10
+      resultBackendl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/10
+      # -- Set to debug for test/acceptance environments
+      logLevel: warning
 
 openinwoner:
   configuration:
@@ -1585,6 +1717,14 @@ openinwoner:
       useTLS: true
     searchIndexInitContainer: true
     oidcFrontendLogoutWithHints: false
+    cache:
+      default: redis-ha-master.podiumd.svc.cluster.local:6379/11
+      axes: redis-ha-master.podiumd.svc.cluster.local:6379/11
+    celery:
+      brokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/12
+      resultBackendl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/12
+      # -- Set to debug for test/acceptance environments
+      logLevel: warning
   persistence:
     size: 10Gi
     existingClaim: openinwoner
@@ -1598,6 +1738,9 @@ openinwoner:
       memory: 1Gi
   worker:
     replicaCount: 1
+    livenessProbe:
+      enabled: true
+    maxWorkerLivenessDelta: "300"
     resources:
       requests:
         cpu: 200m
@@ -1618,7 +1761,10 @@ openinwoner:
       requests:
         cpu: 30m
         memory: 8Mi
+  tags:
+    redis: false
   redis:
+    enabled: false
     nameOverride: openinwoner-redis
     fullnameOverride: openinwoner-redis
     master:

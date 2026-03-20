@@ -103,6 +103,42 @@ Remove any explicit `initContainer.enabled: false` override if you want the new 
 | zac | 1.0.165 → 1.0.194 | image 4.0.12-1 → 4.3.61 |
 | zgw-office-addin | 0.0.65 → 0.0.73 | frontend+backend v0.9.28 → v0.9.133 |
 
+## Environment values changes
+
+### Enable Redis HA and remove per-service Redis subchart config
+
+The 7 per-service Redis subcharts (openzaak, opennotificaties, objecten, objecttypen, openklant, openformulieren, openinwoner) are replaced by a single shared Redis HA cluster.
+
+1. **Add a `redis-operator:` block** to enable the operator and the shared cluster:
+
+   ```yaml
+   redis-operator:
+     enabled: true
+     redis-ha:
+       enabled: true
+       nodeSelector:
+         kubernetes.azure.com/mode: user   # adjust to your node pool label
+   ```
+
+2. **Remove the `redis:` subchart block** from each of the 7 migrated services. These blocks (image, master.nodeSelector, master.persistence.storageClass) are no longer used — the subcharts are disabled globally. Example of what to remove:
+
+   ```yaml
+   openzaak:
+     # remove this block:
+     redis:
+       image:
+         repository: redis
+       master:
+         pdb:
+           create: false
+         nodeSelector:
+           kubernetes.azure.com/mode: user
+         persistence:
+           storageClass: managed-csi
+   ```
+
+   Remove the `redis:` subchart block from **all 8 services**: openzaak, opennotificaties, objecten, objecttypen, openklant, openformulieren, openinwoner, and openarchiefbeheer.
+
 ## Pre-deploy steps
 
 1. **Add `REP_KEYCLOAK_OPERATOR_SA_CLIENT_SECRET_REP`** to the pipeline secrets/replacements.
@@ -110,4 +146,19 @@ Remove any explicit `initContainer.enabled: false` override if you want the new 
 2. **Remove Infinispan** — Infinispan has been removed as a dependency in 4.6.0. Remove the `openshift` Helm repo if it was added solely for Infinispan:
    ```shell
    helm repo remove openshift
+   ```
+
+3. **Add the `opstree` Helm repo** — the `redis-operator` dependency (OT Container Kit) requires a new repo entry:
+   ```shell
+   helm repo add opstree https://ot-container-kit.github.io/helm-charts/
+   helm repo update opstree
+   ```
+
+4. **Install the Redis Operator CRDs** — Helm does not upgrade CRDs automatically on `helm upgrade`. Run the provided script before deploying:
+   ```shell
+   ./charts/podiumd/scripts/install-redis-operator-crds.sh
+   ```
+   To preview what will be applied without making changes:
+   ```shell
+   ./charts/podiumd/scripts/install-redis-operator-crds.sh --dry-run
    ```
