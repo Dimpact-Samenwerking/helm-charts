@@ -90,3 +90,7 @@ dependencies:
     repository: "@worth-nl"
     version: 0.14.0
     condition: omc.enabled
+  - name: redis-operator
+    repository: "@opstree"
+    version: 0.24.0
+    condition: redis-operator.enabled

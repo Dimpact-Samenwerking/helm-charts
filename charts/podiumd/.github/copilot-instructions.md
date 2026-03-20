@@ -18,6 +18,7 @@ helm repo add openshift https://charts.openshift.io
 helm repo add zac https://infonl.github.io/dimpact-zaakafhandelcomponent/
 helm repo add zgw-office-addin https://infonl.github.io/zgw-office-addin
 helm repo add adfinis https://charts.adfinis.com
+helm repo add opstree https://ot-container-kit.github.io/helm-charts/
 
 # Dependency management (from charts/podiumd/)
 helm dependency update
