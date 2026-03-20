@@ -41,6 +41,10 @@ spec:
   redisExporter:
     enabled: false
     image: {{ include "podiumd.image" $redisHa.redisExporter.image }}
+  {{- with $redisHa.podSecurityContext }}
+  podSecurityContext:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   {{- if $redisHa.nodeSelector }}
   nodeSelector:
     {{- toYaml $redisHa.nodeSelector | nindent 4 }}

@@ -307,6 +307,8 @@ keycloak:
 
 redis-operator:
   enabled: true
+  featureGates:
+    GenerateConfigInInitContainer: true
   redisOperator:
     imageName: quay.io/opstree/redis-operator
     imageTag: "v0.24.0"
@@ -340,7 +342,7 @@ redis-operator:
     image:
       registry: quay.io
       repository: opstree/redis
-      tag: "v7.0.15"
+      tag: "v8.4.2"
     redisExporter:
       image:
         registry: quay.io
@@ -366,7 +368,8 @@ redis-operator:
               #   kubectl patch pvc <pvc-name> -n <namespace> -p '{"spec":{"resources":{"requests":{"storage":"8Gi"}}}}'
               storage: 2Gi
     redisConfig:
-      additionalRedisConfig: "databases 32"
+      additionalRedisConfig: |
+        databases 32
 
 openzaak:
   configuration:
@@ -534,22 +537,8 @@ openzaak:
       requests:
         cpu: 10m
         memory: 16Mi
-  redis:
-    nameOverride: openzaak-redis
-    fullnameOverride: openzaak-redis
-    master:
-      persistence:
-        enabled: true
-        size: 8Gi
-        storageClass: ""
-      resources:
-        requests:
-          cpu: 10m
-          memory: 64Mi
   tags:
     redis: false
-  redis:
-    enabled: false
   settings:
     cache:
       default: redis-ha-master.podiumd.svc.cluster.local:6379/4
@@ -764,22 +753,8 @@ opennotificaties:
       username: guest
       password: guest
       erlangCookie: SUPER-SECRET
-  redis:
-    nameOverride: opennotificaties-redis
-    fullnameOverride: opennotificaties-redis
-    master:
-      persistence:
-        enabled: true
-        size: 8Gi
-        storageClass: ""
-      resources:
-        requests:
-          cpu: 10m
-          memory: 64Mi
   tags:
     redis: false
-  redis:
-    enabled: false
   settings:
     cache:
       default: redis-ha-master.podiumd.svc.cluster.local:6379/3
@@ -936,27 +911,8 @@ objecten:
   fullnameOverride: objecten
   flower:
     enabled: false
-  redis:
-    nameOverride: objecten-redis
-    fullnameOverride: objecten-redis
-    master:
-      persistence:
-        enabled: true
-        size: 8Gi
-        storageClass: ""
-      resources:
-        requests:
-          cpu: 10m
-          memory: 64Mi
-    architecture: standalone
-    sentinel:
-      enabled: false
-      masterService:
-        enabled: false
   tags:
     redis: false
-  redis:
-    enabled: false
   settings:
     cache:
       default: redis-ha-master.podiumd.svc.cluster.local:6379/1
@@ -1062,22 +1018,8 @@ objecttypen:
       memory: 160Mi
   nameOverride: objecttypen
   fullnameOverride: objecttypen
-  redis:
-    nameOverride: objecttypen-redis
-    fullnameOverride: objecttypen-redis
-    master:
-      persistence:
-        enabled: true
-        size: 8Gi
-        storageClass: ""
-      resources:
-        requests:
-          cpu: 10m
-          memory: 64Mi
   tags:
     redis: false
-  redis:
-    enabled: false
   settings:
     cache:
       default: redis-ha-master.podiumd.svc.cluster.local:6379/0
@@ -1168,8 +1110,6 @@ openarchiefbeheer:
 
   tags:
     redis: false
-  redis:
-    enabled: false
 
   worker:
     livenessProbe:
@@ -1335,22 +1275,8 @@ openklant:
       requests:
         cpu: 10m
         memory: 16Mi
-  redis:
-    nameOverride: openklant-redis
-    fullnameOverride: openklant-redis
-    master:
-      persistence:
-        enabled: true
-        size: 8Gi
-        storageClass: ""
-      resources:
-        requests:
-          cpu: 10m
-          memory: 64Mi
   tags:
     redis: false
-  redis:
-    enabled: false
   settings:
     cache:
       default: redis-ha-master.podiumd.svc.cluster.local:6379/7
@@ -1558,22 +1484,8 @@ openformulieren:
         memory: 16Mi
     config:
       clientMaxBodySize: 100M
-  redis:
-    nameOverride: openformulieren-redis
-    fullnameOverride: openformulieren-redis
-    master:
-      persistence:
-        enabled: true
-        size: 8Gi
-        storageClass: ""
-      resources:
-        requests:
-          cpu: 10m
-          memory: 64Mi
   tags:
     redis: false
-  redis:
-    enabled: false
   settings:
     cache:
       default: redis-ha-master.podiumd.svc.cluster.local:6379/9
@@ -1773,22 +1685,11 @@ openinwoner:
         memory: 8Mi
   tags:
     redis: false
-  redis:
-    enabled: false
-    nameOverride: openinwoner-redis
-    fullnameOverride: openinwoner-redis
-    master:
-      persistence:
-        enabled: true
-        size: 8Gi
-        storageClass: ""
-      resources:
-        requests:
-          cpu: 20m
-          memory: 64Mi
   eck-elasticsearch:
     enabled: true
     version: "9.2.0"
+    # -- image: overrides the Elasticsearch image. ECK does NOT append :version when spec.image is set — include the full tag.
+    # For ACR: image: acrprodmgmt.azurecr.io/elasticsearch/elasticsearch:9.2.0
     http:
       tls:
         selfSignedCertificate:
@@ -1798,6 +1699,12 @@ openinwoner:
     # - name: default
     #   count: 1   # increase for larger environments (e.g. 3 for HA)
     #   config:
+    #     cluster.initial_master_nodes:
+    #     - openinwoner-elasticsearch-es-default-0
+    #     node.roles:
+    #     - master
+    #     - data
+    #     - ingest
     #     node.store.allow_mmap: false
     #     xpack.security.authc:
     #       anonymous:
@@ -1815,7 +1722,7 @@ openinwoner:
     #           # tune for larger environments; memory should match ES_JAVA_OPTS heap settings
     #           requests:
     #             cpu: 200m
-    #             memory: 1024Mi
+    #             memory: 1536Mi
     #           limits:
     #             cpu: 1000m
     #             memory: 1536Mi
