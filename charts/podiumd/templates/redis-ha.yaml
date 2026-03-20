@@ -10,8 +10,8 @@ metadata:
 spec:
   clusterSize: {{ $redisHa.replicaCount }}
   kubernetesConfig:
-    image: {{ include "podiumd.image" $redisHa.kubernetesConfig }}
-    {{- with $redisHa.kubernetesConfig.resources }}
+    image: {{ include "podiumd.image" $redisHa.image }}
+    {{- with $redisHa.resources }}
     resources:
       {{- toYaml . | nindent 6 }}
     {{- end }}

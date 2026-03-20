@@ -337,17 +337,17 @@ redis-operator:
   redis-ha:
     enabled: false
     replicaCount: 3
-    kubernetesConfig:
+    image:
       registry: ""
       repository: redis
       tag: "7.4.1"
-      resources:
-        requests:
-          cpu: 100m
-          memory: 128Mi
-        limits:
-          cpu: 500m
-          memory: 256Mi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
     storage:
       volumeClaimTemplate:
         spec:
