@@ -1209,14 +1209,14 @@ openarchiefbeheer:
       backoffFactor: ""
       statusForcelist: ""
     cache:
-      default: redis-ha-replication-master.podiumd.svc.cluster.local:6379/13
-      axes: redis-ha-replication-master.podiumd.svc.cluster.local:6379/13
-      choices: redis-ha-replication-master.podiumd.svc.cluster.local:6379/14
+      default: redis-ha-master.podiumd.svc.cluster.local:6379/13
+      axes: redis-ha-master.podiumd.svc.cluster.local:6379/13
+      choices: redis-ha-master.podiumd.svc.cluster.local:6379/14
     celery:
       # -- Set to debug for test/acceptance environments
       logLevel: warning
-      brokerUrl: redis://redis-ha-replication-master.podiumd.svc.cluster.local:6379/14
-      resultBackendl: redis://redis-ha-replication-master.podiumd.svc.cluster.local:6379/14
+      brokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/14
+      resultBackendl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/14
 
   persistence:
     size: 10Gi
