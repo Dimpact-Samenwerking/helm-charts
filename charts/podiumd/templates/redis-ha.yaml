@@ -26,6 +26,7 @@ spec:
   {{- end }}
   redisExporter:
     enabled: false
+    image: {{ include "podiumd.image" $redisHa.redisExporter.image }}
   {{- if $redisHa.nodeSelector }}
   nodeSelector:
     {{- toYaml $redisHa.nodeSelector | nindent 4 }}

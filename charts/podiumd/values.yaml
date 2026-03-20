@@ -341,6 +341,11 @@ redis-operator:
       registry: ""
       repository: redis
       tag: "7.4.1"
+    redisExporter:
+      image:
+        registry: quay.io
+        repository: opstree/redis-exporter
+        tag: "v1.44.0"
     resources:
       requests:
         cpu: 100m
