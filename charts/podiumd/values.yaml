@@ -361,7 +361,10 @@ redis-operator:
             - ReadWriteOnce
           resources:
             requests:
-              storage: 8Gi
+              # -- Default storage per Redis replica. To increase, override in your environment values file.
+              # Note: managed-csi supports online volume expansion — patch the PVC directly after resizing:
+              #   kubectl patch pvc <pvc-name> -n <namespace> -p '{"spec":{"resources":{"requests":{"storage":"8Gi"}}}}'
+              storage: 2Gi
     redisConfig:
       additionalRedisConfig: "databases 32"
 
