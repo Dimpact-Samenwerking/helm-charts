@@ -306,7 +306,7 @@ keycloak:
   secretsName: "keycloak-secrets"
 
 redis-operator:
-  enabled: false
+  enabled: true
   redisOperator:
     imageName: quay.io/opstree/redis-operator
     imageTag: "v0.24.0"
@@ -335,7 +335,7 @@ redis-operator:
   #   openinwoner        : db 11 (cache), db 12 (celery)
   #   openarchiefbeheer  : db 13 (cache+axes), db 14 (choices + celery)
   redis-ha:
-    enabled: false
+    enabled: true
     replicaCount: 3
     image:
       registry: quay.io
