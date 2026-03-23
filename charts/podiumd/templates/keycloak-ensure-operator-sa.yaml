@@ -37,7 +37,26 @@ spec:
         command: ["/bin/sh", "-c"]
         args:
         - |
-          echo "Waiting for podiumd-admin to be able to authenticate..."
+          echo "Checking if keycloak-operator SA is already operational..."
+          for i in $(seq 1 10); do
+            TOKEN_RESPONSE=$(curl -s -X POST \
+              "http://keycloak-service:8080/realms/master/protocol/openid-connect/token" \
+              --data-urlencode "grant_type=client_credentials" \
+              --data-urlencode "client_id=keycloak-operator" \
+              --data-urlencode "client_secret=$CLIENT_SECRET")
+            ACCESS_TOKEN=$(printf '%s' "$TOKEN_RESPONSE" | sed -n 's/.*"access_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1 || true)
+            if [ -n "$ACCESS_TOKEN" ]; then
+              HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+                -H "Authorization: Bearer $ACCESS_TOKEN" "http://keycloak-service:8080/admin/realms")
+              if [ "$HTTP_STATUS" = "200" ]; then
+                echo "keycloak-operator SA is already operational with admin role. Skipping podiumd-admin wait."
+                exit 0
+              fi
+            fi
+            echo "Attempt $i/10 — keycloak-operator SA not ready yet, retrying in 5s..."
+            sleep 5
+          done
+          echo "keycloak-operator SA not operational, falling back to waiting for podiumd-admin..."
           for i in $(seq 1 60); do
             RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
               "http://keycloak-service:8080/realms/master/protocol/openid-connect/token" \
@@ -57,6 +76,11 @@ spec:
             secretKeyRef:
               name: keycloak-podiumd-admin
               key: password
+        - name: CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-operator-client-secret
+              key: client-secret
       containers:
       - name: ensure-operator-sa
         image: {{ include "podiumd.image" (index .Values "keycloak-operator").jobs.ensureOperatorSa.image }}
