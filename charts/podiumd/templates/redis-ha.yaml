@@ -22,8 +22,6 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "podiumd.labels" . | nindent 4 }}
-  annotations:
-    checksum/config: {{ $redisHa | toYaml | sha256sum }}
 spec:
   clusterSize: {{ $redisHa.replicaCount }}
   kubernetesConfig:
