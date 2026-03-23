@@ -1013,6 +1013,9 @@ objecttypen:
       port: 587
       useTLS: true
     disable2fa: false
+    cache:
+      default: redis-ha-master.podiumd.svc.cluster.local:6379/0
+      axes: redis-ha-master.podiumd.svc.cluster.local:6379/0
   image:
     tag: "3.4.1"
   # used for create-required-objecttypen podiumd job only
@@ -1026,10 +1029,6 @@ objecttypen:
   fullnameOverride: objecttypen
   tags:
     redis: false
-  settings:
-    cache:
-      default: redis-ha-master.podiumd.svc.cluster.local:6379/0
-      axes: redis-ha-master.podiumd.svc.cluster.local:6379/0
   otel:
     disabled: true
 

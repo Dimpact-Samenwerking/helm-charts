@@ -1,5 +1,5 @@
-{{- $redisOperator := index .Values "redis-operator" }}
-{{- $redisHa := index $redisOperator "redis-ha" }}
+{{- $redisOperator := default (dict) (index .Values "redis-operator") }}
+{{- $redisHa := default (dict) (index $redisOperator "redis-ha") }}
 {{- if and $redisOperator.enabled $redisHa.enabled }}
 {{- if $redisHa.redisConfig.additionalRedisConfig }}
 ---

@@ -4,13 +4,8 @@ kind: ConfigMap
 metadata:
   name: adapter-config
   labels:
-    helm.sh/chart: {{ include "podiumd.chart" . }}
+    {{- include "podiumd.labels" . | nindent 4 }}
     app.kubernetes.io/name: {{ include "podiumd.name" . }}-adapter-config
-    app.kubernetes.io/instance: {{ .Release.Name }}
-    {{- if .Chart.AppVersion }}
-    app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
-    {{- end }}
-    app.kubernetes.io/managed-by: {{ .Release.Service }}
 data:
   {{- range $index, $contactverzoektype := .Values.kiss.adapter.esuite.contactverzoektypen }}
   {{ printf "CONTACTVERZOEK_TYPES__%d" $index }}: {{ $contactverzoektype | quote }}
