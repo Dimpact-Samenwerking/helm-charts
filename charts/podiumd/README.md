@@ -14,9 +14,9 @@ Componenten op alphabetische volgorde, met sub-charts er onder:
 | ITA                       | 2.1.1      | Minor update  | 2.1.1        |               |                           |
 | - Ita poller              | 2.1.1      | Minor update  |              |               |                           |
 | Keycloak                  | 26.5.5     |               | 1.11.2       | Operator      |                           |
-| Kiss                      | 2.2.1      | Minor update  | 2.2.1        |               |                           |
+| Kiss                      | 2.2.2      | Minor update  | 2.2.12       |               |                           |
 | - Kiss Elastic            |            |               | 1.1.0        |               |                           |
-| - Kiss ElasticSync        | 0.3.1      | Minor update  |              |               |                           |
+| - Kiss ElasticSync        | 0.3.2      | Minor update  |              |               |                           |
 | - PodiumD Adapter         | 0.6.6      | Minor update  |              |               |                           |
 | Objecten                  | 3.5.0      |               | 2.11.0       |               |                           |
 | Objecttypen               | 3.4.0      |               | 1.6.0        |               |                           |

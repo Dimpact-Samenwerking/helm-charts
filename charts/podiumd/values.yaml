@@ -1766,7 +1766,7 @@ kiss:
   image:
     #   repository: "ghcr.io/klantinteractie-servicesysteem/kiss-frontend"
     pullPolicy: IfNotPresent
-    tag: 2.2.1
+    tag: 2.2.2
   enabled: true
   nameOverride: contact
   fullnameOverride: contact
@@ -1915,7 +1915,7 @@ kiss:
     syncJobs:
       image:
         # repository: "ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync"
-        tag: "0.3.1"
+        tag: "0.3.2"
         pullPolicy: IfNotPresent
       kennisbank:
         baseUrl: ""
