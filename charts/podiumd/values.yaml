@@ -367,9 +367,15 @@ redis-operator:
               # Note: managed-csi supports online volume expansion — patch the PVC directly after resizing:
               #   kubectl patch pvc <pvc-name> -n <namespace> -p '{"spec":{"resources":{"requests":{"storage":"8Gi"}}}}'
               storage: 2Gi
+    # -- Number of Redis databases to configure. Applied via an initContainer because `databases` is a
+    # startup-only parameter and the OT redis-operator does not include the additionalRedisConfig
+    # ConfigMap in the main redis.conf (operator limitation in v0.24.0).
+    databases: 32
     redisConfig:
-      additionalRedisConfig: |
-        databases 32
+      # -- Optional extra redis.conf directives for runtime-configurable parameters.
+      # Note: startup-only parameters (e.g. databases) will NOT take effect here due to an operator
+      # limitation; use the databases field above instead.
+      additionalRedisConfig: ""
 
 openzaak:
   configuration:

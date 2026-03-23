@@ -1,7 +1,7 @@
 {{- $redisOperator := index .Values "redis-operator" }}
 {{- $redisHa := index $redisOperator "redis-ha" }}
 {{- if and $redisOperator.enabled $redisHa.enabled }}
-{{- with $redisHa.redisConfig }}
+{{- if $redisHa.redisConfig.additionalRedisConfig }}
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -12,7 +12,7 @@ metadata:
     {{- include "podiumd.labels" $ | nindent 4 }}
 data:
   redis.conf: |
-    {{- .additionalRedisConfig | nindent 4 }}
+    {{- $redisHa.redisConfig.additionalRedisConfig | nindent 4 }}
 {{- end }}
 ---
 apiVersion: redis.redis.opstreelabs.in/v1beta2
@@ -34,7 +34,7 @@ spec:
   storage:
     {{- toYaml . | nindent 4 }}
   {{- end }}
-  {{- with $redisHa.redisConfig }}
+  {{- if $redisHa.redisConfig.additionalRedisConfig }}
   redisConfig:
     additionalRedisConfig: redis-ha-config
   {{- end }}
@@ -52,4 +52,9 @@ spec:
   nodeSelector:
     {{- toYaml .Values.nodeSelector | nindent 4 }}
   {{- end }}
+  initContainer:
+    enabled: true
+    image: busybox:1.35
+    command: ["/bin/sh"]
+    args: ["-c", "printf '\\ndatabases {{ $redisHa.databases | default 32 }}\\n' >> /etc/redis/redis.conf"]
 {{- end }}
