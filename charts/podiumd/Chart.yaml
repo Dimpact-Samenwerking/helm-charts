@@ -78,7 +78,7 @@ dependencies:
   - name: kiss-chart
     alias: kiss
     repository: "oci://ghcr.io/klantinteractie-servicesysteem"
-    version: 2.2.1
+    version: 2.2.2
     condition: kiss.enabled
   - name: pabc
     alias: pabc
