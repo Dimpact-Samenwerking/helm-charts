@@ -89,12 +89,28 @@ spec:
         - |
           set -euo pipefail
           SERVER="http://keycloak-service:8080"
-          ADMIN_USER="podiumd-admin"
-          : "${ADMIN_PASS:?}"
 
           # Safely escape a value for embedding in a JSON string literal.
           # Escapes backslashes first, then double-quotes.
           json_escape() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
+
+          echo "Checking if keycloak-operator SA is already operational..."
+          SA_TOKEN=$(curl -s -X POST "$SERVER/realms/master/protocol/openid-connect/token" \
+            --data-urlencode "grant_type=client_credentials" \
+            --data-urlencode "client_id=keycloak-operator" \
+            --data-urlencode "client_secret=$CLIENT_SECRET" \
+            | sed -n 's/.*"access_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+          if [ -n "$SA_TOKEN" ]; then
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              -H "Authorization: Bearer $SA_TOKEN" "$SERVER/admin/realms")
+            if [ "$HTTP_STATUS" = "200" ]; then
+              echo "keycloak-operator SA is already operational with admin role. Nothing to do."
+              exit 0
+            fi
+          fi
+
+          ADMIN_USER="podiumd-admin"
+          : "${ADMIN_PASS:?}"
 
           echo "Obtaining admin token via ROPC..."
           ADMIN_TOKEN=$(curl -s -X POST "$SERVER/realms/master/protocol/openid-connect/token" \
