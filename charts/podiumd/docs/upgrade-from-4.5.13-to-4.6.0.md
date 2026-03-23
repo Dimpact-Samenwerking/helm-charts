@@ -131,7 +131,7 @@ Remove any explicit `initContainer.enabled: false` override if you want the new 
 
 ### Enable Redis HA and remove per-service Redis subchart config
 
-The 7 per-service Redis subcharts (openzaak, opennotificaties, objecten, objecttypen, openklant, openformulieren, openinwoner) are replaced by a single shared Redis HA cluster.
+The per-service Redis subcharts (openzaak, opennotificaties, objecten, objecttypen, openklant, openformulieren, openinwoner) are replaced by a single shared Redis HA cluster.
 
 1. **Add a `redis-operator:` block** to enable the operator and the shared cluster:
 
@@ -144,7 +144,7 @@ The 7 per-service Redis subcharts (openzaak, opennotificaties, objecten, objectt
          kubernetes.azure.com/mode: user   # adjust to your node pool label
    ```
 
-2. **Remove the `redis:` subchart block** from each of the 7 migrated services. These blocks (image, master.nodeSelector, master.persistence.storageClass) are no longer used — the subcharts are disabled globally. Example of what to remove:
+2. **Remove the `redis:` subchart block** from each of the migrated services. These blocks (image, master.nodeSelector, master.persistence.storageClass) are no longer used — the subcharts are disabled globally. Example of what to remove:
 
    ```yaml
    openzaak:
@@ -161,7 +161,7 @@ The 7 per-service Redis subcharts (openzaak, opennotificaties, objecten, objectt
            storageClass: managed-csi
    ```
 
-   Remove the `redis:` subchart block from **all 8 services**: openzaak, opennotificaties, objecten, objecttypen, openklant, openformulieren, openinwoner, and openarchiefbeheer.
+   Remove the `redis:` subchart block from **all services that had it**: openzaak, opennotificaties, objecten, objecttypen, openklant, openformulieren, openinwoner, and openarchiefbeheer.
 
 ## Pre-deploy steps
 

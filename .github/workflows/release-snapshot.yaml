@@ -1,4 +1,4 @@
-﻿name: Release Snapshot Charts
+name: Release Snapshot Charts
 
 on:
   workflow_dispatch:
