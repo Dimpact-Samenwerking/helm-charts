@@ -144,12 +144,31 @@ The per-service Redis subcharts (openzaak, opennotificaties, objecten, objecttyp
          kubernetes.azure.com/mode: user   # adjust to your node pool label
    ```
 
-   **Private registry environments:** Redis pods start an initContainer that uses `busybox:1.35` (pulled from Docker Hub) to configure the database count. If your cluster restricts public registry access, override the image:
+   **Private registry environments:** The redis-operator itself and the Redis pods all pull from public registries by default. If your cluster restricts public registry access, override the images. The operator image uses the upstream subchart's `imageName`/`imageTag` keys; the Redis and exporter images use the standard `{registry, repository, tag}` map:
+
+   ```yaml
+   redis-operator:
+     redisOperator:
+       imageName: myacr.azurecr.io/opstree/redis-operator
+     redis-ha:
+       image:
+         registry: myacr.azurecr.io
+         repository: opstree/redis
+       redisExporter:
+         image:
+           registry: myacr.azurecr.io
+           repository: opstree/redis-exporter
+   ```
+
+   The Redis pods also start an initContainer (`busybox`) to configure the database count. Override it the same way:
 
    ```yaml
    redis-operator:
      redis-ha:
-       initContainerImage: "myacr.azurecr.io/busybox:1.35"
+       initContainerImage:
+         registry: myacr.azurecr.io
+         repository: busybox
+         tag: "1.35"
    ```
 
 2. **Remove the `redis:` subchart block** from each of the migrated services. These blocks (image, master.nodeSelector, master.persistence.storageClass) are no longer used — the subcharts are disabled globally. Example of what to remove:

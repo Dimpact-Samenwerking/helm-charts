@@ -54,7 +54,7 @@ spec:
   {{- end }}
   initContainer:
     enabled: true
-    image: {{ $redisHa.initContainerImage | default "busybox:1.35" }}
+    image: {{ include "podiumd.image" $redisHa.initContainerImage }}
     command: ["/bin/sh"]
     args: ["-c", "printf '\\ndatabases {{ $redisHa.databases | default 32 }}\\n' >> /etc/redis/redis.conf"]
 {{- end }}

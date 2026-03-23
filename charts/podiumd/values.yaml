@@ -373,7 +373,9 @@ redis-operator:
     databases: 32
     # -- Image used by the initContainer that appends `databases N` to redis.conf.
     # Override this in environments that restrict public Docker Hub pulls (e.g. point to an ACR mirror).
-    initContainerImage: "busybox:1.35"
+    initContainerImage:
+      repository: busybox
+      tag: "1.35"
     # -- Pod security context for Redis pods. fsGroup must match the redis container's GID (1000)
     # so that mounted PVC data directories are writable by the redis process.
     podSecurityContext:
