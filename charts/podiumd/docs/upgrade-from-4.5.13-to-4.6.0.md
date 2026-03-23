@@ -156,7 +156,6 @@ The per-service Redis subcharts (openzaak, opennotificaties, objecten, objecttyp
        initContainerImage:
          registry: myacr.azurecr.io                 # ACR environments only
          repository: busybox
-         tag: "1.35"
    ```
 
    For non-ACR environments, omit the `redisOperator`, `image`, `redisExporter.image`, and `initContainerImage` overrides.
