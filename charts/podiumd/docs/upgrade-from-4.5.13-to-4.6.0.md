@@ -138,6 +138,8 @@ The per-service Redis subcharts (openzaak, opennotificaties, objecten, objecttyp
    ```yaml
    redis-operator:
      enabled: true
+     nodeSelector:
+       kubernetes.azure.com/mode: user
      redisOperator:
        imageName: myacr.azurecr.io/redis-operator   # ACR environments only
      redis-ha:
