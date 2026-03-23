@@ -149,15 +149,15 @@ The per-service Redis subcharts (openzaak, opennotificaties, objecten, objecttyp
    ```yaml
    redis-operator:
      redisOperator:
-       imageName: myacr.azurecr.io/opstree/redis-operator
+       imageName: myacr.azurecr.io/redis-operator
      redis-ha:
        image:
          registry: myacr.azurecr.io
-         repository: opstree/redis
+         repository: redis
        redisExporter:
          image:
            registry: myacr.azurecr.io
-           repository: opstree/redis-exporter
+           repository: redis-exporter
    ```
 
    The Redis pods also start an initContainer (`busybox`) to configure the database count. Override it the same way:
