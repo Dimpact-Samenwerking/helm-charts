@@ -371,6 +371,10 @@ redis-operator:
     # startup-only parameter and the OT redis-operator does not include the additionalRedisConfig
     # ConfigMap in the main redis.conf (operator limitation in v0.24.0).
     databases: 32
+    # -- Pod security context for Redis pods. fsGroup must match the redis container's GID (1000)
+    # so that mounted PVC data directories are writable by the redis process.
+    podSecurityContext:
+      fsGroup: 1000
     redisConfig:
       # -- Optional extra redis.conf directives for runtime-configurable parameters.
       # Note: startup-only parameters (e.g. databases) will NOT take effect here due to an operator
