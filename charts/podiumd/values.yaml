@@ -371,6 +371,9 @@ redis-operator:
     # startup-only parameter and the OT redis-operator does not include the additionalRedisConfig
     # ConfigMap in the main redis.conf (operator limitation in v0.24.0).
     databases: 32
+    # -- Image used by the initContainer that appends `databases N` to redis.conf.
+    # Override this in environments that restrict public Docker Hub pulls (e.g. point to an ACR mirror).
+    initContainerImage: "busybox:1.35"
     # -- Pod security context for Redis pods. fsGroup must match the redis container's GID (1000)
     # so that mounted PVC data directories are writable by the redis process.
     podSecurityContext:
@@ -513,6 +516,14 @@ openzaak:
       port: 587
       useTLS: true
     disable2fa: false
+    cache:
+      default: redis-ha-master.podiumd.svc.cluster.local:6379/4
+      axes: redis-ha-master.podiumd.svc.cluster.local:6379/4
+    celery:
+      brokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/5
+      resultBackendl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/5
+      # -- Set to debug for test/acceptance environments
+      logLevel: warning
   persistence:
     size: 10Gi
     existingClaim: openzaak
@@ -549,15 +560,6 @@ openzaak:
         memory: 16Mi
   tags:
     redis: false
-  settings:
-    cache:
-      default: redis-ha-master.podiumd.svc.cluster.local:6379/4
-      axes: redis-ha-master.podiumd.svc.cluster.local:6379/4
-    celery:
-      brokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/5
-      resultBackendl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/5
-      # -- Set to debug for test/acceptance environments
-      logLevel: warning
   otel:
     disabled: true
 
@@ -724,6 +726,14 @@ opennotificaties:
       port: 587
       useTLS: true
     disable2fa: false
+    cache:
+      default: redis-ha-master.podiumd.svc.cluster.local:6379/3
+      axes: redis-ha-master.podiumd.svc.cluster.local:6379/3
+    celery:
+      # -- Set to debug for test/acceptance environments
+      logLevel: warning
+    messageBroker:
+      celeryResultBackend: redis://redis-ha-master.podiumd.svc.cluster.local:6379/6
   persistence:
     size: 10Gi
     existingClaim: opennotificaties
@@ -765,15 +775,6 @@ opennotificaties:
       erlangCookie: SUPER-SECRET
   tags:
     redis: false
-  settings:
-    cache:
-      default: redis-ha-master.podiumd.svc.cluster.local:6379/3
-      axes: redis-ha-master.podiumd.svc.cluster.local:6379/3
-    celery:
-      # -- Set to debug for test/acceptance environments
-      logLevel: warning
-    messageBroker:
-      celeryResultBackend: redis://redis-ha-master.podiumd.svc.cluster.local:6379/6
   otel:
     disabled: true
 
@@ -897,6 +898,15 @@ objecten:
       port: 587
       useTLS: true
     disable2fa: false
+    cache:
+      default: redis-ha-master.podiumd.svc.cluster.local:6379/1
+      axes: redis-ha-master.podiumd.svc.cluster.local:6379/1
+      oidc: redis-ha-master.podiumd.svc.cluster.local:6379/1
+    celery:
+      brokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/2
+      resultBackendl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/2
+      # -- Set to debug for test/acceptance environments
+      logLevel: warning
   persistence:
     size: 10Gi
     existingClaim: objecten
@@ -923,16 +933,6 @@ objecten:
     enabled: false
   tags:
     redis: false
-  settings:
-    cache:
-      default: redis-ha-master.podiumd.svc.cluster.local:6379/1
-      axes: redis-ha-master.podiumd.svc.cluster.local:6379/1
-      oidc: redis-ha-master.podiumd.svc.cluster.local:6379/1
-    celery:
-      brokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/2
-      resultBackendl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/2
-      # -- Set to debug for test/acceptance environments
-      logLevel: warning
   otel:
     disabled: true
 
@@ -1258,6 +1258,14 @@ openklant:
       port: 587
       useTLS: true
     disable2fa: false
+    cache:
+      default: redis-ha-master.podiumd.svc.cluster.local:6379/7
+      axes: redis-ha-master.podiumd.svc.cluster.local:6379/7
+    celery:
+      brokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/8
+      resultBackendl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/8
+      # -- Set to debug for test/acceptance environments
+      logLevel: warning
   persistence:
     size: 10Gi
     existingClaim: openklant
@@ -1286,15 +1294,6 @@ openklant:
         memory: 16Mi
   tags:
     redis: false
-  settings:
-    cache:
-      default: redis-ha-master.podiumd.svc.cluster.local:6379/7
-      axes: redis-ha-master.podiumd.svc.cluster.local:6379/7
-    celery:
-      brokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/8
-      resultBackendl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/8
-      # -- Set to debug for test/acceptance environments
-      logLevel: warning
   otel:
     disabled: true
 
@@ -1455,6 +1454,14 @@ openformulieren:
     email:
       port: 587
       useTLS: true
+    cache:
+      default: redis-ha-master.podiumd.svc.cluster.local:6379/9
+      axes: redis-ha-master.podiumd.svc.cluster.local:6379/9
+    celery:
+      brokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/10
+      resultBackendl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/10
+      # -- Set to debug for test/acceptance environments
+      logLevel: warning
   persistence:
     size: 10Gi
     existingClaim: openformulieren
@@ -1495,15 +1502,6 @@ openformulieren:
       clientMaxBodySize: 100M
   tags:
     redis: false
-  settings:
-    cache:
-      default: redis-ha-master.podiumd.svc.cluster.local:6379/9
-      axes: redis-ha-master.podiumd.svc.cluster.local:6379/9
-    celery:
-      brokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/10
-      resultBackendl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/10
-      # -- Set to debug for test/acceptance environments
-      logLevel: warning
 
 openinwoner:
   configuration:
