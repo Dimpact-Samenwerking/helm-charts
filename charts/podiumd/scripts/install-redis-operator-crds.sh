@@ -14,6 +14,7 @@
 #
 # Options:
 #   --version VERSION   Chart version to fetch CRDs from (default: 0.24.0)
+#   --context CONTEXT   kubectl context to use (default: current context)
 #   --dry-run           Print the CRDs YAML without applying them
 #   -h, --help          Show this help message
 #
@@ -24,12 +25,14 @@
 # Example:
 #   ./install-redis-operator-crds.sh
 #   ./install-redis-operator-crds.sh --version 0.16.0
+#   ./install-redis-operator-crds.sh --context my-aks-cluster
 #   ./install-redis-operator-crds.sh --dry-run
 
 set -euo pipefail
 
 CHART_VERSION="0.24.0"
 DRY_RUN=false
+CONTEXT_ARG=""
 REPO_NAME="opstree"
 REPO_URL="https://ot-container-kit.github.io/helm-charts/"
 CHART_NAME="redis-operator"
@@ -43,6 +46,10 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --version)
       CHART_VERSION="$2"
+      shift 2
+      ;;
+    --context)
+      CONTEXT_ARG="--context $2"
       shift 2
       ;;
     --dry-run)
@@ -83,13 +90,13 @@ fi
 echo "==> Applying CRDs (server-side apply)..."
 echo "${CRD_YAML}" \
   | awk '/^apiVersion:/ && NR>1 { print "---" } { print }' \
-  | kubectl apply --server-side -f -
+  | kubectl ${CONTEXT_ARG} apply --server-side -f -
 
 echo "==> Waiting for CRDs to reach Established condition..."
 CRD_NAMES=$(echo "${CRD_YAML}" | grep '^  name:' | awk '{print $2}')
 for crd in ${CRD_NAMES}; do
   echo "    Waiting for CRD: ${crd}"
-  kubectl wait --for=condition=Established "crd/${crd}" --timeout=60s
+  kubectl ${CONTEXT_ARG} wait --for=condition=Established "crd/${crd}" --timeout=60s
 done
 
 echo "==> Redis Operator CRDs installed successfully (version ${CHART_VERSION})."

@@ -188,9 +188,9 @@ The per-service Redis subcharts (openzaak, opennotificaties, objecten, objecttyp
 
 4. **Install the Redis Operator CRDs** — Helm does not upgrade CRDs automatically on `helm upgrade`. Run the provided script before deploying:
    ```shell
-   ./charts/podiumd/scripts/install-redis-operator-crds.sh
+   ./charts/podiumd/scripts/install-redis-operator-crds.sh --context <kubectl-context>
    ```
-   To preview what will be applied without making changes:
+   Always pass `--context` to pin the target cluster and avoid accidentally modifying the wrong cluster. To preview what will be applied without making changes:
    ```shell
-   ./charts/podiumd/scripts/install-redis-operator-crds.sh --dry-run
+   ./charts/podiumd/scripts/install-redis-operator-crds.sh --context <kubectl-context> --dry-run
    ```
