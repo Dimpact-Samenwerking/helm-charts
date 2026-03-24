@@ -2407,7 +2407,7 @@ apiproxy:
       path: /haalcentraal/api/brp/
       targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apihcbrp/actueel/prtcl/v2/"
       toepassingHeaderRequired: false
-      toepassingHeaderName: ""
+      toepassingHeaderName: "X-Toepassing"
       toepassingHostMapping:
         - host: "^contact"
           toepassing: KISS
