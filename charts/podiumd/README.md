@@ -16,7 +16,7 @@
 | Objecten           | 3.5.0      | Minor update | 2.11.0       | Minor update                            |
 | Objecttypen        | 3.4.0      | Minor update | 1.6.0        | Minor update                            |
 | Open Formulieren   | 3.3.9      | Patch update | 1.11.6       |                                         |
-| Open Inwoner       | 2.0.3      | Major update | 2.1.0        | Major update                            |
+| Open Inwoner       | 2.0.4      | Major update | 2.1.0        | Major update                            |
 | Open Klant         | 2.14.0     | Minor update | 1.10.0       | Minor update                            |
 | Open Notificaties  | 1.14.0     | Minor update | 1.13.0       | Minor update                            |
 | Open Zaak          | 1.26.0     | Minor update | 1.13.0       | Minor update                            |
