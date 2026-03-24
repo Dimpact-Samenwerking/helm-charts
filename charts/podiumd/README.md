@@ -13,7 +13,7 @@ Componenten op alphabetische volgorde, met sub-charts er onder:
 | ClamAV                    | 1.4.2      |               | 3.2.0        |               |                           |
 | ITA                       | 2.1.1      | Minor update  | 2.1.1        |               |                           |
 | - Ita poller              | 2.1.1      | Minor update  |              |               |                           |
-| Keycloak                  | 26.5.5     |               | 1.11.2       | Operator      |                           |
+| Keycloak                  | 26.5.6     |               | 1.11.2       | Operator      |                           |
 | Kiss                      | 2.2.2      | Minor update  | 2.2.12       |               |                           |
 | - Kiss Elastic            |            |               | 1.1.0        |               |                           |
 | - Kiss ElasticSync        | 0.3.2      | Minor update  |              |               |                           |
