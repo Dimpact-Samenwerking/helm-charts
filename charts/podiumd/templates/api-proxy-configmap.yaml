@@ -32,7 +32,7 @@ data:
     {{- if .Values.apiproxy.locations.brp.toepassingHeaderRequired }}
       # The BRP API requires a custom header (x-toepassing) to be set based on the incoming Host header. We use an
       # Nginx map for this purpose, which allows us to define mappings in the Helm values file.
-      map $http_host $toepassing_header {
+      map $remote_addr $toepassing_header {
         hostnames;
         default "";
       {{- with .Values.apiproxy.locations.brp.toepassingHostMapping }}
