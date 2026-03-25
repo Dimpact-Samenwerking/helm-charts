@@ -20,8 +20,8 @@ data:
       log_format main '$remote_addr - $remote_user [$time_local] "$request" '
                       '$status $body_bytes_sent "$http_referer" '
                       '"$http_user_agent" "$http_x_forwarded_for"'
-    {{- if .Values.apiproxy.locations.brp.toepassingHeaderRequired }}
-                      ' toepassing="$toepassing_header"'
+    {{- if .Values.apiproxy.locations.brp.toepassingHeaderName }}
+                      ' toepassing="$toepassing_value"'
     {{- end }}
                       ;
 
@@ -29,17 +29,11 @@ data:
       sendfile on;
       keepalive_timeout 65;
 
-    {{- if .Values.apiproxy.locations.brp.toepassingHeaderRequired }}
-      # The BRP API requires a custom header (x-toepassing) to be set based on the incoming Host header. We use an
-      # Nginx map for this purpose, which allows us to define mappings in the Helm values file.
-      map $remote_addr $toepassing_header {
-        hostnames;
-        default "";
-      {{- with .Values.apiproxy.locations.brp.toepassingHostMapping }}
-        {{- range . }}
-        {{ .host }} {{ .toepassing }};
-        {{- end }}
-      {{- end }}
+    {{- if .Values.apiproxy.locations.brp.toepassingHeaderName }}
+      # If the component sends X-Toepassing header, use it. Otherwise fall back to the default.
+      map $http_x_toepassing $toepassing_value {
+        default "{{ .Values.apiproxy.locations.brp.toepassingDefaultValue | default "" }}";
+        "~.+" $http_x_toepassing;
       }
     {{- end }}
 
@@ -88,8 +82,8 @@ data:
           proxy_ssl_session_reuse on;
           proxy_ssl_server_name on;
           proxy_set_header Host {{ .Values.apiproxy.locations.brp.hostHeader }};
-    {{- if .Values.apiproxy.locations.brp.toepassingHeaderRequired }}
-          proxy_set_header {{ .Values.apiproxy.locations.brp.toepassingHeaderName }} $toepassing_header;
+    {{- if .Values.apiproxy.locations.brp.toepassingHeaderName }}
+          proxy_set_header {{ .Values.apiproxy.locations.brp.toepassingHeaderName }} $toepassing_value;
     {{- end }}
           proxy_http_version 1.1;
         }

@@ -2406,17 +2406,8 @@ apiproxy:
       <<: *commonLocation
       path: /haalcentraal/api/brp/
       targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apihcbrp/actueel/prtcl/v2/"
-      toepassingHeaderRequired: false
       toepassingHeaderName: "X-Toepassing"
-      toepassingHostMapping:
-        - host: "^contact"
-          toepassing: KISS
-        - host: "^zac"
-          toepassing: ZAC
-        - host: "^openformulieren"
-          toepassing: OpenForm
-        - host: "^openinwoner"
-          toepassing: OIP
+      toepassingDefaultValue: "ZAC"
     kvkSearch:
       <<: *commonLocation
       targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apikvk/zoeken/v2/zoeken"
