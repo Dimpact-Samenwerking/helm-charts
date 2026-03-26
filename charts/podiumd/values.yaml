@@ -22,14 +22,14 @@ persistentVolume:
 keycloak-operator:
   enabled: true
   # Adfinis Helm chart wrapping the official Keycloak Operator manifests.
-  # Chart: https://charts.adfinis.com / adfinis/keycloak-operator (appVersion 26.5.4)
+  # Chart: https://charts.adfinis.com / adfinis/keycloak-operator (appVersion 26.5.6)
   # Note: it appears that the podname automatically appends -operator.
-  # Official operator image: quay.io/keycloak/keycloak-operator:26.5.4
+  # Official operator image: quay.io/keycloak/keycloak-operator:26.5.6
   fullnameOverride: keycloak
   operator:
     image:
       repository: quay.io/keycloak/keycloak-operator
-      tag: "26.5.4"
+      tag: "26.5.6"
   serviceAccount:
     create: false
 
@@ -110,10 +110,10 @@ keycloak:
   http:
     httpEnabled: true
   # image parameters for keycloak-operator
-  # Official Keycloak image: quay.io/keycloak/keycloak:26.5.5
+  # Official Keycloak image: quay.io/keycloak/keycloak:26.5.6
   image:
     repository: quay.io/keycloak/keycloak
-    tag: 26.5.5
+    tag: 26.5.6
   # -- instances is the new operator-style replica count (falls back to replicaCount)
   instances: "2"
   ingress:
@@ -150,7 +150,7 @@ keycloak:
     metadata:
       labels:
         app: keycloak
-        version: 26.5.4
+        version: 26.5.6
     spec:
       securityContext:
         runAsNonRoot: true
@@ -1748,14 +1748,14 @@ openinwoner:
       port: 587
       useTLS: true
     searchIndexInitContainer: true
-    oidcFrontendLogoutWithHints: false    
+    oidcFrontendLogoutWithHints: false
   persistence:
     size: 10Gi
     existingClaim: openinwoner
   persistentVolume:
     volumeAttributeShareName: openinwoner
   image:
-    tag: "2.0.3"
+    tag: "2.0.4"
   resources:
     requests:
       cpu: 200m
@@ -2387,6 +2387,7 @@ apiproxy:
   readinessProbe:
     initialDelaySeconds: 5
     periodSeconds: 10
+  resolverIp: 10.0.0.10 # KubeDNS resolver
   locations:
     commonSettings: &commonLocation
       sslVerify: "off"
@@ -2405,6 +2406,8 @@ apiproxy:
       <<: *commonLocation
       path: /haalcentraal/api/brp/
       targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apihcbrp/actueel/prtcl/v2/"
+      toepassingHeaderName: "X-Toepassing"
+      toepassingDefaultValue: "ZAC"
     kvkSearch:
       <<: *commonLocation
       targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apikvk/zoeken/v2/zoeken"
