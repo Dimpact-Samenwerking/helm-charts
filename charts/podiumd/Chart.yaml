@@ -56,6 +56,15 @@ dependencies:
     version: 2.1.0
     repository: "@maykinmedia"
     condition: openinwoner.enabled
+  - name: referentielijsten
+    alias: referentielijsten
+    repository: "@maykinmedia"
+    version: 0.1.1
+    condition: referentielijsten.enabled
+  - name: openbeheer
+    version: 0.1.2
+    repository: "@maykinmedia"
+    condition: openbeheer.enabled
   - name: kiss-elastic
     alias: kisselastic
     version: 1.1.0
@@ -94,8 +103,3 @@ dependencies:
     repository: "oci://ghcr.io/platform-autorisatie-beheer-component"
     version: 1.0.0
     condition: pabc.enabled
-  - name: referentielijsten
-    alias: referentielijsten
-    repository: "@maykinmedia"
-    version: 0.1.1
-    condition: referentielijsten.enabled
