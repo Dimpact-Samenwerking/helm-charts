@@ -2229,7 +2229,7 @@ clamav:
     # General
     ###############
 
-    DatabaseDirectory /data
+    DatabaseDirectory /var/lib/clamav
     TemporaryDirectory /tmp
     LogTime yes
     # CUSTOM: Use pid file in tmp
@@ -2293,9 +2293,7 @@ clamav:
     # General
     ###############
 
-    DatabaseDirectory /data
-    LogTime yes
-    # CUSTOM: Use pid file in tmp
+    DatabaseDirectory /var/lib/clamav
     PidFile /tmp/freshclam.pid
     # CUSTOM: Set defined user
     DatabaseOwner 2000
@@ -2312,6 +2310,13 @@ clamav:
     enabled: true
     size: 2Gi
     storageClass: managed-csi
+  # The chart hardcodes the clamav-data volume mount at /data, but the official clamav/clamav
+  # entrypoint checks /var/lib/clamav/main.cvd to decide whether to run freshclam synchronously
+  # before starting clamd (cold-start bootstrap). By also mounting the PVC at /var/lib/clamav,
+  # the entrypoint correctly waits for freshclam on first boot with an empty volume.
+  extraVolumeMounts:
+    - name: clamav-data
+      mountPath: /var/lib/clamav
   startupProbe:
     initialDelaySeconds: 60
     periodSeconds: 30

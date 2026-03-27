@@ -132,10 +132,11 @@ After this update:
 ### Known open item — `DisableCertCheck yes`
 
 The current `clamdConfig` contains `DisableCertCheck yes`, which disables ClamAV's Authenticode PE
-certificate validation. This reduces detection quality for malicious signed executables but may be
-required if scanning files in environments where PE certificate chains cannot be validated (e.g., air-gapped
-or strict egress networks). It should be changed to `DisableCertCheck no` (the default) when possible.
-This requires verifying that it does not cause false positives in the target environment before enabling.
+certificate validation. This is intentional: users of PodiumD regularly upload documents signed by
+internal Dutch government PKI certificates (e.g. PKIoverheid) that are not in the public certificate
+store available to ClamAV. Enabling certificate checks would cause false positives on legitimately
+signed government documents. This setting should remain `yes` unless ClamAV can be configured with
+the relevant government CA certificates.
 
 ---
 
