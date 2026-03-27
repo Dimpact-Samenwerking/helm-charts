@@ -23,14 +23,14 @@ persistentVolume:
 keycloak-operator:
   enabled: true
   # Adfinis Helm chart wrapping the official Keycloak Operator manifests.
-  # Chart: https://charts.adfinis.com / adfinis/keycloak-operator (appVersion 26.5.5)
+  # Chart: https://charts.adfinis.com / adfinis/keycloak-operator (appVersion 26.5.6)
   # Note: it appears that the podname automatically appends -operator.
-  # Official operator image: quay.io/keycloak/keycloak-operator:26.5.5
+  # Official operator image: quay.io/keycloak/keycloak-operator:26.5.6
   fullnameOverride: keycloak
   operator:
     image:
       repository: quay.io/keycloak/keycloak-operator
-      tag: "26.5.5"
+      tag: "26.5.6"
   serviceAccount:
     create: false
   jobs:
@@ -139,11 +139,11 @@ keycloak:
   http:
     httpEnabled: true
   # image parameters for keycloak-operator
-  # Official Keycloak image: quay.io/keycloak/keycloak:26.5.5
+  # Official Keycloak image: quay.io/keycloak/keycloak:26.5.6
   image:
     registry: ""
     repository: quay.io/keycloak/keycloak
-    tag: 26.5.5
+    tag: 26.5.6
   # -- instances is the new operator-style replica count (falls back to replicaCount)
   instances: "2"
   ingress:
@@ -178,7 +178,7 @@ keycloak:
     metadata:
       labels:
         app: keycloak
-        version: 26.5.5
+        version: 26.5.6
     spec:
       securityContext:
         runAsNonRoot: true
