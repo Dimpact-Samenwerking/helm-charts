@@ -12,6 +12,7 @@ global:
 
 tags:
   eck-operator.enabled: false
+  redis: false
 
 persistentVolume:
   volumeAttributeShareName: ""
@@ -304,6 +305,87 @@ keycloak:
       memory: 1Gi
   secretsName: "keycloak-secrets"
 
+redis-operator:
+  enabled: true
+  featureGates:
+    GenerateConfigInInitContainer: true
+  redisOperator:
+    imageName: quay.io/opstree/redis-operator
+    imageTag: "v0.24.0"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  # -- Shared Redis HA cluster using the RedisReplication CRD from the OT Redis Operator.
+  # When redis-operator.redis-ha.enabled is true, individual Redis subcharts per service should be disabled:
+  #   servicename:
+  #     tags:
+  #       redis: false   # disables template references to .Subcharts.redis
+  #     redis:
+  #       enabled: false # prevents subchart installation
+  #
+  # Database allocation:
+  #   objecttypen        : db 0  (cache)
+  #   objecten           : db 1  (cache), db 2  (celery)
+  #   opennotificaties   : db 3  (cache), db 6  (celery result backend; broker stays on RabbitMQ)
+  #   openzaak           : db 4  (cache), db 5  (celery)
+  #   openklant          : db 7  (cache), db 8  (celery)
+  #   openformulieren    : db 9  (cache), db 10 (celery)
+  #   openinwoner        : db 11 (cache), db 12 (celery)
+  #   openarchiefbeheer  : db 13 (cache+axes), db 14 (choices + celery)
+  redis-ha:
+    enabled: true
+    replicaCount: 3
+    image:
+      registry: quay.io
+      repository: opstree/redis
+      tag: "v8.4.2"
+    redisExporter:
+      image:
+        registry: quay.io
+        repository: opstree/redis-exporter
+        tag: "v1.44.0"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: managed-csi
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              # -- Default storage per Redis replica. To increase, override in your environment values file.
+              # Note: managed-csi supports online volume expansion — patch the PVC directly after resizing:
+              #   kubectl patch pvc <pvc-name> -n <namespace> -p '{"spec":{"resources":{"requests":{"storage":"8Gi"}}}}'
+              storage: 2Gi
+    # -- Number of Redis databases to configure. Applied via an initContainer because `databases` is a
+    # startup-only parameter and the OT redis-operator does not include the additionalRedisConfig
+    # ConfigMap in the main redis.conf (operator limitation in v0.24.0).
+    databases: 32
+    # -- Image used by the initContainer that appends `databases N` to redis.conf.
+    # Override this in environments that restrict public Docker Hub pulls (e.g. point to an ACR mirror).
+    initContainerImage:
+      repository: busybox
+      tag: "1.35"
+    # -- Pod security context for Redis pods. fsGroup must match the redis container's GID (1000)
+    # so that mounted PVC data directories are writable by the redis process.
+    podSecurityContext:
+      fsGroup: 1000
+    redisConfig:
+      # -- Optional extra redis.conf directives for runtime-configurable parameters.
+      # Note: startup-only parameters (e.g. databases) will NOT take effect here due to an operator
+      # limitation; use the databases field above instead.
+      additionalRedisConfig: ""
+
 openzaak:
   configuration:
     enabled: true
@@ -436,6 +518,14 @@ openzaak:
       port: 587
       useTLS: true
     disable2fa: false
+    cache:
+      default: redis-ha-master.podiumd.svc.cluster.local:6379/4
+      axes: redis-ha-master.podiumd.svc.cluster.local:6379/4
+    celery:
+      brokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/5
+      resultBackendl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/5
+      # -- Set to debug for test/acceptance environments
+      logLevel: warning
   persistence:
     size: 10Gi
     existingClaim: openzaak
@@ -449,6 +539,9 @@ openzaak:
       memory: 256Mi
   worker:
     replicaCount: 1
+    livenessProbe:
+      enabled: true
+    maxWorkerLivenessDelta: "300"
     resources:
       requests:
         cpu: 10m
@@ -467,25 +560,13 @@ openzaak:
       requests:
         cpu: 10m
         memory: 16Mi
-  redis:
-    nameOverride: openzaak-redis
-    fullnameOverride: openzaak-redis
-    master:
-      persistence:
-        enabled: true
-        size: 8Gi
-        storageClass: ""
-      resources:
-        requests:
-          cpu: 10m
-          memory: 64Mi
+  tags:
+    redis: false
   otel:
     disabled: true
 
 opennotificaties:
   configuration:
-    enabled: true
-    overwrite: true
     http_request_job:
       enabled: false
     initContainer:
@@ -647,6 +728,14 @@ opennotificaties:
       port: 587
       useTLS: true
     disable2fa: false
+    cache:
+      default: redis-ha-master.podiumd.svc.cluster.local:6379/3
+      axes: redis-ha-master.podiumd.svc.cluster.local:6379/3
+    celery:
+      # -- Set to debug for test/acceptance environments
+      logLevel: warning
+    messageBroker:
+      celeryResultBackend: redis://redis-ha-master.podiumd.svc.cluster.local:6379/6
   persistence:
     size: 10Gi
     existingClaim: opennotificaties
@@ -660,6 +749,9 @@ opennotificaties:
       memory: 256Mi
   worker:
     replicaCount: 1
+    livenessProbe:
+      enabled: true
+    maxWorkerLivenessDelta: "300"
     resources:
       requests:
         cpu: 50m
@@ -683,26 +775,13 @@ opennotificaties:
       username: guest
       password: guest
       erlangCookie: SUPER-SECRET
-  redis:
-    nameOverride: opennotificaties-redis
-    fullnameOverride: opennotificaties-redis
-    master:
-      persistence:
-        enabled: true
-        size: 8Gi
-        storageClass: ""
-      resources:
-        requests:
-          cpu: 10m
-          memory: 64Mi
+  tags:
+    redis: false
   otel:
     disabled: true
 
 objecten:
   configuration:
-    enabled: true
-    demo:
-      enabled: false
     initContainer:
       enabled: false
     job:
@@ -821,6 +900,15 @@ objecten:
       port: 587
       useTLS: true
     disable2fa: false
+    cache:
+      default: redis-ha-master.podiumd.svc.cluster.local:6379/1
+      axes: redis-ha-master.podiumd.svc.cluster.local:6379/1
+      oidc: redis-ha-master.podiumd.svc.cluster.local:6379/1
+    celery:
+      brokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/2
+      resultBackendl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/2
+      # -- Set to debug for test/acceptance environments
+      logLevel: warning
   persistence:
     size: 10Gi
     existingClaim: objecten
@@ -834,6 +922,9 @@ objecten:
       memory: 256Mi
   worker:
     replicaCount: 1
+    livenessProbe:
+      enabled: true
+    maxWorkerLivenessDelta: "300"
     resources:
       requests:
         cpu: 50m
@@ -842,23 +933,8 @@ objecten:
   fullnameOverride: objecten
   flower:
     enabled: false
-  redis:
-    nameOverride: objecten-redis
-    fullnameOverride: objecten-redis
-    master:
-      persistence:
-        enabled: true
-        size: 8Gi
-        storageClass: ""
-      resources:
-        requests:
-          cpu: 10m
-          memory: 64Mi
-    architecture: standalone
-    sentinel:
-      enabled: false
-      masterService:
-        enabled: false
+  tags:
+    redis: false
   otel:
     disabled: true
 
@@ -943,6 +1019,9 @@ objecttypen:
       port: 587
       useTLS: true
     disable2fa: false
+    cache:
+      default: redis-ha-master.podiumd.svc.cluster.local:6379/0
+      axes: redis-ha-master.podiumd.svc.cluster.local:6379/0
   image:
     tag: "3.4.1"
   # used for create-required-objecttypen podiumd job only
@@ -954,18 +1033,8 @@ objecttypen:
       memory: 160Mi
   nameOverride: objecttypen
   fullnameOverride: objecttypen
-  redis:
-    nameOverride: objecttypen-redis
-    fullnameOverride: objecttypen-redis
-    master:
-      persistence:
-        enabled: true
-        size: 8Gi
-        storageClass: ""
-      resources:
-        requests:
-          cpu: 10m
-          memory: 64Mi
+  tags:
+    redis: false
   otel:
     disabled: true
 
@@ -1051,7 +1120,11 @@ openarchiefbeheer:
     #         oidc_op_discovery_endpoint: https://example.keycloak.nl/realms/podiumd-poc/
 
   tags:
-    redis: true
+    redis: false
+
+  worker:
+    livenessProbe:
+      enabled: true
 
   replicaCount: 1
 
@@ -1089,32 +1162,21 @@ openarchiefbeheer:
       total: ""
       backoffFactor: ""
       statusForcelist: ""
+    cache:
+      default: redis-ha-master.podiumd.svc.cluster.local:6379/13
+      axes: redis-ha-master.podiumd.svc.cluster.local:6379/13
+      choices: redis-ha-master.podiumd.svc.cluster.local:6379/14
+    celery:
+      # -- Set to debug for test/acceptance environments
+      logLevel: warning
+      brokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/14
+      resultBackendl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/14
 
   persistence:
     size: 10Gi
     existingClaim: openarchiefbeheer
   persistentVolume:
     volumeAttributeShareName: openarchiefbeheer
-
-  redis:
-    nameOverride: openarchiefbeheer-redis
-    fullnameOverride: openarchiefbeheer-redis
-    architecture: standalone
-    auth:
-      enabled: false
-    master:
-      persistence:
-        enabled: true
-        size: 8Gi
-        storageClass: ""
-      resources:
-        requests:
-          cpu: 10m
-          memory: 20Mi
-    sentinel:
-      enabled: false
-      masterService:
-        enabled: false
 
 openklant:
   configuration:
@@ -1198,6 +1260,14 @@ openklant:
       port: 587
       useTLS: true
     disable2fa: false
+    cache:
+      default: redis-ha-master.podiumd.svc.cluster.local:6379/7
+      axes: redis-ha-master.podiumd.svc.cluster.local:6379/7
+    celery:
+      brokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/8
+      resultBackendl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/8
+      # -- Set to debug for test/acceptance environments
+      logLevel: warning
   persistence:
     size: 10Gi
     existingClaim: openklant
@@ -1211,6 +1281,8 @@ openklant:
       memory: 300Mi
   worker:
     replicaCount: 1
+    livenessProbe:
+      enabled: true
     resources:
       requests:
         cpu: 50m
@@ -1222,18 +1294,8 @@ openklant:
       requests:
         cpu: 10m
         memory: 16Mi
-  redis:
-    nameOverride: openklant-redis
-    fullnameOverride: openklant-redis
-    master:
-      persistence:
-        enabled: true
-        size: 8Gi
-        storageClass: ""
-      resources:
-        requests:
-          cpu: 10m
-          memory: 64Mi
+  tags:
+    redis: false
   otel:
     disabled: true
 
@@ -1394,6 +1456,14 @@ openformulieren:
     email:
       port: 587
       useTLS: true
+    cache:
+      default: redis-ha-master.podiumd.svc.cluster.local:6379/9
+      axes: redis-ha-master.podiumd.svc.cluster.local:6379/9
+    celery:
+      brokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/10
+      resultBackendl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/10
+      # -- Set to debug for test/acceptance environments
+      logLevel: warning
   persistence:
     size: 10Gi
     existingClaim: openformulieren
@@ -1409,6 +1479,9 @@ openformulieren:
       memory: 650Mi
   worker:
     replicaCount: 1
+    livenessProbe:
+      enabled: true
+    maxWorkerLivenessDelta: "300"
     resources:
       requests:
         cpu: 50m
@@ -1429,18 +1502,8 @@ openformulieren:
         memory: 16Mi
     config:
       clientMaxBodySize: 100M
-  redis:
-    nameOverride: openformulieren-redis
-    fullnameOverride: openformulieren-redis
-    master:
-      persistence:
-        enabled: true
-        size: 8Gi
-        storageClass: ""
-      resources:
-        requests:
-          cpu: 10m
-          memory: 64Mi
+  tags:
+    redis: false
 
 openinwoner:
   configuration:
@@ -1585,6 +1648,14 @@ openinwoner:
       useTLS: true
     searchIndexInitContainer: true
     oidcFrontendLogoutWithHints: false
+    cache:
+      default: redis-ha-master.podiumd.svc.cluster.local:6379/11
+      axes: redis-ha-master.podiumd.svc.cluster.local:6379/11
+    celery:
+      brokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/12
+      resultBackendl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/12
+      # -- Set to debug for test/acceptance environments
+      logLevel: warning
   persistence:
     size: 10Gi
     existingClaim: openinwoner
@@ -1598,6 +1669,9 @@ openinwoner:
       memory: 1Gi
   worker:
     replicaCount: 1
+    livenessProbe:
+      enabled: true
+    maxWorkerLivenessDelta: "300"
     resources:
       requests:
         cpu: 200m
@@ -1618,38 +1692,65 @@ openinwoner:
       requests:
         cpu: 30m
         memory: 8Mi
-  redis:
-    nameOverride: openinwoner-redis
-    fullnameOverride: openinwoner-redis
-    master:
-      persistence:
-        enabled: true
-        size: 8Gi
-        storageClass: ""
-      resources:
-        requests:
-          cpu: 20m
-          memory: 64Mi
+  tags:
+    redis: false
   eck-elasticsearch:
     enabled: true
     version: "9.2.0"
+    # -- image: overrides the Elasticsearch image. ECK does NOT append :version when spec.image is set — include the full tag.
+    # For ACR: image: acrprodmgmt.azurecr.io/elasticsearch/elasticsearch:9.2.0
     http:
       tls:
         selfSignedCertificate:
           disabled: true
-    nodeSets:
-    - name: default
-      count: 1
-      config:
-        node.store.allow_mmap: false
-      podTemplate:
-        spec:
-          terminationGracePeriodSeconds: 60
-          containers:
-          - name: elasticsearch
-            env:
-            - name: PRE_STOP_ADDITIONAL_WAIT_SECONDS
-              value: "15"
+    # -- nodeSets must be configured per environment. Example (override in your environment values file):
+    # nodeSets:
+    # - name: default
+    #   count: 1   # increase for larger environments (e.g. 3 for HA)
+    #   config:
+    #     cluster.initial_master_nodes:
+    #     - openinwoner-elasticsearch-es-default-0
+    #     node.roles:
+    #     - master
+    #     - data
+    #     - ingest
+    #     node.store.allow_mmap: false
+    #     xpack.security.authc:
+    #       anonymous:
+    #         username: anonymous
+    #         roles: superuser
+    #         authz_exception: false
+    #   podTemplate:
+    #     spec:
+    #       terminationGracePeriodSeconds: 60
+    #       nodeSelector:
+    #         kubernetes.azure.com/mode: user
+    #       containers:
+    #       - name: elasticsearch
+    #         resources:
+    #           # tune for larger environments; memory should match ES_JAVA_OPTS heap settings
+    #           requests:
+    #             cpu: 200m
+    #             memory: 1536Mi
+    #           limits:
+    #             cpu: 1000m
+    #             memory: 1536Mi
+    #         env:
+    #         - name: ES_JAVA_OPTS
+    #           value: "-Xms1g -Xmx1g"   # set heap to ~75% of memory limit; increase for larger envs
+    #         - name: PRE_STOP_ADDITIONAL_WAIT_SECONDS
+    #           value: "15"
+    #   # volumeClaimTemplates is immutable — changing it requires deleting the StatefulSet and PVC manually.
+    #   volumeClaimTemplates:
+    #   - metadata:
+    #       name: elasticsearch-data
+    #     spec:
+    #       accessModes:
+    #       - ReadWriteOnce
+    #       storageClassName: managed-csi
+    #       resources:
+    #         requests:
+    #           storage: 8Gi
   eck-operator:
     enabled: false
 
