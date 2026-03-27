@@ -5,13 +5,12 @@ type: application
 version: 4.6.0
 appVersion: "4.6.0"
 dependencies:
-
   - name: keycloak-operator
     version: 1.11.2
     repository: "@adfinis"
     condition: keycloak-operator.enabled
   - name: clamav
-    version: 3.2.0
+    version: 3.7.1
     repository: "@wiremind"
     condition: clamav.enabled
   - name: brp-personen-mock
