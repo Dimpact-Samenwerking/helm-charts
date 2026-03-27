@@ -150,6 +150,14 @@ the network policy level rather than at the socket level.
 
 ---
 
+### Known limitation — `EnableShutdownCommand` not supported
+
+`EnableShutdownCommand no` (which prevents remote shutdown via the clamd socket) was investigated but
+is **not a valid option** in ClamAV 1.4.4 — clamd rejects the config file with a parse error if it is
+present. It is not listed in `clamd.conf.sample` for this version. It has been omitted from the config.
+
+---
+
 ### Files changed
 
 | File | Change |

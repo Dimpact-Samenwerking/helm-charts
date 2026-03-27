@@ -2241,8 +2241,6 @@ clamav:
     # Scans are briefly blocked during reload, which is acceptable
     ConcurrentDatabaseReload no
     MaxThreads 10
-    # Prevent remote shutdown via socket
-    EnableShutdownCommand no
 
     ###############
     # Results
