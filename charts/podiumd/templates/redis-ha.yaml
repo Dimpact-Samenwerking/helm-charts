@@ -1,0 +1,60 @@
+{{- $redisOperator := default (dict) (index .Values "redis-operator") }}
+{{- $redisHa := default (dict) (index $redisOperator "redis-ha") }}
+{{- if and $redisOperator.enabled $redisHa.enabled }}
+{{- if $redisHa.redisConfig.additionalRedisConfig }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redis-ha-config
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" $ | nindent 4 }}
+data:
+  redis.conf: |
+    {{- $redisHa.redisConfig.additionalRedisConfig | nindent 4 }}
+{{- end }}
+---
+apiVersion: redis.redis.opstreelabs.in/v1beta2
+kind: RedisReplication
+metadata:
+  name: redis-ha
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+spec:
+  clusterSize: {{ $redisHa.replicaCount }}
+  kubernetesConfig:
+    image: {{ include "podiumd.image" $redisHa.image }}
+    {{- with $redisHa.resources }}
+    resources:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+  {{- with $redisHa.storage }}
+  storage:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- if $redisHa.redisConfig.additionalRedisConfig }}
+  redisConfig:
+    additionalRedisConfig: redis-ha-config
+  {{- end }}
+  redisExporter:
+    enabled: false
+    image: {{ include "podiumd.image" $redisHa.redisExporter.image }}
+  {{- with $redisHa.podSecurityContext }}
+  podSecurityContext:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- if $redisHa.nodeSelector }}
+  nodeSelector:
+    {{- toYaml $redisHa.nodeSelector | nindent 4 }}
+  {{- else if .Values.nodeSelector }}
+  nodeSelector:
+    {{- toYaml .Values.nodeSelector | nindent 4 }}
+  {{- end }}
+  initContainer:
+    enabled: true
+    image: {{ include "podiumd.image" $redisHa.initContainerImage }}
+    command: ["/bin/sh"]
+    args: ["-c", "printf '\\ndatabases {{ $redisHa.databases | default 32 }}\\n' >> /etc/redis/redis.conf"]
+{{- end }}

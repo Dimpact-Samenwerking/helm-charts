@@ -94,6 +94,19 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
+Renders a container image from a string or a dict with optional registry, repository, and tag.
+Usage: {{ include "podiumd.image" .Values.path.to.image }}
+*/}}
+{{- define "podiumd.image" -}}
+{{- if kindIs "string" . -}}
+{{- . -}}
+{{- else -}}
+{{- if .registry -}}{{ .registry }}/{{ end -}}
+{{- .repository -}}:{{- .tag -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Renders a value that contains template.
 Usage:
 {{ include "kiss-frontend.tplvalues.render" ( dict "value" .Values.path.to.the.Value "context" $) }}

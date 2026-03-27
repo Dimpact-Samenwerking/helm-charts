@@ -1,2 +1,6 @@
 charts
 Chart.lock
+temp-*.yaml
+temp-*.txt
+*.doc
+*.swp

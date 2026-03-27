@@ -1,3 +1,4 @@
+{{- if .Values.openzaak.enabled }}
 {{- if .Values.openzaak.configuration.enabled }}
 {{- if .Values.openzaak.create_required_catalogi_job.enabled }}
 apiVersion: v1
@@ -418,5 +419,6 @@ spec:
       restartPolicy: OnFailure
   backoffLimit: 4
   activeDeadlineSeconds: 300
+{{- end }}
 {{- end }}
 {{- end }}

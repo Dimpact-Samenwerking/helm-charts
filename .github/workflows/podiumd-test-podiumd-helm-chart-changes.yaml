@@ -22,6 +22,8 @@ jobs:
         helm repo add kiss-elastic https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/.github/main/docs/scripts/elastic
         helm repo add maykinmedia https://maykinmedia.github.io/charts/
         helm repo add zgw-office-addin https://infonl.github.io/zgw-office-addin
+        helm repo add adfinis https://charts.adfinis.com
+        helm repo add opstree https://ot-container-kit.github.io/helm-charts/
     
     - name: bake deployment
       id: bake
