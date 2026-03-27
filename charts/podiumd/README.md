@@ -10,7 +10,7 @@ Componenten op alphabetische volgorde, met sub-charts er onder:
 | Component                 | AppVersion | Change        | ChartVersion | Change        | **Notes**                 |
 |---------------------------|------------|---------------|--------------|---------------|---------------------------|
 | BRP Mock                  |            |               | 1.2.8        |               | Only on Test Environments |
-| ClamAV                    | 1.4.2      |               | 3.2.0        |               |                           |
+| ClamAV                    | 1.4.4      | Patch update  | 3.7.1        | Minor update  |                           |
 | ITA                       | 2.1.1      | Minor update  | 2.1.1        |               |                           |
 | - Ita poller              | 2.1.1      | Minor update  |              |               |                           |
 | Keycloak                  | 26.5.6     |               | 1.11.2       | Operator      |                           |
@@ -43,7 +43,7 @@ Componenten op alphabetische volgorde, met sub-charts er onder:
 
 ### [4.5.14](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.5.14)
 
-**PodiumD Helm chart version: 4.5.13**
+**PodiumD Helm chart version: 4.5.14**
 
 | Component          | AppVersion | Change       | ChartVersion | Change                                  |
 |--------------------|------------|--------------|--------------|-----------------------------------------|
@@ -64,6 +64,8 @@ Componenten op alphabetische volgorde, met sub-charts er onder:
 | Zac                | 4.0.12-1   | Major update | 1.0.165      | Minor update                            |
 | ZGW Office Addin   | 0.9.28     | Minor update | 0.0.65       | Patch update                            |
 
+
+
 ### [4.5.13](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.5.13)
 
 **PodiumD Helm chart version: 4.5.13**
@@ -71,7 +73,7 @@ Componenten op alphabetische volgorde, met sub-charts er onder:
 | Component          | AppVersion | Change       | ChartVersion | Change                                  |
 |--------------------|------------|--------------|--------------|-----------------------------------------|
 | ClamAV             | 1.4.2      |              | 3.2.0        |                                         |
-| Keycloak           | 26.5.5     | Minor update | 1.11.2       | Bitnami vervangen met Adfinis Operator  |
+| Keycloak           | 26.5.6     | Minor update | 1.11.2       | Bitnami vervangen met Adfinis Operator  |
 | Infinispan         | 15.2       |              | 0.5.0        |                                         |
 | ITA                | 2.0.1      | Patch update | 2.0.1        | Patch update                            |
 | PABC               | 1.0.0      | New          | 1.0.0        | New                                     |
@@ -813,4 +815,3 @@ Remove the CRD from the cluster. This also removes all existing `ServiceMonitor`
 ```
 kubectl delete crd servicemonitors.monitoring.coreos.com
 ```
-

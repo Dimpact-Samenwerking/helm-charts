@@ -2221,7 +2221,7 @@ zgw-office-addin:
 
 clamav:
   image:
-    tag: "1.4.2"
+    tag: "1.4.4"
   nameOverride: clamav
   fullnameOverride: clamav
   clamdConfig: |
@@ -2237,6 +2237,10 @@ clamav:
     LocalSocket /tmp/clamd.sock
     TCPSocket 3310
     Foreground yes
+    # Reload database sequentially to avoid double memory usage (~1.2 GiB vs ~2.4 GiB)
+    # Scans are briefly blocked during reload, which is acceptable
+    ConcurrentDatabaseReload no
+    MaxThreads 10
 
     ###############
     # Results
@@ -2266,11 +2270,13 @@ clamav:
     ScanArchive yes
 
     ###############
-    # Scan
+    # Limits
     ###############
 
     MaxScanSize 150M
-    MaxFileSize 30M
+    MaxFileSize 100M
+    # Match MaxFileSize so stream scans have the same ceiling as file scans
+    StreamMaxLength 100M
     MaxRecursion 10
     MaxFiles 15000
     MaxEmbeddedPE 10M
@@ -2287,10 +2293,7 @@ clamav:
     # General
     ###############
 
-    DatabaseDirectory /var/lib/clamav/
-    UpdateLogFile /dev/stdout
-    LogTime yes
-    # CUSTOM: Use pid file in tmp
+    DatabaseDirectory /var/lib/clamav
     PidFile /tmp/freshclam.pid
     # CUSTOM: Set defined user
     DatabaseOwner 2000
@@ -2303,10 +2306,31 @@ clamav:
     ScriptedUpdates yes
     NotifyClamd /etc/clamav/clamd.conf
     Bytecode yes
+  persistentVolume:
+    enabled: true
+    size: 2Gi
+    storageClass: managed-csi
+  # The chart hardcodes the clamav-data volume mount at /data, but the official clamav/clamav
+  # entrypoint checks /var/lib/clamav/main.cvd to decide whether to run freshclam synchronously
+  # before starting clamd (cold-start bootstrap). By also mounting the PVC at /var/lib/clamav,
+  # the entrypoint correctly waits for freshclam on first boot with an empty volume.
+  extraVolumeMounts:
+    - name: clamav-data
+      mountPath: /var/lib/clamav
+  startupProbe:
+    initialDelaySeconds: 60
+    periodSeconds: 30
+    # Cold start loads 3.2M signatures from disk; first boot can take >3 min before page cache is warm.
+    # 60 + (9-1)*30 = 300s = 5 min total allowance.
+    failureThreshold: 9
+    timeoutSeconds: 5
   resources:
     requests:
+      cpu: 250m
+      memory: 2Gi
+    limits:
       cpu: 1000m
-      memory: 4Gi
+      memory: 3Gi
 
 apiproxy:
   enabled: false
