@@ -2315,8 +2315,10 @@ clamav:
   startupProbe:
     initialDelaySeconds: 60
     periodSeconds: 30
-    failureThreshold: 5
-    timeoutSeconds: 1
+    # Cold start loads 3.2M signatures from disk; first boot can take >3 min before page cache is warm.
+    # 60 + (9-1)*30 = 300s = 5 min total allowance.
+    failureThreshold: 9
+    timeoutSeconds: 5
   resources:
     requests:
       cpu: 250m
