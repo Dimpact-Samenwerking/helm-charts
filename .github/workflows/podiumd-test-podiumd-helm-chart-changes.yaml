@@ -23,6 +23,7 @@ jobs:
         helm repo add maykinmedia https://maykinmedia.github.io/charts/
         helm repo add zgw-office-addin https://infonl.github.io/zgw-office-addin
         helm repo add adfinis https://charts.adfinis.com
+        helm repo add wiremind https://wiremind.github.io/wiremind-helm-charts
         helm repo add opstree https://ot-container-kit.github.io/helm-charts/
     
     - name: bake deployment
