@@ -125,7 +125,7 @@ Notable chart changes between 3.2.0 and 3.7.1:
 
 After this update:
 - Freshclam starts correctly on pod initialisation and downloads current virus definitions
-- Virus database is persisted to a 500Mi PVC and only incrementally updated on restart
+- Virus database is persisted to a 2000Mi PVC and only incrementally updated on restart
 - All three CVEs are patched in the running image
 - The chart is current
 
