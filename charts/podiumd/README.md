@@ -10,7 +10,7 @@ Componenten op alphabetische volgorde, met sub-charts er onder:
 | Component                 | AppVersion | Change        | ChartVersion | Change        | **Notes**                 |
 |---------------------------|------------|---------------|--------------|---------------|---------------------------|
 | BRP Mock                  |            |               | 1.2.8        |               | Only on Test Environments |
-| ClamAV                    | 1.4.2      |               | 3.2.0        |               |                           |
+| ClamAV                    | 1.4.4      | Patch update  | 3.7.1        | Minor update  |                           |
 | ITA                       | 2.1.1      | Minor update  | 2.1.1        |               |                           |
 | - Ita poller              | 2.1.1      | Minor update  |              |               |                           |
 | Keycloak                  | 26.5.6     |               | 1.11.2       | Operator      |                           |

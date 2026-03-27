@@ -53,20 +53,21 @@ output of the container process via its default behaviour without an explicit `U
 
 ---
 
-### Issue 2 — Wrong `DatabaseDirectory`: `/var/lib/clamav` instead of `/data`
+### Issue 2 — Database not persisted: data volume mounted at `/data`, not `/var/lib/clamav`
 
 | Field | Detail |
 |---|---|
 | **Severity** | 🟠 High — database updates not persisted |
 | **Affected versions** | All prior releases |
 
-**What happened:** Both `clamdConfig` and `freshclamConfig` set `DatabaseDirectory /var/lib/clamav`, but
-the Helm chart mounts the data volume at `/data`. Even if freshclam had run successfully, it would have
-written virus database updates to ephemeral container storage (`/var/lib/clamav`), not to the persistent
-volume at `/data`. Database updates would be lost on every pod restart.
+**What happened:** The older chart values mounted the ClamAV data volume at `/data`. Even if freshclam had
+run successfully, it would have written virus database updates to ephemeral container storage at
+`/var/lib/clamav`, not to the persistent volume, so database updates would be lost on every pod restart.
 
-**Fix:** Changed `DatabaseDirectory` to `/data` in both `clamdConfig` and `freshclamConfig` to align with
-the volume mount path used by the chart.
+**Fix:** Standardised on `DatabaseDirectory /var/lib/clamav` and updated the chart values to mount the
+persistent volume at `/var/lib/clamav` (via `extraVolumeMounts`) so that both `clamd` and `freshclam`
+read and write their database files on persistent storage. The official `clamav/clamav` entrypoint also
+uses `/var/lib/clamav` to detect whether a cold-start DB download is needed before starting clamd.
 
 ---
 
@@ -125,7 +126,7 @@ Notable chart changes between 3.2.0 and 3.7.1:
 
 After this update:
 - Freshclam starts correctly on pod initialisation and downloads current virus definitions
-- Virus database is persisted to a 2000Mi PVC and only incrementally updated on restart
+- Virus database is persisted to a 2Gi PVC and only incrementally updated on restart
 - All three CVEs are patched in the running image
 - The chart is current
 
@@ -164,7 +165,7 @@ present. It is not listed in `clamd.conf.sample` for this version. It has been o
 | File | Change |
 |---|---|
 | `Chart.yaml` | `clamav` dependency `3.2.0` → `3.7.1` |
-| `values.yaml` | `image.tag` `1.4.2` → `1.4.4`; `DatabaseDirectory` `/var/lib/clamav` → `/data`; removed `UpdateLogFile /dev/stdout`; `persistentVolume.enabled: true`, `size: 2Gi`, `storageClass: managed-csi`; CPU request `1000m` → `250m`; memory request `4Gi` → `2Gi`; added memory limit `4Gi` |
+| `values.yaml` | `image.tag` `1.4.2` → `1.4.4`; removed `UpdateLogFile /dev/stdout`; `DatabaseDirectory` kept at `/var/lib/clamav`; `persistentVolume.enabled: true`, `size: 2Gi`, `storageClass: managed-csi`; added `extraVolumeMounts` to mount PVC at `/var/lib/clamav`; CPU request `1000m` → `250m`; memory request `4Gi` → `2Gi`; added memory limit `3Gi` |
 
 ---
 
