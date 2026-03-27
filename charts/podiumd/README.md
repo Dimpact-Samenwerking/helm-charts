@@ -65,6 +65,7 @@ Componenten op alphabetische volgorde, met sub-charts er onder:
 | ZGW Office Addin   | 0.9.28     | Minor update | 0.0.65       | Patch update                            |
 
 
+
 ### [4.5.13](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.5.13)
 
 **PodiumD Helm chart version: 4.5.13**
@@ -814,5 +815,3 @@ Remove the CRD from the cluster. This also removes all existing `ServiceMonitor`
 ```
 kubectl delete crd servicemonitors.monitoring.coreos.com
 ```
-
-
