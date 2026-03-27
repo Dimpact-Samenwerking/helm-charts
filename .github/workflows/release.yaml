@@ -1,4 +1,4 @@
-name: Release Charts 
+name: Release Charts
 
 on:
   push:
@@ -24,7 +24,6 @@ jobs:
 
       - name: Add dependency chart repos
         run: |
-          helm repo add bitnami https://charts.bitnami.com/bitnami
           helm repo add maykinmedia https://maykinmedia.github.io/charts
           helm repo add opentelemetry https://open-telemetry.github.io/opentelemetry-helm-charts
           helm repo add wiremind https://wiremind.github.io/wiremind-helm-charts
@@ -34,11 +33,12 @@ jobs:
           helm repo add kiss-adapter https://raw.githubusercontent.com/ICATT-Menselijk-Digitaal/podiumd-adapter/main/helm
           helm repo add kiss-elastic https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/.github/main/docs/scripts/elastic
           helm repo add zac https://infonl.github.io/dimpact-zaakafhandelcomponent/
-          helm repo add openshift https://charts.openshift.io
           helm repo add grafana https://grafana.github.io/helm-charts
           helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
           helm repo add zgw-office-addin https://infonl.github.io/zgw-office-addin
           helm repo add adfinis https://charts.adfinis.com
+          helm repo add opstree https://ot-container-kit.github.io/helm-charts/
+          helm repo add worth-nl https://worth-nl.github.io/helm-charts
 
       - name: Run chart-releaser
         uses: helm/chart-releaser-action@v1.7.0

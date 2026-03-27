@@ -18,6 +18,7 @@ helm repo add openshift https://charts.openshift.io
 helm repo add zac https://infonl.github.io/dimpact-zaakafhandelcomponent/
 helm repo add zgw-office-addin https://infonl.github.io/zgw-office-addin
 helm repo add adfinis https://charts.adfinis.com
+helm repo add opstree https://ot-container-kit.github.io/helm-charts/
 
 # Dependency management (from charts/podiumd/)
 helm dependency update
@@ -59,6 +60,45 @@ Key conventions and patterns
 - Vendored charts: charts/ contains pinned .tgz packages for reproducible builds; Chart.lock also present.
 - Schema and validation: kiss.schema.json provides schema for values.yaml.
 - Documentation: check docs/ for migration notes (Keycloak) and API-proxy URL rewriting.
+- Keycloak security changes: whenever a security-relevant Keycloak setting is added or modified (realm config, token lifespans, brute force, password policy, session settings, etc.), always update docs/keycloak-security-updates.md to reflect the change, its rationale, and the applicable standard.
+
+Before committing changes to values.yaml, run the duplicate key scan to catch YAML keys that silently overwrite earlier ones (duplicate map keys in YAML are a silent data-loss bug):
+```powershell
+$script = @'
+import re
+lines = open(r'charts/podiumd/values.yaml', encoding='utf-8').readlines()
+stack = []
+scope_keys = {}
+duplicates = []
+for i, line in enumerate(lines, 1):
+    stripped = line.lstrip()
+    if stripped.startswith('#') or stripped.startswith('-'):
+        continue
+    m = re.match(r'^(\s*)([a-zA-Z0-9_\-][^:#\n]*?)\s*:', line)
+    if not m:
+        continue
+    indent = len(m.group(1))
+    key = m.group(2).strip()
+    while stack and stack[-1][0] >= indent:
+        stack.pop()
+    scope_id = tuple(k for _,k in stack)
+    if scope_id not in scope_keys:
+        scope_keys[scope_id] = {}
+    if key in scope_keys[scope_id]:
+        parent = ' > '.join(scope_id) if scope_id else '(root)'
+        duplicates.append(f'Line {i}: duplicate "{key}" under [{parent}] (first line {scope_keys[scope_id][key]})')
+    else:
+        scope_keys[scope_id][key] = i
+    stack.append((indent, key))
+if duplicates:
+    print(f'FOUND {len(duplicates)} duplicate(s):')
+    for d in duplicates: print(' ', d)
+else:
+    print('No duplicate keys found')
+'@
+$script | python
+```
+Note: hits inside YAML sequences (list items sharing key names like `value:` or `mountPath:`) are false positives and can be ignored.
 
 Where to look
 - Chart.yaml — dependency versions and conditions
@@ -69,6 +109,13 @@ Where to look
 
 AI assistant configs
 - CLAUDE.md (detailed guidance) and .claude/settings.local.json exist in the repo root; prefer CLAUDE.md for operational commands and CI details.
+
+AKS-blue cluster conventions
+- Changes to aks-blue clusters (e.g. aks-blue-ontw-dim1) must go through the pipeline. Never run helm install/upgrade/delete or kubectl apply/delete directly against these clusters.
+- Read-only operations are fine: kubectl get/logs/describe, helm status, helm get, helm template.
+- All components deployed to aks-blue environments must include the nodeSelector:
+    kubernetes.azure.com/mode: user
+  This applies to every component including keycloak-operator (operator pod), the Keycloak CR pod template spec, infinispan, and all application workloads.
 
 End
 If edits are needed or more coverage (CI, release workflow, or per-subchart notes) is desired, request specific areas to add.
