@@ -3,6 +3,26 @@
 This document logs all security-relevant updates and configuration fixes for ClamAV as managed by this chart.
 Each entry records: what changed, why it matters, what was discovered, and how it is implemented.
 
+## Network requirements — ClamAV database update endpoints
+
+Freshclam requires outbound access to the following endpoints. These must be allowlisted in any network
+policy or egress firewall rules for ClamAV to keep its virus database current.
+
+| Endpoint | Protocol/Port | Purpose |
+|---|---|---|
+| `current.cvd.clamav.net` | DNS TXT query (UDP/TCP 53) | Version check — freshclam first queries this DNS TXT record to determine whether a database update is available before downloading anything |
+| `database.clamav.net` | HTTPS (TCP 443) | Primary download mirror — resolves to a CDN, actual files downloaded are `daily.cvd`, `main.cvd`, `bytecode.cvd` |
+
+**How it works:**
+1. Freshclam resolves `current.cvd.clamav.net` as a DNS TXT record to get the current version numbers
+2. If a newer version is available, it downloads the updated `.cvd` (or `.cdiff` patch) files from `https://database.clamav.net/`
+3. Each downloaded file is tested before replacing the live database
+4. If DNS TXT is unavailable, freshclam falls back to full HTTP download (wastes bandwidth)
+
+> If the cluster uses an HTTP proxy, set `HTTPProxyServer` and `HTTPProxyPort` in `freshclamConfig`.
+> If DNS TXT records are blocked, add `--enable-dns-fix` or accept that freshclam will always do a full
+> download instead of a version check first.
+
 ---
 
 ## 2026-03-27 — ClamAV update to 1.4.4 + chart 3.7.1 + config fixes
@@ -108,6 +128,27 @@ After this update:
 - Virus database is persisted to a 500Mi PVC and only incrementally updated on restart
 - All three CVEs are patched in the running image
 - The chart is current
+
+### Known open item — `DisableCertCheck yes`
+
+The current `clamdConfig` contains `DisableCertCheck yes`, which disables ClamAV's Authenticode PE
+certificate validation. This reduces detection quality for malicious signed executables but may be
+required if scanning files in environments where PE certificate chains cannot be validated (e.g., air-gapped
+or strict egress networks). It should be changed to `DisableCertCheck no` (the default) when possible.
+This requires verifying that it does not cause false positives in the target environment before enabling.
+
+---
+
+### Known limitation — `TCPAddr` cannot be restricted to localhost
+
+ClamAV exposes its scan socket on TCP port 3310 via the `clamav` ClusterIP service. Other pods in the
+cluster (e.g., Open Formulieren) connect to `clamav.podiumd.svc.cluster.local:3310`. Setting
+`TCPAddr localhost` causes clamd to bind only to the loopback interface, which makes the ClusterIP service
+unreachable and breaks all network-based scanning. The socket is therefore bound to all interfaces
+(`INADDR_ANY`) by default, which is required for in-cluster use. Access control should be enforced at
+the network policy level rather than at the socket level.
+
+---
 
 ### Files changed
 

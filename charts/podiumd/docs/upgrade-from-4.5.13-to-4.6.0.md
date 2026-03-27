@@ -202,3 +202,13 @@ The per-service Redis subcharts (openzaak, opennotificaties, objecten, objecttyp
    ```shell
    ./charts/podiumd/scripts/install-redis-operator-crds.sh --context <kubectl-context> --dry-run
    ```
+
+5. **Allowlist ClamAV database update endpoints** — ClamAV 4.6.0 introduces a persistent volume and a working freshclam configuration. Ensure the following egress endpoints are reachable from the cluster:
+
+   | Endpoint | Protocol/Port | Purpose |
+   |---|---|---|
+   | `current.cvd.clamav.net` | DNS TXT (UDP/TCP 53) | Version check before downloading updates |
+   | `database.clamav.net` | HTTPS (TCP 443) | Virus database download (`daily.cvd`, `main.cvd`, `bytecode.cvd`) |
+
+   Without access to these endpoints, freshclam will fail silently and the virus database will become stale.
+   If an HTTP proxy is required, add `HTTPProxyServer` and `HTTPProxyPort` to the `clamav.freshclamConfig` override in the environment values file.

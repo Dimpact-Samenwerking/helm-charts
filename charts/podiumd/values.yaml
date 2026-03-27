@@ -2240,6 +2240,9 @@ clamav:
     # Reload database sequentially to avoid double memory usage (~1.2 GiB vs ~2.4 GiB)
     # Scans are briefly blocked during reload, which is acceptable
     ConcurrentDatabaseReload no
+    MaxThreads 10
+    # Prevent remote shutdown via socket
+    EnableShutdownCommand no
 
     ###############
     # Results
@@ -2273,7 +2276,9 @@ clamav:
     ###############
 
     MaxScanSize 150M
-    MaxFileSize 30M
+    MaxFileSize 100M
+    # Match MaxFileSize so stream scans have the same ceiling as file scans
+    StreamMaxLength 100M
     MaxRecursion 10
     MaxFiles 15000
     MaxEmbeddedPE 10M
@@ -2309,6 +2314,11 @@ clamav:
     enabled: true
     size: 2Gi
     storageClass: managed-csi
+  startupProbe:
+    initialDelaySeconds: 60
+    periodSeconds: 30
+    failureThreshold: 4
+    timeoutSeconds: 1
   resources:
     requests:
       cpu: 250m
