@@ -45,9 +45,11 @@ Default replicas: **2**
 | Container | CPU Request | Mem Request | CPU Limit | Mem Limit |
 |-----------|-------------|-------------|-----------|-----------|
 | keycloak-builder (init) | 250m | 512Mi | 1000m | 1Gi |
-| keycloak | — | 1700Mi | — | 2Gi |
+| keycloak | 500m | 1700Mi | — | 2Gi |
 
-> ⚠️ **Increase for production**: No CPU request is set for the main container; the JVM will compete with other workloads under load. Suggested production values: CPU request `500m`, memory request `2Gi`, memory limit `3Gi`.
+Resources for the main Keycloak container are set via `spec.resources` in the Keycloak CR — this is the supported field provided by the operator. The operator's built-in defaults (when nothing is set) are `1700Mi` request and `2Gi` limit (memory only, no CPU). The chart now explicitly sets these via `keycloak.resources` to also add a CPU request of `500m`.
+
+> ⚠️ **Increase for production**: Suggested memory request `2Gi`, limit `3Gi` for environments with many realms or high SSO load. CPU limit intentionally not set (burstable).
 
 **PDB**: Add `minAvailable: 1` (see table above).
 

@@ -38,6 +38,10 @@ spec:
       key: {{ default "database_password" .Values.keycloak.db.passwordSecret.key }}
   ingress:
     enabled: {{ .Values.keycloak.ingress.enabled }}
+  {{- if .Values.keycloak.resources }}
+  resources:
+{{ toYaml .Values.keycloak.resources | indent 4 }}
+  {{- end }}
   additionalOptions:
   {{- range .Values.keycloak.additionalOptions }}
     - name: {{ .name }}

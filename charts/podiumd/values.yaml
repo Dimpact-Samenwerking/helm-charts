@@ -298,11 +298,10 @@ keycloak:
     headers: "xforwarded"
   resources:
     requests:
-      cpu: 100m
-      memory: 512Mi
-    limits:
       cpu: 500m
-      memory: 1Gi
+      memory: 1700Mi
+    limits:
+      memory: 2Gi
   secretsName: "keycloak-secrets"
 
 redis-operator:
