@@ -301,6 +301,7 @@ keycloak:
       cpu: 500m
       memory: 1700Mi
     limits:
+      cpu: 1000m
       memory: 2Gi
   secretsName: "keycloak-secrets"
 
