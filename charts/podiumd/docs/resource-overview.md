@@ -261,15 +261,11 @@ Default replicas: **1** (all components)
 | Container | CPU Request | Mem Request | CPU Limit | Mem Limit |
 |-----------|-------------|-------------|-----------|-----------|
 | zac | 100m | 1Gi | — | — |
-| opa (sidecar) | — | — | — | — |
-| init-solr-zac-core (init) | — | — | — | — |
+| opa (sidecar) | 10m | 20Mi | — | — |
+| init-solr-zac-core (init) | 50m | 256Mi | — | — |
 | nginx | 50m | 64Mi | — | — |
 | office-converter | 100m | 512Mi | — | — |
 | signaleren (CronJob) | — | — | — | — |
-
-> ⚠️ **Chart limitation — OPA sidecar resources cannot be set via values.yaml.** The ZAC subchart exposes an `opa.resources` key but explicitly ignores it when OPA runs as a sidecar (`opa.sidecar: true`), which is the default. Resources for the OPA container inside the ZAC pod must be added to the ZAC chart templates directly. Raised with ZAC/infonl team.
-
-> ⚠️ **Chart limitation — init-solr-zac-core resources cannot be set via values.yaml.** The `initContainer` section in the ZAC chart only exposes an `enabled` flag. No resources field is available for the Solr init container. Raised with ZAC/infonl team.
 
 *signaleren (CronJob) has no resource settings — needs settings.* Suggested: `100m / 256Mi`.
 
@@ -282,13 +278,11 @@ Default replicas: **3** (SolrCloud), **1** (Zookeeper)
 | Container | CPU Request | Mem Request | CPU Limit | Mem Limit | Notes |
 |-----------|-------------|-------------|-----------|-----------|-------|
 | solr-operator | 100m | 128Mi | 500m | 256Mi | `zac.solr-operator.resources` |
-| solrcloud-node `(op)` | — | — | — | — | Managed by Solr Operator via SolrCloud CRD — not settable via Helm values |
+| solrcloud-node `(op)` | 500m | 1Gi | 2000m | 2Gi | `zac.solr-operator.solr.resources` → SolrCloud CRD |
 | zookeeper-operator | 50m | 64Mi | 200m | 128Mi | `zac.solr-operator.zookeeper-operator.resources` |
-| zookeeper `(op)` | — | — | — | — | Managed by Solr Operator via SolrCloud CRD — not settable via Helm values |
+| zookeeper `(op)` | 100m | 256Mi | 500m | 512Mi | `zac.solr-operator.zookeeper-operator.zookeeper.resources` → SolrCloud CRD |
 
-> **Operator managed** — resources for SolrCloud nodes and Zookeeper pods are controlled by the **Solr Operator** via the `SolrCloud` CRD (`spec.solrJavaMem`, `spec.customSolrKubeOptions.podOptions.resources`, `spec.zookeeperRef.provided.zookeeperPodPolicy.resources`). They cannot be set via the ZAC Helm chart values. The solr-operator and zookeeper-operator deployment resources are set via `zac.solr-operator.resources` and `zac.solr-operator.zookeeper-operator.resources`.
->
-> JVM heap is set via `javaMem` in the ZAC chart (default `Xms512m Xmx768m`). To change resources, the `SolrCloud` CR must be patched directly or the ZAC chart must be extended to expose these fields.
+> JVM heap is set via `javaMem` in the ZAC chart (default `Xms512m Xmx768m`). The `solr.resources` and `zookeeper.resources` fields (added in ZAC chart 1.0.204) map to the SolrCloud CRD.
 
 > ⚠️ **Increase for production**: Default JVM heap of 512–768Mi is suitable for dev. Production with large ZAAK indices should use `Xms1g Xmx2g`. Container memory limit must be ~1.5× the heap to account for off-heap usage. Suggested: `1000m / 3Gi` per SolrCloud node. Zookeeper: `200m / 512Mi`.
 
