@@ -2406,7 +2406,7 @@ apiproxy:
       <<: *commonLocation
       path: /haalcentraal/api/brp/
       targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apihcbrp/actueel/prtcl/v2/"
-      toepassingHeaderName: "X-Toepassing"
+      toepassingHeaderName: "" # empty = no header is added, for iConnect use "X-Toepassing"
       toepassingDefaultValue: "ZAC"
     kvkSearch:
       <<: *commonLocation
