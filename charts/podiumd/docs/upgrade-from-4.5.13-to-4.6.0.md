@@ -188,7 +188,13 @@ The per-service Redis subcharts (openzaak, opennotificaties, objecten, objecttyp
    helm repo remove openshift
    ```
 
-3. **Add the `opstree` Helm repo** — the `redis-operator` dependency (OT Container Kit) requires a new repo entry:
+3. **Remove the `solr` Helm repo** — the Solr operator chart is fully bundled inside the ZAC chart tgz and does not need to be resolvable at deploy time. Keeping the repo entry causes spurious failures when `https://solr.apache.org/charts` is unavailable:
+   ```shell
+   helm repo remove solr apache-solr
+   ```
+   If only one of the two aliases exists, remove only that one. `helm dependency build` and `helm template` will continue to work without it.
+
+4. **Add the `opstree` Helm repo** — the `redis-operator` dependency (OT Container Kit) requires a new repo entry:
    ```shell
    helm repo add opstree https://ot-container-kit.github.io/helm-charts/
    helm repo update opstree
