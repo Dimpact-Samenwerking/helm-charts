@@ -165,6 +165,9 @@ The per-service Redis subcharts (openzaak, opennotificaties, objecten, objecttyp
      enabled: true
      nodeSelector:
        kubernetes.azure.com/mode: user
+     initContainerImage:                              # ACR environments only
+       registry: myacr.azurecr.io
+       repository: busybox
      redisOperator:
        imageName: myacr.azurecr.io/redis-operator   # ACR environments only
      redis-ha:
@@ -183,7 +186,7 @@ The per-service Redis subcharts (openzaak, opennotificaties, objecten, objecttyp
          repository: busybox
    ```
 
-   For non-ACR environments, omit the `redisOperator`, `image`, `redisExporter.image`, and `initContainerImage` overrides.
+   For non-ACR environments, omit the `initContainerImage`, `redisOperator`, `image`, `redisExporter.image`, and `redis-ha.initContainerImage` overrides.
 
 2. **Remove the `redis:` subchart block** from each of the migrated services. These blocks (image, master.nodeSelector, master.persistence.storageClass) are no longer used — the subcharts are disabled globally. Example of what to remove:
 
