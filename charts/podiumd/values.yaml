@@ -391,6 +391,14 @@ redis-operator:
     initContainerImage:
       repository: busybox
       tag: "1.37.0-glibc"
+    # -- Resources for the initContainer that configures redis.conf.
+    initContainerResources:
+      requests:
+        cpu: 10m
+        memory: 16Mi
+      limits:
+        cpu: 50m
+        memory: 32Mi
     # -- Pod security context for Redis pods. fsGroup must match the redis container's GID (1000)
     # so that mounted PVC data directories are writable by the redis process.
     podSecurityContext:

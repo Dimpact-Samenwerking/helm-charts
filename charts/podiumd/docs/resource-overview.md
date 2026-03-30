@@ -76,7 +76,7 @@ Redis HA runs **3 replicas** by default (StatefulSet).
 | redis-operator | 100m | 128Mi | 500m | 256Mi |
 | redis-ha | 100m | 128Mi | 500m | 256Mi |
 | redis-ha exporter (init-config) | 100m | 128Mi | 500m | 256Mi |
-| redis-ha init (busybox) | — | — | — | — |
+| redis-ha init (busybox) | 10m | 16Mi | 50m | 32Mi |
 
 > ⚠️ **Increase for production**: Redis holds all Celery task queues and Django caches. Under production load 128Mi per pod may be tight if many tasks are queued simultaneously. Suggested: memory request `256Mi`, limit `512Mi`.
 
