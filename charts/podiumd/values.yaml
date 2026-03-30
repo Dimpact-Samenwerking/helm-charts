@@ -2025,7 +2025,10 @@ kiss:
         baseUrl: ""
         historyLimit: 1
         objectTypeUrl: ""
-        resources: {}
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
         schedule: "*/59 * * * *"
         token: ""
 
@@ -2036,7 +2039,10 @@ kiss:
         clientSecret: ""
         historyLimit: 1
         objectTypeUrl: ""
-        resources: {}
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
         schedule: "*/59 * * * *"
 
       vac:
@@ -2045,7 +2051,10 @@ kiss:
         historyLimit: 1
         objectTypeUrl: ""
         objectTypeVersion: 1
-        resources: {}
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
         schedule: "*/59 * * * *"
         token: ""
 

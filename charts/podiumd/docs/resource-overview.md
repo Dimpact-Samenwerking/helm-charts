@@ -246,13 +246,13 @@ Default replicas: **2** (contact-web frontend), **1** (adapter, syncJobs)
 |-----------|-------------|-------------|-----------|-----------|-------|
 | kiss (frontend) | 100m | 256Mi | — | — | `kiss.resources` |
 | adapter (podiumd-adapter) | 10m | 100Mi | — | — | |
-| syncJob: kennisbank | — | — | — | — | `kiss.settings.syncJobs.kennisbank.resources` |
-| syncJob: smoelenboek (medewerkers) | — | — | — | — | `kiss.settings.syncJobs.smoelenboek.resources` |
-| syncJob: vac | — | — | — | — | `kiss.settings.syncJobs.vac.resources` |
+| syncJob: kennisbank | 50m | 128Mi | — | — | `kiss.settings.syncJobs.kennisbank.resources` |
+| syncJob: smoelenboek (medewerkers) | 50m | 128Mi | — | — | `kiss.settings.syncJobs.smoelenboek.resources` |
+| syncJob: vac | 50m | 128Mi | — | — | `kiss.settings.syncJobs.vac.resources` |
 | syncJob: website | — | — | — | — | `kiss.settings.syncJobs.website[*].resources` |
 | syncJob: sharepoint | — | — | — | — | `kiss.settings.syncJobs.sharepoint[*].resources` |
 
-*syncJob resources default to `{}` (no requests/limits set). Suggested: `100m / 256Mi` per sync job.*
+*website and sharepoint syncJob resources default to `{}` (configured per environment as needed).*
 
 **PDB**: Add `minAvailable: 1` for the contact-web deployment.
 
