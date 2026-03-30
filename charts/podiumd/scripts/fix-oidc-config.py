@@ -5,6 +5,13 @@ Migrate django-setup-configuration OIDC config in PodiumD environment values fil
 Converts OIDC items from the old flat format (mozilla-django-oidc-db < ~2024)
 to the new nested options format required by PodiumD 4.6+ charts.
 
+Affected components (use new format): openzaak, opennotificaties, objecten,
+objecttypen, openklant, openformulieren.
+
+NOT affected (still use old flat format in PodiumD 4.6): openinwoner (chart
+2.1.3), openarchiefbeheer (chart 1.5.3). Do not run this script against config
+blocks for those components.
+
 Old format (keys at item level):
   claim_mapping          (dict)  → options.user_settings.claim_mappings
   username_claim         (list)  → options.user_settings.claim_mappings.username

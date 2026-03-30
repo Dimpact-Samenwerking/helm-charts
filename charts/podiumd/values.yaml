@@ -1145,14 +1145,11 @@ openarchiefbeheer:
 
     #   oidc_db_config_enable: true
     #   oidc_db_config_admin_auth:
-    #     providers:
-    #     - identifier: admin-oidc-provider
-    #       endpoint_config:
-    #         oidc_op_discovery_endpoint: https://example.keycloak.nl/realms/podiumd-poc/
     #     items:
     #     - identifier: admin-oidc
     #       enabled: true
-    #       oidc_provider_identifier: admin-oidc-provider
+    #       endpoint_config:
+    #         oidc_op_discovery_endpoint: https://example.keycloak.nl/realms/podiumd-poc/
     #       oidc_rp_scopes_list:
     #         - openid
     #         - email
@@ -1161,26 +1158,23 @@ openarchiefbeheer:
     #       oidc_rp_client_id: example-client-id
     #       oidc_rp_client_secret: ${keycloak_client_secret}
     #       oidc_rp_sign_algo: RS256
-    #       options:
-    #         user_settings:
-    #           claim_mappings:
-    #             email:
-    #               - email
-    #             first_name:
-    #               - given_name
-    #             last_name:
-    #               - family_name
-    #             username:
-    #               - preferred_username
-    #         groups_settings:
-    #           claim_mapping:
-    #             - roles
-    #           sync: true
-    #           sync_pattern: "*"
-    #           default_groups: []
-    #           make_users_staff: true
-    #           superuser_group_names:
-    #             - Superuser
+    #       claim_mapping:
+    #         email:
+    #           - email
+    #         first_name:
+    #           - given_name
+    #         last_name:
+    #           - family_name
+    #       username_claim:
+    #         - preferred_username
+    #       groups_claim:
+    #         - roles
+    #       sync_groups: true
+    #       sync_groups_glob_pattern: "*"
+    #       default_groups: []
+    #       make_users_staff: true
+    #       superuser_group_names:
+    #         - Superuser
 
   tags:
     redis: false

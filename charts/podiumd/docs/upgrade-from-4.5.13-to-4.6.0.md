@@ -183,8 +183,8 @@ The per-service Redis subcharts (openzaak, opennotificaties, objecten, objecttyp
 
 The `mozilla-django-oidc-db` library used by all Django-based components has moved its per-item OIDC fields into a nested `options` block. Any environment values file that still uses the old flat format must be updated before deploying 4.6.0.
 
-**Affected components:** openzaak, opennotificaties, objecten, objecttypen, openarchiefbeheer, openklant, openformulieren.
-**Not affected:** openinwoner — its chart (2.1.3) still uses the old schema.
+**Affected components:** openzaak, opennotificaties, objecten, objecttypen, openklant, openformulieren.
+**Not affected:** openinwoner (chart 2.1.3) and openarchiefbeheer (chart 1.5.3) — both still use the old flat schema.
 
 Old format (no longer recognised):
 
