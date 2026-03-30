@@ -28,6 +28,10 @@ Componenten op alphabetische volgorde, met sub-charts er onder:
 | Open Notificaties         | 1.14.0     |               | 1.13.1       |               |                           |
 | Open Zaak                 | 1.26.0     |               | 1.13.1       |               |                           |
 | PABC                      | 1.0.0      |               | 1.0.0        |               |                           |
+| Redis Operator            | v0.24.0    | New component | 0.24.0       | New component |                           |
+| - Busybox                 | 1.37.0-glibc | New         |              |               |                           |
+| - Redis                   | v8.4.2     | New component |              |               |                           |
+| - Redis Exporter          | v1.44.0    | New component |              |               |                           |
 | Zac                       | 4.3.61     | Minor update  | 1.0.194      | Patch update  |                           |
 | - Busybox                 | 1.37.0     | Minor update  |              |               |                           |
 | - Curl                    | 8.18.0     | Minor update  |              |               |                           |
