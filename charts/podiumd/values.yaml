@@ -351,10 +351,10 @@ redis-operator:
     resources:
       requests:
         cpu: 100m
-        memory: 128Mi
+        memory: 256Mi
       limits:
         cpu: 500m
-        memory: 256Mi
+        memory: 512Mi
     storage:
       volumeClaimTemplate:
         spec:
@@ -535,8 +535,8 @@ openzaak:
     tag: "1.26.0"
   resources:
     requests:
-      cpu: 100m
-      memory: 256Mi
+      cpu: 250m
+      memory: 512Mi
   worker:
     replicaCount: 1
     livenessProbe:
@@ -544,8 +544,8 @@ openzaak:
     maxWorkerLivenessDelta: "300"
     resources:
       requests:
-        cpu: 10m
-        memory: 480Mi
+        cpu: 200m
+        memory: 1Gi
   nameOverride: openzaak
   fullnameOverride: openzaak
   flower:
@@ -1475,8 +1475,8 @@ openformulieren:
     tag: "3.4.5"
   resources:
     requests:
-      cpu: 100m
-      memory: 650Mi
+      cpu: 250m
+      memory: 1Gi
   worker:
     replicaCount: 1
     livenessProbe:
@@ -1484,8 +1484,8 @@ openformulieren:
     maxWorkerLivenessDelta: "300"
     resources:
       requests:
-        cpu: 50m
-        memory: 512Mi
+        cpu: 200m
+        memory: 1Gi
   nameOverride: openformulieren
   fullnameOverride: openformulieren
   flower:
