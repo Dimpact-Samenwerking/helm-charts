@@ -138,6 +138,7 @@ Add the following to each environment's values file:
 ```yaml
 objecten:
   configuration:
+    enabled: true
     job:
       enabled: true
       backoffLimit: 6
@@ -146,6 +147,7 @@ objecten:
 
 opennotificaties:
   configuration:
+    enabled: true
     job:
       enabled: true
       backoffLimit: 6
