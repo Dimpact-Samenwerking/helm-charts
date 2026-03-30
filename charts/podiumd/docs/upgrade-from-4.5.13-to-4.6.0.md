@@ -215,10 +215,10 @@ opennotificaties:
   rabbitmq:
     image:
       registry: myacr.azurecr.io
-      repository: bitnamilegacy/rabbitmq
+      repository: rabbitmq
 ```
 
-For non-ACR environments, the default `docker.io` registry is used and no override is needed.
+For non-ACR environments, the default `docker.io/bitnamilegacy/rabbitmq` is used and no override is needed.
 
 ### OIDC configuration: migrate to new options format
 
