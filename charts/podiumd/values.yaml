@@ -526,6 +526,10 @@ openzaak:
       resultBackendl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/5
       # -- Set to debug for test/acceptance environments
       logLevel: warning
+    uwsgi:
+      processes: "2"
+      threads: "4"
+      maxRequests: "1000"
   persistence:
     size: 10Gi
     existingClaim: openzaak
@@ -1022,6 +1026,10 @@ objecttypen:
     cache:
       default: redis-ha-master.podiumd.svc.cluster.local:6379/0
       axes: redis-ha-master.podiumd.svc.cluster.local:6379/0
+    uwsgi:
+      processes: "2"
+      threads: "2"
+      maxRequests: "1000"
   image:
     tag: "3.4.1"
   # used for create-required-objecttypen podiumd job only
@@ -1268,6 +1276,10 @@ openklant:
       resultBackendl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/8
       # -- Set to debug for test/acceptance environments
       logLevel: warning
+    uwsgi:
+      processes: "2"
+      threads: "4"
+      maxRequests: "1000"
   persistence:
     size: 10Gi
     existingClaim: openklant
