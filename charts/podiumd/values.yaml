@@ -375,7 +375,7 @@ redis-operator:
     # Override this in environments that restrict public Docker Hub pulls (e.g. point to an ACR mirror).
     initContainerImage:
       repository: busybox
-      tag: "1.35"
+      tag: "1.37.0-glibc"
     # -- Pod security context for Redis pods. fsGroup must match the redis container's GID (1000)
     # so that mounted PVC data directories are writable by the redis process.
     podSecurityContext:
