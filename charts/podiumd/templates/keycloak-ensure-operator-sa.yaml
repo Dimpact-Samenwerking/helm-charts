@@ -130,7 +130,8 @@ spec:
           if [ -z "$CLIENT_ID" ]; then
             echo "Creating client keycloak-operator..."
             curl -s -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
-              -d '{"clientId":"keycloak-operator","serviceAccountsEnabled":true,"publicClient":false,"directAccessGrantsEnabled":false,"protocol":"openid-connect"}' \              "$SERVER/admin/realms/master/clients"
+              -d '{"clientId":"keycloak-operator","serviceAccountsEnabled":true,"publicClient":false,"directAccessGrantsEnabled":false,"protocol":"openid-connect"}' \
+              "$SERVER/admin/realms/master/clients"
             sleep 1
             CLIENT_INFO=$(curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
               "$SERVER/admin/realms/master/clients?clientId=keycloak-operator")

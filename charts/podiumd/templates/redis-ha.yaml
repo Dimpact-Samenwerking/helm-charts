@@ -56,7 +56,7 @@ spec:
     enabled: true
     image: {{ include "podiumd.image" $redisHa.initContainerImage }}
     command: ["/bin/sh"]
-    args: ["-c", "printf '\\ndatabases {{ $redisHa.databases | default 32 }}\\n' >> /etc/redis/redis.conf"]
+    args: ["-c", "grep -q '^databases ' /etc/redis/redis.conf && sed -i 's/^databases .*/databases {{ $redisHa.databases | default 32 }}/' /etc/redis/redis.conf || printf '\\ndatabases {{ $redisHa.databases | default 32 }}\\n' >> /etc/redis/redis.conf"]
     {{- with $redisHa.initContainerResources }}
     resources:
       {{- toYaml . | nindent 6 }}
