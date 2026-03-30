@@ -285,7 +285,9 @@ Default replicas: **3** (SolrCloud), **1** (Zookeeper)
 | zookeeper-operator | — | — | — | — |
 | zookeeper | — | — | — | — |
 
-*No resource settings — needs settings.* JVM heap is set via `javaMem` (default `Xms512m Xmx768m`).
+> **Operator managed** — resources for SolrCloud nodes and Zookeeper pods are controlled by the **Solr Operator** via the `SolrCloud` CRD (`spec.solrJavaMem`, `spec.customSolrKubeOptions.podOptions.resources`, `spec.zookeeperRef.provided.zookeeperPodPolicy.resources`). They cannot be set via the ZAC Helm chart values. The solr-operator and zookeeper-operator deployments themselves have no resource defaults set by their charts either.
+>
+> JVM heap is set via `javaMem` in the ZAC chart (default `Xms512m Xmx768m`). To change resources, the `SolrCloud` CR must be patched directly or the ZAC chart must be extended to expose these fields.
 
 > ⚠️ **Increase for production**: Default JVM heap of 512–768Mi is suitable for dev. Production with large ZAAK indices should use `Xms1g Xmx2g`. Container memory limit must be ~1.5× the heap to account for off-heap usage. Suggested: `1000m / 3Gi` per SolrCloud node. Zookeeper: `200m / 512Mi`.
 
