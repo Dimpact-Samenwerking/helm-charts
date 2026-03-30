@@ -9,6 +9,7 @@ Resource requests and limits for all chart components. Values reflect the chart 
 | — | Not set (burstable / best-effort) |
 | *needs settings* | No defaults exist; must be configured per environment |
 | ⚠️ **Increase for production** | Default is sufficient for dev/test but expected to be insufficient under production load |
+| `(op)` | Managed by an operator via CRD — not a plain Helm `resources:` field. See section notes for how to configure. |
 
 ## PodDisruptionBudget (PDB)
 
@@ -42,10 +43,10 @@ PDBs prevent all pods of a workload from being evicted simultaneously during nod
 
 Default replicas: **2**
 
-| Container | CPU Request | Mem Request | CPU Limit | Mem Limit |
-|-----------|-------------|-------------|-----------|-----------|
-| keycloak-builder (init) | 250m | 512Mi | 1000m | 1Gi |
-| keycloak | 500m | 1700Mi | — | 2Gi |
+| Container | CPU Request | Mem Request | CPU Limit | Mem Limit | Notes |
+|-----------|-------------|-------------|-----------|-----------|-------|
+| keycloak-builder (init) `(op)` | 250m | 512Mi | 1000m | 1Gi | Set by keycloak-operator |
+| keycloak `(op)` | 500m | 1700Mi | 1000m | 2Gi | Set via `keycloak.resources` → `spec.resources` in Keycloak CR |
 
 Resources for the main Keycloak container are set via `spec.resources` in the Keycloak CR — this is the supported field provided by the operator. The operator's built-in defaults (when nothing is set) are `1700Mi` request and `2Gi` limit (memory only, no CPU). The chart now explicitly sets these via `keycloak.resources` to also add a CPU request of `500m`.
 
@@ -71,12 +72,12 @@ Values keys: `keycloak-operator.operator.resources` (operator pod), `keycloak-op
 
 Redis HA runs **3 replicas** by default (StatefulSet).
 
-| Container | CPU Request | Mem Request | CPU Limit | Mem Limit |
-|-----------|-------------|-------------|-----------|-----------|
-| redis-operator | 100m | 128Mi | 500m | 256Mi |
-| redis-ha | 100m | 128Mi | 500m | 256Mi |
-| redis-ha exporter (init-config) | 100m | 128Mi | 500m | 256Mi |
-| redis-ha init (busybox) | 10m | 16Mi | 50m | 32Mi |
+| Container | CPU Request | Mem Request | CPU Limit | Mem Limit | Notes |
+|-----------|-------------|-------------|-----------|-----------|-------|
+| redis-operator | 100m | 128Mi | 500m | 256Mi | |
+| redis-ha `(op)` | 100m | 256Mi | 500m | 512Mi | Set via `redis-operator.redis-ha.resources` → RedisReplication CRD |
+| redis-ha exporter `(op)` | 100m | 128Mi | 500m | 256Mi | Set via `redis-operator.redis-ha.resources` → RedisReplication CRD |
+| redis-ha init busybox `(op)` | 10m | 16Mi | 50m | 32Mi | Set via `redis-operator.redis-ha.initContainerResources` → RedisReplication CRD |
 
 > ⚠️ **Increase for production**: Redis holds all Celery task queues and Django caches. Under production load 128Mi per pod may be tight if many tasks are queued simultaneously. Suggested: memory request `256Mi`, limit `512Mi`.
 
@@ -208,10 +209,10 @@ Default replicas: **2** (web), **1** (worker, beat, celery-monitor, nginx)
 
 Configured per environment via `openinwoner.eck-elasticsearch.nodeSets`.
 
-| Environment | Replicas | CPU Request | Mem Request | CPU Limit | Mem Limit |
-|-------------|----------|-------------|-------------|-----------|-----------|
-| ontw-dim1 | 1 | 200m | 1536Mi | 1000m | 1536Mi |
-| **production (recommended)** | **2** | **500m** | **4Gi** | **2000m** | **4Gi** |
+| Environment | Replicas | CPU Request | Mem Request | CPU Limit | Mem Limit | Notes |
+|-------------|----------|-------------|-------------|-----------|-----------|-------|
+| ontw-dim1 | 1 | 200m | 1536Mi | 1000m | 1536Mi | `(op)` — set by ECK via nodeSet podTemplate |
+| **production (recommended)** | **2** | **500m** | **4Gi** | **2000m** | **4Gi** | `(op)` — set by ECK via nodeSet podTemplate |
 
 > ⚠️ **Increase for production**: A single ES node is a SPOF for search. At least 2 nodes recommended. ES JVM heap is automatically set to half of the memory limit, so `4Gi` limit → `2Gi` heap — the standard recommendation for general workloads. Memory request and limit should match to avoid OOM eviction.
 
@@ -221,13 +222,13 @@ Configured per environment via `openinwoner.eck-elasticsearch.nodeSets`.
 
 ## KISS Elastic (ECK Operator)
 
-| Container | CPU Request | Mem Request | CPU Limit | Mem Limit |
-|-----------|-------------|-------------|-----------|-----------|
-| elastic-operator (manager) | 100m | 150Mi | 1000m | 1Gi |
-| elasticsearch | — | 2Gi | — | 2Gi |
-| kibana | — | 1Gi | — | 1Gi |
-| enterprise-search | — | 4Gi | — | 4Gi |
-| elastic-internal-init-filesystem (init) | 100m | 50Mi | 100m | 50Mi |
+| Container | CPU Request | Mem Request | CPU Limit | Mem Limit | Notes |
+|-----------|-------------|-------------|-----------|-----------|-------|
+| elastic-operator (manager) | 100m | 150Mi | 1000m | 1Gi | |
+| elasticsearch `(op)` | — | 2Gi | — | 2Gi | Set by ECK operator; configure via `kiss-elastic` Elasticsearch CR |
+| kibana `(op)` | — | 1Gi | — | 1Gi | Set by ECK operator; configure via Kibana CR |
+| enterprise-search `(op)` | — | 4Gi | — | 4Gi | Set by ECK operator; configure via EnterpriseSearch CR |
+| elastic-internal-init-filesystem (init) `(op)` | 100m | 50Mi | 100m | 50Mi | Set by ECK operator |
 
 *Elasticsearch, Kibana and Enterprise Search CPU requests not set — needs settings.*
 
@@ -278,12 +279,12 @@ Default replicas: **1** (all components)
 
 Default replicas: **3** (SolrCloud), **1** (Zookeeper)
 
-| Container | CPU Request | Mem Request | CPU Limit | Mem Limit |
-|-----------|-------------|-------------|-----------|-----------|
-| solr-operator | 100m | 128Mi | 500m | 256Mi |
-| solrcloud-node | — | — | — | — |
-| zookeeper-operator | 50m | 64Mi | 200m | 128Mi |
-| zookeeper | — | — | — | — |
+| Container | CPU Request | Mem Request | CPU Limit | Mem Limit | Notes |
+|-----------|-------------|-------------|-----------|-----------|-------|
+| solr-operator | 100m | 128Mi | 500m | 256Mi | `zac.solr-operator.resources` |
+| solrcloud-node `(op)` | — | — | — | — | Managed by Solr Operator via SolrCloud CRD — not settable via Helm values |
+| zookeeper-operator | 50m | 64Mi | 200m | 128Mi | `zac.solr-operator.zookeeper-operator.resources` |
+| zookeeper `(op)` | — | — | — | — | Managed by Solr Operator via SolrCloud CRD — not settable via Helm values |
 
 > **Operator managed** — resources for SolrCloud nodes and Zookeeper pods are controlled by the **Solr Operator** via the `SolrCloud` CRD (`spec.solrJavaMem`, `spec.customSolrKubeOptions.podOptions.resources`, `spec.zookeeperRef.provided.zookeeperPodPolicy.resources`). They cannot be set via the ZAC Helm chart values. The solr-operator and zookeeper-operator deployment resources are set via `zac.solr-operator.resources` and `zac.solr-operator.zookeeper-operator.resources`.
 >
