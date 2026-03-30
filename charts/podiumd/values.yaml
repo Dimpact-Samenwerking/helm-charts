@@ -2226,6 +2226,13 @@ zac:
       #repository:
       tag: v0.9.1
     nodeSelector: {}
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
     solr:
       # library/busybox:1.37.0-glibc
       busyBoxImage:
@@ -2256,6 +2263,13 @@ zac:
       image:
         #repository:
         tag: 0.2.15
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 200m
+          memory: 128Mi
       # -- namespaces to watch for zookeeper-operator
       watchNamespace: "podiumd"
       zookeeper:

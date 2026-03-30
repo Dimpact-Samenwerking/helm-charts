@@ -280,12 +280,12 @@ Default replicas: **3** (SolrCloud), **1** (Zookeeper)
 
 | Container | CPU Request | Mem Request | CPU Limit | Mem Limit |
 |-----------|-------------|-------------|-----------|-----------|
-| solr-operator | — | — | — | — |
+| solr-operator | 100m | 128Mi | 500m | 256Mi |
 | solrcloud-node | — | — | — | — |
-| zookeeper-operator | — | — | — | — |
+| zookeeper-operator | 50m | 64Mi | 200m | 128Mi |
 | zookeeper | — | — | — | — |
 
-> **Operator managed** — resources for SolrCloud nodes and Zookeeper pods are controlled by the **Solr Operator** via the `SolrCloud` CRD (`spec.solrJavaMem`, `spec.customSolrKubeOptions.podOptions.resources`, `spec.zookeeperRef.provided.zookeeperPodPolicy.resources`). They cannot be set via the ZAC Helm chart values. The solr-operator and zookeeper-operator deployments themselves have no resource defaults set by their charts either.
+> **Operator managed** — resources for SolrCloud nodes and Zookeeper pods are controlled by the **Solr Operator** via the `SolrCloud` CRD (`spec.solrJavaMem`, `spec.customSolrKubeOptions.podOptions.resources`, `spec.zookeeperRef.provided.zookeeperPodPolicy.resources`). They cannot be set via the ZAC Helm chart values. The solr-operator and zookeeper-operator deployment resources are set via `zac.solr-operator.resources` and `zac.solr-operator.zookeeper-operator.resources`.
 >
 > JVM heap is set via `javaMem` in the ZAC chart (default `Xms512m Xmx768m`). To change resources, the `SolrCloud` CR must be patched directly or the ZAC chart must be extended to expose these fields.
 
