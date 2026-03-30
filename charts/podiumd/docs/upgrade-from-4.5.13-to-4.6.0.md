@@ -124,7 +124,7 @@ Remove any explicit `initContainer.enabled: false` override if you want the new 
 | openklant | 1.10.0 → 1.11.0 | image 2.14.0 → 2.15.0 |
 | openformulieren | 1.11.6 → 1.12.0 | image 3.3.13 → 3.4.5 |
 | openinwoner | 2.1.0 → 2.1.3 | image 2.0.3 → 2.1.0 |
-| zac | 1.0.165 → 1.0.194 | image 4.0.12-1 → 4.3.61 |
+| zac | 1.0.165 → 1.0.204 | image 4.0.12-1 → 4.5 |
 | zgw-office-addin | 0.0.65 → 0.0.73 | frontend+backend v0.9.28 → v0.9.133 |
 
 ## Environment values changes
