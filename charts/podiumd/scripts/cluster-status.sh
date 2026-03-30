@@ -29,9 +29,8 @@ for entry in "${CLUSTERS[@]}"; do
     --only-show-errors \
     > /dev/null 2>&1
 
-  # Fetch helm metadata
-  metadata=$(kubectl config use-context "$cluster" > /dev/null 2>&1 && \
-    helm get metadata podiumd -n podiumd 2>/dev/null || true)
+  # Fetch helm metadata without mutating global kubeconfig context
+  metadata=$(helm --kube-context "$cluster" get metadata podiumd -n podiumd 2>/dev/null || true)
 
   if [[ -z "$metadata" ]]; then
     printf "%-26s %-10s %-16s %s\n" "$cluster" "N/A" "UNREACHABLE" "-"
