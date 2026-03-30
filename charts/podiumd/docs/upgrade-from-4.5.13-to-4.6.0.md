@@ -129,6 +129,31 @@ Remove any explicit `initContainer.enabled: false` override if you want the new 
 
 ## Environment values changes
 
+### Enable configuration jobs for objecten and opennotificaties
+
+The `objecten` and `opennotificaties` subcharts default to `job.enabled: false` at the subchart level, which takes precedence over the parent `podiumd/values.yaml` default of `true`. Without an explicit override, the setup-configuration job does not run for these two components, leaving OIDC (and other configuration steps) unapplied in the database.
+
+Add the following to each environment's values file:
+
+```yaml
+objecten:
+  configuration:
+    job:
+      enabled: true
+      backoffLimit: 6
+      ttlSecondsAfterFinished: 600
+      restartPolicy: OnFailure
+
+opennotificaties:
+  configuration:
+    job:
+      enabled: true
+      backoffLimit: 6
+      restartPolicy: OnFailure
+```
+
+Without this, the OIDC login will fail with `KeyError: 'groups_settings'` on first login attempt because the `OIDCProvider`/`OIDCClient` database records are never populated.
+
 ### Enable Redis HA and remove per-service Redis subchart config
 
 The per-service Redis subcharts (openzaak, opennotificaties, objecten, objecttypen, openklant, openformulieren, openinwoner) are replaced by a single shared Redis HA cluster.
