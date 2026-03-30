@@ -212,9 +212,9 @@ Configured per environment via `openinwoner.eck-elasticsearch.nodeSets`.
 | Environment | Replicas | CPU Request | Mem Request | CPU Limit | Mem Limit | Notes |
 |-------------|----------|-------------|-------------|-----------|-----------|-------|
 | ontw-dim1 | 1 | 200m | 1536Mi | 1000m | 1536Mi | `(op)` — set by ECK via nodeSet podTemplate |
-| **production (recommended)** | **2** | **500m** | **4Gi** | **2000m** | **4Gi** | `(op)` — set by ECK via nodeSet podTemplate |
+| **production (recommended)** | **3** | **500m** | **4Gi** | **2000m** | **4Gi** | `(op)` — set by ECK via nodeSet podTemplate |
 
-> ⚠️ **Increase for production**: A single ES node is a SPOF for search. At least 2 nodes recommended. ES JVM heap is automatically set to half of the memory limit, so `4Gi` limit → `2Gi` heap — the standard recommendation for general workloads. Memory request and limit should match to avoid OOM eviction.
+> ⚠️ **Increase for production**: A single ES node is a SPOF for search. 3 nodes recommended for production (minimum for a proper quorum). ES JVM heap is automatically set to half of the memory limit, so `4Gi` limit → `2Gi` heap — the standard recommendation for general workloads. Memory request and limit should match to avoid OOM eviction.
 
 **PDB**: ECK manages the PDB automatically. Raise `minAvailable` from `0` to `1` in the ECK `pdb` spec when using 2+ nodes.
 
