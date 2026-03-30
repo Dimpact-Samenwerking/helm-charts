@@ -84,8 +84,6 @@ spec:
       containers:
       - name: ensure-operator-sa
         image: {{ include "podiumd.image" (index .Values "keycloak-operator").jobs.ensureOperatorSa.image }}
-        resources:
-{{ toYaml (index .Values "keycloak-operator").jobs.resources | indent 10 }}
         command: ["/bin/sh", "-c"]
         args:
         - |

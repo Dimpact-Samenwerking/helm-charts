@@ -188,13 +188,7 @@ The per-service Redis subcharts (openzaak, opennotificaties, objecten, objecttyp
    helm repo remove openshift
    ```
 
-3. **Remove the `solr` Helm repo** — the Solr operator chart is fully bundled inside the ZAC chart tgz and does not need to be resolvable at deploy time. Keeping the repo entry causes spurious failures when `https://solr.apache.org/charts` is unavailable:
-   ```shell
-   helm repo remove solr apache-solr
-   ```
-   If only one of the two aliases exists, remove only that one. `helm dependency build` and `helm template` will continue to work without it.
-
-4. **Add the `opstree` Helm repo** — the `redis-operator` dependency (OT Container Kit) requires a new repo entry:
+3. **Add the `opstree` Helm repo** — the `redis-operator` dependency (OT Container Kit) requires a new repo entry:
    ```shell
    helm repo add opstree https://ot-container-kit.github.io/helm-charts/
    helm repo update opstree
@@ -208,21 +202,3 @@ The per-service Redis subcharts (openzaak, opennotificaties, objecten, objecttyp
    ```shell
    ./charts/podiumd/scripts/install-redis-operator-crds.sh --context <kubectl-context> --dry-run
    ```
-
-5. **Allowlist ClamAV database update endpoints** — ClamAV 4.6.0 introduces a persistent volume and a working freshclam configuration. Ensure the following egress endpoints are reachable from the cluster:
-
-   | Endpoint | Protocol/Port | Purpose |
-   |---|---|---|
-   | `current.cvd.clamav.net` | DNS TXT (UDP/TCP 53) | Version check before downloading updates |
-   | `database.clamav.net` | HTTPS (TCP 443) | Virus database download (`daily.cvd`, `main.cvd`, `bytecode.cvd`) |
-
-   Without access to these endpoints, freshclam will fail silently and the virus database will become stale.
-   If an HTTP proxy is required, add `HTTPProxyServer` and `HTTPProxyPort` to the `clamav.freshclamConfig` override in the environment values file.
-
-6. **Delete the ClamAV StatefulSet before upgrading** — the 4.6.0 chart adds a `volumeClaimTemplate` and `extraVolumeMounts` to the ClamAV StatefulSet. Kubernetes does not allow patching immutable StatefulSet fields, so `helm upgrade` will fail unless the existing StatefulSet is removed first. The pod will be recreated automatically by Helm during the upgrade.
-
-   ```shell
-   kubectl delete statefulset clamav -n podiumd --context <kubectl-context>
-   ```
-
-   > **Note:** Deleting the StatefulSet does not delete the PVC. If a `clamav-data-clamav-0` PVC already exists from a previous deploy it will be reused. On a fresh environment the PVC will be created by the StatefulSet's `volumeClaimTemplate` on first deploy and ClamAV will download the virus database on startup (allow ~2–3 minutes).

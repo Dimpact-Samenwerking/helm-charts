@@ -19,28 +19,15 @@ data:
 
       log_format main '$remote_addr - $remote_user [$time_local] "$request" '
                       '$status $body_bytes_sent "$http_referer" '
-                      '"$http_user_agent" "$http_x_forwarded_for"'
-    {{- if .Values.apiproxy.locations.brp.toepassingHeaderName }}
-                      ' toepassing="$toepassing_value"'
-    {{- end }}
-                      ;
+                      '"$http_user_agent" "$http_x_forwarded_for"';
 
       access_log /var/log/nginx/access.log main;
       sendfile on;
       keepalive_timeout 65;
 
-    {{- if .Values.apiproxy.locations.brp.toepassingHeaderName }}
-      # If the component sends X-Toepassing header, use it. Otherwise fall back to the default.
-      map $http_x_toepassing $toepassing_value {
-        default "{{ .Values.apiproxy.locations.brp.toepassingDefaultValue | default "" }}";
-        "~.+" $http_x_toepassing;
-      }
-    {{- end }}
-
       server {
         listen 8080;
         server_tokens off;
-        resolver {{ .Values.apiproxy.resolverIp }};
 
         # BAG API (Dutch Building and Address Registry)
         location {{ .Values.apiproxy.locations.bag.path }} {
@@ -82,9 +69,6 @@ data:
           proxy_ssl_session_reuse on;
           proxy_ssl_server_name on;
           proxy_set_header Host {{ .Values.apiproxy.locations.brp.hostHeader }};
-    {{- if .Values.apiproxy.locations.brp.toepassingHeaderName }}
-          proxy_set_header {{ .Values.apiproxy.locations.brp.toepassingHeaderName }} $toepassing_value;
-    {{- end }}
           proxy_http_version 1.1;
         }
 
