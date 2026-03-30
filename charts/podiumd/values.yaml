@@ -762,6 +762,11 @@ opennotificaties:
         memory: 386Mi
   nameOverride: opennotificaties
   fullnameOverride: opennotificaties
+  beat:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
   flower:
     enabled: false
   rabbitmq:
@@ -1133,6 +1138,22 @@ openarchiefbeheer:
   worker:
     livenessProbe:
       enabled: true
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+
+  beat:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+
+  nginx:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 16Mi
 
   replicaCount: 1
 
@@ -1688,6 +1709,16 @@ openinwoner:
       requests:
         cpu: 200m
         memory: 640Mi
+  beat:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+  celeryMonitor:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
   nameOverride: openinwoner
   fullnameOverride: openinwoner
   nginx:
@@ -1786,6 +1817,10 @@ kiss:
   enabled: true
   nameOverride: contact
   fullnameOverride: contact
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
   # -- Optionally specify extra list of additional environment variables. Not necesarry for KvK / BRP headers, use the settings for these
   extraEnvVars: []
   # -- Optionally specify extra list of additional volumes, for example to trust extra ca certificates.
@@ -2120,6 +2155,10 @@ zac:
     image:
       # repository: nginxinc/nginx-unprivileged
       tag: 1.29.5
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
   notificationsSecretKey: "changeme"
   objectenApi:
     url: http://objecten.example.nl
@@ -2221,11 +2260,19 @@ zgw-office-addin:
     # ghcr.io/infonl/zgw-office-add-in-frontend:v0.9.133
     image:
       tag: v0.9.133
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
   backend:
     msalSecret: "dummy"
     # ghcr.io/infonl/zgw-office-add-in-backend:v0.9.133
     image:
       tag: v0.9.133
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
     # -- ZGW API configuration for integration with the ZGW APIs provider (OpenZaak)
     zgwApis:
       url: "https://openzaak.example.nl"

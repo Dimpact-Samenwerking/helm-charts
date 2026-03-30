@@ -86,8 +86,8 @@ Default replicas: **2** (web), **1** (worker, beat, nginx)
 
 | Container | CPU Request | Mem Request | CPU Limit | Mem Limit |
 |-----------|-------------|-------------|-----------|-----------|
-| openzaak | 100m | 256Mi | — | — |
-| openzaak-worker | 10m | 480Mi | — | — |
+| openzaak | 250m | 512Mi | — | — |
+| openzaak-worker | 200m | 1Gi | — | — |
 | openzaak-beat | 10m | 160Mi | — | — |
 | nginx | 10m | 16Mi | — | — |
 
@@ -105,10 +105,8 @@ Default replicas: **2** (web), **1** (worker, beat), **1** (RabbitMQ)
 |-----------|-------------|-------------|-----------|-----------|
 | opennotificaties | 100m | 256Mi | — | — |
 | opennotificaties-worker | 50m | 386Mi | — | — |
-| opennotificaties-beat | — | — | — | — |
+| opennotificaties-beat | 50m | 128Mi | — | — |
 | rabbitmq | 300m | 256Mi | — | — |
-
-*opennotificaties-beat has no resource settings — needs settings.* Suggested: `50m / 128Mi`.
 
 > ⚠️ **Increase for production**: RabbitMQ memory of 256Mi is low; under high notification throughput it will hit the memory high-watermark and throttle publishers. Suggested: `300m / 512Mi` request, `500m / 1Gi` limit. Worker may also need `100m / 512Mi` under load.
 
@@ -148,11 +146,9 @@ Default replicas: **1** (all components)
 | Container | CPU Request | Mem Request | CPU Limit | Mem Limit |
 |-----------|-------------|-------------|-----------|-----------|
 | openarchiefbeheer | 250m | 256Mi | — | — |
-| openarchiefbeheer-worker | — | — | — | — |
-| openarchiefbeheer-beat | — | — | — | — |
-| openarchiefbeheer-nginx | — | — | — | — |
-
-*worker, beat and nginx have no resource settings — needs settings.* Suggested: worker `100m / 256Mi`, beat `50m / 128Mi`, nginx `10m / 16Mi`.
+| openarchiefbeheer-worker | 100m | 256Mi | — | — |
+| openarchiefbeheer-beat | 50m | 128Mi | — | — |
+| openarchiefbeheer-nginx | 10m | 16Mi | — | — |Suggested: worker `100m / 256Mi`, beat `50m / 128Mi`, nginx `10m / 16Mi`.
 
 ---
 
@@ -176,8 +172,8 @@ Default replicas: **2** (web), **1** (worker, beat, nginx)
 
 | Container | CPU Request | Mem Request | CPU Limit | Mem Limit |
 |-----------|-------------|-------------|-----------|-----------|
-| openformulieren | 100m | 650Mi | — | — |
-| openformulieren-worker | 50m | 512Mi | — | — |
+| openformulieren | 250m | 1Gi | — | — |
+| openformulieren-worker | 200m | 1Gi | — | — |
 | openformulieren-beat | 10m | 160Mi | — | — |
 | nginx | 10m | 16Mi | — | — |
 
@@ -195,12 +191,12 @@ Default replicas: **2** (web), **1** (worker, beat, celery-monitor, nginx)
 |-----------|-------------|-------------|-----------|-----------|
 | openinwoner | 200m | 1Gi | — | — |
 | openinwoner-worker | 200m | 640Mi | — | — |
-| openinwoner-beat | — | — | — | — |
-| openinwoner-celery-monitor | — | — | — | — |
+| openinwoner-beat | 50m | 128Mi | — | — |
+| openinwoner-celery-monitor | 50m | 64Mi | — | — |
 | nginx | 30m | 8Mi | — | — |
 | openinwoner-search-index (init) | — | — | — | — |
 
-*beat, celery-monitor and search-index init have no resource settings — needs settings.* Suggested: beat `50m / 128Mi`, celery-monitor `50m / 64Mi`.
+*openinwoner-search-index init container has no resource settings — needs settings.*
 
 **PDB**: Add `minAvailable: 1` for the web deployment.
 
@@ -243,11 +239,11 @@ Default replicas: **2** (contact-web frontend), **1** (adapter, syncJobs)
 
 | Container | CPU Request | Mem Request | CPU Limit | Mem Limit |
 |-----------|-------------|-------------|-----------|-----------|
-| kiss (frontend) | — | — | — | — |
+| kiss (frontend) | 100m | 256Mi | — | — |
 | adapter (podiumd-adapter) | 10m | 100Mi | — | — |
 | syncJobs (kennisbank, medewerkers, vac) | — | — | — | — |
 
-*KISS frontend and syncJobs have no resource settings — needs settings.* Suggested: frontend `100m / 256Mi`, syncJobs `100m / 256Mi`.
+*syncJobs have no resource settings — needs settings.* Suggested: `100m / 256Mi`.
 
 **PDB**: Add `minAvailable: 1` for the contact-web deployment.
 
@@ -262,11 +258,15 @@ Default replicas: **1** (all components)
 | zac | 100m | 1Gi | — | — |
 | opa (sidecar) | — | — | — | — |
 | init-solr-zac-core (init) | — | — | — | — |
-| nginx | — | — | — | — |
+| nginx | 50m | 64Mi | — | — |
 | office-converter | 100m | 512Mi | — | — |
 | signaleren (CronJob) | — | — | — | — |
 
-*opa, nginx and signaleren have no resource settings — needs settings.* Suggested: opa `50m / 128Mi`, nginx `50m / 64Mi`, signaleren `100m / 256Mi`.
+> ⚠️ **Chart limitation — OPA sidecar resources cannot be set via values.yaml.** The ZAC subchart exposes an `opa.resources` key but explicitly ignores it when OPA runs as a sidecar (`opa.sidecar: true`), which is the default. Resources for the OPA container inside the ZAC pod must be added to the ZAC chart templates directly. Raised with ZAC/infonl team.
+
+> ⚠️ **Chart limitation — init-solr-zac-core resources cannot be set via values.yaml.** The `initContainer` section in the ZAC chart only exposes an `enabled` flag. No resources field is available for the Solr init container. Raised with ZAC/infonl team.
+
+*signaleren (CronJob) has no resource settings — needs settings.* Suggested: `100m / 256Mi`.
 
 > ⚠️ **Increase for production**: ZAC is a Quarkus JVM application. Under production load with many concurrent zaakafhandeling flows, 1Gi may be insufficient. Suggested: `500m / 2Gi` request, no CPU limit. Office converter is CPU-intensive for large DOCX/PDF; consider `500m / 1Gi` on production.
 
@@ -295,10 +295,8 @@ Default replicas: **1** (all components)
 
 | Container | CPU Request | Mem Request | CPU Limit | Mem Limit |
 |-----------|-------------|-------------|-----------|-----------|
-| frontend | — | — | — | — |
-| backend | — | — | — | — |
-
-*No resource settings — needs settings.* Suggested: frontend `50m / 64Mi`, backend `100m / 256Mi`.
+| frontend | 50m | 64Mi | — | — |
+| backend | 100m | 256Mi | — | — |
 
 ---
 
@@ -311,7 +309,7 @@ Default replicas: **1** (all components)
 | internetaakafhandeling-web | — | — | — | — |
 | ita-poller (CronJob) | — | — | — | — |
 
-*No resource settings — needs settings.* Suggested: web `100m / 256Mi`, poller `50m / 128Mi`.
+> ⚠️ **Chart limitation — ITA resources cannot be set via values.yaml.** The ITA subchart (`internetaakafhandeling`) does not expose a Kubernetes `resources` field for its web deployment or poller. The `web.resources` key in the chart is repurposed for branding configuration (logoUrl, faviconUrl, designTokensUrl) and has no effect on pod resource requests/limits. Raised with ITA/interne-taak-afhandeling team.
 
 ---
 
