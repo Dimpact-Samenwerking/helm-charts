@@ -212,3 +212,11 @@ The per-service Redis subcharts (openzaak, opennotificaties, objecten, objecttyp
 
    Without access to these endpoints, freshclam will fail silently and the virus database will become stale.
    If an HTTP proxy is required, add `HTTPProxyServer` and `HTTPProxyPort` to the `clamav.freshclamConfig` override in the environment values file.
+
+6. **Delete the ClamAV StatefulSet before upgrading** — the 4.6.0 chart adds a `volumeClaimTemplate` and `extraVolumeMounts` to the ClamAV StatefulSet. Kubernetes does not allow patching immutable StatefulSet fields, so `helm upgrade` will fail unless the existing StatefulSet is removed first. The pod will be recreated automatically by Helm during the upgrade.
+
+   ```shell
+   kubectl delete statefulset clamav -n podiumd --context <kubectl-context>
+   ```
+
+   > **Note:** Deleting the StatefulSet does not delete the PVC. If a `clamav-data-clamav-0` PVC already exists from a previous deploy it will be reused. On a fresh environment the PVC will be created by the StatefulSet's `volumeClaimTemplate` on first deploy and ClamAV will download the virus database on startup (allow ~2–3 minutes).
