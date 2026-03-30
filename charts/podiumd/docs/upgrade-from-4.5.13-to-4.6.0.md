@@ -179,6 +179,84 @@ The per-service Redis subcharts (openzaak, opennotificaties, objecten, objecttyp
 
    Remove the `redis:` subchart block from **all services that had it**: openzaak, opennotificaties, objecten, objecttypen, openklant, openformulieren, openinwoner, and openarchiefbeheer.
 
+### OIDC configuration: migrate to new options format
+
+The `mozilla-django-oidc-db` library used by all Django-based components has moved its per-item OIDC fields into a nested `options` block. Any environment values file that still uses the old flat format must be updated before deploying 4.6.0.
+
+**Affected components:** openzaak, opennotificaties, objecten, objecttypen, openarchiefbeheer, openklant, openformulieren.
+**Not affected:** openinwoner — its chart (2.1.3) still uses the old schema.
+
+Old format (no longer recognised):
+
+```yaml
+- identifier: admin-oidc
+  claim_mapping:
+    email: [email]
+    first_name: [given_name]
+    last_name: [family_name]
+  username_claim: [preferred_username]
+  groups_claim: [groups]
+  sync_groups: true
+  sync_groups_glob_pattern: "*"
+  make_users_staff: true
+  superuser_group_names: [administrators]
+  endpoint_config:
+    oidc_op_discovery_endpoint: https://keycloak.example.nl/realms/podiumd/
+```
+
+New format required for 4.6.0:
+
+```yaml
+oidc_db_config_admin_auth:
+  providers:
+  - identifier: admin-oidc-provider
+    endpoint_config:
+      oidc_op_discovery_endpoint: https://keycloak.example.nl/realms/podiumd/
+  items:
+  - identifier: admin-oidc
+    oidc_provider_identifier: admin-oidc-provider
+    userinfo_claims_source: id_token
+    options:
+      user_settings:
+        claim_mappings:
+          email: [email]
+          first_name: [given_name]
+          last_name: [family_name]
+          username: [preferred_username]
+      groups_settings:
+        claim_mapping: [groups]
+        sync: true
+        sync_pattern: "*"
+        default_groups: []
+        make_users_staff: true
+        superuser_group_names: [administrators]
+```
+
+Key changes:
+- `claim_mapping` (dict) + `username_claim` → `options.user_settings.claim_mappings` (with `username` key added)
+- `groups_claim` → `options.groups_settings.claim_mapping`
+- `sync_groups` → `options.groups_settings.sync`
+- `sync_groups_glob_pattern` → `options.groups_settings.sync_pattern`
+- `make_users_staff` + `superuser_group_names` → moved into `options.groups_settings`
+- `endpoint_config` (was inline on the item) → promoted to a top-level `providers` entry; item gains `oidc_provider_identifier` reference
+
+**Automated migration:** use the provided script to convert any environment values file in one step:
+
+```shell
+# Dry-run (preview changes without writing):
+python charts/podiumd/scripts/fix-oidc-config.py path/to/env-values.yaml --dry-run
+
+# Migrate in-place:
+python charts/podiumd/scripts/fix-oidc-config.py path/to/env-values.yaml
+
+# Write to a new file:
+python charts/podiumd/scripts/fix-oidc-config.py path/to/env-values.yaml -o env-values-migrated.yaml
+```
+
+The script is idempotent: running it on a file that is already fully migrated produces no changes. It also handles partially-migrated files (where some items use the new format and others still use the old one).
+
+Requires: `pip install ruamel.yaml` (falls back to PyYAML if unavailable, but comments and formatting will be lost).
+
 ## Pre-deploy steps
 
 1. **Add `REP_KEYCLOAK_OPERATOR_SA_CLIENT_SECRET_REP`** to the pipeline secrets/replacements.
