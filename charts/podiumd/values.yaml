@@ -591,6 +591,8 @@ openzaak:
         cpu: 10m
         memory: 160Mi
   nginx:
+    image:
+      tag: "1.29.5"
     resources:
       requests:
         cpu: 10m
@@ -1143,25 +1145,42 @@ openarchiefbeheer:
 
     #   oidc_db_config_enable: true
     #   oidc_db_config_admin_auth:
+    #     providers:
+    #     - identifier: admin-oidc-provider
+    #       endpoint_config:
+    #         oidc_op_discovery_endpoint: https://example.keycloak.nl/realms/podiumd-poc/
     #     items:
     #     - identifier: admin-oidc
     #       enabled: true
+    #       oidc_provider_identifier: admin-oidc-provider
+    #       oidc_rp_scopes_list:
+    #         - openid
+    #         - email
+    #         - profile
+    #       userinfo_claims_source: id_token
     #       oidc_rp_client_id: example-client-id
     #       oidc_rp_client_secret: ${keycloak_client_secret}
-    #       oidc_rp_sign_algo: "RS256"
-    #       oidc_token_use_basic_auth: false
-    #       username_claim:
-    #         - preferred_username
-    #       groups_claim:
-    #         - resource_access
-    #         - example-client-id
-    #         - roles
-    #       superuser_group_names:
-    #         - Superuser
-    #       userinfo_claims_source: userinfo_endpoint
-    #       oidc_rp_idp_sign_key: ""
-    #       endpoint_config:
-    #         oidc_op_discovery_endpoint: https://example.keycloak.nl/realms/podiumd-poc/
+    #       oidc_rp_sign_algo: RS256
+    #       options:
+    #         user_settings:
+    #           claim_mappings:
+    #             email:
+    #               - email
+    #             first_name:
+    #               - given_name
+    #             last_name:
+    #               - family_name
+    #             username:
+    #               - preferred_username
+    #         groups_settings:
+    #           claim_mapping:
+    #             - roles
+    #           sync: true
+    #           sync_pattern: "*"
+    #           default_groups: []
+    #           make_users_staff: true
+    #           superuser_group_names:
+    #             - Superuser
 
   tags:
     redis: false
@@ -1237,6 +1256,9 @@ openarchiefbeheer:
     existingClaim: openarchiefbeheer
   persistentVolume:
     volumeAttributeShareName: openarchiefbeheer
+  nginx:
+    image:
+      tag: "1.29.5"
 
 openklant:
   configuration:
@@ -1354,6 +1376,8 @@ openklant:
   nameOverride: openklant
   fullnameOverride: openklant
   nginx:
+    image:
+      tag: "1.29.5"
     resources:
       requests:
         cpu: 10m
@@ -1560,6 +1584,8 @@ openformulieren:
         cpu: 10m
         memory: 160Mi
   nginx:
+    image:
+      tag: "1.29.5"
     resources:
       requests:
         cpu: 10m
@@ -1753,6 +1779,8 @@ openinwoner:
   nameOverride: openinwoner
   fullnameOverride: openinwoner
   nginx:
+    image:
+      tag: "1.29.5"
     config:
       basicAuth:
         # Enable this when digid mock is set to digidMock: "true"
