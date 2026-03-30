@@ -206,6 +206,20 @@ The per-service Redis subcharts (openzaak, opennotificaties, objecten, objecttyp
 
    Remove the `redis:` subchart block from **all services that had it**: openzaak, opennotificaties, objecten, objecttypen, openklant, openformulieren, openinwoner, and openarchiefbeheer.
 
+### opennotificaties: RabbitMQ image ACR override
+
+`opennotificaties` includes an embedded RabbitMQ subchart. For ACR environments, override its image registry so the image is pulled from ACR instead of Docker Hub:
+
+```yaml
+opennotificaties:
+  rabbitmq:
+    image:
+      registry: myacr.azurecr.io
+      repository: bitnamilegacy/rabbitmq
+```
+
+For non-ACR environments, the default `docker.io` registry is used and no override is needed.
+
 ### OIDC configuration: migrate to new options format
 
 The `mozilla-django-oidc-db` library used by all Django-based components has moved its per-item OIDC fields into a nested `options` block. Any environment values file that still uses the old flat format must be updated before deploying 4.6.0.
