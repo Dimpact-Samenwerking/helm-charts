@@ -110,6 +110,13 @@ Where to look
 AI assistant configs
 - CLAUDE.md (detailed guidance) and .claude/settings.local.json exist in the repo root; prefer CLAUDE.md for operational commands and CI details.
 
+Resource requests and limits
+- Every container in every chart template must have CPU and memory requests and limits set.
+- This applies to all custom templates (Deployments, Jobs, init containers, sidecars) and all sub-chart components wired via values.yaml.
+- When adding or modifying a template or enabling a new sub-chart, always check whether resources are set and add them if missing.
+- Wire sub-chart resources through values.yaml so they can be overridden per environment. Document defaults in docs/resource-overview.md.
+- If a sub-chart does not expose a resources key (chart limitation), document this in docs/resource-overview.md and note it should be raised with the upstream team.
+
 AKS-blue cluster conventions
 - Changes to aks-blue clusters (e.g. aks-blue-ontw-dim1) must go through the pipeline. Never run helm install/upgrade/delete or kubectl apply/delete directly against these clusters.
 - Read-only operations are fine: kubectl get/logs/describe, helm status, helm get, helm template.

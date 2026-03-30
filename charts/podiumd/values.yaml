@@ -31,6 +31,13 @@ keycloak-operator:
     image:
       repository: quay.io/keycloak/keycloak-operator
       tag: "26.5.6"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
   serviceAccount:
     create: false
   jobs:
@@ -61,6 +68,14 @@ keycloak-operator:
       enabled: true
     importMasterRealm:
       enabled: true
+    # -- Resources applied to all keycloak job containers (ensure-operator-sa, ensure-podiumd-admin-user, import-realm).
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
 
 keycloak:
   additionalOptions:

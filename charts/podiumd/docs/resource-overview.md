@@ -57,11 +57,13 @@ Resources for the main Keycloak container are set via `spec.resources` in the Ke
 
 | Container | CPU Request | Mem Request | CPU Limit | Mem Limit |
 |-----------|-------------|-------------|-----------|-----------|
-| keycloak-operator | — | — | — | — |
-| job: ensurePodiumdAdminUser | — | — | — | — |
-| job: ensureOperatorSa | — | — | — | — |
+| keycloak-operator | 100m | 128Mi | 500m | 256Mi |
+| job: ensurePodiumdAdminUser | 50m | 64Mi | 200m | 128Mi |
+| job: ensureOperatorSa | 50m | 64Mi | 200m | 128Mi |
+| job: importPodiumdRealm | 50m | 64Mi | 200m | 128Mi |
+| job: importMasterRealm | 50m | 64Mi | 200m | 128Mi |
 
-*The operator and its jobs have no resource settings — needs settings.* Suggested: `100m / 128Mi` request, `500m / 256Mi` limit.
+Values keys: `keycloak-operator.operator.resources` (operator pod), `keycloak-operator.jobs.resources` (shared across all job containers).
 
 ---
 
