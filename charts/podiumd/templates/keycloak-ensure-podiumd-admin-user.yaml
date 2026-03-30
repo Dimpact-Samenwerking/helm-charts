@@ -43,6 +43,8 @@ spec:
       initContainers:
       - name: check-operator-sa
         image: {{ include "podiumd.image" (index .Values "keycloak-operator").jobs.ensureOperatorSa.image }}
+        resources:
+{{ toYaml (index .Values "keycloak-operator").jobs.resources | indent 10 }}
         command: ["/bin/sh", "-c"]
         args:
         - |
@@ -87,6 +89,8 @@ spec:
           mountPath: /skip
       - name: generate-sql
         image: {{ include "podiumd.image" (index .Values "keycloak-operator").jobs.ensurePodiumdAdminUser.initImage }}
+        resources:
+{{ toYaml (index .Values "keycloak-operator").jobs.resources | indent 10 }}
         command:
         - python3
         - -c
@@ -202,6 +206,8 @@ spec:
       containers:
       - name: ensure-podiumd-admin-user
         image: {{ include "podiumd.image" (index .Values "keycloak-operator").jobs.ensurePodiumdAdminUser.image }}
+        resources:
+{{ toYaml (index .Values "keycloak-operator").jobs.resources | indent 10 }}
         command:
         - /bin/sh
         - -c

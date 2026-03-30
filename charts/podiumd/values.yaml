@@ -23,14 +23,21 @@ persistentVolume:
 keycloak-operator:
   enabled: true
   # Adfinis Helm chart wrapping the official Keycloak Operator manifests.
-  # Chart: https://charts.adfinis.com / adfinis/keycloak-operator (appVersion 26.5.5)
+  # Chart: https://charts.adfinis.com / adfinis/keycloak-operator (appVersion 26.5.6)
   # Note: it appears that the podname automatically appends -operator.
-  # Official operator image: quay.io/keycloak/keycloak-operator:26.5.5
+  # Official operator image: quay.io/keycloak/keycloak-operator:26.5.6
   fullnameOverride: keycloak
   operator:
     image:
       repository: quay.io/keycloak/keycloak-operator
-      tag: "26.5.5"
+      tag: "26.5.6"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
   serviceAccount:
     create: false
   jobs:
@@ -61,6 +68,22 @@ keycloak-operator:
       enabled: true
     importMasterRealm:
       enabled: true
+    # -- Resources applied to lightweight keycloak job containers (curl, python, psql): ensure-operator-sa, ensure-podiumd-admin-user.
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+    # -- Resources for the kc-config-cli containers (Spring Boot JVM app) in import-podiumd-realm and import-master-realm jobs.
+    configCliResources:
+      requests:
+        cpu: 50m
+        memory: 256Mi
+      limits:
+        cpu: 200m
+        memory: 512Mi
 
 keycloak:
   additionalOptions:
@@ -139,11 +162,11 @@ keycloak:
   http:
     httpEnabled: true
   # image parameters for keycloak-operator
-  # Official Keycloak image: quay.io/keycloak/keycloak:26.5.5
+  # Official Keycloak image: quay.io/keycloak/keycloak:26.5.6
   image:
     registry: ""
     repository: quay.io/keycloak/keycloak
-    tag: 26.5.5
+    tag: 26.5.6
   # -- instances is the new operator-style replica count (falls back to replicaCount)
   instances: "2"
   ingress:
@@ -178,7 +201,7 @@ keycloak:
     metadata:
       labels:
         app: keycloak
-        version: 26.5.5
+        version: 26.5.6
     spec:
       securityContext:
         runAsNonRoot: true
@@ -298,11 +321,11 @@ keycloak:
     headers: "xforwarded"
   resources:
     requests:
-      cpu: 100m
-      memory: 512Mi
-    limits:
       cpu: 500m
-      memory: 1Gi
+      memory: 1700Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
   secretsName: "keycloak-secrets"
 
 redis-operator:
@@ -351,10 +374,10 @@ redis-operator:
     resources:
       requests:
         cpu: 100m
-        memory: 128Mi
+        memory: 256Mi
       limits:
         cpu: 500m
-        memory: 256Mi
+        memory: 512Mi
     storage:
       volumeClaimTemplate:
         spec:
@@ -375,7 +398,15 @@ redis-operator:
     # Override this in environments that restrict public Docker Hub pulls (e.g. point to an ACR mirror).
     initContainerImage:
       repository: busybox
-      tag: "1.35"
+      tag: "1.37.0-glibc"
+    # -- Resources for the initContainer that configures redis.conf.
+    initContainerResources:
+      requests:
+        cpu: 10m
+        memory: 16Mi
+      limits:
+        cpu: 50m
+        memory: 32Mi
     # -- Pod security context for Redis pods. fsGroup must match the redis container's GID (1000)
     # so that mounted PVC data directories are writable by the redis process.
     podSecurityContext:
@@ -526,6 +557,10 @@ openzaak:
       resultBackendl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/5
       # -- Set to debug for test/acceptance environments
       logLevel: warning
+    uwsgi:
+      processes: "2"
+      threads: "4"
+      maxRequests: "1000"
   persistence:
     size: 10Gi
     existingClaim: openzaak
@@ -535,8 +570,8 @@ openzaak:
     tag: "1.26.0"
   resources:
     requests:
-      cpu: 100m
-      memory: 256Mi
+      cpu: 250m
+      memory: 512Mi
   worker:
     replicaCount: 1
     livenessProbe:
@@ -544,8 +579,8 @@ openzaak:
     maxWorkerLivenessDelta: "300"
     resources:
       requests:
-        cpu: 10m
-        memory: 480Mi
+        cpu: 200m
+        memory: 1Gi
   nameOverride: openzaak
   fullnameOverride: openzaak
   flower:
@@ -758,6 +793,11 @@ opennotificaties:
         memory: 386Mi
   nameOverride: opennotificaties
   fullnameOverride: opennotificaties
+  beat:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
   flower:
     enabled: false
   rabbitmq:
@@ -1022,6 +1062,10 @@ objecttypen:
     cache:
       default: redis-ha-master.podiumd.svc.cluster.local:6379/0
       axes: redis-ha-master.podiumd.svc.cluster.local:6379/0
+    uwsgi:
+      processes: "2"
+      threads: "2"
+      maxRequests: "1000"
   image:
     tag: "3.4.1"
   # used for create-required-objecttypen podiumd job only
@@ -1125,6 +1169,22 @@ openarchiefbeheer:
   worker:
     livenessProbe:
       enabled: true
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+
+  beat:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+
+  nginx:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 16Mi
 
   replicaCount: 1
 
@@ -1268,6 +1328,10 @@ openklant:
       resultBackendl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/8
       # -- Set to debug for test/acceptance environments
       logLevel: warning
+    uwsgi:
+      processes: "2"
+      threads: "4"
+      maxRequests: "1000"
   persistence:
     size: 10Gi
     existingClaim: openklant
@@ -1475,8 +1539,8 @@ openformulieren:
     tag: "3.4.5"
   resources:
     requests:
-      cpu: 100m
-      memory: 650Mi
+      cpu: 250m
+      memory: 1Gi
   worker:
     replicaCount: 1
     livenessProbe:
@@ -1484,8 +1548,8 @@ openformulieren:
     maxWorkerLivenessDelta: "300"
     resources:
       requests:
-        cpu: 50m
-        memory: 512Mi
+        cpu: 200m
+        memory: 1Gi
   nameOverride: openformulieren
   fullnameOverride: openformulieren
   flower:
@@ -1676,6 +1740,16 @@ openinwoner:
       requests:
         cpu: 200m
         memory: 640Mi
+  beat:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+  celeryMonitor:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
   nameOverride: openinwoner
   fullnameOverride: openinwoner
   nginx:
@@ -1774,6 +1848,10 @@ kiss:
   enabled: true
   nameOverride: contact
   fullnameOverride: contact
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
   # -- Optionally specify extra list of additional environment variables. Not necesarry for KvK / BRP headers, use the settings for these
   extraEnvVars: []
   # -- Optionally specify extra list of additional volumes, for example to trust extra ca certificates.
@@ -2108,6 +2186,10 @@ zac:
     image:
       # repository: nginxinc/nginx-unprivileged
       tag: 1.29.5
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
   notificationsSecretKey: "changeme"
   objectenApi:
     url: http://objecten.example.nl
@@ -2152,6 +2234,13 @@ zac:
       #repository:
       tag: v0.9.1
     nodeSelector: {}
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
     solr:
       # library/busybox:1.37.0-glibc
       busyBoxImage:
@@ -2182,6 +2271,13 @@ zac:
       image:
         #repository:
         tag: 0.2.15
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 200m
+          memory: 128Mi
       # -- namespaces to watch for zookeeper-operator
       watchNamespace: "podiumd"
       zookeeper:
@@ -2209,11 +2305,19 @@ zgw-office-addin:
     # ghcr.io/infonl/zgw-office-add-in-frontend:v0.9.133
     image:
       tag: v0.9.133
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
   backend:
     msalSecret: "dummy"
     # ghcr.io/infonl/zgw-office-add-in-backend:v0.9.133
     image:
       tag: v0.9.133
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
     # -- ZGW API configuration for integration with the ZGW APIs provider (OpenZaak)
     zgwApis:
       url: "https://openzaak.example.nl"
@@ -2221,7 +2325,7 @@ zgw-office-addin:
 
 clamav:
   image:
-    tag: "1.4.2"
+    tag: "1.4.4"
   nameOverride: clamav
   fullnameOverride: clamav
   clamdConfig: |
@@ -2237,6 +2341,10 @@ clamav:
     LocalSocket /tmp/clamd.sock
     TCPSocket 3310
     Foreground yes
+    # Reload database sequentially to avoid double memory usage (~1.2 GiB vs ~2.4 GiB)
+    # Scans are briefly blocked during reload, which is acceptable
+    ConcurrentDatabaseReload no
+    MaxThreads 10
 
     ###############
     # Results
@@ -2266,11 +2374,13 @@ clamav:
     ScanArchive yes
 
     ###############
-    # Scan
+    # Limits
     ###############
 
     MaxScanSize 150M
-    MaxFileSize 30M
+    MaxFileSize 100M
+    # Match MaxFileSize so stream scans have the same ceiling as file scans
+    StreamMaxLength 100M
     MaxRecursion 10
     MaxFiles 15000
     MaxEmbeddedPE 10M
@@ -2287,10 +2397,7 @@ clamav:
     # General
     ###############
 
-    DatabaseDirectory /var/lib/clamav/
-    UpdateLogFile /dev/stdout
-    LogTime yes
-    # CUSTOM: Use pid file in tmp
+    DatabaseDirectory /var/lib/clamav
     PidFile /tmp/freshclam.pid
     # CUSTOM: Set defined user
     DatabaseOwner 2000
@@ -2303,10 +2410,31 @@ clamav:
     ScriptedUpdates yes
     NotifyClamd /etc/clamav/clamd.conf
     Bytecode yes
+  persistentVolume:
+    enabled: true
+    size: 2Gi
+    storageClass: managed-csi
+  # The chart hardcodes the clamav-data volume mount at /data, but the official clamav/clamav
+  # entrypoint checks /var/lib/clamav/main.cvd to decide whether to run freshclam synchronously
+  # before starting clamd (cold-start bootstrap). By also mounting the PVC at /var/lib/clamav,
+  # the entrypoint correctly waits for freshclam on first boot with an empty volume.
+  extraVolumeMounts:
+    - name: clamav-data
+      mountPath: /var/lib/clamav
+  startupProbe:
+    initialDelaySeconds: 60
+    periodSeconds: 30
+    # Cold start loads 3.2M signatures from disk; first boot can take >3 min before page cache is warm.
+    # 60 + (9-1)*30 = 300s = 5 min total allowance.
+    failureThreshold: 9
+    timeoutSeconds: 5
   resources:
     requests:
+      cpu: 250m
+      memory: 2Gi
+    limits:
       cpu: 1000m
-      memory: 4Gi
+      memory: 3Gi
 
 apiproxy:
   enabled: false
@@ -2318,7 +2446,7 @@ apiproxy:
   #nameOverride: "iconnect-proxy"
   image:
     repository: nginx
-    tag: "1.29.4"
+    tag: "1.29.5"
     pullPolicy: IfNotPresent
   service:
     port: 80
@@ -2337,6 +2465,7 @@ apiproxy:
   readinessProbe:
     initialDelaySeconds: 5
     periodSeconds: 10
+  resolverIp: 10.0.0.10 # KubeDNS resolver
   locations:
     commonSettings: &commonLocation
       sslVerify: "off"
@@ -2355,6 +2484,8 @@ apiproxy:
       <<: *commonLocation
       path: /haalcentraal/api/brp/
       targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apihcbrp/actueel/prtcl/v2/"
+      toepassingHeaderName: "X-Toepassing"
+      toepassingDefaultValue: "ZAC"
     kvkSearch:
       <<: *commonLocation
       targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apikvk/zoeken/v2/zoeken"
