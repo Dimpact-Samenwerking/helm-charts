@@ -242,13 +242,17 @@ Configured per environment via `openinwoner.eck-elasticsearch.nodeSets`.
 
 Default replicas: **2** (contact-web frontend), **1** (adapter, syncJobs)
 
-| Container | CPU Request | Mem Request | CPU Limit | Mem Limit |
-|-----------|-------------|-------------|-----------|-----------|
-| kiss (frontend) | 100m | 256Mi | — | — |
-| adapter (podiumd-adapter) | 10m | 100Mi | — | — |
-| syncJobs (kennisbank, medewerkers, vac) | — | — | — | — |
+| Container | CPU Request | Mem Request | CPU Limit | Mem Limit | Notes |
+|-----------|-------------|-------------|-----------|-----------|-------|
+| kiss (frontend) | 100m | 256Mi | — | — | `kiss.resources` |
+| adapter (podiumd-adapter) | 10m | 100Mi | — | — | |
+| syncJob: kennisbank | — | — | — | — | `kiss.settings.syncJobs.kennisbank.resources` |
+| syncJob: smoelenboek (medewerkers) | — | — | — | — | `kiss.settings.syncJobs.smoelenboek.resources` |
+| syncJob: vac | — | — | — | — | `kiss.settings.syncJobs.vac.resources` |
+| syncJob: website | — | — | — | — | `kiss.settings.syncJobs.website[*].resources` |
+| syncJob: sharepoint | — | — | — | — | `kiss.settings.syncJobs.sharepoint[*].resources` |
 
-*syncJobs have no resource settings — needs settings.* Suggested: `100m / 256Mi`.
+*syncJob resources default to `{}` (no requests/limits set). Suggested: `100m / 256Mi` per sync job.*
 
 **PDB**: Add `minAvailable: 1` for the contact-web deployment.
 
