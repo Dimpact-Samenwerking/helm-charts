@@ -68,7 +68,7 @@ keycloak-operator:
       enabled: true
     importMasterRealm:
       enabled: true
-    # -- Resources applied to all keycloak job containers (ensure-operator-sa, ensure-podiumd-admin-user, import-realm).
+    # -- Resources applied to lightweight keycloak job containers (curl, python, psql): ensure-operator-sa, ensure-podiumd-admin-user.
     resources:
       requests:
         cpu: 50m
@@ -76,6 +76,14 @@ keycloak-operator:
       limits:
         cpu: 200m
         memory: 128Mi
+    # -- Resources for the kc-config-cli containers (Spring Boot JVM app) in import-podiumd-realm and import-master-realm jobs.
+    configCliResources:
+      requests:
+        cpu: 50m
+        memory: 256Mi
+      limits:
+        cpu: 200m
+        memory: 512Mi
 
 keycloak:
   additionalOptions:

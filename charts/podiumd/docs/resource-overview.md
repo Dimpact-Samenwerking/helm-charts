@@ -61,10 +61,10 @@ Resources for the main Keycloak container are set via `spec.resources` in the Ke
 | keycloak-operator | 100m | 128Mi | 500m | 256Mi |
 | job: ensurePodiumdAdminUser | 50m | 64Mi | 200m | 128Mi |
 | job: ensureOperatorSa | 50m | 64Mi | 200m | 128Mi |
-| job: importPodiumdRealm | 50m | 64Mi | 200m | 128Mi |
-| job: importMasterRealm | 50m | 64Mi | 200m | 128Mi |
+| job: importPodiumdRealm (kc-config-cli) | 50m | 256Mi | 200m | 512Mi |
+| job: importMasterRealm (kc-config-cli) | 50m | 256Mi | 200m | 512Mi |
 
-Values keys: `keycloak-operator.operator.resources` (operator pod), `keycloak-operator.jobs.resources` (shared across all job containers).
+Values keys: `keycloak-operator.operator.resources` (operator pod), `keycloak-operator.jobs.resources` (curl/python/psql job containers), `keycloak-operator.jobs.configCliResources` (kc-config-cli — Spring Boot JVM, needs more memory).
 
 ---
 

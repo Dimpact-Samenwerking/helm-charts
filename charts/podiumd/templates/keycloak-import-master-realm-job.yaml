@@ -71,7 +71,7 @@ spec:
       - name: kc-config-cli
         image: {{ include "podiumd.image" .Values.keycloak.keycloakConfigCli.image }}
         resources:
-{{ toYaml (index .Values "keycloak-operator").jobs.resources | indent 10 }}
+{{ toYaml (index .Values "keycloak-operator").jobs.configCliResources | indent 10 }}
         env:
         - name: KEYCLOAK_URL
           value: {{ coalesce .Values.keycloak.hostname.admin .Values.keycloak.config.adminFrontendUrl "http://keycloak-service:8080" | quote }}
