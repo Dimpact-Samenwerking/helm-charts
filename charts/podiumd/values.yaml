@@ -824,6 +824,7 @@ opennotificaties:
 
 objecten:
   configuration:
+    enabled: true
     initContainer:
       enabled: false
     job:
