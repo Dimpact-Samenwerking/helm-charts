@@ -567,7 +567,7 @@ openzaak:
   persistentVolume:
     volumeAttributeShareName: openzaak
   image:
-    tag: "1.26.0"
+    tag: "1.26.3"
   resources:
     requests:
       cpu: 250m
@@ -779,7 +779,7 @@ opennotificaties:
   persistentVolume:
     volumeAttributeShareName: opennotificaties
   image:
-    tag: "1.14.0"
+    tag: "1.15.0"
   resources:
     requests:
       cpu: 100m
@@ -1554,7 +1554,7 @@ openformulieren:
   persistentVolume:
     volumeAttributeShareName: openformulieren
   image:
-    tag: "3.4.5"
+    tag: "3.4.7"
   resources:
     requests:
       cpu: 250m
