@@ -1088,6 +1088,10 @@ openarchiefbeheer:
   enabled: false
   nameOverride: openarchiefbeheer
   fullnameOverride: openarchiefbeheer
+  settings:
+    # Note: these two values must be equal to prevent timeout mismatches.
+    oidcRenewIdTokenExpirySeconds: 1800
+    sessionCookieAge: 1800
   # Reference to an existing secret with the values needed for django-setup-configuration
   # existingConfigurationSecrets: nil
   configuration:
