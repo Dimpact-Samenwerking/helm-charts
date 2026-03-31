@@ -1,0 +1,105 @@
+{{- $operatorJobs := (index .Values "keycloak-operator").jobs }}
+{{- $clientSecret := $operatorJobs.ensureOperatorSa.clientSecret }}
+{{- if and (index .Values "keycloak-operator").enabled $operatorJobs.importMasterRealm.enabled $operatorJobs.ensureOperatorSa.enabled $clientSecret }}
+---
+# Job: import the master realm config via keycloak-config-cli.
+# Uses the keycloak-operator client secret (stored by ensure-keycloak-operator-sa job)
+# to authenticate via client_credentials.
+#
+# External dependencies:
+#   ConfigMap: keycloak-master-realm-config  key: master.yaml
+#   Secret:    keycloak-operator-client-secret key: client-secret (written by ensure-keycloak-operator-sa)
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: import-master-realm-job
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: keycloak
+spec:
+  ttlSecondsAfterFinished: 600
+  backoffLimit: 10
+  template:
+    metadata:
+      labels:
+        {{- include "podiumd.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: keycloak
+    spec:
+      {{- if .Values.keycloak.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.keycloak.nodeSelector | nindent 8 }}
+      {{- else if .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      {{- end }}
+      restartPolicy: Never
+      initContainers:
+      - name: wait-for-operator-sa
+        image: {{ include "podiumd.image" (index .Values "keycloak-operator").jobs.ensureOperatorSa.image }}
+        resources:
+{{ toYaml (index .Values "keycloak-operator").jobs.resources | indent 10 }}
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+          echo "Waiting for keycloak-operator client credentials to work..."
+          for i in $(seq 1 60); do
+            RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+              "http://keycloak-service:8080/realms/master/protocol/openid-connect/token" \
+              --data-urlencode "grant_type=client_credentials" \
+              --data-urlencode "client_id=keycloak-operator" \
+              --data-urlencode "client_secret=$CLIENT_SECRET")
+            STATUS=$(printf '%s' "$RESPONSE" | tail -n1)
+            if [ "$STATUS" = "200" ]; then echo "keycloak-operator SA authenticated."; exit 0; fi
+            echo "Attempt $i/60 — status=$STATUS, body: $(printf '%s' "$RESPONSE" | head -n1)"
+            sleep 10
+          done
+          echo "Timed out waiting for keycloak-operator SA"; exit 1
+        env:
+        - name: CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-operator-client-secret
+              key: client-secret
+      volumes:
+      - name: realm-configs
+        configMap:
+          name: keycloak-master-realm-config
+          items:
+          - key: master.yaml
+            path: master.yaml
+      containers:
+      - name: kc-config-cli
+        image: {{ include "podiumd.image" .Values.keycloak.keycloakConfigCli.image }}
+        resources:
+{{ toYaml (index .Values "keycloak-operator").jobs.configCliResources | indent 10 }}
+        env:
+        - name: KEYCLOAK_URL
+          value: {{ coalesce .Values.keycloak.hostname.admin .Values.keycloak.config.adminFrontendUrl "http://keycloak-service:8080" | quote }}
+        - name: KEYCLOAK_CLIENTID
+          value: "keycloak-operator"
+        - name: KEYCLOAK_CLIENTSECRET
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-operator-client-secret
+              key: client-secret
+        - name: KEYCLOAK_GRANTTYPE
+          value: "client_credentials"
+        - name: KEYCLOAK_REALM
+          value: "master"
+        - name: IMPORT_FILES_LOCATIONS
+          value: "/config/master.yaml"
+        - name: IMPORT_REMOTESTATE_ENABLED
+          value: "true"
+        - name: IMPORT_MANAGED_ROLE
+          value: "no-delete"
+        - name: IMPORT_MANAGED_GROUP
+          value: "no-delete"
+        - name: IMPORT_MANAGED_IDENTITY_PROVIDER
+          value: "no-delete"
+        - name: IMPORT_MANAGED_IDENTITY_PROVIDER_MAPPER
+          value: "no-delete"
+        volumeMounts:
+        - name: realm-configs
+          mountPath: /config
+          readOnly: true
+{{- end }}
