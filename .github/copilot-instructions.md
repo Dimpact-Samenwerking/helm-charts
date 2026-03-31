@@ -134,8 +134,11 @@ On aks-blue environments, all images must be pulled from the environment-specifi
 - ClamAV security/config updates must be logged in `charts/podiumd/docs/clamav-security-updates.md`.
 
 ### Duplicate Key Detection
-Before committing changes to `values.yaml`, run this scan to catch YAML keys that silently overwrite earlier ones (duplicate map keys are a silent data-loss bug):
+Before committing changes to `values.yaml`, run this scan to catch YAML keys that silently overwrite earlier ones (duplicate map keys are a silent data-loss bug).
 
+> **Important:** the script reads the file from disk (working tree). If you have already staged your changes with `git add` without running the check first, use the staged variant below — otherwise the check runs against the pre-change file and misses the staged content.
+
+**Working tree (run before `git add`):**
 ```powershell
 $script = @'
 import re
@@ -170,6 +173,43 @@ else:
     print('No duplicate keys found')
 '@
 $script | python
+```
+
+**Staged variant (run after `git add`, before `git commit`):**
+```powershell
+$script = @'
+import re, sys
+lines = sys.stdin.read().splitlines(keepends=True)
+stack = []
+scope_keys = {}
+duplicates = []
+for i, line in enumerate(lines, 1):
+    stripped = line.lstrip()
+    if stripped.startswith('#') or stripped.startswith('-'):
+        continue
+    m = re.match(r'^(\s*)([a-zA-Z0-9_\-][^:#\n]*?)\s*:', line)
+    if not m:
+        continue
+    indent = len(m.group(1))
+    key = m.group(2).strip()
+    while stack and stack[-1][0] >= indent:
+        stack.pop()
+    scope_id = tuple(k for _,k in stack)
+    if scope_id not in scope_keys:
+        scope_keys[scope_id] = {}
+    if key in scope_keys[scope_id]:
+        parent = ' > '.join(scope_id) if scope_id else '(root)'
+        duplicates.append(f'Line {i}: duplicate "{key}" under [{parent}] (first line {scope_keys[scope_id][key]})')
+    else:
+        scope_keys[scope_id][key] = i
+    stack.append((indent, key))
+if duplicates:
+    print(f'FOUND {len(duplicates)} duplicate(s):')
+    for d in duplicates: print(' ', d)
+else:
+    print('No duplicate keys found')
+'@
+git show :charts/podiumd/values.yaml | python -c $script
 ```
 
 Hits inside YAML sequences (list items sharing key names like `value:` or `mountPath:`) are false positives and can be ignored.
