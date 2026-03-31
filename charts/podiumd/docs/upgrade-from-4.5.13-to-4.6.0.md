@@ -129,32 +129,13 @@ Remove any explicit `initContainer.enabled: false` override if you want the new 
 
 ## Environment values changes
 
-### Enable configuration jobs for objecten and opennotificaties
+### Configuration jobs for objecten and opennotificaties
 
-The `objecten` and `opennotificaties` subcharts default to `job.enabled: false` at the subchart level, which takes precedence over the parent `podiumd/values.yaml` default of `true`. Without an explicit override, the setup-configuration job does not run for these two components, leaving OIDC (and other configuration steps) unapplied in the database.
+The `objecten` and `opennotificaties` subcharts default to `job.enabled: false` in their own `values.yaml`. The `podiumd` parent chart overrides this to `true` — parent chart values always take precedence over subchart defaults in Helm. **No env-level override is needed** for `job.enabled`; the chart default handles it.
 
-Add the following to each environment's values file:
+If `job.enabled` was already added to an environment's values file as a workaround, it can be left in place (it is harmless) or removed.
 
-```yaml
-objecten:
-  configuration:
-    enabled: true
-    job:
-      enabled: true
-      backoffLimit: 6
-      ttlSecondsAfterFinished: 600
-      restartPolicy: OnFailure
-
-opennotificaties:
-  configuration:
-    enabled: true
-    job:
-      enabled: true
-      backoffLimit: 6
-      restartPolicy: OnFailure
-```
-
-Without this, the OIDC login will fail with `KeyError: 'groups_settings'` on first login attempt because the `OIDCProvider`/`OIDCClient` database records are never populated.
+> **Note:** Although the job is enabled by default, the configuration job will still fail if the required OIDC and service configuration (`configuration.data`, `configuration.secrets`) is not provided. Without valid configuration data, the OIDC login will fail with `KeyError: 'groups_settings'` on first login because the `OIDCProvider`/`OIDCClient` database records are never populated.
 
 ### Enable Redis HA and remove per-service Redis subchart config
 
