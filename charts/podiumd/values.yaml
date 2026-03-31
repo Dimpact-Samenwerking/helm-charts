@@ -2630,11 +2630,7 @@ ita:
       objectregisterMedewerkerIdClaimType: "samaccountname"
       emailClaimType: "email"
 
-    resources:
-      logoUrl: ""
-      faviconUrl: ""
-      designTokensUrl: ""
-      webFontSources: []
+    resources: {}
 
   poller:
     schedule: "*/15 * * * *"
@@ -2643,6 +2639,8 @@ ita:
       repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller"
       tag: "2.1.1"
       pullPolicy: Always
+
+    resources: {}
 
     notification:
       pollerMessage: "Poller uitgevoerd om:"
