@@ -1091,7 +1091,7 @@ openarchiefbeheer:
   # Reference to an existing secret with the values needed for django-setup-configuration
   # existingConfigurationSecrets: nil
   configuration:
-    enabled: false
+    enabled: true
     oidcUrl: https://abc.example.nl
     oidcSecret: "abc"
     job:
@@ -1194,6 +1194,8 @@ openarchiefbeheer:
         memory: 128Mi
 
   nginx:
+    image:
+      tag: "1.29.5"
     resources:
       requests:
         cpu: 10m
@@ -1250,9 +1252,6 @@ openarchiefbeheer:
     existingClaim: openarchiefbeheer
   persistentVolume:
     volumeAttributeShareName: openarchiefbeheer
-  nginx:
-    image:
-      tag: "1.29.5"
 
 openklant:
   configuration:
