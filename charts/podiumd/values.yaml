@@ -567,7 +567,7 @@ openzaak:
   persistentVolume:
     volumeAttributeShareName: openzaak
   image:
-    tag: "1.26.3"
+    tag: "1.26.0"
   resources:
     requests:
       cpu: 250m
