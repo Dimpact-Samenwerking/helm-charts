@@ -12,6 +12,8 @@ spec:
       app: {{ default "api-proxy" .Values.apiproxy.nameOverride }}
   template:
     metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/api-proxy-configmap.yaml") . | sha256sum }}
       labels:
         app: {{ default "api-proxy" .Values.apiproxy.nameOverride }}
     spec:
