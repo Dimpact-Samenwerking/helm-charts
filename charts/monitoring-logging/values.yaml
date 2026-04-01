@@ -97,10 +97,23 @@ grafana:
           options:
             path: /var/lib/grafana/dashboards/logs
 
+# -- Metrics dashboards (downloaded from grafana.com at startup)
+        - name: "metrics"
+          orgId: 1
+          folder: 'PodiumD_Monitoring_Logging - Metrics'
+          type: file
+          disableDeletion: false
+          updateIntervalSeconds: 30
+          allowUiUpdates: true
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/metrics
+
   # -- Dashboard opgenomen in ConfigMap
   dashboardsConfigMaps:
     default: "logging-main-dashboard"
     logs: "logging-logs"
+    metrics: "monitoring-metrics-dashboards"
   
   grafana.ini:
     # -- Authentication and Authorization with Keycloak
