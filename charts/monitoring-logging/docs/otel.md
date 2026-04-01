@@ -4,12 +4,39 @@ This document describes the OTel signal flow through the monitoring stack, the i
 
 ---
 
+## OTel-first design principle
+
+**OTel is the preferred telemetry pipeline.** When an application sends a signal via OTLP, the parallel fallback path for that signal is disabled:
+
+| Signal | OTel path | Fallback (non-OTel apps only) |
+|---|---|---|
+| Logs | OTLP → OTel Collector → Loki | Alloy tails pod log files |
+| Metrics | OTLP → OTel Collector → Prometheus remote write | ServiceMonitor / PodMonitor |
+| Traces | OTLP → OTel Collector → Tempo | — (no fallback) |
+
+**Do not** create a ServiceMonitor or PodMonitor for an app that already sends metrics via OTLP — it will cause duplicate data in Prometheus.
+
+### Excluding OTel pods from Alloy log collection
+
+Alloy uses the pod label `telemetry/otel-logs: "true"` to skip log collection for pods that already ship logs via OTLP. Add this label to any pod whose application is configured to send logs to the OTel Collector:
+
+```yaml
+# podiumd/values.yaml — add to pod template labels for OTel-enabled apps
+<service>:
+  podLabels:
+    telemetry/otel-logs: "true"
+```
+
+The Alloy River pipeline (in `monitoring-logging/values.yaml`) drops any pod matching this label before tailing its log files.
+
+---
+
 ## Architecture
 
 ```
 PodiumD applications
     │
-    │  OTLP gRPC (:4317) or HTTP (:4318)
+    │  OTLP gRPC (:4317) or HTTP (:4318)          [PRIMARY PATH]
     ▼
 ┌─────────────────────────────────────────────────────┐
 │  OpenTelemetry Collector  (Deployment, monitoring ns) │
@@ -19,6 +46,11 @@ PodiumD applications
 │    metrics ──remotewrite▶ Prometheus server           │
 │    traces  ──otlp──────▶  Tempo  (tempo.enabled=true) │
 └─────────────────────────────────────────────────────┘
+
+Non-OTel apps only (fallback):
+    │
+    ├── logs    ──▶  Alloy (pod log file tailing) ──▶  Loki
+    └── metrics ──▶  ServiceMonitor / PodMonitor  ──▶  Prometheus
 ```
 
 ### Collector endpoint
@@ -260,9 +292,11 @@ Standard .NET OTel environment variables if supported:
 
 ---
 
-## Alloy (log agent) — already wired
+## Alloy (log agent) — fallback for non-OTel pods
 
-Alloy ships pod logs directly to Loki and does **not** use the OTel Collector pipeline. No additional config needed.
+Alloy tails pod log files and ships them to Loki. It serves as the **fallback** for apps that do not send logs via OTLP.
+
+Alloy skips pods labelled `telemetry/otel-logs: "true"` — these are already shipping logs through the OTel Collector. Do not add this label to a pod unless its application is actively sending logs via OTLP.
 
 If you want Alloy to also forward logs via OTLP (e.g. to add OTel resource attributes), add to `alloy.alloy.configMap.content`:
 
@@ -318,22 +352,25 @@ opentelemetry-collector:
 
 ## Current status summary
 
-| Service | Traces | Metrics | Logs | Action |
-|---|---|---|---|---|
-| **OTel Collector** | receives | receives | receives | ✅ deployed |
-| **Keycloak** | ✅ ready | ✅ active (port 9000) | — | Add `additionalOptions` |
-| **OpenZaak** | ✅ ready | ⚠️ via prometheus | ⚠️ | Set `otel.disabled: false` + endpoint |
-| **OpenNotificaties** | ✅ ready | ⚠️ via prometheus | ⚠️ | Set `otel.disabled: false` + endpoint |
-| **Objecten** | ✅ ready | ⚠️ via prometheus | ⚠️ | Set `otel.disabled: false` + endpoint |
-| **Objecttypen** | ✅ ready | ⚠️ via prometheus | ⚠️ | Set `otel.disabled: false` + endpoint |
-| **OpenKlant** | ✅ ready | ⚠️ via prometheus | ⚠️ | Set `otel.disabled: false` + endpoint |
-| **OpenFormulieren** | ⚠️ | ⚠️ | ⚠️ | Add `otel:` block + endpoint |
-| **OpenInwoner** | ⚠️ | ⚠️ | ⚠️ | Add `otel:` block + endpoint |
-| **OpenArchiefBeheer** | ✅ ready | ⚠️ | ⚠️ | Enable service + `otel.disabled: false` |
-| **ZAC** | 🔧 partial | ⚠️ via prometheus | — | Set `javaOptions` with OTel system props |
-| **KISS** | ❓ | ❓ | — | Verify SDK, then set `extraEnv` |
-| **ITA** | ❓ | ❓ | — | Verify SDK, then set `extraEnv` |
-| **PABC** | ❓ | ❓ | — | Verify SDK, then set `extraEnv` |
-| **OMC** | ❓ | ❓ | — | Verify SDK, then set `extraEnv` |
-| **Alloy** | — | — | ✅ active | Ships logs directly to Loki |
-| **Tempo** | receives | — | — | Enable with `tempo.enabled: true` |
+**Pipeline column:** `OTel` = primary path via OTLP; `fallback` = Alloy log tailing / ServiceMonitor scraping.  
+When a service is marked `OTel`, add `podLabels: { telemetry/otel-logs: "true" }` in `podiumd/values.yaml` and do **not** create a ServiceMonitor for that service.
+
+| Service | Traces | Metrics | Logs | Pipeline | Action |
+|---|---|---|---|---|---|
+| **OTel Collector** | receives | receives | receives | — | ✅ deployed |
+| **Keycloak** | ✅ ready | ✅ active (port 9000) | — | OTel (traces) / fallback (metrics) | Add `additionalOptions`; add `telemetry/otel-logs: "true"` once traces enabled |
+| **OpenZaak** | ✅ ready | ⚠️ via prometheus | ⚠️ | OTel when enabled | Set `otel.disabled: false` + endpoint + `podLabels` |
+| **OpenNotificaties** | ✅ ready | ⚠️ via prometheus | ⚠️ | OTel when enabled | Set `otel.disabled: false` + endpoint + `podLabels` |
+| **Objecten** | ✅ ready | ⚠️ via prometheus | ⚠️ | OTel when enabled | Set `otel.disabled: false` + endpoint + `podLabels` |
+| **Objecttypen** | ✅ ready | ⚠️ via prometheus | ⚠️ | OTel when enabled | Set `otel.disabled: false` + endpoint + `podLabels` |
+| **OpenKlant** | ✅ ready | ⚠️ via prometheus | ⚠️ | OTel when enabled | Set `otel.disabled: false` + endpoint + `podLabels` |
+| **OpenFormulieren** | ⚠️ | ⚠️ | ⚠️ | OTel when enabled | Add `otel:` block + endpoint + `podLabels` |
+| **OpenInwoner** | ⚠️ | ⚠️ | ⚠️ | OTel when enabled | Add `otel:` block + endpoint + `podLabels` |
+| **OpenArchiefBeheer** | ✅ ready | ⚠️ | ⚠️ | OTel when enabled | Enable service + `otel.disabled: false` + `podLabels` |
+| **ZAC** | 🔧 partial | ⚠️ via prometheus | — | OTel (traces) | Set `javaOptions`; keep bundled collector disabled |
+| **KISS** | ❓ | ❓ | — | fallback until confirmed | Verify SDK, then set `extraEnv` + `podLabels` |
+| **ITA** | ❓ | ❓ | — | fallback until confirmed | Verify SDK, then set `extraEnv` |
+| **PABC** | ❓ | ❓ | — | fallback until confirmed | Verify SDK, then set `extraEnv` |
+| **OMC** | ❓ | ❓ | — | fallback until confirmed | Verify SDK, then set `extraEnv` |
+| **Alloy** | — | — | ✅ active | fallback (non-OTel pods) | Skip pods with `telemetry/otel-logs: "true"` |
+| **Tempo** | receives | — | — | — | Enable with `tempo.enabled: true` |

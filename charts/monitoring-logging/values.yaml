@@ -251,13 +251,26 @@ alloy:
           role = "pod"
         }
 
-        // Relabel: drop terminated pods, extract log path, add k8s metadata labels
+        // Relabel: drop terminated pods, drop OTel-instrumented pods (they ship logs
+        // via OTLP to the OTel Collector instead), extract log path, add k8s metadata.
+        //
+        // OTel-first rule: pods with label  telemetry/otel-logs=true  are excluded here.
+        // Add that label to any pod whose app sends logs via OTLP so Alloy does not
+        // double-collect them.  See docs/otel.md for per-service guidance.
         discovery.relabel "pod_logs" {
           targets = discovery.kubernetes.pods.targets
 
+          // Drop pods in terminal phases
           rule {
             source_labels = ["__meta_kubernetes_pod_phase"]
             regex         = "Pending|Succeeded|Failed|Completed"
+            action        = "drop"
+          }
+
+          // OTel-first: skip pods whose logs are already shipped via OTLP
+          rule {
+            source_labels = ["__meta_kubernetes_pod_label_telemetry_otel_logs"]
+            regex         = "true"
             action        = "drop"
           }
 
@@ -291,7 +304,7 @@ alloy:
           }
         }
 
-        // Tail log files and forward to Loki
+        // Tail log files and forward to Loki (fallback path for non-OTel pods)
         loki.source.file "pod_logs" {
           targets    = discovery.relabel.pod_logs.output
           forward_to = [loki.write.loki_gateway.receiver]

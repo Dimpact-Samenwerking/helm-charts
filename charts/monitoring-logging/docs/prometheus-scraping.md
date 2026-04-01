@@ -2,6 +2,8 @@
 
 This document describes every metric source available in a PodiumD cluster, how Prometheus discovers them, and the ServiceMonitor resources needed to activate scraping for each application.
 
+> **OTel-first:** Do **not** create a ServiceMonitor or PodMonitor for any application that already sends metrics via OTLP to the OTel Collector. The collector pushes metrics to Prometheus via remote write — a ServiceMonitor on the same app would cause duplicate series. See `otel.md` for the pipeline status of each service.
+
 ---
 
 ## How discovery works
@@ -409,27 +411,29 @@ prometheus:
 
 ## Current status summary
 
-| Service | Metrics available | ServiceMonitor exists | Action needed |
-|---|---|---|---|
-| Prometheus (self) | ✅ | ✅ auto | — |
-| kube-state-metrics | ✅ | ✅ auto | — |
-| node-exporter | ✅ | ✅ auto | — |
-| Alloy | ✅ | ✅ auto | — |
-| OTel Collector | ✅ (remote write) | — | — |
-| **Keycloak** | ✅ confirmed | ❌ | Create ServiceMonitor |
-| **Redis** | ✅ confirmed | ❌ | Create ServiceMonitor |
-| **OpenZaak** | ⚠️ likely | ❌ | Verify port, create PodMonitor |
-| **OpenNotificaties** | ⚠️ likely | ❌ | Verify port, create PodMonitor |
-| **Objecten** | ⚠️ likely | ❌ | Verify port, create PodMonitor |
-| **Objecttypen** | ⚠️ likely | ❌ | Verify port, create PodMonitor |
-| **OpenKlant** | ⚠️ likely | ❌ | Verify port, create PodMonitor |
-| **OpenFormulieren** | ⚠️ likely | ❌ | Verify port, create PodMonitor |
-| **OpenInwoner** | ⚠️ likely | ❌ | Verify port, create PodMonitor |
-| **OpenArchiefBeheer** | ⚠️ likely | ❌ | Verify port, create PodMonitor |
-| **ZAC** | ⚠️ likely | ❌ | Verify endpoint, create ServiceMonitor |
-| **KISS** | ⚠️ likely | ❌ | Verify `/metrics`, create ServiceMonitor |
-| **RabbitMQ** | ⚠️ needs plugin | ❌ | Enable `rabbitmq_prometheus`, create ServiceMonitor |
-| ITA | ❓ | ❌ | Investigate |
-| PABC | ❓ | ❌ | Investigate |
-| OMC | ❓ | ❌ | Investigate |
-| Loki | ⚠️ self-monitoring off | ❌ | Enable `monitoring.selfMonitoring` |
+**Before creating a ServiceMonitor**, check `otel.md` — if the service is on the OTel pipeline, skip the ServiceMonitor.
+
+| Service | Metrics available | ServiceMonitor exists | Pipeline | Action needed |
+|---|---|---|---|---|
+| Prometheus (self) | ✅ | ✅ auto | — | — |
+| kube-state-metrics | ✅ | ✅ auto | — | — |
+| node-exporter | ✅ | ✅ auto | — | — |
+| Alloy | ✅ | ✅ auto | — | — |
+| OTel Collector | ✅ (remote write) | — | — | — |
+| **Keycloak** | ✅ confirmed | ❌ | OTel traces / fallback metrics | Create ServiceMonitor for metrics only; add `telemetry/otel-logs: "true"` pod label once traces active |
+| **Redis** | ✅ confirmed | ❌ | fallback | Create ServiceMonitor |
+| **OpenZaak** | ⚠️ likely | ❌ | OTel when enabled | Enable OTel first; skip ServiceMonitor when OTel active |
+| **OpenNotificaties** | ⚠️ likely | ❌ | OTel when enabled | Enable OTel first; skip ServiceMonitor when OTel active |
+| **Objecten** | ⚠️ likely | ❌ | OTel when enabled | Enable OTel first; skip ServiceMonitor when OTel active |
+| **Objecttypen** | ⚠️ likely | ❌ | OTel when enabled | Enable OTel first; skip ServiceMonitor when OTel active |
+| **OpenKlant** | ⚠️ likely | ❌ | OTel when enabled | Enable OTel first; skip ServiceMonitor when OTel active |
+| **OpenFormulieren** | ⚠️ likely | ❌ | OTel when enabled | Enable OTel first; skip ServiceMonitor when OTel active |
+| **OpenInwoner** | ⚠️ likely | ❌ | OTel when enabled | Enable OTel first; skip ServiceMonitor when OTel active |
+| **OpenArchiefBeheer** | ⚠️ likely | ❌ | OTel when enabled | Enable OTel first; skip ServiceMonitor when OTel active |
+| **ZAC** | ⚠️ likely | ❌ | OTel (traces) / fallback (metrics) | Create ServiceMonitor for metrics; OTel handles traces |
+| **KISS** | ⚠️ likely | ❌ | fallback until OTel confirmed | Verify `/metrics`, create ServiceMonitor |
+| **RabbitMQ** | ⚠️ needs plugin | ❌ | fallback | Enable `rabbitmq_prometheus`, create ServiceMonitor |
+| ITA | ❓ | ❌ | fallback until confirmed | Investigate |
+| PABC | ❓ | ❌ | fallback until confirmed | Investigate |
+| OMC | ❓ | ❌ | fallback until confirmed | Investigate |
+| Loki | ⚠️ self-monitoring off | ❌ | — | Enable `monitoring.selfMonitoring` |
