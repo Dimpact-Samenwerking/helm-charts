@@ -30,6 +30,26 @@ grafana:
           version: 1
           jsonData:
             timeout: 300
+        # -- Tempo datasource: requires tempo.enabled=true
+        - name: Tempo
+          type: tempo
+          uid: tempo
+          readOnly: false
+          editable: true
+          access: proxy
+          isDefault: false
+          url: http://{{ .Release.Name }}-tempo:3200
+          jsonData:
+            tracesToLogsV2:
+              datasourceUid: loki
+              filterByTraceID: true
+              filterBySpanID: false
+            tracesToMetrics:
+              datasourceUid: prometheus
+            serviceMap:
+              datasourceUid: prometheus
+            nodeGraph:
+              enabled: true
   # -- curl image settings
   downloadDashboardsImage:
     pullPolicy: IfNotPresent
@@ -169,6 +189,8 @@ prometheus:
     # -- prometheus image settings
     image:
       tag: v3.6.0
+    extraFlags:
+      - web.enable-remote-write-receiver
     persistentVolume:
       enabled: true
       storageClass: "managed-csi"
@@ -216,31 +238,83 @@ prometheus:
       image:
         tag: v0.85.0
 
-promtail:
+alloy:
   enabled: true
-  # promtail image settings
-  image:
-    pullPolicy: IfNotPresent
-    tag: 3.5.5
   nodeSelector:
     agentpool: userpool
-  config:
-    logLevel: warn
-    clients:
-      - url: http://{{ .Release.Name }}-loki-gateway/loki/api/v1/push
-        tenant_id: 1
-  resources:
-    requests:
-      cpu: 50m
-      memory: 96Mi
-    limits:
-      cpu: 100m
-      memory: 256Mi
-  sidecar:
-    # configmap-reload image settings
-    image:
-      pullPolicy: IfNotPresent
-      tag: v0.15.0
+  alloy:
+    # -- configMap.content is processed by Helm tpl, so {{ .Release.Name }} is valid
+    configMap:
+      content: |
+        // Discover all pods on the node
+        discovery.kubernetes "pods" {
+          role = "pod"
+        }
+
+        // Relabel: drop terminated pods, extract log path, add k8s metadata labels
+        discovery.relabel "pod_logs" {
+          targets = discovery.kubernetes.pods.targets
+
+          rule {
+            source_labels = ["__meta_kubernetes_pod_phase"]
+            regex         = "Pending|Succeeded|Failed|Completed"
+            action        = "drop"
+          }
+
+          rule {
+            source_labels = ["__meta_kubernetes_namespace"]
+            target_label  = "namespace"
+          }
+
+          rule {
+            source_labels = ["__meta_kubernetes_pod_name"]
+            target_label  = "pod"
+          }
+
+          rule {
+            source_labels = ["__meta_kubernetes_pod_container_name"]
+            target_label  = "container"
+          }
+
+          rule {
+            source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+            target_label  = "app"
+          }
+
+          // Build the log file path from pod UID and container name
+          rule {
+            source_labels = ["__meta_kubernetes_pod_uid", "__meta_kubernetes_pod_container_name"]
+            separator     = "/"
+            regex         = "(.+)/(.+)"
+            replacement   = "/var/log/pods/*_*_$1/$2/*.log"
+            target_label  = "__path__"
+          }
+        }
+
+        // Tail log files and forward to Loki
+        loki.source.file "pod_logs" {
+          targets    = discovery.relabel.pod_logs.output
+          forward_to = [loki.write.loki_gateway.receiver]
+        }
+
+        loki.write "loki_gateway" {
+          endpoint {
+            url       = "http://{{ .Release.Name }}-loki-gateway/loki/api/v1/push"
+            tenant_id = "1"
+          }
+        }
+    mounts:
+      varlog: true
+      dockercontainers: true
+    resources:
+      requests:
+        cpu: 50m
+        memory: 96Mi
+      limits:
+        cpu: 100m
+        memory: 256Mi
+  image:
+    pullPolicy: IfNotPresent
 loki:
   enabled: true
   # loki image settings
@@ -445,7 +519,7 @@ loki:
     # loki image settings
     image:
       pullPolicy: IfNotPresent
-      tag: 3.5.5
+      tag: 3.6.7
     
 
   minio:
@@ -467,3 +541,119 @@ loki:
     mcImage:
       pullPolicy: IfNotPresent
       tag: RELEASE.2025-08-13T08-35-41Z-cpuv1
+
+# -- Grafana Tempo: distributed tracing backend. Disabled by default.
+# Enable with: tempo.enabled=true
+# Requires opentelemetry-collector.enabled=true to receive traces via OTLP.
+tempo:
+  enabled: false
+  nodeSelector:
+    agentpool: userpool
+  persistence:
+    enabled: true
+    storageClassName: managed-csi
+    size: 10Gi
+  tempo:
+    # -- tempo image settings
+    image:
+      pullPolicy: IfNotPresent
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+    storage:
+      trace:
+        backend: local
+        local:
+          path: /var/tempo/traces
+        wal:
+          path: /var/tempo/wal
+
+# -- OpenTelemetry Collector: gateway deployment receiving OTLP from applications.
+# Exports: logs → Loki, metrics → Prometheus, traces → Tempo (when enabled).
+# Applications should send OTLP to <release-name>-opentelemetry-collector:4317 (gRPC)
+# or <release-name>-opentelemetry-collector:4318 (HTTP).
+opentelemetry-collector:
+  enabled: true
+  mode: deployment
+  image:
+    repository: ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-k8s
+    pullPolicy: IfNotPresent
+  command:
+    name: otelcol-k8s
+  nodeSelector:
+    agentpool: userpool
+  # -- Expose OTLP gRPC and HTTP ports
+  ports:
+    otlp:
+      enabled: true
+      containerPort: 4317
+      servicePort: 4317
+      protocol: TCP
+    otlp-http:
+      enabled: true
+      containerPort: 4318
+      servicePort: 4318
+      protocol: TCP
+  # -- Inject release name so config can reference sibling chart services
+  extraEnv:
+    - name: RELEASE_NAME
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.labels['app.kubernetes.io/instance']
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  config:
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+    processors:
+      memory_limiter:
+        check_interval: 1s
+        limit_percentage: 80
+        spike_limit_percentage: 25
+      batch:
+        timeout: 5s
+        send_batch_size: 1000
+    exporters:
+      # -- Logs → Loki via OTLP (Loki 3.x native OTLP endpoint)
+      otlphttp/loki:
+        endpoint: http://${env:RELEASE_NAME}-loki-gateway/otlp
+        headers:
+          X-Scope-OrgID: "1"
+      # -- Metrics → Prometheus remote write receiver
+      prometheusremotewrite:
+        endpoint: http://${env:RELEASE_NAME}-prometheus-server/api/v1/write
+        tls:
+          insecure: true
+      # -- Traces → Tempo (only active when tempo.enabled=true)
+      otlp/tempo:
+        endpoint: ${env:RELEASE_NAME}-tempo:4317
+        tls:
+          insecure: true
+    service:
+      pipelines:
+        logs:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [otlphttp/loki]
+        metrics:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [prometheusremotewrite]
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [otlp/tempo]
