@@ -1735,7 +1735,7 @@ openinwoner:
       port: 587
       useTLS: true
     searchIndexInitContainer: true
-    oidcFrontendLogoutWithHints: false
+    oidcFrontendLogoutWithHints: true
     cache:
       default: redis-ha-master.podiumd.svc.cluster.local:6379/11
       axes: redis-ha-master.podiumd.svc.cluster.local:6379/11
