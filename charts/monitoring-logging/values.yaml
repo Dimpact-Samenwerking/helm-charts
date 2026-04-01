@@ -732,7 +732,7 @@ opentelemetry-collector:
       servicePort: 4318
       protocol: TCP
   # -- Inject release name so config can reference sibling chart services
-  extraEnv:
+  extraEnvs:
     - name: RELEASE_NAME
       valueFrom:
         fieldRef:
