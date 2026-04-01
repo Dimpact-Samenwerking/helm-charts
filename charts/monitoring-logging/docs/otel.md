@@ -82,66 +82,39 @@ Replace `<MONITORING_RELEASE>` and `<MONITORING_NS>` with the Helm release name 
 ## Django applications
 
 **Services:** OpenZaak, OpenNotificaties, Objecten, Objecttypen, OpenKlant, OpenArchiefBeheer  
-**Status:** ✅ — `otel:` block exists in `podiumd/values.yaml`, currently `disabled: true`
+**Status:** ✅ — `settings.otel:` block supported in VNG subcharts
 
-These are VNG-gegevensstandaarden Django apps. All have native `otel:` support in their Helm subcharts via [opentelemetry-python](https://opentelemetry-python.readthedocs.io) instrumentation.
+These are VNG-gegevensstandaarden Django apps. All have native OTel support in their Helm subcharts via [opentelemetry-python](https://opentelemetry-python.readthedocs.io) instrumentation.
 
 **Signals supported:** traces, metrics, logs  
 **App port:** 8000 (internal), 80 via nginx
 
 ### Enable per service
 
+> **⚠️ Critical:** the correct path is `<service>.settings.otel.*`. The top-level `<service>.otel.*` key is **dead code** — subcharts do not read it. Using the wrong path silently leaves OTel disabled.
+
 ```yaml
 # #OTel instrumentation — podiumd/values.yaml
 openzaak:
-  otel:
-    disabled: false
-
-opennotificaties:
-  otel:
-    disabled: false
-
-objecten:
-  otel:
-    disabled: false
-
-objecttypen:
-  otel:
-    disabled: false
-
-openklant:
-  otel:
-    disabled: false
-
-openarchiefbeheer:        # also requires openarchiefbeheer.enabled: true
-  otel:
-    disabled: false
+  settings:
+    otel:
+      disabled: false
+      exporterOtlpEndpoint: "http://<MONITORING_RELEASE>-opentelemetry-collector.<MONITORING_NS>.svc.cluster.local:4317"
+      exporterOtlpMetricsInsecure: true   # required for gRPC over plaintext (non-TLS) endpoint
 ```
+
+Repeat the same `settings.otel` block for each service: `opennotificaties`, `objecten`, `objecttypen`, `openklant`, `openformulieren`, `openarchiefbeheer`.
 
 **Env vars the subchart injects when `disabled: false`:**
 
 | Variable | Value |
 |---|---|
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | Subchart default — must override to point to the collector |
+| `OTEL_SDK_DISABLED` | `False` |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Value of `settings.otel.exporterOtlpEndpoint` |
+| `OTEL_EXPORTER_OTLP_METRICS_INSECURE` | `True` when `exporterOtlpMetricsInsecure: true` |
 | `OTEL_SERVICE_NAME` | Set to the app name by the subchart |
-| `OTEL_TRACES_EXPORTER` | `otlp` |
-| `OTEL_METRICS_EXPORTER` | `otlp` (if enabled by subchart) |
 
-Override the endpoint by adding to each service's `extraEnv`:
-
-```yaml
-# #OTel instrumentation — podiumd/values.yaml
-openzaak:
-  otel:
-    disabled: false
-  extraEnv:
-    - name: OTEL_EXPORTER_OTLP_ENDPOINT
-      value: "http://<MONITORING_RELEASE>-opentelemetry-collector.<MONITORING_NS>.svc.cluster.local:4317"
-    - name: OTEL_EXPORTER_OTLP_PROTOCOL
-      value: grpc
-```
-
-> ⚠️ Check each subchart's `values.yaml` for the exact `otel:` key schema — some may accept an `endpoint:` key directly under `otel:` rather than requiring `extraEnv`.
+> **`exporterOtlpMetricsInsecure: true` is required** when using gRPC (`OTEL_EXPORTER_OTLP_PROTOCOL=grpc`) to a plaintext endpoint. Without it, the gRPC client attempts TLS and the connection fails with `StatusCode.UNAVAILABLE`.
 
 ---
 
@@ -294,9 +267,9 @@ Standard .NET OTel environment variables if supported:
 
 ## Alloy (log agent) — fallback for non-OTel pods
 
-Alloy tails pod log files and ships them to Loki. It serves as the **fallback** for apps that do not send logs via OTLP.
+Alloy tails pod log files and ships them to Loki. It serves as the **fallback** for apps that do not send logs via OTLP, but in practice it collects **all pod logs** automatically — no pod labels or configuration in `podiumd/values.yaml` are needed.
 
-Alloy skips pods labelled `telemetry/otel-logs: "true"` — these are already shipping logs through the OTel Collector. Do not add this label to a pod unless its application is actively sending logs via OTLP.
+The `telemetry/otel-logs: "true"` pod label filtering described in earlier versions of this document has been removed. Alloy filters by node (each DaemonSet pod only tails files on its own node), not by pod label.
 
 If you want Alloy to also forward logs via OTLP (e.g. to add OTel resource attributes), add to `alloy.alloy.configMap.content`:
 
