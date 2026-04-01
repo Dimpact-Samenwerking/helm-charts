@@ -27,25 +27,6 @@
         "query": "prometheus",
         "refresh": 1,
         "type": "datasource"
-      },
-      {
-        "current": {},
-        "datasource": {
-          "type": "prometheus",
-          "uid": "${datasource}"
-        },
-        "definition": "label_values(http_server_duration_seconds_count,job)",
-        "hide": 0,
-        "includeAll": true,
-        "label": "Job",
-        "multi": true,
-        "name": "job",
-        "query": {
-          "query": "label_values(http_server_duration_seconds_count,job)",
-          "refId": "A"
-        },
-        "refresh": 2,
-        "type": "query"
       }
     ]
   },
@@ -65,7 +46,7 @@
     {
       "id": 2,
       "type": "stat",
-      "title": "HTTP Request Rate",
+      "title": "Request Rate",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -109,7 +90,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(rate(http_server_duration_seconds_count{job=~\"$job\"}[5m]))",
+          "expr": "sum(rate(http_server_requests_seconds_count{namespace=\"podiumd\", pod=~\"keycloak.*\"}[5m]))",
           "refId": "A"
         }
       ]
@@ -117,7 +98,7 @@
     {
       "id": 3,
       "type": "stat",
-      "title": "HTTP Error Rate",
+      "title": "Error Rate %",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -161,7 +142,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(rate(http_server_duration_seconds_count{job=~\"$job\",outcome=\"SERVER_ERROR\"}[5m])) / sum(rate(http_server_duration_seconds_count{job=~\"$job\"}[5m])) * 100",
+          "expr": "sum(rate(http_server_requests_seconds_count{namespace=\"podiumd\", pod=~\"keycloak.*\",outcome=\"SERVER_ERROR\"}[5m])) / sum(rate(http_server_requests_seconds_count{namespace=\"podiumd\", pod=~\"keycloak.*\"}[5m])) * 100 or vector(0)",
           "refId": "A"
         }
       ]
@@ -213,67 +194,15 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(http_server_active_connections{job=~\"$job\"})",
+          "expr": "sum(http_server_active_connections{namespace=\"podiumd\", pod=~\"keycloak.*\"})",
           "refId": "A"
         }
       ]
     },
     {
       "id": 5,
-      "type": "stat",
-      "title": "Active Sessions",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 4,
-        "x": 12,
-        "y": 1
-      },
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ]
-        },
-        "colorMode": "value",
-        "graphMode": "none",
-        "textMode": "auto"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          }
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "expr": "sum(vendor_keycloak_active_sessions{job=~\"$job\"}) or vector(0)",
-          "refId": "A"
-        }
-      ]
-    },
-    {
-      "id": 6,
       "type": "timeseries",
-      "title": "HTTP Request Rate by Job",
+      "title": "HTTP Request Rate",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -295,16 +224,16 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum by (job) (rate(http_server_duration_seconds_count{job=~\"$job\"}[5m]))",
-          "legendFormat": "{{job}}",
+          "expr": "sum by (pod) (rate(http_server_requests_seconds_count{namespace=\"podiumd\", pod=~\"keycloak.*\"}[5m]))",
+          "legendFormat": "{{pod}}",
           "refId": "A"
         }
       ]
     },
     {
-      "id": 7,
+      "id": 6,
       "type": "timeseries",
-      "title": "HTTP p99 Latency",
+      "title": "HTTP p95 Latency",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -326,8 +255,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "histogram_quantile(0.99, sum by (le, job) (rate(http_server_duration_seconds_bucket{job=~\"$job\"}[5m])))",
-          "legendFormat": "p99 {{job}}",
+          "expr": "histogram_quantile(0.95, sum by (le, pod) (rate(http_server_requests_seconds_bucket{namespace=\"podiumd\", pod=~\"keycloak.*\"}[5m])))",
+          "legendFormat": "p95 {{pod}}",
           "refId": "A"
         },
         {
@@ -335,8 +264,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "histogram_quantile(0.95, sum by (le, job) (rate(http_server_duration_seconds_bucket{job=~\"$job\"}[5m])))",
-          "legendFormat": "p95 {{job}}",
+          "expr": "histogram_quantile(0.50, sum by (le, pod) (rate(http_server_requests_seconds_bucket{namespace=\"podiumd\", pod=~\"keycloak.*\"}[5m])))",
+          "legendFormat": "p50 {{pod}}",
           "refId": "B"
         }
       ]
@@ -378,7 +307,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(base_memory_usedHeap_bytes{job=~\"$job\"})",
+          "expr": "sum(base_memory_usedHeap_bytes{namespace=\"podiumd\", pod=~\"keycloak.*\"})",
           "legendFormat": "Used Heap",
           "refId": "A"
         },
@@ -387,7 +316,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(base_memory_committedHeap_bytes{job=~\"$job\"})",
+          "expr": "sum(base_memory_committedHeap_bytes{namespace=\"podiumd\", pod=~\"keycloak.*\"})",
           "legendFormat": "Committed Heap",
           "refId": "B"
         },
@@ -396,7 +325,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(base_memory_maxHeap_bytes{job=~\"$job\"})",
+          "expr": "sum(base_memory_maxHeap_bytes{namespace=\"podiumd\", pod=~\"keycloak.*\"})",
           "legendFormat": "Max Heap",
           "refId": "C"
         }
@@ -427,7 +356,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "avg(process_cpu_usage{job=~\"$job\"})",
+          "expr": "avg(process_cpu_usage{namespace=\"podiumd\", pod=~\"keycloak.*\"})",
           "legendFormat": "Process CPU",
           "refId": "A"
         },
@@ -436,7 +365,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "avg(system_cpu_usage{job=~\"$job\"})",
+          "expr": "avg(system_cpu_usage{namespace=\"podiumd\", pod=~\"keycloak.*\"})",
           "legendFormat": "System CPU",
           "refId": "B"
         }
@@ -467,8 +396,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(rate(base_gc_time_total{job=~\"$job\"}[5m]))",
-          "legendFormat": "GC Time/s",
+          "expr": "sum(rate(base_gc_time_total{namespace=\"podiumd\", pod=~\"keycloak.*\"}[5m]))",
+          "legendFormat": "GC ms/s",
           "refId": "A"
         }
       ]
@@ -498,7 +427,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(process_files_open_files{job=~\"$job\"})",
+          "expr": "sum(process_files_open_files{namespace=\"podiumd\", pod=~\"keycloak.*\"})",
           "legendFormat": "Open FDs",
           "refId": "A"
         }
@@ -507,7 +436,7 @@
     {
       "id": 30,
       "type": "row",
-      "title": "Database Connection Pool (Agroal)",
+      "title": "Database Connection Pool",
       "collapsed": false,
       "gridPos": {
         "h": 1,
@@ -519,7 +448,7 @@
     {
       "id": 31,
       "type": "timeseries",
-      "title": "DB Pool - Active / Idle / Awaiting",
+      "title": "DB Pool Active / Idle / Awaiting",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -541,7 +470,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(agroal_active_count{job=~\"$job\"})",
+          "expr": "sum(agroal_active_count{namespace=\"podiumd\", pod=~\"keycloak.*\"})",
           "legendFormat": "Active",
           "refId": "A"
         },
@@ -550,7 +479,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(agroal_idle_count{job=~\"$job\"})",
+          "expr": "sum(agroal_available_count{namespace=\"podiumd\", pod=~\"keycloak.*\"})",
           "legendFormat": "Idle",
           "refId": "B"
         },
@@ -559,7 +488,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(agroal_awaiting_count{job=~\"$job\"})",
+          "expr": "sum(agroal_awaiting_count{namespace=\"podiumd\", pod=~\"keycloak.*\"})",
           "legendFormat": "Awaiting",
           "refId": "C"
         }
@@ -568,7 +497,7 @@
     {
       "id": 32,
       "type": "timeseries",
-      "title": "DB Pool - Acquire / Invalid / Flush",
+      "title": "DB Pool Acquire / Create / Invalid rate",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -590,7 +519,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(rate(agroal_acquire_count_total{job=~\"$job\"}[5m]))",
+          "expr": "sum(rate(agroal_acquire_count_total{namespace=\"podiumd\", pod=~\"keycloak.*\"}[5m]))",
           "legendFormat": "Acquire/s",
           "refId": "A"
         },
@@ -599,8 +528,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(rate(agroal_invalid_count_total{job=~\"$job\"}[5m]))",
-          "legendFormat": "Invalid/s",
+          "expr": "sum(rate(agroal_creation_count_total{namespace=\"podiumd\", pod=~\"keycloak.*\"}[5m]))",
+          "legendFormat": "Create/s",
           "refId": "B"
         },
         {
@@ -608,8 +537,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(rate(agroal_flush_count_total{job=~\"$job\"}[5m]))",
-          "legendFormat": "Flush/s",
+          "expr": "sum(rate(agroal_invalid_count_total{namespace=\"podiumd\", pod=~\"keycloak.*\"}[5m]))",
+          "legendFormat": "Invalid/s",
           "refId": "C"
         }
       ]
@@ -629,7 +558,7 @@
     {
       "id": 41,
       "type": "timeseries",
-      "title": "Cache Hit Rate",
+      "title": "Cache Hits / Misses",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -651,7 +580,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(rate(vendor_statistics_hits_total{job=~\"$job\"}[5m]))",
+          "expr": "sum(rate(vendor_statistics_hits_total{namespace=\"podiumd\", pod=~\"keycloak.*\"}[5m]))",
           "legendFormat": "Hits/s",
           "refId": "A"
         },
@@ -660,7 +589,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(rate(vendor_statistics_misses_total{job=~\"$job\"}[5m]))",
+          "expr": "sum(rate(vendor_statistics_misses_total{namespace=\"podiumd\", pod=~\"keycloak.*\"}[5m]))",
           "legendFormat": "Misses/s",
           "refId": "B"
         }
@@ -669,7 +598,7 @@
     {
       "id": 42,
       "type": "timeseries",
-      "title": "Cache Memory (off-heap)",
+      "title": "Cache Off-Heap Memory",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -691,8 +620,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(vendor_statistics_off_heap_memory_used{job=~\"$job\"})",
-          "legendFormat": "Off-Heap Used",
+          "expr": "sum(vendor_statistics_off_heap_memory_used{namespace=\"podiumd\", pod=~\"keycloak.*\"})",
+          "legendFormat": "Off-Heap",
           "refId": "A"
         }
       ]
