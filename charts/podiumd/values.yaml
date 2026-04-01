@@ -1748,7 +1748,7 @@ openinwoner:
       port: 587
       useTLS: true
     searchIndexInitContainer: true
-    oidcFrontendLogoutWithHints: false
+    oidcFrontendLogoutWithHints: true
   persistence:
     size: 10Gi
     existingClaim: openinwoner
