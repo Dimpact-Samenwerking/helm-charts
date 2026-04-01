@@ -12,6 +12,7 @@ global:
 
 tags:
   eck-operator.enabled: false
+  redis: false
 
 persistentVolume:
   volumeAttributeShareName: ""
@@ -30,8 +31,59 @@ keycloak-operator:
     image:
       repository: quay.io/keycloak/keycloak-operator
       tag: "26.5.6"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
   serviceAccount:
     create: false
+  jobs:
+    ensurePodiumdAdminUser:
+      enabled: true
+      # Init container: Python (stdlib only, no pip install) — computes the PBKDF2 hash
+      # and writes the SQL to a shared volume.
+      initImage:
+        registry: ""
+        repository: python
+        tag: "3.12-slim"
+      # Main container: runs psql to execute the generated SQL against the Keycloak DB.
+      image:
+        registry: ""
+        repository: postgres
+        tag: "16"
+    ensureOperatorSa:
+      enabled: true
+      # Container: curl-based job to provision the keycloak-operator service account client.
+      image:
+        registry: ""
+        repository: curlimages/curl
+        tag: "8.18.0"
+      # Client secret for the keycloak-operator client. Set this to a known value so Helm
+      # can create the K8s secret directly. The job will enforce this secret in Keycloak.
+      clientSecret: "changeme"
+    importPodiumdRealm:
+      enabled: true
+    importMasterRealm:
+      enabled: true
+    # -- Resources applied to lightweight keycloak job containers (curl, python, psql): ensure-operator-sa, ensure-podiumd-admin-user.
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+    # -- Resources for the kc-config-cli containers (Spring Boot JVM app) in import-podiumd-realm and import-master-realm jobs.
+    configCliResources:
+      requests:
+        cpu: 50m
+        memory: 256Mi
+      limits:
+        cpu: 200m
+        memory: 512Mi
 
 keycloak:
   additionalOptions:
@@ -78,7 +130,7 @@ keycloak:
     #        role: "admin"
     # -- identity provider mapper for the admin realm
     #adminIdentityProviderMappers: {}
-    adminOtpEnabled: false
+    adminOtpEnabled: true
     realm: podiumd
     realmDisplayName: PodiumD
     realmFrontendUrl: https://keycloak.example.nl
@@ -112,13 +164,13 @@ keycloak:
   # image parameters for keycloak-operator
   # Official Keycloak image: quay.io/keycloak/keycloak:26.5.6
   image:
+    registry: ""
     repository: quay.io/keycloak/keycloak
     tag: 26.5.6
   # -- instances is the new operator-style replica count (falls back to replicaCount)
   instances: "2"
   ingress:
     enabled: false
-    hostnameStrict: true
   externalDatabase:
     vendor: "postgres"
     host: "postgres"
@@ -139,13 +191,12 @@ keycloak:
       name: ""
       key: ""
   keycloakConfigCli:
-    # disabled for now, will be reused for future configuration management of keycloak
-    enabled: false
     # image parameters for keycloak-config-cli
-    # Official keycloak-config-cli image: quay.io/adorsys/keycloak-config-cli:6.4.0-28.5.0
+    # Official keycloak-config-cli image: adorsys/keycloak-config-cli:6.4.1-26
     image:
-      repository: quay.io/adorsys/keycloak-config-cli
-      tag: "6.4.0-28.5.0"
+      registry: ""
+      repository: adorsys/keycloak-config-cli
+      tag: "6.4.1-26"
   podTemplate:
     metadata:
       labels:
@@ -270,215 +321,109 @@ keycloak:
     headers: "xforwarded"
   resources:
     requests:
-      cpu: 100m
-      memory: 512Mi
-    limits:
       cpu: 500m
-      memory: 1Gi
+      memory: 1700Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
   secretsName: "keycloak-secrets"
 
-infinispan:
-  # -- image data for infinispan containers
-  #images:
-  #  server: quay.io/infinispan/server:15.2
-  #  initContainer: registry.access.redhat.com/ubi8-micro:8.10-1751466198
-  deploy:
-    nameOverride: ispn
-    replicas: 2
-    container:
-      imagePullPolicy: IfNotPresent
-      storage:
-        storageClassName: podiumd-standard
-    secretName: ispn-generated-secret
-    security:
-      secretName: ispn-generated-secret
-      monitor:
-        secret: changememonitor
-      batch: |
-        credentials add keystore -c password -p secret --path="internal-credentials.pfx"
-        user create keycloak -p changemenow -g deployer
-        user create admin -p changemetoo -g admin
-    # how to generate your own secret for use:
-    # openssl req -nodes -x509 -sha256 -newkey rsa:4096 -keyout ispn.key -out ispn.crt -days 3560 -subj "/C=NL/ST=Noord Holland/L=Amsterdam/O=INFO/OU=integratieteam/CN=ispn" -addext "subjectAltName = DNS:ispn,DNS:ispn.podiumd,DNS:ispn.podiumd.svc.cluster.local"
-    # openssl pkcs12 -export -out ispn.pfx -inkey ispn.key -in ispn.crt -name server
-    # use password as passphrase (as added under credentials add command above)
-    # keytool -list -keystore ispn.keystore -storepass password
-    # kubectl create secret generic ispn-secret --from-file=tls.crt=ispn.crt --from-file=tls.key=ispn.key --from-file=keystore.p12=ispn.pfx --from-literal=password=password --from-literal=alias=server -n podiumd
-    # kubectl create secret generic ispn-transport-secret --from-file=tls.crt=ispn.crt --from-file=tls.key=ispn.key --from-file=cert.p12=ispn.pfx --from-literal=password=password --from-literal=alias=server -n podiumd
-    # -- which secrets can be used for ssl, see above how to generate a proper secret for use with infinispan
-    ssl:
-      endpointSecretName: "ispn-secret"
-      transportSecretName: "ispn-transport-secret"
-    # see https://docs.jboss.org/infinispan/15.0/configdocs/infinispan-config-15.0.html for possible options
-    # infinispan configuration yaml preferences for usage with keycloak
-    infinispan:
-      cacheContainer:
-        serialization:
-          allow-list:
-            regex: "org.keycloak.*"
-        transport:
-          stack: "kubernetes"
-          lock-timeout: "60000"
-          urn:infinispan:server:15.0:securityRealm: "cluster-transport"
-        caches:
-          actionTokens:
-            distributedCache:
-              statistics: "true"
-              owners: 2
-              mode: "SYNC"
-              transaction:
-                mode: "NON_XA"
-              encoding:
-                mediaType: "application/x-protostream"
-              expiration:
-                maxIdle: "-1"
-                lifespan: "-1"
-                interval: "300000"
-              memory:
-                maxCount: "-1"
-              persistence:
-                fileStore:
-                  path: cache
-          authenticationSessions:
-            distributedCache:
-              statistics: "true"
-              owners: 2
-              mode: "SYNC"
-              transaction:
-                mode: "NON_XA"
-              encoding:
-                mediaType: "application/x-protostream"
-              expiration:
-                lifespan: "-1"
-              persistence:
-                fileStore:
-                  path: cache
-          offlineSessions:
-            distributedCache:
-              statistics: "true"
-              owners: 2
-              mode: "SYNC"
-              transaction:
-                mode: "NON_XA"
-              encoding:
-                mediaType: "application/x-protostream"
-              expiration:
-                lifespan: "-1"
-              persistence:
-                fileStore:
-                  path: cache
-          clientSessions:
-            distributedCache:
-              statistics: "true"
-              owners: 2
-              mode: "SYNC"
-              transaction:
-                mode: "NON_XA"
-              encoding:
-                mediaType: "application/x-protostream"
-              expiration:
-                lifespan: "-1"
-              persistence:
-                fileStore:
-                  path: cache
-          offlineClientSessions:
-            distributedCache:
-              statistics: "true"
-              owners: 2
-              mode: "SYNC"
-              transaction:
-                mode: "NON_XA"
-              encoding:
-                mediaType: "application/x-protostream"
-              expiration:
-                lifespan: "-1"
-              persistence:
-                fileStore:
-                  path: cache
-          loginFailures:
-            distributedCache:
-              statistics: "true"
-              owners: 2
-              mode: "SYNC"
-              transaction:
-                mode: "NON_XA"
-              encoding:
-                mediaType: "application/x-protostream"
-              expiration:
-                lifespan: "-1"
-              persistence:
-                fileStore:
-                  path: cache
-          work:
-            replicatedCache:
-              statistics: "true"
-              encoding:
-                mediaType: "application/x-protostream"
-              expiration:
-                lifespan: "-1"
-      server:
-        security:
-          credentialStores:
-            - name: credentials
-              path: internal-credentials.pfx
-              clearTextCredential:
-                clearText: "secret"
-          securityRealms:
-            - name: default
-              # [USER] Comment or remove this properties realm to disable authentication.
-              propertiesRealm:
-                groupProperties:
-                  path: groups.properties
-                groupsAttribute: Roles
-                userProperties:
-                  path: users.properties
-              serverIdentities:
-                ssl:
-                  keystore:
-                    alias: "server"
-                    path: "/etc/encrypt/endpoint/keystore.p12"
-                    credentialReference:
-                      store: credentials
-                      alias: keystore
-            - name: "cluster-transport"
-              # Security realm for cluster transport. This setup is for encryption only, no authentication.
-              # All the cluster server will use the same certificate both for key and trust store.
-              propertiesRealm:
-                groupProperties:
-                  path: groups.properties
-                groupsAttribute: Roles
-                userProperties:
-                  path: users.properties
-              serverIdentities:
-                ssl:
-                  keystore:
-                    alias: "server"
-                    path: "/etc/encrypt/transport/cert.p12"
-                    credentialReference:
-                      store: credentials
-                      alias: keystore
-                  truststore:
-                    path: "/etc/encrypt/transport/cert.p12"
-                    credentialReference:
-                      store: credentials
-                      alias: keystore
-            - name: metrics
-              # [METRICS] Security realm for the metrics endpoint.
-              propertiesRealm:
-                groupProperties:
-                  path: metrics-groups.properties
-                  relativeTo: infinispan.server.config.path
-                groupsAttribute: Roles
-                userProperties:
-                  path: metrics-users.properties
-                  relativeTo: infinispan.server.config.path
-  enabled: false
-  monitoring:
+redis-operator:
+  enabled: true
+  featureGates:
+    GenerateConfigInInitContainer: true
+  redisOperator:
+    imageName: quay.io/opstree/redis-operator
+    imageTag: "v0.24.0"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  # -- Shared Redis HA cluster using the RedisReplication CRD from the OT Redis Operator.
+  # When redis-operator.redis-ha.enabled is true, individual Redis subcharts per service should be disabled:
+  #   servicename:
+  #     tags:
+  #       redis: false   # disables template references to .Subcharts.redis
+  #     redis:
+  #       enabled: false # prevents subchart installation
+  #
+  # Database allocation:
+  #   objecttypen        : db 0  (cache)
+  #   objecten           : db 1  (cache), db 2  (celery)
+  #   opennotificaties   : db 3  (cache), db 6  (celery result backend; broker stays on RabbitMQ)
+  #   openzaak           : db 4  (cache), db 5  (celery)
+  #   openklant          : db 7  (cache), db 8  (celery)
+  #   openformulieren    : db 9  (cache), db 10 (celery)
+  #   openinwoner        : db 11 (cache), db 12 (celery)
+  #   openarchiefbeheer  : db 13 (cache+axes), db 14 (choices + celery)
+  redis-ha:
     enabled: true
+    replicaCount: 3
+    image:
+      registry: quay.io
+      repository: opstree/redis
+      tag: "v8.4.2"
+    redisExporter:
+      image:
+        registry: quay.io
+        repository: opstree/redis-exporter
+        tag: "v1.44.0"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: managed-csi
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              # -- Default storage per Redis replica. To increase, override in your environment values file.
+              # Note: managed-csi supports online volume expansion — patch the PVC directly after resizing:
+              #   kubectl patch pvc <pvc-name> -n <namespace> -p '{"spec":{"resources":{"requests":{"storage":"8Gi"}}}}'
+              storage: 2Gi
+    # -- Number of Redis databases to configure. Applied via an initContainer because `databases` is a
+    # startup-only parameter and the OT redis-operator does not include the additionalRedisConfig
+    # ConfigMap in the main redis.conf (operator limitation in v0.24.0).
+    databases: 32
+    # -- Image used by the initContainer that appends `databases N` to redis.conf.
+    # Override this in environments that restrict public Docker Hub pulls (e.g. point to an ACR mirror).
+    initContainerImage:
+      repository: busybox
+      tag: "1.37.0-glibc"
+    # -- Resources for the initContainer that configures redis.conf.
+    initContainerResources:
+      requests:
+        cpu: 10m
+        memory: 16Mi
+      limits:
+        cpu: 50m
+        memory: 32Mi
+    # -- Pod security context for Redis pods. fsGroup must match the redis container's GID (1000)
+    # so that mounted PVC data directories are writable by the redis process.
+    podSecurityContext:
+      fsGroup: 1000
+    redisConfig:
+      # -- Optional extra redis.conf directives for runtime-configurable parameters.
+      # Note: startup-only parameters (e.g. databases) will NOT take effect here due to an operator
+      # limitation; use the databases field above instead.
+      additionalRedisConfig: ""
 
 openzaak:
   configuration:
     enabled: true
+    notificatiesAuthorization:
+      enabled: true
+    notificaties:
+      enabled: true
     initContainer:
       enabled: false
     job:
@@ -604,6 +549,18 @@ openzaak:
       port: 587
       useTLS: true
     disable2fa: false
+    cache:
+      default: redis-ha-master.podiumd.svc.cluster.local:6379/4
+      axes: redis-ha-master.podiumd.svc.cluster.local:6379/4
+    celery:
+      brokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/5
+      resultBackendl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/5
+      # -- Set to debug for test/acceptance environments
+      logLevel: warning
+    uwsgi:
+      processes: "2"
+      threads: "4"
+      maxRequests: "1000"
   persistence:
     size: 10Gi
     existingClaim: openzaak
@@ -613,14 +570,17 @@ openzaak:
     tag: "1.26.0"
   resources:
     requests:
-      cpu: 100m
-      memory: 256Mi
+      cpu: 250m
+      memory: 512Mi
   worker:
     replicaCount: 1
+    livenessProbe:
+      enabled: true
+    maxWorkerLivenessDelta: "300"
     resources:
       requests:
-        cpu: 10m
-        memory: 480Mi
+        cpu: 200m
+        memory: 1Gi
   nameOverride: openzaak
   fullnameOverride: openzaak
   flower:
@@ -631,29 +591,19 @@ openzaak:
         cpu: 10m
         memory: 160Mi
   nginx:
+    image:
+      tag: "1.29.5"
     resources:
       requests:
         cpu: 10m
         memory: 16Mi
-  redis:
-    nameOverride: openzaak-redis
-    fullnameOverride: openzaak-redis
-    master:
-      persistence:
-        enabled: true
-        size: 8Gi
-        storageClass: ""
-      resources:
-        requests:
-          cpu: 10m
-          memory: 64Mi
+  tags:
+    redis: false
   otel:
     disabled: true
 
 opennotificaties:
   configuration:
-    enabled: true
-    overwrite: true
     http_request_job:
       enabled: false
     initContainer:
@@ -815,28 +765,48 @@ opennotificaties:
       port: 587
       useTLS: true
     disable2fa: false
+    cache:
+      default: redis-ha-master.podiumd.svc.cluster.local:6379/3
+      axes: redis-ha-master.podiumd.svc.cluster.local:6379/3
+    celery:
+      # -- Set to debug for test/acceptance environments
+      logLevel: warning
+    messageBroker:
+      celeryResultBackend: redis://redis-ha-master.podiumd.svc.cluster.local:6379/6
   persistence:
     size: 10Gi
     existingClaim: opennotificaties
   persistentVolume:
     volumeAttributeShareName: opennotificaties
   image:
-    tag: "1.14.0"
+    tag: "1.15.0"
   resources:
     requests:
       cpu: 100m
       memory: 256Mi
   worker:
     replicaCount: 1
+    livenessProbe:
+      enabled: true
+    maxWorkerLivenessDelta: "300"
     resources:
       requests:
         cpu: 50m
         memory: 386Mi
   nameOverride: opennotificaties
   fullnameOverride: opennotificaties
+  beat:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
   flower:
     enabled: false
   rabbitmq:
+    image:
+      registry: docker.io
+      repository: bitnamilegacy/rabbitmq
+      tag: 4.1.3-debian-12-r0
     resources:
       requests:
         cpu: 300m
@@ -847,26 +817,14 @@ opennotificaties:
       username: guest
       password: guest
       erlangCookie: SUPER-SECRET
-  redis:
-    nameOverride: opennotificaties-redis
-    fullnameOverride: opennotificaties-redis
-    master:
-      persistence:
-        enabled: true
-        size: 8Gi
-        storageClass: ""
-      resources:
-        requests:
-          cpu: 10m
-          memory: 64Mi
+  tags:
+    redis: false
   otel:
     disabled: true
 
 objecten:
   configuration:
     enabled: true
-    demo:
-      enabled: false
     initContainer:
       enabled: false
     job:
@@ -985,19 +943,31 @@ objecten:
       port: 587
       useTLS: true
     disable2fa: false
+    cache:
+      default: redis-ha-master.podiumd.svc.cluster.local:6379/1
+      axes: redis-ha-master.podiumd.svc.cluster.local:6379/1
+      oidc: redis-ha-master.podiumd.svc.cluster.local:6379/1
+    celery:
+      brokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/2
+      resultBackendl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/2
+      # -- Set to debug for test/acceptance environments
+      logLevel: warning
   persistence:
     size: 10Gi
     existingClaim: objecten
   persistentVolume:
     volumeAttributeShareName: objecten
   image:
-    tag: "3.5.0"
+    tag: "3.6.0"
   resources:
     requests:
       cpu: 100m
       memory: 256Mi
   worker:
     replicaCount: 1
+    livenessProbe:
+      enabled: true
+    maxWorkerLivenessDelta: "300"
     resources:
       requests:
         cpu: 50m
@@ -1006,23 +976,8 @@ objecten:
   fullnameOverride: objecten
   flower:
     enabled: false
-  redis:
-    nameOverride: objecten-redis
-    fullnameOverride: objecten-redis
-    master:
-      persistence:
-        enabled: true
-        size: 8Gi
-        storageClass: ""
-      resources:
-        requests:
-          cpu: 10m
-          memory: 64Mi
-    architecture: standalone
-    sentinel:
-      enabled: false
-      masterService:
-        enabled: false
+  tags:
+    redis: false
   otel:
     disabled: true
 
@@ -1107,8 +1062,15 @@ objecttypen:
       port: 587
       useTLS: true
     disable2fa: false
+    cache:
+      default: redis-ha-master.podiumd.svc.cluster.local:6379/0
+      axes: redis-ha-master.podiumd.svc.cluster.local:6379/0
+    uwsgi:
+      processes: "2"
+      threads: "2"
+      maxRequests: "1000"
   image:
-    tag: "3.4.0"
+    tag: "3.4.1"
   # used for create-required-objecttypen podiumd job only
   create_required_objecttypen_job:
     enabled: true
@@ -1118,18 +1080,8 @@ objecttypen:
       memory: 160Mi
   nameOverride: objecttypen
   fullnameOverride: objecttypen
-  redis:
-    nameOverride: objecttypen-redis
-    fullnameOverride: objecttypen-redis
-    master:
-      persistence:
-        enabled: true
-        size: 8Gi
-        storageClass: ""
-      resources:
-        requests:
-          cpu: 10m
-          memory: 64Mi
+  tags:
+    redis: false
   otel:
     disabled: true
 
@@ -1137,10 +1089,14 @@ openarchiefbeheer:
   enabled: false
   nameOverride: openarchiefbeheer
   fullnameOverride: openarchiefbeheer
+  settings:
+    # Note: these two values must be equal to prevent timeout mismatches.
+    oidcRenewIdTokenExpirySeconds: 1800
+    sessionCookieAge: 1800
   # Reference to an existing secret with the values needed for django-setup-configuration
   # existingConfigurationSecrets: nil
   configuration:
-    enabled: false
+    enabled: true
     oidcUrl: https://abc.example.nl
     oidcSecret: "abc"
     job:
@@ -1197,25 +1153,58 @@ openarchiefbeheer:
     #     items:
     #     - identifier: admin-oidc
     #       enabled: true
+    #       endpoint_config:
+    #         oidc_op_discovery_endpoint: https://example.keycloak.nl/realms/podiumd-poc/
+    #       oidc_rp_scopes_list:
+    #         - openid
+    #         - email
+    #         - profile
+    #       userinfo_claims_source: id_token
     #       oidc_rp_client_id: example-client-id
     #       oidc_rp_client_secret: ${keycloak_client_secret}
-    #       oidc_rp_sign_algo: "RS256"
-    #       oidc_token_use_basic_auth: false
+    #       oidc_rp_sign_algo: RS256
+    #       claim_mapping:
+    #         email:
+    #           - email
+    #         first_name:
+    #           - given_name
+    #         last_name:
+    #           - family_name
     #       username_claim:
     #         - preferred_username
     #       groups_claim:
-    #         - resource_access
-    #         - example-client-id
     #         - roles
+    #       sync_groups: true
+    #       sync_groups_glob_pattern: "*"
+    #       default_groups: []
+    #       make_users_staff: true
     #       superuser_group_names:
     #         - Superuser
-    #       userinfo_claims_source: userinfo_endpoint
-    #       oidc_rp_idp_sign_key: ""
-    #       endpoint_config:
-    #         oidc_op_discovery_endpoint: https://example.keycloak.nl/realms/podiumd-poc/
 
   tags:
-    redis: true
+    redis: false
+
+  worker:
+    livenessProbe:
+      enabled: true
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+
+  beat:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+
+  nginx:
+    image:
+      tag: "1.29.5"
+    resources:
+      requests:
+        cpu: 10m
+        memory: 16Mi
 
   replicaCount: 1
 
@@ -1253,32 +1242,21 @@ openarchiefbeheer:
       total: ""
       backoffFactor: ""
       statusForcelist: ""
+    cache:
+      default: redis-ha-master.podiumd.svc.cluster.local:6379/13
+      axes: redis-ha-master.podiumd.svc.cluster.local:6379/13
+      choices: redis-ha-master.podiumd.svc.cluster.local:6379/14
+    celery:
+      # -- Set to debug for test/acceptance environments
+      logLevel: warning
+      brokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/14
+      resultBackendl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/14
 
   persistence:
     size: 10Gi
     existingClaim: openarchiefbeheer
   persistentVolume:
     volumeAttributeShareName: openarchiefbeheer
-
-  redis:
-    nameOverride: openarchiefbeheer-redis
-    fullnameOverride: openarchiefbeheer-redis
-    architecture: standalone
-    auth:
-      enabled: false
-    master:
-      persistence:
-        enabled: true
-        size: 8Gi
-        storageClass: ""
-      resources:
-        requests:
-          cpu: 10m
-          memory: 20Mi
-    sentinel:
-      enabled: false
-      masterService:
-        enabled: false
 
 openklant:
   configuration:
@@ -1362,19 +1340,33 @@ openklant:
       port: 587
       useTLS: true
     disable2fa: false
+    cache:
+      default: redis-ha-master.podiumd.svc.cluster.local:6379/7
+      axes: redis-ha-master.podiumd.svc.cluster.local:6379/7
+    celery:
+      brokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/8
+      resultBackendl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/8
+      # -- Set to debug for test/acceptance environments
+      logLevel: warning
+    uwsgi:
+      processes: "2"
+      threads: "4"
+      maxRequests: "1000"
   persistence:
     size: 10Gi
     existingClaim: openklant
   persistentVolume:
     volumeAttributeShareName: openklant
   image:
-    tag: "2.14.0"
+    tag: "2.15.0"
   resources:
     requests:
       cpu: 100m
       memory: 300Mi
   worker:
     replicaCount: 1
+    livenessProbe:
+      enabled: true
     resources:
       requests:
         cpu: 50m
@@ -1382,22 +1374,14 @@ openklant:
   nameOverride: openklant
   fullnameOverride: openklant
   nginx:
+    image:
+      tag: "1.29.5"
     resources:
       requests:
         cpu: 10m
         memory: 16Mi
-  redis:
-    nameOverride: openklant-redis
-    fullnameOverride: openklant-redis
-    master:
-      persistence:
-        enabled: true
-        size: 8Gi
-        storageClass: ""
-      resources:
-        requests:
-          cpu: 10m
-          memory: 64Mi
+  tags:
+    redis: false
   otel:
     disabled: true
 
@@ -1558,6 +1542,14 @@ openformulieren:
     email:
       port: 587
       useTLS: true
+    cache:
+      default: redis-ha-master.podiumd.svc.cluster.local:6379/9
+      axes: redis-ha-master.podiumd.svc.cluster.local:6379/9
+    celery:
+      brokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/10
+      resultBackendl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/10
+      # -- Set to debug for test/acceptance environments
+      logLevel: warning
   persistence:
     size: 10Gi
     existingClaim: openformulieren
@@ -1566,17 +1558,20 @@ openformulieren:
   persistentVolume:
     volumeAttributeShareName: openformulieren
   image:
-    tag: "3.3.13"
+    tag: "3.4.7"
   resources:
     requests:
-      cpu: 100m
-      memory: 650Mi
+      cpu: 250m
+      memory: 1Gi
   worker:
     replicaCount: 1
+    livenessProbe:
+      enabled: true
+    maxWorkerLivenessDelta: "300"
     resources:
       requests:
-        cpu: 50m
-        memory: 512Mi
+        cpu: 200m
+        memory: 1Gi
   nameOverride: openformulieren
   fullnameOverride: openformulieren
   flower:
@@ -1587,24 +1582,16 @@ openformulieren:
         cpu: 10m
         memory: 160Mi
   nginx:
+    image:
+      tag: "1.29.5"
     resources:
       requests:
         cpu: 10m
         memory: 16Mi
     config:
       clientMaxBodySize: 100M
-  redis:
-    nameOverride: openformulieren-redis
-    fullnameOverride: openformulieren-redis
-    master:
-      persistence:
-        enabled: true
-        size: 8Gi
-        storageClass: ""
-      resources:
-        requests:
-          cpu: 10m
-          memory: 64Mi
+  tags:
+    redis: false
 
 openinwoner:
   configuration:
@@ -1749,26 +1736,49 @@ openinwoner:
       useTLS: true
     searchIndexInitContainer: true
     oidcFrontendLogoutWithHints: false
+    cache:
+      default: redis-ha-master.podiumd.svc.cluster.local:6379/11
+      axes: redis-ha-master.podiumd.svc.cluster.local:6379/11
+    celery:
+      brokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/12
+      resultBackendl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/12
+      # -- Set to debug for test/acceptance environments
+      logLevel: warning
   persistence:
     size: 10Gi
     existingClaim: openinwoner
   persistentVolume:
     volumeAttributeShareName: openinwoner
   image:
-    tag: "2.0.4"
+    tag: "2.1.0"
   resources:
     requests:
       cpu: 200m
       memory: 1Gi
   worker:
     replicaCount: 1
+    livenessProbe:
+      enabled: true
+    maxWorkerLivenessDelta: "300"
     resources:
       requests:
         cpu: 200m
         memory: 640Mi
+  beat:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+  celeryMonitor:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
   nameOverride: openinwoner
   fullnameOverride: openinwoner
   nginx:
+    image:
+      tag: "1.29.5"
     config:
       basicAuth:
         # Enable this when digid mock is set to digidMock: "true"
@@ -1782,25 +1792,65 @@ openinwoner:
       requests:
         cpu: 30m
         memory: 8Mi
-  redis:
-    nameOverride: openinwoner-redis
-    fullnameOverride: openinwoner-redis
-    master:
-      persistence:
-        enabled: true
-        size: 8Gi
-        storageClass: ""
-      resources:
-        requests:
-          cpu: 20m
-          memory: 64Mi
+  tags:
+    redis: false
   eck-elasticsearch:
     enabled: true
     version: "9.2.0"
+    # -- image: overrides the Elasticsearch image. ECK does NOT append :version when spec.image is set — include the full tag.
+    # For ACR: image: acrprodmgmt.azurecr.io/elasticsearch/elasticsearch:9.2.0
     http:
       tls:
         selfSignedCertificate:
           disabled: true
+    # -- nodeSets must be configured per environment. Example (override in your environment values file):
+    # nodeSets:
+    # - name: default
+    #   count: 1   # increase for larger environments (e.g. 3 for HA)
+    #   config:
+    #     cluster.initial_master_nodes:
+    #     - openinwoner-elasticsearch-es-default-0
+    #     node.roles:
+    #     - master
+    #     - data
+    #     - ingest
+    #     node.store.allow_mmap: false
+    #     xpack.security.authc:
+    #       anonymous:
+    #         username: anonymous
+    #         roles: superuser
+    #         authz_exception: false
+    #   podTemplate:
+    #     spec:
+    #       terminationGracePeriodSeconds: 60
+    #       nodeSelector:
+    #         kubernetes.azure.com/mode: user
+    #       containers:
+    #       - name: elasticsearch
+    #         resources:
+    #           # tune for larger environments; memory should match ES_JAVA_OPTS heap settings
+    #           requests:
+    #             cpu: 200m
+    #             memory: 1536Mi
+    #           limits:
+    #             cpu: 1000m
+    #             memory: 1536Mi
+    #         env:
+    #         - name: ES_JAVA_OPTS
+    #           value: "-Xms1g -Xmx1g"   # set heap to ~75% of memory limit; increase for larger envs
+    #         - name: PRE_STOP_ADDITIONAL_WAIT_SECONDS
+    #           value: "15"
+    #   # volumeClaimTemplates is immutable — changing it requires deleting the StatefulSet and PVC manually.
+    #   volumeClaimTemplates:
+    #   - metadata:
+    #       name: elasticsearch-data
+    #     spec:
+    #       accessModes:
+    #       - ReadWriteOnce
+    #       storageClassName: managed-csi
+    #       resources:
+    #         requests:
+    #           storage: 8Gi
   eck-operator:
     enabled: false
 
@@ -1820,10 +1870,14 @@ kiss:
   image:
     #   repository: "ghcr.io/klantinteractie-servicesysteem/kiss-frontend"
     pullPolicy: IfNotPresent
-    tag: 2.1.0
+    tag: 2.2.2
   enabled: true
   nameOverride: contact
   fullnameOverride: contact
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
   # -- Optionally specify extra list of additional environment variables. Not necesarry for KvK / BRP headers, use the settings for these
   extraEnvVars: []
   # -- Optionally specify extra list of additional volumes, for example to trust extra ca certificates.
@@ -1969,13 +2023,16 @@ kiss:
     syncJobs:
       image:
         # repository: "ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync"
-        tag: "0.3.0"
+        tag: "0.3.2"
         pullPolicy: IfNotPresent
       kennisbank:
         baseUrl: ""
         historyLimit: 1
         objectTypeUrl: ""
-        resources: {}
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
         schedule: "*/59 * * * *"
         token: ""
 
@@ -1986,7 +2043,10 @@ kiss:
         clientSecret: ""
         historyLimit: 1
         objectTypeUrl: ""
-        resources: {}
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
         schedule: "*/59 * * * *"
 
       vac:
@@ -1995,7 +2055,10 @@ kiss:
         historyLimit: 1
         objectTypeUrl: ""
         objectTypeVersion: 1
-        resources: {}
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
         schedule: "*/59 * * * *"
         token: ""
 
@@ -2031,7 +2094,7 @@ kiss:
     secret: ""
     image:
       # repository: ghcr.io/icatt-menselijk-digitaal/podiumd-adapter
-      tag: "0.6.4"
+      tag: "0.6.6"
       pullPolicy: IfNotPresent
     resources:
       requests:
@@ -2122,18 +2185,22 @@ zac:
     code: "007"
     naam: "Example Gemeente"
     mail: "noreply@example.nl"
-  # curlimages/curl:8.16.0
+  # curlimages/curl:8.18.0
   global:
     curlImage:
       #repository: curlimages/curl
-      tag: 8.16.0
-  # ghcr.io/infonl/zaakafhandelcomponent:4.0.12-1
+      tag: 8.18.0
+  # ghcr.io/infonl/zaakafhandelcomponent:4.3.61
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
-    tag: 4.0.12-1
+    tag: 4.3.61 # ZAC Sprint 65 versie
   initContainer:
-    enabled: false
+    enabled: true
+    resources:
+      requests:
+        cpu: 50m
+        memory: 256Mi
   keycloak:
     adminClient:
       id: zac-admin-client
@@ -2154,11 +2221,15 @@ zac:
   nginx:
     enabled: true
     client_max_body_size: 150M
-    # nginxinc/nginx-unprivileged:1.29.1
+    # nginxinc/nginx-unprivileged:1.29.5
     image:
       # repository: nginxinc/nginx-unprivileged
-      tag: 1.29.2
-  # notificationsSecretKey: "changeme"
+      tag: 1.29.5
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+  notificationsSecretKey: "changeme"
   objectenApi:
     url: http://objecten.example.nl
     token: objectentoken
@@ -2166,16 +2237,20 @@ zac:
     url: http://objecttypen.example.nl
     token: objecttypentoken
   office_converter:
-    # ghcr.io/eugenmayer/kontextwork-converter:1.8.1
+    # ghcr.io/eugenmayer/kontextwork-converter:1.8.2
     image:
       #repository: ghcr.io/eugenmayer/kontextwork-converter
-      tag: 1.8.1
+      tag: 1.8.2
   opa:
     sidecar: true
-    # openpolicyagent/opa:1.9.0-static
+    # openpolicyagent/opa:1.14.0-static
     image:
       #repository: openpolicyagent/opa
-      tag: 1.9.0-static
+      tag: 1.14.0-static
+    resources:
+      requests:
+        cpu: 10m
+        memory: 20Mi
   openForms:
     url: http://open-forms.example.nl
   organizations:
@@ -2202,6 +2277,13 @@ zac:
       #repository:
       tag: v0.9.1
     nodeSelector: {}
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
     solr:
       # library/busybox:1.37.0-glibc
       busyBoxImage:
@@ -2209,14 +2291,21 @@ zac:
         tag: 1.37.0-glibc
       # -- set enabled to provision solrcloud as well
       enabled: true
-      # library/solr:9.9.0
+      # library/solr:9.10.1-slim
       image:
         #repository:
-        tag: 9.9.0
+        tag: 9.10.1-slim
       # -- define memory settings for solr in the solrcloud
       javaMem: -Xms512m -Xmx768m
       jobs:
         createZacCore: true
+      resources:
+        requests:
+          cpu: 500m
+          memory: 1Gi
+        limits:
+          cpu: 2000m
+          memory: 2Gi
     # -- namespaces to watch for solr-operator
     watchNamespaces: "podiumd"
     # -- install crds using https://github.com/pravega/zookeeper-operator/blob/master/charts/zookeeper-operator/templates/zookeeper.pravega.io_zookeeperclusters_crd.yaml
@@ -2232,6 +2321,13 @@ zac:
       image:
         #repository:
         tag: 0.2.15
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 200m
+          memory: 128Mi
       # -- namespaces to watch for zookeeper-operator
       watchNamespace: "podiumd"
       zookeeper:
@@ -2239,6 +2335,13 @@ zac:
         image:
           #repository:
           tag: 0.2.15
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
   zgwApis:
     url: http://open-zaak.internal
     urlExtern: http://open-zaak.example.nl
@@ -2256,14 +2359,22 @@ zgw-office-addin:
     # -- MS Azure Client ID assigned to the Office Add-in application
     msalClientId: "dummy"
   frontend:
-    # ghcr.io/infonl/zgw-office-add-in-frontend:v0.9.28
+    # ghcr.io/infonl/zgw-office-add-in-frontend:v0.9.133
     image:
-      tag: v0.9.28
+      tag: v0.9.133
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
   backend:
     msalSecret: "dummy"
-    # ghcr.io/infonl/zgw-office-add-in-backend:v0.9.28
+    # ghcr.io/infonl/zgw-office-add-in-backend:v0.9.133
     image:
-      tag: v0.9.28
+      tag: v0.9.133
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
     # -- ZGW API configuration for integration with the ZGW APIs provider (OpenZaak)
     zgwApis:
       url: "https://openzaak.example.nl"
@@ -2271,7 +2382,7 @@ zgw-office-addin:
 
 clamav:
   image:
-    tag: "1.4.2"
+    tag: "1.4.4"
   nameOverride: clamav
   fullnameOverride: clamav
   clamdConfig: |
@@ -2287,6 +2398,10 @@ clamav:
     LocalSocket /tmp/clamd.sock
     TCPSocket 3310
     Foreground yes
+    # Reload database sequentially to avoid double memory usage (~1.2 GiB vs ~2.4 GiB)
+    # Scans are briefly blocked during reload, which is acceptable
+    ConcurrentDatabaseReload no
+    MaxThreads 10
 
     ###############
     # Results
@@ -2316,11 +2431,13 @@ clamav:
     ScanArchive yes
 
     ###############
-    # Scan
+    # Limits
     ###############
 
     MaxScanSize 150M
-    MaxFileSize 30M
+    MaxFileSize 100M
+    # Match MaxFileSize so stream scans have the same ceiling as file scans
+    StreamMaxLength 100M
     MaxRecursion 10
     MaxFiles 15000
     MaxEmbeddedPE 10M
@@ -2337,10 +2454,7 @@ clamav:
     # General
     ###############
 
-    DatabaseDirectory /var/lib/clamav/
-    UpdateLogFile /dev/stdout
-    LogTime yes
-    # CUSTOM: Use pid file in tmp
+    DatabaseDirectory /var/lib/clamav
     PidFile /tmp/freshclam.pid
     # CUSTOM: Set defined user
     DatabaseOwner 2000
@@ -2353,10 +2467,31 @@ clamav:
     ScriptedUpdates yes
     NotifyClamd /etc/clamav/clamd.conf
     Bytecode yes
+  persistentVolume:
+    enabled: true
+    size: 2Gi
+    storageClass: managed-csi
+  # The chart hardcodes the clamav-data volume mount at /data, but the official clamav/clamav
+  # entrypoint checks /var/lib/clamav/main.cvd to decide whether to run freshclam synchronously
+  # before starting clamd (cold-start bootstrap). By also mounting the PVC at /var/lib/clamav,
+  # the entrypoint correctly waits for freshclam on first boot with an empty volume.
+  extraVolumeMounts:
+    - name: clamav-data
+      mountPath: /var/lib/clamav
+  startupProbe:
+    initialDelaySeconds: 60
+    periodSeconds: 30
+    # Cold start loads 3.2M signatures from disk; first boot can take >3 min before page cache is warm.
+    # 60 + (9-1)*30 = 300s = 5 min total allowance.
+    failureThreshold: 9
+    timeoutSeconds: 5
   resources:
     requests:
+      cpu: 250m
+      memory: 2Gi
+    limits:
       cpu: 1000m
-      memory: 4Gi
+      memory: 3Gi
 
 apiproxy:
   enabled: false
@@ -2368,7 +2503,7 @@ apiproxy:
   #nameOverride: "iconnect-proxy"
   image:
     repository: nginx
-    tag: "1.29.4"
+    tag: "1.29.5"
     pullPolicy: IfNotPresent
   service:
     port: 80
@@ -2481,7 +2616,7 @@ ita:
   web:
     image:
       # repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web"
-      tag: "2.0.1"
+      tag: "2.1.1"
       pullPolicy: IfNotPresent
 
     service:
@@ -2511,7 +2646,7 @@ ita:
 
     image:
       repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller"
-      tag: "2.0.1"
+      tag: "2.1.1"
       pullPolicy: Always
 
     notification:
@@ -2561,3 +2696,63 @@ pabc:
     keycloakAdmin:
       clientId: "pabc-keycloak-admin"
       clientSecret: ""
+
+  resources:
+    requests:
+      memory: "384Mi"
+      cpu: "10m"
+    limits:
+      memory: "768Mi"
+      cpu: "200m"
+
+omc:
+  enabled: false
+  fullnameOverride: "omc"
+  image:
+    # repository: ghcr.io/worth-nl/notifynl-omc
+    tag: "1.17.18"
+  # BELOW are the resource settings from the subchart, notifynl-omc-nodep which we do not override
+  # app:
+  #   port: 5270
+  #   resources:
+  #     requests:
+  #       cpu: 250m
+  #       memory: 128Mi
+  #     limits:
+  #       cpu: 500m
+  #       memory: 512Mi
+  settings:
+    notify:
+      api:
+        baseUrl: "https://api.notifynl.nl"
+    omc:
+      auth:
+        jwt:
+          # NEEDS new KeyVault item: REP_OMC_AUTH_SECRET_REP
+          secret: ""
+          issuer: "omc"
+          audience: "omc"
+          userId: "OMC (PodiumD)"
+          userName: "OMC (PodiumD)"
+      feature:
+        workflow:
+          version: 2
+    zgw:
+      auth:
+        jwt:
+          secret: ""
+          issuer: ""
+          userId: "OMC (PodiumD)"
+          userName: "OMC (PodiumD)"
+      variable:
+        # including dummy defaults for object types, because R'dam wants to POC with object-scenario's
+        objectType:
+          taskObjectType:
+            uuid: 00000000-0000-1000-b000-000000000000
+          messageObjectType:
+            uuid: 00000000-0000-1000-b000-000000000000
+            version: 1
+          decisionInfoObjectType:
+            uuids: "00000000-0000-1000-b000-000000000000"
+          ktoObjectType:
+            uuid: 00000000-0000-1000-b000-000000000000

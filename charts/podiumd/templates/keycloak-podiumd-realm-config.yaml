@@ -1,5 +1,5 @@
-{{- if .Values.keycloak.enabled -}}
-{{- if .Values.keycloak.keycloakConfigCli.enabled -}}
+{{- if (index .Values "keycloak-operator").enabled -}}
+{{- if (index .Values "keycloak-operator").jobs.importPodiumdRealm.enabled -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -12,18 +12,35 @@ data:
     realm: {{ .Values.keycloak.config.realm }}
     enabled: true
     displayName: {{ .Values.keycloak.config.realmDisplayName }}
+    # This realm is exclusively for beheer (management) users and municipality staff.
+    # Citizens are not authenticated here — they use centralized login methods (e.g. DigiD)
+    # configured per application. Settings are therefore calibrated for privileged/internal users.
     loginWithEmailAllowed: true
-    rememberMe: true
+    # rememberMe disabled: persistent sessions are not appropriate for privileged/admin users.
+    # Recommended by BIO 2.0 §5.17, NCSC session management guidelines, and OWASP ASVS L2 §3.3.
+    rememberMe: false
+    registrationAllowed: false
     attributes:
       frontendUrl: {{ .Values.keycloak.config.realmFrontendUrl }}
-      adminEventsExpiration: 10800
+      adminEventsExpiration: 2592000
     browserSecurityHeaders:
       xContentTypeOptions: "nosniff"
       xRobotsTag: "none"
       xFrameOptions: "SAMEORIGIN"
       contentSecurityPolicy: "frame-src 'self'; frame-ancestors 'self'; object-src 'none';"
       xXSSProtection: "1; mode=block"
-      strictTransportSecurity: ""
+      strictTransportSecurity: "max-age=31536000; includeSubDomains"
+    bruteForceProtected: true
+    failureFactor: 5
+    revokeRefreshToken: true
+    eventsEnabled: true
+    adminEventsEnabled: true
+    adminEventsDetailsEnabled: true
+    eventsExpiration: 2592000
+    offlineSessionMaxLifespanEnabled: true
+    offlineSessionMaxLifespan: 7776000
+    accessTokenLifespan: 60
+    passwordPolicy: "length(12) and notUsername(undefined) and notEmail(undefined) and passwordHistory(5)"
     requiredActions:
       - name: "Configure OTP"
         providerId: CONFIGURE_TOTP
@@ -615,13 +632,6 @@ data:
       from: {{ .Values.keycloak.config.smtp.from }}
       fromDisplayName: {{ .Values.keycloak.config.smtp.fromDisplayName }}
       ssl: {{ .Values.keycloak.config.smtp.ssl }}
-    browserSecurityHeaders:
-      xContentTypeOptions: "nosniff"
-      xRobotsTag: "none"
-      xFrameOptions: "SAMEORIGIN"
-      contentSecurityPolicy: "frame-src 'self'; frame-ancestors 'self'; object-src 'none';"
-      xXSSProtection: "1; mode=block"
-      strictTransportSecurity: ""
     {{- if not .Values.keycloak.config.skipRoles }}
     roles:
       realm:
@@ -760,15 +770,6 @@ data:
             - "domein_elk_zaaktype"
             - "raadpleger"
     {{- end }}
-    requiredActions:
-      - name: "Configure OTP"
-        providerId: CONFIGURE_TOTP
-        enabled: "true"
-        defaultAction: "true"
-        alias: CONFIGURE_TOTP
-    eventsEnabled: "true"
-    eventsExpiration: "10800"
-    adminEventsEnabled: "true"
 {{- with .Values.keycloak.config.realmIdentityProviders }}
     {{- toYaml . | nindent 4 }}
 {{- end }}
