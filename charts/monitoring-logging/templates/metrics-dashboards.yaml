@@ -17,3 +17,5 @@ data:
 {{ .Files.Get "dashboards/metrics/keycloak.json" | indent 4 }}
   otel-collector.json: |-
 {{ .Files.Get "dashboards/metrics/otel-collector.json" | indent 4 }}
+  podiumd-django-red.json: |-
+{{ .Files.Get "dashboards/metrics/podiumd-django-red.json" | indent 4 }}
