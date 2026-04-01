@@ -576,6 +576,8 @@ tempo:
 # Exports: logs → Loki, metrics → Prometheus, traces → Tempo (when enabled).
 # Applications should send OTLP to <release-name>-opentelemetry-collector:4317 (gRPC)
 # or <release-name>-opentelemetry-collector:4318 (HTTP).
+# See otel.md for per-service instrumentation config.
+# #OTel instrumentation
 opentelemetry-collector:
   enabled: true
   mode: deployment
