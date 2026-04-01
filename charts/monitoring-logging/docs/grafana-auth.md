@@ -1,6 +1,6 @@
 # Grafana Authentication
 
-Grafana is configured with **Keycloak OIDC as the primary login method**. Users are auto-redirected to Keycloak on every visit. A local admin account exists as a fallback for break-glass access when Keycloak is unavailable.
+Grafana is configured with **Keycloak OIDC as the only login method**. Users are auto-redirected to Keycloak on every visit. No local login form is shown by default.
 
 ---
 
@@ -9,10 +9,7 @@ Grafana is configured with **Keycloak OIDC as the primary login method**. Users 
 | Scenario | Behaviour |
 |---|---|
 | Normal user visits Grafana | Auto-redirected to Keycloak (`oauth_auto_login: true`) |
-| Keycloak is down / unreachable | Navigate to `/login?disableAutoLogin` — local login form appears |
-| Local admin login | Username `admin`, password set via secret (see below) |
-
-> The login form is **not shown by default** but is reachable. Grafana's `oauth_auto_login` only kicks in when no `disableAutoLogin` query param is present.
+| Local login form | Disabled (`disable_login_form: true`) |
 
 ---
 
@@ -52,21 +49,19 @@ kubectl create secret generic grafana-oauth \
   --from-literal=client_secret="<your-client-secret>"
 ```
 
-Reference it in `values-monitoring.yaml`:
-
 ```yaml
+# values-monitoring.yaml
 grafana:
   envFromSecret: grafana-oauth
-  # or use extraSecretMounts / env if your chart version supports it
 ```
 
 ---
 
-## Local admin account (break-glass)
+## Break-glass access (Keycloak unavailable)
 
-The Grafana Helm chart generates a random `admin` password and stores it in a Kubernetes secret (`<release>-grafana`). This password is unknown unless you set it explicitly.
+By default there is no local login. If you need emergency access when Keycloak is down:
 
-**Set a known admin password** by creating a secret and referencing it:
+**Before an incident** — set a known admin password:
 
 ```bash
 kubectl create secret generic grafana-admin \
@@ -84,14 +79,23 @@ grafana:
     passwordKey: admin-password
 ```
 
-> Store this password in your team's vault (Azure Key Vault, Bitwarden, etc.). It is the only way into Grafana if Keycloak is unavailable.
+> Store this password in your team's vault. Without it the auto-generated password is unknown.
 
-### Break-glass login procedure
+**During an incident** — temporarily re-enable the login form via a patch:
 
-1. Navigate to `https://<grafana-hostname>/login?disableAutoLogin`
-2. Enter username `admin` and the password from the secret above
-3. Restore Keycloak or perform any emergency dashboard/datasource changes
-4. Log out when done — normal users are unaffected
+```bash
+# Enable the login form without a full Helm upgrade
+kubectl patch configmap <release>-grafana \
+  --namespace <monitoring-ns> \
+  --type merge \
+  -p '{"data":{"grafana.ini":"[auth]\ndisable_login_form = false\n"}}'
+
+kubectl rollout restart deployment/<release>-grafana -n <monitoring-ns>
+```
+
+Then log in at `https://<grafana-hostname>/login` with `admin` / vault password.
+
+Revert with a normal `helm upgrade` after the incident.
 
 ---
 
