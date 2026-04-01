@@ -23,7 +23,28 @@ MinIO mounts 2 drives and uses erasure coding — losing one drive does **not** 
 
 ---
 
-## Production: Azure Blob Storage
+## Option A — HA MinIO (test/staging clusters)
+
+If switching to Azure Blob is not yet feasible, MinIO can be made pod-HA by running in distributed mode. MinIO requires a minimum of **4 drives total** (`replicas × drivesPerNode ≥ 4`) for distributed erasure coding.
+
+```yaml
+# values-monitoring.yaml
+loki:
+  minio:
+    replicas: 2        # 2 pods × 2 drives = 4 drives total
+    drivesPerNode: 2   # EC:2 — survives loss of 1 pod or 2 drives simultaneously
+    persistence:
+      storageClass: managed-csi
+      size: 20Gi       # per drive — 4× 20Gi = 80Gi raw, ~40Gi usable after parity
+```
+
+> Alternatively `replicas: 4, drivesPerNode: 1` spreads across 4 pods (survives 2 simultaneous pod losses) at the cost of 4 separate disks.
+
+This is sufficient for test-rig and development clusters. For real gemeente production deployments, use Azure Blob Storage (Option B below).
+
+---
+
+## Option B — Azure Blob Storage (production)
 
 ### 1. Create Azure resources
 
