@@ -248,12 +248,12 @@ loki:
 
 | Image | Original URL |
 |---|---|
-| OTel Collector K8s | `ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-k8s:0.147.0` |
+| OTel Collector contrib | `ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.147.0` |
 
 ```yaml
 opentelemetry-collector:
   image:
-    repository: <acr>/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-k8s
+    repository: <acr>/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib
 ```
 
 > The OTel collector chart embeds the registry in `repository`. Prefix with `<acr>/` and omit `ghcr.io/`.

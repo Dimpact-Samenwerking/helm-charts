@@ -712,11 +712,12 @@ opentelemetry-collector:
   mode: deployment
   image:
     # otel-collector image settings
-    # ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-k8s:0.147.0
-    repository: ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-k8s
+    # ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.147.0
+    # Using contrib (not k8s) — required for prometheusremotewrite exporter
+    repository: ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib
     pullPolicy: IfNotPresent
   command:
-    name: otelcol-k8s
+    name: otelcol-contrib
   nodeSelector:
     agentpool: userpool
   # -- Expose OTLP gRPC and HTTP ports
