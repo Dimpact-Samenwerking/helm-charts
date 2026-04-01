@@ -113,11 +113,16 @@ Supports optional mTLS (`nginxCertsSecret`) and response URL rewriting via nginx
 ## Key Conventions
 
 ### Resource Requests and Limits
-Every container in every template **must** declare `requests` and `limits` for CPU and memory. This includes:
-- All custom templates (Deployments, Jobs, init containers, sidecars)
-- Sub-chart components wired through `values.yaml`
+Every container in every chart in this repository **must** declare `requests` and `limits` for CPU and memory. This applies to:
+- All custom templates (Deployments, DaemonSets, StatefulSets, Jobs, CronJobs, init containers, sidecars)
+- All sub-chart components wired through a chart's `values.yaml`
 
-Wire sub-chart resources via the sub-chart's documented key (e.g., `openzaak.resources`, `keycloak-operator.operator.resources`). Document defaults and chart limitations in `charts/podiumd/docs/resource-overview.md`. If a sub-chart does not expose a `resources` key, note it there and raise it with the upstream team.
+**When adding a new component or sub-chart**, always set its resources in `values.yaml` based on observed usage on a real cluster. Use `kubectl top pods` to get a baseline, then set:
+- `requests`: representative of steady-state usage (gives the scheduler accurate data)
+- `limits.memory`: generous enough to survive load spikes (OOM kills are worse than throttling)
+- `limits.cpu`: can be tighter — CPU throttling is acceptable, OOM is not
+
+Wire sub-chart resources via the sub-chart's documented key (e.g., `openzaak.resources`, `keycloak-operator.operator.resources`). Document defaults and chart limitations in the chart's `docs/resource-overview.md`. If a sub-chart does not expose a `resources` key, note it there and raise it with the upstream team.
 
 ### Image References
 All images in podiumd templates must use `{{ include "podiumd.image" <image> }}` with a `{registry, repository, tag}` map in `values.yaml`. Never embed plain strings like `"repo:tag"` directly in templates.

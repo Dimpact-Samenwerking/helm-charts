@@ -3,6 +3,13 @@ grafana:
   assertNoLeakedSecrets: false
   nodeSelector:
     agentpool: userpool
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
   deleteDatasources:
     - name: Alertmanager
     
@@ -198,6 +205,13 @@ prometheus:
       accessModes: ["ReadWriteOnce"]
     nodeSelector:
       agentpool: userpool
+    resources:
+      requests:
+        cpu: 100m
+        memory: 512Mi
+      limits:
+        cpu: "1"
+        memory: 2Gi
   prometheusSpec:
     logLevel: warn
     serviceMonitorSelectorNilUsesHelmValues: false
@@ -209,6 +223,13 @@ prometheus:
   prometheus-node-exporter:
     nodeSelector:
       agentpool: userpool
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 64Mi
     # node-exporter image settings
     image:
       pullPolicy: IfNotPresent
@@ -221,6 +242,13 @@ prometheus:
   prometheus-pushgateway:
     nodeSelector:
       agentpool: userpool
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 64Mi
     # pushgateway image settings
     image:
       pullPolicy: IfNotPresent
@@ -228,12 +256,26 @@ prometheus:
   kube-state-metrics:
     nodeSelector:
       agentpool: userpool
+    resources:
+      requests:
+        cpu: 10m
+        memory: 64Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
     # kube-state-metrics image settings
     image:
       pullPolicy: IfNotPresent
       tag: v2.17.0
   configmapReload:
     prometheus:
+      resources:
+        requests:
+          cpu: 5m
+          memory: 16Mi
+        limits:
+          cpu: 50m
+          memory: 32Mi
       # prometheus-config-reloader image settings
       image:
         tag: v0.85.0
@@ -398,28 +440,70 @@ loki:
     maxUnavailable: 1
     nodeSelector:
       agentpool: userpool
+    resources:
+      requests:
+        cpu: 20m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
   queryScheduler:
     replicas: 2
     nodeSelector:
       agentpool: userpool
+    resources:
+      requests:
+        cpu: 20m
+        memory: 64Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
   queryFrontend:
     replicas: 2
     maxUnavailable: 1
     nodeSelector:
       agentpool: userpool
+    resources:
+      requests:
+        cpu: 20m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
   distributor:
     replicas: 3
     maxUnavailable: 2
     nodeSelector:
       agentpool: userpool
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
   querier:
     replicas: 3
     maxUnavailable: 2
     nodeSelector:
       agentpool: userpool
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
   gateway:
     nodeSelector:
       agentpool: userpool
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 64Mi
     # nginx-unprivileged image settings
     image:
       pullPolicy: IfNotPresent
@@ -428,6 +512,13 @@ loki:
     replicas: 3
     nodeSelector:
       agentpool: userpool
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
     zoneAwareReplication:
       zoneA:
         nodeSelector:
