@@ -8,15 +8,18 @@ The chart ships with embedded **MinIO** as the object store. This is suitable fo
 
 | Setting | Value |
 |---|---|
-| Object store | MinIO (single-node, in-cluster) |
-| PVC size | 20Gi |
+| Object store | MinIO (single pod, 2x 20Gi drives, erasure coding) |
+| PVCs | `export-0` + `export-1` — 20Gi each (`managed-csi`) |
 | Storage class | `managed-csi` (Azure disk) |
 | Schema `object_store` | `s3` (MinIO is S3-compatible) |
 
-**Why this is not production-ready:**
-- MinIO is a single pod — any restart loses in-flight chunks until they are flushed
-- 20Gi fills up quickly under real workloads (30-day retention + distributed mode)
-- `managed-csi` (Azure managed disk) is block storage — lower throughput and higher cost per GB than Azure Blob
+MinIO mounts 2 drives and uses erasure coding — losing one drive does **not** lose data. However, it runs as a **single pod** (`monitoring-minio-0`): if that pod is unavailable, Loki ingesters cannot flush chunks. In-memory chunks are protected by the ingester WAL (3 zone-aware replicas), but any prolonged MinIO downtime blocks writes to storage.
+
+**Why this is still not production-ready:**
+- Single pod = availability risk (no MinIO HA / distributed mode)
+- 2x 20Gi = 40Gi total raw; erasure coding gives ~20Gi usable — will fill under real 30-day retention
+- `managed-csi` (Azure disk) has lower throughput than Azure Blob for this access pattern
+- No automated backup of the MinIO volumes
 
 ---
 
