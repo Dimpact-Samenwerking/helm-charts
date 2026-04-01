@@ -21,7 +21,7 @@ The following are **chart defaults** that must be overridden per environment in 
 grafana:
   grafana.ini:
     auth.generic_oauth:
-      client_id: "<grafana-client-id>"
+      client_id: "monitoring"
       client_secret: "${GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET}"   # inject via secret
       auth_url: "https://<keycloak-host>/realms/<realm>/protocol/openid-connect/auth"
       token_url: "https://<keycloak-host>/realms/<realm>/protocol/openid-connect/token"
@@ -106,5 +106,5 @@ Revert with a normal `helm upgrade` after the incident.
 - [ ] `server.domain` and `root_url` set to actual hostname
 - [ ] `grafana-admin` secret created with a known password stored in vault
 - [ ] `grafana.admin.existingSecret` set in `values-monitoring.yaml`
-- [ ] Keycloak client `grafana` created with `monitoring_roles` claim mapper
-- [ ] Grafana redirect URI `https://<hostname>/login/generic_oauth` added to Keycloak client
+- [ ] Keycloak client `monitoring` created with `monitoring_roles` claim mapper
+- [ ] Grafana redirect URI `https://<hostname>/login/generic_oauth` added to Keycloak client `monitoring`
