@@ -58,6 +58,7 @@ grafana:
             nodeGraph:
               enabled: true
   # -- curl image settings
+  # docker.io/curlimages/curl:8.16.0
   downloadDashboardsImage:
     pullPolicy: IfNotPresent
     sha: ""
@@ -155,23 +156,27 @@ grafana:
       kubernetesDashboards: true
       grafanaAPIServerEnsureKubectlAccess: true
   # -- Grafana image settings
+  # docker.io/grafana/grafana:12.3.0-17814087142-ubuntu
   image:
     pullPolicy: IfNotPresent
     tag: 12.3.0-17814087142-ubuntu
 
   initChownData:
     # -- Busybox image settings
+    # docker.io/library/busybox:1.37.0-uclibc
     image:
       pullPolicy: IfNotPresent
       tag: 1.37.0-uclibc
 
   imageRenderer:
     # -- Grafana image renderer settings
+    # docker.io/grafana/grafana-image-renderer:v4.0.14
     image:
       pullPolicy: Always
       tag: v4.0.14
   testFramework:
     # -- bats image settings
+    # docker.io/bats/bats:1.12.0
     image:
       tag: 1.12.0
     imagePullPolicy: IfNotPresent
@@ -194,6 +199,7 @@ prometheus:
   enabled: true
   server:
     # -- prometheus image settings
+    # quay.io/prometheus/prometheus:v3.6.0
     image:
       tag: v3.6.0
     extraFlags:
@@ -231,11 +237,13 @@ prometheus:
         cpu: 100m
         memory: 64Mi
     # node-exporter image settings
+    # quay.io/prometheus/node-exporter:v1.9.1
     image:
       pullPolicy: IfNotPresent
       tag: v1.9.1
     kubeRBACProxy:
       # kube-rbac-proxy image settings
+      # quay.io/brancz/kube-rbac-proxy:0.19.1
       image:
         pullPolicy: IfNotPresent
         tag: 0.19.1
@@ -250,6 +258,7 @@ prometheus:
         cpu: 100m
         memory: 64Mi
     # pushgateway image settings
+    # quay.io/prometheus/pushgateway:v1.11.1
     image:
       pullPolicy: IfNotPresent
       tag: v1.11.1
@@ -264,6 +273,7 @@ prometheus:
         cpu: 100m
         memory: 128Mi
     # kube-state-metrics image settings
+    # registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.17.0
     image:
       pullPolicy: IfNotPresent
       tag: v2.17.0
@@ -277,6 +287,7 @@ prometheus:
           cpu: 50m
           memory: 32Mi
       # prometheus-config-reloader image settings
+      # quay.io/prometheus-operator/prometheus-config-reloader:v0.85.0
       image:
         tag: v0.85.0
 
@@ -370,9 +381,11 @@ alloy:
         memory: 256Mi
   image:
     pullPolicy: IfNotPresent
+    # docker.io/grafana/alloy:v1.14.0
 loki:
   enabled: true
-  # loki image settings
+  # loki image settings — all loki components use the same image
+  # docker.io/grafana/loki:3.6.7
   #global:
   #  image:
   #    registry: acrprodmgmt.azurecr.io
@@ -380,6 +393,7 @@ loki:
   lokiCanary:
     enabled: false
     # loki-canary image settings
+    # docker.io/grafana/loki-canary:3.6.7
     # image is not used
     
    # image:
@@ -387,11 +401,13 @@ loki:
    #   tag: 3.5
   memcached:
     # memcached image settings
+    # docker.io/library/memcached:alpine3.22
     image:
       pullPolicy: IfNotPresent
       tag: alpine3.22
   memcachedExporter:
-    # memcached-export image settings
+    # memcached-exporter image settings
+    # docker.io/prom/memcached-exporter:v0.15.3
     image:
       pullPolicy: IfNotPresent
       tag: v0.15.3
@@ -404,6 +420,7 @@ loki:
 
   sidecar:
     # k8s-sidecar image settings
+    # docker.io/kiwigrid/k8s-sidecar:1.30.10
     image:
       pullPolicy: IfNotPresent
       tag: 1.30.10
@@ -417,11 +434,13 @@ loki:
       agentpool: userpool
   enterprise:
     # enterprise-logs image settings
+    # docker.io/grafana/enterprise-logs:3.5.4
     image:
       pullPolicy: IfNotPresent
       tag: 3.5.4
     provisioner:
       # enterprise-logs-provisioner image settings
+      # us-docker.pkg.dev/grafanalabs-global/docker-enterprise-provisioner-prod/enterprise-provisioner:3.5.2
       image:
         pullPolicy: IfNotPresent
         tag: 3.5.2
@@ -505,6 +524,7 @@ loki:
         cpu: 100m
         memory: 64Mi
     # nginx-unprivileged image settings
+    # docker.io/nginxinc/nginx-unprivileged:alpine3.22-perl
     image:
       pullPolicy: IfNotPresent
       tag: alpine3.22-perl
@@ -531,13 +551,14 @@ loki:
           agentpool: userpool
 
   # kubectl image settings
+  # docker.io/bitnami/kubectl:1.33.3-debian-12-r1
   kubectlImage:
     tag: 1.33.3-debian-12-r1
     pullPolicy: IfNotPresent
   test:
     enabled: false
     # loki-helm-test image settings
-    # image is not used
+    # docker.io/grafana/loki-helm-test (not used)
 
     #  image:
     #    pullPolicy: IfNotPresent
@@ -621,6 +642,7 @@ loki:
       max_outstanding_per_tenant: 6144
 
     # loki image settings
+    # docker.io/grafana/loki:3.6.7
     image:
       pullPolicy: IfNotPresent
       tag: 3.6.7
@@ -629,7 +651,7 @@ loki:
   minio:
     enabled: true
     global:
-      # minio image settings
+      # override registry for air-gapped environments:
       #image:
       #  registry: acrprodmgmt.azurecr.io
     persistence:
@@ -638,10 +660,12 @@ loki:
     nodeSelector:
       agentpool: userpool
     # minio image settings
+    # quay.io/minio/minio:RELEASE.2025-07-23T15-54-02Z-cpuv1
     image:
       pullPolicy: IfNotPresent
       tag: RELEASE.2025-07-23T15-54-02Z-cpuv1
     # mc image settings
+    # quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z-cpuv1
     mcImage:
       pullPolicy: IfNotPresent
       tag: RELEASE.2025-08-13T08-35-41Z-cpuv1
@@ -659,6 +683,7 @@ tempo:
     size: 10Gi
   tempo:
     # -- tempo image settings
+    # docker.io/grafana/tempo:2.9.0
     image:
       pullPolicy: IfNotPresent
     receivers:
@@ -686,6 +711,8 @@ opentelemetry-collector:
   enabled: true
   mode: deployment
   image:
+    # otel-collector image settings
+    # ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-k8s:0.147.0
     repository: ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-k8s
     pullPolicy: IfNotPresent
   command:
