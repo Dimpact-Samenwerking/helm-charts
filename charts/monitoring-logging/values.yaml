@@ -296,6 +296,11 @@ alloy:
   nodeSelector:
     agentpool: userpool
   alloy:
+    extraEnv:
+      - name: NODE_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: spec.nodeName
     # -- configMap.content is processed by Helm tpl, so {{ .Release.Name }} is valid
     configMap:
       content: |
@@ -304,26 +309,22 @@ alloy:
           role = "pod"
         }
 
-        // Relabel: drop terminated pods, drop OTel-instrumented pods (they ship logs
-        // via OTLP to the OTel Collector instead), extract log path, add k8s metadata.
-        //
-        // OTel-first rule: pods with label  telemetry/otel-logs=true  are excluded here.
-        // Add that label to any pod whose app sends logs via OTLP so Alloy does not
-        // double-collect them.  See docs/otel.md for per-service guidance.
+        // Relabel: keep only pods on this node, drop terminated pods,
+        // extract exact log path from pod UID, add k8s metadata.
         discovery.relabel "pod_logs" {
           targets = discovery.kubernetes.pods.targets
+
+          // Only tail files for pods scheduled on this node
+          rule {
+            source_labels = ["__meta_kubernetes_pod_node_name"]
+            regex         = env("NODE_NAME")
+            action        = "keep"
+          }
 
           // Drop pods in terminal phases
           rule {
             source_labels = ["__meta_kubernetes_pod_phase"]
             regex         = "Pending|Succeeded|Failed|Completed"
-            action        = "drop"
-          }
-
-          // OTel-first: skip pods whose logs are already shipped via OTLP
-          rule {
-            source_labels = ["__meta_kubernetes_pod_label_telemetry_otel_logs"]
-            regex         = "true"
             action        = "drop"
           }
 
@@ -347,20 +348,28 @@ alloy:
             target_label  = "app"
           }
 
-          // Build the log file path from pod UID and container name
+          // Build the exact log file path using pod UID — no wildcards, os.Stat requires a real path.
+          // Use ${n} notation: $n_ would include the underscore in the capture group reference.
           rule {
-            source_labels = ["__meta_kubernetes_pod_uid", "__meta_kubernetes_pod_container_name"]
+            source_labels = ["__meta_kubernetes_namespace", "__meta_kubernetes_pod_name", "__meta_kubernetes_pod_uid", "__meta_kubernetes_pod_container_name"]
             separator     = "/"
-            regex         = "(.+)/(.+)"
-            replacement   = "/var/log/pods/*_*_$1/$2/*.log"
+            regex         = "(.+)/(.+)/(.+)/(.+)"
+            replacement   = "/var/log/pods/${1}_${2}_${3}/${4}/0.log"
             target_label  = "__path__"
           }
         }
 
-        // Tail log files and forward to Loki (fallback path for non-OTel pods)
+        // Tail log files, strip CRI prefix (containerd format: timestamp stream flags log)
+        // and forward to Loki. Equivalent to Promtail's pipeline_stages: [cri: {}].
         loki.source.file "pod_logs" {
           targets    = discovery.relabel.pod_logs.output
+          forward_to = [loki.process.cri.receiver]
+        }
+
+        loki.process "cri" {
           forward_to = [loki.write.loki_gateway.receiver]
+
+          stage.cri {}
         }
 
         loki.write "loki_gateway" {
