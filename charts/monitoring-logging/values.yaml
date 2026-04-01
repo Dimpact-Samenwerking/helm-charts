@@ -69,7 +69,7 @@ grafana:
     allowPrivilegeEscalation: false
     runAsNonRoot: true
     
- # -- Dashboard voor gemeenten
+ # -- Dashboard providers
   dashboardProviders:
     dashboardproviders.yaml:
       apiVersion: 1
@@ -80,24 +80,20 @@ grafana:
           type: file
           disableDeletion: false
           updateIntervalSeconds: 30
-          allowUiUpdates: true # modify dashboards
+          allowUiUpdates: true
           editable: true
           options:
             path: /var/lib/grafana/dashboards/default
-
-# -- Dashboard voor logs
         - name: "logs"
-          orgId: 2
+          orgId: 1
           folder: 'PodiumD_Monitoring_Logging'
           type: file
           disableDeletion: false
           updateIntervalSeconds: 30
-          allowUiUpdates: true # modify dashboards
+          allowUiUpdates: true
           editable: true
           options:
             path: /var/lib/grafana/dashboards/logs
-
-# -- Metrics dashboards (downloaded from grafana.com at startup)
         - name: "metrics"
           orgId: 1
           folder: 'PodiumD_Monitoring_Logging - Metrics'
@@ -217,6 +213,10 @@ prometheus:
       tag: v3.6.0
     extraFlags:
       - web.enable-remote-write-receiver
+    extraScrapeConfigs: |
+      - job_name: otel-collector
+        static_configs:
+          - targets: ['{{ .Release.Name }}-opentelemetry-collector:8888']
     persistentVolume:
       enabled: true
       storageClass: "managed-csi"
@@ -742,7 +742,7 @@ opentelemetry-collector:
     name: otelcol-contrib
   nodeSelector:
     agentpool: userpool
-  # -- Expose OTLP gRPC and HTTP ports
+  # -- Expose OTLP gRPC, HTTP and self-metrics ports
   ports:
     otlp:
       enabled: true
@@ -753,6 +753,11 @@ opentelemetry-collector:
       enabled: true
       containerPort: 4318
       servicePort: 4318
+      protocol: TCP
+    metrics:
+      enabled: true
+      containerPort: 8888
+      servicePort: 8888
       protocol: TCP
   # -- Inject release name so config can reference sibling chart services
   extraEnvs:
@@ -800,6 +805,9 @@ opentelemetry-collector:
         tls:
           insecure: true
     service:
+      telemetry:
+        metrics:
+          address: 0.0.0.0:8888
       pipelines:
         logs:
           receivers: [otlp]

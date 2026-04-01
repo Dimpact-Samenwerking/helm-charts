@@ -25,7 +25,13 @@
         "pluginId": "prometheus",
         "label": "Datasource",
         "hide": 0,
-        "current": {}
+        "current": {
+          "selected": false,
+          "text": "Prometheus",
+          "value": "prometheus"
+        },
+        "query": "prometheus",
+        "refresh": 1
       },
       {
         "name": "service",
