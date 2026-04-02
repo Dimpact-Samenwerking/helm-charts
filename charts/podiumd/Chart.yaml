@@ -51,7 +51,7 @@ dependencies:
     version: 2.1.3
     repository: "@maykinmedia"
     condition: openinwoner.enabled
-      - name: referentielijsten
+  - name: referentielijsten
     alias: referentielijsten
     repository: "@maykinmedia"
     version: 0.1.1
