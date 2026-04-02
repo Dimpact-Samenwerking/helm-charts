@@ -2806,7 +2806,7 @@ ita:
   web:
     image:
       # repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web"
-      tag: "2.1.1"
+      tag: "3.0.0"
       pullPolicy: IfNotPresent
 
     service:
@@ -2825,18 +2825,14 @@ ita:
       objectregisterMedewerkerIdClaimType: "samaccountname"
       emailClaimType: "email"
 
-    resources:
-      logoUrl: ""
-      faviconUrl: ""
-      designTokensUrl: ""
-      webFontSources: []
+    resources: {}
 
   poller:
     schedule: "*/15 * * * *"
 
     image:
       repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller"
-      tag: "2.1.1"
+      tag: "3.0.0"
       pullPolicy: Always
 
     notification:
