@@ -9,8 +9,8 @@ Affected components (use new format): openzaak, opennotificaties, objecten,
 objecttypen, openklant, openformulieren.
 
 NOT affected (still use old flat format in PodiumD 4.6): openinwoner (chart
-2.1.3), openarchiefbeheer (chart 1.5.3). Do not run this script against config
-blocks for those components.
+2.1.3), openarchiefbeheer (chart 1.5.3). The script automatically skips OIDC
+blocks nested under these component keys — they are left untouched.
 
 Old format (keys at item level):
   claim_mapping          (dict)  → options.user_settings.claim_mappings
@@ -29,6 +29,9 @@ The script handles:
   - Fully new format items (skipped / idempotent)
   - Partially migrated items (merges remaining old keys into options)
   - Mixed files with both old and new items
+
+Only old-format OIDC keys are modified. All other fields in every item and all
+other keys in the values file are left completely untouched.
 
 It processes all string values inside the file that contain an embedded YAML
 block with oidc_db_config_admin_auth (i.e. the data: | blocks used by the
@@ -63,6 +66,18 @@ except ImportError:
     except ImportError:
         print("ERROR: Install ruamel.yaml or PyYAML: pip install ruamel.yaml", file=sys.stderr)
         sys.exit(1)
+
+
+# ---------------------------------------------------------------------------
+# Components that still use the OLD flat OIDC format and must NOT be migrated.
+# These are excluded because their chart versions do not yet support the new
+# options.user_settings / options.groups_settings nested format.
+# ---------------------------------------------------------------------------
+
+_SKIP_COMPONENTS = frozenset({
+    "openinwoner",       # chart 2.1.3 — still uses old mozilla-django-oidc-db format
+    "openarchiefbeheer", # chart 1.5.3 — still uses old mozilla-django-oidc-db format
+})
 
 
 # ---------------------------------------------------------------------------
@@ -221,68 +236,125 @@ def _migrate_oidc_yaml_str(yaml_str):
 
 
 # ---------------------------------------------------------------------------
-# Outer-file walker: finds embedded YAML strings and migrates them
+# Text-level outer-file processor
+#
+# Scans the file as raw text, finds literal block scalars containing
+# oidc_db_config_admin_auth, migrates them, and substitutes back — without
+# touching anything else in the file. This avoids ruamel re-indenting
+# unrelated sections during a whole-file round-trip dump.
 # ---------------------------------------------------------------------------
 
-def _walk_and_migrate(node):
+def _migrate_file_text(text):
     """
-    Recursively walk a loaded YAML document.
-    For any string value containing an embedded oidc_db_config_admin_auth block,
-    parse and migrate it in-place.
-    Returns True if anything was changed.
+    Process the outer values file as text.
+
+    For each YAML literal block scalar that contains oidc_db_config_admin_auth:
+      - Determines the owning top-level component key.
+      - Skips the block if that component is in _SKIP_COMPONENTS.
+      - Otherwise parses, migrates, and substitutes the block back in-place.
+
+    All other content — including indentation, comments, trailing whitespace,
+    and duplicate keys — is left completely untouched.
+
+    Returns (new_text, changed).
     """
+    lines = text.splitlines(keepends=True)
+    out = []
+    i = 0
     changed = False
+    current_component = None  # top-level key currently in scope
 
-    if isinstance(node, dict):
-        for key in list(node):
-            val = node[key]
-            if isinstance(val, str) and "oidc_db_config_admin_auth" in val:
-                new_val, c = _migrate_oidc_yaml_str(val)
-                if c:
-                    if _USE_RUAMEL and isinstance(val, (LiteralScalarString, FoldedScalarString)):
-                        node[key] = LiteralScalarString(new_val)
-                    else:
-                        node[key] = new_val
-                    changed = True
-            else:
-                changed = _walk_and_migrate(val) or changed
+    while i < len(lines):
+        raw = lines[i]
+        stripped = raw.rstrip("\r\n")
 
-    elif isinstance(node, list):
-        for item in node:
-            changed = _walk_and_migrate(item) or changed
+        # Track top-level component key: line at column 0 containing a colon,
+        # not starting with whitespace or a comment.
+        if stripped and stripped[0].isalpha() and ":" in stripped:
+            current_component = stripped.split(":")[0].strip()
 
-    return changed
+        # Detect start of a YAML literal block scalar (value is | or |-)
+        literal_match = _LITERAL_BLOCK_RE.match(stripped)
+        if literal_match:
+            block_indent_str = literal_match.group(1)
+            block_indent = len(block_indent_str)
+
+            # Collect the block body: lines more indented than the key line.
+            j = i + 1
+            while j < len(lines):
+                body_line = lines[j].rstrip("\r\n")
+                if body_line == "" or body_line.strip() == "":
+                    # Blank lines are part of the block
+                    j += 1
+                    continue
+                body_indent = len(body_line) - len(body_line.lstrip())
+                if body_indent <= block_indent:
+                    break
+                j += 1
+
+            block_lines = lines[i + 1:j]
+            block_body = "".join(block_lines)
+
+            # Only process blocks containing an OIDC config section.
+            if "oidc_db_config_admin_auth" in block_body:
+                if current_component in _SKIP_COMPONENTS:
+                    # Skip-component: emit as-is
+                    out.append(raw)
+                    out.extend(block_lines)
+                    i = j
+                    continue
+
+                # Determine the base indentation of the block body.
+                base_indent = None
+                for bl in block_lines:
+                    if bl.strip():
+                        base_indent = len(bl) - len(bl.lstrip())
+                        break
+
+                if base_indent is not None:
+                    # Strip base indent to get clean embedded YAML.
+                    unindented = "".join(
+                        bl[base_indent:] if len(bl) > base_indent else bl
+                        for bl in block_lines
+                    )
+                    new_yaml, block_changed = _migrate_oidc_yaml_str(unindented)
+                    if block_changed:
+                        indent_prefix = " " * base_indent
+                        new_block_lines = []
+                        for ml in new_yaml.splitlines(keepends=True):
+                            if ml.strip():
+                                new_block_lines.append(indent_prefix + ml)
+                            else:
+                                new_block_lines.append(ml)
+                        out.append(raw)
+                        out.extend(new_block_lines)
+                        changed = True
+                        i = j
+                        continue
+
+        out.append(raw)
+        i += 1
+
+    return "".join(out), changed
+
+
+# Matches the start of a YAML literal block scalar: key: | or key: |-
+import re as _re
+_LITERAL_BLOCK_RE = _re.compile(r"^(\s*)\S.*:\s*\|[-+]?\s*$")
 
 
 # ---------------------------------------------------------------------------
 # I/O helpers
 # ---------------------------------------------------------------------------
 
-def _load(path):
-    if _USE_RUAMEL:
-        ry = RuamelYAML()
-        ry.preserve_quotes = True
-        ry.width = 4096
-        with open(path, "r", encoding="utf-8") as f:
-            return ry, ry.load(f)
-    else:
-        with open(path, "r", encoding="utf-8") as f:
-            return None, _pyyaml.safe_load(f)
+def _read(path):
+    with open(path, "r", encoding="utf-8") as f:
+        return f.read()
 
 
-def _dump(ry, data, path=None):
-    if _USE_RUAMEL:
-        buf = StringIO()
-        ry.dump(data, buf)
-        text = buf.getvalue()
-    else:
-        text = _pyyaml.dump(data, default_flow_style=False, allow_unicode=True)
-
-    if path:
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(text)
-    else:
-        sys.stdout.write(text)
+def _write(text, path):
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(text)
 
 
 # ---------------------------------------------------------------------------
@@ -307,22 +379,19 @@ def main():
     )
     args = parser.parse_args()
 
-    ry, data = _load(args.input)
-
-    changed = _walk_and_migrate(data)
+    text = _read(args.input)
+    new_text, changed = _migrate_file_text(text)
 
     if not changed:
         print("No OIDC items needed migration — file is already up-to-date.", file=sys.stderr)
         sys.exit(0)
 
     if args.dry_run:
-        _dump(ry, data, path=None)
+        sys.stdout.write(new_text)
     else:
         output_path = args.output or args.input
-        _dump(ry, data, path=output_path)
+        _write(new_text, output_path)
         print(f"Migration complete → {output_path}")
-        if not _USE_RUAMEL:
-            print("Tip: install ruamel.yaml to preserve comments: pip install ruamel.yaml")
 
 
 if __name__ == "__main__":
