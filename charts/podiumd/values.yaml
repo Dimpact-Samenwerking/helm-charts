@@ -30,7 +30,7 @@ keycloak-operator:
   operator:
     image:
       repository: quay.io/keycloak/keycloak-operator
-      tag: "26.5.6"
+      tag: "26.5.7"
     resources:
       requests:
         cpu: 100m
@@ -162,11 +162,11 @@ keycloak:
   http:
     httpEnabled: true
   # image parameters for keycloak-operator
-  # Official Keycloak image: quay.io/keycloak/keycloak:26.5.6
+  # Official Keycloak image: quay.io/keycloak/keycloak:26.5.7
   image:
     registry: ""
     repository: quay.io/keycloak/keycloak
-    tag: 26.5.6
+    tag: 26.5.7
   # -- instances is the new operator-style replica count (falls back to replicaCount)
   instances: "2"
   ingress:
@@ -201,7 +201,8 @@ keycloak:
     metadata:
       labels:
         app: keycloak
-        version: 26.5.6
+        version: 26.5.7
+      # override: values-enable-observability.yaml adds prometheus.io scrape annotations
     spec:
       securityContext:
         runAsNonRoot: true
@@ -366,6 +367,7 @@ redis-operator:
       registry: quay.io
       repository: opstree/redis
       tag: "v8.4.2"
+    # override: values-enable-observability.yaml sets redisExporter.enabled: true
     redisExporter:
       image:
         registry: quay.io
@@ -599,6 +601,7 @@ openzaak:
         memory: 16Mi
   tags:
     redis: false
+  # override: values-enable-observability.yaml sets disabled: false and configures the OTLP endpoint
   otel:
     disabled: true
 
@@ -819,6 +822,7 @@ opennotificaties:
       erlangCookie: SUPER-SECRET
   tags:
     redis: false
+  # override: values-enable-observability.yaml sets disabled: false and configures the OTLP endpoint
   otel:
     disabled: true
 
@@ -978,6 +982,7 @@ objecten:
     enabled: false
   tags:
     redis: false
+  # override: values-enable-observability.yaml sets disabled: false and configures the OTLP endpoint
   otel:
     disabled: true
 
@@ -1082,6 +1087,7 @@ objecttypen:
   fullnameOverride: objecttypen
   tags:
     redis: false
+  # override: values-enable-observability.yaml sets disabled: false and configures the OTLP endpoint
   otel:
     disabled: true
 
@@ -1089,10 +1095,6 @@ openarchiefbeheer:
   enabled: false
   nameOverride: openarchiefbeheer
   fullnameOverride: openarchiefbeheer
-  settings:
-    # Note: these two values must be equal to prevent timeout mismatches.
-    oidcRenewIdTokenExpirySeconds: 1800
-    sessionCookieAge: 1800
   # Reference to an existing secret with the values needed for django-setup-configuration
   # existingConfigurationSecrets: nil
   configuration:
@@ -1224,6 +1226,9 @@ openarchiefbeheer:
     # -- Name of the environment (used for displaying purposes)
     environment: ""
     requestsReadTimeout: "5000"
+    # Note: these two values must be equal to prevent timeout mismatches.
+    oidcRenewIdTokenExpirySeconds: 1800
+    sessionCookieAge: 1800
     # -- Number of days to wait before destroying a list. Defaults to 7 in the application.
     waitingPeriod: ""
     # logging:
@@ -1382,10 +1387,12 @@ openklant:
         memory: 16Mi
   tags:
     redis: false
+  # override: values-enable-observability.yaml sets disabled: false and configures the OTLP endpoint
   otel:
     disabled: true
 
 openformulieren:
+  # override: values-enable-observability.yaml adds a settings.otel block to enable OTEL
   configuration:
     enabled: true
     job:
@@ -1735,7 +1742,7 @@ openinwoner:
       port: 587
       useTLS: true
     searchIndexInitContainer: true
-    oidcFrontendLogoutWithHints: false
+    oidcFrontendLogoutWithHints: true
     cache:
       default: redis-ha-master.podiumd.svc.cluster.local:6379/11
       axes: redis-ha-master.podiumd.svc.cluster.local:6379/11
@@ -1744,6 +1751,9 @@ openinwoner:
       resultBackendl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/12
       # -- Set to debug for test/acceptance environments
       logLevel: warning
+    # override: values-enable-observability.yaml sets disabled: false and configures the OTEL endpoint
+    otel:
+      disabled: true
   persistence:
     size: 10Gi
     existingClaim: openinwoner
@@ -1859,6 +1869,7 @@ kisselastic:
   elasticVersion: "8.19.3"
   elasticsearchCount: 3
   # -- install crds using https://github.com/elastic/cloud-on-k8s/blob/main/deploy/eck-operator/charts/eck-operator-crds/templates/all-crds.yaml
+  # override: values-enable-observability.yaml sets config.metricsPort and enables podMonitor
   eck-operator:
     installCRDs: false
     managedNamespaces:
@@ -2381,8 +2392,13 @@ zgw-office-addin:
       secret: "dummy"
 
 clamav:
+  # override: values-enable-observability.yaml enables metrics exporter sidecar and ServiceMonitor
   image:
     tag: "1.4.4"
+  metrics:
+    image:
+      repository: docker.io/sergeymakinen/clamav_exporter
+      tag: "v2.1.2"
   nameOverride: clamav
   fullnameOverride: clamav
   clamdConfig: |
@@ -2616,7 +2632,7 @@ ita:
   web:
     image:
       # repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web"
-      tag: "2.1.1"
+      tag: "3.0.0"
       pullPolicy: IfNotPresent
 
     service:
@@ -2636,22 +2652,32 @@ ita:
       emailClaimType: "email"
 
     resources:
-      logoUrl: ""
-      faviconUrl: ""
-      designTokensUrl: ""
-      webFontSources: []
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
 
   poller:
     schedule: "*/15 * * * *"
 
     image:
       repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller"
-      tag: "2.1.1"
+      tag: "3.0.0"
       pullPolicy: Always
 
     notification:
       pollerMessage: "Poller uitgevoerd om:"
       hourThreshold: "-24"
+
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 100m
+        memory: 256Mi
 
   ingress:
     enabled: false

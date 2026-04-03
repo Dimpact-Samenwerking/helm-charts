@@ -6,6 +6,41 @@ This document explains how logs and metrics flow out of a PodiumD deployment and
 
 ---
 
+## Component Overview
+
+| Component | OTEL mechanism | Prometheus scrape | Enabled via |
+|---|---|---|---|
+| openzaak | `settings.otel.*` | ❌ OTEL only → collector | `values-enable-observability.yaml` |
+| openklant | `settings.otel.*` | ❌ OTEL only → collector | `values-enable-observability.yaml` |
+| openformulieren | `settings.otel.*` | ❌ OTEL only → collector | `values-enable-observability.yaml` |
+| opennotificaties | `settings.otel.*` | ❌ OTEL only → collector | `values-enable-observability.yaml` |
+| objecten | `settings.otel.*` | ❌ OTEL only → collector | `values-enable-observability.yaml` |
+| objecttypen | `settings.otel.*` | ❌ OTEL only → collector | `values-enable-observability.yaml` |
+| openinwoner | `settings.otel.*` | ❌ OTEL only → collector | `values-enable-observability.yaml` |
+| zac | `opentelemetry_zaakafhandelcomponent.*` + `javaOptions` | ❌ OTEL only → collector | `values-enable-observability.yaml` |
+| keycloak | `additionalOptions: metrics-enabled` | ✅ pod annotations port 9000 `/metrics` | `values-enable-observability.yaml` |
+| redis-operator | — | ✅ pod annotations port 8080 `/metrics` | `values-enable-observability.yaml` |
+| redis-ha | redis_exporter sidecar | ✅ port 9121 via exporter | `values-enable-observability.yaml` |
+| solr-operator | — | ✅ pod annotations port 8080 `/metrics` | `values-enable-observability.yaml` |
+| zookeeper-operator | — | ✅ pod annotations port 6000 `/metrics` | `values-enable-observability.yaml` |
+| clamav | clamav_exporter sidecar | ✅ port 9906 + ServiceMonitor | `values-enable-observability.yaml` |
+| eck-operator | `config.metricsPort` + `podMonitor.enabled` | ✅ PodMonitor port 8080 `/metrics` | `values-enable-observability.yaml` |
+| api-proxy | — | ❌ plain nginx, no metrics endpoint | requires template changes |
+| openarchiefbeheer | — | ❌ no OTEL support in chart | — |
+| solr (SolrCloud) | — | ❌ not yet configured | see todo below |
+| zookeeper (cluster) | — | ❌ not yet configured | see todo below |
+| elasticsearch (ECK) | — | ❌ no native endpoint | see todo below |
+| kibana (ECK) | — | ❌ no native endpoint | see todo below |
+
+The Maykin Django apps do **not** expose a direct Prometheus scrape endpoint. Metrics are pushed via OTLP to a collector, which forwards to Prometheus.
+
+Shared collector endpoint:
+```
+http://monitoring-opentelemetry-collector.monitoring.svc.cluster.local:4317
+```
+
+---
+
 ## Logs — nothing to configure
 
 When `monitoring-logging` is deployed with its default Alloy DaemonSet, **every pod in every namespace is collected automatically**. Alloy tails `/var/log/pods/{namespace}_{pod}_{uid}/{container}/0.log` on each node and ships to Loki with labels `namespace`, `pod`, `container`, and `app`.
@@ -16,62 +51,41 @@ Nothing needs to be added to `podiumd/values.yaml` for logs.
 
 ---
 
-## Metrics
+## Enabling Observability
 
-### Django applications (OpenZaak, OpenNotificaties, Objecten, Objecttypen, OpenKlant, OpenFormulieren)
+Use `values-enable-observability.yaml` alongside your environment values file:
 
-These VNG Django subcharts support native OpenTelemetry metrics via `opentelemetry-python`.
+```bash
+helm upgrade podiumd charts/podiumd \
+  -f values.yaml \
+  -f values-enable-observability.yaml \
+  -f values-<env>.yaml \
+  -n podiumd
+```
+
+---
+
+## OTEL Configuration — Maykin Apps
+
+All Maykin subcharts share the same `settings.otel` schema:
 
 **⚠️ Critical:** the correct values path is `<service>.settings.otel.*`, **not** `<service>.otel.*`. The top-level `otel:` block shown in some older documentation is dead code — the subcharts only read `settings.otel.*`.
 
-Add this block for each service you want to instrument:
-
 ```yaml
-# podiumd/values.yaml — repeat for each Django service
-openzaak:
+<component>:
   settings:
     otel:
-      disabled: false
-      exporterOtlpEndpoint: "http://<MONITORING_RELEASE>-opentelemetry-collector.<MONITORING_NS>.svc.cluster.local:4317"
-      exporterOtlpMetricsInsecure: true   # required: gRPC to a plaintext endpoint needs this
-
-opennotificaties:
-  settings:
-    otel:
-      disabled: false
-      exporterOtlpEndpoint: "http://<MONITORING_RELEASE>-opentelemetry-collector.<MONITORING_NS>.svc.cluster.local:4317"
-      exporterOtlpMetricsInsecure: true
-
-objecten:
-  settings:
-    otel:
-      disabled: false
-      exporterOtlpEndpoint: "http://<MONITORING_RELEASE>-opentelemetry-collector.<MONITORING_NS>.svc.cluster.local:4317"
-      exporterOtlpMetricsInsecure: true
-
-objecttypen:
-  settings:
-    otel:
-      disabled: false
-      exporterOtlpEndpoint: "http://<MONITORING_RELEASE>-opentelemetry-collector.<MONITORING_NS>.svc.cluster.local:4317"
-      exporterOtlpMetricsInsecure: true
-
-openklant:
-  settings:
-    otel:
-      disabled: false
-      exporterOtlpEndpoint: "http://<MONITORING_RELEASE>-opentelemetry-collector.<MONITORING_NS>.svc.cluster.local:4317"
-      exporterOtlpMetricsInsecure: true
-
-openformulieren:
-  settings:
-    otel:
-      disabled: false
-      exporterOtlpEndpoint: "http://<MONITORING_RELEASE>-opentelemetry-collector.<MONITORING_NS>.svc.cluster.local:4317"
-      exporterOtlpMetricsInsecure: true
+      disabled: true
+      exporterOtlpEndpoint: ""        # http://monitoring-opentelemetry-collector.monitoring.svc.cluster.local:4317
+      exporterOtlpProtocol: grpc      # grpc or http/protobuf
+      exporterOtlpMetricsInsecure: false
+      exporterOtlpHeaders: []
+      resourceAttributes: []
+      metricExportInterval: 60000     # ms
+      metricExportTimeout: 10000      # ms
 ```
 
-Replace `<MONITORING_RELEASE>` (e.g. `monitoring`) and `<MONITORING_NS>` (e.g. `monitoring`) with the values from your `monitoring-logging` deployment.
+`values.yaml` defaults all components to `disabled: true` (openformulieren has no otel block at all). All settings are applied via `values-enable-observability.yaml`.
 
 **What this enables:**
 
@@ -86,15 +100,42 @@ Metrics flow via: `pod → OTLP gRPC :4317 → OTel Collector → Prometheus rem
 
 ---
 
-### Keycloak
+## OTEL Configuration — ZAC
 
-Keycloak exposes Prometheus metrics on port 9000 automatically (`metrics-enabled: true` is already set in `podiumd/values.yaml`).
+ZAC uses two mechanisms:
 
-To make Prometheus discover the Keycloak pods, add scrape annotations to the pod template via the Keycloak CR (not via `podiumd/values.yaml` — Keycloak is managed by the operator):
+**1. `opentelemetry_zaakafhandelcomponent`** (built-in collector sidecar):
+```yaml
+zac:
+  opentelemetry_zaakafhandelcomponent:
+    disabled: ""      # "-true" to disable, "" to enable
+    endpoint: "http://monitoring-opentelemetry-collector.monitoring.svc.cluster.local:4317"
+```
+
+**2. `javaOptions`** (JVM-level OTEL agent flags):
+```yaml
+zac:
+  javaOptions: >-
+    -Xmx1024m -Xms1024m -Xlog:gc::time,uptime
+    -Dotel.service.name=zac
+    -Dotel.exporter.otlp.endpoint=http://monitoring-opentelemetry-collector.monitoring.svc.cluster.local:4317
+    -Dotel.exporter.otlp.protocol=grpc
+    -Dotel.traces.exporter=otlp
+    -Dotel.metrics.exporter=otlp
+    -Dotel.logs.exporter=none
+```
+
+---
+
+## Prometheus Scraping — Keycloak
+
+Keycloak exposes Prometheus metrics on port 9000. `additionalOptions` in `values.yaml` enables the metrics endpoint. Scrape annotations are in `values-enable-observability.yaml`:
 
 ```yaml
-# keycloak-cr.yaml — spec.unsupported.podTemplate.metadata
-unsupported:
+keycloak:
+  additionalOptions:
+    - name: metrics-enabled
+      value: "true"
   podTemplate:
     metadata:
       annotations:
@@ -107,13 +148,20 @@ See [kubernetes/keycloak-operator/OTEL_AND_METRICS.md](../../../podiumd-infra/ku
 
 ---
 
-### Other components
+## Prometheus Scraping — ECK Operator
 
-| Component | How | Notes |
-|---|---|---|
-| ZAC | `javaOptions` JVM flags | See [monitoring-logging/docs/otel.md](../../monitoring-logging/docs/otel.md#zac) |
-| KISS | `extraEnv` | Verify .NET OTel SDK is present first |
-| Traefik | annotation-based scraping | See [Per-cluster k8s metrics](#per-cluster-k8s-metrics) below |
+The ECK operator is part of `kisselastic`. Configured via `values-enable-observability.yaml`:
+
+```yaml
+kisselastic:
+  eck-operator:
+    config:
+      metricsPort: "8080"
+    podMonitor:
+      enabled: true
+      interval: 1m
+      scrapeTimeout: 30s
+```
 
 ---
 
@@ -205,6 +253,99 @@ prometheus:
 ```
 
 No per-cluster change needed — it is part of the chart defaults.
+
+---
+
+## Todo — Remaining Metrics (application workloads)
+
+### Solr (SolrCloud)
+
+The `SolrPrometheusExporter` CRD is installed by the solr-operator. The ZAC chart's `solrcloud.yaml`
+template does **not** expose a `prometheusExporter` field, so a standalone CR must be created manually.
+The solr-operator will pick it up and create a ServiceMonitor automatically.
+
+```yaml
+apiVersion: solr.apache.org/v1beta1
+kind: SolrPrometheusExporter
+metadata:
+  name: zac-solr-exporter
+  namespace: podiumd
+spec:
+  solrReference:
+    cloud:
+      name: zac-solrcloud   # verify: kubectl get solrclouds -n podiumd
+  numThreads: 4
+  image:
+    tag: 9.10.1   # match the SolrCloud version in values.yaml
+```
+
+Verify: `kubectl get servicemonitor -n podiumd | grep solr`, then query `solr_` in Prometheus.
+
+---
+
+### Zookeeper (cluster)
+
+Zookeeper 3.5+ has a built-in Prometheus metrics provider on port `7000`. The ZAC chart's
+`solrcloud.yaml` template does **not** pass `spec.conf` to the `ZookeeperCluster` CR — this
+requires either a ZAC chart change (upstream) or a manual one-time patch of the CR.
+
+The `ZookeeperCluster` CRD supports a `spec.conf.additionalConfig` map. Patch the live CR:
+
+```bash
+kubectl patch zookeepercluster -n podiumd <name> --type merge -p '{
+  "spec": {
+    "conf": {
+      "additionalConfig": {
+        "metricsProvider.className": "org.apache.zookeeper.metrics.prometheus.PrometheusMetricsProvider",
+        "metricsProvider.httpPort": "7000",
+        "metricsProvider.exportJvmInfo": "true"
+      }
+    }
+  }
+}'
+```
+
+A ServiceMonitor must be created manually (the pravega operator does not create one):
+
+```yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: zookeeper
+  namespace: podiumd
+spec:
+  selector:
+    matchLabels:
+      app: zookeeper   # verify: kubectl get pods -n podiumd --show-labels | grep zoo
+  endpoints:
+    - port: metrics
+      path: /metrics
+```
+
+---
+
+### Elasticsearch & Kibana (ECK)
+
+The kiss-elastic chart's `elasticsearch.yaml` and `kibana.yaml` templates are minimal (nodeSets,
+nodeSelector, version only) — no monitoring spec is exposed via values.
+
+ECK-managed Elasticsearch has no native Prometheus endpoint. Deploy `prometheus-community/elasticsearch-exporter`
+as a separate release:
+
+```yaml
+elasticsearch-exporter:
+  es:
+    uri: http://kiss-es-http.podiumd.svc.cluster.local:9200   # verify: kubectl get svc -n podiumd | grep es-http
+  serviceMonitor:
+    enabled: true
+    namespace: podiumd
+```
+
+Kibana does not have a widely-used standalone exporter. Options:
+- Use Elastic Stack monitoring features (beats-based, writes to a monitoring cluster)
+- Query Kibana's own `/api/stats` endpoint via a custom scrape job
+
+Verify Elasticsearch: query `elasticsearch_` metrics in Prometheus.
 
 ---
 
