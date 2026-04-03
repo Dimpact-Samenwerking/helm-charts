@@ -30,7 +30,7 @@ keycloak-operator:
   operator:
     image:
       repository: quay.io/keycloak/keycloak-operator
-      tag: "26.5.6"
+      tag: "26.5.7"
     resources:
       requests:
         cpu: 100m
@@ -162,11 +162,11 @@ keycloak:
   http:
     httpEnabled: true
   # image parameters for keycloak-operator
-  # Official Keycloak image: quay.io/keycloak/keycloak:26.5.6
+  # Official Keycloak image: quay.io/keycloak/keycloak:26.5.7
   image:
     registry: ""
     repository: quay.io/keycloak/keycloak
-    tag: 26.5.6
+    tag: 26.5.7
   # -- instances is the new operator-style replica count (falls back to replicaCount)
   instances: "2"
   ingress:
@@ -201,7 +201,7 @@ keycloak:
     metadata:
       labels:
         app: keycloak
-        version: 26.5.6
+        version: 26.5.7
     spec:
       securityContext:
         runAsNonRoot: true
@@ -1089,10 +1089,6 @@ openarchiefbeheer:
   enabled: false
   nameOverride: openarchiefbeheer
   fullnameOverride: openarchiefbeheer
-  settings:
-    # Note: these two values must be equal to prevent timeout mismatches.
-    oidcRenewIdTokenExpirySeconds: 1800
-    sessionCookieAge: 1800
   # Reference to an existing secret with the values needed for django-setup-configuration
   # existingConfigurationSecrets: nil
   configuration:
@@ -1224,6 +1220,9 @@ openarchiefbeheer:
     # -- Name of the environment (used for displaying purposes)
     environment: ""
     requestsReadTimeout: "5000"
+    # Note: these two values must be equal to prevent timeout mismatches.
+    oidcRenewIdTokenExpirySeconds: 1800
+    sessionCookieAge: 1800
     # -- Number of days to wait before destroying a list. Defaults to 7 in the application.
     waitingPeriod: ""
     # logging:
