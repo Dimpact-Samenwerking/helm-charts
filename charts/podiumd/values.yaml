@@ -2639,7 +2639,13 @@ ita:
       objectregisterMedewerkerIdClaimType: "samaccountname"
       emailClaimType: "email"
 
-    resources: {}
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
 
   poller:
     schedule: "*/15 * * * *"
@@ -2652,6 +2658,14 @@ ita:
     notification:
       pollerMessage: "Poller uitgevoerd om:"
       hourThreshold: "-24"
+
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 100m
+        memory: 256Mi
 
   ingress:
     enabled: false
