@@ -243,7 +243,7 @@ The format mirrors `ExternalsPodiumD/pipelines/images.yml` — an Azure DevOps p
 - Application image tag bumps (from subchart or `values.yaml` changes)
 - Any new sidecar/exporter images enabled in that release (e.g. from `values-enable-observability.yaml`)
 
-All images listed must have a corresponding `{registry, repository, tag}` definition in `values.yaml` so they can be overridden to point at the environment-specific ACR. Use the same tag values as defined in `values.yaml` (do not invent versions). Include a short Dutch comment per group (e.g. `# Applicaties`, `# Observability`) matching the style of the reference file.
+All images listed must have a corresponding `{registry, repository, tag}` definition in `values.yaml` so they can be overridden to point at the environment-specific ACR. Use the same tag values as defined in `values.yaml` (do not invent versions). Each entry must include a `digest` field (`sha256:...`) fetched from the source registry at the time of writing. The file is a flat YAML list (no pipeline wrapper, no indentation on list items). Include a short Dutch comment per group (e.g. `# Applicaties`, `# Observability`) matching the style of the reference file.
 
 ---
 
