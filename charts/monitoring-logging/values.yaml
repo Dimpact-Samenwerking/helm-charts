@@ -638,7 +638,12 @@ loki:
       max_cache_freshness_per_query: 10m
       ingestion_rate_mb: 10
       ingestion_burst_size_mb: 20
-      
+      otlp_config:
+        resource_attributes:
+          attributes_config:
+            - regex: app
+              action: index_label
+
     query_scheduler:
       # the TSDB index dispatches many more, but each individually smaller, requests.
       # We increase the pending request queue sizes to compensate.
@@ -799,11 +804,6 @@ opentelemetry-collector:
         endpoint: http://${env:RELEASE_NAME}-prometheus-server/api/v1/write
         tls:
           insecure: true
-      # -- Traces → Tempo (only active when tempo.enabled=true)
-      otlp/tempo:
-        endpoint: ${env:RELEASE_NAME}-tempo:4317
-        tls:
-          insecure: true
     service:
       telemetry:
         metrics:
@@ -817,7 +817,5 @@ opentelemetry-collector:
           receivers: [otlp]
           processors: [memory_limiter, batch]
           exporters: [prometheusremotewrite]
-        traces:
-          receivers: [otlp]
-          processors: [memory_limiter, batch]
-          exporters: [otlp/tempo]
+        # Traces pipeline is not defined here by default.
+        # Apply values-enable-tempo.yaml to enable traces → Tempo.

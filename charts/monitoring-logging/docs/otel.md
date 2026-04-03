@@ -286,7 +286,9 @@ otelcol.exporter.otlphttp "loki" {
 
 ## OTel Collector pipeline reference
 
-Defined in `monitoring-logging/values.yaml` under `opentelemetry-collector.config`:
+Defined in `monitoring-logging/values.yaml` under `opentelemetry-collector.config`.
+
+The default config handles logs and metrics only. The **traces pipeline is excluded by default** — it is only active when Tempo is enabled (see [Enabling traces / Tempo](#enabling-traces--tempo) below).
 
 ```yaml
 # #OTel instrumentation — monitoring-logging/values.yaml
@@ -311,15 +313,154 @@ opentelemetry-collector:
         headers: { X-Scope-OrgID: "1" }
       prometheusremotewrite:
         endpoint: http://${env:RELEASE_NAME}-prometheus-server/api/v1/write
-      otlp/tempo:
-        endpoint: ${env:RELEASE_NAME}-tempo:4317    # active when tempo.enabled=true
-        tls: { insecure: true }
     service:
       pipelines:
         logs:    { receivers: [otlp], processors: [memory_limiter, batch], exporters: [otlphttp/loki] }
         metrics: { receivers: [otlp], processors: [memory_limiter, batch], exporters: [prometheusremotewrite] }
-        traces:  { receivers: [otlp], processors: [memory_limiter, batch], exporters: [otlp/tempo] }
 ```
+
+---
+
+## Enabling traces / Tempo
+
+Traces are disabled by default. To enable Tempo and wire the OTel traces pipeline, apply `values-enable-tempo.yaml` alongside your main values file:
+
+```bash
+helm upgrade monitoring charts/monitoring-logging \
+  -f values-monitoring.yaml \
+  -f values-enable-tempo.yaml \
+  -n monitoring
+```
+
+This overlay sets `tempo.enabled: true` and adds the `otlp/tempo` exporter + `traces` pipeline to the collector config.
+
+---
+
+## Securing the HTTP endpoint
+
+The OTel HTTP receiver (port 4318) is typically exposed via an ingress for external senders. All three auth options below are built into `otelcol-contrib` (the image already deployed) — no extra images or sidecars required. Auth applies to the HTTP receiver only; gRPC (4317) is cluster-internal and needs no auth.
+
+### Option 1 — Bearer token (`bearertokenauth`) ✅ Recommended
+
+Validates `Authorization: Bearer <token>`. Token is a static secret injected via env var from a K8s Secret.
+
+```yaml
+# env-level values override
+opentelemetry-collector:
+  extraEnvs:
+    - name: OTEL_AUTH_TOKEN
+      valueFrom:
+        secretKeyRef:
+          name: otel-collector-auth
+          key: token
+  config:
+    extensions:
+      bearertokenauth:
+        token: "${env:OTEL_AUTH_TOKEN}"
+    receivers:
+      otlp:
+        protocols:
+          http:
+            endpoint: 0.0.0.0:4318
+            auth:
+              authenticator: bearertokenauth
+    service:
+      extensions: [bearertokenauth]
+```
+
+**Client config** — add the header to each sender:
+
+```yaml
+# Django apps (podiumd/values-enable-observability.yaml or env override)
+<service>:
+  settings:
+    otel:
+      exporterOtlpHeaders:
+        - name: Authorization
+          value: "Bearer <token>"
+
+# ZAC (javaOptions)
+-Dotel.exporter.otlp.headers=Authorization=Bearer <token>
+
+# .NET / KISS (env var)
+OTEL_EXPORTER_OTLP_HEADERS: "Authorization=Bearer <token>"
+```
+
+**Pros:** Simple, no external dependency, works with every OTel SDK.  
+**Cons:** Static secret — rotation requires updating the K8s Secret and restarting the collector (use `token_file:` + a mounted Secret volume to enable live rotation without restart).
+
+---
+
+### Option 2 — Basic Auth (`basicauth`)
+
+Validates `Authorization: Basic <base64>`. Server side uses an **htpasswd file** (bcrypt hashes).
+
+```yaml
+opentelemetry-collector:
+  config:
+    extensions:
+      basicauth/server:
+        htpasswd:
+          inline: |
+            alice:$2y$10$...   # generate with: htpasswd -nbB alice mypassword
+    receivers:
+      otlp:
+        protocols:
+          http:
+            endpoint: 0.0.0.0:4318
+            auth:
+              authenticator: basicauth/server
+    service:
+      extensions: [basicauth/server]
+```
+
+**Client config:**
+
+```yaml
+# All OTel SDKs support OTEL_EXPORTER_OTLP_HEADERS
+OTEL_EXPORTER_OTLP_HEADERS: "Authorization=Basic <base64(user:password)>"
+```
+
+**Pros:** Widely understood standard.  
+**Cons:** Requires managing bcrypt hashes; base64 credentials are not encrypted in transit (requires TLS on the ingress).
+
+---
+
+### Option 3 — OIDC (`oidcauth`)
+
+Validates a JWT bearer token issued by an OIDC provider (e.g. Keycloak, which is already deployed).
+
+```yaml
+opentelemetry-collector:
+  config:
+    extensions:
+      oidc:
+        providers:
+          - issuer_url: https://keycloak.example.com/realms/myrealm
+            audience: account
+    receivers:
+      otlp:
+        protocols:
+          http:
+            endpoint: 0.0.0.0:4318
+            auth:
+              authenticator: oidc
+    service:
+      extensions: [oidc]
+```
+
+**Pros:** Tokens are short-lived and automatically rotated; integrates with Keycloak.  
+**Cons:** Every client app must obtain and refresh a token from Keycloak — significantly more complex to configure across all senders.
+
+---
+
+### Comparison
+
+| Option | Complexity | Token rotation | Client config | Best for |
+|---|---|---|---|---|
+| `bearertokenauth` | Low | Manual (or file watch) | One header env var | Most deployments |
+| `basicauth` | Low–medium | Manual (htpasswd regen) | One header env var | Where basic auth is a standard requirement |
+| `oidcauth` | High | Automatic (JWT expiry) | Full OIDC client per app | Keycloak SSO integration |
 
 ---
 
