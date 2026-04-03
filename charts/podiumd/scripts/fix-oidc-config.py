@@ -9,8 +9,8 @@ Affected components (use new format): openzaak, opennotificaties, objecten,
 objecttypen, openklant, openformulieren.
 
 NOT affected (still use old flat format in PodiumD 4.6): openinwoner (chart
-2.1.3), openarchiefbeheer (chart 1.5.3). Do not run this script against config
-blocks for those components.
+2.1.3), openarchiefbeheer (chart 1.5.3). The script automatically skips OIDC
+blocks nested under these component keys — they are left untouched.
 
 Old format (keys at item level):
   claim_mapping          (dict)  → options.user_settings.claim_mappings
@@ -29,6 +29,9 @@ The script handles:
   - Fully new format items (skipped / idempotent)
   - Partially migrated items (merges remaining old keys into options)
   - Mixed files with both old and new items
+
+Only old-format OIDC keys are modified. All other fields in every item and all
+other keys in the values file are left completely untouched.
 
 It processes all string values inside the file that contain an embedded YAML
 block with oidc_db_config_admin_auth (i.e. the data: | blocks used by the
@@ -63,6 +66,18 @@ except ImportError:
     except ImportError:
         print("ERROR: Install ruamel.yaml or PyYAML: pip install ruamel.yaml", file=sys.stderr)
         sys.exit(1)
+
+
+# ---------------------------------------------------------------------------
+# Components that still use the OLD flat OIDC format and must NOT be migrated.
+# These are excluded because their chart versions do not yet support the new
+# options.user_settings / options.groups_settings nested format.
+# ---------------------------------------------------------------------------
+
+_SKIP_COMPONENTS = frozenset({
+    "openinwoner",       # chart 2.1.3 — still uses old mozilla-django-oidc-db format
+    "openarchiefbeheer", # chart 1.5.3 — still uses old mozilla-django-oidc-db format
+})
 
 
 # ---------------------------------------------------------------------------
@@ -224,11 +239,15 @@ def _migrate_oidc_yaml_str(yaml_str):
 # Outer-file walker: finds embedded YAML strings and migrates them
 # ---------------------------------------------------------------------------
 
-def _walk_and_migrate(node):
+def _walk_and_migrate(node, skip=False):
     """
     Recursively walk a loaded YAML document.
     For any string value containing an embedded oidc_db_config_admin_auth block,
     parse and migrate it in-place.
+
+    skip: when True, embedded OIDC YAML strings are not migrated (used for
+    components in _SKIP_COMPONENTS that still require the old flat format).
+
     Returns True if anything was changed.
     """
     changed = False
@@ -236,7 +255,11 @@ def _walk_and_migrate(node):
     if isinstance(node, dict):
         for key in list(node):
             val = node[key]
+            # When entering a top-level component key, check if it should be skipped.
+            child_skip = skip or (key in _SKIP_COMPONENTS)
             if isinstance(val, str) and "oidc_db_config_admin_auth" in val:
+                if child_skip:
+                    continue
                 new_val, c = _migrate_oidc_yaml_str(val)
                 if c:
                     if _USE_RUAMEL and isinstance(val, (LiteralScalarString, FoldedScalarString)):
@@ -245,11 +268,11 @@ def _walk_and_migrate(node):
                         node[key] = new_val
                     changed = True
             else:
-                changed = _walk_and_migrate(val) or changed
+                changed = _walk_and_migrate(val, skip=child_skip) or changed
 
     elif isinstance(node, list):
         for item in node:
-            changed = _walk_and_migrate(item) or changed
+            changed = _walk_and_migrate(item, skip=skip) or changed
 
     return changed
 
@@ -263,6 +286,7 @@ def _load(path):
         ry = RuamelYAML()
         ry.preserve_quotes = True
         ry.width = 4096
+        ry.allow_duplicate_keys = True
         with open(path, "r", encoding="utf-8") as f:
             return ry, ry.load(f)
     else:
