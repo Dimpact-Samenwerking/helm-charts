@@ -202,10 +202,7 @@ keycloak:
       labels:
         app: keycloak
         version: 26.5.6
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "9000"
-        prometheus.io/path: /metrics
+      # override: values-enable-observability.yaml adds prometheus.io scrape annotations
     spec:
       securityContext:
         runAsNonRoot: true
@@ -603,6 +600,7 @@ openzaak:
         memory: 16Mi
   tags:
     redis: false
+  # override: values-enable-observability.yaml sets disabled: false and configures the OTLP endpoint
   otel:
     disabled: true
 
@@ -823,6 +821,7 @@ opennotificaties:
       erlangCookie: SUPER-SECRET
   tags:
     redis: false
+  # override: values-enable-observability.yaml sets disabled: false and configures the OTLP endpoint
   otel:
     disabled: true
 
@@ -982,6 +981,7 @@ objecten:
     enabled: false
   tags:
     redis: false
+  # override: values-enable-observability.yaml sets disabled: false and configures the OTLP endpoint
   otel:
     disabled: true
 
@@ -1086,6 +1086,7 @@ objecttypen:
   fullnameOverride: objecttypen
   tags:
     redis: false
+  # override: values-enable-observability.yaml sets disabled: false and configures the OTLP endpoint
   otel:
     disabled: true
 
@@ -1386,10 +1387,12 @@ openklant:
         memory: 16Mi
   tags:
     redis: false
+  # override: values-enable-observability.yaml sets disabled: false and configures the OTLP endpoint
   otel:
     disabled: true
 
 openformulieren:
+  # override: values-enable-observability.yaml adds a settings.otel block to enable OTEL
   configuration:
     enabled: true
     job:

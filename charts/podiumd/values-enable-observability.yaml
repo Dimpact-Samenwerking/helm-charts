@@ -1,0 +1,106 @@
+# Enable observability (OpenTelemetry + Prometheus) for all supported components.
+#
+# Usage: helm upgrade podiumd charts/podiumd -f values.yaml -f values-enable-observability.yaml -n podiumd
+#
+# Collector endpoint: the OpenTelemetry Collector deployed by the monitoring-logging chart
+# in the monitoring namespace, accepting OTLP over gRPC on port 4317.
+# Adjust the endpoint if your collector runs elsewhere.
+
+_otelEndpoint: &otelEndpoint "http://monitoring-opentelemetry-collector.monitoring.svc.cluster.local:4317"
+
+# ---------------------------------------------------------------------------
+# Maykin apps — Django-based, all share the same settings.otel schema
+# ---------------------------------------------------------------------------
+
+openzaak:
+  settings:
+    otel:
+      disabled: false
+      exporterOtlpEndpoint: *otelEndpoint
+      exporterOtlpProtocol: grpc
+      exporterOtlpMetricsInsecure: true
+      metricExportInterval: 60000
+      metricExportTimeout: 10000
+
+openklant:
+  settings:
+    otel:
+      disabled: false
+      exporterOtlpEndpoint: *otelEndpoint
+      exporterOtlpProtocol: grpc
+      exporterOtlpMetricsInsecure: true
+      metricExportInterval: 60000
+      metricExportTimeout: 10000
+
+openformulieren:
+  settings:
+    otel:
+      disabled: false
+      exporterOtlpEndpoint: *otelEndpoint
+      exporterOtlpProtocol: grpc
+      exporterOtlpMetricsInsecure: true
+      metricExportInterval: 60000
+      metricExportTimeout: 10000
+
+opennotificaties:
+  settings:
+    otel:
+      disabled: false
+      exporterOtlpEndpoint: *otelEndpoint
+      exporterOtlpProtocol: grpc
+      exporterOtlpMetricsInsecure: true
+      metricExportInterval: 60000
+      metricExportTimeout: 10000
+
+objecten:
+  settings:
+    otel:
+      disabled: false
+      exporterOtlpEndpoint: *otelEndpoint
+      exporterOtlpProtocol: grpc
+      exporterOtlpMetricsInsecure: true
+      metricExportInterval: 60000
+      metricExportTimeout: 10000
+
+objecttypen:
+  settings:
+    otel:
+      disabled: false
+      exporterOtlpEndpoint: *otelEndpoint
+      exporterOtlpProtocol: grpc
+      exporterOtlpMetricsInsecure: true
+      metricExportInterval: 60000
+      metricExportTimeout: 10000
+
+# ---------------------------------------------------------------------------
+# ZAC — Java, uses javaOptions for OTEL agent flags
+# opentelemetry-collector sidecar is disabled; we use the shared collector
+# ---------------------------------------------------------------------------
+
+zac:
+  opentelemetry_zaakafhandelcomponent:
+    disabled: ""
+    endpoint: *otelEndpoint
+  # javaOptions extends the chart default (-Xmx1024m -Xms1024m -Xlog:gc::time,uptime)
+  # with OTEL agent configuration
+  javaOptions: >-
+    -Xmx1024m -Xms1024m -Xlog:gc::time,uptime
+    -Dotel.service.name=zac
+    -Dotel.exporter.otlp.endpoint=http://monitoring-opentelemetry-collector.monitoring.svc.cluster.local:4317
+    -Dotel.exporter.otlp.protocol=grpc
+    -Dotel.traces.exporter=otlp
+    -Dotel.metrics.exporter=none
+    -Dotel.logs.exporter=none
+
+# ---------------------------------------------------------------------------
+# Keycloak — metrics enabled via additionalOptions in values.yaml (metrics-enabled: true).
+# Prometheus scrape annotations on the pod template so Prometheus can discover the endpoint.
+# ---------------------------------------------------------------------------
+
+keycloak:
+  podTemplate:
+    metadata:
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9000"
+        prometheus.io/path: /metrics
