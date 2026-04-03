@@ -79,7 +79,7 @@ openbeheer:
 | openklant | 1.10.0 | 1.11.0 |
 | openformulieren (openforms) | 1.11.6 | 1.12.0 |
 | openinwoner | 2.1.0 | 2.1.3 |
-| zac | 1.0.165 | 1.0.204 |
+| zac | 1.0.165 | 1.0.208 |
 | zgw-office-addin | 0.0.65 | 0.0.73 |
 | ita | 2.0.1 | 3.0.0 |
 | kiss | 2.1.0 | 2.2.2 |
