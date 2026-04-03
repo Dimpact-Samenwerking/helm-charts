@@ -23,7 +23,7 @@ rules:
     verbs: ["get", "list", "patch"]
   - apiGroups: ["apps"]
     resources: ["statefulsets"]
-    verbs: ["get", "watch"]
+    verbs: ["get", "list", "watch"]
   - apiGroups: ["redis.redis.opstreelabs.in"]
     resources: ["redisreplications"]
     verbs: ["get"]
