@@ -424,8 +424,8 @@ redis-operator:
     labelMasterJob:
       enabled: true
       image:
-        repository: docker.io/bitnami/kubectl
-        tag: "1.32"
+        repository: lachlanevenson/k8s-kubectl
+        tag: "v1.25.4"
       resources:
         requests:
           cpu: 10m

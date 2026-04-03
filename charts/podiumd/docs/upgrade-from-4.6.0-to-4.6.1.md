@@ -2,23 +2,29 @@
 
 ## New features / additions
 
-### Updated images — ACR override required
+### Redis HA master label job (always active)
 
-The following images are new or bumped in 4.6.1. For **ACR-based environments**, add
-repository overrides pointing to the environment-specific ACR (no tags needed):
+4.6.1 adds a `redis-ha-label-master` Job that runs on every deployment and fixes a known
+OT Redis Operator v0.24.0 bug: after a rolling restart of the Redis StatefulSet, pods lose
+their `redis-role=master/slave` labels, causing the `redis-ha-master` service to have no
+endpoints and all Celery workers to crash.
+
+The job is idempotent — it exits immediately if labels are already present.
+
+It uses the `lachlanevenson/k8s-kubectl` image (already in the chart via the
+zookeeper-operator hooks). For **ACR-based environments**, override the repository:
 
 ```yaml
-keycloak-operator:
-  operator:
-    image:
-      repository: <acr>/keycloak-operator  # quay.io/keycloak/keycloak-operator:26.5.7
-  image:
-    repository: <acr>/keycloak             # quay.io/keycloak/keycloak:26.5.7
-
-openinwoner:
-  image:
-    repository: <acr>/open-inwoner         # docker.io/maykinmedia/open-inwoner:2.1.1
+redis-operator:
+  redis-ha:
+    labelMasterJob:
+      image:
+        repository: <acr>/k8s-kubectl
 ```
+
+No tag override is needed — the tag is set by the chart default (`v1.25.4`).
+
+---
 
 ### Observability: new images via `values-enable-observability.yaml`
 
