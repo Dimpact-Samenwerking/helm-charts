@@ -367,6 +367,7 @@ redis-operator:
       registry: quay.io
       repository: opstree/redis
       tag: "v8.4.2"
+    # override: values-enable-observability.yaml sets redisExporter.enabled: true
     redisExporter:
       image:
         registry: quay.io
@@ -1750,6 +1751,9 @@ openinwoner:
       resultBackendl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/12
       # -- Set to debug for test/acceptance environments
       logLevel: warning
+    # override: values-enable-observability.yaml sets disabled: false and configures the OTEL endpoint
+    otel:
+      disabled: true
   persistence:
     size: 10Gi
     existingClaim: openinwoner
@@ -1865,6 +1869,7 @@ kisselastic:
   elasticVersion: "8.19.3"
   elasticsearchCount: 3
   # -- install crds using https://github.com/elastic/cloud-on-k8s/blob/main/deploy/eck-operator/charts/eck-operator-crds/templates/all-crds.yaml
+  # override: values-enable-observability.yaml sets config.metricsPort and enables podMonitor
   eck-operator:
     installCRDs: false
     managedNamespaces:
@@ -2387,6 +2392,7 @@ zgw-office-addin:
       secret: "dummy"
 
 clamav:
+  # override: values-enable-observability.yaml enables metrics exporter sidecar and ServiceMonitor
   image:
     tag: "1.4.4"
   nameOverride: clamav

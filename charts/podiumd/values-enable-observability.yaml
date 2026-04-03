@@ -72,8 +72,18 @@ objecttypen:
       metricExportInterval: 60000
       metricExportTimeout: 10000
 
+openinwoner:
+  settings:
+    otel:
+      disabled: false
+      exporterOtlpEndpoint: *otelEndpoint
+      exporterOtlpProtocol: grpc
+      exporterOtlpMetricsInsecure: true
+      metricExportInterval: 60000
+      metricExportTimeout: 10000
+
 # ---------------------------------------------------------------------------
-# ZAC — Java, uses javaOptions for OTEL agent flags
+# ZAC — Java OTEL agent flags + solr/zookeeper operator scrape annotations
 # opentelemetry-collector sidecar is disabled; we use the shared collector
 # ---------------------------------------------------------------------------
 
@@ -89,8 +99,20 @@ zac:
     -Dotel.exporter.otlp.endpoint=http://monitoring-opentelemetry-collector.monitoring.svc.cluster.local:4317
     -Dotel.exporter.otlp.protocol=grpc
     -Dotel.traces.exporter=otlp
-    -Dotel.metrics.exporter=none
+    -Dotel.metrics.exporter=otlp
     -Dotel.logs.exporter=none
+  # Solr Operator — hardcodes prometheus.io/scrape: "true" in its deployment template already.
+  # Only port and path need to be added via annotations (port 8080).
+  solr-operator:
+    annotations:
+      prometheus.io/port: "8080"
+      prometheus.io/path: /metrics
+    # Zookeeper Operator — port 6000
+    zookeeper-operator:
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "6000"
+        prometheus.io/path: /metrics
 
 # ---------------------------------------------------------------------------
 # Keycloak — metrics enabled via additionalOptions in values.yaml (metrics-enabled: true).
@@ -104,3 +126,50 @@ keycloak:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9000"
         prometheus.io/path: /metrics
+
+# ---------------------------------------------------------------------------
+# Redis operator — scrape the operator deployment (port 8080) and enable the
+# redis_exporter sidecar on each redis-ha pod (port 9121).
+# ---------------------------------------------------------------------------
+
+redis-operator:
+  redisOperator:
+    podAnnotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8080"
+      prometheus.io/path: /metrics
+  redis-ha:
+    redisExporter:
+      enabled: true
+
+# ---------------------------------------------------------------------------
+# ClamAV — sergeymakinen/clamav_exporter sidecar + ServiceMonitor (port 9906)
+# ---------------------------------------------------------------------------
+
+clamav:
+  metrics:
+    enabled: true
+    resources:
+      requests:
+        cpu: 10m
+        memory: 16Mi
+      limits:
+        cpu: 50m
+        memory: 32Mi
+    serviceMonitor:
+      enabled: true
+      interval: 30s
+      scrapeTimeout: 10s
+
+# ---------------------------------------------------------------------------
+# ECK operator (via kiss-elastic) — enable metrics port and create a PodMonitor
+# ---------------------------------------------------------------------------
+
+kisselastic:
+  eck-operator:
+    config:
+      metricsPort: "8080"
+    podMonitor:
+      enabled: true
+      interval: 1m
+      scrapeTimeout: 30s
