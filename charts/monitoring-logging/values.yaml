@@ -3,6 +3,13 @@ grafana:
   assertNoLeakedSecrets: false
   nodeSelector:
     agentpool: userpool
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
   deleteDatasources:
     - name: Alertmanager
     
@@ -30,7 +37,28 @@ grafana:
           version: 1
           jsonData:
             timeout: 300
+        # -- Tempo datasource: requires tempo.enabled=true
+        - name: Tempo
+          type: tempo
+          uid: tempo
+          readOnly: false
+          editable: true
+          access: proxy
+          isDefault: false
+          url: http://{{ .Release.Name }}-tempo:3200
+          jsonData:
+            tracesToLogsV2:
+              datasourceUid: loki
+              filterByTraceID: true
+              filterBySpanID: false
+            tracesToMetrics:
+              datasourceUid: prometheus
+            serviceMap:
+              datasourceUid: prometheus
+            nodeGraph:
+              enabled: true
   # -- curl image settings
+  # docker.io/curlimages/curl:8.16.0
   downloadDashboardsImage:
     pullPolicy: IfNotPresent
     sha: ""
@@ -41,7 +69,7 @@ grafana:
     allowPrivilegeEscalation: false
     runAsNonRoot: true
     
- # -- Dashboard voor gemeenten
+ # -- Dashboard providers
   dashboardProviders:
     dashboardproviders.yaml:
       apiVersion: 1
@@ -52,27 +80,36 @@ grafana:
           type: file
           disableDeletion: false
           updateIntervalSeconds: 30
-          allowUiUpdates: true # modify dashboards
+          allowUiUpdates: true
           editable: true
           options:
             path: /var/lib/grafana/dashboards/default
-
-# -- Dashboard voor logs
         - name: "logs"
-          orgId: 2
+          orgId: 1
           folder: 'PodiumD_Monitoring_Logging'
           type: file
           disableDeletion: false
           updateIntervalSeconds: 30
-          allowUiUpdates: true # modify dashboards
+          allowUiUpdates: true
           editable: true
           options:
             path: /var/lib/grafana/dashboards/logs
+        - name: "metrics"
+          orgId: 1
+          folder: 'PodiumD_Metrics'
+          type: file
+          disableDeletion: false
+          updateIntervalSeconds: 30
+          allowUiUpdates: true
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/metrics
 
   # -- Dashboard opgenomen in ConfigMap
   dashboardsConfigMaps:
     default: "logging-main-dashboard"
     logs: "logging-logs"
+    metrics: "monitoring-metrics-dashboards"
   
   grafana.ini:
     # -- Authentication and Authorization with Keycloak
@@ -81,7 +118,7 @@ grafana:
       name: Keycloak-podiumd
       allow_sign_up: true
       allow_assign_grafana_admin: true
-      client_id: ""
+      client_id: "monitoring"
       client_secret: ""
       scopes: openid email profile offline_access roles
       email_attribute_path: email
@@ -128,23 +165,27 @@ grafana:
       kubernetesDashboards: true
       grafanaAPIServerEnsureKubectlAccess: true
   # -- Grafana image settings
+  # docker.io/grafana/grafana:12.3.0-17814087142-ubuntu
   image:
     pullPolicy: IfNotPresent
     tag: 12.3.0-17814087142-ubuntu
 
   initChownData:
     # -- Busybox image settings
+    # docker.io/library/busybox:1.37.0-uclibc
     image:
       pullPolicy: IfNotPresent
       tag: 1.37.0-uclibc
 
   imageRenderer:
     # -- Grafana image renderer settings
+    # docker.io/grafana/grafana-image-renderer:v4.0.14
     image:
       pullPolicy: Always
       tag: v4.0.14
   testFramework:
     # -- bats image settings
+    # docker.io/bats/bats:1.12.0
     image:
       tag: 1.12.0
     imagePullPolicy: IfNotPresent
@@ -167,8 +208,11 @@ prometheus:
   enabled: true
   server:
     # -- prometheus image settings
+    # quay.io/prometheus/prometheus:v3.6.0
     image:
       tag: v3.6.0
+    extraFlags:
+      - web.enable-remote-write-receiver
     persistentVolume:
       enabled: true
       storageClass: "managed-csi"
@@ -176,6 +220,13 @@ prometheus:
       accessModes: ["ReadWriteOnce"]
     nodeSelector:
       agentpool: userpool
+    resources:
+      requests:
+        cpu: 100m
+        memory: 512Mi
+      limits:
+        cpu: "1"
+        memory: 2Gi
   prometheusSpec:
     logLevel: warn
     serviceMonitorSelectorNilUsesHelmValues: false
@@ -187,63 +238,172 @@ prometheus:
   prometheus-node-exporter:
     nodeSelector:
       agentpool: userpool
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 64Mi
     # node-exporter image settings
+    # quay.io/prometheus/node-exporter:v1.9.1
     image:
       pullPolicy: IfNotPresent
       tag: v1.9.1
     kubeRBACProxy:
       # kube-rbac-proxy image settings
+      # quay.io/brancz/kube-rbac-proxy:0.19.1
       image:
         pullPolicy: IfNotPresent
         tag: 0.19.1
   prometheus-pushgateway:
     nodeSelector:
       agentpool: userpool
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 64Mi
     # pushgateway image settings
+    # quay.io/prometheus/pushgateway:v1.11.1
     image:
       pullPolicy: IfNotPresent
       tag: v1.11.1
   kube-state-metrics:
     nodeSelector:
       agentpool: userpool
+    resources:
+      requests:
+        cpu: 10m
+        memory: 64Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
     # kube-state-metrics image settings
+    # registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.17.0
     image:
       pullPolicy: IfNotPresent
       tag: v2.17.0
   configmapReload:
     prometheus:
+      resources:
+        requests:
+          cpu: 5m
+          memory: 16Mi
+        limits:
+          cpu: 50m
+          memory: 32Mi
       # prometheus-config-reloader image settings
+      # quay.io/prometheus-operator/prometheus-config-reloader:v0.85.0
       image:
         tag: v0.85.0
 
-promtail:
+alloy:
   enabled: true
-  # promtail image settings
-  image:
-    pullPolicy: IfNotPresent
-    tag: 3.5.5
   nodeSelector:
     agentpool: userpool
-  config:
-    logLevel: warn
-    clients:
-      - url: http://{{ .Release.Name }}-loki-gateway/loki/api/v1/push
-        tenant_id: 1
-  resources:
-    requests:
-      cpu: 50m
-      memory: 96Mi
-    limits:
-      cpu: 100m
-      memory: 256Mi
-  sidecar:
-    # configmap-reload image settings
-    image:
-      pullPolicy: IfNotPresent
-      tag: v0.15.0
+  alloy:
+    extraEnv:
+      - name: NODE_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: spec.nodeName
+    # -- configMap.content is processed by Helm tpl, so {{ .Release.Name }} is valid
+    configMap:
+      content: |
+        // Discover all pods on the node
+        discovery.kubernetes "pods" {
+          role = "pod"
+        }
+
+        // Relabel: keep only pods on this node, drop terminated pods,
+        // extract exact log path from pod UID, add k8s metadata.
+        discovery.relabel "pod_logs" {
+          targets = discovery.kubernetes.pods.targets
+
+          // Only tail files for pods scheduled on this node
+          rule {
+            source_labels = ["__meta_kubernetes_pod_node_name"]
+            regex         = env("NODE_NAME")
+            action        = "keep"
+          }
+
+          // Drop pods in terminal phases
+          rule {
+            source_labels = ["__meta_kubernetes_pod_phase"]
+            regex         = "Pending|Succeeded|Failed|Completed"
+            action        = "drop"
+          }
+
+          rule {
+            source_labels = ["__meta_kubernetes_namespace"]
+            target_label  = "namespace"
+          }
+
+          rule {
+            source_labels = ["__meta_kubernetes_pod_name"]
+            target_label  = "pod"
+          }
+
+          rule {
+            source_labels = ["__meta_kubernetes_pod_container_name"]
+            target_label  = "container"
+          }
+
+          rule {
+            source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+            target_label  = "app"
+          }
+
+          // Build the exact log file path using pod UID — no wildcards, os.Stat requires a real path.
+          // Use ${n} notation: $n_ would include the underscore in the capture group reference.
+          rule {
+            source_labels = ["__meta_kubernetes_namespace", "__meta_kubernetes_pod_name", "__meta_kubernetes_pod_uid", "__meta_kubernetes_pod_container_name"]
+            separator     = "/"
+            regex         = "(.+)/(.+)/(.+)/(.+)"
+            replacement   = "/var/log/pods/${1}_${2}_${3}/${4}/0.log"
+            target_label  = "__path__"
+          }
+        }
+
+        // Tail log files, strip CRI prefix (containerd format: timestamp stream flags log)
+        // and forward to Loki. Equivalent to Promtail's pipeline_stages: [cri: {}].
+        loki.source.file "pod_logs" {
+          targets    = discovery.relabel.pod_logs.output
+          forward_to = [loki.process.cri.receiver]
+        }
+
+        loki.process "cri" {
+          forward_to = [loki.write.loki_gateway.receiver]
+
+          stage.cri {}
+        }
+
+        loki.write "loki_gateway" {
+          endpoint {
+            url       = "http://{{ .Release.Name }}-loki-gateway/loki/api/v1/push"
+            tenant_id = "1"
+          }
+        }
+    mounts:
+      varlog: true
+      dockercontainers: true
+    resources:
+      requests:
+        cpu: 50m
+        memory: 96Mi
+      limits:
+        cpu: 100m
+        memory: 256Mi
+  image:
+    pullPolicy: IfNotPresent
+    # docker.io/grafana/alloy:v1.14.0
 loki:
   enabled: true
-  # loki image settings
+  # loki image settings — all loki components use the same image
+  # docker.io/grafana/loki:3.6.7
   #global:
   #  image:
   #    registry: acrprodmgmt.azurecr.io
@@ -251,6 +411,7 @@ loki:
   lokiCanary:
     enabled: false
     # loki-canary image settings
+    # docker.io/grafana/loki-canary:3.6.7
     # image is not used
     
    # image:
@@ -258,11 +419,13 @@ loki:
    #   tag: 3.5
   memcached:
     # memcached image settings
+    # docker.io/library/memcached:alpine3.22
     image:
       pullPolicy: IfNotPresent
       tag: alpine3.22
   memcachedExporter:
-    # memcached-export image settings
+    # memcached-exporter image settings
+    # docker.io/prom/memcached-exporter:v0.15.3
     image:
       pullPolicy: IfNotPresent
       tag: v0.15.3
@@ -275,6 +438,7 @@ loki:
 
   sidecar:
     # k8s-sidecar image settings
+    # docker.io/kiwigrid/k8s-sidecar:1.30.10
     image:
       pullPolicy: IfNotPresent
       tag: 1.30.10
@@ -288,11 +452,13 @@ loki:
       agentpool: userpool
   enterprise:
     # enterprise-logs image settings
+    # docker.io/grafana/enterprise-logs:3.5.4
     image:
       pullPolicy: IfNotPresent
       tag: 3.5.4
     provisioner:
       # enterprise-logs-provisioner image settings
+      # us-docker.pkg.dev/grafanalabs-global/docker-enterprise-provisioner-prod/enterprise-provisioner:3.5.2
       image:
         pullPolicy: IfNotPresent
         tag: 3.5.2
@@ -311,29 +477,72 @@ loki:
     maxUnavailable: 1
     nodeSelector:
       agentpool: userpool
+    resources:
+      requests:
+        cpu: 20m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
   queryScheduler:
     replicas: 2
     nodeSelector:
       agentpool: userpool
+    resources:
+      requests:
+        cpu: 20m
+        memory: 64Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
   queryFrontend:
     replicas: 2
     maxUnavailable: 1
     nodeSelector:
       agentpool: userpool
+    resources:
+      requests:
+        cpu: 20m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
   distributor:
     replicas: 3
     maxUnavailable: 2
     nodeSelector:
       agentpool: userpool
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
   querier:
     replicas: 3
     maxUnavailable: 2
     nodeSelector:
       agentpool: userpool
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
   gateway:
     nodeSelector:
       agentpool: userpool
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 64Mi
     # nginx-unprivileged image settings
+    # docker.io/nginxinc/nginx-unprivileged:alpine3.22-perl
     image:
       pullPolicy: IfNotPresent
       tag: alpine3.22-perl
@@ -341,6 +550,13 @@ loki:
     replicas: 3
     nodeSelector:
       agentpool: userpool
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
     zoneAwareReplication:
       zoneA:
         nodeSelector:
@@ -353,13 +569,14 @@ loki:
           agentpool: userpool
 
   # kubectl image settings
+  # docker.io/bitnami/kubectl:1.33.3-debian-12-r1
   kubectlImage:
     tag: 1.33.3-debian-12-r1
     pullPolicy: IfNotPresent
   test:
     enabled: false
     # loki-helm-test image settings
-    # image is not used
+    # docker.io/grafana/loki-helm-test (not used)
 
     #  image:
     #    pullPolicy: IfNotPresent
@@ -421,7 +638,12 @@ loki:
       max_cache_freshness_per_query: 10m
       ingestion_rate_mb: 10
       ingestion_burst_size_mb: 20
-      
+      otlp_config:
+        resource_attributes:
+          attributes_config:
+            - regex: app
+              action: index_label
+
     query_scheduler:
       # the TSDB index dispatches many more, but each individually smaller, requests.
       # We increase the pending request queue sizes to compensate.
@@ -443,15 +665,16 @@ loki:
       max_outstanding_per_tenant: 6144
 
     # loki image settings
+    # docker.io/grafana/loki:3.6.7
     image:
       pullPolicy: IfNotPresent
-      tag: 3.5.5
+      tag: 3.6.7
     
 
   minio:
     enabled: true
     global:
-      # minio image settings
+      # override registry for air-gapped environments:
       #image:
       #  registry: acrprodmgmt.azurecr.io
     persistence:
@@ -460,10 +683,139 @@ loki:
     nodeSelector:
       agentpool: userpool
     # minio image settings
+    # quay.io/minio/minio:RELEASE.2025-07-23T15-54-02Z-cpuv1
     image:
       pullPolicy: IfNotPresent
       tag: RELEASE.2025-07-23T15-54-02Z-cpuv1
     # mc image settings
+    # quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z-cpuv1
     mcImage:
       pullPolicy: IfNotPresent
       tag: RELEASE.2025-08-13T08-35-41Z-cpuv1
+
+# -- Grafana Tempo: distributed tracing backend. Disabled by default.
+# Enable with: tempo.enabled=true
+# Requires opentelemetry-collector.enabled=true to receive traces via OTLP.
+tempo:
+  enabled: false
+  nodeSelector:
+    agentpool: userpool
+  persistence:
+    enabled: true
+    storageClassName: managed-csi
+    size: 10Gi
+  tempo:
+    # -- tempo image settings
+    # docker.io/grafana/tempo:2.9.0
+    image:
+      pullPolicy: IfNotPresent
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+    storage:
+      trace:
+        backend: local
+        local:
+          path: /var/tempo/traces
+        wal:
+          path: /var/tempo/wal
+
+# -- OpenTelemetry Collector: gateway deployment receiving OTLP from applications.
+# Exports: logs → Loki, metrics → Prometheus, traces → Tempo (when enabled).
+# Applications should send OTLP to <release-name>-opentelemetry-collector:4317 (gRPC)
+# or <release-name>-opentelemetry-collector:4318 (HTTP).
+# See otel.md for per-service instrumentation config.
+# #OTel instrumentation
+opentelemetry-collector:
+  enabled: true
+  mode: deployment
+  image:
+    # otel-collector image settings
+    # ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.147.0
+    # Using contrib (not k8s) — required for prometheusremotewrite exporter
+    repository: ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib
+    pullPolicy: IfNotPresent
+  command:
+    name: otelcol-contrib
+  nodeSelector:
+    agentpool: userpool
+  # -- Expose OTLP gRPC, HTTP and self-metrics ports
+  ports:
+    otlp:
+      enabled: true
+      containerPort: 4317
+      servicePort: 4317
+      protocol: TCP
+    otlp-http:
+      enabled: true
+      containerPort: 4318
+      servicePort: 4318
+      protocol: TCP
+    metrics:
+      enabled: true
+      containerPort: 8888
+      servicePort: 8888
+      protocol: TCP
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8888"
+    prometheus.io/path: "/metrics"
+  # -- Inject release name so config can reference sibling chart services
+  extraEnvs:
+    - name: RELEASE_NAME
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.labels['app.kubernetes.io/instance']
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  config:
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+    processors:
+      memory_limiter:
+        check_interval: 1s
+        limit_percentage: 80
+        spike_limit_percentage: 25
+      batch:
+        timeout: 5s
+        send_batch_size: 1000
+    exporters:
+      # -- Logs → Loki via OTLP (Loki 3.x native OTLP endpoint)
+      otlphttp/loki:
+        endpoint: http://${env:RELEASE_NAME}-loki-gateway/otlp
+        headers:
+          X-Scope-OrgID: "1"
+      # -- Metrics → Prometheus remote write receiver
+      prometheusremotewrite:
+        endpoint: http://${env:RELEASE_NAME}-prometheus-server/api/v1/write
+        tls:
+          insecure: true
+    service:
+      telemetry:
+        metrics:
+          address: 0.0.0.0:8888
+      pipelines:
+        logs:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [otlphttp/loki]
+        metrics:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [prometheusremotewrite]
+        # Traces pipeline is not defined here by default.
+        # Apply values-enable-tempo.yaml to enable traces → Tempo.
