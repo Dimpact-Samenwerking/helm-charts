@@ -53,7 +53,49 @@ helm upgrade podiumd charts/podiumd \
 
 ---
 
-## OTEL Configuration — Maykin Apps
+## Prerequisites — Prometheus Operator CRDs
+
+Some components use **ServiceMonitor** or **PodMonitor** custom resources (CRDs from the
+[Prometheus Operator](https://github.com/prometheus-operator/prometheus-operator)) to declare
+their scrape targets. These CRDs must be present in the cluster before applying
+`values-enable-observability.yaml`, otherwise Helm will fail or the resources will be silently ignored.
+
+| Component | Resource type | CRD required |
+|---|---|---|
+| clamav | `ServiceMonitor` | `monitoring.coreos.com/v1` |
+| eck-operator (kisselastic) | `PodMonitor` | `monitoring.coreos.com/v1` |
+| solr (todo) | `ServiceMonitor` | `monitoring.coreos.com/v1` (created by solr-operator) |
+| zookeeper (todo) | `ServiceMonitor` | `monitoring.coreos.com/v1` (manual) |
+| elasticsearch (todo) | `ServiceMonitor` | `monitoring.coreos.com/v1` (via exporter chart) |
+
+The remaining components (Maykin apps, ZAC, Keycloak, Redis, Solr/Zookeeper operators) use
+OTEL push or plain pod annotations — **no CRDs required** for those.
+
+### Checking if the CRDs are installed
+
+```bash
+kubectl get crd servicemonitors.monitoring.coreos.com
+kubectl get crd podmonitors.monitoring.coreos.com
+```
+
+### Installing the CRDs (without the full Prometheus Operator)
+
+If the cluster runs a standalone Prometheus (e.g. via `kube-prometheus-stack`) the CRDs are
+already present. If not, install just the CRDs:
+
+```bash
+kubectl apply --server-side -f https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/main/bundle.yaml
+```
+
+Or install only the CRD manifests from the operator's GitHub release.
+
+> Until the CRDs are installed, keep `clamav.metrics.serviceMonitor.enabled: false` and
+> `kisselastic.eck-operator.podMonitor.enabled: false` (the defaults). These are the explicit
+> defaults in `values.yaml`; `values-enable-observability.yaml` overrides them to `true`.
+
+---
+
+
 
 All Maykin subcharts share the same `settings.otel` schema:
 

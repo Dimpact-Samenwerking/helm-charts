@@ -2066,6 +2066,10 @@ kisselastic:
       - podiumd
     image:
       tag: "3.1.0"
+    # podMonitor requires the Prometheus Operator CRD (monitoring.coreos.com/v1 PodMonitor)
+    # to be installed in the cluster. Enable via values-enable-observability.yaml.
+    podMonitor:
+      enabled: false
 
 kiss:
   image:
@@ -2589,6 +2593,10 @@ clamav:
     image:
       repository: docker.io/sergeymakinen/clamav_exporter
       tag: "v2.1.2"
+    # serviceMonitor requires the Prometheus Operator CRD (monitoring.coreos.com/v1 ServiceMonitor)
+    # to be installed in the cluster. Enable via values-enable-observability.yaml.
+    serviceMonitor:
+      enabled: false
   nameOverride: clamav
   fullnameOverride: clamav
   clamdConfig: |
