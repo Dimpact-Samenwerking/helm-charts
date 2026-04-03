@@ -11,7 +11,7 @@
   digest: "sha256:bd802f55d3365c3ccd95bd495aed6e2416630be9164aeef2322503c5ddb20629"
 
 # Observability (benodigd wanneer values-enable-observability.yaml wordt gebruikt)
-- name: sergeymakinen/clamav_exporter
+- name: clamav_exporter
   url: docker.io/sergeymakinen/clamav_exporter
   version: "v2.1.2"
   digest: "sha256:1bb053065ca892025928b90983d8bad638786884958e63048cd11106db9a350c"
