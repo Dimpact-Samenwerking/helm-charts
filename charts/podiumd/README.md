@@ -32,7 +32,7 @@ Componenten op alphabetische volgorde, met sub-charts er onder:
 | - Busybox                 | 1.37.0-glibc | New           |              |               |                           |
 | - Redis                   | v8.4.2       | New component |              |               |                           |
 | - Redis Exporter          | v1.44.0      | New component |              |               |                           |
-| Zac                       | 4.3.61       | Minor update  | 1.0.204      | Patch update  |                           |
+| Zac                       | 4.3.61       | Minor update  | 1.0.208      | Patch update  |                           |
 | - Busybox                 | 1.37.0       | Minor update  |              |               |                           |
 | - Curl                    | 8.18.0       | Minor update  |              |               |                           |
 | - Kubectl                 | 1.25.4       | Patch update  |              |               |                           |

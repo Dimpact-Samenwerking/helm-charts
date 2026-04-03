@@ -36,7 +36,7 @@ overlay is applied, the following **new images** are pulled:
 |---|---|---|
 | `clamav_exporter` | `docker.io/sergeymakinen/clamav_exporter:v2.1.2` | ClamAV metrics sidecar (ServiceMonitor on port 9906) |
 
-For **ACR-based environments**, override the registry and repository in your environment
+For **ACR-based environments**, override the image repository in your environment
 values file so the image is pulled from the environment-specific ACR:
 
 ```yaml
@@ -74,12 +74,12 @@ pointing to the ACR (no tags needed):
 referentielijsten:
   enabled: true
   image:
-    repository: <acr>/referentielijsten
+    repository: <acr>/referentielijsten-api
 
 openbeheer:
   enabled: true
   image:
-    repository: <acr>/openbeheer
+    repository: <acr>/open-beheer
 ```
 
 ---

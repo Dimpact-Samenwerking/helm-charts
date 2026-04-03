@@ -203,7 +203,7 @@ spec:
     tag: 9.10.1   # match the SolrCloud version in values.yaml
 ```
 
-Verify: `kubectl get servicemonitor -n podiumd | grep solr`, then query `solr_` in Prometheus.
+Verify: `kubectl get servicemonitor -n podiumd --context <cluster> | grep solr`, then query `solr_` in Prometheus.
 
 ---
 
@@ -216,7 +216,7 @@ requires either a ZAC chart change (upstream) or a manual one-time patch of the 
 The `ZookeeperCluster` CRD supports a `spec.conf.additionalConfig` map. Patch the live CR:
 
 ```bash
-kubectl patch zookeepercluster -n podiumd <name> --type merge -p '{
+kubectl patch zookeepercluster -n podiumd --context <cluster> <name> --type merge -p '{
   "spec": {
     "conf": {
       "additionalConfig": {

@@ -1910,7 +1910,7 @@ referentielijsten:
     useXForwardedHost: false
     disable2fa: false
     secretKey: ""
-    environment: ""     
+    environment: ""
 
     email:
       port: 587

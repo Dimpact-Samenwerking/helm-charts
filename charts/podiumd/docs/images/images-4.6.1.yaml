@@ -13,6 +13,14 @@
   url: docker.io/maykinmedia/open-inwoner
   version: "2.1.1"
   digest: "sha256:07361a6b2037c5a0fcfe4b0e08d09603c4ffbe621c0a4e5fe50f40f6bad65097"
+- name: referentielijsten
+  url: docker.io/maykinmedia/referentielijsten-api
+  version: "0.7.1"
+  digest: "sha256:6bae71f30745e3e24f98d41254fce22fc0d5ec4277dad7647ee2d297cfcf7cf9"
+- name: openbeheer
+  url: docker.io/maykinmedia/open-beheer
+  version: "0.9.0"
+  digest: "sha256:1a11b06dadb82c992468709b1aa92d0501aef6d526a7afb52bacac6917385166"
 - name: keycloak-operator
   url: quay.io/keycloak/keycloak-operator
   version: "26.5.7"
