@@ -9,7 +9,7 @@
   url: ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller
   version: "3.0.0"
   digest: "sha256:bd802f55d3365c3ccd95bd495aed6e2416630be9164aeef2322503c5ddb20629"
-- name: open-inwoner
+- name: openinwoner
   url: docker.io/maykinmedia/open-inwoner
   version: "2.1.1"
   digest: "sha256:07361a6b2037c5a0fcfe4b0e08d09603c4ffbe621c0a4e5fe50f40f6bad65097"
