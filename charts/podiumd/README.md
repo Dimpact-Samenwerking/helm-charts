@@ -18,14 +18,14 @@ Componenten op alphabetische volgorde, met sub-charts er onder:
 | - Kiss Elastic            |              |               | 1.1.0        |               |                           |
 | - Kiss ElasticSync        | 0.3.2        | Minor update  |              |               |                           |
 | - PodiumD Adapter         | 0.6.6        | Minor update  |              |               |                           |
-| Objecten                  | 3.5.0        |               | 2.12.0       | Patch update  |                           |
-| Objecttypen               | 3.4.0        |               | 1.6.1        | Patch update  |                           |
+| Objecten                  | 3.6.0        | Minor update  | 2.12.0       | Patch update  |                           |
+| Objecttypen               | 3.4.1        | Patch update  | 1.6.1        | Patch update  |                           |
 | OMC for NotifyNL          | 1.17.18      | New component | 0.14.0       | New component |                           |
 | Open Archiefbeheer        | 1.1.1        |               | 1.5.3        |               |                           |
-| Open Formulieren          | 3.3.9        |               | 1.12.0       |               |                           |
-| Open Inwoner              | 2.0.2        |               | 2.1.3        |               |                           |
-| Open Klant                | 2.14.0       |               | 1.11.0       |               |                           |
-| Open Notificaties         | 1.14.0       |               | 1.13.1       |               |                           |
+| Open Formulieren          | 3.4.7        | Minor update  | 1.12.0       |               |                           |
+| Open Inwoner              | 2.1.1        | Minor update  | 2.1.3        |               |                           |
+| Open Klant                | 2.15.0       | Minor update  | 1.11.0       |               |                           |
+| Open Notificaties         | 1.15.0       | Minor update  | 1.13.1       |               |                           |
 | Open Zaak                 | 1.26.0       |               | 1.13.1       |               |                           |
 | PABC                      | 1.0.0        |               | 1.0.0        |               |                           |
 | Redis Operator            | v0.24.0      | New component | 0.24.0       | New component |                           |
