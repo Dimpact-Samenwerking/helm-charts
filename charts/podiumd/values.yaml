@@ -418,6 +418,21 @@ redis-operator:
       # Note: startup-only parameters (e.g. databases) will NOT take effect here due to an operator
       # limitation; use the databases field above instead.
       additionalRedisConfig: ""
+    # -- Job that waits for the redis-ha StatefulSet rollout to complete and applies redis-role labels
+    # if they are missing (works around a known OT Redis Operator bug where pods lose their
+    # redis-role=master label after a rolling restart).
+    labelMasterJob:
+      enabled: true
+      image:
+        repository: docker.io/bitnami/kubectl
+        tag: "1.32"
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          cpu: 100m
+          memory: 64Mi
 
 openzaak:
   configuration:
