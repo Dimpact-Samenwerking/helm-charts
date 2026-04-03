@@ -2660,10 +2660,10 @@ zac:
     # -- install crds using https://solr.apache.org/operator/downloads/crds/v0.10.0-prerelease/all-with-dependencies.yaml
     # -- turn functionality on/off
     enabled: true
-    # apache/solr-operator:v0.9.1
+    # apache/solr-operator:v0.9.1@sha256:4db34508137f185d3cad03c7cf7c2b5d6533fb590822effcde9125cff5a90aa2
     image:
       #repository:
-      tag: v0.9.1
+      tag: v0.9.1@sha256:4db34508137f185d3cad03c7cf7c2b5d6533fb590822effcde9125cff5a90aa2
     nodeSelector: {}
     resources:
       requests:
@@ -2673,16 +2673,16 @@ zac:
         cpu: 500m
         memory: 256Mi
     solr:
-      # library/busybox:1.37.0-glibc
+      # library/busybox:1.37.0-glibc@sha256:ba8e26a0e4dc1178f2c90ff8c4090e1ca351bf8f38b2be3052de194e7e2ad291
       busyBoxImage:
         #repository:
-        tag: 1.37.0-glibc
+        tag: 1.37.0-glibc@sha256:ba8e26a0e4dc1178f2c90ff8c4090e1ca351bf8f38b2be3052de194e7e2ad291
       # -- set enabled to provision solrcloud as well
       enabled: true
-      # library/solr:9.10.1-slim
+      # library/solr:9.10.1-slim@sha256:bee615b4c6fb0ffd6f7ab395d9b3f323cfa69327d085c99db6d6c149e4cb2a3b
       image:
         #repository:
-        tag: 9.10.1-slim
+        tag: 9.10.1-slim@sha256:bee615b4c6fb0ffd6f7ab395d9b3f323cfa69327d085c99db6d6c149e4cb2a3b
       # -- define memory settings for solr in the solrcloud
       javaMem: -Xms512m -Xmx768m
       jobs:
@@ -2707,14 +2707,14 @@ zac:
       crd:
         create: false
       hooks:
-        # lachlanevenson/k8s-kubectl:v1.25.4
+        # lachlanevenson/k8s-kubectl:@v1.25.4@sha256:af5cea3f2e40138df90660c0c073d8b1506fb76c8602a9f48aceb5f4fb052ddc
         image:
           #repository:
-          tag: v1.25.4
-      # pravega/zookeeper-operator:0.2.15
+          tag: v1.25.4@sha256:af5cea3f2e40138df90660c0c073d8b1506fb76c8602a9f48aceb5f4fb052ddc
+      # pravega/zookeeper-operator:0.2.15@sha256:b2bc4042fdd8fea6613b04f2f602ba4aff1201e79ba35cd0e2df9f3327111b0e
       image:
         #repository:
-        tag: 0.2.15
+        tag: 0.2.15@sha256:b2bc4042fdd8fea6613b04f2f602ba4aff1201e79ba35cd0e2df9f3327111b0e
       resources:
         requests:
           cpu: 50m
@@ -2725,10 +2725,10 @@ zac:
       # -- namespaces to watch for zookeeper-operator
       watchNamespace: "podiumd"
       zookeeper:
-        # pravega/zookeeper:0.2.15
+        # pravega/zookeeper:0.2.15@sha256:c498ebfb76a66f038075e2fa6148528d74d31ca1664f3257fdf82ee779eec9c8
         image:
           #repository:
-          tag: 0.2.15
+          tag: 0.2.15@sha256:c498ebfb76a66f038075e2fa6148528d74d31ca1664f3257fdf82ee779eec9c8
         resources:
           requests:
             cpu: 100m
