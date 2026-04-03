@@ -2,6 +2,24 @@
 
 ## New features / additions
 
+### Updated images — ACR override required
+
+The following images are new or bumped in 4.6.1. For **ACR-based environments**, add
+repository overrides pointing to the environment-specific ACR (no tags needed):
+
+```yaml
+keycloak-operator:
+  operator:
+    image:
+      repository: <acr>/keycloak-operator  # quay.io/keycloak/keycloak-operator:26.5.7
+  image:
+    repository: <acr>/keycloak             # quay.io/keycloak/keycloak:26.5.7
+
+openinwoner:
+  image:
+    repository: <acr>/open-inwoner         # docker.io/maykinmedia/open-inwoner:2.1.1
+```
+
 ### Observability: new images via `values-enable-observability.yaml`
 
 4.6.1 introduces `values-enable-observability.yaml`, an optional overlay that enables
