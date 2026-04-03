@@ -1,0 +1,21 @@
+---
+# Images die nieuw of gewijzigd zijn in podiumd 4.6.1 t.o.v. 4.6.0.
+# Formaat: zelfde als ExternalsPodiumD/pipelines/images.yml
+
+parameters:
+  - name: images
+    displayName: Images
+    type: object
+    default:
+      # Applicaties
+      - name: internetaakafhandeling.web
+        url: ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web
+        version: "3.0.0"
+      - name: internetaakafhandeling.poller
+        url: ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller
+        version: "3.0.0"
+
+      # Observability (benodigd wanneer values-enable-observability.yaml wordt gebruikt)
+      - name: sergeymakinen/clamav_exporter
+        url: docker.io/sergeymakinen/clamav_exporter
+        version: "v2.1.2"

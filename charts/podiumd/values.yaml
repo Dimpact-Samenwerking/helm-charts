@@ -2395,6 +2395,10 @@ clamav:
   # override: values-enable-observability.yaml enables metrics exporter sidecar and ServiceMonitor
   image:
     tag: "1.4.4"
+  metrics:
+    image:
+      repository: docker.io/sergeymakinen/clamav_exporter
+      tag: "v2.1.2"
   nameOverride: clamav
   fullnameOverride: clamav
   clamdConfig: |
