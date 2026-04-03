@@ -202,6 +202,10 @@ keycloak:
       labels:
         app: keycloak
         version: 26.5.6
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9000"
+        prometheus.io/path: /metrics
     spec:
       securityContext:
         runAsNonRoot: true
