@@ -60,14 +60,14 @@ dependencies:
       - contact
   - name: zaakafhandelcomponent
     alias: zac
-    version: 1.0.204 # ZAC Sprint 67 helm release
+    version: 1.0.208 # ZAC Sprint 68 helm release
     repository: "@zac"
     condition: zac.enabled
     tags:
       - zaak
   - name: zgw-office-addin
     repository: "@zgw-office-addin"
-    version: 0.0.73
+    version: 0.0.78
     condition: zgw-office-addin.enabled
   - name: internetaakafhandeling
     alias: ita
