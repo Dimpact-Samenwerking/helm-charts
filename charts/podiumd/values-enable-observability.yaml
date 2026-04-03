@@ -144,6 +144,8 @@ redis-operator:
 
 # ---------------------------------------------------------------------------
 # ClamAV — sergeymakinen/clamav_exporter sidecar + ServiceMonitor (port 9906)
+# ServiceMonitor requires the Prometheus Operator CRD (monitoring.coreos.com/v1).
+# Set serviceMonitor.enabled: true if the CRD is installed in your cluster.
 # ---------------------------------------------------------------------------
 
 clamav:
@@ -157,12 +159,14 @@ clamav:
         cpu: 50m
         memory: 32Mi
     serviceMonitor:
-      enabled: true
+      enabled: false
       interval: 30s
       scrapeTimeout: 10s
 
 # ---------------------------------------------------------------------------
 # ECK operator (via kiss-elastic) — enable metrics port and create a PodMonitor
+# PodMonitor requires the Prometheus Operator CRD (monitoring.coreos.com/v1).
+# Set podMonitor.enabled: true if the CRD is installed in your cluster.
 # ---------------------------------------------------------------------------
 
 kisselastic:
@@ -170,6 +174,6 @@ kisselastic:
     config:
       metricsPort: "8080"
     podMonitor:
-      enabled: true
+      enabled: false
       interval: 1m
       scrapeTimeout: 30s
