@@ -21,9 +21,6 @@ rules:
   - apiGroups: [""]
     resources: ["pods"]
     verbs: ["get", "list", "patch"]
-  - apiGroups: ["apps"]
-    resources: ["statefulsets"]
-    verbs: ["get", "list", "watch"]
   - apiGroups: ["redis.redis.opstreelabs.in"]
     resources: ["redisreplications"]
     verbs: ["get"]
@@ -84,9 +81,21 @@ spec:
                 exit 0
               fi
 
-              echo "No redis-role=master label found. Waiting for StatefulSet rollout..."
-              kubectl rollout status statefulset/"$CR_NAME" \
-                -n "$NAMESPACE" --timeout=600s
+              echo "No redis-role=master label found. Waiting for StatefulSet pods to be ready..."
+              READY=0
+              WAIT=0
+              while [ "$READY" -eq 0 ] && [ "$WAIT" -lt 600 ]; do
+                NOT_READY=$(kubectl get pod -l "app=redis-ha" \
+                  -n "$NAMESPACE" \
+                  --no-headers 2>/dev/null | grep -cv "Running" || true)
+                if [ "$NOT_READY" -eq 0 ]; then
+                  READY=1
+                else
+                  echo "  Waiting for redis-ha pods to be Running... (${WAIT}s elapsed)"
+                  sleep 10
+                  WAIT=$((WAIT + 10))
+                fi
+              done
 
               # Re-check: operator may have recovered during rollout
               EXISTING=$(kubectl get pod -l "app=redis-ha,redis-role=master" \
