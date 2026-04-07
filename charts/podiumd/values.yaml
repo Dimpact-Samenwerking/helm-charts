@@ -29,7 +29,7 @@ keycloak-operator:
   operator:
     image:
       repository: quay.io/keycloak/keycloak-operator
-      tag: "26.5.6"
+      tag: "26.5.7"
   serviceAccount:
     create: false
 
@@ -100,6 +100,7 @@ keycloak:
         enabled: true
         secret: "monitoring_secret"
         oidcUrl: "https://monitoring.example.nl"
+  enabled: false
   name: "keycloak"
   features:
     enabled: []
@@ -113,7 +114,7 @@ keycloak:
   # Official Keycloak image: quay.io/keycloak/keycloak:26.5.6
   image:
     repository: quay.io/keycloak/keycloak
-    tag: 26.5.6
+    tag: 26.5.7
   # -- instances is the new operator-style replica count (falls back to replicaCount)
   instances: "2"
   ingress:
