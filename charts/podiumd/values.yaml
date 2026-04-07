@@ -2899,7 +2899,9 @@ ita:
       frontendUrl: "REP_ITA_OIDC_FRONTEND_URL_REP"
       clientId: "ita"
       clientSecret: "REP_ITA_OIDC_CLIENT_SECRET_REP"
-      # -- Enable PKCE (S256) on the Keycloak client. Enable when ITA OIDC client supports PKCE.
+      # -- Enable PKCE (S256) on the Keycloak client for ITA.
+      # ITA is a JS frontend; the upstream chart has no app-side PKCE toggle. PKCE support
+      # depends on the OIDC client library used by the application.
       pkceEnabled: false
       itaSystemAccessRole: "ITA_Gebruiker"
       functioneelBeheerderRole: "ITA_Functioneel_Beheerder"
