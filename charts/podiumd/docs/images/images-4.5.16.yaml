@@ -22,7 +22,7 @@
   version: "1.1.0"
   digest: "sha256:0f73051e64ebcd6ac5c169630fde4cb7ef3a39376ffb840e407158728685f83c"
 
-- name: pabc_wait_for
+- name: k8s_wait_for
   url: ghcr.io/groundnuty/k8s-wait-for
   version: "v2.0"
   digest: "sha256:c14d7271e4013b24b34ef0d7144c4610577d0e9110ccc26b163fa28089fa1f4e"
