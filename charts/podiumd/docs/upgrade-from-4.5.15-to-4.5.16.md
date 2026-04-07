@@ -2,13 +2,14 @@
 
 ## Changes
 
-### PABC bijgewerkt naar 1.1.0
+### PABC updated to 1.1.0
 
-De PABC sub-chart is bijgewerkt van 1.0.0 naar 1.1.0. De applicatie- en migratie-images zijn bijgewerkt naar versie `1.1.0`.
+The PABC sub-chart has been updated from 1.0.0 to 1.1.0. The application and migration images
+have been updated to version `1.1.0`.
 
 #### ACR image overrides
 
-Voor **ACR-gebaseerde omgevingen** moeten de repository-overrides worden bijgewerkt:
+For **ACR-based environments**, update the repository overrides:
 
 ```yaml
 pabc:
@@ -23,12 +24,13 @@ pabc:
         repository: <acr>/k8s-wait-for
 ```
 
-Er zijn geen tag-overrides nodig — de tags worden bepaald door de chart-standaarden (`1.1.0` en `v2.0`).
+No tag overrides are needed — tags are set by the chart defaults (`1.1.0` and `v2.0`).
 
-#### NodeSelector voor AKS-omgevingen
+#### NodeSelector for AKS environments
 
-Voor omgevingen die een node selector vereisen (bijv. AKS-blue met `kubernetes.azure.com/mode: user`),
-moet de nodeSelector worden ingesteld op zowel de deployment als de migration job:
+For environments that require a node selector (e.g. AKS-blue with
+`kubernetes.azure.com/mode: user`), set the nodeSelector on both the deployment and the
+migration job:
 
 ```yaml
 pabc:
@@ -41,11 +43,11 @@ pabc:
 
 ---
 
-### Keycloak bijgewerkt naar 26.5.7
+### Keycloak updated to 26.5.7
 
-De Keycloak- en Keycloak Operator-images zijn bijgewerkt van `26.5.6` naar `26.5.7`.
+The Keycloak and Keycloak Operator images have been updated from `26.5.6` to `26.5.7`.
 
-Voor **ACR-gebaseerde omgevingen** die de Keycloak-image overschrijven:
+For **ACR-based environments**, update the repository overrides:
 
 ```yaml
 keycloak:
@@ -58,9 +60,9 @@ keycloak-operator:
       repository: <acr>/keycloak-operator
 ```
 
-Er zijn geen tag-overrides nodig — de tags worden bepaald door de chart-standaarden (`26.5.7`).
+No tag overrides are needed — tags are set by the chart defaults (`26.5.7`).
 
 ---
 
-Voor de volledige lijst van nieuwe en gewijzigde images in deze release, zie
+For the full list of new and changed images in this release, see
 [docs/images/images-4.5.16.yaml](images/images-4.5.16.yaml).
