@@ -29,7 +29,7 @@ charts/
 ## Common Commands
 
 Dependency operations must be run from `charts/podiumd/`. Lint and template commands can be run from the repo root.
-Required Helm repos are listed in `Chart.yaml`/`Chart.lock` — run `helm repo add <name> <url>` for any missing repo before `helm dependency update`.
+Required Helm repos are listed in `Chart.yaml`. To add them all at once run `charts/podiumd/scripts/add-helm-repos.sh` before `helm dependency update`.
 
 ```bash
 # Update/build dependencies (from charts/podiumd/)
