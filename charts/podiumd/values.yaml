@@ -529,6 +529,8 @@ openzaak:
     #       oidc_rp_sign_algo: RS256
     #       oidc_provider_identifier: keycloak-provider
     #       userinfo_claims_source: id_token
+    #       # Enable PKCE on the application side — requires pkceEnabled: true on the Keycloak client.
+    #       oidc_use_pkce: true
     #       options:
     #         user_settings:
     #           claim_mappings:
@@ -553,6 +555,8 @@ openzaak:
       # openzaak_openinwoner_secret: "<openzaak_openinwoner_secret>"
       # opennotificaties_autorisatie_api_secret: "<opennotificaties_autorisatie_api_secret>"
       # openzaak_opennotificaties_secret: "<openzaak_opennotificaties_secret>"
+    # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
+    pkceEnabled: false
   create_required_catalogi_job:
     client_id: "<openzaak_client_id>"
     secret: "<openzaak_secret>"
@@ -663,6 +667,8 @@ opennotificaties:
     #       oidc_rp_sign_algo: RS256
     #       oidc_provider_identifier: keycloak-provider
     #       userinfo_claims_source: id_token
+    #       # Enable PKCE on the application side — requires pkceEnabled: true on the Keycloak client.
+    #       oidc_use_pkce: true
     #       options:
     #         user_settings:
     #           claim_mappings:
@@ -773,6 +779,8 @@ opennotificaties:
     #         name: Open Notificaties
     oidcUrl: https://opennotificaties.example.nl
     oidcSecret: "<opennotificaties>"
+    # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
+    pkceEnabled: false
   settings:
     allowedHosts: opennotificaties.podiumd.svc.cluster.local
     maxRetries: 5
@@ -935,6 +943,8 @@ objecten:
     #       oidc_rp_sign_algo: RS256
     #       oidc_provider_identifier: keycloak-provider
     #       userinfo_claims_source: id_token
+    #       # Enable PKCE on the application side — requires pkceEnabled: true on the Keycloak client.
+    #       oidc_use_pkce: true
     #       options:
     #         user_settings:
     #           claim_mappings:
@@ -956,6 +966,8 @@ objecten:
     #             - Registreerders
     oidcUrl: https://objecten.example.nl
     oidcSecret: "<objecten>"
+    # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
+    pkceEnabled: false
   settings:
     allowedHosts: objecten.podiumd.svc.cluster.local
     email:
@@ -1054,6 +1066,8 @@ objecttypen:
     #       oidc_rp_sign_algo: RS256
     #       oidc_provider_identifier: keycloak-provider
     #       userinfo_claims_source: id_token
+    #       # Enable PKCE on the application side — requires pkceEnabled: true on the Keycloak client.
+    #       oidc_use_pkce: true
     #       options:
     #         user_settings:
     #           claim_mappings:
@@ -1076,6 +1090,8 @@ objecttypen:
     token: "<token>"
     oidcUrl: https://objecttypen.example.nl
     oidcSecret: "<objecttypen>"
+    # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
+    pkceEnabled: false
   settings:
     allowedHosts: objecttypen.podiumd.svc.cluster.local
     email:
@@ -1116,6 +1132,8 @@ openarchiefbeheer:
     enabled: true
     oidcUrl: https://abc.example.nl
     oidcSecret: "abc"
+    # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
+    pkceEnabled: false
     job:
       enabled: true
       backoffLimit: 6
@@ -1180,6 +1198,8 @@ openarchiefbeheer:
     #       oidc_rp_client_id: example-client-id
     #       oidc_rp_client_secret: ${keycloak_client_secret}
     #       oidc_rp_sign_algo: RS256
+    #       # Enable PKCE on the application side — requires pkceEnabled: true on the Keycloak client.
+    #       oidc_use_pkce: true
     #       claim_mapping:
     #         email:
     #           - email
@@ -1331,6 +1351,8 @@ openklant:
     #       - roles
     #       oidc_rp_sign_algo: RS256
     #       userinfo_claims_source: id_token
+    #       # Enable PKCE on the application side — requires pkceEnabled: true on the Keycloak client.
+    #       oidc_use_pkce: true
     #       options:
     #         user_settings:
     #           claim_mappings:
@@ -1354,6 +1376,8 @@ openklant:
     #           default_groups: []
     oidcUrl: https://openklant.example.nl
     oidcSecret: "<openklant>"
+    # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
+    pkceEnabled: false
   settings:
     allowedHosts: openklant.podiumd.svc.cluster.local
     email:
@@ -1439,6 +1463,8 @@ openformulieren:
     #       oidc_rp_sign_algo: RS256
     #       oidc_provider_identifier: keycloak-provider
     #       userinfo_claims_source: id_token
+    #       # Enable PKCE on the application side — requires pkceEnabled: true on the Keycloak client.
+    #       oidc_use_pkce: true
     #       options:
     #         user_settings:
     #           claim_mappings:
@@ -1559,6 +1585,8 @@ openformulieren:
     #         }
     oidcUrl: https://openformulieren.example.nl
     oidcSecret: "<openformulieren>"
+    # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
+    pkceEnabled: false
   settings:
     allowedHosts: openformulieren-nginx.podiumd.svc.cluster.local
     email:
@@ -1664,6 +1692,8 @@ openinwoner:
     #       oidc_nonce_size: 32
     #       oidc_state_size: 32
     #       userinfo_claims_source: id_token
+    #       # Enable PKCE on the application side — requires pkceEnabled: true on the Keycloak client.
+    #       oidc_use_pkce: true
     #   zgw_consumers_config_enable: true
     #   zgw_consumers:
     #     services:
@@ -1748,6 +1778,8 @@ openinwoner:
     secrets: {}
     oidcUrl: https://openinwoner.example.nl
     oidcSecret: "<openinwoner>"
+    # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
+    pkceEnabled: false
   settings:
     allowedHosts: openinwoner-nginx.podiumd.svc.cluster.local
     brpVersion: ""
@@ -2191,6 +2223,10 @@ kiss:
       authority: ""
       clientId: kiss
       clientSecret: "<kiss>"
+      # -- Enable PKCE (S256) on the Keycloak client for KISS.
+      # KISS is a React frontend; the OIDC client library must support PKCE.
+      # Align this with the pkce setting in the standalone kiss chart values.
+      pkceEnabled: false
       medewerkerIdentificatie:
         claim: samaccountname
         truncate:
@@ -2376,6 +2412,8 @@ zac:
     realm: podiumd
     clientId: zac
     secret: changeme
+    # -- Enable PKCE (S256) on the Keycloak client. Enable when ZAC OIDC client supports PKCE.
+    pkceEnabled: false
   bagApi:
     url: http://bag.example.nl
     apiKey: "dummy"
@@ -2857,6 +2895,8 @@ ita:
       frontendUrl: "REP_ITA_OIDC_FRONTEND_URL_REP"
       clientId: "ita"
       clientSecret: "REP_ITA_OIDC_CLIENT_SECRET_REP"
+      # -- Enable PKCE (S256) on the Keycloak client. Enable when ITA OIDC client supports PKCE.
+      pkceEnabled: false
       itaSystemAccessRole: "ITA_Gebruiker"
       functioneelBeheerderRole: "ITA_Functioneel_Beheerder"
       nameClaimType: "name"
@@ -2926,6 +2966,8 @@ pabc:
       authority: ""
       clientId: "pabc"
       clientSecret: ""
+      # -- Enable PKCE (S256) on the Keycloak client. PABC is a .NET app; enable when OpenIdConnect PKCE is configured in the application.
+      pkceEnabled: false
       functioneelBeheerderRole: "administrator"
       nameClaimType: "name"
       roleClaimType: "roles"

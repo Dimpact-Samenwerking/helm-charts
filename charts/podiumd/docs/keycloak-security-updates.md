@@ -300,13 +300,17 @@ The podiumd realm exclusively serves beheer (management) users and municipality 
 
 | Setting | Value | Status |
 |---------|-------|--------|
-| `pkce.code.challenge.method` | not set | ⏳ Deferred — pending application support |
+| `pkceCodeChallengeMethod` per client | `S256` | ⚙️ Available via `pkceEnabled` switch — disabled by default |
 
-**`pkce.code.challenge.method: S256`** — deferred, not currently configured
+**`pkceCodeChallengeMethod: S256`** — available per client, disabled by default
 - **Standard:** **RFC 9700** (OAuth 2.0 Security BCP) §2.1.1 — PKCE verplicht voor alle clients die authorization code flow gebruiken, ook voor confidential clients; **OWASP ASVS 4.0 V2.10.3**; **Forum / OAuth NL GOV**
 - **Why:** Without PKCE, an attacker who intercepts the authorization code can exchange it for tokens without the client secret. PKCE binds the authorization code to the device that initiated the flow via a cryptographic challenge/verifier pair. S256 (SHA-256 hash of the verifier) is required — plain method is insecure.
-- **Reason for deferral:** PKCE enforcement was deployed on 2026-03-16 and immediately caused HTTP 403 errors on all login pages. The PodiumD applications use `mozilla_django_oidc` which only added PKCE support in v4.0.0 (2024). The installed versions do not send a `code_challenge`, causing Keycloak to reject the authorization request. PKCE enforcement has been reverted until all component applications have been verified to support and are configured to use PKCE.
-- **Action required:** For each component, verify `mozilla_django_oidc >= 4.0.0` is installed and `OIDC_USE_PKCE = True` is configured, then re-enable `pkce.code.challenge.method: S256` per client.
+- **History:** PKCE enforcement was deployed on 2026-03-16 and immediately caused HTTP 403 errors on all login pages. The PodiumD applications use `mozilla_django_oidc` which only added PKCE support in v4.0.0 (2024). PKCE enforcement was reverted until all components support and are configured to use PKCE.
+- **Current implementation:** Each Keycloak client now has an individual `pkceEnabled` switch in `values.yaml` (default: `false`). Setting it to `true` adds `pkceCodeChallengeMethod: S256` to the client in the realm ConfigMap.
+- **Enabling PKCE per component requires two aligned steps:**
+  1. Set `<component>.configuration.pkceEnabled: true` (or `<component>.settings.oidc.pkceEnabled: true` for KISS/PABC/ZAC/ITA) in your env values file — this configures the Keycloak client.
+  2. For Django apps: add `oidc_use_pkce: true` to the `oidc_db_config_admin_auth.items` entry in `configuration.data` — this tells the application to send `code_challenge` with each authorization request. Requires `mozilla_django_oidc >= 4.0.0`.
+- **Action required:** Verify each component has `mozilla_django_oidc >= 4.0.0` installed, then enable PKCE per component in env values once confirmed.
 - **Note on redirect URI wildcards:** All clients currently use path-wildcard redirect URIs (`https://app.example.nl/*`). RFC 9700 §4.1.3 recommends exact URI matching. This is accepted because all ingress terminates within the cluster and the NGINX ingress controller is managed and audited separately. Exact URIs will be evaluated per component when application callback paths are stable.
 
 ### Offline Session Max Lifespan

@@ -60,6 +60,10 @@ oidc:
   secret: ""
   medewerkerIdentificatieClaim: preferred_username
   medewerkerIdentificatieTruncate: null
+  # -- Enable PKCE (S256) on the Keycloak client for KISS.
+  # When true, set pkceCodeChallengeMethod: S256 on the Keycloak client and ensure
+  # the KISS frontend OIDC library sends code_challenge with every authorization request.
+  pkce: false
   
 organisatieIds: ""
 
