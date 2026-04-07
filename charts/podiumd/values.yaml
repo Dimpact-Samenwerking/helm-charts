@@ -22,14 +22,14 @@ persistentVolume:
 keycloak-operator:
   enabled: true
   # Adfinis Helm chart wrapping the official Keycloak Operator manifests.
-  # Chart: https://charts.adfinis.com / adfinis/keycloak-operator (appVersion 26.5.6)
+  # Chart: https://charts.adfinis.com / adfinis/keycloak-operator (appVersion 26.5.7)
   # Note: it appears that the podname automatically appends -operator.
-  # Official operator image: quay.io/keycloak/keycloak-operator:26.5.6
+  # Official operator image: quay.io/keycloak/keycloak-operator:26.5.7
   fullnameOverride: keycloak
   operator:
     image:
       repository: quay.io/keycloak/keycloak-operator
-      tag: "26.5.6"
+      tag: "26.5.7"
   serviceAccount:
     create: false
 
@@ -100,6 +100,7 @@ keycloak:
         enabled: true
         secret: "monitoring_secret"
         oidcUrl: "https://monitoring.example.nl"
+  enabled: false
   name: "keycloak"
   features:
     enabled: []
@@ -110,10 +111,10 @@ keycloak:
   http:
     httpEnabled: true
   # image parameters for keycloak-operator
-  # Official Keycloak image: quay.io/keycloak/keycloak:26.5.6
+  # Official Keycloak image: quay.io/keycloak/keycloak:26.5.7
   image:
     repository: quay.io/keycloak/keycloak
-    tag: 26.5.6
+    tag: 26.5.7
   # -- instances is the new operator-style replica count (falls back to replicaCount)
   instances: "2"
   ingress:
@@ -150,7 +151,7 @@ keycloak:
     metadata:
       labels:
         app: keycloak
-        version: 26.5.6
+        version: 26.5.7
     spec:
       securityContext:
         runAsNonRoot: true
@@ -2533,10 +2534,18 @@ pabc:
   postgresql:
     enabled: false
   image:
-    tag: 1.0.0
+    tag: 1.1.0
+  nodeSelector: {}
   migrations:
     image:
-      tag: 1.0.0
+      tag: 1.1.0
+    nodeSelector: {}
+  initContainers:
+    waitFor:
+      image:
+        repository: "ghcr.io/groundnuty/k8s-wait-for"
+        tag: "v2.0"
+        pullPolicy: IfNotPresent
 
   settings:
     database:
