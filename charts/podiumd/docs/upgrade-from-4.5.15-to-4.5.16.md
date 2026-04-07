@@ -14,7 +14,7 @@ For **ACR-based environments**, update the repository overrides:
 ```yaml
 pabc:
   image:
-    repository: <acr>/pabc-api
+    repository: <acr>/pabc
   migrations:
     image:
       repository: <acr>/pabc-migrations
