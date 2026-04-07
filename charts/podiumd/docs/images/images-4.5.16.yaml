@@ -1,10 +1,15 @@
-# Images die nieuw of gewijzigd zijn in podiumd 4.6.2 t.o.v. 4.6.1.
+# Images die nieuw of gewijzigd zijn in podiumd 4.5.16 t.o.v. 4.5.15.
 
-# Applicaties
-- name: kubectl
-  url: registry.k8s.io/kubectl
-  version: "v1.33.0"
-  digest: "sha256:f34045623d83213df513fe9b395b793ebe29941bf3836e3496bd3600ae7677ee"
+# Keycloak
+- name: keycloak
+  url: quay.io/keycloak/keycloak
+  version: "26.5.7"
+  digest: "sha256:45ae20191531eb608ddb0b775d012b40d3e4f942697f3214694887dd7c108d13"
+
+- name: keycloak-operator
+  url: quay.io/keycloak/keycloak-operator
+  version: "26.5.7"
+  digest: "sha256:4aaa52610f9427ef0eebbf120b24bb22cf99b7197f125b140887e2add407edce"
 
 # PABC
 - name: pabc
