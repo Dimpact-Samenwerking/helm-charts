@@ -1,0 +1,7 @@
+# Images die nieuw of gewijzigd zijn in podiumd 4.6.2 t.o.v. 4.6.1.
+
+# Applicaties
+- name: kubectl
+  url: registry.k8s.io/kubectl
+  version: "v1.33.0"
+  digest: "sha256:f34045623d83213df513fe9b395b793ebe29941bf3836e3496bd3600ae7677ee"

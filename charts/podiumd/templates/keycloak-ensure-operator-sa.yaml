@@ -81,11 +81,25 @@ spec:
             secretKeyRef:
               name: keycloak-operator-client-secret
               key: client-secret
+        securityContext:
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault
       containers:
       - name: ensure-operator-sa
         image: {{ include "podiumd.image" (index .Values "keycloak-operator").jobs.ensureOperatorSa.image }}
         resources:
 {{ toYaml (index .Values "keycloak-operator").jobs.resources | indent 10 }}
+        securityContext:
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault
         command: ["/bin/sh", "-c"]
         args:
         - |

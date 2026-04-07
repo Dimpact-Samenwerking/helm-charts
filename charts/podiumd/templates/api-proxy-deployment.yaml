@@ -24,6 +24,13 @@ spec:
       containers:
       - name: nginx
         image: {{ .Values.apiproxy.image.repository }}:{{ .Values.apiproxy.image.tag }}
+        securityContext:
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault
         ports:
         - containerPort: {{ .Values.apiproxy.service.containerPort }}
           name: http

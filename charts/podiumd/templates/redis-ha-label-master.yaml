@@ -64,6 +64,13 @@ spec:
           image: {{ include "podiumd.image" $redisHa.labelMasterJob.image }}
           resources:
             {{- toYaml $redisHa.labelMasterJob.resources | nindent 12 }}
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
           command:
             - /bin/sh
             - -c

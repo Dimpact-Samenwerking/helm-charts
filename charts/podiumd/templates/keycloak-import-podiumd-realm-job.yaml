@@ -60,6 +60,13 @@ spec:
             secretKeyRef:
               name: keycloak-operator-client-secret
               key: client-secret
+        securityContext:
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault
       volumes:
       - name: realm-configs
         configMap:
@@ -72,6 +79,13 @@ spec:
         image: {{ include "podiumd.image" .Values.keycloak.keycloakConfigCli.image }}
         resources:
 {{ toYaml (index .Values "keycloak-operator").jobs.configCliResources | indent 10 }}
+        securityContext:
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault
         env:
         - name: KEYCLOAK_URL
           value: {{ coalesce .Values.keycloak.hostname.admin .Values.keycloak.config.adminFrontendUrl "http://keycloak-service:8080" | quote }}
@@ -88,6 +102,8 @@ spec:
           value: "master"
         - name: IMPORT_FILES_LOCATIONS
           value: "/config/podiumd.yaml"
+        - name: IMPORT_VAR_SUBSTITUTION_ENABLED
+          value: "true"
         - name: IMPORT_REMOTESTATE_ENABLED
           value: "true"
         - name: IMPORT_MANAGED_ROLE
@@ -98,6 +114,81 @@ spec:
           value: "no-delete"
         - name: IMPORT_MANAGED_IDENTITY_PROVIDER_MAPPER
           value: "no-delete"
+        - name: KC_SECRET_OPENZAAK
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-podiumd-realm-secrets
+              key: openzaak-oidc-secret
+        - name: KC_SECRET_OPENARCHIEFBEHEER
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-podiumd-realm-secrets
+              key: openarchiefbeheer-oidc-secret
+        - name: KC_SECRET_MONITORING
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-podiumd-realm-secrets
+              key: monitoring-client-secret
+        - name: KC_SECRET_OPENNOTIFICATIES
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-podiumd-realm-secrets
+              key: opennotificaties-oidc-secret
+        - name: KC_SECRET_OBJECTEN
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-podiumd-realm-secrets
+              key: objecten-oidc-secret
+        - name: KC_SECRET_OBJECTTYPEN
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-podiumd-realm-secrets
+              key: objecttypen-oidc-secret
+        - name: KC_SECRET_OPENKLANT
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-podiumd-realm-secrets
+              key: openklant-oidc-secret
+        - name: KC_SECRET_OPENFORMULIEREN
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-podiumd-realm-secrets
+              key: openformulieren-oidc-secret
+        - name: KC_SECRET_OPENINWONER
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-podiumd-realm-secrets
+              key: openinwoner-oidc-secret
+        - name: KC_SECRET_KISS
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-podiumd-realm-secrets
+              key: kiss-oidc-secret
+        - name: KC_SECRET_ZAC
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-podiumd-realm-secrets
+              key: zac-auth-secret
+        - name: KC_SECRET_ZAC_ADMIN
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-podiumd-realm-secrets
+              key: zac-keycloak-admin-secret
+        - name: KC_SECRET_ITA
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-podiumd-realm-secrets
+              key: ita-oidc-secret
+        - name: KC_SECRET_PABC
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-podiumd-realm-secrets
+              key: pabc-oidc-secret
+        - name: KC_SECRET_PABC_ADMIN
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-podiumd-realm-secrets
+              key: pabc-keycloak-admin-secret
         volumeMounts:
         - name: realm-configs
           mountPath: /config

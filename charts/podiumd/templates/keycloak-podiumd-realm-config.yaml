@@ -81,7 +81,7 @@ data:
           - "{{ .Values.openzaak.configuration.oidcUrl | trimSuffix "/" }}/*"
         webOrigins:
           - "{{ .Values.openzaak.configuration.oidcUrl | trimSuffix "/" }}/*"
-        secret: {{ .Values.openzaak.configuration.oidcSecret | quote }}
+        secret: $(KC_SECRET_OPENZAAK)
         protocolMappers:
           - name: "username"
             protocol: "openid-connect"
@@ -121,7 +121,7 @@ data:
           - "{{ .Values.openarchiefbeheer.configuration.oidcUrl | trimSuffix "/" }}/*"
         webOrigins:
           - "{{ .Values.openarchiefbeheer.configuration.oidcUrl | trimSuffix "/" }}/*"
-        secret: {{ .Values.openarchiefbeheer.configuration.oidcSecret | quote }}
+        secret: $(KC_SECRET_OPENARCHIEFBEHEER)
         protocolMappers:
           - name: "username"
             protocol: "openid-connect"
@@ -153,7 +153,7 @@ data:
       - clientId: monitoring
         name: {{ .Values.keycloak.config.clients.monitoring.name|quote }}
         enabled: {{ .Values.keycloak.config.clients.monitoring.enabled }}
-        secret: {{ .Values.keycloak.config.clients.monitoring.secret|quote }}
+        secret: $(KC_SECRET_MONITORING)
         clientAuthenticatorType: client-secret
         redirectUris:
           - "{{ .Values.keycloak.config.clients.monitoring.oidcUrl | trimSuffix "/" }}/*"
@@ -193,7 +193,7 @@ data:
           - "{{ .Values.opennotificaties.configuration.oidcUrl | trimSuffix "/" }}/*"
         webOrigins:
           - "{{ .Values.opennotificaties.configuration.oidcUrl | trimSuffix "/" }}/*"
-        secret: {{ .Values.opennotificaties.configuration.oidcSecret | quote }}
+        secret: $(KC_SECRET_OPENNOTIFICATIES)
         protocolMappers:
           - name: "username"
             protocol: "openid-connect"
@@ -233,7 +233,7 @@ data:
           - "{{ .Values.objecten.configuration.oidcUrl | trimSuffix "/" }}/*"
         webOrigins:
           - "{{ .Values.objecten.configuration.oidcUrl | trimSuffix "/" }}/*"
-        secret: {{ .Values.objecten.configuration.oidcSecret | quote }}
+        secret: $(KC_SECRET_OBJECTEN)
         protocolMappers:
           - name: "username"
             protocol: "openid-connect"
@@ -273,7 +273,7 @@ data:
           - "{{ .Values.objecttypen.configuration.oidcUrl | trimSuffix "/" }}/*"
         webOrigins:
           - "{{ .Values.objecttypen.configuration.oidcUrl | trimSuffix "/" }}/*"
-        secret: {{ .Values.objecttypen.configuration.oidcSecret | quote }}
+        secret: $(KC_SECRET_OBJECTTYPEN)
         protocolMappers:
           - name: "username"
             protocol: "openid-connect"
@@ -313,7 +313,7 @@ data:
           - "{{ .Values.openklant.configuration.oidcUrl | trimSuffix "/" }}/*"
         webOrigins:
           - "{{ .Values.openklant.configuration.oidcUrl | trimSuffix "/" }}/*"
-        secret: {{ .Values.openklant.configuration.oidcSecret | quote }}
+        secret: $(KC_SECRET_OPENKLANT)
         protocolMappers:
           - name: "username"
             protocol: "openid-connect"
@@ -353,7 +353,7 @@ data:
           - "{{ .Values.openformulieren.configuration.oidcUrl | trimSuffix "/" }}/*"
         webOrigins:
           - "{{ .Values.openformulieren.configuration.oidcUrl | trimSuffix "/" }}/*"
-        secret: {{ .Values.openformulieren.configuration.oidcSecret | quote }}
+        secret: $(KC_SECRET_OPENFORMULIEREN)
         protocolMappers:
           - name: "username"
             protocol: "openid-connect"
@@ -393,7 +393,7 @@ data:
           - "{{ .Values.openinwoner.configuration.oidcUrl | trimSuffix "/" }}/*"
         webOrigins:
           - "{{ .Values.openinwoner.configuration.oidcUrl | trimSuffix "/" }}/*"
-        secret: {{ .Values.openinwoner.configuration.oidcSecret | quote }}
+        secret: $(KC_SECRET_OPENINWONER)
         protocolMappers:
           - name: "username"
             protocol: "openid-connect"
@@ -433,7 +433,7 @@ data:
           - "{{ .Values.kiss.configuration.oidcUrl | trimSuffix "/" }}/*"
         webOrigins:
           - "{{ .Values.kiss.configuration.oidcUrl | trimSuffix "/" }}/*"
-        secret: {{ .Values.kiss.settings.oidc.clientSecret | quote }}
+        secret: $(KC_SECRET_KISS)
         protocolMappers:
           - name: kiss-roles
             protocol: openid-connect
@@ -470,7 +470,7 @@ data:
           - "{{ .Values.zac.contextUrl | trimSuffix "/" }}/*"
         webOrigins:
           - "{{ .Values.zac.contextUrl | trimSuffix "/" }}/*"
-        secret: {{ .Values.zac.auth.secret | quote }}
+        secret: $(KC_SECRET_ZAC)
         protocolMappers:
           - name: "username"
             protocol: "openid-connect"
@@ -501,7 +501,7 @@ data:
         name: Zaakafhandelcomponent Admin Client
         enabled: true
         clientAuthenticatorType: client-secret
-        secret: {{ .Values.zac.keycloak.adminClient.secret | quote }}
+        secret: $(KC_SECRET_ZAC_ADMIN)
         redirectUris:
           - "{{ .Values.zac.contextUrl | trimSuffix "/" }}/*"
         webOrigins:
@@ -552,7 +552,7 @@ data:
           - "{{ .Values.ita.web.oidc.frontendUrl | trimSuffix "/" }}/*"
         webOrigins:
           - "{{ .Values.ita.web.oidc.frontendUrl | trimSuffix "/" }}/*"
-        secret: {{ .Values.ita.web.oidc.clientSecret | quote }}
+        secret: $(KC_SECRET_ITA)
         protocolMappers:
           - name: "client roles"
             protocol: "openid-connect"
@@ -592,7 +592,7 @@ data:
           - "{{ .Values.pabc.settings.oidc.oidcUrl | trimSuffix "/" }}/*"
         webOrigins:
           - "{{ .Values.pabc.settings.oidc.oidcUrl | trimSuffix "/" }}/*"
-        secret: {{ .Values.pabc.settings.oidc.clientSecret | quote }}
+        secret: $(KC_SECRET_PABC)
         protocolMappers:
           - name: "client roles"
             protocol: "openid-connect"
@@ -613,7 +613,7 @@ data:
         name: PABC Keycloak Admin REST API client
         enabled: true
         clientAuthenticatorType: client-secret
-        secret: {{ .Values.pabc.settings.keycloakAdmin.clientSecret | quote }}
+        secret: $(KC_SECRET_PABC_ADMIN)
         serviceAccountsEnabled: true
     clientScopes:
       - name: roles

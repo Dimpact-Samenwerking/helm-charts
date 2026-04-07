@@ -63,7 +63,7 @@ keycloak-operator:
         tag: "8.18.0"
       # Client secret for the keycloak-operator client. Set this to a known value so Helm
       # can create the K8s secret directly. The job will enforce this secret in Keycloak.
-      clientSecret: "changeme"
+      clientSecret: ""
     importPodiumdRealm:
       enabled: true
     importMasterRealm:
@@ -97,7 +97,7 @@ keycloak:
       value: ""
   auth:
     adminUser: admin
-    adminPassword: "changemenow"
+    adminPassword: ""
   config:
     adminFrontendUrl: https://keycloak-admin.example.nl
     # Example configuration
@@ -150,7 +150,7 @@ keycloak:
       monitoring:
         name: Monitoring (Grafana)
         enabled: true
-        secret: "monitoring_secret"
+        secret: ""
         oidcUrl: "https://monitoring.example.nl"
   name: "keycloak"
   features:
@@ -424,8 +424,8 @@ redis-operator:
     labelMasterJob:
       enabled: true
       image:
-        repository: lachlanevenson/k8s-kubectl
-        tag: "v1.25.4"
+        repository: registry.k8s.io/kubectl
+        tag: "v1.33.0"
       resources:
         requests:
           cpu: 10m
@@ -563,6 +563,13 @@ openzaak:
     client_id: "<openzaak_client_id>"
     secret: "<openzaak_secret>"
     enabled: true
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
     e2eTestZaaktype:
       # set to false to disable automatic creation and publishing of the e2e-test zaaktype if it does not exist yet
       create: true
@@ -1112,6 +1119,13 @@ objecttypen:
   # used for create-required-objecttypen podiumd job only
   create_required_objecttypen_job:
     enabled: true
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
   resources:
     requests:
       cpu: 10m
@@ -1133,7 +1147,7 @@ openarchiefbeheer:
   configuration:
     enabled: true
     oidcUrl: https://abc.example.nl
-    oidcSecret: "abc"
+    oidcSecret: ""
     # -- Enable PKCE (S256) on the Keycloak client. NOTE: openarchiefbeheer v1.1.1 does not yet support
     # OIDC authentication; this switch is reserved for when OIDC support is added to the application.
     pkceEnabled: false
@@ -2924,7 +2938,7 @@ ita:
     image:
       repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller"
       tag: "3.0.0"
-      pullPolicy: Always
+      pullPolicy: IfNotPresent
 
     notification:
       pollerMessage: "Poller uitgevoerd om:"

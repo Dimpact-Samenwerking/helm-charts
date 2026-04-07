@@ -27,6 +27,13 @@ spec:
         - name: adapter
           image: "{{ .Values.kiss.adapter.image.repository }}:{{ .Values.kiss.adapter.image.tag }}"
           imagePullPolicy: {{ .Values.kiss.adapter.image.pullPolicy }}
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
           ports:
             - name: http
               containerPort: 8080
