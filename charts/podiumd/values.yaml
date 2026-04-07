@@ -555,6 +555,8 @@ openzaak:
       # openzaak_openinwoner_secret: "<openzaak_openinwoner_secret>"
       # opennotificaties_autorisatie_api_secret: "<opennotificaties_autorisatie_api_secret>"
       # openzaak_opennotificaties_secret: "<openzaak_opennotificaties_secret>"
+    oidcUrl: https://openzaak.example.nl
+    oidcSecret: "<openzaak>"
     # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
     pkceEnabled: false
   create_required_catalogi_job:
@@ -1132,7 +1134,8 @@ openarchiefbeheer:
     enabled: true
     oidcUrl: https://abc.example.nl
     oidcSecret: "abc"
-    # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
+    # -- Enable PKCE (S256) on the Keycloak client. NOTE: openarchiefbeheer v1.1.1 does not yet support
+    # OIDC authentication; this switch is reserved for when OIDC support is added to the application.
     pkceEnabled: false
     job:
       enabled: true
@@ -2412,7 +2415,8 @@ zac:
     realm: podiumd
     clientId: zac
     secret: changeme
-    # -- Enable PKCE (S256) on the Keycloak client. Enable when ZAC OIDC client supports PKCE.
+    # -- Enable PKCE (S256) on the Keycloak client. NOTE: ZAC does not currently support PKCE;
+    # this switch is reserved for when PKCE support is added to the ZAC OIDC client.
     pkceEnabled: false
   bagApi:
     url: http://bag.example.nl
