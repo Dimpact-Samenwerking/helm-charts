@@ -196,7 +196,7 @@ keycloak:
     image:
       registry: ""
       repository: adorsys/keycloak-config-cli
-      tag: "6.4.1-26"
+      tag: "6.5.0-26"
   podTemplate:
     metadata:
       labels:
