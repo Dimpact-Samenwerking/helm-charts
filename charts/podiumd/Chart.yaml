@@ -3,7 +3,7 @@ name: podiumd
 description: PodiumD Helm chart
 type: application
 version: 4.5.17
-appVersion: "4.5.16"
+appVersion: "4.5.17"
 dependencies:
   # DEPRECATED: Will be removed in a future release. Use keycloak-operator instead.
   - name: keycloak
