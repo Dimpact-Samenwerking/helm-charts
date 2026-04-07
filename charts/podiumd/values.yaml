@@ -2534,10 +2534,17 @@ pabc:
   postgresql:
     enabled: false
   image:
-    tag: 1.0.0
+    tag: 1.1.0
   migrations:
     image:
-      tag: 1.0.0
+      tag: 1.1.0
+    nodeSelector: {}
+  initContainers:
+    waitFor:
+      image:
+        repository: "ghcr.io/groundnuty/k8s-wait-for"
+        tag: "v2.0"
+        pullPolicy: IfNotPresent
 
   settings:
     database:
