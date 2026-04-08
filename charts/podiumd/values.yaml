@@ -166,7 +166,7 @@ keycloak:
   image:
     registry: ""
     repository: quay.io/keycloak/keycloak
-    tag: 26.5.7
+    tag: 26.6.0
   # -- instances is the new operator-style replica count (falls back to replicaCount)
   instances: "2"
   ingress:
