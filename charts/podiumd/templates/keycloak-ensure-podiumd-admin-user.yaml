@@ -84,6 +84,14 @@ spec:
               name: keycloak-operator-client-secret
               key: client-secret
               optional: true
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 100
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault
         volumeMounts:
         - name: skip-flag
           mountPath: /skip
@@ -200,6 +208,14 @@ spec:
             secretKeyRef:
               name: keycloak-podiumd-admin
               key: password
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault
         volumeMounts:
         - name: work
           mountPath: /work
@@ -208,6 +224,14 @@ spec:
         image: {{ include "podiumd.image" (index .Values "keycloak-operator").jobs.ensurePodiumdAdminUser.image }}
         resources:
 {{ toYaml (index .Values "keycloak-operator").jobs.resources | indent 10 }}
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 999
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault
         command:
         - /bin/sh
         - -c

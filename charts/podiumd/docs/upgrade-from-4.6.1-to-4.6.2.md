@@ -2,6 +2,25 @@
 
 ## Changes
 
+### Required values — weak defaults removed
+
+The following fields previously had insecure placeholder defaults (`"changeme"`, `"changemenow"`,
+`"monitoring_secret"`, `"abc"`). These defaults have been blanked to force explicit configuration.
+**Deployments will fail at template render time if these are not set.**
+
+| Field | Previous default | Action required |
+|-------|-----------------|-----------------|
+| `keycloak.auth.adminPassword` | `"changemenow"` | Set to a strong password |
+| `keycloak.config.clients.monitoring.secret` | `"monitoring_secret"` | Set to a random secret |
+| `openarchiefbeheer.configuration.oidcSecret` | `"abc"` | Set to the OIDC client secret |
+| `keycloak-operator.jobs.ensureOperatorSa.clientSecret` | `"changeme"` | Set to the Keycloak operator SA client secret |
+
+These are typically sourced from the environment's Key Vault and injected at deploy time via
+`--set-string`. They should **not** be committed in plaintext to values files — use the
+`REP_xxx_REP` placeholder pattern so the pipeline substitutes them at deploy time.
+
+---
+
 ### PABC updated to 1.1.0
 
 The PABC sub-chart has been updated from 1.0.0 to 1.1.0.
@@ -78,21 +97,57 @@ On clusters without a dedicated user nodepool, omit this key entirely.
 
 ---
 
-### `api-proxy` — switched to `nginxinc/nginx-unprivileged`
+### `api-proxy` and other components — `nginxinc/nginx-unprivileged` image
 
-The api-proxy Deployment uses `runAsNonRoot: true` in its security context. The previous
-`nginx` image runs as root and was incompatible with this constraint. The image has been
-switched to `nginxinc/nginx-unprivileged:1.29.5` which runs as uid 101.
+The api-proxy Deployment uses `runAsNonRoot: true`. The previous `nginx` image runs as root and
+was incompatible with this constraint. The image has been switched to
+`nginxinc/nginx-unprivileged:1.29.5` (uid 101).
 
-For **ACR-based environments**, update the repository override:
+The Maykin subcharts (openzaak, openklant, openformulieren, openinwoner, openarchiefbeheer) and
+ZAC have always used `nginxinc/nginx-unprivileged` as their nginx sidecar — this is unchanged.
+
+For **ACR-based environments**, the repository path must use `nginx-unprivileged` (not `nginx`)
+for all of these components. Add or verify the following overrides:
 
 ```yaml
+# api-proxy (changed in 4.6.2 — was "nginx")
 apiproxy:
   image:
     repository: <acr>/nginx-unprivileged
+
+# Maykin subcharts — verify these are set correctly in your environment values
+openzaak:
+  nginx:
+    image:
+      repository: <acr>/nginx-unprivileged
+
+openklant:
+  nginx:
+    image:
+      repository: <acr>/nginx-unprivileged
+
+openformulieren:
+  nginx:
+    image:
+      repository: <acr>/nginx-unprivileged
+
+openinwoner:
+  nginx:
+    image:
+      repository: <acr>/nginx-unprivileged
+
+openarchiefbeheer:
+  nginx:
+    image:
+      repository: <acr>/nginx-unprivileged
+
+zac:
+  nginx:
+    image:
+      repository: <acr>/nginx-unprivileged
 ```
 
-No tag override is needed — the tag is set by the chart default (`1.29.5`).
+No tag overrides are needed — tags are set by the chart defaults (`1.29.5`).
 
 ---
 

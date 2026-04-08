@@ -2,6 +2,16 @@
 {{- if .Values.openzaak.configuration.enabled }}
 {{- if .Values.openzaak.create_required_catalogi_job.enabled }}
 apiVersion: v1
+kind: Secret
+metadata:
+  name: create-required-catalogi-secret
+  labels:
+    {{- include "openzaak.labels" . | nindent 4 }}
+type: Opaque
+stringData:
+  secret: {{ .Values.openzaak.create_required_catalogi_job.secret | quote }}
+---
+apiVersion: v1
 kind: ConfigMap
 metadata:
   name: create-required-catalogi-configmap
@@ -10,7 +20,6 @@ metadata:
 data:
   CLIENT_ID: {{ .Values.openzaak.create_required_catalogi_job.client_id | quote }}
   OPENZAAK_URL: {{ .Values.openzaak.configuration.oidcUrl | quote }}
-  SECRET: {{ .Values.openzaak.create_required_catalogi_job.secret | quote }}
   DOMEIN: {{ .Values.zac.catalogusDomein | quote }}
   RSIN: {{ .Values.zac.organizations.bron.rsin | quote }}
   CONTACT_PERSON: {{ .Values.zac.gemeente.naam | quote }}
@@ -401,9 +410,23 @@ spec:
         - image: {{ .Values.objecttypen.image.repository }}:{{ .Values.objecttypen.image.tag }}
           command: ["/jobs/create-required-catalogi.py"]
           name: create-required-catalogi
+          resources:
+            {{- toYaml .Values.openzaak.create_required_catalogi_job.resources | nindent 12 }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
           envFrom:
-            - configMapRef:
-                name: create-required-catalogi-configmap
+          env:
+            - name: SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: create-required-catalogi-secret
+                  key: secret
           volumeMounts:
             - mountPath: /jobs
               name: jobs

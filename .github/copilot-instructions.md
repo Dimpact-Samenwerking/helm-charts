@@ -35,18 +35,26 @@ Required Helm repos are listed in `Chart.yaml`. To add them all at once run `cha
 # Update/build dependencies (from charts/podiumd/)
 helm dependency update && helm dependency build
 
-# Lint
-helm lint charts/podiumd
+# Lint — always use the CI values file to satisfy required fields
+helm lint charts/podiumd -f charts/podiumd/ci/lint-values.yaml
 
-# Render all templates (dry-run)
-helm template podiumd charts/podiumd -f <values-file.yaml> -n podiumd
+# Render all templates (dry-run, skip JSON schema validation from default empty values)
+helm template podiumd charts/podiumd -f charts/podiumd/ci/lint-values.yaml --skip-schema-validation
 
 # Render a single template
-helm template podiumd charts/podiumd -f <values-file.yaml> -s templates/<template.yaml>
+helm template podiumd charts/podiumd -f charts/podiumd/ci/lint-values.yaml --skip-schema-validation -s templates/<template.yaml>
+
+# Render with environment values (for full validation)
+helm template podiumd charts/podiumd -f <values-file.yaml> -n podiumd
 
 # Deploy / upgrade
 helm upgrade --install podiumd charts/podiumd -f <values-file.yaml> -n <namespace>
 ```
+
+**Lint notes:**
+- Always use `-f charts/podiumd/ci/lint-values.yaml` — the default `values.yaml` intentionally leaves security-sensitive fields blank (no `changeme` defaults), which causes validation failures without real values.
+- `--skip-schema-validation` is needed for `helm template` because the KISS subchart JSON schema requires fields that aren't populated in the CI values file.
+- The CI values file (`charts/podiumd/ci/lint-values.yaml`) contains placeholder values for all fields that trigger validation errors; keep it up to date when adding new required fields.
 
 There are no dedicated Helm test manifests. Use `-s templates/<template.yaml>` to validate individual resources. `kiss.schema.json` provides JSON Schema validation for `values.yaml` (requires Helm 3.11+).
 

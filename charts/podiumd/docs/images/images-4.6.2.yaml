@@ -21,3 +21,9 @@
   url: ghcr.io/groundnuty/k8s-wait-for
   version: "v2.0"
   digest: "sha256:c14d7271e4013b24b34ef0d7144c4610577d0e9110ccc26b163fa28089fa1f4e"
+
+# Nginx (api-proxy gewijzigd van nginx naar nginx-unprivileged)
+- name: nginx-unprivileged
+  url: docker.io/nginxinc/nginx-unprivileged
+  version: "1.29.5"
+  digest: "sha256:5c8946de2a79b6031975ff6c54594a26bdb2f1b5abab1c03f501575ebb02510f"

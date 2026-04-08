@@ -6,6 +6,36 @@
 # but its own values.yaml defaults to bitnamilegacy/rabbitmq. This mismatch triggers a
 # fail in the Bitnami image-check template; allowInsecureImages bypasses it for linting.
 
+zac:
+  auth:
+    secret: "placeholder"
+
+# Prevents nil pointer in objecten/templates/secret.yaml when rendering templates
+objecten:
+  configuration:
+    demo:
+      enabled: false
+
+# The following fields had weak defaults ("changeme", "abc", etc.) that were blanked
+# in 4.6.2 to force operators to set them explicitly. Provide placeholder values here
+# so lint and template rendering work without real secrets.
+keycloak:
+  auth:
+    adminPassword: "placeholder"
+  config:
+    clients:
+      monitoring:
+        secret: "placeholder"
+
+openarchiefbeheer:
+  configuration:
+    oidcSecret: "placeholder"
+
+keycloak-operator:
+  jobs:
+    ensureOperatorSa:
+      clientSecret: "placeholder"
+
 opennotificaties:
   rabbitmq:
     global:

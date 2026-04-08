@@ -60,6 +60,14 @@ spec:
             secretKeyRef:
               name: keycloak-operator-client-secret
               key: client-secret
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 100
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault
       volumes:
       - name: realm-configs
         configMap:
@@ -72,6 +80,14 @@ spec:
         image: {{ include "podiumd.image" .Values.keycloak.keycloakConfigCli.image }}
         resources:
 {{ toYaml (index .Values "keycloak-operator").jobs.configCliResources | indent 10 }}
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault
         env:
         - name: KEYCLOAK_URL
           value: {{ coalesce .Values.keycloak.hostname.admin .Values.keycloak.config.adminFrontendUrl "http://keycloak-service:8080" | quote }}
