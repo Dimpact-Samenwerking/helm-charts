@@ -115,21 +115,20 @@ zac:
         prometheus.io/path: /metrics
 
 # ---------------------------------------------------------------------------
-# Keycloak — metrics enabled via additionalOptions in values.yaml (metrics-enabled: true).
-# Prometheus scrape annotations on the pod template so Prometheus can discover the endpoint.
+# Keycloak — the keycloak-operator automatically creates a ServiceMonitor when
+# the Prometheus Operator CRDs are installed. No extra configuration is needed
+# here. Metrics endpoint is port 9000 (/metrics), enabled via additionalOptions
+# in values.yaml (metrics-enabled: true).
 # ---------------------------------------------------------------------------
 
-keycloak:
-  podTemplate:
-    metadata:
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "9000"
-        prometheus.io/path: /metrics
+keycloak-operator:
+  enableServiceMonitor: true
 
 # ---------------------------------------------------------------------------
 # Redis operator — scrape the operator deployment (port 8080) and enable the
 # redis_exporter sidecar on each redis-ha pod (port 9121).
+# Note: annotation-based scraping; requires additionalScrapeConfigs in the
+# monitoring chart for the annotations to be picked up by kube-prometheus-stack.
 # ---------------------------------------------------------------------------
 
 redis-operator:
@@ -144,13 +143,14 @@ redis-operator:
 
 # ---------------------------------------------------------------------------
 # ClamAV — sergeymakinen/clamav_exporter sidecar + ServiceMonitor (port 9906)
-# ServiceMonitor requires the Prometheus Operator CRD (monitoring.coreos.com/v1).
-# Set serviceMonitor.enabled: true if the CRD is installed in your cluster.
+# Note: the upstream clamav chart (v3.2.0) does NOT include a metrics exporter
+# sidecar or a ServiceMonitor template. The settings below are placeholders for
+# a future chart version that adds this support. They have no effect currently.
 # ---------------------------------------------------------------------------
 
 clamav:
   metrics:
-    enabled: true
+    enabled: false
     resources:
       requests:
         cpu: 10m
@@ -165,8 +165,10 @@ clamav:
 
 # ---------------------------------------------------------------------------
 # ECK operator (via kiss-elastic) — enable metrics port and create a PodMonitor
-# PodMonitor requires the Prometheus Operator CRD (monitoring.coreos.com/v1).
-# Set podMonitor.enabled: true if the CRD is installed in your cluster.
+# for the ECK operator pod itself. The eck-operator-podmonitor-rbac template in
+# the podiumd chart grants the elastic-operator SA permission to also create
+# PodMonitors for managed Elasticsearch/Kibana instances at runtime.
+# Requires: kisselastic.enabled: true and Prometheus Operator CRDs installed.
 # ---------------------------------------------------------------------------
 
 kisselastic:
@@ -174,6 +176,6 @@ kisselastic:
     config:
       metricsPort: "8080"
     podMonitor:
-      enabled: false
+      enabled: true
       interval: 1m
       scrapeTimeout: 30s
