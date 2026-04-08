@@ -2534,7 +2534,7 @@ zac:
       rsin: "000000000"
     verantwoordelijke:
       rsin: "000000000"
-  pabc:
+  pabcApi:
     apiKey: ""
     url: ""
   zacInternalEndpointsApiKey: "dummy"
