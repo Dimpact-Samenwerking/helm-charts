@@ -57,8 +57,10 @@ spec:
     spec:
       serviceAccountName: redis-ha-label-master
       restartPolicy: OnFailure
+      {{- with $redisHa.labelMasterJob.nodeSelector }}
       nodeSelector:
-        kubernetes.azure.com/mode: user
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: label-master
           image: {{ include "podiumd.image" $redisHa.labelMasterJob.image }}
