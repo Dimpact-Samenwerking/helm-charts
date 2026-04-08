@@ -57,5 +57,44 @@ No tag override is needed — the tag is set by the chart default (`v1.33.0`).
 
 ---
 
+### `redis-ha-label-master` job — hardcoded nodeSelector removed
+
+The `redis-ha-label-master` Job previously had `kubernetes.azure.com/mode: user` hardcoded in
+its template, causing it to be unschedulable on clusters with only system-mode nodes (e.g.
+single-nodepool dev/test clusters).
+
+The nodeSelector is now optional and must be set explicitly in environments that require it
+(e.g. AKS-blue with dedicated user nodepools):
+
+```yaml
+redis-operator:
+  redis-ha:
+    labelMasterJob:
+      nodeSelector:
+        kubernetes.azure.com/mode: user
+```
+
+On clusters without a dedicated user nodepool, omit this key entirely.
+
+---
+
+### `api-proxy` — switched to `nginxinc/nginx-unprivileged`
+
+The api-proxy Deployment uses `runAsNonRoot: true` in its security context. The previous
+`nginx` image runs as root and was incompatible with this constraint. The image has been
+switched to `nginxinc/nginx-unprivileged:1.29.5` which runs as uid 101.
+
+For **ACR-based environments**, update the repository override:
+
+```yaml
+apiproxy:
+  image:
+    repository: <acr>/nginx-unprivileged
+```
+
+No tag override is needed — the tag is set by the chart default (`1.29.5`).
+
+---
+
 For the full list of new and changed images in this release see
 [docs/images/images-4.6.2.yaml](images/images-4.6.2.yaml).
