@@ -26,6 +26,8 @@ keycloak-operator:
   # Chart: https://charts.adfinis.com / adfinis/keycloak-operator (appVersion 26.5.7)
   # Note: it appears that the podname automatically appends -operator.
   # Official operator image: quay.io/keycloak/keycloak-operator:26.5.7
+  # override: values-enable-observability.yaml sets enableServiceMonitor: true
+  enableServiceMonitor: false
   fullnameOverride: keycloak
   operator:
     image:

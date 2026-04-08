@@ -6,9 +6,13 @@
   returns HTTP 403 instead of 404, which the operator treats as a hard error and
   aborts the entire reconciliation — no Keycloak pods are ever created.
 
-  This ClusterRole + ClusterRoleBinding grants the operator's SA read access to
-  servicemonitors so it receives a proper 404 (API group unknown) when the CRD is
-  absent, allowing reconciliation to continue.
+  The ClusterRole + ClusterRoleBinding below grants cluster-wide read access so the
+  operator receives a proper 404 (API group unknown) when the CRD is absent, allowing
+  reconciliation to continue.
+
+  The Role + RoleBinding below grants write access in the release namespace so the
+  operator can create and manage the ServiceMonitor for Keycloak metrics when the
+  monitoring.coreos.com CRD is present.
 
   SA name derivation mirrors the adfinis keycloak-operator chart logic:
     1. operator.serviceAccount.name if explicitly set
@@ -25,6 +29,7 @@
 {{-   $saName = printf "%s-keycloak-operator" .Release.Name }}
 {{- end }}
 ---
+# Cluster-wide read access — allows the operator to detect CRD absence gracefully.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -57,4 +62,45 @@ subjects:
   - kind: ServiceAccount
     name: {{ $saName }}
     namespace: {{ .Release.Namespace }}
+{{- if $kcOp.enableServiceMonitor }}
+---
+# Namespace-scoped write access — allows the operator to create and manage
+# the Keycloak ServiceMonitor in the release namespace when the CRD is present.
+# Only rendered when keycloak-operator.enableServiceMonitor: true.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ .Release.Name }}-keycloak-operator-servicemonitor-write
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: keycloak-operator
+rules:
+  - apiGroups:
+      - monitoring.coreos.com
+    resources:
+      - servicemonitors
+    verbs:
+      - create
+      - patch
+      - update
+      - delete
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ .Release.Name }}-keycloak-operator-servicemonitor-write
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: keycloak-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ .Release.Name }}-keycloak-operator-servicemonitor-write
+subjects:
+  - kind: ServiceAccount
+    name: {{ $saName }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}
 {{- end }}
