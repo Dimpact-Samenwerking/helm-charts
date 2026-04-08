@@ -2244,7 +2244,6 @@ kiss:
       clientSecret: "<kiss>"
       # -- Enable PKCE (S256) on the Keycloak client for KISS.
       # KISS is a React frontend; the OIDC client library must support PKCE.
-      # Align this with the pkce setting in the standalone kiss chart values.
       pkceEnabled: false
       medewerkerIdentificatie:
         claim: samaccountname
