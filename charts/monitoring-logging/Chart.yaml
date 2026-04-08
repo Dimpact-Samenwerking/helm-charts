@@ -17,10 +17,14 @@ dependencies:
     repository: "@grafana"
     version: 10.5.15
     condition: grafana.enabled
-  - name: prometheus
+  - name: kube-prometheus-stack
     repository: "@prometheus-community"
-    version: 28.14.1
-    condition: prometheus.enabled
+    version: 83.0.0
+    condition: kube-prometheus-stack.enabled
+  - name: prometheus-pushgateway
+    repository: "@prometheus-community"
+    version: 3.6.0
+    condition: prometheus-pushgateway.enabled
   - name: tempo
     repository: "@grafana"
     version: 1.24.4

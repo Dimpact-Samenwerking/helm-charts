@@ -8,16 +8,18 @@ This document describes every metric source available in a PodiumD cluster, how 
 
 ## How discovery works
 
-Prometheus is configured with:
+Prometheus is managed by the Prometheus Operator (kube-prometheus-stack) and configured with:
 
 ```yaml
 # values.yaml / values-monitoring.yaml
-prometheus:
-  prometheusSpec:
-    serviceMonitorSelectorNilUsesHelmValues: false
+kube-prometheus-stack:
+  prometheus:
+    prometheusSpec:
+      serviceMonitorSelectorNilUsesHelmValues: false
+      podMonitorSelectorNilUsesHelmValues: false
 ```
 
-Setting this to `false` means Prometheus watches **all namespaces** for `ServiceMonitor` resources, not only those created by its own Helm release. No label selector restrictions apply.
+Setting these to `false` means the operator watches **all namespaces** for `ServiceMonitor` and `PodMonitor` resources, not only those created by its own Helm release.
 
 **This means**: creating a `ServiceMonitor` in the `podiumd` namespace is sufficient for Prometheus (running in the `monitoring` namespace) to pick it up automatically.
 
@@ -377,35 +379,37 @@ Both values files need the `#Prometheus scraping` block. The chart defaults live
 
 ```yaml
 # #Prometheus scraping
-prometheus:
-  server:
-    extraFlags:
-      - web.enable-remote-write-receiver
-  extraScrapeConfigs: |
-    # Keycloak — only needed if ServiceMonitor is not used
-    - job_name: keycloak
-      static_configs:
-        - targets: ['keycloak.podiumd.svc.cluster.local:9000']
-      metrics_path: /metrics
-      relabel_configs:
-        - target_label: namespace
-          replacement: podiumd
-        - target_label: service
-          replacement: keycloak
+kube-prometheus-stack:
+  prometheus:
+    prometheusSpec:
+      additionalArgs:
+        - name: web.enable-remote-write-receiver
+          value: ""
+      additionalScrapeConfigs: |
+        # Keycloak — only needed if ServiceMonitor is not used
+        - job_name: keycloak
+          static_configs:
+            - targets: ['keycloak.podiumd.svc.cluster.local:9000']
+          metrics_path: /metrics
+          relabel_configs:
+            - target_label: namespace
+              replacement: podiumd
+            - target_label: service
+              replacement: keycloak
 
-    # Redis exporter
-    - job_name: redis-cluster
-      static_configs:
-        - targets: ['redis-cluster.podiumd.svc.cluster.local:9090']
-      metrics_path: /metrics
-      relabel_configs:
-        - target_label: namespace
-          replacement: podiumd
-        - target_label: service
-          replacement: redis-cluster
+        # Redis exporter
+        - job_name: redis-cluster
+          static_configs:
+            - targets: ['redis-cluster.podiumd.svc.cluster.local:9090']
+          metrics_path: /metrics
+          relabel_configs:
+            - target_label: namespace
+              replacement: podiumd
+            - target_label: service
+              replacement: redis-cluster
 ```
 
-> Prefer `ServiceMonitor` / `PodMonitor` resources over `extraScrapeConfigs`. They are more maintainable and integrate with Prometheus Operator's RBAC model. Use `extraScrapeConfigs` only for services that cannot expose a Kubernetes Service on the metrics port.
+> Prefer `ServiceMonitor` / `PodMonitor` resources over `additionalScrapeConfigs`. They are more maintainable and integrate with Prometheus Operator's RBAC model. Use `additionalScrapeConfigs` only for services that cannot expose a Kubernetes Service on the metrics port.
 
 ---
 
