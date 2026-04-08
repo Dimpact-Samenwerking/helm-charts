@@ -8,12 +8,14 @@ grafana:
     limits:
       cpu: 200m
       memory: 256Mi
-  deleteDatasources:
-    - name: Alertmanager
-    
+  # Recreate strategy avoids RWO PVC deadlock during rolling updates —
+  # with RollingUpdate (default), the new pod cannot attach the PVC until
+  # the old pod releases it, but the old pod won't terminate until the new
+  # pod is Ready: a deadlock. Recreate terminates the old pod first.
+  deploymentStrategy:
+    type: Recreate
+
   datasources:
-    alertmanager:
-      enabled: false
     datasources.yaml:
       apiVersion: 1
       datasources:
@@ -156,13 +158,9 @@ grafana:
       enabled: false     # Ensure anonymous access is disabled
       hide_version: true # Add this to explicitly hide version for anonymous users
       
-    # -- Git Sync for Grafana dashboards
+    # -- Grafana Advisor surfaces recommendations in the Grafana UI
     feature_toggles:
-      provisioning: true
       grafanaAdvisor: true
-      kubernetesClientDashboardsFolders: true
-      kubernetesDashboards: true
-      grafanaAPIServerEnsureKubectlAccess: true
   # -- Grafana image settings
   # docker.io/grafana/grafana:12.3.0-17814087142-ubuntu
   image:
@@ -197,11 +195,10 @@ grafana:
     type: pvc
     finalizers:
       - kubernetes.io/pvc-protection
-      
+
   sidecar:
     datasources:
-      alertmanager:
-        enabled: false
+      enabled: true
 
 kube-prometheus-stack:
   enabled: true
