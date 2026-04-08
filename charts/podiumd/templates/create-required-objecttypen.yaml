@@ -128,6 +128,8 @@ spec:
             seccompProfile:
               type: RuntimeDefault
           envFrom:
+            - configMapRef:
+                name: create-required-objecttypen-configmap
           env:
             - name: AUTHORIZATION_TOKEN
               valueFrom:

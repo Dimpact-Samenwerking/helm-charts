@@ -426,8 +426,8 @@ redis-operator:
     labelMasterJob:
       enabled: true
       image:
-        repository: registry.k8s.io/kubectl
-        tag: "v1.33.0"
+        repository: docker.io/alpine/k8s
+        tag: "1.33.2"
       resources:
         requests:
           cpu: 10m

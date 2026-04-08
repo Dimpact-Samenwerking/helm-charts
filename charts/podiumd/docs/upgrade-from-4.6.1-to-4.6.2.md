@@ -60,7 +60,8 @@ pabc:
 ### `redis-ha-label-master` kubectl image replaced
 
 The `lachlanevenson/k8s-kubectl` image (unofficial Docker Hub maintainer, K8s 1.25 EOL) has been
-replaced with `registry.k8s.io/kubectl:v1.33.0` — the official Kubernetes project image.
+replaced with `docker.io/alpine/k8s:1.33.2` — an alpine-based image bundling the official
+Kubernetes 1.33 kubectl binary with a full shell environment.
 
 For **ACR-based environments**, update the repository override:
 
@@ -69,10 +70,10 @@ redis-operator:
   redis-ha:
     labelMasterJob:
       image:
-        repository: <acr>/kubectl
+        repository: <acr>/k8s
 ```
 
-No tag override is needed — the tag is set by the chart default (`v1.33.0`).
+No tag override is needed — the tag is set by the chart default (`1.33.2`).
 
 ---
 

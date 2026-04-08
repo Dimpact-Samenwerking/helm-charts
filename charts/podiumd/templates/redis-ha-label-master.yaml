@@ -68,6 +68,7 @@ spec:
             {{- toYaml $redisHa.labelMasterJob.resources | nindent 12 }}
           securityContext:
             runAsNonRoot: true
+            runAsUser: 65532
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
