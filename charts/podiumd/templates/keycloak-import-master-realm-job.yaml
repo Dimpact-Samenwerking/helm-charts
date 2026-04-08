@@ -62,6 +62,7 @@ spec:
               key: client-secret
         securityContext:
           runAsNonRoot: true
+          runAsUser: 100
           allowPrivilegeEscalation: false
           capabilities:
             drop: ["ALL"]
@@ -81,6 +82,7 @@ spec:
 {{ toYaml (index .Values "keycloak-operator").jobs.configCliResources | indent 10 }}
         securityContext:
           runAsNonRoot: true
+          runAsUser: 1000
           allowPrivilegeEscalation: false
           capabilities:
             drop: ["ALL"]

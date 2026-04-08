@@ -414,14 +414,13 @@ spec:
             {{- toYaml .Values.openzaak.create_required_catalogi_job.resources | nindent 12 }}
           securityContext:
             runAsNonRoot: true
+            runAsUser: 1000
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
             seccompProfile:
               type: RuntimeDefault
           envFrom:
-            - configMapRef:
-                name: create-required-catalogi-configmap
           env:
             - name: SECRET
               valueFrom:

@@ -121,14 +121,13 @@ spec:
             {{- toYaml .Values.objecttypen.create_required_objecttypen_job.resources | nindent 12 }}
           securityContext:
             runAsNonRoot: true
+            runAsUser: 1000
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
             seccompProfile:
               type: RuntimeDefault
           envFrom:
-            - configMapRef:
-                name: create-required-objecttypen-configmap
           env:
             - name: AUTHORIZATION_TOKEN
               valueFrom:
