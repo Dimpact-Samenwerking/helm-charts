@@ -30,7 +30,7 @@ keycloak-operator:
   operator:
     image:
       repository: quay.io/keycloak/keycloak-operator
-      tag: "26.5.7"
+      tag: "26.6.0"
     resources:
       requests:
         cpu: 100m
