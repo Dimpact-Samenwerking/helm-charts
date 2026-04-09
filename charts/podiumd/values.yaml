@@ -23,21 +23,14 @@ persistentVolume:
 keycloak-operator:
   enabled: true
   # Adfinis Helm chart wrapping the official Keycloak Operator manifests.
-  # Chart: https://charts.adfinis.com / adfinis/keycloak-operator (appVersion 26.5.6)
+  # Chart: https://charts.adfinis.com / adfinis/keycloak-operator (appVersion 26.5.7)
   # Note: it appears that the podname automatically appends -operator.
-  # Official operator image: quay.io/keycloak/keycloak-operator:26.5.6
+  # Official operator image: quay.io/keycloak/keycloak-operator:26.5.7
   fullnameOverride: keycloak
   operator:
     image:
       repository: quay.io/keycloak/keycloak-operator
       tag: "26.5.7"
-    resources:
-      requests:
-        cpu: 100m
-        memory: 128Mi
-      limits:
-        cpu: 500m
-        memory: 256Mi
   serviceAccount:
     create: false
   jobs:
@@ -152,6 +145,7 @@ keycloak:
         enabled: true
         secret: "monitoring_secret"
         oidcUrl: "https://monitoring.example.nl"
+  enabled: false
   name: "keycloak"
   features:
     enabled: []
@@ -202,7 +196,6 @@ keycloak:
       labels:
         app: keycloak
         version: 26.5.7
-      # override: values-enable-observability.yaml adds prometheus.io scrape annotations
     spec:
       securityContext:
         runAsNonRoot: true
@@ -1758,17 +1751,6 @@ openinwoner:
       useTLS: true
     searchIndexInitContainer: true
     oidcFrontendLogoutWithHints: true
-    cache:
-      default: redis-ha-master.podiumd.svc.cluster.local:6379/11
-      axes: redis-ha-master.podiumd.svc.cluster.local:6379/11
-    celery:
-      brokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/12
-      resultBackendl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/12
-      # -- Set to debug for test/acceptance environments
-      logLevel: warning
-    # override: values-enable-observability.yaml sets disabled: false and configures the OTEL endpoint
-    otel:
-      disabled: true
   persistence:
     size: 10Gi
     existingClaim: openinwoner
@@ -2907,10 +2889,18 @@ pabc:
   postgresql:
     enabled: false
   image:
-    tag: 1.0.0
+    tag: 1.1.0
+  nodeSelector: {}
   migrations:
     image:
-      tag: 1.0.0
+      tag: 1.1.0
+    nodeSelector: {}
+  initContainers:
+    waitFor:
+      image:
+        repository: "ghcr.io/groundnuty/k8s-wait-for"
+        tag: "v2.0"
+        pullPolicy: IfNotPresent
 
   settings:
     database:
