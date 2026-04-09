@@ -1,0 +1,250 @@
+{{- $operatorJobs := (index .Values "keycloak-operator").jobs }}
+{{- if and (index .Values "keycloak-operator").enabled $operatorJobs.ensurePodiumdAdminUser.enabled }}
+---
+# Job: ensure the `podiumd-admin` user exists in the Keycloak master realm.
+# Creates or updates the user on every install/upgrade:
+#   - sets password from the keycloak-podiumd-admin secret (key: password)
+#   - assigns the master realm admin role
+#   - clears all required actions (e.g. Configure OTP) so the user can log in immediately
+#
+# Design: two-container approach to avoid runtime pip install (not viable in air-gapped clusters):
+#   init container — Python (stdlib only) computes the PBKDF2-SHA256 hash and writes a SQL
+#                    file to a shared emptyDir volume (/work/setup.sql).
+#   main container — psql executes the SQL file against the Keycloak database.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ensure-podiumd-admin-user
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: keycloak
+spec:
+  ttlSecondsAfterFinished: 600
+  backoffLimit: 10
+  template:
+    metadata:
+      labels:
+        {{- include "podiumd.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: keycloak
+    spec:
+      {{- if .Values.keycloak.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.keycloak.nodeSelector | nindent 8 }}
+      {{- else if .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      {{- end }}
+      restartPolicy: Never
+      volumes:
+      - name: work
+        emptyDir: {}
+      - name: skip-flag
+        emptyDir: {}
+      initContainers:
+      - name: check-operator-sa
+        image: {{ include "podiumd.image" (index .Values "keycloak-operator").jobs.ensureOperatorSa.image }}
+        resources:
+{{ toYaml (index .Values "keycloak-operator").jobs.resources | indent 10 }}
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+          if [ -z "$CLIENT_ID" ] || [ -z "$CLIENT_SECRET" ]; then
+            echo "keycloak-operator-client-secret not available — will run podiumd-admin setup"
+            exit 0
+          fi
+          TOKEN=$(curl -s -X POST \
+            "http://keycloak-service:8080/realms/master/protocol/openid-connect/token" \
+            --data-urlencode "grant_type=client_credentials" \
+            --data-urlencode "client_id=$CLIENT_ID" \
+            --data-urlencode "client_secret=$CLIENT_SECRET" \
+            | sed -n 's/.*"access_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+          if [ -z "$TOKEN" ]; then
+            echo "keycloak-operator SA could not authenticate — will run podiumd-admin setup"
+            exit 0
+          fi
+          ADMIN_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer $TOKEN" \
+            "http://keycloak-service:8080/admin/realms")
+          if [ "$ADMIN_STATUS" = "200" ]; then
+            echo "keycloak-operator SA authenticated and has admin realm access — skipping podiumd-admin setup"
+            touch /skip/done
+          else
+            echo "keycloak-operator SA authenticated but admin API returned $ADMIN_STATUS — will run podiumd-admin setup"
+          fi
+        env:
+        - name: CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-operator-client-secret
+              key: clientId
+              optional: true
+        - name: CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-operator-client-secret
+              key: client-secret
+              optional: true
+        volumeMounts:
+        - name: skip-flag
+          mountPath: /skip
+      - name: generate-sql
+        image: {{ include "podiumd.image" (index .Values "keycloak-operator").jobs.ensurePodiumdAdminUser.initImage }}
+        resources:
+{{ toYaml (index .Values "keycloak-operator").jobs.resources | indent 10 }}
+        command:
+        - python3
+        - -c
+        - |
+          # Compute PBKDF2-SHA256 password hash (Keycloak 26 default: 210000 iterations, 64-byte key)
+          # and write a self-contained PL/pgSQL DO block to /work/setup.sql.
+          # Uses Python stdlib only — no pip install required.
+          import os, hashlib, base64, json, uuid
+
+          password  = os.environ['PODIUMD_ADMIN_PASSWORD']
+          salt      = os.urandom(16)
+          iterations = 210000
+          dk = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt, iterations, dklen=64)
+
+          secret_data = json.dumps({
+              "value": base64.b64encode(dk).decode('utf-8'),
+              "salt":  base64.b64encode(salt).decode('utf-8'),
+              "additionalParameters": {}
+          })
+          credential_data = json.dumps({
+              "hashIterations": iterations,
+              "algorithm": "pbkdf2-sha256",
+              "additionalParameters": {}
+          })
+
+          def sql_lit(s):
+              """Wrap s as a SQL string literal, escaping internal single quotes."""
+              return "'" + s.replace("'", "''") + "'"
+
+          # Build $$ at runtime so Helm's template engine never sees it and collapses it to $
+          DD = '$' + '$'
+
+          # Pre-compute all interpolated values before the f-string (secret_data JSON contains
+          # curly braces which would confuse the f-string parser if called inline)
+          new_user_id_lit   = sql_lit(str(uuid.uuid4()))
+          cred_id_lit       = sql_lit(str(uuid.uuid4()))
+          secret_data_lit   = sql_lit(secret_data)
+          cred_data_lit     = sql_lit(credential_data)
+
+          sql = f"""DO {DD}
+          DECLARE
+            v_realm_id TEXT;
+            v_user_id  TEXT;
+            v_existing TEXT;
+          BEGIN
+            SELECT id INTO STRICT v_realm_id FROM realm WHERE name = 'master';
+
+            SELECT id INTO v_existing
+            FROM user_entity
+            WHERE username = 'podiumd-admin' AND realm_id = v_realm_id;
+
+            IF v_existing IS NULL THEN
+              v_user_id := {new_user_id_lit};
+              INSERT INTO user_entity (
+                id, username, email_constraint, email_verified, enabled,
+                federation_link, first_name, last_name, realm_id,
+                created_timestamp, not_before, service_account_client_link
+              ) VALUES (
+                v_user_id, 'podiumd-admin', 'podiumd-admin', false, true, NULL,
+                'podiumd', 'integratieteam', v_realm_id,
+                extract(epoch from now())::bigint * 1000, 0, NULL
+              );
+              RAISE NOTICE 'Created user podiumd-admin';
+            ELSE
+              v_user_id := v_existing;
+              RAISE NOTICE 'Found existing user podiumd-admin';
+            END IF;
+
+            UPDATE user_entity
+            SET email_constraint = 'podiumd-admin', email_verified = false,
+                first_name = 'podiumd', last_name = 'integratieteam', enabled = true
+            WHERE id = v_user_id;
+
+            DELETE FROM credential WHERE user_id = v_user_id AND type = 'password';
+            INSERT INTO credential (
+              id, salt, type, user_id, created_date, user_label,
+              secret_data, credential_data, priority
+            ) VALUES (
+              {cred_id_lit}, NULL, 'password', v_user_id,
+              extract(epoch from now())::bigint * 1000, NULL,
+              {secret_data_lit}, {cred_data_lit}, 10
+            );
+
+            INSERT INTO user_role_mapping (role_id, user_id)
+            SELECT r.id, v_user_id FROM keycloak_role r
+            JOIN realm re ON re.id = r.realm_id
+            WHERE re.name = 'master' AND r.name = 'admin'
+            ON CONFLICT DO NOTHING;
+
+            INSERT INTO user_role_mapping (role_id, user_id)
+            SELECT r.id, v_user_id FROM keycloak_role r
+            WHERE r.name = 'default-roles-master' AND r.realm_id = v_realm_id
+            ON CONFLICT DO NOTHING;
+
+            DELETE FROM user_required_action WHERE user_id = v_user_id;
+
+            RAISE NOTICE 'User podiumd-admin configured successfully';
+          END {DD};
+          """
+
+          with open('/work/setup.sql', 'w') as f:
+              f.write(sql)
+          print("SQL written to /work/setup.sql")
+        env:
+        - name: PODIUMD_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-podiumd-admin
+              key: password
+        volumeMounts:
+        - name: work
+          mountPath: /work
+      containers:
+      - name: ensure-podiumd-admin-user
+        image: {{ include "podiumd.image" (index .Values "keycloak-operator").jobs.ensurePodiumdAdminUser.image }}
+        resources:
+{{ toYaml (index .Values "keycloak-operator").jobs.resources | indent 10 }}
+        command:
+        - /bin/sh
+        - -c
+        - |
+          if [ -f /skip/done ]; then
+            echo "keycloak-operator SA already ready — skipping podiumd-admin DB update"
+            exit 0
+          fi
+          set -e
+          echo "Waiting for database to be ready..."
+          for i in $(seq 1 15); do
+            pg_isready -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$PGDATABASE" && break
+            echo "Attempt $i/15 — retrying in 4s..."
+            sleep 4
+          done
+          echo "Executing setup SQL..."
+          psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$PGDATABASE" \
+               -v ON_ERROR_STOP=1 -f /work/setup.sql
+          echo "✓ Done."
+        env:
+        - name: PGHOST
+          value: {{ coalesce .Values.keycloak.db.host .Values.keycloak.externalDatabase.host | quote }}
+        - name: PGPORT
+          value: {{ coalesce .Values.keycloak.db.port .Values.keycloak.externalDatabase.port | toString | quote }}
+        - name: PGDATABASE
+          value: {{ coalesce .Values.keycloak.db.database .Values.keycloak.externalDatabase.database | quote }}
+        - name: PGUSER
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.keycloak.secretsName | quote }}
+              key: database_username
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.keycloak.secretsName | quote }}
+              key: database_password
+        volumeMounts:
+        - name: work
+          mountPath: /work
+{{- end }}

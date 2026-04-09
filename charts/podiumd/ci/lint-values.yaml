@@ -6,29 +6,6 @@
 # but its own values.yaml defaults to bitnamilegacy/rabbitmq. This mismatch triggers a
 # fail in the Bitnami image-check template; allowInsecureImages bypasses it for linting.
 
-# bitnami keycloak subchart: disable it (use keycloak-operator instead) and supply
-# required scalar values to avoid type mismatch errors from values.yaml map defaults.
-keycloak:
-  enabled: false
-  proxy:
-    headers: "xforwarded"
-  image:
-    repository: quay.io/keycloak/keycloak
-    tag: "26.5.4"
-
-# openzaak nil pointer guard: secret.yaml accesses notificatiesAuthorization.enabled
-# without a nil check, so the key must be explicitly set.
-openzaak:
-  configuration:
-    notificaties:
-      enabled: true
-    notificatiesAuthorization:
-      enabled: true
-
-# zac requires a notificationsSecretKey
-zac:
-  notificationsSecretKey: "placeholder"
-
 opennotificaties:
   rabbitmq:
     global:
