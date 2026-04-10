@@ -1,8 +1,6 @@
-# Observability — PodiumD
+# Observability — OpenTelemetry & Prometheus
 
-This document explains how logs and metrics flow out of a PodiumD deployment and what you need to configure.
-
-> **Prerequisite:** the `monitoring-logging` Helm chart must be deployed in a `monitoring` namespace on the same cluster. See [monitoring-logging/docs/otel.md](../../monitoring-logging/docs/otel.md) for the full OTel pipeline reference and [prometheus-scraping.md](../../monitoring-logging/docs/prometheus-scraping.md) for ServiceMonitor details.
+This document describes how metrics and tracing are configured across the podiumd chart components.
 
 ---
 
@@ -41,16 +39,6 @@ http://monitoring-opentelemetry-collector.monitoring.svc.cluster.local:4317
 
 ---
 
-## Logs — nothing to configure
-
-When `monitoring-logging` is deployed with its default Alloy DaemonSet, **every pod in every namespace is collected automatically**. Alloy tails `/var/log/pods/{namespace}_{pod}_{uid}/{container}/0.log` on each node and ships to Loki with labels `namespace`, `pod`, `container`, and `app`.
-
-Nothing needs to be added to `podiumd/values.yaml` for logs.
-
-> **Note:** The `telemetry/otel-logs: "true"` pod label referenced in older docs is no longer used. Alloy no longer filters on that label — all pods are collected regardless.
-
----
-
 ## Enabling Observability
 
 Use `values-enable-observability.yaml` alongside your environment values file:
@@ -65,11 +53,51 @@ helm upgrade podiumd charts/podiumd \
 
 ---
 
-## OTEL Configuration — Maykin Apps
+## Prerequisites — Prometheus Operator CRDs
+
+Some components use **ServiceMonitor** or **PodMonitor** custom resources (CRDs from the
+[Prometheus Operator](https://github.com/prometheus-operator/prometheus-operator)) to declare
+their scrape targets. These CRDs must be present in the cluster before applying
+`values-enable-observability.yaml`, otherwise Helm will fail or the resources will be silently ignored.
+
+| Component | Resource type | CRD required |
+|---|---|---|
+| clamav | `ServiceMonitor` | `monitoring.coreos.com/v1` |
+| eck-operator (kisselastic) | `PodMonitor` | `monitoring.coreos.com/v1` |
+| solr (todo) | `ServiceMonitor` | `monitoring.coreos.com/v1` (created by solr-operator) |
+| zookeeper (todo) | `ServiceMonitor` | `monitoring.coreos.com/v1` (manual) |
+| elasticsearch (todo) | `ServiceMonitor` | `monitoring.coreos.com/v1` (via exporter chart) |
+
+The remaining components (Maykin apps, ZAC, Keycloak, Redis, Solr/Zookeeper operators) use
+OTEL push or plain pod annotations — **no CRDs required** for those.
+
+### Checking if the CRDs are installed
+
+```bash
+kubectl get crd servicemonitors.monitoring.coreos.com
+kubectl get crd podmonitors.monitoring.coreos.com
+```
+
+### Installing the CRDs (without the full Prometheus Operator)
+
+If the cluster runs a standalone Prometheus (e.g. via `kube-prometheus-stack`) the CRDs are
+already present. If not, install just the CRDs:
+
+```bash
+kubectl apply --server-side -f https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/main/bundle.yaml
+```
+
+Or install only the CRD manifests from the operator's GitHub release.
+
+> Until the CRDs are installed, keep `clamav.metrics.serviceMonitor.enabled: false` and
+> `kisselastic.eck-operator.podMonitor.enabled: false` (the defaults). These are the explicit
+> defaults in `values.yaml`; `values-enable-observability.yaml` overrides them to `true`.
+
+---
+
+
 
 All Maykin subcharts share the same `settings.otel` schema:
-
-**⚠️ Critical:** the correct values path is `<service>.settings.otel.*`, **not** `<service>.otel.*`. The top-level `otel:` block shown in some older documentation is dead code — the subcharts only read `settings.otel.*`.
 
 ```yaml
 <component>:
@@ -86,17 +114,6 @@ All Maykin subcharts share the same `settings.otel` schema:
 ```
 
 `values.yaml` defaults all components to `disabled: true` (openformulieren has no otel block at all). All settings are applied via `values-enable-observability.yaml`.
-
-**What this enables:**
-
-| Metric | Description |
-|---|---|
-| `http_server_active_requests` | Current in-flight HTTP requests |
-| `http_server_duration_milliseconds_*` | Request latency histogram (bucket/count/sum) |
-
-Metrics flow via: `pod → OTLP gRPC :4317 → OTel Collector → Prometheus remote write`.
-
-> **Do not** create a ServiceMonitor or PodMonitor for services that have OTel enabled — it causes duplicate series in Prometheus.
 
 ---
 
@@ -129,7 +146,7 @@ zac:
 
 ## Prometheus Scraping — Keycloak
 
-Keycloak exposes Prometheus metrics on port 9000. `additionalOptions` in `values.yaml` enables the metrics endpoint. Scrape annotations are in `values-enable-observability.yaml`:
+`additionalOptions` in `values.yaml` enables the metrics endpoint. Scrape annotations are in `values-enable-observability.yaml`:
 
 ```yaml
 keycloak:
@@ -141,10 +158,8 @@ keycloak:
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9000"
-        prometheus.io/path: "/metrics"
+        prometheus.io/path: /metrics
 ```
-
-See [kubernetes/keycloak-operator/OTEL_AND_METRICS.md](../../../podiumd-infra/kubernetes/keycloak-operator/OTEL_AND_METRICS.md) for adding OTel tracing to Keycloak.
 
 ---
 
@@ -162,97 +177,6 @@ kisselastic:
       interval: 1m
       scrapeTimeout: 30s
 ```
-
----
-
-## Per-cluster k8s metrics
-
-Prometheus scrapes the following cluster-level metric sources automatically, **without any ServiceMonitor or PodMonitor**. These are enabled by the built-in scrape jobs in the `prometheus-community/prometheus` chart used by `monitoring-logging`.
-
-| Scrape job | What it collects |
-|---|---|
-| `kubernetes-apiservers` | kube-apiserver request rates, latency, etcd interaction |
-| `kubernetes-nodes` | Kubelet metrics per node (pod counts, volume mounts, etc.) |
-| `kubernetes-nodes-cadvisor` | Container CPU, memory, filesystem, network usage per pod |
-| `kubernetes-pods` | Any pod with `prometheus.io/scrape: "true"` annotation |
-| `kubernetes-service-endpoints` | Any Service endpoint with `prometheus.io/scrape: "true"` annotation |
-
-### What you need to do per cluster
-
-#### 1. Prometheus RBAC
-
-The Prometheus service account needs a `ClusterRole` to scrape cluster-wide resources. The `prometheus-community/prometheus` chart creates this automatically. **Verify** the ClusterRole exists after installation:
-
-```bash
-kubectl get clusterrole monitoring-prometheus-server
-kubectl get clusterrolebinding monitoring-prometheus-server
-```
-
-If missing, the chart may have been installed without `rbac.create: true` (the default). Add to `values-monitoring.yaml`:
-
-```yaml
-prometheus:
-  serviceAccounts:
-    server:
-      create: true
-  rbac:
-    create: true
-```
-
-#### 2. Annotation-based pod scraping
-
-For any pod that exposes a `/metrics` endpoint but has no ServiceMonitor, add these annotations to the pod template in the relevant `podiumd/values.yaml` block:
-
-```yaml
-<service>:
-  podAnnotations:
-    prometheus.io/scrape: "true"
-    prometheus.io/port: "<metrics-port>"
-    prometheus.io/path: "/metrics"
-```
-
-The `kubernetes-pods` scrape job picks these up automatically — no ServiceMonitor needed.
-
-#### 3. Traefik (ingress controller)
-
-Traefik exposes Prometheus metrics at `/metrics` on port `9100` (or as configured). Enable via annotation or ServiceMonitor depending on the cluster's Traefik deployment. For AKS clusters where Traefik is deployed separately:
-
-```yaml
-# traefik/values.yaml or via annotations on the Traefik deployment
-traefik:
-  podAnnotations:
-    prometheus.io/scrape: "true"
-    prometheus.io/port: "9100"
-    prometheus.io/path: "/metrics"
-```
-
-#### 4. kube-state-metrics and node-exporter
-
-These are deployed as sub-charts of `monitoring-logging` (via `prometheus-community/prometheus`). They are enabled by default:
-
-```yaml
-# monitoring-logging/values.yaml defaults — these are already set
-prometheus:
-  kube-state-metrics:
-    enabled: true
-  prometheus-node-exporter:
-    enabled: true
-```
-
-No extra cluster configuration is needed. Both DaemonSets/Deployments run with the correct RBAC automatically.
-
-#### 5. Remote write receiver
-
-The OTel Collector pushes metrics to Prometheus via remote write. This requires the Prometheus server to start with `--web.enable-remote-write-receiver`. This is already configured in `monitoring-logging/values.yaml`:
-
-```yaml
-prometheus:
-  server:
-    extraFlags:
-      - web.enable-remote-write-receiver
-```
-
-No per-cluster change needed — it is part of the chart defaults.
 
 ---
 
@@ -279,7 +203,7 @@ spec:
     tag: 9.10.1   # match the SolrCloud version in values.yaml
 ```
 
-Verify: `kubectl get servicemonitor -n podiumd | grep solr`, then query `solr_` in Prometheus.
+Verify: `kubectl get servicemonitor -n podiumd --context <cluster> | grep solr`, then query `solr_` in Prometheus.
 
 ---
 
@@ -292,7 +216,7 @@ requires either a ZAC chart change (upstream) or a manual one-time patch of the 
 The `ZookeeperCluster` CRD supports a `spec.conf.additionalConfig` map. Patch the live CR:
 
 ```bash
-kubectl patch zookeepercluster -n podiumd <name> --type merge -p '{
+kubectl patch zookeepercluster -n podiumd --context <cluster> <name> --type merge -p '{
   "spec": {
     "conf": {
       "additionalConfig": {
@@ -346,15 +270,3 @@ Kibana does not have a widely-used standalone exporter. Options:
 - Query Kibana's own `/api/stats` endpoint via a custom scrape job
 
 Verify Elasticsearch: query `elasticsearch_` metrics in Prometheus.
-
----
-
-## Summary
-
-| Signal | Source | How | Config needed? |
-|---|---|---|---|
-| **Logs** | All pods | Alloy tails log files | ❌ None |
-| **Metrics (Django apps)** | OpenZaak, Objecten, etc. | OTel SDK → OTLP gRPC → Collector → Prometheus | ✅ `settings.otel.*` in values |
-| **Metrics (Keycloak)** | Keycloak pod | Prometheus annotation scrape (port 9000) | ✅ Annotations in Keycloak CR |
-| **Metrics (cluster)** | kube-apiserver, kubelet, cadvisor | Built-in Prometheus scrape jobs | ✅ RBAC ClusterRole (auto via chart) |
-| **Metrics (infra pods)** | kube-state-metrics, node-exporter, Traefik | Built-in scrape jobs + annotations | ✅ Annotations on Traefik pod |

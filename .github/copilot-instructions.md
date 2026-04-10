@@ -113,16 +113,11 @@ Supports optional mTLS (`nginxCertsSecret`) and response URL rewriting via nginx
 ## Key Conventions
 
 ### Resource Requests and Limits
-Every container in every chart in this repository **must** declare `requests` and `limits` for CPU and memory. This applies to:
-- All custom templates (Deployments, DaemonSets, StatefulSets, Jobs, CronJobs, init containers, sidecars)
-- All sub-chart components wired through a chart's `values.yaml`
+Every container in every template **must** declare `requests` and `limits` for CPU and memory. This includes:
+- All custom templates (Deployments, Jobs, init containers, sidecars)
+- Sub-chart components wired through `values.yaml`
 
-**When adding a new component or sub-chart**, always set its resources in `values.yaml` based on observed usage on a real cluster. Use `kubectl top pods` to get a baseline, then set:
-- `requests`: representative of steady-state usage (gives the scheduler accurate data)
-- `limits.memory`: generous enough to survive load spikes (OOM kills are worse than throttling)
-- `limits.cpu`: can be tighter — CPU throttling is acceptable, OOM is not
-
-Wire sub-chart resources via the sub-chart's documented key (e.g., `openzaak.resources`, `keycloak-operator.operator.resources`). Document defaults and chart limitations in the chart's `docs/resource-overview.md`. If a sub-chart does not expose a `resources` key, note it there and raise it with the upstream team.
+Wire sub-chart resources via the sub-chart's documented key (e.g., `openzaak.resources`, `keycloak-operator.operator.resources`). Document defaults and chart limitations in `charts/podiumd/docs/resource-overview.md`. If a sub-chart does not expose a `resources` key, note it there and raise it with the upstream team.
 
 ### Image References
 All images in podiumd templates must use `{{ include "podiumd.image" <image> }}` with a `{registry, repository, tag}` map in `values.yaml`. Never embed plain strings like `"repo:tag"` directly in templates.
@@ -250,6 +245,51 @@ The format mirrors `ExternalsPodiumD/pipelines/images.yml` — an Azure DevOps p
 
 All images listed must have a corresponding `{registry, repository, tag}` definition in `values.yaml` so they can be overridden to point at the environment-specific ACR. Use the same tag values as defined in `values.yaml` (do not invent versions). Each entry must include a `digest` field (`sha256:...`) fetched from the source registry at the time of writing. The file is a flat YAML list (no pipeline wrapper, no indentation on list items). Include a short Dutch comment per group (e.g. `# Applicaties`, `# Observability`) matching the style of the reference file.
 
+The `name` field uses the component name as used in the chart (e.g. `openinwoner`, `keycloak`, `clamav_exporter`) — not the Docker image name (e.g. not `open-inwoner` or `sergeymakinen/clamav_exporter`).
+
+To find changed images, diff `Chart.yaml` and `values.yaml` against the previous release (or `main`):
+```powershell
+git diff main...HEAD -- charts/podiumd/values.yaml | Select-String "^\+.*tag:"
+git diff main...HEAD -- charts/podiumd/Chart.yaml
+```
+
+Fetch digests via the registry API (no docker/skopeo needed):
+```python
+import urllib.request, json
+
+# Quay.io
+def get_quay_digest(repo, tag):
+    url = f'https://quay.io/v2/{repo}/manifests/{tag}'
+    req = urllib.request.Request(url, headers={'Accept': 'application/vnd.oci.image.index.v1+json,application/vnd.docker.distribution.manifest.list.v2+json'})
+    with urllib.request.urlopen(req) as r:
+        return r.headers.get('Docker-Content-Digest', '')
+
+# Docker Hub
+def get_dockerhub_digest(repo, tag):
+    token = json.load(urllib.request.urlopen(f'https://auth.docker.io/token?service=registry.docker.io&scope=repository:{repo}:pull'))['token']
+    req = urllib.request.Request(f'https://registry-1.docker.io/v2/{repo}/manifests/{tag}',
+        headers={'Authorization': f'Bearer {token}', 'Accept': 'application/vnd.oci.image.index.v1+json,application/vnd.docker.distribution.manifest.list.v2+json'})
+    with urllib.request.urlopen(req) as r:
+        return r.headers.get('Docker-Content-Digest', '')
+```
+
+---
+
+### Upgrade Notes per Release
+For each podiumd release that contains breaking changes, new images, or required manual steps, create an upgrade guide at:
+```
+charts/podiumd/docs/upgrade-from-<prev>-to-<version>.md
+```
+
+The file should cover:
+- **New images requiring ACR override** — any image that is new in this release and not already overridden in existing env values files. Include the exact `values.yaml` key path and a snippet showing the override. State that no tag override is needed (tags are chart defaults).
+- **New optional components** — components added as disabled-by-default subcharts, with their condition key and ACR override if applicable.
+- **Removed or deprecated components** — anything removed from `Chart.yaml` (e.g. deprecated `keycloak` Bitnami chart, `infinispan`).
+- **Required manual steps** — StatefulSet deletions, CRD installs, script runs, etc. that cannot be handled by `helm upgrade` alone.
+- **Component version bump table** — a summary table of all chart/image version changes (`| Component | old | new |`). Only include components whose version actually changed vs the previous release.
+
+Check `charts/podiumd/docs/upgrade-from-4.5.13-to-4.6.0.md` as a style reference.
+
 ---
 
 ## Dependency Management
@@ -288,5 +328,6 @@ What actually happened: in 4.5.13 `podiumd/values.yaml` did not contain `objecte
 | `charts/podiumd/docs/api-proxy-url-rewriting.md` | nginx URL rewriting for BAG/BRP/KVK proxies |
 | `charts/podiumd/docs/keycloak-security-updates.md` | Log of Keycloak realm security changes |
 | `charts/podiumd/docs/images/images-<version>.yaml` | Images manifest per release (new/changed images only) |
+| `charts/podiumd/docs/upgrade-from-<prev>-to-<version>.md` | Upgrade guide per release (new images, breaking changes, manual steps) |
 | `charts/podiumd/scripts/cleanup-keycloak-and-infinispan.sh` | Pre-migration cleanup for legacy Keycloak/Infinispan |
 | `charts/podiumd/scripts/patch-keycloak-entra-idp.ps1` | Patch Entra ID IDP settings on a target cluster |

@@ -52,10 +52,10 @@ spec:
       metadata:
         labels:
 {{ toYaml .Values.keycloak.podTemplate.metadata.labels | indent 10 }}
-        {{- with .Values.keycloak.podTemplate.metadata.annotations }}
+        {{ with .Values.keycloak.podTemplate.metadata.annotations }}
         annotations:
 {{ toYaml . | indent 10 }}
-        {{- end }}
+        {{ end }}
       spec:
         securityContext:
 {{ toYaml .Values.keycloak.podTemplate.spec.securityContext | indent 10 }}
