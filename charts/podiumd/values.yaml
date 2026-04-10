@@ -25,14 +25,15 @@ keycloak-operator:
   # Adfinis Helm chart wrapping the official Keycloak Operator manifests.
   # Chart: https://charts.adfinis.com / adfinis/keycloak-operator (appVersion 26.5.6)
   # Note: it appears that the podname automatically appends -operator.
-  # Official operator image: quay.io/keycloak/keycloak-operator:26.6.0
+  # Official operator image: quay.io/keycloak/keycloak-operator:26.5.7
+  # Note: adfinis chart 1.11.2 supports up to appVersion 26.5.6; 26.6.0 is not yet supported.
   # override: values-enable-observability.yaml sets enableServiceMonitor: true
   enableServiceMonitor: false
   fullnameOverride: keycloak
   operator:
     image:
       repository: quay.io/keycloak/keycloak-operator
-      tag: "26.6.0"
+      tag: "26.5.7"
     resources:
       requests:
         cpu: 100m
@@ -163,11 +164,12 @@ keycloak:
   http:
     httpEnabled: true
   # image parameters for keycloak-operator
-  # Official Keycloak image: quay.io/keycloak/keycloak:26.6.0
+  # Official Keycloak image: quay.io/keycloak/keycloak:26.5.7
+  # Note: adfinis chart 1.11.2 supports up to appVersion 26.5.6; 26.6.0 is not yet supported.
   image:
     registry: ""
     repository: quay.io/keycloak/keycloak
-    tag: 26.6.0
+    tag: 26.5.7
   # -- instances is the new operator-style replica count (falls back to replicaCount)
   instances: "2"
   ingress:
@@ -2832,7 +2834,7 @@ apiproxy:
   resolverIp: 10.0.0.10 # KubeDNS resolver
   locations:
     commonSettings: &commonLocation
-      sslVerify: "on"
+      sslVerify: ""  # Leave empty to auto-derive from nginxCertsSecret (on if set, off if not); override per-location if needed
       hostHeader: "lab.api.mijniconnect.nl"
     bag:
       <<: *commonLocation
