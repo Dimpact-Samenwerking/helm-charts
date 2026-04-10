@@ -345,22 +345,22 @@ The `redis-ha-master` ClusterIP service has no endpoints (`kubectl get endpoints
 
 1. Identify the current master from the CRD status:
    ```shell
-   kubectl get redisreplication redis-ha -n <namespace> -o jsonpath='{.status.masterNode}'
+   kubectl get redisreplication redis-ha -n <namespace> --context <kubectl-context> -o jsonpath='{.status.masterNode}'
    ```
 
 2. Apply the missing label to that pod:
    ```shell
-   kubectl label pod <master-pod-name> -n <namespace> redis-role=master --overwrite
+   kubectl label pod <master-pod-name> -n <namespace> --context <kubectl-context> redis-role=master --overwrite
    ```
 
 3. Verify the endpoint is now populated:
    ```shell
-   kubectl get endpoints redis-ha-master -n <namespace>
+   kubectl get endpoints redis-ha-master -n <namespace> --context <kubectl-context>
    ```
 
 4. Restart any workers still in `CrashLoopBackOff`:
    ```shell
-   kubectl rollout restart deployment openformulieren-worker openzaak-worker openklant-worker objecten-worker -n <namespace>
+   kubectl rollout restart deployment openformulieren-worker openzaak-worker openklant-worker objecten-worker -n <namespace> --context <kubectl-context>
    ```
 
-**Post-deploy health check:** Always run `kubectl get endpoints redis-ha-master -n <namespace>` after every upgrade and confirm it shows a live pod IP. If it shows `<none>`, apply the label fix above before considering the deployment healthy.
+**Post-deploy health check:** Always run `kubectl get endpoints redis-ha-master -n <namespace> --context <kubectl-context>` after every upgrade and confirm it shows a live pod IP. If it shows `<none>`, apply the label fix above before considering the deployment healthy.

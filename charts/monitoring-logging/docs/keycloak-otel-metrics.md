@@ -58,21 +58,12 @@ Loki/Tempo depending on what is enabled in the monitoring-logging chart.
 ## 2. Prometheus Metrics Scraping
 
 Keycloak already has `metrics-enabled: true` (port 9000, path `/metrics`).
-The cluster uses annotation-based Prometheus scraping (no Prometheus Operator CRDs).
+The monitoring stack uses **kube-prometheus-stack** (Prometheus Operator), so metrics
+are scraped via a `ServiceMonitor` resource — not via pod annotations.
 
-The following annotations are already present in `keycloak-cr.yml` under
-`spec.unsupported.podTemplate.metadata.annotations`:
-
-```yaml
-annotations:
-  prometheus.io/scrape: "true"
-  prometheus.io/port: "9000"
-  prometheus.io/path: "/metrics"
-```
-
-Once the CR is applied, Prometheus auto-discovers the Keycloak pods via the
-`kubernetes-pods` scrape job and collects JVM, HTTP, Agroal DB pool, Infinispan
-cache, and Keycloak-specific metrics.
+The `monitoring-logging` chart deploys a `ServiceMonitor` for Keycloak that targets
+port `9000` on the `keycloak-service` service. Once applied, Prometheus collects JVM,
+HTTP, Agroal DB pool, and Keycloak-specific metrics automatically.
 
 The **Keycloak 26** Grafana dashboard in the `monitoring-logging` chart is built
 on these actual KC26/Quarkus metrics: `http_server_*`, `base_memory_*`,

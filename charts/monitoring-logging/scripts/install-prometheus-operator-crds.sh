@@ -85,7 +85,7 @@ helm repo update prometheus-community
 
 # --- Check whether CRDs already exist ----------------------------------------
 EXISTING_CRDS=$(kubectl "${KUBECTL_FLAGS[@]}" get crd 2>/dev/null \
-  | grep "monitoring.coreos.com" | wc -l || echo 0)
+  | grep -c "monitoring.coreos.com" || true)
 
 if [[ "$EXISTING_CRDS" -gt 0 && "$FORCE_UPGRADE" == false ]]; then
   echo ""

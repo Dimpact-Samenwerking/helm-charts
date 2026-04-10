@@ -130,9 +130,9 @@ apply "Grafana datasource URL: -prometheus-server → -kube-prometheus-stack-pro
 
 # 5. OTel remote-write endpoint (catches the /api/v1/write path variant)
 apply "OTel endpoint: prometheus-server/api/v1/write → kube-prometheus-stack-prometheus:9090/api/v1/write" \
-  "kube-prometheus-stack-prometheus:9090/api/v1/write" \
+  "prometheus-server/api/v1/write" \
   "kube-prometheus-stack-prometheus:9090/api/v1/write"
-# (already covered by step 4, but guard against partial overlaps)
+# (already covered by step 4 for the hostname part, but guard against partial overlaps)
 
 echo ""
 echo "  Total substitutions applied: $CHANGES"

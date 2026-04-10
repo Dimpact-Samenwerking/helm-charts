@@ -892,11 +892,14 @@ otelCollectorMonitor:
   scrapeInterval: 30s
 
 # -- Ingress for the OTLP HTTP endpoint (port 4318).
-# Exposes the collector externally via Traefik with the otel-ip-allowlist middleware.
+# Exposes the collector externally via Traefik with an ip-allowlist middleware.
 # Requires cert-manager for TLS. Disabled by default — set hostname to enable.
+# The middleware must be pre-created in the same namespace (e.g. a Traefik Middleware CRD).
 otelIngress:
   enabled: false
   # -- External hostname, e.g. otel.example.nl
   hostname: ""
   clusterIssuer: letsencrypt-prod
   tlsSecretName: otel-tls
+  # -- Traefik middleware reference (namespace/name@kubernetescrd). Set to "" to disable.
+  middleware: "{{ .Release.Namespace }}-otel-ip-allowlist@kubernetescrd"

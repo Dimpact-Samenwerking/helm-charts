@@ -31,7 +31,7 @@ All dashboards are statically mounted via ConfigMaps (no sidecar label required)
 - [`docs/prometheus-scraping.md`](docs/prometheus-scraping.md) — Prometheus scrape targets and ServiceMonitor/PodMonitor setup
 - [`docs/grafana-auth.md`](docs/grafana-auth.md) — Grafana Keycloak OIDC auth, break-glass access
 - [`docs/loki-storage.md`](docs/loki-storage.md) — Loki storage backends (filesystem, Azure Blob, MinIO)
-- [`docs/alertmanager.md`](docs/alertmanager.md) — Alertmanager configuration
+- [`docs/enabling-alertmanager.md`](docs/enabling-alertmanager.md) — Alertmanager configuration
 
 ## Rollenbeheer in Grafana op basis van Keycloak-groepen:
 
@@ -45,7 +45,7 @@ https://dimpact.atlassian.net/wiki/spaces/PCP/pages/448528393/3.+Gebruikers-+en+
 ```bash
 helm repo add grafana https://grafana.github.io/helm-charts
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
+helm repo add opentelemetry https://open-telemetry.github.io/opentelemetry-helm-charts
 ```
 
 ## Requirements

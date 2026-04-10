@@ -7,7 +7,9 @@ metadata:
   annotations:
     cert-manager.io/cluster-issuer: {{ .Values.otelIngress.clusterIssuer | quote }}
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
-    traefik.ingress.kubernetes.io/router.middlewares: {{ .Release.Namespace }}-otel-ip-allowlist@kubernetescrd
+    {{- if .Values.otelIngress.middleware }}
+    traefik.ingress.kubernetes.io/router.middlewares: {{ tpl .Values.otelIngress.middleware . | quote }}
+    {{- end }}
 spec:
   ingressClassName: traefik
   rules:

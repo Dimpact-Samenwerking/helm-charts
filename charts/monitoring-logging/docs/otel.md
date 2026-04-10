@@ -16,19 +16,6 @@ This document describes the OTel signal flow through the monitoring stack, the i
 
 **Do not** create a ServiceMonitor or PodMonitor for an app that already sends metrics via OTLP — it will cause duplicate data in Prometheus.
 
-### Excluding OTel pods from Alloy log collection
-
-Alloy uses the pod label `telemetry/otel-logs: "true"` to skip log collection for pods that already ship logs via OTLP. Add this label to any pod whose application is configured to send logs to the OTel Collector:
-
-```yaml
-# podiumd/values.yaml — add to pod template labels for OTel-enabled apps
-<service>:
-  podLabels:
-    telemetry/otel-logs: "true"
-```
-
-The Alloy River pipeline (in `monitoring-logging/values.yaml`) drops any pod matching this label before tailing its log files.
-
 ---
 
 ## Architecture
@@ -467,7 +454,7 @@ opentelemetry-collector:
 ## Current status summary
 
 **Pipeline column:** `OTel` = primary path via OTLP; `fallback` = Alloy log tailing / ServiceMonitor scraping.  
-When a service is marked `OTel`, add `podLabels: { telemetry/otel-logs: "true" }` in `podiumd/values.yaml` and do **not** create a ServiceMonitor for that service.
+For services marked `OTel`, do **not** create a ServiceMonitor for that service (to avoid duplicate metrics). Logs are collected by Alloy for all pods unconditionally.
 
 | Service | Traces | Metrics | Logs | Pipeline | Action |
 |---|---|---|---|---|---|

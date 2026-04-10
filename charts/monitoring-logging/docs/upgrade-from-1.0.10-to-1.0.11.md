@@ -11,7 +11,7 @@
 | New component | **OpenTelemetry Collector** — OTLP gateway for logs, metrics, traces |
 | New component | **Grafana Tempo** — distributed tracing backend (disabled by default) |
 | New feature | **OTel HTTP bearer token auth** — OTLP HTTP endpoint (port 4318) protected with bearer token |
-| Architecture | **OTel-first pipeline** — pods labelled `telemetry/otel-logs: "true"` are excluded from Alloy log collection |
+| Architecture | **OTel-first pipeline** — OpenTelemetry Collector introduced as shared OTLP gateway for logs, metrics, and traces; Alloy collects logs from all pods unconditionally as fallback |
 
 ### Chart dependency changes
 
@@ -66,7 +66,7 @@ prometheus:
 
 Alloy is deployed as a DaemonSet and tails pod log files from `/var/log/pods/`. No environment values changes are needed — the chart default collects logs from all pods in all namespaces.
 
-**OTel-first exclusion:** pods that already send logs via OTLP can be excluded from Alloy collection by adding the pod label `telemetry/otel-logs: "true"` in `podiumd/values.yaml`. See `docs/otel.md` for per-service guidance.
+Alloy collects logs from **all pods** unconditionally — no pod labels or configuration changes in `podiumd/values.yaml` are needed. OTel-instrumented apps can send logs via OTLP in addition; Alloy serves as the universal fallback.
 
 ### OpenTelemetry Collector
 
