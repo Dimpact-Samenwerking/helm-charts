@@ -2677,15 +2677,16 @@ zgw-office-addin:
       secret: "dummy"
 
 clamav:
-  # override: values-enable-observability.yaml enables metrics exporter sidecar and ServiceMonitor
+  # override: values-enable-observability.yaml enables metrics exporter sidecar (metrics.enabled: true)
+  # and ServiceMonitor (metrics.serviceMonitor.enabled: true). Supported since clamav chart v3.7.1.
+  # serviceMonitor requires the Prometheus Operator CRD (monitoring.coreos.com/v1 ServiceMonitor).
   image:
     tag: "1.4.4"
   metrics:
+    enabled: false
     image:
       repository: docker.io/sergeymakinen/clamav_exporter
       tag: "v2.1.2"
-    # serviceMonitor requires the Prometheus Operator CRD (monitoring.coreos.com/v1 ServiceMonitor)
-    # to be installed in the cluster. Enable via values-enable-observability.yaml.
     serviceMonitor:
       enabled: false
   nameOverride: clamav

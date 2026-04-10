@@ -147,14 +147,14 @@ redis-operator:
 
 # ---------------------------------------------------------------------------
 # ClamAV — sergeymakinen/clamav_exporter sidecar + ServiceMonitor (port 9906)
-# Note: the upstream clamav chart (v3.2.0) does NOT include a metrics exporter
-# sidecar or a ServiceMonitor template. The settings below are placeholders for
-# a future chart version that adds this support. They have no effect currently.
+# Supported since clamav chart v3.7.1 (current). The sidecar runs alongside
+# clamd and exposes metrics at :9906/metrics. ServiceMonitor requires the
+# Prometheus Operator CRD (monitoring.coreos.com/v1 ServiceMonitor).
 # ---------------------------------------------------------------------------
 
 clamav:
   metrics:
-    enabled: false
+    enabled: true
     resources:
       requests:
         cpu: 10m
@@ -163,7 +163,7 @@ clamav:
         cpu: 50m
         memory: 32Mi
     serviceMonitor:
-      enabled: false
+      enabled: true
       interval: 30s
       scrapeTimeout: 10s
 
