@@ -123,6 +123,7 @@ spec:
             runAsNonRoot: true
             runAsUser: 1000
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
             seccompProfile:
@@ -139,11 +140,15 @@ spec:
           volumeMounts:
             - mountPath: /jobs
               name: jobs
+            - mountPath: /tmp
+              name: tmp
       volumes:
         - configMap:
             defaultMode: 0755
             name: create-required-objecttypen-configmap
           name: jobs
+        - name: tmp
+          emptyDir: {}
       {{- with .Values.objecttypen.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

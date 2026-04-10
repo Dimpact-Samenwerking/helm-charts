@@ -132,7 +132,6 @@ keycloak:
     #        role: "admin"
     # -- identity provider mapper for the admin realm
     #adminIdentityProviderMappers: {}
-    adminOtpEnabled: true
     realm: podiumd
     realmDisplayName: PodiumD
     realmFrontendUrl: https://keycloak.example.nl
@@ -871,6 +870,8 @@ opennotificaties:
 objecten:
   configuration:
     enabled: true
+    demo:
+      enabled: false  # upstream objecten chart has no nil-guard on this field; default to false
     initContainer:
       enabled: false
     job:
@@ -2831,7 +2832,7 @@ apiproxy:
   resolverIp: 10.0.0.10 # KubeDNS resolver
   locations:
     commonSettings: &commonLocation
-      sslVerify: "off"
+      sslVerify: "on"
       hostHeader: "lab.api.mijniconnect.nl"
     bag:
       <<: *commonLocation
@@ -2978,7 +2979,7 @@ ita:
 
 serviceAccount:
   create: true
-  automount: true
+  automount: false
   annotations: {}
   name: ""
 

@@ -30,6 +30,7 @@ spec:
           securityContext:
             runAsNonRoot: true
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
             seccompProfile:
@@ -57,12 +58,16 @@ spec:
           env:
             {{- toYaml .Values.kiss.adapter.extraEnvVars | nindent 12 }}
           {{- end }}
-          {{- if .Values.kiss.adapter.extraVolumeMounts }}
           volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          {{- if .Values.kiss.adapter.extraVolumeMounts }}
             {{- include "kiss-frontend.tplvalues.render" ( dict "value" .Values.kiss.adapter.extraVolumeMounts "context" $ ) | nindent 12 }}
           {{- end }}
-      {{- if .Values.kiss.adapter.extraVolumes }}
       volumes:
+        - name: tmp
+          emptyDir: {}
+      {{- if .Values.kiss.adapter.extraVolumes }}
         {{- include "kiss-frontend.tplvalues.render" ( dict "value" .Values.kiss.adapter.extraVolumes "context" $ ) | nindent 8 }}
       {{- end }}
       {{- with .Values.kiss.nodeSelector }}

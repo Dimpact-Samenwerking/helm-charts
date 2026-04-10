@@ -33,6 +33,7 @@ spec:
         {{- toYaml .Values.nodeSelector | nindent 8 }}
       {{- end }}
       restartPolicy: Never
+      serviceAccountName: {{ include "podiumd.serviceAccountName" . }}
       initContainers:
       - name: wait-for-operator-sa
         image: {{ include "podiumd.image" (index .Values "keycloak-operator").jobs.ensureOperatorSa.image }}
@@ -64,10 +65,14 @@ spec:
           runAsNonRoot: true
           runAsUser: 100
           allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
           capabilities:
             drop: ["ALL"]
           seccompProfile:
             type: RuntimeDefault
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
       volumes:
       - name: realm-configs
         configMap:
@@ -75,6 +80,8 @@ spec:
           items:
           - key: podiumd.yaml
             path: podiumd.yaml
+      - name: tmp
+        emptyDir: {}
       containers:
       - name: kc-config-cli
         image: {{ include "podiumd.image" .Values.keycloak.keycloakConfigCli.image }}
@@ -84,6 +91,7 @@ spec:
           runAsNonRoot: true
           runAsUser: 1000
           allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
           capabilities:
             drop: ["ALL"]
           seccompProfile:
@@ -195,4 +203,6 @@ spec:
         - name: realm-configs
           mountPath: /config
           readOnly: true
+        - name: tmp
+          mountPath: /tmp
 {{- end }}

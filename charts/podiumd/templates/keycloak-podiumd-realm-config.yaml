@@ -61,6 +61,8 @@ data:
     eventsExpiration: 2592000
     offlineSessionMaxLifespanEnabled: true
     offlineSessionMaxLifespan: 7776000
+    ssoSessionMaxLifespan: 36000
+    ssoSessionIdleTimeout: 1800
     accessTokenLifespan: 60
     passwordPolicy: "length(12) and notUsername(undefined) and notEmail(undefined) and passwordHistory(5)"
     requiredActions:

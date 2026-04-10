@@ -22,6 +22,12 @@
   version: "v2.0"
   digest: "sha256:c14d7271e4013b24b34ef0d7144c4610577d0e9110ccc26b163fa28089fa1f4e"
 
+# Keycloak config CLI (realm import jobs)
+- name: keycloak-config-cli
+  url: docker.io/adorsys/keycloak-config-cli
+  version: "6.4.1-26"
+  digest: "sha256:d61b88c2e8e170e95ed2348872fe5bf49b9ac25ffb03eea3f8afc578b033d3dc"
+
 # Nginx (api-proxy gewijzigd van nginx naar nginx-unprivileged)
 - name: nginx-unprivileged
   url: docker.io/nginxinc/nginx-unprivileged
