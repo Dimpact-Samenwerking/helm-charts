@@ -367,7 +367,7 @@ Both realm configs now enforce SSO session limits:
 
 | Setting | Value |
 |---|---|
-| `ssoSessionMaxLifespan` | 28800 s (8 h) |
+| `ssoSessionMaxLifespan` | 36000 s (10 h) |
 | `ssoSessionIdleTimeout` | 1800 s (30 min) |
 
 These limits apply to browser SSO sessions (not to individual access tokens, which are controlled

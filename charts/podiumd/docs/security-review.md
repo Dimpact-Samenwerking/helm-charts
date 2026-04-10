@@ -89,7 +89,7 @@ The podiumd chart is a well-structured umbrella chart for a Dutch municipal serv
 
 ### 8. Image Supply Chain
 
-- [x] **[Medium]** `redis-ha-label-master` uses `lachlanevenson/k8s-kubectl:v1.25.4` — an image from an individual (unofficial) Docker Hub maintainer running Kubernetes 1.25 (end-of-life). _File: `values.yaml`, line 427–428._ Remediation: Replace with an official or internally-mirrored kubectl image (e.g. `bitnami/kubectl` or a Dimpact ACR-mirrored equivalent). Ensure the tag aligns with the cluster Kubernetes version. **✅ Fixed: Replaced with `registry.k8s.io/kubectl:v1.30.0` (official Kubernetes project image).**
+- [x] **[Medium]** `redis-ha-label-master` uses `lachlanevenson/k8s-kubectl:v1.25.4` — an image from an individual (unofficial) Docker Hub maintainer running Kubernetes 1.25 (end-of-life). _File: `values.yaml`, line 427–428._ Remediation: Replace with an official or internally-mirrored kubectl image (e.g. `bitnami/kubectl` or a Dimpact ACR-mirrored equivalent). Ensure the tag aligns with the cluster Kubernetes version. **✅ Fixed: Replaced with `docker.io/alpine/k8s:1.33.2` (alpine/k8s image, tracked in images manifest, tag aligned with cluster Kubernetes version).**
 
 - [x] **[Low]** `ita.poller.image.pullPolicy: Always` combined with a mutable semver tag (`3.0.0`) means every pod restart fetches the image from the registry without digest verification. If the tag is overwritten in the registry, a different image silently runs. _File: `values.yaml`, line 2881._ Remediation: Change to `IfNotPresent` (consistent with all other images in the chart) or pin the image with a `sha256:…` digest. **✅ Fixed: Changed to `IfNotPresent`.**
 

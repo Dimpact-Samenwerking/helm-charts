@@ -23,7 +23,7 @@ spec:
       {{- end }}
       containers:
       - name: nginx
-        image: {{ .Values.apiproxy.image.repository }}:{{ .Values.apiproxy.image.tag }}
+        image: {{ include "podiumd.image" .Values.apiproxy.image }}
         securityContext:
           runAsNonRoot: true
           allowPrivilegeEscalation: false

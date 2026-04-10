@@ -25,7 +25,7 @@ spec:
       serviceAccountName: {{ include "podiumd.serviceAccountName" . }}
       containers:
         - name: adapter
-          image: "{{ .Values.kiss.adapter.image.repository }}:{{ .Values.kiss.adapter.image.tag }}"
+          image: {{ include "podiumd.image" .Values.kiss.adapter.image }}
           imagePullPolicy: {{ .Values.kiss.adapter.image.pullPolicy }}
           securityContext:
             runAsNonRoot: true
