@@ -18,7 +18,7 @@ This document describes how metrics and tracing are configured across the podium
 | zac | `opentelemetry_zaakafhandelcomponent.*` + `javaOptions` | ❌ OTEL only → collector | `values-enable-observability.yaml` |
 | keycloak | `additionalOptions: metrics-enabled` | ✅ ServiceMonitor port 9000 `/metrics` (auto by keycloak-operator) | built-in |
 | redis-operator | — | ✅ pod annotations port 8080 `/metrics` | `values-enable-observability.yaml` |
-| redis-ha | redis_exporter sidecar | ✅ ServiceMonitor port 9121 | `values-enable-observability.yaml` |
+| redis-ha | redis_exporter sidecar | ✅ PodMonitor port 9121 | `values-enable-observability.yaml` |
 | solr-operator | — | ✅ pod annotations port 8080 `/metrics` | `values-enable-observability.yaml` |
 | zookeeper-operator | — | ✅ pod annotations port 6000 `/metrics` | `values-enable-observability.yaml` |
 | clamav | clamav_exporter sidecar | ✅ port 9906 + ServiceMonitor | `values-enable-observability.yaml` |
@@ -65,7 +65,7 @@ their scrape targets. These CRDs must be present in the cluster before applying
 | Component | Resource type | CRD required |
 |---|---|---|
 | keycloak-operator | `ServiceMonitor` | `monitoring.coreos.com/v1` (auto-created) |
-| redis-ha | `ServiceMonitor` | `monitoring.coreos.com/v1` |
+| redis-ha | `PodMonitor` | `monitoring.coreos.com/v1` |
 | clamav | `ServiceMonitor` | `monitoring.coreos.com/v1` |
 | eck-operator (kisselastic) | `PodMonitor` | `monitoring.coreos.com/v1` |
 | solr (todo) | `ServiceMonitor` | `monitoring.coreos.com/v1` (created by solr-operator) |
@@ -94,7 +94,7 @@ kubectl apply --server-side -f https://raw.githubusercontent.com/prometheus-oper
 Or install only the CRD manifests from the operator's GitHub release.
 
 > Until the CRDs are installed, keep `clamav.metrics.serviceMonitor.enabled: false`,
-> `redis-operator.redis-ha.serviceMonitor.enabled: false`, and
+> `redis-operator.redis-ha.redisExporter.podMonitor.enabled: false`, and
 > `kisselastic.eck-operator.podMonitor.enabled: false` (the defaults). These are the explicit
 > defaults in `values.yaml`; `values-enable-observability.yaml` overrides them to `true`.
 
