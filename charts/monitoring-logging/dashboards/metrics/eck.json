@@ -16,13 +16,22 @@
   "templating": {
     "list": [
       {
-        "name": "datasource",
-        "type": "datasource",
-        "pluginId": "prometheus",
-        "label": "Datasource",
+        "current": {
+          "selected": false,
+          "text": "Prometheus",
+          "value": "prometheus"
+        },
         "hide": 0,
+        "includeAll": false,
+        "multi": false,
+        "name": "datasource",
+        "label": "Data Source",
+        "options": [],
+        "query": "prometheus",
         "refresh": 1,
-        "current": {}
+        "regex": "",
+        "skipUrlSync": false,
+        "type": "datasource"
       }
     ]
   },
@@ -73,7 +82,7 @@
         },
         "orientation": "auto",
         "colorMode": "background",
-        "graphMode": "area"
+        "graphMode": "none"
       },
       "targets": [
         {
@@ -82,7 +91,8 @@
             "uid": "${datasource}"
           },
           "expr": "count(kube_pod_status_phase{namespace=\"podiumd\",pod=~\"kiss-es-default-.*\",phase=\"Running\"})",
-          "legendFormat": ""
+          "legendFormat": "{{instance}}",
+          "refId": "A"
         }
       ]
     },
@@ -132,7 +142,7 @@
         },
         "orientation": "auto",
         "colorMode": "background",
-        "graphMode": "area"
+        "graphMode": "none"
       },
       "targets": [
         {
@@ -141,7 +151,8 @@
             "uid": "${datasource}"
           },
           "expr": "sum(increase(kube_pod_container_status_restarts_total{namespace=\"podiumd\",pod=~\"kiss-es-default-.*\"}[24h]))",
-          "legendFormat": ""
+          "legendFormat": "{{instance}}",
+          "refId": "A"
         }
       ]
     },
@@ -191,7 +202,7 @@
         },
         "orientation": "auto",
         "colorMode": "background",
-        "graphMode": "area"
+        "graphMode": "none"
       },
       "targets": [
         {
@@ -200,14 +211,15 @@
             "uid": "${datasource}"
           },
           "expr": "sum(increase(kube_pod_container_status_restarts_total{namespace=\"podiumd\",pod=~\"elastic-operator-.*\"}[24h]))",
-          "legendFormat": ""
+          "legendFormat": "{{instance}}",
+          "refId": "A"
         }
       ]
     },
     {
       "id": 4,
       "type": "stat",
-      "title": "Kibana Pod Running",
+      "title": "Kibana Pods Running",
       "gridPos": {
         "x": 18,
         "y": 0,
@@ -246,7 +258,7 @@
         },
         "orientation": "auto",
         "colorMode": "background",
-        "graphMode": "area"
+        "graphMode": "none"
       },
       "targets": [
         {
@@ -255,7 +267,8 @@
             "uid": "${datasource}"
           },
           "expr": "count(kube_pod_status_phase{namespace=\"podiumd\",pod=~\"kiss-kb-.*\",phase=\"Running\"})",
-          "legendFormat": ""
+          "legendFormat": "{{instance}}",
+          "refId": "A"
         }
       ]
     },
@@ -277,7 +290,8 @@
         "defaults": {
           "unit": "percentunit",
           "custom": {
-            "lineWidth": 1
+            "lineWidth": 1,
+            "fillOpacity": 5
           }
         },
         "overrides": []
@@ -288,7 +302,11 @@
         },
         "legend": {
           "displayMode": "table",
-          "placement": "bottom"
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
         }
       },
       "targets": [
@@ -298,14 +316,15 @@
             "uid": "${datasource}"
           },
           "expr": "rate(container_cpu_usage_seconds_total{namespace=\"podiumd\",pod=~\"kiss-es-default-.*\",container=\"elasticsearch\"}[2m])",
-          "legendFormat": "{{pod}}"
+          "legendFormat": "{{pod}}",
+          "refId": "A"
         }
       ]
     },
     {
       "id": 6,
       "type": "timeseries",
-      "title": "Elasticsearch Memory (RSS)",
+      "title": "Elasticsearch Memory (Working Set)",
       "gridPos": {
         "x": 12,
         "y": 4,
@@ -320,7 +339,8 @@
         "defaults": {
           "unit": "bytes",
           "custom": {
-            "lineWidth": 1
+            "lineWidth": 1,
+            "fillOpacity": 5
           }
         },
         "overrides": []
@@ -331,7 +351,11 @@
         },
         "legend": {
           "displayMode": "table",
-          "placement": "bottom"
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
         }
       },
       "targets": [
@@ -341,7 +365,8 @@
             "uid": "${datasource}"
           },
           "expr": "container_memory_working_set_bytes{namespace=\"podiumd\",pod=~\"kiss-es-default-.*\",container=\"elasticsearch\"}",
-          "legendFormat": "{{pod}}"
+          "legendFormat": "{{pod}}",
+          "refId": "A"
         }
       ]
     },
@@ -363,7 +388,8 @@
         "defaults": {
           "unit": "Bps",
           "custom": {
-            "lineWidth": 1
+            "lineWidth": 1,
+            "fillOpacity": 5
           }
         },
         "overrides": []
@@ -374,7 +400,11 @@
         },
         "legend": {
           "displayMode": "table",
-          "placement": "bottom"
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
         }
       },
       "targets": [
@@ -384,7 +414,8 @@
             "uid": "${datasource}"
           },
           "expr": "rate(container_network_receive_bytes_total{namespace=\"podiumd\",pod=~\"kiss-es-default-.*\"}[2m])",
-          "legendFormat": "{{pod}}"
+          "legendFormat": "{{pod}}",
+          "refId": "A"
         }
       ]
     },
@@ -406,7 +437,8 @@
         "defaults": {
           "unit": "Bps",
           "custom": {
-            "lineWidth": 1
+            "lineWidth": 1,
+            "fillOpacity": 5
           }
         },
         "overrides": []
@@ -417,7 +449,11 @@
         },
         "legend": {
           "displayMode": "table",
-          "placement": "bottom"
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
         }
       },
       "targets": [
@@ -427,7 +463,8 @@
             "uid": "${datasource}"
           },
           "expr": "rate(container_network_transmit_bytes_total{namespace=\"podiumd\",pod=~\"kiss-es-default-.*\"}[2m])",
-          "legendFormat": "{{pod}}"
+          "legendFormat": "{{pod}}",
+          "refId": "A"
         }
       ]
     },
@@ -449,7 +486,8 @@
         "defaults": {
           "unit": "bytes",
           "custom": {
-            "lineWidth": 1
+            "lineWidth": 1,
+            "fillOpacity": 5
           }
         },
         "overrides": []
@@ -460,7 +498,11 @@
         },
         "legend": {
           "displayMode": "table",
-          "placement": "bottom"
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
         }
       },
       "targets": [
@@ -470,7 +512,8 @@
             "uid": "${datasource}"
           },
           "expr": "kubelet_volume_stats_used_bytes{namespace=\"podiumd\",persistentvolumeclaim=~\"elasticsearch-data-kiss-es-default-.*\"}",
-          "legendFormat": "{{persistentvolumeclaim}}"
+          "legendFormat": "{{persistentvolumeclaim}}",
+          "refId": "A"
         }
       ]
     },
@@ -492,7 +535,8 @@
         "defaults": {
           "unit": "percentunit",
           "custom": {
-            "lineWidth": 1
+            "lineWidth": 1,
+            "fillOpacity": 5
           }
         },
         "overrides": []
@@ -503,7 +547,11 @@
         },
         "legend": {
           "displayMode": "table",
-          "placement": "bottom"
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
         }
       },
       "targets": [
@@ -513,14 +561,15 @@
             "uid": "${datasource}"
           },
           "expr": "rate(container_cpu_usage_seconds_total{namespace=\"podiumd\",pod=~\"kiss-kb-.*\",container=\"kibana\"}[2m])",
-          "legendFormat": "{{pod}}"
+          "legendFormat": "{{pod}}",
+          "refId": "A"
         }
       ]
     },
     {
       "id": 11,
       "type": "timeseries",
-      "title": "Kibana Memory (RSS)",
+      "title": "Kibana Memory (Working Set)",
       "gridPos": {
         "x": 0,
         "y": 28,
@@ -535,7 +584,8 @@
         "defaults": {
           "unit": "bytes",
           "custom": {
-            "lineWidth": 1
+            "lineWidth": 1,
+            "fillOpacity": 5
           }
         },
         "overrides": []
@@ -546,7 +596,11 @@
         },
         "legend": {
           "displayMode": "table",
-          "placement": "bottom"
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
         }
       },
       "targets": [
@@ -556,14 +610,15 @@
             "uid": "${datasource}"
           },
           "expr": "container_memory_working_set_bytes{namespace=\"podiumd\",pod=~\"kiss-kb-.*\",container=\"kibana\"}",
-          "legendFormat": "{{pod}}"
+          "legendFormat": "{{pod}}",
+          "refId": "A"
         }
       ]
     },
     {
       "id": 12,
       "type": "timeseries",
-      "title": "Pod Restarts",
+      "title": "Pod Restarts (1h)",
       "gridPos": {
         "x": 12,
         "y": 28,
@@ -578,7 +633,8 @@
         "defaults": {
           "unit": "short",
           "custom": {
-            "lineWidth": 1
+            "lineWidth": 1,
+            "fillOpacity": 5
           }
         },
         "overrides": []
@@ -589,7 +645,11 @@
         },
         "legend": {
           "displayMode": "table",
-          "placement": "bottom"
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
         }
       },
       "targets": [
@@ -599,7 +659,8 @@
             "uid": "${datasource}"
           },
           "expr": "increase(kube_pod_container_status_restarts_total{namespace=\"podiumd\",pod=~\"kiss-es-default-.*|kiss-kb-.*|elastic-operator-.*\"}[1h])",
-          "legendFormat": "{{pod}}"
+          "legendFormat": "{{pod}}",
+          "refId": "A"
         }
       ]
     }

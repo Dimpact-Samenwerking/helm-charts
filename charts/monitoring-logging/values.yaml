@@ -108,12 +108,23 @@ grafana:
           editable: true
           options:
             path: /var/lib/grafana/dashboards/metrics
+        - name: "metrics-node"
+          orgId: 1
+          folder: 'PodiumD_Metrics'
+          type: file
+          disableDeletion: false
+          updateIntervalSeconds: 30
+          allowUiUpdates: true
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/metrics-node
 
   # -- Dashboard opgenomen in ConfigMap
   dashboardsConfigMaps:
     default: "logging-main-dashboard"
     logs: "logging-logs"
     metrics: "monitoring-metrics-dashboards"
+    metrics-node: "monitoring-metrics-dashboards-node"
   
   grafana.ini:
     # -- Authentication and Authorization with Keycloak
