@@ -1,5 +1,53 @@
 # Upgrade guide: PodiumD 4.6.1 → 4.6.2
 
+## Required manual steps before upgrading
+
+### Delete completed seeding and realm-import Jobs
+
+The security hardening in this release changes the pod template of all custom Jobs (seeding jobs,
+Keycloak import/ensure jobs, redis-ha label job) to add `readOnlyRootFilesystem: true`,
+explicit `serviceAccountName`, and `runAsUser`. Kubernetes treats completed `Job` resources as
+immutable — `helm upgrade` will fail with `spec.template: Invalid value` if these Jobs still exist.
+
+Delete them before running `helm upgrade`:
+
+```bash
+kubectl delete jobs -n podiumd --context <cluster> \
+  create-required-catalogi-job \
+  create-required-objecttypen-job \
+  ensure-keycloak-operator-sa \
+  ensure-podiumd-admin-user \
+  import-master-realm-job \
+  import-podiumd-realm-job \
+  objecten-config \
+  objecttypen-config \
+  openformulieren-config \
+  openklant-config \
+  opennotificaties-config \
+  openzaak-config \
+  podiumd-realm-import \
+  redis-ha-label-master
+```
+
+> These are one-time idempotent seeding Jobs. Deleting them is safe — Helm will recreate them
+> during the upgrade and they will re-run. The ZAC CronJobs (`zac-sig-del`, `zac-signaleren`)
+> are managed by the ZAC subchart, are not affected by this change, and must **not** be deleted.
+
+---
+
+### Delete the ClamAV StatefulSet before enabling the exporter sidecar
+
+If enabling `clamav.metrics.enabled: true` for the first time (e.g. via
+`values-enable-observability.yaml`), delete the existing ClamAV StatefulSet before upgrading:
+
+```bash
+kubectl delete statefulset clamav -n podiumd --context <cluster>
+```
+
+Helm will recreate it with the exporter sidecar. The PVC is retained.
+
+---
+
 ## Changes
 
 ### Required values — weak defaults removed
@@ -265,15 +313,7 @@ clamav:
 
 No tag override needed — the tag is set by the chart default (`v2.1.2`).
 
-> **Note:** Adding the sidecar changes the ClamAV pod spec. Because ClamAV runs as a `StatefulSet`,
-> Helm cannot patch it in-place. Before running `helm upgrade` with `metrics.enabled: true` for the
-> first time, delete the existing StatefulSet manually:
->
-> ```bash
-> kubectl delete statefulset clamav -n podiumd --context <cluster>
-> ```
->
-> Helm will recreate it with the exporter sidecar. The PVC is retained.
+> **Note:** Adding the sidecar changes the ClamAV pod spec. See [Required manual steps](#delete-the-clamav-statefulset-before-enabling-the-exporter-sidecar) at the top of this guide.
 
 ---
 
