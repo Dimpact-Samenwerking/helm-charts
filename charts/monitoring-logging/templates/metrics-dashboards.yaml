@@ -4,6 +4,8 @@ metadata:
   name: {{ .Values.grafana.dashboardsConfigMaps.metrics }}
   labels:
     grafana_dashboard: "1"
+  annotations:
+    grafana_folder: "PodiumD_Metrics"
 data:
   kubernetes-cluster-monitoring.json: |-
 {{ .Files.Get "dashboards/metrics/kubernetes-cluster-monitoring.json" | indent 4 }}
@@ -17,6 +19,10 @@ data:
 {{ .Files.Get "dashboards/metrics/otel-collector.json" | indent 4 }}
   podiumd-django-red.json: |-
 {{ .Files.Get "dashboards/metrics/podiumd-django-red.json" | indent 4 }}
+  redis-ha.json: |-
+{{ .Files.Get "dashboards/metrics/redis-ha.json" | indent 4 }}
+  eck.json: |-
+{{ .Files.Get "dashboards/metrics/eck.json" | indent 4 }}
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -24,6 +30,8 @@ metadata:
   name: {{ .Values.grafana.dashboardsConfigMaps.metrics }}-node
   labels:
     grafana_dashboard: "1"
+  annotations:
+    grafana_folder: "PodiumD_Metrics"
 data:
   node-exporter-full.json: |-
 {{ .Files.Get "dashboards/metrics/node-exporter-full.json" | indent 4 }}
