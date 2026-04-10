@@ -90,7 +90,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(rate(http_server_duration_milliseconds_count{namespace=\"podiumd\",pod=~\"keycloak.*\"}[5m]))",
+          "expr": "sum(rate(http_server_requests_seconds_count{namespace=\"podiumd\",pod=~\"keycloak.*\"}[5m]))",
           "refId": "A"
         }
       ]
@@ -276,7 +276,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum by (pod) (rate(http_server_duration_milliseconds_count{namespace=\"podiumd\",pod=~\"keycloak.*\"}[5m]))",
+          "expr": "sum by (pod) (rate(http_server_requests_seconds_count{namespace=\"podiumd\",pod=~\"keycloak.*\"}[5m]))",
           "legendFormat": "{{pod}}",
           "refId": "A"
         }
@@ -307,7 +307,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_duration_milliseconds_bucket{namespace=\"podiumd\",pod=~\"keycloak.*\"}[5m]))) / 1000",
+          "expr": "max(http_server_requests_seconds_max{namespace=\"podiumd\",pod=~\"keycloak.*\"})",
           "legendFormat": "p95",
           "refId": "A"
         },
@@ -316,7 +316,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "histogram_quantile(0.50, sum by (le) (rate(http_server_duration_milliseconds_bucket{namespace=\"podiumd\",pod=~\"keycloak.*\"}[5m]))) / 1000",
+          "expr": "sum(rate(http_server_requests_seconds_sum{namespace=\"podiumd\",pod=~\"keycloak.*\"}[5m])) / sum(rate(http_server_requests_seconds_count{namespace=\"podiumd\",pod=~\"keycloak.*\"}[5m]))",
           "legendFormat": "p50",
           "refId": "B"
         }
@@ -359,7 +359,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(base_memory_usedHeap_bytes{namespace=\"podiumd\",pod=~\"keycloak.*\"})",
+          "expr": "sum(jvm_memory_used_bytes{area=\"heap\",namespace=\"podiumd\",pod=~\"keycloak.*\"})",
           "legendFormat": "Used",
           "refId": "A"
         },
@@ -368,7 +368,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(base_memory_committedHeap_bytes{namespace=\"podiumd\",pod=~\"keycloak.*\"})",
+          "expr": "sum(jvm_memory_committed_bytes{area=\"heap\",namespace=\"podiumd\",pod=~\"keycloak.*\"})",
           "legendFormat": "Committed",
           "refId": "B"
         },
@@ -377,7 +377,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(base_memory_maxHeap_bytes{namespace=\"podiumd\",pod=~\"keycloak.*\"})",
+          "expr": "sum(jvm_memory_max_bytes{area=\"heap\",namespace=\"podiumd\",pod=~\"keycloak.*\"})",
           "legendFormat": "Max",
           "refId": "C"
         }
@@ -757,6 +757,139 @@
           "refId": "A"
         }
       ]
+    },
+    {
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "legendFormat": "{{cache}}",
+          "refId": "A",
+          "expr": "sum by (cache) (rate(vendor_statistics_evictions{namespace=\"podiumd\",pod=~\"keycloak.*\"}[5m]))"
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "id": 45,
+      "gridPos": {
+        "w": 12,
+        "h": 8,
+        "x": 0,
+        "y": 59
+      },
+      "title": "Cache Evictions by cache",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "legendFormat": "{{cache}}",
+          "refId": "A",
+          "expr": "sum by (cache) (rate(vendor_statistics_stores{namespace=\"podiumd\",pod=~\"keycloak.*\"}[5m]))"
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "id": 46,
+      "gridPos": {
+        "w": 12,
+        "h": 8,
+        "x": 12,
+        "y": 59
+      },
+      "title": "Cache Write Rate by cache",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "legendFormat": "total: {{cache}}",
+          "refId": "A",
+          "expr": "sum by (cache) (vendor_statistics_number_of_entries{namespace=\"podiumd\",pod=~\"keycloak.*\"})"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "legendFormat": "in-memory: {{cache}}",
+          "refId": "B",
+          "expr": "sum by (cache) (vendor_statistics_current_number_of_entries_in_memory{namespace=\"podiumd\",pod=~\"keycloak.*\"})"
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "id": 47,
+      "gridPos": {
+        "w": 12,
+        "h": 8,
+        "x": 0,
+        "y": 67
+      },
+      "title": "Cache Total Entries by cache",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "legendFormat": "{{pod}}",
+          "refId": "A",
+          "expr": "vendor_cache_container_stats_hit_ratio{namespace=\"podiumd\",pod=~\"keycloak.*\"}"
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "id": 48,
+      "gridPos": {
+        "w": 12,
+        "h": 8,
+        "x": 12,
+        "y": 67
+      },
+      "title": "Cache Container Hit Ratio",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        }
+      }
     }
   ],
   "annotations": {

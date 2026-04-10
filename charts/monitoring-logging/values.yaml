@@ -24,7 +24,7 @@ grafana:
           type: prometheus
           uid: prometheus
           readOnly: false
-          url: http://{{ .Release.Name }}-kube-prometheus-stack-prometheus:9090
+          url: http://{{ .Release.Name }}-kube-prometheus-prometheus:9090
           access: proxy
           isDefault: false
         - name: loki
@@ -38,6 +38,9 @@ grafana:
           version: 1
           jsonData:
             timeout: 300
+            httpHeaderName1: "X-Scope-OrgID"
+          secureJsonData:
+            httpHeaderValue1: "1"
         # -- Tempo datasource: requires tempo.enabled=true
         - name: Tempo
           type: tempo
@@ -840,7 +843,7 @@ opentelemetry-collector:
           X-Scope-OrgID: "1"
       # -- Metrics → Prometheus remote write receiver
       prometheusremotewrite:
-        endpoint: http://${env:RELEASE_NAME}-kube-prometheus-stack-prometheus:9090/api/v1/write
+        endpoint: http://${env:RELEASE_NAME}-kube-prometheus-prometheus:9090/api/v1/write
         tls:
           insecure: true
     service:
@@ -859,3 +862,30 @@ opentelemetry-collector:
           exporters: [prometheusremotewrite]
         # Traces pipeline is not defined here by default.
         # Apply values-enable-tempo.yaml to enable traces → Tempo.
+
+# -- PodMonitor for Traefik. Scrapes the Traefik metrics endpoint (port 9100)
+# from pods in the configured namespace. Requires Traefik to be deployed with
+# --metrics.prometheus=true (default in the standard Traefik Helm chart).
+traefikMonitor:
+  enabled: true
+  # -- Namespace where Traefik pods run.
+  namespace: traefik
+  # -- Prometheus scrape interval.
+  scrapeInterval: 30s
+
+# -- ServiceMonitor for the OpenTelemetry Collector internal metrics endpoint
+# (port 8888). Allows Prometheus to scrape otelcol_* health/pipeline metrics.
+otelCollectorMonitor:
+  enabled: true
+  # -- Prometheus scrape interval.
+  scrapeInterval: 30s
+
+# -- Ingress for the OTLP HTTP endpoint (port 4318).
+# Exposes the collector externally via Traefik with the otel-ip-allowlist middleware.
+# Requires cert-manager for TLS. Disabled by default — set hostname to enable.
+otelIngress:
+  enabled: false
+  # -- External hostname, e.g. otel.example.nl
+  hostname: ""
+  clusterIssuer: letsencrypt-prod
+  tlsSecretName: otel-tls
