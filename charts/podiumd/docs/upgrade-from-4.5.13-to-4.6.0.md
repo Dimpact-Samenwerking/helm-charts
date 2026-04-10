@@ -326,3 +326,41 @@ Requires: `pip install ruamel.yaml` (falls back to PyYAML if unavailable, but co
    ```
 
    > **Note:** Deleting the StatefulSet does not delete the PVC. If a `clamav-data-clamav-0` PVC already exists from a previous deploy it will be reused. On a fresh environment the PVC will be created by the StatefulSet's `volumeClaimTemplate` on first deploy and ClamAV will download the virus database on startup (allow ~2–3 minutes).
+
+## Known issues
+
+### Redis HA: master pod not labelled after upgrade (apps get "Connection refused")
+
+**Symptoms:** After a `helm upgrade`, all Redis-dependent pods (openformulieren-worker, openzaak-worker, openklant-worker, objecten-worker, and others) fail to start with:
+
+```
+redis.exceptions.ConnectionError: Error 111 connecting to redis-ha-master.<namespace>.svc.cluster.local:6379. Connection refused.
+```
+
+The `redis-ha-master` ClusterIP service has no endpoints (`kubectl get endpoints redis-ha-master -n <namespace>` shows `<none>`), even though the `redis-ha-0/1/2` pods are `1/1 Running`.
+
+**Root cause:** The `redis-ha-master` service selects pods by the label `redis-role=master`. This label is applied dynamically by the `redis-operator` controller — it is not baked into the StatefulSet pod template. During an upgrade the redis pods are restarted; if the operator's role-detection TCP connection to `:6379` fails while the pods are coming up, the operator requeues without applying the label and the service remains endpoint-less indefinitely. This is a race condition observed consistently on OpsTree redis-operator v0.24.0 when redis pods recycle.
+
+**Fix (manual, post-upgrade):**
+
+1. Identify the current master from the CRD status:
+   ```shell
+   kubectl get redisreplication redis-ha -n <namespace> --context <kubectl-context> -o jsonpath='{.status.masterNode}'
+   ```
+
+2. Apply the missing label to that pod:
+   ```shell
+   kubectl label pod <master-pod-name> -n <namespace> --context <kubectl-context> redis-role=master --overwrite
+   ```
+
+3. Verify the endpoint is now populated:
+   ```shell
+   kubectl get endpoints redis-ha-master -n <namespace> --context <kubectl-context>
+   ```
+
+4. Restart any workers still in `CrashLoopBackOff`:
+   ```shell
+   kubectl rollout restart deployment openformulieren-worker openzaak-worker openklant-worker objecten-worker -n <namespace> --context <kubectl-context>
+   ```
+
+**Post-deploy health check:** Always run `kubectl get endpoints redis-ha-master -n <namespace> --context <kubectl-context>` after every upgrade and confirm it shows a live pod IP. If it shows `<none>`, apply the label fix above before considering the deployment healthy.

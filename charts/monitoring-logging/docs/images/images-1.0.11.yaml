@@ -1,0 +1,117 @@
+# Alle images gebruikt in monitoring-logging 1.0.11.
+
+# Grafana
+- name: grafana
+  url: docker.io/grafana/grafana
+  version: "12.3.0-17814087142-ubuntu"
+  digest: "sha256:cf2d51ce3bdcffdcff0a45a5000ea7570809f797c24964acb3f4eedc461e71aea"
+- name: grafana-image-renderer
+  url: docker.io/grafana/grafana-image-renderer
+  version: "v4.0.14"
+  digest: "sha256:1948b22431429997a45e9fede28185ddb0cb3608dd0c7f8517c9dee267201b677"
+- name: curl
+  url: docker.io/curlimages/curl
+  version: "8.16.0"
+  digest: "sha256:463eaf6072688fe96ac64fa623fe73e1dbe25d8ad6c34404a669ad3ce1f104b6"
+- name: busybox
+  url: docker.io/library/busybox
+  version: "1.37.0-uclibc"
+  digest: "sha256:e3a499df044f0129fd2e82a63177e7affe66ba6fd73acc9e231fd7695f06e5e2"
+- name: bats
+  url: docker.io/bats/bats
+  version: "1.12.0"
+  digest: "sha256:0257e4f5326dd37046e94d4b8ce07c293447be80a9db6d6dfff1d50d07617e2e"
+- name: k8s-sidecar
+  url: docker.io/kiwigrid/k8s-sidecar
+  version: "1.30.10"
+  digest: "sha256:835d79d8fbae62e42d8a86929d4e3c5eec2e869255dd37756b5a3166c2f223309"
+
+# Prometheus
+- name: prometheus
+  url: quay.io/prometheus/prometheus
+  version: "v3.6.0"
+  digest: "sha256:76947e7ef22f8a698fc638f706685909be425dbe09bd7a2cd7aca849f79b5f64"
+- name: prometheus-operator
+  url: quay.io/prometheus-operator/prometheus-operator
+  version: "v0.90.1"
+  digest: "sha256:52a6a92d915ea2fa94314748d99db7a94922e3fe63274f6182fc033b9126b573"
+- name: prometheus-admission-webhook
+  url: quay.io/prometheus-operator/admission-webhook
+  version: "v0.90.1"
+  digest: "sha256:ffe7c4ca80cb41424f2b711d97b3e6fa0a12dbd7156aa7350f3999f895777ddd"
+- name: prometheus-config-reloader
+  url: quay.io/prometheus-operator/prometheus-config-reloader
+  version: "v0.90.1"
+  digest: "sha256:693faa0b87243cddca2cffb13586e4e2778b0cdf319cb2e601ba7af3fd19ef7d"
+- name: kube-webhook-certgen
+  url: ghcr.io/jkroepke/kube-webhook-certgen
+  version: "1.8.0"
+  digest: "sha256:43401e216e89e3a76911bda8b282262468467a613b3086e27bb36acb79cf1498"
+- name: node-exporter
+  url: quay.io/prometheus/node-exporter
+  version: "v1.9.1"
+  digest: "sha256:d00a542e409ee618a4edc67da14dd48c5da66726bbd5537ab2af9c1dfc442cc8a"
+- name: kube-rbac-proxy
+  url: quay.io/brancz/kube-rbac-proxy
+  version: "v0.19.1"
+  digest: "sha256:9f21034731c7c3228611b9d40807f3230ce8ed2b286b913bf2d1e760d8d866fc"
+- name: pushgateway
+  url: quay.io/prometheus/pushgateway
+  version: "v1.11.1"
+  digest: "sha256:03738d278e082ee9821df730c741b3b465c251fc2b68a85883def301a55a6215"
+- name: kube-state-metrics
+  url: registry.k8s.io/kube-state-metrics/kube-state-metrics
+  version: "v2.17.0"
+  digest: "sha256:2bbc915567334b13632bf62c0a97084aff72a36e13c44dabd5f2f11c898c5bacd"
+
+# Alloy
+- name: alloy
+  url: docker.io/grafana/alloy
+  version: "v1.14.0"
+  digest: "sha256:f50931848bd8178774521767bb46b905e1a081301950ff28d7623c9db7c01076"
+- name: alloy-config-reloader
+  url: quay.io/prometheus-operator/prometheus-config-reloader
+  version: "v0.81.0"
+  digest: "sha256:959d47672fbff2776a04ec62b8afcec89e8c036af84dc5fade50019dab212746"
+
+# Loki
+- name: loki
+  url: docker.io/grafana/loki
+  version: "3.6.7"
+  digest: "sha256:3c8fd3570dd9219951a60d3f919c7f31923d10baee578b77bc26c4a0b32d092d"
+- name: nginx-unprivileged
+  url: docker.io/nginxinc/nginx-unprivileged
+  version: "alpine3.22-perl"
+  digest: "sha256:f1444b4f78f91b0c42dedc01b55972f4d759e7fccbabdf5d5a5e2f0690234eef4"
+- name: memcached
+  url: docker.io/library/memcached
+  version: "alpine3.22"
+  digest: "sha256:7b45203a99eb1419c95b875c7e48c5a9eebc0a305eeb09eefc9f3a2cff758a46"
+- name: memcached-exporter
+  url: docker.io/prom/memcached-exporter
+  version: "v0.15.3"
+  digest: "sha256:4356d5f0d2f0ba1525ad995d72fb83531ccaf85ee5468c02ab10049d4ccabd308"
+- name: kubectl
+  url: registry.k8s.io/kubectl
+  version: "v1.33.0"
+  digest: "sha256:f34045623d83213df513fe9b395b793ebe29941bf3836e3496bd3600ae7677ee"
+- name: minio
+  url: quay.io/minio/minio
+  version: "RELEASE.2025-07-23T15-54-02Z-cpuv1"
+  digest: "sha256:7330be2e7320a7a699b36f72bd06a94d8a21ec9f6f397345d9c38fcc6751141f5"
+- name: mc
+  url: quay.io/minio/mc
+  version: "RELEASE.2025-08-13T08-35-41Z-cpuv1"
+  digest: "sha256:95b5f3f7969a5c5a9f3a700ba72d5c84172819e13385aaf916e237cf111abb868"
+
+# OpenTelemetry Collector
+- name: opentelemetry-collector-contrib
+  url: ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib
+  version: "0.147.0"
+  digest: "sha256:e7c92c715f28ff142f3bcaccd4fc5603cf4c71276ef09954a38eb4038500a5a5"
+
+# Tempo (uitgeschakeld by default; alleen benodigd wanneer tempo.enabled=true)
+- name: tempo
+  url: docker.io/grafana/tempo
+  version: "2.9.0"
+  digest: "sha256:65a5789759435f1ef696f1953258b9bbdb18eb571d5ce711ff812d2e128288a4"
