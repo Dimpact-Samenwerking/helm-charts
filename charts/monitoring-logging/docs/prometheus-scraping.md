@@ -38,7 +38,9 @@ These are scraped by the Prometheus chart itself — no ServiceMonitor resources
 | node-exporter | DaemonSet | 9100 | `/metrics` |
 | pushgateway | Deployment | 9091 | `/metrics` |
 | Alloy (log agent) | DaemonSet | 12345 | `/metrics` |
-| OTel Collector | remote write | — | pushes to `/api/v1/write` |
+| **Traefik** | PodMonitor (monitoring chart) | 9100 | `/metrics` |
+| **OTel Collector** | ServiceMonitor (monitoring chart) | 8888 | `/metrics` |
+| **Django apps** | OTel remote write | — | pushes to `/api/v1/write` |
 
 ---
 
@@ -47,9 +49,39 @@ These are scraped by the Prometheus chart itself — no ServiceMonitor resources
 ### Status legend
 | Symbol | Meaning |
 |---|---|
-| ✅ | Confirmed in chart values |
+| ✅ | Confirmed working |
 | ⚠️ | Standard for this framework — verify against app image |
 | ❓ | Unknown — investigate before creating ServiceMonitor |
+
+---
+
+### Traefik ✅
+
+Traefik is deployed with `--metrics.prometheus=true` and exposes metrics on a dedicated pod port (9100). The monitoring chart deploys a `PodMonitor` that discovers Traefik pods across all namespaces.
+
+| Field | Value |
+|---|---|
+| Port | `9100` (pod port name: `metrics`) |
+| Path | `/metrics` |
+| Monitor | `PodMonitor/monitoring-traefik` (created by `monitoring-logging` chart) |
+| Config key | `traefikMonitor.enabled` (default: `true`) |
+
+No action needed in `podiumd/values-enable-observability.yaml` — the PodMonitor is owned by the monitoring chart.
+
+---
+
+### OpenTelemetry Collector ✅
+
+The OTel Collector exposes its own health/pipeline metrics on port 8888 (`otelcol_*`). A `ServiceMonitor` is deployed by the monitoring chart.
+
+| Field | Value |
+|---|---|
+| Port | `8888` (port name: `metrics`) |
+| Path | `/metrics` |
+| Monitor | `ServiceMonitor/monitoring-otel-collector` (created by `monitoring-logging` chart) |
+| Config key | `otelCollectorMonitor.enabled` (default: `true`) |
+
+No action needed in `podiumd/values-enable-observability.yaml` — the ServiceMonitor is owned by the monitoring chart.
 
 ---
 
@@ -143,11 +175,23 @@ spec:
 
 ---
 
-### Django applications ⚠️
+### Django applications ✅ (via OTel)
 
-The following services are all VNG/Dimpact Django applications. They are expected to expose Prometheus metrics via [`django-prometheus`](https://github.com/korfuri/django-prometheus) on a dedicated metrics port separate from the main application port (`8000`). The metrics port is typically `9091` in VNG charts.
+All Django services (OpenZaak, OpenNotificaties, Objecten, Objecttypen, OpenKlant, OpenFormulieren, OpenInwoner) send metrics via OTLP to the OTel Collector, which pushes them to Prometheus via remote write. **Do not create ServiceMonitors or PodMonitors for these services** — it will cause duplicate series.
 
-**Verify** by checking each image's `requirements.txt` or `pyproject.toml` for `django-prometheus`.
+Enable via `values-enable-observability.yaml`:
+
+```yaml
+openzaak:
+  settings:
+    otel:
+      disabled: false
+      exporterOtlpEndpoint: "http://monitoring-opentelemetry-collector.monitoring.svc.cluster.local:4317"
+      exporterOtlpProtocol: grpc
+      exporterOtlpMetricsInsecure: true
+```
+
+See `otel.md` for the full configuration for each service.
 
 | Service | Helm alias | App port | Expected metrics port |
 |---|---|---|---|
@@ -417,27 +461,29 @@ kube-prometheus-stack:
 
 **Before creating a ServiceMonitor**, check `otel.md` — if the service is on the OTel pipeline, skip the ServiceMonitor.
 
-| Service | Metrics available | ServiceMonitor exists | Pipeline | Action needed |
+| Service | Metrics available | Monitor | Pipeline | Status |
 |---|---|---|---|---|
 | Prometheus (self) | ✅ | ✅ auto | — | — |
 | kube-state-metrics | ✅ | ✅ auto | — | — |
 | node-exporter | ✅ | ✅ auto | — | — |
 | Alloy | ✅ | ✅ auto | — | — |
-| OTel Collector | ✅ (remote write) | — | — | — |
-| **Keycloak** | ✅ confirmed | ❌ | OTel traces / fallback metrics | Create ServiceMonitor for metrics only; add `telemetry/otel-logs: "true"` pod label once traces active |
-| **Redis** | ✅ confirmed | ❌ | fallback | Create ServiceMonitor |
-| **OpenZaak** | ⚠️ likely | ❌ | OTel when enabled | Enable OTel first; skip ServiceMonitor when OTel active |
-| **OpenNotificaties** | ⚠️ likely | ❌ | OTel when enabled | Enable OTel first; skip ServiceMonitor when OTel active |
-| **Objecten** | ⚠️ likely | ❌ | OTel when enabled | Enable OTel first; skip ServiceMonitor when OTel active |
-| **Objecttypen** | ⚠️ likely | ❌ | OTel when enabled | Enable OTel first; skip ServiceMonitor when OTel active |
-| **OpenKlant** | ⚠️ likely | ❌ | OTel when enabled | Enable OTel first; skip ServiceMonitor when OTel active |
-| **OpenFormulieren** | ⚠️ likely | ❌ | OTel when enabled | Enable OTel first; skip ServiceMonitor when OTel active |
-| **OpenInwoner** | ⚠️ likely | ❌ | OTel when enabled | Enable OTel first; skip ServiceMonitor when OTel active |
-| **OpenArchiefBeheer** | ⚠️ likely | ❌ | OTel when enabled | Enable OTel first; skip ServiceMonitor when OTel active |
-| **ZAC** | ⚠️ likely | ❌ | OTel (traces) / fallback (metrics) | Create ServiceMonitor for metrics; OTel handles traces |
-| **KISS** | ⚠️ likely | ❌ | fallback until OTel confirmed | Verify `/metrics`, create ServiceMonitor |
-| **RabbitMQ** | ⚠️ needs plugin | ❌ | fallback | Enable `rabbitmq_prometheus`, create ServiceMonitor |
-| ITA | ❓ | ❌ | fallback until confirmed | Investigate |
-| PABC | ❓ | ❌ | fallback until confirmed | Investigate |
-| OMC | ❓ | ❌ | fallback until confirmed | Investigate |
-| Loki | ⚠️ self-monitoring off | ❌ | — | Enable `monitoring.selfMonitoring` |
+| **OTel Collector** | ✅ | ✅ `ServiceMonitor/monitoring-otel-collector` | monitoring chart | ✅ done |
+| **Traefik** | ✅ | ✅ `PodMonitor/monitoring-traefik` | monitoring chart | ✅ done |
+| **Keycloak** | ✅ | ✅ `ServiceMonitor/keycloak` (auto by operator) | keycloak-operator | ✅ done |
+| **Redis HA** | ✅ | ✅ `serviceMonitor.enabled: true` (redis-ha subchart) | podiumd chart | ✅ done |
+| **ClamAV** | ✅ | ✅ `serviceMonitor.enabled: true` (clamav subchart) | podiumd chart | ✅ done |
+| **ECK operator** | ✅ | ✅ `podMonitor.enabled: true` (eck-operator subchart) | podiumd chart | ✅ done |
+| **OpenZaak** | ✅ | — (OTel pipeline) | OTel → remote write | ✅ done |
+| **OpenNotificaties** | ✅ | — (OTel pipeline) | OTel → remote write | ✅ done |
+| **Objecten** | ✅ | — (OTel pipeline) | OTel → remote write | ✅ done |
+| **Objecttypen** | ✅ | — (OTel pipeline) | OTel → remote write | ✅ done |
+| **OpenKlant** | ✅ | — (OTel pipeline) | OTel → remote write | ✅ done |
+| **OpenFormulieren** | ✅ | — (OTel pipeline) | OTel → remote write | ✅ done |
+| **OpenInwoner** | ✅ | — (OTel pipeline) | OTel → remote write | ✅ done |
+| **ZAC** | ⚠️ | ❌ ServiceMonitor pending | OTel (traces) / fallback (metrics) | Create ServiceMonitor for metrics |
+| **KISS** | ⚠️ | ❌ | fallback until confirmed | Verify `/metrics`, create ServiceMonitor |
+| **RabbitMQ** | ⚠️ | ❌ | fallback | Enable `rabbitmq_prometheus`, create ServiceMonitor |
+| ITA | ❓ | ❌ | fallback | Investigate |
+| PABC | ❓ | ❌ | fallback | Investigate |
+| OMC | ❓ | ❌ | fallback | Investigate |
+| Loki | ⚠️ | ❌ | — | Enable `monitoring.selfMonitoring` |

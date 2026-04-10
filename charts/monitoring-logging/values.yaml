@@ -868,8 +868,8 @@ opentelemetry-collector:
 # --metrics.prometheus=true (default in the standard Traefik Helm chart).
 traefikMonitor:
   enabled: true
-  # -- Namespace where Traefik pods run.
-  namespace: traefik
+  # -- Namespace where Traefik pods run. Leave empty to search all namespaces.
+  namespace: ""
   # -- Prometheus scrape interval.
   scrapeInterval: 30s
 

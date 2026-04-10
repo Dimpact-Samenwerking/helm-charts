@@ -10,8 +10,12 @@ metadata:
 spec:
   jobLabel: app.kubernetes.io/name
   namespaceSelector:
+    {{- if .Values.traefikMonitor.namespace }}
     matchNames:
       - {{ .Values.traefikMonitor.namespace | quote }}
+    {{- else }}
+    any: true
+    {{- end }}
   selector:
     matchLabels:
       app.kubernetes.io/name: traefik

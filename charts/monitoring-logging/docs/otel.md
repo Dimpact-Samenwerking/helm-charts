@@ -312,7 +312,7 @@ opentelemetry-collector:
         endpoint: http://${env:RELEASE_NAME}-loki-gateway/otlp
         headers: { X-Scope-OrgID: "1" }
       prometheusremotewrite:
-        endpoint: http://${env:RELEASE_NAME}-prometheus-server/api/v1/write
+        endpoint: http://${env:RELEASE_NAME}-kube-prometheus-prometheus/api/v1/write
     service:
       pipelines:
         logs:    { receivers: [otlp], processors: [memory_limiter, batch], exporters: [otlphttp/loki] }
@@ -472,19 +472,19 @@ When a service is marked `OTel`, add `podLabels: { telemetry/otel-logs: "true" }
 | Service | Traces | Metrics | Logs | Pipeline | Action |
 |---|---|---|---|---|---|
 | **OTel Collector** | receives | receives | receives | — | ✅ deployed |
-| **Keycloak** | ✅ ready | ✅ active (port 9000) | — | OTel (traces) / fallback (metrics) | Add `additionalOptions`; add `telemetry/otel-logs: "true"` once traces enabled |
-| **OpenZaak** | ✅ ready | ⚠️ via prometheus | ⚠️ | OTel when enabled | Set `otel.disabled: false` + endpoint + `podLabels` |
-| **OpenNotificaties** | ✅ ready | ⚠️ via prometheus | ⚠️ | OTel when enabled | Set `otel.disabled: false` + endpoint + `podLabels` |
-| **Objecten** | ✅ ready | ⚠️ via prometheus | ⚠️ | OTel when enabled | Set `otel.disabled: false` + endpoint + `podLabels` |
-| **Objecttypen** | ✅ ready | ⚠️ via prometheus | ⚠️ | OTel when enabled | Set `otel.disabled: false` + endpoint + `podLabels` |
-| **OpenKlant** | ✅ ready | ⚠️ via prometheus | ⚠️ | OTel when enabled | Set `otel.disabled: false` + endpoint + `podLabels` |
-| **OpenFormulieren** | ⚠️ | ⚠️ | ⚠️ | OTel when enabled | Add `otel:` block + endpoint + `podLabels` |
-| **OpenInwoner** | ⚠️ | ⚠️ | ⚠️ | OTel when enabled | Add `otel:` block + endpoint + `podLabels` |
-| **OpenArchiefBeheer** | ✅ ready | ⚠️ | ⚠️ | OTel when enabled | Enable service + `otel.disabled: false` + `podLabels` |
-| **ZAC** | 🔧 partial | ⚠️ via prometheus | — | OTel (traces) | Set `javaOptions`; keep bundled collector disabled |
-| **KISS** | ❓ | ❓ | — | fallback until confirmed | Verify SDK, then set `extraEnv` + `podLabels` |
+| **Keycloak** | ✅ ready | ✅ active (port 9000) | — | OTel (traces) / ServiceMonitor (metrics) | Add `additionalOptions` for tracing |
+| **OpenZaak** | ✅ | ✅ active via OTel | ✅ | OTel | ✅ enabled in `values-enable-observability.yaml` |
+| **OpenNotificaties** | ✅ | ✅ active via OTel | ✅ | OTel | ✅ enabled in `values-enable-observability.yaml` |
+| **Objecten** | ✅ | ✅ active via OTel | ✅ | OTel | ✅ enabled in `values-enable-observability.yaml` |
+| **Objecttypen** | ✅ | ✅ active via OTel | ✅ | OTel | ✅ enabled in `values-enable-observability.yaml` |
+| **OpenKlant** | ✅ | ✅ active via OTel | ✅ | OTel | ✅ enabled in `values-enable-observability.yaml` |
+| **OpenFormulieren** | ✅ | ✅ active via OTel | ✅ | OTel | ✅ enabled in `values-enable-observability.yaml` |
+| **OpenInwoner** | ✅ | ✅ active via OTel | ✅ | OTel | ✅ enabled in `values-enable-observability.yaml` |
+| **OpenArchiefBeheer** | ✅ ready | ⚠️ | ⚠️ | OTel when enabled | Enable service + `otel.disabled: false` + endpoint |
+| **ZAC** | 🔧 partial | ⚠️ via ServiceMonitor | — | OTel (traces) | Set `javaOptions`; keep bundled collector disabled |
+| **KISS** | ❓ | ❓ | — | fallback until confirmed | Verify SDK, then set `extraEnv` |
 | **ITA** | ❓ | ❓ | — | fallback until confirmed | Verify SDK, then set `extraEnv` |
 | **PABC** | ❓ | ❓ | — | fallback until confirmed | Verify SDK, then set `extraEnv` |
 | **OMC** | ❓ | ❓ | — | fallback until confirmed | Verify SDK, then set `extraEnv` |
-| **Alloy** | — | — | ✅ active | fallback (non-OTel pods) | Skip pods with `telemetry/otel-logs: "true"` |
+| **Alloy** | — | — | ✅ active | fallback (non-OTel pods) | — |
 | **Tempo** | receives | — | — | — | Enable with `tempo.enabled: true` |
