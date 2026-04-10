@@ -2529,6 +2529,12 @@ zac:
         limits:
           cpu: 2000m
           memory: 2Gi
+      dataStorage:
+        persistent:
+          # -- Retain PVCs when the operator scales down Solr (e.g. during node rotation).
+          # The default "Delete" causes the operator to destroy PVC data on scale-down, which
+          # requires a full index resync from another replica.
+          reclaimPolicy: Retain
     # -- namespaces to watch for solr-operator
     watchNamespaces: "podiumd"
     # -- install crds using https://github.com/pravega/zookeeper-operator/blob/master/charts/zookeeper-operator/templates/zookeeper.pravega.io_zookeeperclusters_crd.yaml
@@ -2565,6 +2571,11 @@ zac:
           limits:
             cpu: 500m
             memory: 512Mi
+        storage:
+          # -- Retain PVCs when the operator scales down ZooKeeper (e.g. during node rotation).
+          # The default "Delete" causes the operator to destroy PVC data on scale-down, which
+          # prevents the cluster from recovering quorum after a node replacement event.
+          reclaimPolicy: Retain
   zgwApis:
     url: http://open-zaak.internal
     urlExtern: http://open-zaak.example.nl
