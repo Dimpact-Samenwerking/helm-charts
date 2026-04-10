@@ -16,13 +16,15 @@ This document describes how metrics and tracing are configured across the podium
 | objecttypen | `settings.otel.*` | ❌ OTEL only → collector | `values-enable-observability.yaml` |
 | openinwoner | `settings.otel.*` | ❌ OTEL only → collector | `values-enable-observability.yaml` |
 | zac | `opentelemetry_zaakafhandelcomponent.*` + `javaOptions` | ❌ OTEL only → collector | `values-enable-observability.yaml` |
-| keycloak | `additionalOptions: metrics-enabled` | ✅ pod annotations port 9000 `/metrics` | `values-enable-observability.yaml` |
+| keycloak | `additionalOptions: metrics-enabled` | ✅ ServiceMonitor port 9000 `/metrics` (auto by keycloak-operator) | built-in |
 | redis-operator | — | ✅ pod annotations port 8080 `/metrics` | `values-enable-observability.yaml` |
-| redis-ha | redis_exporter sidecar | ✅ port 9121 via exporter | `values-enable-observability.yaml` |
+| redis-ha | redis_exporter sidecar | ✅ PodMonitor port 9121 | `values-enable-observability.yaml` |
 | solr-operator | — | ✅ pod annotations port 8080 `/metrics` | `values-enable-observability.yaml` |
 | zookeeper-operator | — | ✅ pod annotations port 6000 `/metrics` | `values-enable-observability.yaml` |
 | clamav | clamav_exporter sidecar | ✅ port 9906 + ServiceMonitor | `values-enable-observability.yaml` |
 | eck-operator | `config.metricsPort` + `podMonitor.enabled` | ✅ PodMonitor port 8080 `/metrics` | `values-enable-observability.yaml` |
+| traefik | — | ✅ PodMonitor port 9100 `/metrics` (monitoring chart) | `monitoring-logging` chart |
+| otel-collector | — | ✅ ServiceMonitor port 8888 `/metrics` (monitoring chart) | `monitoring-logging` chart |
 | api-proxy | — | ❌ plain nginx, no metrics endpoint | requires template changes |
 | openarchiefbeheer | — | ❌ no OTEL support in chart | — |
 | solr (SolrCloud) | — | ❌ not yet configured | see todo below |
@@ -62,6 +64,8 @@ their scrape targets. These CRDs must be present in the cluster before applying
 
 | Component | Resource type | CRD required |
 |---|---|---|
+| keycloak-operator | `ServiceMonitor` | `monitoring.coreos.com/v1` (auto-created) |
+| redis-ha | `PodMonitor` | `monitoring.coreos.com/v1` |
 | clamav | `ServiceMonitor` | `monitoring.coreos.com/v1` |
 | eck-operator (kisselastic) | `PodMonitor` | `monitoring.coreos.com/v1` |
 | solr (todo) | `ServiceMonitor` | `monitoring.coreos.com/v1` (created by solr-operator) |
@@ -89,7 +93,8 @@ kubectl apply --server-side -f https://raw.githubusercontent.com/prometheus-oper
 
 Or install only the CRD manifests from the operator's GitHub release.
 
-> Until the CRDs are installed, keep `clamav.metrics.serviceMonitor.enabled: false` and
+> Until the CRDs are installed, keep `clamav.metrics.serviceMonitor.enabled: false`,
+> `redis-operator.redis-ha.redisExporter.podMonitor.enabled: false`, and
 > `kisselastic.eck-operator.podMonitor.enabled: false` (the defaults). These are the explicit
 > defaults in `values.yaml`; `values-enable-observability.yaml` overrides them to `true`.
 
@@ -146,20 +151,16 @@ zac:
 
 ## Prometheus Scraping — Keycloak
 
-`additionalOptions` in `values.yaml` enables the metrics endpoint. Scrape annotations are in `values-enable-observability.yaml`:
+`additionalOptions` in `values.yaml` enables the metrics endpoint. The `keycloak-operator` chart automatically creates a `ServiceMonitor` in the `podiumd` namespace for port 9000 — no additional scrape configuration is required.
 
 ```yaml
 keycloak:
   additionalOptions:
     - name: metrics-enabled
       value: "true"
-  podTemplate:
-    metadata:
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "9000"
-        prometheus.io/path: /metrics
 ```
+
+> The ServiceMonitor is created automatically by the keycloak-operator chart when `metrics-enabled: true`. Do **not** add pod annotations for Prometheus scraping — the ServiceMonitor is the correct discovery method.
 
 ---
 
