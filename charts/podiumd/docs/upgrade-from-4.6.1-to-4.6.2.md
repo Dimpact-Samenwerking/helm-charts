@@ -152,5 +152,190 @@ No tag overrides are needed — tags are set by the chart defaults (`1.29.5`).
 
 ---
 
+---
+
+### ZAC: `pabc` renamed to `pabcApi` in values
+
+The `zac.settings.pabc` key has been renamed to `zac.settings.pabcApi` to match the ZAC chart
+schema. If your environment values file sets `zac.settings.pabc`, rename the key:
+
+```yaml
+# Before
+zac:
+  settings:
+    pabc:
+      apiUrl: "..."
+      apiKey: REP_ZAC_PABC_API_KEY_REP
+
+# After
+zac:
+  settings:
+    pabcApi:
+      apiUrl: "..."
+      apiKey: REP_ZAC_PABC_API_KEY_REP
+```
+
+---
+
+### ZooKeeper and Solr PVCs — `reclaimPolicy: Retain`
+
+ZooKeeper and Solr PVCs now use `reclaimPolicy: Retain` (previously `Delete`). This prevents
+data loss during node rotation and operator scale-down events — a `Delete` policy caused a
+ZooKeeper quorum deadlock when a node was replaced and the PVC was destroyed before the pod
+restarted (`accp-dimp`).
+
+**No action required** for existing deployments — the reclaimPolicy on existing PVCs is not
+changed by `helm upgrade`. The change only takes effect for newly provisioned PVCs (fresh installs
+or after manual PVC recreation).
+
+---
+
+### Keycloak Operator and ECK Operator — ServiceMonitor / PodMonitor RBAC
+
+Two new RBAC templates are added:
+
+- `keycloak-operator-servicemonitor-rbac.yaml` — grants the keycloak-operator SA permission to
+  discover and manage `ServiceMonitor` resources. The ClusterRole (read) is always rendered when
+  `keycloak-operator.enabled: true`; without it the operator receives HTTP 403 on the
+  `monitoring.coreos.com` API group and aborts reconciliation entirely.
+- `eck-operator-podmonitor-rbac.yaml` — grants the `elastic-operator` SA permission to create
+  and manage `PodMonitor` resources for ECK-managed Elasticsearch/Kibana instances. Rendered when
+  `kisselastic.enabled: true` and `kisselastic.eck-operator.podMonitor.enabled: true`.
+
+**No action required.** Both templates are automatically included and activate based on existing
+enabled/disabled flags.
+
+---
+
+### Redis HA — `redis_exporter` sidecar and PodMonitor
+
+A new `redis_exporter` sidecar (port 9121) and a corresponding `PodMonitor` can now be enabled
+per environment. Both are **disabled by default**.
+
+To enable (typically via `values-enable-observability.yaml`):
+
+```yaml
+redis-operator:
+  redis-ha:
+    redisExporter:
+      enabled: true
+      podMonitor:
+        enabled: true
+        interval: 30s
+        scrapeTimeout: 10s
+```
+
+For **ACR-based environments**, add the repository override for the exporter image:
+
+```yaml
+redis-operator:
+  redis-ha:
+    redisExporter:
+      image:
+        repository: <acr>/redis_exporter
+```
+
+No tag override needed — the tag is set by the chart default.
+
+---
+
+### ClamAV — `clamav_exporter` metrics sidecar and ServiceMonitor
+
+The ClamAV chart (v3.7.1) now ships a built-in `clamav_exporter` sidecar and `ServiceMonitor`.
+Both are **disabled by default**. Enable via `values-enable-observability.yaml`:
+
+```yaml
+clamav:
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      interval: 30s
+      scrapeTimeout: 10s
+```
+
+For **ACR-based environments**, add the repository override:
+
+```yaml
+clamav:
+  metrics:
+    image:
+      repository: <acr>/clamav_exporter
+```
+
+No tag override needed — the tag is set by the chart default (`v2.1.2`).
+
+> **Note:** Adding the sidecar changes the ClamAV pod spec. Because ClamAV runs as a `StatefulSet`,
+> Helm cannot patch it in-place. Before running `helm upgrade` with `metrics.enabled: true` for the
+> first time, delete the existing StatefulSet manually:
+>
+> ```bash
+> kubectl delete statefulset clamav -n podiumd --context <cluster>
+> ```
+>
+> Helm will recreate it with the exporter sidecar. The PVC is retained.
+
+---
+
+### Security hardening — container security contexts
+
+All custom pod templates (api-proxy, adapter, Keycloak jobs, seeding jobs, redis-ha label job)
+now have `readOnlyRootFilesystem: true` and explicit `runAsNonRoot: true` / `runAsUser` settings.
+Writable paths (`/tmp`, `/var/cache/nginx`) are provided via `emptyDir` volumes where needed.
+
+Keycloak job pods now explicitly reference the podiumd `ServiceAccount` name. The `ServiceAccount`
+has `automountServiceAccountToken: false` set globally; the redis-ha label job opts back in
+(`automountServiceAccountToken: true` on the pod spec) because it needs API server access.
+
+**No action required.** These are template-only changes with no values impact.
+
+---
+
+### Security hardening — api-proxy TLS verification enabled
+
+`apiproxy.locations.commonSettings.sslVerify` now defaults to `"on"` (previously `"off"`). The
+CA certificate infrastructure was already wired (`nginxCertsSecret`) but was being silently ignored.
+
+**Action required** if `nginxCertsSecret` is set: ensure `ca.crt` in the referenced secret contains
+the CA chain that signed the upstream government API (BAG/BRP/KVK) server certificate. If the CA
+is not available, explicitly override the default in your environment values:
+
+```yaml
+apiproxy:
+  locations:
+    commonSettings:
+      sslVerify: "off"   # temporary — remove once CA cert is available
+```
+
+---
+
+### Keycloak security — TOTP always required in master realm
+
+`adminOtpEnabled` has been removed as a configurable flag. TOTP (OTP) is now unconditionally
+required for all admin accounts in the master realm. The Keycloak admin UI will prompt for TOTP
+setup on next login if it was not previously configured.
+
+**No action required** for environments already using TOTP. For environments where TOTP was
+disabled (`adminOtpEnabled: false`), admin accounts will be prompted to set up an authenticator
+app on next login.
+
+---
+
+### Keycloak security — SSO session lifetime limits
+
+Both realm configs now enforce SSO session limits:
+
+| Setting | Value |
+|---|---|
+| `ssoSessionMaxLifespan` | 28800 s (8 h) |
+| `ssoSessionIdleTimeout` | 1800 s (30 min) |
+
+These limits apply to browser SSO sessions (not to individual access tokens, which are controlled
+by `accessTokenLifespan`). Sessions that exceed these limits will require re-authentication.
+
+**No action required.**
+
+---
+
 For the full list of new and changed images in this release see
 [docs/images/images-4.6.2.yaml](images/images-4.6.2.yaml).
