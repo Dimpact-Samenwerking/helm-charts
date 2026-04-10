@@ -90,7 +90,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "count(kube_pod_status_phase{namespace=\"podiumd\",pod=~\"kiss-es-default-.*\",phase=\"Running\"})",
+          "expr": "count(kube_pod_status_phase{namespace=\"podiumd\",pod=~\"kiss-es-default-.*|openinwoner-elasticsearch-es-default-.*\",phase=\"Running\"})",
           "legendFormat": "",
           "refId": "A"
         }
@@ -262,7 +262,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(increase(kube_pod_container_status_restarts_total{namespace=\"podiumd\",pod=~\"kiss-es-default-.*|kiss-ent-.*|kiss-kb-.*\"}[24h]))",
+          "expr": "sum(increase(kube_pod_container_status_restarts_total{namespace=\"podiumd\",pod=~\"kiss-es-default-.*|openinwoner-elasticsearch-es-default-.*|kiss-ent-.*|kiss-kb-.*\"}[24h]))",
           "legendFormat": "",
           "refId": "A"
         }
@@ -311,7 +311,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "rate(container_cpu_usage_seconds_total{namespace=\"podiumd\",pod=~\"kiss-es-default-.*\",container=\"elasticsearch\"}[2m])",
+          "expr": "rate(container_cpu_usage_seconds_total{namespace=\"podiumd\",pod=~\"kiss-es-default-.*|openinwoner-elasticsearch-es-default-.*\",container=\"elasticsearch\"}[2m])",
           "legendFormat": "{{pod}}",
           "refId": "A"
         }
@@ -360,7 +360,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "container_memory_working_set_bytes{namespace=\"podiumd\",pod=~\"kiss-es-default-.*\",container=\"elasticsearch\"}",
+          "expr": "container_memory_working_set_bytes{namespace=\"podiumd\",pod=~\"kiss-es-default-.*|openinwoner-elasticsearch-es-default-.*\",container=\"elasticsearch\"}",
           "legendFormat": "{{pod}}",
           "refId": "A"
         }
@@ -525,7 +525,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "rate(container_network_receive_bytes_total{namespace=\"podiumd\",pod=~\"kiss-es-default-.*|kiss-ent-.*|kiss-kb-.*\"}[2m])",
+          "expr": "rate(container_network_receive_bytes_total{namespace=\"podiumd\",pod=~\"kiss-es-default-.*|openinwoner-elasticsearch-es-default-.*|kiss-ent-.*|kiss-kb-.*\"}[2m])",
           "legendFormat": "{{pod}}",
           "refId": "A"
         }
@@ -574,7 +574,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "kubelet_volume_stats_used_bytes{namespace=\"podiumd\",persistentvolumeclaim=~\"elasticsearch-data-kiss-es-default-.*\"}",
+          "expr": "kubelet_volume_stats_used_bytes{namespace=\"podiumd\",persistentvolumeclaim=~\"elasticsearch-data-kiss-es-default-.*|elasticsearch-data-openinwoner-elasticsearch-es-default-.*\"}",
           "legendFormat": "{{persistentvolumeclaim}}",
           "refId": "A"
         }
@@ -623,7 +623,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "increase(kube_pod_container_status_restarts_total{namespace=\"podiumd\",pod=~\"kiss-es-default-.*|kiss-ent-.*|kiss-kb-.*\"}[1h])",
+          "expr": "increase(kube_pod_container_status_restarts_total{namespace=\"podiumd\",pod=~\"kiss-es-default-.*|openinwoner-elasticsearch-es-default-.*|kiss-ent-.*|kiss-kb-.*\"}[1h])",
           "legendFormat": "{{pod}}",
           "refId": "A"
         }
