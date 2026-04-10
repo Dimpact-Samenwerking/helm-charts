@@ -19,6 +19,8 @@ data:
 {{ .Files.Get "dashboards/metrics/redis-ha.json" | indent 4 }}
   eck.json: |-
 {{ .Files.Get "dashboards/metrics/eck.json" | indent 4 }}
+  clamav.json: |-
+{{ .Files.Get "dashboards/metrics/clamav.json" | indent 4 }}
 ---
 apiVersion: v1
 kind: ConfigMap
