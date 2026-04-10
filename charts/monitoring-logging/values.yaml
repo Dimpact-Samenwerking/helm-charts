@@ -260,6 +260,8 @@ kube-prometheus-stack:
       retentionSize: ""
       storageSpec:
         volumeClaimTemplate:
+          metadata:
+            name: db
           spec:
             storageClassName: managed-csi
             accessModes: ["ReadWriteOnce"]
