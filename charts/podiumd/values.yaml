@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=./kiss.schema.json
+﻿# yaml-language-server: $schema=./kiss.schema.json
 global:
   configuration:
     enabled: true
@@ -25,14 +25,14 @@ keycloak-operator:
   # Adfinis Helm chart wrapping the official Keycloak Operator manifests.
   # Chart: https://charts.adfinis.com / adfinis/keycloak-operator (appVersion 26.5.6)
   # Note: it appears that the podname automatically appends -operator.
-  # Official operator image: quay.io/keycloak/keycloak-operator:26.5.7
+  # Official operator image: quay.io/keycloak/keycloak-operator:26.6.0
   # override: values-enable-observability.yaml sets enableServiceMonitor: true
   enableServiceMonitor: false
   fullnameOverride: keycloak
   operator:
     image:
       repository: quay.io/keycloak/keycloak-operator
-      tag: "26.5.7"
+      tag: "26.6.0"
     resources:
       requests:
         cpu: 100m
@@ -62,7 +62,7 @@ keycloak-operator:
       image:
         registry: ""
         repository: curlimages/curl
-        tag: "8.18.0"
+        tag: "8.19.0"
       # Client secret for the keycloak-operator client. Set this to a known value so Helm
       # can create the K8s secret directly. The job will enforce this secret in Keycloak.
       clientSecret: ""
@@ -163,11 +163,11 @@ keycloak:
   http:
     httpEnabled: true
   # image parameters for keycloak-operator
-  # Official Keycloak image: quay.io/keycloak/keycloak:26.5.7
+  # Official Keycloak image: quay.io/keycloak/keycloak:26.6.0
   image:
     registry: ""
     repository: quay.io/keycloak/keycloak
-    tag: 26.5.7
+    tag: 26.6.0
   # -- instances is the new operator-style replica count (falls back to replicaCount)
   instances: "2"
   ingress:
@@ -193,11 +193,11 @@ keycloak:
       key: ""
   keycloakConfigCli:
     # image parameters for keycloak-config-cli
-    # Official keycloak-config-cli image: adorsys/keycloak-config-cli:6.4.1-26
+    # Official keycloak-config-cli image: adorsys/keycloak-config-cli:6.5.0-26
     image:
       registry: ""
       repository: adorsys/keycloak-config-cli
-      tag: "6.4.1-26"
+      tag: "6.5.0-26"
   podTemplate:
     metadata:
       labels:
@@ -367,14 +367,14 @@ redis-operator:
     image:
       registry: quay.io
       repository: opstree/redis
-      tag: "v8.4.2"
+      tag: "v8.6.2"
     # override: values-enable-observability.yaml sets redisExporter.enabled: true
     redisExporter:
       enabled: false
       image:
         registry: quay.io
         repository: opstree/redis-exporter
-        tag: "v1.44.0"
+        tag: "v1.82.0"
       # -- PodMonitor for the redis_exporter sidecar (port 9121).
       # Requires Prometheus Operator CRDs (monitoring.coreos.com/v1).
       # Enable via values-enable-observability.yaml.
@@ -2471,7 +2471,7 @@ zac:
     code: "007"
     naam: "Example Gemeente"
     mail: "noreply@example.nl"
-  # curlimages/curl:8.18.0
+  # curlimages/curl:8.19.0
   global:
     curlImage:
       #repository: curlimages/curl

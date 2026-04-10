@@ -22,13 +22,39 @@
   version: "v2.0"
   digest: "sha256:c14d7271e4013b24b34ef0d7144c4610577d0e9110ccc26b163fa28089fa1f4e"
 
-# Keycloak config CLI (realm import jobs)
-- name: keycloak-config-cli
-  url: docker.io/adorsys/keycloak-config-cli
-  version: "6.4.1-26"
-  digest: "sha256:d61b88c2e8e170e95ed2348872fe5bf49b9ac25ffb03eea3f8afc578b033d3dc"
+# Keycloak (operator + server + config-cli)
+- name: keycloak
+  url: quay.io/keycloak/keycloak
+  version: "26.6.0"
+  digest: "sha256:b0e5dbced1775de4d629f103c0a9cfc057decc62ce8d3cb1c54f8849a6c6eb62"
 
-# Nginx (api-proxy gewijzigd van nginx naar nginx-unprivileged)
+- name: keycloak_operator
+  url: quay.io/keycloak/keycloak-operator
+  version: "26.6.0"
+  digest: "sha256:92de7908a4a64177c0d703ef08c25a8560121c61e194fa681f29c7e910a49ab3"
+
+- name: keycloak_config_cli
+  url: docker.io/adorsys/keycloak-config-cli
+  version: "6.5.0-26"
+  digest: "sha256:2d2a0663cf324379d9ffab896db8d00293cd0326151968b319cf166f6eec8fca"
+
+- name: curl
+  url: docker.io/curlimages/curl
+  version: "8.19.0"
+  digest: "sha256:b066cbf876d50a5d024927878a586c4a39c985325ded195e2e231f4abdddf3c8"
+
+# Redis operator + HA
+- name: redis
+  url: quay.io/opstree/redis
+  version: "v8.6.2"
+  digest: "sha256:5f79911253cb74636e8e97555b08095902d46a835c6423adb123295b00ba70d7"
+
+- name: redis_exporter
+  url: quay.io/opstree/redis-exporter
+  version: "v1.82.0"
+  digest: "sha256:bce422b4bba8721bef04d5ca491eeec2b53278698b4bd9790f81fbb287cdfe88"
+
+# Nginx (api-proxy en Maykin/ZAC nginx sidecars — nginx-unprivileged is nog op 1.29.5, geen nieuwere versie beschikbaar)
 - name: nginx-unprivileged
   url: docker.io/nginxinc/nginx-unprivileged
   version: "1.29.5"
