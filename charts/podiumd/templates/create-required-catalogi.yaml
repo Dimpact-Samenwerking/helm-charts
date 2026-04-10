@@ -416,11 +416,14 @@ spec:
             runAsNonRoot: true
             runAsUser: 1000
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
             seccompProfile:
               type: RuntimeDefault
           envFrom:
+            - configMapRef:
+                name: create-required-catalogi-configmap
           env:
             - name: SECRET
               valueFrom:
@@ -430,11 +433,15 @@ spec:
           volumeMounts:
             - mountPath: /jobs
               name: jobs
+            - mountPath: /tmp
+              name: tmp
       volumes:
         - configMap:
             defaultMode: 0755
             name: create-required-catalogi-configmap
           name: jobs
+        - name: tmp
+          emptyDir: {}
       {{- with .Values.openzaak.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

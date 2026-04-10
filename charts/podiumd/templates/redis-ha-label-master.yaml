@@ -9,7 +9,7 @@ metadata:
   name: redis-ha-label-master
   labels:
     {{- include "podiumd.labels" . | nindent 4 }}
-automountServiceAccountToken: true
+automountServiceAccountToken: false
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -56,6 +56,7 @@ spec:
         {{- include "podiumd.labels" . | nindent 8 }}
     spec:
       serviceAccountName: redis-ha-label-master
+      automountServiceAccountToken: true
       restartPolicy: OnFailure
       {{- with $redisHa.labelMasterJob.nodeSelector }}
       nodeSelector:
@@ -66,6 +67,18 @@ spec:
           image: {{ include "podiumd.image" $redisHa.labelMasterJob.image }}
           resources:
             {{- toYaml $redisHa.labelMasterJob.resources | nindent 12 }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
           command:
             - /bin/sh
             - -c
@@ -142,5 +155,8 @@ spec:
               done
 
               echo "Done. Labels applied successfully."
+      volumes:
+        - name: tmp
+          emptyDir: {}
 {{- end }}
 {{- end }}

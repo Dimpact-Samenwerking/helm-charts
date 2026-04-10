@@ -2,9 +2,9 @@
 
 # Applicaties
 - name: kubectl
-  url: registry.k8s.io/kubectl
-  version: "v1.33.0"
-  digest: "sha256:f34045623d83213df513fe9b395b793ebe29941bf3836e3496bd3600ae7677ee"
+  url: docker.io/alpine/k8s
+  version: "1.33.2"
+  digest: "sha256:329cf13af9ee678e3afd71b6af44447029f119f713bec278db2fb53571e857f5"
 
 # PABC
 - name: pabc
@@ -21,6 +21,12 @@
   url: ghcr.io/groundnuty/k8s-wait-for
   version: "v2.0"
   digest: "sha256:c14d7271e4013b24b34ef0d7144c4610577d0e9110ccc26b163fa28089fa1f4e"
+
+# Keycloak config CLI (realm import jobs)
+- name: keycloak-config-cli
+  url: docker.io/adorsys/keycloak-config-cli
+  version: "6.4.1-26"
+  digest: "sha256:d61b88c2e8e170e95ed2348872fe5bf49b9ac25ffb03eea3f8afc578b033d3dc"
 
 # Nginx (api-proxy gewijzigd van nginx naar nginx-unprivileged)
 - name: nginx-unprivileged

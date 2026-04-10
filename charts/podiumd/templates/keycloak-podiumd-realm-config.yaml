@@ -1,5 +1,27 @@
 {{- if (index .Values "keycloak-operator").enabled -}}
 {{- if (index .Values "keycloak-operator").jobs.importPodiumdRealm.enabled -}}
+{{- /* PKCE consistency validation: if pkceEnabled=true on the Keycloak client and configuration.data
+     is non-empty, the application must also have oidc_use_pkce: true in configuration.data.
+     If configuration.data is empty, validation is skipped — it is the responsibility of the
+     configuration maintainer to ensure oidc_use_pkce: true is set when data is filled in.
+     See keycloak-security-updates.md § PKCE Enforcement. */ -}}
+{{- $djangoApps := list
+  (dict "name" "openzaak"         "pkce" .Values.openzaak.configuration.pkceEnabled         "data" .Values.openzaak.configuration.data)
+  (dict "name" "openarchiefbeheer" "pkce" .Values.openarchiefbeheer.configuration.pkceEnabled "data" .Values.openarchiefbeheer.configuration.data)
+  (dict "name" "opennotificaties"  "pkce" .Values.opennotificaties.configuration.pkceEnabled  "data" .Values.opennotificaties.configuration.data)
+  (dict "name" "objecten"          "pkce" .Values.objecten.configuration.pkceEnabled          "data" .Values.objecten.configuration.data)
+  (dict "name" "objecttypen"       "pkce" .Values.objecttypen.configuration.pkceEnabled       "data" .Values.objecttypen.configuration.data)
+  (dict "name" "openklant"         "pkce" .Values.openklant.configuration.pkceEnabled         "data" .Values.openklant.configuration.data)
+  (dict "name" "openformulieren"   "pkce" .Values.openformulieren.configuration.pkceEnabled   "data" .Values.openformulieren.configuration.data)
+  (dict "name" "openinwoner"       "pkce" .Values.openinwoner.configuration.pkceEnabled       "data" .Values.openinwoner.configuration.data)
+-}}
+{{- range $djangoApps }}
+{{- if .pkce }}
+{{- if and (ne .data "") (not (contains "oidc_use_pkce: true" .data)) }}
+{{- fail (printf "%s: pkceEnabled is true but oidc_use_pkce: true is missing from configuration.data. Both must be enabled together — see keycloak-security-updates.md § PKCE Enforcement." .name) }}
+{{- end }}
+{{- end }}
+{{- end -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -39,6 +61,8 @@ data:
     eventsExpiration: 2592000
     offlineSessionMaxLifespanEnabled: true
     offlineSessionMaxLifespan: 7776000
+    ssoSessionMaxLifespan: 36000
+    ssoSessionIdleTimeout: 1800
     accessTokenLifespan: 60
     passwordPolicy: "length(12) and notUsername(undefined) and notEmail(undefined) and passwordHistory(5)"
     requiredActions:
@@ -52,11 +76,14 @@ data:
         name: Open Zaak
         enabled: true
         clientAuthenticatorType: client-secret
+{{- if .Values.openzaak.configuration.pkceEnabled }}
+        pkceCodeChallengeMethod: S256
+{{- end }}
         redirectUris:
           - "{{ .Values.openzaak.configuration.oidcUrl | trimSuffix "/" }}/*"
         webOrigins:
           - "{{ .Values.openzaak.configuration.oidcUrl | trimSuffix "/" }}/*"
-        secret: {{ .Values.openzaak.configuration.oidcSecret | quote }}
+        secret: $(KC_SECRET_OPENZAAK)
         protocolMappers:
           - name: "username"
             protocol: "openid-connect"
@@ -89,11 +116,14 @@ data:
         name: Open Archiefbeheer
         enabled: true
         clientAuthenticatorType: client-secret
+{{- if .Values.openarchiefbeheer.configuration.pkceEnabled }}
+        pkceCodeChallengeMethod: S256
+{{- end }}
         redirectUris:
           - "{{ .Values.openarchiefbeheer.configuration.oidcUrl | trimSuffix "/" }}/*"
         webOrigins:
           - "{{ .Values.openarchiefbeheer.configuration.oidcUrl | trimSuffix "/" }}/*"
-        secret: {{ .Values.openarchiefbeheer.configuration.oidcSecret | quote }}
+        secret: $(KC_SECRET_OPENARCHIEFBEHEER)
         protocolMappers:
           - name: "username"
             protocol: "openid-connect"
@@ -125,7 +155,7 @@ data:
       - clientId: monitoring
         name: {{ .Values.keycloak.config.clients.monitoring.name|quote }}
         enabled: {{ .Values.keycloak.config.clients.monitoring.enabled }}
-        secret: {{ .Values.keycloak.config.clients.monitoring.secret|quote }}
+        secret: $(KC_SECRET_MONITORING)
         clientAuthenticatorType: client-secret
         redirectUris:
           - "{{ .Values.keycloak.config.clients.monitoring.oidcUrl | trimSuffix "/" }}/*"
@@ -158,11 +188,14 @@ data:
         name: Open Notificaties
         enabled: true
         clientAuthenticatorType: client-secret
+{{- if .Values.opennotificaties.configuration.pkceEnabled }}
+        pkceCodeChallengeMethod: S256
+{{- end }}
         redirectUris:
           - "{{ .Values.opennotificaties.configuration.oidcUrl | trimSuffix "/" }}/*"
         webOrigins:
           - "{{ .Values.opennotificaties.configuration.oidcUrl | trimSuffix "/" }}/*"
-        secret: {{ .Values.opennotificaties.configuration.oidcSecret | quote }}
+        secret: $(KC_SECRET_OPENNOTIFICATIES)
         protocolMappers:
           - name: "username"
             protocol: "openid-connect"
@@ -195,11 +228,14 @@ data:
         name: Objecten
         enabled: true
         clientAuthenticatorType: client-secret
+{{- if .Values.objecten.configuration.pkceEnabled }}
+        pkceCodeChallengeMethod: S256
+{{- end }}
         redirectUris:
           - "{{ .Values.objecten.configuration.oidcUrl | trimSuffix "/" }}/*"
         webOrigins:
           - "{{ .Values.objecten.configuration.oidcUrl | trimSuffix "/" }}/*"
-        secret: {{ .Values.objecten.configuration.oidcSecret | quote }}
+        secret: $(KC_SECRET_OBJECTEN)
         protocolMappers:
           - name: "username"
             protocol: "openid-connect"
@@ -232,11 +268,14 @@ data:
         name: Objecttypen
         enabled: true
         clientAuthenticatorType: client-secret
+{{- if .Values.objecttypen.configuration.pkceEnabled }}
+        pkceCodeChallengeMethod: S256
+{{- end }}
         redirectUris:
           - "{{ .Values.objecttypen.configuration.oidcUrl | trimSuffix "/" }}/*"
         webOrigins:
           - "{{ .Values.objecttypen.configuration.oidcUrl | trimSuffix "/" }}/*"
-        secret: {{ .Values.objecttypen.configuration.oidcSecret | quote }}
+        secret: $(KC_SECRET_OBJECTTYPEN)
         protocolMappers:
           - name: "username"
             protocol: "openid-connect"
@@ -269,11 +308,14 @@ data:
         name: Open Klant
         enabled: true
         clientAuthenticatorType: client-secret
+{{- if .Values.openklant.configuration.pkceEnabled }}
+        pkceCodeChallengeMethod: S256
+{{- end }}
         redirectUris:
           - "{{ .Values.openklant.configuration.oidcUrl | trimSuffix "/" }}/*"
         webOrigins:
           - "{{ .Values.openklant.configuration.oidcUrl | trimSuffix "/" }}/*"
-        secret: {{ .Values.openklant.configuration.oidcSecret | quote }}
+        secret: $(KC_SECRET_OPENKLANT)
         protocolMappers:
           - name: "username"
             protocol: "openid-connect"
@@ -306,11 +348,14 @@ data:
         name: Open Formulieren
         enabled: true
         clientAuthenticatorType: client-secret
+{{- if .Values.openformulieren.configuration.pkceEnabled }}
+        pkceCodeChallengeMethod: S256
+{{- end }}
         redirectUris:
           - "{{ .Values.openformulieren.configuration.oidcUrl | trimSuffix "/" }}/*"
         webOrigins:
           - "{{ .Values.openformulieren.configuration.oidcUrl | trimSuffix "/" }}/*"
-        secret: {{ .Values.openformulieren.configuration.oidcSecret | quote }}
+        secret: $(KC_SECRET_OPENFORMULIEREN)
         protocolMappers:
           - name: "username"
             protocol: "openid-connect"
@@ -343,11 +388,14 @@ data:
         name: Open Inwoner
         enabled: true
         clientAuthenticatorType: client-secret
+{{- if .Values.openinwoner.configuration.pkceEnabled }}
+        pkceCodeChallengeMethod: S256
+{{- end }}
         redirectUris:
           - "{{ .Values.openinwoner.configuration.oidcUrl | trimSuffix "/" }}/*"
         webOrigins:
           - "{{ .Values.openinwoner.configuration.oidcUrl | trimSuffix "/" }}/*"
-        secret: {{ .Values.openinwoner.configuration.oidcSecret | quote }}
+        secret: $(KC_SECRET_OPENINWONER)
         protocolMappers:
           - name: "username"
             protocol: "openid-connect"
@@ -380,11 +428,14 @@ data:
         name: Kiss
         enabled: true
         clientAuthenticatorType: client-secret
+{{- if .Values.kiss.settings.oidc.pkceEnabled }}
+        pkceCodeChallengeMethod: S256
+{{- end }}
         redirectUris:
           - "{{ .Values.kiss.configuration.oidcUrl | trimSuffix "/" }}/*"
         webOrigins:
           - "{{ .Values.kiss.configuration.oidcUrl | trimSuffix "/" }}/*"
-        secret: {{ .Values.kiss.settings.oidc.clientSecret | quote }}
+        secret: $(KC_SECRET_KISS)
         protocolMappers:
           - name: kiss-roles
             protocol: openid-connect
@@ -414,11 +465,14 @@ data:
         name: Zaakafhandelcomponent
         enabled: true
         clientAuthenticatorType: client-secret
+{{- if .Values.zac.auth.pkceEnabled }}
+        pkceCodeChallengeMethod: S256
+{{- end }}
         redirectUris:
           - "{{ .Values.zac.contextUrl | trimSuffix "/" }}/*"
         webOrigins:
           - "{{ .Values.zac.contextUrl | trimSuffix "/" }}/*"
-        secret: {{ .Values.zac.auth.secret | quote }}
+        secret: $(KC_SECRET_ZAC)
         protocolMappers:
           - name: "username"
             protocol: "openid-connect"
@@ -449,7 +503,7 @@ data:
         name: Zaakafhandelcomponent Admin Client
         enabled: true
         clientAuthenticatorType: client-secret
-        secret: {{ .Values.zac.keycloak.adminClient.secret | quote }}
+        secret: $(KC_SECRET_ZAC_ADMIN)
         redirectUris:
           - "{{ .Values.zac.contextUrl | trimSuffix "/" }}/*"
         webOrigins:
@@ -493,11 +547,14 @@ data:
         name: Interne Taak Afhandeling
         enabled: true
         clientAuthenticatorType: client-secret
+{{- if .Values.ita.web.oidc.pkceEnabled }}
+        pkceCodeChallengeMethod: S256
+{{- end }}
         redirectUris:
           - "{{ .Values.ita.web.oidc.frontendUrl | trimSuffix "/" }}/*"
         webOrigins:
           - "{{ .Values.ita.web.oidc.frontendUrl | trimSuffix "/" }}/*"
-        secret: {{ .Values.ita.web.oidc.clientSecret | quote }}
+        secret: $(KC_SECRET_ITA)
         protocolMappers:
           - name: "client roles"
             protocol: "openid-connect"
@@ -530,11 +587,14 @@ data:
         name: PABC OIDC Client
         enabled: true
         clientAuthenticatorType: client-secret
+{{- if .Values.pabc.settings.oidc.pkceEnabled }}
+        pkceCodeChallengeMethod: S256
+{{- end }}
         redirectUris:
           - "{{ .Values.pabc.settings.oidc.oidcUrl | trimSuffix "/" }}/*"
         webOrigins:
           - "{{ .Values.pabc.settings.oidc.oidcUrl | trimSuffix "/" }}/*"
-        secret: {{ .Values.pabc.settings.oidc.clientSecret | quote }}
+        secret: $(KC_SECRET_PABC)
         protocolMappers:
           - name: "client roles"
             protocol: "openid-connect"
@@ -555,7 +615,7 @@ data:
         name: PABC Keycloak Admin REST API client
         enabled: true
         clientAuthenticatorType: client-secret
-        secret: {{ .Values.pabc.settings.keycloakAdmin.clientSecret | quote }}
+        secret: $(KC_SECRET_PABC_ADMIN)
         serviceAccountsEnabled: true
     clientScopes:
       - name: roles

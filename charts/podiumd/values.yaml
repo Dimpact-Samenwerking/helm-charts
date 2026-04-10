@@ -23,7 +23,7 @@ persistentVolume:
 keycloak-operator:
   enabled: true
   # Adfinis Helm chart wrapping the official Keycloak Operator manifests.
-  # Chart: https://charts.adfinis.com / adfinis/keycloak-operator (appVersion 26.5.7)
+  # Chart: https://charts.adfinis.com / adfinis/keycloak-operator (appVersion 26.5.6)
   # Note: it appears that the podname automatically appends -operator.
   # Official operator image: quay.io/keycloak/keycloak-operator:26.5.7
   # override: values-enable-observability.yaml sets enableServiceMonitor: true
@@ -65,7 +65,7 @@ keycloak-operator:
         tag: "8.18.0"
       # Client secret for the keycloak-operator client. Set this to a known value so Helm
       # can create the K8s secret directly. The job will enforce this secret in Keycloak.
-      clientSecret: "changeme"
+      clientSecret: ""
     importPodiumdRealm:
       enabled: true
     importMasterRealm:
@@ -99,7 +99,7 @@ keycloak:
       value: ""
   auth:
     adminUser: admin
-    adminPassword: "changemenow"
+    adminPassword: ""
   config:
     adminFrontendUrl: https://keycloak-admin.example.nl
     # Example configuration
@@ -132,7 +132,6 @@ keycloak:
     #        role: "admin"
     # -- identity provider mapper for the admin realm
     #adminIdentityProviderMappers: {}
-    adminOtpEnabled: true
     realm: podiumd
     realmDisplayName: PodiumD
     realmFrontendUrl: https://keycloak.example.nl
@@ -152,9 +151,8 @@ keycloak:
       monitoring:
         name: Monitoring (Grafana)
         enabled: true
-        secret: "monitoring_secret"
+        secret: ""
         oidcUrl: "https://monitoring.example.nl"
-  enabled: false
   name: "keycloak"
   features:
     enabled: []
@@ -435,8 +433,8 @@ redis-operator:
     labelMasterJob:
       enabled: true
       image:
-        repository: lachlanevenson/k8s-kubectl
-        tag: "v1.25.4"
+        repository: docker.io/alpine/k8s
+        tag: "1.33.2"
       resources:
         requests:
           cpu: 10m
@@ -540,6 +538,8 @@ openzaak:
     #       oidc_rp_sign_algo: RS256
     #       oidc_provider_identifier: keycloak-provider
     #       userinfo_claims_source: id_token
+    #       # Enable PKCE on the application side — requires pkceEnabled: true on the Keycloak client.
+    #       oidc_use_pkce: true
     #       options:
     #         user_settings:
     #           claim_mappings:
@@ -564,10 +564,21 @@ openzaak:
       # openzaak_openinwoner_secret: "<openzaak_openinwoner_secret>"
       # opennotificaties_autorisatie_api_secret: "<opennotificaties_autorisatie_api_secret>"
       # openzaak_opennotificaties_secret: "<openzaak_opennotificaties_secret>"
+    oidcUrl: https://openzaak.example.nl
+    oidcSecret: "<openzaak>"
+    # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
+    pkceEnabled: false
   create_required_catalogi_job:
     client_id: "<openzaak_client_id>"
     secret: "<openzaak_secret>"
     enabled: true
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
     e2eTestZaaktype:
       # set to false to disable automatic creation and publishing of the e2e-test zaaktype if it does not exist yet
       create: true
@@ -674,6 +685,8 @@ opennotificaties:
     #       oidc_rp_sign_algo: RS256
     #       oidc_provider_identifier: keycloak-provider
     #       userinfo_claims_source: id_token
+    #       # Enable PKCE on the application side — requires pkceEnabled: true on the Keycloak client.
+    #       oidc_use_pkce: true
     #       options:
     #         user_settings:
     #           claim_mappings:
@@ -784,6 +797,8 @@ opennotificaties:
     #         name: Open Notificaties
     oidcUrl: https://opennotificaties.example.nl
     oidcSecret: "<opennotificaties>"
+    # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
+    pkceEnabled: false
   settings:
     allowedHosts: opennotificaties.podiumd.svc.cluster.local
     maxRetries: 5
@@ -855,6 +870,8 @@ opennotificaties:
 objecten:
   configuration:
     enabled: true
+    demo:
+      enabled: false  # upstream objecten chart has no nil-guard on this field; default to false
     initContainer:
       enabled: false
     job:
@@ -946,6 +963,8 @@ objecten:
     #       oidc_rp_sign_algo: RS256
     #       oidc_provider_identifier: keycloak-provider
     #       userinfo_claims_source: id_token
+    #       # Enable PKCE on the application side — requires pkceEnabled: true on the Keycloak client.
+    #       oidc_use_pkce: true
     #       options:
     #         user_settings:
     #           claim_mappings:
@@ -967,6 +986,8 @@ objecten:
     #             - Registreerders
     oidcUrl: https://objecten.example.nl
     oidcSecret: "<objecten>"
+    # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
+    pkceEnabled: false
   settings:
     allowedHosts: objecten.podiumd.svc.cluster.local
     email:
@@ -1065,6 +1086,8 @@ objecttypen:
     #       oidc_rp_sign_algo: RS256
     #       oidc_provider_identifier: keycloak-provider
     #       userinfo_claims_source: id_token
+    #       # Enable PKCE on the application side — requires pkceEnabled: true on the Keycloak client.
+    #       oidc_use_pkce: true
     #       options:
     #         user_settings:
     #           claim_mappings:
@@ -1087,6 +1110,8 @@ objecttypen:
     token: "<token>"
     oidcUrl: https://objecttypen.example.nl
     oidcSecret: "<objecttypen>"
+    # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
+    pkceEnabled: false
   settings:
     allowedHosts: objecttypen.podiumd.svc.cluster.local
     email:
@@ -1105,6 +1130,13 @@ objecttypen:
   # used for create-required-objecttypen podiumd job only
   create_required_objecttypen_job:
     enabled: true
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
   resources:
     requests:
       cpu: 10m
@@ -1126,7 +1158,10 @@ openarchiefbeheer:
   configuration:
     enabled: true
     oidcUrl: https://abc.example.nl
-    oidcSecret: "abc"
+    oidcSecret: ""
+    # -- Enable PKCE (S256) on the Keycloak client. NOTE: openarchiefbeheer v1.1.1 does not yet support
+    # OIDC authentication; this switch is reserved for when OIDC support is added to the application.
+    pkceEnabled: false
     job:
       enabled: true
       backoffLimit: 6
@@ -1191,6 +1226,8 @@ openarchiefbeheer:
     #       oidc_rp_client_id: example-client-id
     #       oidc_rp_client_secret: ${keycloak_client_secret}
     #       oidc_rp_sign_algo: RS256
+    #       # Enable PKCE on the application side — requires pkceEnabled: true on the Keycloak client.
+    #       oidc_use_pkce: true
     #       claim_mapping:
     #         email:
     #           - email
@@ -1342,6 +1379,8 @@ openklant:
     #       - roles
     #       oidc_rp_sign_algo: RS256
     #       userinfo_claims_source: id_token
+    #       # Enable PKCE on the application side — requires pkceEnabled: true on the Keycloak client.
+    #       oidc_use_pkce: true
     #       options:
     #         user_settings:
     #           claim_mappings:
@@ -1365,6 +1404,8 @@ openklant:
     #           default_groups: []
     oidcUrl: https://openklant.example.nl
     oidcSecret: "<openklant>"
+    # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
+    pkceEnabled: false
   settings:
     allowedHosts: openklant.podiumd.svc.cluster.local
     email:
@@ -1450,6 +1491,8 @@ openformulieren:
     #       oidc_rp_sign_algo: RS256
     #       oidc_provider_identifier: keycloak-provider
     #       userinfo_claims_source: id_token
+    #       # Enable PKCE on the application side — requires pkceEnabled: true on the Keycloak client.
+    #       oidc_use_pkce: true
     #       options:
     #         user_settings:
     #           claim_mappings:
@@ -1570,6 +1613,8 @@ openformulieren:
     #         }
     oidcUrl: https://openformulieren.example.nl
     oidcSecret: "<openformulieren>"
+    # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
+    pkceEnabled: false
   settings:
     allowedHosts: openformulieren-nginx.podiumd.svc.cluster.local
     email:
@@ -1675,6 +1720,8 @@ openinwoner:
     #       oidc_nonce_size: 32
     #       oidc_state_size: 32
     #       userinfo_claims_source: id_token
+    #       # Enable PKCE on the application side — requires pkceEnabled: true on the Keycloak client.
+    #       oidc_use_pkce: true
     #   zgw_consumers_config_enable: true
     #   zgw_consumers:
     #     services:
@@ -1759,6 +1806,8 @@ openinwoner:
     secrets: {}
     oidcUrl: https://openinwoner.example.nl
     oidcSecret: "<openinwoner>"
+    # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
+    pkceEnabled: false
   settings:
     allowedHosts: openinwoner-nginx.podiumd.svc.cluster.local
     brpVersion: ""
@@ -2202,6 +2251,9 @@ kiss:
       authority: ""
       clientId: kiss
       clientSecret: "<kiss>"
+      # -- Enable PKCE (S256) on the Keycloak client for KISS.
+      # KISS is a React frontend; the OIDC client library must support PKCE.
+      pkceEnabled: false
       medewerkerIdentificatie:
         claim: samaccountname
         truncate:
@@ -2387,6 +2439,9 @@ zac:
     realm: podiumd
     clientId: zac
     secret: changeme
+    # -- Enable PKCE (S256) on the Keycloak client. NOTE: ZAC does not currently support PKCE;
+    # this switch is reserved for when PKCE support is added to the ZAC OIDC client.
+    pkceEnabled: false
   bagApi:
     url: http://bag.example.nl
     apiKey: "dummy"
@@ -2489,7 +2544,7 @@ zac:
       rsin: "000000000"
     verantwoordelijke:
       rsin: "000000000"
-  pabc:
+  pabcApi:
     apiKey: ""
     url: ""
   zacInternalEndpointsApiKey: "dummy"
@@ -2623,15 +2678,16 @@ zgw-office-addin:
       secret: "dummy"
 
 clamav:
-  # override: values-enable-observability.yaml enables metrics exporter sidecar and ServiceMonitor
+  # override: values-enable-observability.yaml enables metrics exporter sidecar (metrics.enabled: true)
+  # and ServiceMonitor (metrics.serviceMonitor.enabled: true). Supported since clamav chart v3.7.1.
+  # serviceMonitor requires the Prometheus Operator CRD (monitoring.coreos.com/v1 ServiceMonitor).
   image:
     tag: "1.4.4"
   metrics:
+    enabled: false
     image:
       repository: docker.io/sergeymakinen/clamav_exporter
       tag: "v2.1.2"
-    # serviceMonitor requires the Prometheus Operator CRD (monitoring.coreos.com/v1 ServiceMonitor)
-    # to be installed in the cluster. Enable via values-enable-observability.yaml.
     serviceMonitor:
       enabled: false
   nameOverride: clamav
@@ -2776,7 +2832,7 @@ apiproxy:
   resolverIp: 10.0.0.10 # KubeDNS resolver
   locations:
     commonSettings: &commonLocation
-      sslVerify: "off"
+      sslVerify: "on"
       hostHeader: "lab.api.mijniconnect.nl"
     bag:
       <<: *commonLocation
@@ -2879,6 +2935,10 @@ ita:
       frontendUrl: "REP_ITA_OIDC_FRONTEND_URL_REP"
       clientId: "ita"
       clientSecret: "REP_ITA_OIDC_CLIENT_SECRET_REP"
+      # -- Enable PKCE (S256) on the Keycloak client for ITA.
+      # ITA is a JS frontend; the upstream chart has no app-side PKCE toggle. PKCE support
+      # depends on the OIDC client library used by the application.
+      pkceEnabled: false
       itaSystemAccessRole: "ITA_Gebruiker"
       functioneelBeheerderRole: "ITA_Functioneel_Beheerder"
       nameClaimType: "name"
@@ -2900,7 +2960,7 @@ ita:
     image:
       repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller"
       tag: "3.0.0"
-      pullPolicy: Always
+      pullPolicy: IfNotPresent
 
     notification:
       pollerMessage: "Poller uitgevoerd om:"
@@ -2919,7 +2979,7 @@ ita:
 
 serviceAccount:
   create: true
-  automount: true
+  automount: false
   annotations: {}
   name: ""
 
@@ -2930,17 +2990,9 @@ pabc:
     enabled: false
   image:
     tag: 1.1.0
-  nodeSelector: {}
   migrations:
     image:
       tag: 1.1.0
-    nodeSelector: {}
-  initContainers:
-    waitFor:
-      image:
-        repository: "ghcr.io/groundnuty/k8s-wait-for"
-        tag: "v2.0"
-        pullPolicy: IfNotPresent
 
   settings:
     database:
@@ -2956,6 +3008,8 @@ pabc:
       authority: ""
       clientId: "pabc"
       clientSecret: ""
+      # -- Enable PKCE (S256) on the Keycloak client. PABC is a .NET app; enable when OpenIdConnect PKCE is configured in the application.
+      pkceEnabled: false
       functioneelBeheerderRole: "administrator"
       nameClaimType: "name"
       roleClaimType: "roles"

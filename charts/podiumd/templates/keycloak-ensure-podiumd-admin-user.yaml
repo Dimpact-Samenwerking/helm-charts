@@ -35,11 +35,7 @@ spec:
         {{- toYaml .Values.nodeSelector | nindent 8 }}
       {{- end }}
       restartPolicy: Never
-      volumes:
-      - name: work
-        emptyDir: {}
-      - name: skip-flag
-        emptyDir: {}
+      serviceAccountName: {{ include "podiumd.serviceAccountName" . }}
       initContainers:
       - name: check-operator-sa
         image: {{ include "podiumd.image" (index .Values "keycloak-operator").jobs.ensureOperatorSa.image }}
@@ -88,6 +84,7 @@ spec:
           runAsNonRoot: true
           runAsUser: 100
           allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
           capabilities:
             drop: ["ALL"]
           seccompProfile:
@@ -95,6 +92,8 @@ spec:
         volumeMounts:
         - name: skip-flag
           mountPath: /skip
+        - name: tmp
+          mountPath: /tmp
       - name: generate-sql
         image: {{ include "podiumd.image" (index .Values "keycloak-operator").jobs.ensurePodiumdAdminUser.initImage }}
         resources:
@@ -219,6 +218,8 @@ spec:
         volumeMounts:
         - name: work
           mountPath: /work
+        - name: tmp
+          mountPath: /tmp
       containers:
       - name: ensure-podiumd-admin-user
         image: {{ include "podiumd.image" (index .Values "keycloak-operator").jobs.ensurePodiumdAdminUser.image }}
@@ -271,4 +272,13 @@ spec:
         volumeMounts:
         - name: work
           mountPath: /work
+        - name: tmp
+          mountPath: /tmp
+      volumes:
+      - name: work
+        emptyDir: {}
+      - name: skip-flag
+        emptyDir: {}
+      - name: tmp
+        emptyDir: {}
 {{- end }}
