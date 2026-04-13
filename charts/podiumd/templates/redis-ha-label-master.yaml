@@ -160,8 +160,8 @@ spec:
               # Verify the redis-ha-master service endpoint is populated and reachable
               echo "Verifying redis-ha-master service endpoint..."
               VERIFIED=0
-              WAIT=0
-              while [ "$VERIFIED" -eq 0 ] && [ "$WAIT" -lt 120 ]; do
+              VWAIT=0
+              while [ "$VERIFIED" -eq 0 ] && [ "$VWAIT" -lt 300 ]; do
                 ENDPOINT=$(kubectl get endpoints redis-ha-master \
                   -n "$NAMESPACE" \
                   -o jsonpath='{.subsets[0].addresses[0].ip}' 2>/dev/null || true)
@@ -169,14 +169,14 @@ spec:
                   echo "  redis-ha-master endpoint: $ENDPOINT:6379 — OK"
                   VERIFIED=1
                 else
-                  echo "  No endpoint yet, waiting 5s... (${WAIT}s elapsed)"
-                  sleep 5
-                  WAIT=$((WAIT + 5))
+                  echo "  No endpoint yet, waiting 10s... (${VWAIT}s elapsed)"
+                  sleep 10
+                  VWAIT=$((VWAIT + 10))
                 fi
               done
 
               if [ "$VERIFIED" -eq 0 ]; then
-                echo "ERROR: redis-ha-master service has no endpoint after ${WAIT}s."
+                echo "ERROR: redis-ha-master service has no endpoint after ${VWAIT}s."
                 exit 1
               fi
 
