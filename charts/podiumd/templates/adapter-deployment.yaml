@@ -29,6 +29,7 @@ spec:
           imagePullPolicy: {{ .Values.kiss.adapter.image.pullPolicy }}
           securityContext:
             runAsNonRoot: true
+            runAsUser: 1654
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             capabilities:

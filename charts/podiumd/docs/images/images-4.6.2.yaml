@@ -44,13 +44,18 @@
   version: "8.19.0"
   digest: "sha256:b066cbf876d50a5d024927878a586c4a39c985325ded195e2e231f4abdddf3c8"
 
+# ClamAV exporter sidecar
+- name: clamav_exporter
+  url: docker.io/sergeymakinen/clamav_exporter
+  version: "v2.1.2"
+
 # Redis operator + HA
 - name: redis
   url: quay.io/opstree/redis
   version: "v8.6.2"
   digest: "sha256:5f79911253cb74636e8e97555b08095902d46a835c6423adb123295b00ba70d7"
 
-- name: redis_exporter
+- name: redis-exporter
   url: quay.io/opstree/redis-exporter
   version: "v1.82.0"
   digest: "sha256:bce422b4bba8721bef04d5ca491eeec2b53278698b4bd9790f81fbb287cdfe88"
