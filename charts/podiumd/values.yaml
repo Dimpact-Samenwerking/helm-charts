@@ -1128,6 +1128,7 @@ objecttypen:
       threads: "2"
       maxRequests: "1000"
   image:
+    repository: maykinmedia/objecttypes-api
     tag: "3.4.1"
   # used for create-required-objecttypen podiumd job only
   create_required_objecttypen_job:

@@ -407,7 +407,7 @@ spec:
   template:
     spec:
       containers:
-        - image: {{ .Values.objecttypen.image.repository }}:{{ .Values.objecttypen.image.tag }}
+        - image: {{ include "podiumd.image" .Values.objecttypen.image }}
           command: ["/jobs/create-required-catalogi.py"]
           name: create-required-catalogi
           resources:
