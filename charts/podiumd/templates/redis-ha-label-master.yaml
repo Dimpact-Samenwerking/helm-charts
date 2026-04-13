@@ -21,6 +21,12 @@ rules:
   - apiGroups: [""]
     resources: ["pods"]
     verbs: ["get", "list", "patch"]
+  - apiGroups: [""]
+    resources: ["endpoints"]
+    verbs: ["get"]
+  - apiGroups: ["discovery.k8s.io"]
+    resources: ["endpointslices"]
+    verbs: ["get", "list"]
   - apiGroups: ["redis.redis.opstreelabs.in"]
     resources: ["redisreplications"]
     verbs: ["get"]
@@ -157,14 +163,15 @@ spec:
                 fi
               fi  # end SKIP_LABEL check
 
-              # Verify the redis-ha-master service endpoint is populated and reachable
+              # Verify the redis-ha-master service endpoint is populated
               echo "Verifying redis-ha-master service endpoint..."
               VERIFIED=0
               VWAIT=0
               while [ "$VERIFIED" -eq 0 ] && [ "$VWAIT" -lt 300 ]; do
-                ENDPOINT=$(kubectl get endpoints redis-ha-master \
+                ENDPOINT=$(kubectl get endpointslices \
                   -n "$NAMESPACE" \
-                  -o jsonpath='{.subsets[0].addresses[0].ip}' 2>/dev/null || true)
+                  -l "kubernetes.io/service-name=redis-ha-master" \
+                  -o jsonpath='{.items[0].endpoints[0].addresses[0]}' 2>/dev/null || true)
                 if [ -n "$ENDPOINT" ]; then
                   echo "  redis-ha-master endpoint: $ENDPOINT:6379 — OK"
                   VERIFIED=1
