@@ -3,6 +3,22 @@ entries:
   beproeving:
   - apiVersion: v2
     appVersion: 0.0.2
+    created: "2026-04-13T14:17:47.375486831Z"
+    dependencies:
+    - condition: zgw-office-addin.enabled
+      name: zgw-office-addin
+      repository: '@zgw-office-addin'
+      version: 0.0.31
+    deprecated: true
+    description: The right place for first time implementations and learning
+    digest: 9cc0f197e89ffde31d2ca3ab4b6840abfb17aa31b28101ad95d2f2fa87fd309d
+    name: beproeving
+    type: application
+    urls:
+    - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/beproeving-0.0.3/beproeving-0.0.3.tgz
+    version: 0.0.3
+  - apiVersion: v2
+    appVersion: 0.0.2
     created: "2025-09-19T12:57:36.748004445Z"
     dependencies:
     - condition: zgw-office-addin.enabled
@@ -141,6 +157,16 @@ entries:
   flowable-rest:
   - apiVersion: v2
     appVersion: 7.0.1
+    created: "2026-04-13T14:17:47.571201907Z"
+    deprecated: true
+    description: Flowable REST Helm chart
+    digest: 1376171ccf1f23db560ad7448ce4a8b80b3d07fabbd7f020ffacfabc2246d9dd
+    name: flowable-rest
+    urls:
+    - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/flowable-rest-1.0.1/flowable-rest-1.0.1.tgz
+    version: 1.0.1
+  - apiVersion: v2
+    appVersion: 7.0.1
     created: "2024-08-12T15:40:45.122998742Z"
     description: Flowable REST Helm chart
     digest: d608b10d8578aacc7bacd688f0bbba40c7396daeb137e2de99f1c8abfbfbbf82
@@ -158,6 +184,16 @@ entries:
     - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/flowable-rest-1.0.0-feature-create-snapshots-snapshot/flowable-rest-1.0.0-feature-create-snapshots-snapshot.tgz
     version: 1.0.0-feature-create-snapshots-snapshot
   flowable-ui:
+  - apiVersion: v2
+    appVersion: 6.8.0
+    created: "2026-04-13T14:17:47.771170911Z"
+    deprecated: true
+    description: Flowable UI Helm chart
+    digest: 78973f3e8ecab54c81fd1bcdb78e089cb5f0980b6860dd1f804196dd0d7ec7a7
+    name: flowable-ui
+    urls:
+    - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/flowable-ui-1.0.1/flowable-ui-1.0.1.tgz
+    version: 1.0.1
   - apiVersion: v2
     appVersion: 6.8.0
     created: "2024-08-12T15:40:45.300315319Z"
@@ -607,6 +643,114 @@ entries:
       version: 0.24.0
     description: PodiumD Helm chart
     digest: 2d100a1e9b9933ff0c528900188d2abad50abacfedc6118530527ab1b0e4eef3
+    name: podiumd
+    type: application
+    urls:
+    - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/podiumd-4.6.2-feature-podiumd-4.6.2-snapshot/podiumd-4.6.2-feature-podiumd-4.6.2-snapshot.tgz
+    version: 4.6.2-feature-podiumd-4.6.2-snapshot
+  - apiVersion: v2
+    appVersion: 4.6.2
+    created: "2026-04-13T14:17:48.312413943Z"
+    dependencies:
+    - condition: keycloak-operator.enabled
+      name: keycloak-operator
+      repository: '@adfinis'
+      version: 1.11.2
+    - condition: clamav.enabled
+      name: clamav
+      repository: '@wiremind'
+      version: 3.7.1
+    - alias: brppersonenmock
+      condition: brppersonenmock.enabled
+      name: brp-personen-mock
+      repository: '@dimpact'
+      version: 1.2.8
+    - condition: openzaak.enabled
+      name: openzaak
+      repository: '@maykinmedia'
+      version: 1.13.1
+    - condition: opennotificaties.enabled
+      name: opennotificaties
+      repository: '@maykinmedia'
+      version: 1.13.1
+    - condition: objecten.enabled
+      name: objecten
+      repository: '@maykinmedia'
+      version: 2.12.0
+    - condition: objecttypen.enabled
+      name: objecttypen
+      repository: '@maykinmedia'
+      version: 1.6.1
+    - condition: openarchiefbeheer.enabled
+      name: openarchiefbeheer
+      repository: '@maykinmedia'
+      version: 1.5.3
+    - condition: openklant.enabled
+      name: openklant
+      repository: '@maykinmedia'
+      version: 1.11.0
+    - alias: openformulieren
+      condition: openformulieren.enabled
+      name: openforms
+      repository: '@maykinmedia'
+      version: 1.12.0
+    - condition: openinwoner.enabled
+      name: openinwoner
+      repository: '@maykinmedia'
+      version: 2.1.3
+    - alias: referentielijsten
+      condition: referentielijsten.enabled
+      name: referentielijsten
+      repository: '@maykinmedia'
+      version: 0.1.1
+    - condition: openbeheer.enabled
+      name: openbeheer
+      repository: '@maykinmedia'
+      version: 0.1.2
+    - alias: kisselastic
+      condition: kisselastic.enabled
+      name: kiss-elastic
+      repository: '@kiss-elastic'
+      tags:
+      - contact
+      version: 1.1.0
+    - alias: zac
+      condition: zac.enabled
+      name: zaakafhandelcomponent
+      repository: '@zac'
+      tags:
+      - zaak
+      version: 1.0.208
+    - condition: zgw-office-addin.enabled
+      name: zgw-office-addin
+      repository: '@zgw-office-addin'
+      version: 0.0.73
+    - alias: ita
+      condition: ita.enabled
+      name: internetaakafhandeling
+      repository: oci://ghcr.io/interne-taak-afhandeling
+      version: 3.0.0
+    - alias: kiss
+      condition: kiss.enabled
+      name: kiss-chart
+      repository: oci://ghcr.io/klantinteractie-servicesysteem
+      version: 2.2.2
+    - alias: pabc
+      condition: pabc.enabled
+      name: pabc
+      repository: oci://ghcr.io/platform-autorisatie-beheer-component
+      version: 1.1.0
+    - alias: omc
+      condition: omc.enabled
+      name: notifynl-omc-nodep
+      repository: '@worth-nl'
+      version: 0.14.0
+    - condition: redis-operator.enabled
+      name: redis-operator
+      repository: '@opstree'
+      version: 0.24.0
+    description: PodiumD Helm chart
+    digest: 633e83db3edf1cdc42c27c7d13d00af60873a9b40900ab6df04eed8aeab9878d
     name: podiumd
     type: application
     urls:
@@ -16482,6 +16626,16 @@ entries:
   vngreferentielijsten:
   - apiVersion: v2
     appVersion: 0.6.1
+    created: "2026-04-13T14:17:48.514987425Z"
+    deprecated: true
+    description: VNG Referentielijsten reference implementation Helm chart
+    digest: 5881b1d90b0b885e6e385057e82cf0c95be6b500bf34e734fd9ae31dac557eff
+    name: vngreferentielijsten
+    urls:
+    - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/vngreferentielijsten-1.1.6/vngreferentielijsten-1.1.6.tgz
+    version: 1.1.6
+  - apiVersion: v2
+    appVersion: 0.6.1
     created: "2024-07-04T14:14:38.751664674Z"
     description: A Helm chart for VNG Referentielijsten reference implementation
     digest: 92331284c989633ee15b4b352e21da0a36156055e14d5f7b55cea38b90269049
@@ -16733,4 +16887,4 @@ entries:
     urls:
     - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/zac-1.0.0/zac-1.0.0.tgz
     version: 1.0.0
-generated: "2026-04-13T11:40:13.092889503Z"
+generated: "2026-04-13T14:17:48.516327263Z"
