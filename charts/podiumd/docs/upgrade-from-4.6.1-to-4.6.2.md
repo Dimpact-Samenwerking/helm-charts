@@ -280,7 +280,7 @@ redis-operator:
   redis-ha:
     redisExporter:
       image:
-        repository: <acr>/redis_exporter
+        repository: <acr>/redis-exporter
 ```
 
 No tag override needed — the tag is set by the chart default.
