@@ -379,3 +379,17 @@ by `accessTokenLifespan`). Sessions that exceed these limits will require re-aut
 
 For the full list of new and changed images in this release see
 [docs/images/images-4.6.2.yaml](images/images-4.6.2.yaml).
+
+---
+
+## Known issues
+
+### OpenZaak startup failure: duplicate key on `admin_index_appgroup.slug`
+
+After upgrading, `openzaak` pods may fail to become ready with:
+
+```
+django.db.utils.IntegrityError: duplicate key value violates unique constraint "admin_index_appgroup_slug_key"
+```
+
+This is caused by a psycopg3 transaction semantics issue in the `post_migrate` signal handler that resets the admin index fixture. See [openzaak-post-migrate-appgroup-duplicate-key.md](openzaak-post-migrate-appgroup-duplicate-key.md) for the full analysis, workaround, and proper fix.
