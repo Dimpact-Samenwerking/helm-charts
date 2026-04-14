@@ -4,6 +4,8 @@
 
 ### PABC updated to 1.1.0
 
+> **Note:** These PABC changes were already included in the latest 4.5 patch release (podiumd 4.5.16). Environments that have already upgraded to 4.5.16 before migrating to 4.6.x have these images in their ACR and no new ACR imports are required.
+
 The PABC application and migration images have been updated from `1.0.0` to `1.1.0`.
 
 #### ACR image overrides
