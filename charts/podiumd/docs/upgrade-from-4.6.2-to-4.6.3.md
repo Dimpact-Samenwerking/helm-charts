@@ -1,4 +1,4 @@
-# Upgrade guide: PodiumD 4.6.1 → 4.6.2
+# Upgrade guide: PodiumD 4.6.2 → 4.6.3
 
 ## Required manual steps before upgrading
 
@@ -159,7 +159,7 @@ For **ACR-based environments**, the repository path must use `nginx-unprivileged
 for all of these components. Add or verify the following overrides:
 
 ```yaml
-# api-proxy (changed in 4.6.2 — was "nginx")
+# api-proxy (changed in 4.6.3 — was "nginx")
 apiproxy:
   image:
     repository: <acr>/nginx-unprivileged
@@ -378,7 +378,7 @@ by `accessTokenLifespan`). Sessions that exceed these limits will require re-aut
 ---
 
 For the full list of new and changed images in this release see
-[docs/images/images-4.6.2.yaml](images/images-4.6.2.yaml).
+[docs/images/images-4.6.3.yaml](images/images-4.6.3.yaml).
 
 ---
 
