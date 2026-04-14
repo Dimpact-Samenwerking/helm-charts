@@ -1,6 +1,16 @@
 # Images die nieuw of gewijzigd zijn in podiumd 4.6.3 t.o.v. 4.6.2.
 
 # Applicaties
+- name: zgw-office-add-in-frontend
+  url: ghcr.io/infonl/zgw-office-add-in-frontend
+  version: "v0.9.250"
+  digest: "sha256:db9811640e12821dd770acc24ed8019ccafd81cc01c2b839fb0dd9ee54adbd88"
+
+- name: zgw-office-add-in-backend
+  url: ghcr.io/infonl/zgw-office-add-in-backend
+  version: "v0.9.250"
+  digest: "sha256:be4addfe6e084c695ab6f9db588f13fc05f7d26afded006e37fc39cf326fe2bb"
+
 - name: k8s
   url: docker.io/alpine/k8s
   version: "1.33.2"

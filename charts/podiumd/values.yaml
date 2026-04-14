@@ -1,4 +1,4 @@
-﻿# yaml-language-server: $schema=./kiss.schema.json
+# yaml-language-server: $schema=./kiss.schema.json
 global:
   configuration:
     enabled: true
@@ -23,7 +23,7 @@ persistentVolume:
 keycloak-operator:
   enabled: true
   # Adfinis Helm chart wrapping the official Keycloak Operator manifests.
-  # Chart: https://charts.adfinis.com / adfinis/keycloak-operator (appVersion 26.5.6)
+  # Chart: https://charts.adfinis.com / adfinis/keycloak-operator (appVersion 26.5.7)
   # Note: it appears that the podname automatically appends -operator.
   # Official operator image: quay.io/keycloak/keycloak-operator:26.5.7
   # Note: adfinis chart 1.11.2 supports up to appVersion 26.5.6; 26.6.0 is not yet supported.
@@ -2986,9 +2986,17 @@ pabc:
     enabled: false
   image:
     tag: 1.1.0
+  nodeSelector: {}
   migrations:
     image:
       tag: 1.1.0
+    nodeSelector: {}
+  initContainers:
+    waitFor:
+      image:
+        repository: "ghcr.io/groundnuty/k8s-wait-for"
+        tag: "v2.0"
+        pullPolicy: IfNotPresent
 
   settings:
     database:

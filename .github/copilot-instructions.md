@@ -137,6 +137,17 @@ On aks-blue environments, all images must be pulled from the environment-specifi
 - Keycloak realm security changes (token lifespans, brute force, password policy, session settings, etc.) must be logged in `charts/podiumd/docs/keycloak-security-updates.md`.
 - ClamAV security/config updates must be logged in `charts/podiumd/docs/clamav-security-updates.md`.
 
+### BOM Check
+Before committing changes to `values.yaml`, verify it has no UTF-8 BOM (bytes `0xEF 0xBB 0xBF`), which breaks YAML tooling:
+
+```powershell
+$bytes = [System.IO.File]::ReadAllBytes("charts/podiumd/values.yaml")
+if ($bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) {
+    [System.IO.File]::WriteAllBytes("charts/podiumd/values.yaml", $bytes[3..($bytes.Length-1)])
+    Write-Host "BOM removed"
+} else { Write-Host "No BOM - OK" }
+```
+
 ### Duplicate Key Detection
 Before committing changes to `values.yaml`, run the duplicate key check to catch silent data-loss bugs:
 

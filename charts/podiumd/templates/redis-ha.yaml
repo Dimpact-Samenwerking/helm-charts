@@ -39,7 +39,7 @@ spec:
     additionalRedisConfig: redis-ha-config
   {{- end }}
   redisExporter:
-    enabled: {{ $redisHa.redisExporter.enabled | default false }}
+    enabled: {{ ($redisHa.redisExporter | default dict).enabled | default false }}
     image: {{ include "podiumd.image" $redisHa.redisExporter.image }}
   {{- with $redisHa.podSecurityContext }}
   podSecurityContext:

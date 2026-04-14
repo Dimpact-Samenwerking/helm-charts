@@ -204,23 +204,21 @@ No tag overrides are needed — tags are set by the chart defaults (`1.29.5`).
 
 ### ZAC: `pabc` renamed to `pabcApi` in values
 
-The `zac.settings.pabc` key has been renamed to `zac.settings.pabcApi` to match the ZAC chart
-schema. If your environment values file sets `zac.settings.pabc`, rename the key:
+The `zac.pabc` key has been renamed to `zac.pabcApi` to match the ZAC chart
+schema. If your environment values file sets `zac.pabc`, rename the key:
 
 ```yaml
 # Before
 zac:
-  settings:
-    pabc:
-      apiUrl: "..."
-      apiKey: REP_ZAC_PABC_API_KEY_REP
+  pabc:
+    apiUrl: "..."
+    apiKey: REP_ZAC_PABC_API_KEY_REP
 
 # After
 zac:
-  settings:
-    pabcApi:
-      apiUrl: "..."
-      apiKey: REP_ZAC_PABC_API_KEY_REP
+  pabcApi:
+    apiUrl: "..."
+    apiKey: REP_ZAC_PABC_API_KEY_REP
 ```
 
 ---
