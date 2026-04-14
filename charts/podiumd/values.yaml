@@ -60,7 +60,7 @@ keycloak-operator:
       image:
         registry: ""
         repository: curlimages/curl
-        tag: "8.18.0"
+        tag: "8.19.0"
       # Client secret for the keycloak-operator client. Set this to a known value so Helm
       # can create the K8s secret directly. The job will enforce this secret in Keycloak.
       clientSecret: "changeme"
