@@ -372,7 +372,7 @@ redis-operator:
       image:
         registry: quay.io
         repository: opstree/redis-exporter
-        tag: "v1.44.0"
+        tag: "v1.82.0"
     resources:
       requests:
         cpu: 100m
