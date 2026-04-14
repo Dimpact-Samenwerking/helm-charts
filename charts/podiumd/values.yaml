@@ -152,7 +152,6 @@ keycloak:
         enabled: true
         secret: "monitoring_secret"
         oidcUrl: "https://monitoring.example.nl"
-  enabled: false
   name: "keycloak"
   features:
     enabled: []
