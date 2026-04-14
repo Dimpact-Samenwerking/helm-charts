@@ -59,6 +59,12 @@ pabc:
       clientId: pabc
       clientSecret: "REP_PABC_OIDC_SECRET_REP"  # or literal value if not using pipeline
       oidcUrl: https://pabc.<env-domain>
+      # Role in the 'pabc' Keycloak client that grants management UI access.
+      # Must match the client role created by the realm config (always "administrator").
+      functioneelBeheerderRole: administrator
+      # Must match the protocol mapper claim name on the 'pabc' Keycloak client.
+      roleClaimType: roles
+      nameClaimType: preferred_username
     keycloakAdmin:
       clientId: pabc-keycloak-admin
       clientSecret: "REP_PABC_KEYCLOAK_ADMIN_SECRET_REP"
@@ -176,37 +182,67 @@ Add a DNS A (or CNAME) record for `pabc.<env-domain>` pointing to the cluster's 
 
 ---
 
-## 8. Post-install: configure roles in PABC
+## 8. Post-install: seed PABC role mappings (automated)
 
-After the first successful deploy, PABC needs to be configured to map Keycloak groups to ZAC roles. This is done through the PABC management UI and is **required** before PABC is functional for end users.
+After the first successful deploy, the PABC database must be seeded with:
+- The ZAC application roles (`behandelaar`, `beheerder`, `coordinator`, `raadpleger`, `recordmanager`)
+- Functional roles that map 1:1 to the Keycloak group names in the `podiumd` realm
+- A domain and mappings that authorise each group for its intended ZAC roles
 
-### Log in
+**Important:** The `pabc-migrations` job seeds the application with the name `"zac"`, but ZAC always sends `application-name="zaakafhandelcomponent"` to the PABC API. Without renaming the application, all ZAC authorisation calls return empty results. The init job below corrects this.
+
+### Automated approach (recommended)
+
+Run the PABC init job from `podiumd-infra`:
+
+```bash
+kubectl delete job post-deployment-pabc-init -n podiumd --ignore-not-found
+kubectl apply  -f kubernetes/post-deployment-setup/post-deployment-pabc-init-job.yml
+kubectl logs   -n podiumd -l job-name=post-deployment-pabc-init --follow
+```
+
+The job is idempotent and safe to re-run. It performs the following SQL operations:
+1. Renames application `"zac"` → `"zaakafhandelcomponent"` (matches `APPLICATION_NAME_ZAC` constant in ZAC source)
+2. Adds missing application roles: `behandelaar`, `beheerder`, `coordinator`, `raadpleger`, `recordmanager`
+3. Renames functional role `"administrator"` → `"administrators"` (must match Keycloak group name)
+4. Adds functional roles for each Keycloak group: `behandelaars`, `beheerders`, `coordinators`, `raadplegers`, `recordmanagers`
+5. Creates domain `"Podiumd"`
+6. Creates mappings with `is_all_entity_types=true` (covers all zaaktypen):
+
+| Keycloak group | ZAC application roles |
+|---|---|
+| `administrators` | all roles |
+| `behandelaars` | `behandelaar`, `raadpleger` |
+| `coordinators` | `coordinator`, `behandelaar`, `raadpleger` |
+| `recordmanagers` | `recordmanager`, `coordinator`, `behandelaar`, `raadpleger` |
+| `beheerders` | `beheerder`, `coordinator`, `behandelaar`, `raadpleger` |
+| `raadplegers` | `raadpleger` |
+
+> **Note on `domein_elk_zaaktype`:** This role is deprecated in ZAC (annotated `@Deprecated`) and is not seeded by the init job. The `is_all_entity_types=true` flag in the mappings already covers all zaaktypen without it.
+
+### Manual approach (fallback)
+
+If you prefer to configure role mappings through the PABC management UI:
 
 1. Open `https://pabc.<env-domain>` in a browser
-2. Log in with a user who is a member of the `administrators` Keycloak group (this group has the `pabc.administrator` role, which grants access to the management UI)
+2. Log in with a user who is a member of the `administrators` Keycloak group
+3. Configure the group → role mappings per the table above
 
-### Configure role mappings
-
-PABC reads users and groups from Keycloak via the `pabc-keycloak-admin` service account. In the UI you configure which Keycloak groups are entitled to which ZAC roles/permissions.
-
-The typical setup mirrors the existing Keycloak group structure:
-
-| Keycloak group | Intended ZAC roles in PABC |
-|----------------|---------------------------|
-| `administrators` | All roles |
-| `behandelaars` | `behandelaar`, `raadpleger`, `domein_elk_zaaktype` |
-| `coordinators` | `coordinator`, `behandelaar`, `raadpleger`, `domein_elk_zaaktype` |
-| `recordmanagers` | `recordmanager`, `coordinator`, `behandelaar`, `raadpleger`, `domein_elk_zaaktype` |
-| `beheerders` | `beheerder`, `coordinator`, `behandelaar`, `raadpleger`, `domein_elk_zaaktype` |
-| `raadplegers` | `raadpleger`, `domein_elk_zaaktype` |
-
-> The exact role mapping depends on the municipality's authorisation requirements. The above is the standard PodiumD group/role structure.
+You still need to fix the application name and seed the application roles, which requires running the init job or manually executing its SQL.
 
 ### Verify ZAC integration
 
-Once PABC is configured, verify ZAC can reach it:
+After seeding, verify the PABC API returns groups for a ZAC role:
 
-1. In ZAC, open a zaak and check that the PABC authorisation panel loads (requires `zac.featureFlags.pabcIntegration: true` and a matching API key)
+```bash
+kubectl run tmp-verify --rm -i --restart=Never --image=curlimages/curl:8.6.0 -n podiumd -- \
+  curl -s -H "X-API-KEY: <pabc-api-key>" \
+  "http://pabc/api/v1/groups?application-name=zaakafhandelcomponent&application-role-name=behandelaar&entity-type-id=test&entity-type=ZAAKTYPE"
+# Expected: {"groups":[{"name":"behandelaars",...}]}
+```
+
+Then verify ZAC can reach PABC:
+1. In ZAC, open a zaak of the e2e zaaktype and confirm the behandelaar assignment works
 2. If ZAC shows errors, check the ZAC pod logs for `401` or connection errors to `http://pabc/api`
 
 ---
@@ -220,5 +256,7 @@ Once PABC is configured, verify ZAC can reach it:
 | Users can log in but are not recognised as admin / UI shows no management options | `functioneelBeheerderRole` mismatch or user not in `administrators` group | Verify `pabc.settings.oidc.functioneelBeheerderRole` is `administrator`; verify the user is in the `administrators` Keycloak group |
 | PABC cannot load users/groups from Keycloak | `pabc-keycloak-admin` client secret wrong or service account roles missing | Check `pabc.settings.keycloakAdmin.clientSecret` matches what was provisioned; verify the service account has `view-users`, `view-realm`, `view-groups` in Keycloak |
 | ZAC cannot reach PABC / authorisation calls return 401 | API key mismatch or wrong internal URL | Verify `pabc.settings.apiKeys[0]` and `zac.pabcApi.apiKey` are identical; verify `zac.pabcApi.url` is `http://pabc/api` |
+| PABC API returns `{"groups":[]}` for any role query | Application name mismatch: DB has `"zac"`, ZAC sends `"zaakafhandelcomponent"` | Run `post-deployment-pabc-init-job.yml` — it renames the application and seeds all required roles and mappings |
+| ZAC authorisation works for no groups / all users denied | PABC DB has no role mappings | Run `post-deployment-pabc-init-job.yml` to seed functional roles, domain, and mappings |
 | Keycloak clients `pabc` / `pabc-keycloak-admin` not created | `global.configuration.enabled` is `false`, or job ran before `pabc.enabled` was set | Set `global.configuration.enabled: true` with `pabc.enabled: true` and redeploy; if a partial run already created the clients with wrong config, also set `global.configuration.overwrite: true` |
 | Pod stuck in `Pending` on aks-blue cluster | Missing `nodeSelector` | Ensure `pabc.nodeSelector: kubernetes.azure.com/mode: user` is set in the values file |

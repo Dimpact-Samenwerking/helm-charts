@@ -697,6 +697,23 @@ data:
       realm:
         - name: podiumd-admin
           description: PodiumD Administrator
+        {{- if .Values.pabc.enabled }}
+        # PABC functional roles: used as realm roles so ZAC can read them from
+        # realm_access.roles when pabcIntegration is enabled. Each group gets
+        # the realm role matching its name so that PABC can look up the groups.
+        - name: administrators
+          description: PABC functional role - administrators
+        - name: behandelaars
+          description: PABC functional role - behandelaars
+        - name: beheerders
+          description: PABC functional role - beheerders
+        - name: coordinators
+          description: PABC functional role - coordinators
+        - name: raadplegers
+          description: PABC functional role - raadplegers
+        - name: recordmanagers
+          description: PABC functional role - recordmanagers
+        {{- end }}
       client:
         abc:
           - name: administrators
@@ -743,6 +760,9 @@ data:
             - "Administrators"
         realmRoles:
           - "podiumd-admin"
+          {{- if .Values.pabc.enabled }}
+          - "administrators"
+          {{- end }}
         clientRoles:
           zac:
             - "recordmanager"
@@ -779,6 +799,10 @@ data:
         attributes:
           description:
             - "Behandelaars"
+        {{- if .Values.pabc.enabled }}
+        realmRoles:
+          - "behandelaars"
+        {{- end }}
         clientRoles:
           zac:
             - "domein_elk_zaaktype"
@@ -789,6 +813,10 @@ data:
         attributes:
           description:
             - "Coordinators"
+        {{- if .Values.pabc.enabled }}
+        realmRoles:
+          - "coordinators"
+        {{- end }}
         clientRoles:
           zac:
             - "domein_elk_zaaktype"
@@ -800,6 +828,10 @@ data:
         attributes:
           description:
             - "Recordmanagers"
+        {{- if .Values.pabc.enabled }}
+        realmRoles:
+          - "recordmanagers"
+        {{- end }}
         clientRoles:
           zac:
             - "domein_elk_zaaktype"
@@ -812,6 +844,10 @@ data:
         attributes:
           description:
             - "Beheerders"
+        {{- if .Values.pabc.enabled }}
+        realmRoles:
+          - "beheerders"
+        {{- end }}
         clientRoles:
           zac:
             - "domein_elk_zaaktype"
@@ -825,6 +861,10 @@ data:
         attributes:
           description:
             - "Raadplegers"
+        {{- if .Values.pabc.enabled }}
+        realmRoles:
+          - "raadplegers"
+        {{- end }}
         clientRoles:
           zac:
             - "domein_elk_zaaktype"
