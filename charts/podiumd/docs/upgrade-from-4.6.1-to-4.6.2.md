@@ -65,7 +65,7 @@ using the Keycloak Operator (`keycloak-operator.enabled: true`). No action neede
 
 | Component | 4.6.1 | 4.6.2 |
 |---|---|---|
-| pabc | 1.0.0 | 1.1.0 |
+| pabc (chart + image/app version) | 1.0.0 | 1.1.0 |
 
 ---
 
