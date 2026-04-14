@@ -366,7 +366,7 @@ redis-operator:
     image:
       registry: quay.io
       repository: opstree/redis
-      tag: "v8.4.2"
+      tag: "v8.6.2"
     # override: values-enable-observability.yaml sets redisExporter.enabled: true
     redisExporter:
       image:
