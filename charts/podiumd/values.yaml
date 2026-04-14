@@ -363,6 +363,11 @@ redis-operator:
   #   openformulieren    : db 9  (cache), db 10 (celery)
   #   openinwoner        : db 11 (cache), db 12 (celery)
   #   openarchiefbeheer  : db 13 (cache+axes), db 14 (choices + celery)
+  #   referentielijsten  : db 15 (cache), db 16 (reserved — celery not yet used)
+  #   openbeheer         : db 17 (cache), db 18 (reserved — celery not yet used)
+  #   <future component> : db 19 (cache), db 20 (celery)
+  #   db 21–31           : unallocated
+  # See docs/redis-ha-databases.md for the full allocation table and guidance.
   redis-ha:
     enabled: true
     replicaCount: 3
@@ -1983,6 +1988,11 @@ referentielijsten:
 
     debug: false
 
+    cache:
+      default: redis-ha-master.podiumd.svc.cluster.local:6379/15
+      axes: redis-ha-master.podiumd.svc.cluster.local:6379/15
+    # celery: db 16 reserved — referentielijsten does not currently use Celery
+
   redis:
     nameOverride: referentielijsten-redis
     fullnameOverride: referentielijsten-redis
@@ -2103,8 +2113,9 @@ openbeheer:
     sentry:
       dsn: ""
     cache:
-      default: ""
-      axes: ""
+      default: redis-ha-master.podiumd.svc.cluster.local:6379/17
+      axes: redis-ha-master.podiumd.svc.cluster.local:6379/17
+    # celery: db 18 reserved — openbeheer does not currently use Celery
     isHttps: true
     debug: false
     uwsgi:
