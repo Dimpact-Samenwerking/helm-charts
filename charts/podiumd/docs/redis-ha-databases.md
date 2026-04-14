@@ -35,9 +35,9 @@ Redis Operator v0.24.0 does not include it in the main `redis.conf` automaticall
 | 13  | openarchiefbeheer | Cache (default + axes)               | `openarchiefbeheer.settings.cache.default/axes`     |
 | 14  | openarchiefbeheer | Cache (choices) + Celery broker + result backend² | `openarchiefbeheer.settings.cache.choices` + celery |
 | 15  | referentielijsten | Cache (default + axes)               | `referentielijsten.settings.cache.default/axes`     |
-| 16  | referentielijsten | **Reserved** — celery not yet used   | —                                                   |
+| 16  | referentielijsten | **Reserved** — no Celery workers    | —                                                   |
 | 17  | openbeheer        | Cache (default + axes)               | `openbeheer.settings.cache.default/axes`            |
-| 18  | openbeheer        | **Reserved** — celery not yet used   | —                                                   |
+| 18  | openbeheer        | **Reserved** — no Celery workers    | —                                                   |
 | 19  | *(future)*        | Cache (default + axes)               | See [Adding a new component](#adding-a-new-django-component) |
 | 20  | *(future)*        | Celery broker + result backend       | See [Adding a new component](#adding-a-new-django-component) |
 | 21–31 | —             | **Unallocated**                      | —                                                   |

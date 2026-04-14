@@ -1991,20 +1991,10 @@ referentielijsten:
     cache:
       default: redis-ha-master.podiumd.svc.cluster.local:6379/15
       axes: redis-ha-master.podiumd.svc.cluster.local:6379/15
-    # celery: db 16 reserved — referentielijsten does not currently use Celery
+    # celery: db 16 reserved — referentielijsten does not use Celery
 
-  redis:
-    nameOverride: referentielijsten-redis
-    fullnameOverride: referentielijsten-redis
-    master:
-      persistence:
-        enabled: true
-        size: 8Gi
-        storageClass: ""
-      resources:
-        requests:
-          cpu: 10m
-          memory: 64Mi
+  tags:
+    redis: false
 
 openbeheer:
   enabled: false
@@ -2130,18 +2120,8 @@ openbeheer:
       rateUser: "15000/hour"
   nginx:
     resources: {}
-  redis:
-    nameOverride: openbeheer-redis
-    fullnameOverride: openbeheer-redis
-    master:
-      persistence:
-        enabled: true
-        size: 8Gi
-        storageClass: ""
-      resources:
-        requests:
-          cpu: 250m
-          memory: 256Mi
+  tags:
+    redis: false
 
 kisselastic:
   kibanaDomain: kiss-kb-http.podiumd.svc.cluster.local:5601
