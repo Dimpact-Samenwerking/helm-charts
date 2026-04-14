@@ -377,6 +377,31 @@ by `accessTokenLifespan`). Sessions that exceed these limits will require re-aut
 
 ---
 
+### ZGW Office Add-in - App Environment value
+
+For production (default):
+```yaml
+zgw-office-addin:
+  common:
+    appEnv: ""
+```
+
+For acceptance: 
+```yaml
+zgw-office-addin:
+  common:
+    appEnv: "acc"
+```
+
+For test: 
+```yaml
+zgw-office-addin:
+  common:
+    appEnv: "test"
+```
+
+---
+
 For the full list of new and changed images in this release see
 [docs/images/images-4.6.3.yaml](images/images-4.6.3.yaml).
 

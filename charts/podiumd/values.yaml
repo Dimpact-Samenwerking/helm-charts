@@ -2643,6 +2643,8 @@ zgw-office-addin:
   enabled: true
   fullnameOverride: "zgw-office-addin"
   common:
+    # -- Name of the environment (used for displaying purposes)
+    appEnv: ""
     # -- The frontend public URL where the manifest files and static js file are served
     frontendUrl: "https://office-addin.example.nl"
     # -- MS Azure Tenant ID of the Office Add-in application
@@ -2650,18 +2652,18 @@ zgw-office-addin:
     # -- MS Azure Client ID assigned to the Office Add-in application
     msalClientId: "dummy"
   frontend:
-    # ghcr.io/infonl/zgw-office-add-in-frontend:v0.9.133
+    # ghcr.io/infonl/zgw-office-add-in-frontend:v0.9.250
     image:
-      tag: v0.9.133
+      tag: v0.9.250
     resources:
       requests:
         cpu: 50m
         memory: 64Mi
   backend:
     msalSecret: "dummy"
-    # ghcr.io/infonl/zgw-office-add-in-backend:v0.9.133
+    # ghcr.io/infonl/zgw-office-add-in-backend:v0.9.250
     image:
-      tag: v0.9.133
+      tag: v0.9.250
     resources:
       requests:
         cpu: 100m
