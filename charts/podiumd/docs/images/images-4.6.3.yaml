@@ -3,13 +3,13 @@
 # Applicaties
 - name: zgw-office-add-in-frontend
   url: ghcr.io/infonl/zgw-office-add-in-frontend
-  version: "v0.9.250"
-  digest: "sha256:db9811640e12821dd770acc24ed8019ccafd81cc01c2b839fb0dd9ee54adbd88"
+  version: "v0.9.251"
+  digest: "sha256:6dd7d046be6effd41c67459811b49785655e0fc0404c5bb4c652c7754b68a57c"
 
 - name: zgw-office-add-in-backend
   url: ghcr.io/infonl/zgw-office-add-in-backend
-  version: "v0.9.250"
-  digest: "sha256:be4addfe6e084c695ab6f9db588f13fc05f7d26afded006e37fc39cf326fe2bb"
+  version: "v0.9.251"
+  digest: "sha256:92fec77893a79475112a6bcbfd167ca6c5ff30c4282eca6dccc578885ddd705e"
 
 - name: k8s
   url: docker.io/alpine/k8s

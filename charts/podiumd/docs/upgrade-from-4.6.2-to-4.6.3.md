@@ -381,7 +381,7 @@ For production (default):
 ```yaml
 zgw-office-addin:
   common:
-    appEnv: ""
+    appEnv: "production"
 ```
 
 For acceptance: 
@@ -396,6 +396,11 @@ For test:
 zgw-office-addin:
   common:
     appEnv: "test"
+```
+
+There's a script that can be used to update the `appEnv` value in `podiumd.yml` files:
+```bash
+./set-zgw-office-addin-app-env
 ```
 
 ---
