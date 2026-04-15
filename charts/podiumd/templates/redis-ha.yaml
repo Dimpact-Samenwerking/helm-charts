@@ -40,7 +40,7 @@ spec:
   {{- end }}
   redisExporter:
     enabled: {{ ($redisHa.redisExporter | default dict).enabled | default false }}
-    image: {{ include "podiumd.image" $redisHa.redisExporter.image }}
+    image: {{ include "podiumd.image" ($redisHa.redisExporter | default dict).image }}
   {{- with $redisHa.podSecurityContext }}
   podSecurityContext:
     {{- toYaml . | nindent 4 }}

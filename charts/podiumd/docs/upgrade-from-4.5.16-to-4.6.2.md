@@ -1,8 +1,9 @@
-# Upgrade guide: PodiumD 4.5.13 → 4.6.0
+# Upgrade guide: PodiumD 4.5.16 → 4.6.2
 
 ## New features / additions
 
 ### openinwoner: Elasticsearch graceful shutdown (IN-1509)
+
 To prevent data corruption during AKS node upgrades and restarts, the chart now sets a graceful shutdown configuration on the openinwoner Elasticsearch nodeSet by default:
 
 - `terminationGracePeriodSeconds: 60` — gives the pod 60 seconds to flush and shut down cleanly.
@@ -28,6 +29,8 @@ openinwoner:
               value: "15"
 ```
 
+---
+
 ### openinwoner: Elasticsearch storage class (per-environment)
 
 The `volumeClaimTemplates` for the openinwoner Elasticsearch nodeSet must be configured **per environment** (not in chart defaults), because the PVC spec is immutable and varies per cluster. Add the following to each environment's values file under the existing `openinwoner.eck-elasticsearch.nodeSets[0]` block:
@@ -52,7 +55,10 @@ openinwoner:
 
 > **Note:** Changing `volumeClaimTemplates` on an existing StatefulSet is not allowed by Kubernetes. If the PVC already exists with a different storageClass, the StatefulSet must be deleted (ECK will recreate it) and the old PVC deleted manually.
 
+---
+
 ### keycloak-operator: new jobs
+
 Four new jobs are introduced under `keycloak-operator.jobs`:
 
 | Job | Purpose |
@@ -90,11 +96,17 @@ keycloak-operator:
 **Important:** `ensureOperatorSa.clientSecret` must be set to a known secret value.
 Add a `REP_KEYCLOAK_OPERATOR_SA_CLIENT_SECRET_REP` replacement in the pipeline.
 
+---
+
 ### keycloak image: new `registry` field
+
 A `registry` field was added to `keycloak.image` and `keycloak.keycloakConfigCli.image`.
 For ACR environments that embed the full path in `repository`, leave `registry` unset or set to `""`.
 
+---
+
 ### openzaak: notificaties configuration flags enabled by default
+
 Two new configuration flags default to `true` in 4.6.0:
 
 ```yaml
@@ -108,24 +120,170 @@ openzaak:
 
 If these were previously set to `false` in environment values, update them to `true`.
 
+---
+
 ### zac: initContainer enabled by default
+
 `zac.initContainer.enabled` changed default from `false` to `true`.
 Remove any explicit `initContainer.enabled: false` override if you want the new default behaviour.
 
+---
+
+### Redis HA master label job (always active)
+
+4.6.1 adds a `redis-ha-label-master` Job that runs on every deployment and fixes a known
+OT Redis Operator v0.24.0 bug: after a rolling restart of the Redis StatefulSet, pods lose
+their `redis-role=master/slave` labels, causing the `redis-ha-master` service to have no
+endpoints and all Celery workers to crash.
+
+The job is idempotent — it exits immediately if labels are already present.
+
+It uses the `lachlanevenson/k8s-kubectl` image (already in the chart via the
+zookeeper-operator hooks). For **ACR-based environments**, override the repository:
+
+```yaml
+redis-operator:
+  redis-ha:
+    labelMasterJob:
+      image:
+        repository: <acr>/k8s-kubectl
+```
+
+No tag override is needed — the tag is set by the chart default (`v1.25.4`).
+
+---
+
+### Observability: new images via `values-enable-observability.yaml`
+
+4.6.1 introduces `values-enable-observability.yaml`, an optional overlay that enables
+OpenTelemetry metrics and Prometheus scraping across all supported components. When this
+overlay is applied, the following **new images** are pulled:
+
+| Image | Registry | Purpose |
+|---|---|---|
+| `clamav_exporter` | `docker.io/sergeymakinen/clamav_exporter:v2.1.2` | ClamAV metrics sidecar (ServiceMonitor on port 9906) |
+
+For **ACR-based environments**, override the image repository in your environment
+values file so the image is pulled from the environment-specific ACR:
+
+```yaml
+clamav:
+  metrics:
+    image:
+      repository: <acr>/clamav_exporter
+```
+
+No tag override is needed — the tag is set by the chart default (`v2.1.2`).
+
+> This image is only used when `values-enable-observability.yaml` is applied. If you do
+> not use that overlay, no action is needed.
+
+---
+
+### New components: referentielijsten and openbeheer
+
+Two new optional components are added as subchart dependencies:
+
+| Component | Chart | Condition |
+|---|---|---|
+| `referentielijsten` | `maykinmedia/referentielijsten:0.1.1` | `referentielijsten.enabled` |
+| `openbeheer` | `maykinmedia/openbeheer:0.1.2` | `openbeheer.enabled` |
+
+Both are **disabled by default** (`enabled: false`). No action needed if you do not use them.
+
+For ACR-based environments that enable these components, add image repository overrides
+pointing to the ACR (no tags needed):
+
+```yaml
+referentielijsten:
+  enabled: true
+  image:
+    repository: <acr>/referentielijsten-api
+
+openbeheer:
+  enabled: true
+  image:
+    repository: <acr>/open-beheer
+```
+
+---
+
+### New component: OMC (NotifyNL)
+
+`notifynl-omc-nodep` (aliased `omc`) is added as a new optional subchart dependency
+(`worth-nl/notifynl-omc-nodep:0.14.0`). Disabled by default.
+
+---
+
+### PABC updated to 1.1.0
+
+> **Note:** PABC 1.1.0 was already included in podiumd 4.5.16. Environments upgrading
+> directly from 4.5.16 already have these images in their ACR — no new import needed.
+
+#### ACR image overrides (if not already done for 4.5.16)
+
+For **ACR-based environments** that did not yet upgrade to 4.5.16, add the repository overrides:
+
+```yaml
+pabc:
+  image:
+    repository: <acr>/pabc
+  migrations:
+    image:
+      repository: <acr>/pabc-migrations
+  initContainers:
+    waitFor:
+      image:
+        repository: <acr>/k8s-wait-for
+```
+
+No tag overrides are needed — tags are set by the chart defaults (`1.1.0` and `v2.0`).
+
+#### NodeSelector for AKS environments
+
+For environments that require a node selector (e.g. AKS-blue with
+`kubernetes.azure.com/mode: user`), set the nodeSelector on both the deployment and the
+migration job:
+
+```yaml
+pabc:
+  nodeSelector:
+    kubernetes.azure.com/mode: user
+  migrations:
+    nodeSelector:
+      kubernetes.azure.com/mode: user
+```
+
+---
+
+### Legacy Bitnami Keycloak explicitly disabled
+
+`keycloak.enabled` is now explicitly set to `false` in the chart defaults. This has no
+functional impact — the legacy Bitnami Keycloak chart was already inactive in environments
+using the Keycloak Operator (`keycloak-operator.enabled: true`). No action needed.
+
+---
+
 ## Component version bumps (chart defaults — no action needed in env values)
 
-| Component | 4.5.13 | 4.6.0 |
-|-----------|--------|-------|
-| keycloak-operator | 1.11.2 (26.5.4) | 1.11.2 (26.5.5) |
-| openzaak | 1.13.0 → 1.13.1 | image: n/a (no tag in env) |
-| opennotificaties | 1.13.0 → 1.13.1 | |
-| objecten | 2.11.0 → 2.12.0 | image 3.5.0 → 3.6.0 |
-| objecttypen | 1.6.0 → 1.6.1 | image 3.4.0 → 3.5.0 |
-| openklant | 1.10.0 → 1.11.0 | image 2.14.0 → 2.15.0 |
-| openformulieren | 1.11.6 → 1.12.0 | image 3.3.13 → 3.4.5 |
-| openinwoner | 2.1.0 → 2.1.3 | image 2.0.3 → 2.1.0 |
-| zac | 1.0.165 → 1.0.204 | image 4.0.12-1 → 4.3.61 |
-| zgw-office-addin | 0.0.65 → 0.0.73 | frontend+backend v0.9.28 → v0.9.133 |
+| Component | 4.5.16 | 4.6.2 |
+|---|---|---|
+| keycloak-operator | 1.11.2 (26.5.7) | 1.11.2 (26.5.7) |
+| clamav | 3.2.0 | 3.7.1 |
+| openzaak | 1.13.0 | 1.13.1 |
+| opennotificaties | 1.13.0 | 1.13.1 |
+| objecten | 2.11.0 | 2.12.0 |
+| objecttypen | 1.6.0 | 1.6.1 |
+| openklant | 1.10.0 | 1.11.0 |
+| openformulieren (openforms) | 1.11.6 | 1.12.0 |
+| openinwoner | 2.1.0 | 2.1.3 |
+| zac | 1.0.165 | 1.0.208 |
+| zgw-office-addin | 0.0.65 | 0.0.73 |
+| ita | 2.0.1 | 3.0.0 |
+| kiss | 2.1.0 | 2.2.2 |
+| pabc | 1.1.0 | 1.1.0 |
+
+---
 
 ## Environment values changes
 
@@ -136,6 +294,8 @@ The `objecten` and `opennotificaties` subcharts default to `job.enabled: false` 
 If `job.enabled` was already added to an environment's values file as a workaround, it can be left in place (it is harmless) or removed.
 
 > **Note:** Although the job is enabled by default, the configuration job will still fail if the required OIDC and service configuration (`configuration.data`, `configuration.secrets`) is not provided. Without valid configuration data, the OIDC login will fail with `KeyError: 'groups_settings'` on first login because the `OIDCProvider`/`OIDCClient` database records are never populated.
+
+---
 
 ### Enable Redis HA and remove per-service Redis subchart config
 
@@ -187,6 +347,8 @@ The per-service Redis subcharts (openzaak, opennotificaties, objecten, objecttyp
 
    Remove the `redis:` subchart block from **all services that had it**: openzaak, opennotificaties, objecten, objecttypen, openklant, openformulieren, openinwoner, and openarchiefbeheer.
 
+---
+
 ### opennotificaties: RabbitMQ image ACR override
 
 `opennotificaties` includes an embedded RabbitMQ subchart. For ACR environments, override its image registry so the image is pulled from ACR instead of Docker Hub:
@@ -200,6 +362,8 @@ opennotificaties:
 ```
 
 For non-ACR environments, the default `docker.io/bitnamilegacy/rabbitmq` is used and no override is needed.
+
+---
 
 ### OIDC configuration: migrate to new options format
 
@@ -279,6 +443,8 @@ The script is idempotent: running it on a file that is already fully migrated pr
 
 Requires: `pip install ruamel.yaml` (falls back to PyYAML if unavailable, but comments and formatting will be lost).
 
+---
+
 ## Pre-deploy steps
 
 1. **Add `REP_KEYCLOAK_OPERATOR_SA_CLIENT_SECRET_REP`** to the pipeline secrets/replacements.
@@ -300,7 +466,7 @@ Requires: `pip install ruamel.yaml` (falls back to PyYAML if unavailable, but co
    helm repo update opstree
    ```
 
-4. **Install the Redis Operator CRDs** — Helm does not upgrade CRDs automatically on `helm upgrade`. Run the provided script before deploying:
+5. **Install the Redis Operator CRDs** — Helm does not upgrade CRDs automatically on `helm upgrade`. Run the provided script before deploying:
    ```shell
    ./charts/podiumd/scripts/install-redis-operator-crds.sh --context <kubectl-context>
    ```
@@ -309,7 +475,7 @@ Requires: `pip install ruamel.yaml` (falls back to PyYAML if unavailable, but co
    ./charts/podiumd/scripts/install-redis-operator-crds.sh --context <kubectl-context> --dry-run
    ```
 
-5. **Allowlist ClamAV database update endpoints** — ClamAV 4.6.0 introduces a persistent volume and a working freshclam configuration. Ensure the following egress endpoints are reachable from the cluster:
+6. **Allowlist ClamAV database update endpoints** — ClamAV 4.6.0 introduces a persistent volume and a working freshclam configuration. Ensure the following egress endpoints are reachable from the cluster:
 
    | Endpoint | Protocol/Port | Purpose |
    |---|---|---|
@@ -319,10 +485,15 @@ Requires: `pip install ruamel.yaml` (falls back to PyYAML if unavailable, but co
    Without access to these endpoints, freshclam will fail silently and the virus database will become stale.
    If an HTTP proxy is required, add `HTTPProxyServer` and `HTTPProxyPort` to the `clamav.freshclamConfig` override in the environment values file.
 
-6. **Delete the ClamAV StatefulSet before upgrading** — the 4.6.0 chart adds a `volumeClaimTemplate` and `extraVolumeMounts` to the ClamAV StatefulSet. Kubernetes does not allow patching immutable StatefulSet fields, so `helm upgrade` will fail unless the existing StatefulSet is removed first. The pod will be recreated automatically by Helm during the upgrade.
+7. **Delete the ClamAV StatefulSet before upgrading** — the 4.6.0 chart adds a `volumeClaimTemplate` and `extraVolumeMounts` to the ClamAV StatefulSet. Kubernetes does not allow patching immutable StatefulSet fields, so `helm upgrade` will fail unless the existing StatefulSet is removed first. The pod will be recreated automatically by Helm during the upgrade.
 
    ```shell
    kubectl delete statefulset clamav -n podiumd --context <kubectl-context>
    ```
 
    > **Note:** Deleting the StatefulSet does not delete the PVC. If a `clamav-data-clamav-0` PVC already exists from a previous deploy it will be reused. On a fresh environment the PVC will be created by the StatefulSet's `volumeClaimTemplate` on first deploy and ClamAV will download the virus database on startup (allow ~2–3 minutes).
+
+---
+
+For the full list of new and changed images in this release, see
+[docs/images/images-4.6.2.yaml](images/images-4.6.2.yaml).

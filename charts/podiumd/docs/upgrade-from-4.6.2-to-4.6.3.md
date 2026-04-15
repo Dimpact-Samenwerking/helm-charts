@@ -2,6 +2,84 @@
 
 ## Required manual steps before upgrading
 
+### Migrate Redis HA PVCs to `managed-csi-premiumv2`
+
+The Redis HA storage class has been changed from `managed-csi` to `managed-csi-premiumv2` for
+better I/O performance. The storage class on existing PVCs is immutable — the old PVCs must be
+deleted so the operator can recreate them with the new storage class.
+
+**Redis only stores cache data** (session state, Celery task results). All data will be
+automatically rebuilt after the pods restart. No data export is needed.
+
+#### Option A: Full migration (brief Redis outage)
+
+```bash
+# 1. Delete the Redis HA StatefulSet so the operator recreates it with the new storage class.
+#    The operator manages the StatefulSet — it will recreate it after deletion.
+kubectl delete statefulset redis-ha -n podiumd --context <cluster>
+
+# 2. Delete the existing PVCs (cache data — safe to delete).
+kubectl delete pvc \
+  redis-ha-redis-ha-0 \
+  redis-ha-redis-ha-1 \
+  redis-ha-redis-ha-2 \
+  -n podiumd --context <cluster>
+
+# 3. Run helm upgrade as normal. The operator will create new PVCs on managed-csi-premiumv2.
+```
+
+> The applications (openzaak, openklant, etc.) may briefly return errors while Redis is
+> unavailable during the migration. This resolves automatically once Redis recovers.
+
+#### Option B: Rolling migration (no full Redis outage)
+
+This migrates one replica at a time while Redis remains available as a replication group.
+Since all data is cache, each replica rebuilds from the master after restart.
+
+Run `helm upgrade` first — this updates the `RedisReplication` CRD. Then verify the StatefulSet
+has the new `volumeClaimTemplate` (the operator recreates it automatically):
+
+```bash
+kubectl get statefulset redis-ha -n podiumd --context <cluster> \
+  -o jsonpath='{.spec.volumeClaimTemplates[0].spec.storageClassName}'
+# Expected: managed-csi-premiumv2
+```
+
+If it still shows `managed-csi`, the operator hasn't reconciled yet — wait a moment and recheck.
+
+Then migrate each replica in turn:
+
+```bash
+# Replica 0
+kubectl delete pvc redis-ha-redis-ha-0 -n podiumd --context <cluster>
+kubectl delete pod redis-ha-0 -n podiumd --context <cluster>
+kubectl wait pod/redis-ha-0 -n podiumd --context <cluster> --for=condition=Ready --timeout=120s
+kubectl get pvc redis-ha-redis-ha-0 -n podiumd --context <cluster> \
+  -o jsonpath='{.spec.storageClassName}'
+# Expected: managed-csi-premiumv2
+
+# Replica 1
+kubectl delete pvc redis-ha-redis-ha-1 -n podiumd --context <cluster>
+kubectl delete pod redis-ha-1 -n podiumd --context <cluster>
+kubectl wait pod/redis-ha-1 -n podiumd --context <cluster> --for=condition=Ready --timeout=120s
+kubectl get pvc redis-ha-redis-ha-1 -n podiumd --context <cluster> \
+  -o jsonpath='{.spec.storageClassName}'
+# Expected: managed-csi-premiumv2
+
+# Replica 2
+kubectl delete pvc redis-ha-redis-ha-2 -n podiumd --context <cluster>
+kubectl delete pod redis-ha-2 -n podiumd --context <cluster>
+kubectl wait pod/redis-ha-2 -n podiumd --context <cluster> --for=condition=Ready --timeout=120s
+kubectl get pvc redis-ha-redis-ha-2 -n podiumd --context <cluster> \
+  -o jsonpath='{.spec.storageClassName}'
+# Expected: managed-csi-premiumv2
+```
+
+> Wait for each replica to reach `Ready` before proceeding to the next. The Redis master
+> is always kept available — only one replica is down at a time.
+
+---
+
 ### Delete completed seeding and realm-import Jobs
 
 The security hardening in this release changes the pod template of all custom Jobs (seeding jobs,
@@ -381,7 +459,7 @@ For production (default):
 ```yaml
 zgw-office-addin:
   common:
-    appEnv: ""
+    appEnv: "production"
 ```
 
 For acceptance: 
@@ -396,6 +474,11 @@ For test:
 zgw-office-addin:
   common:
     appEnv: "test"
+```
+
+There's a script that can be used to update the `appEnv` value in `podiumd.yml` files:
+```bash
+./set-zgw-office-addin-app-env
 ```
 
 ---
