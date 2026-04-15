@@ -2,6 +2,50 @@
 
 ## PodiumD versions
 
+### [4.6.2](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.6.2)
+
+**PodiumD Helm chart version: 4.6.2**
+Componenten op alphabetische volgorde, met sub-charts er onder:
+
+| Component                 | AppVersion   | Change        | ChartVersion | Change        | **Notes**                 |
+|---------------------------|--------------|---------------|--------------|---------------|---------------------------|
+| BRP Mock                  |              |               | 1.2.8        |               | Only on Test Environments |
+| ClamAV                    | 1.4.4        |               | 3.7.1        |               |                           |
+| ITA                       | 3.0.0        |               | 3.0.0        |               |                           |
+| - Ita poller              | 3.0.0        |               |              |               |                           |
+| Keycloak                  | 26.5.7       |               | 1.11.2       | Operator      |                           |
+| Kiss                      | 2.2.2        |               | 2.2.2        |               |                           |
+| - Kiss Elastic            |              |               | 1.1.0        |               |                           |
+| - Kiss ElasticSync        | 0.3.2        |               |              |               |                           |
+| - PodiumD Adapter         | 0.6.6        |               |              |               |                           |
+| Objecten                  | 3.6.0        |               | 2.12.0       |               |                           |
+| Objecttypen               | 3.4.1        |               | 1.6.1        |               |                           |
+| OMC for NotifyNL          | 1.17.18      |               | 0.14.0       |               |                           |
+| Open Archiefbeheer        | 1.1.1        |               | 1.5.3        |               |                           |
+| Open Formulieren          | 3.4.7        |               | 1.12.0       |               |                           |
+| Open Inwoner              | 2.1.1        |               | 2.1.3        |               |                           |
+| Open Klant                | 2.15.0       |               | 1.11.0       |               |                           |
+| Open Notificaties         | 1.15.0       |               | 1.13.1       |               |                           |
+| Open Zaak                 | 1.26.0       |               | 1.13.1       |               |                           |
+| PABC                      | 1.1.0        | Patch update  | 1.1.0        | Patch update  |                           |
+| - k8s-wait-for            | v2.0         | New           |              |               |                           |
+| Redis Operator            | v0.24.0      |               | 0.24.0       |               |                           |
+| - Busybox                 | 1.37.0-glibc |               |              |               |                           |
+| - Redis                   | v8.4.2       |               |              |               |                           |
+| - Redis Exporter          | v1.44.0      |               |              |               |                           |
+| Zac                       | 4.3.61       |               | 1.0.208      |               |                           |
+| - Busybox                 | 1.37.0       |               |              |               |                           |
+| - Curl                    | 8.18.0       |               |              |               |                           |
+| - Kubectl                 | 1.25.4       |               |              |               |                           |
+| - Nginx                   | 1.29.5       |               |              |               |                           |
+| - Opa                     | 1.14.0       |               |              |               |                           |
+| - Opentelemetry Collector | 0.146.1      |               | 0.146.0      |               | Operator                  |
+| - Solr                    | 9.10.1       |               | 0.9.1        |               |                           |
+| - Office Converter        | 1.8.2        |               |              |               |                           |
+| - Zookeeper               | 0.2.15       |               | 0.2.15       |               | Operator                  |
+| ZGW Office Addin          | 0.9.133      |               | 0.0.73       |               |                           |
+
+
 ### [4.6.1](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.6.1)
 
 **PodiumD Helm chart version: 4.6.1**
