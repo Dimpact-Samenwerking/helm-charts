@@ -95,6 +95,8 @@ All stateful apps use `*-storage.yaml` PVC templates. Azure CSI driver parameter
 
 **Vendored charts:** `charts/podiumd/charts/` contains pinned `.tgz` packages and `Chart.lock` for reproducible builds.
 
+**Inspecting vendored `.tgz` charts:** If you extract a `.tgz` package (e.g. to inspect its templates) or check out a chart directory for analysis, **always delete both the extracted directory and the original `.tgz` file from `charts/podiumd/charts/` when done.** Helm prefers extracted chart directories over `.tgz` files — leaving extracted charts in place causes `helm template`, `helm lint`, and `helm upgrade` to silently use the extracted (possibly modified) version instead of the pinned package, which can break deployments in unexpected ways.
+
 ### Keycloak Migration (Active)
 Transitioning from Bitnami Keycloak + Infinispan → **Hostzero Keycloak Operator**:
 - **New (default)**: `keycloak-operator.enabled: true` — manages Keycloak via `Keycloak` CRD (`keycloak-cr.yaml`)
