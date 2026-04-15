@@ -1,4 +1,4 @@
-# Upgrade guide: PodiumD 4.6.0 → 4.6.1
+# Upgrade guide: PodiumD 4.6.0 → 4.6.2
 
 ## New features / additions
 
@@ -51,9 +51,6 @@ No tag override is needed — the tag is set by the chart default (`v2.1.2`).
 > This image is only used when `values-enable-observability.yaml` is applied. If you do
 > not use that overlay, no action is needed.
 
-For the full list of new and changed images in this release see
-[docs/images/images-4.6.1.yaml](images/images-4.6.1.yaml).
-
 ---
 
 ### New components: referentielijsten and openbeheer
@@ -91,9 +88,63 @@ openbeheer:
 
 ---
 
+### PABC updated to 1.1.0
+
+The PABC application and migration images have been updated from `1.0.0` to `1.1.0`.
+
+#### ACR image overrides
+
+For **ACR-based environments**, update the repository overrides:
+
+```yaml
+pabc:
+  image:
+    repository: <acr>/pabc
+  migrations:
+    image:
+      repository: <acr>/pabc-migrations
+  initContainers:
+    waitFor:
+      image:
+        repository: <acr>/k8s-wait-for
+```
+
+No tag overrides are needed — tags are set by the chart defaults (`1.1.0` and `v2.0`).
+
+#### New initContainer: k8s-wait-for
+
+PABC 1.1.0 introduces an init container that waits for the migration job to complete before
+the main application pod starts. The image (`ghcr.io/groundnuty/k8s-wait-for:v2.0`) is a
+**new image** in this release.
+
+#### NodeSelector for AKS environments
+
+For environments that require a node selector (e.g. AKS-blue with
+`kubernetes.azure.com/mode: user`), set the nodeSelector on both the deployment and the
+migration job:
+
+```yaml
+pabc:
+  nodeSelector:
+    kubernetes.azure.com/mode: user
+  migrations:
+    nodeSelector:
+      kubernetes.azure.com/mode: user
+```
+
+---
+
+### Legacy Bitnami Keycloak explicitly disabled
+
+`keycloak.enabled` is now explicitly set to `false` in the chart defaults. This has no
+functional impact — the legacy Bitnami Keycloak chart was already inactive in environments
+using the Keycloak Operator (`keycloak-operator.enabled: true`). No action needed.
+
+---
+
 ## Component version bumps (chart defaults — no action needed in env values)
 
-| Component | 4.6.0 | 4.6.1 |
+| Component | 4.6.0 | 4.6.2 |
 |---|---|---|
 | clamav | 3.2.0 | 3.7.1 |
 | openzaak | 1.13.0 | 1.13.1 |
@@ -107,3 +158,9 @@ openbeheer:
 | zgw-office-addin | 0.0.65 | 0.0.73 |
 | ita | 2.0.1 | 3.0.0 |
 | kiss | 2.1.0 | 2.2.2 |
+| pabc | 1.0.0 | 1.1.0 |
+
+---
+
+For the full list of new and changed images in this release, see
+[docs/images/images-4.6.2.yaml](images/images-4.6.2.yaml).
