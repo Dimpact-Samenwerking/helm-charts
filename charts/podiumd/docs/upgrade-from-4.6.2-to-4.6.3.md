@@ -499,3 +499,34 @@ django.db.utils.IntegrityError: duplicate key value violates unique constraint "
 ```
 
 This is caused by a psycopg3 transaction semantics issue in the `post_migrate` signal handler that resets the admin index fixture. See [openzaak-post-migrate-appgroup-duplicate-key.md](openzaak-post-migrate-appgroup-duplicate-key.md) for the full analysis, workaround, and proper fix.
+
+---
+
+### ZAC: no recovery after extended OpenZaak/catalogus unavailability
+
+When the OpenZaak catalogus API is unreachable for more than approximately 8 minutes, ZAC does not
+recover on its own even after OpenZaak becomes available again.
+
+**Root cause:** The ZAC MicroProfile REST client for `ZGW-API-Client` (used by `ZtcClientService`)
+has no explicit `connectTimeout` or `readTimeout` configured. When OpenZaak goes down, the
+underlying HTTP connection pool accumulates stale (half-open) TCP connections. Each call to
+`ztcClient.catalogusList()` — which is not cached and is called on every readiness health check
+— blocks the health check thread until the OS-level TCP timeout fires (several minutes). After
+extended downtime, even when OpenZaak recovers, the connection pool is in a broken state: stale
+connections are reused before new ones are established, causing each health check attempt to
+hang and then fail again. The pod stays in a non-ready state indefinitely.
+
+**Symptom:** `OpenZaakReadinessHealthCheck: DOWN` persists after OpenZaak is back up. ZAC
+readiness probe keeps failing; the pod is never marked Ready.
+
+**Workaround:** Manually restart the ZAC pod:
+
+```bash
+kubectl rollout restart deployment/zac -n podiumd --context <cluster>
+```
+
+**Fix pending:** [zaakafhandelcomponent PR](https://github.com/infonl/dimpact-zaakafhandelcomponent)
+— ZAC chart v1.0.206 changes the liveness probe from `/health/live` to `/health/ready` with
+`failureThreshold: 16` (`16 × 30 s = 480 s`). This causes Kubernetes to automatically restart
+ZAC after ~8 minutes of catalogus unavailability, without manual intervention. Scheduled for
+inclusion in a future podiumd release.
