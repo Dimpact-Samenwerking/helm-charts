@@ -1,0 +1,62 @@
+{{- $kisselastic := index .Values "kisselastic" }}
+{{- if and $kisselastic $kisselastic.enabled }}
+{{- $eckOp := index $kisselastic "eck-operator" | default dict }}
+{{- $podMonitor := index $eckOp "podMonitor" | default dict }}
+{{- if $podMonitor.enabled }}
+{{/*
+  ECK operator (Elastic Cloud on Kubernetes) dynamically creates PodMonitor resources for
+  Elasticsearch and Kibana instances when spec.monitoring.metrics is configured on those CRDs.
+
+  By default the elastic-operator ClusterRole has no rules for monitoring.coreos.com, so
+  any attempt to create or manage PodMonitors fails silently.
+
+  The Role + RoleBinding below grants the ECK operator SA write access to PodMonitors in
+  the release namespace, enabling automatic Prometheus scrape target management for ECK
+  managed resources.
+
+  SA name: always "elastic-operator" because the eck-operator chart ships with
+  fullnameOverride: "elastic-operator" as its default value.
+
+  Only rendered when kisselastic.enabled: true AND kisselastic.eck-operator.podMonitor.enabled: true.
+*/}}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ .Release.Name }}-eck-operator-podmonitor-write
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: eck-operator
+rules:
+  - apiGroups:
+      - monitoring.coreos.com
+    resources:
+      - podmonitors
+    verbs:
+      - create
+      - get
+      - list
+      - watch
+      - patch
+      - update
+      - delete
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ .Release.Name }}-eck-operator-podmonitor-write
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: eck-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ .Release.Name }}-eck-operator-podmonitor-write
+subjects:
+  - kind: ServiceAccount
+    name: elastic-operator
+    namespace: {{ .Release.Namespace }}
+{{- end }}
+{{- end }}

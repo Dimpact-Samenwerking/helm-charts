@@ -1,18 +1,53 @@
-# Images die nieuw of gewijzigd zijn in podiumd 4.6.2 t.o.v. 4.6.1.
-# NB: deze images waren al aanwezig in de laatste 4.5 patch (podiumd 4.5.16).
+# Images die nieuw of gewijzigd zijn in podiumd 4.6.2 t.o.v. 4.6.0.
+# NB: de PABC images waren al aanwezig in podiumd 4.5.16 — geen nieuwe ACR-import
+# nodig voor omgevingen die al op 4.5.16 zitten.
 
-# PABC
+# Applicaties
+- name: internetaakafhandeling.web
+  url: ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web
+  version: "3.0.0"
+  digest: "sha256:b073aa8755793e7f7abf7bb3ab28454b2aff9089ecfd245580d73fa01de13740"
+- name: internetaakafhandeling.poller
+  url: ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller
+  version: "3.0.0"
+  digest: "sha256:bd802f55d3365c3ccd95bd495aed6e2416630be9164aeef2322503c5ddb20629"
+- name: openinwoner
+  url: docker.io/maykinmedia/open-inwoner
+  version: "2.1.1"
+  digest: "sha256:07361a6b2037c5a0fcfe4b0e08d09603c4ffbe621c0a4e5fe50f40f6bad65097"
+- name: referentielijsten
+  url: docker.io/maykinmedia/referentielijsten-api
+  version: "0.7.1"
+  digest: "sha256:6bae71f30745e3e24f98d41254fce22fc0d5ec4277dad7647ee2d297cfcf7cf9"
+- name: openbeheer
+  url: docker.io/maykinmedia/open-beheer
+  version: "0.9.0"
+  digest: "sha256:1a11b06dadb82c992468709b1aa92d0501aef6d526a7afb52bacac6917385166"
+- name: keycloak-operator
+  url: quay.io/keycloak/keycloak-operator
+  version: "26.5.7"
+  digest: "sha256:4aaa52610f9427ef0eebbf120b24bb22cf99b7197f125b140887e2add407edce"
+- name: keycloak
+  url: quay.io/keycloak/keycloak
+  version: "26.5.7"
+  digest: "sha256:45ae20191531eb608ddb0b775d012b40d3e4f942697f3214694887dd7c108d13"
+
+# PABC (reeds aanwezig in podiumd 4.5.16)
 - name: pabc
   url: ghcr.io/platform-autorisatie-beheer-component/pabc-api
   version: "1.1.0"
   digest: "sha256:66e83416f41d546eba8b6a7f2ea061da2d293fab6b9e22f129934127f4c31b3d"
-
 - name: pabc-migrations
   url: ghcr.io/platform-autorisatie-beheer-component/pabc-migrations
   version: "1.1.0"
   digest: "sha256:0f73051e64ebcd6ac5c169630fde4cb7ef3a39376ffb840e407158728685f83c"
-
 - name: k8s-wait-for
   url: ghcr.io/groundnuty/k8s-wait-for
   version: "v2.0"
   digest: "sha256:c14d7271e4013b24b34ef0d7144c4610577d0e9110ccc26b163fa28089fa1f4e"
+
+# Observability (benodigd wanneer values-enable-observability.yaml wordt gebruikt)
+- name: clamav_exporter
+  url: docker.io/sergeymakinen/clamav_exporter
+  version: "v2.1.2"
+  digest: "sha256:1bb053065ca892025928b90983d8bad638786884958e63048cd11106db9a350c"

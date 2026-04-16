@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env -S bash -l
 # Shows the PodiumD Helm release version and status for all known aks-blue-ontw-* clusters.
 # Requires: az CLI (logged in), kubectl, helm
 #

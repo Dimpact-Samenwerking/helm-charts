@@ -1,0 +1,78 @@
+# Images die nieuw of gewijzigd zijn in podiumd 4.6.3 t.o.v. 4.6.2.
+
+# Applicaties
+- name: zgw-office-add-in-frontend
+  url: ghcr.io/infonl/zgw-office-add-in-frontend
+  version: "v0.9.251"
+  digest: "sha256:6dd7d046be6effd41c67459811b49785655e0fc0404c5bb4c652c7754b68a57c"
+
+- name: zgw-office-add-in-backend
+  url: ghcr.io/infonl/zgw-office-add-in-backend
+  version: "v0.9.251"
+  digest: "sha256:92fec77893a79475112a6bcbfd167ca6c5ff30c4282eca6dccc578885ddd705e"
+
+- name: k8s
+  url: docker.io/alpine/k8s
+  version: "1.33.2"
+  digest: "sha256:329cf13af9ee678e3afd71b6af44447029f119f713bec278db2fb53571e857f5"
+
+# PABC
+- name: pabc
+  url: ghcr.io/platform-autorisatie-beheer-component/pabc-api
+  version: "1.1.0"
+  digest: "sha256:66e83416f41d546eba8b6a7f2ea061da2d293fab6b9e22f129934127f4c31b3d"
+
+- name: pabc-migrations
+  url: ghcr.io/platform-autorisatie-beheer-component/pabc-migrations
+  version: "1.1.0"
+  digest: "sha256:0f73051e64ebcd6ac5c169630fde4cb7ef3a39376ffb840e407158728685f83c"
+
+- name: k8s-wait-for
+  url: ghcr.io/groundnuty/k8s-wait-for
+  version: "v2.0"
+  digest: "sha256:c14d7271e4013b24b34ef0d7144c4610577d0e9110ccc26b163fa28089fa1f4e"
+
+# Keycloak (operator + server + config-cli)
+# Note: keycloak-operator adfinis chart 1.11.2 supports up to 26.5.6; operator/server kept at 26.5.7 (no chart for 26.6.0 yet)
+- name: keycloak
+  url: quay.io/keycloak/keycloak
+  version: "26.5.7"
+  digest: "sha256:45ae20191531eb608ddb0b775d012b40d3e4f942697f3214694887dd7c108d13"
+
+- name: keycloak-operator
+  url: quay.io/keycloak/keycloak-operator
+  version: "26.5.7"
+  digest: "sha256:4aaa52610f9427ef0eebbf120b24bb22cf99b7197f125b140887e2add407edce"
+
+- name: keycloak-config-cli
+  url: docker.io/adorsys/keycloak-config-cli
+  version: "6.5.0-26"
+  digest: "sha256:2d2a0663cf324379d9ffab896db8d00293cd0326151968b319cf166f6eec8fca"
+
+- name: curl
+  url: docker.io/curlimages/curl
+  version: "8.19.0"
+  digest: "sha256:b066cbf876d50a5d024927878a586c4a39c985325ded195e2e231f4abdddf3c8"
+
+# ClamAV exporter sidecar
+- name: clamav-exporter
+  url: docker.io/sergeymakinen/clamav_exporter
+  version: "v2.1.2"
+  digest: "sha256:487d133c7ff69eaa96e9f8a44fb631302048fd592218cdd2fa6c85bc8c7bef15"
+
+# Redis operator + HA
+- name: redis
+  url: quay.io/opstree/redis
+  version: "v8.6.2"
+  digest: "sha256:5f79911253cb74636e8e97555b08095902d46a835c6423adb123295b00ba70d7"
+
+- name: redis-exporter
+  url: quay.io/opstree/redis-exporter
+  version: "v1.82.0"
+  digest: "sha256:bce422b4bba8721bef04d5ca491eeec2b53278698b4bd9790f81fbb287cdfe88"
+
+# Nginx (api-proxy en Maykin/ZAC nginx sidecars — nginx-unprivileged is nog op 1.29.5, geen nieuwere versie beschikbaar)
+- name: nginx-unprivileged
+  url: docker.io/nginxinc/nginx-unprivileged
+  version: "1.29.5"
+  digest: "sha256:5c8946de2a79b6031975ff6c54594a26bdb2f1b5abab1c03f501575ebb02510f"

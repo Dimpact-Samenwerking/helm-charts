@@ -4,6 +4,14 @@ This is the single source of truth for AI assistant guidance in this repository.
 
 ---
 
+## General Rules
+
+### Check for repo updates before starting work
+
+Before making any changes in **any** local repository (this repo or any external repo such as ZAC), check when the last `git fetch`/`git pull` was done. If the most recent update is more than 1 day old, run `git fetch` (or `git pull` if on the working branch) first and report any new commits on the current branch or its upstream. This prevents working on stale code.
+
+---
+
 ## Repository Layout
 
 ```
@@ -21,36 +29,32 @@ charts/
 ## Common Commands
 
 Dependency operations must be run from `charts/podiumd/`. Lint and template commands can be run from the repo root.
+Required Helm repos are listed in `Chart.yaml`. To add them all at once run `charts/podiumd/scripts/add-helm-repos.sh` before `helm dependency update`.
 
 ```bash
-# Add required Helm repos (run once before dependency operations)
-helm repo add bitnami https://charts.bitnami.com/bitnami
-helm repo add maykinmedia https://maykinmedia.github.io/charts/
-helm repo add wiremind https://wiremind.github.io/wiremind-helm-charts
-helm repo add dimpact https://Dimpact-Samenwerking.github.io/helm-charts/
-helm repo add kiss-elastic https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/.github/main/docs/scripts/elastic
-helm repo add zac https://infonl.github.io/dimpact-zaakafhandelcomponent/
-helm repo add zgw-office-addin https://infonl.github.io/zgw-office-addin
-helm repo add adfinis https://charts.adfinis.com
-helm repo add opstree https://ot-container-kit.github.io/helm-charts/
+# Update/build dependencies (from charts/podiumd/)
+helm dependency update && helm dependency build
 
-# Update/build dependencies
-cd charts/podiumd
-helm dependency update
-helm dependency build
+# Lint — always use the CI values file to satisfy required fields
+helm lint charts/podiumd -f charts/podiumd/ci/lint-values.yaml
 
-# Lint
-helm lint charts/podiumd
+# Render all templates (dry-run, skip JSON schema validation from default empty values)
+helm template podiumd charts/podiumd -f charts/podiumd/ci/lint-values.yaml --skip-schema-validation
 
-# Render all templates (dry-run)
+# Render a single template
+helm template podiumd charts/podiumd -f charts/podiumd/ci/lint-values.yaml --skip-schema-validation -s templates/<template.yaml>
+
+# Render with environment values (for full validation)
 helm template podiumd charts/podiumd -f <values-file.yaml> -n podiumd
-
-# Render a single template ("single test")
-helm template podiumd charts/podiumd -f <values-file.yaml> -s templates/<template.yaml>
 
 # Deploy / upgrade
 helm upgrade --install podiumd charts/podiumd -f <values-file.yaml> -n <namespace>
 ```
+
+**Lint notes:**
+- Always use `-f charts/podiumd/ci/lint-values.yaml` — the default `values.yaml` intentionally leaves security-sensitive fields blank (no `changeme` defaults), which causes validation failures without real values.
+- `--skip-schema-validation` is needed for `helm template` because the KISS subchart JSON schema requires fields that aren't populated in the CI values file.
+- The CI values file (`charts/podiumd/ci/lint-values.yaml`) contains placeholder values for all fields that trigger validation errors; keep it up to date when adding new required fields.
 
 There are no dedicated Helm test manifests. Use `-s templates/<template.yaml>` to validate individual resources. `kiss.schema.json` provides JSON Schema validation for `values.yaml` (requires Helm 3.11+).
 
@@ -90,6 +94,8 @@ All stateful apps use `*-storage.yaml` PVC templates. Azure CSI driver parameter
 **Some dependencies use `alias`** to shorten their name (e.g. `openformulieren` aliased from the upstream chart name). Check `Chart.yaml` for aliases before referencing sub-chart values keys.
 
 **Vendored charts:** `charts/podiumd/charts/` contains pinned `.tgz` packages and `Chart.lock` for reproducible builds.
+
+**Inspecting vendored `.tgz` charts:** If you extract a `.tgz` package (e.g. to inspect its templates) or check out a chart directory for analysis, **always delete both the extracted directory and the original `.tgz` file from `charts/podiumd/charts/` when done.** Helm prefers extracted chart directories over `.tgz` files — leaving extracted charts in place causes `helm template`, `helm lint`, and `helm upgrade` to silently use the extracted (possibly modified) version instead of the pinned package, which can break deployments in unexpected ways.
 
 ### Keycloak Migration (Active)
 Transitioning from Bitnami Keycloak + Infinispan → **Hostzero Keycloak Operator**:
@@ -133,86 +139,29 @@ On aks-blue environments, all images must be pulled from the environment-specifi
 - Keycloak realm security changes (token lifespans, brute force, password policy, session settings, etc.) must be logged in `charts/podiumd/docs/keycloak-security-updates.md`.
 - ClamAV security/config updates must be logged in `charts/podiumd/docs/clamav-security-updates.md`.
 
+### BOM Check
+Before committing changes to `values.yaml`, verify it has no UTF-8 BOM (bytes `0xEF 0xBB 0xBF`), which breaks YAML tooling:
+
+```powershell
+$bytes = [System.IO.File]::ReadAllBytes("charts/podiumd/values.yaml")
+if ($bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) {
+    [System.IO.File]::WriteAllBytes("charts/podiumd/values.yaml", $bytes[3..($bytes.Length-1)])
+    Write-Host "BOM removed"
+} else { Write-Host "No BOM - OK" }
+```
+
 ### Duplicate Key Detection
-Before committing changes to `values.yaml`, run this scan to catch YAML keys that silently overwrite earlier ones (duplicate map keys are a silent data-loss bug).
+Before committing changes to `values.yaml`, run the duplicate key check to catch silent data-loss bugs:
 
-> **Important:** the script reads the file from disk (working tree). If you have already staged your changes with `git add` without running the check first, use the staged variant below — otherwise the check runs against the pre-change file and misses the staged content.
-
-**Working tree (run before `git add`):**
 ```powershell
-$script = @'
-import re
-lines = open(r'charts/podiumd/values.yaml', encoding='utf-8').readlines()
-stack = []
-scope_keys = {}
-duplicates = []
-for i, line in enumerate(lines, 1):
-    stripped = line.lstrip()
-    if stripped.startswith('#') or stripped.startswith('-'):
-        continue
-    m = re.match(r'^(\s*)([a-zA-Z0-9_\-][^:#\n]*?)\s*:', line)
-    if not m:
-        continue
-    indent = len(m.group(1))
-    key = m.group(2).strip()
-    while stack and stack[-1][0] >= indent:
-        stack.pop()
-    scope_id = tuple(k for _,k in stack)
-    if scope_id not in scope_keys:
-        scope_keys[scope_id] = {}
-    if key in scope_keys[scope_id]:
-        parent = ' > '.join(scope_id) if scope_id else '(root)'
-        duplicates.append(f'Line {i}: duplicate "{key}" under [{parent}] (first line {scope_keys[scope_id][key]})')
-    else:
-        scope_keys[scope_id][key] = i
-    stack.append((indent, key))
-if duplicates:
-    print(f'FOUND {len(duplicates)} duplicate(s):')
-    for d in duplicates: print(' ', d)
-else:
-    print('No duplicate keys found')
-'@
-$script | python
+# Working tree (before git add)
+pwsh charts/podiumd/scripts/check-duplicate-keys.ps1
+
+# Staged (after git add, before git commit)
+pwsh charts/podiumd/scripts/check-duplicate-keys.ps1 -Staged
 ```
 
-**Staged variant (run after `git add`, before `git commit`):**
-```powershell
-$script = @'
-import re, sys
-lines = sys.stdin.read().splitlines(keepends=True)
-stack = []
-scope_keys = {}
-duplicates = []
-for i, line in enumerate(lines, 1):
-    stripped = line.lstrip()
-    if stripped.startswith('#') or stripped.startswith('-'):
-        continue
-    m = re.match(r'^(\s*)([a-zA-Z0-9_\-][^:#\n]*?)\s*:', line)
-    if not m:
-        continue
-    indent = len(m.group(1))
-    key = m.group(2).strip()
-    while stack and stack[-1][0] >= indent:
-        stack.pop()
-    scope_id = tuple(k for _,k in stack)
-    if scope_id not in scope_keys:
-        scope_keys[scope_id] = {}
-    if key in scope_keys[scope_id]:
-        parent = ' > '.join(scope_id) if scope_id else '(root)'
-        duplicates.append(f'Line {i}: duplicate "{key}" under [{parent}] (first line {scope_keys[scope_id][key]})')
-    else:
-        scope_keys[scope_id][key] = i
-    stack.append((indent, key))
-if duplicates:
-    print(f'FOUND {len(duplicates)} duplicate(s):')
-    for d in duplicates: print(' ', d)
-else:
-    print('No duplicate keys found')
-'@
-git show :charts/podiumd/values.yaml | python -c $script
-```
-
-Hits inside YAML sequences (list items sharing key names like `value:` or `mountPath:`) are false positives and can be ignored.
+List-item hits (`value:`, `mountPath:`) are false positives — ignore them.
 
 ### Git Workflow
 Never commit or push automatically. Always wait for explicit user approval before running `git commit` or `git push`.
@@ -234,84 +183,51 @@ Trigger via the **Release Snapshot Charts** workflow in the Actions tab.
 The **Release Charts met changelogs** workflow fetches upstream changelogs (Open Zaak, Open Formulieren, Open Klant, etc.) from GitHub and generates release notes.
 
 ### Images Manifest per Release
-For each podiumd release, an images manifest is created at:
-```
-charts/podiumd/docs/images/images-<version>.yaml
-```
+For each podiumd release, create `charts/podiumd/docs/images/images-<version>.yaml` covering **only images that are new or changed** vs the previous release (including sidecar/exporter images from `values-enable-observability.yaml`).
 
-The format mirrors `ExternalsPodiumD/pipelines/images.yml` — an Azure DevOps pipeline YAML with a `parameters.images` list, each entry having `name`, `url`, and `version`. The file covers **only images that are new or changed** in that release compared to the previous one, including:
-- Application image tag bumps (from subchart or `values.yaml` changes)
-- Any new sidecar/exporter images enabled in that release (e.g. from `values-enable-observability.yaml`)
+Format: flat YAML list with `name`, `url`, `version`, and `digest` fields. Use the component name from the chart (e.g. `openinwoner`, not `open-inwoner`). Use the same tag as in `values.yaml`. Include a short Dutch group comment (e.g. `# Applicaties`). See `images-4.6.1.yaml` as style reference.
 
-All images listed must have a corresponding `{registry, repository, tag}` definition in `values.yaml` so they can be overridden to point at the environment-specific ACR. Use the same tag values as defined in `values.yaml` (do not invent versions). Each entry must include a `digest` field (`sha256:...`) fetched from the source registry at the time of writing. The file is a flat YAML list (no pipeline wrapper, no indentation on list items). Include a short Dutch comment per group (e.g. `# Applicaties`, `# Observability`) matching the style of the reference file.
-
-The `name` field uses the component name as used in the chart (e.g. `openinwoner`, `keycloak`, `clamav_exporter`) — not the Docker image name (e.g. not `open-inwoner` or `sergeymakinen/clamav_exporter`).
-
-To find changed images, diff `Chart.yaml` and `values.yaml` against the previous release (or `main`):
+To find changed images:
 ```powershell
 git diff main...HEAD -- charts/podiumd/values.yaml | Select-String "^\+.*tag:"
 git diff main...HEAD -- charts/podiumd/Chart.yaml
 ```
 
-Fetch digests via the registry API (no docker/skopeo needed):
-```python
-import urllib.request, json
-
-# Quay.io
-def get_quay_digest(repo, tag):
-    url = f'https://quay.io/v2/{repo}/manifests/{tag}'
-    req = urllib.request.Request(url, headers={'Accept': 'application/vnd.oci.image.index.v1+json,application/vnd.docker.distribution.manifest.list.v2+json'})
-    with urllib.request.urlopen(req) as r:
-        return r.headers.get('Docker-Content-Digest', '')
-
-# Docker Hub
-def get_dockerhub_digest(repo, tag):
-    token = json.load(urllib.request.urlopen(f'https://auth.docker.io/token?service=registry.docker.io&scope=repository:{repo}:pull'))['token']
-    req = urllib.request.Request(f'https://registry-1.docker.io/v2/{repo}/manifests/{tag}',
-        headers={'Authorization': f'Bearer {token}', 'Accept': 'application/vnd.oci.image.index.v1+json,application/vnd.docker.distribution.manifest.list.v2+json'})
-    with urllib.request.urlopen(req) as r:
-        return r.headers.get('Docker-Content-Digest', '')
-```
+Fetch digests via the registry API using Python's `urllib.request` — request the manifest with `Accept: application/vnd.oci.image.index.v1+json` and read the `Docker-Content-Digest` response header. For Docker Hub, first obtain a bearer token from `auth.docker.io`.
 
 ---
 
 ### Upgrade Notes per Release
-For each podiumd release that contains breaking changes, new images, or required manual steps, create an upgrade guide at:
-```
-charts/podiumd/docs/upgrade-from-<prev>-to-<version>.md
-```
-
-The file should cover:
-- **New images requiring ACR override** — any image that is new in this release and not already overridden in existing env values files. Include the exact `values.yaml` key path and a snippet showing the override. State that no tag override is needed (tags are chart defaults).
-- **New optional components** — components added as disabled-by-default subcharts, with their condition key and ACR override if applicable.
-- **Removed or deprecated components** — anything removed from `Chart.yaml` (e.g. deprecated `keycloak` Bitnami chart, `infinispan`).
-- **Required manual steps** — StatefulSet deletions, CRD installs, script runs, etc. that cannot be handled by `helm upgrade` alone.
-- **Component version bump table** — a summary table of all chart/image version changes (`| Component | old | new |`). Only include components whose version actually changed vs the previous release.
-
-Check `charts/podiumd/docs/upgrade-from-4.5.13-to-4.6.0.md` as a style reference.
-
+For each release with breaking changes, new images, or required manual steps, create `charts/podiumd/docs/upgrade-from-<prev>-to-<version>.md` covering: new images needing ACR override (key path + snippet), new optional components, removed/deprecated components, required manual steps, and a component version bump table (`| Component | old | new |`). See `upgrade-from-4.5.13-to-4.6.0.md` as style reference.
 ---
 
 ## Dependency Management
 
-Renovate is configured (`renovate.json`) with the recommended defaults and automatically opens PRs for upstream dependency version bumps.
+Renovate (`renovate.json`) automatically opens PRs for upstream version bumps. To upgrade a sub-chart manually: bump its version in `Chart.yaml`, then run `helm dependency update` from `charts/podiumd/`. Commit the updated `.tgz` packages in `charts/podiumd/charts/` and `Chart.lock`.
 
-To upgrade a sub-chart, bump its version in `Chart.yaml`, then run `helm dependency update` from `charts/podiumd/`. Vendored `.tgz` packages in `charts/podiumd/charts/` and `Chart.lock` are committed for reproducible builds.
-
----
-
-## Known Documentation Issues
-
-### `charts/podiumd/docs/upgrade-from-4.5.13-to-4.6.0.md` — incorrect precedence description
-The section "Configuration jobs for objecten and opennotificaties" originally stated that subchart defaults take precedence over the parent `podiumd/values.yaml`. This is backwards — in Helm the parent chart's `values.yaml` always overrides subchart defaults.
-
-What actually happened: in 4.5.13 `podiumd/values.yaml` did not contain `objecten.configuration.job.enabled: true`, so the subchart default of `false` won by absence. The fix was adding the override to `podiumd/values.yaml` in 4.6.0. No env-level override for `job.enabled` is required.
-
-**Helm value precedence** (lowest → highest):
+## Helm Value Precedence (lowest → highest)
 1. Subchart's own `values.yaml`
 2. Parent chart's `values.yaml`
 3. User-supplied `-f env-values.yaml`
 4. `--set` flags
+
+---
+
+## Working with the ZAC Repository
+
+The ZAC chart lives at `https://github.com/infonl/dimpact-zaakafhandelcomponent` (local clone: `C:\Users\johnb\IdeaProjects\dimpact-zaakafhandelcomponent`).
+
+When raising PRs or commits there, follow their conventions exactly:
+
+- **Branch names**: `feature/PZ-XXX-short-description` — always use a PZ Jira ticket number. External contributions without a ticket can omit it but keep the `feature/` prefix.
+- **PR title**: `<type>[optional scope]: <description>` (Conventional Commits). E.g. `fix(helm): use health endpoint for Solr liveness probe`.
+- **PR body**: One line of plain text describing the change.
+- **PR footer**: `Solves PZ-XXX` referencing the Jira ticket. Omit for external contributions with no ticket.
+- **Commit messages**: Same `<type>[scope]: <description>` format. When squash-merging, copy the PR body into the squash description.
+- **Chart version**: Bump `charts/zac/Chart.yaml` `version` field (patch increment) with every chart change.
+- **SPDX headers**: All modified source files need `SPDX-FileCopyrightText` / `SPDX-License-Identifier: EUPL-1.2+` headers. Do not add `INFO.nl` to the header unless you are an INFO.nl developer.
+
+Valid commit types: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `ci`, `perf`, `style`.
 
 ---
 
