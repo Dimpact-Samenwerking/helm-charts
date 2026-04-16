@@ -291,7 +291,8 @@ zac:
   pabc:
     apiUrl: "..."
     apiKey: REP_ZAC_PABC_API_KEY_REP
-
+```
+```yaml
 # After
 zac:
   pabcApi:
@@ -530,3 +531,17 @@ kubectl rollout restart deployment/zac -n podiumd --context <cluster>
 `failureThreshold: 16` (`16 × 30 s = 480 s`). This causes Kubernetes to automatically restart
 ZAC after ~8 minutes of catalogus unavailability, without manual intervention. Scheduled for
 inclusion in a future podiumd release.
+
+
+---
+
+## Component version bumps (chart defaults — no action needed in env values)
+
+| Component         | 4.6.2   | 4.6.3   |
+|-------------------|---------|---------|
+| ZGW Office Add-in | 0.9.133 | 0.9.251 |
+
+---
+
+For the full list of new and changed images in this release, see
+[docs/images/images-4.6.3.yaml](images/images-4.6.3.yaml).
