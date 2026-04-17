@@ -434,11 +434,18 @@ redis-operator:
       # Note: startup-only parameters (e.g. databases) will NOT take effect here due to an operator
       # limitation; use the databases field above instead.
       additionalRedisConfig: ""
-    # -- Job that waits for the redis-ha StatefulSet rollout to complete and applies redis-role labels
-    # if they are missing (works around a known OT Redis Operator bug where pods lose their
-    # redis-role=master label after a rolling restart).
-    labelMasterJob:
+    # -- CronJob that periodically reconciles redis-role labels on redis-ha pods.
+    # Workaround for a known OT Redis Operator 0.24.0 bug (PR #1720, not yet released) where
+    # the operator fails to apply redis-role labels after a simultaneous pod restart, leaving
+    # the redis-ha-master Service with no endpoints. Runs every 5 minutes and always reconciles
+    # from RedisReplication.status.masterNode — no early-exit if a label already exists.
+    # Remove once a redis-operator release containing PR #1720 is available.
+    labelMasterCronJob:
       enabled: true
+      # Default: every 5 minutes, always on (suitable for production).
+      # For test environments that are suspended outside business hours, use:
+      #   schedule: "*/5 7-18 * * 1-5"   # Mon–Fri 07:00–18:55, not on weekends
+      schedule: "*/5 * * * *"
       image:
         repository: docker.io/alpine/k8s
         tag: "1.33.10"

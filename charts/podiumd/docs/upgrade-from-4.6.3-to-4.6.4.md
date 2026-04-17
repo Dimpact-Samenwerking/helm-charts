@@ -46,11 +46,42 @@ No tag override needed — the tag is set by the chart default (`1.8.2`).
 
 ---
 
-### `redis-ha-label-master` kubectl image updated to 1.33.10
+### `redis-ha-label-master` — one-shot Job replaced by CronJob
 
-The `docker.io/alpine/k8s` image used by the `redis-ha-label-master` Job has been updated from `1.33.2` to `1.33.10`.
+The `redis-ha-label-master` one-shot Job has been replaced with a CronJob that runs every 5 minutes. This closes a gap where label drift after the Job's 10-minute TTL left the `redis-ha-master` Service with no endpoints, causing all Redis-dependent apps to hang on first connection.
 
-For **ACR-based environments**, no additional action is needed — the repository override is already set. No tag override is needed; the tag is set by the chart default (`1.33.10`).
+**Root cause:** `redis-operator` 0.24.0 has a known bug ([PR #1720](https://github.com/OT-CONTAINER-KIT/redis-operator/pull/1720), not yet released) where simultaneous pod restarts cause the operator to pass an empty pod name to `getRedisServerIP()`, looping with `"resource name may not be empty"` and never applying `redis-role` labels. The CronJob reconciles labels from `RedisReplication.status.masterNode` every 5 minutes as a mitigation until a fixed operator release is available. See [docs/redis-ha.md](redis-ha.md) for full details.
+
+**Values key renamed:** `redis-operator.redis-ha.labelMasterJob` → `redis-operator.redis-ha.labelMasterCronJob`
+
+If any environment values file overrides `labelMasterJob` fields (e.g. `image.repository` for ACR), rename the key:
+
+```yaml
+# Before
+redis-operator:
+  redis-ha:
+    labelMasterJob:
+      image:
+        repository: <acr>/alpine/k8s
+
+# After
+redis-operator:
+  redis-ha:
+    labelMasterCronJob:
+      image:
+        repository: <acr>/alpine/k8s
+```
+
+For **test environments** that are suspended outside business hours, override the schedule so the CronJob does not run when the cluster is idle:
+
+```yaml
+redis-operator:
+  redis-ha:
+    labelMasterCronJob:
+      schedule: "*/5 7-18 * * 1-5"  # Mon–Fri 07:00–18:55 only
+```
+
+The `docker.io/alpine/k8s` image tag has also been updated from `1.33.2` to `1.33.10`.
 
 ---
 
@@ -59,7 +90,7 @@ For **ACR-based environments**, no additional action is needed — the repositor
 | Component | 4.6.3   | 4.6.4   |
 |-----------|---------|---------|
 | ZAC       | 1.0.208 | 1.0.224 |
-| alpine/k8s (labelMasterJob) | 1.33.2 | 1.33.10 |
+| alpine/k8s (labelMasterCronJob) | 1.33.2 | 1.33.10 |
 | nginx-unprivileged (api-proxy + Maykin/ZAC sidecars) | 1.29.5 | 1.29.8 |
 
 ---
