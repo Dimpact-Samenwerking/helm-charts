@@ -69,7 +69,7 @@ kubectl label pod redis-ha-2 -n podiumd redis-role=slave --overwrite
 
 ## Recommended Fix: Replace Job with a CronJob
 
-To close the gap until a fixed operator release is available, replace or supplement the one-shot Job with a CronJob that runs every 5 minutes. The key change from the current job script is to **remove the early-exit** — always reconcile the label from the live Redis state or the CR, rather than skipping if a label already exists.
+To close the gap until a fixed operator release is available, replace or supplement the one-shot Job with a CronJob that runs every 1–2 minutes. The key change from the current job script is to **remove the early-exit** — always reconcile the label from the live Redis state or the CR, rather than skipping if a label already exists.
 
 Logic the CronJob should implement:
 

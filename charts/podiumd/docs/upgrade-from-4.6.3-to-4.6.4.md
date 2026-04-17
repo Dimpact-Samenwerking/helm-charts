@@ -107,7 +107,7 @@ For **test environments** that are suspended outside business hours, override th
 redis-operator:
   redis-ha:
     labelMasterCronJob:
-      schedule: "*/5 7-18 * * 1-5"  # Mon–Fri 07:00–18:55 only
+      schedule: "* 7-18 * * 1-5"  # every minute, Mon–Fri 07:00–18:59 only
 ```
 
 The `docker.io/alpine/k8s` image tag has also been updated from `1.33.2` to `1.33.10`.

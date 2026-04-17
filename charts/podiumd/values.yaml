@@ -442,10 +442,10 @@ redis-operator:
     # Remove once a redis-operator release containing PR #1720 is available.
     labelMasterCronJob:
       enabled: true
-      # Default: every 5 minutes, always on (suitable for production).
+      # Default: every 2 minutes, always on (suitable for production).
       # For test environments that are suspended outside business hours, use:
-      #   schedule: "*/5 7-18 * * 1-5"   # Mon–Fri 07:00–18:55, not on weekends
-      schedule: "*/5 * * * *"
+      #   schedule: "* 7-18 * * 1-5"   # every minute, Mon–Fri 07:00–18:59 only
+      schedule: "*/2 * * * *"
       image:
         repository: docker.io/alpine/k8s
         tag: "1.33.10"
