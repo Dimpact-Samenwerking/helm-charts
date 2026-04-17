@@ -2,7 +2,36 @@
 
 ## Required manual steps before upgrading
 
-None.
+### `zgw-office-addin` — breaking values schema change
+
+The `zgw-office-addin` subchart restructured its values. Any environment values file that sets the following keys must be updated before upgrading:
+
+| Old key | New key |
+|---|---|
+| `zgw-office-addin.frontend.frontendUrl` | `zgw-office-addin.common.frontendUrl` |
+| `zgw-office-addin.backend.apiBaseUrl` | `zgw-office-addin.backend.zgwApis.url` |
+| `zgw-office-addin.backend.jwtSecret` | `zgw-office-addin.backend.zgwApis.secret` |
+
+```yaml
+# Before
+zgw-office-addin:
+  frontend:
+    frontendUrl: https://office-addin.example.nl
+  backend:
+    apiBaseUrl: "https://openzaak.example.nl"
+    jwtSecret: "secret"
+
+# After
+zgw-office-addin:
+  common:
+    frontendUrl: https://office-addin.example.nl
+  backend:
+    zgwApis:
+      url: "https://openzaak.example.nl"
+      secret: "secret"
+```
+
+The Helm upgrade will fail with a schema validation error if these keys are not renamed.
 
 ---
 
