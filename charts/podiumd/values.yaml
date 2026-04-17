@@ -437,7 +437,7 @@ redis-operator:
     # -- CronJob that periodically reconciles redis-role labels on redis-ha pods.
     # Workaround for a known OT Redis Operator 0.24.0 bug (PR #1720, not yet released) where
     # the operator fails to apply redis-role labels after a simultaneous pod restart, leaving
-    # the redis-ha-master Service with no endpoints. Runs every 5 minutes and always reconciles
+    # the redis-ha-master Service with no endpoints. Runs every 2 minutes and always reconciles
     # from RedisReplication.status.masterNode — no early-exit if a label already exists.
     # Remove once a redis-operator release containing PR #1720 is available.
     labelMasterCronJob:
@@ -2481,7 +2481,7 @@ zac:
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
-    tag: 4.3.61 # ZAC Sprint 65 versie
+    tag: 4.3.61 # ZAC Sprint 65 versie — same as 4.6.3; helm chart bumped for probe/port fixes only
   # Liveness probe uses /health/ready (not /health/live) with a high failureThreshold so
   # Kubernetes automatically restarts ZAC after extended OpenZaak/catalogus unavailability.
   # The ZGW-API-Client has no connectTimeout/readTimeout, causing stale TCP connections

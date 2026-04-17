@@ -26,34 +26,36 @@ stacktrace: getRedisServerIP @ internal/k8sutils/redis.go:50
 
 **Upstream fix summary (PR #1720):** Adds a fallback chain — if the live Redis check returns empty, fall back to `status.masterNode` from the `RedisReplication` CR, then fall back to `masterNodes[0]`.
 
-**Workaround until a fixed release is available:** See label-master job and CronJob sections below.
+**Current mitigation:** The `redis-ha-label-master` CronJob described below.
 
 ---
 
-## The `redis-ha-label-master` Job
+## The `redis-ha-label-master` CronJob (since 4.6.4)
 
-A Helm post-install/post-upgrade Job (`templates/redis-ha-label-master.yaml`) was added as a workaround. It:
+`templates/redis-ha-label-master.yaml` defines a CronJob that runs every 2 minutes. Each run:
 
-1. Waits for all `redis-ha` pods to be Running
-2. Reads the authoritative master from `RedisReplication.status.masterNode`
-3. Applies `redis-role=master` to the master pod and `redis-role=slave` to the others
-4. Verifies the `redis-ha-master` Service endpoint is populated before exiting
+1. Reads the authoritative master from `RedisReplication.status.masterNode`
+2. Compares it to the pod currently carrying `redis-role=master`
+3. If they match — exits immediately (`Labels correct: <pod> is master. Nothing to do.`)
+4. If they differ — applies `redis-role=master` to the CR master pod and `redis-role=slave` to the others
 
-### Gap 1: Early exit when label already exists
+Unlike the previous one-shot Job, the CronJob:
+- Always reconciles from the CR — no early-exit based on an existing label
+- Runs continuously, so label drift is corrected within 2 minutes
+- Uses `backoffLimit: 0` and `restartPolicy: Never` — a failed run is discarded; the next scheduled run retries
 
-The job skips labeling entirely if any pod already carries `redis-role=master` (lines 96–103 of the template). This is safe for the happy path (operator recovered by itself) but **fails silently** if:
+### Pre-4.6.4 history (one-shot Job)
 
-- The label is present on the wrong pod (stale from a previous master)
-- The label drifts away after the job completes
+Before 4.6.4 a Helm post-install/post-upgrade Job handled labelling. It had two gaps:
 
-### Gap 2: One-shot execution — TTL 10 minutes
+**Gap 1 — Early exit on existing label:** The job skipped labelling if any pod already carried `redis-role=master`, which silently failed when the label was on the wrong pod or had drifted.
 
-The job has `ttlSecondsAfterFinished: 600`. Once it completes and is cleaned up, there is no ongoing process to re-apply labels if the operator later fails to maintain them. This was observed in production on 2026-04-17:
+**Gap 2 — One-shot execution (TTL 10 min):** After the job completed and was cleaned up by its `ttlSecondsAfterFinished: 600`, no ongoing process re-applied labels if the operator later failed. This was observed on 2026-04-17:
 
-- Helm upgrade to 4.6.4 ran → label-master job applied labels correctly → job TTL'd
-- Over time the operator's reconciliation loop continued failing silently
-- Pod restarts caused labels to drift; the `redis-ha-master` Service lost its endpoint
-- All apps using Redis (openzaak, ZAC, etc.) failed to start or became not-ready
+- Helm upgrade ran → one-shot job applied labels correctly → job TTL'd
+- Operator's reconciliation loop continued failing silently
+- Pod restarts caused labels to drift; `redis-ha-master` Service lost its endpoint
+- All Redis-dependent apps failed to start
 
 **Manual recovery applied (2026-04-17):**
 ```bash
@@ -67,23 +69,8 @@ kubectl label pod redis-ha-2 -n podiumd redis-role=slave --overwrite
 
 ---
 
-## Recommended Fix: Replace Job with a CronJob
-
-To close the gap until a fixed operator release is available, replace or supplement the one-shot Job with a CronJob that runs every 1–2 minutes. The key change from the current job script is to **remove the early-exit** — always reconcile the label from the live Redis state or the CR, rather than skipping if a label already exists.
-
-Logic the CronJob should implement:
-
-1. Determine the real master: query each pod with `redis-cli INFO replication`, find the one with `role:master` that the others are replicating from (or fall back to `RedisReplication.status.masterNode`)
-2. Apply `redis-role=master` to that pod (always, with `--overwrite`)
-3. Apply `redis-role=slave` to all other redis-ha pods
-4. Optionally verify the `redis-ha-master` Service endpoint is populated
-
-The CronJob needs the same RBAC (get/list/patch pods, get endpointslices, get redisreplications) as the existing Job.
-
----
-
 ## Upgrade path
 
-Once OT-CONTAINER-KIT releases a version containing PR #1720, bump the `redis-operator` subchart to that version. At that point the label-master CronJob can be disabled/removed as the operator will correctly self-heal after simultaneous pod restarts.
+Once OT-CONTAINER-KIT releases a version containing PR #1720, bump the `redis-operator` subchart to that version. At that point the label-master CronJob can be disabled (`redis-operator.redis-ha.labelMasterCronJob.enabled: false`) as the operator will correctly self-heal after simultaneous pod restarts.
 
 Track: https://github.com/OT-CONTAINER-KIT/redis-operator/releases

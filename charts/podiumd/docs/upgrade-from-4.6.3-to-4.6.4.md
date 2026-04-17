@@ -71,15 +71,15 @@ zac:
       repository: <acr>/kontextwork-converter
 ```
 
-No tag override needed — the tag is set by the chart default (`1.8.2`).
+No additional tag override needed — the tag is already pinned to `1.8.2` in PodiumD's `values.yaml`.
 
 ---
 
 ### `redis-ha-label-master` — one-shot Job replaced by CronJob
 
-The `redis-ha-label-master` one-shot Job has been replaced with a CronJob that runs every 5 minutes. This closes a gap where label drift after the Job's 10-minute TTL left the `redis-ha-master` Service with no endpoints, causing all Redis-dependent apps to hang on first connection.
+The `redis-ha-label-master` one-shot Job has been replaced with a CronJob that runs every 2 minutes. This closes a gap where label drift after the Job's 10-minute TTL left the `redis-ha-master` Service with no endpoints, causing all Redis-dependent apps to hang on first connection.
 
-**Root cause:** `redis-operator` 0.24.0 has a known bug ([PR #1720](https://github.com/OT-CONTAINER-KIT/redis-operator/pull/1720), not yet released) where simultaneous pod restarts cause the operator to pass an empty pod name to `getRedisServerIP()`, looping with `"resource name may not be empty"` and never applying `redis-role` labels. The CronJob reconciles labels from `RedisReplication.status.masterNode` every 5 minutes as a mitigation until a fixed operator release is available. See [docs/redis-ha.md](redis-ha.md) for full details.
+**Root cause:** `redis-operator` 0.24.0 has a known bug ([PR #1720](https://github.com/OT-CONTAINER-KIT/redis-operator/pull/1720), not yet released) where simultaneous pod restarts cause the operator to pass an empty pod name to `getRedisServerIP()`, looping with `"resource name may not be empty"` and never applying `redis-role` labels. The CronJob reconciles labels from `RedisReplication.status.masterNode` every 2 minutes as a mitigation until a fixed operator release is available. See [docs/redis-ha.md](redis-ha.md) for full details.
 
 **Values key renamed:** `redis-operator.redis-ha.labelMasterJob` → `redis-operator.redis-ha.labelMasterCronJob`
 
