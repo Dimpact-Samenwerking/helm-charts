@@ -2475,6 +2475,16 @@ zac:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
     tag: 4.3.61 # ZAC Sprint 65 versie
+  # Liveness probe uses /health/ready (not /health/live) with a high failureThreshold so
+  # Kubernetes automatically restarts ZAC after extended OpenZaak/catalogus unavailability.
+  # The ZGW-API-Client has no connectTimeout/readTimeout, causing stale TCP connections
+  # that keep health checks hanging indefinitely. Revert to /health/live + failureThreshold: 3
+  # once proper HTTP timeouts are configured in ZAC's ZGW-API-Client.
+  livenessProbe:
+    path: /health/ready
+    failureThreshold: 16
+    periodSeconds: 30
+    timeoutSeconds: 1
   initContainer:
     enabled: true
     resources:
