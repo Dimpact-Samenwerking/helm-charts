@@ -101,6 +101,8 @@ redis-operator:
         repository: <acr>/alpine/k8s
 ```
 
+The default schedule is `*/2 * * * *` (every 2 minutes, always on — suitable for production). This keeps the `redis-ha-master` endpoint recovery window under 2 minutes after any Redis pod churn.
+
 For **test environments** that are suspended outside business hours, override the schedule so the CronJob does not run when the cluster is idle:
 
 ```yaml
