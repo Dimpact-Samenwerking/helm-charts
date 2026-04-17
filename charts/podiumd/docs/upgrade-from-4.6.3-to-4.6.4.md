@@ -8,9 +8,9 @@ None.
 
 ## Changes
 
-### ZAC helm chart updated to 1.0.223
+### ZAC helm chart updated to 1.0.224
 
-The ZAC subchart has been updated from 1.0.208 to 1.0.223 (ZAC 4.7).
+The ZAC subchart has been updated from 1.0.208 to 1.0.224 (ZAC 4.7).
 
 ---
 
@@ -29,6 +29,23 @@ This is a workaround. The liveness probe should be reverted to `/health/live` wi
 ---
 
 
+### ZAC office-converter — `kontextwork-converter` image explicitly pinned, port configurable
+
+The `office_converter` image is explicitly pinned to `ghcr.io/eugenmayer/kontextwork-converter:1.8.2` and `containerPort` is set to `8080` (kontextwork-converter's default). ZAC 1.0.224 makes `office_converter.containerPort` configurable; the chart default remains `3000` (Gotenberg) so the override in `values.yaml` is required.
+
+For **ACR-based environments**, add the repository override:
+
+```yaml
+zac:
+  office_converter:
+    image:
+      repository: <acr>/kontextwork-converter
+```
+
+No tag override needed — the tag is set by the chart default (`1.8.2`).
+
+---
+
 ### `redis-ha-label-master` kubectl image updated to 1.33.10
 
 The `docker.io/alpine/k8s` image used by the `redis-ha-label-master` Job has been updated from `1.33.2` to `1.33.10`.
@@ -41,7 +58,7 @@ For **ACR-based environments**, no additional action is needed — the repositor
 
 | Component | 4.6.3   | 4.6.4   |
 |-----------|---------|---------|
-| ZAC       | 1.0.208 | 1.0.222 |
+| ZAC       | 1.0.208 | 1.0.224 |
 | alpine/k8s (labelMasterJob) | 1.33.2 | 1.33.10 |
 | nginx-unprivileged (api-proxy + Maykin/ZAC sidecars) | 1.29.5 | 1.29.8 |
 
