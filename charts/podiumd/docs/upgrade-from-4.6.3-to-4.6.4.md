@@ -29,6 +29,7 @@ For **ACR-based environments**, no additional action is needed — the repositor
 |-----------|---------|---------|
 | ZAC       | 1.0.208 | 1.0.222 |
 | alpine/k8s (labelMasterJob) | 1.33.2 | 1.33.10 |
+| nginx-unprivileged (api-proxy + Maykin/ZAC sidecars) | 1.29.5 | 1.29.8 |
 
 ---
 

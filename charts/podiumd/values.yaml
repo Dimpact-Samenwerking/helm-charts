@@ -638,7 +638,7 @@ openzaak:
         memory: 160Mi
   nginx:
     image:
-      tag: "1.29.5"
+      tag: "1.29.8"
     resources:
       requests:
         cpu: 10m
@@ -1273,7 +1273,7 @@ openarchiefbeheer:
 
   nginx:
     image:
-      tag: "1.29.5"
+      tag: "1.29.8"
     resources:
       requests:
         cpu: 10m
@@ -1455,7 +1455,7 @@ openklant:
   fullnameOverride: openklant
   nginx:
     image:
-      tag: "1.29.5"
+      tag: "1.29.8"
     resources:
       requests:
         cpu: 10m
@@ -1669,7 +1669,7 @@ openformulieren:
         memory: 160Mi
   nginx:
     image:
-      tag: "1.29.5"
+      tag: "1.29.8"
     resources:
       requests:
         cpu: 10m
@@ -1871,7 +1871,7 @@ openinwoner:
   fullnameOverride: openinwoner
   nginx:
     image:
-      tag: "1.29.5"
+      tag: "1.29.8"
     config:
       basicAuth:
         # Enable this when digid mock is set to digidMock: "true"
@@ -2501,10 +2501,10 @@ zac:
   nginx:
     enabled: true
     client_max_body_size: 150M
-    # nginxinc/nginx-unprivileged:1.29.5
+    # nginxinc/nginx-unprivileged:1.29.8
     image:
       # repository: nginxinc/nginx-unprivileged
-      tag: 1.29.5
+      tag: 1.29.8
     resources:
       requests:
         cpu: 50m
