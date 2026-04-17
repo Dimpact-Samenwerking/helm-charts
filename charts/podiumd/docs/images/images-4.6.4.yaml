@@ -1,0 +1,7 @@
+# Images die nieuw of gewijzigd zijn in podiumd 4.6.4 t.o.v. 4.6.3.
+
+# Tooling
+- name: k8s
+  url: docker.io/alpine/k8s
+  version: "1.33.10"
+  digest: "sha256:84746e8ea8ba20fb702b3e1221121a511c85dfc3e47953b2d6713dcc907e4e05"
