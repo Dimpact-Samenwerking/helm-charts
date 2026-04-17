@@ -12,9 +12,8 @@
 {{- end -}}
 
 {{- /* zac pabcIntegration must not be enabled when the pabc subchart is disabled */ -}}
-{{- $zac := .Values.zac -}}
-{{- $pabc := .Values.pabc -}}
-{{- if and (index $zac "featureFlags" | default dict | index "pabcIntegration") (not $pabc.enabled) -}}
+{{- $zacFeatureFlags := index .Values.zac "featureFlags" | default dict -}}
+{{- if and (index $zacFeatureFlags "pabcIntegration") (not .Values.pabc.enabled) -}}
 {{- fail "zac.featureFlags.pabcIntegration is true but pabc.enabled is false — either enable pabc or set zac.featureFlags.pabcIntegration: false" -}}
 {{- end -}}
 
