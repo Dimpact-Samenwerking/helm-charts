@@ -11,6 +11,13 @@
 {{- end -}}
 {{- end -}}
 
+{{- /* zac pabcIntegration must not be enabled when the pabc subchart is disabled */ -}}
+{{- $zac := .Values.zac -}}
+{{- $pabc := .Values.pabc -}}
+{{- if and (index $zac "featureFlags" | default dict | index "pabcIntegration") (not $pabc.enabled) -}}
+{{- fail "zac.featureFlags.pabcIntegration is true but pabc.enabled is false — either enable pabc or set zac.featureFlags.pabcIntegration: false" -}}
+{{- end -}}
+
 {{- /* openarchiefbeheer OIDC secret — only required when the subchart and its configuration are both enabled */ -}}
 {{- if .Values.openarchiefbeheer.enabled -}}
 {{- if .Values.openarchiefbeheer.configuration.enabled -}}
