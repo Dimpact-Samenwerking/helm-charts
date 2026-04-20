@@ -1,7 +1,7 @@
 {{- $redisOperator := index .Values "redis-operator" }}
 {{- $redisHa := index $redisOperator "redis-ha" }}
 {{- if $redisOperator.enabled }}
-{{- if $redisHa.labelMasterJob.enabled }}
+{{- if $redisHa.labelMasterCronJob.enabled }}
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -21,12 +21,6 @@ rules:
   - apiGroups: [""]
     resources: ["pods"]
     verbs: ["get", "list", "patch"]
-  - apiGroups: [""]
-    resources: ["endpoints"]
-    verbs: ["get"]
-  - apiGroups: ["discovery.k8s.io"]
-    resources: ["endpointslices"]
-    verbs: ["get", "list"]
   - apiGroups: ["redis.redis.opstreelabs.in"]
     resources: ["redisreplications"]
     verbs: ["get"]
@@ -46,106 +40,87 @@ subjects:
     name: redis-ha-label-master
     namespace: {{ .Release.Namespace }}
 ---
+# Workaround for redis-operator 0.24.0 bug (OT-CONTAINER-KIT/redis-operator PR #1720, not yet
+# released): when all redis-ha pods restart simultaneously the operator passes an empty pod name
+# to getRedisServerIP(), loops with "resource name may not be empty", and never applies
+# redis-role labels. Without the labels the redis-ha-master Service has no endpoints and all
+# dependent apps (openzaak, ZAC, etc.) hang on first Redis connection.
+# Remove this CronJob once a redis-operator release containing PR #1720 is available.
 apiVersion: batch/v1
-kind: Job
+kind: CronJob
 metadata:
   name: redis-ha-label-master
   labels:
     {{- include "podiumd.labels" . | nindent 4 }}
 spec:
-  ttlSecondsAfterFinished: 600
-  backoffLimit: 10
-  activeDeadlineSeconds: 900
-  template:
-    metadata:
-      labels:
-        {{- include "podiumd.labels" . | nindent 8 }}
+  schedule: {{ $redisHa.labelMasterCronJob.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
     spec:
-      serviceAccountName: redis-ha-label-master
-      automountServiceAccountToken: true
-      restartPolicy: OnFailure
-      {{- with $redisHa.labelMasterJob.nodeSelector }}
-      nodeSelector:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      containers:
-        - name: label-master
-          image: {{ include "podiumd.image" $redisHa.labelMasterJob.image }}
-          resources:
-            {{- toYaml $redisHa.labelMasterJob.resources | nindent 12 }}
-          securityContext:
-            runAsNonRoot: true
-            runAsUser: 65532
-            allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true
-            capabilities:
-              drop: ["ALL"]
-            seccompProfile:
-              type: RuntimeDefault
-          volumeMounts:
-            - name: tmp
-              mountPath: /tmp
-          command:
-            - /bin/sh
-            - -c
-            - |
-              set -e
-              NAMESPACE="{{ .Release.Namespace }}"
-              CR_NAME="redis-ha"
+      ttlSecondsAfterFinished: 300
+      backoffLimit: 0
+      template:
+        metadata:
+          labels:
+            {{- include "podiumd.labels" . | nindent 12 }}
+        spec:
+          serviceAccountName: redis-ha-label-master
+          automountServiceAccountToken: true
+          restartPolicy: Never
+          {{- with $redisHa.labelMasterCronJob.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          containers:
+            - name: label-master
+              image: {{ include "podiumd.image" $redisHa.labelMasterCronJob.image }}
+              resources:
+                {{- toYaml $redisHa.labelMasterCronJob.resources | nindent 16 }}
+              securityContext:
+                runAsNonRoot: true
+                runAsUser: 65532
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+                seccompProfile:
+                  type: RuntimeDefault
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -e
+                  NAMESPACE="{{ .Release.Namespace }}"
+                  CR_NAME="redis-ha"
 
-              # If master label already exists on any pod, skip labelling but still verify
-              EXISTING=$(kubectl get pod -l "app=redis-ha,redis-role=master" \
-                -n "$NAMESPACE" \
-                -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
-              if [ -n "$EXISTING" ]; then
-                echo "redis-role=master already present on $EXISTING — skipping labelling, verifying endpoint..."
-                SKIP_LABEL=1
-              fi
-
-              if [ -z "$SKIP_LABEL" ]; then
-                echo "No redis-role=master label found. Waiting for StatefulSet pods to be ready..."
-                READY=0
-                WAIT=0
-                while [ "$READY" -eq 0 ] && [ "$WAIT" -lt 600 ]; do
-                  NOT_READY=$(kubectl get pod -l "app=redis-ha" \
+                  # Resolve master from RedisReplication CR status — authoritative even when
+                  # the operator's reconciliation loop is failing (bug PR #1720).
+                  MASTER=$(kubectl get redisreplication "$CR_NAME" \
                     -n "$NAMESPACE" \
-                    --no-headers 2>/dev/null | grep -cv "Running" || true)
-                  if [ "$NOT_READY" -eq 0 ]; then
-                    READY=1
-                  else
-                    echo "  Waiting for redis-ha pods to be Running... (${WAIT}s elapsed)"
-                    sleep 10
-                    WAIT=$((WAIT + 10))
-                  fi
-                done
-
-                # Re-check: operator may have recovered during rollout
-                EXISTING=$(kubectl get pod -l "app=redis-ha,redis-role=master" \
-                  -n "$NAMESPACE" \
-                  -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
-                if [ -n "$EXISTING" ]; then
-                  echo "redis-role=master now present on $EXISTING — operator recovered."
-                else
-                  echo "Operator did not apply labels. Resolving master from RedisReplication CR..."
-                  MASTER=""
-                  RETRIES=30
-                  while [ -z "$MASTER" ] && [ "$RETRIES" -gt 0 ]; do
-                    MASTER=$(kubectl get redisreplication "$CR_NAME" \
-                      -n "$NAMESPACE" \
-                      -o jsonpath='{.status.masterNode}' 2>/dev/null || true)
-                    if [ -z "$MASTER" ]; then
-                      echo "  masterNode not yet set in CR, waiting 10s... ($RETRIES retries left)"
-                      sleep 10
-                      RETRIES=$((RETRIES - 1))
-                    fi
-                  done
+                    -o jsonpath='{.status.masterNode}' 2>/dev/null || true)
 
                   if [ -z "$MASTER" ]; then
-                    echo "ERROR: Could not determine master node from RedisReplication CR status."
+                    echo "ERROR: status.masterNode not set in RedisReplication CR. Cannot reconcile."
                     exit 1
                   fi
 
-                  echo "Master is: $MASTER — applying labels..."
+                  # Check whether labels already reflect the CR — skip API writes if so.
+                  CURRENT=$(kubectl get pod -l "app=redis-ha,redis-role=master" \
+                    -n "$NAMESPACE" \
+                    -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+
+                  if [ "$CURRENT" = "$MASTER" ]; then
+                    echo "Labels correct: $MASTER is master. Nothing to do."
+                    exit 0
+                  fi
+
+                  echo "Label mismatch (labeled: '${CURRENT:-none}', CR says: $MASTER). Reconciling..."
+
                   kubectl label pod "$MASTER" \
                     -n "$NAMESPACE" redis-role=master --overwrite
 
@@ -159,37 +134,9 @@ spec:
                     fi
                   done
 
-                  echo "Done. Labels applied successfully."
-                fi
-              fi  # end SKIP_LABEL check
-
-              # Verify the redis-ha-master service endpoint is populated
-              echo "Verifying redis-ha-master service endpoint..."
-              VERIFIED=0
-              VWAIT=0
-              while [ "$VERIFIED" -eq 0 ] && [ "$VWAIT" -lt 300 ]; do
-                ENDPOINT=$(kubectl get endpointslices \
-                  -n "$NAMESPACE" \
-                  -l "kubernetes.io/service-name=redis-ha-master" \
-                  -o jsonpath='{.items[0].endpoints[0].addresses[0]}' 2>/dev/null || true)
-                if [ -n "$ENDPOINT" ]; then
-                  echo "  redis-ha-master endpoint: $ENDPOINT:6379 — OK"
-                  VERIFIED=1
-                else
-                  echo "  No endpoint yet, waiting 10s... (${VWAIT}s elapsed)"
-                  sleep 10
-                  VWAIT=$((VWAIT + 10))
-                fi
-              done
-
-              if [ "$VERIFIED" -eq 0 ]; then
-                echo "ERROR: redis-ha-master service has no endpoint after ${VWAIT}s."
-                exit 1
-              fi
-
-              echo "Redis master is ready and serving traffic."
-      volumes:
-        - name: tmp
-          emptyDir: {}
+                  echo "Done. $MASTER labeled as master."
+          volumes:
+            - name: tmp
+              emptyDir: {}
 {{- end }}
 {{- end }}

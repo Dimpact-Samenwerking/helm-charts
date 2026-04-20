@@ -2,8 +2,8 @@ apiVersion: v2
 name: podiumd
 description: PodiumD Helm chart
 type: application
-version: 4.6.3
-appVersion: "4.6.3"
+version: 4.6.4
+appVersion: "4.6.4"
 dependencies:
   - name: keycloak-operator
     version: 1.11.2
@@ -69,7 +69,7 @@ dependencies:
       - contact
   - name: zaakafhandelcomponent
     alias: zac
-    version: 1.0.208 # ZAC Sprint 68 helm release
+    version: 1.0.224 # ZAC 4.7 helm release
     repository: "@zac"
     condition: zac.enabled
     tags:
