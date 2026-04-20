@@ -10,15 +10,6 @@ zac:
   auth:
     secret: "placeholder"
 
-# Prevents nil pointer in objecten/templates/secret.yaml when rendering templates
-objecten:
-  configuration:
-    demo:
-      enabled: false
-
-# The following fields had weak defaults ("changeme", "abc", etc.) that were blanked
-# in 4.6.2 to force operators to set them explicitly. Provide placeholder values here
-# so lint and template rendering work without real secrets.
 keycloak:
   auth:
     adminPassword: "placeholder"
@@ -27,20 +18,69 @@ keycloak:
       monitoring:
         secret: "placeholder"
 
-openarchiefbeheer:
-  configuration:
-    oidcSecret: "placeholder"
-
 keycloak-operator:
   jobs:
     ensureOperatorSa:
       clientSecret: "placeholder"
 
+# Keycloak realm OIDC client secrets — required by the realm import job for every component.
+openzaak:
+  configuration:
+    secrets:
+      keycloak_client_secret: "placeholder"
+
+# Prevents nil pointer in objecten/templates/secret.yaml; also provides realm secret.
+objecten:
+  configuration:
+    demo:
+      enabled: false
+    secrets:
+      keycloak_client_secret: "placeholder"
+
+# allowInsecureImages bypasses the Bitnami image-check template for rabbitmq.
 opennotificaties:
+  configuration:
+    secrets:
+      keycloak_client_secret: "placeholder"
   rabbitmq:
     global:
       security:
         allowInsecureImages: true
+
+objecttypen:
+  configuration:
+    secrets:
+      keycloak_client_secret: "placeholder"
+
+openarchiefbeheer:
+  configuration:
+    secrets:
+      keycloak_client_secret: "placeholder"
+
+openklant:
+  configuration:
+    secrets:
+      keycloak_client_secret: "placeholder"
+
+openformulieren:
+  configuration:
+    secrets:
+      keycloak_client_secret: "placeholder"
+
+openinwoner:
+  configuration:
+    secrets:
+      keycloak_client_secret: "placeholder"
+
+referentielijsten:
+  configuration:
+    secrets:
+      keycloak_client_secret: "placeholder"
+
+openbeheer:
+  configuration:
+    secrets:
+      keycloak_client_secret: "placeholder"
 
 kiss:
   settings:

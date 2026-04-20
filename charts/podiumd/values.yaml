@@ -490,9 +490,7 @@ openzaak:
     #       api_type: nrc
     #       auth_type: api_key
     #       header_key: Authorization
-    #       header_value:
-    #         value_from:
-    #           env: opennotificaties_openzaak_secret
+    #       header_value: Token ${openzaak_opennotificaties_secret}
     #     - identifier: selectielijst-api
     #       label: Selectielijst API
     #       api_root: https://selectielijst.openzaak.nl/api/v1/
@@ -531,9 +529,7 @@ openzaak:
     #   vng_api_common_credentials:
     #     items:
     #     - identifier: open-formulieren
-    #       secret:
-    #         value_from:
-    #            env: openzaak_openforms_secret
+    #       secret: ${openzaak_openforms_secret}
     #     - identifier: openbeheer
     #       secret: ${openzaak_openbeheer_secret}
     #   oidc_db_config_enable: true
@@ -549,9 +545,7 @@ openzaak:
     #     - identifier: admin-oidc
     #       enabled: true
     #       oidc_rp_client_id: testid
-    #       oidc_rp_client_secret:
-    #         value_from:
-    #            env: keycloak_client_secret
+    #       oidc_rp_client_secret: ${keycloak_client_secret}
     #       oidc_rp_scopes_list:
     #       - openid
     #       - email
@@ -580,14 +574,14 @@ openzaak:
     #           make_users_staff: true
     #           superuser_group_names:
     #             - Registreerders
-    secrets: {}
+    secrets:
+      keycloak_client_secret: ""
       # openzaak_openforms_secret: "<openzaak_openforms_secret>"
       # openzaak_openinwoner_secret: "<openzaak_openinwoner_secret>"
       # opennotificaties_autorisatie_api_secret: "<opennotificaties_autorisatie_api_secret>"
       # openzaak_opennotificaties_secret: "<openzaak_opennotificaties_secret>"
       # openzaak_openbeheer_secret: "<openzaak_openbeheer_secret>"
     oidcUrl: https://openzaak.example.nl
-    oidcSecret: "<openzaak>"
     # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
     pkceEnabled: false
   create_required_catalogi_job:
@@ -676,8 +670,8 @@ opennotificaties:
       ttlSecondsAfterFinished: 600
       restartPolicy: OnFailure
       resources: {}
-    secrets: {}
-      # keycloak_client_secret: "<keycloak_client_secret>"
+    secrets:
+      keycloak_client_secret: ""
       # opennotificaties_autorisatie_api_secret: "<opennotificaties_autorisatie_api_secret>"
       # opennotificaties_opennotificaties_secret: "<opennotificaties_opennotificaties_secret>"
       # openzaak_opennotificaties_secret: "<openzaak_opennotificaties_secret>"
@@ -697,9 +691,7 @@ opennotificaties:
     #     - identifier: admin-oidc
     #       enabled: true
     #       oidc_rp_client_id: testid
-    #       oidc_rp_client_secret:
-    #         value_from:
-    #           env: CLIENT_SECRET
+    #       oidc_rp_client_secret: ${keycloak_client_secret}
     #       oidc_rp_scopes_list:
     #       - openid
     #       - email
@@ -737,9 +729,7 @@ opennotificaties:
     #         api_type: ac
     #         auth_type: zgw
     #         client_id: open-notificaties
-    #         secret:
-    #           value_from:
-    #             env: opennotificaties_autorisatie_api_secret
+    #         secret: ${opennotificaties_autorisatie_api_secret}
     #         user_id: open-notificaties
     #         user_representation: Open Notificaties
     #   autorisaties_api_config_enable: true
@@ -751,14 +741,10 @@ opennotificaties:
     #     items:
     #     # Credentials for Open Zaak to be able to make requests to Open Notificaties
     #     - identifier: open-zaak
-    #       secret:
-    #         value_from:
-    #           env: opennotificaties_openzaak_vng_api_common_secret
+    #       secret: ${openzaak_opennotificaties_secret}
     #     # Credentials for Open Notificaties, required for autorisaties subscription
     #     - identifier: open-notificaties
-    #       secret:
-    #         value_from:
-    #           env: opennotificaties_autorisaties_vng_api_common_secret
+    #       secret: ${opennotificaties_opennotificaties_secret}
     #   notifications_kanalen_config_enable: true
     #   notifications_kanalen_config:
     #     items:
@@ -818,7 +804,6 @@ opennotificaties:
     #       - domain: opennotificaties.test.opengem.nl
     #         name: Open Notificaties
     oidcUrl: https://opennotificaties.example.nl
-    oidcSecret: "<opennotificaties>"
     # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
     pkceEnabled: false
   settings:
@@ -902,8 +887,8 @@ objecten:
       ttlSecondsAfterFinished: 600
       restartPolicy: OnFailure
       resources: {}
-    secrets: {}
-      # keycloak_client_secret: "<keycloak_client_secret>"
+    secrets:
+      keycloak_client_secret: ""
       # object_objecttypes_token: "<object_objecttypes_token>"
       # object_notificaties_token: "<object_notificaties_token>"
       # openformulieren_objecten_token: "<openformulieren_objecten_token>"
@@ -919,9 +904,7 @@ objecten:
     #       api_type: orc
     #       auth_type: api_key
     #       header_key: Authorization
-    #       header_value:
-    #         value_from:
-    #           env: object_objecttypes_token
+    #       header_value: Token ${object_objecttypes_token}
     #     - identifier: notifications-api
     #       label: Notificaties API
     #       api_root: https://opennotificaties.example.nl/api/v1/
@@ -929,9 +912,7 @@ objecten:
     #       api_type: nrc
     #       auth_type: api_key
     #       header_key: Authorization
-    #       header_value:
-    #         value_from:
-    #           env: object_notificaties_token
+    #       header_value: Token ${object_notificaties_token}
     #   notifications_config_enable: true
     #   notifications_config:
     #     notifications_api_service_identifier: notifications-api
@@ -942,9 +923,7 @@ objecten:
     #   tokenauth:
     #     items:
     #       - identifier: openformulier-token
-    #         token:
-    #           value_from:
-    #             env: openformulieren_objecten_token
+    #         token: ${openformulieren_objecten_token}
     #         contact_person: Person 1
     #         email: person-1@example.com
     #         organization: Organization 1
@@ -977,7 +956,7 @@ objecten:
     #     - identifier: admin-oidc
     #       enabled: true
     #       oidc_rp_client_id: testid
-    #       oidc_rp_client_secret: very-secret
+    #       oidc_rp_client_secret: ${keycloak_client_secret}
     #       oidc_rp_scopes_list:
     #       - openid
     #       - email
@@ -1007,7 +986,6 @@ objecten:
     #           superuser_group_names:
     #             - Registreerders
     oidcUrl: https://objecten.example.nl
-    oidcSecret: "<objecten>"
     # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
     pkceEnabled: false
   settings:
@@ -1066,8 +1044,8 @@ objecttypen:
       ttlSecondsAfterFinished: 600
       restartPolicy: OnFailure
       resources: {}
-    secrets: {}
-      # keycloak_client_secret: "<keycloak_client_secret>"
+    secrets:
+      keycloak_client_secret: ""
       # object_objecttypes_token: "<object_objecttypes_token>"
       # openformulieren_objecten_token: "<openformulieren_objecten_token>"
     data: ""
@@ -1077,9 +1055,7 @@ objecttypen:
     #   tokenauth:
     #     items:
     #       - identifier: openformulier-token
-    #         token:
-    #           value_from:
-    #             env: SECRET_TOKEN
+    #         token: ${object_objecttypes_token}
     #         contact_person: Person 1
     #         email: person-1@example.com
     #         organization: Organization 1
@@ -1098,9 +1074,7 @@ objecttypen:
     #     - identifier: admin-oidc
     #       enabled: true
     #       oidc_rp_client_id: testid
-    #       oidc_rp_client_secret:
-    #         value_from:
-    #           env: CLIENT_SECRET
+    #       oidc_rp_client_secret: ${keycloak_client_secret}
     #       oidc_rp_scopes_list:
     #       - openid
     #       - email
@@ -1131,7 +1105,6 @@ objecttypen:
     #             - Superusers
     token: "<token>"
     oidcUrl: https://objecttypen.example.nl
-    oidcSecret: "<objecttypen>"
     # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
     pkceEnabled: false
   settings:
@@ -1181,7 +1154,6 @@ openarchiefbeheer:
   configuration:
     enabled: true
     oidcUrl: https://abc.example.nl
-    oidcSecret: ""
     # -- Enable PKCE (S256) on the Keycloak client. NOTE: openarchiefbeheer v1.1.1 does not yet support
     # OIDC authentication; this switch is reserved for when OIDC support is added to the application.
     pkceEnabled: false
@@ -1190,7 +1162,8 @@ openarchiefbeheer:
       backoffLimit: 6
       ttlSecondsAfterFinished: 600
       restartPolicy: OnFailure
-    secrets: {}
+    secrets:
+      keycloak_client_secret: ""
     data: ""
     # data: |-
     #   zgw_consumers_config_enable: true
@@ -1360,18 +1333,16 @@ openklant:
       ttlSecondsAfterFinished: 600
       restartPolicy: OnFailure
       resources: {}
-    secrets: {}
-      # openklant_token: "<openklant_token>"
-      # keycloak_client_secret: "<keycloak_client_secret>"
+    secrets:
+      keycloak_client_secret: ""
+      # openklant_openinwoner_token: "<openklant_openinwoner_token>"
     data: ""
     # data: |-
     #   tokenauth_config_enable: true
     #   tokenauth:
     #     items:
     #       - identifier: openinwoner-token
-    #         token:
-    #           value_from:
-    #             env: openklant_openinwoner_token
+    #         token: ${openklant_openinwoner_token}
     #         contact_person: Person 1
     #         email: test@example.com
     #         organization: Organization XYZ
@@ -1392,9 +1363,7 @@ openklant:
     #       enabled: true
     #       oidc_provider_identifier: admin-oidc-provider
     #       oidc_rp_client_id: openklant.example.nl
-    #       oidc_rp_client_secret:
-    #         value_from:
-    #           env: keycloak_client_secret
+    #       oidc_rp_client_secret: ${keycloak_client_secret}
     #       oidc_rp_scopes_list:
     #       - openid
     #       - email
@@ -1426,7 +1395,6 @@ openklant:
     #           sync_pattern: "*"
     #           default_groups: []
     oidcUrl: https://openklant.example.nl
-    oidcSecret: "<openklant>"
     # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
     pkceEnabled: false
   settings:
@@ -1490,7 +1458,8 @@ openformulieren:
       backoffLimit: 6
       ttlSecondsAfterFinished: 600
       restartPolicy: OnFailure
-    secrets: {}
+    secrets:
+      keycloak_client_secret: ""
     data: ""
     # data: |-
     #   oidc_db_config_enable: true
@@ -1635,7 +1604,6 @@ openformulieren:
     #           "language_code": "{{ "{{" }} submission.language_code {{ "}}" }}"
     #         }
     oidcUrl: https://openformulieren.example.nl
-    oidcSecret: "<openformulieren>"
     # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
     pkceEnabled: false
   settings:
@@ -1713,9 +1681,7 @@ openinwoner:
     #     - identifier: admin-oidc
     #       enabled: true
     #       oidc_rp_client_id: openinwoner.example.nl
-    #       oidc_rp_client_secret:
-    #         value_from:
-    #           env: keycloak_client_secret
+    #       oidc_rp_client_secret: ${keycloak_client_secret}
     #       oidc_rp_scopes_list:
     #       - openid
     #       - email
@@ -1754,36 +1720,28 @@ openinwoner:
     #         api_type: zrc
     #         auth_type: zgw
     #         client_id: openinwoner
-    #         secret:
-    #           value_from:
-    #             env: openzaak_openinwoner_secret
+    #         secret: ${openzaak_openinwoner_secret}
     #       - identifier: documenten-test
     #         label: Open Zaak - Documenten API
     #         api_root: https://openzaak.example.nl/documenten/api/v1/
     #         api_type: drc
     #         auth_type: zgw
     #         client_id: openinwoner
-    #         secret:
-    #           value_from:
-    #             env: openzaak_openinwoner_secret
+    #         secret: ${openzaak_openinwoner_secret}
     #       - identifier: catalogi-test
     #         label: Open Zaak - Catalogi API
     #         api_root: https://openzaak.example.nl/catalogi/api/v1/
     #         api_type: ztc
     #         auth_type: zgw
     #         client_id: openinwoner
-    #         secret:
-    #           value_from:
-    #             env: openzaak_openinwoner_secret
+    #         secret: ${openzaak_openinwoner_secret}
     #       - identifier: besluiten-test
     #         label: Open Zaak - Besluiten API
     #         api_root: https://openzaak.example.nl/besluiten/api/v1/
     #         api_type: brc
     #         auth_type: zgw
     #         client_id: openinwoner
-    #         secret:
-    #           value_from:
-    #             env: openzaak_openinwoner_secret
+    #         secret: ${openzaak_openinwoner_secret}
     #       - identifier: selectielijst
     #         label: Open Zaak (public) - Selectielijst API
     #         api_root: https://selectielijst.openzaak.nl/api/v1/
@@ -1795,9 +1753,7 @@ openinwoner:
     #         api_type: kc
     #         auth_type: zgw
     #         client_id: openinwoner
-    #         secret:
-    #           value_from:
-    #             env: openklant_openinwoner_token
+    #         secret: ${openklant_openinwoner_token}
     #   openzaak_config_enable: true
     #   openzaak_config:
     #     zaak_max_confidentiality: openbaar
@@ -1826,9 +1782,11 @@ openinwoner:
     #     items:
     #       - domain: openinwoner.example.nl
     #         name: Gemeente X
-    secrets: {}
+    secrets:
+      keycloak_client_secret: ""
+      # openzaak_openinwoner_secret: "<openzaak_openinwoner_secret>"
+      # openklant_openinwoner_token: "<openklant_openinwoner_token>"
     oidcUrl: https://openinwoner.example.nl
-    oidcSecret: "<openinwoner>"
     # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
     pkceEnabled: false
   settings:
@@ -1974,8 +1932,9 @@ referentielijsten:
       ttlSecondsAfterFinished: 600
       restartPolicy: OnFailure
       resources: {}
-    secrets: {}
-      # keycloak_client_secret: "<keycloak_client_secret>"
+    # keycloak_client_secret is required in all environments (also used as Keycloak realm client secret).
+    secrets:
+      keycloak_client_secret: ""
     data: ""
     # data: |-
     #   oidc_db_config_enable: true
@@ -2014,7 +1973,6 @@ referentielijsten:
     #       superuser_group_names:
     #       - administrators
     oidcUrl: https://referentielijsten.example.nl
-    oidcSecret: "<referentielijsten>"
     # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
     pkceEnabled: false
   replicaCount: 1
@@ -2068,8 +2026,9 @@ openbeheer:
       ttlSecondsAfterFinished: 600
       restartPolicy: Never
       resources: {}
-    secrets: {}
-      # keycloak_client_secret: "<keycloak_client_secret>"
+    # keycloak_client_secret is required in all environments (also used as Keycloak realm client secret).
+    secrets:
+      keycloak_client_secret: ""
       # openzaak_openbeheer_secret: "<openzaak_openbeheer_secret>"
     data: ""
     # data: |-
@@ -2126,7 +2085,6 @@ openbeheer:
     #           superuser_group_names:
     #             - administrators
     oidcUrl: https://openbeheer.example.nl
-    oidcSecret: "<openbeheer>"
     # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
     pkceEnabled: false
   replicaCount: 2

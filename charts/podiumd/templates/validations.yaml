@@ -17,11 +17,18 @@
 {{- fail "zac.featureFlags.pabcIntegration is true but pabc.enabled is false — either enable pabc or set zac.featureFlags.pabcIntegration: false" -}}
 {{- end -}}
 
-{{- /* openarchiefbeheer OIDC secret — only required when the subchart and its configuration are both enabled */ -}}
-{{- if .Values.openarchiefbeheer.enabled -}}
-{{- if .Values.openarchiefbeheer.configuration.enabled -}}
-{{- if eq .Values.openarchiefbeheer.configuration.oidcSecret "" -}}
-{{- fail "openarchiefbeheer.configuration.oidcSecret must be set to a non-empty value when openarchiefbeheer is enabled and openarchiefbeheer.configuration.enabled is true" -}}
+{{- /* All OIDC client secrets — required unconditionally when the realm import runs */ -}}
+{{- if (index .Values "keycloak-operator").enabled -}}
+{{- if (index .Values "keycloak-operator").jobs.importPodiumdRealm.enabled -}}
+{{- $oidcComponents := list "openzaak" "opennotificaties" "objecten" "objecttypen" "openarchiefbeheer" "openklant" "openformulieren" "openinwoner" "referentielijsten" "openbeheer" -}}
+{{- range $comp := $oidcComponents -}}
+{{- $compVals := index $.Values $comp -}}
+{{- $cfgVals := index $compVals "configuration" | default dict -}}
+{{- $secretsVals := index $cfgVals "secrets" | default dict -}}
+{{- $kcs := index $secretsVals "keycloak_client_secret" | default "" -}}
+{{- if eq $kcs "" -}}
+{{- fail (printf "%s.configuration.secrets.keycloak_client_secret must be set — it is used as the Keycloak realm OIDC client secret and is required even when the component is disabled" $comp) -}}
+{{- end -}}
 {{- end -}}
 {{- end -}}
 {{- end -}}

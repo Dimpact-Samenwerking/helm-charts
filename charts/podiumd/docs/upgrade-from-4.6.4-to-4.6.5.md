@@ -6,29 +6,25 @@
 
 Both components now have a dedicated Keycloak OIDC client in the podiumd realm, consistent with all other Django-based components. The clients are registered automatically when the Keycloak realm import job runs during the upgrade.
 
-#### Required: set `oidcUrl` and `oidcSecret` for both components
+The Keycloak client definitions and the realm secrets are rendered unconditionally (regardless of whether the component is enabled), so `oidcUrl` and `configuration.secrets.keycloak_client_secret` must be set in every environment values file — even if the component stays disabled.
 
-The Keycloak client definitions and the realm secrets are rendered unconditionally (regardless of whether the component is enabled), so both values must be set in every environment values file — even if the component stays disabled.
-
-```yaml
-referentielijsten:
-  configuration:
-    oidcUrl: https://referentielijsten.example.nl   # public URL of the app
-    oidcSecret: "REP_REFERENTIELIJSTEN_OIDC_SECRET_REP"
-
-openbeheer:
-  configuration:
-    oidcUrl: https://openbeheer.example.nl          # public URL of the app
-    oidcSecret: "REP_OPENBEHEER_OIDC_SECRET_REP"
-```
+#### Pre-deploy: Key Vault secrets for `openbeheer`
 
 `REP_REFERENTIELIJSTEN_OIDC_SECRET_REP` is already present in Key Vault — no pre-deploy action needed for referentielijsten.
 
-`REP_OPENBEHEER_OIDC_SECRET_REP` is **not yet in Key Vault**. Before deploying, generate a secret and add it:
+The following secrets are **not yet in Key Vault** for openbeheer. Before deploying, add each one:
 
-1. Generate a secret: `openssl rand -hex 32`
-2. Add it to Key Vault as `REP_OPENBEHEER_OIDC_SECRET_REP`
-3. Add `REP_OPENBEHEER_OIDC_SECRET_REP` to the pipeline replacement configuration so it is substituted from Key Vault at deploy time
+| Key Vault secret name        | Pipeline env var               | Description                                             |
+|------------------------------|--------------------------------|---------------------------------------------------------|
+| `openbeheer`                 | `OPENBEHEER_DATABASE_PASSWORD` | Django database password                                |
+| `openbeheer-secret-key`      | `OPENBEHEER_SECRET_KEY`        | Django secret key                                       |
+| `openbeheer-oidc-secret`     | `OPENBEHEER_OIDC_SECRET`       | Keycloak OIDC client secret                             |
+| `openzaak-openbeheer-secret` | `OPENZAAK_OPENBEHEER_SECRET`   | ZGW JWT secret — shared between openbeheer and openzaak |
+
+For secrets (OIDC, ZGW JWT): `openssl rand -hex 32`  
+For the Django secret key: `openssl rand -base64 50`
+
+These are already wired in `ExternalsPodiumD/pipelines/application.yml` — you only need to create the Key Vault entries.
 
 ---
 
@@ -36,19 +32,23 @@ Before enabling either component, request SSC to provision a public URL and ingr
 
 ---
 
-#### Optional: configure OIDC admin login when enabling a component
+#### `referentielijsten`
 
-If `referentielijsten.enabled: true` or `openbeheer.enabled: true`, configure the OIDC login for the Django admin interface via `configuration.data` and wire the client secret via `configuration.secrets`:
-
-**referentielijsten:**
+Required in every environment, even when the component stays disabled:
 
 ```yaml
 referentielijsten:
   configuration:
     oidcUrl: https://referentielijsten.example.nl
-    oidcSecret: "REP_REFERENTIELIJSTEN_OIDC_SECRET_REP"
     secrets:
       keycloak_client_secret: "REP_REFERENTIELIJSTEN_OIDC_SECRET_REP"
+```
+
+When enabling (`referentielijsten.enabled: true`), also add:
+
+```yaml
+referentielijsten:
+  configuration:
     data: |-
       oidc_db_config_enable: true
       oidc_db_config_admin_auth:
@@ -87,15 +87,24 @@ referentielijsten:
           - administrators
 ```
 
-**openbeheer:**
+#### `openbeheer`
+
+Required in every environment, even when the component stays disabled:
 
 ```yaml
 openbeheer:
   configuration:
     oidcUrl: https://openbeheer.example.nl
-    oidcSecret: "REP_OPENBEHEER_OIDC_SECRET_REP"
     secrets:
       keycloak_client_secret: "REP_OPENBEHEER_OIDC_SECRET_REP"
+```
+
+When enabling (`openbeheer.enabled: true`), also add:
+
+```yaml
+openbeheer:
+  configuration:
+    secrets:
       openzaak_openbeheer_secret: "REP_OPENZAAK_OPENBEHEER_SECRET_REP"
     data: |-
       zgw_consumers_config_enable: true
@@ -156,11 +165,7 @@ openbeheer:
 
 Open Beheer connects to Open Zaak's Catalogi API via ZGW JWT authentication. Both sides must be configured when enabling openbeheer.
 
-`REP_OPENZAAK_OPENBEHEER_SECRET_REP` is **not yet in Key Vault**. Before deploying:
-
-1. Generate a secret: `openssl rand -hex 32`
-2. Add it to Key Vault as `openzaak-openbeheer-secret-<env>` (e.g. `openzaak-openbeheer-secret-johnb00`)
-3. Add `REP_OPENZAAK_OPENBEHEER_SECRET_REP` to the pipeline replacement configuration
+`REP_OPENZAAK_OPENBEHEER_SECRET_REP` maps to Key Vault secret `openzaak-openbeheer-secret` — already listed in the table above. The pipeline wiring in `application.yml` is already present; only the Key Vault entry needs to be created.
 
 **openzaak side** — register openbeheer as an authorised application. Add to the openzaak environment values file:
 
@@ -195,9 +200,46 @@ openzaak:
 
 The following roles are created automatically in the podiumd realm:
 
-| Client | Role |
-|---|---|
+| Client              | Role             |
+|---------------------|------------------|
 | `referentielijsten` | `administrators` |
-| `openbeheer` | `administrators` |
+| `openbeheer`        | `administrators` |
 
 The `administrators` Keycloak group is automatically assigned these roles on import. Users in that group gain admin access to both apps.
+
+---
+
+### `configuration.data` secrets: move inline tokens to `configuration.secrets`
+
+All Maykin applications resolve `${VAR_NAME}` references inside `configuration.data` at job runtime (via `envsubst` or `django-setup-configuration`'s built-in substitution). The correct pattern is:
+
+```yaml
+<component>:
+  configuration:
+    secrets:
+      my_secret: "REP_MY_SECRET_REP"   # injected as env var into the config job pod
+    data: |-
+      some_field: ${my_secret}          # resolved at runtime
+```
+
+Existing environment values files place `REP_..._REP` tokens **inline** in `configuration.data` strings. These are replaced by the pipeline's `patch_values.py` before Helm renders. Both approaches work; moving secrets to `configuration.secrets` is the cleaner long-term pattern.
+
+#### Migration script
+
+`charts/podiumd/scripts/migrate-configuration-secrets.py` automates this migration:
+
+1. Finds all `REP_..._REP` tokens inside every `configuration.data` block
+2. Creates `configuration.secrets` entries: `foo_bar_secret: "REP_FOO_BAR_SECRET_REP"`
+3. Replaces inline tokens in `configuration.data` with `${foo_bar_secret}`
+
+**Requirements:** `pip install ruamel.yaml` (already present in the deployment pipeline)
+
+```bash
+# Preview without writing:
+python migrate-configuration-secrets.py applications/gemeenten/dim1/ontw/podiumd.yml --dry-run
+
+# Apply in-place:
+python migrate-configuration-secrets.py applications/gemeenten/dim1/ontw/podiumd.yml
+```
+
+After running, the pipeline `patch_values.py` still substitutes `REP_..._REP` tokens — now from `configuration.secrets` values instead of inline in `configuration.data`.
