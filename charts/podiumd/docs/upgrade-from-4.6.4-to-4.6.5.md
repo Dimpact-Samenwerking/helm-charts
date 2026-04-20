@@ -6,13 +6,11 @@
 
 Both components now have a dedicated Keycloak OIDC client in the podiumd realm, consistent with all other Django-based components. The clients are registered automatically when the Keycloak realm import job runs during the upgrade.
 
-The Keycloak client definitions and the realm secrets are rendered unconditionally (regardless of whether the component is enabled), so `oidcUrl` and `configuration.secrets.keycloak_client_secret` must be set in every environment values file — even if the component stays disabled.
+For disabled components, the `oidcUrl` chart default is used for the redirect URI and the OIDC client secret is auto-generated (stable random, preserved across upgrades). **No environment values changes are needed unless you are enabling a component.**
 
 #### Pre-deploy: Key Vault secrets for `openbeheer`
 
-`REP_REFERENTIELIJSTEN_OIDC_SECRET_REP` is already present in Key Vault — no pre-deploy action needed for referentielijsten.
-
-The following secrets are **not yet in Key Vault** for openbeheer. Before deploying, add each one:
+The following secrets are **not yet in Key Vault** for openbeheer. Add each one before deploying, even if the component stays disabled — the pipeline wiring expects them to be present:
 
 | Key Vault secret name        | Pipeline env var               | Description                                             |
 |------------------------------|--------------------------------|---------------------------------------------------------|
@@ -34,7 +32,7 @@ Before enabling either component, request SSC to provision a public URL and ingr
 
 #### `referentielijsten`
 
-Required in every environment, even when the component stays disabled:
+When enabling (`referentielijsten.enabled: true`), set `oidcUrl` to the provisioned URL, provide the OIDC client secret, and add configuration data:
 
 ```yaml
 referentielijsten:
@@ -42,13 +40,6 @@ referentielijsten:
     oidcUrl: https://referentielijsten.example.nl
     secrets:
       keycloak_client_secret: "REP_REFERENTIELIJSTEN_OIDC_SECRET_REP"
-```
-
-When enabling (`referentielijsten.enabled: true`), also add:
-
-```yaml
-referentielijsten:
-  configuration:
     data: |-
       oidc_db_config_enable: true
       oidc_db_config_admin_auth:
@@ -89,7 +80,7 @@ referentielijsten:
 
 #### `openbeheer`
 
-Required in every environment, even when the component stays disabled:
+When enabling (`openbeheer.enabled: true`), set `oidcUrl` to the provisioned URL, provide the OIDC client secret and ZGW JWT secret, and add configuration data:
 
 ```yaml
 openbeheer:
@@ -97,14 +88,6 @@ openbeheer:
     oidcUrl: https://openbeheer.example.nl
     secrets:
       keycloak_client_secret: "REP_OPENBEHEER_OIDC_SECRET_REP"
-```
-
-When enabling (`openbeheer.enabled: true`), also add:
-
-```yaml
-openbeheer:
-  configuration:
-    secrets:
       openzaak_openbeheer_secret: "REP_OPENZAAK_OPENBEHEER_SECRET_REP"
     data: |-
       zgw_consumers_config_enable: true
