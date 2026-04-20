@@ -522,6 +522,11 @@ openzaak:
     #       - open-formulieren
     #       label: Open Formulieren
     #       heeft_alle_autorisaties: true
+    #     - uuid: 3690fccd-b625-4896-8829-992b14bca77a
+    #       client_ids:
+    #       - openbeheer
+    #       label: Open Beheer
+    #       heeft_alle_autorisaties: true
     #   vng_api_common_credentials_config_enable: true
     #   vng_api_common_credentials:
     #     items:
@@ -529,6 +534,8 @@ openzaak:
     #       secret:
     #         value_from:
     #            env: openzaak_openforms_secret
+    #     - identifier: openbeheer
+    #       secret: ${openzaak_openbeheer_secret}
     #   oidc_db_config_enable: true
     #   oidc_db_config_admin_auth:
     #     providers:
@@ -578,6 +585,7 @@ openzaak:
       # openzaak_openinwoner_secret: "<openzaak_openinwoner_secret>"
       # opennotificaties_autorisatie_api_secret: "<opennotificaties_autorisatie_api_secret>"
       # openzaak_opennotificaties_secret: "<openzaak_opennotificaties_secret>"
+      # openzaak_openbeheer_secret: "<openzaak_openbeheer_secret>"
     oidcUrl: https://openzaak.example.nl
     oidcSecret: "<openzaak>"
     # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
@@ -1960,13 +1968,55 @@ referentielijsten:
     enabled: true
     initContainer:
       enabled: false
-  job:
-    enabled: true
-    backoffLimit: 6
-    ttlSecondsAfterFinished: 600
-    restartPolicy: OnFailure
-    resources: {}
-  data: ""
+    job:
+      enabled: true
+      backoffLimit: 6
+      ttlSecondsAfterFinished: 600
+      restartPolicy: OnFailure
+      resources: {}
+    secrets: {}
+      # keycloak_client_secret: "<keycloak_client_secret>"
+    data: ""
+    # data: |-
+    #   oidc_db_config_enable: true
+    #   oidc_db_config_admin_auth:
+    #     items:
+    #     - identifier: admin-oidc
+    #       enabled: true
+    #       oidc_rp_client_id: referentielijsten
+    #       oidc_rp_client_secret: ${keycloak_client_secret}
+    #       oidc_rp_scopes_list:
+    #       - openid
+    #       - email
+    #       - profile
+    #       oidc_rp_sign_algo: RS256
+    #       endpoint_config:
+    #         oidc_op_discovery_endpoint: https://keycloak.example.nl/realms/podiumd/
+    #       userinfo_claims_source: id_token
+    #       oidc_use_nonce: true
+    #       oidc_nonce_size: 32
+    #       oidc_state_size: 32
+    #       username_claim:
+    #       - sub
+    #       groups_claim:
+    #       - groups
+    #       claim_mapping:
+    #         first_name:
+    #         - given_name
+    #         last_name:
+    #         - family_name
+    #         email:
+    #         - email
+    #       sync_groups: true
+    #       sync_groups_glob_pattern: '*'
+    #       default_groups: []
+    #       make_users_staff: true
+    #       superuser_group_names:
+    #       - administrators
+    oidcUrl: https://referentielijsten.example.nl
+    oidcSecret: "<referentielijsten>"
+    # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
+    pkceEnabled: false
   replicaCount: 1
   persistence:
     enabled: true
@@ -1999,6 +2049,10 @@ referentielijsten:
       default: redis-ha-master.podiumd.svc.cluster.local:6379/15
       axes: redis-ha-master.podiumd.svc.cluster.local:6379/15
     # celery: db 16 reserved — referentielijsten does not use Celery
+    uwsgi:
+      processes: "2"
+      threads: "2"
+      maxRequests: "1000"
 
   tags:
     redis: false
@@ -2014,9 +2068,23 @@ openbeheer:
       ttlSecondsAfterFinished: 600
       restartPolicy: Never
       resources: {}
-    # data: ""
-    # e.g.
+    secrets: {}
+      # keycloak_client_secret: "<keycloak_client_secret>"
+      # openzaak_openbeheer_secret: "<openzaak_openbeheer_secret>"
+    data: ""
     # data: |-
+    #   zgw_consumers_config_enable: true
+    #   zgw_consumers:
+    #     services:
+    #     - identifier: openzaak-catalogi-api
+    #       label: Open Zaak Catalogi API
+    #       api_root: https://openzaak.example.nl/catalogi/api/v1/
+    #       api_type: ztc
+    #       auth_type: zgw
+    #       client_id: openbeheer
+    #       secret: ${openzaak_openbeheer_secret}
+    #       user_id: openbeheer
+    #       user_representation: Open Beheer
     #   oidc_db_config_enable: true
     #   oidc_db_config_admin_auth:
     #     providers:
@@ -2025,12 +2093,12 @@ openbeheer:
     #       oidc_nonce_size: 32
     #       oidc_state_size: 32
     #       endpoint_config:
-    #         oidc_op_discovery_endpoint: http://keycloak.example.nl/realms/test/
+    #         oidc_op_discovery_endpoint: https://keycloak.example.nl/realms/podiumd/
     #     items:
     #     - identifier: admin-oidc
     #       enabled: true
-    #       oidc_rp_client_id: testid
-    #       oidc_rp_client_secret: very-secret
+    #       oidc_rp_client_id: openbeheer
+    #       oidc_rp_client_secret: ${keycloak_client_secret}
     #       oidc_rp_scopes_list:
     #       - openid
     #       - email
@@ -2056,7 +2124,11 @@ openbeheer:
     #           default_groups: []
     #           make_users_staff: true
     #           superuser_group_names:
-    #             - Superuser
+    #             - administrators
+    oidcUrl: https://openbeheer.example.nl
+    oidcSecret: "<openbeheer>"
+    # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
+    pkceEnabled: false
   replicaCount: 2
   image:
     repository: maykinmedia/open-beheer
@@ -2116,11 +2188,9 @@ openbeheer:
     isHttps: true
     debug: false
     uwsgi:
-      master: ''
-      threads: ''
-      processes: ''
-      maxRequests: ''
-      harakiri: ''
+      processes: "2"
+      threads: "2"
+      maxRequests: "1000"
     throttling:
       enable: true
       rateAnonymous: "2500/hour"

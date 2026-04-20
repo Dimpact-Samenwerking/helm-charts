@@ -14,6 +14,8 @@
   (dict "name" "openklant"         "pkce" .Values.openklant.configuration.pkceEnabled         "data" .Values.openklant.configuration.data)
   (dict "name" "openformulieren"   "pkce" .Values.openformulieren.configuration.pkceEnabled   "data" .Values.openformulieren.configuration.data)
   (dict "name" "openinwoner"       "pkce" .Values.openinwoner.configuration.pkceEnabled       "data" .Values.openinwoner.configuration.data)
+  (dict "name" "referentielijsten" "pkce" .Values.referentielijsten.configuration.pkceEnabled "data" .Values.referentielijsten.configuration.data)
+  (dict "name" "openbeheer"        "pkce" .Values.openbeheer.configuration.pkceEnabled        "data" .Values.openbeheer.configuration.data)
 -}}
 {{- range $djangoApps }}
 {{- if .pkce }}
@@ -424,6 +426,86 @@ data:
               claim.name: "groups"
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "openinwoner"
+      - clientId: referentielijsten
+        name: Referentielijsten
+        enabled: true
+        clientAuthenticatorType: client-secret
+{{- if .Values.referentielijsten.configuration.pkceEnabled }}
+        pkceCodeChallengeMethod: S256
+{{- end }}
+        redirectUris:
+          - "{{ .Values.referentielijsten.configuration.oidcUrl | trimSuffix "/" }}/*"
+        webOrigins:
+          - "{{ .Values.referentielijsten.configuration.oidcUrl | trimSuffix "/" }}/*"
+        secret: $(KC_SECRET_REFERENTIELIJSTEN)
+        protocolMappers:
+          - name: "username"
+            protocol: "openid-connect"
+            protocolMapper: oidc-usermodel-property-mapper
+            config:
+              introspection.token.claim: "true"
+              userinfo.token.claim: "true"
+              user.attribute: "username"
+              id.token.claim: "true"
+              lightweight.claim: "false"
+              access.token.claim: "true"
+              claim.name: "preferred_username"
+              jsonType.label: "String"
+          - name: "client roles"
+            protocol: "openid-connect"
+            protocolMapper: "oidc-usermodel-client-role-mapper"
+            consentRequired: false
+            config:
+              introspection.token.claim: "true"
+              multivalued: "true"
+              userinfo.token.claim: "false"
+              user.attribute: "foo"
+              id.token.claim: "true"
+              lightweight.claim: "false"
+              access.token.claim: "true"
+              claim.name: "groups"
+              jsonType.label: "String"
+              usermodel.clientRoleMapping.clientId: "referentielijsten"
+      - clientId: openbeheer
+        name: Open Beheer
+        enabled: true
+        clientAuthenticatorType: client-secret
+{{- if .Values.openbeheer.configuration.pkceEnabled }}
+        pkceCodeChallengeMethod: S256
+{{- end }}
+        redirectUris:
+          - "{{ .Values.openbeheer.configuration.oidcUrl | trimSuffix "/" }}/*"
+        webOrigins:
+          - "{{ .Values.openbeheer.configuration.oidcUrl | trimSuffix "/" }}/*"
+        secret: $(KC_SECRET_OPENBEHEER)
+        protocolMappers:
+          - name: "username"
+            protocol: "openid-connect"
+            protocolMapper: oidc-usermodel-property-mapper
+            config:
+              introspection.token.claim: "true"
+              userinfo.token.claim: "true"
+              user.attribute: "username"
+              id.token.claim: "true"
+              lightweight.claim: "false"
+              access.token.claim: "true"
+              claim.name: "preferred_username"
+              jsonType.label: "String"
+          - name: "client roles"
+            protocol: "openid-connect"
+            protocolMapper: "oidc-usermodel-client-role-mapper"
+            consentRequired: false
+            config:
+              introspection.token.claim: "true"
+              multivalued: "true"
+              userinfo.token.claim: "false"
+              user.attribute: "foo"
+              id.token.claim: "true"
+              lightweight.claim: "false"
+              access.token.claim: "true"
+              claim.name: "groups"
+              jsonType.label: "String"
+              usermodel.clientRoleMapping.clientId: "openbeheer"
       - clientId: kiss
         name: Kiss
         enabled: true
@@ -718,6 +800,10 @@ data:
           - name: administrators
         openinwoner:
           - name: administrators
+        referentielijsten:
+          - name: administrators
+        openbeheer:
+          - name: administrators
         kiss:
           - name: Redacteur
           - name: Klantcontactmedewerker
@@ -771,6 +857,10 @@ data:
           openinwoner:
             - "administrators"
           opennotificaties:
+            - "administrators"
+          referentielijsten:
+            - "administrators"
+          openbeheer:
             - "administrators"
           pabc:
             - "administrator"

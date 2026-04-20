@@ -169,6 +169,16 @@ spec:
             secretKeyRef:
               name: keycloak-podiumd-realm-secrets
               key: openinwoner-oidc-secret
+        - name: KC_SECRET_REFERENTIELIJSTEN
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-podiumd-realm-secrets
+              key: referentielijsten-oidc-secret
+        - name: KC_SECRET_OPENBEHEER
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-podiumd-realm-secrets
+              key: openbeheer-oidc-secret
         - name: KC_SECRET_KISS
           valueFrom:
             secretKeyRef:
