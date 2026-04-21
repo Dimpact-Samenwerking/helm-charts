@@ -1,0 +1,27 @@
+{{- /* Deployment-time validations. This template emits no Kubernetes resources. */ -}}
+
+{{- /* monitoring OIDC client secret — only required when the realm import job runs */ -}}
+{{- if (index .Values "keycloak-operator").enabled -}}
+{{- if (index .Values "keycloak-operator").jobs.importPodiumdRealm.enabled -}}
+{{- if .Values.keycloak.config.clients.monitoring.enabled -}}
+{{- if eq .Values.keycloak.config.clients.monitoring.secret "" -}}
+{{- fail "keycloak.config.clients.monitoring.secret must be set to a non-empty value when monitoring client is enabled" -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{- /* zac pabcIntegration must not be enabled when the pabc subchart is disabled */ -}}
+{{- $zacFeatureFlags := index .Values.zac "featureFlags" | default dict -}}
+{{- if and .Values.zac.enabled (index $zacFeatureFlags "pabcIntegration") (not .Values.pabc.enabled) -}}
+{{- fail "zac.featureFlags.pabcIntegration is true but pabc.enabled is false — either enable pabc or set zac.featureFlags.pabcIntegration: false" -}}
+{{- end -}}
+
+{{- /* openarchiefbeheer OIDC secret — only required when the subchart and its configuration are both enabled */ -}}
+{{- if .Values.openarchiefbeheer.enabled -}}
+{{- if .Values.openarchiefbeheer.configuration.enabled -}}
+{{- if eq .Values.openarchiefbeheer.configuration.oidcSecret "" -}}
+{{- fail "openarchiefbeheer.configuration.oidcSecret must be set to a non-empty value when openarchiefbeheer is enabled and openarchiefbeheer.configuration.enabled is true" -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}

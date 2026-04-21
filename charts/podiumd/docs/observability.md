@@ -16,13 +16,15 @@ This document describes how metrics and tracing are configured across the podium
 | objecttypen | `settings.otel.*` | ❌ OTEL only → collector | `values-enable-observability.yaml` |
 | openinwoner | `settings.otel.*` | ❌ OTEL only → collector | `values-enable-observability.yaml` |
 | zac | `opentelemetry_zaakafhandelcomponent.*` + `javaOptions` | ❌ OTEL only → collector | `values-enable-observability.yaml` |
-| keycloak | `additionalOptions: metrics-enabled` | ✅ pod annotations port 9000 `/metrics` | `values-enable-observability.yaml` |
+| keycloak | `additionalOptions: metrics-enabled` | ✅ ServiceMonitor port 9000 `/metrics` (auto by keycloak-operator) | built-in |
 | redis-operator | — | ✅ pod annotations port 8080 `/metrics` | `values-enable-observability.yaml` |
-| redis-ha | redis_exporter sidecar | ✅ port 9121 via exporter | `values-enable-observability.yaml` |
+| redis-ha | redis_exporter sidecar | ✅ PodMonitor port 9121 | `values-enable-observability.yaml` |
 | solr-operator | — | ✅ pod annotations port 8080 `/metrics` | `values-enable-observability.yaml` |
 | zookeeper-operator | — | ✅ pod annotations port 6000 `/metrics` | `values-enable-observability.yaml` |
 | clamav | clamav_exporter sidecar | ✅ port 9906 + ServiceMonitor | `values-enable-observability.yaml` |
 | eck-operator | `config.metricsPort` + `podMonitor.enabled` | ✅ PodMonitor port 8080 `/metrics` | `values-enable-observability.yaml` |
+| traefik | — | ✅ PodMonitor port 9100 `/metrics` (monitoring chart) | `monitoring-logging` chart |
+| otel-collector | — | ✅ ServiceMonitor port 8888 `/metrics` (monitoring chart) | `monitoring-logging` chart |
 | api-proxy | — | ❌ plain nginx, no metrics endpoint | requires template changes |
 | openarchiefbeheer | — | ❌ no OTEL support in chart | — |
 | solr (SolrCloud) | — | ❌ not yet configured | see todo below |
@@ -62,6 +64,8 @@ their scrape targets. These CRDs must be present in the cluster before applying
 
 | Component | Resource type | CRD required |
 |---|---|---|
+| keycloak-operator | `ServiceMonitor` | `monitoring.coreos.com/v1` (auto-created) |
+| redis-ha | `PodMonitor` | `monitoring.coreos.com/v1` |
 | clamav | `ServiceMonitor` | `monitoring.coreos.com/v1` |
 | eck-operator (kisselastic) | `PodMonitor` | `monitoring.coreos.com/v1` |
 | solr (todo) | `ServiceMonitor` | `monitoring.coreos.com/v1` (created by solr-operator) |
@@ -89,13 +93,74 @@ kubectl apply --server-side -f https://raw.githubusercontent.com/prometheus-oper
 
 Or install only the CRD manifests from the operator's GitHub release.
 
-> Until the CRDs are installed, keep `clamav.metrics.serviceMonitor.enabled: false` and
-> `kisselastic.eck-operator.podMonitor.enabled: false` (the defaults). These are the explicit
-> defaults in `values.yaml`; `values-enable-observability.yaml` overrides them to `true`.
+> Until the CRDs are installed, keep `redis-operator.redis-ha.redisExporter.podMonitor.enabled: false`,
+> `clamav.metrics.serviceMonitor.enabled: false`, and `kisselastic.eck-operator.podMonitor.enabled: false`
+> (the defaults in `values.yaml`). `values-enable-observability.yaml` overrides all three to `true`.
 
 ---
 
+## RBAC for ServiceMonitor / PodMonitor creation
 
+Some components create `ServiceMonitor` or `PodMonitor` resources **at runtime** (dynamically, not at Helm
+deploy time). These components are operators — they watch CRDs and create monitoring resources on behalf of
+managed instances. Without the correct RBAC they fail silently or fail hard.
+
+The podiumd chart ships two RBAC templates to cover this:
+
+### `keycloak-operator-servicemonitor-rbac.yaml`
+
+Rendered when `keycloak-operator.enabled: true`.
+
+| Resource | Scope | Verbs | Purpose |
+|---|---|---|---|
+| `ClusterRole` + `ClusterRoleBinding` | cluster-wide | `get/list/watch` on `servicemonitors` | Allows the operator to probe whether the `monitoring.coreos.com` CRD is installed. Without this, the operator receives HTTP 403 instead of 404 when the CRD is absent and aborts reconciliation — no Keycloak pods start. |
+| `Role` + `RoleBinding` | release namespace | `create/patch/update/delete` on `servicemonitors` | Allows the operator to create and manage the `ServiceMonitor` for Keycloak metrics when `enableServiceMonitor: true`. |
+
+The `Role` + `RoleBinding` are only rendered when `keycloak-operator.enableServiceMonitor: true` (set by
+`values-enable-observability.yaml`).
+
+### `eck-operator-podmonitor-rbac.yaml`
+
+Rendered when `kisselastic.enabled: true` AND `kisselastic.eck-operator.podMonitor.enabled: true`.
+
+| Resource | Scope | Verbs | Purpose |
+|---|---|---|---|
+| `Role` + `RoleBinding` | release namespace | `create/get/list/watch/patch/update/delete` on `podmonitors` | ECK operator dynamically creates PodMonitors for managed Elasticsearch, Kibana, and Enterprise Search instances when `spec.monitoring.metrics` is configured on those CRDs. The default ECK `ClusterRole` has no `monitoring.coreos.com` rules, so without this the ECK operator fails to manage scrape targets. |
+
+The ServiceAccount name is always `elastic-operator` because the `eck-operator` chart ships with
+`fullnameOverride: "elastic-operator"` as its default.
+
+### Helm-managed monitors (no operator RBAC needed)
+
+The following monitors are rendered as Helm templates at deploy time — Helm runs with the deploying
+user's credentials (cluster-admin in typical setups), so no extra operator RBAC is required:
+
+| Monitor | Template | Condition |
+|---|---|---|
+| `redis-ha` PodMonitor | `templates/redis-ha-podmonitor.yaml` | `redis-operator.redis-ha.redisExporter.podMonitor.enabled: true` |
+| `clamav` ServiceMonitor | clamav subchart `servicemonitor.yaml` | `clamav.metrics.enabled: true` AND `clamav.metrics.serviceMonitor.enabled: true` |
+
+> **ClamAV note:** The `clamav_exporter` sidecar and ServiceMonitor were added in clamav chart **v3.7.1**
+> (the current version). Prior versions (≤ 3.2.0) had no metrics support. Both are enabled via
+> `values-enable-observability.yaml`.
+
+### Prometheus Operator discovery
+
+The `kube-prometheus-stack` Prometheus Operator and Prometheus instance are configured to discover
+monitors across **all namespaces** without label restrictions:
+
+| Selector | Value | Effect |
+|---|---|---|
+| `serviceMonitorNamespaceSelector` | `{}` | All namespaces (incl. `podiumd`) |
+| `podMonitorNamespaceSelector` | `{}` | All namespaces |
+| `serviceMonitorSelector` | `{}` | All ServiceMonitors regardless of labels |
+| `podMonitorSelector` | `{}` | All PodMonitors regardless of labels |
+
+The Prometheus SA (`monitoring-kube-prometheus-prometheus`) has a cluster-wide `ClusterRole` with
+`get/list/watch` on `pods`, `services`, `endpoints`, `endpointslices`, and `ingresses`, enabling it
+to reach scrape targets in the `podiumd` namespace without any additional RBAC.
+
+---
 
 All Maykin subcharts share the same `settings.otel` schema:
 
@@ -146,20 +211,16 @@ zac:
 
 ## Prometheus Scraping — Keycloak
 
-`additionalOptions` in `values.yaml` enables the metrics endpoint. Scrape annotations are in `values-enable-observability.yaml`:
+`additionalOptions` in `values.yaml` enables the metrics endpoint. The `keycloak-operator` chart automatically creates a `ServiceMonitor` in the `podiumd` namespace for port 9000 — no additional scrape configuration is required.
 
 ```yaml
 keycloak:
   additionalOptions:
     - name: metrics-enabled
       value: "true"
-  podTemplate:
-    metadata:
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "9000"
-        prometheus.io/path: /metrics
 ```
+
+> The ServiceMonitor is created automatically by the keycloak-operator chart when `metrics-enabled: true`. Do **not** add pod annotations for Prometheus scraping — the ServiceMonitor is the correct discovery method.
 
 ---
 

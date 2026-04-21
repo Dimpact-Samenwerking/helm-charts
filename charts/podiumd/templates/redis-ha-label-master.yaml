@@ -1,7 +1,7 @@
 {{- $redisOperator := index .Values "redis-operator" }}
 {{- $redisHa := index $redisOperator "redis-ha" }}
 {{- if $redisOperator.enabled }}
-{{- if $redisHa.labelMasterJob.enabled }}
+{{- if $redisHa.labelMasterCronJob.enabled }}
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -9,7 +9,7 @@ metadata:
   name: redis-ha-label-master
   labels:
     {{- include "podiumd.labels" . | nindent 4 }}
-automountServiceAccountToken: true
+automountServiceAccountToken: false
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -40,105 +40,103 @@ subjects:
     name: redis-ha-label-master
     namespace: {{ .Release.Namespace }}
 ---
+# Workaround for redis-operator 0.24.0 bug (OT-CONTAINER-KIT/redis-operator PR #1720, not yet
+# released): when all redis-ha pods restart simultaneously the operator passes an empty pod name
+# to getRedisServerIP(), loops with "resource name may not be empty", and never applies
+# redis-role labels. Without the labels the redis-ha-master Service has no endpoints and all
+# dependent apps (openzaak, ZAC, etc.) hang on first Redis connection.
+# Remove this CronJob once a redis-operator release containing PR #1720 is available.
 apiVersion: batch/v1
-kind: Job
+kind: CronJob
 metadata:
   name: redis-ha-label-master
   labels:
     {{- include "podiumd.labels" . | nindent 4 }}
 spec:
-  ttlSecondsAfterFinished: 600
-  backoffLimit: 10
-  activeDeadlineSeconds: 900
-  template:
-    metadata:
-      labels:
-        {{- include "podiumd.labels" . | nindent 8 }}
+  schedule: {{ $redisHa.labelMasterCronJob.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
     spec:
-      serviceAccountName: redis-ha-label-master
-      restartPolicy: OnFailure
-      nodeSelector:
-        kubernetes.azure.com/mode: user
-      containers:
-        - name: label-master
-          image: {{ include "podiumd.image" $redisHa.labelMasterJob.image }}
-          resources:
-            {{- toYaml $redisHa.labelMasterJob.resources | nindent 12 }}
-          command:
-            - /bin/sh
-            - -c
-            - |
-              set -e
-              NAMESPACE="{{ .Release.Namespace }}"
-              CR_NAME="redis-ha"
+      ttlSecondsAfterFinished: 300
+      backoffLimit: 0
+      template:
+        metadata:
+          labels:
+            {{- include "podiumd.labels" . | nindent 12 }}
+        spec:
+          serviceAccountName: redis-ha-label-master
+          automountServiceAccountToken: true
+          restartPolicy: Never
+          {{- with $redisHa.labelMasterCronJob.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          containers:
+            - name: label-master
+              image: {{ include "podiumd.image" $redisHa.labelMasterCronJob.image }}
+              resources:
+                {{- toYaml $redisHa.labelMasterCronJob.resources | nindent 16 }}
+              securityContext:
+                runAsNonRoot: true
+                runAsUser: 65532
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+                seccompProfile:
+                  type: RuntimeDefault
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -e
+                  NAMESPACE="{{ .Release.Namespace }}"
+                  CR_NAME="redis-ha"
 
-              # If master label already exists on any pod, nothing to do
-              EXISTING=$(kubectl get pod -l "app=redis-ha,redis-role=master" \
-                -n "$NAMESPACE" \
-                -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
-              if [ -n "$EXISTING" ]; then
-                echo "redis-role=master already present on $EXISTING — nothing to do."
-                exit 0
-              fi
+                  # Resolve master from RedisReplication CR status — authoritative even when
+                  # the operator's reconciliation loop is failing (bug PR #1720).
+                  MASTER=$(kubectl get redisreplication "$CR_NAME" \
+                    -n "$NAMESPACE" \
+                    -o jsonpath='{.status.masterNode}' 2>/dev/null || true)
 
-              echo "No redis-role=master label found. Waiting for StatefulSet pods to be ready..."
-              READY=0
-              WAIT=0
-              while [ "$READY" -eq 0 ] && [ "$WAIT" -lt 600 ]; do
-                NOT_READY=$(kubectl get pod -l "app=redis-ha" \
-                  -n "$NAMESPACE" \
-                  --no-headers 2>/dev/null | grep -cv "Running" || true)
-                if [ "$NOT_READY" -eq 0 ]; then
-                  READY=1
-                else
-                  echo "  Waiting for redis-ha pods to be Running... (${WAIT}s elapsed)"
-                  sleep 10
-                  WAIT=$((WAIT + 10))
-                fi
-              done
+                  if [ -z "$MASTER" ]; then
+                    echo "ERROR: status.masterNode not set in RedisReplication CR. Cannot reconcile."
+                    exit 1
+                  fi
 
-              # Re-check: operator may have recovered during rollout
-              EXISTING=$(kubectl get pod -l "app=redis-ha,redis-role=master" \
-                -n "$NAMESPACE" \
-                -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
-              if [ -n "$EXISTING" ]; then
-                echo "redis-role=master now present on $EXISTING — operator recovered, nothing to do."
-                exit 0
-              fi
+                  # Check whether labels already reflect the CR — skip API writes if so.
+                  CURRENT=$(kubectl get pod -l "app=redis-ha,redis-role=master" \
+                    -n "$NAMESPACE" \
+                    -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
 
-              echo "Operator did not apply labels. Resolving master from RedisReplication CR..."
-              MASTER=""
-              RETRIES=30
-              while [ -z "$MASTER" ] && [ "$RETRIES" -gt 0 ]; do
-                MASTER=$(kubectl get redisreplication "$CR_NAME" \
-                  -n "$NAMESPACE" \
-                  -o jsonpath='{.status.masterNode}' 2>/dev/null || true)
-                if [ -z "$MASTER" ]; then
-                  echo "  masterNode not yet set in CR, waiting 10s... ($RETRIES retries left)"
-                  sleep 10
-                  RETRIES=$((RETRIES - 1))
-                fi
-              done
+                  if [ "$CURRENT" = "$MASTER" ]; then
+                    echo "Labels correct: $MASTER is master. Nothing to do."
+                    exit 0
+                  fi
 
-              if [ -z "$MASTER" ]; then
-                echo "ERROR: Could not determine master node from RedisReplication CR status."
-                exit 1
-              fi
+                  echo "Label mismatch (labeled: '${CURRENT:-none}', CR says: $MASTER). Reconciling..."
 
-              echo "Master is: $MASTER — applying labels..."
-              kubectl label pod "$MASTER" \
-                -n "$NAMESPACE" redis-role=master --overwrite
+                  kubectl label pod "$MASTER" \
+                    -n "$NAMESPACE" redis-role=master --overwrite
 
-              PODS=$(kubectl get pod -l app=redis-ha \
-                -n "$NAMESPACE" \
-                -o jsonpath='{.items[*].metadata.name}')
-              for POD in $PODS; do
-                if [ "$POD" != "$MASTER" ]; then
-                  kubectl label pod "$POD" \
-                    -n "$NAMESPACE" redis-role=slave --overwrite
-                fi
-              done
+                  PODS=$(kubectl get pod -l app=redis-ha \
+                    -n "$NAMESPACE" \
+                    -o jsonpath='{.items[*].metadata.name}')
+                  for POD in $PODS; do
+                    if [ "$POD" != "$MASTER" ]; then
+                      kubectl label pod "$POD" \
+                        -n "$NAMESPACE" redis-role=slave --overwrite
+                    fi
+                  done
 
-              echo "Done. Labels applied successfully."
+                  echo "Done. $MASTER labeled as master."
+          volumes:
+            - name: tmp
+              emptyDir: {}
 {{- end }}
 {{- end }}

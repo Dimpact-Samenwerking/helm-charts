@@ -65,8 +65,12 @@ Create the name of the service account to use
 Frontend labels
 */}}
 {{- define "podiumd.labelsFrontend" -}}
-{{ include "podiumd.labels" . }}
+helm.sh/chart: {{ include "podiumd.chart" . }}
 {{ include "podiumd.selectorLabelsFrontend" . }}
+{{- if .Chart.AppVersion }}
+app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+{{- end }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end }}
 
 {{/*
@@ -81,8 +85,12 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 Adapter labels
 */}}
 {{- define "podiumd.labelsAdapter" -}}
-{{ include "podiumd.labels" . }}
+helm.sh/chart: {{ include "podiumd.chart" . }}
 {{ include "podiumd.selectorLabelsAdapter" . }}
+{{- if .Chart.AppVersion }}
+app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+{{- end }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end }}
 
 {{/*
