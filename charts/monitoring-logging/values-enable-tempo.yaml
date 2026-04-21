@@ -1,0 +1,29 @@
+# Enable Grafana Tempo and wire the OTel Collector traces pipeline.
+#
+# Apply alongside your main values file to activate distributed tracing:
+#
+#   helm upgrade monitoring charts/monitoring-logging \
+#     -f values-monitoring.yaml \
+#     -f values-enable-tempo.yaml \
+#     -n monitoring
+#
+# Applications must send traces via OTLP to the collector (gRPC :4317 or HTTP :4318).
+# See docs/otel.md for per-service instrumentation config.
+
+tempo:
+  enabled: true
+
+opentelemetry-collector:
+  config:
+    exporters:
+      # -- Traces → Tempo
+      otlp/tempo:
+        endpoint: ${env:RELEASE_NAME}-tempo:4317
+        tls:
+          insecure: true
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [otlp/tempo]

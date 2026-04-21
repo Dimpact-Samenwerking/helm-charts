@@ -1,8 +1,37 @@
 # monitoring-logging
 
-![Version: 1.0.10(https://img.shields.io/badge/Version-1.0.10-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 1.0.10](https://img.shields.io/badge/AppVersion-1.0.10-informational?style=flat-square)
+![Version: 1.0.11](https://img.shields.io/badge/Version-1.0.11-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 1.0.11](https://img.shields.io/badge/AppVersion-1.0.11-informational?style=flat-square)
 
-A monitoring stack using Loki, Prometheus, Promtail and Grafana
+A monitoring stack using Loki, Grafana Alloy, kube-prometheus-stack, OpenTelemetry Collector, and Grafana. Optionally includes Grafana Tempo for distributed tracing.
+
+## What's included
+
+| Component | Purpose | Default |
+|---|---|---|
+| **kube-prometheus-stack** | Prometheus Operator, Prometheus, Alertmanager, node-exporter, kube-state-metrics | ✅ enabled |
+| **Grafana** | Dashboards, OIDC auth via Keycloak, PodiumD_Metrics and PodiumD_Monitoring_Logging folders | ✅ enabled |
+| **Loki** | Log aggregation backend | ✅ enabled |
+| **Grafana Alloy** | Log collection agent (replaces Promtail), OTel-aware pipeline | ✅ enabled |
+| **OpenTelemetry Collector** | OTLP receiver (gRPC :4317, HTTP :4318), pipeline to Prometheus + Loki | ✅ enabled |
+| **Prometheus Pushgateway** | Push-based metrics ingestion | ✅ enabled |
+| **Grafana Tempo** | Distributed tracing backend | ❌ optional (`values-enable-tempo.yaml`) |
+
+## Grafana dashboards
+
+All dashboards are statically mounted via ConfigMaps (no sidecar label required).
+
+| Folder | Dashboards |
+|---|---|
+| `PodiumD_Monitoring_Logging` | Main monitoring, Logs viewer |
+| `PodiumD_Metrics` | Kubernetes cluster, Deployments, Traefik, Keycloak, OTel Collector, Django RED, Node Exporter Full, Redis HA, ECK/Elasticsearch, ClamAV |
+
+## Documentation
+
+- [`docs/otel.md`](docs/otel.md) — OTel Collector pipeline, bearer auth, HTTP/gRPC config
+- [`docs/prometheus-scraping.md`](docs/prometheus-scraping.md) — Prometheus scrape targets and ServiceMonitor/PodMonitor setup
+- [`docs/grafana-auth.md`](docs/grafana-auth.md) — Grafana Keycloak OIDC auth, break-glass access
+- [`docs/loki-storage.md`](docs/loki-storage.md) — Loki storage backends (filesystem, Azure Blob, MinIO)
+- [`docs/enabling-alertmanager.md`](docs/enabling-alertmanager.md) — Alertmanager configuration
 
 ## Rollenbeheer in Grafana op basis van Keycloak-groepen:
 
@@ -11,20 +40,25 @@ https://dimpact.atlassian.net/wiki/spaces/PCP/pages/412090380/Keycloak+roles+for
 https://dimpact.atlassian.net/wiki/spaces/PCP/pages/448528393/3.+Gebruikers-+en+rollenbeheer+in+Grafana+via+Keycloak
 
 
-## Add Used chart repositories:
+## Add used chart repositories:
 
+```bash
 helm repo add grafana https://grafana.github.io/helm-charts
-
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo add opentelemetry https://open-telemetry.github.io/opentelemetry-helm-charts
+```
 
 ## Requirements
 
 | Repository | Name | Version |
 |------------|------|---------|
-| @grafana | grafana | 10.0.0 |
-| @grafana | loki | 6.40.0 |
-| @grafana | promtail | 6.17.0 |
-| @prometheus-community | prometheus | 27.37.0 |
+| @grafana | loki | 6.55.0 |
+| @grafana | alloy | 1.6.2 |
+| @grafana | grafana | 10.5.15 |
+| @grafana | tempo | 1.24.4 |
+| @prometheus-community | kube-prometheus-stack | 83.0.0 |
+| @prometheus-community | prometheus-pushgateway | 3.6.0 |
+| @opentelemetry | opentelemetry-collector | 0.147.1 |
 
 ## Values
 

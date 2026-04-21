@@ -1,0 +1,26 @@
+{{- if .Values.traefikMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: {{ .Release.Name }}-traefik
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+spec:
+  jobLabel: app.kubernetes.io/name
+  namespaceSelector:
+    {{- if .Values.traefikMonitor.namespace }}
+    matchNames:
+      - {{ .Values.traefikMonitor.namespace | quote }}
+    {{- else }}
+    any: true
+    {{- end }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: traefik
+  podMetricsEndpoints:
+    - port: metrics
+      path: /metrics
+      interval: {{ .Values.traefikMonitor.scrapeInterval | default "30s" }}
+{{- end }}
