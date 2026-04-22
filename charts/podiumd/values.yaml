@@ -1048,6 +1048,7 @@ objecttypen:
       keycloak_client_secret: ""
       # object_objecttypes_token: "<object_objecttypes_token>"
       # openformulieren_objecten_token: "<openformulieren_objecten_token>"
+      # objecttypen_openbeheer_token: "<objecttypen_openbeheer_token>"
     data: ""
     # e.g.
     # data: |-
@@ -1061,6 +1062,13 @@ objecttypen:
     #         organization: Organization 1
     #         application: Application 1
     #         administration: Administration 1
+    #       - identifier: openbeheer-token
+    #         token: ${objecttypen_openbeheer_token}
+    #         contact_person: Open Beheer
+    #         email: openbeheer@example.com
+    #         organization: Open Beheer
+    #         application: Open Beheer
+    #         administration: Open Beheer
     #   oidc_db_config_enable: true
     #   oidc_db_config_admin_auth:
     #     providers:
@@ -2030,20 +2038,9 @@ openbeheer:
     secrets:
       keycloak_client_secret: ""
       # openzaak_openbeheer_secret: "<openzaak_openbeheer_secret>"
+      # objecttypen_openbeheer_token: "<objecttypen_openbeheer_token>"
     data: ""
     # data: |-
-    #   zgw_consumers_config_enable: true
-    #   zgw_consumers:
-    #     services:
-    #     - identifier: openzaak-catalogi-api
-    #       label: Open Zaak Catalogi API
-    #       api_root: https://openzaak.example.nl/catalogi/api/v1/
-    #       api_type: ztc
-    #       auth_type: zgw
-    #       client_id: openbeheer
-    #       secret: ${openzaak_openbeheer_secret}
-    #       user_id: openbeheer
-    #       user_representation: Open Beheer
     #   oidc_db_config_enable: true
     #   oidc_db_config_admin_auth:
     #     providers:
@@ -2072,6 +2069,8 @@ openbeheer:
     #               - sub
     #             first_name:
     #               - given_name
+    #             last_name:
+    #               - family_name
     #             email:
     #               - email
     #           username_case_sensitive: true
@@ -2084,6 +2083,32 @@ openbeheer:
     #           make_users_staff: true
     #           superuser_group_names:
     #             - administrators
+    #   zgw_consumers_config_enable: true
+    #   zgw_consumers:
+    #     services:
+    #     - identifier: objecttypen-service
+    #       label: Objecttypen API
+    #       api_root: https://objecttypen.example.nl/api/v2/
+    #       api_type: orc
+    #       auth_type: api_key
+    #       header_key: Authorization
+    #       header_value: Token ${objecttypen_openbeheer_token}
+    #     - identifier: catalogi-service
+    #       label: Open Zaak - Catalogi API
+    #       api_root: https://openzaak.example.nl/catalogi/api/v1/
+    #       api_type: ztc
+    #       auth_type: zgw
+    #       client_id: openbeheer
+    #       secret: ${openzaak_openbeheer_secret}
+    #     - identifier: selectielijst-service
+    #       label: Open Zaak (public) - Selectielijst API
+    #       api_root: https://selectielijst.openzaak.nl/api/v1/
+    #       api_type: orc
+    #       auth_type: no_auth
+    #   api_configuration_enabled: true
+    #   api_configuration:
+    #     selectielijst_service_identifier: selectielijst-service
+    #     objecttypen_service_identifier: objecttypen-service
     oidcUrl: https://openbeheer.example.nl
     # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
     pkceEnabled: false

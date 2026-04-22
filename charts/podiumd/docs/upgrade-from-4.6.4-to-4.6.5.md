@@ -12,12 +12,13 @@ For disabled components, the `oidcUrl` chart default is used for the redirect UR
 
 The following secrets are **not yet in Key Vault** for openbeheer. Add each one before deploying, even if the component stays disabled — the pipeline wiring expects them to be present:
 
-| Key Vault secret name        | Pipeline env var               | Description                                             |
-|------------------------------|--------------------------------|---------------------------------------------------------|
-| `openbeheer`                 | `OPENBEHEER_DATABASE_PASSWORD` | Django database password                                |
-| `openbeheer-secret-key`      | `OPENBEHEER_SECRET_KEY`        | Django secret key                                       |
-| `openbeheer-oidc-secret`     | `OPENBEHEER_OIDC_SECRET`       | Keycloak OIDC client secret                             |
-| `openzaak-openbeheer-secret` | `OPENZAAK_OPENBEHEER_SECRET`   | ZGW JWT secret — shared between openbeheer and openzaak |
+| Key Vault secret name              | Pipeline env var                          | Description                                             |
+|------------------------------------|-------------------------------------------|---------------------------------------------------------|
+| `openbeheer`                       | `OPENBEHEER_DATABASE_PASSWORD`            | Django database password                                |
+| `openbeheer-secret-key`            | `OPENBEHEER_SECRET_KEY`                   | Django secret key                                       |
+| `openbeheer-oidc-secret`           | `OPENBEHEER_OIDC_SECRET`                  | Keycloak OIDC client secret                             |
+| `openzaak-openbeheer-secret`       | `OPENZAAK_OPENBEHEER_SECRET`              | ZGW JWT secret — shared between openbeheer and openzaak |
+| `objecttypen-openbeheer-token`     | `OBJECTTYPEN_OPENBEHEER_TOKEN`            | API token for openbeheer to authenticate to objecttypen |
 
 For secrets (OIDC, ZGW JWT): `openssl rand -hex 32`  
 For the Django secret key: `openssl rand -base64 50`
@@ -89,19 +90,8 @@ openbeheer:
     secrets:
       keycloak_client_secret: "REP_OPENBEHEER_OIDC_SECRET_REP"
       openzaak_openbeheer_secret: "REP_OPENZAAK_OPENBEHEER_SECRET_REP"
+      objecttypen_openbeheer_token: "REP_OBJECTTYPEN_OPENBEHEER_TOKEN_REP"
     data: |-
-      zgw_consumers_config_enable: true
-      zgw_consumers:
-        services:
-        - identifier: openzaak-catalogi-api
-          label: Open Zaak Catalogi API
-          api_root: https://openzaak.example.nl/catalogi/api/v1/
-          api_type: ztc
-          auth_type: zgw
-          client_id: openbeheer
-          secret: ${openzaak_openbeheer_secret}
-          user_id: openbeheer
-          user_representation: Open Beheer
       oidc_db_config_enable: true
       oidc_db_config_admin_auth:
         providers:
@@ -130,6 +120,8 @@ openbeheer:
                   - sub
                 first_name:
                   - given_name
+                last_name:
+                  - family_name
                 email:
                   - email
               username_case_sensitive: true
@@ -142,13 +134,61 @@ openbeheer:
               make_users_staff: true
               superuser_group_names:
                 - administrators
+      zgw_consumers_config_enable: true
+      zgw_consumers:
+        services:
+        - identifier: objecttypen-service
+          label: Objecttypen API
+          api_root: https://objecttypen.example.nl/api/v2/
+          api_type: orc
+          auth_type: api_key
+          header_key: Authorization
+          header_value: Token ${objecttypen_openbeheer_token}
+        - identifier: catalogi-service
+          label: Open Zaak - Catalogi API
+          api_root: https://openzaak.example.nl/catalogi/api/v1/
+          api_type: ztc
+          auth_type: zgw
+          client_id: openbeheer
+          secret: ${openzaak_openbeheer_secret}
+        - identifier: selectielijst-service
+          label: Open Zaak (public) - Selectielijst API
+          api_root: https://selectielijst.openzaak.nl/api/v1/
+          api_type: orc
+          auth_type: no_auth
+      api_configuration_enabled: true
+      api_configuration:
+        selectielijst_service_identifier: selectielijst-service
+        objecttypen_service_identifier: objecttypen-service
 ```
 
-#### openbeheer — Open Zaak Catalogi API connection
+#### openbeheer — service connections
 
-Open Beheer connects to Open Zaak's Catalogi API via ZGW JWT authentication. Both sides must be configured when enabling openbeheer.
+Open Beheer connects to three external services:
 
-`REP_OPENZAAK_OPENBEHEER_SECRET_REP` maps to Key Vault secret `openzaak-openbeheer-secret` — already listed in the table above. The pipeline wiring in `application.yml` is already present; only the Key Vault entry needs to be created.
+- **Objecttypen API** — API key authentication. The token is registered in objecttypen's `tokenauth` configuration and referenced as `${objecttypen_openbeheer_token}`. Key Vault secret: `objecttypen-openbeheer-token`.
+- **Open Zaak Catalogi API** — ZGW JWT authentication. Key Vault secret: `openzaak-openbeheer-secret`. Both sides must be configured (see the openzaak section below).
+- **Selectielijst API** — public endpoint, no authentication required.
+
+Also add `openbeheer-token` to objecttypen's `configuration.data`:
+
+```yaml
+objecttypen:
+  configuration:
+    secrets:
+      objecttypen_openbeheer_token: "REP_OBJECTTYPEN_OPENBEHEER_TOKEN_REP"
+    data: |-
+      tokenauth_config_enable: true
+      tokenauth:
+        items:
+        - identifier: openbeheer-token
+          token: ${objecttypen_openbeheer_token}
+          contact_person: Open Beheer
+          email: openbeheer@example.com
+          organization: Open Beheer
+          application: Open Beheer
+          administration: Open Beheer
+```
 
 **openzaak side** — register openbeheer as an authorised application. Add to the openzaak environment values file:
 
