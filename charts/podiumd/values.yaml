@@ -490,7 +490,7 @@ openzaak:
     #       api_type: nrc
     #       auth_type: api_key
     #       header_key: Authorization
-    #       header_value: Token ${openzaak_opennotificaties_secret}
+    #       header_value: Token {value_from: {env: openzaak_opennotificaties_secret}}
     #     - identifier: selectielijst-api
     #       label: Selectielijst API
     #       api_root: https://selectielijst.openzaak.nl/api/v1/
@@ -529,9 +529,9 @@ openzaak:
     #   vng_api_common_credentials:
     #     items:
     #     - identifier: open-formulieren
-    #       secret: ${openzaak_openforms_secret}
+    #       secret: {value_from: {env: openzaak_openforms_secret}}
     #     - identifier: openbeheer
-    #       secret: ${openzaak_openbeheer_secret}
+    #       secret: {value_from: {env: openzaak_openbeheer_secret}}
     #   oidc_db_config_enable: true
     #   oidc_db_config_admin_auth:
     #     providers:
@@ -545,7 +545,7 @@ openzaak:
     #     - identifier: admin-oidc
     #       enabled: true
     #       oidc_rp_client_id: testid
-    #       oidc_rp_client_secret: ${keycloak_client_secret}
+    #       oidc_rp_client_secret: {value_from: {env: keycloak_client_secret}}
     #       oidc_rp_scopes_list:
     #       - openid
     #       - email
@@ -691,7 +691,7 @@ opennotificaties:
     #     - identifier: admin-oidc
     #       enabled: true
     #       oidc_rp_client_id: testid
-    #       oidc_rp_client_secret: ${keycloak_client_secret}
+    #       oidc_rp_client_secret: {value_from: {env: keycloak_client_secret}}
     #       oidc_rp_scopes_list:
     #       - openid
     #       - email
@@ -729,7 +729,7 @@ opennotificaties:
     #         api_type: ac
     #         auth_type: zgw
     #         client_id: open-notificaties
-    #         secret: ${opennotificaties_autorisatie_api_secret}
+    #         secret: {value_from: {env: opennotificaties_autorisatie_api_secret}}
     #         user_id: open-notificaties
     #         user_representation: Open Notificaties
     #   autorisaties_api_config_enable: true
@@ -741,10 +741,10 @@ opennotificaties:
     #     items:
     #     # Credentials for Open Zaak to be able to make requests to Open Notificaties
     #     - identifier: open-zaak
-    #       secret: ${openzaak_opennotificaties_secret}
+    #       secret: {value_from: {env: openzaak_opennotificaties_secret}}
     #     # Credentials for Open Notificaties, required for autorisaties subscription
     #     - identifier: open-notificaties
-    #       secret: ${opennotificaties_opennotificaties_secret}
+    #       secret: {value_from: {env: opennotificaties_opennotificaties_secret}}
     #   notifications_kanalen_config_enable: true
     #   notifications_kanalen_config:
     #     items:
@@ -904,7 +904,7 @@ objecten:
     #       api_type: orc
     #       auth_type: api_key
     #       header_key: Authorization
-    #       header_value: Token ${object_objecttypes_token}
+    #       header_value: Token {value_from: {env: object_objecttypes_token}}
     #     - identifier: notifications-api
     #       label: Notificaties API
     #       api_root: https://opennotificaties.example.nl/api/v1/
@@ -912,7 +912,7 @@ objecten:
     #       api_type: nrc
     #       auth_type: api_key
     #       header_key: Authorization
-    #       header_value: Token ${object_notificaties_token}
+    #       header_value: Token {value_from: {env: object_notificaties_token}}
     #   notifications_config_enable: true
     #   notifications_config:
     #     notifications_api_service_identifier: notifications-api
@@ -923,7 +923,7 @@ objecten:
     #   tokenauth:
     #     items:
     #       - identifier: openformulier-token
-    #         token: ${openformulieren_objecten_token}
+    #         token: {value_from: {env: openformulieren_objecten_token}}
     #         contact_person: Person 1
     #         email: person-1@example.com
     #         organization: Organization 1
@@ -956,7 +956,7 @@ objecten:
     #     - identifier: admin-oidc
     #       enabled: true
     #       oidc_rp_client_id: testid
-    #       oidc_rp_client_secret: ${keycloak_client_secret}
+    #       oidc_rp_client_secret: {value_from: {env: keycloak_client_secret}}
     #       oidc_rp_scopes_list:
     #       - openid
     #       - email
@@ -1056,14 +1056,14 @@ objecttypen:
     #   tokenauth:
     #     items:
     #       - identifier: openformulier-token
-    #         token: ${object_objecttypes_token}
+    #         token: {value_from: {env: object_objecttypes_token}}
     #         contact_person: Person 1
     #         email: person-1@example.com
     #         organization: Organization 1
     #         application: Application 1
     #         administration: Administration 1
     #       - identifier: openbeheer-token
-    #         token: ${objecttypen_openbeheer_token}
+    #         token: {value_from: {env: objecttypen_openbeheer_token}}
     #         contact_person: Open Beheer
     #         email: openbeheer@example.com
     #         organization: Open Beheer
@@ -1082,7 +1082,7 @@ objecttypen:
     #     - identifier: admin-oidc
     #       enabled: true
     #       oidc_rp_client_id: testid
-    #       oidc_rp_client_secret: ${keycloak_client_secret}
+    #       oidc_rp_client_secret: {value_from: {env: keycloak_client_secret}}
     #       oidc_rp_scopes_list:
     #       - openid
     #       - email
@@ -1183,28 +1183,28 @@ openarchiefbeheer:
     #       api_type: zrc
     #       auth_type: zgw
     #       client_id: openarchiefbeheer
-    #       secret: ${oab_openzaak_secret}
+    #       secret: {value_from: {env: oab_openzaak_secret}}
     #     - identifier: documenten-dimpact-acc
     #       label: Open Zaak - Documenten API
     #       api_root: https://example.openzaak.nl/documenten/api/v1/
     #       api_type: drc
     #       auth_type: zgw
     #       client_id: openarchiefbeheer
-    #       secret: ${oab_openzaak_secret}
+    #       secret: {value_from: {env: oab_openzaak_secret}}
     #     - identifier: catalogus-dimpact-acc
     #       label: Open Zaak - Catalogi API
     #       api_root: https://example.openzaak.nl/catalogi/api/v1/
     #       api_type: ztc
     #       auth_type: zgw
     #       client_id: openarchiefbeheer
-    #       secret: ${oab_openzaak_secret}
+    #       secret: {value_from: {env: oab_openzaak_secret}}
     #     - identifier: besluiten-dimpact-acc
     #       label: Open Zaak - Besluiten API
     #       api_root: https://example.openzaak.nl/besluiten/api/v1/
     #       api_type: brc
     #       auth_type: zgw
     #       client_id: openarchiefbeheer
-    #       secret: ${oab_openzaak_secret}
+    #       secret: {value_from: {env: oab_openzaak_secret}}
     #     - identifier: selectielijst
     #       label: Open Zaak (public) - Selectielijst API
     #       api_root: https://selectielijst.openzaak.nl/api/v1/
@@ -1228,7 +1228,7 @@ openarchiefbeheer:
     #         - profile
     #       userinfo_claims_source: id_token
     #       oidc_rp_client_id: example-client-id
-    #       oidc_rp_client_secret: ${keycloak_client_secret}
+    #       oidc_rp_client_secret: {value_from: {env: keycloak_client_secret}}
     #       oidc_rp_sign_algo: RS256
     #       # Enable PKCE on the application side — requires pkceEnabled: true on the Keycloak client.
     #       oidc_use_pkce: true
@@ -1350,7 +1350,7 @@ openklant:
     #   tokenauth:
     #     items:
     #       - identifier: openinwoner-token
-    #         token: ${openklant_openinwoner_token}
+    #         token: {value_from: {env: openklant_openinwoner_token}}
     #         contact_person: Person 1
     #         email: test@example.com
     #         organization: Organization XYZ
@@ -1371,7 +1371,7 @@ openklant:
     #       enabled: true
     #       oidc_provider_identifier: admin-oidc-provider
     #       oidc_rp_client_id: openklant.example.nl
-    #       oidc_rp_client_secret: ${keycloak_client_secret}
+    #       oidc_rp_client_secret: {value_from: {env: keycloak_client_secret}}
     #       oidc_rp_scopes_list:
     #       - openid
     #       - email
@@ -1483,7 +1483,7 @@ openformulieren:
     #     - identifier: admin-oidc
     #       enabled: true
     #       oidc_rp_client_id: openformulieren.example.nl
-    #       oidc_rp_client_secret: ${keycloak_client_secret}
+    #       oidc_rp_client_secret: {value_from: {env: keycloak_client_secret}}
     #       oidc_rp_scopes_list:
     #       - openid
     #       - email
@@ -1540,7 +1540,7 @@ openformulieren:
     #       api_type: orc
     #       auth_type: api_key
     #       header_key: Authorization
-    #       header_value: Token ${openformulieren_objecten_token}
+    #       header_value: Token {value_from: {env: openformulieren_objecten_token}}
 
     #     - identifier: objecten-api
     #       label: Objecten API test
@@ -1548,7 +1548,7 @@ openformulieren:
     #       api_type: orc
     #       auth_type: api_key
     #       header_key: Authorization
-    #       header_value: Token ${openformulieren_objecten_token}
+    #       header_value: Token {value_from: {env: openformulieren_objecten_token}}
 
     #     - identifier: documenten-api
     #       label: Documenten API
@@ -1556,7 +1556,7 @@ openformulieren:
     #       api_type: drc
     #       auth_type: zgw
     #       client_id: open-formulieren
-    #       secret: ${openzaak_openformulieren_secret}
+    #       secret: {value_from: {env: openzaak_openformulieren_secret}}
 
     #     - identifier: zaken-api
     #       label: Zaken API
@@ -1564,7 +1564,7 @@ openformulieren:
     #       api_type: zrc
     #       auth_type: zgw
     #       client_id: open-formulieren
-    #       secret: ${openzaak_openformulieren_secret}
+    #       secret: {value_from: {env: openzaak_openformulieren_secret}}
 
     #     - identifier: catalogus-api
     #       label: Catalogus API
@@ -1572,7 +1572,7 @@ openformulieren:
     #       api_type: ztc
     #       auth_type: zgw
     #       client_id: open-formulieren
-    #       secret: ${openzaak_openformulieren_secret}
+    #       secret: {value_from: {env: openzaak_openformulieren_secret}}
     #   objects_api_config_enable: true
     #   objects_api:
     #     groups:
@@ -1689,7 +1689,7 @@ openinwoner:
     #     - identifier: admin-oidc
     #       enabled: true
     #       oidc_rp_client_id: openinwoner.example.nl
-    #       oidc_rp_client_secret: ${keycloak_client_secret}
+    #       oidc_rp_client_secret: {value_from: {env: keycloak_client_secret}}
     #       oidc_rp_scopes_list:
     #       - openid
     #       - email
@@ -1728,28 +1728,28 @@ openinwoner:
     #         api_type: zrc
     #         auth_type: zgw
     #         client_id: openinwoner
-    #         secret: ${openzaak_openinwoner_secret}
+    #         secret: {value_from: {env: openzaak_openinwoner_secret}}
     #       - identifier: documenten-test
     #         label: Open Zaak - Documenten API
     #         api_root: https://openzaak.example.nl/documenten/api/v1/
     #         api_type: drc
     #         auth_type: zgw
     #         client_id: openinwoner
-    #         secret: ${openzaak_openinwoner_secret}
+    #         secret: {value_from: {env: openzaak_openinwoner_secret}}
     #       - identifier: catalogi-test
     #         label: Open Zaak - Catalogi API
     #         api_root: https://openzaak.example.nl/catalogi/api/v1/
     #         api_type: ztc
     #         auth_type: zgw
     #         client_id: openinwoner
-    #         secret: ${openzaak_openinwoner_secret}
+    #         secret: {value_from: {env: openzaak_openinwoner_secret}}
     #       - identifier: besluiten-test
     #         label: Open Zaak - Besluiten API
     #         api_root: https://openzaak.example.nl/besluiten/api/v1/
     #         api_type: brc
     #         auth_type: zgw
     #         client_id: openinwoner
-    #         secret: ${openzaak_openinwoner_secret}
+    #         secret: {value_from: {env: openzaak_openinwoner_secret}}
     #       - identifier: selectielijst
     #         label: Open Zaak (public) - Selectielijst API
     #         api_root: https://selectielijst.openzaak.nl/api/v1/
@@ -1761,7 +1761,7 @@ openinwoner:
     #         api_type: kc
     #         auth_type: zgw
     #         client_id: openinwoner
-    #         secret: ${openklant_openinwoner_token}
+    #         secret: {value_from: {env: openklant_openinwoner_token}}
     #   openzaak_config_enable: true
     #   openzaak_config:
     #     zaak_max_confidentiality: openbaar
@@ -1929,6 +1929,7 @@ openinwoner:
     enabled: false
 
 referentielijsten:
+  fullnameOverride: referentielijsten
   enabled: false
   configuration:
     enabled: true
@@ -1947,39 +1948,46 @@ referentielijsten:
     # data: |-
     #   oidc_db_config_enable: true
     #   oidc_db_config_admin_auth:
+    #     providers:
+    #     - identifier: admin-oidc-provider
+    #       oidc_use_nonce: true
+    #       oidc_nonce_size: 32
+    #       oidc_state_size: 32
+    #       endpoint_config:
+    #         oidc_op_discovery_endpoint: https://keycloak.example.nl/realms/podiumd/
     #     items:
     #     - identifier: admin-oidc
+    #       oidc_provider_identifier: admin-oidc-provider
     #       enabled: true
     #       oidc_rp_client_id: referentielijsten
-    #       oidc_rp_client_secret: ${keycloak_client_secret}
+    #       oidc_rp_client_secret: {value_from: {env: keycloak_client_secret}}
     #       oidc_rp_scopes_list:
     #       - openid
     #       - email
     #       - profile
+    #       - roles
     #       oidc_rp_sign_algo: RS256
-    #       endpoint_config:
-    #         oidc_op_discovery_endpoint: https://keycloak.example.nl/realms/podiumd/
     #       userinfo_claims_source: id_token
-    #       oidc_use_nonce: true
-    #       oidc_nonce_size: 32
-    #       oidc_state_size: 32
-    #       username_claim:
-    #       - sub
-    #       groups_claim:
-    #       - groups
-    #       claim_mapping:
-    #         first_name:
-    #         - given_name
-    #         last_name:
-    #         - family_name
-    #         email:
-    #         - email
-    #       sync_groups: true
-    #       sync_groups_glob_pattern: '*'
-    #       default_groups: []
-    #       make_users_staff: true
-    #       superuser_group_names:
-    #       - administrators
+    #       options:
+    #         user_settings:
+    #           claim_mappings:
+    #             username:
+    #               - preferred_username
+    #             first_name:
+    #               - given_name
+    #             last_name:
+    #               - family_name
+    #             email:
+    #               - email
+    #         groups_settings:
+    #           claim_mapping:
+    #             - groups
+    #           sync: true
+    #           sync_pattern: '*'
+    #           default_groups: []
+    #           make_users_staff: true
+    #           superuser_group_names:
+    #             - administrators
     oidcUrl: https://referentielijsten.example.nl
     # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
     pkceEnabled: false
@@ -2034,11 +2042,15 @@ openbeheer:
       ttlSecondsAfterFinished: 600
       restartPolicy: Never
       resources: {}
-    # keycloak_client_secret is required in all environments (also used as Keycloak realm client secret).
+    # Secret substitution inside configuration.data uses django-setup-configuration's
+    # `value_from: {env: VAR}` pattern (v0.11.0+). Shell-style `${VAR}` references are
+    # NOT resolved at runtime. Exception: header fields with a literal prefix
+    # (e.g. `Authorization: Token <value>`) must still use inline REP_..._REP tokens
+    # (replaced by patch_values.py before Helm renders) — see example data block.
     secrets:
       keycloak_client_secret: ""
-      # openzaak_openbeheer_secret: "<openzaak_openbeheer_secret>"
-      # objecttypen_openbeheer_token: "<objecttypen_openbeheer_token>"
+      openzaak_openbeheer_secret: ""
+      objecttypen_openbeheer_token: ""
     data: ""
     # data: |-
     #   oidc_db_config_enable: true
@@ -2054,11 +2066,12 @@ openbeheer:
     #     - identifier: admin-oidc
     #       enabled: true
     #       oidc_rp_client_id: openbeheer
-    #       oidc_rp_client_secret: ${keycloak_client_secret}
+    #       oidc_rp_client_secret: {value_from: {env: keycloak_client_secret}}
     #       oidc_rp_scopes_list:
     #       - openid
     #       - email
     #       - profile
+    #       - roles
     #       oidc_rp_sign_algo: RS256
     #       oidc_provider_identifier: keycloak-provider
     #       userinfo_claims_source: id_token
@@ -2066,14 +2079,13 @@ openbeheer:
     #         user_settings:
     #           claim_mappings:
     #             username:
-    #               - sub
+    #               - preferred_username
     #             first_name:
     #               - given_name
     #             last_name:
     #               - family_name
     #             email:
     #               - email
-    #           username_case_sensitive: true
     #         groups_settings:
     #           claim_mapping:
     #             - groups
@@ -2092,14 +2104,14 @@ openbeheer:
     #       api_type: orc
     #       auth_type: api_key
     #       header_key: Authorization
-    #       header_value: Token ${objecttypen_openbeheer_token}
+    #       header_value: Token REP_OBJECTTYPEN_OPENBEHEER_TOKEN_REP   # prefix+token — pipeline-replaced (see comment above)
     #     - identifier: catalogi-service
     #       label: Open Zaak - Catalogi API
     #       api_root: https://openzaak.example.nl/catalogi/api/v1/
     #       api_type: ztc
     #       auth_type: zgw
     #       client_id: openbeheer
-    #       secret: ${openzaak_openbeheer_secret}
+    #       secret: {value_from: {env: openzaak_openbeheer_secret}}
     #     - identifier: selectielijst-service
     #       label: Open Zaak (public) - Selectielijst API
     #       api_root: https://selectielijst.openzaak.nl/api/v1/

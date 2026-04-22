@@ -1,9 +1,16 @@
 #!/usr/bin/env python3
 """
-Migrate podiumd environment values files from inline REP_..._REP tokens in
-configuration.data blocks to configuration.secrets + ${var_name} substitution.
+Migrate podiumd environment values files from inline REP_..._REP tokens (and/or
+${var} shell-style references) inside configuration.data to the
+`value_from: {env: var_name}` pattern natively supported by
+django-setup-configuration >= 0.11.0.
 
-Before (live env file pattern):
+Why: django-setup-configuration does NOT substitute ${VAR} at runtime. It only
+resolves env vars via `value_from: {env: VAR}`. Storing literal `${var}` leaves
+the placeholder string in the database and breaks OIDC login (401
+unauthorized_client). See charts/podiumd/docs/upgrade-from-4.6.4-to-4.6.5.md.
+
+Before (live env-file pattern):
   openzaak:
     configuration:
       data: |
@@ -11,7 +18,15 @@ Before (live env file pattern):
         secret: REP_OPENZAAK_CREDENTIALS_ZAC_SECRET_REP
         header_value: Token REP_OBJECTTYPEN_CREDENTIALS_OBJECTEN_TOKEN_REP
 
-After:
+Before (partially-migrated ${var} pattern — still broken at runtime):
+  openzaak:
+    configuration:
+      secrets:
+        openzaak_oidc_secret: "REP_OPENZAAK_OIDC_SECRET_REP"
+      data: |
+        oidc_rp_client_secret: ${openzaak_oidc_secret}
+
+After (works with django-setup-configuration 0.11.0):
   openzaak:
     configuration:
       secrets:
@@ -19,9 +34,16 @@ After:
         openzaak_credentials_zac_secret: "REP_OPENZAAK_CREDENTIALS_ZAC_SECRET_REP"
         objecttypen_credentials_objecten_token: "REP_OBJECTTYPEN_CREDENTIALS_OBJECTEN_TOKEN_REP"
       data: |
-        oidc_rp_client_secret: ${openzaak_oidc_secret}
-        secret: ${openzaak_credentials_zac_secret}
-        header_value: Token ${objecttypen_credentials_objecten_token}
+        oidc_rp_client_secret: {value_from: {env: openzaak_oidc_secret}}
+        secret: {value_from: {env: openzaak_credentials_zac_secret}}
+        header_value: Token {value_from: {env: objecttypen_credentials_objecten_token}}
+
+Note: `Token {value_from: ...}` is not a valid django-setup-configuration
+construct for a prefixed token header (the string "Token " is concatenated with
+a dict). When the header-value carries a literal prefix, keep the prefix in the
+configuration and substitute only the token value. The generated placement
+therefore emits a warning; fix by rewriting the Authorization header as a
+scalar `value_from` reference after the migration, or use a helper that joins.
 
 Usage:
   pip install ruamel.yaml
@@ -44,6 +66,7 @@ except ImportError:
     sys.exit(1)
 
 REP_PATTERN = re.compile(r"REP_([A-Z0-9_]+)_REP")
+DOLLAR_VAR_PATTERN = re.compile(r"\$\{([a-z][a-z0-9_]*)\}")
 
 
 def rep_to_var(rep_token: str) -> str:
@@ -54,53 +77,88 @@ def rep_to_var(rep_token: str) -> str:
     return m.group(1).lower()
 
 
-def migrate_data_string(data_str: str, secrets: dict) -> str:
+def _value_from_inline(var: str) -> str:
+    return "{value_from: {env: " + var + "}}"
+
+
+def migrate_data_string(data_str: str, secrets: dict) -> tuple[str, list[str]]:
     """
-    Replace all REP_..._REP tokens in a configuration.data string with ${var_name}.
-    Collects the mapping in `secrets` dict: {var_name: REP_TOKEN}.
-    Handles both bare tokens and tokens preceded by 'Token ' (api_key header values).
+    Replace REP_..._REP tokens and ${var} references in a configuration.data
+    string with inline `{value_from: {env: var}}` markers.
+
+    For REP tokens, add the corresponding `var -> REP_TOKEN` entry to `secrets`
+    so the env-values file's configuration.secrets block is auto-populated.
+
+    For bare `${var}` references, we cannot recover the REP token, so no secrets
+    entry is added — the caller must ensure configuration.secrets already has
+    the variable.
+
+    Returns (new_data_str, warnings).
     """
-    def _sub(match: re.Match) -> str:
+    warnings: list[str] = []
+
+    def _sub_rep(match: re.Match) -> str:
         token = match.group(0)
+        # Skip substitution if the token appears after a literal prefix
+        # (e.g. "Token REP_..._REP"). The `value_from` form would turn the
+        # header value into a mapping, which django-setup-configuration rejects.
+        # Keep the inline REP_..._REP token (replaced by patch_values.py pre-render)
+        # and emit a warning so the operator knows it was intentionally left alone.
+        start = match.start()
+        prefix = data_str[max(0, start - 10):start]
+        if re.search(r"\bToken\s+$", prefix):
+            warnings.append(
+                f"'{token}' preceded by literal 'Token ' prefix — left inline "
+                f"(pipeline-replaced). `value_from` can't be used here because "
+                f"the config loader would parse it as a mapping, not a string."
+            )
+            return token  # keep inline REP_..._REP untouched
         var = rep_to_var(token)
         secrets[var] = token
-        return "${" + var + "}"
+        return _value_from_inline(var)
 
-    return REP_PATTERN.sub(_sub, data_str)
+    def _sub_dollar(match: re.Match) -> str:
+        var = match.group(1)
+        return _value_from_inline(var)
+
+    out = REP_PATTERN.sub(_sub_rep, data_str)
+    out = DOLLAR_VAR_PATTERN.sub(_sub_dollar, out)
+    return out, warnings
 
 
-def process_component(component_cfg: dict) -> dict:
+def process_component(component_cfg: dict) -> tuple[dict, list[str]]:
     """
-    Given a component's configuration dict, migrate REP tokens from data to secrets.
-    Returns a dict of {var_name: REP_TOKEN} tokens found (may be empty).
+    Given a component's configuration dict, migrate REP tokens and ${var}
+    references from data to value_from inline markers.
+
+    Returns (new_secrets_added, warnings).
     """
     data_val = component_cfg.get("data")
     if not data_val:
-        return {}
+        return {}, []
 
     data_str = str(data_val)
-    if not REP_PATTERN.search(data_str):
-        return {}
+    if not (REP_PATTERN.search(data_str) or DOLLAR_VAR_PATTERN.search(data_str)):
+        return {}, []
 
     new_secrets: dict[str, str] = {}
-    new_data = migrate_data_string(data_str, new_secrets)
+    new_data, warnings = migrate_data_string(data_str, new_secrets)
 
-    if not new_secrets:
-        return {}
+    if new_data == data_str:
+        return {}, warnings
 
-    # Update the data field
     component_cfg["data"] = LiteralScalarString(new_data)
 
-    # Merge into existing secrets (create if absent)
-    existing = component_cfg.get("secrets") or {}
-    if not isinstance(existing, dict):
-        existing = {}
-    for var, token in sorted(new_secrets.items()):
-        if var not in existing:
-            existing[var] = token
-    component_cfg["secrets"] = existing
+    if new_secrets:
+        existing = component_cfg.get("secrets") or {}
+        if not isinstance(existing, dict):
+            existing = {}
+        for var, token in sorted(new_secrets.items()):
+            if var not in existing:
+                existing[var] = token
+        component_cfg["secrets"] = existing
 
-    return new_secrets
+    return new_secrets, warnings
 
 
 def main() -> None:
@@ -120,28 +178,43 @@ def main() -> None:
 
     data = yaml.load(path.read_text(encoding="utf-8"))
 
-    all_found: dict[str, dict[str, str]] = {}
+    all_added: dict[str, dict[str, str]] = {}
+    all_warnings: dict[str, list[str]] = {}
 
-    # Walk top-level keys looking for components with configuration.data
     for component_name, component_val in (data or {}).items():
         if not isinstance(component_val, dict):
             continue
         cfg = component_val.get("configuration")
         if not isinstance(cfg, dict):
             continue
-        found = process_component(cfg)
-        if found:
-            all_found[component_name] = found
+        added, warnings = process_component(cfg)
+        if added:
+            all_added[component_name] = added
+        if warnings:
+            all_warnings[component_name] = warnings
 
-    if not all_found:
-        print("No REP_..._REP tokens found in any configuration.data block. Nothing to migrate.")
+    if not all_added and not all_warnings:
+        print("No REP_..._REP tokens or ${var} references found in any configuration.data block. Nothing to migrate.")
         return
 
-    print("Migrated tokens:")
-    for comp, tokens in sorted(all_found.items()):
-        print(f"  {comp}:")
-        for var, tok in sorted(tokens.items()):
-            print(f"    {var}: {tok}")
+    if all_added:
+        print("Migrated REP tokens (added to configuration.secrets):")
+        for comp, tokens in sorted(all_added.items()):
+            print(f"  {comp}:")
+            for var, tok in sorted(tokens.items()):
+                print(f"    {var}: {tok}")
+
+    if all_warnings:
+        print("\nWarnings (review manually):")
+        for comp, msgs in sorted(all_warnings.items()):
+            print(f"  {comp}:")
+            for m in msgs:
+                print(f"    - {m}")
+
+    if not all_added:
+        # Warnings only — no actual changes to write
+        print("\nNo changes written (warnings only).")
+        return
 
     if args.dry_run:
         import io

@@ -8,17 +8,28 @@ Both components now have a dedicated Keycloak OIDC client in the podiumd realm, 
 
 For disabled components, the `oidcUrl` chart default is used for the redirect URI and the OIDC client secret is auto-generated (stable random, preserved across upgrades). **No environment values changes are needed unless you are enabling a component.**
 
-#### Pre-deploy: Key Vault secrets for `openbeheer`
+#### Pre-deploy: Key Vault secrets for `openbeheer` and `referentielijsten`
 
-The following secrets are **not yet in Key Vault** for openbeheer. Add each one before deploying, even if the component stays disabled — the pipeline wiring expects them to be present:
+The following secrets are **not yet in Key Vault** for the new components. Add each one before deploying, even if the component stays disabled — the pipeline wiring expects them to be present:
 
-| Key Vault secret name              | Pipeline env var                          | Description                                             |
-|------------------------------------|-------------------------------------------|---------------------------------------------------------|
-| `openbeheer`                       | `OPENBEHEER_DATABASE_PASSWORD`            | Django database password                                |
-| `openbeheer-secret-key`            | `OPENBEHEER_SECRET_KEY`                   | Django secret key                                       |
-| `openbeheer-oidc-secret`           | `OPENBEHEER_OIDC_SECRET`                  | Keycloak OIDC client secret                             |
-| `openzaak-openbeheer-secret`       | `OPENZAAK_OPENBEHEER_SECRET`              | ZGW JWT secret — shared between openbeheer and openzaak |
-| `objecttypen-openbeheer-token`     | `OBJECTTYPEN_OPENBEHEER_TOKEN`            | API token for openbeheer to authenticate to objecttypen |
+**`referentielijsten`:**
+
+| secret variable name            | REP token in values file                      | Description                  |
+|---------------------------------|-----------------------------------------------|------------------------------|
+| `referentielijsten`             | `REP_REFERENTIELIJSTEN_DATABASE_PASSWORD_REP` | Django database password     |
+| `referentielijsten-secret-key`  | `REP_REFERENTIELIJSTEN_SECRET_KEY_REP`        | Django secret key            |
+| `referentielijsten-oidc-secret` | `REP_REFERENTIELIJSTEN_OIDC_SECRET_REP`       | Keycloak OIDC client secret  |
+
+**`openbeheer`:**
+
+| secret variable name           | REP token in values file               | Description                                                            |
+|--------------------------------|----------------------------------------|------------------------------------------------------------------------|
+| `openbeheer`                   | `REP_OPENBEHEER_DATABASE_PASSWORD_REP` | Django database password                                               |
+| `openbeheer-secret-key`        | `REP_OPENBEHEER_SECRET_KEY_REP`        | Django secret key                                                      |
+| `openbeheer-oidc-secret`       | `REP_OPENBEHEER_OIDC_SECRET_REP`       | Keycloak OIDC client secret                                            |
+| `openzaak-openbeheer-secret`   | `REP_OPENZAAK_OPENBEHEER_SECRET_REP`   | ZGW JWT secret — shared between openbeheer and openzaak (admin)        |
+| `objecttypen-openbeheer-token` | `REP_OBJECTTYPEN_OPENBEHEER_TOKEN_REP` | API token for openbeheer to authenticate to objecttypen (admin)        |
+| `objecten-openbeheer-token`    | `REP_OBJECTEN_OPENBEHEER_TOKEN_REP`    | API token for openbeheer to authenticate to objecten (admin/superuser) |
 
 For secrets (OIDC, ZGW JWT): `openssl rand -hex 32`  
 For the Django secret key: `openssl rand -base64 50`
@@ -35,8 +46,14 @@ Before enabling either component, request SSC to provision a public URL and ingr
 
 When enabling (`referentielijsten.enabled: true`), set `oidcUrl` to the provisioned URL, provide the OIDC client secret, and add configuration data:
 
+Referentielijsten only needs Keycloak OIDC — no peer ZGW services. Use the nested `providers:` / `items:` schema (older flat schema with `username_claim` at the item level is deprecated and rejected by mozilla-django-oidc-db ≥ 0.23):
+
 ```yaml
 referentielijsten:
+  settings:
+    secretKey: "REP_REFERENTIELIJSTEN_SECRET_KEY_REP"
+    database:
+      password: "REP_REFERENTIELIJSTEN_DATABASE_PASSWORD_REP"
   configuration:
     oidcUrl: https://referentielijsten.example.nl
     secrets:
@@ -44,53 +61,78 @@ referentielijsten:
     data: |-
       oidc_db_config_enable: true
       oidc_db_config_admin_auth:
+        providers:
+        - identifier: admin-oidc-provider
+          oidc_use_nonce: true
+          oidc_nonce_size: 32
+          oidc_state_size: 32
+          endpoint_config:
+            oidc_op_discovery_endpoint: https://keycloak.example.nl/realms/podiumd/
         items:
         - identifier: admin-oidc
+          oidc_provider_identifier: admin-oidc-provider
           enabled: true
           oidc_rp_client_id: referentielijsten
-          oidc_rp_client_secret: ${keycloak_client_secret}
+          oidc_rp_client_secret: {value_from: {env: keycloak_client_secret}}
           oidc_rp_scopes_list:
           - openid
           - email
           - profile
+          - roles
           oidc_rp_sign_algo: RS256
-          endpoint_config:
-            oidc_op_discovery_endpoint: https://keycloak.example.nl/realms/podiumd/
           userinfo_claims_source: id_token
-          oidc_use_nonce: true
-          oidc_nonce_size: 32
-          oidc_state_size: 32
-          username_claim:
-          - sub
-          groups_claim:
-          - groups
-          claim_mapping:
-            first_name:
-            - given_name
-            last_name:
-            - family_name
-            email:
-            - email
-          sync_groups: true
-          sync_groups_glob_pattern: '*'
-          default_groups: []
-          make_users_staff: true
-          superuser_group_names:
-          - administrators
+          options:
+            user_settings:
+              claim_mappings:
+                username:
+                  - preferred_username
+                first_name:
+                  - given_name
+                last_name:
+                  - family_name
+                email:
+                  - email
+            groups_settings:
+              claim_mapping:
+                - groups
+              sync: true
+              sync_pattern: '*'
+              default_groups: []
+              make_users_staff: true
+              superuser_group_names:
+                - administrators
 ```
 
 #### `openbeheer`
 
 When enabling (`openbeheer.enabled: true`), set `oidcUrl` to the provisioned URL, provide the OIDC client secret and ZGW JWT secret, and add configuration data:
 
+> **Note on secret substitution.** `django-setup-configuration` (v0.11.0, used by all Maykin/PodiumD Django components) resolves env vars via the `value_from: {env: VAR_NAME}` pattern only. Shell-style `${VAR}` references are **not** substituted and would end up stored literally in the database (401 `unauthorized_client` on login). Always use the `value_from` form inside `configuration.data`.
+>
+> **Token-prefix caveat.** When a header carries a literal prefix (e.g. `Authorization: Token <value>`), the value_from form turns the whole field into a mapping, which the upstream config loader rejects. For those fields, keep the inline `REP_..._REP` token replaced by the pipeline's `patch_values.py` before Helm renders — the example below uses this workaround for `header_value: Token …`.
+
+Open Beheer connects to four external services. All three authenticated ones require **admin-level** access — Open Beheer manages catalogi, object types, and the objects themselves:
+
+- **Open Zaak (all APIs incl. Catalogi)** — ZGW JWT. Key Vault secret: `openzaak-openbeheer-secret`. Registered with `heeft_alle_autorisaties: true` on openzaak (full admin across zrc/ztc/drc/brc).
+- **Objecttypen API** — API key. Key Vault secret: `objecttypen-openbeheer-token`. Registered in objecttypen's `tokenauth` (objecttypen tokens are unscoped → full access).
+- **Objecten API** — API key. Key Vault secret: `objecten-openbeheer-token`. Registered in objecten's `tokenauth` with `is_superuser: true` (object-type permissions don't cover "manage all types"; superuser is the only admin scope).
+- **Selectielijst API** — public endpoint, no authentication required.
+
+Both `openbeheer` **and** each peer service (openzaak, objecttypen, objecten) need matching configuration. The consolidated openbeheer block and three peer blocks follow.
+
 ```yaml
 openbeheer:
+  settings:
+    secretKey: "REP_OPENBEHEER_SECRET_KEY_REP"
+    database:
+      password: "REP_OPENBEHEER_DATABASE_PASSWORD_REP"
   configuration:
     oidcUrl: https://openbeheer.example.nl
     secrets:
       keycloak_client_secret: "REP_OPENBEHEER_OIDC_SECRET_REP"
       openzaak_openbeheer_secret: "REP_OPENZAAK_OPENBEHEER_SECRET_REP"
       objecttypen_openbeheer_token: "REP_OBJECTTYPEN_OPENBEHEER_TOKEN_REP"
+      objecten_openbeheer_token: "REP_OBJECTEN_OPENBEHEER_TOKEN_REP"
     data: |-
       oidc_db_config_enable: true
       oidc_db_config_admin_auth:
@@ -105,11 +147,12 @@ openbeheer:
         - identifier: admin-oidc
           enabled: true
           oidc_rp_client_id: openbeheer
-          oidc_rp_client_secret: ${keycloak_client_secret}
+          oidc_rp_client_secret: {value_from: {env: keycloak_client_secret}}
           oidc_rp_scopes_list:
           - openid
           - email
           - profile
+          - roles
           oidc_rp_sign_algo: RS256
           oidc_provider_identifier: keycloak-provider
           userinfo_claims_source: id_token
@@ -117,14 +160,13 @@ openbeheer:
             user_settings:
               claim_mappings:
                 username:
-                  - sub
+                  - preferred_username
                 first_name:
                   - given_name
                 last_name:
                   - family_name
                 email:
                   - email
-              username_case_sensitive: true
             groups_settings:
               claim_mapping:
                 - groups
@@ -143,14 +185,21 @@ openbeheer:
           api_type: orc
           auth_type: api_key
           header_key: Authorization
-          header_value: Token ${objecttypen_openbeheer_token}
+          header_value: Token REP_OBJECTTYPEN_OPENBEHEER_TOKEN_REP   # prefix+token — pipeline-replaced
+        - identifier: objecten-service
+          label: Objecten API
+          api_root: https://objecten.example.nl/api/v2/
+          api_type: orc
+          auth_type: api_key
+          header_key: Authorization
+          header_value: Token REP_OBJECTEN_OPENBEHEER_TOKEN_REP       # prefix+token — pipeline-replaced
         - identifier: catalogi-service
           label: Open Zaak - Catalogi API
           api_root: https://openzaak.example.nl/catalogi/api/v1/
           api_type: ztc
           auth_type: zgw
           client_id: openbeheer
-          secret: ${openzaak_openbeheer_secret}
+          secret: {value_from: {env: openzaak_openbeheer_secret}}
         - identifier: selectielijst-service
           label: Open Zaak (public) - Selectielijst API
           api_root: https://selectielijst.openzaak.nl/api/v1/
@@ -162,15 +211,7 @@ openbeheer:
         objecttypen_service_identifier: objecttypen-service
 ```
 
-#### openbeheer — service connections
-
-Open Beheer connects to three external services:
-
-- **Objecttypen API** — API key authentication. The token is registered in objecttypen's `tokenauth` configuration and referenced as `${objecttypen_openbeheer_token}`. Key Vault secret: `objecttypen-openbeheer-token`.
-- **Open Zaak Catalogi API** — ZGW JWT authentication. Key Vault secret: `openzaak-openbeheer-secret`. Both sides must be configured (see the openzaak section below).
-- **Selectielijst API** — public endpoint, no authentication required.
-
-Also add `openbeheer-token` to objecttypen's `configuration.data`:
+**objecttypen side** — register `openbeheer-token`. `token:` is a plain scalar (no prefix), so `value_from` applies directly:
 
 ```yaml
 objecttypen:
@@ -182,7 +223,7 @@ objecttypen:
       tokenauth:
         items:
         - identifier: openbeheer-token
-          token: ${objecttypen_openbeheer_token}
+          token: {value_from: {env: objecttypen_openbeheer_token}}
           contact_person: Open Beheer
           email: openbeheer@example.com
           organization: Open Beheer
@@ -190,7 +231,26 @@ objecttypen:
           administration: Open Beheer
 ```
 
-**openzaak side** — register openbeheer as an authorised application. Add to the openzaak environment values file:
+**objecten side** — register `openbeheer-token` with **`is_superuser: true`** so it can read/write across all object types:
+
+```yaml
+objecten:
+  configuration:
+    secrets:
+      objecten_openbeheer_token: "REP_OBJECTEN_OPENBEHEER_TOKEN_REP"
+    data: |-
+      tokenauth_config_enable: true
+      tokenauth:
+        items:
+        - identifier: openbeheer-token
+          token: {value_from: {env: objecten_openbeheer_token}}
+          contact_person: Open Beheer
+          email: openbeheer@example.com
+          application: Open Beheer
+          is_superuser: true
+```
+
+**openzaak side** — register openbeheer as an authorised application with full admin rights:
 
 ```yaml
 openzaak:
@@ -210,7 +270,7 @@ openzaak:
       vng_api_common_credentials:
         items:
         - identifier: openbeheer
-          secret: ${openzaak_openbeheer_secret}
+          secret: {value_from: {env: openzaak_openbeheer_secret}}
 ```
 
 ---
@@ -232,9 +292,9 @@ The `administrators` Keycloak group is automatically assigned these roles on imp
 
 ---
 
-### `configuration.data` secrets: move inline tokens to `configuration.secrets`
+### `configuration.data` secrets: use `value_from: {env: var}` inside `configuration.data`
 
-All Maykin applications resolve `${VAR_NAME}` references inside `configuration.data` at job runtime (via `envsubst` or `django-setup-configuration`'s built-in substitution). The correct pattern is:
+All Maykin PodiumD Django components use `django-setup-configuration` v0.11.0, which resolves env vars **only** via the `value_from: {env: VAR_NAME}` pattern. Shell-style `${VAR}` references are **not** substituted at runtime — they land in the database as literal strings and break authentication (401 `unauthorized_client`). The correct pattern is:
 
 ```yaml
 <component>:
@@ -242,18 +302,24 @@ All Maykin applications resolve `${VAR_NAME}` references inside `configuration.d
     secrets:
       my_secret: "REP_MY_SECRET_REP"   # injected as env var into the config job pod
     data: |-
-      some_field: ${my_secret}          # resolved at runtime
+      some_field: {value_from: {env: my_secret}}   # resolved at runtime
 ```
 
-Existing environment values files place `REP_..._REP` tokens **inline** in `configuration.data` strings. These are replaced by the pipeline's `patch_values.py` before Helm renders. Both approaches work; moving secrets to `configuration.secrets` is the cleaner long-term pattern.
+Historical patterns you may still encounter in environment values files:
+
+- **Inline `REP_..._REP` tokens** in `configuration.data` — replaced by the pipeline's `patch_values.py` *before* Helm renders. Still works, but puts plaintext secrets in the rendered ConfigMap.
+- **`${var}` shell-style references** in `configuration.data` — does **not** work at runtime. Migrate to `value_from: {env: var}`.
+
+Exception: when a value carries a literal prefix inside the same string (e.g. `Authorization: Token <value>`), `{value_from: {env: var}}` turns the field into a mapping and the config loader rejects it. Keep inline `REP_..._REP` tokens for those fields until upstream accepts a scalar concatenation.
 
 #### Migration script
 
 `charts/podiumd/scripts/migrate-configuration-secrets.py` automates this migration:
 
-1. Finds all `REP_..._REP` tokens inside every `configuration.data` block
-2. Creates `configuration.secrets` entries: `foo_bar_secret: "REP_FOO_BAR_SECRET_REP"`
-3. Replaces inline tokens in `configuration.data` with `${foo_bar_secret}`
+1. Finds all `REP_..._REP` tokens and `${var}` references inside every `configuration.data` block
+2. Adds matching `configuration.secrets` entries for REP tokens: `foo_bar_secret: "REP_FOO_BAR_SECRET_REP"`
+3. Replaces both inline REP tokens and `${var}` references in `configuration.data` with `{value_from: {env: foo_bar_secret}}`
+4. Emits a warning for `Token REP_..._REP` header-value patterns (prefix+token) that need manual review.
 
 **Requirements:** `pip install ruamel.yaml` (already present in the deployment pipeline)
 
