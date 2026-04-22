@@ -2191,7 +2191,12 @@ openbeheer:
       rateAnonymous: "2500/hour"
       rateUser: "15000/hour"
   nginx:
-    resources: {}
+    image:
+      tag: "1.29.8"
+    resources:
+      requests:
+        cpu: 10m
+        memory: 16Mi
   tags:
     redis: false
 
