@@ -321,8 +321,8 @@ For each environment (ontw/accp/prod) add these entries to the gemeente's Key Va
 
 | KV secret name                      | REP token                                   | Value source                                                   |
 |-------------------------------------|---------------------------------------------|----------------------------------------------------------------|
-| `notify-credentials-omc`            | `REP_NOTIFY_CREDENTIALS_OMC_REP`            | API key from Step 1 (NotifyNL - delivered)                     |
-| `omc-auth-secret`                   | `REP_OMC_AUTH_SECRET_REP`                   | `openssl rand -base64 64` - SSC-generated                      |
+| `notify-credentials-omc`            | `REP_NOTIFY_CREDENTIALS_OMC_REP`            | API key from Step 1 (NotifyNL - delivered). Must match the `<prefix>-<UUID>-<UUID>` format enforced by the OMC chart schema - a random-generated value will fail `helm upgrade`. |
+| `omc-auth-secret`                   | `REP_OMC_AUTH_SECRET_REP`                   | **Min 64 chars** (chart schema validates `minLength: 64`); generate with `openssl rand -base64 48` (= 64 chars). TF's default `length = 32` is too short - override manually via `az keyvault secret set` or extend the tfvars to use a 64-char random_password. |
 | `openzaak-credentials-omc-secret`   | `REP_OPENZAAK_CREDENTIALS_OMC_SECRET_REP`   | `openssl rand -hex 32` - SSC-generated                         |
 | `openklant-credentials-omc-token`   | `REP_OPENKLANT_CREDENTIALS_OMC_TOKEN_REP`   | `openssl rand -hex 32` - SSC-generated                         |
 | `objecten-credentials-omc-token`    | `REP_OBJECTEN_CREDENTIALS_OMC_TOKEN_REP`    | `openssl rand -hex 32` - SSC-generated                         |
