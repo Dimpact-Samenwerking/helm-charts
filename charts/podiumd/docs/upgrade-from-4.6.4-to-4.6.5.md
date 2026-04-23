@@ -292,6 +292,230 @@ The `administrators` Keycloak group is automatically assigned these roles on imp
 
 ---
 
+### OMC (NotifyNL Output Management Component)
+
+OMC (alias `omc`, chart `notifynl-omc-nodep` from Worth-NL) is the bridge between the ZGW landscape and NotifyNL for citizen notifications (email/SMS) on `zaakCreate` / `zaakUpdate` / `zaakClose` events. OMC only notifies partijen that have a BSN in OpenKlant. Scenarios `taskAssigned`, `decisionMade`, and `message` are not supported yet — dummy UUIDs and a non-matching whitelist keep them off.
+
+OMC does **not** use Keycloak OIDC. It authenticates to the ZGW services via ZGW client_id/secret and ZGW API tokens, and receives callbacks over HTTPS using a JWT bearer.
+
+#### ZGW consumer surface
+
+OMC touches all five backend services — more than any other consumer in the stack:
+
+| Consumer      | OpenZaak | OpenKlant | Objecten | Objecttypen | Notificaties |
+|---------------|:--------:|:---------:|:--------:|:-----------:|:------------:|
+| ITA           |    ✓     |     ✓     |    ✓     |      –      |      –       |
+| KISS          |    ✓     |     ✓     |    ✓     |      ✓      |      –       |
+| ZAC           |    ✓     |     –     |    ✓     |      ✓      |      –       |
+| openbeheer    |    ✓     |     –     |    ✓     |      ✓      |      –       |
+| **OMC**       |  **✓**   |   **✓**   |  **✓**   |    **✓**    |    **✓**     |
+
+The flow: OpenNotificaties pushes an event to OMC, OMC reads zaak data from OpenZaak, fetches partij/klant from OpenKlant, resolves object types via Objecttypen + Objecten, and writes a Klantcontact back to OpenKlant. Each hop needs its own auth credentials — hence one `applicaties` or `tokenauth` entry in every peer service.
+
+#### Pre-deploy: Key Vault secrets for `omc`
+
+| secret variable name                | REP token in values file                    | Description                                                               |
+|-------------------------------------|---------------------------------------------|---------------------------------------------------------------------------|
+| `notify-credentials-omc`            | `REP_NOTIFY_CREDENTIALS_OMC_REP`            | NotifyNL API key (per municipality, aanleverd door Dimpact productbeheer) |
+| `omc-auth-secret`                   | `REP_OMC_AUTH_SECRET_REP`                   | OMC HS256 JWT secret (≥ 64 chars) — verifieert inbound Bearer tokens      |
+| `openzaak-credentials-omc-secret`   | `REP_OPENZAAK_CREDENTIALS_OMC_SECRET_REP`   | ZGW JWT secret shared tussen OMC en OpenZaak (client_id `omc`)            |
+| `openklant-credentials-omc-token`   | `REP_OPENKLANT_CREDENTIALS_OMC_TOKEN_REP`   | API token voor OMC op OpenKlant                                           |
+| `objecten-credentials-omc-token`    | `REP_OBJECTEN_CREDENTIALS_OMC_TOKEN_REP`    | API token voor OMC op Objecten                                            |
+| `objecttypen-credentials-omc-token` | `REP_OBJECTTYPEN_CREDENTIALS_OMC_TOKEN_REP` | API token voor OMC op Objecttypen                                         |
+
+For `omc-auth-secret`: `openssl rand -base64 64`
+For ZGW secrets/tokens: `openssl rand -hex 32`
+The NotifyNL API key is **not generated** — it is created in NotifyNL admin and aanleverd per municipality.
+
+These are **not yet wired** in `ExternalsPodiumD/pipelines/application.yml` — the env-var-to-KV mapping still needs to be added alongside the Key Vault entries.
+
+---
+
+#### Per-environment prerequisites (SSC)
+
+- **Ingress + public URL** for OMC at `https://<env>-omc.<domain>` — needed for NotifyNL callback (`/Notify/Confirm`) and OpenNotificaties subscription endpoint (`/Events/Listen`)
+- **Worth-NL helm repo** registered in the pipeline — add `helm repo add worth-nl https://worth-nl.github.io/helm-charts --force-update` to the "Add Multiple Helm Repos" step in `application.yml` (only required for `deploymentType: helm-chart`; branch-deployments do not need it)
+- **ACR image mirror** — already wired in `pipelines/images-podiumd-4.6.5.yml` (`docker.io/worthnl/notifynl-omc` → `acrprodmgmt.azurecr.io/omc`)
+
+---
+
+#### Per-municipality prerequisites (via Dimpact productbeheer)
+
+Before enabling OMC for a municipality, Functioneel Beheer of the gemeente must deliver via beveiligd kanaal:
+
+1. NotifyNL account (`admin.notify.nl`)
+2. Organisatie + Service (Dienst) for PodiumD in NotifyNL
+3. NotifyNL API Key (only visible once — direct opslaan in KV `notify-credentials-omc`)
+4. 6 template IDs — 3 email + 3 SMS for `zaakCreate`, `zaakUpdate`, `zaakClose`
+5. Actor UUID — "Geautomatiseerde Actor" named `OMC-Notify` in OpenKlant
+6. Whitelist — `zaaktype.identificatie` per scenario; test/accp `"*"`, prod gemeente-specifiek
+
+---
+
+#### Values example (`omc` block)
+
+```yaml
+omc:
+  enabled: true
+  image:
+    repository: acrprodmgmt.azurecr.io/omc
+  settings:
+    aspnetcore:
+      environment: Development   # Production for accp/prod
+    sentry:
+      dsn: ""
+      environment: development
+    notify:
+      api:
+        key: "REP_NOTIFY_CREDENTIALS_OMC_REP"
+      templateId:
+        decisionMade: "00000000-0000-1000-8000-000000000000"
+        email:
+          zaakCreate: <template-id>
+          zaakUpdate: <template-id>
+          zaakClose: <template-id>
+        sms:
+          zaakCreate: <template-id>
+          zaakUpdate: <template-id>
+          zaakClose: <template-id>
+    omc:
+      actor:
+        id: <openklant-omc-notify-actor-uuid>
+      auth:
+        jwt:
+          secret: "REP_OMC_AUTH_SECRET_REP"
+    zgw:
+      auth:
+        jwt:
+          secret: "REP_OPENZAAK_CREDENTIALS_OMC_SECRET_REP"
+          issuer: "omc"
+        key:
+          openklant:   "REP_OPENKLANT_CREDENTIALS_OMC_TOKEN_REP"
+          objecten:    "REP_OBJECTEN_CREDENTIALS_OMC_TOKEN_REP"
+          objectTypen: "REP_OBJECTTYPEN_CREDENTIALS_OMC_TOKEN_REP"
+      endpoint:
+        openNotificaties: "https://<env>-opennotificaties.<domain>/api/v1"
+        openZaak:         "https://<env>-openzaak.<domain>/zaken/api/v1"
+        openKlant:        "https://<env>-openklant.<domain>/klantinteracties/api/v1"
+        besluiten:        "https://<env>-openzaak.<domain>/besluiten/api/v1"
+        objecten:         "https://<env>-objecten.<domain>/api/v2"
+        objectTypen:      "https://<env>-objecttypen.<domain>/api/v2"
+        contactMomenten:  "https://<env>-openklant.<domain>/klantinteracties/api/v1"
+      whitelist:
+        zaakCreate: { ids: "*" }
+        zaakUpdate: { ids: "*" }
+        zaakClose:  { ids: "*" }
+        taskAssigned: { ids: "niet-bestaande-id" }
+        decisionMade: { ids: "niet-bestaande-id" }
+        message: { allowed: false }
+```
+
+> **Note.** OMC does not use `django-setup-configuration`, so the `configuration.secrets` / `value_from: {env: …}` pattern described elsewhere in this guide does **not** apply. REP tokens under `omc.settings.*` are substituted inline by the pipeline's `patch_values.py` before Helm renders.
+
+---
+
+#### Peer service registrations
+
+**openzaak side** — OMC as authorised application + ZGW credentials:
+
+```yaml
+openzaak:
+  configuration:
+    data: |-
+      vng_api_common_applicaties_config_enable: true
+      vng_api_common_applicaties:
+        items:
+        - uuid: 746c65d7-b88e-4043-a1c0-15451004fbfa
+          client_ids:
+          - omc
+          heeft_alle_autorisaties: true
+          label: OMC
+      vng_api_common_credentials_config_enable: true
+      vng_api_common_credentials:
+        items:
+        - identifier: omc
+          secret: REP_OPENZAAK_CREDENTIALS_OMC_SECRET_REP
+```
+
+**openklant side**:
+
+```yaml
+openklant:
+  configuration:
+    data: |-
+      tokenauth_config_enable: true
+      tokenauth:
+        items:
+        - identifier: omc
+          token: REP_OPENKLANT_CREDENTIALS_OMC_TOKEN_REP
+          contact_person: Dimpact
+          email: servicedesk@dimpact.nl
+```
+
+**objecten side** — met permissions op contact object types:
+
+```yaml
+objecten:
+  configuration:
+    data: |-
+      tokenauth_config_enable: true
+      tokenauth:
+        items:
+        - identifier: omc
+          token: REP_OBJECTEN_CREDENTIALS_OMC_TOKEN_REP
+          contact_person: Dimpact
+          email: servicedesk@dimpact.nl
+          application: "OMC"
+          permissions:
+          - object_type: "REP_CONTACT_AFDELING_UUID_REP"
+            mode: read_and_write
+          - object_type: "REP_CONTACT_GROEP_UUID_REP"
+            mode: read_and_write
+          - object_type: "REP_ITA_ACTIVITEITENLOG_UUID_REP"
+            mode: read_and_write
+```
+
+**objecttypen side**:
+
+```yaml
+objecttypen:
+  configuration:
+    data: |-
+      tokenauth_config_enable: true
+      tokenauth:
+        items:
+        - identifier: omc
+          token: REP_OBJECTTYPEN_CREDENTIALS_OMC_TOKEN_REP
+          contact_person: Dimpact
+          email: servicedesk@dimpact.nl
+```
+
+---
+
+#### Post-deploy configuration
+
+After the first successful deploy with `omc.enabled: true`:
+
+1. **OpenNotificaties abonnement** — create an Abonnement pointing at OMC:
+   - Callback URL: `https://<env>-omc.<domain>/Events/Listen`
+   - Authorization header: `Bearer <jwt>` where the JWT is HS256-signed with `omc-auth-secret` and body:
+     ```json
+     {
+       "client_id": "omc",
+       "user_id": "OMC (PodiumD)",
+       "user_representation": "OMC (PodiumD)",
+       "iss": "omc",
+       "aud": "omc",
+       "iat": <unix-timestamp>,
+       "exp": <unix-timestamp + duration>
+     }
+     ```
+2. **NotifyNL callback URL** — in NotifyNL admin under the PodiumD service: `https://<env>-omc.<domain>/Notify/Confirm`
+3. **OpenZaak statustypes** — elk zaaktype dat een notificatie moet triggeren moet `statustype.informeren: true` hebben (default: false)
+4. **Test** — maak een zaak voor een partij met BSN in `partijIdentificatoren` en een werkend `voorkeursdigitaalAdres` (op test-envs via Gastenlijst in NotifyNL)
+
+---
+
 ### `configuration.data` secrets: use `value_from: {env: var}` inside `configuration.data`
 
 All Maykin PodiumD Django components use `django-setup-configuration` v0.11.0, which resolves env vars **only** via the `value_from: {env: VAR_NAME}` pattern. Shell-style `${VAR}` references are **not** substituted at runtime — they land in the database as literal strings and break authentication (401 `unauthorized_client`). The correct pattern is:
