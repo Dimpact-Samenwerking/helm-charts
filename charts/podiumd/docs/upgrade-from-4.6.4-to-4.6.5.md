@@ -441,7 +441,7 @@ OMC authenticates to 4 ZGW services. Add an application/tokenauth entry to each:
 |-------------|:--------:|:---------:|:--------:|:-----------:|
 | **OMC**     |    ✓     |     ✓     |    ✓     |      ✓      |
 
-Add to each peer component's `configuration.data`:
+Each peer component already has a `configuration.data` block with existing entries (for `contact`, `zaak`, `ita`, etc.). The snippets below show the **OMC-specific entries only** - append them to the existing `items:` lists; do **not** replace the whole `configuration.data`.
 
 **openzaak** - OMC as authorised application + ZGW credentials:
 
