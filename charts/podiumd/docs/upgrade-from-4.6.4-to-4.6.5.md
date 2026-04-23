@@ -385,7 +385,7 @@ omc:
       api:
         key: REP_NOTIFY_CREDENTIALS_OMC_REP
       templateId:
-        decisionMade: "00000000-0000-1000-8000-000000000000"   # dummy — scenario disabled
+        decisionMade: "00000000-0000-1000-8000-000000000000"   # dummy value
         email:
           zaakCreate: <template-id>   # e.g. 11111111-1111-1111-1111-111111111111
           zaakUpdate: <template-id>   # e.g. 22222222-2222-2222-2222-222222222222
