@@ -361,7 +361,7 @@ The ACR image mirror is already wired in `pipelines/images-podiumd-4.6.5.yml` (`
 
 #### Step 5 — Provision ingress for OMC
 
-SSC provides a public URL at `https://<env>-omc.<domain>` (same pattern as other PodiumD components). This URL is used for:
+SSC provides a public URL at `https://<env>-omc.<domain>` (same pattern as other PodiumD components; e.g. `https://ontw-omc.example.nl` for an ontw environment, `https://acc-omc.example.nl` for accp, or `https://omc.example.nl` for prod without env-prefix). This URL is used for:
 
 - NotifyNL callback (`/Notify/Confirm`)
 - OpenNotificaties subscription endpoint (`/Events/Listen`)
@@ -385,18 +385,18 @@ omc:
       api:
         key: "REP_NOTIFY_CREDENTIALS_OMC_REP"
       templateId:
-        decisionMade: "00000000-0000-1000-8000-000000000000"
+        decisionMade: "00000000-0000-1000-8000-000000000000"   # dummy — scenario disabled
         email:
-          zaakCreate: <template-id>
-          zaakUpdate: <template-id>
-          zaakClose: <template-id>
+          zaakCreate: <template-id>   # e.g. 11111111-1111-1111-1111-111111111111
+          zaakUpdate: <template-id>   # e.g. 22222222-2222-2222-2222-222222222222
+          zaakClose:  <template-id>   # e.g. 33333333-3333-3333-3333-333333333333
         sms:
-          zaakCreate: <template-id>
-          zaakUpdate: <template-id>
-          zaakClose: <template-id>
+          zaakCreate: <template-id>   # e.g. 44444444-4444-4444-4444-444444444444
+          zaakUpdate: <template-id>   # e.g. 55555555-5555-5555-5555-555555555555
+          zaakClose:  <template-id>   # e.g. 66666666-6666-6666-6666-666666666666
     omc:
       actor:
-        id: <openklant-omc-notify-actor-uuid>
+        id: <openklant-omc-notify-actor-uuid>   # e.g. 99999999-9999-9999-9999-999999999999
       auth:
         jwt:
           secret: "REP_OMC_AUTH_SECRET_REP"
@@ -410,13 +410,13 @@ omc:
           objecten:    "REP_OBJECTEN_CREDENTIALS_OMC_TOKEN_REP"
           objectTypen: "REP_OBJECTTYPEN_CREDENTIALS_OMC_TOKEN_REP"
       endpoint:
-        openNotificaties: "https://<env>-opennotificaties.<domain>/api/v1"
-        openZaak:         "https://<env>-openzaak.<domain>/zaken/api/v1"
-        openKlant:        "https://<env>-openklant.<domain>/klantinteracties/api/v1"
-        besluiten:        "https://<env>-openzaak.<domain>/besluiten/api/v1"
-        objecten:         "https://<env>-objecten.<domain>/api/v2"
-        objectTypen:      "https://<env>-objecttypen.<domain>/api/v2"
-        contactMomenten:  "https://<env>-openklant.<domain>/klantinteracties/api/v1"
+        openNotificaties: "https://<env>-opennotificaties.<domain>/api/v1"       # e.g. https://ontw-opennotificaties.example.nl/api/v1
+        openZaak:         "https://<env>-openzaak.<domain>/zaken/api/v1"         # e.g. https://ontw-openzaak.example.nl/zaken/api/v1
+        openKlant:        "https://<env>-openklant.<domain>/klantinteracties/api/v1"   # e.g. https://ontw-openklant.example.nl/klantinteracties/api/v1
+        besluiten:        "https://<env>-openzaak.<domain>/besluiten/api/v1"     # e.g. https://ontw-openzaak.example.nl/besluiten/api/v1
+        objecten:         "https://<env>-objecten.<domain>/api/v2"               # e.g. https://ontw-objecten.example.nl/api/v2
+        objectTypen:      "https://<env>-objecttypen.<domain>/api/v2"            # e.g. https://ontw-objecttypen.example.nl/api/v2
+        contactMomenten:  "https://<env>-openklant.<domain>/klantinteracties/api/v1"   # e.g. https://ontw-openklant.example.nl/klantinteracties/api/v1
       whitelist:
         zaakCreate: { ids: "*" }
         zaakUpdate: { ids: "*" }
@@ -520,7 +520,7 @@ Run the standard deployment pipeline for the environment. Confirm the `omc` pod 
 
 In OpenNotificaties admin for the environment, create an Abonnement pointing at OMC:
 
-- Callback URL: `https://<env>-omc.<domain>/Events/Listen`
+- Callback URL: `https://<env>-omc.<domain>/Events/Listen`   (e.g. `https://ontw-omc.example.nl/Events/Listen`)
 - Authorization header: `Bearer <jwt>` — JWT is HS256-signed with the `omc-auth-secret` value, body:
   ```json
   {
@@ -529,8 +529,8 @@ In OpenNotificaties admin for the environment, create an Abonnement pointing at 
     "user_representation": "OMC (PodiumD)",
     "iss": "omc",
     "aud": "omc",
-    "iat": <unix-timestamp>,
-    "exp": <unix-timestamp + duration>
+    "iat": <unix-timestamp>,              // e.g. 1717929600
+    "exp": <unix-timestamp + duration>    // e.g. 1717933200  (iat + 3600 seconds)
   }
   ```
 
@@ -542,6 +542,7 @@ Dimpact productbeheer passes it on to the municipality's FB to register in Notif
 
 ```
 https://<env>-omc.<domain>/Notify/Confirm
+# e.g. https://ontw-omc.example.nl/Notify/Confirm
 ```
 
 SSC does **not** log in to NotifyNL directly — only the municipality has access.
