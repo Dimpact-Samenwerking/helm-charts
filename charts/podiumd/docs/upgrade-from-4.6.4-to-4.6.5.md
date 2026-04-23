@@ -349,7 +349,7 @@ Without this step the `REP_..._REP` tokens in the values file stay as literal st
 
 #### Step 4 - Register the Worth-NL helm repo
 
-Only needed for `deploymentType: helm-chart` deployments (branch-deployments vendor the chart source and do not use remote repos). Add to the "Add Multiple Helm Repos" step in `application.yml`:
+Required for both deployment types (`helm-chart` and `branch`). The "Add Multiple Helm Repos" step in `application.yml` runs unconditionally, and branch-deployments still call `helm dependency build` which needs the repo registered. Add to that step:
 
 ```bash
 helm repo add worth-nl https://worth-nl.github.io/helm-charts --force-update
