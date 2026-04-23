@@ -383,7 +383,7 @@ omc:
       environment: development
     notify:
       api:
-        key: "REP_NOTIFY_CREDENTIALS_OMC_REP"
+        key: REP_NOTIFY_CREDENTIALS_OMC_REP
       templateId:
         decisionMade: "00000000-0000-1000-8000-000000000000"   # dummy — scenario disabled
         email:
