@@ -294,55 +294,81 @@ The `administrators` Keycloak group is automatically assigned these roles on imp
 
 ### OMC (NotifyNL Output Management Component)
 
-OMC (alias `omc`, chart `notifynl-omc-nodep` from Worth-NL) is the bridge between the ZGW landscape and NotifyNL for citizen notifications (email/SMS) on `zaakCreate` / `zaakUpdate` / `zaakClose` events. OMC only notifies partijen that have a BSN in OpenKlant. Scenarios `taskAssigned`, `decisionMade`, and `message` are not supported yet — dummy UUIDs and a non-matching whitelist keep them off.
+OMC (alias `omc`, chart `notifynl-omc-nodep` from Worth-NL) authenticates to the ZGW services via ZGW client_id/secret and ZGW API tokens, and receives callbacks over HTTPS using a JWT bearer. It does **not** use Keycloak OIDC — the OIDC-client and `configuration.data` patterns described for openbeheer/referentielijsten do not apply.
 
-OMC does **not** use Keycloak OIDC. It authenticates to the ZGW services via ZGW client_id/secret and ZGW API tokens, and receives callbacks over HTTPS using a JWT bearer.
-
-#### Flow
-
-OpenNotificaties pushes an event to OMC, OMC reads zaak data from OpenZaak, fetches partij/klant from OpenKlant, resolves object types via Objecttypen + Objecten, and writes a Klantcontact back to OpenKlant. Each hop needs its own auth credentials — hence one `applicaties` or `tokenauth` entry in every peer service.
-
-#### Pre-deploy: Key Vault secrets for `omc`
-
-| secret variable name                | REP token in values file                    | Description                                                               |
-|-------------------------------------|---------------------------------------------|---------------------------------------------------------------------------|
-| `notify-credentials-omc`            | `REP_NOTIFY_CREDENTIALS_OMC_REP`            | NotifyNL API key (per municipality, aanleverd door Dimpact productbeheer) |
-| `omc-auth-secret`                   | `REP_OMC_AUTH_SECRET_REP`                   | OMC HS256 JWT secret (≥ 64 chars) — verifieert inbound Bearer tokens      |
-| `openzaak-credentials-omc-secret`   | `REP_OPENZAAK_CREDENTIALS_OMC_SECRET_REP`   | ZGW JWT secret shared tussen OMC en OpenZaak (client_id `omc`)            |
-| `openklant-credentials-omc-token`   | `REP_OPENKLANT_CREDENTIALS_OMC_TOKEN_REP`   | API token voor OMC op OpenKlant                                           |
-| `objecten-credentials-omc-token`    | `REP_OBJECTEN_CREDENTIALS_OMC_TOKEN_REP`    | API token voor OMC op Objecten                                            |
-| `objecttypen-credentials-omc-token` | `REP_OBJECTTYPEN_CREDENTIALS_OMC_TOKEN_REP` | API token voor OMC op Objecttypen                                         |
-
-For `omc-auth-secret`: `openssl rand -base64 64`
-For ZGW secrets/tokens: `openssl rand -hex 32`
-The NotifyNL API key is **not generated** — it is created in NotifyNL admin and aanleverd per municipality.
-
-These are **not yet wired** in `ExternalsPodiumD/pipelines/application.yml` — the env-var-to-KV mapping still needs to be added alongside the Key Vault entries.
+Deploying OMC for a new municipality requires inputs that SSC does **not** produce itself. The municipality's Functioneel Beheer creates a NotifyNL account, 6 templates, and an "OMC-Notify" actor in OpenKlant; Dimpact productbeheer delivers those artefacts to SSC via a beveiligd kanaal.
 
 ---
 
-#### Per-environment prerequisites (SSC)
+#### Step 1 — Receive inputs from Dimpact productbeheer
 
-- **Ingress + public URL** for OMC at `https://<env>-omc.<domain>` — needed for NotifyNL callback (`/Notify/Confirm`) and OpenNotificaties subscription endpoint (`/Events/Listen`)
-- **Worth-NL helm repo** registered in the pipeline — add `helm repo add worth-nl https://worth-nl.github.io/helm-charts --force-update` to the "Add Multiple Helm Repos" step in `application.yml` (only required for `deploymentType: helm-chart`; branch-deployments do not need it)
-- **ACR image mirror** — already wired in `pipelines/images-podiumd-4.6.5.yml` (`docker.io/worthnl/notifynl-omc` → `acrprodmgmt.azurecr.io/omc`)
+Before provisioning, SSC must have received per municipality:
 
----
+| Input                   | Source                                         | Goes into                                |
+|-------------------------|------------------------------------------------|------------------------------------------|
+| NotifyNL **API key**    | Gemeente FB → Dimpact productbeheer            | Key Vault item `notify-credentials-omc`  |
+| **6 template IDs**      | Gemeente FB (3 email + 3 SMS)                  | Values file `omc.settings.notify.templateId.*` |
+| **Actor UUID**          | Gemeente (created in OpenKlant as "OMC-Notify")| Values file `omc.settings.omc.actor.id`  |
+| **Zaaktype whitelist**  | Gemeente (per scenario)                        | Values file `omc.settings.zgw.whitelist.*` |
 
-#### Per-municipality prerequisites (via Dimpact productbeheer)
-
-Before enabling OMC for a municipality, Functioneel Beheer of the gemeente must deliver via beveiligd kanaal:
-
-1. NotifyNL account (`admin.notify.nl`)
-2. Organisatie + Service (Dienst) for PodiumD in NotifyNL
-3. NotifyNL API Key (only visible once — direct opslaan in KV `notify-credentials-omc`)
-4. 6 template IDs — 3 email + 3 SMS for `zaakCreate`, `zaakUpdate`, `zaakClose`
-5. Actor UUID — "Geautomatiseerde Actor" named `OMC-Notify` in OpenKlant
-6. Whitelist — `zaaktype.identificatie` per scenario; test/accp `"*"`, prod gemeente-specifiek
+If any of these is missing, stop and request it — the deploy will not be functional without them.
 
 ---
 
-#### Values example (`omc` block)
+#### Step 2 — Create Key Vault secrets
+
+For each environment (ontw/accp/prod) add these entries to the gemeente's Key Vault:
+
+| KV secret name                      | REP token                                   | Value source                                                   |
+|-------------------------------------|---------------------------------------------|----------------------------------------------------------------|
+| `notify-credentials-omc`            | `REP_NOTIFY_CREDENTIALS_OMC_REP`            | API key from Step 1 (NotifyNL — delivered)                     |
+| `omc-auth-secret`                   | `REP_OMC_AUTH_SECRET_REP`                   | `openssl rand -base64 64` — SSC-generated                      |
+| `openzaak-credentials-omc-secret`   | `REP_OPENZAAK_CREDENTIALS_OMC_SECRET_REP`   | `openssl rand -hex 32` — SSC-generated                         |
+| `openklant-credentials-omc-token`   | `REP_OPENKLANT_CREDENTIALS_OMC_TOKEN_REP`   | `openssl rand -hex 32` — SSC-generated                         |
+| `objecten-credentials-omc-token`    | `REP_OBJECTEN_CREDENTIALS_OMC_TOKEN_REP`    | `openssl rand -hex 32` — SSC-generated                         |
+| `objecttypen-credentials-omc-token` | `REP_OBJECTTYPEN_CREDENTIALS_OMC_TOKEN_REP` | `openssl rand -hex 32` — SSC-generated                         |
+
+---
+
+#### Step 3 — Wire the Key Vault secrets in `application.yml`
+
+In `ExternalsPodiumD/pipelines/application.yml`, add env-var-to-KV mappings in the "Replace placeholders in podiumd.yml" step (same section as `OPENZAAK_CREDENTIALS_*`, `CONTACT_DATABASE_PASSWORD`, etc.):
+
+```yaml
+NOTIFY_CREDENTIALS_OMC:             $(notify-credentials-omc)
+OMC_AUTH_SECRET:                    $(omc-auth-secret)
+OPENZAAK_CREDENTIALS_OMC_SECRET:    $(openzaak-credentials-omc-secret)
+OPENKLANT_CREDENTIALS_OMC_TOKEN:    $(openklant-credentials-omc-token)
+OBJECTEN_CREDENTIALS_OMC_TOKEN:     $(objecten-credentials-omc-token)
+OBJECTTYPEN_CREDENTIALS_OMC_TOKEN:  $(objecttypen-credentials-omc-token)
+```
+
+Without this step the `REP_..._REP` tokens in the values file stay as literal strings and OMC fails to start.
+
+---
+
+#### Step 4 — Register the Worth-NL helm repo
+
+Only needed for `deploymentType: helm-chart` deployments (branch-deployments vendor the chart source and do not use remote repos). Add to the "Add Multiple Helm Repos" step in `application.yml`:
+
+```bash
+helm repo add worth-nl https://worth-nl.github.io/helm-charts --force-update
+```
+
+The ACR image mirror is already wired in `pipelines/images-podiumd-4.6.5.yml` (`docker.io/worthnl/notifynl-omc` → `acrprodmgmt.azurecr.io/omc`); no action needed.
+
+---
+
+#### Step 5 — Provision ingress for OMC
+
+SSC provides a public URL at `https://<env>-omc.<domain>` (same pattern as other PodiumD components). This URL is used for:
+
+- NotifyNL callback (`/Notify/Confirm`)
+- OpenNotificaties subscription endpoint (`/Events/Listen`)
+
+---
+
+#### Step 6 — Add OMC block to the municipality's values file
 
 ```yaml
 omc:
@@ -404,9 +430,11 @@ omc:
 
 ---
 
-#### Peer service registrations
+#### Step 7 — Register OMC as a peer in the ZGW services
 
-**openzaak side** — OMC as authorised application + ZGW credentials:
+Add to each peer component's `configuration.data`:
+
+**openzaak** — OMC as authorised application + ZGW credentials:
 
 ```yaml
 openzaak:
@@ -427,7 +455,7 @@ openzaak:
           secret: REP_OPENZAAK_CREDENTIALS_OMC_SECRET_REP
 ```
 
-**openklant side**:
+**openklant**:
 
 ```yaml
 openklant:
@@ -442,7 +470,7 @@ openklant:
           email: servicedesk@dimpact.nl
 ```
 
-**objecten side** — met permissions op contact object types:
+**objecten** — with explicit permissions on the contact object types:
 
 ```yaml
 objecten:
@@ -465,7 +493,7 @@ objecten:
             mode: read_and_write
 ```
 
-**objecttypen side**:
+**objecttypen**:
 
 ```yaml
 objecttypen:
@@ -482,27 +510,49 @@ objecttypen:
 
 ---
 
-#### Post-deploy configuration
+#### Step 8 — Deploy via pipeline
 
-After the first successful deploy with `omc.enabled: true`:
+Run the standard deployment pipeline for the environment. Confirm the `omc` pod starts and reaches Ready. If it crashes, inspect the pod logs — a missing REP substitution (Step 3) is the usual culprit.
 
-1. **OpenNotificaties abonnement** — create an Abonnement pointing at OMC:
-   - Callback URL: `https://<env>-omc.<domain>/Events/Listen`
-   - Authorization header: `Bearer <jwt>` where the JWT is HS256-signed with `omc-auth-secret` and body:
-     ```json
-     {
-       "client_id": "omc",
-       "user_id": "OMC (PodiumD)",
-       "user_representation": "OMC (PodiumD)",
-       "iss": "omc",
-       "aud": "omc",
-       "iat": <unix-timestamp>,
-       "exp": <unix-timestamp + duration>
-     }
-     ```
-2. **NotifyNL callback URL** — in NotifyNL admin under the PodiumD service: `https://<env>-omc.<domain>/Notify/Confirm`
-3. **OpenZaak statustypes** — elk zaaktype dat een notificatie moet triggeren moet `statustype.informeren: true` hebben (default: false)
-4. **Test** — maak een zaak voor een partij met BSN in `partijIdentificatoren` en een werkend `voorkeursdigitaalAdres` (op test-envs via Gastenlijst in NotifyNL)
+---
+
+#### Step 9 — Create the OpenNotificaties abonnement
+
+In OpenNotificaties admin for the environment, create an Abonnement pointing at OMC:
+
+- Callback URL: `https://<env>-omc.<domain>/Events/Listen`
+- Authorization header: `Bearer <jwt>` — JWT is HS256-signed with the `omc-auth-secret` value, body:
+  ```json
+  {
+    "client_id": "omc",
+    "user_id": "OMC (PodiumD)",
+    "user_representation": "OMC (PodiumD)",
+    "iss": "omc",
+    "aud": "omc",
+    "iat": <unix-timestamp>,
+    "exp": <unix-timestamp + duration>
+  }
+  ```
+
+---
+
+#### Step 10 — Hand off the callback URL to Dimpact productbeheer
+
+Dimpact productbeheer passes it on to the municipality's FB to register in NotifyNL admin (under the PodiumD service):
+
+```
+https://<env>-omc.<domain>/Notify/Confirm
+```
+
+SSC does **not** log in to NotifyNL directly — only the municipality has access.
+
+---
+
+#### Step 11 — Smoke test
+
+1. Ensure at least one zaaktype has `statustype.informeren: true` (default: `false`) on the statuses that should notify.
+2. Create a zaak for a partij that has a BSN and a working `voorkeursdigitaalAdres` (on test environments add the address to the NotifyNL Gastenlijst first).
+3. Verify a notification is sent via NotifyNL and a Klantcontact is registered in OpenKlant.
 
 ---
 
