@@ -298,19 +298,9 @@ OMC (alias `omc`, chart `notifynl-omc-nodep` from Worth-NL) is the bridge betwee
 
 OMC does **not** use Keycloak OIDC. It authenticates to the ZGW services via ZGW client_id/secret and ZGW API tokens, and receives callbacks over HTTPS using a JWT bearer.
 
-#### ZGW consumer surface
+#### Flow
 
-OMC touches all five backend services — more than any other consumer in the stack:
-
-| Consumer      | OpenZaak | OpenKlant | Objecten | Objecttypen | Notificaties |
-|---------------|:--------:|:---------:|:--------:|:-----------:|:------------:|
-| ITA           |    ✓     |     ✓     |    ✓     |      –      |      –       |
-| KISS          |    ✓     |     ✓     |    ✓     |      ✓      |      –       |
-| ZAC           |    ✓     |     –     |    ✓     |      ✓      |      –       |
-| openbeheer    |    ✓     |     –     |    ✓     |      ✓      |      –       |
-| **OMC**       |  **✓**   |   **✓**   |  **✓**   |    **✓**    |    **✓**     |
-
-The flow: OpenNotificaties pushes an event to OMC, OMC reads zaak data from OpenZaak, fetches partij/klant from OpenKlant, resolves object types via Objecttypen + Objecten, and writes a Klantcontact back to OpenKlant. Each hop needs its own auth credentials — hence one `applicaties` or `tokenauth` entry in every peer service.
+OpenNotificaties pushes an event to OMC, OMC reads zaak data from OpenZaak, fetches partij/klant from OpenKlant, resolves object types via Objecttypen + Objecten, and writes a Klantcontact back to OpenKlant. Each hop needs its own auth credentials — hence one `applicaties` or `tokenauth` entry in every peer service.
 
 #### Pre-deploy: Key Vault secrets for `omc`
 
