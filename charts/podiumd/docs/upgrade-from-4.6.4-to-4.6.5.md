@@ -418,12 +418,15 @@ omc:
         objectTypen:      "https://<env>-objecttypen.<domain>/api/v2"            # e.g. https://ontw-objecttypen.example.nl/api/v2
         contactMomenten:  "https://<env>-openklant.<domain>/klantinteracties/api/v1"   # e.g. https://ontw-openklant.example.nl/klantinteracties/api/v1
       whitelist:
-        zaakCreate: { ids: "*" }
-        zaakUpdate: { ids: "*" }
-        zaakClose:  { ids: "*" }
-        taskAssigned: { ids: "niet-bestaande-id" }
-        decisionMade: { ids: "niet-bestaande-id" }
-        message: { allowed: false }
+        # Controls which zaken actually trigger a notification. "*" = all zaaktypen (fine for ontw/accp).
+        # For prod: replace "*" with a comma-separated list of zaaktype.identificatie values the gemeente wants notified.
+        zaakCreate: { ids: "*" }            # e.g. "ZT-001,ZT-002" on prod
+        zaakUpdate: { ids: "*" }            # e.g. "ZT-001,ZT-002" on prod
+        zaakClose:  { ids: "*" }            # e.g. "ZT-001,ZT-002" on prod
+        # The next three scenarios are not yet supported in PodiumD. Leave as-is to keep them disabled:
+        taskAssigned: { ids: "niet-bestaande-id" }   # disables taskAssigned notifications
+        decisionMade: { ids: "niet-bestaande-id" }   # disables decisionMade notifications
+        message:      { allowed: false }             # disables citizen-message (berichten) notifications
 ```
 
 > **Note.** OMC does not use `django-setup-configuration`, so the `configuration.secrets` / `value_from: {env: …}` pattern described elsewhere in this guide does **not** apply. REP tokens under `omc.settings.*` are substituted inline by the pipeline's `patch_values.py` before Helm renders.
