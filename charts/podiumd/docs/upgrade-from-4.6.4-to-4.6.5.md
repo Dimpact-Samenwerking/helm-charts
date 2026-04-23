@@ -410,13 +410,13 @@ omc:
           objecten:    "REP_OBJECTEN_CREDENTIALS_OMC_TOKEN_REP"
           objectTypen: "REP_OBJECTTYPEN_CREDENTIALS_OMC_TOKEN_REP"
       endpoint:
-        openNotificaties: "https://<env>-opennotificaties.<domain>/api/v1"       # e.g. https://ontw-opennotificaties.example.nl/api/v1
-        openZaak:         "https://<env>-openzaak.<domain>/zaken/api/v1"         # e.g. https://ontw-openzaak.example.nl/zaken/api/v1
-        openKlant:        "https://<env>-openklant.<domain>/klantinteracties/api/v1"   # e.g. https://ontw-openklant.example.nl/klantinteracties/api/v1
-        besluiten:        "https://<env>-openzaak.<domain>/besluiten/api/v1"     # e.g. https://ontw-openzaak.example.nl/besluiten/api/v1
-        objecten:         "https://<env>-objecten.<domain>/api/v2"               # e.g. https://ontw-objecten.example.nl/api/v2
-        objectTypen:      "https://<env>-objecttypen.<domain>/api/v2"            # e.g. https://ontw-objecttypen.example.nl/api/v2
-        contactMomenten:  "https://<env>-openklant.<domain>/klantinteracties/api/v1"   # e.g. https://ontw-openklant.example.nl/klantinteracties/api/v1
+        openNotificaties: "https://<env>-opennotificaties.<domain>/api/v1"       # e.g. "https://ontw-opennotificaties.example.nl/api/v1"
+        openZaak:         "https://<env>-openzaak.<domain>/zaken/api/v1"         # e.g. "https://ontw-openzaak.example.nl/zaken/api/v1"
+        openKlant:        "https://<env>-openklant.<domain>/klantinteracties/api/v1"   # e.g. "https://ontw-openklant.example.nl/klantinteracties/api/v1"
+        besluiten:        "https://<env>-openzaak.<domain>/besluiten/api/v1"     # e.g. "https://ontw-openzaak.example.nl/besluiten/api/v1"
+        objecten:         "https://<env>-objecten.<domain>/api/v2"               # e.g. "https://ontw-objecten.example.nl/api/v2"
+        objectTypen:      "https://<env>-objecttypen.<domain>/api/v2"            # e.g. "https://ontw-objecttypen.example.nl/api/v2"
+        contactMomenten:  "https://<env>-openklant.<domain>/klantinteracties/api/v1"   # e.g. "https://ontw-openklant.example.nl/klantinteracties/api/v1"
       whitelist:
         # Controls which zaken actually trigger a notification. "*" = all zaaktypen (fine for ontw/accp).
         # For prod: replace "*" with a comma-separated list of zaaktype.identificatie values the gemeente wants notified.
