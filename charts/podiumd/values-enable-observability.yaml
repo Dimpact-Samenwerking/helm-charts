@@ -83,24 +83,42 @@ openinwoner:
       metricExportTimeout: 10000
 
 # ---------------------------------------------------------------------------
-# ZAC — Java OTEL agent flags + solr/zookeeper operator scrape annotations
-# opentelemetry-collector sidecar is disabled; we use the shared collector
+# ZAC — Quarkus OTEL via chart-managed env + shared monitoring collector
+#
+# The zac chart only emits OTEL_SDK_DISABLED/OTEL_EXPORTER_OTLP_ENDPOINT when
+# `opentelemetry-collector.enabled: true` (see templates/config.yaml in the
+# zac subchart). We enable it to trigger the envs but keep the bundled
+# collector scaled to zero — traces/metrics go to the shared collector in the
+# monitoring namespace via opentelemetry_zaakafhandelcomponent.endpoint.
+#
+# Image override: the upstream zac chart pins the collector image to
+# otel/opentelemetry-collector-contrib:<tag>@sha256:<digest>. That path/digest
+# is not mirrored in restricted-network ACRs. Repoint to the same image
+# monitoring-logging uses and clear the digest. Bump tag when monitoring-
+# logging upgrades to keep a single version in ACR.
+#
+# autoscaling.enabled: false is needed because the HPA defined by the
+# subchart overrides replicaCount: 0 and keeps a pod running otherwise.
 # ---------------------------------------------------------------------------
 
 zac:
+  opentelemetry-collector:
+    enabled: true
+    replicaCount: 0
+    autoscaling:
+      enabled: false
+    image:
+      repository: opentelemetry-collector-contrib
+      tag: "0.147.0"
+      digest: ""
   opentelemetry_zaakafhandelcomponent:
-    disabled: ""
     endpoint: *otelEndpoint
-  # javaOptions extends the chart default (-Xmx1024m -Xms1024m -Xlog:gc::time,uptime)
-  # with OTEL agent configuration
+  # javaOptions extends the chart default (-Xmx1024m -Xms1024m -Xlog:gc::time,uptime).
+  # -Dotel.service.name sets the resource attribute; all other OTEL_* env vars
+  # are exported by the chart once opentelemetry-collector.enabled is true.
   javaOptions: >-
     -Xmx1024m -Xms1024m -Xlog:gc::time,uptime
     -Dotel.service.name=zac
-    -Dotel.exporter.otlp.endpoint=http://monitoring-opentelemetry-collector.monitoring.svc.cluster.local:4317
-    -Dotel.exporter.otlp.protocol=grpc
-    -Dotel.traces.exporter=otlp
-    -Dotel.metrics.exporter=otlp
-    -Dotel.logs.exporter=none
   # Solr Operator — hardcodes prometheus.io/scrape: "true" in its deployment template already.
   # Only port and path need to be added via annotations (port 8080).
   solr-operator:
@@ -115,14 +133,24 @@ zac:
         prometheus.io/path: /metrics
 
 # ---------------------------------------------------------------------------
-# Keycloak — the keycloak-operator automatically creates a ServiceMonitor when
-# the Prometheus Operator CRDs are installed. No extra configuration is needed
-# here. Metrics endpoint is port 9000 (/metrics), enabled via additionalOptions
-# in values.yaml (metrics-enabled: true).
+# Keycloak — two-part wiring:
+#   1. keycloak-operator.enableServiceMonitor grants RBAC so the operator can
+#      create the ServiceMonitor (see templates/keycloak-operator-servicemonitor-rbac.yaml).
+#   2. keycloak.serviceMonitor renders spec.serviceMonitor on the Keycloak CR,
+#      which the operator uses as its cue to generate the actual ServiceMonitor
+#      for the Keycloak pods (port 9000, /metrics, enabled via additionalOptions
+#      metrics-enabled: true in values.yaml).
+# Requires the keycloak-cr.yaml template to pass spec.serviceMonitor through.
 # ---------------------------------------------------------------------------
 
 keycloak-operator:
   enableServiceMonitor: true
+
+keycloak:
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+    scrapeTimeout: 10s
 
 # ---------------------------------------------------------------------------
 # Redis operator — scrape the operator deployment (port 8080) and enable the
