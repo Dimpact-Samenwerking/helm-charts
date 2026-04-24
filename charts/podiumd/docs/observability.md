@@ -55,6 +55,39 @@ helm upgrade podiumd charts/podiumd \
 
 ---
 
+## ACR image overrides for observability
+
+Enabling `values-enable-observability.yaml` introduces two additional exporter sidecars not present in the base install. Environments that pull images from an Azure Container Registry must override both repositories in their `values-<env>.yaml`. Replace `<acr>` with your registry hostname (e.g. `acrprodmgmt.azurecr.io`).
+
+| Exporter | Component | Original URL |
+|---|---|---|
+| redis_exporter | `redis-operator.redis-ha` sidecar on every redis-ha pod | `quay.io/opstree/redis-exporter:v1.82.0` |
+| clamav_exporter | `clamav` sidecar | `docker.io/sergeymakinen/clamav_exporter:v2.1.2` |
+
+```yaml
+redis-operator:
+  redis-ha:
+    redisExporter:
+      image:
+        registry: <acr>
+        repository: opstree/redis-exporter
+        # tag inherits from chart default (v1.82.0)
+
+clamav:
+  metrics:
+    image:
+      repository: <acr>/sergeymakinen/clamav_exporter
+      # tag inherits from chart default (v2.1.2)
+```
+
+> **Note:** `clamav.metrics.image.repository` embeds the registry (no separate `registry` field). Prefix with `<acr>/` and omit the original `docker.io/` prefix.
+
+No new images are introduced by enabling OTEL for the Maykin apps, ZAC, keycloak-operator, solr-operator, zookeeper-operator, or eck-operator — they all reuse images already pulled by the base install. The ZAC bundled `opentelemetry-collector` subchart is enabled only to trigger env var emission (`replicaCount: 0`); no collector pod is scheduled, so no image is pulled.
+
+The shared receiving collector (`monitoring-opentelemetry-collector.monitoring.svc.cluster.local:4317`) lives in the `monitoring-logging` chart. Its ACR overrides are documented in `charts/monitoring-logging/docs/upgrade-from-<prev>-to-<version>.md`.
+
+---
+
 ## Prerequisites — Prometheus Operator CRDs
 
 Some components use **ServiceMonitor** or **PodMonitor** custom resources (CRDs from the
