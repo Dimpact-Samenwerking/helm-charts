@@ -42,6 +42,10 @@ spec:
   resources:
 {{ toYaml .Values.keycloak.resources | indent 4 }}
   {{- end }}
+  {{- with .Values.keycloak.serviceMonitor }}
+  serviceMonitor:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   additionalOptions:
   {{- range .Values.keycloak.additionalOptions }}
     - name: {{ .name }}
