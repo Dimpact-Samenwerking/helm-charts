@@ -83,24 +83,25 @@ openinwoner:
       metricExportTimeout: 10000
 
 # ---------------------------------------------------------------------------
-# ZAC — Java OTEL agent flags + solr/zookeeper operator scrape annotations
-# opentelemetry-collector sidecar is disabled; we use the shared collector
+# ZAC — Quarkus OTEL via chart-managed env + shared monitoring collector
+# The zac chart only emits OTEL_SDK_DISABLED/OTEL_EXPORTER_OTLP_ENDPOINT when
+# `opentelemetry-collector.enabled: true`. We enable it to trigger the envs
+# but set replicaCount: 0 so the bundled collector subchart deploys no pods —
+# traces/metrics are sent to the shared collector in the monitoring namespace.
 # ---------------------------------------------------------------------------
 
 zac:
+  opentelemetry-collector:
+    enabled: true
+    replicaCount: 0
   opentelemetry_zaakafhandelcomponent:
-    disabled: ""
     endpoint: *otelEndpoint
-  # javaOptions extends the chart default (-Xmx1024m -Xms1024m -Xlog:gc::time,uptime)
-  # with OTEL agent configuration
+  # javaOptions extends the chart default (-Xmx1024m -Xms1024m -Xlog:gc::time,uptime).
+  # -Dotel.service.name sets the resource attribute; other OTEL_* env vars are
+  # exported by the chart once opentelemetry-collector.enabled is true.
   javaOptions: >-
     -Xmx1024m -Xms1024m -Xlog:gc::time,uptime
     -Dotel.service.name=zac
-    -Dotel.exporter.otlp.endpoint=http://monitoring-opentelemetry-collector.monitoring.svc.cluster.local:4317
-    -Dotel.exporter.otlp.protocol=grpc
-    -Dotel.traces.exporter=otlp
-    -Dotel.metrics.exporter=otlp
-    -Dotel.logs.exporter=none
   # Solr Operator — hardcodes prometheus.io/scrape: "true" in its deployment template already.
   # Only port and path need to be added via annotations (port 8080).
   solr-operator:
