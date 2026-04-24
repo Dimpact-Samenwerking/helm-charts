@@ -323,9 +323,11 @@ zac:
 # After
 zac:
   pabcApi:
-    apiUrl: "..."
+    url: "..."
     apiKey: REP_ZAC_PABC_API_KEY_REP
 ```
+
+Note: the subkey also changed from `apiUrl` to `url`.
 
 ---
 
