@@ -109,7 +109,7 @@ zac:
       enabled: false
     image:
       repository: opentelemetry-collector-contrib
-      tag: "0.147.0"
+      tag: "0.150.1"
       digest: ""
   opentelemetry_zaakafhandelcomponent:
     endpoint: *otelEndpoint
