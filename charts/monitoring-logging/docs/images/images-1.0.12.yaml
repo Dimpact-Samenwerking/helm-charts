@@ -1,6 +1,4 @@
 # Images added or changed in monitoring-logging 1.0.12 (relative to 1.0.11).
-# All images from 1.0.11 are still required — import both files when rolling
-# the upgrade.
 
 # OpenTelemetry Collector — bumped 0.147.0 → 0.150.1 to align with the zac
 # subchart default and match the version applications target.
@@ -8,3 +6,12 @@
   url: ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib
   version: "0.150.1"
   digest: "sha256:a516c26968aa1feb5e5fc0562e3338ea13755cb4f373603226bcc4e276374ad0"
+
+# ClamAV exporter — new sidecar in 1.0.12 when clamav.metrics.enabled is
+# turned on via values-enable-observability.yaml. Upstream image only
+# exists on docker.io; mirror into ACR so restricted-network clusters
+# can pull it.
+- name: clamav_exporter
+  url: docker.io/sergeymakinen/clamav_exporter
+  version: "v2.1.2"
+  digest: "sha256:1bb053065ca892025928b90983d8bad638786884958e63048cd11106db9a350c"
