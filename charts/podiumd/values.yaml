@@ -2607,7 +2607,7 @@ zac:
     # ghcr.io/eugenmayer/kontextwork-converter:1.8.2
     image:
       repository: ghcr.io/eugenmayer/kontextwork-converter
-      tag: "1.8.2"
+      tag: "1.8.3"
     containerPort: 8080
   opa:
     sidecar: true
