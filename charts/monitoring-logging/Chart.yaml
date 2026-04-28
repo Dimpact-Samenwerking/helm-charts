@@ -2,8 +2,8 @@ apiVersion: v2
 name: monitoring-logging
 description: A monitoring stack using Loki, Prometheus, Grafana Alloy, OpenTelemetry Collector, and Grafana. Optionally includes Grafana Tempo for distributed tracing.
 type: application
-version: 1.0.11
-appVersion: "1.0.11"
+version: 1.0.12
+appVersion: "1.0.12"
 dependencies:
   - name: loki
     repository: "@grafana"

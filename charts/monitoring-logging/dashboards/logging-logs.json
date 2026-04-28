@@ -109,7 +109,7 @@
           },
           "direction": "backward",
           "editorMode": "code",
-          "expr": "sum (count_over_time({app=~\"$app\"}[$__interval]))",
+          "expr": "sum (count_over_time({namespace=\"$namespace\", app=~\"$app\"}[$__interval]))",
           "legendFormat": "{{app}}",
           "queryType": "range",
           "refId": "A"
@@ -150,7 +150,7 @@
         {
           "direction": "backward",
           "editorMode": "code",
-          "expr": "{app=\"$app\"} |~ \"(?i)$search\"",
+          "expr": "{namespace=\"$namespace\", app=\"$app\"} |~ \"(?i)$search\"",
           "queryType": "range",
           "refId": "A"
         }
@@ -165,10 +165,25 @@
   "templating": {
     "list": [
       {
-        "current": {
-          "text": "openformulieren",
-          "value": "openformulieren"
+        "current": {},
+        "definition": "",
+        "description": "Namespace",
+        "label": "Namespace",
+        "name": "namespace",
+        "options": [],
+        "query": {
+          "label": "namespace",
+          "refId": "LokiVariableQueryEditor-VariableQuery",
+          "stream": "",
+          "type": 1
         },
+        "refresh": 1,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {},
         "definition": "",
         "description": "Application",
         "label": "App",
@@ -177,7 +192,7 @@
         "query": {
           "label": "app",
           "refId": "LokiVariableQueryEditor-VariableQuery",
-          "stream": "{namespace=\"podiumd\"}",
+          "stream": "{namespace=\"$namespace\"}",
           "type": 1
         },
         "refresh": 1,
@@ -213,5 +228,5 @@
   "timezone": "browser",
   "title": "Logs",
   "uid": "anr86tm",
-  "version": 0
+  "version": 1
 }

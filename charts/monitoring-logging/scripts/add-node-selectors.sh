@@ -96,8 +96,9 @@ COMPONENTS = [
      r'^\s{4}alertmanagerSpec:$', 4),
     ("prometheus-pushgateway",
      r'^prometheus-pushgateway:$', 0),
-    ("alloy",
-     r'^alloy:$', 0),
+    # alloy intentionally omitted — runs as DaemonSet, must cover ALL nodes to collect
+    # logs cluster-wide. A nodeSelector restricts it to a pool and leaves other nodes
+    # without log shipping. Keep alloy without nodeSelector.
     ("loki › resultsCache",
      r'^\s{4}resultsCache:$', 4),
     ("loki › chunksCache",

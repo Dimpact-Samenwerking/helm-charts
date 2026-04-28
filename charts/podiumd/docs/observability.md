@@ -15,7 +15,7 @@ This document describes how metrics and tracing are configured across the podium
 | objecten | `settings.otel.*` | ❌ OTEL only → collector | `values-enable-observability.yaml` |
 | objecttypen | `settings.otel.*` | ❌ OTEL only → collector | `values-enable-observability.yaml` |
 | openinwoner | `settings.otel.*` | ❌ OTEL only → collector | `values-enable-observability.yaml` |
-| zac | `opentelemetry_zaakafhandelcomponent.*` + `javaOptions` | ❌ OTEL only → collector | `values-enable-observability.yaml` |
+| zac | `opentelemetry-collector.enabled` (trigger) + `opentelemetry_zaakafhandelcomponent.endpoint` + `javaOptions` | ❌ OTEL only → collector | `values-enable-observability.yaml` |
 | keycloak | `additionalOptions: metrics-enabled` | ✅ ServiceMonitor port 9000 `/metrics` (auto by keycloak-operator) | built-in |
 | redis-operator | — | ✅ pod annotations port 8080 `/metrics` | `values-enable-observability.yaml` |
 | redis-ha | redis_exporter sidecar | ✅ PodMonitor port 9121 | `values-enable-observability.yaml` |
@@ -184,28 +184,29 @@ All Maykin subcharts share the same `settings.otel` schema:
 
 ## OTEL Configuration — ZAC
 
-ZAC uses two mechanisms:
+ZAC is a Quarkus app. Its chart only emits the OTEL env vars (`OTEL_SDK_DISABLED`, `OTEL_EXPORTER_OTLP_ENDPOINT`, etc.) when the bundled `opentelemetry-collector` subchart flag is enabled. We enable the flag to trigger the envs but set `replicaCount: 0` so no collector pod is deployed — traces/metrics flow to the shared collector in the `monitoring` namespace.
 
-**1. `opentelemetry_zaakafhandelcomponent`** (built-in collector sidecar):
 ```yaml
 zac:
+  # Trigger the chart to emit OTEL_* envs; no sidecar pod deployed.
+  opentelemetry-collector:
+    enabled: true
+    replicaCount: 0
+
+  # Target endpoint read by the chart's OTEL_EXPORTER_OTLP_ENDPOINT env.
   opentelemetry_zaakafhandelcomponent:
-    disabled: ""      # "-true" to disable, "" to enable
     endpoint: "http://monitoring-opentelemetry-collector.monitoring.svc.cluster.local:4317"
-```
 
-**2. `javaOptions`** (JVM-level OTEL agent flags):
-```yaml
-zac:
+  # Only -Dotel.service.name needs to be set here. Other OTEL_* vars are
+  # exported by the chart via env when opentelemetry-collector.enabled: true.
+  # Do NOT duplicate -Dotel.exporter.otlp.* here — env takes precedence and
+  # duplicates risk drifting out of sync.
   javaOptions: >-
     -Xmx1024m -Xms1024m -Xlog:gc::time,uptime
     -Dotel.service.name=zac
-    -Dotel.exporter.otlp.endpoint=http://monitoring-opentelemetry-collector.monitoring.svc.cluster.local:4317
-    -Dotel.exporter.otlp.protocol=grpc
-    -Dotel.traces.exporter=otlp
-    -Dotel.metrics.exporter=otlp
-    -Dotel.logs.exporter=none
 ```
+
+> **Why not just set `-Dotel.exporter.otlp.endpoint` in `javaOptions`?** That was the previous approach. The ZAC chart gates OTEL env emission on `opentelemetry-collector.enabled`; without the flag, the Quarkus runtime never picks up the otel SDK, so `-D` flags alone were insufficient. See `values-enable-observability.yaml` and commit `08382f8` for the migration.
 
 ---
 
