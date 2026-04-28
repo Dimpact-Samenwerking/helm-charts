@@ -1,7 +1,10 @@
 {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
     "properties": {
         "kiss": {
             "$ref": "https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/KISS-frontend/refs/tags/v2.2.2/helm/kiss-chart/values.schema.json"
         }
-    }
+    },
+    "additionalProperties": true
 }

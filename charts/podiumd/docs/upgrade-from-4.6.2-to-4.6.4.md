@@ -1,4 +1,4 @@
-# Upgrade guide: PodiumD 4.6.2 → 4.6.3
+# Upgrade guide: PodiumD 4.6.2 → 4.6.4
 
 ## Required manual steps before upgrading
 
@@ -47,32 +47,14 @@ kubectl get statefulset redis-ha -n podiumd --context <cluster> \
 
 If it still shows `managed-csi`, the operator hasn't reconciled yet — wait a moment and recheck.
 
-Then migrate each replica in turn:
+Then migrate each replica in turn (waiting for `Ready` before proceeding to the next):
 
 ```bash
-# Replica 0
-kubectl delete pvc redis-ha-redis-ha-0 -n podiumd --context <cluster>
-kubectl delete pod redis-ha-0 -n podiumd --context <cluster>
-kubectl wait pod/redis-ha-0 -n podiumd --context <cluster> --for=condition=Ready --timeout=120s
-kubectl get pvc redis-ha-redis-ha-0 -n podiumd --context <cluster> \
-  -o jsonpath='{.spec.storageClassName}'
-# Expected: managed-csi-premiumv2
-
-# Replica 1
-kubectl delete pvc redis-ha-redis-ha-1 -n podiumd --context <cluster>
-kubectl delete pod redis-ha-1 -n podiumd --context <cluster>
-kubectl wait pod/redis-ha-1 -n podiumd --context <cluster> --for=condition=Ready --timeout=120s
-kubectl get pvc redis-ha-redis-ha-1 -n podiumd --context <cluster> \
-  -o jsonpath='{.spec.storageClassName}'
-# Expected: managed-csi-premiumv2
-
-# Replica 2
-kubectl delete pvc redis-ha-redis-ha-2 -n podiumd --context <cluster>
-kubectl delete pod redis-ha-2 -n podiumd --context <cluster>
-kubectl wait pod/redis-ha-2 -n podiumd --context <cluster> --for=condition=Ready --timeout=120s
-kubectl get pvc redis-ha-redis-ha-2 -n podiumd --context <cluster> \
-  -o jsonpath='{.spec.storageClassName}'
-# Expected: managed-csi-premiumv2
+for i in 0 1 2; do
+  kubectl delete pvc redis-ha-redis-ha-$i -n podiumd --context <cluster>
+  kubectl delete pod redis-ha-$i -n podiumd --context <cluster>
+  kubectl wait pod/redis-ha-$i -n podiumd --context <cluster> --for=condition=Ready --timeout=120s
+done
 ```
 
 > Wait for each replica to reach `Ready` before proceeding to the next. The Redis master
@@ -103,7 +85,6 @@ kubectl delete jobs -n podiumd --context <cluster> \
   openklant-config \
   opennotificaties-config \
   openzaak-config \
-  podiumd-realm-import \
   redis-ha-label-master
 ```
 
@@ -123,6 +104,39 @@ kubectl delete statefulset clamav -n podiumd --context <cluster>
 ```
 
 Helm will recreate it with the exporter sidecar. The PVC is retained.
+
+---
+
+### `zgw-office-addin` — breaking values schema change
+
+The `zgw-office-addin` subchart restructured its values. Any environment values file that sets the following keys must be updated before upgrading:
+
+| Old key | New key |
+|---|---|
+| `zgw-office-addin.frontend.frontendUrl` | `zgw-office-addin.common.frontendUrl` |
+| `zgw-office-addin.backend.apiBaseUrl` | `zgw-office-addin.backend.zgwApis.url` |
+| `zgw-office-addin.backend.jwtSecret` | `zgw-office-addin.backend.zgwApis.secret` |
+
+```yaml
+# Before
+zgw-office-addin:
+  frontend:
+    frontendUrl: https://office-addin.example.nl
+  backend:
+    apiBaseUrl: "https://openzaak.example.nl"
+    jwtSecret: "secret"
+
+# After
+zgw-office-addin:
+  common:
+    frontendUrl: https://office-addin.example.nl
+  backend:
+    zgwApis:
+      url: "https://openzaak.example.nl"
+      secret: "secret"
+```
+
+The Helm upgrade will fail with a schema validation error if these keys are not renamed.
 
 ---
 
@@ -148,8 +162,6 @@ These are typically sourced from the environment's Key Vault and injected at dep
 ---
 
 ### PABC updated to 1.1.0
-
-The PABC sub-chart has been updated from 1.0.0 to 1.1.0.
 
 For **ACR-based environments**, update the repository overrides:
 
@@ -183,44 +195,61 @@ pabc:
 
 ---
 
-### `redis-ha-label-master` kubectl image replaced
+### `redis-ha-label-master` — one-shot Job replaced by CronJob; image and nodeSelector updated
 
-The `lachlanevenson/k8s-kubectl` image (unofficial Docker Hub maintainer, K8s 1.25 EOL) has been
-replaced with `docker.io/alpine/k8s:1.33.2` — an alpine-based image bundling the official
-Kubernetes 1.33 kubectl binary with a full shell environment.
+The `redis-ha-label-master` one-shot Job has been replaced with a CronJob that runs every
+2 minutes. This closes a gap where label drift after the Job's 10-minute TTL left the
+`redis-ha-master` Service with no endpoints, causing all Redis-dependent apps to hang on
+first connection. See [docs/redis-ha.md](redis-ha.md) for full details.
 
-For **ACR-based environments**, update the repository override:
+The image has also been updated from the unofficial `lachlanevenson/k8s-kubectl` (K8s 1.25 EOL)
+to `docker.io/alpine/k8s:1.33.10`.
 
-```yaml
-redis-operator:
-  redis-ha:
-    labelMasterJob:
-      image:
-        repository: <acr>/k8s
-```
-
-No tag override is needed — the tag is set by the chart default (`1.33.2`).
-
----
-
-### `redis-ha-label-master` job — hardcoded nodeSelector removed
-
-The `redis-ha-label-master` Job previously had `kubernetes.azure.com/mode: user` hardcoded in
-its template, causing it to be unschedulable on clusters with only system-mode nodes (e.g.
-single-nodepool dev/test clusters).
-
+The hardcoded `kubernetes.azure.com/mode: user` nodeSelector has been removed from the template.
 The nodeSelector is now optional and must be set explicitly in environments that require it
 (e.g. AKS-blue with dedicated user nodepools):
 
 ```yaml
 redis-operator:
   redis-ha:
-    labelMasterJob:
+    labelMasterCronJob:
       nodeSelector:
         kubernetes.azure.com/mode: user
 ```
 
 On clusters without a dedicated user nodepool, omit this key entirely.
+
+**Values key renamed:** `redis-operator.redis-ha.labelMasterJob` → `redis-operator.redis-ha.labelMasterCronJob`
+
+If any environment values file overrides `labelMasterJob` fields (e.g. `image.repository` for ACR), rename the key:
+
+```yaml
+# Before
+redis-operator:
+  redis-ha:
+    labelMasterJob:
+      image:
+        repository: <acr>/k8s-kubectl
+
+# After
+redis-operator:
+  redis-ha:
+    labelMasterCronJob:
+      image:
+        repository: <acr>/k8s
+```
+
+No tag override is needed — the tag is set by the chart default (`1.33.10`).
+
+For **test environments** that are suspended outside business hours, override the schedule so
+the CronJob does not run when the cluster is idle:
+
+```yaml
+redis-operator:
+  redis-ha:
+    labelMasterCronJob:
+      schedule: "* 7-18 * * 1-5"  # every minute, Mon–Fri 07:00–18:59 only
+```
 
 ---
 
@@ -228,7 +257,7 @@ On clusters without a dedicated user nodepool, omit this key entirely.
 
 The api-proxy Deployment uses `runAsNonRoot: true`. The previous `nginx` image runs as root and
 was incompatible with this constraint. The image has been switched to
-`nginxinc/nginx-unprivileged:1.29.5` (uid 101).
+`nginxinc/nginx-unprivileged` (uid 101).
 
 The Maykin subcharts (openzaak, openklant, openformulieren, openinwoner, openarchiefbeheer) and
 ZAC have always used `nginxinc/nginx-unprivileged` as their nginx sidecar — this is unchanged.
@@ -274,9 +303,7 @@ zac:
       repository: <acr>/nginx-unprivileged
 ```
 
-No tag overrides are needed — tags are set by the chart defaults (`1.29.5`).
-
----
+No tag overrides are needed — tags are set by the chart defaults (`1.29.8`).
 
 ---
 
@@ -296,9 +323,56 @@ zac:
 # After
 zac:
   pabcApi:
-    apiUrl: "..."
+    url: "..."
     apiKey: REP_ZAC_PABC_API_KEY_REP
 ```
+
+Note: the subkey also changed from `apiUrl` to `url`.
+
+---
+
+### ZAC helm chart updated to 1.0.224
+
+The ZAC subchart has been updated from 1.0.208 to 1.0.224 (ZAC 4.7).
+
+---
+
+### ZAC liveness probe changed to `/health/ready`
+
+The ZAC liveness probe path has been changed from `/health/live` to `/health/ready` with
+`failureThreshold: 16` (16 × 30 s = 480 s). Kubernetes will now automatically restart ZAC
+after ~8 minutes of OpenZaak/catalogus unavailability without manual intervention.
+
+**Root cause:** The ZGW-API-Client MicroProfile REST client has no `connectTimeout` or
+`readTimeout` configured. When OpenZaak is unreachable, stale TCP connections accumulate in
+the pool and each liveness health check blocks until the OS-level TCP timeout fires. Using
+`/health/ready` as the liveness target causes Kubernetes to restart the pod before the
+connection pool reaches an unrecoverable state.
+
+This is a workaround. The liveness probe should be reverted to `/health/live` with
+`failureThreshold: 3` once proper HTTP timeouts are configured in ZAC's `ZGW-API-Client`.
+
+**No action required** — the override is set in `values.yaml` and takes effect automatically on upgrade.
+
+---
+
+### ZAC office-converter — `kontextwork-converter` image explicitly pinned, port configurable
+
+The `office_converter` image is explicitly pinned to `ghcr.io/eugenmayer/kontextwork-converter:1.8.2`
+and `containerPort` is set to `8080` (kontextwork-converter's default). ZAC 1.0.224 makes
+`office_converter.containerPort` configurable; the chart default remains `3000` (Gotenberg) so
+the override in `values.yaml` is required.
+
+For **ACR-based environments**, add the repository override:
+
+```yaml
+zac:
+  office_converter:
+    image:
+      repository: <acr>/kontextwork-converter
+```
+
+No additional tag override needed — the tag is already pinned to `1.8.2` in PodiumD's `values.yaml`.
 
 ---
 
@@ -396,12 +470,12 @@ No tag override needed — the tag is set by the chart default (`v2.1.2`).
 
 ### Security hardening — container security contexts
 
-All custom pod templates (api-proxy, adapter, Keycloak jobs, seeding jobs, redis-ha label job)
+All custom pod templates (api-proxy, adapter, Keycloak jobs, seeding jobs, redis-ha label CronJob)
 now have `readOnlyRootFilesystem: true` and explicit `runAsNonRoot: true` / `runAsUser` settings.
 Writable paths (`/tmp`, `/var/cache/nginx`) are provided via `emptyDir` volumes where needed.
 
 Keycloak job pods now explicitly reference the podiumd `ServiceAccount` name. The `ServiceAccount`
-has `automountServiceAccountToken: false` set globally; the redis-ha label job opts back in
+has `automountServiceAccountToken: false` set globally; the redis-ha label CronJob opts back in
 (`automountServiceAccountToken: true` on the pod spec) because it needs API server access.
 
 **No action required.** These are template-only changes with no values impact.
@@ -454,7 +528,9 @@ by `accessTokenLifespan`). Sessions that exceed these limits will require re-aut
 
 ---
 
-### ZGW Office Add-in - App Environment value
+### ZGW Office Add-in — App Environment value
+
+A new `common.appEnv` value controls the application environment label shown in the add-in UI.
 
 For production (default):
 ```yaml
@@ -463,14 +539,14 @@ zgw-office-addin:
     appEnv: "production"
 ```
 
-For acceptance: 
+For acceptance:
 ```yaml
 zgw-office-addin:
   common:
     appEnv: "acc"
 ```
 
-For test: 
+For test:
 ```yaml
 zgw-office-addin:
   common:
@@ -481,11 +557,6 @@ There's a script that can be used to update the `appEnv` value in `podiumd.yml` 
 ```bash
 ./set-zgw-office-addin-app-env
 ```
-
----
-
-For the full list of new and changed images in this release see
-[docs/images/images-4.6.3.yaml](images/images-4.6.3.yaml).
 
 ---
 
@@ -503,45 +574,16 @@ This is caused by a psycopg3 transaction semantics issue in the `post_migrate` s
 
 ---
 
-### ZAC: no recovery after extended OpenZaak/catalogus unavailability
-
-When the OpenZaak catalogus API is unreachable for more than approximately 8 minutes, ZAC does not
-recover on its own even after OpenZaak becomes available again.
-
-**Root cause:** The ZAC MicroProfile REST client for `ZGW-API-Client` (used by `ZtcClientService`)
-has no explicit `connectTimeout` or `readTimeout` configured. When OpenZaak goes down, the
-underlying HTTP connection pool accumulates stale (half-open) TCP connections. Each call to
-`ztcClient.catalogusList()` — which is not cached and is called on every readiness health check
-— blocks the health check thread until the OS-level TCP timeout fires (several minutes). After
-extended downtime, even when OpenZaak recovers, the connection pool is in a broken state: stale
-connections are reused before new ones are established, causing each health check attempt to
-hang and then fail again. The pod stays in a non-ready state indefinitely.
-
-**Symptom:** `OpenZaakReadinessHealthCheck: DOWN` persists after OpenZaak is back up. ZAC
-readiness probe keeps failing; the pod is never marked Ready.
-
-**Workaround:** Manually restart the ZAC pod:
-
-```bash
-kubectl rollout restart deployment/zac -n podiumd --context <cluster>
-```
-
-**Fix pending:** [zaakafhandelcomponent PR](https://github.com/infonl/dimpact-zaakafhandelcomponent)
-— ZAC chart v1.0.206 changes the liveness probe from `/health/live` to `/health/ready` with
-`failureThreshold: 16` (`16 × 30 s = 480 s`). This causes Kubernetes to automatically restart
-ZAC after ~8 minutes of catalogus unavailability, without manual intervention. Scheduled for
-inclusion in a future podiumd release.
-
-
----
-
 ## Component version bumps (chart defaults — no action needed in env values)
 
-| Component         | 4.6.2   | 4.6.3   |
-|-------------------|---------|---------|
+| Component | 4.6.2 | 4.6.4 |
+|---|---|---|
+| ZAC | 1.0.208 | 1.0.224 |
 | ZGW Office Add-in | 0.9.133 | 0.9.251 |
+| alpine/k8s (labelMasterCronJob) | 1.33.2 | 1.33.10 |
+| nginx-unprivileged (api-proxy + Maykin/ZAC sidecars) | 1.29.5 | 1.29.8 |
 
 ---
 
 For the full list of new and changed images in this release, see
-[docs/images/images-4.6.3.yaml](images/images-4.6.3.yaml).
+[docs/images/images-4.6.4.yaml](images/images-4.6.4.yaml).

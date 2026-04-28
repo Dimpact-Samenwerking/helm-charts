@@ -84,21 +84,38 @@ openinwoner:
 
 # ---------------------------------------------------------------------------
 # ZAC — Quarkus OTEL via chart-managed env + shared monitoring collector
+#
 # The zac chart only emits OTEL_SDK_DISABLED/OTEL_EXPORTER_OTLP_ENDPOINT when
-# `opentelemetry-collector.enabled: true`. We enable it to trigger the envs
-# but set replicaCount: 0 so the bundled collector subchart deploys no pods —
-# traces/metrics are sent to the shared collector in the monitoring namespace.
+# `opentelemetry-collector.enabled: true` (see templates/config.yaml in the
+# zac subchart). We enable it to trigger the envs but keep the bundled
+# collector scaled to zero — traces/metrics go to the shared collector in the
+# monitoring namespace via opentelemetry_zaakafhandelcomponent.endpoint.
+#
+# Image override: the upstream zac chart pins the collector image to
+# otel/opentelemetry-collector-contrib:<tag>@sha256:<digest>. That path/digest
+# is not mirrored in restricted-network ACRs. Repoint to the same image
+# monitoring-logging uses and clear the digest. Bump tag when monitoring-
+# logging upgrades to keep a single version in ACR.
+#
+# autoscaling.enabled: false is needed because the HPA defined by the
+# subchart overrides replicaCount: 0 and keeps a pod running otherwise.
 # ---------------------------------------------------------------------------
 
 zac:
   opentelemetry-collector:
     enabled: true
     replicaCount: 0
+    autoscaling:
+      enabled: false
+    image:
+      repository: opentelemetry-collector-contrib
+      tag: "0.150.1"
+      digest: ""
   opentelemetry_zaakafhandelcomponent:
     endpoint: *otelEndpoint
   # javaOptions extends the chart default (-Xmx1024m -Xms1024m -Xlog:gc::time,uptime).
-  # -Dotel.service.name sets the resource attribute; other OTEL_* env vars are
-  # exported by the chart once opentelemetry-collector.enabled is true.
+  # -Dotel.service.name sets the resource attribute; all other OTEL_* env vars
+  # are exported by the chart once opentelemetry-collector.enabled is true.
   javaOptions: >-
     -Xmx1024m -Xms1024m -Xlog:gc::time,uptime
     -Dotel.service.name=zac
@@ -123,8 +140,7 @@ zac:
 #      which the operator uses as its cue to generate the actual ServiceMonitor
 #      for the Keycloak pods (port 9000, /metrics, enabled via additionalOptions
 #      metrics-enabled: true in values.yaml).
-# The keycloak-cr.yaml chart template must include the spec.serviceMonitor
-# passthrough — add it if missing in your podiumd chart version.
+# Requires the keycloak-cr.yaml template to pass spec.serviceMonitor through.
 # ---------------------------------------------------------------------------
 
 keycloak-operator:

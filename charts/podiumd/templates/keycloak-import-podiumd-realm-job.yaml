@@ -9,10 +9,26 @@
 # External dependencies:
 #   ConfigMap: keycloak-podiumd-realm-config  key: podiumd.yaml
 #   Secret:    keycloak-operator-client-secret key: client-secret (written by ensure-keycloak-operator-sa)
+{{- /* Re-run on every config/secret-input change: suffix the Job name with a short
+     checksum of the realm ConfigMap plus any user-provided OIDC client secrets.
+     Identical values on re-apply produce the same name (idempotent), changes spawn
+     a fresh Job. The previous Job is garbage-collected via ttlSecondsAfterFinished.
+     Note: randomly-generated secrets from keycloak-podiumd-realm-secrets.yaml are
+     NOT included in the hash — they would make the suffix unstable between renders. */ -}}
+{{- $realmCfgTpl := include (print $.Template.BasePath "/keycloak-podiumd-realm-config.yaml") . -}}
+{{- $oidcInputs := list -}}
+{{- range $comp := list "openzaak" "opennotificaties" "objecten" "objecttypen" "openarchiefbeheer" "openklant" "openformulieren" "openinwoner" "referentielijsten" "openbeheer" -}}
+{{- $cfg := index $.Values $comp "configuration" | default dict -}}
+{{- $secs := index $cfg "secrets" | default dict -}}
+{{- $kcs := index $secs "keycloak_client_secret" | default "" -}}
+{{- $old := index $cfg "oidcSecret" | default "" -}}
+{{- $oidcInputs = append $oidcInputs (printf "%s:%s:%s" $comp $kcs $old) -}}
+{{- end -}}
+{{- $jobSuffix := printf "%s|%s" $realmCfgTpl (join "|" $oidcInputs) | sha256sum | trunc 10 }}
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: import-podiumd-realm-job
+  name: import-podiumd-realm-job-{{ $jobSuffix }}
   labels:
     {{- include "podiumd.labels" . | nindent 4 }}
     app.kubernetes.io/component: keycloak
@@ -169,6 +185,16 @@ spec:
             secretKeyRef:
               name: keycloak-podiumd-realm-secrets
               key: openinwoner-oidc-secret
+        - name: KC_SECRET_REFERENTIELIJSTEN
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-podiumd-realm-secrets
+              key: referentielijsten-oidc-secret
+        - name: KC_SECRET_OPENBEHEER
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-podiumd-realm-secrets
+              key: openbeheer-oidc-secret
         - name: KC_SECRET_KISS
           valueFrom:
             secretKeyRef:
