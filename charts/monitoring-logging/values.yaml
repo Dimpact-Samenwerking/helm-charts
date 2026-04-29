@@ -327,7 +327,7 @@ kube-prometheus-stack:
         image:
           registry: ghcr.io
           repository: jkroepke/kube-webhook-certgen
-          tag: "1.8.0"
+          tag: "1.8.2"
           pullPolicy: IfNotPresent
     # -- prometheus-config-reloader image settings (injected into Prometheus StatefulSet by the operator)
     # quay.io/prometheus-operator/prometheus-config-reloader:v0.90.1
