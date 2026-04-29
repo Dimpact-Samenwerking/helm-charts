@@ -269,6 +269,46 @@ entries:
     version: 1.0.3
   monitoring-logging:
   - apiVersion: v2
+    appVersion: 1.0.13
+    created: "2026-04-29T08:28:00.031710617Z"
+    dependencies:
+    - condition: loki.enabled
+      name: loki
+      repository: '@grafana'
+      version: 6.55.0
+    - condition: alloy.enabled
+      name: alloy
+      repository: '@grafana'
+      version: 1.6.2
+    - condition: grafana.enabled
+      name: grafana
+      repository: '@grafana'
+      version: 10.5.15
+    - condition: kube-prometheus-stack.enabled
+      name: kube-prometheus-stack
+      repository: '@prometheus-community'
+      version: 83.0.0
+    - condition: prometheus-pushgateway.enabled
+      name: prometheus-pushgateway
+      repository: '@prometheus-community'
+      version: 3.6.0
+    - condition: tempo.enabled
+      name: tempo
+      repository: '@grafana'
+      version: 1.24.4
+    - condition: opentelemetry-collector.enabled
+      name: opentelemetry-collector
+      repository: '@opentelemetry'
+      version: 0.147.1
+    description: A monitoring stack using Loki, Prometheus, Grafana Alloy, OpenTelemetry
+      Collector, and Grafana. Optionally includes Grafana Tempo for distributed tracing.
+    digest: e7fc9a8f7276049ead36154c68427ebe814357027b9d6dfba3a70b89883f7627
+    name: monitoring-logging
+    type: application
+    urls:
+    - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/monitoring-logging-1.0.13/monitoring-logging-1.0.13.tgz
+    version: 1.0.13
+  - apiVersion: v2
     appVersion: 1.0.12
     created: "2026-04-28T09:00:55.347280369Z"
     dependencies:
@@ -17723,4 +17763,4 @@ entries:
     urls:
     - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/zac-1.0.0/zac-1.0.0.tgz
     version: 1.0.0
-generated: "2026-04-28T10:31:40.065490035Z"
+generated: "2026-04-29T08:28:00.032250776Z"
