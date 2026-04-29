@@ -28,7 +28,7 @@ jobs:
     
     - name: bake deployment
       id: bake
-      uses: azure/k8s-bake@v3
+      uses: azure/k8s-bake@v4
       with:
         renderEngine: "helm"
         releaseName: github-test
