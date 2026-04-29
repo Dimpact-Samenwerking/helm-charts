@@ -2001,7 +2001,7 @@ referentielijsten:
   image:
     repository: maykinmedia/referentielijsten-api
     pullPolicy: IfNotPresent
-    tag: "0.7.1"
+    tag: "0.7.2"
 
   settings:
     allowedHosts: "referentielijsten-nginx.podiumd.svc.cluster.local"
