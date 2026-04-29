@@ -51,7 +51,7 @@ keycloak-operator:
       initImage:
         registry: ""
         repository: python
-        tag: "3.12-slim"
+        tag: "3.14-slim"
       # Main container: runs psql to execute the generated SQL against the Keycloak DB.
       image:
         registry: ""
