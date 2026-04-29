@@ -56,7 +56,7 @@ keycloak-operator:
       image:
         registry: ""
         repository: postgres
-        tag: "16"
+        tag: "18"
     ensureOperatorSa:
       enabled: true
       # Container: curl-based job to provision the keycloak-operator service account client.
