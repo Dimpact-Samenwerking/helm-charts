@@ -102,7 +102,3 @@ dependencies:
     repository: "@opstree"
     version: 0.24.0
     condition: redis-operator.enabled
-  - name: apisix
-    version: 2.14.0
-    repository: "@apisix"
-    condition: apisix.enabled
