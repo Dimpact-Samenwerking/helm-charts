@@ -108,6 +108,7 @@ helm repo add zac https://infonl.github.io/dimpact-zaakafhandelcomponent/
 helm repo add zgw-office-addin https://infonl.github.io/zgw-office-addin
 helm repo add adfinis https://charts.adfinis.com
 helm repo add worth-nl https://worth-nl.github.io/helm-charts
+helm repo add apisix https://charts.apiseven.com
 ```
 
 ## PersistentVolume and PersistVolumeClaim resources
@@ -755,6 +756,30 @@ $ kubectl create secret generic api-proxy-certs \
   --from-file=client.crt="C:\labtenant1.lab.api.mijniconnect.nl.crt" \
   --from-file=client.key="C:\labtenant1.lab.api.mijniconnect.nl.key.decrypted" \
   --from-file=ca.crt="C:\lab_api_mijniconnect_nl.crt"
+
+### APISIX
+
+APISIX is deployed as an **outbound (egress) API gateway** for PodiumD applications. PodiumD pods send outbound API calls to the APISIX cluster service for policy enforcement, observability, and (planned) mTLS to upstream services. APISIX is not exposed outside the cluster — no ingress routes are required from APISIX itself.
+
+The chart is wired in via the upstream [`apisix/apisix`](https://github.com/apache/apisix-helm-chart) Helm chart. **Disabled by default** — opt in by setting `apisix.enabled: true`. See `docs/apisix-egress-gateway.md` for background, the embedded Dashboard UI, route configuration, and the open security TODOs.
+
+The operator GUI is the **embedded APISIX Dashboard**, shipped inside the gateway from APISIX 3.16 onwards and served at the Admin API port (`:9180/ui/`). No separate dashboard chart is required.
+
+| Name                              | Description                                                                                       | Value       |
+|-----------------------------------|---------------------------------------------------------------------------------------------------|-------------|
+| apisix.enabled                    | Deploy the APISIX egress gateway sub-chart (also enables the embedded Dashboard)                  | `false`     |
+| apisix.fullnameOverride           | Override the APISIX release name (so the service is reachable as `apisix.<namespace>.svc...`)     | `"apisix"`  |
+| apisix.ingress-controller.enabled | Deploy the bundled ingress controller (kept off — APISIX is egress-only)                          | `false`     |
+| apisix.service.type               | Kubernetes service type for the APISIX gateway data plane                                         | `ClusterIP` |
+| apisix.admin.enable_admin_ui      | Enable the embedded Dashboard UI on the Admin API port (`:9180/ui/`)                              | `true`      |
+| apisix.admin.type                 | Kubernetes service type for the APISIX Admin API + Dashboard                                      | `ClusterIP` |
+| apisix.apisixYaml                 | Standalone-mode route/upstream/plugin configuration. See egress-gateway doc for the schema        | _(unset)_   |
+
+For the full upstream values reference run:
+
+```shell
+helm show values apisix/apisix --version 2.14.0
+```
 
 ### Tags
 
