@@ -393,6 +393,14 @@ prometheus-pushgateway:
 
 alloy:
   enabled: true
+  # -- DaemonSet scheduling. Pin Alloy to the user pool because the
+  # discovery.kubernetes namespaces filter below scopes log capture to
+  # podiumd + monitoring, both of which run on the user pool. See
+  # docs/upgrade-from-1.0.12-to-1.0.13.md for why this overrides the
+  # 1.0.11→1.0.12 guidance to leave Alloy without a nodeSelector.
+  controller:
+    nodeSelector:
+      kubernetes.azure.com/agentpool: userpool
   alloy:
     extraEnv:
       - name: NODE_NAME
@@ -402,13 +410,18 @@ alloy:
     # -- configMap.content is processed by Helm tpl, so {{ .Release.Name }} is valid
     configMap:
       content: |
-        // Discover all pods on the node
+        // Discover only podiumd + monitoring namespace pods.
+        // Server-side namespace filter: scopes the API watch, not just a relabel drop.
         discovery.kubernetes "pods" {
           role = "pod"
+
+          namespaces {
+            names = ["podiumd", "monitoring"]
+          }
         }
 
         // Relabel: keep only pods on this node, drop terminated pods,
-        // extract exact log path from pod UID, add k8s metadata.
+        // build the log path glob, add k8s metadata.
         discovery.relabel "pod_logs" {
           targets = discovery.kubernetes.pods.targets
 
@@ -446,21 +459,31 @@ alloy:
             target_label  = "app"
           }
 
-          // Build the exact log file path using pod UID — no wildcards, os.Stat requires a real path.
+          // Build the log path glob — *.log captures all container restarts
+          // (0.log, 1.log, …). local.file_match below expands the glob into
+          // real file paths; without it, loki.source.file would os.Stat the
+          // literal "*.log" string and skip every target.
           // Use ${n} notation: $n_ would include the underscore in the capture group reference.
           rule {
             source_labels = ["__meta_kubernetes_namespace", "__meta_kubernetes_pod_name", "__meta_kubernetes_pod_uid", "__meta_kubernetes_pod_container_name"]
             separator     = "/"
             regex         = "(.+)/(.+)/(.+)/(.+)"
-            replacement   = "/var/log/pods/${1}_${2}_${3}/${4}/0.log"
+            replacement   = "/var/log/pods/${1}_${2}_${3}/${4}/*.log"
             target_label  = "__path__"
           }
+        }
+
+        // Resolve __path__ globs into concrete files (0.log, 1.log, …).
+        // sync_period determines how often new rotated files are picked up.
+        local.file_match "pod_logs" {
+          path_targets = discovery.relabel.pod_logs.output
+          sync_period  = "10s"
         }
 
         // Tail log files, strip CRI prefix (containerd format: timestamp stream flags log)
         // and forward to Loki. Equivalent to Promtail's pipeline_stages: [cri: {}].
         loki.source.file "pod_logs" {
-          targets    = discovery.relabel.pod_logs.output
+          targets    = local.file_match.pod_logs.targets
           forward_to = [loki.process.cri.receiver]
         }
 
