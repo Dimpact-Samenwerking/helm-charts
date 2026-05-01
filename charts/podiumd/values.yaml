@@ -2608,7 +2608,6 @@ zac:
     image:
       #repository: gotenberg/gotenberg
       tag: 8.31.0@sha256:f0d86e8a1dbc7b33a5a65cb251d02bb271a48ffa989da3feb5ed7d954fe4d4b3
-    containerPort: 3000
   opa:
     sidecar: true
     # openpolicyagent/opa:1.15.2-static@sha256:f3429de096f6d274bd9927f7a50c334e340a6cf206fad9460ccf17e2f3e807bf
