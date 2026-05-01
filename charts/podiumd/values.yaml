@@ -2542,16 +2542,16 @@ zac:
     code: "007"
     naam: "Example Gemeente"
     mail: "noreply@example.nl"
-  # curlimages/curl:8.19.0@sha256:d94d07ba9e7d6de898b6d96c1a072f6f8266c687af78a74f380087a0addf5d17
+  # curlimages/curl:8.20.0@sha256:b3f1fb2a51d923260350d21b8654bbc607164a987e2f7c84a0ac199a67df812a
   global:
     curlImage:
       #repository: curlimages/curl
-      tag: 8.18.0@sha256:d94d07ba9e7d6de898b6d96c1a072f6f8266c687af78a74f380087a0addf5d17
-  # ghcr.io/infonl/zaakafhandelcomponent:4.6.0@sha256:16a3dc54c589b9db585081978290574ad809c582a345c8bc9c5b31b101beab6a
+      tag: 8.20.0@sha256:b3f1fb2a51d923260350d21b8654bbc607164a987e2f7c84a0ac199a67df812a
+  # ghcr.io/infonl/zaakafhandelcomponent:4.8.0@sha256:231be366444eab6f19afbb09fa23cfa57c90c1f37f5c77553c8326128be3adca
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
-    tag: 4.6.0@sha256:16a3dc54c589b9db585081978290574ad809c582a345c8bc9c5b31b101beab6a # ZAC Sprint 68 versie — same as 4.6.3; helm chart bumped for probe/port fixes only
+    tag: 4.8.0@sha256:231be366444eab6f19afbb09fa23cfa57c90c1f37f5c77553c8326128be3adca 
   # Liveness probe uses /health/ready (not /health/live) with a high failureThreshold so
   # Kubernetes automatically restarts ZAC after extended OpenZaak/catalogus unavailability.
   # The ZGW-API-Client has no connectTimeout/readTimeout, causing stale TCP connections
@@ -2588,10 +2588,10 @@ zac:
   nginx:
     enabled: true
     client_max_body_size: 150M
-    # nginxinc/nginx-unprivileged:1.29.8
+    # nginxinc/nginx-unprivileged:1.30.0@sha256:9b269aa3263e1dcba790fda66aa91b6b02f904adcd8329e5cf256e14a65e2974
     image:
       # repository: nginxinc/nginx-unprivileged
-      tag: 1.29.8
+      tag: 1.30.0@sha256:9b269aa3263e1dcba790fda66aa91b6b02f904adcd8329e5cf256e14a65e2974
     resources:
       requests:
         cpu: 50m
@@ -2604,17 +2604,17 @@ zac:
     url: http://objecttypen.example.nl
     token: objecttypentoken
   office_converter:
-    # ghcr.io/eugenmayer/kontextwork-converter:1.8.3@sha256:706feffafdc2458938f3f836779031cd4ff3a0cc349cff017be8dd85ba28fc04
+    # gotenberg/gotenberg:8.31.0@sha256:f0d86e8a1dbc7b33a5a65cb251d02bb271a48ffa989da3feb5ed7d954fe4d4b3
     image:
-      #repository: ghcr.io/eugenmayer/kontextwork-converter
-      tag: 1.8.3@sha256:706feffafdc2458938f3f836779031cd4ff3a0cc349cff017be8dd85ba28fc04
-    containerPort: 8080
+      #repository: gotenberg/gotenberg
+      tag: 8.31.0@sha256:f0d86e8a1dbc7b33a5a65cb251d02bb271a48ffa989da3feb5ed7d954fe4d4b3
+    containerPort: 3000
   opa:
     sidecar: true
-    # openpolicyagent/opa:1.15.1-static@sha256:865ac441701302fc63844667df8e0acda7cf6ca796377eccf6c6177dcc3b7b24
+    # openpolicyagent/opa:1.15.2-static@sha256:f3429de096f6d274bd9927f7a50c334e340a6cf206fad9460ccf17e2f3e807bf
     image:
       #repository: openpolicyagent/opa
-      tag: 1.15.1-static@sha256:865ac441701302fc63844667df8e0acda7cf6ca796377eccf6c6177dcc3b7b24
+      tag: 1.15.2-static@sha256:f3429de096f6d274bd9927f7a50c334e340a6cf206fad9460ccf17e2f3e807bf
     resources:
       requests:
         cpu: 10m
@@ -2653,16 +2653,16 @@ zac:
         cpu: 500m
         memory: 256Mi
     solr:
-      # library/busybox:1.37.0-glibc@sha256:ba8e26a0e4dc1178f2c90ff8c4090e1ca351bf8f38b2be3052de194e7e2ad291
+      # library/busybox:1.37.0-glibc@sha256:3f9777e7e82e8591542f72b965ec7db7e8b3bdb59692976af1bb9b2850b05a4e
       busyBoxImage:
         #repository:
-        tag: 1.37.0-glibc@sha256:ba8e26a0e4dc1178f2c90ff8c4090e1ca351bf8f38b2be3052de194e7e2ad291
+        tag: 1.37.0-glibc@sha256:3f9777e7e82e8591542f72b965ec7db7e8b3bdb59692976af1bb9b2850b05a4e
       # -- set enabled to provision solrcloud as well
       enabled: true
-      # library/solr:9.10.1-slim@sha256:bee615b4c6fb0ffd6f7ab395d9b3f323cfa69327d085c99db6d6c149e4cb2a3b
+      # library/solr:9.10.1-slim@sha256:f67042f3a0e9e7b6fe0f8fa85e96ea0d0d1cbdd4cda19ccfb462ef3ef5d44ddf
       image:
         #repository:
-        tag: 9.10.1-slim@sha256:bee615b4c6fb0ffd6f7ab395d9b3f323cfa69327d085c99db6d6c149e4cb2a3b
+        tag: 9.10.1-slim@sha256:f67042f3a0e9e7b6fe0f8fa85e96ea0d0d1cbdd4cda19ccfb462ef3ef5d44ddf
       # -- define memory settings for solr in the solrcloud
       javaMem: -Xms512m -Xmx768m
       jobs:
@@ -2740,18 +2740,18 @@ zgw-office-addin:
     # -- MS Azure Client ID assigned to the Office Add-in application
     msalClientId: "dummy"
   frontend:
-    # ghcr.io/infonl/zgw-office-add-in-frontend:v0.9.251
+    # ghcr.io/infonl/zgw-office-add-in-frontend:v0.9.289
     image:
-      tag: v0.9.251
+      tag: v0.9.289
     resources:
       requests:
         cpu: 50m
         memory: 64Mi
   backend:
     msalSecret: "dummy"
-    # ghcr.io/infonl/zgw-office-add-in-backend:v0.9.251
+    # ghcr.io/infonl/zgw-office-add-in-backend:v0.9.289
     image:
-      tag: v0.9.251
+      tag: v0.9.289
     resources:
       requests:
         cpu: 100m
