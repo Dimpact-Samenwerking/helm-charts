@@ -67,6 +67,15 @@ subjects:
 # Namespace-scoped write access — allows the operator to create and manage
 # the Keycloak ServiceMonitor in the release namespace when the CRD is present.
 # Only rendered when keycloak-operator.enableServiceMonitor: true.
+#
+# Two ServiceAccount subjects are bound:
+#   * $saName  — the Keycloak Operator's own SA (the controller pod).
+#   * keycloak — the SA created by the Keycloak Operator for the in-cluster
+#                Keycloak server pod. The operator uses this SA when
+#                reconciling dependent ServiceMonitor resources via its
+#                KeycloakServiceMonitorDependentResource controller; without
+#                this binding the SA hits 403 on PATCH and the Keycloak CR
+#                stays InProgress, blocking the entire deploy.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -101,6 +110,9 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: {{ $saName }}
+    namespace: {{ .Release.Namespace }}
+  - kind: ServiceAccount
+    name: keycloak
     namespace: {{ .Release.Namespace }}
 {{- end }}
 {{- end }}
