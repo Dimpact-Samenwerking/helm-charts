@@ -2604,9 +2604,14 @@ zac:
     url: http://objecttypen.example.nl
     token: objecttypentoken
   office_converter:
-    # ghcr.io/eugenmayer/kontextwork-converter:1.8.3@sha256:706feffafdc2458938f3f836779031cd4ff3a0cc349cff017be8dd85ba28fc04
+    # The pinned digest sha256:706feff... resolves only on
+    # ghcr.io/eugenmayer/kontextwork-converter:1.8.3. The ZAC subchart's
+    # default repository is gotenberg/gotenberg on Docker Hub, but
+    # `gotenberg/gotenberg:1.8.3` does not exist there (gotenberg is on
+    # v8.x), so leaving repository unset / commented produces an
+    # ImagePullBackOff. Always set repository explicitly here.
     image:
-      #repository: ghcr.io/eugenmayer/kontextwork-converter
+      repository: ghcr.io/eugenmayer/kontextwork-converter
       tag: 1.8.3@sha256:706feffafdc2458938f3f836779031cd4ff3a0cc349cff017be8dd85ba28fc04
     containerPort: 8080
   opa:
