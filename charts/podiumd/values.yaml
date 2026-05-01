@@ -2542,16 +2542,16 @@ zac:
     code: "007"
     naam: "Example Gemeente"
     mail: "noreply@example.nl"
-  # curlimages/curl:8.19.0
+  # curlimages/curl:8.20.0@sha256:b3f1fb2a51d923260350d21b8654bbc607164a987e2f7c84a0ac199a67df812a
   global:
     curlImage:
       #repository: curlimages/curl
-      tag: 8.18.0
-  # ghcr.io/infonl/zaakafhandelcomponent:4.3.61
+      tag: 8.20.0@sha256:b3f1fb2a51d923260350d21b8654bbc607164a987e2f7c84a0ac199a67df812a
+  # ghcr.io/infonl/zaakafhandelcomponent:4.8.0@sha256:231be366444eab6f19afbb09fa23cfa57c90c1f37f5c77553c8326128be3adca
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
-    tag: 4.3.61 # ZAC Sprint 65 versie — same as 4.6.3; helm chart bumped for probe/port fixes only
+    tag: 4.8.0@sha256:231be366444eab6f19afbb09fa23cfa57c90c1f37f5c77553c8326128be3adca 
   # Liveness probe uses /health/ready (not /health/live) with a high failureThreshold so
   # Kubernetes automatically restarts ZAC after extended OpenZaak/catalogus unavailability.
   # The ZGW-API-Client has no connectTimeout/readTimeout, causing stale TCP connections
@@ -2588,10 +2588,10 @@ zac:
   nginx:
     enabled: true
     client_max_body_size: 150M
-    # nginxinc/nginx-unprivileged:1.29.8
+    # nginxinc/nginx-unprivileged:1.30.0@sha256:9b269aa3263e1dcba790fda66aa91b6b02f904adcd8329e5cf256e14a65e2974
     image:
       # repository: nginxinc/nginx-unprivileged
-      tag: 1.29.8
+      tag: 1.30.0@sha256:9b269aa3263e1dcba790fda66aa91b6b02f904adcd8329e5cf256e14a65e2974
     resources:
       requests:
         cpu: 50m
@@ -2604,17 +2604,16 @@ zac:
     url: http://objecttypen.example.nl
     token: objecttypentoken
   office_converter:
-    # ghcr.io/eugenmayer/kontextwork-converter:1.8.2
+    # gotenberg/gotenberg:8.31.0@sha256:f0d86e8a1dbc7b33a5a65cb251d02bb271a48ffa989da3feb5ed7d954fe4d4b3
     image:
-      repository: ghcr.io/eugenmayer/kontextwork-converter
-      tag: "1.8.2"
-    containerPort: 8080
+      #repository: gotenberg/gotenberg
+      tag: 8.31.0@sha256:f0d86e8a1dbc7b33a5a65cb251d02bb271a48ffa989da3feb5ed7d954fe4d4b3
   opa:
     sidecar: true
-    # openpolicyagent/opa:1.14.0-static
+    # openpolicyagent/opa:1.15.2-static@sha256:f3429de096f6d274bd9927f7a50c334e340a6cf206fad9460ccf17e2f3e807bf
     image:
       #repository: openpolicyagent/opa
-      tag: 1.14.0-static
+      tag: 1.15.2-static@sha256:f3429de096f6d274bd9927f7a50c334e340a6cf206fad9460ccf17e2f3e807bf
     resources:
       requests:
         cpu: 10m
@@ -2640,10 +2639,10 @@ zac:
     # -- install crds using https://solr.apache.org/operator/downloads/crds/v0.10.0-prerelease/all-with-dependencies.yaml
     # -- turn functionality on/off
     enabled: true
-    # apache/solr-operator:v0.9.1
+    # apache/solr-operator:v0.9.1@sha256:4db34508137f185d3cad03c7cf7c2b5d6533fb590822effcde9125cff5a90aa2
     image:
       #repository:
-      tag: v0.9.1
+      tag: v0.9.1@sha256:4db34508137f185d3cad03c7cf7c2b5d6533fb590822effcde9125cff5a90aa2
     nodeSelector: {}
     resources:
       requests:
@@ -2653,16 +2652,16 @@ zac:
         cpu: 500m
         memory: 256Mi
     solr:
-      # library/busybox:1.37.0-glibc
+      # library/busybox:1.37.0-glibc@sha256:3f9777e7e82e8591542f72b965ec7db7e8b3bdb59692976af1bb9b2850b05a4e
       busyBoxImage:
         #repository:
-        tag: 1.37.0-glibc
+        tag: 1.37.0-glibc@sha256:3f9777e7e82e8591542f72b965ec7db7e8b3bdb59692976af1bb9b2850b05a4e
       # -- set enabled to provision solrcloud as well
       enabled: true
-      # library/solr:9.10.1-slim
+      # library/solr:9.10.1-slim@sha256:f67042f3a0e9e7b6fe0f8fa85e96ea0d0d1cbdd4cda19ccfb462ef3ef5d44ddf
       image:
         #repository:
-        tag: 9.10.1-slim
+        tag: 9.10.1-slim@sha256:f67042f3a0e9e7b6fe0f8fa85e96ea0d0d1cbdd4cda19ccfb462ef3ef5d44ddf
       # -- define memory settings for solr in the solrcloud
       javaMem: -Xms512m -Xmx768m
       jobs:
@@ -2687,14 +2686,14 @@ zac:
       crd:
         create: false
       hooks:
-        # lachlanevenson/k8s-kubectl:v1.25.4
+        # lachlanevenson/k8s-kubectl:@v1.25.4@sha256:af5cea3f2e40138df90660c0c073d8b1506fb76c8602a9f48aceb5f4fb052ddc
         image:
           #repository:
-          tag: v1.25.4
-      # pravega/zookeeper-operator:0.2.15
+          tag: v1.25.4@sha256:af5cea3f2e40138df90660c0c073d8b1506fb76c8602a9f48aceb5f4fb052ddc
+      # pravega/zookeeper-operator:0.2.15@sha256:b2bc4042fdd8fea6613b04f2f602ba4aff1201e79ba35cd0e2df9f3327111b0e
       image:
         #repository:
-        tag: 0.2.15
+        tag: 0.2.15@sha256:b2bc4042fdd8fea6613b04f2f602ba4aff1201e79ba35cd0e2df9f3327111b0e
       resources:
         requests:
           cpu: 50m
@@ -2705,10 +2704,10 @@ zac:
       # -- namespaces to watch for zookeeper-operator
       watchNamespace: "podiumd"
       zookeeper:
-        # pravega/zookeeper:0.2.15
+        # pravega/zookeeper:0.2.15@sha256:c498ebfb76a66f038075e2fa6148528d74d31ca1664f3257fdf82ee779eec9c8
         image:
           #repository:
-          tag: 0.2.15
+          tag: 0.2.15@sha256:c498ebfb76a66f038075e2fa6148528d74d31ca1664f3257fdf82ee779eec9c8
         resources:
           requests:
             cpu: 100m
@@ -2740,18 +2739,18 @@ zgw-office-addin:
     # -- MS Azure Client ID assigned to the Office Add-in application
     msalClientId: "dummy"
   frontend:
-    # ghcr.io/infonl/zgw-office-add-in-frontend:v0.9.251
+    # ghcr.io/infonl/zgw-office-add-in-frontend:v0.9.289@sha256:80c1fea3d16ef8a837576858e581bb20de6296af7f21c56d401f4a346c126dc0
     image:
-      tag: v0.9.251
+      tag: v0.9.289@sha256:80c1fea3d16ef8a837576858e581bb20de6296af7f21c56d401f4a346c126dc0
     resources:
       requests:
         cpu: 50m
         memory: 64Mi
   backend:
     msalSecret: "dummy"
-    # ghcr.io/infonl/zgw-office-add-in-backend:v0.9.251
+    # ghcr.io/infonl/zgw-office-add-in-backend:v0.9.289@sha256:dc9b165344e787cbf6146183be529594308e22eea553e1db6654f49ba9e76cfb
     image:
-      tag: v0.9.251
+      tag: v0.9.289@sha256:dc9b165344e787cbf6146183be529594308e22eea553e1db6654f49ba9e76cfb
     resources:
       requests:
         cpu: 100m
