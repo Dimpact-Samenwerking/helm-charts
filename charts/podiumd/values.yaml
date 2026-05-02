@@ -616,13 +616,24 @@ openzaak:
       processes: "2"
       threads: "4"
       maxRequests: "1000"
+    # -- Backend for the Documenten API. Supported values: filesystem | azure_blob_storage
+    documentApiBackend: filesystem
+    # azureBlobStorage:
+    #   accountName: ""
+    #   clientSecret: ""
+    #   clientId: ""
+    #   tenantId: ""
+    #   container: "openzaak"
+    # -- Emit cloud events (requires Open Notificaties with cloud events support)
+    # enableCloudEvents: false
+    # notificationsSource: "openzaak"
   persistence:
     size: 10Gi
     existingClaim: openzaak
   persistentVolume:
     volumeAttributeShareName: openzaak
   image:
-    tag: "1.26.0"
+    tag: "1.27.0"
   resources:
     requests:
       cpu: 250m
@@ -878,7 +889,7 @@ objecten:
   configuration:
     enabled: true
     demo:
-      enabled: false  # upstream objecten chart has no nil-guard on this field; default to false
+      enabled: false # upstream objecten chart has no nil-guard on this field; default to false
     initContainer:
       enabled: false
     job:
@@ -1159,11 +1170,13 @@ openarchiefbeheer:
   fullnameOverride: openarchiefbeheer
   # Reference to an existing secret with the values needed for django-setup-configuration
   # existingConfigurationSecrets: nil
+  # override: values-enable-observability.yaml sets disabled: false and configures the OTLP endpoint
+  otel:
+    disabled: true
   configuration:
     enabled: true
     oidcUrl: https://abc.example.nl
-    # -- Enable PKCE (S256) on the Keycloak client. NOTE: openarchiefbeheer v1.1.1 does not yet support
-    # OIDC authentication; this switch is reserved for when OIDC support is added to the application.
+    # -- Enable PKCE (S256) on the Keycloak client.
     pkceEnabled: false
     job:
       enabled: true
@@ -1217,38 +1230,34 @@ openarchiefbeheer:
 
     #   oidc_db_config_enable: true
     #   oidc_db_config_admin_auth:
+    #     providers:
+    #     - identifier: admin-oidc-provider
+    #       endpoint_config:
+    #         oidc_op_discovery_endpoint: https://example.keycloak.nl/realms/podiumd/
+    #       oidc_token_use_basic_auth: false
     #     items:
     #     - identifier: admin-oidc
     #       enabled: true
-    #       endpoint_config:
-    #         oidc_op_discovery_endpoint: https://example.keycloak.nl/realms/podiumd-poc/
-    #       oidc_rp_scopes_list:
-    #         - openid
-    #         - email
-    #         - profile
-    #       userinfo_claims_source: id_token
-    #       oidc_rp_client_id: example-client-id
-    #       oidc_rp_client_secret: {value_from: {env: keycloak_client_secret}}
+    #       oidc_provider_identifier: admin-oidc-provider
+    #       oidc_rp_client_id: openarchiefbeheer
+    #       oidc_rp_client_secret:
+    #         value_from:
+    #           env: keycloak_client_secret
     #       oidc_rp_sign_algo: RS256
     #       # Enable PKCE on the application side — requires pkceEnabled: true on the Keycloak client.
-    #       oidc_use_pkce: true
-    #       claim_mapping:
-    #         email:
-    #           - email
-    #         first_name:
-    #           - given_name
-    #         last_name:
-    #           - family_name
-    #       username_claim:
-    #         - preferred_username
-    #       groups_claim:
-    #         - roles
-    #       sync_groups: true
-    #       sync_groups_glob_pattern: "*"
-    #       default_groups: []
-    #       make_users_staff: true
-    #       superuser_group_names:
-    #         - Superuser
+    #       oidc_use_pkce: false
+    #       options:
+    #         user_settings:
+    #           claim_mappings:
+    #             username:
+    #             - preferred_username
+    #           username_case_sensitive: false
+    #         groups_settings:
+    #           superuser_group_names:
+    #           - Superuser
+    #           claim_mapping:
+    #           - roles
+    #           make_users_staff: true
 
   tags:
     redis: false
@@ -1277,10 +1286,10 @@ openarchiefbeheer:
 
   replicaCount: 1
 
-  # maykinmedia/open-archiefbeheer:1.1.0
+  # maykinmedia/open-archiefbeheer:2.0.0
   image:
     #repository: maykinmedia/open-archiefbeheer
-    tag: "1.1.1"
+    tag: "2.0.0"
 
   resources:
     limits: {}
@@ -1298,6 +1307,10 @@ openarchiefbeheer:
     sessionCookieAge: 1800
     # -- Number of days to wait before destroying a list. Defaults to 7 in the application.
     waitingPeriod: ""
+    # -- Number of days for which destruction lists will be visible after successful destruction. Defaults to 7.
+    postDestructionVisibilityPeriod: 7
+    # -- If true, the inline presentation of related objects is disabled, reducing load on external registers.
+    relatedCountDisabled: false
     # logging:
     # -- Controls whether the logs are output to standard output (true) or to a file (false, default)
     #   toStdout: false
@@ -2134,7 +2147,7 @@ openbeheer:
   securityContext:
     capabilities:
       drop:
-      - ALL
+        - ALL
     readOnlyRootFilesystem: false
     runAsNonRoot: true
     runAsUser: 1000
@@ -2546,12 +2559,12 @@ zac:
   global:
     curlImage:
       #repository: curlimages/curl
-      tag: 8.18.0
-  # ghcr.io/infonl/zaakafhandelcomponent:4.3.61
+      tag: 8.19.0
+  # ghcr.io/infonl/zaakafhandelcomponent:4.7.0
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
-    tag: 4.3.61 # ZAC Sprint 65 versie — same as 4.6.3; helm chart bumped for probe/port fixes only
+    tag: 4.7.0
   # Liveness probe uses /health/ready (not /health/live) with a high failureThreshold so
   # Kubernetes automatically restarts ZAC after extended OpenZaak/catalogus unavailability.
   # The ZGW-API-Client has no connectTimeout/readTimeout, causing stale TCP connections
@@ -2604,17 +2617,17 @@ zac:
     url: http://objecttypen.example.nl
     token: objecttypentoken
   office_converter:
-    # ghcr.io/eugenmayer/kontextwork-converter:1.8.2
+    # gotenberg/gotenberg:8.30.1
     image:
-      repository: ghcr.io/eugenmayer/kontextwork-converter
-      tag: "1.8.2"
-    containerPort: 8080
+      repository: gotenberg/gotenberg
+      tag: "8.30.1"
+    containerPort: 3000
   opa:
     sidecar: true
-    # openpolicyagent/opa:1.14.0-static
+    # openpolicyagent/opa:1.15.2-static
     image:
       #repository: openpolicyagent/opa
-      tag: 1.14.0-static
+      tag: 1.15.2-static
     resources:
       requests:
         cpu: 10m
@@ -2916,7 +2929,7 @@ apiproxy:
   resolverIp: 10.0.0.10 # KubeDNS resolver
   locations:
     commonSettings: &commonLocation
-      sslVerify: ""  # Leave empty to auto-derive from nginxCertsSecret (on if set, off if not); override per-location if needed
+      sslVerify: "" # Leave empty to auto-derive from nginxCertsSecret (on if set, off if not); override per-location if needed
       hostHeader: "lab.api.mijniconnect.nl"
     bag:
       <<: *commonLocation

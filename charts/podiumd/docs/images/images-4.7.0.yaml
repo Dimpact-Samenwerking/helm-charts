@@ -1,0 +1,37 @@
+# Images die nieuw of gewijzigd zijn in podiumd 4.7.0 t.o.v. 4.6.5.
+
+# Open Zaak
+- name: open-zaak
+  url: docker.io/openzaak/open-zaak
+  version: "1.27.0"
+  digest: "sha256:01cb8af4accc9d0c64a12565acbbaae5b93578f247ef30e223797d3d3f98c609"
+
+# Open Archiefbeheer
+- name: open-archiefbeheer
+  url: docker.io/maykinmedia/open-archiefbeheer
+  version: "2.0.0"
+  digest: "sha256:e5217d748869c62d26393311c3cfdcaacf69d8dde80ca3bc172ff41f3885f0ff"
+
+# ZAC
+- name: zaakafhandelcomponent
+  url: ghcr.io/infonl/zaakafhandelcomponent
+  version: "4.7.0"
+  digest: "sha256:e1f9b3ea633e7de562b37591b72fa34afa37acf6978c0ce72b3467f1801152fb"
+
+# ZAC - Gotenberg (office converter, replaces kontextwork-converter)
+- name: gotenberg
+  url: docker.io/gotenberg/gotenberg
+  version: "8.30.1"
+  digest: "sha256:206a6c708fc6d05257367d9ac902d6c56c50d2e3284d0596ea000814ef97f22c"
+
+# ZAC - Open Policy Agent
+- name: opa
+  url: docker.io/openpolicyagent/opa
+  version: "1.15.2-static"
+  digest: "sha256:f3429de096f6d274bd9927f7a50c334e340a6cf206fad9460ccf17e2f3e807bf"
+
+# ZAC - curl
+- name: curl
+  url: docker.io/curlimages/curl
+  version: "8.19.0"
+  digest: "sha256:9a6f6a17667960e077f1b153009aaf18ac99a622221084e1938a45a06fff057a"
