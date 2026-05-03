@@ -23,17 +23,17 @@ persistentVolume:
 keycloak-operator:
   enabled: true
   # Adfinis Helm chart wrapping the official Keycloak Operator manifests.
-  # Chart: https://charts.adfinis.com / adfinis/keycloak-operator (appVersion 26.5.7)
+  # Chart: https://charts.adfinis.com / adfinis/keycloak-operator (chart 1.11.4, appVersion 26.5.6)
   # Note: it appears that the podname automatically appends -operator.
-  # Official operator image: quay.io/keycloak/keycloak-operator:26.5.7
-  # Note: adfinis chart 1.11.2 supports up to appVersion 26.5.6; 26.6.0 is not yet supported.
+  # Official operator image: quay.io/keycloak/keycloak-operator:26.6.1
+  # Note: adfinis chart 1.11.4 targets appVersion 26.5.6; Keycloak image is overridden to 26.6.1 below.
   # override: values-enable-observability.yaml sets enableServiceMonitor: true
   enableServiceMonitor: false
   fullnameOverride: keycloak
   operator:
     image:
       repository: quay.io/keycloak/keycloak-operator
-      tag: "26.5.7"
+      tag: "26.6.1"
     resources:
       requests:
         cpu: 100m
@@ -164,12 +164,11 @@ keycloak:
   http:
     httpEnabled: true
   # image parameters for keycloak-operator
-  # Official Keycloak image: quay.io/keycloak/keycloak:26.5.7
-  # Note: adfinis chart 1.11.2 supports up to appVersion 26.5.6; 26.6.0 is not yet supported.
+  # Official Keycloak image: quay.io/keycloak/keycloak:26.6.1
   image:
     registry: ""
     repository: quay.io/keycloak/keycloak
-    tag: 26.5.7
+    tag: 26.6.1
   # -- instances is the new operator-style replica count (falls back to replicaCount)
   instances: "2"
   ingress:
@@ -204,7 +203,7 @@ keycloak:
     metadata:
       labels:
         app: keycloak
-        version: 26.5.7
+        version: 26.6.1
       # override: values-enable-observability.yaml adds prometheus.io scrape annotations
     spec:
       securityContext:

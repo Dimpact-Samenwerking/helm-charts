@@ -35,3 +35,14 @@
   url: docker.io/curlimages/curl
   version: "8.19.0"
   digest: "sha256:9a6f6a17667960e077f1b153009aaf18ac99a622221084e1938a45a06fff057a"
+
+# Keycloak (operator + server)
+- name: keycloak
+  url: quay.io/keycloak/keycloak
+  version: "26.6.1"
+  digest: "sha256:26ae26445475f7fac5f90ee138b1bdb64324f5815fb16133ffdbdb122d97c4d8"
+
+- name: keycloak-operator
+  url: quay.io/keycloak/keycloak-operator
+  version: "26.6.1"
+  digest: "sha256:a3123e57c8928310488a7cc20cc9791be0abc342ad6a4f72e7a87fc45bdf51c3"

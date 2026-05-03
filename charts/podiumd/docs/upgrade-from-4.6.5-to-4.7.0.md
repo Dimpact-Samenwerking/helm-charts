@@ -2,6 +2,25 @@
 
 ## Changes
 
+### Keycloak 26.6.1 (adfinis helm chart 1.11.4)
+
+No required manual steps for a standard PodiumD deployment upgrading from 26.5.7.
+
+#### Security fixes
+
+This release patches two CVEs:
+
+- **CVE-2026-4366** — Blind Server-Side Request Forgery (SSRF) via HTTP Redirect Handling. Keycloak's outgoing HTTP connections no longer follow redirects by default. This prevents redirect-based bypasses of allowed URL policies. In PodiumD, outgoing Keycloak connections (Entra ID / Azure AD OIDC discovery, CRL endpoints) use HTTPS and do not rely on HTTP redirects; no impact expected.
+- **CVE-2026-4633** — User enumeration via identity-first login. Fixed in the Keycloak server itself; no configuration change required.
+
+#### Notable changes from 26.6.0 (included in 26.6.1)
+
+- **Endpoints open during initialization** — Keycloak now opens HTTP(S) and Management ports while initialization (including DB migrations) is still in progress, provided health endpoints are enabled. PodiumD already sets `health-enabled: true`, so readiness probes will correctly withhold traffic until `/health/ready` returns OK. This resolves potential pod restarts during long-running migrations on Kubernetes.
+- **Stricter client URI validation (`secure-client-uris` executor)** — If the `secure-client-uris` client policy executor is active in a realm, the `Post logout redirect URIs`, `Logo URL`, `Policy URL`, and `Terms of Service URL` fields now require HTTPS. PodiumD does not configure this executor by default; this is only relevant if a gemeente has manually enabled it.
+- **Identity Provider issuer uniqueness** — If multiple Identity Providers in a realm share the same issuer, JWT authorization grant and client assertion flows will now fail. PodiumD Entra ID configurations use per-tenant issuer URLs and are not affected; no action required.
+
+---
+
 ### OpenZaak 1.27.0 (helm chart 1.14.0)
 
 No breaking changes. No required manual steps.
