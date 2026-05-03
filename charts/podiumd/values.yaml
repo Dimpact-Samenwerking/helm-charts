@@ -3193,7 +3193,7 @@ omc:
 #
 # Any field not set below falls back to the upstream chart defaults.
 apisix:
-  enabled: false
+  enabled: true
   fullnameOverride: "apisix"
 
   # Disable the bundled ingress controller — APISIX is egress-only here.
