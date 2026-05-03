@@ -1140,7 +1140,7 @@ objecttypen:
       maxRequests: "1000"
   image:
     repository: maykinmedia/objecttypes-api
-    tag: "3.4.1"
+    tag: "3.4.2"
   # used for create-required-objecttypen podiumd job only
   create_required_objecttypen_job:
     enabled: true
@@ -2013,7 +2013,7 @@ referentielijsten:
   image:
     repository: maykinmedia/referentielijsten-api
     pullPolicy: IfNotPresent
-    tag: "0.7.1"
+    tag: "0.7.2"
 
   settings:
     allowedHosts: "referentielijsten-nginx.podiumd.svc.cluster.local"
@@ -2752,18 +2752,18 @@ zgw-office-addin:
     # -- MS Azure Client ID assigned to the Office Add-in application
     msalClientId: "dummy"
   frontend:
-    # ghcr.io/infonl/zgw-office-add-in-frontend:v0.9.251
+    # ghcr.io/infonl/zgw-office-add-in-frontend:v0.9.289
     image:
-      tag: v0.9.251
+      tag: v0.9.289
     resources:
       requests:
         cpu: 50m
         memory: 64Mi
   backend:
     msalSecret: "dummy"
-    # ghcr.io/infonl/zgw-office-add-in-backend:v0.9.251
+    # ghcr.io/infonl/zgw-office-add-in-backend:v0.9.289
     image:
-      tag: v0.9.251
+      tag: v0.9.289
     resources:
       requests:
         cpu: 100m
@@ -3137,7 +3137,7 @@ omc:
   fullnameOverride: "omc"
   image:
     # repository: ghcr.io/worth-nl/notifynl-omc
-    tag: "1.17.18"
+    tag: "1.17.19"
   # BELOW are the resource settings from the subchart, notifynl-omc-nodep which we do not override
   # app:
   #   port: 5270

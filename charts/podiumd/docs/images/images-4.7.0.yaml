@@ -52,3 +52,32 @@
   url: quay.io/keycloak/keycloak-operator
   version: "26.6.1"
   digest: "sha256:a3123e57c8928310488a7cc20cc9791be0abc342ad6a4f72e7a87fc45bdf51c3"
+
+# Object Types API (patch 2026-05-03)
+- name: objecttypes-api
+  url: docker.io/maykinmedia/objecttypes-api
+  version: "3.4.2"
+  digest: "sha256:d366e6ede1bb924ea351495f4e88ceba53bb0df02fa5302929daef379131fda1"
+
+# Referentielijsten API (patch 2026-05-03)
+- name: referentielijsten-api
+  url: docker.io/maykinmedia/referentielijsten-api
+  version: "0.7.2"
+  digest: "sha256:f7f0f25b180a3746e1bf3df81fe19e4ea509428edea1d93831262a67c81f5f9d"
+
+# OMC (NotifyNL) (patch 2026-05-03)
+- name: notifynl-omc
+  url: docker.io/worthnl/notifynl-omc
+  version: "1.17.19"
+  digest: "sha256:e0491d97996570ea18833994895460a46a081c639539305edbd519ebdb17bba6"
+
+# ZGW Office Add-in (patch 2026-05-03)
+- name: zgw-office-add-in-frontend
+  url: ghcr.io/infonl/zgw-office-add-in-frontend
+  version: "v0.9.289"
+  digest: "sha256:55d22385a698c8c4698e532a2ae26902f8eae02ae09d2b26440a15a583367836"
+
+- name: zgw-office-add-in-backend
+  url: ghcr.io/infonl/zgw-office-add-in-backend
+  version: "v0.9.289"
+  digest: "sha256:9064278149ebe1f5ddd4efb526c1f68219d29b9245093d5cf63fe77bed3362d2"

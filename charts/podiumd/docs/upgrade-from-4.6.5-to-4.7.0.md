@@ -234,3 +234,23 @@ openarchiefbeheer:
   settings:
     relatedCountDisabled: true
 ```
+
+### Open Beheer helm chart 0.1.3
+
+Bug fix: `SESSION_COOKIE_AGE` was incorrectly defined in the configmap. Also adds optional support for a new `OPEN_ZAAK_ADMIN_BASE_URL` setting (no action required).
+
+### Object Types API 3.4.2
+
+Maintenance release: security dependency updates (Django 5.2.13, cryptography 46.0.6, mozilla-django-oidc 5.0.2) and uWSGI memory optimisation (workers restart after 1000 requests).
+
+### Referentielijsten API 0.7.2
+
+Minor bug fix: styling on the `account_blocked.html` page. Same security dependency updates as Object Types API 3.4.2.
+
+### OMC (NotifyNL) 1.17.19 / helm chart 0.14.1
+
+Bug fix: the `/callback` endpoint now returns HTTP 202 instead of an error when the reference field is empty.
+
+### ZGW Office Add-in v0.9.289 / helm chart 0.0.87
+
+Dependency updates only (Renovate-managed). No functional changes.
