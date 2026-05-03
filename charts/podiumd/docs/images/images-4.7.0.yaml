@@ -36,6 +36,12 @@
   version: "8.19.0"
   digest: "sha256:9a6f6a17667960e077f1b153009aaf18ac99a622221084e1938a45a06fff057a"
 
+# Open Formulieren
+- name: open-forms
+  url: docker.io/openformulieren/open-forms
+  version: "3.4.9"
+  digest: "sha256:55dc5644595d43a5412d60436aac846ce0d71b799be85c53ff815c31416f3e39"
+
 # Keycloak (operator + server)
 - name: keycloak
   url: quay.io/keycloak/keycloak

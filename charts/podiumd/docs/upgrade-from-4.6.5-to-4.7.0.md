@@ -98,6 +98,24 @@ The `containerPort` change (8080 → 3000) is handled automatically by the updat
 
 ---
 
+### Open Formulieren 3.4.9 (helm chart 1.12.0)
+
+No breaking changes. No required manual steps.
+
+#### Bug fixes
+
+- Fixed validation messages being linked to the wrong steps, causing confusing errors in the public frontend.
+- Fixed missing required XML-attributes in StUF-ZDS messages.
+- Fixed crash in JSON schema generation when a fieldset is inside an editgrid.
+- Fixed wrong entity type in StUF-ZDS element for cosigner details.
+- Fixed simple conditionals not interpreting empty file upload fields correctly.
+- Fixed dynamic radio/selectboxes/select options with empty labels being rendered.
+- Fixed missing structlog context propagation across threads, causing prefill audit logs not to be saved.
+- Upgraded SDK to 3.4.3 with fixes in the new renderer.
+- Applied latest security patches.
+
+---
+
 ### Open Archiefbeheer 2.0.0 (helm chart 2.0.0)
 
 ⚠️ This release contains **breaking changes**. Follow the steps below before and after upgrading.
