@@ -3202,8 +3202,11 @@ apisix:
 
   # Gateway (data plane) service. ClusterIP only — APISIX is consumed
   # by PodiumD pods for outbound API calls, not exposed outside.
+  # externalTrafficPolicy is invalid on non-LoadBalancer/NodePort services;
+  # the upstream chart defaults it to "Cluster" so we must blank it out.
   service:
     type: ClusterIP
+    externalTrafficPolicy: ""
 
   # Admin API + embedded Dashboard UI (served at :9180/ui/).
   # Defaults from the upstream chart are kept as a starting point.
