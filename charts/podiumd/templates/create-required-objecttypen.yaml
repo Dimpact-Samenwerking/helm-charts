@@ -154,8 +154,8 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       restartPolicy: OnFailure
-  backoffLimit: 4
-  activeDeadlineSeconds: 300
+  backoffLimit: {{ .Values.objecttypen.create_required_objecttypen_job.backoffLimit | default 6 }}
+  activeDeadlineSeconds: {{ .Values.objecttypen.create_required_objecttypen_job.activeDeadlineSeconds | default 900 }}
 {{- end }}
 {{- end }}
 {{- end }}

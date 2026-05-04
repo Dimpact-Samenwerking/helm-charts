@@ -587,6 +587,10 @@ openzaak:
     client_id: "<openzaak_client_id>"
     secret: "<openzaak_secret>"
     enabled: true
+    # Total wall-clock window in which the job is allowed to keep retrying (seconds). Default: 15 minutes.
+    activeDeadlineSeconds: 900
+    # Number of retries before the job is marked failed.
+    backoffLimit: 6
     resources:
       requests:
         cpu: 50m
@@ -1144,6 +1148,10 @@ objecttypen:
   # used for create-required-objecttypen podiumd job only
   create_required_objecttypen_job:
     enabled: true
+    # Total wall-clock window in which the job is allowed to keep retrying (seconds). Default: 15 minutes.
+    activeDeadlineSeconds: 900
+    # Number of retries before the job is marked failed.
+    backoffLimit: 6
     resources:
       requests:
         cpu: 50m
