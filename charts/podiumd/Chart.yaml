@@ -104,5 +104,5 @@ dependencies:
     condition: redis-operator.enabled
   - name: apisix
     version: 2.14.0
-    repository: "@apisix"
+    repository: "https://charts.apiseven.com"
     condition: apisix.enabled

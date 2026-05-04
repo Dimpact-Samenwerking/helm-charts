@@ -27,7 +27,7 @@ The umbrella chart pins a single sub-chart:
 # charts/podiumd/Chart.yaml
 - name: apisix
   version: 2.14.0       # appVersion 3.16.0
-  repository: "@apisix" # https://apache.github.io/apisix-helm-chart
+  repository: "@apisix" # https://charts.apiseven.com
   condition: apisix.enabled
 ```
 

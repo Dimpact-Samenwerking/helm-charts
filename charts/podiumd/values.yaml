@@ -3216,23 +3216,20 @@ apisix:
     externalTrafficPolicy: ""
 
   # Admin API + embedded Dashboard UI (served at :9180/ui/).
-  # Defaults from the upstream chart are kept as a starting point.
+  # Harden the defaults here so enabling APISIX does not inherit the
+  # upstream public admin/viewer credentials or expose the embedded UI.
   admin:
-    # enable_admin_ui defaults to `true` upstream — left here for
-    # discoverability. Set to `false` to disable the embedded GUI.
-    enable_admin_ui: true
+    # Keep the embedded Admin UI off by default. It may only be enabled
+    # intentionally after an authenticating reverse proxy is placed in
+    # front of it and Secret-backed admin credentials are provisioned.
+    enable_admin_ui: false
     type: ClusterIP
 
-    # TODO(IN-1866): replace the well-known default admin/viewer keys
-    # with values pulled from a Kubernetes Secret backed by Azure Key
-    # Vault (CSI driver). Once the secret exists set:
-    #   credentials:
-    #     secretName: apisix-admin-credentials
-    # and remove the inline `admin:` / `viewer:` keys below. The
-    # current upstream defaults (`edd1c9...` / `4054f7...`) are
-    # publicly known and MUST NOT be used in any non-dev environment.
-    # credentials:
-    #   secretName: ""
+    # Require Secret-backed admin credentials instead of falling back to
+    # the upstream well-known default keys (`edd1c9...` / `4054f7...`).
+    # Create this Secret before setting `apisix.enabled=true`.
+    credentials:
+      secretName: apisix-admin-credentials
 
     # By default the upstream chart restricts admin/UI access to the
     # 127.0.0.1/24 CIDR — i.e. only reachable from inside the pod.

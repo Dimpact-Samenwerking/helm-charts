@@ -111,8 +111,10 @@ subjects:
   - kind: ServiceAccount
     name: {{ $saName }}
     namespace: {{ .Release.Namespace }}
+{{- if ne $saName "keycloak" }}
   - kind: ServiceAccount
     name: keycloak
     namespace: {{ .Release.Namespace }}
+{{- end }}
 {{- end }}
 {{- end }}
