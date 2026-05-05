@@ -29,6 +29,11 @@ for entry in "${CLUSTERS[@]}"; do
     --only-show-errors \
     > /dev/null 2>&1
 
+  # `az aks get-credentials --overwrite-existing` resets the user exec block to
+  # the default `kubelogin` interactive (devicecode) mode. Re-apply the azurecli
+  # conversion so non-interactive runs use the cached `az` token.
+  kubelogin convert-kubeconfig -l azurecli >/dev/null 2>&1 || true
+
   # Fetch helm metadata without mutating global kubeconfig context
   metadata=$(helm --kube-context "$cluster" get metadata podiumd -n podiumd 2>/dev/null || true)
 
