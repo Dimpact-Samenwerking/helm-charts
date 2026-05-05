@@ -21,8 +21,8 @@
 # ZAC - Gotenberg (office converter, replaces kontextwork-converter)
 - name: gotenberg
   url: docker.io/gotenberg/gotenberg
-  version: "8.30.1"
-  digest: "sha256:206a6c708fc6d05257367d9ac902d6c56c50d2e3284d0596ea000814ef97f22c"
+  version: "8.31.0"
+  digest: "sha256:f0d86e8a1dbc7b33a5a65cb251d02bb271a48ffa989da3feb5ed7d954fe4d4b3"
 
 # ZAC - Open Policy Agent
 - name: opa
@@ -30,11 +30,17 @@
   version: "1.15.2-static"
   digest: "sha256:f3429de096f6d274bd9927f7a50c334e340a6cf206fad9460ccf17e2f3e807bf"
 
+# nginx-unprivileged (ZAC nginx + apiproxy)
+- name: nginx-unprivileged
+  url: docker.io/nginxinc/nginx-unprivileged
+  version: "1.30.0"
+  digest: "sha256:3def659164dfb7d6be8563983ea9d2fe7e4dfcf2af96770d728723a5c5ad3bad"
+
 # ZAC - curl
 - name: curl
   url: docker.io/curlimages/curl
-  version: "8.19.0"
-  digest: "sha256:9a6f6a17667960e077f1b153009aaf18ac99a622221084e1938a45a06fff057a"
+  version: "8.20.0"
+  digest: "sha256:b3f1fb2a51d923260350d21b8654bbc607164a987e2f7c84a0ac199a67df812a"
 
 # Open Formulieren
 - name: openformulieren
