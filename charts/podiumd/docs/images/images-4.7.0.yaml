@@ -36,6 +36,12 @@
   version: "1.30.0"
   digest: "sha256:3def659164dfb7d6be8563983ea9d2fe7e4dfcf2af96770d728723a5c5ad3bad"
 
+# alpine/k8s (redis-ha label-master job)
+- name: alpine-k8s
+  url: docker.io/alpine/k8s
+  version: "1.34.7"
+  digest: "sha256:4745677e51c0fb567aedf1453a7bd489e0a62dbbf2bda475d663f7eed041adb4"
+
 # ZAC - curl
 - name: curl
   url: docker.io/curlimages/curl

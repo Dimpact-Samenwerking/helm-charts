@@ -447,7 +447,7 @@ redis-operator:
       schedule: "*/2 * * * *"
       image:
         repository: docker.io/alpine/k8s
-        tag: "1.33.10"
+        tag: "1.34.7@sha256:4745677e51c0fb567aedf1453a7bd489e0a62dbbf2bda475d663f7eed041adb4"
       resources:
         requests:
           cpu: 10m
