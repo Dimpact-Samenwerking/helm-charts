@@ -3,8 +3,8 @@
 # Open Zaak
 - name: open-zaak
   url: docker.io/openzaak/open-zaak
-  version: "1.27.0"
-  digest: "sha256:01cb8af4accc9d0c64a12565acbbaae5b93578f247ef30e223797d3d3f98c609"
+  version: "1.27.1"
+  digest: ""  # TODO: refresh from registry
 
 # Open Archiefbeheer
 - name: open-archiefbeheer

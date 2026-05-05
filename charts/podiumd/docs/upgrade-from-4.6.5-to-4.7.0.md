@@ -5,7 +5,7 @@
 | Component | App version | Helm chart |
 |---|---|---|
 | Keycloak | 26.6.1 | adfinis 1.11.4 |
-| OpenZaak | 1.27.0 | 1.14.0 |
+| OpenZaak | 1.27.1 | 1.14.0 |
 | ZAC | 4.7.0 | 1.0.224 |
 | Open Formulieren | 3.4.9 | 1.12.0 |
 | Open Archiefbeheer | 2.0.0 | 2.0.0 (⚠️ breaking) |
@@ -277,7 +277,7 @@ All blocks below are **opt-in** — defaults are unchanged. Add to gemeente `pod
 
 ### OpenZaak — Azure Blob Storage for Documenten API
 
-OpenZaak 1.27.0 adds support for storing documents in Azure Blob Storage or S3 (S3 not supported in PodiumD). The default remains `filesystem`. To use Azure Blob Storage, set the following under `openzaak.settings`:
+OpenZaak 1.27.1 adds support for storing documents in Azure Blob Storage or S3 (S3 not supported in PodiumD). The default remains `filesystem`. To use Azure Blob Storage, set the following under `openzaak.settings`:
 
 ```yaml
 openzaak:
@@ -295,7 +295,7 @@ openzaak:
 
 ### OpenZaak — Cloud Events
 
-OpenZaak 1.27.0 can emit cloud events for functional API operations and admin interface actions. Disabled by default. Requires Open Notificaties with cloud events support.
+OpenZaak 1.27.1 can emit cloud events for functional API operations and admin interface actions. Disabled by default. Requires Open Notificaties with cloud events support.
 
 ```yaml
 openzaak:
@@ -368,7 +368,7 @@ No required manual steps for a standard PodiumD deployment upgrading from 26.5.7
 - **Stricter client URI validation (`secure-client-uris` executor)** — If active in a realm, the `Post logout redirect URIs`, `Logo URL`, `Policy URL`, and `Terms of Service URL` fields now require HTTPS. PodiumD does not configure this executor by default; only relevant if a gemeente has manually enabled it.
 - **Identity Provider issuer uniqueness** — If multiple Identity Providers in a realm share the same issuer, JWT authorization grant and client assertion flows will now fail. PodiumD Entra ID configurations use per-tenant issuer URLs and are not affected.
 
-### OpenZaak 1.27.0 (helm chart 1.14.0)
+### OpenZaak 1.27.1 (helm chart 1.14.0)
 
 No breaking changes. No required manual steps.
 
