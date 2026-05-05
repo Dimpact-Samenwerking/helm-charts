@@ -55,6 +55,9 @@ data:
     {{- end }}
           proxy_pass {{ .Values.apiproxy.locations.bag.targetUrl }};
           proxy_ssl_verify {{ .Values.apiproxy.locations.bag.sslVerify | default (ternary "on" "off" (not (empty .Values.apiproxy.nginxCertsSecret))) }};
+    {{- if .Values.apiproxy.locations.bag.sslVerifyDepth }}
+          proxy_ssl_verify_depth {{ .Values.apiproxy.locations.bag.sslVerifyDepth }};
+    {{- end }}
           proxy_ssl_session_reuse on;
           proxy_ssl_server_name on;
           proxy_set_header Host {{ .Values.apiproxy.locations.bag.hostHeader }};
@@ -79,6 +82,9 @@ data:
 
           proxy_pass {{ .Values.apiproxy.locations.brp.targetUrl }};
           proxy_ssl_verify {{ .Values.apiproxy.locations.brp.sslVerify | default (ternary "on" "off" (not (empty .Values.apiproxy.nginxCertsSecret))) }};
+    {{- if .Values.apiproxy.locations.brp.sslVerifyDepth }}
+          proxy_ssl_verify_depth {{ .Values.apiproxy.locations.brp.sslVerifyDepth }};
+    {{- end }}
           proxy_ssl_session_reuse on;
           proxy_ssl_server_name on;
           proxy_set_header Host {{ .Values.apiproxy.locations.brp.hostHeader }};
@@ -101,6 +107,9 @@ data:
     {{- end }}
           proxy_pass {{ .Values.apiproxy.locations.kvkSearch.targetUrl }};
           proxy_ssl_verify {{ .Values.apiproxy.locations.kvkSearch.sslVerify | default (ternary "on" "off" (not (empty .Values.apiproxy.nginxCertsSecret))) }};
+    {{- if .Values.apiproxy.locations.kvkSearch.sslVerifyDepth }}
+          proxy_ssl_verify_depth {{ .Values.apiproxy.locations.kvkSearch.sslVerifyDepth }};
+    {{- end }}
           proxy_ssl_session_reuse on;
           proxy_ssl_server_name on;
           proxy_set_header Host {{ .Values.apiproxy.locations.kvkSearch.hostHeader }};
@@ -120,6 +129,9 @@ data:
     {{- end }}
           proxy_pass {{ .Values.apiproxy.locations.kvkBasic.targetUrl }};
           proxy_ssl_verify {{ .Values.apiproxy.locations.kvkBasic.sslVerify | default (ternary "on" "off" (not (empty .Values.apiproxy.nginxCertsSecret))) }};
+    {{- if .Values.apiproxy.locations.kvkBasic.sslVerifyDepth }}
+          proxy_ssl_verify_depth {{ .Values.apiproxy.locations.kvkBasic.sslVerifyDepth }};
+    {{- end }}
           proxy_ssl_session_reuse on;
           proxy_ssl_server_name on;
           proxy_set_header Host {{ .Values.apiproxy.locations.kvkBasic.hostHeader }};
@@ -139,6 +151,9 @@ data:
     {{- end }}
           proxy_pass {{ .Values.apiproxy.locations.kvkBranch.targetUrl }};
           proxy_ssl_verify {{ .Values.apiproxy.locations.kvkBranch.sslVerify | default (ternary "on" "off" (not (empty .Values.apiproxy.nginxCertsSecret))) }};
+    {{- if .Values.apiproxy.locations.kvkBranch.sslVerifyDepth }}
+          proxy_ssl_verify_depth {{ .Values.apiproxy.locations.kvkBranch.sslVerifyDepth }};
+    {{- end }}
           proxy_ssl_session_reuse on;
           proxy_ssl_server_name on;
           proxy_set_header Host {{ .Values.apiproxy.locations.kvkBranch.hostHeader }};

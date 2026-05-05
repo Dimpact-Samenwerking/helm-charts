@@ -2917,11 +2917,13 @@ apiproxy:
   locations:
     commonSettings: &commonLocation
       sslVerify: ""  # Leave empty to auto-derive from nginxCertsSecret (on if set, off if not); override per-location if needed
+      sslVerifyDepth: "5"  # Leave empty to use nginx default (3); set to a number to override
       hostHeader: "lab.api.mijniconnect.nl"
     bag:
       <<: *commonLocation
       path: /lvbag/individuelebevragingen/v2/
       targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apibagib/v2/"
+      sslVerifyDepth: "5"  # Leave empty to use nginx default (3); set to a number to override
       # BAG URL rewriting in response bodies - replaces external URLs with internal proxy URLs
       urlRewrite:
         enabled: false # Set to true to enable response URL rewriting
@@ -2932,17 +2934,21 @@ apiproxy:
       <<: *commonLocation
       path: /haalcentraal/api/brp/
       targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apihcbrp/actueel/prtcl/v2/"
+      sslVerifyDepth: "5"  # Leave empty to use nginx default (3); set to a number to override
       toepassingHeaderName: "" # empty = no header is added, for iConnect use "X-Toepassing"
       toepassingDefaultValue: "ZAC"
     kvkSearch:
       <<: *commonLocation
       targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apikvk/zoeken/v2/zoeken"
+      sslVerifyDepth: "5"  # Leave empty to use nginx default (3); set to a number to override
     kvkBasic:
       <<: *commonLocation
       targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apikvk/basprof/v1/v1/basisprofielen"
+      sslVerifyDepth: "5"  # Leave empty to use nginx default (3); set to a number to override
     kvkBranch:
       <<: *commonLocation
       targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apikvk/vesprof/v1/v1/vestigingsprofielen"
+      sslVerifyDepth: "5"  # Leave empty to use nginx default (3); set to a number to override
 
 ita:
   enabled: true
