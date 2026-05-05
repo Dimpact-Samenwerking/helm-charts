@@ -3333,3 +3333,63 @@ apisix:
       # `secretName` to point at your own Secret containing `admin` + `viewer`.
       credentials:
         secretName: apisix-admin-credentials
+
+# Management Information (MI) data exports — IN-1650 / IN-1691.
+# Iter1: weekly dump-to-blob via az CLI. No SFTP, no compression, no consumer-side portal yet.
+# One unified script (modeled on Maykin's bin/dump_data.sh --csv) is used for every target;
+# each entry in mi.targets[] renders one CronJob, gated on the chart's existing
+# <component>.enabled flag — so a CronJob only renders for an app this chart is actively
+# deploying ("dump apps that are deployed and running").
+#
+# Per-target DB credentials follow the chart's existing per-app convention:
+#   - <secretName> Secret    — must contain DB_PASSWORD (plus other app secrets is fine)
+#   - <configMapName> CM     — must contain DB_HOST, DB_NAME, DB_USER (DB_PORT optional)
+# Both default to the target's `component`. Override only when the chart subchart key
+# differs from the K8s resource name (e.g. opennotificaties → notificaties resources).
+mi:
+  enabled: false
+  # Top-level path prefix under the storage container — keeps each gemeente's exports isolated.
+  gemeente: ""
+  schedule: "0 2 * * 0"
+  timeZone: "Europe/Amsterdam"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  ttlSecondsAfterFinished: 86400
+  image:
+    registry: "mcr.microsoft.com"
+    repository: azure-cli
+    tag: "2.71.0"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  nodeSelector: {}
+  storage:
+    # K8s Secret expected to contain envvars: AZURE_STORAGE_ACCOUNT, AZURE_STORAGE_KEY, AZURE_STORAGE_CONTAINER.
+    secretName: mi-export-storage
+  # Default target list — every Postgres-backed app this chart can deploy. A target only
+  # renders a CronJob when the chart's <component>.enabled is true. Per-target `enabled`
+  # is layered on top for ad-hoc opt-out. `schemas` defaults to ["public"].
+  targets:
+    - component: openzaak
+    - component: opennotificaties
+      # Chart subchart is "opennotificaties" but its K8s resources are named "notificaties".
+      secretName: notificaties
+      configMapName: notificaties
+    - component: objecten
+    - component: objecttypen
+    - component: openarchiefbeheer
+    - component: openklant
+    - component: openformulieren
+    - component: openinwoner
+    - component: referentielijsten
+    - component: openbeheer
+    - component: zac
+      schemas: ["flowable"]
+    - component: ita
+    - component: kiss
+    - component: pabc

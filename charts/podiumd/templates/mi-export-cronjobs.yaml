@@ -1,0 +1,103 @@
+{{- if .Values.mi.enabled }}
+{{- $mi := .Values.mi }}
+{{- $root := . }}
+
+{{- /*
+  One CronJob per entry in mi.targets[]. Each entry is gated on the chart's
+  existing <component>.enabled flag, so an MI export only renders for apps
+  this chart is actively deploying. Disabling a component (or its mi target)
+  removes the corresponding CronJob.
+*/}}
+{{- range $t := $mi.targets }}
+{{- $componentValues := index $root.Values $t.component | default dict }}
+{{- $componentEnabled := dig "enabled" false $componentValues }}
+{{- $targetEnabled    := dig "enabled" true  $t }}
+{{- if and $componentEnabled $targetEnabled }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: mi-export-{{ $t.component }}
+  labels:
+    {{- include "podiumd.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: mi-export
+    mi.podiumd.dimpact.nl/target: {{ $t.component | quote }}
+spec:
+  schedule: {{ $mi.schedule | quote }}
+  timeZone: {{ $mi.timeZone | quote }}
+  concurrencyPolicy: {{ $mi.concurrencyPolicy }}
+  successfulJobsHistoryLimit: {{ $mi.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ $mi.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: {{ $mi.ttlSecondsAfterFinished }}
+      backoffLimit: 0
+      template:
+        metadata:
+          labels:
+            {{- include "podiumd.labels" $root | nindent 12 }}
+            app.kubernetes.io/component: mi-export
+            mi.podiumd.dimpact.nl/target: {{ $t.component | quote }}
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          {{- with $mi.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          containers:
+            - name: dump
+              image: {{ include "podiumd.image" $mi.image }}
+              imagePullPolicy: IfNotPresent
+              resources:
+                {{- toYaml $mi.resources | nindent 16 }}
+              securityContext:
+                # iter3-todo: bake a purpose-built image (psql installed at build time),
+                # then re-enable runAsNonRoot/runAsUser:1000 and readOnlyRootFilesystem.
+                # Iter1 needs root because tdnf install on Azure Linux requires it.
+                runAsNonRoot: false
+                runAsUser: 0
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: false
+                capabilities:
+                  drop: ["ALL"]
+                seccompProfile:
+                  type: RuntimeDefault
+              env:
+                - name: MI_GEMEENTE
+                  value: {{ required "mi.gemeente is required" $mi.gemeente | quote }}
+                - name: MI_COMPONENT
+                  value: {{ $t.component | quote }}
+                - name: MI_SCHEMAS
+                  value: {{ default (list "public") $t.schemas | join " " | quote }}
+              envFrom:
+                - secretRef:
+                    name: {{ $mi.storage.secretName | quote }}
+                # The chart's per-app convention is: <component> Secret carries DB_PASSWORD
+                # (and other app secrets); <component> ConfigMap carries DB_HOST, DB_NAME,
+                # DB_USER, DB_PORT. Both default to the target's component name; override
+                # secretName/configMapName per-target only when the chart subchart key
+                # differs from the K8s resource name (e.g. opennotificaties → notificaties).
+                - secretRef:
+                    name: {{ default $t.component $t.secretName | quote }}
+                - configMapRef:
+                    name: {{ default $t.component $t.configMapName | quote }}
+              command: ["/bin/sh", "-c"]
+              args:
+                - exec /bin/bash /scripts/dump.sh
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+                  readOnly: true
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: scripts
+              configMap:
+                name: mi-export-scripts
+                defaultMode: 0555
+            - name: tmp
+              emptyDir: {}
+{{- end }}
+{{- end }}
+{{- end }}

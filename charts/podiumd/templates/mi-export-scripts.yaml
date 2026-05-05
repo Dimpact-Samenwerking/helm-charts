@@ -1,0 +1,110 @@
+{{- if .Values.mi.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mi-export-scripts
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mi-export
+data:
+  # One unified dump script, modeled on Maykin's bin/dump_data.sh --csv path
+  # (open-zaak, objects-api, etc.): enumerate pg_tables in the chosen schemas
+  # and \COPY each to STDOUT, streaming into a per-table blob upload.
+  dump.sh: |
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    : "${AZURE_STORAGE_ACCOUNT:?must be set}"
+    : "${AZURE_STORAGE_KEY:?must be set}"
+    : "${AZURE_STORAGE_CONTAINER:?must be set}"
+    : "${MI_GEMEENTE:?must be set}"
+    : "${MI_COMPONENT:?must be set}"
+    : "${DB_HOST:?must be set}"
+    : "${DB_NAME:?must be set}"
+    : "${DB_USER:?must be set}"
+    : "${DB_PASSWORD:?must be set}"
+    DB_PORT="${DB_PORT:-5432}"
+    # Whitespace-separated list, e.g. "public" or "public flowable". Default: public.
+    MI_SCHEMAS="${MI_SCHEMAS:-public}"
+
+    TS="$(date -u +%Y%m%d-%H%M%S)"
+    log() { printf '[%s] %s\n' "$(date -u -Iseconds)" "$*"; }
+
+    # iter3-todo: image is mcr.microsoft.com/azure-cli (Azure Linux) with psql
+    # installed at runtime via tdnf; bake a purpose-built image and drop this
+    # bootstrap step (and re-enable runAsNonRoot in the CronJob securityContext).
+    if ! command -v psql >/dev/null 2>&1; then
+      log "installing postgresql client"
+      tdnf install -y --quiet postgresql >/dev/null
+    fi
+
+    psql_run() {
+      PGPASSWORD="${DB_PASSWORD}" psql \
+        --host="${DB_HOST}" --port="${DB_PORT}" \
+        --username="${DB_USER}" --dbname="${DB_NAME}" \
+        --no-psqlrc --set ON_ERROR_STOP=1 "$@"
+    }
+
+    # `az storage blob upload --file /dev/stdin` does not stream — it stats the
+    # path, gets 0, and uploads an empty blob. Stage to a temp file on the
+    # /tmp emptyDir, then upload from that file. iter3-todo: switch to azcopy
+    # `--from-to PipeBlob` once we have an image with azcopy baked in, to drop
+    # the per-table disk staging.
+    upload_stdin() {
+      local blob_name="$1"
+      local tmp
+      tmp="$(mktemp /tmp/dump.XXXXXX.csv)"
+      cat > "${tmp}"
+      az storage blob upload \
+        --account-name "${AZURE_STORAGE_ACCOUNT}" \
+        --account-key  "${AZURE_STORAGE_KEY}" \
+        --container-name "${AZURE_STORAGE_CONTAINER}" \
+        --name "${blob_name}" \
+        --file "${tmp}" \
+        --overwrite \
+        --only-show-errors
+      local rc=$?
+      rm -f "${tmp}"
+      return ${rc}
+    }
+
+    list_tables() {
+      # Returns 'schema<TAB>table' lines for every base table in the requested schemas.
+      local in_clause
+      in_clause="$(printf "'%s'," ${MI_SCHEMAS})"
+      in_clause="${in_clause%,}"
+      psql_run -At -F $'\t' --command="
+        SELECT schemaname, tablename
+        FROM pg_catalog.pg_tables
+        WHERE schemaname IN (${in_clause})
+        ORDER BY schemaname, tablename
+      "
+    }
+
+    dump_one() {
+      # dump_one <schema> <table>
+      local schema="$1" table="$2" blob label
+      if [ "${schema}" = "public" ]; then label="${table}"; else label="${schema}_${table}"; fi
+      blob="${MI_GEMEENTE}/${TS}-${MI_COMPONENT}-${label}.csv"
+      log "dumping ${schema}.${table} -> ${blob}"
+      # iter3-todo: revisit gzip compression once the historical memory
+      # issue is reproduced and root-caused.
+      psql_run --command="\\COPY \"${schema}\".\"${table}\" TO STDOUT CSV HEADER" \
+        | upload_stdin "${blob}"
+    }
+
+    log "starting MI export: component=${MI_COMPONENT} schemas=${MI_SCHEMAS}"
+    rows="$(list_tables)"
+    if [ -z "${rows}" ]; then
+      log "no tables found in schemas (${MI_SCHEMAS}) of ${MI_COMPONENT} DB"
+      exit 1
+    fi
+
+    n=0
+    while IFS=$'\t' read -r schema table; do
+      [ -z "${schema}" ] && continue
+      dump_one "${schema}" "${table}"
+      n=$((n+1))
+    done <<< "${rows}"
+    log "done: ${n} table(s) exported"
+{{- end }}
