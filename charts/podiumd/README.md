@@ -160,7 +160,7 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 
 ### keycloak-operator
 
-The Keycloak Operator is deployed via the [adfinis/keycloak-operator](https://artifacthub.io/packages/helm/adfinis/keycloak-operator) Helm chart, which wraps the official upstream Keycloak Operator manifests from [keycloak/keycloak-k8s-resources](https://github.com/keycloak/keycloak-k8s-resources). It installs the `Keycloak` CRD (`k8s.keycloak.org/v2alpha1`) and reconciles `Keycloak` custom resources into running pods.
+The Keycloak Operator is deployed via the [adfinis/keycloak-operator](https://artifacthub.io/packages/helm/adfinis/keycloak-operator) Helm chart, which wraps the official upstream Keycloak Operator manifests from [keycloak/keycloak-k8s-resources](https://github.com/keycloak/keycloak-k8s-resources). It installs the `Keycloak` CRD (`k8s.keycloak.org/v2beta1`) and reconciles `Keycloak` custom resources into running pods.
 
 The deprecated Bitnami `keycloak` sub-chart (`keycloak.enabled`) is kept for rollback purposes only and will be removed in a future release. See `docs/migrating-to-keycloak-operator.md` for migration instructions.
 
