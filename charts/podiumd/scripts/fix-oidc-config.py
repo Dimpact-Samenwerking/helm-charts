@@ -6,11 +6,12 @@ Converts OIDC items from the old flat format (mozilla-django-oidc-db < ~2024)
 to the new nested options format required by PodiumD 4.6+ charts.
 
 Affected components (use new format): openzaak, opennotificaties, objecten,
-objecttypen, openklant, openformulieren.
+objecttypen, openklant, openformulieren, openarchiefbeheer (chart 2.0.0+,
+PodiumD 4.7.0+).
 
-NOT affected (still use old flat format in PodiumD 4.6): openinwoner (chart
-2.1.3), openarchiefbeheer (chart 1.5.3). The script automatically skips OIDC
-blocks nested under these component keys — they are left untouched.
+NOT affected (still use old flat format): openinwoner (chart 2.1.3). The
+script automatically skips OIDC blocks nested under this component key —
+they are left untouched.
 
 Old format (keys at item level):
   claim_mapping          (dict)  → options.user_settings.claim_mappings
@@ -76,7 +77,7 @@ except ImportError:
 
 _SKIP_COMPONENTS = frozenset({
     "openinwoner",       # chart 2.1.3 — still uses old mozilla-django-oidc-db format
-    "openarchiefbeheer", # chart 1.5.3 — still uses old mozilla-django-oidc-db format
+    # openarchiefbeheer migrated to new format in chart 2.0.0 (PodiumD 4.7.0).
 })
 
 
