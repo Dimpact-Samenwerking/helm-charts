@@ -27,7 +27,12 @@ data:
     # Whitespace-separated list, e.g. "public" or "public flowable". Default: public.
     MI_SCHEMAS="${MI_SCHEMAS:-public}"
 
+    # One timestamp captured at script start so every table from a single run
+    # lands under the same date+time path. Slicing keeps DATE_DIR and TIME_PART
+    # consistent (no second-boundary skew between separate `date` calls).
     TS="$(date -u +%Y%m%d-%H%M%S)"
+    DATE_DIR="${TS:2:6}"   # YYMMDD
+    TIME_PART="${TS:9:6}"  # HHMMSS
     log() { printf '[%s] %s\n' "$(date -u -Iseconds)" "$*"; }
 
     # iter3-todo: image is mcr.microsoft.com/azure-cli (Azure Linux) with psql
@@ -83,9 +88,12 @@ data:
 
     dump_one() {
       # dump_one <schema> <table>
+      # Blob path: <gemeente>/<YYMMDD>/<component>/<HHMMSS>-<schema>_<table>.csv
+      # (label drops the schema prefix when schema=public — same convention
+      # as before).
       local schema="$1" table="$2" blob label
       if [ "${schema}" = "public" ]; then label="${table}"; else label="${schema}_${table}"; fi
-      blob="${MI_GEMEENTE}/${TS}-${MI_COMPONENT}-${label}.csv"
+      blob="${MI_GEMEENTE}/${DATE_DIR}/${MI_COMPONENT}/${TIME_PART}-${label}.csv"
       log "dumping ${schema}.${table} -> ${blob}"
       # iter3-todo: revisit gzip compression once the historical memory
       # issue is reproduced and root-caused.
