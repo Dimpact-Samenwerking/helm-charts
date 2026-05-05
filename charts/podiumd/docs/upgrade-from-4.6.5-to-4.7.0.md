@@ -23,11 +23,63 @@
 
 1. **Quiesce Open Archiefbeheer** — ensure no destruction lists are processing or waiting for retry. The internal data structure for tracking destruction has been reworked; lists in-flight during the upgrade may end up in an inconsistent state.
 2. **Update the ACR mirror for ZAC office_converter** — `acrprodmgmt.azurecr.io/office-converter` must be updated to mirror `gotenberg/gotenberg:8.30.1` instead of `ghcr.io/eugenmayer/kontextwork-converter`. Without this, environments overriding `zac.office_converter.image.repository` will fail to pull the image.
-3. **Run the migration scripts** (see [Migration scripts](#migration-scripts)).
+3. **Apply Keycloak `v2beta1` CRDs** (see [Keycloak CRD upgrade](#keycloak-crd-upgrade-v2alpha1--v2beta1)). Required because the chart bumps the operator image to `26.6.1` while the bundled adfinis subchart `1.11.4` still ships `v2alpha1` CRDs from appVersion `26.5.6`. Operator `26.6.1` queries `v2beta1` and will `CrashLoopBackOff` until the upgraded CRDs are applied.
+4. **Run the migration scripts** (see [Migration scripts](#migration-scripts)).
 
 ### After upgrading
 
-4. **Reconfigure the destruction report settings** in the Open Archiefbeheer admin interface. The destruction report configuration page has been reworked; existing settings are not migrated automatically.
+5. **Reconfigure the destruction report settings** in the Open Archiefbeheer admin interface. The destruction report configuration page has been reworked; existing settings are not migrated automatically.
+
+---
+
+## Keycloak CRD upgrade (`v2alpha1` → `v2beta1`)
+
+The chart pins `keycloak-operator` to image `quay.io/keycloak/keycloak-operator:26.6.1` (see `values.yaml`), but the adfinis subchart `keycloak-operator-1.11.4` (appVersion `26.5.6`) ships the older `v2alpha1` CRDs. Operator `26.6.1` issues informer queries against `apis/k8s.keycloak.org/v2beta1/...` and crashes with:
+
+```
+io.javaoperatorsdk.operator.OperatorException: Couldn't start informer for keycloakrealmimports.k8s.keycloak.org/v2beta1 resources
+... Failure executing: GET at: https://10.0.0.1:443/apis/k8s.keycloak.org/v2beta1/namespaces/<ns>/keycloakrealmimports?resourceVersion=0. Message: Not Found.
+```
+
+Helm does not auto-upgrade CRDs on upgrade, so the cluster keeps the `v2alpha1`-only CRDs from the previous install. Apply the upstream `v1` CRD manifests from the Keycloak `26.6.1` release tag — they declare `v2beta1` (served + storage) **and** keep `v2alpha1` served (deprecated) so existing CRs remain readable.
+
+### Apply procedure
+
+Use the helper script (`charts/podiumd/scripts/install-keycloak-operator-crds.sh`). It defaults to the upstream Keycloak `v1` CRD manifests at the right Keycloak version and applies them server-side:
+
+```bash
+CTX=<your-aks-context>
+NS=<keycloak-namespace>      # e.g. podiumd
+
+# 1. Snapshot existing CRs (rollback insurance)
+kubectl --context "$CTX" -n "$NS" get keycloak,keycloakrealmimport -o yaml > /tmp/kc-backup-$(date +%s).yml
+
+# 2. Install upstream 26.6.1 CRDs (adds v2beta1, keeps v2alpha1 deprecated/served)
+charts/podiumd/scripts/install-keycloak-operator-crds.sh \
+  --context "$CTX" --keycloak-version 26.6.1
+
+# 3. Restart the operator so it re-establishes informers
+kubectl --context "$CTX" -n "$NS" rollout restart deploy keycloak-operator
+
+# 4. Migrate stored CRs to v2beta1 storage version (read + re-apply triggers re-serialization)
+kubectl --context "$CTX" -n "$NS" get keycloak,keycloakrealmimport -o yaml \
+  | kubectl --context "$CTX" apply -f -
+```
+
+The script accepts `--dry-run` to inspect the CRD YAML, `--keycloak-version` to pin to a specific Keycloak release, and `--source chart --chart-version 1.11.4` to fall back to the adfinis subchart CRDs (legacy path — ships `v2alpha1` only and does not solve the 4.7.0 issue; included for parity with older PodiumD installs).
+
+### Why this is safe
+
+- Upstream 26.6.1 CRDs declare both versions:
+  - `v2beta1`: `served: true`, `storage: true`
+  - `v2alpha1`: `served: true`, `storage: false`, `deprecated: true`, `deprecationWarning: "Please migrate to v2beta1"`
+- No conversion webhook → default `None` strategy, fields pass through by name.
+- Schema is additive between 26.5.x and 26.6.x — no removed/renamed required fields.
+- The Keycloak `StatefulSet` keeps running while the operator restarts; only reconciliation is paused.
+
+### Long-term fix
+
+Bump the adfinis `keycloak-operator` subchart in `Chart.yaml` to a release whose appVersion ≥ 26.6 and which ships `v2beta1` CRDs in its `crds/` directory. Until that lands, the manual `kubectl apply` above is required on every cluster running PodiumD 4.7.0.
 
 ---
 
@@ -355,7 +407,7 @@ openarchiefbeheer:
 
 ### Keycloak 26.6.1 (adfinis helm chart 1.11.4)
 
-No required manual steps for a standard PodiumD deployment upgrading from 26.5.7.
+⚠️ Requires the [Keycloak CRD upgrade](#keycloak-crd-upgrade-v2alpha1--v2beta1) before upgrading the chart. The adfinis subchart `1.11.4` still bundles `v2alpha1` CRDs from appVersion `26.5.6`, but the operator image is overridden to `26.6.1` which queries `v2beta1`.
 
 #### Security fixes
 
