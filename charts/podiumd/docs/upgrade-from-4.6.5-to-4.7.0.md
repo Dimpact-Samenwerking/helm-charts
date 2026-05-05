@@ -34,14 +34,7 @@
 
 ## Keycloak CRD upgrade (`v2alpha1` → `v2beta1`)
 
-The chart pins `keycloak-operator` to image `quay.io/keycloak/keycloak-operator:26.6.1` (see `values.yaml`), but the adfinis subchart `keycloak-operator-1.11.4` (appVersion `26.5.6`) ships the older `v2alpha1` CRDs. Operator `26.6.1` issues informer queries against `apis/k8s.keycloak.org/v2beta1/...` and crashes with:
-
-```
-io.javaoperatorsdk.operator.OperatorException: Couldn't start informer for keycloakrealmimports.k8s.keycloak.org/v2beta1 resources
-... Failure executing: GET at: https://10.0.0.1:443/apis/k8s.keycloak.org/v2beta1/namespaces/<ns>/keycloakrealmimports?resourceVersion=0. Message: Not Found.
-```
-
-Helm does not auto-upgrade CRDs on upgrade, so the cluster keeps the `v2alpha1`-only CRDs from the previous install. Apply the upstream `v1` CRD manifests from the Keycloak `26.6.1` release tag — they declare `v2beta1` (served + storage) **and** keep `v2alpha1` served (deprecated) so existing CRs remain readable.
+The chart pins `keycloak-operator` to image `quay.io/keycloak/keycloak-operator:26.6.1` (see `values.yaml`), but the adfinis subchart `keycloak-operator-1.11.4` (appVersion `26.5.6`) ships the older `v2alpha1` CRDs. Operator `26.6.1` issues informer queries against `apis/k8s.keycloak.org/v2beta1/...`.
 
 ### Apply procedure
 
@@ -66,9 +59,7 @@ kubectl --context "$CTX" -n "$NS" get keycloak,keycloakrealmimport -o yaml \
   | kubectl --context "$CTX" apply -f -
 ```
 
-The script accepts `--dry-run` to inspect the CRD YAML, `--keycloak-version` to pin to a specific Keycloak release, and `--source chart --chart-version 1.11.4` to fall back to the adfinis subchart CRDs (legacy path — ships `v2alpha1` only and does not solve the 4.7.0 issue; included for parity with older PodiumD installs).
-
-### Why this is safe
+The script accepts `--dry-run` to inspect the CRD YAML, `--keycloak-version` to pin to a specific Keycloak release, and `--source chart --chart-version 1.11.4` to fall back to the adfinis subchart CRDs
 
 - Upstream 26.6.1 CRDs declare both versions:
   - `v2beta1`: `served: true`, `storage: true`
@@ -76,10 +67,6 @@ The script accepts `--dry-run` to inspect the CRD YAML, `--keycloak-version` to 
 - No conversion webhook → default `None` strategy, fields pass through by name.
 - Schema is additive between 26.5.x and 26.6.x — no removed/renamed required fields.
 - The Keycloak `StatefulSet` keeps running while the operator restarts; only reconciliation is paused.
-
-### Long-term fix
-
-Bump the adfinis `keycloak-operator` subchart in `Chart.yaml` to a release whose appVersion ≥ 26.6 and which ships `v2beta1` CRDs in its `crds/` directory. Until that lands, the manual `kubectl apply` above is required on every cluster running PodiumD 4.7.0.
 
 ---
 
