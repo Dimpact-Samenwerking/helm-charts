@@ -2913,6 +2913,8 @@ apiproxy:
   # -- Maximum length of the upstream server certificate chain validated by nginx
   # (`proxy_ssl_verify_depth`). Government API gateways occasionally chain through
   # cross-signed intermediates; the nginx default of 1 is too shallow.
+  # Per-location overrides: set `apiproxy.locations.<loc>.sslVerifyDepth` to override
+  # this global value for a single upstream (e.g. bag, brp, kvkSearch).
   sslVerifyDepth: 6
   livenessProbe:
     initialDelaySeconds: 5
