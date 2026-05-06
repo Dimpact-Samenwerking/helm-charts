@@ -33,10 +33,20 @@ kubectl --context "$CTX" -n podiumd get secret api-proxy-certs --ignore-not-foun
 
 If `apiproxy.enabled` is `false` (most non-DIMP gemeentes), no action is needed.
 
-### `apiproxy.sslVerifyDepth` consolidated to a single global value
+### `apiproxy.sslVerifyDepth` — global default with per-location overrides
 
-The earlier 4.6.6 work introduced per-location `sslVerifyDepth` (`apiproxy.locations.bag.sslVerifyDepth`, `…brp.sslVerifyDepth`, etc.) defaulting to `"5"`. That has been simplified: a single global `apiproxy.sslVerifyDepth` (default `6`) renders `proxy_ssl_verify_depth` for every upstream location. Per-location entries in `values.yaml` have been removed.
+The earlier 4.6.6 work introduced per-location `sslVerifyDepth` (`apiproxy.locations.bag.sslVerifyDepth`, `…brp.sslVerifyDepth`, etc.) defaulting to `"5"`. That has been reworked: there is now a single global default at `apiproxy.sslVerifyDepth` (default `6`), and per-location overrides are still supported but no longer required:
 
-If a gemeente values file overrides `sslVerifyDepth` under one of the location keys, move the override to the top-level `apiproxy.sslVerifyDepth` instead. nginx ignores `proxy_ssl_verify_depth` when `proxy_ssl_verify` is `off`, so this only affects environments that do mount mTLS certs.
+```yaml
+apiproxy:
+  sslVerifyDepth: 6              # global default
+  locations:
+    bag:
+      sslVerifyDepth: 10         # override only for BAG
+    brp:
+      sslVerifyDepth: 4          # override only for BRP
+```
+
+Resolution order per upstream: location override → global → chart default of `6`. The dead per-location `sslVerifyDepth: "5"` lines that the earlier commit left in `values.yaml` have been removed. nginx ignores `proxy_ssl_verify_depth` when `proxy_ssl_verify` is `off`, so this only affects environments that do mount mTLS certs.
 
 The depth bump from nginx's default of `1` to `6` matters for cross-signed government API chains (BAG/BRP/KVK gateways occasionally chain through extra intermediates). No action required if you don't need a different depth.
