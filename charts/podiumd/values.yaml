@@ -2566,7 +2566,7 @@ zac:
   global:
     curlImage:
       #repository: curlimages/curl
-      tag: 8.19.0
+      tag: 8.19.0@sha256:d94d07ba9e7d6de898b6d96c1a072f6f8266c687af78a74f380087a0addf5d17
   # ghcr.io/infonl/zaakafhandelcomponent:4.7.0
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
@@ -3224,6 +3224,11 @@ apisix:
   ingress-controller:
     enabled: false
 
+  # Disable the bundled etcd subchart — standalone (YAML-driven) mode below
+  # makes Helm values the single source of truth. Saves ~3 etcd pods.
+  etcd:
+    enabled: false
+
   # Gateway (data plane) service. ClusterIP only — APISIX is consumed
   # by PodiumD pods for outbound API calls, not exposed outside.
   # externalTrafficPolicy is invalid on non-LoadBalancer/NodePort services;
@@ -3232,50 +3237,64 @@ apisix:
     type: ClusterIP
     externalTrafficPolicy: ""
 
-  # Admin API + embedded Dashboard UI (served at :9180/ui/).
-  # Harden the defaults here so enabling APISIX does not inherit the
-  # upstream public admin/viewer credentials or expose the embedded UI.
-  admin:
-    # Keep the embedded Admin UI off by default. It may only be enabled
-    # intentionally after an authenticating reverse proxy is placed in
-    # front of it and Secret-backed admin credentials are provisioned.
-    enable_admin_ui: false
-    type: ClusterIP
+  # Inject the Keycloak client secret as $env://OIDC_CLIENT_SECRET, referenced
+  # by the openid-connect plugin in the standalone config below. `optional:
+  # true` keeps the pod starting if the Secret is absent — the OIDC route then
+  # returns 502 until provisioned.
+  extraEnvVars:
+    - name: OIDC_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: apisix-oidc-client-secret
+          key: clientSecret
+          optional: true
 
-    # Require Secret-backed admin credentials instead of falling back to
-    # the upstream well-known default keys (`edd1c9...` / `4054f7...`).
-    # Create this Secret before setting `apisix.enabled=true`.
-    credentials:
-      secretName: apisix-admin-credentials
+  # ---------------------------------------------------------------------------
+  # IMPORTANT: in the upstream apisix chart 2.14.0, settings under `admin:`,
+  # `deployment:`, `router:`, etc. live under a NESTED `apisix:` key — the
+  # subchart's own self-namespace. The umbrella path is therefore
+  # `apisix.apisix.admin.*` (not `apisix.admin.*`).
+  # ---------------------------------------------------------------------------
+  apisix:
+    # Switch to standalone (YAML-driven) mode. Eliminates the etcd dependency
+    # and makes Helm values the single source of truth (kills dashboard-driven
+    # config drift — UI changes won't persist across pod restarts).
+    deployment:
+      mode: standalone
+      standalone:
+        # OIDC-protected dashboard route + placeholder for egress routes.
+        # To disable OIDC entirely (e.g. ephemeral dev), set this to `routes: []`.
+        # See charts/podiumd/docs/apisix-egress-gateway.md for the full setup.
+        config: |
+          routes:
+            - id: apisix-dashboard-oidc
+              uri: /ui/*
+              upstream:
+                type: roundrobin
+                nodes:
+                  "127.0.0.1:9180": 1
+              plugins:
+                openid-connect:
+                  client_id: "apisix-dashboard"
+                  client_secret: "$env://OIDC_CLIENT_SECRET"
+                  # OVERRIDE per environment — your in-cluster Keycloak realm.
+                  discovery: "https://keycloak.example.invalid/realms/podiumd/.well-known/openid-configuration"
+                  scope: "openid profile email"
+                  bearer_only: false
+                  realm: "podiumd"
+                  introspection_endpoint_auth_method: "client_secret_basic"
+                  ssl_verify: true
 
-    # By default the upstream chart restricts admin/UI access to the
-    # 127.0.0.1/24 CIDR — i.e. only reachable from inside the pod.
-    # Once the OAuth2 reverse proxy (see TODO below) is in place,
-    # widen this to the cluster pod CIDR so the proxy can reach the
-    # admin port. Keep it as narrow as possible.
-    # allow:
-    #   ipList:
-    #     - 127.0.0.1/24
-
-  # TODO(IN-1866): once APISIX is shown to be working end-to-end,
-  # front the embedded Dashboard / Admin API with an authenticating
-  # reverse proxy (oauth2-proxy + Keycloak, or equivalent) so that
-  # operator access is gated by the same Azure Key Vault-backed
-  # identity provider used elsewhere in PodiumD. The embedded UI
-  # has no built-in auth beyond the Admin API key, so it MUST NOT
-  # be exposed via ingress without a proxy in front.
-
-  # Place egress route / upstream / plugin configuration below.
-  # Refer to the standalone-mode docs for the schema:
-  #   https://apisix.apache.org/docs/apisix/deployment-modes/#standalone
-  # Example skeleton (uncomment and adapt):
-  #
-  # apisix:
-  #   deployment:
-  #     role: traditional
-  #     role_traditional:
-  #       config_provider: yaml
-  # apisixYaml:
-  #   routes: []
-  #   upstreams: []
-  #   #END
+    # Admin API + embedded Dashboard UI (served at :9180/ui/). Operator access
+    # is gated by the OIDC route above — direct :9180/ui/ access is restricted
+    # by the upstream chart's `allow.ipList` default (127.0.0.1/24, in-pod only).
+    admin:
+      enable_admin_ui: true
+      type: ClusterIP
+      # Random 32-char admin/viewer keys are auto-generated by the umbrella
+      # chart via templates/apisix-admin-credentials.yaml — replacing the
+      # upstream public default keys (`edd1c9f0…` / `4054f7cf…`). Stable across
+      # upgrades via lookup. To use Azure Key Vault via CSI driver, override
+      # `secretName` to point at your own Secret containing `admin` + `viewer`.
+      credentials:
+        secretName: apisix-admin-credentials

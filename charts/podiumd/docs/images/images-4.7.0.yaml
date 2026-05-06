@@ -81,3 +81,9 @@
   url: ghcr.io/infonl/zgw-office-add-in-backend
   version: "v0.9.289"
   digest: "sha256:9064278149ebe1f5ddd4efb526c1f68219d29b9245093d5cf63fe77bed3362d2"
+
+# APISIX (egress API gateway, opt-in via apisix.enabled=true — IN-1867)
+- name: apisix
+  url: docker.io/apache/apisix
+  version: "3.16.0-ubuntu"
+  digest: "sha256:4aea6a83301997ff87eea8ad4aa2e39064e74f5b4fcfa9109b88b5323b492f62"

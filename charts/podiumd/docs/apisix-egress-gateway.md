@@ -64,69 +64,130 @@ Source of truth: [`apache/apisix` 3.16.0 dashboard docs](https://github.com/apac
 
 > "APISIX has a built-in Dashboard UI that is enabled by default, allowing users to easily configure routes, plugins, upstream services, and more through a graphical interface."
 
-### Default credentials — must be overridden before production
+### Admin API credentials — auto-generated, no public defaults
 
-The upstream chart ships well-known public defaults for the Admin API keys:
+The upstream chart ships well-known public defaults for the Admin API keys (`edd1c9f0…` / `4054f7cf…`) which let anyone with network access perform full CRUD on the gateway. The umbrella chart **replaces these on first install** with random 32-character values:
 
-| Role   | Default key                          |
-|--------|--------------------------------------|
-| admin  | `edd1c9f034335f136f87ad84b625c8f1`   |
-| viewer | `4054f7cf07e344346cd3f287985e76a2`   |
+- `charts/podiumd/templates/apisix-admin-credentials.yaml` renders a Secret named `apisix-admin-credentials` with keys `admin` and `viewer`, generated via `randAlphaNum 32`.
+- `lookup` keeps the values stable across upgrades.
+- `values.yaml` already wires `apisix.admin.credentials.secretName: apisix-admin-credentials`, so the upstream chart picks them up.
 
-These keys are **publicly documented** by APISIX and let anyone with network access perform full CRUD on the gateway. The chart supports pulling both keys from a Kubernetes Secret instead:
+To use Azure Key Vault via the CSI driver instead of the auto-generated Secret, override `apisix.admin.credentials.secretName` to point at your own Secret containing the same `admin` and `viewer` keys. The umbrella template skips rendering when the default name is overridden.
+
+### OIDC-protected dashboard access
+
+Operator access to the embedded Admin Dashboard is gated by Keycloak via the [APISIX `openid-connect` plugin](https://apisix.apache.org/docs/apisix/plugins/openid-connect/). The route is shipped in `values.yaml` under `apisix.apisix.deployment.standalone.config` and proxies `/ui/*` on the data-plane port (80) to `127.0.0.1:9180/ui/`. Direct access to `:9180/ui/` is in-pod only (`allow.ipList` defaults to `127.0.0.1/24`).
+
+> **Note on nesting:** the upstream `apisix/apisix` chart 2.14.0 namespaces its own settings under a top-level `apisix:` key (`admin`, `deployment`, `router`, …). The umbrella path is therefore `apisix.apisix.<key>` — top-level settings like `service`, `extraEnvVars`, `etcd` are at `apisix.<key>`.
+
+#### Tenant setup
+
+1. **Create a Keycloak client** in your realm:
+
+   | Setting              | Value |
+   |----------------------|-------|
+   | Client ID            | `apisix-dashboard` |
+   | Access Type          | `confidential` |
+   | Standard Flow        | enabled |
+   | Valid Redirect URIs  | `http://apisix-gateway.<namespace>.svc/ui/*` |
+   | Web Origins          | `+` |
+
+2. **Create the client-secret Secret** in the same namespace as the apisix release:
+
+   ```shell
+   kubectl -n <namespace> create secret generic apisix-oidc-client-secret \
+     --from-literal=clientSecret='<client-secret-from-keycloak>'
+   ```
+
+   Or, recommended, sync it from Azure Key Vault using the existing CSI driver pattern.
+
+3. **Set the realm discovery URL** in your tenant `podiumd.yml`. Because `apisix.apisix.deployment.standalone.config` is a YAML-string field, override the whole block:
+
+   ```yaml
+   apisix:
+     enabled: true
+     apisix:
+       deployment:
+         mode: standalone
+         standalone:
+           config: |
+             routes:
+               - id: apisix-dashboard-oidc
+                 uri: /ui/*
+                 upstream:
+                   type: roundrobin
+                   nodes:
+                     "127.0.0.1:9180": 1
+                 plugins:
+                   openid-connect:
+                     client_id: "apisix-dashboard"
+                     client_secret: "$env://OIDC_CLIENT_SECRET"
+                     discovery: "https://<your-keycloak>/realms/podiumd/.well-known/openid-configuration"
+                     scope: "openid profile email"
+                     bearer_only: false
+                     realm: "podiumd"
+                     introspection_endpoint_auth_method: "client_secret_basic"
+                     ssl_verify: true
+   ```
+
+   The `client_secret: "$env://OIDC_CLIENT_SECRET"` reference is resolved at runtime by APISIX 3.x from the env var injected via `apisix.extraEnvVars` — never embed the literal secret in values.
+
+#### Disabling OIDC
+
+To remove the OIDC route entirely (e.g. ephemeral dev clusters where port-forward is sufficient), override `apisix.apisix.deployment.standalone.config` with an empty rule set:
 
 ```yaml
 apisix:
-  admin:
-    credentials:
-      secretName: apisix-admin-credentials
+  apisix:
+    deployment:
+      standalone:
+        config: |
+          routes: []
 ```
 
-The Secret must contain keys `admin` and `viewer`.
-
-### Open TODOs (tracked under IN-1866)
-
-1. **Validate APISIX end-to-end** with the embedded Dashboard reachable from inside the cluster (port-forward + login with the default keys). Confirms the chart wiring is correct before any auth work begins.
-2. **Replace the default Admin API keys** with values backed by Azure Key Vault, exposed via the existing CSI driver pattern as a Kubernetes Secret named `apisix-admin-credentials`. Wire `apisix.admin.credentials.secretName` to that Secret.
-3. **Front the Admin API + Dashboard with an authenticating reverse proxy** — the embedded UI has no built-in user auth beyond the Admin API key. Recommended: oauth2-proxy + Keycloak (already deployed in PodiumD via the Keycloak operator) so operator login is gated by the same identity provider used elsewhere. Do **not** expose the Admin service via an Ingress without this proxy.
-4. Once the proxy is in place, **widen `apisix.admin.allow.ipList`** to the cluster pod CIDR so the proxy pod can reach the admin port — keep it as narrow as possible.
-
-### Access control summary
-
-The Admin API + Dashboard service is `ClusterIP` and (until the TODOs above land) only reachable from inside the APISIX pod itself, because the upstream chart's default `allow.ipList` is `127.0.0.1/24`. To validate the GUI in the meantime, use:
+The dashboard is then reachable only via:
 
 ```shell
 kubectl -n <namespace> port-forward svc/apisix-admin 9180:9180
 # then open http://localhost:9180/ui/
 ```
 
+### Access control summary
+
+| Surface | Reachability | Auth |
+|---------|--------------|------|
+| `apisix-admin:9180/ui/` (direct) | In-pod only (`allow.ipList: 127.0.0.1/24`) | Admin API key (auto-generated) |
+| `apisix-gateway:80/ui/` (data plane) | Cluster-wide ClusterIP | Keycloak OIDC (when `apisix-oidc-client-secret` is provisioned) |
+| `apisix-gateway:80/<egress-route>` | Cluster-wide ClusterIP | Per-route plugins (see "Configuring egress routes") |
+
 ## Configuring egress routes
 
-Route, upstream, and plugin configuration belongs under `apisix.apisixYaml`. The schema is the upstream APISIX standalone-mode schema — see the [APISIX standalone deployment docs](https://apisix.apache.org/docs/apisix/deployment-modes/#standalone) for the authoritative reference.
+Route, upstream, and plugin configuration belongs in the YAML string at `apisix.apisix.deployment.standalone.config`. The schema is the upstream APISIX standalone-mode schema — see the [APISIX standalone deployment docs](https://apisix.apache.org/docs/apisix/deployment-modes/#standalone) for the authoritative reference.
 
-A minimal egress-route example (sketch — adapt to your upstream API and plugins):
+A minimal egress-route example (sketch — adapt to your upstream API and plugins). Add to the same `routes:` list as the OIDC dashboard route:
 
 ```yaml
 apisix:
   enabled: true
   apisix:
     deployment:
-      role: traditional
-      role_traditional:
-        config_provider: yaml
-  apisixYaml:
-    upstreams:
-      - id: brp-haalcentraal
-        scheme: https
-        pass_host: node
-        nodes:
-          "lab.api.mijniconnect.nl:443": 1
-    routes:
-      - uri: /haalcentraal/api/brp/*
-        upstream_id: brp-haalcentraal
-        plugins:
-          prometheus: {}
-    #END
+      mode: standalone
+      standalone:
+        config: |
+          routes:
+            - id: apisix-dashboard-oidc
+              # …OIDC route from the section above…
+            - id: brp-egress
+              uri: /haalcentraal/api/brp/*
+              upstream_id: brp-haalcentraal
+              plugins:
+                prometheus: {}
+          upstreams:
+            - id: brp-haalcentraal
+              scheme: https
+              pass_host: node
+              nodes:
+                "lab.api.mijniconnect.nl:443": 1
 ```
 
 PodiumD apps that need to reach `https://lab.api.mijniconnect.nl/haalcentraal/api/brp/...` would then point their outbound base URL at `http://apisix.<namespace>.svc.cluster.local/haalcentraal/api/brp/...`.
