@@ -735,7 +735,8 @@ The deprecated Bitnami `keycloak` sub-chart (`keycloak.enabled`) is kept for rol
 | apiproxy.resources.limits.memory             | Memory resource limit                      | `"256Mi"`                                                                           |
 | apiproxy.resources.requests.cpu              | CPU resource request                       | `"0.1"`                                                                             |
 | apiproxy.resources.requests.memory           | Memory resource request                    | `"128Mi"`                                                                           |
-| apiproxy.nginxCertsSecret                    | Secret containing NGINX certificates       | `"podiumd-proxy-certs"`                                                             |
+| apiproxy.nginxCertsSecret                    | Secret containing NGINX certificates (empty disables mTLS) | `""`                                                                                |
+| apiproxy.sslVerifyDepth                      | Max upstream TLS chain depth (`proxy_ssl_verify_depth`) | `6`                                                                                 |
 | apiproxy.livenessProbe.initialDelaySeconds   | Initial delay for liveness probe           | `5`                                                                                 |
 | apiproxy.livenessProbe.periodSeconds         | Period between liveness probe checks       | `10`                                                                                |
 | apiproxy.readinessProbe.initialDelaySeconds  | Initial delay for readiness probe          | `5`                                                                                 |

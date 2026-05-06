@@ -2906,7 +2906,14 @@ apiproxy:
     requests:
       cpu: "0.1"
       memory: "128Mi"
-  nginxCertsSecret: "api-proxy-certs"
+  # -- Secret containing client certificate (`client.crt`/`client.key`) and CA bundle (`ca.crt`)
+  # for upstream mTLS. Leave empty to disable mTLS and skip the cert volume mount.
+  # When set, `sslVerify` auto-derives to "on"; when empty it auto-derives to "off".
+  nginxCertsSecret: ""
+  # -- Maximum length of the upstream server certificate chain validated by nginx
+  # (`proxy_ssl_verify_depth`). Government API gateways occasionally chain through
+  # cross-signed intermediates; the nginx default of 1 is too shallow.
+  sslVerifyDepth: 6
   livenessProbe:
     initialDelaySeconds: 5
     periodSeconds: 10
