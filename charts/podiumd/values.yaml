@@ -3261,8 +3261,16 @@ apisix:
     # templates/apisix-standalone-config.yaml) so the Keycloak discovery URL,
     # realm, and namespace-scoped redirect URIs are derived from values
     # already on the chart — no per-tenant override of the apisix YAML needed.
+    #
+    # `mode: standalone` is the high-level toggle but the upstream chart's
+    # configmap template renders the runtime config from
+    # `role_traditional.config_provider`. Both must be set to "yaml" /
+    # "standalone" for the apisix pod to bypass etcd at start.
     deployment:
       mode: standalone
+      role: traditional
+      role_traditional:
+        config_provider: yaml
       standalone:
         existingConfigMap: apisix-standalone-config
 
