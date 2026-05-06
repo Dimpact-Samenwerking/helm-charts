@@ -59,7 +59,7 @@ openbeheer:
       master: "1"            # <-- adds UWSGI_MASTER=1 → uwsgi runs with --master
       processes: "2"
       threads: "2"
-      maxRequests: "50000"   # was 1000 — pure defense-in-depth
+      maxRequests: "1000"    # matches the other Django apps (openzaak, openklant, …)
 ```
 
 The openbeheer subchart's configmap template already has support for `master`:
@@ -71,9 +71,7 @@ UWSGI_MASTER: "1"
 {{- end }}
 ```
 
-uWSGI converts the `UWSGI_MASTER=1` env var into the `--master` flag at startup. With `--master`, the master process owns the workers and respawns any that exit (max-requests, harakiri, signal). The container no longer cycles.
-
-`maxRequests` is bumped from 1000 to 50000 as belt-and-suspenders — even with `--master` working correctly, recycling 2 workers every ~80 min is wasteful for a low-traffic dev component. 50000 means a worker cycles roughly every 35 hours of probe-only traffic.
+uWSGI converts the `UWSGI_MASTER=1` env var into the `--master` flag at startup. With `--master`, the master process owns the workers and respawns any that exit (max-requests, harakiri, signal). The container no longer cycles, and `maxRequests=1000` becomes a healthy in-place worker recycle (matching `openzaak`, `openklant`, etc.) rather than a container-restart trigger.
 
 ### Verifying on a cluster
 

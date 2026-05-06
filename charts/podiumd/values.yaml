@@ -2211,10 +2211,7 @@ openbeheer:
       master: "1"
       processes: "2"
       threads: "2"
-      # Probes alone hit ~24 req/min; with maxRequests=1000 each worker cycles
-      # ~every 40 min. Bumped to 50000 so worker recycling is rare and never
-      # racing kubelet liveness probes.
-      maxRequests: "50000"
+      maxRequests: "1000"
     throttling:
       enable: true
       rateAnonymous: "2500/hour"
