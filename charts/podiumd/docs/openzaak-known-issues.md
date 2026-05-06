@@ -1,8 +1,10 @@
-# OpenZaak startup failure: duplicate key on `admin_index_appgroup.slug`
+# Open Zaak — known issues and configuration traps
 
-## Symptom
+## 1. Startup failure: duplicate key on `admin_index_appgroup.slug`
 
-After upgrading to PodiumD 4.6.2, `openzaak` pods fail to become ready. The pod starts but never passes its readiness probe. Checking the application logs reveals:
+### Symptom
+
+After upgrading to PodiumD 4.6.2, `openzaak` pods fail to become ready. The pod starts but never passes its readiness probe. Application logs show:
 
 ```
 django.db.utils.IntegrityError: duplicate key value violates unique constraint "admin_index_appgroup_slug_key"
@@ -11,7 +13,7 @@ DETAIL:  Key (slug)=(accounts) already exists.
 
 The error occurs during pod startup, inside a Django `post_migrate` signal handler.
 
-## Root cause
+### Root cause
 
 `openzaak/utils/apps.py` connects the `update_admin_index` function to Django's `post_migrate` signal:
 
@@ -33,12 +35,12 @@ With **psycopg3**, `AppGroup.objects.all().delete()` and the subsequent `loaddat
 
 This is a pre-existing image-level bug in openzaak that was exposed by the psycopg3 migration. The proper fix is to wrap the handler in `transaction.atomic()`.
 
-## Affected versions
+### Affected versions
 
 - PodiumD 4.6.2 (openzaak image as shipped)
 - Only manifests on fresh pod starts (rolling restarts, upgrades) when `post_migrate` fires
 
-## Workaround (applied during 4.6.2 rollout on aks-blue-ontw-dim1)
+### Workaround (applied during 4.6.2 rollout on aks-blue-ontw-dim1)
 
 Delete the existing `AppGroup` rows via the Django management shell before the next pod restart, so the `loaddata` call finds an empty table and can insert cleanly:
 
@@ -56,7 +58,7 @@ kubectl rollout restart -n podiumd --context <cluster> deploy/openzaak
 
 > **Note on path doubling:** On Windows with Git Bash, paths like `/bin/bash` are mangled by MSYS. Use `//bin//bash` to prevent this when running `kubectl exec` from a Windows shell.
 
-## Proper fix
+### Proper fix
 
 Wrap `update_admin_index` in `transaction.atomic()` in the openzaak image:
 
@@ -72,9 +74,13 @@ def update_admin_index(sender, **kwargs):
 
 This ensures the delete and the fixture load are atomic and the unique constraint is never violated.
 
-## Related cascade failures
+### Related cascade failures
 
 When openzaak pods are not ready, the following components also fail their health checks and become unavailable:
 
 - `zac` — `OpenZaakReadinessHealthCheck DOWN` (ZAC polls openzaak on startup)
 - Any component that validates its openzaak connection during readiness probing
+
+### See also
+
+- [`openzaak-db-connection-pooling.md`](openzaak-db-connection-pooling.md) — separate proposal for uWSGI tuning + experimental psycopg3 connection pooling.

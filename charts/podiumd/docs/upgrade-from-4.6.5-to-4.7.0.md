@@ -201,7 +201,6 @@ openarchiefbeheer:
             oidc_rp_client_secret: "REP_OPENARCHIEFBEHEER_OIDC_SECRET_REP"
             oidc_rp_sign_algo: RS256
             oidc_provider_identifier: admin-oidc-provider
-            oidc_use_pkce: false
             options:
               user_settings:
                 claim_mappings:
@@ -215,6 +214,10 @@ openarchiefbeheer:
                   - groups
                 make_users_staff: true
 ```
+
+> **Note on PKCE.** OAB 2.0.0 ships with `mozilla-django-oidc-db 1.1.1`, whose `setup_configuration` schema does NOT accept `oidc_use_pkce` at item or provider level (`extra_forbidden` validation error from pydantic). Do not add this field for OAB. The `keycloak-podiumd-realm-config.yaml` PKCE consistency check does not apply to OAB; `openarchiefbeheer.configuration.pkceEnabled` is a no-op for 4.7.0. If PKCE for the OAB OIDC client is ever required, toggle it via the Django admin UI or directly on the underlying `OIDCClient` DB row. Earlier versions of `migrate-openarchiefbeheer-2.0.0.py` injected `oidc_use_pkce: false` here; re-running the current script removes it.
+
+If a previous (buggy) run of the migration script left `oidc_use_pkce: false` in your `openarchiefbeheer.configuration.data`, remove the line manually or re-run the migration script — the current version explicitly strips the field via `yq del`.
 
 ---
 

@@ -98,7 +98,14 @@ def transform_data_file(data_file):
         '.oidc_db_config_admin_auth.items[0].oidc_provider_identifier = "admin-oidc-provider"',
         data_file,
     )
-    yq_set(".oidc_db_config_admin_auth.items[0].oidc_use_pkce = false", data_file)
+    # OAB 2.0.0 ships mozilla-django-oidc-db 1.1.1, whose setup_configuration
+    # schema does not accept oidc_use_pkce at item or provider level
+    # (extra_forbidden). Strip any stale entry from a previous buggy migration
+    # run; do not add it.
+    yq_set(
+        "del(.oidc_db_config_admin_auth.items[].oidc_use_pkce)",
+        data_file,
+    )
 
     # Build options from old claim fields (must happen before deletes)
     yq_set(
