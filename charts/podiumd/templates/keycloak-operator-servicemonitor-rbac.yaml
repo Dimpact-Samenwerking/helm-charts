@@ -62,11 +62,18 @@ subjects:
   - kind: ServiceAccount
     name: {{ $saName }}
     namespace: {{ .Release.Namespace }}
-{{- if $kcOp.enableServiceMonitor }}
+{{- if or $kcOp.enableServiceMonitor (.Capabilities.APIVersions.Has "monitoring.coreos.com/v1/ServiceMonitor") }}
 ---
 # Namespace-scoped write access — allows the operator to create and manage
 # the Keycloak ServiceMonitor in the release namespace when the CRD is present.
-# Only rendered when keycloak-operator.enableServiceMonitor: true.
+#
+# Rendered when EITHER the user explicitly enables it via
+# keycloak-operator.enableServiceMonitor: true, OR the cluster already has
+# the monitoring.coreos.com/v1/ServiceMonitor CRD installed. The latter is
+# necessary because the Keycloak Operator's KeycloakServiceMonitorDependentResource
+# controller reconciles a ServiceMonitor whenever the CRD is present, regardless
+# of chart values; without write RBAC for the `keycloak` SA, the PATCH gets a
+# 403 and the Keycloak CR stays InProgress, blocking the entire deploy.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
