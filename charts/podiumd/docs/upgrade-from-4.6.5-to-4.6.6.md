@@ -50,3 +50,28 @@ apiproxy:
 Resolution order per upstream: location override → global → chart default of `6`. The dead per-location `sslVerifyDepth: "5"` lines that the earlier commit left in `values.yaml` have been removed. nginx ignores `proxy_ssl_verify_depth` when `proxy_ssl_verify` is `off`, so this only affects environments that do mount mTLS certs.
 
 The depth bump from nginx's default of `1` to `6` matters for cross-signed government API chains (BAG/BRP/KVK gateways occasionally chain through extra intermediates). No action required if you don't need a different depth.
+
+### `create-required-*` jobs — longer retry window
+
+The post-install seeding jobs (`create-required-catalogi`, `create-required-objecttypen`) had aggressive defaults that occasionally tripped on slow first-boot scenarios where openzaak/objecttypen took longer than expected to come up. Defaults bumped:
+
+| Field | Before | After |
+|---|---|---|
+| `activeDeadlineSeconds` | `300` (5 min) | `900` (15 min) |
+| `backoffLimit` | `4` | `6` |
+
+Both are exposed as Helm values with a template-side fallback, so existing values files keep working unchanged:
+
+```yaml
+openzaak:
+  create_required_catalogi_job:
+    activeDeadlineSeconds: 900
+    backoffLimit: 6
+
+objecttypen:
+  create_required_objecttypen_job:
+    activeDeadlineSeconds: 900
+    backoffLimit: 6
+```
+
+No action required. Override only if your environment needs a tighter or looser window.
