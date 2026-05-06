@@ -1313,7 +1313,7 @@ openarchiefbeheer:
     oidcRenewIdTokenExpirySeconds: 1800
     sessionCookieAge: 1800
     # -- Number of days to wait before destroying a list. Defaults to 7 in the application.
-    waitingPeriod: ""
+    waitingPeriod: 7
     # -- Number of days for which destruction lists will be visible after successful destruction. Defaults to 7.
     postDestructionVisibilityPeriod: 7
     # -- If true, the inline presentation of related objects is disabled, reducing load on external registers.
