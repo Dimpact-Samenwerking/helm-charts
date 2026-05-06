@@ -24,11 +24,12 @@
 1. **Quiesce Open Archiefbeheer** — ensure no destruction lists are processing or waiting for retry. The internal data structure for tracking destruction has been reworked; lists in-flight during the upgrade may end up in an inconsistent state.
 2. **Update the ACR mirror for ZAC office_converter** — `acrprodmgmt.azurecr.io/office-converter` must be updated to mirror `gotenberg/gotenberg:8.30.1` instead of `ghcr.io/eugenmayer/kontextwork-converter`. Without this, environments overriding `zac.office_converter.image.repository` will fail to pull the image.
 3. **Apply Keycloak `v2beta1` CRDs** (see [Keycloak CRD upgrade](#keycloak-crd-upgrade-v2alpha1--v2beta1)). Required because the chart bumps the operator image to `26.6.1` while the bundled adfinis subchart `1.11.4` still ships `v2alpha1` CRDs from appVersion `26.5.6`. Operator `26.6.1` queries `v2beta1` and will `CrashLoopBackOff` until the upgraded CRDs are applied.
-4. **Run the migration scripts** (see [Migration scripts](#migration-scripts)).
+4. **Set `apiproxy.nginxCertsSecret` explicitly** if your environment uses upstream mTLS via the api-proxy (see [API proxy: nginxCertsSecret default changed](#api-proxy-nginxcertssecret-default-changed)). The chart default is now `""` (empty); environments that previously relied on the implicit `"api-proxy-certs"` default must pin the value in `podiumd.yml` **before** the upgrade or the cert volume mount disappears and upstream calls fall back to non-mTLS with `proxy_ssl_verify off`.
+5. **Run the migration scripts** (see [Migration scripts](#migration-scripts)).
 
 ### After upgrading
 
-5. **Reconfigure the destruction report settings** in the Open Archiefbeheer admin interface. The destruction report configuration page has been reworked; existing settings are not migrated automatically.
+6. **Reconfigure the destruction report settings** in the Open Archiefbeheer admin interface. The destruction report configuration page has been reworked; existing settings are not migrated automatically.
 
 ---
 
@@ -67,6 +68,41 @@ The script accepts `--dry-run` to inspect the CRD YAML, `--keycloak-version` to 
 - No conversion webhook → default `None` strategy, fields pass through by name.
 - Schema is additive between 26.5.x and 26.6.x — no removed/renamed required fields.
 - The Keycloak `StatefulSet` keeps running while the operator restarts; only reconciliation is paused.
+
+---
+
+## API proxy: `nginxCertsSecret` default changed
+
+`apiproxy.nginxCertsSecret` previously defaulted to `"api-proxy-certs"`. That secret is **not** present in every environment (only some clusters provision it for upstream mTLS to BAG/BRP/KVK), so the implicit default produced a missing-secret error or, where the secret happened to exist with a different name, a silently misconfigured proxy.
+
+In 4.7.0 the default is `""` (empty). When empty:
+
+- The cert volume / `/etc/nginx/certs` mount is omitted.
+- `proxy_ssl_certificate` / `proxy_ssl_certificate_key` directives are not rendered (no client cert sent upstream).
+- `apiproxy.locations.commonSettings.sslVerify` (still `""` = auto-derive) resolves to `"off"`, so upstream server certs are **not** validated.
+
+Also new in 4.7.0: `apiproxy.sslVerifyDepth` (default `6`) renders `proxy_ssl_verify_depth` per location. nginx default is `1`, which is too shallow for cross-signed government API chains. No action required if you don't need a different depth.
+
+### Action required
+
+If your environment **does** use upstream mTLS via the api-proxy and the secret is provisioned in the `podiumd` namespace, pin the value explicitly in your gemeente `podiumd.yml` **before** running `helm upgrade`:
+
+```yaml
+apiproxy:
+  enabled: true
+  nginxCertsSecret: api-proxy-certs   # or whatever name the secret has in your cluster
+```
+
+To check the current setting and whether the secret exists:
+
+```bash
+helm --kube-context "$CTX" get values podiumd -n podiumd -o yaml \
+  | yq '.apiproxy.nginxCertsSecret // "<unset — will use new chart default>"'
+
+kubectl --context "$CTX" -n podiumd get secret api-proxy-certs --ignore-not-found
+```
+
+If `apiproxy.enabled` is `false` (most non-DIMP gemeentes), no action is needed.
 
 ---
 
