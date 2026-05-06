@@ -5,7 +5,7 @@
 | Component | App version | Helm chart |
 |---|---|---|
 | Keycloak | 26.6.1 | adfinis 1.11.4 |
-| OpenZaak | 1.27.1 | 1.14.0 |
+| OpenZaak | 1.27.1 | 1.13.1 (chart bump to 1.14.0 deferred — see [openzaak-known-issues.md § 0](openzaak-known-issues.md#0-podiumd-470-stays-on-open-zaak-helm-chart-1131-not-1140)) |
 | ZAC | 4.7.0 | 1.0.224 |
 | Open Formulieren | 3.4.9 | 1.12.0 |
 | Open Archiefbeheer | 2.0.0 | 2.0.0 (⚠️ breaking) |
@@ -458,9 +458,11 @@ openarchiefbeheer:
 - **Stricter client URI validation (`secure-client-uris` executor)** — If active in a realm, the `Post logout redirect URIs`, `Logo URL`, `Policy URL`, and `Terms of Service URL` fields now require HTTPS. PodiumD does not configure this executor by default; only relevant if a gemeente has manually enabled it.
 - **Identity Provider issuer uniqueness** — If multiple Identity Providers in a realm share the same issuer, JWT authorization grant and client assertion flows will now fail. PodiumD Entra ID configurations use per-tenant issuer URLs and are not affected.
 
-### OpenZaak 1.27.1 (helm chart 1.14.0)
+### OpenZaak 1.27.1 (helm chart **stays on 1.13.1**)
 
 No breaking changes. No required manual steps.
+
+> The Open Zaak helm chart bump to `1.14.0` is **deferred** — PodiumD 4.7.0 keeps `Chart.yaml` pinned at `openzaak.version: 1.13.1` and rides the new app version `1.27.1` through the existing chart machinery. Reason: chart `1.14.0` was not released yet when gemeente deploys for this release cycle started, and a mid-rollout chart bump would have re-opened the values surface for every gemeente file. See [openzaak-known-issues.md § 0](openzaak-known-issues.md#0-podiumd-470-stays-on-open-zaak-helm-chart-1131-not-1140).
 
 - Archiving: for `afleidingswijze=vervaldatum_besluit` and `afleidingswijze=eigenschap`, the relevant value is no longer required at zaak closure — recalculation happens automatically when the value is set later.
 - `Zaak.relevanteAndereZaken` is deprecated in the OpenAPI schema; the experimental `gerelateerdeZaken` attribute on the `/zaken` endpoint replaces it.

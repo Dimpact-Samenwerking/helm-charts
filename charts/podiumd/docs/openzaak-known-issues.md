@@ -1,5 +1,26 @@
 # Open Zaak — known issues and configuration traps
 
+## 0. PodiumD 4.7.0 stays on Open Zaak helm chart 1.13.1 (not 1.14.0)
+
+### Decision
+
+PodiumD 4.7.0 keeps the Open Zaak **helm chart pinned at `1.13.1`** even though Maykin published `1.14.0` upstream. Only the application image tag is bumped to `1.27.1` (via `openzaak.image.tag` in `values.yaml`).
+
+### Why
+
+The Open Zaak helm chart `1.14.0` was not yet released at the point the gemeente deploys for this release cycle started. To avoid a mid-rollout chart bump (which would change the values surface and force every gemeente file to be re-validated), PodiumD 4.7.0 pins the previous chart `1.13.1` and rides the new app version `1.27.1` through the existing chart machinery.
+
+### Implication
+
+- `Chart.yaml` keeps `openzaak.version: 1.13.1`.
+- Component changelog entries that read "Open Zaak helm chart 1.14.0" are aspirational — that bump is deferred to a later PodiumD release.
+- The application-level changelog for Open Zaak `1.27.1` (archiving / `gerelateerdeZaken` / 500-error fixes) does apply, since the app image tag is updated.
+- No values changes are required from gemeentes for the Open Zaak helm chart in this release.
+
+### Follow-up
+
+Bump `openzaak.version` to `1.14.0` in a subsequent PodiumD release once the deploy window allows revisiting the values surface.
+
 ## 1. Startup failure: duplicate key on `admin_index_appgroup.slug`
 
 ### Symptom
