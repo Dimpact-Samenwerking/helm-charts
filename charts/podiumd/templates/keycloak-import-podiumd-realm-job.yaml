@@ -225,6 +225,11 @@ spec:
             secretKeyRef:
               name: keycloak-podiumd-realm-secrets
               key: pabc-keycloak-admin-secret
+        - name: KC_SECRET_APISIX_DASHBOARD
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-podiumd-realm-secrets
+              key: apisix-dashboard-oidc-secret
         volumeMounts:
         - name: realm-configs
           mountPath: /config

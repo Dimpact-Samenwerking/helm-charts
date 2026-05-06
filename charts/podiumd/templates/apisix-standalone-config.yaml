@@ -1,0 +1,47 @@
+{{- if .Values.apisix.enabled }}
+{{- /*
+  APISIX standalone-mode rules ConfigMap, rendered by the umbrella chart so the
+  Keycloak realm discovery URL can be templated from values that already exist
+  in the chart (`keycloak.config.realmFrontendUrl` + `keycloak.config.realm`).
+
+  Wired into the apisix subchart via `apisix.deployment.standalone.existingConfigMap`
+  in this chart's values.yaml — the apisix subchart will mount this ConfigMap as
+  /usr/local/apisix/conf/apisix.yaml instead of rendering its own.
+
+  Schema: https://apisix.apache.org/docs/apisix/deployment-modes/#standalone
+  Add egress routes / upstreams / plugin_metadata under the same `routes:` /
+  `upstreams:` lists below — see charts/podiumd/docs/apisix-egress-gateway.md.
+*/ -}}
+{{- $realm := .Values.keycloak.config.realm -}}
+{{- $realmUrl := .Values.keycloak.config.realmFrontendUrl | trimSuffix "/" -}}
+{{- $discovery := printf "%s/realms/%s/.well-known/openid-configuration" $realmUrl $realm -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: apisix-standalone-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: apisix
+data:
+  apisix.yaml: |
+    routes:
+      - id: apisix-dashboard-oidc
+        uri: /ui/*
+        upstream:
+          type: roundrobin
+          nodes:
+            "127.0.0.1:9180": 1
+        plugins:
+          openid-connect:
+            client_id: "apisix-dashboard"
+            client_secret: "$env://OIDC_CLIENT_SECRET"
+            discovery: {{ $discovery | quote }}
+            scope: "openid profile email"
+            bearer_only: false
+            realm: {{ $realm | quote }}
+            introspection_endpoint_auth_method: "client_secret_basic"
+            ssl_verify: true
+            redirect_uri: "http://apisix-gateway.{{ .Release.Namespace }}.svc/ui/callback"
+    #END
+{{- end }}

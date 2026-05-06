@@ -76,76 +76,48 @@ To use Azure Key Vault via the CSI driver instead of the auto-generated Secret, 
 
 ### OIDC-protected dashboard access
 
-Operator access to the embedded Admin Dashboard is gated by Keycloak via the [APISIX `openid-connect` plugin](https://apisix.apache.org/docs/apisix/plugins/openid-connect/). The route is shipped in `values.yaml` under `apisix.apisix.deployment.standalone.config` and proxies `/ui/*` on the data-plane port (80) to `127.0.0.1:9180/ui/`. Direct access to `:9180/ui/` is in-pod only (`allow.ipList` defaults to `127.0.0.1/24`).
+Operator access to the embedded Admin Dashboard is gated by Keycloak via the [APISIX `openid-connect` plugin](https://apisix.apache.org/docs/apisix/plugins/openid-connect/). The standalone-mode rules ship in the umbrella-rendered ConfigMap `apisix-standalone-config` (see `charts/podiumd/templates/apisix-standalone-config.yaml`) and proxy `/ui/*` on the data-plane port (80) to `127.0.0.1:9180/ui/`. Direct access to `:9180/ui/` is in-pod only (`allow.ipList` defaults to `127.0.0.1/24`).
 
-> **Note on nesting:** the upstream `apisix/apisix` chart 2.14.0 namespaces its own settings under a top-level `apisix:` key (`admin`, `deployment`, `router`, …). The umbrella path is therefore `apisix.apisix.<key>` — top-level settings like `service`, `extraEnvVars`, `etcd` are at `apisix.<key>`.
+#### Zero-touch tenant setup
 
-#### Tenant setup
+For every tenant where the umbrella-bundled `keycloak-operator` is enabled, the chart wires everything up automatically:
 
-1. **Create a Keycloak client** in your realm:
+| Piece | Source |
+|---|---|
+| Keycloak `apisix-dashboard` client | `templates/keycloak-podiumd-realm-config.yaml` (gated on `apisix.enabled`). Imported via the `keycloak-config-cli` Job using `client_credentials` against the `keycloak-operator` SA — no manual realm edit. |
+| OIDC discovery URL | Templated from `keycloak.config.realmFrontendUrl` + `keycloak.config.realm` into `apisix-standalone-config`. |
+| Client secret | `apisix-dashboard-oidc-secret` key in the existing `keycloak-podiumd-realm-secrets` Secret. Auto-generated 32-char value via `randAlphaNum`, stable across upgrades via `lookup`. Both Keycloak (via `$(KC_SECRET_APISIX_DASHBOARD)` env-var substitution in the realm-import Job) and APISIX (via `$env://OIDC_CLIENT_SECRET` from the same Secret) consume it through `valueFrom.secretKeyRef` — never plaintext. |
+| Admin/viewer API keys | `apisix-admin-credentials` Secret, generated identically. |
 
-   | Setting              | Value |
-   |----------------------|-------|
-   | Client ID            | `apisix-dashboard` |
-   | Access Type          | `confidential` |
-   | Standard Flow        | enabled |
-   | Valid Redirect URIs  | `http://apisix-gateway.<namespace>.svc/ui/*` |
-   | Web Origins          | `+` |
-
-2. **Create the client-secret Secret** in the same namespace as the apisix release:
-
-   ```shell
-   kubectl -n <namespace> create secret generic apisix-oidc-client-secret \
-     --from-literal=clientSecret='<client-secret-from-keycloak>'
-   ```
-
-   Or, recommended, sync it from Azure Key Vault using the existing CSI driver pattern.
-
-3. **Set the realm discovery URL** in your tenant `podiumd.yml`. Because `apisix.apisix.deployment.standalone.config` is a YAML-string field, override the whole block:
-
-   ```yaml
-   apisix:
-     enabled: true
-     apisix:
-       deployment:
-         mode: standalone
-         standalone:
-           config: |
-             routes:
-               - id: apisix-dashboard-oidc
-                 uri: /ui/*
-                 upstream:
-                   type: roundrobin
-                   nodes:
-                     "127.0.0.1:9180": 1
-                 plugins:
-                   openid-connect:
-                     client_id: "apisix-dashboard"
-                     client_secret: "$env://OIDC_CLIENT_SECRET"
-                     discovery: "https://<your-keycloak>/realms/podiumd/.well-known/openid-configuration"
-                     scope: "openid profile email"
-                     bearer_only: false
-                     realm: "podiumd"
-                     introspection_endpoint_auth_method: "client_secret_basic"
-                     ssl_verify: true
-   ```
-
-   The `client_secret: "$env://OIDC_CLIENT_SECRET"` reference is resolved at runtime by APISIX 3.x from the env var injected via `apisix.extraEnvVars` — never embed the literal secret in values.
-
-#### Disabling OIDC
-
-To remove the OIDC route entirely (e.g. ephemeral dev clusters where port-forward is sufficient), override `apisix.apisix.deployment.standalone.config` with an empty rule set:
+Tenant only sets:
 
 ```yaml
 apisix:
-  apisix:
-    deployment:
-      standalone:
-        config: |
-          routes: []
+  enabled: true
 ```
 
-The dashboard is then reachable only via:
+The first `helm upgrade` produces:
+1. Random `apisix-admin-credentials` (admin/viewer keys) — kills upstream public defaults.
+2. Random `apisix-dashboard-oidc-secret` in `keycloak-podiumd-realm-secrets` — used by both sides.
+3. `apisix-standalone-config` ConfigMap with templated `discovery` URL.
+4. Updated `keycloak-podiumd-realm-config` ConfigMap with the new `apisix-dashboard` client.
+5. The realm-import Job re-runs (its name suffix tracks ConfigMap changes via sha256).
+
+#### When the umbrella-bundled Keycloak is disabled
+
+Tenants running an external Keycloak (e.g. `keycloak-operator.enabled: false`) need to:
+
+1. Manually register the `apisix-dashboard` client in their realm with these settings (the umbrella defaults match what's in `keycloak-podiumd-realm-config.yaml` — search for `apisix-dashboard`):
+   - `clientId: apisix-dashboard`
+   - `Access Type: confidential`
+   - `Standard Flow: enabled`
+   - `Valid Redirect URIs: http://apisix-gateway.<namespace>.svc/ui/*`
+   - `Web Origins: +`
+2. Create `Secret/keycloak-podiumd-realm-secrets` with key `apisix-dashboard-oidc-secret` containing the client secret.
+
+#### Disabling OIDC
+
+To remove the OIDC route (e.g. ephemeral dev clusters where port-forward is sufficient), override the standalone ConfigMap by pointing `existingConfigMap` at one with an empty rule set, or set `apisix.enabled: false` and use the upstream chart directly. The dashboard is then reachable only via:
 
 ```shell
 kubectl -n <namespace> port-forward svc/apisix-admin 9180:9180
@@ -162,32 +134,28 @@ kubectl -n <namespace> port-forward svc/apisix-admin 9180:9180
 
 ## Configuring egress routes
 
-Route, upstream, and plugin configuration belongs in the YAML string at `apisix.apisix.deployment.standalone.config`. The schema is the upstream APISIX standalone-mode schema — see the [APISIX standalone deployment docs](https://apisix.apache.org/docs/apisix/deployment-modes/#standalone) for the authoritative reference.
+Egress route, upstream, and plugin configuration goes into the umbrella-rendered `apisix-standalone-config` ConfigMap (`charts/podiumd/templates/apisix-standalone-config.yaml`). The schema is the upstream APISIX standalone-mode schema — see the [APISIX standalone deployment docs](https://apisix.apache.org/docs/apisix/deployment-modes/#standalone) for the authoritative reference.
 
-A minimal egress-route example (sketch — adapt to your upstream API and plugins). Add to the same `routes:` list as the OIDC dashboard route:
+There are two ways to add egress routes:
+
+1. **Edit the umbrella template directly** — extend the `routes:` / `upstreams:` lists in `apisix-standalone-config.yaml` and ship them to all tenants. Use this for routes every PodiumD environment needs.
+2. **Override `existingConfigMap`** in the tenant `podiumd.yml` to point at a tenant-managed ConfigMap (rendered by another mechanism, e.g. a sibling Helm release or a GitOps overlay) that includes the OIDC dashboard route plus tenant-specific egress routes. The umbrella's apisix-standalone-config will still render but is unused.
+
+A minimal egress-route example (the OIDC dashboard route is already shipped — only add new entries):
 
 ```yaml
-apisix:
-  enabled: true
-  apisix:
-    deployment:
-      mode: standalone
-      standalone:
-        config: |
-          routes:
-            - id: apisix-dashboard-oidc
-              # …OIDC route from the section above…
-            - id: brp-egress
-              uri: /haalcentraal/api/brp/*
-              upstream_id: brp-haalcentraal
-              plugins:
-                prometheus: {}
-          upstreams:
-            - id: brp-haalcentraal
-              scheme: https
-              pass_host: node
-              nodes:
-                "lab.api.mijniconnect.nl:443": 1
+routes:
+  - id: brp-egress
+    uri: /haalcentraal/api/brp/*
+    upstream_id: brp-haalcentraal
+    plugins:
+      prometheus: {}
+upstreams:
+  - id: brp-haalcentraal
+    scheme: https
+    pass_host: node
+    nodes:
+      "lab.api.mijniconnect.nl:443": 1
 ```
 
 PodiumD apps that need to reach `https://lab.api.mijniconnect.nl/haalcentraal/api/brp/...` would then point their outbound base URL at `http://apisix.<namespace>.svc.cluster.local/haalcentraal/api/brp/...`.
