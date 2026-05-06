@@ -7,9 +7,14 @@ metadata:
     {{- include "podiumd.labels" . | nindent 4 }}
     app.kubernetes.io/component: mi-export
 data:
-  # One unified dump script, modeled on Maykin's bin/dump_data.sh --csv path
-  # (open-zaak, objects-api, etc.): enumerate pg_tables in the chosen schemas
-  # and \COPY each to STDOUT, streaming into a per-table blob upload.
+  # Unified dump script, modeled on Maykin's bin/dump_data.sh --csv path
+  # (open-zaak, objects-api, etc.): enumerate pg_tables in the chosen schemas,
+  # \COPY each to a per-table CSV on the /tmp emptyDir, then package the whole
+  # set into one streaming tar.gz and upload as a single blob per run.
+  #
+  # Blob layout: <gemeente>/<YYMMDD>/<component>/<HHMMSS>-<component>.tar.gz
+  # Inside the tarball: one CSV per table, named <table>.csv (or <schema>_<table>.csv
+  # when the schema is not public).
   dump.sh: |
     #!/usr/bin/env bash
     set -euo pipefail
@@ -36,41 +41,28 @@ data:
     log() { printf '[%s] %s\n' "$(date -u -Iseconds)" "$*"; }
 
     # iter3-todo: image is mcr.microsoft.com/azure-cli (Azure Linux) with psql
-    # installed at runtime via tdnf; bake a purpose-built image and drop this
-    # bootstrap step (and re-enable runAsNonRoot in the CronJob securityContext).
-    if ! command -v psql >/dev/null 2>&1; then
-      log "installing postgresql client"
-      tdnf install -y --quiet postgresql >/dev/null
+    # and tar installed at runtime via tdnf; bake a purpose-built image and
+    # drop this bootstrap step (and re-enable runAsNonRoot in the CronJob
+    # securityContext). gzip is already present in the base image.
+    needs=()
+    command -v psql >/dev/null 2>&1 || needs+=(postgresql)
+    command -v tar  >/dev/null 2>&1 || needs+=(tar)
+    if [ "${#needs[@]}" -gt 0 ]; then
+      log "installing: ${needs[*]}"
+      tdnf install -y --quiet "${needs[@]}" >/dev/null
     fi
+
+    # Per-run scratch area on the /tmp emptyDir. Holds CSVs while we accumulate
+    # them, plus the final tar.gz. Both are wiped on exit (success or failure).
+    WORK="$(mktemp -d /tmp/mi-csv.XXXXXX)"
+    TARBALL="$(mktemp -u -p /tmp mi-XXXXXX.tar.gz)"
+    trap 'rm -rf "${WORK}" "${TARBALL}"' EXIT
 
     psql_run() {
       PGPASSWORD="${DB_PASSWORD}" psql \
         --host="${DB_HOST}" --port="${DB_PORT}" \
         --username="${DB_USER}" --dbname="${DB_NAME}" \
         --no-psqlrc --set ON_ERROR_STOP=1 "$@"
-    }
-
-    # `az storage blob upload --file /dev/stdin` does not stream — it stats the
-    # path, gets 0, and uploads an empty blob. Stage to a temp file on the
-    # /tmp emptyDir, then upload from that file. iter3-todo: switch to azcopy
-    # `--from-to PipeBlob` once we have an image with azcopy baked in, to drop
-    # the per-table disk staging.
-    upload_stdin() {
-      local blob_name="$1"
-      local tmp
-      tmp="$(mktemp /tmp/dump.XXXXXX.csv)"
-      cat > "${tmp}"
-      az storage blob upload \
-        --account-name "${AZURE_STORAGE_ACCOUNT}" \
-        --account-key  "${AZURE_STORAGE_KEY}" \
-        --container-name "${AZURE_STORAGE_CONTAINER}" \
-        --name "${blob_name}" \
-        --file "${tmp}" \
-        --overwrite \
-        --only-show-errors
-      local rc=$?
-      rm -f "${tmp}"
-      return ${rc}
     }
 
     list_tables() {
@@ -86,19 +78,14 @@ data:
       "
     }
 
-    dump_one() {
-      # dump_one <schema> <table>
-      # Blob path: <gemeente>/<YYMMDD>/<component>/<HHMMSS>-<schema>_<table>.csv
-      # (label drops the schema prefix when schema=public — same convention
-      # as before).
-      local schema="$1" table="$2" blob label
+    dump_one_to_disk() {
+      # dump_one_to_disk <schema> <table>  → ${WORK}/<label>.csv
+      # label drops the schema prefix for public (same convention as before).
+      local schema="$1" table="$2" label
       if [ "${schema}" = "public" ]; then label="${table}"; else label="${schema}_${table}"; fi
-      blob="${MI_GEMEENTE}/${DATE_DIR}/${MI_COMPONENT}/${TIME_PART}-${label}.csv"
-      log "dumping ${schema}.${table} -> ${blob}"
-      # iter3-todo: revisit gzip compression once the historical memory
-      # issue is reproduced and root-caused.
+      log "dumping ${schema}.${table} -> ${label}.csv"
       psql_run --command="\\COPY \"${schema}\".\"${table}\" TO STDOUT CSV HEADER" \
-        | upload_stdin "${blob}"
+        > "${WORK}/${label}.csv"
     }
 
     log "starting MI export: component=${MI_COMPONENT} schemas=${MI_SCHEMAS}"
@@ -111,8 +98,27 @@ data:
     n=0
     while IFS=$'\t' read -r schema table; do
       [ -z "${schema}" ] && continue
-      dump_one "${schema}" "${table}"
+      dump_one_to_disk "${schema}" "${table}"
       n=$((n+1))
     done <<< "${rows}"
-    log "done: ${n} table(s) exported"
+
+    # Package every CSV into one streaming tar.gz. gzip's deflate window is
+    # 32 KiB regardless of input size — memory stays bounded at ~256 KiB
+    # whether we package 5 tables or 5,000.
+    log "packaging ${n} CSV(s) into ${MI_COMPONENT}.tar.gz"
+    tar -czf "${TARBALL}" -C "${WORK}" .
+
+    BLOB="${MI_GEMEENTE}/${DATE_DIR}/${MI_COMPONENT}/${TIME_PART}-${MI_COMPONENT}.tar.gz"
+    SIZE="$(stat -c%s "${TARBALL}" 2>/dev/null || stat -f%z "${TARBALL}")"
+    log "uploading ${BLOB} (${SIZE} bytes)"
+    az storage blob upload \
+      --account-name "${AZURE_STORAGE_ACCOUNT}" \
+      --account-key  "${AZURE_STORAGE_KEY}" \
+      --container-name "${AZURE_STORAGE_CONTAINER}" \
+      --name "${BLOB}" \
+      --file "${TARBALL}" \
+      --overwrite \
+      --only-show-errors >/dev/null
+
+    log "done: ${n} table(s) packaged in ${BLOB}"
 {{- end }}
