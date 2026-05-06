@@ -2203,9 +2203,18 @@ openbeheer:
     isHttps: true
     debug: false
     uwsgi:
+      # open-beheer 0.9.0's docker entrypoint launches uwsgi without --master.
+      # Set UWSGI_MASTER=1 so a real master oversees workers; without it,
+      # workers that exit on max-requests are NOT respawned and the container
+      # exits with code 30 once all workers have cycled (~every 80–90 min on
+      # probe-driven traffic). See openbeheer-known-issues.md.
+      master: "1"
       processes: "2"
       threads: "2"
-      maxRequests: "1000"
+      # Probes alone hit ~24 req/min; with maxRequests=1000 each worker cycles
+      # ~every 40 min. Bumped to 50000 so worker recycling is rare and never
+      # racing kubelet liveness probes.
+      maxRequests: "50000"
     throttling:
       enable: true
       rateAnonymous: "2500/hour"
