@@ -81,7 +81,19 @@ In 4.7.0 the default is `""` (empty). When empty:
 - `proxy_ssl_certificate` / `proxy_ssl_certificate_key` directives are not rendered (no client cert sent upstream).
 - `apiproxy.locations.commonSettings.sslVerify` (still `""` = auto-derive) resolves to `"off"`, so upstream server certs are **not** validated.
 
-Also new in 4.7.0: `apiproxy.sslVerifyDepth` (default `6`) renders `proxy_ssl_verify_depth` per location. nginx default is `1`, which is too shallow for cross-signed government API chains. No action required if you don't need a different depth.
+Also new in 4.7.0: `apiproxy.sslVerifyDepth` (default `6`) renders `proxy_ssl_verify_depth` for every upstream location. nginx default is `1`, which is too shallow for cross-signed government API chains. Override globally on the api-proxy block, or per upstream:
+
+```yaml
+apiproxy:
+  sslVerifyDepth: 6              # global default
+  locations:
+    bag:
+      sslVerifyDepth: 10         # override only for BAG
+    brp:
+      sslVerifyDepth: 4          # override only for BRP
+```
+
+Per-location values take precedence over the global; the global takes precedence over the chart default of `6`. No action required if the default works.
 
 ### Action required
 
