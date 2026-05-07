@@ -64,3 +64,10 @@ Zie voor architectuur context diagram van Open Formulieren de [Open Formulieren 
 
 ### Contact (KISS)
 Zie voor architectuur context diagram van Contact (KISS) de [Contact documentatie](./contact.md).
+
+## Operationele functionaliteit
+
+### MI exports — wekelijkse database dumps naar blob storage
+Wekelijkse exports van alle Postgres-componenten naar Azure Blob Storage (CSV of `pg_dump`), per gemeente.
+Voor activatie, infra-prerequisites (incl. Terraform-snippet voor externe hosting), en troubleshooting:
+zie [MI exports documentatie](./mi-exports.md).
