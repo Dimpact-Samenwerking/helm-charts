@@ -195,64 +195,15 @@ The Terraform in `ICATT-Menselijk-Digitaal/podiumd-infra` is **only for Dimpact'
 
 ### What the hosting provider must add
 
-Three resources, in their existing per-env Terraform that already provisions the storage account and Key Vault:
+The cloud-side prerequisites in [§ Cloud prerequisites](#1-cloud-prerequisites-once-per-env) — `mi-exports` blob container on the existing per-env standard SA, the SA primary key stored in the base Key Vault as `mi-export-storage-<env>`, and the cluster-side `Secret/mi-export-storage` materialised before the chart is installed.
 
-```hcl
-# 1. Container on the existing standard SA
-resource "azurerm_storage_container" "mi_exports" {
-  name                  = "mi-exports"
-  storage_account_name  = azurerm_storage_account.podiumd_env.name
-  container_access_type = "private"
-}
+For SSC Twente's hosted environments, the Terraform module that already provisions the storage account and Key Vault is in `dev.azure.com/ssctwente/_git/ExternalsPodiumD`. The corresponding changes there land in branch `feature/IN-1691-mi-exports-storage` (matching the Jira ticket [IN-1691](https://dimpact.atlassian.net/browse/IN-1691)) and add:
 
-# 2. SA primary key in KV (read by the deploy pipeline)
-resource "azurerm_key_vault_secret" "mi_export_storage" {
-  name         = "mi-export-storage-${var.env_name}"
-  value        = azurerm_storage_account.podiumd_env.primary_access_key
-  key_vault_id = azurerm_key_vault.base.id
+1. The `mi-exports` blob container resource on the existing per-env SA.
+2. A `keyvault_secret` for the SA primary key, named `mi-export-storage-<env>`.
+3. A pipeline step that reads that KV secret at deploy time and creates the in-cluster `Secret/mi-export-storage` in the `podiumd` namespace before the helm install runs.
 
-  # Optional: rotate when SA key rotates
-  lifecycle {
-    create_before_destroy = true
-  }
-}
-
-# 3. (Optional but recommended) Lifecycle policy on the container
-#    Move blobs to Cool tier after 30d; delete after the gemeente's retention period.
-resource "azurerm_storage_management_policy" "mi_exports_lifecycle" {
-  storage_account_id = azurerm_storage_account.podiumd_env.id
-
-  rule {
-    name    = "mi-exports-tiering"
-    enabled = true
-    filters {
-      blob_types   = ["blockBlob"]
-      prefix_match = ["mi-exports/"]
-    }
-    actions {
-      base_blob {
-        tier_to_cool_after_days_since_modification_greater_than    = 30
-        tier_to_archive_after_days_since_modification_greater_than = 365
-        # delete_after_days_since_modification_greater_than = <set per gemeente policy>
-      }
-    }
-  }
-}
-```
-
-After the next deploy, materialise the cluster-side Secret:
-
-```bash
-SA_KEY=$(az keyvault secret show --vault-name <base-kv-name> \
-           --name mi-export-storage-<env> --query value -o tsv)
-
-kubectl -n podiumd create secret generic mi-export-storage \
-  --from-literal=AZURE_STORAGE_ACCOUNT=podiumd<env>st \
-  --from-literal=AZURE_STORAGE_KEY="${SA_KEY}" \
-  --from-literal=AZURE_STORAGE_CONTAINER=mi-exports
-```
-
-This step is one-shot per env, ideally automated as part of the deploy pipeline (the test/dev side has `scripts/sync-mi-export-secret.sh` for the same purpose; production providers can fold the same logic into their own pipeline).
+The chart itself is hosting-provider-agnostic — it only needs the three envvars in `Secret/mi-export-storage` to be present at install time. **Any** provisioning approach that delivers that secret with the right values works.
 
 ### What the hosting provider does *not* need
 
