@@ -23,17 +23,17 @@ persistentVolume:
 keycloak-operator:
   enabled: true
   # Adfinis Helm chart wrapping the official Keycloak Operator manifests.
-  # Chart: https://charts.adfinis.com / adfinis/keycloak-operator (appVersion 26.5.7)
+  # Chart: https://charts.adfinis.com / adfinis/keycloak-operator (chart 1.11.4, appVersion 26.5.6)
   # Note: it appears that the podname automatically appends -operator.
-  # Official operator image: quay.io/keycloak/keycloak-operator:26.5.7
-  # Note: adfinis chart 1.11.2 supports up to appVersion 26.5.6; 26.6.0 is not yet supported.
+  # Official operator image: quay.io/keycloak/keycloak-operator:26.6.1
+  # Note: adfinis chart 1.11.4 targets appVersion 26.5.6; Keycloak image is overridden to 26.6.1 below.
   # override: values-enable-observability.yaml sets enableServiceMonitor: true
   enableServiceMonitor: false
   fullnameOverride: keycloak
   operator:
     image:
       repository: quay.io/keycloak/keycloak-operator
-      tag: "26.5.7"
+      tag: "26.6.1@sha256:a3123e57c8928310488a7cc20cc9791be0abc342ad6a4f72e7a87fc45bdf51c3"
     resources:
       requests:
         cpu: 100m
@@ -63,7 +63,7 @@ keycloak-operator:
       image:
         registry: ""
         repository: curlimages/curl
-        tag: "8.19.0"
+        tag: "8.20.0@sha256:b3f1fb2a51d923260350d21b8654bbc607164a987e2f7c84a0ac199a67df812a"
       # Client secret for the keycloak-operator client. Set this to a known value so Helm
       # can create the K8s secret directly. The job will enforce this secret in Keycloak.
       clientSecret: ""
@@ -164,12 +164,11 @@ keycloak:
   http:
     httpEnabled: true
   # image parameters for keycloak-operator
-  # Official Keycloak image: quay.io/keycloak/keycloak:26.5.7
-  # Note: adfinis chart 1.11.2 supports up to appVersion 26.5.6; 26.6.0 is not yet supported.
+  # Official Keycloak image: quay.io/keycloak/keycloak:26.6.1
   image:
     registry: ""
     repository: quay.io/keycloak/keycloak
-    tag: 26.5.7
+    tag: "26.6.1@sha256:26ae26445475f7fac5f90ee138b1bdb64324f5815fb16133ffdbdb122d97c4d8"
   # -- instances is the new operator-style replica count (falls back to replicaCount)
   instances: "2"
   ingress:
@@ -204,7 +203,7 @@ keycloak:
     metadata:
       labels:
         app: keycloak
-        version: 26.5.7
+        version: 26.6.1
       # override: values-enable-observability.yaml adds prometheus.io scrape annotations
     spec:
       securityContext:
@@ -448,7 +447,7 @@ redis-operator:
       schedule: "*/2 * * * *"
       image:
         repository: docker.io/alpine/k8s
-        tag: "1.33.10"
+        tag: "1.34.7@sha256:4745677e51c0fb567aedf1453a7bd489e0a62dbbf2bda475d663f7eed041adb4"
       resources:
         requests:
           cpu: 10m
@@ -588,6 +587,10 @@ openzaak:
     client_id: "<openzaak_client_id>"
     secret: "<openzaak_secret>"
     enabled: true
+    # Total wall-clock window in which the job is allowed to keep retrying (seconds). Default: 15 minutes.
+    activeDeadlineSeconds: 900
+    # Number of retries before the job is marked failed.
+    backoffLimit: 6
     resources:
       requests:
         cpu: 50m
@@ -616,13 +619,24 @@ openzaak:
       processes: "2"
       threads: "4"
       maxRequests: "1000"
+    # -- Backend for the Documenten API. Supported values: filesystem | azure_blob_storage
+    documentApiBackend: filesystem
+    # azureBlobStorage:
+    #   accountName: ""
+    #   clientSecret: ""
+    #   clientId: ""
+    #   tenantId: ""
+    #   container: "openzaak"
+    # -- Emit cloud events (requires Open Notificaties with cloud events support)
+    # enableCloudEvents: false
+    # notificationsSource: "openzaak"
   persistence:
     size: 10Gi
     existingClaim: openzaak
   persistentVolume:
     volumeAttributeShareName: openzaak
   image:
-    tag: "1.26.0"
+    tag: "1.27.1@sha256:7726e36a1353396fb971929645489e0e8a7e5848e5fdf0ae3fa8075b6ce15da9"
   resources:
     requests:
       cpu: 250m
@@ -647,7 +661,7 @@ openzaak:
         memory: 160Mi
   nginx:
     image:
-      tag: "1.29.8"
+      tag: "1.30.0@sha256:3def659164dfb7d6be8563983ea9d2fe7e4dfcf2af96770d728723a5c5ad3bad"
     resources:
       requests:
         cpu: 10m
@@ -878,7 +892,7 @@ objecten:
   configuration:
     enabled: true
     demo:
-      enabled: false  # upstream objecten chart has no nil-guard on this field; default to false
+      enabled: false # upstream objecten chart has no nil-guard on this field; default to false
     initContainer:
       enabled: false
     job:
@@ -1130,10 +1144,14 @@ objecttypen:
       maxRequests: "1000"
   image:
     repository: maykinmedia/objecttypes-api
-    tag: "3.4.1"
+    tag: "3.4.2@sha256:d366e6ede1bb924ea351495f4e88ceba53bb0df02fa5302929daef379131fda1"
   # used for create-required-objecttypen podiumd job only
   create_required_objecttypen_job:
     enabled: true
+    # Total wall-clock window in which the job is allowed to keep retrying (seconds). Default: 15 minutes.
+    activeDeadlineSeconds: 900
+    # Number of retries before the job is marked failed.
+    backoffLimit: 6
     resources:
       requests:
         cpu: 50m
@@ -1159,11 +1177,13 @@ openarchiefbeheer:
   fullnameOverride: openarchiefbeheer
   # Reference to an existing secret with the values needed for django-setup-configuration
   # existingConfigurationSecrets: nil
+  # override: values-enable-observability.yaml sets disabled: false and configures the OTLP endpoint
+  otel:
+    disabled: true
   configuration:
     enabled: true
     oidcUrl: https://abc.example.nl
-    # -- Enable PKCE (S256) on the Keycloak client. NOTE: openarchiefbeheer v1.1.1 does not yet support
-    # OIDC authentication; this switch is reserved for when OIDC support is added to the application.
+    # -- Enable PKCE (S256) on the Keycloak client.
     pkceEnabled: false
     job:
       enabled: true
@@ -1217,38 +1237,34 @@ openarchiefbeheer:
 
     #   oidc_db_config_enable: true
     #   oidc_db_config_admin_auth:
+    #     providers:
+    #     - identifier: admin-oidc-provider
+    #       endpoint_config:
+    #         oidc_op_discovery_endpoint: https://example.keycloak.nl/realms/podiumd/
+    #       oidc_token_use_basic_auth: false
     #     items:
     #     - identifier: admin-oidc
     #       enabled: true
-    #       endpoint_config:
-    #         oidc_op_discovery_endpoint: https://example.keycloak.nl/realms/podiumd-poc/
-    #       oidc_rp_scopes_list:
-    #         - openid
-    #         - email
-    #         - profile
-    #       userinfo_claims_source: id_token
-    #       oidc_rp_client_id: example-client-id
-    #       oidc_rp_client_secret: {value_from: {env: keycloak_client_secret}}
+    #       oidc_provider_identifier: admin-oidc-provider
+    #       oidc_rp_client_id: openarchiefbeheer
+    #       oidc_rp_client_secret:
+    #         value_from:
+    #           env: keycloak_client_secret
     #       oidc_rp_sign_algo: RS256
     #       # Enable PKCE on the application side — requires pkceEnabled: true on the Keycloak client.
-    #       oidc_use_pkce: true
-    #       claim_mapping:
-    #         email:
-    #           - email
-    #         first_name:
-    #           - given_name
-    #         last_name:
-    #           - family_name
-    #       username_claim:
-    #         - preferred_username
-    #       groups_claim:
-    #         - roles
-    #       sync_groups: true
-    #       sync_groups_glob_pattern: "*"
-    #       default_groups: []
-    #       make_users_staff: true
-    #       superuser_group_names:
-    #         - Superuser
+    #       oidc_use_pkce: false
+    #       options:
+    #         user_settings:
+    #           claim_mappings:
+    #             username:
+    #             - preferred_username
+    #           username_case_sensitive: false
+    #         groups_settings:
+    #           superuser_group_names:
+    #           - Superuser
+    #           claim_mapping:
+    #           - roles
+    #           make_users_staff: true
 
   tags:
     redis: false
@@ -1269,7 +1285,7 @@ openarchiefbeheer:
 
   nginx:
     image:
-      tag: "1.29.8"
+      tag: "1.30.0@sha256:3def659164dfb7d6be8563983ea9d2fe7e4dfcf2af96770d728723a5c5ad3bad"
     resources:
       requests:
         cpu: 10m
@@ -1277,10 +1293,10 @@ openarchiefbeheer:
 
   replicaCount: 1
 
-  # maykinmedia/open-archiefbeheer:1.1.0
+  # maykinmedia/open-archiefbeheer:2.0.0
   image:
     #repository: maykinmedia/open-archiefbeheer
-    tag: "1.1.1"
+    tag: "2.0.0@sha256:e5217d748869c62d26393311c3cfdcaacf69d8dde80ca3bc172ff41f3885f0ff"
 
   resources:
     limits: {}
@@ -1298,6 +1314,10 @@ openarchiefbeheer:
     sessionCookieAge: 1800
     # -- Number of days to wait before destroying a list. Defaults to 7 in the application.
     waitingPeriod: ""
+    # -- Number of days for which destruction lists will be visible after successful destruction. Defaults to 7.
+    postDestructionVisibilityPeriod: 7
+    # -- If true, the inline presentation of related objects is disabled, reducing load on external registers.
+    relatedCountDisabled: false
     # logging:
     # -- Controls whether the logs are output to standard output (true) or to a file (false, default)
     #   toStdout: false
@@ -1446,7 +1466,7 @@ openklant:
   fullnameOverride: openklant
   nginx:
     image:
-      tag: "1.29.8"
+      tag: "1.30.0@sha256:3def659164dfb7d6be8563983ea9d2fe7e4dfcf2af96770d728723a5c5ad3bad"
     resources:
       requests:
         cpu: 10m
@@ -1635,7 +1655,7 @@ openformulieren:
   persistentVolume:
     volumeAttributeShareName: openformulieren
   image:
-    tag: "3.4.7"
+    tag: "3.4.9@sha256:55dc5644595d43a5412d60436aac846ce0d71b799be85c53ff815c31416f3e39"
   resources:
     requests:
       cpu: 250m
@@ -1660,7 +1680,7 @@ openformulieren:
         memory: 160Mi
   nginx:
     image:
-      tag: "1.29.8"
+      tag: "1.30.0@sha256:3def659164dfb7d6be8563983ea9d2fe7e4dfcf2af96770d728723a5c5ad3bad"
     resources:
       requests:
         cpu: 10m
@@ -1852,7 +1872,7 @@ openinwoner:
   fullnameOverride: openinwoner
   nginx:
     image:
-      tag: "1.29.8"
+      tag: "1.30.0@sha256:3def659164dfb7d6be8563983ea9d2fe7e4dfcf2af96770d728723a5c5ad3bad"
     config:
       basicAuth:
         # Enable this when digid mock is set to digidMock: "true"
@@ -2001,7 +2021,7 @@ referentielijsten:
   image:
     repository: maykinmedia/referentielijsten-api
     pullPolicy: IfNotPresent
-    tag: "0.7.1"
+    tag: "0.7.2@sha256:f7f0f25b180a3746e1bf3df81fe19e4ea509428edea1d93831262a67c81f5f9d"
 
   settings:
     allowedHosts: "referentielijsten-nginx.podiumd.svc.cluster.local"
@@ -2134,7 +2154,7 @@ openbeheer:
   securityContext:
     capabilities:
       drop:
-      - ALL
+        - ALL
     readOnlyRootFilesystem: false
     runAsNonRoot: true
     runAsUser: 1000
@@ -2192,7 +2212,7 @@ openbeheer:
       rateUser: "15000/hour"
   nginx:
     image:
-      tag: "1.29.8"
+      tag: "1.30.0@sha256:3def659164dfb7d6be8563983ea9d2fe7e4dfcf2af96770d728723a5c5ad3bad"
     resources:
       requests:
         cpu: 10m
@@ -2542,16 +2562,16 @@ zac:
     code: "007"
     naam: "Example Gemeente"
     mail: "noreply@example.nl"
-  # curlimages/curl:8.19.0
+  # curlimages/curl:8.20.0@sha256:b3f1fb2a51d923260350d21b8654bbc607164a987e2f7c84a0ac199a67df812a
   global:
     curlImage:
       #repository: curlimages/curl
-      tag: 8.18.0
-  # ghcr.io/infonl/zaakafhandelcomponent:4.3.61
+      tag: "8.20.0@sha256:b3f1fb2a51d923260350d21b8654bbc607164a987e2f7c84a0ac199a67df812a"
+  # ghcr.io/infonl/zaakafhandelcomponent:4.7.0
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
-    tag: 4.3.61 # ZAC Sprint 65 versie — same as 4.6.3; helm chart bumped for probe/port fixes only
+    tag: 4.8.0@sha256:231be366444eab6f19afbb09fa23cfa57c90c1f37f5c77553c8326128be3adca
   # Liveness probe uses /health/ready (not /health/live) with a high failureThreshold so
   # Kubernetes automatically restarts ZAC after extended OpenZaak/catalogus unavailability.
   # The ZGW-API-Client has no connectTimeout/readTimeout, causing stale TCP connections
@@ -2588,10 +2608,10 @@ zac:
   nginx:
     enabled: true
     client_max_body_size: 150M
-    # nginxinc/nginx-unprivileged:1.29.8
+    # nginxinc/nginx-unprivileged:1.30.0@sha256:9b269aa3263e1dcba790fda66aa91b6b02f904adcd8329e5cf256e14a65e2974
     image:
       # repository: nginxinc/nginx-unprivileged
-      tag: 1.29.8
+      tag: "1.30.0@sha256:3def659164dfb7d6be8563983ea9d2fe7e4dfcf2af96770d728723a5c5ad3bad"
     resources:
       requests:
         cpu: 50m
@@ -2604,17 +2624,16 @@ zac:
     url: http://objecttypen.example.nl
     token: objecttypentoken
   office_converter:
-    # ghcr.io/eugenmayer/kontextwork-converter:1.8.2
+    # gotenberg/gotenberg:8.31.0@sha256:f0d86e8a1dbc7b33a5a65cb251d02bb271a48ffa989da3feb5ed7d954fe4d4b3
     image:
-      repository: ghcr.io/eugenmayer/kontextwork-converter
-      tag: "1.8.2"
-    containerPort: 8080
+      # repository: gotenberg/gotenberg
+      tag: "8.31.0@sha256:f0d86e8a1dbc7b33a5a65cb251d02bb271a48ffa989da3feb5ed7d954fe4d4b3"
   opa:
     sidecar: true
-    # openpolicyagent/opa:1.14.0-static
+    # openpolicyagent/opa:1.15.2-static@sha256:f3429de096f6d274bd9927f7a50c334e340a6cf206fad9460ccf17e2f3e807bf
     image:
       #repository: openpolicyagent/opa
-      tag: 1.14.0-static
+      tag: "1.15.2-static@sha256:f3429de096f6d274bd9927f7a50c334e340a6cf206fad9460ccf17e2f3e807bf"
     resources:
       requests:
         cpu: 10m
@@ -2640,10 +2659,10 @@ zac:
     # -- install crds using https://solr.apache.org/operator/downloads/crds/v0.10.0-prerelease/all-with-dependencies.yaml
     # -- turn functionality on/off
     enabled: true
-    # apache/solr-operator:v0.9.1
+    # apache/solr-operator:v0.9.1@sha256:4db34508137f185d3cad03c7cf7c2b5d6533fb590822effcde9125cff5a90aa2
     image:
       #repository:
-      tag: v0.9.1
+      tag: v0.9.1@sha256:4db34508137f185d3cad03c7cf7c2b5d6533fb590822effcde9125cff5a90aa2
     nodeSelector: {}
     resources:
       requests:
@@ -2653,16 +2672,16 @@ zac:
         cpu: 500m
         memory: 256Mi
     solr:
-      # library/busybox:1.37.0-glibc
+      # library/busybox:1.37.0-glibc@sha256:3f9777e7e82e8591542f72b965ec7db7e8b3bdb59692976af1bb9b2850b05a4e
       busyBoxImage:
         #repository:
-        tag: 1.37.0-glibc
+        tag: 1.37.0-glibc@sha256:3f9777e7e82e8591542f72b965ec7db7e8b3bdb59692976af1bb9b2850b05a4e
       # -- set enabled to provision solrcloud as well
       enabled: true
-      # library/solr:9.10.1-slim
+      # library/solr:9.10.1-slim@sha256:f67042f3a0e9e7b6fe0f8fa85e96ea0d0d1cbdd4cda19ccfb462ef3ef5d44ddf
       image:
         #repository:
-        tag: 9.10.1-slim
+        tag: 9.10.1-slim@sha256:f67042f3a0e9e7b6fe0f8fa85e96ea0d0d1cbdd4cda19ccfb462ef3ef5d44ddf
       # -- define memory settings for solr in the solrcloud
       javaMem: -Xms512m -Xmx768m
       jobs:
@@ -2687,14 +2706,14 @@ zac:
       crd:
         create: false
       hooks:
-        # lachlanevenson/k8s-kubectl:v1.25.4
+        # lachlanevenson/k8s-kubectl:@v1.25.4@sha256:af5cea3f2e40138df90660c0c073d8b1506fb76c8602a9f48aceb5f4fb052ddc
         image:
           #repository:
-          tag: v1.25.4
-      # pravega/zookeeper-operator:0.2.15
+          tag: v1.25.4@sha256:af5cea3f2e40138df90660c0c073d8b1506fb76c8602a9f48aceb5f4fb052ddc
+      # pravega/zookeeper-operator:0.2.15@sha256:b2bc4042fdd8fea6613b04f2f602ba4aff1201e79ba35cd0e2df9f3327111b0e
       image:
         #repository:
-        tag: 0.2.15
+        tag: 0.2.15@sha256:b2bc4042fdd8fea6613b04f2f602ba4aff1201e79ba35cd0e2df9f3327111b0e
       resources:
         requests:
           cpu: 50m
@@ -2705,10 +2724,10 @@ zac:
       # -- namespaces to watch for zookeeper-operator
       watchNamespace: "podiumd"
       zookeeper:
-        # pravega/zookeeper:0.2.15
+        # pravega/zookeeper:0.2.15@sha256:c498ebfb76a66f038075e2fa6148528d74d31ca1664f3257fdf82ee779eec9c8
         image:
           #repository:
-          tag: 0.2.15
+          tag: 0.2.15@sha256:c498ebfb76a66f038075e2fa6148528d74d31ca1664f3257fdf82ee779eec9c8
         resources:
           requests:
             cpu: 100m
@@ -2740,18 +2759,18 @@ zgw-office-addin:
     # -- MS Azure Client ID assigned to the Office Add-in application
     msalClientId: "dummy"
   frontend:
-    # ghcr.io/infonl/zgw-office-add-in-frontend:v0.9.251
+    # ghcr.io/infonl/zgw-office-add-in-frontend:v0.9.289@sha256:80c1fea3d16ef8a837576858e581bb20de6296af7f21c56d401f4a346c126dc0
     image:
-      tag: v0.9.251
+      tag: "v0.9.289@sha256:55d22385a698c8c4698e532a2ae26902f8eae02ae09d2b26440a15a583367836"
     resources:
       requests:
         cpu: 50m
         memory: 64Mi
   backend:
     msalSecret: "dummy"
-    # ghcr.io/infonl/zgw-office-add-in-backend:v0.9.251
+    # ghcr.io/infonl/zgw-office-add-in-backend:v0.9.289@sha256:dc9b165344e787cbf6146183be529594308e22eea553e1db6654f49ba9e76cfb
     image:
-      tag: v0.9.251
+      tag: "v0.9.289@sha256:9064278149ebe1f5ddd4efb526c1f68219d29b9245093d5cf63fe77bed3362d2"
     resources:
       requests:
         cpu: 100m
@@ -2894,7 +2913,7 @@ apiproxy:
   #nameOverride: "iconnect-proxy"
   image:
     repository: nginxinc/nginx-unprivileged
-    tag: "1.29.5"
+    tag: "1.30.0@sha256:3def659164dfb7d6be8563983ea9d2fe7e4dfcf2af96770d728723a5c5ad3bad"
     pullPolicy: IfNotPresent
   service:
     port: 80
@@ -2916,7 +2935,7 @@ apiproxy:
   resolverIp: 10.0.0.10 # KubeDNS resolver
   locations:
     commonSettings: &commonLocation
-      sslVerify: ""  # Leave empty to auto-derive from nginxCertsSecret (on if set, off if not); override per-location if needed
+      sslVerify: "" # Leave empty to auto-derive from nginxCertsSecret (on if set, off if not); override per-location if needed
       hostHeader: "lab.api.mijniconnect.nl"
     bag:
       <<: *commonLocation
@@ -3125,7 +3144,7 @@ omc:
   fullnameOverride: "omc"
   image:
     # repository: ghcr.io/worth-nl/notifynl-omc
-    tag: "1.17.18"
+    tag: "1.17.19@sha256:e0491d97996570ea18833994895460a46a081c639539305edbd519ebdb17bba6"
   # BELOW are the resource settings from the subchart, notifynl-omc-nodep which we do not override
   # app:
   #   port: 5270

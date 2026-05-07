@@ -1,0 +1,95 @@
+# Images die nieuw of gewijzigd zijn in podiumd 4.7.0 t.o.v. 4.6.5.
+
+# Open Zaak
+- name: openzaak
+  url: docker.io/openzaak/open-zaak
+  version: "1.27.1"
+  digest: "sha256:7726e36a1353396fb971929645489e0e8a7e5848e5fdf0ae3fa8075b6ce15da9"
+
+# Open Archiefbeheer
+- name: openarchiefbeheer
+  url: docker.io/maykinmedia/open-archiefbeheer
+  version: "2.0.0"
+  digest: "sha256:e5217d748869c62d26393311c3cfdcaacf69d8dde80ca3bc172ff41f3885f0ff"
+
+# ZAC
+- name: zac
+  url: ghcr.io/infonl/zaakafhandelcomponent
+  version: "4.7.0"
+  digest: "sha256:e1f9b3ea633e7de562b37591b72fa34afa37acf6978c0ce72b3467f1801152fb"
+
+# ZAC - Gotenberg (office converter, replaces kontextwork-converter)
+- name: gotenberg
+  url: docker.io/gotenberg/gotenberg
+  version: "8.31.0"
+  digest: "sha256:f0d86e8a1dbc7b33a5a65cb251d02bb271a48ffa989da3feb5ed7d954fe4d4b3"
+
+# ZAC - Open Policy Agent
+- name: opa
+  url: docker.io/openpolicyagent/opa
+  version: "1.15.2-static"
+  digest: "sha256:f3429de096f6d274bd9927f7a50c334e340a6cf206fad9460ccf17e2f3e807bf"
+
+# nginx-unprivileged (ZAC nginx + apiproxy)
+- name: nginx-unprivileged
+  url: docker.io/nginxinc/nginx-unprivileged
+  version: "1.30.0"
+  digest: "sha256:3def659164dfb7d6be8563983ea9d2fe7e4dfcf2af96770d728723a5c5ad3bad"
+
+# alpine/k8s (redis-ha label-master job)
+- name: alpine-k8s
+  url: docker.io/alpine/k8s
+  version: "1.34.7"
+  digest: "sha256:4745677e51c0fb567aedf1453a7bd489e0a62dbbf2bda475d663f7eed041adb4"
+
+# ZAC - curl
+- name: curl
+  url: docker.io/curlimages/curl
+  version: "8.20.0"
+  digest: "sha256:b3f1fb2a51d923260350d21b8654bbc607164a987e2f7c84a0ac199a67df812a"
+
+# Open Formulieren
+- name: openformulieren
+  url: docker.io/openformulieren/open-forms
+  version: "3.4.9"
+  digest: "sha256:55dc5644595d43a5412d60436aac846ce0d71b799be85c53ff815c31416f3e39"
+
+# Keycloak (operator + server)
+- name: keycloak
+  url: quay.io/keycloak/keycloak
+  version: "26.6.1"
+  digest: "sha256:26ae26445475f7fac5f90ee138b1bdb64324f5815fb16133ffdbdb122d97c4d8"
+
+- name: keycloak-operator
+  url: quay.io/keycloak/keycloak-operator
+  version: "26.6.1"
+  digest: "sha256:a3123e57c8928310488a7cc20cc9791be0abc342ad6a4f72e7a87fc45bdf51c3"
+
+# Object Types API (patch 2026-05-03)
+- name: objecttypen
+  url: docker.io/maykinmedia/objecttypes-api
+  version: "3.4.2"
+  digest: "sha256:d366e6ede1bb924ea351495f4e88ceba53bb0df02fa5302929daef379131fda1"
+
+# Referentielijsten API (patch 2026-05-03)
+- name: referentielijsten-api
+  url: docker.io/maykinmedia/referentielijsten-api
+  version: "0.7.2"
+  digest: "sha256:f7f0f25b180a3746e1bf3df81fe19e4ea509428edea1d93831262a67c81f5f9d"
+
+# OMC (NotifyNL) (patch 2026-05-03)
+- name: omc
+  url: docker.io/worthnl/notifynl-omc
+  version: "1.17.19"
+  digest: "sha256:e0491d97996570ea18833994895460a46a081c639539305edbd519ebdb17bba6"
+
+# ZGW Office Add-in (patch 2026-05-03)
+- name: zgw-office-add-in-frontend
+  url: ghcr.io/infonl/zgw-office-add-in-frontend
+  version: "v0.9.289"
+  digest: "sha256:55d22385a698c8c4698e532a2ae26902f8eae02ae09d2b26440a15a583367836"
+
+- name: zgw-office-add-in-backend
+  url: ghcr.io/infonl/zgw-office-add-in-backend
+  version: "v0.9.289"
+  digest: "sha256:9064278149ebe1f5ddd4efb526c1f68219d29b9245093d5cf63fe77bed3362d2"
