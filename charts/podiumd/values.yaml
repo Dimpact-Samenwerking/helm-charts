@@ -588,6 +588,10 @@ openzaak:
     client_id: "<openzaak_client_id>"
     secret: "<openzaak_secret>"
     enabled: true
+    # Total wall-clock window in which the job is allowed to keep retrying (seconds). Default: 15 minutes.
+    activeDeadlineSeconds: 900
+    # Number of retries before the job is marked failed.
+    backoffLimit: 6
     resources:
       requests:
         cpu: 50m
@@ -1134,6 +1138,10 @@ objecttypen:
   # used for create-required-objecttypen podiumd job only
   create_required_objecttypen_job:
     enabled: true
+    # Total wall-clock window in which the job is allowed to keep retrying (seconds). Default: 15 minutes.
+    activeDeadlineSeconds: 900
+    # Number of retries before the job is marked failed.
+    backoffLimit: 6
     resources:
       requests:
         cpu: 50m
@@ -2906,7 +2914,16 @@ apiproxy:
     requests:
       cpu: "0.1"
       memory: "128Mi"
-  nginxCertsSecret: "api-proxy-certs"
+  # -- Secret containing client certificate (`client.crt`/`client.key`) and CA bundle (`ca.crt`)
+  # for upstream mTLS. Leave empty to disable mTLS and skip the cert volume mount.
+  # When set, `sslVerify` auto-derives to "on"; when empty it auto-derives to "off".
+  nginxCertsSecret: ""
+  # -- Maximum length of the upstream server certificate chain validated by nginx
+  # (`proxy_ssl_verify_depth`). Government API gateways occasionally chain through
+  # cross-signed intermediates; the nginx default of 1 is too shallow.
+  # Per-location overrides: set `apiproxy.locations.<loc>.sslVerifyDepth` to override
+  # this global value for a single upstream (e.g. bag, brp, kvkSearch).
+  sslVerifyDepth: 6
   livenessProbe:
     initialDelaySeconds: 5
     periodSeconds: 10
