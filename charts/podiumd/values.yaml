@@ -3350,6 +3350,11 @@ mi:
   enabled: false
   # Top-level path prefix under the storage container — keeps each gemeente's exports isolated.
   gemeente: ""
+  # Output format. One of:
+  #   csv    — per-table \COPY → tar.gz of CSVs (one CSV per table inside the tarball).
+  #   pgdump — pg_dump -Fc (custom format, zlib-compressed, restorable via pg_restore).
+  # All targets in an environment use the same format; per-target overrides are not supported.
+  format: csv
   schedule: "0 2 * * 0"
   timeZone: "Europe/Amsterdam"
   concurrencyPolicy: Forbid

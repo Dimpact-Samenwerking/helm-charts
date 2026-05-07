@@ -1,6 +1,10 @@
 {{- if .Values.mi.enabled }}
 {{- $mi := .Values.mi }}
 {{- $root := . }}
+{{- $format := default "csv" $mi.format }}
+{{- if not (has $format (list "csv" "pgdump")) }}
+  {{- fail (printf "mi.format must be one of: csv, pgdump (got %q)" $format) }}
+{{- end }}
 
 {{- /*
   One CronJob per entry in mi.targets[]. Each entry is gated on the chart's
@@ -70,6 +74,8 @@ spec:
                   value: {{ $t.component | quote }}
                 - name: MI_SCHEMAS
                   value: {{ default (list "public") $t.schemas | join " " | quote }}
+                - name: MI_FORMAT
+                  value: {{ $format | quote }}
               envFrom:
                 - secretRef:
                     name: {{ $mi.storage.secretName | quote }}

@@ -7,14 +7,18 @@ metadata:
     {{- include "podiumd.labels" . | nindent 4 }}
     app.kubernetes.io/component: mi-export
 data:
-  # Unified dump script, modeled on Maykin's bin/dump_data.sh --csv path
-  # (open-zaak, objects-api, etc.): enumerate pg_tables in the chosen schemas,
-  # \COPY each to a per-table CSV on the /tmp emptyDir, then package the whole
-  # set into one streaming tar.gz and upload as a single blob per run.
+  # Unified dump script. Two output formats, selected via MI_FORMAT:
   #
-  # Blob layout: <gemeente>/<YYMMDD>/<component>/<HHMMSS>-<component>.tar.gz
-  # Inside the tarball: one CSV per table, named <table>.csv (or <schema>_<table>.csv
-  # when the schema is not public).
+  #   csv    — modeled on Maykin's bin/dump_data.sh --csv path: enumerate
+  #            pg_tables in the chosen schemas, \COPY each to a per-table CSV
+  #            on the /tmp emptyDir, then package into one tar.gz.
+  #            Blob: <gemeente>/<YYMMDD>/<component>/<HHMMSS>-<component>.tar.gz
+  #            Inside: one CSV per table, named <table>.csv
+  #            (or <schema>_<table>.csv when the schema is not public).
+  #
+  #   pgdump — pg_dump -Fc against the chosen schemas. Single output file in
+  #            Postgres custom format (zlib-compressed, restorable via pg_restore).
+  #            Blob: <gemeente>/<YYMMDD>/<component>/<HHMMSS>-<component>.pgdump
   dump.sh: |
     #!/usr/bin/env bash
     set -euo pipefail
@@ -31,6 +35,7 @@ data:
     DB_PORT="${DB_PORT:-5432}"
     # Whitespace-separated list, e.g. "public" or "public flowable". Default: public.
     MI_SCHEMAS="${MI_SCHEMAS:-public}"
+    MI_FORMAT="${MI_FORMAT:-csv}"
 
     # One timestamp captured at script start so every table from a single run
     # lands under the same date+time path. Slicing keeps DATE_DIR and TIME_PART
@@ -40,23 +45,22 @@ data:
     TIME_PART="${TS:9:6}"  # HHMMSS
     log() { printf '[%s] %s\n' "$(date -u -Iseconds)" "$*"; }
 
-    # iter3-todo: image is mcr.microsoft.com/azure-cli (Azure Linux) with psql
-    # and tar installed at runtime via tdnf; bake a purpose-built image and
-    # drop this bootstrap step (and re-enable runAsNonRoot in the CronJob
-    # securityContext). gzip is already present in the base image.
+    # iter3-todo: image is mcr.microsoft.com/azure-cli (Azure Linux) with the
+    # postgresql tooling and tar installed at runtime via tdnf; bake a
+    # purpose-built image and drop this bootstrap step (and re-enable
+    # runAsNonRoot in the CronJob securityContext). gzip is already present in
+    # the base image. The `postgresql` package supplies both psql and pg_dump.
     needs=()
-    command -v psql >/dev/null 2>&1 || needs+=(postgresql)
-    command -v tar  >/dev/null 2>&1 || needs+=(tar)
+    command -v psql    >/dev/null 2>&1 || needs+=(postgresql)
+    command -v pg_dump >/dev/null 2>&1 || needs+=(postgresql)
+    command -v tar     >/dev/null 2>&1 || needs+=(tar)
     if [ "${#needs[@]}" -gt 0 ]; then
-      log "installing: ${needs[*]}"
-      tdnf install -y --quiet "${needs[@]}" >/dev/null
+      # Dedupe: a single `postgresql` install gives us psql + pg_dump.
+      uniq_needs=$(printf '%s\n' "${needs[@]}" | sort -u)
+      log "installing: ${uniq_needs}"
+      # shellcheck disable=SC2086
+      tdnf install -y --quiet ${uniq_needs} >/dev/null
     fi
-
-    # Per-run scratch area on the /tmp emptyDir. Holds CSVs while we accumulate
-    # them, plus the final tar.gz. Both are wiped on exit (success or failure).
-    WORK="$(mktemp -d /tmp/mi-csv.XXXXXX)"
-    TARBALL="$(mktemp -u -p /tmp mi-XXXXXX.tar.gz)"
-    trap 'rm -rf "${WORK}" "${TARBALL}"' EXIT
 
     psql_run() {
       PGPASSWORD="${DB_PASSWORD}" psql \
@@ -65,60 +69,107 @@ data:
         --no-psqlrc --set ON_ERROR_STOP=1 "$@"
     }
 
-    list_tables() {
-      # Returns 'schema<TAB>table' lines for every base table in the requested schemas.
-      local in_clause
-      in_clause="$(printf "'%s'," ${MI_SCHEMAS})"
-      in_clause="${in_clause%,}"
-      psql_run -At -F $'\t' --command="
-        SELECT schemaname, tablename
-        FROM pg_catalog.pg_tables
-        WHERE schemaname IN (${in_clause})
-        ORDER BY schemaname, tablename
-      "
+    upload_blob() {
+      # upload_blob <local-file> <blob-path>
+      local file="$1" blob="$2" size
+      size="$(stat -c%s "${file}" 2>/dev/null || stat -f%z "${file}")"
+      log "uploading ${blob} (${size} bytes)"
+      az storage blob upload \
+        --account-name "${AZURE_STORAGE_ACCOUNT}" \
+        --account-key  "${AZURE_STORAGE_KEY}" \
+        --container-name "${AZURE_STORAGE_CONTAINER}" \
+        --name "${blob}" \
+        --file "${file}" \
+        --overwrite \
+        --only-show-errors >/dev/null
     }
 
-    dump_one_to_disk() {
-      # dump_one_to_disk <schema> <table>  → ${WORK}/<label>.csv
-      # label drops the schema prefix for public (same convention as before).
-      local schema="$1" table="$2" label
-      if [ "${schema}" = "public" ]; then label="${table}"; else label="${schema}_${table}"; fi
-      log "dumping ${schema}.${table} -> ${label}.csv"
-      psql_run --command="\\COPY \"${schema}\".\"${table}\" TO STDOUT CSV HEADER" \
-        > "${WORK}/${label}.csv"
-    }
+    log "starting MI export: component=${MI_COMPONENT} schemas=${MI_SCHEMAS} format=${MI_FORMAT}"
 
-    log "starting MI export: component=${MI_COMPONENT} schemas=${MI_SCHEMAS}"
-    rows="$(list_tables)"
-    if [ -z "${rows}" ]; then
-      log "no tables found in schemas (${MI_SCHEMAS}) of ${MI_COMPONENT} DB"
-      exit 1
-    fi
+    case "${MI_FORMAT}" in
+      csv)
+        # Per-run scratch area on the /tmp emptyDir. Holds CSVs while we
+        # accumulate them, plus the final tar.gz. Both are wiped on exit.
+        WORK="$(mktemp -d /tmp/mi-csv.XXXXXX)"
+        TARBALL="$(mktemp -u -p /tmp mi-XXXXXX.tar.gz)"
+        trap 'rm -rf "${WORK}" "${TARBALL}"' EXIT
 
-    n=0
-    while IFS=$'\t' read -r schema table; do
-      [ -z "${schema}" ] && continue
-      dump_one_to_disk "${schema}" "${table}"
-      n=$((n+1))
-    done <<< "${rows}"
+        list_tables() {
+          # Returns 'schema<TAB>table' lines for every base table in the requested schemas.
+          local in_clause
+          in_clause="$(printf "'%s'," ${MI_SCHEMAS})"
+          in_clause="${in_clause%,}"
+          psql_run -At -F $'\t' --command="
+            SELECT schemaname, tablename
+            FROM pg_catalog.pg_tables
+            WHERE schemaname IN (${in_clause})
+            ORDER BY schemaname, tablename
+          "
+        }
 
-    # Package every CSV into one streaming tar.gz. gzip's deflate window is
-    # 32 KiB regardless of input size — memory stays bounded at ~256 KiB
-    # whether we package 5 tables or 5,000.
-    log "packaging ${n} CSV(s) into ${MI_COMPONENT}.tar.gz"
-    tar -czf "${TARBALL}" -C "${WORK}" .
+        dump_one_to_disk() {
+          # dump_one_to_disk <schema> <table>  → ${WORK}/<label>.csv
+          # label drops the schema prefix for public (same convention as before).
+          local schema="$1" table="$2" label
+          if [ "${schema}" = "public" ]; then label="${table}"; else label="${schema}_${table}"; fi
+          log "dumping ${schema}.${table} -> ${label}.csv"
+          psql_run --command="\\COPY \"${schema}\".\"${table}\" TO STDOUT CSV HEADER" \
+            > "${WORK}/${label}.csv"
+        }
 
-    BLOB="${MI_GEMEENTE}/${DATE_DIR}/${MI_COMPONENT}/${TIME_PART}-${MI_COMPONENT}.tar.gz"
-    SIZE="$(stat -c%s "${TARBALL}" 2>/dev/null || stat -f%z "${TARBALL}")"
-    log "uploading ${BLOB} (${SIZE} bytes)"
-    az storage blob upload \
-      --account-name "${AZURE_STORAGE_ACCOUNT}" \
-      --account-key  "${AZURE_STORAGE_KEY}" \
-      --container-name "${AZURE_STORAGE_CONTAINER}" \
-      --name "${BLOB}" \
-      --file "${TARBALL}" \
-      --overwrite \
-      --only-show-errors >/dev/null
+        rows="$(list_tables)"
+        if [ -z "${rows}" ]; then
+          log "no tables found in schemas (${MI_SCHEMAS}) of ${MI_COMPONENT} DB"
+          exit 1
+        fi
 
-    log "done: ${n} table(s) packaged in ${BLOB}"
+        n=0
+        while IFS=$'\t' read -r schema table; do
+          [ -z "${schema}" ] && continue
+          dump_one_to_disk "${schema}" "${table}"
+          n=$((n+1))
+        done <<< "${rows}"
+
+        # gzip's deflate window is 32 KiB regardless of input size — memory
+        # stays bounded at ~256 KiB whether we package 5 tables or 5,000.
+        log "packaging ${n} CSV(s) into ${MI_COMPONENT}.tar.gz"
+        tar -czf "${TARBALL}" -C "${WORK}" .
+
+        BLOB="${MI_GEMEENTE}/${DATE_DIR}/${MI_COMPONENT}/${TIME_PART}-${MI_COMPONENT}.tar.gz"
+        upload_blob "${TARBALL}" "${BLOB}"
+        log "done: ${n} table(s) packaged in ${BLOB}"
+        ;;
+
+      pgdump)
+        # Single pg_dump in custom format (-Fc) — zlib-compressed, restorable
+        # with pg_restore, includes schema + data + ownership/privileges.
+        # One -n flag per requested schema; tables outside those schemas are
+        # excluded (matches the csv path's filtering).
+        DUMPFILE="$(mktemp -u -p /tmp mi-XXXXXX.pgdump)"
+        trap 'rm -f "${DUMPFILE}"' EXIT
+
+        schema_args=()
+        for s in ${MI_SCHEMAS}; do
+          schema_args+=(-n "${s}")
+        done
+
+        log "running pg_dump -Fc on ${DB_NAME} (schemas: ${MI_SCHEMAS})"
+        PGPASSWORD="${DB_PASSWORD}" pg_dump \
+          --host="${DB_HOST}" --port="${DB_PORT}" \
+          --username="${DB_USER}" --dbname="${DB_NAME}" \
+          --format=custom \
+          --no-owner --no-privileges \
+          "${schema_args[@]}" \
+          --file="${DUMPFILE}"
+
+        BLOB="${MI_GEMEENTE}/${DATE_DIR}/${MI_COMPONENT}/${TIME_PART}-${MI_COMPONENT}.pgdump"
+        upload_blob "${DUMPFILE}" "${BLOB}"
+        log "done: pg_dump uploaded to ${BLOB}"
+        ;;
+
+      *)
+        log "unsupported MI_FORMAT='${MI_FORMAT}' (expected csv or pgdump)"
+        exit 2
+        ;;
+    esac
 {{- end }}
