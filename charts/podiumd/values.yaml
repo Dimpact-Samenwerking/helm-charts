@@ -589,8 +589,8 @@ openzaak:
     enabled: true
     # Total wall-clock window in which the job is allowed to keep retrying (seconds). Default: 15 minutes.
     activeDeadlineSeconds: 900
-    # Number of retries before the job is marked failed.
-    backoffLimit: 6
+    # Number of retries before the job is marked failed. Aligned with django-config jobs.
+    backoffLimit: 10
     resources:
       requests:
         cpu: 50m
@@ -1150,8 +1150,8 @@ objecttypen:
     enabled: true
     # Total wall-clock window in which the job is allowed to keep retrying (seconds). Default: 15 minutes.
     activeDeadlineSeconds: 900
-    # Number of retries before the job is marked failed.
-    backoffLimit: 6
+    # Number of retries before the job is marked failed. Aligned with django-config jobs.
+    backoffLimit: 10
     resources:
       requests:
         cpu: 50m
