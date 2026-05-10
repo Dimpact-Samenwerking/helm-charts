@@ -3279,8 +3279,10 @@ apisix:
     # FQDN where the admin UI is reachable from the internet (e.g.
     # apisix-admin.${envName}.pd.test-rig.nl).
     hostname: ""
-    # cert-manager ClusterIssuer used to issue the TLS cert.
-    clusterIssuer: "letsencrypt-production"
+    # cert-manager ClusterIssuer used to issue the TLS cert. Match whatever
+    # name the env's cert-manager bootstrap uses; podiumd-infra creates
+    # `letsencrypt-prod` and `letsencrypt-staging` (no `-production` suffix).
+    clusterIssuer: "letsencrypt-prod"
     # Image for the oauth2-proxy sidecar.
     oauth2Proxy:
       image:
