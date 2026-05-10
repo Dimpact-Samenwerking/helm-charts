@@ -11,7 +11,27 @@
 {{- if eq $hostname "" -}}
 {{-   fail "apisix.adminUi.hostname is required when apisix.enabled=true" -}}
 {{- end -}}
-{{- $issuer := .Values.apisix.adminUi.clusterIssuer | default "letsencrypt-production" -}}
+{{- $issuer := .Values.apisix.adminUi.clusterIssuer | default "letsencrypt-prod" -}}
+{{- /*
+  APISIX serves the embedded admin dashboard at /ui/, not /. Without a
+  redirect, hitting the bare hostname returns 404 from APISIX. Add a
+  Traefik redirectregex middleware that sends "/" exactly to "/ui/" so
+  the public hostname always lands on the dashboard.
+*/ -}}
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: apisix-admin-root-redirect
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: apisix-oauth2-proxy
+spec:
+  redirectRegex:
+    regex: ^https://([^/]+)/?$
+    replacement: https://${1}/ui/
+    permanent: false
+---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -24,6 +44,7 @@ metadata:
     cert-manager.io/cluster-issuer: {{ $issuer | quote }}
     cert-manager.io/renew-before: "1080h"
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.middlewares: "{{ .Release.Namespace }}-apisix-admin-root-redirect@kubernetescrd"
 spec:
   ingressClassName: traefik
   tls:
