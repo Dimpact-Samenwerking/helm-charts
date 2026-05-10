@@ -64,9 +64,22 @@ subjects:
     namespace: {{ .Release.Namespace }}
 {{- if $kcOp.enableServiceMonitor }}
 ---
-# Namespace-scoped write access — allows the operator to create and manage
-# the Keycloak ServiceMonitor in the release namespace when the CRD is present.
-# Only rendered when keycloak-operator.enableServiceMonitor: true.
+# Namespace-scoped write access — allows the Keycloak Operator pod to
+# create and manage the Keycloak ServiceMonitor in the release namespace
+# when the monitoring.coreos.com CRD is present. Only rendered when
+# keycloak-operator.enableServiceMonitor: true.
+#
+# The operator's `keycloakcontroller-cluster-role` does NOT grant
+# servicemonitors permissions (see adfinis/keycloak-operator chart 1.11.4),
+# so without this binding the operator hits 403 on PATCH and the Keycloak
+# CR stays InProgress, blocking the entire deploy.
+#
+# Subject is the operator SA (resolved via $saName, which honours the
+# adfinis fullnameOverride / serviceAccount.name chain). The conditional
+# extra subject below adds a redundant `keycloak` literal as defence in
+# depth for edge cases where fullnameOverride is overridden to something
+# other than "keycloak" — under default values it is the same SA and the
+# block renders nothing.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -102,5 +115,10 @@ subjects:
   - kind: ServiceAccount
     name: {{ $saName }}
     namespace: {{ .Release.Namespace }}
+{{- if ne $saName "keycloak" }}
+  - kind: ServiceAccount
+    name: keycloak
+    namespace: {{ .Release.Namespace }}
+{{- end }}
 {{- end }}
 {{- end }}

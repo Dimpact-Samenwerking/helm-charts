@@ -2568,11 +2568,11 @@ zac:
     code: "007"
     naam: "Example Gemeente"
     mail: "noreply@example.nl"
-  # curlimages/curl:8.19.0
+  # curlimages/curl:8.19.0@sha256:d94d07ba9e7d6de898b6d96c1a072f6f8266c687af78a74f380087a0addf5d17
   global:
     curlImage:
       #repository: curlimages/curl
-      tag: 8.19.0
+      tag: 8.19.0@sha256:d94d07ba9e7d6de898b6d96c1a072f6f8266c687af78a74f380087a0addf5d17
   # ghcr.io/infonl/zaakafhandelcomponent:4.7.0
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
@@ -2666,10 +2666,10 @@ zac:
     # -- install crds using https://solr.apache.org/operator/downloads/crds/v0.10.0-prerelease/all-with-dependencies.yaml
     # -- turn functionality on/off
     enabled: true
-    # apache/solr-operator:v0.9.1
+    # apache/solr-operator:v0.9.1@sha256:4db34508137f185d3cad03c7cf7c2b5d6533fb590822effcde9125cff5a90aa2
     image:
       #repository:
-      tag: v0.9.1
+      tag: v0.9.1@sha256:4db34508137f185d3cad03c7cf7c2b5d6533fb590822effcde9125cff5a90aa2
     nodeSelector: {}
     resources:
       requests:
@@ -2679,16 +2679,16 @@ zac:
         cpu: 500m
         memory: 256Mi
     solr:
-      # library/busybox:1.37.0-glibc
+      # library/busybox:1.37.0-glibc@sha256:ba8e26a0e4dc1178f2c90ff8c4090e1ca351bf8f38b2be3052de194e7e2ad291
       busyBoxImage:
         #repository:
-        tag: 1.37.0-glibc
+        tag: 1.37.0-glibc@sha256:ba8e26a0e4dc1178f2c90ff8c4090e1ca351bf8f38b2be3052de194e7e2ad291
       # -- set enabled to provision solrcloud as well
       enabled: true
-      # library/solr:9.10.1-slim
+      # library/solr:9.10.1-slim@sha256:bee615b4c6fb0ffd6f7ab395d9b3f323cfa69327d085c99db6d6c149e4cb2a3b
       image:
         #repository:
-        tag: 9.10.1-slim
+        tag: 9.10.1-slim@sha256:bee615b4c6fb0ffd6f7ab395d9b3f323cfa69327d085c99db6d6c149e4cb2a3b
       # -- define memory settings for solr in the solrcloud
       javaMem: -Xms512m -Xmx768m
       jobs:
@@ -2713,14 +2713,14 @@ zac:
       crd:
         create: false
       hooks:
-        # lachlanevenson/k8s-kubectl:v1.25.4
+        # lachlanevenson/k8s-kubectl:@v1.25.4@sha256:af5cea3f2e40138df90660c0c073d8b1506fb76c8602a9f48aceb5f4fb052ddc
         image:
           #repository:
-          tag: v1.25.4
-      # pravega/zookeeper-operator:0.2.15
+          tag: v1.25.4@sha256:af5cea3f2e40138df90660c0c073d8b1506fb76c8602a9f48aceb5f4fb052ddc
+      # pravega/zookeeper-operator:0.2.15@sha256:b2bc4042fdd8fea6613b04f2f602ba4aff1201e79ba35cd0e2df9f3327111b0e
       image:
         #repository:
-        tag: 0.2.15
+        tag: 0.2.15@sha256:b2bc4042fdd8fea6613b04f2f602ba4aff1201e79ba35cd0e2df9f3327111b0e
       resources:
         requests:
           cpu: 50m
@@ -2731,10 +2731,10 @@ zac:
       # -- namespaces to watch for zookeeper-operator
       watchNamespace: "podiumd"
       zookeeper:
-        # pravega/zookeeper:0.2.15
+        # pravega/zookeeper:0.2.15@sha256:c498ebfb76a66f038075e2fa6148528d74d31ca1664f3257fdf82ee779eec9c8
         image:
           #repository:
-          tag: 0.2.15
+          tag: 0.2.15@sha256:c498ebfb76a66f038075e2fa6148528d74d31ca1664f3257fdf82ee779eec9c8
         resources:
           requests:
             cpu: 100m
@@ -3206,3 +3206,130 @@ omc:
             uuids: "00000000-0000-1000-b000-000000000000"
           ktoObjectType:
             uuid: 00000000-0000-1000-b000-000000000000
+
+# APISIX in PodiumD: PoC mode — admin UI driven, etcd-backed, configuration
+# done entirely via the embedded dashboard at :9180/ui/. Public access is
+# gated by Keycloak SSO via an oauth2-proxy in front of the admin Service.
+#
+# PoC scope (acknowledged trade-offs):
+#   * etcd persistence is OFF (single replica, ephemeral) — restart loses
+#     all gateway config. Acceptable while we iterate; revisit before any
+#     non-PoC use.
+#   * No GitOps source-of-truth for routes/upstreams — all changes are
+#     applied through the UI.
+#   * Data plane (gateway) remains ClusterIP-only; only the admin UI is
+#     exposed externally (and only via SSO).
+#
+# Upstream chart: https://github.com/apache/apisix-helm-chart
+# Full values reference: `helm show values apisix/apisix --version 2.14.0`
+# See also: charts/podiumd/docs/apisix-egress-gateway.md
+#
+# Any field not set below falls back to the upstream chart defaults.
+apisix:
+  enabled: false
+  fullnameOverride: "apisix"
+
+  # Disable the bundled ingress controller — APISIX is egress-only here.
+  ingress-controller:
+    enabled: false
+
+  # The apisix subchart bundles bitnami/etcd — disallowed in this project
+  # (no Bitnami images / charts). Disable it and point the subchart at the
+  # in-chart hand-rolled etcd Service rendered by templates/apisix-etcd.yaml.
+  etcd:
+    enabled: false
+
+  # External etcd consumed by the apisix subchart when etcd.enabled=false.
+  # Same-namespace Service short name resolves via Kubernetes DNS (apisix and
+  # apisix-etcd are co-deployed by this umbrella chart). The hostname matches
+  # the Service emitted by templates/apisix-etcd.yaml.
+  externalEtcd:
+    host:
+      - "http://apisix-etcd:2379"
+    user: ""
+    password: ""
+
+  # Image + resources for the in-chart etcd StatefulSet (apisix-etcd.yaml).
+  # Upstream etcd-io build, not a Bitnami repack. Single-replica, ephemeral.
+  etcdServer:
+    image:
+      repository: gcr.io/etcd-development/etcd
+      tag: "v3.5.18"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+  # Gateway (data plane) service. ClusterIP only — APISIX is consumed
+  # by PodiumD pods for outbound API calls, not exposed outside.
+  # externalTrafficPolicy is invalid on non-LoadBalancer/NodePort services;
+  # the upstream chart defaults it to "Cluster" so we must blank it out.
+  service:
+    type: ClusterIP
+    externalTrafficPolicy: ""
+
+  # Public hostname for the embedded admin UI / Admin API, served via
+  # oauth2-proxy + Keycloak SSO. Required when apisix.enabled=true. The
+  # umbrella chart renders the oauth2-proxy Deployment + Secret + Ingress
+  # using these values.
+  adminUi:
+    # FQDN where the admin UI is reachable from the internet (e.g.
+    # apisix-admin.${envName}.pd.test-rig.nl).
+    hostname: ""
+    # cert-manager ClusterIssuer used to issue the TLS cert. Match whatever
+    # name the env's cert-manager bootstrap uses; podiumd-infra creates
+    # `letsencrypt-prod` and `letsencrypt-staging` (no `-production` suffix).
+    clusterIssuer: "letsencrypt-prod"
+    # Image for the oauth2-proxy sidecar.
+    oauth2Proxy:
+      image:
+        repository: quay.io/oauth2-proxy/oauth2-proxy
+        tag: "v7.7.1"
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 200m
+          memory: 256Mi
+
+  # ---------------------------------------------------------------------------
+  # IMPORTANT: in the upstream apisix chart 2.14.0, settings under `admin:`,
+  # `deployment:`, `router:`, etc. live under a NESTED `apisix:` key — the
+  # subchart's own self-namespace. The umbrella path is therefore
+  # `apisix.apisix.admin.*` (not `apisix.admin.*`).
+  # ---------------------------------------------------------------------------
+  apisix:
+    # etcd-backed traditional mode (chart default). Routes/upstreams are
+    # written to the bundled etcd via the Admin API / embedded UI — no
+    # ConfigMap-based standalone-yaml here.
+    deployment:
+      mode: traditional
+      role: traditional
+
+    # Admin API + embedded Dashboard UI (served at :9180/ui/). The bundled
+    # admin Service (apisix-admin:9180) is reached by the oauth2-proxy
+    # Deployment in this chart, which fronts it with Keycloak SSO and the
+    # public Ingress. Direct :9180/ui/ access from pods other than the
+    # oauth2-proxy is allowed via the cluster Pod CIDR.
+    admin:
+      enable_admin_ui: true
+      type: ClusterIP
+      # Pod CIDR — wide enough to admit the oauth2-proxy pod regardless of
+      # the AKS overlay/azure-cni mode in use. The admin API itself remains
+      # protected by the random API keys (apisix-admin-credentials) and by
+      # the public oauth2-proxy doing Keycloak SSO.
+      allow:
+        ipList:
+          - 127.0.0.1/24
+          - 10.0.0.0/8
+      # Random 32-char admin/viewer keys are auto-generated by the umbrella
+      # chart via templates/apisix-admin-credentials.yaml — replacing the
+      # upstream public default keys (`edd1c9f0…` / `4054f7cf…`). Stable across
+      # upgrades via lookup. To use Azure Key Vault via CSI driver, override
+      # `secretName` to point at your own Secret containing `admin` + `viewer`.
+      credentials:
+        secretName: apisix-admin-credentials
