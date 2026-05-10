@@ -51,6 +51,11 @@ spec:
             - --pass-authorization-header=true
             - --set-xauthrequest=true
             - --whitelist-domain=$(EXTERNAL_HOST)
+            # Keycloak issues tokens with aud=[account] by default unless the
+            # client has an explicit audience mapper. Accept that audience so
+            # we don't force every chart redeploy through realm-config churn
+            # for a single client.
+            - --oidc-extra-audience=account
           env:
             - name: EXTERNAL_HOST
               valueFrom:
