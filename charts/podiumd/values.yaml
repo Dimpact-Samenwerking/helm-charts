@@ -3233,18 +3233,35 @@ apisix:
   ingress-controller:
     enabled: false
 
-  # Bundled etcd: enabled but ephemeral (single replica, no PVC) for PoC.
-  # Loses all routes/upstreams on restart — that's the explicit trade-off.
+  # The apisix subchart bundles bitnami/etcd — disallowed in this project
+  # (no Bitnami images / charts). Disable it and point the subchart at the
+  # in-chart hand-rolled etcd Service rendered by templates/apisix-etcd.yaml.
   etcd:
-    enabled: true
-    replicaCount: 1
-    persistence:
-      enabled: false
-    auth:
-      rbac:
-        create: false
-      token:
-        enabled: false
+    enabled: false
+
+  # External etcd consumed by the apisix subchart when etcd.enabled=false.
+  # Same-namespace Service short name resolves via Kubernetes DNS (apisix and
+  # apisix-etcd are co-deployed by this umbrella chart). The hostname matches
+  # the Service emitted by templates/apisix-etcd.yaml.
+  externalEtcd:
+    host:
+      - "http://apisix-etcd:2379"
+    user: ""
+    password: ""
+
+  # Image + resources for the in-chart etcd StatefulSet (apisix-etcd.yaml).
+  # Upstream etcd-io build, not a Bitnami repack. Single-replica, ephemeral.
+  etcdServer:
+    image:
+      repository: gcr.io/etcd-development/etcd
+      tag: "v3.5.18"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
 
   # Gateway (data plane) service. ClusterIP only — APISIX is consumed
   # by PodiumD pods for outbound API calls, not exposed outside.
