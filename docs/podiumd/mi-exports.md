@@ -4,6 +4,8 @@ Weekly Management Information (MI) data exports of every Postgres-backed compone
 
 > Jira: [IN-1650](https://dimpact.atlassian.net/browse/IN-1650) (epic) / [IN-1691](https://dimpact.atlassian.net/browse/IN-1691) (iteration 1).
 
+> **⚠️ Opt-in feature — disabled by default.** Set `mi.enabled: true` in your env values file to turn it on. Doing so **only** has effect when the cloud-side prerequisites are already in place (Azure Blob Storage container + `Secret/mi-export-storage` in the `podiumd` namespace). Without those, the CronJob pods fail on first run. See [§ Activation in an environment](#activation-in-an-environment) for the full checklist.
+
 ## Audience
 
 Two readers:

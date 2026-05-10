@@ -3335,11 +3335,29 @@ apisix:
         secretName: apisix-admin-credentials
 
 # Management Information (MI) data exports — IN-1650 / IN-1691.
-# Iter1: weekly dump-to-blob via az CLI. No SFTP, no compression, no consumer-side portal yet.
-# One unified script (modeled on Maykin's bin/dump_data.sh --csv) is used for every target;
-# each entry in mi.targets[] renders one CronJob, gated on the chart's existing
-# <component>.enabled flag — so a CronJob only renders for an app this chart is actively
-# deploying ("dump apps that are deployed and running").
+#
+# OPT-IN FEATURE — DISABLED BY DEFAULT (`mi.enabled: false`).
+#
+# Before enabling in any environment, the cluster MUST already have:
+#   1. An Azure Blob Storage container available to the chart (convention:
+#      an `mi-exports` container on the env's standard storage account).
+#   2. The storage credentials materialised as a K8s Secret named
+#      `mi-export-storage` in the `podiumd` namespace, with three keys:
+#      AZURE_STORAGE_ACCOUNT, AZURE_STORAGE_KEY, AZURE_STORAGE_CONTAINER.
+#
+# If those prerequisites aren't in place, the CronJobs will render but their
+# pods fail on the first run with "AZURE_STORAGE_KEY: must be set". Enabling
+# this feature is a one-line toggle here — the cloud/infra side is the work.
+#
+# Full activation, infra prerequisites (incl. Terraform notes for external
+# hosting providers), validation, and troubleshooting:
+#   → docs/podiumd/mi-exports.md
+#
+# Iter1: weekly dump-to-blob via az CLI. No SFTP, no consumer-side portal yet.
+# One unified script (modeled on Maykin's bin/dump_data.sh --csv) is used for
+# every target; each entry in mi.targets[] renders one CronJob, gated on the
+# chart's existing <component>.enabled flag — so a CronJob only renders for an
+# app this chart is actively deploying.
 #
 # Per-target DB credentials follow the chart's existing per-app convention:
 #   - <secretName> Secret    — must contain DB_PASSWORD (plus other app secrets is fine)
@@ -3347,6 +3365,8 @@ apisix:
 # Both default to the target's `component`. Override only when the chart subchart key
 # differs from the K8s resource name (e.g. opennotificaties → notificaties resources).
 mi:
+  # Disabled by default. Set to true ONLY after the cloud prerequisites above
+  # are in place and Secret/mi-export-storage exists in the podiumd namespace.
   enabled: false
   # Top-level path prefix under the storage container — keeps each gemeente's exports isolated.
   gemeente: ""
