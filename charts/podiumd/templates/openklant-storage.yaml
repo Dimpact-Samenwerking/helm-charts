@@ -1,5 +1,6 @@
 {{- if or .Values.openklant.enabled (not (hasKey .Values.openklant "enabled")) -}}
-{{- if not (lookup "v1" "PersistentVolumeClaim" .Release.Namespace .Values.openklant.persistence.existingClaim) -}}
+{{- $pvName := printf "%s-openklant" .Release.Namespace -}}
+{{- if not (lookup "v1" "PersistentVolume" "" $pvName) }}
 ---
 apiVersion: v1
 kind: PersistentVolume
@@ -41,6 +42,8 @@ spec:
     - cache=strict
     - nosharesock
     - nobrl
+{{- end }}
+{{- if not (lookup "v1" "PersistentVolumeClaim" .Release.Namespace .Values.openklant.persistence.existingClaim) }}
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim

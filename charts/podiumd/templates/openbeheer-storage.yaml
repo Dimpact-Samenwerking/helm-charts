@@ -1,5 +1,6 @@
 {{- if or .Values.openbeheer.enabled (not (hasKey .Values.openbeheer "enabled")) -}}
-{{- if not (lookup "v1" "PersistentVolumeClaim" .Release.Namespace .Values.openbeheer.persistence.existingClaim) -}}
+{{- $pvName := printf "%s-openbeheer" .Release.Namespace -}}
+{{- if not (lookup "v1" "PersistentVolume" "" $pvName) }}
 ---
 apiVersion: v1
 kind: PersistentVolume
@@ -41,6 +42,8 @@ spec:
     - cache=strict
     - nosharesock
     - nobrl
+{{- end }}
+{{- if not (lookup "v1" "PersistentVolumeClaim" .Release.Namespace .Values.openbeheer.persistence.existingClaim) }}
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
