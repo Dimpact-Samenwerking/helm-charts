@@ -6,7 +6,7 @@
 |---|---|---|
 | Keycloak | 26.6.1 | adfinis 1.11.4 |
 | OpenZaak | 1.27.1 | 1.13.1 (chart bump to 1.14.0 deferred — see [openzaak-known-issues.md § 0](openzaak-known-issues.md#0-podiumd-470-stays-on-open-zaak-helm-chart-1131-not-1140)) |
-| ZAC | 4.8.0 | 1.0.228 (see [ZAC version-skew note](#zac-version-skew-podiumd-470-ships-zac-480)) |
+| ZAC | 4.8.0 | 1.0.228 |
 | Open Formulieren | 3.4.9 | 1.12.0 |
 | Open Archiefbeheer | 2.0.0 | 2.0.0 (⚠️ breaking) |
 | Open Beheer | 0.9.0 | 0.1.3 |
@@ -15,21 +15,6 @@
 | OMC (NotifyNL) | 1.17.19 | 0.14.1 |
 | ZGW Office Add-in | v0.9.289 | 0.0.87 |
 | APISIX (egress gateway, opt-in) | 3.16.0 | 2.14.0 |
-
-### ZAC version skew: PodiumD 4.7.0 ships ZAC 4.8.0
-
-The PodiumD 4.7.0 release was scoped against **ZAC 4.7.0** (helm chart `1.0.224`), but during the release window the ZAC app was bumped to **4.8.0** (helm chart `1.0.228`) — see PR [#272](https://github.com/Dimpact-Samenwerking/helm-charts/pull/272). The version numbers no longer line up:
-
-| | PodiumD release | ZAC app | ZAC helm chart |
-|---|---|---|---|
-| Planned at scoping | 4.7.0 | 4.7.0 | 1.0.224 |
-| Shipped | 4.7.0 | 4.8.0 | 1.0.228 |
-
-Implications:
-
-- The migration script `migrate-zac-4.7.0.py` is named for the **PodiumD release** (`4.7.0`), not the ZAC app version. It applies whether the bundled ZAC is 4.7.0 or 4.8.0.
-- ZAC 4.7.0 → 4.8.0 is a minor bump within the same major; no additional manual migration step is required on top of the items in this guide.
-- When filing support tickets, quote both the PodiumD release (`4.7.0`) and the ZAC app version (`4.8.0`) to avoid confusion.
 
 ---
 
