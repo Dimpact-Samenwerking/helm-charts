@@ -589,8 +589,8 @@ openzaak:
     enabled: true
     # Total wall-clock window in which the job is allowed to keep retrying (seconds). Default: 15 minutes.
     activeDeadlineSeconds: 900
-    # Number of retries before the job is marked failed.
-    backoffLimit: 6
+    # Number of retries before the job is marked failed. Aligned with django-config jobs.
+    backoffLimit: 10
     resources:
       requests:
         cpu: 50m
@@ -1150,8 +1150,8 @@ objecttypen:
     enabled: true
     # Total wall-clock window in which the job is allowed to keep retrying (seconds). Default: 15 minutes.
     activeDeadlineSeconds: 900
-    # Number of retries before the job is marked failed.
-    backoffLimit: 6
+    # Number of retries before the job is marked failed. Aligned with django-config jobs.
+    backoffLimit: 10
     resources:
       requests:
         cpu: 50m
@@ -1313,7 +1313,7 @@ openarchiefbeheer:
     oidcRenewIdTokenExpirySeconds: 1800
     sessionCookieAge: 1800
     # -- Number of days to wait before destroying a list. Defaults to 7 in the application.
-    waitingPeriod: ""
+    waitingPeriod: 7
     # -- Number of days for which destruction lists will be visible after successful destruction. Defaults to 7.
     postDestructionVisibilityPeriod: 7
     # -- If true, the inline presentation of related objects is disabled, reducing load on external registers.
@@ -2203,6 +2203,12 @@ openbeheer:
     isHttps: true
     debug: false
     uwsgi:
+      # open-beheer 0.9.0's docker entrypoint launches uwsgi without --master.
+      # Set UWSGI_MASTER=1 so a real master oversees workers; without it,
+      # workers that exit on max-requests are NOT respawned and the container
+      # exits with code 30 once all workers have cycled (~every 80–90 min on
+      # probe-driven traffic). See openbeheer-known-issues.md.
+      master: "1"
       processes: "2"
       threads: "2"
       maxRequests: "1000"
@@ -2925,7 +2931,16 @@ apiproxy:
     requests:
       cpu: "0.1"
       memory: "128Mi"
-  nginxCertsSecret: "api-proxy-certs"
+  # -- Secret containing client certificate (`client.crt`/`client.key`) and CA bundle (`ca.crt`)
+  # for upstream mTLS. Leave empty to disable mTLS and skip the cert volume mount.
+  # When set, `sslVerify` auto-derives to "on"; when empty it auto-derives to "off".
+  nginxCertsSecret: ""
+  # -- Maximum length of the upstream server certificate chain validated by nginx
+  # (`proxy_ssl_verify_depth`). Government API gateways occasionally chain through
+  # cross-signed intermediates; the nginx default of 1 is too shallow.
+  # Per-location overrides: set `apiproxy.locations.<loc>.sslVerifyDepth` to override
+  # this global value for a single upstream (e.g. bag, brp, kvkSearch).
+  sslVerifyDepth: 6
   livenessProbe:
     initialDelaySeconds: 5
     periodSeconds: 10
@@ -3190,3 +3205,130 @@ omc:
             uuids: "00000000-0000-1000-b000-000000000000"
           ktoObjectType:
             uuid: 00000000-0000-1000-b000-000000000000
+
+# APISIX in PodiumD: PoC mode — admin UI driven, etcd-backed, configuration
+# done entirely via the embedded dashboard at :9180/ui/. Public access is
+# gated by Keycloak SSO via an oauth2-proxy in front of the admin Service.
+#
+# PoC scope (acknowledged trade-offs):
+#   * etcd persistence is OFF (single replica, ephemeral) — restart loses
+#     all gateway config. Acceptable while we iterate; revisit before any
+#     non-PoC use.
+#   * No GitOps source-of-truth for routes/upstreams — all changes are
+#     applied through the UI.
+#   * Data plane (gateway) remains ClusterIP-only; only the admin UI is
+#     exposed externally (and only via SSO).
+#
+# Upstream chart: https://github.com/apache/apisix-helm-chart
+# Full values reference: `helm show values apisix/apisix --version 2.14.0`
+# See also: charts/podiumd/docs/apisix-egress-gateway.md
+#
+# Any field not set below falls back to the upstream chart defaults.
+apisix:
+  enabled: false
+  fullnameOverride: "apisix"
+
+  # Disable the bundled ingress controller — APISIX is egress-only here.
+  ingress-controller:
+    enabled: false
+
+  # The apisix subchart bundles bitnami/etcd — disallowed in this project
+  # (no Bitnami images / charts). Disable it and point the subchart at the
+  # in-chart hand-rolled etcd Service rendered by templates/apisix-etcd.yaml.
+  etcd:
+    enabled: false
+
+  # External etcd consumed by the apisix subchart when etcd.enabled=false.
+  # Same-namespace Service short name resolves via Kubernetes DNS (apisix and
+  # apisix-etcd are co-deployed by this umbrella chart). The hostname matches
+  # the Service emitted by templates/apisix-etcd.yaml.
+  externalEtcd:
+    host:
+      - "http://apisix-etcd:2379"
+    user: ""
+    password: ""
+
+  # Image + resources for the in-chart etcd StatefulSet (apisix-etcd.yaml).
+  # Upstream etcd-io build, not a Bitnami repack. Single-replica, ephemeral.
+  etcdServer:
+    image:
+      repository: gcr.io/etcd-development/etcd
+      tag: "v3.5.18"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+  # Gateway (data plane) service. ClusterIP only — APISIX is consumed
+  # by PodiumD pods for outbound API calls, not exposed outside.
+  # externalTrafficPolicy is invalid on non-LoadBalancer/NodePort services;
+  # the upstream chart defaults it to "Cluster" so we must blank it out.
+  service:
+    type: ClusterIP
+    externalTrafficPolicy: ""
+
+  # Public hostname for the embedded admin UI / Admin API, served via
+  # oauth2-proxy + Keycloak SSO. Required when apisix.enabled=true. The
+  # umbrella chart renders the oauth2-proxy Deployment + Secret + Ingress
+  # using these values.
+  adminUi:
+    # FQDN where the admin UI is reachable from the internet (e.g.
+    # apisix-admin.${envName}.pd.test-rig.nl).
+    hostname: ""
+    # cert-manager ClusterIssuer used to issue the TLS cert. Match whatever
+    # name the env's cert-manager bootstrap uses; podiumd-infra creates
+    # `letsencrypt-prod` and `letsencrypt-staging` (no `-production` suffix).
+    clusterIssuer: "letsencrypt-prod"
+    # Image for the oauth2-proxy sidecar.
+    oauth2Proxy:
+      image:
+        repository: quay.io/oauth2-proxy/oauth2-proxy
+        tag: "v7.7.1"
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 200m
+          memory: 256Mi
+
+  # ---------------------------------------------------------------------------
+  # IMPORTANT: in the upstream apisix chart 2.14.0, settings under `admin:`,
+  # `deployment:`, `router:`, etc. live under a NESTED `apisix:` key — the
+  # subchart's own self-namespace. The umbrella path is therefore
+  # `apisix.apisix.admin.*` (not `apisix.admin.*`).
+  # ---------------------------------------------------------------------------
+  apisix:
+    # etcd-backed traditional mode (chart default). Routes/upstreams are
+    # written to the bundled etcd via the Admin API / embedded UI — no
+    # ConfigMap-based standalone-yaml here.
+    deployment:
+      mode: traditional
+      role: traditional
+
+    # Admin API + embedded Dashboard UI (served at :9180/ui/). The bundled
+    # admin Service (apisix-admin:9180) is reached by the oauth2-proxy
+    # Deployment in this chart, which fronts it with Keycloak SSO and the
+    # public Ingress. Direct :9180/ui/ access from pods other than the
+    # oauth2-proxy is allowed via the cluster Pod CIDR.
+    admin:
+      enable_admin_ui: true
+      type: ClusterIP
+      # Pod CIDR — wide enough to admit the oauth2-proxy pod regardless of
+      # the AKS overlay/azure-cni mode in use. The admin API itself remains
+      # protected by the random API keys (apisix-admin-credentials) and by
+      # the public oauth2-proxy doing Keycloak SSO.
+      allow:
+        ipList:
+          - 127.0.0.1/24
+          - 10.0.0.0/8
+      # Random 32-char admin/viewer keys are auto-generated by the umbrella
+      # chart via templates/apisix-admin-credentials.yaml — replacing the
+      # upstream public default keys (`edd1c9f0…` / `4054f7cf…`). Stable across
+      # upgrades via lookup. To use Azure Key Vault via CSI driver, override
+      # `secretName` to point at your own Secret containing `admin` + `viewer`.
+      credentials:
+        secretName: apisix-admin-credentials

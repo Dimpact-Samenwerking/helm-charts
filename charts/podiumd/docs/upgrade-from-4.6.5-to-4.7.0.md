@@ -5,7 +5,7 @@
 | Component | App version | Helm chart |
 |---|---|---|
 | Keycloak | 26.6.1 | adfinis 1.11.4 |
-| OpenZaak | 1.27.1 | 1.14.0 |
+| OpenZaak | 1.27.1 | 1.13.1 (chart bump to 1.14.0 deferred — see [openzaak-known-issues.md § 0](openzaak-known-issues.md#0-podiumd-470-stays-on-open-zaak-helm-chart-1131-not-1140)) |
 | ZAC | 4.7.0 | 1.0.224 |
 | Open Formulieren | 3.4.9 | 1.12.0 |
 | Open Archiefbeheer | 2.0.0 | 2.0.0 (⚠️ breaking) |
@@ -14,6 +14,7 @@
 | Referentielijsten API | 0.7.2 | 0.1.1 |
 | OMC (NotifyNL) | 1.17.19 | 0.14.1 |
 | ZGW Office Add-in | v0.9.289 | 0.0.87 |
+| APISIX (egress gateway, opt-in) | 3.16.0 | 2.14.0 |
 
 ---
 
@@ -24,11 +25,12 @@
 1. **Quiesce Open Archiefbeheer** — ensure no destruction lists are processing or waiting for retry. The internal data structure for tracking destruction has been reworked; lists in-flight during the upgrade may end up in an inconsistent state.
 2. **Update the ACR mirror for ZAC office_converter** — `acrprodmgmt.azurecr.io/office-converter` must be updated to mirror `gotenberg/gotenberg:8.30.1` instead of `ghcr.io/eugenmayer/kontextwork-converter`. Without this, environments overriding `zac.office_converter.image.repository` will fail to pull the image.
 3. **Apply Keycloak `v2beta1` CRDs** (see [Keycloak CRD upgrade](#keycloak-crd-upgrade-v2alpha1--v2beta1)). Required because the chart bumps the operator image to `26.6.1` while the bundled adfinis subchart `1.11.4` still ships `v2alpha1` CRDs from appVersion `26.5.6`. Operator `26.6.1` queries `v2beta1` and will `CrashLoopBackOff` until the upgraded CRDs are applied.
-4. **Run the migration scripts** (see [Migration scripts](#migration-scripts)).
+4. **Set `apiproxy.nginxCertsSecret` explicitly** if your environment uses upstream mTLS via the api-proxy (see [API proxy: nginxCertsSecret default changed](#api-proxy-nginxcertssecret-default-changed)). The chart default is now `""` (empty); environments that previously relied on the implicit `"api-proxy-certs"` default must pin the value in `podiumd.yml` **before** the upgrade or the cert volume mount disappears and upstream calls fall back to non-mTLS with `proxy_ssl_verify off`.
+5. **Run the migration scripts** (see [Migration scripts](#migration-scripts)).
 
 ### After upgrading
 
-5. **Reconfigure the destruction report settings** in the Open Archiefbeheer admin interface. The destruction report configuration page has been reworked; existing settings are not migrated automatically.
+6. **Reconfigure the destruction report settings** in the Open Archiefbeheer admin interface. The destruction report configuration page has been reworked; existing settings are not migrated automatically.
 
 ---
 
@@ -67,6 +69,53 @@ The script accepts `--dry-run` to inspect the CRD YAML, `--keycloak-version` to 
 - No conversion webhook → default `None` strategy, fields pass through by name.
 - Schema is additive between 26.5.x and 26.6.x — no removed/renamed required fields.
 - The Keycloak `StatefulSet` keeps running while the operator restarts; only reconciliation is paused.
+
+---
+
+## API proxy: `nginxCertsSecret` default changed
+
+`apiproxy.nginxCertsSecret` previously defaulted to `"api-proxy-certs"`. That secret is **not** present in every environment (only some clusters provision it for upstream mTLS to BAG/BRP/KVK), so the implicit default produced a missing-secret error or, where the secret happened to exist with a different name, a silently misconfigured proxy.
+
+In 4.7.0 the default is `""` (empty). When empty:
+
+- The cert volume / `/etc/nginx/certs` mount is omitted.
+- `proxy_ssl_certificate` / `proxy_ssl_certificate_key` directives are not rendered (no client cert sent upstream).
+- `apiproxy.locations.commonSettings.sslVerify` (still `""` = auto-derive) resolves to `"off"`, so upstream server certs are **not** validated.
+
+Also new in 4.7.0: `apiproxy.sslVerifyDepth` (default `6`) renders `proxy_ssl_verify_depth` for every upstream location. nginx default is `1`, which is too shallow for cross-signed government API chains. Override globally on the api-proxy block, or per upstream:
+
+```yaml
+apiproxy:
+  sslVerifyDepth: 6              # global default
+  locations:
+    bag:
+      sslVerifyDepth: 10         # override only for BAG
+    brp:
+      sslVerifyDepth: 4          # override only for BRP
+```
+
+Per-location values take precedence over the global; the global takes precedence over the chart default of `6`. No action required if the default works.
+
+### Action required
+
+If your environment **does** use upstream mTLS via the api-proxy and the secret is provisioned in the `podiumd` namespace, pin the value explicitly in your gemeente `podiumd.yml` **before** running `helm upgrade`:
+
+```yaml
+apiproxy:
+  enabled: true
+  nginxCertsSecret: api-proxy-certs   # or whatever name the secret has in your cluster
+```
+
+To check the current setting and whether the secret exists:
+
+```bash
+helm --kube-context "$CTX" get values podiumd -n podiumd -o yaml \
+  | yq '.apiproxy.nginxCertsSecret // "<unset — will use new chart default>"'
+
+kubectl --context "$CTX" -n podiumd get secret api-proxy-certs --ignore-not-found
+```
+
+If `apiproxy.enabled` is `false` (most non-DIMP gemeentes), no action is needed.
 
 ---
 
@@ -152,7 +201,6 @@ openarchiefbeheer:
             oidc_rp_client_secret: "REP_OPENARCHIEFBEHEER_OIDC_SECRET_REP"
             oidc_rp_sign_algo: RS256
             oidc_provider_identifier: admin-oidc-provider
-            oidc_use_pkce: false
             options:
               user_settings:
                 claim_mappings:
@@ -166,6 +214,10 @@ openarchiefbeheer:
                   - groups
                 make_users_staff: true
 ```
+
+> **Note on PKCE.** OAB 2.0.0 ships with `mozilla-django-oidc-db 1.1.1`, whose `setup_configuration` schema does NOT accept `oidc_use_pkce` at item or provider level (`extra_forbidden` validation error from pydantic). Do not add this field for OAB. The `keycloak-podiumd-realm-config.yaml` PKCE consistency check does not apply to OAB; `openarchiefbeheer.configuration.pkceEnabled` is a no-op for 4.7.0. If PKCE for the OAB OIDC client is ever required, toggle it via the Django admin UI or directly on the underlying `OIDCClient` DB row. Earlier versions of `migrate-openarchiefbeheer-2.0.0.py` injected `oidc_use_pkce: false` here; re-running the current script removes it.
+
+If a previous (buggy) run of the migration script left `oidc_use_pkce: false` in your `openarchiefbeheer.configuration.data`, remove the line manually or re-run the migration script — the current version explicitly strips the field via `yq del`.
 
 ---
 
@@ -407,9 +459,11 @@ openarchiefbeheer:
 - **Stricter client URI validation (`secure-client-uris` executor)** — If active in a realm, the `Post logout redirect URIs`, `Logo URL`, `Policy URL`, and `Terms of Service URL` fields now require HTTPS. PodiumD does not configure this executor by default; only relevant if a gemeente has manually enabled it.
 - **Identity Provider issuer uniqueness** — If multiple Identity Providers in a realm share the same issuer, JWT authorization grant and client assertion flows will now fail. PodiumD Entra ID configurations use per-tenant issuer URLs and are not affected.
 
-### OpenZaak 1.27.1 (helm chart 1.14.0)
+### OpenZaak 1.27.1 (helm chart **stays on 1.13.1**)
 
 No breaking changes. No required manual steps.
+
+> The Open Zaak helm chart bump to `1.14.0` is **deferred** — PodiumD 4.7.0 keeps `Chart.yaml` pinned at `openzaak.version: 1.13.1` and rides the new app version `1.27.1` through the existing chart machinery. Reason: chart `1.14.0` was not released yet when gemeente deploys for this release cycle started, and a mid-rollout chart bump would have re-opened the values surface for every gemeente file. See [openzaak-known-issues.md § 0](openzaak-known-issues.md#0-podiumd-470-stays-on-open-zaak-helm-chart-1131-not-1140).
 
 - Archiving: for `afleidingswijze=vervaldatum_besluit` and `afleidingswijze=eigenschap`, the relevant value is no longer required at zaak closure — recalculation happens automatically when the value is set later.
 - `Zaak.relevanteAndereZaken` is deprecated in the OpenAPI schema; the experimental `gerelateerdeZaken` attribute on the `/zaken` endpoint replaces it.
@@ -460,6 +514,40 @@ Bug fix: the `/callback` endpoint now returns HTTP 202 instead of an error when 
 ### ZGW Office Add-in v0.9.289 / helm chart 0.0.87
 
 Dependency updates only (Renovate-managed). No functional changes.
+
+### APISIX 3.16.0 / helm chart 2.14.0 (new — opt-in)
+
+New egress API gateway, tracked under [IN-1867](https://dimpact.atlassian.net/browse/IN-1867). **Disabled by default** (`apisix.enabled: false`) — existing environments are unaffected by the upgrade.
+
+To opt in, see [`apisix-egress-gateway.md`](apisix-egress-gateway.md) for the full setup. Minimum tenant `podiumd.yml` to enable:
+
+```yaml
+apisix:
+  enabled: true
+  apisix:
+    deployment:
+      standalone:
+        config: |
+          routes:
+            - id: apisix-dashboard-oidc
+              uri: /ui/*
+              upstream:
+                type: roundrobin
+                nodes:
+                  "127.0.0.1:9180": 1
+              plugins:
+                openid-connect:
+                  client_id: "apisix-dashboard"
+                  client_secret: "$env://OIDC_CLIENT_SECRET"
+                  discovery: "https://<your-keycloak>/realms/podiumd/.well-known/openid-configuration"
+                  scope: "openid profile email"
+                  bearer_only: false
+                  realm: "podiumd"
+                  introspection_endpoint_auth_method: "client_secret_basic"
+                  ssl_verify: true
+```
+
+Plus a `Secret/apisix-oidc-client-secret` with key `clientSecret` for the Keycloak client. Admin/viewer API keys are auto-generated by the umbrella chart — no manual rotation needed.
 
 ---
 

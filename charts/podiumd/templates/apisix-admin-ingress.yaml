@@ -1,0 +1,65 @@
+{{- if .Values.apisix.enabled }}
+{{- /*
+  Public Ingress for the APISIX embedded admin UI, fronted by oauth2-proxy.
+
+  https://${apisix.adminUi.hostname}/  → apisix-oauth2-proxy:80 → apisix-admin:9180
+
+  Mirrors the cloudbeaver-ingress pattern in podiumd-infra: Traefik websecure
+  entrypoint, cert-manager-issued TLS, half-life renewal hint.
+*/ -}}
+{{- $hostname := .Values.apisix.adminUi.hostname | default "" -}}
+{{- if eq $hostname "" -}}
+{{-   fail "apisix.adminUi.hostname is required when apisix.enabled=true" -}}
+{{- end -}}
+{{- $issuer := .Values.apisix.adminUi.clusterIssuer | default "letsencrypt-prod" -}}
+{{- /*
+  APISIX serves the embedded admin dashboard at /ui/, not /. Without a
+  redirect, hitting the bare hostname returns 404 from APISIX. Add a
+  Traefik redirectregex middleware that sends "/" exactly to "/ui/" so
+  the public hostname always lands on the dashboard.
+*/ -}}
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: apisix-admin-root-redirect
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: apisix-oauth2-proxy
+spec:
+  redirectRegex:
+    regex: ^https://([^/]+)/?$
+    replacement: https://${1}/ui/
+    permanent: false
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: apisix-admin-ingress
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: apisix-oauth2-proxy
+  annotations:
+    cert-manager.io/cluster-issuer: {{ $issuer | quote }}
+    cert-manager.io/renew-before: "1080h"
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.middlewares: "{{ .Release.Namespace }}-apisix-admin-root-redirect@kubernetescrd"
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - {{ $hostname | quote }}
+      secretName: apisix-admin-tls
+  rules:
+    - host: {{ $hostname | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: apisix-oauth2-proxy
+                port:
+                  number: 80
+{{- end }}
