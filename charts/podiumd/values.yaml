@@ -843,8 +843,10 @@ opennotificaties:
   persistence:
     size: 10Gi
     existingClaim: opennotificaties
+    storageClassName: podiumd-standard
   persistentVolume:
     volumeAttributeShareName: opennotificaties
+    storageClassName: podiumd-standard
   image:
     tag: "1.15.0"
   resources:
@@ -1022,8 +1024,10 @@ objecten:
   persistence:
     size: 10Gi
     existingClaim: objecten
+    storageClassName: podiumd-standard
   persistentVolume:
     volumeAttributeShareName: objecten
+    storageClassName: podiumd-standard
   image:
     tag: "3.6.0"
   resources:
@@ -1349,8 +1353,10 @@ openarchiefbeheer:
   persistence:
     size: 10Gi
     existingClaim: openarchiefbeheer
+    storageClassName: podiumd-standard
   persistentVolume:
     volumeAttributeShareName: openarchiefbeheer
+    storageClassName: podiumd-standard
 
 openklant:
   configuration:
@@ -1448,8 +1454,10 @@ openklant:
   persistence:
     size: 10Gi
     existingClaim: openklant
+    storageClassName: podiumd-standard
   persistentVolume:
     volumeAttributeShareName: openklant
+    storageClassName: podiumd-standard
   image:
     tag: "2.15.0"
   resources:
@@ -1654,8 +1662,10 @@ openformulieren:
     existingClaim: openformulieren
     mediaMountSubpath: openformulieren/media
     privateMediaMountSubpath: openformulieren/private_media
+    storageClassName: podiumd-standard
   persistentVolume:
     volumeAttributeShareName: openformulieren
+    storageClassName: podiumd-standard
   image:
     tag: "3.4.9@sha256:55dc5644595d43a5412d60436aac846ce0d71b799be85c53ff815c31416f3e39"
   resources:
@@ -1843,8 +1853,10 @@ openinwoner:
   persistence:
     size: 10Gi
     existingClaim: openinwoner
+    storageClassName: podiumd-standard
   persistentVolume:
     volumeAttributeShareName: openinwoner
+    storageClassName: podiumd-standard
   image:
     tag: "2.1.1"
   resources:
@@ -2018,8 +2030,10 @@ referentielijsten:
     enabled: true
     size: 10Gi
     existingClaim: referentielijsten
+    storageClassName: podiumd-standard
   persistentVolume:
     volumeAttributeShareName: referentielijsten
+    storageClassName: podiumd-standard
   image:
     repository: maykinmedia/referentielijsten-api
     pullPolicy: IfNotPresent
@@ -2164,11 +2178,12 @@ openbeheer:
   persistence:
     enabled: true
     size: 1Gi
-    storageClassName: ""
+    storageClassName: podiumd-standard
     existingClaim: openbeheer
     mediaMountSubpath: openbeheer/media
   persistentVolume:
     volumeAttributeShareName: openbeheer
+    storageClassName: podiumd-standard
   settings:
     allowedHosts: "openbeheer-nginx.podiumd.svc.cluster.local"
     djangoSettingsModule: openbeheer.conf.docker
