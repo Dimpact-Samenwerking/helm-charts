@@ -74,3 +74,68 @@ kubectl label pod redis-ha-2 -n podiumd redis-role=slave --overwrite
 Once OT-CONTAINER-KIT releases a version containing PR #1720, bump the `redis-operator` subchart to that version. At that point the label-master CronJob can be disabled (`redis-operator.redis-ha.labelMasterCronJob.enabled: false`) as the operator will correctly self-heal after simultaneous pod restarts.
 
 Track: https://github.com/OT-CONTAINER-KIT/redis-operator/releases
+
+---
+
+## Image overrides for ACR-restricted environments
+
+Some clusters enforce an Azure Policy assignment (e.g. `K8sAzureV2ContainerAllowedImages`) that only admits pods whose container images come from an allowed registry — typically the organisation's own Azure Container Registry. On those clusters, the upstream defaults shipped by this chart (`quay.io/opstree/redis-operator`, `quay.io/opstree/redis`, `docker.io/library/busybox`, `docker.io/alpine/k8s`) are rejected at admission, and the `redis-ha-label-master` CronJob in particular fails on every run — so the `redis-role=master` label never lands on the master pod, `Service/redis-ha-master` ends up with empty endpoints, and every Redis-dependent app crashes on first connection.
+
+**Reference incident:** IN-2021 — `aks-blue-ontw-mayk` openformulieren 502 (root cause: `busybox:1.37.0-glibc` and `quay.io/opstree/redis:v8.4.2` denied by `K8sAzureV2ContainerAllowedImages`).
+
+### How to fix
+
+Mirror every image referenced by the `redis-operator` block into the cluster's allowed registry, then override the chart values per environment. Example overlay:
+
+```yaml
+# Per-environment values overlay (e.g. values-<cluster>.yaml).
+# Replace <ACR> with your registry hostname (e.g. acrprodmgmt.azurecr.io).
+
+redis-operator:
+  redisOperator:
+    imageName: <ACR>/redis-operator        # default: quay.io/opstree/redis-operator
+    # imageTag unchanged — keep matching the chart default
+  redis-ha:
+    image:
+      registry: <ACR>                      # default: quay.io
+      repository: redis                    # default: opstree/redis (mirror name in ACR is conventionally just `redis`)
+      # tag unchanged
+    redisExporter:
+      image:
+        registry: <ACR>                    # default: quay.io
+        repository: redis-exporter         # default: opstree/redis-exporter
+        # tag unchanged
+    initContainerImage:
+      repository: <ACR>/busybox            # default: busybox (implicit docker.io/library/busybox)
+      # tag unchanged
+    labelMasterCronJob:
+      image:
+        repository: <ACR>/alpine/k8s       # default: docker.io/alpine/k8s
+        # tag unchanged
+```
+
+### Required ACR imports
+
+Each override above requires the corresponding image to be present in `<ACR>` first. In the SSC Twente setup these are mirrored via the `Container Image Import` pipeline (`ExternalsPodiumD/pipelines/images.yml`, ADO pipeline id `108`), which uses `skopeo copy --all` so multi-arch manifests survive the round trip:
+
+| Source                                          | ACR repo (after import)        | Used for                                                                    |
+|-------------------------------------------------|--------------------------------|-----------------------------------------------------------------------------|
+| `quay.io/opstree/redis-operator:<tag>`          | `redis-operator`               | redis-operator Deployment                                                   |
+| `quay.io/opstree/redis:<tag>`                   | `redis`                        | redis-ha StatefulSet                                                        |
+| `quay.io/opstree/redis-exporter:<tag>`          | `redis-exporter`               | optional sidecar (see `values-enable-observability.yaml`)                   |
+| `docker.io/library/busybox:1.37.0-glibc`        | `busybox`                      | redis-ha `initContainer` that appends `databases N` to `redis.conf`         |
+| `docker.io/alpine/k8s:<tag>`                    | `alpine/k8s`                   | `redis-ha-label-master` CronJob (workaround for redis-operator 0.24.0 bug)  |
+
+Confirm the import has run before the chart upgrade — otherwise pods will fail with `ImagePullBackOff` rather than the policy denial:
+
+```bash
+az acr repository show-tags --name <acr-name> --repository redis            --output table
+az acr repository show-tags --name <acr-name> --repository busybox          --output table
+az acr repository show-tags --name <acr-name> --repository alpine/k8s       --output table
+```
+
+### Caveats
+
+- **`solr.busyBoxImage`** elsewhere in `values.yaml` also defaults to `library/busybox:1.37.0-glibc`. If the same Azure Policy applies cluster-wide, that field needs the same `<ACR>/busybox` override or the SolrCloud init will be denied admission too.
+- **Tag drift.** Whenever this chart bumps any of the redis-operator subchart images (operator, redis-ha, redis-exporter), the matching tag must be added to `ExternalsPodiumD/pipelines/images.yml` *and* the import pipeline re-run *before* the chart upgrade reaches an ACR-restricted cluster.
+- **Why the in-place mitigation in IN-2021 worked anyway.** Removing the `redis-role` selector key from `Service/redis-ha-master` is a pure Service-spec edit (no new pod admission), so it bypasses the policy entirely. It's only safe with a single Redis replica and is intended as a temporary workaround until the image overrides above are in place.
