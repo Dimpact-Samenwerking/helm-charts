@@ -15,8 +15,8 @@
 # ZAC
 - name: zac
   url: ghcr.io/infonl/zaakafhandelcomponent
-  version: "4.7.0"
-  digest: "sha256:e1f9b3ea633e7de562b37591b72fa34afa37acf6978c0ce72b3467f1801152fb"
+  version: "4.8.0"
+  digest: "sha256:231be366444eab6f19afbb09fa23cfa57c90c1f37f5c77553c8326128be3adca"
 
 # ZAC - Gotenberg (office converter, replaces kontextwork-converter)
 - name: gotenberg
@@ -99,3 +99,46 @@
   url: docker.io/apache/apisix
   version: "3.16.0-ubuntu"
   digest: "sha256:4aea6a83301997ff87eea8ad4aa2e39064e74f5b4fcfa9109b88b5323b492f62"
+
+# APISIX - etcd backend (in-chart StatefulSet, replaces bitnami/etcd)
+- name: etcd
+  url: gcr.io/etcd-development/etcd
+  version: "v3.5.18"
+  digest: "sha256:9079538aa6e9ff9a57b4d737ca1f03f978e7b9e8fe45bb91b19bd933deb98912"
+
+# APISIX - oauth2-proxy (Keycloak SSO sidecar for admin UI)
+- name: oauth2-proxy
+  url: quay.io/oauth2-proxy/oauth2-proxy
+  version: "v7.7.1"
+  digest: "sha256:f6a4aa83a27e316114bf79664302b1ffb2cc8ce697fb479273af4feb3fb16fe3"
+
+# ZAC - solr-operator + solr stack (newly digest-pinned in 4.7.0; tags unchanged from 4.6.5)
+- name: solr-operator
+  url: docker.io/apache/solr-operator
+  version: "v0.9.1"
+  digest: "sha256:4db34508137f185d3cad03c7cf7c2b5d6533fb590822effcde9125cff5a90aa2"
+
+- name: solr
+  url: docker.io/library/solr
+  version: "9.10.1-slim"
+  digest: "sha256:f67042f3a0e9e7b6fe0f8fa85e96ea0d0d1cbdd4cda19ccfb462ef3ef5d44ddf"
+
+- name: busybox
+  url: docker.io/library/busybox
+  version: "1.37.0-glibc"
+  digest: "sha256:3f9777e7e82e8591542f72b965ec7db7e8b3bdb59692976af1bb9b2850b05a4e"
+
+- name: k8s-kubectl
+  url: docker.io/lachlanevenson/k8s-kubectl
+  version: "v1.25.4"
+  digest: "sha256:af5cea3f2e40138df90660c0c073d8b1506fb76c8602a9f48aceb5f4fb052ddc"
+
+- name: zookeeper-operator
+  url: docker.io/pravega/zookeeper-operator
+  version: "0.2.15"
+  digest: "sha256:b2bc4042fdd8fea6613b04f2f602ba4aff1201e79ba35cd0e2df9f3327111b0e"
+
+- name: zookeeper
+  url: docker.io/pravega/zookeeper
+  version: "0.2.15"
+  digest: "sha256:c498ebfb76a66f038075e2fa6148528d74d31ca1664f3257fdf82ee779eec9c8"
