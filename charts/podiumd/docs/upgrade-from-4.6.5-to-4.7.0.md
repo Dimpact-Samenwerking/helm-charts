@@ -6,7 +6,7 @@
 |---|---|---|
 | Keycloak | 26.6.1 | adfinis 1.11.4 |
 | OpenZaak | 1.27.1 | 1.13.1 (chart bump to 1.14.0 deferred — see [openzaak-known-issues.md § 0](openzaak-known-issues.md#0-podiumd-470-stays-on-open-zaak-helm-chart-1131-not-1140)) |
-| ZAC | 4.7.0 | 1.0.224 |
+| ZAC | 4.8.0 | 1.0.228 |
 | Open Formulieren | 3.4.9 | 1.12.0 |
 | Open Archiefbeheer | 2.0.0 | 2.0.0 (⚠️ breaking) |
 | Open Beheer | 0.9.0 | 0.1.3 |
@@ -23,7 +23,7 @@
 ### Before upgrading
 
 1. **Quiesce Open Archiefbeheer** — ensure no destruction lists are processing or waiting for retry. The internal data structure for tracking destruction has been reworked; lists in-flight during the upgrade may end up in an inconsistent state.
-2. **Update the ACR mirror for ZAC office_converter** — `acrprodmgmt.azurecr.io/office-converter` must be updated to mirror `gotenberg/gotenberg:8.30.1` instead of `ghcr.io/eugenmayer/kontextwork-converter`. Without this, environments overriding `zac.office_converter.image.repository` will fail to pull the image.
+2. **Update the ACR mirror for ZAC office_converter** — `acrprodmgmt.azurecr.io/office-converter` must be updated to mirror `gotenberg/gotenberg:8.31.0` instead of `ghcr.io/eugenmayer/kontextwork-converter`. Without this, environments overriding `zac.office_converter.image.repository` will fail to pull the image.
 3. **Apply Keycloak `v2beta1` CRDs** (see [Keycloak CRD upgrade](#keycloak-crd-upgrade-v2alpha1--v2beta1)). Required because the chart bumps the operator image to `26.6.1` while the bundled adfinis subchart `1.11.4` still ships `v2alpha1` CRDs from appVersion `26.5.6`. Operator `26.6.1` queries `v2beta1` and will `CrashLoopBackOff` until the upgraded CRDs are applied.
 4. **Set `apiproxy.nginxCertsSecret` explicitly** if your environment uses upstream mTLS via the api-proxy (see [API proxy: nginxCertsSecret default changed](#api-proxy-nginxcertssecret-default-changed)). The chart default is now `""` (empty); environments that previously relied on the implicit `"api-proxy-certs"` default must pin the value in `podiumd.yml` **before** the upgrade or the cert volume mount disappears and upstream calls fall back to non-mTLS with `proxy_ssl_verify off`.
 5. **Run the migration scripts** (see [Migration scripts](#migration-scripts)).
@@ -223,7 +223,7 @@ If a previous (buggy) run of the migration script left `oidc_use_pkce: false` in
 
 ### `migrate-zac-4.7.0.py` — ZAC office_converter image rename
 
-Only relevant if a gemeente values file overrides `zac.office_converter.image.repository`. Without an override, the chart `values.yaml` already points to `gotenberg/gotenberg:8.30.1` and no rewrite is needed.
+Only relevant if a gemeente values file overrides `zac.office_converter.image.repository`. Without an override, the chart `values.yaml` already points to `gotenberg/gotenberg:8.31.0` and no rewrite is needed.
 
 The script handles both `acrprodmgmt.azurecr.io` and `acrtestmgmt.azurecr.io`. The chart-level `containerPort` change (8080 → 3000) lives in the base `values.yaml` and does not need a per-environment edit unless overridden.
 
@@ -256,7 +256,7 @@ zac:
   office_converter:
     image:
       repository: acrprodmgmt.azurecr.io/gotenberg
-      # base values.yaml: gotenberg/gotenberg:8.30.1
+      # base values.yaml: gotenberg/gotenberg:8.31.0
       # containerPort: 3000  (handled in base values.yaml — no override needed)
 ```
 
@@ -469,9 +469,9 @@ No breaking changes. No required manual steps.
 - `Zaak.relevanteAndereZaken` is deprecated in the OpenAPI schema; the experimental `gerelateerdeZaken` attribute on the `/zaken` endpoint replaces it.
 - Bug fixes: 500 errors on document downloads, PATCH on `/zaaknotities`, audit trail display in admin.
 
-### ZAC 4.7.0 (helm chart 1.0.224)
+### ZAC 4.8.0 (helm chart 1.0.228)
 
-⚠️ The ZAC helm chart now uses native **Gotenberg** (`gotenberg/gotenberg:8.30.1`) for document conversion, replacing the previous `ghcr.io/eugenmayer/kontextwork-converter` image. The container port changed from `8080` to `3000`. The `containerPort` change is handled automatically by the updated base `values.yaml` — no environment file overrides this value.
+⚠️ The ZAC helm chart now uses native **Gotenberg** (`gotenberg/gotenberg:8.31.0`) for document conversion, replacing the previous `ghcr.io/eugenmayer/kontextwork-converter` image. The container port changed from `8080` to `3000`. The `containerPort` change is handled automatically by the updated base `values.yaml` — no environment file overrides this value.
 
 - **BPMN process flow sidebar** with zoom controls and keyboard navigation when working on tasks.
 - Versioning overhauled to use rolling dev pre-releases and proper hotfix patch versions.

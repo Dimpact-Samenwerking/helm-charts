@@ -8,7 +8,7 @@ Companion to [upgrade-from-4.6.5-to-4.7.0.md](upgrade-from-4.6.5-to-4.7.0.md). T
 |-----------|----------------|------|
 | `openarchiefbeheer.configuration.data` (OIDC block) | Migrate `oidc_db_config_admin_auth` to providers/items + options structure | **Required** if openarchiefbeheer enabled |
 | `zac.office_converter.image.repository` | Change `<acr>/office-converter` → `<acr>/gotenberg` | **Required** if repository overridden |
-| `zac.office_converter.image.tag` | `1.8.2` → `8.30.1` | **Required** if tag overridden |
+| `zac.office_converter.image.tag` | `1.8.2` → `8.31.0` | **Required** if tag overridden |
 | `zac.office_converter.containerPort` | Remove override (chart default now `3000`) | **Required** if overridden to `8080` |
 | `openzaak.settings.documentApiBackend` | New optional field, default `filesystem` | Optional |
 | `openzaak.settings.azureBlobStorage` | New optional block | Optional |
@@ -125,11 +125,11 @@ zac:
   office_converter:
     image:
       repository: acrprodmgmt.azurecr.io/gotenberg
-      tag: "8.30.1"
+      tag: "8.31.0"
     # containerPort: drop the override; chart default is now 3000
 ```
 
-If a gemeente file does **not** override `office_converter.image.repository`, no values change is needed — the chart `values.yaml` already points to `gotenberg/gotenberg:8.30.1` with `containerPort: 3000`.
+If a gemeente file does **not** override `office_converter.image.repository`, no values change is needed — the chart `values.yaml` already points to `gotenberg/gotenberg:8.31.0` with `containerPort: 3000`.
 
 The migration script `charts/podiumd/scripts/migrate-zac-4.7.0.py` automates the repository rewrite for `acrprodmgmt.azurecr.io` and `acrtestmgmt.azurecr.io`.
 
@@ -201,14 +201,14 @@ The chart `values.yaml` already pins the new versions. Remove explicit tag overr
 | `referentielijsten.image.tag` | `0.7.2` |
 | `omc.image.tag` | `1.17.19` |
 | `zgw-office-addin.{frontend,backend}.image.tag` | `v0.9.289` |
-| `zac.image.tag` | `4.7.0` |
-| `zac.office_converter.image.tag` | `8.30.1` |
+| `zac.image.tag` | `4.8.0` |
+| `zac.office_converter.image.tag` | `8.31.0` |
 | `zac.opa.image.tag` | `1.15.2-static` |
-| `zac.global.curlImage.tag` | `8.19.0` |
+| `zac.global.curlImage.tag` | `8.20.0` |
 
 ## Pre-deploy checklist
 
-1. ACR mirror `office-converter` → `gotenberg/gotenberg:8.30.1` updated.
+1. ACR mirror `office-converter` → `gotenberg/gotenberg:8.31.0` updated.
 2. No destruction lists in flight (openarchiefbeheer 2.0.0 reworks internal data structure).
 3. Migration scripts run (see [upgrade-from-4.6.5-to-4.7.0.md § Migration scripts and OIDC how-tos](upgrade-from-4.6.5-to-4.7.0.md#migration-scripts-and-oidc-how-tos)):
    - `python3 charts/podiumd/scripts/migrate-openarchiefbeheer-2.0.0.py` — required for Open Archiefbeheer 2.0.0
