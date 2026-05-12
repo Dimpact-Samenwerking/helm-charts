@@ -203,7 +203,7 @@ The chart `values.yaml` already pins the new versions. Remove explicit tag overr
 | `referentielijsten.image.tag` | `0.7.2` |
 | `omc.image.tag` | `1.17.19` |
 | `zgw-office-addin.{frontend,backend}.image.tag` | `v0.9.289` |
-| `zac.image.tag` | `4.8.0` |
+| `zac.image.tag` | `4.7.1` |
 | `zac.office_converter.image.tag` | `8.31.0` |
 | `zac.opa.image.tag` | `1.15.2-static` |
 | `zac.global.curlImage.tag` | `8.20.0` |
