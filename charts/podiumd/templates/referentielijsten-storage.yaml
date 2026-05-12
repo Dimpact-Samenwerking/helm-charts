@@ -1,5 +1,6 @@
 {{- if or .Values.referentielijsten.enabled (not (hasKey .Values.referentielijsten "enabled")) -}}
-{{- if not (lookup "v1" "PersistentVolumeClaim" .Release.Namespace .Values.referentielijsten.persistence.existingClaim) -}}
+{{- $pvName := printf "%s-referentielijsten" .Release.Namespace -}}
+{{- if not (lookup "v1" "PersistentVolume" "" $pvName) }}
 ---
 apiVersion: v1
 kind: PersistentVolume
@@ -16,7 +17,7 @@ spec:
   accessModes:
     - ReadWriteMany
   persistentVolumeReclaimPolicy: Retain
-  storageClassName: podiumd-standard
+  storageClassName: {{ .Values.referentielijsten.persistentVolume.storageClassName | default "podiumd-standard" }}
   csi:
     driver: file.csi.azure.com
     volumeHandle: {{ printf "%s-referentielijsten" .Release.Namespace }}
@@ -41,6 +42,8 @@ spec:
     - cache=strict
     - nosharesock
     - nobrl
+{{- end }}
+{{- if not (lookup "v1" "PersistentVolumeClaim" .Release.Namespace .Values.referentielijsten.persistence.existingClaim) }}
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -57,6 +60,6 @@ spec:
       storage: {{ .Values.referentielijsten.persistence.size }}
   accessModes:
     - ReadWriteMany
-  storageClassName: podiumd-standard
+  storageClassName: {{ .Values.referentielijsten.persistence.storageClassName | default "podiumd-standard" }}
 {{- end }}
 {{- end }}

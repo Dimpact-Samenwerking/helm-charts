@@ -1,5 +1,6 @@
 {{- if or .Values.objecten.enabled (not (hasKey .Values.objecten "enabled")) -}}
-{{- if not (lookup "v1" "PersistentVolumeClaim" .Release.Namespace .Values.objecten.persistence.existingClaim) -}}
+{{- $pvName := printf "%s-objecten" .Release.Namespace -}}
+{{- if not (lookup "v1" "PersistentVolume" "" $pvName) }}
 ---
 apiVersion: v1
 kind: PersistentVolume
@@ -16,7 +17,7 @@ spec:
   accessModes:
     - ReadWriteMany
   persistentVolumeReclaimPolicy: Retain
-  storageClassName: podiumd-standard
+  storageClassName: {{ .Values.objecten.persistentVolume.storageClassName | default "podiumd-standard" }}
   csi:
     driver: file.csi.azure.com
     volumeHandle: {{ printf "%s-objecten" .Release.Namespace }}
@@ -41,6 +42,8 @@ spec:
     - cache=strict
     - nosharesock
     - nobrl
+{{- end }}
+{{- if not (lookup "v1" "PersistentVolumeClaim" .Release.Namespace .Values.objecten.persistence.existingClaim) }}
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -57,6 +60,6 @@ spec:
       storage: {{ .Values.objecten.persistence.size }}
   accessModes:
     - ReadWriteMany
-  storageClassName: podiumd-standard
+  storageClassName: {{ .Values.objecten.persistence.storageClassName | default "podiumd-standard" }}
 {{- end }}
 {{- end }}

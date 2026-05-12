@@ -1,0 +1,136 @@
+{{- if .Values.apisix.enabled }}
+{{- /*
+  Hand-rolled minimal etcd backing the APISIX admin API.
+
+  Why not the bundled apisix subchart's etcd? That subchart pulls
+  bitnami/etcd as a dependency (and a docker.io/bitnami/* image), which
+  this project disallows. Setting apisix.etcd.enabled=false in values.yaml
+  excludes the bitnami chart entirely; this template provides a tiny
+  replacement that the apisix subchart consumes via externalEtcd.host.
+
+  PoC scope: single replica, ephemeral (emptyDir), no auth, no TLS — same
+  trade-offs already accepted for the apisix admin UI ("loses configuration
+  on restart"). Image is the upstream etcd-io build, not a Bitnami repack.
+*/ -}}
+{{- $etcdImage := .Values.apisix.etcdServer.image -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: apisix-etcd-headless
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: apisix-etcd
+    app.kubernetes.io/name: apisix-etcd
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/name: apisix-etcd
+  ports:
+    - name: client
+      port: 2379
+      targetPort: 2379
+    - name: peer
+      port: 2380
+      targetPort: 2380
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: apisix-etcd
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: apisix-etcd
+    app.kubernetes.io/name: apisix-etcd
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: apisix-etcd
+  ports:
+    - name: client
+      port: 2379
+      targetPort: 2379
+      protocol: TCP
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: apisix-etcd
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: apisix-etcd
+    app.kubernetes.io/name: apisix-etcd
+spec:
+  serviceName: apisix-etcd-headless
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: apisix-etcd
+  template:
+    metadata:
+      labels:
+        {{- include "podiumd.labels" . | nindent 8 }}
+        app.kubernetes.io/component: apisix-etcd
+        app.kubernetes.io/name: apisix-etcd
+    spec:
+      containers:
+        - name: etcd
+          image: "{{ $etcdImage.repository }}:{{ $etcdImage.tag }}"
+          imagePullPolicy: IfNotPresent
+          command:
+            - /usr/local/bin/etcd
+          args:
+            - --name=apisix-etcd-0
+            - --data-dir=/etcd-data
+            - --listen-client-urls=http://0.0.0.0:2379
+            - --advertise-client-urls=http://apisix-etcd.{{ .Release.Namespace }}.svc.cluster.local:2379
+            - --listen-peer-urls=http://0.0.0.0:2380
+            - --initial-advertise-peer-urls=http://apisix-etcd-0.apisix-etcd-headless.{{ .Release.Namespace }}.svc.cluster.local:2380
+            - --initial-cluster=apisix-etcd-0=http://apisix-etcd-0.apisix-etcd-headless.{{ .Release.Namespace }}.svc.cluster.local:2380
+            - --initial-cluster-state=new
+            - --initial-cluster-token=apisix-etcd-cluster
+            - --auto-compaction-mode=periodic
+            - --auto-compaction-retention=1h
+            - --quota-backend-bytes=2147483648
+          ports:
+            - name: client
+              containerPort: 2379
+              protocol: TCP
+            - name: peer
+              containerPort: 2380
+              protocol: TCP
+          env:
+            - name: ALLOW_NONE_AUTHENTICATION
+              value: "yes"
+            - name: ETCDCTL_API
+              value: "3"
+          volumeMounts:
+            - name: data
+              mountPath: /etcd-data
+          resources:
+            {{- toYaml .Values.apisix.etcdServer.resources | nindent 12 }}
+          readinessProbe:
+            exec:
+              command:
+                - /usr/local/bin/etcdctl
+                - endpoint
+                - health
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            exec:
+              command:
+                - /usr/local/bin/etcdctl
+                - endpoint
+                - health
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+      volumes:
+        - name: data
+          emptyDir: {}
+{{- end }}

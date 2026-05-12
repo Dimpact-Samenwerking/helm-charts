@@ -23,17 +23,17 @@ persistentVolume:
 keycloak-operator:
   enabled: true
   # Adfinis Helm chart wrapping the official Keycloak Operator manifests.
-  # Chart: https://charts.adfinis.com / adfinis/keycloak-operator (appVersion 26.5.7)
+  # Chart: https://charts.adfinis.com / adfinis/keycloak-operator (chart 1.11.4, appVersion 26.5.6)
   # Note: it appears that the podname automatically appends -operator.
-  # Official operator image: quay.io/keycloak/keycloak-operator:26.5.7
-  # Note: adfinis chart 1.11.2 supports up to appVersion 26.5.6; 26.6.0 is not yet supported.
+  # Official operator image: quay.io/keycloak/keycloak-operator:26.6.1
+  # Note: adfinis chart 1.11.4 targets appVersion 26.5.6; Keycloak image is overridden to 26.6.1 below.
   # override: values-enable-observability.yaml sets enableServiceMonitor: true
   enableServiceMonitor: false
   fullnameOverride: keycloak
   operator:
     image:
       repository: quay.io/keycloak/keycloak-operator
-      tag: "26.5.7"
+      tag: "26.6.1@sha256:a3123e57c8928310488a7cc20cc9791be0abc342ad6a4f72e7a87fc45bdf51c3"
     resources:
       requests:
         cpu: 100m
@@ -63,7 +63,7 @@ keycloak-operator:
       image:
         registry: ""
         repository: curlimages/curl
-        tag: "8.19.0"
+        tag: "8.20.0@sha256:b3f1fb2a51d923260350d21b8654bbc607164a987e2f7c84a0ac199a67df812a"
       # Client secret for the keycloak-operator client. Set this to a known value so Helm
       # can create the K8s secret directly. The job will enforce this secret in Keycloak.
       clientSecret: ""
@@ -164,12 +164,11 @@ keycloak:
   http:
     httpEnabled: true
   # image parameters for keycloak-operator
-  # Official Keycloak image: quay.io/keycloak/keycloak:26.5.7
-  # Note: adfinis chart 1.11.2 supports up to appVersion 26.5.6; 26.6.0 is not yet supported.
+  # Official Keycloak image: quay.io/keycloak/keycloak:26.6.1
   image:
     registry: ""
     repository: quay.io/keycloak/keycloak
-    tag: 26.5.7
+    tag: "26.6.1@sha256:26ae26445475f7fac5f90ee138b1bdb64324f5815fb16133ffdbdb122d97c4d8"
   # -- instances is the new operator-style replica count (falls back to replicaCount)
   instances: "2"
   ingress:
@@ -204,7 +203,7 @@ keycloak:
     metadata:
       labels:
         app: keycloak
-        version: 26.5.7
+        version: 26.6.1
       # override: values-enable-observability.yaml adds prometheus.io scrape annotations
     spec:
       securityContext:
@@ -448,7 +447,7 @@ redis-operator:
       schedule: "*/2 * * * *"
       image:
         repository: docker.io/alpine/k8s
-        tag: "1.33.10"
+        tag: "1.34.7@sha256:4745677e51c0fb567aedf1453a7bd489e0a62dbbf2bda475d663f7eed041adb4"
       resources:
         requests:
           cpu: 10m
@@ -590,8 +589,8 @@ openzaak:
     enabled: true
     # Total wall-clock window in which the job is allowed to keep retrying (seconds). Default: 15 minutes.
     activeDeadlineSeconds: 900
-    # Number of retries before the job is marked failed.
-    backoffLimit: 6
+    # Number of retries before the job is marked failed. Aligned with django-config jobs.
+    backoffLimit: 10
     resources:
       requests:
         cpu: 50m
@@ -620,13 +619,26 @@ openzaak:
       processes: "2"
       threads: "4"
       maxRequests: "1000"
+    # -- Backend for the Documenten API. Supported values: filesystem | azure_blob_storage
+    documentApiBackend: filesystem
+    # azureBlobStorage:
+    #   accountName: ""
+    #   clientSecret: ""
+    #   clientId: ""
+    #   tenantId: ""
+    #   container: "openzaak"
+    # -- Emit cloud events (requires Open Notificaties with cloud events support)
+    # enableCloudEvents: false
+    # notificationsSource: "openzaak"
   persistence:
     size: 10Gi
     existingClaim: openzaak
+    storageClassName: podiumd-standard
   persistentVolume:
     volumeAttributeShareName: openzaak
+    storageClassName: podiumd-standard
   image:
-    tag: "1.26.0"
+    tag: "1.27.1@sha256:7726e36a1353396fb971929645489e0e8a7e5848e5fdf0ae3fa8075b6ce15da9"
   resources:
     requests:
       cpu: 250m
@@ -651,7 +663,7 @@ openzaak:
         memory: 160Mi
   nginx:
     image:
-      tag: "1.29.8"
+      tag: "1.30.0@sha256:3def659164dfb7d6be8563983ea9d2fe7e4dfcf2af96770d728723a5c5ad3bad"
     resources:
       requests:
         cpu: 10m
@@ -831,8 +843,10 @@ opennotificaties:
   persistence:
     size: 10Gi
     existingClaim: opennotificaties
+    storageClassName: podiumd-standard
   persistentVolume:
     volumeAttributeShareName: opennotificaties
+    storageClassName: podiumd-standard
   image:
     tag: "1.15.0"
   resources:
@@ -882,7 +896,7 @@ objecten:
   configuration:
     enabled: true
     demo:
-      enabled: false  # upstream objecten chart has no nil-guard on this field; default to false
+      enabled: false # upstream objecten chart has no nil-guard on this field; default to false
     initContainer:
       enabled: false
     job:
@@ -1010,8 +1024,10 @@ objecten:
   persistence:
     size: 10Gi
     existingClaim: objecten
+    storageClassName: podiumd-standard
   persistentVolume:
     volumeAttributeShareName: objecten
+    storageClassName: podiumd-standard
   image:
     tag: "3.6.0"
   resources:
@@ -1134,14 +1150,14 @@ objecttypen:
       maxRequests: "1000"
   image:
     repository: maykinmedia/objecttypes-api
-    tag: "3.4.1"
+    tag: "3.4.2@sha256:d366e6ede1bb924ea351495f4e88ceba53bb0df02fa5302929daef379131fda1"
   # used for create-required-objecttypen podiumd job only
   create_required_objecttypen_job:
     enabled: true
     # Total wall-clock window in which the job is allowed to keep retrying (seconds). Default: 15 minutes.
     activeDeadlineSeconds: 900
-    # Number of retries before the job is marked failed.
-    backoffLimit: 6
+    # Number of retries before the job is marked failed. Aligned with django-config jobs.
+    backoffLimit: 10
     resources:
       requests:
         cpu: 50m
@@ -1167,11 +1183,13 @@ openarchiefbeheer:
   fullnameOverride: openarchiefbeheer
   # Reference to an existing secret with the values needed for django-setup-configuration
   # existingConfigurationSecrets: nil
+  # override: values-enable-observability.yaml sets disabled: false and configures the OTLP endpoint
+  otel:
+    disabled: true
   configuration:
     enabled: true
     oidcUrl: https://abc.example.nl
-    # -- Enable PKCE (S256) on the Keycloak client. NOTE: openarchiefbeheer v1.1.1 does not yet support
-    # OIDC authentication; this switch is reserved for when OIDC support is added to the application.
+    # -- Enable PKCE (S256) on the Keycloak client.
     pkceEnabled: false
     job:
       enabled: true
@@ -1225,38 +1243,34 @@ openarchiefbeheer:
 
     #   oidc_db_config_enable: true
     #   oidc_db_config_admin_auth:
+    #     providers:
+    #     - identifier: admin-oidc-provider
+    #       endpoint_config:
+    #         oidc_op_discovery_endpoint: https://example.keycloak.nl/realms/podiumd/
+    #       oidc_token_use_basic_auth: false
     #     items:
     #     - identifier: admin-oidc
     #       enabled: true
-    #       endpoint_config:
-    #         oidc_op_discovery_endpoint: https://example.keycloak.nl/realms/podiumd-poc/
-    #       oidc_rp_scopes_list:
-    #         - openid
-    #         - email
-    #         - profile
-    #       userinfo_claims_source: id_token
-    #       oidc_rp_client_id: example-client-id
-    #       oidc_rp_client_secret: {value_from: {env: keycloak_client_secret}}
+    #       oidc_provider_identifier: admin-oidc-provider
+    #       oidc_rp_client_id: openarchiefbeheer
+    #       oidc_rp_client_secret:
+    #         value_from:
+    #           env: keycloak_client_secret
     #       oidc_rp_sign_algo: RS256
     #       # Enable PKCE on the application side — requires pkceEnabled: true on the Keycloak client.
-    #       oidc_use_pkce: true
-    #       claim_mapping:
-    #         email:
-    #           - email
-    #         first_name:
-    #           - given_name
-    #         last_name:
-    #           - family_name
-    #       username_claim:
-    #         - preferred_username
-    #       groups_claim:
-    #         - roles
-    #       sync_groups: true
-    #       sync_groups_glob_pattern: "*"
-    #       default_groups: []
-    #       make_users_staff: true
-    #       superuser_group_names:
-    #         - Superuser
+    #       oidc_use_pkce: false
+    #       options:
+    #         user_settings:
+    #           claim_mappings:
+    #             username:
+    #             - preferred_username
+    #           username_case_sensitive: false
+    #         groups_settings:
+    #           superuser_group_names:
+    #           - Superuser
+    #           claim_mapping:
+    #           - roles
+    #           make_users_staff: true
 
   tags:
     redis: false
@@ -1277,7 +1291,7 @@ openarchiefbeheer:
 
   nginx:
     image:
-      tag: "1.29.8"
+      tag: "1.30.0@sha256:3def659164dfb7d6be8563983ea9d2fe7e4dfcf2af96770d728723a5c5ad3bad"
     resources:
       requests:
         cpu: 10m
@@ -1285,10 +1299,10 @@ openarchiefbeheer:
 
   replicaCount: 1
 
-  # maykinmedia/open-archiefbeheer:1.1.0
+  # maykinmedia/open-archiefbeheer:2.0.0
   image:
     #repository: maykinmedia/open-archiefbeheer
-    tag: "1.1.1"
+    tag: "2.0.0@sha256:e5217d748869c62d26393311c3cfdcaacf69d8dde80ca3bc172ff41f3885f0ff"
 
   resources:
     limits: {}
@@ -1305,7 +1319,11 @@ openarchiefbeheer:
     oidcRenewIdTokenExpirySeconds: 1800
     sessionCookieAge: 1800
     # -- Number of days to wait before destroying a list. Defaults to 7 in the application.
-    waitingPeriod: ""
+    waitingPeriod: 7
+    # -- Number of days for which destruction lists will be visible after successful destruction. Defaults to 7.
+    postDestructionVisibilityPeriod: 7
+    # -- If true, the inline presentation of related objects is disabled, reducing load on external registers.
+    relatedCountDisabled: false
     # logging:
     # -- Controls whether the logs are output to standard output (true) or to a file (false, default)
     #   toStdout: false
@@ -1335,8 +1353,10 @@ openarchiefbeheer:
   persistence:
     size: 10Gi
     existingClaim: openarchiefbeheer
+    storageClassName: podiumd-standard
   persistentVolume:
     volumeAttributeShareName: openarchiefbeheer
+    storageClassName: podiumd-standard
 
 openklant:
   configuration:
@@ -1434,8 +1454,10 @@ openklant:
   persistence:
     size: 10Gi
     existingClaim: openklant
+    storageClassName: podiumd-standard
   persistentVolume:
     volumeAttributeShareName: openklant
+    storageClassName: podiumd-standard
   image:
     tag: "2.15.0"
   resources:
@@ -1454,7 +1476,7 @@ openklant:
   fullnameOverride: openklant
   nginx:
     image:
-      tag: "1.29.8"
+      tag: "1.30.0@sha256:3def659164dfb7d6be8563983ea9d2fe7e4dfcf2af96770d728723a5c5ad3bad"
     resources:
       requests:
         cpu: 10m
@@ -1640,10 +1662,12 @@ openformulieren:
     existingClaim: openformulieren
     mediaMountSubpath: openformulieren/media
     privateMediaMountSubpath: openformulieren/private_media
+    storageClassName: podiumd-standard
   persistentVolume:
     volumeAttributeShareName: openformulieren
+    storageClassName: podiumd-standard
   image:
-    tag: "3.4.7"
+    tag: "3.4.9@sha256:55dc5644595d43a5412d60436aac846ce0d71b799be85c53ff815c31416f3e39"
   resources:
     requests:
       cpu: 250m
@@ -1668,7 +1692,7 @@ openformulieren:
         memory: 160Mi
   nginx:
     image:
-      tag: "1.29.8"
+      tag: "1.30.0@sha256:3def659164dfb7d6be8563983ea9d2fe7e4dfcf2af96770d728723a5c5ad3bad"
     resources:
       requests:
         cpu: 10m
@@ -1829,9 +1853,13 @@ openinwoner:
   persistence:
     size: 10Gi
     existingClaim: openinwoner
+    storageClassName: podiumd-standard
   persistentVolume:
     volumeAttributeShareName: openinwoner
+    storageClassName: podiumd-standard
   image:
+    # WARNING: 2.1.2-rc1 is a release candidate (DRT-557 fix). NOT suitable for production.
+    # Aligned with PodiumD 4.6.7. Bump to a stable 2.1.2 release before promoting 4.7.0.
     tag: "2.1.2-rc1"
   resources:
     requests:
@@ -1860,7 +1888,7 @@ openinwoner:
   fullnameOverride: openinwoner
   nginx:
     image:
-      tag: "1.29.8"
+      tag: "1.30.0@sha256:3def659164dfb7d6be8563983ea9d2fe7e4dfcf2af96770d728723a5c5ad3bad"
     config:
       basicAuth:
         # Enable this when digid mock is set to digidMock: "true"
@@ -2004,12 +2032,14 @@ referentielijsten:
     enabled: true
     size: 10Gi
     existingClaim: referentielijsten
+    storageClassName: podiumd-standard
   persistentVolume:
     volumeAttributeShareName: referentielijsten
+    storageClassName: podiumd-standard
   image:
     repository: maykinmedia/referentielijsten-api
     pullPolicy: IfNotPresent
-    tag: "0.7.1"
+    tag: "0.7.2@sha256:f7f0f25b180a3746e1bf3df81fe19e4ea509428edea1d93831262a67c81f5f9d"
 
   settings:
     allowedHosts: "referentielijsten-nginx.podiumd.svc.cluster.local"
@@ -2142,7 +2172,7 @@ openbeheer:
   securityContext:
     capabilities:
       drop:
-      - ALL
+        - ALL
     readOnlyRootFilesystem: false
     runAsNonRoot: true
     runAsUser: 1000
@@ -2150,11 +2180,12 @@ openbeheer:
   persistence:
     enabled: true
     size: 1Gi
-    storageClassName: ""
+    storageClassName: podiumd-standard
     existingClaim: openbeheer
     mediaMountSubpath: openbeheer/media
   persistentVolume:
     volumeAttributeShareName: openbeheer
+    storageClassName: podiumd-standard
   settings:
     allowedHosts: "openbeheer-nginx.podiumd.svc.cluster.local"
     djangoSettingsModule: openbeheer.conf.docker
@@ -2191,6 +2222,12 @@ openbeheer:
     isHttps: true
     debug: false
     uwsgi:
+      # open-beheer 0.9.0's docker entrypoint launches uwsgi without --master.
+      # Set UWSGI_MASTER=1 so a real master oversees workers; without it,
+      # workers that exit on max-requests are NOT respawned and the container
+      # exits with code 30 once all workers have cycled (~every 80–90 min on
+      # probe-driven traffic). See openbeheer-known-issues.md.
+      master: "1"
       processes: "2"
       threads: "2"
       maxRequests: "1000"
@@ -2200,7 +2237,7 @@ openbeheer:
       rateUser: "15000/hour"
   nginx:
     image:
-      tag: "1.29.8"
+      tag: "1.30.0@sha256:3def659164dfb7d6be8563983ea9d2fe7e4dfcf2af96770d728723a5c5ad3bad"
     resources:
       requests:
         cpu: 10m
@@ -2550,16 +2587,16 @@ zac:
     code: "007"
     naam: "Example Gemeente"
     mail: "noreply@example.nl"
-  # curlimages/curl:8.19.0
+  # curlimages/curl:8.20.0@sha256:b3f1fb2a51d923260350d21b8654bbc607164a987e2f7c84a0ac199a67df812a
   global:
     curlImage:
       #repository: curlimages/curl
-      tag: 8.18.0
-  # ghcr.io/infonl/zaakafhandelcomponent:4.3.61
+      tag: "8.20.0@sha256:b3f1fb2a51d923260350d21b8654bbc607164a987e2f7c84a0ac199a67df812a"
+  # ghcr.io/infonl/zaakafhandelcomponent:4.7.1
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
-    tag: 4.3.61 # ZAC Sprint 65 versie — same as 4.6.3; helm chart bumped for probe/port fixes only
+    tag: 4.7.1@sha256:fc28ca074749ce73f629fd651733b1da34d7d9675c72f807bd121ff31ae02390
   # Liveness probe uses /health/ready (not /health/live) with a high failureThreshold so
   # Kubernetes automatically restarts ZAC after extended OpenZaak/catalogus unavailability.
   # The ZGW-API-Client has no connectTimeout/readTimeout, causing stale TCP connections
@@ -2596,10 +2633,10 @@ zac:
   nginx:
     enabled: true
     client_max_body_size: 150M
-    # nginxinc/nginx-unprivileged:1.29.8
+    # nginxinc/nginx-unprivileged:1.30.0@sha256:9b269aa3263e1dcba790fda66aa91b6b02f904adcd8329e5cf256e14a65e2974
     image:
       # repository: nginxinc/nginx-unprivileged
-      tag: 1.29.8
+      tag: "1.30.0@sha256:3def659164dfb7d6be8563983ea9d2fe7e4dfcf2af96770d728723a5c5ad3bad"
     resources:
       requests:
         cpu: 50m
@@ -2612,17 +2649,16 @@ zac:
     url: http://objecttypen.example.nl
     token: objecttypentoken
   office_converter:
-    # ghcr.io/eugenmayer/kontextwork-converter:1.8.2
+    # gotenberg/gotenberg:8.31.0@sha256:f0d86e8a1dbc7b33a5a65cb251d02bb271a48ffa989da3feb5ed7d954fe4d4b3
     image:
-      repository: ghcr.io/eugenmayer/kontextwork-converter
-      tag: "1.8.2"
-    containerPort: 8080
+      # repository: gotenberg/gotenberg
+      tag: "8.31.0@sha256:f0d86e8a1dbc7b33a5a65cb251d02bb271a48ffa989da3feb5ed7d954fe4d4b3"
   opa:
     sidecar: true
-    # openpolicyagent/opa:1.14.0-static
+    # openpolicyagent/opa:1.15.2-static@sha256:f3429de096f6d274bd9927f7a50c334e340a6cf206fad9460ccf17e2f3e807bf
     image:
       #repository: openpolicyagent/opa
-      tag: 1.14.0-static
+      tag: "1.15.2-static@sha256:f3429de096f6d274bd9927f7a50c334e340a6cf206fad9460ccf17e2f3e807bf"
     resources:
       requests:
         cpu: 10m
@@ -2648,10 +2684,10 @@ zac:
     # -- install crds using https://solr.apache.org/operator/downloads/crds/v0.10.0-prerelease/all-with-dependencies.yaml
     # -- turn functionality on/off
     enabled: true
-    # apache/solr-operator:v0.9.1
+    # apache/solr-operator:v0.9.1@sha256:4db34508137f185d3cad03c7cf7c2b5d6533fb590822effcde9125cff5a90aa2
     image:
       #repository:
-      tag: v0.9.1
+      tag: v0.9.1@sha256:4db34508137f185d3cad03c7cf7c2b5d6533fb590822effcde9125cff5a90aa2
     nodeSelector: {}
     resources:
       requests:
@@ -2661,16 +2697,16 @@ zac:
         cpu: 500m
         memory: 256Mi
     solr:
-      # library/busybox:1.37.0-glibc
+      # library/busybox:1.37.0-glibc@sha256:3f9777e7e82e8591542f72b965ec7db7e8b3bdb59692976af1bb9b2850b05a4e
       busyBoxImage:
         #repository:
-        tag: 1.37.0-glibc
+        tag: 1.37.0-glibc@sha256:3f9777e7e82e8591542f72b965ec7db7e8b3bdb59692976af1bb9b2850b05a4e
       # -- set enabled to provision solrcloud as well
       enabled: true
-      # library/solr:9.10.1-slim
+      # library/solr:9.10.1-slim@sha256:f67042f3a0e9e7b6fe0f8fa85e96ea0d0d1cbdd4cda19ccfb462ef3ef5d44ddf
       image:
         #repository:
-        tag: 9.10.1-slim
+        tag: 9.10.1-slim@sha256:f67042f3a0e9e7b6fe0f8fa85e96ea0d0d1cbdd4cda19ccfb462ef3ef5d44ddf
       # -- define memory settings for solr in the solrcloud
       javaMem: -Xms512m -Xmx768m
       jobs:
@@ -2695,14 +2731,14 @@ zac:
       crd:
         create: false
       hooks:
-        # lachlanevenson/k8s-kubectl:v1.25.4
+        # lachlanevenson/k8s-kubectl:@v1.25.4@sha256:af5cea3f2e40138df90660c0c073d8b1506fb76c8602a9f48aceb5f4fb052ddc
         image:
           #repository:
-          tag: v1.25.4
-      # pravega/zookeeper-operator:0.2.15
+          tag: v1.25.4@sha256:af5cea3f2e40138df90660c0c073d8b1506fb76c8602a9f48aceb5f4fb052ddc
+      # pravega/zookeeper-operator:0.2.15@sha256:b2bc4042fdd8fea6613b04f2f602ba4aff1201e79ba35cd0e2df9f3327111b0e
       image:
         #repository:
-        tag: 0.2.15
+        tag: 0.2.15@sha256:b2bc4042fdd8fea6613b04f2f602ba4aff1201e79ba35cd0e2df9f3327111b0e
       resources:
         requests:
           cpu: 50m
@@ -2713,10 +2749,10 @@ zac:
       # -- namespaces to watch for zookeeper-operator
       watchNamespace: "podiumd"
       zookeeper:
-        # pravega/zookeeper:0.2.15
+        # pravega/zookeeper:0.2.15@sha256:c498ebfb76a66f038075e2fa6148528d74d31ca1664f3257fdf82ee779eec9c8
         image:
           #repository:
-          tag: 0.2.15
+          tag: 0.2.15@sha256:c498ebfb76a66f038075e2fa6148528d74d31ca1664f3257fdf82ee779eec9c8
         resources:
           requests:
             cpu: 100m
@@ -2748,18 +2784,18 @@ zgw-office-addin:
     # -- MS Azure Client ID assigned to the Office Add-in application
     msalClientId: "dummy"
   frontend:
-    # ghcr.io/infonl/zgw-office-add-in-frontend:v0.9.251
+    # ghcr.io/infonl/zgw-office-add-in-frontend:v0.9.289@sha256:80c1fea3d16ef8a837576858e581bb20de6296af7f21c56d401f4a346c126dc0
     image:
-      tag: v0.9.251
+      tag: "v0.9.289@sha256:55d22385a698c8c4698e532a2ae26902f8eae02ae09d2b26440a15a583367836"
     resources:
       requests:
         cpu: 50m
         memory: 64Mi
   backend:
     msalSecret: "dummy"
-    # ghcr.io/infonl/zgw-office-add-in-backend:v0.9.251
+    # ghcr.io/infonl/zgw-office-add-in-backend:v0.9.289@sha256:dc9b165344e787cbf6146183be529594308e22eea553e1db6654f49ba9e76cfb
     image:
-      tag: v0.9.251
+      tag: "v0.9.289@sha256:9064278149ebe1f5ddd4efb526c1f68219d29b9245093d5cf63fe77bed3362d2"
     resources:
       requests:
         cpu: 100m
@@ -2902,7 +2938,7 @@ apiproxy:
   #nameOverride: "iconnect-proxy"
   image:
     repository: nginxinc/nginx-unprivileged
-    tag: "1.29.5"
+    tag: "1.30.0@sha256:3def659164dfb7d6be8563983ea9d2fe7e4dfcf2af96770d728723a5c5ad3bad"
     pullPolicy: IfNotPresent
   service:
     port: 80
@@ -2933,7 +2969,7 @@ apiproxy:
   resolverIp: 10.0.0.10 # KubeDNS resolver
   locations:
     commonSettings: &commonLocation
-      sslVerify: ""  # Leave empty to auto-derive from nginxCertsSecret (on if set, off if not); override per-location if needed
+      sslVerify: "" # Leave empty to auto-derive from nginxCertsSecret (on if set, off if not); override per-location if needed
       hostHeader: "lab.api.mijniconnect.nl"
     bag:
       <<: *commonLocation
@@ -3142,7 +3178,7 @@ omc:
   fullnameOverride: "omc"
   image:
     # repository: ghcr.io/worth-nl/notifynl-omc
-    tag: "1.17.18"
+    tag: "1.17.19@sha256:e0491d97996570ea18833994895460a46a081c639539305edbd519ebdb17bba6"
   # BELOW are the resource settings from the subchart, notifynl-omc-nodep which we do not override
   # app:
   #   port: 5270
@@ -3188,3 +3224,130 @@ omc:
             uuids: "00000000-0000-1000-b000-000000000000"
           ktoObjectType:
             uuid: 00000000-0000-1000-b000-000000000000
+
+# APISIX in PodiumD: PoC mode — admin UI driven, etcd-backed, configuration
+# done entirely via the embedded dashboard at :9180/ui/. Public access is
+# gated by Keycloak SSO via an oauth2-proxy in front of the admin Service.
+#
+# PoC scope (acknowledged trade-offs):
+#   * etcd persistence is OFF (single replica, ephemeral) — restart loses
+#     all gateway config. Acceptable while we iterate; revisit before any
+#     non-PoC use.
+#   * No GitOps source-of-truth for routes/upstreams — all changes are
+#     applied through the UI.
+#   * Data plane (gateway) remains ClusterIP-only; only the admin UI is
+#     exposed externally (and only via SSO).
+#
+# Upstream chart: https://github.com/apache/apisix-helm-chart
+# Full values reference: `helm show values apisix/apisix --version 2.14.0`
+# See also: charts/podiumd/docs/apisix-egress-gateway.md
+#
+# Any field not set below falls back to the upstream chart defaults.
+apisix:
+  enabled: false
+  fullnameOverride: "apisix"
+
+  # Disable the bundled ingress controller — APISIX is egress-only here.
+  ingress-controller:
+    enabled: false
+
+  # The apisix subchart bundles bitnami/etcd — disallowed in this project
+  # (no Bitnami images / charts). Disable it and point the subchart at the
+  # in-chart hand-rolled etcd Service rendered by templates/apisix-etcd.yaml.
+  etcd:
+    enabled: false
+
+  # External etcd consumed by the apisix subchart when etcd.enabled=false.
+  # Same-namespace Service short name resolves via Kubernetes DNS (apisix and
+  # apisix-etcd are co-deployed by this umbrella chart). The hostname matches
+  # the Service emitted by templates/apisix-etcd.yaml.
+  externalEtcd:
+    host:
+      - "http://apisix-etcd:2379"
+    user: ""
+    password: ""
+
+  # Image + resources for the in-chart etcd StatefulSet (apisix-etcd.yaml).
+  # Upstream etcd-io build, not a Bitnami repack. Single-replica, ephemeral.
+  etcdServer:
+    image:
+      repository: gcr.io/etcd-development/etcd
+      tag: "v3.5.18"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+  # Gateway (data plane) service. ClusterIP only — APISIX is consumed
+  # by PodiumD pods for outbound API calls, not exposed outside.
+  # externalTrafficPolicy is invalid on non-LoadBalancer/NodePort services;
+  # the upstream chart defaults it to "Cluster" so we must blank it out.
+  service:
+    type: ClusterIP
+    externalTrafficPolicy: ""
+
+  # Public hostname for the embedded admin UI / Admin API, served via
+  # oauth2-proxy + Keycloak SSO. Required when apisix.enabled=true. The
+  # umbrella chart renders the oauth2-proxy Deployment + Secret + Ingress
+  # using these values.
+  adminUi:
+    # FQDN where the admin UI is reachable from the internet (e.g.
+    # apisix-admin.${envName}.pd.test-rig.nl).
+    hostname: ""
+    # cert-manager ClusterIssuer used to issue the TLS cert. Match whatever
+    # name the env's cert-manager bootstrap uses; podiumd-infra creates
+    # `letsencrypt-prod` and `letsencrypt-staging` (no `-production` suffix).
+    clusterIssuer: "letsencrypt-prod"
+    # Image for the oauth2-proxy sidecar.
+    oauth2Proxy:
+      image:
+        repository: quay.io/oauth2-proxy/oauth2-proxy
+        tag: "v7.7.1"
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 200m
+          memory: 256Mi
+
+  # ---------------------------------------------------------------------------
+  # IMPORTANT: in the upstream apisix chart 2.14.0, settings under `admin:`,
+  # `deployment:`, `router:`, etc. live under a NESTED `apisix:` key — the
+  # subchart's own self-namespace. The umbrella path is therefore
+  # `apisix.apisix.admin.*` (not `apisix.admin.*`).
+  # ---------------------------------------------------------------------------
+  apisix:
+    # etcd-backed traditional mode (chart default). Routes/upstreams are
+    # written to the bundled etcd via the Admin API / embedded UI — no
+    # ConfigMap-based standalone-yaml here.
+    deployment:
+      mode: traditional
+      role: traditional
+
+    # Admin API + embedded Dashboard UI (served at :9180/ui/). The bundled
+    # admin Service (apisix-admin:9180) is reached by the oauth2-proxy
+    # Deployment in this chart, which fronts it with Keycloak SSO and the
+    # public Ingress. Direct :9180/ui/ access from pods other than the
+    # oauth2-proxy is allowed via the cluster Pod CIDR.
+    admin:
+      enable_admin_ui: true
+      type: ClusterIP
+      # Pod CIDR — wide enough to admit the oauth2-proxy pod regardless of
+      # the AKS overlay/azure-cni mode in use. The admin API itself remains
+      # protected by the random API keys (apisix-admin-credentials) and by
+      # the public oauth2-proxy doing Keycloak SSO.
+      allow:
+        ipList:
+          - 127.0.0.1/24
+          - 10.0.0.0/8
+      # Random 32-char admin/viewer keys are auto-generated by the umbrella
+      # chart via templates/apisix-admin-credentials.yaml — replacing the
+      # upstream public default keys (`edd1c9f0…` / `4054f7cf…`). Stable across
+      # upgrades via lookup. To use Azure Key Vault via CSI driver, override
+      # `secretName` to point at your own Secret containing `admin` + `viewer`.
+      credentials:
+        secretName: apisix-admin-credentials

@@ -4,3 +4,8 @@
 /http-client.private.env.json
 # Claude Code local settings
 .claude/
+
+# Local-only operator scripts (per-engineer Azure context, not chart artifacts)
+/charts/podiumd/scripts/cluster-status.sh
+/charts/podiumd/scripts/aks-blue-login.sh
+/charts/podiumd/scripts/cluster-overview.py
