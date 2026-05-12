@@ -1,4 +1,4 @@
-# Upgrade guide: PodiumD 4.6.5 → 4.6.6
+# Upgrade guide: PodiumD 4.6.6 → 4.6.7
 
 ## Changes
 
