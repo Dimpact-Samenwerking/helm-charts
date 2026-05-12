@@ -10,11 +10,19 @@
 | Open Formulieren | 3.4.9 | 1.12.0 |
 | Open Archiefbeheer | 2.0.0 | 2.0.0 (⚠️ breaking) |
 | Open Beheer | 0.9.0 | 0.1.3 |
+| Open Inwoner | 2.1.2-rc1 (⚠️ release candidate — see warning below) | 2.1.3 |
 | Object Types API | 3.4.2 | 1.6.1 |
 | Referentielijsten API | 0.7.2 | 0.1.1 |
 | OMC (NotifyNL) | 1.17.19 | 0.14.1 |
 | ZGW Office Add-in | v0.9.289 | 0.0.87 |
 | APISIX (egress gateway, opt-in) | 3.16.0 | 2.14.0 |
+
+> ⚠️ **Open Inwoner 2.1.2-rc1 is a release candidate and is NOT suitable for production.**
+> The image is carried in 4.7.0 to inherit the DRT-557 fix shipped via PodiumD 4.6.7
+> ([#306](https://github.com/Dimpact-Samenwerking/helm-charts/pull/306)). Before
+> promoting 4.7.0 to a production environment, pin `openinwoner.image.tag` to a
+> stable `2.1.2` release (or roll back to `2.1.1` if no fixed release is available
+> at promotion time).
 
 ---
 

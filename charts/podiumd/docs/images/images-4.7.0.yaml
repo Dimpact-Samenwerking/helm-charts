@@ -48,6 +48,12 @@
   version: "8.20.0"
   digest: "sha256:b3f1fb2a51d923260350d21b8654bbc607164a987e2f7c84a0ac199a67df812a"
 
+# Open Inwoner (DRT-557 fix; release candidate — NOT production-ready)
+- name: openinwoner
+  url: docker.io/maykinmedia/open-inwoner
+  version: "2.1.2-rc1"
+  digest: "sha256:7390c571de09a9b5f5a427db297dff993e30e80615dbd21ef625e4b3eb4821d0"
+
 # Open Formulieren
 - name: openformulieren
   url: docker.io/openformulieren/open-forms

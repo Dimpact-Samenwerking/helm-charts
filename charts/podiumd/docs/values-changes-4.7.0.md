@@ -16,6 +16,7 @@ Companion to [upgrade-from-4.6.5-to-4.7.0.md](upgrade-from-4.6.5-to-4.7.0.md). T
 | `openarchiefbeheer.settings.postDestructionVisibilityPeriod` | New optional field, default `7` | Optional |
 | `openarchiefbeheer.settings.relatedCountDisabled` | New optional field, default `false` | Optional |
 | `openarchiefbeheer.configuration.data` (`external_registers`) | New optional block (Object API + OpenKlant destruction plugins) | Optional |
+| `openinwoner.image.tag` | Defaults to `2.1.2-rc1` (release candidate, DRT-557). Pin to a stable `2.1.2` before promoting 4.7.0 to production, or roll back to `2.1.1`. | ⚠️ **Before production** |
 | Image tag overrides for openzaak / openformulieren / objecttypen / referentielijsten / omc / zgw-office-addin / keycloak | Drop overrides or bump to chart defaults | Cleanup |
 
 ## Required changes
@@ -197,6 +198,7 @@ The chart `values.yaml` already pins the new versions. Remove explicit tag overr
 | `openzaak.image.tag` | `1.27.1` |
 | `openformulieren.image.tag` | `3.4.9` |
 | `openarchiefbeheer.image.tag` | `2.0.0` |
+| `openinwoner.image.tag` | `2.1.2-rc1` (⚠️ release candidate — see [upgrade guide](upgrade-from-4.6.5-to-4.7.0.md#component-versions)) |
 | `objecttypen.image.tag` | `3.4.2` |
 | `referentielijsten.image.tag` | `0.7.2` |
 | `omc.image.tag` | `1.17.19` |
