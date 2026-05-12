@@ -4,7 +4,7 @@
 
 ### Patch version for Openinwoner
 
-Version of openinwoner goes from _2.x.x to 2.x.y_
+Version of openinwoner goes from 2.1.1 to 2.1.2-rc1
 
 #### Action required
 
