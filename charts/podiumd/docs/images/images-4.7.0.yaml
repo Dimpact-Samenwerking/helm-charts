@@ -15,8 +15,8 @@
 # ZAC
 - name: zac
   url: ghcr.io/infonl/zaakafhandelcomponent
-  version: "4.8.0"
-  digest: "sha256:231be366444eab6f19afbb09fa23cfa57c90c1f37f5c77553c8326128be3adca"
+  version: "4.7.1"
+  digest: "sha256:fc28ca074749ce73f629fd651733b1da34d7d9675c72f807bd121ff31ae02390"
 
 # ZAC - Gotenberg (office converter, replaces kontextwork-converter)
 - name: gotenberg

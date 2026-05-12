@@ -6,7 +6,7 @@
 |---|---|---|
 | Keycloak | 26.6.1 | adfinis 1.11.4 |
 | OpenZaak | 1.27.1 | 1.13.1 (chart bump to 1.14.0 deferred — see [openzaak-known-issues.md § 0](openzaak-known-issues.md#0-podiumd-470-stays-on-open-zaak-helm-chart-1131-not-1140)) |
-| ZAC | 4.8.0 | 1.0.228 |
+| ZAC | 4.7.1 | 1.0.228 |
 | Open Formulieren | 3.4.9 | 1.12.0 |
 | Open Archiefbeheer | 2.0.0 | 2.0.0 (⚠️ breaking) |
 | Open Beheer | 0.9.0 | 0.1.3 |
@@ -469,7 +469,7 @@ No breaking changes. No required manual steps.
 - `Zaak.relevanteAndereZaken` is deprecated in the OpenAPI schema; the experimental `gerelateerdeZaken` attribute on the `/zaken` endpoint replaces it.
 - Bug fixes: 500 errors on document downloads, PATCH on `/zaaknotities`, audit trail display in admin.
 
-### ZAC 4.8.0 (helm chart 1.0.228)
+### ZAC 4.7.1 (helm chart 1.0.228)
 
 ⚠️ The ZAC helm chart now uses native **Gotenberg** (`gotenberg/gotenberg:8.31.0`) for document conversion, replacing the previous `ghcr.io/eugenmayer/kontextwork-converter` image. The container port changed from `8080` to `3000`. The `containerPort` change is handled automatically by the updated base `values.yaml` — no environment file overrides this value.
 
