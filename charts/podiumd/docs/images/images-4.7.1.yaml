@@ -1,0 +1,12 @@
+# Images die nieuw of gewijzigd zijn in podiumd 4.7.1 t.o.v. 4.7.0.
+
+# ITA / Internetaakafhandekling
+      - name: internetaakafhandeling.web
+        url: ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web
+        digest: "sha256:40bcd34e672366fd71f4522775259c85580348a373a53a8ff3235bcb8aeeda06" 
+        version: "3.1.0"
+      - name: internetaakafhandeling.poller
+        url: ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller
+        version: "3.1.0"
+        digest: "sha256:67fa6cd37b9d38cd7317ee714a553b4bb2250d8998d2481e0f4cd2311e089383"
+
