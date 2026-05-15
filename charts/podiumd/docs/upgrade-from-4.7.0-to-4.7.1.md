@@ -8,5 +8,4 @@ Version of ITA goes from 3.0.0 to 3.1.0
 
 #### Action required
 
-
 No action required. 
