@@ -2,8 +2,8 @@ apiVersion: v2
 name: podiumd
 description: PodiumD Helm chart
 type: application
-version: 4.7.0
-appVersion: "4.7.0"
+version: 4.7.1
+appVersion: "4.7.1"
 dependencies:
   - name: keycloak-operator
     version: 1.11.4
@@ -19,7 +19,7 @@ dependencies:
     condition: brppersonenmock.enabled
     alias: brppersonenmock
   - name: openzaak
-    version: 1.13.1
+    version: 1.14.1
     repository: "@maykinmedia"
     condition: openzaak.enabled
   - name: opennotificaties
@@ -81,7 +81,7 @@ dependencies:
   - name: internetaakafhandeling
     alias: ita
     repository: "oci://ghcr.io/interne-taak-afhandeling"
-    version: 3.0.0
+    version: 3.1.0
     condition: ita.enabled
   - name: kiss-chart
     alias: kiss
