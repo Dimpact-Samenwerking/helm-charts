@@ -1,0 +1,55 @@
+# Images die nieuw of gewijzigd zijn in podiumd 4.7.2 t.o.v. 4.7.1.
+#
+# Deze release wijzigt geen image-versies (tags) t.o.v. 4.7.1. Het betreft
+# uitsluitend upstream digest-refreshes: dezelfde tag is door de upstream
+# opnieuw gepubliceerd met nieuwere base-/security-layers, waardoor de
+# multi-arch index-digest is gewijzigd. De ACR-mirror moet deze nieuwe
+# digests spiegelen. De digest-pins in charts/podiumd/values.yaml worden
+# los hiervan door Renovate bijgewerkt (PR's #310/#311/#312 e.a.).
+
+# nginx-unprivileged (ZAC nginx + apiproxy + openzaak/openformulieren/
+# openinwoner/openbeheer/referentielijsten nginx sidecars)
+- name: nginx-unprivileged
+  url: docker.io/nginxinc/nginx-unprivileged
+  version: "1.30.0"
+  digest: "sha256:37a4e0b4941f6124bf9625b871e650f7c85f3982a50a383a72b50509dfe272f5"
+
+# Keycloak (operator + server)
+- name: keycloak
+  url: quay.io/keycloak/keycloak
+  version: "26.6.1"
+  digest: "sha256:dea26401d06341095cc4ea9d66896200b55de5ca1daa1d2fcbe58493afa6e0ad"
+
+- name: keycloak-operator
+  url: quay.io/keycloak/keycloak-operator
+  version: "26.6.1"
+  digest: "sha256:976aabcd669d11bc90f8cb8b83c5c5bf2a8f7ccf08252486a1b816f8bd0c245e"
+
+# OMC (NotifyNL)
+- name: omc
+  url: docker.io/worthnl/notifynl-omc
+  version: "1.17.19"
+  digest: "sha256:fdaabe81d6974dc2170d5383e604c15d76febd0a3563362a6827e437f04b398b"
+
+# ZGW Office Add-in
+- name: zgw-office-add-in-frontend
+  url: ghcr.io/infonl/zgw-office-add-in-frontend
+  version: "v0.9.289"
+  digest: "sha256:80c1fea3d16ef8a837576858e581bb20de6296af7f21c56d401f4a346c126dc0"
+
+- name: zgw-office-add-in-backend
+  url: ghcr.io/infonl/zgw-office-add-in-backend
+  version: "v0.9.289"
+  digest: "sha256:dc9b165344e787cbf6146183be529594308e22eea553e1db6654f49ba9e76cfb"
+
+# ZAC - solr
+- name: solr
+  url: docker.io/library/solr
+  version: "9.10.1-slim"
+  digest: "sha256:f5a742b9476c5608f318432fe142c2e8fe125a846c0ff0081681051e3b2d8eb4"
+
+# APISIX (egress API gateway, opt-in via apisix.enabled=true)
+- name: apisix
+  url: docker.io/apache/apisix
+  version: "3.16.0-ubuntu"
+  digest: "sha256:5e47692cac00f2aca9d0b2b31cdf24445a7d975d6061626d269f47cc083a4b0e"
