@@ -33,7 +33,7 @@ keycloak-operator:
   operator:
     image:
       repository: quay.io/keycloak/keycloak-operator
-      tag: "26.6.1@sha256:a3123e57c8928310488a7cc20cc9791be0abc342ad6a4f72e7a87fc45bdf51c3"
+      tag: "26.6.1@sha256:976aabcd669d11bc90f8cb8b83c5c5bf2a8f7ccf08252486a1b816f8bd0c245e"
     resources:
       requests:
         cpu: 100m
