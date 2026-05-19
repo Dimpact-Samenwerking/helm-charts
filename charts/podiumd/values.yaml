@@ -3351,21 +3351,3 @@ apisix:
       # `secretName` to point at your own Secret containing `admin` + `viewer`.
       credentials:
         secretName: apisix-admin-credentials
-
-# -----------------------------------------------------------------------------
-# zaakbrug — Frank!Framework adapter exposing Zaakgericht-Werken API for legacy
-# zaaksystems. Off by default; opt in per env (e.g. ontw-dimp).
-#
-# Upstream chart: wearefrank/zaakbrug (https://wearefrank.github.io/charts)
-# Transitive note: chart bundles a `staging` openzaak subchart that pulls
-# bitnami/redis. The default below pins `staging.enabled: false` so the
-# Bitnami artifact is never rendered (Dimpact policy: no Bitnami images).
-#
-# Env values MUST set `frank.dtap.stage` (DEV/TEST/ACCP/PROD) — chart has no
-# default. Env values typically also override image.registry to acrprodmgmt
-# and configure connections.jdbc[0] for the shared Postgres + Keycloak OAuth.
-# -----------------------------------------------------------------------------
-zaakbrug:
-  enabled: false
-  staging:
-    enabled: false
