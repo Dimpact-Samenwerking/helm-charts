@@ -1,0 +1,118 @@
+{{- if and .Values.zaakbrug.enabled .Values.zaakbrug.routingProfilesPatch.enabled }}
+---
+# Temporary workaround: ensures the file
+#   /opt/frank/resources/RoutingProfiles.json
+# exists (zero bytes) in the running zaakbrug pod after every helm
+# upgrade. The Frank!Framework app refuses to start cleanly without it.
+#
+# Future upstream zaakbrug image will ship the file in /opt/frank/resources
+# directly; once available, set:
+#   zaakbrug.routingProfilesPatch.enabled: false
+# in env values to disable this Job + RBAC + ServiceAccount.
+#
+# Helm hooks: runs post-install and post-upgrade so the running pod is
+# present when kubectl exec fires. before-hook-creation deletes the
+# previous Job before each run so successive helm ops don't leave
+# completed Jobs around.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: zaakbrug-routing-profiles-patch
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: zaakbrug
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "0"
+    helm.sh/hook-delete-policy: before-hook-creation
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: zaakbrug-routing-profiles-patch
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: zaakbrug
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "0"
+    helm.sh/hook-delete-policy: before-hook-creation
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list"]
+- apiGroups: [""]
+  resources: ["pods/exec"]
+  verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: zaakbrug-routing-profiles-patch
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: zaakbrug
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "0"
+    helm.sh/hook-delete-policy: before-hook-creation
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: zaakbrug-routing-profiles-patch
+subjects:
+- kind: ServiceAccount
+  name: zaakbrug-routing-profiles-patch
+  namespace: {{ .Release.Namespace }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: zaakbrug-routing-profiles-patch
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: zaakbrug
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "1"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  ttlSecondsAfterFinished: 600
+  backoffLimit: 6
+  template:
+    metadata:
+      labels:
+        {{- include "podiumd.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: zaakbrug
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: zaakbrug-routing-profiles-patch
+      {{- if .Values.zaakbrug.routingProfilesPatch.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.zaakbrug.routingProfilesPatch.nodeSelector | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: kubectl
+        image: {{ .Values.zaakbrug.routingProfilesPatch.image.registry }}/{{ .Values.zaakbrug.routingProfilesPatch.image.repository }}:{{ .Values.zaakbrug.routingProfilesPatch.image.tag }}
+        imagePullPolicy: {{ .Values.zaakbrug.routingProfilesPatch.image.pullPolicy | default "IfNotPresent" }}
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+          set -e
+          for i in $(seq 1 30); do
+            POD=$(kubectl -n {{ .Release.Namespace }} get pod \
+              -l app.kubernetes.io/name=zaakbrug \
+              -o jsonpath='{.items[?(@.status.phase=="Running")].metadata.name}' | awk '{print $1}')
+            if [ -n "$POD" ]; then
+              echo "Found running zaakbrug pod: $POD"
+              kubectl -n {{ .Release.Namespace }} exec "$POD" -- \
+                /bin/sh -c 'mkdir -p /opt/frank/resources && touch /opt/frank/resources/RoutingProfiles.json'
+              echo "Touched /opt/frank/resources/RoutingProfiles.json on $POD"
+              exit 0
+            fi
+            echo "Attempt $i/30 — no Running zaakbrug pod yet, sleeping 10s"
+            sleep 10
+          done
+          echo "Timed out waiting for Running zaakbrug pod"
+          exit 1
+{{- end }}
