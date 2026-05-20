@@ -3369,3 +3369,28 @@ zaakbrug:
   enabled: false
   staging:
     enabled: false
+  # ---------------------------------------------------------------------------
+  # Umbrella-chart-managed secret (templates/zaakbrug-secrets.yaml) renders a
+  # k8s Secret named `zaakbrug-secrets` containing credentials.properties.
+  # The Frank!Framework subchart mounts it via frank.credentials.secret.
+  # Env values MUST supply frank.zakenApi.jwt.password (typically a REP_*_REP
+  # placeholder resolved at deploy time from Azure Key Vault).
+  # ---------------------------------------------------------------------------
+  frank:
+    zakenApi:
+      jwt:
+        username: "zaakbrug"
+        password: ""  # required when zaakbrug.enabled=true
+  # ---------------------------------------------------------------------------
+  # Temporary post-install/post-upgrade Job that creates a zero-byte file at
+  # /opt/frank/resources/RoutingProfiles.json inside the running zaakbrug pod.
+  # Required by current upstream zaakbrug image; remove when image bundles it.
+  # ---------------------------------------------------------------------------
+  routingProfilesPatch:
+    enabled: true
+    image:
+      registry: acrprodmgmt.azurecr.io
+      repository: k8s
+      tag: "1.33.2"
+      pullPolicy: IfNotPresent
+    nodeSelector: {}
