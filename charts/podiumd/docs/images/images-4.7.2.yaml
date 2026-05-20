@@ -53,3 +53,9 @@
   url: docker.io/apache/apisix
   version: "3.16.0-ubuntu"
   digest: "sha256:5e47692cac00f2aca9d0b2b31cdf24445a7d975d6061626d269f47cc083a4b0e"
+
+# zaakbrug (Frank!Framework adapter, opt-in via zaakbrug.enabled=true; IN-1865)
+- name: zaakbrug
+  url: docker.io/wearefrank/zaakbrug
+  version: "1.26.13"
+  digest: "sha256:388c5d9d0646f7f38841728224711aeff9d0d6d80c50bc5f49959ddc7d89ff27"
