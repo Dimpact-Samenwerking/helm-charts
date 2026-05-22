@@ -155,6 +155,13 @@ spec:
             secretKeyRef:
               name: keycloak-podiumd-realm-secrets
               key: monitoring-client-secret
+{{- if .Values.zaakbrug.enabled }}
+        - name: KC_SECRET_ZAAKBRUG
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-podiumd-realm-secrets
+              key: zaakbrug-client-secret
+{{- end }}
         - name: KC_SECRET_OPENNOTIFICATIES
           valueFrom:
             secretKeyRef:
