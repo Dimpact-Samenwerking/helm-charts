@@ -3380,15 +3380,16 @@ zaakbrug:
         username: "zaakbrug"
         password: ""  # required when zaakbrug.enabled=true
   # ---------------------------------------------------------------------------
-  # Temporary post-install/post-upgrade Job that creates a zero-byte file at
-  # /opt/frank/resources/RoutingProfiles.json inside the running zaakbrug pod.
-  # Required by current upstream zaakbrug image; remove when image bundles it.
+  # OAuth2 console role mapping. templates/zaakbrug-oauth-role-mapping-configmap.yaml
+  # renders a ConfigMap (zaakbrug-oauth-role-mapping) with:
+  #   oauth-role-mapping.properties  <Frank role>=<Keycloak client role>
+  #   RoutingProfiles.json           zero-byte placeholder
+  # Both are mounted into the zaakbrug Deployment at /opt/frank/resources/ by a
+  # post-deploy kubectl patch in the ExternalsPodiumD Applications pipeline
+  # (upstream wearefrank/zaakbrug chart has no extraVolumeMounts support).
+  # Keys = Frank!Framework console roles; values = Keycloak client role names.
   # ---------------------------------------------------------------------------
-  routingProfilesPatch:
-    enabled: true
-    image:
-      registry: acrprodmgmt.azurecr.io
-      repository: k8s
-      tag: "1.33.2"
-      pullPolicy: IfNotPresent
-    nodeSelector: {}
+  oauthRoleMapping:
+    IbisAdmin: admin
+    IbisTester: zaakbrug_admin
+    IbisDataAdmin: dataadmin
