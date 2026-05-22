@@ -948,6 +948,10 @@ data:
             - "administrators"
           pabc:
             - "administrator"
+{{- if .Values.zaakbrug.enabled }}
+          zaakbrug:
+            - "admin"
+{{- end }}
       - name: "behandelaars"
         path: "/behandelaars"
         attributes:
