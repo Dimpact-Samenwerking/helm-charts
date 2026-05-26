@@ -12,12 +12,13 @@ Rules:
 - Every listed image must have a corresponding `{registry, repository, tag}` entry in `values.yaml` — never invent versions.
 - Each entry requires a `digest` field (`sha256:...`) fetched from the source registry via `/fetch-image-digest`.
 - Format: flat YAML list, no pipeline wrapper, no indentation on list items.
-- Use the **component name from the chart** (e.g. `openinwoner`, not `open-inwoner`).
-- Group entries with short Dutch comments at the top of each section. Real-world groupings seen in `images-4.7.0.yaml`:
+- **`name:` is the ACR mirror repo name** at `acrprodmgmt.azurecr.io/<name>`, **not** the upstream image's last path segment. Look up the correct value in [`charts/podiumd/docs/images/acr-mirror-naming.md`](../../charts/podiumd/docs/images/acr-mirror-naming.md) first. The Maykin open-* family drops the hyphen (`open-inwoner`→`openinwoner`), `objecttypes-api`→`objecttypen`, `notifynl-omc`→`omc`, `zaakafhandelcomponent`→`zac`, Elastic stack keeps `<vendor>/<repo>` (`elasticsearch/elasticsearch`), and `open-beheer` is the lone hyphenated exception in the open-* family. If the image isn't in the table, verify against a live pod (`kubectl --context aks-blue-ontw-dim1 -n podiumd get pods -o jsonpath='{range .items[*].spec.containers[*]}{.image}{"\n"}{end}' | sort -u`) and add a row to the table in the same PR.
+- `url:` keeps the canonical upstream form (hyphens, vendor path, English name — whatever the source registry serves). This is what `/fetch-image-digest` consumes.
+- Group entries with short English comments at the top of each section (use English; the 4.7.2 manifest dropped the legacy Dutch header). Real-world groupings seen in `images-4.7.0.yaml`:
   - `# <App name>` (one comment per logical app, e.g. `# Open Zaak`, `# ZAC`, `# Keycloak (operator + server)`)
   - `# <App> - <sidecar>` for sidecars (e.g. `# ZAC - Open Policy Agent`)
-  - `# APISIX - oauth2-proxy (Keycloak SSO sidecar for admin UI)` — short Dutch context is fine in parens.
-- File header is a single comment line: `# Images die nieuw of gewijzigd zijn in podiumd <version> t.o.v. <prev>.`
+  - `# APISIX - oauth2-proxy (Keycloak SSO sidecar for admin UI)` — short context in parens is fine.
+- File header: `# Images new or changed in podiumd <version> vs <prev>.` (English; replaces the older `# Images die nieuw of gewijzigd zijn in podiumd ... t.o.v. ...` Dutch phrasing).
 - Mirror the field order from `ExternalsPodiumD/pipelines/images.yml`: `name`, `url`, `version`, `digest`.
 
 Steps:
