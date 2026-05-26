@@ -3367,6 +3367,17 @@ zaakbrug:
   enabled: false
   staging:
     enabled: false
+  # K8s cgroup limits sized for the Frank!Framework JVM heap (subchart
+  # default Xms=Xmx=4G via .Values.frank.memory.{minimum,maximum}).
+  # Overhead ≈1Gi headroom for non-heap (metaspace, code cache, direct
+  # buffers, threads). Env overlays may tune from observed usage.
+  resources:
+    requests:
+      cpu: 250m
+      memory: 5Gi
+    limits:
+      cpu: "2"
+      memory: 6Gi
   # ---------------------------------------------------------------------------
   # Umbrella-chart-managed secret (templates/zaakbrug-secrets.yaml) renders a
   # k8s Secret named `zaakbrug-secrets` containing credentials.properties.
