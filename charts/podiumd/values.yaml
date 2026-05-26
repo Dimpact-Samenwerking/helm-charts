@@ -25,15 +25,15 @@ keycloak-operator:
   # Adfinis Helm chart wrapping the official Keycloak Operator manifests.
   # Chart: https://charts.adfinis.com / adfinis/keycloak-operator (chart 1.11.4, appVersion 26.5.6)
   # Note: it appears that the podname automatically appends -operator.
-  # Official operator image: quay.io/keycloak/keycloak-operator:26.6.1
-  # Note: adfinis chart 1.11.4 targets appVersion 26.5.6; Keycloak image is overridden to 26.6.1 below.
+  # Official operator image: quay.io/keycloak/keycloak-operator:26.6.2
+  # Note: adfinis chart 1.11.4 targets appVersion 26.5.6; Keycloak image is overridden to 26.6.2 below.
   # override: values-enable-observability.yaml sets enableServiceMonitor: true
   enableServiceMonitor: false
   fullnameOverride: keycloak
   operator:
     image:
       repository: quay.io/keycloak/keycloak-operator
-      tag: "26.6.1@sha256:976aabcd669d11bc90f8cb8b83c5c5bf2a8f7ccf08252486a1b816f8bd0c245e"
+      tag: "26.6.2@sha256:01800d326246fc3ccf759e648268171244c96d46ccd151fe031894a6a06d3fa1"
     resources:
       requests:
         cpu: 100m
@@ -164,11 +164,11 @@ keycloak:
   http:
     httpEnabled: true
   # image parameters for keycloak-operator
-  # Official Keycloak image: quay.io/keycloak/keycloak:26.6.1
+  # Official Keycloak image: quay.io/keycloak/keycloak:26.6.2
   image:
     registry: ""
     repository: quay.io/keycloak/keycloak
-    tag: "26.6.1@sha256:dea26401d06341095cc4ea9d66896200b55de5ca1daa1d2fcbe58493afa6e0ad"
+    tag: "26.6.2@sha256:5afd40414096432903a5374ba4ba70b931dcca598a6bd9f44239fe66ef8d9737"
   # -- instances is the new operator-style replica count (falls back to replicaCount)
   instances: "2"
   ingress:
@@ -203,7 +203,7 @@ keycloak:
     metadata:
       labels:
         app: keycloak
-        version: 26.6.1
+        version: 26.6.2
       # override: values-enable-observability.yaml adds prometheus.io scrape annotations
     spec:
       securityContext:
