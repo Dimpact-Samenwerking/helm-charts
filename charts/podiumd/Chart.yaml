@@ -74,6 +74,12 @@ dependencies:
     condition: zac.enabled
     tags:
       - zaak
+  - name: zaakbrug
+    version: 2.3.26
+    repository: "https://wearefrank.github.io/charts"
+    condition: zaakbrug.enabled
+    tags:
+      - zaak
   - name: zgw-office-addin
     repository: "@zgw-office-addin"
     version: 0.0.87

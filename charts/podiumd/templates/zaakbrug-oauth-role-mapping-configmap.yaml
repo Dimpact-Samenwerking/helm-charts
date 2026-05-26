@@ -1,0 +1,27 @@
+{{- if .Values.zaakbrug.enabled -}}
+# ConfigMap consumed by the zaakbrug Frank!Framework console.
+#
+# The upstream wearefrank/zaakbrug chart has no extraVolumes/extraVolumeMounts
+# support, so this ConfigMap is mounted into the zaakbrug Deployment by a
+# post-deploy `kubectl patch` step in the ExternalsPodiumD Applications
+# pipeline (volume + volumeMounts at /opt/frank/resources/).
+#
+# Two files, both required by Frank at startup:
+#   oauth-role-mapping.properties  Keycloak client role -> Frank console role
+#   RoutingProfiles.json           zero-byte placeholder (temporary; future
+#                                  upstream image bundles it)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: zaakbrug-oauth-role-mapping
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: zaakbrug
+data:
+  oauth-role-mapping.properties: |
+    {{- range $frankRole, $kcRole := .Values.zaakbrug.oauthRoleMapping }}
+    {{ $frankRole }}={{ $kcRole }}
+    {{- end }}
+  RoutingProfiles.json: ""
+{{- end }}

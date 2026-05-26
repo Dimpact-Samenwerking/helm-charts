@@ -3349,3 +3349,58 @@ apisix:
       # `secretName` to point at your own Secret containing `admin` + `viewer`.
       credentials:
         secretName: apisix-admin-credentials
+
+# -----------------------------------------------------------------------------
+# zaakbrug — Frank!Framework adapter exposing Zaakgericht-Werken API for legacy
+# zaaksystems. Off by default; opt in per env (e.g. ontw-dimp).
+#
+# Upstream chart: wearefrank/zaakbrug (https://wearefrank.github.io/charts)
+# Transitive note: chart bundles a `staging` openzaak subchart that pulls
+# bitnami/redis. The default below pins `staging.enabled: false` so the
+# Bitnami artifact is never rendered (Dimpact policy: no Bitnami images).
+#
+# Env values MUST set `frank.dtap.stage` (DEV/TEST/ACCP/PROD) — chart has no
+# default. Env values typically also override image.registry to acrprodmgmt
+# and configure connections.jdbc[0] for the shared Postgres + Keycloak OAuth.
+# -----------------------------------------------------------------------------
+zaakbrug:
+  enabled: false
+  staging:
+    enabled: false
+  # K8s cgroup limits sized for the Frank!Framework JVM heap (subchart
+  # default Xms=Xmx=4G via .Values.frank.memory.{minimum,maximum}).
+  # Overhead ≈1Gi headroom for non-heap (metaspace, code cache, direct
+  # buffers, threads). Env overlays may tune from observed usage.
+  resources:
+    requests:
+      cpu: 250m
+      memory: 5Gi
+    limits:
+      cpu: "2"
+      memory: 6Gi
+  # ---------------------------------------------------------------------------
+  # Umbrella-chart-managed secret (templates/zaakbrug-secrets.yaml) renders a
+  # k8s Secret named `zaakbrug-secrets` containing credentials.properties.
+  # The Frank!Framework subchart mounts it via frank.credentials.secret.
+  # Env values MUST supply frank.zakenApi.jwt.password (typically a REP_*_REP
+  # placeholder resolved at deploy time from Azure Key Vault).
+  # ---------------------------------------------------------------------------
+  frank:
+    zakenApi:
+      jwt:
+        username: "zaakbrug"
+        password: ""  # required when zaakbrug.enabled=true
+  # ---------------------------------------------------------------------------
+  # OAuth2 console role mapping. templates/zaakbrug-oauth-role-mapping-configmap.yaml
+  # renders a ConfigMap (zaakbrug-oauth-role-mapping) with:
+  #   oauth-role-mapping.properties  <Frank role>=<Keycloak client role>
+  #   RoutingProfiles.json           zero-byte placeholder
+  # Both are mounted into the zaakbrug Deployment at /opt/frank/resources/ by a
+  # post-deploy kubectl patch in the ExternalsPodiumD Applications pipeline
+  # (upstream wearefrank/zaakbrug chart has no extraVolumeMounts support).
+  # Keys = Frank!Framework console roles; values = Keycloak client role names.
+  # ---------------------------------------------------------------------------
+  oauthRoleMapping:
+    IbisAdmin: admin
+    IbisTester: zaakbrug_admin
+    IbisDataAdmin: dataadmin
