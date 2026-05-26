@@ -4,7 +4,7 @@
 
 ### Patch version for Openinwoner
 
-Replace OIP 2.1.2-rc1 with proper image release of Open Inwoer: 2.1.2
+Replace OIP 2.1.2-rc1 with proper image release of Open Inwoner: 2.1.2
 
 #### Action required
 
