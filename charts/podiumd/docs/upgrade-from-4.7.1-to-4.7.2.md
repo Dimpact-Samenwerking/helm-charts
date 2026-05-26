@@ -85,3 +85,29 @@ fail.
 
 The TLS certificate is issued automatically by cert-manager once the
 CNAME resolves — no manual certificate handling required.
+
+**4. Deploy pipeline (any consumer of this chart) — add the wearefrank helm repo**
+
+Any pipeline that runs `helm dependency build` / `helm dependency
+update` / `helm install|upgrade` against this umbrella chart **must
+register the wearefrank helm repository** before the dependency step:
+
+```bash
+helm repo add wearefrank https://wearefrank.github.io/charts --force-update
+helm repo update
+```
+
+The `Chart.yaml` `zaakbrug` dependency uses a direct URL today, so a
+missing `helm repo add` does not fail the current build path — but the
+omission is fragile (a future switch to a `@wearefrank` alias would
+break the build silently, and `helm repo update` skips the repo
+because it is not registered, so cached charts never refresh).
+
+This applies to **every** consumer: the ExternalsPodiumD `Applications`
+pipeline (`pipelines/application.yml`), any gemeente-specific deploy
+pipeline, and the local `mini-helm-deploy.sh` used in the
+`podiumd-infra` repo. The other subchart repositories already
+registered there (`dimpact`, `bitnami`, `maykinmedia`, `wiremind`,
+`kiss-elastic`, `zac`, `opentelemetry`, `zgw-office-addin`, `adfinis`,
+`opstree`, `worth-nl`, …) should be joined by `wearefrank` for the
+same consistency.
