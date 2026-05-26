@@ -1832,7 +1832,7 @@ openinwoner:
   persistentVolume:
     volumeAttributeShareName: openinwoner
   image:
-    tag: "2.1.2-rc1"
+    tag: "2.1.2"
   resources:
     requests:
       cpu: 200m
