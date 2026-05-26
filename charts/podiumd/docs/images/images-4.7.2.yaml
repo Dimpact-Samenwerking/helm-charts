@@ -1,18 +1,21 @@
-# Images die nieuw of gewijzigd zijn in podiumd 4.7.2 t.o.v. 4.7.1.
+# Images new or changed in podiumd 4.7.2 vs 4.7.1.
 #
-# Deze release wijzigt geen image-versies (tags) t.o.v. 4.7.1. Het betreft
-# uitsluitend upstream digest-refreshes: dezelfde tag is door de upstream
-# opnieuw gepubliceerd met nieuwere base-/security-layers, waardoor de
-# multi-arch index-digest is gewijzigd. De ACR-mirror moet deze nieuwe
-# digests spiegelen. De digest-pins in charts/podiumd/values.yaml worden
-# los hiervan door Renovate bijgewerkt (PR's #310/#311/#312 e.a.).
+# This release contains one tag bump: nginx-unprivileged 1.30.0 → 1.30.2
+# (latest patch on the 1.30.x line; picks up CVE-relevant base/security
+# layer fixes published upstream after 4.7.1 was cut). All other entries
+# below are upstream digest refreshes only — the same tag was republished
+# by the upstream with newer base/security layers, so the multi-arch
+# index digest changed while the version stayed put. The ACR mirror must
+# mirror these new digests (and the new 1.30.2 tag for nginx). Digest
+# pins in charts/podiumd/values.yaml are otherwise maintained by Renovate
+# (PRs #310/#311/#312 and similar).
 
 # nginx-unprivileged (ZAC nginx + apiproxy + openzaak/openformulieren/
 # openinwoner/openbeheer/referentielijsten nginx sidecars)
 - name: nginx-unprivileged
   url: docker.io/nginxinc/nginx-unprivileged
-  version: "1.30.0"
-  digest: "sha256:37a4e0b4941f6124bf9625b871e650f7c85f3982a50a383a72b50509dfe272f5"
+  version: "1.30.2"
+  digest: "sha256:77fb538f39407dc7b497b13abef619098d3afaa569f28ca3f6641ef77b95cd2d"
 
 # Keycloak (operator + server)
 - name: keycloak
