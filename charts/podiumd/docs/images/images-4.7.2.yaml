@@ -21,8 +21,10 @@
   version: "1.30.2"
   digest: "sha256:77fb538f39407dc7b497b13abef619098d3afaa569f28ca3f6641ef77b95cd2d"
 
-# Open Inwoner Platform (OIP) — promoted from 2.1.2-rc1 to stable 2.1.2
-- name: open-inwoner
+# Open Inwoner Platform (OIP) — promoted from 2.1.2-rc1 to stable 2.1.2.
+# Mirror name is `openinwoner` (no hyphen), not `open-inwoner`; see
+# docs/images/acr-mirror-naming.md for the upstream→ACR mapping.
+- name: openinwoner
   url: docker.io/maykinmedia/open-inwoner
   version: "2.1.2"
   digest: "sha256:d4158f4f6f0890c7c94099332de034da0f6cf1fed298a79447934aa8c9d3236d"
