@@ -1,14 +1,18 @@
 # Images new or changed in podiumd 4.7.2 vs 4.7.1.
 #
-# This release contains one tag bump: nginx-unprivileged 1.30.0 → 1.30.2
-# (latest patch on the 1.30.x line; picks up CVE-relevant base/security
-# layer fixes published upstream after 4.7.1 was cut). All other entries
-# below are upstream digest refreshes only — the same tag was republished
-# by the upstream with newer base/security layers, so the multi-arch
-# index digest changed while the version stayed put. The ACR mirror must
-# mirror these new digests (and the new 1.30.2 tag for nginx). Digest
-# pins in charts/podiumd/values.yaml are otherwise maintained by Renovate
-# (PRs #310/#311/#312 and similar).
+# This release contains two tag bumps:
+#   * nginx-unprivileged 1.30.0 → 1.30.2 — latest patch on the 1.30.x
+#     line; picks up CVE-relevant base/security layer fixes published
+#     upstream after 4.7.1 was cut.
+#   * open-inwoner 2.1.2-rc1 → 2.1.2 — promotion from release candidate
+#     to the stable upstream release (commit ad5b2eb, "Set OIP image tag
+#     to 2.1.2"), unblocking the 4.7 promotion path.
+# All other entries below are upstream digest refreshes only — the same
+# tag was republished by the upstream with newer base/security layers,
+# so the multi-arch index digest changed while the version stayed put.
+# The ACR mirror must mirror these new digests (and the new 1.30.2 and
+# 2.1.2 tags). Digest pins in charts/podiumd/values.yaml are otherwise
+# maintained by Renovate (PRs #310/#311/#312 and similar).
 
 # nginx-unprivileged (ZAC nginx + apiproxy + openzaak/openformulieren/
 # openinwoner/openbeheer/referentielijsten nginx sidecars)
@@ -16,6 +20,12 @@
   url: docker.io/nginxinc/nginx-unprivileged
   version: "1.30.2"
   digest: "sha256:77fb538f39407dc7b497b13abef619098d3afaa569f28ca3f6641ef77b95cd2d"
+
+# Open Inwoner Platform (OIP) — promoted from 2.1.2-rc1 to stable 2.1.2
+- name: open-inwoner
+  url: docker.io/maykinmedia/open-inwoner
+  version: "2.1.2"
+  digest: "sha256:d4158f4f6f0890c7c94099332de034da0f6cf1fed298a79447934aa8c9d3236d"
 
 # Keycloak (operator + server)
 - name: keycloak
