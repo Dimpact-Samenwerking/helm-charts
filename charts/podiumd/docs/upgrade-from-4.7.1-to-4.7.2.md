@@ -42,6 +42,11 @@ component databases — `openzaak`, `openklant`, `ita`, etc.):
 - Owner role: `zaakbrug`
 - Default privileges on the role for `public` schema
 - `ssl: true` (TLS enforced by the server)
+- **Provision at the minimum possible size** — Zaakbrug stores only
+  Frank!Framework metadata + transient message-processing state and
+  has no high-volume tables. Use the smallest tier/storage SKU
+  permitted by the platform; scale up later from observed usage only
+  if needed.
 
 The chart sets `zaakbrug.connections.jdbc[0]` to point at the shared
 Postgres host with database `zaakbrug` / user `zaakbrug`; the password
