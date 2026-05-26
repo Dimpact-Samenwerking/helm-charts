@@ -2,8 +2,8 @@ apiVersion: v2
 name: podiumd
 description: PodiumD Helm chart
 type: application
-version: 4.7.1
-appVersion: "4.7.1"
+version: 4.7.2
+appVersion: "4.7.2"
 dependencies:
   - name: keycloak-operator
     version: 1.11.4
@@ -72,6 +72,12 @@ dependencies:
     version: 1.0.228 # ZAC 4.7.1 helm release
     repository: "@zac"
     condition: zac.enabled
+    tags:
+      - zaak
+  - name: zaakbrug
+    version: 2.3.26
+    repository: "https://wearefrank.github.io/charts"
+    condition: zaakbrug.enabled
     tags:
       - zaak
   - name: zgw-office-addin

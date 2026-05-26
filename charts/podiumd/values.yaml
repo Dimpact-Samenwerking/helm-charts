@@ -25,15 +25,15 @@ keycloak-operator:
   # Adfinis Helm chart wrapping the official Keycloak Operator manifests.
   # Chart: https://charts.adfinis.com / adfinis/keycloak-operator (chart 1.11.4, appVersion 26.5.6)
   # Note: it appears that the podname automatically appends -operator.
-  # Official operator image: quay.io/keycloak/keycloak-operator:26.6.1
-  # Note: adfinis chart 1.11.4 targets appVersion 26.5.6; Keycloak image is overridden to 26.6.1 below.
+  # Official operator image: quay.io/keycloak/keycloak-operator:26.6.2
+  # Note: adfinis chart 1.11.4 targets appVersion 26.5.6; Keycloak image is overridden to 26.6.2 below.
   # override: values-enable-observability.yaml sets enableServiceMonitor: true
   enableServiceMonitor: false
   fullnameOverride: keycloak
   operator:
     image:
       repository: quay.io/keycloak/keycloak-operator
-      tag: "26.6.1@sha256:a3123e57c8928310488a7cc20cc9791be0abc342ad6a4f72e7a87fc45bdf51c3"
+      tag: "26.6.2@sha256:01800d326246fc3ccf759e648268171244c96d46ccd151fe031894a6a06d3fa1"
     resources:
       requests:
         cpu: 100m
@@ -164,11 +164,11 @@ keycloak:
   http:
     httpEnabled: true
   # image parameters for keycloak-operator
-  # Official Keycloak image: quay.io/keycloak/keycloak:26.6.1
+  # Official Keycloak image: quay.io/keycloak/keycloak:26.6.2
   image:
     registry: ""
     repository: quay.io/keycloak/keycloak
-    tag: "26.6.1@sha256:26ae26445475f7fac5f90ee138b1bdb64324f5815fb16133ffdbdb122d97c4d8"
+    tag: "26.6.2@sha256:5afd40414096432903a5374ba4ba70b931dcca598a6bd9f44239fe66ef8d9737"
   # -- instances is the new operator-style replica count (falls back to replicaCount)
   instances: "2"
   ingress:
@@ -203,7 +203,7 @@ keycloak:
     metadata:
       labels:
         app: keycloak
-        version: 26.6.1
+        version: 26.6.2
       # override: values-enable-observability.yaml adds prometheus.io scrape annotations
     spec:
       securityContext:
@@ -663,7 +663,7 @@ openzaak:
         memory: 160Mi
   nginx:
     image:
-      tag: "1.30.0@sha256:3def659164dfb7d6be8563983ea9d2fe7e4dfcf2af96770d728723a5c5ad3bad"
+      tag: "1.30.2@sha256:77fb538f39407dc7b497b13abef619098d3afaa569f28ca3f6641ef77b95cd2d"
     resources:
       requests:
         cpu: 10m
@@ -1291,7 +1291,7 @@ openarchiefbeheer:
 
   nginx:
     image:
-      tag: "1.30.0@sha256:3def659164dfb7d6be8563983ea9d2fe7e4dfcf2af96770d728723a5c5ad3bad"
+      tag: "1.30.2@sha256:77fb538f39407dc7b497b13abef619098d3afaa569f28ca3f6641ef77b95cd2d"
     resources:
       requests:
         cpu: 10m
@@ -1476,7 +1476,7 @@ openklant:
   fullnameOverride: openklant
   nginx:
     image:
-      tag: "1.30.0@sha256:3def659164dfb7d6be8563983ea9d2fe7e4dfcf2af96770d728723a5c5ad3bad"
+      tag: "1.30.2@sha256:77fb538f39407dc7b497b13abef619098d3afaa569f28ca3f6641ef77b95cd2d"
     resources:
       requests:
         cpu: 10m
@@ -1692,7 +1692,7 @@ openformulieren:
         memory: 160Mi
   nginx:
     image:
-      tag: "1.30.0@sha256:3def659164dfb7d6be8563983ea9d2fe7e4dfcf2af96770d728723a5c5ad3bad"
+      tag: "1.30.2@sha256:77fb538f39407dc7b497b13abef619098d3afaa569f28ca3f6641ef77b95cd2d"
     resources:
       requests:
         cpu: 10m
@@ -1858,9 +1858,7 @@ openinwoner:
     volumeAttributeShareName: openinwoner
     storageClassName: podiumd-standard
   image:
-    # WARNING: 2.1.2-rc1 is a release candidate (DRT-557 fix). NOT suitable for production.
-    # Aligned with PodiumD 4.6.7. Bump to a stable 2.1.2 release before promoting 4.7.0.
-    tag: "2.1.2-rc1"
+    tag: "2.1.2"
   resources:
     requests:
       cpu: 200m
@@ -1888,7 +1886,7 @@ openinwoner:
   fullnameOverride: openinwoner
   nginx:
     image:
-      tag: "1.30.0@sha256:3def659164dfb7d6be8563983ea9d2fe7e4dfcf2af96770d728723a5c5ad3bad"
+      tag: "1.30.2@sha256:77fb538f39407dc7b497b13abef619098d3afaa569f28ca3f6641ef77b95cd2d"
     config:
       basicAuth:
         # Enable this when digid mock is set to digidMock: "true"
@@ -2237,7 +2235,7 @@ openbeheer:
       rateUser: "15000/hour"
   nginx:
     image:
-      tag: "1.30.0@sha256:3def659164dfb7d6be8563983ea9d2fe7e4dfcf2af96770d728723a5c5ad3bad"
+      tag: "1.30.2@sha256:77fb538f39407dc7b497b13abef619098d3afaa569f28ca3f6641ef77b95cd2d"
     resources:
       requests:
         cpu: 10m
@@ -2633,10 +2631,10 @@ zac:
   nginx:
     enabled: true
     client_max_body_size: 150M
-    # nginxinc/nginx-unprivileged:1.30.0@sha256:9b269aa3263e1dcba790fda66aa91b6b02f904adcd8329e5cf256e14a65e2974
+    # nginxinc/nginx-unprivileged:1.30.2@sha256:77fb538f39407dc7b497b13abef619098d3afaa569f28ca3f6641ef77b95cd2d
     image:
       # repository: nginxinc/nginx-unprivileged
-      tag: "1.30.0@sha256:3def659164dfb7d6be8563983ea9d2fe7e4dfcf2af96770d728723a5c5ad3bad"
+      tag: "1.30.2@sha256:77fb538f39407dc7b497b13abef619098d3afaa569f28ca3f6641ef77b95cd2d"
     resources:
       requests:
         cpu: 50m
@@ -2703,10 +2701,10 @@ zac:
         tag: 1.37.0-glibc@sha256:3f9777e7e82e8591542f72b965ec7db7e8b3bdb59692976af1bb9b2850b05a4e
       # -- set enabled to provision solrcloud as well
       enabled: true
-      # library/solr:9.10.1-slim@sha256:f67042f3a0e9e7b6fe0f8fa85e96ea0d0d1cbdd4cda19ccfb462ef3ef5d44ddf
+      # library/solr:9.10.1-slim@sha256:f5a742b9476c5608f318432fe142c2e8fe125a846c0ff0081681051e3b2d8eb4
       image:
         #repository:
-        tag: 9.10.1-slim@sha256:f67042f3a0e9e7b6fe0f8fa85e96ea0d0d1cbdd4cda19ccfb462ef3ef5d44ddf
+        tag: 9.10.1-slim@sha256:f5a742b9476c5608f318432fe142c2e8fe125a846c0ff0081681051e3b2d8eb4
       # -- define memory settings for solr in the solrcloud
       javaMem: -Xms512m -Xmx768m
       jobs:
@@ -2786,7 +2784,7 @@ zgw-office-addin:
   frontend:
     # ghcr.io/infonl/zgw-office-add-in-frontend:v0.9.289@sha256:80c1fea3d16ef8a837576858e581bb20de6296af7f21c56d401f4a346c126dc0
     image:
-      tag: "v0.9.289@sha256:55d22385a698c8c4698e532a2ae26902f8eae02ae09d2b26440a15a583367836"
+      tag: "v0.9.289@sha256:80c1fea3d16ef8a837576858e581bb20de6296af7f21c56d401f4a346c126dc0"
     resources:
       requests:
         cpu: 50m
@@ -2795,7 +2793,7 @@ zgw-office-addin:
     msalSecret: "dummy"
     # ghcr.io/infonl/zgw-office-add-in-backend:v0.9.289@sha256:dc9b165344e787cbf6146183be529594308e22eea553e1db6654f49ba9e76cfb
     image:
-      tag: "v0.9.289@sha256:9064278149ebe1f5ddd4efb526c1f68219d29b9245093d5cf63fe77bed3362d2"
+      tag: "v0.9.289@sha256:dc9b165344e787cbf6146183be529594308e22eea553e1db6654f49ba9e76cfb"
     resources:
       requests:
         cpu: 100m
@@ -2938,7 +2936,7 @@ apiproxy:
   #nameOverride: "iconnect-proxy"
   image:
     repository: nginxinc/nginx-unprivileged
-    tag: "1.30.0@sha256:3def659164dfb7d6be8563983ea9d2fe7e4dfcf2af96770d728723a5c5ad3bad"
+    tag: "1.30.2@sha256:77fb538f39407dc7b497b13abef619098d3afaa569f28ca3f6641ef77b95cd2d"
     pullPolicy: IfNotPresent
   service:
     port: 80
@@ -3178,7 +3176,7 @@ omc:
   fullnameOverride: "omc"
   image:
     # repository: ghcr.io/worth-nl/notifynl-omc
-    tag: "1.17.19@sha256:e0491d97996570ea18833994895460a46a081c639539305edbd519ebdb17bba6"
+    tag: "1.17.19@sha256:fdaabe81d6974dc2170d5383e604c15d76febd0a3563362a6827e437f04b398b"
   # BELOW are the resource settings from the subchart, notifynl-omc-nodep which we do not override
   # app:
   #   port: 5270
@@ -3351,3 +3349,58 @@ apisix:
       # `secretName` to point at your own Secret containing `admin` + `viewer`.
       credentials:
         secretName: apisix-admin-credentials
+
+# -----------------------------------------------------------------------------
+# zaakbrug — Frank!Framework adapter exposing Zaakgericht-Werken API for legacy
+# zaaksystems. Off by default; opt in per env (e.g. ontw-dimp).
+#
+# Upstream chart: wearefrank/zaakbrug (https://wearefrank.github.io/charts)
+# Transitive note: chart bundles a `staging` openzaak subchart that pulls
+# bitnami/redis. The default below pins `staging.enabled: false` so the
+# Bitnami artifact is never rendered (Dimpact policy: no Bitnami images).
+#
+# Env values MUST set `frank.dtap.stage` (DEV/TEST/ACCP/PROD) — chart has no
+# default. Env values typically also override image.registry to acrprodmgmt
+# and configure connections.jdbc[0] for the shared Postgres + Keycloak OAuth.
+# -----------------------------------------------------------------------------
+zaakbrug:
+  enabled: false
+  staging:
+    enabled: false
+  # K8s cgroup limits sized for the Frank!Framework JVM heap (subchart
+  # default Xms=Xmx=4G via .Values.frank.memory.{minimum,maximum}).
+  # Overhead ≈1Gi headroom for non-heap (metaspace, code cache, direct
+  # buffers, threads). Env overlays may tune from observed usage.
+  resources:
+    requests:
+      cpu: 250m
+      memory: 5Gi
+    limits:
+      cpu: "2"
+      memory: 6Gi
+  # ---------------------------------------------------------------------------
+  # Umbrella-chart-managed secret (templates/zaakbrug-secrets.yaml) renders a
+  # k8s Secret named `zaakbrug-secrets` containing credentials.properties.
+  # The Frank!Framework subchart mounts it via frank.credentials.secret.
+  # Env values MUST supply frank.zakenApi.jwt.password (typically a REP_*_REP
+  # placeholder resolved at deploy time from Azure Key Vault).
+  # ---------------------------------------------------------------------------
+  frank:
+    zakenApi:
+      jwt:
+        username: "zaakbrug"
+        password: ""  # required when zaakbrug.enabled=true
+  # ---------------------------------------------------------------------------
+  # OAuth2 console role mapping. templates/zaakbrug-oauth-role-mapping-configmap.yaml
+  # renders a ConfigMap (zaakbrug-oauth-role-mapping) with:
+  #   oauth-role-mapping.properties  <Frank role>=<Keycloak client role>
+  #   RoutingProfiles.json           zero-byte placeholder
+  # Both are mounted into the zaakbrug Deployment at /opt/frank/resources/ by a
+  # post-deploy kubectl patch in the ExternalsPodiumD Applications pipeline
+  # (upstream wearefrank/zaakbrug chart has no extraVolumeMounts support).
+  # Keys = Frank!Framework console roles; values = Keycloak client role names.
+  # ---------------------------------------------------------------------------
+  oauthRoleMapping:
+    IbisAdmin: admin
+    IbisTester: zaakbrug_admin
+    IbisDataAdmin: dataadmin
