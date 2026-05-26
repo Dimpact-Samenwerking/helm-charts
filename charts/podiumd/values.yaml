@@ -1858,9 +1858,7 @@ openinwoner:
     volumeAttributeShareName: openinwoner
     storageClassName: podiumd-standard
   image:
-    # WARNING: 2.1.2-rc1 is a release candidate (DRT-557 fix). NOT suitable for production.
-    # Aligned with PodiumD 4.6.7. Bump to a stable 2.1.2 release before promoting 4.7.0.
-    tag: "2.1.2-rc1"
+    tag: "2.1.2"
   resources:
     requests:
       cpu: 200m
