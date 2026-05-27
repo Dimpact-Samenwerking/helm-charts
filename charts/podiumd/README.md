@@ -2,6 +2,15 @@
 
 ## PodiumD versions
 
+### [4.7.3](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.7.3)
+
+**PodiumD Helm chart version: 4.7.3**
+Release-branch placeholder. Application-version targets to be filled in
+as the patch is scoped — see
+<https://dimpact.atlassian.net/wiki/spaces/PCP/pages/7602191/Releases+PodiumD>
+for the agreed list. Until then this entry deliberately omits the per-
+component table; see the `4.7.2` row below for the starting baseline.
+
 ### [4.7.2](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.7.2)
 
 **PodiumD Helm chart version: 4.7.2**
