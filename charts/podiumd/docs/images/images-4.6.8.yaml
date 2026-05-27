@@ -1,0 +1,15 @@
+# Images new or changed in podiumd 4.6.8 vs 4.6.7.
+#
+# Single change: open-inwoner 2.1.2-rc1 -> 2.1.2 (release candidate
+# promoted to stable upstream tag). No other image, tag, or digest
+# changes between 4.6.7 and 4.6.8.
+#
+# Mirror name is `openinwoner` (no hyphen), not `open-inwoner`; see
+# docs/images/acr-mirror-naming.md on the 4.7 line for the upstream->ACR
+# mapping.
+
+# Open Inwoner Platform (OIP)
+- name: openinwoner
+  url: docker.io/maykinmedia/open-inwoner
+  version: "2.1.2"
+  digest: "sha256:d4158f4f6f0890c7c94099332de034da0f6cf1fed298a79447934aa8c9d3236d"
