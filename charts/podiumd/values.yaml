@@ -3404,26 +3404,37 @@ zaakbrug:
     IbisAdmin: admin
     IbisTester: zaakbrug_admin
     IbisDataAdmin: dataadmin
-# Management Information (MI) data exports — IN-1650 / IN-1691.
+
+# Management Information (MI) data exports — IN-1650 / IN-2119.
 #
 # OPT-IN FEATURE — DISABLED BY DEFAULT (`mi.enabled: false`).
 #
-# Before enabling in any environment, the cluster MUST already have:
-#   1. An Azure Blob Storage container available to the chart (convention:
-#      an `mi-exports` container on the env's standard storage account).
-#   2. The storage credentials materialised as a K8s Secret named
-#      `mi-export-storage` in the `podiumd` namespace, with three keys:
-#      AZURE_STORAGE_ACCOUNT, AZURE_STORAGE_KEY, AZURE_STORAGE_CONTAINER.
+# Weekly per-component Postgres dumps (CSV with `;` separator, or pg_dump -Fc).
+# Each run uploads its output to an external **SFTP server** over an SSH
+# keypair. Blob storage is no longer used.
 #
-# If those prerequisites aren't in place, the CronJobs will render but their
-# pods fail on the first run with "AZURE_STORAGE_KEY: must be set". Enabling
-# this feature is a one-line toggle here — the cloud/infra side is the work.
+# Before enabling in any environment, the cluster MUST already have:
+#   1. An SFTP destination reachable from the cluster's egress (host, port,
+#      user, remote path).
+#   2. An SSH keypair: the public half installed in the SFTP server's
+#      authorized_keys; the private half + a `known_hosts` entry stored in
+#      Azure Key Vault and materialised as a K8s Secret in the podiumd
+#      namespace (default name `mi-export-sftp-key`, two keys: `id` and
+#      `known_hosts`).
+#   3. A K8s Secret carrying the SFTP connection envvars (default name
+#      `mi-export-sftp`, four keys: SFTP_HOST, SFTP_PORT, SFTP_USER,
+#      SFTP_REMOTE_PATH). Also materialised from Key Vault by the env's
+#      provisioning Terraform / sync script.
+#
+# For dev/test envs that don't have a Key-Vault-fronted SFTP setup yet, set
+# `mi.sftp.testMode.enabled: true` and inline the private key + known_hosts
+# below — the chart will render the two K8s Secrets itself. **Never enable
+# testMode in production values.**
 #
 # Full activation, infra prerequisites (incl. Terraform notes for external
 # hosting providers), validation, and troubleshooting:
 #   → docs/podiumd/mi-exports.md
 #
-# Iter1: weekly dump-to-blob via az CLI. No SFTP, no consumer-side portal yet.
 # One unified script (modeled on Maykin's bin/dump_data.sh --csv) is used for
 # every target; each entry in mi.targets[] renders one CronJob, gated on the
 # chart's existing <component>.enabled flag — so a CronJob only renders for an
@@ -3435,13 +3446,14 @@ zaakbrug:
 # Both default to the target's `component`. Override only when the chart subchart key
 # differs from the K8s resource name (e.g. opennotificaties → notificaties resources).
 mi:
-  # Disabled by default. Set to true ONLY after the cloud prerequisites above
-  # are in place and Secret/mi-export-storage exists in the podiumd namespace.
+  # Disabled by default. Set to true ONLY after the SFTP prerequisites above
+  # are in place (real Secret/mi-export-sftp + Secret/mi-export-sftp-key), or
+  # enable testMode for a dev sandbox.
   enabled: false
-  # Top-level path prefix under the storage container — keeps each gemeente's exports isolated.
+  # Top-level path prefix under the remote SFTP root — keeps each gemeente's exports isolated.
   gemeente: ""
   # Output format. One of:
-  #   csv    — per-table \COPY → tar.gz of CSVs (one CSV per table inside the tarball).
+  #   csv    — per-table \COPY → tar.gz of CSVs (one CSV per table, `;`-separated, HEADER row).
   #   pgdump — pg_dump -Fc (custom format, zlib-compressed, restorable via pg_restore).
   # All targets in an environment use the same format; per-target overrides are not supported.
   format: csv
@@ -3455,17 +3467,49 @@ mi:
     registry: "mcr.microsoft.com"
     repository: azure-cli
     tag: "2.71.0"
+  # ephemeral-storage requests = limits = 20Gi: the dump job assembles all
+  # tables of a component into one tarball under /tmp before uploading; the
+  # emptyDir backing /tmp also has sizeLimit 20Gi (set on the volume in
+  # mi-export-cronjobs.yaml) so an oversized dump evicts the pod, not the
+  # node. Scratch is throwaway — nothing in /tmp is preserved past the run.
   resources:
     requests:
       cpu: 100m
       memory: 256Mi
+      ephemeral-storage: 20Gi
     limits:
       cpu: 1000m
       memory: 1Gi
+      ephemeral-storage: 20Gi
   nodeSelector: {}
-  storage:
-    # K8s Secret expected to contain envvars: AZURE_STORAGE_ACCOUNT, AZURE_STORAGE_KEY, AZURE_STORAGE_CONTAINER.
-    secretName: mi-export-storage
+  sftp:
+    # All of host, user, remotePath are REQUIRED when mi.enabled and not testMode.
+    # The CronJob template enforces via Helm `required` and fails fast if unset.
+    host: ""
+    port: 22
+    user: ""
+    remotePath: ""                       # e.g. "/uploads/mi-exports"
+    # K8s Secret carrying envvars: SFTP_HOST, SFTP_PORT, SFTP_USER, SFTP_REMOTE_PATH.
+    # Provisioned by the env (Terraform / Key Vault sync script) when testMode is off.
+    # Auto-rendered from testMode.* when testMode.enabled is true.
+    secretName: mi-export-sftp
+    # K8s Secret carrying two keys:
+    #   id           — the SSH private key (mode 0400 inside the pod).
+    #   known_hosts  — single-line `ssh-keyscan -t <type> <host>` output.
+    # Provisioned by the env (Terraform / Key Vault sync script) when testMode is off.
+    # Auto-rendered from testMode.* when testMode.enabled is true.
+    keySecretName: mi-export-sftp-key
+    testMode:
+      # NEVER set to true in prod values. Enabling renders an in-chart Secret
+      # carrying privateKey + knownHosts directly from these values, plus a
+      # connection Secret from sftp.host/port/user/remotePath — useful for
+      # iterating against a sandbox SFTP server (e.g. an atmoz/sftp pod in
+      # the same namespace) without touching Key Vault.
+      enabled: false
+      # PEM block, multiline. Required when testMode.enabled is true.
+      privateKey: ""
+      # ssh-keyscan output, one line per host key. Required when testMode.enabled is true.
+      knownHosts: ""
   # Default target list — every Postgres-backed app this chart can deploy. A target only
   # renders a CronJob when the chart's <component>.enabled is true. Per-target `enabled`
   # is layered on top for ad-hoc opt-out. `schemas` defaults to ["public"].

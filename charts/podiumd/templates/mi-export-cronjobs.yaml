@@ -7,6 +7,21 @@
 {{- end }}
 
 {{- /*
+  SFTP egress required-field guards. When testMode is on, the chart renders
+  the connection Secret itself from testMode.* values, so the only operator-
+  facing requirement is that the keypair/known_hosts are non-empty. When
+  testMode is off, all four prod SFTP parameters must come from values
+  (they are templated into env entries below).
+*/}}
+{{- if $mi.sftp.testMode.enabled }}
+{{- $_ := required "mi.sftp.testMode.privateKey is required when mi.sftp.testMode.enabled is true" $mi.sftp.testMode.privateKey }}
+{{- $_ := required "mi.sftp.testMode.knownHosts is required when mi.sftp.testMode.enabled is true" $mi.sftp.testMode.knownHosts }}
+{{- end }}
+{{- $_ := required "mi.sftp.host is required when mi.enabled is true"       $mi.sftp.host }}
+{{- $_ := required "mi.sftp.user is required when mi.enabled is true"       $mi.sftp.user }}
+{{- $_ := required "mi.sftp.remotePath is required when mi.enabled is true" $mi.sftp.remotePath }}
+
+{{- /*
   One CronJob per entry in mi.targets[]. Each entry is gated on the chart's
   existing <component>.enabled flag, so an MI export only renders for apps
   this chart is actively deploying. Disabling a component (or its mi target)
@@ -56,9 +71,10 @@ spec:
               resources:
                 {{- toYaml $mi.resources | nindent 16 }}
               securityContext:
-                # iter3-todo: bake a purpose-built image (psql installed at build time),
-                # then re-enable runAsNonRoot/runAsUser:1000 and readOnlyRootFilesystem.
-                # Iter1 needs root because tdnf install on Azure Linux requires it.
+                # iter3-todo: bake a purpose-built image (psql + openssh-clients
+                # installed at build time), then re-enable runAsNonRoot/
+                # runAsUser:1000 and readOnlyRootFilesystem. Today we need root
+                # because the runtime tdnf bootstrap requires it.
                 runAsNonRoot: false
                 runAsUser: 0
                 allowPrivilegeEscalation: false
@@ -76,9 +92,21 @@ spec:
                   value: {{ default (list "public") $t.schemas | join " " | quote }}
                 - name: MI_FORMAT
                   value: {{ $format | quote }}
+                # SFTP key material is mounted at /etc/sftp via the
+                # `sftp-key` volume below. The script reads these env paths
+                # rather than hardcoding /etc/sftp so an iter3 baked image
+                # can relocate them without changing dump.sh.
+                - name: SFTP_KEY_FILE
+                  value: /etc/sftp/id
+                - name: SFTP_KNOWN_HOSTS
+                  value: /etc/sftp/known_hosts
               envFrom:
+                # SFTP connection envs (SFTP_HOST/PORT/USER/REMOTE_PATH).
+                # In prod, this Secret is provisioned by the env's Terraform
+                # from Key Vault. In testMode, mi-export-sftp-testkey-secret.yaml
+                # renders it from values.
                 - secretRef:
-                    name: {{ $mi.storage.secretName | quote }}
+                    name: {{ $mi.sftp.secretName | quote }}
                 # The chart's per-app convention is: <component> Secret carries DB_PASSWORD
                 # (and other app secrets); <component> ConfigMap carries DB_HOST, DB_NAME,
                 # DB_USER, DB_PORT. Both default to the target's component name; override
@@ -95,6 +123,9 @@ spec:
                 - name: scripts
                   mountPath: /scripts
                   readOnly: true
+                - name: sftp-key
+                  mountPath: /etc/sftp
+                  readOnly: true
                 - name: tmp
                   mountPath: /tmp
           volumes:
@@ -102,8 +133,22 @@ spec:
               configMap:
                 name: mi-export-scripts
                 defaultMode: 0555
+            - name: sftp-key
+              secret:
+                secretName: {{ $mi.sftp.keySecretName | quote }}
+                # 0400 — sshd refuses to use a key whose perms are loose.
+                defaultMode: 0400
+                items:
+                  - key: id
+                    path: id
+                  - key: known_hosts
+                    path: known_hosts
             - name: tmp
-              emptyDir: {}
+              # 20 GiB scratch cap. Backed by node ephemeral storage. Sized to
+              # match mi.resources.{requests,limits}.ephemeral-storage so the
+              # pod is evicted (not the node) if a dump exceeds budget.
+              emptyDir:
+                sizeLimit: 20Gi
 {{- end }}
 {{- end }}
 {{- end }}
