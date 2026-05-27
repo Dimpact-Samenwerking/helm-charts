@@ -50,13 +50,31 @@ Behavior:
    done
    ```
 
-6. **For `PREV_NEXT` (previous-minor next patch): alarm-only.** If MISS, print a clear alarm block. Do NOT create. Reason: previous-minor releases are typically driven by a separate hotfix cadence with its own owner / cherry-pick policy, and the workflow has not yet been documented. Flag, move on. Sample alarm text:
+6. **For `PREV_NEXT` (previous-minor next patch): documented separate workflow — do NOT create + bump + open PR like the other two.** Previous-minor patches **never merge to `main`** (main is already past this minor; merging would drag old code forward). Instead:
+
+   a. Develop and test the patch on the `feature/podiumd-<PREV_NEXT>` branch (a regular feature branch — but with no PR to `main`).
+   b. When the patch is ready and tested, **squash the entire feature branch into a single commit** on a `release/podiumd-<PREV_NEXT>` branch. That single commit is what triggers the helm-publish CI build. **Do not push further commits to `release/podiumd-<PREV_NEXT>`** — extra commits don't re-trigger cleanly and confuse the publish job.
+   c. Tag / GitHub-release is cut from the `release/*` tip.
+
+   If the **feature branch** is missing, print an alarm but do **not** auto-create it — the previous-minor owner picks which fix to backport and when. Sample alarm text:
    ```
    ⚠️  Previous-minor patch branch missing: feature/podiumd-<PREV_NEXT>
        Latest released previous-minor: podiumd-<PREV>
-       This branch is out of scope for this command — handle separately
-       (cherry-pick policy / hotfix workflow to be documented).
+       Follow the prev-minor workflow:
+         1. develop on feature/podiumd-<PREV_NEXT> (no PR to main, ever)
+         2. squash all work into ONE commit on release/podiumd-<PREV_NEXT>
+            — that single commit triggers the helm build
+         3. no further commits on release/* after that
+       Do not run create+bump+PR from this command — that flow is for the
+       current minor (CUR_NEXT) and next minor (NEXT_MINOR) only.
    ```
+
+   If the **`feature/podiumd-<PREV_NEXT>` branch exists but `release/podiumd-<PREV_NEXT>` is missing**, that means the patch is mid-development — no action needed yet, but note that the release/* trigger commit is still owed. Don't open a PR for `feature/podiumd-<PREV_NEXT>` against `main` in any case.
+
+   **Hard rules (follow to the letter):**
+   - Never `gh pr create … --base main --head feature/podiumd-<PREV_NEXT>`.
+   - Never push a second commit to `release/podiumd-<PREV_NEXT>` once the squash commit is there.
+   - Memory: see `project_prev_minor_patch_workflow.md` in the project memory dir for the same rules.
 
 7. **For `CUR_NEXT` (current `+1 patch`): create + bump + open PR if missing.**
    ```bash
