@@ -1,0 +1,121 @@
+{{- $redisOperator := index .Values "redis-operator" }}
+{{- if $redisOperator.enabled }}
+{{/*
+  Pre-delete Helm hook: explicitly delete the RedisReplication CR while the
+  redis-operator is still running, so its finalizer (`redisReplicationFinalizer`)
+  can be processed before helm tears down the operator's Deployment. Without
+  this, helm uninstall completes the regular resource delete in an undefined
+  order; if the operator goes first, the CR keeps its finalizer and namespace
+  termination gets stuck.
+
+  This is an iter1-style patch. The proper long-term fix is to extract the
+  redis-operator (and keycloak-operator) into their own helm releases the way
+  eck-operator already is — see iter3 backlog item on operator extraction.
+*/}}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: redis-ha-pre-delete
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-delete
+    helm.sh/hook-weight: "-20"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: redis-ha-pre-delete
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-delete
+    helm.sh/hook-weight: "-20"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+rules:
+  - apiGroups: ["redis.redis.opstreelabs.in"]
+    resources: ["redisreplications"]
+    verbs: ["get", "list", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: redis-ha-pre-delete
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-delete
+    helm.sh/hook-weight: "-20"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: redis-ha-pre-delete
+subjects:
+  - kind: ServiceAccount
+    name: redis-ha-pre-delete
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: redis-ha-pre-delete
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-delete
+    helm.sh/hook-weight: "-10"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  ttlSecondsAfterFinished: 60
+  backoffLimit: 1
+  template:
+    metadata:
+      labels:
+        {{- include "podiumd.labels" . | nindent 8 }}
+    spec:
+      serviceAccountName: redis-ha-pre-delete
+      automountServiceAccountToken: true
+      restartPolicy: Never
+      containers:
+        - name: drain-redis-ha
+          image: docker.io/alpine/k8s:1.33.10
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              NS="{{ .Release.Namespace }}"
+              if ! kubectl -n "$NS" get redisreplication redis-ha >/dev/null 2>&1; then
+                echo "redisreplication/redis-ha not present — nothing to drain"
+                exit 0
+              fi
+              echo "deleting redisreplication/redis-ha; redis-operator will process its finalizer..."
+              kubectl -n "$NS" delete redisreplication redis-ha \
+                --wait=true --timeout=90s --ignore-not-found
+              echo "done"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+{{- end }}
