@@ -1,16 +1,31 @@
-Verify the release-branch landscape around the current `charts/podiumd/Chart.yaml` version: the previous-minor patch branch (alarm-only — out of scope to create), and the two next branches to prepare (current `+1 patch` and current `+1 minor.0`). For missing branches in scope, create them from `main`, bump version in `Chart.yaml` + docs, and ensure an open PR against `main`.
+Verify the release-branch landscape for **both** charts in the repo. Each chart has its own policy:
 
-Usage: `/verify-release-branches` (no args — derives everything from `charts/podiumd/Chart.yaml`)
+- **`charts/podiumd`** — three targets, derived from `charts/podiumd/Chart.yaml`:
+  - previous-minor next patch (documented separate workflow, do NOT auto-create — see step 6);
+  - current `+1 patch` (create + bump + PR if missing);
+  - current `+1 minor.0` (create + bump + PR if missing).
+- **`charts/monitoring-logging`** — one target only, derived from `charts/monitoring-logging/Chart.yaml`:
+  - current `+1 patch` (create + bump + PR if missing).
+  - No `+1 minor.0` track. No previous-minor track. **Exactly one open branch + PR at a time** — if a second monitoring-logging release branch shows up (e.g. someone speculatively opened a `+1 minor.0`), flag it as a smell and check with the user before keeping both.
+
+Usage: `/verify-release-branches` (no args — derives everything from each chart's `Chart.yaml`)
 
 Examples:
-- Chart at `4.7.2` →
-  - previous-minor next patch: `4.6.<latest+1>` (alarm if no branch — handle out of scope)
+- `charts/podiumd` at `4.7.2` →
+  - previous-minor next patch: `4.6.<latest+1>` (alarm if no branch — see step 6)
   - current `+1 patch`: `4.7.3` (create + PR if missing)
   - current `+1 minor.0`: `4.8.0` (create + PR if missing)
+- `charts/monitoring-logging` at `1.0.13` →
+  - current `+1 patch`: `1.0.14` (create + PR if missing) — only target
 
-Branch naming convention (locked in by prior releases): `feature/podiumd-<X.Y.Z>`.
+Branch naming conventions (locked in by prior releases):
+- podiumd: `feature/podiumd-<X.Y.Z>`
+- monitoring-logging: look at the latest released branch and follow it exactly (typically `feature/monitoring-logging-<X.Y.Z>`); verify before creating.
 
-PR base: `main`. PR title pattern: `feature: PodiumD <X.Y.Z>` (matches the historic squash-merge titles).
+PR base: `main`.
+PR title patterns:
+- podiumd: `feature: PodiumD <X.Y.Z>` (matches historic squash-merge titles)
+- monitoring-logging: follow the latest merged PR's title style for that chart.
 
 Behavior:
 
@@ -119,11 +134,39 @@ Behavior:
     done
     ```
 
+## charts/monitoring-logging — single-branch flow
+
+12. **Read** `charts/monitoring-logging/Chart.yaml` `version` → `ML_CUR=X.Y.Z`; compute `ML_NEXT = X.Y.(Z+1)`. **No `+1 minor.0` target, no prev-minor target — those branches must NOT exist for this chart.**
+
+13. **Branch + PR check** (same idempotent shape as steps 5/11, just one target):
+    ```bash
+    if git rev-parse --verify --quiet "refs/remotes/origin/feature/monitoring-logging-$ML_NEXT" >/dev/null; then
+      echo "OK    feature/monitoring-logging-$ML_NEXT"
+    else
+      echo "MISS  feature/monitoring-logging-$ML_NEXT — create from main"
+    fi
+    n=$(gh pr list --repo Dimpact-Samenwerking/helm-charts \
+          --head "feature/monitoring-logging-$ML_NEXT" --base main --state open \
+          --json number --jq 'length' 2>/dev/null)
+    echo "  PRs open to main: ${n:-0}"
+    ```
+
+14. **If missing**, create from `main`, bump `charts/monitoring-logging/Chart.yaml` (`version` + `appVersion`), and any monitoring-logging README/docs that explicitly carry the version. Same commit/push/PR pattern as steps 7–8, just for the monitoring-logging chart.
+
+15. **Smell check**: also look for any *other* monitoring-logging release branch (e.g. someone opened `feature/monitoring-logging-X.(Y+1).0`):
+    ```bash
+    git for-each-ref refs/remotes/origin --format='%(refname:short)' \
+      | grep -E '^origin/feature/monitoring-logging-' \
+      | grep -v "feature/monitoring-logging-$ML_NEXT$"
+    ```
+    Anything that prints here is unexpected for this chart's policy — flag, ask the user, do **not** silently keep it. The rule is: one open monitoring-logging branch at a time.
+
 Notes:
 
 - This skill is **branch-scope only** — it does not touch the actual app-version bumps for sub-charts. The chart version + appVersion + doc skeleton land as a placeholder commit so renovate / per-app PRs can land on top.
-- The created `+1 patch` branch should be expected to receive only patch-class changes (security bumps, doc fixes, digest refreshes). New sub-chart features go on `NEXT_MINOR`.
+- The created `+1 patch` branch (for either chart) should be expected to receive only patch-class changes (security bumps, doc fixes, digest refreshes). New sub-chart features go on `NEXT_MINOR` (podiumd only — monitoring-logging has no minor track here).
 - Re-running the command on a clean repo is a no-op (`OK` for every branch + PR). Use that as a health check before cutting a release.
+- Companion memory: `project_prev_minor_patch_workflow.md` (podiumd prev-minor) and `project_monitoring_logging_branch_workflow.md` (monitoring-logging single-branch rule).
 
 Reference one-shot script (read-only verification + alarms; bump+PR steps are interactive and best done by hand to confirm Confluence targets):
 
@@ -176,4 +219,30 @@ done
 echo
 echo "Confluence release targets (open manually, WebFetch can't auth):"
 echo "  https://dimpact.atlassian.net/wiki/spaces/PCP/pages/7602191/Releases+PodiumD"
+
+# ----- charts/monitoring-logging: single-branch (+1 patch only) -----
+ML_CHART=charts/monitoring-logging/Chart.yaml
+if [ -f "$ML_CHART" ]; then
+  echo
+  echo "=== monitoring-logging ==="
+  ML_CUR=$(grep -E '^version:' "$ML_CHART" | awk '{print $2}')
+  IFS=. read -r ML_MAJ ML_MIN ML_PAT <<<"$ML_CUR"
+  ML_NEXT="$ML_MAJ.$ML_MIN.$((ML_PAT+1))"
+  echo "Chart version (current): $ML_CUR  →  expected branch: feature/monitoring-logging-$ML_NEXT"
+  if git rev-parse --verify --quiet "refs/remotes/origin/feature/monitoring-logging-$ML_NEXT" >/dev/null; then
+    echo "OK    feature/monitoring-logging-$ML_NEXT"
+  else
+    echo "MISS  feature/monitoring-logging-$ML_NEXT — create from main"
+  fi
+  n=$(gh pr list --repo "$REPO" --head "feature/monitoring-logging-$ML_NEXT" --base main --state open --json number --jq 'length' 2>/dev/null)
+  echo "  PRs open to main: ${n:-0}"
+  # Smell check: any OTHER monitoring-logging branch must not exist
+  extras=$(git for-each-ref refs/remotes/origin --format='%(refname:short)' \
+    | grep -E '^origin/feature/monitoring-logging-' \
+    | grep -v "feature/monitoring-logging-$ML_NEXT$" || true)
+  if [ -n "$extras" ]; then
+    echo "⚠️  Extra monitoring-logging branches present (policy is one-at-a-time):"
+    echo "$extras" | sed 's/^/    /'
+  fi
+fi
 ```
