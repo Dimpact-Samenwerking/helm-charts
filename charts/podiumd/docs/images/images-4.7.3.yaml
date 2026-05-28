@@ -1,0 +1,14 @@
+# Images new or changed in podiumd 4.7.3 vs 4.7.2.
+#
+# Single change: ZAC 4.7.1 → 4.7.2 — upstream hotfix for mail-template
+# rendering. Built earlier today on the ZAC release branch; the digest
+# below was verified live against the ghcr.io multi-arch index.
+#
+# Mirror name is `zac` (renamed from `zaakafhandelcomponent`); see
+# docs/images/acr-mirror-naming.md for the upstream→ACR mapping.
+
+# ZAC — mail-template hotfix
+- name: zac
+  url: ghcr.io/infonl/zaakafhandelcomponent
+  version: "4.7.2"
+  digest: "sha256:235e51559f3439bb6aba5bbbc67279d70e9ab141aefd43d85be546d420fb0e34"
