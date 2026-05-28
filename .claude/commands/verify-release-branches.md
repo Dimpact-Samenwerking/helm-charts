@@ -84,14 +84,17 @@ Behavior:
        current minor (CUR_NEXT) and next minor (NEXT_MINOR) only.
    ```
 
-   If the **`feature/podiumd-<PREV_NEXT>` branch exists but `release/podiumd-<PREV_NEXT>` is missing**, that means the patch is mid-development — no action needed yet, but note that the release/* trigger commit is still owed. Don't open a PR for `feature/podiumd-<PREV_NEXT>` against `main` in any case.
+   If the **`feature/podiumd-<PREV_NEXT>` branch exists but `release/podiumd-<PREV_NEXT>` is missing**, that means the patch is mid-development — no action needed yet, but note that the release/* trigger commit is still owed.
+
+   **Visibility PR:** a PR for the prev-minor patch *may* exist against `main` for visibility/tracking. **Draft-state follows the same review-requested rule as the other two placeholders** — draft when no reviewers are requested, ready when reviewers are. The PR must **never actually merge to `main`** regardless of state (the release/* single-commit branch is the helm-build trigger).
 
    **Hard rules (follow to the letter):**
-   - Never `gh pr create … --base main --head feature/podiumd-<PREV_NEXT>`.
+   - The prev-minor PR must never be merged to `main`, draft or not. If you find one in a "mergeable + approved" state, leave it — let the operator decide whether to close it.
+   - Draft-state on the prev-minor PR mirrors `reviewRequests.length > 0` exactly (same rule as steps 7/8/11).
    - Never push a second commit to `release/podiumd-<PREV_NEXT>` once the squash commit is there.
-   - Memory: see `project_prev_minor_patch_workflow.md` in the project memory dir for the same rules.
+   - Memory: see `project_prev_minor_patch_workflow.md` and `project_release_pr_draft_policy.md` in the project memory dir for the same rules.
 
-7. **For `CUR_NEXT` (current `+1 patch`): create + bump + open PR if missing.**
+7. **For `CUR_NEXT` (current `+1 patch`): create + bump + open DRAFT PR if missing.** The PR stays **draft** until the patch is actually scoped and ready (operator flips it via `gh pr ready <num>` when so).
    ```bash
    git checkout main && git pull --ff-only
    git checkout -b feature/podiumd-$CUR_NEXT main
@@ -101,12 +104,16 @@ Behavior:
    git add charts/podiumd/Chart.yaml <doc files touched>
    git commit -m "chore(podiumd): bump chart version to <CUR_NEXT>"
    git push -u origin feature/podiumd-$CUR_NEXT
-   gh pr create --base main --head feature/podiumd-$CUR_NEXT \
+   gh pr create --base main --head feature/podiumd-$CUR_NEXT --draft \
      --title "feature: PodiumD <CUR_NEXT>" \
      --body "Release branch placeholder for podiumd <CUR_NEXT>. See Confluence Releases page for the agreed application-version targets: https://dimpact.atlassian.net/wiki/spaces/PCP/pages/7602191/Releases+PodiumD"
    ```
+   If an existing non-draft PR is found for this branch, flip it back to draft:
+   ```bash
+   gh pr ready <pr-number> --repo Dimpact-Samenwerking/helm-charts --undo
+   ```
 
-8. **For `NEXT_MINOR` (current `+1 minor.0`): same flow as step 7**, branch name `feature/podiumd-$NEXT_MINOR`, commit message and PR title use `$NEXT_MINOR`.
+8. **For `NEXT_MINOR` (current `+1 minor.0`): same flow as step 7**, branch name `feature/podiumd-$NEXT_MINOR`, commit message and PR title use `$NEXT_MINOR`. **Same `--draft` rule** — the next-minor PR is a long-lived placeholder, must stay draft until the minor is actually being scoped for release.
 
 9. **Docs files to bump alongside `Chart.yaml`.** Keep version refs in sync with `4.7.2` (the precedent) — at minimum:
    - `charts/podiumd/README.md`: add a new top entry under `## PodiumD versions` mirroring the latest entry's table structure; fill in known AppVersions / ChartVersions from `Chart.yaml` deps and `values.yaml` image tags. Mark application versions as TBD if Confluence has no firm target yet.
@@ -119,20 +126,45 @@ Behavior:
     - For `CUR_NEXT`: if the Confluence page lists app-version targets for the patch (e.g. ZAC X.Y.Z, OpenZaak A.B.C), pre-fill them into the bump commit. If empty, leave a TODO in the upgrade-notes doc.
     - For `NEXT_MINOR`: same — the minor's targets often arrive later, so leave TODOs and revisit when populated.
 
-11. **PR-open check for the two prepared branches** (idempotent — run this whenever the branches already exist too, to make sure their PR didn't get closed without a merge):
+11. **PR-open + draft-state check for the prepared branches** (idempotent — run this whenever the branches already exist too; synchronises draft state to the reviewer-requested state):
     ```bash
-    for v in $CUR_NEXT $NEXT_MINOR; do
-      n=$(gh pr list --repo Dimpact-Samenwerking/helm-charts \
+    for v in $CUR_NEXT $NEXT_MINOR $PREV_NEXT; do
+      json=$(gh pr list --repo Dimpact-Samenwerking/helm-charts \
             --head "feature/podiumd-$v" --base main --state open \
-            --json number --jq 'length')
-      if [ "$n" = 0 ]; then
-        echo "MISS  PR for feature/podiumd-$v → open one"
-        # gh pr create … (same as step 7)
+            --json number,isDraft,reviewRequests --jq '.[0]')
+      if [ -z "$json" ] || [ "$json" = null ]; then
+        echo "MISS  PR for feature/podiumd-$v"
+        continue
+      fi
+      num=$(echo "$json" | python3 -c "import sys,json;print(json.load(sys.stdin)['number'])")
+      draft=$(echo "$json" | python3 -c "import sys,json;print(json.load(sys.stdin)['isDraft'])")
+      revcount=$(echo "$json" | python3 -c "import sys,json;print(len(json.load(sys.stdin).get('reviewRequests',[])))")
+      if [ "$revcount" -gt 0 ]; then
+        # PR is actively in review — must NOT be draft
+        if [ "$draft" = "True" ]; then
+          echo "FIX   PR #$num feature/podiumd-$v is draft but has $revcount reviewer(s) requested — promoting"
+          gh pr ready "$num" --repo Dimpact-Samenwerking/helm-charts
+        else
+          echo "OK    PR #$num feature/podiumd-$v (ready, $revcount reviewer(s) requested)"
+        fi
       else
-        echo "OK    PR open for feature/podiumd-$v"
+        # No reviewers requested → still a placeholder, must stay draft
+        if [ "$draft" = "True" ]; then
+          echo "OK    PR #$num feature/podiumd-$v (draft, placeholder)"
+        else
+          echo "FIX   PR #$num feature/podiumd-$v is ready but no reviewers requested — flipping to draft"
+          gh pr ready "$num" --repo Dimpact-Samenwerking/helm-charts --undo
+        fi
       fi
     done
     ```
+
+    **Draft policy (project rule, follow to the letter):** all three placeholder PRs (`PREV_NEXT`, `CUR_NEXT`, `NEXT_MINOR`) live in **draft** state **while they are still placeholders**. The trigger to leave draft is **a reviewer being requested on the PR** — that's the operator's signal that the release is being scoped for actual review/merge. Concretely:
+
+    - `reviewRequests.length == 0` → must be **draft**. Flip back via `gh pr ready <num> --undo` if found ready.
+    - `reviewRequests.length > 0`  → must be **ready (NOT draft)**. Promote via `gh pr ready <num>` if found draft.
+
+    The skill never decides whether to *add* a reviewer (that's an operator action). It only synchronises draft-state to whatever reviewer-requested state the PR is already in.
 
 ## charts/monitoring-logging — single-branch flow
 
@@ -151,7 +183,7 @@ Behavior:
     echo "  PRs open to main: ${n:-0}"
     ```
 
-14. **If missing**, create from `main`, bump `charts/monitoring-logging/Chart.yaml` (`version` + `appVersion`), and any monitoring-logging README/docs that explicitly carry the version. Same commit/push/PR pattern as steps 7–8, just for the monitoring-logging chart.
+14. **If missing**, create from `main`, bump `charts/monitoring-logging/Chart.yaml` (`version` + `appVersion`), and any monitoring-logging README/docs that explicitly carry the version. Same commit/push/PR pattern as steps 7–8, just for the monitoring-logging chart. **Same `--draft` rule applies** — the single monitoring-logging release-branch PR is opened with `gh pr create … --draft` and stays draft until the patch is scoped and ready.
 
 15. **Smell check**: also look for any *other* monitoring-logging release branch (e.g. someone opened `feature/monitoring-logging-X.(Y+1).0`):
     ```bash
@@ -210,10 +242,24 @@ for v in $PREV_NEXT $CUR_NEXT $NEXT_MINOR; do
 done
 
 echo
-echo "PR check (for cur+1patch and cur+1minor only):"
-for v in $CUR_NEXT $NEXT_MINOR; do
-  n=$(gh pr list --repo "$REPO" --head "feature/podiumd-$v" --base main --state open --json number --jq 'length' 2>/dev/null)
-  echo "  feature/podiumd-$v -> ${n:-0} open PR(s) to main"
+echo "PR check (draft-state synchronised to reviewers-requested state):"
+for v in $PREV_NEXT $CUR_NEXT $NEXT_MINOR; do
+  pr_json=$(gh pr list --repo "$REPO" --head "feature/podiumd-$v" --base main --state open --json number,isDraft,reviewRequests --jq '.[0]' 2>/dev/null)
+  if [ -z "$pr_json" ] || [ "$pr_json" = "null" ]; then
+    echo "  feature/podiumd-$v -> no open PR"
+    continue
+  fi
+  num=$(echo "$pr_json" | python3 -c "import sys,json;print(json.load(sys.stdin)['number'])")
+  draft=$(echo "$pr_json" | python3 -c "import sys,json;print(json.load(sys.stdin)['isDraft'])")
+  rc=$(echo "$pr_json" | python3 -c "import sys,json;print(len(json.load(sys.stdin).get('reviewRequests',[])))")
+  if [ "$rc" -gt 0 ] && [ "$draft" = "True" ]; then
+    echo "  feature/podiumd-$v -> PR #$num draft w/ $rc reviewer(s) — promote: gh pr ready $num --repo $REPO"
+  elif [ "$rc" = 0 ] && [ "$draft" = "False" ]; then
+    echo "  feature/podiumd-$v -> PR #$num ready w/ 0 reviewers — flip back: gh pr ready $num --repo $REPO --undo"
+  else
+    label=$([ "$draft" = "True" ] && echo "draft (placeholder)" || echo "ready ($rc reviewer(s))")
+    echo "  feature/podiumd-$v -> PR #$num $label ✓"
+  fi
 done
 
 echo
