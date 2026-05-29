@@ -23,8 +23,11 @@ Highlights:
     CSV per table with a header row.
   - `pgdump` — one `pg_dump -Fc` file per component (DR / restore).
 - Egress is **SFTP only** (no blob storage). Auth via an SSH keypair sourced
-  from Azure Key Vault; `StrictHostKeyChecking=yes` against a pinned
-  `known_hosts` entry.
+  from Azure Key Vault. Host-key checking is intentionally **disabled**
+  (`StrictHostKeyChecking=no`, `UserKnownHostsFile=/dev/null`): the jobs are
+  short-lived, single-shot containers reaching a DNS-fixed host and the private
+  key already gates login, so no `known_hosts` is mounted or required. See the
+  *Host-key policy* section of the operator doc.
 - 20 GiB scratch budget on `/tmp` (`emptyDir.sizeLimit` plus matching
   `ephemeral-storage` requests/limits); pods are evicted before they can
   hurt the node.
@@ -39,16 +42,16 @@ Full operator documentation: [`docs/podiumd/mi-exports.md`](../../../docs/podium
 **Disabled by default** — the feature is fully opt-in, so existing envs see
 no behavioural change after the upgrade. To enable in an env:
 
-1. **Provision the SFTP target side first**: ensure a reachable SFTP server,
-   install the gemeente's SSH public key in `authorized_keys`, and capture
-   the host's `known_hosts` line via `ssh-keyscan -t ed25519 <host>`.
+1. **Provision the SFTP target side first**: ensure a reachable SFTP server and
+   install the gemeente's SSH public key in `authorized_keys`. No `known_hosts`
+   capture is needed (host-key checking is disabled).
 2. **Stage two K8s Secrets in the `podiumd` namespace** before the chart
-   apply (Dimpact dev/test envs: the `podiumd-infra` `sync-mi-export-secret.sh`
+   apply (Dimpact dev/test envs: the `podiumd-infra` `sync-mi-export-sftp-secret.sh`
    script materialises them from Key Vault; external-hosted prod: replicate
    in the provider's own Terraform):
    - `mi-export-sftp` — envvars `SFTP_HOST`, `SFTP_PORT`, `SFTP_USER`,
      `SFTP_REMOTE_PATH`.
-   - `mi-export-sftp-key` — keys `id` (PEM private key) and `known_hosts`.
+   - `mi-export-sftp-key` — single key `id` (PEM private key).
 3. **Set values** in the env's `values-<env>.yml`:
    ```yaml
    mi:
@@ -63,7 +66,12 @@ no behavioural change after the upgrade. To enable in an env:
    section of the operator doc.
 
 For a dev sandbox without any Key-Vault setup, set `mi.sftp.testMode.enabled: true`
-and inline `privateKey` + `knownHosts` in values — never in prod values.
+and inline `privateKey` in values — never in prod values. (`knownHosts` is no
+longer used.)
+
+> **Note on Azure Blob SFTP targets:** if the SFTP user's `homeDirectory` is a
+> blob container, the user is chrooted into it — set `mi.sftp.remotePath` to a
+> path *inside* that container (e.g. `/mi-exports`), not `/<container>/...`.
 
 ### Other changes
 
