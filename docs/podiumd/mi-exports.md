@@ -4,7 +4,7 @@ Weekly Management Information (MI) data exports of every Postgres-backed compone
 
 > Jira: [IN-1650](https://dimpact.atlassian.net/browse/IN-1650) (epic) / [IN-1691](https://dimpact.atlassian.net/browse/IN-1691) (iter 1 — dump generator) / [IN-2119](https://dimpact.atlassian.net/browse/IN-2119) (egress switched from Azure Blob to SFTP, CSV separator `;`).
 
-> **⚠️ Opt-in feature — disabled by default.** Set `mi.enabled: true` in your env values file to turn it on. Doing so **only** has effect when the SFTP-side prerequisites are already in place: a reachable SFTP server, a K8s `Secret/mi-export-sftp` carrying the connection envvars, and a K8s `Secret/mi-export-sftp-key` carrying the SSH private key + `known_hosts` entry. Without those, the CronJob pods fail on first run. See [§ Activation in an environment](#activation-in-an-environment) for the full checklist, or [§ Test mode](#test-mode) for a sandbox-only shortcut.
+> **⚠️ Opt-in feature — disabled by default.** Set `mi.enabled: true` in your env values file to turn it on. Doing so **only** has effect when the SFTP-side prerequisites are already in place: a reachable SFTP server, a K8s `Secret/mi-export-sftp` carrying the connection envvars, and a K8s `Secret/mi-export-sftp-key` carrying the SSH private key. Without those, the CronJob pods fail on first run. See [§ Activation in an environment](#activation-in-an-environment) for the full checklist, or [§ Test mode](#test-mode) for a sandbox-only shortcut.
 
 ## Audience
 
@@ -33,8 +33,7 @@ Test/dev infra in `ICATT-Menselijk-Digitaal/podiumd-infra` provisions these prer
 │   │   - mi-export-sftp      │     ┌──────────────────────────────────────┐  │
 │   │   - <component> Secret  │ ──► │  K8s Secret: mi-export-sftp-key      │  │
 │   │   - <component> CM      │     │   id          (SSH private key)      │  │
-│   │                         │     │   known_hosts (pinned host key)      │  │
-│   │  ConfigMap:             │     └────────────────┬─────────────────────┘  │
+│   │                         │     └────────────────┬─────────────────────┘  │
 │   │   mi-export-scripts     │                      │                         │
 │   │   (dump.sh)             │                      ▼                         │
 │   │                         │     ┌──────────────────────────────────────┐  │
@@ -49,10 +48,23 @@ Test/dev infra in `ICATT-Menselijk-Digitaal/podiumd-infra` provisions these prer
 
 Each CronJob:
 1. Reads its target component's existing `<component>` Secret + ConfigMap (DB host, port, name, user, password — same secrets the app pods consume).
-2. Reads the env's SFTP connection envvars from `Secret/mi-export-sftp` and the SSH key + `known_hosts` from `Secret/mi-export-sftp-key`.
+2. Reads the env's SFTP connection envvars from `Secret/mi-export-sftp` and the SSH private key from `Secret/mi-export-sftp-key`.
 3. Runs `dump.sh` in the chart's `mi-export-scripts` ConfigMap, accumulating per-table CSVs (or a single `pg_dump -Fc` file) under `/tmp` (a 20 GiB `emptyDir` scratch volume).
-4. Uploads the result over `sftp -b -` to `<SFTP_REMOTE_PATH>/<gemeente>/<YYMMDD>/<component>/<HHMMSS>-<component>.<ext>`. `StrictHostKeyChecking=yes` is enforced.
+4. Uploads the result over `sftp -b -` to `<SFTP_REMOTE_PATH>/<gemeente>/<YYMMDD>/<component>/<HHMMSS>-<component>.<ext>`. Host-key checking is intentionally **disabled** (`StrictHostKeyChecking=no`, `UserKnownHostsFile=/dev/null`) — see [§ Host-key policy](#host-key-policy).
 5. The scratch volume and the pod are torn down at job end (`ttlSecondsAfterFinished: 86400`); nothing in `/tmp` is preserved.
+
+## Host-key policy
+
+The CronJobs run `sftp` with host-key verification **disabled**:
+
+```
+-o UserKnownHostsFile=/dev/null
+-o StrictHostKeyChecking=no
+```
+
+Rationale: these are short-lived, single-shot containers reaching a host fixed by DNS, and the **SSH private key already gates who can log in**. No `known_hosts` is mounted, consulted, or required — neither in the `mi-export-sftp-key` Secret nor in testMode values. This trades MITM detection (which TOFU/pinning would add) for operational simplicity in the export path; the accepted risk is documented and intentional for this use case.
+
+If a stricter posture is ever required, re-introduce a `known_hosts` seed and switch the script back to `StrictHostKeyChecking=accept-new` (TOFU) or `=yes` (pinned).
 
 ## Output format
 
@@ -89,17 +101,17 @@ Before enabling the chart feature, the env must already have:
 - An **SSH keypair**:
   - The *public* half installed in the SFTP user's `authorized_keys` on the server.
   - The *private* half stored in the env's Key Vault. Convention: a multi-line KV secret named `mi-export-sftp-key-<env>`.
-- A **`known_hosts` entry** for the SFTP server, generated once via `ssh-keyscan -t ed25519 <host>` and stored alongside the private key in Key Vault. The chart enforces `StrictHostKeyChecking=yes`; first-connect TOFU is not supported.
 - A K8s `Secret/mi-export-sftp` in the `podiumd` namespace carrying four envvars:
   - `SFTP_HOST`
   - `SFTP_PORT`
   - `SFTP_USER`
   - `SFTP_REMOTE_PATH`
-- A K8s `Secret/mi-export-sftp-key` in the `podiumd` namespace with two keys:
+- A K8s `Secret/mi-export-sftp-key` in the `podiumd` namespace with a single key:
   - `id` — the SSH private key, as a single PEM block.
-  - `known_hosts` — single-line `ssh-keyscan` output.
 
-For test/dev envs (jim00, jos00, …): the `podiumd-infra` repo's `scripts/sync-mi-export-secret.sh` reads the KV material and creates both K8s Secrets. Run it once after a fresh app install. (Variant of the script for SFTP credentials lands alongside IN-2119; see [§ Production / external hosting](#production--external-hosting).)
+No `known_hosts` is needed — host-key checking is disabled (see [§ Host-key policy](#host-key-policy)).
+
+For test/dev envs (jim00, jos00, …): the `podiumd-infra` repo's `scripts/sync-mi-export-sftp-secret.sh` reads the KV material and creates both K8s Secrets. Run it once after a fresh app install. See [§ Production / external hosting](#production--external-hosting).
 
 For production-hosted envs: see [§ Production / external hosting](#production--external-hosting).
 
@@ -162,7 +174,7 @@ mi:
     user: miuser
     remotePath: /uploads/mi-exports
     secretName: mi-export-sftp        # K8s Secret with connection envvars
-    keySecretName: mi-export-sftp-key # K8s Secret with `id` + `known_hosts`
+    keySecretName: mi-export-sftp-key # K8s Secret with `id` (SSH private key)
 ```
 
 ### 3. Trim or override the target list (optional)
@@ -245,8 +257,6 @@ mi:
         -----BEGIN OPENSSH PRIVATE KEY-----
         ... ed25519 PEM …
         -----END OPENSSH PRIVATE KEY-----
-      knownHosts: |
-        sftp-test.podiumd.svc.cluster.local ssh-ed25519 AAAA…
 ```
 
 Generating a throwaway keypair:
@@ -255,10 +265,11 @@ Generating a throwaway keypair:
 ssh-keygen -t ed25519 -N "" -f ./mi-test-key
 # - mi-test-key       → paste into mi.sftp.testMode.privateKey
 # - mi-test-key.pub   → install into the test SFTP server's authorized_keys
-# - ssh-keyscan -t ed25519 <host>  → mi.sftp.testMode.knownHosts
 ```
 
-When `mi.sftp.testMode.enabled: true`, the chart renders two extra Secrets (named per `mi.sftp.secretName` / `mi.sftp.keySecretName`) labeled `mi.podiumd.dimpact.nl/test-only: "true"` so they're trivially grep-able. The CronJob template enforces `required` on `privateKey` and `knownHosts` when testMode is enabled, so a half-filled testMode block fails fast.
+No `knownHosts` is needed — host-key checking is disabled (see [§ Host-key policy](#host-key-policy)).
+
+When `mi.sftp.testMode.enabled: true`, the chart renders two extra Secrets (named per `mi.sftp.secretName` / `mi.sftp.keySecretName`) labeled `mi.podiumd.dimpact.nl/test-only: "true"` so they're trivially grep-able. The CronJob template enforces `required` on `privateKey` when testMode is enabled, so a half-filled testMode block fails fast.
 
 ## Production / external hosting
 
@@ -323,7 +334,7 @@ This iteration ships **without** alerting. The CronJob's standard Job/Pod failur
 | `helm template` fails with `mi.format must be one of: csv, pgdump (got "X")` | Typo in `values-<env>.yml` | Set `mi.format` to `csv` or `pgdump` (or remove to use default `csv`). |
 | `helm template` fails with `mi.sftp.host is required when mi.enabled is true` | Required SFTP value not supplied | Set `mi.sftp.{host,user,remotePath}` in the env values, or enable testMode. |
 | Job pod fails with `SFTP_HOST: must be set` | `Secret/mi-export-sftp` not present in podiumd ns | Run the env's secret-sync script, or apply the Secret manually (see [§ Production / external hosting](#production--external-hosting)). |
-| Job pod fails with `Host key verification failed.` | `known_hosts` entry doesn't match the SFTP server's current host key | Re-run `ssh-keyscan -t ed25519 <host>` and update the `known_hosts` key in `Secret/mi-export-sftp-key`. If the host key legitimately rotated, audit before trusting blindly. |
+| Upload fails with `No such file or directory` on `mkdir`/`put` | The first path segment of `remotePath` isn't a writable container/dir for `SFTP_USER`, **or** the user is chrooted into a home container and `remotePath` double-counts it | Confirm `SFTP_REMOTE_PATH`'s first segment exists and is writable. For Azure Blob SFTP local users whose `homeDirectory` is a container, paths are relative to that container — use `/<subpath>`, not `/<container>/<subpath>`. |
 | Job pod fails with `Permissions 0644 for '…' are too open` | Private key Secret's `defaultMode` not 0400 | The chart sets `defaultMode: 0400` on the `sftp-key` volume; if you see this, something replaced the projected volume or a hostPath override is in play. |
 | Job pod fails with `Couldn't get statSet for "/uploads/…": …: Permission denied` | SFTP user's home or remotePath isn't writable by `SFTP_USER` | Fix the server-side perms on `SFTP_REMOTE_PATH`. The script does `mkdir -p` recursively up from `/`, so any ancestor that the user can't enter blocks the upload. |
 | Job pod fails with `password authentication failed for user "<component>"` | The component's K8s Secret has a stale DB password (env was rebuilt but Secret wasn't refreshed) | Re-run the deploy pipeline's "Create PostgreSQL Databases and Users" step; or `kubectl delete secret/<component> -n podiumd` and let the chart recreate it. |
