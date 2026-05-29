@@ -3417,19 +3417,19 @@ zaakbrug:
 #   1. An SFTP destination reachable from the cluster's egress (host, port,
 #      user, remote path).
 #   2. An SSH keypair: the public half installed in the SFTP server's
-#      authorized_keys; the private half + a `known_hosts` entry stored in
-#      Azure Key Vault and materialised as a K8s Secret in the podiumd
-#      namespace (default name `mi-export-sftp-key`, two keys: `id` and
-#      `known_hosts`).
+#      authorized_keys; the private half stored in Azure Key Vault and
+#      materialised as a K8s Secret in the podiumd namespace (default name
+#      `mi-export-sftp-key`, single key: `id`). Host-key checking is disabled,
+#      so no `known_hosts` is needed.
 #   3. A K8s Secret carrying the SFTP connection envvars (default name
 #      `mi-export-sftp`, four keys: SFTP_HOST, SFTP_PORT, SFTP_USER,
 #      SFTP_REMOTE_PATH). Also materialised from Key Vault by the env's
 #      provisioning Terraform / sync script.
 #
 # For dev/test envs that don't have a Key-Vault-fronted SFTP setup yet, set
-# `mi.sftp.testMode.enabled: true` and inline the private key + known_hosts
-# below — the chart will render the two K8s Secrets itself. **Never enable
-# testMode in production values.**
+# `mi.sftp.testMode.enabled: true` and inline the private key below — the
+# chart will render the two K8s Secrets itself. **Never enable testMode in
+# production values.**
 #
 # Full activation, infra prerequisites (incl. Terraform notes for external
 # hosting providers), validation, and troubleshooting:
@@ -3493,23 +3493,23 @@ mi:
     # Provisioned by the env (Terraform / Key Vault sync script) when testMode is off.
     # Auto-rendered from testMode.* when testMode.enabled is true.
     secretName: mi-export-sftp
-    # K8s Secret carrying two keys:
-    #   id           — the SSH private key (mode 0400 inside the pod).
-    #   known_hosts  — single-line `ssh-keyscan -t <type> <host>` output.
+    # K8s Secret carrying a single key:
+    #   id  — the SSH private key (mode 0400 inside the pod).
+    # Host-key checking is disabled on the egress (StrictHostKeyChecking=no):
+    # these are short-lived single-shot CronJobs reaching a DNS-fixed host, and
+    # the private key gates login. No known_hosts is mounted or required.
     # Provisioned by the env (Terraform / Key Vault sync script) when testMode is off.
     # Auto-rendered from testMode.* when testMode.enabled is true.
     keySecretName: mi-export-sftp-key
     testMode:
       # NEVER set to true in prod values. Enabling renders an in-chart Secret
-      # carrying privateKey + knownHosts directly from these values, plus a
-      # connection Secret from sftp.host/port/user/remotePath — useful for
-      # iterating against a sandbox SFTP server (e.g. an atmoz/sftp pod in
-      # the same namespace) without touching Key Vault.
+      # carrying privateKey directly from these values, plus a connection
+      # Secret from sftp.host/port/user/remotePath — useful for iterating
+      # against a sandbox SFTP server (e.g. an atmoz/sftp pod in the same
+      # namespace) without touching Key Vault.
       enabled: false
       # PEM block, multiline. Required when testMode.enabled is true.
       privateKey: ""
-      # ssh-keyscan output, one line per host key. Required when testMode.enabled is true.
-      knownHosts: ""
   # Default target list — every Postgres-backed app this chart can deploy. A target only
   # renders a CronJob when the chart's <component>.enabled is true. Per-target `enabled`
   # is layered on top for ad-hoc opt-out. `schemas` defaults to ["public"].

@@ -9,13 +9,13 @@
 {{- /*
   SFTP egress required-field guards. When testMode is on, the chart renders
   the connection Secret itself from testMode.* values, so the only operator-
-  facing requirement is that the keypair/known_hosts are non-empty. When
-  testMode is off, all four prod SFTP parameters must come from values
-  (they are templated into env entries below).
+  facing requirement is that the private key is non-empty (host-key checking
+  is disabled, so no known_hosts is needed). When testMode is off, all three
+  prod SFTP parameters must come from values (they are templated into env
+  entries below).
 */}}
 {{- if $mi.sftp.testMode.enabled }}
 {{- $_ := required "mi.sftp.testMode.privateKey is required when mi.sftp.testMode.enabled is true" $mi.sftp.testMode.privateKey }}
-{{- $_ := required "mi.sftp.testMode.knownHosts is required when mi.sftp.testMode.enabled is true" $mi.sftp.testMode.knownHosts }}
 {{- end }}
 {{- $_ := required "mi.sftp.host is required when mi.enabled is true"       $mi.sftp.host }}
 {{- $_ := required "mi.sftp.user is required when mi.enabled is true"       $mi.sftp.user }}
@@ -92,14 +92,13 @@ spec:
                   value: {{ default (list "public") $t.schemas | join " " | quote }}
                 - name: MI_FORMAT
                   value: {{ $format | quote }}
-                # SFTP key material is mounted at /etc/sftp via the
-                # `sftp-key` volume below. The script reads these env paths
+                # The SSH private key is mounted at /etc/sftp/id via the
+                # `sftp-key` volume below. The script reads this env path
                 # rather than hardcoding /etc/sftp so an iter3 baked image
-                # can relocate them without changing dump.sh.
+                # can relocate it without changing dump.sh. Host-key checking
+                # is disabled, so no known_hosts is mounted (see dump.sh).
                 - name: SFTP_KEY_FILE
                   value: /etc/sftp/id
-                - name: SFTP_KNOWN_HOSTS
-                  value: /etc/sftp/known_hosts
               envFrom:
                 # SFTP connection envs (SFTP_HOST/PORT/USER/REMOTE_PATH).
                 # In prod, this Secret is provisioned by the env's Terraform
@@ -141,8 +140,6 @@ spec:
                 items:
                   - key: id
                     path: id
-                  - key: known_hosts
-                    path: known_hosts
             - name: tmp
               # 20 GiB scratch cap. Backed by node ephemeral storage. Sized to
               # match mi.resources.{requests,limits}.ephemeral-storage so the

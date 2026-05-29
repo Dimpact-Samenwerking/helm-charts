@@ -21,9 +21,12 @@ data:
   #            Postgres custom format (zlib-compressed, restorable via pg_restore).
   #            Remote: <SFTP_REMOTE_PATH>/<gemeente>/<YYMMDD>/<component>/<HHMMSS>-<component>.pgdump
   #
-  # Egress is SFTP only — no blob storage. Auth via SSH keypair: SFTP_KEY_FILE
-  # points at the private key (mode 0400), SFTP_KNOWN_HOSTS at a pinned
-  # known_hosts entry. StrictHostKeyChecking=yes is enforced.
+  # Egress is SFTP only — no blob storage. Auth is via SSH keypair
+  # (SFTP_KEY_FILE, mode 0400). Host-key checking is intentionally disabled
+  # (StrictHostKeyChecking=no, UserKnownHostsFile=/dev/null): these are
+  # short-lived, single-shot CronJob containers reaching a host fixed by DNS,
+  # and the private key already gates who can log in — sufficient for this
+  # use case. No known_hosts is mounted or consulted.
   dump.sh: |
     #!/usr/bin/env bash
     set -euo pipefail
@@ -32,7 +35,6 @@ data:
     : "${SFTP_USER:?must be set}"
     : "${SFTP_REMOTE_PATH:?must be set}"
     : "${SFTP_KEY_FILE:?must be set}"
-    : "${SFTP_KNOWN_HOSTS:?must be set}"
     : "${MI_GEMEENTE:?must be set}"
     : "${MI_COMPONENT:?must be set}"
     : "${DB_HOST:?must be set}"
@@ -86,8 +88,8 @@ data:
       # tree before `put`. The `-` after each mkdir tells sftp to ignore the
       # "already exists" failure for that line only.
       #
-      # StrictHostKeyChecking=yes + a pinned UserKnownHostsFile is the only
-      # supported configuration — host key drift is a hard fail.
+      # Host-key checking is disabled by design (see header): accept any host
+      # key and discard it to /dev/null. Trust rests on DNS + the private key.
       local file="$1" remote="$2" size remote_full remote_dir remote_name
       size="$(stat -c%s "${file}" 2>/dev/null || stat -f%z "${file}")"
       remote_full="${SFTP_REMOTE_PATH%/}/${remote}"
@@ -111,8 +113,8 @@ data:
       printf '%s' "${batch}" | sftp \
         -b - \
         -i "${SFTP_KEY_FILE}" \
-        -o "UserKnownHostsFile=${SFTP_KNOWN_HOSTS}" \
-        -o "StrictHostKeyChecking=yes" \
+        -o "UserKnownHostsFile=/dev/null" \
+        -o "StrictHostKeyChecking=no" \
         -o "PasswordAuthentication=no" \
         -o "BatchMode=yes" \
         -o "ConnectTimeout=20" \
