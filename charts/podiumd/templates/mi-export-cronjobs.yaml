@@ -7,19 +7,14 @@
 {{- end }}
 
 {{- /*
-  SFTP egress required-field guards. When testMode is on, the chart renders
-  the connection Secret itself from testMode.* values, so the only operator-
-  facing requirement is that the private key is non-empty (host-key checking
-  is disabled, so no known_hosts is needed). When testMode is off, all three
-  prod SFTP parameters must come from values (they are templated into env
-  entries below).
+  SFTP egress required-field guards. The chart renders both the connection
+  Secret and the key Secret from mi.sftp.* values, so all four must be set
+  (host-key checking is disabled, so no known_hosts is needed).
 */}}
-{{- if $mi.sftp.testMode.enabled }}
-{{- $_ := required "mi.sftp.testMode.privateKey is required when mi.sftp.testMode.enabled is true" $mi.sftp.testMode.privateKey }}
-{{- end }}
 {{- $_ := required "mi.sftp.host is required when mi.enabled is true"       $mi.sftp.host }}
 {{- $_ := required "mi.sftp.user is required when mi.enabled is true"       $mi.sftp.user }}
 {{- $_ := required "mi.sftp.remotePath is required when mi.enabled is true" $mi.sftp.remotePath }}
+{{- $_ := required "mi.sftp.privateKey is required when mi.enabled is true" $mi.sftp.privateKey }}
 
 {{- /*
   One CronJob per entry in mi.targets[]. Each entry is gated on the chart's
@@ -101,9 +96,7 @@ spec:
                   value: /etc/sftp/id
               envFrom:
                 # SFTP connection envs (SFTP_HOST/PORT/USER/REMOTE_PATH).
-                # In prod, this Secret is provisioned by the env's Terraform
-                # from Key Vault. In testMode, mi-export-sftp-testkey-secret.yaml
-                # renders it from values.
+                # Rendered by mi-export-sftp-secret.yaml from mi.sftp.* values.
                 - secretRef:
                     name: {{ $mi.sftp.secretName | quote }}
                 # The chart's per-app convention is: <component> Secret carries DB_PASSWORD

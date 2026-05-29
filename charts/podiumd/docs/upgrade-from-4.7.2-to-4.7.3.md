@@ -22,18 +22,21 @@ Highlights:
   - `csv` (default) — one `.tar.gz` per component, containing one `;`-separated
     CSV per table with a header row.
   - `pgdump` — one `pg_dump -Fc` file per component (DR / restore).
-- Egress is **SFTP only** (no blob storage). Auth via an SSH keypair sourced
-  from Azure Key Vault. Host-key checking is intentionally **disabled**
-  (`StrictHostKeyChecking=no`, `UserKnownHostsFile=/dev/null`): the jobs are
-  short-lived, single-shot containers reaching a DNS-fixed host and the private
-  key already gates login, so no `known_hosts` is mounted or required. See the
-  *Host-key policy* section of the operator doc.
+- Egress is **SFTP only** (no blob storage). Auth via an SSH keypair. Host-key
+  checking is intentionally **disabled** (`StrictHostKeyChecking=no`,
+  `UserKnownHostsFile=/dev/null`): the jobs are short-lived, single-shot
+  containers reaching a DNS-fixed host and the private key already gates login,
+  so no `known_hosts` is mounted or required. See the *Host-key policy* section
+  of the operator doc.
+- **The chart renders both SFTP Secrets itself** from `mi.sftp.*` values
+  (`mi-export-sftp` connection envvars + `mi-export-sftp-key` private key) —
+  nothing is pre-provisioned in the namespace. The private key is supplied via
+  `mi.sftp.privateKey`; the ExternalsPodiumD `application.yml` pipeline
+  substitutes it from Azure Key Vault (`mi-data-sftp-rsa-private-key`) at deploy
+  time, so it never lands in git.
 - 20 GiB scratch budget on `/tmp` (`emptyDir.sizeLimit` plus matching
   `ephemeral-storage` requests/limits); pods are evicted before they can
   hurt the node.
-- Dev/test sandboxes can bypass the Key-Vault flow via `mi.sftp.testMode`,
-  which renders both the connection Secret and the key Secret inline from
-  values.
 
 Full operator documentation: [`docs/podiumd/mi-exports.md`](../../../docs/podiumd/mi-exports.md).
 
@@ -42,17 +45,15 @@ Full operator documentation: [`docs/podiumd/mi-exports.md`](../../../docs/podium
 **Disabled by default** — the feature is fully opt-in, so existing envs see
 no behavioural change after the upgrade. To enable in an env:
 
-1. **Provision the SFTP target side first**: ensure a reachable SFTP server and
+1. **Provision the SFTP target side**: ensure a reachable SFTP server and
    install the gemeente's SSH public key in `authorized_keys`. No `known_hosts`
    capture is needed (host-key checking is disabled).
-2. **Stage two K8s Secrets in the `podiumd` namespace** before the chart
-   apply (Dimpact dev/test envs: the `podiumd-infra` `sync-mi-export-sftp-secret.sh`
-   script materialises them from Key Vault; external-hosted prod: replicate
-   in the provider's own Terraform):
-   - `mi-export-sftp` — envvars `SFTP_HOST`, `SFTP_PORT`, `SFTP_USER`,
-     `SFTP_REMOTE_PATH`.
-   - `mi-export-sftp-key` — single key `id` (PEM private key).
-3. **Set values** in the env's `values-<env>.yml`:
+2. **Store the SSH private key in Key Vault** as `mi-data-sftp-rsa-private-key`.
+   The `application.yml` pipeline reads it and substitutes it into the env
+   values file's `mi.sftp.privateKey` placeholder at deploy time. No K8s Secrets
+   need to be staged — the chart renders `mi-export-sftp` + `mi-export-sftp-key`
+   from the values.
+3. **Set values** in the env's values file:
    ```yaml
    mi:
      enabled: true
@@ -60,14 +61,11 @@ no behavioural change after the upgrade. To enable in an env:
      sftp:
        host: sftp.example.com
        user: miuser
-       remotePath: /uploads/mi-exports
+       remotePath: /mi-exports
+       privateKey: "REP_MI_DATA_SFTP_RSA_PRIVATE_KEY_REP"  # pipeline substitutes from KV
    ```
 4. Validate per the [§ Validation](../../../docs/podiumd/mi-exports.md#4-validation)
    section of the operator doc.
-
-For a dev sandbox without any Key-Vault setup, set `mi.sftp.testMode.enabled: true`
-and inline `privateKey` in values — never in prod values. (`knownHosts` is no
-longer used.)
 
 > **Note on Azure Blob SFTP targets:** if the SFTP user's `homeDirectory` is a
 > blob container, the user is chrooted into it — set `mi.sftp.remotePath` to a

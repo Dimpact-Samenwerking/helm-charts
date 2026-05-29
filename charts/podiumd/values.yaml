@@ -3413,26 +3413,19 @@ zaakbrug:
 # Each run uploads its output to an external **SFTP server** over an SSH
 # keypair. Blob storage is no longer used.
 #
-# Before enabling in any environment, the cluster MUST already have:
-#   1. An SFTP destination reachable from the cluster's egress (host, port,
-#      user, remote path).
-#   2. An SSH keypair: the public half installed in the SFTP server's
-#      authorized_keys; the private half stored in Azure Key Vault and
-#      materialised as a K8s Secret in the podiumd namespace (default name
-#      `mi-export-sftp-key`, single key: `id`). Host-key checking is disabled,
-#      so no `known_hosts` is needed.
-#   3. A K8s Secret carrying the SFTP connection envvars (default name
-#      `mi-export-sftp`, four keys: SFTP_HOST, SFTP_PORT, SFTP_USER,
-#      SFTP_REMOTE_PATH). Also materialised from Key Vault by the env's
-#      provisioning Terraform / sync script.
+# The chart renders both SFTP Secrets itself from the `mi.sftp.*` values below
+# — nothing needs to be pre-provisioned in the namespace:
+#   - <mi.sftp.secretName>    — connection envvars (host/port/user/remotePath)
+#   - <mi.sftp.keySecretName> — the SSH private key (`id`)
 #
-# For dev/test envs that don't have a Key-Vault-fronted SFTP setup yet, set
-# `mi.sftp.testMode.enabled: true` and inline the private key below — the
-# chart will render the two K8s Secrets itself. **Never enable testMode in
-# production values.**
+# The SSH private key is supplied via `mi.sftp.privateKey`. The deploy pipeline
+# (dev.azure.com/ssctwente/ExternalsPodiumD `application.yml`) reads it from
+# Azure Key Vault (`mi-data-sftp-rsa-private-key`) and substitutes it into the
+# env values file at deploy time. The public half must be installed in the SFTP
+# server's authorized_keys. Host-key checking is disabled (StrictHostKeyChecking
+# =no), so no `known_hosts` is needed.
 #
-# Full activation, infra prerequisites (incl. Terraform notes for external
-# hosting providers), validation, and troubleshooting:
+# Full activation, validation, and troubleshooting:
 #   → docs/podiumd/mi-exports.md
 #
 # One unified script (modeled on Maykin's bin/dump_data.sh --csv) is used for
@@ -3446,9 +3439,7 @@ zaakbrug:
 # Both default to the target's `component`. Override only when the chart subchart key
 # differs from the K8s resource name (e.g. opennotificaties → notificaties resources).
 mi:
-  # Disabled by default. Set to true ONLY after the SFTP prerequisites above
-  # are in place (real Secret/mi-export-sftp + Secret/mi-export-sftp-key), or
-  # enable testMode for a dev sandbox.
+  # Disabled by default. Set to true to render the mi-export CronJobs + Secrets.
   enabled: false
   # Top-level path prefix under the remote SFTP root — keeps each gemeente's exports isolated.
   gemeente: ""
@@ -3483,33 +3474,24 @@ mi:
       ephemeral-storage: 20Gi
   nodeSelector: {}
   sftp:
-    # All of host, user, remotePath are REQUIRED when mi.enabled and not testMode.
+    # host, user, remotePath, privateKey are all REQUIRED when mi.enabled.
     # The CronJob template enforces via Helm `required` and fails fast if unset.
     host: ""
     port: 22
     user: ""
     remotePath: ""                       # e.g. "/uploads/mi-exports"
-    # K8s Secret carrying envvars: SFTP_HOST, SFTP_PORT, SFTP_USER, SFTP_REMOTE_PATH.
-    # Provisioned by the env (Terraform / Key Vault sync script) when testMode is off.
-    # Auto-rendered from testMode.* when testMode.enabled is true.
+    # SSH private key (PEM block, multiline). The chart renders it into
+    # Secret/<keySecretName> (key `id`, mode 0400 in the pod). Supplied by the
+    # ExternalsPodiumD application.yml pipeline, which substitutes it from Azure
+    # Key Vault (mi-data-sftp-rsa-private-key) at deploy time. Never commit a
+    # real key here — the env values file carries a placeholder the pipeline
+    # replaces. Host-key checking is disabled, so no known_hosts is needed.
+    privateKey: ""
+    # Name of the chart-rendered K8s Secret carrying the connection envvars
+    # (SFTP_HOST, SFTP_PORT, SFTP_USER, SFTP_REMOTE_PATH).
     secretName: mi-export-sftp
-    # K8s Secret carrying a single key:
-    #   id  — the SSH private key (mode 0400 inside the pod).
-    # Host-key checking is disabled on the egress (StrictHostKeyChecking=no):
-    # these are short-lived single-shot CronJobs reaching a DNS-fixed host, and
-    # the private key gates login. No known_hosts is mounted or required.
-    # Provisioned by the env (Terraform / Key Vault sync script) when testMode is off.
-    # Auto-rendered from testMode.* when testMode.enabled is true.
+    # Name of the chart-rendered K8s Secret carrying the SSH private key (`id`).
     keySecretName: mi-export-sftp-key
-    testMode:
-      # NEVER set to true in prod values. Enabling renders an in-chart Secret
-      # carrying privateKey directly from these values, plus a connection
-      # Secret from sftp.host/port/user/remotePath — useful for iterating
-      # against a sandbox SFTP server (e.g. an atmoz/sftp pod in the same
-      # namespace) without touching Key Vault.
-      enabled: false
-      # PEM block, multiline. Required when testMode.enabled is true.
-      privateKey: ""
   # Default target list — every Postgres-backed app this chart can deploy. A target only
   # renders a CronJob when the chart's <component>.enabled is true. Per-target `enabled`
   # is layered on top for ad-hoc opt-out. `schemas` defaults to ["public"].
