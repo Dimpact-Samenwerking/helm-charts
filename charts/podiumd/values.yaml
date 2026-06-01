@@ -2847,10 +2847,10 @@ zac:
       # -- namespaces to watch for zookeeper-operator
       watchNamespace: "podiumd"
       zookeeper:
-        # pravega/zookeeper:0.2.15@sha256:b2bc4042fdd8fea6613b04f2f602ba4aff1201e79ba35cd0e2df9f3327111b0e
+        # pravega/zookeeper:0.2.15@sha256:ac498ebfb76a66f038075e2fa6148528d74d31ca1664f3257fdf82ee779eec9c8
         image:
           #repository:
-          tag: 0.2.15@sha256:b2bc4042fdd8fea6613b04f2f602ba4aff1201e79ba35cd0e2df9f3327111b0e
+          tag: 0.2.15@sha256:c498ebfb76a66f038075e2fa6148528d74d31ca1664f3257fdf82ee779eec9c8
         resources:
           requests:
             cpu: 100m
