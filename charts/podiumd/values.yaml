@@ -950,6 +950,10 @@ objecten:
     #         permissions:
     #           - object_type: 366c9b88-a870-438c-b0ec-a121cd51f1dd
     #             mode: read_and_write
+    #       - identifier: openarchiefbeheer
+    #         token: "REP_OBJECTEN_CREDENTIALS_OPENARCHIEFBEHEER_TOKEN_REP"
+    #         contact_person: Person 1
+    #         email: person-1@example.com
     #   objecttypes_config_enable: true
     #   objecttypes:
     #     items:
@@ -1236,6 +1240,21 @@ openarchiefbeheer:
     #       api_root: https://selectielijst.openzaak.nl/api/v1/
     #       api_type: orc
     #       auth_type: no_auth
+    #     - identifier: objecten-api
+    #       label: Objecten API
+    #       api_root: https://objecten.example.com/api/v2/
+    #       api_type: orc
+    #       auth_type: api_key
+    #       header_key: Authorization
+    #       header_value: "Token REP_OBJECTEN_CREDENTIALS_OPENARCHIEFBEHEER_TOKEN_REP"
+    #     - identifier: objecten-api
+    #       label: Klanten API
+    #       api_root: https://opeklant.example.com/klantinteracties/api/v1/
+    #       api_type: kc
+    #       auth_type: api_key
+    #       header_key: Authorization
+    #       header_value: "Token REP_OPENKLANT_CREDENTIALS_OPENARCHIEFBEHEER_TOKEN_REP"
+       
 
     #   api_configuration_enabled: true
     #   api_configuration:
@@ -1384,6 +1403,11 @@ openklant:
     #         organization: Organization XYZ
     #         application: Application XYZ
     #         administration: Administration XYZ
+    #       - identifier: openarchiefbeheer
+    #         token: "REP_OPENKLANT_CREDENTIALS_OPENARCHIEFBEHEER_TOKEN_REP"
+    #         contact_person: Person 1
+    #         email: person-1@example.com
+
     #   oidc_db_config_enable: true
     #   oidc_db_config_admin_auth:
     #     providers:
