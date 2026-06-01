@@ -77,9 +77,16 @@ No new image. But for Open Archiefbeheer 2.0.0 it is necessary to add services f
 
 #### Action required
 
-Update podiumd.yml for eacht municipality, with values to configure the necessary Services to Objecten en Open Klant
+Add 2 new secrets to the keyvault of each gemeente: 
 
-In Objecten, add Token Auth for OpenArchiefbeheer
+`OBJECTEN_CREDENTIALS_OPENARCHIEFBEHEER_TOKEN:   $(objecten-credentials-openarchiefbeheer-token)`
+
+`OPENKLANT_CREDENTIALS_OPENARCHIEFBEHEER_TOKEN:  $(openklant-credentials-openarchiefbeheer-token)`
+
+
+Update podiumd.yml for each gemeente, with values to configure the necessary Services to Objecten en Open Klant
+
+- In Objecten, add Token Auth for OpenArchiefbeheer
 
 ```
 objecten:
@@ -92,11 +99,11 @@ objecten:
         items:
           - identifier: openarchiefbeheer
             token: "REP_OBJECTEN_CREDENTIALS_OPENARCHIEFBEHEER_TOKEN_REP"
-            contact_person: Person 1
-            email: person-1@example.com
+            contact_person: Dimpact
+            email: servicedesk@dimpact.nl
 ```
 
-In Open Archiefbeheer, add 2 services for Objecten en OpenKlant
+- In Open Archiefbeheer, add 2 services for Objecten en OpenKlant
 
 ```
 openarchiefbeheer:
@@ -115,7 +122,7 @@ openarchiefbeheer:
           auth_type: api_key
           header_key: Authorization
           header_value: "Token REP_OBJECTEN_CREDENTIALS_OPENARCHIEFBEHEER_TOKEN_REP"
-        - identifier: objecten-api
+        - identifier: klanten-api
           label: Klanten API
           api_root: https://opeklant.example.com/klantinteracties/api/v1/
           api_type: kc
@@ -125,7 +132,7 @@ openarchiefbeheer:
        
 ```
 
-In Open Klant, add Token Auth for OpenArchiefbeheer
+- In Open Klant, add Token Auth for OpenArchiefbeheer
 
 ```
 openklant:
@@ -135,15 +142,9 @@ openklant:
       tokenauth_config_enable: true
       tokenauth:
         items:
-          - identifier: openinwoner-token
-            token: {value_from: {env: openklant_openinwoner_token}}
-            contact_person: Person 1
-            email: test@example.com
-            organization: Organization XYZ
-            application: Application XYZ
-            administration: Administration XYZ
+          ...
           - identifier: openarchiefbeheer
             token: "REP_OPENKLANT_CREDENTIALS_OPENARCHIEFBEHEER_TOKEN_REP"
-            contact_person: Person 1
-            email: person-1@example.com
+            contact_person: Dimpact
+            email: servicedesk@dimpact.nl
 ```
