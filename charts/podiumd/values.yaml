@@ -3404,3 +3404,113 @@ zaakbrug:
     IbisAdmin: admin
     IbisTester: zaakbrug_admin
     IbisDataAdmin: dataadmin
+
+# Management Information (MI) data exports — IN-1650 / IN-2119.
+#
+# OPT-IN FEATURE — DISABLED BY DEFAULT (`mi.enabled: false`).
+#
+# Weekly per-component Postgres dumps (CSV with `;` separator, or pg_dump -Fc).
+# Each run uploads its output to an external **SFTP server** over an SSH
+# keypair. Blob storage is no longer used.
+#
+# The chart renders both SFTP Secrets itself from the `mi.sftp.*` values below
+# — nothing needs to be pre-provisioned in the namespace:
+#   - <mi.sftp.secretName>    — connection envvars (host/port/user/remotePath)
+#   - <mi.sftp.keySecretName> — the SSH private key (`id`)
+#
+# The SSH private key is supplied via `mi.sftp.privateKey`. The deploy pipeline
+# (dev.azure.com/ssctwente/ExternalsPodiumD `application.yml`) reads it from
+# Azure Key Vault (`mi-data-sftp-rsa-private-key`) and substitutes it into the
+# env values file at deploy time. The public half must be installed in the SFTP
+# server's authorized_keys. Host-key checking is disabled (StrictHostKeyChecking
+# =no), so no `known_hosts` is needed.
+#
+# Full activation, validation, and troubleshooting:
+#   → docs/podiumd/mi-exports.md
+#
+# One unified script (modeled on Maykin's bin/dump_data.sh --csv) is used for
+# every target; each entry in mi.targets[] renders one CronJob, gated on the
+# chart's existing <component>.enabled flag — so a CronJob only renders for an
+# app this chart is actively deploying.
+#
+# Per-target DB credentials follow the chart's existing per-app convention:
+#   - <secretName> Secret    — must contain DB_PASSWORD (plus other app secrets is fine)
+#   - <configMapName> CM     — must contain DB_HOST, DB_NAME, DB_USER (DB_PORT optional)
+# Both default to the target's `component`. Override only when the chart subchart key
+# differs from the K8s resource name (e.g. opennotificaties → notificaties resources).
+mi:
+  # Disabled by default. Set to true to render the mi-export CronJobs + Secrets.
+  enabled: false
+  # Top-level path prefix under the remote SFTP root — keeps each gemeente's exports isolated.
+  gemeente: ""
+  # Output format. One of:
+  #   csv    — per-table \COPY → tar.gz of CSVs (one CSV per table, `;`-separated, HEADER row).
+  #   pgdump — pg_dump -Fc (custom format, zlib-compressed, restorable via pg_restore).
+  # All targets in an environment use the same format; per-target overrides are not supported.
+  format: csv
+  schedule: "0 2 * * 0"
+  timeZone: "Europe/Amsterdam"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  ttlSecondsAfterFinished: 86400
+  image:
+    registry: "mcr.microsoft.com"
+    repository: azure-cli
+    tag: "2.71.0"
+  # ephemeral-storage requests = limits = 20Gi: the dump job assembles all
+  # tables of a component into one tarball under /tmp before uploading; the
+  # emptyDir backing /tmp also has sizeLimit 20Gi (set on the volume in
+  # mi-export-cronjobs.yaml) so an oversized dump evicts the pod, not the
+  # node. Scratch is throwaway — nothing in /tmp is preserved past the run.
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+      ephemeral-storage: 20Gi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+      ephemeral-storage: 20Gi
+  nodeSelector: {}
+  sftp:
+    # host, user, remotePath, privateKey are all REQUIRED when mi.enabled.
+    # The CronJob template enforces via Helm `required` and fails fast if unset.
+    host: ""
+    port: 22
+    user: ""
+    remotePath: ""                       # e.g. "/uploads/mi-exports"
+    # SSH private key (PEM block, multiline). The chart renders it into
+    # Secret/<keySecretName> (key `id`, mode 0400 in the pod). Supplied by the
+    # ExternalsPodiumD application.yml pipeline, which substitutes it from Azure
+    # Key Vault (mi-data-sftp-rsa-private-key) at deploy time. Never commit a
+    # real key here — the env values file carries a placeholder the pipeline
+    # replaces. Host-key checking is disabled, so no known_hosts is needed.
+    privateKey: ""
+    # Name of the chart-rendered K8s Secret carrying the connection envvars
+    # (SFTP_HOST, SFTP_PORT, SFTP_USER, SFTP_REMOTE_PATH).
+    secretName: mi-export-sftp
+    # Name of the chart-rendered K8s Secret carrying the SSH private key (`id`).
+    keySecretName: mi-export-sftp-key
+  # Default target list — every Postgres-backed app this chart can deploy. A target only
+  # renders a CronJob when the chart's <component>.enabled is true. Per-target `enabled`
+  # is layered on top for ad-hoc opt-out. `schemas` defaults to ["public"].
+  targets:
+    - component: openzaak
+    - component: opennotificaties
+      # Chart subchart is "opennotificaties" but its K8s resources are named "notificaties".
+      secretName: notificaties
+      configMapName: notificaties
+    - component: objecten
+    - component: objecttypen
+    - component: openarchiefbeheer
+    - component: openklant
+    - component: openformulieren
+    - component: openinwoner
+    - component: referentielijsten
+    - component: openbeheer
+    - component: zac
+      schemas: ["flowable"]
+    - component: ita
+    - component: kiss
+    - component: pabc
