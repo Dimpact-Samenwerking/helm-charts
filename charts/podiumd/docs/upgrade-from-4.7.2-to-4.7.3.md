@@ -149,3 +149,11 @@ openklant:
             contact_person: Dimpact
             email: servicedesk@dimpact.nl
 ```
+
+### ZAC - Zaakafhandelcomponent
+
+Image updated from 4.7.1 to 4.7.2
+
+#### Action required
+
+None
