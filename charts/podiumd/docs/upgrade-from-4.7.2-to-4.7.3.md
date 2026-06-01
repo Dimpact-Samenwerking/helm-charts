@@ -71,3 +71,80 @@ no behavioural change after the upgrade. To enable in an env:
 > blob container, the user is chrooted into it — set `mi.sftp.remotePath` to a
 > path *inside* that container (e.g. `/mi-exports`), not `/<container>/...`.
 
+### Open Archiefbeheer
+
+No new image. But for Open Archiefbeheer 2.0.0 it is necessary to add services for Objecten en Open Klant in Open Arhiefbheer. 
+
+#### Action required
+
+Add 2 new secrets to the keyvault of each gemeente: 
+
+`OBJECTEN_CREDENTIALS_OPENARCHIEFBEHEER_TOKEN:   $(objecten-credentials-openarchiefbeheer-token)`
+
+`OPENKLANT_CREDENTIALS_OPENARCHIEFBEHEER_TOKEN:  $(openklant-credentials-openarchiefbeheer-token)`
+
+
+Update podiumd.yml for each gemeente, with values to configure the necessary Services to Objecten en Open Klant
+
+- In Objecten, add Token Auth for OpenArchiefbeheer
+
+```
+objecten:
+  configuration:
+    ...
+    data: |
+      ...
+      tokenauth_config_enable: true
+      tokenauth:
+        items:
+          - identifier: openarchiefbeheer
+            token: "REP_OBJECTEN_CREDENTIALS_OPENARCHIEFBEHEER_TOKEN_REP"
+            contact_person: Dimpact
+            email: servicedesk@dimpact.nl
+```
+
+- In Open Archiefbeheer, add 2 services for Objecten en OpenKlant
+
+```
+openarchiefbeheer:
+  ...
+  configuration:
+    ...
+    data: |
+      zgw_consumers_config_enable: true
+      zgw_consumers:
+        services:
+        ...
+        - identifier: objecten-api
+          label: Objecten API
+          api_root: https://objecten.example.com/api/v2/
+          api_type: orc
+          auth_type: api_key
+          header_key: Authorization
+          header_value: "Token REP_OBJECTEN_CREDENTIALS_OPENARCHIEFBEHEER_TOKEN_REP"
+        - identifier: klanten-api
+          label: Klanten API
+          api_root: https://opeklant.example.com/klantinteracties/api/v1/
+          api_type: kc
+          auth_type: api_key
+          header_key: Authorization
+          header_value: "Token REP_OPENKLANT_CREDENTIALS_OPENARCHIEFBEHEER_TOKEN_REP"
+       
+```
+
+- In Open Klant, add Token Auth for OpenArchiefbeheer
+
+```
+openklant:
+  configuration:
+    ...
+    data: |
+      tokenauth_config_enable: true
+      tokenauth:
+        items:
+          ...
+          - identifier: openarchiefbeheer
+            token: "REP_OPENKLANT_CREDENTIALS_OPENARCHIEFBEHEER_TOKEN_REP"
+            contact_person: Dimpact
+            email: servicedesk@dimpact.nl
+```
