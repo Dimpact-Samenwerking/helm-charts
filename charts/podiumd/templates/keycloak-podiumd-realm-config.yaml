@@ -900,7 +900,7 @@ data:
           - name: administrator
 {{- if .Values.zaakbrug.enabled }}
         zaakbrug:
-          - name: admin
+          - name: administrators
           - name: zaakbrug_admin
           - name: dataadmin
 {{- end }}
@@ -951,7 +951,7 @@ data:
             - "administrator"
 {{- if .Values.zaakbrug.enabled }}
           zaakbrug:
-            - "admin"
+            - "administrators"
 {{- end }}
       - name: "behandelaars"
         path: "/behandelaars"
