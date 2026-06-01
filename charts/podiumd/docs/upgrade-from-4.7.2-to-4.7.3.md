@@ -97,6 +97,7 @@ objecten:
       tokenauth_config_enable: true
       tokenauth:
         items:
+          ...
           - identifier: openarchiefbeheer
             token: "REP_OBJECTEN_CREDENTIALS_OPENARCHIEFBEHEER_TOKEN_REP"
             contact_person: Dimpact
