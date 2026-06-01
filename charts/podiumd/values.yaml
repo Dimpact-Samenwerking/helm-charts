@@ -2646,8 +2646,6 @@ kiss:
       isDefault: true
 
 zac:
-  featureFlags:
-    pabcIntegration: false
   auth:
     server: http://keycloak.example.nl
     realm: podiumd
@@ -2661,7 +2659,9 @@ zac:
     apiKey: "dummy"
   brpApi:
     url: http://brp.example.nl
-    apiKey: "dummy"
+    apiKey:
+      header: "x-api-key"
+      value: "dummy"
     # Protocollering aanbieder mag zijn "", "iConnect", "2Secure"
     protocollering:
       aanbieder: ""
@@ -2690,11 +2690,11 @@ zac:
     curlImage:
       #repository: curlimages/curl
       tag: "8.20.0@sha256:b3f1fb2a51d923260350d21b8654bbc607164a987e2f7c84a0ac199a67df812a"
-  # ghcr.io/infonl/zaakafhandelcomponent:4.9.0
+  # ghcr.io/infonl/zaakafhandelcomponent:5.0.0
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
-    tag: 4.9.0@sha256:89a4ef1d524fecaafc38f26baec9f1f528230a75ab731a78408cb15850576978
+    tag: 5.0.0@sha256:21687f48522d57a9ebac648f35e388da2c041472565a02141ad1749a55de4292
   # Liveness probe uses /health/ready (not /health/live) with a high failureThreshold so
   # Kubernetes automatically restarts ZAC after extended OpenZaak/catalogus unavailability.
   # The ZGW-API-Client has no connectTimeout/readTimeout, causing stale TCP connections
@@ -2731,10 +2731,10 @@ zac:
   nginx:
     enabled: true
     client_max_body_size: 150M
-    # nginxinc/nginx-unprivileged:1.30.0@sha256:3def659164dfb7d6be8563983ea9d2fe7e4dfcf2af96770d728723a5c5ad3bad
+    # nginxinc/nginx-unprivileged:1.31.1@sha256:24623e90be3447fce56c1d85db722403619f411ab10d1cfd9937a5654f8b6070
     image:
       # repository: nginxinc/nginx-unprivileged
-      tag: "1.30.0@sha256:3def659164dfb7d6be8563983ea9d2fe7e4dfcf2af96770d728723a5c5ad3bad"
+      tag: "1.31.1@sha256:24623e90be3447fce56c1d85db722403619f411ab10d1cfd9937a5654f8b6070"
     resources:
       requests:
         cpu: 50m
@@ -2747,10 +2747,10 @@ zac:
     url: http://objecttypen.example.nl
     token: objecttypentoken
   office_converter:
-    # gotenberg/gotenberg:8.32.0@sha256:a40c5a46b79d812ce2f5e139278163142a054050bfd1e5f162da36d3d11c7138
+    # gotenberg/gotenberg:8.33.0@sha256:bddd8ea9d076e2d08b6ddaa6efae6403185202c6dab65a6488ed0a6923d6d8e8
     image:
       # repository: gotenberg/gotenberg
-      tag: "8.32.0@sha256:a40c5a46b79d812ce2f5e139278163142a054050bfd1e5f162da36d3d11c7138"
+      tag: "8.33.0@sha256:bddd8ea9d076e2d08b6ddaa6efae6403185202c6dab65a6488ed0a6923d6d8e8"
   opa:
     sidecar: true
     # openpolicyagent/opa:1.16.2-static@sha256:bf5d926c9c5163cd43e56de43f47165d12c1e6a91911d0a20648f8e3ab085a61
@@ -2795,16 +2795,16 @@ zac:
         cpu: 500m
         memory: 256Mi
     solr:
-      # library/busybox:1.37.0-glibc@sha256:3f9777e7e82e8591542f72b965ec7db7e8b3bdb59692976af1bb9b2850b05a4e
+      # library/busybox:1.38.0-glibc@sha256:3ba030337caebbfc2232b22b1e435eb213b28e5844a34942c74555bf904a265a
       busyBoxImage:
         #repository:
-        tag: 1.37.0-glibc@sha256:3f9777e7e82e8591542f72b965ec7db7e8b3bdb59692976af1bb9b2850b05a4e
+        tag: 1.38.0-glibc@sha256:3ba030337caebbfc2232b22b1e435eb213b28e5844a34942c74555bf904a265a
       # -- set enabled to provision solrcloud as well
       enabled: true
-      # library/solr:9.10.1-slim@sha256:c31309064085bd43b3f368d5fddea34ba5236865647e6427f128b9f3e300da61
+      # library/solr:9.10.1-slim@sha256:f5a742b9476c5608f318432fe142c2e8fe125a846c0ff0081681051e3b2d8eb4
       image:
         #repository:
-        tag: 9.10.1-slim@sha256:c31309064085bd43b3f368d5fddea34ba5236865647e6427f128b9f3e300da61
+        tag: 9.10.1-slim@sha256:f5a742b9476c5608f318432fe142c2e8fe125a846c0ff0081681051e3b2d8eb4
       # -- define memory settings for solr in the solrcloud
       javaMem: -Xms512m -Xmx768m
       jobs:
@@ -2847,10 +2847,10 @@ zac:
       # -- namespaces to watch for zookeeper-operator
       watchNamespace: "podiumd"
       zookeeper:
-        # pravega/zookeeper:0.2.15@sha256:c498ebfb76a66f038075e2fa6148528d74d31ca1664f3257fdf82ee779eec9c8
+        # pravega/zookeeper:0.2.15@sha256:b2bc4042fdd8fea6613b04f2f602ba4aff1201e79ba35cd0e2df9f3327111b0e
         image:
           #repository:
-          tag: 0.2.15@sha256:c498ebfb76a66f038075e2fa6148528d74d31ca1664f3257fdf82ee779eec9c8
+          tag: 0.2.15@sha256:b2bc4042fdd8fea6613b04f2f602ba4aff1201e79ba35cd0e2df9f3327111b0e
         resources:
           requests:
             cpu: 100m
