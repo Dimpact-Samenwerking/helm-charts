@@ -154,6 +154,15 @@ keycloak:
         enabled: true
         secret: ""
         oidcUrl: "https://monitoring.example.nl"
+      # zaakbrug Frank!Framework console OAuth2 client. Only rendered into the
+      # podiumd realm import when zaakbrug.enabled=true. Env values supply the
+      # secret (REP placeholder from Key Vault: zaakbrug-oauth-client-secret)
+      # and oidcUrl (the zaakbrug ingress host).
+      zaakbrug:
+        name: Zaakbrug Frank!Framework console
+        enabled: true
+        secret: ""
+        oidcUrl: "https://zaakbrug.example.nl"
   name: "keycloak"
   features:
     enabled: []
@@ -3425,7 +3434,7 @@ zaakbrug:
   # Keys = Frank!Framework console roles; values = Keycloak client role names.
   # ---------------------------------------------------------------------------
   oauthRoleMapping:
-    IbisAdmin: admin
+    IbisAdmin: administrators
     IbisTester: zaakbrug_admin
     IbisDataAdmin: dataadmin
 

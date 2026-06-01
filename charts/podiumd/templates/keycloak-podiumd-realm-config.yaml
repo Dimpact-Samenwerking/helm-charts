@@ -186,6 +186,38 @@ data:
             consentRequired: false
             config:
               role: "monitoring.viewer"
+{{- if .Values.zaakbrug.enabled }}
+      - clientId: zaakbrug
+        name: {{ .Values.keycloak.config.clients.zaakbrug.name | quote }}
+        enabled: {{ .Values.keycloak.config.clients.zaakbrug.enabled }}
+        secret: $(KC_SECRET_ZAAKBRUG)
+        clientAuthenticatorType: client-secret
+        standardFlowEnabled: true
+        directAccessGrantsEnabled: false
+        redirectUris:
+          - "{{ .Values.keycloak.config.clients.zaakbrug.oidcUrl | trimSuffix "/" }}/*"
+        webOrigins:
+          - "{{ .Values.keycloak.config.clients.zaakbrug.oidcUrl | trimSuffix "/" }}/*"
+        protocolMappers:
+          # Flattens zaakbrug client roles into a top-level "roles" claim.
+          # Frank!Framework authoritiesClaimName=roles reads this; Frank rejects
+          # claim names with more than one dot, so the default nested
+          # resource_access.zaakbrug.roles cannot be used.
+          - name: "zaakbrug-client-roles-to-roles"
+            protocol: "openid-connect"
+            protocolMapper: "oidc-usermodel-client-role-mapper"
+            consentRequired: false
+            config:
+              introspection.token.claim: "true"
+              multivalued: "true"
+              userinfo.token.claim: "true"
+              id.token.claim: "true"
+              lightweight.claim: "false"
+              access.token.claim: "true"
+              claim.name: "roles"
+              jsonType.label: "String"
+              usermodel.clientRoleMapping.clientId: "zaakbrug"
+{{- end }}
       - clientId: opennotificaties
         name: Open Notificaties
         enabled: true
@@ -866,6 +898,12 @@ data:
           - name: ITA_Functioneel_Beheerder
         pabc:
           - name: administrator
+{{- if .Values.zaakbrug.enabled }}
+        zaakbrug:
+          - name: administrators
+          - name: zaakbrug_admin
+          - name: dataadmin
+{{- end }}
     {{- end }}
     {{- if not .Values.keycloak.config.skipGroups }}
     groups:
@@ -911,6 +949,10 @@ data:
             - "administrators"
           pabc:
             - "administrator"
+{{- if .Values.zaakbrug.enabled }}
+          zaakbrug:
+            - "administrators"
+{{- end }}
       - name: "behandelaars"
         path: "/behandelaars"
         attributes:
