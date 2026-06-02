@@ -2,6 +2,17 @@
 
 ## PodiumD versions
 
+### [4.7.3](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.7.3)
+
+**PodiumD Helm chart version: 4.7.3**
+Patch release scoped around a ZAC hotfix for mail-template rendering
+(ZAC 4.7.1 → 4.7.2). All other components remain at their 4.7.2
+baseline; see the `4.7.2` row below for the unchanged entries.
+
+| Component                 | AppVersion       | Change            | ChartVersion | Change         | **Notes**                            |
+|---------------------------|------------------|-------------------|--------------|----------------|--------------------------------------|
+| Zac                       | 4.7.2            | Patch update      | 1.0.228      |                | Mail-template hotfix                 |
+
 ### [4.7.2](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.7.2)
 
 **PodiumD Helm chart version: 4.7.2**

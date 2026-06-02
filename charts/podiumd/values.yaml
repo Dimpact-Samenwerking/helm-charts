@@ -154,6 +154,15 @@ keycloak:
         enabled: true
         secret: ""
         oidcUrl: "https://monitoring.example.nl"
+      # zaakbrug Frank!Framework console OAuth2 client. Only rendered into the
+      # podiumd realm import when zaakbrug.enabled=true. Env values supply the
+      # secret (REP placeholder from Key Vault: zaakbrug-oauth-client-secret)
+      # and oidcUrl (the zaakbrug ingress host).
+      zaakbrug:
+        name: Zaakbrug Frank!Framework console
+        enabled: true
+        secret: ""
+        oidcUrl: "https://zaakbrug.example.nl"
   name: "keycloak"
   features:
     enabled: []
@@ -950,6 +959,10 @@ objecten:
     #         permissions:
     #           - object_type: 366c9b88-a870-438c-b0ec-a121cd51f1dd
     #             mode: read_and_write
+    #       - identifier: openarchiefbeheer
+    #         token: "REP_OBJECTEN_CREDENTIALS_OPENARCHIEFBEHEER_TOKEN_REP"
+    #         contact_person: Person 1
+    #         email: person-1@example.com
     #   objecttypes_config_enable: true
     #   objecttypes:
     #     items:
@@ -1236,6 +1249,21 @@ openarchiefbeheer:
     #       api_root: https://selectielijst.openzaak.nl/api/v1/
     #       api_type: orc
     #       auth_type: no_auth
+    #     - identifier: objecten-api
+    #       label: Objecten API
+    #       api_root: https://objecten.example.com/api/v2/
+    #       api_type: orc
+    #       auth_type: api_key
+    #       header_key: Authorization
+    #       header_value: "Token REP_OBJECTEN_CREDENTIALS_OPENARCHIEFBEHEER_TOKEN_REP"
+    #     - identifier: klanten-api
+    #       label: Klanten API
+    #       api_root: https://opeklant.example.com/klantinteracties/api/v1/
+    #       api_type: kc
+    #       auth_type: api_key
+    #       header_key: Authorization
+    #       header_value: "Token REP_OPENKLANT_CREDENTIALS_OPENARCHIEFBEHEER_TOKEN_REP"
+       
 
     #   api_configuration_enabled: true
     #   api_configuration:
@@ -1384,6 +1412,11 @@ openklant:
     #         organization: Organization XYZ
     #         application: Application XYZ
     #         administration: Administration XYZ
+    #       - identifier: openarchiefbeheer
+    #         token: "REP_OPENKLANT_CREDENTIALS_OPENARCHIEFBEHEER_TOKEN_REP"
+    #         contact_person: Person 1
+    #         email: person-1@example.com
+
     #   oidc_db_config_enable: true
     #   oidc_db_config_admin_auth:
     #     providers:
@@ -2590,11 +2623,11 @@ zac:
     curlImage:
       #repository: curlimages/curl
       tag: "8.20.0@sha256:b3f1fb2a51d923260350d21b8654bbc607164a987e2f7c84a0ac199a67df812a"
-  # ghcr.io/infonl/zaakafhandelcomponent:4.7.1
+  # ghcr.io/infonl/zaakafhandelcomponent:4.7.2
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
-    tag: 4.7.1@sha256:fc28ca074749ce73f629fd651733b1da34d7d9675c72f807bd121ff31ae02390
+    tag: 4.7.2@sha256:235e51559f3439bb6aba5bbbc67279d70e9ab141aefd43d85be546d420fb0e34
   # Liveness probe uses /health/ready (not /health/live) with a high failureThreshold so
   # Kubernetes automatically restarts ZAC after extended OpenZaak/catalogus unavailability.
   # The ZGW-API-Client has no connectTimeout/readTimeout, causing stale TCP connections
@@ -3401,6 +3434,116 @@ zaakbrug:
   # Keys = Frank!Framework console roles; values = Keycloak client role names.
   # ---------------------------------------------------------------------------
   oauthRoleMapping:
-    IbisAdmin: admin
+    IbisAdmin: administrators
     IbisTester: zaakbrug_admin
     IbisDataAdmin: dataadmin
+
+# Management Information (MI) data exports — IN-1650 / IN-2119.
+#
+# OPT-IN FEATURE — DISABLED BY DEFAULT (`mi.enabled: false`).
+#
+# Weekly per-component Postgres dumps (CSV with `;` separator, or pg_dump -Fc).
+# Each run uploads its output to an external **SFTP server** over an SSH
+# keypair. Blob storage is no longer used.
+#
+# The chart renders both SFTP Secrets itself from the `mi.sftp.*` values below
+# — nothing needs to be pre-provisioned in the namespace:
+#   - <mi.sftp.secretName>    — connection envvars (host/port/user/remotePath)
+#   - <mi.sftp.keySecretName> — the SSH private key (`id`)
+#
+# The SSH private key is supplied via `mi.sftp.privateKey`. The deploy pipeline
+# (dev.azure.com/ssctwente/ExternalsPodiumD `application.yml`) reads it from
+# Azure Key Vault (`mi-data-sftp-rsa-private-key`) and substitutes it into the
+# env values file at deploy time. The public half must be installed in the SFTP
+# server's authorized_keys. Host-key checking is disabled (StrictHostKeyChecking
+# =no), so no `known_hosts` is needed.
+#
+# Full activation, validation, and troubleshooting:
+#   → docs/podiumd/mi-exports.md
+#
+# One unified script (modeled on Maykin's bin/dump_data.sh --csv) is used for
+# every target; each entry in mi.targets[] renders one CronJob, gated on the
+# chart's existing <component>.enabled flag — so a CronJob only renders for an
+# app this chart is actively deploying.
+#
+# Per-target DB credentials follow the chart's existing per-app convention:
+#   - <secretName> Secret    — must contain DB_PASSWORD (plus other app secrets is fine)
+#   - <configMapName> CM     — must contain DB_HOST, DB_NAME, DB_USER (DB_PORT optional)
+# Both default to the target's `component`. Override only when the chart subchart key
+# differs from the K8s resource name (e.g. opennotificaties → notificaties resources).
+mi:
+  # Disabled by default. Set to true to render the mi-export CronJobs + Secrets.
+  enabled: false
+  # Top-level path prefix under the remote SFTP root — keeps each gemeente's exports isolated.
+  gemeente: ""
+  # Output format. One of:
+  #   csv    — per-table \COPY → tar.gz of CSVs (one CSV per table, `;`-separated, HEADER row).
+  #   pgdump — pg_dump -Fc (custom format, zlib-compressed, restorable via pg_restore).
+  # All targets in an environment use the same format; per-target overrides are not supported.
+  format: csv
+  schedule: "0 2 * * 0"
+  timeZone: "Europe/Amsterdam"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  ttlSecondsAfterFinished: 86400
+  image:
+    registry: "mcr.microsoft.com"
+    repository: azure-cli
+    tag: "2.71.0"
+  # ephemeral-storage requests = limits = 20Gi: the dump job assembles all
+  # tables of a component into one tarball under /tmp before uploading; the
+  # emptyDir backing /tmp also has sizeLimit 20Gi (set on the volume in
+  # mi-export-cronjobs.yaml) so an oversized dump evicts the pod, not the
+  # node. Scratch is throwaway — nothing in /tmp is preserved past the run.
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+      ephemeral-storage: 20Gi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+      ephemeral-storage: 20Gi
+  nodeSelector: {}
+  sftp:
+    # host, user, remotePath, privateKey are all REQUIRED when mi.enabled.
+    # The CronJob template enforces via Helm `required` and fails fast if unset.
+    host: ""
+    port: 22
+    user: ""
+    remotePath: ""                       # e.g. "/uploads/mi-exports"
+    # SSH private key (PEM block, multiline). The chart renders it into
+    # Secret/<keySecretName> (key `id`, mode 0400 in the pod). Supplied by the
+    # ExternalsPodiumD application.yml pipeline, which substitutes it from Azure
+    # Key Vault (mi-data-sftp-rsa-private-key) at deploy time. Never commit a
+    # real key here — the env values file carries a placeholder the pipeline
+    # replaces. Host-key checking is disabled, so no known_hosts is needed.
+    privateKey: ""
+    # Name of the chart-rendered K8s Secret carrying the connection envvars
+    # (SFTP_HOST, SFTP_PORT, SFTP_USER, SFTP_REMOTE_PATH).
+    secretName: mi-export-sftp
+    # Name of the chart-rendered K8s Secret carrying the SSH private key (`id`).
+    keySecretName: mi-export-sftp-key
+  # Default target list — every Postgres-backed app this chart can deploy. A target only
+  # renders a CronJob when the chart's <component>.enabled is true. Per-target `enabled`
+  # is layered on top for ad-hoc opt-out. `schemas` defaults to ["public"].
+  targets:
+    - component: openzaak
+    - component: opennotificaties
+      # Chart subchart is "opennotificaties" but its K8s resources are named "notificaties".
+      secretName: notificaties
+      configMapName: notificaties
+    - component: objecten
+    - component: objecttypen
+    - component: openarchiefbeheer
+    - component: openklant
+    - component: openformulieren
+    - component: openinwoner
+    - component: referentielijsten
+    - component: openbeheer
+    - component: zac
+      schemas: ["flowable"]
+    - component: ita
+    - component: kiss
+    - component: pabc

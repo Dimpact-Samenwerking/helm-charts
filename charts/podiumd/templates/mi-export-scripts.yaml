@@ -1,0 +1,217 @@
+{{- if .Values.mi.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mi-export-scripts
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mi-export
+data:
+  # Unified dump script. Two output formats, selected via MI_FORMAT:
+  #
+  #   csv    — modeled on Maykin's bin/dump_data.sh --csv path: enumerate
+  #            pg_tables in the chosen schemas, \COPY each to a per-table CSV
+  #            on the /tmp emptyDir (separator `;`, HEADER row), then package
+  #            into one tar.gz.
+  #            Remote: <SFTP_REMOTE_PATH>/<gemeente>/<YYMMDD>/<component>/<HHMMSS>-<component>.tar.gz
+  #            Inside: one CSV per table, named <table>.csv
+  #            (or <schema>_<table>.csv when the schema is not public).
+  #
+  #   pgdump — pg_dump -Fc against the chosen schemas. Single output file in
+  #            Postgres custom format (zlib-compressed, restorable via pg_restore).
+  #            Remote: <SFTP_REMOTE_PATH>/<gemeente>/<YYMMDD>/<component>/<HHMMSS>-<component>.pgdump
+  #
+  # Egress is SFTP only — no blob storage. Auth is via SSH keypair
+  # (SFTP_KEY_FILE, mode 0400). Host-key checking is intentionally disabled
+  # (StrictHostKeyChecking=no, UserKnownHostsFile=/dev/null): these are
+  # short-lived, single-shot CronJob containers reaching a host fixed by DNS,
+  # and the private key already gates who can log in — sufficient for this
+  # use case. No known_hosts is mounted or consulted.
+  dump.sh: |
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    : "${SFTP_HOST:?must be set}"
+    : "${SFTP_USER:?must be set}"
+    : "${SFTP_REMOTE_PATH:?must be set}"
+    : "${SFTP_KEY_FILE:?must be set}"
+    : "${MI_GEMEENTE:?must be set}"
+    : "${MI_COMPONENT:?must be set}"
+    : "${DB_HOST:?must be set}"
+    : "${DB_NAME:?must be set}"
+    : "${DB_USER:?must be set}"
+    : "${DB_PASSWORD:?must be set}"
+    SFTP_PORT="${SFTP_PORT:-22}"
+    DB_PORT="${DB_PORT:-5432}"
+    # Whitespace-separated list, e.g. "public" or "public flowable". Default: public.
+    MI_SCHEMAS="${MI_SCHEMAS:-public}"
+    MI_FORMAT="${MI_FORMAT:-csv}"
+
+    # One timestamp captured at script start so every table from a single run
+    # lands under the same date+time path. Slicing keeps DATE_DIR and TIME_PART
+    # consistent (no second-boundary skew between separate `date` calls).
+    TS="$(date -u +%Y%m%d-%H%M%S)"
+    DATE_DIR="${TS:2:6}"   # YYMMDD
+    TIME_PART="${TS:9:6}"  # HHMMSS
+    log() { printf '[%s] %s\n' "$(date -u -Iseconds)" "$*"; }
+
+    # iter3-todo: image is mcr.microsoft.com/azure-cli (Azure Linux) with the
+    # postgresql tooling, tar, and openssh-clients installed at runtime via
+    # tdnf; bake a purpose-built image and drop this bootstrap step (and
+    # re-enable runAsNonRoot in the CronJob securityContext). gzip is already
+    # present in the base image. The `postgresql` package supplies both psql
+    # and pg_dump; `openssh-clients` supplies sftp.
+    needs=()
+    command -v psql    >/dev/null 2>&1 || needs+=(postgresql)
+    command -v pg_dump >/dev/null 2>&1 || needs+=(postgresql)
+    command -v tar     >/dev/null 2>&1 || needs+=(tar)
+    command -v sftp    >/dev/null 2>&1 || needs+=(openssh-clients)
+    if [ "${#needs[@]}" -gt 0 ]; then
+      # Dedupe: a single `postgresql` install gives us psql + pg_dump.
+      uniq_needs=$(printf '%s\n' "${needs[@]}" | sort -u)
+      log "installing: ${uniq_needs}"
+      # shellcheck disable=SC2086
+      tdnf install -y --quiet ${uniq_needs} >/dev/null
+    fi
+
+    psql_run() {
+      PGPASSWORD="${DB_PASSWORD}" psql \
+        --host="${DB_HOST}" --port="${DB_PORT}" \
+        --username="${DB_USER}" --dbname="${DB_NAME}" \
+        --no-psqlrc --set ON_ERROR_STOP=1 "$@"
+    }
+
+    upload_sftp() {
+      # upload_sftp <local-file> <remote-relative-path>
+      #
+      # Uses sftp batch mode (-b -) so we can `mkdir -p` the dated directory
+      # tree before `put`. The `-` after each mkdir tells sftp to ignore the
+      # "already exists" failure for that line only.
+      #
+      # Host-key checking is disabled by design (see header): accept any host
+      # key and discard it to /dev/null. Trust rests on DNS + the private key.
+      local file="$1" remote="$2" size remote_full remote_dir remote_name
+      size="$(stat -c%s "${file}" 2>/dev/null || stat -f%z "${file}")"
+      remote_full="${SFTP_REMOTE_PATH%/}/${remote}"
+      remote_dir="$(dirname "${remote_full}")"
+      remote_name="$(basename "${remote_full}")"
+      log "uploading ${remote_full} (${size} bytes) to ${SFTP_USER}@${SFTP_HOST}:${SFTP_PORT}"
+      # shellcheck disable=SC2086
+      # Build the mkdir -p chain as one mkdir command per ancestor directory.
+      # sftp has no native `mkdir -p`; we emit `-mkdir <dir>` lines (the
+      # leading `-` tells sftp to continue on EEXIST).
+      local IFS_BACK="${IFS}"
+      IFS='/' read -ra parts <<< "${remote_dir#/}"
+      IFS="${IFS_BACK}"
+      local batch="" cur="/"
+      for p in "${parts[@]}"; do
+        [ -z "${p}" ] && continue
+        cur="${cur%/}/${p}"
+        batch="${batch}-mkdir ${cur}"$'\n'
+      done
+      batch="${batch}put ${file} ${remote_full}"$'\n'
+      printf '%s' "${batch}" | sftp \
+        -b - \
+        -i "${SFTP_KEY_FILE}" \
+        -o "UserKnownHostsFile=/dev/null" \
+        -o "StrictHostKeyChecking=no" \
+        -o "PasswordAuthentication=no" \
+        -o "BatchMode=yes" \
+        -o "ConnectTimeout=20" \
+        -P "${SFTP_PORT}" \
+        "${SFTP_USER}@${SFTP_HOST}" >/dev/null
+      log "uploaded ${remote_name}"
+    }
+
+    log "starting MI export: component=${MI_COMPONENT} schemas=${MI_SCHEMAS} format=${MI_FORMAT}"
+
+    case "${MI_FORMAT}" in
+      csv)
+        # Per-run scratch area on the /tmp emptyDir. Holds CSVs while we
+        # accumulate them, plus the final tar.gz. Both are wiped on exit.
+        WORK="$(mktemp -d /tmp/mi-csv.XXXXXX)"
+        TARBALL="$(mktemp -u -p /tmp mi-XXXXXX.tar.gz)"
+        trap 'rm -rf "${WORK}" "${TARBALL}"' EXIT
+
+        list_tables() {
+          # Returns 'schema<TAB>table' lines for every base table in the requested schemas.
+          local in_clause
+          # shellcheck disable=SC2086  # MI_SCHEMAS is whitespace-separated by contract; word splitting is intentional.
+          in_clause="$(printf "'%s'," ${MI_SCHEMAS})"
+          in_clause="${in_clause%,}"
+          psql_run -At -F $'\t' --command="
+            SELECT schemaname, tablename
+            FROM pg_catalog.pg_tables
+            WHERE schemaname IN (${in_clause})
+            ORDER BY schemaname, tablename
+          "
+        }
+
+        dump_one_to_disk() {
+          # dump_one_to_disk <schema> <table>  → ${WORK}/<label>.csv
+          # label drops the schema prefix for public (same convention as before).
+          # Separator is `;` (per IN-2119 — Excel/EU-locale default).
+          local schema="$1" table="$2" label
+          if [ "${schema}" = "public" ]; then label="${table}"; else label="${schema}_${table}"; fi
+          log "dumping ${schema}.${table} -> ${label}.csv"
+          psql_run --command="\\COPY \"${schema}\".\"${table}\" TO STDOUT WITH (FORMAT csv, HEADER, DELIMITER ';')" \
+            > "${WORK}/${label}.csv"
+        }
+
+        rows="$(list_tables)"
+        if [ -z "${rows}" ]; then
+          log "no tables found in schemas (${MI_SCHEMAS}) of ${MI_COMPONENT} DB"
+          exit 1
+        fi
+
+        n=0
+        while IFS=$'\t' read -r schema table; do
+          [ -z "${schema}" ] && continue
+          dump_one_to_disk "${schema}" "${table}"
+          n=$((n+1))
+        done <<< "${rows}"
+
+        # gzip's deflate window is 32 KiB regardless of input size — memory
+        # stays bounded at ~256 KiB whether we package 5 tables or 5,000.
+        log "packaging ${n} CSV(s) into ${MI_COMPONENT}.tar.gz"
+        tar -czf "${TARBALL}" -C "${WORK}" .
+
+        REMOTE="${MI_GEMEENTE}/${DATE_DIR}/${MI_COMPONENT}/${TIME_PART}-${MI_COMPONENT}.tar.gz"
+        upload_sftp "${TARBALL}" "${REMOTE}"
+        log "done: ${n} table(s) packaged in ${REMOTE}"
+        ;;
+
+      pgdump)
+        # Single pg_dump in custom format (-Fc) — zlib-compressed, restorable
+        # with pg_restore, includes schema + data + ownership/privileges.
+        # One -n flag per requested schema; tables outside those schemas are
+        # excluded (matches the csv path's filtering).
+        DUMPFILE="$(mktemp -u -p /tmp mi-XXXXXX.pgdump)"
+        trap 'rm -f "${DUMPFILE}"' EXIT
+
+        schema_args=()
+        # shellcheck disable=SC2086  # MI_SCHEMAS is whitespace-separated by contract; word splitting is intentional.
+        for s in ${MI_SCHEMAS}; do
+          schema_args+=(-n "${s}")
+        done
+
+        log "running pg_dump -Fc on ${DB_NAME} (schemas: ${MI_SCHEMAS})"
+        PGPASSWORD="${DB_PASSWORD}" pg_dump \
+          --host="${DB_HOST}" --port="${DB_PORT}" \
+          --username="${DB_USER}" --dbname="${DB_NAME}" \
+          --format=custom \
+          --no-owner --no-privileges \
+          "${schema_args[@]}" \
+          --file="${DUMPFILE}"
+
+        REMOTE="${MI_GEMEENTE}/${DATE_DIR}/${MI_COMPONENT}/${TIME_PART}-${MI_COMPONENT}.pgdump"
+        upload_sftp "${DUMPFILE}" "${REMOTE}"
+        log "done: pg_dump uploaded to ${REMOTE}"
+        ;;
+
+      *)
+        log "unsupported MI_FORMAT='${MI_FORMAT}' (expected csv or pgdump)"
+        exit 2
+        ;;
+    esac
+{{- end }}
