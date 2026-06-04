@@ -69,7 +69,7 @@ dependencies:
       - contact
   - name: zaakafhandelcomponent
     alias: zac
-    version: 1.0.250 # ZAC 5.0.0 helm release
+    version: 1.0.251 # ZAC 5.0.1 helm release
     repository: "@zac"
     condition: zac.enabled
     tags:
