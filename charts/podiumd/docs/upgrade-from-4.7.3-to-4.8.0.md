@@ -32,10 +32,10 @@ openinwoner:
 ```
 
 **Action required:** none for the upgrade itself — the migration runs
-automatically on the first rollout to 2.3.0. The init container is
-idempotent (re-running is a no-op), but to avoid running it on every pod
-restart it should be flipped to `false` in a follow-up release once all
-environments have rolled out. Tracked for 4.8.x.
+automatically on the first rollout to 2.3.0. Per upstream the migration
+only needs to run once; to avoid re-running it on every pod restart, flip
+this to `false` in a follow-up release once all environments have completed
+the rollout. Tracked for 4.8.x.
 
 Operational notes from upstream (admin/content workflow, not deploy-blocking):
 
@@ -108,3 +108,21 @@ non-deterministic tag that can resolve to ES 8.x and break Open Inwoner.
 Pin the tag, and bump it together with `eck-elasticsearch.version` on
 future Elasticsearch upgrades. Kiss needs no tag: it has no image override,
 so the operator appends its `version` automatically.
+
+The following environments were found with an **untagged**
+`openinwoner.eck-elasticsearch.image` and must be pinned to `:9.2.0`
+before upgrading (production environments first):
+
+| Environment | Tier |
+| ----------- | ---- |
+| `bode/prod` | production |
+| `gron/prod` | production |
+| `zwol/prod` | production |
+| `dim1/accp` | acceptance |
+| `dimp/test` | test |
+| `gene/test` | test |
+
+All other environments already pin `:9.2.0`. After pinning, confirm the
+running pod image with
+`kubectl get pod <es-pod> -o jsonpath='{.spec.containers[*].image}'` — it
+must read `…/elasticsearch/elasticsearch:9.2.0`, not `:latest`.
