@@ -93,7 +93,7 @@
         {
           "direction": "backward",
           "editorMode": "code",
-          "expr": "sum(\n    count_over_time (\n        {app=\"openformulieren\"}\n        | json \n        | event = `submission_completed` \n        [$__range]\n    )\n) ",
+          "expr": "sum(\n    count_over_time (\n        {app=\"openformulieren\"}\n        |= \"submission_completed\"\n        | json event\n        | event = `submission_completed` \n        [$__range]\n    )\n) or vector(0)",
           "legendFormat": "Submissions",
           "queryType": "range",
           "refId": "A"
@@ -154,7 +154,7 @@
         {
           "direction": "backward",
           "editorMode": "code",
-          "expr": "sum(\n    count_over_time (\n        {app=\"openformulieren-worker\"}\n        | json \n        | event = `registration_success` \n        | action = `registrations.main_registration`\n        [$__range]\n    )\n) ",
+          "expr": "sum(\n    count_over_time (\n        {app=\"openformulieren-worker\"}\n        |= \"registration\"\n        | json event=\"event\", action=\"action\"\n        | event = `registration_success` \n        | action = `registrations.main_registration`\n        [$__range]\n    )\n) or vector(0)",
           "queryType": "range",
           "refId": "A"
         }
@@ -214,7 +214,7 @@
         {
           "direction": "backward",
           "editorMode": "code",
-          "expr": "sum(\n    count_over_time (\n        {app=\"objecten\"}\n        | json \n        | event = `object_created` \n        [$__range]\n    ) or vector(0)\n) ",
+          "expr": "sum(\n    count_over_time (\n        {app=\"objecten\"}\n        |= \"object_created\"\n        | json event\n        | event = `object_created` \n        [$__range]\n    ) \n) or vector(0)",
           "queryType": "range",
           "refId": "A"
         }
@@ -274,7 +274,7 @@
         {
           "direction": "backward",
           "editorMode": "code",
-          "expr": "sum(\n    count_over_time (\n        {app=\"opennotificaties-worker\"}\n        | json \n        | event=\"task_succeeded\"\n        [$__range]\n    )\n) ",
+          "expr": "sum(\n    count_over_time (\n        {app=\"opennotificaties-worker\"}\n        |= \"task_succeeded\"\n        | json event\n        | event=\"task_succeeded\"\n        [$__range]\n    )\n) or vector(0)",
           "queryType": "range",
           "refId": "A"
         }
@@ -334,7 +334,7 @@
         {
           "direction": "backward",
           "editorMode": "code",
-          "expr": "sum(\n    count_over_time (\n        {app=\"openzaak\"}\n        | json \n        | event = `zaak_created` \n        [$__range]\n    ) or vector(0)\n) ",
+          "expr": "sum(\n    count_over_time (\n        {app=\"openzaak\"}\n        |= \"zaak_created\"\n        | json event\n        | event = `zaak_created` \n        [$__range]\n    ) \n) or vector(0)",
           "queryType": "range",
           "refId": "A"
         }
@@ -394,7 +394,7 @@
         {
           "direction": "backward",
           "editorMode": "code",
-          "expr": "sum by (public_reference)(\n  count_over_time(\n    {app=\"openformulieren-worker\"}\n    | json\n    | event=\"registration_failure\"\n    | action=\"registrations.main_registration\"\n    [$__range]\n    ) \n)",
+          "expr": "sum by (public_reference)(\n  count_over_time(\n    {app=\"openformulieren-worker\"}\n    |= \"registration\"\n    | json event=\"event\", action=\"action\", public_reference=\"public_reference\"\n    | event=\"registration_failure\"\n    | action=\"registrations.main_registration\"\n    [$__range]\n    ) \n)",
           "queryType": "instant",
           "refId": "A"
         }
@@ -453,7 +453,7 @@
         {
           "direction": "backward",
           "editorMode": "code",
-          "expr": "sum(\n    count_over_time (\n        {app=\"objecten\"}\n        | json\n        | event = \"request_finished\"\n        | request = \"POST /api/v2/objects\"\n        | code >= 400\n        [$__range]\n    ) or vector(0)\n) ",
+          "expr": "sum(\n    count_over_time (\n        {app=\"objecten\"}\n        |= \"POST /api/v2/objects\"\n        | json event=\"event\", request=\"request\", code=\"code\"\n        | event = \"request_finished\"\n        | request = \"POST /api/v2/objects\"\n        | code >= 400\n        [$__range]\n    ) \n) or vector(0)",
           "queryType": "range",
           "refId": "A"
         }
@@ -512,7 +512,7 @@
         {
           "direction": "backward",
           "editorMode": "code",
-          "expr": "sum(\n    count_over_time (\n        {app=\"opennotificaties-worker\"}\n        | json \n        | event=\"notification_failed\" or event=\"notification_error\"  \n        [$__range]\n    )\n    or vector(0)\n) ",
+          "expr": "sum(\n    count_over_time (\n        {app=\"opennotificaties-worker\"}\n        |= \"notification_\"\n        | json event\n        | event=~\"notification_failed|notification_error\"\n        [$__range]\n    )\n    \n) or vector(0)",
           "queryType": "range",
           "refId": "A"
         }
@@ -572,7 +572,7 @@
         {
           "direction": "backward",
           "editorMode": "code",
-          "expr": "sum(\n    count_over_time (\n        {app=\"openzaak\"}\n        | json\n        | event = \"request_finished\"\n        | request = \"POST /zaken/api/v1/zaken\"\n        | code >= 400\n        [$__range]\n    ) or vector(0)\n) ",
+          "expr": "sum(\n    count_over_time (\n        {app=\"openzaak\"}\n        |= \"POST /zaken/api/v1/zaken\"\n        | json event=\"event\", request=\"request\", code=\"code\"\n        | event = \"request_finished\"\n        | request = \"POST /zaken/api/v1/zaken\"\n        | code >= 400\n        [$__range]\n    ) \n) or vector(0)",
           "queryType": "range",
           "refId": "A"
         }
@@ -716,7 +716,7 @@
         {
           "direction": "backward",
           "editorMode": "code",
-          "expr": "sum by(plugin, event) (\n  count_over_time(\n    {app=\"openformulieren-worker\"} \n    | json \n    | event=~\"registration_failure|registration_success\" \n    | trigger!=\"on_retry\"\n    |__error__=``\n    [$__range]\n  )\n)",
+          "expr": "count by (plugin, event) (\n  sum by (plugin, event, public_reference) (\n    count_over_time(\n      {app=\"openformulieren-worker\"}\n      |= \"registration_\"\n      | json event=\"event\", plugin=\"plugin\", public_reference=\"public_reference\", trigger=\"trigger\"\n      | event=~\"registration_failure|registration_success\"\n      [$__range]\n    )\n  )\n)",
           "legendFormat": "",
           "queryType": "instant",
           "refId": "A"
@@ -819,7 +819,7 @@
         {
           "direction": "backward",
           "editorMode": "code",
-          "expr": "sum by(subscription_callback, resource) (\n  count_over_time(\n    {app=\"opennotificaties-worker\"} \n    | json \n    | event=\"notification_successful\" \n    |__error__=``\n    [$__range]\n  )\n)",
+          "expr": "sum by(subscription_callback, resource) (\n  count_over_time(\n    {app=\"opennotificaties-worker\"} \n    |=\"notification_successful\"\n    | json event=\"event\", subscription_callback=\"subscription_callback\", resource=\"resource\"\n    | event=\"notification_successful\" \n    [$__range]\n  )\n)",
           "legendFormat": "",
           "queryType": "instant",
           "refId": "A"
@@ -892,7 +892,7 @@
           {
             "matcher": {
               "id": "byRegexp",
-              "options": "/[4-5].*/"
+              "options": "/^[4-5].*/"
             },
             "properties": [
               {
@@ -940,7 +940,7 @@
         {
           "direction": "backward",
           "editorMode": "code",
-          "expr": "sum by (path, status)(\n    count_over_time (\n        {app=\"openzaak\"}\n        | json \n        | event = \"request\"\n        | method != \"GET\"\n        | method != \"HEAD\"                 \n        [$__range]\n    )\n) \n\n",
+          "expr": "sum by (path, status)(\n    count_over_time (\n        {app=\"openzaak\"}\n        |= \"request\"\n        |= \"/api/\"\n        | json event=\"event\", method=\"method\", path=\"path\", status=\"status\"\n        | event = \"request\"\n        | path=~\".*/api/.*\"\n        | method!~\"GET|HEAD\"\n        | label_format path=`{{ regexReplaceAllLiteral \"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\" .path \"<uuid>\" }}`                \n        [$__range]\n    )\n) \n\n",
           "queryType": "instant",
           "refId": "A"
         }
@@ -1046,7 +1046,7 @@
           },
           "direction": "backward",
           "editorMode": "code",
-          "expr": "{app=\"openformulieren-worker\"} \n| json \n| action=\"registrations.main_registration\", event=\"registration_success\"",
+          "expr": "{app=\"openformulieren-worker\"}\n|= \"registration_success\"\n| json \n| event=\"registration_success\"\n| action=\"registrations.main_registration\"",
           "queryType": "range",
           "refId": "B"
         }
@@ -1377,7 +1377,7 @@
               },
               "direction": "backward",
               "editorMode": "code",
-              "expr": "{app=\"objecten\"} | json | event = \"object_created\"",
+              "expr": "{app=\"objecten\"}\n|= \"object_created\"\n| json event=\"event\", object_uuid=\"object_uuid\", token_identifier=\"token_identifier\"\n| event = \"object_created\"",
               "queryType": "range",
               "refId": "A"
             }
@@ -1497,7 +1497,7 @@
               },
               "direction": "backward",
               "editorMode": "code",
-              "expr": "{app=\"objecten\"}\n| json\n| event = \"request_finished\"\n| request = \"POST /api/v2/objects\"\n| code >= 400",
+              "expr": "{app=\"objecten\"}\n|= \"POST /api/v2/objects\"\n| json event=\"event\", request=\"request\", code=\"code\", request_id=\"request_id\"\n| event = \"request_finished\"\n| request = \"POST /api/v2/objects\"\n| code >= 400",
               "queryType": "range",
               "refId": "A"
             }
@@ -1627,7 +1627,7 @@
         {
           "direction": "backward",
           "editorMode": "code",
-          "expr": "{app=\"opennotificaties-worker\"}\n| json \n| event=\"notification_successful\"\n",
+          "expr": "{app=\"opennotificaties-worker\"}\n|= \"notification_successful\"\n| json  event=\"event\", subscription_callback=\"subscription_callback\", channel_name=\"channel_name\", action=\"action\", resource=\"resource\", resource_url=\"resource_url\"\n| event=\"notification_successful\"\n",
           "queryType": "range",
           "refId": "A"
         }
@@ -1743,7 +1743,7 @@
           },
           "direction": "backward",
           "editorMode": "code",
-          "expr": "{app=\"opennotificaties-worker\"} \n| json \n| event=\"notification_failed\" or event=\"notification_error\"  ",
+          "expr": "{app=\"opennotificaties-worker\"}\n|= \"notification_\"\n| json event=\"event\", resource=\"resource\", action=\"action\", resource_url=\"resource_url\", subscription_callback=\"subscription_callback\", channel_name=\"channel_name\", task_attempt_count=\"task_attempt_count\", http_status_code=\"http_status_code\"\n| event=~\"notification_failed|notification_error\"",
           "queryType": "range",
           "refId": "A"
         }
@@ -1897,7 +1897,7 @@
           },
           "direction": "backward",
           "editorMode": "code",
-          "expr": "{app=\"openzaak\"} | json | event=\"zaak_created\"",
+          "expr": "{app=\"openzaak\"} \n|= \"zaak_created\"\n| json event=\"event\", identificatie=\"identificatie\", zaaktype=\"zaaktype\"\n| event=\"zaak_created\"",
           "queryType": "range",
           "refId": "E"
         }
@@ -2000,7 +2000,7 @@
           },
           "direction": "backward",
           "editorMode": "code",
-          "expr": "{app=\"openzaak\"}\n| json\n| event = \"request_finished\"\n| request !~ `GET .*` \n| event = `request_finished` \n| code =~ `[4-5].*`",
+          "expr": "{app=\"openzaak\"}\n|= \"POST /zaken/api/v1/zaken\"\n| json event=\"event\", request=\"request\", code=\"code\", request_id=\"request_id\"\n| event = \"request_finished\"\n| request = \"POST /zaken/api/v1/zaken\"\n| code >= 400",
           "queryType": "range",
           "refId": "A"
         }
@@ -2075,7 +2075,7 @@
   ],
   "preload": false,
   "refresh": "5m",
-  "schemaVersion": 41,
+  "schemaVersion": 42,
   "tags": [],
   "templating": {
     "list": []
@@ -2088,5 +2088,5 @@
   "timezone": "",
   "title": "Monitoring en logging (with structlog)",
   "uid": "cawvpt6dd",
-  "version": 0
+  "version": 1
 }
