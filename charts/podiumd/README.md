@@ -2,6 +2,20 @@
 
 ## PodiumD versions
 
+### [4.8.0](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.8.0)
+
+**PodiumD Helm chart version: 4.8.0**
+Release scoped around the Open Inwoner upgrade 2.1.2 → 2.3.0 (chart
+2.1.3 → 2.2.0), spanning upstream 2.2.0 (Django CMS v3 → v4) and 2.3.0
+(opt-in ClamAV virus scanning, ZGW cache-warmup + low-latency worker).
+All other components remain at their 4.7.3 baseline; see the rows below
+for the unchanged entries. Zie `docs/upgrade-from-4.7.3-to-4.8.0.md` voor
+details.
+
+| Component                 | AppVersion       | Change            | ChartVersion | Change         | **Notes**                            |
+|---------------------------|------------------|-------------------|--------------|----------------|--------------------------------------|
+| Open Inwoner              | 2.3.0            | Minor update      | 2.2.0        | Minor update   | CMS v3→v4, opt-in ClamAV virus scan  |
+
 ### [4.7.3](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.7.3)
 
 **PodiumD Helm chart version: 4.7.3**

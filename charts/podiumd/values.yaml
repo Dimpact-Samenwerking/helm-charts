@@ -1872,6 +1872,17 @@ openinwoner:
       useTLS: true
     searchIndexInitContainer: true
     oidcFrontendLogoutWithHints: true
+    # -- New in openinwoner 2.3.0 (chart 2.2.0): runs an init container executing
+    # `manage.py cms4_migration` for the Django CMS v3 → v4 migration. Keep true for
+    # the first rollout to 2.3.0 so the one-time migration runs; flip to false in a
+    # follow-up release once every environment has completed it. Re-running is a no-op.
+    cms4MigrationInitContainer: true
+    # -- New in openinwoner 2.3.0: per-request timeout (seconds) for cached ZGW zaken.
+    # Empty uses the application default (300s, raised from 60s upstream).
+    cacheZgwZakenTimeout: ""
+    # -- New in openinwoner 2.3.0: Celery queue for cache-seeding tasks. Empty defaults
+    # to the low-latency worker queue (see lowLatencyWorker below).
+    cacheSeedingQueue: ""
     cache:
       default: redis-ha-master.podiumd.svc.cluster.local:6379/11
       axes: redis-ha-master.podiumd.svc.cluster.local:6379/11
@@ -1891,7 +1902,7 @@ openinwoner:
     volumeAttributeShareName: openinwoner
     storageClassName: podiumd-standard
   image:
-    tag: "2.1.2"
+    tag: "2.3.0"
   resources:
     requests:
       cpu: 200m
@@ -1905,6 +1916,15 @@ openinwoner:
       requests:
         cpu: 200m
         memory: 640Mi
+  # -- New in openinwoner 2.3.0 (chart 2.2.0): dedicated low-latency Celery worker for
+  # cache-seeding/warmup tasks. The chart creates this deployment by default
+  # (replicaCount 1) on upgrade; resources pinned here to match podiumd conventions.
+  lowLatencyWorker:
+    replicaCount: 1
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
   beat:
     resources:
       requests:
