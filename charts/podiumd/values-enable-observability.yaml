@@ -196,18 +196,17 @@ clamav:
       scrapeTimeout: 10s
 
 # ---------------------------------------------------------------------------
-# ECK operator (via kiss-elastic) — enable metrics port and create a PodMonitor
+# ECK operator — enable metrics port and create a PodMonitor
 # for the ECK operator pod itself. The eck-operator-podmonitor-rbac template in
 # the podiumd chart grants the elastic-operator SA permission to also create
 # PodMonitors for managed Elasticsearch/Kibana instances at runtime.
-# Requires: kisselastic.enabled: true and Prometheus Operator CRDs installed.
+# Requires: eck-operator.enabled: true and Prometheus Operator CRDs installed.
 # ---------------------------------------------------------------------------
 
-kisselastic:
-  eck-operator:
-    config:
-      metricsPort: "8080"
-    podMonitor:
-      enabled: true
-      interval: 1m
-      scrapeTimeout: 30s
+eck-operator:
+  config:
+    metricsPort: "8080"
+  podMonitor:
+    enabled: true
+    interval: 1m
+    scrapeTimeout: 30s
