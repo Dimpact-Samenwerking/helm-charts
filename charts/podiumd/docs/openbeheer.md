@@ -18,25 +18,44 @@ is fully opt-in.
 
 ## Resources
 
-Open Beheer depends on infrastructure the chart does **not** create. Provision the following
-**before** setting `openbeheer.enabled: true`. Items marked _auto_ are created by the chart /
-realm-config job once their inputs exist — they are listed so the dependency is visible.
+The resources Open Beheer needs fall into three categories by who creates them and when.
 
-| Resource | Where | Pre-create? | Identifier / key |
-|----------|-------|-------------|------------------|
-| PostgreSQL database + user | Shared PG server (Azure Flexible Server) | **Yes** | db `openbeheer`, user `openbeheer` |
-| Azure file share | Storage account behind `podiumd-standard` | **Yes** | share name `openbeheer` (1 GiB, RWX) |
-| Ingress / HTTPRoute | Cluster (subchart `openbeheer.ingress`) | **Yes** — opt-in per env | host = `configuration.oidcUrl` → svc `openbeheer:80` |
-| DNS record | External DNS | **Yes** | `openbeheer.<env-domain>` → ingress LB IP |
-| TLS certificate | cert-manager | _auto_ from ingress annotation | secret `openbeheer-tls`, issuer `letsencrypt-prod` |
-| Key Vault: Django SECRET_KEY | Azure Key Vault | **Yes** | → `settings.secretKey` |
-| Key Vault: DB password | Azure Key Vault | **Yes** | `openbeheer-db-admin-<env>` → `settings.database.password` |
-| Key Vault: Keycloak client secret | Azure Key Vault | **Yes** | `openbeheer-oidc-secret` → `configuration.secrets.keycloak_client_secret` |
-| Key Vault: Open Zaak ZGW secret | Azure Key Vault | **Yes** | → `configuration.secrets.openzaak_openbeheer_secret` |
-| Key Vault: Objecttypen API token | Azure Key Vault | **Yes** | → `configuration.secrets.objecttypen_openbeheer_token` |
-| Keycloak OIDC client | Realm `podiumd` | _auto_ (realm-config) | client `openbeheer` |
-| Open Zaak ZGW consumer | Open Zaak admin | **Yes** | client `openbeheer` (+ JWT secret above) |
-| Objecttypen API token holder | Objecttypen admin | **Yes** | token (= the API token above) |
+### 1. Created by a third party (outside our control)
+
+Only DNS hostnames, today.
+
+| Resource | Identifier | Notes |
+|----------|-----------|-------|
+| DNS record | `openbeheer.<env-domain>` → ingress LB IP | Must equal the `configuration.oidcUrl` host — realm-config derives the Keycloak redirect URIs from it (`{oidcUrl}/*`). |
+
+### 2. Infrastructure — created before Helm
+
+Provision all of these **before** setting `openbeheer.enabled: true`; the chart consumes them.
+
+| Resource | Where | Identifier / key |
+|----------|-------|------------------|
+| PostgreSQL database + user | Shared PG server (Azure Flexible Server) | db `openbeheer`, user `openbeheer` |
+| Azure file share | Storage account behind `podiumd-standard` | share name `openbeheer` (1 GiB, RWX) |
+| CSI storage credential Secret | Cluster (once per cluster) | `persistentVolume.nodeStageSecretRefName` / `…Namespace` |
+| Key Vault: Django SECRET_KEY | Azure Key Vault | → `settings.secretKey` |
+| Key Vault: DB password | Azure Key Vault | `openbeheer-db-admin-<env>` → `settings.database.password` |
+| Key Vault: Keycloak client secret | Azure Key Vault | `openbeheer-oidc-secret` → `configuration.secrets.keycloak_client_secret` |
+| Key Vault: Open Zaak ZGW secret | Azure Key Vault | → `configuration.secrets.openzaak_openbeheer_secret` |
+| Key Vault: Objecttypen API token | Azure Key Vault | → `configuration.secrets.objecttypen_openbeheer_token` |
+| Open Zaak ZGW consumer | Open Zaak admin | client `openbeheer` (+ the ZGW secret above) |
+| Objecttypen API token holder | Objecttypen admin | token (= the API token above) |
+
+### 3. Created by Helm (the chart / realm-config job)
+
+Rendered automatically once category 1 & 2 inputs exist — listed for visibility; no manual action.
+
+| Resource | Template / source | Identifier / key |
+|----------|-------------------|------------------|
+| PersistentVolume + PVC | `templates/openbeheer-storage.yaml` | PV `<ns>-openbeheer`, PVC `openbeheer` (RWX, Retain) |
+| Ingress / HTTPRoute | sub-chart `templates/ingress.yaml` (`openbeheer.ingress`) | host = `configuration.oidcUrl` → svc `openbeheer:80` (opt-in per env) |
+| TLS certificate | cert-manager, triggered by the ingress annotation | secret `openbeheer-tls`, issuer `letsencrypt-prod` |
+| Keycloak OIDC client | `keycloak-podiumd-realm-config.yaml` | client `openbeheer` on realm `podiumd` |
+| Config Secrets / ConfigMap / Deployment / Job | openbeheer sub-chart | rendered from the values block |
 
 ### PostgreSQL database
 
