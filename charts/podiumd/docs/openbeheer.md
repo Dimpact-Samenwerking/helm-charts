@@ -16,6 +16,119 @@ is fully opt-in.
 > uWSGI master-process restart trap. Redis database assignment is tracked in
 > [`redis-ha-databases.md`](redis-ha-databases.md).
 
+## Resources
+
+Open Beheer depends on infrastructure the chart does **not** create. Provision the following
+**before** setting `openbeheer.enabled: true`. Items marked _auto_ are created by the chart /
+realm-config job once their inputs exist — they are listed so the dependency is visible.
+
+| Resource | Where | Pre-create? | Identifier / key |
+|----------|-------|-------------|------------------|
+| PostgreSQL database + user | Shared PG server (Azure Flexible Server) | **Yes** | db `openbeheer`, user `openbeheer` |
+| Azure file share | Storage account behind `podiumd-standard` | **Yes** | share name `openbeheer` (1 GiB, RWX) |
+| Ingress / HTTPRoute | Cluster (subchart `openbeheer.ingress`) | **Yes** — opt-in per env | host = `configuration.oidcUrl` → svc `openbeheer:80` |
+| DNS record | External DNS | **Yes** | `openbeheer.<env-domain>` → ingress LB IP |
+| TLS certificate | cert-manager | _auto_ from ingress annotation | secret `openbeheer-tls`, issuer `letsencrypt-prod` |
+| Key Vault: Django SECRET_KEY | Azure Key Vault | **Yes** | → `settings.secretKey` |
+| Key Vault: DB password | Azure Key Vault | **Yes** | `openbeheer-db-admin-<env>` → `settings.database.password` |
+| Key Vault: Keycloak client secret | Azure Key Vault | **Yes** | `openbeheer-oidc-secret` → `configuration.secrets.keycloak_client_secret` |
+| Key Vault: Open Zaak ZGW secret | Azure Key Vault | **Yes** | → `configuration.secrets.openzaak_openbeheer_secret` |
+| Key Vault: Objecttypen API token | Azure Key Vault | **Yes** | → `configuration.secrets.objecttypen_openbeheer_token` |
+| Keycloak OIDC client | Realm `podiumd` | _auto_ (realm-config) | client `openbeheer` |
+| Open Zaak ZGW consumer | Open Zaak admin | **Yes** | client `openbeheer` (+ JWT secret above) |
+| Objecttypen API token holder | Objecttypen admin | **Yes** | token (= the API token above) |
+
+### PostgreSQL database
+
+Create a database and login on the shared PG server, same pattern as the other components
+(see [`enabling-pabc.md`](enabling-pabc.md) § Create the database):
+
+- database name `openbeheer`, username `openbeheer`
+- store the password in Key Vault as `openbeheer-db-admin-<env>` (e.g. `openbeheer-db-admin-johnb00`)
+- wire `settings.database.host` to the server FQDN (e.g.
+  `podiumd-<env>-pg.postgres.database.azure.com`), `name`/`username` to `openbeheer`, and let the
+  deploy pipeline inject `settings.database.password` from Key Vault. `settings.database.sslmode`
+  defaults to `prefer`.
+
+### Azure file share (storage)
+
+`templates/openbeheer-storage.yaml` binds a **static** PV — there is no dynamic provisioning, so
+the share must already exist:
+
+- create an Azure file share named `openbeheer` (overridable via
+  `persistentVolume.volumeAttributeShareName`) in the storage account that the cluster-wide CSI
+  credential (`persistentVolume.nodeStageSecretRefName` / `…Namespace`, set once per cluster)
+  authenticates against.
+- the PV is `ReadWriteMany`, reclaim **Retain**, `helm.sh/resource-policy: keep` — it and the
+  share survive `helm uninstall`. All `replicaCount` pods share it; media lives under
+  `persistence.mediaMountSubpath: openbeheer/media`.
+
+### Ingress / HTTPRoute, DNS and TLS
+
+The chart does not expose Open Beheer by default — the openbeheer sub-chart ships an `ingress`
+template but ships it disabled. Enable it per environment (same shape as
+[`enabling-pabc.md`](enabling-pabc.md) § 3), routing the `configuration.oidcUrl` host to the
+sub-chart `Service` (`ClusterIP`, port 80):
+
+```yaml
+openbeheer:
+  ingress:
+    enabled: true
+    className: traefik
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+      traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    hosts:
+      - host: openbeheer.<env-domain>
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: openbeheer-tls
+        hosts:
+          - openbeheer.<env-domain>
+```
+
+- **DNS**: add an A/CNAME for `openbeheer.<env-domain>` pointing at the ingress load-balancer IP.
+  The host must equal the `configuration.oidcUrl` host — the realm-config job derives the Keycloak
+  redirect URIs from it (`{oidcUrl}/*`).
+- **TLS**: the `cert-manager.io/cluster-issuer: letsencrypt-prod` annotation makes cert-manager
+  issue the cert into the `openbeheer-tls` secret automatically — no manual Certificate needed.
+- **Azure Application Gateway** environments: use the sub-chart's `openbeheer.extraIngress[]`
+  block with `className: azure-application-gateway` instead of (or alongside) the Traefik ingress.
+
+### Key Vault entries
+
+The deploy pipeline substitutes secrets from Azure Key Vault into the env values file (the
+`REP_..._REP` placeholder pattern). Provision these KV entries; exact KV names follow the
+environment's convention (only `openbeheer-oidc-secret` and `openbeheer-db-admin-<env>` are fixed
+by the chart / shared pattern):
+
+| Secret | Generate | Consumed by |
+|--------|----------|-------------|
+| Django `SECRET_KEY` | `openssl rand -base64 50` | `settings.secretKey` |
+| DB password | (set on the PG user) | `settings.database.password` |
+| Keycloak OIDC client secret (`openbeheer-oidc-secret`) | `openssl rand -hex 32` | `configuration.secrets.keycloak_client_secret` + realm-config (`KC_SECRET_OPENBEHEER`) |
+| Open Zaak ZGW secret | `openssl rand -hex 32` | `configuration.secrets.openzaak_openbeheer_secret` |
+| Objecttypen API token | `openssl rand -hex 32` | `configuration.secrets.objecttypen_openbeheer_token` (inline token `REP_OBJECTTYPEN_OPENBEHEER_TOKEN_REP` for the `Token` header) |
+
+> `keycloak_client_secret`, `openzaak_openbeheer_secret` and `objecttypen_openbeheer_token` are
+> referenced inside `configuration.data` via `value_from: {env: VAR}` — they are injected into the
+> config-job environment from `configuration.secrets`, never rendered into the ConfigMap. The
+> Objecttypen header is the one exception (literal `Token` prefix → `REP_..._REP` token replaced by
+> `patch_values.py`). See § Declarative configuration.
+
+### Application-side registrations (not Kubernetes)
+
+- **Keycloak client** `openbeheer` is created **automatically** by the realm-config job on the
+  `podiumd` realm; the redirect URIs come from `configuration.oidcUrl`. Populate
+  `openbeheer-oidc-secret` in Key Vault before the first deploy or the job generates a random
+  secret you would then have to reconcile.
+- **Open Zaak**: register an application/credential for client id `openbeheer` with the ZGW JWT
+  secret (the `openzaak_openbeheer_secret` value) so the Catalogi API accepts Open Beheer.
+- **Objecttypen**: create a token-authorised user/permission holding the Objecttypen API token
+  (the `objecttypen_openbeheer_token` value).
+
 ## Quick reference
 
 | Item | Value |
@@ -110,23 +223,21 @@ this. **Do not unset it.** Full analysis: [`openbeheer-known-issues.md`](openbeh
 
 ## Action required
 
-Disabled by default — to enable Open Beheer in an environment:
+Disabled by default. First provision everything in the [§ Resources](#resources) checklist
+(database, file share, Key Vault entries, DNS, ingress), then:
 
-1. **Provision a PostgreSQL database** for openbeheer and set `openbeheer.settings.database.*`
-   (`host`, `name`, `username`, `password`, `port`, `sslmode`).
+1. **Confirm prerequisites** from § Resources are in place — Postgres db/user, Azure file share
+   `openbeheer`, and the Key Vault entries — and set `openbeheer.settings.database.*`
+   (`host`, `name`, `username`, `port`, `sslmode`; `password` is pipeline-injected).
 
-2. **Create the Keycloak OIDC client** `openbeheer` on realm `podiumd` (or rely on realm config
-   where automated) and capture its client secret.
+2. **Enable and configure ingress + DNS** per § Resources so `configuration.oidcUrl` resolves and
+   terminates TLS. The Keycloak `openbeheer` client is created automatically by realm-config.
 
-3. **Store secrets in Key Vault** and reference them through the pipeline:
-   `settings.secretKey`, `settings.database.password`, and the three
-   `configuration.secrets.*` values.
-
-4. **Declare `configuration.data`** — the OIDC provider, `zgw_consumers` services, and
+3. **Declare `configuration.data`** — the OIDC provider, `zgw_consumers` services, and
    `api_configuration`. The commented example in `values.yaml:2124-2192` is the template; fill in
    the real `api_root`s for your Open Zaak / Objecttypen endpoints.
 
-5. **Set the enable block** in the environment values file:
+4. **Set the enable block** in the environment values file:
 
    ```yaml
    openbeheer:
@@ -198,9 +309,8 @@ Disabled by default — to enable Open Beheer in an environment:
    > tokens (e.g. the `Token` header) are pipeline-substituted. Mixing them is intentional — see
    > the Declarative configuration note above.
 
-6. **Add the ingress host / DNS record** for `configuration.oidcUrl` and register the matching
-   redirect URI on the Keycloak client. Enable PKCE with `configuration.pkceEnabled: true`
-   (adds `oidc_use_pkce: true` requirement to `configuration.data`).
+5. **Optional — enable PKCE** with `configuration.pkceEnabled: true` (sets `S256` on the Keycloak
+   client; also add `oidc_use_pkce: true` to `configuration.data`).
 
 ## Validation
 
