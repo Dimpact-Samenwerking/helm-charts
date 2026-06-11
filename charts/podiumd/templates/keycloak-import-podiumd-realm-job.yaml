@@ -155,6 +155,11 @@ spec:
             secretKeyRef:
               name: keycloak-podiumd-realm-secrets
               key: monitoring-client-secret
+        - name: KC_SECRET_DATAMIGRATIE
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-podiumd-realm-secrets
+              key: datamigratie-client-secret
 {{- if .Values.zaakbrug.enabled }}
         - name: KC_SECRET_ZAAKBRUG
           valueFrom:
