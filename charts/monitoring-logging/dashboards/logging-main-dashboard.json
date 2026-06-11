@@ -274,7 +274,7 @@
         {
           "direction": "backward",
           "editorMode": "code",
-          "expr": "sum(\n    count_over_time (\n        {app=\"opennotificaties-worker\"}\n        | json \n        | task=\"nrc.api.tasks.deliver_message\" \n        | event=\"task_started\"\n        [$__range]\n    )\n) ",
+          "expr": "sum(\n    count_over_time (\n        {app=\"opennotificaties-worker\"}\n        | json \n        | event=\"task_succeeded\"\n        [$__range]\n    )\n) ",
           "queryType": "range",
           "refId": "A"
         }

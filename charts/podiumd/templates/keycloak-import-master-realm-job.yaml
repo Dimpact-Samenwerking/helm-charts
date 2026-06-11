@@ -33,6 +33,7 @@ spec:
         {{- toYaml .Values.nodeSelector | nindent 8 }}
       {{- end }}
       restartPolicy: Never
+      serviceAccountName: {{ include "podiumd.serviceAccountName" . }}
       initContainers:
       - name: wait-for-operator-sa
         image: {{ include "podiumd.image" (index .Values "keycloak-operator").jobs.ensureOperatorSa.image }}
@@ -60,6 +61,18 @@ spec:
             secretKeyRef:
               name: keycloak-operator-client-secret
               key: client-secret
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 100
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
       volumes:
       - name: realm-configs
         configMap:
@@ -67,11 +80,22 @@ spec:
           items:
           - key: master.yaml
             path: master.yaml
+      - name: tmp
+        emptyDir: {}
       containers:
       - name: kc-config-cli
         image: {{ include "podiumd.image" .Values.keycloak.keycloakConfigCli.image }}
         resources:
 {{ toYaml (index .Values "keycloak-operator").jobs.configCliResources | indent 10 }}
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault
         env:
         - name: KEYCLOAK_URL
           value: {{ coalesce .Values.keycloak.hostname.admin .Values.keycloak.config.adminFrontendUrl "http://keycloak-service:8080" | quote }}
@@ -102,4 +126,6 @@ spec:
         - name: realm-configs
           mountPath: /config
           readOnly: true
+        - name: tmp
+          mountPath: /tmp
 {{- end }}

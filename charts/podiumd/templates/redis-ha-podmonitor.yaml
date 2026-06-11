@@ -1,0 +1,26 @@
+{{- $redisOperator := default (dict) (index .Values "redis-operator") }}
+{{- $redisHa := default (dict) (index $redisOperator "redis-ha") }}
+{{- $redisExporter := default (dict) $redisHa.redisExporter }}
+{{- $podMonitor := default (dict) $redisExporter.podMonitor }}
+{{- if and $redisOperator.enabled $redisHa.enabled $redisExporter.enabled $podMonitor.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: redis-ha
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      app: redis-ha
+  podMetricsEndpoints:
+    - targetPort: 9121
+      path: /metrics
+      interval: {{ $podMonitor.interval | default "30s" }}
+      scrapeTimeout: {{ $podMonitor.scrapeTimeout | default "10s" }}
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+{{- end }}

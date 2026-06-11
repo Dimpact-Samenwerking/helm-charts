@@ -1,6 +1,13 @@
 /.idea/
+/.cache/
 /charts/**/charts/
 /charts/**/Chart.lock
 /http-client.private.env.json
-# Claude Code local settings
-.claude/
+# Claude Code local settings (track .claude/commands/ only)
+.claude/*
+!.claude/commands/
+
+# Local-only operator scripts (per-engineer Azure context, not chart artifacts)
+/charts/podiumd/scripts/cluster-status.sh
+/charts/podiumd/scripts/aks-blue-login.sh
+/charts/podiumd/scripts/cluster-overview.py

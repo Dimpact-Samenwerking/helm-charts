@@ -25,8 +25,17 @@ spec:
       serviceAccountName: {{ include "podiumd.serviceAccountName" . }}
       containers:
         - name: adapter
-          image: "{{ .Values.kiss.adapter.image.repository }}:{{ .Values.kiss.adapter.image.tag }}"
+          image: {{ include "podiumd.image" .Values.kiss.adapter.image }}
           imagePullPolicy: {{ .Values.kiss.adapter.image.pullPolicy }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1654
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
           ports:
             - name: http
               containerPort: 8080
@@ -50,12 +59,16 @@ spec:
           env:
             {{- toYaml .Values.kiss.adapter.extraEnvVars | nindent 12 }}
           {{- end }}
-          {{- if .Values.kiss.adapter.extraVolumeMounts }}
           volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          {{- if .Values.kiss.adapter.extraVolumeMounts }}
             {{- include "kiss-frontend.tplvalues.render" ( dict "value" .Values.kiss.adapter.extraVolumeMounts "context" $ ) | nindent 12 }}
           {{- end }}
-      {{- if .Values.kiss.adapter.extraVolumes }}
       volumes:
+        - name: tmp
+          emptyDir: {}
+      {{- if .Values.kiss.adapter.extraVolumes }}
         {{- include "kiss-frontend.tplvalues.render" ( dict "value" .Values.kiss.adapter.extraVolumes "context" $ ) | nindent 8 }}
       {{- end }}
       {{- with .Values.kiss.nodeSelector }}

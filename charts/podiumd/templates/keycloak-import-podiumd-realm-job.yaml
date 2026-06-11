@@ -9,10 +9,26 @@
 # External dependencies:
 #   ConfigMap: keycloak-podiumd-realm-config  key: podiumd.yaml
 #   Secret:    keycloak-operator-client-secret key: client-secret (written by ensure-keycloak-operator-sa)
+{{- /* Re-run on every config/secret-input change: suffix the Job name with a short
+     checksum of the realm ConfigMap plus any user-provided OIDC client secrets.
+     Identical values on re-apply produce the same name (idempotent), changes spawn
+     a fresh Job. The previous Job is garbage-collected via ttlSecondsAfterFinished.
+     Note: randomly-generated secrets from keycloak-podiumd-realm-secrets.yaml are
+     NOT included in the hash — they would make the suffix unstable between renders. */ -}}
+{{- $realmCfgTpl := include (print $.Template.BasePath "/keycloak-podiumd-realm-config.yaml") . -}}
+{{- $oidcInputs := list -}}
+{{- range $comp := list "openzaak" "opennotificaties" "objecten" "objecttypen" "openarchiefbeheer" "openklant" "openformulieren" "openinwoner" "referentielijsten" "openbeheer" -}}
+{{- $cfg := index $.Values $comp "configuration" | default dict -}}
+{{- $secs := index $cfg "secrets" | default dict -}}
+{{- $kcs := index $secs "keycloak_client_secret" | default "" -}}
+{{- $old := index $cfg "oidcSecret" | default "" -}}
+{{- $oidcInputs = append $oidcInputs (printf "%s:%s:%s" $comp $kcs $old) -}}
+{{- end -}}
+{{- $jobSuffix := printf "%s|%s" $realmCfgTpl (join "|" $oidcInputs) | sha256sum | trunc 10 }}
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: import-podiumd-realm-job
+  name: import-podiumd-realm-job-{{ $jobSuffix }}
   labels:
     {{- include "podiumd.labels" . | nindent 4 }}
     app.kubernetes.io/component: keycloak
@@ -33,6 +49,7 @@ spec:
         {{- toYaml .Values.nodeSelector | nindent 8 }}
       {{- end }}
       restartPolicy: Never
+      serviceAccountName: {{ include "podiumd.serviceAccountName" . }}
       initContainers:
       - name: wait-for-operator-sa
         image: {{ include "podiumd.image" (index .Values "keycloak-operator").jobs.ensureOperatorSa.image }}
@@ -60,6 +77,18 @@ spec:
             secretKeyRef:
               name: keycloak-operator-client-secret
               key: client-secret
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 100
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
       volumes:
       - name: realm-configs
         configMap:
@@ -67,11 +96,22 @@ spec:
           items:
           - key: podiumd.yaml
             path: podiumd.yaml
+      - name: tmp
+        emptyDir: {}
       containers:
       - name: kc-config-cli
         image: {{ include "podiumd.image" .Values.keycloak.keycloakConfigCli.image }}
         resources:
 {{ toYaml (index .Values "keycloak-operator").jobs.configCliResources | indent 10 }}
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault
         env:
         - name: KEYCLOAK_URL
           value: {{ coalesce .Values.keycloak.hostname.admin .Values.keycloak.config.adminFrontendUrl "http://keycloak-service:8080" | quote }}
@@ -88,6 +128,8 @@ spec:
           value: "master"
         - name: IMPORT_FILES_LOCATIONS
           value: "/config/podiumd.yaml"
+        - name: IMPORT_VAR_SUBSTITUTION_ENABLED
+          value: "true"
         - name: IMPORT_REMOTESTATE_ENABLED
           value: "true"
         - name: IMPORT_MANAGED_ROLE
@@ -98,8 +140,107 @@ spec:
           value: "no-delete"
         - name: IMPORT_MANAGED_IDENTITY_PROVIDER_MAPPER
           value: "no-delete"
+        - name: KC_SECRET_OPENZAAK
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-podiumd-realm-secrets
+              key: openzaak-oidc-secret
+        - name: KC_SECRET_OPENARCHIEFBEHEER
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-podiumd-realm-secrets
+              key: openarchiefbeheer-oidc-secret
+        - name: KC_SECRET_MONITORING
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-podiumd-realm-secrets
+              key: monitoring-client-secret
+{{- if .Values.zaakbrug.enabled }}
+        - name: KC_SECRET_ZAAKBRUG
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-podiumd-realm-secrets
+              key: zaakbrug-client-secret
+{{- end }}
+        - name: KC_SECRET_OPENNOTIFICATIES
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-podiumd-realm-secrets
+              key: opennotificaties-oidc-secret
+        - name: KC_SECRET_OBJECTEN
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-podiumd-realm-secrets
+              key: objecten-oidc-secret
+        - name: KC_SECRET_OBJECTTYPEN
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-podiumd-realm-secrets
+              key: objecttypen-oidc-secret
+        - name: KC_SECRET_OPENKLANT
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-podiumd-realm-secrets
+              key: openklant-oidc-secret
+        - name: KC_SECRET_OPENFORMULIEREN
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-podiumd-realm-secrets
+              key: openformulieren-oidc-secret
+        - name: KC_SECRET_OPENINWONER
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-podiumd-realm-secrets
+              key: openinwoner-oidc-secret
+        - name: KC_SECRET_REFERENTIELIJSTEN
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-podiumd-realm-secrets
+              key: referentielijsten-oidc-secret
+        - name: KC_SECRET_OPENBEHEER
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-podiumd-realm-secrets
+              key: openbeheer-oidc-secret
+        - name: KC_SECRET_KISS
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-podiumd-realm-secrets
+              key: kiss-oidc-secret
+        - name: KC_SECRET_ZAC
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-podiumd-realm-secrets
+              key: zac-auth-secret
+        - name: KC_SECRET_ZAC_ADMIN
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-podiumd-realm-secrets
+              key: zac-keycloak-admin-secret
+        - name: KC_SECRET_ITA
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-podiumd-realm-secrets
+              key: ita-oidc-secret
+        - name: KC_SECRET_PABC
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-podiumd-realm-secrets
+              key: pabc-oidc-secret
+        - name: KC_SECRET_PABC_ADMIN
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-podiumd-realm-secrets
+              key: pabc-keycloak-admin-secret
+        - name: KC_SECRET_APISIX_DASHBOARD
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-podiumd-realm-secrets
+              key: apisix-dashboard-oidc-secret
         volumeMounts:
         - name: realm-configs
           mountPath: /config
           readOnly: true
+        - name: tmp
+          mountPath: /tmp
 {{- end }}

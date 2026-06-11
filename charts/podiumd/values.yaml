@@ -23,14 +23,17 @@ persistentVolume:
 keycloak-operator:
   enabled: true
   # Adfinis Helm chart wrapping the official Keycloak Operator manifests.
-  # Chart: https://charts.adfinis.com / adfinis/keycloak-operator (appVersion 26.5.6)
+  # Chart: https://charts.adfinis.com / adfinis/keycloak-operator (chart 1.11.4, appVersion 26.5.6)
   # Note: it appears that the podname automatically appends -operator.
-  # Official operator image: quay.io/keycloak/keycloak-operator:26.5.6
+  # Official operator image: quay.io/keycloak/keycloak-operator:26.6.2
+  # Note: adfinis chart 1.11.4 targets appVersion 26.5.6; Keycloak image is overridden to 26.6.2 below.
+  # override: values-enable-observability.yaml sets enableServiceMonitor: true
+  enableServiceMonitor: false
   fullnameOverride: keycloak
   operator:
     image:
       repository: quay.io/keycloak/keycloak-operator
-      tag: "26.5.6"
+      tag: "26.6.2@sha256:01800d326246fc3ccf759e648268171244c96d46ccd151fe031894a6a06d3fa1"
     resources:
       requests:
         cpu: 100m
@@ -60,10 +63,10 @@ keycloak-operator:
       image:
         registry: ""
         repository: curlimages/curl
-        tag: "8.18.0"
+        tag: "8.20.0@sha256:b3f1fb2a51d923260350d21b8654bbc607164a987e2f7c84a0ac199a67df812a"
       # Client secret for the keycloak-operator client. Set this to a known value so Helm
       # can create the K8s secret directly. The job will enforce this secret in Keycloak.
-      clientSecret: "changeme"
+      clientSecret: ""
     importPodiumdRealm:
       enabled: true
     importMasterRealm:
@@ -97,7 +100,7 @@ keycloak:
       value: ""
   auth:
     adminUser: admin
-    adminPassword: "changemenow"
+    adminPassword: ""
   config:
     adminFrontendUrl: https://keycloak-admin.example.nl
     # Example configuration
@@ -130,7 +133,6 @@ keycloak:
     #        role: "admin"
     # -- identity provider mapper for the admin realm
     #adminIdentityProviderMappers: {}
-    adminOtpEnabled: true
     realm: podiumd
     realmDisplayName: PodiumD
     realmFrontendUrl: https://keycloak.example.nl
@@ -150,8 +152,17 @@ keycloak:
       monitoring:
         name: Monitoring (Grafana)
         enabled: true
-        secret: "monitoring_secret"
+        secret: ""
         oidcUrl: "https://monitoring.example.nl"
+      # zaakbrug Frank!Framework console OAuth2 client. Only rendered into the
+      # podiumd realm import when zaakbrug.enabled=true. Env values supply the
+      # secret (REP placeholder from Key Vault: zaakbrug-oauth-client-secret)
+      # and oidcUrl (the zaakbrug ingress host).
+      zaakbrug:
+        name: Zaakbrug Frank!Framework console
+        enabled: true
+        secret: ""
+        oidcUrl: "https://zaakbrug.example.nl"
   name: "keycloak"
   features:
     enabled: []
@@ -162,11 +173,11 @@ keycloak:
   http:
     httpEnabled: true
   # image parameters for keycloak-operator
-  # Official Keycloak image: quay.io/keycloak/keycloak:26.5.6
+  # Official Keycloak image: quay.io/keycloak/keycloak:26.6.2
   image:
     registry: ""
     repository: quay.io/keycloak/keycloak
-    tag: 26.5.6
+    tag: "26.6.2@sha256:5afd40414096432903a5374ba4ba70b931dcca598a6bd9f44239fe66ef8d9737"
   # -- instances is the new operator-style replica count (falls back to replicaCount)
   instances: "2"
   ingress:
@@ -192,16 +203,17 @@ keycloak:
       key: ""
   keycloakConfigCli:
     # image parameters for keycloak-config-cli
-    # Official keycloak-config-cli image: adorsys/keycloak-config-cli:6.4.1-26
+    # Official keycloak-config-cli image: adorsys/keycloak-config-cli:6.5.0-26
     image:
       registry: ""
       repository: adorsys/keycloak-config-cli
-      tag: "6.4.1-26"
+      tag: "6.5.0-26"
   podTemplate:
     metadata:
       labels:
         app: keycloak
-        version: 26.5.6
+        version: 26.6.2
+      # override: values-enable-observability.yaml adds prometheus.io scrape annotations
     spec:
       securityContext:
         runAsNonRoot: true
@@ -359,18 +371,32 @@ redis-operator:
   #   openformulieren    : db 9  (cache), db 10 (celery)
   #   openinwoner        : db 11 (cache), db 12 (celery)
   #   openarchiefbeheer  : db 13 (cache+axes), db 14 (choices + celery)
+  #   referentielijsten  : db 15 (cache), db 16 (reserved — celery not yet used)
+  #   openbeheer         : db 17 (cache), db 18 (reserved — celery not yet used)
+  #   <future component> : db 19 (cache), db 20 (celery)
+  #   db 21–31           : unallocated
+  # See docs/redis-ha-databases.md for the full allocation table and guidance.
   redis-ha:
     enabled: true
     replicaCount: 3
     image:
       registry: quay.io
       repository: opstree/redis
-      tag: "v8.4.2"
+      tag: "v8.6.2"
+    # override: values-enable-observability.yaml sets redisExporter.enabled: true
     redisExporter:
+      enabled: false
       image:
         registry: quay.io
         repository: opstree/redis-exporter
-        tag: "v1.44.0"
+        tag: "v1.82.0"
+      # -- PodMonitor for the redis_exporter sidecar (port 9121).
+      # Requires Prometheus Operator CRDs (monitoring.coreos.com/v1).
+      # Enable via values-enable-observability.yaml.
+      podMonitor:
+        enabled: false
+        interval: 30s
+        scrapeTimeout: 10s
     resources:
       requests:
         cpu: 100m
@@ -381,13 +407,13 @@ redis-operator:
     storage:
       volumeClaimTemplate:
         spec:
-          storageClassName: managed-csi
+          storageClassName: managed-csi-premiumv2
           accessModes:
             - ReadWriteOnce
           resources:
             requests:
               # -- Default storage per Redis replica. To increase, override in your environment values file.
-              # Note: managed-csi supports online volume expansion — patch the PVC directly after resizing:
+              # Note: managed-csi-premiumv2 supports online volume expansion — patch the PVC directly after resizing:
               #   kubectl patch pvc <pvc-name> -n <namespace> -p '{"spec":{"resources":{"requests":{"storage":"8Gi"}}}}'
               storage: 2Gi
     # -- Number of Redis databases to configure. Applied via an initContainer because `databases` is a
@@ -416,6 +442,28 @@ redis-operator:
       # Note: startup-only parameters (e.g. databases) will NOT take effect here due to an operator
       # limitation; use the databases field above instead.
       additionalRedisConfig: ""
+    # -- CronJob that periodically reconciles redis-role labels on redis-ha pods.
+    # Workaround for a known OT Redis Operator 0.24.0 bug (PR #1720, not yet released) where
+    # the operator fails to apply redis-role labels after a simultaneous pod restart, leaving
+    # the redis-ha-master Service with no endpoints. Runs every 2 minutes and always reconciles
+    # from RedisReplication.status.masterNode — no early-exit if a label already exists.
+    # Remove once a redis-operator release containing PR #1720 is available.
+    labelMasterCronJob:
+      enabled: true
+      # Default: every 2 minutes, always on (suitable for production).
+      # For test environments that are suspended outside business hours, use:
+      #   schedule: "* 7-18 * * 1-5"   # every minute, Mon–Fri 07:00–18:59 only
+      schedule: "*/2 * * * *"
+      image:
+        repository: docker.io/alpine/k8s
+        tag: "1.34.7@sha256:4745677e51c0fb567aedf1453a7bd489e0a62dbbf2bda475d663f7eed041adb4"
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          cpu: 100m
+          memory: 64Mi
 
 openzaak:
   configuration:
@@ -450,9 +498,7 @@ openzaak:
     #       api_type: nrc
     #       auth_type: api_key
     #       header_key: Authorization
-    #       header_value:
-    #         value_from:
-    #           env: opennotificaties_openzaak_secret
+    #       header_value: Token {value_from: {env: openzaak_opennotificaties_secret}}
     #     - identifier: selectielijst-api
     #       label: Selectielijst API
     #       api_root: https://selectielijst.openzaak.nl/api/v1/
@@ -482,13 +528,18 @@ openzaak:
     #       - open-formulieren
     #       label: Open Formulieren
     #       heeft_alle_autorisaties: true
+    #     - uuid: 3690fccd-b625-4896-8829-992b14bca77a
+    #       client_ids:
+    #       - openbeheer
+    #       label: Open Beheer
+    #       heeft_alle_autorisaties: true
     #   vng_api_common_credentials_config_enable: true
     #   vng_api_common_credentials:
     #     items:
     #     - identifier: open-formulieren
-    #       secret:
-    #         value_from:
-    #            env: openzaak_openforms_secret
+    #       secret: {value_from: {env: openzaak_openforms_secret}}
+    #     - identifier: openbeheer
+    #       secret: {value_from: {env: openzaak_openbeheer_secret}}
     #   oidc_db_config_enable: true
     #   oidc_db_config_admin_auth:
     #     providers:
@@ -502,9 +553,7 @@ openzaak:
     #     - identifier: admin-oidc
     #       enabled: true
     #       oidc_rp_client_id: testid
-    #       oidc_rp_client_secret:
-    #         value_from:
-    #            env: keycloak_client_secret
+    #       oidc_rp_client_secret: {value_from: {env: keycloak_client_secret}}
     #       oidc_rp_scopes_list:
     #       - openid
     #       - email
@@ -512,6 +561,8 @@ openzaak:
     #       oidc_rp_sign_algo: RS256
     #       oidc_provider_identifier: keycloak-provider
     #       userinfo_claims_source: id_token
+    #       # Enable PKCE on the application side — requires pkceEnabled: true on the Keycloak client.
+    #       oidc_use_pkce: true
     #       options:
     #         user_settings:
     #           claim_mappings:
@@ -531,15 +582,31 @@ openzaak:
     #           make_users_staff: true
     #           superuser_group_names:
     #             - Registreerders
-    secrets: {}
+    secrets:
+      keycloak_client_secret: ""
       # openzaak_openforms_secret: "<openzaak_openforms_secret>"
       # openzaak_openinwoner_secret: "<openzaak_openinwoner_secret>"
       # opennotificaties_autorisatie_api_secret: "<opennotificaties_autorisatie_api_secret>"
       # openzaak_opennotificaties_secret: "<openzaak_opennotificaties_secret>"
+      # openzaak_openbeheer_secret: "<openzaak_openbeheer_secret>"
+    oidcUrl: https://openzaak.example.nl
+    # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
+    pkceEnabled: false
   create_required_catalogi_job:
     client_id: "<openzaak_client_id>"
     secret: "<openzaak_secret>"
     enabled: true
+    # Total wall-clock window in which the job is allowed to keep retrying (seconds). Default: 15 minutes.
+    activeDeadlineSeconds: 900
+    # Number of retries before the job is marked failed. Aligned with django-config jobs.
+    backoffLimit: 10
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
     e2eTestZaaktype:
       # set to false to disable automatic creation and publishing of the e2e-test zaaktype if it does not exist yet
       create: true
@@ -561,13 +628,26 @@ openzaak:
       processes: "2"
       threads: "4"
       maxRequests: "1000"
+    # -- Backend for the Documenten API. Supported values: filesystem | azure_blob_storage
+    documentApiBackend: filesystem
+    # azureBlobStorage:
+    #   accountName: ""
+    #   clientSecret: ""
+    #   clientId: ""
+    #   tenantId: ""
+    #   container: "openzaak"
+    # -- Emit cloud events (requires Open Notificaties with cloud events support)
+    # enableCloudEvents: false
+    # notificationsSource: "openzaak"
   persistence:
     size: 10Gi
     existingClaim: openzaak
+    storageClassName: podiumd-standard
   persistentVolume:
     volumeAttributeShareName: openzaak
+    storageClassName: podiumd-standard
   image:
-    tag: "1.26.0"
+    tag: "1.27.1@sha256:7726e36a1353396fb971929645489e0e8a7e5848e5fdf0ae3fa8075b6ce15da9"
   resources:
     requests:
       cpu: 250m
@@ -592,13 +672,14 @@ openzaak:
         memory: 160Mi
   nginx:
     image:
-      tag: "1.29.5"
+      tag: "1.30.2@sha256:77fb538f39407dc7b497b13abef619098d3afaa569f28ca3f6641ef77b95cd2d"
     resources:
       requests:
         cpu: 10m
         memory: 16Mi
   tags:
     redis: false
+  # override: values-enable-observability.yaml sets disabled: false and configures the OTLP endpoint
   otel:
     disabled: true
 
@@ -614,8 +695,8 @@ opennotificaties:
       ttlSecondsAfterFinished: 600
       restartPolicy: OnFailure
       resources: {}
-    secrets: {}
-      # keycloak_client_secret: "<keycloak_client_secret>"
+    secrets:
+      keycloak_client_secret: ""
       # opennotificaties_autorisatie_api_secret: "<opennotificaties_autorisatie_api_secret>"
       # opennotificaties_opennotificaties_secret: "<opennotificaties_opennotificaties_secret>"
       # openzaak_opennotificaties_secret: "<openzaak_opennotificaties_secret>"
@@ -635,9 +716,7 @@ opennotificaties:
     #     - identifier: admin-oidc
     #       enabled: true
     #       oidc_rp_client_id: testid
-    #       oidc_rp_client_secret:
-    #         value_from:
-    #           env: CLIENT_SECRET
+    #       oidc_rp_client_secret: {value_from: {env: keycloak_client_secret}}
     #       oidc_rp_scopes_list:
     #       - openid
     #       - email
@@ -645,6 +724,8 @@ opennotificaties:
     #       oidc_rp_sign_algo: RS256
     #       oidc_provider_identifier: keycloak-provider
     #       userinfo_claims_source: id_token
+    #       # Enable PKCE on the application side — requires pkceEnabled: true on the Keycloak client.
+    #       oidc_use_pkce: true
     #       options:
     #         user_settings:
     #           claim_mappings:
@@ -673,9 +754,7 @@ opennotificaties:
     #         api_type: ac
     #         auth_type: zgw
     #         client_id: open-notificaties
-    #         secret:
-    #           value_from:
-    #             env: opennotificaties_autorisatie_api_secret
+    #         secret: {value_from: {env: opennotificaties_autorisatie_api_secret}}
     #         user_id: open-notificaties
     #         user_representation: Open Notificaties
     #   autorisaties_api_config_enable: true
@@ -687,14 +766,10 @@ opennotificaties:
     #     items:
     #     # Credentials for Open Zaak to be able to make requests to Open Notificaties
     #     - identifier: open-zaak
-    #       secret:
-    #         value_from:
-    #           env: opennotificaties_openzaak_vng_api_common_secret
+    #       secret: {value_from: {env: openzaak_opennotificaties_secret}}
     #     # Credentials for Open Notificaties, required for autorisaties subscription
     #     - identifier: open-notificaties
-    #       secret:
-    #         value_from:
-    #           env: opennotificaties_autorisaties_vng_api_common_secret
+    #       secret: {value_from: {env: opennotificaties_opennotificaties_secret}}
     #   notifications_kanalen_config_enable: true
     #   notifications_kanalen_config:
     #     items:
@@ -754,7 +829,8 @@ opennotificaties:
     #       - domain: opennotificaties.test.opengem.nl
     #         name: Open Notificaties
     oidcUrl: https://opennotificaties.example.nl
-    oidcSecret: "<opennotificaties>"
+    # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
+    pkceEnabled: false
   settings:
     allowedHosts: opennotificaties.podiumd.svc.cluster.local
     maxRetries: 5
@@ -776,8 +852,10 @@ opennotificaties:
   persistence:
     size: 10Gi
     existingClaim: opennotificaties
+    storageClassName: podiumd-standard
   persistentVolume:
     volumeAttributeShareName: opennotificaties
+    storageClassName: podiumd-standard
   image:
     tag: "1.15.0"
   resources:
@@ -819,12 +897,15 @@ opennotificaties:
       erlangCookie: SUPER-SECRET
   tags:
     redis: false
+  # override: values-enable-observability.yaml sets disabled: false and configures the OTLP endpoint
   otel:
     disabled: true
 
 objecten:
   configuration:
     enabled: true
+    demo:
+      enabled: false # upstream objecten chart has no nil-guard on this field; default to false
     initContainer:
       enabled: false
     job:
@@ -833,8 +914,8 @@ objecten:
       ttlSecondsAfterFinished: 600
       restartPolicy: OnFailure
       resources: {}
-    secrets: {}
-      # keycloak_client_secret: "<keycloak_client_secret>"
+    secrets:
+      keycloak_client_secret: ""
       # object_objecttypes_token: "<object_objecttypes_token>"
       # object_notificaties_token: "<object_notificaties_token>"
       # openformulieren_objecten_token: "<openformulieren_objecten_token>"
@@ -850,9 +931,7 @@ objecten:
     #       api_type: orc
     #       auth_type: api_key
     #       header_key: Authorization
-    #       header_value:
-    #         value_from:
-    #           env: object_objecttypes_token
+    #       header_value: Token {value_from: {env: object_objecttypes_token}}
     #     - identifier: notifications-api
     #       label: Notificaties API
     #       api_root: https://opennotificaties.example.nl/api/v1/
@@ -860,9 +939,7 @@ objecten:
     #       api_type: nrc
     #       auth_type: api_key
     #       header_key: Authorization
-    #       header_value:
-    #         value_from:
-    #           env: object_notificaties_token
+    #       header_value: Token {value_from: {env: object_notificaties_token}}
     #   notifications_config_enable: true
     #   notifications_config:
     #     notifications_api_service_identifier: notifications-api
@@ -873,9 +950,7 @@ objecten:
     #   tokenauth:
     #     items:
     #       - identifier: openformulier-token
-    #         token:
-    #           value_from:
-    #             env: openformulieren_objecten_token
+    #         token: {value_from: {env: openformulieren_objecten_token}}
     #         contact_person: Person 1
     #         email: person-1@example.com
     #         organization: Organization 1
@@ -884,6 +959,10 @@ objecten:
     #         permissions:
     #           - object_type: 366c9b88-a870-438c-b0ec-a121cd51f1dd
     #             mode: read_and_write
+    #       - identifier: openarchiefbeheer
+    #         token: "REP_OBJECTEN_CREDENTIALS_OPENARCHIEFBEHEER_TOKEN_REP"
+    #         contact_person: Person 1
+    #         email: person-1@example.com
     #   objecttypes_config_enable: true
     #   objecttypes:
     #     items:
@@ -908,7 +987,7 @@ objecten:
     #     - identifier: admin-oidc
     #       enabled: true
     #       oidc_rp_client_id: testid
-    #       oidc_rp_client_secret: very-secret
+    #       oidc_rp_client_secret: {value_from: {env: keycloak_client_secret}}
     #       oidc_rp_scopes_list:
     #       - openid
     #       - email
@@ -916,6 +995,8 @@ objecten:
     #       oidc_rp_sign_algo: RS256
     #       oidc_provider_identifier: keycloak-provider
     #       userinfo_claims_source: id_token
+    #       # Enable PKCE on the application side — requires pkceEnabled: true on the Keycloak client.
+    #       oidc_use_pkce: true
     #       options:
     #         user_settings:
     #           claim_mappings:
@@ -936,7 +1017,8 @@ objecten:
     #           superuser_group_names:
     #             - Registreerders
     oidcUrl: https://objecten.example.nl
-    oidcSecret: "<objecten>"
+    # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
+    pkceEnabled: false
   settings:
     allowedHosts: objecten.podiumd.svc.cluster.local
     email:
@@ -955,8 +1037,10 @@ objecten:
   persistence:
     size: 10Gi
     existingClaim: objecten
+    storageClassName: podiumd-standard
   persistentVolume:
     volumeAttributeShareName: objecten
+    storageClassName: podiumd-standard
   image:
     tag: "3.6.0"
   resources:
@@ -978,6 +1062,7 @@ objecten:
     enabled: false
   tags:
     redis: false
+  # override: values-enable-observability.yaml sets disabled: false and configures the OTLP endpoint
   otel:
     disabled: true
 
@@ -992,10 +1077,11 @@ objecttypen:
       ttlSecondsAfterFinished: 600
       restartPolicy: OnFailure
       resources: {}
-    secrets: {}
-      # keycloak_client_secret: "<keycloak_client_secret>"
+    secrets:
+      keycloak_client_secret: ""
       # object_objecttypes_token: "<object_objecttypes_token>"
       # openformulieren_objecten_token: "<openformulieren_objecten_token>"
+      # objecttypen_openbeheer_token: "<objecttypen_openbeheer_token>"
     data: ""
     # e.g.
     # data: |-
@@ -1003,14 +1089,19 @@ objecttypen:
     #   tokenauth:
     #     items:
     #       - identifier: openformulier-token
-    #         token:
-    #           value_from:
-    #             env: SECRET_TOKEN
+    #         token: {value_from: {env: object_objecttypes_token}}
     #         contact_person: Person 1
     #         email: person-1@example.com
     #         organization: Organization 1
     #         application: Application 1
     #         administration: Administration 1
+    #       - identifier: openbeheer-token
+    #         token: {value_from: {env: objecttypen_openbeheer_token}}
+    #         contact_person: Open Beheer
+    #         email: openbeheer@example.com
+    #         organization: Open Beheer
+    #         application: Open Beheer
+    #         administration: Open Beheer
     #   oidc_db_config_enable: true
     #   oidc_db_config_admin_auth:
     #     providers:
@@ -1024,9 +1115,7 @@ objecttypen:
     #     - identifier: admin-oidc
     #       enabled: true
     #       oidc_rp_client_id: testid
-    #       oidc_rp_client_secret:
-    #         value_from:
-    #           env: CLIENT_SECRET
+    #       oidc_rp_client_secret: {value_from: {env: keycloak_client_secret}}
     #       oidc_rp_scopes_list:
     #       - openid
     #       - email
@@ -1034,6 +1123,8 @@ objecttypen:
     #       oidc_rp_sign_algo: RS256
     #       oidc_provider_identifier: keycloak-provider
     #       userinfo_claims_source: id_token
+    #       # Enable PKCE on the application side — requires pkceEnabled: true on the Keycloak client.
+    #       oidc_use_pkce: true
     #       options:
     #         user_settings:
     #           claim_mappings:
@@ -1055,7 +1146,8 @@ objecttypen:
     #             - Superusers
     token: "<token>"
     oidcUrl: https://objecttypen.example.nl
-    oidcSecret: "<objecttypen>"
+    # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
+    pkceEnabled: false
   settings:
     allowedHosts: objecttypen.podiumd.svc.cluster.local
     email:
@@ -1070,10 +1162,22 @@ objecttypen:
       threads: "2"
       maxRequests: "1000"
   image:
-    tag: "3.4.1"
+    repository: maykinmedia/objecttypes-api
+    tag: "3.4.2@sha256:d366e6ede1bb924ea351495f4e88ceba53bb0df02fa5302929daef379131fda1"
   # used for create-required-objecttypen podiumd job only
   create_required_objecttypen_job:
     enabled: true
+    # Total wall-clock window in which the job is allowed to keep retrying (seconds). Default: 15 minutes.
+    activeDeadlineSeconds: 900
+    # Number of retries before the job is marked failed. Aligned with django-config jobs.
+    backoffLimit: 10
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
   resources:
     requests:
       cpu: 10m
@@ -1082,6 +1186,7 @@ objecttypen:
   fullnameOverride: objecttypen
   tags:
     redis: false
+  # override: values-enable-observability.yaml sets disabled: false and configures the OTLP endpoint
   otel:
     disabled: true
 
@@ -1089,22 +1194,23 @@ openarchiefbeheer:
   enabled: false
   nameOverride: openarchiefbeheer
   fullnameOverride: openarchiefbeheer
-  settings:
-    # Note: these two values must be equal to prevent timeout mismatches.
-    oidcRenewIdTokenExpirySeconds: 1800
-    sessionCookieAge: 1800
   # Reference to an existing secret with the values needed for django-setup-configuration
   # existingConfigurationSecrets: nil
+  # override: values-enable-observability.yaml sets disabled: false and configures the OTLP endpoint
+  otel:
+    disabled: true
   configuration:
     enabled: true
     oidcUrl: https://abc.example.nl
-    oidcSecret: "abc"
+    # -- Enable PKCE (S256) on the Keycloak client.
+    pkceEnabled: false
     job:
       enabled: true
       backoffLimit: 6
       ttlSecondsAfterFinished: 600
       restartPolicy: OnFailure
-    secrets: {}
+    secrets:
+      keycloak_client_secret: ""
     data: ""
     # data: |-
     #   zgw_consumers_config_enable: true
@@ -1116,33 +1222,48 @@ openarchiefbeheer:
     #       api_type: zrc
     #       auth_type: zgw
     #       client_id: openarchiefbeheer
-    #       secret: ${oab_openzaak_secret}
+    #       secret: {value_from: {env: oab_openzaak_secret}}
     #     - identifier: documenten-dimpact-acc
     #       label: Open Zaak - Documenten API
     #       api_root: https://example.openzaak.nl/documenten/api/v1/
     #       api_type: drc
     #       auth_type: zgw
     #       client_id: openarchiefbeheer
-    #       secret: ${oab_openzaak_secret}
+    #       secret: {value_from: {env: oab_openzaak_secret}}
     #     - identifier: catalogus-dimpact-acc
     #       label: Open Zaak - Catalogi API
     #       api_root: https://example.openzaak.nl/catalogi/api/v1/
     #       api_type: ztc
     #       auth_type: zgw
     #       client_id: openarchiefbeheer
-    #       secret: ${oab_openzaak_secret}
+    #       secret: {value_from: {env: oab_openzaak_secret}}
     #     - identifier: besluiten-dimpact-acc
     #       label: Open Zaak - Besluiten API
     #       api_root: https://example.openzaak.nl/besluiten/api/v1/
     #       api_type: brc
     #       auth_type: zgw
     #       client_id: openarchiefbeheer
-    #       secret: ${oab_openzaak_secret}
+    #       secret: {value_from: {env: oab_openzaak_secret}}
     #     - identifier: selectielijst
     #       label: Open Zaak (public) - Selectielijst API
     #       api_root: https://selectielijst.openzaak.nl/api/v1/
     #       api_type: orc
     #       auth_type: no_auth
+    #     - identifier: objecten-api
+    #       label: Objecten API
+    #       api_root: https://objecten.example.com/api/v2/
+    #       api_type: orc
+    #       auth_type: api_key
+    #       header_key: Authorization
+    #       header_value: "Token REP_OBJECTEN_CREDENTIALS_OPENARCHIEFBEHEER_TOKEN_REP"
+    #     - identifier: klanten-api
+    #       label: Klanten API
+    #       api_root: https://opeklant.example.com/klantinteracties/api/v1/
+    #       api_type: kc
+    #       auth_type: api_key
+    #       header_key: Authorization
+    #       header_value: "Token REP_OPENKLANT_CREDENTIALS_OPENARCHIEFBEHEER_TOKEN_REP"
+       
 
     #   api_configuration_enabled: true
     #   api_configuration:
@@ -1150,36 +1271,34 @@ openarchiefbeheer:
 
     #   oidc_db_config_enable: true
     #   oidc_db_config_admin_auth:
+    #     providers:
+    #     - identifier: admin-oidc-provider
+    #       endpoint_config:
+    #         oidc_op_discovery_endpoint: https://example.keycloak.nl/realms/podiumd/
+    #       oidc_token_use_basic_auth: false
     #     items:
     #     - identifier: admin-oidc
     #       enabled: true
-    #       endpoint_config:
-    #         oidc_op_discovery_endpoint: https://example.keycloak.nl/realms/podiumd-poc/
-    #       oidc_rp_scopes_list:
-    #         - openid
-    #         - email
-    #         - profile
-    #       userinfo_claims_source: id_token
-    #       oidc_rp_client_id: example-client-id
-    #       oidc_rp_client_secret: ${keycloak_client_secret}
+    #       oidc_provider_identifier: admin-oidc-provider
+    #       oidc_rp_client_id: openarchiefbeheer
+    #       oidc_rp_client_secret:
+    #         value_from:
+    #           env: keycloak_client_secret
     #       oidc_rp_sign_algo: RS256
-    #       claim_mapping:
-    #         email:
-    #           - email
-    #         first_name:
-    #           - given_name
-    #         last_name:
-    #           - family_name
-    #       username_claim:
-    #         - preferred_username
-    #       groups_claim:
-    #         - roles
-    #       sync_groups: true
-    #       sync_groups_glob_pattern: "*"
-    #       default_groups: []
-    #       make_users_staff: true
-    #       superuser_group_names:
-    #         - Superuser
+    #       # Enable PKCE on the application side — requires pkceEnabled: true on the Keycloak client.
+    #       oidc_use_pkce: false
+    #       options:
+    #         user_settings:
+    #           claim_mappings:
+    #             username:
+    #             - preferred_username
+    #           username_case_sensitive: false
+    #         groups_settings:
+    #           superuser_group_names:
+    #           - Superuser
+    #           claim_mapping:
+    #           - roles
+    #           make_users_staff: true
 
   tags:
     redis: false
@@ -1200,7 +1319,7 @@ openarchiefbeheer:
 
   nginx:
     image:
-      tag: "1.29.5"
+      tag: "1.30.2@sha256:77fb538f39407dc7b497b13abef619098d3afaa569f28ca3f6641ef77b95cd2d"
     resources:
       requests:
         cpu: 10m
@@ -1208,10 +1327,10 @@ openarchiefbeheer:
 
   replicaCount: 1
 
-  # maykinmedia/open-archiefbeheer:1.1.0
+  # maykinmedia/open-archiefbeheer:2.0.0
   image:
     #repository: maykinmedia/open-archiefbeheer
-    tag: "1.1.1"
+    tag: "2.0.0@sha256:e5217d748869c62d26393311c3cfdcaacf69d8dde80ca3bc172ff41f3885f0ff"
 
   resources:
     limits: {}
@@ -1224,8 +1343,15 @@ openarchiefbeheer:
     # -- Name of the environment (used for displaying purposes)
     environment: ""
     requestsReadTimeout: "5000"
+    # Note: these two values must be equal to prevent timeout mismatches.
+    oidcRenewIdTokenExpirySeconds: 1800
+    sessionCookieAge: 1800
     # -- Number of days to wait before destroying a list. Defaults to 7 in the application.
-    waitingPeriod: ""
+    waitingPeriod: 7
+    # -- Number of days for which destruction lists will be visible after successful destruction. Defaults to 7.
+    postDestructionVisibilityPeriod: 7
+    # -- If true, the inline presentation of related objects is disabled, reducing load on external registers.
+    relatedCountDisabled: false
     # logging:
     # -- Controls whether the logs are output to standard output (true) or to a file (false, default)
     #   toStdout: false
@@ -1255,8 +1381,10 @@ openarchiefbeheer:
   persistence:
     size: 10Gi
     existingClaim: openarchiefbeheer
+    storageClassName: podiumd-standard
   persistentVolume:
     volumeAttributeShareName: openarchiefbeheer
+    storageClassName: podiumd-standard
 
 openklant:
   configuration:
@@ -1269,23 +1397,26 @@ openklant:
       ttlSecondsAfterFinished: 600
       restartPolicy: OnFailure
       resources: {}
-    secrets: {}
-      # openklant_token: "<openklant_token>"
-      # keycloak_client_secret: "<keycloak_client_secret>"
+    secrets:
+      keycloak_client_secret: ""
+      # openklant_openinwoner_token: "<openklant_openinwoner_token>"
     data: ""
     # data: |-
     #   tokenauth_config_enable: true
     #   tokenauth:
     #     items:
     #       - identifier: openinwoner-token
-    #         token:
-    #           value_from:
-    #             env: openklant_openinwoner_token
+    #         token: {value_from: {env: openklant_openinwoner_token}}
     #         contact_person: Person 1
     #         email: test@example.com
     #         organization: Organization XYZ
     #         application: Application XYZ
     #         administration: Administration XYZ
+    #       - identifier: openarchiefbeheer
+    #         token: "REP_OPENKLANT_CREDENTIALS_OPENARCHIEFBEHEER_TOKEN_REP"
+    #         contact_person: Person 1
+    #         email: person-1@example.com
+
     #   oidc_db_config_enable: true
     #   oidc_db_config_admin_auth:
     #     providers:
@@ -1301,9 +1432,7 @@ openklant:
     #       enabled: true
     #       oidc_provider_identifier: admin-oidc-provider
     #       oidc_rp_client_id: openklant.example.nl
-    #       oidc_rp_client_secret:
-    #         value_from:
-    #           env: keycloak_client_secret
+    #       oidc_rp_client_secret: {value_from: {env: keycloak_client_secret}}
     #       oidc_rp_scopes_list:
     #       - openid
     #       - email
@@ -1311,6 +1440,8 @@ openklant:
     #       - roles
     #       oidc_rp_sign_algo: RS256
     #       userinfo_claims_source: id_token
+    #       # Enable PKCE on the application side — requires pkceEnabled: true on the Keycloak client.
+    #       oidc_use_pkce: true
     #       options:
     #         user_settings:
     #           claim_mappings:
@@ -1333,7 +1464,8 @@ openklant:
     #           sync_pattern: "*"
     #           default_groups: []
     oidcUrl: https://openklant.example.nl
-    oidcSecret: "<openklant>"
+    # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
+    pkceEnabled: false
   settings:
     allowedHosts: openklant.podiumd.svc.cluster.local
     email:
@@ -1355,8 +1487,10 @@ openklant:
   persistence:
     size: 10Gi
     existingClaim: openklant
+    storageClassName: podiumd-standard
   persistentVolume:
     volumeAttributeShareName: openklant
+    storageClassName: podiumd-standard
   image:
     tag: "2.15.0"
   resources:
@@ -1375,17 +1509,19 @@ openklant:
   fullnameOverride: openklant
   nginx:
     image:
-      tag: "1.29.5"
+      tag: "1.30.2@sha256:77fb538f39407dc7b497b13abef619098d3afaa569f28ca3f6641ef77b95cd2d"
     resources:
       requests:
         cpu: 10m
         memory: 16Mi
   tags:
     redis: false
+  # override: values-enable-observability.yaml sets disabled: false and configures the OTLP endpoint
   otel:
     disabled: true
 
 openformulieren:
+  # override: values-enable-observability.yaml adds a settings.otel block to enable OTEL
   configuration:
     enabled: true
     job:
@@ -1393,7 +1529,8 @@ openformulieren:
       backoffLimit: 6
       ttlSecondsAfterFinished: 600
       restartPolicy: OnFailure
-    secrets: {}
+    secrets:
+      keycloak_client_secret: ""
     data: ""
     # data: |-
     #   oidc_db_config_enable: true
@@ -1409,7 +1546,7 @@ openformulieren:
     #     - identifier: admin-oidc
     #       enabled: true
     #       oidc_rp_client_id: openformulieren.example.nl
-    #       oidc_rp_client_secret: ${keycloak_client_secret}
+    #       oidc_rp_client_secret: {value_from: {env: keycloak_client_secret}}
     #       oidc_rp_scopes_list:
     #       - openid
     #       - email
@@ -1417,6 +1554,8 @@ openformulieren:
     #       oidc_rp_sign_algo: RS256
     #       oidc_provider_identifier: keycloak-provider
     #       userinfo_claims_source: id_token
+    #       # Enable PKCE on the application side — requires pkceEnabled: true on the Keycloak client.
+    #       oidc_use_pkce: true
     #       options:
     #         user_settings:
     #           claim_mappings:
@@ -1464,7 +1603,7 @@ openformulieren:
     #       api_type: orc
     #       auth_type: api_key
     #       header_key: Authorization
-    #       header_value: Token ${openformulieren_objecten_token}
+    #       header_value: Token {value_from: {env: openformulieren_objecten_token}}
 
     #     - identifier: objecten-api
     #       label: Objecten API test
@@ -1472,7 +1611,7 @@ openformulieren:
     #       api_type: orc
     #       auth_type: api_key
     #       header_key: Authorization
-    #       header_value: Token ${openformulieren_objecten_token}
+    #       header_value: Token {value_from: {env: openformulieren_objecten_token}}
 
     #     - identifier: documenten-api
     #       label: Documenten API
@@ -1480,7 +1619,7 @@ openformulieren:
     #       api_type: drc
     #       auth_type: zgw
     #       client_id: open-formulieren
-    #       secret: ${openzaak_openformulieren_secret}
+    #       secret: {value_from: {env: openzaak_openformulieren_secret}}
 
     #     - identifier: zaken-api
     #       label: Zaken API
@@ -1488,7 +1627,7 @@ openformulieren:
     #       api_type: zrc
     #       auth_type: zgw
     #       client_id: open-formulieren
-    #       secret: ${openzaak_openformulieren_secret}
+    #       secret: {value_from: {env: openzaak_openformulieren_secret}}
 
     #     - identifier: catalogus-api
     #       label: Catalogus API
@@ -1496,7 +1635,7 @@ openformulieren:
     #       api_type: ztc
     #       auth_type: zgw
     #       client_id: open-formulieren
-    #       secret: ${openzaak_openformulieren_secret}
+    #       secret: {value_from: {env: openzaak_openformulieren_secret}}
     #   objects_api_config_enable: true
     #   objects_api:
     #     groups:
@@ -1536,7 +1675,8 @@ openformulieren:
     #           "language_code": "{{ "{{" }} submission.language_code {{ "}}" }}"
     #         }
     oidcUrl: https://openformulieren.example.nl
-    oidcSecret: "<openformulieren>"
+    # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
+    pkceEnabled: false
   settings:
     allowedHosts: openformulieren-nginx.podiumd.svc.cluster.local
     email:
@@ -1555,10 +1695,12 @@ openformulieren:
     existingClaim: openformulieren
     mediaMountSubpath: openformulieren/media
     privateMediaMountSubpath: openformulieren/private_media
+    storageClassName: podiumd-standard
   persistentVolume:
     volumeAttributeShareName: openformulieren
+    storageClassName: podiumd-standard
   image:
-    tag: "3.4.7"
+    tag: "3.4.9@sha256:55dc5644595d43a5412d60436aac846ce0d71b799be85c53ff815c31416f3e39"
   resources:
     requests:
       cpu: 250m
@@ -1583,7 +1725,7 @@ openformulieren:
         memory: 160Mi
   nginx:
     image:
-      tag: "1.29.5"
+      tag: "1.30.2@sha256:77fb538f39407dc7b497b13abef619098d3afaa569f28ca3f6641ef77b95cd2d"
     resources:
       requests:
         cpu: 10m
@@ -1612,9 +1754,7 @@ openinwoner:
     #     - identifier: admin-oidc
     #       enabled: true
     #       oidc_rp_client_id: openinwoner.example.nl
-    #       oidc_rp_client_secret:
-    #         value_from:
-    #           env: keycloak_client_secret
+    #       oidc_rp_client_secret: {value_from: {env: keycloak_client_secret}}
     #       oidc_rp_scopes_list:
     #       - openid
     #       - email
@@ -1642,6 +1782,8 @@ openinwoner:
     #       oidc_nonce_size: 32
     #       oidc_state_size: 32
     #       userinfo_claims_source: id_token
+    #       # Enable PKCE on the application side — requires pkceEnabled: true on the Keycloak client.
+    #       oidc_use_pkce: true
     #   zgw_consumers_config_enable: true
     #   zgw_consumers:
     #     services:
@@ -1651,36 +1793,28 @@ openinwoner:
     #         api_type: zrc
     #         auth_type: zgw
     #         client_id: openinwoner
-    #         secret:
-    #           value_from:
-    #             env: openzaak_openinwoner_secret
+    #         secret: {value_from: {env: openzaak_openinwoner_secret}}
     #       - identifier: documenten-test
     #         label: Open Zaak - Documenten API
     #         api_root: https://openzaak.example.nl/documenten/api/v1/
     #         api_type: drc
     #         auth_type: zgw
     #         client_id: openinwoner
-    #         secret:
-    #           value_from:
-    #             env: openzaak_openinwoner_secret
+    #         secret: {value_from: {env: openzaak_openinwoner_secret}}
     #       - identifier: catalogi-test
     #         label: Open Zaak - Catalogi API
     #         api_root: https://openzaak.example.nl/catalogi/api/v1/
     #         api_type: ztc
     #         auth_type: zgw
     #         client_id: openinwoner
-    #         secret:
-    #           value_from:
-    #             env: openzaak_openinwoner_secret
+    #         secret: {value_from: {env: openzaak_openinwoner_secret}}
     #       - identifier: besluiten-test
     #         label: Open Zaak - Besluiten API
     #         api_root: https://openzaak.example.nl/besluiten/api/v1/
     #         api_type: brc
     #         auth_type: zgw
     #         client_id: openinwoner
-    #         secret:
-    #           value_from:
-    #             env: openzaak_openinwoner_secret
+    #         secret: {value_from: {env: openzaak_openinwoner_secret}}
     #       - identifier: selectielijst
     #         label: Open Zaak (public) - Selectielijst API
     #         api_root: https://selectielijst.openzaak.nl/api/v1/
@@ -1692,9 +1826,7 @@ openinwoner:
     #         api_type: kc
     #         auth_type: zgw
     #         client_id: openinwoner
-    #         secret:
-    #           value_from:
-    #             env: openklant_openinwoner_token
+    #         secret: {value_from: {env: openklant_openinwoner_token}}
     #   openzaak_config_enable: true
     #   openzaak_config:
     #     zaak_max_confidentiality: openbaar
@@ -1723,9 +1855,13 @@ openinwoner:
     #     items:
     #       - domain: openinwoner.example.nl
     #         name: Gemeente X
-    secrets: {}
+    secrets:
+      keycloak_client_secret: ""
+      # openzaak_openinwoner_secret: "<openzaak_openinwoner_secret>"
+      # openklant_openinwoner_token: "<openklant_openinwoner_token>"
     oidcUrl: https://openinwoner.example.nl
-    oidcSecret: "<openinwoner>"
+    # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
+    pkceEnabled: false
   settings:
     allowedHosts: openinwoner-nginx.podiumd.svc.cluster.local
     brpVersion: ""
@@ -1735,7 +1871,7 @@ openinwoner:
       port: 587
       useTLS: true
     searchIndexInitContainer: true
-    oidcFrontendLogoutWithHints: false
+    oidcFrontendLogoutWithHints: true
     cache:
       default: redis-ha-master.podiumd.svc.cluster.local:6379/11
       axes: redis-ha-master.podiumd.svc.cluster.local:6379/11
@@ -1744,13 +1880,18 @@ openinwoner:
       resultBackendl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/12
       # -- Set to debug for test/acceptance environments
       logLevel: warning
+    # override: values-enable-observability.yaml sets disabled: false and configures the OTEL endpoint
+    otel:
+      disabled: true
   persistence:
     size: 10Gi
     existingClaim: openinwoner
+    storageClassName: podiumd-standard
   persistentVolume:
     volumeAttributeShareName: openinwoner
+    storageClassName: podiumd-standard
   image:
-    tag: "2.1.0"
+    tag: "2.1.2"
   resources:
     requests:
       cpu: 200m
@@ -1778,7 +1919,7 @@ openinwoner:
   fullnameOverride: openinwoner
   nginx:
     image:
-      tag: "1.29.5"
+      tag: "1.30.2@sha256:77fb538f39407dc7b497b13abef619098d3afaa569f28ca3f6641ef77b95cd2d"
     config:
       basicAuth:
         # Enable this when digid mock is set to digidMock: "true"
@@ -1854,17 +1995,303 @@ openinwoner:
   eck-operator:
     enabled: false
 
+referentielijsten:
+  fullnameOverride: referentielijsten
+  enabled: false
+  configuration:
+    enabled: true
+    initContainer:
+      enabled: false
+    job:
+      enabled: true
+      backoffLimit: 6
+      ttlSecondsAfterFinished: 600
+      restartPolicy: OnFailure
+      resources: {}
+    # keycloak_client_secret is required in all environments (also used as Keycloak realm client secret).
+    secrets:
+      keycloak_client_secret: ""
+    data: ""
+    # data: |-
+    #   oidc_db_config_enable: true
+    #   oidc_db_config_admin_auth:
+    #     providers:
+    #     - identifier: admin-oidc-provider
+    #       oidc_use_nonce: true
+    #       oidc_nonce_size: 32
+    #       oidc_state_size: 32
+    #       endpoint_config:
+    #         oidc_op_discovery_endpoint: https://keycloak.example.nl/realms/podiumd/
+    #     items:
+    #     - identifier: admin-oidc
+    #       oidc_provider_identifier: admin-oidc-provider
+    #       enabled: true
+    #       oidc_rp_client_id: referentielijsten
+    #       oidc_rp_client_secret: {value_from: {env: keycloak_client_secret}}
+    #       oidc_rp_scopes_list:
+    #       - openid
+    #       - email
+    #       - profile
+    #       - roles
+    #       oidc_rp_sign_algo: RS256
+    #       userinfo_claims_source: id_token
+    #       options:
+    #         user_settings:
+    #           claim_mappings:
+    #             username:
+    #               - preferred_username
+    #             first_name:
+    #               - given_name
+    #             last_name:
+    #               - family_name
+    #             email:
+    #               - email
+    #         groups_settings:
+    #           claim_mapping:
+    #             - groups
+    #           sync: true
+    #           sync_pattern: '*'
+    #           default_groups: []
+    #           make_users_staff: true
+    #           superuser_group_names:
+    #             - administrators
+    oidcUrl: https://referentielijsten.example.nl
+    # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
+    pkceEnabled: false
+  replicaCount: 1
+  persistence:
+    enabled: true
+    size: 10Gi
+    existingClaim: referentielijsten
+    storageClassName: podiumd-standard
+  persistentVolume:
+    volumeAttributeShareName: referentielijsten
+    storageClassName: podiumd-standard
+  image:
+    repository: maykinmedia/referentielijsten-api
+    pullPolicy: IfNotPresent
+    tag: "0.7.2@sha256:f7f0f25b180a3746e1bf3df81fe19e4ea509428edea1d93831262a67c81f5f9d"
+
+  settings:
+    allowedHosts: "referentielijsten-nginx.podiumd.svc.cluster.local"
+    djangoSettingsModule: referentielijsten.conf.docker
+    useXForwardedHost: false
+    disable2fa: false
+    secretKey: ""
+    environment: ""
+
+    email:
+      port: 587
+      useTLS: true
+
+    isHttps: true
+
+    debug: false
+
+    cache:
+      default: redis-ha-master.podiumd.svc.cluster.local:6379/15
+      axes: redis-ha-master.podiumd.svc.cluster.local:6379/15
+    # celery: db 16 reserved — referentielijsten does not use Celery
+    uwsgi:
+      processes: "2"
+      threads: "2"
+      maxRequests: "1000"
+
+  tags:
+    redis: false
+
+openbeheer:
+  enabled: false
+  configuration:
+    enabled: true
+    overwrite: false
+    job:
+      enabled: true
+      backoffLimit: 6
+      ttlSecondsAfterFinished: 600
+      restartPolicy: Never
+      resources: {}
+    # Secret substitution inside configuration.data uses django-setup-configuration's
+    # `value_from: {env: VAR}` pattern (v0.11.0+). Shell-style `${VAR}` references are
+    # NOT resolved at runtime. Exception: header fields with a literal prefix
+    # (e.g. `Authorization: Token <value>`) must still use inline REP_..._REP tokens
+    # (replaced by patch_values.py before Helm renders) — see example data block.
+    secrets:
+      keycloak_client_secret: ""
+      openzaak_openbeheer_secret: ""
+      objecttypen_openbeheer_token: ""
+    data: ""
+    # data: |-
+    #   oidc_db_config_enable: true
+    #   oidc_db_config_admin_auth:
+    #     providers:
+    #     - identifier: keycloak-provider
+    #       oidc_use_nonce: true
+    #       oidc_nonce_size: 32
+    #       oidc_state_size: 32
+    #       endpoint_config:
+    #         oidc_op_discovery_endpoint: https://keycloak.example.nl/realms/podiumd/
+    #     items:
+    #     - identifier: admin-oidc
+    #       enabled: true
+    #       oidc_rp_client_id: openbeheer
+    #       oidc_rp_client_secret: {value_from: {env: keycloak_client_secret}}
+    #       oidc_rp_scopes_list:
+    #       - openid
+    #       - email
+    #       - profile
+    #       - roles
+    #       oidc_rp_sign_algo: RS256
+    #       oidc_provider_identifier: keycloak-provider
+    #       userinfo_claims_source: id_token
+    #       options:
+    #         user_settings:
+    #           claim_mappings:
+    #             username:
+    #               - preferred_username
+    #             first_name:
+    #               - given_name
+    #             last_name:
+    #               - family_name
+    #             email:
+    #               - email
+    #         groups_settings:
+    #           claim_mapping:
+    #             - groups
+    #           sync: true
+    #           sync_pattern: '*'
+    #           default_groups: []
+    #           make_users_staff: true
+    #           superuser_group_names:
+    #             - administrators
+    #   zgw_consumers_config_enable: true
+    #   zgw_consumers:
+    #     services:
+    #     - identifier: objecttypen-service
+    #       label: Objecttypen API
+    #       api_root: https://objecttypen.example.nl/api/v2/
+    #       api_type: orc
+    #       auth_type: api_key
+    #       header_key: Authorization
+    #       header_value: Token REP_OBJECTTYPEN_OPENBEHEER_TOKEN_REP   # prefix+token — pipeline-replaced (see comment above)
+    #     - identifier: catalogi-service
+    #       label: Open Zaak - Catalogi API
+    #       api_root: https://openzaak.example.nl/catalogi/api/v1/
+    #       api_type: ztc
+    #       auth_type: zgw
+    #       client_id: openbeheer
+    #       secret: {value_from: {env: openzaak_openbeheer_secret}}
+    #     - identifier: selectielijst-service
+    #       label: Open Zaak (public) - Selectielijst API
+    #       api_root: https://selectielijst.openzaak.nl/api/v1/
+    #       api_type: orc
+    #       auth_type: no_auth
+    #   api_configuration_enabled: true
+    #   api_configuration:
+    #     selectielijst_service_identifier: selectielijst-service
+    #     objecttypen_service_identifier: objecttypen-service
+    oidcUrl: https://openbeheer.example.nl
+    # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
+    pkceEnabled: false
+  replicaCount: 2
+  image:
+    repository: maykinmedia/open-beheer
+    pullPolicy: IfNotPresent
+    tag: "0.9.0"
+  nameOverride: openbeheer
+  fullnameOverride: openbeheer
+  securityContext:
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: false
+    runAsNonRoot: true
+    runAsUser: 1000
+  resources: {}
+  persistence:
+    enabled: true
+    size: 1Gi
+    storageClassName: podiumd-standard
+    existingClaim: openbeheer
+    mediaMountSubpath: openbeheer/media
+  persistentVolume:
+    volumeAttributeShareName: openbeheer
+    storageClassName: podiumd-standard
+  settings:
+    allowedHosts: "openbeheer-nginx.podiumd.svc.cluster.local"
+    djangoSettingsModule: openbeheer.conf.docker
+    useXForwardedHost: false
+    apiDomain: ""
+    apiPath: /api/v1
+    sessionCookieAge: 900
+    secretKey: ""
+    environment: ""
+    elasticapm:
+      url: ""
+      token: ""
+      serviceName: ""
+    database:
+      host: ""
+      port: 5432
+      username: ""
+      password: ""
+      name: ""
+      sslmode: prefer
+    email:
+      host: localhost
+      port: 25
+      username: ""
+      password: ""
+      useTLS: false
+      defaultFrom: ""
+    sentry:
+      dsn: ""
+    cache:
+      default: redis-ha-master.podiumd.svc.cluster.local:6379/17
+      axes: redis-ha-master.podiumd.svc.cluster.local:6379/17
+    # celery: db 18 reserved — openbeheer does not currently use Celery
+    isHttps: true
+    debug: false
+    uwsgi:
+      # open-beheer 0.9.0's docker entrypoint launches uwsgi without --master.
+      # Set UWSGI_MASTER=1 so a real master oversees workers; without it,
+      # workers that exit on max-requests are NOT respawned and the container
+      # exits with code 30 once all workers have cycled (~every 80–90 min on
+      # probe-driven traffic). See openbeheer-known-issues.md.
+      master: "1"
+      processes: "2"
+      threads: "2"
+      maxRequests: "1000"
+    throttling:
+      enable: true
+      rateAnonymous: "2500/hour"
+      rateUser: "15000/hour"
+  nginx:
+    image:
+      tag: "1.30.2@sha256:77fb538f39407dc7b497b13abef619098d3afaa569f28ca3f6641ef77b95cd2d"
+    resources:
+      requests:
+        cpu: 10m
+        memory: 16Mi
+  tags:
+    redis: false
+
 kisselastic:
   kibanaDomain: kiss-kb-http.podiumd.svc.cluster.local:5601
   elasticVersion: "8.19.3"
   elasticsearchCount: 3
   # -- install crds using https://github.com/elastic/cloud-on-k8s/blob/main/deploy/eck-operator/charts/eck-operator-crds/templates/all-crds.yaml
+  # override: values-enable-observability.yaml sets config.metricsPort and enables podMonitor
   eck-operator:
     installCRDs: false
     managedNamespaces:
       - podiumd
     image:
       tag: "3.1.0"
+    # podMonitor requires the Prometheus Operator CRD (monitoring.coreos.com/v1 PodMonitor)
+    # to be installed in the cluster. Enable via values-enable-observability.yaml.
+    podMonitor:
+      enabled: false
 
 kiss:
   image:
@@ -1971,6 +2398,9 @@ kiss:
       authority: ""
       clientId: kiss
       clientSecret: "<kiss>"
+      # -- Enable PKCE (S256) on the Keycloak client for KISS.
+      # KISS is a React frontend; the OIDC client library must support PKCE.
+      pkceEnabled: false
       medewerkerIdentificatie:
         claim: samaccountname
         truncate:
@@ -2156,6 +2586,9 @@ zac:
     realm: podiumd
     clientId: zac
     secret: changeme
+    # -- Enable PKCE (S256) on the Keycloak client. NOTE: ZAC does not currently support PKCE;
+    # this switch is reserved for when PKCE support is added to the ZAC OIDC client.
+    pkceEnabled: false
   bagApi:
     url: http://bag.example.nl
     apiKey: "dummy"
@@ -2185,16 +2618,26 @@ zac:
     code: "007"
     naam: "Example Gemeente"
     mail: "noreply@example.nl"
-  # curlimages/curl:8.18.0
+  # curlimages/curl:8.20.0@sha256:b3f1fb2a51d923260350d21b8654bbc607164a987e2f7c84a0ac199a67df812a
   global:
     curlImage:
       #repository: curlimages/curl
-      tag: 8.18.0
-  # ghcr.io/infonl/zaakafhandelcomponent:4.3.61
+      tag: "8.20.0@sha256:b3f1fb2a51d923260350d21b8654bbc607164a987e2f7c84a0ac199a67df812a"
+  # ghcr.io/infonl/zaakafhandelcomponent:4.7.2
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
-    tag: 4.3.61 # ZAC Sprint 65 versie
+    tag: 4.7.2@sha256:235e51559f3439bb6aba5bbbc67279d70e9ab141aefd43d85be546d420fb0e34
+  # Liveness probe uses /health/ready (not /health/live) with a high failureThreshold so
+  # Kubernetes automatically restarts ZAC after extended OpenZaak/catalogus unavailability.
+  # The ZGW-API-Client has no connectTimeout/readTimeout, causing stale TCP connections
+  # that keep health checks hanging indefinitely. Revert to /health/live + failureThreshold: 3
+  # once proper HTTP timeouts are configured in ZAC's ZGW-API-Client.
+  livenessProbe:
+    path: /health/ready
+    failureThreshold: 16
+    periodSeconds: 30
+    timeoutSeconds: 1
   initContainer:
     enabled: true
     resources:
@@ -2221,10 +2664,10 @@ zac:
   nginx:
     enabled: true
     client_max_body_size: 150M
-    # nginxinc/nginx-unprivileged:1.29.5
+    # nginxinc/nginx-unprivileged:1.30.2@sha256:77fb538f39407dc7b497b13abef619098d3afaa569f28ca3f6641ef77b95cd2d
     image:
       # repository: nginxinc/nginx-unprivileged
-      tag: 1.29.5
+      tag: "1.30.2@sha256:77fb538f39407dc7b497b13abef619098d3afaa569f28ca3f6641ef77b95cd2d"
     resources:
       requests:
         cpu: 50m
@@ -2237,16 +2680,16 @@ zac:
     url: http://objecttypen.example.nl
     token: objecttypentoken
   office_converter:
-    # ghcr.io/eugenmayer/kontextwork-converter:1.8.2
+    # gotenberg/gotenberg:8.31.0@sha256:f0d86e8a1dbc7b33a5a65cb251d02bb271a48ffa989da3feb5ed7d954fe4d4b3
     image:
-      #repository: ghcr.io/eugenmayer/kontextwork-converter
-      tag: 1.8.2
+      # repository: gotenberg/gotenberg
+      tag: "8.31.0@sha256:f0d86e8a1dbc7b33a5a65cb251d02bb271a48ffa989da3feb5ed7d954fe4d4b3"
   opa:
     sidecar: true
-    # openpolicyagent/opa:1.14.0-static
+    # openpolicyagent/opa:1.15.2-static@sha256:f3429de096f6d274bd9927f7a50c334e340a6cf206fad9460ccf17e2f3e807bf
     image:
       #repository: openpolicyagent/opa
-      tag: 1.14.0-static
+      tag: "1.15.2-static@sha256:f3429de096f6d274bd9927f7a50c334e340a6cf206fad9460ccf17e2f3e807bf"
     resources:
       requests:
         cpu: 10m
@@ -2258,7 +2701,7 @@ zac:
       rsin: "000000000"
     verantwoordelijke:
       rsin: "000000000"
-  pabc:
+  pabcApi:
     apiKey: ""
     url: ""
   zacInternalEndpointsApiKey: "dummy"
@@ -2272,10 +2715,10 @@ zac:
     # -- install crds using https://solr.apache.org/operator/downloads/crds/v0.10.0-prerelease/all-with-dependencies.yaml
     # -- turn functionality on/off
     enabled: true
-    # apache/solr-operator:v0.9.1
+    # apache/solr-operator:v0.9.1@sha256:4db34508137f185d3cad03c7cf7c2b5d6533fb590822effcde9125cff5a90aa2
     image:
       #repository:
-      tag: v0.9.1
+      tag: v0.9.1@sha256:4db34508137f185d3cad03c7cf7c2b5d6533fb590822effcde9125cff5a90aa2
     nodeSelector: {}
     resources:
       requests:
@@ -2285,16 +2728,16 @@ zac:
         cpu: 500m
         memory: 256Mi
     solr:
-      # library/busybox:1.37.0-glibc
+      # library/busybox:1.37.0-glibc@sha256:3f9777e7e82e8591542f72b965ec7db7e8b3bdb59692976af1bb9b2850b05a4e
       busyBoxImage:
         #repository:
-        tag: 1.37.0-glibc
+        tag: 1.37.0-glibc@sha256:3f9777e7e82e8591542f72b965ec7db7e8b3bdb59692976af1bb9b2850b05a4e
       # -- set enabled to provision solrcloud as well
       enabled: true
-      # library/solr:9.10.1-slim
+      # library/solr:9.10.1-slim@sha256:f5a742b9476c5608f318432fe142c2e8fe125a846c0ff0081681051e3b2d8eb4
       image:
         #repository:
-        tag: 9.10.1-slim
+        tag: 9.10.1-slim@sha256:f5a742b9476c5608f318432fe142c2e8fe125a846c0ff0081681051e3b2d8eb4
       # -- define memory settings for solr in the solrcloud
       javaMem: -Xms512m -Xmx768m
       jobs:
@@ -2306,6 +2749,12 @@ zac:
         limits:
           cpu: 2000m
           memory: 2Gi
+      dataStorage:
+        persistent:
+          # -- Retain PVCs when the operator scales down Solr (e.g. during node rotation).
+          # The default "Delete" causes the operator to destroy PVC data on scale-down, which
+          # requires a full index resync from another replica.
+          reclaimPolicy: Retain
     # -- namespaces to watch for solr-operator
     watchNamespaces: "podiumd"
     # -- install crds using https://github.com/pravega/zookeeper-operator/blob/master/charts/zookeeper-operator/templates/zookeeper.pravega.io_zookeeperclusters_crd.yaml
@@ -2313,14 +2762,14 @@ zac:
       crd:
         create: false
       hooks:
-        # lachlanevenson/k8s-kubectl:v1.25.4
+        # lachlanevenson/k8s-kubectl:@v1.25.4@sha256:af5cea3f2e40138df90660c0c073d8b1506fb76c8602a9f48aceb5f4fb052ddc
         image:
           #repository:
-          tag: v1.25.4
-      # pravega/zookeeper-operator:0.2.15
+          tag: v1.25.4@sha256:af5cea3f2e40138df90660c0c073d8b1506fb76c8602a9f48aceb5f4fb052ddc
+      # pravega/zookeeper-operator:0.2.15@sha256:b2bc4042fdd8fea6613b04f2f602ba4aff1201e79ba35cd0e2df9f3327111b0e
       image:
         #repository:
-        tag: 0.2.15
+        tag: 0.2.15@sha256:b2bc4042fdd8fea6613b04f2f602ba4aff1201e79ba35cd0e2df9f3327111b0e
       resources:
         requests:
           cpu: 50m
@@ -2331,10 +2780,10 @@ zac:
       # -- namespaces to watch for zookeeper-operator
       watchNamespace: "podiumd"
       zookeeper:
-        # pravega/zookeeper:0.2.15
+        # pravega/zookeeper:0.2.15@sha256:c498ebfb76a66f038075e2fa6148528d74d31ca1664f3257fdf82ee779eec9c8
         image:
           #repository:
-          tag: 0.2.15
+          tag: 0.2.15@sha256:c498ebfb76a66f038075e2fa6148528d74d31ca1664f3257fdf82ee779eec9c8
         resources:
           requests:
             cpu: 100m
@@ -2342,6 +2791,11 @@ zac:
           limits:
             cpu: 500m
             memory: 512Mi
+        storage:
+          # -- Retain PVCs when the operator scales down ZooKeeper (e.g. during node rotation).
+          # The default "Delete" causes the operator to destroy PVC data on scale-down, which
+          # prevents the cluster from recovering quorum after a node replacement event.
+          reclaimPolicy: Retain
   zgwApis:
     url: http://open-zaak.internal
     urlExtern: http://open-zaak.example.nl
@@ -2352,6 +2806,8 @@ zgw-office-addin:
   enabled: true
   fullnameOverride: "zgw-office-addin"
   common:
+    # -- Name of the environment (used for display purposes). Default "production" means that no indicator is appended to the DiscplayName in the manifests.
+    appEnv: "production"
     # -- The frontend public URL where the manifest files and static js file are served
     frontendUrl: "https://office-addin.example.nl"
     # -- MS Azure Tenant ID of the Office Add-in application
@@ -2359,18 +2815,18 @@ zgw-office-addin:
     # -- MS Azure Client ID assigned to the Office Add-in application
     msalClientId: "dummy"
   frontend:
-    # ghcr.io/infonl/zgw-office-add-in-frontend:v0.9.133
+    # ghcr.io/infonl/zgw-office-add-in-frontend:v0.9.289@sha256:80c1fea3d16ef8a837576858e581bb20de6296af7f21c56d401f4a346c126dc0
     image:
-      tag: v0.9.133
+      tag: "v0.9.289@sha256:80c1fea3d16ef8a837576858e581bb20de6296af7f21c56d401f4a346c126dc0"
     resources:
       requests:
         cpu: 50m
         memory: 64Mi
   backend:
     msalSecret: "dummy"
-    # ghcr.io/infonl/zgw-office-add-in-backend:v0.9.133
+    # ghcr.io/infonl/zgw-office-add-in-backend:v0.9.289@sha256:dc9b165344e787cbf6146183be529594308e22eea553e1db6654f49ba9e76cfb
     image:
-      tag: v0.9.133
+      tag: "v0.9.289@sha256:dc9b165344e787cbf6146183be529594308e22eea553e1db6654f49ba9e76cfb"
     resources:
       requests:
         cpu: 100m
@@ -2381,8 +2837,18 @@ zgw-office-addin:
       secret: "dummy"
 
 clamav:
+  # override: values-enable-observability.yaml enables metrics exporter sidecar (metrics.enabled: true)
+  # and ServiceMonitor (metrics.serviceMonitor.enabled: true). Supported since clamav chart v3.7.1.
+  # serviceMonitor requires the Prometheus Operator CRD (monitoring.coreos.com/v1 ServiceMonitor).
   image:
     tag: "1.4.4"
+  metrics:
+    enabled: false
+    image:
+      repository: docker.io/sergeymakinen/clamav_exporter
+      tag: "v2.1.2"
+    serviceMonitor:
+      enabled: false
   nameOverride: clamav
   fullnameOverride: clamav
   clamdConfig: |
@@ -2502,8 +2968,8 @@ apiproxy:
   tolerations: []
   #nameOverride: "iconnect-proxy"
   image:
-    repository: nginx
-    tag: "1.29.5"
+    repository: nginxinc/nginx-unprivileged
+    tag: "1.30.2@sha256:77fb538f39407dc7b497b13abef619098d3afaa569f28ca3f6641ef77b95cd2d"
     pullPolicy: IfNotPresent
   service:
     port: 80
@@ -2515,7 +2981,16 @@ apiproxy:
     requests:
       cpu: "0.1"
       memory: "128Mi"
-  nginxCertsSecret: "api-proxy-certs"
+  # -- Secret containing client certificate (`client.crt`/`client.key`) and CA bundle (`ca.crt`)
+  # for upstream mTLS. Leave empty to disable mTLS and skip the cert volume mount.
+  # When set, `sslVerify` auto-derives to "on"; when empty it auto-derives to "off".
+  nginxCertsSecret: ""
+  # -- Maximum length of the upstream server certificate chain validated by nginx
+  # (`proxy_ssl_verify_depth`). Government API gateways occasionally chain through
+  # cross-signed intermediates; the nginx default of 1 is too shallow.
+  # Per-location overrides: set `apiproxy.locations.<loc>.sslVerifyDepth` to override
+  # this global value for a single upstream (e.g. bag, brp, kvkSearch).
+  sslVerifyDepth: 6
   livenessProbe:
     initialDelaySeconds: 5
     periodSeconds: 10
@@ -2525,7 +3000,7 @@ apiproxy:
   resolverIp: 10.0.0.10 # KubeDNS resolver
   locations:
     commonSettings: &commonLocation
-      sslVerify: "off"
+      sslVerify: "" # Leave empty to auto-derive from nginxCertsSecret (on if set, off if not); override per-location if needed
       hostHeader: "lab.api.mijniconnect.nl"
     bag:
       <<: *commonLocation
@@ -2616,7 +3091,7 @@ ita:
   web:
     image:
       # repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web"
-      tag: "2.1.1"
+      tag: "3.1.0"
       pullPolicy: IfNotPresent
 
     service:
@@ -2628,6 +3103,10 @@ ita:
       frontendUrl: "REP_ITA_OIDC_FRONTEND_URL_REP"
       clientId: "ita"
       clientSecret: "REP_ITA_OIDC_CLIENT_SECRET_REP"
+      # -- Enable PKCE (S256) on the Keycloak client for ITA.
+      # ITA is a JS frontend; the upstream chart has no app-side PKCE toggle. PKCE support
+      # depends on the OIDC client library used by the application.
+      pkceEnabled: false
       itaSystemAccessRole: "ITA_Gebruiker"
       functioneelBeheerderRole: "ITA_Functioneel_Beheerder"
       nameClaimType: "name"
@@ -2636,29 +3115,39 @@ ita:
       emailClaimType: "email"
 
     resources:
-      logoUrl: ""
-      faviconUrl: ""
-      designTokensUrl: ""
-      webFontSources: []
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
 
   poller:
     schedule: "*/15 * * * *"
 
     image:
       repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller"
-      tag: "2.1.1"
-      pullPolicy: Always
+      tag: "3.1.0"
+      pullPolicy: IfNotPresent
 
     notification:
       pollerMessage: "Poller uitgevoerd om:"
       hourThreshold: "-24"
+
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 100m
+        memory: 256Mi
 
   ingress:
     enabled: false
 
 serviceAccount:
   create: true
-  automount: true
+  automount: false
   annotations: {}
   name: ""
 
@@ -2668,10 +3157,18 @@ pabc:
   postgresql:
     enabled: false
   image:
-    tag: 1.0.0
+    tag: 1.1.0
+  nodeSelector: {}
   migrations:
     image:
-      tag: 1.0.0
+      tag: 1.1.0
+    nodeSelector: {}
+  initContainers:
+    waitFor:
+      image:
+        repository: "ghcr.io/groundnuty/k8s-wait-for"
+        tag: "v2.0"
+        pullPolicy: IfNotPresent
 
   settings:
     database:
@@ -2687,6 +3184,8 @@ pabc:
       authority: ""
       clientId: "pabc"
       clientSecret: ""
+      # -- Enable PKCE (S256) on the Keycloak client. PABC is a .NET app; enable when OpenIdConnect PKCE is configured in the application.
+      pkceEnabled: false
       functioneelBeheerderRole: "administrator"
       nameClaimType: "name"
       roleClaimType: "roles"
@@ -2710,7 +3209,7 @@ omc:
   fullnameOverride: "omc"
   image:
     # repository: ghcr.io/worth-nl/notifynl-omc
-    tag: "1.17.18"
+    tag: "1.17.19@sha256:fdaabe81d6974dc2170d5383e604c15d76febd0a3563362a6827e437f04b398b"
   # BELOW are the resource settings from the subchart, notifynl-omc-nodep which we do not override
   # app:
   #   port: 5270
@@ -2756,3 +3255,295 @@ omc:
             uuids: "00000000-0000-1000-b000-000000000000"
           ktoObjectType:
             uuid: 00000000-0000-1000-b000-000000000000
+
+# APISIX in PodiumD: PoC mode — admin UI driven, etcd-backed, configuration
+# done entirely via the embedded dashboard at :9180/ui/. Public access is
+# gated by Keycloak SSO via an oauth2-proxy in front of the admin Service.
+#
+# PoC scope (acknowledged trade-offs):
+#   * etcd persistence is OFF (single replica, ephemeral) — restart loses
+#     all gateway config. Acceptable while we iterate; revisit before any
+#     non-PoC use.
+#   * No GitOps source-of-truth for routes/upstreams — all changes are
+#     applied through the UI.
+#   * Data plane (gateway) remains ClusterIP-only; only the admin UI is
+#     exposed externally (and only via SSO).
+#
+# Upstream chart: https://github.com/apache/apisix-helm-chart
+# Full values reference: `helm show values apisix/apisix --version 2.14.0`
+# See also: charts/podiumd/docs/apisix-egress-gateway.md
+#
+# Any field not set below falls back to the upstream chart defaults.
+apisix:
+  enabled: false
+  fullnameOverride: "apisix"
+
+  # Disable the bundled ingress controller — APISIX is egress-only here.
+  ingress-controller:
+    enabled: false
+
+  # The apisix subchart bundles bitnami/etcd — disallowed in this project
+  # (no Bitnami images / charts). Disable it and point the subchart at the
+  # in-chart hand-rolled etcd Service rendered by templates/apisix-etcd.yaml.
+  etcd:
+    enabled: false
+
+  # External etcd consumed by the apisix subchart when etcd.enabled=false.
+  # Same-namespace Service short name resolves via Kubernetes DNS (apisix and
+  # apisix-etcd are co-deployed by this umbrella chart). The hostname matches
+  # the Service emitted by templates/apisix-etcd.yaml.
+  externalEtcd:
+    host:
+      - "http://apisix-etcd:2379"
+    user: ""
+    password: ""
+
+  # Image + resources for the in-chart etcd StatefulSet (apisix-etcd.yaml).
+  # Upstream etcd-io build, not a Bitnami repack. Single-replica, ephemeral.
+  etcdServer:
+    image:
+      repository: gcr.io/etcd-development/etcd
+      tag: "v3.5.18"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+  # Gateway (data plane) service. ClusterIP only — APISIX is consumed
+  # by PodiumD pods for outbound API calls, not exposed outside.
+  # externalTrafficPolicy is invalid on non-LoadBalancer/NodePort services;
+  # the upstream chart defaults it to "Cluster" so we must blank it out.
+  service:
+    type: ClusterIP
+    externalTrafficPolicy: ""
+
+  # Public hostname for the embedded admin UI / Admin API, served via
+  # oauth2-proxy + Keycloak SSO. Required when apisix.enabled=true. The
+  # umbrella chart renders the oauth2-proxy Deployment + Secret + Ingress
+  # using these values.
+  adminUi:
+    # FQDN where the admin UI is reachable from the internet (e.g.
+    # apisix-admin.${envName}.pd.test-rig.nl).
+    hostname: ""
+    # cert-manager ClusterIssuer used to issue the TLS cert. Match whatever
+    # name the env's cert-manager bootstrap uses; podiumd-infra creates
+    # `letsencrypt-prod` and `letsencrypt-staging` (no `-production` suffix).
+    clusterIssuer: "letsencrypt-prod"
+    # Image for the oauth2-proxy sidecar.
+    oauth2Proxy:
+      image:
+        repository: quay.io/oauth2-proxy/oauth2-proxy
+        tag: "v7.7.1"
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 200m
+          memory: 256Mi
+
+  # ---------------------------------------------------------------------------
+  # IMPORTANT: in the upstream apisix chart 2.14.0, settings under `admin:`,
+  # `deployment:`, `router:`, etc. live under a NESTED `apisix:` key — the
+  # subchart's own self-namespace. The umbrella path is therefore
+  # `apisix.apisix.admin.*` (not `apisix.admin.*`).
+  # ---------------------------------------------------------------------------
+  apisix:
+    # etcd-backed traditional mode (chart default). Routes/upstreams are
+    # written to the bundled etcd via the Admin API / embedded UI — no
+    # ConfigMap-based standalone-yaml here.
+    deployment:
+      mode: traditional
+      role: traditional
+
+    # Admin API + embedded Dashboard UI (served at :9180/ui/). The bundled
+    # admin Service (apisix-admin:9180) is reached by the oauth2-proxy
+    # Deployment in this chart, which fronts it with Keycloak SSO and the
+    # public Ingress. Direct :9180/ui/ access from pods other than the
+    # oauth2-proxy is allowed via the cluster Pod CIDR.
+    admin:
+      enable_admin_ui: true
+      type: ClusterIP
+      # Pod CIDR — wide enough to admit the oauth2-proxy pod regardless of
+      # the AKS overlay/azure-cni mode in use. The admin API itself remains
+      # protected by the random API keys (apisix-admin-credentials) and by
+      # the public oauth2-proxy doing Keycloak SSO.
+      allow:
+        ipList:
+          - 127.0.0.1/24
+          - 10.0.0.0/8
+      # Random 32-char admin/viewer keys are auto-generated by the umbrella
+      # chart via templates/apisix-admin-credentials.yaml — replacing the
+      # upstream public default keys (`edd1c9f0…` / `4054f7cf…`). Stable across
+      # upgrades via lookup. To use Azure Key Vault via CSI driver, override
+      # `secretName` to point at your own Secret containing `admin` + `viewer`.
+      credentials:
+        secretName: apisix-admin-credentials
+
+# -----------------------------------------------------------------------------
+# zaakbrug — Frank!Framework adapter exposing Zaakgericht-Werken API for legacy
+# zaaksystems. Off by default; opt in per env (e.g. ontw-dimp).
+#
+# Upstream chart: wearefrank/zaakbrug (https://wearefrank.github.io/charts)
+# Transitive note: chart bundles a `staging` openzaak subchart that pulls
+# bitnami/redis. The default below pins `staging.enabled: false` so the
+# Bitnami artifact is never rendered (Dimpact policy: no Bitnami images).
+#
+# Env values MUST set `frank.dtap.stage` (DEV/TEST/ACCP/PROD) — chart has no
+# default. Env values typically also override image.registry to acrprodmgmt
+# and configure connections.jdbc[0] for the shared Postgres + Keycloak OAuth.
+# -----------------------------------------------------------------------------
+zaakbrug:
+  enabled: false
+  staging:
+    enabled: false
+  # K8s cgroup limits sized for the Frank!Framework JVM heap (subchart
+  # default Xms=Xmx=4G via .Values.frank.memory.{minimum,maximum}).
+  # Overhead ≈1Gi headroom for non-heap (metaspace, code cache, direct
+  # buffers, threads). Env overlays may tune from observed usage.
+  resources:
+    requests:
+      cpu: 250m
+      memory: 5Gi
+    limits:
+      cpu: "2"
+      memory: 6Gi
+  # ---------------------------------------------------------------------------
+  # Umbrella-chart-managed secret (templates/zaakbrug-secrets.yaml) renders a
+  # k8s Secret named `zaakbrug-secrets` containing credentials.properties.
+  # The Frank!Framework subchart mounts it via frank.credentials.secret.
+  # Env values MUST supply frank.zakenApi.jwt.password (typically a REP_*_REP
+  # placeholder resolved at deploy time from Azure Key Vault).
+  # ---------------------------------------------------------------------------
+  frank:
+    zakenApi:
+      jwt:
+        username: "zaakbrug"
+        password: ""  # required when zaakbrug.enabled=true
+  # ---------------------------------------------------------------------------
+  # OAuth2 console role mapping. templates/zaakbrug-oauth-role-mapping-configmap.yaml
+  # renders a ConfigMap (zaakbrug-oauth-role-mapping) with:
+  #   oauth-role-mapping.properties  <Frank role>=<Keycloak client role>
+  #   RoutingProfiles.json           zero-byte placeholder
+  # Both are mounted into the zaakbrug Deployment at /opt/frank/resources/ by a
+  # post-deploy kubectl patch in the ExternalsPodiumD Applications pipeline
+  # (upstream wearefrank/zaakbrug chart has no extraVolumeMounts support).
+  # Keys = Frank!Framework console roles; values = Keycloak client role names.
+  # ---------------------------------------------------------------------------
+  oauthRoleMapping:
+    IbisAdmin: administrators
+    IbisTester: zaakbrug_admin
+    IbisDataAdmin: dataadmin
+
+# Management Information (MI) data exports — IN-1650 / IN-2119.
+#
+# OPT-IN FEATURE — DISABLED BY DEFAULT (`mi.enabled: false`).
+#
+# Weekly per-component Postgres dumps (CSV with `;` separator, or pg_dump -Fc).
+# Each run uploads its output to an external **SFTP server** over an SSH
+# keypair. Blob storage is no longer used.
+#
+# The chart renders both SFTP Secrets itself from the `mi.sftp.*` values below
+# — nothing needs to be pre-provisioned in the namespace:
+#   - <mi.sftp.secretName>    — connection envvars (host/port/user/remotePath)
+#   - <mi.sftp.keySecretName> — the SSH private key (`id`)
+#
+# The SSH private key is supplied via `mi.sftp.privateKey`. The deploy pipeline
+# (dev.azure.com/ssctwente/ExternalsPodiumD `application.yml`) reads it from
+# Azure Key Vault (`mi-data-sftp-rsa-private-key`) and substitutes it into the
+# env values file at deploy time. The public half must be installed in the SFTP
+# server's authorized_keys. Host-key checking is disabled (StrictHostKeyChecking
+# =no), so no `known_hosts` is needed.
+#
+# Full activation, validation, and troubleshooting:
+#   → docs/podiumd/mi-exports.md
+#
+# One unified script (modeled on Maykin's bin/dump_data.sh --csv) is used for
+# every target; each entry in mi.targets[] renders one CronJob, gated on the
+# chart's existing <component>.enabled flag — so a CronJob only renders for an
+# app this chart is actively deploying.
+#
+# Per-target DB credentials follow the chart's existing per-app convention:
+#   - <secretName> Secret    — must contain DB_PASSWORD (plus other app secrets is fine)
+#   - <configMapName> CM     — must contain DB_HOST, DB_NAME, DB_USER (DB_PORT optional)
+# Both default to the target's `component`. Override only when the chart subchart key
+# differs from the K8s resource name (e.g. opennotificaties → notificaties resources).
+mi:
+  # Disabled by default. Set to true to render the mi-export CronJobs + Secrets.
+  enabled: false
+  # Top-level path prefix under the remote SFTP root — keeps each gemeente's exports isolated.
+  gemeente: ""
+  # Output format. One of:
+  #   csv    — per-table \COPY → tar.gz of CSVs (one CSV per table, `;`-separated, HEADER row).
+  #   pgdump — pg_dump -Fc (custom format, zlib-compressed, restorable via pg_restore).
+  # All targets in an environment use the same format; per-target overrides are not supported.
+  format: csv
+  schedule: "0 2 * * 0"
+  timeZone: "Europe/Amsterdam"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  ttlSecondsAfterFinished: 86400
+  image:
+    registry: "mcr.microsoft.com"
+    repository: azure-cli
+    tag: "2.71.0"
+  # ephemeral-storage requests = limits = 20Gi: the dump job assembles all
+  # tables of a component into one tarball under /tmp before uploading; the
+  # emptyDir backing /tmp also has sizeLimit 20Gi (set on the volume in
+  # mi-export-cronjobs.yaml) so an oversized dump evicts the pod, not the
+  # node. Scratch is throwaway — nothing in /tmp is preserved past the run.
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+      ephemeral-storage: 20Gi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+      ephemeral-storage: 20Gi
+  nodeSelector: {}
+  sftp:
+    # host, user, remotePath, privateKey are all REQUIRED when mi.enabled.
+    # The CronJob template enforces via Helm `required` and fails fast if unset.
+    host: ""
+    port: 22
+    user: ""
+    remotePath: ""                       # e.g. "/uploads/mi-exports"
+    # SSH private key (PEM block, multiline). The chart renders it into
+    # Secret/<keySecretName> (key `id`, mode 0400 in the pod). Supplied by the
+    # ExternalsPodiumD application.yml pipeline, which substitutes it from Azure
+    # Key Vault (mi-data-sftp-rsa-private-key) at deploy time. Never commit a
+    # real key here — the env values file carries a placeholder the pipeline
+    # replaces. Host-key checking is disabled, so no known_hosts is needed.
+    privateKey: ""
+    # Name of the chart-rendered K8s Secret carrying the connection envvars
+    # (SFTP_HOST, SFTP_PORT, SFTP_USER, SFTP_REMOTE_PATH).
+    secretName: mi-export-sftp
+    # Name of the chart-rendered K8s Secret carrying the SSH private key (`id`).
+    keySecretName: mi-export-sftp-key
+  # Default target list — every Postgres-backed app this chart can deploy. A target only
+  # renders a CronJob when the chart's <component>.enabled is true. Per-target `enabled`
+  # is layered on top for ad-hoc opt-out. `schemas` defaults to ["public"].
+  targets:
+    - component: openzaak
+    - component: opennotificaties
+      # Chart subchart is "opennotificaties" but its K8s resources are named "notificaties".
+      secretName: notificaties
+      configMapName: notificaties
+    - component: objecten
+    - component: objecttypen
+    - component: openarchiefbeheer
+    - component: openklant
+    - component: openformulieren
+    - component: openinwoner
+    - component: referentielijsten
+    - component: openbeheer
+    - component: zac
+      schemas: ["flowable"]
+    - component: ita
+    - component: kiss
+    - component: pabc

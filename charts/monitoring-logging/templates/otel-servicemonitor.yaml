@@ -1,0 +1,23 @@
+{{- if .Values.otelCollectorMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ .Release.Name }}-otel-collector
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+spec:
+  jobLabel: app.kubernetes.io/name
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace | quote }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: opentelemetry-collector
+      component: standalone-collector
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: {{ .Values.otelCollectorMonitor.scrapeInterval | default "30s" }}
+{{- end }}

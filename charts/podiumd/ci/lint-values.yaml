@@ -5,12 +5,96 @@
 # rabbitmq-16.0.12 whose Chart.yaml annotation still lists docker.io/bitnami/rabbitmq,
 # but its own values.yaml defaults to bitnamilegacy/rabbitmq. This mismatch triggers a
 # fail in the Bitnami image-check template; allowInsecureImages bypasses it for linting.
+#
+# Storage templates (templates/<chart>-storage.yaml) are guarded by separate
+# `lookup` checks for the PV (cluster-scoped, name `<namespace>-<chart>`) and the
+# PVC (namespaced, name from `<chart>.persistence.existingClaim`). In `helm lint`
+# both lookups return empty (no cluster context), so both PV and PVC always render
+# during lint. In a cluster-aware render (`helm template --dry-run=server` or
+# `helm install --dry-run`), pre-existing PV+PVC names will be detected and the
+# matching block is skipped — pre-creating both is enough to suppress storage
+# template output during a smoke test.
+#
+# PVC names per chart come from <chart>.persistence.existingClaim in base
+# values.yaml (e.g. openzaak / opennotificaties / objecten / openarchiefbeheer /
+# openklant / openformulieren / openinwoner / referentielijsten / openbeheer).
+# PV names are derived as `<Release.Namespace>-<chart>` and are not configurable.
 
+zac:
+  auth:
+    secret: "placeholder"
+
+keycloak:
+  auth:
+    adminPassword: "placeholder"
+  config:
+    clients:
+      monitoring:
+        secret: "placeholder"
+
+keycloak-operator:
+  jobs:
+    ensureOperatorSa:
+      clientSecret: "placeholder"
+
+# Keycloak realm OIDC client secrets — required by the realm import job for every component.
+openzaak:
+  configuration:
+    secrets:
+      keycloak_client_secret: "placeholder"
+
+# Prevents nil pointer in objecten/templates/secret.yaml; also provides realm secret.
+objecten:
+  configuration:
+    demo:
+      enabled: false
+    secrets:
+      keycloak_client_secret: "placeholder"
+
+# allowInsecureImages bypasses the Bitnami image-check template for rabbitmq.
 opennotificaties:
+  configuration:
+    secrets:
+      keycloak_client_secret: "placeholder"
   rabbitmq:
     global:
       security:
         allowInsecureImages: true
+
+objecttypen:
+  configuration:
+    secrets:
+      keycloak_client_secret: "placeholder"
+
+openarchiefbeheer:
+  configuration:
+    secrets:
+      keycloak_client_secret: "placeholder"
+
+openklant:
+  configuration:
+    secrets:
+      keycloak_client_secret: "placeholder"
+
+openformulieren:
+  configuration:
+    secrets:
+      keycloak_client_secret: "placeholder"
+
+openinwoner:
+  configuration:
+    secrets:
+      keycloak_client_secret: "placeholder"
+
+referentielijsten:
+  configuration:
+    secrets:
+      keycloak_client_secret: "placeholder"
+
+openbeheer:
+  configuration:
+    secrets:
+      keycloak_client_secret: "placeholder"
 
 kiss:
   settings:

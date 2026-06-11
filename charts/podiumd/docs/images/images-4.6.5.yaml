@@ -1,0 +1,19 @@
+# Images die nieuw of gewijzigd zijn in podiumd 4.6.5 t.o.v. 4.6.4.
+
+# Referentielijsten
+- name: referentielijsten-api
+  url: docker.io/maykinmedia/referentielijsten-api
+  version: "0.7.1"
+  digest: "sha256:6bae71f30745e3e24f98d41254fce22fc0d5ec4277dad7647ee2d297cfcf7cf9"
+
+# Open Beheer
+- name: open-beheer
+  url: docker.io/maykinmedia/open-beheer
+  version: "0.9.0"
+  digest: "sha256:1a11b06dadb82c992468709b1aa92d0501aef6d526a7afb52bacac6917385166"
+
+# OMC
+- name: omc
+  url: docker.io/worthnl/notifynl-omc
+  version: "1.17.18"
+  digest: "sha256:c459ae8a2f49e788f5ffab2a4fd87151559f090aedd1b0fb337246433ca928f9"

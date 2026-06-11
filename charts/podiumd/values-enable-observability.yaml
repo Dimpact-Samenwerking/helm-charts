@@ -1,0 +1,213 @@
+# Enable observability (OpenTelemetry + Prometheus) for all supported components.
+#
+# Usage: helm upgrade podiumd charts/podiumd -f values.yaml -f values-enable-observability.yaml -n podiumd
+#
+# Collector endpoint: the OpenTelemetry Collector deployed by the monitoring-logging chart
+# in the monitoring namespace, accepting OTLP over gRPC on port 4317.
+# Adjust the endpoint if your collector runs elsewhere.
+
+_otelEndpoint: &otelEndpoint "http://monitoring-opentelemetry-collector.monitoring.svc.cluster.local:4317"
+
+# ---------------------------------------------------------------------------
+# Maykin apps — Django-based, all share the same settings.otel schema
+# ---------------------------------------------------------------------------
+
+openzaak:
+  settings:
+    otel:
+      disabled: false
+      exporterOtlpEndpoint: *otelEndpoint
+      exporterOtlpProtocol: grpc
+      exporterOtlpMetricsInsecure: true
+      metricExportInterval: 60000
+      metricExportTimeout: 10000
+
+openklant:
+  settings:
+    otel:
+      disabled: false
+      exporterOtlpEndpoint: *otelEndpoint
+      exporterOtlpProtocol: grpc
+      exporterOtlpMetricsInsecure: true
+      metricExportInterval: 60000
+      metricExportTimeout: 10000
+
+openformulieren:
+  settings:
+    otel:
+      disabled: false
+      exporterOtlpEndpoint: *otelEndpoint
+      exporterOtlpProtocol: grpc
+      exporterOtlpMetricsInsecure: true
+      metricExportInterval: 60000
+      metricExportTimeout: 10000
+
+opennotificaties:
+  settings:
+    otel:
+      disabled: false
+      exporterOtlpEndpoint: *otelEndpoint
+      exporterOtlpProtocol: grpc
+      exporterOtlpMetricsInsecure: true
+      metricExportInterval: 60000
+      metricExportTimeout: 10000
+
+objecten:
+  settings:
+    otel:
+      disabled: false
+      exporterOtlpEndpoint: *otelEndpoint
+      exporterOtlpProtocol: grpc
+      exporterOtlpMetricsInsecure: true
+      metricExportInterval: 60000
+      metricExportTimeout: 10000
+
+objecttypen:
+  settings:
+    otel:
+      disabled: false
+      exporterOtlpEndpoint: *otelEndpoint
+      exporterOtlpProtocol: grpc
+      exporterOtlpMetricsInsecure: true
+      metricExportInterval: 60000
+      metricExportTimeout: 10000
+
+openinwoner:
+  settings:
+    otel:
+      disabled: false
+      exporterOtlpEndpoint: *otelEndpoint
+      exporterOtlpProtocol: grpc
+      exporterOtlpMetricsInsecure: true
+      metricExportInterval: 60000
+      metricExportTimeout: 10000
+
+# ---------------------------------------------------------------------------
+# ZAC — Quarkus OTEL via chart-managed env + shared monitoring collector
+#
+# The zac chart only emits OTEL_SDK_DISABLED/OTEL_EXPORTER_OTLP_ENDPOINT when
+# `opentelemetry-collector.enabled: true` (see templates/config.yaml in the
+# zac subchart). We enable it to trigger the envs but keep the bundled
+# collector scaled to zero — traces/metrics go to the shared collector in the
+# monitoring namespace via opentelemetry_zaakafhandelcomponent.endpoint.
+#
+# Image override: the upstream zac chart pins the collector image to
+# otel/opentelemetry-collector-contrib:<tag>@sha256:<digest>. That path/digest
+# is not mirrored in restricted-network ACRs. Repoint to the same image
+# monitoring-logging uses and clear the digest. Bump tag when monitoring-
+# logging upgrades to keep a single version in ACR.
+#
+# autoscaling.enabled: false is needed because the HPA defined by the
+# subchart overrides replicaCount: 0 and keeps a pod running otherwise.
+# ---------------------------------------------------------------------------
+
+zac:
+  opentelemetry-collector:
+    enabled: true
+    replicaCount: 0
+    autoscaling:
+      enabled: false
+    image:
+      repository: opentelemetry-collector-contrib
+      tag: "0.150.1"
+      digest: ""
+  opentelemetry_zaakafhandelcomponent:
+    endpoint: *otelEndpoint
+  # javaOptions extends the chart default (-Xmx1024m -Xms1024m -Xlog:gc::time,uptime).
+  # -Dotel.service.name sets the resource attribute; all other OTEL_* env vars
+  # are exported by the chart once opentelemetry-collector.enabled is true.
+  javaOptions: >-
+    -Xmx1024m -Xms1024m -Xlog:gc::time,uptime
+    -Dotel.service.name=zac
+  # Solr Operator — hardcodes prometheus.io/scrape: "true" in its deployment template already.
+  # Only port and path need to be added via annotations (port 8080).
+  solr-operator:
+    annotations:
+      prometheus.io/port: "8080"
+      prometheus.io/path: /metrics
+    # Zookeeper Operator — port 6000
+    zookeeper-operator:
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "6000"
+        prometheus.io/path: /metrics
+
+# ---------------------------------------------------------------------------
+# Keycloak — two-part wiring:
+#   1. keycloak-operator.enableServiceMonitor grants RBAC so the operator can
+#      create the ServiceMonitor (see templates/keycloak-operator-servicemonitor-rbac.yaml).
+#   2. keycloak.serviceMonitor renders spec.serviceMonitor on the Keycloak CR,
+#      which the operator uses as its cue to generate the actual ServiceMonitor
+#      for the Keycloak pods (port 9000, /metrics, enabled via additionalOptions
+#      metrics-enabled: true in values.yaml).
+# Requires the keycloak-cr.yaml template to pass spec.serviceMonitor through.
+# ---------------------------------------------------------------------------
+
+keycloak-operator:
+  enableServiceMonitor: true
+
+keycloak:
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+    scrapeTimeout: 10s
+
+# ---------------------------------------------------------------------------
+# Redis operator — scrape the operator deployment (port 8080) and enable the
+# redis_exporter sidecar on each redis-ha pod (port 9121) with a PodMonitor.
+# Note: the redis-operator itself uses annotation-based scraping (no ServiceMonitor
+# supported by the operator chart). Requires additionalScrapeConfigs in the
+# monitoring chart for the annotations to be picked up by kube-prometheus-stack.
+# The redis-ha PodMonitor requires the Prometheus Operator CRDs.
+# ---------------------------------------------------------------------------
+
+redis-operator:
+  redisOperator:
+    podAnnotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8080"
+      prometheus.io/path: /metrics
+  redis-ha:
+    redisExporter:
+      enabled: true
+      podMonitor:
+        enabled: true
+
+# ---------------------------------------------------------------------------
+# ClamAV — sergeymakinen/clamav_exporter sidecar + ServiceMonitor (port 9906)
+# Supported since clamav chart v3.7.1 (current). The sidecar runs alongside
+# clamd and exposes metrics at :9906/metrics. ServiceMonitor requires the
+# Prometheus Operator CRD (monitoring.coreos.com/v1 ServiceMonitor).
+# ---------------------------------------------------------------------------
+
+clamav:
+  metrics:
+    enabled: true
+    resources:
+      requests:
+        cpu: 10m
+        memory: 16Mi
+      limits:
+        cpu: 50m
+        memory: 32Mi
+    serviceMonitor:
+      enabled: true
+      interval: 30s
+      scrapeTimeout: 10s
+
+# ---------------------------------------------------------------------------
+# ECK operator (via kiss-elastic) — enable metrics port and create a PodMonitor
+# for the ECK operator pod itself. The eck-operator-podmonitor-rbac template in
+# the podiumd chart grants the elastic-operator SA permission to also create
+# PodMonitors for managed Elasticsearch/Kibana instances at runtime.
+# Requires: kisselastic.enabled: true and Prometheus Operator CRDs installed.
+# ---------------------------------------------------------------------------
+
+kisselastic:
+  eck-operator:
+    config:
+      metricsPort: "8080"
+    podMonitor:
+      enabled: true
+      interval: 1m
+      scrapeTimeout: 30s

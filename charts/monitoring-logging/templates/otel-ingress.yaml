@@ -1,0 +1,30 @@
+{{- if and .Values.otelIngress.enabled .Values.otelIngress.hostname }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Release.Name }}-otel-collector
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    cert-manager.io/cluster-issuer: {{ .Values.otelIngress.clusterIssuer | quote }}
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    {{- if .Values.otelIngress.middleware }}
+    traefik.ingress.kubernetes.io/router.middlewares: {{ tpl .Values.otelIngress.middleware . | quote }}
+    {{- end }}
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: {{ .Values.otelIngress.hostname | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Release.Name }}-opentelemetry-collector
+                port:
+                  number: 4318
+  tls:
+    - hosts:
+        - {{ .Values.otelIngress.hostname | quote }}
+      secretName: {{ .Values.otelIngress.tlsSecretName | quote }}
+{{- end }}

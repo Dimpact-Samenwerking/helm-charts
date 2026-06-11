@@ -2,48 +2,112 @@
 
 ## PodiumD versions
 
-### [4.6.0](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.6.0)
+### [4.7.3](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.7.3)
 
-**PodiumD Helm chart version: 4.6.0**
+**PodiumD Helm chart version: 4.7.3**
+Patch release scoped around a ZAC hotfix for mail-template rendering
+(ZAC 4.7.1 → 4.7.2). All other components remain at their 4.7.2
+baseline; see the `4.7.2` row below for the unchanged entries.
+
+| Component                 | AppVersion       | Change            | ChartVersion | Change         | **Notes**                            |
+|---------------------------|------------------|-------------------|--------------|----------------|--------------------------------------|
+| Zac                       | 4.7.2            | Patch update      | 1.0.228      |                | Mail-template hotfix                 |
+
+### [4.7.2](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.7.2)
+
+**PodiumD Helm chart version: 4.7.2**
+Componenten op alphabetische volgorde, met sub-charts er onder. Wijzigingen
+tegen `4.6.3` (laatste hier vastgelegde release; 4.7.0 en 4.7.1 zaten
+tussen). Beveiligingsupdates in deze release: Keycloak 26.6.2 (account-takeover-
+class CVEs) en nginx-unprivileged 1.30.2 (CVE-2026-42945 "nginx Rift" RCE
+en CVE-2026-9256). Zie `docs/upgrade-from-4.7.1-to-4.7.2.md` voor details.
+
+| Component                 | AppVersion       | Change            | ChartVersion | Change         | **Notes**                            |
+|---------------------------|------------------|-------------------|--------------|----------------|--------------------------------------|
+| APISIX                    | 3.16.0-ubuntu    | New               | 2.14.0       | New            | Opt-in egress gateway (apisix.enabled) |
+| BRP Mock                  |                  |                   | 1.2.8        |                | Only on Test Environments            |
+| ClamAV                    | 1.4.4            |                   | 3.7.1        |                |                                      |
+| ITA                       | 3.1.0            | Patch update      | 3.1.0        | Patch update   |                                      |
+| - Ita poller              | 3.1.0            | Patch update      |              |                |                                      |
+| Keycloak                  | 26.6.2           | Minor + security  | 1.11.4       | Patch update   | Adfinis operator, +security 26.6.2   |
+| - Keycloak-config-cli     | 6.5.0-26         |                   |              |                |                                      |
+| - Curl                    | 8.20.0           | Patch update      |              |                |                                      |
+| Kiss                      | 2.2.2            |                   | 2.2.2        |                |                                      |
+| - Kiss Elastic            |                  |                   | 1.1.0        |                |                                      |
+| - Kiss ElasticSync        | 0.3.2            |                   |              |                |                                      |
+| - PodiumD Adapter         | 0.6.6            |                   |              |                |                                      |
+| Objecten                  | 3.6.0            |                   | 2.12.0       |                |                                      |
+| Objecttypen               | 3.4.2            | Patch update      | 1.6.1        |                |                                      |
+| OMC for NotifyNL          | 1.17.19          | Patch update      | 0.14.1       | Patch update   |                                      |
+| Open Archiefbeheer        | 2.0.0            | Major update      | 2.0.0        | Major update   |                                      |
+| Open Beheer               | 0.9.0            | New               | 0.1.3        | New            |                                      |
+| Open Formulieren          | 3.4.9            | Patch update      | 1.12.0       |                |                                      |
+| Open Inwoner              | 2.1.2            | Patch update      | 2.1.3        |                | 2.1.2-rc1 → stable 2.1.2 in 4.7.2    |
+| Open Klant                | 2.15.0           |                   | 1.11.0       |                |                                      |
+| Open Notificaties         | 1.15.0           |                   | 1.13.1       |                |                                      |
+| Open Zaak                 | 1.27.1           | Minor update      | 1.14.1       | Minor update   | New optional Azure Blob / S3 backends |
+| PABC                      | 1.1.0            |                   | 1.1.0        |                |                                      |
+| - k8s-wait-for            | v2.0             |                   |              |                |                                      |
+| Redis Operator            | v0.24.0          |                   | 0.24.0       |                |                                      |
+| - Busybox                 | 1.37.0-glibc     |                   |              |                |                                      |
+| - Kubectl                 | 1.34.7           | Minor update      |              |                | alpine/k8s image                     |
+| - Redis                   | v8.6.2           |                   |              |                |                                      |
+| - Redis Exporter          | v1.82.0          |                   |              |                |                                      |
+| Referentielijsten         | 0.7.2            | New               | 0.1.1        | New            |                                      |
+| nginx-unprivileged        | 1.30.2           | Minor + security  |              |                | Shared sidecar for all Django apps   |
+| Zac                       | 4.7.1            | Major update      | 1.0.228      | Minor update   |                                      |
+| - Opa                     | 1.15.2-static    | Minor update      |              |                |                                      |
+| - Opentelemetry Collector | 0.150.1          | Minor update      |              |                | Operator                             |
+| - Solr                    | 9.10.1-slim      |                   | 0.9.1        |                | CVE-2026-22022 + CVE-2026-22444 in 9.10.1 |
+| - Gotenberg               | 8.31.0           |                   |              |                | Office converter                     |
+| - Zookeeper               | 0.2.15           |                   | 0.2.15       |                | Operator                             |
+| ZGW Office Addin          | v0.9.289         | Minor update      | 0.0.87       | Patch update   |                                      |
+
+### [4.6.3](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.6.3)
+
+**PodiumD Helm chart version: 4.6.3**
 Componenten op alphabetische volgorde, met sub-charts er onder:
 
-| Component                 | AppVersion | Change        | ChartVersion | Change        | **Notes**                 |
-|---------------------------|------------|---------------|--------------|---------------|---------------------------|
-| BRP Mock                  |            |               | 1.2.8        |               | Only on Test Environments |
-| ClamAV                    | 1.4.4      | Patch update  | 3.7.1        | Minor update  |                           |
-| ITA                       | 2.1.1      | Minor update  | 2.1.1        |               |                           |
-| - Ita poller              | 2.1.1      | Minor update  |              |               |                           |
-| Keycloak                  | 26.5.6     |               | 1.11.2       | Operator      |                           |
-| Kiss                      | 2.2.2      | Minor update  | 2.2.12       |               |                           |
-| - Kiss Elastic            |            |               | 1.1.0        |               |                           |
-| - Kiss ElasticSync        | 0.3.2      | Minor update  |              |               |                           |
-| - PodiumD Adapter         | 0.6.6      | Minor update  |              |               |                           |
-| Objecten                  | 3.5.0      |               | 2.11.0       |               |                           |
-| Objecttypen               | 3.4.0      |               | 1.6.0        |               |                           |
-| OMC for NotifyNL          | 1.17.18    | New component | 0.14.0       | New component |                           |
-| Open Archiefbeheer        | 1.1.1      |               | 1.5.3        |               |                           |
-| Open Formulieren          | 3.3.9      |               | 1.12.0       |               |                           |
-| Open Inwoner              | 2.0.2      |               | 2.1.3        |               |                           |
-| Open Klant                | 2.14.0     |               | 1.11.0       |               |                           |
-| Open Notificaties         | 1.14.0     |               | 1.13.1       |               |                           |
-| Open Zaak                 | 1.26.0     |               | 1.13.1       |               |                           |
-| PABC                      | 1.0.0      |               | 1.0.0        |               |                           |
-| Redis Operator            | v0.24.0    | New component | 0.24.0       | New component |                           |
-| - Busybox                 | 1.37.0-glibc | New         |              |               |                           |
-| - Redis                   | v8.4.2     | New component |              |               |                           |
-| - Redis Exporter          | v1.44.0    | New component |              |               |                           |
-| Zac                       | 4.3.61     | Minor update  | 1.0.194      | Patch update  |                           |
-| - Busybox                 | 1.37.0     | Minor update  |              |               |                           |
-| - Curl                    | 8.18.0     | Minor update  |              |               |                           |
-| - Kubectl                 | 1.25.4     | Patch update  |              |               |                           |
-| - Nginx                   | 1.29.5     | Patch update  |              |               |                           |
-| - Opa                     | 1.14.0     | Patch update  |              |               |                           |
-| - Opentelemetry Collector | 0.146.1    | Minor update  | 0.146.0      | Minor update  | Operator                  |
-| - Solr                    | 9.10.1     | Minor update  | 0.9.1        |               |                           |
-| - Office Converter        | 1.8.2      | Patch update  |              |               |                           |
-| - Zookeeper               | 0.2.15     | Patch update  | 0.2.15       |               | Operator                  |
-| ZGW Office Addin          | 0.9.133    |               | 0.0.73       |               |                           |
-
+| Component                 | AppVersion   | Change        | ChartVersion | Change        | **Notes**                 |
+|---------------------------|--------------|---------------|--------------|---------------|---------------------------|
+| BRP Mock                  |              |               | 1.2.8        |               | Only on Test Environments |
+| ClamAV                    | 1.4.4        |               | 3.7.1        |               |                           |
+| ITA                       | 3.0.0        |               | 3.0.0        |               |                           |
+| - Ita poller              | 3.0.0        |               |              |               |                           |
+| Keycloak                  | 26.5.7       |               | 1.11.2       |               |                           |
+| - Keycloak-config-cli     | 6.5.0-26     | Minor update  |              |               |                           |
+| - Curl                    | 8.19.0       | Patch update  |              |               |                           |
+| Kiss                      | 2.2.2        |               | 2.2.2        |               |                           |
+| - Kiss Elastic            |              |               | 1.1.0        |               |                           |
+| - Kiss ElasticSync        | 0.3.2        |               |              |               |                           |
+| - PodiumD Adapter         | 0.6.6        |               |              |               |                           |
+| Objecten                  | 3.6.0        |               | 2.12.0       |               |                           |
+| Objecttypen               | 3.4.1        |               | 1.6.1        |               |                           |
+| OMC for NotifyNL          | 1.17.18      |               | 0.14.0       |               |                           |
+| Open Archiefbeheer        | 1.1.1        |               | 1.5.3        |               |                           |
+| Open Formulieren          | 3.4.7        |               | 1.12.0       |               |                           |
+| Open Inwoner              | 2.1.1        |               | 2.1.3        |               |                           |
+| Open Klant                | 2.15.0       |               | 1.11.0       |               |                           |
+| Open Notificaties         | 1.15.0       |               | 1.13.1       |               |                           |
+| Open Zaak                 | 1.26.0       |               | 1.13.1       |               |                           |
+| PABC                      | 1.1.0        |               | 1.1.0        |               |                           |
+| - k8s-wait-for            | v2.0         |               |              |               |                           |
+| Redis Operator            | v0.24.0      |               | 0.24.0       |               |                           |
+| - Busybox                 | 1.37.0-glibc |               |              |               |                           |
+| - Kubectl                 | 1.33.2       | Minor update  |              |               | alpine/k8s image          |
+| - Redis                   | v8.6.2       | Minor update  |              |               |                           |
+| - Redis Exporter          | v1.82.0      | Minor update  |              |               |                           |
+| Zac                       | 4.3.61       |               | 1.0.208      |               |                           |
+| - Busybox                 | 1.37.0       |               |              |               |                           |
+| - Curl                    | 8.18.0       |               |              |               |                           |
+| - Kubectl                 | 1.25.4       |               |              |               |                           |
+| - Nginx                   | 1.29.5       |               |              |               |                           |
+| - Opa                     | 1.14.0       |               |              |               |                           |
+| - Opentelemetry Collector | 0.146.1      |               | 0.146.0      |               | Operator                  |
+| - Solr                    | 9.10.1       |               | 0.9.1        |               |                           |
+| - Office Converter        | 1.8.2        |               |              |               |                           |
+| - Zookeeper               | 0.2.15       |               | 0.2.15       |               | Operator                  |
+| ZGW Office Addin          | 0.9.251      | Minor update  | 0.0.83       | Minor update  |                           |
 
 ### [4.5.14](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.5.14)
 
@@ -67,32 +131,6 @@ Componenten op alphabetische volgorde, met sub-charts er onder:
 | Kiss               | 2.1.0      | Major update | 2.1.0        | Major update                            |
 | Zac                | 4.0.12-1   | Major update | 1.0.165      | Minor update                            |
 | ZGW Office Addin   | 0.9.28     | Minor update | 0.0.65       | Patch update                            |
-
-
-
-### [4.5.13](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.5.13)
-
-**PodiumD Helm chart version: 4.5.13**
-
-| Component          | AppVersion | Change       | ChartVersion | Change                                  |
-|--------------------|------------|--------------|--------------|-----------------------------------------|
-| ClamAV             | 1.4.2      |              | 3.2.0        |                                         |
-| Keycloak           | 26.5.6     | Minor update | 1.11.2       | Bitnami vervangen met Adfinis Operator  |
-| Infinispan         | 15.2       |              | 0.5.0        |                                         |
-| ITA                | 2.0.1      | Patch update | 2.0.1        | Patch update                            |
-| PABC               | 1.0.0      | New          | 1.0.0        | New                                     |
-| Objecten           | 3.5.0      | Minor update | 2.11.0       | Minor update                            |
-| Objecttypen        | 3.4.0      | Minor update | 1.6.0        | Minor update                            |
-| Open Formulieren   | 3.3.13     | Patch update | 1.11.6       |                                         |
-| Open Inwoner       | 2.0.3      | Major update | 2.1.0        | Major update                            |
-| Open Klant         | 2.14.0     | Minor update | 1.10.0       | Minor update                            |
-| Open Notificaties  | 1.14.0     | Minor update | 1.13.0       | Minor update                            |
-| Open Zaak          | 1.26.0     | Minor update | 1.13.0       | Minor update                            |
-| Open Archiefbeheer | 1.1.1      |              | 1.5.3        | Minor update                            |
-| Kiss               | 2.1.0      | Major update | 2.1.0        | Major update                            |
-| Zac                | 4.0.12-1   | Major update | 1.0.165      | Minor update                            |
-| ZGW Office Addin   | 0.9.28     | Minor update | 0.0.65       | Patch update                            |
-
 
 ### [4.4.5](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.4.5)
 
@@ -131,6 +169,7 @@ helm repo add zac https://infonl.github.io/dimpact-zaakafhandelcomponent/
 helm repo add zgw-office-addin https://infonl.github.io/zgw-office-addin
 helm repo add adfinis https://charts.adfinis.com
 helm repo add worth-nl https://worth-nl.github.io/helm-charts
+helm repo add apisix https://charts.apiseven.com
 ```
 
 ## PersistentVolume and PersistVolumeClaim resources
@@ -182,7 +221,7 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 
 ### keycloak-operator
 
-The Keycloak Operator is deployed via the [adfinis/keycloak-operator](https://artifacthub.io/packages/helm/adfinis/keycloak-operator) Helm chart, which wraps the official upstream Keycloak Operator manifests from [keycloak/keycloak-k8s-resources](https://github.com/keycloak/keycloak-k8s-resources). It installs the `Keycloak` CRD (`k8s.keycloak.org/v2alpha1`) and reconciles `Keycloak` custom resources into running pods.
+The Keycloak Operator is deployed via the [adfinis/keycloak-operator](https://artifacthub.io/packages/helm/adfinis/keycloak-operator) Helm chart, which wraps the official upstream Keycloak Operator manifests from [keycloak/keycloak-k8s-resources](https://github.com/keycloak/keycloak-k8s-resources). It installs the `Keycloak` CRD (`k8s.keycloak.org/v2beta1`) and reconciles `Keycloak` custom resources into running pods.
 
 The deprecated Bitnami `keycloak` sub-chart (`keycloak.enabled`) is kept for rollback purposes only and will be removed in a future release. See `docs/migrating-to-keycloak-operator.md` for migration instructions.
 
@@ -190,11 +229,11 @@ The deprecated Bitnami `keycloak` sub-chart (`keycloak.enabled`) is kept for rol
 |------------------------------------------------|--------------------------------------------------------------------------------------|------------------------------------------|
 | keycloak-operator.enabled                      | Deploy the Keycloak Operator (adfinis/keycloak-operator chart)                       | `true`                                   |
 | keycloak-operator.operator.image.repository    | Keycloak Operator controller image repository                                        | `quay.io/keycloak/keycloak-operator`     |
-| keycloak-operator.operator.image.tag           | Keycloak Operator controller image tag                                               | `26.5.4`                                 |
+| keycloak-operator.operator.image.tag           | Keycloak Operator controller image tag                                               | `26.6.2`                                 |
 | keycloak.enabled                               | Deploy legacy Bitnami Keycloak sub-chart (deprecated, use keycloak-operator instead) | `false`                                  |
 | keycloak.name                                  | Name of the `Keycloak` CR created by `keycloak-cr.yaml`                              | `keycloak`                               |
 | keycloak.instances                             | Number of Keycloak replicas                                                          | `2`                                      |
-| keycloak.image.tag                             | Keycloak application image tag                                                       | `26.5.4`                                 |
+| keycloak.image.tag                             | Keycloak application image tag                                                       | `26.6.2`                                 |
 | keycloak.hostname.hostname                     | Public hostname for the Keycloak service                                             | `""`                                     |
 | keycloak.hostname.admin                        | Hostname for the Keycloak admin console                                              | `""`                                     |
 | keycloak.http.httpEnabled                      | Enable plain HTTP (required when running behind a reverse proxy)                     | `true`                                   |
@@ -664,8 +703,8 @@ The deprecated Bitnami `keycloak` sub-chart (`keycloak.enabled`) is kept for rol
 | openinwoner.persistence.privateMediaMountSubpath          | Private media mount subpath                                                                                                                           | `openinwoner/private_media`                   |
 | openinwoner.persistence.size                              | Size of created PersistentVolume                                                                                                                      | `10Gi`                                        |
 | openinwoner.persistentVolume.volumeAttributeShareName     | Value of created PersistentVolume paramer `spec.csi.volumeAttributes.shareName`.<br/>Overriden by `.Values.persistentVolume.volumeAttributeShareName` | `openinwoner`                                 |
-| openinwoner.image.repository                              | Image repository                                                                                                                                      | `openinwoner/open-forms`                      |
-| openinwoner.image.tag                                     | Image tag                                                                                                                                             | `1.21.2`                                      |
+| openinwoner.image.repository                              | Image repository                                                                                                                                      | `maykinmedia/open-inwoner`                    |
+| openinwoner.image.tag                                     | Image tag                                                                                                                                             | `2.1.2`                                       |
 | openinwoner.image.pullPolicy                              | Image pull policy                                                                                                                                     | `IfNotPresent`                                |
 | openinwoner.nodeSelector                                  | Node labels for pod assignment. Evaluated as a template                                                                                               | `{}`                                          |
 | openinwoner.resources                                     | Container requests and limits                                                                                                                         | See values.yaml                               |
@@ -758,7 +797,8 @@ The deprecated Bitnami `keycloak` sub-chart (`keycloak.enabled`) is kept for rol
 | apiproxy.resources.limits.memory             | Memory resource limit                      | `"256Mi"`                                                                           |
 | apiproxy.resources.requests.cpu              | CPU resource request                       | `"0.1"`                                                                             |
 | apiproxy.resources.requests.memory           | Memory resource request                    | `"128Mi"`                                                                           |
-| apiproxy.nginxCertsSecret                    | Secret containing NGINX certificates       | `"podiumd-proxy-certs"`                                                             |
+| apiproxy.nginxCertsSecret                    | Secret containing NGINX certificates (empty disables mTLS) | `""`                                                                                |
+| apiproxy.sslVerifyDepth                      | Max upstream TLS chain depth (`proxy_ssl_verify_depth`) | `6`                                                                                 |
 | apiproxy.livenessProbe.initialDelaySeconds   | Initial delay for liveness probe           | `5`                                                                                 |
 | apiproxy.livenessProbe.periodSeconds         | Period between liveness probe checks       | `10`                                                                                |
 | apiproxy.readinessProbe.initialDelaySeconds  | Initial delay for readiness probe          | `5`                                                                                 |
@@ -778,6 +818,30 @@ $ kubectl create secret generic api-proxy-certs \
   --from-file=client.crt="C:\labtenant1.lab.api.mijniconnect.nl.crt" \
   --from-file=client.key="C:\labtenant1.lab.api.mijniconnect.nl.key.decrypted" \
   --from-file=ca.crt="C:\lab_api_mijniconnect_nl.crt"
+
+### APISIX
+
+APISIX is deployed as an **outbound (egress) API gateway** for PodiumD applications. PodiumD pods send outbound API calls to the APISIX cluster service for policy enforcement, observability, and (planned) mTLS to upstream services. APISIX is not exposed outside the cluster — no ingress routes are required from APISIX itself.
+
+The chart is wired in via the upstream [`apisix/apisix`](https://github.com/apache/apisix-helm-chart) Helm chart. **Disabled by default** — opt in by setting `apisix.enabled: true`. See `docs/apisix-egress-gateway.md` for background, the embedded Dashboard UI, route configuration, and the open security TODOs.
+
+The operator GUI is the **embedded APISIX Dashboard**, shipped inside the gateway from APISIX 3.16 onwards and served at the Admin API port (`:9180/ui/`). No separate dashboard chart is required.
+
+| Name                              | Description                                                                                       | Value       |
+|-----------------------------------|---------------------------------------------------------------------------------------------------|-------------|
+| apisix.enabled                    | Deploy the APISIX egress gateway sub-chart (also enables the embedded Dashboard)                  | `false`     |
+| apisix.fullnameOverride           | Override the APISIX release name (so the service is reachable as `apisix.<namespace>.svc...`)     | `"apisix"`  |
+| apisix.ingress-controller.enabled | Deploy the bundled ingress controller (kept off — APISIX is egress-only)                          | `false`     |
+| apisix.service.type               | Kubernetes service type for the APISIX gateway data plane                                         | `ClusterIP` |
+| apisix.admin.enable_admin_ui      | Enable the embedded Dashboard UI on the Admin API port (`:9180/ui/`)                              | `true`      |
+| apisix.admin.type                 | Kubernetes service type for the APISIX Admin API + Dashboard                                      | `ClusterIP` |
+| apisix.apisixYaml                 | Standalone-mode route/upstream/plugin configuration. See egress-gateway doc for the schema        | _(unset)_   |
+
+For the full upstream values reference run:
+
+```shell
+helm show values apisix/apisix --version 2.14.0
+```
 
 ### Tags
 

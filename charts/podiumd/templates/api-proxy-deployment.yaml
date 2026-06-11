@@ -23,7 +23,15 @@ spec:
       {{- end }}
       containers:
       - name: nginx
-        image: {{ .Values.apiproxy.image.repository }}:{{ .Values.apiproxy.image.tag }}
+        image: {{ include "podiumd.image" .Values.apiproxy.image }}
+        securityContext:
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault
         ports:
         - containerPort: {{ .Values.apiproxy.service.containerPort }}
           name: http
@@ -31,6 +39,10 @@ spec:
         - name: nginx-config
           mountPath: /etc/nginx/nginx.conf
           subPath: nginx.conf
+        - name: nginx-tmp
+          mountPath: /tmp
+        - name: nginx-cache
+          mountPath: /var/cache/nginx
         {{- if .Values.apiproxy.nginxCertsSecret }}
         - name: nginx-certs
           mountPath: /etc/nginx/certs
@@ -58,6 +70,10 @@ spec:
       - name: nginx-config
         configMap:
           name: {{ default "api-proxy" .Values.apiproxy.nameOverride }}-nginx-config
+      - name: nginx-tmp
+        emptyDir: {}
+      - name: nginx-cache
+        emptyDir: {}
       {{- if .Values.apiproxy.nginxCertsSecret }}
       - name: nginx-certs
         secret:
