@@ -2,8 +2,8 @@ apiVersion: v2
 name: podiumd
 description: PodiumD Helm chart
 type: application
-version: 4.7.3
-appVersion: "4.7.3"
+version: 4.8.0
+appVersion: "4.8.0"
 dependencies:
   - name: keycloak-operator
     version: 1.11.4
@@ -48,7 +48,7 @@ dependencies:
     repository: "@maykinmedia"
     condition: openformulieren.enabled
   - name: openinwoner
-    version: 2.1.3
+    version: 2.2.0
     repository: "@maykinmedia"
     condition: openinwoner.enabled
   - name: referentielijsten
