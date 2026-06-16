@@ -3,6 +3,22 @@
 
 ## Changes
 
+### Keycloak 26.6.2 → 26.6.3 (security)
+
+4.7.4 bumps the Keycloak server **and** operator images from `26.6.2` to `26.6.3`
+and the adfinis `keycloak-operator` chart dependency from `1.11.4` to `1.12.0`
+(`appVersion` 26.6.3). 26.6.3 is a security release fixing 16 CVEs, most
+notably **CVE-2026-9704** (privilege escalation via token exchange),
+**CVE-2026-4874** (SSRF on the OIDC token endpoint) and **CVE-2026-9802**
+(revoked-refresh-token replay after a server restart).
+
+#### Action required
+
+None beyond the standard image-pin update — the pins are already in `values.yaml`
+(`tag` + `digest`) and `images/images-4.7.4.yaml`. The 26.6.3 CRDs are
+byte-identical to 26.6.2, so **no CRD apply or migration is required**; the
+adfinis 1.12.0 chart bundles the matching 26.6.3 CRDs.
+
 ### Add Datamigratie Keycloak client and Open Zaak secret
 
 Datamigratie is deployed in a separate pipeline. But Datamigratie needs a connection to Open Zaak,

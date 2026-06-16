@@ -1,0 +1,20 @@
+# Images new or changed in podiumd 4.7.4 vs 4.7.3.
+#
+# 4.7.4 is a direct successor of 4.7.3 (no skipped intermediate releases),
+# so this manifest is the plain 4.7.3 -> 4.7.4 delta.
+#
+# Sole image change: Keycloak server + operator 26.6.2 -> 26.6.3 (security
+# release fixing 16 CVEs, incl. CVE-2026-9704 token-exchange privilege
+# escalation, CVE-2026-4874 SSRF, CVE-2026-9802 refresh-token replay).
+# keycloak-config-cli is unchanged (6.5.0-26). The 26.6.3 CRDs are byte-
+# identical to 26.6.2, so no CRD change is required on upgrade.
+
+# Keycloak (server + operator) — 26.6.2 -> 26.6.3
+- name: keycloak
+  url: quay.io/keycloak/keycloak
+  version: "26.6.3"
+  digest: "sha256:5fdbf2dbb5897cc34e82de49d13e23db011f9925089dbc555fc095f2c8bc1dac"
+- name: keycloak-operator
+  url: quay.io/keycloak/keycloak-operator
+  version: "26.6.3"
+  digest: "sha256:bd128cd63da5b1e64514903ced8def912a41a6ae63d1569fd39022c586680087"

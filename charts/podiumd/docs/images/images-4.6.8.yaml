@@ -1,0 +1,36 @@
+# Images new or changed in podiumd 4.6.8 vs 4.6.4.
+#
+# This is a PATH-TARGET manifest: it is cumulative across the skipped
+# intermediate releases 4.6.5, 4.6.6 and 4.6.7, because the official
+# upgrade path jumps 4.6.4 -> 4.6.8 directly (see ../UPGRADING.md).
+# It therefore captures every image new or changed since 4.6.4, not just
+# the 4.6.7 -> 4.6.8 delta.
+#
+# Open Inwoner is pinned to the STABLE 2.1.2 release. The transient
+# 2.1.2-rc1 image that 4.6.7 carried is intentionally NOT referenced here
+# and must never be used on the official upgrade path.
+
+# Referentielijsten (enabled/configured in 4.6.5)
+- name: referentielijsten-api
+  url: docker.io/maykinmedia/referentielijsten-api
+  version: "0.7.1"
+  digest: "sha256:6bae71f30745e3e24f98d41254fce22fc0d5ec4277dad7647ee2d297cfcf7cf9"
+
+# Open Beheer (enabled/configured in 4.6.5)
+- name: open-beheer
+  url: docker.io/maykinmedia/open-beheer
+  version: "0.9.0"
+  digest: "sha256:1a11b06dadb82c992468709b1aa92d0501aef6d526a7afb52bacac6917385166"
+
+# OMC (NotifyNL) (enabled/configured in 4.6.5)
+- name: omc
+  url: docker.io/worthnl/notifynl-omc
+  version: "1.17.18"
+  digest: "sha256:c459ae8a2f49e788f5ffab2a4fd87151559f090aedd1b0fb337246433ca928f9"
+
+# Open Inwoner — 2.1.1 -> 2.1.2 (stable). 4.6.8 promotes off the 2.1.2-rc1
+# release candidate that 4.6.7 carried, to the stable upstream 2.1.2.
+- name: openinwoner
+  url: docker.io/maykinmedia/open-inwoner
+  version: "2.1.2"
+  digest: "sha256:d4158f4f6f0890c7c94099332de034da0f6cf1fed298a79447934aa8c9d3236d"
