@@ -23,17 +23,17 @@ persistentVolume:
 keycloak-operator:
   enabled: true
   # Adfinis Helm chart wrapping the official Keycloak Operator manifests.
-  # Chart: https://charts.adfinis.com / adfinis/keycloak-operator (chart 1.11.4, appVersion 26.5.6)
+  # Chart: https://charts.adfinis.com / adfinis/keycloak-operator (chart 1.12.0, appVersion 26.6.3)
   # Note: it appears that the podname automatically appends -operator.
-  # Official operator image: quay.io/keycloak/keycloak-operator:26.6.2
-  # Note: adfinis chart 1.11.4 targets appVersion 26.5.6; Keycloak image is overridden to 26.6.2 below.
+  # Official operator image: quay.io/keycloak/keycloak-operator:26.6.3
+  # Note: adfinis chart 1.12.0 targets appVersion 26.6.3; operator + server image pinned to 26.6.3 below.
   # override: values-enable-observability.yaml sets enableServiceMonitor: true
   enableServiceMonitor: false
   fullnameOverride: keycloak
   operator:
     image:
       repository: quay.io/keycloak/keycloak-operator
-      tag: "26.6.2@sha256:01800d326246fc3ccf759e648268171244c96d46ccd151fe031894a6a06d3fa1"
+      tag: "26.6.3@sha256:bd128cd63da5b1e64514903ced8def912a41a6ae63d1569fd39022c586680087"
     resources:
       requests:
         cpu: 100m
@@ -178,11 +178,11 @@ keycloak:
   http:
     httpEnabled: true
   # image parameters for keycloak-operator
-  # Official Keycloak image: quay.io/keycloak/keycloak:26.6.2
+  # Official Keycloak image: quay.io/keycloak/keycloak:26.6.3
   image:
     registry: ""
     repository: quay.io/keycloak/keycloak
-    tag: "26.6.2@sha256:5afd40414096432903a5374ba4ba70b931dcca598a6bd9f44239fe66ef8d9737"
+    tag: "26.6.3@sha256:5fdbf2dbb5897cc34e82de49d13e23db011f9925089dbc555fc095f2c8bc1dac"
   # -- instances is the new operator-style replica count (falls back to replicaCount)
   instances: "2"
   ingress:
@@ -217,7 +217,7 @@ keycloak:
     metadata:
       labels:
         app: keycloak
-        version: 26.6.2
+        version: 26.6.3
       # override: values-enable-observability.yaml adds prometheus.io scrape annotations
     spec:
       securityContext:
