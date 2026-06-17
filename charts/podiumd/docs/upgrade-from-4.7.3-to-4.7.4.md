@@ -61,9 +61,9 @@ at its upstream default (`False`) and is **not** changed by 4.7.4.
 > is no master `LOG_OUTGOING_REQUESTS` env var and its logging handlers are defined
 > unconditionally. Outgoing-request logging therefore cannot be switched off
 > entirely from the environment without also changing DB-save behaviour, so 4.7.4
-> leaves Open Inwoner unchanged. (To stop only DB persistence there you *could* set
-> `openinwoner.extraEnvVars` `LOG_OUTGOING_REQUESTS_DB_SAVE: "False"`, but that
-> changes the DB-save default and is deliberately not done in 4.7.4.)
+> leaves Open Inwoner unchanged. To disable outgoing-request logging for Open
+> Inwoner (DB persistence and/or the stdout emit handler), see
+> [`openinwoner-outgoing-request-logging.md`](openinwoner-outgoing-request-logging.md).
 
 #### Action required
 
