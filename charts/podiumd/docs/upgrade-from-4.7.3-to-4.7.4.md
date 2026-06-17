@@ -108,8 +108,17 @@ at its upstream default (`False`) and is **not** changed by 4.7.4.
 - **None for the default.** On `helm upgrade` the Open Formulieren pods roll and
   pick up `LOG_OUTGOING_REQUESTS=False`; from then on outgoing requests are not
   logged. No data migration; existing log rows are not deleted.
+- **The switch is a hard master — an admin cannot re-enable it from the UI.**
+  `LOG_OUTGOING_REQUESTS=False` empties the `log_outgoing_requests` logger's handler
+  list entirely (`handlers: []` in `conf/base.py`), so **neither** the stdout emit
+  **nor** the DB-save handler is attached. The runtime admin model
+  `OutgoingRequestsLogConfig` (Django admin → *Log outgoing requests* → *Outgoing
+  requests log configuration*, field `save_to_db`) only governs whether the DB
+  handler *writes* — but with the master off that handler is not attached, so
+  setting `save_to_db = Always` has **no effect**. Logging stays off until the env
+  switch is turned back on.
 - **To re-enable outgoing-request logging for a specific environment**, override in
-  that gemeente's values:
+  that gemeente's values (the only way to re-enable):
 
   ```yaml
   openformulieren:
@@ -118,9 +127,9 @@ at its upstream default (`False`) and is **not** changed by 4.7.4.
         value: "True"
   ```
 
-  When re-enabled, DB persistence is still gated separately by
-  `LOG_OUTGOING_REQUESTS_DB_SAVE` and the runtime `OutgoingRequestsLogConfig.save_to_db`
-  admin toggle (Django admin → *Log outgoing requests* → *configuration*).
+  After the pods restart with this, DB persistence is then gated as normal by
+  `LOG_OUTGOING_REQUESTS_DB_SAVE` (default `False`) and the runtime
+  `OutgoingRequestsLogConfig.save_to_db` admin toggle.
 
 ### Add Datamigratie Keycloak client and Open Zaak secret
 
