@@ -86,16 +86,55 @@ effect until you set it back to **Use default** or **Never**.
 
 ---
 
-## 2. The stdout emit handler
+## 2. The stdout (structlog) emit handler — where the DEBUG logging comes from
 
-The `log_outgoing_requests` (emit) handler logs at `DEBUG`. At the normal Open
-Inwoner application log level (`INFO`/`WARNING`), these `DEBUG` records are already
-not emitted, so in practice no separate action is needed to keep them out of the
-container logs — just don't run the app at `DEBUG`.
+The outgoing-request log lines come from a **dedicated logger defined in
+`src/open_inwoner/conf/base.py`**, with the level and handlers **hardcoded as
+literals** — none of it is read from an env var:
 
-There is **no env var** to remove this handler. Fully disabling it would require an
-upstream `LOGGING` change in Open Inwoner (e.g. a master `LOG_OUTGOING_REQUESTS`
-switch like Open Formulieren has) — track/raise that with Maykin if needed.
+```python
+# handlers
+"log_outgoing_requests": {                  # the "emit" handler
+    "level": "DEBUG",
+    "formatter": "outgoing_requests",
+    "class": "open_inwoner.utils.logging.StructlogOutgoingRequestsHandler",
+},
+"save_outgoing_requests": {                  # the DB handler (see §1)
+    "level": "DEBUG",
+    "class": "log_outgoing_requests.handlers.DatabaseOutgoingRequestsHandler",
+},
+# logger
+"log_outgoing_requests": {
+    "handlers": ["log_outgoing_requests", "save_outgoing_requests"],
+    "level": "DEBUG",            # literal — NOT from a variable
+    "propagate": True,
+},
+```
+
+So the `DEBUG` records are emitted by `StructlogOutgoingRequestsHandler` **on every
+outgoing request**, gated by nothing but this hardcoded config.
+
+### Is it reachable from an env var or Helm value? **No.**
+
+- There is **no `LOG_LEVEL` env var** in Open Inwoner v2.1.2 at all, and this logger's
+  level is the literal `"DEBUG"` — so you cannot raise a global level to silence it.
+- **`LOG_STDOUT`** (`config("LOG_STDOUT", default=False)`) only switches the
+  **`open_inwoner` project logger** between the `project` (file) and `console`
+  handlers. It does **not** touch the `log_outgoing_requests` logger, which carries
+  its own explicit handler list — so `LOG_STDOUT` does not turn this off.
+- The only env-reachable knob in this area is **`LOG_OUTGOING_REQUESTS_DB_SAVE`**
+  (§1), which gates the *DB* handler — not the structlog emit.
+
+The emit handler therefore **cannot be disabled via an environment variable or a
+Helm value**. Turning it off requires an upstream `LOGGING` change in Open Inwoner —
+either raise the `log_outgoing_requests` logger level above `DEBUG`, drop the
+`log_outgoing_requests` handler, or add a master `LOG_OUTGOING_REQUESTS` switch like
+Open Formulieren has. Raise this with Maykin if the stdout volume is a problem.
+
+> Practical note: these lines are real `DEBUG` output and **are** emitted (they are
+> not suppressed by running the app at `INFO`/`WARNING`, because the logger forces
+> `DEBUG`). Until upstream adds a switch, the only lever PodiumD operators have is
+> to stop the **DB** side (§1); the structlog stdout lines remain.
 
 ---
 
@@ -104,5 +143,5 @@ switch like Open Formulieren has) — track/raise that with Maykin if needed.
 | Goal | Open Inwoner (v2.1.2) |
 |---|---|
 | Stop DB persistence | `LOG_OUTGOING_REQUESTS_DB_SAVE=False` (env) **or** admin `Save to database = Never` |
-| Stop stdout emit | Not env-configurable; already silent unless app log level is `DEBUG` |
+| Stop stdout (structlog) emit | **Not possible via env/Helm** — logger level hardcoded `DEBUG` in `conf/base.py`; no `LOG_LEVEL` var; `LOG_STDOUT` doesn't affect this logger. Needs an upstream `LOGGING` change. |
 | Disable everything via one env switch | **Not possible** — no master switch (unlike Open Formulieren) |
