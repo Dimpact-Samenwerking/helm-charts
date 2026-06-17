@@ -46,6 +46,44 @@ adfinis 1.12.0 chart bundles the matching 26.6.3 CRDs.
   equal to it) and that import files live under `/app/import-data` (or your
   configured subdir).
 
+### Outgoing/external request logging disabled by default (Open Formulieren)
+
+4.7.4 disables outgoing/external HTTP request logging for **Open Formulieren** by
+default, via the master switch **`LOG_OUTGOING_REQUESTS=False`** (set in
+`values.yaml` under `openformulieren.extraEnvVars`, as the chart exposes no
+structured key). With this off, Open Forms empties the `log_outgoing_requests`
+logging handlers — it neither emits requests to the logs **nor** saves them to the
+database, so nothing is logged on startup. `LOG_OUTGOING_REQUESTS_DB_SAVE` is left
+at its upstream default (`False`) and is **not** changed by 4.7.4.
+
+> **Open Inwoner has no equivalent switch.** At the deployed version (v2.1.2) Open
+> Inwoner exposes **only** `LOG_OUTGOING_REQUESTS_DB_SAVE` (default `True`); there
+> is no master `LOG_OUTGOING_REQUESTS` env var and its logging handlers are defined
+> unconditionally. Outgoing-request logging therefore cannot be switched off
+> entirely from the environment without also changing DB-save behaviour, so 4.7.4
+> leaves Open Inwoner unchanged. (To stop only DB persistence there you *could* set
+> `openinwoner.extraEnvVars` `LOG_OUTGOING_REQUESTS_DB_SAVE: "False"`, but that
+> changes the DB-save default and is deliberately not done in 4.7.4.)
+
+#### Action required
+
+- **None for the default.** On `helm upgrade` the Open Formulieren pods roll and
+  pick up `LOG_OUTGOING_REQUESTS=False`; from then on outgoing requests are not
+  logged. No data migration; existing log rows are not deleted.
+- **To re-enable outgoing-request logging for a specific environment**, override in
+  that gemeente's values:
+
+  ```yaml
+  openformulieren:
+    extraEnvVars:
+      - name: LOG_OUTGOING_REQUESTS
+        value: "True"
+  ```
+
+  When re-enabled, DB persistence is still gated separately by
+  `LOG_OUTGOING_REQUESTS_DB_SAVE` and the runtime `OutgoingRequestsLogConfig.save_to_db`
+  admin toggle (Django admin → *Log outgoing requests* → *configuration*).
+
 ### Add Datamigratie Keycloak client and Open Zaak secret
 
 Datamigratie is deployed in a separate pipeline. But Datamigratie needs a connection to Open Zaak,
