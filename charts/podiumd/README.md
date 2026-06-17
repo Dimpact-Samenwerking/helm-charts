@@ -5,18 +5,20 @@
 ### [4.7.4](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.7.4)
 
 **PodiumD Helm chart version: 4.7.4**
-Security patch release: Keycloak server + operator 26.6.2 → 26.6.3 (16 CVEs,
+Security patch release. Keycloak server + operator 26.6.2 → 26.6.3 (16 CVEs,
 notably CVE-2026-9704 token-exchange privilege escalation, CVE-2026-4874 SSRF,
 CVE-2026-9802 refresh-token replay), with the adfinis keycloak-operator chart
-1.11.4 → 1.12.0 (appVersion 26.6.3). The 26.6.3 CRDs are byte-identical to
-26.6.2, so no CRD apply is required. Also adds a Datamigratie Keycloak client
-and Open Zaak credentials (config only, no image change). See
-`docs/upgrade-from-4.7.3-to-4.7.4.md`.
+1.11.4 → 1.12.0 (appVersion 26.6.3); the 26.6.3 CRDs are byte-identical to
+26.6.2, so no CRD apply is required. Open Zaak 1.27.1 → 1.27.2 (CVE-2026-54657
+`_zoek` authorization filtering + document bulk-import path-traversal fix). Also
+adds a Datamigratie Keycloak client and Open Zaak credentials (config only, no
+image change). See `docs/upgrade-from-4.7.3-to-4.7.4.md`.
 
 | Component                 | AppVersion       | Change            | ChartVersion | Change         | **Notes**                            |
 |---------------------------|------------------|-------------------|--------------|----------------|--------------------------------------|
 | Keycloak                  | 26.6.3           | Security update   | 1.12.0       | Minor update   | Adfinis operator; 26.6.3 fixes 16 CVEs |
 | - Keycloak-config-cli     | 6.5.0-26         |                   |              |                |                                      |
+| Open Zaak                 | 1.27.2           | Security update   | 1.14.1       |                | CVE-2026-54657 (`_zoek` authz) + bulk-import path traversal |
 
 ### [4.7.3](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.7.3)
 

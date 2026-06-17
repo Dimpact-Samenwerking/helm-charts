@@ -652,7 +652,7 @@ openzaak:
     volumeAttributeShareName: openzaak
     storageClassName: podiumd-standard
   image:
-    tag: "1.27.1@sha256:7726e36a1353396fb971929645489e0e8a7e5848e5fdf0ae3fa8075b6ce15da9"
+    tag: "1.27.2@sha256:7f4826298b1bb28aca3f1f6d18fbad52238267eafc5253c68fb067f3afe8908e"
   resources:
     requests:
       cpu: 250m
@@ -1261,7 +1261,13 @@ openarchiefbeheer:
     #       auth_type: api_key
     #       header_key: Authorization
     #       header_value: "Token REP_OBJECTEN_CREDENTIALS_OPENARCHIEFBEHEER_TOKEN_REP"
-    #     - identifier: klanten-api
+    #     # NOTE: this Open Klant (klantinteracties) service identifier MUST match,
+    #     # exactly, the identifier listed under
+    #     # external_registers.openklant.services_identifiers below. In most PodiumD
+    #     # environments this service was provisioned as `openklant-api`
+    #     # (NOT `openklant-klantinteracties`). Keep the two in sync — see
+    #     # docs/upgrade-from-4.7.3-to-4.7.4.md.
+    #     - identifier: openklant-api
     #       label: Klanten API
     #       api_root: https://opeklant.example.com/klantinteracties/api/v1/
     #       api_type: kc
@@ -1273,6 +1279,24 @@ openarchiefbeheer:
     #   api_configuration_enabled: true
     #   api_configuration:
     #     selectielijst_service_identifier: selectielijst
+
+    #   # External registers — OAB resolves each register by an EXACT match on the
+    #   # service identifier(s). Every entry in services_identifiers MUST equal an
+    #   # identifier defined in zgw_consumers.services above:
+    #   #   openklant -> openklant-api   (NOT openklant-klantinteracties)
+    #   #   objecten  -> objecten-api
+    #   # A mismatch silently breaks that register's link. See
+    #   # docs/upgrade-from-4.7.3-to-4.7.4.md.
+    #   external_registers_enabled: true
+    #   external_registers:
+    #     openklant:
+    #       enabled: true
+    #       services_identifiers:
+    #       - openklant-api
+    #     objecten:
+    #       enabled: true
+    #       services_identifiers:
+    #       - objecten-api
 
     #   oidc_db_config_enable: true
     #   oidc_db_config_admin_auth:

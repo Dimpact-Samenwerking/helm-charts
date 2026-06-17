@@ -3,11 +3,14 @@
 # 4.7.4 is a direct successor of 4.7.3 (no skipped intermediate releases),
 # so this manifest is the plain 4.7.3 -> 4.7.4 delta.
 #
-# Sole image change: Keycloak server + operator 26.6.2 -> 26.6.3 (security
-# release fixing 16 CVEs, incl. CVE-2026-9704 token-exchange privilege
-# escalation, CVE-2026-4874 SSRF, CVE-2026-9802 refresh-token replay).
-# keycloak-config-cli is unchanged (6.5.0-26). The 26.6.3 CRDs are byte-
-# identical to 26.6.2, so no CRD change is required on upgrade.
+# Two security image changes:
+#  - Keycloak server + operator 26.6.2 -> 26.6.3 (16 CVEs, incl. CVE-2026-9704
+#    token-exchange privilege escalation, CVE-2026-4874 SSRF, CVE-2026-9802
+#    refresh-token replay). keycloak-config-cli unchanged (6.5.0-26). The
+#    26.6.3 CRDs are byte-identical to 26.6.2, so no CRD change on upgrade.
+#  - Open Zaak 1.27.1 -> 1.27.2 (CVE-2026-54657 _zoek authorization filtering +
+#    document bulk-import path-traversal fix). Image-tag override only; the
+#    openzaak chart dependency stays 1.14.1.
 
 # Keycloak (server + operator) — 26.6.2 -> 26.6.3
 - name: keycloak
@@ -18,3 +21,9 @@
   url: quay.io/keycloak/keycloak-operator
   version: "26.6.3"
   digest: "sha256:bd128cd63da5b1e64514903ced8def912a41a6ae63d1569fd39022c586680087"
+
+# Open Zaak — 1.27.1 -> 1.27.2 (security)
+- name: openzaak
+  url: docker.io/openzaak/open-zaak
+  version: "1.27.2"
+  digest: "sha256:7f4826298b1bb28aca3f1f6d18fbad52238267eafc5253c68fb067f3afe8908e"
