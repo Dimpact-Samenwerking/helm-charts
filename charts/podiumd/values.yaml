@@ -33,7 +33,16 @@ keycloak-operator:
   operator:
     image:
       repository: quay.io/keycloak/keycloak-operator
-      tag: "26.6.3@sha256:bd128cd63da5b1e64514903ced8def912a41a6ae63d1569fd39022c586680087"
+      # IMPORTANT: do NOT embed @sha256 in this tag. Unlike podiumd's own
+      # `keycloak.image` (which uses the podiumd.image helper, repository:tag),
+      # the adfinis subchart appends its own digest from a SEPARATE `operator.image.sha`
+      # field: `repository:tag@sha256:{{ .sha }}`. Putting @sha256 in the tag
+      # produces an invalid DOUBLE digest (…:26.6.3@sha256:xxx@sha256:xxx).
+      # The chart's default operator.image.sha already pins the matching 26.6.3
+      # digest (sha256:bd128cd6…). To DISABLE digest pinning (e.g. on aks-blue
+      # / ACR-mirror envs where the mirrored digest differs), set
+      # `operator.image.sha: ""`. See docs/upgrade-from-4.7.3-to-4.7.4.md.
+      tag: "26.6.3"
     resources:
       requests:
         cpu: 100m

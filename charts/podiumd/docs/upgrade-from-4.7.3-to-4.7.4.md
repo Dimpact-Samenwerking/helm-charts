@@ -15,9 +15,47 @@ notably **CVE-2026-9704** (privilege escalation via token exchange),
 #### Action required
 
 None beyond the standard image-pin update — the pins are already in `values.yaml`
-(`tag` + `digest`) and `images/images-4.7.4.yaml`. The 26.6.3 CRDs are
-byte-identical to 26.6.2, so **no CRD apply or migration is required**; the
-adfinis 1.12.0 chart bundles the matching 26.6.3 CRDs.
+and `images/images-4.7.4.yaml`. The 26.6.3 CRDs are byte-identical to 26.6.2, so
+**no CRD apply or migration is required**; the adfinis 1.12.0 chart bundles the
+matching 26.6.3 CRDs.
+
+> **Caveat — operator image digest pinning differs from every other image.**
+> The operator image is rendered by the adfinis subchart, which builds the ref as
+> `repository:tag@sha256:{{ operator.image.sha }}` using a **separate `sha`
+> field** — not by appending a digest to the tag. So, unlike `keycloak.image`
+> (and all other PodiumD images, which take `tag: "<ver>@sha256:<digest>"`), the
+> operator's `tag` must be **just the version**:
+>
+> ```yaml
+> keycloak-operator:
+>   operator:
+>     image:
+>       tag: "26.6.3"        # NOT "26.6.3@sha256:…"
+> ```
+>
+> Embedding `@sha256:` in the operator tag yields an invalid **double digest**
+> (`…:26.6.3@sha256:xxx@sha256:xxx`) because the chart still appends its own
+> `sha`. The adfinis 1.12.0 chart already ships the matching 26.6.3 digest as the
+> default `operator.image.sha` (`sha256:bd128cd6…`), so `tag: "26.6.3"` alone
+> renders the correctly digest-pinned ref.
+>
+> **Disabling digest pinning (the `sha`, not the tag) — may be required on
+> aks-blue / ACR-mirror environments.** Where the operator image is pulled from a
+> mirror (e.g. an ACR) whose manifest digest does not match quay's, the bundled
+> `sha` pin will make the pull fail (`ImagePullBackOff` / manifest not found).
+> Turn digest pinning **off** by clearing the `sha` so the image resolves by tag
+> only:
+>
+> ```yaml
+> keycloak-operator:
+>   operator:
+>     image:
+>       tag: "26.6.3"
+>       sha: ""            # disables the @sha256 digest pin -> ...:26.6.3
+> ```
+>
+> This is an env-level override (e.g. for the `aks-blue-*` environments); the
+> shared `values.yaml` keeps the digest pin on.
 
 ### Open Zaak 1.27.1 → 1.27.2 (security)
 
