@@ -3697,8 +3697,16 @@ openbao:
       raft:
         enabled: false
       # HCL. connection_url is intentionally omitted (provided via
-      # BAO_PG_CONNECTION_URL). The azurekeyvault seal stanza is left empty so it is
-      # environment-agnostic — vault_name/key_name come from VAULT_AZUREKEYVAULT_*.
+      # BAO_PG_CONNECTION_URL).
+      #
+      # Seal: Shamir (no seal stanza). Azure Key Vault auto-unseal is intentionally
+      # NOT used: OpenBao 2.5.5's azurekeyvault seal authenticates via IMDS Managed
+      # Identity and ignores the AKS workload-identity federated token, so it cannot
+      # reach the vault under workload identity (openbao-helm#56 / hashicorp-vault
+      # #29717). With Shamir the cluster is initialised + unsealed manually (keys
+      # stored in the per-env Key Vault). Revisit KV auto-unseal once OpenBao honors
+      # the federated token. The base-infra unseal key + MI remain provisioned but
+      # unused for now.
       config: |
         ui = true
 
@@ -3713,8 +3721,6 @@ openbao:
           ha_enabled = "true"
           ha_table   = "openbao_ha_locks"
         }
-
-        seal "azurekeyvault" {}
 
         service_registration "kubernetes" {}
     resources:
