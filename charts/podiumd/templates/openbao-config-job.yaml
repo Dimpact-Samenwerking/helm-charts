@@ -68,6 +68,10 @@ spec:
                 secretKeyRef:
                   name: {{ $cfg.bootstrapTokenSecret | quote }}
                   key: token
+                  # optional: on first deploy openbao is not yet initialised, so the
+                  # bootstrap-token Secret does not exist. Optional lets the pod start
+                  # and skip gracefully (below) instead of CreateContainerConfigError.
+                  optional: true
             - name: KC_SECRET_OPENBAO
               valueFrom:
                 secretKeyRef:
@@ -85,8 +89,25 @@ spec:
             - /bin/sh
             - -ec
             - |
-              echo "Waiting for OpenBao active node to be unsealed..."
-              until bao status >/dev/null 2>&1; do sleep 5; done
+              # This Job needs an initialised + UNSEALED openbao and a privileged
+              # token. Both come from the one-time manual `bao operator init` (the
+              # seal is Shamir). On a deploy where that has not happened yet, skip
+              # cleanly (exit 0) so the post-install hook never blocks the release —
+              # re-run the deploy (or this Job) after init+unseal to apply the config.
+              if [ -z "${BAO_TOKEN:-}" ]; then
+                echo "No bootstrap token yet (openbao not initialised) — skipping config; reconcile after init+unseal."
+                exit 0
+              fi
+              echo "Waiting briefly for OpenBao to be unsealed..."
+              i=0
+              until bao status >/dev/null 2>&1; do
+                i=$((i + 1))
+                if [ "${i}" -ge 24 ]; then
+                  echo "OpenBao still sealed/uninitialised after ~120s — skipping config; reconcile after unseal."
+                  exit 0
+                fi
+                sleep 5
+              done
               echo "OpenBao ready."
 
               # 1. kv-v2 engine
