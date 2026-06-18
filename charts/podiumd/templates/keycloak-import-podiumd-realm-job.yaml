@@ -202,6 +202,16 @@ spec:
             secretKeyRef:
               name: keycloak-podiumd-realm-secrets
               key: openbeheer-oidc-secret
+        - name: KC_SECRET_OPENBAO
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-podiumd-realm-secrets
+              key: openbao-oidc-secret
+        - name: KC_OPENBAO_TEST_USER_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-podiumd-realm-secrets
+              key: openbao-test-user-password
         - name: KC_SECRET_KISS
           valueFrom:
             secretKeyRef:

@@ -112,3 +112,7 @@ dependencies:
     version: 2.14.0
     repository: "https://charts.apiseven.com"
     condition: apisix.enabled
+  - name: openbao
+    version: 0.28.4
+    repository: "@openbao"
+    condition: openbao.enabled

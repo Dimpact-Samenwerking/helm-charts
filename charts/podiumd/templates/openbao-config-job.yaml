@@ -1,0 +1,131 @@
+{{- /*
+  Post-deploy configuration Job for OpenBao (mirrors the keycloak-config-cli
+  pattern). Runs the `bao` CLI to make the vault usable for Keycloak-federated
+  uploaders, idempotently:
+
+    1. enable the kv-v2 secrets engine at configuration.kvPath
+    2. write the `uploader` policy (create/update/read on <kvPath>/data/*)
+    3. enable + configure the `oidc` auth method against the Keycloak realm
+    4. create the `uploader` OIDC role (groups_claim -> external group mapping)
+    5. bind the Keycloak `uploadersGroup` to the policy via an external identity
+       group + group-alias
+
+  Bootstrap auth: OpenBao auto-unseals via Azure Key Vault but still needs a
+  one-time `bao operator init`. Capture the resulting root token into Azure Key
+  Vault (openbao-root-token-<env>) and seed it as Secret/<bootstrapTokenSecret>
+  (key `token`); this Job reads it as BAO_TOKEN. Until that Secret exists the Job
+  fails and retries — see the 4.8.0 upgrade notes.
+
+  Runs as a post-install/post-upgrade hook so the server StatefulSet (a normal
+  resource) is already created; the Job waits for the active node to be unsealed.
+*/}}
+{{- if and .Values.openbao.enabled .Values.openbao.configuration.enabled }}
+{{- $cfg := .Values.openbao.configuration }}
+{{- $job := $cfg.job }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: openbao-config
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: openbao
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "10"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: {{ $job.backoffLimit }}
+  ttlSecondsAfterFinished: {{ $job.ttlSecondsAfterFinished }}
+  template:
+    metadata:
+      labels:
+        {{- include "podiumd.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: openbao-config
+    spec:
+      restartPolicy: {{ $job.restartPolicy }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 100
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: config
+          image: {{ include "podiumd.image" $job.image | quote }}
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          env:
+            - name: BAO_ADDR
+              value: "http://{{ .Release.Name }}-openbao-active:8200"
+            - name: BAO_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $cfg.bootstrapTokenSecret | quote }}
+                  key: token
+            - name: KC_SECRET_OPENBAO
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-podiumd-realm-secrets
+                  key: openbao-oidc-secret
+            - name: OIDC_DISCOVERY_URL
+              value: "{{ $cfg.keycloak.url | trimSuffix "/" }}/realms/{{ $cfg.keycloak.realm }}"
+            - name: OIDC_URL
+              value: {{ $cfg.oidcUrl | trimSuffix "/" | quote }}
+            - name: KV_PATH
+              value: {{ $cfg.kvPath | quote }}
+            - name: UPLOADERS_GROUP
+              value: {{ $cfg.uploadersGroup | quote }}
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              echo "Waiting for OpenBao active node to be unsealed..."
+              until bao status >/dev/null 2>&1; do sleep 5; done
+              echo "OpenBao ready."
+
+              # 1. kv-v2 engine
+              if ! bao secrets list -format=table | awk '{print $1}' | grep -qx "${KV_PATH}/"; then
+                bao secrets enable -path="${KV_PATH}" kv-v2
+              fi
+
+              # 2. uploader policy
+              bao policy write uploader - <<EOF
+              path "${KV_PATH}/data/*"     { capabilities = ["create", "update", "read"] }
+              path "${KV_PATH}/metadata/*" { capabilities = ["list", "read"] }
+              EOF
+
+              # 3. oidc auth method
+              if ! bao auth list -format=table | awk '{print $1}' | grep -qx "oidc/"; then
+                bao auth enable oidc
+              fi
+              bao write auth/oidc/config \
+                oidc_discovery_url="${OIDC_DISCOVERY_URL}" \
+                oidc_client_id="openbao" \
+                oidc_client_secret="${KC_SECRET_OPENBAO}" \
+                default_role="uploader"
+
+              # 4. oidc login role
+              bao write auth/oidc/role/uploader \
+                role_type="oidc" \
+                user_claim="sub" \
+                groups_claim="groups" \
+                oidc_scopes="openid" \
+                token_policies="uploader" \
+                allowed_redirect_uris="${OIDC_URL}/ui/vault/auth/oidc/oidc/callback,http://localhost:8250/oidc/callback"
+
+              # 5. external group bound to the Keycloak uploaders group
+              ACCESSOR=$(bao auth list -format=table | awk '$1=="oidc/"{print $3}')
+              GID=$(bao write -field=id identity/group name="${UPLOADERS_GROUP}" type="external" policies="uploader")
+              # group-alias name must equal the Keycloak group name carried in the `groups` claim.
+              bao write identity/group-alias name="${UPLOADERS_GROUP}" mount_accessor="${ACCESSOR}" canonical_id="${GID}" || true
+
+              echo "OpenBao configuration complete."
+          resources:
+            {{- toYaml $job.resources | nindent 12 }}
+{{- end }}
