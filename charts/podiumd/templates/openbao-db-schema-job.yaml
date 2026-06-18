@@ -1,0 +1,95 @@
+{{- /*
+  Schema bootstrap Job for the OpenBao postgresql storage backend.
+
+  OpenBao does NOT create its own tables, so this Job provisions them before the
+  server can use the database:
+    - openbao_kv_store  (data)
+    - openbao_ha_locks  (HA leader election; storage.ha_enabled = "true")
+  DDL per https://openbao.org/docs/configuration/storage/postgresql/, made
+  idempotent with IF NOT EXISTS so it is safe to re-run on every upgrade.
+
+  Runs as a pre-install/pre-upgrade Helm hook so the tables exist before the
+  StatefulSet starts. The connection parameters are templated straight from
+  .Values.openbao.database.* (rather than the openbao-db Secret) so the hook has
+  no dependency on a normal resource that does not exist yet at pre-install time.
+*/}}
+{{- if .Values.openbao.enabled }}
+{{- $db := .Values.openbao.database }}
+{{- $job := $db.schemaJob }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: openbao-db-schema
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: openbao
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: {{ $job.backoffLimit }}
+  ttlSecondsAfterFinished: {{ $job.ttlSecondsAfterFinished }}
+  template:
+    metadata:
+      labels:
+        {{- include "podiumd.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: openbao-db-schema
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 70
+        runAsGroup: 70
+        fsGroup: 70
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: schema
+          image: {{ include "podiumd.image" $job.image | quote }}
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          env:
+            - name: PGHOST
+              value: {{ $db.host | quote }}
+            - name: PGPORT
+              value: {{ $db.port | quote }}
+            - name: PGDATABASE
+              value: {{ $db.name | quote }}
+            - name: PGUSER
+              value: {{ $db.username | quote }}
+            - name: PGSSLMODE
+              value: {{ $db.sslmode | quote }}
+            # Inlined from values (same plaintext the openbao-db Secret carries) so
+            # this pre-install hook has no dependency on that normal-resource Secret.
+            - name: PGPASSWORD
+              value: {{ $db.password | quote }}
+          command:
+            - psql
+            - -v
+            - ON_ERROR_STOP=1
+            - -c
+            - |
+              CREATE TABLE IF NOT EXISTS openbao_kv_store (
+                parent_path TEXT COLLATE "C" NOT NULL,
+                path        TEXT COLLATE "C",
+                key         TEXT COLLATE "C",
+                value       BYTEA,
+                CONSTRAINT openbao_kv_store_pkey PRIMARY KEY (path, key)
+              );
+              CREATE INDEX IF NOT EXISTS openbao_kv_store_idx ON openbao_kv_store (parent_path);
+              CREATE TABLE IF NOT EXISTS openbao_ha_locks (
+                ha_key      TEXT COLLATE "C" NOT NULL,
+                ha_identity TEXT COLLATE "C" NOT NULL,
+                ha_value    TEXT COLLATE "C",
+                valid_until TIMESTAMP WITH TIME ZONE NOT NULL,
+                CONSTRAINT openbao_ha_locks_pkey PRIMARY KEY (ha_key)
+              );
+          resources:
+            {{- toYaml $job.resources | nindent 12 }}
+{{- end }}
