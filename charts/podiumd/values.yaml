@@ -3663,6 +3663,11 @@ openbao:
 
   # --- openbao subchart values (upstream server.* keys) -------------------------
   server:
+    # RollingUpdate (not the chart default OnDelete) so a helm upgrade recreates
+    # the server pods to pick up config changes (e.g. seal/readiness). With OnDelete
+    # a crashing/old pod is never replaced automatically, and a `helm --wait` deploy
+    # would block on it forever.
+    updateStrategyType: RollingUpdate
     image:
       registry: quay.io
       repository: openbao/openbao
