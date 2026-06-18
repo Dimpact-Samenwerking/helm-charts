@@ -14,6 +14,7 @@ helm repo add adfinis          https://charts.adfinis.com
 helm repo add opstree          https://ot-container-kit.github.io/helm-charts/
 helm repo add worth-nl         https://worth-nl.github.io/helm-charts
 helm repo add apisix           https://charts.apiseven.com
+helm repo add openbao          https://openbao.github.io/openbao-helm
 
 helm repo update
 echo "All Helm repositories added and updated."
