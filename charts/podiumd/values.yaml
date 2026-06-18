@@ -3677,6 +3677,14 @@ openbao:
         azure.workload.identity/client-id: ""
     extraLabels:
       azure.workload.identity/use: "true"
+    # Readiness via the health endpoint with sealed/uninitialised mapped to 200,
+    # so the pod reports Ready as soon as the process is up — even before the
+    # one-time `bao operator init` + unseal. Without this the default `bao status`
+    # exec probe never passes while sealed, and a `helm --wait` deploy would block
+    # on openbao forever on a fresh cluster.
+    readinessProbe:
+      enabled: true
+      path: "/v1/sys/health?standbyok=true&perfstandbyok=true&uninitcode=200&sealedcode=200"
     # Postgres storage backend => no data PVC.
     dataStorage:
       enabled: false
