@@ -115,3 +115,7 @@ dependencies:
       - kiss-eck
       - contact
     condition: kiss-eck.enabled
+  - name: openbao
+    version: 0.28.4
+    repository: "@openbao"
+    condition: openbao.enabled
