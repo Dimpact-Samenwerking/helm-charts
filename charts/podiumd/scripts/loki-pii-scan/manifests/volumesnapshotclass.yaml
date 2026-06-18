@@ -1,0 +1,9 @@
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshotClass
+metadata:
+  name: loki-pii-azuredisk
+  labels:
+    app: loki-pii-scan
+    managed-by: manual
+driver: disk.csi.azure.com
+deletionPolicy: Retain

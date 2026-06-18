@@ -1,0 +1,14 @@
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshot
+metadata:
+  name: loki-export-dump-snapshot
+  namespace: monitoring
+  labels:
+    app: loki-export
+    component: dump
+    environment: ontw
+    managed-by: manual
+spec:
+  volumeSnapshotClassName: loki-export-azuredisk
+  source:
+    persistentVolumeClaimName: loki-export-dump
