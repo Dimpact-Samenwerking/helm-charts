@@ -889,6 +889,8 @@ data:
       realm:
         - name: podiumd-admin
           description: PodiumD Administrator
+        - name: DMT-Functioneel-Beheerder
+          description: Datamigratie Functioneel Beheerder
       client:
         abc:
           - name: administrators
