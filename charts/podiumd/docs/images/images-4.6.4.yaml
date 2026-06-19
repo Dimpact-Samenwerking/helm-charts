@@ -1,13 +1,102 @@
-# Images die nieuw of gewijzigd zijn in podiumd 4.6.4 t.o.v. 4.6.3.
+# Images new or changed in podiumd 4.6.4 vs 4.5.16.
+#
+# This is a PATH-TARGET manifest: it is CUMULATIVE across the skipped
+# intermediate releases 4.6.0/4.6.1/4.6.2/4.6.3, because the official upgrade
+# path jumps 4.5.16 -> 4.6.4 directly (see ../UPGRADING.md). It is a
+# consolidation of the former per-release delta manifests images-4.6.2.yaml
+# and images-4.6.3.yaml plus the 4.6.4 tag bumps; where the same image appears
+# in several deltas the latest version/digest wins (k8s -> 1.33.10,
+# nginx-unprivileged -> 1.29.8). Run /verify-image-digests to re-confirm every
+# digest against the registry.
+
+# Applications
+- name: internetaakafhandeling.web
+  url: ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web
+  version: "3.0.0"
+  digest: "sha256:b073aa8755793e7f7abf7bb3ab28454b2aff9089ecfd245580d73fa01de13740"
+- name: internetaakafhandeling.poller
+  url: ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller
+  version: "3.0.0"
+  digest: "sha256:bd802f55d3365c3ccd95bd495aed6e2416630be9164aeef2322503c5ddb20629"
+- name: openinwoner
+  url: docker.io/maykinmedia/open-inwoner
+  version: "2.1.1"
+  digest: "sha256:07361a6b2037c5a0fcfe4b0e08d09603c4ffbe621c0a4e5fe50f40f6bad65097"
+- name: referentielijsten-api
+  url: docker.io/maykinmedia/referentielijsten-api
+  version: "0.7.1"
+  digest: "sha256:6bae71f30745e3e24f98d41254fce22fc0d5ec4277dad7647ee2d297cfcf7cf9"
+- name: open-beheer
+  url: docker.io/maykinmedia/open-beheer
+  version: "0.9.0"
+  digest: "sha256:1a11b06dadb82c992468709b1aa92d0501aef6d526a7afb52bacac6917385166"
+
+# ZGW Office Add-in
+- name: zgw-office-add-in-frontend
+  url: ghcr.io/infonl/zgw-office-add-in-frontend
+  version: "v0.9.251"
+  digest: "sha256:6dd7d046be6effd41c67459811b49785655e0fc0404c5bb4c652c7754b68a57c"
+- name: zgw-office-add-in-backend
+  url: ghcr.io/infonl/zgw-office-add-in-backend
+  version: "v0.9.251"
+  digest: "sha256:92fec77893a79475112a6bcbfd167ca6c5ff30c4282eca6dccc578885ddd705e"
+
+# PABC
+- name: pabc
+  url: ghcr.io/platform-autorisatie-beheer-component/pabc-api
+  version: "1.1.0"
+  digest: "sha256:66e83416f41d546eba8b6a7f2ea061da2d293fab6b9e22f129934127f4c31b3d"
+- name: pabc-migrations
+  url: ghcr.io/platform-autorisatie-beheer-component/pabc-migrations
+  version: "1.1.0"
+  digest: "sha256:0f73051e64ebcd6ac5c169630fde4cb7ef3a39376ffb840e407158728685f83c"
+- name: k8s-wait-for
+  url: ghcr.io/groundnuty/k8s-wait-for
+  version: "v2.0"
+  digest: "sha256:c14d7271e4013b24b34ef0d7144c4610577d0e9110ccc26b163fa28089fa1f4e"
+
+# Keycloak (operator + server + config-cli)
+- name: keycloak
+  url: quay.io/keycloak/keycloak
+  version: "26.5.7"
+  digest: "sha256:45ae20191531eb608ddb0b775d012b40d3e4f942697f3214694887dd7c108d13"
+- name: keycloak-operator
+  url: quay.io/keycloak/keycloak-operator
+  version: "26.5.7"
+  digest: "sha256:4aaa52610f9427ef0eebbf120b24bb22cf99b7197f125b140887e2add407edce"
+- name: keycloak-config-cli
+  url: docker.io/adorsys/keycloak-config-cli
+  version: "6.5.0-26"
+  digest: "sha256:2d2a0663cf324379d9ffab896db8d00293cd0326151968b319cf166f6eec8fca"
 
 # Tooling
 - name: k8s
   url: docker.io/alpine/k8s
   version: "1.33.10"
   digest: "sha256:84746e8ea8ba20fb702b3e1221121a511c85dfc3e47953b2d6713dcc907e4e05"
+- name: curl
+  url: docker.io/curlimages/curl
+  version: "8.19.0"
+  digest: "sha256:b066cbf876d50a5d024927878a586c4a39c985325ded195e2e231f4abdddf3c8"
 
-# Nginx (api-proxy en Maykin/ZAC nginx sidecars)
+# Nginx (api-proxy and Maykin/ZAC nginx sidecars)
 - name: nginx-unprivileged
   url: docker.io/nginxinc/nginx-unprivileged
   version: "1.29.8"
   digest: "sha256:49b1dda3714696e4930e5cd419ede1c62f3fdc64e98ff636b201966f17e0b9a2"
+
+# Redis operator + HA
+- name: redis
+  url: quay.io/opstree/redis
+  version: "v8.6.2"
+  digest: "sha256:5f79911253cb74636e8e97555b08095902d46a835c6423adb123295b00ba70d7"
+- name: redis-exporter
+  url: quay.io/opstree/redis-exporter
+  version: "v1.82.0"
+  digest: "sha256:bce422b4bba8721bef04d5ca491eeec2b53278698b4bd9790f81fbb287cdfe88"
+
+# Observability (needed when values-enable-observability.yaml is used)
+- name: clamav-exporter
+  url: docker.io/sergeymakinen/clamav_exporter
+  version: "v2.1.2"
+  digest: "sha256:487d133c7ff69eaa96e9f8a44fb631302048fd592218cdd2fa6c85bc8c7bef15"

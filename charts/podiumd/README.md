@@ -2,6 +2,24 @@
 
 ## PodiumD versions
 
+### [4.7.4](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.7.4)
+
+**PodiumD Helm chart version: 4.7.4**
+Security patch release. Keycloak server + operator 26.6.2 → 26.6.3 (16 CVEs,
+notably CVE-2026-9704 token-exchange privilege escalation, CVE-2026-4874 SSRF,
+CVE-2026-9802 refresh-token replay), with the adfinis keycloak-operator chart
+1.11.4 → 1.12.0 (appVersion 26.6.3); the 26.6.3 CRDs are byte-identical to
+26.6.2, so no CRD apply is required. Open Zaak 1.27.1 → 1.27.2 (CVE-2026-54657
+`_zoek` authorization filtering + document bulk-import path-traversal fix). Also
+adds a Datamigratie Keycloak client and Open Zaak credentials (config only, no
+image change). See `docs/upgrade-from-4.7.3-to-4.7.4.md`.
+
+| Component                 | AppVersion       | Change            | ChartVersion | Change         | **Notes**                            |
+|---------------------------|------------------|-------------------|--------------|----------------|--------------------------------------|
+| Keycloak                  | 26.6.3           | Security update   | 1.12.0       | Minor update   | Adfinis operator; 26.6.3 fixes 16 CVEs |
+| - Keycloak-config-cli     | 6.5.0-26         |                   |              |                |                                      |
+| Open Zaak                 | 1.27.2           | Security update   | 1.14.1       |                | CVE-2026-54657 (`_zoek` authz) + bulk-import path traversal |
+
 ### [4.7.3](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.7.3)
 
 **PodiumD Helm chart version: 4.7.3**
@@ -42,7 +60,7 @@ en CVE-2026-9256). Zie `docs/upgrade-from-4.7.1-to-4.7.2.md` voor details.
 | Open Archiefbeheer        | 2.0.0            | Major update      | 2.0.0        | Major update   |                                      |
 | Open Beheer               | 0.9.0            | New               | 0.1.3        | New            |                                      |
 | Open Formulieren          | 3.4.9            | Patch update      | 1.12.0       |                |                                      |
-| Open Inwoner              | 2.1.2            | Patch update      | 2.1.3        |                | 2.1.2-rc1 → stable 2.1.2 in 4.7.2    |
+| Open Inwoner              | 2.1.2            | Patch update      | 2.1.3        |                | Stable 2.1.2 — never use 2.1.2-rc1   |
 | Open Klant                | 2.15.0           |                   | 1.11.0       |                |                                      |
 | Open Notificaties         | 1.15.0           |                   | 1.13.1       |                |                                      |
 | Open Zaak                 | 1.27.1           | Minor update      | 1.14.1       | Minor update   | New optional Azure Blob / S3 backends |
@@ -229,11 +247,11 @@ The deprecated Bitnami `keycloak` sub-chart (`keycloak.enabled`) is kept for rol
 |------------------------------------------------|--------------------------------------------------------------------------------------|------------------------------------------|
 | keycloak-operator.enabled                      | Deploy the Keycloak Operator (adfinis/keycloak-operator chart)                       | `true`                                   |
 | keycloak-operator.operator.image.repository    | Keycloak Operator controller image repository                                        | `quay.io/keycloak/keycloak-operator`     |
-| keycloak-operator.operator.image.tag           | Keycloak Operator controller image tag                                               | `26.6.2`                                 |
+| keycloak-operator.operator.image.tag           | Keycloak Operator controller image tag                                               | `26.6.3`                                 |
 | keycloak.enabled                               | Deploy legacy Bitnami Keycloak sub-chart (deprecated, use keycloak-operator instead) | `false`                                  |
 | keycloak.name                                  | Name of the `Keycloak` CR created by `keycloak-cr.yaml`                              | `keycloak`                               |
 | keycloak.instances                             | Number of Keycloak replicas                                                          | `2`                                      |
-| keycloak.image.tag                             | Keycloak application image tag                                                       | `26.6.2`                                 |
+| keycloak.image.tag                             | Keycloak application image tag                                                       | `26.6.3`                                 |
 | keycloak.hostname.hostname                     | Public hostname for the Keycloak service                                             | `""`                                     |
 | keycloak.hostname.admin                        | Hostname for the Keycloak admin console                                              | `""`                                     |
 | keycloak.http.httpEnabled                      | Enable plain HTTP (required when running behind a reverse proxy)                     | `true`                                   |

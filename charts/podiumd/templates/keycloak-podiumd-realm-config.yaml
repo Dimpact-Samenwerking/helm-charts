@@ -186,6 +186,37 @@ data:
             consentRequired: false
             config:
               role: "monitoring.viewer"
+      - clientId: datamigratie
+        name: {{ .Values.keycloak.config.clients.datamigratie.name|quote }}
+        enabled: {{ .Values.keycloak.config.clients.datamigratie.enabled }}
+        secret: $(KC_SECRET_DATAMIGRATIE)
+        clientAuthenticatorType: client-secret
+        redirectUris:
+          - "{{ .Values.keycloak.config.clients.datamigratie.oidcUrl | trimSuffix "/" }}/*"
+        webOrigins:
+          - "{{ .Values.keycloak.config.clients.datamigratie.oidcUrl | trimSuffix "/" }}/*"
+        authorizationServicesEnabled: "true"
+        serviceAccountsEnabled: "true"
+        protocolMappers:
+          - name: "realm-roles"
+            protocol: "openid-connect"
+            protocolMapper: "oidc-usermodel-realm-role-mapper"
+            consentRequired: false
+            config:
+              introspection.token.claim: "true"
+              multivalued: "true"
+              userinfo.token.claim: "true"
+              id.token.claim: "true"
+              lightweight.claim: "false"
+              access.token.claim: "true"
+              claim.name: "roles"
+              jsonType.label: "String"
+          - name: "all-users-are-viewers"
+            protocol: "openid-connect"
+            protocolMapper: "oidc-hardcoded-role-mapper"
+            consentRequired: false
+            config:
+              role: "DMT-Functioneel-Beheerder"
 {{- if .Values.zaakbrug.enabled }}
       - clientId: zaakbrug
         name: {{ .Values.keycloak.config.clients.zaakbrug.name | quote }}
@@ -857,6 +888,8 @@ data:
       realm:
         - name: podiumd-admin
           description: PodiumD Administrator
+        - name: DMT-Functioneel-Beheerder
+          description: Datamigratie Functioneel Beheerder
       client:
         abc:
           - name: administrators

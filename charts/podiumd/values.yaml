@@ -23,24 +23,34 @@ persistentVolume:
 keycloak-operator:
   enabled: true
   # Adfinis Helm chart wrapping the official Keycloak Operator manifests.
-  # Chart: https://charts.adfinis.com / adfinis/keycloak-operator (chart 1.11.4, appVersion 26.5.6)
+  # Chart: https://charts.adfinis.com / adfinis/keycloak-operator (chart 1.12.0, appVersion 26.6.3)
   # Note: it appears that the podname automatically appends -operator.
-  # Official operator image: quay.io/keycloak/keycloak-operator:26.6.2
-  # Note: adfinis chart 1.11.4 targets appVersion 26.5.6; Keycloak image is overridden to 26.6.2 below.
+  # Official operator image: quay.io/keycloak/keycloak-operator:26.6.3
+  # Note: adfinis chart 1.12.0 targets appVersion 26.6.3; operator + server image pinned to 26.6.3 below.
   # override: values-enable-observability.yaml sets enableServiceMonitor: true
   enableServiceMonitor: false
   fullnameOverride: keycloak
   operator:
     image:
       repository: quay.io/keycloak/keycloak-operator
-      tag: "26.6.2@sha256:01800d326246fc3ccf759e648268171244c96d46ccd151fe031894a6a06d3fa1"
+      # IMPORTANT: do NOT embed @sha256 in this tag. Unlike podiumd's own
+      # `keycloak.image` (which uses the podiumd.image helper, repository:tag),
+      # the adfinis subchart appends its own digest from a SEPARATE `operator.image.sha`
+      # field: `repository:tag@sha256:{{ .sha }}`. Putting @sha256 in the tag
+      # produces an invalid DOUBLE digest (…:26.6.3@sha256:xxx@sha256:xxx).
+      # The chart's default operator.image.sha already pins the matching 26.6.3
+      # digest (sha256:bd128cd6…). To DISABLE digest pinning (e.g. on aks-blue
+      # / ACR-mirror envs where the mirrored digest differs), set
+      # `operator.image.sha: ""`. See docs/upgrade-from-4.7.3-to-4.7.4.md.
+      tag: "26.6.3"
     resources:
       requests:
         cpu: 100m
         memory: 128Mi
       limits:
         cpu: 500m
-        memory: 256Mi
+        # IN-2233: operator OOMKilled at 256Mi limit (excessive restarts across clusters); raised to 768Mi.
+        memory: 768Mi
   serviceAccount:
     create: false
   jobs:
@@ -154,6 +164,11 @@ keycloak:
         enabled: true
         secret: ""
         oidcUrl: "https://monitoring.example.nl"
+      datamigratie:
+        name: Datamigratie
+        enabled: true
+        secret: ""
+        oidcUrl: "https://datamigratie.example.nl"  
       # zaakbrug Frank!Framework console OAuth2 client. Only rendered into the
       # podiumd realm import when zaakbrug.enabled=true. Env values supply the
       # secret (REP placeholder from Key Vault: zaakbrug-oauth-client-secret)
@@ -173,11 +188,11 @@ keycloak:
   http:
     httpEnabled: true
   # image parameters for keycloak-operator
-  # Official Keycloak image: quay.io/keycloak/keycloak:26.6.2
+  # Official Keycloak image: quay.io/keycloak/keycloak:26.6.3
   image:
     registry: ""
     repository: quay.io/keycloak/keycloak
-    tag: "26.6.2@sha256:5afd40414096432903a5374ba4ba70b931dcca598a6bd9f44239fe66ef8d9737"
+    tag: "26.6.3@sha256:5fdbf2dbb5897cc34e82de49d13e23db011f9925089dbc555fc095f2c8bc1dac"
   # -- instances is the new operator-style replica count (falls back to replicaCount)
   instances: "2"
   ingress:
@@ -212,7 +227,7 @@ keycloak:
     metadata:
       labels:
         app: keycloak
-        version: 26.6.2
+        version: 26.6.3
       # override: values-enable-observability.yaml adds prometheus.io scrape annotations
     spec:
       securityContext:
@@ -647,7 +662,7 @@ openzaak:
     volumeAttributeShareName: openzaak
     storageClassName: podiumd-standard
   image:
-    tag: "1.27.1@sha256:7726e36a1353396fb971929645489e0e8a7e5848e5fdf0ae3fa8075b6ce15da9"
+    tag: "1.27.2@sha256:7f4826298b1bb28aca3f1f6d18fbad52238267eafc5253c68fb067f3afe8908e"
   resources:
     requests:
       cpu: 250m
@@ -1256,7 +1271,13 @@ openarchiefbeheer:
     #       auth_type: api_key
     #       header_key: Authorization
     #       header_value: "Token REP_OBJECTEN_CREDENTIALS_OPENARCHIEFBEHEER_TOKEN_REP"
-    #     - identifier: klanten-api
+    #     # NOTE: this Open Klant (klantinteracties) service identifier MUST match,
+    #     # exactly, the identifier listed under
+    #     # external_registers.openklant.services_identifiers below. In most PodiumD
+    #     # environments this service was provisioned as `openklant-api`
+    #     # (NOT `openklant-klantinteracties`). Keep the two in sync — see
+    #     # docs/upgrade-from-4.7.3-to-4.7.4.md.
+    #     - identifier: openklant-api
     #       label: Klanten API
     #       api_root: https://opeklant.example.com/klantinteracties/api/v1/
     #       api_type: kc
@@ -1268,6 +1289,24 @@ openarchiefbeheer:
     #   api_configuration_enabled: true
     #   api_configuration:
     #     selectielijst_service_identifier: selectielijst
+
+    #   # External registers — OAB resolves each register by an EXACT match on the
+    #   # service identifier(s). Every entry in services_identifiers MUST equal an
+    #   # identifier defined in zgw_consumers.services above:
+    #   #   openklant -> openklant-api   (NOT openklant-klantinteracties)
+    #   #   objecten  -> objecten-api
+    #   # A mismatch silently breaks that register's link. See
+    #   # docs/upgrade-from-4.7.3-to-4.7.4.md.
+    #   external_registers_enabled: true
+    #   external_registers:
+    #     openklant:
+    #       enabled: true
+    #       services_identifiers:
+    #       - openklant-api
+    #     objecten:
+    #       enabled: true
+    #       services_identifiers:
+    #       - objecten-api
 
     #   oidc_db_config_enable: true
     #   oidc_db_config_admin_auth:
@@ -1522,6 +1561,14 @@ openklant:
 
 openformulieren:
   # override: values-enable-observability.yaml adds a settings.otel block to enable OTEL
+  # -- Outgoing/external HTTP request logging — disabled by default (since 4.7.4)
+  #    via the master switch LOG_OUTGOING_REQUESTS=False, which empties the
+  #    logging handlers (no emit AND no DB save). LOG_OUTGOING_REQUESTS_DB_SAVE is
+  #    left at its upstream default. The chart exposes no structured key, so this
+  #    is set via extraEnvVars. See docs/upgrade-from-4.7.3-to-4.7.4.md.
+  extraEnvVars:
+    - name: LOG_OUTGOING_REQUESTS
+      value: "False"
   configuration:
     enabled: true
     job:
