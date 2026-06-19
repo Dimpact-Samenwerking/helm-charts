@@ -198,9 +198,9 @@ data:
         authorizationServicesEnabled: "true"
         serviceAccountsEnabled: "true"
         protocolMappers:
-          - name: "user-roles"
+          - name: "realm-roles"
             protocol: "openid-connect"
-            protocolMapper: "oidc-usermodel-client-role-mapper"
+            protocolMapper: "oidc-usermodel-realm-role-mapper"
             consentRequired: false
             config:
               introspection.token.claim: "true"
@@ -211,7 +211,6 @@ data:
               access.token.claim: "true"
               claim.name: "roles"
               jsonType.label: "String"
-              usermodel.clientRoleMapping.clientId: "datamigratie"
           - name: "all-users-are-viewers"
             protocol: "openid-connect"
             protocolMapper: "oidc-hardcoded-role-mapper"
