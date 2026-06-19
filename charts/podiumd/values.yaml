@@ -2881,18 +2881,18 @@ zgw-office-addin:
     # -- MS Azure Client ID assigned to the Office Add-in application
     msalClientId: ""
   frontend:
-    # ghcr.io/infonl/zgw-office-addin-frontend:v0.9.313@sha256:02cbd45a83f09f89b85dcd040840f9fb3e9bbadf67282edd6d258697a68684c7
+    # ghcr.io/infonl/zgw-office-addin-frontend:v0.9.329@sha256:0ba74d8f33020fc912ffb5e363f71091604943c2bb7bd92e9fd39163bd673a87
     image:
-      tag: "v0.9.313@sha256:02cbd45a83f09f89b85dcd040840f9fb3e9bbadf67282edd6d258697a68684c7"
+      tag: "v0.9.329@sha256:0ba74d8f33020fc912ffb5e363f71091604943c2bb7bd92e9fd39163bd673a87"
     resources:
       requests:
         cpu: 50m
         memory: 64Mi
   backend:
     msalSecret: ""
-    # ghcr.io/infonl/zgw-office-addin-backend:v0.9.313@sha256:64d49e401de5005c5f2b61c68fac72f5d7ba4f640dca5288d21f82cf57bcc8fb
+    # ghcr.io/infonl/zgw-office-addin-backend:v0.9.329@sha256:c9ffae043ad7b596ebe527de1290acf1224d17df16bf73f659298c4e3c6cd111
     image:
-      tag: "v0.9.313@sha256:64d49e401de5005c5f2b61c68fac72f5d7ba4f640dca5288d21f82cf57bcc8fb"
+      tag: "v0.9.329@sha256:c9ffae043ad7b596ebe527de1290acf1224d17df16bf73f659298c4e3c6cd111"
     resources:
       requests:
         cpu: 100m
