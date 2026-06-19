@@ -49,7 +49,8 @@ keycloak-operator:
         memory: 128Mi
       limits:
         cpu: 500m
-        memory: 256Mi
+        # IN-2233: operator OOMKilled at 256Mi limit (excessive restarts across clusters); raised to 768Mi.
+        memory: 768Mi
   serviceAccount:
     create: false
   jobs:
