@@ -23,3 +23,24 @@
   url: docker.io/maykinmedia/open-inwoner
   version: "2.3.0"
   digest: "sha256:c4537e620899365d64511d20529eb582e87cc2d4ab13b95e45524dbbe06d722d"
+
+# KISS frontend — 2.2.2 -> 2.2.3
+
+- name: contact-frontend
+  url: ghcr.io/klantinteractie-servicesysteem/kiss-frontend
+  version: "2.2.3"
+  digest: "sha256:a12276517ce7846e5ebe40373de8c4960fb41182958a668ad60254b088252252"
+- name: contact-sync
+  url: ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync
+  version: "0.3.3"
+  digest: "sha256:f26bd91d96ec8f1875e1ce7a2386788913240bc3b70a520926db444ba61e424c"
+
+# ITA — 3.1.0 -> 3.2.0
+- name: internetaakafhandeling.web
+  url: ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web
+  version: "3.2.0"
+  digest: "sha256:159489884a041ec9222e6e2a0f0c5ff2a70f93d7b7885fa19c6be2c59d658015"
+- name: internetaakafhandeling.poller
+  url: ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller
+  version: "3.2.0"
+  digest: "sha256:eee4567fd5bfaa7eb2ec13fa1a34cfabb402939ffdc79de8159f5dc00754bafb"
