@@ -3,6 +3,16 @@
 > See the Confluence Releases page for the agreed application
 > targets: <https://dimpact.atlassian.net/wiki/spaces/PCP/pages/7602191/Releases+PodiumD>.
 
+## Component versions
+
+| Component   | App version | Helm chart |  |
+|---|---|---|---|
+| Open Inwoner        | 2.3.0 | 2.2.0 | optional action to enable ClamAv |
+| KISS                | 2.2.3 | 2.2.3 | no action required |
+| _contact-sync_        | 0.3.3 | --    | -- |
+| ITA (.web, .poller) | 3.2.0 | 3.2.0 | **action required** |
+
+
 ## Changes
 
 ### Open Inwoner 2.1.2 → 2.3.0
@@ -126,3 +136,22 @@ All other environments already pin `:9.2.0`. After pinning, confirm the
 running pod image with
 `kubectl get pod <es-pod> -o jsonpath='{.spec.containers[*].image}'` — it
 must read `…/elasticsearch/elasticsearch:9.2.0`, not `:latest`.
+
+
+### ITA 3.1.0 > 3.2.1
+
+#### Adds configuration for Medewerker-objecttype
+
+**Action required:** 
+
+ITA 3.2.1 introduces two new, required helm values, for the Medewerker-object. 
+This means all gemeentelijke podium.yml-files must be changed to include the below:
+
+```yaml
+ita:
+  ...
+  medewerker:
+    # -- Version of the medewerker objecttype that is used, most likely: 1 
+    type: "https://<env>-objecttypen.<gemeente>.nl/api/v2/objecttypes/REP_CONTACT_MEDEWERKER_UUID_REP"
+    typeVersion: 1    
+```
