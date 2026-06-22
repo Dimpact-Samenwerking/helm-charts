@@ -1,0 +1,18 @@
+# Images new or changed in podiumd 4.7.4 vs 4.7.5.
+#
+# 4.7.5 is a direct successor of 4.7.4 (no skipped intermediate releases),
+# so this manifest is the plain 4.7.4 -> 4.7.5 delta.
+#
+# Two image changes:
+#  - ZGW Office Add-in image versions updated to 0.9.313
+#    AND image names changed from '...-add-in-...' to '...-addin-...'
+
+# ZGW Office Add-In frontend and backend
+- name: zgw-office-addin-frontend
+  url: ghcr.io/infonl/zgw-office-addin-frontend
+  version: "v0.9.313"
+  digest: "sha256:02cbd45a83f09f89b85dcd040840f9fb3e9bbadf67282edd6d258697a68684c7"
+- name: zgw-office-addin-backend
+  url: ghcr.io/infonl/zgw-office-addin-backend
+  version: "v0.9.313"
+  digest: "sha256:64d49e401de5005c5f2b61c68fac72f5d7ba4f640dca5288d21f82cf57bcc8fb"

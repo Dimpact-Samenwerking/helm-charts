@@ -168,7 +168,7 @@ keycloak:
         name: Datamigratie
         enabled: true
         secret: ""
-        oidcUrl: "https://datamigratie.example.nl"  
+        oidcUrl: "https://datamigratie.example.nl"
       # zaakbrug Frank!Framework console OAuth2 client. Only rendered into the
       # podiumd realm import when zaakbrug.enabled=true. Env values supply the
       # secret (REP placeholder from Key Vault: zaakbrug-oauth-client-secret)
@@ -1284,7 +1284,6 @@ openarchiefbeheer:
     #       auth_type: api_key
     #       header_key: Authorization
     #       header_value: "Token REP_OPENKLANT_CREDENTIALS_OPENARCHIEFBEHEER_TOKEN_REP"
-       
 
     #   api_configuration_enabled: true
     #   api_configuration:
@@ -2856,32 +2855,32 @@ zgw-office-addin:
     # -- Name of the environment (used for display purposes). Default "production" means that no indicator is appended to the DiscplayName in the manifests.
     appEnv: "production"
     # -- The frontend public URL where the manifest files and static js file are served
-    frontendUrl: "https://office-addin.example.nl"
+    frontendUrl: ""
     # -- MS Azure Tenant ID of the Office Add-in application
-    msalTenantId: "dummy"
+    msalTenantId: ""
     # -- MS Azure Client ID assigned to the Office Add-in application
-    msalClientId: "dummy"
+    msalClientId: ""
   frontend:
-    # ghcr.io/infonl/zgw-office-add-in-frontend:v0.9.289@sha256:80c1fea3d16ef8a837576858e581bb20de6296af7f21c56d401f4a346c126dc0
+    # ghcr.io/infonl/zgw-office-addin-frontend:v0.9.313@sha256:02cbd45a83f09f89b85dcd040840f9fb3e9bbadf67282edd6d258697a68684c7
     image:
-      tag: "v0.9.289@sha256:80c1fea3d16ef8a837576858e581bb20de6296af7f21c56d401f4a346c126dc0"
+      tag: "v0.9.313@sha256:02cbd45a83f09f89b85dcd040840f9fb3e9bbadf67282edd6d258697a68684c7"
     resources:
       requests:
         cpu: 50m
         memory: 64Mi
   backend:
-    msalSecret: "dummy"
-    # ghcr.io/infonl/zgw-office-add-in-backend:v0.9.289@sha256:dc9b165344e787cbf6146183be529594308e22eea553e1db6654f49ba9e76cfb
+    msalSecret: ""
+    # ghcr.io/infonl/zgw-office-addin-backend:v0.9.313@sha256:64d49e401de5005c5f2b61c68fac72f5d7ba4f640dca5288d21f82cf57bcc8fb
     image:
-      tag: "v0.9.289@sha256:dc9b165344e787cbf6146183be529594308e22eea553e1db6654f49ba9e76cfb"
+      tag: "v0.9.313@sha256:64d49e401de5005c5f2b61c68fac72f5d7ba4f640dca5288d21f82cf57bcc8fb"
     resources:
       requests:
         cpu: 100m
         memory: 256Mi
     # -- ZGW API configuration for integration with the ZGW APIs provider (OpenZaak)
     zgwApis:
-      url: "https://openzaak.example.nl"
-      secret: "dummy"
+      url: ""
+      secret: ""
 
 clamav:
   # override: values-enable-observability.yaml enables metrics exporter sidecar (metrics.enabled: true)
@@ -3469,7 +3468,7 @@ zaakbrug:
     zakenApi:
       jwt:
         username: "zaakbrug"
-        password: ""  # required when zaakbrug.enabled=true
+        password: "" # required when zaakbrug.enabled=true
   # ---------------------------------------------------------------------------
   # OAuth2 console role mapping. templates/zaakbrug-oauth-role-mapping-configmap.yaml
   # renders a ConfigMap (zaakbrug-oauth-role-mapping) with:
@@ -3559,7 +3558,7 @@ mi:
     host: ""
     port: 22
     user: ""
-    remotePath: ""                       # e.g. "/uploads/mi-exports"
+    remotePath: "" # e.g. "/uploads/mi-exports"
     # SSH private key (PEM block, multiline). The chart renders it into
     # Secret/<keySecretName> (key `id`, mode 0400 in the pod). Supplied by the
     # ExternalsPodiumD application.yml pipeline, which substitutes it from Azure
