@@ -3015,7 +3015,7 @@ apiproxy:
   #nameOverride: "iconnect-proxy"
   image:
     repository: nginxinc/nginx-unprivileged
-    tag: "1.30.2@sha256:77fb538f39407dc7b497b13abef619098d3afaa569f28ca3f6641ef77b95cd2d"
+    tag: "1.30.2@sha256:1d13071bcebdfc6866d68954b30c84551ca0965ae65df7b5f6888bceb3e3a879"
     pullPolicy: IfNotPresent
   service:
     port: 80
