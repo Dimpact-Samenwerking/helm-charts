@@ -3173,7 +3173,7 @@ ita:
 
     image:
       repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller"
-      tag: "3.1.0"
+      tag: "3.2.0"
       pullPolicy: IfNotPresent
 
     notification:
