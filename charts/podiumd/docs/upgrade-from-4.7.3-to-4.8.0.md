@@ -7,27 +7,48 @@
 
 | Component   | App version | Helm chart |  |
 |---|---|---|---|
-| Open Inwoner        | 2.3.0 | 2.2.0 | optional action to enable ClamAv |
+| Open Inwoner        | 2.3.1 | 2.2.1 | optional action to enable ClamAv |
 | KISS                | 2.2.3 | 2.2.3 | no action required |
 | _contact-sync_        | 0.3.3 | --    | -- |
 | ITA (.web, .poller) | 3.2.0 | 3.2.0 | **action required** |
+| ClamAV (daemon)     | 1.5.2 | 3.7.1 | no action required |
+
+> **`feature/podiumd-4.8.0-ontw-mayk-test-updates` overlay.** On top of the
+> 4.8.0 targets above this branch carries two newer Maykin/upstream images for
+> testing on the *ontwikkel* environment: Open Inwoner **2.3.0 → 2.3.1** (chart
+> `2.2.0 → 2.2.1`) and the ClamAV daemon **1.4.4 → 1.5.2** (chart stays
+> `3.7.1`). Both are detailed below.
 
 
 ## Changes
 
-### Open Inwoner 2.1.2 → 2.3.0
+### Open Inwoner 2.1.2 → 2.3.1
 
 PodiumD 4.8.0 bumps **Open Inwoner Platform (OIP)** from 2.1.2 to 2.3.0,
-spanning two upstream releases (2.2.0 and 2.3.0).
+spanning two upstream releases (2.2.0 and 2.3.0). The
+`feature/podiumd-4.8.0-ontw-mayk-test-updates` branch carries this one step
+further to **2.3.1** (chart `2.2.1`).
 
-- Helm chart `openinwoner` `2.1.3` → `2.2.0` (appVersion `2.3.0`) in
+- Helm chart `openinwoner` `2.1.3` → `2.2.1` (appVersion `2.3.1`) in
   `charts/podiumd/Chart.yaml`.
-- Image tag pin `openinwoner.image.tag` `2.1.2` → `2.3.0` in
+- Image tag pin `openinwoner.image.tag` `2.1.2` → `2.3.1` in
   `charts/podiumd/values.yaml`.
 
 Image / digest: see [`docs/images/images-4.8.0.yaml`](images/images-4.8.0.yaml).
-The ACR mirror name is `openinwoner` (no hyphen) — mirror the new `2.3.0`
+The ACR mirror name is `openinwoner` (no hyphen) — mirror the new `2.3.1`
 tag and digest.
+
+#### 2.3.0 → 2.3.1 (bug-fix patch)
+
+2.3.1 (2026-06-11) is a **pure bug-fix patch** over 2.3.0 — no new settings, no
+schema/migration changes, no security fixes, and no breaking changes. Chart
+`openinwoner` `2.2.0` → `2.2.1` is itself only the appVersion bump to `2.3.1`
+(no template changes). Notable fixes: logout-confirm page for users with
+incomplete required fields, guarding against ZGW API errors during per-zaaktype
+related-type imports, phone-number constraint handling when syncing users from
+the Klanten API, SSD exception/template fixes, ensuring the `Site` exists before
+uWSGI starts on fresh deployments, missing-`PartijIdentificator` handling in
+`OpenKlant2Service`, and a CSP fix for an HTMX swap. **Action required: none.**
 
 #### Django CMS v3 → v4 migration (2.2.0)
 
@@ -155,3 +176,41 @@ ita:
     type: "https://<env>-objecttypen.<gemeente>.nl/api/v2/objecttypes/REP_CONTACT_MEDEWERKER_UUID_REP"
     typeVersion: 1    
 ```
+
+### ClamAV 1.4.4 → 1.5.2 (daemon, `ontw-mayk-test-updates` overlay)
+
+The `feature/podiumd-4.8.0-ontw-mayk-test-updates` branch bumps the ClamAV
+daemon image from `1.4.4` to `1.5.2` (image-tag override in
+`charts/podiumd/values.yaml` under `clamav.image.tag`). The wiremind `clamav`
+chart dependency **stays `3.7.1`** — that is already the latest published
+version (its default `appVersion` is `1.4.3`, which PodiumD overrides via the
+image tag), so no chart bump is available or needed.
+
+1.5.x is an upstream **feature release**; 1.5.2 (the version pinned here) also
+carries security fixes:
+
+- **CVE-2026-20031** — HTML-parser error-handling bug that could cause a
+  denial of service; fixed in 1.5.2.
+- Crash fixes (invalid pointer alignment; JPEG infinite-loop; Windows
+  `LeaveTemporaryFiles`/`TemporaryDirectory`), and `RUSTSEC-2026-0007`.
+
+Compatibility notes for the 1.4 → 1.5 jump:
+
+- **No breaking `clamd.conf` changes.** All options PodiumD sets in
+  `clamav.clamdConfig` remain valid in 1.5.x; 1.5 only *adds* options
+  (`JsonStoreHTMLURIs`, `JsonStorePDFURIs`, `FIPSCryptoHashLimits`,
+  `CVDCertsDirectory`, and the `Enable*Command` clamd controls). Existing
+  configs keep working unchanged.
+- The clean-file scan cache moved from MD5 to **SHA2-256**. This is internal and
+  rebuilt at runtime — irrelevant for the container, which starts with an empty
+  cache.
+- Virus signature databases (CVD) remain compatible; freshclam re-fetches on
+  first start as usual.
+
+#### Action required
+
+**None.** On `helm upgrade` the `clamav` pod rolls onto `1.5.2`; freshclam
+re-syncs the signature DB on startup (the PVC mount at `/var/lib/clamav` keeps
+the bootstrap behaviour). Confirm the daemon comes up and answers on
+`clamav:3310`. Open Inwoner virus scanning (if enabled, see above) keeps using
+the same in-cluster `clamav` service — no client-side change.

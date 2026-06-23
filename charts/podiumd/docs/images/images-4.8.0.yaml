@@ -18,11 +18,14 @@
 # verified live against registry-1.docker.io (Docker-Content-Digest).
 # The nginx sidecar stays on nginx-unprivileged 1.30.2 (unchanged).
 
-# Open Inwoner Platform (OIP) — 2.1.2 -> 2.3.0
+# Open Inwoner Platform (OIP) — 2.1.2 -> 2.3.1
+#   2.3.1 (2026-06-11) is a bug-fix patch over 2.3.0 (no new config, no breaking
+#   changes); chart openinwoner 2.2.0 -> 2.2.1 (appVersion 2.3.1).
+#   Applied on the feature/podiumd-4.8.0-ontw-mayk-test-updates branch.
 - name: openinwoner
   url: docker.io/maykinmedia/open-inwoner
-  version: "2.3.0"
-  digest: "sha256:c4537e620899365d64511d20529eb582e87cc2d4ab13b95e45524dbbe06d722d"
+  version: "2.3.1"
+  digest: "sha256:3a2ff5c8eefa69252b15a7385c82811c3681e6ecc29bb2aa35eccb331dddbc56"
 
 # KISS frontend — 2.2.2 -> 2.2.3
 
@@ -44,3 +47,15 @@
   url: ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller
   version: "3.2.0"
   digest: "sha256:eee4567fd5bfaa7eb2ec13fa1a34cfabb402939ffdc79de8159f5dc00754bafb"
+
+# ClamAV daemon — 1.4.4 -> 1.5.2 (image-tag override; wiremind clamav chart
+#   stays 3.7.1, already the latest). 1.5.2 fixes CVE-2026-20031 (HTML-parser
+#   DoS) plus crash fixes; ClamAV 1.5 is a feature release with no breaking
+#   clamd.conf changes. Applied on feature/podiumd-4.8.0-ontw-mayk-test-updates.
+#   clamav/clamav is multi-arch; the digest below is the OCI image-index
+#   (manifest-list) digest, which is registry-agnostic (amd64 layer is
+#   sha256:a2093dd28ea7b4b6639298f33181d9ee3044375d75fbe2a2e2a2667a4c820a92).
+- name: clamav
+  url: docker.io/clamav/clamav
+  version: "1.5.2"
+  digest: "sha256:c17762a00ba24dce4cf822fdc6f5bdfaa6e3ba152efc734d545b9a68be5641da"
