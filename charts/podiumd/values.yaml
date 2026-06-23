@@ -1279,7 +1279,7 @@ openarchiefbeheer:
     #     # docs/upgrade-from-4.7.3-to-4.7.4.md.
     #     - identifier: openklant-api
     #       label: Klanten API
-    #       api_root: https://opeklant.example.com/klantinteracties/api/v1/
+    #       api_root: https://openklant.example.com/klantinteracties/api/v1/
     #       api_type: kc
     #       auth_type: api_key
     #       header_key: Authorization

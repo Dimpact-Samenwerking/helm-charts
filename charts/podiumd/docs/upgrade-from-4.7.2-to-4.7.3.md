@@ -125,7 +125,7 @@ openarchiefbeheer:
           header_value: "Token REP_OBJECTEN_CREDENTIALS_OPENARCHIEFBEHEER_TOKEN_REP"
         - identifier: klanten-api
           label: Klanten API
-          api_root: https://opeklant.example.com/klantinteracties/api/v1/
+          api_root: https://openklant.example.com/klantinteracties/api/v1/
           api_type: kc
           auth_type: api_key
           header_key: Authorization
