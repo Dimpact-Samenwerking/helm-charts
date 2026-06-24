@@ -779,6 +779,124 @@ entries:
     - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/podiumd-4.8.0-feature-podiumd-4.8.0-ontw-mayk-test-updates-snapshot/podiumd-4.8.0-feature-podiumd-4.8.0-ontw-mayk-test-updates-snapshot.tgz
     version: 4.8.0-feature-podiumd-4.8.0-ontw-mayk-test-updates-snapshot
   - apiVersion: v2
+    appVersion: 4.8.0
+    created: "2026-06-24T07:56:00.359309716Z"
+    dependencies:
+    - condition: keycloak-operator.enabled
+      name: keycloak-operator
+      repository: '@adfinis'
+      version: 1.12.0
+    - condition: clamav.enabled
+      name: clamav
+      repository: '@wiremind'
+      version: 3.7.1
+    - alias: brppersonenmock
+      condition: brppersonenmock.enabled
+      name: brp-personen-mock
+      repository: '@dimpact'
+      version: 1.2.8
+    - condition: openzaak.enabled
+      name: openzaak
+      repository: '@maykinmedia'
+      version: 1.14.1
+    - condition: opennotificaties.enabled
+      name: opennotificaties
+      repository: '@maykinmedia'
+      version: 1.13.1
+    - condition: objecten.enabled
+      name: objecten
+      repository: '@maykinmedia'
+      version: 2.12.0
+    - condition: objecttypen.enabled
+      name: objecttypen
+      repository: '@maykinmedia'
+      version: 1.6.1
+    - condition: openarchiefbeheer.enabled
+      name: openarchiefbeheer
+      repository: '@maykinmedia'
+      version: 2.0.0
+    - condition: openklant.enabled
+      name: openklant
+      repository: '@maykinmedia'
+      version: 1.11.0
+    - alias: openformulieren
+      condition: openformulieren.enabled
+      name: openforms
+      repository: '@maykinmedia'
+      version: 1.12.0
+    - condition: openinwoner.enabled
+      name: openinwoner
+      repository: '@maykinmedia'
+      version: 2.2.1
+    - alias: referentielijsten
+      condition: referentielijsten.enabled
+      name: referentielijsten
+      repository: '@maykinmedia'
+      version: 0.1.1
+    - condition: openbeheer.enabled
+      name: openbeheer
+      repository: '@maykinmedia'
+      version: 0.1.3
+    - alias: kisselastic
+      condition: kisselastic.enabled
+      name: kiss-elastic
+      repository: '@kiss-elastic'
+      tags:
+      - contact
+      version: 1.1.0
+    - alias: zac
+      condition: zac.enabled
+      name: zaakafhandelcomponent
+      repository: '@zac'
+      tags:
+      - zaak
+      version: 1.0.228
+    - condition: zaakbrug.enabled
+      name: zaakbrug
+      repository: https://wearefrank.github.io/charts
+      tags:
+      - zaak
+      version: 2.3.26
+    - condition: zgw-office-addin.enabled
+      name: zgw-office-addin
+      repository: '@zgw-office-addin'
+      version: 0.0.88
+    - alias: ita
+      condition: ita.enabled
+      name: internetaakafhandeling
+      repository: oci://ghcr.io/interne-taak-afhandeling
+      version: 3.1.0
+    - alias: kiss
+      condition: kiss.enabled
+      name: kiss-chart
+      repository: oci://ghcr.io/klantinteractie-servicesysteem
+      version: 2.2.2
+    - alias: pabc
+      condition: pabc.enabled
+      name: pabc
+      repository: oci://ghcr.io/platform-autorisatie-beheer-component
+      version: 1.1.0
+    - alias: omc
+      condition: omc.enabled
+      name: notifynl-omc-nodep
+      repository: '@worth-nl'
+      version: 0.14.1
+    - condition: redis-operator.enabled
+      name: redis-operator
+      repository: '@opstree'
+      version: 0.24.0
+    - condition: apisix.enabled
+      name: apisix
+      repository: https://charts.apiseven.com
+      version: 2.14.0
+    description: PodiumD Helm chart
+    digest: 0594826efbb322d1b8ab137f2147474a839fc4476caece7ad7fb3dd7c57341cc
+    name: podiumd
+    type: application
+    urls:
+    - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/podiumd-4.8.0-feature-podiumd-4.8.0-ontw-mayk-test-updates-snapshot/podiumd-4.8.0-feature-podiumd-4.8.0-ontw-mayk-test-updates-snapshot.tgz
+    version: 4.8.0-feature-podiumd-4.8.0-ontw-mayk-test-updates-snapshot
+  - apiVersion: v2
     appVersion: 4.7.5
     created: "2026-06-22T16:11:16.937217734Z"
     dependencies:
@@ -21195,4 +21313,4 @@ entries:
     urls:
     - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/zac-1.0.0/zac-1.0.0.tgz
     version: 1.0.0
-generated: "2026-06-24T07:35:34.332649203Z"
+generated: "2026-06-24T07:56:00.36086043Z"
