@@ -4,15 +4,6 @@ This directory holds the per-hop upgrade guides and the per-release image
 manifests. Start here: this page defines the **official upgrade path**, the
 files required for each hop, and which guides are reference-only.
 
-> ## ⚠️ 4.8.0 branch note — inherited from main
->
-> The 4.8.0 release line branched **before** 4.7.4/4.7.5, so the per-hop guides
-> for the `4.7.3 → 4.7.4`, `4.7.4 → 4.7.5` hops (and this index) live on `main`
-> and are **not yet present on this branch**. `main` (= 4.7.5) **must be merged
-> into the 4.8.0 branch** before release; the links below resolve once that
-> merge lands. See the prerequisite section in
-> [`upgrade-from-4.7.5-to-4.8.0.md`](upgrade-from-4.7.5-to-4.8.0.md).
-
 ## Official upgrade path
 
 ```
