@@ -7,7 +7,7 @@ files required for each hop, and which guides are reference-only.
 ## Official upgrade path
 
 ```
-4.5.15 ─▶ 4.5.16 ─▶ 4.6.4 ─▶ 4.6.8 ─▶ 4.7.3 ─▶ 4.7.4
+4.5.15 ─▶ 4.5.16 ─▶ 4.6.4 ─▶ 4.6.8 ─▶ 4.7.3 ─▶ 4.7.4 ─▶ 4.7.5 ─▶ 4.8.0
 ```
 
 Upgrade one hop at a time, in order. Each hop has exactly **one** upgrade guide
@@ -20,10 +20,19 @@ and a matching image manifest (the ACR-mirror set for that hop):
 | 4.6.4 → 4.6.8   | [`upgrade-from-4.6.4-to-4.6.8.md`](upgrade-from-4.6.4-to-4.6.8.md)   | [`images/images-4.6.8.yaml`](images/images-4.6.8.yaml) |
 | 4.6.8 → 4.7.3   | [`upgrade-from-4.6.8-to-4.7.3.md`](upgrade-from-4.6.8-to-4.7.3.md)   | 4.7 chain: [`images-4.7.0`](images/images-4.7.0.yaml) · [`4.7.1`](images/images-4.7.1.yaml) · [`4.7.2`](images/images-4.7.2.yaml) · [`4.7.3`](images/images-4.7.3.yaml) |
 | 4.7.3 → 4.7.4   | [`upgrade-from-4.7.3-to-4.7.4.md`](upgrade-from-4.7.3-to-4.7.4.md)   | [`images/images-4.7.4.yaml`](images/images-4.7.4.yaml) |
+| 4.7.4 → 4.7.5   | [`upgrade-from-4.7.4-to-4.7.5.md`](upgrade-from-4.7.4-to-4.7.5.md)   | [`images/images-4.7.5.yaml`](images/images-4.7.5.yaml) |
+| 4.7.5 → 4.8.0   | [`upgrade-from-4.7.5-to-4.8.0.md`](upgrade-from-4.7.5-to-4.8.0.md)   | [`images/images-4.8.0.yaml`](images/images-4.8.0.yaml) |
 
 > The 4.6.4 → 4.6.8 and 4.6.8 → 4.7.3 guides are **consolidated**: each folds
 > several intermediate releases into one document so an operator reads one
 > guide per hop instead of chasing a chain of patch-level notes.
+
+
+> **4.7.6 is a parallel patch on the 4.7 line**, not a stepping stone to 4.8.0.
+> The path to 4.8.0 goes directly `4.7.5 → 4.8.0`. A 4.7.6 environment is also a
+> valid source (4.7.6 only adds OAB documentation/config hardening over 4.7.5;
+> nothing 4.8.0 needs to re-apply).
+
 
 ### Environments already on 4.6.6
 
@@ -49,9 +58,10 @@ carried (and 4.7.0 inherited). It is **not part of any official upgrade** and
 
 - At **4.6.8** Open Inwoner is the **stable `2.1.2`** (the 4.6.4 → 4.6.8 guide
   goes `2.1.1` → stable `2.1.2`, skipping the rc).
-- From **4.6.8 through 4.7.3** it stays on stable `2.1.2`.
+- From **4.6.8 through 4.7.5** it stays on stable `2.1.2`; at **4.8.0** it moves
+  to `2.3.0`.
 
-Always pin `openinwoner.image.tag: "2.1.2"` (stable). If you see `2.1.2-rc1`
+Always pin `openinwoner.image.tag` to a stable version. If you see `2.1.2-rc1`
 anywhere in an environment values file, fix it.
 
 ## What each hop requires
@@ -92,6 +102,7 @@ official path out of them:
 | [`upgrade-from-4.7.0-to-4.7.1.md`](upgrade-from-4.7.0-to-4.7.1.md) | Granular 4.7.x patch note (folded into the 4.6.8 → 4.7.3 guide). |
 | [`upgrade-from-4.7.1-to-4.7.2.md`](upgrade-from-4.7.1-to-4.7.2.md) | Granular 4.7.x patch note (folded into the 4.6.8 → 4.7.3 guide). |
 | [`upgrade-from-4.7.2-to-4.7.3.md`](upgrade-from-4.7.2-to-4.7.3.md) | Granular 4.7.x patch note (folded into the 4.6.8 → 4.7.3 guide). |
+| [`upgrade-from-4.7.3-to-4.8.0.md`](upgrade-from-4.7.3-to-4.8.0.md) | Alternate entry point for environments still on 4.7.3 (the official path enters 4.8.0 via 4.7.5). |
 | [`values-changes-4.7.0.md`](values-changes-4.7.0.md) | Full values add/change/remove table for the 4.7.0 jump. |
 
 The 4.7.x granular notes are intentionally retained for now; once the 4.7 line
