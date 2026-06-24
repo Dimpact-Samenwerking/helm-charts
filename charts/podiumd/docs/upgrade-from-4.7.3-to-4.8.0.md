@@ -155,3 +155,29 @@ ita:
     type: "https://<env>-objecttypen.<gemeente>.nl/api/v2/objecttypes/REP_CONTACT_MEDEWERKER_UUID_REP"
     typeVersion: 1    
 ```
+
+### Open Beheer ↔ Objecttypen API token (IN-2345)
+
+Open Beheer authenticates to the **Objecttypen API** with an API token.
+Configure it on **both sides with the exact same secret**,
+`REP_OBJECTTYPEN_OPENBEHEER_TOKEN_REP` (Key Vault `objecttypen-openbeheer-token`,
+pipeline var `OBJECTTYPEN_OPENBEHEER_TOKEN`):
+
+- **Objecttypen** — a `tokenauth` item granting Open Beheer the token
+  (`token: {value_from: {env: objecttypen_openbeheer_token}}`).
+- **Open Beheer** — the `zgw_consumers` `objecttypen-service` header:
+  `header_value: "Token REP_OBJECTTYPEN_OPENBEHEER_TOKEN_REP"`. The `Token `
+  prefix is **required**.
+
+IN-2345 fixed two recurring mistakes — **do not repeat**:
+
+- **missing `Token ` prefix** on the Open Beheer header;
+- **mismatched secret name** (`OPENBEHEER_CREDENTIALS_OBJECTTYPEN_TOKEN` vs
+  `OBJECTTYPEN_OPENBEHEER_TOKEN`) — standardise on `OBJECTTYPEN_OPENBEHEER_TOKEN`.
+
+**Action required:** only enable the objecttypen `openbeheer` tokenauth entry
+when Open Beheer is **enabled and the secret is provisioned** — the
+`objecttypen-config` Job validates the token strictly and **fails on an
+unsubstituted `REP_..._REP` placeholder**. The chart `values.yaml` example
+(objecttypen `tokenauth` + openbeheer `zgw_consumers`) already shows the correct
+form; see also `openbeheer.md`.
