@@ -1,4 +1,4 @@
-# Upgrade guide: PodiumD 4.6.2 → 4.6.4
+# Upgrade guide: PodiumD 4.6.0 → 4.6.4
 
 ## Required manual steps before upgrading
 
@@ -140,6 +140,132 @@ The Helm upgrade will fail with a schema validation error if these keys are not 
 
 ---
 
+## New features / additions
+
+### Redis HA master label CronJob
+
+A `redis-ha-label-master` CronJob runs every 2 minutes and fixes a known OT Redis Operator
+v0.24.0 bug: after a rolling restart of the Redis StatefulSet, pods lose their
+`redis-role=master/slave` labels, causing the `redis-ha-master` service to have no endpoints and
+all Celery workers to crash. This closes a gap where label drift after the previous one-shot Job's
+10-minute TTL left the `redis-ha-master` Service with no endpoints. See
+[docs/redis-ha.md](redis-ha.md) for full details.
+
+It uses the `docker.io/alpine/k8s` image (4.6.0–4.6.3 used the unofficial
+`lachlanevenson/k8s-kubectl`, now K8s 1.25 EOL). For **ACR-based environments**, override the
+repository:
+
+```yaml
+redis-operator:
+  redis-ha:
+    labelMasterCronJob:
+      image:
+        repository: <acr>/k8s
+```
+
+No tag override is needed — the tag is set by the chart default (`1.33.10`).
+
+The hardcoded `kubernetes.azure.com/mode: user` nodeSelector has been removed from the template.
+The nodeSelector is now optional and must be set explicitly in environments that require it
+(e.g. AKS-blue with dedicated user nodepools):
+
+```yaml
+redis-operator:
+  redis-ha:
+    labelMasterCronJob:
+      nodeSelector:
+        kubernetes.azure.com/mode: user
+```
+
+On clusters without a dedicated user nodepool, omit this key entirely.
+
+For **test environments** that are suspended outside business hours, override the schedule so the
+CronJob does not run when the cluster is idle:
+
+```yaml
+redis-operator:
+  redis-ha:
+    labelMasterCronJob:
+      schedule: "* 7-18 * * 1-5"  # every minute, Mon–Fri 07:00–18:59 only
+```
+
+> **Values key renamed:** if you deployed a 4.6.1–4.6.3 intermediate that used the one-shot
+> `redis-operator.redis-ha.labelMasterJob`, rename any override to
+> `redis-operator.redis-ha.labelMasterCronJob` (and update the image repository from
+> `<acr>/k8s-kubectl` to `<acr>/k8s`).
+
+---
+
+### Observability: new images via `values-enable-observability.yaml`
+
+`values-enable-observability.yaml` is an optional overlay that enables OpenTelemetry metrics and
+Prometheus scraping across all supported components. When this overlay is applied, the following
+**new images** are pulled:
+
+| Image | Registry | Purpose |
+|---|---|---|
+| `clamav_exporter` | `docker.io/sergeymakinen/clamav_exporter:v2.1.2` | ClamAV metrics sidecar (ServiceMonitor on port 9906) |
+
+For **ACR-based environments**, override the image repository in your environment
+values file so the image is pulled from the environment-specific ACR:
+
+```yaml
+clamav:
+  metrics:
+    image:
+      repository: <acr>/clamav_exporter
+```
+
+No tag override is needed — the tag is set by the chart default (`v2.1.2`).
+
+> This image is only used when `values-enable-observability.yaml` is applied. If you do
+> not use that overlay, no action is needed.
+
+---
+
+### New components: referentielijsten and openbeheer
+
+Two new optional components are added as subchart dependencies:
+
+| Component | Chart | Condition |
+|---|---|---|
+| `referentielijsten` | `maykinmedia/referentielijsten:0.1.1` | `referentielijsten.enabled` |
+| `openbeheer` | `maykinmedia/openbeheer:0.1.2` | `openbeheer.enabled` |
+
+Both are **disabled by default** (`enabled: false`). No action needed if you do not use them.
+
+For ACR-based environments that enable these components, add image repository overrides
+pointing to the ACR (no tags needed):
+
+```yaml
+referentielijsten:
+  enabled: true
+  image:
+    repository: <acr>/referentielijsten-api
+
+openbeheer:
+  enabled: true
+  image:
+    repository: <acr>/open-beheer
+```
+
+---
+
+### New component: OMC (NotifyNL)
+
+`notifynl-omc-nodep` (aliased `omc`) is added as a new optional subchart dependency
+(`worth-nl/notifynl-omc-nodep:0.14.0`). Disabled by default.
+
+---
+
+### Legacy Bitnami Keycloak explicitly disabled
+
+`keycloak.enabled` is now explicitly set to `false` in the chart defaults. This has no
+functional impact — the legacy Bitnami Keycloak chart was already inactive in environments
+using the Keycloak Operator (`keycloak-operator.enabled: true`). No action needed.
+
+---
+
 ## Changes
 
 ### Required values — weak defaults removed
@@ -163,6 +289,8 @@ These are typically sourced from the environment's Key Vault and injected at dep
 
 ### PABC updated to 1.1.0
 
+The PABC application and migration images have been updated from `1.0.0` to `1.1.0`.
+
 For **ACR-based environments**, update the repository overrides:
 
 ```yaml
@@ -180,6 +308,14 @@ pabc:
 
 No tag overrides are needed — tags are set by the chart defaults (`1.1.0` and `v2.0`).
 
+#### New initContainer: k8s-wait-for
+
+PABC 1.1.0 introduces an init container that waits for the migration job to complete before
+the main application pod starts. The image (`ghcr.io/groundnuty/k8s-wait-for:v2.0`) is a
+**new image** in this release.
+
+#### NodeSelector for AKS environments
+
 For environments that require a node selector (e.g. AKS-blue with
 `kubernetes.azure.com/mode: user`), set the nodeSelector on both the deployment and the
 migration job:
@@ -191,64 +327,6 @@ pabc:
   migrations:
     nodeSelector:
       kubernetes.azure.com/mode: user
-```
-
----
-
-### `redis-ha-label-master` — one-shot Job replaced by CronJob; image and nodeSelector updated
-
-The `redis-ha-label-master` one-shot Job has been replaced with a CronJob that runs every
-2 minutes. This closes a gap where label drift after the Job's 10-minute TTL left the
-`redis-ha-master` Service with no endpoints, causing all Redis-dependent apps to hang on
-first connection. See [docs/redis-ha.md](redis-ha.md) for full details.
-
-The image has also been updated from the unofficial `lachlanevenson/k8s-kubectl` (K8s 1.25 EOL)
-to `docker.io/alpine/k8s:1.33.10`.
-
-The hardcoded `kubernetes.azure.com/mode: user` nodeSelector has been removed from the template.
-The nodeSelector is now optional and must be set explicitly in environments that require it
-(e.g. AKS-blue with dedicated user nodepools):
-
-```yaml
-redis-operator:
-  redis-ha:
-    labelMasterCronJob:
-      nodeSelector:
-        kubernetes.azure.com/mode: user
-```
-
-On clusters without a dedicated user nodepool, omit this key entirely.
-
-**Values key renamed:** `redis-operator.redis-ha.labelMasterJob` → `redis-operator.redis-ha.labelMasterCronJob`
-
-If any environment values file overrides `labelMasterJob` fields (e.g. `image.repository` for ACR), rename the key:
-
-```yaml
-# Before
-redis-operator:
-  redis-ha:
-    labelMasterJob:
-      image:
-        repository: <acr>/k8s-kubectl
-
-# After
-redis-operator:
-  redis-ha:
-    labelMasterCronJob:
-      image:
-        repository: <acr>/k8s
-```
-
-No tag override is needed — the tag is set by the chart default (`1.33.10`).
-
-For **test environments** that are suspended outside business hours, override the schedule so
-the CronJob does not run when the cluster is idle:
-
-```yaml
-redis-operator:
-  redis-ha:
-    labelMasterCronJob:
-      schedule: "* 7-18 * * 1-5"  # every minute, Mon–Fri 07:00–18:59 only
 ```
 
 ---
@@ -333,7 +411,7 @@ Note: the subkey also changed from `apiUrl` to `url`.
 
 ### ZAC helm chart updated to 1.0.224
 
-The ZAC subchart has been updated from 1.0.208 to 1.0.224 (ZAC 4.7).
+The ZAC subchart has been updated from 1.0.165 to 1.0.224 (ZAC 4.7).
 
 ---
 
@@ -576,12 +654,23 @@ This is caused by a psycopg3 transaction semantics issue in the `post_migrate` s
 
 ## Component version bumps (chart defaults — no action needed in env values)
 
-| Component | 4.6.2 | 4.6.4 |
+| Component | 4.6.0 | 4.6.4 |
 |---|---|---|
-| ZAC | 1.0.208 | 1.0.224 |
-| ZGW Office Add-in | 0.9.133 | 0.9.251 |
-| alpine/k8s (labelMasterCronJob) | 1.33.2 | 1.33.10 |
-| nginx-unprivileged (api-proxy + Maykin/ZAC sidecars) | 1.29.5 | 1.29.8 |
+| clamav | 3.2.0 | 3.7.1 |
+| openzaak | 1.13.0 | 1.13.1 |
+| opennotificaties | 1.13.0 | 1.13.1 |
+| objecten | 2.11.0 | 2.12.0 |
+| objecttypen | 1.6.0 | 1.6.1 |
+| openklant | 1.10.0 | 1.11.0 |
+| openformulieren (openforms) | 1.11.6 | 1.12.0 |
+| openinwoner | 2.1.0 | 2.1.3 |
+| zac | 1.0.165 | 1.0.224 |
+| zgw-office-addin | 0.0.65 | 0.9.251 |
+| ita | 2.0.1 | 3.0.0 |
+| kiss | 2.1.0 | 2.2.2 |
+| pabc | 1.0.0 | 1.1.0 |
+| alpine/k8s (labelMasterCronJob) | — | 1.33.10 |
+| nginx-unprivileged (api-proxy + Maykin/ZAC sidecars) | — | 1.29.8 |
 
 ---
 

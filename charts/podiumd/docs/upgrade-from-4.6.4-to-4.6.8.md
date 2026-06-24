@@ -1,6 +1,110 @@
-﻿# Upgrade guide: PodiumD 4.6.4 → 4.6.5
+# Upgrade guide: PodiumD 4.6.4 → 4.6.8
+
+> **Consolidated guide.** This is a single official-path hop that folds the
+> intermediate releases 4.6.5, 4.6.6 and 4.6.7 into one document. See
+> [`UPGRADING.md`](UPGRADING.md) for the full upgrade path.
+>
+> **Open Inwoner:** this hop moves the Open Inwoner image from `2.1.1` to the
+> **stable `2.1.2`** release. The transient `2.1.2-rc1` release candidate that
+> 4.6.7 briefly carried is **skipped** — never pin `openinwoner.image.tag` to
+> `2.1.2-rc1` on the official upgrade path.
+
+## Required manual steps before upgrading
+
+### `apiproxy.nginxCertsSecret` default changed to empty
+
+`apiproxy.nginxCertsSecret` previously defaulted to `"api-proxy-certs"`. That secret is **not** present in every environment (only some clusters provision it for upstream mTLS to BAG/BRP/KVK), so the implicit default produced a missing-secret error or, where the secret happened to exist with a different name, a silently misconfigured proxy.
+
+The default is now `""` (empty). When empty:
+
+- The cert volume / `/etc/nginx/certs` mount is omitted.
+- `proxy_ssl_certificate` / `proxy_ssl_certificate_key` directives are not rendered (no client cert sent upstream).
+- `apiproxy.locations.commonSettings.sslVerify` (still `""` = auto-derive) resolves to `"off"`, so upstream server certs are **not** validated.
+
+If your environment **does** use upstream mTLS via the api-proxy and the secret is provisioned in the `podiumd` namespace, pin the value explicitly in your gemeente `podiumd.yml` **before** running `helm upgrade`:
+
+```yaml
+apiproxy:
+  enabled: true
+  nginxCertsSecret: api-proxy-certs   # or whatever name the secret has in your cluster
+```
+
+To check the current setting and whether the secret exists:
+
+```bash
+helm --kube-context "$CTX" get values podiumd -n podiumd -o yaml \
+  | yq '.apiproxy.nginxCertsSecret // "<unset — will use new chart default>"'
+
+kubectl --context "$CTX" -n podiumd get secret api-proxy-certs --ignore-not-found
+```
+
+If `apiproxy.enabled` is `false` (most non-DIMP gemeentes), no action is needed.
+
+---
 
 ## Changes
+
+### `api-proxy` — `sslVerifyDepth` global default with per-location overrides
+
+There is now a single global default at `apiproxy.sslVerifyDepth` (default `6`), and per-location overrides are still supported but no longer required:
+
+```yaml
+apiproxy:
+  sslVerifyDepth: 6              # global default
+  locations:
+    bag:
+      sslVerifyDepth: 10         # override only for BAG
+    brp:
+      sslVerifyDepth: 4          # override only for BRP
+```
+
+Resolution order per upstream: location override → global → chart default of `6`. nginx ignores `proxy_ssl_verify_depth` when `proxy_ssl_verify` is `off`, so this only affects environments that do mount mTLS certs.
+
+The depth bump from nginx's default of `1` to `6` matters for cross-signed government API chains (BAG/BRP/KVK gateways occasionally chain through extra intermediates). No action required if you don't need a different depth.
+
+### `create-required-*` jobs — longer retry window
+
+The post-install seeding jobs (`create-required-catalogi`, `create-required-objecttypen`) had aggressive defaults that occasionally tripped on slow first-boot scenarios where openzaak/objecttypen took longer than expected to come up. Defaults bumped:
+
+| Field | Before | After |
+|---|---|---|
+| `activeDeadlineSeconds` | `300` (5 min) | `900` (15 min) |
+| `backoffLimit` | `4` | `6` |
+
+Both are exposed as Helm values with a template-side fallback, so existing values files keep working unchanged:
+
+```yaml
+openzaak:
+  create_required_catalogi_job:
+    activeDeadlineSeconds: 900
+    backoffLimit: 6
+
+objecttypen:
+  create_required_objecttypen_job:
+    activeDeadlineSeconds: 900
+    backoffLimit: 6
+```
+
+No action required. Override only if your environment needs a tighter or looser window.
+
+### Open Inwoner 2.1.1 → 2.1.2 (stable)
+
+The Open Inwoner image is updated from `2.1.1` to the **stable** `2.1.2` upstream release, carrying the DRT-557 fix ([#306](https://github.com/Dimpact-Samenwerking/helm-charts/pull/306)).
+
+> **Do not use `2.1.2-rc1`.** Release 4.6.7 briefly pinned the `2.1.2-rc1`
+> release candidate; 4.6.8 promotes it to the stable `2.1.2`. The official
+> upgrade path skips the release candidate entirely — always pin
+> `openinwoner.image.tag` to the stable `2.1.2`.
+
+#### Action required
+
+No action required. The ACR mirror must mirror the `maykinmedia/open-inwoner:2.1.2` tag and digest (see [`docs/images/images-4.6.8.yaml`](images/images-4.6.8.yaml)).
+
+---
+
+## Enabling optional components: `referentielijsten`, `openbeheer`, OMC
+
+The `referentielijsten`, `openbeheer` and `omc` sub-charts (added as dependencies in 4.6.2) gain full Keycloak/OIDC wiring and configuration support in this range. They remain **disabled by default** — the sections below apply only when you enable a component.
 
 ### Keycloak clients added for `referentielijsten` and `openbeheer`
 
@@ -36,11 +140,7 @@ For the Django secret key: `openssl rand -base64 50`
 
 These are already wired in `ExternalsPodiumD/pipelines/application.yml` — you only need to create the Key Vault entries.
 
----
-
 Before enabling either component, request SSC to provision a public URL and ingress for it. Set `oidcUrl` (and any other URL values in the environment values file) to the provisioned URL once SSC confirms it is available.
-
----
 
 #### `referentielijsten`
 
@@ -273,11 +373,7 @@ openzaak:
           secret: {value_from: {env: openzaak_openbeheer_secret}}
 ```
 
----
-
 > **PKCE:** both clients are created without PKCE by default. To enable it, set `pkceEnabled: true` on the Keycloak client **and** add `oidc_use_pkce: true` under the `items` entry in `configuration.data`. Both must be set together — the chart validates this at render time.
-
----
 
 #### Keycloak roles and group assignments
 
@@ -290,15 +386,11 @@ The following roles are created automatically in the podiumd realm:
 
 The `administrators` Keycloak group is automatically assigned these roles on import. Users in that group gain admin access to both apps.
 
----
-
 ### OMC (NotifyNL Output Management Component)
 
 OMC (alias `omc`, chart `notifynl-omc-nodep` from Worth-NL) authenticates to the ZGW services via ZGW client_id/secret and ZGW API tokens, and receives callbacks over HTTPS using a JWT bearer. It does **not** use Keycloak OIDC - the OIDC-client and `configuration.data` patterns described for openbeheer/referentielijsten do not apply.
 
 Deploying OMC for a new municipality requires inputs that SSC does **not** produce itself. The municipality's Functioneel Beheer creates a NotifyNL account, 6 templates, and an "OMC-Notify" actor in OpenKlant; Dimpact productbeheer delivers those artefacts to SSC via a beveiligd kanaal.
-
----
 
 #### Step 1 - Receive inputs from Dimpact productbeheer
 
@@ -313,8 +405,6 @@ Before provisioning, SSC must have received per municipality:
 
 If any of these is missing, stop and request it - the deploy will not be functional without them.
 
----
-
 #### Step 2 - Create Key Vault secrets
 
 For each environment (ontw/accp/prod) add these entries to the gemeente's Key Vault:
@@ -327,8 +417,6 @@ For each environment (ontw/accp/prod) add these entries to the gemeente's Key Va
 | `openklant-credentials-omc-token`   | `REP_OPENKLANT_CREDENTIALS_OMC_TOKEN_REP`   | `openssl rand -hex 32` - SSC-generated                         |
 | `objecten-credentials-omc-token`    | `REP_OBJECTEN_CREDENTIALS_OMC_TOKEN_REP`    | `openssl rand -hex 32` - SSC-generated                         |
 | `objecttypen-credentials-omc-token` | `REP_OBJECTTYPEN_CREDENTIALS_OMC_TOKEN_REP` | `openssl rand -hex 32` - SSC-generated                         |
-
----
 
 #### Step 3 - Wire the Key Vault secrets in `application.yml`
 
@@ -345,8 +433,6 @@ OBJECTTYPEN_CREDENTIALS_OMC_TOKEN:  $(objecttypen-credentials-omc-token)
 
 Without this step the `REP_..._REP` tokens in the values file stay as literal strings and OMC fails to start.
 
----
-
 #### Step 4 - Register the Worth-NL helm repo
 
 Required for both deployment types (`helm-chart` and `branch`). The "Add Multiple Helm Repos" step in `application.yml` runs unconditionally, and branch-deployments still call `helm dependency build` which needs the repo registered. Add to that step:
@@ -355,9 +441,7 @@ Required for both deployment types (`helm-chart` and `branch`). The "Add Multipl
 helm repo add worth-nl https://worth-nl.github.io/helm-charts --force-update
 ```
 
-The ACR image mirror is already wired in `pipelines/images-podiumd-4.6.5.yml` (`docker.io/worthnl/notifynl-omc` → `acrprodmgmt.azurecr.io/omc`); no action needed.
-
----
+The ACR image mirror is already wired (`docker.io/worthnl/notifynl-omc` → `acrprodmgmt.azurecr.io/omc`); no action needed.
 
 #### Step 5 - Provision ingress for OMC
 
@@ -365,8 +449,6 @@ SSC provides a public URL at `https://<env>-omc.<domain>` (same pattern as other
 
 - NotifyNL callback (`/Notify/Confirm`)
 - OpenNotificaties subscription endpoint (`/Events/Listen`)
-
----
 
 #### Step 6 - Add OMC block to the municipality's values file
 
@@ -430,8 +512,6 @@ omc:
 ```
 
 > **Note.** OMC does not use `django-setup-configuration`, so the `configuration.secrets` / `value_from: {env: …}` pattern described elsewhere in this guide does **not** apply. REP tokens under `omc.settings.*` are substituted inline by the pipeline's `patch_values.py` before Helm renders.
-
----
 
 #### Step 7 - Register OMC as a peer in the ZGW services
 
@@ -517,13 +597,9 @@ objecttypen:
           email: servicedesk@dimpact.nl
 ```
 
----
-
 #### Step 8 - Deploy via pipeline
 
 Run the standard deployment pipeline for the environment. Confirm the `omc` pod starts and reaches Ready. If it crashes, inspect the pod logs - a missing REP substitution (Step 3) is the usual culprit.
-
----
 
 #### Step 9 - Create the OpenNotificaties abonnement
 
@@ -543,8 +619,6 @@ In OpenNotificaties admin for the environment, create an Abonnement pointing at 
   }
   ```
 
----
-
 #### Step 10 - Hand off the callback URL to Dimpact productbeheer
 
 Dimpact productbeheer passes it on to the municipality's FB to register in NotifyNL admin (under the PodiumD service):
@@ -556,15 +630,11 @@ https://<env>-omc.<domain>/Notify/Confirm
 
 SSC does **not** log in to NotifyNL directly - only the municipality has access.
 
----
-
 #### Step 11 - Smoke test
 
 1. Ensure at least one zaaktype has `statustype.informeren: true` (default: `false`) on the statuses that should notify.
 2. Create a zaak for a partij that has a BSN and a working `voorkeursdigitaalAdres` (on test environments add the address to the NotifyNL Gastenlijst first).
 3. Verify a notification is sent via NotifyNL and a Klantcontact is registered in OpenKlant.
-
----
 
 ### `configuration.data` secrets: use `value_from: {env: var}` inside `configuration.data`
 
@@ -606,3 +676,22 @@ python migrate-configuration-secrets.py applications/gemeenten/dim1/ontw/podiumd
 ```
 
 After running, the pipeline `patch_values.py` still substitutes `REP_..._REP` tokens — now from `configuration.secrets` values instead of inline in `configuration.data`.
+
+---
+
+## Component version bumps (chart defaults — no action needed in env values)
+
+| Component | 4.6.4 | 4.6.8 |
+|---|---|---|
+| openinwoner (Open Inwoner image) | 2.1.1 | 2.1.2 (stable) |
+| referentielijsten-api (app, on enable) | — | 0.7.1 |
+| open-beheer (app, on enable) | — | 0.9.0 |
+| omc / notifynl-omc (app, on enable) | — | 1.17.18 |
+
+> Open Inwoner `2.1.2-rc1` is **not** a version on the upgrade path. 4.6.7
+> carried it transiently; the official path goes 2.1.1 → stable 2.1.2.
+
+---
+
+For the full list of new and changed images in this release range, see
+[docs/images/images-4.6.8.yaml](images/images-4.6.8.yaml).

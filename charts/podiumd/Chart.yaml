@@ -6,7 +6,7 @@ version: 4.8.0
 appVersion: "4.8.0"
 dependencies:
   - name: keycloak-operator
-    version: 1.11.4
+    version: 1.12.0
     repository: "@adfinis"
     condition: keycloak-operator.enabled
   - name: clamav
@@ -82,7 +82,7 @@ dependencies:
       - zaak
   - name: zgw-office-addin
     repository: "@zgw-office-addin"
-    version: 0.0.87
+    version: 0.0.88
     condition: zgw-office-addin.enabled
   - name: internetaakafhandeling
     alias: ita
