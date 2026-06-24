@@ -9,26 +9,20 @@ stable baseline). For the older 4.7.3 starting point see
 difference is the carry-over note below — the 4.8.0 component changes are
 identical.
 
-> ## ⚠️ Prerequisite — 4.8.0 must contain the full 4.7.5 baseline
+> ## 4.7.4/4.7.5 work carried in 4.8.0 (no re-action)
 >
-> The 4.8.0 release line branched **before** 4.7.4/4.7.5 and is therefore not a
-> descendant of those tags. Before 4.8.0 is released, `main` (= 4.7.5) **must be
-> merged into the 4.8.0 branch** so the security work from 4.7.4/4.7.5 is
-> retained. If 4.8.0 ships without it, upgrading a 4.7.5 environment would
-> **regress** the fixes below. Verify all of these are present in 4.8.0
-> `values.yaml`/`Chart.yaml` before cutting the release:
+> `main` (= 4.7.5) has been forward-integrated into 4.8.0, so 4.8.0 includes the
+> full 4.7.5 baseline. A 4.7.5 environment **already has** the items below, so
+> there is **no re-action** for them on this hop — listed only to confirm 4.8.0
+> retains them:
 >
-> | From | Must still be present in 4.8.0 |
+> | From | Carried in 4.8.0 |
 > |---|---|
 > | 4.7.4 | Keycloak server **+** operator `26.6.3`; adfinis `keycloak-operator` chart `1.12.0` (16 CVEs incl. CVE-2026-9704, CVE-2026-4874, CVE-2026-9802) |
 > | 4.7.4 | Open Zaak `1.27.2` (CVE-2026-54657 `_zoek` authz + bulk-import path-traversal) |
 > | 4.7.4 | Open Formulieren outgoing-request logging off by default (`LOG_OUTGOING_REQUESTS=False`) |
 > | 4.7.4 | Datamigratie Keycloak client + Open Zaak credentials |
-> | 4.7.6 | OAB `external_registers` example completion + `openklant` api_root typo fix |
->
-> A 4.7.5 environment **already has** all of the above, so once 4.8.0 carries
-> them there is **no re-action** for these items on the 4.7.5 → 4.8.0 hop — they
-> are listed only to guarantee 4.8.0 does not drop them.
+> | 4.7.5 | ZGW Office Add-in `v0.9.313` (chart `0.0.88`; `add-in` → `addin` repo rename) |
 
 ## Component versions (the 4.8.0 delta vs 4.7.5)
 
