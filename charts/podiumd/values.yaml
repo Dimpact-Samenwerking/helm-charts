@@ -1110,6 +1110,11 @@ objecttypen:
     #         organization: Organization 1
     #         application: Application 1
     #         administration: Administration 1
+    #       # IN-2345: this token MUST equal the 'Token <...>' value in the
+    #       # openbeheer objecttypen-service header (same OBJECTTYPEN_OPENBEHEER_TOKEN
+    #       # secret on both sides). Only enable this entry when openbeheer is
+    #       # enabled AND the secret is provisioned — the objecttypen-config Job
+    #       # validates strictly and fails on an unsubstituted REP_..._REP placeholder.
     #       - identifier: openbeheer-token
     #         token: {value_from: {env: objecttypen_openbeheer_token}}
     #         contact_person: Open Beheer
