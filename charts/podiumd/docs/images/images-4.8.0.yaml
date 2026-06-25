@@ -16,7 +16,8 @@
 # docs/images/acr-mirror-naming.md for the upstream->ACR mapping.
 # Digest below is the single linux/amd64 manifest published on Docker Hub,
 # verified live against registry-1.docker.io (Docker-Content-Digest).
-# The nginx sidecar stays on nginx-unprivileged 1.30.2 (unchanged).
+# The nginx sidecar stays on nginx-unprivileged 1.30.2; the pinned digest
+# was refreshed (see the Renovate-integration section at the end of this file).
 
 # Open Inwoner Platform (OIP) — 2.1.2 -> 2.3.0
 - name: openinwoner
@@ -44,3 +45,26 @@
   url: ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller
   version: "3.2.0"
   digest: "sha256:eee4567fd5bfaa7eb2ec13fa1a34cfabb402939ffdc79de8159f5dc00754bafb"
+
+# Renovate dependency bumps integrated into 4.8.0 (PRs #292, #324, #334).
+# Digests verified live against the source registry (Docker-Content-Digest).
+# PR #294 (azure/k8s-bake v3 -> v4) is a GitHub Action, not a container image,
+# so it is not listed here.
+
+# nginx-unprivileged — 1.30.2 digest refresh (PR #334): 77fb538 -> 1d13071
+- name: nginx-unprivileged
+  url: docker.io/nginxinc/nginx-unprivileged
+  version: "1.30.2"
+  digest: "sha256:1d13071bcebdfc6866d68954b30c84551ca0965ae65df7b5f6888bceb3e3a879"
+
+# alpine/k8s (redis-ha label-master job) — 1.34.7 -> 1.36.2 (PR #292)
+- name: k8s
+  url: docker.io/alpine/k8s
+  version: "1.36.2"
+  digest: "sha256:44ef4942e171939b9c665a4a84beb80e2dcdb9a24330d4651cfdfd2e9deecc47"
+
+# keycloak-config-cli — 6.5.0-26 -> 6.5.1-26 (PR #324)
+- name: keycloak-config-cli
+  url: docker.io/adorsys/keycloak-config-cli
+  version: "6.5.1-26"
+  digest: "sha256:1b22dfaa9ae0c71f74b0342f9221a6510f272da5def683dbba26a98e6b1b1411"
