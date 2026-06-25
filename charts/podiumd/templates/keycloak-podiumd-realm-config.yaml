@@ -569,6 +569,45 @@ data:
               claim.name: "groups"
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "openbeheer"
+      - clientId: openbao
+        name: OpenBao
+        enabled: true
+        clientAuthenticatorType: client-secret
+        redirectUris:
+          - "{{ .Values.openbao.configuration.oidcUrl | trimSuffix "/" }}/*"
+          # OpenBao CLI OIDC login callback (`bao login -method=oidc`).
+          - "http://localhost:8250/*"
+        webOrigins:
+          - "{{ .Values.openbao.configuration.oidcUrl | trimSuffix "/" }}/*"
+        secret: $(KC_SECRET_OPENBAO)
+        protocolMappers:
+          - name: "username"
+            protocol: "openid-connect"
+            protocolMapper: oidc-usermodel-property-mapper
+            config:
+              introspection.token.claim: "true"
+              userinfo.token.claim: "true"
+              user.attribute: "username"
+              id.token.claim: "true"
+              lightweight.claim: "false"
+              access.token.claim: "true"
+              claim.name: "preferred_username"
+              jsonType.label: "String"
+          - name: "client roles"
+            protocol: "openid-connect"
+            protocolMapper: "oidc-usermodel-client-role-mapper"
+            consentRequired: false
+            config:
+              introspection.token.claim: "true"
+              multivalued: "true"
+              userinfo.token.claim: "false"
+              user.attribute: "foo"
+              id.token.claim: "true"
+              lightweight.claim: "false"
+              access.token.claim: "true"
+              claim.name: "groups"
+              jsonType.label: "String"
+              usermodel.clientRoleMapping.clientId: "openbao"
       - clientId: kiss
         name: Kiss
         enabled: true
@@ -876,6 +915,63 @@ data:
             - "view-realm"
           account:
             - "view-groups"
+{{- if .Values.openbao.enabled }}
+      - username: {{ .Values.openbao.configuration.testUser.username | quote }}
+        enabled: "true"
+        emailVerified: "true"
+        firstName: Vault
+        lastName: Tester
+        email: {{ .Values.openbao.configuration.testUser.email | quote }}
+        groups:
+          - "/{{ .Values.openbao.configuration.uploadersGroup }}"
+        credentials:
+          - type: password
+            value: "$(KC_OPENBAO_TEST_USER_PASSWORD)"
+            temporary: "false"
+{{- end }}
+{{- if .Values.keycloak.config.superuser.enabled }}
+      # Per-app superusers: su-<client>, each with ONLY that app's admin role(s).
+      # Keeps each user's OIDC token small (one client's resource_access) so the
+      # BFF auth cookie stays under the gateway proxy buffer. Shared password
+      # auto-generated + kept stable in keycloak-podiumd-realm-secrets
+      # (key keycloak-superuser-password) unless set via values.
+{{- $domain := .Values.keycloak.config.superuser.emailDomain | default "example.nl" }}
+{{- $apps := dict
+      "abc" (list "administrators")
+      "openklant" (list "administrators")
+      "objecten" (list "administrators")
+      "objecttypen" (list "administrators")
+      "openzaak" (list "administrators")
+      "opennotificaties" (list "administrators")
+      "openformulieren" (list "administrators")
+      "openinwoner" (list "administrators")
+      "referentielijsten" (list "administrators")
+      "openbeheer" (list "administrators")
+      "kiss" (list "Redacteur" "Klantcontactmedewerker" "Kennisbank")
+      "zac" (list "behandelaar" "beheerder" "coordinator" "raadpleger" "recordmanager" "domein_elk_zaaktype")
+      "pabc" (list "administrator") }}
+{{- if .Values.keycloak.config.clients.monitoring.enabled }}{{- $_ := set $apps "monitoring" (list "admin") }}{{- end }}
+{{- if .Values.ita.enabled }}{{- $_ := set $apps "ita" (list "ITA_Gebruiker" "ITA_Functioneel_Beheerder") }}{{- end }}
+{{- if .Values.openbao.enabled }}{{- $_ := set $apps "openbao" (list "uploaders") }}{{- end }}
+{{- if .Values.zaakbrug.enabled }}{{- $_ := set $apps "zaakbrug" (list "administrators" "zaakbrug_admin" "dataadmin") }}{{- end }}
+{{- range $app, $roles := $apps }}
+      - username: su-{{ $app }}
+        enabled: "true"
+        emailVerified: "true"
+        firstName: Superuser
+        lastName: {{ $app | quote }}
+        email: su-{{ $app }}@{{ $domain }}
+        credentials:
+          - type: password
+            value: "$(KC_SUPERUSER_PASSWORD)"
+            temporary: "false"
+        clientRoles:
+          {{ $app }}:
+{{- range $roles }}
+            - {{ . }}
+{{- end }}
+{{- end }}
+{{- end }}
     smtpServer:
       starttls: {{ .Values.keycloak.config.smtp.starttls }}
       port: {{ .Values.keycloak.config.smtp.port }}
@@ -915,6 +1011,8 @@ data:
           - name: administrators
         openbeheer:
           - name: administrators
+        openbao:
+          - name: uploaders
         kiss:
           - name: Redacteur
           - name: Klantcontactmedewerker
@@ -1041,6 +1139,14 @@ data:
           zac:
             - "domein_elk_zaaktype"
             - "raadpleger"
+      - name: {{ .Values.openbao.configuration.uploadersGroup | quote }}
+        path: "/{{ .Values.openbao.configuration.uploadersGroup }}"
+        attributes:
+          description:
+            - "OpenBao secret uploaders"
+        clientRoles:
+          openbao:
+            - "uploaders"
     {{- end }}
 {{- with .Values.keycloak.config.realmIdentityProviders }}
     {{- toYaml . | nindent 4 }}

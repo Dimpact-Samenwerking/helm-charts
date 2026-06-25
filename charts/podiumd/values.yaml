@@ -151,6 +151,16 @@ keycloak:
     # realmIdentityProviderMappers: {}
     skipGroups: true
     skipRoles: true
+    # Per-app PodiumD superusers: one su-<app> user per application, each with
+    # ONLY that app's admin role(s) — keeps each user's OIDC token small so BFF
+    # auth cookies stay under the gateway proxy buffer. Disabled by default;
+    # shared password auto-generated + kept stable in the
+    # keycloak-podiumd-realm-secrets Secret (key keycloak-superuser-password)
+    # unless an explicit password is set here.
+    superuser:
+      enabled: false
+      emailDomain: example.nl
+      password: ""
     smtp:
       server: mail.example.nl
       port: "587"
@@ -3613,3 +3623,179 @@ mi:
     - component: ita
     - component: kiss
     - component: pabc
+
+openbao:
+  # OpenBao (openbao.org) — secrets vault. Postgres-backed like the other apps,
+  # HA (3 replicas) against the shared Azure PostgreSQL server, auto-unsealed via
+  # Azure Key Vault, login through the Keycloak `podiumd` realm over OIDC.
+  # Disabled by default; enable + supply env-specific values per environment
+  # (see the jim00 override). `server.*` are the upstream openbao subchart keys;
+  # `configuration.*` / `database.*` feed the chart's own openbao-* templates.
+  enabled: false
+
+  # --- podiumd-side wiring (consumed by the openbao-* templates) ----------------
+  configuration:
+    # Render the post-deploy bao-config Job (enable oidc auth, kv-v2 mount,
+    # uploader policy, external group binding). Mirrors the keycloak-config-cli pattern.
+    enabled: true
+    # External URL OpenBao is reached on (Gateway/Ingress). Drives the Keycloak
+    # client redirectUris and the OIDC role allowed_redirect_uris.
+    oidcUrl: https://openbao.example.nl
+    # Keycloak OIDC client secret for the `openbao` client. Empty => auto-generated
+    # and kept stable across upgrades by keycloak-podiumd-realm-secrets.yaml
+    # (identical pattern to the other apps' OIDC secrets).
+    secrets:
+      keycloak_client_secret: ""
+    # Keycloak realm OpenBao trusts. issuer/discovery = <url>/realms/<realm>.
+    keycloak:
+      url: https://keycloak.example.nl
+      realm: podiumd
+    # External group bound to the uploader policy. Must match the Keycloak group
+    # name emitted in the `groups` claim (keycloak-podiumd-realm-config.yaml).
+    uploadersGroup: vault-uploaders
+    # Static test end-user, seeded into the realm and made a member of
+    # uploadersGroup, so OIDC login + upload can be exercised immediately. Only
+    # rendered when openbao.enabled. The password flows through the realm-secrets
+    # Secret as $(KC_OPENBAO_TEST_USER_PASSWORD) (never inlined into the ConfigMap);
+    # empty => auto-generated + kept stable, like the OIDC client secrets.
+    testUser:
+      username: vault-tester
+      email: vault-tester@example.nl
+      password: ""
+    # KV-v2 mount path the uploader policy grants write on.
+    kvPath: secret
+    # K8s Secret (key `token`) holding a privileged bao token the config Job
+    # bootstraps with — seeded out-of-band from the root token captured at the
+    # one-time `bao operator init` (stored in Azure KV as openbao-root-token-<env>).
+    bootstrapTokenSecret: openbao-bootstrap-token
+    job:
+      backoffLimit: 6
+      ttlSecondsAfterFinished: 600
+      restartPolicy: Never
+      # bao CLI image. Tag pinned explicitly (not "") — unlike the server, this
+      # standalone Job cannot resolve the subchart appVersion. Keep in step with
+      # the openbao subchart appVersion (OpenBao v2.5.5 @ chart 0.28.4).
+      image:
+        registry: quay.io
+        repository: openbao/openbao
+        tag: "2.5.5"
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 250m
+          memory: 128Mi
+
+  # --- database (shared Azure PostgreSQL) ---------------------------------------
+  # OpenBao does NOT auto-create its tables. openbao-db-schema-job.yaml provisions
+  # openbao_kv_store + openbao_ha_locks (idempotent) before the server is usable.
+  # openbao-db-secret.yaml renders Secret/<secretName> with `connection-url`
+  # (libpq URL incl. credentials — fed to the server as BAO_PG_CONNECTION_URL so
+  # the password never lands in the config ConfigMap) plus `username`/`password`
+  # for the schema Job. The password is pipeline-substituted, never committed.
+  database:
+    secretName: openbao-db
+    host: ""                 # e.g. podiumd-<env>-pg.postgres.database.azure.com
+    port: 5432
+    name: openbao
+    username: openbao-admin
+    password: ""             # REP_OPENBAO_DB_PASSWORD_REP (patch_values.py at deploy)
+    sslmode: require
+    schemaJob:
+      backoffLimit: 6
+      ttlSecondsAfterFinished: 600
+      image:
+        registry: docker.io
+        repository: library/postgres
+        tag: "16-alpine"
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 250m
+          memory: 128Mi
+
+  # --- openbao subchart values (upstream server.* keys) -------------------------
+  server:
+    # RollingUpdate (not the chart default OnDelete) so a helm upgrade recreates
+    # the server pods to pick up config changes (e.g. seal/readiness). With OnDelete
+    # a crashing/old pod is never replaced automatically, and a `helm --wait` deploy
+    # would block on it forever.
+    updateStrategyType: RollingUpdate
+    image:
+      registry: quay.io
+      repository: openbao/openbao
+      tag: ""                # "" => chart appVersion (OpenBao v2.5.5)
+    # Workload-identity SA. The user-assigned MI + federated credential and the
+    # "Key Vault Crypto User" role on the unseal key are provisioned out-of-band
+    # (base-infra). The client-id annotation is set in the per-env override.
+    serviceAccount:
+      create: true
+      name: openbao
+      annotations:
+        azure.workload.identity/client-id: ""
+    extraLabels:
+      azure.workload.identity/use: "true"
+    # Readiness via the health endpoint with sealed/uninitialised mapped to 200,
+    # so the pod reports Ready as soon as the process is up — even before the
+    # one-time `bao operator init` + unseal. Without this the default `bao status`
+    # exec probe never passes while sealed, and a `helm --wait` deploy would block
+    # on openbao forever on a fresh cluster.
+    readinessProbe:
+      enabled: true
+      path: "/v1/sys/health?standbyok=true&perfstandbyok=true&uninitcode=200&sealedcode=200"
+    # Postgres storage backend => no data PVC.
+    dataStorage:
+      enabled: false
+    # Routed via the platform Gateway/Ingress (infra.yml), not the subchart.
+    ingress:
+      enabled: false
+    # Full libpq URL (with credentials) from the db Secret — keeps creds out of the
+    # config ConfigMap. The azurekeyvault seal target (vault + key) is supplied per
+    # environment via VAULT_AZUREKEYVAULT_* (see the jim00 override); Azure auth is
+    # the workload-identity token injected by the webhook.
+    extraSecretEnvironmentVars:
+      - envName: BAO_PG_CONNECTION_URL
+        secretName: openbao-db
+        secretKey: connection-url
+    ha:
+      enabled: true
+      replicas: 3
+      raft:
+        enabled: false
+      # HCL. connection_url is intentionally omitted (provided via
+      # BAO_PG_CONNECTION_URL).
+      #
+      # Seal: Shamir (no seal stanza). Azure Key Vault auto-unseal is intentionally
+      # NOT used: OpenBao 2.5.5's azurekeyvault seal authenticates via IMDS Managed
+      # Identity and ignores the AKS workload-identity federated token, so it cannot
+      # reach the vault under workload identity (openbao-helm#56 / hashicorp-vault
+      # #29717). With Shamir the cluster is initialised + unsealed manually (keys
+      # stored in the per-env Key Vault). Revisit KV auto-unseal once OpenBao honors
+      # the federated token. The base-infra unseal key + MI remain provisioned but
+      # unused for now.
+      config: |
+        ui = true
+
+        listener "tcp" {
+          tls_disable     = 1
+          address         = "[::]:8200"
+          cluster_address = "[::]:8201"
+        }
+
+        storage "postgresql" {
+          table      = "openbao_kv_store"
+          ha_enabled = "true"
+          ha_table   = "openbao_ha_locks"
+        }
+
+        service_registration "kubernetes" {}
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
