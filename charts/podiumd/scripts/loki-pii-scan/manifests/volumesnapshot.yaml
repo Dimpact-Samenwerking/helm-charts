@@ -1,0 +1,14 @@
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshot
+metadata:
+  name: loki-pii-report-snapshot
+  namespace: monitoring
+  labels:
+    app: loki-pii-scan
+    component: report
+    environment: ontw
+    managed-by: manual
+spec:
+  volumeSnapshotClassName: loki-pii-azuredisk
+  source:
+    persistentVolumeClaimName: loki-pii-report

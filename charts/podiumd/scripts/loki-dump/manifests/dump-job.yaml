@@ -1,0 +1,62 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: loki-export-dump
+  namespace: monitoring
+  labels:
+    app: loki-export
+    component: dump
+    environment: ontw
+    managed-by: manual
+spec:
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 86400
+  activeDeadlineSeconds: 21600
+  template:
+    metadata:
+      labels:
+        app: loki-export
+        component: dump
+        environment: ontw
+        managed-by: manual
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: false
+        fsGroup: 0
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: dump
+          # alpine/k8s mirror — ships bash+curl+jq+gzip; no apk, no public egress.
+          image: acrprodmgmt.azurecr.io/k8s:1.34.7
+          imagePullPolicy: IfNotPresent
+          command: ["bash", "/scripts/dump.sh"]
+          envFrom:
+            - configMapRef:
+                name: loki-export-env
+          volumeMounts:
+            - name: scripts
+              mountPath: /scripts
+              readOnly: true
+            - name: dump
+              mountPath: /dump
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: "2"
+              memory: 1Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+      volumes:
+        - name: scripts
+          configMap:
+            name: loki-export-scripts
+            defaultMode: 0555
+        - name: dump
+          persistentVolumeClaim:
+            claimName: loki-export-dump
