@@ -898,6 +898,76 @@ data:
             value: "$(KC_OPENBAO_TEST_USER_PASSWORD)"
             temporary: "false"
 {{- end }}
+{{- if .Values.keycloak.config.superuser.enabled }}
+      # Single PodiumD superuser — every app's admin client-role + the
+      # podiumd-admin realm role. Password auto-generated + kept stable in the
+      # keycloak-podiumd-realm-secrets Secret (key keycloak-superuser-password).
+      - username: {{ .Values.keycloak.config.superuser.username | quote }}
+        enabled: "true"
+        emailVerified: "true"
+        firstName: {{ .Values.keycloak.config.superuser.firstName | default "Super" | quote }}
+        lastName: {{ .Values.keycloak.config.superuser.lastName | default "User" | quote }}
+        email: {{ .Values.keycloak.config.superuser.email | quote }}
+        credentials:
+          - type: password
+            value: "$(KC_SUPERUSER_PASSWORD)"
+            temporary: "false"
+        realmRoles:
+          - podiumd-admin
+        clientRoles:
+          abc:
+            - administrators
+          openklant:
+            - administrators
+          objecten:
+            - administrators
+          objecttypen:
+            - administrators
+          openzaak:
+            - administrators
+          opennotificaties:
+            - administrators
+          openformulieren:
+            - administrators
+          openinwoner:
+            - administrators
+          referentielijsten:
+            - administrators
+          openbeheer:
+            - administrators
+          kiss:
+            - Redacteur
+            - Klantcontactmedewerker
+            - Kennisbank
+          zac:
+            - behandelaar
+            - beheerder
+            - coordinator
+            - raadpleger
+            - recordmanager
+            - domein_elk_zaaktype
+          pabc:
+            - administrator
+{{- if .Values.keycloak.config.clients.monitoring.enabled }}
+          monitoring:
+            - admin
+{{- end }}
+{{- if .Values.ita.enabled }}
+          ita:
+            - ITA_Gebruiker
+            - ITA_Functioneel_Beheerder
+{{- end }}
+{{- if .Values.openbao.enabled }}
+          openbao:
+            - uploaders
+{{- end }}
+{{- if .Values.zaakbrug.enabled }}
+          zaakbrug:
+            - administrators
+            - zaakbrug_admin
+            - dataadmin
+{{- end }}
+{{- end }}
     smtpServer:
       starttls: {{ .Values.keycloak.config.smtp.starttls }}
       port: {{ .Values.keycloak.config.smtp.port }}

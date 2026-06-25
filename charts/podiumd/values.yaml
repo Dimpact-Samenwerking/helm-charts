@@ -141,6 +141,17 @@ keycloak:
     # realmIdentityProviderMappers: {}
     skipGroups: true
     skipRoles: true
+    # Single PodiumD superuser with every app's admin role (realm role
+    # podiumd-admin + per-client admin roles). Disabled by default; password is
+    # auto-generated + kept stable in the keycloak-podiumd-realm-secrets Secret
+    # (key keycloak-superuser-password) unless an explicit password is set here.
+    superuser:
+      enabled: false
+      username: superuser
+      email: superuser@example.nl
+      firstName: Super
+      lastName: User
+      password: ""
     smtp:
       server: mail.example.nl
       port: "587"
