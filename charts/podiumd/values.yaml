@@ -141,16 +141,15 @@ keycloak:
     # realmIdentityProviderMappers: {}
     skipGroups: true
     skipRoles: true
-    # Single PodiumD superuser with every app's admin role (realm role
-    # podiumd-admin + per-client admin roles). Disabled by default; password is
-    # auto-generated + kept stable in the keycloak-podiumd-realm-secrets Secret
-    # (key keycloak-superuser-password) unless an explicit password is set here.
+    # Per-app PodiumD superusers: one su-<app> user per application, each with
+    # ONLY that app's admin role(s) — keeps each user's OIDC token small so BFF
+    # auth cookies stay under the gateway proxy buffer. Disabled by default;
+    # shared password auto-generated + kept stable in the
+    # keycloak-podiumd-realm-secrets Secret (key keycloak-superuser-password)
+    # unless an explicit password is set here.
     superuser:
       enabled: false
-      username: superuser
-      email: superuser@example.nl
-      firstName: Super
-      lastName: User
+      emailDomain: example.nl
       password: ""
     smtp:
       server: mail.example.nl

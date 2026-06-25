@@ -899,73 +899,46 @@ data:
             temporary: "false"
 {{- end }}
 {{- if .Values.keycloak.config.superuser.enabled }}
-      # Single PodiumD superuser — every app's admin client-role + the
-      # podiumd-admin realm role. Password auto-generated + kept stable in the
-      # keycloak-podiumd-realm-secrets Secret (key keycloak-superuser-password).
-      - username: {{ .Values.keycloak.config.superuser.username | quote }}
+      # Per-app superusers: su-<client>, each with ONLY that app's admin role(s).
+      # Keeps each user's OIDC token small (one client's resource_access) so the
+      # BFF auth cookie stays under the gateway proxy buffer. Shared password
+      # auto-generated + kept stable in keycloak-podiumd-realm-secrets
+      # (key keycloak-superuser-password) unless set via values.
+{{- $domain := .Values.keycloak.config.superuser.emailDomain | default "example.nl" }}
+{{- $apps := dict
+      "abc" (list "administrators")
+      "openklant" (list "administrators")
+      "objecten" (list "administrators")
+      "objecttypen" (list "administrators")
+      "openzaak" (list "administrators")
+      "opennotificaties" (list "administrators")
+      "openformulieren" (list "administrators")
+      "openinwoner" (list "administrators")
+      "referentielijsten" (list "administrators")
+      "openbeheer" (list "administrators")
+      "kiss" (list "Redacteur" "Klantcontactmedewerker" "Kennisbank")
+      "zac" (list "behandelaar" "beheerder" "coordinator" "raadpleger" "recordmanager" "domein_elk_zaaktype")
+      "pabc" (list "administrator") }}
+{{- if .Values.keycloak.config.clients.monitoring.enabled }}{{- $_ := set $apps "monitoring" (list "admin") }}{{- end }}
+{{- if .Values.ita.enabled }}{{- $_ := set $apps "ita" (list "ITA_Gebruiker" "ITA_Functioneel_Beheerder") }}{{- end }}
+{{- if .Values.openbao.enabled }}{{- $_ := set $apps "openbao" (list "uploaders") }}{{- end }}
+{{- if .Values.zaakbrug.enabled }}{{- $_ := set $apps "zaakbrug" (list "administrators" "zaakbrug_admin" "dataadmin") }}{{- end }}
+{{- range $app, $roles := $apps }}
+      - username: su-{{ $app }}
         enabled: "true"
         emailVerified: "true"
-        firstName: {{ .Values.keycloak.config.superuser.firstName | default "Super" | quote }}
-        lastName: {{ .Values.keycloak.config.superuser.lastName | default "User" | quote }}
-        email: {{ .Values.keycloak.config.superuser.email | quote }}
+        firstName: Superuser
+        lastName: {{ $app | quote }}
+        email: su-{{ $app }}@{{ $domain }}
         credentials:
           - type: password
             value: "$(KC_SUPERUSER_PASSWORD)"
             temporary: "false"
-        realmRoles:
-          - podiumd-admin
         clientRoles:
-          abc:
-            - administrators
-          openklant:
-            - administrators
-          objecten:
-            - administrators
-          objecttypen:
-            - administrators
-          openzaak:
-            - administrators
-          opennotificaties:
-            - administrators
-          openformulieren:
-            - administrators
-          openinwoner:
-            - administrators
-          referentielijsten:
-            - administrators
-          openbeheer:
-            - administrators
-          kiss:
-            - Redacteur
-            - Klantcontactmedewerker
-            - Kennisbank
-          zac:
-            - behandelaar
-            - beheerder
-            - coordinator
-            - raadpleger
-            - recordmanager
-            - domein_elk_zaaktype
-          pabc:
-            - administrator
-{{- if .Values.keycloak.config.clients.monitoring.enabled }}
-          monitoring:
-            - admin
+          {{ $app }}:
+{{- range $roles }}
+            - {{ . }}
 {{- end }}
-{{- if .Values.ita.enabled }}
-          ita:
-            - ITA_Gebruiker
-            - ITA_Functioneel_Beheerder
-{{- end }}
-{{- if .Values.openbao.enabled }}
-          openbao:
-            - uploaders
-{{- end }}
-{{- if .Values.zaakbrug.enabled }}
-          zaakbrug:
-            - administrators
-            - zaakbrug_admin
-            - dataadmin
 {{- end }}
 {{- end }}
     smtpServer:
