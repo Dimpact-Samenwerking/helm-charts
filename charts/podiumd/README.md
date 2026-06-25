@@ -876,6 +876,10 @@ For the full upstream values reference run:
 helm show values apisix/apisix --version 2.14.0
 ```
 
+### Open Beheer
+
+Open Beheer is a Django-based admin/management UI for the ZGW ecosystem — it configures zaaktypes and informatieobjecttypes via the Open Zaak Catalogi API, object schemas via Objecttypen, and references the public Selectielijst API. Deployed as the `openbeheer` sub-chart (`maykinmedia/open-beheer`). **Disabled by default** — opt in by setting `openbeheer.enabled: true`. See `docs/openbeheer.md` for the overview, dependencies, and enable steps, and `docs/openbeheer-known-issues.md` for the uWSGI master-process restart trap.
+
 ### Tags
 
 Tags to add additional unreleased PodiumD functionality.
