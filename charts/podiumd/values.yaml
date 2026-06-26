@@ -2684,16 +2684,16 @@ zac:
     code: "007"
     naam: "Example Gemeente"
     mail: "noreply@example.nl"
-  # curlimages/curl:8.20.0@sha256:b3f1fb2a51d923260350d21b8654bbc607164a987e2f7c84a0ac199a67df812a
+  # curlimages/curl:8.21.0@sha256:7c12af72ceb38b7432ab85e1a265cff6ae58e06f95539d539b654f2cfa64bb13
   global:
     curlImage:
       #repository: curlimages/curl
-      tag: "8.20.0@sha256:b3f1fb2a51d923260350d21b8654bbc607164a987e2f7c84a0ac199a67df812a"
-  # ghcr.io/infonl/zaakafhandelcomponent:5.1.0
+      tag: "8.21.0@sha256:7c12af72ceb38b7432ab85e1a265cff6ae58e06f95539d539b654f2cfa64bb13"
+  # ghcr.io/infonl/zaakafhandelcomponent:5.2.0
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
-    tag: 5.1.0@sha256:d833d2f3dd58eeb58335e9aff9bca67f5885fad0e6a7414003ce9a211d3dc50e
+    tag: 5.2.0@sha256:ff7b68527fef7949a285509d4c48e857ee73af2bb8ad1e3b2e2a72a095feb717
   # Liveness probe uses /health/ready (not /health/live) with a high failureThreshold so
   # Kubernetes automatically restarts ZAC after extended OpenZaak/catalogus unavailability.
   # The ZGW-API-Client has no connectTimeout/readTimeout, causing stale TCP connections
@@ -2730,10 +2730,10 @@ zac:
   nginx:
     enabled: true
     client_max_body_size: 150M
-    # nginxinc/nginx-unprivileged:1.31.1@sha256:9f6b32064a29d747404d959e078c713a0523a9bd4e41f6912058126ebca94e61
+    # nginxinc/nginx-unprivileged:1.31.2@sha256:fdf54c2136c873e3df2457d8f00ebcc070e17845233e1cf3220dfcb0a8b93eb4
     image:
       # repository: nginxinc/nginx-unprivileged
-      tag: "1.31.1@sha256:9f6b32064a29d747404d959e078c713a0523a9bd4e41f6912058126ebca94e61"
+      tag: "1.31.2@sha256:fdf54c2136c873e3df2457d8f00ebcc070e17845233e1cf3220dfcb0a8b93eb4"
     resources:
       requests:
         cpu: 50m
@@ -2746,10 +2746,10 @@ zac:
     url: http://objecttypen.example.nl
     token: objecttypentoken
   office_converter:
-    # gotenberg/gotenberg:8.33.0@sha256:bddd8ea9d076e2d08b6ddaa6efae6403185202c6dab65a6488ed0a6923d6d8e8
+    # gotenberg/gotenberg:8.34.0@sha256:67097317623a503ba2a6a7e9ae8db6929a1f7e1bbd88077bacf2d325fbdab923
     image:
       # repository: gotenberg/gotenberg
-      tag: "8.33.0@sha256:bddd8ea9d076e2d08b6ddaa6efae6403185202c6dab65a6488ed0a6923d6d8e8"
+      tag: "8.34.0@sha256:67097317623a503ba2a6a7e9ae8db6929a1f7e1bbd88077bacf2d325fbdab923"
   opa:
     sidecar: true
     # openpolicyagent/opa:1.17.1-static@sha256:c29f8ee8dbe66608a1c04e9be84b04efc46877625e6b0877e559954565209efc
