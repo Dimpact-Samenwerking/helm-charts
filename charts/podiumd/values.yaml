@@ -103,6 +103,10 @@ keycloak:
     adminPassword: ""
   config:
     adminFrontendUrl: https://keycloak-admin.example.nl
+    # Access token lifespan (seconds) for the podiumd realm. Default 60s is a
+    # security hardening, but is short for BFF apps (e.g. KISS) whose silent
+    # refresh can't keep up -> constant "sessie verlopen". Override per-env.
+    accessTokenLifespan: 60
     # Example configuration
     #     identityProviders:
     #     - alias: "oidc-admin-users"

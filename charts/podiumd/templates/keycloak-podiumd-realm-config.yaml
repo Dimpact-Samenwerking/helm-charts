@@ -65,7 +65,7 @@ data:
     offlineSessionMaxLifespan: 7776000
     ssoSessionMaxLifespan: 36000
     ssoSessionIdleTimeout: 1800
-    accessTokenLifespan: 60
+    accessTokenLifespan: {{ .Values.keycloak.config.accessTokenLifespan | default 60 }}
     passwordPolicy: "length(12) and notUsername(undefined) and notEmail(undefined) and passwordHistory(5)"
     requiredActions:
       - name: "Configure OTP"
