@@ -64,8 +64,8 @@ The chart `values.yaml` already pins the new versions. Remove explicit tag overr
 | ZAC gotenberg | `zac.office_converter.image.tag` | `8.33.0@sha256:bddd8ea9...` |
 | ZAC OPA | `zac.opa.image.tag` | `1.17.1-static@sha256:c29f8ee8...` |
 | ZAC busybox | `zac.solr.busyBoxImage.tag` | `1.38.0-glibc@sha256:3ba03033...` |
-| ZGW Office Add-in frontend | `zgw-office-addin.frontend.image.tag` | `v0.9.329@sha256:0ba74d8f...` |
-| ZGW Office Add-in backend | `zgw-office-addin.backend.image.tag` | `v0.9.329@sha256:c9ffae04...` |
+| ZGW Office Add-in frontend | `zgw-office-addin.frontend.image.tag` | `v0.9.352@sha256:0ba74d8f...` |
+| ZGW Office Add-in backend | `zgw-office-addin.backend.image.tag` | `v0.9.352@sha256:c9ffae04...` |
 
 ## Pre-deploy checklist
 

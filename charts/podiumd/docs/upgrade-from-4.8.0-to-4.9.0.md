@@ -12,7 +12,7 @@
 | Component | App version | Helm chart | |
 |---|---|---|---|
 | ZAC | 5.1.0 | 1.0.257 | **breaking config change** |
-| ZGW Office Add-in | v0.9.329 | 0.0.88 | ACR mirror rename required |
+| ZGW Office Add-in | v0.9.352 | 0.0.88 | ACR mirror rename required |
 
 ## Changes
 
@@ -79,10 +79,10 @@ Mirror all of the above to ACR. Digests: see
 
 ---
 
-### ZGW Office Add-in v0.9.313 → v0.9.329 (chart 0.0.87 → 0.0.88)
+### ZGW Office Add-in v0.9.313 → v0.9.352 (chart 0.0.87 → 0.0.88)
 
 PodiumD 4.9.0 upgrades the **ZGW Office Add-in** frontend and backend from
-`v0.9.313` to `v0.9.329`.
+`v0.9.313` to `v0.9.352`.
 
 - Helm chart `zgw-office-addin` `0.0.87` → `0.0.88` in `charts/podiumd/Chart.yaml`.
 - Image tag pins `zgw-office-addin.frontend.image.tag` and

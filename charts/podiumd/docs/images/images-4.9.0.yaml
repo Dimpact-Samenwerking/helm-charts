@@ -45,14 +45,14 @@
   version: "1.38.0-glibc"
   digest: "sha256:3ba030337caebbfc2232b22b1e435eb213b28e5844a34942c74555bf904a265a"
 
-# ZGW Office Add-in — v0.9.313 -> v0.9.329
+# ZGW Office Add-in — v0.9.313 -> v0.9.352
 # Repository renamed: zgw-office-add-in-* -> zgw-office-addin-* (no hyphen between add and in)
 - name: zgw-office-addin-frontend
   url: ghcr.io/infonl/zgw-office-addin-frontend
-  version: "v0.9.329"
-  digest: "sha256:0ba74d8f33020fc912ffb5e363f71091604943c2bb7bd92e9fd39163bd673a87"
+  version: "v0.9.352"
+  digest: "sha256:bf248581519b1644ef0f0b3ecb569f80b0fcf435c58df18547bb714eb6aa4916"
 
 - name: zgw-office-addin-backend
   url: ghcr.io/infonl/zgw-office-addin-backend
-  version: "v0.9.329"
-  digest: "sha256:c9ffae043ad7b596ebe527de1290acf1224d17df16bf73f659298c4e3c6cd111"
+  version: "v0.9.352"
+  digest: "sha256:c5bf9a7beb883c7cf586a65326dacb4fc49a2eaaa08f4eb49f2faabb786b71b4"
