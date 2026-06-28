@@ -1985,7 +1985,6 @@ openinwoner:
   fullnameOverride: openinwoner
   nginx:
     image:
-      
       tag: "1.30.2@sha256:1d13071bcebdfc6866d68954b30c84551ca0965ae65df7b5f6888bceb3e3a879"
     config:
       basicAuth:
@@ -3035,7 +3034,7 @@ apiproxy:
   tolerations: []
   #nameOverride: "iconnect-proxy"
   image:
-    
+    repository: nginxinc/nginx-unprivileged
     tag: "1.30.2@sha256:1d13071bcebdfc6866d68954b30c84551ca0965ae65df7b5f6888bceb3e3a879"
     pullPolicy: IfNotPresent
   service:
