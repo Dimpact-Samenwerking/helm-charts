@@ -84,8 +84,8 @@ Column 1 lists the canonical upstream `url:` value (without tag).
 | `docker.io/library/solr`                                     | `solr`                                   |                                             |
 | `docker.io/apache/solr-operator`                             | `solr-operator`                          |                                             |
 | `ghcr.io/infonl/zaakafhandelcomponent`                       | `zac`                                    | renamed                                     |
-| `ghcr.io/infonl/zgw-office-add-in-backend`                   | `zgw-office-add-in-backend`              |                                             |
-| `ghcr.io/infonl/zgw-office-add-in-frontend`                  | `zgw-office-add-in-frontend`             |                                             |
+| `ghcr.io/infonl/zgw-office-addin-backend`                   | `zgw-office-addin-backend`              |                                             |
+| `ghcr.io/infonl/zgw-office-addin-frontend`                  | `zgw-office-addin-frontend`             |                                             |
 | `docker.io/pravega/zookeeper`                                | `zookeeper`                              |                                             |
 | `docker.io/pravega/zookeeper-operator`                       | `zookeeper-operator`                     |                                             |
 
@@ -109,7 +109,7 @@ Recurring mappings observed in this list:
 4. **Most other images keep their hyphens**: `nginx-unprivileged`,
    `keycloak-operator`, `solr-operator`, `redis-operator`, `redis-exporter`,
    `eck-operator`, `oauth2-proxy`, `pabc-api`, `personen-mock`,
-   `zgw-office-add-in-*`.
+   `zgw-office-addin-*`.
 5. **A few keep their vendor path** (`elasticsearch/elasticsearch`,
    `kibana/kibana`, `enterprise-search/enterprise-search`) — these are the
    Elastic-stack images, which the ECK operator addresses by the
