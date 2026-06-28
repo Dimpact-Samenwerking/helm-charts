@@ -69,6 +69,14 @@
   version: "6.5.1-26"
   digest: "sha256:1b22dfaa9ae0c71f74b0342f9221a6510f272da5def683dbba26a98e6b1b1411"
 
+# brp-personen-mock — 2.7.0-202508211438 -> 2.7.0-202606230850 (PR #342)
+# Rolling patch of the 2.7.0 series; adds 'binnengemeentelijk zoeken' test data.
+# ACR mirror name: personen-mock (see acr-mirror-naming.md).
+- name: personen-mock
+  url: ghcr.io/brp-api/personen-mock
+  version: "2.7.0-202606230850"
+  digest: "sha256:2de5d45bd182196eb356f0621128cb340e0edf395705eb46e5fbdaccf12e76bf"
+
 # Renovate dependency bumps integrated into 4.8.0 (PRs #344, #347, #348, #274, #278).
 # PR #345 (azure/setup-helm v5.0.0 -> v5.0.1) is a GitHub Action, not a container image,
 # so it is not listed here.
