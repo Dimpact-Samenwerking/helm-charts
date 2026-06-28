@@ -96,9 +96,3 @@
   url: docker.io/library/python
   version: "3.14-slim"
   digest: "sha256:8e4071294d046d45b31a902e02a8560a45c351898513b66ec659ca39fd30d170"
-
-# postgres (keycloak DB migration job) — 16 -> 18 (PR #278)
-- name: postgres
-  url: docker.io/library/postgres
-  version: "18"
-  digest: "sha256:8d526a5b3f29da6d7835ebdab8e3393958e09608e21fd848c32b9187b4a1e1ce"
