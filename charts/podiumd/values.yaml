@@ -2661,15 +2661,28 @@ zac:
     apiKey:
       header: "x-api-key"
       value: "dummy"
-    # Protocollering aanbieder mag zijn "", "iConnect", "2Secure"
+    logLevel: "OFF"
+    # BRP protocollering — see docs/zac-brp-protocollering.md for vendor-specific examples
+    # (iConnect, eServices, 2Secure/EnableU)
     protocollering:
-      aanbieder: ""
-      # Voor aanbieder iConnect worden de volgende "standaard" waardes gebruikt
-      # Voor andere aanbieders zijn deze waardes niet van belang en worden niet gebruikt
+      enabled: false
+      # systemUser: "SystemUser"  # required for iConnect and 2Secure; omit for eServices
+      originOin:
+        oin: ""               # gemeentelijke OIN
+        header: ""            # iConnect: "x-origin-oin" | eServices: "x-request-organization"
       doelbinding:
-        zoekmet: "BRPACT-ZoekenAlgemeen"
-        raadpleegmet: "BRPACT-ZacPersoonBasis"
-      verwerkingsregister: "DigitaleDienstverlening"
+        perZaaktype: false    # true for iConnect
+        header: ""            # iConnect: "x-doelbinding" | eServices: ""
+        zoekmet: "BRPACT-ZoekenAlgemeen"      # iConnect only
+        raadpleegmet: "BRPACT-ZacPersoonBasis"  # iConnect only
+      verwerking:
+        header: ""            # iConnect/2Secure: "x-verwerking" | eServices: "x-request-afnemerscode"
+        register: ""          # iConnect: "DigitaleDienstverlening"
+      gebruiker:
+        header: ""            # iConnect/2Secure: "x-gebruiker" | eServices: "x-request-user"
+      toepassing:
+        header: ""            # iConnect: "x-toepassing" | eServices: "x-request-application" | 2Secure: "x-applicatie"
+        value: ""
   catalogusDomein: ALG
   contextUrl: http://zac.example.nl
   db:

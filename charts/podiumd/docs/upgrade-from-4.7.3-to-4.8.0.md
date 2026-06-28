@@ -209,6 +209,33 @@ The `zac.featureFlags.pabcIntegration` key was removed in ZAC 5.x.
 `zac.featureFlags.pabcIntegration: true` or `false`, remove that line. The
 PABC integration is now controlled separately (see PABC chart values).
 
+#### Breaking change: `protocollering` restructured
+
+The BRP protocollering block was completely redesigned in ZAC 5.0.1. The
+single `aanbieder` selector and implicit vendor defaults are replaced by an
+explicit, field-per-dimension structure.
+
+**Key renames and removals:**
+
+| Old key (4.7.x) | New key (5.0.1) |
+|---|---|
+| `protocollering.aanbieder: "iConnect"` | `protocollering.enabled: true` + explicit fields |
+| `protocollering.aanbieder: ""` | `protocollering.enabled: false` |
+| `protocollering.verwerkingsregister` | `protocollering.verwerking.register` |
+
+**New fields with no 4.7.x equivalent:** `logLevel` (at `brpApi` level),
+`protocollering.systemUser`, `protocollering.originOin`, `protocollering.doelbinding.perZaaktype`,
+`protocollering.doelbinding.header`, `protocollering.verwerking.header`,
+`protocollering.gebruiker`, `protocollering.toepassing`.
+
+**Action required:** if your gemeente `podiumd.yml` overrides any
+`zac.brpApi.protocollering.*` keys, replace the old block with the
+vendor-specific configuration from
+[`docs/zac-brp-protocollering.md`](zac-brp-protocollering.md).
+
+If protocollering was disabled (`aanbieder: ""`), set `enabled: false` and
+remove the old keys — no further action is needed.
+
 ### Open Beheer ↔ Objecttypen API token (IN-2345)
 
 Open Beheer authenticates to the **Objecttypen API** with an API token.

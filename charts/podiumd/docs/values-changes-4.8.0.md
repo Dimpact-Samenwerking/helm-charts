@@ -9,6 +9,8 @@ Companion to (upgrade-from-4.6.5-to-4.7.0.md). This file lists every value overr
 | `ita.medewerker` | New required block | Required if ITA enabled |
 | `zac.brpApi.apiKey` | String → object (`{header, value}`) | Required if ZAC enabled and key overridden |
 | `zac.featureFlags.pabcIntegration` | Remove this key | Required if present in gemeente file |
+| `zac.brpApi.protocollering` | Full restructure — see below | Required if protocollering was configured |
+| `zac.brpApi.logLevel` | New field (default `"OFF"`) | Optional |
 
 ## Required changes
 
@@ -57,6 +59,36 @@ zac:
 remove the entire `featureFlags.pabcIntegration` key (and `featureFlags:`
 block if it becomes empty). Leaving it in place causes a Helm validation
 error on deploy.
+
+### 4. ZAC `brpApi.protocollering` — restructured (ZAC 5.0.1)
+
+The entire protocollering block was redesigned. The `aanbieder` selector is
+removed; each protocol dimension now has explicit header/value fields.
+
+**Removed keys:**
+
+| Key | Action |
+|---|---|
+| `zac.brpApi.protocollering.aanbieder` | Remove; replaced by `enabled` + explicit fields |
+| `zac.brpApi.protocollering.verwerkingsregister` | Rename to `protocollering.verwerking.register` |
+
+**New keys:** `zac.brpApi.logLevel`, `protocollering.enabled`,
+`protocollering.systemUser`, `protocollering.originOin.{oin,header}`,
+`protocollering.doelbinding.{perZaaktype,header}`,
+`protocollering.verwerking.header`, `protocollering.gebruiker.header`,
+`protocollering.toepassing.{header,value}`.
+
+For full vendor-specific YAML blocks (iConnect, eServices, 2Secure/EnableU)
+see [`docs/zac-brp-protocollering.md`](zac-brp-protocollering.md).
+
+If protocollering was off (`aanbieder: ""`), replace with:
+
+```yaml
+zac:
+  brpApi:
+    protocollering:
+      enabled: false
+```
 
 ## New optional fields
 
