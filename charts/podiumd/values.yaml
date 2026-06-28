@@ -2888,7 +2888,7 @@ zgw-office-addin:
     # -- Name of the environment (used for display purposes). Default "production" means that no indicator is appended to the DiscplayName in the manifests.
     appEnv: "production"
     # -- The frontend public URL where the manifest files and static js file are served
-    frontendUrl: ""
+    frontendUrl: "https://zgw-office-addin.example.nl"
     # -- MS Azure Tenant ID of the Office Add-in application
     msalTenantId: ""
     # -- MS Azure Client ID assigned to the Office Add-in application
@@ -2912,7 +2912,7 @@ zgw-office-addin:
         memory: 256Mi
     # -- ZGW API configuration for integration with the ZGW APIs provider (OpenZaak)
     zgwApis:
-      url: ""
+      url: "http://open-zaak.example.nl"
       secret: ""
 
 clamav:
