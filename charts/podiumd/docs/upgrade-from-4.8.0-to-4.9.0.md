@@ -1,8 +1,8 @@
 # Upgrade guide: PodiumD 4.8.0 → 4.9.0
 
-> **Baseline:** written against `feature/podiumd-4.8.0 @ c68bfc1` (2026-06-26).
+> **Baseline:** written against `feature/podiumd-4.8.0 @ 27a68aa` (2026-06-28).
 > Re-verify before release:
-> `git diff c68bfc1..feature/podiumd-4.8.0 -- charts/podiumd/Chart.yaml charts/podiumd/values.yaml`
+> `git diff 27a68aa..feature/podiumd-4.8.0 -- charts/podiumd/Chart.yaml charts/podiumd/values.yaml`
 
 > See the Confluence Releases page for the agreed application
 > targets: <https://dimpact.atlassian.net/wiki/spaces/PCP/pages/7602191/Releases+PodiumD>.
@@ -16,12 +16,12 @@
 
 ## Changes
 
-### ZAC 4.7.2 → 5.1.0 (chart 1.0.228 → 1.0.257)
+### ZAC 4.7.1 → 5.1.0 (chart 1.0.228 → 1.0.257)
 
-PodiumD 4.9.0 upgrades **ZAC (Zaakafhandelcomponent)** from 4.7.2 to 5.1.0.
+PodiumD 4.9.0 upgrades **ZAC (Zaakafhandelcomponent)** from 4.7.1 to 5.1.0.
 
 - Helm chart `zaakafhandelcomponent` `1.0.228` → `1.0.257` in `charts/podiumd/Chart.yaml`.
-- Image tag pin `zac.image.tag` `4.7.2` → `5.1.0` in `charts/podiumd/values.yaml`.
+- Image tag pin `zac.image.tag` `4.7.1` → `5.1.0` in `charts/podiumd/values.yaml`.
 
 Image / digest: see [`docs/images/images-4.9.0.yaml`](images/images-4.9.0.yaml).
 
@@ -79,12 +79,11 @@ Mirror all of the above to ACR. Digests: see
 
 ---
 
-### ZGW Office Add-in v0.9.313 → v0.9.352 (chart 0.0.87 → 0.0.88)
+### ZGW Office Add-in v0.9.313 → v0.9.352 (chart 0.0.88, unchanged)
 
 PodiumD 4.9.0 upgrades the **ZGW Office Add-in** frontend and backend from
-`v0.9.313` to `v0.9.352`.
+`v0.9.313` to `v0.9.352`. The Helm chart version remains `0.0.88`.
 
-- Helm chart `zgw-office-addin` `0.0.87` → `0.0.88` in `charts/podiumd/Chart.yaml`.
 - Image tag pins `zgw-office-addin.frontend.image.tag` and
   `zgw-office-addin.backend.image.tag` updated in `charts/podiumd/values.yaml`.
 

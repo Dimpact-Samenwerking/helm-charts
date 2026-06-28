@@ -1,8 +1,8 @@
 # Values changes for PodiumD 4.9.0
 
-> **Baseline:** written against `feature/podiumd-4.8.0 @ c68bfc1` (2026-06-26).
+> **Baseline:** written against `feature/podiumd-4.8.0 @ 27a68aa` (2026-06-28).
 > Re-verify before release:
-> `git diff c68bfc1..feature/podiumd-4.8.0 -- charts/podiumd/Chart.yaml charts/podiumd/values.yaml`
+> `git diff 27a68aa..feature/podiumd-4.8.0 -- charts/podiumd/Chart.yaml charts/podiumd/values.yaml`
 
 Companion to [upgrade-from-4.8.0-to-4.9.0.md](upgrade-from-4.8.0-to-4.9.0.md). This file lists every value override a gemeente `podiumd.yml` may need to add, change, or remove when moving from chart 4.8.0 to 4.9.0. Application-level changes and migration scripts are documented in the upgrade guide; this file focuses purely on the values surface.
 
@@ -64,8 +64,8 @@ The chart `values.yaml` already pins the new versions. Remove explicit tag overr
 | ZAC gotenberg | `zac.office_converter.image.tag` | `8.33.0@sha256:bddd8ea9...` |
 | ZAC OPA | `zac.opa.image.tag` | `1.17.1-static@sha256:c29f8ee8...` |
 | ZAC busybox | `zac.solr.busyBoxImage.tag` | `1.38.0-glibc@sha256:3ba03033...` |
-| ZGW Office Add-in frontend | `zgw-office-addin.frontend.image.tag` | `v0.9.352@sha256:0ba74d8f...` |
-| ZGW Office Add-in backend | `zgw-office-addin.backend.image.tag` | `v0.9.352@sha256:c9ffae04...` |
+| ZGW Office Add-in frontend | `zgw-office-addin.frontend.image.tag` | `v0.9.352@sha256:bf248581...` |
+| ZGW Office Add-in backend | `zgw-office-addin.backend.image.tag` | `v0.9.352@sha256:c5bf9a7b...` |
 
 ## Pre-deploy checklist
 

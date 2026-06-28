@@ -1,12 +1,12 @@
-# Baseline: feature/podiumd-4.8.0 @ c68bfc1 (2026-06-26). Re-verify before release:
-#   git diff c68bfc1..feature/podiumd-4.8.0 -- charts/podiumd/Chart.yaml charts/podiumd/values.yaml
+# Baseline: feature/podiumd-4.8.0 @ 27a68aa (2026-06-28). Re-verify before release:
+#   git diff 27a68aa..feature/podiumd-4.8.0 -- charts/podiumd/Chart.yaml charts/podiumd/values.yaml
 #
 # Images new or changed in podiumd 4.9.0 vs 4.8.0.
 #
 # Two changes:
-#   1. ZAC (Zaakafhandelcomponent) 4.7.2 -> 5.1.0 (chart 1.0.228 -> 1.0.257).
+#   1. ZAC (Zaakafhandelcomponent) 4.7.1 -> 5.1.0 (chart 1.0.228 -> 1.0.257).
 #      Includes bumps to all ZAC sidecar images (nginx, gotenberg, opa, busybox).
-#   2. ZGW Office Add-in v0.9.313 -> v0.9.329 (chart 0.0.87 -> 0.0.88).
+#   2. ZGW Office Add-in v0.9.313 -> v0.9.352 (chart 0.0.88, unchanged).
 #      Repository renamed: zgw-office-add-in-{frontend,backend} ->
 #        zgw-office-addin-{frontend,backend} (hyphen between "add" and "in" dropped).
 #
@@ -15,7 +15,7 @@
 # Digests are the OCI image index (multi-arch manifest) digest as returned in
 # the Docker-Content-Digest response header from the source registry.
 
-# ZAC — 4.7.2 -> 5.1.0
+# ZAC — 4.7.1 -> 5.1.0
 - name: zac
   url: ghcr.io/infonl/zaakafhandelcomponent
   version: "5.1.0"
