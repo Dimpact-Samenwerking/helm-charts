@@ -12,6 +12,7 @@
 | _contact-sync_        | 0.3.3 | --    | -- |
 | ITA (.web, .poller) | 3.2.0 | 3.2.0 | **action required** |
 | brp-personen-mock   | 2.7.0-202606230850 | 1.2.9 | no action required |
+| zaakbrug            | 1.26.14 | 2.3.27 | no action required |
 
 
 ## Changes
