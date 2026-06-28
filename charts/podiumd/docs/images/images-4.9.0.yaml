@@ -4,8 +4,8 @@
 # Images new or changed in podiumd 4.9.0 vs 4.8.0.
 #
 # Two changes:
-#   1. ZAC (Zaakafhandelcomponent) 4.7.1 -> 5.1.0 (chart 1.0.228 -> 1.0.257).
-#      Includes bumps to all ZAC sidecar images (nginx, gotenberg, opa, busybox).
+#   1. ZAC (Zaakafhandelcomponent) 4.7.1 -> 5.2.0 (chart 1.0.228 -> 1.0.269).
+#      Includes bumps to all ZAC sidecar images (nginx, gotenberg, opa, busybox, curl).
 #   2. ZGW Office Add-in v0.9.313 -> v0.9.352 (chart 0.0.88, unchanged).
 #      Repository renamed: zgw-office-add-in-{frontend,backend} ->
 #        zgw-office-addin-{frontend,backend} (hyphen between "add" and "in" dropped).
@@ -15,23 +15,23 @@
 # Digests are the OCI image index (multi-arch manifest) digest as returned in
 # the Docker-Content-Digest response header from the source registry.
 
-# ZAC — 4.7.1 -> 5.1.0
+# ZAC — 4.7.1 -> 5.2.0
 - name: zac
   url: ghcr.io/infonl/zaakafhandelcomponent
-  version: "5.1.0"
-  digest: "sha256:d833d2f3dd58eeb58335e9aff9bca67f5885fad0e6a7414003ce9a211d3dc50e"
+  version: "5.2.0"
+  digest: "sha256:ff7b68527fef7949a285509d4c48e857ee73af2bb8ad1e3b2e2a72a095feb717"
 
-# ZAC sidecar — nginx-unprivileged 1.30.2 -> 1.31.1
+# ZAC sidecar — nginx-unprivileged 1.30.2 -> 1.31.2
 - name: nginx-unprivileged
   url: docker.io/nginxinc/nginx-unprivileged
-  version: "1.31.1"
-  digest: "sha256:9f6b32064a29d747404d959e078c713a0523a9bd4e41f6912058126ebca94e61"
+  version: "1.31.2"
+  digest: "sha256:fdf54c2136c873e3df2457d8f00ebcc070e17845233e1cf3220dfcb0a8b93eb4"
 
-# ZAC sidecar — gotenberg 8.31.0 -> 8.33.0
+# ZAC sidecar — gotenberg 8.31.0 -> 8.34.0
 - name: gotenberg
   url: docker.io/gotenberg/gotenberg
-  version: "8.33.0"
-  digest: "sha256:bddd8ea9d076e2d08b6ddaa6efae6403185202c6dab65a6488ed0a6923d6d8e8"
+  version: "8.34.0"
+  digest: "sha256:67097317623a503ba2a6a7e9ae8db6929a1f7e1bbd88077bacf2d325fbdab923"
 
 # ZAC sidecar — opa 1.15.2-static -> 1.17.1-static
 - name: opa
@@ -44,6 +44,12 @@
   url: docker.io/library/busybox
   version: "1.38.0-glibc"
   digest: "sha256:3ba030337caebbfc2232b22b1e435eb213b28e5844a34942c74555bf904a265a"
+
+# ZAC sidecar — curl 8.20.0 -> 8.21.0
+- name: curl
+  url: docker.io/curlimages/curl
+  version: "8.21.0"
+  digest: "sha256:7c12af72ceb38b7432ab85e1a265cff6ae58e06f95539d539b654f2cfa64bb13"
 
 # ZGW Office Add-in — v0.9.313 -> v0.9.352
 # Repository renamed: zgw-office-add-in-* -> zgw-office-addin-* (no hyphen between add and in)

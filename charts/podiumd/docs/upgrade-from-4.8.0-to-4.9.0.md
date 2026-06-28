@@ -11,23 +11,23 @@
 
 | Component | App version | Helm chart | |
 |---|---|---|---|
-| ZAC | 5.1.0 | 1.0.257 | **breaking config change** |
+| ZAC | 5.2.0 | 1.0.269 | **breaking config change** |
 | ZGW Office Add-in | v0.9.352 | 0.0.88 | ACR mirror rename required |
 
 ## Changes
 
-### ZAC 4.7.1 → 5.1.0 (chart 1.0.228 → 1.0.257)
+### ZAC 4.7.1 → 5.2.0 (chart 1.0.228 → 1.0.269)
 
-PodiumD 4.9.0 upgrades **ZAC (Zaakafhandelcomponent)** from 4.7.1 to 5.1.0.
+PodiumD 4.9.0 upgrades **ZAC (Zaakafhandelcomponent)** from 4.7.1 to 5.2.0.
 
-- Helm chart `zaakafhandelcomponent` `1.0.228` → `1.0.257` in `charts/podiumd/Chart.yaml`.
-- Image tag pin `zac.image.tag` `4.7.1` → `5.1.0` in `charts/podiumd/values.yaml`.
+- Helm chart `zaakafhandelcomponent` `1.0.228` → `1.0.269` in `charts/podiumd/Chart.yaml`.
+- Image tag pin `zac.image.tag` `4.7.1` → `5.2.0` in `charts/podiumd/values.yaml`.
 
 Image / digest: see [`docs/images/images-4.9.0.yaml`](images/images-4.9.0.yaml).
 
 #### Breaking config change: `brpApi.apiKey`
 
-ZAC 5.1.0 changes the BRP API key configuration from a plain string to a
+ZAC 5.x changes the BRP API key configuration from a plain string to a
 structured object with `header` and `value` fields.
 
 **Action required:** update all environment values files that override
@@ -53,7 +53,7 @@ providers in use. Adjust if your environment uses a different header name.
 #### Removed: `featureFlags.pabcIntegration`
 
 The `zac.featureFlags.pabcIntegration` flag has been removed upstream — PABC
-integration is now always enabled in ZAC 5.1.0. Remove this key from any
+integration is now always enabled in ZAC 5.x. Remove this key from any
 environment values files that set it:
 
 ```yaml
@@ -65,14 +65,15 @@ zac:
 
 #### ZAC sidecar image bumps
 
-The following ZAC sidecar images were updated as part of the 5.1.0 chart:
+The following ZAC sidecar images were updated as part of the 5.x chart:
 
 | Image | 4.8.0 | 4.9.0 |
 |---|---|---|
-| nginx-unprivileged | 1.30.2 | 1.31.1 |
-| gotenberg | 8.31.0 | 8.33.0 |
+| nginx-unprivileged | 1.30.2 | 1.31.2 |
+| gotenberg | 8.31.0 | 8.34.0 |
 | opa | 1.15.2-static | 1.17.1-static |
 | busybox (Solr init) | 1.37.0-glibc | 1.38.0-glibc |
+| curl | 8.20.0 | 8.21.0 |
 
 Mirror all of the above to ACR. Digests: see
 [`docs/images/images-4.9.0.yaml`](images/images-4.9.0.yaml).
