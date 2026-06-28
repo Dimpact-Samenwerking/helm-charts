@@ -104,6 +104,7 @@ official path out of them:
 | [`upgrade-from-4.7.2-to-4.7.3.md`](upgrade-from-4.7.2-to-4.7.3.md) | Granular 4.7.x patch note (folded into the 4.6.8 → 4.7.3 guide). |
 | [`upgrade-from-4.7.3-to-4.8.0.md`](upgrade-from-4.7.3-to-4.8.0.md) | Alternate entry point for environments still on 4.7.3 (the official path enters 4.8.0 via 4.7.5). |
 | [`values-changes-4.7.0.md`](values-changes-4.7.0.md) | Full values add/change/remove table for the 4.7.0 jump. |
+| [`values-changes-4.8.0.md`](values-changes-4.8.0.md) | Full values add/change/remove table for the 4.8.0 jump (ZAC 5.0.1 breaking changes + ITA medewerker). |
 
 The 4.7.x granular notes are intentionally retained for now; once the 4.7 line
 closes they can be retired in favour of the consolidated 4.6.8 → 4.7.3 guide.

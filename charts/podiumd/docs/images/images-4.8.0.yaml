@@ -1,23 +1,31 @@
 # Images new or changed in podiumd 4.8.0 vs 4.7.3.
 #
-# Single change: Open Inwoner Platform (OIP) 2.1.2 -> 2.3.0.
-#   * Helm chart openinwoner 2.1.3 -> 2.2.0 (appVersion 2.3.0).
-#   * Image tag pin in charts/podiumd/values.yaml: openinwoner.image.tag
-#     "2.1.2" -> "2.3.0".
-# Spans two upstream releases:
-#   - 2.2.0 (2026-04-20): Django CMS v3 -> v4 (one-time `cms4_migration`,
-#     run by the chart's cms4MigrationInitContainer), Elasticsearch HTTP
-#     basic auth, BRP_VERSION env -> admin-configurable field (auto-migrated).
-#   - 2.3.0 (2026-05-29): ClamAV virus scanning of uploads (opt-in),
-#     ZGW cache-warmup timeouts + dedicated low-latency Celery worker.
+# Changes in this release:
+#   1. Open Inwoner Platform (OIP) 2.1.2 -> 2.3.0.
+#      * Helm chart openinwoner 2.1.3 -> 2.2.0 (appVersion 2.3.0).
+#      * Image tag pin in charts/podiumd/values.yaml: openinwoner.image.tag
+#        "2.1.2" -> "2.3.0".
+#      Spans two upstream releases:
+#        - 2.2.0 (2026-04-20): Django CMS v3 -> v4 (one-time `cms4_migration`,
+#          run by the chart's cms4MigrationInitContainer), Elasticsearch HTTP
+#          basic auth, BRP_VERSION env -> admin-configurable field (auto-migrated).
+#        - 2.3.0 (2026-05-29): ClamAV virus scanning of uploads (opt-in),
+#          ZGW cache-warmup timeouts + dedicated low-latency Celery worker.
+#   2. ZAC (zaakafhandelcomponent) 4.7.2 -> 5.0.1 (major version bump).
+#      * Helm chart zaakafhandelcomponent 1.0.228 -> 1.0.251.
+#      * Breaking API changes: featureFlags.pabcIntegration removed;
+#        brpApi.apiKey changed from string to {header, value} object.
+#      * Sub-image bumps: nginx-unprivileged 1.30.2->1.31.1, gotenberg
+#        8.31.0->8.33.0, OPA 1.15.2-static->1.17.1-static,
+#        busybox 1.37.0-glibc->1.38.0-glibc.
+#   3. Renovate-integrated bumps: nginx-unprivileged 1.30.2 digest refresh,
+#      alpine/k8s 1.34.7->1.36.2, keycloak-config-cli 6.5.0-26->6.5.1-26.
+#
 # See docs/upgrade-from-4.7.3-to-4.8.0.md for the operator upgrade notes.
 #
-# Mirror name is `openinwoner` (no hyphen), not `open-inwoner`; see
-# docs/images/acr-mirror-naming.md for the upstream->ACR mapping.
-# Digest below is the single linux/amd64 manifest published on Docker Hub,
-# verified live against registry-1.docker.io (Docker-Content-Digest).
-# The nginx sidecar stays on nginx-unprivileged 1.30.2; the pinned digest
-# was refreshed (see the Renovate-integration section at the end of this file).
+# Mirror names: `openinwoner` (no hyphen), `zac` (renamed from
+# zaakafhandelcomponent), `nginx-unprivileged` (keeps hyphen), `gotenberg`,
+# `opa`, `busybox`. See docs/images/acr-mirror-naming.md.
 
 # Open Inwoner Platform (OIP) — 2.1.2 -> 2.3.0
 - name: openinwoner
@@ -46,12 +54,44 @@
   version: "3.2.0"
   digest: "sha256:eee4567fd5bfaa7eb2ec13fa1a34cfabb402939ffdc79de8159f5dc00754bafb"
 
+# ZAC — 4.7.2 -> 5.0.1
+- name: zac
+  url: ghcr.io/infonl/zaakafhandelcomponent
+  version: "5.0.1"
+  digest: "sha256:8c7844248b7decf56eafc0d2aca1f9e080f94e9bf2f6b6ac412589deb80d1659"
+
+# ZAC - nginx-unprivileged — 1.30.2 -> 1.31.1 (ZAC nginx sidecar only;
+# other components remain on 1.30.2 — see digest-refresh entry below)
+- name: nginx-unprivileged
+  url: docker.io/nginxinc/nginx-unprivileged
+  version: "1.31.1"
+  digest: "sha256:9f6b32064a29d747404d959e078c713a0523a9bd4e41f6912058126ebca94e61"
+
+# ZAC - Gotenberg (office converter) — 8.31.0 -> 8.33.0
+- name: gotenberg
+  url: docker.io/gotenberg/gotenberg
+  version: "8.33.0"
+  digest: "sha256:bddd8ea9d076e2d08b6ddaa6efae6403185202c6dab65a6488ed0a6923d6d8e8"
+
+# ZAC - Open Policy Agent — 1.15.2-static -> 1.17.1-static
+- name: opa
+  url: docker.io/openpolicyagent/opa
+  version: "1.17.1-static"
+  digest: "sha256:c29f8ee8dbe66608a1c04e9be84b04efc46877625e6b0877e559954565209efc"
+
+# ZAC - busybox (Solr init container) — 1.37.0-glibc -> 1.38.0-glibc
+- name: busybox
+  url: docker.io/library/busybox
+  version: "1.38.0-glibc"
+  digest: "sha256:3ba030337caebbfc2232b22b1e435eb213b28e5844a34942c74555bf904a265a"
+
 # Renovate dependency bumps integrated into 4.8.0 (PRs #292, #324, #334).
 # Digests verified live against the source registry (Docker-Content-Digest).
 # PR #294 (azure/k8s-bake v3 -> v4) is a GitHub Action, not a container image,
 # so it is not listed here.
 
 # nginx-unprivileged — 1.30.2 digest refresh (PR #334): 77fb538 -> 1d13071
+# (used by all components other than the ZAC nginx sidecar)
 - name: nginx-unprivileged
   url: docker.io/nginxinc/nginx-unprivileged
   version: "1.30.2"

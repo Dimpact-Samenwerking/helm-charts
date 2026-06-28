@@ -13,6 +13,7 @@
 | ITA (.web, .poller) | 3.2.0 | 3.2.0 | **action required** |
 | brp-personen-mock   | 2.7.0-202606230850 | 1.2.9 | no action required |
 | zaakbrug            | 1.26.14 | 2.3.27 | no action required |
+| ZAC                 | 5.0.1 | 1.0.251 | **action required** |
 
 
 ## Changes
@@ -157,6 +158,56 @@ ita:
     type: "https://<env>-objecttypen.<gemeente>.nl/api/v2/objecttypes/REP_CONTACT_MEDEWERKER_UUID_REP"
     typeVersion: 1    
 ```
+
+### ZAC 4.7.2 → 5.0.1
+
+PodiumD 4.8.0 (info.nl) bumps the **Zaakafhandelcomponent (ZAC)** from 4.7.2
+to 5.0.1, a major-version jump.
+
+- Helm chart `zaakafhandelcomponent` `1.0.228` → `1.0.251` (appVersion
+  `5.0.1`) in `charts/podiumd/Chart.yaml`.
+- Sub-image bumps in `charts/podiumd/values.yaml`:
+  - `zac.nginx.image.tag` `1.30.2` → `1.31.1`
+  - `zac.office_converter.image.tag` `8.31.0` → `8.33.0` (Gotenberg)
+  - `zac.opa.image.tag` `1.15.2-static` → `1.17.1-static` (Open Policy Agent)
+  - `zac.solr.busyBoxImage.tag` `1.37.0-glibc` → `1.38.0-glibc`
+
+#### Breaking change: `brpApi.apiKey` restructured
+
+`zac.brpApi.apiKey` changed from a plain string to an object with `header`
+and `value` fields.
+
+**Action required:** if your gemeente `podiumd.yml` overrides
+`zac.brpApi.apiKey`, replace the string form:
+
+```yaml
+# before (4.7.x)
+zac:
+  brpApi:
+    apiKey: "your-api-key"
+```
+
+with the new object form:
+
+```yaml
+# after (5.0.1)
+zac:
+  brpApi:
+    apiKey:
+      header: "x-api-key"
+      value: "your-api-key"
+```
+
+If `zac.brpApi.apiKey` is not overridden in your gemeente file, no action
+is required — the chart default already uses the new structure.
+
+#### Breaking change: `featureFlags.pabcIntegration` removed
+
+The `zac.featureFlags.pabcIntegration` key was removed in ZAC 5.x.
+
+**Action required:** if your gemeente `podiumd.yml` sets
+`zac.featureFlags.pabcIntegration: true` or `false`, remove that line. The
+PABC integration is now controlled separately (see PABC chart values).
 
 ### Open Beheer ↔ Objecttypen API token (IN-2345)
 
