@@ -17,7 +17,7 @@ Companion to [upgrade-from-4.8.0-to-4.9.0.md](upgrade-from-4.8.0-to-4.9.0.md). T
 
 ### 1. `zac.brpApi.apiKey` — string → object
 
-ZAC 5.1.0 changes the BRP API key from a plain string to a structured object.
+ZAC 5.x changes the BRP API key from a plain string to a structured object.
 **Any environment values file that overrides this key must be updated.**
 
 ```yaml
@@ -40,7 +40,7 @@ The `header` field specifies the HTTP header name used to pass the key; `x-api-k
 
 ### 2. Remove `zac.featureFlags.pabcIntegration`
 
-PABC integration is now always enabled in ZAC 5.1.0; the flag no longer exists upstream. Remove it from all environment values files to avoid confusion:
+PABC integration is now always enabled in ZAC 5.x; the flag no longer exists upstream. Remove it from all environment values files to avoid confusion:
 
 ```yaml
 # Remove this block entirely:
@@ -59,11 +59,12 @@ The chart `values.yaml` already pins the new versions. Remove explicit tag overr
 
 | Component | Key | New default tag |
 |-----------|-----|----------------|
-| ZAC | `zac.image.tag` | `5.1.0@sha256:d833d2f3...` |
-| ZAC nginx | `zac.nginx.image.tag` | `1.31.1@sha256:9f6b3206...` |
-| ZAC gotenberg | `zac.office_converter.image.tag` | `8.33.0@sha256:bddd8ea9...` |
+| ZAC | `zac.image.tag` | `5.2.0@sha256:ff7b6852...` |
+| ZAC nginx | `zac.nginx.image.tag` | `1.31.2@sha256:fdf54c21...` |
+| ZAC gotenberg | `zac.office_converter.image.tag` | `8.34.0@sha256:67097317...` |
 | ZAC OPA | `zac.opa.image.tag` | `1.17.1-static@sha256:c29f8ee8...` |
 | ZAC busybox | `zac.solr.busyBoxImage.tag` | `1.38.0-glibc@sha256:3ba03033...` |
+| ZAC curl | `zac.global.curlImage.tag` | `8.21.0@sha256:7c12af72...` |
 | ZGW Office Add-in frontend | `zgw-office-addin.frontend.image.tag` | `v0.9.352@sha256:bf248581...` |
 | ZGW Office Add-in backend | `zgw-office-addin.backend.image.tag` | `v0.9.352@sha256:c5bf9a7b...` |
 
