@@ -3466,6 +3466,8 @@ zaakbrug:
   enabled: false
   staging:
     enabled: false
+  image:
+    tag: "1.26.14"
   # K8s cgroup limits sized for the Frank!Framework JVM heap (subchart
   # default Xms=Xmx=4G via .Values.frank.memory.{minimum,maximum}).
   # Overhead ≈1Gi headroom for non-heap (metaspace, code cache, direct

@@ -69,6 +69,13 @@
   version: "6.5.1-26"
   digest: "sha256:1b22dfaa9ae0c71f74b0342f9221a6510f272da5def683dbba26a98e6b1b1411"
 
+# zaakbrug — 1.26.13 -> 1.26.14 (chart 2.3.26 -> 2.3.27)
+# Image tag now pinned explicitly in values.yaml (previously floated on appVersion).
+- name: zaakbrug
+  url: docker.io/wearefrank/zaakbrug
+  version: "1.26.14"
+  digest: "sha256:efefcb1bafb6665bde3480ba84faa50144ffde2b3bbca4867fdfda6eca1b0155"
+
 # brp-personen-mock — 2.7.0-202508211438 -> 2.7.0-202606230850 (PR #342)
 # Rolling patch of the 2.7.0 series; adds 'binnengemeentelijk zoeken' test data.
 # ACR mirror name: personen-mock (see acr-mirror-naming.md).
