@@ -102,13 +102,49 @@ zac:
 
 ---
 
+## API-proxy: disable `toepassingHeaderName` when protocollering is enabled
+
+The `apiproxy` component has a `brp.toepassingHeaderName` setting that
+controls the toepassing header forwarded to the BRP gateway. When set, the
+api-proxy uses a pass-through-with-fallback pattern (nginx `map`): it forwards
+the header value if one is sent, or injects `toepassingDefaultValue` if
+is is not.
+
+With ZAC 5.0.1 protocollering enabled, ZAC sends the toepassing header
+directly and the api-proxy will forward ZAC's value. However, to keep the
+configuration explicit and avoid any ambiguity about which component is
+responsible for the header, **disable the api-proxy injection** by setting
+`toepassingHeaderName` to `""`:
+
+```yaml
+# 4.7.x iConnect config — toepassingHeaderName was used as a fallback/injector
+apiproxy:
+  locations:
+    brp:
+      toepassingHeaderName: "X-Toepassing"
+      toepassingDefaultValue: "ZAC"
+
+# 5.0.1 — ZAC owns the header via protocollering; disable api-proxy injection
+apiproxy:
+  locations:
+    brp:
+      toepassingHeaderName: ""
+```
+
+When `toepassingHeaderName` is `""`, the nginx `map` and `proxy_set_header`
+blocks are not rendered at all. ZAC's `x-toepassing` header passes through to
+the BRP gateway via nginx's default header forwarding.
+
+For eServices and 2Secure environments `toepassingHeaderName` is typically
+already `""`, so no change is needed.
+
 ## Field reference
 
 | Field | Required | Description |
 |---|---|---|
 | `brpApi.logLevel` | no | Log level for BRP API calls. `"OFF"` suppresses request/response logging. |
 | `protocollering.enabled` | yes | Enable or disable BRP protocollering. |
-| `protocollering.systemUser` | iConnect, 2Secure | Fixed username sent as the acting system user. Omit for eServices. |
+| `protocollering.systemUser` | yes | Fixed username sent as the acting system user. |
 | `protocollering.originOin.oin` | when enabled | The gemeente's OIN, sent to identify the requesting organisation. |
 | `protocollering.originOin.header` | when enabled | HTTP header name for the OIN. |
 | `protocollering.doelbinding.perZaaktype` | yes | When `true`, ZAC derives the doelbinding from the zaaktype. When `false`, a fixed doelbinding header is sent (or omitted if `header` is empty). |

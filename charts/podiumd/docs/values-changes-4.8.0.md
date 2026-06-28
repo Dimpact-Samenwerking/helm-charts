@@ -11,6 +11,7 @@ Companion to (upgrade-from-4.6.5-to-4.7.0.md). This file lists every value overr
 | `zac.featureFlags.pabcIntegration` | Remove this key | Required if present in gemeente file |
 | `zac.brpApi.protocollering` | Full restructure — see below | Required if protocollering was configured |
 | `zac.brpApi.logLevel` | New field (default `"OFF"`) | Optional |
+| `apiproxy.locations.brp.toepassingHeaderName` | Set to `""` — ZAC now owns this header via protocollering | Required for iConnect |
 
 ## Required changes
 

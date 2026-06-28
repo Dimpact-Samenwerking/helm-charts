@@ -261,6 +261,20 @@ vendor-specific configuration from
 If protocollering was disabled (`aanbieder: ""`), set `enabled: false` and
 remove the old keys — no further action is needed.
 
+**Additional action required for iConnect environments:** disable the
+`apiproxy.brp.toepassingHeaderName` injection — ZAC 5.0.1 now sends the
+toepassing header directly via protocollering, so the api-proxy should no
+longer own this header. Set `toepassingHeaderName: ""` in your gemeente file:
+
+```yaml
+apiproxy:
+  locations:
+    brp:
+      toepassingHeaderName: ""
+```
+
+See [`docs/zac-brp-protocollering.md`](zac-brp-protocollering.md) for details.
+
 ### Open Beheer ↔ Objecttypen API token (IN-2345)
 
 Open Beheer authenticates to the **Objecttypen API** with an API token.
