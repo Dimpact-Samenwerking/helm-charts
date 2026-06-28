@@ -69,7 +69,7 @@ The chart `values.yaml` already pins the new versions. Remove explicit tag overr
 | Component | New default tag |
 |-----------|----------------|
 | `zac.image.tag` | `5.0.1@sha256:8c7844248b7decf56eafc0d2aca1f9e080f94e9bf2f6b6ac412589deb80d1659` |
-| `zac.nginx.image.tag` | `1.31.1@sha256:9f6b32064a29d747404d959e078c713a0523a9bd4e41f6912058126ebca94e61` |
+| `*.nginx.image.tag` (all components) | `1.31.1@sha256:9f6b32064a29d747404d959e078c713a0523a9bd4e41f6912058126ebca94e61` |
 | `zac.office_converter.image.tag` | `8.33.0@sha256:bddd8ea9d076e2d08b6ddaa6efae6403185202c6dab65a6488ed0a6923d6d8e8` |
 | `zac.opa.image.tag` | `1.17.1-static@sha256:c29f8ee8dbe66608a1c04e9be84b04efc46877625e6b0877e559954565209efc` |
 | `zac.solr.busyBoxImage.tag` | `1.38.0-glibc@sha256:3ba030337caebbfc2232b22b1e435eb213b28e5844a34942c74555bf904a265a` |

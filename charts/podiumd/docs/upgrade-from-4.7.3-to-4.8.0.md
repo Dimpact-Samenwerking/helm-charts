@@ -167,7 +167,7 @@ to 5.0.1, a major-version jump.
 - Helm chart `zaakafhandelcomponent` `1.0.228` → `1.0.251` (appVersion
   `5.0.1`) in `charts/podiumd/Chart.yaml`.
 - Sub-image bumps in `charts/podiumd/values.yaml`:
-  - `zac.nginx.image.tag` `1.30.2` → `1.31.1`
+  - `zac.nginx.image.tag` and all other `nginx-unprivileged` pins `1.30.2` → `1.31.1`
   - `zac.office_converter.image.tag` `8.31.0` → `8.33.0` (Gotenberg)
   - `zac.opa.image.tag` `1.15.2-static` → `1.17.1-static` (Open Policy Agent)
   - `zac.solr.busyBoxImage.tag` `1.37.0-glibc` → `1.38.0-glibc`

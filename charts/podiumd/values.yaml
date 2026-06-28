@@ -687,7 +687,7 @@ openzaak:
         memory: 160Mi
   nginx:
     image:
-      tag: "1.30.2@sha256:1d13071bcebdfc6866d68954b30c84551ca0965ae65df7b5f6888bceb3e3a879"
+      tag: "1.31.1@sha256:9f6b32064a29d747404d959e078c713a0523a9bd4e41f6912058126ebca94e61"
     resources:
       requests:
         cpu: 10m
@@ -1357,7 +1357,7 @@ openarchiefbeheer:
 
   nginx:
     image:
-      tag: "1.30.2@sha256:1d13071bcebdfc6866d68954b30c84551ca0965ae65df7b5f6888bceb3e3a879"
+      tag: "1.31.1@sha256:9f6b32064a29d747404d959e078c713a0523a9bd4e41f6912058126ebca94e61"
     resources:
       requests:
         cpu: 10m
@@ -1547,7 +1547,7 @@ openklant:
   fullnameOverride: openklant
   nginx:
     image:
-      tag: "1.30.2@sha256:1d13071bcebdfc6866d68954b30c84551ca0965ae65df7b5f6888bceb3e3a879"
+      tag: "1.31.1@sha256:9f6b32064a29d747404d959e078c713a0523a9bd4e41f6912058126ebca94e61"
     resources:
       requests:
         cpu: 10m
@@ -1771,7 +1771,7 @@ openformulieren:
         memory: 160Mi
   nginx:
     image:
-      tag: "1.30.2@sha256:1d13071bcebdfc6866d68954b30c84551ca0965ae65df7b5f6888bceb3e3a879"
+      tag: "1.31.1@sha256:9f6b32064a29d747404d959e078c713a0523a9bd4e41f6912058126ebca94e61"
     resources:
       requests:
         cpu: 10m
@@ -1985,7 +1985,7 @@ openinwoner:
   fullnameOverride: openinwoner
   nginx:
     image:
-      tag: "1.30.2@sha256:1d13071bcebdfc6866d68954b30c84551ca0965ae65df7b5f6888bceb3e3a879"
+      tag: "1.31.1@sha256:9f6b32064a29d747404d959e078c713a0523a9bd4e41f6912058126ebca94e61"
     config:
       basicAuth:
         # Enable this when digid mock is set to digidMock: "true"
@@ -2334,7 +2334,7 @@ openbeheer:
       rateUser: "15000/hour"
   nginx:
     image:
-      tag: "1.30.2@sha256:1d13071bcebdfc6866d68954b30c84551ca0965ae65df7b5f6888bceb3e3a879"
+      tag: "1.31.1@sha256:9f6b32064a29d747404d959e078c713a0523a9bd4e41f6912058126ebca94e61"
     resources:
       requests:
         cpu: 10m
@@ -3035,7 +3035,7 @@ apiproxy:
   #nameOverride: "iconnect-proxy"
   image:
     repository: nginxinc/nginx-unprivileged
-    tag: "1.30.2@sha256:1d13071bcebdfc6866d68954b30c84551ca0965ae65df7b5f6888bceb3e3a879"
+    tag: "1.31.1@sha256:9f6b32064a29d747404d959e078c713a0523a9bd4e41f6912058126ebca94e61"
     pullPolicy: IfNotPresent
   service:
     port: 80
