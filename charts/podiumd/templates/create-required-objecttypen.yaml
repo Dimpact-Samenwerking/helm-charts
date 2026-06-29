@@ -114,7 +114,7 @@ spec:
   template:
     spec:
       containers:
-        - image: {{ include "podiumd.image" .Values.objecttypen.image }}
+        - image: {{ include "podiumd.image" (dict "image" .Values.objecttypen.image "context" $) }}
           command: ["/jobs/create-required-objecttypen.py"]
           name: create-required-objecttypen
           resources:

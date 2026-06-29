@@ -103,14 +103,28 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 {{/*
 Renders a container image from a string or a dict with optional registry, repository, and tag.
-Usage: {{ include "podiumd.image" .Values.path.to.image }}
+
+Two call forms (backward compatible):
+  1. bare image map/string:   {{ include "podiumd.image" .Values.path.to.image }}
+  2. with root context:       {{ include "podiumd.image" (dict "image" .Values.path.to.image "context" $) }}
+
+In form 2, when the image map omits `registry`, it falls back to
+`.Values.global.imageRegistry` — so per-image `registry:` overrides can be
+dropped from values and inherited from the global setting.
 */}}
 {{- define "podiumd.image" -}}
-{{- if kindIs "string" . -}}
-{{- . -}}
+{{- $img := . -}}
+{{- $globalRegistry := "" -}}
+{{- if and (kindIs "map" .) (hasKey . "image") (hasKey . "context") -}}
+{{- $img = .image -}}
+{{- $globalRegistry = (.context.Values.global).imageRegistry | default "" -}}
+{{- end -}}
+{{- if kindIs "string" $img -}}
+{{- $img -}}
 {{- else -}}
-{{- if .registry -}}{{ .registry }}/{{ end -}}
-{{- .repository -}}:{{- .tag -}}
+{{- $registry := $img.registry | default $globalRegistry -}}
+{{- if $registry -}}{{ $registry }}/{{ end -}}
+{{- $img.repository -}}:{{- $img.tag -}}
 {{- end -}}
 {{- end -}}
 

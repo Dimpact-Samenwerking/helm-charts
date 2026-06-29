@@ -25,7 +25,7 @@ metadata:
 spec:
   clusterSize: {{ $redisHa.replicaCount }}
   kubernetesConfig:
-    image: {{ include "podiumd.image" $redisHa.image }}
+    image: {{ include "podiumd.image" (dict "image" $redisHa.image "context" $) }}
     {{- with $redisHa.resources }}
     resources:
       {{- toYaml . | nindent 6 }}
@@ -40,7 +40,7 @@ spec:
   {{- end }}
   redisExporter:
     enabled: {{ ($redisHa.redisExporter | default dict).enabled | default false }}
-    image: {{ include "podiumd.image" ($redisHa.redisExporter | default dict).image }}
+    image: {{ include "podiumd.image" (dict "image" ($redisHa.redisExporter | default dict).image "context" $) }}
   {{- with $redisHa.podSecurityContext }}
   podSecurityContext:
     {{- toYaml . | nindent 4 }}
@@ -54,7 +54,7 @@ spec:
   {{- end }}
   initContainer:
     enabled: true
-    image: {{ include "podiumd.image" $redisHa.initContainerImage }}
+    image: {{ include "podiumd.image" (dict "image" $redisHa.initContainerImage "context" $) }}
     command: ["/bin/sh"]
     args: ["-c", "grep -q '^databases ' /etc/redis/redis.conf && sed -i 's/^databases .*/databases {{ $redisHa.databases | default 32 }}/' /etc/redis/redis.conf || printf '\\ndatabases {{ $redisHa.databases | default 32 }}\\n' >> /etc/redis/redis.conf"]
     {{- with $redisHa.initContainerResources }}

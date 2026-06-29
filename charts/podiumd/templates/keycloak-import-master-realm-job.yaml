@@ -36,7 +36,7 @@ spec:
       serviceAccountName: {{ include "podiumd.serviceAccountName" . }}
       initContainers:
       - name: wait-for-operator-sa
-        image: {{ include "podiumd.image" (index .Values "keycloak-operator").jobs.ensureOperatorSa.image }}
+        image: {{ include "podiumd.image" (dict "image" (index .Values "keycloak-operator").jobs.ensureOperatorSa.image "context" $) }}
         resources:
 {{ toYaml (index .Values "keycloak-operator").jobs.resources | indent 10 }}
         command: ["/bin/sh", "-c"]
@@ -84,7 +84,7 @@ spec:
         emptyDir: {}
       containers:
       - name: kc-config-cli
-        image: {{ include "podiumd.image" .Values.keycloak.keycloakConfigCli.image }}
+        image: {{ include "podiumd.image" (dict "image" .Values.keycloak.keycloakConfigCli.image "context" $) }}
         resources:
 {{ toYaml (index .Values "keycloak-operator").jobs.configCliResources | indent 10 }}
         securityContext:

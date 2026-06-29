@@ -38,7 +38,7 @@ spec:
       serviceAccountName: {{ include "podiumd.serviceAccountName" . }}
       initContainers:
       - name: check-operator-sa
-        image: {{ include "podiumd.image" (index .Values "keycloak-operator").jobs.ensureOperatorSa.image }}
+        image: {{ include "podiumd.image" (dict "image" (index .Values "keycloak-operator").jobs.ensureOperatorSa.image "context" $) }}
         resources:
 {{ toYaml (index .Values "keycloak-operator").jobs.resources | indent 10 }}
         command: ["/bin/sh", "-c"]
@@ -95,7 +95,7 @@ spec:
         - name: tmp
           mountPath: /tmp
       - name: generate-sql
-        image: {{ include "podiumd.image" (index .Values "keycloak-operator").jobs.ensurePodiumdAdminUser.initImage }}
+        image: {{ include "podiumd.image" (dict "image" (index .Values "keycloak-operator").jobs.ensurePodiumdAdminUser.initImage "context" $) }}
         resources:
 {{ toYaml (index .Values "keycloak-operator").jobs.resources | indent 10 }}
         command:
@@ -222,7 +222,7 @@ spec:
           mountPath: /tmp
       containers:
       - name: ensure-podiumd-admin-user
-        image: {{ include "podiumd.image" (index .Values "keycloak-operator").jobs.ensurePodiumdAdminUser.image }}
+        image: {{ include "podiumd.image" (dict "image" (index .Values "keycloak-operator").jobs.ensurePodiumdAdminUser.image "context" $) }}
         resources:
 {{ toYaml (index .Values "keycloak-operator").jobs.resources | indent 10 }}
         securityContext:

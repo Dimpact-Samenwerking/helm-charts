@@ -61,7 +61,7 @@ spec:
           {{- end }}
           containers:
             - name: dump
-              image: {{ include "podiumd.image" $mi.image }}
+              image: {{ include "podiumd.image" (dict "image" $mi.image "context" $) }}
               imagePullPolicy: IfNotPresent
               resources:
                 {{- toYaml $mi.resources | nindent 16 }}

@@ -34,7 +34,7 @@ spec:
       serviceAccountName: {{ include "podiumd.serviceAccountName" . }}
       initContainers:
       - name: wait-for-podiumd-admin
-        image: {{ include "podiumd.image" (index .Values "keycloak-operator").jobs.ensureOperatorSa.image }}
+        image: {{ include "podiumd.image" (dict "image" (index .Values "keycloak-operator").jobs.ensureOperatorSa.image "context" $) }}
         command: ["/bin/sh", "-c"]
         args:
         - |
@@ -96,7 +96,7 @@ spec:
             type: RuntimeDefault
       containers:
       - name: ensure-operator-sa
-        image: {{ include "podiumd.image" (index .Values "keycloak-operator").jobs.ensureOperatorSa.image }}
+        image: {{ include "podiumd.image" (dict "image" (index .Values "keycloak-operator").jobs.ensureOperatorSa.image "context" $) }}
         resources:
 {{ toYaml (index .Values "keycloak-operator").jobs.resources | indent 10 }}
         securityContext:

@@ -75,7 +75,7 @@ spec:
           {{- end }}
           containers:
             - name: label-master
-              image: {{ include "podiumd.image" $redisHa.labelMasterCronJob.image }}
+              image: {{ include "podiumd.image" (dict "image" $redisHa.labelMasterCronJob.image "context" $) }}
               resources:
                 {{- toYaml $redisHa.labelMasterCronJob.resources | nindent 16 }}
               securityContext:

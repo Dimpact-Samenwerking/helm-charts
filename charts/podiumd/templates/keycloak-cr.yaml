@@ -5,7 +5,7 @@ metadata:
   name: {{ default "keycloak" .Values.keycloak.name }}
 spec:
   instances: {{ .Values.keycloak.instances }}
-  image: {{ include "podiumd.image" .Values.keycloak.image }}
+  image: {{ include "podiumd.image" (dict "image" .Values.keycloak.image "context" $) }}
   {{- if (index .Values "keycloak-operator").enabled }}
   bootstrapAdmin:
     user:
@@ -78,7 +78,7 @@ spec:
 {{- $initContainers := list }}
 {{- range .Values.keycloak.podTemplate.spec.initContainers }}
 {{- $c := deepCopy . }}
-{{- if not $c.image }}{{- $_ := set $c "image" (include "podiumd.image" $.Values.keycloak.image) }}{{- end }}
+{{- if not $c.image }}{{- $_ := set $c "image" (include "podiumd.image" (dict "image" $.Values.keycloak.image "context" $)) }}{{- end }}
 {{- $initContainers = append $initContainers $c }}
 {{- end }}
 {{ toYaml $initContainers | indent 8 }}
