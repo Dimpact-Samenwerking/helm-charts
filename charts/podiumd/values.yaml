@@ -394,6 +394,11 @@ redis-operator:
   redis-ha:
     enabled: true
     replicaCount: 3
+    # -- Grafana/Loki `app` + `service_name` label for the redis-ha pods (IN-2060).
+    # Without an explicit value the pods inherit `app.kubernetes.io/name: podiumd`
+    # from the shared chart labels and show up in Grafana as "podiumd" instead of
+    # "redis-ha". Set to "" to omit the override.
+    serviceName: redis-ha
     image:
       registry: quay.io
       repository: opstree/redis
