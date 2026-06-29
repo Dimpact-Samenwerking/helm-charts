@@ -394,6 +394,11 @@ redis-operator:
   redis-ha:
     enabled: true
     replicaCount: 3
+    # -- Grafana/Loki `app` + `service_name` label for the redis-ha pods (IN-2060).
+    # Without an explicit value the pods inherit `app.kubernetes.io/name: podiumd`
+    # from the shared chart labels and show up in Grafana as "podiumd" instead of
+    # "redis-ha". Set to "" to omit the override.
+    serviceName: redis-ha
     image:
       registry: quay.io
       repository: opstree/redis
@@ -687,7 +692,7 @@ openzaak:
         memory: 160Mi
   nginx:
     image:
-      tag: "1.30.2@sha256:1d13071bcebdfc6866d68954b30c84551ca0965ae65df7b5f6888bceb3e3a879"
+      tag: "1.31.1@sha256:9f6b32064a29d747404d959e078c713a0523a9bd4e41f6912058126ebca94e61"
     resources:
       requests:
         cpu: 10m
@@ -1357,7 +1362,7 @@ openarchiefbeheer:
 
   nginx:
     image:
-      tag: "1.30.2@sha256:1d13071bcebdfc6866d68954b30c84551ca0965ae65df7b5f6888bceb3e3a879"
+      tag: "1.31.1@sha256:9f6b32064a29d747404d959e078c713a0523a9bd4e41f6912058126ebca94e61"
     resources:
       requests:
         cpu: 10m
@@ -1547,7 +1552,7 @@ openklant:
   fullnameOverride: openklant
   nginx:
     image:
-      tag: "1.30.2@sha256:1d13071bcebdfc6866d68954b30c84551ca0965ae65df7b5f6888bceb3e3a879"
+      tag: "1.31.1@sha256:9f6b32064a29d747404d959e078c713a0523a9bd4e41f6912058126ebca94e61"
     resources:
       requests:
         cpu: 10m
@@ -1771,7 +1776,7 @@ openformulieren:
         memory: 160Mi
   nginx:
     image:
-      tag: "1.30.2@sha256:1d13071bcebdfc6866d68954b30c84551ca0965ae65df7b5f6888bceb3e3a879"
+      tag: "1.31.1@sha256:9f6b32064a29d747404d959e078c713a0523a9bd4e41f6912058126ebca94e61"
     resources:
       requests:
         cpu: 10m
@@ -1985,7 +1990,7 @@ openinwoner:
   fullnameOverride: openinwoner
   nginx:
     image:
-      tag: "1.30.2@sha256:1d13071bcebdfc6866d68954b30c84551ca0965ae65df7b5f6888bceb3e3a879"
+      tag: "1.31.1@sha256:9f6b32064a29d747404d959e078c713a0523a9bd4e41f6912058126ebca94e61"
     config:
       basicAuth:
         # Enable this when digid mock is set to digidMock: "true"
@@ -2334,7 +2339,7 @@ openbeheer:
       rateUser: "15000/hour"
   nginx:
     image:
-      tag: "1.30.2@sha256:1d13071bcebdfc6866d68954b30c84551ca0965ae65df7b5f6888bceb3e3a879"
+      tag: "1.31.1@sha256:9f6b32064a29d747404d959e078c713a0523a9bd4e41f6912058126ebca94e61"
     resources:
       requests:
         cpu: 10m
@@ -2645,8 +2650,6 @@ kiss:
       isDefault: true
 
 zac:
-  featureFlags:
-    pabcIntegration: false
   auth:
     server: http://keycloak.example.nl
     realm: podiumd
@@ -2660,16 +2663,31 @@ zac:
     apiKey: "dummy"
   brpApi:
     url: http://brp.example.nl
-    apiKey: "dummy"
-    # Protocollering aanbieder mag zijn "", "iConnect", "2Secure"
+    apiKey:
+      header: "x-api-key"
+      value: "dummy"
+    logLevel: "OFF"
+    # BRP protocollering — see docs/zac-brp-protocollering.md for vendor-specific examples
+    # (iConnect, eServices, 2Secure/EnableU)
     protocollering:
-      aanbieder: ""
-      # Voor aanbieder iConnect worden de volgende "standaard" waardes gebruikt
-      # Voor andere aanbieders zijn deze waardes niet van belang en worden niet gebruikt
+      enabled: false
+      # systemUser: "SystemUser"  # required for iConnect and 2Secure; omit for eServices
+      originOin:
+        oin: ""               # gemeentelijke OIN
+        header: ""            # iConnect: "x-origin-oin" | eServices: "x-request-organization"
       doelbinding:
-        zoekmet: "BRPACT-ZoekenAlgemeen"
-        raadpleegmet: "BRPACT-ZacPersoonBasis"
-      verwerkingsregister: "DigitaleDienstverlening"
+        perZaaktype: false    # true for iConnect
+        header: ""            # iConnect: "x-doelbinding" | eServices: ""
+        zoekmet: "BRPACT-ZoekenAlgemeen"      # iConnect only
+        raadpleegmet: "BRPACT-ZacPersoonBasis"  # iConnect only
+      verwerking:
+        header: ""            # iConnect/2Secure: "x-verwerking" | eServices: "x-request-afnemerscode"
+        register: ""          # iConnect: "DigitaleDienstverlening"
+      gebruiker:
+        header: ""            # iConnect/2Secure: "x-gebruiker" | eServices: "x-request-user"
+      toepassing:
+        header: ""            # iConnect: "x-toepassing" | eServices: "x-request-application" | 2Secure: "x-applicatie"
+        value: ""
   catalogusDomein: ALG
   contextUrl: http://zac.example.nl
   db:
@@ -2689,11 +2707,11 @@ zac:
     curlImage:
       #repository: curlimages/curl
       tag: "8.20.0@sha256:b3f1fb2a51d923260350d21b8654bbc607164a987e2f7c84a0ac199a67df812a"
-  # ghcr.io/infonl/zaakafhandelcomponent:4.7.2
+  # ghcr.io/infonl/zaakafhandelcomponent:5.0.1
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
-    tag: 4.7.2@sha256:235e51559f3439bb6aba5bbbc67279d70e9ab141aefd43d85be546d420fb0e34
+    tag: 5.0.1@sha256:8c7844248b7decf56eafc0d2aca1f9e080f94e9bf2f6b6ac412589deb80d1659
   # Liveness probe uses /health/ready (not /health/live) with a high failureThreshold so
   # Kubernetes automatically restarts ZAC after extended OpenZaak/catalogus unavailability.
   # The ZGW-API-Client has no connectTimeout/readTimeout, causing stale TCP connections
@@ -2730,10 +2748,10 @@ zac:
   nginx:
     enabled: true
     client_max_body_size: 150M
-    # nginxinc/nginx-unprivileged:1.30.2@sha256:1d13071bcebdfc6866d68954b30c84551ca0965ae65df7b5f6888bceb3e3a879
+    # nginxinc/nginx-unprivileged:1.31.1@sha256:9f6b32064a29d747404d959e078c713a0523a9bd4e41f6912058126ebca94e61
     image:
       # repository: nginxinc/nginx-unprivileged
-      tag: "1.30.2@sha256:1d13071bcebdfc6866d68954b30c84551ca0965ae65df7b5f6888bceb3e3a879"
+      tag: "1.31.1@sha256:9f6b32064a29d747404d959e078c713a0523a9bd4e41f6912058126ebca94e61"
     resources:
       requests:
         cpu: 50m
@@ -2746,16 +2764,16 @@ zac:
     url: http://objecttypen.example.nl
     token: objecttypentoken
   office_converter:
-    # gotenberg/gotenberg:8.31.0@sha256:f0d86e8a1dbc7b33a5a65cb251d02bb271a48ffa989da3feb5ed7d954fe4d4b3
+    # gotenberg/gotenberg:8.33.0@sha256:bddd8ea9d076e2d08b6ddaa6efae6403185202c6dab65a6488ed0a6923d6d8e8
     image:
       # repository: gotenberg/gotenberg
-      tag: "8.31.0@sha256:f0d86e8a1dbc7b33a5a65cb251d02bb271a48ffa989da3feb5ed7d954fe4d4b3"
+      tag: "8.33.0@sha256:bddd8ea9d076e2d08b6ddaa6efae6403185202c6dab65a6488ed0a6923d6d8e8"
   opa:
     sidecar: true
-    # openpolicyagent/opa:1.15.2-static@sha256:f3429de096f6d274bd9927f7a50c334e340a6cf206fad9460ccf17e2f3e807bf
+    # openpolicyagent/opa:1.17.1-static@sha256:c29f8ee8dbe66608a1c04e9be84b04efc46877625e6b0877e559954565209efc
     image:
       #repository: openpolicyagent/opa
-      tag: "1.15.2-static@sha256:f3429de096f6d274bd9927f7a50c334e340a6cf206fad9460ccf17e2f3e807bf"
+      tag: "1.17.1-static@sha256:c29f8ee8dbe66608a1c04e9be84b04efc46877625e6b0877e559954565209efc"
     resources:
       requests:
         cpu: 10m
@@ -2794,10 +2812,10 @@ zac:
         cpu: 500m
         memory: 256Mi
     solr:
-      # library/busybox:1.37.0-glibc@sha256:3f9777e7e82e8591542f72b965ec7db7e8b3bdb59692976af1bb9b2850b05a4e
+      # library/busybox:1.38.0-glibc@sha256:3ba030337caebbfc2232b22b1e435eb213b28e5844a34942c74555bf904a265a
       busyBoxImage:
         #repository:
-        tag: 1.37.0-glibc@sha256:3f9777e7e82e8591542f72b965ec7db7e8b3bdb59692976af1bb9b2850b05a4e
+        tag: 1.38.0-glibc@sha256:3ba030337caebbfc2232b22b1e435eb213b28e5844a34942c74555bf904a265a
       # -- set enabled to provision solrcloud as well
       enabled: true
       # library/solr:9.10.1-slim@sha256:f5a742b9476c5608f318432fe142c2e8fe125a846c0ff0081681051e3b2d8eb4
@@ -2875,11 +2893,17 @@ zgw-office-addin:
     # -- Name of the environment (used for display purposes). Default "production" means that no indicator is appended to the DiscplayName in the manifests.
     appEnv: "production"
     # -- The frontend public URL where the manifest files and static js file are served
-    frontendUrl: ""
+    frontendUrl: "https://zgw-office-addin.example.nl"
     # -- MS Azure Tenant ID of the Office Add-in application
     msalTenantId: ""
     # -- MS Azure Client ID assigned to the Office Add-in application
     msalClientId: ""
+    # -- IN-2060: Grafana/Loki app + service_name labels on the office-addin pods.
+    # Without these the pods are attributed to the Helm release name ("podiumd").
+    # Requires zgw-office-addin chart >= 0.0.89 (adds podLabels support).
+    podLabels:
+      app: office-addin
+      service_name: office-addin
   frontend:
     # ghcr.io/infonl/zgw-office-addin-frontend:v0.9.313@sha256:02cbd45a83f09f89b85dcd040840f9fb3e9bbadf67282edd6d258697a68684c7
     image:
@@ -2899,7 +2923,7 @@ zgw-office-addin:
         memory: 256Mi
     # -- ZGW API configuration for integration with the ZGW APIs provider (OpenZaak)
     zgwApis:
-      url: ""
+      url: "http://open-zaak.example.nl"
       secret: ""
 
 clamav:
@@ -3035,7 +3059,7 @@ apiproxy:
   #nameOverride: "iconnect-proxy"
   image:
     repository: nginxinc/nginx-unprivileged
-    tag: "1.30.2@sha256:1d13071bcebdfc6866d68954b30c84551ca0965ae65df7b5f6888bceb3e3a879"
+    tag: "1.31.1@sha256:9f6b32064a29d747404d959e078c713a0523a9bd4e41f6912058126ebca94e61"
     pullPolicy: IfNotPresent
   service:
     port: 80
