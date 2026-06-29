@@ -2893,6 +2893,12 @@ zgw-office-addin:
     msalTenantId: ""
     # -- MS Azure Client ID assigned to the Office Add-in application
     msalClientId: ""
+    # -- IN-2060: Grafana/Loki app + service_name labels on the office-addin pods.
+    # Without these the pods are attributed to the Helm release name ("podiumd").
+    # Requires zgw-office-addin chart >= 0.0.89 (adds podLabels support).
+    podLabels:
+      app: office-addin
+      service_name: office-addin
   frontend:
     # ghcr.io/infonl/zgw-office-addin-frontend:v0.9.313@sha256:02cbd45a83f09f89b85dcd040840f9fb3e9bbadf67282edd6d258697a68684c7
     image:
