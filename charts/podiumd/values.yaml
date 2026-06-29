@@ -373,7 +373,7 @@ redis-operator:
     GenerateConfigInInitContainer: true
   redisOperator:
     imageName: quay.io/opstree/redis-operator
-    imageTag: "v0.24.0"
+    imageTag: "v0.25.0"
   resources:
     requests:
       cpu: 100m
