@@ -5,12 +5,12 @@
 
 - name: adorsys/keycloak-config-cli
   url: docker.io/adorsys/keycloak-config-cli
-  version: "6.5.0-26"
-  digest: "sha256:2d2a0663cf324379d9ffab896db8d00293cd0326151968b319cf166f6eec8fca"
+  version: "6.5.1-26"
+  digest: "sha256:1b22dfaa9ae0c71f74b0342f9221a6510f272da5def683dbba26a98e6b1b1411"
 - name: alpine/k8s
   url: docker.io/alpine/k8s
-  version: "1.34.7"
-  digest: "sha256:4745677e51c0fb567aedf1453a7bd489e0a62dbbf2bda475d663f7eed041adb4"
+  version: "1.36.2"
+  digest: "sha256:44ef4942e171939b9c665a4a84beb80e2dcdb9a24330d4651cfdfd2e9deecc47"
 - name: apache/apisix
   url: docker.io/apache/apisix
   version: "3.16.0-ubuntu"
@@ -19,6 +19,10 @@
   url: docker.io/apache/solr-operator
   version: "v0.9.1"
   digest: "sha256:4db34508137f185d3cad03c7cf7c2b5d6533fb590822effcde9125cff5a90aa2"
+- name: brp-api/personen-mock
+  url: ghcr.io/brp-api/personen-mock
+  version: "2.7.0-202606230850"
+  digest: "sha256:2de5d45bd182196eb356f0621128cb340e0edf395705eb46e5fbdaccf12e76bf"
 - name: curlimages/curl
   url: docker.io/curlimages/curl
   version: "8.20.0"
@@ -29,24 +33,16 @@
   digest: "sha256:9079538aa6e9ff9a57b4d737ca1f03f978e7b9e8fe45bb91b19bd933deb98912"
 - name: gotenberg/gotenberg
   url: docker.io/gotenberg/gotenberg
-  version: "8.31.0"
-  digest: "sha256:f0d86e8a1dbc7b33a5a65cb251d02bb271a48ffa989da3feb5ed7d954fe4d4b3"
+  version: "8.33.0"
+  digest: "sha256:bddd8ea9d076e2d08b6ddaa6efae6403185202c6dab65a6488ed0a6923d6d8e8"
 - name: groundnuty/k8s-wait-for
   url: ghcr.io/groundnuty/k8s-wait-for
   version: "v2.0"
   digest: "sha256:c14d7271e4013b24b34ef0d7144c4610577d0e9110ccc26b163fa28089fa1f4e"
 - name: infonl/zaakafhandelcomponent
   url: ghcr.io/infonl/zaakafhandelcomponent
-  version: "4.7.2"
-  digest: "sha256:235e51559f3439bb6aba5bbbc67279d70e9ab141aefd43d85be546d420fb0e34"
-- name: infonl/zgw-office-add-in-backend
-  url: ghcr.io/infonl/zgw-office-add-in-backend
-  version: "v0.9.289"
-  digest: "sha256:dc9b165344e787cbf6146183be529594308e22eea553e1db6654f49ba9e76cfb"
-- name: infonl/zgw-office-add-in-frontend
-  url: ghcr.io/infonl/zgw-office-add-in-frontend
-  version: "v0.9.289"
-  digest: "sha256:80c1fea3d16ef8a837576858e581bb20de6296af7f21c56d401f4a346c126dc0"
+  version: "5.0.1"
+  digest: "sha256:8c7844248b7decf56eafc0d2aca1f9e080f94e9bf2f6b6ac412589deb80d1659"
 - name: infonl/zgw-office-addin-backend
   url: ghcr.io/infonl/zgw-office-addin-backend
   version: "v0.9.313"
@@ -66,7 +62,7 @@
 - name: keycloak/keycloak
   url: quay.io/keycloak/keycloak
   version: "26.6.3"
-  digest: "sha256:5fdbf2dbb5897cc34e82de49d13e23db011f9925089dbc555fc095f2c8bc1dac"
+  digest: "sha256:9b0330756022422149aa6502eb2def8cd47c6e1b000c7c65cdb13e7c0133e992"
 - name: keycloak/keycloak-operator
   url: quay.io/keycloak/keycloak-operator
   version: "26.6.3"
@@ -85,8 +81,12 @@
   digest: "sha256:af5cea3f2e40138df90660c0c073d8b1506fb76c8602a9f48aceb5f4fb052ddc"
 - name: library/busybox
   url: docker.io/library/busybox
-  version: "1.37.0-glibc"
-  digest: "sha256:3f9777e7e82e8591542f72b965ec7db7e8b3bdb59692976af1bb9b2850b05a4e"
+  version: "1.38.0-glibc"
+  digest: "sha256:3ba030337caebbfc2232b22b1e435eb213b28e5844a34942c74555bf904a265a"
+- name: library/python
+  url: docker.io/library/python
+  version: "3.14-slim"
+  digest: "sha256:8e4071294d046d45b31a902e02a8560a45c351898513b66ec659ca39fd30d170"
 - name: library/solr
   url: docker.io/library/solr
   version: "9.10.1-slim"
@@ -109,12 +109,12 @@
   digest: "sha256:c4537e620899365d64511d20529eb582e87cc2d4ab13b95e45524dbbe06d722d"
 - name: maykinmedia/referentielijsten-api
   url: docker.io/maykinmedia/referentielijsten-api
-  version: "0.7.2"
-  digest: "sha256:f7f0f25b180a3746e1bf3df81fe19e4ea509428edea1d93831262a67c81f5f9d"
+  version: "0.7.3"
+  digest: "sha256:66f3a3da2a086e41ee8dc216b52b65d8dca04a4160c04a90693de2e5cd6dfa5e"
 - name: nginxinc/nginx-unprivileged
   url: docker.io/nginxinc/nginx-unprivileged
-  version: "1.30.2"
-  digest: "sha256:77fb538f39407dc7b497b13abef619098d3afaa569f28ca3f6641ef77b95cd2d"
+  version: "1.31.1"
+  digest: "sha256:9f6b32064a29d747404d959e078c713a0523a9bd4e41f6912058126ebca94e61"
 - name: oauth2-proxy/oauth2-proxy
   url: quay.io/oauth2-proxy/oauth2-proxy
   version: "v7.7.1"
@@ -125,8 +125,8 @@
   digest: "sha256:55dc5644595d43a5412d60436aac846ce0d71b799be85c53ff815c31416f3e39"
 - name: openpolicyagent/opa
   url: docker.io/openpolicyagent/opa
-  version: "1.15.2-static"
-  digest: "sha256:f3429de096f6d274bd9927f7a50c334e340a6cf206fad9460ccf17e2f3e807bf"
+  version: "1.17.1-static"
+  digest: "sha256:c29f8ee8dbe66608a1c04e9be84b04efc46877625e6b0877e559954565209efc"
 - name: openzaak/open-zaak
   url: docker.io/openzaak/open-zaak
   version: "1.27.2"
@@ -157,12 +157,12 @@
   digest: "sha256:b2bc4042fdd8fea6613b04f2f602ba4aff1201e79ba35cd0e2df9f3327111b0e"
 - name: sergeymakinen/clamav_exporter
   url: docker.io/sergeymakinen/clamav_exporter
-  version: "v2.1.2"
-  digest: "sha256:487d133c7ff69eaa96e9f8a44fb631302048fd592218cdd2fa6c85bc8c7bef15"
+  version: "v2.1.3"
+  digest: "sha256:a0b90ec0eecbd4e34201c5f1eda0045959adb5c7f0b6371bb1345fbfcd8bfc8d"
 - name: wearefrank/zaakbrug
   url: docker.io/wearefrank/zaakbrug
-  version: "1.26.13"
-  digest: "sha256:388c5d9d0646f7f38841728224711aeff9d0d6d80c50bc5f49959ddc7d89ff27"
+  version: "1.26.14"
+  digest: "sha256:efefcb1bafb6665bde3480ba84faa50144ffde2b3bbca4867fdfda6eca1b0155"
 - name: worthnl/notifynl-omc
   url: docker.io/worthnl/notifynl-omc
   version: "1.17.19"
