@@ -300,3 +300,56 @@ when Open Beheer is **enabled and the secret is provisioned** — the
 unsubstituted `REP_..._REP` placeholder**. The chart `values.yaml` example
 (objecttypen `tokenauth` + openbeheer `zgw_consumers`) already shows the correct
 form; see also `openbeheer.md`.
+
+### ACR mirror naming — new strip-registry convention
+
+4.8.0 replaces the hand-maintained ACR mirror translation table (drop-namespace
+/ drop-hyphen / Dutch-rename) with a **mechanical rule**: the ACR mirror repo is
+the upstream image reference with **only the registry host stripped** — the full
+`<namespace>/<repo>` path is kept.
+
+```
+quay.io/keycloak/keycloak            -> keycloak/keycloak
+docker.io/maykinmedia/open-inwoner   -> maykinmedia/open-inwoner
+ghcr.io/infonl/zaakafhandelcomponent -> infonl/zaakafhandelcomponent
+docker.io/library/redis              -> library/redis
+```
+
+So the mirrored image becomes `<global.imageRegistry>/<namespace>/<repo>:<tag>`,
+e.g. `acrprodmgmt.azurecr.io/maykinmedia/open-inwoner:2.3.0`. Every per-image
+`repository:` override in a gemeente `podiumd.yml` therefore changes (e.g.
+`acrprodmgmt.azurecr.io/openinwoner` → `acrprodmgmt.azurecr.io/maykinmedia/open-inwoner`).
+
+References:
+
+- Convention + mapping: [`docs/images/acr-mirror-naming.md`](images/acr-mirror-naming.md).
+- Complete pinned set (name/url/version/digest):
+  [`docs/images/images-mirror-stripped.yaml`](images/images-mirror-stripped.yaml).
+- Migration/generation script:
+  [`scripts/mirror-strip-registry.py`](../scripts/mirror-strip-registry.py).
+
+#### Action required
+
+1. **Re-import the ACR repos under the new names.** Coordinate with SSC-Hosting:
+   the import pipeline must mirror each image to `<namespace>/<repo>` (see
+   `images-mirror-stripped.yaml`). Until a repo exists under its new name, pods
+   referencing it will `ImagePullBackOff`.
+2. **Migrate each gemeente `podiumd.yml`** with the script (dry-run first):
+
+   ```bash
+   # diff only (default)
+   python charts/podiumd/scripts/mirror-strip-registry.py \
+     ExternalsPodiumD/applications/gemeenten/<gem>/<env>/podiumd.yml
+   # apply
+   python charts/podiumd/scripts/mirror-strip-registry.py \
+     ExternalsPodiumD/applications/gemeenten/<gem>/<env>/podiumd.yml --in-place
+   ```
+
+   It rewrites the inline (`repository: <registry>/<name>`), split
+   (`registry:` + `repository:`) and `imageName:` shapes.
+3. **Verify** after rollout that images pull cleanly
+   (`kubectl -n podiumd get pods` → no `ImagePullBackOff`); a name that has no
+   matching ACR repo fails on first pull.
+
+> Roll out per environment (ontwikkel/test first). The chart `global.imageRegistry`
+> is unchanged — only the per-image repo paths change.
