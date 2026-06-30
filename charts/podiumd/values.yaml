@@ -913,9 +913,14 @@ opennotificaties:
   flower:
     enabled: false
   # RabbitMQ verwijderd in chart 2.0.0 (app 1.16.0): Celery gebruikt nu Redis voor broker +
-  # result-backend via de redis-subchart, daarom tags.redis: true (was false met RabbitMQ-broker).
+  # result-backend. Dit loopt via de gedeelde redis-ha cluster (settings.cache.* en
+  # settings.messageBroker.celeryResultBackend wijzen naar redis-ha db3/db6), NIET via
+  # de lokale redis-subchart. tags.redis MOET daarom false blijven: de redis-dependency
+  # wordt gegate op de top-level tags.redis (false), dus .Subcharts.redis bestaat niet —
+  # tags.redis: true zou secret.yaml naar een niet-geladen subchart laten verwijzen
+  # ("invalid value; expected string" op .Release.Name) en de render breken.
   tags:
-    redis: true
+    redis: false
   # override: values-enable-observability.yaml sets disabled: false and configures the OTLP endpoint
   otel:
     disabled: true
