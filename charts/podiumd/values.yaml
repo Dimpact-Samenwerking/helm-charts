@@ -51,6 +51,18 @@ keycloak-operator:
         cpu: 500m
         # IN-2233: operator OOMKilled at 256Mi limit (excessive restarts across clusters); raised to 768Mi.
         memory: 768Mi
+    # Default Keycloak SERVER image the operator stamps onto Keycloak CRs it
+    # provisions (RELATED_IMAGE_KEYCLOAK env on the operator Deployment). Must
+    # match podiumd's own `keycloak.image` digest above. The adfinis subchart's
+    # built-in default still carries the pre-PR#344 digest (sha256:5fdbf2d…), so
+    # we override it here to the refreshed 26.6.3 digest (sha256:9b03307…).
+    # NOTE: sha is a SEPARATE field; the template appends it as @sha256:{{ .sha }},
+    # so do NOT embed @sha256 in tag (would produce a double digest).
+    config:
+      keycloakImage:
+        repository: quay.io/keycloak/keycloak
+        tag: "26.6.3"
+        sha: "9b0330756022422149aa6502eb2def8cd47c6e1b000c7c65cdb13e7c0133e992"
   serviceAccount:
     create: false
   jobs:
