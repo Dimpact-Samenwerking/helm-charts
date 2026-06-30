@@ -199,9 +199,14 @@ def cmd_gen_manifest() -> None:
     """Aggregate every per-release images-*.yaml into one manifest with the
     new stripped-registry names, carrying the latest pinned version + digest."""
     images_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "docs", "images")
+    # Aggregate the per-release deltas only. images-baseline.yaml is the
+    # complete hand-maintained manifest (deltas + long-stable gap-fillers); it
+    # is excluded here so it is never re-aggregated into itself. NOTE: the
+    # gap-filler entries unique to images-baseline.yaml are therefore NOT
+    # reproduced by --gen-manifest and must be maintained there by hand.
     files = sorted(
         f for f in glob.glob(os.path.join(images_dir, "images-*.yaml"))
-        if os.path.basename(f) != "images-mirror-stripped.yaml"
+        if os.path.basename(f) != "images-baseline.yaml"
     )
     by_url: dict[str, dict[str, str]] = {}  # url -> entry; later (newer) file wins
     for f in files:
