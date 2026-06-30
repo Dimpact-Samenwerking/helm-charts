@@ -872,7 +872,7 @@ opennotificaties:
     volumeAttributeShareName: opennotificaties
     storageClassName: podiumd-standard
   image:
-    tag: "1.15.0"
+    tag: "1.16.0"
   resources:
     requests:
       cpu: 100m
