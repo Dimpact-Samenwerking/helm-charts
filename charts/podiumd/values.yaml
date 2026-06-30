@@ -2372,7 +2372,7 @@ kiss:
   image:
     #   repository: "ghcr.io/klantinteractie-servicesysteem/kiss-frontend"
     pullPolicy: IfNotPresent
-    tag: 2.2.2
+    tag: 2.2.3
   enabled: true
   nameOverride: contact
   fullnameOverride: contact
@@ -2528,7 +2528,7 @@ kiss:
     syncJobs:
       image:
         # repository: "ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync"
-        tag: "0.3.2"
+        tag: "0.3.3"
         pullPolicy: IfNotPresent
       kennisbank:
         baseUrl: ""
@@ -3171,6 +3171,12 @@ ita:
     type: "https://ontw-objecttypen.example.nl/api/v2/objecttypes/REP_CONTACT_GROEP_UUID_REP"
     typeVersion: 1
 
+  medewerker:
+    # -- De url van het medewerker objecttype in de objecttypen api.
+    type: "https://ontw-objecttypen.example.nl/api/v2/objecttypes/REP_CONTACT_MEDEWERKER_UUID_REP"
+    # -- De versie van het medewerker objecttype dat gebruikt wordt (hoogstwaarschijnlijk 1)
+    typeVersion: 1
+
   smtp:
     host: "mail.example.nl"
     port: "587"
@@ -3185,7 +3191,7 @@ ita:
   web:
     image:
       # repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web"
-      tag: "3.1.0"
+      tag: "3.2.0"
       pullPolicy: IfNotPresent
 
     service:
@@ -3221,7 +3227,7 @@ ita:
 
     image:
       repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller"
-      tag: "3.1.0"
+      tag: "3.2.0"
       pullPolicy: IfNotPresent
 
     notification:
@@ -3303,7 +3309,7 @@ omc:
   fullnameOverride: "omc"
   image:
     # repository: ghcr.io/worth-nl/notifynl-omc
-    tag: "1.17.19@sha256:fdaabe81d6974dc2170d5383e604c15d76febd0a3563362a6827e437f04b398b"
+    tag: "1.17.19"
   # BELOW are the resource settings from the subchart, notifynl-omc-nodep which we do not override
   # app:
   #   port: 5270

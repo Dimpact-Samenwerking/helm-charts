@@ -275,3 +275,9 @@ when Open Beheer is **enabled and the secret is provisioned** — the
 unsubstituted `REP_..._REP` placeholder**. The chart `values.yaml` example
 (objecttypen `tokenauth` + openbeheer `zgw_consumers`) already shows the correct
 form; see also `openbeheer.md`.
+
+### KISS 2.2.2 -> 2.2.4
+KISS 2.2.4 fixes a logout bug: send client_id on the Keycloak RP-initiated logout redirect (fixes “Missing parameters: id_token_hint” when signing out).
+Plus includes updates on vulnerable dependencies
+
+**No action required**
