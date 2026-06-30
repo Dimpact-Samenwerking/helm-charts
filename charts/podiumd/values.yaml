@@ -380,7 +380,7 @@ redis-operator:
   # Database allocation:
   #   objecttypen        : db 0  (cache)
   #   objecten           : db 1  (cache), db 2  (celery)
-  #   opennotificaties   : db 3  (cache), db 6  (celery result backend; broker stays on RabbitMQ)
+  #   opennotificaties   : db 3  (cache), db 6  (celery result backend; broker nu ook Redis i.p.v. RabbitMQ vanaf chart 2.0.0)
   #   openzaak           : db 4  (cache), db 5  (celery)
   #   openklant          : db 7  (cache), db 8  (celery)
   #   openformulieren    : db 9  (cache), db 10 (celery)
