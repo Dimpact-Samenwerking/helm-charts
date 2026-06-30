@@ -91,10 +91,19 @@
   url: ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller
   version: "3.2.0"
   digest: "sha256:eee4567fd5bfaa7eb2ec13fa1a34cfabb402939ffdc79de8159f5dc00754bafb"
+# 3.1.0 still pinned by chart values.yaml (lags 3.2.0); keep mirrored until bumped.
+- name: interne-taak-afhandeling/internetaakafhandeling.poller
+  url: ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller
+  version: "3.1.0"
+  digest: "sha256:67fa6cd37b9d38cd7317ee714a553b4bb2250d8998d2481e0f4cd2311e089383"
 - name: interne-taak-afhandeling/internetaakafhandeling.web
   url: ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web
   version: "3.2.0"
   digest: "sha256:159489884a041ec9222e6e2a0f0c5ff2a70f93d7b7885fa19c6be2c59d658015"
+- name: interne-taak-afhandeling/internetaakafhandeling.web
+  url: ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web
+  version: "3.1.0"
+  digest: "sha256:40bcd34e672366fd71f4522775259c85580348a373a53a8ff3235bcb8aeeda06"
 - name: keycloak/keycloak
   url: quay.io/keycloak/keycloak
   version: "26.6.3"
@@ -107,10 +116,20 @@
   url: ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync
   version: "0.3.3"
   digest: "sha256:f26bd91d96ec8f1875e1ce7a2386788913240bc3b70a520926db444ba61e424c"
+# 0.3.2 still pinned by chart values.yaml (lags 0.3.3); keep mirrored until bumped.
+- name: klantinteractie-servicesysteem/kiss-elastic-sync
+  url: ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync
+  version: "0.3.2"
+  digest: "sha256:289278af6137e84055ba15ab694405d90778970dc9f6f33d3806fd8d6e867cd4"
 - name: klantinteractie-servicesysteem/kiss-frontend
   url: ghcr.io/klantinteractie-servicesysteem/kiss-frontend
   version: "2.2.3"
   digest: "sha256:a12276517ce7846e5ebe40373de8c4960fb41182958a668ad60254b088252252"
+# 2.2.2 still pinned by chart values.yaml (lags 2.2.3); keep mirrored until bumped.
+- name: klantinteractie-servicesysteem/kiss-frontend
+  url: ghcr.io/klantinteractie-servicesysteem/kiss-frontend
+  version: "2.2.2"
+  digest: "sha256:57eaf4f998a6c631333665d91b068dbc3109fed187ae828e1f2bc775fec65caf"
 - name: lachlanevenson/k8s-kubectl
   url: docker.io/lachlanevenson/k8s-kubectl
   version: "v1.25.4"
