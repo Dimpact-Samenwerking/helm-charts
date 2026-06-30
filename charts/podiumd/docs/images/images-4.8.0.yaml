@@ -46,12 +46,6 @@
   version: "3.2.0"
   digest: "sha256:eee4567fd5bfaa7eb2ec13fa1a34cfabb402939ffdc79de8159f5dc00754bafb"
 
-# Open Notificaties — 1.15.0 -> 1.16.0 (helm chart opennotificaties 1.13.1 -> 2.0.0; RabbitMQ verwijderd, Celery op Redis)
-- name: open-notificaties
-  url: docker.io/openzaak/open-notificaties
-  version: "1.16.0"
-  digest: "sha256:416f0949f6bf08f430b19ebfb3013963842e7ea59b2c3e4898782a8252a1257c"
-
 # Renovate dependency bumps integrated into 4.8.0 (PRs #292, #324, #334).
 # Digests verified live against the source registry (Docker-Content-Digest).
 # PR #294 (azure/k8s-bake v3 -> v4) is a GitHub Action, not a container image,
