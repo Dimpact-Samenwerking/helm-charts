@@ -324,7 +324,7 @@ References:
 
 - Convention + mapping: [`docs/images/acr-mirror-naming.md`](images/acr-mirror-naming.md).
 - Complete pinned set (name/url/version/digest):
-  [`docs/images/images-mirror-stripped.yaml`](images/images-mirror-stripped.yaml).
+  [`docs/images/images-baseline.yaml`](images/images-baseline.yaml).
 - Migration/generation script:
   [`scripts/mirror-strip-registry.py`](../scripts/mirror-strip-registry.py).
 
@@ -332,7 +332,7 @@ References:
 
 1. **Re-import the ACR repos under the new names.** Coordinate with SSC-Hosting:
    the import pipeline must mirror each image to `<namespace>/<repo>` (see
-   `images-mirror-stripped.yaml`). Until a repo exists under its new name, pods
+   `images-baseline.yaml`). Until a repo exists under its new name, pods
    referencing it will `ImagePullBackOff`.
 2. **Migrate each gemeente `podiumd.yml`** with the script (dry-run first):
 
