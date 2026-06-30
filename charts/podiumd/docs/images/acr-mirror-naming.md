@@ -34,8 +34,10 @@ host from the upstream `url:`. The `name:` in an `images-*.yaml` manifest is
     from the legacy names below to the new ones (`--dry-run` diff by default,
     `--in-place` to write). Handles the inline, split (`registry:`+`repository:`)
     and `imageName:` shapes.
-- **Generated reference:** [`images-mirror-stripped.yaml`](images-mirror-stripped.yaml)
-  (every image, `name = strip_registry(url)`).
+- **Complete manifest:** [`images-baseline.yaml`](images-baseline.yaml)
+  (every image, `name = strip_registry(url)`). `--gen-manifest` regenerates the
+  per-release-delta subset; the long-stable gap-fillers in that file are
+  hand-maintained.
 
 > **Migration:** run the script against each `ExternalsPodiumD/.../podiumd.yml`
 > and re-import the affected ACR repos under the new names. The legacy table

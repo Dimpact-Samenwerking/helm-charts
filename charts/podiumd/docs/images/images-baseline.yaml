@@ -1,64 +1,55 @@
-# Baseline images — long-stable images that the per-release images-*.yaml deltas
-# never captured (they only list images NEW or CHANGED in a given release, so an
-# image that has not moved since before 4.5.16 — where tracking starts — is
-# absent from every delta and therefore from the aggregated mirror manifest).
+# Baseline images — the single, complete strip-registry mirror manifest.
 #
-# This file fills those gaps so scripts/mirror-strip-registry.py --gen-manifest
-# (which aggregates every images-*.yaml) emits a complete mirror list.
+# This is the authoritative list of every image PodiumD pulls, under the
+# strip-registry mirror convention:
+#   name = strip_registry(url): upstream url with the registry host removed,
+#   full <namespace>/<repo> path kept.
+# Versions are the tags pinned in charts/podiumd/values.yaml (or the owning
+# subchart). Digests are resolved live against the source registry
+# (Docker-Content-Digest / manifest_digest).
 #
-# name = strip_registry(url): upstream url with the registry host removed, full
-# <namespace>/<repo> path kept. Versions are the tags pinned in
-# charts/podiumd/values.yaml (or the owning subchart). Digests resolved live
-# against the source registry (Docker-Content-Digest / manifest_digest).
+# It supersedes the previously split files:
+#   * the per-release images-<version>.yaml deltas (NEW/CHANGED images per
+#     release — kept as historical record), and
+#   * the formerly generated images-mirror-stripped.yaml aggregate (removed).
 #
-# When one of these images is bumped in a future release, move its (updated)
-# entry into that release's images-<version>.yaml and drop it here.
+# Note: scripts/mirror-strip-registry.py --gen-manifest aggregates only the
+# per-release deltas; the long-stable gap-filler entries below (images that have
+# not moved since before 4.5.16, where delta tracking starts) are NOT reproduced
+# by that command and must be maintained here by hand.
 
-# Objects API (objecten) — chart pins maykinmedia/objects-api (English upstream;
-# the ACR repo is objects-api, NOT the Dutch "objecten-api").
-- name: maykinmedia/objects-api
-  url: docker.io/maykinmedia/objects-api
-  version: "3.6.0"
-  digest: "sha256:8b4ac4dd97c32b1bc250faf88ebae6229eccad6787dc9bd2932edbc0336265e2"
-
-# Open Klant
-- name: maykinmedia/open-klant
-  url: docker.io/maykinmedia/open-klant
-  version: "2.15.0"
-  digest: "sha256:ce59a2c60dab1c14e62fe34a99511839390dd2d482983c27334241e0d60c693d"
-
-# Open Notificaties — upstream is openzaak/open-notificaties (NOT maykinmedia/*).
-- name: openzaak/open-notificaties
-  url: docker.io/openzaak/open-notificaties
-  version: "1.16.0"
-  digest: "sha256:416f0949f6bf08f430b19ebfb3013963842e7ea59b2c3e4898782a8252a1257c"
-
-# ClamAV (open-inwoner upload virus scanning, opt-in since OIP 2.3.0)
+- name: adorsys/keycloak-config-cli
+  url: docker.io/adorsys/keycloak-config-cli
+  version: "6.5.1-26"
+  digest: "sha256:1b22dfaa9ae0c71f74b0342f9221a6510f272da5def683dbba26a98e6b1b1411"
+- name: alpine/k8s
+  url: docker.io/alpine/k8s
+  version: "1.36.2"
+  digest: "sha256:44ef4942e171939b9c665a4a84beb80e2dcdb9a24330d4651cfdfd2e9deecc47"
+- name: apache/apisix
+  url: docker.io/apache/apisix
+  version: "3.16.0-ubuntu"
+  digest: "sha256:5e47692cac00f2aca9d0b2b31cdf24445a7d975d6061626d269f47cc083a4b0e"
+- name: apache/solr-operator
+  url: docker.io/apache/solr-operator
+  version: "v0.9.1"
+  digest: "sha256:4db34508137f185d3cad03c7cf7c2b5d6533fb590822effcde9125cff5a90aa2"
+- name: brp-api/personen-mock
+  url: ghcr.io/brp-api/personen-mock
+  version: "2.7.0-202606230850"
+  digest: "sha256:2de5d45bd182196eb356f0621128cb340e0edf395705eb46e5fbdaccf12e76bf"
 - name: clamav/clamav
   url: docker.io/clamav/clamav
   version: "1.4.4"
   digest: "sha256:a52f45e42753dca691b6c9fd09fe68d6ca9ac22fa8cd6a8a45d9237e188049e3"
-
-# Postgres (keycloak realm-import init DB)
-- name: library/postgres
-  url: docker.io/library/postgres
-  version: "16"
-  digest: "sha256:fe03a7605299a34ddf5e4f285dff78c3d7190a576b3c6b46f2fcff69f4bffd54"
-
-# ECK operator (Elasticsearch on Kubernetes operator)
+- name: curlimages/curl
+  url: docker.io/curlimages/curl
+  version: "8.20.0"
+  digest: "sha256:b3f1fb2a51d923260350d21b8654bbc607164a987e2f7c84a0ac199a67df812a"
 - name: elastic/eck-operator
   url: docker.io/elastic/eck-operator
   version: "3.1.0"
   digest: "sha256:46e08ba3aed87431c909607cd6c29a5940f48f3ebc9f250bf84380059861684e"
-
-# OT (opstree) Redis operator — the redis-operator subchart's operator image
-# (chart 4.8.0 default redisOperator.imageTag v0.24.0). The redis-ha node image
-# opstree/redis and opstree/redis-exporter are already in the per-release deltas.
-- name: opstree/redis-operator
-  url: quay.io/opstree/redis-operator
-  version: "v0.24.0"
-  digest: "sha256:14d4d994523f43bd87f67001c934330a0d972812f403d8f34dea29ea295201b4"
-
 # Elasticsearch (ECK-managed cluster). Lives on docker.elastic.co, which has no
 # anonymous JSON tag API, so the digest must be resolved with a registry client
 # (crane/skopeo) and pinned here.
@@ -66,13 +57,172 @@
 - name: elasticsearch/elasticsearch
   url: docker.elastic.co/elasticsearch/elasticsearch
   version: "9.2.0"
-
+- name: etcd-development/etcd
+  url: gcr.io/etcd-development/etcd
+  version: "v3.5.18"
+  digest: "sha256:9079538aa6e9ff9a57b4d737ca1f03f978e7b9e8fe45bb91b19bd933deb98912"
+- name: gotenberg/gotenberg
+  url: docker.io/gotenberg/gotenberg
+  version: "8.33.0"
+  digest: "sha256:bddd8ea9d076e2d08b6ddaa6efae6403185202c6dab65a6488ed0a6923d6d8e8"
+- name: groundnuty/k8s-wait-for
+  url: ghcr.io/groundnuty/k8s-wait-for
+  version: "v2.0"
+  digest: "sha256:c14d7271e4013b24b34ef0d7144c4610577d0e9110ccc26b163fa28089fa1f4e"
 # PodiumD adapter (KISS contact stack). ghcr.io requires a bearer token even for
 # anonymous pulls, so the digest must be resolved with a registry client.
 # TODO digest: crane digest ghcr.io/icatt-menselijk-digitaal/podiumd-adapter:0.6.6
 - name: icatt-menselijk-digitaal/podiumd-adapter
   url: ghcr.io/icatt-menselijk-digitaal/podiumd-adapter
   version: "0.6.6"
+- name: infonl/zaakafhandelcomponent
+  url: ghcr.io/infonl/zaakafhandelcomponent
+  version: "5.0.1"
+  digest: "sha256:8c7844248b7decf56eafc0d2aca1f9e080f94e9bf2f6b6ac412589deb80d1659"
+- name: infonl/zgw-office-addin-backend
+  url: ghcr.io/infonl/zgw-office-addin-backend
+  version: "v0.9.313"
+  digest: "sha256:64d49e401de5005c5f2b61c68fac72f5d7ba4f640dca5288d21f82cf57bcc8fb"
+- name: infonl/zgw-office-addin-frontend
+  url: ghcr.io/infonl/zgw-office-addin-frontend
+  version: "v0.9.313"
+  digest: "sha256:02cbd45a83f09f89b85dcd040840f9fb3e9bbadf67282edd6d258697a68684c7"
+- name: interne-taak-afhandeling/internetaakafhandeling.poller
+  url: ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller
+  version: "3.2.0"
+  digest: "sha256:eee4567fd5bfaa7eb2ec13fa1a34cfabb402939ffdc79de8159f5dc00754bafb"
+- name: interne-taak-afhandeling/internetaakafhandeling.web
+  url: ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web
+  version: "3.2.0"
+  digest: "sha256:159489884a041ec9222e6e2a0f0c5ff2a70f93d7b7885fa19c6be2c59d658015"
+- name: keycloak/keycloak
+  url: quay.io/keycloak/keycloak
+  version: "26.6.3"
+  digest: "sha256:9b0330756022422149aa6502eb2def8cd47c6e1b000c7c65cdb13e7c0133e992"
+- name: keycloak/keycloak-operator
+  url: quay.io/keycloak/keycloak-operator
+  version: "26.6.3"
+  digest: "sha256:bd128cd63da5b1e64514903ced8def912a41a6ae63d1569fd39022c586680087"
+- name: klantinteractie-servicesysteem/kiss-elastic-sync
+  url: ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync
+  version: "0.3.3"
+  digest: "sha256:f26bd91d96ec8f1875e1ce7a2386788913240bc3b70a520926db444ba61e424c"
+- name: klantinteractie-servicesysteem/kiss-frontend
+  url: ghcr.io/klantinteractie-servicesysteem/kiss-frontend
+  version: "2.2.3"
+  digest: "sha256:a12276517ce7846e5ebe40373de8c4960fb41182958a668ad60254b088252252"
+- name: lachlanevenson/k8s-kubectl
+  url: docker.io/lachlanevenson/k8s-kubectl
+  version: "v1.25.4"
+  digest: "sha256:af5cea3f2e40138df90660c0c073d8b1506fb76c8602a9f48aceb5f4fb052ddc"
+- name: library/busybox
+  url: docker.io/library/busybox
+  version: "1.38.0-glibc"
+  digest: "sha256:3ba030337caebbfc2232b22b1e435eb213b28e5844a34942c74555bf904a265a"
+- name: library/postgres
+  url: docker.io/library/postgres
+  version: "16"
+  digest: "sha256:fe03a7605299a34ddf5e4f285dff78c3d7190a576b3c6b46f2fcff69f4bffd54"
+- name: library/python
+  url: docker.io/library/python
+  version: "3.14-slim"
+  digest: "sha256:8e4071294d046d45b31a902e02a8560a45c351898513b66ec659ca39fd30d170"
+- name: library/solr
+  url: docker.io/library/solr
+  version: "9.10.1-slim"
+  digest: "sha256:f5a742b9476c5608f318432fe142c2e8fe125a846c0ff0081681051e3b2d8eb4"
+- name: maykinmedia/objects-api
+  url: docker.io/maykinmedia/objects-api
+  version: "3.6.0"
+  digest: "sha256:8b4ac4dd97c32b1bc250faf88ebae6229eccad6787dc9bd2932edbc0336265e2"
+- name: maykinmedia/objecttypes-api
+  url: docker.io/maykinmedia/objecttypes-api
+  version: "3.4.2"
+  digest: "sha256:d366e6ede1bb924ea351495f4e88ceba53bb0df02fa5302929daef379131fda1"
+- name: maykinmedia/open-archiefbeheer
+  url: docker.io/maykinmedia/open-archiefbeheer
+  version: "2.0.0"
+  digest: "sha256:e5217d748869c62d26393311c3cfdcaacf69d8dde80ca3bc172ff41f3885f0ff"
+- name: maykinmedia/open-beheer
+  url: docker.io/maykinmedia/open-beheer
+  version: "0.9.0"
+  digest: "sha256:1a11b06dadb82c992468709b1aa92d0501aef6d526a7afb52bacac6917385166"
+- name: maykinmedia/open-inwoner
+  url: docker.io/maykinmedia/open-inwoner
+  version: "2.3.0"
+  digest: "sha256:c4537e620899365d64511d20529eb582e87cc2d4ab13b95e45524dbbe06d722d"
+- name: maykinmedia/open-klant
+  url: docker.io/maykinmedia/open-klant
+  version: "2.15.0"
+  digest: "sha256:ce59a2c60dab1c14e62fe34a99511839390dd2d482983c27334241e0d60c693d"
+- name: maykinmedia/referentielijsten-api
+  url: docker.io/maykinmedia/referentielijsten-api
+  version: "0.7.3"
+  digest: "sha256:66f3a3da2a086e41ee8dc216b52b65d8dca04a4160c04a90693de2e5cd6dfa5e"
+- name: nginxinc/nginx-unprivileged
+  url: docker.io/nginxinc/nginx-unprivileged
+  version: "1.31.1"
+  digest: "sha256:9f6b32064a29d747404d959e078c713a0523a9bd4e41f6912058126ebca94e61"
+- name: oauth2-proxy/oauth2-proxy
+  url: quay.io/oauth2-proxy/oauth2-proxy
+  version: "v7.7.1"
+  digest: "sha256:f6a4aa83a27e316114bf79664302b1ffb2cc8ce697fb479273af4feb3fb16fe3"
+- name: openformulieren/open-forms
+  url: docker.io/openformulieren/open-forms
+  version: "3.4.9"
+  digest: "sha256:55dc5644595d43a5412d60436aac846ce0d71b799be85c53ff815c31416f3e39"
+- name: openpolicyagent/opa
+  url: docker.io/openpolicyagent/opa
+  version: "1.17.1-static"
+  digest: "sha256:c29f8ee8dbe66608a1c04e9be84b04efc46877625e6b0877e559954565209efc"
+- name: openzaak/open-notificaties
+  url: docker.io/openzaak/open-notificaties
+  version: "1.16.0"
+  digest: "sha256:416f0949f6bf08f430b19ebfb3013963842e7ea59b2c3e4898782a8252a1257c"
+- name: openzaak/open-zaak
+  url: docker.io/openzaak/open-zaak
+  version: "1.27.2"
+  digest: "sha256:7f4826298b1bb28aca3f1f6d18fbad52238267eafc5253c68fb067f3afe8908e"
+- name: opstree/redis
+  url: quay.io/opstree/redis
+  version: "v8.6.2"
+  digest: "sha256:5f79911253cb74636e8e97555b08095902d46a835c6423adb123295b00ba70d7"
+- name: opstree/redis-exporter
+  url: quay.io/opstree/redis-exporter
+  version: "v1.82.0"
+  digest: "sha256:bce422b4bba8721bef04d5ca491eeec2b53278698b4bd9790f81fbb287cdfe88"
+- name: opstree/redis-operator
+  url: quay.io/opstree/redis-operator
+  version: "v0.24.0"
+  digest: "sha256:14d4d994523f43bd87f67001c934330a0d972812f403d8f34dea29ea295201b4"
+- name: platform-autorisatie-beheer-component/pabc-api
+  url: ghcr.io/platform-autorisatie-beheer-component/pabc-api
+  version: "1.1.0"
+  digest: "sha256:66e83416f41d546eba8b6a7f2ea061da2d293fab6b9e22f129934127f4c31b3d"
+- name: platform-autorisatie-beheer-component/pabc-migrations
+  url: ghcr.io/platform-autorisatie-beheer-component/pabc-migrations
+  version: "1.1.0"
+  digest: "sha256:0f73051e64ebcd6ac5c169630fde4cb7ef3a39376ffb840e407158728685f83c"
+- name: pravega/zookeeper
+  url: docker.io/pravega/zookeeper
+  version: "0.2.15"
+  digest: "sha256:c498ebfb76a66f038075e2fa6148528d74d31ca1664f3257fdf82ee779eec9c8"
+- name: pravega/zookeeper-operator
+  url: docker.io/pravega/zookeeper-operator
+  version: "0.2.15"
+  digest: "sha256:b2bc4042fdd8fea6613b04f2f602ba4aff1201e79ba35cd0e2df9f3327111b0e"
+- name: sergeymakinen/clamav_exporter
+  url: docker.io/sergeymakinen/clamav_exporter
+  version: "v2.1.3"
+  digest: "sha256:a0b90ec0eecbd4e34201c5f1eda0045959adb5c7f0b6371bb1345fbfcd8bfc8d"
+- name: wearefrank/zaakbrug
+  url: docker.io/wearefrank/zaakbrug
+  version: "1.26.14"
+  digest: "sha256:efefcb1bafb6665bde3480ba84faa50144ffde2b3bbca4867fdfda6eca1b0155"
+- name: worthnl/notifynl-omc
+  url: docker.io/worthnl/notifynl-omc
+  version: "1.17.19"
+  digest: "sha256:fdaabe81d6974dc2170d5383e604c15d76febd0a3563362a6827e437f04b398b"
 
 # NOT INCLUDED — need a separate decision, do not add blind:
 #   * bitnami/rabbitmq (+ bitnami/os-shell): opennotificaties 1.13.1 still enables
@@ -84,4 +234,4 @@
 #     gemeente values was dead config — no chart/subchart template ever reads
 #     .Values.kiss.alpine.image, so it was never pulled (removed from all envs).
 #     The real alpine image is alpine/k8s (redis-ha label-master + pre-delete
-#     jobs), already pinned (1.36.2) and present in the manifest.
+#     jobs), already pinned (1.36.2) and present in the manifest above.
