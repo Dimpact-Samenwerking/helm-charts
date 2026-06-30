@@ -53,10 +53,10 @@ LEGACY_UPSTREAM: dict[str, str] = {
     "apisix": "docker.io/apache/apisix",
     "busybox": "docker.io/library/busybox",
     "clamav": "docker.io/clamav/clamav",
-    "clamav_exporter": "docker.io/clamav/clamav-prometheus-exporter",  # best-guess
-    "contact-adapter": "ghcr.io/info-nl/contact-adapter",  # best-guess
-    "contact-frontend": "ghcr.io/info-nl/contact-frontend",  # best-guess
-    "contact-sync": "ghcr.io/info-nl/contact-sync",  # best-guess
+    "clamav_exporter": "docker.io/sergeymakinen/clamav_exporter",
+    "contact-adapter": "ghcr.io/icatt-menselijk-digitaal/podiumd-adapter",
+    "contact-frontend": "ghcr.io/klantinteractie-servicesysteem/kiss-frontend",
+    "contact-sync": "ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync",
     "curl": "docker.io/curlimages/curl",
     "eck-operator": "docker.io/elastic/eck-operator",
     "elasticsearch/elasticsearch": "docker.io/elastic/elasticsearch",
@@ -71,12 +71,12 @@ LEGACY_UPSTREAM: dict[str, str] = {
     "k8s-kubectl": "docker.io/lachlanevenson/k8s-kubectl",
     "k8s-wait-for": "docker.io/groundnuty/k8s-wait-for",
     "keycloak": "quay.io/keycloak/keycloak",
-    "keycloak-config-cli": "quay.io/keycloak/keycloak-config-cli",  # best-guess
+    "keycloak-config-cli": "docker.io/adorsys/keycloak-config-cli",
     "keycloak-operator": "quay.io/keycloak/keycloak-operator",
     "kibana/kibana": "docker.io/elastic/kibana",
     "nginx-unprivileged": "docker.io/nginxinc/nginx-unprivileged",
     "nginx": "docker.io/library/nginx",
-    "objecten": "docker.io/maykinmedia/objecten-api",
+    "objecten": "docker.io/maykinmedia/objects-api",
     "objecttypen": "docker.io/maykinmedia/objecttypes-api",
     "oauth2-proxy": "quay.io/oauth2-proxy/oauth2-proxy",
     "opa": "docker.io/openpolicyagent/opa",
@@ -86,16 +86,16 @@ LEGACY_UPSTREAM: dict[str, str] = {
     "openformulieren": "docker.io/openformulieren/open-forms",
     "openinwoner": "docker.io/maykinmedia/open-inwoner",
     "openklant": "docker.io/maykinmedia/open-klant",
-    "opennotificaties": "docker.io/maykinmedia/open-notificaties",
+    "opennotificaties": "docker.io/openzaak/open-notificaties",
     "openzaak": "docker.io/openzaak/open-zaak",
     "opentelemetry-collector-contrib": "ghcr.io/open-telemetry/opentelemetry-collector-contrib",
-    "pabc-api": "ghcr.io/info-nl/pabc-api",  # best-guess
-    "pabc-migrations": "ghcr.io/info-nl/pabc-migrations",  # best-guess
-    "personen-mock": "docker.io/brpapi/personen-mock",  # best-guess
+    "pabc-api": "ghcr.io/platform-autorisatie-beheer-component/pabc-api",
+    "pabc-migrations": "ghcr.io/platform-autorisatie-beheer-component/pabc-migrations",
+    "personen-mock": "ghcr.io/brp-api/personen-mock",
     "rabbitmq": "docker.io/bitnami/rabbitmq",
     "redis": "docker.io/library/redis",
     "redis-exporter": "docker.io/oliver006/redis_exporter",
-    "redis-operator": "docker.io/spotahome/redis-operator",
+    "redis-operator": "quay.io/opstree/redis-operator",
     "referentielijsten-api": "docker.io/maykinmedia/referentielijsten-api",
     "solr": "docker.io/library/solr",
     "solr-operator": "docker.io/apache/solr-operator",
