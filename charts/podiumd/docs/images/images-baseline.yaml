@@ -38,6 +38,12 @@
   url: ghcr.io/brp-api/personen-mock
   version: "2.7.0-202606230850"
   digest: "sha256:2de5d45bd182196eb356f0621128cb340e0edf395705eb46e5fbdaccf12e76bf"
+# 202508211438 still the brp-personen-mock subchart default (lags 202606230850);
+# keep mirrored until the subchart dependency is bumped.
+- name: brp-api/personen-mock
+  url: ghcr.io/brp-api/personen-mock
+  version: "2.7.0-202508211438"
+  digest: "sha256:43062e9200a1ae7cb92f1830acf0ab7ca19272dea0756400caaeb4748bed9fa5"
 - name: clamav/clamav
   url: docker.io/clamav/clamav
   version: "1.4.4"
