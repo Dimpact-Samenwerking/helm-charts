@@ -111,6 +111,15 @@ LEGACY_UPSTREAM: dict[str, str] = {
 
 DEFAULT_REGISTRY = "acrprodmgmt.azurecr.io"
 
+# Upstream urls that older per-release manifests still list but which have been
+# renamed/replaced and must NOT appear in the aggregated mirror manifest.
+# The office add-in repo was renamed `zgw-office-add-in-*` -> `zgw-office-addin-*`
+# (hyphen dropped); only the new no-dash variant should be mirrored.
+DEPRECATED_URLS: set[str] = {
+    "ghcr.io/infonl/zgw-office-add-in-backend",
+    "ghcr.io/infonl/zgw-office-add-in-frontend",
+}
+
 
 def strip_registry(url: str) -> str:
     """Drop the leading registry host from an image url, keep the rest.
@@ -197,6 +206,8 @@ def cmd_gen_manifest() -> None:
     by_url: dict[str, dict[str, str]] = {}  # url -> entry; later (newer) file wins
     for f in files:
         for e in _parse_manifest(f):
+            if e["url"] in DEPRECATED_URLS:
+                continue  # renamed/replaced upstream; never mirror
             by_url[e["url"]] = e
 
     print("# Images manifest - strip-registry mirror convention.")
