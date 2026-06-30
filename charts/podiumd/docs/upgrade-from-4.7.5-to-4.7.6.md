@@ -80,6 +80,34 @@ documented in [`upgrade-from-4.7.3-to-4.7.4.md`](upgrade-from-4.7.3-to-4.7.4.md)
 [`openarchiefbeheer-known-issues.md`](openarchiefbeheer-known-issues.md) for
 other OAB configuration traps.
 
+### Open Formulieren — outgoing request logging re-enabled (revert of 4.7.4)
+
+4.7.4 introduced `LOG_OUTGOING_REQUESTS=False` in `openformulieren.extraEnvVars` to
+disable outgoing/external HTTP request logging by default. After further analysis this
+override is **removed in 4.7.6**, reverting Open Formulieren to the upstream default
+(`LOG_OUTGOING_REQUESTS=True` — logging enabled).
+
+After upgrading, Open Formulieren pods will restart and outgoing requests will be
+logged again (both the stdout handler and, if configured, the DB-save handler).
+
+#### Action required
+
+Operators who want to **keep outgoing request logging disabled** (the 4.7.4 behaviour)
+must add the override in their per-gemeente `podiumd.yml`:
+
+```yaml
+openformulieren:
+  extraEnvVars:
+    - name: LOG_OUTGOING_REQUESTS
+      value: "False"
+```
+
+No action is needed if logging outgoing requests is acceptable.
+
+See [`upgrade-from-4.7.3-to-4.7.4.md`](upgrade-from-4.7.3-to-4.7.4.md) for the full
+background on what `LOG_OUTGOING_REQUESTS` controls and how the DB-save handler
+interacts with it.
+
 ### Open Beheer ↔ Objecttypen API token (IN-2345)
 
 Open Beheer reads object types from the **Objecttypen API** and authenticates
