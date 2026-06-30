@@ -6,11 +6,49 @@ Images are mirrored from public registries into ACR by the SSC-Hosting
 import pipeline, which reads the per-release `charts/podiumd/docs/images/images-*.yaml`
 manifests.
 
-**The `name:` field in those manifests is the ACR mirror repo name, not the
-upstream image name.** The upstream image lives at `url:`. There is no single
-rule that derives one from the other — drop-namespace, drop-hyphen, and
-Dutch-rename all occur. Always look up the existing mirror name in this table
-before adding a new entry.
+## Convention (current): strip the registry, keep the full upstream path
+
+The ACR mirror repo name is the **upstream image reference with only the
+registry host stripped** — the full `<namespace>/<repo>` path is kept verbatim.
+No drop-namespace, no drop-hyphen, no Dutch-rename. The rule is mechanical:
+
+```
+quay.io/keycloak/keycloak            -> keycloak/keycloak
+docker.io/maykinmedia/open-inwoner   -> maykinmedia/open-inwoner
+ghcr.io/infonl/zaakafhandelcomponent -> infonl/zaakafhandelcomponent
+docker.io/library/redis              -> library/redis
+```
+
+So the mirrored image is `<global.imageRegistry>/<namespace>/<repo>:<tag>`,
+e.g. `acrprodmgmt.azurecr.io/maykinmedia/open-inwoner:2.3.0`.
+
+For any **new** image there is nothing to look up — just strip the registry
+host from the upstream `url:`. The `name:` in an `images-*.yaml` manifest is
+`strip_registry(url)`.
+
+### Tooling
+
+- **Script:** [`charts/podiumd/scripts/mirror-strip-registry.py`](../../scripts/mirror-strip-registry.py)
+  - `--gen-manifest` prints `name:`/`url:` for every image under this convention.
+  - `mirror-strip-registry.py <gemeente>/podiumd.yml` migrates a values file
+    from the legacy names below to the new ones (`--dry-run` diff by default,
+    `--in-place` to write). Handles the inline, split (`registry:`+`repository:`)
+    and `imageName:` shapes.
+- **Generated reference:** [`images-mirror-stripped.yaml`](images-mirror-stripped.yaml)
+  (every image, `name = strip_registry(url)`).
+
+> **Migration:** run the script against each `ExternalsPodiumD/.../podiumd.yml`
+> and re-import the affected ACR repos under the new names. The legacy table
+> below is **frozen** — kept only as the old-name → upstream reference the
+> migration relies on. It is **not** maintained for new images; do not add rows.
+
+---
+
+## Legacy translation table (deprecated — migration reference only)
+
+> ⚠️ Superseded by the strip-registry convention above. These were the old,
+> hand-translated ACR names (drop-namespace / drop-hyphen / Dutch-rename). Use
+> only to map an existing environment off the old scheme.
 
 ## Authoritative source
 
