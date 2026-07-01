@@ -879,8 +879,14 @@ opennotificaties:
     celery:
       # -- Set to debug for test/acceptance environments
       logLevel: warning
-    messageBroker:
-      celeryResultBackend: redis://redis-ha-master.podiumd.svc.cluster.local:6379/6
+      # RabbitMQ removed in chart 2.0.0 / app 1.16.0 — Celery broker, result backend and
+      # publish broker all use the shared redis-ha cluster (db6 = opennotificaties slot).
+      # NOTE: subchart 2.0.0 expects settings.celery.{brokerUrl,resultBackend,publishBrokerUrl};
+      # the previous settings.messageBroker.celeryResultBackend key was ignored, leaving
+      # CELERY_BROKER_URL empty -> defaulted to amqp://127.0.0.1:5672 (no RabbitMQ) -> worker crashloop.
+      brokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/6
+      resultBackend: redis://redis-ha-master.podiumd.svc.cluster.local:6379/6
+      publishBrokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/6
   persistence:
     size: 10Gi
     existingClaim: opennotificaties
