@@ -389,7 +389,7 @@ prometheus-pushgateway:
   image:
     repository: quay.io/prometheus/pushgateway
     pullPolicy: IfNotPresent
-    tag: v1.11.1
+    tag: v1.11.3
 
 alloy:
   enabled: true
