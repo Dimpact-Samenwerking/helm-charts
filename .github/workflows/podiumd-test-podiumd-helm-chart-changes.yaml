@@ -14,25 +14,32 @@ jobs:
 
     - name: install helm
       uses: azure/setup-helm@v5.0.1
-    
+
     - name: add required helm repository
       shell: bash
-      run: | 
+      run: |
         helm repo add dimpact https://Dimpact-Samenwerking.github.io/helm-charts/
         helm repo add kiss-elastic https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/.github/main/docs/scripts/elastic
         helm repo add maykinmedia https://maykinmedia.github.io/charts/
         helm repo add zgw-office-addin https://infonl.github.io/zgw-office-addin
+        helm repo add zac https://infonl.github.io/dimpact-zaakafhandelcomponent/
+        helm repo add worth-nl https://worth-nl.github.io/helm-charts
         helm repo add adfinis https://charts.adfinis.com
         helm repo add wiremind https://wiremind.github.io/wiremind-helm-charts
         helm repo add opstree https://ot-container-kit.github.io/helm-charts/
         helm repo add apisix https://charts.apiseven.com
-    
+
     - name: bake deployment
       id: bake
       uses: azure/k8s-bake@v4
       with:
         renderEngine: "helm"
         releaseName: github-test
-        helmChart: 'charts/podiumd'        
+        helmChart: 'charts/podiumd'
         namespace: podiumd
-        
+        # k8s-bake runs `helm dependency update` then `helm template ... -f <overrideFiles>`.
+        # ci/lint-values.yaml supplies dummy secrets/URLs so schema + `required`/`fail`
+        # template guards pass without real values (same file used by `helm lint`).
+        overrideFiles: |
+          charts/podiumd/ci/lint-values.yaml
+
