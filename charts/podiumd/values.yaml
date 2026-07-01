@@ -3252,7 +3252,7 @@ serviceAccount:
   name: ""
 
 pabc:
-  enabled: false
+  enabled: true
   fullnameOverride: "pabc"
   postgresql:
     enabled: false
