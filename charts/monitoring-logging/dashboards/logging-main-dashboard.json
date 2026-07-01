@@ -597,6 +597,88 @@
         "x": 0,
         "y": 7
       },
+      "id": 126,
+      "panels": [],
+      "title": "Alerts",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "description": "in %",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "max": 1,
+          "min": 0,
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 3,
+        "x": 0,
+        "y": 8
+      },
+      "id": 125,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0-17814087142",
+      "targets": [
+        {
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "1 - sum(\n    count_over_time (\n        {app=\"openformulieren-worker\"}\n        |= \"registration\"\n        | json event=\"event\", action=\"action\"\n        | event = `registration_success` \n        | action = `registrations.main_registration`\n        [1h]\n    )\n) / sum(\n    count_over_time (\n        {app=\"openformulieren\"}\n        |= \"submission_completed\"\n        | json event\n        | event = `submission_completed` \n        [1h]\n    )\n)",
+          "queryType": "instant",
+          "refId": "A"
+        }
+      ],
+      "title": "OF failure rate for 1h",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 11
+      },
       "id": 102,
       "panels": [],
       "title": "Detailed summary",
