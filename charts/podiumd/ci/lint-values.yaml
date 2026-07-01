@@ -24,6 +24,21 @@ zac:
   auth:
     secret: "placeholder"
 
+# zgw-office-addin ships empty defaults that trip its values.schema.json
+# (format: uri) and `required` template guards. Real deploys inject these via
+# the gemeente values pipeline; these placeholders satisfy the schema so a
+# bare chart render/lint passes. Note: msalSecret lives under `backend`.
+zgw-office-addin:
+  common:
+    frontendUrl: "https://placeholder.example.com"
+    msalClientId: "placeholder"
+    msalTenantId: "placeholder"
+  backend:
+    msalSecret: "placeholder"
+    zgwApis:
+      url: "https://placeholder.example.com"
+      secret: "placeholder"
+
 keycloak:
   auth:
     adminPassword: "placeholder"
