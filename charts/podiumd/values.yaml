@@ -2114,7 +2114,7 @@ referentielijsten:
   image:
     repository: maykinmedia/referentielijsten-api
     pullPolicy: IfNotPresent
-    tag: "0.7.2@sha256:f7f0f25b180a3746e1bf3df81fe19e4ea509428edea1d93831262a67c81f5f9d"
+    tag: "0.7.3@sha256:66f3a3da2a086e41ee8dc216b52b65d8dca04a4160c04a90693de2e5cd6dfa5e"
 
   settings:
     allowedHosts: "referentielijsten-nginx.podiumd.svc.cluster.local"
