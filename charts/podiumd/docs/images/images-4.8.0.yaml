@@ -143,3 +143,12 @@
   url: docker.io/library/python
   version: "3.14-slim"
   digest: "sha256:8e4071294d046d45b31a902e02a8560a45c351898513b66ec659ca39fd30d170"
+
+# OT redis-operator (controller) — v0.24.0 -> v0.25.0
+# 0.25.0 includes PR #1720 (crash-loop fix on simultaneous RedisReplication
+# pod restart) and #1725 (persist sentinel.conf). The redis (v8.6.2) and
+# redis-exporter (v1.82.0) images are unchanged vs 4.7.3 and are omitted here.
+- name: redis-operator
+  url: quay.io/opstree/redis-operator
+  version: "v0.25.0"
+  digest: "sha256:d905da8b418228b100ead45965da835f3bed8c59fa069423a9a002b62942c940"
