@@ -1110,6 +1110,11 @@ objecttypen:
     #         organization: Organization 1
     #         application: Application 1
     #         administration: Administration 1
+    #       # IN-2345: this token MUST equal the 'Token <...>' value in the
+    #       # openbeheer objecttypen-service header (same OBJECTTYPEN_OPENBEHEER_TOKEN
+    #       # secret on both sides). Only enable this entry when openbeheer is
+    #       # enabled AND the secret is provisioned — the objecttypen-config Job
+    #       # validates strictly and fails on an unsubstituted REP_..._REP placeholder.
     #       - identifier: openbeheer-token
     #         token: {value_from: {env: objecttypen_openbeheer_token}}
     #         contact_person: Open Beheer
@@ -1279,7 +1284,7 @@ openarchiefbeheer:
     #     # docs/upgrade-from-4.7.3-to-4.7.4.md.
     #     - identifier: openklant-api
     #       label: Klanten API
-    #       api_root: https://opeklant.example.com/klantinteracties/api/v1/
+    #       api_root: https://openklant.example.com/klantinteracties/api/v1/
     #       api_type: kc
     #       auth_type: api_key
     #       header_key: Authorization
@@ -1559,15 +1564,8 @@ openklant:
     disabled: true
 
 openformulieren:
-  # override: values-enable-observability.yaml adds a settings.otel block to enable OTEL
-  # -- Outgoing/external HTTP request logging — disabled by default (since 4.7.4)
-  #    via the master switch LOG_OUTGOING_REQUESTS=False, which empties the
-  #    logging handlers (no emit AND no DB save). LOG_OUTGOING_REQUESTS_DB_SAVE is
-  #    left at its upstream default. The chart exposes no structured key, so this
-  #    is set via extraEnvVars. See docs/upgrade-from-4.7.3-to-4.7.4.md.
-  extraEnvVars:
-    - name: LOG_OUTGOING_REQUESTS
-      value: "False"
+  # revert: verwijder LOG_OUTGOING_REQUESTS override (defaults True)
+  # NAV verdere analyse is request logging wel gewenst !
   configuration:
     enabled: true
     job:

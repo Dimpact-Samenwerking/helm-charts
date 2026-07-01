@@ -7,7 +7,7 @@ files required for each hop, and which guides are reference-only.
 ## Official upgrade path
 
 ```
-4.5.15 ─▶ 4.5.16 ─▶ 4.6.4 ─▶ 4.6.8 ─▶ 4.7.3 ─▶ 4.7.4
+4.5.15 ─▶ 4.5.16 ─▶ 4.6.4 ─▶ 4.6.8 ─▶ 4.7.3 ─▶ 4.7.4 ─▶ 4.7.5 ─▶ 4.7.6
 ```
 
 Upgrade one hop at a time, in order. Each hop has exactly **one** upgrade guide
@@ -20,6 +20,8 @@ and a matching image manifest (the ACR-mirror set for that hop):
 | 4.6.4 → 4.6.8   | [`upgrade-from-4.6.4-to-4.6.8.md`](upgrade-from-4.6.4-to-4.6.8.md)   | [`images/images-4.6.8.yaml`](images/images-4.6.8.yaml) |
 | 4.6.8 → 4.7.3   | [`upgrade-from-4.6.8-to-4.7.3.md`](upgrade-from-4.6.8-to-4.7.3.md)   | 4.7 chain: [`images-4.7.0`](images/images-4.7.0.yaml) · [`4.7.1`](images/images-4.7.1.yaml) · [`4.7.2`](images/images-4.7.2.yaml) · [`4.7.3`](images/images-4.7.3.yaml) |
 | 4.7.3 → 4.7.4   | [`upgrade-from-4.7.3-to-4.7.4.md`](upgrade-from-4.7.3-to-4.7.4.md)   | [`images/images-4.7.4.yaml`](images/images-4.7.4.yaml) |
+| 4.7.4 → 4.7.5   | [`upgrade-from-4.7.4-to-4.7.5.md`](upgrade-from-4.7.4-to-4.7.5.md)   | [`images/images-4.7.5.yaml`](images/images-4.7.5.yaml) |
+| 4.7.5 → 4.7.6   | [`upgrade-from-4.7.5-to-4.7.6.md`](upgrade-from-4.7.5-to-4.7.6.md)   | — (docs/config only, no image changes) |
 
 > The 4.6.4 → 4.6.8 and 4.6.8 → 4.7.3 guides are **consolidated**: each folds
 > several intermediate releases into one document so an operator reads one
