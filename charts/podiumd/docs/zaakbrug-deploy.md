@@ -286,6 +286,58 @@ CNAME resolves.
 
 ---
 
+## Console login and access
+
+**The zaakbrug console has no local username or password.** Authentication is
+delegated to Keycloak via OAuth2 SSO (the `frank.environmentVariables` block in
+step 3b). Users log in with their **normal Keycloak account** in the `podiumd`
+realm — the same identity they use for the other PodiumD applications. The chart
+does not provision any standalone console credential.
+
+Do not confuse these secrets with a login — none of them is a human password:
+
+| Secret | What it is | Not |
+|---|---|---|
+| `zaakbrug-oauth-client-secret` | OAuth2 *client* secret (app ↔ Keycloak) | a user password |
+| `zaakbrug` (DB) | Postgres password for the `zaakbrug` DB user | a console login |
+| `zaakbrug-zaken-api-jwt-password` | JWT for outbound Zaken-API calls | a console login |
+
+### Who can log in
+
+Access is gated by **Keycloak client roles** on the `zaakbrug` client. A user
+only reaches the console if their account holds one of the mapped client roles
+(step 6). The role travels in the `roles` claim (client-role → top-level `roles`
+protocol mapper, step 3a); Frank reads it via `authoritiesClaimName=roles` and
+resolves the console role through `RoutingProfiles.json` /
+`oauth-role-mapping.properties`:
+
+| Keycloak `zaakbrug` client role | Frank console role | Grants |
+|---|---|---|
+| `administrators` | `IbisAdmin` | full admin |
+| `zaakbrug_admin` | `IbisTester` | test/observe |
+| `dataadmin` | `IbisDataAdmin` | data admin |
+
+A Keycloak user **without** one of these roles authenticates successfully but is
+denied by Frank (no matching routing profile).
+
+### Grant a user access
+
+In the Keycloak admin console for the `podiumd` realm:
+
+1. **Clients → `zaakbrug` → Roles** — confirm `administrators` / `zaakbrug_admin`
+   / `dataadmin` exist (seeded by the realm import, step 6).
+2. **Users → _<user>_ → Role mapping → Assign role** — filter by the `zaakbrug`
+   client and assign the appropriate client role (directly, or via a group /
+   composite realm role your gemeente already uses).
+3. The user opens `https://<env>-zaakbrug.<gemeente-domain>/iaf/gui`, is
+   redirected to Keycloak, and logs in with **their own Keycloak username and
+   password**. After consent they land in the console with the mapped role.
+
+> There is no break-glass local account. If Keycloak is unreachable the console
+> cannot be logged into — this is by design.
+
+---
+
 ## Troubleshooting
 
 ### Console opens with system information, no Keycloak login
