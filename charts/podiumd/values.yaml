@@ -3272,17 +3272,23 @@ pabc:
   fullnameOverride: "pabc"
   postgresql:
     enabled: false
+  # Image repositories pinned to ACR: the pabc subchart 1.1.0 templates images
+  # literally (no global.imageRegistry support) and AKS Gatekeeper only allows
+  # acrprodmgmt.azurecr.io/*. Mirror pabc-api/pabc-migrations:1.1.0 +
+  # k8s-wait-for:v2.0 (see docs/images/images-4.8.0.yaml).
   image:
+    repository: acrprodmgmt.azurecr.io/platform-autorisatie-beheer-component/pabc-api
     tag: 1.1.0
   nodeSelector: {}
   migrations:
     image:
+      repository: acrprodmgmt.azurecr.io/platform-autorisatie-beheer-component/pabc-migrations
       tag: 1.1.0
     nodeSelector: {}
   initContainers:
     waitFor:
       image:
-        repository: "ghcr.io/groundnuty/k8s-wait-for"
+        repository: acrprodmgmt.azurecr.io/groundnuty/k8s-wait-for
         tag: "v2.0"
         pullPolicy: IfNotPresent
 

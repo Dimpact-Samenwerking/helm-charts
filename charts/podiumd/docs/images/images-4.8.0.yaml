@@ -175,3 +175,28 @@
   url: docker.io/clamav/clamav
   version: "1.5.2"
   digest: "sha256:c17762a00ba24dce4cf822fdc6f5bdfaa6e3ba152efc734d545b9a68be5641da"
+
+# Open Notificaties — chart opennotificaties 1.13.1 -> 2.0.0 (appVersion 1.16.0).
+#   RabbitMQ subchart removed; Celery broker + result backend now use the shared
+#   redis-ha cluster (see upgrade notes: required celery/messageBroker keys).
+- name: openzaak/open-notificaties
+  url: docker.io/openzaak/open-notificaties
+  version: "1.16.0"
+  digest: "sha256:416f0949f6bf08f430b19ebfb3013963842e7ea59b2c3e4898782a8252a1257c"
+
+# PABC — enabled by default in 4.8.0 (was per-gemeente); pabc-api + pabc-migrations
+#   1.0.0 -> 1.1.0. Subchart 1.1.0 templates images literally (no global.imageRegistry),
+#   so all repos are pinned to acrprodmgmt.azurecr.io in values.yaml. k8s-wait-for is
+#   NEW to the ACR mirror set (pabc-wait-for-migrations init container).
+- name: platform-autorisatie-beheer-component/pabc-api
+  url: ghcr.io/platform-autorisatie-beheer-component/pabc-api
+  version: "1.1.0"
+  digest: "sha256:66e83416f41d546eba8b6a7f2ea061da2d293fab6b9e22f129934127f4c31b3d"
+- name: platform-autorisatie-beheer-component/pabc-migrations
+  url: ghcr.io/platform-autorisatie-beheer-component/pabc-migrations
+  version: "1.1.0"
+  digest: "sha256:0f73051e64ebcd6ac5c169630fde4cb7ef3a39376ffb840e407158728685f83c"
+- name: groundnuty/k8s-wait-for
+  url: ghcr.io/groundnuty/k8s-wait-for
+  version: "v2.0"
+  digest: "sha256:c14d7271e4013b24b34ef0d7144c4610577d0e9110ccc26b163fa28089fa1f4e"
