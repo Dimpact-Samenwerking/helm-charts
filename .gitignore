@@ -3,9 +3,10 @@
 /charts/**/charts/
 /charts/**/Chart.lock
 /http-client.private.env.json
-# Claude Code local settings (track .claude/commands/ only)
+# Claude Code local settings (track .claude/commands/ and .claude/memory/ only)
 .claude/*
 !.claude/commands/
+!.claude/memory/
 
 # Local-only operator scripts (per-engineer Azure context, not chart artifacts)
 /charts/podiumd/scripts/cluster-status.sh

@@ -1,0 +1,154 @@
+# Images new or changed in podiumd 4.8.0 vs 4.7.3.
+#
+# Changes in this release:
+#   1. Open Inwoner Platform (OIP) 2.1.2 -> 2.3.0.
+#      * Helm chart openinwoner 2.1.3 -> 2.2.0 (appVersion 2.3.0).
+#      * Image tag pin in charts/podiumd/values.yaml: openinwoner.image.tag
+#        "2.1.2" -> "2.3.0".
+#      Spans two upstream releases:
+#        - 2.2.0 (2026-04-20): Django CMS v3 -> v4 (one-time `cms4_migration`,
+#          run by the chart's cms4MigrationInitContainer), Elasticsearch HTTP
+#          basic auth, BRP_VERSION env -> admin-configurable field (auto-migrated).
+#        - 2.3.0 (2026-05-29): ClamAV virus scanning of uploads (opt-in),
+#          ZGW cache-warmup timeouts + dedicated low-latency Celery worker.
+#   2. ZAC (zaakafhandelcomponent) 4.7.2 -> 5.0.1 (major version bump).
+#      * Helm chart zaakafhandelcomponent 1.0.228 -> 1.0.251.
+#      * Breaking API changes: featureFlags.pabcIntegration removed;
+#        brpApi.apiKey changed from string to {header, value} object.
+#      * Sub-image bumps: nginx-unprivileged 1.30.2->1.31.1, gotenberg
+#        8.31.0->8.33.0, OPA 1.15.2-static->1.17.1-static,
+#        busybox 1.37.0-glibc->1.38.0-glibc.
+#   3. Renovate-integrated bumps: alpine/k8s 1.34.7->1.36.2,
+#      keycloak-config-cli 6.5.0-26->6.5.1-26.
+#
+# See docs/upgrade-from-4.7.3-to-4.8.0.md for the operator upgrade notes.
+#
+# Mirror names: `openinwoner` (no hyphen), `zac` (renamed from
+# zaakafhandelcomponent), `nginx-unprivileged` (keeps hyphen), `gotenberg`,
+# `opa`, `busybox`. See docs/images/acr-mirror-naming.md.
+
+# Open Inwoner Platform (OIP) — 2.1.2 -> 2.3.0
+- name: openinwoner
+  url: docker.io/maykinmedia/open-inwoner
+  version: "2.3.0"
+  digest: "sha256:c4537e620899365d64511d20529eb582e87cc2d4ab13b95e45524dbbe06d722d"
+
+# KISS frontend — 2.2.2 -> 2.2.3
+
+- name: contact-frontend
+  url: ghcr.io/klantinteractie-servicesysteem/kiss-frontend
+  version: "2.2.3"
+  digest: "sha256:a12276517ce7846e5ebe40373de8c4960fb41182958a668ad60254b088252252"
+- name: contact-sync
+  url: ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync
+  version: "0.3.3"
+  digest: "sha256:f26bd91d96ec8f1875e1ce7a2386788913240bc3b70a520926db444ba61e424c"
+
+# ITA — 3.1.0 -> 3.2.0
+- name: internetaakafhandeling.web
+  url: ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web
+  version: "3.2.0"
+  digest: "sha256:159489884a041ec9222e6e2a0f0c5ff2a70f93d7b7885fa19c6be2c59d658015"
+- name: internetaakafhandeling.poller
+  url: ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller
+  version: "3.2.0"
+  digest: "sha256:eee4567fd5bfaa7eb2ec13fa1a34cfabb402939ffdc79de8159f5dc00754bafb"
+
+# ZAC — 4.7.2 -> 5.0.1
+- name: zac
+  url: ghcr.io/infonl/zaakafhandelcomponent
+  version: "5.0.1"
+  digest: "sha256:8c7844248b7decf56eafc0d2aca1f9e080f94e9bf2f6b6ac412589deb80d1659"
+
+# nginx-unprivileged — 1.30.2 -> 1.31.1 (all components)
+- name: nginx-unprivileged
+  url: docker.io/nginxinc/nginx-unprivileged
+  version: "1.31.1"
+  digest: "sha256:9f6b32064a29d747404d959e078c713a0523a9bd4e41f6912058126ebca94e61"
+
+# ZAC - Gotenberg (office converter) — 8.31.0 -> 8.33.0
+- name: gotenberg
+  url: docker.io/gotenberg/gotenberg
+  version: "8.33.0"
+  digest: "sha256:bddd8ea9d076e2d08b6ddaa6efae6403185202c6dab65a6488ed0a6923d6d8e8"
+
+# ZAC - Open Policy Agent — 1.15.2-static -> 1.17.1-static
+- name: opa
+  url: docker.io/openpolicyagent/opa
+  version: "1.17.1-static"
+  digest: "sha256:c29f8ee8dbe66608a1c04e9be84b04efc46877625e6b0877e559954565209efc"
+
+# ZAC - busybox (Solr init container) — 1.37.0-glibc -> 1.38.0-glibc
+- name: busybox
+  url: docker.io/library/busybox
+  version: "1.38.0-glibc"
+  digest: "sha256:3ba030337caebbfc2232b22b1e435eb213b28e5844a34942c74555bf904a265a"
+
+# Renovate dependency bumps integrated into 4.8.0 (PRs #292, #324).
+# Digests verified live against the source registry (Docker-Content-Digest).
+# PR #294 (azure/k8s-bake v3 -> v4) is a GitHub Action, not a container image,
+# so it is not listed here.
+
+# alpine/k8s (redis-ha label-master job) — 1.34.7 -> 1.36.2 (PR #292)
+- name: k8s
+  url: docker.io/alpine/k8s
+  version: "1.36.2"
+  digest: "sha256:44ef4942e171939b9c665a4a84beb80e2dcdb9a24330d4651cfdfd2e9deecc47"
+
+# keycloak-config-cli — 6.5.0-26 -> 6.5.1-26 (PR #324)
+- name: keycloak-config-cli
+  url: docker.io/adorsys/keycloak-config-cli
+  version: "6.5.1-26"
+  digest: "sha256:1b22dfaa9ae0c71f74b0342f9221a6510f272da5def683dbba26a98e6b1b1411"
+
+# zaakbrug — 1.26.13 -> 1.26.14 (chart 2.3.26 -> 2.3.27)
+# Image tag now pinned explicitly in values.yaml (previously floated on appVersion).
+- name: zaakbrug
+  url: docker.io/wearefrank/zaakbrug
+  version: "1.26.14"
+  digest: "sha256:efefcb1bafb6665bde3480ba84faa50144ffde2b3bbca4867fdfda6eca1b0155"
+
+# brp-personen-mock — 2.7.0-202508211438 -> 2.7.0-202606230850 (PR #342)
+# Rolling patch of the 2.7.0 series; adds 'binnengemeentelijk zoeken' test data.
+# ACR mirror name: personen-mock (see acr-mirror-naming.md).
+- name: personen-mock
+  url: ghcr.io/brp-api/personen-mock
+  version: "2.7.0-202606230850"
+  digest: "sha256:2de5d45bd182196eb356f0621128cb340e0edf395705eb46e5fbdaccf12e76bf"
+
+# Renovate dependency bumps integrated into 4.8.0 (PRs #344, #347, #348, #274, #278).
+# PR #345 (azure/setup-helm v5.0.0 -> v5.0.1) is a GitHub Action, not a container image,
+# so it is not listed here.
+
+# keycloak server — 26.6.3 digest refresh (PR #344): 5fdbf2d -> 9b03307
+- name: keycloak
+  url: quay.io/keycloak/keycloak
+  version: "26.6.3"
+  digest: "sha256:9b0330756022422149aa6502eb2def8cd47c6e1b000c7c65cdb13e7c0133e992"
+
+# clamav_exporter — v2.1.2 -> v2.1.3 (PR #347)
+- name: clamav_exporter
+  url: docker.io/sergeymakinen/clamav_exporter
+  version: "v2.1.3"
+  digest: "sha256:a0b90ec0eecbd4e34201c5f1eda0045959adb5c7f0b6371bb1345fbfcd8bfc8d"
+
+# referentielijsten-api — 0.7.2 -> 0.7.3 (PR #348)
+- name: referentielijsten-api
+  url: docker.io/maykinmedia/referentielijsten-api
+  version: "0.7.3"
+  digest: "sha256:66f3a3da2a086e41ee8dc216b52b65d8dca04a4160c04a90693de2e5cd6dfa5e"
+
+# python (keycloak PBKDF2 init) — 3.12-slim -> 3.14-slim (PR #274)
+- name: python
+  url: docker.io/library/python
+  version: "3.14-slim"
+  digest: "sha256:8e4071294d046d45b31a902e02a8560a45c351898513b66ec659ca39fd30d170"
+
+# OT redis-operator (controller) — v0.24.0 -> v0.25.0
+# 0.25.0 includes PR #1720 (crash-loop fix on simultaneous RedisReplication
+# pod restart) and #1725 (persist sentinel.conf). The redis (v8.6.2) and
+# redis-exporter (v1.82.0) images are unchanged vs 4.7.3 and are omitted here.
+- name: redis-operator
+  url: quay.io/opstree/redis-operator
+  version: "v0.25.0"
+  digest: "sha256:d905da8b418228b100ead45965da835f3bed8c59fa069423a9a002b62942c940"

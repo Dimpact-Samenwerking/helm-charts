@@ -51,6 +51,18 @@ keycloak-operator:
         cpu: 500m
         # IN-2233: operator OOMKilled at 256Mi limit (excessive restarts across clusters); raised to 768Mi.
         memory: 768Mi
+    # Default Keycloak SERVER image the operator stamps onto Keycloak CRs it
+    # provisions (RELATED_IMAGE_KEYCLOAK env on the operator Deployment). Must
+    # match podiumd's own `keycloak.image` digest above. The adfinis subchart's
+    # built-in default still carries the pre-PR#344 digest (sha256:5fdbf2d…), so
+    # we override it here to the refreshed 26.6.3 digest (sha256:9b03307…).
+    # NOTE: sha is a SEPARATE field; the template appends it as @sha256:{{ .sha }},
+    # so do NOT embed @sha256 in tag (would produce a double digest).
+    config:
+      keycloakImage:
+        repository: quay.io/keycloak/keycloak
+        tag: "26.6.3"
+        sha: "9b0330756022422149aa6502eb2def8cd47c6e1b000c7c65cdb13e7c0133e992"
   serviceAccount:
     create: false
   jobs:
@@ -61,7 +73,7 @@ keycloak-operator:
       initImage:
         registry: ""
         repository: python
-        tag: "3.12-slim"
+        tag: "3.14-slim"
       # Main container: runs psql to execute the generated SQL against the Keycloak DB.
       image:
         registry: ""
@@ -192,7 +204,7 @@ keycloak:
   image:
     registry: ""
     repository: quay.io/keycloak/keycloak
-    tag: "26.6.3@sha256:5fdbf2dbb5897cc34e82de49d13e23db011f9925089dbc555fc095f2c8bc1dac"
+    tag: "26.6.3@sha256:9b0330756022422149aa6502eb2def8cd47c6e1b000c7c65cdb13e7c0133e992"
   # -- instances is the new operator-style replica count (falls back to replicaCount)
   instances: "2"
   ingress:
@@ -218,11 +230,11 @@ keycloak:
       key: ""
   keycloakConfigCli:
     # image parameters for keycloak-config-cli
-    # Official keycloak-config-cli image: adorsys/keycloak-config-cli:6.5.0-26
+    # Official keycloak-config-cli image: adorsys/keycloak-config-cli:6.5.1-26
     image:
       registry: ""
       repository: adorsys/keycloak-config-cli
-      tag: "6.5.0-26"
+      tag: "6.5.1-26"
   podTemplate:
     metadata:
       labels:
@@ -361,7 +373,7 @@ redis-operator:
     GenerateConfigInInitContainer: true
   redisOperator:
     imageName: quay.io/opstree/redis-operator
-    imageTag: "v0.24.0"
+    imageTag: "v0.25.0"
   resources:
     requests:
       cpu: 100m
@@ -380,7 +392,7 @@ redis-operator:
   # Database allocation:
   #   objecttypen        : db 0  (cache)
   #   objecten           : db 1  (cache), db 2  (celery)
-  #   opennotificaties   : db 3  (cache), db 6  (celery result backend; broker stays on RabbitMQ)
+  #   opennotificaties   : db 3  (cache), db 6  (celery result backend; broker nu ook Redis i.p.v. RabbitMQ vanaf chart 2.0.0)
   #   openzaak           : db 4  (cache), db 5  (celery)
   #   openklant          : db 7  (cache), db 8  (celery)
   #   openformulieren    : db 9  (cache), db 10 (celery)
@@ -394,6 +406,11 @@ redis-operator:
   redis-ha:
     enabled: true
     replicaCount: 3
+    # -- Grafana/Loki `app` + `service_name` label for the redis-ha pods (IN-2060).
+    # Without an explicit value the pods inherit `app.kubernetes.io/name: podiumd`
+    # from the shared chart labels and show up in Grafana as "podiumd" instead of
+    # "redis-ha". Set to "" to omit the override.
+    serviceName: redis-ha
     image:
       registry: quay.io
       repository: opstree/redis
@@ -471,7 +488,7 @@ redis-operator:
       schedule: "*/2 * * * *"
       image:
         repository: docker.io/alpine/k8s
-        tag: "1.34.7@sha256:4745677e51c0fb567aedf1453a7bd489e0a62dbbf2bda475d663f7eed041adb4"
+        tag: "1.36.2@sha256:44ef4942e171939b9c665a4a84beb80e2dcdb9a24330d4651cfdfd2e9deecc47"
       resources:
         requests:
           cpu: 10m
@@ -687,7 +704,7 @@ openzaak:
         memory: 160Mi
   nginx:
     image:
-      tag: "1.30.2@sha256:77fb538f39407dc7b497b13abef619098d3afaa569f28ca3f6641ef77b95cd2d"
+      tag: "1.31.1@sha256:9f6b32064a29d747404d959e078c713a0523a9bd4e41f6912058126ebca94e61"
     resources:
       requests:
         cpu: 10m
@@ -862,8 +879,14 @@ opennotificaties:
     celery:
       # -- Set to debug for test/acceptance environments
       logLevel: warning
-    messageBroker:
-      celeryResultBackend: redis://redis-ha-master.podiumd.svc.cluster.local:6379/6
+      # RabbitMQ removed in chart 2.0.0 / app 1.16.0 — Celery broker, result backend and
+      # publish broker all use the shared redis-ha cluster (db6 = opennotificaties slot).
+      # NOTE: subchart 2.0.0 expects settings.celery.{brokerUrl,resultBackend,publishBrokerUrl};
+      # the previous settings.messageBroker.celeryResultBackend key was ignored, leaving
+      # CELERY_BROKER_URL empty -> defaulted to amqp://127.0.0.1:5672 (no RabbitMQ) -> worker crashloop.
+      brokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/6
+      resultBackend: redis://redis-ha-master.podiumd.svc.cluster.local:6379/6
+      publishBrokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/6
   persistence:
     size: 10Gi
     existingClaim: opennotificaties
@@ -872,7 +895,7 @@ opennotificaties:
     volumeAttributeShareName: opennotificaties
     storageClassName: podiumd-standard
   image:
-    tag: "1.15.0"
+    tag: "1.16.0"
   resources:
     requests:
       cpu: 100m
@@ -895,21 +918,13 @@ opennotificaties:
         memory: 128Mi
   flower:
     enabled: false
-  rabbitmq:
-    image:
-      registry: docker.io
-      repository: bitnamilegacy/rabbitmq
-      tag: 4.1.3-debian-12-r0
-    resources:
-      requests:
-        cpu: 300m
-        memory: 256Mi
-    nameOverride: opennotificaties-rabbitmq
-    fullnameOverride: opennotificaties-rabbitmq
-    auth:
-      username: guest
-      password: guest
-      erlangCookie: SUPER-SECRET
+  # RabbitMQ verwijderd in chart 2.0.0 (app 1.16.0): Celery gebruikt nu Redis voor broker +
+  # result-backend. Dit loopt via de gedeelde redis-ha cluster (settings.cache.* en
+  # settings.messageBroker.celeryResultBackend wijzen naar redis-ha db3/db6), NIET via
+  # de lokale redis-subchart. tags.redis MOET daarom false blijven: de redis-dependency
+  # wordt gegate op de top-level tags.redis (false), dus .Subcharts.redis bestaat niet —
+  # tags.redis: true zou secret.yaml naar een niet-geladen subchart laten verwijzen
+  # ("invalid value; expected string" op .Release.Name) en de render breken.
   tags:
     redis: false
   # override: values-enable-observability.yaml sets disabled: false and configures the OTLP endpoint
@@ -1357,7 +1372,7 @@ openarchiefbeheer:
 
   nginx:
     image:
-      tag: "1.30.2@sha256:77fb538f39407dc7b497b13abef619098d3afaa569f28ca3f6641ef77b95cd2d"
+      tag: "1.31.1@sha256:9f6b32064a29d747404d959e078c713a0523a9bd4e41f6912058126ebca94e61"
     resources:
       requests:
         cpu: 10m
@@ -1547,7 +1562,7 @@ openklant:
   fullnameOverride: openklant
   nginx:
     image:
-      tag: "1.30.2@sha256:77fb538f39407dc7b497b13abef619098d3afaa569f28ca3f6641ef77b95cd2d"
+      tag: "1.31.1@sha256:9f6b32064a29d747404d959e078c713a0523a9bd4e41f6912058126ebca94e61"
     resources:
       requests:
         cpu: 10m
@@ -1771,7 +1786,7 @@ openformulieren:
         memory: 160Mi
   nginx:
     image:
-      tag: "1.30.2@sha256:77fb538f39407dc7b497b13abef619098d3afaa569f28ca3f6641ef77b95cd2d"
+      tag: "1.31.1@sha256:9f6b32064a29d747404d959e078c713a0523a9bd4e41f6912058126ebca94e61"
     resources:
       requests:
         cpu: 10m
@@ -1918,6 +1933,17 @@ openinwoner:
       useTLS: true
     searchIndexInitContainer: true
     oidcFrontendLogoutWithHints: true
+    # -- New in openinwoner 2.3.0 (chart 2.2.0): runs an init container executing
+    # `manage.py cms4_migration` for the Django CMS v3 → v4 migration. Keep true for
+    # the first rollout to 2.3.0 so the one-time migration runs; flip to false in a
+    # follow-up release once every environment has completed it. Re-running is a no-op.
+    cms4MigrationInitContainer: true
+    # -- New in openinwoner 2.3.0: per-request timeout (seconds) for cached ZGW zaken.
+    # Empty uses the application default (300s, raised from 60s upstream).
+    cacheZgwZakenTimeout: ""
+    # -- New in openinwoner 2.3.0: Celery queue for cache-seeding tasks. Empty defaults
+    # to the low-latency worker queue (see lowLatencyWorker below).
+    cacheSeedingQueue: ""
     cache:
       default: redis-ha-master.podiumd.svc.cluster.local:6379/11
       axes: redis-ha-master.podiumd.svc.cluster.local:6379/11
@@ -1937,7 +1963,7 @@ openinwoner:
     volumeAttributeShareName: openinwoner
     storageClassName: podiumd-standard
   image:
-    tag: "2.1.2"
+    tag: "2.3.0"
   resources:
     requests:
       cpu: 200m
@@ -1951,6 +1977,15 @@ openinwoner:
       requests:
         cpu: 200m
         memory: 640Mi
+  # -- New in openinwoner 2.3.0 (chart 2.2.0): dedicated low-latency Celery worker for
+  # cache-seeding/warmup tasks. The chart creates this deployment by default
+  # (replicaCount 1) on upgrade; resources pinned here to match podiumd conventions.
+  lowLatencyWorker:
+    replicaCount: 1
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
   beat:
     resources:
       requests:
@@ -1965,7 +2000,7 @@ openinwoner:
   fullnameOverride: openinwoner
   nginx:
     image:
-      tag: "1.30.2@sha256:77fb538f39407dc7b497b13abef619098d3afaa569f28ca3f6641ef77b95cd2d"
+      tag: "1.31.1@sha256:9f6b32064a29d747404d959e078c713a0523a9bd4e41f6912058126ebca94e61"
     config:
       basicAuth:
         # Enable this when digid mock is set to digidMock: "true"
@@ -2116,7 +2151,7 @@ referentielijsten:
   image:
     repository: maykinmedia/referentielijsten-api
     pullPolicy: IfNotPresent
-    tag: "0.7.2@sha256:f7f0f25b180a3746e1bf3df81fe19e4ea509428edea1d93831262a67c81f5f9d"
+    tag: "0.7.3@sha256:66f3a3da2a086e41ee8dc216b52b65d8dca04a4160c04a90693de2e5cd6dfa5e"
 
   settings:
     allowedHosts: "referentielijsten-nginx.podiumd.svc.cluster.local"
@@ -2314,7 +2349,7 @@ openbeheer:
       rateUser: "15000/hour"
   nginx:
     image:
-      tag: "1.30.2@sha256:77fb538f39407dc7b497b13abef619098d3afaa569f28ca3f6641ef77b95cd2d"
+      tag: "1.31.1@sha256:9f6b32064a29d747404d959e078c713a0523a9bd4e41f6912058126ebca94e61"
     resources:
       requests:
         cpu: 10m
@@ -2625,8 +2660,6 @@ kiss:
       isDefault: true
 
 zac:
-  featureFlags:
-    pabcIntegration: false
   auth:
     server: http://keycloak.example.nl
     realm: podiumd
@@ -2640,16 +2673,31 @@ zac:
     apiKey: "dummy"
   brpApi:
     url: http://brp.example.nl
-    apiKey: "dummy"
-    # Protocollering aanbieder mag zijn "", "iConnect", "2Secure"
+    apiKey:
+      header: "x-api-key"
+      value: "dummy"
+    logLevel: "OFF"
+    # BRP protocollering — see docs/zac-brp-protocollering.md for vendor-specific examples
+    # (iConnect, eServices, 2Secure/EnableU)
     protocollering:
-      aanbieder: ""
-      # Voor aanbieder iConnect worden de volgende "standaard" waardes gebruikt
-      # Voor andere aanbieders zijn deze waardes niet van belang en worden niet gebruikt
+      enabled: false
+      # systemUser: "SystemUser"  # required for iConnect and 2Secure; omit for eServices
+      originOin:
+        oin: ""               # gemeentelijke OIN
+        header: ""            # iConnect: "x-origin-oin" | eServices: "x-request-organization"
       doelbinding:
-        zoekmet: "BRPACT-ZoekenAlgemeen"
-        raadpleegmet: "BRPACT-ZacPersoonBasis"
-      verwerkingsregister: "DigitaleDienstverlening"
+        perZaaktype: false    # true for iConnect
+        header: ""            # iConnect: "x-doelbinding" | eServices: ""
+        zoekmet: "BRPACT-ZoekenAlgemeen"      # iConnect only
+        raadpleegmet: "BRPACT-ZacPersoonBasis"  # iConnect only
+      verwerking:
+        header: ""            # iConnect/2Secure: "x-verwerking" | eServices: "x-request-afnemerscode"
+        register: ""          # iConnect: "DigitaleDienstverlening"
+      gebruiker:
+        header: ""            # iConnect/2Secure: "x-gebruiker" | eServices: "x-request-user"
+      toepassing:
+        header: ""            # iConnect: "x-toepassing" | eServices: "x-request-application" | 2Secure: "x-applicatie"
+        value: ""
   catalogusDomein: ALG
   contextUrl: http://zac.example.nl
   db:
@@ -2669,11 +2717,11 @@ zac:
     curlImage:
       #repository: curlimages/curl
       tag: "8.20.0@sha256:b3f1fb2a51d923260350d21b8654bbc607164a987e2f7c84a0ac199a67df812a"
-  # ghcr.io/infonl/zaakafhandelcomponent:4.7.2
+  # ghcr.io/infonl/zaakafhandelcomponent:5.0.1
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
-    tag: 4.7.2@sha256:235e51559f3439bb6aba5bbbc67279d70e9ab141aefd43d85be546d420fb0e34
+    tag: 5.0.1@sha256:8c7844248b7decf56eafc0d2aca1f9e080f94e9bf2f6b6ac412589deb80d1659
   # Liveness probe uses /health/ready (not /health/live) with a high failureThreshold so
   # Kubernetes automatically restarts ZAC after extended OpenZaak/catalogus unavailability.
   # The ZGW-API-Client has no connectTimeout/readTimeout, causing stale TCP connections
@@ -2710,10 +2758,10 @@ zac:
   nginx:
     enabled: true
     client_max_body_size: 150M
-    # nginxinc/nginx-unprivileged:1.30.2@sha256:77fb538f39407dc7b497b13abef619098d3afaa569f28ca3f6641ef77b95cd2d
+    # nginxinc/nginx-unprivileged:1.31.1@sha256:9f6b32064a29d747404d959e078c713a0523a9bd4e41f6912058126ebca94e61
     image:
       # repository: nginxinc/nginx-unprivileged
-      tag: "1.30.2@sha256:77fb538f39407dc7b497b13abef619098d3afaa569f28ca3f6641ef77b95cd2d"
+      tag: "1.31.1@sha256:9f6b32064a29d747404d959e078c713a0523a9bd4e41f6912058126ebca94e61"
     resources:
       requests:
         cpu: 50m
@@ -2726,16 +2774,16 @@ zac:
     url: http://objecttypen.example.nl
     token: objecttypentoken
   office_converter:
-    # gotenberg/gotenberg:8.31.0@sha256:f0d86e8a1dbc7b33a5a65cb251d02bb271a48ffa989da3feb5ed7d954fe4d4b3
+    # gotenberg/gotenberg:8.33.0@sha256:bddd8ea9d076e2d08b6ddaa6efae6403185202c6dab65a6488ed0a6923d6d8e8
     image:
       # repository: gotenberg/gotenberg
-      tag: "8.31.0@sha256:f0d86e8a1dbc7b33a5a65cb251d02bb271a48ffa989da3feb5ed7d954fe4d4b3"
+      tag: "8.33.0@sha256:bddd8ea9d076e2d08b6ddaa6efae6403185202c6dab65a6488ed0a6923d6d8e8"
   opa:
     sidecar: true
-    # openpolicyagent/opa:1.15.2-static@sha256:f3429de096f6d274bd9927f7a50c334e340a6cf206fad9460ccf17e2f3e807bf
+    # openpolicyagent/opa:1.17.1-static@sha256:c29f8ee8dbe66608a1c04e9be84b04efc46877625e6b0877e559954565209efc
     image:
       #repository: openpolicyagent/opa
-      tag: "1.15.2-static@sha256:f3429de096f6d274bd9927f7a50c334e340a6cf206fad9460ccf17e2f3e807bf"
+      tag: "1.17.1-static@sha256:c29f8ee8dbe66608a1c04e9be84b04efc46877625e6b0877e559954565209efc"
     resources:
       requests:
         cpu: 10m
@@ -2774,10 +2822,10 @@ zac:
         cpu: 500m
         memory: 256Mi
     solr:
-      # library/busybox:1.37.0-glibc@sha256:3f9777e7e82e8591542f72b965ec7db7e8b3bdb59692976af1bb9b2850b05a4e
+      # library/busybox:1.38.0-glibc@sha256:3ba030337caebbfc2232b22b1e435eb213b28e5844a34942c74555bf904a265a
       busyBoxImage:
         #repository:
-        tag: 1.37.0-glibc@sha256:3f9777e7e82e8591542f72b965ec7db7e8b3bdb59692976af1bb9b2850b05a4e
+        tag: 1.38.0-glibc@sha256:3ba030337caebbfc2232b22b1e435eb213b28e5844a34942c74555bf904a265a
       # -- set enabled to provision solrcloud as well
       enabled: true
       # library/solr:9.10.1-slim@sha256:f5a742b9476c5608f318432fe142c2e8fe125a846c0ff0081681051e3b2d8eb4
@@ -2855,11 +2903,17 @@ zgw-office-addin:
     # -- Name of the environment (used for display purposes). Default "production" means that no indicator is appended to the DiscplayName in the manifests.
     appEnv: "production"
     # -- The frontend public URL where the manifest files and static js file are served
-    frontendUrl: ""
+    frontendUrl: "https://zgw-office-addin.example.nl"
     # -- MS Azure Tenant ID of the Office Add-in application
     msalTenantId: ""
     # -- MS Azure Client ID assigned to the Office Add-in application
     msalClientId: ""
+    # -- IN-2060: Grafana/Loki app + service_name labels on the office-addin pods.
+    # Without these the pods are attributed to the Helm release name ("podiumd").
+    # Requires zgw-office-addin chart >= 0.0.89 (adds podLabels support).
+    podLabels:
+      app: office-addin
+      service_name: office-addin
   frontend:
     # ghcr.io/infonl/zgw-office-addin-frontend:v0.9.313@sha256:02cbd45a83f09f89b85dcd040840f9fb3e9bbadf67282edd6d258697a68684c7
     image:
@@ -2879,7 +2933,7 @@ zgw-office-addin:
         memory: 256Mi
     # -- ZGW API configuration for integration with the ZGW APIs provider (OpenZaak)
     zgwApis:
-      url: ""
+      url: "http://open-zaak.example.nl"
       secret: ""
 
 clamav:
@@ -2892,7 +2946,7 @@ clamav:
     enabled: false
     image:
       repository: docker.io/sergeymakinen/clamav_exporter
-      tag: "v2.1.2"
+      tag: "v2.1.3"
     serviceMonitor:
       enabled: false
   nameOverride: clamav
@@ -3015,7 +3069,7 @@ apiproxy:
   #nameOverride: "iconnect-proxy"
   image:
     repository: nginxinc/nginx-unprivileged
-    tag: "1.30.2@sha256:77fb538f39407dc7b497b13abef619098d3afaa569f28ca3f6641ef77b95cd2d"
+    tag: "1.31.1@sha256:9f6b32064a29d747404d959e078c713a0523a9bd4e41f6912058126ebca94e61"
     pullPolicy: IfNotPresent
   service:
     port: 80
@@ -3446,6 +3500,8 @@ zaakbrug:
   enabled: false
   staging:
     enabled: false
+  image:
+    tag: "1.26.14"
   # K8s cgroup limits sized for the Frank!Framework JVM heap (subchart
   # default Xms=Xmx=4G via .Values.frank.memory.{minimum,maximum}).
   # Overhead ≈1Gi headroom for non-heap (metaspace, code cache, direct
