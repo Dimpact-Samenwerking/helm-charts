@@ -13,7 +13,8 @@
 | ITA (.web, .poller) | 3.2.0 | 3.2.0 | **action required** |
 | brp-personen-mock   | 2.7.0-202606230850 | 1.2.9 | no action required |
 | zaakbrug            | 1.26.14 | 2.3.27 | no action required |
-| ZAC                 | 5.0.1 | 1.0.251 | **action required** |
+| ZAC                 | 5.0.1 | 1.0.251 | **action required** | 
+| Api-Proxy           |       |         | no action required| 
 
 
 ## Changes
@@ -249,6 +250,18 @@ apiproxy:
 ```
 
 See [`docs/zac-brp-protocollering.md`](zac-brp-protocollering.md) for details.
+
+
+### Api-Proxy
+
+In previous versions of the PodiumD values-file, there was a default value (`ZAC`) set for  `apiproxy.locations.brp.toepassingDefaultValue`. This default value has been removed. 
+
+For ZAC (from version 5.0) and KISS (from version 2.0) these values can be configured in the application specific values (under `protocollering` for ZAC, and under `settings.haalCentraal.customHeaders` for KISS). 
+
+At this point, Open Formulieren en Open Inwoner can provide most protocollering headers themselves, only the Toepassings-header cannot be configured.
+
+In PoodiumD 4.8 there can be one additional application in the PodiumD landscape that can connect to the gemeentelijke gateway to HaalCentraal via the ApiProxy, when this application cannot set `toepassingHeaderName` and `toepassingDefaultValue` in there own values. 
+
 
 ### Open Beheer ↔ Objecttypen API token (IN-2345)
 
