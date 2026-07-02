@@ -87,7 +87,7 @@ dependencies:
   - name: internetaakafhandeling
     alias: ita
     repository: "oci://ghcr.io/interne-taak-afhandeling"
-    version: 3.1.0
+    version: 3.2.0
     condition: ita.enabled
   - name: kiss-chart
     alias: kiss

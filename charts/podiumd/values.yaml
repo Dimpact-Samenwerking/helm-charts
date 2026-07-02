@@ -73,7 +73,8 @@ keycloak-operator:
       initImage:
         registry: ""
         repository: python
-        tag: "3.14-slim"
+        # Digest-pinned to match docs/images/images-4.8.0.yaml (python 3.14-slim).
+        tag: "3.14-slim@sha256:8e4071294d046d45b31a902e02a8560a45c351898513b66ec659ca39fd30d170"
       # Main container: runs psql to execute the generated SQL against the Keycloak DB.
       image:
         registry: ""
@@ -881,12 +882,18 @@ opennotificaties:
       logLevel: warning
       # RabbitMQ removed in chart 2.0.0 / app 1.16.0 — Celery broker, result backend and
       # publish broker all use the shared redis-ha cluster (db6 = opennotificaties slot).
-      # NOTE: subchart 2.0.0 expects settings.celery.{brokerUrl,resultBackend,publishBrokerUrl};
-      # the previous settings.messageBroker.celeryResultBackend key was ignored, leaving
-      # CELERY_BROKER_URL empty -> defaulted to amqp://127.0.0.1:5672 (no RabbitMQ) -> worker crashloop.
+      # NOTE: subchart 2.0.0 secret.yaml reads settings.celery.brokerUrl + publishBrokerUrl
+      # for the broker, but the RESULT backend comes from
+      # settings.messageBroker.celeryResultBackend (below) when tags.redis=false.
+      # settings.celery.resultBackend here is NOT consumed by the chart.
       brokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/6
       resultBackend: redis://redis-ha-master.podiumd.svc.cluster.local:6379/6
       publishBrokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/6
+    messageBroker:
+      # Required: chart 2.0.0 charts/opennotificaties/templates/secret.yaml renders
+      # CELERY_RESULT_BACKEND from this key in the tags.redis=false branch. Missing it
+      # crashes render with "nil pointer evaluating interface {}.celeryResultBackend".
+      celeryResultBackend: redis://redis-ha-master.podiumd.svc.cluster.local:6379/6
   persistence:
     size: 10Gi
     existingClaim: opennotificaties
@@ -2902,8 +2909,11 @@ zgw-office-addin:
   common:
     # -- Name of the environment (used for display purposes). Default "production" means that no indicator is appended to the DiscplayName in the manifests.
     appEnv: "production"
-    # -- The frontend public URL where the manifest files and static js file are served
-    frontendUrl: "https://zgw-office-addin.example.nl"
+    # -- The frontend public URL where the manifest files and static js file are served.
+    # Left empty on purpose: the subchart's values.schema.json (format: uri) + required
+    # guards fail-fast when unset. Real deploys inject this via the gemeente values
+    # pipeline; bare CI renders use charts/podiumd/ci/lint-values.yaml.
+    frontendUrl: ""
     # -- MS Azure Tenant ID of the Office Add-in application
     msalTenantId: ""
     # -- MS Azure Client ID assigned to the Office Add-in application
@@ -2931,9 +2941,11 @@ zgw-office-addin:
       requests:
         cpu: 100m
         memory: 256Mi
-    # -- ZGW API configuration for integration with the ZGW APIs provider (OpenZaak)
+    # -- ZGW API configuration for integration with the ZGW APIs provider (OpenZaak).
+    # url left empty on purpose (see common.frontendUrl note): fail-fast on unset;
+    # gemeente pipeline injects the real value, CI uses ci/lint-values.yaml.
     zgwApis:
-      url: "http://open-zaak.example.nl"
+      url: ""
       secret: ""
 
 clamav:
@@ -3177,6 +3189,15 @@ ita:
     type: "https://ontw-objecttypen.example.nl/api/v2/objecttypes/REP_CONTACT_GROEP_UUID_REP"
     typeVersion: 1
 
+  # ITA 3.2.0 adds the Medewerker-objecttype (two new required values). Gemeente
+  # values must set `type` to the environment-specific objecttype URL; the guard
+  # in templates/validations.yaml fails the render if it is left blank.
+  medewerker:
+    # Aanname: uuid van objecttype wordt gemeentespecifiek vervangen door Replacementscripts
+    uuid: "REP_CONTACT_MEDEWERKER_UUID_REP"
+    type: "https://ontw-objecttypen.example.nl/api/v2/objecttypes/REP_CONTACT_MEDEWERKER_UUID_REP"
+    typeVersion: 1
+
   smtp:
     host: "mail.example.nl"
     port: "587"
@@ -3191,7 +3212,7 @@ ita:
   web:
     image:
       # repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web"
-      tag: "3.1.0"
+      tag: "3.2.0"
       pullPolicy: IfNotPresent
 
     service:
@@ -3227,7 +3248,7 @@ ita:
 
     image:
       repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller"
-      tag: "3.1.0"
+      tag: "3.2.0"
       pullPolicy: IfNotPresent
 
     notification:
