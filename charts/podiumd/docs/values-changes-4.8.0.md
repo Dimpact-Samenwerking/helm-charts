@@ -6,7 +6,7 @@ Companion to (upgrade-from-4.6.5-to-4.7.0.md). This file lists every value overr
 
 | Component | Required action | Type |
 |-----------|----------------|------|
-| `pabc.enabled` | Now defaults to `true` — provision an external DB or opt out | Required (see §5) |
+| `pabc.enabled` | Now defaults `true` — remove the redundant flag; provision an external DB or opt out with `false` | Required (see §5) |
 | `ita.medewerker` | New required block | Required if ITA enabled |
 | `zac.brpApi.apiKey` | String → object (`{header, value}`) | Required if ZAC enabled and key overridden |
 | `zac.featureFlags.pabcIntegration` | Remove this key | Required if present in gemeente file |
@@ -110,8 +110,10 @@ pabc:
       password: "<pabc-db-password>"
 ```
 
-To keep PABC off (4.7.x behaviour), set `pabc.enabled: false` in your gemeente
-file. Leaving it enabled without a reachable DB → PABC pods crashloop.
+**Remove the now-redundant `pabc.enabled` from gemeente values** if it was
+pinned to `true` — that is the chart default now. Keep an explicit
+`pabc.enabled: false` only to deliberately opt out (4.7.x behaviour). Leaving
+PABC enabled without a reachable DB → PABC pods crashloop.
 
 ## New optional fields
 
