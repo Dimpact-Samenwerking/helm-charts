@@ -2080,6 +2080,12 @@ openinwoner:
     #       resources:
     #         requests:
     #           storage: 8Gi
+  # OIP gebruikt de centrale eck-operator (root-level `eck-operator`, met
+  # managedNamespaces: [podiumd]). De openinwoner-subchart brengt zelf een
+  # eck-operator (`openinwoner-elastic-operator`) mee; die MOET uit blijven,
+  # anders draaien er twee operators op dezelfde namespace. OIP levert alleen
+  # zijn eigen Elasticsearch-resource (`openinwoner-elasticsearch`), die door de
+  # centrale operator wordt gereconcilet. Zie docs/migrating-to-eck-stack.md.
   eck-operator:
     enabled: false
 
@@ -2364,22 +2370,75 @@ openbeheer:
   tags:
     redis: false
 
-kisselastic:
-  kibanaDomain: kiss-kb-http.podiumd.svc.cluster.local:5601
-  elasticVersion: "8.19.3"
-  elasticsearchCount: 3
+# Centrale ECK-operator (root-level). Beheert alle Elasticsearch-resources in de
+# podiumd namespace (KISS 'kiss' en OIP 'openinwoner-elasticsearch'). KISS en OIP
+# leveren alleen hun eigen Elasticsearch; de operator komt niet meer uit een
+# subchart. Zie docs/migrating-to-eck-stack.md.
+eck-operator:
+  enabled: true
   # -- install crds using https://github.com/elastic/cloud-on-k8s/blob/main/deploy/eck-operator/charts/eck-operator-crds/templates/all-crds.yaml
   # override: values-enable-observability.yaml sets config.metricsPort and enables podMonitor
-  eck-operator:
-    installCRDs: false
-    managedNamespaces:
-      - podiumd
-    image:
-      tag: "3.1.0"
-    # podMonitor requires the Prometheus Operator CRD (monitoring.coreos.com/v1 PodMonitor)
-    # to be installed in the cluster. Enable via values-enable-observability.yaml.
-    podMonitor:
-      enabled: false
+  installCRDs: false
+  createClusterScopedResources: false
+  config:
+    # no RBAC access to cluster-wide storage classes, hence disable storage class validation
+    validateStorageClass: false
+  webhook:
+    enabled: false
+  managedNamespaces:
+    - podiumd
+  # podMonitor requires the Prometheus Operator CRD (monitoring.coreos.com/v1 PodMonitor)
+  # to be installed in the cluster. Enable via values-enable-observability.yaml.
+  podMonitor:
+    enabled: false
+
+kiss-eck:
+  enabled: true
+  eck-elasticsearch:
+    enabled: true
+    fullnameOverride: kiss
+    version: "8.19.3"
+    nodeSets:
+    - config:
+        node.roles:
+        - data
+        - ingest
+        - master
+        node.store.allow_mmap: false
+      count: 3
+      name: default
+      podTemplate:
+        spec:
+          nodeSelector: {}
+  eck-enterprise-search:
+    enabled: true
+    fullnameOverride: kiss
+    version: "8.19.3"
+    config:
+      app_search.engine.total_fields.limit: 1000
+      kibana.host: https://kiss-kb-http.podiumd.svc.cluster.local:5601
+      connector.crawler.http.user_agent: "PodiumD-Contact-Elastic-Crawler"
+      connector.crawler.crawl.threads.limit: 1
+      connector.crawler.workers.pool_size.limit: 1
+    count: 1
+    elasticsearchRef:
+      name: kiss
+    podTemplate:
+      spec:
+        nodeSelector: {}
+  eck-kibana:
+    enabled: true
+    fullnameOverride: kiss
+    version: "8.19.3"
+    config:
+      server.publicBaseUrl: https://kiss-kb-http.podiumd.svc.cluster.local:5601
+    elasticsearchRef:
+      name: kiss
+    enterpriseSearchRef:
+      name: kiss
+    podTemplate:
+      spec:
+        nodeSelector: {}
 
 kiss:
   image:
