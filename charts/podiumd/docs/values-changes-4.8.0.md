@@ -6,6 +6,7 @@ Companion to (upgrade-from-4.6.5-to-4.7.0.md). This file lists every value overr
 
 | Component | Required action | Type |
 |-----------|----------------|------|
+| `pabc.enabled` | Now defaults to `true` — provision an external DB or opt out | Required (see §5) |
 | `ita.medewerker` | New required block | Required if ITA enabled |
 | `zac.brpApi.apiKey` | String → object (`{header, value}`) | Required if ZAC enabled and key overridden |
 | `zac.featureFlags.pabcIntegration` | Remove this key | Required if present in gemeente file |
@@ -91,9 +92,30 @@ zac:
       enabled: false
 ```
 
+### 5. PABC enabled by default (`pabc.enabled: true`)
+
+The chart default for `pabc.enabled` flipped from `false` to `true`, so the
+PABC (PodiumD Autorisatie Beheer Component) subchart now deploys unless you
+opt out. The bundled PostgreSQL is **off** (`pabc.postgresql.enabled: false`),
+so PABC needs an external database. Provision one and set:
+
+```yaml
+pabc:
+  enabled: true
+  settings:
+    database:
+      host: "<pabc-db-host>"
+      name: "pabc"
+      username: "pabc"
+      password: "<pabc-db-password>"
+```
+
+To keep PABC off (4.7.x behaviour), set `pabc.enabled: false` in your gemeente
+file. Leaving it enabled without a reachable DB → PABC pods crashloop.
+
 ## New optional fields
 
-
+None new in 4.8.0 beyond the component-specific keys documented above.
 
 ## Cleanup — image tag overrides
 
@@ -109,4 +131,18 @@ The chart `values.yaml` already pins the new versions. Remove explicit tag overr
 
 
 ## Pre-deploy checklist
+
+- [ ] **PABC** (§5): either provision an external DB and set
+      `pabc.settings.database.{host,name,username,password}`, or set
+      `pabc.enabled: false` to opt out. Default is now enabled.
+- [ ] **Open Notificaties**: chart 2.0.0 removes RabbitMQ (broker → redis-ha
+      db6). Before upgrading, drain RabbitMQ queues; after upgrading, delete the
+      orphaned `*-opennotificaties-rabbitmq` PVC + secret. See the upgrade guide.
+- [ ] **ITA** (§1): set `ita.medewerker.type` to the environment-specific
+      Medewerker objecttype URL (render fails fast if left blank while ITA is enabled).
+- [ ] **zgw-office-addin**: `common.frontendUrl` and `backend.zgwApis.url` are
+      empty by default — set both (plus `msalClientId`/`msalTenantId`/`msalSecret`)
+      in the gemeente values, or the subchart schema fails the render.
+- [ ] **Redis**: expect a rolling restart of the 3-node redis-ha cluster on
+      upgrade (label add + redis-operator 0.24→0.25); brief sentinel failover.
 
