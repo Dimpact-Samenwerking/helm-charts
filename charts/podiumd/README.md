@@ -10,8 +10,7 @@ Release scoped around the Open Inwoner upgrade 2.1.2 → 2.3.0 (chart
 (opt-in ClamAV virus scanning, ZGW cache-warmup + low-latency worker).
 4.8.0 also carries the 4.7.4/4.7.5 security work (Keycloak 26.6.3, Open Zaak
 1.27.2, ZGW Office Add-in 0.9.313); all other components remain at their 4.7.5
-baseline. Zie `docs/upgrade-from-4.7.5-to-4.8.0.md` voor details (or
-`docs/upgrade-from-4.7.3-to-4.8.0.md` from the older 4.7.3 baseline).
+baseline. Zie `docs/upgrade-from-4.7.5-to-4.8.0.md` voor details.
 
 | Component                 | AppVersion       | Change            | ChartVersion | Change         | **Notes**                            |
 |---------------------------|------------------|-------------------|--------------|----------------|--------------------------------------|
