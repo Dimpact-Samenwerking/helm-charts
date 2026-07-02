@@ -75,15 +75,30 @@ niet en herstart de pods niet.
 ## 4. Migratie-stappen voor SSC (omgeving die al draait)
 
 De KISS Elasticsearch-migratie zelf is een metadata-only wijziging (zie sectie
-2). Het aandachtspunt zit in de **operator-overname** wanneer een omgeving nu
-een losse `elastic-operator` Helm-release draait (los geinstalleerd, buiten de
-umbrella om).
+2). Het enige echte aandachtspunt is **hoe je met de operator omgaat** wanneer
+een omgeving nu al een losse `elastic-operator` Helm-release draait (los
+geinstalleerd, buiten de umbrella om).
 
-### 4a. Als de omgeving een losse elastic-operator draait
+### 4a. Bepaal hoe de operator geregeld wordt
 
-De centrale umbrella-operator wil dezelfde resources beheren als de losse
-release. Strip daarom eerst de Helm-ownership van de bestaande
-operator-resources, zodat de umbrella ze kan adopteren:
+- **Verse installatie / nog geen operator:** zet `eck-operator.enabled: true`.
+  De umbrella installeert de centrale operator. Verder niets nodig.
+- **Er draait al een losse `elastic-operator` (buiten de umbrella):**
+  **aanbevolen** is die te laten staan en `eck-operator.enabled: false` te
+  zetten. De umbrella swapt dan alleen de KISS Elasticsearch-chart
+  (`kisselastic` -> `kiss-eck`); de bestaande operator blijft reconcilen. Je
+  hoeft geen ownership over te dragen. Het centraliseren van de operator kan een
+  aparte, latere stap zijn.
+
+De operator is stateless (de data zit in de Elasticsearch StatefulSet/PVC's),
+dus de keuze hierboven raakt de data niet.
+
+<details>
+<summary>Optioneel (advanced): de losse operator door de umbrella laten adopteren</summary>
+
+Wil je de umbrella-operator de bestaande operator-resources laten overnemen
+(`eck-operator.enabled: true` terwijl er al een losse release draait), strip dan
+eerst de Helm-ownership zodat er geen conflict ontstaat:
 
 ```bash
 NS=podiumd
@@ -99,17 +114,13 @@ for r in clusterrole/elastic-operator clusterrole/elastic-operator-edit clusterr
 done
 ```
 
-Alternatief (eenvoudiger, aanbevolen voor de eerste uitrol): laat de losse
-operator staan en zet in de omgevings-values `eck-operator.enabled: false`. De
-umbrella swapt dan alleen de KISS Elasticsearch-chart (kisselastic -> kiss-eck)
-en de bestaande operator blijft reconcilen. De operator-centralisatie kan als
-aparte, latere stap.
-
 > Let op de operator-versiesprong. Bij het overnemen door de umbrella-operator
 > (3.4.0) kan de `elastic-operator` StatefulSet een immutable
 > `spec.selector`-conflict geven bij `helm upgrade`. Dat is op te lossen door de
 > `elastic-operator` StatefulSet te verwijderen (bevat geen data) en helm de
 > nieuwe te laten aanmaken.
+
+</details>
 
 ### 4b. De upgrade
 
