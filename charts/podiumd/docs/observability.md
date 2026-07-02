@@ -100,7 +100,7 @@ their scrape targets. These CRDs must be present in the cluster before applying
 | keycloak-operator | `ServiceMonitor` | `monitoring.coreos.com/v1` (auto-created) |
 | redis-ha | `PodMonitor` | `monitoring.coreos.com/v1` |
 | clamav | `ServiceMonitor` | `monitoring.coreos.com/v1` |
-| eck-operator (kisselastic) | `PodMonitor` | `monitoring.coreos.com/v1` |
+| eck-operator | `PodMonitor` | `monitoring.coreos.com/v1` |
 | solr (todo) | `ServiceMonitor` | `monitoring.coreos.com/v1` (created by solr-operator) |
 | zookeeper (todo) | `ServiceMonitor` | `monitoring.coreos.com/v1` (manual) |
 | elasticsearch (todo) | `ServiceMonitor` | `monitoring.coreos.com/v1` (via exporter chart) |
@@ -127,7 +127,7 @@ kubectl apply --server-side -f https://raw.githubusercontent.com/prometheus-oper
 Or install only the CRD manifests from the operator's GitHub release.
 
 > Until the CRDs are installed, keep `redis-operator.redis-ha.redisExporter.podMonitor.enabled: false`,
-> `clamav.metrics.serviceMonitor.enabled: false`, and `kisselastic.eck-operator.podMonitor.enabled: false`
+> `clamav.metrics.serviceMonitor.enabled: false`, and `eck-operator.podMonitor.enabled: false`
 > (the defaults in `values.yaml`). `values-enable-observability.yaml` overrides all three to `true`.
 
 ---
@@ -154,7 +154,7 @@ The `Role` + `RoleBinding` are only rendered when `keycloak-operator.enableServi
 
 ### `eck-operator-podmonitor-rbac.yaml`
 
-Rendered when `kisselastic.enabled: true` AND `kisselastic.eck-operator.podMonitor.enabled: true`.
+Rendered when `eck-operator.enabled: true` AND `eck-operator.podMonitor.enabled: true`.
 
 | Resource | Scope | Verbs | Purpose |
 |---|---|---|---|
@@ -260,17 +260,16 @@ keycloak:
 
 ## Prometheus Scraping — ECK Operator
 
-The ECK operator is part of `kisselastic`. Configured via `values-enable-observability.yaml`:
+The ECK operator is a root-level dependency. Configured via `values-enable-observability.yaml`:
 
 ```yaml
-kisselastic:
-  eck-operator:
-    config:
-      metricsPort: "8080"
-    podMonitor:
-      enabled: true
-      interval: 1m
-      scrapeTimeout: 30s
+eck-operator:
+  config:
+    metricsPort: "8080"
+  podMonitor:
+    enabled: true
+    interval: 1m
+    scrapeTimeout: 30s
 ```
 
 ---
@@ -344,9 +343,6 @@ spec:
 ---
 
 ### Elasticsearch & Kibana (ECK)
-
-The kiss-elastic chart's `elasticsearch.yaml` and `kibana.yaml` templates are minimal (nodeSets,
-nodeSelector, version only) — no monitoring spec is exposed via values.
 
 ECK-managed Elasticsearch has no native Prometheus endpoint. Deploy `prometheus-community/elasticsearch-exporter`
 as a separate release:

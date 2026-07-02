@@ -178,7 +178,6 @@ Componenten op alphabetische volgorde, met sub-charts er onder:
 helm repo add dimpact https://Dimpact-Samenwerking.github.io/helm-charts/
 helm repo add kiss-frontend https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/KISS-frontend/main/helm
 helm repo add kiss-adapter https://raw.githubusercontent.com/ICATT-Menselijk-Digitaal/podiumd-adapter/main/helm
-helm repo add kiss-elastic https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/.github/main/docs/scripts/elastic
 helm repo add maykinmedia https://maykinmedia.github.io/charts
 helm repo add wiremind https://wiremind.github.io/wiremind-helm-charts
 helm repo add solr https://solr.apache.org/charts

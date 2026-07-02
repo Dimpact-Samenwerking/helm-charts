@@ -2320,22 +2320,122 @@ openbeheer:
   tags:
     redis: false
 
-kisselastic:
-  kibanaDomain: kiss-kb-http.podiumd.svc.cluster.local:5601
-  elasticVersion: "8.19.3"
-  elasticsearchCount: 3
+eck-operator:
+  enabled: true
   # -- install crds using https://github.com/elastic/cloud-on-k8s/blob/main/deploy/eck-operator/charts/eck-operator-crds/templates/all-crds.yaml
   # override: values-enable-observability.yaml sets config.metricsPort and enables podMonitor
-  eck-operator:
-    installCRDs: false
-    managedNamespaces:
-      - podiumd
-    image:
-      tag: "3.1.0"
-    # podMonitor requires the Prometheus Operator CRD (monitoring.coreos.com/v1 PodMonitor)
-    # to be installed in the cluster. Enable via values-enable-observability.yaml.
-    podMonitor:
-      enabled: false
+  installCRDs: false
+  createClusterScopedResources: false
+  config:
+    # no RBAC access to cluster-wide storage classes, hence disable storage class validation
+    validateStorageClass: false
+  webhook:
+    enabled: false
+  managedNamespaces:
+    - podiumd
+  # image:
+  #   tag: "3.1.0"
+  # podMonitor requires the Prometheus Operator CRD (monitoring.coreos.com/v1 PodMonitor)
+  # to be installed in the cluster. Enable via values-enable-observability.yaml.
+  podMonitor:
+    enabled: false
+
+kiss-eck:
+  enabled: true
+  eck-elasticsearch:
+    enabled: true
+    fullnameOverride: kiss
+    version: "8.19.3"
+    # -- nodeSets must be configured per environment. Example (override in your environment values file):
+    # nodeSets:
+    # - name: default
+    #   count: 1   # increase for larger environments (e.g. 3 for HA)
+    #   config:
+    #     cluster.initial_master_nodes:
+    #     - kiss-es-default-0
+    #     node.roles:
+    #     - master
+    #     - data
+    #     - ingest
+    #     node.store.allow_mmap: false
+    #     xpack.security.authc:
+    #       anonymous:
+    #         username: anonymous
+    #         roles: superuser
+    #         authz_exception: false
+    #   podTemplate:
+    #     spec:
+    #       nodeSelector:
+    #         kubernetes.azure.com/mode: user
+    #       containers:
+    #       - name: elasticsearch
+    #         resources:
+    #           # tune for larger environments; memory should match ES_JAVA_OPTS heap settings
+    #           requests:
+    #             cpu: 200m
+    #             memory: 1536Mi
+    #           limits:
+    #             cpu: 1000m
+    #             memory: 1536Mi
+    #         env:
+    #         - name: ES_JAVA_OPTS
+    #           value: "-Xms1g -Xmx1g"   # set heap to ~75% of memory limit; increase for larger envs
+    #         - name: PRE_STOP_ADDITIONAL_WAIT_SECONDS
+    #           value: "15"
+    #   # volumeClaimTemplates is immutable — changing it requires deleting the StatefulSet and PVC manually.
+    #   volumeClaimTemplates:
+    #   - metadata:
+    #       name: elasticsearch-data
+    #     spec:
+    #       accessModes:
+    #       - ReadWriteOnce
+    #       storageClassName: managed-csi
+    #       resources:
+    #         requests:
+    #           storage: 8Gi
+    nodeSets:
+    - config:
+        node.roles:
+        - data
+        - ingest
+        - master
+        node.store.allow_mmap: false
+      count: 3
+      name: default
+      podTemplate:
+        spec:
+          nodeSelector: {}
+
+  eck-enterprise-search:
+    enabled: true
+    fullnameOverride: kiss
+    version: "8.19.3"
+    config:
+      app_search.engine.total_fields.limit: 1000
+      kibana.host: https://kiss-kb-http.podiumd.svc.cluster.local:5601
+      connector.crawler.http.user_agent: "PodiumD-Contact-Elastic-Crawler"
+      connector.crawler.crawl.threads.limit: 1
+      connector.crawler.workers.pool_size.limit: 1
+    count: 1
+    elasticsearchRef:
+      name: kiss
+    podTemplate:
+      spec:
+        nodeSelector: {}
+
+  eck-kibana:
+    enabled: true
+    fullnameOverride: kiss
+    version: "8.19.3"
+    config:
+      server.publicBaseUrl: https://kiss-kb-http.podiumd.svc.cluster.local:5601
+    elasticsearchRef:
+      name: kiss
+    enterpriseSearchRef:
+      name: kiss
+    podTemplate:
+      spec:
+        nodeSelector: {}
 
 kiss:
   image:
