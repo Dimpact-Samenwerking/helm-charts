@@ -3117,7 +3117,7 @@ apiproxy:
       path: /haalcentraal/api/brp/
       targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apihcbrp/actueel/prtcl/v2/"
       toepassingHeaderName: "" # empty = no header is added, for iConnect use "X-Toepassing"
-      toepassingDefaultValue: "ZAC"
+      toepassingDefaultValue: "" # value for header for 1 PodiumD application can be set as default
     kvkSearch:
       <<: *commonLocation
       targetUrl: "https://lab.api.mijniconnect.nl/iconnect/apikvk/zoeken/v2/zoeken"
