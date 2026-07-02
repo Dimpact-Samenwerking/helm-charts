@@ -29,12 +29,15 @@ identical.
 | Component   | App version | Helm chart |  |
 |---|---|---|---|
 | Open Inwoner        | 2.3.0 | 2.2.0 | optional action to enable ClamAv |
+| Open Notificaties   | 1.16.0 | 2.0.0 | **action required** (RabbitMQ removed) |
 | KISS                | 2.2.3 | 2.2.3 | no action required |
 | _contact-sync_        | 0.3.3 | --    | -- |
 | ITA (.web, .poller) | 3.2.0 | 3.2.0 | **action required** |
 | brp-personen-mock   | 2.7.0-202606230850 | 1.2.9 | no action required |
 | zaakbrug            | 1.26.14 | 2.3.27 | no action required |
 | ZAC                 | 5.0.1 | 1.0.251 | **action required** |
+| PABC                | 1.1.0 | 1.1.0 | **action required** (now enabled by default) |
+| redis-operator      | v0.25.0 | -- | expect redis rolling restart |
 
 > A separate test overlay (`feature/podiumd-4.8.0-ontw-mayk-test-updates`, PR
 > #340) pins newer Maykin/upstream images on top of 4.8.0 for the *ontwikkel*
@@ -166,22 +169,72 @@ running pod image with
 must read `…/elasticsearch/elasticsearch:9.2.0`, not `:latest`.
 
 
-### ITA 3.1.0 > 3.2.1
+### Open Notificaties 1.13.1 → 2.0.0 (app 1.16.0) — RabbitMQ removed
+
+Helm chart `opennotificaties` `1.13.1` → `2.0.0` (app `1.16.0`) in
+`charts/podiumd/Chart.yaml`; image `opennotificaties.image.tag` `1.15.0` →
+`1.16.0`. Mirror the new image (`docker.io/openzaak/open-notificaties:1.16.0`,
+ACR name `openzaak/open-notificaties`) — see
+[`docs/images/images-4.8.0.yaml`](images/images-4.8.0.yaml).
+
+**The 2.0.0 chart removes the bundled RabbitMQ.** The Celery broker, result
+backend and publish broker now all use the shared `redis-ha` cluster (db6):
+
+```yaml
+opennotificaties:
+  settings:
+    celery:
+      brokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/6
+      publishBrokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/6
+    messageBroker:
+      celeryResultBackend: redis://redis-ha-master.podiumd.svc.cluster.local:6379/6
+```
+
+(The chart defaults already set these; no gemeente override is needed.)
+
+**Action required — RabbitMQ is destroyed on upgrade; undelivered tasks are
+lost.** Sequence to avoid message loss and orphaned resources:
+
+1. **Quiesce producers** (stop traffic that creates notifications) and let the
+   Celery workers drain — confirm the RabbitMQ queues are empty **before**
+   upgrading (the RabbitMQ StatefulSet is deleted by the 2.0.0 chart).
+2. **Upgrade.** Workers reconnect to the Redis broker.
+3. **Verify** the Celery workers are healthy on Redis (no
+   `amqp://127.0.0.1:5672` connection attempts in the logs — that would mean a
+   broker key is unset).
+4. **Clean up orphaned resources.** Helm never deletes PVCs, and the RabbitMQ
+   secret (guest/guest + erlang cookie) lingers:
+
+   ```bash
+   kubectl -n podiumd delete pvc  -l app.kubernetes.io/name=rabbitmq,app.kubernetes.io/instance=opennotificaties
+   kubectl -n podiumd delete secret opennotificaties-rabbitmq
+   ```
+
+   Adjust names to match your release (`kubectl -n podiumd get pvc,secret | grep -i rabbitmq`).
+
+### ITA 3.1.0 → 3.2.0
+
+Helm chart `ita` (`internetaakafhandeling`) `3.1.0` → `3.2.0` in
+`charts/podiumd/Chart.yaml`; `ita.web.image.tag` and `ita.poller.image.tag`
+`3.1.0` → `3.2.0` in `charts/podiumd/values.yaml`.
 
 #### Adds configuration for Medewerker-objecttype
 
-**Action required:** 
+ITA 3.2.0 introduces the **Medewerker-objecttype**, configured via a new
+required `ita.medewerker` block. The chart ships a placeholder default
+(`REP_CONTACT_MEDEWERKER_UUID_REP`), and `templates/validations.yaml` fails
+the render if `ita.medewerker.type` is left blank while ITA is enabled.
 
-ITA 3.2.1 introduces two new, required helm values, for the Medewerker-object. 
-This means all gemeentelijke podium.yml-files must be changed to include the below:
+**Action required:** every gemeente `podiumd.yml` must set the
+environment-specific Medewerker objecttype URL:
 
 ```yaml
 ita:
   ...
   medewerker:
-    # -- Version of the medewerker objecttype that is used, most likely: 1 
     type: "https://<env>-objecttypen.<gemeente>.nl/api/v2/objecttypes/REP_CONTACT_MEDEWERKER_UUID_REP"
-    typeVersion: 1    
+    # -- Version of the medewerker objecttype that is used, most likely: 1
+    typeVersion: 1
 ```
 
 ### ZAC 4.7.2 → 5.0.1
@@ -274,6 +327,38 @@ apiproxy:
 ```
 
 See [`docs/zac-brp-protocollering.md`](zac-brp-protocollering.md) for details.
+
+### PABC now enabled by default
+
+The chart default `pabc.enabled` flipped `false` → `true`, so the PABC
+(PodiumD Autorisatie Beheer Component) subchart now deploys unless you opt out.
+The bundled PostgreSQL stays **off** (`pabc.postgresql.enabled: false`), so PABC
+needs an **external database**.
+
+**Action required:** provision a database and set its credentials, or opt out.
+
+```yaml
+pabc:
+  enabled: true            # chart default
+  settings:
+    database:
+      host: "<pabc-db-host>"
+      name: "pabc"
+      username: "pabc"
+      password: "<pabc-db-password>"
+```
+
+To keep the 4.7.x behaviour (PABC not deployed), set `pabc.enabled: false`.
+Leaving PABC enabled without a reachable DB → PABC pods crashloop. (There is
+no render-time guard for this — it surfaces at runtime.)
+
+### Redis (redis-ha + operator)
+
+4.8.0 bumps the Open Notificaties redis-operator `v0.24.0` → `v0.25.0` and adds
+`app`/`service_name` labels to the `redis-ha` `RedisReplication` resource (Loki
+attribution). Both change the pod template, so **expect a rolling restart of the
+3-node redis-ha cluster** on upgrade, with a brief sentinel failover during the
+rollout. No action required; schedule the upgrade accordingly.
 
 ### Open Beheer ↔ Objecttypen API token (IN-2345)
 
