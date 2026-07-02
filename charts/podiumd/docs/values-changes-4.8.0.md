@@ -140,9 +140,11 @@ The chart `values.yaml` already pins the new versions. Remove explicit tag overr
       orphaned `*-opennotificaties-rabbitmq` PVC + secret. See the upgrade guide.
 - [ ] **ITA** (§1): set `ita.medewerker.type` to the environment-specific
       Medewerker objecttype URL (render fails fast if left blank while ITA is enabled).
-- [ ] **zgw-office-addin**: `common.frontendUrl` and `backend.zgwApis.url` are
-      empty by default — set both (plus `msalClientId`/`msalTenantId`/`msalSecret`)
-      in the gemeente values, or the subchart schema fails the render.
+- [ ] **zgw-office-addin**: override `common.frontendUrl` and
+      `backend.zgwApis.url` (chart defaults are example hosts) plus
+      `msalClientId`/`msalTenantId`/`msalSecret` in the gemeente values. Leave
+      `common.appEnv: "production"` unless this is a non-prod add-in instance
+      (see upgrade guide).
 - [ ] **Redis**: expect a rolling restart of the 3-node redis-ha cluster on
       upgrade (label add + redis-operator 0.24→0.25); brief sentinel failover.
 
