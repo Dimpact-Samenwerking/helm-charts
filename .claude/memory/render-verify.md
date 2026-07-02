@@ -3,25 +3,23 @@
 ```bash
 cd charts/podiumd
 helm dependency update          # needs network: downloads openzaak/apisix/redis-operator/... subcharts
-helm template podiumd . -f ci/lint-values.yaml -f /tmp/ovr.yaml
+helm template podiumd . -f ci/lint-values.yaml
 ```
 
-A **bare** render with only `-f ci/lint-values.yaml` FAILS: the `zgw-office-addin` subchart ships empty defaults that trip its `values.schema.json` (`format: uri`) and the `required` template guards. This is pre-existing and expected — real deploys inject these via the gemeente values pipeline, so production is unaffected; only the bare CI lint/render breaks.
+A render with only `-f ci/lint-values.yaml` now **passes** (exit 0). `ci/lint-values.yaml`
+carries dummy `zgw-office-addin` values (`common.frontendUrl`/`msalClientId`/`msalTenantId`,
+`backend.msalSecret`, `backend.zgwApis.url`/`secret`) that satisfy that subchart's
+`values.schema.json` (`format: uri`) + `required` guards. The chart's own
+`values.yaml` deliberately leaves `zgw-office-addin.common.frontendUrl` and
+`backend.zgwApis.url` empty (`""`) for fail-fast in real deploys — the placeholders
+belong only in `ci/lint-values.yaml`.
 
-To verify past the gate, supply an override with the EXACT key shape (note `msalSecret` is under `backend`, NOT `common`):
+> Historical: before those keys were added to `ci/lint-values.yaml`, a bare render
+> failed on the `zgw-office-addin` schema and needed a hand-written `/tmp/ovr.yaml`
+> override. No longer required.
 
-```yaml
-# /tmp/ovr.yaml
-zgw-office-addin:
-  common:
-    frontendUrl: "https://addin.example.com"   # must be format:uri
-    msalClientId: "dummy-client"
-    msalTenantId: "dummy-tenant"
-  backend:
-    msalSecret: "dummy-secret"
-    zgwApis:
-      url: "https://zgw.example.com"            # must be format:uri
-      secret: "dummy-secret"
-```
+The same `ci/lint-values.yaml` is used by the GitHub workflow
+`podiumd-test-podiumd-helm-chart-changes.yaml` (via k8s-bake `overrideFiles`), so
+CI and local render match.
 
 Related skills: `/helm-render-all`, `/helm-deps`.
