@@ -37,8 +37,8 @@
 
 - name: contact-frontend
   url: ghcr.io/klantinteractie-servicesysteem/kiss-frontend
-  version: "2.2.3"
-  digest: "sha256:a12276517ce7846e5ebe40373de8c4960fb41182958a668ad60254b088252252"
+  version: "2.2.4"
+  digest: "sha256:7c7b58109dc6ca7e66bb21b9cd2902ac09d6a764e70cff396e93ca0fcfa293e9"
 - name: contact-sync
   url: ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync
   version: "0.3.3"
