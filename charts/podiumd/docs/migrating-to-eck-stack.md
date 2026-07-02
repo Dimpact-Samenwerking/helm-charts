@@ -4,7 +4,7 @@ Dit runbook beschrijft de overstap van de legacy `kiss-elastic` subchart naar
 Elastic's officiele Helm-charts (`eck-operator` + `eck-stack`), zoals ingevoerd
 door PR #331. Uitgangspunt: **migreren zonder verlies van data**.
 
-Getest op een ontwikkelomgeving met data (test00), zie het onderdeel
+Getest op een ontwikkelomgeving met data, zie het onderdeel
 [Validatie](#5-validatie).
 
 ## 1. Wat verandert er op chart-niveau
@@ -76,8 +76,8 @@ niet en herstart de pods niet.
 
 De KISS Elasticsearch-migratie zelf is een metadata-only wijziging (zie sectie
 2). Het aandachtspunt zit in de **operator-overname** wanneer een omgeving nu
-een losse `elastic-operator` Helm-release draait (bijvoorbeeld geinstalleerd via
-`scripts/deploy-operators.sh`).
+een losse `elastic-operator` Helm-release draait (los geinstalleerd, buiten de
+umbrella om).
 
 ### 4a. Als de omgeving een losse elastic-operator draait
 
@@ -86,11 +86,17 @@ release. Strip daarom eerst de Helm-ownership van de bestaande
 operator-resources, zodat de umbrella ze kan adopteren:
 
 ```bash
-# Zie scripts/archive/strip-eck-helm-annotations.sh (podiumd-infra) voor het
-# volledige script. Het verwijdert meta.helm.sh/release-* annotaties en de
-# managed-by label van: serviceaccount/elastic-operator,
-# service/elastic-operator-webhook, statefulset/elastic-operator, en de
-# bijbehorende clusterroles/-binding.
+NS=podiumd
+# Namespace-scoped operator-resources
+for r in serviceaccount/elastic-operator service/elastic-operator-webhook statefulset/elastic-operator; do
+  kubectl annotate -n "$NS" "$r" meta.helm.sh/release-name- meta.helm.sh/release-namespace- --overwrite || true
+  kubectl label   -n "$NS" "$r" app.kubernetes.io/managed-by- --overwrite || true
+done
+# Cluster-scoped operator-resources
+for r in clusterrole/elastic-operator clusterrole/elastic-operator-edit clusterrole/elastic-operator-view clusterrolebinding/elastic-operator; do
+  kubectl annotate "$r" meta.helm.sh/release-name- meta.helm.sh/release-namespace- --overwrite || true
+  kubectl label   "$r" app.kubernetes.io/managed-by- --overwrite || true
+done
 ```
 
 Alternatief (eenvoudiger, aanbevolen voor de eerste uitrol): laat de losse
@@ -133,7 +139,7 @@ kubectl exec -n $NS kiss-es-default-0 -c elasticsearch -- \
 Na de upgrade moeten StatefulSet-UID, PVC's en doc-counts ongewijzigd zijn en
 moet de `Elasticsearch`-health `green` zijn.
 
-### Resultaat op test00 (02-07-2026)
+### Resultaat van de validatietest
 Met een realistische data-baseline (475 documenten: `search-kennisbank` +
 `search-vac`) is de chart-swap getest: StatefulSet `kiss-es-default` behield
 zijn UID (niet herbouwd), de PVC's bleven staan, de ES bleef `green` en alle
