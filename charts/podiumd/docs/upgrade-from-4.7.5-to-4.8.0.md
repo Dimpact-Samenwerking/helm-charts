@@ -353,3 +353,9 @@ References:
 
 > Roll out per environment (ontwikkel/test first). The chart `global.imageRegistry`
 > is unchanged — only the per-image repo paths change.
+
+### KISS 2.2.2 -> 2.2.4
+KISS 2.2.4 fixes a logout bug: send client_id on the Keycloak RP-initiated logout redirect (fixes “Missing parameters: id_token_hint” when signing out).
+Plus includes updates on vulnerable dependencies
+
+**No action required**

@@ -33,7 +33,7 @@
   version: "2.3.0"
   digest: "sha256:c4537e620899365d64511d20529eb582e87cc2d4ab13b95e45524dbbe06d722d"
 
-# KISS frontend — 2.2.2 -> 2.2.3
+# KISS frontend — 2.2.2 -> 2.2.3 (kiss-chart helm dependency 2.2.4)
 
 - name: contact-frontend
   url: ghcr.io/klantinteractie-servicesysteem/kiss-frontend
