@@ -15,6 +15,23 @@ jobs:
     - name: install helm
       uses: azure/setup-helm@v5.0.1
 
+    - name: assert keycloak digest consistency
+      shell: bash
+      # The Keycloak 26.6.3 digest is pinned in two places and hand-synced:
+      #   keycloak.image.tag                              -> "26.6.3@sha256:<digest>"
+      #   keycloak-operator.config.keycloakImage.sha      -> "<digest>"
+      # Fail the build if they drift out of sync on a future bump.
+      run: |
+        V=charts/podiumd/values.yaml
+        embedded=$(yq -r '.keycloak.image.tag' "$V" | sed -n 's/.*@sha256:\([0-9a-f]\{64\}\).*/\1/p')
+        split=$(yq -r '.["keycloak-operator"].config.keycloakImage.sha' "$V")
+        echo "embedded=$embedded"
+        echo "split=$split"
+        if [ -z "$embedded" ] || [ "$embedded" != "$split" ]; then
+          echo "::error file=$V::keycloak.image.tag digest ($embedded) != keycloak-operator.config.keycloakImage.sha ($split)"
+          exit 1
+        fi
+
     - name: add required helm repository
       shell: bash
       run: |
