@@ -1,16 +1,18 @@
-# Upgrade guide: PodiumD 4.7.5 → 4.8.0
+# Upgrade guide: PodiumD 4.7.6 → 4.8.0
 
 > See the Confluence Releases page for the agreed application
 > targets: <https://dimpact.atlassian.net/wiki/spaces/PCP/pages/7602191/Releases+PodiumD>.
 
-This is the upgrade guide for environments already on **4.7.5** (the current
+This is the upgrade guide for environments already on **4.7.6** (the current
 stable baseline). Environments on an older 4.7.x patch should first move to
-4.7.5 (see [`UPGRADING.md`](UPGRADING.md) for the path), then follow this guide.
+4.7.6 (see [`UPGRADING.md`](UPGRADING.md) and the consolidated
+[`upgrade-from-4.6.8-to-4.7.6.md`](upgrade-from-4.6.8-to-4.7.6.md)), then follow
+this guide.
 
-> ## 4.7.4/4.7.5 work carried in 4.8.0 (no re-action)
+> ## 4.7.4/4.7.5/4.7.6 work carried in 4.8.0 (no re-action)
 >
-> `main` (= 4.7.5) has been forward-integrated into 4.8.0, so 4.8.0 includes the
-> full 4.7.5 baseline. A 4.7.5 environment **already has** the items below, so
+> `main` (= 4.7.6) has been forward-integrated into 4.8.0, so 4.8.0 includes the
+> full 4.7.6 baseline. A 4.7.6 environment **already has** the items below, so
 > there is **no re-action** for them on this hop — listed only to confirm 4.8.0
 > retains them:
 >
@@ -18,11 +20,12 @@ stable baseline). Environments on an older 4.7.x patch should first move to
 > |---|---|
 > | 4.7.4 | Keycloak server **+** operator `26.6.3`; adfinis `keycloak-operator` chart `1.12.0` (16 CVEs incl. CVE-2026-9704, CVE-2026-4874, CVE-2026-9802) |
 > | 4.7.4 | Open Zaak `1.27.2` (CVE-2026-54657 `_zoek` authz + bulk-import path-traversal) |
-> | 4.7.4 | Open Formulieren outgoing-request logging off by default (`LOG_OUTGOING_REQUESTS=False`) |
 > | 4.7.4 | Datamigratie Keycloak client + Open Zaak credentials |
 > | 4.7.5 | ZGW Office Add-in `v0.9.313` (chart `0.0.88`; `add-in` → `addin` repo rename) |
+> | 4.7.6 | Open Formulieren outgoing-request logging back on (upstream default; revert of the 4.7.4 `LOG_OUTGOING_REQUESTS=False`) — opt out per gemeente if desired |
+> | 4.7.6 | Open Archiefbeheer `external_registers` exact-identifier match; Open Beheer ↔ Objecttypen API token (IN-2345) |
 
-## Component versions (the 4.8.0 delta vs 4.7.5)
+## Component versions (the 4.8.0 delta vs 4.7.6)
 
 | Component   | App version | Helm chart |  |
 |---|---|---|---|
@@ -346,7 +349,11 @@ pabc:
       password: "<pabc-db-password>"
 ```
 
-To keep the 4.7.x behaviour (PABC not deployed), set `pabc.enabled: false`.
+**Remove the now-redundant `pabc.enabled` flag from gemeente values.** Gemeente
+`podiumd.yml` files that pinned `pabc.enabled: true` to turn PABC on can drop
+that line — it is the chart default now. Only keep an explicit
+`pabc.enabled: false` if you deliberately want PABC **off**.
+
 Leaving PABC enabled without a reachable DB → PABC pods crashloop. (There is
 no render-time guard for this — it surfaces at runtime.)
 
