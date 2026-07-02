@@ -4,10 +4,8 @@
 > targets: <https://dimpact.atlassian.net/wiki/spaces/PCP/pages/7602191/Releases+PodiumD>.
 
 This is the upgrade guide for environments already on **4.7.5** (the current
-stable baseline). For the older 4.7.3 starting point see
-[`upgrade-from-4.7.3-to-4.8.0.md`](upgrade-from-4.7.3-to-4.8.0.md); the only
-difference is the carry-over note below — the 4.8.0 component changes are
-identical.
+stable baseline). Environments on an older 4.7.x patch should first move to
+4.7.5 (see [`UPGRADING.md`](UPGRADING.md) for the path), then follow this guide.
 
 > ## 4.7.4/4.7.5 work carried in 4.8.0 (no re-action)
 >
@@ -359,6 +357,23 @@ no render-time guard for this — it surfaces at runtime.)
 attribution). Both change the pod template, so **expect a rolling restart of the
 3-node redis-ha cluster** on upgrade, with a brief sentinel failover during the
 rollout. No action required; schedule the upgrade accordingly.
+
+### ZGW Office Add-in — `appEnv` display indicator
+
+`zgw-office-addin.common.appEnv` defaults to `"production"`. On `production` the
+add-in's manifest **DisplayName** gets **no environment indicator** — the name
+shows plain (e.g. "ZGW Office Add-in"). On any other value (e.g. `"test"`,
+`"accp"`) the add-in appends that indicator to the DisplayName so users can tell
+non-prod instances apart in Office.
+
+**Action required:** leave `appEnv: "production"` on production environments;
+set it to the environment name on test/acceptance add-in instances:
+
+```yaml
+zgw-office-addin:
+  common:
+    appEnv: "test"   # non-prod: indicator appended to the add-in DisplayName
+```
 
 ### Open Beheer ↔ Objecttypen API token (IN-2345)
 

@@ -2909,11 +2909,8 @@ zgw-office-addin:
   common:
     # -- Name of the environment (used for display purposes). Default "production" means that no indicator is appended to the DiscplayName in the manifests.
     appEnv: "production"
-    # -- The frontend public URL where the manifest files and static js file are served.
-    # Left empty on purpose: the subchart's values.schema.json (format: uri) + required
-    # guards fail-fast when unset. Real deploys inject this via the gemeente values
-    # pipeline; bare CI renders use charts/podiumd/ci/lint-values.yaml.
-    frontendUrl: ""
+    # -- The frontend public URL where the manifest files and static js file are served
+    frontendUrl: "https://zgw-office-addin.example.nl"
     # -- MS Azure Tenant ID of the Office Add-in application
     msalTenantId: ""
     # -- MS Azure Client ID assigned to the Office Add-in application
@@ -2941,11 +2938,9 @@ zgw-office-addin:
       requests:
         cpu: 100m
         memory: 256Mi
-    # -- ZGW API configuration for integration with the ZGW APIs provider (OpenZaak).
-    # url left empty on purpose (see common.frontendUrl note): fail-fast on unset;
-    # gemeente pipeline injects the real value, CI uses ci/lint-values.yaml.
+    # -- ZGW API configuration for integration with the ZGW APIs provider (OpenZaak)
     zgwApis:
-      url: ""
+      url: "http://open-zaak.example.nl"
       secret: ""
 
 clamav:
