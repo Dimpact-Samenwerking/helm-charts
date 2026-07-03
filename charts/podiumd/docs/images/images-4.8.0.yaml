@@ -21,7 +21,7 @@
 #   3. Renovate-integrated bumps: alpine/k8s 1.34.7->1.36.2,
 #      keycloak-config-cli 6.5.0-26->6.5.1-26.
 #
-# See docs/upgrade-from-4.7.3-to-4.8.0.md for the operator upgrade notes.
+# See docs/upgrade-from-4.7.6-to-4.8.0.md for the operator upgrade notes.
 #
 # Mirror names: `openinwoner` (no hyphen), `zac` (renamed from
 # zaakafhandelcomponent), `nginx-unprivileged` (keeps hyphen), `gotenberg`,
@@ -32,6 +32,14 @@
   url: docker.io/maykinmedia/open-inwoner
   version: "2.3.0"
   digest: "sha256:c4537e620899365d64511d20529eb582e87cc2d4ab13b95e45524dbbe06d722d"
+
+# Open Notificaties — 1.15.0 -> 1.16.0 (chart opennotificaties 1.13.1 -> 2.0.0).
+# RabbitMQ removed; Celery broker/result/publish moved to the shared redis-ha
+# cluster (db6). ACR mirror name keeps the openzaak/ prefix.
+- name: openzaak/open-notificaties
+  url: docker.io/openzaak/open-notificaties
+  version: "1.16.0"
+  digest: "sha256:416f0949f6bf08f430b19ebfb3013963842e7ea59b2c3e4898782a8252a1257c"
 
 # KISS frontend — 2.2.2 -> 2.2.3
 
