@@ -1,0 +1,13 @@
+# Images new or changed in podiumd 4.7.7 vs 4.7.6.
+#
+# 4.7.7 is a direct successor of 4.7.6 (no skipped intermediate releases),
+# so this manifest is the plain 4.7.6 -> 4.7.7 delta.
+#
+# One image change:
+#  - Open Zaak 1.27.2 -> 1.27.3
+
+# Open Zaak — 1.27.2 -> 1.27.3
+- name: openzaak
+  url: docker.io/openzaak/open-zaak
+  version: "1.27.3"
+  digest: "sha256:b2732761c15b9b35d9a59420e01de0bd099266be96819e65be9f4e01fca11a63"
