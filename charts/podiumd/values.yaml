@@ -3820,12 +3820,22 @@ mi:
 
 openbao:
   # OpenBao (openbao.org) — secrets vault. Postgres-backed like the other apps,
-  # HA (3 replicas) against the shared Azure PostgreSQL server, auto-unsealed via
-  # Azure Key Vault, login through the Keycloak `podiumd` realm over OIDC.
+  # HA (3 replicas) against the shared Azure PostgreSQL server. Seal is Shamir
+  # (manual `bao operator init` + unseal — see server.ha.config); Azure Key Vault
+  # auto-unseal is intentionally NOT used yet. Login through the Keycloak
+  # `podiumd` realm over OIDC.
   # Disabled by default; enable + supply env-specific values per environment
   # (see the jim00 override). `server.*` are the upstream openbao subchart keys;
   # `configuration.*` / `database.*` feed the chart's own openbao-* templates.
   enabled: false
+
+  # Vault Agent Sidecar Injector (upstream subchart default: ON). PodiumD does
+  # NOT use sidecar injection — uploaders log in via OIDC — so keep it OFF.
+  # Leaving it on ships an unused hashicorp/vault-k8s Deployment plus a
+  # CLUSTER-SCOPED MutatingWebhookConfiguration that can block pod creation
+  # cluster-wide if the injector is unhealthy.
+  injector:
+    enabled: false
 
   # --- podiumd-side wiring (consumed by the openbao-* templates) ----------------
   configuration:
