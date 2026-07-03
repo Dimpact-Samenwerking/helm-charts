@@ -31,8 +31,8 @@ this guide.
 |---|---|---|---|
 | Open Inwoner        | 2.3.0 | 2.2.0 | optional action to enable ClamAv |
 | Open Notificaties   | 1.16.0 | 2.0.0 | **action required** (RabbitMQ removed) |
-| KISS                | 2.2.3 | 2.2.3 | no action required |
-| _contact-sync_        | 0.3.3 | --    | -- |
+| KISS                | 2.2.4 | 2.2.4 | no action required |
+| _contact-sync_        | 0.3.3 | --    | no action required |
 | ITA (.web, .poller) | 3.2.0 | 3.2.0 | **action required** |
 | brp-personen-mock   | 2.7.0-202606230850 | 1.2.9 | no action required |
 | zaakbrug            | 1.26.14 | 2.3.27 | no action required |
