@@ -1,20 +1,49 @@
-# Upgrade guide: PodiumD 4.7.3 → 4.8.0
+# Upgrade guide: PodiumD 4.7.6 → 4.8.0
 
 > See the Confluence Releases page for the agreed application
 > targets: <https://dimpact.atlassian.net/wiki/spaces/PCP/pages/7602191/Releases+PodiumD>.
 
-## Component versions
+This is the upgrade guide for environments already on **4.7.6** (the current
+stable baseline). Environments on an older 4.7.x patch should first move to
+4.7.6 (see [`UPGRADING.md`](UPGRADING.md) and the consolidated
+[`upgrade-from-4.6.8-to-4.7.6.md`](upgrade-from-4.6.8-to-4.7.6.md)), then follow
+this guide.
+
+> ## 4.7.4/4.7.5/4.7.6 work carried in 4.8.0 (no re-action)
+>
+> `main` (= 4.7.6) has been forward-integrated into 4.8.0, so 4.8.0 includes the
+> full 4.7.6 baseline. A 4.7.6 environment **already has** the items below, so
+> there is **no re-action** for them on this hop — listed only to confirm 4.8.0
+> retains them:
+>
+> | From | Carried in 4.8.0 |
+> |---|---|
+> | 4.7.4 | Keycloak server **+** operator `26.6.3`; adfinis `keycloak-operator` chart `1.12.0` (16 CVEs incl. CVE-2026-9704, CVE-2026-4874, CVE-2026-9802) |
+> | 4.7.4 | Open Zaak `1.27.2` (CVE-2026-54657 `_zoek` authz + bulk-import path-traversal) |
+> | 4.7.4 | Datamigratie Keycloak client + Open Zaak credentials |
+> | 4.7.5 | ZGW Office Add-in `v0.9.313` (chart `0.0.88`; `add-in` → `addin` repo rename) |
+> | 4.7.6 | Open Formulieren outgoing-request logging back on (upstream default; revert of the 4.7.4 `LOG_OUTGOING_REQUESTS=False`) — opt out per gemeente if desired |
+> | 4.7.6 | Open Archiefbeheer `external_registers` exact-identifier match; Open Beheer ↔ Objecttypen API token (IN-2345) |
+
+## Component versions (the 4.8.0 delta vs 4.7.6)
 
 | Component   | App version | Helm chart |  |
 |---|---|---|---|
 | Open Inwoner        | 2.3.0 | 2.2.0 | optional action to enable ClamAv |
+| Open Notificaties   | 1.16.0 | 2.0.0 | **action required** (RabbitMQ removed) |
 | KISS                | 2.2.3 | 2.2.3 | no action required |
 | _contact-sync_        | 0.3.3 | --    | -- |
 | ITA (.web, .poller) | 3.2.0 | 3.2.0 | **action required** |
 | brp-personen-mock   | 2.7.0-202606230850 | 1.2.9 | no action required |
 | zaakbrug            | 1.26.14 | 2.3.27 | no action required |
 | ZAC                 | 5.0.1 | 1.0.251 | **action required** |
+| PABC                | 1.1.0 | 1.1.0 | **action required** (now enabled by default) |
+| redis-operator      | v0.25.0 | -- | expect redis rolling restart |
 
+> A separate test overlay (`feature/podiumd-4.8.0-ontw-mayk-test-updates`, PR
+> #340) pins newer Maykin/upstream images on top of 4.8.0 for the *ontwikkel*
+> environment — Open Inwoner `2.3.1` and ClamAV daemon `1.5.2`. Those are **not**
+> part of the base 4.8.0 release described here.
 
 ## Changes
 
@@ -141,22 +170,72 @@ running pod image with
 must read `…/elasticsearch/elasticsearch:9.2.0`, not `:latest`.
 
 
-### ITA 3.1.0 > 3.2.1
+### Open Notificaties 1.13.1 → 2.0.0 (app 1.16.0) — RabbitMQ removed
+
+Helm chart `opennotificaties` `1.13.1` → `2.0.0` (app `1.16.0`) in
+`charts/podiumd/Chart.yaml`; image `opennotificaties.image.tag` `1.15.0` →
+`1.16.0`. Mirror the new image (`docker.io/openzaak/open-notificaties:1.16.0`,
+ACR name `openzaak/open-notificaties`) — see
+[`docs/images/images-4.8.0.yaml`](images/images-4.8.0.yaml).
+
+**The 2.0.0 chart removes the bundled RabbitMQ.** The Celery broker, result
+backend and publish broker now all use the shared `redis-ha` cluster (db6):
+
+```yaml
+opennotificaties:
+  settings:
+    celery:
+      brokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/6
+      publishBrokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/6
+    messageBroker:
+      celeryResultBackend: redis://redis-ha-master.podiumd.svc.cluster.local:6379/6
+```
+
+(The chart defaults already set these; no gemeente override is needed.)
+
+**Action required — RabbitMQ is destroyed on upgrade; undelivered tasks are
+lost.** Sequence to avoid message loss and orphaned resources:
+
+1. **Quiesce producers** (stop traffic that creates notifications) and let the
+   Celery workers drain — confirm the RabbitMQ queues are empty **before**
+   upgrading (the RabbitMQ StatefulSet is deleted by the 2.0.0 chart).
+2. **Upgrade.** Workers reconnect to the Redis broker.
+3. **Verify** the Celery workers are healthy on Redis (no
+   `amqp://127.0.0.1:5672` connection attempts in the logs — that would mean a
+   broker key is unset).
+4. **Clean up orphaned resources.** Helm never deletes PVCs, and the RabbitMQ
+   secret (guest/guest + erlang cookie) lingers:
+
+   ```bash
+   kubectl -n podiumd delete pvc  -l app.kubernetes.io/name=rabbitmq,app.kubernetes.io/instance=opennotificaties
+   kubectl -n podiumd delete secret opennotificaties-rabbitmq
+   ```
+
+   Adjust names to match your release (`kubectl -n podiumd get pvc,secret | grep -i rabbitmq`).
+
+### ITA 3.1.0 → 3.2.0
+
+Helm chart `ita` (`internetaakafhandeling`) `3.1.0` → `3.2.0` in
+`charts/podiumd/Chart.yaml`; `ita.web.image.tag` and `ita.poller.image.tag`
+`3.1.0` → `3.2.0` in `charts/podiumd/values.yaml`.
 
 #### Adds configuration for Medewerker-objecttype
 
-**Action required:** 
+ITA 3.2.0 introduces the **Medewerker-objecttype**, configured via a new
+required `ita.medewerker` block. The chart ships a placeholder default
+(`REP_CONTACT_MEDEWERKER_UUID_REP`), and `templates/validations.yaml` fails
+the render if `ita.medewerker.type` is left blank while ITA is enabled.
 
-ITA 3.2.1 introduces two new, required helm values, for the Medewerker-object. 
-This means all gemeentelijke podium.yml-files must be changed to include the below:
+**Action required:** every gemeente `podiumd.yml` must set the
+environment-specific Medewerker objecttype URL:
 
 ```yaml
 ita:
   ...
   medewerker:
-    # -- Version of the medewerker objecttype that is used, most likely: 1 
     type: "https://<env>-objecttypen.<gemeente>.nl/api/v2/objecttypes/REP_CONTACT_MEDEWERKER_UUID_REP"
-    typeVersion: 1    
+    # -- Version of the medewerker objecttype that is used, most likely: 1
+    typeVersion: 1
 ```
 
 ### ZAC 4.7.2 → 5.0.1
@@ -250,6 +329,59 @@ apiproxy:
 
 See [`docs/zac-brp-protocollering.md`](zac-brp-protocollering.md) for details.
 
+### PABC now enabled by default
+
+The chart default `pabc.enabled` flipped `false` → `true`, so the PABC
+(PodiumD Autorisatie Beheer Component) subchart now deploys unless you opt out.
+The bundled PostgreSQL stays **off** (`pabc.postgresql.enabled: false`), so PABC
+needs an **external database**.
+
+**Action required:** provision a database and set its credentials, or opt out.
+
+```yaml
+pabc:
+  enabled: true            # chart default
+  settings:
+    database:
+      host: "<pabc-db-host>"
+      name: "pabc"
+      username: "pabc"
+      password: "<pabc-db-password>"
+```
+
+**Remove the now-redundant `pabc.enabled` flag from gemeente values.** Gemeente
+`podiumd.yml` files that pinned `pabc.enabled: true` to turn PABC on can drop
+that line — it is the chart default now. Only keep an explicit
+`pabc.enabled: false` if you deliberately want PABC **off**.
+
+Leaving PABC enabled without a reachable DB → PABC pods crashloop. (There is
+no render-time guard for this — it surfaces at runtime.)
+
+### Redis (redis-ha + operator)
+
+4.8.0 bumps the Open Notificaties redis-operator `v0.24.0` → `v0.25.0` and adds
+`app`/`service_name` labels to the `redis-ha` `RedisReplication` resource (Loki
+attribution). Both change the pod template, so **expect a rolling restart of the
+3-node redis-ha cluster** on upgrade, with a brief sentinel failover during the
+rollout. No action required; schedule the upgrade accordingly.
+
+### ZGW Office Add-in — `appEnv` display indicator
+
+`zgw-office-addin.common.appEnv` defaults to `"production"`. On `production` the
+add-in's manifest **DisplayName** gets **no environment indicator** — the name
+shows plain (e.g. "ZGW Office Add-in"). On any other value (e.g. `"test"`,
+`"accp"`) the add-in appends that indicator to the DisplayName so users can tell
+non-prod instances apart in Office.
+
+**Action required:** leave `appEnv: "production"` on production environments;
+set it to the environment name on test/acceptance add-in instances:
+
+```yaml
+zgw-office-addin:
+  common:
+    appEnv: "test"   # non-prod: indicator appended to the add-in DisplayName
+```
+
 ### Open Beheer ↔ Objecttypen API token (IN-2345)
 
 Open Beheer authenticates to the **Objecttypen API** with an API token.
@@ -275,6 +407,59 @@ when Open Beheer is **enabled and the secret is provisioned** — the
 unsubstituted `REP_..._REP` placeholder**. The chart `values.yaml` example
 (objecttypen `tokenauth` + openbeheer `zgw_consumers`) already shows the correct
 form; see also `openbeheer.md`.
+
+### ACR mirror naming — new strip-registry convention
+
+4.8.0 replaces the hand-maintained ACR mirror translation table (drop-namespace
+/ drop-hyphen / Dutch-rename) with a **mechanical rule**: the ACR mirror repo is
+the upstream image reference with **only the registry host stripped** — the full
+`<namespace>/<repo>` path is kept.
+
+```
+quay.io/keycloak/keycloak            -> keycloak/keycloak
+docker.io/maykinmedia/open-inwoner   -> maykinmedia/open-inwoner
+ghcr.io/infonl/zaakafhandelcomponent -> infonl/zaakafhandelcomponent
+docker.io/library/redis              -> library/redis
+```
+
+So the mirrored image becomes `<global.imageRegistry>/<namespace>/<repo>:<tag>`,
+e.g. `acrprodmgmt.azurecr.io/maykinmedia/open-inwoner:2.3.0`. Every per-image
+`repository:` override in a gemeente `podiumd.yml` therefore changes (e.g.
+`acrprodmgmt.azurecr.io/openinwoner` → `acrprodmgmt.azurecr.io/maykinmedia/open-inwoner`).
+
+References:
+
+- Convention + mapping: [`docs/images/acr-mirror-naming.md`](images/acr-mirror-naming.md).
+- Complete pinned set (name/url/version/digest):
+  [`docs/images/images-baseline.yaml`](images/images-baseline.yaml).
+- Migration/generation script:
+  [`scripts/mirror-strip-registry.py`](../scripts/mirror-strip-registry.py).
+
+#### Action required
+
+1. **Re-import the ACR repos under the new names.** Coordinate with SSC-Hosting:
+   the import pipeline must mirror each image to `<namespace>/<repo>` (see
+   `images-baseline.yaml`). Until a repo exists under its new name, pods
+   referencing it will `ImagePullBackOff`.
+2. **Migrate each gemeente `podiumd.yml`** with the script (dry-run first):
+
+   ```bash
+   # diff only (default)
+   python charts/podiumd/scripts/mirror-strip-registry.py \
+     ExternalsPodiumD/applications/gemeenten/<gem>/<env>/podiumd.yml
+   # apply
+   python charts/podiumd/scripts/mirror-strip-registry.py \
+     ExternalsPodiumD/applications/gemeenten/<gem>/<env>/podiumd.yml --in-place
+   ```
+
+   It rewrites the inline (`repository: <registry>/<name>`), split
+   (`registry:` + `repository:`) and `imageName:` shapes.
+3. **Verify** after rollout that images pull cleanly
+   (`kubectl -n podiumd get pods` → no `ImagePullBackOff`); a name that has no
+   matching ACR repo fails on first pull.
+
+> Roll out per environment (ontwikkel/test first). The chart `global.imageRegistry`
+> is unchanged — only the per-image repo paths change.
 
 ### KISS 2.2.2 -> 2.2.4
 KISS 2.2.4 fixes a logout bug: send client_id on the Keycloak RP-initiated logout redirect (fixes “Missing parameters: id_token_hint” when signing out).

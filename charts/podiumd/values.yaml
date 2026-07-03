@@ -73,7 +73,8 @@ keycloak-operator:
       initImage:
         registry: ""
         repository: python
-        tag: "3.14-slim"
+        # Digest-pinned to match docs/images/images-4.8.0.yaml (python 3.14-slim).
+        tag: "3.14-slim@sha256:8e4071294d046d45b31a902e02a8560a45c351898513b66ec659ca39fd30d170"
       # Main container: runs psql to execute the generated SQL against the Keycloak DB.
       image:
         registry: ""
@@ -373,7 +374,7 @@ redis-operator:
     GenerateConfigInInitContainer: true
   redisOperator:
     imageName: quay.io/opstree/redis-operator
-    imageTag: "v0.24.0"
+    imageTag: "v0.25.0"
   resources:
     requests:
       cpu: 100m
@@ -879,7 +880,19 @@ opennotificaties:
     celery:
       # -- Set to debug for test/acceptance environments
       logLevel: warning
+      # RabbitMQ removed in chart 2.0.0 / app 1.16.0 — Celery broker, result backend and
+      # publish broker all use the shared redis-ha cluster (db6 = opennotificaties slot).
+      # NOTE: subchart 2.0.0 secret.yaml reads settings.celery.brokerUrl + publishBrokerUrl
+      # for the broker, but the RESULT backend comes from
+      # settings.messageBroker.celeryResultBackend (below) when tags.redis=false.
+      # settings.celery.resultBackend here is NOT consumed by the chart.
+      brokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/6
+      resultBackend: redis://redis-ha-master.podiumd.svc.cluster.local:6379/6
+      publishBrokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/6
     messageBroker:
+      # Required: chart 2.0.0 charts/opennotificaties/templates/secret.yaml renders
+      # CELERY_RESULT_BACKEND from this key in the tags.redis=false branch. Missing it
+      # crashes render with "nil pointer evaluating interface {}.celeryResultBackend".
       celeryResultBackend: redis://redis-ha-master.podiumd.svc.cluster.local:6379/6
   persistence:
     size: 10Gi
@@ -3171,10 +3184,13 @@ ita:
     type: "https://ontw-objecttypen.example.nl/api/v2/objecttypes/REP_CONTACT_GROEP_UUID_REP"
     typeVersion: 1
 
+  # ITA 3.2.0 adds the Medewerker-objecttype (two new required values). Gemeente
+  # values must set `type` to the environment-specific objecttype URL; the guard
+  # in templates/validations.yaml fails the render if it is left blank.
   medewerker:
-    # -- De url van het medewerker objecttype in de objecttypen api.
+    # Aanname: uuid van objecttype wordt gemeentespecifiek vervangen door Replacementscripts
+    uuid: "REP_CONTACT_MEDEWERKER_UUID_REP"
     type: "https://ontw-objecttypen.example.nl/api/v2/objecttypes/REP_CONTACT_MEDEWERKER_UUID_REP"
-    # -- De versie van het medewerker objecttype dat gebruikt wordt (hoogstwaarschijnlijk 1)
     typeVersion: 1
 
   smtp:
@@ -3252,7 +3268,7 @@ serviceAccount:
   name: ""
 
 pabc:
-  enabled: false
+  enabled: true
   fullnameOverride: "pabc"
   postgresql:
     enabled: false
