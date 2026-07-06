@@ -457,7 +457,7 @@ redis-operator:
     # Override this in environments that restrict public Docker Hub pulls (e.g. point to an ACR mirror).
     initContainerImage:
       repository: busybox
-      tag: "1.37.0-glibc"
+      tag: "1.38.0-glibc"
     # -- Resources for the initContainer that configures redis.conf.
     initContainerResources:
       requests:

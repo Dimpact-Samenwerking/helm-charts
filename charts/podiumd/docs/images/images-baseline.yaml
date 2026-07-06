@@ -46,6 +46,10 @@
   digest: "sha256:43062e9200a1ae7cb92f1830acf0ab7ca19272dea0756400caaeb4748bed9fa5"
 - name: clamav/clamav
   url: docker.io/clamav/clamav
+  version: "1.5.2"
+  digest: "sha256:c17762a00ba24dce4cf822fdc6f5bdfaa6e3ba152efc734d545b9a68be5641da"
+- name: clamav/clamav
+  url: docker.io/clamav/clamav
   version: "1.4.4"
   digest: "sha256:a52f45e42753dca691b6c9fd09fe68d6ca9ac22fa8cd6a8a45d9237e188049e3"
 - name: curlimages/curl
@@ -97,7 +101,6 @@
   url: ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller
   version: "3.2.0"
   digest: "sha256:eee4567fd5bfaa7eb2ec13fa1a34cfabb402939ffdc79de8159f5dc00754bafb"
-# 3.1.0 still pinned by chart values.yaml (lags 3.2.0); keep mirrored until bumped.
 - name: interne-taak-afhandeling/internetaakafhandeling.poller
   url: ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller
   version: "3.1.0"
@@ -122,16 +125,18 @@
   url: ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync
   version: "0.3.3"
   digest: "sha256:f26bd91d96ec8f1875e1ce7a2386788913240bc3b70a520926db444ba61e424c"
-# 0.3.2 still pinned by chart values.yaml (lags 0.3.3); keep mirrored until bumped.
 - name: klantinteractie-servicesysteem/kiss-elastic-sync
   url: ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync
   version: "0.3.2"
   digest: "sha256:289278af6137e84055ba15ab694405d90778970dc9f6f33d3806fd8d6e867cd4"
 - name: klantinteractie-servicesysteem/kiss-frontend
   url: ghcr.io/klantinteractie-servicesysteem/kiss-frontend
+  version: "2.2.4"
+  digest: "sha256:7c7b58109dc6ca7e66bb21b9cd2902ac09d6a764e70cff396e93ca0fcfa293e9"
+- name: klantinteractie-servicesysteem/kiss-frontend
+  url: ghcr.io/klantinteractie-servicesysteem/kiss-frontend
   version: "2.2.3"
   digest: "sha256:a12276517ce7846e5ebe40373de8c4960fb41182958a668ad60254b088252252"
-# 2.2.2 still pinned by chart values.yaml (lags 2.2.3); keep mirrored until bumped.
 - name: klantinteractie-servicesysteem/kiss-frontend
   url: ghcr.io/klantinteractie-servicesysteem/kiss-frontend
   version: "2.2.2"
@@ -172,6 +177,10 @@
   url: docker.io/maykinmedia/open-beheer
   version: "0.9.0"
   digest: "sha256:1a11b06dadb82c992468709b1aa92d0501aef6d526a7afb52bacac6917385166"
+- name: maykinmedia/open-inwoner
+  url: docker.io/maykinmedia/open-inwoner
+  version: "2.3.1"
+  digest: "sha256:3a2ff5c8eefa69252b15a7385c82811c3681e6ecc29bb2aa35eccb331dddbc56"
 - name: maykinmedia/open-inwoner
   url: docker.io/maykinmedia/open-inwoner
   version: "2.3.0"
@@ -216,6 +225,10 @@
   url: quay.io/opstree/redis-exporter
   version: "v1.82.0"
   digest: "sha256:bce422b4bba8721bef04d5ca491eeec2b53278698b4bd9790f81fbb287cdfe88"
+- name: opstree/redis-operator
+  url: quay.io/opstree/redis-operator
+  version: "v0.25.0"
+  digest: "sha256:d905da8b418228b100ead45965da835f3bed8c59fa069423a9a002b62942c940"
 - name: opstree/redis-operator
   url: quay.io/opstree/redis-operator
   version: "v0.24.0"
