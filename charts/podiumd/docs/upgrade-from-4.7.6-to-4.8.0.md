@@ -29,7 +29,7 @@ this guide.
 
 | Component   | App version | Helm chart |  |
 |---|---|---|---|
-| Open Inwoner        | 2.3.0 | 2.2.0 | optional action to enable ClamAv |
+| Open Inwoner        | 2.3.1 | 2.2.1 | optional action to enable ClamAv |
 | Open Notificaties   | 1.16.0 | 2.0.0 | **action required** (RabbitMQ removed) |
 | KISS                | 2.2.4 | 2.2.4 | no action required |
 | _contact-sync_        | 0.3.3 | --    | no action required |
@@ -40,25 +40,20 @@ this guide.
 | PABC                | 1.1.0 | 1.1.0 | **action required** (now enabled by default) |
 | redis-operator      | v0.25.0 | -- | expect redis rolling restart |
 
-> A separate test overlay (`feature/podiumd-4.8.0-ontw-mayk-test-updates`, PR
-> #340) pins newer Maykin/upstream images on top of 4.8.0 for the *ontwikkel*
-> environment — Open Inwoner `2.3.1` and ClamAV daemon `1.5.2`. Those are **not**
-> part of the base 4.8.0 release described here.
-
 ## Changes
 
-### Open Inwoner 2.1.2 → 2.3.0
+### Open Inwoner 2.1.2 → 2.3.1
 
-PodiumD 4.8.0 bumps **Open Inwoner Platform (OIP)** from 2.1.2 to 2.3.0,
-spanning two upstream releases (2.2.0 and 2.3.0).
+PodiumD 4.8.0 bumps **Open Inwoner Platform (OIP)** from 2.1.2 to 2.3.1,
+spanning three upstream releases (2.2.0, 2.3.0 and 2.3.1).
 
-- Helm chart `openinwoner` `2.1.3` → `2.2.0` (appVersion `2.3.0`) in
+- Helm chart `openinwoner` `2.1.3` → `2.2.1` (appVersion `2.3.1`) in
   `charts/podiumd/Chart.yaml`.
-- Image tag pin `openinwoner.image.tag` `2.1.2` → `2.3.0` in
+- Image tag pin `openinwoner.image.tag` `2.1.2` → `2.3.1` in
   `charts/podiumd/values.yaml`.
 
 Image / digest: see [`docs/images/images-4.8.0.yaml`](images/images-4.8.0.yaml).
-The ACR mirror name is `openinwoner` (no hyphen) — mirror the new `2.3.0`
+The ACR mirror name is `openinwoner` (no hyphen) — mirror the new `2.3.1`
 tag and digest.
 
 #### Django CMS v3 → v4 migration (2.2.0)
@@ -423,7 +418,7 @@ docker.io/library/redis              -> library/redis
 ```
 
 So the mirrored image becomes `<global.imageRegistry>/<namespace>/<repo>:<tag>`,
-e.g. `acrprodmgmt.azurecr.io/maykinmedia/open-inwoner:2.3.0`. Every per-image
+e.g. `acrprodmgmt.azurecr.io/maykinmedia/open-inwoner:2.3.1`. Every per-image
 `repository:` override in a gemeente `podiumd.yml` therefore changes (e.g.
 `acrprodmgmt.azurecr.io/openinwoner` → `acrprodmgmt.azurecr.io/maykinmedia/open-inwoner`).
 

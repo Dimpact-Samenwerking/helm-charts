@@ -1,6 +1,6 @@
 # Values changes for PodiumD 4.8.0
 
-Companion to (upgrade-from-4.6.5-to-4.7.0.md). This file lists every value override a gemeente `podiumd.yml` may need to add, change, or remove when moving from chart 4.7.X to 4.8.0. Application-level changes and migration scripts are documented in the upgrade guide; this file focuses purely on the values surface.
+Companion to [upgrade-from-4.7.6-to-4.8.0.md](upgrade-from-4.7.6-to-4.8.0.md). This file lists every value override a gemeente `podiumd.yml` may need to add, change, or remove when moving from chart 4.7.X to 4.8.0. Application-level changes and migration scripts are documented in the upgrade guide; this file focuses purely on the values surface.
 
 ## TL;DR
 
