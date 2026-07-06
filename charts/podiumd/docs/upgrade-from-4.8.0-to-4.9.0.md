@@ -16,12 +16,12 @@
 
 ## Changes
 
-### ZAC 4.7.2 → 5.1.0 (chart 1.0.228 → 1.0.257)
+### ZAC 5.0.1 → 5.1.0 (chart 1.0.228 → 1.0.257)
 
-PodiumD 4.9.0 upgrades **ZAC (Zaakafhandelcomponent)** from 4.7.1 to 5.1.0.
+PodiumD 4.9.0 upgrades **ZAC (Zaakafhandelcomponent)** from 5.0.1 to 5.1.0.
 
 - Helm chart `zaakafhandelcomponent` `1.0.228` → `1.0.257` in `charts/podiumd/Chart.yaml`.
-- Image tag pin `zac.image.tag` `4.7.1` → `5.1.0` in `charts/podiumd/values.yaml`.
+- Image tag pin `zac.image.tag` `5.0.1` → `5.1.0` in `charts/podiumd/values.yaml`.
 
 Image / digest: see [`docs/images/images-4.9.0.yaml`](images/images-4.9.0.yaml).
 
