@@ -2383,7 +2383,7 @@ kiss:
   image:
     #   repository: "ghcr.io/klantinteractie-servicesysteem/kiss-frontend"
     pullPolicy: IfNotPresent
-    tag: 2.2.2
+    tag: 2.2.4
   enabled: true
   nameOverride: contact
   fullnameOverride: contact
@@ -2539,7 +2539,7 @@ kiss:
     syncJobs:
       image:
         # repository: "ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync"
-        tag: "0.3.2"
+        tag: "0.3.3"
         pullPolicy: IfNotPresent
       kennisbank:
         baseUrl: ""
@@ -3323,7 +3323,7 @@ omc:
   fullnameOverride: "omc"
   image:
     # repository: ghcr.io/worth-nl/notifynl-omc
-    tag: "1.17.19@sha256:fdaabe81d6974dc2170d5383e604c15d76febd0a3563362a6827e437f04b398b"
+    tag: "1.17.19"
   # BELOW are the resource settings from the subchart, notifynl-omc-nodep which we do not override
   # app:
   #   port: 5270
