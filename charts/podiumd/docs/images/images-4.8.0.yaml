@@ -20,6 +20,7 @@
 #        busybox 1.37.0-glibc->1.38.0-glibc.
 #   3. Renovate-integrated bumps: alpine/k8s 1.34.7->1.36.2,
 #      keycloak-config-cli 6.5.0-26->6.5.1-26.
+#   4. Open Formulieren 3.4.9 -> 3.4.10 (patch; no action required).
 #
 # See docs/upgrade-from-4.7.6-to-4.8.0.md for the operator upgrade notes.
 #
@@ -160,3 +161,9 @@
   url: quay.io/opstree/redis-operator
   version: "v0.25.0"
   digest: "sha256:d905da8b418228b100ead45965da835f3bed8c59fa069423a9a002b62942c940"
+
+# Open Formulieren — 3.4.9 -> 3.4.10 (patch; no action required)
+- name: openformulieren/open-forms
+  url: docker.io/openformulieren/open-forms
+  version: "3.4.10"
+  digest: "sha256:45755696db647b0c9fecc5d2c78403dbbac0f3c962292e89dee34b405abd1d7c"

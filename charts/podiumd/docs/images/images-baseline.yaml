@@ -194,8 +194,8 @@
   digest: "sha256:f6a4aa83a27e316114bf79664302b1ffb2cc8ce697fb479273af4feb3fb16fe3"
 - name: openformulieren/open-forms
   url: docker.io/openformulieren/open-forms
-  version: "3.4.9"
-  digest: "sha256:55dc5644595d43a5412d60436aac846ce0d71b799be85c53ff815c31416f3e39"
+  version: "3.4.10"
+  digest: "sha256:45755696db647b0c9fecc5d2c78403dbbac0f3c962292e89dee34b405abd1d7c"
 - name: openpolicyagent/opa
   url: docker.io/openpolicyagent/opa
   version: "1.17.1-static"

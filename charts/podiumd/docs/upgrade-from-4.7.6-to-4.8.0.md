@@ -39,6 +39,7 @@ this guide.
 | ZAC                 | 5.0.1 | 1.0.251 | **action required** |
 | PABC                | 1.1.0 | 1.1.0 | **action required** (now enabled by default) |
 | redis-operator      | v0.25.0 | -- | expect redis rolling restart |
+| Open Formulieren    | 3.4.10 | 1.12.0 | no action required (3.4.9 → 3.4.10 patch) |
 
 > A separate test overlay (`feature/podiumd-4.8.0-ontw-mayk-test-updates`, PR
 > #340) pins newer Maykin/upstream images on top of 4.8.0 for the *ontwikkel*
@@ -407,6 +408,17 @@ when Open Beheer is **enabled and the secret is provisioned** — the
 unsubstituted `REP_..._REP` placeholder**. The chart `values.yaml` example
 (objecttypen `tokenauth` + openbeheer `zgw_consumers`) already shows the correct
 form; see also `openbeheer.md`.
+
+### Open Formulieren 3.4.9 → 3.4.10
+
+Image patch incorporated into the 4.8.0 release. No configuration changes,
+helm chart changes, or gemeente value overrides are needed.
+
+Mirror the new image (`docker.io/openformulieren/open-forms:3.4.10`, ACR name
+`openformulieren/open-forms`) — see
+[`docs/images/images-4.8.0.yaml`](images/images-4.8.0.yaml).
+
+**Action required:** none.
 
 ### ACR mirror naming — new strip-registry convention
 

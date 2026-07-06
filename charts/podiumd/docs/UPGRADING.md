@@ -21,6 +21,10 @@ and a matching image manifest (the ACR-mirror set for that hop):
 | 4.6.8 → 4.7.6   | [`upgrade-from-4.6.8-to-4.7.6.md`](upgrade-from-4.6.8-to-4.7.6.md)   | 4.7 chain: [`images-4.7.0`](images/images-4.7.0.yaml) · [`4.7.1`](images/images-4.7.1.yaml) · [`4.7.2`](images/images-4.7.2.yaml) · [`4.7.3`](images/images-4.7.3.yaml) · [`4.7.4`](images/images-4.7.4.yaml) · [`4.7.5`](images/images-4.7.5.yaml) |
 | 4.7.6 → 4.8.0   | [`upgrade-from-4.7.6-to-4.8.0.md`](upgrade-from-4.7.6-to-4.8.0.md)   | [`images/images-4.8.0.yaml`](images/images-4.8.0.yaml) |
 
+> **4.8.0 within-release patch:** `images-4.8.0.yaml` was amended to include
+> Open Formulieren `3.4.9 → 3.4.10`. No action required; mirror the updated
+> `openformulieren/open-forms:3.4.10` image.
+
 > The 4.6.4 → 4.6.8 and 4.6.8 → 4.7.6 guides are **consolidated**: each folds
 > several intermediate releases into one document so an operator reads one
 > guide per hop instead of chasing a chain of patch-level notes. For the
