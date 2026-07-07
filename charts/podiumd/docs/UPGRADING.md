@@ -24,9 +24,13 @@ and a matching image manifest (the ACR-mirror set for that hop):
 > The 4.6.4 → 4.6.8 and 4.6.8 → 4.7.6 guides are **consolidated**: each folds
 > several intermediate releases into one document so an operator reads one
 > guide per hop instead of chasing a chain of patch-level notes. For the
-> 4.6.8 → 4.7.6 hop the granular per-release notes (4.7.0→4.7.1 … 4.7.3→4.7.4)
+> 4.6.8 → 4.7.6 hop the granular per-release notes (4.7.0→4.7.1 … 4.7.5→4.7.6)
 > are kept alongside for reference; 4.7.6 itself adds no image bumps (there is
 > no `images-4.7.6.yaml`).
+>
+> The **4.7.6 → 4.8.0** guide similarly folds in the **4.7.7** patch (Open Zaak
+> 1.27.2 → 1.27.3). `images-4.8.0.yaml` is cumulative from 4.7.6 and already
+> includes the 4.7.7 image bump, so no separate 4.7.7 stepping stone is required.
 
 
 ### Environments already on 4.6.6
@@ -53,8 +57,8 @@ carried (and 4.7.0 inherited). It is **not part of any official upgrade** and
 
 - At **4.6.8** Open Inwoner is the **stable `2.1.2`** (the 4.6.4 → 4.6.8 guide
   goes `2.1.1` → stable `2.1.2`, skipping the rc).
-- From **4.6.8 through 4.7.5** it stays on stable `2.1.2`; at **4.8.0** it moves
-  to `2.3.0`.
+- From **4.6.8 through 4.7.7** it stays on stable `2.1.2`; at **4.8.0** it moves
+  to `2.3.1`.
 
 Always pin `openinwoner.image.tag` to a stable version. If you see `2.1.2-rc1`
 anywhere in an environment values file, fix it.
@@ -83,8 +87,9 @@ previous stepping stone**:
 
 - [`images-4.6.8.yaml`](images/images-4.6.8.yaml) lists everything new/changed
   since **4.6.4** (not just since 4.6.7).
-- For the 4.6.8 → 4.7.3 hop the 4.7.x chain manifests are kept individually
-  (`images-4.7.0` … `images-4.7.3`); read together they cover the full hop.
+- For the 4.6.8 → 4.7.6 hop the 4.7.x chain manifests are kept individually
+  (`images-4.7.0` … `images-4.7.5`); read together they cover the full hop.
+- `images-4.8.0.yaml` is cumulative from 4.7.6 (includes the 4.7.7 patch).
 
 ## Intermediate / reference guides (NOT the official path)
 
@@ -99,12 +104,15 @@ official path out of them:
 | [`upgrade-from-4.7.1-to-4.7.2.md`](upgrade-from-4.7.1-to-4.7.2.md) | Granular 4.7.x patch note (folded into the 4.6.8 → 4.7.6 guide). |
 | [`upgrade-from-4.7.2-to-4.7.3.md`](upgrade-from-4.7.2-to-4.7.3.md) | Granular 4.7.x patch note (folded into the 4.6.8 → 4.7.6 guide). |
 | [`upgrade-from-4.7.3-to-4.7.4.md`](upgrade-from-4.7.3-to-4.7.4.md) | Granular 4.7.x patch note (folded into the 4.6.8 → 4.7.6 guide). |
+| [`upgrade-from-4.7.4-to-4.7.5.md`](upgrade-from-4.7.4-to-4.7.5.md) | Granular 4.7.x patch note (folded into the 4.6.8 → 4.7.6 guide). |
+| [`upgrade-from-4.7.5-to-4.7.6.md`](upgrade-from-4.7.5-to-4.7.6.md) | Granular 4.7.x patch note (folded into the 4.6.8 → 4.7.6 guide). |
+| [`upgrade-from-4.7.6-to-4.7.7.md`](upgrade-from-4.7.6-to-4.7.7.md) | Granular 4.7.7 patch note (Open Zaak 1.27.3; folded into the 4.7.6 → 4.8.0 guide). |
 | [`values-changes-4.7.0.md`](values-changes-4.7.0.md) | Full values add/change/remove table for the 4.7.0 jump. |
 | [`values-changes-4.8.0.md`](values-changes-4.8.0.md) | Full values add/change/remove table for the 4.8.0 jump (ZAC 5.0.1 breaking changes + ITA medewerker). |
 | [`zac-brp-protocollering.md`](zac-brp-protocollering.md) | ZAC BRP protocollering vendor reference (iConnect, eServices, 2Secure/EnableU) — ZAC 5.0.1. |
 
-The 4.7.x granular notes are intentionally retained for now; once the 4.7 line
-closes they can be retired in favour of the consolidated 4.6.8 → 4.7.6 guide.
+The 4.7.x granular notes are intentionally retained for now; once the 4.7/4.8 line
+closes they can be retired in favour of the consolidated guides.
 
 ## Adding a new release
 
