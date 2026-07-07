@@ -102,7 +102,7 @@ zac:
 
 ---
 
-## 2Secure / EnableU: Zwolle, Kampen en Oldenzaal
+## 2Secure: Zwolle, Kampen en Oldenzaal
 
 ```yaml
 zac:
