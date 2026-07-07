@@ -12,7 +12,7 @@ All values below go in the gemeente's `podiumd.yml` under `zac.brpApi`.
 
 ---
 
-## iConnect
+## iConnect: Assen en Groningen
 
 ```yaml
 zac:
@@ -45,7 +45,7 @@ zac:
 
 ---
 
-## eServices
+## eServices: Oldambt
 
 ```yaml
 zac:
@@ -75,7 +75,34 @@ zac:
 
 ---
 
-## 2Secure / EnableU
+## 2Secure / EnableU: Enschede
+
+```yaml
+zac:
+  brpApi:
+    url: http://api-proxy.podiumd.svc.cluster.local/brp
+    apiKey:
+      header: "x-api-key"
+      value: "dummy"
+    logLevel: "OFF"
+    protocollering:
+      enabled: true
+      systemUser: "SystemUser"
+      doelbinding:
+        perZaaktype: false
+      verwerking:
+        header: "x-verwerking"
+        register: "dummy" ## we hebben de Def Waarde nog niet
+      gebruiker:
+        header: "x-gebruiker"
+      toepassing:
+        header: "x-applicatie"
+        value: "ZAC"
+```
+
+---
+
+## 2Secure / EnableU: Zwolle, Kampen en Oldenzaal
 
 ```yaml
 zac:
@@ -97,10 +124,38 @@ zac:
         header: "x-gebruiker"
       toepassing:
         header: "x-applicatie"
-        value: "dummy"
+        value: "ZAC"
 ```
 
 ---
+
+## Yenlo: Oost Gelre
+
+```yaml
+zac:
+  brpApi:
+    url: http://api-proxy.podiumd.svc.cluster.local/brp
+    apiKey:
+      header: "x-api-key"
+      value: "dummy"
+    logLevel: "OFF"
+    protocollering:
+      enabled: true
+      systemUser: "SystemUser"
+      doelbinding:
+        perZaaktype: false
+      verwerking:
+        header: "x-verwerking"
+        register: "dummy"
+      gebruiker:
+        header: "x-gebruiker"
+      toepassing:
+        header: "x-applicatie"
+        value: "ZAC"
+```
+
+---
+
 
 ## API-proxy: disable `toepassingHeaderName` when protocollering is enabled
 
