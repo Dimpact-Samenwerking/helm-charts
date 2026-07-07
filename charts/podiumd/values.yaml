@@ -74,7 +74,7 @@ keycloak-operator:
         registry: ""
         repository: python
         # Digest-pinned to match docs/images/images-4.8.0.yaml (python 3.14-slim).
-        tag: "3.14-slim@sha256:8e4071294d046d45b31a902e02a8560a45c351898513b66ec659ca39fd30d170"
+        tag: "3.14-slim@sha256:b877e50bd90de10af8d82c57a022fc2e0dc731c5320d762a27986facfc3355c1"
       # Main container: runs psql to execute the generated SQL against the Keycloak DB.
       image:
         registry: ""
@@ -713,7 +713,7 @@ openzaak:
         memory: 160Mi
   nginx:
     image:
-      tag: "1.31.1@sha256:9f6b32064a29d747404d959e078c713a0523a9bd4e41f6912058126ebca94e61"
+      tag: "1.31.1@sha256:a863b95eaf9d868354e336b1a38cce4f8d73cb029ef45cb6dfcc935a0c1524c1"
     resources:
       requests:
         cpu: 10m
@@ -1392,7 +1392,7 @@ openarchiefbeheer:
 
   nginx:
     image:
-      tag: "1.31.1@sha256:9f6b32064a29d747404d959e078c713a0523a9bd4e41f6912058126ebca94e61"
+      tag: "1.31.1@sha256:a863b95eaf9d868354e336b1a38cce4f8d73cb029ef45cb6dfcc935a0c1524c1"
     resources:
       requests:
         cpu: 10m
@@ -1582,7 +1582,7 @@ openklant:
   fullnameOverride: openklant
   nginx:
     image:
-      tag: "1.31.1@sha256:9f6b32064a29d747404d959e078c713a0523a9bd4e41f6912058126ebca94e61"
+      tag: "1.31.1@sha256:a863b95eaf9d868354e336b1a38cce4f8d73cb029ef45cb6dfcc935a0c1524c1"
     resources:
       requests:
         cpu: 10m
@@ -1799,7 +1799,7 @@ openformulieren:
         memory: 160Mi
   nginx:
     image:
-      tag: "1.31.1@sha256:9f6b32064a29d747404d959e078c713a0523a9bd4e41f6912058126ebca94e61"
+      tag: "1.31.1@sha256:a863b95eaf9d868354e336b1a38cce4f8d73cb029ef45cb6dfcc935a0c1524c1"
     resources:
       requests:
         cpu: 10m
@@ -2013,7 +2013,7 @@ openinwoner:
   fullnameOverride: openinwoner
   nginx:
     image:
-      tag: "1.31.1@sha256:9f6b32064a29d747404d959e078c713a0523a9bd4e41f6912058126ebca94e61"
+      tag: "1.31.1@sha256:a863b95eaf9d868354e336b1a38cce4f8d73cb029ef45cb6dfcc935a0c1524c1"
     config:
       basicAuth:
         # Enable this when digid mock is set to digidMock: "true"
@@ -2362,7 +2362,7 @@ openbeheer:
       rateUser: "15000/hour"
   nginx:
     image:
-      tag: "1.31.1@sha256:9f6b32064a29d747404d959e078c713a0523a9bd4e41f6912058126ebca94e61"
+      tag: "1.31.1@sha256:a863b95eaf9d868354e336b1a38cce4f8d73cb029ef45cb6dfcc935a0c1524c1"
     resources:
       requests:
         cpu: 10m
@@ -2771,10 +2771,10 @@ zac:
   nginx:
     enabled: true
     client_max_body_size: 150M
-    # nginxinc/nginx-unprivileged:1.31.1@sha256:9f6b32064a29d747404d959e078c713a0523a9bd4e41f6912058126ebca94e61
+    # nginxinc/nginx-unprivileged:1.31.1@sha256:a863b95eaf9d868354e336b1a38cce4f8d73cb029ef45cb6dfcc935a0c1524c1
     image:
       # repository: nginxinc/nginx-unprivileged
-      tag: "1.31.1@sha256:9f6b32064a29d747404d959e078c713a0523a9bd4e41f6912058126ebca94e61"
+      tag: "1.31.1@sha256:a863b95eaf9d868354e336b1a38cce4f8d73cb029ef45cb6dfcc935a0c1524c1"
     resources:
       requests:
         cpu: 50m
@@ -2841,10 +2841,10 @@ zac:
         tag: 1.38.0-glibc@sha256:3ba030337caebbfc2232b22b1e435eb213b28e5844a34942c74555bf904a265a
       # -- set enabled to provision solrcloud as well
       enabled: true
-      # library/solr:9.10.1-slim@sha256:f5a742b9476c5608f318432fe142c2e8fe125a846c0ff0081681051e3b2d8eb4
+      # library/solr:9.10.1-slim@sha256:c45d9d93d74d6a5e996120ab7120cdfc531debbc59bd3d6a6736fe240cee9be0
       image:
         #repository:
-        tag: 9.10.1-slim@sha256:f5a742b9476c5608f318432fe142c2e8fe125a846c0ff0081681051e3b2d8eb4
+        tag: 9.10.1-slim@sha256:c45d9d93d74d6a5e996120ab7120cdfc531debbc59bd3d6a6736fe240cee9be0
       # -- define memory settings for solr in the solrcloud
       javaMem: -Xms512m -Xmx768m
       jobs:
@@ -3082,7 +3082,7 @@ apiproxy:
   #nameOverride: "iconnect-proxy"
   image:
     repository: nginxinc/nginx-unprivileged
-    tag: "1.31.1@sha256:9f6b32064a29d747404d959e078c713a0523a9bd4e41f6912058126ebca94e61"
+    tag: "1.31.1@sha256:a863b95eaf9d868354e336b1a38cce4f8d73cb029ef45cb6dfcc935a0c1524c1"
     pullPolicy: IfNotPresent
   service:
     port: 80
