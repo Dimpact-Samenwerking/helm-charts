@@ -37,7 +37,7 @@
 - name: brp-api/personen-mock
   url: ghcr.io/brp-api/personen-mock
   version: "2.7.0-202606230850"
-  digest: "sha256:2de5d45bd182196eb356f0621128cb340e0edf395705eb46e5fbdaccf12e76bf"
+  digest: "sha256:024308250beab8a6327d8f4ce91e630b4bcbd650015a4e86df6db437dc8bb4d7"
 # 202508211438 still the brp-personen-mock subchart default (lags 202606230850);
 # keep mirrored until the subchart dependency is bumped.
 - name: brp-api/personen-mock
@@ -47,7 +47,7 @@
 - name: clamav/clamav
   url: docker.io/clamav/clamav
   version: "1.5.2"
-  digest: "sha256:c17762a00ba24dce4cf822fdc6f5bdfaa6e3ba152efc734d545b9a68be5641da"
+  digest: "sha256:1b6443c4a7b456baa1abfaf9796815f8d21e2fb558dbaed5b682fd4552d8b0c3"
 - name: clamav/clamav
   url: docker.io/clamav/clamav
   version: "1.4.4"
@@ -120,7 +120,7 @@
 - name: keycloak/keycloak-operator
   url: quay.io/keycloak/keycloak-operator
   version: "26.6.3"
-  digest: "sha256:bd128cd63da5b1e64514903ced8def912a41a6ae63d1569fd39022c586680087"
+  digest: "sha256:40301d2bb0eeb6eb5c6c47b2ee8bc28f156c3c5626db21dbf6b7b37c0110696c"
 - name: klantinteractie-servicesysteem/kiss-elastic-sync
   url: ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync
   version: "0.3.3"
@@ -156,11 +156,11 @@
 - name: library/python
   url: docker.io/library/python
   version: "3.14-slim"
-  digest: "sha256:8e4071294d046d45b31a902e02a8560a45c351898513b66ec659ca39fd30d170"
+  digest: "sha256:b877e50bd90de10af8d82c57a022fc2e0dc731c5320d762a27986facfc3355c1"
 - name: library/solr
   url: docker.io/library/solr
   version: "9.10.1-slim"
-  digest: "sha256:f5a742b9476c5608f318432fe142c2e8fe125a846c0ff0081681051e3b2d8eb4"
+  digest: "sha256:c45d9d93d74d6a5e996120ab7120cdfc531debbc59bd3d6a6736fe240cee9be0"
 - name: maykinmedia/objects-api
   url: docker.io/maykinmedia/objects-api
   version: "3.6.0"
@@ -196,7 +196,7 @@
 - name: nginxinc/nginx-unprivileged
   url: docker.io/nginxinc/nginx-unprivileged
   version: "1.31.1"
-  digest: "sha256:9f6b32064a29d747404d959e078c713a0523a9bd4e41f6912058126ebca94e61"
+  digest: "sha256:a863b95eaf9d868354e336b1a38cce4f8d73cb029ef45cb6dfcc935a0c1524c1"
 - name: oauth2-proxy/oauth2-proxy
   url: quay.io/oauth2-proxy/oauth2-proxy
   version: "v7.7.1"
@@ -256,11 +256,11 @@
 - name: sergeymakinen/clamav_exporter
   url: docker.io/sergeymakinen/clamav_exporter
   version: "v2.1.3"
-  digest: "sha256:a0b90ec0eecbd4e34201c5f1eda0045959adb5c7f0b6371bb1345fbfcd8bfc8d"
+  digest: "sha256:d963eb510065472fd9d9b9e27504638f0ce8a8cfe3fd818f92bcfb7277faaee5"
 - name: wearefrank/zaakbrug
   url: docker.io/wearefrank/zaakbrug
   version: "1.26.14"
-  digest: "sha256:efefcb1bafb6665bde3480ba84faa50144ffde2b3bbca4867fdfda6eca1b0155"
+  digest: "sha256:f0d618e4d28848e37c5ae6f3bd7ec911836130ef625352845bbb68f1d3055baf"
 - name: worthnl/notifynl-omc
   url: docker.io/worthnl/notifynl-omc
   version: "1.17.19"
