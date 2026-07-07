@@ -676,6 +676,14 @@ openzaak:
       requests:
         cpu: 200m
         memory: 1Gi
+  # -- Override OPENZAAK_PORT to prevent Kubernetes service-discovery injection
+  # (tcp://<ip>:80) from being passed to uwsgi as the port number.
+  # Since Open Zaak 1.27.3 the app reads OPENZAAK_PORT for uwsgi_port; K8s
+  # auto-injects OPENZAAK_PORT=tcp://<svc-ip>:80 for the openzaak Service,
+  # which uwsgi cannot parse. See https://github.com/open-zaak/open-zaak/issues/2415
+  extraEnvVars:
+    - name: OPENZAAK_PORT
+      value: "8000"
   nameOverride: openzaak
   fullnameOverride: openzaak
   flower:
