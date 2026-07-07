@@ -19,7 +19,7 @@ this guide.
 > | From | Carried in 4.8.0 |
 > |---|---|
 > | 4.7.4 | Keycloak server **+** operator `26.6.3`; adfinis `keycloak-operator` chart `1.12.0` (16 CVEs incl. CVE-2026-9704, CVE-2026-4874, CVE-2026-9802) |
-> | 4.7.4 | Open Zaak `1.27.2` (CVE-2026-54657 `_zoek` authz + bulk-import path-traversal) |
+> | 4.7.4 | Open Zaak `1.27.2` CVE fix (CVE-2026-54657 `_zoek` authz + bulk-import path-traversal); **4.7.7** further patched to `1.27.3` — see component versions |
 > | 4.7.4 | Datamigratie Keycloak client + Open Zaak credentials |
 > | 4.7.5 | ZGW Office Add-in `v0.9.313` (chart `0.0.88`; `add-in` → `addin` repo rename) |
 > | 4.7.6 | Open Formulieren outgoing-request logging back on (upstream default; revert of the 4.7.4 `LOG_OUTGOING_REQUESTS=False`) — opt out per gemeente if desired |
@@ -29,6 +29,7 @@ this guide.
 
 | Component   | App version | Helm chart |  |
 |---|---|---|---|
+| Open Zaak           | 1.27.3 | 1.14.1 | no config change; ACR mirror required |
 | Open Inwoner        | 2.3.1 | 2.2.1 | optional action to enable ClamAv |
 | Open Notificaties   | 1.16.0 | 2.0.0 | **action required** (RabbitMQ removed) |
 | KISS                | 2.2.4 | 2.2.4 | no action required |
@@ -41,6 +42,18 @@ this guide.
 | redis-operator      | v0.25.0 | -- | expect redis rolling restart |
 
 ## Changes
+
+### Open Zaak 1.27.2 → 1.27.3 (4.7.7 patch)
+
+4.7.7 was a small patch release that bumped **Open Zaak** from `1.27.2` to `1.27.3`;
+it is folded into the 4.7.6 → 4.8.0 hop (no separate 4.7.7 stepping stone required).
+
+- Image tag override updated to `1.27.3` (digest-pinned) in `charts/podiumd/values.yaml`.
+- The `openzaak` chart dependency stays `1.14.1`.
+
+**Action required (ACR-mirror environments):** mirror `docker.io/openzaak/open-zaak:1.27.3`
+(ACR name `openzaak`). See [`docs/images/images-4.8.0.yaml`](images/images-4.8.0.yaml).
+No config, schema, or migration changes.
 
 ### Open Inwoner 2.1.2 → 2.3.1
 
