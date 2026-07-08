@@ -2374,9 +2374,16 @@ openbeheer:
 # subchart. See docs/migrating-to-eck-stack.md.
 eck-operator:
   enabled: true
-  # -- install crds using https://github.com/elastic/cloud-on-k8s/blob/main/deploy/eck-operator/charts/eck-operator-crds/templates/all-crds.yaml
+  # -- the chart installs and upgrades the 12 *.k8s.elastic.co CRDs, in lock-step
+  # with the operator version. The CRDs carry helm.sh/resource-policy: keep, so
+  # `helm uninstall` never removes them (the Elastic CRs and their data survive).
+  # Requires cluster-scope RBAC on the deploying identity. Clusters whose CRDs
+  # predate helm ownership (kisselastic era / manual apply) need a one-time
+  # adoption: deploy with `--take-ownership` (helm >= 3.17) or annotate the CRDs
+  # once — see docs/migrating-to-eck-stack.md section 4b. Installers without
+  # cluster-scope RBAC: set false and apply the CRDs manually (same doc).
   # override: values-enable-observability.yaml sets config.metricsPort and enables podMonitor
-  installCRDs: false
+  installCRDs: true
   createClusterScopedResources: false
   config:
     # no RBAC access to cluster-wide storage classes, hence disable storage class validation
