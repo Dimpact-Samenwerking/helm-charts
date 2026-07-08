@@ -268,11 +268,14 @@ All rendered into the **podiumd realm** import (`keycloak-podiumd-realm-config.y
   Protocol mappers: `preferred_username` and a **client-role → `groups` claim**
   mapper (client roles of the `openbao` client are emitted in the `groups`
   claim).
-- **Client role** `openbao:uploaders`.
-- **Group** `vault-uploaders` (`openbao.configuration.uploadersGroup`), mapped to
-  client role `openbao:uploaders`. Its name must match the value carried in the
-  token `groups` claim (the config Job binds it to the `uploader` policy via an
-  external identity group + group-alias).
+- **Client role** `openbao:uploaders` (name from
+  `openbao.configuration.uploadersRole` — the single source of truth: it also
+  names the OpenBao group-alias the config Job creates, so the claim value and
+  the alias always match).
+- **Group** `vault-uploaders` (`openbao.configuration.uploadersGroup`), mapped
+  to the client role above. Membership is what grants upload access: the role
+  lands in the token's `groups` claim, which OpenBao maps — via the group-alias
+  — onto an external identity group carrying the `uploader` policy.
 - **No users are seeded.** The chart renders no test or su-* users into the
   realm. For test environments, create per-app `su-<app>` users (including
   `su-openbao` with the `uploaders` role) with `scripts/create-su-users.sh`,
@@ -297,21 +300,24 @@ The `openbao-config` Job then makes the vault usable, idempotently:
    (`oidc_discovery_url = <keycloak.url>/realms/<realm>`, client `openbao`,
    `KC_SECRET_OPENBAO`, `default_role = uploader`);
 4. create the **`uploader` OIDC role** (`user_claim=sub`, `groups_claim=groups`,
-   `token_policies=uploader`, `allowed_redirect_uris` from `oidcUrl` +
-   `localhost:8250`);
-5. bind the Keycloak `vault-uploaders` group to the `uploader` policy via an
-   external identity group + group-alias.
+   `allowed_redirect_uris` from `oidcUrl` + `localhost:8250`). Deliberately
+   **no `token_policies`** — the policy comes via the group binding in step 5,
+   so login alone grants nothing;
+5. bind the Keycloak uploaders to the `uploader` policy via an external
+   identity group + group-alias. The group mirrors `uploadersGroup`
+   (`vault-uploaders`); the **alias** is named after the **client role**
+   (`uploadersRole`, `uploaders`), because that is what the openbao client's
+   role mapper emits in the `groups` claim. Idempotent: the group id is read
+   back by name on re-runs, and an existing alias (including one created under
+   the wrong name by earlier chart versions) is updated in place. A failed
+   alias write **fails the Job** — no silent success.
 
-> **Known wiring caveat (external-group binding is currently inert).** The
-> Keycloak `openbao` client-role mapper emits the **client-role name**
-> (`uploaders`) into the `groups` claim, while step 5 names the OpenBao external
-> group-alias after `uploadersGroup` (`vault-uploaders`). The claim value
-> (`uploaders`) never matches the alias (`vault-uploaders`), so the
-> group→policy binding does nothing. Uploaders still work because the OIDC
-> **role** grants `token_policies = uploader` on every login. To make the group
-> binding functional, either name the alias `uploaders` (match the role name),
-> or switch the Keycloak mapper to a group-membership mapper so the claim carries
-> `vault-uploaders`. Tracked as an open item (§9).
+> **Access model.** Everyone in the realm can *log in* to OpenBao, but only
+> holders of the `openbao:uploaders` client role (normally via membership of
+> the `vault-uploaders` group) receive the `uploader` policy; everyone else
+> lands with the `default` policy and can do nothing. Earlier chart versions
+> granted `token_policies=uploader` to every login — re-running the config Job
+> clears that grant (the OIDC-role write is a full replace).
 
 > **Related, but separable:** this branch also makes `accessTokenLifespan`
 > configurable. Per-app `su-<app>` admin users are **not** chart-rendered; for
@@ -420,7 +426,10 @@ are placeholders and **must** be overridden per environment.
   returns JSON over a valid TLS chain (SAN matches host).
 - **OIDC login (UI):** browse to the host, choose OIDC, authenticate as a
   realm user with the `openbao:uploaders` role (e.g. `su-openbao` created by
-  `scripts/create-su-users.sh`); you should land with the `uploader` policy.
+  `scripts/create-su-users.sh`); you should land with the `uploader` policy —
+  granted via the external group, so `bao token lookup` shows it under
+  `identity_policies` (not `policies`). A user *without* the role gets only
+  `default`.
 - **OIDC login (CLI):** `bao login -method=oidc` completes via the
   `localhost:8250` callback.
 - **Upload:** as an uploader, `bao kv put secret/<path> k=v` succeeds; a
@@ -481,10 +490,6 @@ are placeholders and **must** be overridden per environment.
    contrast, fails the Job loudly.) The Job is kept after success precisely so
    this log stays readable: `ttlSecondsAfterFinished: 600` garbage-collects it
    after ~10 minutes, and the next deploy replaces it (`before-hook-creation`).
-3. **External-group binding inert.** The `groups` claim carries the role name
-   `uploaders` but the OpenBao group-alias is `vault-uploaders`, so the
-   group→policy binding never matches (see §3.7). Non-blocking (the OIDC role
-   grants the policy directly) but should be reconciled.
 2. **Release/upgrade docs.** OpenBao is not mentioned in `README.md` or
    `docs/upgrade-from-4.7.3-to-4.8.0.md`; it is opt-in, but the 4.8.0 notes
    should point operators here.

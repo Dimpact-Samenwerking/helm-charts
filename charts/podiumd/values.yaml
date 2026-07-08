@@ -3832,9 +3832,17 @@ openbao:
     keycloak:
       url: https://keycloak.example.nl
       realm: podiumd
-    # External group bound to the uploader policy. Must match the Keycloak group
-    # name emitted in the `groups` claim (keycloak-podiumd-realm-config.yaml).
+    # Keycloak group whose members get upload access: membership grants the
+    # uploadersRole client role below, and the config Job mirrors the group as
+    # an OpenBao external identity group carrying the `uploader` policy.
     uploadersGroup: vault-uploaders
+    # Keycloak CLIENT-ROLE (on the `openbao` client) that gates upload access.
+    # Single source of truth: templates the realm role and the group's role
+    # mapping (keycloak-podiumd-realm-config.yaml), and the config Job names
+    # the OpenBao group-alias after it — the openbao client's role mapper
+    # emits client-role names in the token's `groups` claim, so alias name and
+    # claim value must both be this role name for the binding to match.
+    uploadersRole: uploaders
     # No test/su-* users are seeded into the realm by the chart. For test
     # environments, create per-app su-<app> users (incl. su-openbao with the
     # uploaders role) with scripts/create-su-users.sh, run from your own machine.
