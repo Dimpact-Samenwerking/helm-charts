@@ -26,7 +26,10 @@ metadata:
   annotations:
     "helm.sh/hook": pre-install,pre-upgrade
     "helm.sh/hook-weight": "-5"
-    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    # No hook-succeeded: keep the Job (and its logs) around after success for
+    # post-deploy inspection. ttlSecondsAfterFinished garbage-collects it;
+    # before-hook-creation still replaces it on the next deploy.
+    "helm.sh/hook-delete-policy": before-hook-creation
 spec:
   backoffLimit: {{ $job.backoffLimit }}
   ttlSecondsAfterFinished: {{ $job.ttlSecondsAfterFinished }}

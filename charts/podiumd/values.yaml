@@ -3801,6 +3801,8 @@ openbao:
     bootstrapTokenSecret: openbao-bootstrap-token
     job:
       backoffLimit: 6
+      # Post-success log window: the Job is not hook-deleted on success, so its
+      # log ("configured" vs "skipped") stays readable until this TTL expires.
       ttlSecondsAfterFinished: 600
       restartPolicy: Never
       # bao CLI image. Tag pinned explicitly (not "") — unlike the server, this
@@ -3835,6 +3837,7 @@ openbao:
     sslmode: require
     schemaJob:
       backoffLimit: 6
+      # Post-success log window (Job is not hook-deleted on success).
       ttlSecondsAfterFinished: 600
       image:
         registry: docker.io

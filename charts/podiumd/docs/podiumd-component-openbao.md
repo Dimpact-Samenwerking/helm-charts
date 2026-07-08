@@ -478,7 +478,9 @@ are placeholders and **must** be overridden per environment.
    upgrade` **succeeds while the vault stays unconfigured**. Check the Job log
    after deploy (`kubectl logs job/openbao-config`) — a green release is not
    proof the OIDC/policy config was applied. (A present-but-invalid token, by
-   contrast, fails the Job loudly.)
+   contrast, fails the Job loudly.) The Job is kept after success precisely so
+   this log stays readable: `ttlSecondsAfterFinished: 600` garbage-collects it
+   after ~10 minutes, and the next deploy replaces it (`before-hook-creation`).
 3. **External-group binding inert.** The `groups` claim carries the role name
    `uploaders` but the OpenBao group-alias is `vault-uploaders`, so the
    group→policy binding never matches (see §3.7). Non-blocking (the OIDC role
