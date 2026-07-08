@@ -3840,9 +3840,10 @@ openbao:
     # uploaders role) with scripts/create-su-users.sh, run from your own machine.
     # KV-v2 mount path the uploader policy grants write on.
     kvPath: secret
-    # K8s Secret (key `token`) holding a privileged bao token the config Job
-    # bootstraps with — seeded out-of-band from the root token captured at the
-    # one-time `bao operator init` (stored in Azure KV as openbao-root-token-<env>).
+    # K8s Secret (key `token`) holding the bao token the config Job runs with:
+    # the SCOPED periodic token minted at bootstrap by
+    # scripts/openbao-mint-config-token.sh — NOT the root token, which can (and
+    # should) be revoked after minting. See the component doc, sections 5 and 7.
     bootstrapTokenSecret: openbao-bootstrap-token
     job:
       backoffLimit: 6

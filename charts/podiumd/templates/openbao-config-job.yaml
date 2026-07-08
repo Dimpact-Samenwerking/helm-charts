@@ -10,11 +10,14 @@
     5. bind the Keycloak `uploadersGroup` to the policy via an external identity
        group + group-alias
 
-  Bootstrap auth: OpenBao auto-unseals via Azure Key Vault but still needs a
-  one-time `bao operator init`. Capture the resulting root token into Azure Key
-  Vault (openbao-root-token-<env>) and seed it as Secret/<bootstrapTokenSecret>
-  (key `token`); this Job reads it as BAO_TOKEN. Until that Secret exists the Job
-  fails and retries — see the 4.8.0 upgrade notes.
+  Bootstrap auth: after the one-time `bao operator init` + unseal, mint a
+  SCOPED periodic token with scripts/openbao-mint-config-token.sh — it writes
+  the podiumd-config-job policy (only the paths this Job touches), seeds the
+  token into Secret/<bootstrapTokenSecret> (key `token`), and lets you revoke
+  the root token. This Job reads that Secret as BAO_TOKEN: a missing Secret
+  skips cleanly (openbao not bootstrapped yet), a present-but-invalid token
+  (revoked/expired) fails loudly. The Job renews the periodic token on every
+  run so it stays valid between deploys.
 
   Runs as a post-install/post-upgrade hook so the server StatefulSet (a normal
   resource) is already created; the Job waits for the active node to be unsealed.
@@ -89,11 +92,12 @@ spec:
             - /bin/sh
             - -ec
             - |
-              # This Job needs an initialised + UNSEALED openbao and a privileged
-              # token. Both come from the one-time manual `bao operator init` (the
-              # seal is Shamir). On a deploy where that has not happened yet, skip
-              # cleanly (exit 0) so the post-install hook never blocks the release —
-              # re-run the deploy (or this Job) after init+unseal to apply the config.
+              # This Job needs an initialised + UNSEALED openbao (Shamir seal;
+              # one-time manual `bao operator init`) and the scoped config token
+              # minted by scripts/openbao-mint-config-token.sh. On a deploy where
+              # that has not happened yet, skip cleanly (exit 0) so the post-install
+              # hook never blocks the release — re-run the deploy (or this Job)
+              # after the bootstrap to apply the config.
               if [ -z "${BAO_TOKEN:-}" ]; then
                 echo "No bootstrap token yet (openbao not initialised) — skipping config; reconcile after init+unseal."
                 exit 0
@@ -109,6 +113,17 @@ spec:
                 sleep 5
               done
               echo "OpenBao ready."
+
+              # A MISSING token means "not bootstrapped yet" and skips above; a
+              # PRESENT but revoked/expired token must fail loudly, not half-run.
+              if ! bao token lookup >/dev/null 2>&1; then
+                echo "ERROR: BAO_TOKEN from Secret/{{ $cfg.bootstrapTokenSecret }} is invalid (revoked or expired)."
+                echo "Re-mint the scoped config token: scripts/openbao-mint-config-token.sh (component doc, section 5)."
+                exit 1
+              fi
+              # Keep the periodic config token alive between deploys; harmless
+              # no-op for non-renewable tokens.
+              bao token renew >/dev/null 2>&1 || true
 
               # 1. kv-v2 engine
               if ! bao secrets list -format=table | awk '{print $1}' | grep -qx "${KV_PATH}/"; then
