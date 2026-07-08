@@ -117,5 +117,5 @@ dependencies:
     condition: kiss-eck.enabled
   - name: openbao
     version: 0.28.4
-    repository: "@openbao"
+    repository: "https://openbao.github.io/openbao-helm"
     condition: openbao.enabled
