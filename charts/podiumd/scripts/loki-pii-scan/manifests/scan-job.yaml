@@ -1,0 +1,62 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: loki-pii-scan
+  namespace: monitoring
+  labels:
+    app: loki-pii-scan
+    component: scan
+    environment: ontw
+    managed-by: manual
+spec:
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 86400
+  activeDeadlineSeconds: 21600
+  template:
+    metadata:
+      labels:
+        app: loki-pii-scan
+        component: scan
+        environment: ontw
+        managed-by: manual
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: false
+        fsGroup: 0
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: scan
+          # alpine/k8s mirror — ships bash+curl+jq+awk+gzip; no apk, no public egress.
+          image: acrprodmgmt.azurecr.io/k8s:1.34.7
+          imagePullPolicy: IfNotPresent
+          command: ["bash", "/scripts/scan.sh"]
+          envFrom:
+            - configMapRef:
+                name: loki-pii-env
+          volumeMounts:
+            - name: scripts
+              mountPath: /scripts
+              readOnly: true
+            - name: report
+              mountPath: /report
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: "2"
+              memory: 1Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+      volumes:
+        - name: scripts
+          configMap:
+            name: loki-pii-scripts
+            defaultMode: 0555
+        - name: report
+          persistentVolumeClaim:
+            claimName: loki-pii-report

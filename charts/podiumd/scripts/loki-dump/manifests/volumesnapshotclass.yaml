@@ -1,0 +1,11 @@
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshotClass
+metadata:
+  name: loki-export-azuredisk
+  labels:
+    app: loki-export
+    managed-by: manual
+driver: disk.csi.azure.com
+# Retain keeps the underlying Azure disk snapshot when the VolumeSnapshot
+# object is deleted, so the dump survives cluster/object cleanup.
+deletionPolicy: Retain

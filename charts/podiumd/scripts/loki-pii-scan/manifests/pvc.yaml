@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: loki-pii-report
+  namespace: monitoring
+  labels:
+    app: loki-pii-scan
+    component: report
+    environment: ontw
+    managed-by: manual
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: managed-csi
+  resources:
+    requests:
+      # Masked report only (no raw PII) -> small fixed size is plenty.
+      storage: 2Gi
