@@ -2396,18 +2396,34 @@ kiss-eck:
     enabled: true
     fullnameOverride: kiss
     version: "8.19.3"
-    nodeSets:
-    - config:
-        node.roles:
-        - data
-        - ingest
-        - master
-        node.store.allow_mmap: false
-      count: 3
-      name: default
-      podTemplate:
-        spec:
-          nodeSelector: {}
+    # -- nodeSets must be configured per environment (sizing/resources/storage
+    # differ per municipality). Set this in your environment values file, same as
+    # openinwoner.eck-elasticsearch.nodeSets. Example:
+    # nodeSets:
+    # - name: default
+    #   count: 3   # 3 for HA; lower for small environments
+    #   config:
+    #     node.roles:
+    #     - data
+    #     - ingest
+    #     - master
+    #     node.store.allow_mmap: false
+    #   podTemplate:
+    #     spec:
+    #       nodeSelector:
+    #         kubernetes.azure.com/mode: user
+    #   # volumeClaimTemplates is immutable: keep it equal to the existing PVCs
+    #   # during a migration. Changing the size needs a manual recreate
+    #   # (see docs/migrating-to-eck-stack.md).
+    #   # volumeClaimTemplates:
+    #   # - metadata:
+    #   #     name: elasticsearch-data
+    #   #   spec:
+    #   #     accessModes: [ReadWriteOnce]
+    #   #     storageClassName: managed-csi
+    #   #     resources:
+    #   #       requests:
+    #   #         storage: 8Gi
   eck-enterprise-search:
     enabled: true
     fullnameOverride: kiss
@@ -2415,6 +2431,8 @@ kiss-eck:
     config:
       app_search.engine.total_fields.limit: 1000
       kibana.host: https://kiss-kb-http.podiumd.svc.cluster.local:5601
+      # -- crawler settings can be tuned per environment (DS-5060). Sensible
+      # defaults below; override in your environment values file when needed.
       connector.crawler.http.user_agent: "PodiumD-Contact-Elastic-Crawler"
       connector.crawler.crawl.threads.limit: 1
       connector.crawler.workers.pool_size.limit: 1
