@@ -2396,34 +2396,33 @@ kiss-eck:
     enabled: true
     fullnameOverride: kiss
     version: "8.19.3"
-    # -- nodeSets must be configured per environment (sizing/resources/storage
-    # differ per municipality). Set this in your environment values file, same as
-    # openinwoner.eck-elasticsearch.nodeSets. Example:
-    # nodeSets:
-    # - name: default
-    #   count: 3   # 3 for HA; lower for small environments
-    #   config:
-    #     node.roles:
-    #     - data
-    #     - ingest
-    #     - master
-    #     node.store.allow_mmap: false
-    #   podTemplate:
-    #     spec:
-    #       nodeSelector:
-    #         kubernetes.azure.com/mode: user
-    #   # volumeClaimTemplates is immutable: keep it equal to the existing PVCs
-    #   # during a migration. Changing the size needs a manual recreate
-    #   # (see docs/migrating-to-eck-stack.md).
-    #   # volumeClaimTemplates:
-    #   # - metadata:
-    #   #     name: elasticsearch-data
-    #   #   spec:
-    #   #     accessModes: [ReadWriteOnce]
-    #   #     storageClassName: managed-csi
-    #   #     resources:
-    #   #       requests:
-    #   #         storage: 8Gi
+    # -- default sizing, kept equal to the previous release (kiss-elastic used
+    # elasticsearchCount: 3). Environments can override nodeSets (e.g. nodeSelector,
+    # count, storage), the same way openinwoner.eck-elasticsearch.nodeSets is set.
+    # Note: volumeClaimTemplates is immutable — during a migration keep it equal to
+    # the existing PVCs; changing the size needs a manual recreate
+    # (see docs/migrating-to-eck-stack.md).
+    nodeSets:
+    - name: default
+      count: 3
+      config:
+        node.roles:
+        - data
+        - ingest
+        - master
+        node.store.allow_mmap: false
+      podTemplate:
+        spec:
+          nodeSelector: {}
+      # volumeClaimTemplates:
+      # - metadata:
+      #     name: elasticsearch-data
+      #   spec:
+      #     accessModes: [ReadWriteOnce]
+      #     storageClassName: managed-csi
+      #     resources:
+      #       requests:
+      #         storage: 8Gi
   eck-enterprise-search:
     enabled: true
     fullnameOverride: kiss
