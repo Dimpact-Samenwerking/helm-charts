@@ -34,10 +34,10 @@ Infra to provision per environment (one line each):
 | **Ingress / route** | Gateway/Ingress (`infra.yml`) → service `<release>-openbao-active:8200` over **HTTP** (TLS terminated at gateway), host = `openbao.<env>.example.nl`. |
 | **TLS cert** | Gateway cert **SAN must cover the OpenBao host** (`openbao.<env>.example.nl`); pods run no TLS (`tls_disable=1`), so no server cert needed. |
 | **Storage** | **None** — no PVC (PostgreSQL storage backend, `dataStorage.enabled=false`). |
-| **Secrets** | `openbao-db` (chart-rendered) · `openbao-bootstrap-token` key `token` (**you create it** from the root token) · `openbao-oidc-secret` (auto-generated, kept stable). |
+| **Secrets** | `openbao-db` (chart-rendered) · `openbao-bootstrap-token` key `token` (**seeded by `scripts/openbao-mint-config-token.sh`** — a scoped periodic token, NOT the root token) · `openbao-oidc-secret` (auto-generated, kept stable). |
 | **Identity** | User-assigned MI + federated credential for SA `openbao`; set client-id in `server.serviceAccount.annotations`. (KV unseal key provisioned but unused — Shamir.) |
 | **Images / egress** | Allow `quay.io/openbao/openbao:2.5.5` + `docker.io/library/postgres:16-alpine` (or mirror to ACR + override). |
-| **One-time bootstrap** | `bao operator init` + unseal (×3 pods, **Shamir → repeat after every restart/upgrade**); seed the root token into `openbao-bootstrap-token`; re-run deploy; check `kubectl logs job/openbao-config`. |
+| **One-time bootstrap** | `bao operator init` + unseal (×3 pods, **Shamir → repeat after every restart/upgrade**); mint + seed the scoped config token (`scripts/openbao-mint-config-token.sh`), then revoke the root token; re-run deploy; check `kubectl logs job/openbao-config`. |
 
 Values to set: `openbao.enabled=true`, `openbao.database.host`, `openbao.configuration.oidcUrl`, `openbao.configuration.keycloak.url`, `server.serviceAccount.annotations` client-id. Full runbook in §5.
 
@@ -246,10 +246,15 @@ Consequences (one-time, per fresh cluster):
 - An operator runs `bao operator init` once, then **unseals** with the Shamir
   key shares. **Store the unseal key shares and the root token in the per-env
   Azure Key Vault** (`openbao-root-token-<env>`).
-- Seed the root token into `Secret/openbao-bootstrap-token` (key `token`); the
-  `openbao-config` Job reads it as `BAO_TOKEN`. Until that Secret exists the Job
-  **self-skips cleanly** (exit 0) so the post-install hook never blocks a
-  release; re-run the deploy (or the Job) after init+unseal to apply the config.
+- Run `scripts/openbao-mint-config-token.sh`: it writes the scoped
+  `podiumd-config-job` policy, mints an **orphan periodic token** carrying it,
+  and seeds that into `Secret/openbao-bootstrap-token` (key `token`); the
+  `openbao-config` Job reads it as `BAO_TOKEN` and renews it on every run. The
+  root token is then no longer needed — revoke it (§7). Until that Secret
+  exists the Job **self-skips cleanly** (exit 0) so the post-install hook never
+  blocks a release; a present-but-invalid token (revoked/expired) **fails the
+  Job loudly** instead. Re-run the deploy (or the Job) after the bootstrap to
+  apply the config.
 - `updateStrategyType: RollingUpdate` (not the sub-chart default `OnDelete`) so a
   `helm upgrade` recreates the server pods to pick up config changes.
 
@@ -382,11 +387,20 @@ are placeholders and **must** be overridden per environment.
    # store the unseal key shares + root token in Azure Key Vault (openbao-root-token-<env>)
    kubectl -n <ns> exec -it <release>-openbao-0 -- bao operator unseal <key-share>   # x quorum, per pod
    ```
-5. **Seed the bootstrap token:** create `Secret/openbao-bootstrap-token`
-   (key `token` = the root token).
+5. **Mint + seed the config token:**
+   ```bash
+   NAMESPACE=<ns> ./charts/podiumd/scripts/openbao-mint-config-token.sh
+   ```
+   Writes the scoped `podiumd-config-job` policy, mints an orphan periodic
+   token (default period `768h` = 32 days; every config-Job run renews it), and
+   seeds it into `Secret/openbao-bootstrap-token` (key `token`). Do **not**
+   seed the root token.
 6. **Re-run the deploy** (or just the `openbao-config` Job): it now enables
    kv-v2, writes the policy, configures OIDC, and binds the group.
-7. **Verify** (§6).
+7. **Verify** (§6), then **revoke the root token**: re-run the script with
+   `--revoke-root` (asks for confirmation). If the config token ever expires
+   (no deploy within its period), re-run step 5 — after root revocation that
+   first needs `bao operator generate-root` with a quorum of unseal key shares.
 
 > On upgrades OpenBao comes back **sealed** (Shamir) and must be unsealed again
 > unless/until KV auto-unseal is adopted.
@@ -425,10 +439,18 @@ are placeholders and **must** be overridden per environment.
   ConfigMap (injected as `$(KC_...)` env at import time).
 - Jobs run non-root, `readOnlyRootFilesystem`, `allowPrivilegeEscalation:
   false`, all capabilities dropped, `seccompProfile: RuntimeDefault`.
-- The **root token** captured at `bao operator init` is highly privileged —
-  store it only in Azure Key Vault, and consider revoking/rotating it after the
-  first successful config reconciliation (the config Job only needs it to
-  bootstrap policies/auth).
+- The **root token** captured at `bao operator init` is needed exactly once: to
+  mint the scoped config token (§5, `scripts/openbao-mint-config-token.sh`).
+  Store it only in Azure Key Vault and **revoke it** (`--revoke-root`) once a
+  deploy has succeeded with the scoped token — revocation no longer breaks
+  upgrades. Break-glass: a quorum of unseal key shares can mint a new root
+  token via `bao operator generate-root`; the unseal keys themselves are never
+  revoked.
+- The `openbao-config` Job authenticates with the **`podiumd-config-job`
+  token**: orphan (survives root revocation), periodic (renewed by the Job on
+  every run), and restricted to the exact paths the Job configures — an
+  attacker reading the namespace Secret gets config-plumbing rights, not the
+  vault's contents or root control.
 
 ---
 
@@ -451,11 +473,12 @@ are placeholders and **must** be overridden per environment.
    `server.image` / the Job images to the mirror) before shipping to a
    digest-pinned production environment. jim00 egress must reach `quay.io` and
    `docker.io` until then.
-2. **Config-Job silent skip.** `openbao-bootstrap-token` is created out-of-band;
-   if it is missing the `openbao-config` Job exits 0 and the `helm upgrade`
-   **succeeds while the vault stays unconfigured**. Check the Job log after
-   deploy (`kubectl logs job/openbao-config`) — a green release is not proof the
-   OIDC/policy config was applied.
+2. **Config-Job silent skip.** `openbao-bootstrap-token` is created out-of-band
+   (§5); if it is **missing** the `openbao-config` Job exits 0 and the `helm
+   upgrade` **succeeds while the vault stays unconfigured**. Check the Job log
+   after deploy (`kubectl logs job/openbao-config`) — a green release is not
+   proof the OIDC/policy config was applied. (A present-but-invalid token, by
+   contrast, fails the Job loudly.)
 3. **External-group binding inert.** The `groups` claim carries the role name
    `uploaders` but the OpenBao group-alias is `vault-uploaders`, so the
    group→policy binding never matches (see §3.7). Non-blocking (the OIDC role
