@@ -960,7 +960,7 @@ data:
         openbeheer:
           - name: administrators
         openbao:
-          - name: uploaders
+          - name: {{ .Values.openbao.configuration.uploadersRole | quote }}
         kiss:
           - name: Redacteur
           - name: Klantcontactmedewerker
@@ -1094,7 +1094,7 @@ data:
             - "OpenBao secret uploaders"
         clientRoles:
           openbao:
-            - "uploaders"
+            - {{ .Values.openbao.configuration.uploadersRole | quote }}
     {{- end }}
 {{- with .Values.keycloak.config.realmIdentityProviders }}
     {{- toYaml . | nindent 4 }}
