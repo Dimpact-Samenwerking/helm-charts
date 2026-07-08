@@ -47,6 +47,31 @@ het Helm-label `helm.sh/chart` (`kisselastic-1.1.0` wordt
 `eck-elasticsearch-0.19.x`). De ECK-operator herbouwt de StatefulSet daardoor
 niet en herstart de pods niet.
 
+### volumeClaimTemplates: clean swap alleen bij gelijke opslaggrootte
+
+De regel "data blijft behouden" geldt zolang de **`volumeClaimTemplates`
+(opslaggrootte + storageClass) ongewijzigd** blijft. In de standaard-chart is dat
+zo: zowel de legacy `kiss-elastic` als het nieuwe `kiss-eck` laten
+`volumeClaimTemplates` ongezet, dus beide vallen terug op dezelfde ECK-default.
+Daardoor blijft de bestaande StatefulSet in stand (getest op een
+ontwikkelomgeving: StatefulSet-UID en PVC's ongewijzigd), geen handmatige stappen.
+
+**Let op wanneer een omgeving de volumegrootte overridet.** Een StatefulSet's
+`volumeClaimTemplates` is in Kubernetes **immutable**. Wijkt de nieuwe
+volumeClaimTemplate af van de bestaande PVC's (bv. 1Gi -> 8Gi), dan kan ECK dat
+niet in-place toepassen: de operator blijft in een reconcile-error hangen (ES
+noch oud, noch nieuw) tot de StatefulSet handmatig wordt verwijderd. Dan zijn er
+manual steps nodig:
+
+- **Schone recreate (dataverlies acceptabel):** `kubectl delete sts kiss-es-default`
+  én de bijbehorende PVC's, en laat ECK alles vers aanmaken.
+- **Resizen mét behoud van data:** kan niet in-place. Gebruik een Elasticsearch
+  snapshot/restore, of reindex naar een nodeSet met de nieuwe grootte.
+
+Vuistregel: houd bij de migratie de `volumeClaimTemplates` gelijk aan de
+bestaande PVC's -> clean swap. Wil je tegelijk resizen, plan dat als aparte stap
+met snapshot/restore.
+
 ## 3. Impact op gemeentelijke helm-values
 
 ### KISS
