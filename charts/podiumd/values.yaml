@@ -2078,12 +2078,12 @@ openinwoner:
     #       resources:
     #         requests:
     #           storage: 8Gi
-  # OIP gebruikt de centrale eck-operator (root-level `eck-operator`, met
-  # managedNamespaces: [podiumd]). De openinwoner-subchart brengt zelf een
-  # eck-operator (`openinwoner-elastic-operator`) mee; die MOET uit blijven,
-  # anders draaien er twee operators op dezelfde namespace. OIP levert alleen
-  # zijn eigen Elasticsearch-resource (`openinwoner-elasticsearch`), die door de
-  # centrale operator wordt gereconcilet. Zie docs/migrating-to-eck-stack.md.
+  # OIP uses the central eck-operator (root-level `eck-operator`, with
+  # managedNamespaces: [podiumd]). The openinwoner subchart bundles its own
+  # eck-operator (`openinwoner-elastic-operator`); it MUST stay disabled,
+  # otherwise two operators run on the same namespace. OIP only provides its own
+  # Elasticsearch resource (`openinwoner-elasticsearch`), which is reconciled by
+  # the central operator. See docs/migrating-to-eck-stack.md.
   eck-operator:
     enabled: false
 
@@ -2368,10 +2368,10 @@ openbeheer:
   tags:
     redis: false
 
-# Centrale ECK-operator (root-level). Beheert alle Elasticsearch-resources in de
-# podiumd namespace (KISS 'kiss' en OIP 'openinwoner-elasticsearch'). KISS en OIP
-# leveren alleen hun eigen Elasticsearch; de operator komt niet meer uit een
-# subchart. Zie docs/migrating-to-eck-stack.md.
+# Central ECK operator (root-level). Manages all Elasticsearch resources in the
+# podiumd namespace (KISS 'kiss' and OIP 'openinwoner-elasticsearch'). KISS and
+# OIP only provide their own Elasticsearch; the operator no longer comes from a
+# subchart. See docs/migrating-to-eck-stack.md.
 eck-operator:
   enabled: true
   # -- install crds using https://github.com/elastic/cloud-on-k8s/blob/main/deploy/eck-operator/charts/eck-operator-crds/templates/all-crds.yaml
