@@ -6,9 +6,12 @@
     1. enable the kv-v2 secrets engine at configuration.kvPath
     2. write the `uploader` policy (create/update/read on <kvPath>/data/*)
     3. enable + configure the `oidc` auth method against the Keycloak realm
-    4. create the `uploader` OIDC role (groups_claim -> external group mapping)
-    5. bind the Keycloak `uploadersGroup` to the policy via an external identity
-       group + group-alias
+    4. create the `uploader` OIDC role (groups_claim -> external group mapping;
+       deliberately NO token_policies — the policy comes via the group in step 5)
+    5. bind the Keycloak uploaders to the policy via an external identity group
+       + group-alias. The alias is named after the CLIENT-ROLE (uploadersRole),
+       because that is what the openbao client's role mapper emits in the
+       `groups` claim — not the Keycloak group name.
 
   Bootstrap auth: after the one-time `bao operator init` + unseal, mint a
   SCOPED periodic token with scripts/openbao-mint-config-token.sh — it writes
@@ -92,6 +95,8 @@ spec:
               value: {{ $cfg.kvPath | quote }}
             - name: UPLOADERS_GROUP
               value: {{ $cfg.uploadersGroup | quote }}
+            - name: UPLOADERS_ROLE
+              value: {{ $cfg.uploadersRole | quote }}
           command:
             - /bin/sh
             - -ec
@@ -151,19 +156,39 @@ spec:
                 default_role="uploader"
 
               # 4. oidc login role
+              # Deliberately NO token_policies: the uploader policy is granted
+              # via external-group membership (step 5), so only holders of the
+              # ${UPLOADERS_ROLE} client role get it — not everyone who logs in.
+              # (Full write: an update also CLEARS a token_policies grant left
+              # over from an earlier chart version.)
               bao write auth/oidc/role/uploader \
                 role_type="oidc" \
                 user_claim="sub" \
                 groups_claim="groups" \
                 oidc_scopes="openid" \
-                token_policies="uploader" \
                 allowed_redirect_uris="${OIDC_URL}/ui/vault/auth/oidc/oidc/callback,http://localhost:8250/oidc/callback"
 
-              # 5. external group bound to the Keycloak uploaders group
+              # 5. external identity group + alias -> uploader policy.
+              # OpenBao matches the token's `groups` claim against ALIAS names
+              # on the oidc accessor, and the openbao client's role mapper
+              # emits CLIENT-ROLE names — so the alias is named after the role
+              # (UPLOADERS_ROLE), while the group mirrors the Keycloak group.
               ACCESSOR=$(bao auth list -format=table | awk '$1=="oidc/"{print $3}')
-              GID=$(bao write -field=id identity/group name="${UPLOADERS_GROUP}" type="external" policies="uploader")
-              # group-alias name must equal the Keycloak group name carried in the `groups` claim.
-              bao write identity/group-alias name="${UPLOADERS_GROUP}" mount_accessor="${ACCESSOR}" canonical_id="${GID}" || true
+              # `bao write identity/group` returns the id only on CREATE, so
+              # read it back by name instead (idempotent across re-runs).
+              if ! bao read "identity/group/name/${UPLOADERS_GROUP}" >/dev/null 2>&1; then
+                bao write identity/group name="${UPLOADERS_GROUP}" type="external" policies="uploader" >/dev/null
+              fi
+              GID=$(bao read -field=id "identity/group/name/${UPLOADERS_GROUP}")
+              # Create the alias if the group has none, else update in place
+              # (also repairs an alias created under the wrong name by earlier
+              # chart versions). No `|| true`: a broken binding fails the hook.
+              ALIAS_ID=$(bao read -field=alias -format=json "identity/group/name/${UPLOADERS_GROUP}" | grep -o '"id": *"[^"]*"' | head -n 1 | cut -d'"' -f4)
+              if [ -z "${ALIAS_ID}" ]; then
+                bao write identity/group-alias name="${UPLOADERS_ROLE}" mount_accessor="${ACCESSOR}" canonical_id="${GID}"
+              else
+                bao write "identity/group-alias/id/${ALIAS_ID}" name="${UPLOADERS_ROLE}" mount_accessor="${ACCESSOR}" canonical_id="${GID}"
+              fi
 
               echo "OpenBao configuration complete."
           resources:
