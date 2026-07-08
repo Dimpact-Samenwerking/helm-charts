@@ -95,13 +95,15 @@ Two moving parts ship in this chart:
 dependencies:
   - name: openbao
     version: 0.28.4                     # OpenBao server v2.5.5
-    repository: "@openbao"
+    repository: "https://openbao.github.io/openbao-helm"
     condition: openbao.enabled
 ```
 
-- Helm repo alias `@openbao` → `https://openbao.github.io/openbao-helm`
-  (added in `scripts/add-helm-repos.sh`).
-- Pinned in `Chart.lock` (digest recorded).
+- Repository URL is spelled out in `Chart.yaml` (no `@openbao` alias) so CI and
+  fresh clones can resolve the dependency without a prior `helm repo add`;
+  `scripts/add-helm-repos.sh` still registers the repo for interactive use.
+- Pinned to exact chart version `0.28.4` in `Chart.yaml` (`Chart.lock` is
+  git-ignored, so the `Chart.yaml` pin is the authoritative one).
 - The vendored `charts/podiumd/charts/openbao-0.28.4.tgz` is **git-ignored**, so
   any build/CI environment MUST run `helm dep build charts/podiumd` (after
   `scripts/add-helm-repos.sh`) to materialise it before `helm template`/`upgrade`.
