@@ -1,190 +1,184 @@
-# Migratie: legacy kiss-elastic naar eck-operator + eck-stack
+# Migration: legacy kiss-elastic to eck-operator + eck-stack
 
-Dit runbook beschrijft de overstap van de legacy `kiss-elastic` subchart naar
-Elastic's officiele Helm-charts (`eck-operator` + `eck-stack`), zoals ingevoerd
-door PR #331. Uitgangspunt: **migreren zonder verlies van data**.
+This runbook describes the move from the legacy `kiss-elastic` subchart to
+Elastic's official Helm charts (`eck-operator` + `eck-stack`), as introduced in
+PR #331. Guiding principle: **migrate without data loss**.
 
-Getest op een ontwikkelomgeving met data, zie het onderdeel
-[Validatie](#5-validatie).
+Tested on a development environment with data, see [Validation](#5-validation).
 
-## 1. Wat verandert er op chart-niveau
+## 1. What changes at chart level
 
-| | Voor | Na |
+| | Before | After |
 |---|---|---|
-| KISS Elasticsearch | `kiss-elastic` subchart (1.1.0), die zelf de eck-operator meebracht | `eck-stack` dependency (0.19.0, alias `kiss-eck`) |
-| ECK operator | Uit de `kiss-elastic` subchart, of los geinstalleerd per omgeving | **Centraal** in de umbrella: root-level `eck-operator` (3.4.0) met `managedNamespaces: [podiumd]` |
-| OIP Elasticsearch | `eck-elasticsearch` uit de `openinwoner` subchart | Ongewijzigd; blijft uit de `openinwoner` subchart komen |
-| OIP operator | `openinwoner.eck-operator.enabled: false` | Ongewijzigd; OIP gebruikt de centrale operator |
+| KISS Elasticsearch | `kiss-elastic` subchart (1.1.0), which bundled the eck-operator itself | `eck-stack` dependency (0.19.0, alias `kiss-eck`) |
+| ECK operator | From the `kiss-elastic` subchart, or installed standalone per environment | **Central** in the umbrella: root-level `eck-operator` (3.4.0) with `managedNamespaces: [podiumd]` |
+| OIP Elasticsearch | `eck-elasticsearch` from the `openinwoner` subchart | Unchanged; still comes from the `openinwoner` subchart |
+| OIP operator | `openinwoner.eck-operator.enabled: false` | Unchanged; OIP uses the central operator |
 
-Kernprincipe: de ECK-operator wordt centraal geimplementeerd in PodiumD, niet
-meer vanuit een subchart van KISS of OIP. KISS en OIP leveren alleen nog hun
-eigen Elasticsearch-resource; de centrale operator reconcilet ze beide in de
-`podiumd` namespace.
+Core principle: the ECK operator is implemented centrally in PodiumD, no longer
+from a subchart of KISS or OIP. KISS and OIP only provide their own
+Elasticsearch resource; the central operator reconciles both in the `podiumd`
+namespace.
 
-## 2. Resource-naming: geen wijziging, dus data blijft behouden
+## 2. Resource naming: no change, so data is preserved
 
-De ECK-operator leidt de StatefulSet- en PVC-namen af van de naam van de
-`Elasticsearch`-resource en van de nodeSet-naam. Zolang die gelijk blijven,
-wordt de bestaande StatefulSet in stand gehouden en blijven de PVC's (de data)
-staan.
+The ECK operator derives the StatefulSet and PVC names from the name of the
+`Elasticsearch` resource and the nodeSet name. As long as those stay the same,
+the existing StatefulSet is kept and the PVCs (the data) remain.
 
-| Resource | Naam voor | Naam na |
+| Resource | Name before | Name after |
 |---|---|---|
 | `Elasticsearch` (KISS) | `kiss` | `kiss` (via `fullnameOverride: kiss`) |
 | `Kibana` / `EnterpriseSearch` (KISS) | `kiss` | `kiss` |
 | nodeSet | `default` | `default` |
 | StatefulSet | `kiss-es-default` | `kiss-es-default` |
-| PVC's | `elasticsearch-data-kiss-es-default-{0,1,2}` | idem |
+| PVCs | `elasticsearch-data-kiss-es-default-{0,1,2}` | same |
 | `Elasticsearch` (OIP) | `openinwoner-elasticsearch` | `openinwoner-elasticsearch` |
 
-**Belangrijk:** wijzig de nodeSet-naam niet (houd `default`). Een andere
-nodeSet-naam laat de operator een nieuwe StatefulSet aanmaken en data
-herbalanceren, wat wel disruptief is.
+**Important:** do not change the nodeSet name (keep `default`). A different
+nodeSet name makes the operator create a new StatefulSet and rebalance data,
+which is disruptive.
 
-De `Elasticsearch`-spec is voor en na functioneel identiek (zelfde `version`,
-`nodeSets[].name`, `count` en `config`). De enige echte wijziging op de CR is
-het Helm-label `helm.sh/chart` (`kisselastic-1.1.0` wordt
-`eck-elasticsearch-0.19.x`). De ECK-operator herbouwt de StatefulSet daardoor
-niet en herstart de pods niet.
+The `Elasticsearch` spec is functionally identical before and after (same
+`version`, `nodeSets[].name`, `count` and `config`). The only real change on the
+CR is the Helm label `helm.sh/chart` (`kisselastic-1.1.0` becomes
+`eck-elasticsearch-0.19.x`). Because of this the ECK operator does not rebuild
+the StatefulSet and does not restart the pods.
 
-### volumeClaimTemplates: clean swap alleen bij gelijke opslaggrootte
+### volumeClaimTemplates: clean swap only when storage size is unchanged
 
-De regel "data blijft behouden" geldt zolang de **`volumeClaimTemplates`
-(opslaggrootte + storageClass) ongewijzigd** blijft. In de standaard-chart is dat
-zo: zowel de legacy `kiss-elastic` als het nieuwe `kiss-eck` laten
-`volumeClaimTemplates` ongezet, dus beide vallen terug op dezelfde ECK-default.
-Daardoor blijft de bestaande StatefulSet in stand (getest op een
-ontwikkelomgeving: StatefulSet-UID en PVC's ongewijzigd), geen handmatige stappen.
+The rule "data is preserved" holds as long as the **`volumeClaimTemplates`
+(storage size + storageClass) stays unchanged**. In the default chart this is
+the case: both the legacy `kiss-elastic` and the new `kiss-eck` leave
+`volumeClaimTemplates` unset, so both fall back to the same ECK default. As a
+result the existing StatefulSet is kept (tested on a development environment:
+StatefulSet UID and PVCs unchanged), no manual steps.
 
-**Let op wanneer een omgeving de volumegrootte overridet.** Een StatefulSet's
-`volumeClaimTemplates` is in Kubernetes **immutable**. Wijkt de nieuwe
-volumeClaimTemplate af van de bestaande PVC's (bv. 1Gi -> 8Gi), dan kan ECK dat
-niet in-place toepassen: de operator blijft in een reconcile-error hangen (ES
-noch oud, noch nieuw) tot de StatefulSet handmatig wordt verwijderd. Dan zijn er
-manual steps nodig:
+**Watch out when an environment overrides the volume size.** A StatefulSet's
+`volumeClaimTemplates` is **immutable** in Kubernetes. If the new
+volumeClaimTemplate differs from the existing PVCs (e.g. 1Gi -> 8Gi), ECK cannot
+apply it in place: the operator gets stuck in a reconcile error (ES neither old
+nor new) until the StatefulSet is deleted manually. Then manual steps are
+required:
 
-- **Schone recreate (dataverlies acceptabel):** `kubectl delete sts kiss-es-default`
-  én de bijbehorende PVC's, en laat ECK alles vers aanmaken.
-- **Resizen mét behoud van data:** kan niet in-place. Gebruik een Elasticsearch
-  snapshot/restore, of reindex naar een nodeSet met de nieuwe grootte.
+- **Clean recreate (data loss acceptable):** `kubectl delete sts kiss-es-default`
+  and the associated PVCs, and let ECK recreate everything from scratch.
+- **Resize while keeping data:** cannot be done in place. Use an Elasticsearch
+  snapshot/restore, or reindex into a nodeSet with the new size.
 
-Vuistregel: houd bij de migratie de `volumeClaimTemplates` gelijk aan de
-bestaande PVC's -> clean swap. Wil je tegelijk resizen, plan dat als aparte stap
-met snapshot/restore.
+Rule of thumb: during the migration keep the `volumeClaimTemplates` equal to the
+existing PVCs -> clean swap. If you want to resize at the same time, plan that as
+a separate step with snapshot/restore.
 
-## 3. Impact op gemeentelijke helm-values
+## 3. Impact on municipal helm values
 
 ### KISS
-- Verwijder het `kisselastic:` blok. Vervang door `kiss-eck:` (eck-stack) en
-  een root-level `eck-operator:` blok. Zie `values.yaml` voor de defaults.
-- nodeSets, resources en crawler-instellingen zijn nu omgevingsspecifiek in te
-  vullen onder `kiss-eck.eck-enterprise-search.config` en
-  `kiss-eck.eck-elasticsearch.nodeSets` (dit lost DS-5060 op: crawler-config
-  per omgeving).
-- De tag `contact` blijft KISS aansturen (`kiss-eck` heeft `tags: [kiss-eck, contact]`).
+- Remove the `kisselastic:` block. Replace it with `kiss-eck:` (eck-stack) and a
+  root-level `eck-operator:` block. See `values.yaml` for the defaults.
+- nodeSets, resources and crawler settings are now set per environment under
+  `kiss-eck.eck-enterprise-search.config` and
+  `kiss-eck.eck-elasticsearch.nodeSets` (this resolves DS-5060: crawler config
+  per environment).
+- The `contact` tag still drives KISS (`kiss-eck` has `tags: [kiss-eck, contact]`).
 
 ### OIP (openinwoner)
-- Geen nieuwe dependency nodig. OIP levert `eck-elasticsearch` al via de
+- No new dependency needed. OIP already provides `eck-elasticsearch` via the
   `openinwoner` subchart.
-- Zorg dat `openinwoner.eck-operator.enabled: false` blijft staan, zodat OIP de
-  centrale operator gebruikt en niet zijn eigen `openinwoner-elastic-operator`
-  opzet.
-- nodeSets voor OIP staan onder `openinwoner.eck-elasticsearch.nodeSets`
-  (omgevingsspecifiek).
+- Make sure `openinwoner.eck-operator.enabled: false` stays set, so OIP uses the
+  central operator and does not spin up its own `openinwoner-elastic-operator`.
+- nodeSets for OIP live under `openinwoner.eck-elasticsearch.nodeSets`
+  (per environment).
 
-### Centrale operator
-- `eck-operator.enabled: true` en `eck-operator.managedNamespaces: [podiumd]`
-  (of de namespace waarin PodiumD draait). De operator moet de namespace van
-  zowel `kiss` als `openinwoner-elasticsearch` dekken.
+### Central operator
+- `eck-operator.enabled: true` and `eck-operator.managedNamespaces: [podiumd]`
+  (or the namespace where PodiumD runs). The operator must cover the namespace of
+  both `kiss` and `openinwoner-elasticsearch`.
 
-## 4. Migratie-stappen voor SSC (omgeving die al draait)
+## 4. Migration steps for SSC (environment already running)
 
-De KISS Elasticsearch-migratie zelf is een metadata-only wijziging (zie sectie
-2). Het enige echte aandachtspunt is **hoe je met de operator omgaat** wanneer
-een omgeving nu al een losse `elastic-operator` Helm-release draait (los
-geinstalleerd, buiten de umbrella om).
+The KISS Elasticsearch migration itself is a metadata-only change (see section
+2). The only real point of attention is **how you handle the operator** when an
+environment already runs a standalone `elastic-operator` Helm release (installed
+outside the umbrella).
 
-### 4a. Bepaal hoe de operator geregeld wordt
+### 4a. Decide how the operator is managed
 
-- **Verse installatie / nog geen operator:** zet `eck-operator.enabled: true`.
-  De umbrella installeert de centrale operator. Verder niets nodig.
-- **Er draait al een losse `elastic-operator` (buiten de umbrella):**
-  **aanbevolen** is die te laten staan en `eck-operator.enabled: false` te
-  zetten. De umbrella swapt dan alleen de KISS Elasticsearch-chart
-  (`kisselastic` -> `kiss-eck`); de bestaande operator blijft reconcilen. Je
-  hoeft geen ownership over te dragen. Het centraliseren van de operator kan een
-  aparte, latere stap zijn.
+- **Fresh install / no operator yet:** set `eck-operator.enabled: true`. The
+  umbrella installs the central operator. Nothing else needed.
+- **A standalone `elastic-operator` already runs (outside the umbrella):**
+  **recommended** is to leave it in place and set `eck-operator.enabled: false`.
+  The umbrella then only swaps the KISS Elasticsearch chart (`kisselastic` ->
+  `kiss-eck`); the existing operator keeps reconciling. No ownership transfer
+  needed. Centralizing the operator can be a separate, later step.
 
-De operator is stateless (de data zit in de Elasticsearch StatefulSet/PVC's),
-dus de keuze hierboven raakt de data niet.
+The operator is stateless (the data lives in the Elasticsearch StatefulSet/PVCs),
+so the choice above does not affect the data.
 
 <details>
-<summary>Optioneel (advanced): de losse operator door de umbrella laten adopteren</summary>
+<summary>Optional (advanced): have the umbrella adopt the standalone operator</summary>
 
-Wil je de umbrella-operator de bestaande operator-resources laten overnemen
-(`eck-operator.enabled: true` terwijl er al een losse release draait), strip dan
-eerst de Helm-ownership zodat er geen conflict ontstaat:
+If you want the umbrella operator to take over the existing operator resources
+(`eck-operator.enabled: true` while a standalone release is running), first strip
+the Helm ownership so no conflict occurs:
 
 ```bash
 NS=podiumd
-# Namespace-scoped operator-resources
+# Namespace-scoped operator resources
 for r in serviceaccount/elastic-operator service/elastic-operator-webhook statefulset/elastic-operator; do
   kubectl annotate -n "$NS" "$r" meta.helm.sh/release-name- meta.helm.sh/release-namespace- --overwrite || true
   kubectl label   -n "$NS" "$r" app.kubernetes.io/managed-by- --overwrite || true
 done
-# Cluster-scoped operator-resources
+# Cluster-scoped operator resources
 for r in clusterrole/elastic-operator clusterrole/elastic-operator-edit clusterrole/elastic-operator-view clusterrolebinding/elastic-operator; do
   kubectl annotate "$r" meta.helm.sh/release-name- meta.helm.sh/release-namespace- --overwrite || true
   kubectl label   "$r" app.kubernetes.io/managed-by- --overwrite || true
 done
 ```
 
-> Let op de operator-versiesprong. Bij het overnemen door de umbrella-operator
-> (3.4.0) kan de `elastic-operator` StatefulSet een immutable
-> `spec.selector`-conflict geven bij `helm upgrade`. Dat is op te lossen door de
-> `elastic-operator` StatefulSet te verwijderen (bevat geen data) en helm de
-> nieuwe te laten aanmaken.
+> Mind the operator version jump. When the umbrella operator (3.4.0) takes over,
+> the `elastic-operator` StatefulSet may hit an immutable `spec.selector` conflict
+> on `helm upgrade`. Resolve it by deleting the `elastic-operator` StatefulSet
+> (it holds no data) and letting helm recreate it.
 
 </details>
 
-### 4b. De upgrade
+### 4b. The upgrade
 
-1. Maak een backup/snapshot van de Elasticsearch-data (of noteer minimaal de
-   index/doc-counts, zie sectie 5).
-2. Voer `helm upgrade` uit met de nieuwe chart en de aangepaste
-   omgevings-values.
-3. De `kiss` en `openinwoner-elasticsearch` StatefulSets worden in-place
-   bijgewerkt (niet herbouwd).
+1. Make a backup/snapshot of the Elasticsearch data (or at least record the
+   index/doc counts, see section 5).
+2. Run `helm upgrade` with the new chart and the adjusted environment values.
+3. The `kiss` and `openinwoner-elasticsearch` StatefulSets are updated in place
+   (not rebuilt).
 
-## 5. Validatie
+## 5. Validation
 
-Vastleggen voor en na de upgrade:
+Record before and after the upgrade:
 
 ```bash
 NS=podiumd
-# StatefulSet UID (moet identiek blijven = niet herbouwd)
+# StatefulSet UID (must stay identical = not rebuilt)
 kubectl get sts kiss-es-default -n $NS -o jsonpath='{.metadata.uid}{"\n"}'
-# PVC's (moeten blijven bestaan)
+# PVCs (must keep existing)
 kubectl get pvc -n $NS -l 'elasticsearch.k8s.elastic.co/cluster-name=kiss'
-# Doc-counts als data-ijkpunt
+# Doc counts as data baseline
 PW=$(kubectl get secret kiss-es-elastic-user -n $NS -o go-template='{{.data.elastic|base64decode}}')
 kubectl exec -n $NS kiss-es-default-0 -c elasticsearch -- \
   curl -s -k -u "elastic:$PW" "https://localhost:9200/_cat/indices/search-*?v&h=index,docs.count"
 ```
 
-Na de upgrade moeten StatefulSet-UID, PVC's en doc-counts ongewijzigd zijn en
-moet de `Elasticsearch`-health `green` zijn.
+After the upgrade the StatefulSet UID, PVCs and doc counts must be unchanged and
+the `Elasticsearch` health must be `green`.
 
-### Resultaat van de validatietest
-Met een realistische data-baseline (475 documenten: `search-kennisbank` +
-`search-vac`) is de chart-swap getest: StatefulSet `kiss-es-default` behield
-zijn UID (niet herbouwd), de PVC's bleven staan, de ES bleef `green` en alle
-475 documenten waren intact. De migratie is een metadata-only wijziging op de
-Elasticsearch-CR, zonder dataverlies of verstoring.
+### Validation test result
+With a realistic data baseline (475 documents: `search-kennisbank` +
+`search-vac`), the chart swap was tested: StatefulSet `kiss-es-default` kept its
+UID (not rebuilt), the PVCs remained, ES stayed `green` and all 475 documents
+were intact. The migration is a metadata-only change on the Elasticsearch CR,
+without data loss or disruption.
 
 ## 6. Rollback
 
-Omdat de migratie een chart-swap is en de onderliggende Elasticsearch-data
-(PVC's) niet worden aangeraakt, is terugrollen naar de `kiss-elastic` chart
-mogelijk zonder dataverlies: `helm rollback` of opnieuw `helm upgrade` met de
-oude chart. De StatefulSet en PVC-namen blijven in beide richtingen gelijk.
+Because the migration is a chart swap and the underlying Elasticsearch data
+(PVCs) is not touched, rolling back to the `kiss-elastic` chart is possible
+without data loss: `helm rollback` or `helm upgrade` again with the old chart.
+The StatefulSet and PVC names stay the same in both directions.
