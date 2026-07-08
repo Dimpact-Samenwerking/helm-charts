@@ -2078,6 +2078,12 @@ openinwoner:
     #       resources:
     #         requests:
     #           storage: 8Gi
+  # OIP uses the central eck-operator (root-level `eck-operator`, with
+  # managedNamespaces: [podiumd]). The openinwoner subchart bundles its own
+  # eck-operator (`openinwoner-elastic-operator`); it MUST stay disabled,
+  # otherwise two operators run on the same namespace. OIP only provides its own
+  # Elasticsearch resource (`openinwoner-elasticsearch`), which is reconciled by
+  # the central operator. See docs/migrating-to-eck-stack.md.
   eck-operator:
     enabled: false
 
@@ -2362,22 +2368,92 @@ openbeheer:
   tags:
     redis: false
 
-kisselastic:
-  kibanaDomain: kiss-kb-http.podiumd.svc.cluster.local:5601
-  elasticVersion: "8.19.3"
-  elasticsearchCount: 3
+# Central ECK operator (root-level). Manages all Elasticsearch resources in the
+# podiumd namespace (KISS 'kiss' and OIP 'openinwoner-elasticsearch'). KISS and
+# OIP only provide their own Elasticsearch; the operator no longer comes from a
+# subchart. See docs/migrating-to-eck-stack.md.
+eck-operator:
+  enabled: true
   # -- install crds using https://github.com/elastic/cloud-on-k8s/blob/main/deploy/eck-operator/charts/eck-operator-crds/templates/all-crds.yaml
   # override: values-enable-observability.yaml sets config.metricsPort and enables podMonitor
-  eck-operator:
-    installCRDs: false
-    managedNamespaces:
-      - podiumd
-    image:
-      tag: "3.1.0"
-    # podMonitor requires the Prometheus Operator CRD (monitoring.coreos.com/v1 PodMonitor)
-    # to be installed in the cluster. Enable via values-enable-observability.yaml.
-    podMonitor:
-      enabled: false
+  installCRDs: false
+  createClusterScopedResources: false
+  config:
+    # no RBAC access to cluster-wide storage classes, hence disable storage class validation
+    validateStorageClass: false
+  webhook:
+    enabled: false
+  managedNamespaces:
+    - podiumd
+  # podMonitor requires the Prometheus Operator CRD (monitoring.coreos.com/v1 PodMonitor)
+  # to be installed in the cluster. Enable via values-enable-observability.yaml.
+  podMonitor:
+    enabled: false
+
+kiss-eck:
+  enabled: true
+  eck-elasticsearch:
+    enabled: true
+    fullnameOverride: kiss
+    version: "8.19.3"
+    # -- default sizing, kept equal to the previous release (kiss-elastic used
+    # elasticsearchCount: 3). Environments can override nodeSets (e.g. nodeSelector,
+    # count, storage), the same way openinwoner.eck-elasticsearch.nodeSets is set.
+    # Note: volumeClaimTemplates is immutable — during a migration keep it equal to
+    # the existing PVCs; changing the size needs a manual recreate
+    # (see docs/migrating-to-eck-stack.md).
+    nodeSets:
+    - name: default
+      count: 3
+      config:
+        node.roles:
+        - data
+        - ingest
+        - master
+        node.store.allow_mmap: false
+      podTemplate:
+        spec:
+          nodeSelector: {}
+      # volumeClaimTemplates:
+      # - metadata:
+      #     name: elasticsearch-data
+      #   spec:
+      #     accessModes: [ReadWriteOnce]
+      #     storageClassName: managed-csi
+      #     resources:
+      #       requests:
+      #         storage: 8Gi
+  eck-enterprise-search:
+    enabled: true
+    fullnameOverride: kiss
+    version: "8.19.3"
+    config:
+      app_search.engine.total_fields.limit: 1000
+      kibana.host: https://kiss-kb-http.podiumd.svc.cluster.local:5601
+      # -- crawler settings can be tuned per environment (DS-5060). Sensible
+      # defaults below; override in your environment values file when needed.
+      connector.crawler.http.user_agent: "PodiumD-Contact-Elastic-Crawler"
+      connector.crawler.crawl.threads.limit: 1
+      connector.crawler.workers.pool_size.limit: 1
+    count: 1
+    elasticsearchRef:
+      name: kiss
+    podTemplate:
+      spec:
+        nodeSelector: {}
+  eck-kibana:
+    enabled: true
+    fullnameOverride: kiss
+    version: "8.19.3"
+    config:
+      server.publicBaseUrl: https://kiss-kb-http.podiumd.svc.cluster.local:5601
+    elasticsearchRef:
+      name: kiss
+    enterpriseSearchRef:
+      name: kiss
+    podTemplate:
+      spec:
+        nodeSelector: {}
 
 kiss:
   image:
