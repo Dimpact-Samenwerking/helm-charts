@@ -34,7 +34,7 @@ Infra to provision per environment (one line each):
 | **Ingress / route** | Gateway/Ingress (`infra.yml`) → service `<release>-openbao-active:8200` over **HTTP** (TLS terminated at gateway), host = `openbao.<env>.example.nl`. |
 | **TLS cert** | Gateway cert **SAN must cover the OpenBao host** (`openbao.<env>.example.nl`); pods run no TLS (`tls_disable=1`), so no server cert needed. |
 | **Storage** | **None** — no PVC (PostgreSQL storage backend, `dataStorage.enabled=false`). |
-| **Secrets** | `openbao-db` (chart-rendered) · `openbao-bootstrap-token` key `token` (**you create it** from the root token) · `openbao-oidc-secret` + `openbao-test-user-password` (auto-generated, kept stable). |
+| **Secrets** | `openbao-db` (chart-rendered) · `openbao-bootstrap-token` key `token` (**you create it** from the root token) · `openbao-oidc-secret` (auto-generated, kept stable). |
 | **Identity** | User-assigned MI + federated credential for SA `openbao`; set client-id in `server.serviceAccount.annotations`. (KV unseal key provisioned but unused — Shamir.) |
 | **Images / egress** | Allow `quay.io/openbao/openbao:2.5.5` + `docker.io/library/postgres:16-alpine` (or mirror to ACR + override). |
 | **One-time bootstrap** | `bao operator init` + unseal (×3 pods, **Shamir → repeat after every restart/upgrade**); seed the root token into `openbao-bootstrap-token`; re-run deploy; check `kubectl logs job/openbao-config`. |
@@ -48,7 +48,7 @@ Values to set: `openbao.enabled=true`, `openbao.database.host`, `openbao.configu
 ```
                  ┌──────────────── Keycloak (podiumd realm) ────────────────┐
                  │  OIDC client "openbao"  ·  group "vault-uploaders"        │
-                 │  clientRole openbao:uploaders  ·  test user "vault-tester"│
+                 │  clientRole openbao:uploaders                             │
                  └───────────────▲───────────────────────▲──────────────────┘
    browser / bao CLI             │ OIDC login            │ discovery + client-secret
         │                        │                       │
@@ -82,8 +82,8 @@ Two moving parts ship in this chart:
 | `openbao-db-schema` | Job (`pre-install,pre-upgrade`, weight `-5`) | `openbao-db-schema-job.yaml` | `openbao.enabled` |
 | `<release>-openbao` (StatefulSet + Services + SA + ConfigMap + PDB) | sub-chart | `charts/podiumd/charts/openbao-0.28.4.tgz` | `openbao.enabled` |
 | `openbao-config` | Job (`post-install,post-upgrade`, weight `10`) | `openbao-config-job.yaml` | `openbao.enabled && openbao.configuration.enabled` |
-| Keycloak `openbao` client, group, roles, test user | realm import | `keycloak-podiumd-realm-config.yaml` | rendered into the podiumd realm |
-| `openbao-oidc-secret`, `openbao-test-user-password` | Secret keys | `keycloak-podiumd-realm-secrets.yaml` | auto-generated, kept stable |
+| Keycloak `openbao` client, group, roles | realm import | `keycloak-podiumd-realm-config.yaml` | rendered into the podiumd realm |
+| `openbao-oidc-secret` | Secret key | `keycloak-podiumd-realm-secrets.yaml` | auto-generated, kept stable |
 
 ---
 
@@ -268,15 +268,20 @@ All rendered into the **podiumd realm** import (`keycloak-podiumd-realm-config.y
   client role `openbao:uploaders`. Its name must match the value carried in the
   token `groups` claim (the config Job binds it to the `uploader` policy via an
   external identity group + group-alias).
-- **Static test user** `vault-tester` (`openbao.configuration.testUser`), member
-  of `vault-uploaders`, so OIDC login + upload can be exercised immediately.
-  Rendered only when `openbao.enabled`.
-- **Secrets** (`keycloak-podiumd-realm-secrets.yaml`, auto-generated and kept
+- **No users are seeded.** The chart renders no test or su-* users into the
+  realm. For test environments, create per-app `su-<app>` users (including
+  `su-openbao` with the `uploaders` role) with `scripts/create-su-users.sh`,
+  run from your own machine against the Keycloak admin API.
+- **Skip-flag caveat:** the realm import's `roles`/`groups` sections are gated
+  by `keycloak.config.skipRoles`/`skipGroups` (both default `true`), so on a
+  realm running the defaults the `openbao:uploaders` role and `vault-uploaders`
+  group are **not** imported. `scripts/create-su-users.sh` creates the role if
+  it is missing; set both flags to `false` to have the chart manage the role
+  and group instead.
+- **Secret** (`keycloak-podiumd-realm-secrets.yaml`, auto-generated and kept
   stable across upgrades, or set via values):
   - `openbao-oidc-secret` — the `openbao` client secret.
-  - `openbao-test-user-password` — the test user's password.
-- The realm-import Job injects `KC_SECRET_OPENBAO`,
-  `KC_OPENBAO_TEST_USER_PASSWORD` (and `KC_SUPERUSER_PASSWORD`).
+- The realm-import Job injects `KC_SECRET_OPENBAO`.
 
 The `openbao-config` Job then makes the vault usable, idempotently:
 
@@ -303,11 +308,10 @@ The `openbao-config` Job then makes the vault usable, idempotently:
 > or switch the Keycloak mapper to a group-membership mapper so the claim carries
 > `vault-uploaders`. Tracked as an open item (§9).
 
-> **Related, but separable:** this branch also adds the optional
-> `keycloak.config.superuser` feature (per-app `su-<client>` admins, default
-> **off**) and makes `accessTokenLifespan` configurable. When enabled it also
-> creates `su-openbao` with role `openbao:uploaders`. That feature is documented
-> where it belongs (Keycloak); it is not required to run OpenBao.
+> **Related, but separable:** this branch also makes `accessTokenLifespan`
+> configurable. Per-app `su-<app>` admin users are **not** chart-rendered; for
+> test environments create them with `scripts/create-su-users.sh` (run locally
+> against the Keycloak admin API). They are not required to run OpenBao.
 
 ---
 
@@ -329,10 +333,6 @@ openbao:
     uploadersGroup: vault-uploaders
     kvPath: secret
     bootstrapTokenSecret: openbao-bootstrap-token
-    testUser:
-      username: vault-tester
-      email: vault-tester@<env>.example.nl
-      # password: ""   # empty => auto-generated + kept stable
     # secrets.keycloak_client_secret: ""  # empty => auto-generated + kept stable
 
   database:
@@ -355,7 +355,7 @@ Key value groups:
 | Path | Purpose |
 |---|---|
 | `openbao.enabled` | master switch (default `false`) |
-| `openbao.configuration.*` | consumed by the PodiumD `openbao-*` templates (OIDC/Keycloak wiring, config Job, test user, kv path, bootstrap Secret name) |
+| `openbao.configuration.*` | consumed by the PodiumD `openbao-*` templates (OIDC/Keycloak wiring, config Job, kv path, bootstrap Secret name) |
 | `openbao.database.*` | shared Azure PostgreSQL connection + schema Job |
 | `openbao.server.*` | upstream sub-chart keys (image, SA/workload-identity, readiness, HA, storage, HCL `config`, resources) |
 
@@ -404,8 +404,9 @@ are placeholders and **must** be overridden per environment.
   true`, `Sealed false` after step 4.
 - **Route + cert:** `curl -sSf https://openbao.<env>.example.nl/v1/sys/health`
   returns JSON over a valid TLS chain (SAN matches host).
-- **OIDC login (UI):** browse to the host, choose OIDC, authenticate as
-  `vault-tester`; you should land with the `uploader` policy.
+- **OIDC login (UI):** browse to the host, choose OIDC, authenticate as a
+  realm user with the `openbao:uploaders` role (e.g. `su-openbao` created by
+  `scripts/create-su-users.sh`); you should land with the `uploader` policy.
 - **OIDC login (CLI):** `bao login -method=oidc` completes via the
   `localhost:8250` callback.
 - **Upload:** as an uploader, `bao kv put secret/<path> k=v` succeeds; a
@@ -419,8 +420,8 @@ are placeholders and **must** be overridden per environment.
   never the config ConfigMap. The schema Job inlines `PGPASSWORD` from values
   (same plaintext the Secret carries) because a `pre-install` hook cannot depend
   on a normal-resource Secret.
-- OIDC client secret and test-user password are auto-generated and kept stable
-  in `keycloak-podiumd-realm-secrets`; passwords are never inlined into the realm
+- The OIDC client secret is auto-generated and kept stable in
+  `keycloak-podiumd-realm-secrets`; secrets are never inlined into the realm
   ConfigMap (injected as `$(KC_...)` env at import time).
 - Jobs run non-root, `readOnlyRootFilesystem`, `allowPrivilegeEscalation:
   false`, all capabilities dropped, `seccompProfile: RuntimeDefault`.

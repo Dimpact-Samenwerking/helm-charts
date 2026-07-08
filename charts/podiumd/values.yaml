@@ -168,16 +168,6 @@ keycloak:
     # realmIdentityProviderMappers: {}
     skipGroups: true
     skipRoles: true
-    # Per-app PodiumD superusers: one su-<app> user per application, each with
-    # ONLY that app's admin role(s) — keeps each user's OIDC token small so BFF
-    # auth cookies stay under the gateway proxy buffer. Disabled by default;
-    # shared password auto-generated + kept stable in the
-    # keycloak-podiumd-realm-secrets Secret (key keycloak-superuser-password)
-    # unless an explicit password is set here.
-    superuser:
-      enabled: false
-      emailDomain: example.nl
-      password: ""
     smtp:
       server: mail.example.nl
       port: "587"
@@ -3857,15 +3847,9 @@ openbao:
     # External group bound to the uploader policy. Must match the Keycloak group
     # name emitted in the `groups` claim (keycloak-podiumd-realm-config.yaml).
     uploadersGroup: vault-uploaders
-    # Static test end-user, seeded into the realm and made a member of
-    # uploadersGroup, so OIDC login + upload can be exercised immediately. Only
-    # rendered when openbao.enabled. The password flows through the realm-secrets
-    # Secret as $(KC_OPENBAO_TEST_USER_PASSWORD) (never inlined into the ConfigMap);
-    # empty => auto-generated + kept stable, like the OIDC client secrets.
-    testUser:
-      username: vault-tester
-      email: vault-tester@example.nl
-      password: ""
+    # No test/su-* users are seeded into the realm by the chart. For test
+    # environments, create per-app su-<app> users (incl. su-openbao with the
+    # uploaders role) with scripts/create-su-users.sh, run from your own machine.
     # KV-v2 mount path the uploader policy grants write on.
     kvPath: secret
     # K8s Secret (key `token`) holding a privileged bao token the config Job
