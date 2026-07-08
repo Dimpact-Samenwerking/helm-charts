@@ -74,6 +74,11 @@ data:
         defaultAction: "true"
         alias: CONFIGURE_TOTP
     clients:
+      # Disable built-in self-service portal — all accounts are admin-provisioned.
+      - clientId: account-console
+        enabled: false
+      - clientId: account
+        enabled: false
       - clientId: openzaak
         name: Open Zaak
         enabled: true

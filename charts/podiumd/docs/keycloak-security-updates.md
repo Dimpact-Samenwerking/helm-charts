@@ -276,6 +276,18 @@ The podiumd realm exclusively serves beheer (management) users and municipality 
 **`rememberMe: false`** ← changed from true
 - See Session Settings above for full rationale.
 
+### Account Console (Self-Service Portal)
+
+| Setting | Value | Keycloak default | Status |
+|---|---|---|---|
+| `account-console` client | `enabled: false` | enabled | ✅ Configured (was enabled) |
+| `account` client | `enabled: false` | enabled | ✅ Configured (was enabled) |
+
+**`account-console` and `account` clients disabled** ← explicitly set
+- **Standard:** BIO 2.0 / ISO 27002:2022 maatregel **8.2** (Geprivilegieerde toegangsrechten); **OWASP ASVS 4.0 V2.1** — account management must be administrator-controlled.
+- **Why:** The Keycloak Account Console (`/realms/podiumd/account`) is a built-in self-service portal where authenticated users can update profile fields, change their password, manage TOTP devices, and revoke sessions. None of these actions are appropriate for self-service in a realm serving only admin-provisioned beheer staff. Disabling both clients removes the portal entirely.
+- **Implementation:** `keycloak-podiumd-realm-config.yaml` → `clients` → `account-console.enabled: false`, `account.enabled: false`
+
 ### Audit Logging
 
 | Setting | Current value | Keycloak default | Status |
