@@ -35,7 +35,11 @@ metadata:
   annotations:
     "helm.sh/hook": post-install,post-upgrade
     "helm.sh/hook-weight": "10"
-    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    # No hook-succeeded: the Job exits 0 both when config was applied and when
+    # it skipped (no bootstrap token / still sealed), so the logs must stay
+    # readable after success. ttlSecondsAfterFinished garbage-collects the Job
+    # instead; before-hook-creation still replaces it on the next deploy.
+    "helm.sh/hook-delete-policy": before-hook-creation
 spec:
   backoffLimit: {{ $job.backoffLimit }}
   ttlSecondsAfterFinished: {{ $job.ttlSecondsAfterFinished }}
