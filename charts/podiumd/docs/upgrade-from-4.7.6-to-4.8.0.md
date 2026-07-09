@@ -201,8 +201,12 @@ metadata-only — StatefulSet, PVCs and data are preserved. Full runbook:
    needs no changes:
 
    ```bash
-   charts/podiumd/scripts/adopt-eck-crds.sh --context <kubectl-context>
+   charts/podiumd/scripts/pre-upgrade-prep-4.8.0.sh --context <kubectl-context>
    ```
+
+   The script (formerly `adopt-eck-crds.sh`) also runs the RabbitMQ drain
+   check and records the Elasticsearch baseline — all 4.8.0 pre-upgrade
+   steps in one go.
 
    Skipping this fails the deploy with `invalid ownership metadata`;
    deploying with **stale** CRDs crashloops the operator. Details and the
@@ -239,6 +243,8 @@ lost.** Sequence to avoid message loss and orphaned resources:
 1. **Quiesce producers** (stop traffic that creates notifications) and let the
    Celery workers drain — confirm the RabbitMQ queues are empty **before**
    upgrading (the RabbitMQ StatefulSet is deleted by the 2.0.0 chart).
+   `charts/podiumd/scripts/pre-upgrade-prep-4.8.0.sh` checks this (step 2)
+   and exits non-zero while messages are still queued.
 2. **Upgrade.** Workers reconnect to the Redis broker.
 3. **Verify** the Celery workers are healthy on Redis (no
    `amqp://127.0.0.1:5672` connection attempts in the logs — that would mean a
