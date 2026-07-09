@@ -40,6 +40,7 @@ this guide.
 | ZAC                 | 5.0.1 | 1.0.251 | **action required** |
 | PABC                | 1.1.0 | 1.1.0 | **action required** (now enabled by default) |
 | redis-operator      | v0.25.0 | -- | expect redis rolling restart |
+| ECK operator        | 3.4.0 | eck-operator 3.4.0 + eck-stack 0.19.0 | **action required** (values migration + one-time CRD adoption) |
 
 ## Changes
 
@@ -177,6 +178,31 @@ running pod image with
 `kubectl get pod <es-pod> -o jsonpath='{.spec.containers[*].image}'` — it
 must read `…/elasticsearch/elasticsearch:9.2.0`, not `:latest`.
 
+
+### ECK stack: kisselastic → central eck-operator + kiss-eck
+
+4.8.0 replaces the legacy `kiss-elastic` subchart with Elastic's official
+charts: one **central** root-level `eck-operator` (3.4.0) plus `eck-stack`
+(0.19.0, alias `kiss-eck`) for the KISS Elasticsearch. The swap itself is
+metadata-only — StatefulSet, PVCs and data are preserved. Full runbook:
+[`migrating-to-eck-stack.md`](migrating-to-eck-stack.md).
+
+**Action required:**
+
+1. **Migrate gemeente values:** remove the `kisselastic:` block, add
+   root-level `eck-operator:` + `kiss-eck:` blocks (runbook section 3). Keep
+   the nodeSet name `default` and leave `volumeClaimTemplates` unchanged
+   during the migration.
+2. **One-time CRD adoption.** The chart now installs and upgrades the 12 ECK
+   CRDs itself (`eck-operator.installCRDs: true`), so CRDs stay in lock-step
+   with the operator automatically. On clusters where the CRDs already exist
+   without Helm ownership (kisselastic era), the first deploy must run with
+   `--take-ownership`, or the CRDs must be annotated once — commands and
+   details in runbook section 4b. Skipping this fails the deploy with
+   `invalid ownership metadata`; deploying with **stale** CRDs crashloops the
+   operator (also section 4b).
+3. **ACR mirror:** mirror `elastic/eck-operator:3.4.0` (see
+   [`docs/images/images-baseline.yaml`](images/images-baseline.yaml)).
 
 ### Open Notificaties 1.13.1 → 2.0.0 (app 1.16.0) — RabbitMQ removed
 
