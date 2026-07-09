@@ -196,11 +196,17 @@ metadata-only — StatefulSet, PVCs and data are preserved. Full runbook:
 2. **One-time CRD adoption.** The chart now installs and upgrades the 12 ECK
    CRDs itself (`eck-operator.installCRDs: true`), so CRDs stay in lock-step
    with the operator automatically. On clusters where the CRDs already exist
-   without Helm ownership (kisselastic era), the first deploy must run with
-   `--take-ownership`, or the CRDs must be annotated once — commands and
-   details in runbook section 4b. Skipping this fails the deploy with
-   `invalid ownership metadata`; deploying with **stale** CRDs crashloops the
-   operator (also section 4b).
+   without `podiumd` release ownership (kisselastic era), run the helper
+   script once **before** the first 4.8.0 deploy — the deploy pipeline itself
+   needs no changes:
+
+   ```bash
+   charts/podiumd/scripts/adopt-eck-crds.sh --context <kubectl-context>
+   ```
+
+   Skipping this fails the deploy with `invalid ownership metadata`;
+   deploying with **stale** CRDs crashloops the operator. Details and the
+   `--take-ownership` alternative in runbook section 4b.
 3. **ACR mirror:** mirror `elastic/eck-operator:3.4.0` (see
    [`docs/images/images-baseline.yaml`](images/images-baseline.yaml)).
 

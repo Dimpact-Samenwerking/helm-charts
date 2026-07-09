@@ -157,19 +157,29 @@ Two requirements:
    must be allowed to create/update them. The SSC deploy pipeline runs
    `HelmDeploy` with `useClusterAdmin: true`, which covers this.
 2. **One-time adoption on clusters that already have the CRDs.** CRDs applied
-   in the kisselastic era (or by a manual `kubectl apply`) have no Helm
-   ownership metadata, and Helm refuses to overwrite them (`rendered manifests
-   contain a resource that already exists ... invalid ownership metadata`).
-   Either deploy with `--take-ownership` (helm >= 3.17; safe to keep in the
-   pipeline permanently), or annotate the CRDs once:
+   in the kisselastic era (by a manual `kubectl apply`, or owned by a
+   standalone `elastic-operator` release) don't belong to the `podiumd`
+   release, and Helm refuses to overwrite them (`rendered manifests contain a
+   resource that already exists ... invalid ownership metadata`). Run the
+   helper script once per cluster, **before** the first 4.8.0 deploy
+   (idempotent, safe to re-run; no-op on fresh clusters; `--dry-run` to
+   preview):
 
    ```bash
-   for crd in $(kubectl get crd -o name | grep 'k8s.elastic.co'); do
-     kubectl annotate "${crd}" meta.helm.sh/release-name=podiumd \
-       meta.helm.sh/release-namespace=podiumd --overwrite
-     kubectl label "${crd}" app.kubernetes.io/managed-by=Helm --overwrite
-   done
+   charts/podiumd/scripts/adopt-eck-crds.sh --context <kubectl-context>
    ```
+
+   After adoption the regular deploy needs no extra flags and the pipeline
+   needs no changes — Helm owns the CRDs from then on. The two CRDs new in
+   ECK 3.4.0 (`packageregistries`, `autoopsagentpolicies`) don't exist yet on
+   old clusters, so there is no conflict: Helm simply creates them on the
+   next deploy.
+
+   Alternative: deploy once with `--take-ownership` (helm >= 3.17). Works,
+   but the flag is not scoped to CRDs — it relaxes the ownership check for
+   **every** resource in the release, silently adopting conflicts a strict
+   deploy would flag. Prefer the one-time script and keep the pipeline
+   unchanged.
 
 Verify after the deploy (must print `12`):
 
