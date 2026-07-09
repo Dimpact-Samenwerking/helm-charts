@@ -166,8 +166,12 @@ Two requirements:
    preview):
 
    ```bash
-   charts/podiumd/scripts/adopt-eck-crds.sh --context <kubectl-context>
+   charts/podiumd/scripts/pre-upgrade-prep-4.8.0.sh --context <kubectl-context>
    ```
+
+   The script (formerly `adopt-eck-crds.sh`) bundles the other 4.8.0
+   pre-upgrade steps as well: the RabbitMQ drain check (see the upgrade
+   guide) and the Elasticsearch baseline from section 5.
 
    After adoption the regular deploy needs no extra flags and the pipeline
    needs no changes — Helm owns the CRDs from then on. The two CRDs new in
@@ -231,7 +235,9 @@ kubectl apply --server-side --force-conflicts \
 
 ## 5. Validation
 
-Record before and after the upgrade:
+Record before and after the upgrade (the "before" side is captured
+automatically by `charts/podiumd/scripts/pre-upgrade-prep-4.8.0.sh`,
+optionally to a file via `--baseline-file`):
 
 ```bash
 NS=podiumd
