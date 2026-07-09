@@ -58,19 +58,19 @@ zac:
     protocollering:
       enabled: true
       originOin:
-        oin: "gemeentelijke OIN"
+        oin: "xxxxxxxxxxxxxxxx"  ## hier dezelfde waarde als bij kiss.configuration.settings.haalcentraal.customHeaders
         header: "x-request-organization"
       doelbinding:
         perZaaktype: false
         header: ""
       verwerking:
         header: "x-request-afnemerscode"
-        register: "dummy"
+        register: "xxxxx" ## hier dezelfde waarde als bij kiss.configuration.settings.haalcentraal.customHeaders
       gebruiker:
         header: "x-request-user"
       toepassing:
         header: "x-request-application"
-        value: "dummy"
+        value: "oldambt-acc-zac-podiumd-zaak"
 ```
 
 ---
