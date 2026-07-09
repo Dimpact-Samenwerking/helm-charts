@@ -3132,18 +3132,18 @@ zgw-office-addin:
       app: office-addin
       service_name: office-addin
   frontend:
-    # ghcr.io/infonl/zgw-office-addin-frontend:v0.9.352@sha256:bf248581519b1644ef0f0b3ecb569f80b0fcf435c58df18547bb714eb6aa4916
+    # ghcr.io/infonl/zgw-office-addin-frontend:0.10.0@sha256:e6a3304913e9bef84dba7d0a03fd37d655f49e32b7a46e25b33bda382d7e7afb
     image:
-      tag: "v0.9.352@sha256:bf248581519b1644ef0f0b3ecb569f80b0fcf435c58df18547bb714eb6aa4916"
+      tag: "0.10.0@sha256:e6a3304913e9bef84dba7d0a03fd37d655f49e32b7a46e25b33bda382d7e7afb"
     resources:
       requests:
         cpu: 50m
         memory: 64Mi
   backend:
     msalSecret: ""
-    # ghcr.io/infonl/zgw-office-addin-backend:v0.9.352@sha256:c5bf9a7beb883c7cf586a65326dacb4fc49a2eaaa08f4eb49f2faabb786b71b4
+    # ghcr.io/infonl/zgw-office-addin-backend:0.10.0@sha256:59a59119549c4b1dd16f239b4d7679d3774ae6504b4a075add23006ac9edfde0
     image:
-      tag: "v0.9.352@sha256:c5bf9a7beb883c7cf586a65326dacb4fc49a2eaaa08f4eb49f2faabb786b71b4"
+      tag: "0.10.0@sha256:59a59119549c4b1dd16f239b4d7679d3774ae6504b4a075add23006ac9edfde0"
     resources:
       requests:
         cpu: 100m
