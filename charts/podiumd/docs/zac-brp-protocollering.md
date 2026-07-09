@@ -92,7 +92,7 @@ zac:
         perZaaktype: false
       verwerking:
         header: "x-verwerking"
-        register: "dummy" ## we hebben de Def Waarde nog niet
+        register: "Klantcontactcentrum" 
       gebruiker:
         header: "x-gebruiker"
       toepassing:
