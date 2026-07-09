@@ -97,9 +97,9 @@ a separate step with snapshot/restore.
 ## 4. Migration steps for SSC (environment already running)
 
 The KISS Elasticsearch migration itself is a metadata-only change (see section
-2). The only real point of attention is **how you handle the operator** when an
-environment already runs a standalone `elastic-operator` Helm release (installed
-outside the umbrella).
+2). The two real points of attention are **how you handle the operator** when
+an environment already runs a standalone `elastic-operator` Helm release
+(installed outside the umbrella), and the **ECK CRDs** (section 4b).
 
 ### 4a. Decide how the operator is managed
 
@@ -142,7 +142,76 @@ done
 
 </details>
 
-### 4b. The upgrade
+### 4b. CRDs: installed by the chart (one-time adoption on existing clusters)
+
+The umbrella installs and upgrades the ECK CRDs itself
+(`eck-operator.installCRDs: true`, the upstream default): all **12**
+`*.k8s.elastic.co` CRDs are applied on every deploy, in lock-step with the
+operator version — no manual step on version bumps. The CRDs carry
+`helm.sh/resource-policy: keep`, so `helm uninstall` never removes them and
+the Elastic CRs (and their data) survive a release removal.
+
+Two requirements:
+
+1. **Cluster-scope RBAC.** CRDs are cluster-scoped, so the deploying identity
+   must be allowed to create/update them. The SSC deploy pipeline runs
+   `HelmDeploy` with `useClusterAdmin: true`, which covers this.
+2. **One-time adoption on clusters that already have the CRDs.** CRDs applied
+   in the kisselastic era (or by a manual `kubectl apply`) have no Helm
+   ownership metadata, and Helm refuses to overwrite them (`rendered manifests
+   contain a resource that already exists ... invalid ownership metadata`).
+   Either deploy with `--take-ownership` (helm >= 3.17; safe to keep in the
+   pipeline permanently), or annotate the CRDs once:
+
+   ```bash
+   for crd in $(kubectl get crd -o name | grep 'k8s.elastic.co'); do
+     kubectl annotate "${crd}" meta.helm.sh/release-name=podiumd \
+       meta.helm.sh/release-namespace=podiumd --overwrite
+     kubectl label "${crd}" app.kubernetes.io/managed-by=Helm --overwrite
+   done
+   ```
+
+Verify after the deploy (must print `12`):
+
+```bash
+kubectl get crd -o name | grep -c 'k8s.elastic.co'
+```
+
+**Symptom of missing/stale CRDs** (e.g. `installCRDs` overridden to `false`
+without a manual apply): ECK operator 3.4.0 needs 12 CRDs; kisselastic-era
+clusters have only 10 — `packageregistries.packageregistry.k8s.elastic.co`
+and `autoopsagentpolicies.autoops.k8s.elastic.co` are missing. The operator's
+informer cache then cannot sync (`failed to wait for packageregistry-controller
+caches to sync`), the process exits cleanly every ~2 minutes (exit code 0) and
+the `elastic-operator` StatefulSet ends up in `CrashLoopBackOff`. Treacherous:
+`helm --wait` can sample the operator during an up-phase, so a deploy may
+**intermittently go green** while the operator is broken — the failure then
+surfaces on a later rollout. After fixing the CRDs, delete the operator pod
+once to skip the remaining backoff:
+`kubectl delete pod elastic-operator-0 -n podiumd`.
+
+<details>
+<summary>Installers without cluster-scope RBAC: manual CRD apply</summary>
+
+Set `eck-operator.installCRDs: false` and apply the CRDs manually before the
+upgrade (cluster-admin, repeat on every operator version bump). The CRDs are
+too large for client-side apply, hence `--server-side`:
+
+```bash
+# Option A — render from the chart's own bundled eck-operator (version always matches)
+tar -xzf charts/podiumd/charts/eck-operator-3.4.0.tgz -C /tmp
+helm template eck /tmp/eck-operator --set installCRDs=true \
+  --show-only charts/eck-operator-crds/templates/all-crds.yaml > /tmp/eck-crds.yaml
+kubectl apply --server-side --force-conflicts -f /tmp/eck-crds.yaml
+
+# Option B — upstream, same content (needs internet egress)
+kubectl apply --server-side --force-conflicts \
+  -f https://download.elastic.co/downloads/eck/3.4.0/crds.yaml
+```
+
+</details>
+
+### 4c. The upgrade
 
 1. Make a backup/snapshot of the Elasticsearch data (or at least record the
    index/doc counts, see section 5).
@@ -168,6 +237,16 @@ kubectl exec -n $NS kiss-es-default-0 -c elasticsearch -- \
 
 After the upgrade the StatefulSet UID, PVCs and doc counts must be unchanged and
 the `Elasticsearch` health must be `green`.
+
+Also verify the **operator stays up**. The CRD failure mode (section 4b) exits
+every ~2 minutes, so a single `Running` sample proves nothing — check the
+restart count after at least 5 minutes:
+
+```bash
+kubectl get pod elastic-operator-0 -n $NS \
+  -o jsonpath='{.status.containerStatuses[0].restartCount}{"\n"}'
+# must stay 0 (and AGE keeps growing)
+```
 
 ### Validation test result
 With a realistic data baseline (475 documents: `search-kennisbank` +
