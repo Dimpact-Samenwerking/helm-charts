@@ -103,7 +103,7 @@ by default).
 ## CPU and memory
 
 Chart defaults (`charts/podiumd/values.yaml` and sub-chart defaults; Referentielijsten has
-**no** section in `docs/resource-overview.md`):
+**no** section in `docs/misc/resource-overview.md`):
 
 | Container | CPU request | CPU limit | Memory request | Memory limit |
 |---|---|---|---|---|

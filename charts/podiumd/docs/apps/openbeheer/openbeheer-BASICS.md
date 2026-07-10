@@ -92,7 +92,7 @@ optional classic Ingress template (`openbeheer.ingress.*`, disabled by default) 
 ## CPU and memory
 
 Chart defaults (`charts/podiumd/values.yaml`; Open Beheer has **no** section in
-`docs/resource-overview.md`):
+`docs/misc/resource-overview.md`):
 
 | Container | CPU request | CPU limit | Memory request | Memory limit |
 |---|---|---|---|---|

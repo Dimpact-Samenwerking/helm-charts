@@ -46,7 +46,7 @@ Yes — one PVC for the signature database:
 
 ## CPU and memory
 
-Chart defaults (`clamav.resources` in `values.yaml`, confirmed in `docs/resource-overview.md`):
+Chart defaults (`clamav.resources` in `values.yaml`, confirmed in `docs/misc/resource-overview.md`):
 
 | Container | CPU request | Mem request | CPU limit | Mem limit |
 |-----------|-------------|-------------|-----------|-----------|

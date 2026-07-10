@@ -79,7 +79,7 @@ to.
 
 ## CPU and memory
 
-Chart defaults (umbrella `values.yaml` + `docs/resource-overview.md`), default
+Chart defaults (umbrella `values.yaml` + `docs/misc/resource-overview.md`), default
 replicas **1** per component:
 
 | Container | CPU request | Mem request | CPU limit | Mem limit |

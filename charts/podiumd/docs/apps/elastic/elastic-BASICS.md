@@ -113,7 +113,7 @@ the stack via the ECK-generated ClusterIP services:
 
 ## CPU and memory
 
-Chart defaults (from `values.yaml` and `docs/resource-overview.md`; `(op)` =
+Chart defaults (from `values.yaml` and `docs/misc/resource-overview.md`; `(op)` =
 injected by the ECK operator, tunable via the CR's `podTemplate`):
 
 | Container | CPU request | Mem request | CPU limit | Mem limit | Notes |

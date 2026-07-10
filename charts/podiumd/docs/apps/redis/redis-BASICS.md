@@ -99,7 +99,7 @@ operator.
 
 ## CPU and memory
 
-Chart defaults (`charts/podiumd/values.yaml` + `docs/resource-overview.md`):
+Chart defaults (`charts/podiumd/values.yaml` + `docs/misc/resource-overview.md`):
 
 | Container | Replicas | CPU request | Mem request | CPU limit | Mem limit |
 |-----------|----------|-------------|-------------|-----------|-----------|

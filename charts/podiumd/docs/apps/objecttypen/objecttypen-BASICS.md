@@ -111,7 +111,7 @@ public hostname (chart default only lists
 ## CPU and memory
 
 Chart defaults (from `charts/podiumd/values.yaml` and
-`docs/resource-overview.md`; replicas: 2):
+`docs/misc/resource-overview.md`; replicas: 2):
 
 | Container | CPU request | Mem request | CPU limit | Mem limit |
 |-----------|-------------|-------------|-----------|-----------|
@@ -123,7 +123,7 @@ Chart defaults (from `charts/podiumd/values.yaml` and
 3–4m CPU / 275–356Mi memory; accp `objecttypen x2` at 3m / 352–360Mi. CPU is
 negligible at idle, but steady memory (~275–360Mi per pod) sits well above
 the 160Mi request — for production, raise the memory request towards the
-observed ~350–400Mi to avoid node overcommit. `docs/resource-overview.md`
+observed ~350–400Mi to avoid node overcommit. `docs/misc/resource-overview.md`
 flags no "increase for production" beyond this, but does prescribe a
 PodDisruptionBudget with `minAvailable: 1` for the 2-replica web deployment
 (the subchart supports it via `pdb.create: true`, default off).

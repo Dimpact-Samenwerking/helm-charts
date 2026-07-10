@@ -103,7 +103,7 @@ endpoints.
 ## CPU and memory
 
 Chart defaults (`zaakbrug.resources` in `values.yaml`; there is no zaakbrug
-section in `docs/resource-overview.md`):
+section in `docs/misc/resource-overview.md`):
 
 | Container | CPU request | CPU limit | Memory request | Memory limit |
 |---|---|---|---|---|

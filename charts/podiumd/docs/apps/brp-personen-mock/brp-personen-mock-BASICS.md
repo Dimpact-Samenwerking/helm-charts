@@ -68,7 +68,7 @@ It exists purely to be a dependency *of* other apps:
 ## CPU and memory
 
 Chart defaults (`charts/brp-personen-mock/values.yaml`; matches
-`docs/resource-overview.md`, which marks this component *"Test environments
+`docs/misc/resource-overview.md`, which marks this component *"Test environments
 only"*):
 
 | Container | CPU request | Mem request | CPU limit | Mem limit |

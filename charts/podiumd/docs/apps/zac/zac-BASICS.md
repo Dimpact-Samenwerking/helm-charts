@@ -93,7 +93,7 @@ peak load.
 
 ## CPU and memory
 
-Chart defaults (from `values.yaml` and `docs/resource-overview.md`):
+Chart defaults (from `values.yaml` and `docs/misc/resource-overview.md`):
 
 | Container | CPU request | Mem request | CPU limit | Mem limit |
 |-----------|-------------|-------------|-----------|-----------|

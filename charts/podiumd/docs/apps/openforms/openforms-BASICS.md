@@ -112,7 +112,7 @@ The HTTPRoute is created by the per-gemeente environment deployment (ADO
 
 ## CPU and memory
 
-Chart defaults (`values.yaml` + `docs/resource-overview.md`) — requests only,
+Chart defaults (`values.yaml` + `docs/misc/resource-overview.md`) — requests only,
 no limits set (burstable):
 
 | Container | Replicas | CPU request | Mem request | CPU limit | Mem limit |

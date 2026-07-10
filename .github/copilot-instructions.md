@@ -122,7 +122,7 @@ Every container in every template **MUST** declare `requests` + `limits` for CPU
 - All custom templates (Deployments, Jobs, init containers, sidecars)
 - Sub-chart components wired via `values.yaml`
 
-Wire sub-chart resources via sub-chart's documented key (e.g. `openzaak.resources`, `keycloak-operator.operator.resources`). Document defaults + chart limitations in `charts/podiumd/docs/resource-overview.md`. If sub-chart doesn't expose `resources` key, note there + raise with upstream.
+Wire sub-chart resources via sub-chart's documented key (e.g. `openzaak.resources`, `keycloak-operator.operator.resources`). Document defaults + chart limitations in `charts/podiumd/docs/misc/resource-overview.md`. If sub-chart doesn't expose `resources` key, note there + raise with upstream.
 
 ### Image References
 All images in podiumd templates use `{{ include "podiumd.image" <image> }}` with `{registry, repository, tag}` map in `values.yaml`. NEVER embed plain `"repo:tag"` strings in templates.
@@ -239,7 +239,7 @@ Valid commit types: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `ci`, `p
 | `charts/podiumd/values.yaml` | Primary config (heavily commented) |
 | `charts/podiumd/kiss.schema.json` | JSON Schema for values (Helm 3.11+) |
 | `charts/podiumd/templates/_helpers.tpl` | Named templates for labels, names, image rendering |
-| `charts/podiumd/docs/resource-overview.md` | Resource requests/limits matrix |
+| `charts/podiumd/docs/misc/resource-overview.md` | Resource requests/limits matrix |
 | `charts/podiumd/docs/apps/keycloak/migrating-to-keycloak-operator.md` | Keycloak migration guide |
 | `charts/podiumd/docs/apps/apiproxy/api-proxy-url-rewriting.md` | nginx URL rewriting for BAG/BRP/KVK proxies |
 | `charts/podiumd/docs/apps/keycloak/keycloak-security-updates.md` | Keycloak realm security changelog |

@@ -99,7 +99,7 @@ four containers.
 
 ## CPU and memory
 
-Chart defaults (`values.yaml` + `docs/resource-overview.md`, 1 replica each):
+Chart defaults (`values.yaml` + `docs/misc/resource-overview.md`, 1 replica each):
 
 | Container | CPU request | Mem request | CPU limit | Mem limit |
 |-----------|-------------|-------------|-----------|-----------|

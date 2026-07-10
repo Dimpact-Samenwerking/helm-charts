@@ -37,7 +37,7 @@ Cluster-internal only — no HTTPRoute is created for it in the Dimpact environm
 
 ## CPU and memory
 
-Chart defaults (`apiproxy.resources`, matching `docs/resource-overview.md`, replicas: 1):
+Chart defaults (`apiproxy.resources`, matching `docs/misc/resource-overview.md`, replicas: 1):
 
 | Container | CPU request | Mem request | CPU limit | Mem limit |
 |-----------|-------------|-------------|-----------|-----------|

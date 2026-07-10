@@ -128,7 +128,7 @@ Chart defaults (`charts/podiumd/values.yaml`):
 | ita-web (`ita.web.resources`) | 100m | 128Mi | 200m | 256Mi |
 | ita-poller CronJob (`ita.poller.resources`) | 50m | 128Mi | 100m | 256Mi |
 
-Note: `docs/resource-overview.md` still lists ITA resources as "—" with a
+Note: `docs/misc/resource-overview.md` still lists ITA resources as "—" with a
 "chart limitation" warning saying `web.resources` cannot be set. That note
 predates ITA 3.2.0: in the vendored 3.2.0 subchart, `web.resources` and
 `poller.resources` are rendered straight into the container specs (branding

@@ -96,7 +96,7 @@ ClusterIP service. In-cluster the app answers on
 
 ## CPU and memory
 
-Chart defaults (from `values.yaml` / `docs/resource-overview.md`); replicas: 2 web, 1
+Chart defaults (from `values.yaml` / `docs/misc/resource-overview.md`); replicas: 2 web, 1
 worker:
 
 | Container | CPU request | Mem request | CPU limit | Mem limit |

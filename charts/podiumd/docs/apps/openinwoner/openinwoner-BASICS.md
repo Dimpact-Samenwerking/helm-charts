@@ -55,7 +55,7 @@ Open Inwoner ("Mijn omgeving") is the citizen self-service portal of PodiumD. Re
 
 ## CPU and memory
 
-Chart defaults (from `values.yaml` and `docs/resource-overview.md`; web replicas: 2, all others 1):
+Chart defaults (from `values.yaml` and `docs/misc/resource-overview.md`; web replicas: 2, all others 1):
 
 | Container | CPU request | Mem request | CPU limit | Mem limit |
 |-----------|-------------|-------------|-----------|-----------|

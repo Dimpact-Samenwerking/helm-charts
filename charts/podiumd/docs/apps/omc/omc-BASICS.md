@@ -100,7 +100,7 @@ The sub-chart's own `ingress:` block stays disabled (`enabled: false`).
 
 The podiumd `values.yaml` does **not** override the sub-chart resources (the
 block is present but commented out); the sub-chart defaults apply, matching
-`docs/resource-overview.md` ("OMC (NotifyNL)"):
+`docs/misc/resource-overview.md` ("OMC (NotifyNL)"):
 
 | Container | CPU request | Mem request | CPU limit | Mem limit |
 |-----------|-------------|-------------|-----------|-----------|
