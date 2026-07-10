@@ -56,3 +56,9 @@ C4Context
     UpdateLayoutConfig($c4ShapeInRow="4", $c4BoundaryInRow="2")
 
 ```
+
+> **Update (PodiumD 4.8.0):** de Elastic voor KISS draait sinds 4.8.0 onder de
+> centrale ECK-operator (`eck-operator` + `kiss-eck`, ter vervanging van het
+> legacy `kiss-elastic` subchart). Het diagram blijft functioneel geldig;
+> alleen de hosting is veranderd — zie
+> [migrating-to-eck-stack.md](../apps/elastic/migrating-to-eck-stack.md).

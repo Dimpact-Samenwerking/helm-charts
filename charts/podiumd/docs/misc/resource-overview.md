@@ -58,13 +58,16 @@ Resources for the main Keycloak container are set via `spec.resources` in the Ke
 
 | Container | CPU Request | Mem Request | CPU Limit | Mem Limit |
 |-----------|-------------|-------------|-----------|-----------|
-| keycloak-operator | 100m | 128Mi | 500m | 256Mi |
+| keycloak-operator | 100m | 128Mi | 500m | 768Mi |
 | job: ensurePodiumdAdminUser | 50m | 64Mi | 200m | 128Mi |
 | job: ensureOperatorSa | 50m | 64Mi | 200m | 128Mi |
 | job: importPodiumdRealm (kc-config-cli) | 50m | 256Mi | 200m | 512Mi |
 | job: importMasterRealm (kc-config-cli) | 50m | 256Mi | 200m | 512Mi |
 
 Values keys: `keycloak-operator.operator.resources` (operator pod), `keycloak-operator.jobs.resources` (curl/python/psql job containers), `keycloak-operator.jobs.configCliResources` (kc-config-cli — Spring Boot JVM, needs more memory).
+
+> Operator memory limit was raised 256Mi → 768Mi (IN-2233: OOMKilled with
+> excessive restarts across clusters at 256Mi).
 
 ---
 
@@ -314,7 +317,14 @@ Default replicas: **1** (all components)
 | internetaakafhandeling-web | — | — | — | — |
 | ita-poller (CronJob) | — | — | — | — |
 
-> ⚠️ **Chart limitation — ITA resources cannot be set via values.yaml.** The ITA subchart (`internetaakafhandeling`) does not expose a Kubernetes `resources` field for its web deployment or poller. The `web.resources` key in the chart is repurposed for branding configuration (logoUrl, faviconUrl, designTokensUrl) and has no effect on pod resource requests/limits. Raised with ITA/interne-taak-afhandeling team.
+> Since ITA **3.2.0** the subchart exposes real Kubernetes `resources` fields:
+> `ita.web.resources` (web deployment) and `ita.poller.resources` (poller
+> CronJob); branding moved to its own `web.styling` block. Both default to
+> `{}` — the podiumd chart sets no values yet, hence the empty rows. Set them
+> per environment.
+> (Historical: pre-3.2.0 the subchart had no `resources` field at all and
+> `web.resources` was repurposed for branding — that limitation no longer
+> applies.)
 
 ---
 
@@ -358,7 +368,9 @@ Default replicas: **1**
 |-----------|-------------|-------------|-----------|-----------|
 | pabc | 10m | 384Mi | 200m | 768Mi |
 
-*Disabled by default (`enabled: false`).*
+*Enabled by default since PodiumD 4.8.0 (`pabc.enabled: true`); needs an
+external database — see [enabling-pabc.md](../apps/pabc/enabling-pabc.md).
+Opt out with `pabc.enabled: false`.*
 
 ---
 

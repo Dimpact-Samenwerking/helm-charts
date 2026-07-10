@@ -25,7 +25,7 @@ Redis Operator v0.24.0 does not include it in the main `redis.conf` automaticall
 | 3   | opennotificaties  | Cache (default + axes)               | `opennotificaties.settings.cache.default/axes`      |
 | 4   | openzaak          | Cache (default + axes)               | `openzaak.settings.cache.default/axes`              |
 | 5   | openzaak          | Celery broker + result backend       | `openzaak.settings.celery.brokerUrl/resultBackendl` |
-| 6   | opennotificaties  | Celery result backend only¹          | `opennotificaties.settings.celery.celeryResultBackend` |
+| 6   | opennotificaties  | Celery broker + publish broker + result backend¹ | `opennotificaties.settings.celery.brokerUrl/publishBrokerUrl` + `settings.messageBroker.celeryResultBackend` |
 | 7   | openklant         | Cache (default + axes)               | `openklant.settings.cache.default/axes`             |
 | 8   | openklant         | Celery broker + result backend       | `openklant.settings.celery.brokerUrl/resultBackendl` |
 | 9   | openformulieren   | Cache (default + axes)               | `openformulieren.settings.cache.default/axes`       |
@@ -42,8 +42,10 @@ Redis Operator v0.24.0 does not include it in the main `redis.conf` automaticall
 | 20  | *(future)*        | Celery broker + result backend       | See [Adding a new component](#adding-a-new-django-component) |
 | 21–31 | —             | **Unallocated**                      | —                                                   |
 
-> ¹ `opennotificaties` uses RabbitMQ as its Celery broker. Redis db 6 is only used as the
-> Celery result backend.
+> ¹ Since opennotificaties chart **2.0.0** (PodiumD 4.8.0) the bundled RabbitMQ
+> is removed and db 6 carries the Celery broker, publish broker **and** result
+> backend. On 4.7.x and earlier, RabbitMQ was the broker and db 6 held only the
+> result backend.
 >
 > ² `openarchiefbeheer` reuses db 14 for both the `choices` cache backend and Celery
 > (broker + result backend).

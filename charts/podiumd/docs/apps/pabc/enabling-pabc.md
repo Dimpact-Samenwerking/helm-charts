@@ -1,17 +1,21 @@
 # Enabling PABC (Platform Autorisatie Beheer Component)
 
-PABC is a .NET application that manages platform authorisation. It is disabled by default and must be explicitly enabled per environment.
+PABC is a .NET application that manages platform authorisation. Since
+PodiumD **4.8.0** it is **enabled by default** (`pabc.enabled: true`) and
+needs an external database per environment — opt out with
+`pabc.enabled: false`. (Before 4.8.0 it was disabled by default and had to be
+enabled explicitly.)
 
 ## Quick reference
 
 | Item | Value |
 |------|-------|
 | Chart key | `pabc` |
-| Enabled by default | `false` |
+| Enabled by default | `true` since PodiumD 4.8.0 (was `false` before) |
 | Image source | `oci://ghcr.io/platform-autorisatie-beheer-component` |
 | Chart version | `1.1.0` |
 | Keycloak clients created | `pabc` (OIDC), `pabc-keycloak-admin` (service account) |
-| ZAC integration flag | `zac.featureFlags.pabcIntegration` |
+| ZAC integration | `zac.pabcApi.{url,apiKey}` — the former `zac.featureFlags.pabcIntegration` flag was **removed in ZAC 5.0.1** (setting it fails Helm validation) |
 
 ---
 
@@ -87,16 +91,18 @@ pabc:
     kubernetes.azure.com/mode: user    # required on aks-blue clusters
 ```
 
-Also enable ZAC integration in the same file:
+Also configure the ZAC integration in the same file:
 
 ```yaml
 zac:
-  featureFlags:
-    pabcIntegration: true
   pabcApi:
     url: http://pabc/api   # internal cluster URL (fullnameOverride is "pabc")
     apiKey: "<PABC_API_KEY>"
 ```
+
+> Since ZAC 5.0.1 (PodiumD 4.8.0) do **not** set
+> `zac.featureFlags.pabcIntegration` — the flag was removed and Helm
+> validation fails on it. On 4.7.x the flag still exists and must be `true`.
 
 > **Note:** `oidcUrl` must exactly match the public URL of PABC (used as the Keycloak redirect URI base). A mismatch here is a common source of OIDC errors — see [Troubleshooting](#troubleshooting).
 
