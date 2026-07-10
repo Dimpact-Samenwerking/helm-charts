@@ -197,7 +197,7 @@ Fetch digests via registry API with Python's `urllib.request` — request manife
 ---
 
 ### Upgrade Notes per Release
-For each release with breaking changes, new images, or manual steps, create `charts/podiumd/docs/_upgrade_paths/<prev>-to-<version>-upgrade.md` covering: new images needing ACR override (key path + snippet), new optional components, removed/deprecated components, required manual steps, component version bump table (`| Component | old | new |`). Style ref: `4.5.13-to-4.6.0-upgrade.md`.
+For each release with breaking changes, new images, or manual steps, create `charts/podiumd/docs/_UPGRADE_PATHS/<prev>-to-<version>-upgrade.md` covering: new images needing ACR override (key path + snippet), new optional components, removed/deprecated components, required manual steps, component version bump table (`| Component | old | new |`). Style ref: `4.5.13-to-4.6.0-upgrade.md`.
 
 ---
 
@@ -244,6 +244,6 @@ Valid commit types: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `ci`, `p
 | `charts/podiumd/docs/apps/apiproxy/api-proxy-url-rewriting.md` | nginx URL rewriting for BAG/BRP/KVK proxies |
 | `charts/podiumd/docs/apps/keycloak/keycloak-security-updates.md` | Keycloak realm security changelog |
 | `charts/podiumd/docs/images/images-<version>.yaml` | Images manifest per release (new/changed only) |
-| `charts/podiumd/docs/_upgrade_paths/<prev>-to-<version>-upgrade.md` | Upgrade guide per release |
+| `charts/podiumd/docs/_UPGRADE_PATHS/<prev>-to-<version>-upgrade.md` | Upgrade guide per release |
 | `charts/podiumd/scripts/cleanup-keycloak-and-infinispan.sh` | Pre-migration cleanup for legacy Keycloak/Infinispan |
 | `charts/podiumd/scripts/patch-keycloak-entra-idp.ps1` | Patch Entra ID IDP settings on target cluster |

@@ -8,7 +8,7 @@ django-setup-configuration >= 0.11.0.
 Why: django-setup-configuration does NOT substitute ${VAR} at runtime. It only
 resolves env vars via `value_from: {env: VAR}`. Storing literal `${var}` leaves
 the placeholder string in the database and breaks OIDC login (401
-unauthorized_client). See charts/podiumd/docs/_upgrade_paths/4.6.4-to-4.6.8-upgrade.md.
+unauthorized_client). See charts/podiumd/docs/_UPGRADE_PATHS/4.6.4-to-4.6.8-upgrade.md.
 
 Before (live env-file pattern):
   openzaak:

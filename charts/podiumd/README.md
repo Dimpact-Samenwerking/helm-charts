@@ -11,7 +11,7 @@ Release scoped around the Open Inwoner upgrade 2.1.2 → 2.3.1 (chart
 4.8.0 also carries the 4.7.4/4.7.5/4.7.6/4.7.7 work (Keycloak 26.6.3, Open Zaak
 1.27.3, ZGW Office Add-in 0.9.313, Open Formulieren logging revert); all other
 components remain at their 4.7.7 baseline. Zie
-`docs/_upgrade_paths/4.7.6-to-4.8.0-upgrade.md` voor details.
+`docs/_UPGRADE_PATHS/4.7.8-to-4.8.0-upgrade.md` voor details.
 
 | Component                 | AppVersion       | Change            | ChartVersion | Change         | **Notes**                            |
 |---------------------------|------------------|-------------------|--------------|----------------|--------------------------------------|
@@ -28,7 +28,7 @@ CVE-2026-9802 refresh-token replay), with the adfinis keycloak-operator chart
 26.6.2, so no CRD apply is required. Open Zaak 1.27.1 → 1.27.2 (CVE-2026-54657
 `_zoek` authorization filtering + document bulk-import path-traversal fix). Also
 adds a Datamigratie Keycloak client and Open Zaak credentials (config only, no
-image change). See `docs/_upgrade_paths/4.7.3-to-4.7.4-upgrade.md`.
+image change). See `docs/_UPGRADE_PATHS/4.7.3-to-4.7.4-upgrade.md`.
 
 | Component                 | AppVersion       | Change            | ChartVersion | Change         | **Notes**                            |
 |---------------------------|------------------|-------------------|--------------|----------------|--------------------------------------|
@@ -54,7 +54,7 @@ Componenten op alphabetische volgorde, met sub-charts er onder. Wijzigingen
 tegen `4.6.3` (laatste hier vastgelegde release; 4.7.0 en 4.7.1 zaten
 tussen). Beveiligingsupdates in deze release: Keycloak 26.6.2 (account-takeover-
 class CVEs) en nginx-unprivileged 1.30.2 (CVE-2026-42945 "nginx Rift" RCE
-en CVE-2026-9256). Zie `docs/_upgrade_paths/4.7.1-to-4.7.2-upgrade.md` voor details.
+en CVE-2026-9256). Zie `docs/_UPGRADE_PATHS/4.7.1-to-4.7.2-upgrade.md` voor details.
 
 | Component                 | AppVersion       | Change            | ChartVersion | Change         | **Notes**                            |
 |---------------------------|------------------|-------------------|--------------|----------------|--------------------------------------|

@@ -2,7 +2,7 @@
 #
 # This is a PATH-TARGET manifest: it is cumulative across the skipped
 # intermediate releases 4.6.5, 4.6.6 and 4.6.7, because the official
-# upgrade path jumps 4.6.4 -> 4.6.8 directly (see ../UPGRADING.md).
+# upgrade path jumps 4.6.4 -> 4.6.8 directly (see ../_UPGRADING.md).
 # It therefore captures every image new or changed since 4.6.4, not just
 # the 4.6.7 -> 4.6.8 delta.
 #
