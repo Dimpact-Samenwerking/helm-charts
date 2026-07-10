@@ -70,4 +70,4 @@ Zie voor architectuur context diagram van Contact (KISS) de [Contact documentati
 ### MI exports — wekelijkse database dumps naar blob storage
 Wekelijkse exports van alle Postgres-componenten naar een externe SFTP server (CSV of `pg_dump`), per gemeente.
 Voor activatie, infra-prerequisites (incl. Terraform-snippet voor externe hosting), en troubleshooting:
-zie [MI exports documentatie](./mi-exports.md).
+zie [MI exports documentatie](../misc/mi-exports.md).

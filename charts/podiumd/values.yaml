@@ -3672,7 +3672,7 @@ zaakbrug:
 # =no), so no `known_hosts` is needed.
 #
 # Full activation, validation, and troubleshooting:
-#   → docs/podiumd/mi-exports.md
+#   → charts/podiumd/docs/misc/mi-exports.md
 #
 # One unified script (modeled on Maykin's bin/dump_data.sh --csv) is used for
 # every target; each entry in mi.targets[] renders one CronJob, gated on the

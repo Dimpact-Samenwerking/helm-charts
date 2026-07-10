@@ -12,7 +12,8 @@ the navigation layer — start there.
 | [`_UPGRADE_PATHS/`](_UPGRADE_PATHS/) | One set of files per upgrade hop, named version-first so `ls` sorts chronologically (see below). |
 | [`apps/<app>/`](apps/) | Per-application docs — one subfolder per chart dependency (openzaak, keycloak, redis, …) plus supporting components (apiproxy, elastic, …). Runbooks, known-issues, design notes for that app live there. |
 | [`images/`](images/) | ACR-mirror image manifests: `images-<release>.yaml` per release, [`images-baseline.yaml`](images/images-baseline.yaml) as the complete pinned set, and the [naming convention](images/acr-mirror-naming.md). |
-| `misc/` | Cross-cutting analyses that are not tied to one app or release (observability, network policies, resource overview, security review, schema validation). |
+| [`architecture/`](architecture/) | Platform-level architecture: PodiumD C4 system-context overview plus per-product context diagrams (KISS, Open Formulieren). Dutch-language. |
+| [`misc/`](misc/) | Cross-cutting docs not tied to one app or release: observability, network policies, resource overview, security review, schema validation, and the [MI-exports operator guide](misc/mi-exports.md). |
 
 ## `_UPGRADE_PATHS/` — files per hop
 
