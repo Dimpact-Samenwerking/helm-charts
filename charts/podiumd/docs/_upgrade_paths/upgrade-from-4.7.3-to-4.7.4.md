@@ -101,7 +101,7 @@ at its upstream default (`False`) and is **not** changed by 4.7.4.
 > entirely from the environment without also changing DB-save behaviour, so 4.7.4
 > leaves Open Inwoner unchanged. To disable outgoing-request logging for Open
 > Inwoner (DB persistence and/or the stdout emit handler), see
-> [`openinwoner-outgoing-request-logging.md`](openinwoner-outgoing-request-logging.md).
+> [`openinwoner-outgoing-request-logging.md`](../apps/openinwoner/openinwoner-outgoing-request-logging.md).
 
 #### Action required
 
@@ -269,5 +269,5 @@ openarchiefbeheer:
 
 Do not assume the example values are correct — check the per-gemeente
 `podiumd.yml` against what is actually provisioned. See
-[`openarchiefbeheer-known-issues.md`](openarchiefbeheer-known-issues.md) for
+[`openarchiefbeheer-known-issues.md`](../apps/openarchiefbeheer/openarchiefbeheer-known-issues.md) for
 other OAB configuration traps.

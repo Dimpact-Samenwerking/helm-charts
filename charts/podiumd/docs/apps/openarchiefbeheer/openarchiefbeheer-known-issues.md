@@ -18,7 +18,7 @@ Invalid configuration settings for step "Configuration for admin login via OpenI
 CommandError: Failed to validate requirements for 1 steps
 ```
 
-When the `*-config` Job has TTL'd already, helm `--wait` reports the Job as `NotFound` instead of failed (see [`openformulieren-known-issues.md`](openformulieren-known-issues.md) for the broader TTL-vs-`--wait` race).
+When the `*-config` Job has TTL'd already, helm `--wait` reports the Job as `NotFound` instead of failed (a broader TTL-vs-`--wait` race).
 
 ### Root cause
 
@@ -117,6 +117,6 @@ kubectl --context "$CTX" -n "$NS" delete job openarchiefbeheer-config-debug
 ### See also
 
 - `charts/podiumd/scripts/migrate-openarchiefbeheer-2.0.0.py`
-- `charts/podiumd/docs/upgrade-from-4.6.5-to-4.7.0.md` § *PKCE note*
+- `charts/podiumd/docs/_upgrade_paths/upgrade-from-4.6.8-to-4.7.6.md` § *Note on PKCE*
 - `charts/podiumd/docs/values-changes-4.7.0.md` § *PKCE note*
-- `charts/podiumd/docs/keycloak-security-updates.md` § *PKCE Enforcement* (general PKCE wiring; OAB exception explained there too)
+- `charts/podiumd/docs/apps/keycloak/keycloak-security-updates.md` § *PKCE Enforcement* (general PKCE wiring; OAB exception explained there too)

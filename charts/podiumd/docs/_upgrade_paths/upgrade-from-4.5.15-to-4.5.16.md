@@ -65,4 +65,4 @@ No tag overrides are needed — tags are set by the chart defaults (`26.5.7`).
 ---
 
 For the full list of new and changed images in this release, see
-[docs/images/images-4.5.16.yaml](images/images-4.5.16.yaml).
+[docs/images/images-4.5.16.yaml](../images/images-4.5.16.yaml).

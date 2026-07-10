@@ -77,7 +77,7 @@ Do not assume the example values are correct — check the per-gemeente
 `podiumd.yml` against what is actually provisioned. This is the same trap first
 documented in [`upgrade-from-4.7.3-to-4.7.4.md`](upgrade-from-4.7.3-to-4.7.4.md);
 4.7.6 only corrects/completes the in-repo example. See
-[`openarchiefbeheer-known-issues.md`](openarchiefbeheer-known-issues.md) for
+[`openarchiefbeheer-known-issues.md`](../apps/openarchiefbeheer/openarchiefbeheer-known-issues.md) for
 other OAB configuration traps.
 
 ### Open Formulieren — outgoing request logging re-enabled (revert of 4.7.4)

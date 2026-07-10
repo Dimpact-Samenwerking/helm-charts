@@ -2,7 +2,7 @@
 
 > **Consolidated guide.** This is a single official-path hop that folds the
 > intermediate releases 4.6.5, 4.6.6 and 4.6.7 into one document. See
-> [`UPGRADING.md`](UPGRADING.md) for the full upgrade path.
+> [`UPGRADING.md`](../UPGRADING.md) for the full upgrade path.
 >
 > **Open Inwoner:** this hop moves the Open Inwoner image from `2.1.1` to the
 > **stable `2.1.2`** release. The transient `2.1.2-rc1` release candidate that
@@ -98,7 +98,7 @@ The Open Inwoner image is updated from `2.1.1` to the **stable** `2.1.2` upstrea
 
 #### Action required
 
-No action required. The ACR mirror must mirror the `maykinmedia/open-inwoner:2.1.2` tag and digest (see [`docs/images/images-4.6.8.yaml`](images/images-4.6.8.yaml)).
+No action required. The ACR mirror must mirror the `maykinmedia/open-inwoner:2.1.2` tag and digest (see [`docs/images/images-4.6.8.yaml`](../images/images-4.6.8.yaml)).
 
 ---
 
@@ -694,4 +694,4 @@ After running, the pipeline `patch_values.py` still substitutes `REP_..._REP` to
 ---
 
 For the full list of new and changed images in this release range, see
-[docs/images/images-4.6.8.yaml](images/images-4.6.8.yaml).
+[docs/images/images-4.6.8.yaml](../images/images-4.6.8.yaml).

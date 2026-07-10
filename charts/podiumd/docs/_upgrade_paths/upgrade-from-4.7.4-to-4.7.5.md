@@ -15,7 +15,7 @@ other components change.
   - `ghcr.io/infonl/zgw-office-addin-frontend`
   - `ghcr.io/infonl/zgw-office-addin-backend`
 
-Image / digests: see [`docs/images/images-4.7.5.yaml`](images/images-4.7.5.yaml).
+Image / digests: see [`docs/images/images-4.7.5.yaml`](../images/images-4.7.5.yaml).
 
 #### Action required
 

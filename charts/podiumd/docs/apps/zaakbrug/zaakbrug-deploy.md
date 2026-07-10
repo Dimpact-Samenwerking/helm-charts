@@ -6,7 +6,7 @@ the ZGW APIs. It ships as the umbrella sub-chart `wearefrank/zaakbrug` and is
 `zaakbrug.enabled: true`.
 
 > The sub-chart was introduced in 4.7.2 — see
-> `docs/upgrade-from-4.7.1-to-4.7.2.md` for the original change. This document
+> `docs/_upgrade_paths/upgrade-from-4.7.1-to-4.7.2.md` for the original change. This document
 > is the generic, end-to-end deploy guide.
 
 ## Quick reference
@@ -388,5 +388,5 @@ with `kubectl rollout status` after the patch (step 5c).
 
 ## Related documentation
 
-- `docs/upgrade-from-4.7.1-to-4.7.2.md` — original sub-chart introduction.
-- `docs/enabling-pabc.md` — comparable opt-in component enablement guide.
+- `docs/_upgrade_paths/upgrade-from-4.7.1-to-4.7.2.md` — original sub-chart introduction.
+- `docs/apps/pabc/enabling-pabc.md` — comparable opt-in component enablement guide.

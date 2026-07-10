@@ -5,7 +5,7 @@
 
 This is the upgrade guide for environments already on **4.7.6** (the current
 stable baseline). Environments on an older 4.7.x patch should first move to
-4.7.6 (see [`UPGRADING.md`](UPGRADING.md) and the consolidated
+4.7.6 (see [`UPGRADING.md`](../UPGRADING.md) and the consolidated
 [`upgrade-from-4.6.8-to-4.7.6.md`](upgrade-from-4.6.8-to-4.7.6.md)), then follow
 this guide.
 
@@ -14,12 +14,12 @@ this guide.
 Read the whole guide once first. Then, for **every environment** you upgrade,
 work through this list top to bottom. Each item links to the full instructions
 below; the gemeente-values edits (phase B) are detailed key-by-key in
-[`values-changes-4.8.0.md`](values-changes-4.8.0.md).
+[`values-changes-4.8.0.md`](../values-changes-4.8.0.md).
 
 ### A. Prepare (days ahead — coordination needed)
 
 - [ ] **ACR mirror**: mirror the 4.8.0 image set under the **new
-      strip-registry names** ([`images-4.8.0.yaml`](images/images-4.8.0.yaml)
+      strip-registry names** ([`images-4.8.0.yaml`](../images/images-4.8.0.yaml)
       plus `elastic/eck-operator:3.4.0`) — coordinate with SSC-Hosting.
       [→ ACR mirror naming](#acr-mirror-naming--new-strip-registry-convention)
 - [ ] **PABC**: provision the external database — or decide to opt out with
@@ -27,7 +27,7 @@ below; the gemeente-values edits (phase B) are detailed key-by-key in
 - [ ] **ITA**: look up the environment-specific Medewerker objecttype URL.
       [→ ITA](#ita-310--320)
 
-### B. Edit the gemeente `podiumd.yml` ([key-by-key reference](values-changes-4.8.0.md))
+### B. Edit the gemeente `podiumd.yml` ([key-by-key reference](../values-changes-4.8.0.md))
 
 - [ ] Run `mirror-strip-registry.py` against the values file (dry-run,
       review the diff, then `--in-place`).
@@ -45,7 +45,7 @@ below; the gemeente-values edits (phase B) are detailed key-by-key in
       overridden). [→ ZAC](#zac-472--501)
 - [ ] ZAC: remove `featureFlags.pabcIntegration`. [→ ZAC](#zac-472--501)
 - [ ] ZAC: restructure `brpApi.protocollering` using the
-      [vendor blocks](zac-brp-protocollering.md); if it was off
+      [vendor blocks](../apps/zac/zac-brp-protocollering.md); if it was off
       (`aanbieder: ""`), set `protocollering.enabled: false`.
       [→ ZAC](#zac-472--501)
 - [ ] iConnect environments only: set
@@ -62,7 +62,7 @@ below; the gemeente-values edits (phase B) are detailed key-by-key in
       **same secret on both sides**, `Token ` prefix on the Open Beheer
       header. [→ Open Beheer](#open-beheer--objecttypen-api-token-in-2345)
 - [ ] Remove image-tag overrides that merely repeat old chart defaults
-      ([cleanup table](values-changes-4.8.0.md#cleanup--image-tag-overrides)).
+      ([cleanup table](../values-changes-4.8.0.md#cleanup--image-tag-overrides)).
 
 ### C. Immediately before the deploy
 
@@ -85,7 +85,7 @@ below; the gemeente-values edits (phase B) are detailed key-by-key in
 - [ ] No `ImagePullBackOff` — the new ACR repo names resolve.
 - [ ] ECK: Elasticsearch StatefulSet UID unchanged, PVCs kept, doc count
       matches the recorded baseline
-      ([runbook §5](migrating-to-eck-stack.md#5-validation)).
+      ([runbook §5](../apps/elastic/migrating-to-eck-stack.md#5-validation)).
 - [ ] Open Notificaties Celery workers connect to Redis — no
       `amqp://127.0.0.1:5672` attempts in the logs.
 - [ ] Delete the orphaned RabbitMQ PVC and secret.
@@ -141,7 +141,7 @@ it is folded into the 4.7.6 → 4.8.0 hop (no separate 4.7.7 stepping stone requ
 - The `openzaak` chart dependency stays `1.14.1`.
 
 **Action required (ACR-mirror environments):** mirror `docker.io/openzaak/open-zaak:1.27.3`
-(ACR name `openzaak`). See [`docs/images/images-4.8.0.yaml`](images/images-4.8.0.yaml).
+(ACR name `openzaak`). See [`docs/images/images-4.8.0.yaml`](../images/images-4.8.0.yaml).
 No config, schema, or migration changes.
 
 ### Open Inwoner 2.1.2 → 2.3.1
@@ -154,7 +154,7 @@ spanning three upstream releases (2.2.0, 2.3.0 and 2.3.1).
 - Image tag pin `openinwoner.image.tag` `2.1.2` → `2.3.1` in
   `charts/podiumd/values.yaml`.
 
-Image / digest: see [`docs/images/images-4.8.0.yaml`](images/images-4.8.0.yaml).
+Image / digest: see [`docs/images/images-4.8.0.yaml`](../images/images-4.8.0.yaml).
 The ACR mirror name is `openinwoner` (no hyphen) — mirror the new `2.3.1`
 tag and digest.
 
@@ -273,7 +273,7 @@ must read `…/elasticsearch/elasticsearch:9.2.0`, not `:latest`.
 charts: one **central** root-level `eck-operator` (3.4.0) plus `eck-stack`
 (0.19.0, alias `kiss-eck`) for the KISS Elasticsearch. The swap itself is
 metadata-only — StatefulSet, PVCs and data are preserved. Full runbook:
-[`migrating-to-eck-stack.md`](migrating-to-eck-stack.md).
+[`migrating-to-eck-stack.md`](../apps/elastic/migrating-to-eck-stack.md).
 
 **Action required:**
 
@@ -300,7 +300,7 @@ metadata-only — StatefulSet, PVCs and data are preserved. Full runbook:
    deploying with **stale** CRDs crashloops the operator. Details and the
    `--take-ownership` alternative in runbook section 4b.
 3. **ACR mirror:** mirror `elastic/eck-operator:3.4.0` (see
-   [`docs/images/images-baseline.yaml`](images/images-baseline.yaml)).
+   [`docs/images/images-baseline.yaml`](../images/images-baseline.yaml)).
 
 ### Open Notificaties 1.13.1 → 2.0.0 (app 1.16.0) — RabbitMQ removed
 
@@ -308,7 +308,7 @@ Helm chart `opennotificaties` `1.13.1` → `2.0.0` (app `1.16.0`) in
 `charts/podiumd/Chart.yaml`; image `opennotificaties.image.tag` `1.15.0` →
 `1.16.0`. Mirror the new image (`docker.io/openzaak/open-notificaties:1.16.0`,
 ACR name `openzaak/open-notificaties`) — see
-[`docs/images/images-4.8.0.yaml`](images/images-4.8.0.yaml).
+[`docs/images/images-4.8.0.yaml`](../images/images-4.8.0.yaml).
 
 **The 2.0.0 chart removes the bundled RabbitMQ.** The Celery broker, result
 backend and publish broker now all use the shared `redis-ha` cluster (db6):
@@ -444,7 +444,7 @@ explicit, field-per-dimension structure.
 **Action required:** if your gemeente `podiumd.yml` overrides any
 `zac.brpApi.protocollering.*` keys, replace the old block with the
 vendor-specific configuration from
-[`docs/zac-brp-protocollering.md`](zac-brp-protocollering.md).
+[`docs/apps/zac/zac-brp-protocollering.md`](../apps/zac/zac-brp-protocollering.md).
 
 If protocollering was disabled (`aanbieder: ""`), set `enabled: false` and
 remove the old keys — no further action is needed.
@@ -461,7 +461,7 @@ apiproxy:
       toepassingHeaderName: ""
 ```
 
-See [`docs/zac-brp-protocollering.md`](zac-brp-protocollering.md) for details.
+See [`docs/apps/zac/zac-brp-protocollering.md`](../apps/zac/zac-brp-protocollering.md) for details.
 
 ### PABC now enabled by default
 
@@ -563,11 +563,11 @@ e.g. `acrprodmgmt.azurecr.io/maykinmedia/open-inwoner:2.3.1`. Every per-image
 
 References:
 
-- Convention + mapping: [`docs/images/acr-mirror-naming.md`](images/acr-mirror-naming.md).
+- Convention + mapping: [`docs/images/acr-mirror-naming.md`](../images/acr-mirror-naming.md).
 - Complete pinned set (name/url/version/digest):
-  [`docs/images/images-baseline.yaml`](images/images-baseline.yaml).
+  [`docs/images/images-baseline.yaml`](../images/images-baseline.yaml).
 - Migration/generation script:
-  [`scripts/mirror-strip-registry.py`](../scripts/mirror-strip-registry.py).
+  [`scripts/mirror-strip-registry.py`](../../scripts/mirror-strip-registry.py).
 
 #### Action required
 

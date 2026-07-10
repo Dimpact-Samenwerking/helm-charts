@@ -21,13 +21,13 @@ Upgrade one hop at a time, in order. Each guide covers exactly one hop.
 
 | You are on | Read, in this order |
 |---|---|
-| 4.7.6 or 4.7.7 | [`upgrade-from-4.7.6-to-4.8.0.md`](upgrade-from-4.7.6-to-4.8.0.md) |
-| 4.7.0 – 4.7.5 | [`upgrade-from-4.6.8-to-4.7.6.md`](upgrade-from-4.6.8-to-4.7.6.md) (start at your version) → then the 4.8.0 guide |
-| 4.6.8 | [`upgrade-from-4.6.8-to-4.7.6.md`](upgrade-from-4.6.8-to-4.7.6.md) → then the 4.8.0 guide |
+| 4.7.6 or 4.7.7 | [`upgrade-from-4.7.6-to-4.8.0.md`](_upgrade_paths/upgrade-from-4.7.6-to-4.8.0.md) |
+| 4.7.0 – 4.7.5 | [`upgrade-from-4.6.8-to-4.7.6.md`](_upgrade_paths/upgrade-from-4.6.8-to-4.7.6.md) (start at your version) → then the 4.8.0 guide |
+| 4.6.8 | [`upgrade-from-4.6.8-to-4.7.6.md`](_upgrade_paths/upgrade-from-4.6.8-to-4.7.6.md) → then the 4.8.0 guide |
 | 4.6.6 | two equivalent routes to 4.7.3 — [see below](#environments-on-466) — then continue up the path |
-| 4.6.4 | [`upgrade-from-4.6.4-to-4.6.8.md`](upgrade-from-4.6.4-to-4.6.8.md) → 4.7.6 guide → 4.8.0 guide |
-| 4.5.16 | [`upgrade-from-4.5.16-to-4.6.4.md`](upgrade-from-4.5.16-to-4.6.4.md) → and continue up the path |
-| 4.5.15 | [`upgrade-from-4.5.15-to-4.5.16.md`](upgrade-from-4.5.15-to-4.5.16.md) → and continue up the path |
+| 4.6.4 | [`upgrade-from-4.6.4-to-4.6.8.md`](_upgrade_paths/upgrade-from-4.6.4-to-4.6.8.md) → 4.7.6 guide → 4.8.0 guide |
+| 4.5.16 | [`upgrade-from-4.5.16-to-4.6.4.md`](_upgrade_paths/upgrade-from-4.5.16-to-4.6.4.md) → and continue up the path |
+| 4.5.15 | [`upgrade-from-4.5.15-to-4.5.16.md`](_upgrade_paths/upgrade-from-4.5.15-to-4.5.16.md) → and continue up the path |
 
 ### Each guide has companions
 
@@ -35,7 +35,7 @@ Upgrade one hop at a time, in order. Each guide covers exactly one hop.
 |---|---|
 | `values-changes-<ver>.md` | Every gemeente `podiumd.yml` key to add/change/remove — keep it open next to the values file while editing |
 | `images/images-<ver>.yaml` | The ACR-mirror image set for the hop — hand it to SSC-Hosting before the deploy |
-| Deep-dives linked from the guide | One-time or high-risk procedures too large for the hop guide, e.g. [`migrating-to-eck-stack.md`](migrating-to-eck-stack.md) (4.8.0) |
+| Deep-dives linked from the guide | One-time or high-risk procedures too large for the hop guide, e.g. [`migrating-to-eck-stack.md`](apps/elastic/migrating-to-eck-stack.md) (4.8.0) |
 
 ### Environments on 4.6.6
 
@@ -44,8 +44,8 @@ to 4.7.3 — pick one:
 
 | Route | Guides |
 |---|---|
-| **Direct jump** | [`upgrade-from-4.6.6-to-4.7.3.md`](upgrade-from-4.6.6-to-4.7.3.md) (one document) |
-| **Two smaller hops** | [`upgrade-from-4.6.6-to-4.6.8.md`](upgrade-from-4.6.6-to-4.6.8.md) → [`upgrade-from-4.6.8-to-4.7.3.md`](upgrade-from-4.6.8-to-4.7.3.md) |
+| **Direct jump** | [`upgrade-from-4.6.6-to-4.7.3.md`](_upgrade_paths/upgrade-from-4.6.6-to-4.7.3.md) (one document) |
+| **Two smaller hops** | [`upgrade-from-4.6.6-to-4.6.8.md`](_upgrade_paths/upgrade-from-4.6.6-to-4.6.8.md) → [`upgrade-from-4.6.8-to-4.7.3.md`](_upgrade_paths/upgrade-from-4.6.8-to-4.7.3.md) |
 
 The only difference between starting at 4.6.6 vs 4.6.8 is the Open Inwoner image
 (`2.1.1` → stable `2.1.2`); everything else is identical. The
@@ -85,11 +85,11 @@ ACR-mirror set for that hop):
 
 | Hop | Upgrade guide | Image manifest (ACR mirror set) |
 |---|---|---|
-| 4.5.15 → 4.5.16 | [`upgrade-from-4.5.15-to-4.5.16.md`](upgrade-from-4.5.15-to-4.5.16.md) | [`images/images-4.5.16.yaml`](images/images-4.5.16.yaml) |
-| 4.5.16 → 4.6.4  | [`upgrade-from-4.5.16-to-4.6.4.md`](upgrade-from-4.5.16-to-4.6.4.md)  | [`images/images-4.6.4.yaml`](images/images-4.6.4.yaml) |
-| 4.6.4 → 4.6.8   | [`upgrade-from-4.6.4-to-4.6.8.md`](upgrade-from-4.6.4-to-4.6.8.md)   | [`images/images-4.6.8.yaml`](images/images-4.6.8.yaml) |
-| 4.6.8 → 4.7.6   | [`upgrade-from-4.6.8-to-4.7.6.md`](upgrade-from-4.6.8-to-4.7.6.md)   | 4.7 chain: [`images-4.7.0`](images/images-4.7.0.yaml) · [`4.7.1`](images/images-4.7.1.yaml) · [`4.7.2`](images/images-4.7.2.yaml) · [`4.7.3`](images/images-4.7.3.yaml) · [`4.7.4`](images/images-4.7.4.yaml) · [`4.7.5`](images/images-4.7.5.yaml) |
-| 4.7.6 → 4.8.0   | [`upgrade-from-4.7.6-to-4.8.0.md`](upgrade-from-4.7.6-to-4.8.0.md)   | [`images/images-4.8.0.yaml`](images/images-4.8.0.yaml) |
+| 4.5.15 → 4.5.16 | [`upgrade-from-4.5.15-to-4.5.16.md`](_upgrade_paths/upgrade-from-4.5.15-to-4.5.16.md) | [`images/images-4.5.16.yaml`](images/images-4.5.16.yaml) |
+| 4.5.16 → 4.6.4  | [`upgrade-from-4.5.16-to-4.6.4.md`](_upgrade_paths/upgrade-from-4.5.16-to-4.6.4.md)  | [`images/images-4.6.4.yaml`](images/images-4.6.4.yaml) |
+| 4.6.4 → 4.6.8   | [`upgrade-from-4.6.4-to-4.6.8.md`](_upgrade_paths/upgrade-from-4.6.4-to-4.6.8.md)   | [`images/images-4.6.8.yaml`](images/images-4.6.8.yaml) |
+| 4.6.8 → 4.7.6   | [`upgrade-from-4.6.8-to-4.7.6.md`](_upgrade_paths/upgrade-from-4.6.8-to-4.7.6.md)   | 4.7 chain: [`images-4.7.0`](images/images-4.7.0.yaml) · [`4.7.1`](images/images-4.7.1.yaml) · [`4.7.2`](images/images-4.7.2.yaml) · [`4.7.3`](images/images-4.7.3.yaml) · [`4.7.4`](images/images-4.7.4.yaml) · [`4.7.5`](images/images-4.7.5.yaml) |
+| 4.7.6 → 4.8.0   | [`upgrade-from-4.7.6-to-4.8.0.md`](_upgrade_paths/upgrade-from-4.7.6-to-4.8.0.md)   | [`images/images-4.8.0.yaml`](images/images-4.8.0.yaml) |
 
 > The 4.6.4 → 4.6.8 and 4.6.8 → 4.7.6 guides are **consolidated**: each folds
 > several intermediate releases into one document so an operator reads one
@@ -137,18 +137,18 @@ official path out of them:
 
 | File | Why it's kept |
 |---|---|
-| [`upgrade-from-4.6.0-to-4.6.4.md`](upgrade-from-4.6.0-to-4.6.4.md) | Alternate entry point for environments starting at 4.6.0 (the official path enters 4.6.4 via 4.5.16). |
-| [`upgrade-from-4.6.8-to-4.7.3.md`](upgrade-from-4.6.8-to-4.7.3.md) | Shorter consolidated hop that stops at **4.7.3** (subset of the official 4.6.8 → 4.7.6 guide); referenced by the 4.6.6 two-hop route. |
-| [`upgrade-from-4.7.0-to-4.7.1.md`](upgrade-from-4.7.0-to-4.7.1.md) | Granular 4.7.x patch note (folded into the 4.6.8 → 4.7.6 guide). |
-| [`upgrade-from-4.7.1-to-4.7.2.md`](upgrade-from-4.7.1-to-4.7.2.md) | Granular 4.7.x patch note (folded into the 4.6.8 → 4.7.6 guide). |
-| [`upgrade-from-4.7.2-to-4.7.3.md`](upgrade-from-4.7.2-to-4.7.3.md) | Granular 4.7.x patch note (folded into the 4.6.8 → 4.7.6 guide). |
-| [`upgrade-from-4.7.3-to-4.7.4.md`](upgrade-from-4.7.3-to-4.7.4.md) | Granular 4.7.x patch note (folded into the 4.6.8 → 4.7.6 guide). |
-| [`upgrade-from-4.7.4-to-4.7.5.md`](upgrade-from-4.7.4-to-4.7.5.md) | Granular 4.7.x patch note (folded into the 4.6.8 → 4.7.6 guide). |
-| [`upgrade-from-4.7.5-to-4.7.6.md`](upgrade-from-4.7.5-to-4.7.6.md) | Granular 4.7.x patch note (folded into the 4.6.8 → 4.7.6 guide). |
-| [`upgrade-from-4.7.6-to-4.7.7.md`](upgrade-from-4.7.6-to-4.7.7.md) | Granular 4.7.7 patch note (Open Zaak 1.27.3; folded into the 4.7.6 → 4.8.0 guide). |
+| [`upgrade-from-4.6.0-to-4.6.4.md`](_upgrade_paths/upgrade-from-4.6.0-to-4.6.4.md) | Alternate entry point for environments starting at 4.6.0 (the official path enters 4.6.4 via 4.5.16). |
+| [`upgrade-from-4.6.8-to-4.7.3.md`](_upgrade_paths/upgrade-from-4.6.8-to-4.7.3.md) | Shorter consolidated hop that stops at **4.7.3** (subset of the official 4.6.8 → 4.7.6 guide); referenced by the 4.6.6 two-hop route. |
+| [`upgrade-from-4.7.0-to-4.7.1.md`](_upgrade_paths/upgrade-from-4.7.0-to-4.7.1.md) | Granular 4.7.x patch note (folded into the 4.6.8 → 4.7.6 guide). |
+| [`upgrade-from-4.7.1-to-4.7.2.md`](_upgrade_paths/upgrade-from-4.7.1-to-4.7.2.md) | Granular 4.7.x patch note (folded into the 4.6.8 → 4.7.6 guide). |
+| [`upgrade-from-4.7.2-to-4.7.3.md`](_upgrade_paths/upgrade-from-4.7.2-to-4.7.3.md) | Granular 4.7.x patch note (folded into the 4.6.8 → 4.7.6 guide). |
+| [`upgrade-from-4.7.3-to-4.7.4.md`](_upgrade_paths/upgrade-from-4.7.3-to-4.7.4.md) | Granular 4.7.x patch note (folded into the 4.6.8 → 4.7.6 guide). |
+| [`upgrade-from-4.7.4-to-4.7.5.md`](_upgrade_paths/upgrade-from-4.7.4-to-4.7.5.md) | Granular 4.7.x patch note (folded into the 4.6.8 → 4.7.6 guide). |
+| [`upgrade-from-4.7.5-to-4.7.6.md`](_upgrade_paths/upgrade-from-4.7.5-to-4.7.6.md) | Granular 4.7.x patch note (folded into the 4.6.8 → 4.7.6 guide). |
+| [`upgrade-from-4.7.6-to-4.7.7.md`](_upgrade_paths/upgrade-from-4.7.6-to-4.7.7.md) | Granular 4.7.7 patch note (Open Zaak 1.27.3; folded into the 4.7.6 → 4.8.0 guide). |
 | [`values-changes-4.7.0.md`](values-changes-4.7.0.md) | Full values add/change/remove table for the 4.7.0 jump. |
 | [`values-changes-4.8.0.md`](values-changes-4.8.0.md) | Full values add/change/remove table for the 4.8.0 jump (ZAC 5.0.1 breaking changes + ITA medewerker). |
-| [`zac-brp-protocollering.md`](zac-brp-protocollering.md) | ZAC BRP protocollering vendor reference (iConnect, eServices, 2Secure/EnableU) — ZAC 5.0.1. |
+| [`zac-brp-protocollering.md`](apps/zac/zac-brp-protocollering.md) | ZAC BRP protocollering vendor reference (iConnect, eServices, 2Secure/EnableU) — ZAC 5.0.1. |
 
 The 4.7.x granular notes are intentionally retained for now; once the 4.7/4.8 line
 closes they can be retired in favour of the consolidated guides.

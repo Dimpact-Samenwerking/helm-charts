@@ -4,13 +4,13 @@ Usage: `/upgrade-notes <prev>-to-<new>` (e.g. `/upgrade-notes 4.7.0-to-4.7.1`)
 
 Output path:
 ```
-charts/podiumd/docs/upgrade-from-<prev>-to-<new>.md
+charts/podiumd/docs/_upgrade_paths/upgrade-from-<prev>-to-<new>.md
 ```
 
 Steps:
 
 1. Refuse if `$ARGUMENTS` is missing or does not match `<X.Y.Z>-to-<X.Y.Z>`.
-2. Read the most recent existing upgrade doc under `charts/podiumd/docs/upgrade-from-*.md` (sort by mtime) to mirror its tone and section order. Style reference: `upgrade-from-4.5.13-to-4.6.0.md`.
+2. Read the most recent existing upgrade doc under `charts/podiumd/docs/_upgrade_paths/upgrade-from-*.md` (sort by mtime) to mirror its tone and section order. Style reference: `upgrade-from-4.5.13-to-4.6.0.md`.
 3. Compute changes between the two refs (tag the previous release if it exists, otherwise diff `main...HEAD`):
    ```powershell
    git diff <prev-ref>...HEAD -- charts/podiumd/Chart.yaml charts/podiumd/values.yaml

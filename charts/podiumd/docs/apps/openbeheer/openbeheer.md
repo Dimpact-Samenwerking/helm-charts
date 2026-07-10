@@ -14,7 +14,7 @@ is fully opt-in.
 
 > Component dump troubles? See [`openbeheer-known-issues.md`](openbeheer-known-issues.md) for the
 > uWSGI master-process restart trap. Redis database assignment is tracked in
-> [`redis-ha-databases.md`](redis-ha-databases.md).
+> [`redis-ha-databases.md`](../redis/redis-ha-databases.md).
 
 ## Resources
 
@@ -45,7 +45,7 @@ The detailed sections below expand on any row.
 ### PostgreSQL database
 
 Create a database and login on the shared PG server, same pattern as the other components
-(see [`enabling-pabc.md`](enabling-pabc.md) § Create the database):
+(see [`enabling-pabc.md`](../pabc/enabling-pabc.md) § Create the database):
 
 - database name `openbeheer`, username `openbeheer`
 - store the password in Key Vault as `openbeheer-db-admin-<env>` (e.g. `openbeheer-db-admin-johnb00`)
@@ -71,7 +71,7 @@ the share must already exist:
 
 The chart does not expose Open Beheer by default — the openbeheer sub-chart ships an `ingress`
 template but ships it disabled. Enable it per environment (same shape as
-[`enabling-pabc.md`](enabling-pabc.md) § 3), routing the `configuration.oidcUrl` host to the
+[`enabling-pabc.md`](../pabc/enabling-pabc.md) § 3), routing the `configuration.oidcUrl` host to the
 sub-chart `Service` (`ClusterIP`, port 80):
 
 ```yaml

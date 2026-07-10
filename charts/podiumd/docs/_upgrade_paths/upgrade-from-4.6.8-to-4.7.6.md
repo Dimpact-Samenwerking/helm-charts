@@ -2,7 +2,7 @@
 
 > **Consolidated guide.** This is a single official-path hop that folds the whole
 > 4.7.x release line (4.7.0 → 4.7.6) into one document. See
-> [`UPGRADING.md`](UPGRADING.md) for the full upgrade path. Granular per-release
+> [`UPGRADING.md`](../UPGRADING.md) for the full upgrade path. Granular per-release
 > notes are kept alongside for reference:
 > [4.7.0→4.7.1](upgrade-from-4.7.0-to-4.7.1.md),
 > [4.7.1→4.7.2](upgrade-from-4.7.1-to-4.7.2.md),
@@ -324,7 +324,7 @@ helm repo update
 
 PodiumD 4.7.3 ships the first iteration of **Management Information (MI) data exports** — weekly per-component Postgres dumps over SFTP (IN-1650 + IN-2119). One `mi-export-<component>` CronJob per enabled Postgres-backed app; output `csv` (default) or `pgdump` via `mi.format`; SFTP-only egress with an SSH keypair. **Disabled by default.**
 
-Full operator docs: [`docs/podiumd/mi-exports.md`](../../../docs/podiumd/mi-exports.md).
+Full operator docs: [`docs/podiumd/mi-exports.md`](../../../../docs/podiumd/mi-exports.md).
 
 **Action required (only if enabling):** provision the SFTP target + gemeente public key, store the private key in Key Vault (`mi-data-sftp-rsa-private-key`), then:
 
@@ -442,7 +442,7 @@ openarchiefbeheer:
 2. Make every entry under `external_registers.*.services_identifiers` use **those exact identifiers**.
 3. Re-run the `openarchiefbeheer-config` Job (`helm upgrade`) and confirm both registers resolve.
 
-Do not assume the example values are correct — check the per-gemeente `podiumd.yml` against what is actually provisioned. See [`openarchiefbeheer-known-issues.md`](openarchiefbeheer-known-issues.md) for other OAB traps.
+Do not assume the example values are correct — check the per-gemeente `podiumd.yml` against what is actually provisioned. See [`openarchiefbeheer-known-issues.md`](../apps/openarchiefbeheer/openarchiefbeheer-known-issues.md) for other OAB traps.
 
 ### Open Beheer ↔ Objecttypen API token (IN-2345)
 
@@ -466,7 +466,7 @@ Open Beheer reads object types from the **Objecttypen API** and authenticates wi
 
 4.7.4 disabled Open Formulieren outgoing/external HTTP request logging by default (`LOG_OUTGOING_REQUESTS=False` in `openformulieren.extraEnvVars`). **4.7.6 reverts this** — the override is removed and Open Formulieren returns to the upstream default (`LOG_OUTGOING_REQUESTS=True`, logging enabled). Net effect for a 4.6.8 → 4.7.6 upgrade: **outgoing-request logging is ON**.
 
-> Open Inwoner has no equivalent master switch (v2.1.2 exposes only `LOG_OUTGOING_REQUESTS_DB_SAVE`); it is unchanged. See [`openinwoner-outgoing-request-logging.md`](openinwoner-outgoing-request-logging.md).
+> Open Inwoner has no equivalent master switch (v2.1.2 exposes only `LOG_OUTGOING_REQUESTS_DB_SAVE`); it is unchanged. See [`openinwoner-outgoing-request-logging.md`](../apps/openinwoner/openinwoner-outgoing-request-logging.md).
 
 **Action required:** none if logging outgoing requests is acceptable. To **keep it disabled**, add the opt-out in the gemeente `podiumd.yml`:
 
@@ -499,7 +499,7 @@ All blocks below are **opt-in** — defaults are unchanged. Add to gemeente `pod
 - **Open Archiefbeheer — destruction plugins for external registers** — `external_registers_enabled: true` + per-register `services_identifiers` (see the matching section above).
 - **Open Archiefbeheer — post-destruction visibility period** — `openarchiefbeheer.settings.postDestructionVisibilityPeriod: "7"`.
 - **Open Archiefbeheer — disable related-object counts** — `openarchiefbeheer.settings.relatedCountDisabled: true`.
-- **APISIX — egress API gateway (opt-in, IN-1867)** — `apisix.enabled: false` by default; see [`apisix-egress-gateway.md`](apisix-egress-gateway.md).
+- **APISIX — egress API gateway (opt-in, IN-1867)** — `apisix.enabled: false` by default; see [`apisix-egress-gateway.md`](../apps/apisix/apisix-egress-gateway.md).
 
 ---
 
@@ -520,7 +520,7 @@ All blocks below are **opt-in** — defaults are unchanged. Add to gemeente `pod
 
 ## See also
 
-- [`values-changes-4.7.0.md`](values-changes-4.7.0.md) — full table of values to add/change/remove for the 4.7.0 jump.
+- [`values-changes-4.7.0.md`](../values-changes-4.7.0.md) — full table of values to add/change/remove for the 4.7.0 jump.
 - Granular per-release notes: [4.7.0→4.7.1](upgrade-from-4.7.0-to-4.7.1.md), [4.7.1→4.7.2](upgrade-from-4.7.1-to-4.7.2.md), [4.7.2→4.7.3](upgrade-from-4.7.2-to-4.7.3.md), [4.7.3→4.7.4](upgrade-from-4.7.3-to-4.7.4.md).
 - Next hop: [`upgrade-from-4.7.6-to-4.8.0.md`](upgrade-from-4.7.6-to-4.8.0.md).
-- Images: `images-4.7.0.yaml` … `images-4.7.5.yaml` under [`docs/images/`](images/).
+- Images: `images-4.7.0.yaml` … `images-4.7.5.yaml` under [`docs/images/`](../images/).

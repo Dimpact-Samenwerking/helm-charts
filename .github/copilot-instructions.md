@@ -102,7 +102,7 @@ Transitioning Bitnami Keycloak + Infinispan → **Hostzero Keycloak Operator**:
 - **Legacy (deprecated)**: `keycloak.enabled: true` + `infinispan.enabled: true`
 - Both use SAME PostgreSQL database; realm data preserved
 - Key `keycloak.*` values (e.g. `externalDatabase`, `secretsName`, `config`, `image`) shared by both
-- Migration guide: `charts/podiumd/docs/migrating-to-keycloak-operator.md`
+- Migration guide: `charts/podiumd/docs/apps/keycloak/migrating-to-keycloak-operator.md`
 - Cleanup script: `charts/podiumd/scripts/cleanup-keycloak-and-infinispan.sh`
 
 ### API Proxy
@@ -111,7 +111,7 @@ nginx proxy (`apiproxy.*` in values) for 3 Dutch gov APIs:
 - **BRP** — Personal Records Database
 - **KVK** — Chamber of Commerce (Search, Basic Profile, Branch Profile)
 
-Supports optional mTLS (`nginxCertsSecret`) + response URL rewriting via nginx `sub_filter`. See `charts/podiumd/docs/api-proxy-url-rewriting.md`.
+Supports optional mTLS (`nginxCertsSecret`) + response URL rewriting via nginx `sub_filter`. See `charts/podiumd/docs/apps/apiproxy/api-proxy-url-rewriting.md`.
 
 ---
 
@@ -135,8 +135,8 @@ On aks-blue envs, all images pulled from env-specific ACR (set via `global.image
 - All workloads on aks-blue require `nodeSelector: kubernetes.azure.com/mode: user` — keycloak-operator, Keycloak CR pod template, all app workloads.
 
 ### Security Documentation
-- Keycloak realm security changes (token lifespans, brute force, password policy, session settings) → log in `charts/podiumd/docs/keycloak-security-updates.md`.
-- ClamAV security/config updates → log in `charts/podiumd/docs/clamav-security-updates.md`.
+- Keycloak realm security changes (token lifespans, brute force, password policy, session settings) → log in `charts/podiumd/docs/apps/keycloak/keycloak-security-updates.md`.
+- ClamAV security/config updates → log in `charts/podiumd/docs/apps/clamav/clamav-security-updates.md`.
 
 ### BOM Check
 Before committing `values.yaml`, verify no UTF-8 BOM (bytes `0xEF 0xBB 0xBF`) — breaks YAML tooling:
@@ -197,7 +197,7 @@ Fetch digests via registry API with Python's `urllib.request` — request manife
 ---
 
 ### Upgrade Notes per Release
-For each release with breaking changes, new images, or manual steps, create `charts/podiumd/docs/upgrade-from-<prev>-to-<version>.md` covering: new images needing ACR override (key path + snippet), new optional components, removed/deprecated components, required manual steps, component version bump table (`| Component | old | new |`). Style ref: `upgrade-from-4.5.13-to-4.6.0.md`.
+For each release with breaking changes, new images, or manual steps, create `charts/podiumd/docs/_upgrade_paths/upgrade-from-<prev>-to-<version>.md` covering: new images needing ACR override (key path + snippet), new optional components, removed/deprecated components, required manual steps, component version bump table (`| Component | old | new |`). Style ref: `upgrade-from-4.5.13-to-4.6.0.md`.
 
 ---
 
@@ -240,10 +240,10 @@ Valid commit types: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `ci`, `p
 | `charts/podiumd/kiss.schema.json` | JSON Schema for values (Helm 3.11+) |
 | `charts/podiumd/templates/_helpers.tpl` | Named templates for labels, names, image rendering |
 | `charts/podiumd/docs/resource-overview.md` | Resource requests/limits matrix |
-| `charts/podiumd/docs/migrating-to-keycloak-operator.md` | Keycloak migration guide |
-| `charts/podiumd/docs/api-proxy-url-rewriting.md` | nginx URL rewriting for BAG/BRP/KVK proxies |
-| `charts/podiumd/docs/keycloak-security-updates.md` | Keycloak realm security changelog |
+| `charts/podiumd/docs/apps/keycloak/migrating-to-keycloak-operator.md` | Keycloak migration guide |
+| `charts/podiumd/docs/apps/apiproxy/api-proxy-url-rewriting.md` | nginx URL rewriting for BAG/BRP/KVK proxies |
+| `charts/podiumd/docs/apps/keycloak/keycloak-security-updates.md` | Keycloak realm security changelog |
 | `charts/podiumd/docs/images/images-<version>.yaml` | Images manifest per release (new/changed only) |
-| `charts/podiumd/docs/upgrade-from-<prev>-to-<version>.md` | Upgrade guide per release |
+| `charts/podiumd/docs/_upgrade_paths/upgrade-from-<prev>-to-<version>.md` | Upgrade guide per release |
 | `charts/podiumd/scripts/cleanup-keycloak-and-infinispan.sh` | Pre-migration cleanup for legacy Keycloak/Infinispan |
 | `charts/podiumd/scripts/patch-keycloak-entra-idp.ps1` | Patch Entra ID IDP settings on target cluster |

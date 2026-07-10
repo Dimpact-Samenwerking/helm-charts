@@ -10,7 +10,7 @@ components change.
 - Image tag override updated to `1.27.3` (digest-pinned) in
   `charts/podiumd/values.yaml`. The `openzaak` chart dependency stays `1.14.1`.
 
-Image / digest: see [`docs/images/images-4.7.7.yaml`](images/images-4.7.7.yaml).
+Image / digest: see [`docs/images/images-4.7.7.yaml`](../images/images-4.7.7.yaml).
 
 #### Action required
 

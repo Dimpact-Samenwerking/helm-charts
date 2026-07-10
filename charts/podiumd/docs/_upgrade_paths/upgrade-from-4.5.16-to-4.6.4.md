@@ -131,7 +131,7 @@ Remove any explicit `initContainer.enabled: false` override if you want the new 
 
 ### Redis HA master label CronJob
 
-A `redis-ha-label-master` CronJob runs every 2 minutes and fixes a known OT Redis Operator v0.24.0 bug: after a rolling restart of the Redis StatefulSet, pods lose their `redis-role=master/slave` labels, causing the `redis-ha-master` service to have no endpoints and all Celery workers to crash. See [docs/redis-ha.md](redis-ha.md) for full details.
+A `redis-ha-label-master` CronJob runs every 2 minutes and fixes a known OT Redis Operator v0.24.0 bug: after a rolling restart of the Redis StatefulSet, pods lose their `redis-role=master/slave` labels, causing the `redis-ha-master` service to have no endpoints and all Celery workers to crash. See [docs/redis-ha.md](../apps/redis/redis-ha.md) for full details.
 
 It uses the `alpine/k8s` image. For **ACR-based environments**, override the repository:
 
@@ -830,7 +830,7 @@ After upgrading, `openzaak` pods may fail to become ready with:
 django.db.utils.IntegrityError: duplicate key value violates unique constraint "admin_index_appgroup_slug_key"
 ```
 
-This is caused by a psycopg3 transaction semantics issue in the `post_migrate` signal handler that resets the admin index fixture. See [openzaak-post-migrate-appgroup-duplicate-key.md](openzaak-post-migrate-appgroup-duplicate-key.md) for the full analysis, workaround, and proper fix.
+This is caused by a psycopg3 transaction semantics issue in the `post_migrate` signal handler that resets the admin index fixture. See [`openzaak-known-issues.md` §1](../apps/openzaak/openzaak-known-issues.md#1-startup-failure-duplicate-key-on-admin_index_appgroupslug) for the full analysis, workaround, and proper fix.
 
 ---
 
@@ -858,4 +858,4 @@ This is caused by a psycopg3 transaction semantics issue in the `post_migrate` s
 ---
 
 For the full list of new and changed images in this release, see
-[docs/images/images-4.6.4.yaml](images/images-4.6.4.yaml).
+[docs/images/images-4.6.4.yaml](../images/images-4.6.4.yaml).

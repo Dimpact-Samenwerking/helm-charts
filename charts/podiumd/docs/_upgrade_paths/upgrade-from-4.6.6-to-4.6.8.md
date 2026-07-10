@@ -2,7 +2,7 @@
 
 > **Consolidated guide.** This hop folds the intermediate release 4.6.7. The
 > only functional change between 4.6.6 and 4.6.8 is the Open Inwoner image. See
-> [`UPGRADING.md`](UPGRADING.md) for the full upgrade path.
+> [`UPGRADING.md`](../UPGRADING.md) for the full upgrade path.
 >
 > **Open Inwoner:** this hop moves the Open Inwoner image from `2.1.1` to the
 > **stable `2.1.2`** release. The transient `2.1.2-rc1` release candidate that
@@ -22,7 +22,7 @@ The Open Inwoner image is updated from `2.1.1` to the **stable** `2.1.2` upstrea
 
 #### Action required
 
-No action required. The ACR mirror must mirror the `maykinmedia/open-inwoner:2.1.2` tag and digest (see [`docs/images/images-4.6.8.yaml`](images/images-4.6.8.yaml)).
+No action required. The ACR mirror must mirror the `maykinmedia/open-inwoner:2.1.2` tag and digest (see [`docs/images/images-4.6.8.yaml`](../images/images-4.6.8.yaml)).
 
 ---
 
@@ -38,7 +38,7 @@ No action required. The ACR mirror must mirror the `maykinmedia/open-inwoner:2.1
 ---
 
 For the full list of new and changed images in this release, see
-[docs/images/images-4.6.8.yaml](images/images-4.6.8.yaml). That manifest is
+[docs/images/images-4.6.8.yaml](../images/images-4.6.8.yaml). That manifest is
 cumulative vs 4.6.4, so it also lists `referentielijsten-api`, `open-beheer`
 and `omc` — those are already mirrored if you are on 4.6.6, and re-mirroring
 them is harmless.

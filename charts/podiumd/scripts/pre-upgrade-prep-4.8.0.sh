@@ -23,7 +23,7 @@
 #   3. Elasticsearch baseline
 #      Records per ECK Elasticsearch cluster: StatefulSet UIDs, PVCs and
 #      search-* doc counts. Compare after the upgrade — UIDs, PVCs and doc
-#      counts must be unchanged (see docs/migrating-to-eck-stack.md sec. 5).
+#      counts must be unchanged (see docs/apps/elastic/migrating-to-eck-stack.md sec. 5).
 #
 # Steps 2 and 3 are read-only. --dry-run makes step 1 read-only as well, so
 # the whole script can be previewed without changing anything.

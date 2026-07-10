@@ -6,7 +6,7 @@
 |---|---|
 | Status | Reference |
 | Applies to | Open Inwoner v2.1.2 (PodiumD 4.7.x) |
-| Related | `docs/upgrade-from-4.7.3-to-4.7.4.md` (Open Formulieren equivalent) |
+| Related | `docs/_upgrade_paths/upgrade-from-4.7.3-to-4.7.4.md` (Open Formulieren equivalent) |
 
 ---
 
