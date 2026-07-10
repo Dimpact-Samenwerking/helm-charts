@@ -38,6 +38,7 @@ Upgrade one hop at a time, in order. Each guide covers exactly one hop.
 |---|---|
 | [`_UPGRADE_PATHS/<from>-to-<to>-values-deltas.md`](_UPGRADE_PATHS/) | Every gemeente `podiumd.yml` key to add/change/remove (one per hop, placeholder when a release needed no values edits) — keep it open next to the values file while editing |
 | [`_UPGRADE_PATHS/<from>-to-<to>-gemeente-specific.md`](_UPGRADE_PATHS/) | Findings that apply to one gemeente/environment only (one per hop; mostly empty until something comes up) — check it for your gemeente before deploying |
+| [`_UPGRADE_PATHS/<from>-to-<to>-operators-crds.md`](_UPGRADE_PATHS/) | Operator and CRD additions/upgrades for the hop (keycloak-operator, redis-operator, eck-operator) — **only exists when the hop touches an operator or CRDs**; read it before the deploy, CRD steps often must run first |
 | `images/images-<ver>.yaml` | The ACR-mirror image set for the hop — hand it to SSC-Hosting before the deploy |
 | Deep-dives linked from the guide | One-time or high-risk procedures too large for the hop guide, e.g. [`migrating-to-eck-stack.md`](apps/elastic/migrating-to-eck-stack.md) (4.8.0) |
 
@@ -169,10 +170,11 @@ closes they can be retired in favour of the consolidated guides.
    previous release; digests fetched via `/fetch-image-digest`). Skip when the
    release changes no images.
 3. `/upgrade-notes <prev>-to-<new>` → scaffolds the upgrade guide. Also create
-   the two companions in `_UPGRADE_PATHS/`: `<prev>-to-<new>-values-deltas.md`
-   (placeholder text when no gemeente values change) and
-   `<prev>-to-<new>-gemeente-specific.md` (empty template) — see
-   [`_README.MD`](_README.MD).
+   the companions in `_UPGRADE_PATHS/`: `<prev>-to-<new>-values-deltas.md`
+   (placeholder text when no gemeente values change),
+   `<prev>-to-<new>-gemeente-specific.md` (empty template), and — only when the
+   release adds or upgrades an operator or CRDs —
+   `<prev>-to-<new>-operators-crds.md`. See [`_README.MD`](_README.MD).
 4. Verify: `/verify-image-digests`, `/helm-dupecheck`, `/helm-lint`.
 5. If the release becomes a new official-path stepping stone, add a row to the
    path table above and make its image manifest cumulative vs the previous

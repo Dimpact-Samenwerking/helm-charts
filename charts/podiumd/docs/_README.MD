@@ -17,13 +17,15 @@ the navigation layer — start there.
 ## `_UPGRADE_PATHS/` — files per hop
 
 Every hop `<from>-to-<to>` (e.g. `4.7.8-to-4.8.0`) has **three** files, so the
-trio sits adjacent in a directory listing:
+set sits adjacent in a directory listing — plus a fourth that only exists when
+the hop touches an operator or CRDs:
 
 | File | Purpose |
 |---|---|
 | `<from>-to-<to>-upgrade.md` | The operator guide for the hop: per-environment checklist up top, explanation of every change below. |
 | `<from>-to-<to>-values-deltas.md` | Key-by-key gemeente `podiumd.yml` reference (add/change/remove). A short placeholder when the release needed no values edits. |
 | `<from>-to-<to>-gemeente-specific.md` | Findings that apply to one gemeente/environment only. Mostly empty; filled in if and when something comes up during rollouts. |
+| `<from>-to-<to>-operators-crds.md` *(only where applicable)* | Operator and CRD additions/upgrades in the hop (keycloak-operator, redis-operator, eck-operator): what changes, CRD impact, and the pre-deploy steps (CRD installs/adoption usually run **before** `helm upgrade`). Not created for hops without operator/CRD changes. |
 
 Consolidated guides (e.g. `4.6.8-to-4.7.6`) fold a range of patch releases into
 one document; the granular per-patch notes are kept alongside for reference.
@@ -45,6 +47,9 @@ For a new release `<new>` with predecessor `<prev>`:
      values change.
    - `<prev>-to-<new>-gemeente-specific.md` — copy the empty template from any
      existing `*-gemeente-specific.md`.
+   - `<prev>-to-<new>-operators-crds.md` — **only** when the release adds or
+     upgrades an operator or CRDs: summary table (component / change / CRD
+     impact / action) plus the pre-deploy CRD commands.
 4. Generate the image manifest with `/images-manifest <new>` →
    `images/images-<new>.yaml` (skip when the release changes no images — note
    that in `_UPGRADING.md` instead).
