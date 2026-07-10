@@ -15,7 +15,8 @@ helm template podiumd charts/podiumd \
   --set openklant.enabled=false \
   --set openformulieren.enabled=false \
   --set openinwoner.enabled=false \
-  --set kisselastic.enabled=false \
+  --set "kiss-eck.enabled=false" \
+  --set "eck-operator.enabled=false" \
   --set ita.enabled=false \
   --set pabc.enabled=false \
   --set clamav.enabled=false \

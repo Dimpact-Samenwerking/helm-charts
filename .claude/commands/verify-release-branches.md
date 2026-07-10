@@ -117,7 +117,7 @@ Behavior:
 
 9. **Docs files to bump alongside `Chart.yaml`.** Keep version refs in sync with `4.7.2` (the precedent) — at minimum:
    - `charts/podiumd/README.md`: add a new top entry under `## PodiumD versions` mirroring the latest entry's table structure; fill in known AppVersions / ChartVersions from `Chart.yaml` deps and `values.yaml` image tags. Mark application versions as TBD if Confluence has no firm target yet.
-   - `charts/podiumd/docs/upgrade-from-<PREV_REL>-to-<NEW>.md`: create a new file with the same skeleton as the latest upgrade guide (sections per app, "Action required" subsections). Default to no-action stubs until the Confluence release page firms up.
+   - `charts/podiumd/docs/_UPGRADE_PATHS/<PREV_REL>-to-<NEW>-upgrade.md`: create a new file with the same skeleton as the latest upgrade guide (sections per app, "Action required" subsections). Default to no-action stubs until the Confluence release page firms up.
    - Any other doc that explicitly lists the chart version (search before committing): `grep -rln "$CUR" charts/podiumd/docs/ charts/podiumd/README.md` and review hits.
 
 10. **Confluence application-version targets** —

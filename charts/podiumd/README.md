@@ -2,6 +2,22 @@
 
 ## PodiumD versions
 
+### [4.8.0](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.8.0)
+
+**PodiumD Helm chart version: 4.8.0**
+Release scoped around the Open Inwoner upgrade 2.1.2 → 2.3.1 (chart
+2.1.3 → 2.2.1), spanning upstream 2.2.0 (Django CMS v3 → v4) and 2.3.0
+(opt-in ClamAV virus scanning, ZGW cache-warmup + low-latency worker).
+4.8.0 also carries the 4.7.4/4.7.5/4.7.6/4.7.7 work (Keycloak 26.6.3, Open Zaak
+1.27.3, ZGW Office Add-in 0.9.313, Open Formulieren logging revert); all other
+components remain at their 4.7.7 baseline. Zie
+`docs/_UPGRADE_PATHS/4.7.8-to-4.8.0-upgrade.md` voor details.
+
+| Component                 | AppVersion       | Change            | ChartVersion | Change         | **Notes**                            |
+|---------------------------|------------------|-------------------|--------------|----------------|--------------------------------------|
+| Open Inwoner              | 2.3.1            | Minor update      | 2.2.1        | Minor update   | CMS v3→v4, opt-in ClamAV virus scan  |
+| Open Zaak                 | 1.27.3           | Patch update      | 1.14.1       |                | 4.7.7 patch folded in                |
+
 ### [4.7.4](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.7.4)
 
 **PodiumD Helm chart version: 4.7.4**
@@ -12,7 +28,7 @@ CVE-2026-9802 refresh-token replay), with the adfinis keycloak-operator chart
 26.6.2, so no CRD apply is required. Open Zaak 1.27.1 → 1.27.2 (CVE-2026-54657
 `_zoek` authorization filtering + document bulk-import path-traversal fix). Also
 adds a Datamigratie Keycloak client and Open Zaak credentials (config only, no
-image change). See `docs/upgrade-from-4.7.3-to-4.7.4.md`.
+image change). See `docs/_UPGRADE_PATHS/4.7.3-to-4.7.4-upgrade.md`.
 
 | Component                 | AppVersion       | Change            | ChartVersion | Change         | **Notes**                            |
 |---------------------------|------------------|-------------------|--------------|----------------|--------------------------------------|
@@ -38,7 +54,7 @@ Componenten op alphabetische volgorde, met sub-charts er onder. Wijzigingen
 tegen `4.6.3` (laatste hier vastgelegde release; 4.7.0 en 4.7.1 zaten
 tussen). Beveiligingsupdates in deze release: Keycloak 26.6.2 (account-takeover-
 class CVEs) en nginx-unprivileged 1.30.2 (CVE-2026-42945 "nginx Rift" RCE
-en CVE-2026-9256). Zie `docs/upgrade-from-4.7.1-to-4.7.2.md` voor details.
+en CVE-2026-9256). Zie `docs/_UPGRADE_PATHS/4.7.1-to-4.7.2-upgrade.md` voor details.
 
 | Component                 | AppVersion       | Change            | ChartVersion | Change         | **Notes**                            |
 |---------------------------|------------------|-------------------|--------------|----------------|--------------------------------------|
@@ -178,7 +194,6 @@ Componenten op alphabetische volgorde, met sub-charts er onder:
 helm repo add dimpact https://Dimpact-Samenwerking.github.io/helm-charts/
 helm repo add kiss-frontend https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/KISS-frontend/main/helm
 helm repo add kiss-adapter https://raw.githubusercontent.com/ICATT-Menselijk-Digitaal/podiumd-adapter/main/helm
-helm repo add kiss-elastic https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/.github/main/docs/scripts/elastic
 helm repo add maykinmedia https://maykinmedia.github.io/charts
 helm repo add wiremind https://wiremind.github.io/wiremind-helm-charts
 helm repo add solr https://solr.apache.org/charts
@@ -241,7 +256,7 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 
 The Keycloak Operator is deployed via the [adfinis/keycloak-operator](https://artifacthub.io/packages/helm/adfinis/keycloak-operator) Helm chart, which wraps the official upstream Keycloak Operator manifests from [keycloak/keycloak-k8s-resources](https://github.com/keycloak/keycloak-k8s-resources). It installs the `Keycloak` CRD (`k8s.keycloak.org/v2beta1`) and reconciles `Keycloak` custom resources into running pods.
 
-The deprecated Bitnami `keycloak` sub-chart (`keycloak.enabled`) is kept for rollback purposes only and will be removed in a future release. See `docs/migrating-to-keycloak-operator.md` for migration instructions.
+The deprecated Bitnami `keycloak` sub-chart (`keycloak.enabled`) is kept for rollback purposes only and will be removed in a future release. See `docs/apps/keycloak/migrating-to-keycloak-operator.md` for migration instructions.
 
 | Name                                           | Description                                                                          | Value                                    |
 |------------------------------------------------|--------------------------------------------------------------------------------------|------------------------------------------|
@@ -841,7 +856,7 @@ $ kubectl create secret generic api-proxy-certs \
 
 APISIX is deployed as an **outbound (egress) API gateway** for PodiumD applications. PodiumD pods send outbound API calls to the APISIX cluster service for policy enforcement, observability, and (planned) mTLS to upstream services. APISIX is not exposed outside the cluster — no ingress routes are required from APISIX itself.
 
-The chart is wired in via the upstream [`apisix/apisix`](https://github.com/apache/apisix-helm-chart) Helm chart. **Disabled by default** — opt in by setting `apisix.enabled: true`. See `docs/apisix-egress-gateway.md` for background, the embedded Dashboard UI, route configuration, and the open security TODOs.
+The chart is wired in via the upstream [`apisix/apisix`](https://github.com/apache/apisix-helm-chart) Helm chart. **Disabled by default** — opt in by setting `apisix.enabled: true`. See `docs/apps/apisix/apisix-egress-gateway.md` for background, the embedded Dashboard UI, route configuration, and the open security TODOs.
 
 The operator GUI is the **embedded APISIX Dashboard**, shipped inside the gateway from APISIX 3.16 onwards and served at the Admin API port (`:9180/ui/`). No separate dashboard chart is required.
 
@@ -860,6 +875,10 @@ For the full upstream values reference run:
 ```shell
 helm show values apisix/apisix --version 2.14.0
 ```
+
+### Open Beheer
+
+Open Beheer is a Django-based admin/management UI for the ZGW ecosystem — it configures zaaktypes and informatieobjecttypes via the Open Zaak Catalogi API, object schemas via Objecttypen, and references the public Selectielijst API. Deployed as the `openbeheer` sub-chart (`maykinmedia/open-beheer`). **Disabled by default** — opt in by setting `openbeheer.enabled: true`. See `docs/apps/openbeheer/openbeheer.md` for the overview, dependencies, and enable steps, and `docs/apps/openbeheer/openbeheer-known-issues.md` for the uWSGI master-process restart trap.
 
 ### Tags
 

@@ -24,6 +24,19 @@ zac:
   auth:
     secret: "placeholder"
 
+# zgw-office-addin: the chart values.yaml provides the URL fields
+# (common.frontendUrl, backend.zgwApis.url); only the MSAL/secret placeholders
+# are supplied here so the subchart's `required` guards pass for a bare
+# render/lint. Note: msalSecret lives under `backend`.
+zgw-office-addin:
+  common:
+    msalClientId: "placeholder"
+    msalTenantId: "placeholder"
+  backend:
+    msalSecret: "placeholder"
+    zgwApis:
+      secret: "placeholder"
+
 keycloak:
   auth:
     adminPassword: "placeholder"

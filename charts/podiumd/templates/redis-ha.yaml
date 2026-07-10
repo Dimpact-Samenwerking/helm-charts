@@ -22,6 +22,10 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "podiumd.labels" . | nindent 4 }}
+    {{- with $redisHa.serviceName }}
+    app: {{ . | quote }}
+    service_name: {{ . | quote }}
+    {{- end }}
 spec:
   clusterSize: {{ $redisHa.replicaCount }}
   kubernetesConfig:
