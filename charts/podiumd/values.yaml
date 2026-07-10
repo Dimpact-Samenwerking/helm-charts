@@ -41,7 +41,7 @@ keycloak-operator:
       # The chart's default operator.image.sha already pins the matching 26.6.3
       # digest (sha256:bd128cd6…). To DISABLE digest pinning (e.g. on aks-blue
       # / ACR-mirror envs where the mirrored digest differs), set
-      # `operator.image.sha: ""`. See docs/_upgrade_paths/upgrade-from-4.7.3-to-4.7.4.md.
+      # `operator.image.sha: ""`. See docs/_upgrade_paths/4.7.3-to-4.7.4-upgrade.md.
       tag: "26.6.3"
     resources:
       requests:
@@ -1303,7 +1303,7 @@ openarchiefbeheer:
     #     # external_registers.openklant.services_identifiers below. In most PodiumD
     #     # environments this service was provisioned as `openklant-api`
     #     # (NOT `openklant-klantinteracties`). Keep the two in sync — see
-    #     # docs/_upgrade_paths/upgrade-from-4.7.3-to-4.7.4.md.
+    #     # docs/_upgrade_paths/4.7.3-to-4.7.4-upgrade.md.
     #     - identifier: openklant-api
     #       label: Klanten API
     #       api_root: https://openklant.example.com/klantinteracties/api/v1/
@@ -1322,7 +1322,7 @@ openarchiefbeheer:
     #   #   openklant -> openklant-api   (NOT openklant-klantinteracties)
     #   #   objecten  -> objecten-api
     #   # A mismatch silently breaks that register's link. See
-    #   # docs/_upgrade_paths/upgrade-from-4.7.3-to-4.7.4.md.
+    #   # docs/_upgrade_paths/4.7.3-to-4.7.4-upgrade.md.
     #   external_registers_enabled: true
     #   external_registers:
     #     openklant:

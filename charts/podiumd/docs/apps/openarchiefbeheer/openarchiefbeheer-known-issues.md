@@ -117,6 +117,6 @@ kubectl --context "$CTX" -n "$NS" delete job openarchiefbeheer-config-debug
 ### See also
 
 - `charts/podiumd/scripts/migrate-openarchiefbeheer-2.0.0.py`
-- `charts/podiumd/docs/_upgrade_paths/upgrade-from-4.6.8-to-4.7.6.md` § *Note on PKCE*
-- `charts/podiumd/docs/_upgrade_paths/values-changes-4.7.0.md` § *PKCE note*
+- `charts/podiumd/docs/_upgrade_paths/4.6.8-to-4.7.6-upgrade.md` § *Note on PKCE*
+- `charts/podiumd/docs/_upgrade_paths/4.6.5-to-4.7.0-values-deltas.md` § *PKCE note*
 - `charts/podiumd/docs/apps/keycloak/keycloak-security-updates.md` § *PKCE Enforcement* (general PKCE wiring; OAB exception explained there too)
