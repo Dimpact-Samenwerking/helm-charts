@@ -9,6 +9,94 @@ stable baseline). Environments on an older 4.7.x patch should first move to
 [`upgrade-from-4.6.8-to-4.7.6.md`](upgrade-from-4.6.8-to-4.7.6.md)), then follow
 this guide.
 
+## Per-environment checklist
+
+Read the whole guide once first. Then, for **every environment** you upgrade,
+work through this list top to bottom. Each item links to the full instructions
+below; the gemeente-values edits (phase B) are detailed key-by-key in
+[`values-changes-4.8.0.md`](values-changes-4.8.0.md).
+
+### A. Prepare (days ahead — coordination needed)
+
+- [ ] **ACR mirror**: mirror the 4.8.0 image set under the **new
+      strip-registry names** ([`images-4.8.0.yaml`](images/images-4.8.0.yaml)
+      plus `elastic/eck-operator:3.4.0`) — coordinate with SSC-Hosting.
+      [→ ACR mirror naming](#acr-mirror-naming--new-strip-registry-convention)
+- [ ] **PABC**: provision the external database — or decide to opt out with
+      `pabc.enabled: false`. [→ PABC](#pabc-now-enabled-by-default)
+- [ ] **ITA**: look up the environment-specific Medewerker objecttype URL.
+      [→ ITA](#ita-310--320)
+
+### B. Edit the gemeente `podiumd.yml` ([key-by-key reference](values-changes-4.8.0.md))
+
+- [ ] Run `mirror-strip-registry.py` against the values file (dry-run,
+      review the diff, then `--in-place`).
+      [→ ACR mirror naming](#acr-mirror-naming--new-strip-registry-convention)
+- [ ] Elasticsearch: pin `openinwoner.eck-elasticsearch.image` to `:9.2.0` if
+      the override is untagged (known: `bode/prod`, `gron/prod`, `zwol/prod`,
+      `dim1/accp`, `dimp/test`, `gene/test`).
+      [→ Open Inwoner](#open-inwoner-212--231)
+- [ ] Remove the `kisselastic:` block; add root-level `eck-operator:` and
+      `kiss-eck:` blocks.
+      [→ ECK stack](#eck-stack-kisselastic--central-eck-operator--kiss-eck)
+- [ ] Add the required `ita.medewerker` block — the render fails without it
+      while ITA is enabled. [→ ITA](#ita-310--320)
+- [ ] ZAC: `brpApi.apiKey` string → `{header, value}` object (only if
+      overridden). [→ ZAC](#zac-472--501)
+- [ ] ZAC: remove `featureFlags.pabcIntegration`. [→ ZAC](#zac-472--501)
+- [ ] ZAC: restructure `brpApi.protocollering` using the
+      [vendor blocks](zac-brp-protocollering.md); if it was off
+      (`aanbieder: ""`), set `protocollering.enabled: false`.
+      [→ ZAC](#zac-472--501)
+- [ ] iConnect environments only: set
+      `apiproxy.locations.brp.toepassingHeaderName: ""`.
+      [→ ZAC](#zac-472--501)
+- [ ] PABC: set `pabc.settings.database.{host,name,username,password}` (or
+      `pabc.enabled: false`); drop a now-redundant `pabc.enabled: true`.
+      [→ PABC](#pabc-now-enabled-by-default)
+- [ ] zgw-office-addin: override `common.frontendUrl`, `backend.zgwApis.url`
+      and the MSAL values (chart defaults are example hosts); set
+      `common.appEnv` to the environment name on non-prod instances.
+      [→ Office Add-in](#zgw-office-add-in--appenv-display-indicator)
+- [ ] Open Beheer enabled? Configure the Objecttypen tokenauth pair — the
+      **same secret on both sides**, `Token ` prefix on the Open Beheer
+      header. [→ Open Beheer](#open-beheer--objecttypen-api-token-in-2345)
+- [ ] Remove image-tag overrides that merely repeat old chart defaults
+      ([cleanup table](values-changes-4.8.0.md#cleanup--image-tag-overrides)).
+
+### C. Immediately before the deploy
+
+- [ ] Quiesce notification producers and let the Celery workers drain
+      RabbitMQ — queues must be empty.
+      [→ Open Notificaties](#open-notificaties-1131--200-app-1160--rabbitmq-removed)
+- [ ] Run `charts/podiumd/scripts/pre-upgrade-prep-4.8.0.sh --context <ctx>`
+      — one-time ECK CRD adoption + RabbitMQ-empty check + Elasticsearch
+      baseline, in one go.
+      [→ ECK stack](#eck-stack-kisselastic--central-eck-operator--kiss-eck)
+- [ ] Plan for the redis-ha rolling restart (brief sentinel failover).
+      [→ Redis](#redis-redis-ha--operator)
+
+### D. Deploy
+
+- [ ] Run the deploy pipeline / `helm upgrade`.
+
+### E. Verify and clean up
+
+- [ ] No `ImagePullBackOff` — the new ACR repo names resolve.
+- [ ] ECK: Elasticsearch StatefulSet UID unchanged, PVCs kept, doc count
+      matches the recorded baseline
+      ([runbook §5](migrating-to-eck-stack.md#5-validation)).
+- [ ] Open Notificaties Celery workers connect to Redis — no
+      `amqp://127.0.0.1:5672` attempts in the logs.
+- [ ] Delete the orphaned RabbitMQ PVC and secret.
+      [→ Open Notificaties](#open-notificaties-1131--200-app-1160--rabbitmq-removed)
+- [ ] Elasticsearch pod image reads `:9.2.0`, not `:latest`.
+- [ ] Open Inwoner: CMS4 migration ran on first rollout;
+      `openinwoner-low-latency-worker` pod present.
+      [→ Open Inwoner](#open-inwoner-212--231)
+- [ ] PABC pods healthy — no crashloop (crashloop = database unreachable).
+      [→ PABC](#pabc-now-enabled-by-default)
+
 > ## 4.7.4/4.7.5/4.7.6 work carried in 4.8.0 (no re-action)
 >
 > `main` (= 4.7.6) has been forward-integrated into 4.8.0, so 4.8.0 includes the

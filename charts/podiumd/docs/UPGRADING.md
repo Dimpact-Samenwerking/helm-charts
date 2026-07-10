@@ -1,39 +1,43 @@
 # PodiumD upgrade guides
 
 This directory holds the per-hop upgrade guides and the per-release image
-manifests. Start here: this page defines the **official upgrade path**, the
-files required for each hop, and which guides are reference-only.
+manifests. The first half of this page is for **operators** performing an
+upgrade; everything under [For chart maintainers](#for-chart-maintainers) is
+about producing releases and can be skipped when deploying.
 
-## Official upgrade path
+## How to upgrade — three steps
 
-```
-4.5.15 ─▶ 4.5.16 ─▶ 4.6.4 ─▶ 4.6.8 ─▶ 4.7.3 ─▶ 4.7.4 ─▶ 4.7.5 ─▶ 4.7.6 ─▶ 4.7.7 ─▶ 4.8.0
-```
+1. **Find your current version**: `helm -n podiumd list` (chart column), or
+   the pinned chart version in your environment's deploy configuration.
+2. **Look up your row** in the table below and read the guide(s) in order —
+   the whole guide, once, before touching anything.
+3. **Then, per environment**, work through the **per-environment checklist**
+   at the top of the guide. The checklist is the repeatable part; the guide
+   body is the explanation behind each item.
 
-Upgrade one hop at a time, in order. Each hop has exactly **one** upgrade guide
-and a matching image manifest (the ACR-mirror set for that hop):
+## Which guide do I read?
 
-| Hop | Upgrade guide | Image manifest (ACR mirror set) |
-|---|---|---|
-| 4.5.15 → 4.5.16 | [`upgrade-from-4.5.15-to-4.5.16.md`](upgrade-from-4.5.15-to-4.5.16.md) | [`images/images-4.5.16.yaml`](images/images-4.5.16.yaml) |
-| 4.5.16 → 4.6.4  | [`upgrade-from-4.5.16-to-4.6.4.md`](upgrade-from-4.5.16-to-4.6.4.md)  | [`images/images-4.6.4.yaml`](images/images-4.6.4.yaml) |
-| 4.6.4 → 4.6.8   | [`upgrade-from-4.6.4-to-4.6.8.md`](upgrade-from-4.6.4-to-4.6.8.md)   | [`images/images-4.6.8.yaml`](images/images-4.6.8.yaml) |
-| 4.6.8 → 4.7.6   | [`upgrade-from-4.6.8-to-4.7.6.md`](upgrade-from-4.6.8-to-4.7.6.md)   | 4.7 chain: [`images-4.7.0`](images/images-4.7.0.yaml) · [`4.7.1`](images/images-4.7.1.yaml) · [`4.7.2`](images/images-4.7.2.yaml) · [`4.7.3`](images/images-4.7.3.yaml) · [`4.7.4`](images/images-4.7.4.yaml) · [`4.7.5`](images/images-4.7.5.yaml) |
-| 4.7.6 → 4.8.0   | [`upgrade-from-4.7.6-to-4.8.0.md`](upgrade-from-4.7.6-to-4.8.0.md)   | [`images/images-4.8.0.yaml`](images/images-4.8.0.yaml) |
+Upgrade one hop at a time, in order. Each guide covers exactly one hop.
 
-> The 4.6.4 → 4.6.8 and 4.6.8 → 4.7.6 guides are **consolidated**: each folds
-> several intermediate releases into one document so an operator reads one
-> guide per hop instead of chasing a chain of patch-level notes. For the
-> 4.6.8 → 4.7.6 hop the granular per-release notes (4.7.0→4.7.1 … 4.7.5→4.7.6)
-> are kept alongside for reference; 4.7.6 itself adds no image bumps (there is
-> no `images-4.7.6.yaml`).
->
-> The **4.7.6 → 4.8.0** guide similarly folds in the **4.7.7** patch (Open Zaak
-> 1.27.2 → 1.27.3). `images-4.8.0.yaml` is cumulative from 4.7.6 and already
-> includes the 4.7.7 image bump, so no separate 4.7.7 stepping stone is required.
+| You are on | Read, in this order |
+|---|---|
+| 4.7.6 or 4.7.7 | [`upgrade-from-4.7.6-to-4.8.0.md`](upgrade-from-4.7.6-to-4.8.0.md) |
+| 4.7.0 – 4.7.5 | [`upgrade-from-4.6.8-to-4.7.6.md`](upgrade-from-4.6.8-to-4.7.6.md) (start at your version) → then the 4.8.0 guide |
+| 4.6.8 | [`upgrade-from-4.6.8-to-4.7.6.md`](upgrade-from-4.6.8-to-4.7.6.md) → then the 4.8.0 guide |
+| 4.6.6 | two equivalent routes to 4.7.3 — [see below](#environments-on-466) — then continue up the path |
+| 4.6.4 | [`upgrade-from-4.6.4-to-4.6.8.md`](upgrade-from-4.6.4-to-4.6.8.md) → 4.7.6 guide → 4.8.0 guide |
+| 4.5.16 | [`upgrade-from-4.5.16-to-4.6.4.md`](upgrade-from-4.5.16-to-4.6.4.md) → and continue up the path |
+| 4.5.15 | [`upgrade-from-4.5.15-to-4.5.16.md`](upgrade-from-4.5.15-to-4.5.16.md) → and continue up the path |
 
+### Each guide has companions
 
-### Environments already on 4.6.6
+| Companion | What it is for |
+|---|---|
+| `values-changes-<ver>.md` | Every gemeente `podiumd.yml` key to add/change/remove — keep it open next to the values file while editing |
+| `images/images-<ver>.yaml` | The ACR-mirror image set for the hop — hand it to SSC-Hosting before the deploy |
+| Deep-dives linked from the guide | One-time or high-risk procedures too large for the hop guide, e.g. [`migrating-to-eck-stack.md`](migrating-to-eck-stack.md) (4.8.0) |
+
+### Environments on 4.6.6
 
 4.6.6 is a supported source baseline. From 4.6.6 there are two equivalent routes
 to 4.7.3 — pick one:
@@ -62,6 +66,41 @@ carried (and 4.7.0 inherited). It is **not part of any official upgrade** and
 
 Always pin `openinwoner.image.tag` to a stable version. If you see `2.1.2-rc1`
 anywhere in an environment values file, fix it.
+
+---
+
+# For chart maintainers
+
+Everything below is about **producing** releases (guides, manifests, pins) —
+not needed when deploying one.
+
+## Official upgrade path
+
+```
+4.5.15 ─▶ 4.5.16 ─▶ 4.6.4 ─▶ 4.6.8 ─▶ 4.7.3 ─▶ 4.7.4 ─▶ 4.7.5 ─▶ 4.7.6 ─▶ 4.7.7 ─▶ 4.8.0
+```
+
+Each hop has exactly **one** upgrade guide and a matching image manifest (the
+ACR-mirror set for that hop):
+
+| Hop | Upgrade guide | Image manifest (ACR mirror set) |
+|---|---|---|
+| 4.5.15 → 4.5.16 | [`upgrade-from-4.5.15-to-4.5.16.md`](upgrade-from-4.5.15-to-4.5.16.md) | [`images/images-4.5.16.yaml`](images/images-4.5.16.yaml) |
+| 4.5.16 → 4.6.4  | [`upgrade-from-4.5.16-to-4.6.4.md`](upgrade-from-4.5.16-to-4.6.4.md)  | [`images/images-4.6.4.yaml`](images/images-4.6.4.yaml) |
+| 4.6.4 → 4.6.8   | [`upgrade-from-4.6.4-to-4.6.8.md`](upgrade-from-4.6.4-to-4.6.8.md)   | [`images/images-4.6.8.yaml`](images/images-4.6.8.yaml) |
+| 4.6.8 → 4.7.6   | [`upgrade-from-4.6.8-to-4.7.6.md`](upgrade-from-4.6.8-to-4.7.6.md)   | 4.7 chain: [`images-4.7.0`](images/images-4.7.0.yaml) · [`4.7.1`](images/images-4.7.1.yaml) · [`4.7.2`](images/images-4.7.2.yaml) · [`4.7.3`](images/images-4.7.3.yaml) · [`4.7.4`](images/images-4.7.4.yaml) · [`4.7.5`](images/images-4.7.5.yaml) |
+| 4.7.6 → 4.8.0   | [`upgrade-from-4.7.6-to-4.8.0.md`](upgrade-from-4.7.6-to-4.8.0.md)   | [`images/images-4.8.0.yaml`](images/images-4.8.0.yaml) |
+
+> The 4.6.4 → 4.6.8 and 4.6.8 → 4.7.6 guides are **consolidated**: each folds
+> several intermediate releases into one document so an operator reads one
+> guide per hop instead of chasing a chain of patch-level notes. For the
+> 4.6.8 → 4.7.6 hop the granular per-release notes (4.7.0→4.7.1 … 4.7.5→4.7.6)
+> are kept alongside for reference; 4.7.6 itself adds no image bumps (there is
+> no `images-4.7.6.yaml`).
+>
+> The **4.7.6 → 4.8.0** guide similarly folds in the **4.7.7** patch (Open Zaak
+> 1.27.2 → 1.27.3). `images-4.8.0.yaml` is cumulative from 4.7.6 and already
+> includes the 4.7.7 image bump, so no separate 4.7.7 stepping stone is required.
 
 ## What each hop requires
 

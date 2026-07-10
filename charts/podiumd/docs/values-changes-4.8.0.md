@@ -134,19 +134,9 @@ The chart `values.yaml` already pins the new versions. Remove explicit tag overr
 
 ## Pre-deploy checklist
 
-- [ ] **PABC** (§5): either provision an external DB and set
-      `pabc.settings.database.{host,name,username,password}`, or set
-      `pabc.enabled: false` to opt out. Default is now enabled.
-- [ ] **Open Notificaties**: chart 2.0.0 removes RabbitMQ (broker → redis-ha
-      db6). Before upgrading, drain RabbitMQ queues; after upgrading, delete the
-      orphaned `*-opennotificaties-rabbitmq` PVC + secret. See the upgrade guide.
-- [ ] **ITA** (§1): set `ita.medewerker.type` to the environment-specific
-      Medewerker objecttype URL (render fails fast if left blank while ITA is enabled).
-- [ ] **zgw-office-addin**: override `common.frontendUrl` and
-      `backend.zgwApis.url` (chart defaults are example hosts) plus
-      `msalClientId`/`msalTenantId`/`msalSecret` in the gemeente values. Leave
-      `common.appEnv: "production"` unless this is a non-prod add-in instance
-      (see upgrade guide).
-- [ ] **Redis**: expect a rolling restart of the 3-node redis-ha cluster on
-      upgrade (label add + redis-operator 0.24→0.25); brief sentinel failover.
+Moved: the single per-environment checklist (prepare → values edits → deploy →
+verify) lives at the top of the upgrade guide —
+[`upgrade-from-4.7.6-to-4.8.0.md` § Per-environment checklist](upgrade-from-4.7.6-to-4.8.0.md#per-environment-checklist).
+Use that one; this file stays the key-by-key reference for the values edits
+(phase B of the checklist).
 
