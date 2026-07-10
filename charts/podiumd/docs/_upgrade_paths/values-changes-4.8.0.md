@@ -1,6 +1,6 @@
 # Values changes for PodiumD 4.8.0
 
-Companion to [upgrade-from-4.7.6-to-4.8.0.md](_upgrade_paths/upgrade-from-4.7.6-to-4.8.0.md). This file lists every value override a gemeente `podiumd.yml` may need to add, change, or remove when moving from chart 4.7.X to 4.8.0. Application-level changes and migration scripts are documented in the upgrade guide; this file focuses purely on the values surface.
+Companion to [upgrade-from-4.7.6-to-4.8.0.md](upgrade-from-4.7.6-to-4.8.0.md). This file lists every value override a gemeente `podiumd.yml` may need to add, change, or remove when moving from chart 4.7.X to 4.8.0. Application-level changes and migration scripts are documented in the upgrade guide; this file focuses purely on the values surface.
 
 ## TL;DR
 
@@ -81,7 +81,7 @@ removed; each protocol dimension now has explicit header/value fields.
 `protocollering.toepassing.{header,value}`.
 
 For full vendor-specific YAML blocks (iConnect, eServices, 2Secure/EnableU)
-see [`docs/apps/zac/zac-brp-protocollering.md`](apps/zac/zac-brp-protocollering.md).
+see [`docs/apps/zac/zac-brp-protocollering.md`](../apps/zac/zac-brp-protocollering.md).
 
 If protocollering was off (`aanbieder: ""`), replace with:
 
@@ -136,7 +136,7 @@ The chart `values.yaml` already pins the new versions. Remove explicit tag overr
 
 Moved: the single per-environment checklist (prepare → values edits → deploy →
 verify) lives at the top of the upgrade guide —
-[`upgrade-from-4.7.6-to-4.8.0.md` § Per-environment checklist](_upgrade_paths/upgrade-from-4.7.6-to-4.8.0.md#per-environment-checklist).
+[`upgrade-from-4.7.6-to-4.8.0.md` § Per-environment checklist](upgrade-from-4.7.6-to-4.8.0.md#per-environment-checklist).
 Use that one; this file stays the key-by-key reference for the values edits
 (phase B of the checklist).
 

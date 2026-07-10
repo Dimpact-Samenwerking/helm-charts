@@ -520,7 +520,7 @@ All blocks below are **opt-in** — defaults are unchanged. Add to gemeente `pod
 
 ## See also
 
-- [`values-changes-4.7.0.md`](../values-changes-4.7.0.md) — full table of values to add/change/remove for the 4.7.0 jump.
+- [`values-changes-4.7.0.md`](values-changes-4.7.0.md) — full table of values to add/change/remove for the 4.7.0 jump.
 - Granular per-release notes: [4.7.0→4.7.1](upgrade-from-4.7.0-to-4.7.1.md), [4.7.1→4.7.2](upgrade-from-4.7.1-to-4.7.2.md), [4.7.2→4.7.3](upgrade-from-4.7.2-to-4.7.3.md), [4.7.3→4.7.4](upgrade-from-4.7.3-to-4.7.4.md).
 - Next hop: [`upgrade-from-4.7.6-to-4.8.0.md`](upgrade-from-4.7.6-to-4.8.0.md).
 - Images: `images-4.7.0.yaml` … `images-4.7.5.yaml` under [`docs/images/`](../images/).

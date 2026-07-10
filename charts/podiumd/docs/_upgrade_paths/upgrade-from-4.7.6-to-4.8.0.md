@@ -14,7 +14,7 @@ this guide.
 Read the whole guide once first. Then, for **every environment** you upgrade,
 work through this list top to bottom. Each item links to the full instructions
 below; the gemeente-values edits (phase B) are detailed key-by-key in
-[`values-changes-4.8.0.md`](../values-changes-4.8.0.md).
+[`values-changes-4.8.0.md`](values-changes-4.8.0.md).
 
 ### A. Prepare (days ahead — coordination needed)
 
@@ -27,7 +27,7 @@ below; the gemeente-values edits (phase B) are detailed key-by-key in
 - [ ] **ITA**: look up the environment-specific Medewerker objecttype URL.
       [→ ITA](#ita-310--320)
 
-### B. Edit the gemeente `podiumd.yml` ([key-by-key reference](../values-changes-4.8.0.md))
+### B. Edit the gemeente `podiumd.yml` ([key-by-key reference](values-changes-4.8.0.md))
 
 - [ ] Run `mirror-strip-registry.py` against the values file (dry-run,
       review the diff, then `--in-place`).
@@ -62,7 +62,7 @@ below; the gemeente-values edits (phase B) are detailed key-by-key in
       **same secret on both sides**, `Token ` prefix on the Open Beheer
       header. [→ Open Beheer](#open-beheer--objecttypen-api-token-in-2345)
 - [ ] Remove image-tag overrides that merely repeat old chart defaults
-      ([cleanup table](../values-changes-4.8.0.md#cleanup--image-tag-overrides)).
+      ([cleanup table](values-changes-4.8.0.md#cleanup--image-tag-overrides)).
 
 ### C. Immediately before the deploy
 

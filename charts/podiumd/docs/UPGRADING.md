@@ -33,7 +33,7 @@ Upgrade one hop at a time, in order. Each guide covers exactly one hop.
 
 | Companion | What it is for |
 |---|---|
-| `values-changes-<ver>.md` | Every gemeente `podiumd.yml` key to add/change/remove — keep it open next to the values file while editing |
+| [`_upgrade_paths/values-changes-<ver>.md`](_upgrade_paths/) | Every gemeente `podiumd.yml` key to add/change/remove (`<ver>` = version you upgrade **to**; every hop has one, placeholder when a release needed no values edits) — keep it open next to the values file while editing |
 | `images/images-<ver>.yaml` | The ACR-mirror image set for the hop — hand it to SSC-Hosting before the deploy |
 | Deep-dives linked from the guide | One-time or high-risk procedures too large for the hop guide, e.g. [`migrating-to-eck-stack.md`](apps/elastic/migrating-to-eck-stack.md) (4.8.0) |
 
@@ -146,8 +146,8 @@ official path out of them:
 | [`upgrade-from-4.7.4-to-4.7.5.md`](_upgrade_paths/upgrade-from-4.7.4-to-4.7.5.md) | Granular 4.7.x patch note (folded into the 4.6.8 → 4.7.6 guide). |
 | [`upgrade-from-4.7.5-to-4.7.6.md`](_upgrade_paths/upgrade-from-4.7.5-to-4.7.6.md) | Granular 4.7.x patch note (folded into the 4.6.8 → 4.7.6 guide). |
 | [`upgrade-from-4.7.6-to-4.7.7.md`](_upgrade_paths/upgrade-from-4.7.6-to-4.7.7.md) | Granular 4.7.7 patch note (Open Zaak 1.27.3; folded into the 4.7.6 → 4.8.0 guide). |
-| [`values-changes-4.7.0.md`](values-changes-4.7.0.md) | Full values add/change/remove table for the 4.7.0 jump. |
-| [`values-changes-4.8.0.md`](values-changes-4.8.0.md) | Full values add/change/remove table for the 4.8.0 jump (ZAC 5.0.1 breaking changes + ITA medewerker). |
+| [`values-changes-4.7.0.md`](_upgrade_paths/values-changes-4.7.0.md) | Full values add/change/remove table for the 4.7.0 jump. |
+| [`values-changes-4.8.0.md`](_upgrade_paths/values-changes-4.8.0.md) | Full values add/change/remove table for the 4.8.0 jump (ZAC 5.0.1 breaking changes + ITA medewerker). |
 | [`zac-brp-protocollering.md`](apps/zac/zac-brp-protocollering.md) | ZAC BRP protocollering vendor reference (iConnect, eServices, 2Secure/EnableU) — ZAC 5.0.1. |
 
 The 4.7.x granular notes are intentionally retained for now; once the 4.7/4.8 line

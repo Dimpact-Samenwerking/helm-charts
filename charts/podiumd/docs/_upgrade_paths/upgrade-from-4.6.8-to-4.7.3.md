@@ -494,6 +494,6 @@ New egress API gateway. **Disabled by default** (`apisix.enabled: false`) — ex
 
 ## See also
 
-- [`values-changes-4.7.0.md`](../values-changes-4.7.0.md) — full table of values to add/change/remove in gemeente `podiumd.yml` for the 4.7.0 jump.
+- [`values-changes-4.7.0.md`](values-changes-4.7.0.md) — full table of values to add/change/remove in gemeente `podiumd.yml` for the 4.7.0 jump.
 - Granular per-release notes: [4.7.0→4.7.1](upgrade-from-4.7.0-to-4.7.1.md), [4.7.1→4.7.2](upgrade-from-4.7.1-to-4.7.2.md), [4.7.2→4.7.3](upgrade-from-4.7.2-to-4.7.3.md).
 - Images: [`images-4.7.0.yaml`](../images/images-4.7.0.yaml), [`images-4.7.1.yaml`](../images/images-4.7.1.yaml), [`images-4.7.2.yaml`](../images/images-4.7.2.yaml), [`images-4.7.3.yaml`](../images/images-4.7.3.yaml).
