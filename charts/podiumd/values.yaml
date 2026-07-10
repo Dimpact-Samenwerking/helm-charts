@@ -41,7 +41,7 @@ keycloak-operator:
       # The chart's default operator.image.sha already pins the matching 26.6.3
       # digest (sha256:bd128cd6…). To DISABLE digest pinning (e.g. on aks-blue
       # / ACR-mirror envs where the mirrored digest differs), set
-      # `operator.image.sha: ""`. See docs/upgrade-from-4.7.3-to-4.7.4.md.
+      # `operator.image.sha: ""`. See docs/_UPGRADE_PATHS/4.7.3-to-4.7.4-upgrade.md.
       tag: "26.6.3"
     resources:
       requests:
@@ -403,7 +403,7 @@ redis-operator:
   #   openbeheer         : db 17 (cache), db 18 (reserved — celery not yet used)
   #   <future component> : db 19 (cache), db 20 (celery)
   #   db 21–31           : unallocated
-  # See docs/redis-ha-databases.md for the full allocation table and guidance.
+  # See docs/apps/redis/redis-ha-databases.md for the full allocation table and guidance.
   redis-ha:
     enabled: true
     replicaCount: 3
@@ -1311,7 +1311,7 @@ openarchiefbeheer:
     #     # external_registers.openklant.services_identifiers below. In most PodiumD
     #     # environments this service was provisioned as `openklant-api`
     #     # (NOT `openklant-klantinteracties`). Keep the two in sync — see
-    #     # docs/upgrade-from-4.7.3-to-4.7.4.md.
+    #     # docs/_UPGRADE_PATHS/4.7.3-to-4.7.4-upgrade.md.
     #     - identifier: openklant-api
     #       label: Klanten API
     #       api_root: https://openklant.example.com/klantinteracties/api/v1/
@@ -1330,7 +1330,7 @@ openarchiefbeheer:
     #   #   openklant -> openklant-api   (NOT openklant-klantinteracties)
     #   #   objecten  -> objecten-api
     #   # A mismatch silently breaks that register's link. See
-    #   # docs/upgrade-from-4.7.3-to-4.7.4.md.
+    #   # docs/_UPGRADE_PATHS/4.7.3-to-4.7.4-upgrade.md.
     #   external_registers_enabled: true
     #   external_registers:
     #     openklant:
@@ -2091,7 +2091,7 @@ openinwoner:
   # eck-operator (`openinwoner-elastic-operator`); it MUST stay disabled,
   # otherwise two operators run on the same namespace. OIP only provides its own
   # Elasticsearch resource (`openinwoner-elasticsearch`), which is reconciled by
-  # the central operator. See docs/migrating-to-eck-stack.md.
+  # the central operator. See docs/apps/elastic/migrating-to-eck-stack.md.
   eck-operator:
     enabled: false
 
@@ -2357,7 +2357,7 @@ openbeheer:
       # Set UWSGI_MASTER=1 so a real master oversees workers; without it,
       # workers that exit on max-requests are NOT respawned and the container
       # exits with code 30 once all workers have cycled (~every 80–90 min on
-      # probe-driven traffic). See openbeheer-known-issues.md.
+      # probe-driven traffic). See docs/apps/openbeheer/openbeheer-known-issues.md.
       master: "1"
       processes: "2"
       threads: "2"
@@ -2379,7 +2379,7 @@ openbeheer:
 # Central ECK operator (root-level). Manages all Elasticsearch resources in the
 # podiumd namespace (KISS 'kiss' and OIP 'openinwoner-elasticsearch'). KISS and
 # OIP only provide their own Elasticsearch; the operator no longer comes from a
-# subchart. See docs/migrating-to-eck-stack.md.
+# subchart. See docs/apps/elastic/migrating-to-eck-stack.md.
 eck-operator:
   enabled: true
   # -- the chart installs and upgrades the 12 *.k8s.elastic.co CRDs, in lock-step
@@ -2388,7 +2388,7 @@ eck-operator:
   # Requires cluster-scope RBAC on the deploying identity. Clusters whose CRDs
   # predate helm ownership (kisselastic era / manual apply) need a one-time
   # adoption: deploy with `--take-ownership` (helm >= 3.17) or annotate the CRDs
-  # once — see docs/migrating-to-eck-stack.md section 4b. Installers without
+  # once — see docs/apps/elastic/migrating-to-eck-stack.md section 4b. Installers without
   # cluster-scope RBAC: set false and apply the CRDs manually (same doc).
   # override: values-enable-observability.yaml sets config.metricsPort and enables podMonitor
   installCRDs: true
@@ -2416,7 +2416,7 @@ kiss-eck:
     # count, storage), the same way openinwoner.eck-elasticsearch.nodeSets is set.
     # Note: volumeClaimTemplates is immutable — during a migration keep it equal to
     # the existing PVCs; changing the size needs a manual recreate
-    # (see docs/migrating-to-eck-stack.md).
+    # (see docs/apps/elastic/migrating-to-eck-stack.md).
     nodeSets:
     - name: default
       count: 3
@@ -2773,7 +2773,7 @@ zac:
       header: "x-api-key"
       value: "dummy"
     logLevel: "OFF"
-    # BRP protocollering — see docs/zac-brp-protocollering.md for vendor-specific examples
+    # BRP protocollering — see docs/apps/zac/zac-brp-protocollering.md for vendor-specific examples
     # (iConnect, eServices, 2Secure/EnableU)
     protocollering:
       enabled: false
@@ -3482,7 +3482,7 @@ omc:
 #
 # Upstream chart: https://github.com/apache/apisix-helm-chart
 # Full values reference: `helm show values apisix/apisix --version 2.14.0`
-# See also: charts/podiumd/docs/apisix-egress-gateway.md
+# See also: charts/podiumd/docs/apps/apisix/apisix-egress-gateway.md
 #
 # Any field not set below falls back to the upstream chart defaults.
 apisix:
@@ -3672,7 +3672,7 @@ zaakbrug:
 # =no), so no `known_hosts` is needed.
 #
 # Full activation, validation, and troubleshooting:
-#   → docs/podiumd/mi-exports.md
+#   → charts/podiumd/docs/misc/mi-exports.md
 #
 # One unified script (modeled on Maykin's bin/dump_data.sh --csv) is used for
 # every target; each entry in mi.targets[] renders one CronJob, gated on the

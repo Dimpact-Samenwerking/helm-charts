@@ -1,9 +1,11 @@
 # Images new or changed in podiumd 4.8.0 vs 4.7.6.
-# Cumulative from the previous stepping stone (4.7.6); includes the 4.7.7 patch
-# (Open Zaak 1.27.2 -> 1.27.3) folded into the 4.7.6 -> 4.8.0 hop.
+# Cumulative from 4.7.6: includes the 4.7.7 patch (Open Zaak 1.27.2 -> 1.27.3),
+# so it also covers environments that skipped the 4.7.7 mirror update.
+# 4.7.8 changed no images. The official hop into 4.8.0 is 4.7.8 -> 4.8.0.
 #
 # Changes in this release:
-#   0. Open Zaak 1.27.2 -> 1.27.3 (4.7.7 patch, folded into this hop).
+#   0. Open Zaak 1.27.2 -> 1.27.3 (4.7.7 patch; already mirrored by
+#      environments on 4.7.7/4.7.8).
 #      * Stability/security patch. No config or schema changes.
 #   1. Open Inwoner Platform (OIP) 2.1.2 -> 2.3.1.
 #      * Helm chart openinwoner 2.1.3 -> 2.2.1 (appVersion 2.3.1).
@@ -26,11 +28,11 @@
 #   3. Renovate-integrated bumps: alpine/k8s 1.34.7->1.36.2,
 #      keycloak-config-cli 6.5.0-26->6.5.1-26.
 #
-# See docs/upgrade-from-4.7.6-to-4.8.0.md for the operator upgrade notes.
+# See docs/_UPGRADE_PATHS/4.7.8-to-4.8.0-upgrade.md for the operator upgrade notes.
 #
 # Mirror names follow strip_registry(url) throughout. See docs/images/acr-mirror-naming.md.
 
-# Open Zaak — 1.27.2 -> 1.27.3 (4.7.7 patch, folded into the 4.7.6 -> 4.8.0 hop)
+# Open Zaak — 1.27.2 -> 1.27.3 (4.7.7 patch; already mirrored at 4.7.7/4.7.8)
 # Stability/security patch. No config or schema changes; only ACR mirroring needed.
 - name: openzaak/open-zaak
   url: docker.io/openzaak/open-zaak

@@ -2,7 +2,7 @@
 #
 # This is a PATH-TARGET manifest: it is CUMULATIVE across the skipped
 # intermediate releases 4.6.0/4.6.1/4.6.2/4.6.3, because the official upgrade
-# path jumps 4.5.16 -> 4.6.4 directly (see ../UPGRADING.md). It is a
+# path jumps 4.5.16 -> 4.6.4 directly (see ../_UPGRADING.md). It is a
 # consolidation of the former per-release delta manifests images-4.6.2.yaml
 # and images-4.6.3.yaml plus the 4.6.4 tag bumps; where the same image appears
 # in several deltas the latest version/digest wins (k8s -> 1.33.10,

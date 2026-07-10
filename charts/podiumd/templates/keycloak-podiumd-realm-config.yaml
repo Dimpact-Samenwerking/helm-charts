@@ -4,7 +4,7 @@
      is non-empty, the application must also have oidc_use_pkce: true in configuration.data.
      If configuration.data is empty, validation is skipped — it is the responsibility of the
      configuration maintainer to ensure oidc_use_pkce: true is set when data is filled in.
-     See keycloak-security-updates.md § PKCE Enforcement. */ -}}
+     See docs/apps/keycloak/keycloak-security-updates.md § PKCE Enforcement. */ -}}
 {{- $djangoApps := list
   (dict "name" "openzaak"         "pkce" .Values.openzaak.configuration.pkceEnabled         "data" .Values.openzaak.configuration.data)
   (dict "name" "openarchiefbeheer" "pkce" .Values.openarchiefbeheer.configuration.pkceEnabled "data" .Values.openarchiefbeheer.configuration.data)
@@ -20,7 +20,7 @@
 {{- range $djangoApps }}
 {{- if .pkce }}
 {{- if and (ne .data "") (not (contains "oidc_use_pkce: true" .data)) }}
-{{- fail (printf "%s: pkceEnabled is true but oidc_use_pkce: true is missing from configuration.data. Both must be enabled together — see keycloak-security-updates.md § PKCE Enforcement." .name) }}
+{{- fail (printf "%s: pkceEnabled is true but oidc_use_pkce: true is missing from configuration.data. Both must be enabled together — see docs/apps/keycloak/keycloak-security-updates.md § PKCE Enforcement." .name) }}
 {{- end }}
 {{- end }}
 {{- end -}}
