@@ -3729,17 +3729,18 @@ mi:
     remotePath: "" # e.g. "/uploads/mi-exports"
     # SSH private key (PEM block, multiline). The chart renders it into
     # Secret/<keySecretName> (key `id`, mode 0400 in the pod). Supplied by the
-    # ExternalsPodiumD application.yml pipeline, which substitutes it from Azure
-    # Key Vault (mi-data-sftp-rsa-private-key) at deploy time. Never commit a
-    # real key here — the env values file carries a placeholder the pipeline
-    # replaces. Host-key checking is disabled, so no known_hosts is needed.
-    # Mutually exclusive with password.
+    # ExternalsPodiumD application.yml pipeline, which substitutes it from the
+    # Azure Key Vault secret `mi-data-sftp-credential` at deploy time (one KV
+    # name regardless of credential type; the values field picks the mode).
+    # Never commit a real key here — the env values file carries a placeholder
+    # the pipeline replaces. Host-key checking is disabled, so no known_hosts
+    # is needed. Mutually exclusive with password.
     privateKey: ""
     # SFTP password (password auth, e.g. Azure Blob SFTP local users). Rendered
     # into Secret/<secretName> as SFTP_PASSWORD; the export job feeds it to
-    # sftp via sshpass. Same Key Vault substitution rule as privateKey (secret:
-    # mi-data-sftp-password-<env>) — never commit a real password here.
-    # Mutually exclusive with privateKey.
+    # sftp via sshpass. Substituted from the same Key Vault secret
+    # `mi-data-sftp-credential` as privateKey — never commit a real password
+    # here. Mutually exclusive with privateKey.
     password: ""
     # Name of the chart-rendered K8s Secret carrying the connection envvars
     # (SFTP_HOST, SFTP_PORT, SFTP_USER, SFTP_REMOTE_PATH, and SFTP_PASSWORD

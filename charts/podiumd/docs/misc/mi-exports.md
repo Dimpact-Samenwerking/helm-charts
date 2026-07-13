@@ -8,7 +8,7 @@ Weekly Management Information (MI) data exports of every Postgres-backed compone
 
 ## Audience
 
-**PodiumD operators** running the chart via the `ExternalsPodiumD` `application.yml` pipeline — to enable, configure, validate and consume exports. The chart renders the SFTP Secrets from values, so the only out-of-band prerequisites are a reachable SFTP server and the SSH private key in Key Vault (see [§ Deployment](#deployment)).
+**PodiumD operators** running the chart via the `ExternalsPodiumD` `application.yml` pipeline — to enable, configure, validate and consume exports. The chart renders the SFTP Secrets from values, so the only out-of-band prerequisites are a reachable SFTP server and the SFTP credential (SSH private key or password) in Key Vault as `mi-data-sftp-credential` (see [§ Deployment](#deployment)).
 
 ## How it works
 
@@ -95,8 +95,10 @@ The chart renders both SFTP Secrets itself from `mi.sftp.*` values — you do **
 
 - A **reachable SFTP server** accepting connections from the cluster's egress range. Host, port, user, and remote root path are all required values (no defaults).
 - **Exactly one** auth credential (the render fails if both or neither are set):
-  - **Keypair mode** — an SSH keypair: the *public* half installed in the SFTP user's `authorized_keys` on the server; the *private* half stored in Azure Key Vault as `mi-data-sftp-rsa-private-key` and referenced via the `mi.sftp.privateKey` placeholder.
-  - **Password mode** *(chart 4.8.1+)* — the SFTP user's password stored in Azure Key Vault as `mi-data-sftp-password-<env>` and referenced via the `mi.sftp.password` placeholder. Fits servers without keypair support for the account, e.g. Azure Blob SFTP local users with an Azure-generated password. The export job feeds it to `sftp` via `sshpass`.
+  - **Keypair mode** — an SSH keypair: the *public* half installed in the SFTP user's `authorized_keys` on the server; the *private* half referenced via the `mi.sftp.privateKey` placeholder.
+  - **Password mode** *(chart 4.8.1+)* — the SFTP user's password, referenced via the `mi.sftp.password` placeholder. Fits servers without keypair support for the account, e.g. Azure Blob SFTP local users with an Azure-generated password. The export job feeds it to `sftp` via `sshpass`.
+
+  Either way the credential lives in Azure Key Vault under the **same secret name**: `mi-data-sftp-credential` (env-suffixed on the qa flavor, e.g. `mi-data-sftp-credential-jim00`). The KV name does not encode the credential type — the values field (`privateKey` vs `password`) picks the mode.
 
   In both modes the [`application.yml`](https://dev.azure.com/ssctwente/ExternalsPodiumD) deploy pipeline substitutes the credential from Key Vault at deploy time — it is never committed to git.
 
@@ -118,7 +120,7 @@ mi:
     host: sftp.example.com        # required
     user: miuser                  # required
     remotePath: /mi-exports       # required (path on SFTP server)
-    privateKey: "REP_MI_DATA_SFTP_RSA_PRIVATE_KEY_REP"  # pipeline substitutes from KV
+    privateKey: "REP_MI_DATA_SFTP_CREDENTIAL_REP"  # pipeline substitutes from KV
 ```
 
 Or password mode (chart 4.8.1+, e.g. Azure Blob SFTP local users; mutually exclusive with `privateKey`):
@@ -131,7 +133,7 @@ mi:
     host: fdrpsftp8bbbe0.blob.core.windows.net
     user: fdrpsftp8bbbe0.floepdorp        # Azure Blob SFTP: <account>.<localuser>
     remotePath: /mi-exports
-    password: "REP_MI_DATA_SFTP_PASSWORD_REP"  # pipeline substitutes from KV
+    password: "REP_MI_DATA_SFTP_CREDENTIAL_REP"  # pipeline substitutes from KV
 ```
 
 Defaults: weekly schedule (Sunday 02:00 Europe/Amsterdam), `csv` format, port 22, all 14 default targets. A target only renders a CronJob when the corresponding `<component>.enabled` is `true` elsewhere in the env's values, so disabling a component automatically removes its export.
@@ -176,7 +178,7 @@ mi:
     port: 22
     user: miuser
     remotePath: /mi-exports
-    privateKey: "REP_MI_DATA_SFTP_RSA_PRIVATE_KEY_REP"  # keypair mode; XOR with password
+    privateKey: "REP_MI_DATA_SFTP_CREDENTIAL_REP"  # keypair mode; XOR with password
     password: ""                      # password mode (4.8.1+); XOR with privateKey
     secretName: mi-export-sftp        # chart-rendered Secret: connection envvars
     keySecretName: mi-export-sftp-key # chart-rendered Secret: `id` (keypair mode only)
@@ -245,11 +247,11 @@ A successful pgdump run logs:
 
 Deployment is via the **`application.yml` pipeline** in `dev.azure.com/ssctwente/ExternalsPodiumD` — the single supported path. There is no separate "test mode" and no manual Secret staging; the chart renders both SFTP Secrets from the `mi.sftp.*` values.
 
-How the credential flows in (keypair mode; password mode is identical with `mi-data-sftp-password-<env>` → `MI_DATA_SFTP_PASSWORD` → `mi.sftp.password: "REP_MI_DATA_SFTP_PASSWORD_REP"`):
+How the credential flows in (same path for both modes — only the values field differs):
 
-1. The SSH private key is stored in Azure Key Vault as `mi-data-sftp-rsa-private-key`.
-2. The pipeline's `AzureKeyVault@2` task exposes it as the variable `MI_DATA_SFTP_RSA_PRIVATE_KEY`.
-3. The env values file carries a placeholder `mi.sftp.privateKey: "REP_MI_DATA_SFTP_RSA_PRIVATE_KEY_REP"`, which the pipeline substitutes with the KV value at deploy time (so the key never lands in git).
+1. The credential (SSH private key **or** password) is stored in Azure Key Vault as `mi-data-sftp-credential` (env-suffixed on the qa flavor).
+2. The pipeline's `AzureKeyVault@2` task exposes it as the variable `MI_DATA_SFTP_CREDENTIAL`.
+3. The env values file carries the placeholder `"REP_MI_DATA_SFTP_CREDENTIAL_REP"` in `mi.sftp.privateKey` (keypair mode) or `mi.sftp.password` (password mode); the pipeline substitutes the KV value at deploy time (so the credential never lands in git).
 4. `helm upgrade` renders `Secret/mi-export-sftp` (+ `Secret/mi-export-sftp-key` in keypair mode) from the values, and the CronJobs consume them.
 
 The connection params (`host`, `port`, `user`, `remotePath`) live directly in the env values file. The SFTP server itself (with the gemeente's public key in `authorized_keys`) is the only out-of-band prerequisite.
