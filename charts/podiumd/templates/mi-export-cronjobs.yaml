@@ -7,14 +7,19 @@
 {{- end }}
 
 {{- /*
-  SFTP egress required-field guards. The chart renders both the connection
-  Secret and the key Secret from mi.sftp.* values, so all four must be set
-  (host-key checking is disabled, so no known_hosts is needed).
+  SFTP egress required-field guards. host/user/remotePath must be set, plus
+  exactly one auth credential: privateKey (keypair mode) or password (password
+  mode). Host-key checking is disabled, so no known_hosts is needed.
 */}}
 {{- $_ := required "mi.sftp.host is required when mi.enabled is true"       $mi.sftp.host }}
 {{- $_ := required "mi.sftp.user is required when mi.enabled is true"       $mi.sftp.user }}
 {{- $_ := required "mi.sftp.remotePath is required when mi.enabled is true" $mi.sftp.remotePath }}
-{{- $_ := required "mi.sftp.privateKey is required when mi.enabled is true" $mi.sftp.privateKey }}
+{{- if and (empty $mi.sftp.privateKey) (empty $mi.sftp.password) }}
+  {{- fail "exactly one of mi.sftp.privateKey or mi.sftp.password is required when mi.enabled is true (both are empty)" }}
+{{- end }}
+{{- if and $mi.sftp.privateKey $mi.sftp.password }}
+  {{- fail "mi.sftp.privateKey and mi.sftp.password are mutually exclusive — set only one" }}
+{{- end }}
 
 {{- /*
   One CronJob per entry in mi.targets[]. Each entry is gated on the chart's
@@ -87,15 +92,20 @@ spec:
                   value: {{ default (list "public") $t.schemas | join " " | quote }}
                 - name: MI_FORMAT
                   value: {{ $format | quote }}
-                # The SSH private key is mounted at /etc/sftp/id via the
-                # `sftp-key` volume below. The script reads this env path
-                # rather than hardcoding /etc/sftp so an iter3 baked image
+                {{- if $mi.sftp.privateKey }}
+                # Keypair mode: the SSH private key is mounted at /etc/sftp/id
+                # via the `sftp-key` volume below. The script reads this env
+                # path rather than hardcoding /etc/sftp so an iter3 baked image
                 # can relocate it without changing dump.sh. Host-key checking
                 # is disabled, so no known_hosts is mounted (see dump.sh).
+                # In password mode this env (and the volume) is absent; the
+                # script switches on SFTP_PASSWORD from the connection Secret.
                 - name: SFTP_KEY_FILE
                   value: /etc/sftp/id
+                {{- end }}
               envFrom:
-                # SFTP connection envs (SFTP_HOST/PORT/USER/REMOTE_PATH).
+                # SFTP connection envs (SFTP_HOST/PORT/USER/REMOTE_PATH, plus
+                # SFTP_PASSWORD in password mode).
                 # Rendered by mi-export-sftp-secret.yaml from mi.sftp.* values.
                 - secretRef:
                     name: {{ $mi.sftp.secretName | quote }}
@@ -115,9 +125,11 @@ spec:
                 - name: scripts
                   mountPath: /scripts
                   readOnly: true
+                {{- if $mi.sftp.privateKey }}
                 - name: sftp-key
                   mountPath: /etc/sftp
                   readOnly: true
+                {{- end }}
                 - name: tmp
                   mountPath: /tmp
           volumes:
@@ -125,6 +137,7 @@ spec:
               configMap:
                 name: mi-export-scripts
                 defaultMode: 0555
+            {{- if $mi.sftp.privateKey }}
             - name: sftp-key
               secret:
                 secretName: {{ $mi.sftp.keySecretName | quote }}
@@ -133,6 +146,7 @@ spec:
                 items:
                   - key: id
                     path: id
+            {{- end }}
             - name: tmp
               # 20 GiB scratch cap. Backed by node ephemeral storage. Sized to
               # match mi.resources.{requests,limits}.ephemeral-storage so the

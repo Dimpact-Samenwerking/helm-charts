@@ -3720,8 +3720,9 @@ mi:
       ephemeral-storage: 20Gi
   nodeSelector: {}
   sftp:
-    # host, user, remotePath, privateKey are all REQUIRED when mi.enabled.
-    # The CronJob template enforces via Helm `required` and fails fast if unset.
+    # host, user, remotePath are REQUIRED when mi.enabled, plus EXACTLY ONE of
+    # privateKey (SSH keypair auth) or password (password auth). The CronJob
+    # template enforces both rules and fails fast at render time.
     host: ""
     port: 22
     user: ""
@@ -3732,11 +3733,20 @@ mi:
     # Key Vault (mi-data-sftp-rsa-private-key) at deploy time. Never commit a
     # real key here — the env values file carries a placeholder the pipeline
     # replaces. Host-key checking is disabled, so no known_hosts is needed.
+    # Mutually exclusive with password.
     privateKey: ""
+    # SFTP password (password auth, e.g. Azure Blob SFTP local users). Rendered
+    # into Secret/<secretName> as SFTP_PASSWORD; the export job feeds it to
+    # sftp via sshpass. Same Key Vault substitution rule as privateKey (secret:
+    # mi-data-sftp-password-<env>) — never commit a real password here.
+    # Mutually exclusive with privateKey.
+    password: ""
     # Name of the chart-rendered K8s Secret carrying the connection envvars
-    # (SFTP_HOST, SFTP_PORT, SFTP_USER, SFTP_REMOTE_PATH).
+    # (SFTP_HOST, SFTP_PORT, SFTP_USER, SFTP_REMOTE_PATH, and SFTP_PASSWORD
+    # in password mode).
     secretName: mi-export-sftp
     # Name of the chart-rendered K8s Secret carrying the SSH private key (`id`).
+    # Only rendered in keypair mode (privateKey set).
     keySecretName: mi-export-sftp-key
   # Default target list — every Postgres-backed app this chart can deploy. A target only
   # renders a CronJob when the chart's <component>.enabled is true. Per-target `enabled`

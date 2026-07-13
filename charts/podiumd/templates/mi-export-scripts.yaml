@@ -21,12 +21,15 @@ data:
   #            Postgres custom format (zlib-compressed, restorable via pg_restore).
   #            Remote: <SFTP_REMOTE_PATH>/<gemeente>/<YYMMDD>/<component>/<HHMMSS>-<component>.pgdump
   #
-  # Egress is SFTP only — no blob storage. Auth is via SSH keypair
-  # (SFTP_KEY_FILE, mode 0400). Host-key checking is intentionally disabled
-  # (StrictHostKeyChecking=no, UserKnownHostsFile=/dev/null): these are
-  # short-lived, single-shot CronJob containers reaching a host fixed by DNS,
-  # and the private key already gates who can log in — sufficient for this
-  # use case. No known_hosts is mounted or consulted.
+  # Egress is SFTP only — no blob storage. Auth is exactly one of:
+  #   keypair  — SSH private key (SFTP_KEY_FILE, mode 0400)
+  #   password — SFTP_PASSWORD from the connection Secret, fed to sftp via
+  #              sshpass (e.g. Azure Blob SFTP local users)
+  # Host-key checking is intentionally disabled (StrictHostKeyChecking=no,
+  # UserKnownHostsFile=/dev/null): these are short-lived, single-shot CronJob
+  # containers reaching a host fixed by DNS, and the credential already gates
+  # who can log in — sufficient for this use case. No known_hosts is mounted
+  # or consulted.
   dump.sh: |
     #!/usr/bin/env bash
     set -euo pipefail
@@ -34,7 +37,12 @@ data:
     : "${SFTP_HOST:?must be set}"
     : "${SFTP_USER:?must be set}"
     : "${SFTP_REMOTE_PATH:?must be set}"
-    : "${SFTP_KEY_FILE:?must be set}"
+    # Auth mode: the CronJob provides exactly one of SFTP_PASSWORD (password
+    # mode, connection Secret) or SFTP_KEY_FILE (keypair mode, mounted key).
+    if [[ -z "${SFTP_PASSWORD:-}" && -z "${SFTP_KEY_FILE:-}" ]]; then
+      echo "either SFTP_PASSWORD or SFTP_KEY_FILE must be set" >&2
+      exit 1
+    fi
     : "${MI_GEMEENTE:?must be set}"
     : "${MI_COMPONENT:?must be set}"
     : "${DB_HOST:?must be set}"
@@ -66,6 +74,10 @@ data:
     command -v pg_dump >/dev/null 2>&1 || needs+=(postgresql)
     command -v tar     >/dev/null 2>&1 || needs+=(tar)
     command -v sftp    >/dev/null 2>&1 || needs+=(openssh-clients)
+    if [[ -n "${SFTP_PASSWORD:-}" ]]; then
+      # Password mode only: sshpass feeds the password to sftp's prompt.
+      command -v sshpass >/dev/null 2>&1 || needs+=(sshpass)
+    fi
     if [ "${#needs[@]}" -gt 0 ]; then
       # Dedupe: a single `postgresql` install gives us psql + pg_dump.
       uniq_needs=$(printf '%s\n' "${needs[@]}" | sort -u)
@@ -89,7 +101,7 @@ data:
       # "already exists" failure for that line only.
       #
       # Host-key checking is disabled by design (see header): accept any host
-      # key and discard it to /dev/null. Trust rests on DNS + the private key.
+      # key and discard it to /dev/null. Trust rests on DNS + the credential.
       local file="$1" remote="$2" size remote_full remote_dir remote_name
       size="$(stat -c%s "${file}" 2>/dev/null || stat -f%z "${file}")"
       remote_full="${SFTP_REMOTE_PATH%/}/${remote}"
@@ -110,15 +122,28 @@ data:
         batch="${batch}-mkdir ${cur}"$'\n'
       done
       batch="${batch}put ${file} ${remote_full}"$'\n'
-      printf '%s' "${batch}" | sftp \
-        -b - \
-        -i "${SFTP_KEY_FILE}" \
-        -o "UserKnownHostsFile=/dev/null" \
-        -o "StrictHostKeyChecking=no" \
-        -o "PasswordAuthentication=no" \
-        -o "BatchMode=yes" \
-        -o "ConnectTimeout=20" \
-        -P "${SFTP_PORT}" \
+      # Common sftp invocation; auth-specific options are appended per mode.
+      local sftp_cmd=(sftp
+        -b -
+        -o "UserKnownHostsFile=/dev/null"
+        -o "StrictHostKeyChecking=no"
+        -o "ConnectTimeout=20"
+        -P "${SFTP_PORT}")
+      if [[ -n "${SFTP_PASSWORD:-}" ]]; then
+        # Password mode: sshpass -e reads the password from SSHPASS and feeds
+        # sftp's prompt via a pty; the batch file still arrives on stdin.
+        # BatchMode must stay OFF — it disables password prompting entirely.
+        sftp_cmd=(sshpass -e "${sftp_cmd[@]}"
+          -o "PubkeyAuthentication=no"
+          -o "NumberOfPasswordPrompts=1")
+      else
+        # Keypair mode: identity file only, no password fallback.
+        sftp_cmd=("${sftp_cmd[@]}"
+          -i "${SFTP_KEY_FILE}"
+          -o "PasswordAuthentication=no"
+          -o "BatchMode=yes")
+      fi
+      printf '%s' "${batch}" | SSHPASS="${SFTP_PASSWORD:-}" "${sftp_cmd[@]}" \
         "${SFTP_USER}@${SFTP_HOST}" >/dev/null
       log "uploaded ${remote_name}"
     }
