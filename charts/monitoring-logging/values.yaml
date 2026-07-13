@@ -78,6 +78,16 @@ grafana:
     dashboardproviders.yaml:
       apiVersion: 1
       providers:
+        - name: "meta"
+          orgId: 1
+          folder: "PodiumD_Monitoring_Logging"
+          type: file
+          disableDeletion: false
+          updateIntervalSeconds: 30
+          allowUiUpdates: true
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/meta
         - name: "default"
           orgId: 1
           folder: 'PodiumD_Monitoring_Logging'
@@ -121,6 +131,7 @@ grafana:
 
   # -- Dashboard opgenomen in ConfigMap
   dashboardsConfigMaps:
+    meta: "meta"
     default: "logging-main-dashboard"
     logs: "logging-logs"
     metrics: "monitoring-metrics-dashboards"
