@@ -96,32 +96,26 @@ data:
     upload_sftp() {
       # upload_sftp <local-file> <remote-relative-path>
       #
-      # Uses sftp batch mode (-b -) so we can `mkdir -p` the dated directory
-      # tree before `put`. The `-` after each mkdir tells sftp to ignore the
-      # "already exists" failure for that line only.
+      # Uses sftp batch mode (-b -). Ancestor directories are probed with a
+      # silent `cd` first and only the missing tail is created, so routine
+      # re-runs print no "remote mkdir: Failure" noise — Azure Blob SFTP
+      # answers mkdir-on-existing-dir with a generic SSH_FX_FAILURE rather
+      # than a friendly "already exists". The mkdirs we do emit keep the
+      # leading `-` (continue on error): sibling component jobs fire on the
+      # same schedule and share the <gemeente>/<date> ancestors, so one can
+      # create a dir between our probe and our mkdir. A genuinely broken
+      # mkdir (e.g. permissions) still fails the job, because the `put` that
+      # follows aborts the batch with a nonzero exit.
       #
       # Host-key checking is disabled by design (see header): accept any host
       # key and discard it to /dev/null. Trust rests on DNS + the credential.
+      # LogLevel=ERROR mutes the "Warning: Permanently added ..." line that
+      # combination otherwise prints on every connection.
       local file="$1" remote="$2" size remote_full remote_dir remote_name
       size="$(stat -c%s "${file}" 2>/dev/null || stat -f%z "${file}")"
       remote_full="${SFTP_REMOTE_PATH%/}/${remote}"
       remote_dir="$(dirname "${remote_full}")"
       remote_name="$(basename "${remote_full}")"
-      log "uploading ${remote_full} (${size} bytes) to ${SFTP_USER}@${SFTP_HOST}:${SFTP_PORT}"
-      # shellcheck disable=SC2086
-      # Build the mkdir -p chain as one mkdir command per ancestor directory.
-      # sftp has no native `mkdir -p`; we emit `-mkdir <dir>` lines (the
-      # leading `-` tells sftp to continue on EEXIST).
-      local IFS_BACK="${IFS}"
-      IFS='/' read -ra parts <<< "${remote_dir#/}"
-      IFS="${IFS_BACK}"
-      local batch="" cur="/"
-      for p in "${parts[@]}"; do
-        [ -z "${p}" ] && continue
-        cur="${cur%/}/${p}"
-        batch="${batch}-mkdir ${cur}"$'\n'
-      done
-      batch="${batch}put ${file} ${remote_full}"$'\n'
       # Auth options MUST come before `-b -`: sftp's -b flag injects
       # BatchMode=yes into the underlying ssh, and ssh uses the FIRST
       # obtained value per option — so a BatchMode=no placed earlier on the
@@ -155,16 +149,50 @@ data:
         -b -
         -o "UserKnownHostsFile=/dev/null"
         -o "StrictHostKeyChecking=no"
+        -o "LogLevel=ERROR"
         -o "ConnectTimeout=20"
         -P "${SFTP_PORT}")
-      if [[ -n "${SFTP_PASSWORD:-}" ]]; then
-        printf '%s' "${batch}" | SSH_ASKPASS="${MI_ASKPASS}" \
-          SSH_ASKPASS_REQUIRE=force DISPLAY=:0 \
+
+      run_batch() {
+        # One sftp connection; batch commands on stdin. stdout is sftp's
+        # command echo — discard. stderr passes through to the job log.
+        if [[ -n "${SFTP_PASSWORD:-}" ]]; then
+          SSH_ASKPASS="${MI_ASKPASS}" SSH_ASKPASS_REQUIRE=force DISPLAY=:0 \
+            "${sftp_cmd[@]}" "${SFTP_USER}@${SFTP_HOST}" >/dev/null
+        else
           "${sftp_cmd[@]}" "${SFTP_USER}@${SFTP_HOST}" >/dev/null
-      else
-        printf '%s' "${batch}" | "${sftp_cmd[@]}" \
-          "${SFTP_USER}@${SFTP_HOST}" >/dev/null
+        fi
+      }
+
+      remote_dir_exists() {
+        # Probe on a throwaway connection: batch mode exits nonzero when the
+        # `cd` fails. A miss is the expected signal here, not an error —
+        # silence stderr so probes never write to the job log.
+        printf 'cd %s\n' "$1" | run_batch 2>/dev/null
+      }
+
+      local batch=""
+      if ! remote_dir_exists "${remote_dir}"; then
+        # Walk ancestors top-down; once one level is missing every deeper
+        # level must be too (blob dirs are virtual — a child implies its
+        # parent), so stop probing there and mkdir the rest.
+        local IFS_BACK="${IFS}"
+        IFS='/' read -ra parts <<< "${remote_dir#/}"
+        IFS="${IFS_BACK}"
+        local cur="/" missing=0 p
+        for p in "${parts[@]}"; do
+          [ -z "${p}" ] && continue
+          cur="${cur%/}/${p}"
+          if [[ "${missing}" -eq 0 ]] && remote_dir_exists "${cur}"; then
+            continue
+          fi
+          missing=1
+          batch="${batch}-mkdir ${cur}"$'\n'
+        done
       fi
+      batch="${batch}put ${file} ${remote_full}"$'\n'
+      log "uploading ${remote_full} (${size} bytes) to ${SFTP_USER}@${SFTP_HOST}:${SFTP_PORT}"
+      printf '%s' "${batch}" | run_batch
       log "uploaded ${remote_name}"
     }
 
