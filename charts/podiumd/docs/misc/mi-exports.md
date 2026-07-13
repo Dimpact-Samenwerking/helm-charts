@@ -96,7 +96,7 @@ The chart renders both SFTP Secrets itself from `mi.sftp.*` values — you do **
 - A **reachable SFTP server** accepting connections from the cluster's egress range. Host, port, user, and remote root path are all required values (no defaults).
 - **Exactly one** auth credential (the render fails if both or neither are set):
   - **Keypair mode** — an SSH keypair: the *public* half installed in the SFTP user's `authorized_keys` on the server; the *private* half referenced via the `mi.sftp.privateKey` placeholder.
-  - **Password mode** *(chart 4.8.1+)* — the SFTP user's password, referenced via the `mi.sftp.password` placeholder. Fits servers without keypair support for the account, e.g. Azure Blob SFTP local users with an Azure-generated password. The export job feeds it to `sftp` via `sshpass`.
+  - **Password mode** *(chart 4.8.1+)* — the SFTP user's password, referenced via the `mi.sftp.password` placeholder. Fits servers without keypair support for the account, e.g. Azure Blob SFTP local users with an Azure-generated password. The export job feeds it to `sftp` via an `SSH_ASKPASS` helper (`SSH_ASKPASS_REQUIRE=force`; on Azure Linux `sshpass` would drag in `openssh-server`, whose install fails in the azure-cli image).
 
   Either way the credential lives in Azure Key Vault under the **same secret name**: `mi-data-sftp-credential` (env-suffixed on the qa flavor, e.g. `mi-data-sftp-credential-jim00`). The KV name does not encode the credential type — the values field (`privateKey` vs `password`) picks the mode.
 
@@ -317,6 +317,6 @@ This iteration ships **without** alerting. The CronJob's standard Job/Pod failur
 ## Changelog
 
 - **Iter1 (chart 4.7.3)** — initial release: weekly per-component CronJobs, `csv` (`;`-separated) / `pgdump` env-wide knob, structured remote-path layout, SFTP egress with a KV-stored keypair (chart-rendered Secrets, host-key checking disabled), 20 GiB ephemeral scratch.
-- **Chart 4.8.1** — password auth added: `mi.sftp.password` (XOR with `privateKey`), rendered as `SFTP_PASSWORD` in the connection Secret and fed to `sftp` via `sshpass`; supports e.g. Azure Blob SFTP local users.
+- **Chart 4.8.1** — password auth added: `mi.sftp.password` (XOR with `privateKey`), rendered as `SFTP_PASSWORD` in the connection Secret and fed to `sftp` via an `SSH_ASKPASS` helper; supports e.g. Azure Blob SFTP local users.
 - **Iter2** *(not started)* — Keycloak-fronted web portal so consumers can browse/download without an SSH key.
 - **Iter3** ([IN-1993](https://dimpact.atlassian.net/browse/IN-1993)) — baked image (drop runtime `tdnf install`); Prometheus alerts on missed/failed runs; per-table allow/deny lists.

@@ -23,8 +23,8 @@ data:
   #
   # Egress is SFTP only — no blob storage. Auth is exactly one of:
   #   keypair  — SSH private key (SFTP_KEY_FILE, mode 0400)
-  #   password — SFTP_PASSWORD from the connection Secret, fed to sftp via
-  #              sshpass (e.g. Azure Blob SFTP local users)
+  #   password — SFTP_PASSWORD from the connection Secret, fed to sftp via an
+  #              SSH_ASKPASS helper (e.g. Azure Blob SFTP local users)
   # Host-key checking is intentionally disabled (StrictHostKeyChecking=no,
   # UserKnownHostsFile=/dev/null): these are short-lived, single-shot CronJob
   # containers reaching a host fixed by DNS, and the credential already gates
@@ -74,10 +74,10 @@ data:
     command -v pg_dump >/dev/null 2>&1 || needs+=(postgresql)
     command -v tar     >/dev/null 2>&1 || needs+=(tar)
     command -v sftp    >/dev/null 2>&1 || needs+=(openssh-clients)
-    if [[ -n "${SFTP_PASSWORD:-}" ]]; then
-      # Password mode only: sshpass feeds the password to sftp's prompt.
-      command -v sshpass >/dev/null 2>&1 || needs+=(sshpass)
-    fi
+    # NB: no sshpass — on Azure Linux it requires the `openssh` meta package,
+    # which drags in openssh-server, whose install scriptlet (groupadd sshd)
+    # fails in the azure-cli image (no /etc/gshadow). Password mode uses
+    # OpenSSH's own SSH_ASKPASS mechanism instead (see upload_sftp).
     if [ "${#needs[@]}" -gt 0 ]; then
       # Dedupe: a single `postgresql` install gives us psql + pg_dump.
       uniq_needs=$(printf '%s\n' "${needs[@]}" | sort -u)
@@ -122,18 +122,26 @@ data:
         batch="${batch}-mkdir ${cur}"$'\n'
       done
       batch="${batch}put ${file} ${remote_full}"$'\n'
-      # Common sftp invocation; auth-specific options are appended per mode.
-      local sftp_cmd=(sftp
-        -b -
-        -o "UserKnownHostsFile=/dev/null"
-        -o "StrictHostKeyChecking=no"
-        -o "ConnectTimeout=20"
-        -P "${SFTP_PORT}")
+      # Auth options MUST come before `-b -`: sftp's -b flag injects
+      # BatchMode=yes into the underlying ssh, and ssh uses the FIRST
+      # obtained value per option — so a BatchMode=no placed earlier on the
+      # command line is what keeps password prompting alive.
+      local sftp_cmd=(sftp)
       if [[ -n "${SFTP_PASSWORD:-}" ]]; then
-        # Password mode: sshpass -e reads the password from SSHPASS and feeds
-        # sftp's prompt via a pty; the batch file still arrives on stdin.
-        # BatchMode must stay OFF — it disables password prompting entirely.
-        sftp_cmd=(sshpass -e "${sftp_cmd[@]}"
+        # Password mode: OpenSSH (>= 8.4) reads the password from the
+        # SSH_ASKPASS helper when SSH_ASKPASS_REQUIRE=force, no TTY or
+        # sshpass needed. The helper prints the SFTP_PASSWORD env var at
+        # call time — the password itself is never written to disk.
+        if [[ -z "${MI_ASKPASS:-}" ]]; then
+          MI_ASKPASS="$(mktemp /tmp/mi-askpass.XXXXXX)"
+          cat > "${MI_ASKPASS}" <<'ASKPASS'
+    #!/bin/sh
+    printf '%s\n' "${SFTP_PASSWORD}"
+    ASKPASS
+          chmod 700 "${MI_ASKPASS}"
+        fi
+        sftp_cmd=("${sftp_cmd[@]}"
+          -o "BatchMode=no"
           -o "PubkeyAuthentication=no"
           -o "NumberOfPasswordPrompts=1")
       else
@@ -143,8 +151,20 @@ data:
           -o "PasswordAuthentication=no"
           -o "BatchMode=yes")
       fi
-      printf '%s' "${batch}" | SSHPASS="${SFTP_PASSWORD:-}" "${sftp_cmd[@]}" \
-        "${SFTP_USER}@${SFTP_HOST}" >/dev/null
+      sftp_cmd=("${sftp_cmd[@]}"
+        -b -
+        -o "UserKnownHostsFile=/dev/null"
+        -o "StrictHostKeyChecking=no"
+        -o "ConnectTimeout=20"
+        -P "${SFTP_PORT}")
+      if [[ -n "${SFTP_PASSWORD:-}" ]]; then
+        printf '%s' "${batch}" | SSH_ASKPASS="${MI_ASKPASS}" \
+          SSH_ASKPASS_REQUIRE=force DISPLAY=:0 \
+          "${sftp_cmd[@]}" "${SFTP_USER}@${SFTP_HOST}" >/dev/null
+      else
+        printf '%s' "${batch}" | "${sftp_cmd[@]}" \
+          "${SFTP_USER}@${SFTP_HOST}" >/dev/null
+      fi
       log "uploaded ${remote_name}"
     }
 

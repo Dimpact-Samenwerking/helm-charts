@@ -3738,7 +3738,7 @@ mi:
     privateKey: ""
     # SFTP password (password auth, e.g. Azure Blob SFTP local users). Rendered
     # into Secret/<secretName> as SFTP_PASSWORD; the export job feeds it to
-    # sftp via sshpass. Substituted from the same Key Vault secret
+    # sftp via an SSH_ASKPASS helper. Substituted from the same Key Vault secret
     # `mi-data-sftp-credential` as privateKey — never commit a real password
     # here. Mutually exclusive with privateKey.
     password: ""
