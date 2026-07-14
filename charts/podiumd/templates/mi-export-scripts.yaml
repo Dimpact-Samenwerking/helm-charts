@@ -45,10 +45,58 @@ data:
     fi
     : "${MI_GEMEENTE:?must be set}"
     : "${MI_COMPONENT:?must be set}"
-    : "${DB_HOST:?must be set}"
-    : "${DB_NAME:?must be set}"
-    : "${DB_USER:?must be set}"
-    : "${DB_PASSWORD:?must be set}"
+    # Credential resolution ladder — components expose Postgres credentials
+    # in one of three shapes; normalise everything to DB_*:
+    #   1. DB_HOST/DB_NAME/DB_USER/DB_PASSWORD (+DB_PORT)      — Django apps
+    #   2. POSTGRES_HOST/DB/USER/PASSWORD (+POSTGRES_PORT)     — kiss frontend
+    #   3. an Npgsql connection string (Host=..;Port=..;Database=..;
+    #      Username=..;Password=..) in the env named by MI_CONNSTRING_VAR
+    #      (per-target `connectionStringEnv`)                  — .NET apps (ita, pabc)
+    if [[ -z "${DB_HOST:-}" && -n "${POSTGRES_HOST:-}" ]]; then
+      DB_HOST="${POSTGRES_HOST}"
+      DB_NAME="${POSTGRES_DB:-}"
+      DB_USER="${POSTGRES_USER:-}"
+      DB_PASSWORD="${POSTGRES_PASSWORD:-}"
+      DB_PORT="${DB_PORT:-${POSTGRES_PORT:-}}"
+    fi
+    if [[ -z "${DB_HOST:-}" && -n "${MI_CONNSTRING_VAR:-}" && -n "${!MI_CONNSTRING_VAR:-}" ]]; then
+      # Naive split on ';' then first '=': fine for pipeline-provisioned
+      # credentials (alphanumeric), NOT for values that themselves contain
+      # ';' or Npgsql single-quoting. Keys are case-insensitive per Npgsql.
+      # The connection string is never logged.
+      IFS=';' read -ra cs_parts <<< "${!MI_CONNSTRING_VAR}"
+      for cs_part in "${cs_parts[@]}"; do
+        [[ "${cs_part}" == *=* ]] || continue
+        cs_key="$(printf '%s' "${cs_part%%=*}" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')"
+        cs_val="${cs_part#*=}"
+        case "${cs_key}" in
+          host|server)          DB_HOST="${cs_val}" ;;
+          port)                 DB_PORT="${cs_val}" ;;
+          database)             DB_NAME="${cs_val}" ;;
+          username|userid|user) DB_USER="${cs_val}" ;;
+          password)             DB_PASSWORD="${cs_val}" ;;
+        esac
+      done
+    fi
+    # The component Secret/ConfigMap are mounted with `optional: true`, so the
+    # pod starts even when a component exposes no credentials in any of the
+    # shapes above. All four DB_* still absent → the component does not use
+    # PostgreSQL: nothing to export, exit green. A *partial* set is a real
+    # misconfiguration (typo'd secretName, half-migrated values) and still
+    # fails the job.
+    db_missing=()
+    for v in DB_HOST DB_NAME DB_USER DB_PASSWORD; do
+      if [[ -z "${!v:-}" ]]; then
+        db_missing+=("${v}")
+      fi
+    done
+    if [[ "${#db_missing[@]}" -eq 4 ]]; then
+      echo "skip: component ${MI_COMPONENT} exposes no DB_* credentials — assuming it does not use PostgreSQL, nothing to export"
+      exit 0
+    elif [[ "${#db_missing[@]}" -gt 0 ]]; then
+      echo "partial DB_* credentials for ${MI_COMPONENT} (missing: ${db_missing[*]}) — misconfiguration" >&2
+      exit 1
+    fi
     SFTP_PORT="${SFTP_PORT:-22}"
     DB_PORT="${DB_PORT:-5432}"
     # Whitespace-separated list, e.g. "public" or "public flowable". Default: public.
@@ -96,32 +144,26 @@ data:
     upload_sftp() {
       # upload_sftp <local-file> <remote-relative-path>
       #
-      # Uses sftp batch mode (-b -) so we can `mkdir -p` the dated directory
-      # tree before `put`. The `-` after each mkdir tells sftp to ignore the
-      # "already exists" failure for that line only.
+      # Uses sftp batch mode (-b -). Ancestor directories are probed with a
+      # silent `cd` first and only the missing tail is created, so routine
+      # re-runs print no "remote mkdir: Failure" noise — Azure Blob SFTP
+      # answers mkdir-on-existing-dir with a generic SSH_FX_FAILURE rather
+      # than a friendly "already exists". The mkdirs we do emit keep the
+      # leading `-` (continue on error): sibling component jobs fire on the
+      # same schedule and share the <gemeente>/<date> ancestors, so one can
+      # create a dir between our probe and our mkdir. A genuinely broken
+      # mkdir (e.g. permissions) still fails the job, because the `put` that
+      # follows aborts the batch with a nonzero exit.
       #
       # Host-key checking is disabled by design (see header): accept any host
       # key and discard it to /dev/null. Trust rests on DNS + the credential.
+      # LogLevel=ERROR mutes the "Warning: Permanently added ..." line that
+      # combination otherwise prints on every connection.
       local file="$1" remote="$2" size remote_full remote_dir remote_name
       size="$(stat -c%s "${file}" 2>/dev/null || stat -f%z "${file}")"
       remote_full="${SFTP_REMOTE_PATH%/}/${remote}"
       remote_dir="$(dirname "${remote_full}")"
       remote_name="$(basename "${remote_full}")"
-      log "uploading ${remote_full} (${size} bytes) to ${SFTP_USER}@${SFTP_HOST}:${SFTP_PORT}"
-      # shellcheck disable=SC2086
-      # Build the mkdir -p chain as one mkdir command per ancestor directory.
-      # sftp has no native `mkdir -p`; we emit `-mkdir <dir>` lines (the
-      # leading `-` tells sftp to continue on EEXIST).
-      local IFS_BACK="${IFS}"
-      IFS='/' read -ra parts <<< "${remote_dir#/}"
-      IFS="${IFS_BACK}"
-      local batch="" cur="/"
-      for p in "${parts[@]}"; do
-        [ -z "${p}" ] && continue
-        cur="${cur%/}/${p}"
-        batch="${batch}-mkdir ${cur}"$'\n'
-      done
-      batch="${batch}put ${file} ${remote_full}"$'\n'
       # Auth options MUST come before `-b -`: sftp's -b flag injects
       # BatchMode=yes into the underlying ssh, and ssh uses the FIRST
       # obtained value per option — so a BatchMode=no placed earlier on the
@@ -155,16 +197,50 @@ data:
         -b -
         -o "UserKnownHostsFile=/dev/null"
         -o "StrictHostKeyChecking=no"
+        -o "LogLevel=ERROR"
         -o "ConnectTimeout=20"
         -P "${SFTP_PORT}")
-      if [[ -n "${SFTP_PASSWORD:-}" ]]; then
-        printf '%s' "${batch}" | SSH_ASKPASS="${MI_ASKPASS}" \
-          SSH_ASKPASS_REQUIRE=force DISPLAY=:0 \
+
+      run_batch() {
+        # One sftp connection; batch commands on stdin. stdout is sftp's
+        # command echo — discard. stderr passes through to the job log.
+        if [[ -n "${SFTP_PASSWORD:-}" ]]; then
+          SSH_ASKPASS="${MI_ASKPASS}" SSH_ASKPASS_REQUIRE=force DISPLAY=:0 \
+            "${sftp_cmd[@]}" "${SFTP_USER}@${SFTP_HOST}" >/dev/null
+        else
           "${sftp_cmd[@]}" "${SFTP_USER}@${SFTP_HOST}" >/dev/null
-      else
-        printf '%s' "${batch}" | "${sftp_cmd[@]}" \
-          "${SFTP_USER}@${SFTP_HOST}" >/dev/null
+        fi
+      }
+
+      remote_dir_exists() {
+        # Probe on a throwaway connection: batch mode exits nonzero when the
+        # `cd` fails. A miss is the expected signal here, not an error —
+        # silence stderr so probes never write to the job log.
+        printf 'cd %s\n' "$1" | run_batch 2>/dev/null
+      }
+
+      local batch=""
+      if ! remote_dir_exists "${remote_dir}"; then
+        # Walk ancestors top-down; once one level is missing every deeper
+        # level must be too (blob dirs are virtual — a child implies its
+        # parent), so stop probing there and mkdir the rest.
+        local IFS_BACK="${IFS}"
+        IFS='/' read -ra parts <<< "${remote_dir#/}"
+        IFS="${IFS_BACK}"
+        local cur="/" missing=0 p
+        for p in "${parts[@]}"; do
+          [ -z "${p}" ] && continue
+          cur="${cur%/}/${p}"
+          if [[ "${missing}" -eq 0 ]] && remote_dir_exists "${cur}"; then
+            continue
+          fi
+          missing=1
+          batch="${batch}-mkdir ${cur}"$'\n'
+        done
       fi
+      batch="${batch}put ${file} ${remote_full}"$'\n'
+      log "uploading ${remote_full} (${size} bytes) to ${SFTP_USER}@${SFTP_HOST}:${SFTP_PORT}"
+      printf '%s' "${batch}" | run_batch
       log "uploaded ${remote_name}"
     }
 

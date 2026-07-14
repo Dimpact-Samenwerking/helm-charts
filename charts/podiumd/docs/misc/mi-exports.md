@@ -43,7 +43,12 @@ Weekly Management Information (MI) data exports of every Postgres-backed compone
 ```
 
 Each CronJob:
-1. Reads its target component's existing `<component>` Secret + ConfigMap (DB host, port, name, user, password — same secrets the app pods consume).
+1. Reads its target component's existing Secret + ConfigMap (same credentials the app pods consume; names default to `<component>`, overridable per-target via `secretName`/`configMapName`). `dump.sh` normalises three credential shapes to `DB_*`:
+   - `DB_HOST/DB_NAME/DB_USER/DB_PASSWORD` (+`DB_PORT`) — the Django apps;
+   - `POSTGRES_HOST/DB/USER/PASSWORD` (+`POSTGRES_PORT`) — kiss frontend (Secret/ConfigMap `contact`);
+   - an Npgsql connection string (`Host=…;Port=…;Database=…;Username=…;Password=…`) in the env named by the per-target `connectionStringEnv` — the .NET apps (ita: `ConnectionStrings__DefaultConnection` in `ita-secrets`, pabc: `ConnectionStrings__Pabc`).
+
+   Both refs are mounted `optional: true`: a component that exposes credentials in none of these shapes (e.g. not deployed in this env) is treated as **not using PostgreSQL** — the job logs `skip: … no DB_* credentials` and exits green instead of hanging in `CreateContainerConfigError`. A *partial* credential set still fails the job (real misconfiguration).
 2. Reads the env's SFTP connection envvars from `Secret/mi-export-sftp` and the SSH private key from `Secret/mi-export-sftp-key` — both rendered by the chart from `mi.sftp.*` values.
 3. Runs `dump.sh` in the chart's `mi-export-scripts` ConfigMap, accumulating per-table CSVs (or a single `pg_dump -Fc` file) under `/tmp` (a 20 GiB `emptyDir` scratch volume).
 4. Uploads the result over `sftp -b -` to `<SFTP_REMOTE_PATH>/<gemeente>/<YYMMDD>/<component>/<HHMMSS>-<component>.<ext>`. Host-key checking is intentionally **disabled** (`StrictHostKeyChecking=no`, `UserKnownHostsFile=/dev/null`) — see [§ Host-key policy](#host-key-policy).
@@ -79,7 +84,7 @@ Both formats honour `mi.targets[].schemas` (default `["public"]`; `zac` override
 <SFTP_REMOTE_PATH>/<gemeente>/<YYMMDD>/<component>/<HHMMSS>-<component>.<ext>
 ```
 
-A single timestamp is captured at script start, so every file from one CronJob run shares the same `<HHMMSS>` prefix and lands under the same date directory. The dated path is created with `sftp -mkdir` (which tolerates EEXIST), so existing trees are reused. Examples:
+A single timestamp is captured at script start, so every file from one CronJob run shares the same `<HHMMSS>` prefix and lands under the same date directory. The script probes each ancestor directory with a silent `cd` and only `mkdir`s the missing tail, so existing trees are reused without emitting `remote mkdir: Failure` noise (Azure Blob SFTP reports EEXIST as a generic failure). The mkdirs it does emit still tolerate EEXIST, because sibling component jobs on the same schedule share the `<gemeente>/<YYMMDD>` ancestors and may create them concurrently. Examples:
 
 ```
 /uploads/mi-exports/jim00/260507/openzaak/095048-openzaak.tar.gz
@@ -199,6 +204,13 @@ mi:
     - component: opennotificaties
       secretName: notificaties # override when subchart key ≠ resource name
       configMapName: notificaties
+    - component: ita
+      secretName: ita-secrets   # .NET app: creds live in a connection string
+      configMapName: ita-config
+      connectionStringEnv: ConnectionStrings__DefaultConnection
+    - component: kiss
+      secretName: contact       # kiss-frontend fullnameOverride; POSTGRES_* keys
+      configMapName: contact
 ```
 
 ### 4. Validation
@@ -305,9 +317,11 @@ This iteration ships **without** alerting. The CronJob's standard Job/Pod failur
 | `helm template` fails with `mi.sftp.host is required when mi.enabled is true` (or `…user…` / `…remotePath…`) | Required SFTP value not supplied | Set `mi.sftp.{host,user,remotePath}` in the env values. |
 | `helm template` fails with `exactly one of mi.sftp.privateKey or mi.sftp.password is required…` or `…mutually exclusive…` | Neither or both auth credentials set | Set exactly one of `mi.sftp.privateKey` / `mi.sftp.password` (the pipeline substitutes it from Key Vault). |
 | Job pod fails with `SFTP_HOST: must be set` | `Secret/mi-export-sftp` not rendered | Confirm `mi.enabled: true` and the `mi.sftp.*` connection values are set so the chart renders the Secret. |
+| Job logs `skip: component <x> exposes no DB_* credentials …` and exits 0 | The component's Secret/ConfigMap carry credentials in none of the three supported shapes (`DB_*`, `POSTGRES_*`, `connectionStringEnv`) — usually the component isn't deployed in this env | Expected when the component (e.g. kiss frontend) isn't deployed. If the component *should* export, point per-target `secretName`/`configMapName` at the resources that carry its credentials and/or set `connectionStringEnv`. |
+| Job pod fails with `partial DB_* credentials for <x> (missing: …)` | Some but not all `DB_*` envs resolve — typo'd per-target `secretName`/`configMapName`, half-migrated component Secret/ConfigMap, or a connection string missing a field | Fix the target override, the component's Secret/ConfigMap, or the connection string so all four `DB_*` values resolve. |
 | Upload fails with `No such file or directory` on `mkdir`/`put` | The first path segment of `remotePath` isn't a writable container/dir for `SFTP_USER`, **or** the user is chrooted into a home container and `remotePath` double-counts it | Confirm `SFTP_REMOTE_PATH`'s first segment exists and is writable. For Azure Blob SFTP local users whose `homeDirectory` is a container, paths are relative to that container — use `/<subpath>`, not `/<container>/<subpath>`. |
 | Job pod fails with `Permissions 0644 for '…' are too open` | Private key Secret's `defaultMode` not 0400 | The chart sets `defaultMode: 0400` on the `sftp-key` volume; if you see this, something replaced the projected volume or a hostPath override is in play. |
-| Job pod fails with `Couldn't get statSet for "/uploads/…": …: Permission denied` | SFTP user's home or remotePath isn't writable by `SFTP_USER` | Fix the server-side perms on `SFTP_REMOTE_PATH`. The script does `mkdir -p` recursively up from `/`, so any ancestor that the user can't enter blocks the upload. |
+| Job pod fails with `Couldn't get statSet for "/uploads/…": …: Permission denied` | SFTP user's home or remotePath isn't writable by `SFTP_USER` | Fix the server-side perms on `SFTP_REMOTE_PATH`. The script probes and creates ancestor directories from `/` down, so any ancestor that the user can't enter blocks the upload. |
 | Job pod fails with `password authentication failed for user "<component>"` | The component's K8s Secret has a stale DB password (env was rebuilt but Secret wasn't refreshed) | Re-run the deploy pipeline's "Create PostgreSQL Databases and Users" step; or `kubectl delete secret/<component> -n podiumd` and let the chart recreate it. |
 | `csv` run logs `no tables found in schemas (...)` then exits 1 | Component's DB exists but has no tables (chart was deployed but the component's migration never ran) | Investigate the component's startup; the export script intentionally fails rather than upload an empty tarball. |
 | Pod evicted with `Pod ephemeral local storage usage exceeds the total limit of containers 20Gi` | Component's tarball exceeded 20 GiB scratch budget | Increase `mi.resources.{requests,limits}.ephemeral-storage` and the matching `tmp` `emptyDir.sizeLimit` in `templates/mi-export-cronjobs.yaml`. |
