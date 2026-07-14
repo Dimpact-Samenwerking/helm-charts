@@ -16,3 +16,4 @@
 docs/
 # CI-only lint values
 ci/
+scripts/
