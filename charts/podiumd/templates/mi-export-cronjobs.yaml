@@ -92,6 +92,13 @@ spec:
                   value: {{ default (list "public") $t.schemas | join " " | quote }}
                 - name: MI_FORMAT
                   value: {{ $format | quote }}
+                {{- with $t.connectionStringEnv }}
+                # Name of an env var (from the component Secret/ConfigMap below)
+                # holding a .NET/Npgsql connection string. dump.sh parses it
+                # into DB_* when the component doesn't expose them directly.
+                - name: MI_CONNSTRING_VAR
+                  value: {{ . | quote }}
+                {{- end }}
                 {{- if $mi.sftp.privateKey }}
                 # Keypair mode: the SSH private key is mounted at /etc/sftp/id
                 # via the `sftp-key` volume below. The script reads this env
@@ -114,10 +121,16 @@ spec:
                 # DB_USER, DB_PORT. Both default to the target's component name; override
                 # secretName/configMapName per-target only when the chart subchart key
                 # differs from the K8s resource name (e.g. opennotificaties → notificaties).
+                # Both are optional: a component that exposes no DB_* credentials this
+                # way is treated as not using PostgreSQL — the pod still starts and
+                # dump.sh exits 0 with a "skipping" log line (see mi-export-scripts.yaml)
+                # instead of the pod hanging in CreateContainerConfigError forever.
                 - secretRef:
                     name: {{ default $t.component $t.secretName | quote }}
+                    optional: true
                 - configMapRef:
                     name: {{ default $t.component $t.configMapName | quote }}
+                    optional: true
               command: ["/bin/sh", "-c"]
               args:
                 - exec /bin/bash /scripts/dump.sh
