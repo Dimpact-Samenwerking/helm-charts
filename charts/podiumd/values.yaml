@@ -3769,5 +3769,17 @@ mi:
     - component: zac
       schemas: ["flowable"]
     - component: ita
+      # .NET app: resources are ita-secrets/ita-config, DB credentials live in
+      # a Npgsql connection string, not DB_* envs.
+      secretName: ita-secrets
+      configMapName: ita-config
+      connectionStringEnv: ConnectionStrings__DefaultConnection
     - component: kiss
+      # kiss-frontend resources use the chart's fullnameOverride ("contact")
+      # and POSTGRES_* env naming (dump.sh maps those to DB_*).
+      secretName: contact
+      configMapName: contact
     - component: pabc
+      # .NET app: Secret/ConfigMap are named pabc, but DB credentials live in
+      # a Npgsql connection string, not DB_* envs.
+      connectionStringEnv: ConnectionStrings__Pabc

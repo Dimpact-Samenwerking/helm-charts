@@ -45,10 +45,43 @@ data:
     fi
     : "${MI_GEMEENTE:?must be set}"
     : "${MI_COMPONENT:?must be set}"
+    # Credential resolution ladder — components expose Postgres credentials
+    # in one of three shapes; normalise everything to DB_*:
+    #   1. DB_HOST/DB_NAME/DB_USER/DB_PASSWORD (+DB_PORT)      — Django apps
+    #   2. POSTGRES_HOST/DB/USER/PASSWORD (+POSTGRES_PORT)     — kiss frontend
+    #   3. an Npgsql connection string (Host=..;Port=..;Database=..;
+    #      Username=..;Password=..) in the env named by MI_CONNSTRING_VAR
+    #      (per-target `connectionStringEnv`)                  — .NET apps (ita, pabc)
+    if [[ -z "${DB_HOST:-}" && -n "${POSTGRES_HOST:-}" ]]; then
+      DB_HOST="${POSTGRES_HOST}"
+      DB_NAME="${POSTGRES_DB:-}"
+      DB_USER="${POSTGRES_USER:-}"
+      DB_PASSWORD="${POSTGRES_PASSWORD:-}"
+      DB_PORT="${DB_PORT:-${POSTGRES_PORT:-}}"
+    fi
+    if [[ -z "${DB_HOST:-}" && -n "${MI_CONNSTRING_VAR:-}" && -n "${!MI_CONNSTRING_VAR:-}" ]]; then
+      # Naive split on ';' then first '=': fine for pipeline-provisioned
+      # credentials (alphanumeric), NOT for values that themselves contain
+      # ';' or Npgsql single-quoting. Keys are case-insensitive per Npgsql.
+      # The connection string is never logged.
+      IFS=';' read -ra cs_parts <<< "${!MI_CONNSTRING_VAR}"
+      for cs_part in "${cs_parts[@]}"; do
+        [[ "${cs_part}" == *=* ]] || continue
+        cs_key="$(printf '%s' "${cs_part%%=*}" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')"
+        cs_val="${cs_part#*=}"
+        case "${cs_key}" in
+          host|server)          DB_HOST="${cs_val}" ;;
+          port)                 DB_PORT="${cs_val}" ;;
+          database)             DB_NAME="${cs_val}" ;;
+          username|userid|user) DB_USER="${cs_val}" ;;
+          password)             DB_PASSWORD="${cs_val}" ;;
+        esac
+      done
+    fi
     # The component Secret/ConfigMap are mounted with `optional: true`, so the
-    # pod starts even when a component exposes no DB_* credentials. All four
-    # DB_* absent → the component does not use PostgreSQL through the chart
-    # convention: nothing to export, exit green. A *partial* set is a real
+    # pod starts even when a component exposes no credentials in any of the
+    # shapes above. All four DB_* still absent → the component does not use
+    # PostgreSQL: nothing to export, exit green. A *partial* set is a real
     # misconfiguration (typo'd secretName, half-migrated values) and still
     # fails the job.
     db_missing=()
