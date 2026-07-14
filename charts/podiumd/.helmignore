@@ -1,0 +1,18 @@
+# Patterns to ignore when building packages.
+# Keep the packaged chart lean: everything in the package is embedded in the
+# helm release Secret, which Kubernetes caps at 1MiB. The docs tree alone
+# (~1.2M) pushed the release over that limit.
+.DS_Store
+.git/
+.gitignore
+.vscode/
+.idea/
+*.swp
+*.bak
+*.tmp
+*.orig
+*~
+# Operator documentation lives in git/GitHub, not in the deployed chart
+docs/
+# CI-only lint values
+ci/
