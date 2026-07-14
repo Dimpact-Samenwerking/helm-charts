@@ -1,0 +1,226 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Platform-Autorisatie-Beheer-Component/PABC-API/refs/tags/v1.1.0/PABC.MigrationService/dataset.schema.json",
+  "applications": [
+    {
+      "id": "adb10d06-0fc6-5020-9fe8-7e008371ec1b",
+      "name": "zaakafhandelcomponent"
+    }
+  ],
+  "applicationRoles": [
+    {
+      "id": "a3d02ea5-8927-51e3-a61b-78b60ac49869",
+      "name": "administrator",
+      "applicationId": "adb10d06-0fc6-5020-9fe8-7e008371ec1b"
+    },
+    {
+      "id": "317a1bc5-c628-5094-81d4-3a626153d73b",
+      "name": "behandelaar",
+      "applicationId": "adb10d06-0fc6-5020-9fe8-7e008371ec1b"
+    },
+    {
+      "id": "aec18c5c-b475-5b4c-bebd-6dd97e763540",
+      "name": "beheerder",
+      "applicationId": "adb10d06-0fc6-5020-9fe8-7e008371ec1b"
+    },
+    {
+      "id": "751ce886-5d2a-50c9-9100-184d756b9e1d",
+      "name": "coordinator",
+      "applicationId": "adb10d06-0fc6-5020-9fe8-7e008371ec1b"
+    },
+    {
+      "id": "9846a820-6bcc-5a08-b061-31fc4456ad17",
+      "name": "raadpleger",
+      "applicationId": "adb10d06-0fc6-5020-9fe8-7e008371ec1b"
+    },
+    {
+      "id": "7812ceb0-90de-54fc-8321-f24057b56e06",
+      "name": "recordmanager",
+      "applicationId": "adb10d06-0fc6-5020-9fe8-7e008371ec1b"
+    }
+  ],
+  "functionalRoles": [
+    {
+      "id": "ee005f5c-dcd9-55de-8d47-a0a02f8f4dd0",
+      "name": "administrators"
+    },
+    {
+      "id": "6678fa35-b94a-54db-ad46-795a5e00a56b",
+      "name": "behandelaars"
+    },
+    {
+      "id": "5accd347-6989-5bc3-a6d3-2b317bded9e8",
+      "name": "beheerders"
+    },
+    {
+      "id": "1a93609a-9cb4-50b1-b208-cef68c957cfe",
+      "name": "coordinators"
+    },
+    {
+      "id": "563171db-6356-55c9-8562-b9fc1e08b09d",
+      "name": "raadplegers"
+    },
+    {
+      "id": "4eb4eb89-0d50-5a72-9191-d82c0f9b1151",
+      "name": "recordmanagers"
+    }
+  ],
+  "entityTypes": [
+    {
+      "id": "b5db51a6-9a4e-5b7b-acc8-2aa224eb4d71",
+      "entityTypeId": "zaaktype-voor-e2e-testen",
+      "type": "ZAAKTYPE",
+      "name": "zaaktype-voor-e2e-testen",
+      "uri": null
+    }
+  ],
+  "domains": [
+    {
+      "id": "bb4a5500-6555-5043-9e7e-33822ec62bc7",
+      "name": "e2e-test",
+      "description": "E2E-testdomein: alleen zaaktype-voor-e2e-testen",
+      "entityTypeIds": ["b5db51a6-9a4e-5b7b-acc8-2aa224eb4d71"]
+    }
+  ],
+  "mappings": [
+    {
+      "id": "ee6a6f1a-5922-52f6-8f81-a2522998439f",
+      "functionalRoleId": "ee005f5c-dcd9-55de-8d47-a0a02f8f4dd0",
+      "domainId": "bb4a5500-6555-5043-9e7e-33822ec62bc7",
+      "applicationRoleId": "a3d02ea5-8927-51e3-a61b-78b60ac49869",
+      "isAllEntityTypes": false
+    },
+    {
+      "id": "38bb6c6d-1cd6-5bd1-bdc7-b1624eb7f347",
+      "functionalRoleId": "ee005f5c-dcd9-55de-8d47-a0a02f8f4dd0",
+      "domainId": "bb4a5500-6555-5043-9e7e-33822ec62bc7",
+      "applicationRoleId": "aec18c5c-b475-5b4c-bebd-6dd97e763540",
+      "isAllEntityTypes": false
+    },
+    {
+      "id": "02a9ea98-c634-5709-b2fc-84ef13e833a4",
+      "functionalRoleId": "ee005f5c-dcd9-55de-8d47-a0a02f8f4dd0",
+      "domainId": "bb4a5500-6555-5043-9e7e-33822ec62bc7",
+      "applicationRoleId": "751ce886-5d2a-50c9-9100-184d756b9e1d",
+      "isAllEntityTypes": false
+    },
+    {
+      "id": "7499b77f-0be2-5924-89e6-0e1cb69e4a02",
+      "functionalRoleId": "ee005f5c-dcd9-55de-8d47-a0a02f8f4dd0",
+      "domainId": "bb4a5500-6555-5043-9e7e-33822ec62bc7",
+      "applicationRoleId": "317a1bc5-c628-5094-81d4-3a626153d73b",
+      "isAllEntityTypes": false
+    },
+    {
+      "id": "9ad536ab-9f7e-5870-a8bf-97e9088b22b8",
+      "functionalRoleId": "ee005f5c-dcd9-55de-8d47-a0a02f8f4dd0",
+      "domainId": "bb4a5500-6555-5043-9e7e-33822ec62bc7",
+      "applicationRoleId": "9846a820-6bcc-5a08-b061-31fc4456ad17",
+      "isAllEntityTypes": false
+    },
+    {
+      "id": "dc2998b6-c3a4-58f0-ad7d-7b418e649630",
+      "functionalRoleId": "ee005f5c-dcd9-55de-8d47-a0a02f8f4dd0",
+      "domainId": "bb4a5500-6555-5043-9e7e-33822ec62bc7",
+      "applicationRoleId": "7812ceb0-90de-54fc-8321-f24057b56e06",
+      "isAllEntityTypes": false
+    },
+    {
+      "id": "419b562e-ba18-5ee0-850b-563c4921615c",
+      "functionalRoleId": "6678fa35-b94a-54db-ad46-795a5e00a56b",
+      "domainId": "bb4a5500-6555-5043-9e7e-33822ec62bc7",
+      "applicationRoleId": "317a1bc5-c628-5094-81d4-3a626153d73b",
+      "isAllEntityTypes": false
+    },
+    {
+      "id": "3b4b0849-8858-5682-9b04-d309b8e7bec3",
+      "functionalRoleId": "6678fa35-b94a-54db-ad46-795a5e00a56b",
+      "domainId": "bb4a5500-6555-5043-9e7e-33822ec62bc7",
+      "applicationRoleId": "9846a820-6bcc-5a08-b061-31fc4456ad17",
+      "isAllEntityTypes": false
+    },
+    {
+      "id": "17e94ec5-df06-56c6-9c7c-2cde555c82ce",
+      "functionalRoleId": "1a93609a-9cb4-50b1-b208-cef68c957cfe",
+      "domainId": "bb4a5500-6555-5043-9e7e-33822ec62bc7",
+      "applicationRoleId": "751ce886-5d2a-50c9-9100-184d756b9e1d",
+      "isAllEntityTypes": false
+    },
+    {
+      "id": "d03c83cd-b22b-560c-b2cb-837774ab138f",
+      "functionalRoleId": "1a93609a-9cb4-50b1-b208-cef68c957cfe",
+      "domainId": "bb4a5500-6555-5043-9e7e-33822ec62bc7",
+      "applicationRoleId": "317a1bc5-c628-5094-81d4-3a626153d73b",
+      "isAllEntityTypes": false
+    },
+    {
+      "id": "3e830a89-f3f1-598a-9e3b-31a9ff193803",
+      "functionalRoleId": "1a93609a-9cb4-50b1-b208-cef68c957cfe",
+      "domainId": "bb4a5500-6555-5043-9e7e-33822ec62bc7",
+      "applicationRoleId": "9846a820-6bcc-5a08-b061-31fc4456ad17",
+      "isAllEntityTypes": false
+    },
+    {
+      "id": "fff1cefc-16dd-507d-8f62-326d914b39e9",
+      "functionalRoleId": "4eb4eb89-0d50-5a72-9191-d82c0f9b1151",
+      "domainId": "bb4a5500-6555-5043-9e7e-33822ec62bc7",
+      "applicationRoleId": "7812ceb0-90de-54fc-8321-f24057b56e06",
+      "isAllEntityTypes": false
+    },
+    {
+      "id": "fd462c17-64b5-5726-88f5-bca274e77802",
+      "functionalRoleId": "4eb4eb89-0d50-5a72-9191-d82c0f9b1151",
+      "domainId": "bb4a5500-6555-5043-9e7e-33822ec62bc7",
+      "applicationRoleId": "751ce886-5d2a-50c9-9100-184d756b9e1d",
+      "isAllEntityTypes": false
+    },
+    {
+      "id": "ad744b70-685e-5f96-8fca-e60685a14cfc",
+      "functionalRoleId": "4eb4eb89-0d50-5a72-9191-d82c0f9b1151",
+      "domainId": "bb4a5500-6555-5043-9e7e-33822ec62bc7",
+      "applicationRoleId": "317a1bc5-c628-5094-81d4-3a626153d73b",
+      "isAllEntityTypes": false
+    },
+    {
+      "id": "b8604237-b03a-5ce7-af36-dcdbf495bcc0",
+      "functionalRoleId": "4eb4eb89-0d50-5a72-9191-d82c0f9b1151",
+      "domainId": "bb4a5500-6555-5043-9e7e-33822ec62bc7",
+      "applicationRoleId": "9846a820-6bcc-5a08-b061-31fc4456ad17",
+      "isAllEntityTypes": false
+    },
+    {
+      "id": "f71238b3-4e0f-5c26-aa28-a24e0b9ed6de",
+      "functionalRoleId": "5accd347-6989-5bc3-a6d3-2b317bded9e8",
+      "domainId": "bb4a5500-6555-5043-9e7e-33822ec62bc7",
+      "applicationRoleId": "aec18c5c-b475-5b4c-bebd-6dd97e763540",
+      "isAllEntityTypes": false
+    },
+    {
+      "id": "cb630435-771b-574c-b23f-a9b3488d83ba",
+      "functionalRoleId": "5accd347-6989-5bc3-a6d3-2b317bded9e8",
+      "domainId": "bb4a5500-6555-5043-9e7e-33822ec62bc7",
+      "applicationRoleId": "751ce886-5d2a-50c9-9100-184d756b9e1d",
+      "isAllEntityTypes": false
+    },
+    {
+      "id": "e11e3e8a-3fec-5b9a-af54-effc6159ad21",
+      "functionalRoleId": "5accd347-6989-5bc3-a6d3-2b317bded9e8",
+      "domainId": "bb4a5500-6555-5043-9e7e-33822ec62bc7",
+      "applicationRoleId": "317a1bc5-c628-5094-81d4-3a626153d73b",
+      "isAllEntityTypes": false
+    },
+    {
+      "id": "ecb26475-29e7-504e-ab01-026474fed533",
+      "functionalRoleId": "5accd347-6989-5bc3-a6d3-2b317bded9e8",
+      "domainId": "bb4a5500-6555-5043-9e7e-33822ec62bc7",
+      "applicationRoleId": "9846a820-6bcc-5a08-b061-31fc4456ad17",
+      "isAllEntityTypes": false
+    },
+    {
+      "id": "2afde5c1-7815-5bcc-b703-ed375b938d8e",
+      "functionalRoleId": "563171db-6356-55c9-8562-b9fc1e08b09d",
+      "domainId": "bb4a5500-6555-5043-9e7e-33822ec62bc7",
+      "applicationRoleId": "9846a820-6bcc-5a08-b061-31fc4456ad17",
+      "isAllEntityTypes": false
+    }
+  ]
+}
