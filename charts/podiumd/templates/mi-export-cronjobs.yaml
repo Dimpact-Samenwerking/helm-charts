@@ -114,10 +114,16 @@ spec:
                 # DB_USER, DB_PORT. Both default to the target's component name; override
                 # secretName/configMapName per-target only when the chart subchart key
                 # differs from the K8s resource name (e.g. opennotificaties → notificaties).
+                # Both are optional: a component that exposes no DB_* credentials this
+                # way is treated as not using PostgreSQL — the pod still starts and
+                # dump.sh exits 0 with a "skipping" log line (see mi-export-scripts.yaml)
+                # instead of the pod hanging in CreateContainerConfigError forever.
                 - secretRef:
                     name: {{ default $t.component $t.secretName | quote }}
+                    optional: true
                 - configMapRef:
                     name: {{ default $t.component $t.configMapName | quote }}
+                    optional: true
               command: ["/bin/sh", "-c"]
               args:
                 - exec /bin/bash /scripts/dump.sh

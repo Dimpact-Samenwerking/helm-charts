@@ -45,10 +45,25 @@ data:
     fi
     : "${MI_GEMEENTE:?must be set}"
     : "${MI_COMPONENT:?must be set}"
-    : "${DB_HOST:?must be set}"
-    : "${DB_NAME:?must be set}"
-    : "${DB_USER:?must be set}"
-    : "${DB_PASSWORD:?must be set}"
+    # The component Secret/ConfigMap are mounted with `optional: true`, so the
+    # pod starts even when a component exposes no DB_* credentials. All four
+    # DB_* absent → the component does not use PostgreSQL through the chart
+    # convention: nothing to export, exit green. A *partial* set is a real
+    # misconfiguration (typo'd secretName, half-migrated values) and still
+    # fails the job.
+    db_missing=()
+    for v in DB_HOST DB_NAME DB_USER DB_PASSWORD; do
+      if [[ -z "${!v:-}" ]]; then
+        db_missing+=("${v}")
+      fi
+    done
+    if [[ "${#db_missing[@]}" -eq 4 ]]; then
+      echo "skip: component ${MI_COMPONENT} exposes no DB_* credentials — assuming it does not use PostgreSQL, nothing to export"
+      exit 0
+    elif [[ "${#db_missing[@]}" -gt 0 ]]; then
+      echo "partial DB_* credentials for ${MI_COMPONENT} (missing: ${db_missing[*]}) — misconfiguration" >&2
+      exit 1
+    fi
     SFTP_PORT="${SFTP_PORT:-22}"
     DB_PORT="${DB_PORT:-5432}"
     # Whitespace-separated list, e.g. "public" or "public flowable". Default: public.
