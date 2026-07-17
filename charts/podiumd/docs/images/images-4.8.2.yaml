@@ -18,3 +18,9 @@
   url: docker.io/openformulieren/open-forms
   version: "3.4.10"
   digest: "sha256:45755696db647b0c9fecc5d2c78403dbbac0f3c962292e89dee34b405abd1d7c"
+
+# Objecten API
+- name: maykinmedia/objects-api
+  url: docker.io/maykinmedia/objects-api
+  version: "3.6.2"
+  digest: "sha256:6a3a40081016e5072c5355622c0ca3e1ded89228edce7336fc4d8600217344f8"

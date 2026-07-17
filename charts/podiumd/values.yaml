@@ -1076,7 +1076,7 @@ objecten:
       oidc: redis-ha-master.podiumd.svc.cluster.local:6379/1
     celery:
       brokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/2
-      resultBackendl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/2
+      resultBackend: redis://redis-ha-master.podiumd.svc.cluster.local:6379/2
       # -- Set to debug for test/acceptance environments
       logLevel: warning
   persistence:
@@ -1087,7 +1087,7 @@ objecten:
     volumeAttributeShareName: objecten
     storageClassName: podiumd-standard
   image:
-    tag: "3.6.0"
+    tag: "3.6.2"
   resources:
     requests:
       cpu: 100m
