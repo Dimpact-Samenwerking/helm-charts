@@ -1,7 +1,11 @@
 # Images new or changed in podiumd 4.8.2 vs 4.8.1.
 #
 # Changes in this release:
-#   0. Gotenberg -> 8.34.0 
+#   0. Gotenberg -> 8.34.0
+#   1. Open Formulieren -> 3.4.10
+#   2. Objecten API -> 3.6.2
+#   3. Open Notificaties -> 1.16.1
+#   4. Zaakbrug -> 1.26.15
 #
 # See docs/_UPGRADE_PATHS/4.7.8-to-4.8.0-upgrade.md for the operator upgrade notes.
 #
