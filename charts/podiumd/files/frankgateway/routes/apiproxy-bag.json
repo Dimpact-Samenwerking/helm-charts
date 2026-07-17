@@ -1,0 +1,12 @@
+{
+  "uri": "/lvbag/individuelebevragingen/v2/*",
+  "name": "apiproxy-bag",
+  "labels": { "managed-by": "iac" },
+  "plugins": {
+    "serverless-pre-function": {
+      "phase": "rewrite",
+      "functions": ["return function(_, ctx) require(\"apisix.core\").request.set_header(ctx, \"X-Api-Key\", os.getenv(\"BAG_API_KEY\")) end"]
+    }
+  },
+  "upstream": { "scheme": "https", "pass_host": "rewrite", "upstream_host": "api.bag.kadaster.nl", "nodes": { "api.bag.kadaster.nl:443": 1 }, "type": "roundrobin" }
+}

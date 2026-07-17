@@ -3467,132 +3467,152 @@ omc:
           ktoObjectType:
             uuid: 00000000-0000-1000-b000-000000000000
 
-# APISIX in PodiumD: PoC mode — admin UI driven, etcd-backed, configuration
-# done entirely via the embedded dashboard at :9180/ui/. Public access is
-# gated by Keycloak SSO via an oauth2-proxy in front of the admin Service.
+# Frank!Gateway — WeAreFrank's hardened distribution of Apache APISIX 3.16
+# ("APISIX + WeAreFrank patches"), replacing the previous upstream `apisix`
+# subchart (Apache chart 2.14.0) AND the legacy `apiproxy` nginx for outbound
+# calls to national registries (BAG/Kadaster, KVK, BRP/Haal Centraal).
 #
-# PoC scope (acknowledged trade-offs):
-#   * etcd persistence is OFF (single replica, ephemeral) — restart loses
-#     all gateway config. Acceptable while we iterate; revisit before any
-#     non-PoC use.
-#   * No GitOps source-of-truth for routes/upstreams — all changes are
-#     applied through the UI.
-#   * Data plane (gateway) remains ClusterIP-only; only the admin UI is
-#     exposed externally (and only via SSO).
+# Deployed identically to the proven jim00 stack: etcd-backed (traditional
+# mode), Admin API + apisix-dashboard, dashboard fronted by oauth2-proxy
+# (Keycloak SSO) + an nginx shim that auto-logs into the dashboard server-side
+# so its built-in login never surfaces. apiproxy-replacement routes are seeded
+# declaratively from files/frankgateway/routes/*.json by a hook Job; external
+# API keys are injected at request time from env vars (fed by a Secret) via a
+# serverless function — key VALUES never land in etcd or git.
 #
-# Upstream chart: https://github.com/apache/apisix-helm-chart
-# Full values reference: `helm show values apisix/apisix --version 2.14.0`
-# See also: charts/podiumd/docs/apps/apisix/apisix-egress-gateway.md
-#
-# Any field not set below falls back to the upstream chart defaults.
-apisix:
+# See charts/podiumd/docs/apps/frankgateway/frankgateway-BASICS.md.
+frankgateway:
   enabled: false
-  fullnameOverride: "apisix"
 
-  # Disable the bundled ingress controller — APISIX is egress-only here.
-  ingress-controller:
-    enabled: false
+  # Gateway (data plane + Admin API) — ghcr.io/wearefrank/frank-gateway.
+  # Digest-pinned; matches docs/images/images-baseline.yaml.
+  image:
+    repository: ghcr.io/wearefrank/frank-gateway
+    tag: "104@sha256:a830b90f8820f5cdb0c382ecef02a302c50d129edc9de81d7daa7af1cf267d98"
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
 
-  # The apisix subchart bundles bitnami/etcd — disallowed in this project
-  # (no Bitnami images / charts). Disable it and point the subchart at the
-  # in-chart hand-rolled etcd Service rendered by templates/apisix-etcd.yaml.
+  # Admin API keys (X-API-KEY). Empty => random 32-char values auto-generated
+  # on first install and kept stable across upgrades via lookup (Secret
+  # frankgateway-admin-credentials) — the upstream public default keys are
+  # never used. Override to fixed values (e.g. from Azure Key Vault) if the
+  # deploy pipeline needs to know them out-of-band.
+  admin:
+    adminKey: ""
+    viewerKey: ""
+
+  # Secret with external-API key env vars (e.g. BAG_API_KEY, KVK_API_KEY),
+  # created out-of-band (Key Vault-fed, never by this chart). envFrom'd into
+  # the gateway (optional: absent Secret does not block startup). envNames
+  # lists the var NAMES exposed to nginx workers so routes can read them via
+  # os.getenv in a serverless function.
+  apiKeys:
+    existingSecret: frankgateway-api-keys
+    envNames:
+      - BAG_API_KEY
+      - KVK_API_KEY
+
+  # Single-node etcd backing store (quay.io/coreos upstream build — no
+  # Bitnami). PVC-backed so gateway config survives pod restarts.
   etcd:
-    enabled: false
-
-  # External etcd consumed by the apisix subchart when etcd.enabled=false.
-  # Same-namespace Service short name resolves via Kubernetes DNS (apisix and
-  # apisix-etcd are co-deployed by this umbrella chart). The hostname matches
-  # the Service emitted by templates/apisix-etcd.yaml.
-  externalEtcd:
-    host:
-      - "http://apisix-etcd:2379"
-    user: ""
-    password: ""
-
-  # Image + resources for the in-chart etcd StatefulSet (apisix-etcd.yaml).
-  # Upstream etcd-io build, not a Bitnami repack. Single-replica, ephemeral.
-  etcdServer:
     image:
-      repository: gcr.io/etcd-development/etcd
-      tag: "v3.5.18"
+      repository: quay.io/coreos/etcd
+      tag: "v3.5.16"
+    storage: 2Gi
+    # Empty => cluster default StorageClass. jim00 uses managed-csi.
+    storageClassName: ""
     resources:
       requests:
-        cpu: 100m
+        cpu: 50m
         memory: 128Mi
       limits:
         cpu: 500m
         memory: 512Mi
 
-  # Gateway (data plane) service. ClusterIP only — APISIX is consumed
-  # by PodiumD pods for outbound API calls, not exposed outside.
-  # externalTrafficPolicy is invalid on non-LoadBalancer/NodePort services;
-  # the upstream chart defaults it to "Cluster" so we must blank it out.
-  service:
-    type: ClusterIP
-    externalTrafficPolicy: ""
-
-  # Public hostname for the embedded admin UI / Admin API, served via
-  # oauth2-proxy + Keycloak SSO. Required when apisix.enabled=true. The
-  # umbrella chart renders the oauth2-proxy Deployment + Secret + Ingress
-  # using these values.
-  adminUi:
-    # FQDN where the admin UI is reachable from the internet (e.g.
-    # apisix-admin.${envName}.pd.test-rig.nl).
-    hostname: ""
-    # cert-manager ClusterIssuer used to issue the TLS cert. Match whatever
-    # name the env's cert-manager bootstrap uses; podiumd-infra creates
-    # `letsencrypt-prod` and `letsencrypt-staging` (no `-production` suffix).
-    clusterIssuer: "letsencrypt-prod"
-    # Image for the oauth2-proxy sidecar.
-    oauth2Proxy:
+  # Seed the apiproxy-replacement routes (files/frankgateway/routes/*.json)
+  # into the Admin API via a post-install/post-upgrade hook Job. Idempotent:
+  # route id = file name, PUTs overwrite.
+  routes:
+    seed: true
+    job:
       image:
-        repository: quay.io/oauth2-proxy/oauth2-proxy
-        tag: "v7.7.1"
-      resources:
-        requests:
-          cpu: 50m
-          memory: 64Mi
-        limits:
-          cpu: 200m
-          memory: 256Mi
+        repository: curlimages/curl
+        tag: "8.20.0"
+      backoffLimit: 3
+      ttlSecondsAfterFinished: 600
 
-  # ---------------------------------------------------------------------------
-  # IMPORTANT: in the upstream apisix chart 2.14.0, settings under `admin:`,
-  # `deployment:`, `router:`, etc. live under a NESTED `apisix:` key — the
-  # subchart's own self-namespace. The umbrella path is therefore
-  # `apisix.apisix.admin.*` (not `apisix.admin.*`).
-  # ---------------------------------------------------------------------------
-  apisix:
-    # etcd-backed traditional mode (chart default). Routes/upstreams are
-    # written to the bundled etcd via the Admin API / embedded UI — no
-    # ConfigMap-based standalone-yaml here.
-    deployment:
-      mode: traditional
-      role: traditional
+  # apisix-dashboard GUI + its Keycloak SSO front door.
+  dashboard:
+    enabled: true
+    image:
+      repository: apache/apisix-dashboard
+      tag: "3.0.1-alpine"
+    # Dashboard-internal admin password, used ONLY by the shim's server-side
+    # auto-login (the dashboard is never exposed directly). Empty => random,
+    # stable across upgrades via lookup (Secret frankgateway-dashboard-conf).
+    adminPassword: ""
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
 
-    # Admin API + embedded Dashboard UI (served at :9180/ui/). The bundled
-    # admin Service (apisix-admin:9180) is reached by the oauth2-proxy
-    # Deployment in this chart, which fronts it with Keycloak SSO and the
-    # public Ingress. Direct :9180/ui/ access from pods other than the
-    # oauth2-proxy is allowed via the cluster Pod CIDR.
-    admin:
-      enable_admin_ui: true
-      type: ClusterIP
-      # Pod CIDR — wide enough to admit the oauth2-proxy pod regardless of
-      # the AKS overlay/azure-cni mode in use. The admin API itself remains
-      # protected by the random API keys (apisix-admin-credentials) and by
-      # the public oauth2-proxy doing Keycloak SSO.
-      allow:
-        ipList:
-          - 127.0.0.1/24
-          - 10.0.0.0/8
-      # Random 32-char admin/viewer keys are auto-generated by the umbrella
-      # chart via templates/apisix-admin-credentials.yaml — replacing the
-      # upstream public default keys (`edd1c9f0…` / `4054f7cf…`). Stable across
-      # upgrades via lookup. To use Azure Key Vault via CSI driver, override
-      # `secretName` to point at your own Secret containing `admin` + `viewer`.
-      credentials:
-        secretName: apisix-admin-credentials
+    # Keycloak SSO chain in front of the dashboard:
+    #   <hostname> -> oauth2-proxy (Keycloak OIDC) -> shim (nginx auto-login)
+    #     -> dashboard
+    auth:
+      enabled: true
+      # Public FQDN of the dashboard (e.g. frankgateway-admin.<env>.<domain>).
+      # Required when frankgateway.enabled + dashboard.auth.enabled. Route it
+      # to Service frankgateway-oauth2-proxy:4180 (HTTPRoute/Ingress —
+      # `ingress.enabled` below renders an optional in-chart Ingress).
+      hostname: ""
+      # Server-side redis session store — Keycloak id+refresh tokens overflow
+      # cookie storage (chunked cookies drop behind NGF -> login loops).
+      # Empty => redis://redis-ha-master.<namespace>.svc.cluster.local:6379/3
+      # (the chart's own redis, DB 3).
+      sessionRedisUrl: ""
+      # nginx `resolver` IP for the shim: kube-dns/CoreDNS ClusterIP, so the
+      # dashboard Service is re-resolved at request time (avoids stale-IP 502s
+      # after dashboard pod restarts). AKS default 10.0.0.10; jim00 overrides
+      # to 172.16.0.10.
+      dnsResolver: "10.0.0.10"
+      oauth2Proxy:
+        image:
+          repository: quay.io/oauth2-proxy/oauth2-proxy
+          tag: "v7.7.1"
+        resources:
+          requests:
+            cpu: 25m
+            memory: 64Mi
+          limits:
+            cpu: 250m
+            memory: 256Mi
+      shim:
+        image:
+          repository: nginxinc/nginx-unprivileged
+          tag: "1.27-alpine"
+        resources:
+          requests:
+            cpu: 25m
+            memory: 32Mi
+          limits:
+            cpu: 250m
+            memory: 128Mi
+
+    # Optional in-chart Ingress for envs still on ingress-nginx/Traefik.
+    # Gateway API envs (jim00) leave this off and route deploy-side.
+    ingress:
+      enabled: false
+      clusterIssuer: "letsencrypt-prod"
 
 # -----------------------------------------------------------------------------
 # zaakbrug — Frank!Framework adapter exposing Zaakgericht-Werken API for legacy

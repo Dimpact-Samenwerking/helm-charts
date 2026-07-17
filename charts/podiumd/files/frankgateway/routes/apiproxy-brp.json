@@ -1,0 +1,6 @@
+{
+  "uri": "/haalcentraal/api/brp/*",
+  "name": "apiproxy-brp",
+  "labels": { "managed-by": "iac" },
+  "upstream": { "scheme": "http", "pass_host": "rewrite", "upstream_host": "brp-personen-mock", "nodes": { "brp-personen-mock:5010": 1 }, "type": "roundrobin" }
+}

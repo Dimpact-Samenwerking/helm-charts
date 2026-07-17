@@ -179,3 +179,11 @@ kiss:
         baseUrl: "http://placeholder"
         objectTypeUrl: "http://placeholder"
         token: "placeholder"
+
+# Frank!Gateway enabled with a dummy hostname so lint/CI render covers the
+# full stack (gateway + etcd + dashboard + SSO chain + routes hook Job).
+frankgateway:
+  enabled: true
+  dashboard:
+    auth:
+      hostname: "frankgateway-admin.example.nl"

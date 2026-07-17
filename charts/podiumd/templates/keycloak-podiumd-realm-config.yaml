@@ -775,24 +775,24 @@ data:
         clientAuthenticatorType: client-secret
         secret: $(KC_SECRET_PABC_ADMIN)
         serviceAccountsEnabled: true
-{{- if .Values.apisix.enabled }}
-      - clientId: apisix-dashboard
-        name: APISIX Dashboard
-        description: OIDC client used by oauth2-proxy in front of the APISIX embedded Admin UI to authenticate operator browser sessions.
+{{- if and .Values.frankgateway.enabled .Values.frankgateway.dashboard.enabled .Values.frankgateway.dashboard.auth.enabled }}
+      - clientId: frankgateway-dashboard
+        name: Frank!Gateway Dashboard
+        description: OIDC client used by oauth2-proxy in front of the Frank!Gateway (APISIX) dashboard to authenticate operator browser sessions.
         enabled: true
         clientAuthenticatorType: client-secret
-        secret: $(KC_SECRET_APISIX_DASHBOARD)
+        secret: $(KC_SECRET_FRANKGATEWAY_DASHBOARD)
         # Standard authorization-code flow for the dashboard browser session.
         standardFlowEnabled: true
         directAccessGrantsEnabled: false
         serviceAccountsEnabled: false
         publicClient: false
         # Redirects come back to the public oauth2-proxy callback path. The proxy
-        # then validates the session and forwards to apisix-admin:9180 in-cluster.
-        # apisix.adminUi.hostname is required when apisix.enabled=true, so this
-        # is non-empty whenever this client block is rendered.
+        # then validates the session and forwards to the frankgateway-shim ->
+        # dashboard in-cluster. dashboard.auth.hostname is required when the SSO
+        # chain is enabled, so this is non-empty whenever this block is rendered.
         redirectUris:
-          - "https://{{ .Values.apisix.adminUi.hostname }}/oauth2/callback"
+          - "https://{{ .Values.frankgateway.dashboard.auth.hostname }}/oauth2/callback"
           - "http://localhost:8080/oauth2/callback"
         webOrigins:
           - "+"

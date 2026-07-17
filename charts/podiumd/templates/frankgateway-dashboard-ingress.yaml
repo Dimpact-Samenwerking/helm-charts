@@ -1,0 +1,42 @@
+{{- if and .Values.frankgateway.enabled .Values.frankgateway.dashboard.enabled .Values.frankgateway.dashboard.auth.enabled .Values.frankgateway.dashboard.ingress.enabled }}
+{{- /*
+  Optional public Ingress for the Frank!Gateway dashboard, fronted by
+  oauth2-proxy (Keycloak SSO). For envs still on Traefik/ingress-nginx;
+  Gateway API envs (jim00) leave this off and route deploy-side via HTTPRoute
+  to Service frankgateway-oauth2-proxy:4180.
+
+  https://<dashboard.auth.hostname>/ -> frankgateway-oauth2-proxy:4180
+    -> frankgateway-shim:8080 -> frankgateway-dashboard:9000
+*/ -}}
+{{- $hostname := .Values.frankgateway.dashboard.auth.hostname }}
+{{- $issuer := .Values.frankgateway.dashboard.ingress.clusterIssuer | default "letsencrypt-prod" }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: frankgateway-dashboard-ingress
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frankgateway-oauth2-proxy
+  annotations:
+    cert-manager.io/cluster-issuer: {{ $issuer | quote }}
+    cert-manager.io/renew-before: "1080h"
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - {{ $hostname | quote }}
+      secretName: frankgateway-dashboard-tls
+  rules:
+    - host: {{ $hostname | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frankgateway-oauth2-proxy
+                port:
+                  number: 4180
+{{- end }}

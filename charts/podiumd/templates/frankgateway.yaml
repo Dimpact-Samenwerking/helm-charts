@@ -1,0 +1,91 @@
+{{- if .Values.frankgateway.enabled }}
+{{- /*
+  Frank!Gateway (Apache APISIX 3.16 + WeAreFrank patches) — gateway Deployment
+  + Service. etcd-backed traditional mode so the Admin API + dashboard work.
+  Data plane on 9080, Admin API on 9180, both ClusterIP-only; external exposure
+  (HTTPRoute/Ingress + cert SANs) is deploy-side.
+
+  External-API keys (BAG/KVK) come from the out-of-band Secret named by
+  frankgateway.apiKeys.existingSecret (optional — absent Secret does not block
+  startup); the config Secret's main_configuration_snippet exposes the var
+  NAMES to nginx workers so routes read them via os.getenv at request time.
+*/ -}}
+{{- $fg := .Values.frankgateway }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: frankgateway
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frankgateway
+    app.kubernetes.io/name: frankgateway
+spec:
+  selector:
+    app.kubernetes.io/name: frankgateway
+  ports:
+    - name: gateway
+      port: 9080
+      targetPort: 9080
+    - name: admin
+      port: 9180
+      targetPort: 9180
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frankgateway
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frankgateway
+    app.kubernetes.io/name: frankgateway
+spec:
+  replicas: {{ $fg.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: frankgateway
+  template:
+    metadata:
+      labels:
+        {{- include "podiumd.labels" . | nindent 8 }}
+        app.kubernetes.io/component: frankgateway
+        app.kubernetes.io/name: frankgateway
+      annotations:
+        # Roll the pod when the rendered APISIX config changes.
+        checksum/config: {{ include (print $.Template.BasePath "/frankgateway-config.yaml") . | sha256sum }}
+    spec:
+      containers:
+        - name: apisix
+          image: "{{ $fg.image.repository }}:{{ $fg.image.tag }}"
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - secretRef:
+                name: {{ $fg.apiKeys.existingSecret }}
+                optional: true
+          ports:
+            - name: gateway
+              containerPort: 9080
+            - name: admin
+              containerPort: 9180
+          readinessProbe:
+            tcpSocket:
+              port: 9080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 9080
+            initialDelaySeconds: 20
+            periodSeconds: 15
+          resources:
+            {{- toYaml $fg.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /usr/local/apisix/conf/config.yaml
+              subPath: config.yaml
+      volumes:
+        - name: config
+          secret:
+            secretName: frankgateway-apisix-config
+{{- end }}

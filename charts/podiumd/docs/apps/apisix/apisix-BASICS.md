@@ -1,5 +1,11 @@
 # APISIX — Basics
 
+> **SUPERSEDED (podiumd 4.8.2):** the upstream `apisix` subchart described here
+> was replaced by **Frank!Gateway** (WeAreFrank's hardened APISIX 3.16),
+> deployed by the chart's own `frankgateway-*` templates. See
+> [../frankgateway/frankgateway-BASICS.md](../frankgateway/frankgateway-BASICS.md).
+> This document is kept as historical record.
+
 ## Management summary
 
 APISIX is an API gateway: a traffic hub that PodiumD applications send their
