@@ -79,6 +79,14 @@ data:
         enabled: false
       - clientId: account
         enabled: false
+      # admin-cli is unused in this realm (no bootstrap/ROPC flow relies on it here,
+      # unlike the master realm — see keycloak-master-realm-config.yaml). Disable the
+      # browser-redirect flows for the same reason: close off the unused
+      # authorization-code-interception surface on this public client.
+      - clientId: admin-cli
+        standardFlowEnabled: false
+        implicitFlowEnabled: false
+        directAccessGrantsEnabled: true
       - clientId: openzaak
         name: Open Zaak
         enabled: true
