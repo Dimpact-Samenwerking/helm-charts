@@ -29,9 +29,9 @@
   version: "3.6.2"
   digest: "sha256:6a3a40081016e5072c5355622c0ca3e1ded89228edce7336fc4d8600217344f8"
 
-  # Open Notificaties
-- name: maykinmedia/open-notificaties
-  url: docker.io/maykinmedia/open-notificaties
+# Open Notificaties
+- name: openzaak/open-notificaties
+  url: docker.io/openzaak/open-notificaties
   version: "1.16.1"
   digest: "sha256:ee940d036bb2f8325f9a5153316f657fceeb24db59a23c5109d6e659daae7ac3"
 
