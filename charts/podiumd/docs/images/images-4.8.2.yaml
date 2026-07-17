@@ -30,3 +30,9 @@
   url: docker.io/maykinmedia/open-notificaties
   version: "1.16.1"
   digest: "sha256:ee940d036bb2f8325f9a5153316f657fceeb24db59a23c5109d6e659daae7ac3"
+
+# Zaakbrug   
+- name: wearefrank/zaakbrug
+  url: docker.io/wearefrank/zaakbrug
+  version: "1.26.15"
+  digest: "sha256:101d1319ea5706289ce8f22c7f012a12b8378770bb2a5ebf761d72fa46c5ca97"
