@@ -79,8 +79,8 @@
   digest: "sha256:9079538aa6e9ff9a57b4d737ca1f03f978e7b9e8fe45bb91b19bd933deb98912"
 - name: gotenberg/gotenberg
   url: docker.io/gotenberg/gotenberg
-  version: "8.33.0"
-  digest: "sha256:bddd8ea9d076e2d08b6ddaa6efae6403185202c6dab65a6488ed0a6923d6d8e8"
+  version: "8.34.0"
+  digest: "sha256:67097317623a503ba2a6a7e9ae8db6929a1f7e1bbd88077bacf2d325fbdab923"
 - name: groundnuty/k8s-wait-for
   url: ghcr.io/groundnuty/k8s-wait-for
   version: "v2.0"
@@ -169,8 +169,8 @@
   digest: "sha256:c45d9d93d74d6a5e996120ab7120cdfc531debbc59bd3d6a6736fe240cee9be0"
 - name: maykinmedia/objects-api
   url: docker.io/maykinmedia/objects-api
-  version: "3.6.0"
-  digest: "sha256:8b4ac4dd97c32b1bc250faf88ebae6229eccad6787dc9bd2932edbc0336265e2"
+  version: "3.6.2"
+  digest: "sha256:6a3a40081016e5072c5355622c0ca3e1ded89228edce7336fc4d8600217344f8"
 - name: maykinmedia/objecttypes-api
   url: docker.io/maykinmedia/objecttypes-api
   version: "3.4.2"
@@ -209,16 +209,16 @@
   digest: "sha256:f6a4aa83a27e316114bf79664302b1ffb2cc8ce697fb479273af4feb3fb16fe3"
 - name: openformulieren/open-forms
   url: docker.io/openformulieren/open-forms
-  version: "3.4.9"
-  digest: "sha256:55dc5644595d43a5412d60436aac846ce0d71b799be85c53ff815c31416f3e39"
+  version: "3.4.10"
+  digest: "sha256:45755696db647b0c9fecc5d2c78403dbbac0f3c962292e89dee34b405abd1d7c"
 - name: openpolicyagent/opa
   url: docker.io/openpolicyagent/opa
   version: "1.17.1-static"
   digest: "sha256:c29f8ee8dbe66608a1c04e9be84b04efc46877625e6b0877e559954565209efc"
 - name: openzaak/open-notificaties
   url: docker.io/openzaak/open-notificaties
-  version: "1.16.0"
-  digest: "sha256:416f0949f6bf08f430b19ebfb3013963842e7ea59b2c3e4898782a8252a1257c"
+  version: "1.16.1"
+  digest: "sha256:ee940d036bb2f8325f9a5153316f657fceeb24db59a23c5109d6e659daae7ac3"
 - name: openzaak/open-zaak
   url: docker.io/openzaak/open-zaak
   version: "1.27.3"
@@ -265,8 +265,8 @@
   digest: "sha256:d963eb510065472fd9d9b9e27504638f0ce8a8cfe3fd818f92bcfb7277faaee5"
 - name: wearefrank/zaakbrug
   url: docker.io/wearefrank/zaakbrug
-  version: "1.26.14"
-  digest: "sha256:f0d618e4d28848e37c5ae6f3bd7ec911836130ef625352845bbb68f1d3055baf"
+  version: "1.26.15"
+  digest: "sha256:101d1319ea5706289ce8f22c7f012a12b8378770bb2a5ebf761d72fa46c5ca97"
 - name: worthnl/notifynl-omc
   url: docker.io/worthnl/notifynl-omc
   version: "1.17.19"
