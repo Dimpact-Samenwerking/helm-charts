@@ -1,8 +1,11 @@
 # PodiumD component: OpenBao (secrets vault)
 
-> New component in PodiumD **4.8.0**, delivered on branch
-> `feature/podiumd-4.8.0-openbao` (PR
-> [#343](https://github.com/Dimpact-Samenwerking/helm-charts/pull/343)).
+> New component in PodiumD **4.8.2**, delivered on branch
+> `feature/podiumd-4.8.2-openbao` (PR
+> [#384](https://github.com/Dimpact-Samenwerking/helm-charts/pull/384),
+> superseding PR
+> [#343](https://github.com/Dimpact-Samenwerking/helm-charts/pull/343)
+> which targeted 4.8.0).
 > **Disabled by default** (`openbao.enabled: false`); enable and supply the
 > per-environment values described below.
 
@@ -138,11 +141,10 @@ appears.
 | `quay.io/openbao/openbao` | `openbao-config` Job (`bao` CLI) | **`2.5.5`** (pinned) | standalone Job can't resolve the sub-chart appVersion; keep in step with it |
 | `docker.io/library/postgres` | `openbao-db-schema` Job (`psql`) | `16-alpine` | schema DDL only |
 
-> **Open item (see §9):** `docs/images/images-4.8.0.yaml` currently lists **only**
-> Open Inwoner. The three images above are **not** yet recorded there, and no ACR
-> mirror name / digest pin has been captured for the OpenBao and postgres images.
-> For an ACR-mirrored, digest-pinned production environment these must be added
-> and the values overridden to the mirror.
+> The OpenBao and postgres images above are recorded (digest-pinned) in
+> `docs/images/images-baseline.yaml`, the single authoritative strip-registry
+> mirror manifest. For an ACR-mirrored production environment, override
+> `server.image` / the Job images to the mirror (see §9).
 
 ### 3.2 PostgreSQL database (shared Azure PostgreSQL)
 
@@ -210,7 +212,7 @@ cert) is what matters:
   provisioned by this chart. If a future requirement mandates end-to-end TLS
   (cluster-internal), a server cert whose SAN covers `<release>-openbao*` service
   DNS names and the `8200`/`8201` listeners would need to be added — out of
-  scope for 4.8.0.
+  scope for 4.8.2.
 
 ### 3.5 Azure Key Vault + Workload Identity
 
@@ -475,13 +477,13 @@ are placeholders and **must** be overridden per environment.
 
 ## 9. Known limitations & open items
 
-1. **Images manifest incomplete.** `docs/images/images-4.8.0.yaml` does not list
-   `openbao/openbao:2.5.5`, `postgres:16-alpine`, or (if the injector is ever
-   re-enabled) `hashicorp/vault-k8s:1.7.2`; no ACR mirror name or digest pin is
-   recorded, and the tags are not digest-pinned. Add them (and override
-   `server.image` / the Job images to the mirror) before shipping to a
-   digest-pinned production environment. jim00 egress must reach `quay.io` and
-   `docker.io` until then.
+1. **Images manifest.** `openbao/openbao:2.5.5` and `postgres:16-alpine` are
+   recorded (digest-pinned) in `docs/images/images-baseline.yaml`. If the agent
+   injector is ever re-enabled, add `hashicorp/vault-k8s:1.7.2` there too.
+   Override `server.image` / the Job images to the ACR mirror before shipping
+   to a digest-pinned production environment. jim00 egress must reach
+   `quay.io` and `docker.io` until then. Note the schema Job tag `16-alpine`
+   is a floating minor tag (IN-2399): pin a specific 16.x when picking that up.
 2. **Config-Job silent skip.** `openbao-bootstrap-token` is created out-of-band
    (§5); if it is **missing** the `openbao-config` Job exits 0 and the `helm
    upgrade` **succeeds while the vault stays unconfigured**. Check the Job log
@@ -490,18 +492,19 @@ are placeholders and **must** be overridden per environment.
    contrast, fails the Job loudly.) The Job is kept after success precisely so
    this log stays readable: `ttlSecondsAfterFinished: 600` garbage-collects it
    after ~10 minutes, and the next deploy replaces it (`before-hook-creation`).
-2. **Release/upgrade docs.** OpenBao is not mentioned in `README.md` or
-   `docs/upgrade-from-4.7.3-to-4.8.0.md`; it is opt-in, but the 4.8.0 notes
-   should point operators here.
-3. **No KV auto-unseal yet.** Shamir requires a manual `bao operator init` +
+3. **Release/upgrade docs.** OpenBao is not mentioned in `README.md` or the
+   upgrade guides; it is opt-in, but the 4.8.2 release notes should point
+   operators here.
+4. **No KV auto-unseal yet.** Shamir requires a manual `bao operator init` +
    unseal per fresh cluster and after every restart/upgrade. Revisit Azure Key
    Vault auto-unseal once OpenBao honours the workload-identity federated token
    (openbao-helm#56 / vault#29717). The MI + KV key are already provisioned.
-4. **Route lives in `infra.yml`.** The external Gateway/Ingress route and its TLS
+5. **Route lives in `infra.yml`.** The external Gateway/Ingress route and its TLS
    cert (with the required SAN) are defined outside this chart; they must be kept
    in sync with `openbao.configuration.oidcUrl`.
-5. **Branch divergence.** This branch diverged from `feature/podiumd-4.8.0`;
-   rebase/merge before completing (see PR #343).
+6. **Rebased onto 4.8.2.** Originally developed against `feature/podiumd-4.8.0`
+   (PR #343); rebased onto `feature/podiumd-4.8.2` as
+   `feature/podiumd-4.8.2-openbao`, 2026-07-17.
 
 ---
 
