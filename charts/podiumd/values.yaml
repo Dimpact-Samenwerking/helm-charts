@@ -167,8 +167,8 @@ keycloak:
     smtp:
       server: mail.example.nl
       port: "587"
-      from: "Test"
-      fromDisplayName: "noreply@example.nl"
+      from: "noreply@example.nl"
+      fromDisplayName: "Example Gemeente"
       starttls: "true"
       ssl: "false"
     clients:

@@ -36,6 +36,17 @@ data:
         enabled: "true"
         defaultAction: "true"
         alias: CONFIGURE_TOTP
+    clients:
+      # admin-cli ships with the browser-redirect flows enabled by default, but the
+      # only legitimate use in this chart is Direct Access Grants (ROPC): the
+      # one-time podiumd-admin bootstrap login in keycloak-ensure-operator-sa.yaml,
+      # and the /kc-idp-secret operator fallback. Disable standard/implicit flow so
+      # a stray redirect-URI addition can't turn this public client into an
+      # authorization-code-interception target.
+      - clientId: admin-cli
+        standardFlowEnabled: false
+        implicitFlowEnabled: false
+        directAccessGrantsEnabled: true
 {{- with .Values.keycloak.config.adminIdentityProviders }}
     {{- toYaml . | nindent 4 }}
 {{- end }}
