@@ -910,7 +910,7 @@ opennotificaties:
     volumeAttributeShareName: opennotificaties
     storageClassName: podiumd-standard
   image:
-    tag: "1.16.0"
+    tag: "1.16.1"
   resources:
     requests:
       cpu: 100m
@@ -1076,7 +1076,7 @@ objecten:
       oidc: redis-ha-master.podiumd.svc.cluster.local:6379/1
     celery:
       brokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/2
-      resultBackendl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/2
+      resultBackend: redis://redis-ha-master.podiumd.svc.cluster.local:6379/2
       # -- Set to debug for test/acceptance environments
       logLevel: warning
   persistence:
@@ -1087,7 +1087,7 @@ objecten:
     volumeAttributeShareName: objecten
     storageClassName: podiumd-standard
   image:
-    tag: "3.6.0"
+    tag: "3.6.2"
   resources:
     requests:
       cpu: 100m
@@ -1774,7 +1774,7 @@ openformulieren:
     volumeAttributeShareName: openformulieren
     storageClassName: podiumd-standard
   image:
-    tag: "3.4.9@sha256:55dc5644595d43a5412d60436aac846ce0d71b799be85c53ff815c31416f3e39"
+    tag: "3.4.10@sha256:45755696db647b0c9fecc5d2c78403dbbac0f3c962292e89dee34b405abd1d7c"
   resources:
     requests:
       cpu: 250m
@@ -2870,10 +2870,10 @@ zac:
     url: http://objecttypen.example.nl
     token: objecttypentoken
   office_converter:
-    # gotenberg/gotenberg:8.33.0@sha256:bddd8ea9d076e2d08b6ddaa6efae6403185202c6dab65a6488ed0a6923d6d8e8
+    # gotenberg/gotenberg:8.34.0@sha256:67097317623a503ba2a6a7e9ae8db6929a1f7e1bbd88077bacf2d325fbdab923
     image:
       # repository: gotenberg/gotenberg
-      tag: "8.33.0@sha256:bddd8ea9d076e2d08b6ddaa6efae6403185202c6dab65a6488ed0a6923d6d8e8"
+      tag: "8.34.0@sha256:67097317623a503ba2a6a7e9ae8db6929a1f7e1bbd88077bacf2d325fbdab923"
   opa:
     sidecar: true
     # openpolicyagent/opa:1.17.1-static@sha256:c29f8ee8dbe66608a1c04e9be84b04efc46877625e6b0877e559954565209efc
@@ -3612,7 +3612,7 @@ zaakbrug:
   staging:
     enabled: false
   image:
-    tag: "1.26.14"
+    tag: "1.26.15"
   # K8s cgroup limits sized for the Frank!Framework JVM heap (subchart
   # default Xms=Xmx=4G via .Values.frank.memory.{minimum,maximum}).
   # Overhead ≈1Gi headroom for non-heap (metaspace, code cache, direct
