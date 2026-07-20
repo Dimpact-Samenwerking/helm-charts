@@ -135,6 +135,21 @@ Settings that are already at a secure default are logged for audit purposes but 
 - **Why:** Admin console access must require MFA to prevent account takeover from credential theft alone. TOTP provides a second factor that is not transmitted over the network.
 - **Implementation:** `keycloak.config.adminOtpEnabled: true` in `values.yaml` — sets `CONFIGURE_TOTP` as a default required action on the master realm via `keycloak-master-realm-config.yaml`
 
+### admin-cli Flow Restriction
+
+| Setting | Current value | Keycloak default | Status |
+|---------|--------------|-----------------|--------|
+| `standardFlowEnabled` | `false` | `true` | ✅ Configured (was true) |
+| `implicitFlowEnabled` | `false` | `false` | ✅ Configured — restated explicitly |
+| `directAccessGrantsEnabled` | `true` | `true` | ✅ Kept — required for bootstrap |
+
+**`admin-cli` standardFlowEnabled / implicitFlowEnabled: false` ← changed from Keycloak defaults**
+- **Standard:** BIO 2.0 / ISO 27002:2022 maatregel **8.2** (Geprivilegieerde toegangsrechten); **OWASP ASVS 4.0 V2.1** — ongebruikte authenticatie-flows moeten worden uitgeschakeld
+- **Why:** `admin-cli` ships with the Authorization Code and Implicit flows enabled by default, even though the only legitimate use in this chart is the one-time `podiumd-admin` bootstrap login via Direct Access Grants (ROPC) — see `templates/keycloak-ensure-operator-sa.yaml` — plus the `/kc-idp-secret` operator fallback. PKCE would **not** have protected this: it only hardens the Authorization Code flow, and nothing in this chart drives `admin-cli` through that flow. Disabling the unused browser-redirect flows instead closes the actual attack surface — a future stray redirect-URI addition can no longer turn this public client into an authorization-code-interception target.
+- **Direct Access Grants deliberately kept enabled:** this is the legitimate, actively-used bootstrap mechanism (see `keycloak-ensure-operator-sa.yaml`) — the `podiumd-admin` account it authenticates is disabled again immediately after bootstrap completes, and all subsequent machine traffic switches to `client_credentials` with a dedicated `keycloak-operator` client.
+- **History:** Flagged in the GreyBox Pentest Rotterdam (2026-06-11) as "Direct Access Grants toegestaan op public client" (tracked as [IN-2289](https://dimpact.atlassian.net/browse/IN-2289)). Direct Access Grants were kept as-is (they are the legitimate bootstrap path), and the browser-flow lockdown was added as a follow-up hardening step. **Solves [IN-2456](https://dimpact.atlassian.net/browse/IN-2456).**
+- **Implementation:** `keycloak-master-realm-config.yaml` → `clients` → `admin-cli.standardFlowEnabled: false`, `implicitFlowEnabled: false`
+
 ### Audit Logging
 
 | Setting | Current value | Keycloak default | Status |
@@ -257,6 +272,19 @@ The podiumd realm exclusively serves beheer (management) users and municipality 
 - **Implementation:** `keycloak-podiumd-realm-config.yaml` → `revokeRefreshToken`
 - **Implementation:** `keycloak-master-realm-config.yaml` → `revokeRefreshToken: true`
 
+### Token Signing Algorithm
+
+| Setting | Current value | Keycloak default | Status |
+|---------|--------------|-----------------|--------|
+| `defaultSignatureAlgorithm` | `RS256` | `RS256` (implicit) | ✅ Configured — restated explicitly (was implicit) |
+
+**`defaultSignatureAlgorithm: RS256`** ← explicitly pinned, no behavior change
+- **Standard:** BIO 2.0 / ISO 27002:2022 maatregel **8.24** (Gebruik van cryptografie); NIST SP 800-63B §7.1; **OWASP ASVS 4.0 V3.5.3** — tokens moeten met een asymmetrisch algoritme worden ondertekend
+- **Why:** Keycloak generates both an `rsa-generated` (RS256) and an `hmac-generated` (HS512) key provider on every fresh realm by default, regardless of chart configuration — a pentest observed the active HS512 key and flagged it as symmetric-key signing risk. No client in this chart overrides its per-client signature algorithm (confirmed: no `signatureAlgorithm`/`defaultSignatureAlgorithm` reference anywhere else in `keycloak-podiumd-realm-config.yaml`), so tokens were already being signed with RS256 by Keycloak's own implicit default. Setting `defaultSignatureAlgorithm: RS256` explicitly removes the ambiguity and pins the choice in code rather than relying on Keycloak's default staying unchanged across versions.
+- **Scope note:** this does **not** remove the HS512 key provider itself — Keycloak still generates and keeps it active on every realm. Removing it is a separate, more invasive change (realm `components` config) that risks rejecting the request if anything unexpectedly depends on that key, and needs its own verification before attempting — not bundled into this fix.
+- **History:** Flagged in the GreyBox Pentest Rotterdam (2026-06-11) as "Gebruik van HS512 (symmetrische signing key) voor token signing" (DIV-2602-M-03, finding 17).
+- **Implementation:** `keycloak-podiumd-realm-config.yaml` → `defaultSignatureAlgorithm: RS256`
+
 ### Login Settings
 
 | Setting | Current value | Keycloak default | Status |
@@ -287,6 +315,53 @@ The podiumd realm exclusively serves beheer (management) users and municipality 
 - **Standard:** BIO 2.0 / ISO 27002:2022 maatregel **8.2** (Geprivilegieerde toegangsrechten); **OWASP ASVS 4.0 V2.1** — account management must be administrator-controlled.
 - **Why:** The Keycloak Account Console (`/realms/podiumd/account`) is a built-in self-service portal where authenticated users can update profile fields, change their password, manage TOTP devices, and revoke sessions. None of these actions are appropriate for self-service in a realm serving only admin-provisioned beheer staff. Disabling both clients removes the portal entirely.
 - **Implementation:** `keycloak-podiumd-realm-config.yaml` → `clients` → `account-console.enabled: false`, `account.enabled: false`
+
+### admin-cli Flow Restriction
+
+| Setting | Current value | Keycloak default | Status |
+|---------|--------------|-----------------|--------|
+| `standardFlowEnabled` | `false` | `true` | ✅ Configured (was true) |
+| `implicitFlowEnabled` | `false` | `false` | ✅ Configured — restated explicitly |
+| `directAccessGrantsEnabled` | `true` | `true` | ✅ Kept — see note below |
+
+**`admin-cli` standardFlowEnabled / implicitFlowEnabled: false` ← changed from Keycloak defaults**
+- **Standard:** BIO 2.0 / ISO 27002:2022 maatregel **8.2**; **OWASP ASVS 4.0 V2.1**
+- **Why:** Same rationale as the master realm entry — `admin-cli` ships with the browser-redirect flows enabled by default. Unlike the master realm, **no bootstrap or ROPC flow relies on `admin-cli` in this realm at all**; it is disabled here purely as defense-in-depth so a future redirect-URI misconfiguration can't turn it into an exploitable public client. `directAccessGrantsEnabled` is left at the Keycloak default since nothing in this realm actively needs it disabled either way — the flows that matter (standard/implicit) are the ones closed off.
+- **History:** Same pentest finding and Jira reference as the master realm entry — [IN-2289](https://dimpact.atlassian.net/browse/IN-2289) / **Solves [IN-2456](https://dimpact.atlassian.net/browse/IN-2456)**.
+- **Implementation:** `keycloak-podiumd-realm-config.yaml` → `clients` → `admin-cli.standardFlowEnabled: false`, `implicitFlowEnabled: false`
+
+### PABC Keycloak Admin REST API Client — Flow Restriction
+
+| Setting | Current value | Keycloak default | Status |
+|---------|--------------|-----------------|--------|
+| `standardFlowEnabled` | `false` | `true` | ✅ Configured (was true) |
+| `implicitFlowEnabled` | `false` | `false` | ✅ Configured — restated explicitly |
+| `directAccessGrantsEnabled` | `false` | `true` | ✅ Configured (was true) |
+| `serviceAccountsEnabled` | `true` | `false` | ✅ Unchanged — this is the client's sole purpose |
+| `redirectUris` | (none) | (none) | ⚠️ Still unset — see note below |
+
+**`pabc-keycloak-admin` flows restricted to service-account-only** ← changed from Keycloak defaults
+- **Standard:** BIO 2.0 / ISO 27002:2022 maatregel **8.2** (Geprivilegieerde toegangsrechten); **OWASP ASVS 4.0 V2.1** — ongebruikte authenticatie-flows moeten worden uitgeschakeld
+- **Why:** This client (`.Values.pabc.settings.keycloakAdmin.clientId`) exists solely so PABC's own backend can call the Keycloak Admin REST API via its service account — it has never had a legitimate interactive use. Left at Keycloak's defaults it also carried `standardFlowEnabled: true` and `directAccessGrantsEnabled: true` with no `redirectUris` configured at all: an enabled-but-unusable authorization code flow (nowhere valid to redirect to) plus an unused password-grant path — both closed off now. No `redirectUris` are added since the client has no interactive flow left that would need one.
+- **History:** Flagged in the GreyBox Pentest Rotterdam (2026-06-11) as two related findings on the same client: "Ontbrekende redirect URI configuratie" and "Serviceaccounts gecombineerd met extra flows" (DIV-2602-M-03, findings 6 and 15). Both addressed by this single change.
+- **Implementation:** `keycloak-podiumd-realm-config.yaml` → `clients` → `<pabc.settings.keycloakAdmin.clientId>.standardFlowEnabled/implicitFlowEnabled/directAccessGrantsEnabled: false`
+
+### samaccountname User Profile Restriction
+
+| Setting | Current value | Keycloak default | Status |
+|---------|--------------|-----------------|--------|
+| `attributes.userProfileEnabled` | `"true"` | not set | ✅ Configured (was not set) |
+| `userProfile.unmanagedAttributePolicy` | `ENABLED` | (unset — equivalent behavior) | ✅ Configured — restated explicitly |
+| `userProfile.attributes[username/email/firstName/lastName]` | admin+user view/edit | admin+user view/edit | ✅ Re-declared verbatim — unchanged, see note below |
+| `userProfile.attributes[samaccountname].permissions.edit` | `admin` only | (not previously declared — implicitly admin+user) | ✅ Configured (was editable by user) |
+
+**`samaccountname` locked to admin-only edit** ← changed from implicitly user-editable
+- **Standard:** BIO 2.0 / ISO 27002:2022 maatregel **8.2** (Geprivilegieerde toegangsrechten) — gebruikersattributen die voor identificatie/autorisatie worden gebruikt mogen niet door de gebruiker zelf wijzigbaar zijn; **OWASP ASVS 4.0 V2.1**
+- **Why:** `samaccountname` is a genuine stored Keycloak user attribute (not a live pass-through of an upstream IdP claim) — confirmed via the `oidc-usermodel-attribute-mapper` protocol mappers on both the `ita` and `kiss` clients (`user.attribute: samaccountname`), which read this same stored value into their tokens. Left ungoverned, Keycloak's default behavior lets the user edit any attribute not declared in the realm's User Profile config, including this one — and since it's used for identification/authorization in downstream systems (ITA, KISS), a self-editable value here is a real impersonation/privilege-escalation risk.
+- **Note on scope:** Keycloak's User Profile update API rejects a partial attribute list — it treats `username`/`email`'s absence as an attempt to delete them, and returns HTTP 400 (confirmed live: `"The attribute 'username' can not be removed, The attribute 'email' can not be removed"`). `username`, `email`, `firstName` and `lastName` are therefore re-declared verbatim, matching Keycloak 26's own out-of-the-box defaults exactly (confirmed via `GET /admin/realms/podiumd/users/profile` against a fresh realm) — their behavior is unchanged. `unmanagedAttributePolicy: ENABLED` keeps every other, undeclared attribute exactly as editable as before this block existed. Only `samaccountname`'s edit permission actually changes.
+- **Open question — not resolvable from this repo:** whether this restriction meaningfully reduces real-world risk depends on how each gemeente's own Entra ID identity provider mapper populates `samaccountname` in the first place. Identity providers are deliberately not chart-managed (see `keycloak.config.realmIdentityProviders` — left empty by default so as not to overwrite gemeente-specific Entra configuration), so that mapper's sync mode lives entirely outside this chart. If it syncs on every login (`FORCE`), a user's self-edit would already have been silently reverted at next login regardless of this fix. If it only imports once (`IMPORT`), this fix is the only thing preventing permanent drift. This can only be checked against a specific gemeente's live IdP mapper configuration, not from chart code.
+- **History:** Flagged in the GreyBox Pentest Rotterdam (2026-06-11) as "Onveilige inzet van user attributes zonder User Profiles" (DIV-2602-M-03, finding 5).
+- **Implementation:** `keycloak-podiumd-realm-config.yaml` → `attributes.userProfileEnabled`, `userProfile`
 
 ### Audit Logging
 
