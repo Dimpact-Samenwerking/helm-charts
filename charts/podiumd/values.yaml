@@ -39,7 +39,7 @@ keycloak-operator:
       # field: `repository:tag@sha256:{{ .sha }}`. Putting @sha256 in the tag
       # produces an invalid DOUBLE digest (…:26.6.4@sha256:xxx@sha256:xxx).
       # The chart's default operator.image.sha already pins the matching 26.6.4
-      # digest (sha256:831827a0a...). To DISABLE digest pinning (e.g. on aks-blue
+      # digest (sha256:831827a0a…). To DISABLE digest pinning (e.g. on aks-blue
       # / ACR-mirror envs where the mirrored digest differs), set
       # `operator.image.sha: ""`. See docs/_UPGRADE_PATHS/4.7.3-to-4.7.4-upgrade.md.
       tag: "26.6.4"
@@ -55,7 +55,7 @@ keycloak-operator:
     # provisions (RELATED_IMAGE_KEYCLOAK env on the operator Deployment). Must
     # match podiumd's own `keycloak.image` digest above. The adfinis subchart's
     # built-in default still carries the pre-PR#344 digest (sha256:5fdbf2d…), so
-    # we override it here to the refreshed 26.6.4 digest (sha256:9b03307…).
+    # we override it here to the refreshed 26.6.4 digest (sha256:0aae0de…).
     # NOTE: sha is a SEPARATE field; the template appends it as @sha256:{{ .sha }},
     # so do NOT embed @sha256 in tag (would produce a double digest).
     config:
