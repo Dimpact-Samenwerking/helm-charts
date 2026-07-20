@@ -11,6 +11,15 @@
 #
 # Mirror names follow strip_registry(url) throughout. See docs/images/acr-mirror-naming.md.
 
+# Keycloak 26.6.3 -> 26.6.4
+- name: keycloak/keycloak
+  url: quay.io/keycloak/keycloak
+  version: "26.6.4"
+  digest: "sha256:0aae0de7fca85525f727d3354df17896092de8bb26ae4c12d89c77e5df8cbce4"
+- name: keycloak/keycloak-operator
+  url: quay.io/keycloak/keycloak-operator
+  version: "26.6.4"
+
 # ZAC - Gotenberg (office converter) — 8.33.0 -> 8.34.0
 - name: gotenberg/gotenberg
   url: docker.io/gotenberg/gotenberg
@@ -40,3 +49,7 @@
   url: docker.io/wearefrank/zaakbrug
   version: "1.26.15"
   digest: "sha256:101d1319ea5706289ce8f22c7f012a12b8378770bb2a5ebf761d72fa46c5ca97"
+
+
+
+  
