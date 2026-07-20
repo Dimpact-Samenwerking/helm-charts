@@ -19,6 +19,7 @@
 - name: keycloak/keycloak-operator
   url: quay.io/keycloak/keycloak-operator
   version: "26.6.4"
+  digest: "sha256:831827a0a267805d0e5bef00e402d99f728ce7fc4caa62d486a9114912412434"
 
 # ZAC - Gotenberg (office converter) — 8.33.0 -> 8.34.0
 - name: gotenberg/gotenberg
