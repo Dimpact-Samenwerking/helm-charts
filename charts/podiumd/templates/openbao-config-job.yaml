@@ -32,6 +32,11 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: openbao-config
+  # Explicit namespace: this Job is also re-applied standalone by the deploy
+  # pipeline (`helm template --show-only ... | kubectl apply`), where a missing
+  # namespace silently lands it in the caller's current namespace — its Secrets
+  # do not exist there, so it dies with CreateContainerConfigError.
+  namespace: {{ .Release.Namespace }}
   labels:
     {{- include "podiumd.labels" . | nindent 4 }}
     app.kubernetes.io/component: openbao
