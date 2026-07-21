@@ -90,7 +90,10 @@ dependencies:
   - name: pabc
     alias: pabc
     repository: "oci://ghcr.io/platform-autorisatie-beheer-component"
-    version: 1.1.1
+    # 1.1.1 is not published to ghcr yet (only image bumped upstream);
+    # snapshot-only revert to the latest published chart. Restore to 1.1.1
+    # once ghcr.io/platform-autorisatie-beheer-component/pabc:1.1.1 exists.
+    version: 1.1.0
     condition: pabc.enabled
   - name: notifynl-omc-nodep
     alias: omc
