@@ -17,7 +17,7 @@
      NOT included in the hash — they would make the suffix unstable between renders. */ -}}
 {{- $realmCfgTpl := include (print $.Template.BasePath "/keycloak-podiumd-realm-config.yaml") . -}}
 {{- $oidcInputs := list -}}
-{{- range $comp := list "openzaak" "opennotificaties" "objecten" "objecttypen" "openarchiefbeheer" "openklant" "openformulieren" "openinwoner" "referentielijsten" "openbeheer" -}}
+{{- range $comp := list "openzaak" "opennotificaties" "objecten" "objecttypen" "openarchiefbeheer" "openklant" "openformulieren" "openinwoner" "referentielijsten" "openbeheer" "openbao" -}}
 {{- $cfg := index $.Values $comp "configuration" | default dict -}}
 {{- $secs := index $cfg "secrets" | default dict -}}
 {{- $kcs := index $secs "keycloak_client_secret" | default "" -}}

@@ -81,11 +81,12 @@ export BAO_ADDR="${BAO_ADDR}"
 export BAO_TOKEN="${BAO_ROOT_TOKEN}"
 
 # Scoped policy for the openbao-config Job — see openbao-config-job.yaml for
-# the operations behind each path. sudo on sys/auth/oidc: enabling an auth
-# method requires it. identity read paths: group/alias lookups on re-runs.
+# the operations behind each path. sudo on sys/mounts/<kv> and sys/auth/oidc:
+# enabling a secrets engine / auth method requires sudo in addition to the
+# path capabilities. identity read paths: group/alias lookups on re-runs.
 bao policy write ${POLICY_NAME} - >&2 <<'HCL'
 path "sys/mounts"                { capabilities = ["read"] }
-path "sys/mounts/${KV_PATH}"     { capabilities = ["create", "read", "update"] }
+path "sys/mounts/${KV_PATH}"     { capabilities = ["create", "read", "update", "sudo"] }
 path "sys/policies/acl/uploader" { capabilities = ["create", "read", "update"] }
 path "sys/auth"                  { capabilities = ["read"] }
 path "sys/auth/oidc"             { capabilities = ["create", "update", "sudo"] }
