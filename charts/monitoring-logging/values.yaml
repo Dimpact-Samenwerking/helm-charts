@@ -179,6 +179,14 @@ grafana:
       content_security_policy: true
       content_security_policy_template: "script-src 'self' 'unsafe-eval' 'unsafe-inline' 'strict-dynamic' $NONCE;object-src 'none';font-src 'self';style-src 'self' 'unsafe-inline' blob:;img-src * data:;base-uri 'self';connect-src 'self' grafana.com ws://$ROOT_PATH wss://$ROOT_PATH;manifest-src 'self';media-src 'none';form-action 'self';"
       hide_version: true
+    # -- SMTP settings for Grafana alerting e-mail notifications (contact points). The relay accepts mail from cluster egress IPs only; no authentication needed. IMPORTANT: `from_address` must be an address allowed to relay through this environment's mail server — an unlisted sender gets silently rejected/dropped. Check with infra/ops per environment before changing.
+    smtp:
+      enabled: true
+      host: "mail.enschede.nl:587"
+      from_address: "noreply@dimpact.nl"
+      from_name: "PodiumD Monitoring"
+      skip_verify: false
+      startTLS_policy: "MandatoryStartTLS"
     auth.anonymous:
       enabled: false     # Ensure anonymous access is disabled
       hide_version: true # Add this to explicitly hide version for anonymous users
