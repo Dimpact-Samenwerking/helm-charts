@@ -163,6 +163,10 @@
   url: docker.io/library/postgres
   version: "16"
   digest: "sha256:fe03a7605299a34ddf5e4f285dff78c3d7190a576b3c6b46f2fcff69f4bffd54"
+- name: library/postgres
+  url: docker.io/library/postgres
+  version: "16-alpine"
+  digest: "sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777"
 - name: library/python
   url: docker.io/library/python
   version: "3.14-slim"
@@ -219,6 +223,10 @@
   url: quay.io/oauth2-proxy/oauth2-proxy
   version: "v7.7.1"
   digest: "sha256:f6a4aa83a27e316114bf79664302b1ffb2cc8ce697fb479273af4feb3fb16fe3"
+- name: openbao/openbao
+  url: quay.io/openbao/openbao
+  version: "2.5.5"
+  digest: "sha256:6150c4a6b62067db6141c8da7a6a6b5763f4f47c315343d0c848b40fecdfd452"
 - name: openformulieren/open-forms
   url: docker.io/openformulieren/open-forms
   version: "3.4.10"
