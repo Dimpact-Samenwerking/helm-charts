@@ -1,5 +1,11 @@
 # APISIX as an outbound (egress) API gateway
 
+> **SUPERSEDED (podiumd 4.8.2):** the egress-gateway role described here is now
+> fulfilled by **Frank!Gateway** (`frankgateway.enabled`), which replaces both
+> the upstream `apisix` subchart and the legacy apiproxy routes. See
+> [../frankgateway/frankgateway-BASICS.md](../frankgateway/frankgateway-BASICS.md).
+> The design rationale below still applies; the implementation moved.
+
 > Tracks parent story [IN-1866 — PodiumD 4.7: Api Gateway (APISIX)](https://dimpact.atlassian.net/browse/IN-1866).
 
 ## Why egress, not ingress

@@ -1,0 +1,105 @@
+{{- if and .Values.frankgateway.enabled .Values.frankgateway.routes.seed }}
+{{- /*
+  Declarative apiproxy-replacement routes for Frank!Gateway.
+
+  Idempotently PUTs the route JSONs in files/frankgateway/routes/ to the APISIX
+  Admin API (route id = file name), reproducing the legacy api-proxy nginx
+  behaviour: per-path reverse proxy with Host override, upstream TLS/SNI, and
+  API-key injection. Keys are read at request time from env (fed from the
+  frankgateway.apiKeys.existingSecret Secret) by a serverless function — they
+  never land in etcd or git, only the env var NAME appears in the route JSON.
+
+  Post-install/post-upgrade hook: runs after the gateway is (re)deployed. PUTs
+  overwrite, so re-runs are safe; GUI-created routes with other ids are left
+  untouched.
+*/ -}}
+{{- $fg := .Values.frankgateway }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frankgateway-routes
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frankgateway-routes
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation
+data:
+{{- range $path, $_ := .Files.Glob "files/frankgateway/routes/*.json" }}
+  {{ base $path }}: |-
+{{ $.Files.Get $path | indent 4 }}
+{{- end }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: frankgateway-apply-routes
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frankgateway-routes
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: {{ $fg.routes.job.backoffLimit }}
+  # Keep the Job around briefly after success so the per-route result log stays
+  # readable; the next deploy replaces it (before-hook-creation).
+  ttlSecondsAfterFinished: {{ $fg.routes.job.ttlSecondsAfterFinished }}
+  template:
+    metadata:
+      labels:
+        {{- include "podiumd.labels" . | nindent 8 }}
+        app.kubernetes.io/component: frankgateway-routes
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: apply
+          image: "{{ $fg.routes.job.image.repository }}:{{ $fg.routes.job.image.tag }}"
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: ADMIN_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: frankgateway-admin-credentials
+                  key: admin
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -e
+              # The gateway may still be rolling when the hook fires — wait for
+              # the Admin API before PUTting.
+              i=0
+              until curl -s -o /dev/null "http://frankgateway:9180/apisix/admin/routes" -H "X-API-KEY: ${ADMIN_KEY}"; do
+                i=$((i+1)); [ "${i}" -ge 30 ] && { echo "admin API unreachable"; exit 1; }
+                sleep 5
+              done
+              rc=0
+              for f in /routes/*.json; do
+                id=$(basename "${f}" .json)
+                code=$(curl -s -o /dev/null -w "%{http_code}" -X PUT \
+                  "http://frankgateway:9180/apisix/admin/routes/${id}" \
+                  -H "X-API-KEY: ${ADMIN_KEY}" -H "Content-Type: application/json" \
+                  --data @"${f}")
+                echo "${id} -> ${code}"
+                case "${code}" in 2*) ;; *) rc=1 ;; esac
+              done
+              exit ${rc}
+          volumeMounts:
+            - name: routes
+              mountPath: /routes
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi
+      volumes:
+        - name: routes
+          configMap:
+            name: frankgateway-routes
+{{- end }}
