@@ -66,6 +66,10 @@
   url: docker.io/curlimages/curl
   version: "8.20.0"
   digest: "sha256:b3f1fb2a51d923260350d21b8654bbc607164a987e2f7c84a0ac199a67df812a"
+- name: curlimages/curl
+  url: docker.io/curlimages/curl
+  version: "8.21.0"
+  digest: "sha256:7c12af72ceb38b7432ab85e1a265cff6ae58e06f95539d539b654f2cfa64bb13"
 - name: elastic/eck-operator
   url: docker.io/elastic/eck-operator
   version: "3.1.0"
@@ -207,6 +211,10 @@
   url: docker.io/nginxinc/nginx-unprivileged
   version: "1.31.1"
   digest: "sha256:a863b95eaf9d868354e336b1a38cce4f8d73cb029ef45cb6dfcc935a0c1524c1"
+- name: nginxinc/nginx-unprivileged
+  url: docker.io/nginxinc/nginx-unprivileged
+  version: "1.31.3"
+  digest: "sha256:49c9bef1797e11117a7f490fd00f282e377ac402fec472c72636f90cdbf72e10"
 - name: oauth2-proxy/oauth2-proxy
   url: quay.io/oauth2-proxy/oauth2-proxy
   version: "v7.7.1"

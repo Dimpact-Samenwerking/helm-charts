@@ -10,6 +10,21 @@ global:
 
   imageRegistry: ""
 
+  # Shared image references, reused via YAML anchors
+  images:
+    nginx: &nginxImage
+      repository: nginxinc/nginx-unprivileged
+      tag: "1.31.3@sha256:49c9bef1797e11117a7f490fd00f282e377ac402fec472c72636f90cdbf72e10"
+      pullPolicy: IfNotPresent
+    curl: &curlImage
+      repository: curlimages/curl
+      tag: "8.21.0@sha256:7c12af72ceb38b7432ab85e1a265cff6ae58e06f95539d539b654f2cfa64bb13"
+      pullPolicy: IfNotPresent
+    busybox: &busyboxImage
+      repository: library/busybox
+      tag: "1.38.0-glibc@sha256:3ba030337caebbfc2232b22b1e435eb213b28e5844a34942c74555bf904a265a"
+      pullPolicy: IfNotPresent
+
 tags:
   eck-operator.enabled: false
   redis: false
@@ -83,10 +98,7 @@ keycloak-operator:
     ensureOperatorSa:
       enabled: true
       # Container: curl-based job to provision the keycloak-operator service account client.
-      image:
-        registry: ""
-        repository: curlimages/curl
-        tag: "8.20.0@sha256:b3f1fb2a51d923260350d21b8654bbc607164a987e2f7c84a0ac199a67df812a"
+      image: *curlImage
       # Client secret for the keycloak-operator client. Set this to a known value so Helm
       # can create the K8s secret directly. The job will enforce this secret in Keycloak.
       clientSecret: ""
@@ -455,9 +467,7 @@ redis-operator:
     databases: 32
     # -- Image used by the initContainer that appends `databases N` to redis.conf.
     # Override this in environments that restrict public Docker Hub pulls (e.g. point to an ACR mirror).
-    initContainerImage:
-      repository: busybox
-      tag: "1.38.0-glibc"
+    initContainerImage: *busyboxImage
     # -- Resources for the initContainer that configures redis.conf.
     initContainerResources:
       requests:
@@ -712,8 +722,7 @@ openzaak:
         cpu: 10m
         memory: 160Mi
   nginx:
-    image:
-      tag: "1.31.1@sha256:a863b95eaf9d868354e336b1a38cce4f8d73cb029ef45cb6dfcc935a0c1524c1"
+    image: *nginxImage
     resources:
       requests:
         cpu: 10m
@@ -1391,8 +1400,7 @@ openarchiefbeheer:
         memory: 128Mi
 
   nginx:
-    image:
-      tag: "1.31.1@sha256:a863b95eaf9d868354e336b1a38cce4f8d73cb029ef45cb6dfcc935a0c1524c1"
+    image: *nginxImage
     resources:
       requests:
         cpu: 10m
@@ -1581,8 +1589,7 @@ openklant:
   nameOverride: openklant
   fullnameOverride: openklant
   nginx:
-    image:
-      tag: "1.31.1@sha256:a863b95eaf9d868354e336b1a38cce4f8d73cb029ef45cb6dfcc935a0c1524c1"
+    image: *nginxImage
     resources:
       requests:
         cpu: 10m
@@ -1798,8 +1805,7 @@ openformulieren:
         cpu: 10m
         memory: 160Mi
   nginx:
-    image:
-      tag: "1.31.1@sha256:a863b95eaf9d868354e336b1a38cce4f8d73cb029ef45cb6dfcc935a0c1524c1"
+    image: *nginxImage
     resources:
       requests:
         cpu: 10m
@@ -2012,8 +2018,7 @@ openinwoner:
   nameOverride: openinwoner
   fullnameOverride: openinwoner
   nginx:
-    image:
-      tag: "1.31.1@sha256:a863b95eaf9d868354e336b1a38cce4f8d73cb029ef45cb6dfcc935a0c1524c1"
+    image: *nginxImage
     config:
       basicAuth:
         # Enable this when digid mock is set to digidMock: "true"
@@ -2367,8 +2372,7 @@ openbeheer:
       rateAnonymous: "2500/hour"
       rateUser: "15000/hour"
   nginx:
-    image:
-      tag: "1.31.1@sha256:a863b95eaf9d868354e336b1a38cce4f8d73cb029ef45cb6dfcc935a0c1524c1"
+    image: *nginxImage
     resources:
       requests:
         cpu: 10m
@@ -2808,11 +2812,8 @@ zac:
     code: "007"
     naam: "Example Gemeente"
     mail: "noreply@example.nl"
-  # curlimages/curl:8.20.0@sha256:b3f1fb2a51d923260350d21b8654bbc607164a987e2f7c84a0ac199a67df812a
   global:
-    curlImage:
-      #repository: curlimages/curl
-      tag: "8.20.0@sha256:b3f1fb2a51d923260350d21b8654bbc607164a987e2f7c84a0ac199a67df812a"
+    curlImage: *curlImage
   # ghcr.io/infonl/zaakafhandelcomponent:5.0.1
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
@@ -2854,10 +2855,7 @@ zac:
   nginx:
     enabled: true
     client_max_body_size: 150M
-    # nginxinc/nginx-unprivileged:1.31.1@sha256:a863b95eaf9d868354e336b1a38cce4f8d73cb029ef45cb6dfcc935a0c1524c1
-    image:
-      # repository: nginxinc/nginx-unprivileged
-      tag: "1.31.1@sha256:a863b95eaf9d868354e336b1a38cce4f8d73cb029ef45cb6dfcc935a0c1524c1"
+    image: *nginxImage
     resources:
       requests:
         cpu: 50m
@@ -2918,10 +2916,7 @@ zac:
         cpu: 500m
         memory: 256Mi
     solr:
-      # library/busybox:1.38.0-glibc@sha256:3ba030337caebbfc2232b22b1e435eb213b28e5844a34942c74555bf904a265a
-      busyBoxImage:
-        #repository:
-        tag: 1.38.0-glibc@sha256:3ba030337caebbfc2232b22b1e435eb213b28e5844a34942c74555bf904a265a
+      busyBoxImage: *busyboxImage
       # -- set enabled to provision solrcloud as well
       enabled: true
       # library/solr:9.10.1-slim@sha256:c45d9d93d74d6a5e996120ab7120cdfc531debbc59bd3d6a6736fe240cee9be0
@@ -3163,10 +3158,7 @@ apiproxy:
   affinity: {}
   tolerations: []
   #nameOverride: "iconnect-proxy"
-  image:
-    repository: nginxinc/nginx-unprivileged
-    tag: "1.31.1@sha256:a863b95eaf9d868354e336b1a38cce4f8d73cb029ef45cb6dfcc935a0c1524c1"
-    pullPolicy: IfNotPresent
+  image: *nginxImage
   service:
     port: 80
     containerPort: 8080
@@ -3541,9 +3533,7 @@ frankgateway:
   routes:
     seed: true
     job:
-      image:
-        repository: curlimages/curl
-        tag: "8.20.0"
+      image: *curlImage
       backoffLimit: 3
       ttlSecondsAfterFinished: 600
 
@@ -3597,9 +3587,7 @@ frankgateway:
             cpu: 250m
             memory: 256Mi
       shim:
-        image:
-          repository: nginxinc/nginx-unprivileged
-          tag: "1.27-alpine"
+        image: *nginxImage
         resources:
           requests:
             cpu: 25m
