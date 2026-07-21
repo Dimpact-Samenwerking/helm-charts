@@ -3519,6 +3519,20 @@ frankgateway:
       - BAG_API_KEY
       - KVK_API_KEY
 
+  # Prometheus metrics. The APISIX prometheus exporter always listens on 9091
+  # inside the pod (plugin_attr in the gateway config); metrics.enabled exposes
+  # it on the frankgateway Service and seeds global_rule/1 with the prometheus
+  # plugin (prefer_name) so every route — chart-seeded and GUI-created — emits
+  # per-route metrics. serviceMonitor.enabled additionally renders a
+  # ServiceMonitor (requires the prometheus-operator CRDs, e.g. from the
+  # monitoring-logging chart; skipped automatically when the CRD is absent).
+  metrics:
+    enabled: false
+    serviceMonitor:
+      enabled: false
+      # Scrape interval for the ServiceMonitor.
+      interval: 30s
+
   # Single-node etcd backing store (quay.io/coreos upstream build — no
   # Bitnami). PVC-backed so gateway config survives pod restarts.
   etcd:

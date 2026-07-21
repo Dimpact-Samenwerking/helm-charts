@@ -87,6 +87,17 @@ spec:
                 echo "${id} -> ${code}"
                 case "${code}" in 2*) ;; *) rc=1 ;; esac
               done
+              {{- if $fg.metrics.enabled }}
+              # Per-route metrics: the prometheus plugin must be active on a
+              # route to emit route-level series. A global_rule covers every
+              # route (chart-seeded and GUI-created) without touching each one.
+              code=$(curl -s -o /dev/null -w "%{http_code}" -X PUT \
+                "http://frankgateway:9180/apisix/admin/global_rules/prometheus-metrics" \
+                -H "X-API-KEY: ${ADMIN_KEY}" -H "Content-Type: application/json" \
+                --data '{"plugins":{"prometheus":{"prefer_name":true}}}')
+              echo "global_rules/prometheus-metrics -> ${code}"
+              case "${code}" in 2*) ;; *) rc=1 ;; esac
+              {{- end }}
               exit ${rc}
           volumeMounts:
             - name: routes
