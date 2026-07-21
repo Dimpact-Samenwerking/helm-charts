@@ -1,0 +1,94 @@
+{{- if .Values.frankgateway.enabled }}
+{{- /*
+  Single-node etcd backing store for Frank!Gateway (APISIX traditional mode).
+  Upstream quay.io/coreos build — no Bitnami. PVC-backed so routes/upstreams
+  written via the Admin API / dashboard survive pod restarts.
+*/ -}}
+{{- $etcd := .Values.frankgateway.etcd }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: frankgateway-etcd
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frankgateway-etcd
+    app.kubernetes.io/name: frankgateway-etcd
+spec:
+  selector:
+    app.kubernetes.io/name: frankgateway-etcd
+  ports:
+    - name: client
+      port: 2379
+      targetPort: 2379
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: frankgateway-etcd
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frankgateway-etcd
+    app.kubernetes.io/name: frankgateway-etcd
+spec:
+  serviceName: frankgateway-etcd
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: frankgateway-etcd
+  template:
+    metadata:
+      labels:
+        {{- include "podiumd.labels" . | nindent 8 }}
+        app.kubernetes.io/component: frankgateway-etcd
+        app.kubernetes.io/name: frankgateway-etcd
+    spec:
+      containers:
+        - name: etcd
+          image: "{{ $etcd.image.repository }}:{{ $etcd.image.tag }}"
+          imagePullPolicy: IfNotPresent
+          command:
+            - /usr/local/bin/etcd
+            - --name=etcd0
+            - --data-dir=/etcd-data
+            # advertise the reachable service DNS (not 0.0.0.0): clients such as
+            # apisix-dashboard's etcd client dial the advertised URL, and
+            # 0.0.0.0:2379 is not dialable from another pod -> dashboard 502.
+            - --advertise-client-urls=http://frankgateway-etcd:2379
+            - --listen-client-urls=http://0.0.0.0:2379
+            - --initial-advertise-peer-urls=http://0.0.0.0:2380
+            - --listen-peer-urls=http://0.0.0.0:2380
+            - --initial-cluster=etcd0=http://0.0.0.0:2380
+          ports:
+            - name: client
+              containerPort: 2379
+            - name: peer
+              containerPort: 2380
+          readinessProbe:
+            exec:
+              command: ["etcdctl", "endpoint", "health"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 2379
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          resources:
+            {{- toYaml $etcd.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /etcd-data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- with $etcd.storageClassName }}
+        storageClassName: {{ . | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ $etcd.storage }}
+{{- end }}

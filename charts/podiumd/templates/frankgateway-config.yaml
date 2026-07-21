@@ -1,0 +1,102 @@
+{{- if .Values.frankgateway.enabled }}
+{{- /*
+  Admin API credentials + APISIX config.yaml for Frank!Gateway.
+
+  Both Secrets are rendered from THIS single template because the config.yaml
+  embeds the admin/viewer keys inline: computing the keys once and reusing the
+  variables guarantees the credentials Secret and the config file can never
+  diverge within a render. (That is also why the config is a Secret, not a
+  ConfigMap.)
+
+  Keys: values override (frankgateway.admin.adminKey/viewerKey) wins; otherwise
+  random 32-char values are generated on first install and kept stable across
+  upgrades via lookup — the upstream public default keys (edd1c9f0… / 4054f7cf…)
+  are never used.
+*/ -}}
+{{- $fg := .Values.frankgateway }}
+{{- $admin := $fg.admin.adminKey | default "" }}
+{{- $viewer := $fg.admin.viewerKey | default "" }}
+{{- $existing := lookup "v1" "Secret" .Release.Namespace "frankgateway-admin-credentials" }}
+{{- if and (eq $admin "") $existing }}
+{{-   $admin = index $existing.data "admin" | default "" | b64dec }}
+{{- end }}
+{{- if and (eq $viewer "") $existing }}
+{{-   $viewer = index $existing.data "viewer" | default "" | b64dec }}
+{{- end }}
+{{- if eq $admin "" }}{{- $admin = randAlphaNum 32 }}{{- end }}
+{{- if eq $viewer "" }}{{- $viewer = randAlphaNum 32 }}{{- end }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: frankgateway-admin-credentials
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frankgateway
+type: Opaque
+stringData:
+  admin: {{ $admin | quote }}
+  viewer: {{ $viewer | quote }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: frankgateway-apisix-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frankgateway
+type: Opaque
+stringData:
+  config.yaml: |
+    apisix:
+      node_listen: 9080
+      enable_ipv6: false
+
+      enable_control: true
+      control:
+        ip: "0.0.0.0"
+        port: 9092
+
+    deployment:
+      admin:
+        # ClusterIP-only Service; the Admin API is additionally protected by
+        # the random admin key below. Tighten per-env if required.
+        allow_admin:
+          - 0.0.0.0/0
+
+        admin_key:
+          - name: "admin"
+            key: {{ $admin | quote }}
+            role: admin
+          - name: "viewer"
+            key: {{ $viewer | quote }}
+            role: viewer
+
+      etcd:
+        host:
+          - "http://frankgateway-etcd:2379"
+        prefix: "/apisix"
+        timeout: 30
+
+    plugin_attr:
+      prometheus:
+        export_addr:
+          ip: "0.0.0.0"
+          port: 9091
+        metrics:
+          http_status:
+            extra_labels:
+              - upstream_addr: $upstream_addr
+              - upstream_status: $upstream_status
+              - soap_action: $soap_action
+    # Expose the external-API-key env vars (from the
+    # {{ $fg.apiKeys.existingSecret }} Secret) to nginx workers so routes can
+    # read them via os.getenv in a serverless function — keeps key VALUES out
+    # of etcd/git (only the var NAMES appear here).
+    nginx_config:
+      main_configuration_snippet: |
+        {{- range $fg.apiKeys.envNames }}
+        env {{ . }};
+        {{- end }}
+{{- end }}
