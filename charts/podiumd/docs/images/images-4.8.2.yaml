@@ -6,6 +6,9 @@
 #   2. Objecten API -> 3.6.2
 #   3. Open Notificaties -> 1.16.1
 #   4. Zaakbrug -> 1.26.15
+#   5. nginx-unprivileged -> 1.31.3 (consolidated to a single global.images.nginx
+#      YAML anchor reused by every component that pins it)
+#   6. curl -> 8.21.0 (consolidated to a single global.images.curl YAML anchor)
 #
 # See docs/_UPGRADE_PATHS/4.7.8-to-4.8.0-upgrade.md for the operator upgrade notes.
 #
@@ -45,8 +48,24 @@
   version: "1.16.1"
   digest: "sha256:ee940d036bb2f8325f9a5153316f657fceeb24db59a23c5109d6e659daae7ac3"
 
-# Zaakbrug   
+# Zaakbrug
 - name: wearefrank/zaakbrug
   url: docker.io/wearefrank/zaakbrug
   version: "1.26.15"
   digest: "sha256:101d1319ea5706289ce8f22c7f012a12b8378770bb2a5ebf761d72fa46c5ca97"
+
+# nginx-unprivileged — consolidated: zac/apiproxy were on 1.31.1, the
+# Frank!Gateway dashboard-auth shim was on 1.27-alpine; all now share one
+# global.images.nginx anchor pinned to 1.31.3
+- name: nginxinc/nginx-unprivileged
+  url: docker.io/nginxinc/nginx-unprivileged
+  version: "1.31.3"
+  digest: "sha256:49c9bef1797e11117a7f490fd00f282e377ac402fec472c72636f90cdbf72e10"
+
+# curl — consolidated to global.images.curl; keycloak-operator's ensureOperatorSa
+# and zac.global.curlImage were already on 8.20.0, the Frank!Gateway routes-seeding
+# job was undigested. All three bumped together to 8.21.0.
+- name: curlimages/curl
+  url: docker.io/curlimages/curl
+  version: "8.21.0"
+  digest: "sha256:7c12af72ceb38b7432ab85e1a265cff6ae58e06f95539d539b654f2cfa64bb13"
