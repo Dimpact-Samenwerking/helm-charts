@@ -116,3 +116,8 @@ production sizing applies because the mock is never deployed to production.
 6. **Never deploy to production.** Production environments must connect the
    consuming apps to a real BRP/Haal Centraal provider (directly or via
    api-proxy) instead.
+
+## Related documents
+
+None — this folder has only the BASICS file; no deep-dive documents exist yet
+for this component.

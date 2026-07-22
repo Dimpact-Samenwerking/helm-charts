@@ -146,3 +146,8 @@ CPU is negligible at dev/accp load; treat these as baseline, not peak.
    serves the Notificaties API and kanalen are listed (`/api/v1/kanaal`); admin
    login works via Keycloak; worker and beat logs are clean; a test change in
    Open Zaak (e.g. a new zaak) produces a delivered notification.
+
+## Related documents
+
+None — this folder has only the BASICS file; no deep-dive documents exist yet
+for this component.

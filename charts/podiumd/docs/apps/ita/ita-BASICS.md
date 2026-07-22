@@ -167,3 +167,8 @@ production; no increase flagged.
 8. **Verify** — log in via Keycloak at the public URL, check
    `GET /healthz` on the web pod, and confirm the `ita-poller` CronJob
    completes (`kubectl -n podiumd get cronjob,job | grep ita`).
+
+## Related documents
+
+None — this folder has only the BASICS file; no deep-dive documents exist yet
+for this component.

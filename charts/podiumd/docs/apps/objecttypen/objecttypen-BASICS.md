@@ -164,3 +164,8 @@ PodDisruptionBudget with `minAvailable: 1` for the 2-replica web deployment
    podiumd`); admin login at `https://<env>-objecttypen.dimpact.nl/admin/`
    via Keycloak works; `GET /api/v2/objecttypes` with a `Token <...>` header
    returns the seeded object types.
+
+## Related documents
+
+None — this folder has only the BASICS file; no deep-dive documents exist yet
+for this component.
