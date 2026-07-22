@@ -1786,7 +1786,7 @@
                 "path": "request_id"
               },
               {
-                "alias": "Detail",
+                "alias": "Detail Message ",
                 "path": "data.detail"
               },
               {
@@ -1796,6 +1796,14 @@
               {
                 "alias": "Status",
                 "path": "status"
+              },
+              {
+                "alias": "General Validation Error",
+                "path": "data.non_field_errors"
+              },
+              {
+                "alias": "TypeVersion Validation Error",
+                "path": "data.record.typeVersion"
               }
             ],
             "source": "Line"
@@ -1805,7 +1813,7 @@
           "id": "organize",
           "options": {
             "excludeByName": {
-              "Detail": true,
+              "Detail": false,
               "Line": true,
               "app": true,
               "client": true,
