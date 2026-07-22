@@ -133,7 +133,7 @@ zac:
 ```yaml
 zac:
   brpApi:
-    url: http://api-proxy.podiumd.svc.cluster.local/brp
+    url: "http://api-proxy.podiumd.svc.cluster.local/brp"
     apiKey:
       header: "x-api-key"
       value: "REP_API_BRP_KEY_REP"
