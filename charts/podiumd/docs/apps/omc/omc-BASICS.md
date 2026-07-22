@@ -165,3 +165,8 @@ municipality's NotifyNL artefacts first.
 For the full per-step detail (pipeline snippets, exact `configuration.data`
 blocks) see `docs/_UPGRADE_PATHS/4.6.4-to-4.6.8-upgrade.md`, section
 "OMC (NotifyNL Output Management Component)".
+
+## Related documents
+
+None — this folder has only the BASICS file; no deep-dive documents exist yet
+for this component.

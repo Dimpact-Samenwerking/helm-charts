@@ -134,3 +134,8 @@ not peaks. `resource-overview.md` also recommends a PodDisruptionBudget with
    `https://<env>-openklant.dimpact.nl/admin/` logs in via Keycloak; the
    Klantinteracties API answers at `/klantinteracties/api/v1/`; worker pod
    log shows Celery connected to Redis DB 8.
+
+## Related documents
+
+None — this folder has only the BASICS file; no deep-dive documents exist yet
+for this component.

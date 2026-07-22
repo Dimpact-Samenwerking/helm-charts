@@ -1,5 +1,11 @@
 # TLS Termination at Azure Application Gateway with cert-manager as Single Certificate Authority
 
+> **SUPERSEDED (podiumd 4.8.2):** the upstream `apisix` subchart this design
+> targets was replaced by **Frank!Gateway** (WeAreFrank's hardened APISIX 3.16),
+> deployed by the chart's own `frankgateway-*` templates. See
+> [../frankgateway/frankgateway-BASICS.md](../frankgateway/frankgateway-BASICS.md).
+> This document is kept as historical record.
+
 **Solution design for PodiumD ingress — Dimpact**
 
 | | |
