@@ -17,16 +17,16 @@ All values below go in the gemeente's `podiumd.yml` under `zac.brpApi`.
 ```yaml
 zac:
   brpApi:
-    url: http://api-proxy.podiumd.svc.cluster.local/brp
+    url: "http://api-proxy.podiumd.svc.cluster.local/brp"
     apiKey:
       header: "x-api-key"
-      value: "geldige-brp-api-key"
+      value: "REP_API_BRP_KEY_REP"
     logLevel: "OFF"
     protocollering:
       enabled: true
       systemUser: "SystemUser"
       originOin:
-        oin: "gemeentelijke OIN"
+        oin: "<de orinele originOin waarde>"
         header: "x-origin-oin"
       doelbinding:
         perZaaktype: true
@@ -40,7 +40,7 @@ zac:
         header: "x-gebruiker"
       toepassing:
         header: "x-toepassing"
-        value: "dummy"
+        value: "ZAC"
 ```
 
 ---
@@ -50,22 +50,22 @@ zac:
 ```yaml
 zac:
   brpApi:
-    url: http://api-proxy.podiumd.svc.cluster.local/brp
+    url: "http://api-proxy.podiumd.svc.cluster.local/brp"
     apiKey:
       header: "x-api-key"
-      value: "dummy"
+      value: "REP_API_BRP_KEY_REP"
     logLevel: "OFF"
     protocollering:
       enabled: true
       originOin:
-        oin: "xxxxxxxxxxxxxxxx"  ## hier dezelfde waarde als bij kiss.configuration.settings.haalcentraal.customHeaders
+        oin: "00000001821479490000"  ## overgenomen van kiss.configuration.settings.haalcentraal.customHeaders
         header: "x-request-organization"
       doelbinding:
         perZaaktype: false
         header: ""
       verwerking:
         header: "x-request-afnemerscode"
-        register: "xxxxx" ## hier dezelfde waarde als bij kiss.configuration.settings.haalcentraal.customHeaders
+        register: "510225" ## overgenomen van kiss.configuration.settings.haalcentraal.customHeaders
       gebruiker:
         header: "x-request-user"
       toepassing:
@@ -80,10 +80,10 @@ zac:
 ```yaml
 zac:
   brpApi:
-    url: http://api-proxy.podiumd.svc.cluster.local/brp
+    url: "http://api-proxy.podiumd.svc.cluster.local/brp"
     apiKey:
       header: "x-api-key"
-      value: "dummy"
+      value: "REP_API_BRP_KEY_REP"
     logLevel: "OFF"
     protocollering:
       enabled: true
@@ -107,10 +107,10 @@ zac:
 ```yaml
 zac:
   brpApi:
-    url: http://api-proxy.podiumd.svc.cluster.local/brp
+    url: "http://api-proxy.podiumd.svc.cluster.local/brp"
     apiKey:
       header: "x-api-key"
-      value: "dummy"
+      value: "REP_API_BRP_KEY_REP"
     logLevel: "OFF"
     protocollering:
       enabled: true
@@ -118,8 +118,7 @@ zac:
       doelbinding:
         perZaaktype: false
       verwerking:
-        header: "x-verwerking"
-        register: "dummy"
+        header: ""
       gebruiker:
         header: "x-gebruiker"
       toepassing:
@@ -137,7 +136,7 @@ zac:
     url: http://api-proxy.podiumd.svc.cluster.local/brp
     apiKey:
       header: "x-api-key"
-      value: "dummy"
+      value: "REP_API_BRP_KEY_REP"
     logLevel: "OFF"
     protocollering:
       enabled: true
@@ -145,8 +144,7 @@ zac:
       doelbinding:
         perZaaktype: false
       verwerking:
-        header: "x-verwerking"
-        register: "dummy"
+        header: ""
       gebruiker:
         header: "x-gebruiker"
       toepassing:
