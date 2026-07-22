@@ -60,7 +60,10 @@ local raft/file storage.
 
 ### Routing / exposure (NGINX Gateway Fabric)
 
-Public. Hostname `openbao.<env>.<domain>`; the Gateway/Ingress route (created
+Public. The hostname is chosen per environment — the chart imposes no naming
+scheme; the host comes solely from `openbao.configuration.oidcUrl`. PodiumD
+convention: `<env>-openbao.<gemeente>.nl` (e.g.
+`ontw-openbao.dim2.dimpact.nl`). The Gateway/Ingress route (created
 deploy-side in ADO `ExternalsPodiumD` `infra.yml`, not by this chart) points at
 service `<release>-openbao-active:8200` over **HTTP** — TLS terminates at the
 gateway, and the gateway certificate **SAN must cover the OpenBao hostname**.
@@ -109,9 +112,10 @@ in the deep dive.
 1. **Provision the database.** Create db `openbao` + role `openbao-admin` on
    the shared PostgreSQL server; put the password in the environment Key Vault
    (`REP_OPENBAO_DB_PASSWORD_REP`).
-2. **Route + certificate.** Deploy-side Gateway/Ingress route
-   `openbao.<env>.<domain>` → `<release>-openbao-active:8200` (HTTP); extend
-   the gateway certificate SAN with the hostname.
+2. **Route + certificate.** Deploy-side Gateway/Ingress route for the chosen
+   hostname (convention `<env>-openbao.<gemeente>.nl`) →
+   `<release>-openbao-active:8200` (HTTP); extend the gateway certificate SAN
+   with the hostname.
 3. **Set values.** `openbao.enabled: true`, the OIDC/public URL values, and —
    for the first enable on a realm running defaults — the
    `skipRoles`/`skipGroups` handling from deep dive §3.7.
