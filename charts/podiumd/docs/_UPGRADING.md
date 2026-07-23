@@ -158,7 +158,7 @@ official path out of them:
 | [`4.7.5-to-4.7.6-upgrade.md`](_UPGRADE_PATHS/4.7.5-to-4.7.6-upgrade.md) | Granular 4.7.x patch note (folded into the 4.6.8 → 4.7.6 guide). |
 | [`4.6.5-to-4.7.0-values-deltas.md`](_UPGRADE_PATHS/4.6.5-to-4.7.0-values-deltas.md) | Full values add/change/remove table for the 4.7.0 jump. |
 | [`4.7.8-to-4.8.0-values-deltas.md`](_UPGRADE_PATHS/4.7.8-to-4.8.0-values-deltas.md) | Full values add/change/remove table for the 4.8.0 jump (ZAC 5.0.1 breaking changes + ITA medewerker). |
-| [`zac-brp-protocollering.md`](apps/zac/zac-brp-protocollering.md) | ZAC BRP protocollering vendor reference (iConnect, eServices, 2Secure/EnableU) — ZAC 5.0.1. |
+| [`4.8.1-to-4.8.2-gemeente-specific.md`](_UPGRADE_PATHS/4.8.1-to-4.8.2-gemeente-specific.md#zac--brp-protocollering-configuration-per-gemeente) | ZAC BRP protocollering vendor reference (iConnect, eServices, 2Secure/EnableU) — ZAC 5.0.1. |
 
 The 4.7.x granular notes are intentionally retained for now; once the 4.7/4.8 line
 closes they can be retired in favour of the consolidated guides.
