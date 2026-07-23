@@ -75,7 +75,7 @@ zac:
 
 ### NOTE: toepassingsheader ApiProxy for Oldambt in PodiumD 4.8.x
 
-Municipality Oldambt will route BRP and KvK requests from Formulier through ApiProxy. ApiProxy will need to enable Toepassingsheader, not with a value for Open Formulieren.
+Municipality Oldambt will route BRP and KvK requests from Formulier through ApiProxy. ApiProxy will need to enable Toepassingsheader, not with a value for ZAC, but for Open Formulieren.
 So do not disable `toepassingHeaderName`, but check the values to be used in  ticket: [DS-5918](https://dimpact.atlassian.net/browse/DS-5918). 
 
 ---
