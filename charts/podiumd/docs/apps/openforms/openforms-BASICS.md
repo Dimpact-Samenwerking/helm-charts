@@ -171,3 +171,8 @@ baseline (dev/accp), not peak.
    form end-to-end and confirm the zaak/object appears in Open Zaak/Objecten;
    check worker and beat logs for Celery errors and Redis DBs 9/10 for
    activity; confirm the confirmation e-mail arrives.
+
+## Related documents
+
+None — this folder has only the BASICS file; no deep-dive documents exist yet
+for this component.

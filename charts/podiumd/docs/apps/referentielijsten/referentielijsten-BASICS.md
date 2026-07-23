@@ -160,3 +160,8 @@ service, but raise `replicaCount` to 2 if the environment requires zero-downtime
    `https://<env>-referentielijsten.dimpact.nl/admin/` and confirm the Keycloak redirect
    works; confirm the API serves the reference tables and that consuming applications can
    read them.
+
+## Related documents
+
+None — this folder has only the BASICS file; no deep-dive documents exist yet
+for this component.

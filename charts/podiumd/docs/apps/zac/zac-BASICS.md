@@ -156,6 +156,6 @@ managed); the single-replica ZAC pod should not get a PDB.
 
 ## Related documents
 
-- [zac-brp-protocollering.md](zac-brp-protocollering.md) — per-vendor BRP
+- [4.8.1-to-4.8.2-gemeente-specific.md](../../_UPGRADE_PATHS/4.8.1-to-4.8.2-gemeente-specific.md#zac--brp-protocollering-configuration-per-gemeente) — per-vendor BRP
   protocollering configuration (iConnect, eServices, 2Secure/EnableU) under
   `zac.brpApi.protocollering`.

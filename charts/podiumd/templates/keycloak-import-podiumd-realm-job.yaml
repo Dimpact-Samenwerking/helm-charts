@@ -17,7 +17,7 @@
      NOT included in the hash — they would make the suffix unstable between renders. */ -}}
 {{- $realmCfgTpl := include (print $.Template.BasePath "/keycloak-podiumd-realm-config.yaml") . -}}
 {{- $oidcInputs := list -}}
-{{- range $comp := list "openzaak" "opennotificaties" "objecten" "objecttypen" "openarchiefbeheer" "openklant" "openformulieren" "openinwoner" "referentielijsten" "openbeheer" -}}
+{{- range $comp := list "openzaak" "opennotificaties" "objecten" "objecttypen" "openarchiefbeheer" "openklant" "openformulieren" "openinwoner" "referentielijsten" "openbeheer" "openbao" -}}
 {{- $cfg := index $.Values $comp "configuration" | default dict -}}
 {{- $secs := index $cfg "secrets" | default dict -}}
 {{- $kcs := index $secs "keycloak_client_secret" | default "" -}}
@@ -113,8 +113,11 @@ spec:
           seccompProfile:
             type: RuntimeDefault
         env:
+        # In-cluster URL by default: the public admin host may sit behind a
+        # gateway IP-allowlist that does not include the cluster egress IP,
+        # which 403s the import. Override via keycloak-operator.jobs.keycloakUrl.
         - name: KEYCLOAK_URL
-          value: {{ coalesce .Values.keycloak.hostname.admin .Values.keycloak.config.adminFrontendUrl "http://keycloak-service:8080" | quote }}
+          value: {{ $operatorJobs.keycloakUrl | default "http://keycloak-service:8080" | quote }}
         - name: KEYCLOAK_CLIENTID
           value: "keycloak-operator"
         - name: KEYCLOAK_CLIENTSECRET
@@ -207,6 +210,11 @@ spec:
             secretKeyRef:
               name: keycloak-podiumd-realm-secrets
               key: openbeheer-oidc-secret
+        - name: KC_SECRET_OPENBAO
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-podiumd-realm-secrets
+              key: openbao-oidc-secret
         - name: KC_SECRET_KISS
           valueFrom:
             secretKeyRef:
@@ -237,11 +245,11 @@ spec:
             secretKeyRef:
               name: keycloak-podiumd-realm-secrets
               key: pabc-keycloak-admin-secret
-        - name: KC_SECRET_APISIX_DASHBOARD
+        - name: KC_SECRET_FRANKGATEWAY_DASHBOARD
           valueFrom:
             secretKeyRef:
               name: keycloak-podiumd-realm-secrets
-              key: apisix-dashboard-oidc-secret
+              key: frankgateway-dashboard-oidc-secret
         volumeMounts:
         - name: realm-configs
           mountPath: /config

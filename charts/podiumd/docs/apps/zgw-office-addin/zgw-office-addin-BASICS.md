@@ -141,3 +141,8 @@ already generous for this workload and need no increase for production —
 
 No database provisioning, Keycloak client, Open Notificaties registration or PVC is
 needed for this component.
+
+## Related documents
+
+None — this folder has only the BASICS file; no deep-dive documents exist yet
+for this component.

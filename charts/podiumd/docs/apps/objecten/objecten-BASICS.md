@@ -148,3 +148,8 @@ it as a floor, not a peak. `resource-overview.md` recommends a PodDisruptionBudg
    (`kubectl -n podiumd rollout status deploy/objecten`), the admin UI is reachable at
    `https://<env>-objecten.dimpact.nl/admin/` with Keycloak login, and
    `/api/v2/objects` answers with a valid consumer token.
+
+## Related documents
+
+None — this folder has only the BASICS file; no deep-dive documents exist yet
+for this component.

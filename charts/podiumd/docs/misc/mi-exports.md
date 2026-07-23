@@ -4,11 +4,11 @@ Weekly Management Information (MI) data exports of every Postgres-backed compone
 
 > Jira: [IN-1650](https://dimpact.atlassian.net/browse/IN-1650) (epic) / [IN-1691](https://dimpact.atlassian.net/browse/IN-1691) (iter 1 — dump generator) / [IN-2119](https://dimpact.atlassian.net/browse/IN-2119) (egress switched from Azure Blob to SFTP, CSV separator `;`).
 
-> **⚠️ Opt-in feature — disabled by default.** Set `mi.enabled: true` in your env values file to turn it on. The chart renders the SFTP Secrets (`mi-export-sftp` + `mi-export-sftp-key`) itself from the `mi.sftp.*` values — nothing is pre-provisioned. You only need a reachable SFTP server with the gemeente's public key installed, and the SSH private key supplied via `mi.sftp.privateKey` (the ExternalsPodiumD `application.yml` pipeline substitutes it from Key Vault at deploy time). See [§ Activation in an environment](#activation-in-an-environment).
+> **⚠️ Opt-in feature — disabled by default.** Set `mi.enabled: true` in your env values file to turn it on. The chart renders the SFTP Secrets (`mi-export-sftp`, plus `mi-export-sftp-key` in keypair mode) itself from the `mi.sftp.*` values — nothing is pre-provisioned. You need a reachable SFTP server and **exactly one** auth credential: `mi.sftp.privateKey` (SSH keypair) or `mi.sftp.password` (password auth, since chart 4.8.1 — e.g. Azure Blob SFTP local users). Either credential is substituted from Key Vault by the ExternalsPodiumD `application.yml` pipeline at deploy time. See [§ Activation in an environment](#activation-in-an-environment).
 
 ## Audience
 
-**PodiumD operators** running the chart via the `ExternalsPodiumD` `application.yml` pipeline — to enable, configure, validate and consume exports. The chart renders the SFTP Secrets from values, so the only out-of-band prerequisites are a reachable SFTP server and the SSH private key in Key Vault (see [§ Deployment](#deployment)).
+**PodiumD operators** running the chart via the `ExternalsPodiumD` `application.yml` pipeline — to enable, configure, validate and consume exports. The chart renders the SFTP Secrets from values, so the only out-of-band prerequisites are a reachable SFTP server and the SFTP credential (SSH private key or password) in Key Vault as `mi-data-sftp-credential` (see [§ Deployment](#deployment)).
 
 ## How it works
 
@@ -43,7 +43,12 @@ Weekly Management Information (MI) data exports of every Postgres-backed compone
 ```
 
 Each CronJob:
-1. Reads its target component's existing `<component>` Secret + ConfigMap (DB host, port, name, user, password — same secrets the app pods consume).
+1. Reads its target component's existing Secret + ConfigMap (same credentials the app pods consume; names default to `<component>`, overridable per-target via `secretName`/`configMapName`). `dump.sh` normalises three credential shapes to `DB_*`:
+   - `DB_HOST/DB_NAME/DB_USER/DB_PASSWORD` (+`DB_PORT`) — the Django apps;
+   - `POSTGRES_HOST/DB/USER/PASSWORD` (+`POSTGRES_PORT`) — kiss frontend (Secret/ConfigMap `contact`);
+   - an Npgsql connection string (`Host=…;Port=…;Database=…;Username=…;Password=…`) in the env named by the per-target `connectionStringEnv` — the .NET apps (ita: `ConnectionStrings__DefaultConnection` in `ita-secrets`, pabc: `ConnectionStrings__Pabc`).
+
+   Both refs are mounted `optional: true`: a component that exposes credentials in none of these shapes (e.g. not deployed in this env) is treated as **not using PostgreSQL** — the job logs `skip: … no DB_* credentials` and exits green instead of hanging in `CreateContainerConfigError`. A *partial* credential set still fails the job (real misconfiguration).
 2. Reads the env's SFTP connection envvars from `Secret/mi-export-sftp` and the SSH private key from `Secret/mi-export-sftp-key` — both rendered by the chart from `mi.sftp.*` values.
 3. Runs `dump.sh` in the chart's `mi-export-scripts` ConfigMap, accumulating per-table CSVs (or a single `pg_dump -Fc` file) under `/tmp` (a 20 GiB `emptyDir` scratch volume).
 4. Uploads the result over `sftp -b -` to `<SFTP_REMOTE_PATH>/<gemeente>/<YYMMDD>/<component>/<HHMMSS>-<component>.<ext>`. Host-key checking is intentionally **disabled** (`StrictHostKeyChecking=no`, `UserKnownHostsFile=/dev/null`) — see [§ Host-key policy](#host-key-policy).
@@ -79,7 +84,7 @@ Both formats honour `mi.targets[].schemas` (default `["public"]`; `zac` override
 <SFTP_REMOTE_PATH>/<gemeente>/<YYMMDD>/<component>/<HHMMSS>-<component>.<ext>
 ```
 
-A single timestamp is captured at script start, so every file from one CronJob run shares the same `<HHMMSS>` prefix and lands under the same date directory. The dated path is created with `sftp -mkdir` (which tolerates EEXIST), so existing trees are reused. Examples:
+A single timestamp is captured at script start, so every file from one CronJob run shares the same `<HHMMSS>` prefix and lands under the same date directory. The script probes each ancestor directory with a silent `cd` and only `mkdir`s the missing tail, so existing trees are reused without emitting `remote mkdir: Failure` noise (Azure Blob SFTP reports EEXIST as a generic failure). The mkdirs it does emit still tolerate EEXIST, because sibling component jobs on the same schedule share the `<gemeente>/<YYMMDD>` ancestors and may create them concurrently. Examples:
 
 ```
 /uploads/mi-exports/jim00/260507/openzaak/095048-openzaak.tar.gz
@@ -94,19 +99,23 @@ A single timestamp is captured at script start, so every file from one CronJob r
 The chart renders both SFTP Secrets itself from `mi.sftp.*` values — you do **not** stage any K8s Secret manually. You need:
 
 - A **reachable SFTP server** accepting connections from the cluster's egress range. Host, port, user, and remote root path are all required values (no defaults).
-- An **SSH keypair**:
-  - The *public* half installed in the SFTP user's `authorized_keys` on the server.
-  - The *private* half stored in Azure Key Vault as `mi-data-sftp-rsa-private-key`. The [`application.yml`](https://dev.azure.com/ssctwente/ExternalsPodiumD) deploy pipeline reads it and substitutes it into the env values file's `mi.sftp.privateKey` placeholder at deploy time — it is never committed to git.
+- **Exactly one** auth credential (the render fails if both or neither are set):
+  - **Keypair mode** — an SSH keypair: the *public* half installed in the SFTP user's `authorized_keys` on the server; the *private* half referenced via the `mi.sftp.privateKey` placeholder.
+  - **Password mode** *(chart 4.8.1+)* — the SFTP user's password, referenced via the `mi.sftp.password` placeholder. Fits servers without keypair support for the account, e.g. Azure Blob SFTP local users with an Azure-generated password. The export job feeds it to `sftp` via an `SSH_ASKPASS` helper (`SSH_ASKPASS_REQUIRE=force`; on Azure Linux `sshpass` would drag in `openssh-server`, whose install fails in the azure-cli image).
+
+  Either way the credential lives in Azure Key Vault under the **same secret name**: `mi-data-sftp-credential` (env-suffixed on the qa flavor, e.g. `mi-data-sftp-credential-jim00`). The KV name does not encode the credential type — the values field (`privateKey` vs `password`) picks the mode.
+
+  In both modes the [`application.yml`](https://dev.azure.com/ssctwente/ExternalsPodiumD) deploy pipeline substitutes the credential from Key Vault at deploy time — it is never committed to git.
 
 No `known_hosts` is needed — host-key checking is disabled (see [§ Host-key policy](#host-key-policy)).
 
 From those values the chart renders, in the `podiumd` namespace:
-- `Secret/mi-export-sftp` — `SFTP_HOST`, `SFTP_PORT`, `SFTP_USER`, `SFTP_REMOTE_PATH`.
-- `Secret/mi-export-sftp-key` — single key `id` (the SSH private key, PEM).
+- `Secret/mi-export-sftp` — `SFTP_HOST`, `SFTP_PORT`, `SFTP_USER`, `SFTP_REMOTE_PATH` (+ `SFTP_PASSWORD` in password mode).
+- `Secret/mi-export-sftp-key` — single key `id` (the SSH private key, PEM). Keypair mode only.
 
 ### 2. Enable in `values-<env>.yml`
 
-Minimum:
+Minimum (keypair mode):
 
 ```yaml
 mi:
@@ -116,7 +125,20 @@ mi:
     host: sftp.example.com        # required
     user: miuser                  # required
     remotePath: /mi-exports       # required (path on SFTP server)
-    privateKey: "REP_MI_DATA_SFTP_RSA_PRIVATE_KEY_REP"  # required; pipeline substitutes from KV
+    privateKey: "REP_MI_DATA_SFTP_CREDENTIAL_REP"  # pipeline substitutes from KV
+```
+
+Or password mode (chart 4.8.1+, e.g. Azure Blob SFTP local users; mutually exclusive with `privateKey`):
+
+```yaml
+mi:
+  enabled: true
+  gemeente: <env-name>
+  sftp:
+    host: fdrpsftp8bbbe0.blob.core.windows.net
+    user: fdrpsftp8bbbe0.floepdorp        # Azure Blob SFTP: <account>.<localuser>
+    remotePath: /mi-exports
+    password: "REP_MI_DATA_SFTP_CREDENTIAL_REP"  # pipeline substitutes from KV
 ```
 
 Defaults: weekly schedule (Sunday 02:00 Europe/Amsterdam), `csv` format, port 22, all 14 default targets. A target only renders a CronJob when the corresponding `<component>.enabled` is `true` elsewhere in the env's values, so disabling a component automatically removes its export.
@@ -161,9 +183,10 @@ mi:
     port: 22
     user: miuser
     remotePath: /mi-exports
-    privateKey: "REP_MI_DATA_SFTP_RSA_PRIVATE_KEY_REP"  # pipeline substitutes from KV
+    privateKey: "REP_MI_DATA_SFTP_CREDENTIAL_REP"  # keypair mode; XOR with password
+    password: ""                      # password mode (4.8.1+); XOR with privateKey
     secretName: mi-export-sftp        # chart-rendered Secret: connection envvars
-    keySecretName: mi-export-sftp-key # chart-rendered Secret: `id` (SSH private key)
+    keySecretName: mi-export-sftp-key # chart-rendered Secret: `id` (keypair mode only)
 ```
 
 ### 3. Trim or override the target list (optional)
@@ -181,6 +204,13 @@ mi:
     - component: opennotificaties
       secretName: notificaties # override when subchart key ≠ resource name
       configMapName: notificaties
+    - component: ita
+      secretName: ita-secrets   # .NET app: creds live in a connection string
+      configMapName: ita-config
+      connectionStringEnv: ConnectionStrings__DefaultConnection
+    - component: kiss
+      secretName: contact       # kiss-frontend fullnameOverride; POSTGRES_* keys
+      configMapName: contact
 ```
 
 ### 4. Validation
@@ -229,12 +259,12 @@ A successful pgdump run logs:
 
 Deployment is via the **`application.yml` pipeline** in `dev.azure.com/ssctwente/ExternalsPodiumD` — the single supported path. There is no separate "test mode" and no manual Secret staging; the chart renders both SFTP Secrets from the `mi.sftp.*` values.
 
-How the private key flows in:
+How the credential flows in (same path for both modes — only the values field differs):
 
-1. The SSH private key is stored in Azure Key Vault as `mi-data-sftp-rsa-private-key`.
-2. The pipeline's `AzureKeyVault@2` task exposes it as the variable `MI_DATA_SFTP_RSA_PRIVATE_KEY`.
-3. The env values file carries a placeholder `mi.sftp.privateKey: "REP_MI_DATA_SFTP_RSA_PRIVATE_KEY_REP"`, which the pipeline substitutes with the KV value at deploy time (so the key never lands in git).
-4. `helm upgrade` renders `Secret/mi-export-sftp` + `Secret/mi-export-sftp-key` from the values, and the CronJobs consume them.
+1. The credential (SSH private key **or** password) is stored in Azure Key Vault as `mi-data-sftp-credential` (env-suffixed on the qa flavor).
+2. The pipeline's `AzureKeyVault@2` task exposes it as the variable `MI_DATA_SFTP_CREDENTIAL`.
+3. The env values file carries the placeholder `"REP_MI_DATA_SFTP_CREDENTIAL_REP"` in `mi.sftp.privateKey` (keypair mode) or `mi.sftp.password` (password mode); the pipeline substitutes the KV value at deploy time (so the credential never lands in git).
+4. `helm upgrade` renders `Secret/mi-export-sftp` (+ `Secret/mi-export-sftp-key` in keypair mode) from the values, and the CronJobs consume them.
 
 The connection params (`host`, `port`, `user`, `remotePath`) live directly in the env values file. The SFTP server itself (with the gemeente's public key in `authorized_keys`) is the only out-of-band prerequisite.
 
@@ -243,7 +273,7 @@ The connection params (`host`, `port`, `user`, `remotePath`) live directly in th
 - **No manually-staged K8s Secrets.** The chart renders them from values.
 - **No `known_hosts`.** Host-key checking is disabled (see [§ Host-key policy](#host-key-policy)).
 - **No Azure Blob Storage container / SA key.** Blob is no longer the egress target.
-- **No Workload Identity / federated credentials.** SFTP key auth is the credential.
+- **No Workload Identity / federated credentials.** The SFTP credential (keypair or password) is the only auth.
 
 ## Operations
 
@@ -284,11 +314,14 @@ This iteration ships **without** alerting. The CronJob's standard Job/Pod failur
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | `helm template` fails with `mi.format must be one of: csv, pgdump (got "X")` | Typo in `values-<env>.yml` | Set `mi.format` to `csv` or `pgdump` (or remove to use default `csv`). |
-| `helm template` fails with `mi.sftp.host is required when mi.enabled is true` (or `…privateKey is required…`) | Required SFTP value not supplied | Set `mi.sftp.{host,user,remotePath,privateKey}` in the env values (the pipeline substitutes `privateKey` from Key Vault). |
+| `helm template` fails with `mi.sftp.host is required when mi.enabled is true` (or `…user…` / `…remotePath…`) | Required SFTP value not supplied | Set `mi.sftp.{host,user,remotePath}` in the env values. |
+| `helm template` fails with `exactly one of mi.sftp.privateKey or mi.sftp.password is required…` or `…mutually exclusive…` | Neither or both auth credentials set | Set exactly one of `mi.sftp.privateKey` / `mi.sftp.password` (the pipeline substitutes it from Key Vault). |
 | Job pod fails with `SFTP_HOST: must be set` | `Secret/mi-export-sftp` not rendered | Confirm `mi.enabled: true` and the `mi.sftp.*` connection values are set so the chart renders the Secret. |
+| Job logs `skip: component <x> exposes no DB_* credentials …` and exits 0 | The component's Secret/ConfigMap carry credentials in none of the three supported shapes (`DB_*`, `POSTGRES_*`, `connectionStringEnv`) — usually the component isn't deployed in this env | Expected when the component (e.g. kiss frontend) isn't deployed. If the component *should* export, point per-target `secretName`/`configMapName` at the resources that carry its credentials and/or set `connectionStringEnv`. |
+| Job pod fails with `partial DB_* credentials for <x> (missing: …)` | Some but not all `DB_*` envs resolve — typo'd per-target `secretName`/`configMapName`, half-migrated component Secret/ConfigMap, or a connection string missing a field | Fix the target override, the component's Secret/ConfigMap, or the connection string so all four `DB_*` values resolve. |
 | Upload fails with `No such file or directory` on `mkdir`/`put` | The first path segment of `remotePath` isn't a writable container/dir for `SFTP_USER`, **or** the user is chrooted into a home container and `remotePath` double-counts it | Confirm `SFTP_REMOTE_PATH`'s first segment exists and is writable. For Azure Blob SFTP local users whose `homeDirectory` is a container, paths are relative to that container — use `/<subpath>`, not `/<container>/<subpath>`. |
 | Job pod fails with `Permissions 0644 for '…' are too open` | Private key Secret's `defaultMode` not 0400 | The chart sets `defaultMode: 0400` on the `sftp-key` volume; if you see this, something replaced the projected volume or a hostPath override is in play. |
-| Job pod fails with `Couldn't get statSet for "/uploads/…": …: Permission denied` | SFTP user's home or remotePath isn't writable by `SFTP_USER` | Fix the server-side perms on `SFTP_REMOTE_PATH`. The script does `mkdir -p` recursively up from `/`, so any ancestor that the user can't enter blocks the upload. |
+| Job pod fails with `Couldn't get statSet for "/uploads/…": …: Permission denied` | SFTP user's home or remotePath isn't writable by `SFTP_USER` | Fix the server-side perms on `SFTP_REMOTE_PATH`. The script probes and creates ancestor directories from `/` down, so any ancestor that the user can't enter blocks the upload. |
 | Job pod fails with `password authentication failed for user "<component>"` | The component's K8s Secret has a stale DB password (env was rebuilt but Secret wasn't refreshed) | Re-run the deploy pipeline's "Create PostgreSQL Databases and Users" step; or `kubectl delete secret/<component> -n podiumd` and let the chart recreate it. |
 | `csv` run logs `no tables found in schemas (...)` then exits 1 | Component's DB exists but has no tables (chart was deployed but the component's migration never ran) | Investigate the component's startup; the export script intentionally fails rather than upload an empty tarball. |
 | Pod evicted with `Pod ephemeral local storage usage exceeds the total limit of containers 20Gi` | Component's tarball exceeded 20 GiB scratch budget | Increase `mi.resources.{requests,limits}.ephemeral-storage` and the matching `tmp` `emptyDir.sizeLimit` in `templates/mi-export-cronjobs.yaml`. |
@@ -298,5 +331,6 @@ This iteration ships **without** alerting. The CronJob's standard Job/Pod failur
 ## Changelog
 
 - **Iter1 (chart 4.7.3)** — initial release: weekly per-component CronJobs, `csv` (`;`-separated) / `pgdump` env-wide knob, structured remote-path layout, SFTP egress with a KV-stored keypair (chart-rendered Secrets, host-key checking disabled), 20 GiB ephemeral scratch.
+- **Chart 4.8.1** — password auth added: `mi.sftp.password` (XOR with `privateKey`), rendered as `SFTP_PASSWORD` in the connection Secret and fed to `sftp` via an `SSH_ASKPASS` helper; supports e.g. Azure Blob SFTP local users.
 - **Iter2** *(not started)* — Keycloak-fronted web portal so consumers can browse/download without an SSH key.
 - **Iter3** ([IN-1993](https://dimpact.atlassian.net/browse/IN-1993)) — baked image (drop runtime `tdnf install`); Prometheus alerts on missed/failed runs; per-table allow/deny lists.

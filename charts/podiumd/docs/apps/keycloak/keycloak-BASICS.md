@@ -148,6 +148,31 @@ deploying Keycloak again. Standing up Keycloak in a fresh environment:
    (keycloak-config-cli, authenticating as the `keycloak-operator` client).
    Realm imports re-run automatically when the realm config or client-secret
    inputs change (checksum-suffixed job names).
+   The import jobs talk to Keycloak via the in-cluster service
+   (`http://keycloak-service:8080`) by default — NOT the public admin host,
+   which may sit behind a gateway IP-allowlist that does not include the
+   cluster egress IP (symptom: `HTTP 403 Forbidden` from nginx at token
+   grant, import pods in a retry loop). Override with
+   `keycloak-operator.jobs.keycloakUrl` if the jobs must use another URL.
+
+   The same allowlist trap applies to every other in-cluster consumer of the
+   Keycloak **admin surface** (`/admin/*` is typically filtered on BOTH the
+   admin host and the realm host, since Keycloak serves the admin REST API on
+   any hostname). Per component:
+   - **PABC** — builds its admin-REST base and token endpoint directly from
+     `pabc.settings.oidc.authority` (no OIDC discovery for those). Point it
+     at the in-cluster service: `http://keycloak-service:8080/realms/podiumd`
+     plus `pabc.settings.oidc.requireHttps: false`. Browser-facing endpoints
+     still resolve to the realm's public `frontendUrl` via discovery.
+   - **ITA** — `ita.web.oidc.authority` is used for OIDC discovery/login
+     only (no admin REST) and has no requireHttps override, so use the
+     public **realm** host (`https://<env>-keycloak.dimpact.nl/realms/podiumd`),
+     never the admin host.
+   - **ZAC** — its Keycloak admin client is built from `AUTH_SERVER`
+     (`zac.auth.server`), the same value that drives browser login redirects,
+     so it CANNOT be pointed at the internal service. On environments that
+     IP-filter `/admin`, the cluster egress IP must be in the allowlist for
+     ZAC's user/group lookups to work.
 4. DNS + HTTPRoutes: point `<env>-keycloak.dimpact.nl` and
    `<env>-keycloak-admin.dimpact.nl` at the public gateway and have the
    environment deployment create `hr-keycloak-nginx` /

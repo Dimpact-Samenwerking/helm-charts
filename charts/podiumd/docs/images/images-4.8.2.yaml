@@ -1,0 +1,71 @@
+# Images new or changed in podiumd 4.8.2 vs 4.8.1.
+#
+# Changes in this release:
+#   0. Gotenberg -> 8.34.0
+#   1. Open Formulieren -> 3.4.10
+#   2. Objecten API -> 3.6.2
+#   3. Open Notificaties -> 1.16.1
+#   4. Zaakbrug -> 1.26.15
+#   5. nginx-unprivileged -> 1.31.3 (consolidated to a single global.images.nginx
+#      YAML anchor reused by every component that pins it)
+#   6. curl -> 8.21.0 (consolidated to a single global.images.curl YAML anchor)
+#
+# See docs/_UPGRADE_PATHS/4.7.8-to-4.8.0-upgrade.md for the operator upgrade notes.
+#
+# Mirror names follow strip_registry(url) throughout. See docs/images/acr-mirror-naming.md.
+
+# Keycloak 26.6.3 -> 26.6.4
+- name: keycloak/keycloak
+  url: quay.io/keycloak/keycloak
+  version: "26.6.4"
+  digest: "sha256:0aae0de7fca85525f727d3354df17896092de8bb26ae4c12d89c77e5df8cbce4"
+- name: keycloak/keycloak-operator
+  url: quay.io/keycloak/keycloak-operator
+  version: "26.6.4"
+  digest: "sha256:831827a0a267805d0e5bef00e402d99f728ce7fc4caa62d486a9114912412434"
+
+# ZAC - Gotenberg (office converter) — 8.33.0 -> 8.34.0
+- name: gotenberg/gotenberg
+  url: docker.io/gotenberg/gotenberg
+  version: "8.34.0"
+  digest: "sha256:67097317623a503ba2a6a7e9ae8db6929a1f7e1bbd88077bacf2d325fbdab923"
+
+# Open Formulieren
+- name: openformulieren/open-forms
+  url: docker.io/openformulieren/open-forms
+  version: "3.4.10"
+  digest: "sha256:45755696db647b0c9fecc5d2c78403dbbac0f3c962292e89dee34b405abd1d7c"
+
+# Objecten API
+- name: maykinmedia/objects-api
+  url: docker.io/maykinmedia/objects-api
+  version: "3.6.2"
+  digest: "sha256:6a3a40081016e5072c5355622c0ca3e1ded89228edce7336fc4d8600217344f8"
+
+# Open Notificaties
+- name: openzaak/open-notificaties
+  url: docker.io/openzaak/open-notificaties
+  version: "1.16.1"
+  digest: "sha256:ee940d036bb2f8325f9a5153316f657fceeb24db59a23c5109d6e659daae7ac3"
+
+# Zaakbrug
+- name: wearefrank/zaakbrug
+  url: docker.io/wearefrank/zaakbrug
+  version: "1.26.15"
+  digest: "sha256:101d1319ea5706289ce8f22c7f012a12b8378770bb2a5ebf761d72fa46c5ca97"
+
+# nginx-unprivileged — consolidated: zac/apiproxy were on 1.31.1, the
+# Frank!Gateway dashboard-auth shim was on 1.27-alpine; all now share one
+# global.images.nginx anchor pinned to 1.31.3
+- name: nginxinc/nginx-unprivileged
+  url: docker.io/nginxinc/nginx-unprivileged
+  version: "1.31.3"
+  digest: "sha256:49c9bef1797e11117a7f490fd00f282e377ac402fec472c72636f90cdbf72e10"
+
+# curl — consolidated to global.images.curl; keycloak-operator's ensureOperatorSa
+# and zac.global.curlImage were already on 8.20.0, the Frank!Gateway routes-seeding
+# job was undigested. All three bumped together to 8.21.0.
+- name: curlimages/curl
+  url: docker.io/curlimages/curl
+  version: "8.21.0"
+  digest: "sha256:7c12af72ceb38b7432ab85e1a265cff6ae58e06f95539d539b654f2cfa64bb13"

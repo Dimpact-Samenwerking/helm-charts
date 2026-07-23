@@ -1,0 +1,234 @@
+{{- if and .Values.frankgateway.enabled .Values.frankgateway.dashboard.enabled }}
+{{- /*
+  apisix-dashboard for Frank!Gateway.
+
+  The conf Secret and the shim nginx.conf Secret are rendered from THIS single
+  template because both embed the dashboard-internal admin password (the conf
+  declares the user, the shim's server-side auto-login posts it): computing the
+  password once and reusing the variable guarantees they can never diverge
+  within a render.
+
+  The dashboard's own login (admin + this password) never reaches a browser:
+  the only external path is oauth2-proxy (Keycloak SSO) -> shim -> dashboard,
+  and the shim injects the dashboard JWT server-side.
+*/ -}}
+{{- $fg := .Values.frankgateway }}
+{{- $dash := $fg.dashboard }}
+{{- $adminPassword := $dash.adminPassword | default "" }}
+{{- $jwtSecret := "" }}
+{{- $existing := lookup "v1" "Secret" .Release.Namespace "frankgateway-dashboard-conf" }}
+{{- if $existing }}
+{{-   if eq $adminPassword "" }}
+{{-     $adminPassword = index $existing.data "admin-password" | default "" | b64dec }}
+{{-   end }}
+{{-   $jwtSecret = index $existing.data "jwt-secret" | default "" | b64dec }}
+{{- end }}
+{{- if eq $adminPassword "" }}{{- $adminPassword = randAlphaNum 32 }}{{- end }}
+{{- if eq $jwtSecret "" }}{{- $jwtSecret = randAlphaNum 32 }}{{- end }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: frankgateway-dashboard-conf
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frankgateway-dashboard
+type: Opaque
+stringData:
+  # Extra keys exist so lookup can keep the generated values stable across
+  # upgrades without parsing conf.yaml.
+  admin-password: {{ $adminPassword | quote }}
+  jwt-secret: {{ $jwtSecret | quote }}
+  conf.yaml: |
+    conf:
+      listen:
+        host: 0.0.0.0
+        port: 9000
+      allow_list:
+        - 0.0.0.0/0
+      etcd:
+        endpoints:
+          - "http://frankgateway-etcd:2379"
+        mtls:
+          key_file: ""
+          cert_file: ""
+          ca_file: ""
+      log:
+        error_log:
+          level: warn
+          file_path: logs/error.log
+        access_log:
+          file_path: logs/access.log
+      security:
+        content_security_policy: "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; frame-src *"
+
+    authentication:
+      secret: {{ $jwtSecret | quote }}
+      expire_time: 3600
+      users:
+        - username: admin
+          password: {{ $adminPassword | quote }}
+
+    plugins:
+      - api-breaker
+      - authz-keycloak
+      - basic-auth
+      - batch-requests
+      - consumer-restriction
+      - cors
+      - echo
+      - fault-injection
+      - grpc-transcode
+      - hmac-auth
+      - http-logger
+      - ip-restriction
+      - jwt-auth
+      - kafka-logger
+      - key-auth
+      - limit-conn
+      - limit-count
+      - limit-req
+      - openid-connect
+      - prometheus
+      - proxy-cache
+      - proxy-mirror
+      - proxy-rewrite
+      - redirect
+      - referer-restriction
+      - request-id
+      - request-validation
+      - response-rewrite
+      - serverless-post-function
+      - serverless-pre-function
+      - sls-logger
+      - syslog
+      - tcp-logger
+      - udp-logger
+      - uri-blocker
+      - wolf-rbac
+      - zipkin
+      - server-info
+      - traffic-split
+      - fsc
+{{- if $dash.auth.enabled }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: frankgateway-shim
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frankgateway-shim
+type: Opaque
+stringData:
+  nginx.conf: |
+    worker_processes 1;
+    pid /tmp/nginx.pid;
+    events { worker_connections 1024; }
+    http {
+      # The dashboard's gzip is disabled upstream (Accept-Encoding stripped so
+      # sub_filter can rewrite the HTML), so re-compress here — otherwise the
+      # multi-MB SPA JS/CSS bundles are served uncompressed and the page is slow.
+      gzip on;
+      gzip_comp_level 5;
+      gzip_min_length 1024;
+      gzip_proxied any;
+      gzip_vary on;
+      gzip_types text/plain text/css application/json application/javascript
+                 text/javascript application/x-javascript image/svg+xml
+                 application/font-woff font/woff2;
+      # Resolve the dashboard Service at request time (kube-dns), via a variable
+      # in proxy_pass — otherwise nginx caches the pod IP at startup and returns
+      # 502 after the dashboard pod restarts (new IP).
+      resolver {{ $dash.auth.dnsResolver }} valid=10s ipv6=off;
+      server {
+        listen 8080;
+        set $dashboard "frankgateway-dashboard.{{ .Release.Namespace }}.svc.cluster.local";
+        # Server-side login to the dashboard: the admin credential is injected
+        # here and never reaches the browser. Returns {data:{token}}.
+        location = /__fglogin {
+          rewrite ^ /apisix/admin/user/login break;
+          proxy_pass http://$dashboard:9000;
+          proxy_set_header Content-Type "application/json";
+          proxy_pass_request_body off;
+          proxy_set_body '{"username":"admin","password":"{{ $adminPassword }}"}';
+        }
+        location / {
+          proxy_pass http://$dashboard:9000;
+          proxy_set_header Host $host;
+          # disable upstream gzip so sub_filter can rewrite the SPA shell
+          proxy_set_header Accept-Encoding "";
+          sub_filter_once on;
+          sub_filter '</head>' '<script>if(!localStorage.getItem("token")){fetch("/__fglogin",{method:"POST"}).then(function(r){return r.json()}).then(function(d){if(d&&d.data&&d.data.token){localStorage.setItem("token",d.data.token);location.reload()}})}</script></head>';
+        }
+      }
+    }
+{{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frankgateway-dashboard
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frankgateway-dashboard
+    app.kubernetes.io/name: frankgateway-dashboard
+spec:
+  selector:
+    app.kubernetes.io/name: frankgateway-dashboard
+  ports:
+    - name: http
+      port: 9000
+      targetPort: 9000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frankgateway-dashboard
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frankgateway-dashboard
+    app.kubernetes.io/name: frankgateway-dashboard
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: frankgateway-dashboard
+  template:
+    metadata:
+      labels:
+        {{- include "podiumd.labels" . | nindent 8 }}
+        app.kubernetes.io/component: frankgateway-dashboard
+        app.kubernetes.io/name: frankgateway-dashboard
+    spec:
+      containers:
+        - name: dashboard
+          image: "{{ $dash.image.repository }}:{{ $dash.image.tag }}"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 9000
+          readinessProbe:
+            tcpSocket:
+              port: 9000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 9000
+            initialDelaySeconds: 20
+            periodSeconds: 15
+          resources:
+            {{- toYaml $dash.resources | nindent 12 }}
+          volumeMounts:
+            - name: conf
+              mountPath: /usr/local/apisix-dashboard/conf/conf.yaml
+              subPath: conf.yaml
+      volumes:
+        - name: conf
+          secret:
+            secretName: frankgateway-dashboard-conf
+{{- end }}

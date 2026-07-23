@@ -47,6 +47,8 @@ data:
     attributes:
       frontendUrl: {{ .Values.keycloak.config.realmFrontendUrl }}
       adminEventsExpiration: 2592000
+      # Required to activate the declarative User Profile config below.
+      userProfileEnabled: "true"
     browserSecurityHeaders:
       xContentTypeOptions: "nosniff"
       xRobotsTag: "none"
@@ -65,7 +67,14 @@ data:
     offlineSessionMaxLifespan: 7776000
     ssoSessionMaxLifespan: 36000
     ssoSessionIdleTimeout: 1800
-    accessTokenLifespan: 60
+    accessTokenLifespan: {{ .Values.keycloak.config.accessTokenLifespan | default 60 }}
+    # Pin the realm's token-signing algorithm to asymmetric RS256 explicitly.
+    # No client in this chart overrides its signature algorithm, so this
+    # already matches actual behavior — it just stops relying on Keycloak's
+    # implicit default. Keycloak still generates an HS512 key on every fresh
+    # realm regardless of this setting; that key is unused for token signing
+    # but removing the key provider itself is a separate, riskier change.
+    defaultSignatureAlgorithm: RS256
     passwordPolicy: "length(12) and notUsername(undefined) and notEmail(undefined) and passwordHistory(5)"
     requiredActions:
       - name: "Configure OTP"
@@ -73,12 +82,110 @@ data:
         enabled: "true"
         defaultAction: "true"
         alias: CONFIGURE_TOTP
+    # Keycloak's own User Profile API rejects an update that doesn't include
+    # username/email (it treats their absence as "delete this attribute"), so
+    # username, email, firstName and lastName below are re-declared verbatim
+    # matching Keycloak 26's own out-of-the-box defaults — only samaccountname
+    # (appended at the end) actually changes behavior here.
+    # unmanagedAttributePolicy: ENABLED keeps any attribute NOT listed here
+    # exactly as editable as before this block existed.
+    # samaccountname is populated by each gemeente's own IdP attribute mapper
+    # (identity providers are deliberately not chart-managed, see
+    # keycloak.config.realmIdentityProviders) and is exposed as a token claim to
+    # the ita and kiss clients — see docs/apps/keycloak/keycloak-security-updates.md
+    # § "samaccountname User Profile Restriction".
+    userProfile:
+      unmanagedAttributePolicy: ENABLED
+      attributes:
+        - name: username
+          displayName: "${username}"
+          validations:
+            length:
+              min: 3
+              max: 255
+            username-prohibited-characters: {}
+            up-username-not-idn-homograph: {}
+          permissions:
+            view:
+              - admin
+              - user
+            edit:
+              - admin
+              - user
+        - name: email
+          displayName: "${email}"
+          validations:
+            email: {}
+            length:
+              max: 255
+          required:
+            roles:
+              - user
+          permissions:
+            view:
+              - admin
+              - user
+            edit:
+              - admin
+              - user
+        - name: firstName
+          displayName: "${firstName}"
+          validations:
+            length:
+              max: 255
+            person-name-prohibited-characters: {}
+          required:
+            roles:
+              - user
+          permissions:
+            view:
+              - admin
+              - user
+            edit:
+              - admin
+              - user
+        - name: lastName
+          displayName: "${lastName}"
+          validations:
+            length:
+              max: 255
+            person-name-prohibited-characters: {}
+          required:
+            roles:
+              - user
+          permissions:
+            view:
+              - admin
+              - user
+            edit:
+              - admin
+              - user
+        - name: samaccountname
+          displayName: "${samaccountname}"
+          permissions:
+            view:
+              - admin
+              - user
+            edit:
+              - admin
+      groups:
+        - name: user-metadata
+          displayHeader: "User metadata"
+          displayDescription: "Attributes, which refer to user metadata"
     clients:
       # Disable built-in self-service portal — all accounts are admin-provisioned.
       - clientId: account-console
         enabled: false
       - clientId: account
         enabled: false
+      # admin-cli is unused in this realm (no bootstrap/ROPC flow relies on it here,
+      # unlike the master realm — see keycloak-master-realm-config.yaml). Disable the
+      # browser-redirect flows for the same reason: close off the unused
+      # authorization-code-interception surface on this public client.
+      - clientId: admin-cli
+        standardFlowEnabled: false
+        implicitFlowEnabled: false
+        directAccessGrantsEnabled: true
       - clientId: openzaak
         name: Open Zaak
         enabled: true
@@ -574,6 +681,45 @@ data:
               claim.name: "groups"
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "openbeheer"
+      - clientId: openbao
+        name: OpenBao
+        enabled: true
+        clientAuthenticatorType: client-secret
+        redirectUris:
+          - "{{ .Values.openbao.configuration.oidcUrl | trimSuffix "/" }}/*"
+          # OpenBao CLI OIDC login callback (`bao login -method=oidc`).
+          - "http://localhost:8250/*"
+        webOrigins:
+          - "{{ .Values.openbao.configuration.oidcUrl | trimSuffix "/" }}/*"
+        secret: $(KC_SECRET_OPENBAO)
+        protocolMappers:
+          - name: "username"
+            protocol: "openid-connect"
+            protocolMapper: oidc-usermodel-property-mapper
+            config:
+              introspection.token.claim: "true"
+              userinfo.token.claim: "true"
+              user.attribute: "username"
+              id.token.claim: "true"
+              lightweight.claim: "false"
+              access.token.claim: "true"
+              claim.name: "preferred_username"
+              jsonType.label: "String"
+          - name: "client roles"
+            protocol: "openid-connect"
+            protocolMapper: "oidc-usermodel-client-role-mapper"
+            consentRequired: false
+            config:
+              introspection.token.claim: "true"
+              multivalued: "true"
+              userinfo.token.claim: "false"
+              user.attribute: "foo"
+              id.token.claim: "true"
+              lightweight.claim: "false"
+              access.token.claim: "true"
+              claim.name: "groups"
+              jsonType.label: "String"
+              usermodel.clientRoleMapping.clientId: "openbao"
       - clientId: kiss
         name: Kiss
         enabled: true
@@ -767,24 +913,30 @@ data:
         clientAuthenticatorType: client-secret
         secret: $(KC_SECRET_PABC_ADMIN)
         serviceAccountsEnabled: true
-{{- if .Values.apisix.enabled }}
-      - clientId: apisix-dashboard
-        name: APISIX Dashboard
-        description: OIDC client used by oauth2-proxy in front of the APISIX embedded Admin UI to authenticate operator browser sessions.
+        # Service-account-only client (PABC's own backend calls the Keycloak Admin
+        # REST API) — no interactive login is ever performed with it. Disable the
+        # browser flow explicitly instead of leaving it on Keycloak's own default.
+        standardFlowEnabled: false
+        implicitFlowEnabled: false
+        directAccessGrantsEnabled: false
+{{- if and .Values.frankgateway.enabled .Values.frankgateway.dashboard.enabled .Values.frankgateway.dashboard.auth.enabled }}
+      - clientId: frankgateway-dashboard
+        name: Frank!Gateway Dashboard
+        description: OIDC client used by oauth2-proxy in front of the Frank!Gateway (APISIX) dashboard to authenticate operator browser sessions.
         enabled: true
         clientAuthenticatorType: client-secret
-        secret: $(KC_SECRET_APISIX_DASHBOARD)
+        secret: $(KC_SECRET_FRANKGATEWAY_DASHBOARD)
         # Standard authorization-code flow for the dashboard browser session.
         standardFlowEnabled: true
         directAccessGrantsEnabled: false
         serviceAccountsEnabled: false
         publicClient: false
         # Redirects come back to the public oauth2-proxy callback path. The proxy
-        # then validates the session and forwards to apisix-admin:9180 in-cluster.
-        # apisix.adminUi.hostname is required when apisix.enabled=true, so this
-        # is non-empty whenever this client block is rendered.
+        # then validates the session and forwards to the frankgateway-shim ->
+        # dashboard in-cluster. dashboard.auth.hostname is required when the SSO
+        # chain is enabled, so this is non-empty whenever this block is rendered.
         redirectUris:
-          - "https://{{ .Values.apisix.adminUi.hostname }}/oauth2/callback"
+          - "https://{{ .Values.frankgateway.dashboard.auth.hostname }}/oauth2/callback"
           - "http://localhost:8080/oauth2/callback"
         webOrigins:
           - "+"
@@ -920,6 +1072,8 @@ data:
           - name: administrators
         openbeheer:
           - name: administrators
+        openbao:
+          - name: {{ .Values.openbao.configuration.uploadersRole | quote }}
         kiss:
           - name: Redacteur
           - name: Klantcontactmedewerker
@@ -1046,6 +1200,14 @@ data:
           zac:
             - "domein_elk_zaaktype"
             - "raadpleger"
+      - name: {{ .Values.openbao.configuration.uploadersGroup | quote }}
+        path: "/{{ .Values.openbao.configuration.uploadersGroup }}"
+        attributes:
+          description:
+            - "OpenBao secret uploaders"
+        clientRoles:
+          openbao:
+            - {{ .Values.openbao.configuration.uploadersRole | quote }}
     {{- end }}
 {{- with .Values.keycloak.config.realmIdentityProviders }}
     {{- toYaml . | nindent 4 }}

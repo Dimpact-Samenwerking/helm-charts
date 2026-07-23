@@ -10,6 +10,21 @@ global:
 
   imageRegistry: ""
 
+  # Shared image references, reused via YAML anchors
+  images:
+    nginx: &nginxImage
+      repository: nginxinc/nginx-unprivileged
+      tag: "1.31.3@sha256:49c9bef1797e11117a7f490fd00f282e377ac402fec472c72636f90cdbf72e10"
+      pullPolicy: IfNotPresent
+    curl: &curlImage
+      repository: curlimages/curl
+      tag: "8.21.0@sha256:7c12af72ceb38b7432ab85e1a265cff6ae58e06f95539d539b654f2cfa64bb13"
+      pullPolicy: IfNotPresent
+    busybox: &busyboxImage
+      repository: library/busybox
+      tag: "1.38.0-glibc@sha256:3ba030337caebbfc2232b22b1e435eb213b28e5844a34942c74555bf904a265a"
+      pullPolicy: IfNotPresent
+
 tags:
   eck-operator.enabled: false
   redis: false
@@ -23,10 +38,10 @@ persistentVolume:
 keycloak-operator:
   enabled: true
   # Adfinis Helm chart wrapping the official Keycloak Operator manifests.
-  # Chart: https://charts.adfinis.com / adfinis/keycloak-operator (chart 1.12.0, appVersion 26.6.3)
+  # Chart: https://charts.adfinis.com / adfinis/keycloak-operator (chart 1.12.1, appVersion 26.6.4)
   # Note: it appears that the podname automatically appends -operator.
-  # Official operator image: quay.io/keycloak/keycloak-operator:26.6.3
-  # Note: adfinis chart 1.12.0 targets appVersion 26.6.3; operator + server image pinned to 26.6.3 below.
+  # Official operator image: quay.io/keycloak/keycloak-operator:26.6.4
+  # Note: adfinis chart 1.12.1 targets appVersion 26.6.4; operator + server image pinned to 26.6.4 below.
   # override: values-enable-observability.yaml sets enableServiceMonitor: true
   enableServiceMonitor: false
   fullnameOverride: keycloak
@@ -37,12 +52,12 @@ keycloak-operator:
       # `keycloak.image` (which uses the podiumd.image helper, repository:tag),
       # the adfinis subchart appends its own digest from a SEPARATE `operator.image.sha`
       # field: `repository:tag@sha256:{{ .sha }}`. Putting @sha256 in the tag
-      # produces an invalid DOUBLE digest (…:26.6.3@sha256:xxx@sha256:xxx).
-      # The chart's default operator.image.sha already pins the matching 26.6.3
-      # digest (sha256:bd128cd6…). To DISABLE digest pinning (e.g. on aks-blue
+      # produces an invalid DOUBLE digest (…:26.6.4@sha256:xxx@sha256:xxx).
+      # The chart's default operator.image.sha already pins the matching 26.6.4
+      # digest (sha256:831827a0a…). To DISABLE digest pinning (e.g. on aks-blue
       # / ACR-mirror envs where the mirrored digest differs), set
       # `operator.image.sha: ""`. See docs/_UPGRADE_PATHS/4.7.3-to-4.7.4-upgrade.md.
-      tag: "26.6.3"
+      tag: "26.6.4"
     resources:
       requests:
         cpu: 100m
@@ -55,17 +70,22 @@ keycloak-operator:
     # provisions (RELATED_IMAGE_KEYCLOAK env on the operator Deployment). Must
     # match podiumd's own `keycloak.image` digest above. The adfinis subchart's
     # built-in default still carries the pre-PR#344 digest (sha256:5fdbf2d…), so
-    # we override it here to the refreshed 26.6.3 digest (sha256:9b03307…).
+    # we override it here to the refreshed 26.6.4 digest (sha256:0aae0de…).
     # NOTE: sha is a SEPARATE field; the template appends it as @sha256:{{ .sha }},
     # so do NOT embed @sha256 in tag (would produce a double digest).
     config:
       keycloakImage:
         repository: quay.io/keycloak/keycloak
-        tag: "26.6.3"
-        sha: "9b0330756022422149aa6502eb2def8cd47c6e1b000c7c65cdb13e7c0133e992"
+        tag: "26.6.4"
+        sha: "0aae0de7fca85525f727d3354df17896092de8bb26ae4c12d89c77e5df8cbce4"
   serviceAccount:
     create: false
   jobs:
+    # -- Keycloak URL used by the realm-import jobs (keycloak-config-cli).
+    # Empty = in-cluster service (http://keycloak-service:8080). Set only when
+    # the jobs must reach Keycloak via another URL; note the public admin host
+    # can sit behind a gateway IP-allowlist that blocks cluster egress (403).
+    keycloakUrl: ""
     ensurePodiumdAdminUser:
       enabled: true
       # Init container: Python (stdlib only, no pip install) — computes the PBKDF2 hash
@@ -83,10 +103,7 @@ keycloak-operator:
     ensureOperatorSa:
       enabled: true
       # Container: curl-based job to provision the keycloak-operator service account client.
-      image:
-        registry: ""
-        repository: curlimages/curl
-        tag: "8.20.0@sha256:b3f1fb2a51d923260350d21b8654bbc607164a987e2f7c84a0ac199a67df812a"
+      image: *curlImage
       # Client secret for the keycloak-operator client. Set this to a known value so Helm
       # can create the K8s secret directly. The job will enforce this secret in Keycloak.
       clientSecret: ""
@@ -126,6 +143,10 @@ keycloak:
     adminPassword: ""
   config:
     adminFrontendUrl: https://keycloak-admin.example.nl
+    # Access token lifespan (seconds) for the podiumd realm. Default 60s is a
+    # security hardening, but is short for BFF apps (e.g. KISS) whose silent
+    # refresh can't keep up -> constant "sessie verlopen". Override per-env.
+    accessTokenLifespan: 60
     # Example configuration
     #     identityProviders:
     #     - alias: "oidc-admin-users"
@@ -167,8 +188,8 @@ keycloak:
     smtp:
       server: mail.example.nl
       port: "587"
-      from: "Test"
-      fromDisplayName: "noreply@example.nl"
+      from: "noreply@example.nl"
+      fromDisplayName: "Example Gemeente"
       starttls: "true"
       ssl: "false"
     clients:
@@ -201,11 +222,11 @@ keycloak:
   http:
     httpEnabled: true
   # image parameters for keycloak-operator
-  # Official Keycloak image: quay.io/keycloak/keycloak:26.6.3
+  # Official Keycloak image: quay.io/keycloak/keycloak:26.6.4
   image:
     registry: ""
     repository: quay.io/keycloak/keycloak
-    tag: "26.6.3@sha256:9b0330756022422149aa6502eb2def8cd47c6e1b000c7c65cdb13e7c0133e992"
+    tag: "26.6.4@sha256:0aae0de7fca85525f727d3354df17896092de8bb26ae4c12d89c77e5df8cbce4"
   # -- instances is the new operator-style replica count (falls back to replicaCount)
   instances: "2"
   ingress:
@@ -240,7 +261,7 @@ keycloak:
     metadata:
       labels:
         app: keycloak
-        version: 26.6.3
+        version: 26.6.4
       # override: values-enable-observability.yaml adds prometheus.io scrape annotations
     spec:
       securityContext:
@@ -455,9 +476,7 @@ redis-operator:
     databases: 32
     # -- Image used by the initContainer that appends `databases N` to redis.conf.
     # Override this in environments that restrict public Docker Hub pulls (e.g. point to an ACR mirror).
-    initContainerImage:
-      repository: busybox
-      tag: "1.38.0-glibc"
+    initContainerImage: *busyboxImage
     # -- Resources for the initContainer that configures redis.conf.
     initContainerResources:
       requests:
@@ -712,8 +731,7 @@ openzaak:
         cpu: 10m
         memory: 160Mi
   nginx:
-    image:
-      tag: "1.31.1@sha256:a863b95eaf9d868354e336b1a38cce4f8d73cb029ef45cb6dfcc935a0c1524c1"
+    image: *nginxImage
     resources:
       requests:
         cpu: 10m
@@ -910,7 +928,7 @@ opennotificaties:
     volumeAttributeShareName: opennotificaties
     storageClassName: podiumd-standard
   image:
-    tag: "1.16.0"
+    tag: "1.16.1"
   resources:
     requests:
       cpu: 100m
@@ -1076,7 +1094,7 @@ objecten:
       oidc: redis-ha-master.podiumd.svc.cluster.local:6379/1
     celery:
       brokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/2
-      resultBackendl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/2
+      resultBackend: redis://redis-ha-master.podiumd.svc.cluster.local:6379/2
       # -- Set to debug for test/acceptance environments
       logLevel: warning
   persistence:
@@ -1087,7 +1105,7 @@ objecten:
     volumeAttributeShareName: objecten
     storageClassName: podiumd-standard
   image:
-    tag: "3.6.0"
+    tag: "3.6.2"
   resources:
     requests:
       cpu: 100m
@@ -1391,8 +1409,7 @@ openarchiefbeheer:
         memory: 128Mi
 
   nginx:
-    image:
-      tag: "1.31.1@sha256:a863b95eaf9d868354e336b1a38cce4f8d73cb029ef45cb6dfcc935a0c1524c1"
+    image: *nginxImage
     resources:
       requests:
         cpu: 10m
@@ -1581,8 +1598,7 @@ openklant:
   nameOverride: openklant
   fullnameOverride: openklant
   nginx:
-    image:
-      tag: "1.31.1@sha256:a863b95eaf9d868354e336b1a38cce4f8d73cb029ef45cb6dfcc935a0c1524c1"
+    image: *nginxImage
     resources:
       requests:
         cpu: 10m
@@ -1774,7 +1790,7 @@ openformulieren:
     volumeAttributeShareName: openformulieren
     storageClassName: podiumd-standard
   image:
-    tag: "3.4.9@sha256:55dc5644595d43a5412d60436aac846ce0d71b799be85c53ff815c31416f3e39"
+    tag: "3.4.10@sha256:45755696db647b0c9fecc5d2c78403dbbac0f3c962292e89dee34b405abd1d7c"
   resources:
     requests:
       cpu: 250m
@@ -1798,8 +1814,7 @@ openformulieren:
         cpu: 10m
         memory: 160Mi
   nginx:
-    image:
-      tag: "1.31.1@sha256:a863b95eaf9d868354e336b1a38cce4f8d73cb029ef45cb6dfcc935a0c1524c1"
+    image: *nginxImage
     resources:
       requests:
         cpu: 10m
@@ -2012,8 +2027,7 @@ openinwoner:
   nameOverride: openinwoner
   fullnameOverride: openinwoner
   nginx:
-    image:
-      tag: "1.31.1@sha256:a863b95eaf9d868354e336b1a38cce4f8d73cb029ef45cb6dfcc935a0c1524c1"
+    image: *nginxImage
     config:
       basicAuth:
         # Enable this when digid mock is set to digidMock: "true"
@@ -2367,8 +2381,7 @@ openbeheer:
       rateAnonymous: "2500/hour"
       rateUser: "15000/hour"
   nginx:
-    image:
-      tag: "1.31.1@sha256:a863b95eaf9d868354e336b1a38cce4f8d73cb029ef45cb6dfcc935a0c1524c1"
+    image: *nginxImage
     resources:
       requests:
         cpu: 10m
@@ -2808,11 +2821,8 @@ zac:
     code: "007"
     naam: "Example Gemeente"
     mail: "noreply@example.nl"
-  # curlimages/curl:8.20.0@sha256:b3f1fb2a51d923260350d21b8654bbc607164a987e2f7c84a0ac199a67df812a
   global:
-    curlImage:
-      #repository: curlimages/curl
-      tag: "8.20.0@sha256:b3f1fb2a51d923260350d21b8654bbc607164a987e2f7c84a0ac199a67df812a"
+    curlImage: *curlImage
   # ghcr.io/infonl/zaakafhandelcomponent:5.0.1
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
@@ -2854,10 +2864,7 @@ zac:
   nginx:
     enabled: true
     client_max_body_size: 150M
-    # nginxinc/nginx-unprivileged:1.31.1@sha256:a863b95eaf9d868354e336b1a38cce4f8d73cb029ef45cb6dfcc935a0c1524c1
-    image:
-      # repository: nginxinc/nginx-unprivileged
-      tag: "1.31.1@sha256:a863b95eaf9d868354e336b1a38cce4f8d73cb029ef45cb6dfcc935a0c1524c1"
+    image: *nginxImage
     resources:
       requests:
         cpu: 50m
@@ -2870,10 +2877,10 @@ zac:
     url: http://objecttypen.example.nl
     token: objecttypentoken
   office_converter:
-    # gotenberg/gotenberg:8.33.0@sha256:bddd8ea9d076e2d08b6ddaa6efae6403185202c6dab65a6488ed0a6923d6d8e8
+    # gotenberg/gotenberg:8.34.0@sha256:67097317623a503ba2a6a7e9ae8db6929a1f7e1bbd88077bacf2d325fbdab923
     image:
       # repository: gotenberg/gotenberg
-      tag: "8.33.0@sha256:bddd8ea9d076e2d08b6ddaa6efae6403185202c6dab65a6488ed0a6923d6d8e8"
+      tag: "8.34.0@sha256:67097317623a503ba2a6a7e9ae8db6929a1f7e1bbd88077bacf2d325fbdab923"
   opa:
     sidecar: true
     # openpolicyagent/opa:1.17.1-static@sha256:c29f8ee8dbe66608a1c04e9be84b04efc46877625e6b0877e559954565209efc
@@ -2918,10 +2925,7 @@ zac:
         cpu: 500m
         memory: 256Mi
     solr:
-      # library/busybox:1.38.0-glibc@sha256:3ba030337caebbfc2232b22b1e435eb213b28e5844a34942c74555bf904a265a
-      busyBoxImage:
-        #repository:
-        tag: 1.38.0-glibc@sha256:3ba030337caebbfc2232b22b1e435eb213b28e5844a34942c74555bf904a265a
+      busyBoxImage: *busyboxImage
       # -- set enabled to provision solrcloud as well
       enabled: true
       # library/solr:9.10.1-slim@sha256:c45d9d93d74d6a5e996120ab7120cdfc531debbc59bd3d6a6736fe240cee9be0
@@ -3163,10 +3167,7 @@ apiproxy:
   affinity: {}
   tolerations: []
   #nameOverride: "iconnect-proxy"
-  image:
-    repository: nginxinc/nginx-unprivileged
-    tag: "1.31.1@sha256:a863b95eaf9d868354e336b1a38cce4f8d73cb029ef45cb6dfcc935a0c1524c1"
-    pullPolicy: IfNotPresent
+  image: *nginxImage
   service:
     port: 80
     containerPort: 8080
@@ -3467,132 +3468,148 @@ omc:
           ktoObjectType:
             uuid: 00000000-0000-1000-b000-000000000000
 
-# APISIX in PodiumD: PoC mode — admin UI driven, etcd-backed, configuration
-# done entirely via the embedded dashboard at :9180/ui/. Public access is
-# gated by Keycloak SSO via an oauth2-proxy in front of the admin Service.
+# Frank!Gateway — WeAreFrank's hardened distribution of Apache APISIX 3.16
+# ("APISIX + WeAreFrank patches"), replacing the previous upstream `apisix`
+# subchart (Apache chart 2.14.0) AND the legacy `apiproxy` nginx for outbound
+# calls to national registries (BAG/Kadaster, KVK, BRP/Haal Centraal).
 #
-# PoC scope (acknowledged trade-offs):
-#   * etcd persistence is OFF (single replica, ephemeral) — restart loses
-#     all gateway config. Acceptable while we iterate; revisit before any
-#     non-PoC use.
-#   * No GitOps source-of-truth for routes/upstreams — all changes are
-#     applied through the UI.
-#   * Data plane (gateway) remains ClusterIP-only; only the admin UI is
-#     exposed externally (and only via SSO).
+# Deployed identically to the proven jim00 stack: etcd-backed (traditional
+# mode), Admin API + apisix-dashboard, dashboard fronted by oauth2-proxy
+# (Keycloak SSO) + an nginx shim that auto-logs into the dashboard server-side
+# so its built-in login never surfaces. apiproxy-replacement routes are seeded
+# declaratively from files/frankgateway/routes/*.json by a hook Job; external
+# API keys are injected at request time from env vars (fed by a Secret) via a
+# serverless function — key VALUES never land in etcd or git.
 #
-# Upstream chart: https://github.com/apache/apisix-helm-chart
-# Full values reference: `helm show values apisix/apisix --version 2.14.0`
-# See also: charts/podiumd/docs/apps/apisix/apisix-egress-gateway.md
-#
-# Any field not set below falls back to the upstream chart defaults.
-apisix:
+# See charts/podiumd/docs/apps/frankgateway/frankgateway-BASICS.md.
+frankgateway:
   enabled: false
-  fullnameOverride: "apisix"
 
-  # Disable the bundled ingress controller — APISIX is egress-only here.
-  ingress-controller:
-    enabled: false
+  # Gateway (data plane + Admin API) — ghcr.io/wearefrank/frank-gateway.
+  # Digest-pinned; matches docs/images/images-baseline.yaml.
+  image:
+    repository: ghcr.io/wearefrank/frank-gateway
+    tag: "104@sha256:a830b90f8820f5cdb0c382ecef02a302c50d129edc9de81d7daa7af1cf267d98"
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
 
-  # The apisix subchart bundles bitnami/etcd — disallowed in this project
-  # (no Bitnami images / charts). Disable it and point the subchart at the
-  # in-chart hand-rolled etcd Service rendered by templates/apisix-etcd.yaml.
+  # Admin API keys (X-API-KEY). Empty => random 32-char values auto-generated
+  # on first install and kept stable across upgrades via lookup (Secret
+  # frankgateway-admin-credentials) — the upstream public default keys are
+  # never used. Override to fixed values (e.g. from Azure Key Vault) if the
+  # deploy pipeline needs to know them out-of-band.
+  admin:
+    adminKey: ""
+    viewerKey: ""
+
+  # Secret with external-API key env vars (e.g. BAG_API_KEY, KVK_API_KEY),
+  # created out-of-band (Key Vault-fed, never by this chart). envFrom'd into
+  # the gateway (optional: absent Secret does not block startup). envNames
+  # lists the var NAMES exposed to nginx workers so routes can read them via
+  # os.getenv in a serverless function.
+  apiKeys:
+    existingSecret: frankgateway-api-keys
+    envNames:
+      - BAG_API_KEY
+      - KVK_API_KEY
+
+  # Single-node etcd backing store (quay.io/coreos upstream build — no
+  # Bitnami). PVC-backed so gateway config survives pod restarts.
   etcd:
-    enabled: false
-
-  # External etcd consumed by the apisix subchart when etcd.enabled=false.
-  # Same-namespace Service short name resolves via Kubernetes DNS (apisix and
-  # apisix-etcd are co-deployed by this umbrella chart). The hostname matches
-  # the Service emitted by templates/apisix-etcd.yaml.
-  externalEtcd:
-    host:
-      - "http://apisix-etcd:2379"
-    user: ""
-    password: ""
-
-  # Image + resources for the in-chart etcd StatefulSet (apisix-etcd.yaml).
-  # Upstream etcd-io build, not a Bitnami repack. Single-replica, ephemeral.
-  etcdServer:
     image:
-      repository: gcr.io/etcd-development/etcd
-      tag: "v3.5.18"
+      repository: quay.io/coreos/etcd
+      tag: "v3.5.16"
+    storage: 2Gi
+    # Empty => cluster default StorageClass. jim00 uses managed-csi.
+    storageClassName: ""
     resources:
       requests:
-        cpu: 100m
+        cpu: 50m
         memory: 128Mi
       limits:
         cpu: 500m
         memory: 512Mi
 
-  # Gateway (data plane) service. ClusterIP only — APISIX is consumed
-  # by PodiumD pods for outbound API calls, not exposed outside.
-  # externalTrafficPolicy is invalid on non-LoadBalancer/NodePort services;
-  # the upstream chart defaults it to "Cluster" so we must blank it out.
-  service:
-    type: ClusterIP
-    externalTrafficPolicy: ""
+  # Seed the apiproxy-replacement routes (files/frankgateway/routes/*.json)
+  # into the Admin API via a post-install/post-upgrade hook Job. Idempotent:
+  # route id = file name, PUTs overwrite.
+  routes:
+    seed: true
+    job:
+      image: *curlImage
+      backoffLimit: 3
+      ttlSecondsAfterFinished: 600
 
-  # Public hostname for the embedded admin UI / Admin API, served via
-  # oauth2-proxy + Keycloak SSO. Required when apisix.enabled=true. The
-  # umbrella chart renders the oauth2-proxy Deployment + Secret + Ingress
-  # using these values.
-  adminUi:
-    # FQDN where the admin UI is reachable from the internet (e.g.
-    # apisix-admin.${envName}.pd.test-rig.nl).
-    hostname: ""
-    # cert-manager ClusterIssuer used to issue the TLS cert. Match whatever
-    # name the env's cert-manager bootstrap uses; podiumd-infra creates
-    # `letsencrypt-prod` and `letsencrypt-staging` (no `-production` suffix).
-    clusterIssuer: "letsencrypt-prod"
-    # Image for the oauth2-proxy sidecar.
-    oauth2Proxy:
-      image:
-        repository: quay.io/oauth2-proxy/oauth2-proxy
-        tag: "v7.7.1"
-      resources:
-        requests:
-          cpu: 50m
-          memory: 64Mi
-        limits:
-          cpu: 200m
-          memory: 256Mi
+  # apisix-dashboard GUI + its Keycloak SSO front door.
+  dashboard:
+    enabled: true
+    image:
+      repository: apache/apisix-dashboard
+      tag: "3.0.1-alpine"
+    # Dashboard-internal admin password, used ONLY by the shim's server-side
+    # auto-login (the dashboard is never exposed directly). Empty => random,
+    # stable across upgrades via lookup (Secret frankgateway-dashboard-conf).
+    adminPassword: ""
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
 
-  # ---------------------------------------------------------------------------
-  # IMPORTANT: in the upstream apisix chart 2.14.0, settings under `admin:`,
-  # `deployment:`, `router:`, etc. live under a NESTED `apisix:` key — the
-  # subchart's own self-namespace. The umbrella path is therefore
-  # `apisix.apisix.admin.*` (not `apisix.admin.*`).
-  # ---------------------------------------------------------------------------
-  apisix:
-    # etcd-backed traditional mode (chart default). Routes/upstreams are
-    # written to the bundled etcd via the Admin API / embedded UI — no
-    # ConfigMap-based standalone-yaml here.
-    deployment:
-      mode: traditional
-      role: traditional
+    # Keycloak SSO chain in front of the dashboard:
+    #   <hostname> -> oauth2-proxy (Keycloak OIDC) -> shim (nginx auto-login)
+    #     -> dashboard
+    auth:
+      enabled: true
+      # Public FQDN of the dashboard (e.g. frankgateway-admin.<env>.<domain>).
+      # Required when frankgateway.enabled + dashboard.auth.enabled. Route it
+      # to Service frankgateway-oauth2-proxy:4180 (HTTPRoute/Ingress —
+      # `ingress.enabled` below renders an optional in-chart Ingress).
+      hostname: ""
+      # Server-side redis session store — Keycloak id+refresh tokens overflow
+      # cookie storage (chunked cookies drop behind NGF -> login loops).
+      # Empty => redis://redis-ha-master.<namespace>.svc.cluster.local:6379/3
+      # (the chart's own redis, DB 3).
+      sessionRedisUrl: ""
+      # nginx `resolver` IP for the shim: kube-dns/CoreDNS ClusterIP, so the
+      # dashboard Service is re-resolved at request time (avoids stale-IP 502s
+      # after dashboard pod restarts). AKS default 10.0.0.10; jim00 overrides
+      # to 172.16.0.10.
+      dnsResolver: "10.0.0.10"
+      oauth2Proxy:
+        image:
+          repository: quay.io/oauth2-proxy/oauth2-proxy
+          tag: "v7.7.1"
+        resources:
+          requests:
+            cpu: 25m
+            memory: 64Mi
+          limits:
+            cpu: 250m
+            memory: 256Mi
+      shim:
+        image: *nginxImage
+        resources:
+          requests:
+            cpu: 25m
+            memory: 32Mi
+          limits:
+            cpu: 250m
+            memory: 128Mi
 
-    # Admin API + embedded Dashboard UI (served at :9180/ui/). The bundled
-    # admin Service (apisix-admin:9180) is reached by the oauth2-proxy
-    # Deployment in this chart, which fronts it with Keycloak SSO and the
-    # public Ingress. Direct :9180/ui/ access from pods other than the
-    # oauth2-proxy is allowed via the cluster Pod CIDR.
-    admin:
-      enable_admin_ui: true
-      type: ClusterIP
-      # Pod CIDR — wide enough to admit the oauth2-proxy pod regardless of
-      # the AKS overlay/azure-cni mode in use. The admin API itself remains
-      # protected by the random API keys (apisix-admin-credentials) and by
-      # the public oauth2-proxy doing Keycloak SSO.
-      allow:
-        ipList:
-          - 127.0.0.1/24
-          - 10.0.0.0/8
-      # Random 32-char admin/viewer keys are auto-generated by the umbrella
-      # chart via templates/apisix-admin-credentials.yaml — replacing the
-      # upstream public default keys (`edd1c9f0…` / `4054f7cf…`). Stable across
-      # upgrades via lookup. To use Azure Key Vault via CSI driver, override
-      # `secretName` to point at your own Secret containing `admin` + `viewer`.
-      credentials:
-        secretName: apisix-admin-credentials
+    # Optional in-chart Ingress for envs still on ingress-nginx/Traefik.
+    # Gateway API envs (jim00) leave this off and route deploy-side.
+    ingress:
+      enabled: false
+      clusterIssuer: "letsencrypt-prod"
 
 # -----------------------------------------------------------------------------
 # zaakbrug — Frank!Framework adapter exposing Zaakgericht-Werken API for legacy
@@ -3612,7 +3629,7 @@ zaakbrug:
   staging:
     enabled: false
   image:
-    tag: "1.26.14"
+    tag: "1.26.15"
   # K8s cgroup limits sized for the Frank!Framework JVM heap (subchart
   # default Xms=Xmx=4G via .Values.frank.memory.{minimum,maximum}).
   # Overhead ≈1Gi headroom for non-heap (metaspace, code cache, direct
@@ -3720,23 +3737,34 @@ mi:
       ephemeral-storage: 20Gi
   nodeSelector: {}
   sftp:
-    # host, user, remotePath, privateKey are all REQUIRED when mi.enabled.
-    # The CronJob template enforces via Helm `required` and fails fast if unset.
+    # host, user, remotePath are REQUIRED when mi.enabled, plus EXACTLY ONE of
+    # privateKey (SSH keypair auth) or password (password auth). The CronJob
+    # template enforces both rules and fails fast at render time.
     host: ""
     port: 22
     user: ""
     remotePath: "" # e.g. "/uploads/mi-exports"
     # SSH private key (PEM block, multiline). The chart renders it into
     # Secret/<keySecretName> (key `id`, mode 0400 in the pod). Supplied by the
-    # ExternalsPodiumD application.yml pipeline, which substitutes it from Azure
-    # Key Vault (mi-data-sftp-rsa-private-key) at deploy time. Never commit a
-    # real key here — the env values file carries a placeholder the pipeline
-    # replaces. Host-key checking is disabled, so no known_hosts is needed.
+    # ExternalsPodiumD application.yml pipeline, which substitutes it from the
+    # Azure Key Vault secret `mi-data-sftp-credential` at deploy time (one KV
+    # name regardless of credential type; the values field picks the mode).
+    # Never commit a real key here — the env values file carries a placeholder
+    # the pipeline replaces. Host-key checking is disabled, so no known_hosts
+    # is needed. Mutually exclusive with password.
     privateKey: ""
+    # SFTP password (password auth, e.g. Azure Blob SFTP local users). Rendered
+    # into Secret/<secretName> as SFTP_PASSWORD; the export job feeds it to
+    # sftp via an SSH_ASKPASS helper. Substituted from the same Key Vault secret
+    # `mi-data-sftp-credential` as privateKey — never commit a real password
+    # here. Mutually exclusive with privateKey.
+    password: ""
     # Name of the chart-rendered K8s Secret carrying the connection envvars
-    # (SFTP_HOST, SFTP_PORT, SFTP_USER, SFTP_REMOTE_PATH).
+    # (SFTP_HOST, SFTP_PORT, SFTP_USER, SFTP_REMOTE_PATH, and SFTP_PASSWORD
+    # in password mode).
     secretName: mi-export-sftp
     # Name of the chart-rendered K8s Secret carrying the SSH private key (`id`).
+    # Only rendered in keypair mode (privateKey set).
     keySecretName: mi-export-sftp-key
   # Default target list — every Postgres-backed app this chart can deploy. A target only
   # renders a CronJob when the chart's <component>.enabled is true. Per-target `enabled`
@@ -3758,5 +3786,209 @@ mi:
     - component: zac
       schemas: ["flowable"]
     - component: ita
+      # .NET app: resources are ita-secrets/ita-config, DB credentials live in
+      # a Npgsql connection string, not DB_* envs.
+      secretName: ita-secrets
+      configMapName: ita-config
+      connectionStringEnv: ConnectionStrings__DefaultConnection
     - component: kiss
+      # kiss-frontend resources use the chart's fullnameOverride ("contact")
+      # and POSTGRES_* env naming (dump.sh maps those to DB_*).
+      secretName: contact
+      configMapName: contact
     - component: pabc
+      # .NET app: Secret/ConfigMap are named pabc, but DB credentials live in
+      # a Npgsql connection string, not DB_* envs.
+      connectionStringEnv: ConnectionStrings__Pabc
+
+openbao:
+  # OpenBao (openbao.org) — secrets vault. Postgres-backed like the other apps,
+  # HA (3 replicas) against the shared Azure PostgreSQL server. Seal is Shamir
+  # (manual `bao operator init` + unseal — see server.ha.config); Azure Key Vault
+  # auto-unseal is intentionally NOT used yet. Login through the Keycloak
+  # `podiumd` realm over OIDC.
+  # Disabled by default; enable + supply env-specific values per environment
+  # (see the jim00 override). `server.*` are the upstream openbao subchart keys;
+  # `configuration.*` / `database.*` feed the chart's own openbao-* templates.
+  enabled: false
+
+  # Vault Agent Sidecar Injector (upstream subchart default: ON). PodiumD does
+  # NOT use sidecar injection — uploaders log in via OIDC — so keep it OFF.
+  # Leaving it on ships an unused hashicorp/vault-k8s Deployment plus a
+  # CLUSTER-SCOPED MutatingWebhookConfiguration that can block pod creation
+  # cluster-wide if the injector is unhealthy.
+  injector:
+    enabled: false
+
+  # --- podiumd-side wiring (consumed by the openbao-* templates) ----------------
+  configuration:
+    # Render the post-deploy bao-config Job (enable oidc auth, kv-v2 mount,
+    # uploader policy, external group binding). Mirrors the keycloak-config-cli pattern.
+    enabled: true
+    # External URL OpenBao is reached on (Gateway/Ingress). Drives the Keycloak
+    # client redirectUris and the OIDC role allowed_redirect_uris.
+    oidcUrl: https://openbao.example.nl
+    # Keycloak OIDC client secret for the `openbao` client. Empty => auto-generated
+    # and kept stable across upgrades by keycloak-podiumd-realm-secrets.yaml
+    # (identical pattern to the other apps' OIDC secrets).
+    secrets:
+      keycloak_client_secret: ""
+    # Keycloak realm OpenBao trusts. issuer/discovery = <url>/realms/<realm>.
+    keycloak:
+      url: https://keycloak.example.nl
+      realm: podiumd
+    # Keycloak group whose members get upload access: membership grants the
+    # uploadersRole client role below, and the config Job mirrors the group as
+    # an OpenBao external identity group carrying the `uploader` policy.
+    uploadersGroup: vault-uploaders
+    # Keycloak CLIENT-ROLE (on the `openbao` client) that gates upload access.
+    # Single source of truth: templates the realm role and the group's role
+    # mapping (keycloak-podiumd-realm-config.yaml), and the config Job names
+    # the OpenBao group-alias after it — the openbao client's role mapper
+    # emits client-role names in the token's `groups` claim, so alias name and
+    # claim value must both be this role name for the binding to match.
+    uploadersRole: uploaders
+    # No test/su-* users are seeded into the realm by the chart. For test
+    # environments, create per-app su-<app> users (incl. su-openbao with the
+    # uploaders role) with scripts/create-su-users.sh, run from your own machine.
+    # KV-v2 mount path the uploader policy grants write on.
+    kvPath: secret
+    # K8s Secret (key `token`) holding the bao token the config Job runs with:
+    # the SCOPED periodic token minted at bootstrap by
+    # scripts/openbao-mint-config-token.sh — NOT the root token, which can (and
+    # should) be revoked after minting. See the component doc, sections 5 and 7.
+    bootstrapTokenSecret: openbao-bootstrap-token
+    job:
+      backoffLimit: 6
+      # Post-success log window: the Job is not hook-deleted on success, so its
+      # log ("configured" vs "skipped") stays readable until this TTL expires.
+      ttlSecondsAfterFinished: 600
+      restartPolicy: Never
+      # bao CLI image. Tag pinned explicitly (not "") — unlike the server, this
+      # standalone Job cannot resolve the subchart appVersion. Keep in step with
+      # the openbao subchart appVersion (OpenBao v2.5.5 @ chart 0.28.4).
+      image:
+        registry: quay.io
+        repository: openbao/openbao
+        tag: "2.5.5"
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 250m
+          memory: 128Mi
+
+  # --- database (shared Azure PostgreSQL) ---------------------------------------
+  # OpenBao does NOT auto-create its tables. openbao-db-schema-job.yaml provisions
+  # openbao_kv_store + openbao_ha_locks (idempotent) before the server is usable.
+  # openbao-db-secret.yaml renders Secret/<secretName> with `connection-url`
+  # (libpq URL incl. credentials — fed to the server as BAO_PG_CONNECTION_URL so
+  # the password never lands in the config ConfigMap) plus `username`/`password`
+  # for the schema Job. The password is pipeline-substituted, never committed.
+  database:
+    secretName: openbao-db
+    host: ""                 # e.g. podiumd-<env>-pg.postgres.database.azure.com
+    port: 5432
+    name: openbao
+    username: openbao-admin
+    password: ""             # REP_OPENBAO_DB_PASSWORD_REP (patch_values.py at deploy)
+    sslmode: require
+    schemaJob:
+      backoffLimit: 6
+      # Post-success log window (Job is not hook-deleted on success).
+      ttlSecondsAfterFinished: 600
+      image:
+        registry: docker.io
+        repository: library/postgres
+        tag: "16-alpine"
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 250m
+          memory: 128Mi
+
+  # --- openbao subchart values (upstream server.* keys) -------------------------
+  server:
+    # RollingUpdate (not the chart default OnDelete) so a helm upgrade recreates
+    # the server pods to pick up config changes (e.g. seal/readiness). With OnDelete
+    # a crashing/old pod is never replaced automatically, and a `helm --wait` deploy
+    # would block on it forever.
+    updateStrategyType: RollingUpdate
+    image:
+      registry: quay.io
+      repository: openbao/openbao
+      tag: ""                # "" => chart appVersion (OpenBao v2.5.5)
+    # Workload-identity SA. The user-assigned MI + federated credential and the
+    # "Key Vault Crypto User" role on the unseal key are provisioned out-of-band
+    # (base-infra). The client-id annotation is set in the per-env override.
+    serviceAccount:
+      create: true
+      name: openbao
+      annotations:
+        azure.workload.identity/client-id: ""
+    extraLabels:
+      azure.workload.identity/use: "true"
+    # Readiness via the health endpoint with sealed/uninitialised mapped to 200,
+    # so the pod reports Ready as soon as the process is up — even before the
+    # one-time `bao operator init` + unseal. Without this the default `bao status`
+    # exec probe never passes while sealed, and a `helm --wait` deploy would block
+    # on openbao forever on a fresh cluster.
+    readinessProbe:
+      enabled: true
+      path: "/v1/sys/health?standbyok=true&perfstandbyok=true&uninitcode=200&sealedcode=200"
+    # Postgres storage backend => no data PVC.
+    dataStorage:
+      enabled: false
+    # Routed via the platform Gateway/Ingress (infra.yml), not the subchart.
+    ingress:
+      enabled: false
+    # Full libpq URL (with credentials) from the db Secret — keeps creds out of
+    # the config ConfigMap. No seal-related env vars belong here: the seal is
+    # Shamir (manual init + unseal — see the ha.config comment below), so
+    # VAULT_AZUREKEYVAULT_* variables would be inert without a seal stanza.
+    extraSecretEnvironmentVars:
+      - envName: BAO_PG_CONNECTION_URL
+        secretName: openbao-db
+        secretKey: connection-url
+    ha:
+      enabled: true
+      replicas: 3
+      raft:
+        enabled: false
+      # HCL. connection_url is intentionally omitted (provided via
+      # BAO_PG_CONNECTION_URL).
+      #
+      # Seal: Shamir (no seal stanza). Azure Key Vault auto-unseal is intentionally
+      # NOT used: OpenBao 2.5.5's azurekeyvault seal authenticates via IMDS Managed
+      # Identity and ignores the AKS workload-identity federated token, so it cannot
+      # reach the vault under workload identity (openbao-helm#56 / hashicorp-vault
+      # #29717). With Shamir the cluster is initialised + unsealed manually (keys
+      # stored in the per-env Key Vault). Revisit KV auto-unseal once OpenBao honors
+      # the federated token. The base-infra unseal key + MI remain provisioned but
+      # unused for now.
+      config: |
+        ui = true
+
+        listener "tcp" {
+          tls_disable     = 1
+          address         = "[::]:8200"
+          cluster_address = "[::]:8201"
+        }
+
+        storage "postgresql" {
+          table      = "openbao_kv_store"
+          ha_enabled = "true"
+          ha_table   = "openbao_ha_locks"
+        }
+
+        service_registration "kubernetes" {}
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi

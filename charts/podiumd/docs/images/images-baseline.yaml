@@ -26,14 +26,20 @@
   url: docker.io/alpine/k8s
   version: "1.36.2"
   digest: "sha256:44ef4942e171939b9c665a4a84beb80e2dcdb9a24330d4651cfdfd2e9deecc47"
-- name: apache/apisix
-  url: docker.io/apache/apisix
-  version: "3.16.0-ubuntu"
-  digest: "sha256:5e47692cac00f2aca9d0b2b31cdf24445a7d975d6061626d269f47cc083a4b0e"
+- name: apache/apisix-dashboard
+  url: docker.io/apache/apisix-dashboard
+  version: "3.0.1-alpine"
+  digest: "sha256:b5fafc11b76f998269375192ac33efc992d72aa69bfd7f3eb2ca377906cdbb6d"
 - name: apache/solr-operator
   url: docker.io/apache/solr-operator
   version: "v0.9.1"
   digest: "sha256:4db34508137f185d3cad03c7cf7c2b5d6533fb590822effcde9125cff5a90aa2"
+# Gap-filler: mi-export CronJobs (mi.image in values.yaml). Not part of any
+# per-release delta — maintained here by hand.
+- name: azure-cli
+  url: mcr.microsoft.com/azure-cli
+  version: "2.71.0"
+  digest: "sha256:18ec5cf02ba6b46e9858ddff1125baaa1f14ba919f77ebc67c918c891f8df4a2"
 - name: brp-api/personen-mock
   url: ghcr.io/brp-api/personen-mock
   version: "2.7.0-202606230850"
@@ -52,10 +58,18 @@
   url: docker.io/clamav/clamav
   version: "1.4.4"
   digest: "sha256:a52f45e42753dca691b6c9fd09fe68d6ca9ac22fa8cd6a8a45d9237e188049e3"
+- name: coreos/etcd
+  url: quay.io/coreos/etcd
+  version: "v3.5.16"
+  digest: "sha256:d967d98a12dc220a1a290794711dba7eba04b8ce465e12b02383d1bfbb33e159"
 - name: curlimages/curl
   url: docker.io/curlimages/curl
   version: "8.20.0"
   digest: "sha256:b3f1fb2a51d923260350d21b8654bbc607164a987e2f7c84a0ac199a67df812a"
+- name: curlimages/curl
+  url: docker.io/curlimages/curl
+  version: "8.21.0"
+  digest: "sha256:7c12af72ceb38b7432ab85e1a265cff6ae58e06f95539d539b654f2cfa64bb13"
 - name: elastic/eck-operator
   url: docker.io/elastic/eck-operator
   version: "3.1.0"
@@ -67,14 +81,10 @@
 - name: elasticsearch/elasticsearch
   url: docker.elastic.co/elasticsearch/elasticsearch
   version: "9.2.0"
-- name: etcd-development/etcd
-  url: gcr.io/etcd-development/etcd
-  version: "v3.5.18"
-  digest: "sha256:9079538aa6e9ff9a57b4d737ca1f03f978e7b9e8fe45bb91b19bd933deb98912"
 - name: gotenberg/gotenberg
   url: docker.io/gotenberg/gotenberg
-  version: "8.33.0"
-  digest: "sha256:bddd8ea9d076e2d08b6ddaa6efae6403185202c6dab65a6488ed0a6923d6d8e8"
+  version: "8.34.0"
+  digest: "sha256:67097317623a503ba2a6a7e9ae8db6929a1f7e1bbd88077bacf2d325fbdab923"
 - name: groundnuty/k8s-wait-for
   url: ghcr.io/groundnuty/k8s-wait-for
   version: "v2.0"
@@ -153,6 +163,10 @@
   url: docker.io/library/postgres
   version: "16"
   digest: "sha256:fe03a7605299a34ddf5e4f285dff78c3d7190a576b3c6b46f2fcff69f4bffd54"
+- name: library/postgres
+  url: docker.io/library/postgres
+  version: "16-alpine"
+  digest: "sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777"
 - name: library/python
   url: docker.io/library/python
   version: "3.14-slim"
@@ -163,8 +177,8 @@
   digest: "sha256:c45d9d93d74d6a5e996120ab7120cdfc531debbc59bd3d6a6736fe240cee9be0"
 - name: maykinmedia/objects-api
   url: docker.io/maykinmedia/objects-api
-  version: "3.6.0"
-  digest: "sha256:8b4ac4dd97c32b1bc250faf88ebae6229eccad6787dc9bd2932edbc0336265e2"
+  version: "3.6.2"
+  digest: "sha256:6a3a40081016e5072c5355622c0ca3e1ded89228edce7336fc4d8600217344f8"
 - name: maykinmedia/objecttypes-api
   url: docker.io/maykinmedia/objecttypes-api
   version: "3.4.2"
@@ -195,24 +209,36 @@
   digest: "sha256:66f3a3da2a086e41ee8dc216b52b65d8dca04a4160c04a90693de2e5cd6dfa5e"
 - name: nginxinc/nginx-unprivileged
   url: docker.io/nginxinc/nginx-unprivileged
+  version: "1.27-alpine"
+  digest: "sha256:65e3e85dbaed8ba248841d9d58a899b6197106c23cb0ff1a132b7bfe0547e4c0"
+- name: nginxinc/nginx-unprivileged
+  url: docker.io/nginxinc/nginx-unprivileged
   version: "1.31.1"
   digest: "sha256:a863b95eaf9d868354e336b1a38cce4f8d73cb029ef45cb6dfcc935a0c1524c1"
+- name: nginxinc/nginx-unprivileged
+  url: docker.io/nginxinc/nginx-unprivileged
+  version: "1.31.3"
+  digest: "sha256:49c9bef1797e11117a7f490fd00f282e377ac402fec472c72636f90cdbf72e10"
 - name: oauth2-proxy/oauth2-proxy
   url: quay.io/oauth2-proxy/oauth2-proxy
   version: "v7.7.1"
   digest: "sha256:f6a4aa83a27e316114bf79664302b1ffb2cc8ce697fb479273af4feb3fb16fe3"
+- name: openbao/openbao
+  url: quay.io/openbao/openbao
+  version: "2.5.5"
+  digest: "sha256:6150c4a6b62067db6141c8da7a6a6b5763f4f47c315343d0c848b40fecdfd452"
 - name: openformulieren/open-forms
   url: docker.io/openformulieren/open-forms
-  version: "3.4.9"
-  digest: "sha256:55dc5644595d43a5412d60436aac846ce0d71b799be85c53ff815c31416f3e39"
+  version: "3.4.10"
+  digest: "sha256:45755696db647b0c9fecc5d2c78403dbbac0f3c962292e89dee34b405abd1d7c"
 - name: openpolicyagent/opa
   url: docker.io/openpolicyagent/opa
   version: "1.17.1-static"
   digest: "sha256:c29f8ee8dbe66608a1c04e9be84b04efc46877625e6b0877e559954565209efc"
 - name: openzaak/open-notificaties
   url: docker.io/openzaak/open-notificaties
-  version: "1.16.0"
-  digest: "sha256:416f0949f6bf08f430b19ebfb3013963842e7ea59b2c3e4898782a8252a1257c"
+  version: "1.16.1"
+  digest: "sha256:ee940d036bb2f8325f9a5153316f657fceeb24db59a23c5109d6e659daae7ac3"
 - name: openzaak/open-zaak
   url: docker.io/openzaak/open-zaak
   version: "1.27.3"
@@ -257,10 +283,14 @@
   url: docker.io/sergeymakinen/clamav_exporter
   version: "v2.1.3"
   digest: "sha256:d963eb510065472fd9d9b9e27504638f0ce8a8cfe3fd818f92bcfb7277faaee5"
+- name: wearefrank/frank-gateway
+  url: ghcr.io/wearefrank/frank-gateway
+  version: "104"
+  digest: "sha256:a830b90f8820f5cdb0c382ecef02a302c50d129edc9de81d7daa7af1cf267d98"
 - name: wearefrank/zaakbrug
   url: docker.io/wearefrank/zaakbrug
-  version: "1.26.14"
-  digest: "sha256:f0d618e4d28848e37c5ae6f3bd7ec911836130ef625352845bbb68f1d3055baf"
+  version: "1.26.15"
+  digest: "sha256:101d1319ea5706289ce8f22c7f012a12b8378770bb2a5ebf761d72fa46c5ca97"
 - name: worthnl/notifynl-omc
   url: docker.io/worthnl/notifynl-omc
   version: "1.17.19"

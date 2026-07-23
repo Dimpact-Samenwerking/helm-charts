@@ -2,11 +2,11 @@ apiVersion: v2
 name: podiumd
 description: PodiumD Helm chart
 type: application
-version: 4.8.1
-appVersion: "4.8.1"
+version: 4.8.2
+appVersion: "4.8.2"
 dependencies:
   - name: keycloak-operator
-    version: 1.12.0
+    version: 1.12.1
     repository: "@adfinis"
     condition: keycloak-operator.enabled
   - name: clamav
@@ -27,7 +27,7 @@ dependencies:
     repository: "@maykinmedia"
     condition: opennotificaties.enabled
   - name: objecten
-    version: 2.12.0
+    version: 2.12.1
     repository: "@maykinmedia"
     condition: objecten.enabled
   - name: objecttypen
@@ -68,7 +68,7 @@ dependencies:
     tags:
       - zaak
   - name: zaakbrug
-    version: 2.3.27
+    version: 2.3.28
     repository: "https://wearefrank.github.io/charts"
     condition: zaakbrug.enabled
     tags:
@@ -90,7 +90,7 @@ dependencies:
   - name: pabc
     alias: pabc
     repository: "oci://ghcr.io/platform-autorisatie-beheer-component"
-    version: 1.1.0
+    version: 1.1.1
     condition: pabc.enabled
   - name: notifynl-omc-nodep
     alias: omc
@@ -101,10 +101,6 @@ dependencies:
     repository: "@opstree"
     version: 0.25.0
     condition: redis-operator.enabled
-  - name: apisix
-    version: 2.14.0
-    repository: "https://charts.apiseven.com"
-    condition: apisix.enabled
   - name: eck-operator
     version: 3.4.0
     repository: https://helm.elastic.co
@@ -119,3 +115,7 @@ dependencies:
       - kiss-eck
       - contact
     condition: kiss-eck.enabled
+  - name: openbao
+    version: 0.28.4
+    repository: "https://openbao.github.io/openbao-helm"
+    condition: openbao.enabled
