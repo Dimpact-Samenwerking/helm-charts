@@ -81,6 +81,11 @@ keycloak-operator:
   serviceAccount:
     create: false
   jobs:
+    # -- Keycloak URL used by the realm-import jobs (keycloak-config-cli).
+    # Empty = in-cluster service (http://keycloak-service:8080). Set only when
+    # the jobs must reach Keycloak via another URL; note the public admin host
+    # can sit behind a gateway IP-allowlist that blocks cluster egress (403).
+    keycloakUrl: ""
     ensurePodiumdAdminUser:
       enabled: true
       # Init container: Python (stdlib only, no pip install) — computes the PBKDF2 hash

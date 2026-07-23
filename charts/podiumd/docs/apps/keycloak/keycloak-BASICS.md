@@ -148,6 +148,12 @@ deploying Keycloak again. Standing up Keycloak in a fresh environment:
    (keycloak-config-cli, authenticating as the `keycloak-operator` client).
    Realm imports re-run automatically when the realm config or client-secret
    inputs change (checksum-suffixed job names).
+   The import jobs talk to Keycloak via the in-cluster service
+   (`http://keycloak-service:8080`) by default — NOT the public admin host,
+   which may sit behind a gateway IP-allowlist that does not include the
+   cluster egress IP (symptom: `HTTP 403 Forbidden` from nginx at token
+   grant, import pods in a retry loop). Override with
+   `keycloak-operator.jobs.keycloakUrl` if the jobs must use another URL.
 4. DNS + HTTPRoutes: point `<env>-keycloak.dimpact.nl` and
    `<env>-keycloak-admin.dimpact.nl` at the public gateway and have the
    environment deployment create `hr-keycloak-nginx` /

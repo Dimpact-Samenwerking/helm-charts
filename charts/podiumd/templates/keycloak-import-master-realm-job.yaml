@@ -97,8 +97,11 @@ spec:
           seccompProfile:
             type: RuntimeDefault
         env:
+        # In-cluster URL by default: the public admin host may sit behind a
+        # gateway IP-allowlist that does not include the cluster egress IP,
+        # which 403s the import. Override via keycloak-operator.jobs.keycloakUrl.
         - name: KEYCLOAK_URL
-          value: {{ coalesce .Values.keycloak.hostname.admin .Values.keycloak.config.adminFrontendUrl "http://keycloak-service:8080" | quote }}
+          value: {{ $operatorJobs.keycloakUrl | default "http://keycloak-service:8080" | quote }}
         - name: KEYCLOAK_CLIENTID
           value: "keycloak-operator"
         - name: KEYCLOAK_CLIENTSECRET
