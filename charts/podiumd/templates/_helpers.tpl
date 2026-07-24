@@ -211,7 +211,8 @@ template would otherwise give every Deployment the same whole-file checksum, so
 a change to one instance would roll all of them.
 
 Usage: {{ include "podiumd.frankgateway.config"
-          (dict "root" $ "instance" $inst "prefix" $prefix "admin" $admin "viewer" $viewer) }}
+          (dict "root" $ "instance" $inst "name" $name "prefix" $prefix
+                "admin" $admin "viewer" $viewer) }}
 */}}
 {{- define "podiumd.frankgateway.config" -}}
 {{- $fg := .instance -}}
@@ -264,11 +265,27 @@ plugin_attr:
           - upstream_addr: $upstream_addr
           - upstream_status: $upstream_status
           - soap_action: $soap_action
+          {{- if ne .name "frankgateway" }}
+          # Which traffic class served the request. Only emitted once the
+          # gateway is split: adding it to the single-instance default would
+          # change every existing series' label set for no information gain.
+          - instance_name: {{ .name }}
+          {{- end }}
 # Expose the external-API-key env vars (from the
 # {{ $fg.apiKeys.existingSecret }} Secret) to nginx workers so routes can
 # read them via os.getenv in a serverless function — keeps key VALUES out
 # of etcd/git (only the var NAMES appear here).
 nginx_config:
+  {{- if $fg.accessLog.jsonFormat }}
+  # Structured JSON access logs: one object per request, json-escaped, so
+  # Loki/Alloy pipelines can filter on fields (host/uri/status/upstream/
+  # latency) instead of regex-parsing the combined format. instance_name
+  # identifies which traffic class served the request once the gateway is
+  # split, so one Loki query can separate inway from outway from internal.
+  http:
+    access_log_format_escape: json
+    access_log_format: '{"time":"$time_iso8601","instance_name":"{{ .name }}","client":"$remote_addr","method":"$request_method","host":"$host","uri":"$uri","query":"$args","status":$status,"bytes_sent":$body_bytes_sent,"request_time":$request_time,"upstream_addr":"$upstream_addr","upstream_status":"$upstream_status","upstream_response_time":"$upstream_response_time","request_id":"$request_id","referer":"$http_referer","user_agent":"$http_user_agent"}'
+  {{- end }}
   main_configuration_snippet: |
     {{- range $fg.apiKeys.envNames }}
     env {{ . }};

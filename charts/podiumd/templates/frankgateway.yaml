@@ -81,7 +81,7 @@ spec:
         app.kubernetes.io/name: {{ $name }}
       annotations:
         # Roll the pod when the rendered APISIX config changes.
-        checksum/config: {{ include "podiumd.frankgateway.config" (dict "root" $root "instance" $fg "prefix" $prefix "admin" $creds.admin "viewer" $creds.viewer) | sha256sum }}
+        checksum/config: {{ include "podiumd.frankgateway.config" (dict "root" $root "instance" $fg "name" $name "prefix" $prefix "admin" $creds.admin "viewer" $creds.viewer) | sha256sum }}
     spec:
       containers:
         - name: apisix
