@@ -3187,6 +3187,11 @@ apiproxy:
   # Per-location overrides: set `apiproxy.locations.<loc>.sslVerifyDepth` to override
   # this global value for a single upstream (e.g. bag, brp, kvkSearch).
   sslVerifyDepth: 6
+  # -- nginx error_log level (debug|info|notice|warn|error|crit|alert|emerg).
+  # "debug" logs full request/response headers (incl. injected API keys/toepassing
+  # headers) and is very high-volume — use only for short-lived troubleshooting,
+  # never leave enabled given the BRP/citizen-data traffic this proxy carries.
+  errorLogLevel: notice
   livenessProbe:
     initialDelaySeconds: 5
     periodSeconds: 10
