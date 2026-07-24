@@ -3166,7 +3166,6 @@ apiproxy:
   nodeSelector: {}
   affinity: {}
   tolerations: []
-  #nameOverride: "iconnect-proxy"
   image: *nginxImage
   service:
     port: 80
