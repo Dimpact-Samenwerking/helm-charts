@@ -4,11 +4,11 @@
 # Images new or changed in podiumd 4.9.0 vs 4.8.2.
 #
 # Changes:
-#   1. ZAC (Zaakafhandelcomponent) 5.0.1 -> 5.3.0 (chart 1.0.251 -> 1.0.281).
+#   1. ZAC (Zaakafhandelcomponent) 5.0.1 -> 5.4.0 (chart 1.0.251 -> 1.0.287).
 #      Includes a bump of the ZAC OPA sidecar (openpolicyagent/opa
 #      1.17.1-static -> 1.18.2-static). The other ZAC sidecars
 #      (nginx-unprivileged, curl, busybox, gotenberg, solr) are unchanged.
-#   2. ZGW Office Add-in v0.9.313 -> 0.10.0 (chart 0.0.89, unchanged).
+#   2. ZGW Office Add-in v0.9.313 -> 0.11.0 (chart 0.0.89 -> 0.0.92).
 #      Repository names (zgw-office-addin-{frontend,backend}) unchanged from 4.8.2.
 #
 # See docs/_UPGRADE_PATHS/4.8.2-to-4.9.0-upgrade.md for the operator upgrade notes.
@@ -16,11 +16,11 @@
 # Digests are the OCI image index (multi-arch manifest) digest as returned in
 # the Docker-Content-Digest response header from the source registry.
 
-# ZAC — 5.0.1 -> 5.3.0
+# ZAC — 5.0.1 -> 5.4.0
 - name: zac
   url: ghcr.io/infonl/zaakafhandelcomponent
-  version: "5.3.0"
-  digest: "sha256:2111314cf06cff591b59f31c1ba25fbbb3bf6345b7d8cf8607791b5e7299f345"
+  version: "5.4.0"
+  digest: "sha256:93b959ce15a41130a2f9fc03d1cb681d03ae5a8791c54f31a946761ed53c89cf"
 
 # ZAC OPA sidecar — 1.17.1-static -> 1.18.2-static
 - name: opa
@@ -28,13 +28,13 @@
   version: "1.18.2-static"
   digest: "sha256:57f7d06808fff6de3ea1d698e6430990973ca1370be0e54975f0083d615521da"
 
-# ZGW Office Add-in — v0.9.313 -> 0.10.0
+# ZGW Office Add-in — v0.9.313 -> 0.11.0
 - name: zgw-office-addin-frontend
   url: ghcr.io/infonl/zgw-office-addin-frontend
-  version: "0.10.0"
-  digest: "sha256:e6a3304913e9bef84dba7d0a03fd37d655f49e32b7a46e25b33bda382d7e7afb"
+  version: "0.11.0"
+  digest: "sha256:9a6b3e9023b8cfba152a84dd7477e079490fc7d35562d32e0dc094be81a7f7a2"
 
 - name: zgw-office-addin-backend
   url: ghcr.io/infonl/zgw-office-addin-backend
-  version: "0.10.0"
-  digest: "sha256:59a59119549c4b1dd16f239b4d7679d3774ae6504b4a075add23006ac9edfde0"
+  version: "0.11.0"
+  digest: "sha256:5b188e853531986e31709ed6cae130a891e0014cb267c43ac338b792c84a29ab"

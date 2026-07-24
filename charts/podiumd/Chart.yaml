@@ -67,7 +67,7 @@ dependencies:
     condition: openbeheer.enabled
   - name: zaakafhandelcomponent
     alias: zac
-    version: 1.0.281 # ZAC 5.3.0 helm release
+    version: 1.0.287 # ZAC 5.4.0 helm release
     repository: "@zac"
     condition: zac.enabled
     tags:
@@ -80,7 +80,7 @@ dependencies:
       - zaak
   - name: zgw-office-addin
     repository: "@zgw-office-addin"
-    version: 0.0.89
+    version: 0.0.92
     condition: zgw-office-addin.enabled
   - name: internetaakafhandeling
     alias: ita

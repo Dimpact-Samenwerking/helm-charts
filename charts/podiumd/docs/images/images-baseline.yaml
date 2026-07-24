@@ -97,8 +97,8 @@
   version: "0.6.6"
 - name: infonl/zaakafhandelcomponent
   url: ghcr.io/infonl/zaakafhandelcomponent
-  version: "5.3.0"
-  digest: "sha256:2111314cf06cff591b59f31c1ba25fbbb3bf6345b7d8cf8607791b5e7299f345"
+  version: "5.4.0"
+  digest: "sha256:93b959ce15a41130a2f9fc03d1cb681d03ae5a8791c54f31a946761ed53c89cf"
 - name: infonl/zaakafhandelcomponent
   url: ghcr.io/infonl/zaakafhandelcomponent
   version: "5.1.0"
@@ -109,8 +109,8 @@
   digest: "sha256:8c7844248b7decf56eafc0d2aca1f9e080f94e9bf2f6b6ac412589deb80d1659"
 - name: infonl/zgw-office-addin-backend
   url: ghcr.io/infonl/zgw-office-addin-backend
-  version: "0.10.0"
-  digest: "sha256:59a59119549c4b1dd16f239b4d7679d3774ae6504b4a075add23006ac9edfde0"
+  version: "0.11.0"
+  digest: "sha256:5b188e853531986e31709ed6cae130a891e0014cb267c43ac338b792c84a29ab"
 - name: infonl/zgw-office-addin-backend
   url: ghcr.io/infonl/zgw-office-addin-backend
   version: "v0.9.352"
@@ -121,8 +121,8 @@
   digest: "sha256:64d49e401de5005c5f2b61c68fac72f5d7ba4f640dca5288d21f82cf57bcc8fb"
 - name: infonl/zgw-office-addin-frontend
   url: ghcr.io/infonl/zgw-office-addin-frontend
-  version: "0.10.0"
-  digest: "sha256:e6a3304913e9bef84dba7d0a03fd37d655f49e32b7a46e25b33bda382d7e7afb"
+  version: "0.11.0"
+  digest: "sha256:9a6b3e9023b8cfba152a84dd7477e079490fc7d35562d32e0dc094be81a7f7a2"
 - name: infonl/zgw-office-addin-frontend
   url: ghcr.io/infonl/zgw-office-addin-frontend
   version: "v0.9.352"
