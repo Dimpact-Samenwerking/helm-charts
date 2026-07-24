@@ -49,7 +49,7 @@ metadata:
 type: Opaque
 stringData:
   config.yaml: |
-{{ regexReplaceAll "(?m)[ \t]+$" (include "podiumd.frankgateway.config" (dict "root" $root "instance" $fg "prefix" $prefix "admin" $creds.admin "viewer" $creds.viewer) | indent 4) "" }}
+{{ regexReplaceAll "(?m)[ \t]+$" (include "podiumd.frankgateway.config" (dict "root" $root "instance" $fg "name" $name "prefix" $prefix "admin" $creds.admin "viewer" $creds.viewer) | indent 4) "" }}
 {{- end }}
 {{- end }}
 {{- end }}

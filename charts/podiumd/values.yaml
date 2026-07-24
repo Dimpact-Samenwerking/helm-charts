@@ -3631,6 +3631,14 @@ frankgateway:
       # Scrape interval for the ServiceMonitor.
       interval: 30s
 
+  # Access-log format (opt-in). jsonFormat renders one JSON object per
+  # request (time/client/method/host/uri/status/bytes/latency/upstream/
+  # request_id/referer/user-agent) with json escaping — log pipelines
+  # (Loki/Alloy) can then filter on fields instead of regex-parsing the
+  # default combined format. Off = APISIX default access log.
+  accessLog:
+    jsonFormat: false
+
   # Single-node etcd backing store (quay.io/coreos upstream build — no
   # Bitnami). PVC-backed so gateway config survives pod restarts.
   etcd:
