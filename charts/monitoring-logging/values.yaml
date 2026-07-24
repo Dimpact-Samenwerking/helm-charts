@@ -420,6 +420,13 @@ alloy:
   controller:
     nodeSelector:
       kubernetes.azure.com/agentpool: userpool
+  # -- Namespaces Alloy collects pod logs from. This is a server-side
+  # namespace filter on the Kubernetes pod discovery (see configMap.content
+  # below). Override this if your workloads run in a different namespace,
+  # e.g. set to ["default", "monitoring"] when deploying apps to "default".
+  logCollectionNamespaces:
+    - podiumd
+    - monitoring
   alloy:
     extraEnv:
       - name: NODE_NAME
@@ -429,13 +436,15 @@ alloy:
     # -- configMap.content is processed by Helm tpl, so {{ .Release.Name }} is valid
     configMap:
       content: |
-        // Discover only podiumd + monitoring namespace pods.
+        // Discover pod logs only from the configured namespaces.
         // Server-side namespace filter: scopes the API watch, not just a relabel drop.
+        // The namespace list comes from .Values.logCollectionNamespaces so it
+        // can be customized per environment.
         discovery.kubernetes "pods" {
           role = "pod"
 
           namespaces {
-            names = ["podiumd", "monitoring"]
+            names = [{{ range $i, $ns := .Values.logCollectionNamespaces }}{{ if $i }}, {{ end }}{{ $ns | quote }}{{ end }}]
           }
         }
 
