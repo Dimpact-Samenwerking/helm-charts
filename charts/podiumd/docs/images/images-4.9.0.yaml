@@ -3,9 +3,12 @@
 #
 # Images new or changed in podiumd 4.9.0 vs 4.8.2.
 #
-# Two changes:
-#   1. ZAC (Zaakafhandelcomponent) 5.0.1 -> 5.1.0 (chart 1.0.251 -> 1.0.257).
-#   2. ZGW Office Add-in v0.9.313 -> v0.9.352 (chart 0.0.89, unchanged).
+# Changes:
+#   1. ZAC (Zaakafhandelcomponent) 5.0.1 -> 5.3.0 (chart 1.0.251 -> 1.0.281).
+#      Includes a bump of the ZAC OPA sidecar (openpolicyagent/opa
+#      1.17.1-static -> 1.18.2-static). The other ZAC sidecars
+#      (nginx-unprivileged, curl, busybox, gotenberg, solr) are unchanged.
+#   2. ZGW Office Add-in v0.9.313 -> 0.10.0 (chart 0.0.89, unchanged).
 #      Repository names (zgw-office-addin-{frontend,backend}) unchanged from 4.8.2.
 #
 # See docs/_UPGRADE_PATHS/4.8.2-to-4.9.0-upgrade.md for the operator upgrade notes.
@@ -13,19 +16,25 @@
 # Digests are the OCI image index (multi-arch manifest) digest as returned in
 # the Docker-Content-Digest response header from the source registry.
 
-# ZAC — 5.0.1 -> 5.1.0
+# ZAC — 5.0.1 -> 5.3.0
 - name: zac
   url: ghcr.io/infonl/zaakafhandelcomponent
-  version: "5.1.0"
-  digest: "sha256:d833d2f3dd58eeb58335e9aff9bca67f5885fad0e6a7414003ce9a211d3dc50e"
+  version: "5.3.0"
+  digest: "sha256:2111314cf06cff591b59f31c1ba25fbbb3bf6345b7d8cf8607791b5e7299f345"
 
-# ZGW Office Add-in — v0.9.313 -> v0.9.352
+# ZAC OPA sidecar — 1.17.1-static -> 1.18.2-static
+- name: opa
+  url: openpolicyagent/opa
+  version: "1.18.2-static"
+  digest: "sha256:57f7d06808fff6de3ea1d698e6430990973ca1370be0e54975f0083d615521da"
+
+# ZGW Office Add-in — v0.9.313 -> 0.10.0
 - name: zgw-office-addin-frontend
   url: ghcr.io/infonl/zgw-office-addin-frontend
-  version: "v0.9.352"
-  digest: "sha256:bf248581519b1644ef0f0b3ecb569f80b0fcf435c58df18547bb714eb6aa4916"
+  version: "0.10.0"
+  digest: "sha256:e6a3304913e9bef84dba7d0a03fd37d655f49e32b7a46e25b33bda382d7e7afb"
 
 - name: zgw-office-addin-backend
   url: ghcr.io/infonl/zgw-office-addin-backend
-  version: "v0.9.352"
-  digest: "sha256:c5bf9a7beb883c7cf586a65326dacb4fc49a2eaaa08f4eb49f2faabb786b71b4"
+  version: "0.10.0"
+  digest: "sha256:59a59119549c4b1dd16f239b4d7679d3774ae6504b4a075add23006ac9edfde0"

@@ -97,6 +97,10 @@
   version: "0.6.6"
 - name: infonl/zaakafhandelcomponent
   url: ghcr.io/infonl/zaakafhandelcomponent
+  version: "5.3.0"
+  digest: "sha256:2111314cf06cff591b59f31c1ba25fbbb3bf6345b7d8cf8607791b5e7299f345"
+- name: infonl/zaakafhandelcomponent
+  url: ghcr.io/infonl/zaakafhandelcomponent
   version: "5.1.0"
   digest: "sha256:d833d2f3dd58eeb58335e9aff9bca67f5885fad0e6a7414003ce9a211d3dc50e"
 - name: infonl/zaakafhandelcomponent
@@ -105,12 +109,20 @@
   digest: "sha256:8c7844248b7decf56eafc0d2aca1f9e080f94e9bf2f6b6ac412589deb80d1659"
 - name: infonl/zgw-office-addin-backend
   url: ghcr.io/infonl/zgw-office-addin-backend
+  version: "0.10.0"
+  digest: "sha256:59a59119549c4b1dd16f239b4d7679d3774ae6504b4a075add23006ac9edfde0"
+- name: infonl/zgw-office-addin-backend
+  url: ghcr.io/infonl/zgw-office-addin-backend
   version: "v0.9.352"
   digest: "sha256:c5bf9a7beb883c7cf586a65326dacb4fc49a2eaaa08f4eb49f2faabb786b71b4"
 - name: infonl/zgw-office-addin-backend
   url: ghcr.io/infonl/zgw-office-addin-backend
   version: "v0.9.313"
   digest: "sha256:64d49e401de5005c5f2b61c68fac72f5d7ba4f640dca5288d21f82cf57bcc8fb"
+- name: infonl/zgw-office-addin-frontend
+  url: ghcr.io/infonl/zgw-office-addin-frontend
+  version: "0.10.0"
+  digest: "sha256:e6a3304913e9bef84dba7d0a03fd37d655f49e32b7a46e25b33bda382d7e7afb"
 - name: infonl/zgw-office-addin-frontend
   url: ghcr.io/infonl/zgw-office-addin-frontend
   version: "v0.9.352"
@@ -243,6 +255,10 @@
   url: docker.io/openformulieren/open-forms
   version: "3.4.10"
   digest: "sha256:45755696db647b0c9fecc5d2c78403dbbac0f3c962292e89dee34b405abd1d7c"
+- name: openpolicyagent/opa
+  url: docker.io/openpolicyagent/opa
+  version: "1.18.2-static"
+  digest: "sha256:57f7d06808fff6de3ea1d698e6430990973ca1370be0e54975f0083d615521da"
 - name: openpolicyagent/opa
   url: docker.io/openpolicyagent/opa
   version: "1.17.1-static"
