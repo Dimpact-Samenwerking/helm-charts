@@ -3512,6 +3512,15 @@ frankgateway:
     adminKey: ""
     viewerKey: ""
 
+  # Optional TLS listener on the data plane, so callers behind a re-encrypting
+  # front door (e.g. Gateway API BackendTLSPolicy) reach the gateway over
+  # https and upstreams receive an honest X-Forwarded-Proto. Certificates are
+  # NOT mounted by the chart — APISIX serves per-SNI certs from SSL objects in
+  # etcd, seeded via the Admin API (deploy-side, like routes).
+  tls:
+    enabled: false
+    port: 9443
+
   # Secret with external-API key env vars (e.g. BAG_API_KEY, KVK_API_KEY),
   # created out-of-band (Key Vault-fed, never by this chart). envFrom'd into
   # the gateway (optional: absent Secret does not block startup). envNames
