@@ -288,6 +288,10 @@ data:
       url="ftp://${FTP_HOST}:${FTP_PORT}/${remote_full#/}"
       local curl_args=(--silent --show-error --fail
         --connect-timeout 20
+        # curl classifies FTP 4xx responses as transient: retries cover NAT/LB
+        # data-connection flakes (e.g. 425 from source-IP-checking servers
+        # behind SNAT) without masking hard failures like 530 auth errors.
+        --retry 3 --retry-delay 5
         --ftp-create-dirs
         --upload-file "${file}"
         --config -)
