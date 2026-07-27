@@ -20,7 +20,7 @@ dependencies:
     alias: brppersonenmock
   - name: mi-data
     version: 1.0.0
-    repository: "@dimpact"
+    repository: "file://../mi-data"
     condition: mi.enabled
     alias: mi
   - name: openzaak
