@@ -18,6 +18,11 @@ dependencies:
     repository: "@dimpact"
     condition: brppersonenmock.enabled
     alias: brppersonenmock
+  - name: mi-data
+    version: 1.0.0
+    repository: "file://../mi-data"
+    condition: mi.enabled
+    alias: mi
   - name: openzaak
     version: 1.14.2
     repository: "@maykinmedia"

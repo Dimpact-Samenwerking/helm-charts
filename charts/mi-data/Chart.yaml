@@ -1,0 +1,6 @@
+apiVersion: v2
+name: mi-data
+description: Management Information (MI) data exports — scheduled per-component Postgres dumps delivered to an external SFTP or FTP(S) server
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
