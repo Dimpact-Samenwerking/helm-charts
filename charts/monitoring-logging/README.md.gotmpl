@@ -1,0 +1,55 @@
+{{ template "chart.header" . }}
+
+{{ template "chart.deprecationWarning" . }}
+
+{{ template "chart.badgesSection" . }}
+
+{{ template "chart.description" . }}
+
+## What's included
+
+| Component | Purpose | Default |
+|---|---|---|
+| **kube-prometheus-stack** | Prometheus Operator, Prometheus, Alertmanager, node-exporter, kube-state-metrics | ✅ enabled |
+| **Grafana** | Dashboards, OIDC auth via Keycloak, PodiumD_Metrics and PodiumD_Monitoring_Logging folders | ✅ enabled |
+| **Loki** | Log aggregation backend | ✅ enabled |
+| **Grafana Alloy** | Log collection agent (replaces Promtail), OTel-aware pipeline | ✅ enabled |
+| **OpenTelemetry Collector** | OTLP receiver (gRPC :4317, HTTP :4318), pipeline to Prometheus + Loki | ✅ enabled |
+| **Prometheus Pushgateway** | Push-based metrics ingestion | ✅ enabled |
+| **Grafana Tempo** | Distributed tracing backend | ❌ optional (`values-enable-tempo.yaml`) |
+
+## Grafana dashboards
+
+All dashboards are statically mounted via ConfigMaps (no sidecar label required).
+
+| Folder | Dashboards |
+|---|---|
+| `PodiumD_Monitoring_Logging` | Main monitoring, Logs viewer |
+| `PodiumD_Metrics` | Kubernetes cluster, Deployments, Traefik, Keycloak, OTel Collector, Django RED, Node Exporter Full, Redis HA, ECK/Elasticsearch, ClamAV |
+
+## Documentation
+
+- [`docs/otel.md`](docs/otel.md) — OTel Collector pipeline, bearer auth, HTTP/gRPC config
+- [`docs/prometheus-scraping.md`](docs/prometheus-scraping.md) — Prometheus scrape targets and ServiceMonitor/PodMonitor setup
+- [`docs/grafana-auth.md`](docs/grafana-auth.md) — Grafana Keycloak OIDC auth, break-glass access
+- [`docs/loki-storage.md`](docs/loki-storage.md) — Loki storage backends (filesystem, Azure Blob, MinIO)
+- [`docs/enabling-alertmanager.md`](docs/enabling-alertmanager.md) — Alertmanager configuration
+
+## Rollenbeheer in Grafana op basis van Keycloak-groepen:
+
+https://dimpact.atlassian.net/wiki/spaces/PCP/pages/412090380/Keycloak+roles+for+monitoring
+
+https://dimpact.atlassian.net/wiki/spaces/PCP/pages/448528393/3.+Gebruikers-+en+rollenbeheer+in+Grafana+via+Keycloak
+
+
+## Add used chart repositories:
+
+```bash
+helm repo add grafana https://grafana.github.io/helm-charts
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo add opentelemetry https://open-telemetry.github.io/opentelemetry-helm-charts
+```
+
+{{ template "chart.requirementsSection" . }}
+
+{{ template "chart.valuesSection" . }}
