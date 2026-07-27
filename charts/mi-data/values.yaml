@@ -1,0 +1,160 @@
+# Management Information (MI) data exports — IN-1650 / IN-2119 / IN-2499.
+#
+# OPT-IN FEATURE — DISABLED BY DEFAULT (`enabled: false`).
+#
+# Weekly per-component Postgres dumps (CSV with `;` separator, or pg_dump -Fc).
+# Each run uploads its output to an external SFTP or FTP(S) server. Blob
+# storage is not used.
+#
+# Consumed by the podiumd umbrella chart under alias `mi` (condition
+# `mi.enabled`), so every values path below is `mi.<path>` when set through
+# podiumd. The chart also installs standalone.
+#
+# Transfer is configured in ONE unified `transfer:` section — each environment
+# picks exactly one mode:
+#   sftp-password — SFTP, password auth (e.g. Azure Blob SFTP local users)
+#   sftp-key      — SFTP, SSH private-key auth
+#   ftp           — classic FTP with username/password; `ftps: true` upgrades
+#                   the control connection to explicit TLS (FTPS)
+#
+# The chart renders the connection Secrets itself from `transfer.*` — nothing
+# needs to be pre-provisioned in the namespace:
+#   - <transfer.secretName>    — connection envvars (SFTP_* or FTP_* family)
+#   - <transfer.keySecretName> — the SSH private key (`id`); sftp-key mode only
+#
+# Credentials (password or private key) are supplied by the deploy pipeline
+# (dev.azure.com/ssctwente/ExternalsPodiumD `application.yml`), which
+# substitutes them from the Azure Key Vault secret `mi-data-sftp-credential`
+# into the env values file at deploy time (one KV name regardless of
+# credential type; `transfer.mode` picks how it is used). SFTP host-key
+# checking is disabled (StrictHostKeyChecking=no), so no `known_hosts` is
+# needed.
+#
+# Full activation, validation, and troubleshooting:
+#   → charts/mi-data/docs/mi-exports.md
+#
+# One unified script (modeled on Maykin's bin/dump_data.sh --csv) is used for
+# every target; each entry in targets[] renders one CronJob. A component that
+# is not deployed in the environment is harmless: its Secret/ConfigMap are
+# absent (mounted `optional: true`) and dump.sh exits 0 with a "skipping" log
+# line. Trim `targets` per environment to avoid the no-op runs entirely.
+#
+# Per-target DB credentials follow podiumd's existing per-app convention:
+#   - <secretName> Secret    — must contain DB_PASSWORD (plus other app secrets is fine)
+#   - <configMapName> CM     — must contain DB_HOST, DB_NAME, DB_USER (DB_PORT optional)
+# Both default to the target's `component`. Override only when the podiumd
+# subchart key differs from the K8s resource name (e.g. opennotificaties →
+# notificaties resources).
+
+# Disabled by default. Set to true to render the mi-export CronJobs + Secrets.
+enabled: false
+# Top-level path prefix under the remote transfer root — keeps each gemeente's exports isolated.
+gemeente: ""
+# Output format. One of:
+#   csv    — per-table \COPY → tar.gz of CSVs (one CSV per table, `;`-separated, HEADER row).
+#   pgdump — pg_dump -Fc (custom format, zlib-compressed, restorable via pg_restore).
+# All targets in an environment use the same format; per-target overrides are not supported.
+format: csv
+schedule: "0 2 * * 0"
+timeZone: "Europe/Amsterdam"
+concurrencyPolicy: Forbid
+successfulJobsHistoryLimit: 3
+failedJobsHistoryLimit: 3
+ttlSecondsAfterFinished: 86400
+image:
+  registry: "mcr.microsoft.com"
+  repository: azure-cli
+  tag: "2.71.0"
+# ephemeral-storage requests = limits = 20Gi: the dump job assembles all
+# tables of a component into one tarball under /tmp before uploading; the
+# emptyDir backing /tmp also has sizeLimit 20Gi (set on the volume in
+# templates/cronjobs.yaml) so an oversized dump evicts the pod, not the
+# node. Scratch is throwaway — nothing in /tmp is preserved past the run.
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+    ephemeral-storage: 20Gi
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+    ephemeral-storage: 20Gi
+nodeSelector: {}
+transfer:
+  # Exactly one delivery mode per environment — REQUIRED when enabled=true,
+  # together with host, user, and remotePath. The CronJob template validates
+  # mode/credential consistency and fails fast at render time.
+  #   sftp-password — SFTP, `password` required, `privateKey` must be empty
+  #   sftp-key      — SFTP, `privateKey` required, `password` must be empty
+  #   ftp           — FTP,  `password` required; set `ftps: true` for explicit TLS
+  mode: ""
+  host: ""
+  # Empty → protocol default: 22 for the sftp modes, 21 for ftp.
+  port: ""
+  user: ""
+  # sftp modes: absolute path on the server, e.g. "/uploads/mi-exports".
+  # ftp mode: the path is relative to the FTP login home dir (RFC 1738 URL
+  # semantics, uploaded via curl). Use a double leading slash ("//uploads/…")
+  # to force an absolute path on servers whose FTP home is not "/".
+  remotePath: ""
+  # Password for the sftp-password and ftp modes. Rendered into
+  # Secret/<secretName> (SFTP_PASSWORD or FTP_PASSWORD). Substituted by the
+  # ExternalsPodiumD application.yml pipeline from the Azure Key Vault secret
+  # `mi-data-sftp-credential` at deploy time — never commit a real password
+  # here. Plain `ftp` transmits it cleartext on the wire; prefer `ftps: true`
+  # whenever the server supports TLS.
+  password: ""
+  # SSH private key (PEM block, multiline) for the sftp-key mode. The chart
+  # renders it into Secret/<keySecretName> (key `id`, mode 0400 in the pod).
+  # Substituted from the same Key Vault secret `mi-data-sftp-credential` —
+  # never commit a real key here. The public half must be installed in the
+  # SFTP server's authorized_keys. Host-key checking is disabled, so no
+  # known_hosts is needed.
+  privateKey: ""
+  # ftp mode only: true → explicit TLS on the control connection (FTPS,
+  # curl --ssl-reqd — the transfer aborts if the server cannot upgrade).
+  ftps: false
+  # Name of the chart-rendered K8s Secret carrying the connection envvars
+  # (SFTP_HOST/PORT/USER/REMOTE_PATH/PASSWORD in the sftp modes, or
+  # FTP_HOST/PORT/USER/PASSWORD/REMOTE_PATH/FTP_FTPS in ftp mode; the unused
+  # family is rendered empty so mode switches never leave stale keys behind).
+  secretName: mi-export-transfer
+  # Name of the chart-rendered K8s Secret carrying the SSH private key (`id`).
+  # Only rendered in sftp-key mode.
+  keySecretName: mi-export-transfer-key
+# Default target list — every Postgres-backed app the podiumd chart can deploy.
+# Each entry renders one CronJob; per-target `enabled` allows ad-hoc opt-out.
+# `schemas` defaults to ["public"]. Targets for components that are not
+# deployed run as weekly no-ops (dump.sh exits 0, "skipping") — trim this list
+# per environment to avoid them.
+targets:
+  - component: openzaak
+  - component: opennotificaties
+    # podiumd subchart is "opennotificaties" but its K8s resources are named "notificaties".
+    secretName: notificaties
+    configMapName: notificaties
+  - component: objecten
+  - component: objecttypen
+  - component: openarchiefbeheer
+  - component: openklant
+  - component: openformulieren
+  - component: openinwoner
+  - component: referentielijsten
+  - component: openbeheer
+  - component: zac
+    schemas: ["flowable"]
+  - component: ita
+    # .NET app: resources are ita-secrets/ita-config, DB credentials live in
+    # a Npgsql connection string, not DB_* envs.
+    secretName: ita-secrets
+    configMapName: ita-config
+    connectionStringEnv: ConnectionStrings__DefaultConnection
+  - component: kiss
+    # kiss-frontend resources use the chart's fullnameOverride ("contact")
+    # and POSTGRES_* env naming (dump.sh maps those to DB_*).
+    secretName: contact
+    configMapName: contact
+  - component: pabc
+    # .NET app: Secret/ConfigMap are named pabc, but DB credentials live in
+    # a Npgsql connection string, not DB_* envs.
+    connectionStringEnv: ConnectionStrings__Pabc

@@ -1,0 +1,183 @@
+{{- if .Values.enabled }}
+{{- $mi := .Values }}
+{{- $root := . }}
+{{- $format := default "csv" $mi.format }}
+{{- if not (has $format (list "csv" "pgdump")) }}
+  {{- fail (printf "format must be one of: csv, pgdump (got %q) — path is mi.format via podiumd" $format) }}
+{{- end }}
+
+{{- /*
+  Transfer required-field guards. Exactly one mode is configured via
+  transfer.mode; host/user/remotePath are always required, and the credential
+  fields must match the mode. SFTP host-key checking is disabled, so no
+  known_hosts is needed. (Values paths are mi.transfer.* when consumed via
+  the podiumd umbrella chart.)
+*/}}
+{{- $tr := $mi.transfer }}
+{{- $mode := $tr.mode | default "" }}
+{{- if not (has $mode (list "sftp-password" "sftp-key" "ftp")) }}
+  {{- fail (printf "transfer.mode must be one of: sftp-password, sftp-key, ftp (got %q)" $mode) }}
+{{- end }}
+{{- $_ := required "transfer.host is required when enabled is true"       $tr.host }}
+{{- $_ := required "transfer.user is required when enabled is true"       $tr.user }}
+{{- $_ := required "transfer.remotePath is required when enabled is true" $tr.remotePath }}
+{{- if eq $mode "sftp-key" }}
+  {{- $_ := required "transfer.privateKey is required in sftp-key mode" $tr.privateKey }}
+  {{- if $tr.password }}
+    {{- fail "transfer.password must be empty in sftp-key mode — set transfer.mode: sftp-password to use password auth" }}
+  {{- end }}
+{{- else }}
+  {{- $_ := required (printf "transfer.password is required in %s mode" $mode) $tr.password }}
+  {{- if $tr.privateKey }}
+    {{- fail (printf "transfer.privateKey must be empty in %s mode — set transfer.mode: sftp-key to use key auth" $mode) }}
+  {{- end }}
+{{- end }}
+
+{{- /*
+  One CronJob per entry in targets[]. A target whose component is not deployed
+  in the environment is harmless: its Secret/ConfigMap are absent (envFrom is
+  `optional: true` below) and dump.sh exits 0 with a "skipping" log line.
+  Per-target `enabled` opts a target out explicitly; trimming targets[] per
+  environment avoids the no-op runs entirely.
+*/}}
+{{- range $t := $mi.targets }}
+{{- if dig "enabled" true $t }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: mi-export-{{ $t.component }}
+  labels:
+    {{- include "mi-data.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: mi-export
+    mi.podiumd.dimpact.nl/target: {{ $t.component | quote }}
+spec:
+  schedule: {{ $mi.schedule | quote }}
+  timeZone: {{ $mi.timeZone | quote }}
+  concurrencyPolicy: {{ $mi.concurrencyPolicy }}
+  successfulJobsHistoryLimit: {{ $mi.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ $mi.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: {{ $mi.ttlSecondsAfterFinished }}
+      backoffLimit: 0
+      template:
+        metadata:
+          labels:
+            {{- include "mi-data.labels" $root | nindent 12 }}
+            app.kubernetes.io/component: mi-export
+            mi.podiumd.dimpact.nl/target: {{ $t.component | quote }}
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          {{- with $mi.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          containers:
+            - name: dump
+              image: {{ include "mi-data.image" $mi.image }}
+              imagePullPolicy: IfNotPresent
+              resources:
+                {{- toYaml $mi.resources | nindent 16 }}
+              securityContext:
+                # iter3-todo: bake a purpose-built image (psql + openssh-clients
+                # installed at build time), then re-enable runAsNonRoot/
+                # runAsUser:1000 and readOnlyRootFilesystem. Today we need root
+                # because the runtime tdnf bootstrap requires it.
+                runAsNonRoot: false
+                runAsUser: 0
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: false
+                capabilities:
+                  drop: ["ALL"]
+                seccompProfile:
+                  type: RuntimeDefault
+              env:
+                - name: MI_GEMEENTE
+                  value: {{ required "gemeente is required" $mi.gemeente | quote }}
+                - name: MI_COMPONENT
+                  value: {{ $t.component | quote }}
+                - name: MI_SCHEMAS
+                  value: {{ default (list "public") $t.schemas | join " " | quote }}
+                - name: MI_FORMAT
+                  value: {{ $format | quote }}
+                {{- with $t.connectionStringEnv }}
+                # Name of an env var (from the component Secret/ConfigMap below)
+                # holding a .NET/Npgsql connection string. dump.sh parses it
+                # into DB_* when the component doesn't expose them directly.
+                - name: MI_CONNSTRING_VAR
+                  value: {{ . | quote }}
+                {{- end }}
+                {{- if eq $mode "sftp-key" }}
+                # sftp-key mode: the SSH private key is mounted at /etc/sftp/id
+                # via the `sftp-key` volume below. The script reads this env
+                # path rather than hardcoding /etc/sftp so an iter3 baked image
+                # can relocate it without changing dump.sh. Host-key checking
+                # is disabled, so no known_hosts is mounted (see dump.sh).
+                # In the other modes this env (and the volume) is absent; the
+                # script dispatches on FTP_HOST/SFTP_PASSWORD from the
+                # connection Secret.
+                - name: SFTP_KEY_FILE
+                  value: /etc/sftp/id
+                {{- end }}
+              envFrom:
+                # Transfer connection envs: SFTP_HOST/PORT/USER/REMOTE_PATH
+                # (+ SFTP_PASSWORD in sftp-password mode) or FTP_HOST/PORT/
+                # USER/PASSWORD/REMOTE_PATH/FTP_FTPS in ftp mode.
+                # Rendered by transfer-secret.yaml from transfer.* values.
+                - secretRef:
+                    name: {{ $tr.secretName | quote }}
+                # The podiumd per-app convention is: <component> Secret carries DB_PASSWORD
+                # (and other app secrets); <component> ConfigMap carries DB_HOST, DB_NAME,
+                # DB_USER, DB_PORT. Both default to the target's component name; override
+                # secretName/configMapName per-target only when the podiumd subchart key
+                # differs from the K8s resource name (e.g. opennotificaties → notificaties).
+                # Both are optional: a component that exposes no DB_* credentials this
+                # way is treated as not using PostgreSQL — the pod still starts and
+                # dump.sh exits 0 with a "skipping" log line (see scripts.yaml)
+                # instead of the pod hanging in CreateContainerConfigError forever.
+                - secretRef:
+                    name: {{ default $t.component $t.secretName | quote }}
+                    optional: true
+                - configMapRef:
+                    name: {{ default $t.component $t.configMapName | quote }}
+                    optional: true
+              command: ["/bin/sh", "-c"]
+              args:
+                - exec /bin/bash /scripts/dump.sh
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+                  readOnly: true
+                {{- if eq $mode "sftp-key" }}
+                - name: sftp-key
+                  mountPath: /etc/sftp
+                  readOnly: true
+                {{- end }}
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: scripts
+              configMap:
+                name: mi-export-scripts
+                defaultMode: 0555
+            {{- if eq $mode "sftp-key" }}
+            - name: sftp-key
+              secret:
+                secretName: {{ $tr.keySecretName | quote }}
+                # 0400 — sshd refuses to use a key whose perms are loose.
+                defaultMode: 0400
+                items:
+                  - key: id
+                    path: id
+            {{- end }}
+            - name: tmp
+              # 20 GiB scratch cap. Backed by node ephemeral storage. Sized to
+              # match resources.{requests,limits}.ephemeral-storage so the
+              # pod is evicted (not the node) if a dump exceeds budget.
+              emptyDir:
+                sizeLimit: 20Gi
+{{- end }}
+{{- end }}
+{{- end }}
