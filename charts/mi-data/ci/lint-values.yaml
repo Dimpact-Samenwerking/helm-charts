@@ -1,0 +1,11 @@
+# CI/lint values for the mi-data chart: enable the feature with placeholder
+# sftp-password transfer config so the templates render. Never used in a real
+# deployment.
+enabled: true
+gemeente: "lint"
+transfer:
+  mode: sftp-password
+  host: "sftp.example.nl"
+  user: "lint"
+  remotePath: "/uploads/mi-exports"
+  password: "placeholder"
