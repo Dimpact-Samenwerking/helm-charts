@@ -22,7 +22,7 @@ Upgrade one hop at a time, in order. Each guide covers exactly one hop.
 
 | You are on | Read, in this order |
 |---|---|
-| 4.8.2 | [`4.8.2-to-4.8.3-upgrade.md`](_UPGRADE_PATHS/4.8.2-to-4.8.3-upgrade.md) — 4.8.3 in development |
+| 4.8.2 | [`4.8.2-to-4.8.3-upgrade.md`](_UPGRADE_PATHS/4.8.2-to-4.8.3-upgrade.md) |
 | 4.8.1 | [`4.8.1-to-4.8.2-upgrade.md`](_UPGRADE_PATHS/4.8.1-to-4.8.2-upgrade.md) |
 | 4.7.8 | [`4.7.8-to-4.8.0-upgrade.md`](_UPGRADE_PATHS/4.7.8-to-4.8.0-upgrade.md) |
 | 4.7.7 | [`4.7.7-to-4.7.8-upgrade.md`](_UPGRADE_PATHS/4.7.7-to-4.7.8-upgrade.md) → then the 4.8.0 guide |
