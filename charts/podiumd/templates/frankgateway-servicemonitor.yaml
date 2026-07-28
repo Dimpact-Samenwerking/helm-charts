@@ -1,0 +1,27 @@
+{{- if and .Values.frankgateway.enabled .Values.frankgateway.metrics.enabled .Values.frankgateway.metrics.serviceMonitor.enabled }}
+{{- if .Capabilities.APIVersions.Has "monitoring.coreos.com/v1" }}
+{{- /*
+  Scrape config for the APISIX prometheus exporter (Service port `metrics`,
+  9091). Consumed by any prometheus-operator instance whose serviceMonitor
+  selectors are permissive (the monitoring-logging chart sets
+  serviceMonitorSelectorNilUsesHelmValues: false, so no extra labels needed).
+  Guarded on the CRD so envs without prometheus-operator still template.
+*/ -}}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: frankgateway
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frankgateway
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: frankgateway
+  endpoints:
+    - port: metrics
+      path: /apisix/prometheus/metrics
+      interval: {{ .Values.frankgateway.metrics.serviceMonitor.interval }}
+{{- end }}
+{{- end }}

@@ -40,7 +40,12 @@ Runtime components when enabled:
   `:9180`, etcd-backed *traditional* mode. Admin/viewer API keys are random,
   auto-generated and upgrade-stable (Secret `frankgateway-admin-credentials`);
   the APISIX `config.yaml` is mounted from a Secret because it embeds those
-  keys (`templates/frankgateway-config.yaml`).
+  keys (`templates/frankgateway-config.yaml`). Since 4.8.3 an optional TLS
+  data-plane listener (`frankgateway.tls.enabled`, default off, port
+  `frankgateway.tls.port: 9443`) can be enabled for callers behind a
+  re-encrypting front door; certificates are not mounted — APISIX serves
+  per-SNI certs from SSL objects in etcd, seeded via the Admin API like
+  routes (deploy-side).
 - **frankgateway-etcd** (StatefulSet, 1 replica, PVC) — configuration store,
   upstream `quay.io/coreos/etcd` build (no Bitnami).
 - **frankgateway-dashboard** (Deployment) — `apache/apisix-dashboard` GUI.
@@ -81,7 +86,15 @@ share, no chart-rendered PV.
 ### Routing / exposure (NGINX Gateway Fabric)
 
 ClusterIP-only for the data plane: PodiumD apps call the gateway in-cluster on
-`http://frankgateway:9080/...`; the Admin API `:9180` is never exposed. The
+`http://frankgateway:9080/...`; the Admin API `:9180` is never exposed. With
+`frankgateway.tls.enabled: true` the Service additionally exposes
+`gateway-tls` (default `:9443`) for https in-cluster calls — needed when a
+re-encrypting front door (e.g. Gateway API `BackendTLSPolicy`) terminates and
+re-establishes TLS towards the gateway: the wearefrank APISIX nginx template
+derives `X-Forwarded-Proto` from its own inbound scheme, so a plain-http hop
+would poison upstream canonical URLs (ZGW 403s on writes, broken OIDC
+redirects). The per-SNI server certificates are seeded deploy-side via the
+Admin API (SSL objects in etcd), not mounted by the chart. The
 dashboard's public hostname (`frankgateway.dashboard.auth.hostname`) is routed
 deploy-side (ADO `ExternalsPodiumD` — Gateway API HTTPRoute → service
 `frankgateway-oauth2-proxy:4180`, as on jim00), or via the optional in-chart

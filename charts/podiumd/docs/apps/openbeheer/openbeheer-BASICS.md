@@ -125,9 +125,10 @@ headroom; the nginx sidecar default (10m/16Mi) is adequate.
      configuration:
        oidcUrl: https://<env>-openbeheer.dimpact.nl
        secrets:
-         keycloak_client_secret: "REP_OPENBEHEER_KEYCLOAK_CLIENT_SECRET_REP"
-         openzaak_openbeheer_secret: "REP_OPENBEHEER_OPENZAAK_SECRET_REP"
-         objecttypen_openbeheer_token: "REP_OPENBEHEER_OBJECTTYPEN_TOKEN_REP"
+         keycloak_client_secret: "REP_OPENBEHEER_OIDC_SECRET_REP"
+         openzaak_openbeheer_secret: "REP_OPENZAAK_OPENBEHEER_SECRET_REP"
+         objecttypen_openbeheer_token: "REP_OBJECTTYPEN_OPENBEHEER_TOKEN_REP"
+         objecten_openbeheer_token: "REP_OBJECTEN_OPENBEHEER_TOKEN_REP"
        data: |-
          # OIDC provider, zgw_consumers services, api_configuration —
          # use the commented example in values.yaml (openbeheer.configuration.data)
@@ -137,7 +138,7 @@ headroom; the nginx sidecar default (10m/16Mi) is adequate.
          host: <pg-host>
          name: openbeheer
          username: openbeheer
-         password: "REP_OPENBEHEER_DB_PASSWORD_REP"
+         password: "REP_OPENBEHEER_DATABASE_PASSWORD_REP"
    ```
    Secrets inside `configuration.data` use django-setup-configuration's
    `value_from: {env: VAR}` pattern; the Objecttypen `Authorization: Token ...` header is

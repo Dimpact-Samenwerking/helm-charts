@@ -34,8 +34,8 @@
   url: docker.io/apache/solr-operator
   version: "v0.9.1"
   digest: "sha256:4db34508137f185d3cad03c7cf7c2b5d6533fb590822effcde9125cff5a90aa2"
-# Gap-filler: mi-export CronJobs (mi.image in values.yaml). Not part of any
-# per-release delta — maintained here by hand.
+# Gap-filler: mi-export CronJobs (mi.image — mi-data subchart since 4.8.3).
+# Not part of any per-release delta — maintained here by hand.
 - name: azure-cli
   url: mcr.microsoft.com/azure-cli
   version: "2.71.0"

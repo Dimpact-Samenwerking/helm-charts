@@ -52,6 +52,14 @@ stringData:
     apisix:
       node_listen: 9080
       enable_ipv6: false
+      {{- if $fg.tls.enabled }}
+      # TLS data-plane listener; per-SNI certificates come from SSL objects
+      # in etcd (seeded via the Admin API), not from mounted files.
+      ssl:
+        enable: true
+        listen:
+          - port: {{ $fg.tls.port }}
+      {{- end }}
 
       enable_control: true
       control:

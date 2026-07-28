@@ -1,10 +1,10 @@
-{{- if .Values.mi.enabled }}
+{{- if .Values.enabled }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: mi-export-scripts
   labels:
-    {{- include "podiumd.labels" . | nindent 4 }}
+    {{- include "mi-data.labels" . | nindent 4 }}
     app.kubernetes.io/component: mi-export
 data:
   # Unified dump script. Two output formats, selected via MI_FORMAT:
@@ -13,19 +13,23 @@ data:
   #            pg_tables in the chosen schemas, \COPY each to a per-table CSV
   #            on the /tmp emptyDir (separator `;`, HEADER row), then package
   #            into one tar.gz.
-  #            Remote: <SFTP_REMOTE_PATH>/<gemeente>/<YYMMDD>/<component>/<HHMMSS>-<component>.tar.gz
+  #            Remote: <REMOTE_PATH>/<gemeente>/<YYMMDD>/<component>/<HHMMSS>-<component>.tar.gz
   #            Inside: one CSV per table, named <table>.csv
   #            (or <schema>_<table>.csv when the schema is not public).
   #
   #   pgdump — pg_dump -Fc against the chosen schemas. Single output file in
   #            Postgres custom format (zlib-compressed, restorable via pg_restore).
-  #            Remote: <SFTP_REMOTE_PATH>/<gemeente>/<YYMMDD>/<component>/<HHMMSS>-<component>.pgdump
+  #            Remote: <REMOTE_PATH>/<gemeente>/<YYMMDD>/<component>/<HHMMSS>-<component>.pgdump
   #
-  # Egress is SFTP only — no blob storage. Auth is exactly one of:
-  #   keypair  — SSH private key (SFTP_KEY_FILE, mode 0400)
-  #   password — SFTP_PASSWORD from the connection Secret, fed to sftp via an
-  #              SSH_ASKPASS helper (e.g. Azure Blob SFTP local users)
-  # Host-key checking is intentionally disabled (StrictHostKeyChecking=no,
+  # Egress is SFTP or FTP(S) — no blob storage. The connection Secret
+  # (transfer-secret.yaml) populates exactly one env family; the script
+  # dispatches on FTP_HOST being non-empty. Three modes:
+  #   sftp-key      — SSH private key (SFTP_KEY_FILE, mode 0400)
+  #   sftp-password — SFTP_PASSWORD from the connection Secret, fed to sftp
+  #                   via an SSH_ASKPASS helper (e.g. Azure Blob SFTP local users)
+  #   ftp           — FTP_* envs, uploaded via curl; FTP_FTPS=true upgrades the
+  #                   control connection to explicit TLS (curl --ssl-reqd)
+  # SFTP host-key checking is intentionally disabled (StrictHostKeyChecking=no,
   # UserKnownHostsFile=/dev/null): these are short-lived, single-shot CronJob
   # containers reaching a host fixed by DNS, and the credential already gates
   # who can log in — sufficient for this use case. No known_hosts is mounted
@@ -34,13 +38,27 @@ data:
     #!/usr/bin/env bash
     set -euo pipefail
 
-    : "${SFTP_HOST:?must be set}"
-    : "${SFTP_USER:?must be set}"
-    : "${SFTP_REMOTE_PATH:?must be set}"
-    # Auth mode: the CronJob provides exactly one of SFTP_PASSWORD (password
-    # mode, connection Secret) or SFTP_KEY_FILE (keypair mode, mounted key).
-    if [[ -z "${SFTP_PASSWORD:-}" && -z "${SFTP_KEY_FILE:-}" ]]; then
-      echo "either SFTP_PASSWORD or SFTP_KEY_FILE must be set" >&2
+    # Transfer mode dispatch: the connection Secret populates exactly one of
+    # the FTP_* or SFTP_* families (the other is rendered with empty values),
+    # so a non-empty FTP_HOST is the FTP-mode signal.
+    if [[ -n "${FTP_HOST:-}" ]]; then
+      MI_TRANSFER=ftp
+      : "${FTP_USER:?must be set in FTP mode}"
+      : "${FTP_PASSWORD:?must be set in FTP mode}"
+      : "${FTP_REMOTE_PATH:?must be set in FTP mode}"
+    elif [[ -n "${SFTP_HOST:-}" ]]; then
+      MI_TRANSFER=sftp
+      : "${SFTP_USER:?must be set}"
+      : "${SFTP_REMOTE_PATH:?must be set}"
+      # Auth flavour: the CronJob provides exactly one of SFTP_PASSWORD
+      # (sftp-password mode, connection Secret) or SFTP_KEY_FILE (sftp-key
+      # mode, mounted key).
+      if [[ -z "${SFTP_PASSWORD:-}" && -z "${SFTP_KEY_FILE:-}" ]]; then
+        echo "either SFTP_PASSWORD or SFTP_KEY_FILE must be set" >&2
+        exit 1
+      fi
+    else
+      echo "no transfer configured: one of FTP_HOST or SFTP_HOST must be set" >&2
       exit 1
     fi
     : "${MI_GEMEENTE:?must be set}"
@@ -98,6 +116,7 @@ data:
       exit 1
     fi
     SFTP_PORT="${SFTP_PORT:-22}"
+    FTP_PORT="${FTP_PORT:-21}"
     DB_PORT="${DB_PORT:-5432}"
     # Whitespace-separated list, e.g. "public" or "public flowable". Default: public.
     MI_SCHEMAS="${MI_SCHEMAS:-public}"
@@ -112,16 +131,22 @@ data:
     log() { printf '[%s] %s\n' "$(date -u -Iseconds)" "$*"; }
 
     # iter3-todo: image is mcr.microsoft.com/azure-cli (Azure Linux) with the
-    # postgresql tooling, tar, and openssh-clients installed at runtime via
-    # tdnf; bake a purpose-built image and drop this bootstrap step (and
-    # re-enable runAsNonRoot in the CronJob securityContext). gzip is already
-    # present in the base image. The `postgresql` package supplies both psql
-    # and pg_dump; `openssh-clients` supplies sftp.
+    # postgresql tooling, tar, and (in sftp mode) openssh-clients installed at
+    # runtime via tdnf; bake a purpose-built image and drop this bootstrap
+    # step (and re-enable runAsNonRoot in the CronJob securityContext). gzip
+    # and curl are already present in the base image. The `postgresql` package
+    # supplies both psql and pg_dump; `openssh-clients` supplies sftp.
     needs=()
     command -v psql    >/dev/null 2>&1 || needs+=(postgresql)
     command -v pg_dump >/dev/null 2>&1 || needs+=(postgresql)
     command -v tar     >/dev/null 2>&1 || needs+=(tar)
-    command -v sftp    >/dev/null 2>&1 || needs+=(openssh-clients)
+    if [[ "${MI_TRANSFER}" == "sftp" ]]; then
+      command -v sftp  >/dev/null 2>&1 || needs+=(openssh-clients)
+    else
+      # FTP mode uploads via curl, which the azure-cli base image ships; the
+      # guard is defensive against a future image swap.
+      command -v curl  >/dev/null 2>&1 || needs+=(curl)
+    fi
     # NB: no sshpass — on Azure Linux it requires the `openssh` meta package,
     # which drags in openssh-server, whose install scriptlet (groupadd sshd)
     # fails in the azure-cli image (no /etc/gshadow). Password mode uses
@@ -244,7 +269,51 @@ data:
       log "uploaded ${remote_name}"
     }
 
-    log "starting MI export: component=${MI_COMPONENT} schemas=${MI_SCHEMAS} format=${MI_FORMAT}"
+    upload_ftp() {
+      # upload_ftp <local-file> <remote-relative-path>
+      #
+      # Classic FTP via curl. Missing remote directories are created by
+      # --ftp-create-dirs, so no probe/mkdir ladder is needed here. The URL
+      # path is relative to the FTP login home dir (RFC 1738); FTP_REMOTE_PATH
+      # is appended after stripping one leading slash, so "//abs/path" in the
+      # values forces an absolute path on servers whose home is not "/".
+      # FTP_FTPS=true adds --ssl-reqd: explicit TLS (AUTH TLS) on the control
+      # connection, aborting if the server cannot upgrade. Credentials go
+      # through `--config -` on stdin — never on argv (visible in
+      # /proc/*/cmdline) and never on disk, mirroring the SSH_ASKPASS care
+      # taken in upload_sftp.
+      local file="$1" remote="$2" size remote_full url
+      size="$(stat -c%s "${file}" 2>/dev/null || stat -f%z "${file}")"
+      remote_full="${FTP_REMOTE_PATH%/}/${remote}"
+      url="ftp://${FTP_HOST}:${FTP_PORT}/${remote_full#/}"
+      local curl_args=(--silent --show-error --fail
+        --connect-timeout 20
+        # curl classifies FTP 4xx responses as transient: retries cover NAT/LB
+        # data-connection flakes (e.g. 425 from source-IP-checking servers
+        # behind SNAT) without masking hard failures like 530 auth errors.
+        --retry 3 --retry-delay 5
+        --ftp-create-dirs
+        --upload-file "${file}"
+        --config -)
+      if [[ "${FTP_FTPS:-false}" == "true" ]]; then
+        curl_args+=(--ssl-reqd)
+      fi
+      log "uploading ${remote_full} (${size} bytes) to ftp://${FTP_USER}@${FTP_HOST}:${FTP_PORT} (ftps=${FTP_FTPS:-false})"
+      printf 'user = "%s:%s"\nurl = "%s"\n' "${FTP_USER}" "${FTP_PASSWORD}" "${url}" \
+        | curl "${curl_args[@]}"
+      log "uploaded $(basename "${remote_full}")"
+    }
+
+    upload() {
+      # upload <local-file> <remote-relative-path> — transfer-mode dispatch.
+      if [[ "${MI_TRANSFER}" == "ftp" ]]; then
+        upload_ftp "$@"
+      else
+        upload_sftp "$@"
+      fi
+    }
+
+    log "starting MI export: component=${MI_COMPONENT} schemas=${MI_SCHEMAS} format=${MI_FORMAT} transfer=${MI_TRANSFER}"
 
     case "${MI_FORMAT}" in
       csv)
@@ -298,7 +367,7 @@ data:
         tar -czf "${TARBALL}" -C "${WORK}" .
 
         REMOTE="${MI_GEMEENTE}/${DATE_DIR}/${MI_COMPONENT}/${TIME_PART}-${MI_COMPONENT}.tar.gz"
-        upload_sftp "${TARBALL}" "${REMOTE}"
+        upload "${TARBALL}" "${REMOTE}"
         log "done: ${n} table(s) packaged in ${REMOTE}"
         ;;
 
@@ -326,7 +395,7 @@ data:
           --file="${DUMPFILE}"
 
         REMOTE="${MI_GEMEENTE}/${DATE_DIR}/${MI_COMPONENT}/${TIME_PART}-${MI_COMPONENT}.pgdump"
-        upload_sftp "${DUMPFILE}" "${REMOTE}"
+        upload "${DUMPFILE}" "${REMOTE}"
         log "done: pg_dump uploaded to ${REMOTE}"
         ;;
 
