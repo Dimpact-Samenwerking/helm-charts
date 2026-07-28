@@ -30,6 +30,11 @@ spec:
     - name: admin
       port: 9180
       targetPort: 9180
+    {{- if $fg.tls.enabled }}
+    - name: gateway-tls
+      port: {{ $fg.tls.port }}
+      targetPort: {{ $fg.tls.port }}
+    {{- end }}
     {{- if .Values.frankgateway.metrics.enabled }}
     - name: metrics
       port: 9091
@@ -73,6 +78,10 @@ spec:
               containerPort: 9080
             - name: admin
               containerPort: 9180
+            {{- if $fg.tls.enabled }}
+            - name: gateway-tls
+              containerPort: {{ $fg.tls.port }}
+            {{- end }}
             {{- if $fg.metrics.enabled }}
             - name: metrics
               containerPort: 9091
