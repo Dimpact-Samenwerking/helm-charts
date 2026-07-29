@@ -26,8 +26,20 @@ If release name contains chart name it will be used as a full name.
 {{/*
 Create chart name and version as used by the chart label.
 */}}
+{{/*
+Chart name+version for the helm.sh/chart label.
+
+Truncated to 63 chars (the label-value limit), then stripped of any trailing
+characters a label may not end with. The stock helm scaffold only trims "-",
+which is not enough: a long snapshot version from a branch name can land the
+cut on a "." and produce an invalid label, failing the whole release at
+admission time with an error that points at whichever object happened to be
+applied first (in practice a pre-upgrade hook Job) rather than at the version
+string that actually caused it.
+*/}}
 {{- define "podiumd.chart" -}}
-{{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
+{{- $c := printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 -}}
+{{- regexReplaceAll "[^a-zA-Z0-9]+$" $c "" -}}
 {{- end }}
 
 {{/*
