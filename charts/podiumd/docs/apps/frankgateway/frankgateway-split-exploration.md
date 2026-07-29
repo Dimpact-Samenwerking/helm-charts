@@ -1,9 +1,20 @@
 # Frank!Gateway — exploration: split into 3 traffic-class instances
 
-> Status: **exploration** (branch `feature/frankgateway-split-instances`).
-> Nothing here is implemented; this document assesses feasibility, shape and
-> cost of running separate gateway instances for incoming, outgoing and
-> internal traffic.
+> Status: **implemented in 4.8.4** (IN-2547). This document is kept as the
+> feasibility assessment the design came from; it records why the split is
+> shaped the way it is. For how to actually use it, see
+> [`frankgateway-traffic-classes.md`](frankgateway-traffic-classes.md).
+>
+> Two things changed between this assessment and what was built:
+>
+> - the instances are named **`inway` / `outway` / `internal`**, not
+>   incoming/outgoing/internal — matching the FSC vocabulary already used in the
+>   backlog for the eventual inway work;
+> - there is **one dashboard per instance**, not one designated instance, since
+>   apisix-dashboard binds a single etcd prefix and operators want GUI access to
+>   each class.
+>
+> The open questions at the bottom are answered in a closing section.
 
 ## Goal
 
@@ -139,3 +150,27 @@ instance's config churn ever needs independent backup/restore.
   (better isolation)?
 - Do any gemeente pipelines read Secret `frankgateway-admin-credentials` by
   name today (name changes in split mode)?
+
+## Answers (decided for the 4.8.4 implementation)
+
+- **What the inway fronts:** the five ZGW APIs that already enter through the
+  gateway — openzaak, openklant, notificaties, objecten, objecttypen. No product
+  decision was needed after all: the inbound path built for IN-2507 (NGF →
+  BackendTLSPolicy re-encrypt → gateway TLS → app Service) *is* the inway, so
+  the instance simply takes over routing that already exists. Exposing ZGW APIs
+  to external parties with key-auth and rate-limiting remains a later use of the
+  same instance, not a prerequisite.
+- **Dashboard:** one per instance. The chain (dashboard + shim + oauth2-proxy +
+  Keycloak client + realm secret) is templated per instance, so the cost is
+  mechanical rather than manual; instances that do not need a GUI can set
+  `dashboard.enabled: false` and keep Admin-API-only access.
+- **Admin keys:** per instance. Each gets its own
+  `frankgateway-<instance>-admin-credentials`, generated and lookup-stable like
+  the single-instance one. A shared key would have re-coupled the classes for no
+  operational gain, since the seeding Job reads whichever Secret belongs to the
+  instance it is targeting.
+- **Pipelines reading the Secret by name:** yes — the jim00 `apply-routes.sh`
+  does. This is the one real migration hazard. It is why the default `gateway`
+  instance keeps the unsuffixed names, and why `serviceAlias` exists: an
+  environment can move applications across one at a time instead of having to
+  change the gateway name, the Secret name and every consumer in one step.
