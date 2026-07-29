@@ -60,3 +60,15 @@ jobs:
         overrideFiles: |
           charts/podiumd/ci/lint-values.yaml
 
+    - name: render Frank!Gateway split mode
+      # The bake above only exercises the single-instance `gateway` default.
+      # Render the three-traffic-class shape too, so a broken split template
+      # (per-instance names, etcd prefixes, dashboards, NetworkPolicies) cannot
+      # merge unnoticed. Dependencies are already built by the bake step.
+      run: |
+        helm template github-test charts/podiumd \
+          --namespace podiumd \
+          -f charts/podiumd/ci/lint-values.yaml \
+          -f charts/podiumd/ci/split-values.yaml \
+          > /dev/null
+

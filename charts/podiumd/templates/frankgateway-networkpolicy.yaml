@@ -1,0 +1,134 @@
+{{- if and .Values.frankgateway.enabled .Values.frankgateway.networkPolicies.enabled }}
+{{- /*
+  Per-traffic-class NetworkPolicies — the reason the split is worth doing.
+
+  A single gateway carrying all three classes needs the union of every class's
+  egress (the public internet for the national registries, arbitrary in-cluster
+  Services for east-west calls, backend Services for north-south), so no
+  meaningful egress restriction is possible. Once the classes are separate pods,
+  each one can be held to just its own:
+
+    outway    ingress: podiumd app pods          egress: DNS + 443 to the internet
+    internal  ingress: podiumd app pods          egress: in-cluster only
+    inway     ingress: the ingress gateway ns    egress: in-cluster backends only
+
+  Every class additionally needs etcd (its own config store) and, where the
+  request-time secret fetch is used, OpenBao — both in this namespace, so they
+  are covered by the in-namespace egress rule. Metrics scraping is allowed from
+  the monitoring namespace.
+
+  An instance is classified by `class`, defaulting to the instance key when that
+  key is one of inway/outway/internal. Instances with no class (including the
+  single-instance `gateway` default, which by definition carries all three
+  classes) get no policy — there is nothing meaningful to restrict.
+
+  NOTE: a cluster whose CNI does not enforce NetworkPolicy accepts these objects
+  and ignores them. Enabling this is not evidence that traffic is restricted;
+  verify on the target cluster.
+*/ -}}
+{{- $root := . }}
+{{- $np := .Values.frankgateway.networkPolicies }}
+{{- range $key, $override := .Values.frankgateway.instances }}
+{{- $fg := include "podiumd.frankgateway.instanceValues" (dict "root" $root "key" $key "override" $override) | fromYaml }}
+{{- $class := $fg.class | default (ternary $key "" (has $key (list "inway" "outway" "internal"))) }}
+{{- if and $fg.enabled $class }}
+{{- $name := include "podiumd.frankgateway.instanceName" (dict "key" $key "instance" $fg) }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $name }}
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: frankgateway
+    app.kubernetes.io/name: {{ $name }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: {{ $name }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    {{- if eq $class "inway" }}
+    # North-south only: the ingress gateway (NGINX Gateway Fabric) is the sole
+    # legitimate source. App pods must not be able to reach the inway directly.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              {{ $np.ingressNamespaceLabel }}: {{ $np.ingressNamespace }}
+      ports:
+        - protocol: TCP
+          port: 9080
+        {{- if $fg.tls.enabled }}
+        - protocol: TCP
+          port: {{ $fg.tls.port }}
+        {{- end }}
+    {{- else }}
+    # East-west: callers are PodiumD application pods in this namespace.
+    - from:
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 9080
+        {{- if $fg.tls.enabled }}
+        - protocol: TCP
+          port: {{ $fg.tls.port }}
+        {{- end }}
+    {{- end }}
+    # Admin API: in-namespace only (the apply-routes hook Job and the dashboard).
+    - from:
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 9180
+    {{- if $fg.metrics.enabled }}
+    # Prometheus scrape.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              {{ $np.ingressNamespaceLabel }}: {{ $np.monitoringNamespace }}
+      ports:
+        - protocol: TCP
+          port: 9091
+    {{- end }}
+  egress:
+    # DNS — every class needs it to resolve upstreams.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              {{ $np.ingressNamespaceLabel }}: {{ $np.dnsNamespace }}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # This namespace: etcd (config store), OpenBao (request-time secrets) and,
+    # for the inway and internal classes, the backend application Services.
+    - to:
+        - podSelector: {}
+    {{- if eq $class "outway" }}
+    # The whole point of the outway: reach the national registries. HTTPS only,
+    # and only to addresses outside the cluster's private ranges.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - protocol: TCP
+          port: 443
+    {{- end }}
+    {{- if and (eq $class "internal") $np.clusterCidr }}
+    # Explicit cluster CIDR for environments whose in-cluster destinations are
+    # not all in this namespace.
+    - to:
+        - ipBlock:
+            cidr: {{ $np.clusterCidr }}
+    {{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
