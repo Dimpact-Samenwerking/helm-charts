@@ -3661,6 +3661,29 @@ frankgateway:
   # route id = file name, PUTs overwrite.
   routes:
     seed: true
+    # Extra routes defined here rather than shipped as files, keyed by route id.
+    # Needed for anything that depends on the environment: an inway route has to
+    # match that environment's own public hostname, so it cannot be a chart file.
+    # A key here overrides a shipped file of the same id.
+    #
+    #   instances:
+    #     inway:
+    #       routes:
+    #         extra:
+    #           inbound-openzaak:
+    #             uri: /*
+    #             host: openzaak.<env>.<domain>
+    #             labels: {managed-by: iac}
+    #             upstream:
+    #               type: roundrobin
+    #               scheme: http
+    #               pass_host: pass
+    #               nodes: {"openzaak-nginx.podiumd.svc.cluster.local:80": 1}
+    #
+    # For an internal route, prefer pass_host: rewrite with upstream_host set to
+    # the application's public FQDN — ZGW APIs emit absolute self-referencing
+    # URLs, and callers cannot resolve cluster-local ones.
+    extra: {}
     job:
       image: *curlImage
       backoffLimit: 3
