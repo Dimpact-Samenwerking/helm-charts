@@ -1,6 +1,6 @@
-{{- if and .Values.frankgateway.enabled .Values.frankgateway.dashboard.enabled .Values.frankgateway.dashboard.auth.enabled }}
+{{- if .Values.frankgateway.enabled }}
 {{- /*
-  Keycloak SSO chain in front of the Frank!Gateway dashboard:
+  Keycloak SSO chain in front of each Frank!Gateway dashboard:
 
     https://<dashboard.auth.hostname>
       -> oauth2-proxy   (Keycloak OIDC; the only login the user sees)
@@ -9,27 +9,37 @@
                                dashboard login never surfaces)
           -> frankgateway-dashboard (apisix-dashboard manager-api)
 
+  One chain per enabled instance: each dashboard binds a single etcd prefix, so
+  a split deployment needs its own hostname, OIDC client and redirect URI per
+  traffic class.
+
   The OIDC client secret is mirrored from keycloak-podiumd-realm-secrets
-  (key frankgateway-dashboard-oidc-secret) so Keycloak and oauth2-proxy share
-  it. The Keycloak session is kept server-side in redis: Keycloak id+refresh
-  tokens overflow cookie storage (chunked cookies drop behind NGF -> login
-  loops -> colliding code redemptions -> invalid_grant).
+  (key <client>-oidc-secret) so Keycloak and oauth2-proxy share it. The Keycloak
+  session is kept server-side in redis: Keycloak id+refresh tokens overflow
+  cookie storage (chunked cookies drop behind NGF -> login loops -> colliding
+  code redemptions -> invalid_grant).
 */ -}}
-{{- $fg := .Values.frankgateway }}
+{{- $root := . }}
+{{- range $key, $override := .Values.frankgateway.instances }}
+{{- $fg := include "podiumd.frankgateway.instanceValues" (dict "root" $root "key" $key "override" $override) | fromYaml }}
+{{- if and $fg.enabled $fg.dashboard.enabled $fg.dashboard.auth.enabled }}
 {{- $auth := $fg.dashboard.auth }}
+{{- $name := include "podiumd.frankgateway.instanceName" (dict "key" $key "instance" $fg) }}
+{{- $clientId := include "podiumd.frankgateway.oidcClientId" (dict "key" $key) }}
 {{- $hostname := $auth.hostname | default "" }}
 {{- if eq $hostname "" }}
-{{-   fail "frankgateway.dashboard.auth.hostname is required when frankgateway.enabled and dashboard.auth.enabled (e.g. frankgateway-admin.<env>.<domain>)" }}
+{{-   fail (printf "frankgateway.instances.%s.dashboard.auth.hostname is required when the instance is enabled and dashboard.auth.enabled (e.g. frankgateway-admin.<env>.<domain>)" $key) }}
 {{- end }}
-{{- $realm := .Values.keycloak.config.realm }}
-{{- $realmUrl := .Values.keycloak.config.realmFrontendUrl | trimSuffix "/" }}
+{{- $realm := $root.Values.keycloak.config.realm }}
+{{- $realmUrl := $root.Values.keycloak.config.realmFrontendUrl | trimSuffix "/" }}
 {{- $issuer := printf "%s/realms/%s" $realmUrl $realm }}
 {{- $redirect := printf "https://%s/oauth2/callback" $hostname }}
-{{- $redisUrl := $auth.sessionRedisUrl | default (printf "redis://redis-ha-master.%s.svc.cluster.local:6379/3" .Release.Namespace) }}
+{{- $redisUrl := $auth.sessionRedisUrl | default (printf "redis://redis-ha-master.%s.svc.cluster.local:6379/3" $root.Release.Namespace) }}
+{{- $creds := include "podiumd.frankgateway.dashboardCreds" (dict "root" $root "instance" $fg "name" $name) | fromYaml }}
 {{- $clientSecret := "" }}
-{{- $existingRealm := lookup "v1" "Secret" .Release.Namespace "keycloak-podiumd-realm-secrets" }}
+{{- $existingRealm := lookup "v1" "Secret" $root.Release.Namespace "keycloak-podiumd-realm-secrets" }}
 {{- with $existingRealm }}
-{{-   $clientSecret = index .data "frankgateway-dashboard-oidc-secret" | default "" | b64dec }}
+{{-   $clientSecret = index .data (printf "%s-oidc-secret" $clientId) | default "" | b64dec }}
 {{- end }}
 {{- if eq $clientSecret "" }}
 {{- /* keycloak-podiumd-realm-secrets is rendered in this same release — same
@@ -37,20 +47,21 @@
 {{-   $clientSecret = randAlphaNum 32 }}
 {{- end }}
 {{- $cookieSecret := "" }}
-{{- $existingProxy := lookup "v1" "Secret" .Release.Namespace "frankgateway-oauth2-proxy" }}
+{{- $existingProxy := lookup "v1" "Secret" $root.Release.Namespace (printf "%s-oauth2-proxy" $name) }}
 {{- with $existingProxy }}
 {{-   $cookieSecret = index .data "cookie-secret" | default "" | b64dec }}
 {{- end }}
 {{- if eq $cookieSecret "" }}
 {{-   $cookieSecret = randAlphaNum 32 }}
 {{- end }}
+---
 apiVersion: v1
 kind: Secret
 metadata:
-  name: frankgateway-oauth2-proxy
-  namespace: {{ .Release.Namespace }}
+  name: {{ $name }}-oauth2-proxy
+  namespace: {{ $root.Release.Namespace }}
   labels:
-    {{- include "podiumd.labels" . | nindent 4 }}
+    {{- include "podiumd.labels" $root | nindent 4 }}
     app.kubernetes.io/component: frankgateway-oauth2-proxy
 type: Opaque
 stringData:
@@ -60,25 +71,25 @@ stringData:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: frankgateway-shim
-  namespace: {{ .Release.Namespace }}
+  name: {{ $name }}-shim
+  namespace: {{ $root.Release.Namespace }}
   labels:
-    {{- include "podiumd.labels" . | nindent 4 }}
+    {{- include "podiumd.labels" $root | nindent 4 }}
     app.kubernetes.io/component: frankgateway-shim
-    app.kubernetes.io/name: frankgateway-shim
+    app.kubernetes.io/name: {{ $name }}-shim
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app.kubernetes.io/name: frankgateway-shim
+      app.kubernetes.io/name: {{ $name }}-shim
   template:
     metadata:
       labels:
-        {{- include "podiumd.labels" . | nindent 8 }}
+        {{- include "podiumd.labels" $root | nindent 8 }}
         app.kubernetes.io/component: frankgateway-shim
-        app.kubernetes.io/name: frankgateway-shim
+        app.kubernetes.io/name: {{ $name }}-shim
       annotations:
-        checksum/shim-conf: {{ include (print $.Template.BasePath "/frankgateway-dashboard.yaml") . | sha256sum }}
+        checksum/shim-conf: {{ include "podiumd.frankgateway.shimConf" (dict "root" $root "instance" $fg "name" $name "adminPassword" $creds.adminPassword) | sha256sum }}
     spec:
       containers:
         - name: nginx
@@ -101,20 +112,20 @@ spec:
       volumes:
         - name: conf
           secret:
-            secretName: frankgateway-shim
+            secretName: {{ $name }}-shim
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: frankgateway-shim
-  namespace: {{ .Release.Namespace }}
+  name: {{ $name }}-shim
+  namespace: {{ $root.Release.Namespace }}
   labels:
-    {{- include "podiumd.labels" . | nindent 4 }}
+    {{- include "podiumd.labels" $root | nindent 4 }}
     app.kubernetes.io/component: frankgateway-shim
-    app.kubernetes.io/name: frankgateway-shim
+    app.kubernetes.io/name: {{ $name }}-shim
 spec:
   selector:
-    app.kubernetes.io/name: frankgateway-shim
+    app.kubernetes.io/name: {{ $name }}-shim
   ports:
     - name: http
       port: 8080
@@ -123,23 +134,23 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: frankgateway-oauth2-proxy
-  namespace: {{ .Release.Namespace }}
+  name: {{ $name }}-oauth2-proxy
+  namespace: {{ $root.Release.Namespace }}
   labels:
-    {{- include "podiumd.labels" . | nindent 4 }}
+    {{- include "podiumd.labels" $root | nindent 4 }}
     app.kubernetes.io/component: frankgateway-oauth2-proxy
-    app.kubernetes.io/name: frankgateway-oauth2-proxy
+    app.kubernetes.io/name: {{ $name }}-oauth2-proxy
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app.kubernetes.io/name: frankgateway-oauth2-proxy
+      app.kubernetes.io/name: {{ $name }}-oauth2-proxy
   template:
     metadata:
       labels:
-        {{- include "podiumd.labels" . | nindent 8 }}
+        {{- include "podiumd.labels" $root | nindent 8 }}
         app.kubernetes.io/component: frankgateway-oauth2-proxy
-        app.kubernetes.io/name: frankgateway-oauth2-proxy
+        app.kubernetes.io/name: {{ $name }}-oauth2-proxy
     spec:
       containers:
         - name: oauth2-proxy
@@ -148,9 +159,9 @@ spec:
           args:
             - --provider=oidc
             - --oidc-issuer-url={{ $issuer }}
-            - --client-id=frankgateway-dashboard
+            - --client-id={{ $clientId }}
             - --redirect-url={{ $redirect }}
-            - --upstream=http://frankgateway-shim:8080
+            - --upstream=http://{{ $name }}-shim:8080
             - --http-address=0.0.0.0:4180
             - --email-domain=*
             - --scope=openid profile email
@@ -166,12 +177,12 @@ spec:
             - name: OAUTH2_PROXY_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: frankgateway-oauth2-proxy
+                  name: {{ $name }}-oauth2-proxy
                   key: client-secret
             - name: OAUTH2_PROXY_COOKIE_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: frankgateway-oauth2-proxy
+                  name: {{ $name }}-oauth2-proxy
                   key: cookie-secret
           ports:
             - name: http
@@ -194,17 +205,19 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: frankgateway-oauth2-proxy
-  namespace: {{ .Release.Namespace }}
+  name: {{ $name }}-oauth2-proxy
+  namespace: {{ $root.Release.Namespace }}
   labels:
-    {{- include "podiumd.labels" . | nindent 4 }}
+    {{- include "podiumd.labels" $root | nindent 4 }}
     app.kubernetes.io/component: frankgateway-oauth2-proxy
-    app.kubernetes.io/name: frankgateway-oauth2-proxy
+    app.kubernetes.io/name: {{ $name }}-oauth2-proxy
 spec:
   selector:
-    app.kubernetes.io/name: frankgateway-oauth2-proxy
+    app.kubernetes.io/name: {{ $name }}-oauth2-proxy
   ports:
     - name: http
       port: 4180
       targetPort: 4180
+{{- end }}
+{{- end }}
 {{- end }}

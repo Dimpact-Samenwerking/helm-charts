@@ -1,27 +1,36 @@
-{{- if and .Values.frankgateway.enabled .Values.frankgateway.metrics.enabled .Values.frankgateway.metrics.serviceMonitor.enabled }}
+{{- if .Values.frankgateway.enabled }}
 {{- if .Capabilities.APIVersions.Has "monitoring.coreos.com/v1" }}
 {{- /*
   Scrape config for the APISIX prometheus exporter (Service port `metrics`,
-  9091). Consumed by any prometheus-operator instance whose serviceMonitor
-  selectors are permissive (the monitoring-logging chart sets
+  9091), one ServiceMonitor per enabled instance so each traffic class produces
+  its own series. Consumed by any prometheus-operator instance whose
+  serviceMonitor selectors are permissive (the monitoring-logging chart sets
   serviceMonitorSelectorNilUsesHelmValues: false, so no extra labels needed).
   Guarded on the CRD so envs without prometheus-operator still template.
 */ -}}
+{{- $root := . }}
+{{- range $key, $override := .Values.frankgateway.instances }}
+{{- $fg := include "podiumd.frankgateway.instanceValues" (dict "root" $root "key" $key "override" $override) | fromYaml }}
+{{- if and $fg.enabled $fg.metrics.enabled $fg.metrics.serviceMonitor.enabled }}
+{{- $name := include "podiumd.frankgateway.instanceName" (dict "key" $key "instance" $fg) }}
+---
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: frankgateway
-  namespace: {{ .Release.Namespace }}
+  name: {{ $name }}
+  namespace: {{ $root.Release.Namespace }}
   labels:
-    {{- include "podiumd.labels" . | nindent 4 }}
+    {{- include "podiumd.labels" $root | nindent 4 }}
     app.kubernetes.io/component: frankgateway
 spec:
   selector:
     matchLabels:
-      app.kubernetes.io/name: frankgateway
+      app.kubernetes.io/name: {{ $name }}
   endpoints:
     - port: metrics
       path: /apisix/prometheus/metrics
-      interval: {{ .Values.frankgateway.metrics.serviceMonitor.interval }}
+      interval: {{ $fg.metrics.serviceMonitor.interval }}
+{{- end }}
+{{- end }}
 {{- end }}
 {{- end }}
