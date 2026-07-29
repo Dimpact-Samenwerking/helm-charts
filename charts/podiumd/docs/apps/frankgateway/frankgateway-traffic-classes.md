@@ -32,7 +32,7 @@ flowchart TB
   registries[("National registries<br/>BAG · KVK")]
 
   subgraph cluster["AKS cluster"]
-    ngf["NGINX Gateway Fabric<br/>ns nginx-gateway"]
+    ngf["NGINX Gateway Fabric <b>data plane</b><br/>runs in the Gateway namespace<br/>control plane runs in ns nginx-gateway"]
 
     subgraph podiumd["namespace podiumd"]
       inway["<b>frankgateway-inway</b><br/>TLS 9443 · /apisix-inway"]
@@ -161,6 +161,78 @@ Every instance-scoped object is suffixed. In particular the Admin API secret
 becomes `frankgateway-<instance>-admin-credentials` — **deployment pipelines
 that read `frankgateway-admin-credentials` by name must be updated**, which is
 why `serviceAlias` exists and why the default instance keeps the old names.
+
+### Lessons from the first environment to do this (jim00)
+
+Recorded because each of these cost real debugging time and none is obvious
+from the values file.
+
+**Anything the deploy tooling does "to the gateway" must be done per
+instance.** Four separate scripts assumed one gateway, and every failure
+surfaced somewhere other than the change that caused it:
+
+| Assumed one gateway | How it failed |
+|---|---|
+| Restarting `deploy/frankgateway` after a token rotation | other instances kept the old token until something unrelated restarted them |
+| Registering the OpenBao secret backend | a secret backend is an etcd object, so it lives under one prefix; `$secret://` then fails **at request time as an auth rejection**, looking exactly like a wrong key |
+| The OpenBao reader policy scoped to one secret path | a valid key is rejected with 401, indistinguishable from a wrong key |
+| Seeding routes but not consumers | a `key-auth` route whose consumer does not exist yet rejects everything until the next run |
+
+Select instances by `app.kubernetes.io/component=frankgateway` rather than
+naming them, so a newly enabled class is covered without editing scripts.
+
+**`networkPolicies.ingressNamespace` is the ingress DATA plane's namespace.**
+For NGINX Gateway Fabric 2.x that is the Gateway's own namespace, not the
+`nginx-gateway` namespace where the control plane runs. Only the control plane
+carries the product name, which is what makes this easy to get wrong. It fails
+closed with **no log line on either side**, because the packet never arrives —
+so it presents as a TLS or connectivity fault rather than a policy one.
+
+**Enabling `networkPolicies` is sticky.** Policies render for every classified
+instance as soon as the flag is on, so enabling a *new* instance later ships a
+policy with it in the same step. If the intent is to verify an instance first
+and restrict it second, that has to be planned for.
+
+**An ingress controller may not notice a retargeted `ExternalName`.** NGF kept
+routing to the old target until its control plane was restarted. This matters
+beyond migration: a rollback that relies on re-pointing an ExternalName can
+appear to succeed while changing nothing.
+
+**Deploy the instance before pointing traffic at it.** The reverse order leaves
+a window where the ingress resolves a Service that does not exist yet.
+
+### ZGW URL identity on the internal class
+
+`pass_host: rewrite` with `upstream_host` set to the public hostname preserves
+the **host** in the absolute URLs that ZGW APIs emit and consumers store. It
+does **not** preserve the **scheme**: an application reached over plain http on
+the internal class emits `http://` URLs where the same application reached
+through the inway emits `https://`.
+
+On `frank-gateway:104` (APISIX 3.16) this could not be fixed with headers —
+`proxy-rewrite`, a function setting `ctx.var.var_x_forwarded_proto` in either
+the `rewrite` or `before_proxy` phase, and a client-supplied
+`X-Forwarded-Proto` were all discarded before reaching the upstream. The last
+of those rules out plugin ordering as the explanation.
+
+Since those URLs are stored, repointing an application first writes bad
+references into data and the damage appears long after the change. Prefer
+keeping the URL and changing what the hostname resolves to inside the cluster,
+with the internal instance serving the existing certificate — then the scheme
+is genuinely https and no application configuration changes. The trade-off is
+that cluster DNS is cluster-wide, so the unit of migration becomes a hostname
+rather than an application.
+
+### The split is not a latency optimisation
+
+Measured on jim00, in-cluster caller, 10 req/s per leg for 60s interleaved: the
+"hairpin" (out through the public address and back in) cost **under 1ms** more
+than the internal path at p50 and p95, and at p99 the internal path was
+sometimes slower. That environment's public address resolves to a load balancer
+in the same region, so the round trip never travels far.
+
+Justify the split on traffic classification, egress restriction and blast
+radius. Measure before claiming a latency benefit anywhere else.
 
 ## Footprint
 
