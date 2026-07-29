@@ -15,6 +15,12 @@ small disk for its configuration store and, if the management screen is wanted,
 a public hostname protected by the normal PodiumD login (Keycloak). Footprint:
 four lightweight pods.
 
+Since 4.8.4 it can also run as **three separate gateways**, one per kind of
+traffic — inbound, outbound and between applications — so each can be secured,
+scaled and monitored on its own. That is opt-in; an environment that does not
+ask for it keeps exactly the single gateway described here. See
+[`frankgateway-traffic-classes.md`](frankgateway-traffic-classes.md).
+
 ## What it is
 
 Upstream: [Apache APISIX](https://apisix.apache.org/) 3.16 packaged by
@@ -34,7 +40,11 @@ environment. It replaces:
 - the legacy **`apiproxy`** nginx for outbound calls to BAG/Kadaster, KVK and
   BRP/Haal Centraal — reproduced as declarative APISIX routes.
 
-Runtime components when enabled:
+Runtime components when enabled. Object names below are those of the default
+single instance; in split mode every instance-scoped object is suffixed
+(`frankgateway-inway`, `frankgateway-outway`, `frankgateway-internal` and their
+`-admin-credentials`, `-apisix-config`, `-dashboard`, `-shim`, `-oauth2-proxy`,
+`-routes` companions). etcd is the one component that is *not* per instance:
 
 - **frankgateway** (Deployment) — gateway data plane `:9080` + Admin API
   `:9180`, etcd-backed *traditional* mode. Admin/viewer API keys are random,
@@ -47,7 +57,10 @@ Runtime components when enabled:
   per-SNI certs from SSL objects in etcd, seeded via the Admin API like
   routes (deploy-side).
 - **frankgateway-etcd** (StatefulSet, 1 replica, PVC) — configuration store,
-  upstream `quay.io/coreos/etcd` build (no Bitnami).
+  upstream `quay.io/coreos/etcd` build (no Bitnami). Shared by all instances:
+  APISIX in traditional mode loads exactly the objects beneath its configured
+  prefix, so a prefix per instance (`/apisix-<instance>`) isolates routes,
+  consumers and SSL objects without running one etcd each.
 - **frankgateway-dashboard** (Deployment) — `apache/apisix-dashboard` GUI.
   Never exposed directly; its built-in login is bypassed server-side.
 - **frankgateway-oauth2-proxy + frankgateway-shim** (Deployments) — Keycloak
@@ -58,8 +71,10 @@ Runtime components when enabled:
   `admin/<random>` credential never reaches a browser
   (`templates/frankgateway-dashboard-auth.yaml`).
 - **frankgateway-apply-routes** (hook Job, post-install/post-upgrade) — seeds
-  the apiproxy-replacement routes from `files/frankgateway/routes/*.json`
-  (route id = file name, idempotent PUTs). External-API keys are injected at
+  the apiproxy-replacement routes from `files/frankgateway/routes/<class>/`
+  (route id = file name, idempotent PUTs). Each instance seeds the directories
+  named in its `routes.dirs`; the single-instance default seeds `outway` +
+  `internal`, i.e. all five legacy apiproxy routes. External-API keys are injected at
   request time from env vars fed by the out-of-band Secret
   `frankgateway.apiKeys.existingSecret` — key values never land in etcd, git
   or the route JSONs. An OpenBao-backed variant (keys fetched from the
@@ -158,6 +173,11 @@ still runs the pre-chart raw manifests).
 
 ## Related documents
 
+- [`frankgateway-traffic-classes.md`](frankgateway-traffic-classes.md) — running
+  the gateway as three per-traffic-class instances (inway / outway / internal),
+  with the architecture diagram, the NetworkPolicy model and the migration order.
+- [`frankgateway-split-exploration.md`](frankgateway-split-exploration.md) — the
+  feasibility assessment that design came from.
 - [`../apisix/`](../apisix/) — superseded experimental upstream-APISIX
   building block docs (kept for history; both files carry a superseded
   banner).
