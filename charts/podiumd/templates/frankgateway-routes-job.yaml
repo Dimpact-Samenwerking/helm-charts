@@ -33,6 +33,15 @@
 {{-     $_ := set $files (base $path) ($root.Files.Get $path) }}
 {{-   end }}
 {{- end }}
+{{- /* Routes defined in values, for the ones the chart cannot ship as files:
+       an inway route has to match the environment's own public hostname, so it
+       is per-gemeente by nature. Without this an environment needs its own
+       apply-routes tooling just to add a route, which is how jim00 ended up
+       maintaining a parallel copy of the seeding script. A values entry
+       overrides a file of the same id. */ -}}
+{{- range $id, $route := $fg.routes.extra }}
+{{-   $_ := set $files (printf "%s.json" $id) (toPrettyJson $route) }}
+{{- end }}
 ---
 apiVersion: v1
 kind: ConfigMap
