@@ -79,7 +79,9 @@ single instance; in split mode every instance-scoped object is suffixed
   `frankgateway.apiKeys.existingSecret` — key values never land in etcd, git
   or the route JSONs. An OpenBao-backed variant (keys fetched from the
   in-cluster vault at request time) is available as
-  `files/frankgateway/openbao-apikey-function.lua`.
+  `files/frankgateway/openbao-secret-header.lua` — a configurable function taking
+  the secret path, field and header name, so one implementation covers the BAG,
+  KVK and ESB-consumer call sites.
 
 ## Required resources
 
@@ -132,7 +134,9 @@ hostname.
   cluster's CoreDNS ClusterIP (AKS default `10.0.0.10`; jim00 `172.16.0.10`)
   for the shim's request-time DNS re-resolution.
 - **OpenBao** (optional) — alternative request-time key source via
-  `files/frankgateway/openbao-apikey-function.lua`.
+  `files/frankgateway/openbao-secret-header.lua` — a configurable function taking
+  the secret path, field and header name, so one implementation covers the BAG,
+  KVK and ESB-consumer call sites.
 
 ## CPU and memory
 
