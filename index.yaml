@@ -982,6 +982,136 @@ entries:
     - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/podiumd-4.8.4-feature-IN-2511-frankgateway-chart-followups-4.8.4-snapshot/podiumd-4.8.4-feature-IN-2511-frankgateway-chart-followups-4.8.4-snapshot.tgz
     version: 4.8.4-feature-IN-2511-frankgateway-chart-followups-4.8.4-snapshot
   - apiVersion: v2
+    appVersion: 4.8.4
+    created: "2026-07-29T14:03:30.498550232Z"
+    dependencies:
+    - condition: keycloak-operator.enabled
+      name: keycloak-operator
+      repository: '@adfinis'
+      version: 1.12.1
+    - condition: clamav.enabled
+      name: clamav
+      repository: '@wiremind'
+      version: 3.7.1
+    - alias: brppersonenmock
+      condition: brppersonenmock.enabled
+      name: brp-personen-mock
+      repository: '@dimpact'
+      version: 1.2.9
+    - alias: mi
+      condition: mi.enabled
+      name: mi-data
+      repository: file://../mi-data
+      version: 1.0.0
+    - condition: openzaak.enabled
+      name: openzaak
+      repository: '@maykinmedia'
+      version: 1.14.2
+    - condition: opennotificaties.enabled
+      name: opennotificaties
+      repository: '@maykinmedia'
+      version: 2.0.0
+    - condition: objecten.enabled
+      name: objecten
+      repository: '@maykinmedia'
+      version: 2.12.1
+    - condition: objecttypen.enabled
+      name: objecttypen
+      repository: '@maykinmedia'
+      version: 1.6.1
+    - condition: openarchiefbeheer.enabled
+      name: openarchiefbeheer
+      repository: '@maykinmedia'
+      version: 2.0.0
+    - condition: openklant.enabled
+      name: openklant
+      repository: '@maykinmedia'
+      version: 1.11.0
+    - alias: openformulieren
+      condition: openformulieren.enabled
+      name: openforms
+      repository: '@maykinmedia'
+      version: 1.12.0
+    - condition: openinwoner.enabled
+      name: openinwoner
+      repository: '@maykinmedia'
+      version: 2.2.1
+    - alias: referentielijsten
+      condition: referentielijsten.enabled
+      name: referentielijsten
+      repository: '@maykinmedia'
+      version: 0.1.1
+    - condition: openbeheer.enabled
+      name: openbeheer
+      repository: '@maykinmedia'
+      version: 0.1.3
+    - alias: zac
+      condition: zac.enabled
+      name: zaakafhandelcomponent
+      repository: '@zac'
+      tags:
+      - zaak
+      version: 1.0.251
+    - condition: zaakbrug.enabled
+      name: zaakbrug
+      repository: https://wearefrank.github.io/charts
+      tags:
+      - zaak
+      version: 2.3.28
+    - condition: zgw-office-addin.enabled
+      name: zgw-office-addin
+      repository: '@zgw-office-addin'
+      version: 0.0.89
+    - alias: ita
+      condition: ita.enabled
+      name: internetaakafhandeling
+      repository: oci://ghcr.io/interne-taak-afhandeling
+      version: 3.2.0
+    - alias: kiss
+      condition: kiss.enabled
+      name: kiss-chart
+      repository: oci://ghcr.io/klantinteractie-servicesysteem
+      version: 2.2.4
+    - alias: pabc
+      condition: pabc.enabled
+      name: pabc
+      repository: oci://ghcr.io/platform-autorisatie-beheer-component
+      version: 1.1.1
+    - alias: omc
+      condition: omc.enabled
+      name: notifynl-omc-nodep
+      repository: '@worth-nl'
+      version: 0.14.1
+    - condition: redis-operator.enabled
+      name: redis-operator
+      repository: '@opstree'
+      version: 0.25.0
+    - condition: eck-operator.enabled
+      name: eck-operator
+      repository: https://helm.elastic.co
+      tags:
+      - eck-operator
+      version: 3.4.0
+    - alias: kiss-eck
+      condition: kiss-eck.enabled
+      name: eck-stack
+      repository: https://helm.elastic.co
+      tags:
+      - kiss-eck
+      - contact
+      version: 0.19.0
+    - condition: openbao.enabled
+      name: openbao
+      repository: https://openbao.github.io/openbao-helm
+      version: 0.28.4
+    description: PodiumD Helm chart
+    digest: 42152708db35e3f6311de5effd9e50cd02664cb59655e44f4c4063891deda441
+    name: podiumd
+    type: application
+    urls:
+    - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/podiumd-4.8.4-feature-IN-2511-frankgateway-chart-followups-4.8.4-snapshot/podiumd-4.8.4-feature-IN-2511-frankgateway-chart-followups-4.8.4-snapshot.tgz
+    version: 4.8.4-feature-IN-2511-frankgateway-chart-followups-4.8.4-snapshot
+  - apiVersion: v2
     appVersion: 4.8.3
     created: "2026-07-28T15:53:29.156907366Z"
     dependencies:
@@ -23366,4 +23496,4 @@ entries:
     urls:
     - https://github.com/Dimpact-Samenwerking/helm-charts/releases/download/zac-1.0.0/zac-1.0.0.tgz
     version: 1.0.0
-generated: "2026-07-29T13:45:49.352789993Z"
+generated: "2026-07-29T14:03:30.499958271Z"
