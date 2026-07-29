@@ -413,3 +413,34 @@ Usage:
         {{- tpl (.value | toYaml) .context }}
     {{- end }}
 {{- end -}}
+{{/*
+Overrides of two subchart chart-label helpers.
+
+create-required-catalogi.yaml and create-required-objecttypen.yaml are podiumd
+templates, but they label their objects with the openzaak / objecttypen
+subcharts' label helpers. Those helpers read `.Chart`, and when called from a
+podiumd template that is PODIUMD's Chart — so they build the label from
+podiumd's version, not the subchart's.
+
+Both carry the stock helm scaffold's truncation, which trims only a trailing
+"-" after cutting to 63 characters. A long snapshot version whose cut lands on
+a "." therefore produces an invalid label and fails the release at admission.
+Fixing podiumd.chart alone does not help these two files.
+
+Helm template definitions are global and the parent chart is loaded after its
+dependencies, so redefining the names here replaces the subchart versions
+everywhere, including inside the subcharts' own templates. That is safe: the
+only behavioural difference is stripping trailing "." and "_" as well as "-",
+which can only occur when the truncation actually cuts something off. The
+subcharts' own versions are short, so their rendered labels are unchanged —
+verified by the byte-identical default-render check.
+*/}}
+{{- define "openzaak.chart" -}}
+{{- $c := printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 -}}
+{{- regexReplaceAll "[^a-zA-Z0-9]+$" $c "" -}}
+{{- end }}
+
+{{- define "objecttypen.chart" -}}
+{{- $c := printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 -}}
+{{- regexReplaceAll "[^a-zA-Z0-9]+$" $c "" -}}
+{{- end }}
