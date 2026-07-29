@@ -3561,8 +3561,23 @@ frankgateway:
   networkPolicies:
     enabled: false
     # Namespace selector label used to match the ingress gateway namespace for
-    # `inway` instances (NGINX Gateway Fabric lives in `nginx-gateway`).
+    # `inway` instances.
     ingressNamespaceLabel: kubernetes.io/metadata.name
+    # MUST be the namespace of the pod that actually opens connections to the
+    # inway — for NGINX Gateway Fabric 2.x that is the per-Gateway DATA plane
+    # pod, which runs in the GATEWAY's namespace (e.g. `ingress-basic`), NOT
+    # the `nginx-gateway` namespace where the control plane runs. The two are
+    # easy to confuse because only the control plane carries the product name.
+    #
+    # Get this wrong and the policy fails closed on the only traffic the inway
+    # exists to serve, with no log line on either side because the packet never
+    # arrives — so it presents as a TLS/connectivity fault, not as a policy
+    # one. Verify on the target cluster with:
+    #
+    #   kubectl get pods -A | grep gateway-nginx
+    #
+    # The default below is the control-plane namespace only because the chart
+    # cannot infer the Gateway's namespace; override it per environment.
     ingressNamespace: nginx-gateway
     # Namespace running kube-dns/CoreDNS (egress :53 is allowed to it).
     dnsNamespace: kube-system
