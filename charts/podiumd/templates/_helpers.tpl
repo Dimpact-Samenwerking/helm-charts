@@ -265,12 +265,11 @@ plugin_attr:
           - upstream_addr: $upstream_addr
           - upstream_status: $upstream_status
           - soap_action: $soap_action
-          {{- if ne .name "frankgateway" }}
-          # Which traffic class served the request. Only emitted once the
-          # gateway is split: adding it to the single-instance default would
-          # change every existing series' label set for no information gain.
-          - instance_name: {{ .name }}
-          {{- end }}
+          {{- /* instance_name is NOT added here. The plugin can only attach
+                 extra_labels to http_status, which would leave latency,
+                 bandwidth and the nginx gauges unlabelled; it is stamped on
+                 every series at scrape time by the ServiceMonitor's relabeling
+                 instead (frankgateway-servicemonitor.yaml). */}}
 # Expose the external-API-key env vars (from the
 # {{ $fg.apiKeys.existingSecret }} Secret) to nginx workers so routes can
 # read them via os.getenv in a serverless function — keeps key VALUES out
