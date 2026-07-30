@@ -4,8 +4,14 @@
 # Pre-upgrade preparation for podiumd 4.7.x -> 4.8.0. Runs the three manual
 # steps from the upgrade guide in one go:
 #
-#   1. ECK CRD adoption (one-time)
-#      As of 4.8.0 the chart installs and upgrades the ECK CRDs itself
+#   1. ECK CRD adoption (one-time, only when targeting 4.8.0 - 4.8.3)
+#      Note: 4.8.4 sets eck-operator.installCRDs: false and installs the CRDs
+#      out-of-band via install-eck-operator-crds.sh, because rendering them
+#      pushes the helm release Secret past the 1 MiB Kubernetes limit. In that
+#      path helm never owns the CRDs, so this step is unnecessary (running it
+#      anyway is harmless). Steps 2 and 3 apply to every 4.7.x -> 4.8.x hop.
+#
+#      In 4.8.0 - 4.8.3 the chart installs and upgrades the ECK CRDs itself
 #      (eck-operator.installCRDs: true). CRDs applied in the kisselastic era
 #      carry no Helm ownership metadata and the first `helm upgrade` fails
 #      with "invalid ownership metadata". This step annotates/labels them

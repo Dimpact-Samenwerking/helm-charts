@@ -2395,16 +2395,21 @@ openbeheer:
 # subchart. See docs/apps/elastic/migrating-to-eck-stack.md.
 eck-operator:
   enabled: true
-  # -- the chart installs and upgrades the 12 *.k8s.elastic.co CRDs, in lock-step
-  # with the operator version. The CRDs carry helm.sh/resource-policy: keep, so
-  # `helm uninstall` never removes them (the Elastic CRs and their data survive).
-  # Requires cluster-scope RBAC on the deploying identity. Clusters whose CRDs
-  # predate helm ownership (kisselastic era / manual apply) need a one-time
-  # adoption: deploy with `--take-ownership` (helm >= 3.17) or annotate the CRDs
-  # once — see docs/apps/elastic/migrating-to-eck-stack.md section 4b. Installers without
-  # cluster-scope RBAC: set false and apply the CRDs manually (same doc).
+  # -- deliberately false. The 12 *.k8s.elastic.co CRDs add ~775 KB to the
+  # rendered manifest, and helm stores every revision as ONE Kubernetes Secret
+  # (gzipped release blob) that Kubernetes caps at 1 MiB. On grown environments
+  # that single addition tips the release over the cap and every deploy fails
+  # with: Secret "sh.helm.release.v1.podiumd.v<n>" is invalid: data: Too long.
+  # The CRDs are installed and upgraded out-of-band instead, in lock-step with
+  # the operator version, same pattern as the keycloak-operator/redis-operator
+  # CRDs. Run before any deploy that bumps the eck-operator chart version:
+  #   charts/podiumd/scripts/install-eck-operator-crds.sh --context <ctx>
+  # Flipping this to false on a cluster where helm already owned the CRDs does
+  # NOT delete them: they carry helm.sh/resource-policy: keep, so helm skips the
+  # removal and the Elastic CRs and their data are untouched.
+  # See docs/apps/elastic/migrating-to-eck-stack.md section 4b.
   # override: values-enable-observability.yaml sets config.metricsPort and enables podMonitor
-  installCRDs: true
+  installCRDs: false
   createClusterScopedResources: false
   config:
     # no RBAC access to cluster-wide storage classes, hence disable storage class validation

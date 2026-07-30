@@ -21,8 +21,10 @@ deployed via Elastic's official Helm charts from `https://helm.elastic.co`:
   central operator, one `elastic-operator` StatefulSet (1 pod) that watches the
   `podiumd` namespace (`eck-operator.managedNamespaces: [podiumd]`) and
   reconciles all `Elasticsearch` / `Kibana` / `EnterpriseSearch` custom
-  resources there. The chart also installs the 12 `*.k8s.elastic.co` CRDs
-  (`installCRDs: true`, annotated `helm.sh/resource-policy: keep`).
+  resources there. The 12 `*.k8s.elastic.co` CRDs are **not** part of the
+  release (`installCRDs: false`); they are applied out-of-band with
+  `scripts/install-eck-operator-crds.sh` and carry
+  `helm.sh/resource-policy: keep`.
 - **`kiss-eck`** (alias of chart `eck-stack` 0.19.0) — renders the KISS custom
   resources: `Elasticsearch` named `kiss` (version **8.19.3**, nodeSet
   `default`, 3 nodes → StatefulSet `kiss-es-default`), `Kibana` `kiss`
@@ -100,10 +102,11 @@ the stack via the ECK-generated ClusterIP services:
 - **Credentials:** ECK generates the built-in `elastic` superuser password in
   Secrets `kiss-es-elastic-user` and
   `openinwoner-elasticsearch-es-elastic-user`.
-- **CRDs / RBAC:** the 12 `*.k8s.elastic.co` CRDs are cluster-scoped, so the
-  deploying identity needs cluster-scope RBAC (SSC pipeline: `useClusterAdmin:
-  true`). Clusters with pre-4.8.0 CRDs need the one-time adoption script
-  `charts/podiumd/scripts/pre-upgrade-prep-4.8.0.sh` before the first deploy.
+- **CRDs:** kept out of the helm release since 4.8.4, because rendering them costs
+  ~775 KB against the 1 MiB cap on the release Secret. Apply them with
+  `charts/podiumd/scripts/install-eck-operator-crds.sh --context <ctx>`
+  (cluster-admin) before the first deploy of an environment and before every
+  `eck-operator` version bump. Runbook section 4b.
 - **Crawler tuning:** Enterprise Search crawler settings (user agent, thread /
   worker pool limits) are per-environment under
   `kiss-eck.eck-enterprise-search.config`.

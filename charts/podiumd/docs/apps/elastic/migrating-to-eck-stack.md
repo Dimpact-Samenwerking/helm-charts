@@ -142,48 +142,49 @@ done
 
 </details>
 
-### 4b. CRDs: installed by the chart (one-time adoption on existing clusters)
+### 4b. CRDs: installed out-of-band, not by the umbrella
 
-The umbrella installs and upgrades the ECK CRDs itself
-(`eck-operator.installCRDs: true`, the upstream default): all **12**
-`*.k8s.elastic.co` CRDs are applied on every deploy, in lock-step with the
-operator version — no manual step on version bumps. The CRDs carry
-`helm.sh/resource-policy: keep`, so `helm uninstall` never removes them and
-the Elastic CRs (and their data) survive a release removal.
+> Changed in **4.8.4**. Releases 4.8.0 - 4.8.3 shipped
+> `eck-operator.installCRDs: true` and rendered the CRDs into the release; see
+> the details block at the end of this section for why that was reverted and
+> what it means for clusters already on 4.8.0 - 4.8.3.
 
-Two requirements:
+The umbrella does **not** render the ECK CRDs (`eck-operator.installCRDs:
+false`). The 12 `*.k8s.elastic.co` CRDs are ~775 KB of manifest, and helm
+stores every release revision as **one** Kubernetes Secret
+(`sh.helm.release.v1.<release>.v<n>`, a gzipped blob of chart + values +
+rendered manifest) that Kubernetes caps at **1 MiB**. On a grown environment
+that single addition pushes the release past the cap and *every* deploy fails
+before anything is applied:
 
-1. **Cluster-scope RBAC.** CRDs are cluster-scoped, so the deploying identity
-   must be allowed to create/update them. The SSC deploy pipeline runs
-   `HelmDeploy` with `useClusterAdmin: true`, which covers this.
-2. **One-time adoption on clusters that already have the CRDs.** CRDs applied
-   in the kisselastic era (by a manual `kubectl apply`, or owned by a
-   standalone `elastic-operator` release) don't belong to the `podiumd`
-   release, and Helm refuses to overwrite them (`rendered manifests contain a
-   resource that already exists ... invalid ownership metadata`). Run the
-   helper script once per cluster, **before** the first 4.8.0 deploy
-   (idempotent, safe to re-run; no-op on fresh clusters; `--dry-run` to
-   preview):
+```
+Secret "sh.helm.release.v1.podiumd.v186" is invalid: data: Too long: may not be more than 1048576 bytes
+```
 
-   ```bash
-   charts/podiumd/scripts/pre-upgrade-prep-4.8.0.sh --context <kubectl-context>
-   ```
+Instead the CRDs are installed and upgraded out-of-band, in lock-step with the
+operator version, the same pattern as the keycloak-operator and redis-operator
+CRDs:
 
-   The script (formerly `adopt-eck-crds.sh`) bundles the other 4.8.0
-   pre-upgrade steps as well: the RabbitMQ drain check (see the upgrade
-   guide) and the Elasticsearch baseline from section 5.
+```bash
+charts/podiumd/scripts/install-eck-operator-crds.sh --context <kubectl-context>
+```
 
-   After adoption the regular deploy needs no extra flags and the pipeline
-   needs no changes — Helm owns the CRDs from then on. The two CRDs new in
-   ECK 3.4.0 (`packageregistries`, `autoopsagentpolicies`) don't exist yet on
-   old clusters, so there is no conflict: Helm simply creates them on the
-   next deploy.
+Run it (cluster-admin, `--dry-run` to preview, idempotent):
 
-   Alternative: deploy once with `--take-ownership` (helm >= 3.17). Works,
-   but the flag is not scoped to CRDs — it relaxes the ownership check for
-   **every** resource in the release, silently adopting conflicts a strict
-   deploy would flag. Prefer the one-time script and keep the pipeline
-   unchanged.
+- once per cluster **before the first deploy** of an environment that has no
+  ECK CRDs yet, and
+- **before every deploy that bumps the `eck-operator` chart version** in
+  `charts/podiumd/Chart.yaml`. The script reads that version from `Chart.yaml`
+  by default, so the CRDs cannot drift from the operator.
+
+A CRD update is a schema update: the `Elasticsearch`/`Kibana` CRs, their
+StatefulSets and their PVCs are untouched.
+
+Because helm never renders the CRDs, the ownership problem from the kisselastic
+era disappears with it: no `invalid ownership metadata` failures, no
+`--take-ownership`, and the CRD-adoption step in
+`scripts/pre-upgrade-prep-4.8.0.sh` (step 1) is no longer needed; harmless if
+you already ran it.
 
 Verify after the deploy (must print `12`):
 
@@ -191,9 +192,9 @@ Verify after the deploy (must print `12`):
 kubectl get crd -o name | grep -c 'k8s.elastic.co'
 ```
 
-**Symptom of missing/stale CRDs** (e.g. `installCRDs` overridden to `false`
-without a manual apply): ECK operator 3.4.0 needs 12 CRDs; kisselastic-era
-clusters have only 10 — `packageregistries.packageregistry.k8s.elastic.co`
+**Symptom of missing/stale CRDs** (the script was skipped, or ran against the
+wrong context): ECK operator 3.4.0 needs 12 CRDs; kisselastic-era clusters have
+only 10: `packageregistries.packageregistry.k8s.elastic.co`
 and `autoopsagentpolicies.autoops.k8s.elastic.co` are missing. The operator's
 informer cache then cannot sync (`failed to wait for packageregistry-controller
 caches to sync`), the process exits cleanly every ~2 minutes (exit code 0) and
@@ -205,22 +206,45 @@ once to skip the remaining backoff:
 `kubectl delete pod elastic-operator-0 -n podiumd`.
 
 <details>
-<summary>Installers without cluster-scope RBAC: manual CRD apply</summary>
+<summary>Coming from 4.8.0 - 4.8.3, where helm owned the CRDs</summary>
 
-Set `eck-operator.installCRDs: false` and apply the CRDs manually before the
-upgrade (cluster-admin, repeat on every operator version bump). The CRDs are
-too large for client-side apply, hence `--server-side`:
+Those releases set `installCRDs: true`, so the CRDs sit in the stored manifest
+of the current revision. On the first 4.8.4 deploy they drop out of the
+rendered manifest, which would normally make helm delete them. **It does
+not**: every ECK CRD carries `helm.sh/resource-policy: keep`, and helm skips
+deleting resources with that annotation on `upgrade`, `rollback` and
+`uninstall` alike. The CRDs, the Elastic CRs and the data stay exactly as they
+are; they simply stop being part of the release.
+
+No cleanup is needed. The leftover `meta.helm.sh/release-*` annotations on the
+CRDs are inert, and the out-of-band script re-applies over them
+(`--server-side --force-conflicts`).
+
+Do run `install-eck-operator-crds.sh` once anyway, so the CRDs are at the
+version `Chart.yaml` expects before the operator restarts.
+
+</details>
+
+<details>
+<summary>Alternative: let helm own the CRDs again</summary>
+
+Setting `eck-operator.installCRDs: true` in the environment values still works
+and removes the manual step, but only on environments with room to spare in the
+release Secret: it adds ~775 KB of manifest against a 1 MiB cap, and the
+failure mode is a hard deploy failure, not a warning. It also requires
+cluster-scope RBAC on the deploying identity (the SSC pipeline runs `HelmDeploy`
+with `useClusterAdmin: true`, which covers that) plus, on kisselastic-era
+clusters, a one-time ownership adoption via
+`scripts/pre-upgrade-prep-4.8.0.sh`; helm otherwise refuses with `rendered
+manifests contain a resource that already exists ... invalid ownership
+metadata`.
+
+To check the headroom on an environment before flipping it:
 
 ```bash
-# Option A — render from the chart's own bundled eck-operator (version always matches)
-tar -xzf charts/podiumd/charts/eck-operator-3.4.0.tgz -C /tmp
-helm template eck /tmp/eck-operator --set installCRDs=true \
-  --show-only charts/eck-operator-crds/templates/all-crds.yaml > /tmp/eck-crds.yaml
-kubectl apply --server-side --force-conflicts -f /tmp/eck-crds.yaml
-
-# Option B — upstream, same content (needs internet egress)
-kubectl apply --server-side --force-conflicts \
-  -f https://download.elastic.co/downloads/eck/3.4.0/crds.yaml
+kubectl get secret -n podiumd \
+  "$(kubectl get secret -n podiumd -o name | grep 'sh.helm.release.v1.podiumd' | sort -V | tail -1)" \
+  -o jsonpath='{.data.release}' | wc -c   # bytes used of the 1048576 cap
 ```
 
 </details>
