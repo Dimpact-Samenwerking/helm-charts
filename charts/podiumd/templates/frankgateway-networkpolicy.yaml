@@ -25,6 +25,17 @@
   NOTE: a cluster whose CNI does not enforce NetworkPolicy accepts these objects
   and ignores them. Enabling this is not evidence that traffic is restricted;
   verify on the target cluster.
+
+  NOTE: these policies are rendered for every classified instance the moment
+  networkPolicies.enabled is true. Enabling a NEW instance in an environment
+  that already has this on therefore ships a policy with it, in the same step —
+  which is worth knowing when the intent was to verify the instance first and
+  restrict it second.
+
+  NOTE: networkPolicies.ingressNamespace must name the namespace of the pod
+  that actually connects to an `inway`. For NGINX Gateway Fabric 2.x that is
+  the per-Gateway data plane, which lives in the Gateway's namespace, not the
+  control-plane namespace. See the comment on the value.
 */ -}}
 {{- $root := . }}
 {{- $np := .Values.frankgateway.networkPolicies }}

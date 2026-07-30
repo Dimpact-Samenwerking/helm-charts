@@ -3561,8 +3561,23 @@ frankgateway:
   networkPolicies:
     enabled: false
     # Namespace selector label used to match the ingress gateway namespace for
-    # `inway` instances (NGINX Gateway Fabric lives in `nginx-gateway`).
+    # `inway` instances.
     ingressNamespaceLabel: kubernetes.io/metadata.name
+    # MUST be the namespace of the pod that actually opens connections to the
+    # inway — for NGINX Gateway Fabric 2.x that is the per-Gateway DATA plane
+    # pod, which runs in the GATEWAY's namespace (e.g. `ingress-basic`), NOT
+    # the `nginx-gateway` namespace where the control plane runs. The two are
+    # easy to confuse because only the control plane carries the product name.
+    #
+    # Get this wrong and the policy fails closed on the only traffic the inway
+    # exists to serve, with no log line on either side because the packet never
+    # arrives — so it presents as a TLS/connectivity fault, not as a policy
+    # one. Verify on the target cluster with:
+    #
+    #   kubectl get pods -A | grep gateway-nginx
+    #
+    # The default below is the control-plane namespace only because the chart
+    # cannot infer the Gateway's namespace; override it per environment.
     ingressNamespace: nginx-gateway
     # Namespace running kube-dns/CoreDNS (egress :53 is allowed to it).
     dnsNamespace: kube-system
@@ -3631,6 +3646,14 @@ frankgateway:
       # Scrape interval for the ServiceMonitor.
       interval: 30s
 
+  # Access-log format (opt-in). jsonFormat renders one JSON object per
+  # request (time/client/method/host/uri/status/bytes/latency/upstream/
+  # request_id/referer/user-agent) with json escaping — log pipelines
+  # (Loki/Alloy) can then filter on fields instead of regex-parsing the
+  # default combined format. Off = APISIX default access log.
+  accessLog:
+    jsonFormat: false
+
   # Single-node etcd backing store (quay.io/coreos upstream build — no
   # Bitnami). PVC-backed so gateway config survives pod restarts.
   etcd:
@@ -3653,12 +3676,55 @@ frankgateway:
   # route id = file name, PUTs overwrite.
   routes:
     seed: true
+    # Extra routes defined here rather than shipped as files, keyed by route id.
+    # Needed for anything that depends on the environment: an inway route has to
+    # match that environment's own public hostname, so it cannot be a chart file.
+    # A key here overrides a shipped file of the same id.
+    #
+    #   instances:
+    #     inway:
+    #       routes:
+    #         extra:
+    #           inbound-openzaak:
+    #             uri: /*
+    #             host: openzaak.<env>.<domain>
+    #             labels: {managed-by: iac}
+    #             upstream:
+    #               type: roundrobin
+    #               scheme: http
+    #               pass_host: pass
+    #               nodes: {"openzaak-nginx.podiumd.svc.cluster.local:80": 1}
+    #
+    # For an internal route, prefer pass_host: rewrite with upstream_host set to
+    # the application's public FQDN — ZGW APIs emit absolute self-referencing
+    # URLs, and callers cannot resolve cluster-local ones.
+    extra: {}
     job:
       image: *curlImage
       backoffLimit: 3
       ttlSecondsAfterFinished: 600
 
   # apisix-dashboard GUI + its Keycloak SSO front door.
+  #
+  # Designed to be switched on for debugging and testing and off otherwise: the
+  # dashboard chain is three of the four pods an instance costs, and nothing
+  # depends on it — the route-seeding Job uses the Admin API directly, so a
+  # class with no dashboard is still fully managed and fully observable.
+  #
+  # Set `enabled` here to control every instance at once; a per-instance
+  # `instances.<class>.dashboard.enabled` overrides it in either direction.
+  #
+  # For a dashboard you only want while investigating something, also set
+  # `auth.enabled: false`. That drops the oauth2-proxy and shim too, so it needs
+  # no hostname, no certificate SAN and no Keycloak client — which is normally
+  # what makes turning one on mid-investigation slow. Reach it with:
+  #
+  #   kubectl -n <ns> port-forward deploy/frankgateway-<class>-dashboard 9000:9000
+  #
+  # Do NOT leave auth off in a shared environment: without oauth2-proxy in front
+  # there is nothing but the Admin API key between the cluster and the GUI.
+  #
+  # See docs/apps/frankgateway/frankgateway-traffic-classes.md.
   dashboard:
     enabled: true
     image:

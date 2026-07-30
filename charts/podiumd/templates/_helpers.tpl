@@ -26,8 +26,20 @@ If release name contains chart name it will be used as a full name.
 {{/*
 Create chart name and version as used by the chart label.
 */}}
+{{/*
+Chart name+version for the helm.sh/chart label.
+
+Truncated to 63 chars (the label-value limit), then stripped of any trailing
+characters a label may not end with. The stock helm scaffold only trims "-",
+which is not enough: a long snapshot version from a branch name can land the
+cut on a "." and produce an invalid label, failing the whole release at
+admission time with an error that points at whichever object happened to be
+applied first (in practice a pre-upgrade hook Job) rather than at the version
+string that actually caused it.
+*/}}
 {{- define "podiumd.chart" -}}
-{{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
+{{- $c := printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 -}}
+{{- regexReplaceAll "[^a-zA-Z0-9]+$" $c "" -}}
 {{- end }}
 
 {{/*
@@ -211,7 +223,8 @@ template would otherwise give every Deployment the same whole-file checksum, so
 a change to one instance would roll all of them.
 
 Usage: {{ include "podiumd.frankgateway.config"
-          (dict "root" $ "instance" $inst "prefix" $prefix "admin" $admin "viewer" $viewer) }}
+          (dict "root" $ "instance" $inst "name" $name "prefix" $prefix
+                "admin" $admin "viewer" $viewer) }}
 */}}
 {{- define "podiumd.frankgateway.config" -}}
 {{- $fg := .instance -}}
@@ -264,11 +277,26 @@ plugin_attr:
           - upstream_addr: $upstream_addr
           - upstream_status: $upstream_status
           - soap_action: $soap_action
+          {{- /* instance_name is NOT added here. The plugin can only attach
+                 extra_labels to http_status, which would leave latency,
+                 bandwidth and the nginx gauges unlabelled; it is stamped on
+                 every series at scrape time by the ServiceMonitor's relabeling
+                 instead (frankgateway-servicemonitor.yaml). */}}
 # Expose the external-API-key env vars (from the
 # {{ $fg.apiKeys.existingSecret }} Secret) to nginx workers so routes can
 # read them via os.getenv in a serverless function — keeps key VALUES out
 # of etcd/git (only the var NAMES appear here).
 nginx_config:
+  {{- if $fg.accessLog.jsonFormat }}
+  # Structured JSON access logs: one object per request, json-escaped, so
+  # Loki/Alloy pipelines can filter on fields (host/uri/status/upstream/
+  # latency) instead of regex-parsing the combined format. instance_name
+  # identifies which traffic class served the request once the gateway is
+  # split, so one Loki query can separate inway from outway from internal.
+  http:
+    access_log_format_escape: json
+    access_log_format: '{"time":"$time_iso8601","instance_name":"{{ .name }}","client":"$remote_addr","method":"$request_method","host":"$host","uri":"$uri","query":"$args","status":$status,"bytes_sent":$body_bytes_sent,"request_time":$request_time,"upstream_addr":"$upstream_addr","upstream_status":"$upstream_status","upstream_response_time":"$upstream_response_time","request_id":"$request_id","referer":"$http_referer","user_agent":"$http_user_agent"}'
+  {{- end }}
   main_configuration_snippet: |
     {{- range $fg.apiKeys.envNames }}
     env {{ . }};
@@ -385,3 +413,34 @@ Usage:
         {{- tpl (.value | toYaml) .context }}
     {{- end }}
 {{- end -}}
+{{/*
+Overrides of two subchart chart-label helpers.
+
+create-required-catalogi.yaml and create-required-objecttypen.yaml are podiumd
+templates, but they label their objects with the openzaak / objecttypen
+subcharts' label helpers. Those helpers read `.Chart`, and when called from a
+podiumd template that is PODIUMD's Chart — so they build the label from
+podiumd's version, not the subchart's.
+
+Both carry the stock helm scaffold's truncation, which trims only a trailing
+"-" after cutting to 63 characters. A long snapshot version whose cut lands on
+a "." therefore produces an invalid label and fails the release at admission.
+Fixing podiumd.chart alone does not help these two files.
+
+Helm template definitions are global and the parent chart is loaded after its
+dependencies, so redefining the names here replaces the subchart versions
+everywhere, including inside the subcharts' own templates. That is safe: the
+only behavioural difference is stripping trailing "." and "_" as well as "-",
+which can only occur when the truncation actually cuts something off. The
+subcharts' own versions are short, so their rendered labels are unchanged —
+verified by the byte-identical default-render check.
+*/}}
+{{- define "openzaak.chart" -}}
+{{- $c := printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 -}}
+{{- regexReplaceAll "[^a-zA-Z0-9]+$" $c "" -}}
+{{- end }}
+
+{{- define "objecttypen.chart" -}}
+{{- $c := printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 -}}
+{{- regexReplaceAll "[^a-zA-Z0-9]+$" $c "" -}}
+{{- end }}
