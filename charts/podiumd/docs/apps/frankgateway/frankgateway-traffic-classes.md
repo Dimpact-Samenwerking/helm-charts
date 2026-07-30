@@ -145,6 +145,87 @@ frankgateway:
 Anything not stated per instance is inherited from the shared `frankgateway`
 block, so an instance only declares what differs.
 
+### Turning dashboards on and off
+
+Dashboards are meant to be switched on for debugging and testing and off the
+rest of the time — they are the largest part of the split's footprint (three of
+the four pods per instance), and nothing else depends on them. The route-seeding
+Job talks to the Admin API directly, so a class with no dashboard is fully
+managed and fully observable; you just have no GUI for it.
+
+**All dashboards off** — one line in the shared block, inherited by every
+instance:
+
+```yaml
+frankgateway:
+  dashboard:
+    enabled: false
+```
+
+**One dashboard on, the rest off** — the per-instance value wins over the
+shared one, in either direction:
+
+```yaml
+frankgateway:
+  dashboard:
+    enabled: false          # fleet default: no GUI
+  instances:
+    inway:
+      enabled: true
+      dashboard:
+        enabled: true       # ...except this one
+        auth:
+          hostname: frankgateway-inway-admin.<env>.<domain>
+```
+
+**A dashboard for debugging, with no hostname to arrange.** Turning SSO off
+drops the oauth2-proxy and shim as well, so there is no ingress, no certificate
+SAN and no Keycloak client to set up — which is usually what makes enabling a
+dashboard mid-investigation annoying:
+
+```yaml
+frankgateway:
+  instances:
+    outway:
+      dashboard:
+        enabled: true
+        auth:
+          enabled: false
+```
+
+Then reach it locally:
+
+```bash
+kubectl -n <namespace> port-forward deploy/frankgateway-outway-dashboard 9000:9000
+# http://localhost:9000 — log in with the instance's admin key:
+kubectl -n <namespace> get secret frankgateway-outway-admin-credentials \
+  -o jsonpath='{.data.admin}' | base64 -d; echo
+```
+
+**Do not leave `auth.enabled: false` on in a shared environment.** The
+dashboard has no authentication of its own beyond the Admin API key, and
+without oauth2-proxy in front there is nothing else stopping anyone in the
+cluster reaching it. It is a debugging mode, not a configuration.
+
+Turning a dashboard off removes its Deployments, Services, config Secret and its
+Keycloak client, so no orphaned realm client is left behind and toggling it back
+and forth is safe.
+
+Two things it does not remove, neither harmful:
+
+- the `frankgateway-dashboard-oidc-secret` key in the realm secret is always
+  emitted, because the realm import Job references it unconditionally. With no
+  dashboard it is simply unused. Per-instance keys
+  (`frankgateway-dashboard-<class>-oidc-secret`) do disappear with their client.
+- routing rows, DNS entries and certificate SANs created deploy-side for the
+  hostname are outside the chart, so they persist until removed there.
+
+| Setting | Renders | Needs a hostname |
+|---|---|---|
+| `dashboard.enabled: false` | nothing | no |
+| `dashboard.enabled: true`, `auth.enabled: false` | dashboard only (port-forward) | no |
+| `dashboard.enabled: true`, `auth.enabled: true` | dashboard + oauth2-proxy + shim + ingress | **yes** |
+
 ### Migration order
 
 1. Enable the split with `serviceAlias.enabled: true` pointing at `outway`.
