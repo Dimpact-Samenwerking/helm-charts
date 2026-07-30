@@ -3705,6 +3705,26 @@ frankgateway:
       ttlSecondsAfterFinished: 600
 
   # apisix-dashboard GUI + its Keycloak SSO front door.
+  #
+  # Designed to be switched on for debugging and testing and off otherwise: the
+  # dashboard chain is three of the four pods an instance costs, and nothing
+  # depends on it — the route-seeding Job uses the Admin API directly, so a
+  # class with no dashboard is still fully managed and fully observable.
+  #
+  # Set `enabled` here to control every instance at once; a per-instance
+  # `instances.<class>.dashboard.enabled` overrides it in either direction.
+  #
+  # For a dashboard you only want while investigating something, also set
+  # `auth.enabled: false`. That drops the oauth2-proxy and shim too, so it needs
+  # no hostname, no certificate SAN and no Keycloak client — which is normally
+  # what makes turning one on mid-investigation slow. Reach it with:
+  #
+  #   kubectl -n <ns> port-forward deploy/frankgateway-<class>-dashboard 9000:9000
+  #
+  # Do NOT leave auth off in a shared environment: without oauth2-proxy in front
+  # there is nothing but the Admin API key between the cluster and the GUI.
+  #
+  # See docs/apps/frankgateway/frankgateway-traffic-classes.md.
   dashboard:
     enabled: true
     image:

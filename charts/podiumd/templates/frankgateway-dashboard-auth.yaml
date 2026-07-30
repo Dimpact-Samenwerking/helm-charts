@@ -20,6 +20,28 @@
   code redemptions -> invalid_grant).
 */ -}}
 {{- $root := . }}
+{{- /*
+  Guard: two instances must not share a dashboard hostname.
+
+  `hostname` sits in the shared block, so an instance that does not override it
+  INHERITS it — which silently renders two oauth2-proxy Deployments and two
+  ingress routes claiming the same host. Whichever the ingress resolves last
+  wins, so one dashboard shows another class's routes, and the split looks
+  broken in a way that points at etcd rather than at values. Fail instead.
+*/ -}}
+{{- $seenHosts := dict }}
+{{- range $key, $override := .Values.frankgateway.instances }}
+{{- $inst := include "podiumd.frankgateway.instanceValues" (dict "root" $root "key" $key "override" $override) | fromYaml }}
+{{- if and $inst.enabled $inst.dashboard.enabled $inst.dashboard.auth.enabled }}
+{{- $h := $inst.dashboard.auth.hostname | default "" }}
+{{- if ne $h "" }}
+{{- if hasKey $seenHosts $h }}
+{{-   fail (printf "frankgateway: instances '%s' and '%s' both use dashboard.auth.hostname '%s'. Each instance needs its own hostname (its dashboard binds one etcd prefix, so a shared host would serve one class's routes under both names). Give every enabled instance its own frankgateway.instances.<class>.dashboard.auth.hostname, or set dashboard.auth.enabled=false on the ones you only need for debugging." (get $seenHosts $h) $key $h) }}
+{{- end }}
+{{- $_ := set $seenHosts $h $key }}
+{{- end }}
+{{- end }}
+{{- end }}
 {{- range $key, $override := .Values.frankgateway.instances }}
 {{- $fg := include "podiumd.frankgateway.instanceValues" (dict "root" $root "key" $key "override" $override) | fromYaml }}
 {{- if and $fg.enabled $fg.dashboard.enabled $fg.dashboard.auth.enabled }}
@@ -28,7 +50,7 @@
 {{- $clientId := include "podiumd.frankgateway.oidcClientId" (dict "key" $key) }}
 {{- $hostname := $auth.hostname | default "" }}
 {{- if eq $hostname "" }}
-{{-   fail (printf "frankgateway.instances.%s.dashboard.auth.hostname is required when the instance is enabled and dashboard.auth.enabled (e.g. frankgateway-admin.<env>.<domain>)" $key) }}
+{{-   fail (printf "frankgateway.instances.%s.dashboard.auth.hostname is required when dashboard.auth.enabled is true (e.g. frankgateway-%s-admin.<env>.<domain>). For a dashboard you only need while debugging, set dashboard.auth.enabled=false instead — that needs no hostname, no certificate SAN and no Keycloak client, and you reach it with: kubectl -n <ns> port-forward deploy/%s-dashboard 9000:9000" $key $key $key) }}
 {{- end }}
 {{- $realm := $root.Values.keycloak.config.realm }}
 {{- $realmUrl := $root.Values.keycloak.config.realmFrontendUrl | trimSuffix "/" }}
