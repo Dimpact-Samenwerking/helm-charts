@@ -22,6 +22,7 @@ Upgrade one hop at a time, in order. Each guide covers exactly one hop.
 
 | You are on | Read, in this order |
 |---|---|
+| 4.8.3 | [`4.8.3-to-4.8.4-upgrade.md`](_UPGRADE_PATHS/4.8.3-to-4.8.4-upgrade.md) |
 | 4.8.2 | [`4.8.2-to-4.8.3-upgrade.md`](_UPGRADE_PATHS/4.8.2-to-4.8.3-upgrade.md) |
 | 4.8.1 | [`4.8.1-to-4.8.2-upgrade.md`](_UPGRADE_PATHS/4.8.1-to-4.8.2-upgrade.md) |
 | 4.7.8 | [`4.7.8-to-4.8.0-upgrade.md`](_UPGRADE_PATHS/4.7.8-to-4.8.0-upgrade.md) |
@@ -99,6 +100,7 @@ ACR-mirror set for that hop):
 | 4.7.6 → 4.7.7   | [`4.7.6-to-4.7.7-upgrade.md`](_UPGRADE_PATHS/4.7.6-to-4.7.7-upgrade.md)   | [`images/images-4.7.7.yaml`](images/images-4.7.7.yaml) |
 | 4.7.7 → 4.7.8   | [`4.7.7-to-4.7.8-upgrade.md`](_UPGRADE_PATHS/4.7.7-to-4.7.8-upgrade.md)   | — (no image changes) |
 | 4.7.8 → 4.8.0   | [`4.7.8-to-4.8.0-upgrade.md`](_UPGRADE_PATHS/4.7.8-to-4.8.0-upgrade.md)   | [`images/images-4.8.0.yaml`](images/images-4.8.0.yaml) |
+| 4.8.3 → 4.8.4   | [`4.8.3-to-4.8.4-upgrade.md`](_UPGRADE_PATHS/4.8.3-to-4.8.4-upgrade.md)   | [`images/images-4.8.4.yaml`](images/images-4.8.4.yaml) |
 
 > The 4.6.4 → 4.6.8 and 4.6.8 → 4.7.6 guides are **consolidated**: each folds
 > several intermediate releases into one document so an operator reads one
