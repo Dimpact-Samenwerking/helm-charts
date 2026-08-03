@@ -67,7 +67,7 @@ dependencies:
     condition: openbeheer.enabled
   - name: zaakafhandelcomponent
     alias: zac
-    version: 1.0.288 # ZAC 5.4.1 helm release
+    version: 1.0.289 # ZAC 5.4.1 helm release
     repository: "@zac"
     condition: zac.enabled
     tags:
