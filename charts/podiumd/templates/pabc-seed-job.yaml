@@ -1,0 +1,92 @@
+{{- if and .Values.pabc.enabled .Values.pabc.seedJob.enabled }}
+---
+# Job: one-shot seed of the PABC authorisation dataset.
+#
+# Runs the pabc-migrations image with JSON_DATASET_PATH pointing at the
+# pabc-dataset ConfigMap. The migration service runs EF migrations and then
+# REPLACES all applications, application roles, functional roles, domains,
+# entity types and mappings with the dataset contents (see DatabaseInitializer:
+# ExecuteDeleteAsync on all six tables, then insert). It is therefore NOT wired
+# into pabc.migrations.dataSetPath — that job reruns on every helm upgrade and
+# would wipe every edit made in the PABC UI.
+#
+# Idempotency: the Job name carries a checksum of the rendered dataset. An
+# unchanged dataset renders the same name on every upgrade, so the completed Job
+# already exists and nothing reruns. Changing files/pabc-dataset.json (or the
+# ConfigMap) yields a new name and deliberately re-seeds. There is intentionally
+# no ttlSecondsAfterFinished: the finished Job object IS the marker that says
+# "already seeded" — letting it be garbage collected would re-seed on the next
+# upgrade and discard UI edits.
+{{- $datasetTpl := include (print $.Template.BasePath "/pabc-dataset-configmap.yaml") . -}}
+{{- $jobSuffix := $datasetTpl | sha256sum | trunc 10 }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pabc-seed-job-{{ $jobSuffix }}
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: pabc
+spec:
+  backoffLimit: 10
+  template:
+    metadata:
+      labels:
+        {{- include "podiumd.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: pabc
+    spec:
+      {{- if .Values.pabc.migrations.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.pabc.migrations.nodeSelector | nindent 8 }}
+      {{- else if .Values.pabc.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.pabc.nodeSelector | nindent 8 }}
+      {{- else if .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      {{- end }}
+      restartPolicy: Never
+      volumes:
+      - name: pabc-dataset
+        configMap:
+          name: pabc-dataset
+          items:
+          - key: dataset.json
+            path: dataset.json
+      # readOnlyRootFilesystem is on, and the .NET runtime wants a writable
+      # scratch dir even though the migration service itself only reads.
+      - name: tmp
+        emptyDir: {}
+      containers:
+      - name: pabc-seed
+        image: {{ include "podiumd.image" .Values.pabc.migrations.image }}
+        imagePullPolicy: {{ .Values.pabc.migrations.image.pullPolicy | default "IfNotPresent" }}
+        resources:
+          {{- toYaml .Values.pabc.seedJob.resources | nindent 10 }}
+        securityContext:
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault
+        # Database connection, API keys and OIDC settings come from the objects
+        # the pabc subchart already renders (fullnameOverride: pabc).
+        envFrom:
+        - secretRef:
+            name: {{ .Values.pabc.existingSecret | default .Values.pabc.fullnameOverride | default "pabc" }}
+        - configMapRef:
+            name: {{ .Values.pabc.fullnameOverride | default "pabc" }}
+        # Explicit env wins over envFrom, so this also overrides a
+        # JSON_DATASET_PATH that migrations.dataSetPath may have put in the
+        # ConfigMap.
+        env:
+        - name: JSON_DATASET_PATH
+          value: /dataset/dataset.json
+        volumeMounts:
+        - name: pabc-dataset
+          mountPath: /dataset
+          readOnly: true
+        - name: tmp
+          mountPath: /tmp
+{{- end }}

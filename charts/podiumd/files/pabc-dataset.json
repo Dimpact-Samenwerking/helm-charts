@@ -221,6 +221,132 @@
       "domainId": "bb4a5500-6555-5043-9e7e-33822ec62bc7",
       "applicationRoleId": "9846a820-6bcc-5a08-b061-31fc4456ad17",
       "isAllEntityTypes": false
+    },
+    {
+      "id": "3048d1ce-c343-5646-ba48-8b28fd258df8",
+      "functionalRoleId": "ee005f5c-dcd9-55de-8d47-a0a02f8f4dd0",
+      "applicationRoleId": "a3d02ea5-8927-51e3-a61b-78b60ac49869",
+      "isAllEntityTypes": true
+    },
+    {
+      "id": "e156b6b9-fb82-5e9e-aa90-0d02335b60ea",
+      "functionalRoleId": "ee005f5c-dcd9-55de-8d47-a0a02f8f4dd0",
+      "applicationRoleId": "aec18c5c-b475-5b4c-bebd-6dd97e763540",
+      "isAllEntityTypes": true
+    },
+    {
+      "id": "36680fb1-80b0-5bdd-bea8-98e06d6c3ae9",
+      "functionalRoleId": "ee005f5c-dcd9-55de-8d47-a0a02f8f4dd0",
+      "applicationRoleId": "751ce886-5d2a-50c9-9100-184d756b9e1d",
+      "isAllEntityTypes": true
+    },
+    {
+      "id": "6d563fc4-c9a9-5111-b669-e994489deeba",
+      "functionalRoleId": "ee005f5c-dcd9-55de-8d47-a0a02f8f4dd0",
+      "applicationRoleId": "317a1bc5-c628-5094-81d4-3a626153d73b",
+      "isAllEntityTypes": true
+    },
+    {
+      "id": "ae27497c-e126-5bfc-914c-0b8c76b0802b",
+      "functionalRoleId": "ee005f5c-dcd9-55de-8d47-a0a02f8f4dd0",
+      "applicationRoleId": "9846a820-6bcc-5a08-b061-31fc4456ad17",
+      "isAllEntityTypes": true
+    },
+    {
+      "id": "210e1b79-2dd1-5936-b9ff-c92797b9de80",
+      "functionalRoleId": "ee005f5c-dcd9-55de-8d47-a0a02f8f4dd0",
+      "applicationRoleId": "7812ceb0-90de-54fc-8321-f24057b56e06",
+      "isAllEntityTypes": true
+    },
+    {
+      "id": "51aaf2db-cebe-57ff-b007-ef821c08f380",
+      "functionalRoleId": "6678fa35-b94a-54db-ad46-795a5e00a56b",
+      "applicationRoleId": "317a1bc5-c628-5094-81d4-3a626153d73b",
+      "isAllEntityTypes": true
+    },
+    {
+      "id": "601469ed-8148-553b-a8d8-c80e562c1ba7",
+      "functionalRoleId": "6678fa35-b94a-54db-ad46-795a5e00a56b",
+      "applicationRoleId": "9846a820-6bcc-5a08-b061-31fc4456ad17",
+      "isAllEntityTypes": true
+    },
+    {
+      "id": "15750b3e-5f4e-576e-8d96-caf793aea4c9",
+      "functionalRoleId": "1a93609a-9cb4-50b1-b208-cef68c957cfe",
+      "applicationRoleId": "751ce886-5d2a-50c9-9100-184d756b9e1d",
+      "isAllEntityTypes": true
+    },
+    {
+      "id": "c52a26cb-6121-53e1-ae95-f7d5093a56e7",
+      "functionalRoleId": "1a93609a-9cb4-50b1-b208-cef68c957cfe",
+      "applicationRoleId": "317a1bc5-c628-5094-81d4-3a626153d73b",
+      "isAllEntityTypes": true
+    },
+    {
+      "id": "b0d3f99e-7f92-54b9-958f-d9bab24ada4e",
+      "functionalRoleId": "1a93609a-9cb4-50b1-b208-cef68c957cfe",
+      "applicationRoleId": "9846a820-6bcc-5a08-b061-31fc4456ad17",
+      "isAllEntityTypes": true
+    },
+    {
+      "id": "51d73956-0860-5c93-9b8e-182cd2b07893",
+      "functionalRoleId": "4eb4eb89-0d50-5a72-9191-d82c0f9b1151",
+      "applicationRoleId": "7812ceb0-90de-54fc-8321-f24057b56e06",
+      "isAllEntityTypes": true
+    },
+    {
+      "id": "9d42d948-5170-5a54-990e-9a5f90f81600",
+      "functionalRoleId": "4eb4eb89-0d50-5a72-9191-d82c0f9b1151",
+      "applicationRoleId": "751ce886-5d2a-50c9-9100-184d756b9e1d",
+      "isAllEntityTypes": true
+    },
+    {
+      "id": "045374c6-34df-5180-bbc8-487e78b0f32a",
+      "functionalRoleId": "4eb4eb89-0d50-5a72-9191-d82c0f9b1151",
+      "applicationRoleId": "317a1bc5-c628-5094-81d4-3a626153d73b",
+      "isAllEntityTypes": true
+    },
+    {
+      "id": "d603e081-d63f-5634-8457-806b6eeb5af9",
+      "functionalRoleId": "4eb4eb89-0d50-5a72-9191-d82c0f9b1151",
+      "applicationRoleId": "9846a820-6bcc-5a08-b061-31fc4456ad17",
+      "isAllEntityTypes": true
+    },
+    {
+      "id": "a4f7798d-aa0a-56f3-b296-9a1450e8d875",
+      "functionalRoleId": "5accd347-6989-5bc3-a6d3-2b317bded9e8",
+      "applicationRoleId": "aec18c5c-b475-5b4c-bebd-6dd97e763540",
+      "isAllEntityTypes": true
+    },
+    {
+      "id": "d20d2b51-5793-5aab-9305-b3e3565d972d",
+      "functionalRoleId": "5accd347-6989-5bc3-a6d3-2b317bded9e8",
+      "applicationRoleId": "751ce886-5d2a-50c9-9100-184d756b9e1d",
+      "isAllEntityTypes": true
+    },
+    {
+      "id": "2c2d15a0-b43f-521d-b2ed-a4b6fc17171c",
+      "functionalRoleId": "5accd347-6989-5bc3-a6d3-2b317bded9e8",
+      "applicationRoleId": "317a1bc5-c628-5094-81d4-3a626153d73b",
+      "isAllEntityTypes": true
+    },
+    {
+      "id": "fcfb9d42-1629-5009-8eb2-7428eabd4bd4",
+      "functionalRoleId": "5accd347-6989-5bc3-a6d3-2b317bded9e8",
+      "applicationRoleId": "9846a820-6bcc-5a08-b061-31fc4456ad17",
+      "isAllEntityTypes": true
+    },
+    {
+      "id": "5533773d-2dcf-5aeb-9c0b-722fb00301e4",
+      "functionalRoleId": "5accd347-6989-5bc3-a6d3-2b317bded9e8",
+      "applicationRoleId": "7812ceb0-90de-54fc-8321-f24057b56e06",
+      "isAllEntityTypes": true
+    },
+    {
+      "id": "93c6e93a-f9e5-57fc-bd7f-111fada40364",
+      "functionalRoleId": "563171db-6356-55c9-8562-b9fc1e08b09d",
+      "applicationRoleId": "9846a820-6bcc-5a08-b061-31fc4456ad17",
+      "isAllEntityTypes": true
     }
   ]
 }
