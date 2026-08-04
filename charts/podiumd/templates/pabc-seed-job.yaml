@@ -10,15 +10,18 @@
 # into pabc.migrations.dataSetPath — that job reruns on every helm upgrade and
 # would wipe every edit made in the PABC UI.
 #
-# Idempotency: the Job name carries a checksum of the rendered dataset. An
+# Idempotency: the Job name carries a checksum of the dataset file itself. An
 # unchanged dataset renders the same name on every upgrade, so the completed Job
-# already exists and nothing reruns. Changing files/pabc-dataset.json (or the
-# ConfigMap) yields a new name and deliberately re-seeds. There is intentionally
-# no ttlSecondsAfterFinished: the finished Job object IS the marker that says
+# already exists and nothing reruns. Changing files/pabc-dataset.json yields a
+# new name and deliberately re-seeds. There is intentionally no
+# ttlSecondsAfterFinished: the finished Job object IS the marker that says
 # "already seeded" — letting it be garbage collected would re-seed on the next
 # upgrade and discard UI edits.
-{{- $datasetTpl := include (print $.Template.BasePath "/pabc-dataset-configmap.yaml") . -}}
-{{- $jobSuffix := $datasetTpl | sha256sum | trunc 10 }}
+#
+# Hash the raw file, NOT the rendered ConfigMap: that template carries the
+# helm.sh/chart label, so every chart version bump would change the Job name and
+# silently re-seed an environment that had been curated in the PABC UI.
+{{- $jobSuffix := .Files.Get "files/pabc-dataset.json" | sha256sum | trunc 10 }}
 apiVersion: batch/v1
 kind: Job
 metadata:
