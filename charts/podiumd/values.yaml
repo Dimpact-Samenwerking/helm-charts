@@ -3541,8 +3541,26 @@ pabc:
   # -- When enabled, renders files/pabc-dataset.json into a ConfigMap named
   # pabc-dataset, for a (one-shot) seed job running the migrations image with
   # JSON_DATASET_PATH, or for migrations.dataSetPath (see caution above).
+  # Required by seedJob below.
   datasetConfigMap:
     enabled: false
+  # -- One-shot Job that seeds the PABC database from the pabc-dataset
+  # ConfigMap. Enable together with datasetConfigMap on an environment whose
+  # PABC is still empty: without it ZAC resolves no application roles at all and
+  # every user lands on "u heeft geen toestemming om deze pagina te bekijken".
+  #
+  # The Job name carries a checksum of the dataset, so it runs once and stays
+  # put across upgrades; editing files/pabc-dataset.json re-seeds on purpose.
+  # Seeding REPLACES all PABC content — on an environment that has already been
+  # curated through the PABC UI, leave this disabled.
+  seedJob:
+    enabled: false
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "10m"
+      limits:
+        memory: "512Mi"
   initContainers:
     waitFor:
       image:
