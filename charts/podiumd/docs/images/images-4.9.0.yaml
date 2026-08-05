@@ -3,12 +3,16 @@
 #
 # Images new or changed in podiumd 4.9.0 vs 4.8.2.
 #
-# Two changes:
+# Three changes:
 #   1. ZAC (Zaakafhandelcomponent) 5.0.1 -> 5.1.0 (chart 1.0.251 -> 1.0.257).
 #   2. ZGW Office Add-in v0.9.313 -> v0.9.352 (chart 0.0.89, unchanged).
 #      Repository names (zgw-office-addin-{frontend,backend}) unchanged from 4.8.2.
+#   3. Objecten (maykinmedia/objects-api) + Objecttypen (maykinmedia/objecttypes-api)
+#      merged into Open Object (maykinmedia/open-object) 4.1.0 — replaces both prior
+#      images. See docs/apps/objecten/openobject-migration.md for the full merge record.
 #
-# See docs/_UPGRADE_PATHS/4.8.2-to-4.9.0-upgrade.md for the operator upgrade notes.
+# See docs/_UPGRADE_PATHS/4.8.2-to-4.9.0-upgrade.md and
+# docs/_UPGRADE_PATHS/4.8.X-to-4.9.0-upgrade.md for the operator upgrade notes.
 #
 # Digests are the OCI image index (multi-arch manifest) digest as returned in
 # the Docker-Content-Digest response header from the source registry.
@@ -29,3 +33,10 @@
   url: ghcr.io/infonl/zgw-office-addin-backend
   version: "v0.9.352"
   digest: "sha256:c5bf9a7beb883c7cf586a65326dacb4fc49a2eaaa08f4eb49f2faabb786b71b4"
+
+# Objecten + Objecttypen -> Open Object — replaces maykinmedia/objects-api 3.6.2
+# and maykinmedia/objecttypes-api 3.4.0
+- name: maykinmedia/open-object
+  url: docker.io/maykinmedia/open-object
+  version: "4.1.0"
+  digest: "sha256:7738cb8161d221d0a286d39d9d270c35024ff78123c296ceb46f3d9dda7208f9"

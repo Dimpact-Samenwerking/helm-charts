@@ -74,11 +74,6 @@ opennotificaties:
       security:
         allowInsecureImages: true
 
-objecttypen:
-  configuration:
-    secrets:
-      keycloak_client_secret: "placeholder"
-
 openarchiefbeheer:
   configuration:
     secrets:

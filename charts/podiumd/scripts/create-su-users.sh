@@ -43,7 +43,6 @@ APPS=(
   "abc=administrators"
   "openklant=administrators"
   "objecten=administrators"
-  "objecttypen=administrators"
   "openzaak=administrators"
   "opennotificaties=administrators"
   "openformulieren=administrators"

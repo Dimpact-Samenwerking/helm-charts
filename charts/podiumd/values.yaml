@@ -412,8 +412,9 @@ redis-operator:
   #       enabled: false # prevents subchart installation
   #
   # Database allocation:
-  #   objecttypen        : db 0  (cache)
-  #   objecten           : db 1  (cache), db 2  (celery)
+  #   objecten           : db 1  (cache), db 2  (celery) — since the objecten/objecttypen
+  #                        merge (H.3), also covers what used to be objecttypen's traffic;
+  #                        db 0 is freed.
   #   opennotificaties   : db 3  (cache), db 6  (celery result backend; broker nu ook Redis i.p.v. RabbitMQ vanaf chart 2.0.0)
   #   openzaak           : db 4  (cache), db 5  (celery)
   #   openklant          : db 7  (cache), db 8  (celery)
@@ -964,6 +965,13 @@ opennotificaties:
   otel:
     disabled: true
 
+# Deployed via the "openobject" chart (Chart.yaml), aliased to "objecten" so
+# every value below, every rendered object name, and the DNS/PVC/Keycloak-client
+# identity all stay "objecten" — see docs/apps/objecten/openobject-migration.md (H.1) for the full
+# alias + nameOverride + fullnameOverride mechanism. Merges the former separate
+# "objecten" and "objecttypen" blocks into one: objecten now also covers what
+# used to be objecttypen's functionality (local objecttypes), per the upstream
+# Open Object 4.0 Objects+Objecttypes API merge.
 objecten:
   configuration:
     enabled: true
@@ -979,22 +987,15 @@ objecten:
       resources: {}
     secrets:
       keycloak_client_secret: ""
-      # object_objecttypes_token: "<object_objecttypes_token>"
       # object_notificaties_token: "<object_notificaties_token>"
       # openformulieren_objecten_token: "<openformulieren_objecten_token>"
+      # objecttypen_openbeheer_token: "<objecttypen_openbeheer_token>"
+      # create_required_objecttypen_token: "<create_required_objecttypen_token>"
     data: ""
     # data: |-
     #   zgw_consumers_config_enable: true
     #   zgw_consumers:
     #     services:
-    #     - identifier: objecttypes-api
-    #       label: Objecttypes API
-    #       api_root: https://objecttypen.example.nl/api/v2/
-    #       api_connection_check_path: objecttypes
-    #       api_type: orc
-    #       auth_type: api_key
-    #       header_key: Authorization
-    #       header_value: Token {value_from: {env: object_objecttypes_token}}
     #     - identifier: notifications-api
     #       label: Notificaties API
     #       api_root: https://opennotificaties.example.nl/api/v1/
@@ -1003,6 +1004,10 @@ objecten:
     #       auth_type: api_key
     #       header_key: Authorization
     #       header_value: Token {value_from: {env: object_notificaties_token}}
+    #     # NOTE: the pre-merge "objecttypes-api" zgw_consumers service entry is gone.
+    #     # Upstream 4.0.0 removes `service_identifier` from ObjectTypesConfigurationStep
+    #     # entirely — objecttypes are local data now, populated via `import_objecttypes`
+    #     # before cutover (see docs/apps/objecten/openobject-migration.md, A.6), not a service reference.
     #   notifications_config_enable: true
     #   notifications_config:
     #     notifications_api_service_identifier: notifications-api
@@ -1026,17 +1031,35 @@ objecten:
     #         token: "REP_OBJECTEN_CREDENTIALS_OPENARCHIEFBEHEER_TOKEN_REP"
     #         contact_person: Person 1
     #         email: person-1@example.com
+    #       # IN-2345: this token MUST equal the 'Token <...>' value in the
+    #       # openbeheer objecttypen-service header (same OBJECTTYPEN_OPENBEHEER_TOKEN
+    #       # secret on both sides). Only enable this entry when openbeheer is
+    #       # enabled AND the secret is provisioned — the config Job validates
+    #       # strictly and fails on an unsubstituted REP_..._REP placeholder.
+    #       - identifier: openbeheer-token
+    #         token: {value_from: {env: objecttypen_openbeheer_token}}
+    #         contact_person: Open Beheer
+    #         email: openbeheer@example.com
+    #         organization: Open Beheer
+    #         application: Open Beheer
+    #         administration: Open Beheer
+    #       # Admin token for the umbrella's own create-required-objecttypen job.
+    #       # is_superuser bypasses per-object-type permission scoping entirely — see H.5;
+    #       # replaces the old plain objecttypen.configuration.token admin token.
+    #       - identifier: create-required-objecttypen
+    #         token: {value_from: {env: create_required_objecttypen_token}}
+    #         is_superuser: true
+    #         contact_person: Person 1
+    #         email: person-1@example.com
+    #         organization: Person 1
+    #         application: Person 1
+    #         administration: Person 1
     #   objecttypes_config_enable: true
     #   objecttypes:
     #     items:
     #       - uuid: 366c9b88-a870-438c-b0ec-a121cd51f1dd
     #         name: demo
-    #         service_identifier: objecttypes-api
-    #   sites_config_enable: true
-    #   sites_config:
-    #     items:
-    #       - domain: objecten.example.nl
-    #         name: objecten
+    #         # NOTE: `service_identifier` removed upstream in 4.0.0 — objecttypes are local now
     #   oidc_db_config_enable: true
     #   oidc_db_config_admin_auth:
     #     providers:
@@ -1079,37 +1102,64 @@ objecten:
     #           make_users_staff: true
     #           superuser_group_names:
     #             - Registreerders
+    #             - Superusers
+    # NOTE: `sites_config`/`sites_config_enable` removed entirely — upstream 4.0.0 drops
+    # django.contrib.sites; use `settings.siteDomain` below instead (now required).
     oidcUrl: https://objecten.example.nl
     # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
     pkceEnabled: false
   settings:
+    # H.2: public hostname unchanged — keeps the existing <env>-objecten.dimpact.nl
+    # convention rather than switching to objecttypen's. Required by the chart
+    # (render fails without it); override per gemeente to the real public hostname.
+    siteDomain: objecten.example.nl
     allowedHosts: objecten.podiumd.svc.cluster.local
     email:
       port: 587
       useTLS: true
     disable2fa: false
+    # H.3: keeping objecten's existing DB 1 (cache) / DB 2 (celery), freeing objecttypen's
+    # old DB 0 — see the "Database allocation" comment above.
     cache:
       default: redis-ha-master.podiumd.svc.cluster.local:6379/1
       axes: redis-ha-master.podiumd.svc.cluster.local:6379/1
       oidc: redis-ha-master.podiumd.svc.cluster.local:6379/1
     celery:
       brokerUrl: redis://redis-ha-master.podiumd.svc.cluster.local:6379/2
+      # NOTE: precondition (A.1, resultBackendl→resultBackend rename) already completed —
+      # objecten was already at chart 2.12.1/appVersion 3.6.2 before this swap, with the
+      # key already correctly named.
       resultBackend: redis://redis-ha-master.podiumd.svc.cluster.local:6379/2
       # -- Set to debug for test/acceptance environments
       logLevel: warning
+    # NOTE: moved from top-level `otel:` (objecten's old location) to nested
+    # `settings.otel` — structural move, not just a rename (affects
+    # values-enable-observability.yaml too).
+    otel:
+      # override: values-enable-observability.yaml sets disabled: false and configures the OTLP endpoint
+      disabled: true
+    # uwsgi left unset deliberately (H.6): image defaults to 4 processes / 4 threads,
+    # the more generous of objecten's (unset, same default) and objecttypen's (2x2,
+    # per objecttypen-BASICS.md) prior configs. Tune from observed traffic post-cutover.
   persistence:
     size: 10Gi
     existingClaim: objecten
     storageClassName: podiumd-standard
+    # chart default changed to "openobject/media" — override to keep today's actual path
+    mediaMountSubpath: objecten/media
   persistentVolume:
     volumeAttributeShareName: objecten
     storageClassName: podiumd-standard
   image:
-    tag: "3.6.2"
+    repository: maykinmedia/open-object
+    # Precondition already completed (was objecten 3.6.2 before this swap).
+    tag: "4.1.0@sha256:7738cb8161d221d0a286d39d9d270c35024ff78123c296ceb46f3d9dda7208f9"
   resources:
     requests:
       cpu: 100m
       memory: 256Mi
+    # NOTE: objecttypen's prior web request (10m/160Mi) folds in here — reconcile against
+    # observed combined usage after first deployment (see objecten-BASICS.md).
   worker:
     replicaCount: 1
     livenessProbe:
@@ -1122,117 +1172,13 @@ objecten:
   nameOverride: objecten
   fullnameOverride: objecten
   flower:
+    # chart default is true; must stay explicit false to match current behavior
     enabled: false
   tags:
     redis: false
-  # override: values-enable-observability.yaml sets disabled: false and configures the OTLP endpoint
-  otel:
-    disabled: true
-
-objecttypen:
-  configuration:
-    enabled: true
-    initContainer:
-      enabled: false
-    job:
-      enabled: true
-      backoffLimit: 6
-      ttlSecondsAfterFinished: 600
-      restartPolicy: OnFailure
-      resources: {}
-    secrets:
-      keycloak_client_secret: ""
-      # object_objecttypes_token: "<object_objecttypes_token>"
-      # openformulieren_objecten_token: "<openformulieren_objecten_token>"
-      # objecttypen_openbeheer_token: "<objecttypen_openbeheer_token>"
-    data: ""
-    # e.g.
-    # data: |-
-    #   tokenauth_config_enable: true
-    #   tokenauth:
-    #     items:
-    #       - identifier: openformulier-token
-    #         token: {value_from: {env: object_objecttypes_token}}
-    #         contact_person: Person 1
-    #         email: person-1@example.com
-    #         organization: Organization 1
-    #         application: Application 1
-    #         administration: Administration 1
-    #       # IN-2345: this token MUST equal the 'Token <...>' value in the
-    #       # openbeheer objecttypen-service header (same OBJECTTYPEN_OPENBEHEER_TOKEN
-    #       # secret on both sides). Only enable this entry when openbeheer is
-    #       # enabled AND the secret is provisioned — the objecttypen-config Job
-    #       # validates strictly and fails on an unsubstituted REP_..._REP placeholder.
-    #       - identifier: openbeheer-token
-    #         token: {value_from: {env: objecttypen_openbeheer_token}}
-    #         contact_person: Open Beheer
-    #         email: openbeheer@example.com
-    #         organization: Open Beheer
-    #         application: Open Beheer
-    #         administration: Open Beheer
-    #   oidc_db_config_enable: true
-    #   oidc_db_config_admin_auth:
-    #     providers:
-    #     - identifier: keycloak-provider
-    #       oidc_use_nonce: true
-    #       oidc_nonce_size: 32
-    #       oidc_state_size: 32
-    #       endpoint_config:
-    #         oidc_op_discovery_endpoint: http://keycloak.example.nl/realms/test/
-    #     items:
-    #     - identifier: admin-oidc
-    #       enabled: true
-    #       oidc_rp_client_id: testid
-    #       oidc_rp_client_secret: {value_from: {env: keycloak_client_secret}}
-    #       oidc_rp_scopes_list:
-    #       - openid
-    #       - email
-    #       - profile
-    #       oidc_rp_sign_algo: RS256
-    #       oidc_provider_identifier: keycloak-provider
-    #       userinfo_claims_source: id_token
-    #       # Enable PKCE on the application side — requires pkceEnabled: true on the Keycloak client.
-    #       oidc_use_pkce: true
-    #       options:
-    #         user_settings:
-    #           claim_mappings:
-    #             username:
-    #               - sub
-    #             first_name:
-    #               - given_name
-    #             email:
-    #               - email
-    #           username_case_sensitive: true
-    #         groups_settings:
-    #           claim_mapping:
-    #             - groups
-    #           sync: true
-    #           sync_pattern: '*'
-    #           default_groups: []
-    #           make_users_staff: true
-    #           superuser_group_names:
-    #             - Superusers
-    token: "<token>"
-    oidcUrl: https://objecttypen.example.nl
-    # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
-    pkceEnabled: false
-  settings:
-    allowedHosts: objecttypen.podiumd.svc.cluster.local
-    email:
-      port: 587
-      useTLS: true
-    disable2fa: false
-    cache:
-      default: redis-ha-master.podiumd.svc.cluster.local:6379/0
-      axes: redis-ha-master.podiumd.svc.cluster.local:6379/0
-    uwsgi:
-      processes: "2"
-      threads: "2"
-      maxRequests: "1000"
-  image:
-    repository: maykinmedia/objecttypes-api
-    tag: "3.4.2@sha256:d366e6ede1bb924ea351495f4e88ceba53bb0df02fa5302929daef379131fda1"
-  # used for create-required-objecttypen podiumd job only
+  # Podiumd-owned key, no subchart equivalent — consumed by
+  # templates/create-required-objecttypen.yaml. Moved here from the deleted
+  # objecttypen.create_required_objecttypen_job.* block.
   create_required_objecttypen_job:
     enabled: true
     # Total wall-clock window in which the job is allowed to keep retrying (seconds). Default: 15 minutes.
@@ -1246,17 +1192,6 @@ objecttypen:
       limits:
         cpu: 200m
         memory: 128Mi
-  resources:
-    requests:
-      cpu: 10m
-      memory: 160Mi
-  nameOverride: objecttypen
-  fullnameOverride: objecttypen
-  tags:
-    redis: false
-  # override: values-enable-observability.yaml sets disabled: false and configures the OTLP endpoint
-  otel:
-    disabled: true
 
 openarchiefbeheer:
   enabled: false
@@ -1687,6 +1622,10 @@ openformulieren:
     #   zgw_consumers_config_enable: true
     #   zgw_consumers:
     #     services:
+    #     # Since the objecten/objecttypen merge: both identifiers below now point
+    #     # at the same merged host (docs/apps/objecten/openobject-migration.md, F) — Open Formulieren's
+    #     # own config schema still expects two distinct service identifiers, even
+    #     # though there's only one app behind them now.
     #     - identifier: objecttypen-api
     #       label: Objecttypen API
     #       api_root: https://objecten.example.nl/api/v2/
@@ -1697,7 +1636,7 @@ openformulieren:
 
     #     - identifier: objecten-api
     #       label: Objecten API test
-    #       api_root: https://objecttypen.example.nl/api/v2/
+    #       api_root: https://objecten.example.nl/api/v2/
     #       api_type: orc
     #       auth_type: api_key
     #       header_key: Authorization
@@ -2281,9 +2220,10 @@ openbeheer:
     #   zgw_consumers_config_enable: true
     #   zgw_consumers:
     #     services:
+    #     # Since the objecten/objecttypen merge: points at the merged host now.
     #     - identifier: objecttypen-service
     #       label: Objecttypen API
-    #       api_root: https://objecttypen.example.nl/api/v2/
+    #       api_root: https://objecten.example.nl/api/v2/
     #       api_type: orc
     #       auth_type: api_key
     #       header_key: Authorization
@@ -2622,7 +2562,7 @@ kiss:
       #     baseUrl: http://kiss-adapter.%s.svc.cluster.local
       #     clientId: kiss
       #     clientSecret: super-secret
-      #     objectTypeUrl: https://objecttypen.example.com/api/v2/objecttypes/1df73259-1a58-4180-bf98-598eefc184d4
+      #     objectTypeUrl: https://objecten.example.com/api/v2/objecttypes/1df73259-1a58-4180-bf98-598eefc184d4
       #     objectTypeVersion: 1
       #   isDefault: true
       #   klanten:
@@ -2747,11 +2687,13 @@ kiss:
     #    readOnly: true
     #    subPath: ca.crt
     #    mountPath: /etc/ssl/certs/my-custom-ca.crt
+    # H.7: collapsed the former separate objecten.*/objecttypen.* groups into one
+    # objecten.* block, post-merge (docs/apps/objecten/openobject-migration.md, H.7) — one app, one host.
+    # afdelingUUID/groepUUID/kennisartikelUUID/vacUUID aren't read by any template today
+    # (pre-existing, unrelated to this merge) — carried over unchanged in case a
+    # per-gemeente override relies on them.
     objecten:
       baseUrl: ""
-      token: ""
-
-    objecttypen:
       baseUrlIntern: ""
       baseUrlExtern: ""
       token: ""
@@ -2870,12 +2812,16 @@ zac:
         cpu: 50m
         memory: 64Mi
   notificationsSecretKey: "changeme"
+  # Since the objecten/objecttypen merge: both point at the same merged
+  # host/token now — ZAC's own chart schema still expects two distinct keys,
+  # even though there's only one app and likely one tokenauth item behind
+  # them now.
   objectenApi:
     url: http://objecten.example.nl
     token: objectentoken
   objecttypenApi:
-    url: http://objecttypen.example.nl
-    token: objecttypentoken
+    url: http://objecten.example.nl
+    token: objectentoken
   office_converter:
     # gotenberg/gotenberg:8.34.0@sha256:67097317623a503ba2a6a7e9ae8db6929a1f7e1bbd88077bacf2d325fbdab923
     image:
@@ -3257,21 +3203,24 @@ ita:
       clientId: "ita"
       key: "REP_OPENZAAK_CREDENTIALS_ITA_SECRET_REP"
 
+  # Since the objecten/objecttypen merge: the "-objecttypen" hostname below is
+  # repointed to the merged "objecten" host in all four `type` URLs — the old
+  # objecttypen.<domain> host no longer exists as a separate service.
   logboek:
     # Aanname: uuid van objecttype wordt gemeentespecifiek vervangen door Replacementscripts
-    type: "https://ontw-objecttypen.example.nl/api/v2/objecttypes/REP_ITA_ACTIVITEITENLOG_UUID_REP"
+    type: "https://ontw-objecten.example.nl/api/v2/objecttypes/REP_ITA_ACTIVITEITENLOG_UUID_REP"
     typeVersion: 1
 
   afdeling:
     # Aanname: uuid van objecttype wordt gemeentespecifiek vervangen door Replacementscripts
     uuid: "REP_CONTACT_AFDELING_UUID_REP"
-    type: "https://ontw-objecttypen.example.nl/api/v2/objecttypes/REP_CONTACT_AFDELING_UUID_REP"
+    type: "https://ontw-objecten.example.nl/api/v2/objecttypes/REP_CONTACT_AFDELING_UUID_REP"
     typeVersion: 1
 
   groep:
     # Aanname: uuid van objecttype wordt gemeentespecifiek vervangen door Replacementscripts
     uuid: "REP_CONTACT_GROEP_UUID_REP"
-    type: "https://ontw-objecttypen.example.nl/api/v2/objecttypes/REP_CONTACT_GROEP_UUID_REP"
+    type: "https://ontw-objecten.example.nl/api/v2/objecttypes/REP_CONTACT_GROEP_UUID_REP"
     typeVersion: 1
 
   # ITA 3.2.0 adds the Medewerker-objecttype (two new required values). Gemeente
@@ -3280,7 +3229,7 @@ ita:
   medewerker:
     # Aanname: uuid van objecttype wordt gemeentespecifiek vervangen door Replacementscripts
     uuid: "REP_CONTACT_MEDEWERKER_UUID_REP"
-    type: "https://ontw-objecttypen.example.nl/api/v2/objecttypes/REP_CONTACT_MEDEWERKER_UUID_REP"
+    type: "https://ontw-objecten.example.nl/api/v2/objecttypes/REP_CONTACT_MEDEWERKER_UUID_REP"
     typeVersion: 1
 
   smtp:
@@ -3775,8 +3724,7 @@ mi:
       # Chart subchart is "opennotificaties" but its K8s resources are named "notificaties".
       secretName: notificaties
       configMapName: notificaties
-    - component: objecten
-    - component: objecttypen
+    - component: objecten # covers what used to be the separate "objecttypen" target too, post-merge
     - component: openarchiefbeheer
     - component: openklant
     - component: openformulieren

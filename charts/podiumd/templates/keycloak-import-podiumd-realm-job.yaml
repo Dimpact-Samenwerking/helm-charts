@@ -17,7 +17,7 @@
      NOT included in the hash — they would make the suffix unstable between renders. */ -}}
 {{- $realmCfgTpl := include (print $.Template.BasePath "/keycloak-podiumd-realm-config.yaml") . -}}
 {{- $oidcInputs := list -}}
-{{- range $comp := list "openzaak" "opennotificaties" "objecten" "objecttypen" "openarchiefbeheer" "openklant" "openformulieren" "openinwoner" "referentielijsten" "openbeheer" "openbao" -}}
+{{- range $comp := list "openzaak" "opennotificaties" "objecten" "openarchiefbeheer" "openklant" "openformulieren" "openinwoner" "referentielijsten" "openbeheer" "openbao" -}}
 {{- $cfg := index $.Values $comp "configuration" | default dict -}}
 {{- $secs := index $cfg "secrets" | default dict -}}
 {{- $kcs := index $secs "keycloak_client_secret" | default "" -}}
@@ -180,11 +180,6 @@ spec:
             secretKeyRef:
               name: keycloak-podiumd-realm-secrets
               key: objecten-oidc-secret
-        - name: KC_SECRET_OBJECTTYPEN
-          valueFrom:
-            secretKeyRef:
-              name: keycloak-podiumd-realm-secrets
-              key: objecttypen-oidc-secret
         - name: KC_SECRET_OPENKLANT
           valueFrom:
             secretKeyRef:

@@ -26,14 +26,11 @@ dependencies:
     version: 2.0.0
     repository: "@maykinmedia"
     condition: opennotificaties.enabled
-  - name: objecten
-    version: 2.12.1
+  - name: openobject
+    version: 1.1.1
     repository: "@maykinmedia"
     condition: objecten.enabled
-  - name: objecttypen
-    version: 1.6.1
-    repository: "@maykinmedia"
-    condition: objecttypen.enabled
+    alias: objecten
   - name: openarchiefbeheer
     version: 2.0.0
     repository: "@maykinmedia"

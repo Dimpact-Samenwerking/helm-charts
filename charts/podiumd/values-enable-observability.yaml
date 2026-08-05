@@ -62,16 +62,6 @@ objecten:
       metricExportInterval: 60000
       metricExportTimeout: 10000
 
-objecttypen:
-  settings:
-    otel:
-      disabled: false
-      exporterOtlpEndpoint: *otelEndpoint
-      exporterOtlpProtocol: grpc
-      exporterOtlpMetricsInsecure: true
-      metricExportInterval: 60000
-      metricExportTimeout: 10000
-
 openinwoner:
   settings:
     otel:

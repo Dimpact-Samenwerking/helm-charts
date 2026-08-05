@@ -10,7 +10,6 @@
   (dict "name" "openarchiefbeheer" "pkce" .Values.openarchiefbeheer.configuration.pkceEnabled "data" .Values.openarchiefbeheer.configuration.data)
   (dict "name" "opennotificaties"  "pkce" .Values.opennotificaties.configuration.pkceEnabled  "data" .Values.opennotificaties.configuration.data)
   (dict "name" "objecten"          "pkce" .Values.objecten.configuration.pkceEnabled          "data" .Values.objecten.configuration.data)
-  (dict "name" "objecttypen"       "pkce" .Values.objecttypen.configuration.pkceEnabled       "data" .Values.objecttypen.configuration.data)
   (dict "name" "openklant"         "pkce" .Values.openklant.configuration.pkceEnabled         "data" .Values.openklant.configuration.data)
   (dict "name" "openformulieren"   "pkce" .Values.openformulieren.configuration.pkceEnabled   "data" .Values.openformulieren.configuration.data)
   (dict "name" "openinwoner"       "pkce" .Values.openinwoner.configuration.pkceEnabled       "data" .Values.openinwoner.configuration.data)
@@ -441,46 +440,6 @@ data:
               claim.name: "groups"
               jsonType.label: "String"
               usermodel.clientRoleMapping.clientId: "objecten"
-      - clientId: objecttypen
-        name: Objecttypen
-        enabled: true
-        clientAuthenticatorType: client-secret
-{{- if .Values.objecttypen.configuration.pkceEnabled }}
-        pkceCodeChallengeMethod: S256
-{{- end }}
-        redirectUris:
-          - "{{ .Values.objecttypen.configuration.oidcUrl | trimSuffix "/" }}/*"
-        webOrigins:
-          - "{{ .Values.objecttypen.configuration.oidcUrl | trimSuffix "/" }}/*"
-        secret: $(KC_SECRET_OBJECTTYPEN)
-        protocolMappers:
-          - name: "username"
-            protocol: "openid-connect"
-            protocolMapper: oidc-usermodel-property-mapper
-            config:
-              introspection.token.claim: "true"
-              userinfo.token.claim: "true"
-              user.attribute: "username"
-              id.token.claim: "true"
-              lightweight.claim: "false"
-              access.token.claim: "true"
-              claim.name: "preferred_username"
-              jsonType.label: "String"
-          - name: "client roles"
-            protocol: "openid-connect"
-            protocolMapper: "oidc-usermodel-client-role-mapper"
-            consentRequired: false
-            config:
-              introspection.token.claim: "true"
-              multivalued: "true"
-              userinfo.token.claim: "false"
-              user.attribute: "foo"
-              id.token.claim: "true"
-              lightweight.claim: "false"
-              access.token.claim: "true"
-              claim.name: "groups"
-              jsonType.label: "String"
-              usermodel.clientRoleMapping.clientId: "objecttypen"
       - clientId: openklant
         name: Open Klant
         enabled: true
@@ -1058,8 +1017,6 @@ data:
           - name: administrators
         objecten:
           - name: administrators
-        objecttypen:
-          - name: administrators
         openzaak:
           - name: administrators
         opennotificaties:
@@ -1122,8 +1079,6 @@ data:
           monitoring:
             - "admin"
           objecten:
-            - "administrators"
-          objecttypen:
             - "administrators"
           openzaak:
             - "administrators"
