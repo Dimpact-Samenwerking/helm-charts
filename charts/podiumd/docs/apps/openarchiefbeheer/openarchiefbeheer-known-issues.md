@@ -46,7 +46,7 @@ Schema probed live from `acrprodmgmt.azurecr.io/openarchiefbeheer:2.0.0`:
 
 Neither model declares `oidc_use_pkce`. Pydantic's default config rejects unknown fields → `extra_forbidden`. The `options` dict is free-form (`dict[str, Any]`) but `AdminOIDCConfigurationStep` does not consume PKCE keys from there — putting them under `options` is silently ignored.
 
-**The field has no valid YAML location in OAB 2.0.0.** Other Maykin/Django apps (openzaak, openformulieren, openklant, opennotificaties, objecten, objecttypen) accept `oidc_use_pkce` at item level — only OAB rejects it for now, because its `mozilla-django-oidc-db` is pinned to 1.1.1 instead of a newer release that adds PKCE to the schema.
+**The field has no valid YAML location in OAB 2.0.0.** Other Maykin/Django apps (openzaak, openformulieren, openklant, opennotificaties, objecten) accept `oidc_use_pkce` at item level — only OAB rejects it for now, because its `mozilla-django-oidc-db` is pinned to 1.1.1 instead of a newer release that adds PKCE to the schema.
 
 ### Affected versions
 

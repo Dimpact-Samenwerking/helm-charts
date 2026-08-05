@@ -25,9 +25,11 @@ Footprint is small: short-lived weekly jobs, no always-on components.
 - **Enable flag:** `mi.enabled` (default `false` — opt-in per environment).
 - **Runtime components:**
   - `CronJob/mi-export-<component>` — one per entry in `mi.targets[]` whose
-    `<component>.enabled` is true (up to 14: openzaak, opennotificaties,
-    objecten, objecttypen, openarchiefbeheer, openklant, openformulieren,
-    openinwoner, referentielijsten, openbeheer, zac, ita, kiss, pabc).
+    `<component>.enabled` is true (up to 13: openzaak, opennotificaties,
+    objecten (now also covers what used to be the separate `objecttypen`
+    target, merged into one app), openarchiefbeheer, openklant,
+    openformulieren, openinwoner, referentielijsten, openbeheer, zac, ita,
+    kiss, pabc).
     Default schedule `0 2 * * 0` (Sunday 02:00 Europe/Amsterdam),
     `concurrencyPolicy: Forbid`, jobs auto-cleaned after 24 h
     (`ttlSecondsAfterFinished: 86400`). No Deployments, StatefulSets or

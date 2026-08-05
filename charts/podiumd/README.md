@@ -250,7 +250,7 @@ Kanalen will only be added to Open Notificaties during Helm install, not on Helm
 | global.configuration.openzaakNotificatiesClientId | ClientId used by Open Zaak to send notifications                            | `openzaak`                                                      |
 | global.configuration.openzaakNotificatiesSecret   | Secret used by Open Zaak to send notifications                              | `openzaak-secret`                                               |
 | global.imageRegistry                              | Image registry used by Keycloak, Redis, RabitMQ and Elastic                 | `""`                                                            |
-| global.settings.databaseHost                      | Database host used bij objecten, objecttypen, openinwoner, opennotificaties | `""`                                                            |
+| global.settings.databaseHost                      | Database host used bij objecten, openinwoner, opennotificaties | `""`                                                            |
 
 ### keycloak-operator
 
@@ -489,52 +489,13 @@ The deprecated Bitnami `keycloak` sub-chart (`keycloak.enabled`) is kept for rol
 | objecten.redis.master.persistence.storageClass     | Redis master persistence storage class                                                                                                                | `""`                                 |
 | objecten.redis.master.nodeSelector                 | Redis node labels for pod assignment. Evaluated as a template                                                                                         | `{}`                                 |
 
-### Objecttypen
-
-| Name                                              | Description                                                                                         | Value                                   |
-|---------------------------------------------------|-----------------------------------------------------------------------------------------------------|-----------------------------------------|
-| objecttypen.enabled                               | Boolean to override the installation of objecttypen                                                 |                                         |
-| objecttypen.configuration.data | string | `""` |  |
-| objecttypen.configuration.enabled | bool | `true` |  |
-| objecttypen.configuration.initContainer.enabled | bool | `false` |  |
-| objecttypen.configuration.job.backoffLimit | int | `6` |  |
-| objecttypen.configuration.job.enabled | bool | `true` |  |
-| objecttypen.configuration.job.resources | object | `{}` |  |
-| objecttypen.configuration.job.restartPolicy | string | `"OnFailure"` |  |
-| objecttypen.configuration.job.ttlSecondsAfterFinished | int | `0` |  |
-| objecttypen.configuration.oidcSecret | string | `"<objecttypen>"` |  |
-| objecttypen.configuration.oidcUrl | string | `"https://objecttypen.example.nl"` |  |
-| objecttypen.configuration.secrets | object | `{}` |  |
-| objecttypen.configuration.token | string | `"<token>"` |  |
-| objecttypen.settings.allowedHosts                 | List if allowed hostnames<br/>(i.e. "objecttypen.example.nl,objecttypen.podiumd.svc.cluster.local") | `objecttypen.podiumd.svc.cluster.local` |
-| objecttypen.settings.database.host                | Database host. Overides global.settings.databaseHost                                                | `""`                                    |
-| objecttypen.settings.database.port                | Database port                                                                                       | `5432`                                  |
-| objecttypen.settings.database.name                | Database name                                                                                       | `""`                                    |
-| objecttypen.settings.database.username            | Database username                                                                                   | `""`                                    |
-| objecttypen.settings.database.password            | Database user password                                                                              | `""`                                    |
-| objecttypen.settings.database.sslmode             | Database SSL mode                                                                                   | `prefer`                                |
-| objecttypen.settings.email.host                   | Email host                                                                                          | `localhost`                             |
-| objecttypen.settings.email.port                   | Email port                                                                                          | `587`                                   |
-| objecttypen.settings.email.username               | Email username                                                                                      | `""`                                    |
-| objecttypen.settings.email.password               | Email user password                                                                                 | `""`                                    |
-| objecttypen.settings.email.useTLS                 | Email use TLS                                                                                       | `true`                                  |
-| objecttypen.settings.secretKey                    | Django secret key. Generate secret key at https://djecrety.ir/                                      | `""`                                    |
-| objecttypen.settings.environment                  | Sets the `ENVIRONMENT` variable                                                                     | `""`                                    |
-| objecttypen.settings.debug                        | Enable debug mode                                                                                   | `false`                                 |
-| objecttypen.settings.sentry.dsn                   | Url to Sentry (i.e https://sentry.example.com/111)                                                  | `""`                                    |
-| objecttypen.image.repository                      | Image repository                                                                                    | `maykinmedia/objecttypes-api`           |
-| objecttypen.image.tag                             | Image tag                                                                                           | `2.2.2`                                 |
-| objecttypen.image.pullPolicy                      | Image pull policy                                                                                   | `IfNotPresent`                          |
-| objecttypen.nodeSelector                          | Node labels for pod assignment. Evaluated as a template                                             | `{}`                                    |
-| objecttypen.resources                             | Container requests and limits                                                                       | See values.yaml                         |
-| objecttypen.redis.image.registry                  | Redis image registry                                                                                | `docker.io`                             |
-| objecttypen.redis.image.repository                | Redis image repository                                                                              | `bitnami/redis`                         |
-| objecttypen.redis.image.tag                       | Redis image tag                                                                                     | `7.0.5-debian-11-r25`                   |
-| objecttypen.redis.image.pullPolicy                | Redis image pul policy                                                                              | `IfNotPresent`                          |
-| objecttypen.redis.master.persistence.enabled      | Redis master persistence enabled                                                                    | `true`                                  |
-| objecttypen.redis.master.persistence.size         | Redis master persistence size                                                                       | `"8Gi"`                                 |
-| objecttypen.redis.master.persistence.storageClass | Redis master persistence storage class                                                              | `""`                                    |
-| objecttypen.redis.master.nodeSelector             | Redis node labels for pod assignment. Evaluated as a template                                       | `{}`                                    |
+> **TODO**: the `objecten.*` table above still reflects the pre-merge schema
+> (former separate `objecten`/`objecttypen` charts) and needs a full
+> regeneration against the merged chart's actual values.yaml schema (see
+> `docs/apps/objecten/openobject-migration.md`, section C, for the old-key → new-key mapping in
+> the meantime). The former `### Objecttypen` section has been removed here
+> since that chart dependency no longer exists post-merge — see
+> `docs/apps/objecten/objecten-BASICS.md` for the merged component.
 
 ### Open Archiefbeheer
 

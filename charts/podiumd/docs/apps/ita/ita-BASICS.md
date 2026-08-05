@@ -99,9 +99,11 @@ disabled bundled PostgreSQL).
 - **Open Zaak** — client `ita` + secret:
   `ita.apiConnections.zaakSysteem.{baseUrl,clientId,key}`
   (`REP_OPENZAAK_CREDENTIALS_ITA_SECRET_REP`).
-- **Objecttypen** — four objecttypes must exist and be referenced by URL +
-  UUID (per-gemeente UUIDs come from the replacement scripts; the
-  `create-required-objecttypen` job creates the types):
+- **Objecttypes** — since the objecten/objecttypen merge, objecttypes are local
+  data inside Objecten itself (no longer a separate Objecttypen API/component —
+  see `docs/apps/objecten/openobject-migration.md`). Four objecttypes must exist and be
+  referenced by URL + UUID (per-gemeente UUIDs come from the replacement
+  scripts; the `create-required-objecttypen` job creates the types):
   - `ita.logboek` (Activiteitenlog), `ita.afdeling`, `ita.groep`,
     `ita.medewerker`.
   - `ita.medewerker` is **new and required since ITA 3.2.0** —
@@ -156,8 +158,9 @@ production; no increase flagged.
    and an Autorisaties client `ita` + secret in Open Zaak; fill
    `ita.apiConnections.*`.
 5. **Objecttypes** — make sure the Activiteitenlog, Afdeling, Groep and
-   Medewerker objecttypes exist in Objecttypen (the
-   `create-required-objecttypen` job creates them) and set the four
+   Medewerker objecttypes exist in Objecten (local data since the
+   objecten/objecttypen merge; the `create-required-objecttypen` job creates
+   them) and set the four
    `ita.{logboek,afdeling,groep,medewerker}` blocks with the
    environment-specific objecttype URLs/UUIDs. `ita.medewerker.type` is
    mandatory — the render fails without it.

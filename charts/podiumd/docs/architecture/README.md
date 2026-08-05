@@ -25,8 +25,7 @@ C4Context
         System_Boundary(registers, "Common Ground componenten") {
             System(OpenKlant, "Open Klant")
             System(OpenZaak, "Open Zaak")
-            System(Objecten, "Objecten")
-            System(Objecttypen, "Objecttypen")
+            System(Objecten, "Objecten (merged Objects+Objecttypes API)")
             System(OpenNotificaties, "Open Notificaties")
             System(Referentielijsten, "Referentielijsten")
         }
@@ -57,7 +56,7 @@ C4Context
 
     Rel(OpenInwoner, OpenKlant, "")
 
-    Rel(OpenBeheer, Objecttypen, "Beheer (API-token)")
+    Rel(OpenBeheer, Objecten, "Beheer (API-token)")
     Rel(OpenNotificaties, OMC, "Notificeer")
     Rel(OfficeAddin, OpenZaak, "Documenten")
     Rel(Zaakbrug, OpenZaak, "ZDS ↔ ZGW")

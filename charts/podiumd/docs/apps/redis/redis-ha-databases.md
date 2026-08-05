@@ -19,9 +19,9 @@ Redis Operator v0.24.0 does not include it in the main `redis.conf` automaticall
 
 | DB  | Component         | Purpose                              | values.yaml key(s)                                  |
 |-----|-------------------|--------------------------------------|-----------------------------------------------------|
-| 0   | objecttypen       | Cache (default + axes)               | `objecttypen.settings.cache.default/axes`           |
+| 0   | *(free)*          | Freed by the objecten/objecttypen merge — was objecttypen's cache DB; the merged `objecten` app (docs/apps/objecten/openobject-migration.md, H.3) uses DBs 1/2 below for both apps' former traffic | — |
 | 1   | objecten          | Cache (default + axes + oidc)        | `objecten.settings.cache.default/axes/oidc`         |
-| 2   | objecten          | Celery broker + result backend       | `objecten.settings.celery.brokerUrl/resultBackendl` |
+| 2   | objecten          | Celery broker + result backend       | `objecten.settings.celery.brokerUrl/resultBackend`  |
 | 3   | opennotificaties  | Cache (default + axes)               | `opennotificaties.settings.cache.default/axes`      |
 | 4   | openzaak          | Cache (default + axes)               | `openzaak.settings.cache.default/axes`              |
 | 5   | openzaak          | Celery broker + result backend       | `openzaak.settings.celery.brokerUrl/resultBackendl` |

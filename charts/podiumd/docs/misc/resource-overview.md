@@ -31,7 +31,6 @@ PDBs prevent all pods of a workload from being evicted simultaneously during nod
 | openinwoner | `minAvailable: 1` |
 | opennotificaties | `minAvailable: 1` |
 | objecten | `minAvailable: 1` |
-| objecttypen | `minAvailable: 1` |
 | keycloak | `minAvailable: 1` |
 | contact-web (KISS) | `minAvailable: 1` |
 
@@ -124,6 +123,10 @@ Default replicas: **2** (web), **1** (worker, beat), **1** (RabbitMQ)
 
 ## Objecten
 
+Deployed via the `openobject` chart (aliased to `objecten`), merging the former
+separate Objecten + Objecttypen deployments into one — see
+`docs/apps/objecten/objecten-BASICS.md` / `docs/apps/objecten/openobject-migration.md`.
+
 Default replicas: **2** (web), **1** (worker)
 
 | Container | CPU Request | Mem Request | CPU Limit | Mem Limit |
@@ -132,18 +135,6 @@ Default replicas: **2** (web), **1** (worker)
 | objecten-worker | 50m | 192Mi | — | — |
 
 **PDB**: Add `minAvailable: 1` for the web deployment.
-
----
-
-## Objecttypen
-
-Default replicas: **2**
-
-| Container | CPU Request | Mem Request | CPU Limit | Mem Limit |
-|-----------|-------------|-------------|-----------|-----------|
-| objecttypen | 10m | 160Mi | — | — |
-
-**PDB**: Add `minAvailable: 1`.
 
 ---
 

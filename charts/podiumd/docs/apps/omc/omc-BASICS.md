@@ -81,13 +81,15 @@ The sub-chart's own `ingress:` block stays disabled (`enabled: false`).
   credentials (`client_id` `omc`, secret = `omc.settings.zgw.auth.jwt.secret`).
 - **OpenKlant**: token auth entry (`omc.settings.zgw.auth.key.openklant`) and
   an "OMC-Notify" actor (UUID goes into `omc.settings.omc.actor.id`).
-- **Objecten / Objecttypen**: token auth entries
-  (`omc.settings.zgw.auth.key.objecten` / `.objectTypen`); Objecten needs
-  read/write permissions on the contact object types. Dummy object-type UUIDs
-  are pre-set in `omc.settings.zgw.variable.objectType.*`.
+- **Objecten** (merged with the former Objecttypen — no longer a separate
+  target): one token auth entry (`omc.settings.zgw.auth.key.objecten`),
+  needing read/write permissions on the contact object types. Dummy
+  object-type UUIDs are pre-set in `omc.settings.zgw.variable.objectType.*`
+  — unaffected by the merge, since these are UUID references, not host/token
+  fields.
 - **Service endpoints**: `omc.settings.zgw.endpoint.*` must point at the
   environment's Open Notificaties, Open Zaak (zaken + besluiten), OpenKlant,
-  Objecten and Objecttypen API URLs.
+  and Objecten API URLs.
 - **No Keycloak OIDC** for its own authentication. (The sub-chart does have
   optional `settings.keycloak.*` client-credentials and `settings.brp.*` mTLS
   fields for BRP/Haal Centraal access, and optional `settings.kto.*` for a
@@ -126,8 +128,9 @@ municipality's NotifyNL artefacts first.
    (delivered API key), `omc-auth-secret` (min 64 chars, e.g.
    `openssl rand -base64 48`), and SSC-generated
    `openzaak-credentials-omc-secret`, `openklant-credentials-omc-token`,
-   `objecten-credentials-omc-token`, `objecttypen-credentials-omc-token`
-   (`openssl rand -hex 32` each). Wire them as `REP_..._REP` substitutions in
+   `objecten-credentials-omc-token` (one token now — the former separate
+   `objecttypen-credentials-omc-token` is gone since the objecten/objecttypen
+   merge) (`openssl rand -hex 32` each). Wire them as `REP_..._REP` substitutions in
    the deployment pipeline.
 3. **Register the Worth-NL Helm repo** in the pipeline
    (`helm repo add worth-nl https://worth-nl.github.io/helm-charts`) — needed
@@ -143,8 +146,8 @@ municipality's NotifyNL artefacts first.
    a non-existent id and `message.allowed: false` — not yet supported).
 5. **Register OMC as a peer** in the ZGW services via their
    `configuration.data` blocks: Open Zaak (authorised application + credentials
-   for client `omc`), OpenKlant / Objecten / Objecttypen (tokenauth entries;
-   Objecten with read/write permissions on the contact object types).
+   for client `omc`), OpenKlant / Objecten (tokenauth entries; Objecten with
+   read/write permissions on the contact object types).
 6. **DNS + HTTPRoute**: expose service `omc` (port 80) as
    `<env>-omc.dimpact.nl` via an `hr-omc` HTTPRoute on `public-gateway`
    (environment deployment).
