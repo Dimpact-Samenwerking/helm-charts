@@ -29,4 +29,4 @@ helm template podiumd charts/podiumd \
 2. Show the rendered YAML output.
 3. If there are errors, diagnose them and suggest fixes.
 
-Note: if the template references sub-chart named templates (e.g. create-required-catalogi.yaml, create-required-objecttypen.yaml), do NOT disable openzaak/objecten/objecttypen.
+Note: if the template references sub-chart named templates (e.g. create-required-catalogi.yaml, create-required-objecttypen.yaml), do NOT disable openzaak/objecten.
