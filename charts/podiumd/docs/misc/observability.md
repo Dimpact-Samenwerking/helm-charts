@@ -13,7 +13,6 @@ This document describes how metrics and tracing are configured across the podium
 | openformulieren | `settings.otel.*` | ❌ OTEL only → collector | `values-enable-observability.yaml` |
 | opennotificaties | `settings.otel.*` | ❌ OTEL only → collector | `values-enable-observability.yaml` |
 | objecten | `settings.otel.*` | ❌ OTEL only → collector | `values-enable-observability.yaml` |
-| objecttypen | `settings.otel.*` | ❌ OTEL only → collector | `values-enable-observability.yaml` |
 | openinwoner | `settings.otel.*` | ❌ OTEL only → collector | `values-enable-observability.yaml` |
 | zac | `opentelemetry-collector.enabled` (trigger) + `opentelemetry_zaakafhandelcomponent.endpoint` + `javaOptions` | ❌ OTEL only → collector | `values-enable-observability.yaml` |
 | keycloak | `additionalOptions: metrics-enabled` | ✅ ServiceMonitor port 9000 `/metrics` (auto by keycloak-operator) | built-in |
