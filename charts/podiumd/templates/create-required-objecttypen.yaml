@@ -1,24 +1,27 @@
-{{- if .Values.objecttypen.enabled }}
-{{- if .Values.objecttypen.configuration.enabled }}
-{{- if .Values.objecttypen.create_required_objecttypen_job.enabled }}
+{{- if .Values.objecten.enabled }}
+{{- if .Values.objecten.configuration.enabled }}
+{{- if .Values.objecten.create_required_objecttypen_job.enabled }}
 apiVersion: v1
 kind: Secret
 metadata:
   name: create-required-objecttypen-secret
   labels:
-    {{- include "objecttypen.labels" . | nindent 4 }}
+    {{- include "openobject.labels" . | nindent 4 }}
 type: Opaque
 stringData:
-  authorization-token: {{ .Values.objecttypen.configuration.token | quote }}
+  # H.5: admin token now comes from a `tokenauth` item with `is_superuser: true`
+  # (see values.yaml, objecten.configuration.data / .secrets), replacing the old
+  # plain objecttypen.configuration.token field which no longer exists.
+  authorization-token: {{ .Values.objecten.configuration.secrets.create_required_objecttypen_token | quote }}
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: create-required-objecttypen-configmap
   labels:
-    {{- include "objecttypen.labels" . | nindent 4 }}
+    {{- include "openobject.labels" . | nindent 4 }}
 data:
-  OBJECTTYPES_URL: {{ printf "%s%s" .Values.objecttypen.configuration.oidcUrl "/api/v2" | quote}}
+  OBJECTTYPES_URL: {{ printf "%s%s" .Values.objecten.configuration.oidcUrl "/api/v2" | quote}}
   create-required-objecttypen.py: |
     #!/usr/local/bin/python
     import requests
@@ -108,17 +111,17 @@ kind: Job
 metadata:
   name: create-required-objecttypen-job
   labels:
-    {{- include "objecttypen.configLabels" . | nindent 4 }}
+    {{- include "openobject.configLabels" . | nindent 4 }}
 spec:
   ttlSecondsAfterFinished: 600
   template:
     spec:
       containers:
-        - image: {{ include "podiumd.image" .Values.objecttypen.image }}
+        - image: {{ include "podiumd.image" .Values.objecten.image }}
           command: ["/jobs/create-required-objecttypen.py"]
           name: create-required-objecttypen
           resources:
-            {{- toYaml .Values.objecttypen.create_required_objecttypen_job.resources | nindent 12 }}
+            {{- toYaml .Values.objecten.create_required_objecttypen_job.resources | nindent 12 }}
           securityContext:
             runAsNonRoot: true
             runAsUser: 1000
@@ -149,13 +152,13 @@ spec:
           name: jobs
         - name: tmp
           emptyDir: {}
-      {{- with .Values.objecttypen.nodeSelector }}
+      {{- with .Values.objecten.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       restartPolicy: OnFailure
-  backoffLimit: {{ .Values.objecttypen.create_required_objecttypen_job.backoffLimit | default 10 }}
-  activeDeadlineSeconds: {{ .Values.objecttypen.create_required_objecttypen_job.activeDeadlineSeconds | default 900 }}
+  backoffLimit: {{ .Values.objecten.create_required_objecttypen_job.backoffLimit | default 10 }}
+  activeDeadlineSeconds: {{ .Values.objecten.create_required_objecttypen_job.activeDeadlineSeconds | default 900 }}
 {{- end }}
 {{- end }}
 {{- end }}
