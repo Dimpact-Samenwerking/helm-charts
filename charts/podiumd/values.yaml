@@ -2914,10 +2914,10 @@ zac:
     # -- install crds using https://solr.apache.org/operator/downloads/crds/v0.10.0-prerelease/all-with-dependencies.yaml
     # -- turn functionality on/off
     enabled: true
-    # apache/solr-operator:v0.9.1@sha256:38dd9719f0f6e799d04bb8c22fb5eaca3a9fe7ffaf313c296327c6cca02f3c1d
+    # apache/solr-operator:v0.9.1@sha256:4db34508137f185d3cad03c7cf7c2b5d6533fb590822effcde9125cff5a90aa2
     image:
       #repository:
-      tag: v0.9.1@sha256:38dd9719f0f6e799d04bb8c22fb5eaca3a9fe7ffaf313c296327c6cca02f3c1d
+      tag: v0.9.1@sha256:4db34508137f185d3cad03c7cf7c2b5d6533fb590822effcde9125cff5a90aa2
     nodeSelector: {}
     resources:
       requests:
@@ -2930,10 +2930,10 @@ zac:
       busyBoxImage: *busyboxImage
       # -- set enabled to provision solrcloud as well
       enabled: true
-      # library/solr:9.10.1-slim@sha256:c45d9d93d74d6a5e996120ab7120cdfc531debbc59bd3d6a6736fe240cee9be0
+      # library/solr:9.10.1-slim@sha256:38dd9719f0f6e799d04bb8c22fb5eaca3a9fe7ffaf313c296327c6cca02f3c1d
       image:
         #repository:
-        tag: 9.10.1-slim@sha256:c45d9d93d74d6a5e996120ab7120cdfc531debbc59bd3d6a6736fe240cee9be0
+        tag: 9.10.1-slim@sha256:38dd9719f0f6e799d04bb8c22fb5eaca3a9fe7ffaf313c296327c6cca02f3c1d
       # -- define memory settings for solr in the solrcloud
       javaMem: -Xms512m -Xmx768m
       jobs:
