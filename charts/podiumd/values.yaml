@@ -2940,11 +2940,11 @@ zac:
     mail: "noreply@example.nl"
   global:
     curlImage: *curlImage
-  # ghcr.io/infonl/zaakafhandelcomponent:5.4.1
+  # ghcr.io/infonl/zaakafhandelcomponent:5.4.2
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
-    tag: 5.4.1@sha256:86f0d76cc6d04dd47f1bc970e3d267ac296b4a157745b759402e103eaa896a21
+    tag: 5.4.2@sha256:e6645deb43c903d4f461b11052fa0ac981f6798ac6d193fd6acc07e1f9740887
   # Liveness probe uses /health/ready (not /health/live) with a high failureThreshold so
   # Kubernetes automatically restarts ZAC after extended OpenZaak/catalogus unavailability.
   # The ZGW-API-Client has no connectTimeout/readTimeout, causing stale TCP connections
