@@ -278,7 +278,7 @@
         {
           "direction": "backward",
           "editorMode": "code",
-          "expr": "sum(\n    count_over_time (\n        {app=\"opennotificaties-worker\"}\n        |= \"task_succeeded\"\n        | json event\n        | event=\"task_succeeded\"\n        [$__range]\n    )\n) or vector(0)",
+          "expr": "sum(\n    count_over_time (\n        {app=\"opennotificaties-worker\"}\n        |= \"notification_successful\"\n        | json event\n        | event=\"notification_successful\"\n        [$__range]\n    )\n) or vector(0)",
           "queryType": "range",
           "refId": "A"
         }
