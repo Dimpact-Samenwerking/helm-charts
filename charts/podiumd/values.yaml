@@ -14,7 +14,7 @@ global:
   images:
     nginx: &nginxImage
       repository: nginxinc/nginx-unprivileged
-      tag: "1.31.3@sha256:49c9bef1797e11117a7f490fd00f282e377ac402fec472c72636f90cdbf72e10"
+      tag: "1.31.3@sha256:d236224175e339a75199d10f7c1dd5d58f5ed1f7e347b13f5cf343218a1408d1"
       pullPolicy: IfNotPresent
     curl: &curlImage
       repository: curlimages/curl
@@ -1790,7 +1790,9 @@ openformulieren:
     volumeAttributeShareName: openformulieren
     storageClassName: podiumd-standard
   image:
-    tag: "3.4.10@sha256:45755696db647b0c9fecc5d2c78403dbbac0f3c962292e89dee34b405abd1d7c"
+    # bump version on karins request for testing purposes
+    #tag: "3.4.10@sha256:45755696db647b0c9fecc5d2c78403dbbac0f3c962292e89dee34b405abd1d7c"
+    tag: "3.4.11@sha256:a39a9e9b3a2df413a0b5243139604c729ba545c57dda0d80eef85296a76f58f5"
   resources:
     requests:
       cpu: 250m
@@ -2823,11 +2825,11 @@ zac:
     mail: "noreply@example.nl"
   global:
     curlImage: *curlImage
-  # ghcr.io/infonl/zaakafhandelcomponent:5.1.0
+  # ghcr.io/infonl/zaakafhandelcomponent:5.5.0
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
-    tag: 5.1.0@sha256:d833d2f3dd58eeb58335e9aff9bca67f5885fad0e6a7414003ce9a211d3dc50e
+    tag: 5.5.0@sha256:bb12411f58f155f1153ad80a094b03dfb6fb24085b1fc0aa5bba2715c4b43b1d
   # Liveness probe uses /health/ready (not /health/live) with a high failureThreshold so
   # Kubernetes automatically restarts ZAC after extended OpenZaak/catalogus unavailability.
   # The ZGW-API-Client has no connectTimeout/readTimeout, causing stale TCP connections
@@ -2883,10 +2885,10 @@ zac:
       tag: "8.34.0@sha256:67097317623a503ba2a6a7e9ae8db6929a1f7e1bbd88077bacf2d325fbdab923"
   opa:
     sidecar: true
-    # openpolicyagent/opa:1.17.1-static@sha256:c29f8ee8dbe66608a1c04e9be84b04efc46877625e6b0877e559954565209efc
+    # openpolicyagent/opa:1.19.0-static@sha256:2f42ca765bb739b40fc23ee625b3287012acdf8120ad4fcbdab68433a17be144
     image:
       #repository: openpolicyagent/opa
-      tag: "1.17.1-static@sha256:c29f8ee8dbe66608a1c04e9be84b04efc46877625e6b0877e559954565209efc"
+      tag: "1.19.0-static@sha256:2f42ca765bb739b40fc23ee625b3287012acdf8120ad4fcbdab68433a17be144"
     resources:
       requests:
         cpu: 10m
@@ -2928,10 +2930,10 @@ zac:
       busyBoxImage: *busyboxImage
       # -- set enabled to provision solrcloud as well
       enabled: true
-      # library/solr:9.10.1-slim@sha256:c45d9d93d74d6a5e996120ab7120cdfc531debbc59bd3d6a6736fe240cee9be0
+      # library/solr:9.10.1-slim@sha256:38dd9719f0f6e799d04bb8c22fb5eaca3a9fe7ffaf313c296327c6cca02f3c1d
       image:
         #repository:
-        tag: 9.10.1-slim@sha256:c45d9d93d74d6a5e996120ab7120cdfc531debbc59bd3d6a6736fe240cee9be0
+        tag: 9.10.1-slim@sha256:38dd9719f0f6e799d04bb8c22fb5eaca3a9fe7ffaf313c296327c6cca02f3c1d
       # -- define memory settings for solr in the solrcloud
       javaMem: -Xms512m -Xmx768m
       jobs:
@@ -3015,18 +3017,18 @@ zgw-office-addin:
       app: office-addin
       service_name: office-addin
   frontend:
-    # ghcr.io/infonl/zgw-office-addin-frontend:v0.9.352@sha256:bf248581519b1644ef0f0b3ecb569f80b0fcf435c58df18547bb714eb6aa4916
+    # ghcr.io/infonl/zgw-office-addin-frontend:0.11.0@sha256:9a6b3e9023b8cfba152a84dd7477e079490fc7d35562d32e0dc094be81a7f7a2
     image:
-      tag: "v0.9.352@sha256:bf248581519b1644ef0f0b3ecb569f80b0fcf435c58df18547bb714eb6aa4916"
+      tag: "0.11.0@sha256:9a6b3e9023b8cfba152a84dd7477e079490fc7d35562d32e0dc094be81a7f7a2"
     resources:
       requests:
         cpu: 50m
         memory: 64Mi
   backend:
     msalSecret: ""
-    # ghcr.io/infonl/zgw-office-addin-backend:v0.9.352@sha256:c5bf9a7beb883c7cf586a65326dacb4fc49a2eaaa08f4eb49f2faabb786b71b4
+    # ghcr.io/infonl/zgw-office-addin-backend:0.11.0@sha256:5b188e853531986e31709ed6cae130a891e0014cb267c43ac338b792c84a29ab
     image:
-      tag: "v0.9.352@sha256:c5bf9a7beb883c7cf586a65326dacb4fc49a2eaaa08f4eb49f2faabb786b71b4"
+      tag: "0.11.0@sha256:5b188e853531986e31709ed6cae130a891e0014cb267c43ac338b792c84a29ab"
     resources:
       requests:
         cpu: 100m
