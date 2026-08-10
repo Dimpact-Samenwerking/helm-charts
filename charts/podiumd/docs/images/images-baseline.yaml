@@ -237,12 +237,8 @@
   digest: "sha256:ee940d036bb2f8325f9a5153316f657fceeb24db59a23c5109d6e659daae7ac3"
 - name: openzaak/open-zaak
   url: docker.io/openzaak/open-zaak
-  version: "1.27.3"
-  digest: "sha256:b2732761c15b9b35d9a59420e01de0bd099266be96819e65be9f4e01fca11a63"
-- name: openzaak/open-zaak
-  url: docker.io/openzaak/open-zaak
-  version: "1.27.2"
-  digest: "sha256:7f4826298b1bb28aca3f1f6d18fbad52238267eafc5253c68fb067f3afe8908e"
+  version: "1.27.4"
+  digest: "sha256:f847e5148d857da07847b5d298d8d7a0b66a299fb48e02e4a28176cc09e8decf"
 - name: opstree/redis
   url: quay.io/opstree/redis
   version: "v8.6.2"

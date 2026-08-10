@@ -699,7 +699,7 @@ openzaak:
     volumeAttributeShareName: openzaak
     storageClassName: podiumd-standard
   image:
-    tag: "1.27.3@sha256:b2732761c15b9b35d9a59420e01de0bd099266be96819e65be9f4e01fca11a63"
+    tag: "1.27.4@sha256:f847e5148d857da07847b5d298d8d7a0b66a299fb48e02e4a28176cc09e8decf"
   resources:
     requests:
       cpu: 250m
