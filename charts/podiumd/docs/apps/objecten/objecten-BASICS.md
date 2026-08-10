@@ -14,12 +14,13 @@ in total under normal load.
 
 ## What it is
 
-- Upstream: [Objects API (maykinmedia/objects-api)](https://github.com/maykinmedia/objects-api),
-  a VNG-standard "Objecten API" implementation (Django/uwsgi + Celery).
-- Deployed via the `objecten` subchart (version `2.12.0`, repo `@maykinmedia`),
+- Upstream: [Objects API (maykinmedia/open-object)](https://github.com/maykinmedia/open-object)
+  (renamed from `objects-api`), a VNG-standard "Objecten API" implementation
+  (Django/uwsgi + Celery).
+- Deployed via the `objecten` subchart (version `2.12.1`, repo `@maykinmedia`),
   condition `objecten.enabled` (enabled by default — the key is unset in
   `values.yaml`, so the subchart renders).
-- Image tag: `3.6.0` (`objecten.image.tag`).
+- Image tag: `3.6.2` (`objecten.image.tag`).
 - Runtime components:
   - `objecten` — web Deployment, 2 replicas (chart default).
   - `objecten-worker` — Celery worker Deployment, 1 replica
