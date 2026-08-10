@@ -3489,6 +3489,91 @@ omc:
 frankgateway:
   enabled: false
 
+  # Gateway instances, one set of pods per traffic class. Everything outside
+  # this map is the shared default; each instance deep-merges its own overrides
+  # over it, so an instance only states what differs.
+  #
+  # The key `gateway` is the reserved single-instance default: it keeps the bare
+  # `frankgateway` object names and the `/apisix` etcd prefix, so an environment
+  # that does not opt into the split renders exactly what it did before
+  # instances existed. Any other key is suffixed (`frankgateway-<key>`) and gets
+  # its own etcd prefix (`/apisix-<key>`).
+  #
+  # All instances share the single etcd StatefulSet — APISIX in traditional mode
+  # loads exactly the objects under its own prefix, so config isolation is
+  # complete without running one etcd per instance.
+  #
+  # Split mode (per-environment opt-in) — disable `gateway` and enable the three
+  # traffic classes:
+  #
+  #   instances:
+  #     gateway:
+  #       enabled: false
+  #     inway:       # north-south, entering PodiumD (NGF -> here -> apps)
+  #       enabled: true
+  #       tls:
+  #         enabled: true
+  #       replicas: 2
+  #       dashboard:
+  #         auth:
+  #           hostname: frankgateway-inway-admin.<env>.<domain>
+  #     outway:      # PodiumD apps -> external services (BAG/KVK/BRP)
+  #       enabled: true
+  #       dashboard:
+  #         auth:
+  #           hostname: frankgateway-outway-admin.<env>.<domain>
+  #     internal:    # east-west, app-to-app inside the cluster
+  #       enabled: true
+  #       dashboard:
+  #         auth:
+  #           hostname: frankgateway-internal-admin.<env>.<domain>
+  #
+  # Per-instance overrides may set any shared key (replicas, resources, tls,
+  # admin, apiKeys, metrics, routes, dashboard, ...) plus `nameOverride` and
+  # `etcdPrefix`.
+  instances:
+    gateway:
+      enabled: true
+      # The single-instance default carries every legacy apiproxy route, so the
+      # route JSONs live in exactly one place instead of being duplicated per
+      # class. Split instances default to the directory named after their key.
+      routes:
+        dirs:
+          - outway
+          - internal
+
+  # During a single-instance -> split migration, keep serving the old
+  # `frankgateway` Service name so app values can be repointed one at a time.
+  # Renders an extra Service named `frankgateway` selecting `instance`'s pods.
+  # Only meaningful when the `gateway` instance itself is disabled.
+  serviceAlias:
+    enabled: false
+    instance: outway
+
+  # Per-traffic-class NetworkPolicies. The reason the split is worth doing: a
+  # single gateway needs the union of every class's egress (internet, cluster,
+  # backends), so no meaningful egress policy is possible. Opt-in because a
+  # cluster without a policy-enforcing CNI silently ignores these, and because
+  # existing environments must not have traffic cut on upgrade.
+  #
+  # `class` tells the chart which rule set an instance gets: inway | outway |
+  # internal. Instances with no class (the default `gateway`) get no policy.
+  networkPolicies:
+    enabled: false
+    # Namespace selector label used to match the ingress gateway namespace for
+    # `inway` instances (NGINX Gateway Fabric lives in `nginx-gateway`).
+    ingressNamespaceLabel: kubernetes.io/metadata.name
+    ingressNamespace: nginx-gateway
+    # Namespace running kube-dns/CoreDNS (egress :53 is allowed to it).
+    dnsNamespace: kube-system
+    # Namespace running prometheus (ingress to the metrics port is allowed
+    # from it when metrics.enabled).
+    monitoringNamespace: monitoring
+    # Extra cluster CIDR an `internal` instance may reach, for environments
+    # whose in-cluster destinations are not all in the release namespace.
+    # Empty => in-namespace destinations only.
+    clusterCidr: ""
+
   # Gateway (data plane + Admin API) — ghcr.io/wearefrank/frank-gateway.
   # Digest-pinned; matches docs/images/images-baseline.yaml.
   image:

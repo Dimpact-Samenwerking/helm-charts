@@ -1,0 +1,36 @@
+# Frank!Gateway split mode — layered on top of ci/lint-values.yaml so CI renders
+# the three-traffic-class shape as well as the single-instance default.
+#
+# Without this, CI would only ever exercise the `gateway` instance and a broken
+# split template could merge unnoticed.
+frankgateway:
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+  networkPolicies:
+    enabled: true
+  serviceAlias:
+    enabled: true
+    instance: outway
+  instances:
+    gateway:
+      enabled: false
+    inway:
+      enabled: true
+      replicas: 2
+      tls:
+        enabled: true
+      dashboard:
+        auth:
+          hostname: "frankgateway-inway-admin.example.nl"
+    outway:
+      enabled: true
+      dashboard:
+        auth:
+          hostname: "frankgateway-outway-admin.example.nl"
+    internal:
+      enabled: true
+      dashboard:
+        auth:
+          hostname: "frankgateway-internal-admin.example.nl"

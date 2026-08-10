@@ -933,13 +933,19 @@ data:
         standardFlowEnabled: false
         implicitFlowEnabled: false
         directAccessGrantsEnabled: false
-{{- if and .Values.frankgateway.enabled .Values.frankgateway.dashboard.enabled .Values.frankgateway.dashboard.auth.enabled }}
-      - clientId: frankgateway-dashboard
-        name: Frank!Gateway Dashboard
+{{- if .Values.frankgateway.enabled }}
+{{- /* One dashboard client per enabled gateway instance: apisix-dashboard binds
+       a single etcd prefix, so a split deployment runs one dashboard per traffic
+       class, each on its own hostname and therefore its own redirect URI. */ -}}
+{{- range $fgKey, $fgOverride := .Values.frankgateway.instances }}
+{{- $fgInst := include "podiumd.frankgateway.instanceValues" (dict "root" $ "key" $fgKey "override" $fgOverride) | fromYaml }}
+{{- if and $fgInst.enabled $fgInst.dashboard.enabled $fgInst.dashboard.auth.enabled }}
+      - clientId: {{ include "podiumd.frankgateway.oidcClientId" (dict "key" $fgKey) }}
+        name: Frank!Gateway Dashboard{{ if ne $fgKey "gateway" }} ({{ $fgKey }}){{ end }}
         description: OIDC client used by oauth2-proxy in front of the Frank!Gateway (APISIX) dashboard to authenticate operator browser sessions.
         enabled: true
         clientAuthenticatorType: client-secret
-        secret: $(KC_SECRET_FRANKGATEWAY_DASHBOARD)
+        secret: $(KC_SECRET_FRANKGATEWAY_DASHBOARD{{ if ne $fgKey "gateway" }}_{{ $fgKey | upper | replace "-" "_" }}{{ end }})
         # Standard authorization-code flow for the dashboard browser session.
         standardFlowEnabled: true
         directAccessGrantsEnabled: false
@@ -950,7 +956,7 @@ data:
         # dashboard in-cluster. dashboard.auth.hostname is required when the SSO
         # chain is enabled, so this is non-empty whenever this block is rendered.
         redirectUris:
-          - "https://{{ .Values.frankgateway.dashboard.auth.hostname }}/oauth2/callback"
+          - "https://{{ $fgInst.dashboard.auth.hostname }}/oauth2/callback"
           - "http://localhost:8080/oauth2/callback"
         webOrigins:
           - "+"
@@ -978,6 +984,8 @@ data:
               access.token.claim: "true"
               claim.name: "groups"
               full.path: "false"
+{{- end }}
+{{- end }}
 {{- end }}
     clientScopes:
       - name: roles
