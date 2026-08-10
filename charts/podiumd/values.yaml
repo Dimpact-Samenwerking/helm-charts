@@ -1991,7 +1991,7 @@ openinwoner:
     volumeAttributeShareName: openinwoner
     storageClassName: podiumd-standard
   image:
-    tag: "2.3.1"
+    tag: "2.4.2"
   resources:
     requests:
       cpu: 200m
