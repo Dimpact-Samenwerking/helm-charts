@@ -18,8 +18,9 @@ hostname for the management UI. Footprint is tiny: a single small pod.
   ([github.com/Platform-Autorisatie-Beheer-Component](https://github.com/Platform-Autorisatie-Beheer-Component)),
   developed under Dimpact/ICTU governance alongside ZAC. The subchart is
   pulled from `oci://ghcr.io/platform-autorisatie-beheer-component`
-  (chart `pabc`, version `1.1.0`).
-- Images — pinned to the ACR mirror because the pabc 1.1.0 subchart templates
+  (chart `pabc`, version `1.1.1`; container image tags are `1.1.0`, one minor
+  version behind the chart).
+- Images — pinned to the ACR mirror because the pabc 1.1.1 subchart templates
   image references literally (no `global.imageRegistry` support) and AKS
   Gatekeeper only allows `acrprodmgmt.azurecr.io/*`
   (see `docs/images/images-4.8.0.yaml`):
