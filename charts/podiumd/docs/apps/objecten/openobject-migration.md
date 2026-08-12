@@ -135,7 +135,7 @@ chart's own docs).
    of the two Django management commands involved, from
    `maykinmedia/open-object` (`src/objects/core/management/commands/`):
 
-   **`import_objecttypes <service_slug>`** — ships in `objects-api`/`objecten`
+   **`/app/src/manage.py import_objecttypes <service_slug>`** — ships in `objects-api`/`objecten`
    **3.6.0+**:
    - Takes one required arg: `service_slug` — the `zgw_consumers` `Service`
      identifier/slug already configured to point at the external Objecttypen
@@ -166,14 +166,23 @@ chart's own docs).
    `Service` pointing at `objecttypen` exists in `objecten`'s config — its
    identifier/slug is visible in the Django admin under
    *Configuration > Services* if not already known from `values.yaml`, (2)
-   run `import_objecttypes <that-service-slug>` on the upgraded (3.6.1)
+   run `/app/src/manage.py import_objecttypes <that-service-slug>` on the upgraded (3.6.1)
    `objecten` app per environment, (3) run `check_for_external_objecttypes`
    and confirm `OK` output, (4) only then proceed to the `openobject` chart
    swap. Upstream's own example invocation (`docs/manual/migration.rst`):
-   `src/manage.py import_objecttypes objecttypes-api` — worth noting the
+   `/app/src/manage.py import_objecttypes objecttypes-api` — worth noting the
    example service identifier there, `objecttypes-api`, is the exact same
    identifier already named in PodiumD's own commented `zgw_consumers`
    example in `values.yaml`, confirming the intended slug to use.
+
+   **How to actually look up `<service_slug>` per environment**: log into
+   the `objecten` Django admin and go to **Configuratie → Services**
+   (`/admin/zgw_consumers/service/`). A given environment can have one or
+   more Services configured there pointing at an Objecttypen API — use the
+   `slug` field of that entry (visible in the list view and on the detail
+   page) as `<service_slug>` in the command above. If more than one Service
+   row targets an objecttypen instance, confirm with the URL column which
+   one is the right target for that environment before picking its slug.
 
    **Found the actual dedicated migration guide** (`docs/manual/migration.rst`
    on `maykinmedia/open-object` — distinct from, and more detailed than, the
