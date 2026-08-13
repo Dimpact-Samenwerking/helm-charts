@@ -2,9 +2,10 @@
 
 ## Summary of changes
 
-One new Grafana dashboard for Frank!Gateway (APISIX). **No operator action, no
-values changes, no component version changes.** Frank!Gateway is not deployed in
-any customer environment, so this hop is a no-op everywhere today.
+Two new Grafana dashboards for Frank!Gateway (APISIX), one of them off by
+default. **No operator action, no values changes, no component version
+changes.** Frank!Gateway is not deployed in any customer environment, so this
+hop is a no-op everywhere today.
 
 > **Version numbering**: 1.0.16 is reserved by a separate in-flight change, so
 > this release takes 1.0.17.
@@ -30,15 +31,44 @@ Panels read `apisix_http_status`, `apisix_http_latency_bucket{type="request"}`,
 `up{job=~".*frankgateway.*"}`, and a Loki stream on
 `{namespace="podiumd", pod=~"frankgateway.*", container="frankgateway"}`.
 
-### Disabling it
+### New, and off: Frank!Gateway alert panels
 
-Environments that do not run Frank!Gateway can skip the dashboard:
+A second dashboard (`dashboards/frankgateway-alerts.json`, ConfigMap key
+`grafana.dashboardsConfigMaps.frankgatewayAlerts`, default `""` = **not
+rendered**) carrying threshold panels: gateways and etcd members up, 5xx and
+401/403 rates per traffic class, certificate days-to-expiry, and failed
+certificate-sync and route-seeding Jobs.
+
+**These are panels, not alerts.** Nothing fires and nothing routes: production
+alerting is Datadog, and Alertmanager is disabled in this chart
+(`alertmanager.enabled: false`), so a `PrometheusRule` added here would
+evaluate into a void and read as coverage that does not exist. The panels state
+the conditions worth alerting on, with their thresholds visible, so the Datadog
+monitors have a source and an investigation has a starting point.
+
+Turn it on where someone actually looks at Grafana:
+
+```yaml
+grafana:
+  dashboardsConfigMaps:
+    frankgatewayAlerts: "frankgateway-alerts-dashboard"
+```
+
+Two panels need metrics this chart does not itself produce: days-to-expiry
+needs cert-manager's own metrics scraped, and the Job panels need
+`kube-state-metrics` (shipped with kube-prometheus-stack). Both render empty
+rather than wrong when the metric is absent.
+
+### Disabling the dashboards
+
+Environments that do not run Frank!Gateway can skip both:
 
 ```yaml
 grafana:
   dashboardsConfigMaps:
     frankgateway: ""
+    frankgatewayAlerts: ""
 ```
 
-The provider entry is harmless when the ConfigMap is absent — Grafana simply
-finds an empty directory.
+The provider entries are harmless when the ConfigMaps are absent — Grafana
+simply finds an empty directory.

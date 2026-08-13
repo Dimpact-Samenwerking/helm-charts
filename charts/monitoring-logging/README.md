@@ -23,7 +23,7 @@ All dashboards are statically mounted via ConfigMaps (no sidecar label required)
 | Folder | Dashboards |
 |---|---|
 | `PodiumD_Monitoring_Logging` | Main monitoring, Logs viewer |
-| `PodiumD_Metrics` | Kubernetes cluster, Deployments, Traefik, Keycloak, OTel Collector, Django RED, Node Exporter Full, Redis HA, ECK/Elasticsearch, ClamAV, Frank!Gateway |
+| `PodiumD_Metrics` | Kubernetes cluster, Deployments, Traefik, Keycloak, OTel Collector, Django RED, Node Exporter Full, Redis HA, ECK/Elasticsearch, ClamAV, Frank!Gateway, Frank!Gateway alert panels (off by default) |
 
 ## Documentation
 
@@ -155,7 +155,16 @@ helm repo add opentelemetry https://open-telemetry.github.io/opentelemetry-helm-
 | grafana.dashboardProviders."dashboardproviders.yaml".providers[5].orgId | int | `1` |  |
 | grafana.dashboardProviders."dashboardproviders.yaml".providers[5].type | string | `"file"` |  |
 | grafana.dashboardProviders."dashboardproviders.yaml".providers[5].updateIntervalSeconds | int | `30` |  |
-| grafana.dashboardsConfigMaps | object | `{"default":"logging-main-dashboard","frankgateway":"frankgateway-dashboard","logs":"logging-logs","meta":"meta","metrics":"monitoring-metrics-dashboards","metrics-node":"monitoring-metrics-dashboards-node"}` | Dashboard opgenomen in ConfigMap |
+| grafana.dashboardProviders."dashboardproviders.yaml".providers[6].allowUiUpdates | bool | `true` |  |
+| grafana.dashboardProviders."dashboardproviders.yaml".providers[6].disableDeletion | bool | `false` |  |
+| grafana.dashboardProviders."dashboardproviders.yaml".providers[6].editable | bool | `true` |  |
+| grafana.dashboardProviders."dashboardproviders.yaml".providers[6].folder | string | `"PodiumD_Metrics"` |  |
+| grafana.dashboardProviders."dashboardproviders.yaml".providers[6].name | string | `"frankgateway-alerts"` |  |
+| grafana.dashboardProviders."dashboardproviders.yaml".providers[6].options.path | string | `"/var/lib/grafana/dashboards/frankgateway-alerts"` |  |
+| grafana.dashboardProviders."dashboardproviders.yaml".providers[6].orgId | int | `1` |  |
+| grafana.dashboardProviders."dashboardproviders.yaml".providers[6].type | string | `"file"` |  |
+| grafana.dashboardProviders."dashboardproviders.yaml".providers[6].updateIntervalSeconds | int | `30` |  |
+| grafana.dashboardsConfigMaps | object | `{"default":"logging-main-dashboard","frankgateway":"frankgateway-dashboard","frankgatewayAlerts":"","logs":"logging-logs","meta":"meta","metrics":"monitoring-metrics-dashboards","metrics-node":"monitoring-metrics-dashboards-node"}` | Dashboard opgenomen in ConfigMap |
 | grafana.datasources."datasources.yaml".apiVersion | int | `1` |  |
 | grafana.datasources."datasources.yaml".datasources[0].access | string | `"proxy"` |  |
 | grafana.datasources."datasources.yaml".datasources[0].editable | bool | `true` |  |
