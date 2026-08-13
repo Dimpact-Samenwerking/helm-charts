@@ -367,6 +367,18 @@ run at 2 each, etcd at 3 — so the floor with all dashboards on is 27 pods, and
 comes to roughly **1.0 CPU and 4.1Gi of requests** with every dashboard on, and
 **0.75 CPU / 2.8Gi** with them off.
 
+A fresh install on jim00 (2026-08-14, first deploy of this chart) settled at
+95–116Mi per gateway, 3–45Mi per etcd member, and single-digit Mi for the
+dashboard chain — comfortably inside every request above, with no OOMKill and
+no eviction. That is an idle figure and says nothing the 375Mi peak does not
+already say; it is recorded only because it is the first evidence that the
+three-class footprint fits on a node without the kubelet intervening.
+
+Sizing this way is what makes a cluster grow on first install: NAP took jim00
+from 2 nodes to 9 to fit the new requests alongside the rest of PodiumD. That
+is the intended behaviour, not a fault, but it means the first deploy into a
+fixed-size cluster needs the headroom checked in advance.
+
 These are still QA numbers. Nothing here has been measured against production
 traffic, and the gateway CPU request in particular is a placeholder for
 evidence that does not exist yet — revisit after a production environment has
