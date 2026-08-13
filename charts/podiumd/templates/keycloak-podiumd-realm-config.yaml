@@ -1076,6 +1076,7 @@ data:
           - name: {{ .Values.openbao.configuration.uploadersRole | quote }}
         kiss:
           - name: Redacteur
+          - name: Beheerder
           - name: Klantcontactmedewerker
           - name: Kennisbank
         zac:

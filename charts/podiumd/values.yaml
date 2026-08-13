@@ -2487,7 +2487,7 @@ kiss:
   image:
     #   repository: "ghcr.io/klantinteractie-servicesysteem/kiss-frontend"
     pullPolicy: IfNotPresent
-    tag: 2.2.4
+    tag: 3.0.0
   enabled: true
   nameOverride: contact
   fullnameOverride: contact
@@ -2540,11 +2540,9 @@ kiss:
       port: 587
       username: ""
 
-    enterpriseSearch:
-      baseUrl: ""
-      privateApiKey: ""
-      publicApiKey: ""
-      engine: "kiss-engine"
+    # KISS 3.0.0 verwijderde het enterpriseSearch-blok (baseUrl, engine,
+    # publicApiKey, privateApiKey). KISS bevraagt de Elasticsearch-indices
+    # (search-*) nu rechtstreeks. Haal die sleutels ook uit de gemeente-values.
 
     feedback:
       emailFrom: ""
@@ -2594,6 +2592,11 @@ kiss:
       medewerkerIdentificatie:
         claim: samaccountname
         truncate:
+      # -- Rolnamen zoals ze in de podiumd-realm staan (client kiss). KISS 3.0.0
+      # splitst de redacteursrol in REDACTEUR en BEHEERDER; de realm-config in
+      # templates/keycloak-podiumd-realm-config.yaml levert beide rollen.
+      redacteurRole: "Redacteur"
+      beheerderRole: "Beheerder"
 
     organisatieIds: []
 
@@ -2643,7 +2646,20 @@ kiss:
     syncJobs:
       image:
         # repository: "ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync"
-        tag: "0.3.3"
+        tag: "3.0.0"
+        pullPolicy: IfNotPresent
+      # -- Elastic Open Crawler, vervangt de Enterprise Search web crawler.
+      # Draait als CronJob per site uit syncJobs.website en schrijft
+      # rechtstreeks naar Elasticsearch.
+      crawlerImage:
+        repository: "docker.elastic.co/integrations/crawler"
+        tag: "1.0.0"
+        pullPolicy: IfNotPresent
+      # -- pre-install/pre-upgrade hook die het search-website* index-template
+      # in Elasticsearch registreert. Heeft alleen curl nodig.
+      indexTemplateImage:
+        repository: "curlimages/curl"
+        tag: "8.20.0"
         pullPolicy: IfNotPresent
       kennisbank:
         baseUrl: ""
