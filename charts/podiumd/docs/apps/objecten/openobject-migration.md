@@ -506,11 +506,14 @@ redirect-URI/client-name churn for existing gemeente realms.
 2. ~~**Which public hostname survives**~~ — **RESOLVED**: the existing
    `<env>-objecten...` hostname survives unchanged (consistent with H.1: the
    merge keeps the `objecten` identity everywhere, including externally);
-   `<env>-objecttypen...` is retired and needs a redirect/deprecation notice
-   for any external bookmarks or integrations. `settings.siteDomain` (now
-   required) is set to the surviving `objecten` hostname. **Checked upstream
-   for guidance — there is none** (confirmed against `docs/manual/migration.rst`,
-   `docs/installation/config.rst`, and
+   `<env>-objecttypen...` is retired. Per the DNS/CNAME investigation
+   (IN-2597): add a DNS **CNAME record for `<env>-objecttypen.dimpact.nl`
+   pointing at `<env>-objecten.dimpact.nl`** (its replacement host) per
+   environment, so external bookmarks/integrations still hitting the old
+   hostname keep resolving once `objecttypen`'s own HTTPRoute is removed.
+   `settings.siteDomain` (now required) is set to the surviving `objecten`
+   hostname. **Checked upstream for guidance — there is none** (confirmed
+   against `docs/manual/migration.rst`, `docs/installation/config.rst`, and
    `docs/installation/deployment/kubernetes.rst`) — this was purely a
    PodiumD/team decision, made in favor of `objecten` for consistency with H.1.
 3. ~~**Redis DB index**~~ — **RESOLVED**: keep `objecten`'s existing indices
@@ -574,7 +577,9 @@ All H.1–H.7 design decisions are now resolved; nothing left in this category.
 - [x] ~~H.2 — Which public hostname survives~~ — **RESOLVED**: the existing
       `<env>-objecten...` hostname survives; `<env>-objecttypen...` is
       retired. Implemented in `patches/02-values-yaml.patch`
-      (`settings.siteDomain`).
+      (`settings.siteDomain`). **Retired-hostname redirect resolved by
+      IN-2597**: DNS CNAME from `<env>-objecttypen.dimpact.nl` to
+      `<env>-objecten.dimpact.nl` per environment.
 - [x] ~~H.3 — Which Redis DB index to keep~~ — **RESOLVED**: keep objecten's
       (DB 1 cache / DB 2 celery), freeing objecttypen's old DB 0. Implemented
       in `patches/02-values-yaml.patch` and `patches/10-docs-redis-ha-databases.patch`.
