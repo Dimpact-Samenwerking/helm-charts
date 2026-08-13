@@ -9,7 +9,7 @@
 #      Repository names (zgw-office-addin-{frontend,backend}) unchanged from 4.8.2.
 #   3. ITA 3.2.0 -> 3.3.0 (chart internetaakafhandeling 3.2.0 -> 3.3.0), web and
 #      poller. No new images, tag bumps only.
-#   3. KISS 2.2.4 -> 3.0.0 (kiss-chart 2.2.4 -> 3.0.0), kiss-elastic-sync 0.3.3 ->
+#   4. KISS 2.2.4 -> 3.0.0 (kiss-chart 2.2.4 -> 3.0.0), kiss-elastic-sync 0.3.3 ->
 #      3.0.0. Enterprise Search is gone: the Elastic Open Crawler now runs as a
 #      CronJob per site, and curl registers the search-website* index template in
 #      a pre-install/pre-upgrade hook.
@@ -50,6 +50,7 @@
   url: ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller
   version: "3.3.0"
   digest: "sha256:7690650687047c43f08c4f8320b77d821d3551d18478de9a600a2f828600c865"
+
 # KISS — 2.2.4 -> 3.0.0
 - name: klantinteractie-servicesysteem/kiss-frontend
   url: ghcr.io/klantinteractie-servicesysteem/kiss-frontend
