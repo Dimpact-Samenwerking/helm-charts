@@ -143,61 +143,45 @@ frankgateway:
         enabled: true        # front door re-encrypts; see "Certificate on the
                              # internal hop" in frankgateway-BASICS.md for
                              # issuing and renewing it
-      dashboard:
-        auth:
-          hostname: frankgateway-inway-admin.<env>.<domain>
-    outway:
-      dashboard:
-        auth:
-          hostname: frankgateway-outway-admin.<env>.<domain>
-    internal:
-      dashboard:
-        auth:
-          hostname: frankgateway-internal-admin.<env>.<domain>
 ```
+
+That is the whole of it. Dashboards are off, so no hostnames, no Keycloak
+clients and no Ingresses are needed to run the gateway — see below for turning
+one on when an investigation needs it.
 
 Anything not stated per instance is inherited from the shared `frankgateway`
 block, so an instance only declares what differs. A class an environment has no
 use for is switched off with `enabled: false` — an environment making no calls
 to national registries needs no outway.
 
-Each dashboard needs its **own** hostname: they are separate Ingresses and
-separate oauth2-proxy redirect URIs. Two instances claiming one hostname fails
-the render rather than producing two Ingresses that fight over it.
-
 ### Turning dashboards on and off
 
-Dashboards are meant to be switched on for debugging and testing and off the
-rest of the time — they are the largest part of the footprint (six of the eight
-pods per class, once everything runs at two replicas), and nothing else depends
-on them. The route-seeding
-Job talks to the Admin API directly, so a class with no dashboard is fully
-managed and fully observable; you just have no GUI for it.
+**Dashboards are off by default.** They are the largest part of the footprint —
+six of the eight pods per class once everything runs at two replicas — and
+nothing else depends on them: the route-seeding Job talks to the Admin API
+directly, so a class with no dashboard is fully managed and fully observable.
+You simply have no GUI for it.
 
-**All dashboards off** — one line in the shared block, inherited by every
-instance:
-
-```yaml
-frankgateway:
-  dashboard:
-    enabled: false
-```
+Switch one on for as long as an investigation needs it, then off again. Every
+hour it runs is an hour a browser-reachable admin surface exists for a component
+that otherwise has none.
 
 **One dashboard on, the rest off** — the per-instance value wins over the
 shared one, in either direction:
 
 ```yaml
 frankgateway:
-  dashboard:
-    enabled: false          # fleet default: no GUI
   instances:
     inway:
-      enabled: true
       dashboard:
-        enabled: true       # ...except this one
+        enabled: true       # off everywhere else, on here
         auth:
           hostname: frankgateway-inway-admin.<env>.<domain>
 ```
+
+Each dashboard needs its **own** hostname: they are separate Ingresses and
+separate oauth2-proxy redirect URIs. Two instances claiming one hostname fails
+the render rather than producing two Ingresses that fight over it.
 
 **A dashboard for debugging, with no hostname to arrange.** Turning SSO off
 drops the oauth2-proxy and shim as well, so there is no ingress, no certificate
@@ -269,6 +253,36 @@ per class.
 **Deploy tooling reading any of these by name must name the class.** This is
 the single most common way a change appears to work and does not — see the
 jim00 lessons below.
+
+### Faults that are invisible from outside
+
+Everything in this section shares one shape: the fault produces no error where
+the fault is. Nothing crashes, no pod goes unready, and the symptom surfaces
+somewhere unrelated — usually as an authentication or TLS problem, which is
+where the next hour of debugging then goes.
+
+This is why a scripted post-deploy check matters more here than in most
+components: "all pods Running" is true in every row of this table.
+
+| Fault | Why it is invisible | What detects it |
+|---|---|---|
+| A `key-auth` route seeded before its consumer exists | Rejects every caller until the next seeding run, then fixes itself — so it reads as flakiness, which is worse than a hard failure | Auth matrix probe: no key → 401, valid key → 200 |
+| `networkPolicies.ingressNamespace` naming the NGF **control** plane namespace | Fails closed with no log line on either side, because the packet never arrives. Presents as a TLS or connectivity fault | `kubectl get pods -A \| grep gateway-nginx`, compared against the value `NOTES.txt` prints on every deploy |
+| OpenBao unreachable while the fetch is **fail-open** | The header is silently not set and the upstream answers 401 — identical to a wrong key. Fixed by `openbao.failMode: closed` (the default), which answers 503 and logs the path | Call an outway route with OpenBao deliberately stopped; expect 503, not 401 |
+| An OpenBao reader policy scoped to the wrong path, or a secret backend registered under one etcd prefix | Same 401, same reasoning — and the prefix case only affects the classes that were not registered, so two of three work | Auth matrix per class, not on one class only |
+| A renewed certificate that never reaches etcd | APISIX serves per-SNI certificates from etcd, so a valid Secret and an expired gateway coexist happily. This is the failure the ssl-sync CronJob exists to prevent | The CronJob's retained failed runs, plus `certmanager_certificate_expiration_timestamp_seconds` |
+| An internal CA the front door does not trust | Switching the issuer to OpenBao PKI changes who signed the certificate; NGF then rejects it with nothing wrong in the gateway's own logs | Add the root to the `BackendTLSPolicy` **before** switching, and probe the hop afterwards |
+| An `ExternalName` retarget the ingress controller ignores until restart | A rollback appears to succeed while changing nothing — and it is performed under incident pressure, when nobody re-checks | Resolve the name from inside a pod after the change (no longer applicable in-chart: the alias Service is gone) |
+| Deploy tooling that acts on one instance out of three | The other two keep the old token, key or route until something unrelated restarts them | Select by `app.kubernetes.io/component=frankgateway`, never by name |
+
+Two habits follow from the table, and they are cheap:
+
+- **Probe the negative case.** Every row above passes a "is it up?" check. Only
+  a probe that expects a *specific* failure (401 without a key, 503 with the
+  vault stopped) distinguishes working from broken-in-the-usual-way.
+- **Test all three classes.** Half these faults hit one class and leave the
+  others fine, so a check that exercises the outway alone reports success while
+  the inway is dark.
 
 ### Lessons from the first environment to do this (jim00)
 
@@ -366,14 +380,14 @@ takes anything down. That sets the floor:
 |---|---|
 | Three gateways | 6 |
 | etcd | 3 |
-| Three dashboards | 6 |
-| Three oauth2-proxy + shim pairs | 12 |
-| **Total, everything on** | **27** |
-| **Dashboards off on every class** | **9** |
+| **Default total — dashboards off** | **9** |
+| Three dashboards | +6 |
+| Three oauth2-proxy + shim pairs | +12 |
+| **With every dashboard on** | **27** |
 
-Dashboards are two thirds of it, and nothing depends on them: the routes hook
-Job talks to the Admin API directly. `dashboard.enabled: false` on the classes
-that need no GUI is the one big lever.
+Dashboards are two thirds of the maximum and none of the default. They ship
+off; turning all three on triples the footprint, which is the reason to turn
+them off again afterwards.
 
 etcd is three because it is raft — quorum of three is two, so it survives
 losing one member. **Two would be worse than one**: quorum of two is also two,

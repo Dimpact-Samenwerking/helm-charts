@@ -3884,7 +3884,17 @@ frankgateway:
   #
   # See docs/apps/frankgateway/frankgateway-traffic-classes.md.
   dashboard:
-    enabled: true
+    # OFF by default. On, it is 18 of the 27 pods a full gateway costs (three
+    # dashboards, three shims, three oauth2-proxies, at two replicas each), and
+    # it drags in a Keycloak client and a public hostname per class. Nothing
+    # depends on it: the routes hook Job talks to the Admin API directly, so a
+    # class with no dashboard is fully managed and fully observable — there is
+    # simply no GUI for it.
+    #
+    # Turn it on per class, for as long as an investigation needs it, and off
+    # again afterwards. Every hour it is on is an hour a browser-reachable
+    # admin surface exists for a component that does not otherwise have one.
+    enabled: false
     image:
       repository: apache/apisix-dashboard
       tag: "3.0.1-alpine"

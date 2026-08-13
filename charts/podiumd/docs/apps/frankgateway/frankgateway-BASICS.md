@@ -12,10 +12,11 @@ APISIX gateway — the same product family as ZaakBrug — and it replaces both
 the earlier experimental APISIX building block and the legacy api-proxy. It is
 optional: the chart ships it disabled. To run, it needs no database — only a
 small disk for its configuration store and, if the management screen is wanted,
-a public hostname protected by the normal PodiumD login (Keycloak). Every part
-of it runs at least twice over, so no single failure interrupts traffic:
-nine lightweight pods with the management screens off, twenty-seven with all
-three switched on.
+a public hostname protected by the normal PodiumD login (Keycloak) — and the
+management screens are off unless someone turns them on, so most environments
+never need that hostname at all. Every part of it runs at least twice over, so
+no single failure interrupts traffic: nine lightweight pods as it ships,
+twenty-seven with all three management screens switched on.
 
 Since 4.8.5 it always runs as **three separate gateways**, one per kind of
 traffic — inbound, outbound and between applications — so each can be secured,
@@ -71,8 +72,11 @@ below stands for whichever of the three is meant:
   APISIX in traditional mode loads exactly the objects beneath its configured
   prefix, so a prefix per instance (`/frankgateway-<instance>`) isolates routes,
   consumers and SSL objects without running one etcd each.
-- **frankgateway-dashboard** (Deployment) — `apache/apisix-dashboard` GUI.
-  Never exposed directly; its built-in login is bypassed server-side.
+- **frankgateway-\<class\>-dashboard** (Deployment, **off by default**) —
+  `apache/apisix-dashboard` GUI. Never exposed directly; its built-in login is
+  bypassed server-side. Switched on per class for an investigation and off
+  again afterwards: with all three on it is 18 of the 27 pods, and each brings
+  a Keycloak client and a public hostname with it.
 - **frankgateway-\<class\>-oauth2-proxy + -shim** (Deployments) — Keycloak
   SSO chain for the dashboard: oauth2-proxy (OIDC client
   `frankgateway-dashboard-<class>`, one per class, seeded via the chart realm

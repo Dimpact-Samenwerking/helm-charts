@@ -200,6 +200,12 @@ frankgateway:
   networkPolicies:
     enabled: true
     ingressNamespace: ingress-basic
+  # Dashboards default to OFF; CI turns them on so the whole SSO chain
+  # (dashboard + shim + oauth2-proxy + Keycloak client + Ingress) is rendered
+  # somewhere. ci/frankgateway-single-class-values.yaml covers the default
+  # dashboard-less shape.
+  dashboard:
+    enabled: true
   instances:
     inway:
       tls:
