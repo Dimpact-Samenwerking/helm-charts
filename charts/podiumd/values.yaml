@@ -3579,10 +3579,12 @@ frankgateway:
   # environment that matters.
   replicas: 2
   # Keep the replicas off one node, or two replicas survive a crash but not a
-  # drain. `whenUnsatisfiable: ScheduleAnyway` so a single-node dev cluster
-  # still schedules both instead of leaving one Pending. Set a list here to
-  # replace the chart's constraint entirely (per instance if needed); the
-  # default selects on that workload's own app.kubernetes.io/name.
+  # drain. Enforced with `whenUnsatisfiable: DoNotSchedule`: a replica that
+  # cannot get its own node stays Pending, which is visible, instead of
+  # silently doubling up and leaving a deployment that only looks highly
+  # available. Every environment this chart targets is multi-node. Set a list
+  # here to replace the chart's constraint entirely (per instance if needed);
+  # the default selects on that workload's own app.kubernetes.io/name.
   topologySpreadConstraints: []
   resources:
     requests:

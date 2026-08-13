@@ -358,6 +358,15 @@ etcd is three because it is raft — quorum of three is two, so it survives
 losing one member. **Two would be worse than one**: quorum of two is also two,
 so any single loss stops writes.
 
+Replicas are held on separate nodes as a **hard** requirement
+(`whenUnsatisfiable: DoNotSchedule`), so the cluster needs at least two
+schedulable nodes for the gateways and three for etcd. A replica that cannot
+get its own node stays **Pending** — deliberately: that is visible, whereas two
+replicas quietly sharing a node is a deployment that looks highly available and
+is not. With the autoscaler enabled the Pending pod is what triggers a new
+node. Override per instance with `topologySpreadConstraints` if an environment
+genuinely needs the looser behaviour.
+
 ## Related documents
 
 - [`frankgateway-BASICS.md`](frankgateway-BASICS.md) — what Frank!Gateway is,

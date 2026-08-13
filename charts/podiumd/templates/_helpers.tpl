@@ -185,9 +185,13 @@ Two replicas on the same node survive a pod crash but not a node drain, which
 is the disruption that actually happens on AKS (node image upgrades, autoscaler
 consolidation). Spread them.
 
-`whenUnsatisfiable: ScheduleAnyway` on purpose: a single-node dev cluster must
-still schedule both replicas rather than leaving one Pending forever. On a
-multi-node cluster the scheduler honours the preference.
+`whenUnsatisfiable: DoNotSchedule`, i.e. a hard requirement, not a preference:
+every environment this chart targets is multi-node, so co-located replicas are
+a fault to surface rather than a compromise to accept. A replica that cannot be
+placed on its own node stays Pending — visible, and on a cluster with the
+autoscaler enabled, a trigger to add a node. `ScheduleAnyway` would instead
+place both replicas on one node and leave a deployment that looks highly
+available and is not.
 
 An instance may replace the whole list via `topologySpreadConstraints`.
 
@@ -199,7 +203,7 @@ Usage: {{ include "podiumd.frankgateway.spread" (dict "name" $name "override" $f
 {{- else -}}
 - maxSkew: 1
   topologyKey: kubernetes.io/hostname
-  whenUnsatisfiable: ScheduleAnyway
+  whenUnsatisfiable: DoNotSchedule
   labelSelector:
     matchLabels:
       app.kubernetes.io/name: {{ .name }}
