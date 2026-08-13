@@ -209,6 +209,60 @@ supply the Secret themselves (`tls.sslSync.secretName`, keys `tls.crt` /
 reaches etcd within a day. The Secret is mounted `optional`: until it exists the
 sync logs "nothing to do" and exits 0, rather than failing the deploy.
 
+### Why the certificate is not fetched from OpenBao like the API keys are
+
+The obvious question, given that every other credential in this gateway comes
+from OpenBao at request time: why not the certificate too?
+
+**Because there is no request yet.** The API-key fetch runs in APISIX's
+`rewrite` phase, which happens after a connection is established and a request
+parsed. A server certificate has to be chosen and presented during the **TLS
+handshake**, before any of that exists. APISIX matches the incoming SNI against
+SSL objects it has already loaded from etcd; there is no request context in
+which a Lua function could go and ask OpenBao for one.
+
+APISIX's `$secret://` references do not close this gap either: they resolve
+fields in **plugin** configuration (key-auth keys, jwt secrets and the like).
+An SSL object is a core resource, not a plugin, and it is consumed at handshake
+time.
+
+So a certificate always has to be **in etcd before the connection arrives**.
+Whatever issues it, something must push it there — which is exactly what the
+sync CronJob does. Changing the source does not remove that step.
+
+### OpenBao as the source of the certificate
+
+That said, OpenBao *can* usefully be where the certificate comes from, and
+there is a real argument for it: today the private key sits in a Kubernetes
+Secret, readable by anything with `get secrets` in the namespace and present in
+cluster backups. Two ways to change that, in increasing order of effort:
+
+1. **cert-manager issues *through* OpenBao.** OpenBao runs a PKI engine and
+   cert-manager points at it with a Vault-type `Issuer`
+   (`tls.certManager.issuerRef.kind: Issuer`). OpenBao becomes the CA and the
+   audit point; everything else in this chart is unchanged, including the
+   Kubernetes Secret. Cheapest option, and it needs no chart changes at all —
+   only a different `issuerRef`.
+2. **The sync job reads the certificate straight from OpenBao.** No Kubernetes
+   Secret anywhere: the CronJob fetches cert and key from a kv path with the
+   same scoped token pattern the gateway already uses for API keys, and PUTs
+   them to the Admin API. This is the version that actually matches the "keys
+   live in OpenBao and nowhere else" model.
+
+Neither makes the certificate available *sooner*. The honest framing of the
+current lag: cert-manager renews **30 days** before expiry, and the sync runs
+within **24 hours** of that — using 0.14% of the safety margin. Immediacy is
+not what is at risk here; silence is. A sync that fails every night for a month
+is the failure mode worth engineering against, and it is equally likely
+whichever source the certificate comes from.
+
+One thing genuinely does change with OpenBao PKI: short-lived certificates
+become practical (hours or days instead of 90 days), and that shrinks the
+window in which a leaked key is useful. But it also inverts the timing
+argument — with a 72-hour certificate, a nightly sync is no longer a rounding
+error against the renewal window, and the schedule has to come down with it.
+Short-lived certificates make the sync **more** critical, not less.
+
 **Owner.** Automation nobody watches fails the same way a manual process does,
 only later and more quietly. Two checks belong to a named person:
 
