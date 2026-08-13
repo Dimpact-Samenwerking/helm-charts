@@ -3573,7 +3573,17 @@ frankgateway:
   image:
     repository: ghcr.io/wearefrank/frank-gateway
     tag: "104@sha256:a830b90f8820f5cdb0c382ecef02a302c50d129edc9de81d7daa7af1cf267d98"
-  replicas: 1
+  # Per class. Two, not one: one replica means every pod event — a crash, an
+  # eviction, a node image upgrade, an autoscaler consolidation — is an outage
+  # of that traffic class. Raise for load, never lower below 2 in an
+  # environment that matters.
+  replicas: 2
+  # Keep the replicas off one node, or two replicas survive a crash but not a
+  # drain. `whenUnsatisfiable: ScheduleAnyway` so a single-node dev cluster
+  # still schedules both instead of leaving one Pending. Set a list here to
+  # replace the chart's constraint entirely (per instance if needed); the
+  # default selects on that workload's own app.kubernetes.io/name.
+  topologySpreadConstraints: []
   resources:
     requests:
       cpu: 100m
@@ -3633,12 +3643,24 @@ frankgateway:
   accessLog:
     jsonFormat: false
 
-  # Single-node etcd backing store (quay.io/coreos upstream build — no
+  # etcd cluster backing every instance (quay.io/coreos upstream build — no
   # Bitnami). PVC-backed so gateway config survives pod restarts.
   etcd:
     image:
       repository: quay.io/coreos/etcd
       tag: "v3.5.16"
+    # THREE members, and do not set this to 2. etcd is raft: quorum of a
+    # 3-member cluster is 2, so it survives losing one; quorum of a 2-member
+    # cluster is also 2, so it survives losing none — worse than a single
+    # member, which at least fails for an obvious reason. 1 is a single point
+    # of failure shared by all three traffic classes at once, which is what the
+    # split exists to prevent. Use 5 only if losing two at once is a real
+    # scenario; every write costs a round trip to the majority.
+    replicas: 3
+    # See frankgateway.topologySpreadConstraints — same contract, applied to
+    # the etcd members. Spreading matters more here: two members on one node
+    # means one drain takes quorum with it.
+    topologySpreadConstraints: []
     storage: 2Gi
     # Empty => cluster default StorageClass. jim00 uses managed-csi.
     storageClassName: ""
@@ -3709,6 +3731,11 @@ frankgateway:
     image:
       repository: apache/apisix-dashboard
       tag: "3.0.1-alpine"
+    # Two, like everything else: the dashboard is how an operator reaches the
+    # gateway during an incident, which is exactly when a node is being
+    # drained. It is stateless — all state is in etcd — so replicas are free
+    # of coordination concerns.
+    replicas: 2
     # Dashboard-internal admin password, used ONLY by the shim's server-side
     # auto-login (the dashboard is never exposed directly). Empty => random,
     # stable across upgrades via lookup (Secret frankgateway-dashboard-conf).
@@ -3726,9 +3753,14 @@ frankgateway:
     #     -> dashboard
     auth:
       enabled: true
-      # Public FQDN of the dashboard (e.g. frankgateway-admin.<env>.<domain>).
+      # Replicas for BOTH halves of the SSO chain (oauth2-proxy and the shim).
+      # Safe to double: oauth2-proxy keeps sessions in the shared redis rather
+      # than in memory, and the shim logs into the dashboard per browser, so
+      # neither holds state a second replica could disagree about.
+      replicas: 2
+      # Public FQDN of the dashboard (e.g. frankgateway-<class>-admin.<env>.<domain>).
       # Required when frankgateway.enabled + dashboard.auth.enabled. Route it
-      # to Service frankgateway-oauth2-proxy:4180 (HTTPRoute/Ingress —
+      # to Service frankgateway-<class>-oauth2-proxy:4180 (HTTPRoute/Ingress —
       # `ingress.enabled` below renders an optional in-chart Ingress).
       hostname: ""
       # Server-side redis session store — Keycloak id+refresh tokens overflow

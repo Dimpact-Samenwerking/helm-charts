@@ -179,6 +179,52 @@ Returns YAML; consume with `fromYaml`:
 {{- end -}}
 
 {{/*
+Frank!Gateway — topologySpreadConstraints for one workload.
+
+Two replicas on the same node survive a pod crash but not a node drain, which
+is the disruption that actually happens on AKS (node image upgrades, autoscaler
+consolidation). Spread them.
+
+`whenUnsatisfiable: ScheduleAnyway` on purpose: a single-node dev cluster must
+still schedule both replicas rather than leaving one Pending forever. On a
+multi-node cluster the scheduler honours the preference.
+
+An instance may replace the whole list via `topologySpreadConstraints`.
+
+Usage: {{ include "podiumd.frankgateway.spread" (dict "name" $name "override" $fg.topologySpreadConstraints) }}
+*/}}
+{{- define "podiumd.frankgateway.spread" -}}
+{{- with .override -}}
+{{- toYaml . -}}
+{{- else -}}
+- maxSkew: 1
+  topologyKey: kubernetes.io/hostname
+  whenUnsatisfiable: ScheduleAnyway
+  labelSelector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .name }}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Frank!Gateway — etcd client endpoints, one per member.
+
+Addresses the members individually through the headless Service rather than the
+load-balanced client Service: an APISIX or dashboard client given a single
+round-robin address has no way to fail over to a healthy member when the one it
+dialled dies mid-connection — it just errors. Given the full list it does.
+
+Usage: {{ include "podiumd.frankgateway.etcdEndpoints" (dict "root" $root "indent" 6) }}
+*/}}
+{{- define "podiumd.frankgateway.etcdEndpoints" -}}
+{{- $root := .root -}}
+{{- $ns := $root.Release.Namespace -}}
+{{- range $i := until (int $root.Values.frankgateway.etcd.replicas) }}
+- "http://frankgateway-etcd-{{ $i }}.frankgateway-etcd-headless.{{ $ns }}.svc.cluster.local:2379"
+{{- end }}
+{{- end -}}
+
+{{/*
 Frank!Gateway — Admin API credentials for one gateway instance.
 
 Values override wins; otherwise the existing Secret is looked up so generated
@@ -257,7 +303,7 @@ deployment:
 
   etcd:
     host:
-      - "http://frankgateway-etcd:2379"
+      {{- include "podiumd.frankgateway.etcdEndpoints" (dict "root" .root) | nindent 6 }}
     prefix: {{ .prefix | quote }}
     timeout: 30
 

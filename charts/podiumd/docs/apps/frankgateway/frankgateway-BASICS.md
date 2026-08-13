@@ -12,9 +12,10 @@ APISIX gateway — the same product family as ZaakBrug — and it replaces both
 the earlier experimental APISIX building block and the legacy api-proxy. It is
 optional: the chart ships it disabled. To run, it needs no database — only a
 small disk for its configuration store and, if the management screen is wanted,
-a public hostname protected by the normal PodiumD login (Keycloak). Footprint:
-one lightweight pod per traffic class, plus three more each when the management
-screen is switched on.
+a public hostname protected by the normal PodiumD login (Keycloak). Every part
+of it runs at least twice over, so no single failure interrupts traffic:
+nine lightweight pods with the management screens off, twenty-seven with all
+three switched on.
 
 Since 4.8.5 it always runs as **three separate gateways**, one per kind of
 traffic — inbound, outbound and between applications — so each can be secured,
@@ -59,8 +60,13 @@ below stands for whichever of the three is meant:
   re-encrypting front door; certificates are not mounted — APISIX serves
   per-SNI certs from SSL objects in etcd, seeded via the Admin API like
   routes (deploy-side).
-- **frankgateway-etcd** (StatefulSet, 1 replica, PVC) — configuration store,
-  upstream `quay.io/coreos/etcd` build (no Bitnami). Shared by all instances:
+- **frankgateway-etcd** (StatefulSet, **3 replicas**, PVC each) — configuration
+  store, upstream `quay.io/coreos/etcd` build (no Bitnami). Three because etcd
+  is raft: quorum of three is two, so one member can be lost. Two would be
+  worse than one. Members find each other through the headless Service
+  `frankgateway-etcd-headless`, which publishes not-ready addresses so the
+  cluster can form before any member is ready; `frankgateway-etcd` remains as
+  the load-balanced Service for ad-hoc `etcdctl`. Shared by all instances:
   APISIX in traditional mode loads exactly the objects beneath its configured
   prefix, so a prefix per instance (`/frankgateway-<instance>`) isolates routes,
   consumers and SSL objects without running one etcd each.
@@ -158,8 +164,16 @@ Chart defaults:
 | shim (nginx) | 25m | 32Mi | 250m | 128Mi |
 | apply-routes job | 25m | 32Mi | 250m | 128Mi |
 
-No observed-usage numbers yet — first chart-based deployment pending (jim00
-still runs the pre-chart raw manifests).
+Per container. Multiply by the replica count and the number of enabled classes
+for the real total: gateways, dashboards, oauth2-proxy and shim run at 2 each,
+etcd at 3 — so the floor with all dashboards on is 27 pods, and 9 with them
+off (see the footprint table in
+[`frankgateway-traffic-classes.md`](frankgateway-traffic-classes.md)).
+
+No observed-usage numbers yet — the requests above were carried over from the
+pre-chart single-gateway setup and have never been measured against three
+classes at two replicas. Measuring them, and revising this table, is tracked as
+its own item on IN-2596.
 
 ## Integrating Frank!Gateway as a new app
 

@@ -83,6 +83,8 @@ spec:
         # Roll the pod when the rendered APISIX config changes.
         checksum/config: {{ include "podiumd.frankgateway.config" (dict "root" $root "instance" $fg "name" $name "prefix" $prefix "admin" $creds.admin "viewer" $creds.viewer) | sha256sum }}
     spec:
+      topologySpreadConstraints:
+        {{- include "podiumd.frankgateway.spread" (dict "name" $name "override" $fg.topologySpreadConstraints) | nindent 8 }}
       containers:
         - name: frankgateway
           image: "{{ $fg.image.repository }}:{{ $fg.image.tag }}"

@@ -100,7 +100,7 @@ metadata:
     app.kubernetes.io/component: frankgateway-shim
     app.kubernetes.io/name: {{ $name }}-shim
 spec:
-  replicas: 1
+  replicas: {{ $auth.replicas }}
   selector:
     matchLabels:
       app.kubernetes.io/name: {{ $name }}-shim
@@ -113,6 +113,8 @@ spec:
       annotations:
         checksum/shim-conf: {{ include "podiumd.frankgateway.shimConf" (dict "root" $root "instance" $fg "name" $name "adminPassword" $creds.adminPassword) | sha256sum }}
     spec:
+      topologySpreadConstraints:
+        {{- include "podiumd.frankgateway.spread" (dict "name" (printf "%s-shim" $name) "override" $fg.topologySpreadConstraints) | nindent 8 }}
       containers:
         - name: nginx
           image: "{{ $auth.shim.image.repository }}:{{ $auth.shim.image.tag }}"
@@ -163,7 +165,7 @@ metadata:
     app.kubernetes.io/component: frankgateway-oauth2-proxy
     app.kubernetes.io/name: {{ $name }}-oauth2-proxy
 spec:
-  replicas: 1
+  replicas: {{ $auth.replicas }}
   selector:
     matchLabels:
       app.kubernetes.io/name: {{ $name }}-oauth2-proxy
@@ -174,6 +176,8 @@ spec:
         app.kubernetes.io/component: frankgateway-oauth2-proxy
         app.kubernetes.io/name: {{ $name }}-oauth2-proxy
     spec:
+      topologySpreadConstraints:
+        {{- include "podiumd.frankgateway.spread" (dict "name" (printf "%s-oauth2-proxy" $name) "override" $fg.topologySpreadConstraints) | nindent 8 }}
       containers:
         - name: oauth2-proxy
           image: "{{ $auth.oauth2Proxy.image.repository }}:{{ $auth.oauth2Proxy.image.tag }}"

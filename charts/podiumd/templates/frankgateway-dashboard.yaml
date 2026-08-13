@@ -51,7 +51,7 @@ stringData:
         - 0.0.0.0/0
       etcd:
         endpoints:
-          - "http://frankgateway-etcd:2379"
+          {{- include "podiumd.frankgateway.etcdEndpoints" (dict "root" $root) | nindent 10 }}
         # This instance's slice of the shared etcd. Always set explicitly —
         # the dashboard's own default is `/apisix`, which no instance uses.
         prefix: {{ $prefix | quote }}
@@ -159,7 +159,7 @@ metadata:
     app.kubernetes.io/component: frankgateway-dashboard
     app.kubernetes.io/name: {{ $name }}-dashboard
 spec:
-  replicas: 1
+  replicas: {{ $dash.replicas }}
   selector:
     matchLabels:
       app.kubernetes.io/name: {{ $name }}-dashboard
@@ -170,6 +170,8 @@ spec:
         app.kubernetes.io/component: frankgateway-dashboard
         app.kubernetes.io/name: {{ $name }}-dashboard
     spec:
+      topologySpreadConstraints:
+        {{- include "podiumd.frankgateway.spread" (dict "name" (printf "%s-dashboard" $name) "override" $fg.topologySpreadConstraints) | nindent 8 }}
       containers:
         - name: dashboard
           image: "{{ $dash.image.repository }}:{{ $dash.image.tag }}"

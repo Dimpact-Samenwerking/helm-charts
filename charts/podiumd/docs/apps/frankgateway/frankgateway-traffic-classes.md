@@ -22,8 +22,8 @@ one off.
 
 ## Architecture
 
-Each traffic class gets its own gateway pods; the three share one etcd and are
-kept apart by prefix.
+Each traffic class gets its own gateway pods (two of them); the three share one
+3-member etcd cluster and are kept apart by prefix.
 
 ```mermaid
 flowchart TB
@@ -43,7 +43,7 @@ flowchart TB
       zac["ZAC"]
       inwoner["OpenInwoner"]
 
-      shared["frankgateway-etcd — one StatefulSet, three prefixes<br/>OpenBao — API keys · consumer keys · certificates"]
+      shared["frankgateway-etcd — 3-member cluster, three prefixes<br/>OpenBao — API keys · consumer keys · certificates"]
     end
   end
 
@@ -85,8 +85,16 @@ with the `internal` instance is what removes that round trip.
 APISIX in traditional mode loads exactly the objects stored beneath its
 configured etcd prefix. Giving each instance its own prefix (`/frankgateway-inway`,
 `/frankgateway-outway`, `/frankgateway-internal`) isolates routes, consumers and SSL objects
-completely, without the cost of three etcd StatefulSets and three PVCs. etcd is
-not the blast-radius concern — the gateway pods are.
+completely, without the cost of three etcd clusters. The blast-radius concern
+is the gateway pods, not the config store.
+
+That store is still shared, so it is made to survive on its own terms: the one
+StatefulSet runs **three members** (raft quorum two), spread across nodes, each
+with its own PVC. Clients address the members individually rather than through
+the load-balanced Service, so a client whose member dies fails over instead of
+erroring. What remains shared is the *blast radius of a bad etcd*, not of a
+dead pod: three classes still depend on one cluster, and a corrupted or full
+etcd affects all of them.
 
 ## What the split buys
 
@@ -101,9 +109,10 @@ not the blast-radius concern — the gateway pods are.
   | `outway` | PodiumD app pods | DNS + `:443` to non-private addresses |
   | `internal` | PodiumD app pods | in-cluster only |
 
-- **Independent scaling.** The outway is bursty against national registries; the
-  internal instance is steady; the inway wants more than one replica because it
-  is in the path of every inbound request.
+- **Independent scaling.** Every class starts at two replicas so nothing is one
+  pod away from an outage, and each can then be scaled on its own evidence: the
+  outway is bursty against national registries, the internal instance is
+  steady, and the inway sits in the path of every inbound request.
 - **Blast-radius isolation.** A bad route or plugin on one class cannot take the
   others down, and per-instance config checksums roll pods independently.
 - **Clean per-class metrics**, one Service and ServiceMonitor per instance.
@@ -123,7 +132,8 @@ frankgateway:
     ingressNamespace: ingress-basic   # the NGF DATA plane namespace — see below
   instances:
     inway:
-      replicas: 2
+      replicas: 4                # 2 is the default; the inway carries every
+                                 # inbound request, so it often wants more
       tls:
         enabled: true        # front door re-encrypts; cert comes from etcd
       dashboard:
@@ -151,8 +161,9 @@ the render rather than producing two Ingresses that fight over it.
 ### Turning dashboards on and off
 
 Dashboards are meant to be switched on for debugging and testing and off the
-rest of the time — they are the largest part of the split's footprint (three of
-the four pods per instance), and nothing else depends on them. The route-seeding
+rest of the time — they are the largest part of the footprint (six of the eight
+pods per class, once everything runs at two replicas), and nothing else depends
+on them. The route-seeding
 Job talks to the Admin API directly, so a class with no dashboard is fully
 managed and fully observable; you just have no GUI for it.
 
@@ -326,11 +337,26 @@ radius. Measure before claiming a latency benefit anywhere else.
 
 ## Footprint
 
-Single instance: 4 pods (gateway, etcd, dashboard, oauth2-proxy + shim).
-Full split with a dashboard per class: roughly 12 — three gateways, three
-dashboards, three oauth2-proxy/shim pairs, one shared etcd. Drop
-`dashboard.enabled` on the classes that do not need a GUI to bring that down;
-the Admin API remains available to the routes hook Job either way.
+Everything runs at **two replicas**, and etcd at **three**, so that no single
+pod event — crash, eviction, node image upgrade, autoscaler consolidation —
+takes anything down. That sets the floor:
+
+| | Pods |
+|---|---|
+| Three gateways | 6 |
+| etcd | 3 |
+| Three dashboards | 6 |
+| Three oauth2-proxy + shim pairs | 12 |
+| **Total, everything on** | **27** |
+| **Dashboards off on every class** | **9** |
+
+Dashboards are two thirds of it, and nothing depends on them: the routes hook
+Job talks to the Admin API directly. `dashboard.enabled: false` on the classes
+that need no GUI is the one big lever.
+
+etcd is three because it is raft — quorum of three is two, so it survives
+losing one member. **Two would be worse than one**: quorum of two is also two,
+so any single loss stops writes.
 
 ## Related documents
 
