@@ -26,6 +26,31 @@ It now ships next to the ServiceMonitor that produces the metrics it reads
 A **Traffic class** variable filters on the `instance_name` label, so one
 dashboard serves all three gateways (inway / outway / internal).
 
+> **Remove the per-environment copy first.** If the deploy repository still
+> creates its own ConfigMap for this dashboard (on jim00 it was
+> `frankgateway-grafana-dashboards`, labelled `grafana_dashboard: "1"` so the
+> Grafana sidecar collects it), delete it in the same change. Both copies carry
+> `"uid": "frankgateway"`, and Grafana's response to one UID claimed by two
+> providers is not to pick a winner — it revokes write permission from **both**:
+>
+> ```
+> the same UID is used more than once  uid=frankgateway times=2
+>   providers="[frankgateway sidecarProvider]"
+> dashboards provisioning provider has no database write permissions
+>   because of duplicates  provider=frankgateway
+> dashboards provisioning provider has no database write permissions
+>   because of duplicates  provider=sidecarProvider
+> ```
+>
+> The result is that neither the chart's dashboard nor the sidecar's appears,
+> and nothing on the dashboard list says why. Delete the old ConfigMap and
+> restart Grafana:
+>
+> ```bash
+> kubectl -n monitoring delete configmap frankgateway-grafana-dashboards
+> kubectl -n monitoring rollout restart deployment podiumd-grafana
+> ```
+
 Panels read `apisix_http_status`, `apisix_http_latency_bucket{type="request"}`,
 `apisix_bandwidth`, `apisix_nginx_http_current_connections`,
 `up{job=~".*frankgateway.*"}`, and a Loki stream on
