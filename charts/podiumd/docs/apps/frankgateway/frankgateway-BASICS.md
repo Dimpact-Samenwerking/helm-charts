@@ -58,8 +58,9 @@ below stands for whichever of the three is meant:
   data-plane listener (`frankgateway.tls.enabled`, default off, port
   `frankgateway.tls.port: 9443`) can be enabled for callers behind a
   re-encrypting front door; certificates are not mounted — APISIX serves
-  per-SNI certs from SSL objects in etcd, seeded via the Admin API like
-  routes (deploy-side).
+  per-SNI certs from SSL objects in etcd. The chart can issue that certificate
+  with cert-manager and keeps the SSL object in step with it (see
+  [Certificate on the internal hop](#certificate-on-the-internal-hop)).
 - **frankgateway-etcd** (StatefulSet, **3 replicas**, PVC each) — configuration
   store, upstream `quay.io/coreos/etcd` build (no Bitnami). Three because etcd
   is raft: quorum of three is two, so one member can be lost. Two would be
@@ -124,8 +125,10 @@ re-encrypting front door (e.g. Gateway API `BackendTLSPolicy`) terminates and
 re-establishes TLS towards the gateway: the wearefrank APISIX nginx template
 derives `X-Forwarded-Proto` from its own inbound scheme, so a plain-http hop
 would poison upstream canonical URLs (ZGW 403s on writes, broken OIDC
-redirects). The per-SNI server certificates are seeded deploy-side via the
-Admin API (SSL objects in etcd), not mounted by the chart. The
+redirects). The per-SNI server certificate is stored as an SSL object in etcd
+rather than mounted as a file — see
+[Certificate on the internal hop](#certificate-on-the-internal-hop) for how it
+gets there and how it is renewed. The
 dashboard's public hostname (`frankgateway.dashboard.auth.hostname`) is routed
 deploy-side (ADO `ExternalsPodiumD` — Gateway API HTTPRoute → service
 `frankgateway-<class>-oauth2-proxy:4180`, one per dashboard), or via the optional in-chart
@@ -151,6 +154,68 @@ hostname.
 - **CoreDNS** — `frankgateway.dashboard.auth.dnsResolver` must be set to the
   cluster's CoreDNS ClusterIP (AKS default `10.0.0.10`; jim00 `172.16.0.10`)
   for the shim's request-time DNS re-resolution.
+
+## Certificate on the internal hop
+
+Inbound traffic crosses two encrypted hops: the front door (NGF) terminates the
+public certificate, then re-encrypts to `frankgateway-inway:9443`. That second
+hop needs its own certificate, and it is the one that historically nobody owned:
+installed by hand when the environment was built, not managed by the chart, with
+nothing watching the expiry date. It works perfectly until the day it does not,
+and then all inbound traffic stops.
+
+Two things have to be true for renewal to actually work, and only the first is
+obvious:
+
+1. **The certificate must be renewed.** `tls.certManager.enabled: true` has
+   cert-manager issue and renew it, using the ClusterIssuer the environment
+   already uses for its public certificates. `renewBefore` is 30 days, so a
+   failing issuer is visible for a month before it can cause an outage.
+2. **The renewed material must reach etcd.** APISIX in traditional mode does not
+   read certificate files — it serves per-SNI certificates from SSL objects in
+   etcd. A renewed Kubernetes Secret changes nothing on its own. And because
+   cert-manager renews weeks after a deploy, a post-install Job cannot carry it
+   either.
+
+So the chart runs a small **CronJob** (`tls.sslSync`, nightly by default) that
+PUTs the current certificate to `/apisix/admin/ssls/<instance>`. It is
+idempotent, so a run that changes nothing costs nothing, and the same script
+runs from the routes Job at deploy time so a fresh install serves TLS without
+waiting for the first tick. Without that CronJob, automatic renewal produces a
+valid Secret and an expired gateway — which is the failure this whole mechanism
+exists to prevent, and the one that would look exactly like success.
+
+```yaml
+frankgateway:
+  instances:
+    inway:
+      tls:
+        enabled: true
+        certManager:
+          enabled: true
+          issuerRef:
+            name: letsencrypt-prod      # required; the render fails without it
+          extraDnsNames:
+            - frankgateway-inway.<env>.<domain>   # if the front door uses one
+```
+
+The in-cluster Service names (`frankgateway-inway`,
+`frankgateway-inway.<ns>.svc`, `…svc.cluster.local`) are always included,
+because that is what a `BackendTLSPolicy` validates against.
+
+**Environments not using cert-manager** set `tls.certManager.enabled: false` and
+supply the Secret themselves (`tls.sslSync.secretName`, keys `tls.crt` /
+`tls.key`). The sync CronJob still runs, so whatever renews that Secret still
+reaches etcd within a day. The Secret is mounted `optional`: until it exists the
+sync logs "nothing to do" and exits 0, rather than failing the deploy.
+
+**Owner.** Automation nobody watches fails the same way a manual process does,
+only later and more quietly. Two checks belong to a named person:
+
+- the CronJob's failed runs (`kubectl -n podiumd get jobs | grep ssl-sync` —
+  failures are retained deliberately)
+- days-to-expiry, from cert-manager's own
+  `certmanager_certificate_expiration_timestamp_seconds`
 
 ## CPU and memory
 

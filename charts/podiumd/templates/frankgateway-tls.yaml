@@ -1,0 +1,127 @@
+{{- if .Values.frankgateway.enabled }}
+{{- /*
+  Data-plane certificate for the re-encrypted hop (NGF -> gateway :9443).
+
+  Two objects, because the certificate existing is not the same as the gateway
+  serving it:
+
+  1. cert-manager Certificate — issues it and renews it on schedule, instead of
+     someone installing it by hand at build time with nothing watching the
+     expiry date afterwards.
+  2. A CronJob that PUTs the current material into etcd as an APISIX SSL
+     object. APISIX in traditional mode does not read certificate files; it
+     serves per-SNI certificates from etcd. A renewed Secret therefore changes
+     nothing on its own — and cert-manager renews weeks after a deploy, so the
+     post-install Job cannot be what carries it either. Without this CronJob,
+     automatic renewal produces a valid Secret and an expired gateway.
+
+  The routes Job runs the same script at deploy time, so a fresh install serves
+  TLS immediately rather than waiting for the first CronJob tick.
+*/ -}}
+{{- $root := . }}
+{{- range $key, $override := .Values.frankgateway.instances }}
+{{- $fg := include "podiumd.frankgateway.instanceValues" (dict "root" $root "key" $key "override" $override) | fromYaml }}
+{{- if and $fg.enabled $fg.tls.enabled }}
+{{- $name := include "podiumd.frankgateway.instanceName" (dict "key" $key "instance" $fg) }}
+{{- $secretName := include "podiumd.frankgateway.tlsSecretName" (dict "instance" $fg "name" $name) }}
+{{- if $fg.tls.certManager.enabled }}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ $name }}-tls
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: frankgateway
+    app.kubernetes.io/name: {{ $name }}
+spec:
+  secretName: {{ $secretName }}
+  duration: {{ $fg.tls.certManager.duration }}
+  # Renewal starts this far ahead of expiry, so a failing issuer is visible for
+  # weeks before it can cause an outage.
+  renewBefore: {{ $fg.tls.certManager.renewBefore }}
+  privateKey:
+    rotationPolicy: Always
+  issuerRef:
+    name: {{ $fg.tls.certManager.issuerRef.name }}
+    kind: {{ $fg.tls.certManager.issuerRef.kind }}
+    group: {{ $fg.tls.certManager.issuerRef.group }}
+  dnsNames:
+    {{- include "podiumd.frankgateway.certDnsNames" (dict "root" $root "instance" $fg "name" $name) | nindent 4 }}
+{{- end }}
+{{- if $fg.tls.sslSync.enabled }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}-ssl-sync
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: frankgateway-ssl-sync
+data:
+  sync.sh: |
+{{ include "podiumd.frankgateway.sslSyncScript" (dict "root" $root "instance" $fg "name" $name) | indent 4 }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ $name }}-ssl-sync
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: frankgateway-ssl-sync
+spec:
+  schedule: {{ $fg.tls.sslSync.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: {{ $fg.tls.sslSync.successfulJobsHistoryLimit }}
+  # Keep more failures than successes: a silent renewal failure is the thing
+  # this whole mechanism exists to prevent, so its evidence outlives its cause.
+  failedJobsHistoryLimit: {{ $fg.tls.sslSync.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      backoffLimit: 3
+      template:
+        metadata:
+          labels:
+            {{- include "podiumd.labels" $root | nindent 12 }}
+            app.kubernetes.io/component: frankgateway-ssl-sync
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: sync
+              image: "{{ $fg.routes.job.image.repository }}:{{ $fg.routes.job.image.tag }}"
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: ADMIN_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ $name }}-admin-credentials
+                      key: admin
+              command: ["sh", "/scripts/sync.sh"]
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+                - name: tls
+                  mountPath: /tls
+                  readOnly: true
+              resources:
+                requests:
+                  cpu: 25m
+                  memory: 32Mi
+                limits:
+                  cpu: 250m
+                  memory: 128Mi
+          volumes:
+            - name: scripts
+              configMap:
+                name: {{ $name }}-ssl-sync
+            - name: tls
+              secret:
+                secretName: {{ $secretName }}
+                optional: true
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

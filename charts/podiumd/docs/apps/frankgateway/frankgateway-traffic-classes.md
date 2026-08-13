@@ -140,7 +140,9 @@ frankgateway:
       replicas: 4                # 2 is the default; the inway carries every
                                  # inbound request, so it often wants more
       tls:
-        enabled: true        # front door re-encrypts; cert comes from etcd
+        enabled: true        # front door re-encrypts; see "Certificate on the
+                             # internal hop" in frankgateway-BASICS.md for
+                             # issuing and renewing it
       dashboard:
         auth:
           hostname: frankgateway-inway-admin.<env>.<domain>

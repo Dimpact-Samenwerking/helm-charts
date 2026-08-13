@@ -356,6 +356,99 @@ nginx_config:
 {{- end -}}
 
 {{/*
+Frank!Gateway — DNS names the data-plane certificate must cover.
+
+The in-cluster Service names are always included, because that is what a
+re-encrypting front door connects to and what its BackendTLSPolicy validates
+against. Anything else (a public hostname on this hop) comes from
+tls.certManager.extraDnsNames.
+
+Returns a YAML list.
+
+Usage: {{ include "podiumd.frankgateway.certDnsNames" (dict "root" $root "instance" $fg "name" $name) }}
+*/}}
+{{- define "podiumd.frankgateway.certDnsNames" -}}
+{{- $ns := .root.Release.Namespace -}}
+- {{ .name | quote }}
+- {{ printf "%s.%s.svc" .name $ns | quote }}
+- {{ printf "%s.%s.svc.cluster.local" .name $ns | quote }}
+{{- range .instance.tls.certManager.extraDnsNames }}
+- {{ . | quote }}
+{{- end }}
+{{- end -}}
+
+{{/*
+Frank!Gateway — name of the Secret holding the data-plane certificate.
+
+Explicit sslSync.secretName wins; otherwise the cert-manager Secret when that
+is enabled; otherwise <instance>-tls, supplied out-of-band.
+
+Usage: {{ include "podiumd.frankgateway.tlsSecretName" (dict "instance" $fg "name" $name) }}
+*/}}
+{{- define "podiumd.frankgateway.tlsSecretName" -}}
+{{- $tls := .instance.tls -}}
+{{- if $tls.sslSync.secretName -}}
+{{- $tls.sslSync.secretName -}}
+{{- else if $tls.certManager.secretName -}}
+{{- $tls.certManager.secretName -}}
+{{- else -}}
+{{ .name }}-tls
+{{- end -}}
+{{- end -}}
+
+{{/*
+Frank!Gateway — the sh that PUTs the data-plane certificate into etcd as an
+APISIX SSL object.
+
+Shared verbatim by the deploy-time routes Job and the renewal CronJob, so the
+two can never drift into disagreeing about what "the certificate is installed"
+means.
+
+Usage: {{ include "podiumd.frankgateway.sslSyncScript" (dict "root" $root "instance" $fg "name" $name) }}
+*/}}
+{{- define "podiumd.frankgateway.sslSyncScript" -}}
+{{- $fg := .instance -}}
+{{- $name := .name -}}
+{{- $snis := $fg.tls.sslSync.snis -}}
+{{- if not $snis -}}
+{{- $snis = include "podiumd.frankgateway.certDnsNames" (dict "root" .root "instance" $fg "name" $name) | fromYamlArray -}}
+{{- end -}}
+set -eu
+CRT=/tls/tls.crt
+KEY=/tls/tls.key
+
+# The Secret is mounted optional: on a first install cert-manager may not have
+# issued yet, and an environment supplying its own certificate may not have
+# created it. Absent material is not a failure — the next run picks it up.
+if [ ! -s "${CRT}" ] || [ ! -s "${KEY}" ]; then
+  echo "ssl-sync: no certificate material at /tls, nothing to do"
+  exit 0
+fi
+
+i=0
+until curl -s -o /dev/null "http://{{ $name }}:9180/apisix/admin/ssls" -H "X-API-KEY: ${ADMIN_KEY}"; do
+  i=$((i+1)); [ "${i}" -ge 30 ] && { echo "ssl-sync: admin API unreachable"; exit 1; }
+  sleep 5
+done
+
+# PEM -> JSON string: the only character needing escaping is the newline, since
+# PEM is base64 plus dashes. Nothing is echoed — the private key must not reach
+# a pod log.
+cert=$(awk '{printf "%s\\n", $0}' "${CRT}")
+key=$(awk '{printf "%s\\n", $0}' "${KEY}")
+umask 077
+printf '{"cert":"%s","key":"%s","snis":%s}' "${cert}" "${key}" '{{ $snis | toJson }}' > /tmp/ssl.json
+
+code=$(curl -s -o /dev/null -w "%{http_code}" -X PUT \
+  "http://{{ $name }}:9180/apisix/admin/ssls/{{ $name }}" \
+  -H "X-API-KEY: ${ADMIN_KEY}" -H "Content-Type: application/json" \
+  --data @/tmp/ssl.json)
+rm -f /tmp/ssl.json
+echo "ssl-sync: ssls/{{ $name }} -> ${code}"
+case "${code}" in 2*) exit 0 ;; *) exit 1 ;; esac
+{{- end -}}
+
+{{/*
 Frank!Gateway — OpenBao address for the request-time secret fetch.
 
 Defaults to the active (unsealed leader) Service of the OpenBao in this

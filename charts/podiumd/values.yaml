@@ -3635,12 +3635,62 @@ frankgateway:
 
   # Optional TLS listener on the data plane, so callers behind a re-encrypting
   # front door (e.g. Gateway API BackendTLSPolicy) reach the gateway over
-  # https and upstreams receive an honest X-Forwarded-Proto. Certificates are
-  # NOT mounted by the chart — APISIX serves per-SNI certs from SSL objects in
-  # etcd, seeded via the Admin API (deploy-side, like routes).
+  # https and upstreams receive an honest X-Forwarded-Proto.
+  #
+  # APISIX does not read certificate FILES: it serves per-SNI certificates from
+  # SSL objects stored in etcd. So a certificate becomes usable only once it has
+  # been PUT to the Admin API — which is why renewal is a real problem here and
+  # not a solved one. cert-manager rotating the Secret changes nothing on its
+  # own; something has to push the new material into etcd.
   tls:
     enabled: false
     port: 9443
+
+    # Have cert-manager issue and renew the data-plane certificate, instead of
+    # someone installing it by hand when the environment is built and nobody
+    # tracking the expiry date afterwards. Off by default: an environment
+    # without cert-manager, or with its certificate delivered some other way,
+    # keeps supplying the Secret itself (see sslSync.secretName).
+    certManager:
+      enabled: false
+      # Required when enabled. Usually the same ClusterIssuer that already
+      # issues the environment's public certificates.
+      issuerRef:
+        name: ""
+        kind: ClusterIssuer
+        group: cert-manager.io
+      # Secret cert-manager writes to. Empty => <instance>-tls.
+      secretName: ""
+      # 90 days, renewed 30 days out. renewBefore is the safety margin: if
+      # renewal starts failing there is a month to notice before anything
+      # breaks — which is the whole point of automating it.
+      duration: 2160h
+      renewBefore: 720h
+      # The in-cluster names callers connect to are always included
+      # (<instance>, <instance>.<ns>.svc, <instance>.<ns>.svc.cluster.local).
+      # Add any public hostname the front door presents on this hop here.
+      extraDnsNames: []
+
+    # Push the certificate into etcd as an APISIX SSL object, and keep doing it,
+    # so a renewal takes effect without anyone logging in.
+    #
+    # The deploy-time Job alone is not enough: cert-manager renews on its own
+    # schedule, weeks after a deploy, and APISIX would go on serving the old
+    # material from etcd until the next release. The CronJob is what closes that
+    # gap — it is idempotent, so re-running it when nothing changed is free.
+    sslSync:
+      enabled: true
+      # Daily, off-peak. The renewal window (renewBefore, 30d) is enormous
+      # compared to this interval; the schedule only has to be more frequent
+      # than the window, not fast.
+      schedule: "17 3 * * *"
+      # Secret holding tls.crt/tls.key. Empty => the cert-manager Secret above
+      # when that is enabled, otherwise <instance>-tls supplied out-of-band.
+      secretName: ""
+      # SNIs the SSL object matches. Empty => the certificate's own DNS names.
+      snis: []
+      successfulJobsHistoryLimit: 1
+      failedJobsHistoryLimit: 3
 
   # External-API credentials (BAG, KVK, ESB consumers) are read from OpenBao at
   # request time by a serverless function on the route
