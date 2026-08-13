@@ -41,7 +41,7 @@ stringData:
 apiVersion: v1
 kind: Secret
 metadata:
-  name: {{ $name }}-apisix-config
+  name: {{ $name }}-config
   namespace: {{ $root.Release.Namespace }}
   labels:
     {{- include "podiumd.labels" $root | nindent 4 }}

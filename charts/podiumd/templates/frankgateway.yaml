@@ -84,7 +84,7 @@ spec:
         checksum/config: {{ include "podiumd.frankgateway.config" (dict "root" $root "instance" $fg "name" $name "prefix" $prefix "admin" $creds.admin "viewer" $creds.viewer) | sha256sum }}
     spec:
       containers:
-        - name: apisix
+        - name: frankgateway
           image: "{{ $fg.image.repository }}:{{ $fg.image.tag }}"
           imagePullPolicy: IfNotPresent
           envFrom:
@@ -123,7 +123,7 @@ spec:
       volumes:
         - name: config
           secret:
-            secretName: {{ $name }}-apisix-config
+            secretName: {{ $name }}-config
 {{- end }}
 {{- end }}
 {{- end }}

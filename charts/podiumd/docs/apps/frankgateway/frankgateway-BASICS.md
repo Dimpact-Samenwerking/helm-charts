@@ -43,7 +43,7 @@ environment. It replaces:
 Runtime components when enabled. Everything except etcd is **per traffic
 class**: enabling Frank!Gateway renders one set of objects for each of
 `inway`, `outway` and `internal`, named `frankgateway-<class>` with their
-`-admin-credentials`, `-apisix-config`, `-dashboard`, `-shim`, `-oauth2-proxy`,
+`-admin-credentials`, `-config`, `-dashboard`, `-shim`, `-oauth2-proxy`,
 `-routes` companions. There is no unsuffixed `frankgateway` object. `<class>`
 below stands for whichever of the three is meant:
 

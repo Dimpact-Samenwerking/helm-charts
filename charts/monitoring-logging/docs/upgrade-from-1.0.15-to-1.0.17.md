@@ -28,7 +28,7 @@ dashboard serves all three gateways (inway / outway / internal).
 Panels read `apisix_http_status`, `apisix_http_latency_bucket{type="request"}`,
 `apisix_bandwidth`, `apisix_nginx_http_current_connections`,
 `up{job=~".*frankgateway.*"}`, and a Loki stream on
-`{namespace="podiumd", pod=~"frankgateway.*", container="apisix"}`.
+`{namespace="podiumd", pod=~"frankgateway.*", container="frankgateway"}`.
 
 ### Disabling it
 

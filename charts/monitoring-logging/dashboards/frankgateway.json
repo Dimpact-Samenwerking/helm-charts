@@ -3,7 +3,6 @@
   "uid": "frankgateway",
   "tags": [
     "frankgateway",
-    "apisix",
     "podiumd"
   ],
   "timezone": "browser",
@@ -222,7 +221,7 @@
       },
       "targets": [
         {
-          "expr": "{namespace=\"podiumd\", pod=~\"frankgateway.*\", container=\"apisix\"} | json | instance_name=~\"$instance\" | line_format \"{{.instance_name}} {{.status}} {{.method}} {{.uri}}\"",
+          "expr": "{namespace=\"podiumd\", pod=~\"frankgateway.*\", container=\"frankgateway\"} | json | instance_name=~\"$instance\" | line_format \"{{.instance_name}} {{.status}} {{.method}} {{.uri}}\"",
           "refId": "A"
         }
       ]

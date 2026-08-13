@@ -240,7 +240,7 @@ Deployment — so anything addressing the gateway must name the class it means:
 |---|---|
 | Service (data plane :9080, Admin API :9180) | `frankgateway-<class>` |
 | Admin API credentials | `frankgateway-<class>-admin-credentials` |
-| APISIX config | `frankgateway-<class>-apisix-config` |
+| Gateway config (`config.yaml`) | `frankgateway-<class>-config` |
 | Routes hook Job + ConfigMap | `frankgateway-<class>-apply-routes`, `-routes` |
 | Dashboard chain | `frankgateway-<class>-dashboard`, `-shim`, `-oauth2-proxy` |
 | Keycloak OIDC client | `frankgateway-dashboard-<class>` |
