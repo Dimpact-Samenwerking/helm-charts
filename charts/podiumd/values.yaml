@@ -3493,71 +3493,50 @@ frankgateway:
   # this map is the shared default; each instance deep-merges its own overrides
   # over it, so an instance only states what differs.
   #
-  # The key `gateway` is the reserved single-instance default: it keeps the bare
-  # `frankgateway` object names and the `/apisix` etcd prefix, so an environment
-  # that does not opt into the split renders exactly what it did before
-  # instances existed. Any other key is suffixed (`frankgateway-<key>`) and gets
-  # its own etcd prefix (`/apisix-<key>`).
+  # Three classes, split by direction of travel, because a single gateway needs
+  # the union of every class's egress and can therefore be given no meaningful
+  # egress policy at all:
+  #
+  #   inway     north-south, entering PodiumD (NGF -> here -> apps)
+  #   outway    PodiumD apps -> external services (BAG/KVK/BRP)
+  #   internal  east-west, app-to-app inside the cluster
+  #
+  # Every instance is named after its key (`frankgateway-<key>`) and gets its
+  # own etcd prefix (`/apisix-<key>`). There is no single-instance shape and no
+  # reserved key — `instances.gateway` is rejected by templates/validations.yaml.
   #
   # All instances share the single etcd StatefulSet — APISIX in traditional mode
   # loads exactly the objects under its own prefix, so config isolation is
-  # complete without running one etcd per instance.
-  #
-  # Split mode (per-environment opt-in) — disable `gateway` and enable the three
-  # traffic classes:
-  #
-  #   instances:
-  #     gateway:
-  #       enabled: false
-  #     inway:       # north-south, entering PodiumD (NGF -> here -> apps)
-  #       enabled: true
-  #       tls:
-  #         enabled: true
-  #       replicas: 2
-  #       dashboard:
-  #         auth:
-  #           hostname: frankgateway-inway-admin.<env>.<domain>
-  #     outway:      # PodiumD apps -> external services (BAG/KVK/BRP)
-  #       enabled: true
-  #       dashboard:
-  #         auth:
-  #           hostname: frankgateway-outway-admin.<env>.<domain>
-  #     internal:    # east-west, app-to-app inside the cluster
-  #       enabled: true
-  #       dashboard:
-  #         auth:
-  #           hostname: frankgateway-internal-admin.<env>.<domain>
+  # complete without running one etcd per instance. (Failure isolation is NOT:
+  # see frankgateway-traffic-classes.md.)
   #
   # Per-instance overrides may set any shared key (replicas, resources, tls,
   # admin, apiKeys, metrics, routes, dashboard, ...) plus `nameOverride` and
-  # `etcdPrefix`.
+  # `etcdPrefix`. A class can be switched off with `enabled: false`; an
+  # environment making no external calls needs no outway.
+  #
+  # Route JSONs are seeded from files/frankgateway/routes/<key>/ — an instance
+  # seeds the directory named after its key unless `routes.dirs` says otherwise.
   instances:
-    gateway:
+    inway:
       enabled: true
-      # The single-instance default carries every legacy apiproxy route, so the
-      # route JSONs live in exactly one place instead of being duplicated per
-      # class. Split instances default to the directory named after their key.
-      routes:
-        dirs:
-          - outway
-          - internal
-
-  # During a single-instance -> split migration, keep serving the old
-  # `frankgateway` Service name so app values can be repointed one at a time.
-  # Renders an extra Service named `frankgateway` selecting `instance`'s pods.
-  # Only meaningful when the `gateway` instance itself is disabled.
-  serviceAlias:
-    enabled: false
-    instance: outway
+      # `tls.enabled: true` here when the front door re-encrypts — it opens the
+      # 9443 listener, but the certificate comes from an SSL object in etcd
+      # (deploy-side today, see the tls block below), so it is not defaulted on.
+    outway:
+      enabled: true
+    internal:
+      enabled: true
 
   # Per-traffic-class NetworkPolicies. The reason the split is worth doing: a
   # single gateway needs the union of every class's egress (internet, cluster,
   # backends), so no meaningful egress policy is possible. Opt-in because a
-  # cluster without a policy-enforcing CNI silently ignores these, and because
-  # existing environments must not have traffic cut on upgrade.
+  # cluster without a policy-enforcing CNI silently ignores these — a policy
+  # that is not enforced reads exactly like a policy that is.
   #
   # `class` tells the chart which rule set an instance gets: inway | outway |
-  # internal. Instances with no class (the default `gateway`) get no policy.
+  # internal. It defaults to the instance key when that key is one of the three,
+  # so a custom-named instance must set `class` explicitly or get no policy.
   networkPolicies:
     enabled: false
     # Namespace selector label used to match the ingress gateway namespace for

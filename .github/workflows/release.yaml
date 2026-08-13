@@ -38,7 +38,6 @@ jobs:
           helm repo add wiremind https://wiremind.github.io/wiremind-helm-charts
           helm repo add opstree https://ot-container-kit.github.io/helm-charts/
           helm repo add worth-nl https://worth-nl.github.io/helm-charts
-          helm repo add apisix https://charts.apiseven.com
           helm repo add openbao https://openbao.github.io/openbao-helm
 
       - name: Run chart-releaser

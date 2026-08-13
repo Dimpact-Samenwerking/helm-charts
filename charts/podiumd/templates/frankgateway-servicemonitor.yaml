@@ -30,7 +30,6 @@ spec:
     - port: metrics
       path: /apisix/prometheus/metrics
       interval: {{ $fg.metrics.serviceMonitor.interval }}
-      {{- if ne $name "frankgateway" }}
       # Which traffic class produced the metric, stamped at scrape time so it
       # lands on EVERY series from this instance. The APISIX prometheus plugin
       # can only add extra_labels to http_status, which would leave
@@ -38,14 +37,9 @@ spec:
       # gauges unlabelled — a dashboard filtering by class would silently show
       # empty latency and bandwidth panels. Doing it here instead covers all of
       # them with one rule.
-      #
-      # Only emitted once the gateway is split, matching the rest of the
-      # instance_name convention: adding it to the single-instance default
-      # would change every existing series' label set for no information gain.
       relabelings:
         - targetLabel: instance_name
           replacement: {{ $name }}
-      {{- end }}
 {{- end }}
 {{- end }}
 {{- end }}

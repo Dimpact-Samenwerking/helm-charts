@@ -129,18 +129,15 @@ Usage: {{ include "podiumd.image" .Values.path.to.image }}
 {{/*
 Frank!Gateway — object name for one gateway instance.
 
-The instance key `gateway` is the reserved single-instance default and keeps the
-bare `frankgateway` name, so a chart that does not opt into the split renders
-exactly the manifests it did before instances existed. Every other key is
-suffixed. `nameOverride` wins if set.
+Every instance is named after its key: `frankgateway-<key>`. There is no
+reserved key and no bare `frankgateway` name — the traffic-class split is the
+only shape this chart renders. `nameOverride` wins if set.
 
 Usage: {{ include "podiumd.frankgateway.instanceName" (dict "key" $key "instance" $inst) }}
 */}}
 {{- define "podiumd.frankgateway.instanceName" -}}
 {{- if .instance.nameOverride -}}
 {{- .instance.nameOverride -}}
-{{- else if eq .key "gateway" -}}
-frankgateway
 {{- else -}}
 frankgateway-{{ .key }}
 {{- end -}}
@@ -151,16 +148,14 @@ Frank!Gateway — etcd prefix for one gateway instance.
 
 All instances share the single etcd StatefulSet; isolation comes from the
 prefix, because APISIX in traditional mode loads exactly the objects beneath
-its configured prefix. `gateway` keeps `/apisix` so the default render is
-unchanged.
+its configured prefix. One rule, no exception: `/apisix-<key>`, overridable per
+instance with `etcdPrefix`.
 
 Usage: {{ include "podiumd.frankgateway.etcdPrefix" (dict "key" $key "instance" $inst) }}
 */}}
 {{- define "podiumd.frankgateway.etcdPrefix" -}}
 {{- if .instance.etcdPrefix -}}
 {{- .instance.etcdPrefix -}}
-{{- else if eq .key "gateway" -}}
-/apisix
 {{- else -}}
 /apisix-{{ .key }}
 {{- end -}}
@@ -331,18 +326,13 @@ jwtSecret: {{ $jwtSecret | quote }}
 {{/*
 Frank!Gateway — Keycloak OIDC client id for one instance's dashboard.
 
-The default instance keeps the original `frankgateway-dashboard` client so
-existing realms do not churn; split instances each need their own client because
-each dashboard has its own hostname and therefore its own redirect URI.
+One client per instance: each dashboard has its own hostname and therefore its
+own redirect URI, so they cannot share one.
 
 Usage: {{ include "podiumd.frankgateway.oidcClientId" (dict "key" $key) }}
 */}}
 {{- define "podiumd.frankgateway.oidcClientId" -}}
-{{- if eq .key "gateway" -}}
-frankgateway-dashboard
-{{- else -}}
 frankgateway-dashboard-{{ .key }}
-{{- end -}}
 {{- end -}}
 
 {{/*

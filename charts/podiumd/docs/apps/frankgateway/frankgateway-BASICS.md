@@ -40,15 +40,17 @@ environment. It replaces:
 - the legacy **`apiproxy`** nginx for outbound calls to BAG/Kadaster, KVK and
   BRP/Haal Centraal — reproduced as declarative APISIX routes.
 
-Runtime components when enabled. Object names below are those of the default
-single instance; in split mode every instance-scoped object is suffixed
-(`frankgateway-inway`, `frankgateway-outway`, `frankgateway-internal` and their
+Runtime components when enabled. Everything except etcd is **per traffic
+class**: enabling Frank!Gateway renders one set of objects for each of
+`inway`, `outway` and `internal`, named `frankgateway-<class>` with their
 `-admin-credentials`, `-apisix-config`, `-dashboard`, `-shim`, `-oauth2-proxy`,
-`-routes` companions). etcd is the one component that is *not* per instance:
+`-routes` companions. There is no unsuffixed `frankgateway` object. `<class>`
+below stands for whichever of the three is meant:
 
-- **frankgateway** (Deployment) — gateway data plane `:9080` + Admin API
+- **frankgateway-\<class\>** (Deployment) — gateway data plane `:9080` + Admin API
   `:9180`, etcd-backed *traditional* mode. Admin/viewer API keys are random,
-  auto-generated and upgrade-stable (Secret `frankgateway-admin-credentials`);
+  auto-generated and upgrade-stable, per class (Secret
+  `frankgateway-<class>-admin-credentials`);
   the APISIX `config.yaml` is mounted from a Secret because it embeds those
   keys (`templates/frankgateway-config.yaml`). Since 4.8.3 an optional TLS
   data-plane listener (`frankgateway.tls.enabled`, default off, port
@@ -70,11 +72,12 @@ single instance; in split mode every instance-scoped object is suffixed
   server-side and injects the dashboard JWT, so the dashboard's own
   `admin/<random>` credential never reaches a browser
   (`templates/frankgateway-dashboard-auth.yaml`).
-- **frankgateway-apply-routes** (hook Job, post-install/post-upgrade) — seeds
-  the apiproxy-replacement routes from `files/frankgateway/routes/<class>/`
-  (route id = file name, idempotent PUTs). Each instance seeds the directories
-  named in its `routes.dirs`; the single-instance default seeds `outway` +
-  `internal`, i.e. all five legacy apiproxy routes. External-API keys are injected at
+- **frankgateway-\<class\>-apply-routes** (hook Job, post-install/post-upgrade) —
+  seeds that class's routes from `files/frankgateway/routes/<class>/`
+  (route id = file name, idempotent PUTs). An instance seeds the directory
+  named after its key unless `routes.dirs` says otherwise: the five routes
+  replacing the legacy apiproxy live under `outway/` (BAG + three KVK) and
+  `internal/` (BRP). External-API keys are injected at
   request time from env vars fed by the out-of-band Secret
   `frankgateway.apiKeys.existingSecret` — key values never land in etcd, git
   or the route JSONs. An OpenBao-backed variant (keys fetched from the

@@ -180,10 +180,32 @@ kiss:
         objectTypeUrl: "http://placeholder"
         token: "placeholder"
 
-# Frank!Gateway enabled with a dummy hostname so lint/CI render covers the
-# full stack (gateway + etcd + dashboard + SSO chain + routes hook Job).
+# Frank!Gateway enabled so lint/CI render covers the full stack (gateways +
+# etcd + dashboards + SSO chain + routes hook Jobs) across all three traffic
+# classes. Each dashboard needs its OWN hostname: they are distinct Ingresses
+# and oauth2-proxy redirect URIs, and the chart fails the render when two
+# instances claim the same one.
 frankgateway:
   enabled: true
-  dashboard:
-    auth:
-      hostname: "frankgateway-admin.example.nl"
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+  networkPolicies:
+    enabled: true
+    ingressNamespace: ingress-basic
+  instances:
+    inway:
+      tls:
+        enabled: true
+      dashboard:
+        auth:
+          hostname: "frankgateway-inway-admin.example.nl"
+    outway:
+      dashboard:
+        auth:
+          hostname: "frankgateway-outway-admin.example.nl"
+    internal:
+      dashboard:
+        auth:
+          hostname: "frankgateway-internal-admin.example.nl"

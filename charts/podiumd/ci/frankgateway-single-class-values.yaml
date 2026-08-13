@@ -1,0 +1,22 @@
+# Frank!Gateway single-class shape — layered on top of ci/lint-values.yaml.
+#
+# lint-values.yaml renders all three traffic classes with every optional
+# surface on (TLS, dashboards + SSO, NetworkPolicies, metrics). This file
+# renders the opposite corner: one class, no dashboard, no policies. An
+# environment that makes no external calls runs no outway, one that fronts
+# nothing runs no inway, and neither should be able to break on a render the
+# three-class default never exercises.
+frankgateway:
+  networkPolicies:
+    enabled: false
+  instances:
+    inway:
+      enabled: false
+    internal:
+      enabled: false
+    outway:
+      enabled: true
+      # No dashboard at all: no shim, no oauth2-proxy, no Keycloak client, no
+      # hostname requirement. Proves the whole SSO chain is genuinely optional.
+      dashboard:
+        enabled: false

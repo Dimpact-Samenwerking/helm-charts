@@ -14,6 +14,14 @@
 >   apisix-dashboard binds a single etcd prefix and operators want GUI access to
 >   each class.
 >
+> A third thing changed in **4.8.5**: the compatibility scaffolding this
+> assessment assumes — a reserved single-instance `gateway` key keeping the
+> unsuffixed object names, plus a `serviceAlias` Service for a phased cutover —
+> **no longer exists**. Frank!Gateway turned out to be deployed in no customer
+> environment, so there was nothing to stay compatible with. The three classes
+> are simply the shape of the chart. Passages below describing phase 1, the
+> byte-identical default render, or the alias are historical.
+>
 > The open questions at the bottom are answered in a closing section.
 
 ## Goal

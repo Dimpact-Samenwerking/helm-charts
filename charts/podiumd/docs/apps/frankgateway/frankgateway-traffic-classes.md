@@ -109,41 +109,45 @@ not the blast-radius concern — the gateway pods are.
   others down, and per-instance config checksums roll pods independently.
 - **Clean per-class metrics**, one Service and ServiceMonitor per instance.
 
-## Enabling the split
+## Enabling the gateway
+
+The three classes are the chart default: enabling Frank!Gateway enables all
+three. There is no single-instance shape and no `gateway` key — a values file
+still setting `frankgateway.instances.gateway` or `frankgateway.serviceAlias`
+fails the render with a message naming this document.
 
 ```yaml
 frankgateway:
   enabled: true
   networkPolicies:
     enabled: true
-  serviceAlias:            # keep the old `frankgateway` Service name working
-    enabled: true          # while applications are repointed one at a time
-    instance: outway
+    ingressNamespace: ingress-basic   # the NGF DATA plane namespace — see below
   instances:
-    gateway:
-      enabled: false       # the single-instance default is replaced
     inway:
-      enabled: true
       replicas: 2
       tls:
-        enabled: true
+        enabled: true        # front door re-encrypts; cert comes from etcd
       dashboard:
         auth:
           hostname: frankgateway-inway-admin.<env>.<domain>
     outway:
-      enabled: true
       dashboard:
         auth:
           hostname: frankgateway-outway-admin.<env>.<domain>
     internal:
-      enabled: true
       dashboard:
         auth:
           hostname: frankgateway-internal-admin.<env>.<domain>
 ```
 
 Anything not stated per instance is inherited from the shared `frankgateway`
-block, so an instance only declares what differs.
+block, so an instance only declares what differs. A class an environment has no
+use for is switched off with `enabled: false` — an environment making no calls
+to national registries needs no outway.
+
+Each dashboard needs its **own** hostname: they are separate Ingresses and
+separate oauth2-proxy redirect URIs. Two instances claiming one hostname fails
+the render rather than producing two Ingresses that fight over it.
 
 ### Turning dashboards on and off
 
@@ -226,22 +230,28 @@ Two things it does not remove, neither harmful:
 | `dashboard.enabled: true`, `auth.enabled: false` | dashboard only (port-forward) | no |
 | `dashboard.enabled: true`, `auth.enabled: true` | dashboard + oauth2-proxy + shim + ingress | **yes** |
 
-### Migration order
+### Object names
 
-1. Enable the split with `serviceAlias.enabled: true` pointing at `outway`.
-   Every application still resolving `frankgateway:9080` keeps working.
-2. Repoint applications one at a time to `frankgateway-outway:9080` (external
-   API calls) or `frankgateway-internal:9080` (app-to-app).
-3. Move inbound routing to `frankgateway-inway` (deploy-side: the ingress
-   HTTPRoute backend and the re-encrypt policy).
-4. Turn `serviceAlias` off once nothing resolves the bare name.
+Every instance-scoped object carries its class in the name. There is no
+unsuffixed `frankgateway` object of any kind — no Service, no Secret, no
+Deployment — so anything addressing the gateway must name the class it means:
 
-### Things that change name
+| Object | Name |
+|---|---|
+| Service (data plane :9080, Admin API :9180) | `frankgateway-<class>` |
+| Admin API credentials | `frankgateway-<class>-admin-credentials` |
+| APISIX config | `frankgateway-<class>-apisix-config` |
+| Routes hook Job + ConfigMap | `frankgateway-<class>-apply-routes`, `-routes` |
+| Dashboard chain | `frankgateway-<class>-dashboard`, `-shim`, `-oauth2-proxy` |
+| Keycloak OIDC client | `frankgateway-dashboard-<class>` |
+| etcd prefix | `/apisix-<class>` |
 
-Every instance-scoped object is suffixed. In particular the Admin API secret
-becomes `frankgateway-<instance>-admin-credentials` — **deployment pipelines
-that read `frankgateway-admin-credentials` by name must be updated**, which is
-why `serviceAlias` exists and why the default instance keeps the old names.
+The shared etcd StatefulSet (`frankgateway-etcd`) is the one object that is not
+per class.
+
+**Deploy tooling reading any of these by name must name the class.** This is
+the single most common way a change appears to work and does not — see the
+jim00 lessons below.
 
 ### Lessons from the first environment to do this (jim00)
 

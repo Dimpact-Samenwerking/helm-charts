@@ -7,8 +7,8 @@
   SANs) is deploy-side.
 
   Instances share the single etcd StatefulSet and are isolated by etcd prefix.
-  The `gateway` key keeps the bare `frankgateway` names so a chart that does not
-  opt into the split is unchanged.
+  Every instance is named after its key (`frankgateway-<key>`); there is no
+  single-instance shape.
 
   External-API keys (BAG/KVK) come from the out-of-band Secret named by
   apiKeys.existingSecret (optional — absent Secret does not block startup); the
@@ -125,40 +125,5 @@ spec:
           secret:
             secretName: {{ $name }}-apisix-config
 {{- end }}
-{{- end }}
-{{- if and .Values.frankgateway.serviceAlias.enabled (not (dig "gateway" "enabled" false .Values.frankgateway.instances)) }}
-{{- /*
-  Migration alias: the pre-split `frankgateway` Service name pointing at one of
-  the split instances, so app values can be repointed one application at a time
-  instead of all at once. Drop it once every consumer names its instance.
-*/ -}}
-{{- $aliasKey := .Values.frankgateway.serviceAlias.instance }}
-{{- $aliasOverride := index .Values.frankgateway.instances $aliasKey | default dict }}
-{{- $alias := include "podiumd.frankgateway.instanceValues" (dict "root" . "key" $aliasKey "override" $aliasOverride) | fromYaml }}
-{{- $aliasName := include "podiumd.frankgateway.instanceName" (dict "key" $aliasKey "instance" $alias) }}
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: frankgateway
-  namespace: {{ .Release.Namespace }}
-  labels:
-    {{- include "podiumd.labels" . | nindent 4 }}
-    app.kubernetes.io/component: frankgateway-alias
-spec:
-  selector:
-    app.kubernetes.io/name: {{ $aliasName }}
-  ports:
-    - name: gateway
-      port: 9080
-      targetPort: 9080
-    - name: admin
-      port: 9180
-      targetPort: 9180
-    {{- if $alias.tls.enabled }}
-    - name: gateway-tls
-      port: {{ $alias.tls.port }}
-      targetPort: {{ $alias.tls.port }}
-    {{- end }}
 {{- end }}
 {{- end }}

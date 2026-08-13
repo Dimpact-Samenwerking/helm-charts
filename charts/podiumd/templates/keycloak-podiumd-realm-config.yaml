@@ -941,11 +941,11 @@ data:
 {{- $fgInst := include "podiumd.frankgateway.instanceValues" (dict "root" $ "key" $fgKey "override" $fgOverride) | fromYaml }}
 {{- if and $fgInst.enabled $fgInst.dashboard.enabled $fgInst.dashboard.auth.enabled }}
       - clientId: {{ include "podiumd.frankgateway.oidcClientId" (dict "key" $fgKey) }}
-        name: Frank!Gateway Dashboard{{ if ne $fgKey "gateway" }} ({{ $fgKey }}){{ end }}
+        name: Frank!Gateway Dashboard ({{ $fgKey }})
         description: OIDC client used by oauth2-proxy in front of the Frank!Gateway (APISIX) dashboard to authenticate operator browser sessions.
         enabled: true
         clientAuthenticatorType: client-secret
-        secret: $(KC_SECRET_FRANKGATEWAY_DASHBOARD{{ if ne $fgKey "gateway" }}_{{ $fgKey | upper | replace "-" "_" }}{{ end }})
+        secret: $(KC_SECRET_FRANKGATEWAY_DASHBOARD_{{ $fgKey | upper | replace "-" "_" }})
         # Standard authorization-code flow for the dashboard browser session.
         standardFlowEnabled: true
         directAccessGrantsEnabled: false

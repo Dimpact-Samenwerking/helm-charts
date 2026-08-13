@@ -52,11 +52,9 @@ stringData:
       etcd:
         endpoints:
           - "http://frankgateway-etcd:2379"
-        {{- if ne $prefix "/apisix" }}
-        # This instance's slice of the shared etcd. Omitted for the default
-        # instance, whose prefix is the dashboard's own built-in default.
+        # This instance's slice of the shared etcd. Always set explicitly —
+        # apisix-dashboard's own default is `/apisix`, which no instance uses.
         prefix: {{ $prefix | quote }}
-        {{- end }}
         mtls:
           key_file: ""
           cert_file: ""
