@@ -84,14 +84,16 @@ below stands for whichever of the three is meant:
   (route id = file name, idempotent PUTs). An instance seeds the directory
   named after its key unless `routes.dirs` says otherwise: the five routes
   replacing the legacy apiproxy live under `outway/` (BAG + three KVK) and
-  `internal/` (BRP). External-API keys are injected at
-  request time from env vars fed by the out-of-band Secret
-  `frankgateway.apiKeys.existingSecret` — key values never land in etcd, git
-  or the route JSONs. An OpenBao-backed variant (keys fetched from the
-  in-cluster vault at request time) is available as
-  `files/frankgateway/openbao-secret-header.lua` — a configurable function taking
-  the secret path, field and header name, so one implementation covers the BAG,
-  KVK and ESB-consumer call sites.
+  `internal/` (BRP). External-API keys are fetched from **OpenBao at request
+  time** by `files/frankgateway/openbao-secret-header.lua` (mounted from the
+  `frankgateway-lua` ConfigMap, resolved via `apisix.extra_lua_path`) — a
+  configurable function taking the secret path, field and header name, so one
+  implementation covers the BAG, KVK and ESB-consumer call sites. Key values
+  never land in etcd, git, a ConfigMap, a Kubernetes Secret or the route JSONs;
+  the pod carries only a scoped reader token. A route whose secret cannot be
+  read answers **503** with a log line naming the path
+  (`frankgateway.openbao.failMode: closed`) rather than passing the request on
+  to be rejected as a 401, which is indistinguishable from a wrong key.
 
 ## Required resources
 
@@ -139,17 +141,16 @@ hostname.
   that class's oauth2-proxy.
 - **Redis** — the chart's shared `redis-ha` stores oauth2-proxy sessions
   (cookie-only storage drops chunked cookies behind NGF → login loops).
-- **External API keys** — out-of-band Secret named by
-  `frankgateway.apiKeys.existingSecret` (Key-Vault-fed, created by the
-  environment deployment) with the BAG/KVK keys the routes inject at request
-  time.
+- **OpenBao** — **required**, not optional: it is the only source of
+  external-API credentials, and `openbao.enabled: false` alongside
+  `frankgateway.enabled: true` fails the render. The BAG/KVK keys live at
+  `<mount>/frankgateway` (fields `bag_api_key`, `kvk_api_key`); the gateway
+  reads them with a scoped token supplied out-of-band in the Secret named by
+  `frankgateway.openbao.tokenSecret` (Key-Vault-fed, never minted by this
+  chart — a token the chart could mint is a token the chart would store).
 - **CoreDNS** — `frankgateway.dashboard.auth.dnsResolver` must be set to the
   cluster's CoreDNS ClusterIP (AKS default `10.0.0.10`; jim00 `172.16.0.10`)
   for the shim's request-time DNS re-resolution.
-- **OpenBao** (optional) — alternative request-time key source via
-  `files/frankgateway/openbao-secret-header.lua` — a configurable function taking
-  the secret path, field and header name, so one implementation covers the BAG,
-  KVK and ESB-consumer call sites.
 
 ## CPU and memory
 
@@ -186,9 +187,11 @@ its own item on IN-2596.
 2. **Set the per-environment must-sets**:
    `frankgateway.dashboard.auth.hostname` (public dashboard host) and
    `frankgateway.dashboard.auth.dnsResolver` (cluster CoreDNS ClusterIP).
-3. **API keys Secret.** Have the environment deployment create the
-   out-of-band Secret (BAG/KVK keys, Key-Vault-fed) and point
-   `frankgateway.apiKeys.existingSecret` at it.
+3. **OpenBao.** Enable it (`openbao.enabled: true` — the render fails
+   otherwise), write the external-API keys to `<mount>/frankgateway`
+   (`bag_api_key`, `kvk_api_key`), and have the environment deployment create
+   the scoped-reader-token Secret named by
+   `frankgateway.openbao.tokenSecret`.
 4. **Route the dashboards.** One per class that has one. Gateway API
    environments: HTTPRoute → `frankgateway-<class>-oauth2-proxy:4180` in ADO
    `ExternalsPodiumD` (`infra.yml`), and add each hostname to the gateway

@@ -276,6 +276,11 @@ Usage: {{ include "podiumd.frankgateway.config"
 apisix:
   node_listen: 9080
   enable_ipv6: false
+  # Where `require("openbao-secret-header")` resolves from: the Lua shipped in
+  # files/frankgateway/, mounted from the frankgateway-lua ConfigMap. Without
+  # this the route's serverless function fails to load and every request
+  # through it errors.
+  extra_lua_path: "/usr/local/apisix/conf/lua/?.lua"
   {{- if $fg.tls.enabled }}
   # TLS data-plane listener; per-SNI certificates come from SSL objects
   # in etcd (seeded via the Admin API), not from mounted files.
@@ -327,10 +332,10 @@ plugin_attr:
                  bandwidth and the nginx gauges unlabelled; it is stamped on
                  every series at scrape time by the ServiceMonitor's relabeling
                  instead (frankgateway-servicemonitor.yaml). */}}
-# Expose the external-API-key env vars (from the
-# {{ $fg.apiKeys.existingSecret }} Secret) to nginx workers so routes can
-# read them via os.getenv in a serverless function — keeps key VALUES out
-# of etcd/git (only the var NAMES appear here).
+# nginx does not pass the process environment to workers unless each variable
+# is declared here, so the OpenBao Lua would see nil for all of them. Only the
+# NAMES appear in this config; the token VALUE reaches the container from a
+# Secret and never lands in etcd, git or a ConfigMap.
 nginx_config:
   {{- if $fg.accessLog.jsonFormat }}
   # Structured JSON access logs: one object per request, json-escaped, so
@@ -343,9 +348,28 @@ nginx_config:
     access_log_format: '{"time":"$time_iso8601","instance_name":"{{ .name }}","client":"$remote_addr","method":"$request_method","host":"$host","uri":"$uri","query":"$args","status":$status,"bytes_sent":$body_bytes_sent,"request_time":$request_time,"upstream_addr":"$upstream_addr","upstream_status":"$upstream_status","upstream_response_time":"$upstream_response_time","request_id":"$request_id","referer":"$http_referer","user_agent":"$http_user_agent"}'
   {{- end }}
   main_configuration_snippet: |
-    {{- range $fg.apiKeys.envNames }}
-    env {{ . }};
-    {{- end }}
+    env OPENBAO_TOKEN;
+    env OPENBAO_ADDR;
+    env OPENBAO_MOUNT;
+    env OPENBAO_KV;
+    env OPENBAO_FAIL_MODE;
+{{- end -}}
+
+{{/*
+Frank!Gateway — OpenBao address for the request-time secret fetch.
+
+Defaults to the active (unsealed leader) Service of the OpenBao in this
+release; the standby pods answer 5xx on reads, so the plain `-openbao` Service
+would fail intermittently in a way that looks like a flaky secret.
+
+Usage: {{ include "podiumd.frankgateway.openbaoAddr" (dict "root" $ "instance" $inst) }}
+*/}}
+{{- define "podiumd.frankgateway.openbaoAddr" -}}
+{{- with .instance.openbao.addr -}}
+{{- . -}}
+{{- else -}}
+http://{{ .root.Release.Name }}-openbao-active:8200
+{{- end -}}
 {{- end -}}
 
 {{/*

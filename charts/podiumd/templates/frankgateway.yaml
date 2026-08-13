@@ -10,10 +10,9 @@
   Every instance is named after its key (`frankgateway-<key>`); there is no
   single-instance shape.
 
-  External-API keys (BAG/KVK) come from the out-of-band Secret named by
-  apiKeys.existingSecret (optional — absent Secret does not block startup); the
-  config Secret's main_configuration_snippet exposes the var NAMES to nginx
-  workers so routes read them via os.getenv at request time.
+  External-API keys (BAG/KVK) are read from OpenBao at request time by the Lua
+  mounted from the frankgateway-lua ConfigMap; the pod carries only a scoped
+  reader token. Key values never reach etcd, git, a ConfigMap or a Secret.
 
   The checksum/config annotation is computed from THIS instance's config only
   (via the podiumd.frankgateway.config helper) rather than from the whole
@@ -82,6 +81,9 @@ spec:
       annotations:
         # Roll the pod when the rendered APISIX config changes.
         checksum/config: {{ include "podiumd.frankgateway.config" (dict "root" $root "instance" $fg "name" $name "prefix" $prefix "admin" $creds.admin "viewer" $creds.viewer) | sha256sum }}
+        # Lua is loaded once per worker at startup, so a changed function only
+        # takes effect on a roll.
+        checksum/lua: {{ ($root.Files.Glob "files/frankgateway/*.lua").AsConfig | sha256sum }}
     spec:
       topologySpreadConstraints:
         {{- include "podiumd.frankgateway.spread" (dict "name" $name "override" $fg.topologySpreadConstraints) | nindent 8 }}
@@ -89,10 +91,25 @@ spec:
         - name: frankgateway
           image: "{{ $fg.image.repository }}:{{ $fg.image.tag }}"
           imagePullPolicy: IfNotPresent
-          envFrom:
-            - secretRef:
-                name: {{ $fg.apiKeys.existingSecret }}
-                optional: true
+          env:
+            # Read at request time by files/frankgateway/openbao-secret-header.lua.
+            # The token is mounted optionally so a class that reads no secrets
+            # (inway, internal) still starts without it; a route that does need
+            # one answers 503 rather than the pod failing to schedule.
+            - name: OPENBAO_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $fg.openbao.tokenSecret.name }}
+                  key: {{ $fg.openbao.tokenSecret.key }}
+                  optional: true
+            - name: OPENBAO_ADDR
+              value: {{ include "podiumd.frankgateway.openbaoAddr" (dict "root" $root "instance" $fg) | quote }}
+            - name: OPENBAO_MOUNT
+              value: {{ $fg.openbao.mount | default $root.Values.openbao.configuration.kvPath | quote }}
+            - name: OPENBAO_KV
+              value: {{ $fg.openbao.kvVersion | quote }}
+            - name: OPENBAO_FAIL_MODE
+              value: {{ $fg.openbao.failMode | quote }}
           ports:
             - name: gateway
               containerPort: 9080
@@ -122,10 +139,16 @@ spec:
             - name: config
               mountPath: /usr/local/apisix/conf/config.yaml
               subPath: config.yaml
+            - name: lua
+              mountPath: /usr/local/apisix/conf/lua
+              readOnly: true
       volumes:
         - name: config
           secret:
             secretName: {{ $name }}-config
+        - name: lua
+          configMap:
+            name: frankgateway-lua
 {{- end }}
 {{- end }}
 {{- end }}

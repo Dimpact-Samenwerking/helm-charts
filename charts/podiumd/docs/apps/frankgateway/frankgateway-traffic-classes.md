@@ -124,6 +124,11 @@ three. There is no single-instance shape and no `gateway` key — a values file
 still setting `frankgateway.instances.gateway` or `frankgateway.serviceAlias`
 fails the render with a message naming this document.
 
+**OpenBao is required alongside it.** External-API credentials are read from
+OpenBao at request time and there is no second key path, so
+`openbao.enabled: false` with `frankgateway.enabled: true` fails the render
+rather than deploying a gateway that cannot authenticate to anything.
+
 ```yaml
 frankgateway:
   enabled: true

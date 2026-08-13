@@ -26,6 +26,15 @@
      prefix are gone — so a values file still setting it would quietly render a
      fourth instance named `frankgateway-gateway` on prefix `/frankgateway-gateway`,
      seeding no routes and serving nothing. Fail instead. */ -}}
+{{- /* Frank!Gateway reads every external-API credential from OpenBao at request
+     time (files/frankgateway/openbao-secret-header.lua). There is no env-var
+     fallback any more, so a gateway without OpenBao cannot authenticate to
+     BAG, KVK or any other upstream that needs a key — and it would fail at
+     request time, per call, rather than at deploy time. Couple them here. */ -}}
+{{- if and .Values.frankgateway.enabled (not .Values.openbao.enabled) -}}
+{{- fail "frankgateway requires openbao: external-API keys are fetched from OpenBao at request time and there is no other key path. Set openbao.enabled=true, or frankgateway.enabled=false." -}}
+{{- end -}}
+
 {{- if .Values.frankgateway.enabled -}}
 {{- if hasKey .Values.frankgateway.instances "gateway" -}}
 {{- fail "frankgateway.instances.gateway no longer exists: the traffic-class split (inway/outway/internal) is the only supported shape. Move the overrides under the class they belong to and remove the `gateway` key. See charts/podiumd/docs/apps/frankgateway/frankgateway-traffic-classes.md" -}}

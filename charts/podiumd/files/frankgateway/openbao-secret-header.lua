@@ -20,13 +20,15 @@
 --   KVK           field kvk_api_key,      header apikey
 --   ESB consumer  field esb_consumer_key, header apikey        (IN-2543)
 --
--- Environment (expose the names in apisix-config
--- nginx_config.main_configuration_snippet, e.g. `env OPENBAO_TOKEN;`):
+-- Environment (the chart exposes these to nginx workers via
+-- nginx_config.main_configuration_snippet and sets them on the gateway
+-- container; see podiumd.frankgateway.config):
 --
---   OPENBAO_TOKEN    scoped reader token; required
---   OPENBAO_ADDR     default http://podiumd-openbao-active:8200
---   OPENBAO_MOUNT    default secret
---   OPENBAO_KV       kv engine version, "1" or "2"; default 2
+--   OPENBAO_TOKEN      scoped reader token; required
+--   OPENBAO_ADDR       default http://podiumd-openbao-active:8200
+--   OPENBAO_MOUNT      default secret
+--   OPENBAO_KV         kv engine version, "1" or "2"; default 2
+--   OPENBAO_FAIL_MODE  "closed" (default) or "open"
 --
 -- The kv version matters because the read path and the response shape differ:
 -- v1 is  <mount>/<path>       -> body.data
@@ -35,12 +37,21 @@
 -- so v2 is the default here; v1 remains supported because the jim00 rig was
 -- built against a hand-made kv-v1 "apisix" mount and has not been migrated yet.
 --
--- Fail-open by design: on any error the header is simply not set, and the
--- upstream rejects the call itself. A gateway that 500s on an OpenBao blip
--- would turn a secret-store hiccup into an outage.
+-- FAIL CLOSED by default. The earlier version failed open: on any error the
+-- header was simply not set and the upstream rejected the call itself. That
+-- turns "OpenBao is unreachable" into an upstream 401 — indistinguishable from
+-- a wrong or expired key, and one of the faults IN-2596 §4 names as invisible
+-- from outside. Now the gateway answers 503 itself, with a log line saying
+-- which path failed, so the cause is in the first place anyone looks.
+--
+-- OPENBAO_FAIL_MODE=open restores the old behaviour for a deployment that would
+-- rather serve a doomed request than none at all. It is not the default because
+-- a silent 401 costs more to diagnose than a loud 503.
 --
 -- Caching: per-worker lrucache, 300s TTL. Rotation in OpenBao is picked up
--- within the TTL, or immediately after a frankgateway pod restart.
+-- within the TTL, or immediately after a frankgateway pod restart. Failures are
+-- NOT cached: a transient outage would otherwise persist for the full TTL after
+-- OpenBao came back.
 
 local core  = require("apisix.core")
 local http  = require("resty.http")
@@ -70,11 +81,13 @@ local function secret_url(path)
   return string.format("%s/v1/%s/data/%s", addr, mount, path)
 end
 
+-- Returns the secret table, or nil plus a short reason. The reason is for the
+-- log only: it never reaches the client, and it never contains secret material
+-- or an OpenBao response body (an error body can echo the requested path).
 local function fetch(path)
   local token = os.getenv("OPENBAO_TOKEN")
   if not token or token == "" then
-    core.log.error("openbao: OPENBAO_TOKEN is not set in the nginx environment")
-    return {}
+    return nil, "OPENBAO_TOKEN is not set in the nginx environment"
   end
 
   local httpc = http.new()
@@ -82,24 +95,46 @@ local function fetch(path)
     headers = { ["X-Vault-Token"] = token },
   })
   if not res then
-    core.log.error("openbao fetch failed: ", tostring(err))
-    return {}
+    return nil, "request failed: " .. tostring(err)
   end
   if res.status ~= 200 then
-    -- Deliberately does not log the body: an OpenBao error response can echo
-    -- the requested path, and this goes to the access log.
-    core.log.error("openbao fetch status ", res.status, " for path ", path)
-    return {}
+    return nil, "status " .. res.status
   end
 
   local body = core.json.decode(res.body)
   if not body or not body.data then
-    return {}
+    return nil, "malformed response"
   end
+
+  local data
   if env("OPENBAO_KV", DEFAULT_KV) == "1" then
-    return body.data
+    data = body.data
+  else
+    data = body.data.data
   end
-  return body.data.data or {}
+  if not data then
+    return nil, "no data at path"
+  end
+  return data
+end
+
+-- lrucache stores only successes: the creation function returns nil on failure,
+-- so nothing is cached and the next request retries instead of serving a cached
+-- failure for the rest of the TTL. The reason travels out through an upvalue
+-- rather than a second return value, because lrucache keeps only the first —
+-- and a second fetch just to recover the error message would double the load on
+-- an OpenBao that is already struggling.
+local function fetch_cached(path)
+  local last_err
+  local secret = cache(path, nil, function(p)
+    local v, e = fetch(p)
+    last_err = e
+    return v
+  end, path)
+  if secret then
+    return secret
+  end
+  return nil, last_err or "unavailable"
 end
 
 return function(opts)
@@ -107,13 +142,27 @@ return function(opts)
   local field  = assert(opts and opts.field, "openbao-secret-header: field is required")
   local header = assert(opts and opts.header, "openbao-secret-header: header is required")
 
-  -- Cache key is the secret path: one fetch serves every field in that secret.
   return function(_, ctx)
-    local secret = cache(path, nil, fetch, path)
+    local secret, err = fetch_cached(path)
+
     if secret and secret[field] then
       core.request.set_header(ctx, header, secret[field])
-    else
-      core.log.warn("openbao: field ", field, " not present at ", path)
+      return
     end
+
+    if not err then
+      err = "field " .. field .. " not present"
+    end
+    core.log.error("openbao: cannot set header ", header, " from ", path, ": ", err)
+
+    if env("OPENBAO_FAIL_MODE", "closed") == "open" then
+      -- Send the request on without the header; the upstream will reject it.
+      return
+    end
+
+    return core.response.exit(503, {
+      error = "secret_unavailable",
+      message = "gateway could not read the upstream credential from OpenBao",
+    })
   end
 end
