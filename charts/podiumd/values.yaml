@@ -3605,10 +3605,21 @@ frankgateway:
     unhealthyPodEvictionPolicy: AlwaysAllow
     # A budget is only rendered where the workload has more than one replica:
     # over a single replica it either does nothing or blocks drains forever.
+  # Measured on jim00 (7-day peaks, three classes live, QA traffic levels):
+  # CPU peaked at 8m, memory at 375Mi on the instance carrying all five routes
+  # and 250-290Mi per split instance. See the table in frankgateway-BASICS.md.
+  #
+  # Memory request is therefore 384Mi, NOT the 256Mi carried over from the
+  # single-gateway setup: that number sat *below* the observed peak, which is
+  # how a pod gets evicted first under node memory pressure while looking
+  # correctly sized on paper. CPU stays at 100m — 12x the measured QA peak, but
+  # QA traffic says nothing about what the inway sees in production, and a
+  # request-path proxy is the wrong place to be stingy with the guaranteed
+  # share. Revisit both once a production environment has run for a week.
   resources:
     requests:
       cpu: 100m
-      memory: 256Mi
+      memory: 384Mi
     limits:
       cpu: "1"
       memory: 1Gi
@@ -3720,10 +3731,14 @@ frankgateway:
     storage: 2Gi
     # Empty => cluster default StorageClass. jim00 uses managed-csi.
     storageClassName: ""
+    # Measured: 20m CPU / 126Mi memory peak on jim00 with a single member. The
+    # old 128Mi request was within 2Mi of the observed peak — raised to 192Mi,
+    # and each of the three members holds the same dataset, so this is per
+    # member and not divided.
     resources:
       requests:
         cpu: 50m
-        memory: 128Mi
+        memory: 192Mi
       limits:
         cpu: 500m
         memory: 512Mi
@@ -3796,9 +3811,12 @@ frankgateway:
     # auto-login (the dashboard is never exposed directly). Empty => random,
     # stable across upgrades via lookup (Secret frankgateway-dashboard-conf).
     adminPassword: ""
+    # Measured: 11m CPU / 90Mi memory peak. CPU request halved to 25m — with
+    # six dashboards the old 50m reserved 300m for a debug GUI. Memory kept at
+    # 128Mi, which is above the peak.
     resources:
       requests:
-        cpu: 50m
+        cpu: 25m
         memory: 128Mi
       limits:
         cpu: 500m
@@ -3833,18 +3851,23 @@ frankgateway:
         image:
           repository: quay.io/oauth2-proxy/oauth2-proxy
           tag: "v7.7.1"
+        # Measured: under 1m CPU / 44Mi memory peak. It only works during an
+        # interactive login; sessions live in redis, not here.
         resources:
           requests:
-            cpu: 25m
+            cpu: 10m
             memory: 64Mi
           limits:
             cpu: 250m
             memory: 256Mi
       shim:
         image: *nginxImage
+        # Measured: 2m CPU / 7Mi memory peak — it proxies a handful of operator
+        # page loads. The smallest thing in the stack, and it was requesting as
+        # much CPU as the dashboard it fronts.
         resources:
           requests:
-            cpu: 25m
+            cpu: 10m
             memory: 32Mi
           limits:
             cpu: 250m

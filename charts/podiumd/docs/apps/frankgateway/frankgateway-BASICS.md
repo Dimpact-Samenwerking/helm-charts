@@ -154,32 +154,46 @@ hostname.
 
 ## CPU and memory
 
-Chart defaults:
+Chart defaults, with the 7-day peak measured on jim00 (three classes live, QA
+traffic levels) next to each request so the margin is visible:
 
-| Container | CPU request | Mem request | CPU limit | Mem limit |
-|-----------|-------------|-------------|-----------|-----------|
-| frankgateway | 100m | 256Mi | 1 | 1Gi |
-| frankgateway-etcd | 50m | 128Mi | 500m | 512Mi |
-| frankgateway-dashboard | 50m | 128Mi | 500m | 512Mi |
-| oauth2-proxy | 25m | 64Mi | 250m | 256Mi |
-| shim (nginx) | 25m | 32Mi | 250m | 128Mi |
-| apply-routes job | 25m | 32Mi | 250m | 128Mi |
+| Container | CPU request | measured peak | Mem request | measured peak | CPU limit | Mem limit |
+|-----------|-------------|---------------|-------------|---------------|-----------|-----------|
+| frankgateway | 100m | 8m | 384Mi | 375Mi | 1 | 1Gi |
+| frankgateway-etcd | 50m | 20m | 192Mi | 126Mi | 500m | 512Mi |
+| frankgateway-dashboard | 25m | 11m | 128Mi | 90Mi | 500m | 512Mi |
+| oauth2-proxy | 10m | <1m | 64Mi | 44Mi | 250m | 256Mi |
+| shim (nginx) | 10m | 2m | 32Mi | 7Mi | 250m | 128Mi |
+| apply-routes job | 25m | — | 32Mi | — | 250m | 128Mi |
+
+The 375Mi gateway peak is the number that mattered: the previous request was
+**256Mi**, i.e. below the observed peak. A pod whose request understates its
+real working set is the first one the kubelet evicts under node memory
+pressure, while looking correctly sized in the values file. CPU went the other
+way — every container was requesting several times its measured peak, which at
+2 replicas × 3 classes reserves capacity nobody uses.
+
+CPU on the gateway is deliberately left at 100m, twelve times the measured
+peak: QA traffic says nothing about what the inway sees in production, and the
+guaranteed share of a request-path proxy is the wrong place to economise.
 
 Each workload also gets a PodDisruptionBudget (`maxUnavailable: 1`,
 `unhealthyPodEvictionPolicy: AlwaysAllow`), rendered only where the workload has
 more than one replica — over a single replica a budget either does nothing or
 blocks node drains forever.
 
-Per container. Multiply by the replica count and the number of enabled classes
-for the real total: gateways, dashboards, oauth2-proxy and shim run at 2 each,
-etcd at 3 — so the floor with all dashboards on is 27 pods, and 9 with them
-off (see the footprint table in
-[`frankgateway-traffic-classes.md`](frankgateway-traffic-classes.md)).
+Figures are per container. Multiply by the replica count and the number of
+enabled classes for the real total: gateways, dashboards, oauth2-proxy and shim
+run at 2 each, etcd at 3 — so the floor with all dashboards on is 27 pods, and
+9 with them off (see the footprint table in
+[`frankgateway-traffic-classes.md`](frankgateway-traffic-classes.md)). That
+comes to roughly **1.0 CPU and 4.1Gi of requests** with every dashboard on, and
+**0.75 CPU / 2.8Gi** with them off.
 
-No observed-usage numbers yet — the requests above were carried over from the
-pre-chart single-gateway setup and have never been measured against three
-classes at two replicas. Measuring them, and revising this table, is tracked as
-its own item on IN-2596.
+These are still QA numbers. Nothing here has been measured against production
+traffic, and the gateway CPU request in particular is a placeholder for
+evidence that does not exist yet — revisit after a production environment has
+run for a week.
 
 ## Integrating Frank!Gateway as a new app
 
