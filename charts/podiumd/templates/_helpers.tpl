@@ -378,6 +378,30 @@ Usage: {{ include "podiumd.frankgateway.certDnsNames" (dict "root" $root "instan
 {{- end -}}
 
 {{/*
+Frank!Gateway — issuerRef for the data-plane Certificate.
+
+An explicitly named issuer wins. Otherwise, when the chart renders the
+OpenBao-backed Issuer, point at that one — so enabling it is a single flag
+rather than a flag plus a name that has to match.
+
+Returns YAML (name/kind/group).
+
+Usage: {{ include "podiumd.frankgateway.certIssuerRef" (dict "instance" $fg) }}
+*/}}
+{{- define "podiumd.frankgateway.certIssuerRef" -}}
+{{- $cm := .instance.tls.certManager -}}
+{{- if $cm.issuerRef.name -}}
+name: {{ $cm.issuerRef.name }}
+kind: {{ $cm.issuerRef.kind }}
+group: {{ $cm.issuerRef.group }}
+{{- else -}}
+name: frankgateway-openbao
+kind: Issuer
+group: cert-manager.io
+{{- end -}}
+{{- end -}}
+
+{{/*
 Frank!Gateway — name of the Secret holding the data-plane certificate.
 
 Explicit sslSync.secretName wins; otherwise the cert-manager Secret when that

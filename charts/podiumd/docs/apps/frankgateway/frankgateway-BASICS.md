@@ -230,38 +230,92 @@ So a certificate always has to be **in etcd before the connection arrives**.
 Whatever issues it, something must push it there — which is exactly what the
 sync CronJob does. Changing the source does not remove that step.
 
-### OpenBao as the source of the certificate
+### OpenBao as the issuing CA
 
-That said, OpenBao *can* usefully be where the certificate comes from, and
-there is a real argument for it: today the private key sits in a Kubernetes
-Secret, readable by anything with `get secrets` in the namespace and present in
-cluster backups. Two ways to change that, in increasing order of effort:
+**Decided and implemented**: the certificate is issued *through* OpenBao's PKI
+engine, and cert-manager still writes it to a Kubernetes Secret, which the sync
+CronJob pushes into etcd. OpenBao becomes the CA and the audit point; nothing
+else in the mechanism changes.
 
-1. **cert-manager issues *through* OpenBao.** OpenBao runs a PKI engine and
-   cert-manager points at it with a Vault-type `Issuer`
-   (`tls.certManager.issuerRef.kind: Issuer`). OpenBao becomes the CA and the
-   audit point; everything else in this chart is unchanged, including the
-   Kubernetes Secret. Cheapest option, and it needs no chart changes at all —
-   only a different `issuerRef`.
-2. **The sync job reads the certificate straight from OpenBao.** No Kubernetes
-   Secret anywhere: the CronJob fetches cert and key from a kv path with the
-   same scoped token pattern the gateway already uses for API keys, and PUTs
-   them to the Admin API. This is the version that actually matches the "keys
-   live in OpenBao and nowhere else" model.
+`tls.certManager.issuer.create: true` renders two objects, once per namespace:
+a `ServiceAccount` and a cert-manager `Issuer` of type `vault` pointed at
+`http://<release>-openbao-active:8200`. cert-manager exchanges that
+ServiceAccount's token for a short-lived OpenBao token on each issuance, so
+there is no static credential anywhere in the cluster. Every instance's
+Certificate then uses that Issuer automatically — naming an issuer explicitly
+in `issuerRef.name` still overrides it.
 
-Neither makes the certificate available *sooner*. The honest framing of the
-current lag: cert-manager renews **30 days** before expiry, and the sync runs
-within **24 hours** of that — using 0.14% of the safety margin. Immediacy is
-not what is at risk here; silence is. A sync that fails every night for a month
-is the failure mode worth engineering against, and it is equally likely
-whichever source the certificate comes from.
+```yaml
+frankgateway:
+  tls:
+    enabled: true
+    certManager:
+      enabled: true
+      issuer:
+        create: true          # issuerRef is then unnecessary
+```
 
-One thing genuinely does change with OpenBao PKI: short-lived certificates
-become practical (hours or days instead of 90 days), and that shrinks the
-window in which a leaked key is useful. But it also inverts the timing
-argument — with a 72-hour certificate, a nightly sync is no longer a rounding
-error against the renewal window, and the schedule has to come down with it.
-Short-lived certificates make the sync **more** critical, not less.
+**OpenBao side, once per environment.** The chart cannot do this: it requires
+an unsealed, authenticated OpenBao.
+
+```bash
+# PKI engine + an internal root
+bao secrets enable pki
+bao secrets tune -max-lease-ttl=8760h pki
+bao write pki/root/generate/internal \
+  common_name="PodiumD internal CA" ttl=8760h
+
+# role the Issuer signs against — the names in the certificate's SANs
+bao write pki/roles/frankgateway \
+  allowed_domains="frankgateway-inway,frankgateway-outway,frankgateway-internal,svc.cluster.local" \
+  allow_subdomains=true allow_bare_domains=true allow_glob_domains=true \
+  max_ttl=2160h
+
+# kubernetes auth, so cert-manager can trade a SA token for an OpenBao token
+bao auth enable kubernetes
+bao write auth/kubernetes/config kubernetes_host="https://kubernetes.default.svc"
+bao policy write frankgateway-pki - <<'POLICY'
+path "pki/sign/frankgateway" { capabilities = ["create", "update"] }
+POLICY
+bao write auth/kubernetes/role/frankgateway-pki \
+  bound_service_account_names=frankgateway-pki \
+  bound_service_account_namespaces=podiumd \
+  policies=frankgateway-pki ttl=20m
+```
+
+> **The front door has to trust the new CA.** Moving from a public issuer to an
+> internal OpenBao root changes who signed the certificate, and NGF validates
+> it on this hop. Export the root
+> (`bao read -field=certificate pki/cert/ca`) into the ConfigMap the
+> `BackendTLSPolicy` references (`validation.caCertificateRefs`), or the hop
+> fails closed the moment the new certificate is served — with a TLS error at
+> the front door and nothing wrong in the gateway's own logs. Do this **before**
+> switching the issuer, not after.
+
+### What this does not change
+
+The private key still lands in a Kubernetes Secret on its way to etcd, and it
+still ends up in APISIX's etcd, because a certificate is selected during the
+TLS handshake and has to be there before the connection arrives. Sourcing it
+from OpenBao does not make it available any faster either: renewal starts 30
+days before expiry and the sync runs within 24 hours of that, using 0.14% of
+the margin. Immediacy is not the risk here; a sync failing silently for a month
+is.
+
+A stricter variant is possible — the sync job reading cert and key straight from
+an OpenBao kv path with the same scoped token the gateway uses for API keys, so
+no Kubernetes Secret exists at all. It was considered and not taken: it removes
+one copy of the key while leaving the copy in APISIX's etcd, and it replaces
+cert-manager's renewal machinery (which is watched, alerted and understood) with
+bespoke logic in a shell script. Worth revisiting only if the Kubernetes Secret
+itself becomes the objection.
+
+One thing that would genuinely change with OpenBao PKI is **short-lived
+certificates** — hours or days rather than 90 days, shrinking the window a
+leaked key is useful. That inverts the timing argument above: a nightly sync
+against a 72-hour certificate is no longer a rounding error, so
+`tls.sslSync.schedule` must come down with the TTL. Do not shorten `duration`
+without shortening the schedule.
 
 **Owner.** Automation nobody watches fails the same way a manual process does,
 only later and more quietly. Two checks belong to a named person:

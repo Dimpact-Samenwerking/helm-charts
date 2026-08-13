@@ -19,6 +19,50 @@
   TLS immediately rather than waiting for the first CronJob tick.
 */ -}}
 {{- $root := . }}
+{{- $cmShared := .Values.frankgateway.tls.certManager }}
+{{- if and .Values.frankgateway.tls.enabled $cmShared.enabled $cmShared.issuer.create }}
+{{- /*
+  One OpenBao-backed Issuer for the whole namespace: the three classes want
+  certificates from the same CA, and an Issuer holds no per-instance state.
+
+  cert-manager exchanges a ServiceAccount token for a short-lived OpenBao
+  token on each issuance, so no static credential is stored anywhere. The
+  OpenBao side (pki engine, role, kubernetes auth binding) is set up once per
+  environment — commands in frankgateway-BASICS.md.
+*/ -}}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $cmShared.issuer.kubernetes.serviceAccountName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frankgateway
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: frankgateway-openbao
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frankgateway
+spec:
+  vault:
+    server: {{ $cmShared.issuer.server | default (printf "http://%s-openbao-active:8200" .Release.Name) | quote }}
+    path: {{ $cmShared.issuer.path | quote }}
+    {{- with $cmShared.issuer.caBundleSecretRef }}
+    caBundleSecretRef:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+    auth:
+      kubernetes:
+        role: {{ $cmShared.issuer.kubernetes.role | quote }}
+        mountPath: {{ $cmShared.issuer.kubernetes.mountPath | quote }}
+        serviceAccountRef:
+          name: {{ $cmShared.issuer.kubernetes.serviceAccountName }}
+{{- end }}
 {{- range $key, $override := .Values.frankgateway.instances }}
 {{- $fg := include "podiumd.frankgateway.instanceValues" (dict "root" $root "key" $key "override" $override) | fromYaml }}
 {{- if and $fg.enabled $fg.tls.enabled }}
@@ -44,9 +88,7 @@ spec:
   privateKey:
     rotationPolicy: Always
   issuerRef:
-    name: {{ $fg.tls.certManager.issuerRef.name }}
-    kind: {{ $fg.tls.certManager.issuerRef.kind }}
-    group: {{ $fg.tls.certManager.issuerRef.group }}
+    {{- include "podiumd.frankgateway.certIssuerRef" (dict "instance" $fg) | nindent 4 }}
   dnsNames:
     {{- include "podiumd.frankgateway.certDnsNames" (dict "root" $root "instance" $fg "name" $name) | nindent 4 }}
 {{- end }}

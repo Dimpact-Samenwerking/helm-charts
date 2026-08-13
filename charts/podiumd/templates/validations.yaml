@@ -46,8 +46,8 @@
      server with a message about the CRD, not about this chart. Say it here. */ -}}
 {{- range $key, $override := .Values.frankgateway.instances -}}
 {{- $fg := include "podiumd.frankgateway.instanceValues" (dict "root" $ "key" $key "override" $override) | fromYaml -}}
-{{- if and $fg.enabled $fg.tls.enabled $fg.tls.certManager.enabled (not $fg.tls.certManager.issuerRef.name) -}}
-{{- fail (printf "frankgateway.instances.%s: tls.certManager.enabled requires tls.certManager.issuerRef.name — usually the ClusterIssuer that already issues this environment's public certificates" $key) -}}
+{{- if and $fg.enabled $fg.tls.enabled $fg.tls.certManager.enabled (not $fg.tls.certManager.issuerRef.name) (not $fg.tls.certManager.issuer.create) -}}
+{{- fail (printf "frankgateway.instances.%s: tls.certManager.enabled needs an issuer — either name one in tls.certManager.issuerRef.name, or set tls.certManager.issuer.create=true to have the chart render an OpenBao-backed Issuer (see frankgateway-BASICS.md for the OpenBao-side setup)" $key) -}}
 {{- end -}}
 {{- end -}}
 {{- end -}}

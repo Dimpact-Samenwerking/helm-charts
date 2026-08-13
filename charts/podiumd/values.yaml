@@ -3653,12 +3653,45 @@ frankgateway:
     # keeps supplying the Secret itself (see sslSync.secretName).
     certManager:
       enabled: false
-      # Required when enabled. Usually the same ClusterIssuer that already
-      # issues the environment's public certificates.
+      # The issuer to use. Either name an existing one here (e.g. the
+      # ClusterIssuer that already issues this environment's public
+      # certificates), or let the chart render an OpenBao-backed one below.
       issuerRef:
         name: ""
         kind: ClusterIssuer
         group: cert-manager.io
+
+      # Render a cert-manager Issuer backed by OpenBao's PKI engine, so this
+      # certificate is issued by the same vault that holds every other
+      # credential in this gateway — one CA, one audit trail, no separate
+      # public-CA dependency for a hop that never leaves the cluster.
+      #
+      # The private key still lands in a Kubernetes Secret: cert-manager writes
+      # it there, and APISIX needs it pushed into etcd anyway (a certificate is
+      # chosen during the TLS handshake, before any request exists, so it can
+      # never be fetched per request the way an API key is — see
+      # frankgateway-BASICS.md).
+      #
+      # Requires PKI set up in OpenBao first; the commands are in
+      # frankgateway-BASICS.md. When `create` is false, `issuerRef` above is
+      # used unchanged.
+      issuer:
+        create: false
+        # Empty => http://<release>-openbao-active:8200
+        server: ""
+        # Sign path of the PKI role, e.g. pki/sign/<role>.
+        path: pki/sign/frankgateway
+        # Only for an https OpenBao endpoint with a private CA:
+        #   caBundleSecretRef: {name: openbao-ca, key: ca.crt}
+        caBundleSecretRef: {}
+        # cert-manager authenticates to OpenBao with a Kubernetes
+        # ServiceAccount token and receives a short-lived OpenBao token in
+        # exchange — no static credential anywhere in the cluster.
+        kubernetes:
+          role: frankgateway-pki
+          mountPath: /v1/auth/kubernetes
+          # Created by the chart when issuer.create is true.
+          serviceAccountName: frankgateway-pki
       # Secret cert-manager writes to. Empty => <instance>-tls.
       secretName: ""
       # 90 days, renewed 30 days out. renewBefore is the safety margin: if
