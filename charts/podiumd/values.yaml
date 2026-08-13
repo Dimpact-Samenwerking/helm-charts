@@ -3301,7 +3301,7 @@ ita:
   web:
     image:
       # repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web"
-      tag: "3.2.0"
+      tag: "3.3.0"
       pullPolicy: IfNotPresent
 
     service:
@@ -3332,17 +3332,15 @@ ita:
         cpu: 200m
         memory: 256Mi
 
+  # -- ITA 3.3.0 splitste de poller in twee CronJobs, elk met een eigen
+  # POLLER_MODE. Dit blok levert alleen nog het image en de resources die ze
+  # allebei gebruiken; schedule en notification zijn verhuisd naar
+  # nieuweInternetaakNotificatie hieronder.
   poller:
-    schedule: "*/15 * * * *"
-
     image:
       repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller"
-      tag: "3.2.0"
+      tag: "3.3.0"
       pullPolicy: IfNotPresent
-
-    notification:
-      pollerMessage: "Poller uitgevoerd om:"
-      hourThreshold: "-24"
 
     resources:
       requests:
@@ -3351,6 +3349,23 @@ ita:
       limits:
         cpu: 100m
         memory: 256Mi
+
+  # -- CronJob die behandelaars waarschuwt bij een nieuwe internetaak.
+  # Was tot 3.2.0 de enige poller; schedule en notification stonden toen onder
+  # ita.poller. Omgevingen die die sleutels overschrijven moeten ze hierheen
+  # verplaatsen, anders vallen ze stil terug op de chart-defaults.
+  nieuweInternetaakNotificatie:
+    schedule: "*/15 * * * *"
+
+    notification:
+      pollerMessage: "Poller uitgevoerd om:"
+      hourThreshold: "-24"
+
+  # -- Nieuw in ITA 3.3.0: dagelijkse herinnering voor verlopen
+  # contactverzoeken, op werkdagen om 07:00.
+  verlopenContactverzoekHerinneringNotificatie:
+    enabled: true
+    schedule: "0 7 * * 1-5"
 
   ingress:
     enabled: false

@@ -3,10 +3,12 @@
 #
 # Images new or changed in podiumd 4.9.0 vs 4.8.2.
 #
-# Two changes:
+# Changes:
 #   1. ZAC (Zaakafhandelcomponent) 5.0.1 -> 5.1.0 (chart 1.0.251 -> 1.0.257).
 #   2. ZGW Office Add-in v0.9.313 -> v0.9.352 (chart 0.0.89, unchanged).
 #      Repository names (zgw-office-addin-{frontend,backend}) unchanged from 4.8.2.
+#   3. ITA 3.2.0 -> 3.3.0 (chart internetaakafhandeling 3.2.0 -> 3.3.0), web and
+#      poller. No new images, tag bumps only.
 #
 # See docs/_UPGRADE_PATHS/4.8.2-to-4.9.0-upgrade.md for the operator upgrade notes.
 #
@@ -29,3 +31,14 @@
   url: ghcr.io/infonl/zgw-office-addin-backend
   version: "v0.9.352"
   digest: "sha256:c5bf9a7beb883c7cf586a65326dacb4fc49a2eaaa08f4eb49f2faabb786b71b4"
+
+# ITA — 3.2.0 -> 3.3.0
+- name: interne-taak-afhandeling/internetaakafhandeling.web
+  url: ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web
+  version: "3.3.0"
+  digest: "sha256:cb56b4809e0c840cbc72814f8a72495fd18860cb08dfb092c12ba3c2cea785df"
+
+- name: interne-taak-afhandeling/internetaakafhandeling.poller
+  url: ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller
+  version: "3.3.0"
+  digest: "sha256:7690650687047c43f08c4f8320b77d821d3551d18478de9a600a2f828600c865"
