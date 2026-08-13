@@ -3555,9 +3555,12 @@ frankgateway:
     #
     #   kubectl get pods -A | grep gateway-nginx
     #
-    # The default below is the control-plane namespace only because the chart
-    # cannot infer the Gateway's namespace; override it per environment.
-    ingressNamespace: nginx-gateway
+    # REQUIRED, with no default on purpose. It used to default to
+    # `nginx-gateway`, which is the NGF *control plane* namespace and therefore
+    # wrong in almost every environment — a default that is usually wrong and
+    # fails silently is worse than no default at all. Empty + inway +
+    # networkPolicies.enabled fails the render instead.
+    ingressNamespace: ""
     # Namespace running kube-dns/CoreDNS (egress :53 is allowed to it).
     dnsNamespace: kube-system
     # Namespace running prometheus (ingress to the metrics port is allowed

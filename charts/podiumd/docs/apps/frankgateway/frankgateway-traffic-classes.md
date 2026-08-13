@@ -296,6 +296,20 @@ carries the product name, which is what makes this easy to get wrong. It fails
 closed with **no log line on either side**, because the packet never arrives —
 so it presents as a TLS or connectivity fault rather than a policy one.
 
+It is therefore **required, with no default**. It used to default to
+`nginx-gateway` — the control plane namespace, wrong almost everywhere — and a
+default that is usually wrong and fails silently is worse than none. Leaving it
+empty with an inway and `networkPolicies.enabled` now fails the render, naming
+the check:
+
+```bash
+kubectl get pods -A | grep gateway-nginx
+```
+
+`NOTES.txt` prints the configured value and that same command after every
+install and upgrade, because the value can also be *set and wrong* — which the
+render cannot catch.
+
 **Enabling `networkPolicies` is sticky.** Policies render for every classified
 instance as soon as the flag is on, so enabling a *new* instance later ships a
 policy with it in the same step. If the intent is to verify an instance first

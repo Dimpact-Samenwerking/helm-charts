@@ -43,9 +43,17 @@
 {{- fail "frankgateway.serviceAlias no longer exists: the migration alias Service has been removed. Address instances by name (frankgateway-inway / frankgateway-outway / frankgateway-internal)." -}}
 {{- end -}}
 {{- /* A cert-manager Certificate without an issuer is rejected by the API
-     server with a message about the CRD, not about this chart. Say it here. */ -}}
+     server with a message about the CRD, not about this chart. Say it here.
+
+     The ingressNamespace check below is the same idea applied to a policy: an
+     empty or wrong value produces a NetworkPolicy that compiles, deploys and
+     silently drops every inbound request, with no log line on either side. */ -}}
 {{- range $key, $override := .Values.frankgateway.instances -}}
 {{- $fg := include "podiumd.frankgateway.instanceValues" (dict "root" $ "key" $key "override" $override) | fromYaml -}}
+{{- $class := $fg.class | default (ternary $key "" (has $key (list "inway" "outway" "internal"))) -}}
+{{- if and $fg.enabled (eq $class "inway") $.Values.frankgateway.networkPolicies.enabled (not $.Values.frankgateway.networkPolicies.ingressNamespace) -}}
+{{- fail (printf "frankgateway.networkPolicies.ingressNamespace must be set when the %s instance runs with networkPolicies enabled. It is the namespace of the pod that OPENS connections to the inway — for NGINX Gateway Fabric 2.x that is the per-Gateway DATA plane pod, which runs in the Gateway's own namespace (e.g. ingress-basic), NOT the nginx-gateway namespace where the control plane runs. Find it with: kubectl get pods -A | grep gateway-nginx" $key) -}}
+{{- end -}}
 {{- if and $fg.enabled $fg.tls.enabled $fg.tls.certManager.enabled (not $fg.tls.certManager.issuerRef.name) (not $fg.tls.certManager.issuer.create) -}}
 {{- fail (printf "frankgateway.instances.%s: tls.certManager.enabled needs an issuer — either name one in tls.certManager.issuerRef.name, or set tls.certManager.issuer.create=true to have the chart render an OpenBao-backed Issuer (see frankgateway-BASICS.md for the OpenBao-side setup)" $key) -}}
 {{- end -}}
