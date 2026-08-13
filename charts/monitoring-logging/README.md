@@ -164,7 +164,7 @@ helm repo add opentelemetry https://open-telemetry.github.io/opentelemetry-helm-
 | grafana.dashboardProviders."dashboardproviders.yaml".providers[6].orgId | int | `1` |  |
 | grafana.dashboardProviders."dashboardproviders.yaml".providers[6].type | string | `"file"` |  |
 | grafana.dashboardProviders."dashboardproviders.yaml".providers[6].updateIntervalSeconds | int | `30` |  |
-| grafana.dashboardsConfigMaps | object | `{"default":"logging-main-dashboard","frankgateway":"frankgateway-dashboard","frankgatewayAlerts":"","logs":"logging-logs","meta":"meta","metrics":"monitoring-metrics-dashboards","metrics-node":"monitoring-metrics-dashboards-node"}` | Dashboard opgenomen in ConfigMap |
+| grafana.dashboardsConfigMaps | object | `{"default":"logging-main-dashboard","frankgateway":"frankgateway-dashboard","frankgateway-alerts":"","logs":"logging-logs","meta":"meta","metrics":"monitoring-metrics-dashboards","metrics-node":"monitoring-metrics-dashboards-node"}` | Dashboard opgenomen in ConfigMap |
 | grafana.datasources."datasources.yaml".apiVersion | int | `1` |  |
 | grafana.datasources."datasources.yaml".datasources[0].access | string | `"proxy"` |  |
 | grafana.datasources."datasources.yaml".datasources[0].editable | bool | `true` |  |

@@ -34,7 +34,7 @@ Panels read `apisix_http_status`, `apisix_http_latency_bucket{type="request"}`,
 ### New, and off: Frank!Gateway alert panels
 
 A second dashboard (`dashboards/frankgateway-alerts.json`, ConfigMap key
-`grafana.dashboardsConfigMaps.frankgatewayAlerts`, default `""` = **not
+`grafana.dashboardsConfigMaps."frankgateway-alerts"`, default `""` = **not
 rendered**) carrying threshold panels: gateways and etcd members up, 5xx and
 401/403 rates per traffic class, certificate days-to-expiry, and failed
 certificate-sync and route-seeding Jobs.
@@ -51,7 +51,7 @@ Turn it on where someone actually looks at Grafana:
 ```yaml
 grafana:
   dashboardsConfigMaps:
-    frankgatewayAlerts: "frankgateway-alerts-dashboard"
+    frankgateway-alerts: "frankgateway-alerts-dashboard"
 ```
 
 Two panels need metrics this chart does not itself produce: days-to-expiry
@@ -67,7 +67,7 @@ Environments that do not run Frank!Gateway can skip both:
 grafana:
   dashboardsConfigMaps:
     frankgateway: ""
-    frankgatewayAlerts: ""
+    frankgateway-alerts: ""
 ```
 
 The provider entries are harmless when the ConfigMaps are absent — Grafana
