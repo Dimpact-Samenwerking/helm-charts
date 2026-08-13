@@ -13,12 +13,13 @@ the earlier experimental APISIX building block and the legacy api-proxy. It is
 optional: the chart ships it disabled. To run, it needs no database — only a
 small disk for its configuration store and, if the management screen is wanted,
 a public hostname protected by the normal PodiumD login (Keycloak). Footprint:
-four lightweight pods.
+one lightweight pod per traffic class, plus three more each when the management
+screen is switched on.
 
-Since 4.8.4 it can also run as **three separate gateways**, one per kind of
+Since 4.8.5 it always runs as **three separate gateways**, one per kind of
 traffic — inbound, outbound and between applications — so each can be secured,
-scaled and monitored on its own. That is opt-in; an environment that does not
-ask for it keeps exactly the single gateway described here. See
+scaled and monitored on its own, and a problem with one cannot take the other
+two down. See
 [`frankgateway-traffic-classes.md`](frankgateway-traffic-classes.md).
 
 ## What it is
@@ -61,14 +62,14 @@ below stands for whichever of the three is meant:
 - **frankgateway-etcd** (StatefulSet, 1 replica, PVC) — configuration store,
   upstream `quay.io/coreos/etcd` build (no Bitnami). Shared by all instances:
   APISIX in traditional mode loads exactly the objects beneath its configured
-  prefix, so a prefix per instance (`/apisix-<instance>`) isolates routes,
+  prefix, so a prefix per instance (`/frankgateway-<instance>`) isolates routes,
   consumers and SSL objects without running one etcd each.
 - **frankgateway-dashboard** (Deployment) — `apache/apisix-dashboard` GUI.
   Never exposed directly; its built-in login is bypassed server-side.
-- **frankgateway-oauth2-proxy + frankgateway-shim** (Deployments) — Keycloak
+- **frankgateway-\<class\>-oauth2-proxy + -shim** (Deployments) — Keycloak
   SSO chain for the dashboard: oauth2-proxy (OIDC client
-  `frankgateway-dashboard`, seeded via the chart realm config; session kept in
-  the chart's redis) forwards to an nginx shim that logs into the dashboard
+  `frankgateway-dashboard-<class>`, one per class, seeded via the chart realm
+  config; session kept in the chart's redis) forwards to an nginx shim that logs into the dashboard
   server-side and injects the dashboard JWT, so the dashboard's own
   `admin/<random>` credential never reaches a browser
   (`templates/frankgateway-dashboard-auth.yaml`).
@@ -105,8 +106,10 @@ share, no chart-rendered PV.
 
 ### Routing / exposure (NGINX Gateway Fabric)
 
-ClusterIP-only for the data plane: PodiumD apps call the gateway in-cluster on
-`http://frankgateway:9080/...`; the Admin API `:9180` is never exposed. With
+ClusterIP-only for the data plane: PodiumD apps call the class they mean on
+`http://frankgateway-outway:9080/...` (external APIs) or
+`http://frankgateway-internal:9080/...` (app-to-app); the Admin API `:9180` is
+never exposed. With
 `frankgateway.tls.enabled: true` the Service additionally exposes
 `gateway-tls` (default `:9443`) for https in-cluster calls — needed when a
 re-encrypting front door (e.g. Gateway API `BackendTLSPolicy`) terminates and
@@ -117,16 +120,17 @@ redirects). The per-SNI server certificates are seeded deploy-side via the
 Admin API (SSL objects in etcd), not mounted by the chart. The
 dashboard's public hostname (`frankgateway.dashboard.auth.hostname`) is routed
 deploy-side (ADO `ExternalsPodiumD` — Gateway API HTTPRoute → service
-`frankgateway-oauth2-proxy:4180`, as on jim00), or via the optional in-chart
+`frankgateway-<class>-oauth2-proxy:4180`, one per dashboard), or via the optional in-chart
 Traefik Ingress (`frankgateway.dashboard.ingress.enabled`) for environments
 without Gateway API. The gateway certificate SAN must cover the dashboard
 hostname.
 
 ### Other dependencies
 
-- **Keycloak** — OIDC client `frankgateway-dashboard` in the `podiumd` realm,
-  seeded via the chart realm config (replaces jim00's
-  `setup-keycloak-client.sh`); secret consumed by oauth2-proxy.
+- **Keycloak** — one OIDC client per class (`frankgateway-dashboard-inway`,
+  `-outway`, `-internal`) in the `podiumd` realm, seeded via the chart realm
+  config (replaces jim00's `setup-keycloak-client.sh`); each secret consumed by
+  that class's oauth2-proxy.
 - **Redis** — the chart's shared `redis-ha` stores oauth2-proxy sessions
   (cookie-only storage drops chunked cookies behind NGF → login loops).
 - **External API keys** — out-of-band Secret named by
@@ -166,17 +170,19 @@ still runs the pre-chart raw manifests).
 3. **API keys Secret.** Have the environment deployment create the
    out-of-band Secret (BAG/KVK keys, Key-Vault-fed) and point
    `frankgateway.apiKeys.existingSecret` at it.
-4. **Route the dashboard.** Gateway API environments: HTTPRoute →
-   `frankgateway-oauth2-proxy:4180` in ADO `ExternalsPodiumD` (`infra.yml`),
-   and add the hostname to the gateway certificate SAN. Otherwise set
-   `frankgateway.dashboard.ingress.enabled: true`.
-5. **Repoint callers.** Applications that used `apiproxy` for BAG/KVK/BRP
-   egress call `http://frankgateway:9080/...` instead (route paths mirror the
-   apiproxy paths; see `files/frankgateway/routes/*.json`).
-6. **Verify.** `kubectl -n podiumd get jobs` — `frankgateway-apply-routes`
-   must complete; `kubectl -n podiumd get pods -l app=frankgateway` all
-   Running; dashboard hostname logs in via Keycloak (no dashboard login form);
-   a test call through a seeded route reaches its upstream.
+4. **Route the dashboards.** One per class that has one. Gateway API
+   environments: HTTPRoute → `frankgateway-<class>-oauth2-proxy:4180` in ADO
+   `ExternalsPodiumD` (`infra.yml`), and add each hostname to the gateway
+   certificate SAN. Otherwise set `frankgateway.dashboard.ingress.enabled: true`.
+5. **Point callers at the right class.** Applications that used `apiproxy` for
+   BAG/KVK egress call `http://frankgateway-outway:9080/...`; BRP and other
+   app-to-app calls go to `http://frankgateway-internal:9080/...` (route paths
+   mirror the apiproxy paths; see `files/frankgateway/routes/<class>/`).
+6. **Verify.** `kubectl -n podiumd get jobs` — every
+   `frankgateway-<class>-apply-routes` must complete; `kubectl -n podiumd get
+   pods -l app.kubernetes.io/component=frankgateway` all Running; each dashboard
+   hostname logs in via Keycloak (no dashboard login form); a test call through
+   a seeded route reaches its upstream.
 
 ## Related documents
 

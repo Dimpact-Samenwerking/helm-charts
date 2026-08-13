@@ -3502,7 +3502,7 @@ frankgateway:
   #   internal  east-west, app-to-app inside the cluster
   #
   # Every instance is named after its key (`frankgateway-<key>`) and gets its
-  # own etcd prefix (`/apisix-<key>`). There is no single-instance shape and no
+  # own etcd prefix (`/frankgateway-<key>`). There is no single-instance shape and no
   # reserved key — `instances.gateway` is rejected by templates/validations.yaml.
   #
   # All instances share the single etcd StatefulSet — APISIX in traditional mode

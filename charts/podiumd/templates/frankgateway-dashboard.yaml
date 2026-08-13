@@ -12,10 +12,10 @@
   the only external path is oauth2-proxy (Keycloak SSO) -> shim -> dashboard,
   and the shim injects the dashboard JWT server-side.
 
-  apisix-dashboard binds exactly ONE etcd prefix, so a split deployment needs
-  one dashboard per instance — that is why this whole chain multiplies rather
-  than being shared. The prefix is only written when it differs from the
-  dashboard's own `/apisix` default, so the single-instance render is unchanged.
+  apisix-dashboard binds exactly ONE etcd prefix, so one dashboard per instance
+  — that is why this whole chain multiplies rather than being shared. The
+  prefix is always written explicitly: the dashboard's own default is `/apisix`,
+  which no instance uses.
 */ -}}
 {{- $root := . }}
 {{- range $key, $override := .Values.frankgateway.instances }}
@@ -53,7 +53,7 @@ stringData:
         endpoints:
           - "http://frankgateway-etcd:2379"
         # This instance's slice of the shared etcd. Always set explicitly —
-        # apisix-dashboard's own default is `/apisix`, which no instance uses.
+        # the dashboard's own default is `/apisix`, which no instance uses.
         prefix: {{ $prefix | quote }}
         mtls:
           key_file: ""

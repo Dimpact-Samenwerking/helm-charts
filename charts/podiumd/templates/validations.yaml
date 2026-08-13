@@ -24,7 +24,7 @@
      traffic-class split became the only shape. It no longer resolves to
      anything — the bare `frankgateway` object names and the `/apisix` etcd
      prefix are gone — so a values file still setting it would quietly render a
-     fourth instance named `frankgateway-gateway` on prefix `/apisix-gateway`,
+     fourth instance named `frankgateway-gateway` on prefix `/frankgateway-gateway`,
      seeding no routes and serving nothing. Fail instead. */ -}}
 {{- if .Values.frankgateway.enabled -}}
 {{- if hasKey .Values.frankgateway.instances "gateway" -}}

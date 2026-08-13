@@ -148,8 +148,8 @@ Frank!Gateway — etcd prefix for one gateway instance.
 
 All instances share the single etcd StatefulSet; isolation comes from the
 prefix, because APISIX in traditional mode loads exactly the objects beneath
-its configured prefix. One rule, no exception: `/apisix-<key>`, overridable per
-instance with `etcdPrefix`.
+its configured prefix. One rule, no exception: `/frankgateway-<key>`,
+overridable per instance with `etcdPrefix`.
 
 Usage: {{ include "podiumd.frankgateway.etcdPrefix" (dict "key" $key "instance" $inst) }}
 */}}
@@ -157,7 +157,7 @@ Usage: {{ include "podiumd.frankgateway.etcdPrefix" (dict "key" $key "instance" 
 {{- if .instance.etcdPrefix -}}
 {{- .instance.etcdPrefix -}}
 {{- else -}}
-/apisix-{{ .key }}
+/frankgateway-{{ .key }}
 {{- end -}}
 {{- end -}}
 

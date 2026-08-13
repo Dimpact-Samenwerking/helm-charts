@@ -2,16 +2,15 @@
 
 ## Management summary
 
-Frank!Gateway can run as one gateway handling every kind of API traffic, or as
-three separate sets of pods — one for traffic coming into PodiumD, one for calls
-going out to national registries, and one for applications talking to each
-other. Splitting them means each kind of traffic can be secured, scaled and
-monitored on its own, and a problem with one kind cannot take the other two
-down. It also makes it possible, for the first time, to restrict what the
-gateway is allowed to connect to: a single gateway needs permission to reach
-everything at once, so no meaningful restriction is possible. The split is
-optional and off by default — an existing municipality keeps exactly what it has
-until it chooses to move.
+Frank!Gateway runs as three separate sets of pods — one for traffic coming into
+PodiumD, one for calls going out to national registries, and one for
+applications talking to each other. Keeping them apart means each kind of
+traffic can be secured, scaled and monitored on its own, and a problem with one
+kind cannot take the other two down. It also makes it possible to restrict what
+the gateway is allowed to connect to: a single gateway handling everything needs
+permission to reach everything at once, so no meaningful restriction is
+possible. A municipality that has no use for one of the three can switch that
+one off.
 
 ## The three classes
 
@@ -35,9 +34,9 @@ flowchart TB
     ngf["NGINX Gateway Fabric <b>data plane</b><br/>runs in the Gateway namespace<br/>control plane runs in ns nginx-gateway"]
 
     subgraph podiumd["namespace podiumd"]
-      inway["<b>frankgateway-inway</b><br/>TLS 9443 · /apisix-inway"]
-      internal["<b>frankgateway-internal</b><br/>9080 · /apisix-internal"]
-      outway["<b>frankgateway-outway</b><br/>9080 · /apisix-outway"]
+      inway["<b>frankgateway-inway</b><br/>TLS 9443 · /frankgateway-inway"]
+      internal["<b>frankgateway-internal</b><br/>9080 · /frankgateway-internal"]
+      outway["<b>frankgateway-outway</b><br/>9080 · /frankgateway-outway"]
 
       apps["PodiumD ZGW APIs<br/>OpenZaak · OpenKlant · Objecten<br/>Objecttypen · Notificaties"]
       brpmock["brp-personen-mock"]
@@ -84,8 +83,8 @@ with the `internal` instance is what removes that round trip.
 ## Why one etcd and three prefixes
 
 APISIX in traditional mode loads exactly the objects stored beneath its
-configured etcd prefix. Giving each instance its own prefix (`/apisix-inway`,
-`/apisix-outway`, `/apisix-internal`) isolates routes, consumers and SSL objects
+configured etcd prefix. Giving each instance its own prefix (`/frankgateway-inway`,
+`/frankgateway-outway`, `/frankgateway-internal`) isolates routes, consumers and SSL objects
 completely, without the cost of three etcd StatefulSets and three PVCs. etcd is
 not the blast-radius concern — the gateway pods are.
 
@@ -244,7 +243,7 @@ Deployment — so anything addressing the gateway must name the class it means:
 | Routes hook Job + ConfigMap | `frankgateway-<class>-apply-routes`, `-routes` |
 | Dashboard chain | `frankgateway-<class>-dashboard`, `-shim`, `-oauth2-proxy` |
 | Keycloak OIDC client | `frankgateway-dashboard-<class>` |
-| etcd prefix | `/apisix-<class>` |
+| etcd prefix | `/frankgateway-<class>` |
 
 The shared etcd StatefulSet (`frankgateway-etcd`) is the one object that is not
 per class.
