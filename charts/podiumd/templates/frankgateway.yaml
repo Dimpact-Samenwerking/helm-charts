@@ -110,7 +110,7 @@ spec:
         # it is being started before its dependency exists, so this orders the
         # start rather than hiding the failure behind a longer probe.
         - name: wait-for-etcd
-          image: {{ $root.Values.frankgateway.routes.job.image | quote }}
+          image: "{{ $fg.routes.job.image.repository }}:{{ $fg.routes.job.image.tag }}"
           imagePullPolicy: IfNotPresent
           command: ["sh", "-c"]
           args:
