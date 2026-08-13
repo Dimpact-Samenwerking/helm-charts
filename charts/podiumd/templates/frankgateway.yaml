@@ -87,6 +87,64 @@ spec:
     spec:
       topologySpreadConstraints:
         {{- include "podiumd.frankgateway.spread" (dict "name" $name "override" $fg.topologySpreadConstraints) | nindent 8 }}
+      initContainers:
+        # Wait for the etcd cluster to be usable before starting APISIX.
+        #
+        # APISIX reads etcd's /version once, at startup, and exits if it does
+        # not like the answer. On a fresh three-member cluster it gets two
+        # answers it does not like, both of which resolve themselves within a
+        # minute or so:
+        #
+        #   etcdcluster: "3.0.0"   until every member has joined and the
+        #                          cluster version has been agreed. APISIX
+        #                          reads this as "your etcd is too old" and
+        #                          exits: "etcd cluster version 3.0.0 is less
+        #                          than the required version 3.4.0".
+        #   NXDOMAIN               a per-member headless name does not resolve
+        #                          until that member's pod is Ready.
+        #
+        # Neither happened with a single-member etcd — one member agrees its
+        # version instantly and its name appears at once — so this is a
+        # consequence of moving to three, and it recurs on every fresh install
+        # and every full etcd rebuild. The pod is not slow to become healthy;
+        # it is being started before its dependency exists, so this orders the
+        # start rather than hiding the failure behind a longer probe.
+        - name: wait-for-etcd
+          image: {{ $root.Values.frankgateway.routes.job.image | quote }}
+          imagePullPolicy: IfNotPresent
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -eu
+              # Every endpoint must answer, and answer with an agreed cluster
+              # version — a subset answering is exactly the half-formed state
+              # this is here to wait out.
+              ENDPOINTS="{{ include "podiumd.frankgateway.etcdEndpoints" (dict "root" $root) | fromYamlArray | join " " }}"
+              i=0
+              while [ "${i}" -lt 60 ]; do
+                ok=1
+                for e in ${ENDPOINTS}; do
+                  v=$(curl -s --max-time 3 "${e}/version" 2>/dev/null \
+                    | sed -n 's/.*"etcdcluster"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+                  case "${v}" in
+                    3.[4-9]*|3.[1-9][0-9]*|[4-9].*) ;;
+                    *) ok=0; break ;;
+                  esac
+                done
+                [ "${ok}" = "1" ] && { echo "etcd cluster ready (version ${v})"; exit 0; }
+                i=$((i+1))
+                echo "waiting for etcd cluster to agree a version (attempt ${i}/60)"
+                sleep 5
+              done
+              echo "etcd cluster did not become ready within 5 minutes" >&2
+              exit 1
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
       containers:
         - name: frankgateway
           image: "{{ $fg.image.repository }}:{{ $fg.image.tag }}"
