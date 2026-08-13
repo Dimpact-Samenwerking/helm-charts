@@ -164,6 +164,11 @@ Chart defaults:
 | shim (nginx) | 25m | 32Mi | 250m | 128Mi |
 | apply-routes job | 25m | 32Mi | 250m | 128Mi |
 
+Each workload also gets a PodDisruptionBudget (`maxUnavailable: 1`,
+`unhealthyPodEvictionPolicy: AlwaysAllow`), rendered only where the workload has
+more than one replica — over a single replica a budget either does nothing or
+blocks node drains forever.
+
 Per container. Multiply by the replica count and the number of enabled classes
 for the real total: gateways, dashboards, oauth2-proxy and shim run at 2 each,
 etcd at 3 — so the floor with all dashboards on is 27 pods, and 9 with them

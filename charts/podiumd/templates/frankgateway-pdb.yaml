@@ -1,0 +1,123 @@
+{{- if .Values.frankgateway.enabled }}
+{{- /*
+  PodDisruptionBudgets for Frank!Gateway.
+
+  Two replicas stop a pod crash from being an outage. They do not stop a
+  *voluntary* disruption from being one: `kubectl drain`, an AKS node image
+  upgrade or an autoscaler consolidation will evict both replicas at once
+  unless something says otherwise. That is what these budgets say.
+
+  maxUnavailable rather than minAvailable, deliberately. `minAvailable: 1` on a
+  4-replica gateway permits three simultaneous evictions — it degrades as you
+  scale up, which is backwards. `maxUnavailable: 1` means one at a time
+  whatever the replica count.
+
+  Rendered only where the workload actually has more than one replica: a PDB
+  over a single-replica workload either does nothing (maxUnavailable: 1 allows
+  the only pod to go) or blocks node drains forever (minAvailable: 1), and
+  neither is worth the object.
+
+  unhealthyPodEvictionPolicy: AlwaysAllow so a broken pod never becomes
+  undrainable — the default (IfHealthyBudget) refuses to evict pods that are
+  not Ready when the budget is already at its limit, which is precisely the
+  state a node drain is trying to get you out of. GA since Kubernetes 1.31.
+*/ -}}
+{{- $root := . }}
+{{- range $key, $override := .Values.frankgateway.instances }}
+{{- $fg := include "podiumd.frankgateway.instanceValues" (dict "root" $root "key" $key "override" $override) | fromYaml }}
+{{- $pdb := $fg.podDisruptionBudget }}
+{{- if and $fg.enabled $pdb.enabled }}
+{{- $name := include "podiumd.frankgateway.instanceName" (dict "key" $key "instance" $fg) }}
+{{- $dash := $fg.dashboard }}
+{{- /* gateway data plane — the one whose loss is user-visible */ -}}
+{{- if gt (int $fg.replicas) 1 }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ $name }}
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: frankgateway
+    app.kubernetes.io/name: {{ $name }}
+spec:
+  maxUnavailable: {{ $pdb.maxUnavailable }}
+  {{- with $pdb.unhealthyPodEvictionPolicy }}
+  unhealthyPodEvictionPolicy: {{ . }}
+  {{- end }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ $name }}
+{{- end }}
+{{- if and $dash.enabled (gt (int $dash.replicas) 1) }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ $name }}-dashboard
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: frankgateway-dashboard
+    app.kubernetes.io/name: {{ $name }}-dashboard
+spec:
+  maxUnavailable: {{ $pdb.maxUnavailable }}
+  {{- with $pdb.unhealthyPodEvictionPolicy }}
+  unhealthyPodEvictionPolicy: {{ . }}
+  {{- end }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ $name }}-dashboard
+{{- end }}
+{{- if and $dash.enabled $dash.auth.enabled (gt (int $dash.auth.replicas) 1) }}
+{{- range $part := list "shim" "oauth2-proxy" }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ $name }}-{{ $part }}
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: frankgateway-{{ $part }}
+    app.kubernetes.io/name: {{ $name }}-{{ $part }}
+spec:
+  maxUnavailable: {{ $pdb.maxUnavailable }}
+  {{- with $pdb.unhealthyPodEvictionPolicy }}
+  unhealthyPodEvictionPolicy: {{ . }}
+  {{- end }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ $name }}-{{ $part }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- /*
+  etcd, once — it is shared by every instance. maxUnavailable: 1 keeps raft
+  quorum during a drain: 3 members tolerate losing 1, and evicting a second
+  would stop writes for all three traffic classes at once.
+*/ -}}
+{{- $etcd := .Values.frankgateway.etcd }}
+{{- if and $etcd.podDisruptionBudget.enabled (gt (int $etcd.replicas) 1) }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: frankgateway-etcd
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frankgateway-etcd
+    app.kubernetes.io/name: frankgateway-etcd
+spec:
+  maxUnavailable: {{ $etcd.podDisruptionBudget.maxUnavailable }}
+  {{- with $etcd.podDisruptionBudget.unhealthyPodEvictionPolicy }}
+  unhealthyPodEvictionPolicy: {{ . }}
+  {{- end }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: frankgateway-etcd
+{{- end }}
+{{- end }}

@@ -3586,6 +3586,25 @@ frankgateway:
   # here to replace the chart's constraint entirely (per instance if needed);
   # the default selects on that workload's own app.kubernetes.io/name.
   topologySpreadConstraints: []
+
+  # PodDisruptionBudgets. Replicas survive a pod crash on their own; they
+  # survive a *voluntary* disruption — kubectl drain, AKS node image upgrade,
+  # autoscaler consolidation — only if something forbids evicting them all at
+  # once. Applies to the gateway, dashboard, shim and oauth2-proxy of every
+  # instance; etcd has its own below.
+  podDisruptionBudget:
+    enabled: true
+    # maxUnavailable, not minAvailable: `minAvailable: 1` on a 4-replica
+    # gateway would permit three simultaneous evictions, i.e. it gets weaker
+    # the more you scale. This means one at a time at any replica count.
+    maxUnavailable: 1
+    # AlwaysAllow so an already-broken pod never blocks a node drain — the
+    # Kubernetes default (IfHealthyBudget) refuses to evict not-Ready pods once
+    # the budget is at its limit, which is exactly the situation a drain is
+    # meant to resolve. Empty => omit the field (clusters older than 1.31).
+    unhealthyPodEvictionPolicy: AlwaysAllow
+    # A budget is only rendered where the workload has more than one replica:
+    # over a single replica it either does nothing or blocks drains forever.
   resources:
     requests:
       cpu: 100m
@@ -3663,6 +3682,13 @@ frankgateway:
     # the etcd members. Spreading matters more here: two members on one node
     # means one drain takes quorum with it.
     topologySpreadConstraints: []
+    # Separate from the instance budget above because the stake is different:
+    # this is the one object all three traffic classes share, and losing a
+    # second member during a drain stops writes for every class at once.
+    podDisruptionBudget:
+      enabled: true
+      maxUnavailable: 1
+      unhealthyPodEvictionPolicy: AlwaysAllow
     storage: 2Gi
     # Empty => cluster default StorageClass. jim00 uses managed-csi.
     storageClassName: ""

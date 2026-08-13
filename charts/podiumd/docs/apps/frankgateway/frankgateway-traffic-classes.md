@@ -358,6 +358,16 @@ etcd is three because it is raft — quorum of three is two, so it survives
 losing one member. **Two would be worse than one**: quorum of two is also two,
 so any single loss stops writes.
 
+Every workload also carries a **PodDisruptionBudget** of `maxUnavailable: 1`
+(`frankgateway.podDisruptionBudget`, and `etcd.podDisruptionBudget` for the
+store). Replicas alone survive a pod crash; they survive a `kubectl drain`, an
+AKS node image upgrade or an autoscaler consolidation only because the budget
+forbids evicting them all at once. `maxUnavailable` rather than `minAvailable`
+so the guarantee does not weaken as a class is scaled up — `minAvailable: 1` on
+four replicas would permit three simultaneous evictions. Budgets carry
+`unhealthyPodEvictionPolicy: AlwaysAllow`, so an already-broken pod can still be
+evicted and never makes a node undrainable.
+
 Replicas are held on separate nodes as a **hard** requirement
 (`whenUnsatisfiable: DoNotSchedule`), so the cluster needs at least two
 schedulable nodes for the gateways and three for etcd. A replica that cannot
