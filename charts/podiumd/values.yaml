@@ -2451,15 +2451,20 @@ kiss-eck:
       #     resources:
       #       requests:
       #         storage: 8Gi
+  # -- Uit sinds KISS 3.0.0. KISS bevraagt de Elasticsearch-indices rechtstreeks
+  # en crawlt met de Elastic Open Crawler, dus Enterprise Search wordt nergens
+  # meer voor gebruikt. De connector.crawler-instellingen hieronder waren voor
+  # de oude crawler; die zitten nu per site onder kiss.settings.syncJobs.website.
+  # Relevance- en precision-tuning gebeurde in Kibana en werd in Enterprise
+  # Search opgeslagen; dat had al geen effect meer, KISS 3.0.0 gebruikt vast
+  # precision 6. Aanzetten kan nog, maar levert alleen een ongebruikte pod op.
   eck-enterprise-search:
-    enabled: true
+    enabled: false
     fullnameOverride: kiss
     version: "8.19.3"
     config:
       app_search.engine.total_fields.limit: 1000
       kibana.host: https://kiss-kb-http.podiumd.svc.cluster.local:5601
-      # -- crawler settings can be tuned per environment (DS-5060). Sensible
-      # defaults below; override in your environment values file when needed.
       connector.crawler.http.user_agent: "PodiumD-Contact-Elastic-Crawler"
       connector.crawler.crawl.threads.limit: 1
       connector.crawler.workers.pool_size.limit: 1
@@ -2477,8 +2482,8 @@ kiss-eck:
       server.publicBaseUrl: https://kiss-kb-http.podiumd.svc.cluster.local:5601
     elasticsearchRef:
       name: kiss
-    enterpriseSearchRef:
-      name: kiss
+    # enterpriseSearchRef weggehaald: zonder Enterprise Search zou Kibana naar
+    # een niet-bestaande resource verwijzen en blijft de koppeling hangen.
     podTemplate:
       spec:
         nodeSelector: {}
