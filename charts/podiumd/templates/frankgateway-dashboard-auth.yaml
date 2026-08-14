@@ -13,6 +13,11 @@
   a split deployment needs its own hostname, OIDC client and redirect URI per
   traffic class.
 
+  Logging in is not the same as being allowed in: the realm holds every beheer
+  user, so oauth2-proxy additionally requires membership of the Keycloak group
+  named by dashboard.auth.adminGroup (default fg-admins; created by the realm
+  import, members from dashboard.auth.adminGroupMembers or the admin console).
+
   The OIDC client secret is mirrored from keycloak-podiumd-realm-secrets
   (key <client>-oidc-secret) so Keycloak and oauth2-proxy share it. The Keycloak
   session is kept server-side in redis: Keycloak id+refresh tokens overflow
@@ -190,6 +195,16 @@ spec:
             - --upstream=http://{{ $name }}-shim:8080
             - --http-address=0.0.0.0:4180
             - --email-domain=*
+            {{- /* Authorization: authenticating against the realm is not the
+                   same as being a gateway operator — the realm holds every
+                   beheer user. Only members of dashboard.auth.adminGroup get
+                   past the proxy; the client's group-membership mapper puts
+                   the claim in the ID token. Empty adminGroup skips the check
+                   (any realm user — debugging only, never in a shared env). */}}
+            {{- with $auth.adminGroup }}
+            - --allowed-group={{ . }}
+            - --oidc-groups-claim=groups
+            {{- end }}
             - --scope=openid profile email
             - --cookie-secure=true
             - --skip-provider-button=true

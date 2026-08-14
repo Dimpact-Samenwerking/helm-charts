@@ -203,9 +203,13 @@ frankgateway:
   # Dashboards default to OFF; CI turns them on so the whole SSO chain
   # (dashboard + shim + oauth2-proxy + Keycloak client + Ingress) is rendered
   # somewhere. ci/frankgateway-single-class-values.yaml covers the default
-  # dashboard-less shape.
+  # dashboard-less shape. The member below exercises the fg-admins group
+  # rendering (realm group + user entry) — it is not a real account.
   dashboard:
     enabled: true
+    auth:
+      adminGroupMembers:
+        - "fg-operator-ci-example"
   instances:
     inway:
       tls:

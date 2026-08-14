@@ -3923,6 +3923,26 @@ frankgateway:
     #     -> dashboard
     auth:
       enabled: true
+      # Authorization, distinct from authentication. The podiumd realm holds
+      # every beheer user and municipality staff member — logging in must not
+      # be the same thing as administering the gateway. oauth2-proxy therefore
+      # only admits members of this Keycloak group (via the groups claim the
+      # dashboard's OIDC client already maps into the ID token). The realm
+      # import creates the group; put operators in it via `adminGroupMembers`
+      # below or by hand in the Keycloak admin console.
+      #
+      # Empty ("") switches the group check OFF and returns to "any realm user
+      # is a gateway admin". Never do that in a shared environment.
+      adminGroup: "fg-admins"
+      # Usernames the realm import places in that group. Prefer DEDICATED
+      # operator accounts: keycloak-config-cli fully manages the group
+      # memberships of any user listed in the import, so naming an existing
+      # account here makes fg-admins its ONLY group from then on. A username
+      # that does not exist yet is created enabled but without credentials —
+      # set its password in the Keycloak admin console before first login.
+      # Empty list is fine: the group still exists, membership is then managed
+      # entirely in Keycloak.
+      adminGroupMembers: []
       # Replicas for BOTH halves of the SSO chain (oauth2-proxy and the shim).
       # Safe to double: oauth2-proxy keeps sessions in the shared redis rather
       # than in memory, and the shim logs into the dashboard per browser, so

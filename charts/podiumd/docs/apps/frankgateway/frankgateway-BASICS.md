@@ -83,7 +83,14 @@ below stands for whichever of the three is meant:
   config; session kept in the chart's redis) forwards to an nginx shim that logs into the dashboard
   server-side and injects the dashboard JWT, so the dashboard's own
   `admin/<random>` credential never reaches a browser
-  (`templates/frankgateway-dashboard-auth.yaml`).
+  (`templates/frankgateway-dashboard-auth.yaml`). Authentication is not
+  authorization: the podiumd realm holds every beheer user, so oauth2-proxy
+  additionally requires membership of the `fg-admins` Keycloak group
+  (`dashboard.auth.adminGroup`) in the existing podiumd realm. The realm
+  import creates the group; operators are added via
+  `dashboard.auth.adminGroupMembers` (dedicated accounts — the import fully
+  manages the group memberships of listed users) or by hand in the Keycloak
+  admin console.
 - **frankgateway-\<class\>-apply-routes** (hook Job, post-install/post-upgrade) —
   seeds that class's routes from `files/frankgateway/routes/<class>/`
   (route id = file name, idempotent PUTs). An instance seeds the directory
@@ -145,7 +152,11 @@ hostname.
 - **Keycloak** — one OIDC client per class (`frankgateway-dashboard-inway`,
   `-outway`, `-internal`) in the `podiumd` realm, seeded via the chart realm
   config (replaces jim00's `setup-keycloak-client.sh`); each secret consumed by
-  that class's oauth2-proxy.
+  that class's oauth2-proxy. The realm import also creates the `fg-admins`
+  group (`frankgateway.dashboard.auth.adminGroup`) in the same podiumd realm —
+  oauth2-proxy only admits its members, so an environment must put its
+  operators in it (`frankgateway.dashboard.auth.adminGroupMembers`, or the
+  Keycloak admin console) before anyone can open a dashboard.
 - **Redis** — the chart's shared `redis-ha` stores oauth2-proxy sessions
   (cookie-only storage drops chunked cookies behind NGF → login loops).
 - **OpenBao** — **required**, not optional: it is the only source of
@@ -390,6 +401,11 @@ run for a week.
 2. **Set the per-environment must-sets**:
    `frankgateway.dashboard.auth.hostname` (public dashboard host) and
    `frankgateway.dashboard.auth.dnsResolver` (cluster CoreDNS ClusterIP).
+   Name the dashboard operators in
+   `frankgateway.dashboard.auth.adminGroupMembers` (dedicated accounts — the
+   realm import fully manages the group memberships of listed users), or plan
+   to add them to the `fg-admins` group in the Keycloak admin console:
+   without membership, nobody gets past oauth2-proxy.
 3. **OpenBao.** Enable it (`openbao.enabled: true` — the render fails
    otherwise), write the external-API keys to `<mount>/frankgateway`
    (`bag_api_key`, `kvk_api_key`), and have the environment deployment create
@@ -406,7 +422,8 @@ run for a week.
 6. **Verify.** `kubectl -n podiumd get jobs` — every
    `frankgateway-<class>-apply-routes` must complete; `kubectl -n podiumd get
    pods -l app.kubernetes.io/component=frankgateway` all Running; each dashboard
-   hostname logs in via Keycloak (no dashboard login form); a test call through
+   hostname logs in via Keycloak (no dashboard login form) as an `fg-admins`
+   member — and refuses a realm account that is not one; a test call through
    a seeded route reaches its upstream.
 
 ## Related documents
