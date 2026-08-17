@@ -1,0 +1,14 @@
+# Images new or changed in podiumd 4.8.5 vs 4.8.4.
+#
+# Changes in this release:
+#   0. Open Beheer -> 0.9.1
+#
+# See docs/_UPGRADE_PATHS/4.8.4-to-4.8.5-upgrade.md for the operator upgrade notes.
+#
+# Mirror names follow strip_registry(url) throughout. See docs/images/acr-mirror-naming.md.
+
+# Open Beheer
+- name: maykinmedia/open-beheer
+  url: docker.io/maykinmedia/open-beheer
+  version: "0.9.1"
+  digest: "sha256:7c1dfaff1d069afe5d45e421f813078d8112b13c3cf65b5f547e866f6aad4e31"
