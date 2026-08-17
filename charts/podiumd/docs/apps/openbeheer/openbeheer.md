@@ -140,7 +140,7 @@ by the chart / shared pattern):
 | Chart key | `openbeheer` |
 | Sub-chart dependency | `openbeheer` v0.1.3 (`@maykinmedia`, `Chart.yaml:59-62`) |
 | Application image | `maykinmedia/open-beheer:0.9.1` |
-| Nginx sidecar image | `nginx:1.30.2` (digest-pinned) |
+| Nginx sidecar image | `nginxinc/nginx-unprivileged:1.31.3` (shared `global.images.nginx`, digest-pinned) |
 | Enabled by default | **No** (`openbeheer.enabled: false`) |
 | Replicas | `2` (`openbeheer.replicaCount`) |
 | Database | PostgreSQL (`openbeheer.settings.database.*`) |
