@@ -189,8 +189,8 @@
   digest: "sha256:e5217d748869c62d26393311c3cfdcaacf69d8dde80ca3bc172ff41f3885f0ff"
 - name: maykinmedia/open-beheer
   url: docker.io/maykinmedia/open-beheer
-  version: "0.9.0"
-  digest: "sha256:1a11b06dadb82c992468709b1aa92d0501aef6d526a7afb52bacac6917385166"
+  version: "0.9.1"
+  digest: "sha256:7c1dfaff1d069afe5d45e421f813078d8112b13c3cf65b5f547e866f6aad4e31"
 - name: maykinmedia/open-inwoner
   url: docker.io/maykinmedia/open-inwoner
   version: "2.4.2"
