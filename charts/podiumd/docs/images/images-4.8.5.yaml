@@ -1,0 +1,16 @@
+# Images new or changed in podiumd 4.8.5 vs 4.8.4.
+#
+# Changes in this release:
+#   1. ZAC (zaakafhandelcomponent) -> 5.0.2 (Helm chart bumped to 1.0.297; image
+#      deliberately kept on the 5.0.x line instead of following the chart's
+#      tested-against 5.5.0 -- see the upgrade guide)
+#
+# See docs/_UPGRADE_PATHS/4.8.4-to-4.8.5-upgrade.md for the operator upgrade notes.
+#
+# Mirror names follow strip_registry(url) throughout. See docs/images/acr-mirror-naming.md.
+
+# ZAC (zaakafhandelcomponent)
+- name: infonl/zaakafhandelcomponent
+  url: ghcr.io/infonl/zaakafhandelcomponent
+  version: "5.0.2"
+  digest: "sha256:e334f327008f99304cd545e61f528a44d583162c9bb67f4a589479248a93df3c"

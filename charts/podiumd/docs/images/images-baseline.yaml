@@ -97,8 +97,8 @@
   version: "0.6.6"
 - name: infonl/zaakafhandelcomponent
   url: ghcr.io/infonl/zaakafhandelcomponent
-  version: "5.0.1"
-  digest: "sha256:8c7844248b7decf56eafc0d2aca1f9e080f94e9bf2f6b6ac412589deb80d1659"
+  version: "5.0.2"
+  digest: "sha256:e334f327008f99304cd545e61f528a44d583162c9bb67f4a589479248a93df3c"
 - name: infonl/zgw-office-addin-backend
   url: ghcr.io/infonl/zgw-office-addin-backend
   version: "v0.9.313"
