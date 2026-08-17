@@ -2600,7 +2600,9 @@ kiss:
       # -- Rolnamen zoals ze in de podiumd-realm staan (client kiss). KISS 3.0.0
       # splitst de redacteursrol in REDACTEUR en BEHEERDER; de realm-config in
       # templates/keycloak-podiumd-realm-config.yaml levert beide rollen.
+      klantcontactmedewerkerRole: "Klantcontactmedewerker"
       redacteurRole: "Redacteur"
+      kennisbankRole: "Kennisbank"
       beheerderRole: "Beheerder"
 
     organisatieIds: []
