@@ -1419,7 +1419,7 @@ openarchiefbeheer:
 
   # maykinmedia/open-archiefbeheer:2.0.0
   image:
-    #repository: maykinmedia/open-archiefbeheer
+    repository: maykinmedia/open-archiefbeheer
     tag: "2.0.0@sha256:e5217d748869c62d26393311c3cfdcaacf69d8dde80ca3bc172ff41f3885f0ff"
 
   resources:
@@ -2485,7 +2485,7 @@ kiss-eck:
 
 kiss:
   image:
-    #   repository: "ghcr.io/klantinteractie-servicesysteem/kiss-frontend"
+    repository: "ghcr.io/klantinteractie-servicesysteem/kiss-frontend"
     pullPolicy: IfNotPresent
     tag: 2.2.4
   enabled: true
@@ -2642,7 +2642,7 @@ kiss:
 
     syncJobs:
       image:
-        # repository: "ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync"
+        repository: "ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync"
         tag: "0.3.3"
         pullPolicy: IfNotPresent
       kennisbank:
@@ -2713,7 +2713,7 @@ kiss:
     clientId: kiss_intern
     secret: ""
     image:
-      # repository: ghcr.io/icatt-menselijk-digitaal/podiumd-adapter
+      repository: ghcr.io/icatt-menselijk-digitaal/podiumd-adapter
       tag: "0.6.6"
       pullPolicy: IfNotPresent
     resources:
@@ -2825,7 +2825,7 @@ zac:
     curlImage: *curlImage
   # ghcr.io/infonl/zaakafhandelcomponent:5.0.1
   image:
-    #repository: ghcr.io/infonl/zaakafhandelcomponent
+    repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
     tag: 5.0.1@sha256:8c7844248b7decf56eafc0d2aca1f9e080f94e9bf2f6b6ac412589deb80d1659
   # Liveness probe uses /health/ready (not /health/live) with a high failureThreshold so
@@ -2879,13 +2879,13 @@ zac:
   office_converter:
     # gotenberg/gotenberg:8.34.0@sha256:67097317623a503ba2a6a7e9ae8db6929a1f7e1bbd88077bacf2d325fbdab923
     image:
-      # repository: gotenberg/gotenberg
+      repository: gotenberg/gotenberg
       tag: "8.34.0@sha256:67097317623a503ba2a6a7e9ae8db6929a1f7e1bbd88077bacf2d325fbdab923"
   opa:
     sidecar: true
     # openpolicyagent/opa:1.17.1-static@sha256:c29f8ee8dbe66608a1c04e9be84b04efc46877625e6b0877e559954565209efc
     image:
-      #repository: openpolicyagent/opa
+      repository: openpolicyagent/opa
       tag: "1.17.1-static@sha256:c29f8ee8dbe66608a1c04e9be84b04efc46877625e6b0877e559954565209efc"
     resources:
       requests:
@@ -2914,7 +2914,7 @@ zac:
     enabled: true
     # apache/solr-operator:v0.9.1@sha256:4db34508137f185d3cad03c7cf7c2b5d6533fb590822effcde9125cff5a90aa2
     image:
-      #repository:
+      repository: apache/solr-operator
       tag: v0.9.1@sha256:4db34508137f185d3cad03c7cf7c2b5d6533fb590822effcde9125cff5a90aa2
     nodeSelector: {}
     resources:
@@ -2930,7 +2930,7 @@ zac:
       enabled: true
       # library/solr:9.10.1-slim@sha256:c45d9d93d74d6a5e996120ab7120cdfc531debbc59bd3d6a6736fe240cee9be0
       image:
-        #repository:
+        repository: library/solr
         tag: 9.10.1-slim@sha256:c45d9d93d74d6a5e996120ab7120cdfc531debbc59bd3d6a6736fe240cee9be0
       # -- define memory settings for solr in the solrcloud
       javaMem: -Xms512m -Xmx768m
@@ -2958,11 +2958,11 @@ zac:
       hooks:
         # lachlanevenson/k8s-kubectl:@v1.25.4@sha256:af5cea3f2e40138df90660c0c073d8b1506fb76c8602a9f48aceb5f4fb052ddc
         image:
-          #repository:
+          repository: lachlanevenson/k8s-kubectl
           tag: v1.25.4@sha256:af5cea3f2e40138df90660c0c073d8b1506fb76c8602a9f48aceb5f4fb052ddc
       # pravega/zookeeper-operator:0.2.15@sha256:b2bc4042fdd8fea6613b04f2f602ba4aff1201e79ba35cd0e2df9f3327111b0e
       image:
-        #repository:
+        repository: pravega/zookeeper-operator
         tag: 0.2.15@sha256:b2bc4042fdd8fea6613b04f2f602ba4aff1201e79ba35cd0e2df9f3327111b0e
       resources:
         requests:
@@ -2976,7 +2976,7 @@ zac:
       zookeeper:
         # pravega/zookeeper:0.2.15@sha256:c498ebfb76a66f038075e2fa6148528d74d31ca1664f3257fdf82ee779eec9c8
         image:
-          #repository:
+          repository: pravega/zookeeper
           tag: 0.2.15@sha256:c498ebfb76a66f038075e2fa6148528d74d31ca1664f3257fdf82ee779eec9c8
         resources:
           requests:
@@ -3300,7 +3300,7 @@ ita:
 
   web:
     image:
-      # repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web"
+      repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web"
       tag: "3.2.0"
       pullPolicy: IfNotPresent
 
@@ -3424,7 +3424,7 @@ omc:
   enabled: false
   fullnameOverride: "omc"
   image:
-    # repository: ghcr.io/worth-nl/notifynl-omc
+    repository: ghcr.io/worth-nl/notifynl-omc
     tag: "1.17.19"
   # BELOW are the resource settings from the subchart, notifynl-omc-nodep which we do not override
   # app:
