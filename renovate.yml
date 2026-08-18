@@ -1,0 +1,44 @@
+$schema: https://docs.renovatebot.com/renovate-schema.json
+extends:
+  - config:recommended
+baseBranches:
+  - &podiumdPatchBranch feature/podiumd-4.8.6
+  - &podiumdNextBranch feature/podiumd-4.9.0
+  - &monitoringLoggingPatchBranch feature/monitoring-logging-1.0.17
+  - &monitoringLoggingNextBranch feature/monitoring-logging-1.1.0
+packageRules:
+  - matchFileNames:
+      - charts/kiss/**
+      - charts/flowable-*/**
+      - charts/brp-personen-mock/**
+      - charts/beproeving/**
+    enabled: false
+  - matchBaseBranches:
+      - *podiumdPatchBranch
+    excludeFileNames: &podiumdPaths
+      - charts/podiumd/**
+      - charts/mi-data/**
+    enabled: false
+  - matchBaseBranches:
+      - *podiumdPatchBranch
+    matchUpdateTypes: &minorMajor
+      - minor
+      - major
+    enabled: false
+  - matchBaseBranches:
+      - *podiumdNextBranch
+    excludeFileNames: *podiumdPaths
+    enabled: false
+  - matchBaseBranches:
+      - *monitoringLoggingPatchBranch
+    excludeFileNames: &monitoringLoggingPaths
+      - charts/monitoring-logging/**
+    enabled: false
+  - matchBaseBranches:
+      - *monitoringLoggingPatchBranch
+    matchUpdateTypes: *minorMajor
+    enabled: false
+  - matchBaseBranches:
+      - *monitoringLoggingNextBranch
+    excludeFileNames: *monitoringLoggingPaths
+    enabled: false
