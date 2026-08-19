@@ -3046,7 +3046,7 @@ clamav:
   # and ServiceMonitor (metrics.serviceMonitor.enabled: true). Supported since clamav chart v3.7.1.
   # serviceMonitor requires the Prometheus Operator CRD (monitoring.coreos.com/v1 ServiceMonitor).
   image:
-    tag: "1.5.2"
+    tag: "1.5.4"
   metrics:
     enabled: false
     image:

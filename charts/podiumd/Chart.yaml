@@ -10,7 +10,7 @@ dependencies:
     repository: "@adfinis"
     condition: keycloak-operator.enabled
   - name: clamav
-    version: 3.7.1
+    version: 3.7.2
     repository: "@wiremind"
     condition: clamav.enabled
   - name: brp-personen-mock
