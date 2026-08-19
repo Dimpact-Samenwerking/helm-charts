@@ -2454,7 +2454,7 @@ kiss-eck:
   eck-enterprise-search:
     enabled: true
     fullnameOverride: kiss
-    version: "8.19.3"
+    version: "8.19.19"
     config:
       app_search.engine.total_fields.limit: 1000
       kibana.host: https://kiss-kb-http.podiumd.svc.cluster.local:5601
