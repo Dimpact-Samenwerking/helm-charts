@@ -2423,7 +2423,7 @@ kiss-eck:
   eck-elasticsearch:
     enabled: true
     fullnameOverride: kiss
-    version: "8.19.3"
+    version: "8.19.19"
     # -- default sizing, kept equal to the previous release (kiss-elastic used
     # elasticsearchCount: 3). Environments can override nodeSets (e.g. nodeSelector,
     # count, storage), the same way openinwoner.eck-elasticsearch.nodeSets is set.
