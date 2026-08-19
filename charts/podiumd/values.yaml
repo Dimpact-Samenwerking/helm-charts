@@ -2477,7 +2477,7 @@ kiss-eck:
   eck-kibana:
     enabled: true
     fullnameOverride: kiss
-    version: "8.19.3"
+    version: "8.19.19"
     config:
       server.publicBaseUrl: https://kiss-kb-http.podiumd.svc.cluster.local:5601
     elasticsearchRef:
