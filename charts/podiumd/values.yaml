@@ -222,11 +222,11 @@ keycloak:
   http:
     httpEnabled: true
   # image parameters for keycloak-operator
-  # Official Keycloak image: quay.io/keycloak/keycloak:26.6.4
+  # Official Keycloak image: quay.io/keycloak/keycloak:26.7.2
   image:
     registry: ""
     repository: quay.io/keycloak/keycloak
-    tag: "26.6.4@sha256:0aae0de7fca85525f727d3354df17896092de8bb26ae4c12d89c77e5df8cbce4"
+    tag: "26.7.2@sha256:6efbadc00f0ed0237610becf11f4101b9c3ad8edf08a5b70c97aa4154ed436ec"
   # -- instances is the new operator-style replica count (falls back to replicaCount)
   instances: "2"
   ingress:
