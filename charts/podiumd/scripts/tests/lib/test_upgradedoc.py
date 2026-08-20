@@ -114,3 +114,72 @@ def test_actual_app_version_frontend_backend_lockstep(libupgradedoc):
 
 def test_actual_app_version_missing_returns_none(libupgradedoc):
     assert libupgradedoc.actual_app_version({}, "missing") is None
+
+
+# --- find_image_tag_paths ---
+
+def test_find_image_tag_paths_finds_nested_images(libupgradedoc):
+    values = {
+        "zac": {
+            "image": {"tag": "5.1.0@sha256:aaaa"},
+            "opa": {"image": {"tag": "1.19.0-static@sha256:bbbb"}},
+        },
+    }
+    paths = dict(libupgradedoc.find_image_tag_paths(values))
+    assert paths[("zac",)] == "5.1.0@sha256:aaaa"
+    assert paths[("zac", "opa")] == "1.19.0-static@sha256:bbbb"
+
+
+def test_find_image_tag_paths_ignores_tagless_image_blocks(libupgradedoc):
+    values = {"zac": {"image": {"repository": "x"}}}
+    assert dict(libupgradedoc.find_image_tag_paths(values)) == {}
+
+
+def test_find_image_tag_paths_walks_lists(libupgradedoc):
+    values = {"items": [{"image": {"tag": "1.0@sha256:aaaa"}}]}
+    paths = dict(libupgradedoc.find_image_tag_paths(values))
+    assert paths[("items", "0")] == "1.0@sha256:aaaa"
+
+
+# --- resolve_entry_path ---
+
+def test_resolve_entry_path_exact_match(libupgradedoc):
+    paths = [("zac",), ("zgw-office-addin", "frontend"), ("zgw-office-addin", "backend")]
+    assert libupgradedoc.resolve_entry_path("zgw-office-addin-frontend", paths) == \
+        ("zgw-office-addin", "frontend")
+
+
+def test_resolve_entry_path_last_word_must_match(libupgradedoc):
+    paths = [("zac", "solr-operator", "solr"), ("zac", "solr-operator", "zookeeper-operator", "zookeeper")]
+    assert libupgradedoc.resolve_entry_path("zac-solr", paths) == ("zac", "solr-operator", "solr")
+
+
+def test_resolve_entry_path_no_match_returns_none(libupgradedoc):
+    assert libupgradedoc.resolve_entry_path("totally-unrelated", [("zac",)]) is None
+
+
+# --- find_preceding_comment ---
+
+def test_find_preceding_comment_joins_consecutive_comment_lines(libupgradedoc):
+    lines = [
+        "# ZAC OPA sidecar\n",
+        "# 1.17.1-static -> 1.19.0-static\n",
+        "- name: opa\n",
+    ]
+    assert libupgradedoc.find_preceding_comment(lines, 2) == \
+        "# ZAC OPA sidecar # 1.17.1-static -> 1.19.0-static"
+
+
+def test_find_preceding_comment_stops_at_blank_line(libupgradedoc):
+    lines = [
+        "# unrelated previous entry's comment\n",
+        "\n",
+        "# ZAC — 5.0.1 -> 5.1.0\n",
+        "- name: zac\n",
+    ]
+    assert libupgradedoc.find_preceding_comment(lines, 3) == "# ZAC — 5.0.1 -> 5.1.0"
+
+
+def test_find_preceding_comment_none_when_absent(libupgradedoc):
+    lines = ["- name: zac\n"]
+    assert libupgradedoc.find_preceding_comment(lines, 0) == ""

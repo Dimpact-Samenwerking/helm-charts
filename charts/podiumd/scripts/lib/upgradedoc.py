@@ -94,3 +94,65 @@ def actual_app_version(values, values_key):
         if tag:
             return tag.split("@")[0]
     return None
+
+
+def find_image_tag_paths(node, path=()):
+    """Yield (path, tag) for every "image: {tag: ...}" block anywhere in a
+    values tree, keyed by its full path — e.g. ("zac", "opa") for
+    zac.opa.image.tag. Structural, so it finds sidecars too, not just
+    top-level Chart.yaml dependencies."""
+    if isinstance(node, dict):
+        image = node.get("image")
+        if isinstance(image, dict) and image.get("tag"):
+            yield path, image["tag"]
+        for key, value in node.items():
+            if key == "image":
+                continue
+            yield from find_image_tag_paths(value, path + (str(key),))
+    elif isinstance(node, list):
+        for i, item in enumerate(node):
+            yield from find_image_tag_paths(item, path + (str(i),))
+
+
+def resolve_entry_path(entry_name, paths):
+    """Match an images-manifest entry name (e.g. "zgw-office-addin-frontend")
+    to a values-tree path (e.g. ("zgw-office-addin", "frontend")) by comparing
+    word-split, concatenated path segments — no hardcoded name list.
+
+    The innermost path segment must match the entry's last word: without that,
+    sibling paths sharing a coincidental prefix (e.g. zac.solr-operator.solr
+    vs zac.solr-operator.zookeeper-operator.zookeeper — both start with
+    "zac"+"solr"+"operator") are indistinguishable by substring matching alone."""
+    entry_words = words_of(entry_name)
+    if not entry_words:
+        return None
+    norm_entry = "".join(entry_words)
+
+    best = None
+    for path in paths:
+        path_words = [w for segment in path for w in words_of(segment)]
+        if not path_words or path_words[-1] != entry_words[-1]:
+            continue
+        norm_path = "".join(path_words)
+        if norm_path == norm_entry:
+            return path
+        if norm_path in norm_entry or norm_entry in norm_path:
+            # closest length = least unrelated extra text pulled in by the
+            # containment match
+            diff = abs(len(norm_path) - len(norm_entry))
+            if best is None or diff < best[1]:
+                best = (path, diff)
+    return best[0] if best else None
+
+
+def find_preceding_comment(lines, entry_line_index):
+    """The comment line(s) immediately above a "- name: ..." line, e.g.
+    "# ZAC OPA sidecar — 1.17.1-static -> 1.19.0-static" right above the opa
+    entry — stops at the first blank/non-comment line, so it doesn't reach
+    back into the previous entry's comment."""
+    comment_lines = []
+    j = entry_line_index - 1
+    while j >= 0 and lines[j].strip().startswith("#"):
+        comment_lines.insert(0, lines[j].strip())
+        j -= 1
+    return " ".join(comment_lines)
