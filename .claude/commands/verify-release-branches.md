@@ -42,14 +42,27 @@ Behavior:
    Parse as `MAJOR.MINOR.PATCH`. Call this `CUR=X.Y.Z`.
 
 3. **Find the latest GitHub release of the previous minor.**
+
+   `gh release list --json` requires gh CLI 2.31+ (the `--json`/`--jq` flags
+   on `release list` were added later than on other subcommands). Use
+   `gh api` instead, which has supported `--jq` since early versions and
+   works on any gh CLI still in the field:
    ```bash
-   gh release list --repo Dimpact-Samenwerking/helm-charts --limit 30 \
-     --json tagName,createdAt,isPrerelease \
-     --jq '.[] | select(.isPrerelease|not) | .tagName' \
+   gh api "repos/Dimpact-Samenwerking/helm-charts/releases" --paginate \
+     --jq '.[] | select(.prerelease|not) | .tag_name' \
      | grep -E "^podiumd-${PREV_MAJOR_MINOR}\." \
      | sort -V | tail -1
    ```
    Where `PREV_MAJOR_MINOR = X.(Y-1)`. Strip the `podiumd-` prefix to get `PREV=X.(Y-1).N`. This is the latest *released* patch on the previous minor.
+
+   If `gh release list --json tagName,createdAt,isPrerelease` happens to work
+   on your installed gh CLI (2.31+), it's equivalent and fine to use — but
+   don't assume it; the `gh api` form above is the safe default since it
+   doesn't silently fail into an empty/bogus result on older CLIs (an
+   unrecognized flag exits non-zero, and an unguarded `$(...)` capture of
+   that failure yields an empty string that then flows into version
+   arithmetic as if it were a real value — verify the command's exit code
+   before trusting `$PREV_REL`).
 
 4. **Compute the three target versions.**
    - `PREV_NEXT  = X.(Y-1).(N+1)`  — previous-minor next patch (alarm-only)
@@ -213,9 +226,8 @@ git fetch --all --prune --quiet
 CUR=$(grep -E '^version:' "$CHART" | awk '{print $2}')
 IFS=. read -r MAJ MIN PAT <<<"$CUR"
 PREV_MM="$MAJ.$((MIN-1))"
-PREV_REL=$(gh release list --repo "$REPO" --limit 50 \
-  --json tagName,isPrerelease \
-  --jq ".[] | select(.isPrerelease|not) | .tagName" \
+PREV_REL=$(gh api "repos/$REPO/releases" --paginate \
+  --jq '.[] | select(.prerelease|not) | .tag_name' \
   | grep -E "^podiumd-${PREV_MM}\." | sort -V | tail -1)
 PREV=${PREV_REL#podiumd-}
 PREV_PAT=${PREV##*.}
