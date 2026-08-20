@@ -2737,7 +2737,7 @@ kiss:
     secret: ""
     image:
       # repository: ghcr.io/icatt-menselijk-digitaal/podiumd-adapter
-      tag: "0.6.6"
+      tag: "0.6.7"
       pullPolicy: IfNotPresent
     resources:
       requests:
@@ -3410,12 +3410,12 @@ pabc:
   # k8s-wait-for:v2.0 (see docs/images/images-4.8.0.yaml).
   image:
     repository: acrprodmgmt.azurecr.io/platform-autorisatie-beheer-component/pabc-api
-    tag: 1.1.0
+    tag: 1.1.1
   nodeSelector: {}
   migrations:
     image:
       repository: acrprodmgmt.azurecr.io/platform-autorisatie-beheer-component/pabc-migrations
-      tag: 1.1.0
+      tag: 1.1.1
     nodeSelector: {}
   initContainers:
     waitFor:
