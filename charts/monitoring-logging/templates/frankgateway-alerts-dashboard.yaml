@@ -1,0 +1,23 @@
+{{- $name := index .Values.grafana.dashboardsConfigMaps "frankgateway-alerts" }}
+{{- if $name }}
+{{- /*
+  Frank!Gateway threshold panels — OFF by default (the value is empty).
+
+  Deliberately a dashboard and not a PrometheusRule: nothing here fires and
+  nothing routes. Production alerting is Datadog, and Alertmanager is disabled
+  in this chart, so a rule added here would evaluate into a void and read as
+  coverage that does not exist.
+
+  What it is for: stating the conditions worth alerting on, in one place, with
+  their thresholds visible — so the Datadog monitors have a source, and so
+  someone investigating a suspected gateway problem sees the usual suspects
+  without knowing which query to write.
+*/ -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}
+data:
+  frankgateway-alerts.json: |-
+{{ .Files.Get "dashboards/frankgateway-alerts.json" | indent 4 }}
+{{- end }}

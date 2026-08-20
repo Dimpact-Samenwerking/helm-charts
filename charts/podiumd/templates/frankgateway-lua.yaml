@@ -1,0 +1,25 @@
+{{- if .Values.frankgateway.enabled }}
+{{- /*
+  Lua shipped with the chart and mounted into every gateway pod at
+  /usr/local/apisix/conf/lua, which apisix.extra_lua_path points at.
+
+  One ConfigMap for all instances rather than one each: the code is identical,
+  it carries no instance-specific values, and a route referring to
+  `require("openbao-secret-header")` must resolve to the same implementation on
+  whichever class seeds it.
+
+  Contains no secret material — only the fetch logic. The token reaches the
+  container from a Secret, and the credential itself never leaves OpenBao's
+  response.
+*/ -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frankgateway-lua
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frankgateway
+data:
+{{ (.Files.Glob "files/frankgateway/*.lua").AsConfig | indent 2 }}
+{{- end }}

@@ -1,0 +1,24 @@
+{
+  "uri": "/lvbag/individuelebevragingen/v2/*",
+  "name": "apiproxy-bag",
+  "labels": {
+    "managed-by": "iac"
+  },
+  "plugins": {
+    "serverless-pre-function": {
+      "phase": "rewrite",
+      "functions": [
+        "local set_secret_header = require(\"openbao-secret-header\") return set_secret_header({ path = \"frankgateway\", field = \"bag_api_key\", header = \"X-Api-Key\" })"
+      ]
+    }
+  },
+  "upstream": {
+    "scheme": "https",
+    "pass_host": "rewrite",
+    "upstream_host": "api.bag.kadaster.nl",
+    "nodes": {
+      "api.bag.kadaster.nl:443": 1
+    },
+    "type": "roundrobin"
+  }
+}

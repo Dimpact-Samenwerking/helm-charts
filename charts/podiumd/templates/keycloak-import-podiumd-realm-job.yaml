@@ -245,11 +245,21 @@ spec:
             secretKeyRef:
               name: keycloak-podiumd-realm-secrets
               key: pabc-keycloak-admin-secret
-        - name: KC_SECRET_FRANKGATEWAY_DASHBOARD
+{{- /* One client secret per gateway instance whose dashboard runs the SSO
+       chain: each dashboard has its own hostname, so it needs its own
+       Keycloak client and therefore its own secret. */ -}}
+{{- if .Values.frankgateway.enabled }}
+{{- range $key, $override := .Values.frankgateway.instances }}
+{{- $fg := include "podiumd.frankgateway.instanceValues" (dict "root" $ "key" $key "override" $override) | fromYaml }}
+{{- if and $fg.enabled $fg.dashboard.enabled $fg.dashboard.auth.enabled }}
+        - name: KC_SECRET_FRANKGATEWAY_DASHBOARD_{{ $key | upper | replace "-" "_" }}
           valueFrom:
             secretKeyRef:
               name: keycloak-podiumd-realm-secrets
-              key: frankgateway-dashboard-oidc-secret
+              key: {{ include "podiumd.frankgateway.oidcClientId" (dict "key" $key) }}-oidc-secret
+{{- end }}
+{{- end }}
+{{- end }}
         volumeMounts:
         - name: realm-configs
           mountPath: /config

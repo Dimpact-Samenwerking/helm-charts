@@ -1,44 +1,73 @@
-{{- if and .Values.frankgateway.enabled .Values.frankgateway.routes.seed }}
+{{- if .Values.frankgateway.enabled }}
 {{- /*
-  Declarative apiproxy-replacement routes for Frank!Gateway.
+  Declarative apiproxy-replacement routes for Frank!Gateway, seeded per instance.
 
-  Idempotently PUTs the route JSONs in files/frankgateway/routes/ to the APISIX
-  Admin API (route id = file name), reproducing the legacy api-proxy nginx
-  behaviour: per-path reverse proxy with Host override, upstream TLS/SNI, and
-  API-key injection. Keys are read at request time from env (fed from the
-  frankgateway.apiKeys.existingSecret Secret) by a serverless function — they
-  never land in etcd or git, only the env var NAME appears in the route JSON.
+  Idempotently PUTs the route JSONs in files/frankgateway/routes/<dir>/ to the
+  instance's APISIX Admin API (route id = file name), reproducing the legacy
+  api-proxy nginx behaviour: per-path reverse proxy with Host override, upstream
+  TLS/SNI, and API-key injection. Keys are read at request time from env (fed
+  from the apiKeys.existingSecret Secret) by a serverless function — they never
+  land in etcd or git, only the env var NAME appears in the route JSON.
+
+  Which directories an instance seeds comes from its `routes.dirs`; unset means
+  the directory named after the instance key. The single-instance default seeds
+  outway + internal, i.e. all five legacy apiproxy routes, so the route files
+  live in exactly one place and are never duplicated per class.
 
   Post-install/post-upgrade hook: runs after the gateway is (re)deployed. PUTs
   overwrite, so re-runs are safe; GUI-created routes with other ids are left
   untouched.
 */ -}}
-{{- $fg := .Values.frankgateway }}
+{{- $root := . }}
+{{- range $key, $override := .Values.frankgateway.instances }}
+{{- $fg := include "podiumd.frankgateway.instanceValues" (dict "root" $root "key" $key "override" $override) | fromYaml }}
+{{- if and $fg.enabled $fg.routes.seed }}
+{{- $name := include "podiumd.frankgateway.instanceName" (dict "key" $key "instance" $fg) }}
+{{- $dirs := $fg.routes.dirs | default (list $key) }}
+{{- /* Collect route files from every configured directory into one map keyed by
+       file name, so the rendered order is alphabetical by route id regardless of
+       how many directories contributed. */ -}}
+{{- $files := dict }}
+{{- range $dir := $dirs }}
+{{-   range $path, $_ := $root.Files.Glob (printf "files/frankgateway/routes/%s/*.json" $dir) }}
+{{-     $_ := set $files (base $path) ($root.Files.Get $path) }}
+{{-   end }}
+{{- end }}
+{{- /* Routes defined in values, for the ones the chart cannot ship as files:
+       an inway route has to match the environment's own public hostname, so it
+       is per-gemeente by nature. Without this an environment needs its own
+       apply-routes tooling just to add a route, which is how jim00 ended up
+       maintaining a parallel copy of the seeding script. A values entry
+       overrides a file of the same id. */ -}}
+{{- range $id, $route := $fg.routes.extra }}
+{{-   $_ := set $files (printf "%s.json" $id) (toPrettyJson $route) }}
+{{- end }}
+---
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: frankgateway-routes
-  namespace: {{ .Release.Namespace }}
+  name: {{ $name }}-routes
+  namespace: {{ $root.Release.Namespace }}
   labels:
-    {{- include "podiumd.labels" . | nindent 4 }}
+    {{- include "podiumd.labels" $root | nindent 4 }}
     app.kubernetes.io/component: frankgateway-routes
   annotations:
     "helm.sh/hook": post-install,post-upgrade
     "helm.sh/hook-weight": "-5"
     "helm.sh/hook-delete-policy": before-hook-creation
 data:
-{{- range $path, $_ := .Files.Glob "files/frankgateway/routes/*.json" }}
-  {{ base $path }}: |-
-{{ $.Files.Get $path | indent 4 }}
+{{- range $file := keys $files | sortAlpha }}
+  {{ $file }}: |-
+{{ index $files $file | indent 4 }}
 {{- end }}
 ---
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: frankgateway-apply-routes
-  namespace: {{ .Release.Namespace }}
+  name: {{ $name }}-apply-routes
+  namespace: {{ $root.Release.Namespace }}
   labels:
-    {{- include "podiumd.labels" . | nindent 4 }}
+    {{- include "podiumd.labels" $root | nindent 4 }}
     app.kubernetes.io/component: frankgateway-routes
   annotations:
     "helm.sh/hook": post-install,post-upgrade
@@ -52,7 +81,7 @@ spec:
   template:
     metadata:
       labels:
-        {{- include "podiumd.labels" . | nindent 8 }}
+        {{- include "podiumd.labels" $root | nindent 8 }}
         app.kubernetes.io/component: frankgateway-routes
     spec:
       restartPolicy: Never
@@ -64,7 +93,7 @@ spec:
             - name: ADMIN_KEY
               valueFrom:
                 secretKeyRef:
-                  name: frankgateway-admin-credentials
+                  name: {{ $name }}-admin-credentials
                   key: admin
           command: ["sh", "-c"]
           args:
@@ -73,7 +102,7 @@ spec:
               # The gateway may still be rolling when the hook fires — wait for
               # the Admin API before PUTting.
               i=0
-              until curl -s -o /dev/null "http://frankgateway:9180/apisix/admin/routes" -H "X-API-KEY: ${ADMIN_KEY}"; do
+              until curl -s -o /dev/null "http://{{ $name }}:9180/apisix/admin/routes" -H "X-API-KEY: ${ADMIN_KEY}"; do
                 i=$((i+1)); [ "${i}" -ge 30 ] && { echo "admin API unreachable"; exit 1; }
                 sleep 5
               done
@@ -81,7 +110,7 @@ spec:
               for f in /routes/*.json; do
                 id=$(basename "${f}" .json)
                 code=$(curl -s -o /dev/null -w "%{http_code}" -X PUT \
-                  "http://frankgateway:9180/apisix/admin/routes/${id}" \
+                  "http://{{ $name }}:9180/apisix/admin/routes/${id}" \
                   -H "X-API-KEY: ${ADMIN_KEY}" -H "Content-Type: application/json" \
                   --data @"${f}")
                 echo "${id} -> ${code}"
@@ -92,16 +121,29 @@ spec:
               # route to emit route-level series. A global_rule covers every
               # route (chart-seeded and GUI-created) without touching each one.
               code=$(curl -s -o /dev/null -w "%{http_code}" -X PUT \
-                "http://frankgateway:9180/apisix/admin/global_rules/prometheus-metrics" \
+                "http://{{ $name }}:9180/apisix/admin/global_rules/prometheus-metrics" \
                 -H "X-API-KEY: ${ADMIN_KEY}" -H "Content-Type: application/json" \
                 --data '{"plugins":{"prometheus":{"prefer_name":true}}}')
               echo "global_rules/prometheus-metrics -> ${code}"
               case "${code}" in 2*) ;; *) rc=1 ;; esac
               {{- end }}
+              {{- if and $fg.tls.enabled $fg.tls.sslSync.enabled }}
+              # Same script the renewal CronJob runs, so a fresh install serves
+              # TLS immediately instead of waiting for the first nightly tick.
+              # Exits 0 when no certificate material is mounted yet.
+              sh /scripts/sync.sh || rc=1
+              {{- end }}
               exit ${rc}
           volumeMounts:
             - name: routes
               mountPath: /routes
+            {{- if and $fg.tls.enabled $fg.tls.sslSync.enabled }}
+            - name: scripts
+              mountPath: /scripts
+            - name: tls
+              mountPath: /tls
+              readOnly: true
+            {{- end }}
           resources:
             requests:
               cpu: 25m
@@ -112,5 +154,16 @@ spec:
       volumes:
         - name: routes
           configMap:
-            name: frankgateway-routes
+            name: {{ $name }}-routes
+        {{- if and $fg.tls.enabled $fg.tls.sslSync.enabled }}
+        - name: scripts
+          configMap:
+            name: {{ $name }}-ssl-sync
+        - name: tls
+          secret:
+            secretName: {{ include "podiumd.frankgateway.tlsSecretName" (dict "instance" $fg "name" $name) }}
+            optional: true
+        {{- end }}
+{{- end }}
+{{- end }}
 {{- end }}

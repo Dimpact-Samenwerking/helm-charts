@@ -1,0 +1,30 @@
+{
+  "uri": "/api/v1/basisprofielen*",
+  "name": "apiproxy-kvk-basic",
+  "labels": {
+    "managed-by": "iac"
+  },
+  "plugins": {
+    "proxy-rewrite": {
+      "regex_uri": [
+        "^/(.*)",
+        "/test/$1"
+      ]
+    },
+    "serverless-pre-function": {
+      "phase": "rewrite",
+      "functions": [
+        "local set_secret_header = require(\"openbao-secret-header\") return set_secret_header({ path = \"frankgateway\", field = \"kvk_api_key\", header = \"apikey\" })"
+      ]
+    }
+  },
+  "upstream": {
+    "scheme": "https",
+    "pass_host": "rewrite",
+    "upstream_host": "api.kvk.nl",
+    "nodes": {
+      "api.kvk.nl:443": 1
+    },
+    "type": "roundrobin"
+  }
+}

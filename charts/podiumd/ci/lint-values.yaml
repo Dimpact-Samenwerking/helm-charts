@@ -180,10 +180,48 @@ kiss:
         objectTypeUrl: "http://placeholder"
         token: "placeholder"
 
-# Frank!Gateway enabled with a dummy hostname so lint/CI render covers the
-# full stack (gateway + etcd + dashboard + SSO chain + routes hook Job).
+# OpenBao is not optional alongside Frank!Gateway — the gateway reads every
+# external-API credential from it at request time, and the chart fails the
+# render if it is missing (templates/validations.yaml).
+openbao:
+  enabled: true
+
+# Frank!Gateway enabled so lint/CI render covers the full stack (gateways +
+# etcd + dashboards + SSO chain + routes hook Jobs) across all three traffic
+# classes. Each dashboard needs its OWN hostname: they are distinct Ingresses
+# and oauth2-proxy redirect URIs, and the chart fails the render when two
+# instances claim the same one.
 frankgateway:
   enabled: true
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+  networkPolicies:
+    enabled: true
+    ingressNamespace: ingress-basic
+  # Dashboards default to OFF; CI turns them on so the whole SSO chain
+  # (dashboard + shim + oauth2-proxy + Keycloak client + Ingress) is rendered
+  # somewhere. ci/frankgateway-single-class-values.yaml covers the default
+  # dashboard-less shape. The member below exercises the fg-admins group
+  # rendering (realm group + user entry) — it is not a real account.
   dashboard:
+    enabled: true
     auth:
-      hostname: "frankgateway-admin.example.nl"
+      adminGroupMembers:
+        - "fg-operator-ci-example"
+  instances:
+    inway:
+      tls:
+        enabled: true
+      dashboard:
+        auth:
+          hostname: "frankgateway-inway-admin.example.nl"
+    outway:
+      dashboard:
+        auth:
+          hostname: "frankgateway-outway-admin.example.nl"
+    internal:
+      dashboard:
+        auth:
+          hostname: "frankgateway-internal-admin.example.nl"

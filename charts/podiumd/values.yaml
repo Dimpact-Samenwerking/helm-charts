@@ -3494,16 +3494,140 @@ omc:
 frankgateway:
   enabled: false
 
+  # Gateway instances, one set of pods per traffic class. Everything outside
+  # this map is the shared default; each instance deep-merges its own overrides
+  # over it, so an instance only states what differs.
+  #
+  # Three classes, split by direction of travel, because a single gateway needs
+  # the union of every class's egress and can therefore be given no meaningful
+  # egress policy at all:
+  #
+  #   inway     north-south, entering PodiumD (NGF -> here -> apps)
+  #   outway    PodiumD apps -> external services (BAG/KVK/BRP)
+  #   internal  east-west, app-to-app inside the cluster
+  #
+  # Every instance is named after its key (`frankgateway-<key>`) and gets its
+  # own etcd prefix (`/frankgateway-<key>`). There is no single-instance shape and no
+  # reserved key — `instances.gateway` is rejected by templates/validations.yaml.
+  #
+  # All instances share the single etcd StatefulSet — APISIX in traditional mode
+  # loads exactly the objects under its own prefix, so config isolation is
+  # complete without running one etcd per instance. (Failure isolation is NOT:
+  # see frankgateway-traffic-classes.md.)
+  #
+  # Per-instance overrides may set any shared key (replicas, resources, tls,
+  # admin, apiKeys, metrics, routes, dashboard, ...) plus `nameOverride` and
+  # `etcdPrefix`. A class can be switched off with `enabled: false`; an
+  # environment making no external calls needs no outway.
+  #
+  # Route JSONs are seeded from files/frankgateway/routes/<key>/ — an instance
+  # seeds the directory named after its key unless `routes.dirs` says otherwise.
+  instances:
+    inway:
+      enabled: true
+      # `tls.enabled: true` here when the front door re-encrypts — it opens the
+      # 9443 listener, but the certificate comes from an SSL object in etcd
+      # (deploy-side today, see the tls block below), so it is not defaulted on.
+    outway:
+      enabled: true
+    internal:
+      enabled: true
+
+  # Per-traffic-class NetworkPolicies. The reason the split is worth doing: a
+  # single gateway needs the union of every class's egress (internet, cluster,
+  # backends), so no meaningful egress policy is possible. Opt-in because a
+  # cluster without a policy-enforcing CNI silently ignores these — a policy
+  # that is not enforced reads exactly like a policy that is.
+  #
+  # `class` tells the chart which rule set an instance gets: inway | outway |
+  # internal. It defaults to the instance key when that key is one of the three,
+  # so a custom-named instance must set `class` explicitly or get no policy.
+  networkPolicies:
+    enabled: false
+    # Namespace selector label used to match the ingress gateway namespace for
+    # `inway` instances.
+    ingressNamespaceLabel: kubernetes.io/metadata.name
+    # MUST be the namespace of the pod that actually opens connections to the
+    # inway — for NGINX Gateway Fabric 2.x that is the per-Gateway DATA plane
+    # pod, which runs in the GATEWAY's namespace (e.g. `ingress-basic`), NOT
+    # the `nginx-gateway` namespace where the control plane runs. The two are
+    # easy to confuse because only the control plane carries the product name.
+    #
+    # Get this wrong and the policy fails closed on the only traffic the inway
+    # exists to serve, with no log line on either side because the packet never
+    # arrives — so it presents as a TLS/connectivity fault, not as a policy
+    # one. Verify on the target cluster with:
+    #
+    #   kubectl get pods -A | grep gateway-nginx
+    #
+    # REQUIRED, with no default on purpose. It used to default to
+    # `nginx-gateway`, which is the NGF *control plane* namespace and therefore
+    # wrong in almost every environment — a default that is usually wrong and
+    # fails silently is worse than no default at all. Empty + inway +
+    # networkPolicies.enabled fails the render instead.
+    ingressNamespace: ""
+    # Namespace running kube-dns/CoreDNS (egress :53 is allowed to it).
+    dnsNamespace: kube-system
+    # Namespace running prometheus (ingress to the metrics port is allowed
+    # from it when metrics.enabled).
+    monitoringNamespace: monitoring
+    # Extra cluster CIDR an `internal` instance may reach, for environments
+    # whose in-cluster destinations are not all in the release namespace.
+    # Empty => in-namespace destinations only.
+    clusterCidr: ""
+
   # Gateway (data plane + Admin API) — ghcr.io/wearefrank/frank-gateway.
   # Digest-pinned; matches docs/images/images-baseline.yaml.
   image:
     repository: ghcr.io/wearefrank/frank-gateway
     tag: "104@sha256:a830b90f8820f5cdb0c382ecef02a302c50d129edc9de81d7daa7af1cf267d98"
-  replicas: 1
+  # Per class. Two, not one: one replica means every pod event — a crash, an
+  # eviction, a node image upgrade, an autoscaler consolidation — is an outage
+  # of that traffic class. Raise for load, never lower below 2 in an
+  # environment that matters.
+  replicas: 2
+  # Keep the replicas off one node, or two replicas survive a crash but not a
+  # drain. Enforced with `whenUnsatisfiable: DoNotSchedule`: a replica that
+  # cannot get its own node stays Pending, which is visible, instead of
+  # silently doubling up and leaving a deployment that only looks highly
+  # available. Every environment this chart targets is multi-node. Set a list
+  # here to replace the chart's constraint entirely (per instance if needed);
+  # the default selects on that workload's own app.kubernetes.io/name.
+  topologySpreadConstraints: []
+
+  # PodDisruptionBudgets. Replicas survive a pod crash on their own; they
+  # survive a *voluntary* disruption — kubectl drain, AKS node image upgrade,
+  # autoscaler consolidation — only if something forbids evicting them all at
+  # once. Applies to the gateway, dashboard, shim and oauth2-proxy of every
+  # instance; etcd has its own below.
+  podDisruptionBudget:
+    enabled: true
+    # maxUnavailable, not minAvailable: `minAvailable: 1` on a 4-replica
+    # gateway would permit three simultaneous evictions, i.e. it gets weaker
+    # the more you scale. This means one at a time at any replica count.
+    maxUnavailable: 1
+    # AlwaysAllow so an already-broken pod never blocks a node drain — the
+    # Kubernetes default (IfHealthyBudget) refuses to evict not-Ready pods once
+    # the budget is at its limit, which is exactly the situation a drain is
+    # meant to resolve. Empty => omit the field (clusters older than 1.31).
+    unhealthyPodEvictionPolicy: AlwaysAllow
+    # A budget is only rendered where the workload has more than one replica:
+    # over a single replica it either does nothing or blocks drains forever.
+  # Measured on jim00 (7-day peaks, three classes live, QA traffic levels):
+  # CPU peaked at 8m, memory at 375Mi on the instance carrying all five routes
+  # and 250-290Mi per split instance. See the table in frankgateway-BASICS.md.
+  #
+  # Memory request is therefore 384Mi, NOT the 256Mi carried over from the
+  # single-gateway setup: that number sat *below* the observed peak, which is
+  # how a pod gets evicted first under node memory pressure while looking
+  # correctly sized on paper. CPU stays at 100m — 12x the measured QA peak, but
+  # QA traffic says nothing about what the inway sees in production, and a
+  # request-path proxy is the wrong place to be stingy with the guaranteed
+  # share. Revisit both once a production environment has run for a week.
   resources:
     requests:
       cpu: 100m
-      memory: 256Mi
+      memory: 384Mi
     limits:
       cpu: "1"
       memory: 1Gi
@@ -3519,23 +3643,134 @@ frankgateway:
 
   # Optional TLS listener on the data plane, so callers behind a re-encrypting
   # front door (e.g. Gateway API BackendTLSPolicy) reach the gateway over
-  # https and upstreams receive an honest X-Forwarded-Proto. Certificates are
-  # NOT mounted by the chart — APISIX serves per-SNI certs from SSL objects in
-  # etcd, seeded via the Admin API (deploy-side, like routes).
+  # https and upstreams receive an honest X-Forwarded-Proto.
+  #
+  # APISIX does not read certificate FILES: it serves per-SNI certificates from
+  # SSL objects stored in etcd. So a certificate becomes usable only once it has
+  # been PUT to the Admin API — which is why renewal is a real problem here and
+  # not a solved one. cert-manager rotating the Secret changes nothing on its
+  # own; something has to push the new material into etcd.
   tls:
     enabled: false
     port: 9443
 
-  # Secret with external-API key env vars (e.g. BAG_API_KEY, KVK_API_KEY),
-  # created out-of-band (Key Vault-fed, never by this chart). envFrom'd into
-  # the gateway (optional: absent Secret does not block startup). envNames
-  # lists the var NAMES exposed to nginx workers so routes can read them via
-  # os.getenv in a serverless function.
-  apiKeys:
-    existingSecret: frankgateway-api-keys
-    envNames:
-      - BAG_API_KEY
-      - KVK_API_KEY
+    # Have cert-manager issue and renew the data-plane certificate, instead of
+    # someone installing it by hand when the environment is built and nobody
+    # tracking the expiry date afterwards. Off by default: an environment
+    # without cert-manager, or with its certificate delivered some other way,
+    # keeps supplying the Secret itself (see sslSync.secretName).
+    certManager:
+      enabled: false
+      # The issuer to use. Either name an existing one here (e.g. the
+      # ClusterIssuer that already issues this environment's public
+      # certificates), or let the chart render an OpenBao-backed one below.
+      issuerRef:
+        name: ""
+        kind: ClusterIssuer
+        group: cert-manager.io
+
+      # Render a cert-manager Issuer backed by OpenBao's PKI engine, so this
+      # certificate is issued by the same vault that holds every other
+      # credential in this gateway — one CA, one audit trail, no separate
+      # public-CA dependency for a hop that never leaves the cluster.
+      #
+      # The private key still lands in a Kubernetes Secret: cert-manager writes
+      # it there, and APISIX needs it pushed into etcd anyway (a certificate is
+      # chosen during the TLS handshake, before any request exists, so it can
+      # never be fetched per request the way an API key is — see
+      # frankgateway-BASICS.md).
+      #
+      # Requires PKI set up in OpenBao first; the commands are in
+      # frankgateway-BASICS.md. When `create` is false, `issuerRef` above is
+      # used unchanged.
+      issuer:
+        create: false
+        # Empty => http://<release>-openbao-active:8200
+        server: ""
+        # Sign path of the PKI role, e.g. pki/sign/<role>.
+        path: pki/sign/frankgateway
+        # Only for an https OpenBao endpoint with a private CA:
+        #   caBundleSecretRef: {name: openbao-ca, key: ca.crt}
+        caBundleSecretRef: {}
+        # cert-manager authenticates to OpenBao with a Kubernetes
+        # ServiceAccount token and receives a short-lived OpenBao token in
+        # exchange — no static credential anywhere in the cluster.
+        kubernetes:
+          role: frankgateway-pki
+          mountPath: /v1/auth/kubernetes
+          # Created by the chart when issuer.create is true.
+          serviceAccountName: frankgateway-pki
+      # Secret cert-manager writes to. Empty => <instance>-tls.
+      secretName: ""
+      # 90 days, renewed 30 days out. renewBefore is the safety margin: if
+      # renewal starts failing there is a month to notice before anything
+      # breaks — which is the whole point of automating it.
+      duration: 2160h
+      renewBefore: 720h
+      # The in-cluster names callers connect to are always included
+      # (<instance>, <instance>.<ns>.svc, <instance>.<ns>.svc.cluster.local).
+      # Add any public hostname the front door presents on this hop here.
+      extraDnsNames: []
+
+    # Push the certificate into etcd as an APISIX SSL object, and keep doing it,
+    # so a renewal takes effect without anyone logging in.
+    #
+    # The deploy-time Job alone is not enough: cert-manager renews on its own
+    # schedule, weeks after a deploy, and APISIX would go on serving the old
+    # material from etcd until the next release. The CronJob is what closes that
+    # gap — it is idempotent, so re-running it when nothing changed is free.
+    sslSync:
+      enabled: true
+      # Daily, off-peak. The renewal window (renewBefore, 30d) is enormous
+      # compared to this interval; the schedule only has to be more frequent
+      # than the window, not fast.
+      schedule: "17 3 * * *"
+      # Secret holding tls.crt/tls.key. Empty => the cert-manager Secret above
+      # when that is enabled, otherwise <instance>-tls supplied out-of-band.
+      secretName: ""
+      # SNIs the SSL object matches. Empty => the certificate's own DNS names.
+      snis: []
+      successfulJobsHistoryLimit: 1
+      failedJobsHistoryLimit: 3
+
+  # External-API credentials (BAG, KVK, ESB consumers) are read from OpenBao at
+  # request time by a serverless function on the route
+  # (files/frankgateway/openbao-secret-header.lua), so the VALUES never enter
+  # etcd, git, a ConfigMap or a Kubernetes Secret. The gateway holds one scoped
+  # reader token and nothing else.
+  #
+  # This replaced an env-var path (Secret -> envFrom -> os.getenv in the route).
+  # That path is gone, not deprecated: two ways to supply a key means two ways
+  # to be wrong about which one an environment is using.
+  #
+  # OpenBao is therefore REQUIRED whenever frankgateway is enabled —
+  # templates/validations.yaml fails the render otherwise.
+  openbao:
+    # Empty => http://<release>-openbao-active:8200, the active (unsealed
+    # leader) Service of the in-chart OpenBao. Override only to reach an
+    # OpenBao outside this release.
+    addr: ""
+    # Secrets engine mount. Empty => openbao.configuration.kvPath.
+    mount: ""
+    # kv engine version, "1" or "2". The chart provisions kv-v2.
+    kvVersion: "2"
+    # Scoped reader token for that mount, supplied out-of-band (Key Vault ->
+    # CSI, or the deploy pipeline). NOT generated by the chart: a token the
+    # chart could mint is a token the chart would have to store.
+    #
+    # Mounted optionally, so a class that reads no secrets (inway, internal)
+    # still starts without it. A route that does need it answers 503 — see
+    # failMode — rather than the pod failing to schedule.
+    tokenSecret:
+      name: frankgateway-openbao-token
+      key: token
+    # closed | open. Closed: a route whose secret cannot be read answers 503
+    # itself, with a log line naming the path. Open: the request is sent
+    # upstream without the header and the upstream rejects it — which presents
+    # as a 401, indistinguishable from a wrong key, and is one of the faults
+    # IN-2596 §4 lists as invisible from outside. Closed is the default for
+    # that reason.
+    failMode: closed
 
   # Prometheus metrics. The APISIX prometheus exporter always listens on 9091
   # inside the pod (plugin_attr in the gateway config); metrics.enabled exposes
@@ -3551,19 +3786,50 @@ frankgateway:
       # Scrape interval for the ServiceMonitor.
       interval: 30s
 
-  # Single-node etcd backing store (quay.io/coreos upstream build — no
+  # Access-log format (opt-in). jsonFormat renders one JSON object per
+  # request (time/client/method/host/uri/status/bytes/latency/upstream/
+  # request_id/referer/user-agent) with json escaping — log pipelines
+  # (Loki/Alloy) can then filter on fields instead of regex-parsing the
+  # default combined format. Off = APISIX default access log.
+  accessLog:
+    jsonFormat: false
+
+  # etcd cluster backing every instance (quay.io/coreos upstream build — no
   # Bitnami). PVC-backed so gateway config survives pod restarts.
   etcd:
     image:
       repository: quay.io/coreos/etcd
       tag: "v3.5.16"
+    # THREE members, and do not set this to 2. etcd is raft: quorum of a
+    # 3-member cluster is 2, so it survives losing one; quorum of a 2-member
+    # cluster is also 2, so it survives losing none — worse than a single
+    # member, which at least fails for an obvious reason. 1 is a single point
+    # of failure shared by all three traffic classes at once, which is what the
+    # split exists to prevent. Use 5 only if losing two at once is a real
+    # scenario; every write costs a round trip to the majority.
+    replicas: 3
+    # See frankgateway.topologySpreadConstraints — same contract, applied to
+    # the etcd members. Spreading matters more here: two members on one node
+    # means one drain takes quorum with it.
+    topologySpreadConstraints: []
+    # Separate from the instance budget above because the stake is different:
+    # this is the one object all three traffic classes share, and losing a
+    # second member during a drain stops writes for every class at once.
+    podDisruptionBudget:
+      enabled: true
+      maxUnavailable: 1
+      unhealthyPodEvictionPolicy: AlwaysAllow
     storage: 2Gi
     # Empty => cluster default StorageClass. jim00 uses managed-csi.
     storageClassName: ""
+    # Measured: 20m CPU / 126Mi memory peak on jim00 with a single member. The
+    # old 128Mi request was within 2Mi of the observed peak — raised to 192Mi,
+    # and each of the three members holds the same dataset, so this is per
+    # member and not divided.
     resources:
       requests:
         cpu: 50m
-        memory: 128Mi
+        memory: 192Mi
       limits:
         cpu: 500m
         memory: 512Mi
@@ -3573,24 +3839,85 @@ frankgateway:
   # route id = file name, PUTs overwrite.
   routes:
     seed: true
+    # Extra routes defined here rather than shipped as files, keyed by route id.
+    # Needed for anything that depends on the environment: an inway route has to
+    # match that environment's own public hostname, so it cannot be a chart file.
+    # A key here overrides a shipped file of the same id.
+    #
+    #   instances:
+    #     inway:
+    #       routes:
+    #         extra:
+    #           inbound-openzaak:
+    #             uri: /*
+    #             host: openzaak.<env>.<domain>
+    #             labels: {managed-by: iac}
+    #             upstream:
+    #               type: roundrobin
+    #               scheme: http
+    #               pass_host: pass
+    #               nodes: {"openzaak-nginx.podiumd.svc.cluster.local:80": 1}
+    #
+    # For an internal route, prefer pass_host: rewrite with upstream_host set to
+    # the application's public FQDN — ZGW APIs emit absolute self-referencing
+    # URLs, and callers cannot resolve cluster-local ones.
+    extra: {}
     job:
       image: *curlImage
       backoffLimit: 3
       ttlSecondsAfterFinished: 600
 
   # apisix-dashboard GUI + its Keycloak SSO front door.
+  #
+  # Designed to be switched on for debugging and testing and off otherwise: the
+  # dashboard chain is three of the four pods an instance costs, and nothing
+  # depends on it — the route-seeding Job uses the Admin API directly, so a
+  # class with no dashboard is still fully managed and fully observable.
+  #
+  # Set `enabled` here to control every instance at once; a per-instance
+  # `instances.<class>.dashboard.enabled` overrides it in either direction.
+  #
+  # For a dashboard you only want while investigating something, also set
+  # `auth.enabled: false`. That drops the oauth2-proxy and shim too, so it needs
+  # no hostname, no certificate SAN and no Keycloak client — which is normally
+  # what makes turning one on mid-investigation slow. Reach it with:
+  #
+  #   kubectl -n <ns> port-forward deploy/frankgateway-<class>-dashboard 9000:9000
+  #
+  # Do NOT leave auth off in a shared environment: without oauth2-proxy in front
+  # there is nothing but the Admin API key between the cluster and the GUI.
+  #
+  # See docs/apps/frankgateway/frankgateway-traffic-classes.md.
   dashboard:
-    enabled: true
+    # OFF by default. On, it is 18 of the 27 pods a full gateway costs (three
+    # dashboards, three shims, three oauth2-proxies, at two replicas each), and
+    # it drags in a Keycloak client and a public hostname per class. Nothing
+    # depends on it: the routes hook Job talks to the Admin API directly, so a
+    # class with no dashboard is fully managed and fully observable — there is
+    # simply no GUI for it.
+    #
+    # Turn it on per class, for as long as an investigation needs it, and off
+    # again afterwards. Every hour it is on is an hour a browser-reachable
+    # admin surface exists for a component that does not otherwise have one.
+    enabled: false
     image:
       repository: apache/apisix-dashboard
       tag: "3.0.1-alpine"
+    # Two, like everything else: the dashboard is how an operator reaches the
+    # gateway during an incident, which is exactly when a node is being
+    # drained. It is stateless — all state is in etcd — so replicas are free
+    # of coordination concerns.
+    replicas: 2
     # Dashboard-internal admin password, used ONLY by the shim's server-side
     # auto-login (the dashboard is never exposed directly). Empty => random,
     # stable across upgrades via lookup (Secret frankgateway-dashboard-conf).
     adminPassword: ""
+    # Measured: 11m CPU / 90Mi memory peak. CPU request halved to 25m — with
+    # six dashboards the old 50m reserved 300m for a debug GUI. Memory kept at
+    # 128Mi, which is above the peak.
     resources:
       requests:
-        cpu: 50m
+        cpu: 25m
         memory: 128Mi
       limits:
         cpu: 500m
@@ -3601,9 +3928,34 @@ frankgateway:
     #     -> dashboard
     auth:
       enabled: true
-      # Public FQDN of the dashboard (e.g. frankgateway-admin.<env>.<domain>).
+      # Authorization, distinct from authentication. The podiumd realm holds
+      # every beheer user and municipality staff member — logging in must not
+      # be the same thing as administering the gateway. oauth2-proxy therefore
+      # only admits members of this Keycloak group (via the groups claim the
+      # dashboard's OIDC client already maps into the ID token). The realm
+      # import creates the group; put operators in it via `adminGroupMembers`
+      # below or by hand in the Keycloak admin console.
+      #
+      # Empty ("") switches the group check OFF and returns to "any realm user
+      # is a gateway admin". Never do that in a shared environment.
+      adminGroup: "fg-admins"
+      # Usernames the realm import places in that group. Prefer DEDICATED
+      # operator accounts: keycloak-config-cli fully manages the group
+      # memberships of any user listed in the import, so naming an existing
+      # account here makes fg-admins its ONLY group from then on. A username
+      # that does not exist yet is created enabled but without credentials —
+      # set its password in the Keycloak admin console before first login.
+      # Empty list is fine: the group still exists, membership is then managed
+      # entirely in Keycloak.
+      adminGroupMembers: []
+      # Replicas for BOTH halves of the SSO chain (oauth2-proxy and the shim).
+      # Safe to double: oauth2-proxy keeps sessions in the shared redis rather
+      # than in memory, and the shim logs into the dashboard per browser, so
+      # neither holds state a second replica could disagree about.
+      replicas: 2
+      # Public FQDN of the dashboard (e.g. frankgateway-<class>-admin.<env>.<domain>).
       # Required when frankgateway.enabled + dashboard.auth.enabled. Route it
-      # to Service frankgateway-oauth2-proxy:4180 (HTTPRoute/Ingress —
+      # to Service frankgateway-<class>-oauth2-proxy:4180 (HTTPRoute/Ingress —
       # `ingress.enabled` below renders an optional in-chart Ingress).
       hostname: ""
       # Server-side redis session store — Keycloak id+refresh tokens overflow
@@ -3620,18 +3972,23 @@ frankgateway:
         image:
           repository: quay.io/oauth2-proxy/oauth2-proxy
           tag: "v7.7.1"
+        # Measured: under 1m CPU / 44Mi memory peak. It only works during an
+        # interactive login; sessions live in redis, not here.
         resources:
           requests:
-            cpu: 25m
+            cpu: 10m
             memory: 64Mi
           limits:
             cpu: 250m
             memory: 256Mi
       shim:
         image: *nginxImage
+        # Measured: 2m CPU / 7Mi memory peak — it proxies a handful of operator
+        # page loads. The smallest thing in the stack, and it was requesting as
+        # much CPU as the dashboard it fronts.
         resources:
           requests:
-            cpu: 25m
+            cpu: 10m
             memory: 32Mi
           limits:
             cpu: 250m

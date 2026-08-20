@@ -1,15 +1,34 @@
 {{- if .Values.frankgateway.enabled }}
 {{- /*
-  Single-node etcd backing store for Frank!Gateway (APISIX traditional mode).
-  Upstream quay.io/coreos build — no Bitnami. PVC-backed so routes/upstreams
-  written via the Admin API / dashboard survive pod restarts.
+  etcd cluster backing every Frank!Gateway instance (APISIX traditional mode).
+  Upstream quay.io/coreos build — no Bitnami. PVC-backed so routes, upstreams,
+  consumers and SSL objects survive restarts.
+
+  THREE members by default, not one. A single member is a single point of
+  failure for all three traffic classes at once — the exact outcome the split
+  exists to prevent — and two is worse than one for raft: quorum of a 2-member
+  cluster is 2, so either pod dying stops writes. Three tolerates losing one.
+
+  Members find each other through the headless Service, which sets
+  publishNotReadyAddresses so a booting member is resolvable before it passes
+  its readiness probe; without it the cluster cannot form, because no member is
+  ready until the cluster is. The load-balanced `frankgateway-etcd` Service is
+  kept for humans and one-off etcdctl calls; APISIX and the dashboard address
+  the members individually (podiumd.frankgateway.etcdEndpoints) so a client can
+  fail over instead of erroring when its member dies.
+
+  Config is passed as ETCD_* env vars rather than flags so each pod can derive
+  its own identity from metadata.name via $(POD_NAME) expansion — a StatefulSet
+  gives stable ordinals, so the peer list is knowable at render time.
 */ -}}
 {{- $etcd := .Values.frankgateway.etcd }}
+{{- $ns := .Release.Namespace }}
+{{- $replicas := int $etcd.replicas }}
 apiVersion: v1
 kind: Service
 metadata:
   name: frankgateway-etcd
-  namespace: {{ .Release.Namespace }}
+  namespace: {{ $ns }}
   labels:
     {{- include "podiumd.labels" . | nindent 4 }}
     app.kubernetes.io/component: frankgateway-etcd
@@ -22,18 +41,46 @@ spec:
       port: 2379
       targetPort: 2379
 ---
-apiVersion: apps/v1
-kind: StatefulSet
+apiVersion: v1
+kind: Service
 metadata:
-  name: frankgateway-etcd
-  namespace: {{ .Release.Namespace }}
+  name: frankgateway-etcd-headless
+  namespace: {{ $ns }}
   labels:
     {{- include "podiumd.labels" . | nindent 4 }}
     app.kubernetes.io/component: frankgateway-etcd
     app.kubernetes.io/name: frankgateway-etcd
 spec:
-  serviceName: frankgateway-etcd
-  replicas: 1
+  clusterIP: None
+  # Peers must resolve each other while still forming the cluster, i.e. before
+  # any of them is ready.
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/name: frankgateway-etcd
+  ports:
+    - name: client
+      port: 2379
+      targetPort: 2379
+    - name: peer
+      port: 2380
+      targetPort: 2380
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: frankgateway-etcd
+  namespace: {{ $ns }}
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frankgateway-etcd
+    app.kubernetes.io/name: frankgateway-etcd
+spec:
+  serviceName: frankgateway-etcd-headless
+  replicas: {{ $replicas }}
+  # Members bootstrap in parallel: with the default OrderedReady, pod 0 waits
+  # for a readiness probe that cannot pass until a quorum exists, and a quorum
+  # cannot exist until pod 1 and 2 start.
+  podManagementPolicy: Parallel
   selector:
     matchLabels:
       app.kubernetes.io/name: frankgateway-etcd
@@ -44,22 +91,40 @@ spec:
         app.kubernetes.io/component: frankgateway-etcd
         app.kubernetes.io/name: frankgateway-etcd
     spec:
+      topologySpreadConstraints:
+        {{- include "podiumd.frankgateway.spread" (dict "name" "frankgateway-etcd" "override" $etcd.topologySpreadConstraints) | nindent 8 }}
       containers:
         - name: etcd
           image: "{{ $etcd.image.repository }}:{{ $etcd.image.tag }}"
           imagePullPolicy: IfNotPresent
-          command:
-            - /usr/local/bin/etcd
-            - --name=etcd0
-            - --data-dir=/etcd-data
-            # advertise the reachable service DNS (not 0.0.0.0): clients such as
-            # apisix-dashboard's etcd client dial the advertised URL, and
-            # 0.0.0.0:2379 is not dialable from another pod -> dashboard 502.
-            - --advertise-client-urls=http://frankgateway-etcd:2379
-            - --listen-client-urls=http://0.0.0.0:2379
-            - --initial-advertise-peer-urls=http://0.0.0.0:2380
-            - --listen-peer-urls=http://0.0.0.0:2380
-            - --initial-cluster=etcd0=http://0.0.0.0:2380
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: ETCD_NAME
+              value: "$(POD_NAME)"
+            - name: ETCD_DATA_DIR
+              value: /etcd-data
+            # Advertise the pod's own headless DNS name, never 0.0.0.0: clients
+            # such as apisix-dashboard's etcd client dial the advertised URL,
+            # and 0.0.0.0:2379 is not dialable from another pod -> 502.
+            - name: ETCD_ADVERTISE_CLIENT_URLS
+              value: "http://$(POD_NAME).frankgateway-etcd-headless.{{ $ns }}.svc.cluster.local:2379"
+            - name: ETCD_INITIAL_ADVERTISE_PEER_URLS
+              value: "http://$(POD_NAME).frankgateway-etcd-headless.{{ $ns }}.svc.cluster.local:2380"
+            - name: ETCD_LISTEN_CLIENT_URLS
+              value: "http://0.0.0.0:2379"
+            - name: ETCD_LISTEN_PEER_URLS
+              value: "http://0.0.0.0:2380"
+            - name: ETCD_INITIAL_CLUSTER
+              value: "{{- range $i := until $replicas }}{{ if $i }},{{ end }}frankgateway-etcd-{{ $i }}=http://frankgateway-etcd-{{ $i }}.frankgateway-etcd-headless.{{ $ns }}.svc.cluster.local:2380{{- end }}"
+            # Only consulted on first boot of an empty data dir; a member with
+            # data on its PVC rejoins from what it already knows.
+            - name: ETCD_INITIAL_CLUSTER_STATE
+              value: "new"
+            - name: ETCD_INITIAL_CLUSTER_TOKEN
+              value: "frankgateway-etcd"
           ports:
             - name: client
               containerPort: 2379

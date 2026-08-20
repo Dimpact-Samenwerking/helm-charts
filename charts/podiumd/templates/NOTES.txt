@@ -1,0 +1,52 @@
+PodiumD {{ .Chart.AppVersion }} installed as release {{ .Release.Name }} in namespace {{ .Release.Namespace }}.
+
+  helm -n {{ .Release.Namespace }} status {{ .Release.Name }}
+  kubectl -n {{ .Release.Namespace }} get pods
+
+{{- if .Values.frankgateway.enabled }}
+
+Frank!Gateway
+-------------
+{{- $classes := list }}
+{{- $tlsClasses := list }}
+{{- range $key, $override := .Values.frankgateway.instances }}
+{{- $fg := include "podiumd.frankgateway.instanceValues" (dict "root" $ "key" $key "override" $override) | fromYaml }}
+{{- if $fg.enabled }}
+{{- $classes = append $classes $key }}
+{{- if and $fg.tls.enabled $fg.tls.sslSync.enabled }}
+{{- $tlsClasses = append $tlsClasses $key }}
+{{- end }}
+{{- end }}
+{{- end }}
+  Traffic classes: {{ $classes | join ", " }}
+  Applications call the class they mean, e.g. http://frankgateway-outway:9080/
+
+{{- if .Values.frankgateway.networkPolicies.enabled }}
+
+  NetworkPolicies are ENABLED. Inbound traffic to the inway is accepted only
+  from namespace:
+
+      {{ .Values.frankgateway.networkPolicies.ingressNamespace }}
+
+  This must be the namespace of the pod that OPENS connections to the inway.
+  For NGINX Gateway Fabric 2.x that is the per-Gateway DATA plane pod, which
+  runs in the Gateway's own namespace — NOT the control plane's namespace,
+  which is the one carrying the product name. Confirm it now:
+
+      kubectl get pods -A | grep gateway-nginx
+
+  If that pod is in a different namespace than the one above, inbound traffic
+  is being dropped: silently, with no log line on either side, because the
+  packet never arrives. It will look like a TLS or connectivity fault.
+{{- end }}
+
+{{- if $tlsClasses }}
+
+  TLS on: {{ $tlsClasses | join ", " }}. The data-plane certificate is served
+  from etcd, not from a file, so a CronJob ({{ .Values.frankgateway.tls.sslSync.schedule }})
+  keeps the SSL object in step with the Secret and renewals take effect without
+  a deploy. Failed runs are retained deliberately — check them:
+
+      kubectl -n {{ .Release.Namespace }} get jobs | grep ssl-sync
+{{- end }}
+{{- end }}

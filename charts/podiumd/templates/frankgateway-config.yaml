@@ -1,110 +1,55 @@
 {{- if .Values.frankgateway.enabled }}
 {{- /*
-  Admin API credentials + APISIX config.yaml for Frank!Gateway.
+  Admin API credentials + APISIX config.yaml for Frank!Gateway, one pair of
+  Secrets per enabled instance.
 
   Both Secrets are rendered from THIS single template because the config.yaml
-  embeds the admin/viewer keys inline: computing the keys once and reusing the
-  variables guarantees the credentials Secret and the config file can never
-  diverge within a render. (That is also why the config is a Secret, not a
-  ConfigMap.)
+  embeds the admin/viewer keys inline: computing the keys once (in
+  podiumd.frankgateway.adminCreds) and reusing the variables guarantees the
+  credentials Secret and the config file can never diverge within a render.
+  (That is also why the config is a Secret, not a ConfigMap.)
 
-  Keys: values override (frankgateway.admin.adminKey/viewerKey) wins; otherwise
-  random 32-char values are generated on first install and kept stable across
-  upgrades via lookup — the upstream public default keys (edd1c9f0… / 4054f7cf…)
-  are never used.
+  Keys: values override (admin.adminKey/viewerKey, shared or per-instance) wins;
+  otherwise random 32-char values are generated on first install and kept stable
+  across upgrades via lookup — the upstream public default keys (edd1c9f0… /
+  4054f7cf…) are never used.
+
+  Instances share one etcd; each config points at its own prefix, which is what
+  keeps their routes, consumers and SSL objects isolated.
 */ -}}
-{{- $fg := .Values.frankgateway }}
-{{- $admin := $fg.admin.adminKey | default "" }}
-{{- $viewer := $fg.admin.viewerKey | default "" }}
-{{- $existing := lookup "v1" "Secret" .Release.Namespace "frankgateway-admin-credentials" }}
-{{- if and (eq $admin "") $existing }}
-{{-   $admin = index $existing.data "admin" | default "" | b64dec }}
-{{- end }}
-{{- if and (eq $viewer "") $existing }}
-{{-   $viewer = index $existing.data "viewer" | default "" | b64dec }}
-{{- end }}
-{{- if eq $admin "" }}{{- $admin = randAlphaNum 32 }}{{- end }}
-{{- if eq $viewer "" }}{{- $viewer = randAlphaNum 32 }}{{- end }}
-apiVersion: v1
-kind: Secret
-metadata:
-  name: frankgateway-admin-credentials
-  namespace: {{ .Release.Namespace }}
-  labels:
-    {{- include "podiumd.labels" . | nindent 4 }}
-    app.kubernetes.io/component: frankgateway
-type: Opaque
-stringData:
-  admin: {{ $admin | quote }}
-  viewer: {{ $viewer | quote }}
+{{- $root := . }}
+{{- range $key, $override := .Values.frankgateway.instances }}
+{{- $fg := include "podiumd.frankgateway.instanceValues" (dict "root" $root "key" $key "override" $override) | fromYaml }}
+{{- if $fg.enabled }}
+{{- $name := include "podiumd.frankgateway.instanceName" (dict "key" $key "instance" $fg) }}
+{{- $prefix := include "podiumd.frankgateway.etcdPrefix" (dict "key" $key "instance" $fg) }}
+{{- $creds := include "podiumd.frankgateway.adminCreds" (dict "root" $root "instance" $fg "name" $name) | fromYaml }}
 ---
 apiVersion: v1
 kind: Secret
 metadata:
-  name: frankgateway-apisix-config
-  namespace: {{ .Release.Namespace }}
+  name: {{ $name }}-admin-credentials
+  namespace: {{ $root.Release.Namespace }}
   labels:
-    {{- include "podiumd.labels" . | nindent 4 }}
+    {{- include "podiumd.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: frankgateway
+type: Opaque
+stringData:
+  admin: {{ $creds.admin | quote }}
+  viewer: {{ $creds.viewer | quote }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $name }}-config
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    {{- include "podiumd.labels" $root | nindent 4 }}
     app.kubernetes.io/component: frankgateway
 type: Opaque
 stringData:
   config.yaml: |
-    apisix:
-      node_listen: 9080
-      enable_ipv6: false
-      {{- if $fg.tls.enabled }}
-      # TLS data-plane listener; per-SNI certificates come from SSL objects
-      # in etcd (seeded via the Admin API), not from mounted files.
-      ssl:
-        enable: true
-        listen:
-          - port: {{ $fg.tls.port }}
-      {{- end }}
-
-      enable_control: true
-      control:
-        ip: "0.0.0.0"
-        port: 9092
-
-    deployment:
-      admin:
-        # ClusterIP-only Service; the Admin API is additionally protected by
-        # the random admin key below. Tighten per-env if required.
-        allow_admin:
-          - 0.0.0.0/0
-
-        admin_key:
-          - name: "admin"
-            key: {{ $admin | quote }}
-            role: admin
-          - name: "viewer"
-            key: {{ $viewer | quote }}
-            role: viewer
-
-      etcd:
-        host:
-          - "http://frankgateway-etcd:2379"
-        prefix: "/apisix"
-        timeout: 30
-
-    plugin_attr:
-      prometheus:
-        export_addr:
-          ip: "0.0.0.0"
-          port: 9091
-        metrics:
-          http_status:
-            extra_labels:
-              - upstream_addr: $upstream_addr
-              - upstream_status: $upstream_status
-              - soap_action: $soap_action
-    # Expose the external-API-key env vars (from the
-    # {{ $fg.apiKeys.existingSecret }} Secret) to nginx workers so routes can
-    # read them via os.getenv in a serverless function — keeps key VALUES out
-    # of etcd/git (only the var NAMES appear here).
-    nginx_config:
-      main_configuration_snippet: |
-        {{- range $fg.apiKeys.envNames }}
-        env {{ . }};
-        {{- end }}
+{{ regexReplaceAll "(?m)[ \t]+$" (include "podiumd.frankgateway.config" (dict "root" $root "instance" $fg "name" $name "prefix" $prefix "admin" $creds.admin "viewer" $creds.viewer) | indent 4) "" }}
+{{- end }}
+{{- end }}
 {{- end }}

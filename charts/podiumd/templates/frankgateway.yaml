@@ -1,28 +1,45 @@
 {{- if .Values.frankgateway.enabled }}
 {{- /*
   Frank!Gateway (Apache APISIX 3.16 + WeAreFrank patches) — gateway Deployment
-  + Service. etcd-backed traditional mode so the Admin API + dashboard work.
-  Data plane on 9080, Admin API on 9180, both ClusterIP-only; external exposure
-  (HTTPRoute/Ingress + cert SANs) is deploy-side.
+  + Service, one pair per enabled instance in frankgateway.instances. etcd-backed
+  traditional mode so the Admin API + dashboard work. Data plane on 9080, Admin
+  API on 9180, both ClusterIP-only; external exposure (HTTPRoute/Ingress + cert
+  SANs) is deploy-side.
 
-  External-API keys (BAG/KVK) come from the out-of-band Secret named by
-  frankgateway.apiKeys.existingSecret (optional — absent Secret does not block
-  startup); the config Secret's main_configuration_snippet exposes the var
-  NAMES to nginx workers so routes read them via os.getenv at request time.
+  Instances share the single etcd StatefulSet and are isolated by etcd prefix.
+  Every instance is named after its key (`frankgateway-<key>`); there is no
+  single-instance shape.
+
+  External-API keys (BAG/KVK) are read from OpenBao at request time by the Lua
+  mounted from the frankgateway-lua ConfigMap; the pod carries only a scoped
+  reader token. Key values never reach etcd, git, a ConfigMap or a Secret.
+
+  The checksum/config annotation is computed from THIS instance's config only
+  (via the podiumd.frankgateway.config helper) rather than from the whole
+  rendered config template: a range over instances in one file would give every
+  Deployment the same file-wide checksum, so a route or plugin change on one
+  traffic class would needlessly restart the others.
 */ -}}
-{{- $fg := .Values.frankgateway }}
+{{- $root := . }}
+{{- range $key, $override := .Values.frankgateway.instances }}
+{{- $fg := include "podiumd.frankgateway.instanceValues" (dict "root" $root "key" $key "override" $override) | fromYaml }}
+{{- if $fg.enabled }}
+{{- $name := include "podiumd.frankgateway.instanceName" (dict "key" $key "instance" $fg) }}
+{{- $prefix := include "podiumd.frankgateway.etcdPrefix" (dict "key" $key "instance" $fg) }}
+{{- $creds := include "podiumd.frankgateway.adminCreds" (dict "root" $root "instance" $fg "name" $name) | fromYaml }}
+---
 apiVersion: v1
 kind: Service
 metadata:
-  name: frankgateway
-  namespace: {{ .Release.Namespace }}
+  name: {{ $name }}
+  namespace: {{ $root.Release.Namespace }}
   labels:
-    {{- include "podiumd.labels" . | nindent 4 }}
+    {{- include "podiumd.labels" $root | nindent 4 }}
     app.kubernetes.io/component: frankgateway
-    app.kubernetes.io/name: frankgateway
+    app.kubernetes.io/name: {{ $name }}
 spec:
   selector:
-    app.kubernetes.io/name: frankgateway
+    app.kubernetes.io/name: {{ $name }}
   ports:
     - name: gateway
       port: 9080
@@ -35,7 +52,7 @@ spec:
       port: {{ $fg.tls.port }}
       targetPort: {{ $fg.tls.port }}
     {{- end }}
-    {{- if .Values.frankgateway.metrics.enabled }}
+    {{- if $fg.metrics.enabled }}
     - name: metrics
       port: 9091
       targetPort: 9091
@@ -44,35 +61,113 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: frankgateway
-  namespace: {{ .Release.Namespace }}
+  name: {{ $name }}
+  namespace: {{ $root.Release.Namespace }}
   labels:
-    {{- include "podiumd.labels" . | nindent 4 }}
+    {{- include "podiumd.labels" $root | nindent 4 }}
     app.kubernetes.io/component: frankgateway
-    app.kubernetes.io/name: frankgateway
+    app.kubernetes.io/name: {{ $name }}
 spec:
   replicas: {{ $fg.replicas }}
   selector:
     matchLabels:
-      app.kubernetes.io/name: frankgateway
+      app.kubernetes.io/name: {{ $name }}
   template:
     metadata:
       labels:
-        {{- include "podiumd.labels" . | nindent 8 }}
+        {{- include "podiumd.labels" $root | nindent 8 }}
         app.kubernetes.io/component: frankgateway
-        app.kubernetes.io/name: frankgateway
+        app.kubernetes.io/name: {{ $name }}
       annotations:
         # Roll the pod when the rendered APISIX config changes.
-        checksum/config: {{ include (print $.Template.BasePath "/frankgateway-config.yaml") . | sha256sum }}
+        checksum/config: {{ include "podiumd.frankgateway.config" (dict "root" $root "instance" $fg "name" $name "prefix" $prefix "admin" $creds.admin "viewer" $creds.viewer) | sha256sum }}
+        # Lua is loaded once per worker at startup, so a changed function only
+        # takes effect on a roll.
+        checksum/lua: {{ ($root.Files.Glob "files/frankgateway/*.lua").AsConfig | sha256sum }}
     spec:
+      topologySpreadConstraints:
+        {{- include "podiumd.frankgateway.spread" (dict "name" $name "override" $fg.topologySpreadConstraints) | nindent 8 }}
+      initContainers:
+        # Wait for the etcd cluster to be usable before starting APISIX.
+        #
+        # APISIX reads etcd's /version once, at startup, and exits if it does
+        # not like the answer. On a fresh three-member cluster it gets two
+        # answers it does not like, both of which resolve themselves within a
+        # minute or so:
+        #
+        #   etcdcluster: "3.0.0"   until every member has joined and the
+        #                          cluster version has been agreed. APISIX
+        #                          reads this as "your etcd is too old" and
+        #                          exits: "etcd cluster version 3.0.0 is less
+        #                          than the required version 3.4.0".
+        #   NXDOMAIN               a per-member headless name does not resolve
+        #                          until that member's pod is Ready.
+        #
+        # Neither happened with a single-member etcd — one member agrees its
+        # version instantly and its name appears at once — so this is a
+        # consequence of moving to three, and it recurs on every fresh install
+        # and every full etcd rebuild. The pod is not slow to become healthy;
+        # it is being started before its dependency exists, so this orders the
+        # start rather than hiding the failure behind a longer probe.
+        - name: wait-for-etcd
+          image: "{{ $fg.routes.job.image.repository }}:{{ $fg.routes.job.image.tag }}"
+          imagePullPolicy: IfNotPresent
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -eu
+              # Every endpoint must answer, and answer with an agreed cluster
+              # version — a subset answering is exactly the half-formed state
+              # this is here to wait out.
+              ENDPOINTS="{{ include "podiumd.frankgateway.etcdEndpoints" (dict "root" $root) | fromYamlArray | join " " }}"
+              i=0
+              while [ "${i}" -lt 60 ]; do
+                ok=1
+                for e in ${ENDPOINTS}; do
+                  v=$(curl -s --max-time 3 "${e}/version" 2>/dev/null \
+                    | sed -n 's/.*"etcdcluster"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+                  case "${v}" in
+                    3.[4-9]*|3.[1-9][0-9]*|[4-9].*) ;;
+                    *) ok=0; break ;;
+                  esac
+                done
+                [ "${ok}" = "1" ] && { echo "etcd cluster ready (version ${v})"; exit 0; }
+                i=$((i+1))
+                echo "waiting for etcd cluster to agree a version (attempt ${i}/60)"
+                sleep 5
+              done
+              echo "etcd cluster did not become ready within 5 minutes" >&2
+              exit 1
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
       containers:
-        - name: apisix
+        - name: frankgateway
           image: "{{ $fg.image.repository }}:{{ $fg.image.tag }}"
           imagePullPolicy: IfNotPresent
-          envFrom:
-            - secretRef:
-                name: {{ $fg.apiKeys.existingSecret }}
-                optional: true
+          env:
+            # Read at request time by files/frankgateway/openbao-secret-header.lua.
+            # The token is mounted optionally so a class that reads no secrets
+            # (inway, internal) still starts without it; a route that does need
+            # one answers 503 rather than the pod failing to schedule.
+            - name: OPENBAO_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $fg.openbao.tokenSecret.name }}
+                  key: {{ $fg.openbao.tokenSecret.key }}
+                  optional: true
+            - name: OPENBAO_ADDR
+              value: {{ include "podiumd.frankgateway.openbaoAddr" (dict "root" $root "instance" $fg) | quote }}
+            - name: OPENBAO_MOUNT
+              value: {{ $fg.openbao.mount | default $root.Values.openbao.configuration.kvPath | quote }}
+            - name: OPENBAO_KV
+              value: {{ $fg.openbao.kvVersion | quote }}
+            - name: OPENBAO_FAIL_MODE
+              value: {{ $fg.openbao.failMode | quote }}
           ports:
             - name: gateway
               containerPort: 9080
@@ -102,8 +197,16 @@ spec:
             - name: config
               mountPath: /usr/local/apisix/conf/config.yaml
               subPath: config.yaml
+            - name: lua
+              mountPath: /usr/local/apisix/conf/lua
+              readOnly: true
       volumes:
         - name: config
           secret:
-            secretName: frankgateway-apisix-config
+            secretName: {{ $name }}-config
+        - name: lua
+          configMap:
+            name: frankgateway-lua
+{{- end }}
+{{- end }}
 {{- end }}

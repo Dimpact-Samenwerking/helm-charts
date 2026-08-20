@@ -1,6 +1,6 @@
-{{- if and .Values.frankgateway.enabled .Values.frankgateway.dashboard.enabled }}
+{{- if .Values.frankgateway.enabled }}
 {{- /*
-  apisix-dashboard for Frank!Gateway.
+  apisix-dashboard for Frank!Gateway, one chain per enabled instance.
 
   The conf Secret and the shim nginx.conf Secret are rendered from THIS single
   template because both embed the dashboard-internal admin password (the conf
@@ -11,27 +11,30 @@
   The dashboard's own login (admin + this password) never reaches a browser:
   the only external path is oauth2-proxy (Keycloak SSO) -> shim -> dashboard,
   and the shim injects the dashboard JWT server-side.
+
+  apisix-dashboard binds exactly ONE etcd prefix, so one dashboard per instance
+  — that is why this whole chain multiplies rather than being shared. The
+  prefix is always written explicitly: the dashboard's own default is `/apisix`,
+  which no instance uses.
 */ -}}
-{{- $fg := .Values.frankgateway }}
+{{- $root := . }}
+{{- range $key, $override := .Values.frankgateway.instances }}
+{{- $fg := include "podiumd.frankgateway.instanceValues" (dict "root" $root "key" $key "override" $override) | fromYaml }}
+{{- if and $fg.enabled $fg.dashboard.enabled }}
 {{- $dash := $fg.dashboard }}
-{{- $adminPassword := $dash.adminPassword | default "" }}
-{{- $jwtSecret := "" }}
-{{- $existing := lookup "v1" "Secret" .Release.Namespace "frankgateway-dashboard-conf" }}
-{{- if $existing }}
-{{-   if eq $adminPassword "" }}
-{{-     $adminPassword = index $existing.data "admin-password" | default "" | b64dec }}
-{{-   end }}
-{{-   $jwtSecret = index $existing.data "jwt-secret" | default "" | b64dec }}
-{{- end }}
-{{- if eq $adminPassword "" }}{{- $adminPassword = randAlphaNum 32 }}{{- end }}
-{{- if eq $jwtSecret "" }}{{- $jwtSecret = randAlphaNum 32 }}{{- end }}
+{{- $name := include "podiumd.frankgateway.instanceName" (dict "key" $key "instance" $fg) }}
+{{- $prefix := include "podiumd.frankgateway.etcdPrefix" (dict "key" $key "instance" $fg) }}
+{{- $creds := include "podiumd.frankgateway.dashboardCreds" (dict "root" $root "instance" $fg "name" $name) | fromYaml }}
+{{- $adminPassword := $creds.adminPassword }}
+{{- $jwtSecret := $creds.jwtSecret }}
+---
 apiVersion: v1
 kind: Secret
 metadata:
-  name: frankgateway-dashboard-conf
-  namespace: {{ .Release.Namespace }}
+  name: {{ $name }}-dashboard-conf
+  namespace: {{ $root.Release.Namespace }}
   labels:
-    {{- include "podiumd.labels" . | nindent 4 }}
+    {{- include "podiumd.labels" $root | nindent 4 }}
     app.kubernetes.io/component: frankgateway-dashboard
 type: Opaque
 stringData:
@@ -48,7 +51,10 @@ stringData:
         - 0.0.0.0/0
       etcd:
         endpoints:
-          - "http://frankgateway-etcd:2379"
+          {{- include "podiumd.frankgateway.etcdEndpoints" (dict "root" $root) | nindent 10 }}
+        # This instance's slice of the shared etcd. Always set explicitly —
+        # the dashboard's own default is `/apisix`, which no instance uses.
+        prefix: {{ $prefix | quote }}
         mtls:
           key_file: ""
           cert_file: ""
@@ -115,69 +121,29 @@ stringData:
 apiVersion: v1
 kind: Secret
 metadata:
-  name: frankgateway-shim
-  namespace: {{ .Release.Namespace }}
+  name: {{ $name }}-shim
+  namespace: {{ $root.Release.Namespace }}
   labels:
-    {{- include "podiumd.labels" . | nindent 4 }}
+    {{- include "podiumd.labels" $root | nindent 4 }}
     app.kubernetes.io/component: frankgateway-shim
 type: Opaque
 stringData:
   nginx.conf: |
-    worker_processes 1;
-    pid /tmp/nginx.pid;
-    events { worker_connections 1024; }
-    http {
-      # The dashboard's gzip is disabled upstream (Accept-Encoding stripped so
-      # sub_filter can rewrite the HTML), so re-compress here — otherwise the
-      # multi-MB SPA JS/CSS bundles are served uncompressed and the page is slow.
-      gzip on;
-      gzip_comp_level 5;
-      gzip_min_length 1024;
-      gzip_proxied any;
-      gzip_vary on;
-      gzip_types text/plain text/css application/json application/javascript
-                 text/javascript application/x-javascript image/svg+xml
-                 application/font-woff font/woff2;
-      # Resolve the dashboard Service at request time (kube-dns), via a variable
-      # in proxy_pass — otherwise nginx caches the pod IP at startup and returns
-      # 502 after the dashboard pod restarts (new IP).
-      resolver {{ $dash.auth.dnsResolver }} valid=10s ipv6=off;
-      server {
-        listen 8080;
-        set $dashboard "frankgateway-dashboard.{{ .Release.Namespace }}.svc.cluster.local";
-        # Server-side login to the dashboard: the admin credential is injected
-        # here and never reaches the browser. Returns {data:{token}}.
-        location = /__fglogin {
-          rewrite ^ /apisix/admin/user/login break;
-          proxy_pass http://$dashboard:9000;
-          proxy_set_header Content-Type "application/json";
-          proxy_pass_request_body off;
-          proxy_set_body '{"username":"admin","password":"{{ $adminPassword }}"}';
-        }
-        location / {
-          proxy_pass http://$dashboard:9000;
-          proxy_set_header Host $host;
-          # disable upstream gzip so sub_filter can rewrite the SPA shell
-          proxy_set_header Accept-Encoding "";
-          sub_filter_once on;
-          sub_filter '</head>' '<script>if(!localStorage.getItem("token")){fetch("/__fglogin",{method:"POST"}).then(function(r){return r.json()}).then(function(d){if(d&&d.data&&d.data.token){localStorage.setItem("token",d.data.token);location.reload()}})}</script></head>';
-        }
-      }
-    }
+{{ regexReplaceAll "(?m)[ \t]+$" (include "podiumd.frankgateway.shimConf" (dict "root" $root "instance" $fg "name" $name "adminPassword" $adminPassword) | indent 4) "" }}
 {{- end }}
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: frankgateway-dashboard
-  namespace: {{ .Release.Namespace }}
+  name: {{ $name }}-dashboard
+  namespace: {{ $root.Release.Namespace }}
   labels:
-    {{- include "podiumd.labels" . | nindent 4 }}
+    {{- include "podiumd.labels" $root | nindent 4 }}
     app.kubernetes.io/component: frankgateway-dashboard
-    app.kubernetes.io/name: frankgateway-dashboard
+    app.kubernetes.io/name: {{ $name }}-dashboard
 spec:
   selector:
-    app.kubernetes.io/name: frankgateway-dashboard
+    app.kubernetes.io/name: {{ $name }}-dashboard
   ports:
     - name: http
       port: 9000
@@ -186,24 +152,26 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: frankgateway-dashboard
-  namespace: {{ .Release.Namespace }}
+  name: {{ $name }}-dashboard
+  namespace: {{ $root.Release.Namespace }}
   labels:
-    {{- include "podiumd.labels" . | nindent 4 }}
+    {{- include "podiumd.labels" $root | nindent 4 }}
     app.kubernetes.io/component: frankgateway-dashboard
-    app.kubernetes.io/name: frankgateway-dashboard
+    app.kubernetes.io/name: {{ $name }}-dashboard
 spec:
-  replicas: 1
+  replicas: {{ $dash.replicas }}
   selector:
     matchLabels:
-      app.kubernetes.io/name: frankgateway-dashboard
+      app.kubernetes.io/name: {{ $name }}-dashboard
   template:
     metadata:
       labels:
-        {{- include "podiumd.labels" . | nindent 8 }}
+        {{- include "podiumd.labels" $root | nindent 8 }}
         app.kubernetes.io/component: frankgateway-dashboard
-        app.kubernetes.io/name: frankgateway-dashboard
+        app.kubernetes.io/name: {{ $name }}-dashboard
     spec:
+      topologySpreadConstraints:
+        {{- include "podiumd.frankgateway.spread" (dict "name" (printf "%s-dashboard" $name) "override" $fg.topologySpreadConstraints) | nindent 8 }}
       containers:
         - name: dashboard
           image: "{{ $dash.image.repository }}:{{ $dash.image.tag }}"
@@ -230,5 +198,7 @@ spec:
       volumes:
         - name: conf
           secret:
-            secretName: frankgateway-dashboard-conf
+            secretName: {{ $name }}-dashboard-conf
+{{- end }}
+{{- end }}
 {{- end }}
