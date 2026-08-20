@@ -91,6 +91,31 @@ def test_ghcr_tag_exists_reraises_non_404_errors(vcv, monkeypatch):
         vcv.ghcr_tag_exists(ZAC_REPO, ZAC_TAG)
 
 
+# --- dockerhub_tag_exists / registry_tag_exists ---
+
+OPENFORMS_REPO = "openformulieren/open-forms"
+
+
+def test_dockerhub_tag_exists_found(vcv, monkeypatch):
+    monkeypatch.setattr(urllib.request, "urlopen",
+                         make_fake_urlopen({(OPENFORMS_REPO, "3.4.10"): "sha256:fakeopenforms"}))
+    exists, digest = vcv.dockerhub_tag_exists(OPENFORMS_REPO, "3.4.10")
+    assert exists is True
+    assert digest == "sha256:fakeopenforms"
+
+
+def test_dockerhub_tag_exists_missing(vcv, monkeypatch):
+    monkeypatch.setattr(urllib.request, "urlopen", make_fake_urlopen({}))
+    exists, digest = vcv.dockerhub_tag_exists(OPENFORMS_REPO, "9.9.9")
+    assert exists is False
+    assert digest is None
+
+
+def test_registry_tag_exists_unknown_registry_raises(vcv):
+    with pytest.raises(KeyError):
+        vcv.registry_tag_exists("not-a-real-registry", "foo/bar", "1.0")
+
+
 # --- chart_version_exists ---
 
 def test_chart_version_exists_found(vcv, monkeypatch):
@@ -130,7 +155,7 @@ def run_main(vcv, monkeypatch, argv):
 
 
 def test_main_exits_zero_when_both_exist(vcv, monkeypatch, capsys):
-    monkeypatch.setattr(vcv, "ghcr_tag_exists", lambda repo, tag: (True, ZAC_DIGEST))
+    monkeypatch.setattr(vcv, "registry_tag_exists", lambda registry, repo, tag: (True, ZAC_DIGEST))
     monkeypatch.setattr(vcv, "chart_version_exists",
                          lambda url, name, version: (True, {"appVersion": "5.5"}))
     code = run_main(vcv, monkeypatch, ["zac", ZAC_TAG, "1.0.297"])
@@ -141,7 +166,7 @@ def test_main_exits_zero_when_both_exist(vcv, monkeypatch, capsys):
 
 
 def test_main_exits_nonzero_when_app_version_missing(vcv, monkeypatch, capsys):
-    monkeypatch.setattr(vcv, "ghcr_tag_exists", lambda repo, tag: (False, None))
+    monkeypatch.setattr(vcv, "registry_tag_exists", lambda registry, repo, tag: (False, None))
     monkeypatch.setattr(vcv, "chart_version_exists",
                          lambda url, name, version: (True, {"appVersion": "0.2.0"}))
     code = run_main(vcv, monkeypatch, ["zgw-office-addin", "0.12.0", "0.0.92"])
@@ -152,7 +177,7 @@ def test_main_exits_nonzero_when_app_version_missing(vcv, monkeypatch, capsys):
 
 
 def test_main_exits_nonzero_when_chart_version_missing(vcv, monkeypatch, capsys):
-    monkeypatch.setattr(vcv, "ghcr_tag_exists", lambda repo, tag: (True, ZAC_DIGEST))
+    monkeypatch.setattr(vcv, "registry_tag_exists", lambda registry, repo, tag: (True, ZAC_DIGEST))
     monkeypatch.setattr(vcv, "chart_version_exists", lambda url, name, version: (False, None))
     code = run_main(vcv, monkeypatch, ["zac", ZAC_TAG, "1.0.999"])
     assert code == 1
@@ -160,16 +185,35 @@ def test_main_exits_nonzero_when_chart_version_missing(vcv, monkeypatch, capsys)
 
 def test_main_checks_both_office_addin_images(vcv, monkeypatch, capsys):
     """zgw-office-addin ships two images that must both be checked."""
-    checked_repos = []
+    checked = []
 
-    def fake_ghcr(repo, tag):
-        checked_repos.append(repo)
+    def fake_registry_tag_exists(registry, repo, tag):
+        checked.append((registry, repo))
         return True, "sha256:fake"
 
-    monkeypatch.setattr(vcv, "ghcr_tag_exists", fake_ghcr)
+    monkeypatch.setattr(vcv, "registry_tag_exists", fake_registry_tag_exists)
     monkeypatch.setattr(vcv, "chart_version_exists", lambda url, name, version: (True, {}))
     run_main(vcv, monkeypatch, ["zgw-office-addin", "0.11.0", "0.0.92"])
-    assert checked_repos == ["infonl/zgw-office-addin-frontend", "infonl/zgw-office-addin-backend"]
+    assert checked == [("ghcr", "infonl/zgw-office-addin-frontend"), ("ghcr", "infonl/zgw-office-addin-backend")]
+
+
+def test_main_openformulieren_uses_dockerhub(vcv, monkeypatch, capsys):
+    """openformulieren ships on Docker Hub, not GHCR — main() must route it
+    through the dockerhub registry, not assume ghcr for everything."""
+    checked = []
+
+    def fake_registry_tag_exists(registry, repo, tag):
+        checked.append((registry, repo))
+        return True, "sha256:fake"
+
+    monkeypatch.setattr(vcv, "registry_tag_exists", fake_registry_tag_exists)
+    monkeypatch.setattr(vcv, "chart_version_exists",
+                         lambda url, name, version: (True, {"appVersion": "3.5.6"}))
+    code = run_main(vcv, monkeypatch, ["openformulieren", "3.5.6", "1.12.0"])
+    assert code == 0
+    assert checked == [("dockerhub", "openformulieren/open-forms")]
+    out = capsys.readouterr().out
+    assert "docker.io/openformulieren/open-forms:3.5.6" in out
 
 
 def test_main_rejects_unknown_component(vcv, monkeypatch, capsys):
