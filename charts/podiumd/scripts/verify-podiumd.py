@@ -23,6 +23,11 @@ trip:
   6. all Chart.yaml dependencies actually resolve and bundle (helm dependency update)
   7. the chart lints cleanly with the CI placeholder values
   8. the chart renders cleanly with `helm template` using the CI placeholder values
+  9. yamllint against that render finds no structurally-real problem (duplicate
+     keys, syntax errors) in this chart's OWN templates — cosmetic findings
+     (trailing whitespace, comment style, ...) and anything in a vendored
+     sub-chart under charts/podiumd/charts/* are reported for visibility but
+     never fail (see check_yamllint)
 
 Stops at the first failing step and prints a PASS/FAIL summary table, mirroring
 the /helm-precommit workflow (BOM check, dupe check, lint, full render) plus
@@ -45,8 +50,8 @@ Usage:
         # that's broken for reasons unrelated to what you're testing.
         # One flag per step: --skip-utf8-format, --skip-dependencies,
         # --skip-dupe-check, --skip-dry-check, --skip-image-digests,
-        # --skip-docs-consistency, --skip-lint, --skip-full-render.
-        # See --help for the full list.
+        # --skip-docs-consistency, --skip-lint, --skip-full-render,
+        # --skip-yamllint. See --help for the full list.
 
 Exit code is non-zero if any check fails — safe to use as a CI gate.
 """
@@ -1030,6 +1035,137 @@ def check_render(chart_dir, extra_args):
     return True, detail
 
 
+# yamllint config for check_yamllint, tuned against this repo's own real
+# findings (not guessed): line-length and document-start are disabled
+# because they're pure noise for rendered k8s manifests (long image refs/
+# URLs routinely exceed 80 chars; a lone manifest doesn't need a "---"
+# header). indent-sequences: whatever accepts this chart's established
+# convention of unindented list items (e.g. "initContainers:\n- name: ..."),
+# which is a deliberate, consistent style choice here, not a mistake.
+YAMLLINT_CONFIG = """
+extends: default
+rules:
+  line-length: disable
+  document-start: disable
+  indentation:
+    indent-sequences: whatever
+"""
+
+# Rules whose violation means the rendered YAML is structurally broken or
+# ambiguous, not just differently styled — see check_yamllint. Every other
+# yamllint rule (trailing-spaces, comments, colons, ...) is cosmetic: real
+# findings worth fixing eventually, but never worth failing the build over.
+YAMLLINT_FAILING_RULES = {"key-duplicates", "syntax"}
+
+OWN_TEMPLATES_PREFIX = "podiumd/templates/"
+
+YAMLLINT_FINDING_RE = re.compile(
+    r"^\s*(?P<line>\d+):(?P<col>\d+)\s+(?P<level>error|warning)\s+"
+    r"(?P<message>.*?)\s*\((?P<rule>[a-z0-9-]+)\)\s*$",
+    re.MULTILINE,
+)
+
+# Same pattern as report_errors_by_subchart — the chart name immediately
+# preceding "/templates/" in a "# Source:" path, e.g. "zac" out of
+# "podiumd/charts/zac/templates/configmap-nginx.yaml".
+SOURCE_CHART_RE = re.compile(r"([A-Za-z0-9_.\-]+)/templates/")
+
+
+def chart_name_from_source(source):
+    m = SOURCE_CHART_RE.search(source or "")
+    return m.group(1) if m else (source or "(unknown source)")
+
+
+def build_line_sources(rendered_text):
+    """Map each 1-based line number in a full `helm template` render to the
+    most recent preceding "# Source: <path>" comment, so a yamllint finding
+    (which only knows line numbers) can be attributed back to the template
+    file that produced it."""
+    sources = {}
+    current = None
+    for i, line in enumerate(rendered_text.splitlines(), 1):
+        if line.startswith("# Source: "):
+            current = line[len("# Source: "):].strip()
+        sources[i] = current
+    return sources
+
+
+def check_yamllint(chart_dir, extra_args):
+    """Runs yamllint against the full `helm template` render (never against
+    raw templates/*.yaml — those contain Go template syntax that isn't
+    valid YAML on its own) and buckets every finding two ways:
+
+    - scope: this chart's OWN templates/ (Source starts with
+      "podiumd/templates/") vs. a vendored sub-chart bundled under
+      charts/podiumd/charts/* — a dependency's content isn't something this
+      repo controls or can fix, so vendored findings are only ever
+      reported (aggregated by chart, not dumped line-by-line — there can be
+      hundreds), never a failure.
+    - rule: YAMLLINT_FAILING_RULES (a structurally broken/ambiguous
+      document — duplicate keys, a real syntax error) vs. everything else,
+      which is cosmetic style and reported but never fails.
+
+    Only an OWN + non-cosmetic finding fails the check. Everything else is
+    visibility only, same spirit as check_dry."""
+    if shutil.which("yamllint") is None:
+        return False, "yamllint is not installed (see --skip-yamllint to bypass)"
+
+    template_args = list(extra_args)
+    if supports_skip_schema_validation():
+        template_args.append("--skip-schema-validation")
+
+    result = run(["helm", "template", CHART_NAME, str(chart_dir), *template_args],
+                 capture_output=True, text=True)
+    if result.returncode != 0:
+        return False, "helm template failed to render"
+
+    rendered = result.stdout
+    sources = build_line_sources(rendered)
+
+    lint_result = run(["yamllint", "-d", YAMLLINT_CONFIG, "-"],
+                       input=rendered, capture_output=True, text=True)
+    output = lint_result.stdout + lint_result.stderr
+
+    own_real, own_cosmetic, vendored = [], [], []
+    for m in YAMLLINT_FINDING_RE.finditer(output):
+        line_no = int(m.group("line"))
+        rule = m.group("rule")
+        source = sources.get(line_no)
+        finding = (line_no, source, m.group("level"), m.group("message"), rule)
+        if source and source.startswith(OWN_TEMPLATES_PREFIX):
+            (own_real if rule in YAMLLINT_FAILING_RULES else own_cosmetic).append(finding)
+        else:
+            vendored.append(finding)
+
+    if own_real:
+        print(f"Found {len(own_real)} real yamllint issue(s) in this chart's own templates "
+              f"(not cosmetic — these fail the check):")
+        for line_no, source, level, message, rule in own_real:
+            print(f"  [{level.upper():7s}] {source}:{line_no}  {message}  ({rule})")
+        print()
+
+    # Cosmetic (own) and vendored-sub-chart findings are real, but noisy and
+    # not actionable right now — cosmetic style isn't worth fixing yet, and
+    # vendored content isn't ours to fix at all. Counted for the summary
+    # line only, not dumped finding-by-finding.
+    if own_cosmetic:
+        print(f"{len(own_cosmetic)} cosmetic yamllint finding(s) in this chart's own templates "
+              f"(style only, not shown, not a failure)")
+    if vendored:
+        by_chart = Counter(chart_name_from_source(source) for _, source, _, _, _ in vendored)
+        print(f"{len(vendored)} yamllint finding(s) across {len(by_chart)} vendored sub-chart(s) "
+              f"(outside this repo's scope, not shown, never a failure)")
+
+    if not (own_real or own_cosmetic or vendored):
+        print("OK: no yamllint findings in the rendered chart")
+
+    detail = (f"{len(own_real)} real (own), {len(own_cosmetic)} cosmetic (own), "
+              f"{len(vendored)} in vendored sub-charts")
+    if own_real:
+        return False, detail
+    return True, detail
+
+
 def print_summary(results, overall_ok):
     log("VERIFY SUMMARY")
     width = max(len(name) for name, _, _ in results)
@@ -1054,6 +1190,7 @@ SKIPPABLE_STEPS = [
     ("docs-consistency", "Docs consistency"),
     ("lint", "Lint"),
     ("full-render", "Full render"),
+    ("yamllint", "yamllint"),
 ]
 
 
@@ -1110,6 +1247,7 @@ def main():
     extra_args = lint_args_for(chart_dir)
     run_step("Lint", "helm lint", check_lint, chart_dir, extra_args)
     run_step("Full render", "helm template", check_render, chart_dir, extra_args)
+    run_step("yamllint", "yamllint (rendered output)", check_yamllint, chart_dir, extra_args)
 
     print_summary(results, overall_ok=True)
 
