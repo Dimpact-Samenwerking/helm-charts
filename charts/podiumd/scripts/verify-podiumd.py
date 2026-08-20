@@ -8,7 +8,12 @@ Verifies the podiumd chart:
   5. the chart renders cleanly with `helm template` using the CI placeholder values
   6. component versions in Chart.yaml + values.yaml match the matching
      docs/_UPGRADE_PATHS/*-to-<version>-upgrade.md and docs/images/images-<version>.yaml
-     (any component the doc lists, not a hardcoded set)
+     (any component the doc lists, not a hardcoded set) — and, given --baseline,
+     every component that actually changed vs the baseline (chart version,
+     app/image tag, added, or removed) has a row in that upgrade.md, a
+     mention in the matching values-deltas.md, and — if its image tag
+     changed — an entry in images-<version>.yaml, even if no doc mentions
+     it yet
   7. every digest-pinned image in values.yaml still matches its live
      upstream registry digest
 
@@ -48,9 +53,9 @@ from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, 
 from lib.procutil import run
 from lib.registry import parse_repo, registry_tag_exists
 from lib.upgradedoc import (
-    actual_app_version, diff_keys, extract_source_version, extract_target_version,
-    find_image_tag_paths, find_preceding_comment, flatten_leaf_keys, image_tag,
-    match_dependency, normalize_name, normalize_version, pair_renames,
+    actual_app_version, compute_changed_components, diff_keys, extract_mentioned_dependency_keys,
+    extract_source_version, extract_target_version, find_image_tag_paths, find_preceding_comment,
+    flatten_leaf_keys, image_tag, match_dependency, normalize_name, normalize_version, pair_renames,
     parse_changes_block, resolve_entry_path, words_of,
 )
 from lib.upgradedoc import parse_upgrade_doc_rows as _parse_upgrade_doc_rows
@@ -658,6 +663,15 @@ def check_docs_consistency(chart_dir, baseline=None):
                                        f'could not read Chart.yaml at that ref')
                     baseline_ref = None
 
+    baseline_deps = baseline_chart_yaml.get("dependencies", []) if baseline_chart_yaml else []
+    # Ground truth for "did this component actually change" — independent of
+    # what the docs currently say, so it also catches a component that
+    # changed but was never added to any doc at all.
+    actual_changed_keys = (
+        compute_changed_components(deps, baseline_deps, values, baseline_values)
+        if baseline_ref else set()
+    )
+
     if not doc_matches:
         print(f"WARNING: no upgrade doc matches {doc_glob} — skipping doc check")
     else:
@@ -670,8 +684,6 @@ def check_docs_consistency(chart_dir, baseline=None):
             mismatches.extend(check_doc_title(doc_path, baseline, podiumd_version))
         if baseline_ref:
             checked.append(f"baseline {baseline_ref}")
-
-        baseline_deps = baseline_chart_yaml.get("dependencies", []) if baseline_chart_yaml else []
 
         for row in parse_upgrade_doc_rows(doc_path):
             dep = match_dependency(row["name"], deps)
@@ -712,6 +724,13 @@ def check_docs_consistency(chart_dir, baseline=None):
                 mismatches.append(
                     f'{values_key} ("{row["name"]}") source app: {baseline_ref} has '
                     f'"{baseline_app_actual}", {doc_path.name} says "{row["app_source"]}"'
+                )
+
+        if baseline_ref:
+            for key in sorted(actual_changed_keys - changed_component_keys):
+                mismatches.append(
+                    f'{doc_path.name}: component "{key}" changed vs {baseline_ref} but has no row '
+                    f'in the "Component versions" table'
                 )
 
     current_paths = dict(find_image_tag_paths(values))
@@ -760,9 +779,9 @@ def check_docs_consistency(chart_dir, baseline=None):
                     f'already has this exact tag ("{expected_tag}") — did it actually change?'
                 )
 
-        if baseline_ref and changed_component_keys:
+        if baseline_ref and actual_changed_keys:
             for path, current_tag in current_paths.items():
-                if path[0] not in changed_component_keys or path in covered_paths:
+                if path[0] not in actual_changed_keys or path in covered_paths:
                     continue
                 if baseline_paths.get(path) != current_tag:
                     mismatches.append(
@@ -771,10 +790,17 @@ def check_docs_consistency(chart_dir, baseline=None):
                         f'in {images_path.name}'
                     )
 
-    if baseline_ref and is_bare_version and changed_component_keys:
+    if baseline_ref and is_bare_version and actual_changed_keys:
         values_deltas_path = doc_dir / f"{baseline}-to-{podiumd_version}-values-deltas.md"
+        mentioned_keys = extract_mentioned_dependency_keys(
+            values_deltas_path.read_text(encoding="utf-8"), deps)
+        for key in sorted(actual_changed_keys - mentioned_keys):
+            mismatches.append(
+                f'{values_deltas_path.name}: component "{key}" changed vs {baseline_ref} but is '
+                f'not mentioned anywhere in the doc'
+            )
         mismatches.extend(check_values_deltas_content(
-            values_deltas_path, changed_component_keys, baseline_values, values))
+            values_deltas_path, actual_changed_keys, baseline_values, values))
 
     if not checked:
         return True, "no matching docs found — skipped"
