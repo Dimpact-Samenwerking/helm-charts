@@ -9,6 +9,8 @@ Verifies the podiumd chart:
   6. component versions in Chart.yaml + values.yaml match the matching
      docs/_UPGRADE_PATHS/*-to-<version>-upgrade.md and docs/images/images-<version>.yaml
      (any component the doc lists, not a hardcoded set)
+  7. every digest-pinned image in values.yaml still matches its live
+     upstream registry digest
 
 Stops at the first failing step and prints a PASS/FAIL summary table, mirroring
 the /helm-precommit workflow (BOM check, dupe check, lint, full render) plus
@@ -29,11 +31,14 @@ Usage:
 Exit code is non-zero if any check fails — safe to use as a CI gate.
 """
 import argparse
+import json
 import re
 import shutil
 import subprocess
 import sys
 import tempfile
+import urllib.error
+import urllib.request
 from collections import Counter
 from pathlib import Path
 
@@ -42,6 +47,44 @@ import yaml
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_CHART_DIR = SCRIPT_DIR.parent
 CHART_NAME = "podiumd"
+
+# Registries needing an anonymous pull token before the manifest lookup.
+# Anything else (quay.io, gcr.io, registry.k8s.io, ...) accepts anonymous
+# manifest GETs directly — same flow as documented in /fetch-image-digest
+# and used by verify-component-version.py.
+MANIFEST_ACCEPT = (
+    "application/vnd.oci.image.index.v1+json,"
+    "application/vnd.docker.distribution.manifest.list.v2+json,"
+    "application/vnd.oci.image.manifest.v1+json,"
+    "application/vnd.docker.distribution.manifest.v2+json"
+)
+TOKEN_ENDPOINTS = {
+    "docker.io": "https://auth.docker.io/token?service=registry.docker.io&scope=repository:{repo}:pull",
+    "ghcr.io": "https://ghcr.io/token?scope=repository:{repo}:pull",
+}
+MANIFEST_HOSTS = {
+    "docker.io": "registry-1.docker.io",
+}
+
+# One "tag: <version>@sha256:<digest>" pin per match, quoted or bare.
+DIGEST_PIN_RE = re.compile(
+    r'^(?P<indent>\s*)tag:\s*"?(?P<version>[\w][\w.\-]*)@sha256:(?P<digest>[0-9a-f]{64})"?\s*(?:#.*)?$'
+)
+# An active (uncommented) sibling "repository:" key.
+ACTIVE_REPO_RE = re.compile(
+    r'^(?P<indent>\s*)repository:\s*"?(?P<repo>[\w][\w.\-]*(?:/[\w.\-]+)*)"?\s*(?:#.*)?$'
+)
+# A commented-out "#repository: <value>" key, left as a hint for components
+# whose real repository is overridden at the gemeente/deployment level.
+COMMENTED_REPO_RE = re.compile(
+    r'^\s*#\s*repository:\s*"?(?P<repo>[\w][\w.\-]*(?:/[\w.\-]+)*)"?\s*$'
+)
+# A one-line "# host/repo:tag[@sha256:...]" reference comment, placed above
+# the "image:" block for the same override components. Tolerates a stray
+# "@" right after the colon, seen on one existing comment in values.yaml.
+REF_COMMENT_RE = re.compile(
+    r'^\s*#\s*(?P<repo>[a-zA-Z0-9][\w.\-]*(?:/[\w.\-]+)*):@?[\w][\w.\-]*(?:@sha256:[0-9a-f]{64})?\s*$'
+)
 
 # name -> repo URL, for every Chart.yaml dependency that uses a named/alias
 # repository (not a plain https:// URL and not an oci:// registry — those
@@ -298,6 +341,151 @@ def find_image_tag_paths(node, path=()):
     elif isinstance(node, list):
         for i, item in enumerate(node):
             yield from find_image_tag_paths(item, path + (str(i),))
+
+
+def parse_repo(repository):
+    """Split a Docker-style repository string into (registry_host, repo_path)
+    using the standard Docker convention: the first path segment is a
+    registry host only if it contains a "." or ":" (or is "localhost");
+    otherwise the whole string is a Docker Hub repository — official images
+    with no namespace (e.g. "python") live under "library/" on the registry
+    API even though that prefix is omitted in the human-readable form."""
+    first, sep, _ = repository.partition("/")
+    if sep and ("." in first or ":" in first or first == "localhost"):
+        return first, repository[len(first) + 1:]
+    if not sep:
+        return "docker.io", f"library/{repository}"
+    return "docker.io", repository
+
+
+def registry_tag_exists(registry_host, repo, tag):
+    """Return (exists, digest) for <repo>:<tag> on the given registry host,
+    using an anonymous pull token where the registry requires one — same
+    flow as /fetch-image-digest."""
+    headers = {"Accept": MANIFEST_ACCEPT}
+    token_url_tmpl = TOKEN_ENDPOINTS.get(registry_host)
+    if token_url_tmpl:
+        token = json.loads(urllib.request.urlopen(token_url_tmpl.format(repo=repo)).read())["token"]
+        headers["Authorization"] = f"Bearer {token}"
+    api_host = MANIFEST_HOSTS.get(registry_host, registry_host)
+    req = urllib.request.Request(f"https://{api_host}/v2/{repo}/manifests/{tag}", headers=headers)
+    try:
+        with urllib.request.urlopen(req) as resp:
+            return True, resp.headers.get("Docker-Content-Digest")
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return False, None
+        raise
+
+
+def resolve_pin_repo(lines, tag_line_index, tag_indent):
+    """Resolve the upstream repository for a "tag:" pin at tag_line_index.
+    Most pins have an active sibling "repository:" key. A minority of
+    components (e.g. office_converter, opa, solr-operator) deliberately
+    comment their "repository:" out so gemeente-level ACR-mirror overrides
+    take precedence — for those, fall back to the "# host/repo:tag" style
+    reference comment placed above the "image:" block, or a commented-out
+    "#repository: <value>" key at the same indent."""
+    for i in range(tag_line_index - 1, max(tag_line_index - 15, -1), -1):
+        raw = lines[i]
+        if not raw.strip():
+            continue
+        indent = len(raw) - len(raw.lstrip(" "))
+        if indent < tag_indent:
+            break
+        m = ACTIVE_REPO_RE.match(raw)
+        if m and indent == tag_indent:
+            return m.group("repo")
+    for i in range(tag_line_index - 1, max(tag_line_index - 6, -1), -1):
+        m = REF_COMMENT_RE.match(lines[i])
+        if m:
+            return m.group("repo")
+    for i in range(tag_line_index - 1, max(tag_line_index - 6, -1), -1):
+        m = COMMENTED_REPO_RE.match(lines[i])
+        if m:
+            return m.group("repo")
+    return None
+
+
+def scan_digest_pins(lines):
+    """Yield one record per "tag: <version>@sha256:<digest>" pin in
+    values.yaml, with its resolved upstream repository. A single image (e.g.
+    nginx-unprivileged) is typically pinned many times across the file."""
+    pins = []
+    for i, raw in enumerate(lines):
+        m = DIGEST_PIN_RE.match(raw)
+        if not m:
+            continue
+        indent = len(m.group("indent"))
+        pins.append({
+            "line": i + 1,
+            "version": m.group("version"),
+            "digest": m.group("digest"),
+            "repository": resolve_pin_repo(lines, i, indent),
+        })
+    return pins
+
+
+def check_image_digests(chart_dir):
+    """Report-only: verify every digest-pinned image in values.yaml against
+    its live upstream registry digest, to catch pins that are stale (tag
+    unchanged, but upstream re-published it with new base/security layers).
+    One network request per unique (repository, version) pair. Never writes
+    to values.yaml — use set-image-digests.py to fix confirmed-stale pins."""
+    values_path = chart_dir / "values.yaml"
+    lines = values_path.read_text(encoding="utf-8").splitlines()
+    pins = scan_digest_pins(lines)
+
+    unresolved = [p for p in pins if not p["repository"]]
+    targets = {}
+    for p in pins:
+        if p["repository"]:
+            targets.setdefault((p["repository"], p["version"]), []).append(p)
+
+    print(f"Found {len(pins)} digest-pinned image(s), {len(targets)} unique image:tag to check "
+          f"({len(unresolved)} unresolved, skipped)")
+
+    matched = 0
+    mismatches = []
+    fetch_errors = []
+
+    for (repository, version), group in sorted(targets.items()):
+        host, repo_path = parse_repo(repository)
+        pinned_digest = group[0]["digest"]
+        lines_str = ", ".join(str(p["line"]) for p in group)
+
+        digest, error = None, None
+        for _attempt in range(2):
+            try:
+                exists, digest = registry_tag_exists(host, repo_path, version)
+                error = None if exists else "tag not found upstream"
+                break
+            except (urllib.error.URLError, OSError) as e:
+                error = str(e)
+
+        if error:
+            fetch_errors.append((repository, version, error, lines_str))
+            print(f"  [FETCH-ERR] {host}/{repo_path}:{version}  {error}  (lines {lines_str})")
+        elif digest and digest != f"sha256:{pinned_digest}":
+            mismatches.append((repository, version, pinned_digest, digest, lines_str))
+            print(f"  [MISMATCH ] {host}/{repo_path}:{version}")
+            print(f"      pinned:   sha256:{pinned_digest}")
+            print(f"      upstream: {digest}")
+            print(f"      lines:    {lines_str}")
+        else:
+            matched += 1
+
+    print()
+    if unresolved:
+        print(f"{len(unresolved)} pin(s) could not be resolved to a repository (skipped):")
+        for p in unresolved:
+            print(f"  line {p['line']}: {p['version']}")
+        print()
+
+    detail = f"{matched}/{len(targets)} matched, {len(mismatches)} stale, {len(fetch_errors)} fetch error(s)"
+    if mismatches or fetch_errors:
+        return False, detail
+    return True, detail
 
 
 def words_of(s):
@@ -1064,6 +1252,8 @@ def main():
     extra_args = lint_args_for(chart_dir)
     run_step("Lint", "helm lint", check_lint, chart_dir, extra_args)
     run_step("Full render", "helm template", check_render, chart_dir, extra_args)
+    run_step("Image digests", "Checking image digests against upstream registries",
+             check_image_digests, chart_dir)
     run_step("Docs consistency", "Checking versions against upgrade docs",
              check_docs_consistency, chart_dir, args.baseline)
 
