@@ -382,3 +382,65 @@ def extract_mentioned_dependency_keys(text, deps):
         if dep:
             mentioned.add(dep.get("alias", dep["name"]))
     return mentioned
+
+
+def describe_key_changes(values_key, baseline_subtree, current_subtree):
+    """One "- Key `<dotted>` was added/removed/renamed to `<dotted>`." line
+    per top-level key change under this component — backtick-quoted,
+    matching the convention verify-podiumd.py's own check looks for.
+
+    Paths passed to diff_keys/pair_renames are relative to the subtree
+    itself (path=()), NOT prefixed with values_key — pair_renames's own
+    lookups walk baseline_subtree/current_subtree directly, so a
+    values_key-prefixed path would never resolve (silently comparing None
+    to None, which can pair completely unrelated keys as a false rename)."""
+    diffs = list(diff_keys(baseline_subtree, current_subtree))
+    added = [p for kind, p in diffs if kind == "added"]
+    removed = [p for kind, p in diffs if kind == "removed"]
+    renamed, added, removed = pair_renames(added, removed, baseline_subtree, current_subtree)
+
+    def dotted(path):
+        return ".".join((values_key,) + path)
+
+    lines = []
+    for path in added:
+        lines.append(f"- Key `{dotted(path)}` was added.\n")
+    for path in removed:
+        lines.append(f"- Key `{dotted(path)}` was removed.\n")
+    for old_path, new_path in renamed:
+        lines.append(f"- Key `{dotted(old_path)}` was renamed to `{dotted(new_path)}`.\n")
+    return lines
+
+
+def missing_key_change_lines(text, changed_component_keys, baseline_values, values):
+    """Every describe_key_changes() line for a changed component that isn't
+    already mentioned (backtick-quoted, matching verify-podiumd.py's own
+    check_values_deltas_content convention) anywhere in text. A rename line
+    carries two backtick spans (old and new key); both must already be
+    mentioned for the line to count as covered, else it's reported as
+    missing so a partial/stale rename mention still gets caught."""
+    backtick_spans = re.findall(r"`([^`]+)`", text)
+
+    def mentioned(span):
+        return any(span in other or other in span for other in backtick_spans)
+
+    lines = []
+    for values_key in sorted(changed_component_keys):
+        baseline_subtree = baseline_values.get(values_key, {}) if isinstance(baseline_values, dict) else {}
+        current_subtree = values.get(values_key, {}) if isinstance(values, dict) else {}
+        for line in describe_key_changes(values_key, baseline_subtree, current_subtree):
+            spans_in_line = re.findall(r"`([^`]+)`", line)
+            if not all(mentioned(span) for span in spans_in_line):
+                lines.append(line)
+    return lines
+
+
+def append_to_doc(text, new_lines):
+    """Append new_lines to the end of a doc, blank-line-separated from
+    whatever's already there — the shared "just tack this on" convention
+    used when a script adds content to an existing markdown doc."""
+    if not new_lines:
+        return text
+    if text and not text.endswith("\n\n"):
+        text = text.rstrip("\n") + "\n\n"
+    return text + "".join(new_lines)

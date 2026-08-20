@@ -77,9 +77,9 @@ from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, 
 from lib.procutil import run
 from lib.registry import parse_repo, registry_tag_exists
 from lib.upgradedoc import (
-    canonical_version_cell, diff_keys, extract_source_version, find_grouped_preceding_comment_line,
-    normalize_name, normalize_version, pair_renames, parse_upgrade_doc_rows, replace_version_pair,
-    resolve_entry_path,
+    append_to_doc, canonical_version_cell, describe_key_changes, extract_source_version,
+    find_grouped_preceding_comment_line, normalize_name, normalize_version, parse_upgrade_doc_rows,
+    replace_version_pair, resolve_entry_path,
 )
 
 VERIFY_SCRIPT = SCRIPT_DIR / "verify-component-version.py"
@@ -375,41 +375,6 @@ def values_delta_bullet(friendly, old_app, new_app, old_chart, new_chart):
     return f"- **{friendly}** app {app_bit} (chart {chart_bit}) — {note}.\n"
 
 
-def describe_key_changes(values_key, baseline_subtree, current_subtree):
-    """One "- Key `<dotted>` was added/removed/renamed to `<dotted>`." line
-    per top-level key change under this component — backtick-quoted,
-    matching the convention verify-podiumd.py's own check looks for.
-
-    Paths passed to diff_keys/pair_renames are relative to the subtree
-    itself (path=()), NOT prefixed with values_key — pair_renames's own
-    lookups walk baseline_subtree/current_subtree directly, so a
-    values_key-prefixed path would never resolve (silently comparing None
-    to None, which can pair completely unrelated keys as a false rename).
-    values_key is prepended only for the displayed dotted string."""
-    diffs = list(diff_keys(baseline_subtree, current_subtree))
-    added = [p for kind, p in diffs if kind == "added"]
-    removed = [p for kind, p in diffs if kind == "removed"]
-    renamed, added, removed = pair_renames(added, removed, baseline_subtree, current_subtree)
-
-    def dotted(path):
-        return ".".join((values_key,) + path)
-
-    lines = []
-    for path in added:
-        lines.append(f"- Key `{dotted(path)}` was added.\n")
-    for path in removed:
-        lines.append(f"- Key `{dotted(path)}` was removed.\n")
-    for old_path, new_path in renamed:
-        lines.append(f"- Key `{dotted(old_path)}` was renamed to `{dotted(new_path)}`.\n")
-    return lines
-
-
-def append_to_doc(text, new_lines):
-    if not new_lines:
-        return text
-    if text and not text.endswith("\n\n"):
-        text = text.rstrip("\n") + "\n\n"
-    return text + "".join(new_lines)
 
 
 def values_tree_path_for(values_key, image_path):
