@@ -16,6 +16,14 @@ untouched). A single image (e.g. nginx-unprivileged) can be pinned many
 times; all occurrences are updated together since they share the exact
 same old digest string.
 
+A pin inside the "global: images:" block (nginx, curl, busybox, ... — the
+sliding base images reused via YAML anchor across the chart) is treated
+differently: its digest is EXPECTED to drift as upstream re-publishes the
+tag, so by default it's reported but left untouched, not rewritten. A pin
+outside that block is a component's own release tag, which should never
+legitimately change once published, so by default it's the only kind this
+script updates. Pass --all to also update sliding pins.
+
 Pins with no discoverable repository (no active "repository:" sibling key,
 no "# host/repo:tag" reference comment, no commented-out "#repository:"
 hint) are reported and left untouched — this happens for the handful of
@@ -26,8 +34,9 @@ This never touches tag-only image refs that have no "@sha256:..." pin
 belong in the release's docs/images/images-<version>.yaml instead.
 
 Usage:
-    set-image-digests.py             # fetch, compare, rewrite stale pins
-    set-image-digests.py --dry-run   # fetch and compare only, no write
+    set-image-digests.py             # fetch, compare, rewrite stale PINNED digests only
+    set-image-digests.py --all       # also rewrite stale SLIDING (global.images.*) digests
+    set-image-digests.py --dry-run   # fetch and compare only, no write (combine with --all as needed)
 
 After a real run, re-render the chart (verify-podiumd.py or
 /helm-render-all) to confirm the new digests are picked up cleanly.
@@ -40,7 +49,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from lib.registry import parse_repo, registry_tag_exists
+from lib.registry import find_sliding_tag_line_range, is_sliding_pin, parse_repo, registry_tag_exists
 
 VALUES_PATH = SCRIPT_DIR.parents[0] / "values.yaml"
 
@@ -107,8 +116,13 @@ def scan_digest_pins(lines):
 
 def find_stale_digests(lines):
     """Return (stale, unresolved, fetch_errors). stale is a list of
-    (repository, version, old_digest, new_digest, [line, ...])."""
+    (repository, version, old_digest, new_digest, [line, ...], sliding) —
+    sliding is True for a pin inside the "global: images:" block (nginx,
+    curl, busybox, ... — reused via YAML anchor), whose digest is expected
+    to drift as upstream re-publishes the tag; False for a component's own
+    release tag, which should never legitimately change once published."""
     pins = scan_digest_pins(lines)
+    sliding_range = find_sliding_tag_line_range(lines)
     unresolved = [p for p in pins if not p["repository"]]
 
     targets = {}
@@ -122,6 +136,7 @@ def find_stale_digests(lines):
         host, repo_path = parse_repo(repository)
         pinned_digest = group[0]["digest"]
         lines_for_pin = [p["line"] for p in group]
+        sliding = is_sliding_pin(group[0]["line"], sliding_range)
 
         digest, error = None, None
         for _attempt in range(2):
@@ -135,13 +150,14 @@ def find_stale_digests(lines):
         if error:
             fetch_errors.append((repository, version, error, lines_for_pin))
         elif digest and digest != f"sha256:{pinned_digest}":
-            stale.append((repository, version, pinned_digest, digest, lines_for_pin))
+            stale.append((repository, version, pinned_digest, digest, lines_for_pin, sliding))
 
     return stale, unresolved, fetch_errors
 
 
 def main():
     dry_run = "--dry-run" in sys.argv[1:]
+    update_all = "--all" in sys.argv[1:]
 
     text = VALUES_PATH.read_text(encoding="utf-8")
     lines = text.splitlines()
@@ -159,13 +175,20 @@ def main():
         for repository, version, error, pin_lines in fetch_errors:
             print(f"  {repository}:{version}  {error}  (lines {', '.join(map(str, pin_lines))})")
 
-    if not stale:
-        print("\nNo stale digests found — nothing to do.")
+    to_update = stale if update_all else [s for s in stale if not s[5]]
+    skipped_sliding = [] if update_all else [s for s in stale if s[5]]
+
+    if not to_update:
+        if skipped_sliding:
+            print(f"\nNo stale pinned digests found — nothing to update. "
+                  f"({len(skipped_sliding)} sliding digest(s) drifted; pass --all to include them.)")
+        else:
+            print("\nNo stale digests found — nothing to do.")
         sys.exit(1 if fetch_errors else 0)
 
-    print(f"\n{len(stale)} stale digest(s){' (dry-run, not writing)' if dry_run else ''}:")
-    for repository, version, old_digest, new_digest, pin_lines in stale:
-        print(f"  {repository}:{version}")
+    print(f"\n{len(to_update)} stale digest(s){' (dry-run, not writing)' if dry_run else ''}:")
+    for repository, version, old_digest, new_digest, pin_lines, sliding in to_update:
+        print(f"  {repository}:{version}{'  (sliding)' if sliding else ''}")
         print(f"    old: sha256:{old_digest}")
         print(f"    new: {new_digest}")
         print(f"    lines: {', '.join(map(str, pin_lines))}")
@@ -173,9 +196,17 @@ def main():
             new_hex = new_digest.split("sha256:", 1)[1]
             text = text.replace(old_digest, new_hex)
 
+    if skipped_sliding:
+        print(f"\n{len(skipped_sliding)} sliding digest(s) not updated (pass --all to include):")
+        for repository, version, old_digest, new_digest, pin_lines, sliding in skipped_sliding:
+            print(f"  {repository}:{version}")
+            print(f"    old: sha256:{old_digest}")
+            print(f"    new: {new_digest}")
+            print(f"    lines: {', '.join(map(str, pin_lines))}")
+
     if not dry_run:
         VALUES_PATH.write_text(text, encoding="utf-8")
-        print(f"\nWrote {len(stale)} updated digest(s) to {VALUES_PATH}.")
+        print(f"\nWrote {len(to_update)} updated digest(s) to {VALUES_PATH}.")
         print("Re-render the chart to confirm (verify-podiumd.py or /helm-render-all) before committing.")
 
     sys.exit(1 if fetch_errors else 0)

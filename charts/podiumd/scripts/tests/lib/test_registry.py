@@ -96,3 +96,63 @@ def test_registry_tag_exists_reraises_non_404_error(libregistry, monkeypatch):
     monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
     with pytest.raises(urllib.error.HTTPError):
         libregistry.registry_tag_exists("quay.io", "coreos/etcd", "v3.5.16")
+
+
+# --- find_sliding_tag_line_range / is_sliding_pin ---
+
+GLOBAL_IMAGES_VALUES = """\
+global:
+  configuration:
+    enabled: true
+  images:
+    nginx: &nginxImage
+      repository: nginxinc/nginx-unprivileged
+      tag: "1.31.3@sha256:aaaa"
+      pullPolicy: IfNotPresent
+    curl: &curlImage
+      repository: curlimages/curl
+      tag: "8.21.0@sha256:bbbb"
+      pullPolicy: IfNotPresent
+
+tags:
+  redis: false
+
+zac:
+  image:
+    repository: ghcr.io/infonl/zaakafhandelcomponent
+    tag: "5.1.0@sha256:cccc"
+"""
+
+
+def test_find_sliding_tag_line_range_finds_global_images_block(libregistry):
+    lines = GLOBAL_IMAGES_VALUES.splitlines()
+    start, end = libregistry.find_sliding_tag_line_range(lines)
+    assert lines[start].strip() == "images:"
+    assert lines[end].strip() == "tags:"
+
+
+def test_find_sliding_tag_line_range_none_without_global_key(libregistry):
+    assert libregistry.find_sliding_tag_line_range(["zac:\n", "  image:\n"]) is None
+
+
+def test_find_sliding_tag_line_range_none_without_images_key(libregistry):
+    lines = "global:\n  configuration:\n    enabled: true\n".splitlines()
+    assert libregistry.find_sliding_tag_line_range(lines) is None
+
+
+def test_is_sliding_pin_true_inside_global_images_block(libregistry):
+    lines = GLOBAL_IMAGES_VALUES.splitlines()
+    sliding_range = libregistry.find_sliding_tag_line_range(lines)
+    nginx_tag_line = next(i + 1 for i, line in enumerate(lines) if "1.31.3@sha256" in line)
+    assert libregistry.is_sliding_pin(nginx_tag_line, sliding_range) is True
+
+
+def test_is_sliding_pin_false_outside_global_images_block(libregistry):
+    lines = GLOBAL_IMAGES_VALUES.splitlines()
+    sliding_range = libregistry.find_sliding_tag_line_range(lines)
+    zac_tag_line = next(i + 1 for i, line in enumerate(lines) if "5.1.0@sha256" in line)
+    assert libregistry.is_sliding_pin(zac_tag_line, sliding_range) is False
+
+
+def test_is_sliding_pin_false_when_no_range_found(libregistry):
+    assert libregistry.is_sliding_pin(5, None) is False
