@@ -45,7 +45,7 @@ import yaml
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from lib.chart import chart_ref, get_path, pull_chart, pulled_chart_dir
+from lib.chart import get_path, pull_chart, pulled_chart_dir
 from lib.chart import find_dependency as _find_dependency
 from lib.registry import parse_repo, registry_tag_exists
 

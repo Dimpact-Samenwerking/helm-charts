@@ -10,6 +10,10 @@ import yaml
 from lib.procutil import run
 
 
+def load_yaml(path):
+    return yaml.safe_load(path.read_text(encoding="utf-8"))
+
+
 def get_path(node, dotted_path):
     for key in dotted_path.split("."):
         if not isinstance(node, dict):

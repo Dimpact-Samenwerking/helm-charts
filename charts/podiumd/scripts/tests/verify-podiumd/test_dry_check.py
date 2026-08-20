@@ -109,7 +109,7 @@ def test_blank_lines_and_comments_ignored_in_comparison(vp, tmp_path, capsys):
     assert "100% similar" in out
 
 
-def test_threshold_classifies_the_real_storage_pvc_case_as_worth_deduping(vp, tmp_path, capsys):
+def test_threshold_classifies_the_real_storage_pvc_case_as_worth_deduping(vp, libdrycheck, tmp_path, capsys):
     """Regression pin: the confirmed real-world dedup win (9 pre-refactor
     storage.yaml files, factored into podiumd.storagePVC) scored ~0.82
     similar — differing only by the literal component name substituted in
@@ -122,7 +122,7 @@ def test_threshold_classifies_the_real_storage_pvc_case_as_worth_deduping(vp, tm
     write_template(tmp_path, "openklant-storage.yaml", b)
 
     ratio = difflib.SequenceMatcher(None, a, b).ratio()
-    assert ratio >= vp.DRY_HIGH_SIMILARITY_THRESHOLD, \
+    assert ratio >= libdrycheck.DRY_HIGH_SIMILARITY_THRESHOLD, \
         f"test fixture ratio {ratio} no longer represents the real ~0.82 storage-file case"
 
     ok, detail = vp.check_dry(tmp_path)

@@ -1,4 +1,4 @@
-"""chart_ref, deep_merge, version_of, find_images, is_enabled, load_chart,
+"""deep_merge, version_of, find_images, is_enabled, load_chart,
 pull_chart, and main() — offline throughout. load_chart's normal path reads a
 locally vendored .tgz (exactly like a real `helm dependency update` output),
 so most of this needs neither `helm` nor network access; the few tests that
@@ -33,35 +33,8 @@ def make_vendored_tgz(vendored_dir, tmp_path, name, version, chart_yaml, values_
     return tgz_path
 
 
-# --- chart_ref ---
-
-def test_chart_ref_alias_repository(lpi):
-    ref, repo_url = lpi.chart_ref({"name": "zaakafhandelcomponent", "repository": "@zac"})
-    assert ref == "zac/zaakafhandelcomponent"
-    assert repo_url is None
-
-
-def test_chart_ref_oci_repository(lpi):
-    ref, repo_url = lpi.chart_ref(
-        {"name": "internetaakafhandeling", "repository": "oci://ghcr.io/interne-taak-afhandeling"})
-    assert ref == "oci://ghcr.io/interne-taak-afhandeling/internetaakafhandeling"
-    assert repo_url is None
-
-
-def test_chart_ref_https_repository(lpi):
-    ref, repo_url = lpi.chart_ref({"name": "zaakbrug", "repository": "https://wearefrank.github.io/charts"})
-    assert ref == "zaakbrug"
-    assert repo_url == "https://wearefrank.github.io/charts"
-
-
-def test_chart_ref_file_repository_returns_none(lpi):
-    ref, repo_url = lpi.chart_ref({"name": "mi-data", "repository": "file://../mi-data"})
-    assert ref is None and repo_url is None
-
-
-def test_chart_ref_unsupported_scheme_raises(lpi):
-    with pytest.raises(SystemExit, match="unsupported repository scheme"):
-        lpi.chart_ref({"name": "x", "repository": "ftp://nope"})
+# chart_ref is a pure passthrough of lib.chart.chart_ref — covered directly
+# in tests/lib/test_chart.py, no need to duplicate here.
 
 
 # --- deep_merge ---

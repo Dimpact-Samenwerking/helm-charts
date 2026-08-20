@@ -32,8 +32,8 @@ REAL_MANIFEST = """\
 """
 
 
-def test_parse_changes_block_extracts_all_items(vp):
-    items = vp.parse_changes_block(REAL_MANIFEST)
+def test_parse_changes_block_extracts_all_items(libupgradedoc):
+    items = libupgradedoc.parse_changes_block(REAL_MANIFEST)
     assert len(items) == 2
     assert items[0]["name"] == "ZAC (Zaakafhandelcomponent)"
     assert items[0]["app_source"] == "5.0.2"
@@ -45,16 +45,16 @@ def test_parse_changes_block_extracts_all_items(vp):
     assert items[1]["app"] == "0.11.0"
 
 
-def test_parse_changes_block_does_not_mistake_version_continuation_for_new_item(vp):
+def test_parse_changes_block_does_not_mistake_version_continuation_for_new_item(libupgradedoc):
     """Regression: "1.17.1-static -> 1.19.0-static" on an indented
     continuation line must not be parsed as a bogus item #17."""
-    items = vp.parse_changes_block(REAL_MANIFEST)
+    items = libupgradedoc.parse_changes_block(REAL_MANIFEST)
     names = [i["name"] for i in items]
     assert not any("17.1" in n for n in names)
 
 
-def test_parse_changes_block_no_changes_section(vp):
-    assert vp.parse_changes_block("# just a header\n# no changes block\n") == []
+def test_parse_changes_block_no_changes_section(libupgradedoc):
+    assert libupgradedoc.parse_changes_block("# just a header\n# no changes block\n") == []
 
 
 # --- check_images_manifest_format ---
@@ -66,76 +66,76 @@ DEPS = [
 VALUES = {"zac": {"image": {"tag": "5.4.3@sha256:aaa"}, "opa": {"image": {"tag": "1.19.0-static@sha256:bbb"}}}}
 
 
-def test_images_manifest_format_passes_for_consistent_manifest(vp, tmp_path):
+def test_images_manifest_format_passes_for_consistent_manifest(libdocsconsistency, tmp_path):
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text(REAL_MANIFEST)
-    issues = vp.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, {})
+    issues = libdocsconsistency.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, {})
     assert issues == []
 
 
-def test_images_manifest_format_missing_file(vp, tmp_path):
-    issues = vp.check_images_manifest_format(tmp_path / "missing.yaml", "4.8.5", "4.9.0", DEPS, VALUES, {})
+def test_images_manifest_format_missing_file(libdocsconsistency, tmp_path):
+    issues = libdocsconsistency.check_images_manifest_format(tmp_path / "missing.yaml", "4.8.5", "4.9.0", DEPS, VALUES, {})
     assert "does not exist" in issues[0]
 
 
-def test_images_manifest_format_invalid_yaml(vp, tmp_path):
+def test_images_manifest_format_invalid_yaml(libdocsconsistency, tmp_path):
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text("- name: zac\n  bad: [\n")
-    issues = vp.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, {})
+    issues = libdocsconsistency.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, {})
     assert any("not valid YAML" in i for i in issues)
 
 
-def test_images_manifest_format_missing_required_keys(vp, tmp_path):
+def test_images_manifest_format_missing_required_keys(libdocsconsistency, tmp_path):
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text("- name: zac\n  version: \"5.4.3\"\n")
-    issues = vp.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, {})
+    issues = libdocsconsistency.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, {})
     assert any("missing key" in i for i in issues)
 
 
-def test_images_manifest_format_stale_baseline_header(vp, tmp_path):
+def test_images_manifest_format_stale_baseline_header(libdocsconsistency, tmp_path):
     text = REAL_MANIFEST.replace("podiumd 4.8.5", "podiumd 4.8.2").replace(
         "4.9.0 vs 4.8.5", "4.9.0 vs 4.8.2")
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text(text)
-    issues = vp.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, {})
+    issues = libdocsconsistency.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, {})
     assert any('baseline line says "4.8.2"' in i for i in issues)
     assert any('"... vs ..." line says baseline "4.8.2"' in i for i in issues)
 
 
-def test_images_manifest_format_trailing_period_not_captured(vp, tmp_path):
+def test_images_manifest_format_trailing_period_not_captured(libdocsconsistency, tmp_path):
     """Regression: the "vs" line ends with a bare period right after the
     baseline number ("vs 4.8.5."); it must not be captured as part of the
     version string."""
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text(REAL_MANIFEST)
-    issues = vp.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, {})
+    issues = libdocsconsistency.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, {})
     assert not any("4.8.5." in i for i in issues)
 
 
-def test_images_manifest_format_changes_block_target_mismatch(vp, tmp_path):
+def test_images_manifest_format_changes_block_target_mismatch(libdocsconsistency, tmp_path):
     text = REAL_MANIFEST.replace("5.0.2 -> 5.4.3 (chart 1.0.297", "5.0.2 -> 5.9.9 (chart 1.0.297")
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text(text)
-    issues = vp.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, {})
+    issues = libdocsconsistency.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, {})
     assert any("target app" in i and "5.9.9" in i for i in issues)
 
 
-def test_images_manifest_format_entry_comment_target_mismatch(vp, tmp_path):
+def test_images_manifest_format_entry_comment_target_mismatch(libdocsconsistency, tmp_path):
     text = REAL_MANIFEST.replace(
         "# ZAC OPA sidecar — 1.17.1-static -> 1.19.0-static",
         "# ZAC OPA sidecar — 1.17.1-static -> 9.9.9-static",
     )
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text(text)
-    issues = vp.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, {})
+    issues = libdocsconsistency.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, {})
     assert any('comment says target "9.9.9-static"' in i for i in issues)
 
 
-def test_images_manifest_format_missing_entry_comment(vp, tmp_path):
+def test_images_manifest_format_missing_entry_comment(libdocsconsistency, tmp_path):
     text = REAL_MANIFEST.replace("# ZAC OPA sidecar — 1.17.1-static -> 1.19.0-static\n", "")
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text(text)
-    issues = vp.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, {})
+    issues = libdocsconsistency.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, {})
     assert any('entry "opa" has no preceding comment' in i for i in issues)
 
 
@@ -165,29 +165,29 @@ ZGW_VALUES = {"zgw-office-addin": {
 }}
 
 
-def test_images_manifest_format_multi_image_component_shares_one_comment(vp, tmp_path):
+def test_images_manifest_format_multi_image_component_shares_one_comment(libdocsconsistency, tmp_path):
     """A multi-image component (zgw-office-addin's frontend + backend) needs
     only ONE preceding comment for the whole group — the second entry, with
     a blank line (not a comment) directly above it, must NOT be flagged as
     missing a comment of its own."""
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text(ZGW_MANIFEST)
-    issues = vp.check_images_manifest_format(images_path, "4.8.5", "4.9.0", ZGW_DEPS, ZGW_VALUES, {})
+    issues = libdocsconsistency.check_images_manifest_format(images_path, "4.8.5", "4.9.0", ZGW_DEPS, ZGW_VALUES, {})
     assert issues == []
 
 
-def test_images_manifest_format_source_vs_baseline(vp, tmp_path):
+def test_images_manifest_format_source_vs_baseline(libdocsconsistency, tmp_path):
     baseline_values = {"zac": {"opa": {"image": {"tag": "1.17.1-static@sha256:old"}}}}
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text(REAL_MANIFEST)
-    issues = vp.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, baseline_values)
+    issues = libdocsconsistency.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, baseline_values)
     assert issues == []
 
 
-def test_images_manifest_format_source_vs_baseline_mismatch(vp, tmp_path):
+def test_images_manifest_format_source_vs_baseline_mismatch(libdocsconsistency, tmp_path):
     # baseline actually has a different starting version than the comment claims
     baseline_values = {"zac": {"opa": {"image": {"tag": "2.0.0-static@sha256:old"}}}}
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text(REAL_MANIFEST)
-    issues = vp.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, baseline_values)
+    issues = libdocsconsistency.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, baseline_values)
     assert any('comment says source "1.17.1-static"' in i for i in issues)

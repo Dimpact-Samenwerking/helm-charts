@@ -1,0 +1,14 @@
+# Ruff config for the podiumd Python helper scripts.
+# Ruff auto-discovers this file for anything under charts/podiumd/scripts/,
+# so no repo-root pyproject.toml/ruff.toml is needed.
+#
+# F = pyflakes: catches unused imports (F401), unused locals (F841), etc.
+# This exists specifically so a lib/ refactor can't silently leave dead
+# imports behind again (see git history on this file's directory).
+[lint]
+select = ["F"]
+
+# fix-oidc-config.py predates and is unrelated to the verify-podiumd/lib
+# toolset this rule was written for; its existing F401s are pre-existing
+# and out of scope here.
+exclude = ["fix-oidc-config.py"]
