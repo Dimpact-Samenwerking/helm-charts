@@ -32,6 +32,13 @@ Usage:
         # `podiumd-4.8.5` tag, falling back to the `feature/podiumd-4.8.5` /
         # `origin/feature/podiumd-4.8.5` branch if the tag doesn't exist yet.
         # Pass an explicit git ref instead of a bare version to use it as-is.
+    verify-podiumd.py --skip-lint --skip-full-render
+        # skip one or more steps entirely (shown as SKIP, never a failure) —
+        # useful to iterate faster on a single check, or work around a step
+        # that's broken for reasons unrelated to what you're testing.
+        # One flag per step: --skip-utf8-format, --skip-dependencies,
+        # --skip-dupe-check, --skip-image-digests, --skip-docs-consistency,
+        # --skip-lint, --skip-full-render. See --help for the full list.
 
 Exit code is non-zero if any check fails — safe to use as a CI gate.
 """
@@ -913,13 +920,26 @@ def print_summary(results, overall_ok):
     log("VERIFY SUMMARY")
     width = max(len(name) for name, _, _ in results)
     for name, ok, detail in results:
-        status = "PASS" if ok else "FAIL"
+        status = "SKIP" if ok is None else ("PASS" if ok else "FAIL")
         print(f"  {name.ljust(width)} : {status} ({detail})")
     print()
     if overall_ok:
         print("All checks passed.")
     else:
         print("One or more checks failed — see details above.")
+
+
+# (flag suffix, step name) for every skippable step, in the order they run —
+# --skip-<flag suffix> on the CLI. Order here also drives --help's listing.
+SKIPPABLE_STEPS = [
+    ("utf8-format", "UTF-8 format"),
+    ("dependencies", "Dependencies"),
+    ("dupe-check", "Dupe check"),
+    ("image-digests", "Image digests"),
+    ("docs-consistency", "Docs consistency"),
+    ("lint", "Lint"),
+    ("full-render", "Full render"),
+]
 
 
 def main():
@@ -929,7 +949,15 @@ def main():
                              "against — a bare version (e.g. 4.8.5) is resolved to the podiumd-4.8.5 "
                              "tag, falling back to the feature/podiumd-4.8.5 branch; anything else is "
                              "used as a literal git ref")
+    for flag, step_name in SKIPPABLE_STEPS:
+        parser.add_argument(f"--skip-{flag}", action="store_true",
+                             help=f'skip the "{step_name}" check (e.g. to iterate faster, or work '
+                                  f'around a known-broken step) — shown as SKIP in the summary, never '
+                                  f'counted as a failure')
     args = parser.parse_args()
+
+    skipped_steps = {step_name for flag, step_name in SKIPPABLE_STEPS
+                      if getattr(args, f"skip_{flag.replace('-', '_')}")}
 
     require_helm()
 
@@ -941,6 +969,10 @@ def main():
 
     def run_step(name, title, func, *fargs):
         log(title)
+        if name in skipped_steps:
+            print(f"SKIPPED (--skip-{dict((n, f) for f, n in SKIPPABLE_STEPS)[name]})")
+            results.append((name, None, "skipped"))
+            return
         ok, detail = func(*fargs)
         results.append((name, ok, detail))
         if not ok:
