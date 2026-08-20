@@ -888,3 +888,107 @@ def test_main_notes_when_baseline_unresolvable_for_key_detection(ucv, tmp_path, 
     assert "could not resolve baseline 4.8.5" in out
     deltas = (ucv.DOC_DIR / "4.8.5-to-4.9.0-values-deltas.md").read_text(encoding="utf-8")
     assert "**zac** app" in deltas  # version bullet still written
+
+
+def test_main_touches_only_the_target_component_end_to_end(ucv, tmp_path, monkeypatch):
+    """Bumping zac must not modify anything belonging to a different
+    component (openformulieren here) — its Chart.yaml entry, values.yaml
+    subtree, upgrade.md row + Changes section, values-deltas.md mention,
+    and images-manifest entry must all be byte-for-byte unchanged."""
+    chart_yaml = tmp_path / "Chart.yaml"
+    values_yaml = tmp_path / "values.yaml"
+    doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
+    images_dir = tmp_path / "docs" / "images"
+    for d in (doc_dir, images_dir):
+        d.mkdir(parents=True)
+
+    chart_yaml.write_text(
+        "version: 4.9.0\n"
+        "dependencies:\n"
+        "  - name: zaakafhandelcomponent\n"
+        "    version: 1.0.296\n"
+        "    repository: \"@example\"\n"
+        "    alias: zac\n"
+        "  - name: openforms\n"
+        "    version: 1.12.0\n"
+        "    repository: \"@maykinmedia\"\n"
+        "    alias: openformulieren\n",
+        encoding="utf-8",
+    )
+    values_yaml.write_text(
+        "zac:\n"
+        "  image:\n"
+        "    repository: ghcr.io/infonl/zaakafhandelcomponent\n"
+        '    tag: "5.0.2@sha256:aaaa"\n'
+        "openformulieren:\n"
+        "  someFeature:\n"
+        "    enabled: true\n"
+        "  image:\n"
+        "    repository: maykinmedia/open-forms\n"
+        '    tag: "3.4.10@sha256:bbbb"\n',
+        encoding="utf-8",
+    )
+    upgrade_text = (
+        "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| openformulieren | 3.4.9 → 3.4.10 | 1.12.0 (unchanged) | - |\n\n"
+        "## Changes\n\n"
+        "### openformulieren 3.4.9 → 3.4.10 (chart 1.12.0, unchanged)\n\nblah\n"
+    )
+    values_deltas_text = (
+        "# Values deltas — PodiumD 4.8.5 → 4.9.0\n\n"
+        "- **openformulieren** app `3.4.9 → 3.4.10` (chart `1.12.0`, unchanged) — image tag only.\n"
+    )
+    images_text = (
+        "# One change:\n"
+        "#   1. openformulieren 3.4.9 -> 3.4.10 (chart 1.12.0, unchanged).\n"
+        "#\n"
+        "# Open Formulieren — 3.4.9 -> 3.4.10\n"
+        "- name: openformulieren\n"
+        '  version: "3.4.10"\n'
+        '  digest: "sha256:bbbb"\n'
+    )
+    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(upgrade_text, encoding="utf-8")
+    (doc_dir / "4.8.5-to-4.9.0-values-deltas.md").write_text(values_deltas_text, encoding="utf-8")
+    (images_dir / "images-4.9.0.yaml").write_text(images_text, encoding="utf-8")
+
+    monkeypatch.setattr(ucv, "CHART_YAML", chart_yaml)
+    monkeypatch.setattr(ucv, "VALUES_YAML", values_yaml)
+    monkeypatch.setattr(ucv, "DOC_DIR", doc_dir)
+    monkeypatch.setattr(ucv, "IMAGES_DIR", images_dir)
+
+    mock_verify_passes(monkeypatch)
+    monkeypatch.setattr(ucv, "resolve_repos", lambda dep, chart_version, paths: {
+        "image": "ghcr.io/infonl/zaakafhandelcomponent"
+    })
+    monkeypatch.setattr(ucv, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "c" * 64))
+    monkeypatch.setattr("sys.argv", ["update-component-version.py", "zac", "5.4.3", "1.0.297"])
+
+    ucv.main()
+
+    # zac itself changed, as expected
+    assert "version: 1.0.297" in chart_yaml.read_text(encoding="utf-8")
+
+    # openformulieren: untouched everywhere
+    chart_after = chart_yaml.read_text(encoding="utf-8")
+    assert "name: openforms" in chart_after
+    assert "version: 1.12.0" in chart_after
+
+    values_after = values_yaml.read_text(encoding="utf-8")
+    assert "someFeature" in values_after
+    assert '"3.4.10@sha256:bbbb"' in values_after
+
+    upgrade_after = (doc_dir / "4.8.5-to-4.9.0-upgrade.md").read_text(encoding="utf-8")
+    assert "| openformulieren | 3.4.9 → 3.4.10 | 1.12.0 (unchanged) | - |" in upgrade_after
+    assert "### openformulieren 3.4.9 → 3.4.10 (chart 1.12.0, unchanged)" in upgrade_after
+    assert upgrade_after.count("### openformulieren") == 1
+
+    deltas_after = (doc_dir / "4.8.5-to-4.9.0-values-deltas.md").read_text(encoding="utf-8")
+    assert values_deltas_text in deltas_after  # openformulieren's own line, verbatim, still there
+
+    images_after = (images_dir / "images-4.9.0.yaml").read_text(encoding="utf-8")
+    assert "1. openformulieren 3.4.9 -> 3.4.10 (chart 1.12.0, unchanged)." in images_after
+    assert '"3.4.10"' in images_after
+    assert "sha256:bbbb" in images_after

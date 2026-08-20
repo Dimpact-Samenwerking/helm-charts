@@ -505,3 +505,68 @@ def test_extract_mentioned_dependency_keys_ignores_unmatched_bold_text(libupgrad
 def test_extract_mentioned_dependency_keys_no_bold_spans_is_empty(libupgradedoc):
     deps = [{"name": "zac", "version": "1.0.297"}]
     assert libupgradedoc.extract_mentioned_dependency_keys("plain text, no bold at all", deps) == set()
+
+
+# --- describe_key_changes / append_to_doc ---
+
+def test_describe_key_changes_reports_added_removed_renamed(libupgradedoc):
+    baseline = {"sftp": {"host": "x", "user": "y", "password": "z"}, "old": 1}
+    current = {"transfer": {"mode": "sftp-password", "host": "x", "user": "y", "password": "z"}, "new": 2}
+    lines = libupgradedoc.describe_key_changes("mi", baseline, current)
+    joined = "".join(lines)
+    assert "- Key `mi.sftp` was renamed to `mi.transfer`.\n" in joined
+    assert "- Key `mi.old` was removed.\n" in joined
+    assert "- Key `mi.new` was added.\n" in joined
+
+
+def test_describe_key_changes_empty_when_nothing_changed(libupgradedoc):
+    assert libupgradedoc.describe_key_changes("comp", {"a": 1}, {"a": 1}) == []
+
+
+def test_append_to_doc_adds_blank_line_separator(libupgradedoc):
+    text = "# Values deltas\n\nSome existing content.\n"
+    result = libupgradedoc.append_to_doc(text, ["- new bullet\n"])
+    assert result == "# Values deltas\n\nSome existing content.\n\n- new bullet\n"
+
+
+def test_append_to_doc_no_new_lines_returns_unchanged(libupgradedoc):
+    text = "# Values deltas\n\nSome existing content.\n"
+    assert libupgradedoc.append_to_doc(text, []) == text
+
+
+# --- missing_key_change_lines ---
+
+def test_missing_key_change_lines_reports_unmentioned_addition(libupgradedoc):
+    baseline_values = {"zac": {"brpApi": {}}}
+    values = {"zac": {"brpApi": {"logLevel": "OFF"}}}
+    text = "Nothing relevant mentioned.\n"
+    lines = libupgradedoc.missing_key_change_lines(text, {"zac"}, baseline_values, values)
+    assert lines == ["- Key `zac.brpApi.logLevel` was added.\n"]
+
+
+def test_missing_key_change_lines_skips_already_mentioned_addition(libupgradedoc):
+    baseline_values = {"zac": {"brpApi": {}}}
+    values = {"zac": {"brpApi": {"logLevel": "OFF"}}}
+    text = "New field `zac.brpApi.logLevel`, defaults to `OFF`.\n"
+    assert libupgradedoc.missing_key_change_lines(text, {"zac"}, baseline_values, values) == []
+
+
+def test_missing_key_change_lines_rename_needs_both_sides_mentioned(libupgradedoc):
+    baseline_values = {"mi": {"sftp": {"host": "x", "user": "y", "password": "z"}}}
+    values = {"mi": {"transfer": {"mode": "sftp-password", "host": "x", "user": "y", "password": "z"}}}
+    # only the OLD side is mentioned — the rename isn't fully documented
+    text = "Removed `mi.sftp` in favor of something else.\n"
+    lines = libupgradedoc.missing_key_change_lines(text, {"mi"}, baseline_values, values)
+    assert lines == ["- Key `mi.sftp` was renamed to `mi.transfer`.\n"]
+
+
+def test_missing_key_change_lines_ignores_unrelated_component(libupgradedoc):
+    baseline_values = {"zac": {"a": 1}, "unrelated": {"a": 1}}
+    values = {"zac": {"a": 1}, "unrelated": {"b": 2}}
+    # "unrelated" isn't in changed_component_keys, so its diff must be ignored
+    assert libupgradedoc.missing_key_change_lines("no mentions", {"zac"}, baseline_values, values) == []
+
+
+def test_missing_key_change_lines_empty_when_nothing_changed(libupgradedoc):
+    values = {"zac": {"a": 1}}
+    assert libupgradedoc.missing_key_change_lines("", {"zac"}, values, values) == []

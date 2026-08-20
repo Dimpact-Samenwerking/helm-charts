@@ -65,6 +65,15 @@ target, the baseline's git ref for the source) and corrected if either side
 is stale — this is what catches drift like a comment still saying an app
 was "5.0.1" when the real baseline already had it at "5.0.2". An entry
 with no preceding comment at all is reported, not invented.
+
+Finally, for every Chart.yaml dependency that actually changed between the
+baseline and now (chart version, app/image tag, added, or removed), adds any
+"- Key `<dotted>` was added/removed/renamed to `<dotted>`." line describing
+a values.yaml schema change under that component that isn't already
+mentioned (backtick-quoted) anywhere in <new-baseline>-to-<target>-values-
+deltas.md — the same gap verify-podiumd.py's docs-consistency check reports.
+Existing content is never rewritten, only appended to; a component whose
+schema didn't change gets nothing added.
 """
 import re
 import subprocess
@@ -78,8 +87,9 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
 from lib.upgradedoc import (
-    actual_app_version, canonical_version_cell, extract_source_version, extract_target_version,
-    find_grouped_preceding_comment_line, find_image_tag_paths, match_dependency, normalize_version,
+    actual_app_version, append_to_doc, canonical_version_cell, compute_changed_components,
+    extract_source_version, extract_target_version, find_grouped_preceding_comment_line,
+    find_image_tag_paths, match_dependency, missing_key_change_lines, normalize_version,
     parse_upgrade_doc_rows, replace_version_pair, resolve_entry_path,
 )
 
@@ -507,6 +517,23 @@ def main():
             print(f"Could not verify source/target version for: {', '.join(unresolved_entry_names)}"
                   f" — no preceding comment, unresolvable values-tree path, or baseline "
                   f"{new_baseline} doesn't resolve to a git ref. Left as-is; review by hand.")
+
+    values_deltas_path = DOC_DIR / f"{new_baseline}-to-{target}-values-deltas.md"
+    if values_deltas_path.is_file():
+        if baseline_deps is None or baseline_values is None:
+            print()
+            print(f"Could not resolve baseline {new_baseline} to a git ref — skipping "
+                  f"added/removed/renamed key detection for {values_deltas_path.name}.")
+        else:
+            changed_keys = compute_changed_components(target_deps, baseline_deps, target_values, baseline_values)
+            text = values_deltas_path.read_text(encoding="utf-8")
+            new_lines = missing_key_change_lines(text, changed_keys, baseline_values, target_values)
+            if new_lines:
+                values_deltas_path.write_text(append_to_doc(text, new_lines), encoding="utf-8")
+                print()
+                print(f"=== Adding missing key-change mentions to {values_deltas_path.name} ===")
+                for line in new_lines:
+                    print(f"  {line.rstrip()}")
 
     if review_notes:
         print()

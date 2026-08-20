@@ -470,6 +470,76 @@ def test_main_corrects_stale_table_using_real_baseline_tag(sdb, repo_with_baseli
     assert "Correcting component version table" in out
 
 
+# --- main() integration: values-deltas.md missing key-change mentions ---
+
+@pytest.fixture
+def repo_with_undocumented_schema_change(tmp_path):
+    """zac's values.yaml drops the "brpApi.extendWithZaaktype" key between the
+    baseline tag and HEAD, but values-deltas.md never mentions it — the real
+    gap this feature exists to catch up on."""
+    git("init", "-q", cwd=tmp_path)
+    git("config", "user.email", "test@example.com", cwd=tmp_path)
+    git("config", "user.name", "Test", cwd=tmp_path)
+
+    write(tmp_path / "Chart.yaml", yaml.safe_dump({
+        "dependencies": [
+            {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297", "repository": "@zac"},
+        ],
+    }))
+    write(tmp_path / "values.yaml", yaml.safe_dump({
+        "zac": {"image": {"tag": "5.0.2@sha256:bbbb"},
+                "brpApi": {"protocollering": {"verwerking": {"extendWithZaaktype": False, "otherKey": True}}}},
+    }))
+    doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
+    doc_dir.mkdir(parents=True)
+    (tmp_path / "docs" / "images").mkdir(parents=True)
+    git("add", "-A", cwd=tmp_path)
+    git("commit", "-q", "-m", "baseline state", cwd=tmp_path)
+    git("tag", "podiumd-4.8.5", cwd=tmp_path)
+
+    write(tmp_path / "values.yaml", yaml.safe_dump({
+        "zac": {"image": {"tag": "5.1.0@sha256:aaaa"},
+                # extendWithZaaktype gone, otherKey remains — undocumented
+                "brpApi": {"protocollering": {"verwerking": {"otherKey": True}}}},
+    }))
+    write(doc_dir / "4.8.3-to-4.9.0-values-deltas.md",
+          "# Values deltas — PodiumD 4.8.3 → 4.9.0\n\n"
+          "No gemeente podiumd.yml changes are required for this hop.\n")
+    git("add", "-A", cwd=tmp_path)
+    git("commit", "-q", "-m", "bump zac, schema change undocumented", cwd=tmp_path)
+    return doc_dir
+
+
+def test_main_adds_missing_key_change_mention(sdb, repo_with_undocumented_schema_change, monkeypatch, capsys):
+    set_argv_and_dir(sdb, monkeypatch, repo_with_undocumented_schema_change, "4.8.5")
+    sdb.main()
+
+    deltas = (repo_with_undocumented_schema_change / "4.8.5-to-4.9.0-values-deltas.md").read_text(
+        encoding="utf-8")
+    assert "- Key `zac.brpApi.protocollering.verwerking.extendWithZaaktype` was removed.\n" in deltas
+    assert "No gemeente podiumd.yml changes are required" in deltas  # existing content preserved
+    out = capsys.readouterr().out
+    assert "Adding missing key-change mentions" in out
+
+
+def test_main_does_not_duplicate_already_mentioned_key_change(sdb, repo_with_undocumented_schema_change,
+                                                                monkeypatch, capsys):
+    doc = repo_with_undocumented_schema_change / "4.8.3-to-4.9.0-values-deltas.md"
+    doc.write_text(
+        "# Values deltas — PodiumD 4.8.3 → 4.9.0\n\n"
+        "Removed `zac.brpApi.protocollering.verwerking.extendWithZaaktype` — no longer needed.\n",
+        encoding="utf-8",
+    )
+    set_argv_and_dir(sdb, monkeypatch, repo_with_undocumented_schema_change, "4.8.5")
+    sdb.main()
+
+    deltas = (repo_with_undocumented_schema_change / "4.8.5-to-4.9.0-values-deltas.md").read_text(
+        encoding="utf-8")
+    assert deltas.count("extendWithZaaktype") == 1
+    out = capsys.readouterr().out
+    assert "Adding missing key-change mentions" not in out
+
+
 # --- replace_version_pair ---
 
 def test_replace_version_pair_arrow_form(sdb):
