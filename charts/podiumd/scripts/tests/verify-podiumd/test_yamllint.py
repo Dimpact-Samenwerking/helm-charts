@@ -2,13 +2,16 @@
 yamllint against the full `helm template` render (never against raw
 templates/*.yaml, which contain Go template syntax that isn't valid YAML on
 its own) and buckets findings by scope (this chart's own templates/ vs. a
-vendored sub-chart under charts/podiumd/charts/*) and by rule (a real
+"friendly" vendored sub-chart — Maykin/Info(NL)/ICATT/Worth/WeAreFrank/
+Dimpact/local — vs. any other vendored sub-chart) and by rule (a real
 structural problem — key-duplicates, syntax — vs. cosmetic style). Only an
-own+real finding fails and is printed; vendored findings only ever get a
-one-line aggregate count; cosmetic (own) findings aren't reported at all —
-too noisy to be worth surfacing right now. All `helm`/`yamllint` subprocess
-calls are mocked via vp.run — no real yamllint or helm invocation happens
-in these tests."""
+own+real finding fails; a friendly-vendor finding is printed per-item but
+never fails; any other vendored finding only ever gets a one-line aggregate
+count; cosmetic findings aren't reported at all anywhere — too noisy to be
+worth surfacing right now. All `helm`/`yamllint` subprocess calls are
+mocked via vp.run — friendly_vendor_charts is mocked too, since these tests
+use tmp_path (no real Chart.yaml) — no real yamllint or helm invocation
+happens in these tests."""
 from types import SimpleNamespace
 
 import pytest
@@ -18,6 +21,13 @@ def fake_run(returncode=0, stdout="", stderr=""):
     def run(cmd, **kwargs):
         return SimpleNamespace(returncode=returncode, stdout=stdout, stderr=stderr)
     return run
+
+
+def no_friendly_vendors(vp, monkeypatch):
+    """Most tests don't care about the friendly-vendor split — default to
+    an empty mapping so every vendored finding lands in the plain
+    "other vendor" aggregate-count bucket, as before that feature existed."""
+    monkeypatch.setattr(vp, "friendly_vendor_charts", lambda chart_dir: {})
 
 
 RENDERED = (
@@ -84,6 +94,7 @@ def test_chart_name_from_source_falls_back_to_raw_string(vp):
 
 def test_check_yamllint_no_findings_passes(vp, tmp_path, monkeypatch):
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/yamllint")
+    no_friendly_vendors(vp, monkeypatch)
     monkeypatch.setattr(vp, "run", sequenced_run(yamllint_stdout="", yamllint_returncode=0))
 
     ok, detail = vp.check_yamllint(tmp_path, [])
@@ -93,6 +104,7 @@ def test_check_yamllint_no_findings_passes(vp, tmp_path, monkeypatch):
 
 def test_check_yamllint_own_key_duplicate_fails(vp, tmp_path, monkeypatch):
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/yamllint")
+    no_friendly_vendors(vp, monkeypatch)
     yamllint_out = '  4:5     error    duplication of key "kind" in mapping  (key-duplicates)\n'
     monkeypatch.setattr(vp, "run", sequenced_run(yamllint_out))
 
@@ -106,13 +118,14 @@ def test_check_yamllint_own_cosmetic_not_reported_at_all(vp, tmp_path, monkeypat
     they're not mentioned anywhere in the output or detail string at all,
     per project decision (too noisy to be worth surfacing right now)."""
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/yamllint")
+    no_friendly_vendors(vp, monkeypatch)
     yamllint_out = "  4:1     error    trailing spaces  (trailing-spaces)\n"
     monkeypatch.setattr(vp, "run", sequenced_run(yamllint_out))
 
     ok, detail = vp.check_yamllint(tmp_path, [])
     assert ok is True
     assert "cosmetic" not in detail
-    assert detail == "0 real (own), 0 in vendored sub-charts"
+    assert detail == "0 real (own), 0 friendly-vendor, 0 other-vendor"
     out = capsys.readouterr().out
     assert "trailing" not in out
     assert "cosmetic" not in out
@@ -123,22 +136,25 @@ def test_check_yamllint_vendored_key_duplicate_never_fails(vp, tmp_path, monkeyp
     fail the check when it's in a vendored sub-chart — we don't control
     that content, per project policy."""
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/yamllint")
+    no_friendly_vendors(vp, monkeypatch)
     yamllint_out = '  8:5     error    duplication of key "kind" in mapping  (key-duplicates)\n'
     monkeypatch.setattr(vp, "run", sequenced_run(yamllint_out))
 
     ok, detail = vp.check_yamllint(tmp_path, [])
     assert ok is True
     assert "0 real (own)" in detail
-    assert "1 in vendored" in detail
+    assert "1 other-vendor" in detail
     out = capsys.readouterr().out
     assert "outside this repo's scope" in out
     assert "never a failure" in out
 
 
 def test_check_yamllint_vendored_findings_reported_as_one_line_count(vp, tmp_path, monkeypatch, capsys):
-    """Vendored findings are noisy (can be hundreds) and not actionable —
-    reported as a single aggregate count, never dumped finding-by-finding."""
+    """Non-friendly vendored findings are noisy (can be hundreds) and not
+    actionable — reported as a single aggregate count, never dumped
+    finding-by-finding."""
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/yamllint")
+    no_friendly_vendors(vp, monkeypatch)
     yamllint_out = (
         "  7:1     warning  missing starting space in comment  (comments)\n"
         "  8:1     error    trailing spaces  (trailing-spaces)\n"
@@ -147,11 +163,32 @@ def test_check_yamllint_vendored_findings_reported_as_one_line_count(vp, tmp_pat
 
     ok, detail = vp.check_yamllint(tmp_path, [])
     assert ok is True
-    assert "2 in vendored" in detail
+    assert "0 other-vendor" in detail  # both findings above are cosmetic rules — never counted
     out = capsys.readouterr().out
-    assert "2 yamllint finding(s) across 1 vendored sub-chart(s)" in out
     assert "(trailing-spaces)" not in out
     assert "(comments)" not in out
+
+
+def test_check_yamllint_friendly_vendor_finding_reported_per_item_never_fails(vp, tmp_path, monkeypatch, capsys):
+    """A vendored sub-chart from a listed partner org (Maykin, Info(NL),
+    ICATT, Worth, WeAreFrank, Dimpact, or a local file:// dep) gets its
+    finding printed individually — unlike a plain vendored finding, which
+    only ever gets an aggregate count — but must still never fail."""
+    monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/yamllint")
+    monkeypatch.setattr(vp, "friendly_vendor_charts", lambda chart_dir: {"zac": "Info(NL)"})
+    yamllint_out = '  8:5     error    duplication of key "kind" in mapping  (key-duplicates)\n'
+    monkeypatch.setattr(vp, "run", sequenced_run(yamllint_out))
+
+    ok, detail = vp.check_yamllint(tmp_path, [])
+    assert ok is True
+    assert "0 real (own)" in detail
+    assert "1 friendly-vendor" in detail
+    assert "0 other-vendor" in detail
+    out = capsys.readouterr().out
+    assert "reported for visibility, never a failure" in out
+    assert "podiumd/charts/zac/templates/configmap.yaml" in out
+    assert "Info(NL)" in out
+    assert "duplication of key" in out  # per-item detail, not just a count
 
 
 def test_check_yamllint_repeated_own_finding_in_one_file_is_grouped(vp, tmp_path, monkeypatch, capsys):
@@ -160,6 +197,7 @@ def test_check_yamllint_repeated_own_finding_in_one_file_is_grouped(vp, tmp_path
     one file — these must print as one grouped line with an occurrence
     count and a line list, not one [ERROR] line per hit."""
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/yamllint")
+    no_friendly_vendors(vp, monkeypatch)
     rendered = (
         "---\n"
         "# Source: podiumd/templates/frankgateway.yaml\n"
