@@ -102,6 +102,34 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
+Common labels with an explicit app.kubernetes.io/name override — for
+sub-components (e.g. frankgateway's shim/oauth2-proxy/etcd/dashboard) that
+need a name distinct from the chart-wide default. Unlike labelsFrontend /
+labelsAdapter above, the override name is a call-site argument rather than a
+fixed suffix, and it replaces app.kubernetes.io/name outright instead of
+relying on a second, later occurrence of the same key winning in rendered
+YAML.
+Usage: {{ include "podiumd.labelsNamed" (dict "context" $ "name" "frankgateway-shim") }}
+*/}}
+{{- define "podiumd.labelsNamed" -}}
+helm.sh/chart: {{ include "podiumd.chart" .context }}
+{{ include "podiumd.selectorLabelsNamed" . }}
+{{- if .context.Chart.AppVersion }}
+app.kubernetes.io/version: {{ .context.Chart.AppVersion | quote }}
+{{- end }}
+app.kubernetes.io/managed-by: {{ .context.Release.Service }}
+{{- end }}
+
+{{/*
+Selector labels with an explicit app.kubernetes.io/name override — see
+podiumd.labelsNamed.
+*/}}
+{{- define "podiumd.selectorLabelsNamed" -}}
+app.kubernetes.io/name: {{ .name }}
+app.kubernetes.io/instance: {{ .context.Release.Name }}
+{{- end }}
+
+{{/*
 Renders a container image from a string or a dict with optional registry, repository, and tag.
 Usage: {{ include "podiumd.image" .Values.path.to.image }}
 */}}

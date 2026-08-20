@@ -11,9 +11,8 @@ metadata:
   name: frankgateway-etcd
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "podiumd.labels" . | nindent 4 }}
+    {{- include "podiumd.labelsNamed" (dict "context" . "name" "frankgateway-etcd") | nindent 4 }}
     app.kubernetes.io/component: frankgateway-etcd
-    app.kubernetes.io/name: frankgateway-etcd
 spec:
   selector:
     app.kubernetes.io/name: frankgateway-etcd
@@ -28,9 +27,8 @@ metadata:
   name: frankgateway-etcd
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "podiumd.labels" . | nindent 4 }}
+    {{- include "podiumd.labelsNamed" (dict "context" . "name" "frankgateway-etcd") | nindent 4 }}
     app.kubernetes.io/component: frankgateway-etcd
-    app.kubernetes.io/name: frankgateway-etcd
 spec:
   serviceName: frankgateway-etcd
   replicas: 1
@@ -40,9 +38,8 @@ spec:
   template:
     metadata:
       labels:
-        {{- include "podiumd.labels" . | nindent 8 }}
+        {{- include "podiumd.labelsNamed" (dict "context" . "name" "frankgateway-etcd") | nindent 8 }}
         app.kubernetes.io/component: frankgateway-etcd
-        app.kubernetes.io/name: frankgateway-etcd
     spec:
       containers:
         - name: etcd

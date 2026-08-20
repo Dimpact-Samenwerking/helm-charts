@@ -172,9 +172,8 @@ metadata:
   name: frankgateway-dashboard
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "podiumd.labels" . | nindent 4 }}
+    {{- include "podiumd.labelsNamed" (dict "context" . "name" "frankgateway-dashboard") | nindent 4 }}
     app.kubernetes.io/component: frankgateway-dashboard
-    app.kubernetes.io/name: frankgateway-dashboard
 spec:
   selector:
     app.kubernetes.io/name: frankgateway-dashboard
@@ -189,9 +188,8 @@ metadata:
   name: frankgateway-dashboard
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "podiumd.labels" . | nindent 4 }}
+    {{- include "podiumd.labelsNamed" (dict "context" . "name" "frankgateway-dashboard") | nindent 4 }}
     app.kubernetes.io/component: frankgateway-dashboard
-    app.kubernetes.io/name: frankgateway-dashboard
 spec:
   replicas: 1
   selector:
@@ -200,9 +198,8 @@ spec:
   template:
     metadata:
       labels:
-        {{- include "podiumd.labels" . | nindent 8 }}
+        {{- include "podiumd.labelsNamed" (dict "context" . "name" "frankgateway-dashboard") | nindent 8 }}
         app.kubernetes.io/component: frankgateway-dashboard
-        app.kubernetes.io/name: frankgateway-dashboard
     spec:
       containers:
         - name: dashboard
