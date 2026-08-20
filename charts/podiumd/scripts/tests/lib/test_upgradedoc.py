@@ -185,6 +185,129 @@ def test_find_preceding_comment_none_when_absent(libupgradedoc):
     assert libupgradedoc.find_preceding_comment(lines, 0) == ""
 
 
+# --- find_grouped_preceding_comment / find_grouped_preceding_comment_line ---
+
+ZGW_GROUPED_LINES = [
+    "# ZGW Office Add-in — v0.9.313 -> v0.9.352\n",
+    "- name: zgw-office-addin-frontend\n",
+    '  version: "v0.9.352"\n',
+    "\n",
+    "- name: zgw-office-addin-backend\n",
+    '  version: "v0.9.352"\n',
+]
+ZGW_ENTRIES = [{"name": "zgw-office-addin-frontend", "version": "v0.9.352"},
+               {"name": "zgw-office-addin-backend", "version": "v0.9.352"}]
+ZGW_ENTRY_LINE_INDICES = [1, 4]
+
+
+def component_of(entry):
+    if "zgw-office-addin" in entry["name"]:
+        return "zgw-office-addin"
+    if entry["name"] in ("zac", "opa"):
+        return "zac"
+    return None
+
+
+def same_group(entry_a, entry_b):
+    """The grouping predicate check_images_manifest_format and friends
+    actually use: same top-level component AND same declared version —
+    matching declared versions is what tells a lockstep multi-image bump
+    (zgw-office-addin frontend/backend, always identical) apart from two
+    independently-versioned images that just share a values-tree prefix
+    (zac vs. its zac.opa sidecar)."""
+    return (component_of(entry_a) is not None
+            and component_of(entry_a) == component_of(entry_b)
+            and entry_a.get("version") == entry_b.get("version"))
+
+
+def test_find_grouped_preceding_comment_uses_own_comment_when_present(libupgradedoc):
+    comment = libupgradedoc.find_grouped_preceding_comment(
+        ZGW_GROUPED_LINES, ZGW_ENTRIES, ZGW_ENTRY_LINE_INDICES, 0, same_group)
+    assert comment == "# ZGW Office Add-in — v0.9.313 -> v0.9.352"
+
+
+def test_find_grouped_preceding_comment_inherits_sibling_comment_across_blank_line(libupgradedoc):
+    comment = libupgradedoc.find_grouped_preceding_comment(
+        ZGW_GROUPED_LINES, ZGW_ENTRIES, ZGW_ENTRY_LINE_INDICES, 1, same_group)
+    assert comment == "# ZGW Office Add-in — v0.9.313 -> v0.9.352"
+
+
+def test_find_grouped_preceding_comment_does_not_inherit_across_different_component(libupgradedoc):
+    """A ZAC entry right after ZGW's group, with no comment of its own, must
+    NOT inherit ZGW's comment just because it's the immediately preceding
+    entry — they resolve to different components."""
+    lines = ZGW_GROUPED_LINES + ["\n", "- name: zac\n", '  version: "5.1.0"\n']
+    entries = ZGW_ENTRIES + [{"name": "zac", "version": "5.1.0"}]
+    entry_line_indices = ZGW_ENTRY_LINE_INDICES + [7]
+
+    comment = libupgradedoc.find_grouped_preceding_comment(
+        lines, entries, entry_line_indices, 2, same_group)
+    assert comment == ""
+
+
+def test_find_grouped_preceding_comment_does_not_override_own_distinct_comment(libupgradedoc):
+    """ZAC's OPA sidecar has its own comment despite resolving to the same
+    top-level component ("zac") as ZAC's main entry — its own comment must
+    win, never be replaced by the main entry's comment."""
+    lines = [
+        "# ZAC — 5.0.1 -> 5.1.0\n",
+        "- name: zac\n",
+        '  version: "5.1.0"\n',
+        "# ZAC OPA sidecar — 1.17.1-static -> 1.19.0-static\n",
+        "- name: opa\n",
+        '  version: "1.19.0-static"\n',
+    ]
+    entries = [{"name": "zac", "version": "5.1.0"}, {"name": "opa", "version": "1.19.0-static"}]
+    entry_line_indices = [1, 4]
+
+    comment = libupgradedoc.find_grouped_preceding_comment(
+        lines, entries, entry_line_indices, 1, same_group)
+    assert comment == "# ZAC OPA sidecar — 1.17.1-static -> 1.19.0-static"
+
+
+def test_find_grouped_preceding_comment_does_not_inherit_when_versions_differ(libupgradedoc):
+    """Same top-level component ("zac") is not enough on its own — the
+    OPA sidecar's version differs from ZAC's own, so even with no comment
+    of its own it must NOT inherit ZAC's comment (they're independently
+    versioned, not one lockstep bump)."""
+    lines = [
+        "# ZAC — 5.0.1 -> 5.1.0\n",
+        "- name: zac\n",
+        '  version: "5.1.0"\n',
+        "\n",
+        "- name: opa\n",
+        '  version: "1.19.0-static"\n',
+    ]
+    entries = [{"name": "zac", "version": "5.1.0"}, {"name": "opa", "version": "1.19.0-static"}]
+    entry_line_indices = [1, 4]
+
+    comment = libupgradedoc.find_grouped_preceding_comment(
+        lines, entries, entry_line_indices, 1, same_group)
+    assert comment == ""
+
+
+def test_find_grouped_preceding_comment_line_uses_own_line_when_present(libupgradedoc):
+    idx = libupgradedoc.find_grouped_preceding_comment_line(
+        ZGW_GROUPED_LINES, ZGW_ENTRIES, ZGW_ENTRY_LINE_INDICES, 0, same_group)
+    assert idx == 0
+
+
+def test_find_grouped_preceding_comment_line_inherits_sibling_line_across_blank_line(libupgradedoc):
+    idx = libupgradedoc.find_grouped_preceding_comment_line(
+        ZGW_GROUPED_LINES, ZGW_ENTRIES, ZGW_ENTRY_LINE_INDICES, 1, same_group)
+    assert idx == 0
+
+
+def test_find_grouped_preceding_comment_line_none_for_different_component(libupgradedoc):
+    lines = ZGW_GROUPED_LINES + ["\n", "- name: zac\n", '  version: "5.1.0"\n']
+    entries = ZGW_ENTRIES + [{"name": "zac", "version": "5.1.0"}]
+    entry_line_indices = ZGW_ENTRY_LINE_INDICES + [7]
+
+    idx = libupgradedoc.find_grouped_preceding_comment_line(
+        lines, entries, entry_line_indices, 2, same_group)
+    assert idx is None
+
+
 # --- diff_keys / flatten_leaf_keys / pair_renames ---
 
 def test_diff_keys_finds_added_and_removed(libupgradedoc):

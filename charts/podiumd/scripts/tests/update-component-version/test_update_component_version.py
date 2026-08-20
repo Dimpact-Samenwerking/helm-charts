@@ -485,15 +485,16 @@ def test_values_tree_path_for_nested_image(ucv):
 
 def test_find_matching_images_entry_matches_by_path(ucv):
     entries = [{"name": "zac"}, {"name": "zgw-office-addin-frontend"}]
-    entry, idx = ucv.find_matching_images_entry(entries, [0, 1], ("zgw-office-addin", "frontend"))
+    entry, idx, index = ucv.find_matching_images_entry(entries, [0, 1], ("zgw-office-addin", "frontend"))
     assert entry["name"] == "zgw-office-addin-frontend"
     assert idx == 1
+    assert index == 1
 
 
 def test_find_matching_images_entry_none_when_unmatched(ucv):
     entries = [{"name": "zac"}]
-    entry, idx = ucv.find_matching_images_entry(entries, [0], ("openformulieren",))
-    assert entry is None and idx is None
+    entry, idx, index = ucv.find_matching_images_entry(entries, [0], ("openformulieren",))
+    assert entry is None and idx is None and index is None
 
 
 def test_update_images_manifest_entry_updates_version_digest_and_comment(ucv):
@@ -504,11 +505,35 @@ def test_update_images_manifest_entry_updates_version_digest_and_comment(ucv):
         '  version: "5.1.0"\n',
         '  digest: "sha256:aaaa"\n',
     ]
-    changed = ucv.update_images_manifest_entry(lines, 1, "5.4.3@sha256:bbbb")
+    entries = [{"name": "zac"}]
+    changed = ucv.update_images_manifest_entry(lines, entries, [1], 0, "5.4.3@sha256:bbbb", "zac")
     assert changed is True
     assert lines[0] == "# ZAC — 5.0.1 -> 5.4.3\n"
     assert '"5.4.3"' in lines[3]
     assert '"sha256:bbbb"' in lines[4]
+
+
+def test_update_images_manifest_entry_updates_shared_group_comment(ucv):
+    """A second entry (backend) sharing the first entry's (frontend)
+    comment, separated by a blank line, must still have that shared
+    comment's version pair updated — not skipped as "no comment"."""
+    lines = [
+        "# ZGW Office Add-in — v0.9.313 -> v0.9.352\n",
+        "- name: zgw-office-addin-frontend\n",
+        '  version: "v0.9.352"\n',
+        '  digest: "sha256:aaaa"\n',
+        "\n",
+        "- name: zgw-office-addin-backend\n",
+        '  version: "v0.9.352"\n',
+        '  digest: "sha256:bbbb"\n',
+    ]
+    entries = [{"name": "zgw-office-addin-frontend"}, {"name": "zgw-office-addin-backend"}]
+    changed = ucv.update_images_manifest_entry(
+        lines, entries, [1, 5], 1, "v0.9.400@sha256:cccc", "zgw-office-addin")
+    assert changed is True
+    assert lines[0] == "# ZGW Office Add-in — v0.9.313 -> v0.9.400\n"
+    assert '"v0.9.400"' in lines[6]
+    assert '"sha256:cccc"' in lines[7]
 
 
 # --- update_images_manifest ---

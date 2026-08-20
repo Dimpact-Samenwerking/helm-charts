@@ -487,23 +487,6 @@ def test_replace_version_pair_no_match_returns_unchanged(sdb):
     assert sdb.replace_version_pair(line, "1.0.0", "2.0.0") == line
 
 
-# --- find_preceding_comment_line ---
-
-def test_find_preceding_comment_line_finds_arrow_comment(sdb):
-    lines = ["# ZAC — 5.0.1 -> 5.1.0\n", "- name: zac\n"]
-    assert sdb.find_preceding_comment_line(lines, 1) == 0
-
-
-def test_find_preceding_comment_line_none_when_no_comment(sdb):
-    lines = ["- name: zac\n"]
-    assert sdb.find_preceding_comment_line(lines, 0) is None
-
-
-def test_find_preceding_comment_line_none_when_comment_has_no_arrow(sdb):
-    lines = ["#repository:\n", "- name: zac\n"]
-    assert sdb.find_preceding_comment_line(lines, 1) is None
-
-
 # --- resolve_entry_version ---
 
 def test_resolve_entry_version_finds_matching_path(sdb):
@@ -566,6 +549,35 @@ def test_fix_images_manifest_entries_reports_unresolvable_baseline(sdb):
     assert changed == []
     assert unresolved == ["zac"]
     assert new_text == text
+
+
+def test_fix_images_manifest_entries_fixes_shared_group_comment_via_either_entry(sdb):
+    """zgw-office-addin's frontend + backend share one comment (backend has
+    none of its own, separated by a blank line) — backend must be fixed via
+    that shared comment, not reported as unresolved just because there's no
+    comment directly above it."""
+    text = (
+        "# ZGW Office Add-in — v0.9.300 -> v0.9.352\n"
+        "- name: zgw-office-addin-frontend\n"
+        '  version: "v0.9.352"\n'
+        "\n"
+        "- name: zgw-office-addin-backend\n"
+        '  version: "v0.9.352"\n'
+    )
+    target_values = {"zgw-office-addin": {
+        "frontend": {"image": {"tag": "v0.9.352@sha256:aaaa"}},
+        "backend": {"image": {"tag": "v0.9.352@sha256:bbbb"}},
+    }}
+    baseline_values = {"zgw-office-addin": {
+        "frontend": {"image": {"tag": "v0.9.313@sha256:cccc"}},
+        "backend": {"image": {"tag": "v0.9.313@sha256:dddd"}},
+    }}
+
+    new_text, changed, unresolved = sdb.fix_images_manifest_entries(text, target_values, baseline_values)
+    assert unresolved == []
+    assert changed == [("zgw-office-addin-frontend", "v0.9.313", "v0.9.352")]
+    assert "# ZGW Office Add-in — v0.9.313 -> v0.9.352" in new_text
+    assert "v0.9.300" not in new_text
 
 
 # --- main() integration: images-manifest entry-comment correction ---

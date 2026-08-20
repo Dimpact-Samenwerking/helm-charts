@@ -54,9 +54,9 @@ from lib.procutil import run
 from lib.registry import parse_repo, registry_tag_exists
 from lib.upgradedoc import (
     actual_app_version, compute_changed_components, diff_keys, extract_mentioned_dependency_keys,
-    extract_source_version, extract_target_version, find_image_tag_paths, find_preceding_comment,
-    flatten_leaf_keys, image_tag, match_dependency, normalize_name, normalize_version, pair_renames,
-    parse_changes_block, resolve_entry_path, words_of,
+    extract_source_version, extract_target_version, find_grouped_preceding_comment,
+    find_image_tag_paths, flatten_leaf_keys, image_tag, match_dependency, normalize_name,
+    normalize_version, pair_renames, parse_changes_block, resolve_entry_path, words_of,
 )
 from lib.upgradedoc import parse_upgrade_doc_rows as _parse_upgrade_doc_rows
 
@@ -518,8 +518,18 @@ def check_images_manifest_format(images_path, baseline, podiumd_version, deps, v
     current_paths = dict(find_image_tag_paths(values))
     baseline_paths = dict(find_image_tag_paths(baseline_values)) if baseline_values else {}
 
-    for entry, line_idx in zip(entries, entry_line_indices):
-        comment = find_preceding_comment(lines, line_idx)
+    def component_of(entry):
+        path = resolve_entry_path(entry["name"], current_paths.keys())
+        return path[0] if path else None
+
+    def same_group(entry_a, entry_b):
+        return (component_of(entry_a) is not None
+                and component_of(entry_a) == component_of(entry_b)
+                and entry_a.get("version") == entry_b.get("version"))
+
+    for index, (entry, line_idx) in enumerate(zip(entries, entry_line_indices)):
+        comment = find_grouped_preceding_comment(
+            lines, entries, entry_line_indices, index, same_group)
         if not comment:
             issues.append(f'{images_path.name}: entry "{entry["name"]}" has no preceding comment')
             continue

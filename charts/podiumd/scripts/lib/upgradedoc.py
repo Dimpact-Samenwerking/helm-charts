@@ -194,6 +194,46 @@ def find_preceding_comment(lines, entry_line_index):
     return " ".join(comment_lines)
 
 
+def find_grouped_preceding_comment(lines, entries, entry_line_indices, index, same_group):
+    """The comment describing entries[index]'s version bump: its own
+    directly-preceding comment if it has one, else — when a component's
+    images are listed as one contiguous block sharing a single comment
+    (e.g. zgw-office-addin's frontend + backend entries, separated by a
+    blank line, both under one "# ZGW Office Add-in — ..." comment) — the
+    immediately preceding entry's comment, but only when that entry is in
+    the same group as this one. A sibling with its own distinct comment
+    (e.g. ZAC's main entry vs. its OPA sidecar entry — both under the same
+    top-level "zac" values key, but independently versioned and each with
+    its own comment) is never overridden by this fallback, since
+    find_preceding_comment already finds an entry's own comment before
+    this fallback is even considered.
+
+    same_group(entry, other_entry) -> True when the two entries are part
+    of one shared-comment block — same top-level component AND the same
+    declared "version" (evidence of one lockstep bump across images, not
+    just a coincidentally-shared values-tree prefix like zac vs zac.opa)."""
+    comment = find_preceding_comment(lines, entry_line_indices[index])
+    if comment or index == 0:
+        return comment
+    if not same_group(entries[index], entries[index - 1]):
+        return ""
+    return find_grouped_preceding_comment(lines, entries, entry_line_indices, index - 1, same_group)
+
+
+def find_grouped_preceding_comment_line(lines, entries, entry_line_indices, index, same_group):
+    """Same grouping rule as find_grouped_preceding_comment, for callers
+    that need the matched comment's line index (to rewrite it in place)
+    rather than its text — built on find_preceding_comment_line's
+    arrow-bearing-line convention instead of find_preceding_comment's."""
+    comment_idx = find_preceding_comment_line(lines, entry_line_indices[index])
+    if comment_idx is not None or index == 0:
+        return comment_idx
+    if not same_group(entries[index], entries[index - 1]):
+        return None
+    return find_grouped_preceding_comment_line(
+        lines, entries, entry_line_indices, index - 1, same_group)
+
+
 def diff_keys(baseline_node, current_node, path=()):
     """Yield ("added"|"removed", path) for the SHALLOWEST differing keys
     between two values subtrees — if a whole block is new or gone, report it
