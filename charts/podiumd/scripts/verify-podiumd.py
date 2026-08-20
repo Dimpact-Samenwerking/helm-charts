@@ -1,0 +1,458 @@
+#!/usr/bin/env python3
+"""
+Verifies the podiumd chart, cheapest/local checks first so a plain content
+bug fails fast without waiting on `helm dependency update`'s network round
+trip:
+  1. values.yaml is valid UTF-8 with no BOM (a BOM breaks YAML tooling if present)
+  2. values.yaml has no duplicate keys silently overwriting earlier values
+  3. templates/*.yaml has no pair of files that are structurally near-
+     duplicates of each other (report-only, never fails — see lib.dry_check)
+  4. every `image:` field in this chart's OWN templates/*.yaml calls the
+     shared podiumd.image helper, per .github/copilot-instructions.md's
+     "Image References" convention (never a hand-interpolated
+     `.repository`:`.tag` or a bare literal) — scanned on the raw template
+     source, since a rendered image string can't be told apart from one
+     that used the helper (see lib.image_references_check)
+  5. every Deployment/StatefulSet/DaemonSet/Job/CronJob in this chart's OWN
+     templates/*.yaml has a nodeSelector field somewhere in its pod spec,
+     per .github/copilot-instructions.md's AKS-Blue convention ("all
+     workloads" require one) — a template with none can never be made
+     compliant by an env-values override (see lib.node_selector_check)
+  6. component versions in Chart.yaml + values.yaml match the matching
+     docs/_UPGRADE_PATHS/*-to-<version>-upgrade.md and docs/images/images-<version>.yaml
+     (any component the doc lists, not a hardcoded set) — and, given --baseline,
+     every component that actually changed vs the baseline (chart version,
+     app/image tag, added, or removed) has a row in that upgrade.md, a
+     mention in the matching values-deltas.md, and — if its image tag
+     changed — an entry in images-<version>.yaml, even if no doc mentions
+     it yet (see lib.docs_consistency)
+  7. every digest-pinned image in values.yaml still matches its live
+     upstream registry digest — except a tag known to slide (this repo's
+     git history shows it's changed digest before, or the registry
+     currently has a more specific sibling tag at the same digest), where
+     drift is expected and passes, just reported for visibility (see
+     lib.image_digests)
+  8. all Chart.yaml dependencies actually resolve and bundle (helm dependency update)
+  9. the chart lints cleanly with the CI placeholder values
+  10. the chart renders cleanly with `helm template` using the CI placeholder values
+  11. yamllint against that render finds no structurally-real problem (duplicate
+      keys, syntax errors) in this chart's OWN templates — cosmetic findings
+      (trailing whitespace, comment style, ...) aren't reported at all, and
+      a vendored sub-chart finding is printed per-item if it's from a
+      friendly/partner vendor, else only gets a one-line count — neither
+      scope ever fails except OWN (see lib.yamllint_check)
+  12. kubeconform against that same render finds no real API-schema
+      violation in this chart's OWN templates (wrong types, unknown fields,
+      a resource that doesn't even parse) — a CRD with no known schema
+      (Keycloak, ECK, Redis, ...) is skipped, not an error, and vendored
+      findings follow the same friendly-vendor-gets-detail rule, never a
+      failure (see lib.kubeconform_check)
+  13. shellcheck against every shell script embedded in a container's
+      command/args in this chart's OWN templates finds no real bug
+      (error/warning-level — bad quoting, undefined variables, portability
+      issues) — info/style-level suggestions aren't reported at all, and
+      vendored findings follow the same friendly-vendor-gets-detail rule,
+      never a failure (see lib.shellcheck_check)
+  14. kube-score's container-resources check finds every container in this
+      chart's OWN templates declaring CPU/memory requests AND limits, per
+      .github/copilot-instructions.md's own documented "Resource Requests
+      and Limits" convention — the only kube-score check this repo has an
+      actual policy for; every other kube-score check (NetworkPolicy,
+      ImagePullPolicy, SecurityContext UID/GID, PodDisruptionBudgets, ...)
+      is unused, generic best-practice noise this repo has never claimed
+      to enforce. A vendored sub-chart's missing resources IS this repo's
+      job (wireable via that sub-chart's values.yaml key, same doc), so
+      every vendored finding is printed individually — but, unlike steps
+      11-13, does NOT yet fail the check: the backlog is untriaged and
+      partly upstream-blocked (see lib.kube_score_check)
+
+  Steps 11-13's "friendly vendor" carve-out (see lib.render_scope.friendly_vendor_charts):
+  Maykin, Info(NL), ICATT, Worth, WeAreFrank, Dimpact, and any local
+  ("file://") dependency are close/collaborative enough that their
+  findings are worth seeing individually, even though this repo still
+  can't fix their code directly. Every other vendored sub-chart (elastic,
+  redis-operator, keycloak-operator, openbao, ...) stays
+  aggregate-count-only. Step 14 doesn't use this carve-out — see above.
+  Steps 4-5 don't use it either — they only ever scan this chart's own
+  templates in the first place, never a vendored sub-chart's.
+
+Steps 11-14 each need an external tool (yamllint/kubeconform/shellcheck/
+kube-score, respectively) beyond helm — run --help for exactly which
+binary/package each one needs, and the --skip-<name> flag to bypass a
+missing one (skipping means that check doesn't run, not that it passes).
+Steps 4-5 are pure-Python textual scans and need no external tool.
+
+Stops at the first failing step and prints a PASS/FAIL summary table, mirroring
+the /helm-precommit workflow (BOM check, dupe check, lint, full render) plus
+this script's own dependency-resolution, image-digest, and docs-consistency checks.
+
+Always verifies charts/podiumd next to this script — there is no way to point
+it at a different chart source.
+
+The actual check logic lives in charts/podiumd/scripts/lib/ (one module per
+check, plus lib/render_scope.py for the infrastructure shared by every
+check that inspects a `helm template` render) — this file is the CLI
+entry point: argument parsing, the ordered run_step() pipeline, and the
+handful of checks too small/foundational to warrant their own module
+(UTF-8/BOM, duplicate-key scan, helm dependency/lint/render).
+
+Usage:
+    verify-podiumd.py
+    verify-podiumd.py --baseline 4.8.5
+        # also check the doc's SOURCE (left-hand) versions for each changed
+        # component against the actual baseline release — resolved to the
+        # `podiumd-4.8.5` tag, falling back to the `feature/podiumd-4.8.5` /
+        # `origin/feature/podiumd-4.8.5` branch if the tag doesn't exist yet.
+        # Pass an explicit git ref instead of a bare version to use it as-is.
+    verify-podiumd.py --skip-lint --skip-full-render
+        # skip one or more steps entirely (shown as SKIP, never a failure) —
+        # useful to iterate faster on a single check, or work around a step
+        # that's broken for reasons unrelated to what you're testing.
+        # One flag per step: --skip-utf8-format, --skip-dependencies,
+        # --skip-dupe-check, --skip-dry-check, --skip-image-references,
+        # --skip-node-selector, --skip-image-digests,
+        # --skip-docs-consistency, --skip-lint, --skip-full-render,
+        # --skip-yamllint, --skip-kubeconform, --skip-shellcheck,
+        # --skip-kube-score. See --help for the full list.
+
+Exit code is non-zero if any check fails — safe to use as a CI gate.
+"""
+import argparse
+import re
+import shutil
+import sys
+
+from pathlib import Path
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
+
+from lib.procutil import run
+
+# Each check's actual logic lives in its own lib module (see that module's
+# docstring for what it does and why) — main()'s run_step() pipeline is the
+# only thing here that needs the check functions themselves. Tests exercise
+# a check (and any helper it calls) through that same lib module directly —
+# see charts/podiumd/scripts/tests/verify-podiumd/conftest.py's lib*
+# fixtures — rather than through this file, so this import list stays
+# exactly what main() calls, no re-exports to keep in sync by hand.
+from lib.dry_check import check_dry
+from lib.image_digests import check_image_digests
+from lib.image_references_check import check_image_references
+from lib.node_selector_check import check_node_selector
+from lib.docs_consistency import check_docs_consistency
+from lib.render_scope import (
+    CHART_NAME, REQUIRED_REPOS, report_errors_by_subchart, report_largest_templates,
+    supports_skip_schema_validation,
+)
+from lib.yamllint_check import check_yamllint
+from lib.kubeconform_check import check_kubeconform
+from lib.shellcheck_check import check_shellcheck
+from lib.kube_score_check import check_kube_score
+
+DEFAULT_CHART_DIR = SCRIPT_DIR.parent
+
+
+def log(title):
+    print(f"\n=== {title} ===")
+
+
+def die(message):
+    """Hard-stop for setup/precondition failures that happen before any
+    checklist step begins (not part of the PASS/FAIL summary)."""
+    print(f"FAIL: {message}", file=sys.stderr)
+    sys.exit(1)
+
+
+def require_helm():
+    if shutil.which("helm") is None:
+        die("helm is not installed")
+
+
+def resolve_chart_dir():
+    chart_dir = DEFAULT_CHART_DIR.resolve()
+    if not (chart_dir / "Chart.yaml").is_file():
+        die(f"{chart_dir} does not contain a Chart.yaml")
+    return chart_dir
+
+
+def check_utf8_format(chart_dir):
+    values_path = chart_dir / "values.yaml"
+    data = values_path.read_bytes()
+    if data[:3] == b"\xef\xbb\xbf":
+        return False, "BOM found — run strip-utf8-bom.py to fix (this script never writes to values.yaml)"
+    print(f"OK: no BOM in {values_path.name}")
+    return True, "no BOM"
+
+
+def ensure_repos_configured():
+    for name, url in REQUIRED_REPOS.items():
+        result = run(["helm", "repo", "add", name, url, "--force-update"],
+                      capture_output=True, text=True)
+        if result.returncode != 0:
+            die(f"helm repo add {name} failed\n{result.stderr.strip()}")
+    result = run(["helm", "repo", "update"], capture_output=True, text=True)
+    if result.returncode != 0:
+        die(f"helm repo update failed\n{result.stderr.strip()}")
+
+
+def check_dependencies(chart_dir):
+    shutil.rmtree(chart_dir / "charts", ignore_errors=True)
+    (chart_dir / "Chart.lock").unlink(missing_ok=True)
+    result = run(["helm", "dependency", "update", str(chart_dir)])
+    if result.returncode != 0:
+        return False, "helm dependency update failed"
+
+    result = run(["helm", "dependency", "list", str(chart_dir)], capture_output=True, text=True)
+    if result.returncode != 0:
+        return False, f"helm dependency list failed: {result.stderr.strip()}"
+    print(result.stdout, end="")
+
+    rows = [line for line in result.stdout.splitlines()[1:] if line.strip()]
+    bad_rows = [line for line in rows if line.split()[-1] != "ok"]
+    if bad_rows:
+        return False, "one or more dependencies did not resolve (STATUS != ok above)"
+
+    dep_count = len(rows)
+    chart_count = len(list((chart_dir / "charts").glob("*.tgz")))
+    if dep_count != chart_count:
+        return False, f"expected {dep_count} bundled dependencies, found {chart_count} in charts/"
+    detail = f"{dep_count} dependencies bundled"
+    print(f"OK: all {detail} in charts/")
+    return True, detail
+
+
+def check_duplicate_keys(chart_dir):
+    """Scan values.yaml for duplicate keys that would silently overwrite an
+    earlier value. Each YAML sequence item gets its own scope (tagged by the
+    line its "-" appears on) so that unrelated list items sharing a key name
+    (e.g. every item in a list having its own "value:" or "mountPath:") are
+    never treated as duplicates of each other."""
+    values_path = chart_dir / "values.yaml"
+    lines = values_path.read_text(encoding="utf-8").splitlines(keepends=True)
+
+    stack = []
+    scope_keys = {}
+    duplicates = []
+    key_re = re.compile(r"^(\s*)([a-zA-Z0-9_\-][^:#\n]*?)\s*:")
+    dash_re = re.compile(r"^(\s*)-\s*(.*)$")
+
+    def register(scope_id, key, line_no):
+        scope_keys.setdefault(scope_id, {})
+        if key in scope_keys[scope_id]:
+            parent = " > ".join(scope_id) if scope_id else "(root)"
+            duplicates.append(
+                f'Line {line_no}: duplicate "{key}" under [{parent}] (first line {scope_keys[scope_id][key]})'
+            )
+        else:
+            scope_keys[scope_id][key] = line_no
+
+    for i, line in enumerate(lines, 1):
+        stripped = line.lstrip()
+        if stripped.startswith("#"):
+            continue
+
+        if stripped.startswith("-"):
+            dash_m = dash_re.match(line)
+            list_indent = len(dash_m.group(1))
+            rest = dash_m.group(2)
+            while stack and stack[-1][0] >= list_indent:
+                stack.pop()
+            # unique per occurrence, so sibling list items never share a scope
+            stack.append((list_indent, f"<item:{i}>"))
+
+            km = key_re.match(rest)
+            if km:
+                key = km.group(2).strip()
+                scope_id = tuple(k for _, k in stack)
+                register(scope_id, key, i)
+                stack.append((list_indent + 2, key))
+            continue
+
+        m = key_re.match(line)
+        if not m:
+            continue
+        indent = len(m.group(1))
+        key = m.group(2).strip()
+        while stack and stack[-1][0] >= indent:
+            stack.pop()
+        scope_id = tuple(k for _, k in stack)
+        register(scope_id, key, i)
+        stack.append((indent, key))
+
+    if duplicates:
+        print(f"FOUND {len(duplicates)} duplicate(s):")
+        for d in duplicates:
+            print(" ", d)
+        return False, f"{len(duplicates)} duplicate(s) found"
+    print(f"OK: no duplicate keys in {values_path.name}")
+    return True, "0 duplicates"
+
+
+def lint_args_for(chart_dir):
+    lint_values = chart_dir / "ci" / "lint-values.yaml"
+    if lint_values.is_file():
+        return ["-f", str(lint_values)]
+    print("WARNING: no ci/lint-values.yaml found — linting with bare defaults only")
+    return []
+
+
+def check_lint(chart_dir, extra_args):
+    result = run(["helm", "lint", str(chart_dir), *extra_args], capture_output=True, text=True)
+    output = result.stdout + result.stderr
+    print(output, end="" if output.endswith("\n") else "\n")
+
+    error_count = len(re.findall(r"^\[ERROR\]", output, re.MULTILINE))
+    warning_count = len(re.findall(r"^\[WARNING\]", output, re.MULTILINE))
+    detail = f"{error_count} error(s), {warning_count} warning(s)"
+
+    if result.returncode != 0 or error_count > 0:
+        return False, detail
+    return True, detail
+
+
+def check_render(chart_dir, extra_args):
+    template_args = list(extra_args)
+    if supports_skip_schema_validation():
+        template_args.append("--skip-schema-validation")
+    else:
+        print(
+            "WARNING: this helm version does not support --skip-schema-validation "
+            "(needed for the KISS sub-chart's JSON schema) — CI uses a newer helm "
+            "(azure/setup-helm@v5.0.1) where this works; consider upgrading your "
+            "local helm to match. Rendering without it, may fail on schema validation."
+        )
+
+    result = run(["helm", "template", CHART_NAME, str(chart_dir), *template_args],
+                 capture_output=True, text=True)
+
+    if result.returncode != 0:
+        print(result.stderr, end="" if result.stderr.endswith("\n") else "\n")
+        report_errors_by_subchart(result.stdout + result.stderr)
+        return False, "helm template failed to render"
+
+    doc_count = sum(1 for line in result.stdout.splitlines() if line.startswith("---"))
+    if doc_count <= 0:
+        return False, "rendered 0 manifests"
+
+    report_largest_templates(result.stdout)
+    detail = f"{doc_count} manifests"
+    print(f"OK: rendered {detail}")
+    return True, detail
+
+
+def print_summary(results, overall_ok):
+    log("VERIFY SUMMARY")
+    width = max(len(name) for name, _, _ in results)
+    for name, ok, detail in results:
+        status = "SKIP" if ok is None else ("PASS" if ok else "FAIL")
+        print(f"  {name.ljust(width)} : {status} ({detail})")
+    print()
+    if overall_ok:
+        print("All checks passed.")
+    else:
+        print("One or more checks failed — see details above.")
+
+
+# (flag suffix, step name) for every skippable step, in the order they run —
+# --skip-<flag suffix> on the CLI. Order here also drives --help's listing.
+SKIPPABLE_STEPS = [
+    ("utf8-format", "UTF-8 format"),
+    ("dependencies", "Dependencies"),
+    ("dupe-check", "Dupe check"),
+    ("dry-check", "DRY check"),
+    ("image-references", "Image references"),
+    ("node-selector", "Node selector"),
+    ("image-digests", "Image digests"),
+    ("docs-consistency", "Docs consistency"),
+    ("lint", "Lint"),
+    ("full-render", "Full render"),
+    ("yamllint", "yamllint"),
+    ("kubeconform", "kubeconform"),
+    ("shellcheck", "shellcheck"),
+    ("kube-score", "kube-score"),
+]
+
+
+REQUIRED_TOOLS_HELP = """
+Required external tools (each is only needed for the check(s) noted; a
+missing tool makes that check fail with a clear message — pass the
+matching --skip-<name> to bypass it instead, e.g. if it's not installed
+locally):
+  helm         required for every step past "Resolving chart source"
+  yamllint     yamllint check              (apt/pip package "yamllint")
+  kubeconform  kubeconform check           (https://github.com/yannh/kubeconform — single static binary)
+  shellcheck   shellcheck check            (apt package "shellcheck", or https://www.shellcheck.net)
+  kube-score   kube-score check            (https://github.com/zegl/kube-score — single static binary)
+"""
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Verify the podiumd chart.",
+                                     epilog=REQUIRED_TOOLS_HELP,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--baseline", default=None,
+                        help="baseline release to also check the upgrade doc's SOURCE versions "
+                             "against — a bare version (e.g. 4.8.5) is resolved to the podiumd-4.8.5 "
+                             "tag, falling back to the feature/podiumd-4.8.5 branch; anything else is "
+                             "used as a literal git ref")
+    for flag, step_name in SKIPPABLE_STEPS:
+        parser.add_argument(f"--skip-{flag}", action="store_true",
+                             help=f'skip the "{step_name}" check (e.g. to iterate faster, or work '
+                                  f'around a known-broken step) — shown as SKIP in the summary, never '
+                                  f'counted as a failure')
+    args = parser.parse_args()
+
+    skipped_steps = {step_name for flag, step_name in SKIPPABLE_STEPS
+                      if getattr(args, f"skip_{flag.replace('-', '_')}")}
+
+    require_helm()
+
+    log("Resolving chart source")
+    chart_dir = resolve_chart_dir()
+    print(f"Using local chart source: {chart_dir}")
+
+    results = []
+
+    def run_step(name, title, func, *fargs):
+        log(title)
+        if name in skipped_steps:
+            print(f"SKIPPED (--skip-{dict((n, f) for f, n in SKIPPABLE_STEPS)[name]})")
+            results.append((name, None, "skipped"))
+            return
+        ok, detail = func(*fargs)
+        results.append((name, ok, detail))
+        if not ok:
+            print_summary(results, overall_ok=False)
+            sys.exit(1)
+
+    run_step("UTF-8 format", "UTF-8 format check", check_utf8_format, chart_dir)
+    run_step("Dupe check", "Duplicate key scan", check_duplicate_keys, chart_dir)
+    run_step("DRY check", "Template duplication scan", check_dry, chart_dir)
+    run_step("Image references", "Checking image: fields use the podiumd.image helper",
+             check_image_references, chart_dir)
+    run_step("Node selector", "Checking workloads expose a nodeSelector field",
+             check_node_selector, chart_dir)
+    run_step("Docs consistency", "Checking versions against upgrade docs",
+             check_docs_consistency, chart_dir, args.baseline)
+    run_step("Image digests", "Checking image digests against upstream registries",
+             check_image_digests, chart_dir)
+
+    log("Ensuring dependency repos are configured")
+    ensure_repos_configured()
+
+    run_step("Dependencies", "Resolving dependencies (helm dependency update)", check_dependencies, chart_dir)
+
+    extra_args = lint_args_for(chart_dir)
+    run_step("Lint", "helm lint", check_lint, chart_dir, extra_args)
+    run_step("Full render", "helm template", check_render, chart_dir, extra_args)
+    run_step("yamllint", "yamllint (rendered output)", check_yamllint, chart_dir, extra_args)
+    run_step("kubeconform", "kubeconform (rendered output)", check_kubeconform, chart_dir, extra_args)
+    run_step("shellcheck", "shellcheck (embedded shell scripts)", check_shellcheck, chart_dir, extra_args)
+    run_step("kube-score", "kube-score (resource requests/limits)", check_kube_score, chart_dir, extra_args)
+
+    print_summary(results, overall_ok=True)
+
+
+if __name__ == "__main__":
+    main()

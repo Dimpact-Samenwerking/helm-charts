@@ -1,0 +1,285 @@
+"""lib.registry.parse_repo / registry_tag_exists / historical_digests_for_tag /
+list_tags / find_more_specific_tag_at_same_digest / is_sliding_tag — no
+network needed, urllib.request.urlopen is monkeypatched wherever a live
+fetch would happen; historical_digests_for_tag uses a real, hermetic temp
+git repo (git log needs a real working tree)."""
+import json
+import subprocess
+import urllib.error
+from io import BytesIO
+
+import pytest
+
+
+# --- parse_repo ---
+
+def test_parse_repo_bare_docker_hub_official_image(libregistry):
+    assert libregistry.parse_repo("python") == ("docker.io", "library/python")
+
+
+def test_parse_repo_bare_docker_hub_namespaced(libregistry):
+    assert libregistry.parse_repo("nginxinc/nginx-unprivileged") == ("docker.io", "nginxinc/nginx-unprivileged")
+
+
+def test_parse_repo_explicit_host(libregistry):
+    assert libregistry.parse_repo("ghcr.io/infonl/zaakafhandelcomponent") == ("ghcr.io", "infonl/zaakafhandelcomponent")
+
+
+def test_parse_repo_explicit_docker_io_host(libregistry):
+    assert libregistry.parse_repo("docker.io/alpine/k8s") == ("docker.io", "alpine/k8s")
+
+
+def test_parse_repo_localhost(libregistry):
+    assert libregistry.parse_repo("localhost/foo") == ("localhost", "foo")
+
+
+def test_parse_repo_host_with_port(libregistry):
+    assert libregistry.parse_repo("localhost:5000/foo") == ("localhost:5000", "foo")
+
+
+# --- registry_tag_exists ---
+
+class FakeResponse:
+    def __init__(self, headers=None, body=b""):
+        self.headers = headers or {}
+        self._body = body
+
+    def read(self):
+        return self._body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+
+def test_registry_tag_exists_no_token_needed(libregistry, monkeypatch):
+    def fake_urlopen(req):
+        assert "Authorization" not in req.headers
+        return FakeResponse(headers={"Docker-Content-Digest": "sha256:" + "a" * 64})
+
+    monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
+    exists, digest = libregistry.registry_tag_exists("quay.io", "coreos/etcd", "v3.5.16")
+    assert exists is True
+    assert digest == "sha256:" + "a" * 64
+
+
+def test_registry_tag_exists_fetches_token_for_docker_hub(libregistry, monkeypatch):
+    calls = []
+
+    def fake_urlopen(arg):
+        url = arg if isinstance(arg, str) else arg.full_url
+        calls.append(url)
+        if "auth.docker.io" in url:
+            return FakeResponse(body=json.dumps({"token": "faketoken"}).encode())
+        assert arg.headers.get("Authorization") == "Bearer faketoken"
+        return FakeResponse(headers={"Docker-Content-Digest": "sha256:" + "b" * 64})
+
+    monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
+    exists, digest = libregistry.registry_tag_exists("docker.io", "library/python", "3.14-slim")
+    assert exists is True
+    assert digest == "sha256:" + "b" * 64
+    assert any("auth.docker.io" in c for c in calls)
+
+
+def test_registry_tag_exists_404_returns_false(libregistry, monkeypatch):
+    def fake_urlopen(req):
+        raise urllib.error.HTTPError(req.full_url, 404, "Not Found", {}, BytesIO(b""))
+
+    monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
+    exists, digest = libregistry.registry_tag_exists("quay.io", "coreos/etcd", "nonexistent")
+    assert exists is False
+    assert digest is None
+
+
+def test_registry_tag_exists_reraises_non_404_error(libregistry, monkeypatch):
+    def fake_urlopen(req):
+        raise urllib.error.HTTPError(req.full_url, 500, "Server Error", {}, BytesIO(b""))
+
+    monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
+    with pytest.raises(urllib.error.HTTPError):
+        libregistry.registry_tag_exists("quay.io", "coreos/etcd", "v3.5.16")
+
+
+# --- historical_digests_for_tag ---
+
+def git(*args, cwd):
+    subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True)
+
+
+@pytest.fixture
+def values_repo(tmp_path):
+    """A real, hermetic git repo whose values.yaml history pins solr's tag
+    to THREE different digests across three commits (real drift, like this
+    project's own history), and zac's tag to just one (never observed to
+    change)."""
+    git("init", "-q", cwd=tmp_path)
+    git("config", "user.email", "test@example.com", cwd=tmp_path)
+    git("config", "user.name", "Test", cwd=tmp_path)
+    values_path = tmp_path / "values.yaml"
+
+    values_path.write_text(
+        "zac:\n  image:\n    tag: \"5.1.0@sha256:" + "c" * 64 + "\"\n"
+        "solr:\n  image:\n    tag: \"9.10.1-slim@sha256:" + "a" * 64 + "\"\n"
+    )
+    git("add", "-A", cwd=tmp_path)
+    git("commit", "-q", "-m", "initial", cwd=tmp_path)
+
+    values_path.write_text(
+        "zac:\n  image:\n    tag: \"5.1.0@sha256:" + "c" * 64 + "\"\n"
+        "solr:\n  image:\n    tag: \"9.10.1-slim@sha256:" + "b" * 64 + "\"\n"
+    )
+    git("add", "-A", cwd=tmp_path)
+    git("commit", "-q", "-m", "refresh solr digest #1", cwd=tmp_path)
+
+    values_path.write_text(
+        "zac:\n  image:\n    tag: \"5.1.0@sha256:" + "c" * 64 + "\"\n"
+        "solr:\n  image:\n    tag: \"9.10.1-slim@sha256:" + "d" * 64 + "\"\n"
+    )
+    git("add", "-A", cwd=tmp_path)
+    git("commit", "-q", "-m", "refresh solr digest #2", cwd=tmp_path)
+
+    return values_path
+
+
+def test_historical_digests_for_tag_finds_multiple_past_digests(libregistry, values_repo):
+    digests = libregistry.historical_digests_for_tag(values_repo, "9.10.1-slim")
+    assert digests == {"a" * 64, "b" * 64, "d" * 64}
+
+
+def test_historical_digests_for_tag_single_digest_when_never_refreshed(libregistry, values_repo):
+    digests = libregistry.historical_digests_for_tag(values_repo, "5.1.0")
+    assert digests == {"c" * 64}
+
+
+def test_historical_digests_for_tag_empty_outside_git_repo(libregistry, tmp_path):
+    values_path = tmp_path / "values.yaml"
+    values_path.write_text("zac:\n  image:\n    tag: \"5.1.0@sha256:" + "c" * 64 + "\"\n")
+    assert libregistry.historical_digests_for_tag(values_path, "5.1.0") == set()
+
+
+def test_historical_digests_for_tag_empty_for_unknown_version(libregistry, values_repo):
+    assert libregistry.historical_digests_for_tag(values_repo, "9.9.9-nonexistent") == set()
+
+
+# --- list_tags ---
+
+def test_list_tags_returns_tag_names(libregistry, monkeypatch):
+    def fake_urlopen(req):
+        return FakeResponse(body=json.dumps({"tags": ["9.10.1", "9.10.1-slim"]}).encode())
+
+    monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
+    assert libregistry.list_tags("quay.io", "coreos/etcd") == ["9.10.1", "9.10.1-slim"]
+
+
+def test_list_tags_fetches_token_for_docker_hub(libregistry, monkeypatch):
+    calls = []
+
+    def fake_urlopen(arg):
+        url = arg if isinstance(arg, str) else arg.full_url
+        calls.append(url)
+        if "auth.docker.io" in url:
+            return FakeResponse(body=json.dumps({"token": "faketoken"}).encode())
+        assert arg.headers.get("Authorization") == "Bearer faketoken"
+        return FakeResponse(body=json.dumps({"tags": ["3.14-slim"]}).encode())
+
+    monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
+    assert libregistry.list_tags("docker.io", "library/python") == ["3.14-slim"]
+
+
+def test_list_tags_empty_when_missing_from_response(libregistry, monkeypatch):
+    monkeypatch.setattr(libregistry.urllib.request, "urlopen",
+                         lambda req: FakeResponse(body=json.dumps({}).encode()))
+    assert libregistry.list_tags("quay.io", "coreos/etcd") == []
+
+
+# --- _is_more_specific_tag ---
+
+def test_is_more_specific_tag_patch_refinement(libregistry):
+    assert libregistry._is_more_specific_tag("3.14.7-slim", "3.14-slim") is True
+
+
+def test_is_more_specific_tag_suffix_refinement(libregistry):
+    assert libregistry._is_more_specific_tag("3.14-slim-trixie", "3.14-slim") is True
+
+
+def test_is_more_specific_tag_both_refinements(libregistry):
+    assert libregistry._is_more_specific_tag("3.14.7-slim-trixie", "3.14-slim") is True
+
+
+def test_is_more_specific_tag_rejects_different_minor_version(libregistry):
+    # 3.13.14 is not a refinement of 3.14 just because both start with "3.1"
+    assert libregistry._is_more_specific_tag("3.13.14-slim", "3.14-slim") is False
+
+
+def test_is_more_specific_tag_rejects_different_variant(libregistry):
+    # "9.10.1" (no suffix) is a different image variant, not a refinement
+    assert libregistry._is_more_specific_tag("9.10.1", "9.10.1-slim") is False
+
+
+def test_is_more_specific_tag_rejects_non_numeric_tag(libregistry):
+    assert libregistry._is_more_specific_tag("unrelated-tag", "3.14-slim") is False
+
+
+# --- find_more_specific_tag_at_same_digest ---
+
+def test_find_more_specific_tag_at_same_digest_finds_sibling(libregistry, monkeypatch):
+    monkeypatch.setattr(libregistry, "list_tags",
+                         lambda host, repo: ["3.14-slim", "3.14.7-slim", "3.13-slim"])
+    monkeypatch.setattr(libregistry, "registry_tag_exists", lambda host, repo, tag: (
+        (True, "sha256:" + "b" * 64) if tag == "3.14.7-slim" else (True, "sha256:" + "z" * 64)
+    ))
+    found = libregistry.find_more_specific_tag_at_same_digest(
+        "docker.io", "library/python", "3.14-slim", "sha256:" + "b" * 64)
+    assert found == "3.14.7-slim"
+
+
+def test_find_more_specific_tag_at_same_digest_none_when_no_sibling_matches(libregistry, monkeypatch):
+    monkeypatch.setattr(libregistry, "list_tags", lambda host, repo: ["9.10.1", "9.10.1-slim"])
+    monkeypatch.setattr(libregistry, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "z" * 64))
+    found = libregistry.find_more_specific_tag_at_same_digest(
+        "docker.io", "library/solr", "9.10.1-slim", "sha256:" + "a" * 64)
+    assert found is None
+
+
+def test_find_more_specific_tag_at_same_digest_ignores_non_prefix_tags(libregistry, monkeypatch):
+    monkeypatch.setattr(libregistry, "list_tags", lambda host, repo: ["unrelated-tag"])
+    monkeypatch.setattr(libregistry, "registry_tag_exists",
+                         lambda host, repo, tag: (True, "sha256:" + "a" * 64))
+    found = libregistry.find_more_specific_tag_at_same_digest(
+        "docker.io", "library/python", "3.14-slim", "sha256:" + "a" * 64)
+    assert found is None
+
+
+# --- is_sliding_tag ---
+
+def test_is_sliding_tag_true_from_history_alone(libregistry, values_repo, monkeypatch):
+    def fail_if_called(*a, **k):
+        raise AssertionError("registry fallback should not be needed when history is conclusive")
+
+    monkeypatch.setattr(libregistry, "find_more_specific_tag_at_same_digest", fail_if_called)
+    assert libregistry.is_sliding_tag(
+        values_repo, "docker.io", "library/solr", "9.10.1-slim", "sha256:" + "d" * 64) is True
+
+
+def test_is_sliding_tag_falls_back_to_registry_when_history_inconclusive(libregistry, values_repo, monkeypatch):
+    monkeypatch.setattr(libregistry, "find_more_specific_tag_at_same_digest",
+                         lambda *a, **k: "5.1.0-extra")
+    assert libregistry.is_sliding_tag(
+        values_repo, "docker.io", "ghcr.io/infonl/zac", "5.1.0", "sha256:" + "c" * 64) is True
+
+
+def test_is_sliding_tag_false_when_both_signals_say_no(libregistry, values_repo, monkeypatch):
+    monkeypatch.setattr(libregistry, "find_more_specific_tag_at_same_digest", lambda *a, **k: None)
+    assert libregistry.is_sliding_tag(
+        values_repo, "docker.io", "ghcr.io/infonl/zac", "5.1.0", "sha256:" + "c" * 64) is False
+
+
+def test_is_sliding_tag_false_when_registry_fallback_errors(libregistry, values_repo, monkeypatch):
+    def raise_network_error(*a, **k):
+        raise urllib.error.URLError("down")
+
+    monkeypatch.setattr(libregistry, "find_more_specific_tag_at_same_digest", raise_network_error)
+    assert libregistry.is_sliding_tag(
+        values_repo, "docker.io", "ghcr.io/infonl/zac", "5.1.0", "sha256:" + "c" * 64) is False
