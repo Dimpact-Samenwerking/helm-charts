@@ -1,0 +1,171 @@
+"""parse_changes_block, find_preceding_comment, check_images_manifest_format —
+including the two regressions found during development: a version number
+like "1.17.1-static" on a continuation line being mistaken for a new numbered
+list item, and a trailing period being captured as part of a version."""
+from conftest import make_dep
+
+REAL_MANIFEST = """\
+# Baseline: podiumd 4.8.5 (origin/feature/podiumd-4.8.5 @ f27a008).
+#   git diff f27a008..HEAD -- charts/podiumd/Chart.yaml charts/podiumd/values.yaml
+#
+# Images new or changed in podiumd 4.9.0 vs 4.8.5.
+#
+# Changes:
+#   1. ZAC (Zaakafhandelcomponent) 5.0.2 -> 5.4.3 (chart 1.0.297, unchanged).
+#      Includes a bump of the ZAC OPA sidecar (openpolicyagent/opa
+#      1.17.1-static -> 1.19.0-static). Other sidecars unchanged.
+#   2. ZGW Office Add-in v0.9.313 -> 0.11.0 (chart 0.0.89 -> 0.0.92).
+#
+# See docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md for the operator upgrade notes.
+
+# ZAC — 5.0.2 -> 5.4.3
+- name: zac
+  url: ghcr.io/infonl/zaakafhandelcomponent
+  version: "5.4.3"
+  digest: "sha256:aaa"
+
+# ZAC OPA sidecar — 1.17.1-static -> 1.19.0-static
+- name: opa
+  url: openpolicyagent/opa
+  version: "1.19.0-static"
+  digest: "sha256:bbb"
+"""
+
+
+def test_parse_changes_block_extracts_all_items(vp):
+    items = vp.parse_changes_block(REAL_MANIFEST)
+    assert len(items) == 2
+    assert items[0]["name"] == "ZAC (Zaakafhandelcomponent)"
+    assert items[0]["app_source"] == "5.0.2"
+    assert items[0]["app"] == "5.4.3"
+    assert items[0]["chart_source"] == "1.0.297"
+    assert items[0]["chart"] == "1.0.297"
+    assert items[1]["name"] == "ZGW Office Add-in"
+    assert items[1]["app_source"] == "v0.9.313"
+    assert items[1]["app"] == "0.11.0"
+
+
+def test_parse_changes_block_does_not_mistake_version_continuation_for_new_item(vp):
+    """Regression: "1.17.1-static -> 1.19.0-static" on an indented
+    continuation line must not be parsed as a bogus item #17."""
+    items = vp.parse_changes_block(REAL_MANIFEST)
+    names = [i["name"] for i in items]
+    assert not any("17.1" in n for n in names)
+
+
+def test_parse_changes_block_no_changes_section(vp):
+    assert vp.parse_changes_block("# just a header\n# no changes block\n") == []
+
+
+def test_find_preceding_comment_single_line(vp):
+    lines = ["# ZAC — 5.0.2 -> 5.4.3", "- name: zac", "  version: \"5.4.3\""]
+    assert vp.find_preceding_comment(lines, 1) == "# ZAC — 5.0.2 -> 5.4.3"
+
+
+def test_find_preceding_comment_stops_at_blank_line(vp):
+    lines = ["- name: zac", "  version: \"5.4.3\"", "", "- name: opa"]
+    assert vp.find_preceding_comment(lines, 3) == ""
+
+
+def test_find_preceding_comment_multiple_lines(vp):
+    lines = ["# line one", "# line two", "- name: zac"]
+    assert vp.find_preceding_comment(lines, 2) == "# line one # line two"
+
+
+# --- check_images_manifest_format ---
+
+DEPS = [
+    make_dep("zaakafhandelcomponent", "1.0.297", alias="zac"),
+    make_dep("zgw-office-addin", "0.0.92"),
+]
+VALUES = {"zac": {"image": {"tag": "5.4.3@sha256:aaa"}, "opa": {"image": {"tag": "1.19.0-static@sha256:bbb"}}}}
+
+
+def test_images_manifest_format_passes_for_consistent_manifest(vp, tmp_path):
+    images_path = tmp_path / "images-4.9.0.yaml"
+    images_path.write_text(REAL_MANIFEST)
+    issues = vp.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, {})
+    assert issues == []
+
+
+def test_images_manifest_format_missing_file(vp, tmp_path):
+    issues = vp.check_images_manifest_format(tmp_path / "missing.yaml", "4.8.5", "4.9.0", DEPS, VALUES, {})
+    assert "does not exist" in issues[0]
+
+
+def test_images_manifest_format_invalid_yaml(vp, tmp_path):
+    images_path = tmp_path / "images-4.9.0.yaml"
+    images_path.write_text("- name: zac\n  bad: [\n")
+    issues = vp.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, {})
+    assert any("not valid YAML" in i for i in issues)
+
+
+def test_images_manifest_format_missing_required_keys(vp, tmp_path):
+    images_path = tmp_path / "images-4.9.0.yaml"
+    images_path.write_text("- name: zac\n  version: \"5.4.3\"\n")
+    issues = vp.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, {})
+    assert any("missing key" in i for i in issues)
+
+
+def test_images_manifest_format_stale_baseline_header(vp, tmp_path):
+    text = REAL_MANIFEST.replace("podiumd 4.8.5", "podiumd 4.8.2").replace(
+        "4.9.0 vs 4.8.5", "4.9.0 vs 4.8.2")
+    images_path = tmp_path / "images-4.9.0.yaml"
+    images_path.write_text(text)
+    issues = vp.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, {})
+    assert any('baseline line says "4.8.2"' in i for i in issues)
+    assert any('"... vs ..." line says baseline "4.8.2"' in i for i in issues)
+
+
+def test_images_manifest_format_trailing_period_not_captured(vp, tmp_path):
+    """Regression: the "vs" line ends with a bare period right after the
+    baseline number ("vs 4.8.5."); it must not be captured as part of the
+    version string."""
+    images_path = tmp_path / "images-4.9.0.yaml"
+    images_path.write_text(REAL_MANIFEST)
+    issues = vp.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, {})
+    assert not any("4.8.5." in i for i in issues)
+
+
+def test_images_manifest_format_changes_block_target_mismatch(vp, tmp_path):
+    text = REAL_MANIFEST.replace("5.0.2 -> 5.4.3 (chart 1.0.297", "5.0.2 -> 5.9.9 (chart 1.0.297")
+    images_path = tmp_path / "images-4.9.0.yaml"
+    images_path.write_text(text)
+    issues = vp.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, {})
+    assert any("target app" in i and "5.9.9" in i for i in issues)
+
+
+def test_images_manifest_format_entry_comment_target_mismatch(vp, tmp_path):
+    text = REAL_MANIFEST.replace(
+        "# ZAC OPA sidecar — 1.17.1-static -> 1.19.0-static",
+        "# ZAC OPA sidecar — 1.17.1-static -> 9.9.9-static",
+    )
+    images_path = tmp_path / "images-4.9.0.yaml"
+    images_path.write_text(text)
+    issues = vp.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, {})
+    assert any('comment says target "9.9.9-static"' in i for i in issues)
+
+
+def test_images_manifest_format_missing_entry_comment(vp, tmp_path):
+    text = REAL_MANIFEST.replace("# ZAC OPA sidecar — 1.17.1-static -> 1.19.0-static\n", "")
+    images_path = tmp_path / "images-4.9.0.yaml"
+    images_path.write_text(text)
+    issues = vp.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, {})
+    assert any('entry "opa" has no preceding comment' in i for i in issues)
+
+
+def test_images_manifest_format_source_vs_baseline(vp, tmp_path):
+    baseline_values = {"zac": {"opa": {"image": {"tag": "1.17.1-static@sha256:old"}}}}
+    images_path = tmp_path / "images-4.9.0.yaml"
+    images_path.write_text(REAL_MANIFEST)
+    issues = vp.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, baseline_values)
+    assert issues == []
+
+
+def test_images_manifest_format_source_vs_baseline_mismatch(vp, tmp_path):
+    # baseline actually has a different starting version than the comment claims
+    baseline_values = {"zac": {"opa": {"image": {"tag": "2.0.0-static@sha256:old"}}}}
+    images_path = tmp_path / "images-4.9.0.yaml"
+    images_path.write_text(REAL_MANIFEST)
+    issues = vp.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, baseline_values)
+    assert any('comment says source "1.17.1-static"' in i for i in issues)
