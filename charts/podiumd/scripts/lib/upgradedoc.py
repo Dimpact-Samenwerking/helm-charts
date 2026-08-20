@@ -85,6 +85,42 @@ def image_tag(values, *path):
     return node
 
 
+def canonical_version_cell(actual_source, actual_target):
+    """A "Component versions" table cell in the established style:
+    "<target> (unchanged)" when source==target, else "<source> → <target>"."""
+    if normalize_version(actual_source) == normalize_version(actual_target):
+        return f"{actual_target} (unchanged)"
+    return f"{actual_source} → {actual_target}"
+
+
+VERSION_PAIR_RE = re.compile(
+    r"(?P<source>[A-Za-z0-9][\w.\-]*)\s*(?P<arrow>→|->)\s*(?P<target>[A-Za-z0-9][\w.\-]*)"
+)
+
+
+def find_preceding_comment_line(lines, entry_line_index):
+    """Index of the closest comment line above entry_line_index that states
+    a "<source> -> <target>" version pair, or None — stops at the first
+    blank/non-comment line, so it doesn't reach into the previous entry's
+    comment."""
+    j = entry_line_index - 1
+    while j >= 0 and lines[j].strip().startswith("#"):
+        if VERSION_PAIR_RE.search(lines[j]):
+            return j
+        j -= 1
+    return None
+
+
+def replace_version_pair(line, new_source, new_target):
+    """Replace the first "<source> -> <target>" (or "→") pair in line with
+    new_source/new_target, preserving everything else (the "# <Name> — "
+    prefix, arrow style, trailing newline)."""
+    def repl(m):
+        return f"{new_source} {m.group('arrow')} {new_target}"
+    new_line, count = VERSION_PAIR_RE.subn(repl, line, count=1)
+    return new_line if count else line
+
+
 def actual_app_version(values, values_key):
     """The app version currently pinned for a component, trying the
     single-image ("<key>.image.tag") and the frontend/backend lockstep

@@ -78,8 +78,9 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
 from lib.upgradedoc import (
-    actual_app_version, extract_source_version, extract_target_version, find_image_tag_paths,
-    match_dependency, normalize_version, parse_upgrade_doc_rows, resolve_entry_path,
+    actual_app_version, canonical_version_cell, extract_source_version, extract_target_version,
+    find_image_tag_paths, find_preceding_comment_line, match_dependency, normalize_version,
+    parse_upgrade_doc_rows, replace_version_pair, resolve_entry_path,
 )
 
 CHART_YAML = SCRIPT_DIR.parents[0] / "Chart.yaml"
@@ -254,12 +255,6 @@ def load_baseline_state(new_baseline):
     return baseline_chart_yaml.get("dependencies", []), baseline_values
 
 
-def canonical_version_cell(actual_source, actual_target):
-    if normalize_version(actual_source) == normalize_version(actual_target):
-        return f"{actual_target} (unchanged)"
-    return f"{actual_source} → {actual_target}"
-
-
 def fix_component_version_table(text, target_deps, target_values, baseline_deps, baseline_values):
     """Rewrite each "Component versions" table row's App/Helm-chart cells to
     the actual baseline (source) and target versions found in git/Chart.yaml/
@@ -308,34 +303,6 @@ def fix_component_version_table(text, target_deps, target_values, baseline_deps,
             changed_rows.append((row["name"], cells[1], cells[2]))
 
     return "".join(lines), changed_rows, unmatched_names, unresolved_names
-
-
-VERSION_PAIR_RE = re.compile(
-    r"(?P<source>[A-Za-z0-9][\w.\-]*)\s*(?P<arrow>→|->)\s*(?P<target>[A-Za-z0-9][\w.\-]*)"
-)
-
-
-def find_preceding_comment_line(lines, entry_line_index):
-    """Index of the closest comment line above entry_line_index that states
-    a "<source> -> <target>" version pair, or None — stops at the first
-    blank/non-comment line, so it doesn't reach into the previous entry's
-    comment."""
-    j = entry_line_index - 1
-    while j >= 0 and lines[j].strip().startswith("#"):
-        if VERSION_PAIR_RE.search(lines[j]):
-            return j
-        j -= 1
-    return None
-
-
-def replace_version_pair(line, new_source, new_target):
-    """Replace the first "<source> -> <target>" (or "→") pair in line with
-    new_source/new_target, preserving everything else (the "# <Name> — "
-    prefix, arrow style, trailing newline)."""
-    def repl(m):
-        return f"{new_source} {m.group('arrow')} {new_target}"
-    new_line, count = VERSION_PAIR_RE.subn(repl, line, count=1)
-    return new_line if count else line
 
 
 def resolve_entry_version(name, paths):
