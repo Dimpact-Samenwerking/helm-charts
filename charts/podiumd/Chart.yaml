@@ -2,8 +2,8 @@ apiVersion: v2
 name: podiumd
 description: PodiumD Helm chart
 type: application
-version: 4.8.5
-appVersion: "4.8.5"
+version: 4.9.0
+appVersion: "4.9.0"
 dependencies:
   - name: keycloak-operator
     version: 1.12.1
@@ -67,7 +67,7 @@ dependencies:
     condition: openbeheer.enabled
   - name: zaakafhandelcomponent
     alias: zac
-    version: 1.0.297 # ZAC chart line tested against 5.5.0; image pinned to 5.0.2 (see zac.image.tag)
+    version: 1.0.297 # ZAC chart line tested against 5.5.0; image pinned to 5.1.0 (see zac.image.tag)
     repository: "@zac"
     condition: zac.enabled
     tags:
