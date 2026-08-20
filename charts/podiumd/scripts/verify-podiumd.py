@@ -31,40 +31,25 @@ Usage:
 Exit code is non-zero if any check fails — safe to use as a CI gate.
 """
 import argparse
-import json
 import re
 import shutil
-import subprocess
 import sys
 import tempfile
 import urllib.error
-import urllib.request
 from collections import Counter
 from pathlib import Path
 
 import yaml
 
 SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
+
+from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
+from lib.procutil import run
+from lib.registry import parse_repo, registry_tag_exists
+
 DEFAULT_CHART_DIR = SCRIPT_DIR.parent
 CHART_NAME = "podiumd"
-
-# Registries needing an anonymous pull token before the manifest lookup.
-# Anything else (quay.io, gcr.io, registry.k8s.io, ...) accepts anonymous
-# manifest GETs directly — same flow as documented in /fetch-image-digest
-# and used by verify-component-version.py.
-MANIFEST_ACCEPT = (
-    "application/vnd.oci.image.index.v1+json,"
-    "application/vnd.docker.distribution.manifest.list.v2+json,"
-    "application/vnd.oci.image.manifest.v1+json,"
-    "application/vnd.docker.distribution.manifest.v2+json"
-)
-TOKEN_ENDPOINTS = {
-    "docker.io": "https://auth.docker.io/token?service=registry.docker.io&scope=repository:{repo}:pull",
-    "ghcr.io": "https://ghcr.io/token?scope=repository:{repo}:pull",
-}
-MANIFEST_HOSTS = {
-    "docker.io": "registry-1.docker.io",
-}
 
 # One "tag: <version>@sha256:<digest>" pin per match, quoted or bare.
 DIGEST_PIN_RE = re.compile(
@@ -113,10 +98,6 @@ def die(message):
     checklist step begins (not part of the PASS/FAIL summary)."""
     print(f"FAIL: {message}", file=sys.stderr)
     sys.exit(1)
-
-
-def run(cmd, **kwargs):
-    return subprocess.run(cmd, check=False, **kwargs)
 
 
 def require_helm():
@@ -342,41 +323,6 @@ def find_image_tag_paths(node, path=()):
             yield from find_image_tag_paths(item, path + (str(i),))
 
 
-def parse_repo(repository):
-    """Split a Docker-style repository string into (registry_host, repo_path)
-    using the standard Docker convention: the first path segment is a
-    registry host only if it contains a "." or ":" (or is "localhost");
-    otherwise the whole string is a Docker Hub repository — official images
-    with no namespace (e.g. "python") live under "library/" on the registry
-    API even though that prefix is omitted in the human-readable form."""
-    first, sep, _ = repository.partition("/")
-    if sep and ("." in first or ":" in first or first == "localhost"):
-        return first, repository[len(first) + 1:]
-    if not sep:
-        return "docker.io", f"library/{repository}"
-    return "docker.io", repository
-
-
-def registry_tag_exists(registry_host, repo, tag):
-    """Return (exists, digest) for <repo>:<tag> on the given registry host,
-    using an anonymous pull token where the registry requires one — same
-    flow as /fetch-image-digest."""
-    headers = {"Accept": MANIFEST_ACCEPT}
-    token_url_tmpl = TOKEN_ENDPOINTS.get(registry_host)
-    if token_url_tmpl:
-        token = json.loads(urllib.request.urlopen(token_url_tmpl.format(repo=repo)).read())["token"]
-        headers["Authorization"] = f"Bearer {token}"
-    api_host = MANIFEST_HOSTS.get(registry_host, registry_host)
-    req = urllib.request.Request(f"https://{api_host}/v2/{repo}/manifests/{tag}", headers=headers)
-    try:
-        with urllib.request.urlopen(req) as resp:
-            return True, resp.headers.get("Docker-Content-Digest")
-    except urllib.error.HTTPError as e:
-        if e.code == 404:
-            return False, None
-        raise
-
-
 def resolve_pin_repo(lines, tag_line_index, tag_indent):
     """Resolve the upstream repository for a "tag:" pin at tag_line_index.
     Most pins have an active sibling "repository:" key. A minority of
@@ -531,36 +477,6 @@ def actual_app_version(values, values_key):
         if tag:
             return tag.split("@")[0]
     return None
-
-
-def find_repo_root(chart_dir):
-    result = run(["git", "-C", str(chart_dir), "rev-parse", "--show-toplevel"],
-                 capture_output=True, text=True)
-    return Path(result.stdout.strip()) if result.returncode == 0 else None
-
-
-def baseline_ref_candidates(baseline):
-    """A bare version like "4.8.5" is resolved to the release tag first, then
-    the (possibly not-yet-merged) feature branch. An explicit ref is used as-is."""
-    if re.match(r"^\d+\.\d+\.\d+", baseline):
-        return [f"podiumd-{baseline}", f"origin/feature/podiumd-{baseline}", f"feature/podiumd-{baseline}"]
-    return [baseline]
-
-
-def resolve_git_ref(repo_root, candidates):
-    for ref in candidates:
-        result = run(["git", "-C", str(repo_root), "rev-parse", "--verify", "-q", f"{ref}^{{commit}}"],
-                     capture_output=True, text=True)
-        if result.returncode == 0:
-            return ref
-    return None
-
-
-def git_show_yaml(repo_root, ref, relpath):
-    result = run(["git", "-C", str(repo_root), "show", f"{ref}:{relpath}"], capture_output=True, text=True)
-    if result.returncode != 0:
-        return None
-    return yaml.safe_load(result.stdout)
 
 
 def check_doc_title(doc_path, baseline, podiumd_version):

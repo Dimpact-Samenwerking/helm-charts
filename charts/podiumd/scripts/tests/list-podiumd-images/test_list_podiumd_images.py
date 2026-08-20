@@ -193,7 +193,7 @@ def test_load_chart_raises_if_nothing_produced(lpi, tmp_path, monkeypatch):
 
 def test_pull_chart_local_repository_raises_without_subprocess(lpi, tmp_path):
     dep = {"name": "mi-data", "version": "1.0.0", "repository": "file://../mi-data"}
-    with pytest.raises(SystemExit, match="not vendored locally"):
+    with pytest.raises(SystemExit, match="not fetchable remotely"):
         lpi.pull_chart(dep, tmp_path)
 
 
@@ -306,4 +306,4 @@ def test_main_reports_and_continues_on_load_failure(lpi, monkeypatch, capsys):
     run_main(lpi, monkeypatch)
     out = capsys.readouterr().out
     assert "=== broken-dep (broken-dep 1.0.0) ===" in out
-    assert "not vendored locally" in out
+    assert "not fetchable remotely" in out

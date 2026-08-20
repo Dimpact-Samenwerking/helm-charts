@@ -22,17 +22,21 @@ from pathlib import Path
 
 import yaml
 
-CHART_YAML = Path(__file__).resolve().parents[1] / "Chart.yaml"
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
+
+from lib.chart import find_dependency as _find_dependency
+from lib.chart import find_images, version_of
+
+CHART_YAML = SCRIPT_DIR.parents[0] / "Chart.yaml"
 
 
 def find_dependency(name_or_alias):
     deps = yaml.safe_load(CHART_YAML.read_text())["dependencies"]
-    for dep in deps:
-        if dep["name"] == name_or_alias or dep.get("alias") == name_or_alias:
-            return dep
-    raise SystemExit(
-        f"error: no dependency named or aliased '{name_or_alias}' found in {CHART_YAML}"
-    )
+    dep = _find_dependency(deps, name_or_alias)
+    if dep is None:
+        raise SystemExit(f"error: no dependency named or aliased '{name_or_alias}' found in {CHART_YAML}")
+    return dep
 
 
 def chart_ref(dep):
@@ -51,29 +55,6 @@ def pull_chart(ref, version, dest):
         raise SystemExit(
             f"error: helm pull failed for {ref}@{version}\n{result.stderr.strip()}"
         )
-
-
-def version_of(tag):
-    return tag.split("@", 1)[0]
-
-
-def find_images(node, path=""):
-    """Recursively walk a parsed values.yaml tree, yielding (path, repository, tag)
-    for every dict that has both a 'repository' and a 'tag' key."""
-    images = []
-    if isinstance(node, dict):
-        if "repository" in node and "tag" in node:
-            repo = node["repository"]
-            tag = node["tag"]
-            if repo and tag not in (None, ""):
-                images.append((path or "(root)", repo, tag))
-        for key, value in node.items():
-            child_path = f"{path}.{key}" if path else key
-            images.extend(find_images(value, child_path))
-    elif isinstance(node, list):
-        for i, item in enumerate(node):
-            images.extend(find_images(item, f"{path}[{i}]"))
-    return images
 
 
 def main():

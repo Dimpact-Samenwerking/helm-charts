@@ -19,12 +19,15 @@ git tag, falling back to the feature/podiumd-4.8.5 / origin/feature/podiumd-
 as-is. Reads charts/podiumd/Chart.yaml + values.yaml as they were at that
 ref via `git show` — no checkout needed.
 """
-import re
-import subprocess
 import sys
 from pathlib import Path
 
-import yaml
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
+
+from lib.chart import find_dependency, get_path
+from lib.gitutil import baseline_ref_candidates, git_show_yaml, resolve_git_ref
+from lib.gitutil import find_repo_root as _find_repo_root
 
 RELATIVE_CHART_DIR = "charts/podiumd"
 
@@ -38,53 +41,11 @@ COMPONENT_IMAGE_PATHS = {
 DEFAULT_IMAGE_PATHS = ["image"]
 
 
-def run(cmd):
-    return subprocess.run(cmd, check=False, capture_output=True, text=True)
-
-
 def find_repo_root():
-    result = run(["git", "-C", str(Path(__file__).resolve().parent), "rev-parse", "--show-toplevel"])
-    if result.returncode != 0:
+    repo_root = _find_repo_root(Path(__file__).resolve().parent)
+    if repo_root is None:
         raise SystemExit("error: not inside a git repository")
-    return Path(result.stdout.strip())
-
-
-def baseline_ref_candidates(baseline):
-    """A bare version like "4.8.5" is resolved to the release tag first, then
-    the (possibly not-yet-merged) feature branch. An explicit ref is used as-is."""
-    if re.match(r"^\d+\.\d+\.\d+", baseline):
-        return [f"podiumd-{baseline}", f"origin/feature/podiumd-{baseline}", f"feature/podiumd-{baseline}"]
-    return [baseline]
-
-
-def resolve_git_ref(repo_root, candidates):
-    for ref in candidates:
-        result = run(["git", "-C", str(repo_root), "rev-parse", "--verify", "-q", f"{ref}^{{commit}}"])
-        if result.returncode == 0:
-            return ref
-    return None
-
-
-def git_show_yaml(repo_root, ref, relpath):
-    result = run(["git", "-C", str(repo_root), "show", f"{ref}:{relpath}"])
-    if result.returncode != 0:
-        return None
-    return yaml.safe_load(result.stdout)
-
-
-def find_dependency(deps, name_or_alias):
-    for dep in deps:
-        if dep["name"] == name_or_alias or dep.get("alias") == name_or_alias:
-            return dep
-    return None
-
-
-def get_path(node, dotted_path):
-    for key in dotted_path.split("."):
-        if not isinstance(node, dict):
-            return None
-        node = node.get(key)
-    return node
+    return repo_root
 
 
 def find_app_versions(values, values_key, image_paths):

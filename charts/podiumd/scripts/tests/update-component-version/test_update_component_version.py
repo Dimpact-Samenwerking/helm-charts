@@ -294,24 +294,22 @@ def test_main_exits_zero_and_writes_nothing_when_both_unchanged(ucv, tmp_path, m
 
 # --- resolve_repos ---
 
-def test_resolve_repos_reads_target_charts_own_values(ucv, tmp_path, monkeypatch):
+def test_resolve_repos_reads_target_charts_own_values(ucv, monkeypatch):
     dep = {"name": "openforms", "alias": "openformulieren", "version": "1.11.0", "repository": "@maykinmedia"}
-
-    def fake_pull_chart(dep_arg, version, dest):
-        chart_dir = dest / "openforms"
-        chart_dir.mkdir(parents=True)
-        (chart_dir / "values.yaml").write_text(
-            yaml.safe_dump({"image": {"repository": "maykinmedia/open-forms"}}), encoding="utf-8"
-        )
-        return True, ""
-
-    monkeypatch.setattr(ucv, "pull_chart", fake_pull_chart)
+    monkeypatch.setattr(
+        ucv, "pull_chart_values",
+        lambda dep_arg, version: {"image": {"repository": "maykinmedia/open-forms"}},
+    )
     repos = ucv.resolve_repos(dep, "1.12.0", ["image"])
     assert repos == {"image": "maykinmedia/open-forms"}
 
 
-def test_resolve_repos_raises_on_pull_failure(ucv, tmp_path, monkeypatch):
+def test_resolve_repos_raises_on_pull_failure(ucv, monkeypatch):
     dep = {"name": "openforms", "repository": "@maykinmedia"}
-    monkeypatch.setattr(ucv, "pull_chart", lambda dep_arg, version, dest: (False, "chart version not found"))
+
+    def fake_pull_chart_values(dep_arg, version):
+        raise SystemExit(f"error: could not pull {dep_arg['name']} {version}: chart version not found")
+
+    monkeypatch.setattr(ucv, "pull_chart_values", fake_pull_chart_values)
     with pytest.raises(SystemExit):
         ucv.resolve_repos(dep, "9.9.9", ["image"])
