@@ -1790,9 +1790,7 @@ openformulieren:
     volumeAttributeShareName: openformulieren
     storageClassName: podiumd-standard
   image:
-    # bump version on karins request for testing purposes
-    #tag: "3.4.10@sha256:45755696db647b0c9fecc5d2c78403dbbac0f3c962292e89dee34b405abd1d7c"
-    tag: "3.4.11@sha256:a39a9e9b3a2df413a0b5243139604c729ba545c57dda0d80eef85296a76f58f5"
+    tag: "3.4.10@sha256:45755696db647b0c9fecc5d2c78403dbbac0f3c962292e89dee34b405abd1d7c"
   resources:
     requests:
       cpu: 250m
@@ -2829,11 +2827,11 @@ zac:
     mail: "noreply@example.nl"
   global:
     curlImage: *curlImage
-  # ghcr.io/infonl/zaakafhandelcomponent:5.5.0
+  # ghcr.io/infonl/zaakafhandelcomponent:5.4.3
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
-    tag: 5.5.0@sha256:bb12411f58f155f1153ad80a094b03dfb6fb24085b1fc0aa5bba2715c4b43b1d
+    tag: 5.4.3@sha256:c5640dd38aef91fa90b4859f01d631fb19c17146b3920323520a9e75f2632812
   # Liveness probe uses /health/ready (not /health/live) with a high failureThreshold so
   # Kubernetes automatically restarts ZAC after extended OpenZaak/catalogus unavailability.
   # The ZGW-API-Client has no connectTimeout/readTimeout, causing stale TCP connections

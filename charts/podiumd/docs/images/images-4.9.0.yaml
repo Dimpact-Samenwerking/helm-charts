@@ -1,39 +1,55 @@
-# Baseline: podiumd 4.8.2 (main @ 4184f87). Re-verify before release:
-#   git diff 4184f87..HEAD -- charts/podiumd/Chart.yaml charts/podiumd/values.yaml
+# Baseline: podiumd 4.8.5 (origin/feature/podiumd-4.8.5 @ f27a008 — not yet
+# merged to main; re-resolve this reference once it lands). Re-verify before
+# release:
+#   git diff f27a008..HEAD -- charts/podiumd/Chart.yaml charts/podiumd/values.yaml
 #
-# Images new or changed in podiumd 4.9.0 vs 4.8.2.
+# Images new or changed in podiumd 4.9.0 vs 4.8.5.
 #
 # Changes:
-#   1. ZAC (Zaakafhandelcomponent) 5.0.1 -> 5.4.0 (chart 1.0.251 -> 1.0.287).
+#   1. ZAC (Zaakafhandelcomponent) 5.0.2 -> 5.4.3 (chart 1.0.297, unchanged).
 #      Includes a bump of the ZAC OPA sidecar (openpolicyagent/opa
-#      1.17.1-static -> 1.18.2-static). The other ZAC sidecars
-#      (nginx-unprivileged, curl, busybox, gotenberg, solr) are unchanged.
+#      1.17.1-static -> 1.19.0-static). The nginx-unprivileged and solr
+#      sidecars keep the same tag but got a digest-only rebuild (see below);
+#      curl, busybox and gotenberg are fully unchanged.
 #   2. ZGW Office Add-in v0.9.313 -> 0.11.0 (chart 0.0.89 -> 0.0.92).
-#      Repository names (zgw-office-addin-{frontend,backend}) unchanged from 4.8.2.
+#      Repository names (zgw-office-addin-{frontend,backend}) unchanged from 4.8.5.
 #
-# See docs/_UPGRADE_PATHS/4.8.2-to-4.9.0-upgrade.md for the operator upgrade notes.
+# See docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md for the operator upgrade notes.
 #
 # Digests are the OCI image index (multi-arch manifest) digest as returned in
 # the Docker-Content-Digest response header from the source registry.
 
-# ZAC — 5.0.1 -> 5.4.0
+# ZAC — 5.0.2 -> 5.4.3
 - name: zac
   url: ghcr.io/infonl/zaakafhandelcomponent
-  version: "5.4.0"
-  digest: "sha256:93b959ce15a41130a2f9fc03d1cb681d03ae5a8791c54f31a946761ed53c89cf"
+  version: "5.4.3"
+  digest: "sha256:c5640dd38aef91fa90b4859f01d631fb19c17146b3920323520a9e75f2632812"
 
-# ZAC OPA sidecar — 1.17.1-static -> 1.18.2-static
+# ZAC OPA sidecar — 1.17.1-static -> 1.19.0-static
 - name: opa
   url: openpolicyagent/opa
-  version: "1.18.2-static"
-  digest: "sha256:57f7d06808fff6de3ea1d698e6430990973ca1370be0e54975f0083d615521da"
+  version: "1.19.0-static"
+  digest: "sha256:2f42ca765bb739b40fc23ee625b3287012acdf8120ad4fcbdab68433a17be144"
 
-# ZGW Office Add-in — v0.9.313 -> 0.11.0
+# ZAC nginx sidecar — 1.31.3, digest-only rebuild
+- name: zac-nginx
+  url: nginxinc/nginx-unprivileged
+  version: "1.31.3"
+  digest: "sha256:d236224175e339a75199d10f7c1dd5d58f5ed1f7e347b13f5cf343218a1408d1"
+
+# ZAC solr sidecar — 9.10.1-slim, digest-only rebuild
+- name: zac-solr
+  url: library/solr
+  version: "9.10.1-slim"
+  digest: "sha256:38dd9719f0f6e799d04bb8c22fb5eaca3a9fe7ffaf313c296327c6cca02f3c1d"
+
+# ZGW Office Add-in frontend — v0.9.313 -> 0.11.0
 - name: zgw-office-addin-frontend
   url: ghcr.io/infonl/zgw-office-addin-frontend
   version: "0.11.0"
   digest: "sha256:9a6b3e9023b8cfba152a84dd7477e079490fc7d35562d32e0dc094be81a7f7a2"
 
+# ZGW Office Add-in backend — v0.9.313 -> 0.11.0
 - name: zgw-office-addin-backend
   url: ghcr.io/infonl/zgw-office-addin-backend
   version: "0.11.0"
