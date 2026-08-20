@@ -11,10 +11,10 @@ same as verify-podiumd.py's docs-consistency check — not a parameter,
 since these docs only ever exist for a hop landing on the current chart.
 
 Usage:
-    bump-doc-baseline.py <new-baseline>
+    set-doc-baseline.py <new-baseline>
 
 Example:
-    bump-doc-baseline.py 4.8.3
+    set-doc-baseline.py 4.8.3
         # if Chart.yaml's version is 4.9.0, renames *-to-4.9.0-*.md
 
 For each doc file matching "<some-baseline>-to-<target>-<suffix>.md":

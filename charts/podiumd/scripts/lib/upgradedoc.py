@@ -1,5 +1,5 @@
 """Upgrade-doc parsing/matching helpers shared by verify-podiumd.py's
-docs-consistency check and bump-doc-baseline.py's version-correction pass."""
+docs-consistency check and set-doc-baseline.py's version-correction pass."""
 import re
 
 
