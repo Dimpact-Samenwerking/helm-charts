@@ -12,6 +12,7 @@ import lib.chart as chart
 import lib.gitutil as gitutil
 import lib.procutil as procutil
 import lib.registry as registry
+import lib.upgradedoc as upgradedoc
 
 
 @pytest.fixture(scope="session")
@@ -32,3 +33,8 @@ def libchart():
 @pytest.fixture(scope="session")
 def libgitutil():
     return gitutil
+
+
+@pytest.fixture(scope="session")
+def libupgradedoc():
+    return upgradedoc
