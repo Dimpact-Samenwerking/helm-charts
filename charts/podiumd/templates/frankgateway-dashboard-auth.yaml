@@ -80,7 +80,7 @@ spec:
     spec:
       containers:
         - name: nginx
-          image: "{{ $auth.shim.image.repository }}:{{ $auth.shim.image.tag }}"
+          image: {{ include "podiumd.image" $auth.shim.image }}
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
@@ -100,6 +100,10 @@ spec:
         - name: conf
           secret:
             secretName: frankgateway-shim
+      {{- with $auth.shim.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
 ---
 apiVersion: v1
 kind: Service
@@ -138,7 +142,7 @@ spec:
     spec:
       containers:
         - name: oauth2-proxy
-          image: "{{ $auth.oauth2Proxy.image.repository }}:{{ $auth.oauth2Proxy.image.tag }}"
+          image: {{ include "podiumd.image" $auth.oauth2Proxy.image }}
           imagePullPolicy: IfNotPresent
           args:
             - --provider=oidc
@@ -185,6 +189,10 @@ spec:
             periodSeconds: 30
           resources:
             {{- toYaml $auth.oauth2Proxy.resources | nindent 12 }}
+      {{- with $auth.oauth2Proxy.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
 ---
 apiVersion: v1
 kind: Service

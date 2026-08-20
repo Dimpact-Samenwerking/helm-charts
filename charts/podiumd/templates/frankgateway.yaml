@@ -64,7 +64,7 @@ spec:
     spec:
       containers:
         - name: apisix
-          image: "{{ $fg.image.repository }}:{{ $fg.image.tag }}"
+          image: {{ include "podiumd.image" $fg.image }}
           imagePullPolicy: IfNotPresent
           envFrom:
             - secretRef:
@@ -103,4 +103,8 @@ spec:
         - name: config
           secret:
             secretName: frankgateway-apisix-config
+      {{- with $fg.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
 {{- end }}

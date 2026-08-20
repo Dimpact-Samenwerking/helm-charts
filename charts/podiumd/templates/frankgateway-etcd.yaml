@@ -43,7 +43,7 @@ spec:
     spec:
       containers:
         - name: etcd
-          image: "{{ $etcd.image.repository }}:{{ $etcd.image.tag }}"
+          image: {{ include "podiumd.image" $etcd.image }}
           imagePullPolicy: IfNotPresent
           command:
             - /usr/local/bin/etcd
@@ -77,6 +77,10 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /etcd-data
+      {{- with $etcd.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
   volumeClaimTemplates:
     - metadata:
         name: data

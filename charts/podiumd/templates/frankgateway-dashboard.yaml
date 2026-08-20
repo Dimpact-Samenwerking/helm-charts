@@ -203,7 +203,7 @@ spec:
     spec:
       containers:
         - name: dashboard
-          image: "{{ $dash.image.repository }}:{{ $dash.image.tag }}"
+          image: {{ include "podiumd.image" $dash.image }}
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
@@ -228,4 +228,8 @@ spec:
         - name: conf
           secret:
             secretName: frankgateway-dashboard-conf
+      {{- with $dash.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
 {{- end }}
