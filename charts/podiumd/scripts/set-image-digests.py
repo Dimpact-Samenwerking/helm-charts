@@ -16,13 +16,16 @@ untouched). A single image (e.g. nginx-unprivileged) can be pinned many
 times; all occurrences are updated together since they share the exact
 same old digest string.
 
-A pin inside the "global: images:" block (nginx, curl, busybox, ... — the
-sliding base images reused via YAML anchor across the chart) is treated
-differently: its digest is EXPECTED to drift as upstream re-publishes the
-tag, so by default it's reported but left untouched, not rewritten. A pin
-outside that block is a component's own release tag, which should never
-legitimately change once published, so by default it's the only kind this
-script updates. Pass --all to also update sliding pins.
+A tag known to slide is treated differently: its digest is EXPECTED to
+drift as upstream re-publishes the tag, so by default it's reported but
+left untouched, not rewritten. "Known to slide" means either this repo's
+own git history shows the tag has changed digest before (direct proof), or
+— only when that's inconclusive — the registry currently has a more
+specific sibling tag at the same digest (e.g. "3.14.7-slim" alongside our
+"3.14-slim", both at the same digest right now). Everything else is
+treated as a component's own release tag, which should never legitimately
+change once published — by default that's the only kind this script
+updates. Pass --all to also update sliding pins.
 
 Pins with no discoverable repository (no active "repository:" sibling key,
 no "# host/repo:tag" reference comment, no commented-out "#repository:"
@@ -35,7 +38,7 @@ belong in the release's docs/images/images-<version>.yaml instead.
 
 Usage:
     set-image-digests.py             # fetch, compare, rewrite stale PINNED digests only
-    set-image-digests.py --all       # also rewrite stale SLIDING (global.images.*) digests
+    set-image-digests.py --all       # also rewrite stale SLIDING digests
     set-image-digests.py --dry-run   # fetch and compare only, no write (combine with --all as needed)
 
 After a real run, re-render the chart (verify-podiumd.py or
@@ -49,7 +52,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from lib.registry import find_sliding_tag_line_range, is_sliding_pin, parse_repo, registry_tag_exists
+from lib.registry import is_sliding_tag, parse_repo, registry_tag_exists
 
 VALUES_PATH = SCRIPT_DIR.parents[0] / "values.yaml"
 
@@ -114,15 +117,13 @@ def scan_digest_pins(lines):
     return pins
 
 
-def find_stale_digests(lines):
+def find_stale_digests(lines, values_path):
     """Return (stale, unresolved, fetch_errors). stale is a list of
     (repository, version, old_digest, new_digest, [line, ...], sliding) —
-    sliding is True for a pin inside the "global: images:" block (nginx,
-    curl, busybox, ... — reused via YAML anchor), whose digest is expected
-    to drift as upstream re-publishes the tag; False for a component's own
-    release tag, which should never legitimately change once published."""
+    see lib.registry.is_sliding_tag for what makes a mismatch "sliding"
+    (expected drift) versus a component's own release tag, which should
+    never legitimately change once published."""
     pins = scan_digest_pins(lines)
-    sliding_range = find_sliding_tag_line_range(lines)
     unresolved = [p for p in pins if not p["repository"]]
 
     targets = {}
@@ -136,7 +137,6 @@ def find_stale_digests(lines):
         host, repo_path = parse_repo(repository)
         pinned_digest = group[0]["digest"]
         lines_for_pin = [p["line"] for p in group]
-        sliding = is_sliding_pin(group[0]["line"], sliding_range)
 
         digest, error = None, None
         for _attempt in range(2):
@@ -150,6 +150,7 @@ def find_stale_digests(lines):
         if error:
             fetch_errors.append((repository, version, error, lines_for_pin))
         elif digest and digest != f"sha256:{pinned_digest}":
+            sliding = is_sliding_tag(values_path, host, repo_path, version, digest)
             stale.append((repository, version, pinned_digest, digest, lines_for_pin, sliding))
 
     return stale, unresolved, fetch_errors
@@ -163,7 +164,7 @@ def main():
     lines = text.splitlines()
 
     print(f"Scanning {VALUES_PATH} for digest-pinned images...")
-    stale, unresolved, fetch_errors = find_stale_digests(lines)
+    stale, unresolved, fetch_errors = find_stale_digests(lines, VALUES_PATH)
 
     if unresolved:
         print(f"\n{len(unresolved)} pin(s) could not be resolved to a repository (skipped):")

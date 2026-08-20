@@ -14,10 +14,10 @@ trip:
      changed — an entry in images-<version>.yaml, even if no doc mentions
      it yet
   4. every digest-pinned image in values.yaml still matches its live
-     upstream registry digest — except a pin inside the "global: images:"
-     block (nginx, curl, busybox, ... — sliding base images reused via YAML
-     anchor), where drift is expected and passes, just reported for
-     visibility
+     upstream registry digest — except a tag known to slide (this repo's
+     git history shows it's changed digest before, or the registry
+     currently has a more specific sibling tag at the same digest), where
+     drift is expected and passes, just reported for visibility
   5. all Chart.yaml dependencies actually resolve and bundle (helm dependency update)
   6. the chart lints cleanly with the CI placeholder values
   7. the chart renders cleanly with `helm template` using the CI placeholder values
@@ -63,7 +63,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
 from lib.procutil import run
-from lib.registry import find_sliding_tag_line_range, is_sliding_pin, parse_repo, registry_tag_exists
+from lib.registry import is_sliding_tag, parse_repo, registry_tag_exists
 from lib.upgradedoc import (
     actual_app_version, compute_changed_components, diff_keys, extract_mentioned_dependency_keys,
     extract_source_version, extract_target_version, find_grouped_preceding_comment,
@@ -312,17 +312,16 @@ def check_image_digests(chart_dir):
     One network request per unique (repository, version) pair. Never writes
     to values.yaml — use set-image-digests.py to fix confirmed-stale pins.
 
-    A pin inside the "global: images:" block (nginx, curl, busybox, ... —
-    the sliding base images reused via YAML anchor across the chart) is
-    EXPECTED to drift as upstream re-publishes the tag with new base/security
-    layers, so a mismatch there passes: it's reported for visibility, not
-    counted as a failure. A pin outside that block is a component's own
+    A mismatch is classified sliding — expected drift, reported but not
+    counted as a failure — when this repo's own git history shows the tag
+    has changed digest before, or (only if that's inconclusive) the
+    registry currently has a more specific sibling tag at the same digest;
+    see lib.registry.is_sliding_tag. Otherwise it's a component's own
     release tag, which should never legitimately change once published —
     a mismatch there is a real failure worth investigating."""
     values_path = chart_dir / "values.yaml"
     lines = values_path.read_text(encoding="utf-8").splitlines()
     pins = scan_digest_pins(lines)
-    sliding_range = find_sliding_tag_line_range(lines)
 
     unresolved = [p for p in pins if not p["repository"]]
     targets = {}
@@ -342,7 +341,6 @@ def check_image_digests(chart_dir):
         host, repo_path = parse_repo(repository)
         pinned_digest = group[0]["digest"]
         lines_str = ", ".join(str(p["line"]) for p in group)
-        sliding = is_sliding_pin(group[0]["line"], sliding_range)
 
         digest, error = None, None
         for _attempt in range(2):
@@ -357,10 +355,11 @@ def check_image_digests(chart_dir):
             fetch_errors.append((repository, version, error, lines_str))
             print(f"  [FETCH-ERR] {host}/{repo_path}:{version}  {error}  (lines {lines_str})")
         elif digest and digest != f"sha256:{pinned_digest}":
+            sliding = is_sliding_tag(values_path, host, repo_path, version, digest)
             if sliding:
                 sliding_mismatches.append((repository, version, pinned_digest, digest, lines_str))
-                print(f"  [SLIDING  ] {host}/{repo_path}:{version}  (global.images.* base image — "
-                      f"digest drift is expected, not a failure)")
+                print(f"  [SLIDING  ] {host}/{repo_path}:{version}  (known to drift — "
+                      f"digest change is expected, not a failure)")
                 print(f"      pinned:   sha256:{pinned_digest}")
                 print(f"      upstream: {digest}")
                 print(f"      lines:    {lines_str}")
