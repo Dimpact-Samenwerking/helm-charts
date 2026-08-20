@@ -2804,6 +2804,10 @@ zac:
       verwerking:
         header: ""            # iConnect/2Secure: "x-verwerking" | eServices: "x-request-afnemerscode"
         register: ""          # iConnect: "DigitaleDienstverlening"
+        # -- New in chart 1.0.297+: whether to extend the verwerking register with the
+        # zaaktype, i.e. "<register>@<zaaktype>" instead of "<register>" on its own.
+        # Must be true for iConnect; leave false for eServices/2Secure.
+        extendWithZaaktype: false
       gebruiker:
         header: ""            # iConnect/2Secure: "x-gebruiker" | eServices: "x-request-user"
       toepassing:
