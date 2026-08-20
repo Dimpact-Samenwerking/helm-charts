@@ -151,6 +151,7 @@ def test_check_image_digests_reports_mismatch(vp, tmp_path, monkeypatch, capsys)
         f'    tag: "1.0.0@sha256:{"a" * 64}"\n'
     ))
     monkeypatch.setattr(vp, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{'b' * 64}"))
+    monkeypatch.setattr(vp, "is_sliding_tag", lambda *a, **k: False)
     ok, detail = vp.check_image_digests(tmp_path)
     assert ok is False
     assert "1 stale" in detail
@@ -250,15 +251,18 @@ def test_check_image_digests_skips_unresolved_repository(vp, tmp_path, monkeypat
     assert "0/0 matched" in detail
 
 
-# --- check_image_digests: sliding (global.images.*) vs pinned ---
+# --- check_image_digests: sliding vs pinned wiring ---
+#
+# The classification logic itself (git-history digest count, registry
+# sibling-tag fallback) lives in lib.registry and is tested there —
+# is_sliding_tag is mocked here to test only that check_image_digests
+# routes its verdict into the right bucket (and print label).
 
-GLOBAL_IMAGES_VALUES = (
-    "global:\n"
-    "  images:\n"
-    "    nginx: &nginxImage\n"
-    "      repository: nginxinc/nginx-unprivileged\n"
-    f'      tag: "1.31.3@sha256:{"a" * 64}"\n'
-    "\n"
+TWO_IMAGES_VALUES = (
+    "nginx:\n"
+    "  image:\n"
+    "    repository: nginxinc/nginx-unprivileged\n"
+    f'    tag: "1.31.3@sha256:{"a" * 64}"\n'
     "zac:\n"
     "  image:\n"
     "    repository: ghcr.io/infonl/zaakafhandelcomponent\n"
@@ -267,13 +271,15 @@ GLOBAL_IMAGES_VALUES = (
 
 
 def test_check_image_digests_sliding_drift_passes(vp, tmp_path, monkeypatch, capsys):
-    """A global.images.* base image's digest drifting must not fail the
-    check — it's expected, routine drift, not a pin bug."""
-    write_values(tmp_path, GLOBAL_IMAGES_VALUES)
+    """A tag known to slide drifting must not fail the check — it's
+    expected, routine drift, not a pin bug."""
+    write_values(tmp_path, TWO_IMAGES_VALUES)
     monkeypatch.setattr(vp, "registry_tag_exists", lambda host, repo, tag: (
         (True, f"sha256:{'c' * 64}") if repo == "nginxinc/nginx-unprivileged"
         else (True, f"sha256:{'b' * 64}")
     ))
+    monkeypatch.setattr(vp, "is_sliding_tag",
+                         lambda values_path, host, repo, version, live_digest: repo == "nginxinc/nginx-unprivileged")
     ok, detail = vp.check_image_digests(tmp_path)
     assert ok is True
     assert "1 sliding" in detail
@@ -285,12 +291,14 @@ def test_check_image_digests_sliding_drift_passes(vp, tmp_path, monkeypatch, cap
 
 def test_check_image_digests_pinned_drift_still_fails(vp, tmp_path, monkeypatch, capsys):
     """A component's own release tag drifting is a real failure, even when
-    a sliding base image ALSO drifted in the same run."""
-    write_values(tmp_path, GLOBAL_IMAGES_VALUES)
+    a sliding tag ALSO drifted in the same run."""
+    write_values(tmp_path, TWO_IMAGES_VALUES)
     monkeypatch.setattr(vp, "registry_tag_exists", lambda host, repo, tag: (
         (True, f"sha256:{'a' * 64}") if repo == "nginxinc/nginx-unprivileged"  # unchanged, matches
         else (True, f"sha256:{'c' * 64}")  # zac drifted — not sliding
     ))
+    monkeypatch.setattr(vp, "is_sliding_tag",
+                         lambda values_path, host, repo, version, live_digest: repo == "nginxinc/nginx-unprivileged")
     ok, detail = vp.check_image_digests(tmp_path)
     assert ok is False
     assert "0 sliding" in detail
