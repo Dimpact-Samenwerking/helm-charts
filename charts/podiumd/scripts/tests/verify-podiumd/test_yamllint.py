@@ -4,9 +4,11 @@ templates/*.yaml, which contain Go template syntax that isn't valid YAML on
 its own) and buckets findings by scope (this chart's own templates/ vs. a
 vendored sub-chart under charts/podiumd/charts/*) and by rule (a real
 structural problem — key-duplicates, syntax — vs. cosmetic style). Only an
-own+real finding fails; everything else is report-only, same spirit as
-check_dry. All `helm`/`yamllint` subprocess calls are mocked via vp.run —
-no real yamllint or helm invocation happens in these tests."""
+own+real finding fails and is printed; vendored findings only ever get a
+one-line aggregate count; cosmetic (own) findings aren't reported at all —
+too noisy to be worth surfacing right now. All `helm`/`yamllint` subprocess
+calls are mocked via vp.run — no real yamllint or helm invocation happens
+in these tests."""
 from types import SimpleNamespace
 
 import pytest
@@ -99,17 +101,21 @@ def test_check_yamllint_own_key_duplicate_fails(vp, tmp_path, monkeypatch):
     assert "1 real" in detail
 
 
-def test_check_yamllint_own_cosmetic_does_not_fail(vp, tmp_path, monkeypatch, capsys):
+def test_check_yamllint_own_cosmetic_not_reported_at_all(vp, tmp_path, monkeypatch, capsys):
+    """Cosmetic findings in our own templates aren't just non-failing —
+    they're not mentioned anywhere in the output or detail string at all,
+    per project decision (too noisy to be worth surfacing right now)."""
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/yamllint")
     yamllint_out = "  4:1     error    trailing spaces  (trailing-spaces)\n"
     monkeypatch.setattr(vp, "run", sequenced_run(yamllint_out))
 
     ok, detail = vp.check_yamllint(tmp_path, [])
     assert ok is True
-    assert "1 cosmetic" in detail
+    assert "cosmetic" not in detail
+    assert detail == "0 real (own), 0 in vendored sub-charts"
     out = capsys.readouterr().out
-    assert "not a failure" in out
-    assert "not shown" in out  # no per-finding dump — too noisy, per project decision
+    assert "trailing" not in out
+    assert "cosmetic" not in out
 
 
 def test_check_yamllint_vendored_key_duplicate_never_fails(vp, tmp_path, monkeypatch, capsys):
@@ -146,6 +152,43 @@ def test_check_yamllint_vendored_findings_reported_as_one_line_count(vp, tmp_pat
     assert "2 yamllint finding(s) across 1 vendored sub-chart(s)" in out
     assert "(trailing-spaces)" not in out
     assert "(comments)" not in out
+
+
+def test_check_yamllint_repeated_own_finding_in_one_file_is_grouped(vp, tmp_path, monkeypatch, capsys):
+    """The same root cause (e.g. the frankgateway templates duplicating
+    app.kubernetes.io/name once per resource) shows up as several hits in
+    one file — these must print as one grouped line with an occurrence
+    count and a line list, not one [ERROR] line per hit."""
+    monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/yamllint")
+    rendered = (
+        "---\n"
+        "# Source: podiumd/templates/frankgateway.yaml\n"
+        "apiVersion: v1\n"
+        "kind: Service\n"
+        "metadata:\n"
+        "  labels:\n"
+        "    app.kubernetes.io/name: podiumd\n"
+        "    app.kubernetes.io/name: frankgateway-shim\n"
+        "---\n"
+        "kind: Deployment\n"
+        "metadata:\n"
+        "  labels:\n"
+        "    app.kubernetes.io/name: podiumd\n"
+        "    app.kubernetes.io/name: frankgateway-shim\n"
+    )
+    yamllint_out = (
+        '  8:5      error    duplication of key "app.kubernetes.io/name" in mapping  (key-duplicates)\n'
+        '  14:5     error    duplication of key "app.kubernetes.io/name" in mapping  (key-duplicates)\n'
+    )
+    monkeypatch.setattr(vp, "run", sequenced_run(yamllint_out, rendered=rendered))
+
+    ok, detail = vp.check_yamllint(tmp_path, [])
+    assert ok is False
+    assert "2 real" in detail
+    out = capsys.readouterr().out
+    assert out.count("[ERROR  ]") == 1  # one grouped line, not two
+    assert "x2" in out
+    assert "8, 14" in out
 
 
 def test_check_yamllint_missing_binary_fails(vp, tmp_path, monkeypatch):
