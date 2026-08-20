@@ -35,18 +35,21 @@ charts/podiumd/scripts/add-helm-repos.sh) and the `helm` CLI on PATH.
 Exit code is non-zero if either the app version or the chart version does not
 exist — safe to use as a gate before bumping the chart.
 """
-import json
 import shutil
-import subprocess
 import sys
 import tempfile
-import urllib.error
-import urllib.request
 from pathlib import Path
 
 import yaml
 
-CHART_YAML = Path(__file__).resolve().parents[1] / "Chart.yaml"
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
+
+from lib.chart import chart_ref, get_path, pull_chart, pulled_chart_dir
+from lib.chart import find_dependency as _find_dependency
+from lib.registry import parse_repo, registry_tag_exists
+
+CHART_YAML = SCRIPT_DIR.parents[0] / "Chart.yaml"
 
 # component (name or alias) -> dotted values.yaml path(s) for its own image
 # block(s), for components that ship more than one image that must move in
@@ -57,92 +60,13 @@ COMPONENT_IMAGE_PATHS = {
 }
 DEFAULT_IMAGE_PATHS = ["image"]
 
-MANIFEST_ACCEPT = (
-    "application/vnd.oci.image.index.v1+json,"
-    "application/vnd.docker.distribution.manifest.list.v2+json,"
-    "application/vnd.oci.image.manifest.v1+json,"
-    "application/vnd.docker.distribution.manifest.v2+json"
-)
-
-# Registries needing an anonymous pull token before the manifest lookup.
-# Anything else (quay.io, gcr.io, registry.k8s.io, ...) accepts anonymous
-# manifest GETs directly — same flow as documented in /fetch-image-digest.
-TOKEN_ENDPOINTS = {
-    "docker.io": "https://auth.docker.io/token?service=registry.docker.io&scope=repository:{repo}:pull",
-    "ghcr.io": "https://ghcr.io/token?scope=repository:{repo}:pull",
-}
-MANIFEST_HOSTS = {
-    "docker.io": "registry-1.docker.io",
-}
-
 
 def find_dependency(name_or_alias):
     deps = yaml.safe_load(CHART_YAML.read_text())["dependencies"]
-    for dep in deps:
-        if dep["name"] == name_or_alias or dep.get("alias") == name_or_alias:
-            return dep
-    raise SystemExit(f"error: no dependency named or aliased '{name_or_alias}' found in {CHART_YAML}")
-
-
-def chart_ref(dep):
-    """Return (ref, extra_repo_url_or_None) for `helm pull`."""
-    repo = dep["repository"]
-    if repo.startswith("oci://"):
-        return f"{repo}/{dep['name']}", None
-    if repo.startswith("@"):
-        return f"{repo[1:]}/{dep['name']}", None
-    if repo.startswith("http://") or repo.startswith("https://"):
-        return dep["name"], repo
-    raise SystemExit(f"error: unsupported repository scheme: {repo}")
-
-
-def pull_chart(dep, version, dest):
-    """Pull a chart version via helm. Returns (ok, stderr)."""
-    ref, repo_url = chart_ref(dep)
-    cmd = ["helm", "pull", ref, "--version", version, "--untar", "--untardir", str(dest)]
-    if repo_url:
-        cmd += ["--repo", repo_url]
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    return result.returncode == 0, result.stderr.strip()
-
-
-def get_path(node, dotted_path):
-    for key in dotted_path.split("."):
-        if not isinstance(node, dict):
-            return None
-        node = node.get(key)
-    return node
-
-
-def parse_repo(repository):
-    """Split a Docker-style repository string into (registry_host, repo_path)
-    using the standard Docker convention: the first path segment is a
-    registry host only if it contains a "." or ":" (or is "localhost");
-    otherwise the whole string is a Docker Hub repository."""
-    first, sep, _ = repository.partition("/")
-    if sep and ("." in first or ":" in first or first == "localhost"):
-        return first, repository[len(first) + 1:]
-    return "docker.io", repository
-
-
-def registry_tag_exists(registry_host, repo, tag):
-    """Return (exists, digest) for <repo>:<tag> on the given registry host,
-    using an anonymous pull token where the registry requires one — same
-    flow as /fetch-image-digest."""
-    headers = {"Accept": MANIFEST_ACCEPT}
-    token_url_tmpl = TOKEN_ENDPOINTS.get(registry_host)
-    if token_url_tmpl:
-        token = json.loads(urllib.request.urlopen(token_url_tmpl.format(repo=repo)).read())["token"]
-        headers["Authorization"] = f"Bearer {token}"
-    api_host = MANIFEST_HOSTS.get(registry_host, registry_host)
-    req = urllib.request.Request(f"https://{api_host}/v2/{repo}/manifests/{tag}", headers=headers)
-    try:
-        with urllib.request.urlopen(req) as resp:
-            return True, resp.headers.get("Docker-Content-Digest")
-    except urllib.error.HTTPError as e:
-        if e.code == 404:
-            return False, None
-        raise
+    dep = _find_dependency(deps, name_or_alias)
+    if dep is None:
+        raise SystemExit(f"error: no dependency named or aliased '{name_or_alias}' found in {CHART_YAML}")
+    return dep
 
 
 def main():
@@ -167,8 +91,8 @@ def main():
             print("FAIL: chart version does not exist — cannot look up its image repositories")
             sys.exit(1)
 
-        chart_dirs = [p for p in tmpdir.iterdir() if p.is_dir()]
-        values = yaml.safe_load((chart_dirs[0] / "values.yaml").read_text()) or {}
+        chart_dir = pulled_chart_dir(tmpdir)
+        values = yaml.safe_load((chart_dir / "values.yaml").read_text()) or {}
 
         image_paths = COMPONENT_IMAGE_PATHS.get(component, DEFAULT_IMAGE_PATHS)
         repos = []

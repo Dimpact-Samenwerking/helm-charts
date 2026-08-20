@@ -25,38 +25,22 @@ from pathlib import Path
 
 import yaml
 
-PODIUMD_DIR = Path(__file__).resolve().parents[1]
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
+
+from lib.chart import chart_ref, find_images, version_of
+from lib.chart import pull_chart as _pull_chart
+
+PODIUMD_DIR = SCRIPT_DIR.parents[0]
 CHART_YAML = PODIUMD_DIR / "Chart.yaml"
 VALUES_YAML = PODIUMD_DIR / "values.yaml"
 VENDORED_DIR = PODIUMD_DIR / "charts"
 
 
-def chart_ref(dep):
-    repo = dep["repository"]
-    if repo.startswith("oci://"):
-        return f"{repo}/{dep['name']}", None
-    if repo.startswith("@"):
-        return f"{repo[1:]}/{dep['name']}", None
-    if repo.startswith("http://") or repo.startswith("https://"):
-        return dep["name"], repo
-    if repo.startswith("file://"):
-        return None, None
-    raise SystemExit(f"error: unsupported repository scheme: {repo}")
-
-
 def pull_chart(dep, dest):
-    ref, repo_url = chart_ref(dep)
-    if ref is None:
-        raise SystemExit(
-            f"error: dependency '{dep['name']}' uses a local path repository "
-            f"({dep['repository']}) and is not vendored locally; cannot fetch it remotely"
-        )
-    cmd = ["helm", "pull", ref, "--version", dep["version"], "--untar", "--untardir", str(dest)]
-    if repo_url:
-        cmd += ["--repo", repo_url]
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    if result.returncode != 0:
-        raise SystemExit(f"error: helm pull failed for {ref}@{dep['version']}\n{result.stderr.strip()}")
+    ok, stderr = _pull_chart(dep, dep["version"], dest)
+    if not ok:
+        raise SystemExit(f"error: helm pull failed for {dep['name']}@{dep['version']}\n{stderr}")
 
 
 def load_chart(dep, tmproot, refresh):
@@ -89,25 +73,6 @@ def deep_merge(base, override):
             merged[key] = deep_merge(base.get(key), value)
         return merged
     return override if override is not None else base
-
-
-def version_of(tag):
-    return tag.split("@", 1)[0]
-
-
-def find_images(node, path=""):
-    images = []
-    if isinstance(node, dict):
-        if "repository" in node and "tag" in node:
-            repo, tag = node["repository"], node["tag"]
-            if repo and tag not in (None, ""):
-                images.append((path or "(root)", repo, tag))
-        for key, value in node.items():
-            images.extend(find_images(value, f"{path}.{key}" if path else key))
-    elif isinstance(node, list):
-        for i, item in enumerate(node):
-            images.extend(find_images(item, f"{path}[{i}]"))
-    return images
 
 
 def is_enabled(condition, root_values):
