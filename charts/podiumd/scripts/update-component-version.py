@@ -73,6 +73,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 from lib.chart import find_dependency as _find_dependency
 from lib.chart import get_path, pull_chart_values
+from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
 from lib.procutil import run
 from lib.registry import parse_repo, registry_tag_exists
 from lib.upgradedoc import (
@@ -249,6 +250,28 @@ def find_baseline_docs(target):
     baseline = m.group("baseline")
     values_deltas_path = DOC_DIR / f"{baseline}-to-{target}-values-deltas.md"
     return baseline, matches[0], (values_deltas_path if values_deltas_path.is_file() else None)
+
+
+def load_baseline_values(baseline):
+    """values.yaml as it actually was at the release these docs are written
+    against (resolved via git) — NOT "before this script's own edit". This
+    script only ever writes an image tag, never a schema change, so a
+    before/after-this-run comparison would always be empty regardless of
+    what actually changed for this component since the real baseline;
+    comparing against the true baseline is the only way to catch a values.yaml
+    schema change (new/removed/renamed key) made by hand as part of this hop,
+    whenever during the hop that edit happened. Returns None if the baseline
+    can't be resolved (e.g. that release hasn't been tagged yet) — callers
+    then skip key-change detection rather than comparing against nothing
+    meaningful."""
+    repo_root = find_repo_root(VALUES_YAML.parent)
+    if repo_root is None:
+        return None
+    ref = resolve_git_ref(repo_root, baseline_ref_candidates(baseline))
+    if ref is None:
+        return None
+    rel_values_path = VALUES_YAML.relative_to(repo_root)
+    return git_show_yaml(repo_root, ref, str(rel_values_path))
 
 
 def find_component_row(rows, friendly):
@@ -630,9 +653,16 @@ def main():
         text = values_deltas_path.read_text(encoding="utf-8")
         new_lines = [values_delta_bullet(friendly, old_app, app_version, old_chart, chart_version)]
         current_values_after = yaml.safe_load(VALUES_YAML.read_text(encoding="utf-8")) or {}
-        baseline_subtree = values.get(values_key, {}) if isinstance(values, dict) else {}
         current_subtree = current_values_after.get(values_key, {})
-        new_lines.extend(describe_key_changes(values_key, baseline_subtree, current_subtree))
+        baseline_values_at_release = load_baseline_values(baseline)
+        if baseline_values_at_release is None:
+            print()
+            print(f"  note: could not resolve baseline {baseline} to a git ref — skipping "
+                  f"added/removed/renamed key detection for values-deltas.md")
+        else:
+            baseline_subtree = (baseline_values_at_release.get(values_key, {})
+                                 if isinstance(baseline_values_at_release, dict) else {})
+            new_lines.extend(describe_key_changes(values_key, baseline_subtree, current_subtree))
 
         no_changes_claimed = bool(NO_CHANGES_CLAIMED_RE.search(text))
         values_deltas_path.write_text(append_to_doc(text, new_lines), encoding="utf-8")

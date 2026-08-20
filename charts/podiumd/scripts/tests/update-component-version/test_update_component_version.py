@@ -1,11 +1,16 @@
 """find_block_end, find_child_key_line, locate_dotted_key_line,
-replace_scalar_value, update_chart_yaml, update_values_yaml, main — pure
-logic plus a mocked-subprocess/mocked-registry integration test. No git,
-helm, or network access needed."""
+replace_scalar_value, update_chart_yaml, update_values_yaml, main — mostly
+pure logic plus a mocked-subprocess/mocked-registry integration test (no
+helm or network access needed). load_baseline_values and the values-deltas
+key-change tests use a real, hermetic temp git repo."""
 import subprocess
 
 import pytest
 import yaml
+
+
+def git(*args, cwd):
+    subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True)
 
 
 # --- parse_repo ---
@@ -204,7 +209,19 @@ def setup_repo(tmp_path, monkeypatch, ucv):
 
 
 def mock_verify_passes(monkeypatch):
-    monkeypatch.setattr(subprocess, "run", lambda *a, **k: subprocess.CompletedProcess(a, 0))
+    """Fakes the verify-component-version.py subprocess call main() makes,
+    but lets any `git ...` invocation through to the real subprocess.run —
+    main() also calls load_baseline_values (which shells out to git) once
+    values_deltas_path is set, and a blanket fake would make find_repo_root
+    see a fake "success" with no stdout and crash."""
+    real_run = subprocess.run
+
+    def fake_run(cmd, *args, **kwargs):
+        if cmd and cmd[0] == "git":
+            return real_run(cmd, *args, **kwargs)
+        return subprocess.CompletedProcess(cmd, 0)
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
 
 
 def test_main_writes_both_files_when_verify_passes(ucv, tmp_path, monkeypatch):
@@ -349,6 +366,44 @@ def test_find_baseline_docs_no_upgrade_doc_returns_all_none(ucv, tmp_path, monke
 
 def write(path, text):
     path.write_text(text, encoding="utf-8")
+
+
+# --- load_baseline_values ---
+
+def init_git_repo(root):
+    git("init", "-q", cwd=root)
+    git("config", "user.email", "test@example.com", cwd=root)
+    git("config", "user.name", "Test", cwd=root)
+
+
+def test_load_baseline_values_resolves_real_baseline(ucv, tmp_path, monkeypatch):
+    values_yaml = tmp_path / "values.yaml"
+    init_git_repo(tmp_path)
+    values_yaml.write_text('zac:\n  image:\n    tag: "5.0.2@sha256:aaaa"\n', encoding="utf-8")
+    git("add", "-A", cwd=tmp_path)
+    git("commit", "-q", "-m", "baseline", cwd=tmp_path)
+    git("tag", "podiumd-4.8.5", cwd=tmp_path)
+
+    monkeypatch.setattr(ucv, "VALUES_YAML", values_yaml)
+    assert ucv.load_baseline_values("4.8.5") == {"zac": {"image": {"tag": "5.0.2@sha256:aaaa"}}}
+
+
+def test_load_baseline_values_none_when_baseline_tag_missing(ucv, tmp_path, monkeypatch):
+    values_yaml = tmp_path / "values.yaml"
+    init_git_repo(tmp_path)
+    values_yaml.write_text("zac: {}\n", encoding="utf-8")
+    git("add", "-A", cwd=tmp_path)
+    git("commit", "-q", "-m", "only commit, no baseline tag", cwd=tmp_path)
+
+    monkeypatch.setattr(ucv, "VALUES_YAML", values_yaml)
+    assert ucv.load_baseline_values("9.9.9") is None
+
+
+def test_load_baseline_values_none_outside_git_repo(ucv, tmp_path, monkeypatch):
+    values_yaml = tmp_path / "values.yaml"
+    values_yaml.write_text("zac: {}\n", encoding="utf-8")
+    monkeypatch.setattr(ucv, "VALUES_YAML", values_yaml)
+    assert ucv.load_baseline_values("4.8.5") is None
 
 
 # --- find_component_row / update_component_table ---
@@ -724,3 +779,112 @@ def test_main_skips_doc_updates_when_no_upgrade_doc_exists(ucv, tmp_path, monkey
 
     out = capsys.readouterr().out
     assert "No upgrade doc found for target 4.9.0" in out
+
+
+# --- main(): values-deltas key-change detection against the real baseline ---
+
+def setup_git_repo_for_baseline_test(tmp_path, monkeypatch, ucv):
+    """A real git repo with a baseline commit tagged podiumd-4.8.5, then a
+    values.yaml schema key added on top — as if someone hand-edited it to
+    prepare this hop, BEFORE running update-component-version.py. That
+    ordering is exactly what the old before/after-this-script-run comparison
+    could never see (the key was already present on both sides of that
+    comparison); comparing against the real git baseline must catch it."""
+    chart_yaml = tmp_path / "Chart.yaml"
+    values_yaml = tmp_path / "values.yaml"
+    doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
+    images_dir = tmp_path / "docs" / "images"
+    for d in (doc_dir, images_dir):
+        d.mkdir(parents=True)
+
+    init_git_repo(tmp_path)
+    chart_yaml.write_text(
+        "version: 4.9.0\n"
+        "dependencies:\n"
+        "  - name: zaakafhandelcomponent\n"
+        "    version: 1.0.296\n"
+        "    repository: \"@example\"\n"
+        "    alias: zac\n",
+        encoding="utf-8",
+    )
+    values_yaml.write_text(
+        "zac:\n"
+        "  image:\n"
+        "    repository: ghcr.io/infonl/zaakafhandelcomponent\n"
+        '    tag: "5.0.2@sha256:aaaa"\n',
+        encoding="utf-8",
+    )
+    git("add", "-A", cwd=tmp_path)
+    git("commit", "-q", "-m", "baseline", cwd=tmp_path)
+    git("tag", "podiumd-4.8.5", cwd=tmp_path)
+
+    # the schema edit, made BEFORE update-component-version.py ever runs
+    values_yaml.write_text(
+        "zac:\n"
+        "  image:\n"
+        "    repository: ghcr.io/infonl/zaakafhandelcomponent\n"
+        '    tag: "5.0.2@sha256:aaaa"\n'
+        "  newFeature:\n"
+        "    enabled: true\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(ucv, "CHART_YAML", chart_yaml)
+    monkeypatch.setattr(ucv, "VALUES_YAML", values_yaml)
+    monkeypatch.setattr(ucv, "DOC_DIR", doc_dir)
+    monkeypatch.setattr(ucv, "IMAGES_DIR", images_dir)
+
+
+def test_main_detects_key_added_before_running_against_real_baseline(ucv, tmp_path, monkeypatch):
+    setup_git_repo_for_baseline_test(tmp_path, monkeypatch, ucv)
+    write(ucv.DOC_DIR / "4.8.5-to-4.9.0-upgrade.md",
+          "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+          "## Component versions (4.9.0 vs 4.8.5)\n\n"
+          "| Component | App version | Helm chart | Notes |\n"
+          "| --- | --- | --- | --- |\n\n"
+          "## Changes\n\n")
+    write(ucv.DOC_DIR / "4.8.5-to-4.9.0-values-deltas.md",
+          "# Values deltas — PodiumD 4.8.5 → 4.9.0\n\n"
+          "**No gemeente `podiumd.yml` changes are required for this hop.**\n")
+
+    mock_verify_passes(monkeypatch)
+    monkeypatch.setattr(ucv, "resolve_repos", lambda dep, chart_version, paths: {
+        "image": "ghcr.io/infonl/zaakafhandelcomponent"
+    })
+    monkeypatch.setattr(ucv, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "e" * 64))
+    monkeypatch.setattr("sys.argv", ["update-component-version.py", "zac", "5.4.3", "1.0.297"])
+
+    ucv.main()
+
+    deltas = (ucv.DOC_DIR / "4.8.5-to-4.9.0-values-deltas.md").read_text(encoding="utf-8")
+    assert "Key `zac.newFeature` was added." in deltas
+
+
+def test_main_notes_when_baseline_unresolvable_for_key_detection(ucv, tmp_path, monkeypatch, capsys):
+    """setup_repo's plain tmp_path (no git init) can't resolve any baseline —
+    main() must say so and continue (still write the version bullet), not
+    silently skip the note or crash."""
+    setup_repo(tmp_path, monkeypatch, ucv)
+    write(ucv.DOC_DIR / "4.8.5-to-4.9.0-upgrade.md",
+          "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+          "## Component versions (4.9.0 vs 4.8.5)\n\n"
+          "| Component | App version | Helm chart | Notes |\n"
+          "| --- | --- | --- | --- |\n\n"
+          "## Changes\n\n")
+    write(ucv.DOC_DIR / "4.8.5-to-4.9.0-values-deltas.md",
+          "# Values deltas — PodiumD 4.8.5 → 4.9.0\n\n"
+          "**No gemeente `podiumd.yml` changes are required for this hop.**\n")
+
+    mock_verify_passes(monkeypatch)
+    monkeypatch.setattr(ucv, "resolve_repos", lambda dep, chart_version, paths: {
+        "image": "ghcr.io/infonl/zaakafhandelcomponent"
+    })
+    monkeypatch.setattr(ucv, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "f" * 64))
+    monkeypatch.setattr("sys.argv", ["update-component-version.py", "zac", "5.4.3", "1.0.297"])
+
+    ucv.main()
+
+    out = capsys.readouterr().out
+    assert "could not resolve baseline 4.8.5" in out
+    deltas = (ucv.DOC_DIR / "4.8.5-to-4.9.0-values-deltas.md").read_text(encoding="utf-8")
+    assert "**zac** app" in deltas  # version bullet still written
