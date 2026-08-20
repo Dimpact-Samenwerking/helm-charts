@@ -38,6 +38,28 @@ to write if a target line can't be located unambiguously.
 
 After writing, re-render the chart (verify-podiumd.py or /helm-render-all)
 to confirm before committing.
+
+Also updates the docs for the current podiumd target version (Chart.yaml's
+own "version:"), if they exist (run set-doc-baseline.py first if not):
+  - <baseline>-to-<target>-upgrade.md: the component's "Component versions"
+    table row (added if not yet mentioned, updated in place if it is) and,
+    for a brand-new mention, a "### <component> <old> → <new> ..." Changes
+    section with the usual Helm-chart/image-tag-pin bullets.
+  - <baseline>-to-<target>-values-deltas.md: a bullet describing the app/
+    chart bump, plus one line per values.yaml key that was added, removed,
+    or renamed under this component between the old and new values.yaml
+    (backtick-quoted, matching the convention verify-podiumd.py checks for).
+  - docs/images/images-<target>.yaml, if an image tag actually changed: the
+    "# <N> changes:" numbered header list (added or updated), and any
+    existing entry's version/digest/comment (updated in place). An entry
+    that doesn't exist yet is NOT invented — the correct "name:" is an ACR
+    mirror slug that can't be derived here (see docs/images/acr-mirror-
+    naming.md); the exact url/version/digest to add are printed instead.
+
+The component's display name in all of this is its values.yaml key (e.g.
+"zgw-office-addin") — not a polished label like "ZGW Office Add-in" — since
+there's no reliable source for that mapping. Rename it by hand afterward if
+you want the polished form.
 """
 import re
 import subprocess
@@ -53,10 +75,17 @@ from lib.chart import find_dependency as _find_dependency
 from lib.chart import get_path, pull_chart_values
 from lib.procutil import run
 from lib.registry import parse_repo, registry_tag_exists
+from lib.upgradedoc import (
+    canonical_version_cell, diff_keys, extract_source_version, find_preceding_comment_line,
+    normalize_name, normalize_version, pair_renames, parse_upgrade_doc_rows, replace_version_pair,
+    resolve_entry_path,
+)
 
 VERIFY_SCRIPT = SCRIPT_DIR / "verify-component-version.py"
 CHART_YAML = SCRIPT_DIR.parents[0] / "Chart.yaml"
 VALUES_YAML = SCRIPT_DIR.parents[0] / "values.yaml"
+DOC_DIR = SCRIPT_DIR.parents[0] / "docs" / "_UPGRADE_PATHS"
+IMAGES_DIR = SCRIPT_DIR.parents[0] / "docs" / "images"
 
 # component (name or alias) -> dotted values.yaml path(s) for its own image
 # block(s) — must stay in sync with verify-component-version.py's copy.
@@ -64,6 +93,12 @@ COMPONENT_IMAGE_PATHS = {
     "zgw-office-addin": ["frontend.image", "backend.image"],
 }
 DEFAULT_IMAGE_PATHS = ["image"]
+
+NUMBER_WORDS = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten",
+                "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen"]
+CHANGES_HEADER_RE = re.compile(r"^(?P<indent>#\s*)(?P<count_word>\w+)\s+changes?:\s*$", re.IGNORECASE)
+CHANGES_ITEM_RE = re.compile(r"^#\s*(?P<num>\d+)\.\s+(?P<rest>.+)$")
+NO_CHANGES_CLAIMED_RE = re.compile(r"no\s+gemeente\s+`?podiumd\.yml`?\s+changes\s+are\s+required", re.IGNORECASE)
 
 
 def find_dependency(name_or_alias):
@@ -192,6 +227,285 @@ def update_values_yaml(values_key, image_paths, new_tags_by_path):
     return changes
 
 
+def current_chart_version():
+    return str(yaml.safe_load(CHART_YAML.read_text(encoding="utf-8"))["version"])
+
+
+def images_manifest_path(target):
+    return IMAGES_DIR / f"images-{target}.yaml"
+
+
+def find_baseline_docs(target):
+    """(baseline, upgrade_path, values_deltas_path) for the single
+    <baseline>-to-<target>-*.md doc set for this podiumd version, or
+    (None, None, None) if the upgrade doc doesn't exist yet — run
+    set-doc-baseline.py first to scaffold it."""
+    matches = list(DOC_DIR.glob(f"*-to-{target}-upgrade.md"))
+    if len(matches) != 1:
+        return None, None, None
+    m = re.match(rf"^(?P<baseline>\d+\.\d+\.\d+)-to-{re.escape(target)}-upgrade\.md$", matches[0].name)
+    if not m:
+        return None, None, None
+    baseline = m.group("baseline")
+    values_deltas_path = DOC_DIR / f"{baseline}-to-{target}-values-deltas.md"
+    return baseline, matches[0], (values_deltas_path if values_deltas_path.is_file() else None)
+
+
+def find_component_row(rows, friendly):
+    norm_friendly = normalize_name(friendly)
+    for row in rows:
+        if norm_friendly in normalize_name(row["name"]):
+            return row
+    return None
+
+
+def update_component_table(text, friendly, old_app, new_app, old_chart, new_chart):
+    """Update this component's "Component versions" table row if it's
+    already mentioned, or append a new row if it isn't. Returns
+    (new_text, action) where action is "updated" or "added" (or None if the
+    doc has no table at all to append to)."""
+    lines = text.splitlines(keepends=True)
+    rows = parse_upgrade_doc_rows(text)
+    row = find_component_row(rows, friendly)
+
+    app_cell = canonical_version_cell(old_app, new_app) if old_app else new_app
+    chart_cell = canonical_version_cell(old_chart, new_chart) if old_chart else new_chart
+
+    if row is not None:
+        old_line = lines[row["line_index"]]
+        cells = [c.strip() for c in old_line.strip().strip("|").split("|")]
+        cells[1] = app_cell
+        cells[2] = chart_cell
+        suffix = "\n" if old_line.endswith("\n") else ""
+        lines[row["line_index"]] = "| " + " | ".join(cells) + " |" + suffix
+        return "".join(lines), "updated"
+
+    new_row_line = f"| {friendly} | {app_cell} | {chart_cell} | - |\n"
+    if rows:
+        insert_at = rows[-1]["line_index"] + 1
+    else:
+        insert_at = None
+        for i, line in enumerate(lines):
+            if re.match(r"^\|\s*:?-+:?\s*\|", line.strip()):
+                insert_at = i + 1
+        if insert_at is None:
+            return text, None
+    lines.insert(insert_at, new_row_line)
+    return "".join(lines), "added"
+
+
+def find_changes_section(text, friendly):
+    """Whether a "### ..." heading already mentions this component."""
+    norm_friendly = normalize_name(friendly)
+    for line in text.splitlines():
+        m = re.match(r"^###\s+(.+)$", line)
+        if m and norm_friendly in normalize_name(m.group(1)):
+            return True
+    return False
+
+
+def make_changes_section(friendly, target, chart_name, values_key, old_app, new_app,
+                          old_chart, new_chart, image_paths):
+    chart_changed = normalize_version(old_chart) != normalize_version(new_chart)
+    chart_suffix = f" (chart {old_chart} → {new_chart})" if chart_changed else f" (chart {new_chart}, unchanged)"
+    lines = [f"### {friendly} {old_app} → {new_app}{chart_suffix}\n\n"]
+    lines.append(f"PodiumD {target} upgrades **{friendly}** from app version {old_app}\n")
+    lines.append(f"to {new_app}.\n\n")
+    if chart_changed:
+        lines.append(f"- Helm chart `{chart_name}` `{old_chart}` → `{new_chart}` in\n")
+        lines.append("  `charts/podiumd/Chart.yaml`.\n")
+    for path in image_paths:
+        lines.append(f"- Image tag pin `{values_key}.{path}.tag` `{old_app}` → `{new_app}` in\n")
+        lines.append("  `charts/podiumd/values.yaml`.\n")
+    lines.append(f"- Image / digest: see [`images-{target}.yaml`](../images/images-{target}.yaml).\n\n")
+    return "".join(lines)
+
+
+def insert_changes_section(text, section_text):
+    """Append section_text as a new "### ..." block at the end of the
+    "## Changes" section (right before the next "## " heading, or EOF)."""
+    lines = text.splitlines(keepends=True)
+    changes_idx = None
+    for i, line in enumerate(lines):
+        if line.strip() == "## Changes":
+            changes_idx = i
+            break
+    if changes_idx is None:
+        if text and not text.endswith("\n\n"):
+            text = text.rstrip("\n") + "\n\n"
+        return text + section_text
+    insert_at = len(lines)
+    for i in range(changes_idx + 1, len(lines)):
+        if re.match(r"^##\s+\S", lines[i]):
+            insert_at = i
+            break
+    lines[insert_at:insert_at] = [section_text]
+    return "".join(lines)
+
+
+def values_delta_bullet(friendly, old_app, new_app, old_chart, new_chart):
+    app_changed = normalize_version(old_app) != normalize_version(new_app)
+    chart_changed = normalize_version(old_chart) != normalize_version(new_chart)
+    app_bit = f"`{old_app} → {new_app}`" if app_changed else f"`{new_app}` (unchanged)"
+    chart_bit = f"`{old_chart} → {new_chart}`" if chart_changed else f"`{new_chart}`, unchanged"
+    note = "image tag only" if not chart_changed else "chart + image tag"
+    return f"- **{friendly}** app {app_bit} (chart {chart_bit}) — {note}.\n"
+
+
+def describe_key_changes(values_key, baseline_subtree, current_subtree):
+    """One "- Key `<dotted>` was added/removed/renamed to `<dotted>`." line
+    per top-level key change under this component — backtick-quoted,
+    matching the convention verify-podiumd.py's own check looks for.
+
+    Paths passed to diff_keys/pair_renames are relative to the subtree
+    itself (path=()), NOT prefixed with values_key — pair_renames's own
+    lookups walk baseline_subtree/current_subtree directly, so a
+    values_key-prefixed path would never resolve (silently comparing None
+    to None, which can pair completely unrelated keys as a false rename).
+    values_key is prepended only for the displayed dotted string."""
+    diffs = list(diff_keys(baseline_subtree, current_subtree))
+    added = [p for kind, p in diffs if kind == "added"]
+    removed = [p for kind, p in diffs if kind == "removed"]
+    renamed, added, removed = pair_renames(added, removed, baseline_subtree, current_subtree)
+
+    def dotted(path):
+        return ".".join((values_key,) + path)
+
+    lines = []
+    for path in added:
+        lines.append(f"- Key `{dotted(path)}` was added.\n")
+    for path in removed:
+        lines.append(f"- Key `{dotted(path)}` was removed.\n")
+    for old_path, new_path in renamed:
+        lines.append(f"- Key `{dotted(old_path)}` was renamed to `{dotted(new_path)}`.\n")
+    return lines
+
+
+def append_to_doc(text, new_lines):
+    if not new_lines:
+        return text
+    if text and not text.endswith("\n\n"):
+        text = text.rstrip("\n") + "\n\n"
+    return text + "".join(new_lines)
+
+
+def values_tree_path_for(values_key, image_path):
+    """The find_image_tag_paths key for a COMPONENT_IMAGE_PATHS-style dotted
+    path (e.g. "frontend.image") under this component's values_key."""
+    segments = image_path.split(".")
+    return (values_key,) + tuple(segments[:-1])
+
+
+def find_matching_images_entry(entries, entry_line_indices, target_path):
+    for entry, line_idx in zip(entries, entry_line_indices):
+        if resolve_entry_path(entry["name"], [target_path]) == target_path:
+            return entry, line_idx
+    return None, None
+
+
+def update_images_manifest_entry(lines, entry_line_idx, new_tag):
+    """Update an existing entry's version/digest fields and its preceding
+    comment's version pair in place. Returns True if anything changed."""
+    new_app_version, digest = new_tag.split("@", 1)
+    block_end = len(lines)
+    for i in range(entry_line_idx + 1, len(lines)):
+        if re.match(r"^-\s*name:", lines[i]) or not lines[i].strip():
+            block_end = i
+            break
+
+    changed = False
+    for i in range(entry_line_idx, block_end):
+        m = re.match(r"^\s*(version|digest):", lines[i])
+        if not m:
+            continue
+        new_value = new_app_version if m.group(1) == "version" else digest
+        lines[i] = replace_scalar_value(lines[i], new_value)
+        changed = True
+
+    comment_idx = find_preceding_comment_line(lines, entry_line_idx)
+    if comment_idx is not None:
+        current_source = extract_source_version(lines[comment_idx])
+        if current_source:
+            lines[comment_idx] = replace_version_pair(lines[comment_idx], current_source, new_app_version)
+            changed = True
+    return changed
+
+
+def update_images_manifest(images_path, friendly, values_key, old_app, new_app, old_chart, new_chart,
+                            paths_to_update, repos, new_tags_by_path):
+    """Update the "# <N> changes:" header list and any existing entries'
+    version/digest/comment for this component. Returns (changes_action,
+    entry_names_updated, missing_entries) where missing_entries is
+    [(image_path, repo, new_tag), ...] for components with no existing
+    entry — never invented, since the correct "name:" (ACR mirror slug)
+    can't be derived here."""
+    original_text = images_path.read_text(encoding="utf-8")
+    lines = original_text.splitlines(keepends=True)
+
+    header_idx = None
+    for i, line in enumerate(lines):
+        if CHANGES_HEADER_RE.match(line):
+            header_idx = i
+            break
+
+    changes_action = None
+    if header_idx is not None:
+        item_indices = []
+        block_end = header_idx + 1
+        for i in range(header_idx + 1, len(lines)):
+            if lines[i].rstrip("\n") == "#" or not lines[i].startswith("#"):
+                break
+            block_end = i + 1
+            if re.match(r"^#\s*\d+\.", lines[i]):
+                item_indices.append(i)
+
+        norm_friendly = normalize_name(friendly)
+        match_idx = None
+        for idx in item_indices:
+            m = CHANGES_ITEM_RE.match(lines[idx])
+            if m and norm_friendly in normalize_name(m.group("rest")):
+                match_idx = idx
+                break
+
+        chart_changed = normalize_version(old_chart) != normalize_version(new_chart)
+        chart_bit = f"{old_chart} -> {new_chart}" if chart_changed else f"{new_chart}, unchanged"
+        item_text = f"{friendly} {old_app} -> {new_app} (chart {chart_bit})."
+
+        if match_idx is not None:
+            m = CHANGES_ITEM_RE.match(lines[match_idx])
+            lines[match_idx] = f"#   {m.group('num')}. {item_text}\n"
+            changes_action = "updated"
+        else:
+            new_num = len(item_indices) + 1
+            insert_at = block_end if item_indices else header_idx + 1
+            lines.insert(insert_at, f"#   {new_num}. {item_text}\n")
+            count_word = NUMBER_WORDS[new_num] if new_num < len(NUMBER_WORDS) else str(new_num)
+            noun = "change" if new_num == 1 else "changes"
+            header_m = CHANGES_HEADER_RE.match(lines[header_idx])
+            lines[header_idx] = f"{header_m.group('indent')}{count_word} {noun}:\n"
+            changes_action = "added"
+
+    entries = yaml.safe_load("".join(lines)) or []
+    if not isinstance(entries, list):
+        entries = []
+    entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
+
+    entry_updates, missing_entries = [], []
+    for path in paths_to_update:
+        target_path = values_tree_path_for(values_key, path)
+        entry, entry_idx = find_matching_images_entry(entries, entry_line_indices, target_path)
+        if entry is None:
+            missing_entries.append((path, repos[path], new_tags_by_path[path]))
+            continue
+        if update_images_manifest_entry(lines, entry_idx, new_tags_by_path[path]):
+            entry_updates.append(entry["name"])
+
+    new_text = "".join(lines)
+    if new_text != original_text:
+        images_path.write_text(new_text, encoding="utf-8")
+    return changes_action, entry_updates, missing_entries
+
+
 def main():
     if len(sys.argv) != 4:
         print(__doc__)
@@ -219,9 +533,11 @@ def main():
 
     values = yaml.safe_load(VALUES_YAML.read_text(encoding="utf-8")) or {}
     paths_to_update = []
+    old_app_by_path = {}
     for path in image_paths:
         current_tag = get_path(values, f"{values_key}.{path}.tag") or ""
         current_version = current_tag.split("@", 1)[0]
+        old_app_by_path[path] = current_version or None
         if current_version == app_version:
             print(f"{values_key}.{path}: app version already {app_version} — unchanged")
         else:
@@ -260,6 +576,88 @@ def main():
             print(f"  {dotted}:")
             print(f"    {old_v}")
             print(f"    {new_v}")
+
+    target = current_chart_version()
+    friendly = values_key
+    old_chart = str(dep["version"])
+    old_app = old_app_by_path.get(image_paths[0])
+
+    baseline, upgrade_path, values_deltas_path = find_baseline_docs(target)
+    if upgrade_path is None:
+        print()
+        print(f"No upgrade doc found for target {target} — run set-doc-baseline.py first "
+              f"to scaffold it; skipping doc updates.")
+    else:
+        text = upgrade_path.read_text(encoding="utf-8")
+        new_text, table_action = update_component_table(text, friendly, old_app, app_version,
+                                                          old_chart, chart_version)
+        section_exists = find_changes_section(new_text, friendly)
+        section_added = False
+        if table_action == "added" and not section_exists:
+            section = make_changes_section(friendly, target, chart_name, values_key, old_app, app_version,
+                                            old_chart, chart_version, paths_to_update)
+            new_text = insert_changes_section(new_text, section)
+            section_added = True
+
+        if table_action is not None:
+            upgrade_path.write_text(new_text, encoding="utf-8")
+            print()
+            print(f"=== Updating {upgrade_path.name} ===")
+            print(f"  {table_action} table row")
+            if section_added:
+                print(f"  added '### {friendly} ...' Changes section")
+            elif table_action == "updated" and section_exists:
+                print(f"  note: a '### {friendly} ...' Changes section already exists — "
+                      f"update its version numbers by hand if needed")
+
+    if values_deltas_path is not None:
+        text = values_deltas_path.read_text(encoding="utf-8")
+        new_lines = [values_delta_bullet(friendly, old_app, app_version, old_chart, chart_version)]
+        current_values_after = yaml.safe_load(VALUES_YAML.read_text(encoding="utf-8")) or {}
+        baseline_subtree = values.get(values_key, {}) if isinstance(values, dict) else {}
+        current_subtree = current_values_after.get(values_key, {})
+        new_lines.extend(describe_key_changes(values_key, baseline_subtree, current_subtree))
+
+        no_changes_claimed = bool(NO_CHANGES_CLAIMED_RE.search(text))
+        values_deltas_path.write_text(append_to_doc(text, new_lines), encoding="utf-8")
+        print()
+        print(f"=== Updating {values_deltas_path.name} ===")
+        for line in new_lines:
+            print(f"  {line.rstrip()}")
+        if no_changes_claimed:
+            print("  note: doc claims 'no gemeente podiumd.yml changes are required' — that's about "
+                  "gemeente ACTION, not about whether anything changed, so it may still hold; "
+                  "double-check it's still true now that this bullet's been added")
+    elif upgrade_path is not None:
+        print()
+        print(f"No values-deltas.md found for baseline {baseline} — skipping that update.")
+
+    if paths_to_update:
+        images_path = images_manifest_path(target)
+        if images_path.is_file():
+            changes_action, entry_updates, missing_entries = update_images_manifest(
+                images_path, friendly, values_key, old_app, app_version, old_chart, chart_version,
+                paths_to_update, repos, new_tags_by_path,
+            )
+            print()
+            print(f"=== Updating {images_path.name} ===")
+            if changes_action:
+                print(f"  {changes_action} 'changes:' list entry")
+            for name in entry_updates:
+                print(f"  updated entry '{name}'")
+            if missing_entries:
+                print("  No existing entry for the following — add manually (see "
+                      "docs/images/acr-mirror-naming.md for the correct 'name:' ACR mirror slug):")
+                for path, repo, new_tag in missing_entries:
+                    new_app_version, digest = new_tag.split("@", 1)
+                    print(f"    # {friendly} — {old_app_by_path.get(path) or '(none)'} -> {new_app_version}")
+                    print("    - name: <ACR-mirror-name>")
+                    print(f"      url: {repo}")
+                    print(f'      version: "{new_app_version}"')
+                    print(f'      digest: "{digest}"')
+        else:
+            print()
+            print(f"No images-{target}.yaml found — skipping that update.")
 
     print()
     print("Done. Re-render the chart to confirm (verify-podiumd.py or /helm-render-all) before committing.")

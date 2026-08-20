@@ -177,6 +177,7 @@ def setup_repo(tmp_path, monkeypatch, ucv):
     # "name:" is the block's first key — same convention as the real
     # Chart.yaml, which update_chart_yaml's line-scan depends on.
     chart_yaml.write_text(
+        "version: 4.9.0\n"
         "dependencies:\n"
         "  - name: zaakafhandelcomponent\n"
         "    version: 1.0.296\n"
@@ -191,8 +192,14 @@ def setup_repo(tmp_path, monkeypatch, ucv):
         '    tag: "5.0.2@sha256:aaaa"\n',
         encoding="utf-8",
     )
+    doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
+    doc_dir.mkdir(parents=True)
+    images_dir = tmp_path / "docs" / "images"
+    images_dir.mkdir(parents=True)
     monkeypatch.setattr(ucv, "CHART_YAML", chart_yaml)
     monkeypatch.setattr(ucv, "VALUES_YAML", values_yaml)
+    monkeypatch.setattr(ucv, "DOC_DIR", doc_dir)
+    monkeypatch.setattr(ucv, "IMAGES_DIR", images_dir)
     return chart_yaml, values_yaml
 
 
@@ -313,3 +320,382 @@ def test_resolve_repos_raises_on_pull_failure(ucv, monkeypatch):
     monkeypatch.setattr(ucv, "pull_chart_values", fake_pull_chart_values)
     with pytest.raises(SystemExit):
         ucv.resolve_repos(dep, "9.9.9", ["image"])
+
+
+# --- find_baseline_docs ---
+
+def test_find_baseline_docs_finds_single_pair(ucv, tmp_path, monkeypatch):
+    monkeypatch.setattr(ucv, "DOC_DIR", tmp_path)
+    write(tmp_path / "4.8.5-to-4.9.0-upgrade.md", "x")
+    write(tmp_path / "4.8.5-to-4.9.0-values-deltas.md", "x")
+    baseline, upgrade_path, values_deltas_path = ucv.find_baseline_docs("4.9.0")
+    assert baseline == "4.8.5"
+    assert upgrade_path == tmp_path / "4.8.5-to-4.9.0-upgrade.md"
+    assert values_deltas_path == tmp_path / "4.8.5-to-4.9.0-values-deltas.md"
+
+
+def test_find_baseline_docs_missing_values_deltas_is_none(ucv, tmp_path, monkeypatch):
+    monkeypatch.setattr(ucv, "DOC_DIR", tmp_path)
+    write(tmp_path / "4.8.5-to-4.9.0-upgrade.md", "x")
+    baseline, upgrade_path, values_deltas_path = ucv.find_baseline_docs("4.9.0")
+    assert baseline == "4.8.5"
+    assert values_deltas_path is None
+
+
+def test_find_baseline_docs_no_upgrade_doc_returns_all_none(ucv, tmp_path, monkeypatch):
+    monkeypatch.setattr(ucv, "DOC_DIR", tmp_path)
+    assert ucv.find_baseline_docs("4.9.0") == (None, None, None)
+
+
+def write(path, text):
+    path.write_text(text, encoding="utf-8")
+
+
+# --- find_component_row / update_component_table ---
+
+def test_find_component_row_matches_by_substring(ucv):
+    rows = [{"name": "ZAC (Zaakafhandelcomponent)", "line_index": 0}]
+    assert ucv.find_component_row(rows, "zac")["line_index"] == 0
+
+
+def test_find_component_row_no_match_returns_none(ucv):
+    rows = [{"name": "ZAC (Zaakafhandelcomponent)", "line_index": 0}]
+    assert ucv.find_component_row(rows, "openformulieren") is None
+
+
+def test_update_component_table_adds_new_row(ucv):
+    text = (
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| zac | 5.0.2 → 5.1.0 | 1.0.297 (unchanged) | - |\n"
+    )
+    new_text, action = ucv.update_component_table(text, "openformulieren", "3.4.10", "3.5.6", "1.12.0", "1.12.0")
+    assert action == "added"
+    assert "| openformulieren | 3.4.10 → 3.5.6 | 1.12.0 (unchanged) | - |" in new_text
+    assert "| zac | 5.0.2 → 5.1.0 | 1.0.297 (unchanged) | - |" in new_text  # untouched
+
+
+def test_update_component_table_updates_existing_row(ucv):
+    text = (
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| openformulieren | 3.4.9 → 3.4.10 | 1.12.0 (unchanged) | - |\n"
+    )
+    new_text, action = ucv.update_component_table(text, "openformulieren", "3.4.10", "3.5.6", "1.12.0", "1.12.0")
+    assert action == "updated"
+    assert "| openformulieren | 3.4.10 → 3.5.6 | 1.12.0 (unchanged) | - |" in new_text
+    assert "3.4.9" not in new_text
+
+
+def test_update_component_table_no_table_returns_none_action(ucv):
+    text = "# Upgrade guide\n\nJust prose, no table.\n"
+    new_text, action = ucv.update_component_table(text, "openformulieren", "3.4.10", "3.5.6", "1.12.0", "1.12.0")
+    assert action is None
+    assert new_text == text
+
+
+# --- find_changes_section / make_changes_section / insert_changes_section ---
+
+def test_find_changes_section_detects_existing_heading(ucv):
+    text = "## Changes\n\n### openformulieren 3.4.10 → 3.5.6 (chart 1.12.0, unchanged)\n"
+    assert ucv.find_changes_section(text, "openformulieren") is True
+
+
+def test_find_changes_section_false_when_absent(ucv):
+    assert ucv.find_changes_section("## Changes\n\n### zac ...\n", "openformulieren") is False
+
+
+def test_make_changes_section_includes_bullets(ucv):
+    section = ucv.make_changes_section(
+        "openformulieren", "4.9.0", "openforms", "openformulieren",
+        "3.4.10", "3.5.6", "1.12.0", "1.12.0", ["image"],
+    )
+    assert section.startswith("### openformulieren 3.4.10 → 3.5.6 (chart 1.12.0, unchanged)")
+    assert "Image tag pin `openformulieren.image.tag` `3.4.10` → `3.5.6`" in section
+    assert "Helm chart" not in section  # chart unchanged, no chart bullet
+    assert "images-4.9.0.yaml" in section
+
+
+def test_make_changes_section_includes_chart_bullet_when_changed(ucv):
+    section = ucv.make_changes_section(
+        "zac", "4.9.0", "zaakafhandelcomponent", "zac",
+        "5.0.2", "5.1.0", "1.0.297", "1.0.257", ["image"],
+    )
+    assert "Helm chart `zaakafhandelcomponent` `1.0.297` → `1.0.257`" in section
+
+
+def test_insert_changes_section_appends_before_next_heading(ucv):
+    text = "## Changes\n\n### zac ...\n\nblah\n\n## Per-environment checklist\n\nsteps\n"
+    new_text = ucv.insert_changes_section(text, "### openformulieren ...\n\n")
+    assert new_text.index("### openformulieren") < new_text.index("## Per-environment checklist")
+    assert "### zac ..." in new_text
+
+
+def test_insert_changes_section_no_changes_heading_appends_at_end(ucv):
+    text = "# Doc\n\nno changes section here\n"
+    new_text = ucv.insert_changes_section(text, "### new section\n")
+    assert new_text.endswith("### new section\n")
+
+
+# --- values_delta_bullet / describe_key_changes / append_to_doc ---
+
+def test_values_delta_bullet_app_and_chart_changed(ucv):
+    bullet = ucv.values_delta_bullet("openformulieren", "3.4.10", "3.5.6", "1.12.0", "1.13.0")
+    assert bullet == "- **openformulieren** app `3.4.10 → 3.5.6` (chart `1.12.0 → 1.13.0`) — chart + image tag.\n"
+
+
+def test_values_delta_bullet_chart_unchanged(ucv):
+    bullet = ucv.values_delta_bullet("openformulieren", "3.4.10", "3.5.6", "1.12.0", "1.12.0")
+    assert bullet == "- **openformulieren** app `3.4.10 → 3.5.6` (chart `1.12.0`, unchanged) — image tag only.\n"
+
+
+def test_describe_key_changes_reports_added_removed_renamed(ucv):
+    baseline = {"a": 1, "old_name": {"x": 1}}
+    current = {"a": 1, "new_name": {"x": 1}, "brand_new": 2}
+    lines = ucv.describe_key_changes("comp", baseline, current)
+    joined = "".join(lines)
+    assert "`comp.brand_new` was added" in joined
+    assert "`comp.old_name` was renamed to `comp.new_name`" in joined
+
+
+def test_describe_key_changes_empty_when_nothing_changed(ucv):
+    assert ucv.describe_key_changes("comp", {"a": 1}, {"a": 1}) == []
+
+
+def test_append_to_doc_adds_blank_line_separator(ucv):
+    text = "existing content\n"
+    result = ucv.append_to_doc(text, ["- new bullet\n"])
+    assert result == "existing content\n\n- new bullet\n"
+
+
+def test_append_to_doc_no_new_lines_returns_unchanged(ucv):
+    text = "existing\n"
+    assert ucv.append_to_doc(text, []) == text
+
+
+# --- values_tree_path_for / find_matching_images_entry / update_images_manifest_entry ---
+
+def test_values_tree_path_for_single_image(ucv):
+    assert ucv.values_tree_path_for("zac", "image") == ("zac",)
+
+
+def test_values_tree_path_for_nested_image(ucv):
+    assert ucv.values_tree_path_for("zgw-office-addin", "frontend.image") == ("zgw-office-addin", "frontend")
+
+
+def test_find_matching_images_entry_matches_by_path(ucv):
+    entries = [{"name": "zac"}, {"name": "zgw-office-addin-frontend"}]
+    entry, idx = ucv.find_matching_images_entry(entries, [0, 1], ("zgw-office-addin", "frontend"))
+    assert entry["name"] == "zgw-office-addin-frontend"
+    assert idx == 1
+
+
+def test_find_matching_images_entry_none_when_unmatched(ucv):
+    entries = [{"name": "zac"}]
+    entry, idx = ucv.find_matching_images_entry(entries, [0], ("openformulieren",))
+    assert entry is None and idx is None
+
+
+def test_update_images_manifest_entry_updates_version_digest_and_comment(ucv):
+    lines = [
+        "# ZAC — 5.0.1 -> 5.1.0\n",
+        "- name: zac\n",
+        "  url: ghcr.io/infonl/zaakafhandelcomponent\n",
+        '  version: "5.1.0"\n',
+        '  digest: "sha256:aaaa"\n',
+    ]
+    changed = ucv.update_images_manifest_entry(lines, 1, "5.4.3@sha256:bbbb")
+    assert changed is True
+    assert lines[0] == "# ZAC — 5.0.1 -> 5.4.3\n"
+    assert '"5.4.3"' in lines[3]
+    assert '"sha256:bbbb"' in lines[4]
+
+
+# --- update_images_manifest ---
+
+def test_update_images_manifest_updates_existing_entry(ucv, tmp_path):
+    images_path = tmp_path / "images-4.9.0.yaml"
+    images_path.write_text(
+        "# Two changes:\n"
+        "#   1. zac 5.0.2 -> 5.1.0 (chart 1.0.297, unchanged).\n"
+        "#   2. other 1.0.0 -> 1.0.1 (chart 1.0.0, unchanged).\n"
+        "#\n"
+        "# ZAC — 5.0.2 -> 5.1.0\n"
+        "- name: zac\n"
+        '  version: "5.1.0"\n'
+        '  digest: "sha256:aaaa"\n',
+        encoding="utf-8",
+    )
+    changes_action, entry_updates, missing = ucv.update_images_manifest(
+        images_path, "zac", "zac", "5.1.0", "5.4.3", "1.0.297", "1.0.297",
+        ["image"], {"image": "ghcr.io/infonl/zaakafhandelcomponent"}, {"image": "5.4.3@sha256:cccc"},
+    )
+    assert changes_action == "updated"
+    assert entry_updates == ["zac"]
+    assert missing == []
+    text = images_path.read_text(encoding="utf-8")
+    assert "1. zac 5.1.0 -> 5.4.3 (chart 1.0.297, unchanged)." in text
+    assert '"5.4.3"' in text
+    assert '"sha256:cccc"' in text
+
+
+def test_update_images_manifest_reports_missing_entry(ucv, tmp_path):
+    images_path = tmp_path / "images-4.9.0.yaml"
+    images_path.write_text(
+        "# One change:\n"
+        "#   1. zac 5.0.2 -> 5.1.0 (chart 1.0.297, unchanged).\n"
+        "#\n"
+        "# ZAC — 5.0.2 -> 5.1.0\n"
+        "- name: zac\n"
+        '  version: "5.1.0"\n'
+        '  digest: "sha256:aaaa"\n',
+        encoding="utf-8",
+    )
+    changes_action, entry_updates, missing = ucv.update_images_manifest(
+        images_path, "openformulieren", "openformulieren", "3.4.10", "3.5.6", "1.12.0", "1.12.0",
+        ["image"], {"image": "openformulieren/open-forms"}, {"image": "3.5.6@sha256:dddd"},
+    )
+    assert changes_action == "added"
+    assert entry_updates == []
+    assert missing == [("image", "openformulieren/open-forms", "3.5.6@sha256:dddd")]
+    text = images_path.read_text(encoding="utf-8")
+    assert "Two changes:" in text
+    assert "2. openformulieren 3.4.10 -> 3.5.6 (chart 1.12.0, unchanged)." in text
+
+
+def test_update_images_manifest_new_item_lands_after_continuation_line(ucv, tmp_path):
+    """A new item must be appended after the LAST item's continuation
+    comment line, not immediately after its numbered line — otherwise it
+    gets spliced in the middle of the previous item's own comment block."""
+    images_path = tmp_path / "images-4.9.0.yaml"
+    images_path.write_text(
+        "# Two changes:\n"
+        "#   1. zac 5.0.1 -> 5.1.0 (chart 1.0.251 -> 1.0.257).\n"
+        "#   2. zgw-office-addin v0.9.313 -> v0.9.352 (chart 0.0.89, unchanged).\n"
+        "#      Repository names (zgw-office-addin-{frontend,backend}) unchanged from 4.8.5.\n"
+        "#\n"
+        "# ZAC — 5.0.1 -> 5.1.0\n"
+        "- name: zac\n"
+        '  version: "5.1.0"\n'
+        '  digest: "sha256:aaaa"\n',
+        encoding="utf-8",
+    )
+    changes_action, entry_updates, missing = ucv.update_images_manifest(
+        images_path, "openformulieren", "openformulieren", "3.4.10", "3.5.6", "1.12.0", "1.12.0",
+        ["image"], {"image": "openformulieren/open-forms"}, {"image": "3.5.6@sha256:dddd"},
+    )
+    assert changes_action == "added"
+    lines = images_path.read_text(encoding="utf-8").splitlines()
+    assert lines[3] == "#      Repository names (zgw-office-addin-{frontend,backend}) unchanged from 4.8.5."
+    assert lines[4] == "#   3. openformulieren 3.4.10 -> 3.5.6 (chart 1.12.0, unchanged)."
+    assert lines[5] == "#"
+
+
+# --- main() integration: doc updates end-to-end ---
+
+def setup_docs(ucv, monkeypatch, upgrade_text, values_deltas_text=None, images_text=None):
+    doc_dir = ucv.DOC_DIR
+    write(doc_dir / "4.8.5-to-4.9.0-upgrade.md", upgrade_text)
+    if values_deltas_text is not None:
+        write(doc_dir / "4.8.5-to-4.9.0-values-deltas.md", values_deltas_text)
+    if images_text is not None:
+        write(ucv.IMAGES_DIR / "images-4.9.0.yaml", images_text)
+
+
+def test_main_adds_new_component_mention_end_to_end(ucv, tmp_path, monkeypatch):
+    setup_repo(tmp_path, monkeypatch, ucv)
+    setup_docs(
+        ucv, monkeypatch,
+        upgrade_text=(
+            "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+            "## Component versions (4.9.0 vs 4.8.5)\n\n"
+            "| Component | App version | Helm chart | Notes |\n"
+            "| --- | --- | --- | --- |\n\n"
+            "## Changes\n\n"
+            "## Per-environment checklist\n\nsteps\n"
+        ),
+        values_deltas_text=(
+            "# Values deltas — PodiumD 4.8.5 → 4.9.0\n\n"
+            "**No gemeente `podiumd.yml` changes are required for this hop.**\n"
+        ),
+        images_text=(
+            "# One change:\n"
+            "#   1. zac 5.0.2 -> 5.1.0 (chart 1.0.297, unchanged).\n"
+            "#\n"
+            "# ZAC — 5.0.2 -> 5.1.0\n"
+            "- name: zac\n"
+            '  version: "5.1.0"\n'
+            '  digest: "sha256:aaaa"\n'
+        ),
+    )
+    mock_verify_passes(monkeypatch)
+    monkeypatch.setattr(ucv, "resolve_repos", lambda dep, chart_version, paths: {
+        "image": "ghcr.io/infonl/zaakafhandelcomponent"
+    })
+    monkeypatch.setattr(ucv, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "c" * 64))
+    monkeypatch.setattr("sys.argv", ["update-component-version.py", "zac", "5.4.3", "1.0.297"])
+
+    ucv.main()
+
+    upgrade = (ucv.DOC_DIR / "4.8.5-to-4.9.0-upgrade.md").read_text(encoding="utf-8")
+    assert "| zac | 5.0.2 → 5.4.3 | 1.0.296 → 1.0.297 | - |" in upgrade
+    assert "### zac 5.0.2 → 5.4.3 (chart 1.0.296 → 1.0.297)" in upgrade
+    assert "Helm chart `zaakafhandelcomponent` `1.0.296` → `1.0.297`" in upgrade
+    assert "Image tag pin `zac.image.tag` `5.0.2` → `5.4.3`" in upgrade
+    # inserted before the next "## " heading, not after it
+    assert upgrade.index("### zac") < upgrade.index("## Per-environment checklist")
+
+    deltas = (ucv.DOC_DIR / "4.8.5-to-4.9.0-values-deltas.md").read_text(encoding="utf-8")
+    assert "**zac** app `5.0.2 → 5.4.3` (chart `1.0.296 → 1.0.297`) — chart + image tag." in deltas
+
+    images = (ucv.IMAGES_DIR / "images-4.9.0.yaml").read_text(encoding="utf-8")
+    assert "1. zac 5.0.2 -> 5.4.3 (chart 1.0.296 -> 1.0.297)." in images
+    assert '"5.4.3"' in images
+    assert f'"sha256:{"c" * 64}"' in images
+
+
+def test_main_updates_existing_component_mention_end_to_end(ucv, tmp_path, monkeypatch):
+    setup_repo(tmp_path, monkeypatch, ucv)
+    setup_docs(
+        ucv, monkeypatch,
+        upgrade_text=(
+            "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+            "## Component versions (4.9.0 vs 4.8.5)\n\n"
+            "| Component | App version | Helm chart | Notes |\n"
+            "| --- | --- | --- | --- |\n"
+            "| zac | 5.0.1 → 5.0.2 | 1.0.296 (unchanged) | - |\n\n"
+            "## Changes\n\n"
+            "### zac 5.0.1 → 5.0.2 (chart 1.0.296, unchanged)\n\nblah\n"
+        ),
+    )
+    mock_verify_passes(monkeypatch)
+    monkeypatch.setattr(ucv, "resolve_repos", lambda dep, chart_version, paths: {
+        "image": "ghcr.io/infonl/zaakafhandelcomponent"
+    })
+    monkeypatch.setattr(ucv, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "d" * 64))
+    monkeypatch.setattr("sys.argv", ["update-component-version.py", "zac", "5.4.3", "1.0.297"])
+
+    ucv.main()
+
+    upgrade = (ucv.DOC_DIR / "4.8.5-to-4.9.0-upgrade.md").read_text(encoding="utf-8")
+    assert "| zac | 5.0.2 → 5.4.3 | 1.0.296 → 1.0.297 | - |" in upgrade
+    assert "| zac | 5.0.1 → 5.0.2 |" not in upgrade  # old row content is gone
+    # existing Changes section is left alone (not duplicated / rewritten) —
+    # it still says 5.0.1 since that's a pre-existing, untouched section
+    assert upgrade.count("### zac") == 1
+    assert "### zac 5.0.1 → 5.0.2 (chart 1.0.296, unchanged)" in upgrade
+
+
+def test_main_skips_doc_updates_when_no_upgrade_doc_exists(ucv, tmp_path, monkeypatch, capsys):
+    setup_repo(tmp_path, monkeypatch, ucv)
+    mock_verify_passes(monkeypatch)
+    monkeypatch.setattr(ucv, "resolve_repos", lambda dep, chart_version, paths: {
+        "image": "ghcr.io/infonl/zaakafhandelcomponent"
+    })
+    monkeypatch.setattr(ucv, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "e" * 64))
+    monkeypatch.setattr("sys.argv", ["update-component-version.py", "zac", "5.4.3", "1.0.297"])
+
+    ucv.main()  # must not raise even though no docs exist
+
+    out = capsys.readouterr().out
+    assert "No upgrade doc found for target 4.9.0" in out
