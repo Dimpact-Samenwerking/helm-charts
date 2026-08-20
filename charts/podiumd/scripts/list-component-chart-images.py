@@ -4,12 +4,12 @@ List every container image (repository + tag) and every sub-chart dependency
 declared by a podiumd dependency chart, at a given chart version.
 
 Usage:
-    list-chart-images.py <chart-name-or-alias> <chart-version>
+    list-component-chart-images.py <chart-name-or-alias> <chart-version>
 
 Examples:
-    list-chart-images.py zac 1.0.297
-    list-chart-images.py zaakafhandelcomponent 1.0.297
-    list-chart-images.py zgw-office-addin 0.0.92
+    list-component-chart-images.py zac 1.0.297
+    list-component-chart-images.py zaakafhandelcomponent 1.0.297
+    list-component-chart-images.py zgw-office-addin 0.0.92
 
 Requires the Helm repositories to already be added (see /helm-repos or
 charts/podiumd/scripts/add-helm-repos.sh) and the `helm` CLI on PATH.
@@ -85,7 +85,7 @@ def main():
     dep = find_dependency(name_or_alias)
     ref = chart_ref(dep)
 
-    tmpdir = Path(tempfile.mkdtemp(prefix="list-chart-images-"))
+    tmpdir = Path(tempfile.mkdtemp(prefix="list-component-chart-images-"))
     try:
         print(f"Pulling {ref} @ {version} ...")
         pull_chart(ref, version, tmpdir)
