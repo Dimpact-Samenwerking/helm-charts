@@ -248,3 +248,53 @@ def test_check_image_digests_skips_unresolved_repository(vp, tmp_path, monkeypat
     assert ok is True
     assert called == []
     assert "0/0 matched" in detail
+
+
+# --- check_image_digests: sliding (global.images.*) vs pinned ---
+
+GLOBAL_IMAGES_VALUES = (
+    "global:\n"
+    "  images:\n"
+    "    nginx: &nginxImage\n"
+    "      repository: nginxinc/nginx-unprivileged\n"
+    f'      tag: "1.31.3@sha256:{"a" * 64}"\n'
+    "\n"
+    "zac:\n"
+    "  image:\n"
+    "    repository: ghcr.io/infonl/zaakafhandelcomponent\n"
+    f'    tag: "5.1.0@sha256:{"b" * 64}"\n'
+)
+
+
+def test_check_image_digests_sliding_drift_passes(vp, tmp_path, monkeypatch, capsys):
+    """A global.images.* base image's digest drifting must not fail the
+    check — it's expected, routine drift, not a pin bug."""
+    write_values(tmp_path, GLOBAL_IMAGES_VALUES)
+    monkeypatch.setattr(vp, "registry_tag_exists", lambda host, repo, tag: (
+        (True, f"sha256:{'c' * 64}") if repo == "nginxinc/nginx-unprivileged"
+        else (True, f"sha256:{'b' * 64}")
+    ))
+    ok, detail = vp.check_image_digests(tmp_path)
+    assert ok is True
+    assert "1 sliding" in detail
+    assert "0 stale" in detail
+    out = capsys.readouterr().out
+    assert "[SLIDING  ]" in out
+    assert "MISMATCH" not in out
+
+
+def test_check_image_digests_pinned_drift_still_fails(vp, tmp_path, monkeypatch, capsys):
+    """A component's own release tag drifting is a real failure, even when
+    a sliding base image ALSO drifted in the same run."""
+    write_values(tmp_path, GLOBAL_IMAGES_VALUES)
+    monkeypatch.setattr(vp, "registry_tag_exists", lambda host, repo, tag: (
+        (True, f"sha256:{'a' * 64}") if repo == "nginxinc/nginx-unprivileged"  # unchanged, matches
+        else (True, f"sha256:{'c' * 64}")  # zac drifted — not sliding
+    ))
+    ok, detail = vp.check_image_digests(tmp_path)
+    assert ok is False
+    assert "0 sliding" in detail
+    assert "1 stale" in detail
+    out = capsys.readouterr().out
+    assert "[MISMATCH ]" in out
+    assert "zaakafhandelcomponent" in out

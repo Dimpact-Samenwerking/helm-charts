@@ -1,6 +1,7 @@
 """OCI registry helpers shared by every script that fetches or verifies a
 live image digest — same flow as documented in /fetch-image-digest."""
 import json
+import re
 import urllib.error
 import urllib.request
 
@@ -56,3 +57,62 @@ def registry_tag_exists(registry_host, repo, tag):
         if e.code == 404:
             return False, None
         raise
+
+
+def find_sliding_tag_line_range(lines):
+    """(start, end) 0-indexed, exclusive-end line range of the
+    "global: -> images:" block in values.yaml — the floating/sliding base
+    images (nginx, curl, busybox, ...) defined once there under a YAML
+    anchor and reused by every component that needs them. None if the block
+    isn't found.
+
+    A digest pin inside this range is expected to drift: upstream
+    re-publishes these tags routinely with new base/security layers, so a
+    mismatch there is routine, not a failure — see is_sliding_pin. A pin
+    outside this range is a component's own release tag, which should never
+    legitimately change once published; a mismatch there is worth
+    investigating, not silently refreshed."""
+    global_idx, global_indent = None, None
+    for i, line in enumerate(lines):
+        m = re.match(r"^(\s*)global:\s*$", line)
+        if m:
+            global_idx, global_indent = i, len(m.group(1))
+            break
+    if global_idx is None:
+        return None
+
+    images_idx, images_indent = None, None
+    for i in range(global_idx + 1, len(lines)):
+        line = lines[i]
+        if not line.strip():
+            continue
+        indent = len(line) - len(line.lstrip(" "))
+        if indent <= global_indent:
+            break
+        if line.strip() == "images:":
+            images_idx, images_indent = i, indent
+            break
+    if images_idx is None:
+        return None
+
+    end = len(lines)
+    for i in range(images_idx + 1, len(lines)):
+        line = lines[i]
+        if not line.strip():
+            continue
+        indent = len(line) - len(line.lstrip(" "))
+        if indent <= images_indent:
+            end = i
+            break
+    return images_idx, end
+
+
+def is_sliding_pin(pin_line, sliding_range):
+    """True if a 1-indexed pin line (as scan_digest_pins reports it) falls
+    inside sliding_range — the 0-indexed, exclusive-end range returned by
+    find_sliding_tag_line_range. sliding_range of None (no "global: images:"
+    block found) means nothing is classified as sliding."""
+    if sliding_range is None:
+        return False
+    start, end = sliding_range
+    return start <= (pin_line - 1) < end

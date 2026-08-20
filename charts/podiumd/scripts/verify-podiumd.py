@@ -5,7 +5,10 @@ Verifies the podiumd chart:
   2. all Chart.yaml dependencies actually resolve and bundle (helm dependency update)
   3. values.yaml has no duplicate keys silently overwriting earlier values
   4. every digest-pinned image in values.yaml still matches its live
-     upstream registry digest
+     upstream registry digest — except a pin inside the "global: images:"
+     block (nginx, curl, busybox, ... — sliding base images reused via YAML
+     anchor), where drift is expected and passes, just reported for
+     visibility
   5. component versions in Chart.yaml + values.yaml match the matching
      docs/_UPGRADE_PATHS/*-to-<version>-upgrade.md and docs/images/images-<version>.yaml
      (any component the doc lists, not a hardcoded set) — and, given --baseline,
@@ -58,7 +61,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
 from lib.procutil import run
-from lib.registry import parse_repo, registry_tag_exists
+from lib.registry import find_sliding_tag_line_range, is_sliding_pin, parse_repo, registry_tag_exists
 from lib.upgradedoc import (
     actual_app_version, compute_changed_components, diff_keys, extract_mentioned_dependency_keys,
     extract_source_version, extract_target_version, find_grouped_preceding_comment,
@@ -305,10 +308,19 @@ def check_image_digests(chart_dir):
     its live upstream registry digest, to catch pins that are stale (tag
     unchanged, but upstream re-published it with new base/security layers).
     One network request per unique (repository, version) pair. Never writes
-    to values.yaml — use set-image-digests.py to fix confirmed-stale pins."""
+    to values.yaml — use set-image-digests.py to fix confirmed-stale pins.
+
+    A pin inside the "global: images:" block (nginx, curl, busybox, ... —
+    the sliding base images reused via YAML anchor across the chart) is
+    EXPECTED to drift as upstream re-publishes the tag with new base/security
+    layers, so a mismatch there passes: it's reported for visibility, not
+    counted as a failure. A pin outside that block is a component's own
+    release tag, which should never legitimately change once published —
+    a mismatch there is a real failure worth investigating."""
     values_path = chart_dir / "values.yaml"
     lines = values_path.read_text(encoding="utf-8").splitlines()
     pins = scan_digest_pins(lines)
+    sliding_range = find_sliding_tag_line_range(lines)
 
     unresolved = [p for p in pins if not p["repository"]]
     targets = {}
@@ -321,12 +333,14 @@ def check_image_digests(chart_dir):
 
     matched = 0
     mismatches = []
+    sliding_mismatches = []
     fetch_errors = []
 
     for (repository, version), group in sorted(targets.items()):
         host, repo_path = parse_repo(repository)
         pinned_digest = group[0]["digest"]
         lines_str = ", ".join(str(p["line"]) for p in group)
+        sliding = is_sliding_pin(group[0]["line"], sliding_range)
 
         digest, error = None, None
         for _attempt in range(2):
@@ -341,11 +355,19 @@ def check_image_digests(chart_dir):
             fetch_errors.append((repository, version, error, lines_str))
             print(f"  [FETCH-ERR] {host}/{repo_path}:{version}  {error}  (lines {lines_str})")
         elif digest and digest != f"sha256:{pinned_digest}":
-            mismatches.append((repository, version, pinned_digest, digest, lines_str))
-            print(f"  [MISMATCH ] {host}/{repo_path}:{version}")
-            print(f"      pinned:   sha256:{pinned_digest}")
-            print(f"      upstream: {digest}")
-            print(f"      lines:    {lines_str}")
+            if sliding:
+                sliding_mismatches.append((repository, version, pinned_digest, digest, lines_str))
+                print(f"  [SLIDING  ] {host}/{repo_path}:{version}  (global.images.* base image — "
+                      f"digest drift is expected, not a failure)")
+                print(f"      pinned:   sha256:{pinned_digest}")
+                print(f"      upstream: {digest}")
+                print(f"      lines:    {lines_str}")
+            else:
+                mismatches.append((repository, version, pinned_digest, digest, lines_str))
+                print(f"  [MISMATCH ] {host}/{repo_path}:{version}")
+                print(f"      pinned:   sha256:{pinned_digest}")
+                print(f"      upstream: {digest}")
+                print(f"      lines:    {lines_str}")
         else:
             matched += 1
 
@@ -356,10 +378,14 @@ def check_image_digests(chart_dir):
             print(f"  line {p['line']}: {p['version']}")
         print()
 
+    if sliding_mismatches:
+        print(f"{len(sliding_mismatches)} sliding base-image digest(s) drifted (expected, not a "
+              f"failure) — pass --all to set-image-digests.py to refresh them too.")
     if mismatches:
-        print(f"Run set-image-digests.py to refresh the {len(mismatches)} stale digest(s) above.")
+        print(f"Run set-image-digests.py to refresh the {len(mismatches)} stale pinned digest(s) above.")
 
-    detail = f"{matched}/{len(targets)} matched, {len(mismatches)} stale, {len(fetch_errors)} fetch error(s)"
+    detail = (f"{matched}/{len(targets)} matched, {len(sliding_mismatches)} sliding (expected drift), "
+              f"{len(mismatches)} stale, {len(fetch_errors)} fetch error(s)")
     if mismatches or fetch_errors:
         return False, detail
     return True, detail
