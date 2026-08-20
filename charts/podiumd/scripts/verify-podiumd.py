@@ -26,14 +26,29 @@ trip:
   9. yamllint against that render finds no structurally-real problem (duplicate
      keys, syntax errors) in this chart's OWN templates — cosmetic findings
      (trailing whitespace, comment style, ...) aren't reported at all, and
-     anything in a vendored sub-chart under charts/podiumd/charts/* only
-     gets a one-line count, neither ever fails (see check_yamllint)
+     a vendored sub-chart finding is printed per-item if it's from a
+     friendly/partner vendor, else only gets a one-line count — neither
+     scope ever fails except OWN (see check_yamllint)
   10. kubeconform against that same render finds no real API-schema
       violation in this chart's OWN templates (wrong types, unknown fields,
       a resource that doesn't even parse) — a CRD with no known schema
-      (Keycloak, ECK, Redis, ...) is skipped, not an error, and a vendored
-      sub-chart finding only gets a one-line count, never fails (see
-      check_kubeconform)
+      (Keycloak, ECK, Redis, ...) is skipped, not an error, and vendored
+      findings follow the same friendly-vendor-gets-detail rule, never a
+      failure (see check_kubeconform)
+  11. shellcheck against every shell script embedded in a container's
+      command/args in this chart's OWN templates finds no real bug
+      (error/warning-level — bad quoting, undefined variables, portability
+      issues) — info/style-level suggestions aren't reported at all, and
+      vendored findings follow the same friendly-vendor-gets-detail rule,
+      never a failure (see check_shellcheck)
+
+  Steps 9-11's "friendly vendor" carve-out (see friendly_vendor_charts):
+  Maykin, Info(NL), ICATT, Worth, WeAreFrank, Dimpact, and any local
+  ("file://") dependency are close/collaborative enough that their
+  findings are worth seeing individually, even though this repo still
+  can't fix their code directly. Every other vendored sub-chart (elastic,
+  redis-operator, keycloak-operator, openbao, ...) stays
+  aggregate-count-only.
 
 Stops at the first failing step and prints a PASS/FAIL summary table, mirroring
 the /helm-precommit workflow (BOM check, dupe check, lint, full render) plus
@@ -57,7 +72,8 @@ Usage:
         # One flag per step: --skip-utf8-format, --skip-dependencies,
         # --skip-dupe-check, --skip-dry-check, --skip-image-digests,
         # --skip-docs-consistency, --skip-lint, --skip-full-render,
-        # --skip-yamllint, --skip-kubeconform. See --help for the full list.
+        # --skip-yamllint, --skip-kubeconform, --skip-shellcheck. See --help
+        # for the full list.
 
 Exit code is non-zero if any check fails — safe to use as a CI gate.
 """
@@ -1083,6 +1099,80 @@ def chart_name_from_source(source):
     return m.group(1) if m else (source or "(unknown source)")
 
 
+# Vendored sub-charts from these upstream orgs are close/collaborative
+# dependencies — Dutch govtech partners in the same "common ground"
+# ecosystem this repo lives in — worth seeing individual findings for, even
+# though this repo still can't directly fix their code. Matched case-
+# insensitively as a substring of the dependency's `repository:` field in
+# Chart.yaml (an "@alias" is resolved via REQUIRED_REPOS first, since e.g.
+# "@zac" itself doesn't contain "infonl" — only its resolved URL does).
+# Every other vendored sub-chart (elastic, redis-operator,
+# keycloak-operator, openbao, ...) stays aggregate-count-only: harder to
+# act on, not worth the extra detail.
+FRIENDLY_VENDOR_KEYWORDS = {
+    "maykinmedia": "Maykin",
+    "infonl": "Info(NL)",
+    "worth-nl": "Worth",
+    "wearefrank": "WeAreFrank",
+    "dimpact": "Dimpact",
+    # not currently matched by kiss-chart's own Chart.yaml dependency entry
+    # (oci://ghcr.io/klantinteractie-servicesysteem) — see
+    # FRIENDLY_VENDOR_CHART_OVERRIDES below — kept here too in case a
+    # future dependency's repository URL does contain it.
+    "icatt-menselijk-digitaal": "ICATT",
+}
+
+# "kiss" can't be derived from its own Chart.yaml repository field — KISS
+# (oci://ghcr.io/klantinteractie-servicesysteem) is developed by ICATT
+# (org "icatt-menselijk-digitaal" on GitHub/GHCR — see
+# docs/apps/kiss/kiss-BASICS.md and the podiumd-adapter image repository),
+# but neither appears in KISS's own repository URL, only in prose/its own
+# sub-chart's image override. Keyed by chart name (alias if the dependency
+# has one, matching how "# Source:" paths are built — see
+# chart_name_from_source).
+FRIENDLY_VENDOR_CHART_OVERRIDES = {
+    "kiss": "ICATT",
+}
+
+
+def _resolve_dependency_repo(repository):
+    if repository.startswith("@"):
+        return REQUIRED_REPOS.get(repository[1:], repository)
+    return repository
+
+
+def friendly_vendor_charts(chart_dir):
+    """Chart name -> vendor label, for every Chart.yaml dependency whose
+    (resolved) repository matches a FRIENDLY_VENDOR_KEYWORDS entry, plus the
+    FRIENDLY_VENDOR_CHART_OVERRIDES exceptions that can't be derived that
+    way, plus any "file://" dependency — a local sub-chart living in this
+    same monorepo (e.g. mi-data) isn't a "vendor" at all and is trivially
+    fixable here, so it gets the same per-item visibility. Chart name is
+    the dependency's alias if it has one, else its name — matching how
+    Helm names the charts/<name>/ directory a "# Source:" path is rooted
+    at."""
+    chart_yaml = load_yaml(chart_dir / "Chart.yaml") or {}
+    deps = chart_yaml.get("dependencies", [])
+    dep_chart_names = {dep.get("alias", dep["name"]) for dep in deps}
+
+    # Only apply an override for a chart that's actually a dependency here
+    # — otherwise a name collision with some unrelated future dependency
+    # would silently inherit an override meant for a specific chart.
+    mapping = {name: vendor for name, vendor in FRIENDLY_VENDOR_CHART_OVERRIDES.items()
+               if name in dep_chart_names}
+    for dep in deps:
+        chart_name = dep.get("alias", dep["name"])
+        repo = _resolve_dependency_repo(dep.get("repository", ""))
+        if repo.startswith("file://"):
+            mapping[chart_name] = "Local"
+            continue
+        for keyword, vendor in FRIENDLY_VENDOR_KEYWORDS.items():
+            if keyword in repo.lower():
+                mapping[chart_name] = vendor
+                break
+    return mapping
+
+
 def build_line_sources(rendered_text):
     """Map each 1-based line number in a full `helm template` render to the
     most recent preceding "# Source: <path>" comment, so a yamllint finding
@@ -1097,25 +1187,46 @@ def build_line_sources(rendered_text):
     return sources
 
 
+def _print_grouped_findings(findings, key_fn, item_fn, label_fn, items_label="line(s)"):
+    """Shared grouping printer for check_yamllint/check_kubeconform/
+    check_shellcheck: the same root cause (e.g. a duplicated label key)
+    typically shows up once per resource, not once overall — group by
+    key_fn and join the occurrences (item_fn) onto one line, so N
+    near-identical hits print as a handful of lines instead of a wall of
+    repeats."""
+    groups = {}
+    for finding in findings:
+        groups.setdefault(key_fn(finding), []).append(finding)
+    for key, group in groups.items():
+        count = f" x{len(group)}" if len(group) > 1 else ""
+        print(f"  {label_fn(key)}{count}")
+        print(f"      {items_label}: {', '.join(item_fn(f) for f in group)}")
+
+
 def check_yamllint(chart_dir, extra_args):
     """Runs yamllint against the full `helm template` render (never against
     raw templates/*.yaml — those contain Go template syntax that isn't
-    valid YAML on its own) and buckets every finding two ways:
+    valid YAML on its own) and buckets every finding several ways:
 
     - scope: this chart's OWN templates/ (Source starts with
       "podiumd/templates/") vs. a vendored sub-chart bundled under
-      charts/podiumd/charts/* — a dependency's content isn't something this
-      repo controls or can fix, so vendored findings only ever get a
-      one-line aggregate count (never dumped finding-by-finding — there can
-      be hundreds), never a failure.
+      charts/podiumd/charts/*. A dependency's content isn't something this
+      repo controls or can fix, so a vendored finding never fails — but a
+      FRIENDLY_VENDOR_KEYWORDS/local ("file://") dependency (Maykin,
+      Info(NL), ICATT, Worth, WeAreFrank, Dimpact, or this monorepo's own
+      mi-data) is close/collaborative enough to be worth seeing
+      individually; every other vendored sub-chart (elastic,
+      redis-operator, keycloak-operator, openbao, ...) only ever gets a
+      one-line aggregate count (there can be hundreds).
     - rule: YAMLLINT_FAILING_RULES (a structurally broken/ambiguous
       document — duplicate keys, a real syntax error) vs. everything else,
       which is cosmetic style — not reported at all, too noisy to be worth
-      surfacing right now, and never fails.
+      surfacing right now, and never fails regardless of scope.
 
-    Only an OWN + non-cosmetic finding fails the check and is printed, with
-    same-root-cause repeats in one file grouped into a single line (an
-    occurrence count + line list) rather than one line per hit."""
+    Only an OWN + non-cosmetic finding fails the check. Same-root-cause
+    repeats in one file are grouped into a single line (an occurrence
+    count + line list) rather than one line per hit, both for OWN findings
+    and for friendly-vendor findings."""
     if shutil.which("yamllint") is None:
         return False, "yamllint is not installed (see --skip-yamllint to bypass)"
 
@@ -1130,52 +1241,60 @@ def check_yamllint(chart_dir, extra_args):
 
     rendered = result.stdout
     sources = build_line_sources(rendered)
+    vendor_map = friendly_vendor_charts(chart_dir)
 
     lint_result = run(["yamllint", "-d", YAMLLINT_CONFIG, "-"],
                        input=rendered, capture_output=True, text=True)
     output = lint_result.stdout + lint_result.stderr
 
-    own_real, own_cosmetic, vendored = [], [], []
+    own_real, vendored_friendly, vendored_other = [], [], []
     for m in YAMLLINT_FINDING_RE.finditer(output):
         line_no = int(m.group("line"))
         rule = m.group("rule")
         source = sources.get(line_no)
+        if rule not in YAMLLINT_FAILING_RULES:
+            continue  # cosmetic — never reported, own or vendored
         finding = (line_no, source, m.group("level"), m.group("message"), rule)
         if source and source.startswith(OWN_TEMPLATES_PREFIX):
-            (own_real if rule in YAMLLINT_FAILING_RULES else own_cosmetic).append(finding)
+            own_real.append(finding)
+        elif chart_name_from_source(source) in vendor_map:
+            vendored_friendly.append(finding)
         else:
-            vendored.append(finding)
+            vendored_other.append(finding)
 
     if own_real:
         print(f"Found {len(own_real)} real yamllint issue(s) in this chart's own templates "
               f"(not cosmetic — these fail the check):")
-        # The same root cause (e.g. a duplicated label key) typically shows up
-        # once per resource in a file, not once per file — group by (file,
-        # rule, message) so 15 near-identical hits print as a handful of
-        # lines instead of a wall of repeats.
-        groups = {}
-        for line_no, source, level, message, rule in own_real:
-            key = (source, level, message, rule)
-            groups.setdefault(key, []).append(line_no)
-        for (source, level, message, rule), lines_ in groups.items():
-            count = f" x{len(lines_)}" if len(lines_) > 1 else ""
-            print(f"  [{level.upper():7s}] {source}  {message}  ({rule}){count}")
-            print(f"      line(s): {', '.join(str(n) for n in lines_)}")
+        _print_grouped_findings(
+            own_real,
+            key_fn=lambda f: (f[1], f[2], f[3], f[4]),
+            item_fn=lambda f: str(f[0]),
+            label_fn=lambda k: f"[{k[1].upper():7s}] {k[0]}  {k[2]}  ({k[3]})",
+        )
         print()
 
-    # Cosmetic (own) findings are never reported at all — pure style noise,
-    # not actionable right now. Vendored-sub-chart findings aren't ours to
-    # fix, so they only ever get a one-line aggregate count, never dumped
-    # finding-by-finding.
-    if vendored:
-        by_chart = Counter(chart_name_from_source(source) for _, source, _, _, _ in vendored)
-        print(f"{len(vendored)} yamllint finding(s) across {len(by_chart)} vendored sub-chart(s) "
-              f"(outside this repo's scope, not shown, never a failure)")
+    if vendored_friendly:
+        print(f"Found {len(vendored_friendly)} yamllint issue(s) in partner-maintained "
+              f"vendored sub-chart(s) (reported for visibility, never a failure):")
+        _print_grouped_findings(
+            vendored_friendly,
+            key_fn=lambda f: (f[1], f[2], f[3], f[4]),
+            item_fn=lambda f: str(f[0]),
+            label_fn=lambda k: (f"[{k[1].upper():7s}] {k[0]} ({vendor_map[chart_name_from_source(k[0])]})"
+                                 f"  {k[2]}  ({k[3]})"),
+        )
+        print()
 
-    if not (own_real or vendored):
+    if vendored_other:
+        by_chart = Counter(chart_name_from_source(source) for _, source, _, _, _ in vendored_other)
+        print(f"{len(vendored_other)} yamllint finding(s) across {len(by_chart)} other vendored "
+              f"sub-chart(s) (outside this repo's scope, not shown, never a failure)")
+
+    if not (own_real or vendored_friendly or vendored_other):
         print("OK: no yamllint findings in the rendered chart")
 
-    detail = f"{len(own_real)} real (own), {len(vendored)} in vendored sub-charts"
+    detail = (f"{len(own_real)} real (own), {len(vendored_friendly)} friendly-vendor, "
+              f"{len(vendored_other)} other-vendor")
     if own_real:
         return False, detail
     return True, detail
@@ -1233,20 +1352,38 @@ def run_kubeconform(yaml_text):
         return None
 
 
+def _kubeconform_group_key(entry):
+    _chart, r = entry
+    message = r.get("msg") or "(no message)"
+    return r["status"], message.splitlines()[0]
+
+
+def _kubeconform_group_label(key):
+    status, first_line = key
+    label = "ERROR" if status == "statusError" else "INVALID"
+    return f"[{label:7s}] {first_line}"
+
+
 def check_kubeconform(chart_dir, extra_args):
     """Validates the full `helm template` render against real Kubernetes
     API schemas — catches unknown fields, wrong types, and missing
     required fields that neither `helm lint` nor yamllint check (those
     only validate chart structure / YAML syntax, not API conformance).
 
-    Same scope split as check_yamllint: this chart's OWN templates/ (Source
-    starts with "podiumd/templates/") vs. a vendored sub-chart bundled
-    under charts/podiumd/charts/* — a dependency's content isn't ours to
-    fix, so vendored findings only ever get a one-line aggregate count,
-    never a failure. Only an own+real finding (a genuine schema violation,
-    or a resource kubeconform's own YAML parser couldn't even load — e.g.
-    the frankgateway duplicate-key bug) fails the check; a CRD with no
-    known schema (Keycloak, ECK, Redis, ...) is skipped, not an error."""
+    Same scope split as check_yamllint: this chart's OWN templates/ vs. a
+    vendored sub-chart bundled under charts/podiumd/charts/*. A
+    dependency's content isn't ours to fix, so a vendored finding never
+    fails — but a FRIENDLY_VENDOR_KEYWORDS/local dependency (see
+    friendly_vendor_charts) is printed per-resource; every other vendored
+    sub-chart only ever gets a one-line aggregate count (kubeconform's own
+    JSON output carries no per-resource source info, so — unlike
+    check_yamllint — each vendored sub-chart is validated as its own
+    separate kubeconform run, to know which chart a finding belongs to).
+
+    Only an own+real finding (a genuine schema violation, or a resource
+    kubeconform's own YAML parser couldn't even load — e.g. the
+    frankgateway duplicate-key bug) fails the check; a CRD with no known
+    schema (Keycloak, ECK, Redis, ...) is skipped, not an error."""
     if shutil.which("kubeconform") is None:
         return False, "kubeconform is not installed (see --skip-kubeconform to bypass)"
 
@@ -1260,48 +1397,237 @@ def check_kubeconform(chart_dir, extra_args):
         return False, "helm template failed to render"
 
     docs = split_rendered_by_source(result.stdout)
-    own_text = "".join(text for source, text in docs if source.startswith(OWN_TEMPLATES_PREFIX))
-    vendored_text = "".join(text for source, text in docs if not source.startswith(OWN_TEMPLATES_PREFIX))
+    vendor_map = friendly_vendor_charts(chart_dir)
 
+    own_text = "".join(text for source, text in docs if source.startswith(OWN_TEMPLATES_PREFIX))
     own_resources = run_kubeconform(own_text)
     if own_resources is None:
         return False, "kubeconform produced unparseable output"
-    vendored_resources = run_kubeconform(vendored_text)
-    if vendored_resources is None:
-        return False, "kubeconform produced unparseable output"
-
     own_real = [r for r in own_resources if r.get("status") in KUBECONFORM_FAILING_STATUSES]
-    vendored_bad = [r for r in vendored_resources if r.get("status") in KUBECONFORM_FAILING_STATUSES]
+
+    vendored_by_chart = {}
+    for source, text in docs:
+        if not source.startswith(OWN_TEMPLATES_PREFIX):
+            vendored_by_chart.setdefault(chart_name_from_source(source), []).append(text)
+
+    vendored_friendly, vendored_other = [], []
+    for chart, texts in vendored_by_chart.items():
+        resources = run_kubeconform("".join(texts))
+        if resources is None:
+            return False, "kubeconform produced unparseable output"
+        for r in resources:
+            if r.get("status") not in KUBECONFORM_FAILING_STATUSES:
+                continue
+            (vendored_friendly if chart in vendor_map else vendored_other).append((chart, r))
 
     if own_real:
         print(f"Found {len(own_real)} real kubeconform issue(s) in this chart's own templates "
               f"(not cosmetic — these fail the check):")
-        # Group by (status, first line of message) — the same root cause
-        # (e.g. the frankgateway templates all hitting the identical
-        # duplicate-key parse error) shares that first line even though the
-        # embedded line numbers differ per resource, so it collapses into
-        # one group instead of one line per resource.
-        groups = {}
-        for r in own_real:
-            message = r.get("msg") or "(no message)"
-            first_line = message.splitlines()[0]
-            key = (r["status"], first_line)
-            groups.setdefault(key, []).append(f"{r.get('kind')}/{r.get('name')}")
-        for (status, first_line), resources in groups.items():
-            label = "ERROR" if status == "statusError" else "INVALID"
-            count = f" x{len(resources)}" if len(resources) > 1 else ""
-            print(f"  [{label:7s}] {first_line}{count}")
-            print(f"      resource(s): {', '.join(resources)}")
+        _print_grouped_findings(
+            [(None, r) for r in own_real],
+            key_fn=_kubeconform_group_key,
+            item_fn=lambda entry: f"{entry[1].get('kind')}/{entry[1].get('name')}",
+            label_fn=_kubeconform_group_label,
+            items_label="resource(s)",
+        )
         print()
 
-    if vendored_bad:
-        print(f"{len(vendored_bad)} kubeconform finding(s) in vendored sub-charts "
-              f"(outside this repo's scope, not shown, never a failure)")
+    if vendored_friendly:
+        print(f"Found {len(vendored_friendly)} kubeconform issue(s) in partner-maintained "
+              f"vendored sub-chart(s) (reported for visibility, never a failure):")
+        _print_grouped_findings(
+            vendored_friendly,
+            key_fn=lambda entry: (entry[0],) + _kubeconform_group_key(entry),
+            item_fn=lambda entry: f"{entry[1].get('kind')}/{entry[1].get('name')}",
+            label_fn=lambda k: f"{_kubeconform_group_label(k[1:])} — {k[0]} ({vendor_map[k[0]]})",
+            items_label="resource(s)",
+        )
+        print()
 
-    if not (own_real or vendored_bad):
+    if vendored_other:
+        by_chart = Counter(chart for chart, _ in vendored_other)
+        print(f"{len(vendored_other)} kubeconform finding(s) across {len(by_chart)} other "
+              f"vendored sub-chart(s) (outside this repo's scope, not shown, never a failure)")
+
+    if not (own_real or vendored_friendly or vendored_other):
         print("OK: no kubeconform findings in the rendered chart")
 
-    detail = f"{len(own_real)} real (own), {len(vendored_bad)} in vendored sub-charts"
+    detail = (f"{len(own_real)} real (own), {len(vendored_friendly)} friendly-vendor, "
+              f"{len(vendored_other)} other-vendor")
+    if own_real:
+        return False, detail
+    return True, detail
+
+
+# Any container invoking one of these as its `command`, with "-c" somewhere
+# in command+args, is treated as an embedded shell script — matches this
+# chart's own convention (command: ["/bin/sh", "-c"] / ["sh", "-c"], args:
+# the script) as well as vendored sub-charts using the same shape.
+SHELLCHECK_SHELL_NAMES = {"sh", "bash", "dash", "ksh"}
+
+# error/warning are shellcheck's own "likely a real bug" tiers (syntax
+# problems, quoting that will actually break, undefined-option portability
+# issues); info/style are suggestions/preferences — cosmetic, not reported
+# at all, same policy as check_yamllint's cosmetic findings.
+SHELLCHECK_FAILING_LEVELS = {"error", "warning"}
+
+
+def _shell_name(token):
+    return token.rsplit("/", 1)[-1] if isinstance(token, str) else None
+
+
+def find_shell_scripts(obj, source, path=""):
+    """Recursively walk a parsed manifest (dict/list/scalar) looking for a
+    container-shaped dict with a command/args pair that invokes a shell
+    with "-c" (in either list, in either order — this chart uses both
+    `command: [".../sh", "-c"], args: [<script>]` and
+    `command: [...], args: ["-c", <script>]`). Returns (source, path,
+    shell, script_text) tuples."""
+    found = []
+    if isinstance(obj, dict):
+        command = obj.get("command")
+        args = obj.get("args")
+        if isinstance(command, list) or isinstance(args, list):
+            combined = (command or []) + (args or [])
+            shell = _shell_name(combined[0]) if combined else None
+            if shell in SHELLCHECK_SHELL_NAMES:
+                for i, tok in enumerate(combined):
+                    if tok == "-c" and i + 1 < len(combined) and isinstance(combined[i + 1], str):
+                        found.append((source, path, shell, combined[i + 1]))
+                        break
+        for key, value in obj.items():
+            found.extend(find_shell_scripts(value, source, f"{path}.{key}"))
+    elif isinstance(obj, list):
+        for i, item in enumerate(obj):
+            found.extend(find_shell_scripts(item, source, f"{path}[{i}]"))
+    return found
+
+
+def extract_shell_scripts(docs):
+    """docs: list of (source, doc_text) pairs, e.g. from
+    split_rendered_by_source. Parses each doc_text as YAML and returns
+    every embedded shell script found in it, tagged with its source."""
+    scripts = []
+    for source, doc_text in docs:
+        try:
+            parsed = yaml.safe_load(doc_text)
+        except yaml.YAMLError:
+            continue
+        if parsed is None:
+            continue
+        scripts.extend(find_shell_scripts(parsed, source))
+    return scripts
+
+
+def run_shellcheck(shell, script_text):
+    """Lint one embedded script, returning shellcheck's "comments" list (each
+    a dict with level/code/line/message) — or None if shellcheck's own
+    output couldn't be parsed as JSON (a shellcheck bug/crash, not a chart
+    problem)."""
+    result = run(["shellcheck", "-s", shell, "-f", "json1", "-"],
+                 input=script_text, capture_output=True, text=True)
+    try:
+        return json.loads(result.stdout)["comments"]
+    except (json.JSONDecodeError, KeyError):
+        return None
+
+
+def _shellcheck_group_key(finding):
+    _source, _path, c = finding
+    return c.get("level"), c.get("code"), c.get("message")
+
+
+def _shellcheck_group_label(key):
+    level, code, message = key
+    return f"[{level.upper():7s}] SC{code}: {message}"
+
+
+def check_shellcheck(chart_dir, extra_args):
+    """Lints every shell script embedded in a container's command/args
+    (this chart's `command: [".../sh", "-c"], args: [<script>]` /
+    `command: [...], args: ["-c", <script>]` convention) — catches actual
+    shell bugs (bad quoting, undefined variables, portability issues) that
+    nothing else here checks; helm lint/kubeconform/yamllint all treat the
+    script as an opaque string.
+
+    Same scope split as check_yamllint/check_kubeconform: this chart's OWN
+    templates/ vs. a vendored sub-chart under charts/podiumd/charts/*. A
+    dependency's script isn't ours to fix, so a vendored finding never
+    fails — but a FRIENDLY_VENDOR_KEYWORDS/local dependency (see
+    friendly_vendor_charts) is printed per-item; every other vendored
+    sub-chart only ever gets a one-line aggregate count. Within OWN scope,
+    error/warning-level findings (shellcheck's own "likely a real bug"
+    tiers) fail the check; info/style (suggestions/preferences) aren't
+    reported at all, same policy as check_yamllint's cosmetic findings."""
+    if shutil.which("shellcheck") is None:
+        return False, "shellcheck is not installed (see --skip-shellcheck to bypass)"
+
+    template_args = list(extra_args)
+    if supports_skip_schema_validation():
+        template_args.append("--skip-schema-validation")
+
+    result = run(["helm", "template", CHART_NAME, str(chart_dir), *template_args],
+                 capture_output=True, text=True)
+    if result.returncode != 0:
+        return False, "helm template failed to render"
+
+    docs = split_rendered_by_source(result.stdout)
+    vendor_map = friendly_vendor_charts(chart_dir)
+    own_docs = [(s, t) for s, t in docs if s.startswith(OWN_TEMPLATES_PREFIX)]
+    vendored_docs = [(s, t) for s, t in docs if not s.startswith(OWN_TEMPLATES_PREFIX)]
+
+    own_real, vendored_friendly, vendored_other = [], [], []
+    for source, path, shell, script_text in extract_shell_scripts(own_docs):
+        comments = run_shellcheck(shell, script_text)
+        if comments is None:
+            return False, "shellcheck produced unparseable output"
+        for c in comments:
+            if c.get("level") in SHELLCHECK_FAILING_LEVELS:
+                own_real.append((source, path, c))
+
+    for source, path, shell, script_text in extract_shell_scripts(vendored_docs):
+        comments = run_shellcheck(shell, script_text)
+        if comments is None:
+            return False, "shellcheck produced unparseable output"
+        chart = chart_name_from_source(source)
+        for c in comments:
+            if c.get("level") in SHELLCHECK_FAILING_LEVELS:
+                (vendored_friendly if chart in vendor_map else vendored_other).append((source, path, c))
+
+    if own_real:
+        print(f"Found {len(own_real)} real shellcheck issue(s) in this chart's own templates "
+              f"(not cosmetic — these fail the check):")
+        _print_grouped_findings(
+            own_real,
+            key_fn=_shellcheck_group_key,
+            item_fn=lambda f: f"{f[0]} ({f[1]})",
+            label_fn=_shellcheck_group_label,
+            items_label="location(s)",
+        )
+        print()
+
+    if vendored_friendly:
+        print(f"Found {len(vendored_friendly)} shellcheck issue(s) in partner-maintained "
+              f"vendored sub-chart(s) (reported for visibility, never a failure):")
+        _print_grouped_findings(
+            vendored_friendly,
+            key_fn=_shellcheck_group_key,
+            item_fn=lambda f: f"{f[0]} ({f[1]}) [{vendor_map[chart_name_from_source(f[0])]}]",
+            label_fn=_shellcheck_group_label,
+            items_label="location(s)",
+        )
+        print()
+
+    if vendored_other:
+        by_chart = Counter(chart_name_from_source(source) for source, _, _ in vendored_other)
+        print(f"{len(vendored_other)} shellcheck finding(s) across {len(by_chart)} other "
+              f"vendored sub-chart(s) (outside this repo's scope, not shown, never a failure)")
+
+    if not (own_real or vendored_friendly or vendored_other):
+        print("OK: no shellcheck findings in the rendered chart")
+
+    detail = (f"{len(own_real)} real (own), {len(vendored_friendly)} friendly-vendor, "
+              f"{len(vendored_other)} other-vendor")
     if own_real:
         return False, detail
     return True, detail
@@ -1333,6 +1659,7 @@ SKIPPABLE_STEPS = [
     ("full-render", "Full render"),
     ("yamllint", "yamllint"),
     ("kubeconform", "kubeconform"),
+    ("shellcheck", "shellcheck"),
 ]
 
 
@@ -1391,6 +1718,7 @@ def main():
     run_step("Full render", "helm template", check_render, chart_dir, extra_args)
     run_step("yamllint", "yamllint (rendered output)", check_yamllint, chart_dir, extra_args)
     run_step("kubeconform", "kubeconform (rendered output)", check_kubeconform, chart_dir, extra_args)
+    run_step("shellcheck", "shellcheck (embedded shell scripts)", check_shellcheck, chart_dir, extra_args)
 
     print_summary(results, overall_ok=True)
 
