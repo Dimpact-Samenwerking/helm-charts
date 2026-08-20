@@ -468,3 +468,120 @@ def test_main_corrects_stale_table_using_real_baseline_tag(sdb, repo_with_baseli
     assert "1.0.251" not in upgrade
     out = capsys.readouterr().out
     assert "Correcting component version table" in out
+
+
+# --- replace_version_pair ---
+
+def test_replace_version_pair_arrow_form(sdb):
+    assert sdb.replace_version_pair("# ZAC — 5.0.1 -> 5.1.0\n", "5.0.2", "5.1.0") == \
+        "# ZAC — 5.0.2 -> 5.1.0\n"
+
+
+def test_replace_version_pair_unicode_arrow_preserved(sdb):
+    assert sdb.replace_version_pair("# ZAC — 5.0.1 → 5.1.0\n", "5.0.2", "5.1.0") == \
+        "# ZAC — 5.0.2 → 5.1.0\n"
+
+
+def test_replace_version_pair_no_match_returns_unchanged(sdb):
+    line = "# no version pair here\n"
+    assert sdb.replace_version_pair(line, "1.0.0", "2.0.0") == line
+
+
+# --- find_preceding_comment_line ---
+
+def test_find_preceding_comment_line_finds_arrow_comment(sdb):
+    lines = ["# ZAC — 5.0.1 -> 5.1.0\n", "- name: zac\n"]
+    assert sdb.find_preceding_comment_line(lines, 1) == 0
+
+
+def test_find_preceding_comment_line_none_when_no_comment(sdb):
+    lines = ["- name: zac\n"]
+    assert sdb.find_preceding_comment_line(lines, 0) is None
+
+
+def test_find_preceding_comment_line_none_when_comment_has_no_arrow(sdb):
+    lines = ["#repository:\n", "- name: zac\n"]
+    assert sdb.find_preceding_comment_line(lines, 1) is None
+
+
+# --- resolve_entry_version ---
+
+def test_resolve_entry_version_finds_matching_path(sdb):
+    paths = {("zac",): "5.1.0@sha256:aaaa", ("zgw-office-addin", "frontend"): "v0.9.352@sha256:bbbb"}
+    assert sdb.resolve_entry_version("zac", paths) == "5.1.0"
+    assert sdb.resolve_entry_version("zgw-office-addin-frontend", paths) == "v0.9.352"
+
+
+def test_resolve_entry_version_none_when_unresolvable(sdb):
+    assert sdb.resolve_entry_version("totally-unknown", {}) is None
+
+
+# --- fix_images_manifest_entries ---
+
+def test_fix_images_manifest_entries_corrects_stale_source(sdb):
+    text = (
+        "# ZAC — 5.0.1 -> 5.1.0\n"
+        "- name: zac\n"
+        "  url: ghcr.io/infonl/zaakafhandelcomponent\n"
+        '  version: "5.1.0"\n'
+        '  digest: "sha256:aaaa"\n'
+    )
+    target_values = {"zac": {"image": {"tag": "5.1.0@sha256:aaaa"}}}
+    baseline_values = {"zac": {"image": {"tag": "5.0.2@sha256:bbbb"}}}
+
+    new_text, changed, unresolved = sdb.fix_images_manifest_entries(text, target_values, baseline_values)
+    assert unresolved == []
+    assert changed == [("zac", "5.0.2", "5.1.0")]
+    assert "# ZAC — 5.0.2 -> 5.1.0" in new_text
+    assert "5.0.1" not in new_text
+
+
+def test_fix_images_manifest_entries_leaves_correct_entry_untouched(sdb):
+    text = (
+        "# ZAC — 5.0.2 -> 5.1.0\n"
+        "- name: zac\n"
+        '  version: "5.1.0"\n'
+    )
+    target_values = {"zac": {"image": {"tag": "5.1.0@sha256:aaaa"}}}
+    baseline_values = {"zac": {"image": {"tag": "5.0.2@sha256:bbbb"}}}
+
+    new_text, changed, unresolved = sdb.fix_images_manifest_entries(text, target_values, baseline_values)
+    assert changed == []
+    assert new_text == text
+
+
+def test_fix_images_manifest_entries_reports_missing_comment(sdb):
+    text = "- name: zgw-office-addin-backend\n  version: \"v0.9.352\"\n"
+    target_values = {"zgw-office-addin": {"backend": {"image": {"tag": "v0.9.352@sha256:aaaa"}}}}
+    new_text, changed, unresolved = sdb.fix_images_manifest_entries(text, target_values, {})
+    assert changed == []
+    assert unresolved == ["zgw-office-addin-backend"]
+    assert new_text == text
+
+
+def test_fix_images_manifest_entries_reports_unresolvable_baseline(sdb):
+    text = "# ZAC — 5.0.1 -> 5.1.0\n- name: zac\n  version: \"5.1.0\"\n"
+    target_values = {"zac": {"image": {"tag": "5.1.0@sha256:aaaa"}}}
+    new_text, changed, unresolved = sdb.fix_images_manifest_entries(text, target_values, {})
+    assert changed == []
+    assert unresolved == ["zac"]
+    assert new_text == text
+
+
+# --- main() integration: images-manifest entry-comment correction ---
+
+def test_main_corrects_stale_images_manifest_entry_comment(sdb, repo_with_baseline_tag, monkeypatch):
+    images_path = repo_with_baseline_tag.parent / "images" / "images-4.9.0.yaml"
+    write(images_path,
+          "# Baseline: podiumd 4.8.5. Re-verify before release.\n\n"
+          "# ZAC — 5.0.1 -> 5.1.0\n"
+          "- name: zac\n"
+          "  url: ghcr.io/infonl/zaakafhandelcomponent\n"
+          '  version: "5.1.0"\n'
+          '  digest: "sha256:aaaa"\n')
+    set_argv_and_dir(sdb, monkeypatch, repo_with_baseline_tag, "4.8.5")
+    sdb.main()
+
+    text = images_path.read_text(encoding="utf-8")
+    assert "# ZAC — 5.0.2 -> 5.1.0" in text
+    assert "5.0.1" not in text

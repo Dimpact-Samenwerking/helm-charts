@@ -57,6 +57,14 @@ whatever the table currently says with the actual versions at each end. A
 row is only rewritten when both ends are independently verifiable (the
 baseline must resolve to a real git ref, and the component must have
 existed there); anything else is reported, not guessed at.
+
+Does the same for docs/images/images-<target>.yaml's entries: each entry's
+preceding "# <Name> — <source> -> <target>" comment is checked against the
+image actually pinned at that values-tree path (current values.yaml for the
+target, the baseline's git ref for the source) and corrected if either side
+is stale — this is what catches drift like a comment still saying an app
+was "5.0.1" when the real baseline already had it at "5.0.2". An entry
+with no preceding comment at all is reported, not invented.
 """
 import re
 import subprocess
@@ -69,7 +77,10 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
-from lib.upgradedoc import actual_app_version, match_dependency, normalize_version, parse_upgrade_doc_rows
+from lib.upgradedoc import (
+    actual_app_version, extract_source_version, extract_target_version, find_image_tag_paths,
+    match_dependency, normalize_version, parse_upgrade_doc_rows, resolve_entry_path,
+)
 
 CHART_YAML = SCRIPT_DIR.parents[0] / "Chart.yaml"
 VALUES_YAML = SCRIPT_DIR.parents[0] / "values.yaml"
@@ -299,6 +310,90 @@ def fix_component_version_table(text, target_deps, target_values, baseline_deps,
     return "".join(lines), changed_rows, unmatched_names, unresolved_names
 
 
+VERSION_PAIR_RE = re.compile(
+    r"(?P<source>[A-Za-z0-9][\w.\-]*)\s*(?P<arrow>→|->)\s*(?P<target>[A-Za-z0-9][\w.\-]*)"
+)
+
+
+def find_preceding_comment_line(lines, entry_line_index):
+    """Index of the closest comment line above entry_line_index that states
+    a "<source> -> <target>" version pair, or None — stops at the first
+    blank/non-comment line, so it doesn't reach into the previous entry's
+    comment."""
+    j = entry_line_index - 1
+    while j >= 0 and lines[j].strip().startswith("#"):
+        if VERSION_PAIR_RE.search(lines[j]):
+            return j
+        j -= 1
+    return None
+
+
+def replace_version_pair(line, new_source, new_target):
+    """Replace the first "<source> -> <target>" (or "→") pair in line with
+    new_source/new_target, preserving everything else (the "# <Name> — "
+    prefix, arrow style, trailing newline)."""
+    def repl(m):
+        return f"{new_source} {m.group('arrow')} {new_target}"
+    new_line, count = VERSION_PAIR_RE.subn(repl, line, count=1)
+    return new_line if count else line
+
+
+def resolve_entry_version(name, paths):
+    """The app version pinned at the values-tree path this images-manifest
+    entry name resolves to, or None if it can't be resolved (no matching
+    path, or that path has no version, e.g. the component didn't exist yet)."""
+    path = resolve_entry_path(name, paths.keys())
+    tag = paths.get(path) if path else None
+    return tag.split("@")[0] if tag else None
+
+
+def fix_images_manifest_entries(text, target_values, baseline_values):
+    """Rewrite each images-manifest entry's preceding comment to state the
+    actual source (baseline) and target versions for the image at its
+    matched values-tree path. An entry is only rewritten when both ends are
+    independently verifiable (a resolvable baseline, and the component
+    existed there); anything else is reported, not guessed at. Returns
+    (new_text, changed_entries, unresolved_names)."""
+    lines = text.splitlines(keepends=True)
+    try:
+        entries = yaml.safe_load(text)
+    except yaml.YAMLError:
+        return text, [], []
+    if not isinstance(entries, list):
+        return text, [], []
+
+    entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
+    current_paths = dict(find_image_tag_paths(target_values))
+    baseline_paths = dict(find_image_tag_paths(baseline_values)) if baseline_values else {}
+
+    changed_entries, unresolved_names = [], []
+    for entry, line_idx in zip(entries, entry_line_indices):
+        name = entry["name"]
+        comment_idx = find_preceding_comment_line(lines, line_idx)
+        if comment_idx is None:
+            unresolved_names.append(name)
+            continue
+
+        actual_target = resolve_entry_version(name, current_paths)
+        actual_baseline = resolve_entry_version(name, baseline_paths)
+
+        if actual_target is None or actual_baseline is None:
+            unresolved_names.append(name)
+            continue
+
+        comment_line = lines[comment_idx]
+        doc_source = extract_source_version(comment_line)
+        doc_target = extract_target_version(comment_line)
+        if normalize_version(doc_source) == normalize_version(actual_baseline) and \
+                normalize_version(doc_target) == normalize_version(actual_target):
+            continue
+
+        lines[comment_idx] = replace_version_pair(comment_line, actual_baseline, actual_target)
+        changed_entries.append((name, actual_baseline, actual_target))
+
+    return "".join(lines), changed_entries, unresolved_names
+
+
 def main():
     if len(sys.argv) != 2:
         print(__doc__)
@@ -381,10 +476,11 @@ def main():
                 if leftovers:
                     review_notes.append((images_path.name, leftovers))
 
+    target_deps, target_values = load_target_state()
+    baseline_deps, baseline_values = load_baseline_state(new_baseline)
+
     upgrade_path = DOC_DIR / f"{new_baseline}-to-{target}-upgrade.md"
     if upgrade_path.is_file():
-        target_deps, target_values = load_target_state()
-        baseline_deps, baseline_values = load_baseline_state(new_baseline)
         text = upgrade_path.read_text(encoding="utf-8")
         new_text, changed_rows, unmatched_names, unresolved_names = fix_component_version_table(
             text, target_deps, target_values, baseline_deps, baseline_values
@@ -403,6 +499,23 @@ def main():
         if unmatched_names:
             print()
             print(f"Could not match to a Chart.yaml dependency, left as-is: {', '.join(unmatched_names)}")
+
+    if images_path.is_file():
+        text = images_path.read_text(encoding="utf-8")
+        new_text, changed_entries, unresolved_entry_names = fix_images_manifest_entries(
+            text, target_values, baseline_values
+        )
+        if changed_entries:
+            images_path.write_text(new_text, encoding="utf-8")
+            print()
+            print(f"=== Correcting entry comments in {images_path.name} ===")
+            for name, source, target_ver in changed_entries:
+                print(f"  {name}: {source} -> {target_ver}")
+        if unresolved_entry_names:
+            print()
+            print(f"Could not verify source/target version for: {', '.join(unresolved_entry_names)}"
+                  f" — no preceding comment, unresolvable values-tree path, or baseline "
+                  f"{new_baseline} doesn't resolve to a git ref. Left as-is; review by hand.")
 
     if review_notes:
         print()
