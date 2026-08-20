@@ -1098,15 +1098,17 @@ def check_yamllint(chart_dir, extra_args):
     - scope: this chart's OWN templates/ (Source starts with
       "podiumd/templates/") vs. a vendored sub-chart bundled under
       charts/podiumd/charts/* — a dependency's content isn't something this
-      repo controls or can fix, so vendored findings are only ever
-      reported (aggregated by chart, not dumped line-by-line — there can be
-      hundreds), never a failure.
+      repo controls or can fix, so vendored findings only ever get a
+      one-line aggregate count (never dumped finding-by-finding — there can
+      be hundreds), never a failure.
     - rule: YAMLLINT_FAILING_RULES (a structurally broken/ambiguous
       document — duplicate keys, a real syntax error) vs. everything else,
-      which is cosmetic style and reported but never fails.
+      which is cosmetic style — not reported at all, too noisy to be worth
+      surfacing right now, and never fails.
 
-    Only an OWN + non-cosmetic finding fails the check. Everything else is
-    visibility only, same spirit as check_dry."""
+    Only an OWN + non-cosmetic finding fails the check and is printed, with
+    same-root-cause repeats in one file grouped into a single line (an
+    occurrence count + line list) rather than one line per hit."""
     if shutil.which("yamllint") is None:
         return False, "yamllint is not installed (see --skip-yamllint to bypass)"
 
@@ -1140,27 +1142,33 @@ def check_yamllint(chart_dir, extra_args):
     if own_real:
         print(f"Found {len(own_real)} real yamllint issue(s) in this chart's own templates "
               f"(not cosmetic — these fail the check):")
+        # The same root cause (e.g. a duplicated label key) typically shows up
+        # once per resource in a file, not once per file — group by (file,
+        # rule, message) so 15 near-identical hits print as a handful of
+        # lines instead of a wall of repeats.
+        groups = {}
         for line_no, source, level, message, rule in own_real:
-            print(f"  [{level.upper():7s}] {source}:{line_no}  {message}  ({rule})")
+            key = (source, level, message, rule)
+            groups.setdefault(key, []).append(line_no)
+        for (source, level, message, rule), lines_ in groups.items():
+            count = f" x{len(lines_)}" if len(lines_) > 1 else ""
+            print(f"  [{level.upper():7s}] {source}  {message}  ({rule}){count}")
+            print(f"      line(s): {', '.join(str(n) for n in lines_)}")
         print()
 
-    # Cosmetic (own) and vendored-sub-chart findings are real, but noisy and
-    # not actionable right now — cosmetic style isn't worth fixing yet, and
-    # vendored content isn't ours to fix at all. Counted for the summary
-    # line only, not dumped finding-by-finding.
-    if own_cosmetic:
-        print(f"{len(own_cosmetic)} cosmetic yamllint finding(s) in this chart's own templates "
-              f"(style only, not shown, not a failure)")
+    # Cosmetic (own) findings are never reported at all — pure style noise,
+    # not actionable right now. Vendored-sub-chart findings aren't ours to
+    # fix, so they only ever get a one-line aggregate count, never dumped
+    # finding-by-finding.
     if vendored:
         by_chart = Counter(chart_name_from_source(source) for _, source, _, _, _ in vendored)
         print(f"{len(vendored)} yamllint finding(s) across {len(by_chart)} vendored sub-chart(s) "
               f"(outside this repo's scope, not shown, never a failure)")
 
-    if not (own_real or own_cosmetic or vendored):
+    if not (own_real or vendored):
         print("OK: no yamllint findings in the rendered chart")
 
-    detail = (f"{len(own_real)} real (own), {len(own_cosmetic)} cosmetic (own), "
-              f"{len(vendored)} in vendored sub-charts")
+    detail = f"{len(own_real)} real (own), {len(vendored)} in vendored sub-charts"
     if own_real:
         return False, detail
     return True, detail
