@@ -1,16 +1,21 @@
 #!/usr/bin/env python3
 """
 Bump the baseline of every docs/_UPGRADE_PATHS/<baseline>-to-<target>-*.md
-doc for a given target to a new baseline — e.g. rename
+doc for the current chart's target version to a new baseline — e.g. rename
 "4.8.2-to-4.9.0-upgrade.md" to "4.8.3-to-4.9.0-upgrade.md" (and its
 "gemeente-specific"/"values-deltas" siblings), updating each doc's title
 line to match.
 
+The target version is always charts/podiumd/Chart.yaml's own "version:" —
+same as verify-podiumd.py's docs-consistency check — not a parameter,
+since these docs only ever exist for a hop landing on the current chart.
+
 Usage:
-    bump-doc-baseline.py <target> <new-baseline>
+    bump-doc-baseline.py <new-baseline>
 
 Example:
-    bump-doc-baseline.py 4.9.0 4.8.3
+    bump-doc-baseline.py 4.8.3
+        # if Chart.yaml's version is 4.9.0, renames *-to-4.9.0-*.md
 
 For each doc file matching "<some-baseline>-to-<target>-<suffix>.md":
   - git-mv it to "<new-baseline>-to-<target>-<suffix>.md" (a no-op, reported
@@ -42,7 +47,14 @@ import subprocess
 import sys
 from pathlib import Path
 
+import yaml
+
+CHART_YAML = Path(__file__).resolve().parents[1] / "Chart.yaml"
 DOC_DIR = Path(__file__).resolve().parents[1] / "docs" / "_UPGRADE_PATHS"
+
+
+def current_chart_version():
+    return str(yaml.safe_load(CHART_YAML.read_text(encoding="utf-8"))["version"])
 
 FILENAME_RE_TMPL = r"^(?P<baseline>\d+\.\d+\.\d+)-to-{target}-(?P<suffix>[\w\-]+)\.md$"
 TITLE_ARROW_RE_TMPL = r"(?P<baseline>{baseline})(?P<arrow>\s*(?:→|->)\s*){target}"
@@ -137,10 +149,11 @@ def remaining_mentions(text, old_baseline):
 
 
 def main():
-    if len(sys.argv) != 3:
+    if len(sys.argv) != 2:
         print(__doc__)
         sys.exit(1)
-    target, new_baseline = sys.argv[1], sys.argv[2]
+    new_baseline = sys.argv[1]
+    target = current_chart_version()
 
     by_suffix = find_target_docs(target)
 

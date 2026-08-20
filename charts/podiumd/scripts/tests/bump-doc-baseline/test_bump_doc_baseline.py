@@ -130,13 +130,14 @@ def repo(tmp_path):
     return doc_dir
 
 
-def set_argv_and_dir(bdb, monkeypatch, doc_dir, argv):
-    monkeypatch.setattr("sys.argv", ["bump-doc-baseline.py", *argv])
+def set_argv_and_dir(bdb, monkeypatch, doc_dir, new_baseline, target="4.9.0"):
+    monkeypatch.setattr("sys.argv", ["bump-doc-baseline.py", new_baseline])
     monkeypatch.setattr(bdb, "DOC_DIR", doc_dir)
+    monkeypatch.setattr(bdb, "current_chart_version", lambda: target)
 
 
 def test_main_renames_and_updates_title_and_heading(bdb, repo, monkeypatch):
-    set_argv_and_dir(bdb, monkeypatch, repo, ["4.9.0", "4.8.3"])
+    set_argv_and_dir(bdb, monkeypatch, repo, "4.8.3")
     bdb.main()  # success path must not raise
 
     assert not (repo / "4.8.2-to-4.9.0-upgrade.md").exists()
@@ -150,7 +151,7 @@ def test_main_renames_and_updates_title_and_heading(bdb, repo, monkeypatch):
 
 
 def test_main_is_tracked_by_git_after_rename(bdb, repo, monkeypatch):
-    set_argv_and_dir(bdb, monkeypatch, repo, ["4.9.0", "4.8.3"])
+    set_argv_and_dir(bdb, monkeypatch, repo, "4.8.3")
     bdb.main()
     status = subprocess.run(["git", "status", "--porcelain"], cwd=repo.parents[1],
                              capture_output=True, text=True).stdout
@@ -160,7 +161,7 @@ def test_main_is_tracked_by_git_after_rename(bdb, repo, monkeypatch):
 def test_main_refuses_on_collision(bdb, repo, monkeypatch):
     write(repo / "4.8.3-to-4.9.0-upgrade.md", "# Upgrade guide: PodiumD 4.8.3 → 4.9.0\n")
     original = (repo / "4.8.2-to-4.9.0-upgrade.md").read_text(encoding="utf-8")
-    set_argv_and_dir(bdb, monkeypatch, repo, ["4.9.0", "4.8.3"])
+    set_argv_and_dir(bdb, monkeypatch, repo, "4.8.3")
 
     with pytest.raises(SystemExit) as exc_info:
         bdb.main()
@@ -171,7 +172,7 @@ def test_main_refuses_on_collision(bdb, repo, monkeypatch):
 
 
 def test_main_creates_all_three_stubs_when_target_has_no_docs(bdb, repo, monkeypatch, capsys):
-    set_argv_and_dir(bdb, monkeypatch, repo, ["9.9.9", "1.0.0"])
+    set_argv_and_dir(bdb, monkeypatch, repo, "1.0.0", target="9.9.9")
     bdb.main()  # must not raise — creating stubs is success, not an error
 
     for suffix in bdb.STANDARD_SUFFIXES:
@@ -186,7 +187,7 @@ def test_main_creates_all_three_stubs_when_target_has_no_docs(bdb, repo, monkeyp
 def test_main_creates_only_the_missing_standard_doc(bdb, repo, monkeypatch):
     # repo fixture already has upgrade + values-deltas for 4.9.0 baseline 4.8.2;
     # gemeente-specific is missing for this target.
-    set_argv_and_dir(bdb, monkeypatch, repo, ["4.9.0", "4.8.2"])
+    set_argv_and_dir(bdb, monkeypatch, repo, "4.8.2")
     bdb.main()
 
     assert (repo / "4.8.2-to-4.9.0-gemeente-specific.md").is_file()
@@ -196,15 +197,24 @@ def test_main_creates_only_the_missing_standard_doc(bdb, repo, monkeypatch):
 
 
 def test_main_already_at_new_baseline_is_a_noop(bdb, repo, monkeypatch, capsys):
-    set_argv_and_dir(bdb, monkeypatch, repo, ["4.9.0", "4.8.2"])
+    set_argv_and_dir(bdb, monkeypatch, repo, "4.8.2")
     bdb.main()
     assert (repo / "4.8.2-to-4.9.0-upgrade.md").exists()
     out = capsys.readouterr().out
     assert "already baseline 4.8.2 — unchanged" in out
 
 
-def test_main_requires_exactly_two_arguments(bdb, monkeypatch):
-    monkeypatch.setattr("sys.argv", ["bump-doc-baseline.py", "4.9.0"])
+def test_main_requires_exactly_one_argument(bdb, monkeypatch):
+    monkeypatch.setattr("sys.argv", ["bump-doc-baseline.py"])
     with pytest.raises(SystemExit) as exc_info:
         bdb.main()
     assert exc_info.value.code == 1
+
+
+# --- current_chart_version ---
+
+def test_current_chart_version_reads_chart_yaml(bdb, tmp_path, monkeypatch):
+    chart_yaml = tmp_path / "Chart.yaml"
+    chart_yaml.write_text("version: 4.9.0\nname: podiumd\n", encoding="utf-8")
+    monkeypatch.setattr(bdb, "CHART_YAML", chart_yaml)
+    assert bdb.current_chart_version() == "4.9.0"
