@@ -22,7 +22,7 @@ The umbrella chart is `charts/podiumd`, composing many sub-charts (openzaak, ope
 
 ## Skills
 
-Project skills live in `.claude/commands/` (e.g. `/helm-render-all`, `/helm-deps`, `/helm-lint`, `/check-image-cves`, `/verify-image-digests`, `/images-manifest`, `/branch-overview`). Prefer these for chart workflows.
+Project skills live in `.claude/commands/` (e.g. `/helm-render-all`, `/helm-deps`, `/helm-lint`, `/check-image-cves`, `/verify-image-digests`, `/images-manifest`, `/branch-overview`, `/helm-scripts-lint`). Prefer these for chart workflows.
 
 ## Images manifest
 

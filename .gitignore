@@ -12,3 +12,6 @@
 /charts/podiumd/scripts/cluster-status.sh
 /charts/podiumd/scripts/aks-blue-login.sh
 /charts/podiumd/scripts/cluster-overview.py
+
+__pycache__/
+.pytest_cache/

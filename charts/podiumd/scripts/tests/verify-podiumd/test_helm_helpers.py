@@ -42,13 +42,17 @@ def test_check_lint_counts_warnings_without_failing(vp, tmp_path, monkeypatch):
 
 # --- supports_skip_schema_validation ---
 
-def test_supports_skip_schema_validation_true(vp, monkeypatch):
-    monkeypatch.setattr(vp, "run", fake_run(0, "... --skip-schema-validation ...", ""))
+def test_supports_skip_schema_validation_true(vp, librenderscope, monkeypatch):
+    # supports_skip_schema_validation lives in lib.render_scope and calls its
+    # OWN `run` binding — vp.run only affects code verify-podiumd.py itself
+    # resolves `run` for (check_lint/check_render/check_dependencies), so
+    # this needs librenderscope, not vp, as the monkeypatch target.
+    monkeypatch.setattr(librenderscope, "run", fake_run(0, "... --skip-schema-validation ...", ""))
     assert vp.supports_skip_schema_validation() is True
 
 
-def test_supports_skip_schema_validation_false(vp, monkeypatch):
-    monkeypatch.setattr(vp, "run", fake_run(0, "no such flag documented here", ""))
+def test_supports_skip_schema_validation_false(vp, librenderscope, monkeypatch):
+    monkeypatch.setattr(librenderscope, "run", fake_run(0, "no such flag documented here", ""))
     assert vp.supports_skip_schema_validation() is False
 
 

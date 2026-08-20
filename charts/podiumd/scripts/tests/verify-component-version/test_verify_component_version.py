@@ -1,4 +1,4 @@
-"""find_dependency, chart_ref, pull_chart, get_path, parse_repo,
+"""find_dependency, pull_chart, get_path, parse_repo,
 registry_tag_exists, and main() — `helm pull` and all registry network calls
 are mocked out, so these tests need neither `helm` nor network access.
 
@@ -42,30 +42,8 @@ def test_find_dependency_not_found_raises(vcv, tmp_path, monkeypatch):
         vcv.find_dependency("totally-unknown")
 
 
-# --- chart_ref ---
-
-def test_chart_ref_alias_repository(vcv):
-    ref, repo_url = vcv.chart_ref({"name": "zaakafhandelcomponent", "repository": "@zac"})
-    assert ref == "zac/zaakafhandelcomponent"
-    assert repo_url is None
-
-
-def test_chart_ref_oci_repository(vcv):
-    ref, repo_url = vcv.chart_ref(
-        {"name": "internetaakafhandeling", "repository": "oci://ghcr.io/interne-taak-afhandeling"})
-    assert ref == "oci://ghcr.io/interne-taak-afhandeling/internetaakafhandeling"
-    assert repo_url is None
-
-
-def test_chart_ref_https_repository(vcv):
-    ref, repo_url = vcv.chart_ref({"name": "openforms", "repository": "https://maykinmedia.github.io/charts/"})
-    assert ref == "openforms"
-    assert repo_url == "https://maykinmedia.github.io/charts/"
-
-
-def test_chart_ref_unsupported_scheme_raises(vcv):
-    with pytest.raises(SystemExit, match="unsupported repository scheme"):
-        vcv.chart_ref({"name": "x", "repository": "ftp://nope"})
+# chart_ref is a pure passthrough of lib.chart.chart_ref — covered directly
+# in tests/lib/test_chart.py, no need to duplicate here.
 
 
 # --- pull_chart ---

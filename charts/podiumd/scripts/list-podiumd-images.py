@@ -16,7 +16,6 @@ charts/podiumd/scripts/add-helm-repos.sh) and the `helm` CLI on PATH, unless
 every dependency is already vendored locally (e.g. after `helm dependency
 update`), in which case no network access is needed at all.
 """
-import subprocess
 import sys
 import tempfile
 import shutil
@@ -28,7 +27,7 @@ import yaml
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from lib.chart import chart_ref, find_images, version_of
+from lib.chart import find_images, version_of
 from lib.chart import pull_chart as _pull_chart
 
 PODIUMD_DIR = SCRIPT_DIR.parents[0]

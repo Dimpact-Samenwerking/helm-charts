@@ -23,8 +23,8 @@ def sc_result(comments, returncode=1):
     )
 
 
-def no_friendly_vendors(vp, monkeypatch):
-    monkeypatch.setattr(vp, "friendly_vendor_charts", lambda chart_dir: {})
+def no_friendly_vendors(libshellcheckcheck, monkeypatch):
+    monkeypatch.setattr(libshellcheckcheck, "friendly_vendor_charts", lambda chart_dir: {})
 
 
 RENDERED = (
@@ -58,35 +58,35 @@ RENDERED = (
 
 # --- find_shell_scripts ---
 
-def test_find_shell_scripts_detects_command_then_args_pattern(vp):
+def test_find_shell_scripts_detects_command_then_args_pattern(libshellcheckcheck):
     manifest = {
         "spec": {"containers": [
             {"name": "a", "command": ["/bin/sh", "-c"], "args": ["echo hi"]},
         ]}
     }
-    found = vp.find_shell_scripts(manifest, "podiumd/templates/x.yaml")
+    found = libshellcheckcheck.find_shell_scripts(manifest, "podiumd/templates/x.yaml")
     assert len(found) == 1
     source, path, shell, script = found[0]
     assert shell == "sh"
     assert script == "echo hi"
 
 
-def test_find_shell_scripts_detects_command_only_pattern(vp):
+def test_find_shell_scripts_detects_command_only_pattern(libshellcheckcheck):
     manifest = {"command": ["sh", "-c", "echo hi"]}
-    found = vp.find_shell_scripts(manifest, "podiumd/templates/x.yaml")
+    found = libshellcheckcheck.find_shell_scripts(manifest, "podiumd/templates/x.yaml")
     assert len(found) == 1
     assert found[0][2] == "sh"
     assert found[0][3] == "echo hi"
 
 
-def test_find_shell_scripts_ignores_non_shell_commands(vp):
+def test_find_shell_scripts_ignores_non_shell_commands(libshellcheckcheck):
     manifest = {"command": ["/usr/bin/curl", "-c", "not-a-shell-flag-context"]}
-    found = vp.find_shell_scripts(manifest, "podiumd/templates/x.yaml")
+    found = libshellcheckcheck.find_shell_scripts(manifest, "podiumd/templates/x.yaml")
     # "curl" is not a recognized shell name, so this must not be treated as one
     assert found == []
 
 
-def test_find_shell_scripts_recurses_into_nested_structures(vp):
+def test_find_shell_scripts_recurses_into_nested_structures(libshellcheckcheck):
     manifest = {
         "spec": {"template": {"spec": {"initContainers": [
             {"name": "a", "command": ["bash", "-c", "echo one"]},
@@ -94,7 +94,7 @@ def test_find_shell_scripts_recurses_into_nested_structures(vp):
             {"name": "b", "command": ["dash", "-c", "echo two"]},
         ]}}}
     }
-    found = vp.find_shell_scripts(manifest, "podiumd/templates/x.yaml")
+    found = libshellcheckcheck.find_shell_scripts(manifest, "podiumd/templates/x.yaml")
     assert {f[3] for f in found} == {"echo one", "echo two"}
 
 
@@ -118,20 +118,20 @@ def sequenced_run(own_comments, vendored_comments=None, rendered=RENDERED, sc_re
     return run
 
 
-def test_check_shellcheck_no_findings_passes(vp, tmp_path, monkeypatch):
+def test_check_shellcheck_no_findings_passes(vp, libshellcheckcheck, tmp_path, monkeypatch):
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
-    no_friendly_vendors(vp, monkeypatch)
-    monkeypatch.setattr(vp, "run", sequenced_run(own_comments=[], vendored_comments=[], sc_returncode=0))
+    no_friendly_vendors(libshellcheckcheck, monkeypatch)
+    monkeypatch.setattr(libshellcheckcheck, "run", sequenced_run(own_comments=[], vendored_comments=[], sc_returncode=0))
 
     ok, detail = vp.check_shellcheck(tmp_path, [])
     assert ok is True
     assert detail == "0 real (own), 0 friendly-vendor, 0 other-vendor"
 
 
-def test_check_shellcheck_own_warning_fails(vp, tmp_path, monkeypatch, capsys):
+def test_check_shellcheck_own_warning_fails(vp, libshellcheckcheck, tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
-    no_friendly_vendors(vp, monkeypatch)
-    monkeypatch.setattr(vp, "run", sequenced_run(own_comments=[
+    no_friendly_vendors(libshellcheckcheck, monkeypatch)
+    monkeypatch.setattr(libshellcheckcheck, "run", sequenced_run(own_comments=[
         {"level": "warning", "code": 3040, "line": 1,
          "message": "In POSIX sh, set option pipefail is undefined."},
     ]))
@@ -145,10 +145,10 @@ def test_check_shellcheck_own_warning_fails(vp, tmp_path, monkeypatch, capsys):
     assert "pipefail" in out
 
 
-def test_check_shellcheck_own_error_fails(vp, tmp_path, monkeypatch, capsys):
+def test_check_shellcheck_own_error_fails(vp, libshellcheckcheck, tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
-    no_friendly_vendors(vp, monkeypatch)
-    monkeypatch.setattr(vp, "run", sequenced_run(own_comments=[
+    no_friendly_vendors(libshellcheckcheck, monkeypatch)
+    monkeypatch.setattr(libshellcheckcheck, "run", sequenced_run(own_comments=[
         {"level": "error", "code": 1072, "line": 2, "message": "Unexpected token."},
     ]))
 
@@ -158,12 +158,12 @@ def test_check_shellcheck_own_error_fails(vp, tmp_path, monkeypatch, capsys):
     assert "ERROR" in out
 
 
-def test_check_shellcheck_info_and_style_never_reported(vp, tmp_path, monkeypatch, capsys):
+def test_check_shellcheck_info_and_style_never_reported(vp, libshellcheckcheck, tmp_path, monkeypatch, capsys):
     """info/style findings are cosmetic — not just non-failing, not
     mentioned in output or detail at all, same policy as yamllint."""
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
-    no_friendly_vendors(vp, monkeypatch)
-    monkeypatch.setattr(vp, "run", sequenced_run(own_comments=[
+    no_friendly_vendors(libshellcheckcheck, monkeypatch)
+    monkeypatch.setattr(libshellcheckcheck, "run", sequenced_run(own_comments=[
         {"level": "info", "code": 2086, "line": 1, "message": "Double quote to prevent globbing."},
         {"level": "style", "code": 2006, "line": 2, "message": "Use $(...) instead of legacy backticks."},
     ]))
@@ -176,9 +176,9 @@ def test_check_shellcheck_info_and_style_never_reported(vp, tmp_path, monkeypatc
     assert "2006" not in out
 
 
-def test_check_shellcheck_repeated_root_cause_is_grouped(vp, tmp_path, monkeypatch, capsys):
+def test_check_shellcheck_repeated_root_cause_is_grouped(vp, libshellcheckcheck, tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
-    no_friendly_vendors(vp, monkeypatch)
+    no_friendly_vendors(libshellcheckcheck, monkeypatch)
 
     def run(cmd, **kwargs):
         if cmd[0] == "shellcheck":
@@ -205,7 +205,7 @@ def test_check_shellcheck_repeated_root_cause_is_grouped(vp, tmp_path, monkeypat
         )
         return SimpleNamespace(returncode=0, stdout=rendered, stderr="")
 
-    monkeypatch.setattr(vp, "run", run)
+    monkeypatch.setattr(libshellcheckcheck, "run", run)
     ok, detail = vp.check_shellcheck(tmp_path, [])
     assert ok is False
     assert "2 real" in detail
@@ -214,10 +214,10 @@ def test_check_shellcheck_repeated_root_cause_is_grouped(vp, tmp_path, monkeypat
     assert "x2" in out
 
 
-def test_check_shellcheck_other_vendor_finding_never_fails(vp, tmp_path, monkeypatch, capsys):
+def test_check_shellcheck_other_vendor_finding_never_fails(vp, libshellcheckcheck, tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
-    no_friendly_vendors(vp, monkeypatch)
-    monkeypatch.setattr(vp, "run", sequenced_run(
+    no_friendly_vendors(libshellcheckcheck, monkeypatch)
+    monkeypatch.setattr(libshellcheckcheck, "run", sequenced_run(
         own_comments=[],
         vendored_comments=[{"level": "error", "code": 1072, "line": 1, "message": "Unexpected token."}],
     ))
@@ -232,14 +232,14 @@ def test_check_shellcheck_other_vendor_finding_never_fails(vp, tmp_path, monkeyp
     assert "Unexpected token" not in out  # not dumped in detail
 
 
-def test_check_shellcheck_friendly_vendor_finding_reported_per_item_never_fails(vp, tmp_path, monkeypatch, capsys):
+def test_check_shellcheck_friendly_vendor_finding_reported_per_item_never_fails(vp, libshellcheckcheck, tmp_path, monkeypatch, capsys):
     """A vendored sub-chart from a listed partner org (here: zac -> Info(NL))
     gets its finding printed individually — unlike a plain vendored
     finding, which only ever gets an aggregate count — but must still
     never fail."""
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
-    monkeypatch.setattr(vp, "friendly_vendor_charts", lambda chart_dir: {"zac": "Info(NL)"})
-    monkeypatch.setattr(vp, "run", sequenced_run(
+    monkeypatch.setattr(libshellcheckcheck, "friendly_vendor_charts", lambda chart_dir: {"zac": "Info(NL)"})
+    monkeypatch.setattr(libshellcheckcheck, "run", sequenced_run(
         own_comments=[],
         vendored_comments=[{"level": "error", "code": 1072, "line": 1, "message": "Unexpected token."}],
     ))
@@ -256,9 +256,9 @@ def test_check_shellcheck_friendly_vendor_finding_reported_per_item_never_fails(
     assert "podiumd/charts/zac/templates/deployment.yaml" in out
 
 
-def test_check_shellcheck_no_scripts_found_passes(vp, tmp_path, monkeypatch):
+def test_check_shellcheck_no_scripts_found_passes(vp, libshellcheckcheck, tmp_path, monkeypatch):
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
-    no_friendly_vendors(vp, monkeypatch)
+    no_friendly_vendors(libshellcheckcheck, monkeypatch)
 
     def run(cmd, **kwargs):
         if "--help" in cmd:
@@ -267,7 +267,7 @@ def test_check_shellcheck_no_scripts_found_passes(vp, tmp_path, monkeypatch):
             raise AssertionError("shellcheck should never be invoked — no scripts to check")
         return SimpleNamespace(returncode=0, stdout="---\n# Source: podiumd/templates/x.yaml\nkind: ConfigMap\n", stderr="")
 
-    monkeypatch.setattr(vp, "run", run)
+    monkeypatch.setattr(libshellcheckcheck, "run", run)
     ok, detail = vp.check_shellcheck(tmp_path, [])
     assert ok is True
     assert detail == "0 real (own), 0 friendly-vendor, 0 other-vendor"
@@ -280,7 +280,7 @@ def test_check_shellcheck_missing_binary_fails(vp, tmp_path, monkeypatch):
     assert "not installed" in detail
 
 
-def test_check_shellcheck_render_failure_fails(vp, tmp_path, monkeypatch):
+def test_check_shellcheck_render_failure_fails(vp, libshellcheckcheck, tmp_path, monkeypatch):
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
 
     def run(cmd, **kwargs):
@@ -288,15 +288,15 @@ def test_check_shellcheck_render_failure_fails(vp, tmp_path, monkeypatch):
             return SimpleNamespace(returncode=0, stdout="", stderr="")
         return SimpleNamespace(returncode=1, stdout="", stderr="Error: broke")
 
-    monkeypatch.setattr(vp, "run", run)
+    monkeypatch.setattr(libshellcheckcheck, "run", run)
     ok, detail = vp.check_shellcheck(tmp_path, [])
     assert ok is False
     assert "failed to render" in detail
 
 
-def test_check_shellcheck_unparseable_output_fails(vp, tmp_path, monkeypatch):
+def test_check_shellcheck_unparseable_output_fails(vp, libshellcheckcheck, tmp_path, monkeypatch):
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
-    no_friendly_vendors(vp, monkeypatch)
+    no_friendly_vendors(libshellcheckcheck, monkeypatch)
 
     def run(cmd, **kwargs):
         if cmd[0] == "shellcheck":
@@ -305,7 +305,7 @@ def test_check_shellcheck_unparseable_output_fails(vp, tmp_path, monkeypatch):
             return SimpleNamespace(returncode=0, stdout="", stderr="")
         return SimpleNamespace(returncode=0, stdout=RENDERED, stderr="")
 
-    monkeypatch.setattr(vp, "run", run)
+    monkeypatch.setattr(libshellcheckcheck, "run", run)
     ok, detail = vp.check_shellcheck(tmp_path, [])
     assert ok is False
     assert "unparseable" in detail

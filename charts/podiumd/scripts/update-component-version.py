@@ -74,7 +74,6 @@ sys.path.insert(0, str(SCRIPT_DIR))
 from lib.chart import find_dependency as _find_dependency
 from lib.chart import get_path, pull_chart_values
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
-from lib.procutil import run
 from lib.registry import parse_repo, registry_tag_exists
 from lib.upgradedoc import (
     append_to_doc, canonical_version_cell, describe_key_changes, extract_source_version,

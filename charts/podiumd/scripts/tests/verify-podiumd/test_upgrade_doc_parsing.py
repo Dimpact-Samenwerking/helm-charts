@@ -12,10 +12,10 @@ TABLE = """\
 """
 
 
-def test_parses_all_rows(vp, tmp_path):
+def test_parses_all_rows(libdocsconsistency, tmp_path):
     doc = tmp_path / "doc.md"
     doc.write_text(TABLE)
-    rows = vp.parse_upgrade_doc_rows(doc)
+    rows = libdocsconsistency.parse_upgrade_doc_rows(doc)
     assert len(rows) == 2
     assert rows[0]["name"] == "ZAC (Zaakafhandelcomponent)"
     assert rows[0]["app_source"] == "5.0.2"
@@ -29,24 +29,24 @@ def test_parses_all_rows(vp, tmp_path):
     assert rows[1]["chart"] == "0.0.92"
 
 
-def test_header_and_separator_rows_are_skipped(vp, tmp_path):
+def test_header_and_separator_rows_are_skipped(libdocsconsistency, tmp_path):
     doc = tmp_path / "doc.md"
     doc.write_text(TABLE)
-    rows = vp.parse_upgrade_doc_rows(doc)
+    rows = libdocsconsistency.parse_upgrade_doc_rows(doc)
     names = [r["name"] for r in rows]
     assert "Component" not in names
     assert not any(set(n) <= set("-: ") for n in names)
 
 
-def test_no_table_returns_empty_list(vp, tmp_path):
+def test_no_table_returns_empty_list(libdocsconsistency, tmp_path):
     doc = tmp_path / "doc.md"
     doc.write_text("# Upgrade guide\n\nJust prose, no table.\n")
-    assert vp.parse_upgrade_doc_rows(doc) == []
+    assert libdocsconsistency.parse_upgrade_doc_rows(doc) == []
 
 
-def test_lines_that_are_not_full_table_rows_are_skipped(vp, tmp_path):
+def test_lines_that_are_not_full_table_rows_are_skipped(libdocsconsistency, tmp_path):
     doc = tmp_path / "doc.md"
     doc.write_text("# Title\n\n| only two cells |\n| ZAC | 5.0.2 -> 5.4.3 | 1.0.297 |\n")
-    rows = vp.parse_upgrade_doc_rows(doc)
+    rows = libdocsconsistency.parse_upgrade_doc_rows(doc)
     assert len(rows) == 1
     assert rows[0]["name"] == "ZAC"
