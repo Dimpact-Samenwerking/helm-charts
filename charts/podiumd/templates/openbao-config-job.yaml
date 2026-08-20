@@ -198,4 +198,8 @@ spec:
               echo "OpenBao configuration complete."
           resources:
             {{- toYaml $job.resources | nindent 12 }}
+      {{- with $job.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
 {{- end }}
