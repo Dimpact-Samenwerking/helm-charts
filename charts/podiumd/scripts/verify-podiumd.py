@@ -25,9 +25,15 @@ trip:
   8. the chart renders cleanly with `helm template` using the CI placeholder values
   9. yamllint against that render finds no structurally-real problem (duplicate
      keys, syntax errors) in this chart's OWN templates — cosmetic findings
-     (trailing whitespace, comment style, ...) and anything in a vendored
-     sub-chart under charts/podiumd/charts/* are reported for visibility but
-     never fail (see check_yamllint)
+     (trailing whitespace, comment style, ...) aren't reported at all, and
+     anything in a vendored sub-chart under charts/podiumd/charts/* only
+     gets a one-line count, neither ever fails (see check_yamllint)
+  10. kubeconform against that same render finds no real API-schema
+      violation in this chart's OWN templates (wrong types, unknown fields,
+      a resource that doesn't even parse) — a CRD with no known schema
+      (Keycloak, ECK, Redis, ...) is skipped, not an error, and a vendored
+      sub-chart finding only gets a one-line count, never fails (see
+      check_kubeconform)
 
 Stops at the first failing step and prints a PASS/FAIL summary table, mirroring
 the /helm-precommit workflow (BOM check, dupe check, lint, full render) plus
@@ -51,12 +57,13 @@ Usage:
         # One flag per step: --skip-utf8-format, --skip-dependencies,
         # --skip-dupe-check, --skip-dry-check, --skip-image-digests,
         # --skip-docs-consistency, --skip-lint, --skip-full-render,
-        # --skip-yamllint. See --help for the full list.
+        # --skip-yamllint, --skip-kubeconform. See --help for the full list.
 
 Exit code is non-zero if any check fails — safe to use as a CI gate.
 """
 import argparse
 import difflib
+import json
 import re
 import shutil
 import sys
@@ -1174,6 +1181,132 @@ def check_yamllint(chart_dir, extra_args):
     return True, detail
 
 
+# kind/version/name only — kubeconform's JSON output carries no line number
+# or originating-file info per resource (unlike yamllint), so scoping own
+# vs. vendored has to happen BEFORE validation: split the render into two
+# separate per-scope YAML streams and run kubeconform once per stream.
+SOURCE_DOC_SPLIT_RE = re.compile(r"(?m)^---\n(?=# Source: )")
+
+KUBECONFORM_ARGS = [
+    "-strict",  # also catch unknown/duplicate fields, not just type mismatches
+    "-ignore-missing-schemas",  # this chart's many CRDs (Keycloak, ECK, Redis, ...) have no
+                                 # schema in kubeconform's registry — skip them, don't error
+    "-verbose",
+    "-summary",
+    "-output", "json",
+    "-",
+]
+
+# statusError covers both "resource couldn't even be parsed" (e.g. the
+# frankgateway duplicate-key bug — a real, structural problem) and, in
+# theory, a schema-fetch network failure. statusInvalid is a genuine schema
+# violation. Both are non-cosmetic; statusSkipped (no schema, expected for
+# CRDs) and statusValid are not findings at all.
+KUBECONFORM_FAILING_STATUSES = {"statusError", "statusInvalid"}
+
+
+def split_rendered_by_source(rendered_text):
+    """Split a full `helm template` render into (source, doc_text) pairs,
+    one per "# Source: <path>" block — each doc_text keeps its own leading
+    "---\\n# Source: ...\\n" header, so any subset of the pairs can be
+    concatenated back into a smaller, still-valid multi-document YAML
+    stream (used to validate this chart's own templates and its vendored
+    sub-charts as two separate kubeconform runs)."""
+    docs = SOURCE_DOC_SPLIT_RE.split(rendered_text)
+    result = []
+    for doc in docs:
+        m = re.match(r"# Source: (.+)\n", doc)
+        if m:
+            result.append((m.group(1).strip(), f"---\n{doc}"))
+    return result
+
+
+def run_kubeconform(yaml_text):
+    """Validate a YAML stream with kubeconform, returning the parsed
+    "resources" list (each a dict with at least kind/name/version/status/
+    msg) — or None if kubeconform's own output couldn't be parsed as JSON
+    (a kubeconform bug/crash, not a chart problem)."""
+    result = run(["kubeconform", *KUBECONFORM_ARGS], input=yaml_text, capture_output=True, text=True)
+    try:
+        return json.loads(result.stdout)["resources"]
+    except (json.JSONDecodeError, KeyError):
+        return None
+
+
+def check_kubeconform(chart_dir, extra_args):
+    """Validates the full `helm template` render against real Kubernetes
+    API schemas — catches unknown fields, wrong types, and missing
+    required fields that neither `helm lint` nor yamllint check (those
+    only validate chart structure / YAML syntax, not API conformance).
+
+    Same scope split as check_yamllint: this chart's OWN templates/ (Source
+    starts with "podiumd/templates/") vs. a vendored sub-chart bundled
+    under charts/podiumd/charts/* — a dependency's content isn't ours to
+    fix, so vendored findings only ever get a one-line aggregate count,
+    never a failure. Only an own+real finding (a genuine schema violation,
+    or a resource kubeconform's own YAML parser couldn't even load — e.g.
+    the frankgateway duplicate-key bug) fails the check; a CRD with no
+    known schema (Keycloak, ECK, Redis, ...) is skipped, not an error."""
+    if shutil.which("kubeconform") is None:
+        return False, "kubeconform is not installed (see --skip-kubeconform to bypass)"
+
+    template_args = list(extra_args)
+    if supports_skip_schema_validation():
+        template_args.append("--skip-schema-validation")
+
+    result = run(["helm", "template", CHART_NAME, str(chart_dir), *template_args],
+                 capture_output=True, text=True)
+    if result.returncode != 0:
+        return False, "helm template failed to render"
+
+    docs = split_rendered_by_source(result.stdout)
+    own_text = "".join(text for source, text in docs if source.startswith(OWN_TEMPLATES_PREFIX))
+    vendored_text = "".join(text for source, text in docs if not source.startswith(OWN_TEMPLATES_PREFIX))
+
+    own_resources = run_kubeconform(own_text)
+    if own_resources is None:
+        return False, "kubeconform produced unparseable output"
+    vendored_resources = run_kubeconform(vendored_text)
+    if vendored_resources is None:
+        return False, "kubeconform produced unparseable output"
+
+    own_real = [r for r in own_resources if r.get("status") in KUBECONFORM_FAILING_STATUSES]
+    vendored_bad = [r for r in vendored_resources if r.get("status") in KUBECONFORM_FAILING_STATUSES]
+
+    if own_real:
+        print(f"Found {len(own_real)} real kubeconform issue(s) in this chart's own templates "
+              f"(not cosmetic — these fail the check):")
+        # Group by (status, first line of message) — the same root cause
+        # (e.g. the frankgateway templates all hitting the identical
+        # duplicate-key parse error) shares that first line even though the
+        # embedded line numbers differ per resource, so it collapses into
+        # one group instead of one line per resource.
+        groups = {}
+        for r in own_real:
+            message = r.get("msg") or "(no message)"
+            first_line = message.splitlines()[0]
+            key = (r["status"], first_line)
+            groups.setdefault(key, []).append(f"{r.get('kind')}/{r.get('name')}")
+        for (status, first_line), resources in groups.items():
+            label = "ERROR" if status == "statusError" else "INVALID"
+            count = f" x{len(resources)}" if len(resources) > 1 else ""
+            print(f"  [{label:7s}] {first_line}{count}")
+            print(f"      resource(s): {', '.join(resources)}")
+        print()
+
+    if vendored_bad:
+        print(f"{len(vendored_bad)} kubeconform finding(s) in vendored sub-charts "
+              f"(outside this repo's scope, not shown, never a failure)")
+
+    if not (own_real or vendored_bad):
+        print("OK: no kubeconform findings in the rendered chart")
+
+    detail = f"{len(own_real)} real (own), {len(vendored_bad)} in vendored sub-charts"
+    if own_real:
+        return False, detail
+    return True, detail
+
+
 def print_summary(results, overall_ok):
     log("VERIFY SUMMARY")
     width = max(len(name) for name, _, _ in results)
@@ -1199,6 +1332,7 @@ SKIPPABLE_STEPS = [
     ("lint", "Lint"),
     ("full-render", "Full render"),
     ("yamllint", "yamllint"),
+    ("kubeconform", "kubeconform"),
 ]
 
 
@@ -1256,6 +1390,7 @@ def main():
     run_step("Lint", "helm lint", check_lint, chart_dir, extra_args)
     run_step("Full render", "helm template", check_render, chart_dir, extra_args)
     run_step("yamllint", "yamllint (rendered output)", check_yamllint, chart_dir, extra_args)
+    run_step("kubeconform", "kubeconform (rendered output)", check_kubeconform, chart_dir, extra_args)
 
     print_summary(results, overall_ok=True)
 

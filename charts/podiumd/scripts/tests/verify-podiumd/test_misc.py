@@ -120,6 +120,7 @@ def test_main_skips_requested_steps_and_runs_the_rest(vp, monkeypatch, capsys):
     monkeypatch.setattr(vp, "check_image_digests", make_check("digests"))
     monkeypatch.setattr(vp, "check_docs_consistency", make_check("docs"))
     monkeypatch.setattr(vp, "check_yamllint", make_check("yamllint"))
+    monkeypatch.setattr(vp, "check_kubeconform", make_check("kubeconform"))
 
     def fail_if_called(*args):
         raise AssertionError("this check should have been skipped")
@@ -129,7 +130,7 @@ def test_main_skips_requested_steps_and_runs_the_rest(vp, monkeypatch, capsys):
 
     vp.main()  # must not raise / must not sys.exit
 
-    assert ran == ["utf8", "dupe", "dry", "docs", "digests", "deps", "yamllint"]
+    assert ran == ["utf8", "dupe", "dry", "docs", "digests", "deps", "yamllint", "kubeconform"]
     out = capsys.readouterr().out
     assert "Lint" in out and "SKIP" in out
     assert "Full render" in out and "SKIP" in out
