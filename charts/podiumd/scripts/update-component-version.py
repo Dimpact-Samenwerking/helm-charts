@@ -76,7 +76,7 @@ from lib.chart import get_path, pull_chart_values
 from lib.procutil import run
 from lib.registry import parse_repo, registry_tag_exists
 from lib.upgradedoc import (
-    canonical_version_cell, diff_keys, extract_source_version, find_preceding_comment_line,
+    canonical_version_cell, diff_keys, extract_source_version, find_grouped_preceding_comment_line,
     normalize_name, normalize_version, pair_renames, parse_upgrade_doc_rows, replace_version_pair,
     resolve_entry_path,
 )
@@ -397,15 +397,21 @@ def values_tree_path_for(values_key, image_path):
 
 
 def find_matching_images_entry(entries, entry_line_indices, target_path):
-    for entry, line_idx in zip(entries, entry_line_indices):
+    for index, (entry, line_idx) in enumerate(zip(entries, entry_line_indices)):
         if resolve_entry_path(entry["name"], [target_path]) == target_path:
-            return entry, line_idx
-    return None, None
+            return entry, line_idx, index
+    return None, None, None
 
 
-def update_images_manifest_entry(lines, entry_line_idx, new_tag):
+def update_images_manifest_entry(lines, entries, entry_line_indices, index, new_tag, values_key):
     """Update an existing entry's version/digest fields and its preceding
-    comment's version pair in place. Returns True if anything changed."""
+    comment's version pair in place. The comment may be shared across
+    several of this component's entries (e.g. zgw-office-addin's frontend +
+    backend, listed as one block under one comment) — found via the same
+    top-level-component grouping as find_grouped_preceding_comment_line,
+    not just the line directly above this entry. Returns True if anything
+    changed."""
+    entry_line_idx = entry_line_indices[index]
     new_app_version, digest = new_tag.split("@", 1)
     block_end = len(lines)
     for i in range(entry_line_idx + 1, len(lines)):
@@ -422,7 +428,16 @@ def update_images_manifest_entry(lines, entry_line_idx, new_tag):
         lines[i] = replace_scalar_value(lines[i], new_value)
         changed = True
 
-    comment_idx = find_preceding_comment_line(lines, entry_line_idx)
+    def component_of(entry):
+        return values_key if normalize_name(values_key) in normalize_name(entry["name"]) else None
+
+    def same_group(entry_a, entry_b):
+        return (component_of(entry_a) is not None
+                and component_of(entry_a) == component_of(entry_b)
+                and entry_a.get("version") == entry_b.get("version"))
+
+    comment_idx = find_grouped_preceding_comment_line(
+        lines, entries, entry_line_indices, index, same_group)
     if comment_idx is not None:
         current_source = extract_source_version(lines[comment_idx])
         if current_source:
@@ -493,11 +508,12 @@ def update_images_manifest(images_path, friendly, values_key, old_app, new_app, 
     entry_updates, missing_entries = [], []
     for path in paths_to_update:
         target_path = values_tree_path_for(values_key, path)
-        entry, entry_idx = find_matching_images_entry(entries, entry_line_indices, target_path)
+        entry, entry_idx, index = find_matching_images_entry(entries, entry_line_indices, target_path)
         if entry is None:
             missing_entries.append((path, repos[path], new_tags_by_path[path]))
             continue
-        if update_images_manifest_entry(lines, entry_idx, new_tags_by_path[path]):
+        if update_images_manifest_entry(
+                lines, entries, entry_line_indices, index, new_tags_by_path[path], values_key):
             entry_updates.append(entry["name"])
 
     new_text = "".join(lines)

@@ -1,7 +1,7 @@
-"""parse_changes_block, find_preceding_comment, check_images_manifest_format —
-including the two regressions found during development: a version number
-like "1.17.1-static" on a continuation line being mistaken for a new numbered
-list item, and a trailing period being captured as part of a version."""
+"""parse_changes_block, check_images_manifest_format — including the two
+regressions found during development: a version number like "1.17.1-static"
+on a continuation line being mistaken for a new numbered list item, and a
+trailing period being captured as part of a version."""
 from conftest import make_dep
 
 REAL_MANIFEST = """\
@@ -55,21 +55,6 @@ def test_parse_changes_block_does_not_mistake_version_continuation_for_new_item(
 
 def test_parse_changes_block_no_changes_section(vp):
     assert vp.parse_changes_block("# just a header\n# no changes block\n") == []
-
-
-def test_find_preceding_comment_single_line(vp):
-    lines = ["# ZAC — 5.0.2 -> 5.4.3", "- name: zac", "  version: \"5.4.3\""]
-    assert vp.find_preceding_comment(lines, 1) == "# ZAC — 5.0.2 -> 5.4.3"
-
-
-def test_find_preceding_comment_stops_at_blank_line(vp):
-    lines = ["- name: zac", "  version: \"5.4.3\"", "", "- name: opa"]
-    assert vp.find_preceding_comment(lines, 3) == ""
-
-
-def test_find_preceding_comment_multiple_lines(vp):
-    lines = ["# line one", "# line two", "- name: zac"]
-    assert vp.find_preceding_comment(lines, 2) == "# line one # line two"
 
 
 # --- check_images_manifest_format ---
@@ -152,6 +137,43 @@ def test_images_manifest_format_missing_entry_comment(vp, tmp_path):
     images_path.write_text(text)
     issues = vp.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, {})
     assert any('entry "opa" has no preceding comment' in i for i in issues)
+
+
+ZGW_MANIFEST = """\
+# Baseline: podiumd 4.8.5 (origin/feature/podiumd-4.8.5 @ f27a008).
+#
+# Images new or changed in podiumd 4.9.0 vs 4.8.5.
+#
+# Changes:
+#   1. ZGW Office Add-in v0.9.313 -> v0.9.352 (chart 0.0.89, unchanged).
+
+# ZGW Office Add-in — v0.9.313 -> v0.9.352
+- name: zgw-office-addin-frontend
+  url: ghcr.io/infonl/zgw-office-addin-frontend
+  version: "v0.9.352"
+  digest: "sha256:aaa"
+
+- name: zgw-office-addin-backend
+  url: ghcr.io/infonl/zgw-office-addin-backend
+  version: "v0.9.352"
+  digest: "sha256:bbb"
+"""
+ZGW_DEPS = [make_dep("zgw-office-addin", "0.0.89")]
+ZGW_VALUES = {"zgw-office-addin": {
+    "frontend": {"image": {"tag": "v0.9.352@sha256:aaa"}},
+    "backend": {"image": {"tag": "v0.9.352@sha256:bbb"}},
+}}
+
+
+def test_images_manifest_format_multi_image_component_shares_one_comment(vp, tmp_path):
+    """A multi-image component (zgw-office-addin's frontend + backend) needs
+    only ONE preceding comment for the whole group — the second entry, with
+    a blank line (not a comment) directly above it, must NOT be flagged as
+    missing a comment of its own."""
+    images_path = tmp_path / "images-4.9.0.yaml"
+    images_path.write_text(ZGW_MANIFEST)
+    issues = vp.check_images_manifest_format(images_path, "4.8.5", "4.9.0", ZGW_DEPS, ZGW_VALUES, {})
+    assert issues == []
 
 
 def test_images_manifest_format_source_vs_baseline(vp, tmp_path):

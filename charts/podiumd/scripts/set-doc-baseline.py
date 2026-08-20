@@ -79,7 +79,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
 from lib.upgradedoc import (
     actual_app_version, canonical_version_cell, extract_source_version, extract_target_version,
-    find_image_tag_paths, find_preceding_comment_line, match_dependency, normalize_version,
+    find_grouped_preceding_comment_line, find_image_tag_paths, match_dependency, normalize_version,
     parse_upgrade_doc_rows, replace_version_pair, resolve_entry_path,
 )
 
@@ -319,8 +319,13 @@ def fix_images_manifest_entries(text, target_values, baseline_values):
     actual source (baseline) and target versions for the image at its
     matched values-tree path. An entry is only rewritten when both ends are
     independently verifiable (a resolvable baseline, and the component
-    existed there); anything else is reported, not guessed at. Returns
-    (new_text, changed_entries, unresolved_names)."""
+    existed there); anything else is reported, not guessed at. A component
+    whose images share one comment across several entries (e.g.
+    zgw-office-addin's frontend + backend) has that comment fixed once,
+    from whichever entry reaches it first — later entries sharing the same
+    comment line just confirm they agree, or are reported as unresolved if
+    they don't (never silently overwritten twice). Returns (new_text,
+    changed_entries, unresolved_names)."""
     lines = text.splitlines(keepends=True)
     try:
         entries = yaml.safe_load(text)
@@ -333,10 +338,21 @@ def fix_images_manifest_entries(text, target_values, baseline_values):
     current_paths = dict(find_image_tag_paths(target_values))
     baseline_paths = dict(find_image_tag_paths(baseline_values)) if baseline_values else {}
 
+    def component_of(entry):
+        path = resolve_entry_path(entry["name"], current_paths.keys())
+        return path[0] if path else None
+
+    def same_group(entry_a, entry_b):
+        return (component_of(entry_a) is not None
+                and component_of(entry_a) == component_of(entry_b)
+                and entry_a.get("version") == entry_b.get("version"))
+
     changed_entries, unresolved_names = [], []
-    for entry, line_idx in zip(entries, entry_line_indices):
+    fixed_comment_versions = {}
+    for index, (entry, line_idx) in enumerate(zip(entries, entry_line_indices)):
         name = entry["name"]
-        comment_idx = find_preceding_comment_line(lines, line_idx)
+        comment_idx = find_grouped_preceding_comment_line(
+            lines, entries, entry_line_indices, index, same_group)
         if comment_idx is None:
             unresolved_names.append(name)
             continue
@@ -348,9 +364,17 @@ def fix_images_manifest_entries(text, target_values, baseline_values):
             unresolved_names.append(name)
             continue
 
+        if comment_idx in fixed_comment_versions:
+            prev_baseline, prev_target = fixed_comment_versions[comment_idx]
+            if normalize_version(prev_baseline) != normalize_version(actual_baseline) or \
+                    normalize_version(prev_target) != normalize_version(actual_target):
+                unresolved_names.append(name)
+            continue
+
         comment_line = lines[comment_idx]
         doc_source = extract_source_version(comment_line)
         doc_target = extract_target_version(comment_line)
+        fixed_comment_versions[comment_idx] = (actual_baseline, actual_target)
         if normalize_version(doc_source) == normalize_version(actual_baseline) and \
                 normalize_version(doc_target) == normalize_version(actual_target):
             continue
