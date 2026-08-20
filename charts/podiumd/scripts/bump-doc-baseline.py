@@ -41,6 +41,13 @@ Any other mention of the old baseline in a doc's free-form prose (e.g.
 listed at the end for manual review, since blind find/replace on prose
 risks corrupting unrelated text that happens to contain the same version
 string.
+
+Also bumps docs/images/images-<target>.yaml the same way: its "Baseline:
+podiumd X" and "podiumd <target> vs X" header lines, and any
+"<baseline>-to-<target>-<suffix>.md" reference to the just-renamed docs.
+If that manifest doesn't exist yet, a header-only stub (empty image list)
+is created — entries are never invented, since there's nothing to derive
+them from.
 """
 import re
 import subprocess
@@ -51,6 +58,7 @@ import yaml
 
 CHART_YAML = Path(__file__).resolve().parents[1] / "Chart.yaml"
 DOC_DIR = Path(__file__).resolve().parents[1] / "docs" / "_UPGRADE_PATHS"
+IMAGES_DIR = Path(__file__).resolve().parents[1] / "docs" / "images"
 
 
 def current_chart_version():
@@ -59,6 +67,24 @@ def current_chart_version():
 FILENAME_RE_TMPL = r"^(?P<baseline>\d+\.\d+\.\d+)-to-{target}-(?P<suffix>[\w\-]+)\.md$"
 TITLE_ARROW_RE_TMPL = r"(?P<baseline>{baseline})(?P<arrow>\s*(?:→|->)\s*){target}"
 COMPONENT_VERSIONS_RE_TMPL = r"Component versions \({target}\s+vs\s+(?P<baseline>{baseline})\)"
+
+# Same shape as verify-podiumd.py's SIBLING_DOC_RE/IMAGES_REF check — any
+# reference to one of the just-renamed docs, whatever baseline it names.
+SIBLING_DOC_RE_TMPL = r"(?P<baseline>\d+\.\d+\.\d+)-to-{target}-(?P<suffix>upgrade|gemeente-specific|values-deltas)\.md"
+BASELINE_LINE_RE = re.compile(r"(?P<prefix>Baseline:\s*podiumd\s+)(?P<baseline>\d+\.\d+\.\d+)")
+VS_LINE_RE_TMPL = r"(?P<prefix>podiumd\s+{target}\s+vs\s+)(?P<baseline>\d+\.\d+\.\d+)"
+
+IMAGES_STUB_TEMPLATE = (
+    "# Baseline: podiumd {baseline}. Re-verify before release.\n"
+    "#\n"
+    "# Images new or changed in podiumd {target} vs {baseline}.\n"
+    "#\n"
+    "# See docs/_UPGRADE_PATHS/{baseline}-to-{target}-upgrade.md for the operator upgrade notes.\n"
+    "#\n"
+    "# Digests are the OCI image index (multi-arch manifest) digest as returned in\n"
+    "# the Docker-Content-Digest response header from the source registry.\n\n"
+    "[]\n"
+)
 
 # The three docs verify-podiumd.py's check_baseline_doc_set expects for
 # every target — missing ones are created as stubs, not just renamed.
@@ -148,6 +174,35 @@ def remaining_mentions(text, old_baseline):
     return [i + 1 for i, line in enumerate(text.splitlines()) if old_baseline in line]
 
 
+def images_manifest_path(target):
+    return IMAGES_DIR / f"images-{target}.yaml"
+
+
+def extract_images_baseline(text):
+    """The version named on the "Baseline: podiumd X" line, or None if the
+    manifest doesn't have one (malformed/legacy header)."""
+    m = BASELINE_LINE_RE.search(text)
+    return m.group("baseline") if m else None
+
+
+def update_sibling_doc_refs(text, target, new_baseline):
+    """Rewrite any "<some-baseline>-to-<target>-<suffix>.md" reference
+    (whatever baseline it currently names) to the new baseline — these docs
+    were just renamed. Returns (new_text, changed)."""
+    pattern = re.compile(SIBLING_DOC_RE_TMPL.format(target=re.escape(target)))
+    new_text, count = pattern.subn(lambda m: f"{new_baseline}-to-{target}-{m.group('suffix')}.md", text)
+    return new_text, count > 0
+
+
+def update_images_manifest_baseline(text, target, new_baseline):
+    """Rewrite the "Baseline: podiumd X" and "podiumd <target> vs X" lines
+    to the new baseline, whatever X currently is. Returns (new_text, changed)."""
+    text, n1 = BASELINE_LINE_RE.subn(rf"\g<prefix>{new_baseline}", text)
+    vs_pattern = re.compile(VS_LINE_RE_TMPL.format(target=re.escape(target)))
+    text, n2 = vs_pattern.subn(rf"\g<prefix>{new_baseline}", text)
+    return text, (n1 + n2) > 0
+
+
 def main():
     if len(sys.argv) != 2:
         print(__doc__)
@@ -205,6 +260,30 @@ def main():
         leftovers = remaining_mentions(text, old_baseline)
         if leftovers:
             review_notes.append((new_name, leftovers))
+
+    images_path = images_manifest_path(target)
+    if not images_path.is_file():
+        images_path.write_text(IMAGES_STUB_TEMPLATE.format(baseline=new_baseline, target=target),
+                                encoding="utf-8")
+        print(f"  {images_path.name}: created (was missing)")
+    else:
+        text = images_path.read_text(encoding="utf-8")
+        old_images_baseline = extract_images_baseline(text)
+        if old_images_baseline == new_baseline:
+            print(f"  {images_path.name}: already baseline {new_baseline} — unchanged")
+        else:
+            text, refs_changed = update_sibling_doc_refs(text, target, new_baseline)
+            text, baseline_changed = update_images_manifest_baseline(text, target, new_baseline)
+            images_path.write_text(text, encoding="utf-8")
+            print(f"  {images_path.name}: baseline updated")
+            if refs_changed:
+                print(f"    doc references -> {new_baseline}-to-{target}-*.md")
+            if baseline_changed:
+                print(f"    baseline header line(s): -> {new_baseline}")
+            if old_images_baseline:
+                leftovers = remaining_mentions(text, old_images_baseline)
+                if leftovers:
+                    review_notes.append((images_path.name, leftovers))
 
     if review_notes:
         print()
