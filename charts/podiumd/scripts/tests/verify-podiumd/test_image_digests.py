@@ -158,6 +158,7 @@ def test_check_image_digests_reports_mismatch(vp, tmp_path, monkeypatch, capsys)
     assert "MISMATCH" in out
     assert "org/repo" in out
     assert "line" in out.lower() or "lines" in out
+    assert "set-image-digests.py" in out
 
 
 def test_check_image_digests_reports_missing_tag_as_fetch_error(vp, tmp_path, monkeypatch):

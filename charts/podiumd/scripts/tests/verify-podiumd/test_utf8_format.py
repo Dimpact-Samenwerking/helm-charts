@@ -15,5 +15,6 @@ def test_bom_is_detected_but_not_written(vp, tmp_path):
     ok, detail = vp.check_utf8_format(tmp_path)
     assert ok is False
     assert "BOM" in detail
+    assert "strip-utf8-bom.py" in detail
     # this is a verify script — it must never write to a tracked file
     assert values_path.read_bytes() == original
