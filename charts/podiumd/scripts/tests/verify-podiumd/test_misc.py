@@ -127,7 +127,7 @@ def test_main_skips_requested_steps_and_runs_the_rest(vp, monkeypatch, capsys):
 
     vp.main()  # must not raise / must not sys.exit
 
-    assert ran == ["utf8", "deps", "dupe", "digests", "docs"]
+    assert ran == ["utf8", "dupe", "docs", "digests", "deps"]
     out = capsys.readouterr().out
     assert "Lint" in out and "SKIP" in out
     assert "Full render" in out and "SKIP" in out
