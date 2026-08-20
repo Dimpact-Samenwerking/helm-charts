@@ -5,7 +5,9 @@ bug fails fast without waiting on `helm dependency update`'s network round
 trip:
   1. values.yaml is valid UTF-8 with no BOM (a BOM breaks YAML tooling if present)
   2. values.yaml has no duplicate keys silently overwriting earlier values
-  3. component versions in Chart.yaml + values.yaml match the matching
+  3. templates/*.yaml has no pair of files that are structurally near-
+     duplicates of each other (report-only, never fails — see check_dry)
+  4. component versions in Chart.yaml + values.yaml match the matching
      docs/_UPGRADE_PATHS/*-to-<version>-upgrade.md and docs/images/images-<version>.yaml
      (any component the doc lists, not a hardcoded set) — and, given --baseline,
      every component that actually changed vs the baseline (chart version,
@@ -13,14 +15,14 @@ trip:
      mention in the matching values-deltas.md, and — if its image tag
      changed — an entry in images-<version>.yaml, even if no doc mentions
      it yet
-  4. every digest-pinned image in values.yaml still matches its live
+  5. every digest-pinned image in values.yaml still matches its live
      upstream registry digest — except a tag known to slide (this repo's
      git history shows it's changed digest before, or the registry
      currently has a more specific sibling tag at the same digest), where
      drift is expected and passes, just reported for visibility
-  5. all Chart.yaml dependencies actually resolve and bundle (helm dependency update)
-  6. the chart lints cleanly with the CI placeholder values
-  7. the chart renders cleanly with `helm template` using the CI placeholder values
+  6. all Chart.yaml dependencies actually resolve and bundle (helm dependency update)
+  7. the chart lints cleanly with the CI placeholder values
+  8. the chart renders cleanly with `helm template` using the CI placeholder values
 
 Stops at the first failing step and prints a PASS/FAIL summary table, mirroring
 the /helm-precommit workflow (BOM check, dupe check, lint, full render) plus
@@ -42,12 +44,14 @@ Usage:
         # useful to iterate faster on a single check, or work around a step
         # that's broken for reasons unrelated to what you're testing.
         # One flag per step: --skip-utf8-format, --skip-dependencies,
-        # --skip-dupe-check, --skip-image-digests, --skip-docs-consistency,
-        # --skip-lint, --skip-full-render. See --help for the full list.
+        # --skip-dupe-check, --skip-dry-check, --skip-image-digests,
+        # --skip-docs-consistency, --skip-lint, --skip-full-render.
+        # See --help for the full list.
 
 Exit code is non-zero if any check fails — safe to use as a CI gate.
 """
 import argparse
+import difflib
 import re
 import shutil
 import sys
@@ -247,6 +251,89 @@ def check_duplicate_keys(chart_dir):
         return False, f"{len(duplicates)} duplicate(s) found"
     print(f"OK: no duplicate keys in {values_path.name}")
     return True, "0 duplicates"
+
+
+# Similarity thresholds for check_dry, calibrated against this repo's own
+# templates/ directory using two known reference points: the 9 pre-refactor
+# storage.yaml files (see podiumd.storagePVC) — a confirmed real dedup win —
+# score ~0.82 against each other (differ only by the literal component
+# name); the two Keycloak realm-import jobs — same Job skeleton, but
+# genuinely different env/secret content, NOT worth forcing into one
+# template — score ~0.63. HIGH sits between the two so the storage-file
+# case is correctly flagged "likely worth deduping" and the Keycloak case
+# stays "borderline".
+DRY_SIMILARITY_THRESHOLD = 0.6
+DRY_HIGH_SIMILARITY_THRESHOLD = 0.75
+# Below this many significant lines, near-any two short templates look
+# "similar" by line-ratio alone — not worth reporting as a candidate.
+DRY_MIN_SIGNIFICANT_LINES = 8
+
+
+def _significant_template_lines(path):
+    """A template's lines with blanks and full-line comments dropped, so
+    similarity scoring isn't skewed by incidental whitespace or comment
+    wording differences between two otherwise-identical templates."""
+    lines = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or stripped.startswith("{{/*"):
+            continue
+        lines.append(line)
+    return lines
+
+
+def find_similar_template_pairs(templates_dir):
+    """Pairwise-compare every templates/*.yaml file and flag pairs that are
+    structurally very similar — the shape of duplication podiumd.storagePVC
+    was factored out of (9 files, identical except for the literal
+    component name). Returns (ratio, path_a, path_b) tuples, highest ratio
+    first, for every pair at or above DRY_SIMILARITY_THRESHOLD."""
+    paths = sorted(p for p in templates_dir.rglob("*.yaml") if p.is_file())
+    significant = {p: _significant_template_lines(p) for p in paths}
+    candidates = [p for p in paths if len(significant[p]) >= DRY_MIN_SIGNIFICANT_LINES]
+
+    findings = []
+    for i, a in enumerate(candidates):
+        for b in candidates[i + 1:]:
+            ratio = difflib.SequenceMatcher(None, significant[a], significant[b]).ratio()
+            if ratio >= DRY_SIMILARITY_THRESHOLD:
+                findings.append((ratio, a, b))
+    findings.sort(key=lambda f: -f[0])
+    return findings, len(candidates)
+
+
+def check_dry(chart_dir):
+    """Report-only: never fails. Flags templates/*.yaml file pairs that look
+    like copy-paste duplication and suggests whether deduping (a shared
+    named template in _helpers.tpl, parameterized like podiumd.storagePVC)
+    is likely worth it, or just a coincidence of both files being short and
+    conventionally shaped. Duplication is a judgment call a human should
+    make — this only surfaces candidates."""
+    findings, candidate_count = find_similar_template_pairs(chart_dir / "templates")
+
+    if not findings:
+        print(f"OK: no structurally-similar template pairs found "
+              f"(compared {candidate_count} template(s) with "
+              f">= {DRY_MIN_SIGNIFICANT_LINES} significant line(s))")
+        return True, "0 candidate(s)"
+
+    print(f"Found {len(findings)} structurally-similar template pair(s):")
+    for ratio, a, b in findings:
+        pct = round(ratio * 100)
+        rel_a, rel_b = a.relative_to(chart_dir), b.relative_to(chart_dir)
+        if ratio >= DRY_HIGH_SIMILARITY_THRESHOLD:
+            advice = ("likely worth deduping — near-identical shape, probably just a "
+                      "literal parameter (e.g. a component name) differs; consider a "
+                      "shared named template in _helpers.tpl, as with podiumd.storagePVC")
+        else:
+            advice = ("borderline — inspect manually before deduping; could be a shared "
+                      "skeleton with genuinely different content per file (e.g. different "
+                      "env vars/secrets), where forcing a shared template would add more "
+                      "parameters than it saves")
+        print(f"  [{pct:3d}% similar] {rel_a}  <->  {rel_b}")
+        print(f"      advice: {advice}")
+
+    return True, f"{len(findings)} candidate(s) found (report-only, not a failure)"
 
 
 def load_yaml(path):
@@ -962,6 +1049,7 @@ SKIPPABLE_STEPS = [
     ("utf8-format", "UTF-8 format"),
     ("dependencies", "Dependencies"),
     ("dupe-check", "Dupe check"),
+    ("dry-check", "DRY check"),
     ("image-digests", "Image digests"),
     ("docs-consistency", "Docs consistency"),
     ("lint", "Lint"),
@@ -1008,6 +1096,7 @@ def main():
 
     run_step("UTF-8 format", "UTF-8 format check", check_utf8_format, chart_dir)
     run_step("Dupe check", "Duplicate key scan", check_duplicate_keys, chart_dir)
+    run_step("DRY check", "Template duplication scan", check_dry, chart_dir)
     run_step("Docs consistency", "Checking versions against upgrade docs",
              check_docs_consistency, chart_dir, args.baseline)
     run_step("Image digests", "Checking image digests against upstream registries",
