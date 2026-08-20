@@ -48,6 +48,15 @@ podiumd X" and "podiumd <target> vs X" header lines, and any
 If that manifest doesn't exist yet, a header-only stub (empty image list)
 is created — entries are never invented, since there's nothing to derive
 them from.
+
+Finally, corrects the upgrade doc's "Component versions" table: for every
+row matched to a Chart.yaml dependency, the target (right-hand) version is
+read straight from the current Chart.yaml/values.yaml, and the source
+(left-hand) version from <new-baseline>'s resolved git ref — replacing
+whatever the table currently says with the actual versions at each end. A
+row is only rewritten when both ends are independently verifiable (the
+baseline must resolve to a real git ref, and the component must have
+existed there); anything else is reported, not guessed at.
 """
 import re
 import subprocess
@@ -56,9 +65,16 @@ from pathlib import Path
 
 import yaml
 
-CHART_YAML = Path(__file__).resolve().parents[1] / "Chart.yaml"
-DOC_DIR = Path(__file__).resolve().parents[1] / "docs" / "_UPGRADE_PATHS"
-IMAGES_DIR = Path(__file__).resolve().parents[1] / "docs" / "images"
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
+
+from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
+from lib.upgradedoc import actual_app_version, match_dependency, normalize_version, parse_upgrade_doc_rows
+
+CHART_YAML = SCRIPT_DIR.parents[0] / "Chart.yaml"
+VALUES_YAML = SCRIPT_DIR.parents[0] / "values.yaml"
+DOC_DIR = SCRIPT_DIR.parents[0] / "docs" / "_UPGRADE_PATHS"
+IMAGES_DIR = SCRIPT_DIR.parents[0] / "docs" / "images"
 
 
 def current_chart_version():
@@ -203,6 +219,86 @@ def update_images_manifest_baseline(text, target, new_baseline):
     return text, (n1 + n2) > 0
 
 
+def load_target_state():
+    chart_yaml = yaml.safe_load(CHART_YAML.read_text(encoding="utf-8"))
+    values = yaml.safe_load(VALUES_YAML.read_text(encoding="utf-8")) or {}
+    return chart_yaml.get("dependencies", []), values
+
+
+def load_baseline_state(new_baseline):
+    """(deps, values) as they were at new_baseline's resolved git ref, or
+    (None, None) if it can't be resolved (e.g. that release hasn't been cut
+    yet) — callers skip table-version correction gracefully in that case."""
+    repo_root = find_repo_root(CHART_YAML.parent)
+    if repo_root is None:
+        return None, None
+    ref = resolve_git_ref(repo_root, baseline_ref_candidates(new_baseline))
+    if ref is None:
+        return None, None
+    rel_chart_dir = CHART_YAML.parent.relative_to(repo_root)
+    baseline_chart_yaml = git_show_yaml(repo_root, ref, f"{rel_chart_dir}/Chart.yaml")
+    if baseline_chart_yaml is None:
+        return None, None
+    baseline_values = git_show_yaml(repo_root, ref, f"{rel_chart_dir}/values.yaml") or {}
+    return baseline_chart_yaml.get("dependencies", []), baseline_values
+
+
+def canonical_version_cell(actual_source, actual_target):
+    if normalize_version(actual_source) == normalize_version(actual_target):
+        return f"{actual_target} (unchanged)"
+    return f"{actual_source} → {actual_target}"
+
+
+def fix_component_version_table(text, target_deps, target_values, baseline_deps, baseline_values):
+    """Rewrite each "Component versions" table row's App/Helm-chart cells to
+    the actual baseline (source) and target versions found in git/Chart.yaml/
+    values.yaml. A row is only rewritten when both its source and target are
+    independently verifiable; anything else is left as-is and reported.
+    Returns (new_text, changed_rows, unmatched_names, unresolved_names)."""
+    lines = text.splitlines(keepends=True)
+    rows = parse_upgrade_doc_rows(text)
+    changed_rows, unmatched_names, unresolved_names = [], [], []
+
+    for row in rows:
+        dep = match_dependency(row["name"], target_deps)
+        if dep is None:
+            unmatched_names.append(row["name"])
+            continue
+        values_key = dep.get("alias", dep["name"])
+        actual_target_chart = str(dep["version"])
+        actual_target_app = actual_app_version(target_values, values_key)
+
+        baseline_dep = match_dependency(row["name"], baseline_deps) if baseline_deps else None
+        if baseline_dep is None:
+            unresolved_names.append(row["name"])
+            continue
+        actual_baseline_chart = str(baseline_dep["version"])
+        actual_baseline_app = actual_app_version(baseline_values, values_key)
+
+        row_changed = False
+        line = lines[row["line_index"]]
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+
+        if actual_target_app is not None and actual_baseline_app is not None and (
+            normalize_version(row["app_source"]) != normalize_version(actual_baseline_app)
+            or normalize_version(row["app"]) != normalize_version(actual_target_app)
+        ):
+            cells[1] = canonical_version_cell(actual_baseline_app, actual_target_app)
+            row_changed = True
+
+        if normalize_version(row["chart_source"]) != normalize_version(actual_baseline_chart) \
+                or normalize_version(row["chart"]) != normalize_version(actual_target_chart):
+            cells[2] = canonical_version_cell(actual_baseline_chart, actual_target_chart)
+            row_changed = True
+
+        if row_changed:
+            suffix = "\n" if line.endswith("\n") else ""
+            lines[row["line_index"]] = "| " + " | ".join(cells) + " |" + suffix
+            changed_rows.append((row["name"], cells[1], cells[2]))
+
+    return "".join(lines), changed_rows, unmatched_names, unresolved_names
+
+
 def main():
     if len(sys.argv) != 2:
         print(__doc__)
@@ -284,6 +380,29 @@ def main():
                 leftovers = remaining_mentions(text, old_images_baseline)
                 if leftovers:
                     review_notes.append((images_path.name, leftovers))
+
+    upgrade_path = DOC_DIR / f"{new_baseline}-to-{target}-upgrade.md"
+    if upgrade_path.is_file():
+        target_deps, target_values = load_target_state()
+        baseline_deps, baseline_values = load_baseline_state(new_baseline)
+        text = upgrade_path.read_text(encoding="utf-8")
+        new_text, changed_rows, unmatched_names, unresolved_names = fix_component_version_table(
+            text, target_deps, target_values, baseline_deps, baseline_values
+        )
+        if changed_rows:
+            upgrade_path.write_text(new_text, encoding="utf-8")
+            print()
+            print(f"=== Correcting component version table in {upgrade_path.name} ===")
+            for name, app_cell, chart_cell in changed_rows:
+                print(f"  {name}: app {app_cell}  |  chart {chart_cell}")
+        if unresolved_names:
+            print()
+            print(f"Could not verify source version for: {', '.join(unresolved_names)}"
+                  f" — baseline {new_baseline} doesn't resolve to a git ref, or the component "
+                  f"didn't exist there yet. Table left as-is for these; review by hand.")
+        if unmatched_names:
+            print()
+            print(f"Could not match to a Chart.yaml dependency, left as-is: {', '.join(unmatched_names)}")
 
     if review_notes:
         print()

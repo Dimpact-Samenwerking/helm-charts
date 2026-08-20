@@ -5,6 +5,7 @@ mv shells out to git, so it needs a real working tree)."""
 import subprocess
 
 import pytest
+import yaml
 
 
 def git(*args, cwd):
@@ -117,6 +118,12 @@ def repo(tmp_path):
     git("init", "-q", cwd=tmp_path)
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
+    write(tmp_path / "Chart.yaml", yaml.safe_dump({
+        "dependencies": [
+            {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257", "repository": "@zac"},
+        ],
+    }))
+    write(tmp_path / "values.yaml", yaml.safe_dump({"zac": {"image": {"tag": "5.1.0@sha256:aaaa"}}}))
     doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
     doc_dir.mkdir(parents=True)
     (tmp_path / "docs" / "images").mkdir(parents=True)
@@ -135,6 +142,8 @@ def set_argv_and_dir(bdb, monkeypatch, doc_dir, new_baseline, target="4.9.0"):
     monkeypatch.setattr("sys.argv", ["bump-doc-baseline.py", new_baseline])
     monkeypatch.setattr(bdb, "DOC_DIR", doc_dir)
     monkeypatch.setattr(bdb, "IMAGES_DIR", doc_dir.parent / "images")
+    monkeypatch.setattr(bdb, "CHART_YAML", doc_dir.parents[1] / "Chart.yaml")
+    monkeypatch.setattr(bdb, "VALUES_YAML", doc_dir.parents[1] / "values.yaml")
     monkeypatch.setattr(bdb, "current_chart_version", lambda: target)
 
 
@@ -211,6 +220,98 @@ def test_main_requires_exactly_one_argument(bdb, monkeypatch):
     with pytest.raises(SystemExit) as exc_info:
         bdb.main()
     assert exc_info.value.code == 1
+
+
+# --- canonical_version_cell ---
+
+def test_canonical_version_cell_arrow_form(bdb):
+    assert bdb.canonical_version_cell("5.0.2", "5.1.0") == "5.0.2 → 5.1.0"
+
+
+def test_canonical_version_cell_unchanged_form(bdb):
+    assert bdb.canonical_version_cell("1.0.297", "1.0.297") == "1.0.297 (unchanged)"
+
+
+def test_canonical_version_cell_v_prefix_counts_as_unchanged(bdb):
+    assert bdb.canonical_version_cell("v0.9.352", "0.9.352") == "0.9.352 (unchanged)"
+
+
+# --- fix_component_version_table ---
+
+def target_deps_and_values():
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257"}]
+    values = {"zac": {"image": {"tag": "5.1.0@sha256:aaaa"}}}
+    return deps, values
+
+
+def test_fix_component_version_table_corrects_stale_source(bdb):
+    text = (
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| ZAC (Zaakafhandelcomponent) | 5.0.1 → 5.1.0 | 1.0.251 → 1.0.257 | ACR mirror only |\n"
+    )
+    target_deps, target_values = target_deps_and_values()
+    baseline_deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+    baseline_values = {"zac": {"image": {"tag": "5.0.2@sha256:bbbb"}}}
+
+    new_text, changed, unmatched, unresolved = bdb.fix_component_version_table(
+        text, target_deps, target_values, baseline_deps, baseline_values
+    )
+    assert unmatched == [] and unresolved == []
+    assert len(changed) == 1
+    assert "5.0.2 → 5.1.0" in new_text
+    assert "1.0.297 → 1.0.257" in new_text
+    assert "5.0.1" not in new_text
+    assert "1.0.251" not in new_text
+    assert "ACR mirror only" in new_text  # notes column untouched
+
+
+def test_fix_component_version_table_leaves_correct_row_untouched(bdb):
+    text = (
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| ZAC (Zaakafhandelcomponent) | 5.0.2 → 5.1.0 | 1.0.297 → 1.0.257 | ACR mirror only |\n"
+    )
+    target_deps, target_values = target_deps_and_values()
+    baseline_deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+    baseline_values = {"zac": {"image": {"tag": "5.0.2@sha256:bbbb"}}}
+
+    new_text, changed, unmatched, unresolved = bdb.fix_component_version_table(
+        text, target_deps, target_values, baseline_deps, baseline_values
+    )
+    assert changed == []
+    assert new_text == text
+
+
+def test_fix_component_version_table_unmatched_component_reported(bdb):
+    text = (
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| Totally Unknown Thing | 1.0.0 → 2.0.0 | 1.0.0 → 2.0.0 | - |\n"
+    )
+    target_deps, target_values = target_deps_and_values()
+    new_text, changed, unmatched, unresolved = bdb.fix_component_version_table(
+        text, target_deps, target_values, [{"name": "zac", "version": "1.0.297"}], {}
+    )
+    assert changed == []
+    assert unmatched == ["Totally Unknown Thing"]
+    assert new_text == text
+
+
+def test_fix_component_version_table_no_baseline_data_reported_unresolved(bdb):
+    text = (
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| ZAC (Zaakafhandelcomponent) | 5.0.1 → 5.1.0 | 1.0.251 → 1.0.257 | ACR mirror only |\n"
+    )
+    target_deps, target_values = target_deps_and_values()
+    new_text, changed, unmatched, unresolved = bdb.fix_component_version_table(
+        text, target_deps, target_values, None, None
+    )
+    assert changed == []
+    assert unresolved == ["ZAC (Zaakafhandelcomponent)"]
+    assert new_text == text
 
 
 # --- current_chart_version ---
@@ -314,3 +415,56 @@ def test_main_images_manifest_already_at_baseline_is_noop(bdb, repo, monkeypatch
     assert images_path.read_text(encoding="utf-8") == original
     out = capsys.readouterr().out
     assert "images-4.9.0.yaml: already baseline 4.8.2 — unchanged" in out
+
+
+# --- main() integration: end-to-end component-version-table correction ---
+
+@pytest.fixture
+def repo_with_baseline_tag(tmp_path):
+    """A repo whose git history has a real "podiumd-4.8.5" tag at an older
+    ZAC version, so load_baseline_state can resolve it for real."""
+    git("init", "-q", cwd=tmp_path)
+    git("config", "user.email", "test@example.com", cwd=tmp_path)
+    git("config", "user.name", "Test", cwd=tmp_path)
+
+    write(tmp_path / "Chart.yaml", yaml.safe_dump({
+        "dependencies": [
+            {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297", "repository": "@zac"},
+        ],
+    }))
+    write(tmp_path / "values.yaml", yaml.safe_dump({"zac": {"image": {"tag": "5.0.2@sha256:bbbb"}}}))
+    doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
+    doc_dir.mkdir(parents=True)
+    (tmp_path / "docs" / "images").mkdir(parents=True)
+    git("add", "-A", cwd=tmp_path)
+    git("commit", "-q", "-m", "baseline state", cwd=tmp_path)
+    git("tag", "podiumd-4.8.5", cwd=tmp_path)
+
+    write(tmp_path / "Chart.yaml", yaml.safe_dump({
+        "dependencies": [
+            {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257", "repository": "@zac"},
+        ],
+    }))
+    write(tmp_path / "values.yaml", yaml.safe_dump({"zac": {"image": {"tag": "5.1.0@sha256:aaaa"}}}))
+    write(doc_dir / "4.8.3-to-4.9.0-upgrade.md",
+          "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+          "## Component versions (4.9.0 vs 4.8.5)\n\n"
+          "| Component | App version | Helm chart | Notes |\n"
+          "| --- | --- | --- | --- |\n"
+          "| ZAC (Zaakafhandelcomponent) | 5.0.1 → 5.1.0 | 1.0.251 → 1.0.257 | ACR mirror only |\n")
+    git("add", "-A", cwd=tmp_path)
+    git("commit", "-q", "-m", "bump zac, stale doc table", cwd=tmp_path)
+    return doc_dir
+
+
+def test_main_corrects_stale_table_using_real_baseline_tag(bdb, repo_with_baseline_tag, monkeypatch, capsys):
+    set_argv_and_dir(bdb, monkeypatch, repo_with_baseline_tag, "4.8.5")
+    bdb.main()
+
+    upgrade = (repo_with_baseline_tag / "4.8.5-to-4.9.0-upgrade.md").read_text(encoding="utf-8")
+    assert "5.0.2 → 5.1.0" in upgrade
+    assert "1.0.297 → 1.0.257" in upgrade
+    assert "5.0.1" not in upgrade
+    assert "1.0.251" not in upgrade
+    out = capsys.readouterr().out
+    assert "Correcting component version table" in out
