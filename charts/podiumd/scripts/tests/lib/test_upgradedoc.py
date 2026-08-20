@@ -183,3 +183,92 @@ def test_find_preceding_comment_stops_at_blank_line(libupgradedoc):
 def test_find_preceding_comment_none_when_absent(libupgradedoc):
     lines = ["- name: zac\n"]
     assert libupgradedoc.find_preceding_comment(lines, 0) == ""
+
+
+# --- diff_keys / flatten_leaf_keys / pair_renames ---
+
+def test_diff_keys_finds_added_and_removed(libupgradedoc):
+    baseline = {"a": 1, "b": {"x": 1}}
+    current = {"a": 1, "c": {"y": 1}}
+    diffs = sorted(libupgradedoc.diff_keys(baseline, current))
+    assert ("added", ("c",)) in diffs
+    assert ("removed", ("b",)) in diffs
+
+
+def test_diff_keys_ignores_scalar_value_changes(libupgradedoc):
+    baseline = {"a": 1}
+    current = {"a": 2}
+    assert list(libupgradedoc.diff_keys(baseline, current)) == []
+
+
+def test_diff_keys_recurses_into_shared_keys(libupgradedoc):
+    baseline = {"a": {"x": 1}}
+    current = {"a": {"x": 1, "y": 2}}
+    assert list(libupgradedoc.diff_keys(baseline, current)) == [("added", ("a", "y"))]
+
+
+def test_flatten_leaf_keys_collects_all_nested_names(libupgradedoc):
+    node = {"host": "h", "auth": {"user": "u", "password": "p"}}
+    assert libupgradedoc.flatten_leaf_keys(node) == {"host", "auth", "user", "password"}
+
+
+def test_flatten_leaf_keys_walks_lists(libupgradedoc):
+    node = [{"a": 1}, {"b": 2}]
+    assert libupgradedoc.flatten_leaf_keys(node) == {"a", "b"}
+
+
+def test_pair_renames_pairs_similar_subtrees(libupgradedoc):
+    baseline = {"mi": {"sftp": {"host": "h", "user": "u", "password": "p"}}}
+    current = {"mi": {"transfer": {"host": "h", "user": "u", "password": "p"}}}
+    added = [("mi", "transfer")]
+    removed = [("mi", "sftp")]
+    renamed, added_left, removed_left = libupgradedoc.pair_renames(added, removed, baseline, current)
+    assert renamed == [(("mi", "sftp"), ("mi", "transfer"))]
+    assert added_left == [] and removed_left == []
+
+
+def test_pair_renames_leaves_unrelated_add_remove_alone(libupgradedoc):
+    baseline = {"a": {"x": 1}}
+    current = {"b": {"totally": "different", "shape": True}}
+    added = [("b",)]
+    removed = [("a",)]
+    renamed, added_left, removed_left = libupgradedoc.pair_renames(added, removed, baseline, current)
+    assert renamed == []
+    assert added_left == [("b",)] and removed_left == [("a",)]
+
+
+# --- parse_changes_block ---
+
+def test_parse_changes_block_parses_numbered_items(libupgradedoc):
+    text = (
+        "# Baseline: podiumd 4.8.5.\n"
+        "#\n"
+        "# Changes:\n"
+        "#   1. ZAC 5.0.2 -> 5.4.3 (chart 1.0.297, unchanged).\n"
+        "#   2. ZGW Office Add-in v0.9.313 -> 0.11.0 (chart 0.0.89 -> 0.0.92).\n"
+        "#\n"
+        "# See docs/_UPGRADE_PATHS/...\n"
+    )
+    items = libupgradedoc.parse_changes_block(text)
+    assert len(items) == 2
+    assert items[0]["name"] == "ZAC"
+    assert items[0]["app_source"] == "5.0.2"
+    assert items[0]["app"] == "5.4.3"
+    assert items[1]["chart_source"] == "0.0.89"
+    assert items[1]["chart"] == "0.0.92"
+
+
+def test_parse_changes_block_no_header_returns_empty(libupgradedoc):
+    assert libupgradedoc.parse_changes_block("# just a header\n# no changes block\n") == []
+
+
+def test_parse_changes_block_version_with_dot_not_mistaken_for_new_item(libupgradedoc):
+    text = (
+        "# Changes:\n"
+        "#   1. OPA 1.17.1-static -> 1.19.0-static\n"
+        "#   2. ZAC 5.0.2 -> 5.4.3\n"
+    )
+    items = libupgradedoc.parse_changes_block(text)
+    assert len(items) == 2
+    assert items[0]["app"] == "1.19.0-static"
+    assert items[1]["app"] == "5.4.3"
