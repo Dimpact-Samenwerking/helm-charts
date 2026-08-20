@@ -1,0 +1,231 @@
+#!/usr/bin/env python3
+"""
+Refresh stale digest pins in charts/podiumd/values.yaml.
+
+"Stale" here means the version tag (e.g. "1.31.3") is unchanged, but
+upstream re-published that tag with new base/security layers, so the
+multi-arch index digest changed. The old pinned digest is still pullable
+(it's immutable) — nothing is broken — but the deployment runs old layers
+and misses upstream patches.
+
+For each unique "<repository>:<tag>" pin found in values.yaml, fetches the
+live "Docker-Content-Digest" from the upstream registry and, if it differs
+from the pinned digest, replaces every occurrence of the old 64-hex digest
+with the new one — byte-identical otherwise (tag, quoting, comments
+untouched). A single image (e.g. nginx-unprivileged) can be pinned many
+times; all occurrences are updated together since they share the exact
+same old digest string.
+
+Pins with no discoverable repository (no active "repository:" sibling key,
+no "# host/repo:tag" reference comment, no commented-out "#repository:"
+hint) are reported and left untouched — this happens for the handful of
+images that rely entirely on their sub-chart's own default repository.
+
+This never touches tag-only image refs that have no "@sha256:..." pin
+(e.g. an apisix default) — those aren't pinned in values.yaml at all and
+belong in the release's docs/images/images-<version>.yaml instead.
+
+Usage:
+    set-image-digests.py             # fetch, compare, rewrite stale pins
+    set-image-digests.py --dry-run   # fetch and compare only, no write
+
+After a real run, re-render the chart (verify-podiumd.py or
+/helm-render-all) to confirm the new digests are picked up cleanly.
+"""
+import json
+import re
+import sys
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+VALUES_PATH = Path(__file__).resolve().parents[1] / "values.yaml"
+
+MANIFEST_ACCEPT = (
+    "application/vnd.oci.image.index.v1+json,"
+    "application/vnd.docker.distribution.manifest.list.v2+json,"
+    "application/vnd.oci.image.manifest.v1+json,"
+    "application/vnd.docker.distribution.manifest.v2+json"
+)
+TOKEN_ENDPOINTS = {
+    "docker.io": "https://auth.docker.io/token?service=registry.docker.io&scope=repository:{repo}:pull",
+    "ghcr.io": "https://ghcr.io/token?scope=repository:{repo}:pull",
+}
+MANIFEST_HOSTS = {
+    "docker.io": "registry-1.docker.io",
+}
+
+DIGEST_PIN_RE = re.compile(
+    r'^(?P<indent>\s*)tag:\s*"?(?P<version>[\w][\w.\-]*)@sha256:(?P<digest>[0-9a-f]{64})"?\s*(?:#.*)?$'
+)
+ACTIVE_REPO_RE = re.compile(
+    r'^(?P<indent>\s*)repository:\s*"?(?P<repo>[\w][\w.\-]*(?:/[\w.\-]+)*)"?\s*(?:#.*)?$'
+)
+COMMENTED_REPO_RE = re.compile(
+    r'^\s*#\s*repository:\s*"?(?P<repo>[\w][\w.\-]*(?:/[\w.\-]+)*)"?\s*$'
+)
+REF_COMMENT_RE = re.compile(
+    r'^\s*#\s*(?P<repo>[a-zA-Z0-9][\w.\-]*(?:/[\w.\-]+)*):@?[\w][\w.\-]*(?:@sha256:[0-9a-f]{64})?\s*$'
+)
+
+
+def parse_repo(repository):
+    """Split a Docker-style repository string into (registry_host, repo_path)
+    using the standard Docker convention: the first path segment is a
+    registry host only if it contains a "." or ":" (or is "localhost");
+    otherwise the whole string is a Docker Hub repository — official images
+    with no namespace (e.g. "python") live under "library/" on the registry
+    API even though that prefix is omitted in the human-readable form."""
+    first, sep, _ = repository.partition("/")
+    if sep and ("." in first or ":" in first or first == "localhost"):
+        return first, repository[len(first) + 1:]
+    if not sep:
+        return "docker.io", f"library/{repository}"
+    return "docker.io", repository
+
+
+def registry_tag_exists(registry_host, repo, tag):
+    """Return (exists, digest) for <repo>:<tag> on the given registry host,
+    using an anonymous pull token where the registry requires one — same
+    flow as /fetch-image-digest."""
+    headers = {"Accept": MANIFEST_ACCEPT}
+    token_url_tmpl = TOKEN_ENDPOINTS.get(registry_host)
+    if token_url_tmpl:
+        token = json.loads(urllib.request.urlopen(token_url_tmpl.format(repo=repo)).read())["token"]
+        headers["Authorization"] = f"Bearer {token}"
+    api_host = MANIFEST_HOSTS.get(registry_host, registry_host)
+    req = urllib.request.Request(f"https://{api_host}/v2/{repo}/manifests/{tag}", headers=headers)
+    try:
+        with urllib.request.urlopen(req) as resp:
+            return True, resp.headers.get("Docker-Content-Digest")
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return False, None
+        raise
+
+
+def resolve_pin_repo(lines, tag_line_index, tag_indent):
+    """Resolve the upstream repository for a "tag:" pin at tag_line_index.
+    Most pins have an active sibling "repository:" key. A minority of
+    components (e.g. office_converter, opa, solr-operator) deliberately
+    comment their "repository:" out so gemeente-level ACR-mirror overrides
+    take precedence — for those, fall back to the "# host/repo:tag" style
+    reference comment placed above the "image:" block, or a commented-out
+    "#repository: <value>" key at the same indent."""
+    for i in range(tag_line_index - 1, max(tag_line_index - 15, -1), -1):
+        raw = lines[i]
+        if not raw.strip():
+            continue
+        indent = len(raw) - len(raw.lstrip(" "))
+        if indent < tag_indent:
+            break
+        m = ACTIVE_REPO_RE.match(raw)
+        if m and indent == tag_indent:
+            return m.group("repo")
+    for i in range(tag_line_index - 1, max(tag_line_index - 6, -1), -1):
+        m = REF_COMMENT_RE.match(lines[i])
+        if m:
+            return m.group("repo")
+    for i in range(tag_line_index - 1, max(tag_line_index - 6, -1), -1):
+        m = COMMENTED_REPO_RE.match(lines[i])
+        if m:
+            return m.group("repo")
+    return None
+
+
+def scan_digest_pins(lines):
+    """Yield one record per "tag: <version>@sha256:<digest>" pin in
+    values.yaml, with its resolved upstream repository."""
+    pins = []
+    for i, raw in enumerate(lines):
+        m = DIGEST_PIN_RE.match(raw)
+        if not m:
+            continue
+        indent = len(m.group("indent"))
+        pins.append({
+            "line": i + 1,
+            "version": m.group("version"),
+            "digest": m.group("digest"),
+            "repository": resolve_pin_repo(lines, i, indent),
+        })
+    return pins
+
+
+def find_stale_digests(lines):
+    """Return (stale, unresolved, fetch_errors). stale is a list of
+    (repository, version, old_digest, new_digest, [line, ...])."""
+    pins = scan_digest_pins(lines)
+    unresolved = [p for p in pins if not p["repository"]]
+
+    targets = {}
+    for p in pins:
+        if p["repository"]:
+            targets.setdefault((p["repository"], p["version"]), []).append(p)
+
+    stale = []
+    fetch_errors = []
+    for (repository, version), group in sorted(targets.items()):
+        host, repo_path = parse_repo(repository)
+        pinned_digest = group[0]["digest"]
+        lines_for_pin = [p["line"] for p in group]
+
+        digest, error = None, None
+        for _attempt in range(2):
+            try:
+                exists, digest = registry_tag_exists(host, repo_path, version)
+                error = None if exists else "tag not found upstream"
+                break
+            except (urllib.error.URLError, OSError) as e:
+                error = str(e)
+
+        if error:
+            fetch_errors.append((repository, version, error, lines_for_pin))
+        elif digest and digest != f"sha256:{pinned_digest}":
+            stale.append((repository, version, pinned_digest, digest, lines_for_pin))
+
+    return stale, unresolved, fetch_errors
+
+
+def main():
+    dry_run = "--dry-run" in sys.argv[1:]
+
+    text = VALUES_PATH.read_text(encoding="utf-8")
+    lines = text.splitlines()
+
+    print(f"Scanning {VALUES_PATH} for digest-pinned images...")
+    stale, unresolved, fetch_errors = find_stale_digests(lines)
+
+    if unresolved:
+        print(f"\n{len(unresolved)} pin(s) could not be resolved to a repository (skipped):")
+        for p in unresolved:
+            print(f"  line {p['line']}: {p['version']}")
+
+    if fetch_errors:
+        print(f"\n{len(fetch_errors)} fetch error(s):")
+        for repository, version, error, pin_lines in fetch_errors:
+            print(f"  {repository}:{version}  {error}  (lines {', '.join(map(str, pin_lines))})")
+
+    if not stale:
+        print("\nNo stale digests found — nothing to do.")
+        sys.exit(1 if fetch_errors else 0)
+
+    print(f"\n{len(stale)} stale digest(s){' (dry-run, not writing)' if dry_run else ''}:")
+    for repository, version, old_digest, new_digest, pin_lines in stale:
+        print(f"  {repository}:{version}")
+        print(f"    old: sha256:{old_digest}")
+        print(f"    new: {new_digest}")
+        print(f"    lines: {', '.join(map(str, pin_lines))}")
+        if not dry_run:
+            new_hex = new_digest.split("sha256:", 1)[1]
+            text = text.replace(old_digest, new_hex)
+
+    if not dry_run:
+        VALUES_PATH.write_text(text, encoding="utf-8")
+        print(f"\nWrote {len(stale)} updated digest(s) to {VALUES_PATH}.")
+        print("Re-render the chart to confirm (verify-podiumd.py or /helm-render-all) before committing.")
+
+    sys.exit(1 if fetch_errors else 0)
+
+
+if __name__ == "__main__":
+    main()
