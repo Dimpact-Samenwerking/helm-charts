@@ -135,8 +135,7 @@ def check_utf8_format(chart_dir):
     values_path = chart_dir / "values.yaml"
     data = values_path.read_bytes()
     if data[:3] == b"\xef\xbb\xbf":
-        values_path.write_bytes(data[3:])
-        return False, "BOM found and stripped — re-stage this file before committing"
+        return False, "BOM found — strip it before committing (this script never writes to values.yaml)"
     print(f"OK: no BOM in {values_path.name}")
     return True, "no BOM"
 
