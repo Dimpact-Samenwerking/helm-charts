@@ -119,6 +119,7 @@ def repo(tmp_path):
     git("config", "user.name", "Test", cwd=tmp_path)
     doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
     doc_dir.mkdir(parents=True)
+    (tmp_path / "docs" / "images").mkdir(parents=True)
     write(doc_dir / "4.8.2-to-4.9.0-upgrade.md",
           "# Upgrade guide: PodiumD 4.8.2 → 4.9.0\n\n"
           "This is the upgrade guide for environments already on **4.8.2**.\n\n"
@@ -133,6 +134,7 @@ def repo(tmp_path):
 def set_argv_and_dir(bdb, monkeypatch, doc_dir, new_baseline, target="4.9.0"):
     monkeypatch.setattr("sys.argv", ["bump-doc-baseline.py", new_baseline])
     monkeypatch.setattr(bdb, "DOC_DIR", doc_dir)
+    monkeypatch.setattr(bdb, "IMAGES_DIR", doc_dir.parent / "images")
     monkeypatch.setattr(bdb, "current_chart_version", lambda: target)
 
 
@@ -218,3 +220,97 @@ def test_current_chart_version_reads_chart_yaml(bdb, tmp_path, monkeypatch):
     chart_yaml.write_text("version: 4.9.0\nname: podiumd\n", encoding="utf-8")
     monkeypatch.setattr(bdb, "CHART_YAML", chart_yaml)
     assert bdb.current_chart_version() == "4.9.0"
+
+
+# --- extract_images_baseline / update_sibling_doc_refs / update_images_manifest_baseline ---
+
+def test_extract_images_baseline_finds_version(bdb):
+    text = "# Baseline: podiumd 4.8.2. Re-verify before release.\n"
+    assert bdb.extract_images_baseline(text) == "4.8.2"
+
+
+def test_extract_images_baseline_none_when_absent(bdb):
+    assert bdb.extract_images_baseline("no header here\n") is None
+
+
+def test_update_sibling_doc_refs_rewrites_whatever_baseline_is_named(bdb):
+    text = "See docs/_UPGRADE_PATHS/4.8.3-to-4.9.0-upgrade.md for details.\n"
+    new_text, changed = bdb.update_sibling_doc_refs(text, "4.9.0", "4.8.5")
+    assert changed is True
+    assert "4.8.5-to-4.9.0-upgrade.md" in new_text
+    assert "4.8.3" not in new_text
+
+
+def test_update_sibling_doc_refs_ignores_other_targets(bdb):
+    text = "See docs/_UPGRADE_PATHS/4.7.8-to-4.8.0-upgrade.md for an older hop.\n"
+    new_text, changed = bdb.update_sibling_doc_refs(text, "4.9.0", "4.8.5")
+    assert changed is False
+    assert new_text == text
+
+
+def test_update_images_manifest_baseline_rewrites_both_lines(bdb):
+    text = (
+        "# Baseline: podiumd 4.8.2 (main @ abc1234). Re-verify before release.\n"
+        "#\n"
+        "# Images new or changed in podiumd 4.9.0 vs 4.8.2.\n"
+    )
+    new_text, changed = bdb.update_images_manifest_baseline(text, "4.9.0", "4.8.5")
+    assert changed is True
+    assert "Baseline: podiumd 4.8.5 (main @ abc1234)" in new_text
+    assert "podiumd 4.9.0 vs 4.8.5" in new_text
+
+
+def test_update_images_manifest_baseline_no_match_returns_unchanged(bdb):
+    text = "no baseline lines here\n"
+    new_text, changed = bdb.update_images_manifest_baseline(text, "4.9.0", "4.8.5")
+    assert changed is False
+    assert new_text == text
+
+
+# --- main() integration: images-<target>.yaml handling ---
+
+def test_main_creates_images_manifest_when_missing(bdb, repo, monkeypatch):
+    set_argv_and_dir(bdb, monkeypatch, repo, "4.8.3")
+    bdb.main()
+
+    images_path = repo.parent / "images" / "images-4.9.0.yaml"
+    assert images_path.is_file()
+    text = images_path.read_text(encoding="utf-8")
+    assert "Baseline: podiumd 4.8.3" in text
+    assert "podiumd 4.9.0 vs 4.8.3" in text
+    assert "4.8.3-to-4.9.0-upgrade.md" in text
+    assert text.strip().endswith("[]")
+
+
+def test_main_bumps_existing_images_manifest(bdb, repo, monkeypatch):
+    images_path = repo.parent / "images" / "images-4.9.0.yaml"
+    write(images_path,
+          "# Baseline: podiumd 4.8.2 (main @ abc1234). Re-verify before release.\n"
+          "#\n"
+          "# Images new or changed in podiumd 4.9.0 vs 4.8.2.\n"
+          "#\n"
+          "# See docs/_UPGRADE_PATHS/4.8.2-to-4.9.0-upgrade.md for the operator upgrade notes.\n\n"
+          "- name: zac\n"
+          '  url: ghcr.io/infonl/zaakafhandelcomponent\n'
+          '  version: "5.1.0"\n'
+          '  digest: "sha256:aaaa"\n')
+    set_argv_and_dir(bdb, monkeypatch, repo, "4.8.5")
+    bdb.main()
+
+    text = images_path.read_text(encoding="utf-8")
+    assert "Baseline: podiumd 4.8.5" in text
+    assert "podiumd 4.9.0 vs 4.8.5" in text
+    assert "4.8.5-to-4.9.0-upgrade.md" in text
+    assert "- name: zac" in text  # entries untouched
+
+
+def test_main_images_manifest_already_at_baseline_is_noop(bdb, repo, monkeypatch, capsys):
+    images_path = repo.parent / "images" / "images-4.9.0.yaml"
+    original = "# Baseline: podiumd 4.8.2 (main @ abc1234). Re-verify before release.\n"
+    write(images_path, original)
+    set_argv_and_dir(bdb, monkeypatch, repo, "4.8.2")
+    bdb.main()
+
+    assert images_path.read_text(encoding="utf-8") == original
+    out = capsys.readouterr().out
+    assert "images-4.9.0.yaml: already baseline 4.8.2 — unchanged" in out
