@@ -135,7 +135,7 @@ def check_utf8_format(chart_dir):
     values_path = chart_dir / "values.yaml"
     data = values_path.read_bytes()
     if data[:3] == b"\xef\xbb\xbf":
-        return False, "BOM found — strip it before committing (this script never writes to values.yaml)"
+        return False, "BOM found — run strip-utf8-bom.py to fix (this script never writes to values.yaml)"
     print(f"OK: no BOM in {values_path.name}")
     return True, "no BOM"
 
@@ -480,6 +480,9 @@ def check_image_digests(chart_dir):
         for p in unresolved:
             print(f"  line {p['line']}: {p['version']}")
         print()
+
+    if mismatches:
+        print(f"Run set-image-digests.py to refresh the {len(mismatches)} stale digest(s) above.")
 
     detail = f"{matched}/{len(targets)} matched, {len(mismatches)} stale, {len(fetch_errors)} fetch error(s)"
     if mismatches or fetch_errors:
