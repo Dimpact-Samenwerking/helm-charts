@@ -4,9 +4,9 @@ Verifies the podiumd chart:
   1. values.yaml is valid UTF-8 with no BOM (a BOM breaks YAML tooling if present)
   2. all Chart.yaml dependencies actually resolve and bundle (helm dependency update)
   3. values.yaml has no duplicate keys silently overwriting earlier values
-  4. the chart lints cleanly with the CI placeholder values
-  5. the chart renders cleanly with `helm template` using the CI placeholder values
-  6. component versions in Chart.yaml + values.yaml match the matching
+  4. every digest-pinned image in values.yaml still matches its live
+     upstream registry digest
+  5. component versions in Chart.yaml + values.yaml match the matching
      docs/_UPGRADE_PATHS/*-to-<version>-upgrade.md and docs/images/images-<version>.yaml
      (any component the doc lists, not a hardcoded set) — and, given --baseline,
      every component that actually changed vs the baseline (chart version,
@@ -14,12 +14,12 @@ Verifies the podiumd chart:
      mention in the matching values-deltas.md, and — if its image tag
      changed — an entry in images-<version>.yaml, even if no doc mentions
      it yet
-  7. every digest-pinned image in values.yaml still matches its live
-     upstream registry digest
+  6. the chart lints cleanly with the CI placeholder values
+  7. the chart renders cleanly with `helm template` using the CI placeholder values
 
 Stops at the first failing step and prints a PASS/FAIL summary table, mirroring
 the /helm-precommit workflow (BOM check, dupe check, lint, full render) plus
-this script's own dependency-resolution check.
+this script's own dependency-resolution, image-digest, and docs-consistency checks.
 
 Always verifies charts/podiumd next to this script — there is no way to point
 it at a different chart source.
@@ -944,14 +944,14 @@ def main():
 
     run_step("Dependencies", "Resolving dependencies (helm dependency update)", check_dependencies, chart_dir)
     run_step("Dupe check", "Duplicate key scan", check_duplicate_keys, chart_dir)
-
-    extra_args = lint_args_for(chart_dir)
-    run_step("Lint", "helm lint", check_lint, chart_dir, extra_args)
-    run_step("Full render", "helm template", check_render, chart_dir, extra_args)
     run_step("Image digests", "Checking image digests against upstream registries",
              check_image_digests, chart_dir)
     run_step("Docs consistency", "Checking versions against upgrade docs",
              check_docs_consistency, chart_dir, args.baseline)
+
+    extra_args = lint_args_for(chart_dir)
+    run_step("Lint", "helm lint", check_lint, chart_dir, extra_args)
+    run_step("Full render", "helm template", check_render, chart_dir, extra_args)
 
     print_summary(results, overall_ok=True)
 
