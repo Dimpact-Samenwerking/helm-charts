@@ -156,3 +156,112 @@ def find_preceding_comment(lines, entry_line_index):
         comment_lines.insert(0, lines[j].strip())
         j -= 1
     return " ".join(comment_lines)
+
+
+def diff_keys(baseline_node, current_node, path=()):
+    """Yield ("added"|"removed", path) for the SHALLOWEST differing keys
+    between two values subtrees — if a whole block is new or gone, report it
+    once at that level rather than recursing into every leaf underneath it.
+    This matches how values-deltas.md docs actually document changes (e.g.
+    "the whole zac.brpApi.protocollering block was redesigned", not a
+    leaf-by-leaf listing). Scalar-vs-scalar value changes (same key, new
+    value) are not add/remove/rename and are not reported."""
+    if not isinstance(baseline_node, dict) or not isinstance(current_node, dict):
+        return
+    baseline_keys = set(baseline_node.keys())
+    current_keys = set(current_node.keys())
+    for key in current_keys - baseline_keys:
+        yield "added", path + (key,)
+    for key in baseline_keys - current_keys:
+        yield "removed", path + (key,)
+    for key in baseline_keys & current_keys:
+        yield from diff_keys(baseline_node[key], current_node[key], path + (key,))
+
+
+def flatten_leaf_keys(node):
+    """All leaf key names anywhere under a subtree, used to measure how
+    similar two blocks are (for rename detection) — not full paths, just the
+    set of innermost key names, so "host"/"user"/"password" overlapping
+    between an old and new block is a strong rename signal."""
+    keys = set()
+    if isinstance(node, dict):
+        for key, value in node.items():
+            keys.add(key)
+            keys |= flatten_leaf_keys(value)
+    elif isinstance(node, list):
+        for item in node:
+            keys |= flatten_leaf_keys(item)
+    return keys
+
+
+def pair_renames(added, removed, baseline_node, current_node):
+    """Pair an added and a removed key at the same parent path into a rename
+    candidate when their subtrees share enough leaf key names (e.g.
+    mi.sftp -> mi.transfer, both containing host/user/password) — otherwise
+    they're reported as an unrelated add and remove."""
+    renamed, added_left, removed_left = [], list(added), list(removed)
+
+    def get(node, path):
+        for key in path:
+            if not isinstance(node, dict):
+                return None
+            node = node.get(key)
+        return node
+
+    for add_path in list(added_left):
+        for rem_path in list(removed_left):
+            if add_path[:-1] != rem_path[:-1]:
+                continue
+            add_val = get(current_node, add_path)
+            rem_val = get(baseline_node, rem_path)
+            add_keys, rem_keys = flatten_leaf_keys(add_val), flatten_leaf_keys(rem_val)
+            similar = bool(add_keys and rem_keys and
+                            len(add_keys & rem_keys) / len(add_keys | rem_keys) >= 0.3)
+            same_scalar = not isinstance(add_val, (dict, list)) and add_val == rem_val
+            if similar or same_scalar:
+                renamed.append((rem_path, add_path))
+                added_left.remove(add_path)
+                removed_left.remove(rem_path)
+                break
+    return renamed, added_left, removed_left
+
+
+def parse_changes_block(text):
+    """Parse the "# Changes:" numbered-list block in an images manifest's
+    header comment, e.g.:
+        #   1. ZAC (Zaakafhandelcomponent) 5.0.2 -> 5.4.3 (chart 1.0.297, unchanged).
+        #   2. ZGW Office Add-in v0.9.313 -> 0.11.0 (chart 0.0.89 -> 0.0.92).
+    into the same shape as parse_upgrade_doc_rows, so it can be checked with
+    the same helpers."""
+    items = []
+    in_changes = False
+    for line in text.splitlines():
+        if not line.startswith("#"):
+            if in_changes:
+                break
+            continue
+        if re.match(r"^#\s*Changes:\s*$", line):
+            in_changes = True
+            continue
+        if not in_changes:
+            continue
+        # "\.\s+" (period, then whitespace) — not "\.\s*" — so a version number
+        # like "1.17.1-static" (period immediately followed by a digit) on an
+        # indented continuation line is never mistaken for a new list item
+        m = re.match(r"^#\s*\d+\.\s+(.+)$", line)
+        if not m:
+            continue
+        rest = m.group(1)
+        app_source = extract_source_version(rest)
+        app_target = extract_target_version(rest)
+        chart_m = re.search(r"\(chart\s+([^)]+)\)", rest)
+        chart_source = extract_source_version(chart_m.group(1)) if chart_m else None
+        chart_target = extract_target_version(chart_m.group(1)) if chart_m else None
+        name = rest
+        if app_source:
+            idx = rest.find(app_source)
+            if idx > 0:
+                name = rest[:idx].strip()
+        items.append({"name": name, "app_source": app_source, "app": app_target,
+                      "chart_source": chart_source, "chart": chart_target})
+    return items
