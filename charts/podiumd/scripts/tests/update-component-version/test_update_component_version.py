@@ -196,12 +196,16 @@ def setup_repo(tmp_path, monkeypatch, ucv):
     return chart_yaml, values_yaml
 
 
+def mock_verify_passes(monkeypatch):
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: subprocess.CompletedProcess(a, 0))
+
+
 def test_main_writes_both_files_when_verify_passes(ucv, tmp_path, monkeypatch):
     chart_yaml, values_yaml = setup_repo(tmp_path, monkeypatch, ucv)
-    monkeypatch.setattr(
-        subprocess, "run",
-        lambda *a, **k: subprocess.CompletedProcess(a, 0),
-    )
+    mock_verify_passes(monkeypatch)
+    monkeypatch.setattr(ucv, "resolve_repos", lambda dep, chart_version, paths: {
+        "image": "ghcr.io/infonl/zaakafhandelcomponent"
+    })
     monkeypatch.setattr(ucv, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "b" * 64))
     monkeypatch.setattr("sys.argv", ["update-component-version.py", "zac", "5.4.3", "1.0.297"])
 
@@ -215,10 +219,7 @@ def test_main_refuses_to_write_when_verify_fails(ucv, tmp_path, monkeypatch):
     chart_yaml, values_yaml = setup_repo(tmp_path, monkeypatch, ucv)
     original_chart = chart_yaml.read_text(encoding="utf-8")
     original_values = values_yaml.read_text(encoding="utf-8")
-    monkeypatch.setattr(
-        subprocess, "run",
-        lambda *a, **k: subprocess.CompletedProcess(a, 1),
-    )
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: subprocess.CompletedProcess(a, 1))
     monkeypatch.setattr("sys.argv", ["update-component-version.py", "zac", "5.4.3", "1.0.297"])
 
     with pytest.raises(SystemExit) as exc_info:
@@ -233,3 +234,84 @@ def test_main_requires_exactly_three_arguments(ucv, monkeypatch):
     with pytest.raises(SystemExit) as exc_info:
         ucv.main()
     assert exc_info.value.code == 1
+
+
+# --- main() handling already-current versions ---
+
+def test_main_skips_chart_write_when_chart_version_unchanged(ucv, tmp_path, monkeypatch, capsys):
+    chart_yaml, values_yaml = setup_repo(tmp_path, monkeypatch, ucv)
+    original_chart = chart_yaml.read_text(encoding="utf-8")
+    mock_verify_passes(monkeypatch)
+    monkeypatch.setattr(ucv, "resolve_repos", lambda dep, chart_version, paths: {
+        "image": "ghcr.io/infonl/zaakafhandelcomponent"
+    })
+    monkeypatch.setattr(ucv, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "b" * 64))
+    # chart_version matches what's already in Chart.yaml (1.0.296); only app version bumps
+    monkeypatch.setattr("sys.argv", ["update-component-version.py", "zac", "5.4.3", "1.0.296"])
+
+    ucv.main()
+
+    assert chart_yaml.read_text(encoding="utf-8") == original_chart  # untouched
+    assert f'"5.4.3@sha256:{"b" * 64}"' in values_yaml.read_text(encoding="utf-8")
+    out = capsys.readouterr().out
+    assert "Chart version already 1.0.296 — unchanged" in out
+
+
+def test_main_skips_values_write_when_app_version_unchanged(ucv, tmp_path, monkeypatch, capsys):
+    chart_yaml, values_yaml = setup_repo(tmp_path, monkeypatch, ucv)
+    original_values = values_yaml.read_text(encoding="utf-8")
+    mock_verify_passes(monkeypatch)
+    called = []
+    monkeypatch.setattr(ucv, "resolve_repos", lambda dep, chart_version, paths: called.append(paths) or {})
+    # app_version matches the pinned tag's version (5.0.2); only chart version bumps
+    monkeypatch.setattr("sys.argv", ["update-component-version.py", "zac", "5.0.2", "1.0.297"])
+
+    ucv.main()
+
+    assert values_yaml.read_text(encoding="utf-8") == original_values  # untouched
+    assert "version: 1.0.297" in chart_yaml.read_text(encoding="utf-8")
+    assert called == []  # no digest resolution needed when nothing to update
+    out = capsys.readouterr().out
+    assert "app version already 5.0.2 — unchanged" in out
+
+
+def test_main_exits_zero_and_writes_nothing_when_both_unchanged(ucv, tmp_path, monkeypatch, capsys):
+    chart_yaml, values_yaml = setup_repo(tmp_path, monkeypatch, ucv)
+    original_chart = chart_yaml.read_text(encoding="utf-8")
+    original_values = values_yaml.read_text(encoding="utf-8")
+    mock_verify_passes(monkeypatch)
+    monkeypatch.setattr("sys.argv", ["update-component-version.py", "zac", "5.0.2", "1.0.296"])
+
+    with pytest.raises(SystemExit) as exc_info:
+        ucv.main()
+
+    assert exc_info.value.code == 0
+    assert chart_yaml.read_text(encoding="utf-8") == original_chart
+    assert values_yaml.read_text(encoding="utf-8") == original_values
+    out = capsys.readouterr().out
+    assert "Nothing to update" in out
+
+
+# --- resolve_repos ---
+
+def test_resolve_repos_reads_target_charts_own_values(ucv, tmp_path, monkeypatch):
+    dep = {"name": "openforms", "alias": "openformulieren", "version": "1.11.0", "repository": "@maykinmedia"}
+
+    def fake_pull_chart(dep_arg, version, dest):
+        chart_dir = dest / "openforms"
+        chart_dir.mkdir(parents=True)
+        (chart_dir / "values.yaml").write_text(
+            yaml.safe_dump({"image": {"repository": "maykinmedia/open-forms"}}), encoding="utf-8"
+        )
+        return True, ""
+
+    monkeypatch.setattr(ucv, "pull_chart", fake_pull_chart)
+    repos = ucv.resolve_repos(dep, "1.12.0", ["image"])
+    assert repos == {"image": "maykinmedia/open-forms"}
+
+
+def test_resolve_repos_raises_on_pull_failure(ucv, tmp_path, monkeypatch):
+    dep = {"name": "openforms", "repository": "@maykinmedia"}
+    monkeypatch.setattr(ucv, "pull_chart", lambda dep_arg, version, dest: (False, "chart version not found"))
+    with pytest.raises(SystemExit):
+        ucv.resolve_repos(dep, "9.9.9", ["image"])

@@ -5,19 +5,32 @@ charts/podiumd/Chart.yaml + values.yaml — but only after verify-component-
 version.py confirms both versions actually exist upstream. Refuses to touch
 either file if that verification fails.
 
+Either version (or both) may already be at the requested value — that's
+not an error: whichever one is unchanged is reported and left untouched,
+and only the file(s) that actually need a change get written. If both are
+already current, nothing is written at all.
+
 Usage:
     update-component-version.py <component> <app-version> <chart-version>
 
 Examples:
     update-component-version.py zac 5.4.3 1.0.297
     update-component-version.py zgw-office-addin v0.9.352 0.0.92
+    update-component-version.py openformulieren 3.5.6 1.12.0
+        # if 1.12.0 is already the pinned chart version, Chart.yaml is left
+        # untouched and only values.yaml's image tag is bumped
 
 Writes:
   - charts/podiumd/Chart.yaml: the dependency's "version:" field
   - charts/podiumd/values.yaml: the app's own image "tag:" field(s)
     (COMPONENT_IMAGE_PATHS below — same convention as verify-component-
-    version.py), set to "<app-version>@sha256:<digest>" using the digest
-    verify-component-version.py just confirmed upstream.
+    version.py), set to "<app-version>@sha256:<digest>".
+
+The upstream repository for each image path is read from the TARGET chart
+version's own values.yaml (pulled via helm, same as verify-component-
+version.py) rather than podiumd's own values.yaml — podiumd's override
+often leaves "repository:" unset entirely, relying on the sub-chart's
+default (e.g. openformulieren).
 
 Every other byte in both files is left untouched — only the "version:" /
 "tag:" values change, not formatting, comments, or quoting style. Refuses
@@ -28,8 +41,10 @@ to confirm before committing.
 """
 import json
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -77,6 +92,52 @@ def get_path(node, dotted_path):
             return None
         node = node.get(key)
     return node
+
+
+def chart_ref(dep):
+    """Return (ref, extra_repo_url_or_None) for `helm pull`."""
+    repo = dep["repository"]
+    if repo.startswith("oci://"):
+        return f"{repo}/{dep['name']}", None
+    if repo.startswith("@"):
+        return f"{repo[1:]}/{dep['name']}", None
+    if repo.startswith("http://") or repo.startswith("https://"):
+        return dep["name"], repo
+    raise SystemExit(f"error: unsupported repository scheme: {repo}")
+
+
+def pull_chart(dep, version, dest):
+    """Pull a chart version via helm. Returns (ok, stderr)."""
+    ref, repo_url = chart_ref(dep)
+    cmd = ["helm", "pull", ref, "--version", version, "--untar", "--untardir", str(dest)]
+    if repo_url:
+        cmd += ["--repo", repo_url]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    return result.returncode == 0, result.stderr.strip()
+
+
+def resolve_repos(dep, chart_version, paths):
+    """Pull the target chart version and read ITS OWN values.yaml to find
+    each path's default "repository:" — podiumd's own values.yaml may leave
+    "repository:" entirely unset, relying on the sub-chart's default."""
+    tmpdir = Path(tempfile.mkdtemp(prefix="update-component-version-"))
+    try:
+        ok, stderr = pull_chart(dep, chart_version, tmpdir)
+        if not ok:
+            raise SystemExit(f"error: could not pull {dep['name']} {chart_version}: {stderr}")
+        chart_dirs = [p for p in tmpdir.iterdir() if p.is_dir()]
+        sub_values = yaml.safe_load((chart_dirs[0] / "values.yaml").read_text()) or {}
+        repos = {}
+        for path in paths:
+            repo = get_path(sub_values, f"{path}.repository")
+            if not isinstance(repo, str) or not repo:
+                raise SystemExit(
+                    f"error: no repository found at {path}.repository in {dep['name']}'s own values.yaml"
+                )
+            repos[path] = repo
+        return repos
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)
 
 
 def parse_repo(repository):
@@ -235,33 +296,55 @@ def main():
     image_paths = COMPONENT_IMAGE_PATHS.get(component, DEFAULT_IMAGE_PATHS)
 
     print()
-    print(f"=== Resolving digests for {component} {app_version} ===")
+    chart_unchanged = str(dep["version"]) == str(chart_version)
+    if chart_unchanged:
+        print(f"Chart version already {chart_version} — unchanged")
+    else:
+        print(f"Chart version: {dep['version']} -> {chart_version}")
+
     values = yaml.safe_load(VALUES_YAML.read_text(encoding="utf-8")) or {}
-    new_tags_by_path = {}
+    paths_to_update = []
     for path in image_paths:
-        repo = get_path(values, f"{values_key}.{path}.repository")
-        if not isinstance(repo, str) or not repo:
-            print(f"error: no repository found at {values_key}.{path}.repository in {VALUES_YAML}")
-            sys.exit(1)
-        host, repo_path = parse_repo(repo)
-        exists, digest = registry_tag_exists(host, repo_path, app_version)
-        if not exists or not digest:
-            print(f"error: {host}/{repo_path}:{app_version} unexpectedly missing on re-check")
-            sys.exit(1)
-        new_tags_by_path[path] = f"{app_version}@{digest}"
-        print(f"  {values_key}.{path}: {host}/{repo_path}:{app_version} -> {digest}")
+        current_tag = get_path(values, f"{values_key}.{path}.tag") or ""
+        current_version = current_tag.split("@", 1)[0]
+        if current_version == app_version:
+            print(f"{values_key}.{path}: app version already {app_version} — unchanged")
+        else:
+            print(f"{values_key}.{path}: app version {current_version or '(none)'} -> {app_version}")
+            paths_to_update.append(path)
 
-    print()
-    print(f"=== Writing {CHART_YAML} ===")
-    old_v, new_v = update_chart_yaml(chart_name, chart_version)
-    print(f"  {old_v}  ->  {new_v}")
+    if chart_unchanged and not paths_to_update:
+        print()
+        print("Nothing to update — component is already at the requested versions.")
+        sys.exit(0)
 
-    print()
-    print(f"=== Writing {VALUES_YAML} ===")
-    for dotted, old_v, new_v in update_values_yaml(values_key, image_paths, new_tags_by_path):
-        print(f"  {dotted}:")
-        print(f"    {old_v}")
-        print(f"    {new_v}")
+    new_tags_by_path = {}
+    if paths_to_update:
+        print()
+        print(f"=== Resolving digests for {component} {app_version} (chart {chart_version}) ===")
+        repos = resolve_repos(dep, chart_version, paths_to_update)
+        for path in paths_to_update:
+            host, repo_path = parse_repo(repos[path])
+            exists, digest = registry_tag_exists(host, repo_path, app_version)
+            if not exists or not digest:
+                print(f"error: {host}/{repo_path}:{app_version} unexpectedly missing on re-check")
+                sys.exit(1)
+            new_tags_by_path[path] = f"{app_version}@{digest}"
+            print(f"  {values_key}.{path}: {host}/{repo_path}:{app_version} -> {digest}")
+
+    if not chart_unchanged:
+        print()
+        print(f"=== Writing {CHART_YAML} ===")
+        old_v, new_v = update_chart_yaml(chart_name, chart_version)
+        print(f"  {old_v}  ->  {new_v}")
+
+    if paths_to_update:
+        print()
+        print(f"=== Writing {VALUES_YAML} ===")
+        for dotted, old_v, new_v in update_values_yaml(values_key, paths_to_update, new_tags_by_path):
+            print(f"  {dotted}:")
+            print(f"    {old_v}")
+            print(f"    {new_v}")
 
     print()
     print("Done. Re-render the chart to confirm (verify-podiumd.py or /helm-render-all) before committing.")
