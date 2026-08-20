@@ -11,6 +11,7 @@ Usage:
 Examples:
     verify-component-version.py zac 5.4.3 1.0.297
     verify-component-version.py zgw-office-addin 0.12.0 0.0.92
+    verify-component-version.py openformulieren 3.5.6 1.12.0
 
 Exit code is non-zero if either the app version or the chart version does not
 exist — safe to use as a gate before bumping the chart.
@@ -22,13 +23,29 @@ import urllib.request
 
 import yaml
 
-# component (name or alias) -> GHCR image repositories whose tag must match
-# the app version. Some components (e.g. zgw-office-addin) ship more than
-# one image that must move in lockstep.
+# registry -> URL templates for the anonymous-pull token flow and the
+# manifest HEAD-equivalent lookup. Same flow as /fetch-image-digest.
+REGISTRIES = {
+    "ghcr": {
+        "token_url": "https://ghcr.io/token?scope=repository:{repo}:pull",
+        "manifest_url": "https://ghcr.io/v2/{repo}/manifests/{tag}",
+    },
+    "dockerhub": {
+        "token_url": "https://auth.docker.io/token?service=registry.docker.io&scope=repository:{repo}:pull",
+        "manifest_url": "https://registry-1.docker.io/v2/{repo}/manifests/{tag}",
+    },
+}
+
+# component (name or alias) -> [(registry, repository), ...] whose tag must
+# match the app version. Some components (e.g. zgw-office-addin) ship more
+# than one image that must move in lockstep.
 COMPONENT_IMAGES = {
-    "zac": ["infonl/zaakafhandelcomponent"],
-    "zaakafhandelcomponent": ["infonl/zaakafhandelcomponent"],
-    "zgw-office-addin": ["infonl/zgw-office-addin-frontend", "infonl/zgw-office-addin-backend"],
+    "zac": [("ghcr", "infonl/zaakafhandelcomponent")],
+    "zaakafhandelcomponent": [("ghcr", "infonl/zaakafhandelcomponent")],
+    "zgw-office-addin": [("ghcr", "infonl/zgw-office-addin-frontend"),
+                          ("ghcr", "infonl/zgw-office-addin-backend")],
+    "openformulieren": [("dockerhub", "openformulieren/open-forms")],
+    "openforms": [("dockerhub", "openformulieren/open-forms")],
 }
 
 # component (name or alias) -> (chart name in the repo's index.yaml, index.yaml URL)
@@ -36,6 +53,8 @@ COMPONENT_CHART_REPOS = {
     "zac": ("zaakafhandelcomponent", "https://infonl.github.io/dimpact-zaakafhandelcomponent/index.yaml"),
     "zaakafhandelcomponent": ("zaakafhandelcomponent", "https://infonl.github.io/dimpact-zaakafhandelcomponent/index.yaml"),
     "zgw-office-addin": ("zgw-office-addin", "https://infonl.github.io/zgw-office-addin/index.yaml"),
+    "openformulieren": ("openforms", "https://maykinmedia.github.io/charts/index.yaml"),
+    "openforms": ("openforms", "https://maykinmedia.github.io/charts/index.yaml"),
 }
 
 MANIFEST_ACCEPT = (
@@ -46,13 +65,14 @@ MANIFEST_ACCEPT = (
 )
 
 
-def ghcr_tag_exists(repo, tag):
-    """Return (exists, digest) for ghcr.io/<repo>:<tag>, using an anonymous
-    pull token — same flow as /fetch-image-digest."""
-    token_resp = urllib.request.urlopen(f"https://ghcr.io/token?scope=repository:{repo}:pull")
+def registry_tag_exists(registry, repo, tag):
+    """Return (exists, digest) for <repo>:<tag> on the given registry, using
+    an anonymous pull token — same flow as /fetch-image-digest."""
+    cfg = REGISTRIES[registry]
+    token_resp = urllib.request.urlopen(cfg["token_url"].format(repo=repo))
     token = json.loads(token_resp.read())["token"]
     req = urllib.request.Request(
-        f"https://ghcr.io/v2/{repo}/manifests/{tag}",
+        cfg["manifest_url"].format(repo=repo, tag=tag),
         headers={"Authorization": f"Bearer {token}", "Accept": MANIFEST_ACCEPT},
     )
     try:
@@ -62,6 +82,16 @@ def ghcr_tag_exists(repo, tag):
         if e.code == 404:
             return False, None
         raise
+
+
+def ghcr_tag_exists(repo, tag):
+    """Return (exists, digest) for ghcr.io/<repo>:<tag>."""
+    return registry_tag_exists("ghcr", repo, tag)
+
+
+def dockerhub_tag_exists(repo, tag):
+    """Return (exists, digest) for docker.io/<repo>:<tag>."""
+    return registry_tag_exists("dockerhub", repo, tag)
 
 
 def chart_version_exists(index_url, chart_name, version):
@@ -90,11 +120,12 @@ def main():
     ok = True
 
     print(f"Checking app version {app_version!r} for {component}:")
-    for repo in images:
-        exists, digest = ghcr_tag_exists(repo, app_version)
+    for registry, repo in images:
+        exists, digest = registry_tag_exists(registry, repo, app_version)
         status = "FOUND  " if exists else "MISSING"
         suffix = f"  digest={digest}" if digest else ""
-        print(f"  [{status}] ghcr.io/{repo}:{app_version}{suffix}")
+        host = "ghcr.io" if registry == "ghcr" else "docker.io"
+        print(f"  [{status}] {host}/{repo}:{app_version}{suffix}")
         ok = ok and exists
 
     chart_name, index_url = chart_repo
