@@ -30,6 +30,8 @@ See [`{baseline}-to-4.9.0-values-deltas.md`]({baseline}-to-4.9.0-values-deltas.m
 
 GEMEENTE_DOC = "# Gemeente-specific notes — PodiumD {baseline} → 4.9.0\n\nNone.\n"
 VALUES_DELTAS_DOC = ("# Values deltas — PodiumD {baseline} → 4.9.0\n\n"
+                      "- **ZAC** app `{app_source} → {app_target}` (chart `1.0.297`, unchanged) "
+                      "— image tag only.\n\n"
                       "No gemeente podiumd.yml changes are required for this hop.\n")
 IMAGES_MANIFEST = """\
 # Baseline: podiumd {baseline} (test @ 0000000).
@@ -82,7 +84,8 @@ def chart_repo(tmp_path):
     (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
         UPGRADE_DOC.format(baseline="4.8.5", app_source="5.0.2", app_target="5.4.3"))
     (doc_dir / "4.8.5-to-4.9.0-gemeente-specific.md").write_text(GEMEENTE_DOC.format(baseline="4.8.5"))
-    (doc_dir / "4.8.5-to-4.9.0-values-deltas.md").write_text(VALUES_DELTAS_DOC.format(baseline="4.8.5"))
+    (doc_dir / "4.8.5-to-4.9.0-values-deltas.md").write_text(
+        VALUES_DELTAS_DOC.format(baseline="4.8.5", app_source="5.0.2", app_target="5.4.3"))
     (images_dir / "images-4.9.0.yaml").write_text(
         IMAGES_MANIFEST.format(baseline="4.8.5", app_source="5.0.2", app_target="5.4.3"))
     git("add", "-A", cwd=repo_root)
@@ -131,3 +134,37 @@ def test_wrong_source_version_vs_baseline_is_caught(vp, chart_repo):
 def test_unresolvable_baseline_is_caught(vp, chart_repo):
     ok, detail = vp.check_docs_consistency(chart_repo, baseline="9.9.9")
     assert ok is False
+
+
+def test_undocumented_new_component_is_caught_everywhere(vp, chart_repo, capsys):
+    """A component added to Chart.yaml + values.yaml after the baseline, but
+    never added to any doc, must be flagged as missing from the upgrade.md
+    table, from values-deltas.md, and from the images manifest — not
+    silently skipped just because no doc mentions it yet."""
+    (chart_repo / "Chart.yaml").write_text(
+        CHART_YAML + '  - name: openformulieren\n    version: "1.12.0"\n    repository: "@openformulieren"\n')
+    (chart_repo / "values.yaml").write_text(
+        values_yaml("5.4.3") + 'openformulieren:\n  image:\n    tag: "3.5.6@sha256:cccc"\n')
+
+    ok, detail = vp.check_docs_consistency(chart_repo, baseline="4.8.5")
+    assert ok is False
+    assert "mismatch" in detail
+
+    out = capsys.readouterr().out
+    assert 'component "openformulieren" changed vs' in out
+    assert 'has no row in the "Component versions" table' in out
+    assert 'is not mentioned anywhere in the doc' in out
+    assert "openformulieren" in out and "has no entry in images-4.9.0.yaml" in out
+
+
+def test_component_changed_with_no_key_diffs_still_needs_values_deltas_mention(vp, chart_repo):
+    """Even when a component's app/chart bump doesn't touch any values.yaml
+    schema (no keys added/removed/renamed), it must still be mentioned
+    somewhere in values-deltas.md — a plain version bump is still a change
+    gemeentes should be told about."""
+    doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-values-deltas.md"
+    doc.write_text("# Values deltas — PodiumD 4.8.5 → 4.9.0\n\n"
+                    "No gemeente podiumd.yml changes are required for this hop.\n")
+    ok, detail = vp.check_docs_consistency(chart_repo, baseline="4.8.5")
+    assert ok is False
+    assert "mismatch" in detail

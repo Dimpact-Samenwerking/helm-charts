@@ -301,3 +301,44 @@ def parse_changes_block(text):
         items.append({"name": name, "app_source": app_source, "app": app_target,
                       "chart_source": chart_source, "chart": chart_target})
     return items
+
+
+def compute_changed_components(deps, baseline_deps, values, baseline_values):
+    """Top-level component keys (Chart.yaml alias, or name if unaliased) that
+    actually differ between the baseline and now: dependency added or
+    removed, chart version bumped, or any image tag anywhere under that
+    key's values.yaml subtree changed. This is the ground truth the docs
+    are checked against — independent of what they currently say, so it
+    also catches a component that changed but was never added to any doc
+    at all."""
+    current_by_key = {dep.get("alias", dep["name"]): dep for dep in deps}
+    baseline_by_key = {dep.get("alias", dep["name"]): dep for dep in baseline_deps}
+
+    current_paths = dict(find_image_tag_paths(values))
+    baseline_paths = dict(find_image_tag_paths(baseline_values)) if baseline_values else {}
+
+    def subtree_paths(key, paths):
+        return {p: t for p, t in paths.items() if p[0] == key}
+
+    changed = set()
+    for key in set(current_by_key) | set(baseline_by_key):
+        cur_dep, base_dep = current_by_key.get(key), baseline_by_key.get(key)
+        if cur_dep is None or base_dep is None:
+            changed.add(key)
+        elif normalize_version(cur_dep["version"]) != normalize_version(base_dep["version"]):
+            changed.add(key)
+        elif subtree_paths(key, current_paths) != subtree_paths(key, baseline_paths):
+            changed.add(key)
+    return changed
+
+
+def extract_mentioned_dependency_keys(text, deps):
+    """Component keys mentioned via a bold "**Name**" span anywhere in a
+    free-form doc (e.g. a values-deltas.md bullet like "- **ZAC** app ..."),
+    matched the same fuzzy way as an upgrade-doc table row's name."""
+    mentioned = set()
+    for m in re.finditer(r"\*\*([^*]+)\*\*", text):
+        dep = match_dependency(m.group(1), deps)
+        if dep:
+            mentioned.add(dep.get("alias", dep["name"]))
+    return mentioned

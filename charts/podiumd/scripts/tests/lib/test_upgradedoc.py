@@ -306,3 +306,79 @@ def test_replace_version_pair_preserves_prefix_and_arrow_style(libupgradedoc):
 def test_replace_version_pair_no_match_returns_unchanged(libupgradedoc):
     line = "# no version pair here\n"
     assert libupgradedoc.replace_version_pair(line, "1.0.0", "2.0.0") == line
+
+
+# --- compute_changed_components ---
+
+def test_compute_changed_components_detects_chart_version_bump(libupgradedoc):
+    deps = [{"name": "zac", "version": "1.0.297"}]
+    baseline_deps = [{"name": "zac", "version": "1.0.251"}]
+    values = {"zac": {"image": {"tag": "5.1.0@sha256:aaaa"}}}
+    assert libupgradedoc.compute_changed_components(deps, baseline_deps, values, values) == {"zac"}
+
+
+def test_compute_changed_components_detects_image_tag_change(libupgradedoc):
+    deps = [{"name": "zac", "version": "1.0.297"}]
+    current = {"zac": {"image": {"tag": "5.4.3@sha256:bbbb"}}}
+    baseline = {"zac": {"image": {"tag": "5.0.2@sha256:aaaa"}}}
+    assert libupgradedoc.compute_changed_components(deps, deps, current, baseline) == {"zac"}
+
+
+def test_compute_changed_components_detects_added_dependency(libupgradedoc):
+    deps = [{"name": "zac", "version": "1.0.297"}, {"name": "openformulieren", "version": "1.12.0"}]
+    baseline_deps = [{"name": "zac", "version": "1.0.297"}]
+    values = {"zac": {"image": {"tag": "5.1.0@sha256:aaaa"}},
+              "openformulieren": {"image": {"tag": "3.5.6@sha256:cccc"}}}
+    assert libupgradedoc.compute_changed_components(deps, baseline_deps, values, values) == {"openformulieren"}
+
+
+def test_compute_changed_components_detects_removed_dependency(libupgradedoc):
+    deps = [{"name": "zac", "version": "1.0.297"}]
+    baseline_deps = [{"name": "zac", "version": "1.0.297"}, {"name": "old-component", "version": "1.0.0"}]
+    values = {"zac": {"image": {"tag": "5.1.0@sha256:aaaa"}}}
+    baseline_values = {"zac": {"image": {"tag": "5.1.0@sha256:aaaa"}},
+                        "old-component": {"image": {"tag": "1.0.0@sha256:dddd"}}}
+    assert libupgradedoc.compute_changed_components(deps, baseline_deps, values, baseline_values) == \
+        {"old-component"}
+
+
+def test_compute_changed_components_uses_alias_as_key(libupgradedoc):
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+    baseline_deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.251"}]
+    values = {"zac": {"image": {"tag": "5.1.0@sha256:aaaa"}}}
+    assert libupgradedoc.compute_changed_components(deps, baseline_deps, values, values) == {"zac"}
+
+
+def test_compute_changed_components_no_change_is_empty(libupgradedoc):
+    deps = [{"name": "zac", "version": "1.0.297"}]
+    values = {"zac": {"image": {"tag": "5.1.0@sha256:aaaa"}}, "other": {"a": 1}}
+    assert libupgradedoc.compute_changed_components(deps, deps, values, values) == set()
+
+
+def test_compute_changed_components_ignores_unrelated_key_changes(libupgradedoc):
+    """A values.yaml key change under a component NOT in Chart.yaml's
+    dependencies (e.g. a plain feature flag) must not be reported — this
+    function is scoped to actual Chart.yaml dependency changes."""
+    deps = [{"name": "zac", "version": "1.0.297"}]
+    current = {"zac": {"image": {"tag": "5.1.0@sha256:aaaa"}}, "global": {"flag": True}}
+    baseline = {"zac": {"image": {"tag": "5.1.0@sha256:aaaa"}}, "global": {"flag": False}}
+    assert libupgradedoc.compute_changed_components(deps, deps, current, baseline) == set()
+
+
+# --- extract_mentioned_dependency_keys ---
+
+def test_extract_mentioned_dependency_keys_finds_bold_bullet(libupgradedoc):
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+    text = "- **ZAC** app `5.0.2 → 5.4.3` (chart `1.0.297`, unchanged) — image tag only.\n"
+    assert libupgradedoc.extract_mentioned_dependency_keys(text, deps) == {"zac"}
+
+
+def test_extract_mentioned_dependency_keys_ignores_unmatched_bold_text(libupgradedoc):
+    deps = [{"name": "zac", "version": "1.0.297"}]
+    text = "This is **not a component** and neither is **this**.\n"
+    assert libupgradedoc.extract_mentioned_dependency_keys(text, deps) == set()
+
+
+def test_extract_mentioned_dependency_keys_no_bold_spans_is_empty(libupgradedoc):
+    deps = [{"name": "zac", "version": "1.0.297"}]
+    assert libupgradedoc.extract_mentioned_dependency_keys("plain text, no bold at all", deps) == set()
