@@ -48,8 +48,9 @@ from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, 
 from lib.procutil import run
 from lib.registry import parse_repo, registry_tag_exists
 from lib.upgradedoc import (
-    actual_app_version, extract_source_version, extract_target_version, image_tag,
-    match_dependency, normalize_name, normalize_version, words_of,
+    actual_app_version, extract_source_version, extract_target_version,
+    find_image_tag_paths, find_preceding_comment, image_tag, match_dependency,
+    normalize_name, normalize_version, resolve_entry_path, words_of,
 )
 from lib.upgradedoc import parse_upgrade_doc_rows as _parse_upgrade_doc_rows
 
@@ -238,24 +239,6 @@ def parse_upgrade_doc_rows(doc_path):
     return _parse_upgrade_doc_rows(doc_path.read_text(encoding="utf-8"))
 
 
-def find_image_tag_paths(node, path=()):
-    """Yield (path, tag) for every "image: {tag: ...}" block anywhere in a
-    values tree, keyed by its full path — e.g. ("zac", "opa") for
-    zac.opa.image.tag. Structural, so it finds sidecars too, not just
-    top-level Chart.yaml dependencies."""
-    if isinstance(node, dict):
-        image = node.get("image")
-        if isinstance(image, dict) and image.get("tag"):
-            yield path, image["tag"]
-        for key, value in node.items():
-            if key == "image":
-                continue
-            yield from find_image_tag_paths(value, path + (str(key),))
-    elif isinstance(node, list):
-        for i, item in enumerate(node):
-            yield from find_image_tag_paths(item, path + (str(i),))
-
-
 def resolve_pin_repo(lines, tag_line_index, tag_indent):
     """Resolve the upstream repository for a "tag:" pin at tag_line_index.
     Most pins have an active sibling "repository:" key. A minority of
@@ -367,37 +350,6 @@ def check_image_digests(chart_dir):
     if mismatches or fetch_errors:
         return False, detail
     return True, detail
-
-
-def resolve_entry_path(entry_name, paths):
-    """Match an images-manifest entry name (e.g. "zgw-office-addin-frontend")
-    to a values-tree path (e.g. ("zgw-office-addin", "frontend")) by comparing
-    word-split, concatenated path segments — no hardcoded name list.
-
-    The innermost path segment must match the entry's last word: without that,
-    sibling paths sharing a coincidental prefix (e.g. zac.solr-operator.solr
-    vs zac.solr-operator.zookeeper-operator.zookeeper — both start with
-    "zac"+"solr"+"operator") are indistinguishable by substring matching alone."""
-    entry_words = words_of(entry_name)
-    if not entry_words:
-        return None
-    norm_entry = "".join(entry_words)
-
-    best = None
-    for path in paths:
-        path_words = [w for segment in path for w in words_of(segment)]
-        if not path_words or path_words[-1] != entry_words[-1]:
-            continue
-        norm_path = "".join(path_words)
-        if norm_path == norm_entry:
-            return path
-        if norm_path in norm_entry or norm_entry in norm_path:
-            # closest length = least unrelated extra text pulled in by the
-            # containment match
-            diff = abs(len(norm_path) - len(norm_entry))
-            if best is None or diff < best[1]:
-                best = (path, diff)
-    return best[0] if best else None
 
 
 def check_doc_title(doc_path, baseline, podiumd_version):
@@ -533,19 +485,6 @@ def parse_changes_block(text):
         items.append({"name": name, "app_source": app_source, "app": app_target,
                       "chart_source": chart_source, "chart": chart_target})
     return items
-
-
-def find_preceding_comment(lines, entry_line_index):
-    """The comment line(s) immediately above a "- name: ..." line, e.g.
-    "# ZAC OPA sidecar — 1.17.1-static -> 1.19.0-static" right above the opa
-    entry — stops at the first blank/non-comment line, so it doesn't reach
-    back into the previous entry's comment."""
-    comment_lines = []
-    j = entry_line_index - 1
-    while j >= 0 and lines[j].strip().startswith("#"):
-        comment_lines.insert(0, lines[j].strip())
-        j -= 1
-    return " ".join(comment_lines)
 
 
 def check_images_manifest_format(images_path, baseline, podiumd_version, deps, values, baseline_values):
