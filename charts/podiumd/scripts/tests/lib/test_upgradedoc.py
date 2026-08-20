@@ -272,3 +272,37 @@ def test_parse_changes_block_version_with_dot_not_mistaken_for_new_item(libupgra
     assert len(items) == 2
     assert items[0]["app"] == "1.19.0-static"
     assert items[1]["app"] == "5.4.3"
+
+
+# --- canonical_version_cell ---
+
+def test_canonical_version_cell_arrow_form(libupgradedoc):
+    assert libupgradedoc.canonical_version_cell("5.0.2", "5.1.0") == "5.0.2 → 5.1.0"
+
+
+def test_canonical_version_cell_unchanged_form(libupgradedoc):
+    assert libupgradedoc.canonical_version_cell("1.0.297", "1.0.297") == "1.0.297 (unchanged)"
+
+
+# --- find_preceding_comment_line / replace_version_pair ---
+
+def test_find_preceding_comment_line_finds_arrow_comment(libupgradedoc):
+    lines = ["# ZAC — 5.0.1 -> 5.1.0\n", "- name: zac\n"]
+    assert libupgradedoc.find_preceding_comment_line(lines, 1) == 0
+
+
+def test_find_preceding_comment_line_none_when_no_arrow(libupgradedoc):
+    lines = ["#repository:\n", "- name: zac\n"]
+    assert libupgradedoc.find_preceding_comment_line(lines, 1) is None
+
+
+def test_replace_version_pair_preserves_prefix_and_arrow_style(libupgradedoc):
+    assert libupgradedoc.replace_version_pair("# ZAC — 5.0.1 -> 5.1.0\n", "5.0.2", "5.1.0") == \
+        "# ZAC — 5.0.2 -> 5.1.0\n"
+    assert libupgradedoc.replace_version_pair("# ZAC — 5.0.1 → 5.1.0\n", "5.0.2", "5.1.0") == \
+        "# ZAC — 5.0.2 → 5.1.0\n"
+
+
+def test_replace_version_pair_no_match_returns_unchanged(libupgradedoc):
+    line = "# no version pair here\n"
+    assert libupgradedoc.replace_version_pair(line, "1.0.0", "2.0.0") == line
