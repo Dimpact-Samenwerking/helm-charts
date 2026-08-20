@@ -7,7 +7,18 @@ trip:
   2. values.yaml has no duplicate keys silently overwriting earlier values
   3. templates/*.yaml has no pair of files that are structurally near-
      duplicates of each other (report-only, never fails — see lib.dry_check)
-  4. component versions in Chart.yaml + values.yaml match the matching
+  4. every `image:` field in this chart's OWN templates/*.yaml calls the
+     shared podiumd.image helper, per .github/copilot-instructions.md's
+     "Image References" convention (never a hand-interpolated
+     `.repository`:`.tag` or a bare literal) — scanned on the raw template
+     source, since a rendered image string can't be told apart from one
+     that used the helper (see lib.image_references_check)
+  5. every Deployment/StatefulSet/DaemonSet/Job/CronJob in this chart's OWN
+     templates/*.yaml has a nodeSelector field somewhere in its pod spec,
+     per .github/copilot-instructions.md's AKS-Blue convention ("all
+     workloads" require one) — a template with none can never be made
+     compliant by an env-values override (see lib.node_selector_check)
+  6. component versions in Chart.yaml + values.yaml match the matching
      docs/_UPGRADE_PATHS/*-to-<version>-upgrade.md and docs/images/images-<version>.yaml
      (any component the doc lists, not a hardcoded set) — and, given --baseline,
      every component that actually changed vs the baseline (chart version,
@@ -15,34 +26,34 @@ trip:
      mention in the matching values-deltas.md, and — if its image tag
      changed — an entry in images-<version>.yaml, even if no doc mentions
      it yet (see lib.docs_consistency)
-  5. every digest-pinned image in values.yaml still matches its live
+  7. every digest-pinned image in values.yaml still matches its live
      upstream registry digest — except a tag known to slide (this repo's
      git history shows it's changed digest before, or the registry
      currently has a more specific sibling tag at the same digest), where
      drift is expected and passes, just reported for visibility (see
      lib.image_digests)
-  6. all Chart.yaml dependencies actually resolve and bundle (helm dependency update)
-  7. the chart lints cleanly with the CI placeholder values
-  8. the chart renders cleanly with `helm template` using the CI placeholder values
-  9. yamllint against that render finds no structurally-real problem (duplicate
-     keys, syntax errors) in this chart's OWN templates — cosmetic findings
-     (trailing whitespace, comment style, ...) aren't reported at all, and
-     a vendored sub-chart finding is printed per-item if it's from a
-     friendly/partner vendor, else only gets a one-line count — neither
-     scope ever fails except OWN (see lib.yamllint_check)
-  10. kubeconform against that same render finds no real API-schema
+  8. all Chart.yaml dependencies actually resolve and bundle (helm dependency update)
+  9. the chart lints cleanly with the CI placeholder values
+  10. the chart renders cleanly with `helm template` using the CI placeholder values
+  11. yamllint against that render finds no structurally-real problem (duplicate
+      keys, syntax errors) in this chart's OWN templates — cosmetic findings
+      (trailing whitespace, comment style, ...) aren't reported at all, and
+      a vendored sub-chart finding is printed per-item if it's from a
+      friendly/partner vendor, else only gets a one-line count — neither
+      scope ever fails except OWN (see lib.yamllint_check)
+  12. kubeconform against that same render finds no real API-schema
       violation in this chart's OWN templates (wrong types, unknown fields,
       a resource that doesn't even parse) — a CRD with no known schema
       (Keycloak, ECK, Redis, ...) is skipped, not an error, and vendored
       findings follow the same friendly-vendor-gets-detail rule, never a
       failure (see lib.kubeconform_check)
-  11. shellcheck against every shell script embedded in a container's
+  13. shellcheck against every shell script embedded in a container's
       command/args in this chart's OWN templates finds no real bug
       (error/warning-level — bad quoting, undefined variables, portability
       issues) — info/style-level suggestions aren't reported at all, and
       vendored findings follow the same friendly-vendor-gets-detail rule,
       never a failure (see lib.shellcheck_check)
-  12. kube-score's container-resources check finds every container in this
+  14. kube-score's container-resources check finds every container in this
       chart's OWN templates declaring CPU/memory requests AND limits, per
       .github/copilot-instructions.md's own documented "Resource Requests
       and Limits" convention — the only kube-score check this repo has an
@@ -52,21 +63,24 @@ trip:
       to enforce. A vendored sub-chart's missing resources IS this repo's
       job (wireable via that sub-chart's values.yaml key, same doc), so
       every vendored finding is printed individually — but, unlike steps
-      9-11, does NOT yet fail the check: the backlog is untriaged and
+      11-13, does NOT yet fail the check: the backlog is untriaged and
       partly upstream-blocked (see lib.kube_score_check)
 
-  Steps 9-11's "friendly vendor" carve-out (see lib.render_scope.friendly_vendor_charts):
+  Steps 11-13's "friendly vendor" carve-out (see lib.render_scope.friendly_vendor_charts):
   Maykin, Info(NL), ICATT, Worth, WeAreFrank, Dimpact, and any local
   ("file://") dependency are close/collaborative enough that their
   findings are worth seeing individually, even though this repo still
   can't fix their code directly. Every other vendored sub-chart (elastic,
   redis-operator, keycloak-operator, openbao, ...) stays
-  aggregate-count-only. Step 12 doesn't use this carve-out — see above.
+  aggregate-count-only. Step 14 doesn't use this carve-out — see above.
+  Steps 4-5 don't use it either — they only ever scan this chart's own
+  templates in the first place, never a vendored sub-chart's.
 
-Steps 9-12 each need an external tool (yamllint/kubeconform/shellcheck/
+Steps 11-14 each need an external tool (yamllint/kubeconform/shellcheck/
 kube-score, respectively) beyond helm — run --help for exactly which
 binary/package each one needs, and the --skip-<name> flag to bypass a
 missing one (skipping means that check doesn't run, not that it passes).
+Steps 4-5 are pure-Python textual scans and need no external tool.
 
 Stops at the first failing step and prints a PASS/FAIL summary table, mirroring
 the /helm-precommit workflow (BOM check, dupe check, lint, full render) plus
@@ -95,7 +109,8 @@ Usage:
         # useful to iterate faster on a single check, or work around a step
         # that's broken for reasons unrelated to what you're testing.
         # One flag per step: --skip-utf8-format, --skip-dependencies,
-        # --skip-dupe-check, --skip-dry-check, --skip-image-digests,
+        # --skip-dupe-check, --skip-dry-check, --skip-image-references,
+        # --skip-node-selector, --skip-image-digests,
         # --skip-docs-consistency, --skip-lint, --skip-full-render,
         # --skip-yamllint, --skip-kubeconform, --skip-shellcheck,
         # --skip-kube-score. See --help for the full list.
@@ -123,6 +138,8 @@ from lib.procutil import run
 # exactly what main() calls, no re-exports to keep in sync by hand.
 from lib.dry_check import check_dry
 from lib.image_digests import check_image_digests
+from lib.image_references_check import check_image_references
+from lib.node_selector_check import check_node_selector
 from lib.docs_consistency import check_docs_consistency
 from lib.render_scope import (
     CHART_NAME, REQUIRED_REPOS, report_errors_by_subchart, report_largest_templates,
@@ -344,6 +361,8 @@ SKIPPABLE_STEPS = [
     ("dependencies", "Dependencies"),
     ("dupe-check", "Dupe check"),
     ("dry-check", "DRY check"),
+    ("image-references", "Image references"),
+    ("node-selector", "Node selector"),
     ("image-digests", "Image digests"),
     ("docs-consistency", "Docs consistency"),
     ("lint", "Lint"),
@@ -410,6 +429,10 @@ def main():
     run_step("UTF-8 format", "UTF-8 format check", check_utf8_format, chart_dir)
     run_step("Dupe check", "Duplicate key scan", check_duplicate_keys, chart_dir)
     run_step("DRY check", "Template duplication scan", check_dry, chart_dir)
+    run_step("Image references", "Checking image: fields use the podiumd.image helper",
+             check_image_references, chart_dir)
+    run_step("Node selector", "Checking workloads expose a nodeSelector field",
+             check_node_selector, chart_dir)
     run_step("Docs consistency", "Checking versions against upgrade docs",
              check_docs_consistency, chart_dir, args.baseline)
     run_step("Image digests", "Checking image digests against upstream registries",

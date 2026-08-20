@@ -117,6 +117,8 @@ def test_main_skips_requested_steps_and_runs_the_rest(vp, monkeypatch, capsys):
     monkeypatch.setattr(vp, "check_dependencies", make_check("deps"))
     monkeypatch.setattr(vp, "check_duplicate_keys", make_check("dupe"))
     monkeypatch.setattr(vp, "check_dry", make_check("dry"))
+    monkeypatch.setattr(vp, "check_image_references", make_check("image-refs"))
+    monkeypatch.setattr(vp, "check_node_selector", make_check("node-selector"))
     monkeypatch.setattr(vp, "check_image_digests", make_check("digests"))
     monkeypatch.setattr(vp, "check_docs_consistency", make_check("docs"))
     monkeypatch.setattr(vp, "check_yamllint", make_check("yamllint"))
@@ -132,8 +134,8 @@ def test_main_skips_requested_steps_and_runs_the_rest(vp, monkeypatch, capsys):
 
     vp.main()  # must not raise / must not sys.exit
 
-    assert ran == ["utf8", "dupe", "dry", "docs", "digests", "deps", "yamllint", "kubeconform",
-                    "shellcheck", "kube-score"]
+    assert ran == ["utf8", "dupe", "dry", "image-refs", "node-selector", "docs", "digests", "deps",
+                    "yamllint", "kubeconform", "shellcheck", "kube-score"]
     out = capsys.readouterr().out
     assert "Lint" in out and "SKIP" in out
     assert "Full render" in out and "SKIP" in out
