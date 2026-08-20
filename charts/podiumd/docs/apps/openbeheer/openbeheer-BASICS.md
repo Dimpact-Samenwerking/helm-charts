@@ -17,7 +17,8 @@ roughly 250–270 MiB memory each and near-idle CPU.
 - Upstream: Maykin Media [`open-beheer`](https://github.com/maykinmedia/open-beheer), a
   Django application. New in PodiumD 4.8.0 (IN-2157), **disabled by default**
   (`openbeheer.enabled: false`).
-- Image: `maykinmedia/open-beheer:0.9.0`; nginx sidecar `nginxinc/nginx-unprivileged:1.31.3` (digest-pinned).
+- Image: `maykinmedia/open-beheer:0.9.1`; nginx sidecar `nginxinc/nginx-unprivileged:1.31.3`
+  (shared `global.images.nginx`, digest-pinned).
 - Delivered as a vendored sub-chart dependency (`openbeheer` v0.1.3, repository
   `@maykinmedia`).
 - Role: admin/management UI on top of the ZGW APIs — manages zaaktypes and
@@ -165,4 +166,4 @@ headroom; the nginx sidecar default (10m/16Mi) is adequate.
   share, Key Vault entries), declarative configuration via django-setup-configuration,
   secrets handling, storage details and validation steps.
 - [openbeheer-known-issues.md](openbeheer-known-issues.md) — the uWSGI master-process
-  restart trap in open-beheer 0.9.0 (why `settings.uwsgi.master: "1"` must stay set).
+  restart trap in open-beheer 0.9.1 and earlier (why `settings.uwsgi.master: "1"` must stay set).
