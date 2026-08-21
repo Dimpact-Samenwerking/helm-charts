@@ -105,8 +105,8 @@
   digest: "sha256:d833d2f3dd58eeb58335e9aff9bca67f5885fad0e6a7414003ce9a211d3dc50e"
 - name: infonl/zaakafhandelcomponent
   url: ghcr.io/infonl/zaakafhandelcomponent
-  version: "5.0.1"
-  digest: "sha256:8c7844248b7decf56eafc0d2aca1f9e080f94e9bf2f6b6ac412589deb80d1659"
+  version: "5.0.2"
+  digest: "sha256:e334f327008f99304cd545e61f528a44d583162c9bb67f4a589479248a93df3c"
 - name: infonl/zgw-office-addin-backend
   url: ghcr.io/infonl/zgw-office-addin-backend
   version: "v0.9.352"
@@ -225,16 +225,12 @@
   digest: "sha256:e5217d748869c62d26393311c3cfdcaacf69d8dde80ca3bc172ff41f3885f0ff"
 - name: maykinmedia/open-beheer
   url: docker.io/maykinmedia/open-beheer
-  version: "0.9.0"
-  digest: "sha256:1a11b06dadb82c992468709b1aa92d0501aef6d526a7afb52bacac6917385166"
+  version: "0.9.1"
+  digest: "sha256:7c1dfaff1d069afe5d45e421f813078d8112b13c3cf65b5f547e866f6aad4e31"
 - name: maykinmedia/open-inwoner
   url: docker.io/maykinmedia/open-inwoner
-  version: "2.3.1"
-  digest: "sha256:3a2ff5c8eefa69252b15a7385c82811c3681e6ecc29bb2aa35eccb331dddbc56"
-- name: maykinmedia/open-inwoner
-  url: docker.io/maykinmedia/open-inwoner
-  version: "2.3.0"
-  digest: "sha256:c4537e620899365d64511d20529eb582e87cc2d4ab13b95e45524dbbe06d722d"
+  version: "2.4.2"
+  digest: "sha256:cfd670b19464effc20e4d9402674d1abf493872fb94cff34dc18ff54335476f1"
 - name: maykinmedia/open-klant
   url: docker.io/maykinmedia/open-klant
   version: "2.15.0"
@@ -277,12 +273,8 @@
   digest: "sha256:ee940d036bb2f8325f9a5153316f657fceeb24db59a23c5109d6e659daae7ac3"
 - name: openzaak/open-zaak
   url: docker.io/openzaak/open-zaak
-  version: "1.27.3"
-  digest: "sha256:b2732761c15b9b35d9a59420e01de0bd099266be96819e65be9f4e01fca11a63"
-- name: openzaak/open-zaak
-  url: docker.io/openzaak/open-zaak
-  version: "1.27.2"
-  digest: "sha256:7f4826298b1bb28aca3f1f6d18fbad52238267eafc5253c68fb067f3afe8908e"
+  version: "1.27.4"
+  digest: "sha256:f847e5148d857da07847b5d298d8d7a0b66a299fb48e02e4a28176cc09e8decf"
 - name: opstree/redis
   url: quay.io/opstree/redis
   version: "v8.6.2"
