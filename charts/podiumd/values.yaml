@@ -3324,7 +3324,7 @@ ita:
   web:
     image:
       # repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web"
-      tag: "3.3.0"
+      tag: "3.3.0@sha256:cb56b4809e0c840cbc72814f8a72495fd18860cb08dfb092c12ba3c2cea785df"
       pullPolicy: IfNotPresent
 
     service:
@@ -3362,7 +3362,7 @@ ita:
   poller:
     image:
       repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller"
-      tag: "3.3.0"
+      tag: "3.3.0@sha256:7690650687047c43f08c4f8320b77d821d3551d18478de9a600a2f828600c865"
       pullPolicy: IfNotPresent
 
     resources:
@@ -3410,12 +3410,12 @@ pabc:
   # k8s-wait-for:v2.0 (see docs/images/images-4.8.0.yaml).
   image:
     repository: acrprodmgmt.azurecr.io/platform-autorisatie-beheer-component/pabc-api
-    tag: 1.1.1
+    tag: "1.1.1sha256:09a902e43f6cdb214afc369d04005c7b6108fd24b15709f1debbcfb1b446ef42"
   nodeSelector: {}
   migrations:
     image:
       repository: acrprodmgmt.azurecr.io/platform-autorisatie-beheer-component/pabc-migrations
-      tag: 1.1.1
+      tag: "1.1.1@sha256:a3841a2eb78cddd34ebb0de1bfede1db1ae9713921c0d77e4366baceffa86e05"
     nodeSelector: {}
   initContainers:
     waitFor:
