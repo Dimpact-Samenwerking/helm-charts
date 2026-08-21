@@ -73,8 +73,8 @@
 # Already mirrored — curl, now also used by the KISS index-template pre-upgrade hook
 - name: curlimages/curl
   url: docker.io/curlimages/curl
-  version: "8.20.0"
-  digest: "sha256:b3f1fb2a51d923260350d21b8654bbc607164a987e2f7c84a0ac199a67df812a"
+  version: "8.21.0"
+  digest: "sha256:7c12af72ceb38b7432ab85e1a265cff6ae58e06f95539d539b654f2cfa64bb13"
 
 # PABC — 1.1.0 -> 1.1.1
 - name: platform-autorisatie-beheer-component/pabc-api
