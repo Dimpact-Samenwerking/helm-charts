@@ -124,7 +124,7 @@ ACR-mirror set for that hop):
 
 ## What each hop requires
 
-For every release you upgrade **to**, four things must exist and agree:
+For every release you upgrade **to**, five things must exist and agree:
 
 1. **`Chart.yaml`** — `version` and `appVersion` bumped to the new release.
 2. **`values.yaml`** — image pins (`tag` + `digest`) for every new/changed image.
@@ -133,8 +133,13 @@ For every release you upgrade **to**, four things must exist and agree:
 4. **`images/images-<new>.yaml`** — the ACR-mirror set: every image new or
    changed in the release, each with a fetched `sha256:` digest (build it with
    `/images-manifest <new>`).
+5. **`images/images-baseline.yaml`** — the single complete strip-registry
+   manifest. It does **not** auto-update from step 4's per-release delta file;
+   add the matching entry by hand for every image touched in step 4, keeping
+   the previous version as a history row below it (easy to forget since it's
+   a separate file from the one `/images-manifest` writes).
 
-A hop is "ready" only when all four are present and consistent
+A hop is "ready" only when all five are present and consistent
 (`/verify-image-digests`, `/helm-dupecheck`, `/helm-lint`).
 
 ### Image manifests are cumulative on the official path

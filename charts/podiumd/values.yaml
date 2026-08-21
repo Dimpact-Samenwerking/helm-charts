@@ -70,14 +70,14 @@ keycloak-operator:
     # provisions (RELATED_IMAGE_KEYCLOAK env on the operator Deployment). Must
     # match podiumd's own `keycloak.image` digest above. The adfinis subchart's
     # built-in default still carries the pre-PR#344 digest (sha256:5fdbf2d…), so
-    # we override it here to the refreshed 26.6.4 digest (sha256:0aae0de…).
+    # we override it here to the refreshed 26.7.2 digest (sha256:831330…).
     # NOTE: sha is a SEPARATE field; the template appends it as @sha256:{{ .sha }},
     # so do NOT embed @sha256 in tag (would produce a double digest).
     config:
       keycloakImage:
         repository: quay.io/keycloak/keycloak
-        tag: "26.6.4"
-        sha: "0aae0de7fca85525f727d3354df17896092de8bb26ae4c12d89c77e5df8cbce4"
+        tag: "26.7.2"
+        sha: "831330513f55695572286e521f94fcd3c7e285250ed5b848090265a33192f669"
   serviceAccount:
     create: false
   jobs:
@@ -93,8 +93,8 @@ keycloak-operator:
       initImage:
         registry: ""
         repository: python
-        # Digest-pinned to match docs/images/images-4.8.0.yaml (python 3.14-slim).
-        tag: "3.14-slim@sha256:b877e50bd90de10af8d82c57a022fc2e0dc731c5320d762a27986facfc3355c1"
+        # Digest-pinned to a specific patch rather than the floating 3.14-slim minor tag.
+        tag: "3.14.7-slim@sha256:ce40764625a4ff50df3548277632e7f96c4e77fe75fa848aae9885476e7df5a4"
       # Main container: runs psql to execute the generated SQL against the Keycloak DB.
       image:
         registry: ""
@@ -222,11 +222,11 @@ keycloak:
   http:
     httpEnabled: true
   # image parameters for keycloak-operator
-  # Official Keycloak image: quay.io/keycloak/keycloak:26.6.4
+  # Official Keycloak image: quay.io/keycloak/keycloak:26.7.2
   image:
     registry: ""
     repository: quay.io/keycloak/keycloak
-    tag: "26.6.4@sha256:0aae0de7fca85525f727d3354df17896092de8bb26ae4c12d89c77e5df8cbce4"
+    tag: "26.7.2@sha256:831330513f55695572286e521f94fcd3c7e285250ed5b848090265a33192f669"
   # -- instances is the new operator-style replica count (falls back to replicaCount)
   instances: "2"
   ingress:
@@ -2423,7 +2423,7 @@ kiss-eck:
   eck-elasticsearch:
     enabled: true
     fullnameOverride: kiss
-    version: "8.19.3"
+    version: "8.19.19"
     # -- default sizing, kept equal to the previous release (kiss-elastic used
     # elasticsearchCount: 3). Environments can override nodeSets (e.g. nodeSelector,
     # count, storage), the same way openinwoner.eck-elasticsearch.nodeSets is set.
@@ -2454,7 +2454,7 @@ kiss-eck:
   eck-enterprise-search:
     enabled: true
     fullnameOverride: kiss
-    version: "8.19.3"
+    version: "8.19.19"
     config:
       app_search.engine.total_fields.limit: 1000
       kibana.host: https://kiss-kb-http.podiumd.svc.cluster.local:5601
@@ -2472,7 +2472,7 @@ kiss-eck:
   eck-kibana:
     enabled: true
     fullnameOverride: kiss
-    version: "8.19.3"
+    version: "8.19.19"
     config:
       server.publicBaseUrl: https://kiss-kb-http.podiumd.svc.cluster.local:5601
     elasticsearchRef:
@@ -3046,7 +3046,7 @@ clamav:
   # and ServiceMonitor (metrics.serviceMonitor.enabled: true). Supported since clamav chart v3.7.1.
   # serviceMonitor requires the Prometheus Operator CRD (monitoring.coreos.com/v1 ServiceMonitor).
   image:
-    tag: "1.5.2"
+    tag: "1.5.4"
   metrics:
     enabled: false
     image:

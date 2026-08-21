@@ -10,7 +10,7 @@ dependencies:
     repository: "@adfinis"
     condition: keycloak-operator.enabled
   - name: clamav
-    version: 3.7.1
+    version: 3.7.2
     repository: "@wiremind"
     condition: clamav.enabled
   - name: brp-personen-mock
@@ -107,14 +107,14 @@ dependencies:
     version: 0.25.0
     condition: redis-operator.enabled
   - name: eck-operator
-    version: 3.4.0
+    version: 3.5.0
     repository: https://helm.elastic.co
     condition: eck-operator.enabled
     tags:
       - eck-operator
   - name: eck-stack
     alias: kiss-eck
-    version: 0.19.0
+    version: 0.20.0
     repository: https://helm.elastic.co
     tags:
       - kiss-eck

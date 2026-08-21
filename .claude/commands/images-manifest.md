@@ -34,4 +34,5 @@ Steps:
 4. Reuse the previous manifest's comment grouping where the same images still apply; add new groups only for new apps.
 5. Write the file. Reference style: `images-4.7.0.yaml`.
 6. Run `/helm-dupecheck` to verify `values.yaml` is clean before finalizing.
-7. After writing, print: file path, count of entries, and any image whose digest fetch failed (must be resolved before commit).
+7. **Update `images-baseline.yaml` too** — it's the single complete strip-registry manifest and does not auto-update from per-release delta files. For every entry just added to `images-$ARGUMENTS.yaml`, add the matching entry to `images-baseline.yaml` (same `name`/`url`/`version`/`digest`), keeping the previous version's entry immediately below it as history (see the existing `clamav/clamav` or `curlimages/curl` duplicate-name entries for the pattern) rather than replacing it. Insert alphabetically by `name`. Easy to forget since it's a separate file from the one this command writes — do not skip it.
+8. After writing both files, print: file paths, count of entries in each, and any image whose digest fetch failed (must be resolved before commit).
