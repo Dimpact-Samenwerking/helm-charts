@@ -25,7 +25,7 @@
 # Digests are the OCI image index (multi-arch manifest) digest as returned in
 # the Docker-Content-Digest response header from the source registry.
 
-# ZAC — 5.0.1 -> 5.1.0
+# ZAC — 5.0.2 -> 5.1.0
 - name: zac
   url: ghcr.io/infonl/zaakafhandelcomponent
   version: "5.1.0"
@@ -41,7 +41,7 @@
   url: ghcr.io/infonl/zgw-office-addin-backend
   version: "v0.9.352"
   digest: "sha256:c5bf9a7beb883c7cf586a65326dacb4fc49a2eaaa08f4eb49f2faabb786b71b4"
-
+  
 # ITA — 3.2.0 -> 3.3.0
 - name: interne-taak-afhandeling/internetaakafhandeling.web
   url: ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web
