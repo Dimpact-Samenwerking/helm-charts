@@ -1,12 +1,12 @@
-# Baseline: podiumd 4.8.2 (main @ 4184f87). Re-verify before release:
-#   git diff 4184f87..HEAD -- charts/podiumd/Chart.yaml charts/podiumd/values.yaml
+# Baseline: podiumd 4.8.5 (main @ cc293f8). Re-verify before release:
+#   git diff cc293f8..HEAD -- charts/podiumd/Chart.yaml charts/podiumd/values.yaml
 #
-# Images new or changed in podiumd 4.9.0 vs 4.8.2.
+# Images new or changed in podiumd 4.9.0 vs 4.8.5.
 #
 # Changes:
-#   1. ZAC (Zaakafhandelcomponent) 5.0.1 -> 5.1.0 (chart 1.0.251 -> 1.0.257).
+#   1. ZAC (Zaakafhandelcomponent) 5.0.2 -> 5.1.0 (chart 1.0.297, unchanged).
 #   2. ZGW Office Add-in v0.9.313 -> v0.9.352 (chart 0.0.89, unchanged).
-#      Repository names (zgw-office-addin-{frontend,backend}) unchanged from 4.8.2.
+#      Repository names (zgw-office-addin-{frontend,backend}) unchanged from 4.8.5.
 #   3. ITA 3.2.0 -> 3.3.0 (chart internetaakafhandeling 3.2.0 -> 3.3.0), web and
 #      poller. No new images, tag bumps only.
 #   4. KISS 2.2.4 -> 3.0.0 (kiss-chart 2.2.4 -> 3.0.0), kiss-elastic-sync 0.3.3 ->
@@ -20,7 +20,7 @@
 #   5. PABC 1.1.0 -> 1.1.1 (chart 1.1.0 -> 1.1.1), pabc-api and pabc-migrations.
 #   6. PodiumD Adapter 0.6.6 -> 0.6.7 (chart 0.6.6 -> 0.6.7), podiumd-adapter.
 #
-# See docs/_UPGRADE_PATHS/4.8.2-to-4.9.0-upgrade.md for the operator upgrade notes.
+# See docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md for the operator upgrade notes.
 #
 # Digests are the OCI image index (multi-arch manifest) digest as returned in
 # the Docker-Content-Digest response header from the source registry.
