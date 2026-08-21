@@ -17,6 +17,8 @@
 #      imported before the 4.9.0 rollout, or Azure Policy blocks pod creation.
 #      curlimages/curl:8.20.0 is already mirrored (see images-baseline.yaml) and
 #      is listed here only because KISS starts using it in this release.
+#   5. PABC 1.1.0 -> 1.1.1 (chart 1.1.0 -> 1.1.1), pabc-api and pabc-migrations.
+#   6. PodiumD Adapter 0.6.6 -> 0.6.7 (chart 0.6.6 -> 0.6.7), podiumd-adapter.
 #
 # See docs/_UPGRADE_PATHS/4.8.2-to-4.9.0-upgrade.md for the operator upgrade notes.
 #
