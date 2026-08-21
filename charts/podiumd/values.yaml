@@ -3377,12 +3377,13 @@ ita:
   # Was tot 3.2.0 de enige poller; schedule en notification stonden toen onder
   # ita.poller. Omgevingen die die sleutels overschrijven moeten ze hierheen
   # verplaatsen, anders vallen ze stil terug op de chart-defaults.
+  # poller.notification.hourThreshold is niet meer aanwezig in subchart, dus
+  # verwijderd.
   nieuweInternetaakNotificatie:
     schedule: "*/15 * * * *"
 
     notification:
       pollerMessage: "Poller uitgevoerd om:"
-      hourThreshold: "-24"
 
   # -- Nieuw in ITA 3.3.0: dagelijkse herinnering voor verlopen
   # contactverzoeken, op werkdagen om 07:00.
