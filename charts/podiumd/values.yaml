@@ -2492,7 +2492,7 @@ kiss:
   image:
     #   repository: "ghcr.io/klantinteractie-servicesysteem/kiss-frontend"
     pullPolicy: IfNotPresent
-    tag: 3.0.0
+    tag: "3.0.0@sha256:56a9c225d9fb19184ee9ad6c84877e7b5853c280cbb5e0d59edb340c7bb8599c"
   enabled: true
   nameOverride: contact
   fullnameOverride: contact
@@ -2653,14 +2653,14 @@ kiss:
     syncJobs:
       image:
         # repository: "ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync"
-        tag: "3.0.0"
+        tag: "3.0.0@sha256:64d56ff3039b71806d7d03ecfcd37cede2d31c4146fe4e06d9de6f526415fffb"
         pullPolicy: IfNotPresent
       # -- Elastic Open Crawler, vervangt de Enterprise Search web crawler.
       # Draait als CronJob per site uit syncJobs.website en schrijft
       # rechtstreeks naar Elasticsearch.
       crawlerImage:
         repository: "docker.elastic.co/integrations/crawler"
-        tag: "1.0.0"
+        tag: "1.0.0@sha256:6f3c02f6c783711b8d9e133cf10934b137d6547dc1eb10a0d2ccf99ffe2e2d07"
         pullPolicy: IfNotPresent
       # -- pre-install/pre-upgrade hook die het search-website* index-template
       # in Elasticsearch registreert. Heeft alleen curl nodig.
