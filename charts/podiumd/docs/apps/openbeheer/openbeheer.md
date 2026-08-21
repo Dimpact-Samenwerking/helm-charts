@@ -139,8 +139,8 @@ by the chart / shared pattern):
 |------|-------|
 | Chart key | `openbeheer` |
 | Sub-chart dependency | `openbeheer` v0.1.3 (`@maykinmedia`, `Chart.yaml:59-62`) |
-| Application image | `maykinmedia/open-beheer:0.9.0` |
-| Nginx sidecar image | `nginx:1.30.2` (digest-pinned) |
+| Application image | `maykinmedia/open-beheer:0.9.1` |
+| Nginx sidecar image | `nginxinc/nginx-unprivileged:1.31.3` (shared `global.images.nginx`, digest-pinned) |
 | Enabled by default | **No** (`openbeheer.enabled: false`) |
 | Replicas | `2` (`openbeheer.replicaCount`) |
 | Database | PostgreSQL (`openbeheer.settings.database.*`) |
@@ -212,7 +212,7 @@ a `ReadWriteMany` PersistentVolume so all replicas share media:
 
 ### uWSGI master process (required)
 
-`open-beheer` 0.9.0's image launches uWSGI **without** `--master`, so workers that hit their
+`open-beheer` 0.9.1 and earlier launch uWSGI **without** `--master`, so workers that hit their
 `max-requests` quota are not respawned and the container exits (code 30) roughly every 80–90 min on
 probe traffic. The chart sets `openbeheer.settings.uwsgi.master: "1"` (→ `UWSGI_MASTER=1`) to fix
 this. **Do not unset it.** Full analysis: [`openbeheer-known-issues.md`](openbeheer-known-issues.md).

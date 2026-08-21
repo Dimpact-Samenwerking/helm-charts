@@ -24,7 +24,7 @@ four containers.
   - `openarchiefbeheer` — Django web application
   - `openarchiefbeheer-worker` — Celery worker (executes destruction runs)
   - `openarchiefbeheer-beat` — Celery beat scheduler
-  - `openarchiefbeheer-nginx` — nginx sidecar deployment (image `nginx:1.31.1`, digest-pinned)
+  - `openarchiefbeheer-nginx` — nginx sidecar deployment (image `nginxinc/nginx-unprivileged:1.31.3`, digest-pinned)
   - `openarchiefbeheer-config` — one-shot django-setup-configuration Job
     (`configuration.job.enabled: true`, `backoffLimit: 6`, `ttlSecondsAfterFinished: 600`)
 

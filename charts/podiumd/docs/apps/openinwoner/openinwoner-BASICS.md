@@ -7,7 +7,7 @@ Open Inwoner ("Mijn omgeving") is the citizen self-service portal of PodiumD. Re
 ## What it is
 
 - Upstream project: [Open Inwoner Platform (OIP)](https://github.com/maykinmedia/open-inwoner) by Maykin Media (Django application).
-- Image: `maykinmedia/open-inwoner`, chart default tag `2.3.1` (`openinwoner.image.tag`).
+- Image: `maykinmedia/open-inwoner`, chart default tag `2.4.2` (`openinwoner.image.tag`).
 - Role in PodiumD: public-facing citizen portal ("Mijn omgeving") — shows zaken from Open Zaak, messages/contactmomenten via Open Klant, personal data via BRP (haal-centraal), and company data via KvK.
 - Runtime components:
   - `openinwoner` web deployment (2 replicas) with an `nginx` sidecar container

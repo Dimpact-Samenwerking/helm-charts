@@ -16,8 +16,8 @@ peak load.
 ## What it is
 
 - Upstream: [infonl/dimpact-zaakafhandelcomponent](https://github.com/infonl/dimpact-zaakafhandelcomponent),
-  subchart `zaakafhandelcomponent` version `1.0.251`, alias `zac` (ZAC release 5.0.1).
-- Image: `ghcr.io/infonl/zaakafhandelcomponent:5.0.1` (digest-pinned in `values.yaml`).
+  subchart `zaakafhandelcomponent` version `1.0.297`, alias `zac` (ZAC release 5.0.2).
+- Image: `ghcr.io/infonl/zaakafhandelcomponent:5.0.2` (digest-pinned in `values.yaml`).
 - Role in the stack: the case-handling UI/engine for municipal staff. Process
   logic (BPMN/CMMN) runs on an embedded Flowable engine; case/document data is
   read from and written to Open Zaak via the ZGW APIs.

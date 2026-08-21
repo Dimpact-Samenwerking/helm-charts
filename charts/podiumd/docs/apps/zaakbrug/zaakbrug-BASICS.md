@@ -16,14 +16,15 @@ using about 3.4Gi in practice.
 
 ## What it is
 
-- Upstream: [Sudwest-Fryslan/ZaakBrug](https://github.com/Sudwest-Fryslan/ZaakBrug)
-  (Gemeente Súdwest-Fryslân, maintained with WeAreFrank!), built on the
-  [Frank!Framework](https://frank-framework.org/) integration engine.
-- Sub-chart: `wearefrank/zaakbrug` `2.3.27` from
+- Upstream: [wearefrank/zaakbrug](https://github.com/wearefrank/zaakbrug)
+  (originally built for Gemeente Súdwest-Fryslân, maintained by WeAreFrank!),
+  built on the [Frank!Framework](https://frankframework.org/) integration
+  engine.
+- Sub-chart: `wearefrank/zaakbrug` `2.3.28` from
   `https://wearefrank.github.io/charts` (wraps the Frank!Framework `ff-common`
   library chart). Condition `zaakbrug.enabled`, tag `zaak`. **Disabled by
   default.**
-- Image: `wearefrank/zaakbrug:1.26.14` (mirror to `acrprodmgmt.azurecr.io` for
+- Image: `wearefrank/zaakbrug:1.26.15` (mirror to `acrprodmgmt.azurecr.io` for
   production).
 - Role in PodiumD: translates inbound ZDS (SOAP/StUF) traffic from legacy
   applications into ZGW API calls against Open Zaak, so legacy koppelingen
@@ -133,7 +134,7 @@ troubleshooting):
    the pipeline as `ZAAKBRUG_DATABASE_PASSWORD`,
    `ZAAKBRUG_OAUTH_CLIENT_SECRET`, `ZAAKBRUG_ZAKEN_API_JWT_PASSWORD`.
 3. **Environment values** — set `zaakbrug.enabled: true`,
-   `zaakbrug.staging.enabled: false`, pin `zaakbrug.image.tag` (`1.26.14`),
+   `zaakbrug.staging.enabled: false`, pin `zaakbrug.image.tag` (`1.26.15`),
    supply `zaakbrug.frank.zakenApi.jwt.password`
    (`REP_ZAAKBRUG_ZAKEN_API_JWT_PASSWORD_REP`), the
    `frank.environmentVariables`

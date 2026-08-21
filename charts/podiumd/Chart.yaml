@@ -53,7 +53,7 @@ dependencies:
     repository: "@maykinmedia"
     condition: openformulieren.enabled
   - name: openinwoner
-    version: 2.2.1
+    version: 2.4.0
     repository: "@maykinmedia"
     condition: openinwoner.enabled
   - name: referentielijsten
@@ -67,7 +67,7 @@ dependencies:
     condition: openbeheer.enabled
   - name: zaakafhandelcomponent
     alias: zac
-    version: 1.0.257 # ZAC 5.1.0 helm release
+    version: 1.0.297 # ZAC chart line tested against 5.5.0; image pinned to 5.1.0 (see zac.image.tag)
     repository: "@zac"
     condition: zac.enabled
     tags:
