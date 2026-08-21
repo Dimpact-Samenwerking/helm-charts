@@ -3,10 +3,22 @@
 #
 # Images new or changed in podiumd 4.9.0 vs 4.8.5.
 #
-# Two changes:
+# Changes:
 #   1. ZAC (Zaakafhandelcomponent) 5.0.2 -> 5.1.0 (chart 1.0.297, unchanged).
 #   2. ZGW Office Add-in v0.9.313 -> v0.9.352 (chart 0.0.89, unchanged).
 #      Repository names (zgw-office-addin-{frontend,backend}) unchanged from 4.8.5.
+#   3. ITA 3.2.0 -> 3.3.0 (chart internetaakafhandeling 3.2.0 -> 3.3.0), web and
+#      poller. No new images, tag bumps only.
+#   4. KISS 2.2.4 -> 3.0.0 (kiss-chart 2.2.4 -> 3.0.0), kiss-elastic-sync 0.3.3 ->
+#      3.0.0. Enterprise Search is gone: the Elastic Open Crawler now runs as a
+#      CronJob per site, and curl registers the search-website* index template in
+#      a pre-install/pre-upgrade hook.
+#      docker.elastic.co/integrations/crawler is NEW to the mirror and must be
+#      imported before the 4.9.0 rollout, or Azure Policy blocks pod creation.
+#      curlimages/curl:8.20.0 is already mirrored (see images-baseline.yaml) and
+#      is listed here only because KISS starts using it in this release.
+#   5. PABC 1.1.0 -> 1.1.1 (chart 1.1.0 -> 1.1.1), pabc-api and pabc-migrations.
+#   6. PodiumD Adapter 0.6.6 -> 0.6.7 (chart 0.6.6 -> 0.6.7), podiumd-adapter.
 #
 # See docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md for the operator upgrade notes.
 #
@@ -29,3 +41,54 @@
   url: ghcr.io/infonl/zgw-office-addin-backend
   version: "v0.9.352"
   digest: "sha256:c5bf9a7beb883c7cf586a65326dacb4fc49a2eaaa08f4eb49f2faabb786b71b4"
+  
+# ITA — 3.2.0 -> 3.3.0
+- name: interne-taak-afhandeling/internetaakafhandeling.web
+  url: ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web
+  version: "3.3.0"
+  digest: "sha256:cb56b4809e0c840cbc72814f8a72495fd18860cb08dfb092c12ba3c2cea785df"
+
+- name: interne-taak-afhandeling/internetaakafhandeling.poller
+  url: ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller
+  version: "3.3.0"
+  digest: "sha256:7690650687047c43f08c4f8320b77d821d3551d18478de9a600a2f828600c865"
+
+# KISS — 2.2.4 -> 3.0.0
+- name: klantinteractie-servicesysteem/kiss-frontend
+  url: ghcr.io/klantinteractie-servicesysteem/kiss-frontend
+  version: "3.0.0"
+  digest: "sha256:56a9c225d9fb19184ee9ad6c84877e7b5853c280cbb5e0d59edb340c7bb8599c"
+
+- name: klantinteractie-servicesysteem/kiss-elastic-sync
+  url: ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync
+  version: "3.0.0"
+  digest: "sha256:64d56ff3039b71806d7d03ecfcd37cede2d31c4146fe4e06d9de6f526415fffb"
+
+# NEW in 4.9.0 — Elastic Open Crawler, replaces the Enterprise Search web crawler
+- name: integrations/crawler
+  url: docker.elastic.co/integrations/crawler
+  version: "1.0.0"
+  digest: "sha256:6f3c02f6c783711b8d9e133cf10934b137d6547dc1eb10a0d2ccf99ffe2e2d07"
+
+# Already mirrored — curl, now also used by the KISS index-template pre-upgrade hook
+- name: curlimages/curl
+  url: docker.io/curlimages/curl
+  version: "8.21.0"
+  digest: "sha256:7c12af72ceb38b7432ab85e1a265cff6ae58e06f95539d539b654f2cfa64bb13"
+
+# PABC — 1.1.0 -> 1.1.1
+- name: platform-autorisatie-beheer-component/pabc-api
+  url: ghcr.io/platform-autorisatie-beheer-component/pabc-api
+  version: "1.1.1"
+  digest: "sha256:09a902e43f6cdb214afc369d04005c7b6108fd24b15709f1debbcfb1b446ef42"
+- name: platform-autorisatie-beheer-component/pabc-migrations
+  url: ghcr.io/platform-autorisatie-beheer-component/pabc-migrations
+  version: "1.1.1"
+  digest: "sha256:a3841a2eb78cddd34ebb0de1bfede1db1ae9713921c0d77e4366baceffa86e05"
+
+
+# PodiumD Adapter 0.6.6 -> 0.6.7 
+- name: icatt-menselijk-digitaal/podiumd-adapter
+  url: ghcr.io/icatt-menselijk-digitaal/podiumd-adapter
+  version: "0.6.7"
+  digest: "sha256:089d07a6efdfcab07b61b1a75b4d26c14099cc9b206a56419e36ef6f28a26a68"

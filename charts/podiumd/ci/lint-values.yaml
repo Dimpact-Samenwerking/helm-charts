@@ -126,11 +126,6 @@ kiss:
       password: "placeholder"
     email:
       host: "placeholder"
-    enterpriseSearch:
-      baseUrl: "http://placeholder"
-      engine: "placeholder"
-      privateApiKey: "placeholder"
-      publicApiKey: "placeholder"
     feedback:
       emailFrom: "placeholder@placeholder.nl"
       emailTo: "placeholder@placeholder.nl"
