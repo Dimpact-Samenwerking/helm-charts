@@ -52,6 +52,10 @@
   digest: "sha256:43062e9200a1ae7cb92f1830acf0ab7ca19272dea0756400caaeb4748bed9fa5"
 - name: clamav/clamav
   url: docker.io/clamav/clamav
+  version: "1.5.4"
+  digest: "sha256:78810772a92b4a9168115bc6b2e0ffd702640893b9577f8c3d0432762d2655c4"
+- name: clamav/clamav
+  url: docker.io/clamav/clamav
   version: "1.5.2"
   digest: "sha256:1b6443c4a7b456baa1abfaf9796815f8d21e2fb558dbaed5b682fd4552d8b0c3"
 - name: clamav/clamav
@@ -72,8 +76,18 @@
   digest: "sha256:7c12af72ceb38b7432ab85e1a265cff6ae58e06f95539d539b654f2cfa64bb13"
 - name: elastic/eck-operator
   url: docker.io/elastic/eck-operator
+  version: "3.5.0"
+  digest: "sha256:b6f261372d9d9af7b00aab03efea25263314d16063c4d440ac322e52c2fdf314"
+- name: elastic/eck-operator
+  url: docker.io/elastic/eck-operator
   version: "3.1.0"
   digest: "sha256:46e08ba3aed87431c909607cd6c29a5940f48f3ebc9f250bf84380059861684e"
+# Kiss's ECK-managed Elasticsearch (contact search) — separate cluster from
+# the eck-elasticsearch instance below.
+- name: elasticsearch/elasticsearch
+  url: docker.elastic.co/elasticsearch/elasticsearch
+  version: "8.19.19"
+  digest: "sha256:5dbf405a97e008f3024cf6f8f4a314d91b765d82954530893dcc13f8e87d21f4"
 # Elasticsearch (ECK-managed cluster). Lives on docker.elastic.co, which has no
 # anonymous JSON tag API, so the digest must be resolved with a registry client
 # (crane/skopeo) and pinned here.
@@ -81,6 +95,11 @@
 - name: elasticsearch/elasticsearch
   url: docker.elastic.co/elasticsearch/elasticsearch
   version: "9.2.0"
+# Kiss's ECK-managed Enterprise Search (contact search).
+- name: enterprise-search/enterprise-search
+  url: docker.elastic.co/enterprise-search/enterprise-search
+  version: "8.19.19"
+  digest: "sha256:83e75654a20826027829a072197698358c6ee6e53c3305558a69f7d89992ab16"
 - name: gotenberg/gotenberg
   url: docker.io/gotenberg/gotenberg
   version: "8.34.0"
@@ -137,12 +156,21 @@
   digest: "sha256:40bcd34e672366fd71f4522775259c85580348a373a53a8ff3235bcb8aeeda06"
 - name: keycloak/keycloak
   url: quay.io/keycloak/keycloak
+  version: "26.7.2"
+  digest: "sha256:831330513f55695572286e521f94fcd3c7e285250ed5b848090265a33192f669"
+- name: keycloak/keycloak
+  url: quay.io/keycloak/keycloak
   version: "26.6.3"
   digest: "sha256:9b0330756022422149aa6502eb2def8cd47c6e1b000c7c65cdb13e7c0133e992"
 - name: keycloak/keycloak-operator
   url: quay.io/keycloak/keycloak-operator
   version: "26.6.3"
   digest: "sha256:40301d2bb0eeb6eb5c6c47b2ee8bc28f156c3c5626db21dbf6b7b37c0110696c"
+# Kiss's ECK-managed Kibana (contact search).
+- name: kibana/kibana
+  url: docker.elastic.co/kibana/kibana
+  version: "8.19.19"
+  digest: "sha256:cc1f9f8c09e2fe0869965ccbf4008a4af0b2691b370fe189dfb8e19f516215c7"
 - name: klantinteractie-servicesysteem/kiss-elastic-sync
   url: ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync
   version: "0.3.3"
@@ -179,6 +207,10 @@
   url: docker.io/library/postgres
   version: "16-alpine"
   digest: "sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777"
+- name: library/python
+  url: docker.io/library/python
+  version: "3.14.7-slim"
+  digest: "sha256:ce40764625a4ff50df3548277632e7f96c4e77fe75fa848aae9885476e7df5a4"
 - name: library/python
   url: docker.io/library/python
   version: "3.14-slim"
