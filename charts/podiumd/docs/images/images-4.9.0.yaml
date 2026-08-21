@@ -3,12 +3,27 @@
 #
 # Images new or changed in podiumd 4.9.0 vs 4.8.5.
 #
-# Two changes:
-#   1. ZAC (Zaakafhandelcomponent) 5.0.2 -> 5.1.0 (chart 1.0.297, unchanged).
+# Changes:
+#   1. ZAC (Zaakafhandelcomponent) 5.0.2 -> 5.1.0 (chart 1.0.297, unchanged —
+#      the chart line was already bumped ahead of the image in the 4.8.5 hop).
 #   2. ZGW Office Add-in v0.9.313 -> v0.9.352 (chart 0.0.89, unchanged).
 #      Repository names (zgw-office-addin-{frontend,backend}) unchanged from 4.8.5.
+#   3. ClamAV 1.5.2 -> 1.5.4 (chart clamav 3.7.1 -> 3.7.2).
+#   4. Keycloak app image 26.6.4 -> 26.7.2 (keycloak-operator chart unchanged,
+#      1.12.1 — no operator release yet supports 26.7.x).
+#   5. ECK Operator 3.4.0 -> 3.5.0 (chart eck-operator 3.4.0 -> 3.5.0; image tag
+#      floats on the chart's appVersion, no override in values.yaml). CRD schema
+#      change verified additive-only — see
+#      docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-operators-crds.md.
+#   6. ECK Stack (kiss-eck) chart 0.19.0 -> 0.20.0 (no image change of its own).
+#   7. Kiss's ECK-managed Elasticsearch/Kibana/Enterprise Search 8.19.3 -> 8.19.19
+#      (16-patch bump on the same 8.19.x branch, all three components in lockstep).
+#   8. Python (ensurePodiumdAdminUser init image) 3.14-slim -> 3.14.7-slim —
+#      now pinned to a specific patch instead of the floating minor tag.
 #
-# See docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md for the operator upgrade notes.
+# See docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md for the operator upgrade notes,
+# and docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-operators-crds.md for the ECK Operator
+# CRD change.
 #
 # Digests are the OCI image index (multi-arch manifest) digest as returned in
 # the Docker-Content-Digest response header from the source registry.
@@ -29,3 +44,47 @@
   url: ghcr.io/infonl/zgw-office-addin-backend
   version: "v0.9.352"
   digest: "sha256:c5bf9a7beb883c7cf586a65326dacb4fc49a2eaaa08f4eb49f2faabb786b71b4"
+
+# ClamAV daemon — 1.5.2 -> 1.5.4 (chart clamav 3.7.1 -> 3.7.2)
+- name: clamav/clamav
+  url: docker.io/clamav/clamav
+  version: "1.5.4"
+  digest: "sha256:78810772a92b4a9168115bc6b2e0ffd702640893b9577f8c3d0432762d2655c4"
+
+# Keycloak server — 26.6.4 -> 26.7.2 (app image only; keycloak-operator chart
+# stays 1.12.1). keycloak-operator.config.keycloakImage (RELATED_IMAGE_KEYCLOAK)
+# kept in sync with this — see comment in values.yaml.
+- name: keycloak/keycloak
+  url: quay.io/keycloak/keycloak
+  version: "26.7.2"
+  digest: "sha256:831330513f55695572286e521f94fcd3c7e285250ed5b848090265a33192f669"
+
+# ECK Operator — 3.4.0 -> 3.5.0 (chart eck-operator 3.4.0 -> 3.5.0).
+# CRD schema diff verified additive-only (28 fields added, 0 removed).
+- name: elastic/eck-operator
+  url: docker.io/elastic/eck-operator
+  version: "3.5.0"
+  digest: "sha256:b6f261372d9d9af7b00aab03efea25263314d16063c4d440ac322e52c2fdf314"
+
+# Kiss's ECK-managed Elasticsearch/Kibana/Enterprise Search — 8.19.3 -> 8.19.19
+# (kiss-eck.eck-elasticsearch/eck-kibana/eck-enterprise-search `version:` fields;
+# eck-stack chart itself also bumped 0.19.0 -> 0.20.0, no image of its own).
+- name: elasticsearch/elasticsearch
+  url: docker.elastic.co/elasticsearch/elasticsearch
+  version: "8.19.19"
+  digest: "sha256:5dbf405a97e008f3024cf6f8f4a314d91b765d82954530893dcc13f8e87d21f4"
+- name: kibana/kibana
+  url: docker.elastic.co/kibana/kibana
+  version: "8.19.19"
+  digest: "sha256:cc1f9f8c09e2fe0869965ccbf4008a4af0b2691b370fe189dfb8e19f516215c7"
+- name: enterprise-search/enterprise-search
+  url: docker.elastic.co/enterprise-search/enterprise-search
+  version: "8.19.19"
+  digest: "sha256:83e75654a20826027829a072197698358c6ee6e53c3305558a69f7d89992ab16"
+
+# Python (ensurePodiumdAdminUser init image) — 3.14-slim -> 3.14.7-slim
+# Pinned to a specific patch instead of the floating 3.14-slim minor tag.
+- name: library/python
+  url: docker.io/library/python
+  version: "3.14.7-slim"
+  digest: "sha256:ce40764625a4ff50df3548277632e7f96c4e77fe75fa848aae9885476e7df5a4"
