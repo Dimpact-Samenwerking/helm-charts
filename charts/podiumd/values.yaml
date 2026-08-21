@@ -3410,7 +3410,7 @@ pabc:
   # k8s-wait-for:v2.0 (see docs/images/images-4.8.0.yaml).
   image:
     repository: acrprodmgmt.azurecr.io/platform-autorisatie-beheer-component/pabc-api
-    tag: "1.1.1sha256:09a902e43f6cdb214afc369d04005c7b6108fd24b15709f1debbcfb1b446ef42"
+    tag: "1.1.1@sha256:09a902e43f6cdb214afc369d04005c7b6108fd24b15709f1debbcfb1b446ef42"
   nodeSelector: {}
   migrations:
     image:
