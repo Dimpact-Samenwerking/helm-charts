@@ -2828,11 +2828,11 @@ zac:
     mail: "noreply@example.nl"
   global:
     curlImage: *curlImage
-  # ghcr.io/infonl/zaakafhandelcomponent:5.1.0
+  # ghcr.io/infonl/zaakafhandelcomponent:5.6.0
   image:
     #repository: ghcr.io/infonl/zaakafhandelcomponent
     pullPolicy: IfNotPresent
-    tag: 5.1.0@sha256:d833d2f3dd58eeb58335e9aff9bca67f5885fad0e6a7414003ce9a211d3dc50e
+    tag: 5.6.0@sha256:c5a413069f7e53f867c87e268a546500cf3ebd783287dc67ea8991c23b864914
   # Liveness probe uses /health/ready (not /health/live) with a high failureThreshold so
   # Kubernetes automatically restarts ZAC after extended OpenZaak/catalogus unavailability.
   # The ZGW-API-Client has no connectTimeout/readTimeout, causing stale TCP connections
@@ -3020,18 +3020,18 @@ zgw-office-addin:
       app: office-addin
       service_name: office-addin
   frontend:
-    # ghcr.io/infonl/zgw-office-addin-frontend:v0.9.352@sha256:bf248581519b1644ef0f0b3ecb569f80b0fcf435c58df18547bb714eb6aa4916
+    # ghcr.io/infonl/zgw-office-addin-frontend:0.11.0@sha256:9a6b3e9023b8cfba152a84dd7477e079490fc7d35562d32e0dc094be81a7f7a2
     image:
-      tag: "v0.9.352@sha256:bf248581519b1644ef0f0b3ecb569f80b0fcf435c58df18547bb714eb6aa4916"
+      tag: "0.11.0@sha256:9a6b3e9023b8cfba152a84dd7477e079490fc7d35562d32e0dc094be81a7f7a2"
     resources:
       requests:
         cpu: 50m
         memory: 64Mi
   backend:
     msalSecret: ""
-    # ghcr.io/infonl/zgw-office-addin-backend:v0.9.352@sha256:c5bf9a7beb883c7cf586a65326dacb4fc49a2eaaa08f4eb49f2faabb786b71b4
+    # ghcr.io/infonl/zgw-office-addin-backend:0.11.0@sha256:5b188e853531986e31709ed6cae130a891e0014cb267c43ac338b792c84a29ab
     image:
-      tag: "v0.9.352@sha256:c5bf9a7beb883c7cf586a65326dacb4fc49a2eaaa08f4eb49f2faabb786b71b4"
+      tag: "0.11.0@sha256:5b188e853531986e31709ed6cae130a891e0014cb267c43ac338b792c84a29ab"
     resources:
       requests:
         cpu: 100m

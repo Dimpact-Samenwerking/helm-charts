@@ -67,7 +67,7 @@ dependencies:
     condition: openbeheer.enabled
   - name: zaakafhandelcomponent
     alias: zac
-    version: 1.0.297 # ZAC chart line tested against 5.5.0; image pinned to 5.1.0 (see zac.image.tag)
+    version: 1.0.301 # ZAC chart line tested against 5.6.0; image pinned to 5.6.0 (see zac.image.tag)
     repository: "@zac"
     condition: zac.enabled
     tags:
@@ -80,7 +80,7 @@ dependencies:
       - zaak
   - name: zgw-office-addin
     repository: "@zgw-office-addin"
-    version: 0.0.89
+    version: 0.0.91
     condition: zgw-office-addin.enabled
   - name: internetaakafhandeling
     alias: ita
