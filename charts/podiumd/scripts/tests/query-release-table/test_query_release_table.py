@@ -10,7 +10,27 @@ Product,Maykin,,Open Zaak,1.27.0,1.14.0,1.27.4,1.14.2
 Technische,,,Elastic operator,3.4.0,3.4.0,,
 Technische,,zac,Solr,8.11.0,8.11.0,8.11.0,8.11.0
 Product,ZAC Team,,Some Component,1.0.0,1.0.0,1.0.0,1.0.0
+Product,ICATT,,Interne Taak Afhandeling,3.2.0,3.2.0,3.3.0,3.3.0
+Technische,,ita,ITA Poller,1.0.0,1.0.0,1.0.0,1.0.0
 """
+
+
+@pytest.fixture(autouse=True)
+def isolate_chart_dir(qrt, tmp_path, monkeypatch):
+    """used_by_rows_for falls back to the real CHART_DIR (this script's
+    actual parent directory) when no chart_dir is passed explicitly —
+    tests that don't care about Chart.yaml alias resolution must not
+    depend on whatever charts/podiumd/Chart.yaml happens to say on disk
+    (or which branch is checked out) at test-run time."""
+    monkeypatch.setattr(qrt, "CHART_DIR", tmp_path)
+
+
+def write_chart_yaml_with_alias(chart_dir, alias, name):
+    (chart_dir / "Chart.yaml").write_text(
+        "apiVersion: v2\nname: podiumd\nversion: 1.0.0\ndependencies:\n"
+        f"  - name: {name}\n    alias: {alias}\n    version: 1.0.0\n    repository: \"@x\"\n",
+        encoding="utf-8",
+    )
 
 
 @pytest.fixture
@@ -28,7 +48,7 @@ def rows(qrt, csv_path):
 # --- load_rows ---
 
 def test_load_rows_reads_all_data_rows(rows):
-    assert len(rows) == 5
+    assert len(rows) == 7
     assert rows[0]["component"] == "ZAC"
 
 
@@ -41,7 +61,9 @@ def test_matching_rows_case_insensitive_substring(qrt, rows):
 
 def test_matching_rows_matches_multiple(qrt, rows):
     matches = qrt.matching_rows(rows, "section", "product")
-    assert [r["component"] for r in matches] == ["ZAC", "Open Zaak", "Some Component"]
+    assert [r["component"] for r in matches] == [
+        "ZAC", "Open Zaak", "Some Component", "Interne Taak Afhandeling",
+    ]
 
 
 def test_matching_rows_no_match_is_empty(qrt, rows):
@@ -82,6 +104,39 @@ def test_used_by_rows_for_excludes_the_matches_themselves(qrt, rows):
                          "target version app": "1.0", "target version helm": "1.0"}
     all_rows = rows + [self_referential]
     assert qrt.used_by_rows_for(all_rows, [self_referential]) == []
+
+
+# --- alias_dependency_names ---
+
+def test_alias_dependency_names_reads_chart_yaml(qrt, tmp_path):
+    write_chart_yaml_with_alias(tmp_path, "ita", "internetaakafhandeling")
+    assert qrt.alias_dependency_names(tmp_path) == {"ita": "internetaakafhandeling"}
+
+
+def test_alias_dependency_names_missing_chart_yaml_returns_empty(qrt, tmp_path):
+    assert qrt.alias_dependency_names(tmp_path) == {}
+
+
+# --- used_by_rows_for: Chart.yaml alias path ---
+
+def test_used_by_rows_for_resolves_used_by_via_chart_yaml_alias(qrt, rows, tmp_path):
+    """"ita" isn't a substring of "Interne Taak Afhandeling" at all — only
+    resolving it through Chart.yaml's alias -> dependency-name mapping
+    (see alias_dependency_names) connects it back to that component, since
+    "internetaakafhandeling" is exactly that name with spaces stripped."""
+    write_chart_yaml_with_alias(tmp_path, "ita", "internetaakafhandeling")
+    interne_taak = [r for r in rows if r["component"] == "Interne Taak Afhandeling"]
+    matches = qrt.used_by_rows_for(rows, interne_taak, chart_dir=tmp_path)
+    assert [r["component"] for r in matches] == ["ITA Poller"]
+
+
+def test_used_by_rows_for_without_chart_yaml_misses_the_alias_case(qrt, rows, tmp_path):
+    """Without Chart.yaml to resolve through, the plain-substring rule
+    alone can't connect "ita" to "Interne Taak Afhandeling" — documents
+    why alias_dependency_names exists rather than relying on substring
+    matching only."""
+    interne_taak = [r for r in rows if r["component"] == "Interne Taak Afhandeling"]
+    assert qrt.used_by_rows_for(rows, interne_taak, chart_dir=tmp_path) == []
 
 
 # --- display_value ---
@@ -188,6 +243,19 @@ def test_main_vendor_query_omits_used_by_section_when_unrelated(qrt, monkeypatch
     out = capsys.readouterr().out
     assert "Open Zaak" in out
     assert "Used by" not in out
+
+
+def test_main_resolves_used_by_via_chart_yaml_alias(qrt, monkeypatch, csv_path, tmp_path, capsys):
+    """End-to-end: querying "Interne Taak Afhandeling" pulls in "ITA
+    Poller" only once Chart.yaml's "ita" alias is available to resolve
+    through — isolate_chart_dir points qrt.CHART_DIR at tmp_path, so
+    writing Chart.yaml there is what main() itself will read."""
+    write_chart_yaml_with_alias(tmp_path, "ita", "internetaakafhandeling")
+    run_main(qrt, monkeypatch, csv_path, ["component", "interne taak"])
+    qrt.main()
+    out = capsys.readouterr().out
+    assert "Used by matched component(s):" in out
+    assert "ITA Poller" in out
 
 
 def test_main_no_matches_exits_nonzero(qrt, monkeypatch, csv_path, capsys):
