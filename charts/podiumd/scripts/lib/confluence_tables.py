@@ -340,41 +340,47 @@ def find_versie_groups(paths):
 
 
 # The exact column set export-confluence-release-table.py writes to CSV
-# (as "section, vendor, component, source version app/helm, target version
-# app/helm"): the table's own first column (whatever it's labeled —
-# usually the component name), "Ontwikkelpartij" (written to the CSV as
-# "vendor"), then App/Helm under each of the two "Versie ..." groups (see
+# (as "section, vendor, used by, component, source version app/helm,
+# target version app/helm"): the table's own first column (whatever it's
+# labeled — usually the component name), "Ontwikkelpartij" (written to
+# the CSV as "vendor"), "Used by" (written to the CSV as "used_by"), then
+# App/Helm under each of the two "Versie ..." groups (see
 # find_versie_groups) — first one encountered is "source", second is
 # "target". Matched by substring rather than exact text so a header
 # phrased "versie 4.8" vs "Versie 4.8" vs "V4.8" all work, and the
 # version numbers themselves are never hardcoded, since the page renames
 # them every release.
 #
-# "vendor" is optional, not required: it only makes sense for product-
-# facing components with an actual development partner (ZAC, Open Zaak,
-# ...) — a table of shared/technical tooling (e.g. "Technische component
-# versies" — Elastic operator, Zookeeper, Solr, ...) legitimately has no
-# such column at all, and shouldn't be skipped over just for lacking it.
-# The four source/target App+Helm version columns are what this export
-# actually exists for, so those stay required.
+# "vendor" and "used_by" are both optional, not required, and mutually
+# exclusive in practice rather than actually related columns that happen
+# to share a slot: "vendor" only makes sense for product-facing
+# components with an actual development partner (ZAC, Open Zaak, ...),
+# while "used by" only appears on the shared/technical tooling tables
+# ("Technische component versies" — Elastic operator, Zookeeper, Solr,
+# ...) to say which product/Common Ground component pulls that piece of
+# tooling in — neither column existing on a given table is a reason to
+# skip it. The four source/target App+Helm version columns are what this
+# export actually exists for, so those stay required.
 REQUIRED_RELEASE_COLUMNS = ["source_app", "source_helm", "target_app", "target_helm"]
 
 
 def select_release_columns(paths):
-    """{"first": 0, "vendor": <idx-or-None>, "source_app": ...,
-    "source_helm": ..., "target_app": ..., "target_helm": ...} — "vendor"
-    is matched against the page's own "Ontwikkelpartij" column, just
-    exposed under a shorter name in the CSV. "first" is always column 0
-    (the table's own leftmost column, whatever it's labeled), or None if
-    the table has no columns at all. Every "source_"/"target_" value
-    stays None (see missing_required_release_columns) if
-    find_versie_groups doesn't find exactly two "Versie ..." groups —
-    more or fewer means this table isn't shaped the way this export
-    expects, not that it's this function's job to guess which pair to
-    use."""
+    """{"first": 0, "vendor": <idx-or-None>, "used_by": <idx-or-None>,
+    "source_app": ..., "source_helm": ..., "target_app": ...,
+    "target_helm": ...} — "vendor" is matched against the page's own
+    "Ontwikkelpartij" column and "used_by" against its "Used by" column,
+    just exposed under shorter/snake_case names in the CSV. "first" is
+    always column 0 (the table's own leftmost column, whatever it's
+    labeled), or None if the table has no columns at all. Every
+    "source_"/"target_" value stays None (see
+    missing_required_release_columns) if find_versie_groups doesn't find
+    exactly two "Versie ..." groups — more or fewer means this table
+    isn't shaped the way this export expects, not that it's this
+    function's job to guess which pair to use."""
     columns = {
         "first": 0 if paths else None,
         "vendor": find_column(paths, ["ontwikkelpartij"]),
+        "used_by": find_column(paths, ["used by"]),
         "source_app": None, "source_helm": None, "target_app": None, "target_helm": None,
     }
     groups = find_versie_groups(paths)
@@ -389,8 +395,8 @@ def select_release_columns(paths):
 
 def missing_required_release_columns(columns):
     """Which of select_release_columns()'s REQUIRED columns (source/
-    target App+Helm — not "first", not the optional "vendor") came back
-    unresolved (None)."""
+    target App+Helm — not "first", not the optional "vendor"/"used_by")
+    came back unresolved (None)."""
     return [key for key in REQUIRED_RELEASE_COLUMNS if columns.get(key) is None]
 
 

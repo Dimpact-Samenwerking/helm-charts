@@ -57,7 +57,8 @@ PRODUCT_TABLE_HTML = """
 """
 
 # "Technische component versies" tables don't have a development-partner
-# column at all — "Used by" instead, which isn't required.
+# column at all — "Used by" instead (naming the product/Common Ground
+# component that pulls this piece of tooling in), which isn't required.
 TECHNISCHE_TABLE_HTML = """
 <h2>Technische component versies</h2>
 <table>
@@ -76,7 +77,7 @@ TECHNISCHE_TABLE_HTML = """
 </tr>
 <tr>
 <td>Elastic operator</td>
-<td></td>
+<td>ZAC</td>
 <td>3.4.0</td>
 <td>3.4.0</td>
 <td>3.5.0</td>
@@ -184,8 +185,8 @@ def test_extract_release_rows_handles_inconsistent_th_tagging(ecrt):
     <th>-only header count would catch."""
     rows = ecrt.extract_release_rows(PRODUCT_TABLE_INCONSISTENT_TH_HTML)
     assert rows == [
-        ["Product", "Info(NL)", "ZAC", "5.0.0", "1.0.290", "5.1.0", "1.0.297"],
-        ["Product", "Maykin", "Open Zaak", "1.27.0", "1.14.0", "1.27.4", "1.14.2"],
+        ["Product", "Info(NL)", "", "ZAC", "5.0.0", "1.0.290", "5.1.0", "1.0.297"],
+        ["Product", "Maykin", "", "Open Zaak", "1.27.0", "1.14.0", "1.27.4", "1.14.2"],
     ]
 
 
@@ -237,8 +238,8 @@ def test_check_target_matches_chart_version_missing_chart_yaml_is_silent(ecrt, t
 def test_extract_release_rows_matches_and_reports(ecrt, capsys):
     rows = ecrt.extract_release_rows(PRODUCT_TABLE_HTML)
     assert rows == [
-        ["Product", "Info(NL)", "ZAC", "5.0.0", "1.0.290", "5.1.0", "1.0.297"],
-        ["Product", "Maykin", "Open Zaak", "1.27.0", "1.14.0", "1.27.4", "1.14.2"],
+        ["Product", "Info(NL)", "", "ZAC", "5.0.0", "1.0.290", "5.1.0", "1.0.297"],
+        ["Product", "Maykin", "", "Open Zaak", "1.27.0", "1.14.0", "1.27.4", "1.14.2"],
     ]
     out = capsys.readouterr().out
     assert "2 row(s) matched" in out
@@ -251,15 +252,15 @@ def test_extract_release_rows_not_tied_to_specific_version_numbers(ecrt):
     html = PRODUCT_TABLE_HTML.replace("Versie 4.8", "Versie 5.0").replace("Versie 4.9", "Versie 5.1")
     rows = ecrt.extract_release_rows(html)
     assert rows == [
-        ["Product", "Info(NL)", "ZAC", "5.0.0", "1.0.290", "5.1.0", "1.0.297"],
-        ["Product", "Maykin", "Open Zaak", "1.27.0", "1.14.0", "1.27.4", "1.14.2"],
+        ["Product", "Info(NL)", "", "ZAC", "5.0.0", "1.0.290", "5.1.0", "1.0.297"],
+        ["Product", "Maykin", "", "Open Zaak", "1.27.0", "1.14.0", "1.27.4", "1.14.2"],
     ]
 
 
 def test_extract_release_rows_replaces_non_semver_version_with_unknown_and_reports_count(ecrt, capsys):
     html = PRODUCT_TABLE_HTML.replace("<td>5.1.0</td>", "<td>?</td>")
     rows = ecrt.extract_release_rows(html)
-    assert rows[0] == ["Product", "Info(NL)", "ZAC", "5.0.0", "1.0.290", "UNKNOWN", "1.0.297"]
+    assert rows[0] == ["Product", "Info(NL)", "", "ZAC", "5.0.0", "1.0.290", "UNKNOWN", "1.0.297"]
     out = capsys.readouterr().out
     assert "1 version value(s) were not semver-compatible — replaced with UNKNOWN" in out
 
@@ -281,9 +282,18 @@ def test_extract_release_rows_reports_skip_for_incomplete_table_under_target_hea
     assert '"Overige component versies": skipped (missing required column(s):' in out
 
 
-def test_extract_release_rows_vendor_blank_when_table_has_none(ecrt):
+def test_extract_release_rows_vendor_blank_used_by_populated_for_technische_table(ecrt):
+    """A "Technische component versies" table has no Ontwikkelpartij
+    column (vendor blank) but does have "Used by" — the reverse of a
+    Product table."""
     rows = ecrt.extract_release_rows(TECHNISCHE_TABLE_HTML)
-    assert rows == [["Technische", "", "Elastic operator", "3.4.0", "3.4.0", "3.5.0", "3.5.0"]]
+    assert rows == [["Technische", "", "ZAC", "Elastic operator", "3.4.0", "3.4.0", "3.5.0", "3.5.0"]]
+
+
+def test_extract_release_rows_used_by_blank_when_table_has_none(ecrt):
+    """A Product table has no "Used by" column at all (only Ontwikkelpartij)."""
+    rows = ecrt.extract_release_rows(PRODUCT_TABLE_HTML)
+    assert all(row[2] == "" for row in rows)  # used_by is the 3rd column: section, vendor, used_by, ...
 
 
 def test_extract_release_rows_combines_multiple_sections(ecrt):
@@ -356,10 +366,10 @@ def test_main_writes_csv(ecrt, tmp_path, monkeypatch, capsys):
 
     with output_path.open(newline="", encoding="utf-8") as f:
         rows = list(csv.reader(f))
-    assert rows[0] == ["section", "vendor", "component", "source version app", "source version helm",
+    assert rows[0] == ["section", "vendor", "used_by", "component", "source version app", "source version helm",
                         "target version app", "target version helm"]
-    assert rows[1] == ["Product", "Info(NL)", "ZAC", "5.0.0", "1.0.290", "5.1.0", "1.0.297"]
-    assert rows[2] == ["Product", "Maykin", "Open Zaak", "1.27.0", "1.14.0", "1.27.4", "1.14.2"]
+    assert rows[1] == ["Product", "Info(NL)", "", "ZAC", "5.0.0", "1.0.290", "5.1.0", "1.0.297"]
+    assert rows[2] == ["Product", "Maykin", "", "Open Zaak", "1.27.0", "1.14.0", "1.27.4", "1.14.2"]
     out = capsys.readouterr().out
     assert f"Wrote 2 row(s) to {output_path}" in out
 
