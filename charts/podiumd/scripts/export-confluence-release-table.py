@@ -21,11 +21,12 @@ reported, not treated as an error. Rows from every table that has them
 are concatenated into one CSV, in page order.
 
 Each of the four version values is replaced with "UNKNOWN" if it isn't
-semver-compatible (see lib.confluence_tables.is_semver_compatible) —
-catches a source typo ("3.20", missing its patch digit), two values run
-together with no separator ("5.4.3 5.4.4", from adjacent Confluence
-content blocks the page itself never actually joined), or a placeholder
-like "?". An empty cell (no version at all for that component/version
+semver-compatible (see lib.confluence_tables.is_semver_compatible — a
+deliberately looser check than strict semver.org, allowing an omitted
+patch component and a stray "." after a leading "v") — catches two
+values run together with no separator ("5.4.3 5.4.4", from adjacent
+Confluence content blocks the page itself never actually joined), or a
+placeholder like "?". An empty cell (no version at all for that component/version
 combination) is left empty, not replaced — it isn't a malformed value,
 there's just nothing there.
 

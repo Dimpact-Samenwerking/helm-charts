@@ -432,18 +432,18 @@ def test_missing_required_release_columns_reports_missing_app_helm(libconfluence
     "3.14.7-slim",
     "0.9.1",
     "1.0.0+build.1",
+    "3.20",               # allowed variation: missing patch component
+    "3.14-slim",          # same, with a suffix
+    "v.1.25.4",           # allowed variation: stray dot after the "v"
 ])
 def test_is_semver_compatible_accepts_valid_versions(libconfluencetables, version):
     assert libconfluencetables.is_semver_compatible(version) is True
 
 
 @pytest.mark.parametrize("version", [
-    "3.20",              # missing patch component
-    "3.14-slim",         # same, with a suffix
     "5.4.3 5.4.4",        # two values run together
     "0.9.0 0.9.1 (per 4.8.5)",
     "?",
-    "v.1.25.4",           # stray dot after the "v"
     "",
 ])
 def test_is_semver_compatible_rejects_invalid_versions(libconfluencetables, version):
