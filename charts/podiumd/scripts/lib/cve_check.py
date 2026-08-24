@@ -16,7 +16,34 @@ HIGH/CRITICAL CVE with a fix available is a triage decision for a human
 (is the fix actually reachable here, is the severity exploitable in this
 deployment, ...), not a chart-correctness fact this script can gate on.
 
-Scan results are cached by (repository, digest) in
+Same own/partner-vendor/other-vendor scope split as check_yamllint/
+check_kubeconform/check_shellcheck/check_kube_score, reflected in both the
+printed output and the summary line — own and partner-vendor images get
+CRITICAL/HIGH findings itemized per image (MEDIUM/LOW/UNKNOWN are only
+totaled, to keep the wall of output down — trivy's own default scan finds
+thousands of routine base-OS-package CVEs), other-vendor images get one
+aggregate rollup line, no per-image detail at all. Ownership is
+determined primarily from the `helm template` render (same authoritative
+"# Source:" attribution the other checks use — this also correctly
+classifies a podiumd-owned template that happens to reuse a vendored
+dependency's values namespace, e.g. kiss.adapter or redis-ha's own
+label-master CronJob, as "own"), falling back to a values.yaml top-level-
+key heuristic only for a component not present in the render at all (e.g.
+disabled in the CI values) — matches a Chart.yaml dependency name/alias
+means vendored, anything else means a podiumd-owned template configures
+it.
+
+For every image with at least one finding, also checks the registry
+(cheap — a tag list, no image pull) for the newest published tag sharing
+its variant/suffix: "newer tag available" if one exists (worth checking
+whether it includes a fix), or an explicit "no fix available yet" if the
+pinned tag already IS the newest published one in that line. This is
+never cached (tags get published between runs even for an unchanged
+pinned digest) and only ever a "is it worth looking" pointer — nothing in
+this repo can prove a candidate tag actually fixes a given CVE without
+scanning it.
+
+Scan results themselves ARE cached by (repository, digest) in
 charts/podiumd/cve-scan-cache.json — deliberately tracked chart content,
 NOT gitignored, so the cache travels with whatever branch/checkout
 someone is on and other contributors (and CI) don't re-pull-and-rescan an
@@ -26,24 +53,41 @@ sliding tag republished under the same version string still invalidates
 correctly. Capped by CVE_CACHE_TTL_DAYS even for an unchanged digest — the
 image content never changes, but trivy's own vulnerability DB does, so a
 digest that scanned clean a month ago may have a newly-disclosed CVE
-against it today. Living at the chart root (not under scripts/) is
-deliberate: unlike this check's own code (which only ever exists on
-feature/podiumd-scripts and is copied in untracked when needed elsewhere),
-the cache is chart content tied to a specific branch's values.yaml pins —
-it belongs on and travels with the actual release/content branches."""
+against it today. Each cached vulnerability is trimmed to just the four
+fields the report actually uses (VulnerabilityID/PkgName/Severity/
+FixedVersion) — trivy's raw Title/Description/References/CVSS/dates would
+otherwise bloat the committed file for no reporting benefit. Living at
+the chart root (not under scripts/) is deliberate: unlike this check's own
+code (feature/podiumd-scripts only, copied in untracked when needed
+elsewhere), the cache is chart content tied to a specific branch's
+values.yaml pins — it belongs on and travels with the actual
+release/content branches."""
 import json
+import re
 import shutil
+import urllib.error
+from collections import Counter
 from datetime import datetime, timedelta, timezone
 
+from lib.chart import load_yaml
 from lib.image_digests import scan_digest_pins
 from lib.procutil import run
-from lib.registry import parse_repo
-from lib.render_scope import print_grouped_findings
+from lib.registry import find_newest_same_variant_tag, parse_repo
+from lib.render_scope import (
+    CHART_NAME, OWN_TEMPLATES_PREFIX, chart_name_from_source, friendly_vendor_charts,
+    print_grouped_findings, split_rendered_by_source, supports_skip_schema_validation,
+)
 
 TRIVY_IMAGE = "aquasec/trivy:latest"
 # Trivy's own severities, worst first — anything else (a future severity
 # trivy adds) sorts last rather than crashing.
 SEVERITY_ORDER = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN"]
+HIGH_SEVERITIES = {"CRITICAL", "HIGH"}
+
+# Only these four fields are ever used for reporting — everything else
+# trivy returns per vulnerability (Title, Description, References, CVSS
+# scores, published/last-modified dates, ...) is dead weight in the cache.
+VULN_FIELDS = ("VulnerabilityID", "PkgName", "Severity", "FixedVersion")
 
 # How long a cached scan result stays valid for an unchanged digest. Long
 # enough that a routine run doesn't re-pull/re-scan every image every time;
@@ -93,9 +137,9 @@ def run_trivy(image_ref):
     repo's own trivy-vuln-scanner.yaml workflow — --ignore-unfixed so only
     vulnerabilities with an actual fix available are returned, matching
     what's relevant to "should we bump this image"). Returns the flat list
-    of vulnerability dicts (VulnerabilityID/PkgName/Severity/FixedVersion/
-    Title), or None if trivy's own output couldn't be parsed as JSON (a
-    pull failure or trivy crash, not a chart problem)."""
+    of trimmed vulnerability dicts (see VULN_FIELDS), or None if trivy's
+    own output couldn't be parsed as JSON (a pull failure or trivy crash,
+    not a chart problem)."""
     result = run(
         ["docker", "run", "--rm", TRIVY_IMAGE, "image", "--ignore-unfixed",
          "--scanners", "vuln", "--format", "json", image_ref],
@@ -108,25 +152,131 @@ def run_trivy(image_ref):
 
     vulns = []
     for res in data.get("Results") or []:
-        vulns.extend(res.get("Vulnerabilities") or [])
+        for v in res.get("Vulnerabilities") or []:
+            vulns.append({field: v.get(field, "?") for field in VULN_FIELDS})
     return vulns
 
 
-def check_cves(chart_dir):
+# --- own/partner/other classification ---
+
+# Every "image:" line in a `helm template` render whose value is digest-
+# pinned — the rendered form of podiumd.image (and any vendored chart's
+# own equivalent) always ends up as a plain scalar, regardless of which
+# helper produced it.
+PINNED_IMAGE_RE = re.compile(r'^\s*image:\s*"?([^"\s]+@sha256:[0-9a-f]{64})"?\s*$', re.MULTILINE)
+
+# Nearest indent-0 "<key>:" line — the top-level values.yaml section a pin
+# lives under, used only as a fallback classification signal for a
+# component not present in the render at all (e.g. disabled in the CI
+# values).
+TOP_LEVEL_KEY_RE = re.compile(r"^([a-zA-Z0-9_-]+):")
+
+
+def parse_image_ref(ref):
+    """"<repository>:<version>@sha256:<digest>" -> (repository, version,
+    digest)."""
+    repo_and_tag, digest = ref.rsplit("@sha256:", 1)
+    repository, version = repo_and_tag.rsplit(":", 1)
+    return repository, version, digest
+
+
+def dependency_names(chart_dir):
+    chart_yaml = load_yaml(chart_dir / "Chart.yaml") or {}
+    return {dep.get("alias", dep["name"]) for dep in chart_yaml.get("dependencies", [])}
+
+
+def top_level_key_for_line(lines, line_no):
+    for i in range(line_no - 1, -1, -1):
+        m = TOP_LEVEL_KEY_RE.match(lines[i])
+        if m:
+            return m.group(1)
+    return None
+
+
+def classify_source(source, vendor_map):
+    """"own" | a vendor label | "other", from a rendered "# Source:"
+    path — same rule check_yamllint/check_kubeconform/etc. use."""
+    if source.startswith(OWN_TEMPLATES_PREFIX):
+        return "own"
+    return vendor_map.get(chart_name_from_source(source), "other")
+
+
+def classify_by_key(top_level_key, dep_names, vendor_map):
+    """Fallback for an image whose component isn't in the render at all:
+    "own" if no Chart.yaml dependency has this name/alias (nothing but a
+    podiumd-owned template could be configuring it), else the same
+    partner/other split as classify_source, keyed by dependency name
+    instead of "# Source:" path."""
+    if top_level_key not in dep_names:
+        return "own"
+    return vendor_map.get(top_level_key, "other")
+
+
+def bucket_of(label):
+    if label in ("own", "other"):
+        return label
+    return "partner"
+
+
+def render_image_labels(rendered_text, vendor_map):
+    """(repository, version, digest) -> classification label, for every
+    digest-pinned image found in the render. "own" always wins if ANY
+    source classifies an image that way, even if another source also
+    renders it — this repo's decision to use that image directly in its
+    own template outweighs it also being some vendored chart's default."""
+    labels = {}
+    for source, text in split_rendered_by_source(rendered_text):
+        label = classify_source(source, vendor_map)
+        for ref in PINNED_IMAGE_RE.findall(text):
+            key = parse_image_ref(ref)
+            if labels.get(key) != "own":
+                labels[key] = label
+    return labels
+
+
+def describe_newest_tag(host, repo_path, version):
+    """"newer tag available: X" if a numerically-newer same-variant tag is
+    currently published, else an explicit "no fix available yet" — never
+    cached (unlike the vulnerability scan itself): new tags can appear
+    between runs even for an unchanged pinned digest, and this is a single
+    cheap tag-list call, not an image pull."""
+    try:
+        newest = find_newest_same_variant_tag(host, repo_path, version)
+    except (urllib.error.URLError, OSError):
+        return "could not check the registry for a newer tag (network error)"
+    if newest == version:
+        return "already on the newest published tag in this line — no fix available yet"
+    return f"newer tag available: {newest} — check whether it includes a fix"
+
+
+def check_cves(chart_dir, extra_args):
     if shutil.which("docker") is None:
         return True, "docker is not installed — skipped (see --help)"
 
-    values_path = chart_dir / "values.yaml"
-    lines = values_path.read_text(encoding="utf-8").splitlines()
-    pins = scan_digest_pins(lines)
+    template_args = list(extra_args)
+    if supports_skip_schema_validation():
+        template_args.append("--skip-schema-validation")
 
-    # First digest seen per (repository, version) — same convention as
-    # check_image_digests, which assumes every occurrence of a given
-    # (repository, version) pin shares one digest.
+    result = run(["helm", "template", CHART_NAME, str(chart_dir), *template_args],
+                 capture_output=True, text=True)
+    if result.returncode != 0:
+        return False, "helm template failed to render"
+
+    vendor_map = friendly_vendor_charts(chart_dir)
+    dep_names = dependency_names(chart_dir)
+    rendered_labels = render_image_labels(result.stdout, vendor_map)
+
+    values_path = chart_dir / "values.yaml"
+    values_lines = values_path.read_text(encoding="utf-8").splitlines()
+    pins = scan_digest_pins(values_lines)
+
+    # First (digest, line) seen per (repository, version) — same
+    # convention as check_image_digests, which assumes every occurrence of
+    # a given (repository, version) pin shares one digest.
     targets = {}
     for p in pins:
         if p["repository"]:
-            targets.setdefault((p["repository"], p["version"]), p["digest"])
+            targets.setdefault((p["repository"], p["version"]), (p["digest"], p["line"]))
     targets = sorted(targets.items())
 
     old_cache = load_cache(chart_dir)
@@ -136,13 +286,18 @@ def check_cves(chart_dir):
     print(f"Scanning {len(targets)} unique pinned image(s) for known CVEs with trivy "
           f"(pulls every image not already cached — this can take a while)...")
 
-    findings = []
+    images = {}
     scan_errors = []
-    for (repository, version), digest in targets:
+    for (repository, version), (digest, line) in targets:
         host, repo_path = parse_repo(repository)
         image_ref = f"{host}/{repo_path}:{version}"
         key = cache_key(repository, digest)
         cached = old_cache.get(key)
+
+        label = rendered_labels.get((repository, version, digest))
+        if label is None:
+            top_key = top_level_key_for_line(values_lines, line)
+            label = classify_by_key(top_key, dep_names, vendor_map)
 
         if cached and cache_entry_is_fresh(cached):
             vulns = cached["vulnerabilities"]
@@ -160,29 +315,25 @@ def check_cves(chart_dir):
             }
             save_cache(chart_dir, new_cache)  # persist incrementally — this sweep is slow
 
-        for v in vulns:
-            severity = v.get("Severity", "UNKNOWN")
-            findings.append((image_ref, severity, v.get("VulnerabilityID", "?"),
-                              v.get("PkgName", "?"), v.get("FixedVersion", "?")))
+        images[image_ref] = {
+            "bucket": bucket_of(label),
+            "vendor_label": label if bucket_of(label) == "partner" else None,
+            "host": host, "repo_path": repo_path, "version": version,
+            "vulns": vulns,
+        }
 
     save_cache(chart_dir, new_cache)  # drop entries for images no longer pinned
 
-    def severity_rank(severity):
-        return SEVERITY_ORDER.index(severity) if severity in SEVERITY_ORDER else len(SEVERITY_ORDER)
+    def refs_in(bucket):
+        return [ref for ref, info in images.items() if info["bucket"] == bucket and info["vulns"]]
 
-    if findings:
-        findings.sort(key=lambda f: (severity_rank(f[1]), f[0]))
-        print(f"Found {len(findings)} known CVE(s) with a fix available across "
-              f"{len({f[0] for f in findings})} image(s) (report-only, never fails — a "
-              f"severity/urgency call for a human to triage):")
-        print_grouped_findings(
-            findings,
-            key_fn=lambda f: f[0],
-            item_fn=lambda f: f"{f[1]} {f[2]} ({f[3]} -> {f[4]})",
-            label_fn=lambda k: k,
-            items_label="CVE(s)",
-        )
-    else:
+    own_refs, partner_refs, other_refs = refs_in("own"), refs_in("partner"), refs_in("other")
+
+    print_bucket_report("Own images", own_refs, images, itemize=True)
+    print_bucket_report("Partner-vendor images", partner_refs, images, itemize=True)
+    print_bucket_report("Other-vendor images", other_refs, images, itemize=False)
+
+    if not (own_refs or partner_refs or other_refs):
         print("OK: no known CVEs with a fix available found across pinned images")
 
     if scan_errors:
@@ -194,6 +345,56 @@ def check_cves(chart_dir):
         print(f"{cache_path(chart_dir)} changed — commit it so other contributors and CI "
               f"don't re-scan these same images.")
 
-    detail = (f"{len(findings)} CVE(s) across {len(targets)} image(s), {cache_hits} cached, "
+    own_n, own_cve = bucket_totals(own_refs, images)
+    partner_n, partner_cve = bucket_totals(partner_refs, images)
+    other_n, other_cve = bucket_totals(other_refs, images)
+    detail = (f"{own_cve} own ({own_n} img), {partner_cve} partner-vendor ({partner_n} img), "
+              f"{other_cve} other-vendor ({other_n} img), {cache_hits} cached, "
               f"{len(scan_errors)} scan error(s)")
     return True, detail
+
+
+def bucket_totals(refs, images):
+    return len(refs), sum(len(images[ref]["vulns"]) for ref in refs)
+
+
+def print_bucket_report(title, refs, images, itemize):
+    if not refs:
+        return
+    print(f"--- {title} ---")
+
+    if not itemize:
+        high = sum(1 for ref in refs for v in images[ref]["vulns"] if v["Severity"] in HIGH_SEVERITIES)
+        rest = sum(len(images[ref]["vulns"]) for ref in refs) - high
+        print(f"  {high} CRITICAL/HIGH, {rest} MEDIUM/LOW/UNKNOWN CVE(s) with a fix available "
+              f"across {len(refs)} image(s) (not itemized)")
+        return
+
+    high_findings = []
+    aggregate = Counter()
+    for ref in refs:
+        for v in images[ref]["vulns"]:
+            if v["Severity"] in HIGH_SEVERITIES:
+                high_findings.append((ref, v["Severity"], v["VulnerabilityID"], v["PkgName"], v["FixedVersion"]))
+            else:
+                aggregate[v["Severity"]] += 1
+
+    if high_findings:
+        high_findings.sort(key=lambda f: (SEVERITY_ORDER.index(f[1]), f[0]))
+        print_grouped_findings(
+            high_findings,
+            key_fn=lambda f: f[0],
+            item_fn=lambda f: f"{f[1]} {f[2]} ({f[3]} -> {f[4]})",
+            label_fn=lambda k: k,
+            items_label="CVE(s)",
+        )
+
+    if aggregate:
+        parts = ", ".join(f"{aggregate[s]} {s}" for s in ("MEDIUM", "LOW", "UNKNOWN") if aggregate.get(s))
+        print(f"  {parts} CVE(s) with a fix available across {len(refs)} image(s) (not itemized)")
+
+    for ref in refs:
+        info = images[ref]
+        newest = describe_newest_tag(info["host"], info["repo_path"], info["version"])
+        vendor = f" [{info['vendor_label']}]" if info["vendor_label"] else ""
+        print(f"  {ref}{vendor}: {newest}")

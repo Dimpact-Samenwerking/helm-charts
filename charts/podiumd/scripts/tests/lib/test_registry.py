@@ -252,6 +252,41 @@ def test_find_more_specific_tag_at_same_digest_ignores_non_prefix_tags(libregist
     assert found is None
 
 
+# --- find_newest_same_variant_tag ---
+
+def test_find_newest_same_variant_tag_finds_newer_release(libregistry, monkeypatch):
+    monkeypatch.setattr(libregistry, "list_tags",
+                         lambda host, repo: ["3.14-slim", "3.15-slim", "3.13-slim"])
+    assert libregistry.find_newest_same_variant_tag(
+        "docker.io", "library/python", "3.14-slim") == "3.15-slim"
+
+
+def test_find_newest_same_variant_tag_returns_version_when_already_newest(libregistry, monkeypatch):
+    monkeypatch.setattr(libregistry, "list_tags", lambda host, repo: ["1.0.0", "1.1.0", "1.2.0"])
+    assert libregistry.find_newest_same_variant_tag("docker.io", "org/repo", "1.2.0") == "1.2.0"
+
+
+def test_find_newest_same_variant_tag_ignores_different_variant(libregistry, monkeypatch):
+    """A newer version under a DIFFERENT suffix/variant (e.g. "-alpine"
+    vs. the pinned "-slim") is a different image entirely, not a
+    same-line release worth surfacing."""
+    monkeypatch.setattr(libregistry, "list_tags", lambda host, repo: ["3.99-alpine"])
+    assert libregistry.find_newest_same_variant_tag(
+        "docker.io", "library/python", "3.14-slim") == "3.14-slim"
+
+
+def test_find_newest_same_variant_tag_compares_numeric_not_lexicographic(libregistry, monkeypatch):
+    """"1.9.0" must sort before "1.10.0" as a version — a plain string
+    comparison would get this backwards."""
+    monkeypatch.setattr(libregistry, "list_tags", lambda host, repo: ["1.9.0", "1.10.0"])
+    assert libregistry.find_newest_same_variant_tag("docker.io", "org/repo", "1.9.0") == "1.10.0"
+
+
+def test_find_newest_same_variant_tag_non_numeric_version_returns_itself(libregistry, monkeypatch):
+    monkeypatch.setattr(libregistry, "list_tags", lambda host, repo: ["latest", "stable"])
+    assert libregistry.find_newest_same_variant_tag("docker.io", "org/repo", "latest") == "latest"
+
+
 # --- is_sliding_tag ---
 
 def test_is_sliding_tag_true_from_history_alone(libregistry, values_repo, monkeypatch):
