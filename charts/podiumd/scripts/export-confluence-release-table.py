@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Exports the podiumd release-changes table(s) from a Confluence page into
-charts/podiumd/release-changes.csv.
+charts/podiumd/release-table.csv.
 
 Only looks at tables sitting directly under one of --heading (repeatable;
 defaults to the four standard podiumd sections — see DEFAULT_HEADINGS)
@@ -9,13 +9,16 @@ defaults to the four standard podiumd sections — see DEFAULT_HEADINGS)
 that aren't relevant here and are ignored entirely, not just skipped for
 missing columns.
 
-From each matching table, extracts: which section it came from, the
-table's own first column (whatever it's labeled — usually the component
-name), "Ontwikkelpartij" (optional — some sections, e.g. shared/technical
-tooling, legitimately have no development-partner column at all), and
-"App"/"Helm" under each of the table's two "Versie ..." column groups
-(required) — written to the CSV as "source version"/"target version"
-(first group = source, second = target; see
+From each matching table, extracts: which section it came from (written
+to the CSV as "section" — the matched heading with its trailing
+SECTION_SUFFIX, " component versies", stripped off — see section_name),
+the page's own "Ontwikkelpartij" column (optional — some sections, e.g.
+shared/technical tooling, legitimately have no development-partner
+column at all — written to the CSV as "vendor"), the table's own first
+column (whatever it's labeled — usually the component name, written to
+the CSV as "component"), and "App"/"Helm" under each of the table's two
+"Versie ..." column groups (required) — written to the CSV as "source
+version"/"target version" (first group = source, second = target; see
 lib.confluence_tables.find_versie_groups). The version numbers
 themselves are never hardcoded, since the page renames these two
 headers every release (e.g. "Versie 4.8"/"Versie 4.9" today) — only that
@@ -60,7 +63,7 @@ Usage:
     export-confluence-release-table.py --url <page-url> --user <email>
         # prompts for the token, or reads CONFLUENCE_API_TOKEN if set
     export-confluence-release-table.py --url <page-url> --user <email> --token-file <path> --output /tmp/out.csv
-        # write elsewhere instead of the default charts/podiumd/release-changes.csv
+        # write elsewhere instead of the default charts/podiumd/release-table.csv
     export-confluence-release-table.py --url <page-url> --user <email> --token-file <path> \\
         --heading "Product component versies" --heading "Technische component versies"
         # only these sections, instead of all four defaults
@@ -83,7 +86,7 @@ from lib.confluence_tables import (
 )
 
 CHART_DIR = SCRIPT_DIR.parents[0]
-DEFAULT_OUTPUT = CHART_DIR / "release-changes.csv"
+DEFAULT_OUTPUT = CHART_DIR / "release-table.csv"
 
 # The four sections this export exists for, on the podiumd release-notes
 # Confluence page — pass --heading (repeatable) to override.
@@ -94,8 +97,15 @@ DEFAULT_HEADINGS = [
     "Technische component versies",
 ]
 
-CSV_HEADER = ["sectie", "component", "ontwikkelpartij",
+CSV_HEADER = ["section", "vendor", "component",
               "source version app", "source version helm", "target version app", "target version helm"]
+
+# Stripped from the end of a matched heading before it goes into the CSV's
+# "section" column — "Product component versies" -> "Product", etc. Only
+# the CSV value is shortened this way; log/warning output (which quotes
+# the heading to help you find it back on the actual page) always uses
+# the real, full heading text.
+SECTION_SUFFIX = " component versies"
 
 # How many extra rows beyond effective_header_row_count()'s own guess to
 # try as the header block — see resolve_header_row_count. Confluence
@@ -150,6 +160,14 @@ def normalize_version(value):
     return "UNKNOWN"
 
 
+def section_name(heading):
+    """`heading` with SECTION_SUFFIX stripped off the end, if present —
+    "Product component versies" -> "Product". Unchanged if it doesn't end
+    with that exact suffix (e.g. a custom --heading), rather than
+    corrupting text this didn't anticipate."""
+    return heading[:-len(SECTION_SUFFIX)] if heading.endswith(SECTION_SUFFIX) else heading
+
+
 def check_target_matches_chart_version(target_labels, chart_dir):
     """Prints a large warning to stderr for every distinct label in
     `target_labels` (see find_versie_groups — the second, "target",
@@ -190,14 +208,16 @@ def resolve_token(args):
 
 
 def extract_release_rows(html, headings=None, chart_dir=None):
-    """Return the CSV data rows (sectie, component, ontwikkelpartij,
+    """Return the CSV data rows (section, vendor, component,
     source version app/helm, target version app/helm) across every table
     directly under one of `headings` (default DEFAULT_HEADINGS) that has
-    the required App/Helm columns. Prints a one-line report per matching-
-    heading table (rows matched, or which required column it's missing),
-    and a large warning (see check_target_matches_chart_version) if any
-    table's target heading doesn't match `chart_dir` (default CHART_DIR)
-    Chart.yaml's version."""
+    the required App/Helm columns — "section" is the matched heading with
+    SECTION_SUFFIX stripped (see section_name). Prints a one-line report
+    per matching-heading table (rows matched, or which required column
+    it's missing) — using the real, full heading text, not the
+    shortened "section" value — and a large warning (see
+    check_target_matches_chart_version) if any table's target heading
+    doesn't match `chart_dir` (default CHART_DIR) Chart.yaml's version."""
     headings = headings or DEFAULT_HEADINGS
     chart_dir = chart_dir or CHART_DIR
     all_tables = extract_tables(html)
@@ -229,11 +249,11 @@ def extract_release_rows(html, headings=None, chart_dir=None):
         for data_row in grid[header_row_count:]:
             if not any(cell.strip() for cell in data_row):
                 continue
-            ontwikkelpartij = data_row[columns["ontwikkelpartij"]] if columns["ontwikkelpartij"] is not None else ""
+            vendor = data_row[columns["vendor"]] if columns["vendor"] is not None else ""
             versions = [normalize_version(data_row[columns[key]]) for key in
                         ("source_app", "source_helm", "target_app", "target_helm")]
             unknown_count += sum(1 for v in versions if v == "UNKNOWN")
-            rows_out.append([heading, data_row[columns["first"]], ontwikkelpartij] + versions)
+            rows_out.append([section_name(heading), vendor, data_row[columns["first"]]] + versions)
             matched += 1
         print(f'"{heading}": {matched} row(s) matched')
 

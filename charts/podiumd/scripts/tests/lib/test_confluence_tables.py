@@ -430,7 +430,7 @@ def test_select_release_columns_full_release_table(libconfluencetables):
     paths = libconfluencetables.header_paths(grid, header_row_count=2)
     columns = libconfluencetables.select_release_columns(paths)
     assert columns == {
-        "first": 0, "ontwikkelpartij": 1, "source_app": 2, "source_helm": 3, "target_app": 4, "target_helm": 5,
+        "first": 0, "vendor": 1, "source_app": 2, "source_helm": 3, "target_app": 4, "target_helm": 5,
     }
 
 
@@ -439,14 +439,14 @@ def test_select_release_columns_not_tied_to_specific_version_numbers(libconfluen
              ["Versie 5.1", "App"], ["Versie 5.1", "Helm"]]
     columns = libconfluencetables.select_release_columns(paths)
     assert columns == {
-        "first": 0, "ontwikkelpartij": 1, "source_app": 2, "source_helm": 3, "target_app": 4, "target_helm": 5,
+        "first": 0, "vendor": 1, "source_app": 2, "source_helm": 3, "target_app": 4, "target_helm": 5,
     }
 
 
 def test_select_release_columns_missing_column_is_none(libconfluencetables):
     paths = [[], ["Ontwikkelpartij"]]  # no Versie ... columns at all
     columns = libconfluencetables.select_release_columns(paths)
-    assert columns["ontwikkelpartij"] == 1
+    assert columns["vendor"] == 1
     assert columns["source_app"] is None
     assert columns["target_helm"] is None
 
@@ -461,13 +461,13 @@ def test_select_release_columns_none_when_not_exactly_two_versie_groups(libconfl
     assert columns["target_app"] is None
 
 
-def test_missing_required_release_columns_ontwikkelpartij_not_required(libconfluencetables):
+def test_missing_required_release_columns_vendor_not_required(libconfluencetables):
     """A "Used by"-style table with no Ontwikkelpartij column at all, but
     every App/Helm column present, must report nothing missing."""
     paths = [[], ["Used by"], ["Versie 4.8", "App"], ["Versie 4.8", "Helm"],
              ["Versie 4.9", "App"], ["Versie 4.9", "Helm"]]
     columns = libconfluencetables.select_release_columns(paths)
-    assert columns["ontwikkelpartij"] is None
+    assert columns["vendor"] is None
     assert libconfluencetables.missing_required_release_columns(columns) == []
 
 
