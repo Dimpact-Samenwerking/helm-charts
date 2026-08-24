@@ -264,7 +264,7 @@ def describe_newest_tag(host, repo_path, version):
     except (urllib.error.URLError, OSError):
         return "could not check the registry for a newer tag (network error)"
     if newest == version:
-        return "already on the newest published tag in this line — no fix available yet"
+        return "newest tag already - no fix available"
     return f"newer tag available: {newest} — check whether it includes a fix"
 
 
