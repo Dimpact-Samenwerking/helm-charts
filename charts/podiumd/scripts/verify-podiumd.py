@@ -114,8 +114,8 @@ run --help for exactly which binary/package each one needs, and the
 doesn't run, not that it passes; step 17 is the one exception — a missing
 docker makes it report itself skipped rather than failed, since it was
 designed as non-blocking even before it joined the regular --skip-*/
---only-* pipeline). Steps 4-6 are pure-Python filesystem/textual scans and
-need no external tool.
+--include-* pipeline). Steps 4-6 are pure-Python filesystem/textual scans
+and need no external tool.
 
 Stops at the first failing step and prints a PASS/FAIL summary table, mirroring
 the /helm-precommit workflow (BOM check, dupe check, lint, full render) plus
@@ -154,14 +154,18 @@ Usage:
         # a normal run WITHOUT pulling every image via Docker — step 16 now
         # runs by default like every other step (no more separate opt-in
         # flag), so that's the one most worth skipping day to day.
-    verify-podiumd.py --only-kube-score
-        # the inverse of --skip-*: run ONLY the named step (plus whatever
-        # step it needs as a prerequisite — e.g. --only-kube-score also
-        # runs "Dependencies" first, since kube-score's render would
-        # otherwise fail with unresolved sub-charts). Every other step
-        # shows as SKIP. Exactly one --only-<step> at a time, and it
-        # cannot be combined with --skip-<step> (nothing left to skip
-        # once everything but the target is already skipped).
+    verify-podiumd.py --include-kube-score
+        # the inverse of --skip-*: run ONLY the named step(s) (plus whatever
+        # step(s) each one needs as a prerequisite — e.g. --include-kube-score
+        # also runs "Dependencies" first, since kube-score's render would
+        # otherwise fail with unresolved sub-charts). Every other step shows
+        # as SKIP.
+    verify-podiumd.py --include-kube-score --include-shellcheck
+        # combine multiple --include-<step> flags to run a specific subset —
+        # each one's own prerequisites are still included automatically, so
+        # "Dependencies" here still runs once, not twice. Cannot be combined
+        # with --skip-<step> (nothing left to skip once everything but the
+        # included set is already skipped).
     verify-podiumd.py --detail-cve-check
         # CVE scan: itemize CRITICAL/HIGH findings per affected package for
         # EVERY image bucket (own, partner-vendor, AND other-vendor) instead
@@ -432,7 +436,7 @@ SKIPPABLE_STEPS = [
 ]
 
 # step name -> the step(s) it needs to have actually run first, for
-# --only-<step> (see prerequisites_for). Every render-based check
+# --include-<step> (see prerequisites_for). Every render-based check
 # (lint/full-render/yamllint/kubeconform/shellcheck/kube-score) needs
 # "Dependencies" to have populated charts/*.tgz first, or its own `helm
 # template`/`helm lint` call fails on unresolved sub-charts — "Image
@@ -504,26 +508,25 @@ def main():
                                   f'around a known-broken step) — shown as SKIP in the summary, never '
                                   f'counted as a failure')
     for flag, step_name in SKIPPABLE_STEPS:
-        parser.add_argument(f"--only-{flag}", action="store_true",
-                             help=f'run ONLY the "{step_name}" check, plus any step it needs as a '
-                                  f'prerequisite (see STEP_PREREQUISITES) — every other step shows '
-                                  f'as SKIP. Exactly one --only-<step> at a time; cannot combine '
-                                  f'with --skip-<step>')
+        parser.add_argument(f"--include-{flag}", action="store_true",
+                             help=f'run the "{step_name}" check, plus any step(s) it needs as a '
+                                  f'prerequisite (see STEP_PREREQUISITES) — every step not included '
+                                  f'(directly or as a prerequisite of an included step) shows as '
+                                  f'SKIP. Combine multiple --include-<step> flags to run a specific '
+                                  f'subset; cannot combine with --skip-<step>')
     args = parser.parse_args()
 
     skip_flags = [flag for flag, _ in SKIPPABLE_STEPS if getattr(args, f"skip_{flag.replace('-', '_')}")]
-    only_flags = [flag for flag, _ in SKIPPABLE_STEPS if getattr(args, f"only_{flag.replace('-', '_')}")]
+    include_flags = [flag for flag, _ in SKIPPABLE_STEPS if getattr(args, f"include_{flag.replace('-', '_')}")]
 
-    if only_flags and skip_flags:
-        parser.error("--only-<step> cannot be combined with --skip-<step>")
-    if len(only_flags) > 1:
-        parser.error(f"only one --only-<step> may be given at a time (got: "
-                      f"{', '.join('--only-' + f for f in only_flags)})")
+    if include_flags and skip_flags:
+        parser.error("--include-<step> cannot be combined with --skip-<step>")
 
-    only_flag = only_flags[0] if only_flags else None
-    if only_flag:
-        target_step = dict(SKIPPABLE_STEPS)[only_flag]
-        runnable = prerequisites_for(target_step) | {target_step}
+    if include_flags:
+        target_steps = {dict(SKIPPABLE_STEPS)[flag] for flag in include_flags}
+        runnable = set(target_steps)
+        for step in target_steps:
+            runnable |= prerequisites_for(step)
         skipped_steps = {step_name for _, step_name in SKIPPABLE_STEPS if step_name not in runnable}
     else:
         skipped_steps = {dict(SKIPPABLE_STEPS)[flag] for flag in skip_flags}
@@ -539,8 +542,8 @@ def main():
     def run_step(name, title, func, *fargs):
         log(title)
         if name in skipped_steps:
-            if only_flag:
-                print(f"SKIPPED (--only-{only_flag} given — not required for it)")
+            if include_flags:
+                print(f"SKIPPED (not included via --include-{'/--include-'.join(include_flags)})")
             else:
                 print(f"SKIPPED (--skip-{dict((n, f) for f, n in SKIPPABLE_STEPS)[name]})")
             results.append((name, None, "skipped"))
