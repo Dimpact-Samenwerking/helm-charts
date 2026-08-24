@@ -184,8 +184,8 @@ def test_extract_release_rows_handles_inconsistent_th_tagging(ecrt):
     <th>-only header count would catch."""
     rows = ecrt.extract_release_rows(PRODUCT_TABLE_INCONSISTENT_TH_HTML)
     assert rows == [
-        ["Product component versies", "ZAC", "Info(NL)", "5.0.0", "1.0.290", "5.1.0", "1.0.297"],
-        ["Product component versies", "Open Zaak", "Maykin", "1.27.0", "1.14.0", "1.27.4", "1.14.2"],
+        ["Product", "Info(NL)", "ZAC", "5.0.0", "1.0.290", "5.1.0", "1.0.297"],
+        ["Product", "Maykin", "Open Zaak", "1.27.0", "1.14.0", "1.27.4", "1.14.2"],
     ]
 
 
@@ -237,8 +237,8 @@ def test_check_target_matches_chart_version_missing_chart_yaml_is_silent(ecrt, t
 def test_extract_release_rows_matches_and_reports(ecrt, capsys):
     rows = ecrt.extract_release_rows(PRODUCT_TABLE_HTML)
     assert rows == [
-        ["Product component versies", "ZAC", "Info(NL)", "5.0.0", "1.0.290", "5.1.0", "1.0.297"],
-        ["Product component versies", "Open Zaak", "Maykin", "1.27.0", "1.14.0", "1.27.4", "1.14.2"],
+        ["Product", "Info(NL)", "ZAC", "5.0.0", "1.0.290", "5.1.0", "1.0.297"],
+        ["Product", "Maykin", "Open Zaak", "1.27.0", "1.14.0", "1.27.4", "1.14.2"],
     ]
     out = capsys.readouterr().out
     assert "2 row(s) matched" in out
@@ -251,15 +251,15 @@ def test_extract_release_rows_not_tied_to_specific_version_numbers(ecrt):
     html = PRODUCT_TABLE_HTML.replace("Versie 4.8", "Versie 5.0").replace("Versie 4.9", "Versie 5.1")
     rows = ecrt.extract_release_rows(html)
     assert rows == [
-        ["Product component versies", "ZAC", "Info(NL)", "5.0.0", "1.0.290", "5.1.0", "1.0.297"],
-        ["Product component versies", "Open Zaak", "Maykin", "1.27.0", "1.14.0", "1.27.4", "1.14.2"],
+        ["Product", "Info(NL)", "ZAC", "5.0.0", "1.0.290", "5.1.0", "1.0.297"],
+        ["Product", "Maykin", "Open Zaak", "1.27.0", "1.14.0", "1.27.4", "1.14.2"],
     ]
 
 
 def test_extract_release_rows_replaces_non_semver_version_with_unknown_and_reports_count(ecrt, capsys):
     html = PRODUCT_TABLE_HTML.replace("<td>5.1.0</td>", "<td>?</td>")
     rows = ecrt.extract_release_rows(html)
-    assert rows[0] == ["Product component versies", "ZAC", "Info(NL)", "5.0.0", "1.0.290", "UNKNOWN", "1.0.297"]
+    assert rows[0] == ["Product", "Info(NL)", "ZAC", "5.0.0", "1.0.290", "UNKNOWN", "1.0.297"]
     out = capsys.readouterr().out
     assert "1 version value(s) were not semver-compatible — replaced with UNKNOWN" in out
 
@@ -281,22 +281,22 @@ def test_extract_release_rows_reports_skip_for_incomplete_table_under_target_hea
     assert '"Overige component versies": skipped (missing required column(s):' in out
 
 
-def test_extract_release_rows_ontwikkelpartij_blank_when_table_has_none(ecrt):
+def test_extract_release_rows_vendor_blank_when_table_has_none(ecrt):
     rows = ecrt.extract_release_rows(TECHNISCHE_TABLE_HTML)
-    assert rows == [["Technische component versies", "Elastic operator", "", "3.4.0", "3.4.0", "3.5.0", "3.5.0"]]
+    assert rows == [["Technische", "", "Elastic operator", "3.4.0", "3.4.0", "3.5.0", "3.5.0"]]
 
 
 def test_extract_release_rows_combines_multiple_sections(ecrt):
     rows = ecrt.extract_release_rows(PRODUCT_TABLE_HTML + TECHNISCHE_TABLE_HTML)
-    assert [r[0] for r in rows] == ["Product component versies", "Product component versies",
-                                     "Technische component versies"]
+    assert [r[0] for r in rows] == ["Product", "Product",
+                                     "Technische"]
 
 
 def test_extract_release_rows_custom_headings_overrides_default(ecrt):
     rows = ecrt.extract_release_rows(PRODUCT_TABLE_HTML + TECHNISCHE_TABLE_HTML,
                                       headings=["Technische component versies"])
     assert len(rows) == 1
-    assert rows[0][0] == "Technische component versies"
+    assert rows[0][0] == "Technische"
 
 
 def test_extract_release_rows_no_tables_raises(ecrt):
@@ -342,7 +342,7 @@ def test_extract_release_rows_silent_when_target_matches_chart_yaml(ecrt, tmp_pa
 # --- main() integration ---
 
 def test_main_writes_csv(ecrt, tmp_path, monkeypatch, capsys):
-    output_path = tmp_path / "release-changes.csv"
+    output_path = tmp_path / "release-table.csv"
     monkeypatch.setattr(ecrt.sys, "argv", [
         "export-confluence-release-table.py",
         "--url", "https://example.atlassian.net/wiki/spaces/PCP/pages/123/Title",
@@ -356,10 +356,10 @@ def test_main_writes_csv(ecrt, tmp_path, monkeypatch, capsys):
 
     with output_path.open(newline="", encoding="utf-8") as f:
         rows = list(csv.reader(f))
-    assert rows[0] == ["sectie", "component", "ontwikkelpartij", "source version app", "source version helm",
+    assert rows[0] == ["section", "vendor", "component", "source version app", "source version helm",
                         "target version app", "target version helm"]
-    assert rows[1] == ["Product component versies", "ZAC", "Info(NL)", "5.0.0", "1.0.290", "5.1.0", "1.0.297"]
-    assert rows[2] == ["Product component versies", "Open Zaak", "Maykin", "1.27.0", "1.14.0", "1.27.4", "1.14.2"]
+    assert rows[1] == ["Product", "Info(NL)", "ZAC", "5.0.0", "1.0.290", "5.1.0", "1.0.297"]
+    assert rows[2] == ["Product", "Maykin", "Open Zaak", "1.27.0", "1.14.0", "1.27.4", "1.14.2"]
     out = capsys.readouterr().out
     assert f"Wrote 2 row(s) to {output_path}" in out
 
@@ -406,4 +406,4 @@ def test_main_passes_custom_heading_flags_through(ecrt, tmp_path, monkeypatch):
     with output_path.open(newline="", encoding="utf-8") as f:
         rows = list(csv.reader(f))
     assert len(rows) == 2  # header + the one Technische row only
-    assert rows[1][0] == "Technische component versies"
+    assert rows[1][0] == "Technische"
