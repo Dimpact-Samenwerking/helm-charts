@@ -42,6 +42,7 @@ trip:
      drift is expected and passes, just reported for visibility. Deliberately
      last among the local checks: the only one that hits the network, so
      everything cheaper fails fast first (see lib.image_digests)
+
   9. all Chart.yaml dependencies actually resolve and bundle (helm dependency update)
   10. the chart lints cleanly with the CI placeholder values
   11. the chart renders cleanly with `helm template` using the CI placeholder values
@@ -78,6 +79,18 @@ trip:
       here is genuinely actionable, just deprioritized in the output.
       Neither ever fails the check yet, though: the backlog is untriaged
       and partly upstream-blocked (see lib.kube_score_check)
+
+  Last, after step 15 (not itself numbered — it's opt-in via --check-cves,
+  not part of the always-run pipeline, and deliberately placed dead last:
+  pulling and scanning every image via Docker is by far the heaviest
+  single operation in this whole script, so every cheaper step gets a
+  chance to fail fast first): every unique digest-pinned image is scanned
+  for known CVEs with a fix available, via a per-image
+  `docker run aquasec/trivy:latest` (same tool this repo already scans
+  images with in .github/workflows/trivy-vuln-scanner.yaml). Report-only,
+  never fails regardless of severity — a HIGH/CRITICAL finding is a
+  triage decision for a human, not a chart-correctness fact (see
+  lib.cve_check).
 
   Steps 12-15's "partner vendor" carve-out (see lib.render_scope.friendly_vendor_charts):
   Maykin, Info(NL), ICATT, Worth, WeAreFrank, Dimpact, and any local
@@ -152,6 +165,7 @@ from lib.procutil import run
 # exactly what main() calls, no re-exports to keep in sync by hand.
 from lib.dry_check import check_dry
 from lib.image_digests import check_image_digests
+from lib.cve_check import check_cves
 from lib.image_references_check import check_image_references
 from lib.node_selector_check import check_node_selector
 from lib.docs_consistency import check_docs_consistency
@@ -412,6 +426,13 @@ def main():
                              "against — a bare version (e.g. 4.8.5) is resolved to the podiumd-4.8.5 "
                              "tag, falling back to the feature/podiumd-4.8.5 branch; anything else is "
                              "used as a literal git ref")
+    parser.add_argument("--check-cves", action="store_true",
+                        help='opt-in: scan every unique digest-pinned image for known CVEs with '
+                             'a fix available (docker run aquasec/trivy:latest) — pulls every '
+                             'image, can take several minutes, needs Docker. Report-only, never '
+                             'fails regardless of severity found. Not run by default and not '
+                             'part of --skip-* (there is nothing to skip if it never runs unless '
+                             'asked for)')
     for flag, step_name in SKIPPABLE_STEPS:
         parser.add_argument(f"--skip-{flag}", action="store_true",
                              help=f'skip the "{step_name}" check (e.g. to iterate faster, or work '
@@ -468,6 +489,15 @@ def main():
     run_step("kubeconform", "kubeconform (rendered output)", check_kubeconform, chart_dir, extra_args)
     run_step("shellcheck", "shellcheck (embedded shell scripts)", check_shellcheck, chart_dir, extra_args)
     run_step("kube-score", "kube-score (resource requests/limits)", check_kube_score, chart_dir, extra_args)
+
+    log("Scanning pinned images for known CVEs (trivy)")
+    if args.check_cves:
+        ok, detail = check_cves(chart_dir)
+        results.append(("CVE scan", ok, detail))
+    else:
+        print("SKIPPED (opt-in only — pass --check-cves to run; pulls every pinned image via "
+              "Docker, so this can take several minutes)")
+        results.append(("CVE scan", None, "skipped (opt-in, use --check-cves)"))
 
     print_summary(results, overall_ok=True)
 
