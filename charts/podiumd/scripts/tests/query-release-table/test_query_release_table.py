@@ -12,6 +12,9 @@ Technische,,zac,Solr,8.11.0,8.11.0,8.11.0,8.11.0
 Product,ZAC Team,,Some Component,1.0.0,1.0.0,1.0.0,1.0.0
 Product,ICATT,,Interne Taak Afhandeling,3.2.0,3.2.0,3.3.0,3.3.0
 Technische,,ita,ITA Poller,1.0.0,1.0.0,1.0.0,1.0.0
+Product,ICATT,,Contact (KISS),2.2.3,2.2.3,3.0.0,3.0.0
+Technische,,kiss,Kiss Elastic Sync,0.3.3,0.3.3,3.0.0,3.0.0
+Technische,,kiss,PodiumD Adapter,0.6.6,0.6.6,0.6.7,0.6.7
 """
 
 
@@ -48,7 +51,7 @@ def rows(qrt, csv_path):
 # --- load_rows ---
 
 def test_load_rows_reads_all_data_rows(rows):
-    assert len(rows) == 7
+    assert len(rows) == 10
     assert rows[0]["component"] == "ZAC"
 
 
@@ -62,7 +65,7 @@ def test_matching_rows_case_insensitive_substring(qrt, rows):
 def test_matching_rows_matches_multiple(qrt, rows):
     matches = qrt.matching_rows(rows, "section", "product")
     assert [r["component"] for r in matches] == [
-        "ZAC", "Open Zaak", "Some Component", "Interne Taak Afhandeling",
+        "ZAC", "Open Zaak", "Some Component", "Interne Taak Afhandeling", "Contact (KISS)",
     ]
 
 
@@ -95,15 +98,14 @@ def test_used_by_rows_for_no_match_returns_empty(qrt, rows):
     assert qrt.used_by_rows_for(rows, open_zaak) == []
 
 
-def test_used_by_rows_for_excludes_the_matches_themselves(qrt, rows):
+def test_used_by_rows_for_excludes_the_matches_themselves(qrt):
     """A matched row whose own used_by happens to substring-match its own
     component name (e.g. a "Kiss ..." component with used_by "kiss")
     must not be echoed back as its own "used by" result."""
     self_referential = {"component": "Kiss Thing", "used_by": "kiss",
                          "source version app": "1.0", "source version helm": "1.0",
                          "target version app": "1.0", "target version helm": "1.0"}
-    all_rows = rows + [self_referential]
-    assert qrt.used_by_rows_for(all_rows, [self_referential]) == []
+    assert qrt.used_by_rows_for([self_referential], [self_referential]) == []
 
 
 # --- alias_dependency_names ---
@@ -115,6 +117,58 @@ def test_alias_dependency_names_reads_chart_yaml(qrt, tmp_path):
 
 def test_alias_dependency_names_missing_chart_yaml_returns_empty(qrt, tmp_path):
     assert qrt.alias_dependency_names(tmp_path) == {}
+
+
+# --- alias_matched_rows ---
+
+def test_alias_matched_rows_finds_component_by_alias(qrt, rows, tmp_path):
+    """Querying the alias "ita" itself (not a substring of "Interne Taak
+    Afhandeling") must still find that component — the other direction
+    of the relationship used_by_rows_for resolves."""
+    write_chart_yaml_with_alias(tmp_path, "ita", "internetaakafhandeling")
+    matches = qrt.alias_matched_rows(rows, "ita", tmp_path)
+    assert [r["component"] for r in matches] == ["Interne Taak Afhandeling"]
+
+
+def test_alias_matched_rows_case_insensitive(qrt, rows, tmp_path):
+    write_chart_yaml_with_alias(tmp_path, "ita", "internetaakafhandeling")
+    matches = qrt.alias_matched_rows(rows, "ITA", tmp_path)
+    assert [r["component"] for r in matches] == ["Interne Taak Afhandeling"]
+
+
+def test_alias_matched_rows_unknown_alias_returns_empty(qrt, rows, tmp_path):
+    write_chart_yaml_with_alias(tmp_path, "ita", "internetaakafhandeling")
+    assert qrt.alias_matched_rows(rows, "nonexistent-alias", tmp_path) == []
+
+
+def test_alias_matched_rows_without_chart_yaml_returns_empty(qrt, rows, tmp_path):
+    assert qrt.alias_matched_rows(rows, "ita", tmp_path) == []
+
+
+# --- component_matches ---
+
+def test_component_matches_prefers_owner_over_tooling_substring_hit(qrt, rows, tmp_path):
+    """"Kiss Elastic Sync" contains "kiss" and has a non-empty used_by —
+    it's tooling, not a standalone component. Once the real owner
+    "Contact (KISS)" also matches, only the owner is returned."""
+    matches = qrt.component_matches(rows, "kiss", tmp_path)
+    assert [r["component"] for r in matches] == ["Contact (KISS)"]
+
+
+def test_component_matches_falls_back_to_raw_when_no_owner_matches(qrt, rows, tmp_path):
+    """"Solr" has no distinct "owner" component matching "solr" at all —
+    falls back to the raw substring match so it can still be found
+    directly, rather than returning nothing."""
+    matches = qrt.component_matches(rows, "solr", tmp_path)
+    assert [r["component"] for r in matches] == ["Solr"]
+
+
+def test_component_matches_resolves_owner_via_alias_only(qrt, rows, tmp_path):
+    """"ita" matches "ITA Poller" by substring (tooling, excluded) and
+    "Interne Taak Afhandeling" by Chart.yaml alias (the real owner)."""
+    write_chart_yaml_with_alias(tmp_path, "ita", "internetaakafhandeling")
+    matches = qrt.component_matches(rows, "ita", tmp_path)
+    assert [r["component"] for r in matches] == ["Interne Taak Afhandeling"]
 
 
 # --- used_by_rows_for: Chart.yaml alias path ---
@@ -256,6 +310,50 @@ def test_main_resolves_used_by_via_chart_yaml_alias(qrt, monkeypatch, csv_path, 
     out = capsys.readouterr().out
     assert "Used by matched component(s):" in out
     assert "ITA Poller" in out
+
+
+def test_main_component_query_by_alias_shows_owner_as_sole_primary_match(
+        qrt, monkeypatch, csv_path, tmp_path, capsys):
+    """Querying component "ita" resolves to "Interne Taak Afhandeling"
+    itself via the Chart.yaml alias — that's the sole primary match.
+    "ITA Poller" (which also contains "ita" literally) is tooling
+    belonging to it, not a primary match in its own right — see
+    component_matches."""
+    write_chart_yaml_with_alias(tmp_path, "ita", "internetaakafhandeling")
+    run_main(qrt, monkeypatch, csv_path, ["component", "ita"])
+    qrt.main()
+    out = capsys.readouterr().out
+    matches_section = out.split("Used by matched component(s):")[0]
+    assert "Interne Taak Afhandeling" in matches_section
+    assert "ITA Poller" not in matches_section
+
+
+def test_main_component_query_by_alias_shows_tooling_in_used_by_exactly_once(
+        qrt, monkeypatch, csv_path, tmp_path, capsys):
+    write_chart_yaml_with_alias(tmp_path, "ita", "internetaakafhandeling")
+    run_main(qrt, monkeypatch, csv_path, ["component", "ita"])
+    qrt.main()
+    out = capsys.readouterr().out
+    assert "Used by matched component(s):" in out
+    assert out.count("ITA Poller") == 1
+
+
+def test_main_component_query_kiss_one_owner_match_rest_in_used_by(qrt, monkeypatch, csv_path, capsys):
+    """Regression: querying component "kiss" used to return 3 rows in
+    the primary matches table (every row with "kiss" literally in its
+    own name) and only 1 in used_by. It must be the other way around —
+    "Contact (KISS)" is the sole real component; "Kiss Elastic Sync"
+    (which also contains "kiss") and "PodiumD Adapter" are its tooling
+    and belong in the used_by table instead."""
+    run_main(qrt, monkeypatch, csv_path, ["component", "kiss"])
+    qrt.main()
+    out = capsys.readouterr().out
+    matches_section, _, used_by_section = out.partition("Used by matched component(s):")
+    assert "Contact (KISS)" in matches_section
+    assert "Kiss Elastic Sync" not in matches_section
+    assert "PodiumD Adapter" not in matches_section
+    assert "Kiss Elastic Sync" in used_by_section
+    assert "PodiumD Adapter" in used_by_section
 
 
 def test_main_no_matches_exits_nonzero(qrt, monkeypatch, csv_path, capsys):
