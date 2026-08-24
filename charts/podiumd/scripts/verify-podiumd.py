@@ -32,28 +32,35 @@ trip:
      currently has a more specific sibling tag at the same digest), where
      drift is expected and passes, just reported for visibility (see
      lib.image_digests)
-  8. all Chart.yaml dependencies actually resolve and bundle (helm dependency update)
-  9. the chart lints cleanly with the CI placeholder values
-  10. the chart renders cleanly with `helm template` using the CI placeholder values
-  11. yamllint against that render finds no structurally-real problem (duplicate
+  8. no vendored sub-chart under charts/podiumd/charts/ has BOTH a pinned
+     .tgz package and an extracted directory of the same name sitting next
+     to it — Helm silently prefers the extracted (possibly stale/modified)
+     copy over the pinned package, "has caused broken deployments" per
+     .claude/commands/helm-tgz-inspect.md. Runs before step 9 deliberately:
+     that step's own dependency rebuild would otherwise wipe the evidence
+     before this check ever saw it (see lib.vendored_tgz_check)
+  9. all Chart.yaml dependencies actually resolve and bundle (helm dependency update)
+  10. the chart lints cleanly with the CI placeholder values
+  11. the chart renders cleanly with `helm template` using the CI placeholder values
+  12. yamllint against that render finds no structurally-real problem (duplicate
       keys, syntax errors) in this chart's OWN templates — cosmetic findings
       (trailing whitespace, comment style, ...) aren't reported at all, and
       a vendored sub-chart finding is printed per-item if it's from a
       partner vendor, else only gets a one-line count — neither
       scope ever fails except OWN (see lib.yamllint_check)
-  12. kubeconform against that same render finds no real API-schema
+  13. kubeconform against that same render finds no real API-schema
       violation in this chart's OWN templates (wrong types, unknown fields,
       a resource that doesn't even parse) — a CRD with no known schema
       (Keycloak, ECK, Redis, ...) is skipped, not an error, and vendored
       findings follow the same partner-vendor-gets-detail rule, never a
       failure (see lib.kubeconform_check)
-  13. shellcheck against every shell script embedded in a container's
+  14. shellcheck against every shell script embedded in a container's
       command/args in this chart's OWN templates finds no real bug
       (error/warning-level — bad quoting, undefined variables, portability
       issues) — info/style-level suggestions aren't reported at all, and
       vendored findings follow the same partner-vendor-gets-detail rule,
       never a failure (see lib.shellcheck_check)
-  14. kube-score's container-resources check finds every container in this
+  15. kube-score's container-resources check finds every container in this
       chart's OWN templates declaring CPU/memory requests AND limits, per
       .github/copilot-instructions.md's own documented "Resource Requests
       and Limits" convention — the only kube-score check this repo has an
@@ -61,7 +68,7 @@ trip:
       ImagePullPolicy, SecurityContext UID/GID, PodDisruptionBudgets, ...)
       is unused, generic best-practice noise this repo has never claimed
       to enforce. Same partner-vendor/other-vendor reporting split as
-      steps 11-13 (partner gets per-item detail, other stays a one-line
+      steps 12-14 (partner gets per-item detail, other stays a one-line
       count) — but a vendored sub-chart's missing resources IS this
       repo's job regardless of which org maintains it (wireable via that
       sub-chart's values.yaml key, same doc), so an other-vendor finding
@@ -69,21 +76,22 @@ trip:
       Neither ever fails the check yet, though: the backlog is untriaged
       and partly upstream-blocked (see lib.kube_score_check)
 
-  Steps 11-14's "partner vendor" carve-out (see lib.render_scope.friendly_vendor_charts):
+  Steps 12-15's "partner vendor" carve-out (see lib.render_scope.friendly_vendor_charts):
   Maykin, Info(NL), ICATT, Worth, WeAreFrank, Dimpact, and any local
   ("file://") dependency are close/collaborative enough that their
   findings are worth seeing individually, even though this repo still
   can't fix their code directly. Every other vendored sub-chart (elastic,
   redis-operator, keycloak-operator, openbao, ...) stays
-  aggregate-count-only. Steps 4-5 don't use this carve-out — they only
-  ever scan this chart's own templates in the first place, never a
-  vendored sub-chart's.
+  aggregate-count-only. Steps 4-5 and 8 don't use this carve-out — they
+  only ever scan this chart's own templates/checked-out sub-charts, never
+  a vendored sub-chart's rendered content.
 
-Steps 11-14 each need an external tool (yamllint/kubeconform/shellcheck/
+Steps 12-15 each need an external tool (yamllint/kubeconform/shellcheck/
 kube-score, respectively) beyond helm — run --help for exactly which
 binary/package each one needs, and the --skip-<name> flag to bypass a
 missing one (skipping means that check doesn't run, not that it passes).
-Steps 4-5 are pure-Python textual scans and need no external tool.
+Steps 4-5 and 8 are pure-Python filesystem/textual scans and need no
+external tool.
 
 Stops at the first failing step and prints a PASS/FAIL summary table, mirroring
 the /helm-precommit workflow (BOM check, dupe check, lint, full render) plus
@@ -114,9 +122,9 @@ Usage:
         # One flag per step: --skip-utf8-format, --skip-dependencies,
         # --skip-dupe-check, --skip-dry-check, --skip-image-references,
         # --skip-node-selector, --skip-image-digests,
-        # --skip-docs-consistency, --skip-lint, --skip-full-render,
-        # --skip-yamllint, --skip-kubeconform, --skip-shellcheck,
-        # --skip-kube-score. See --help for the full list.
+        # --skip-docs-consistency, --skip-vendored-tgz, --skip-lint,
+        # --skip-full-render, --skip-yamllint, --skip-kubeconform,
+        # --skip-shellcheck, --skip-kube-score. See --help for the full list.
 
 Exit code is non-zero if any check fails — safe to use as a CI gate.
 """
@@ -144,6 +152,7 @@ from lib.image_digests import check_image_digests
 from lib.image_references_check import check_image_references
 from lib.node_selector_check import check_node_selector
 from lib.docs_consistency import check_docs_consistency
+from lib.vendored_tgz_check import check_vendored_tgz_extraction
 from lib.render_scope import (
     CHART_NAME, REQUIRED_REPOS, report_errors_by_subchart, report_largest_templates,
     supports_skip_schema_validation,
@@ -368,6 +377,7 @@ SKIPPABLE_STEPS = [
     ("node-selector", "Node selector"),
     ("image-digests", "Image digests"),
     ("docs-consistency", "Docs consistency"),
+    ("vendored-tgz", "Vendored tgz"),
     ("lint", "Lint"),
     ("full-render", "Full render"),
     ("yamllint", "yamllint"),
@@ -440,6 +450,8 @@ def main():
              check_docs_consistency, chart_dir, args.baseline)
     run_step("Image digests", "Checking image digests against upstream registries",
              check_image_digests, chart_dir)
+    run_step("Vendored tgz", "Checking for extracted dirs shadowing a pinned .tgz",
+             check_vendored_tgz_extraction, chart_dir)
 
     log("Ensuring dependency repos are configured")
     ensure_repos_configured()

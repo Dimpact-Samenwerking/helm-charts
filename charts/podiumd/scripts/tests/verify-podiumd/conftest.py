@@ -34,6 +34,7 @@ import lib.registry as registry
 import lib.render_scope as render_scope
 import lib.shellcheck_check as shellcheck_check
 import lib.upgradedoc as upgradedoc
+import lib.vendored_tgz_check as vendored_tgz_check
 import lib.yamllint_check as yamllint_check
 
 
@@ -112,6 +113,11 @@ def libimagereferencescheck():
 @pytest.fixture(scope="session")
 def libnodeselectorcheck():
     return node_selector_check
+
+
+@pytest.fixture(scope="session")
+def libvendoredtgzcheck():
+    return vendored_tgz_check
 
 
 def make_dep(name, version, alias=None, repository="@example", condition=None):
