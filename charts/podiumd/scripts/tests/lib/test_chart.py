@@ -1,6 +1,7 @@
 """lib.chart — get_path, find_dependency, chart_ref, pull_chart,
-pulled_chart_dir, pull_chart_values, find_images, version_of. `helm pull` is
-mocked via lib.procutil.run, so no `helm` binary or network access needed."""
+pulled_chart_dir, pull_chart_values, find_images, version_of,
+image_paths_for. `helm pull` is mocked via lib.procutil.run, so no `helm`
+binary or network access needed."""
 import pytest
 import yaml
 
@@ -183,3 +184,13 @@ def test_find_images_skips_empty_tag(libchart):
 
 def test_find_images_root_path_label(libchart):
     assert libchart.find_images({"repository": "x", "tag": "1.0"}) == [("(root)", "x", "1.0")]
+
+
+# --- image_paths_for ---
+
+def test_image_paths_for_multi_image_component(libchart):
+    assert libchart.image_paths_for("zgw-office-addin") == ["frontend.image", "backend.image"]
+
+
+def test_image_paths_for_unlisted_component_defaults_to_single_image_block(libchart):
+    assert libchart.image_paths_for("zac") == ["image"]

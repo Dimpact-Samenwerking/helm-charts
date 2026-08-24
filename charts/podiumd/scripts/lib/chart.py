@@ -9,6 +9,25 @@ import yaml
 
 from lib.procutil import run
 
+# component (name or alias) -> dotted values.yaml path(s) for its own image
+# block(s), for components that ship more than one independently-versioned
+# image (e.g. ZAC alone bundles 10+ — opa, solr, zookeeper, curl,
+# gotenberg...) with nothing in the chart itself saying which one is "the
+# app" the version-management scripts (verify/update/show-component-
+# baseline-version.py) should act on. This is that one small, unavoidable
+# hint — just a values.yaml path, not a registry or repo, and only needed
+# for multi-image components; anything not listed here defaults to
+# DEFAULT_IMAGE_PATHS. Shared here (rather than copy-pasted per script, as
+# it used to be) so a new multi-image component only needs adding once.
+COMPONENT_IMAGE_PATHS = {
+    "zgw-office-addin": ["frontend.image", "backend.image"],
+}
+DEFAULT_IMAGE_PATHS = ["image"]
+
+
+def image_paths_for(component):
+    return COMPONENT_IMAGE_PATHS.get(component, DEFAULT_IMAGE_PATHS)
+
 
 def load_yaml(path):
     return yaml.safe_load(path.read_text(encoding="utf-8"))

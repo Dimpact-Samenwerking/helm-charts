@@ -16,9 +16,9 @@ convention — "ghcr.io/..." vs a bare "org/repo" implying Docker Hub).
 The one thing that can't be derived automatically: a chart's values.yaml
 mixes the app's own image with independently-versioned sidecars (ZAC alone
 ships 10+ images — opa, solr, zookeeper, curl, gotenberg...), and nothing
-in the chart says which one is "the app". COMPONENT_IMAGE_PATHS below is
-that one small hint — just a values.yaml path, not a registry or repo — and
-only needed for multi-image components; anything else defaults to the
+in the chart says which one is "the app". lib.chart.COMPONENT_IMAGE_PATHS
+is that one small hint — just a values.yaml path, not a registry or repo —
+and only needed for multi-image components; anything else defaults to the
 top-level "image" block.
 
 Usage:
@@ -45,20 +45,11 @@ import yaml
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from lib.chart import get_path, pull_chart, pulled_chart_dir
+from lib.chart import get_path, image_paths_for, pull_chart, pulled_chart_dir
 from lib.chart import find_dependency as _find_dependency
 from lib.registry import parse_repo, registry_tag_exists
 
 CHART_YAML = SCRIPT_DIR.parents[0] / "Chart.yaml"
-
-# component (name or alias) -> dotted values.yaml path(s) for its own image
-# block(s), for components that ship more than one image that must move in
-# lockstep. Anything not listed here defaults to a single top-level "image"
-# block, which covers ordinary single-image components with no extra config.
-COMPONENT_IMAGE_PATHS = {
-    "zgw-office-addin": ["frontend.image", "backend.image"],
-}
-DEFAULT_IMAGE_PATHS = ["image"]
 
 
 def find_dependency(name_or_alias):
@@ -94,7 +85,7 @@ def main():
         chart_dir = pulled_chart_dir(tmpdir)
         values = yaml.safe_load((chart_dir / "values.yaml").read_text()) or {}
 
-        image_paths = COMPONENT_IMAGE_PATHS.get(component, DEFAULT_IMAGE_PATHS)
+        image_paths = image_paths_for(component)
         repos = []
         for path in image_paths:
             repo = get_path(values, f"{path}.repository")
@@ -103,7 +94,7 @@ def main():
         if not repos:
             print()
             print(f"FAIL: no repository found at {', '.join(image_paths)} in {chart_name}'s values.yaml "
-                  f"— wrong path? see COMPONENT_IMAGE_PATHS")
+                  f"— wrong path? see lib.chart.COMPONENT_IMAGE_PATHS")
             sys.exit(1)
 
         print(f"\nChecking app version {app_version!r} for {component}:")
