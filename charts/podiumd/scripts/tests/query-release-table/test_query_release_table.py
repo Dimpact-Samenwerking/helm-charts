@@ -112,6 +112,20 @@ def test_main_prints_matches(qrt, monkeypatch, csv_path, capsys):
     assert "5.1.0" in out
 
 
+def test_main_prints_heading_above_primary_matches(qrt, monkeypatch, csv_path, capsys):
+    """The primary matches need their own heading, distinct from "Used by
+    ...:" below them — otherwise a single-row primary match (e.g. "Zaak -
+    ZAC" itself, querying component "zac") reads as part of the used_by
+    section instead of the actual match."""
+    run_main(qrt, monkeypatch, csv_path, ["component", "zac"])
+    qrt.main()
+    out = capsys.readouterr().out
+    assert "Matches for component 'zac':" in out
+    lines = out.splitlines()
+    heading_index = lines.index("Matches for component 'zac':")
+    assert "ZAC" in lines[heading_index + 2]  # header row, then the ZAC data row
+
+
 def test_main_component_query_also_shows_used_by_matches(qrt, monkeypatch, csv_path, capsys):
     run_main(qrt, monkeypatch, csv_path, ["component", "zac"])
     qrt.main()
