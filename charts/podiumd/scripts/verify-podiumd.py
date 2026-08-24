@@ -80,19 +80,17 @@ trip:
       Neither ever fails the check yet, though: the backlog is untriaged
       and partly upstream-blocked (see lib.kube_score_check)
 
-  Last, after step 15 (not itself numbered — it's opt-in via --check-cves,
-  not part of the always-run pipeline, and deliberately placed dead last:
-  pulling and scanning every image via Docker is by far the heaviest
-  single operation in this whole script, so every cheaper step gets a
-  chance to fail fast first): every unique digest-pinned image is scanned
-  for known CVEs with a fix available, via a per-image
-  `docker run aquasec/trivy:latest` (same tool this repo already scans
-  images with in .github/workflows/trivy-vuln-scanner.yaml). Report-only,
-  never fails regardless of severity — a HIGH/CRITICAL finding is a
-  triage decision for a human, not a chart-correctness fact (see
-  lib.cve_check).
+  16. every unique digest-pinned image is scanned for known CVEs with a fix
+      available, via a per-image `docker run aquasec/trivy:latest` (same
+      tool this repo already scans images with in
+      .github/workflows/trivy-vuln-scanner.yaml). Deliberately last: pulling
+      and scanning every image via Docker is by far the heaviest single
+      operation in this whole script, so every cheaper step gets a chance
+      to fail fast first. Report-only, never fails regardless of severity —
+      a HIGH/CRITICAL finding is a triage decision for a human, not a
+      chart-correctness fact (see lib.cve_check)
 
-  Steps 12-15's "partner vendor" carve-out (see lib.render_scope.friendly_vendor_charts):
+  Steps 12-16's "partner vendor" carve-out (see lib.render_scope.friendly_vendor_charts):
   Maykin, Info(NL), ICATT, Worth, WeAreFrank, Dimpact, and any local
   ("file://") dependency are close/collaborative enough that their
   findings are worth seeing individually, even though this repo still
@@ -102,12 +100,14 @@ trip:
   only ever scan this chart's own templates/checked-out sub-charts, never
   a vendored sub-chart's rendered content.
 
-Steps 12-15 each need an external tool (yamllint/kubeconform/shellcheck/
-kube-score, respectively) beyond helm — run --help for exactly which
-binary/package each one needs, and the --skip-<name> flag to bypass a
-missing one (skipping means that check doesn't run, not that it passes).
-Steps 4-6 are pure-Python filesystem/textual scans and need no
-external tool.
+Steps 12-16 each need an external tool (yamllint/kubeconform/shellcheck/
+kube-score/docker+trivy, respectively) beyond helm — run --help for exactly
+which binary/package each one needs, and the --skip-<name> flag to bypass a
+missing one (skipping means that check doesn't run, not that it passes;
+step 16 is the one exception — a missing docker makes it report itself
+skipped rather than failed, since it was designed as non-blocking even
+before it joined the regular --skip-*/--only-* pipeline). Steps 4-6 are
+pure-Python filesystem/textual scans and need no external tool.
 
 Stops at the first failing step and prints a PASS/FAIL summary table, mirroring
 the /helm-precommit workflow (BOM check, dupe check, lint, full render) plus
@@ -140,7 +140,19 @@ Usage:
         # --skip-node-selector, --skip-vendored-tgz, --skip-docs-consistency,
         # --skip-image-digests, --skip-lint, --skip-full-render,
         # --skip-yamllint, --skip-kubeconform, --skip-shellcheck,
-        # --skip-kube-score. See --help for the full list.
+        # --skip-kube-score, --skip-check-cves. See --help for the full list.
+        # Note: --skip-check-cves is the flag to reach for if you just want
+        # a normal run WITHOUT pulling every image via Docker — step 16 now
+        # runs by default like every other step (no more separate opt-in
+        # flag), so that's the one most worth skipping day to day.
+    verify-podiumd.py --only-kube-score
+        # the inverse of --skip-*: run ONLY the named step (plus whatever
+        # step it needs as a prerequisite — e.g. --only-kube-score also
+        # runs "Dependencies" first, since kube-score's render would
+        # otherwise fail with unresolved sub-charts). Every other step
+        # shows as SKIP. Exactly one --only-<step> at a time, and it
+        # cannot be combined with --skip-<step> (nothing left to skip
+        # once everything but the target is already skipped).
 
 Exit code is non-zero if any check fails — safe to use as a CI gate.
 """
@@ -401,7 +413,43 @@ SKIPPABLE_STEPS = [
     ("kubeconform", "kubeconform"),
     ("shellcheck", "shellcheck"),
     ("kube-score", "kube-score"),
+    ("check-cves", "CVE scan"),
 ]
+
+# step name -> the step(s) it needs to have actually run first, for
+# --only-<step> (see prerequisites_for). Every render-based check
+# (lint/full-render/yamllint/kubeconform/shellcheck/kube-score) needs
+# "Dependencies" to have populated charts/*.tgz first, or its own `helm
+# template`/`helm lint` call fails on unresolved sub-charts — "CVE scan"
+# does its own `helm template` call internally for the same reason. A step
+# not listed here has no prerequisite (it works standalone on
+# values.yaml/the filesystem/the registry, same as it does in the normal
+# full run).
+STEP_PREREQUISITES = {
+    "Lint": ("Dependencies",),
+    "Full render": ("Dependencies",),
+    "yamllint": ("Dependencies",),
+    "kubeconform": ("Dependencies",),
+    "shellcheck": ("Dependencies",),
+    "kube-score": ("Dependencies",),
+    "CVE scan": ("Dependencies",),
+}
+
+
+def prerequisites_for(step_name):
+    """Transitive closure of STEP_PREREQUISITES for step_name. Currently
+    only one level deep, but resolved as a closure rather than a single
+    lookup so a future chained prerequisite doesn't silently go missing —
+    order doesn't matter here, since run_step() below runs steps in the
+    pipeline's own fixed order regardless of this set's iteration order."""
+    resolved = set()
+    stack = list(STEP_PREREQUISITES.get(step_name, ()))
+    while stack:
+        step = stack.pop()
+        if step not in resolved:
+            resolved.add(step)
+            stack.extend(STEP_PREREQUISITES.get(step, ()))
+    return resolved
 
 
 REQUIRED_TOOLS_HELP = """
@@ -414,6 +462,10 @@ locally):
   kubeconform  kubeconform check           (https://github.com/yannh/kubeconform — single static binary)
   shellcheck   shellcheck check            (apt package "shellcheck", or https://www.shellcheck.net)
   kube-score   kube-score check            (https://github.com/zegl/kube-score — single static binary)
+  docker       CVE scan (pulls trivy + every pinned image — the one exception
+               to "missing tool fails the check": no docker just reports the
+               scan as skipped, since it was already designed to never block
+               a run over infrastructure it can't assume everyone has)
 """
 
 
@@ -426,22 +478,35 @@ def main():
                              "against — a bare version (e.g. 4.8.5) is resolved to the podiumd-4.8.5 "
                              "tag, falling back to the feature/podiumd-4.8.5 branch; anything else is "
                              "used as a literal git ref")
-    parser.add_argument("--check-cves", action="store_true",
-                        help='opt-in: scan every unique digest-pinned image for known CVEs with '
-                             'a fix available (docker run aquasec/trivy:latest) — pulls every '
-                             'image, can take several minutes, needs Docker. Report-only, never '
-                             'fails regardless of severity found. Not run by default and not '
-                             'part of --skip-* (there is nothing to skip if it never runs unless '
-                             'asked for)')
     for flag, step_name in SKIPPABLE_STEPS:
         parser.add_argument(f"--skip-{flag}", action="store_true",
                              help=f'skip the "{step_name}" check (e.g. to iterate faster, or work '
                                   f'around a known-broken step) — shown as SKIP in the summary, never '
                                   f'counted as a failure')
+    for flag, step_name in SKIPPABLE_STEPS:
+        parser.add_argument(f"--only-{flag}", action="store_true",
+                             help=f'run ONLY the "{step_name}" check, plus any step it needs as a '
+                                  f'prerequisite (see STEP_PREREQUISITES) — every other step shows '
+                                  f'as SKIP. Exactly one --only-<step> at a time; cannot combine '
+                                  f'with --skip-<step>')
     args = parser.parse_args()
 
-    skipped_steps = {step_name for flag, step_name in SKIPPABLE_STEPS
-                      if getattr(args, f"skip_{flag.replace('-', '_')}")}
+    skip_flags = [flag for flag, _ in SKIPPABLE_STEPS if getattr(args, f"skip_{flag.replace('-', '_')}")]
+    only_flags = [flag for flag, _ in SKIPPABLE_STEPS if getattr(args, f"only_{flag.replace('-', '_')}")]
+
+    if only_flags and skip_flags:
+        parser.error("--only-<step> cannot be combined with --skip-<step>")
+    if len(only_flags) > 1:
+        parser.error(f"only one --only-<step> may be given at a time (got: "
+                      f"{', '.join('--only-' + f for f in only_flags)})")
+
+    only_flag = only_flags[0] if only_flags else None
+    if only_flag:
+        target_step = dict(SKIPPABLE_STEPS)[only_flag]
+        runnable = prerequisites_for(target_step) | {target_step}
+        skipped_steps = {step_name for _, step_name in SKIPPABLE_STEPS if step_name not in runnable}
+    else:
+        skipped_steps = {dict(SKIPPABLE_STEPS)[flag] for flag in skip_flags}
 
     require_helm()
 
@@ -454,7 +519,10 @@ def main():
     def run_step(name, title, func, *fargs):
         log(title)
         if name in skipped_steps:
-            print(f"SKIPPED (--skip-{dict((n, f) for f, n in SKIPPABLE_STEPS)[name]})")
+            if only_flag:
+                print(f"SKIPPED (--only-{only_flag} given — not required for it)")
+            else:
+                print(f"SKIPPED (--skip-{dict((n, f) for f, n in SKIPPABLE_STEPS)[name]})")
             results.append((name, None, "skipped"))
             return
         ok, detail = func(*fargs)
@@ -489,15 +557,7 @@ def main():
     run_step("kubeconform", "kubeconform (rendered output)", check_kubeconform, chart_dir, extra_args)
     run_step("shellcheck", "shellcheck (embedded shell scripts)", check_shellcheck, chart_dir, extra_args)
     run_step("kube-score", "kube-score (resource requests/limits)", check_kube_score, chart_dir, extra_args)
-
-    log("Scanning pinned images for known CVEs (trivy)")
-    if args.check_cves:
-        ok, detail = check_cves(chart_dir, extra_args)
-        results.append(("CVE scan", ok, detail))
-    else:
-        print("SKIPPED (opt-in only — pass --check-cves to run; pulls every pinned image via "
-              "Docker, so this can take several minutes)")
-        results.append(("CVE scan", None, "skipped (opt-in, use --check-cves)"))
+    run_step("CVE scan", "Scanning pinned images for known CVEs (trivy)", check_cves, chart_dir, extra_args)
 
     print_summary(results, overall_ok=True)
 
