@@ -126,6 +126,7 @@ def test_main_skips_requested_steps_and_runs_the_rest(vp, monkeypatch, capsys):
     monkeypatch.setattr(vp, "check_kubeconform", make_check("kubeconform"))
     monkeypatch.setattr(vp, "check_shellcheck", make_check("shellcheck"))
     monkeypatch.setattr(vp, "check_kube_score", make_check("kube-score"))
+    monkeypatch.setattr(vp, "check_image_upgrades", make_check("image-upgrades"))
     monkeypatch.setattr(vp, "check_cves", make_check("cves"))
 
     def fail_if_called(*args):
@@ -137,7 +138,7 @@ def test_main_skips_requested_steps_and_runs_the_rest(vp, monkeypatch, capsys):
     vp.main()  # must not raise / must not sys.exit
 
     assert ran == ["utf8", "dupe", "dry", "image-refs", "node-selector", "tgz", "docs", "digests",
-                    "deps", "yamllint", "kubeconform", "shellcheck", "kube-score", "cves"]
+                    "deps", "yamllint", "kubeconform", "shellcheck", "kube-score", "image-upgrades", "cves"]
     out = capsys.readouterr().out
     assert "Lint" in out and "SKIP" in out
     assert "Full render" in out and "SKIP" in out
@@ -203,6 +204,7 @@ def _stub_all_checks(vp, monkeypatch, ran):
     monkeypatch.setattr(vp, "check_kubeconform", make_check("kubeconform"))
     monkeypatch.setattr(vp, "check_shellcheck", make_check("shellcheck"))
     monkeypatch.setattr(vp, "check_kube_score", make_check("kube-score"))
+    monkeypatch.setattr(vp, "check_image_upgrades", make_check("image-upgrades"))
     monkeypatch.setattr(vp, "check_cves", make_check("cves"))
 
 
@@ -300,6 +302,28 @@ def test_only_check_cves_runs_it_plus_dependencies(vp, monkeypatch):
     vp.main()
 
     assert ran == ["deps", "cves"]
+
+
+def test_skip_image_upgrades_skips_it(vp, monkeypatch, capsys):
+    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--skip-image-upgrades"])
+    ran = []
+    _stub_all_checks(vp, monkeypatch, ran)
+
+    vp.main()
+
+    assert "image-upgrades" not in ran
+    out = capsys.readouterr().out
+    assert "Image upgrades" in out and "SKIP" in out
+
+
+def test_only_image_upgrades_runs_it_plus_dependencies(vp, monkeypatch):
+    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--only-image-upgrades"])
+    ran = []
+    _stub_all_checks(vp, monkeypatch, ran)
+
+    vp.main()
+
+    assert ran == ["deps", "image-upgrades"]
 
 
 def test_detail_flag_defaults_false_and_is_passed_to_check_cves(vp, monkeypatch):

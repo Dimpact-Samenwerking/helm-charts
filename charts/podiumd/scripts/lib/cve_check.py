@@ -48,17 +48,13 @@ disabled in the CI values) — matches a Chart.yaml dependency name/alias
 means vendored, anything else means a podiumd-owned template configures
 it.
 
-For every image with at least one finding, also checks the registry
-(cheap — a tag list, no image pull) for the newest published tag sharing
-its variant/suffix: "newer tag available" if one exists (worth checking
-whether it includes a fix), or an explicit "no fix available yet" if the
-pinned tag already IS the newest published one in that line. This is
-never cached (tags get published between runs even for an unchanged
-pinned digest) and only ever a "is it worth looking" pointer — nothing in
-this repo can prove a candidate tag actually fixes a given CVE without
-scanning it.
+Whether a newer tag is published at all (regardless of whether it fixes
+anything) is a separate, standalone check — see lib.image_upgrade_check —
+split out from here since the two questions are independent: a newer tag
+existing doesn't mean it fixes a given CVE, and that check's answer is
+useful even for an image with zero findings here.
 
-Scan results themselves ARE cached by (repository, digest) in
+Scan results are cached by (repository, digest) in
 charts/podiumd/cve-scan-cache.json — deliberately tracked chart content,
 NOT gitignored, so the cache travels with whatever branch/checkout
 someone is on and other contributors (and CI) don't re-pull-and-rescan an
@@ -75,8 +71,8 @@ otherwise bloat the committed file for no reporting benefit. FixedVersion
 in particular is never shown: this repo only ever pins a base image
 tag/digest, never an individual OS/language package version inside that
 image, so "upgrade to version X" for one bundled package isn't an
-actionable step here — the actionable step (a newer image tag) is
-already reported per-image via describe_newest_tag. Living at
+actionable step here — whether a newer image tag exists at all is
+lib.image_upgrade_check's job, not this module's. Living at
 the chart root (not under scripts/) is deliberate: unlike this check's own
 code (feature/podiumd-scripts only, copied in untracked when needed
 elsewhere), the cache is chart content tied to a specific branch's
@@ -85,14 +81,13 @@ release/content branches."""
 import json
 import re
 import shutil
-import urllib.error
 from collections import Counter
 from datetime import datetime, timedelta, timezone
 
 from lib.chart import load_yaml
 from lib.image_digests import scan_digest_pins
 from lib.procutil import run
-from lib.registry import find_newest_same_variant_tag, parse_repo
+from lib.registry import parse_repo
 from lib.render_scope import (
     CHART_NAME, OWN_TEMPLATES_PREFIX, chart_name_from_source, friendly_vendor_charts,
     split_rendered_by_source, supports_skip_schema_validation,
@@ -263,21 +258,6 @@ def render_image_labels(rendered_text, vendor_map):
     return labels
 
 
-def describe_newest_tag(host, repo_path, version):
-    """"newer tag available: X" if a numerically-newer same-variant tag is
-    currently published, else an explicit "no fix available yet" — never
-    cached (unlike the vulnerability scan itself): new tags can appear
-    between runs even for an unchanged pinned digest, and this is a single
-    cheap tag-list call, not an image pull."""
-    try:
-        newest = find_newest_same_variant_tag(host, repo_path, version)
-    except (urllib.error.URLError, OSError):
-        return "could not check the registry for a newer tag (network error)"
-    if newest == version:
-        return "newest tag already - no fix available"
-    return f"newer tag available: {newest} — check whether it includes a fix"
-
-
 def check_cves(chart_dir, extra_args, detail=False):
     if shutil.which("docker") is None:
         return True, "docker is not installed — skipped (see --help)"
@@ -347,7 +327,6 @@ def check_cves(chart_dir, extra_args, detail=False):
         images[image_ref] = {
             "bucket": bucket_of(label),
             "vendor_label": label if bucket_of(label) == "partner" else None,
-            "host": host, "repo_path": repo_path, "version": version,
             "vulns": vulns,
         }
 
@@ -458,8 +437,7 @@ def print_bucket_report(title, refs, images, detail_level):
     for ref in refs:
         info = images[ref]
         vendor = f" [{info['vendor_label']}]" if info["vendor_label"] else ""
-        newest = describe_newest_tag(info["host"], info["repo_path"], info["version"])
-        print(f"{ref}{vendor}: {newest}")
+        print(f"{ref}{vendor}")
 
         if detail_level == "totals":
             print_severity_totals_line(info["vulns"])
