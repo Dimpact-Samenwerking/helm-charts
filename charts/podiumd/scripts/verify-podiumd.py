@@ -470,6 +470,12 @@ def prerequisites_for(step_name):
     return resolved
 
 
+# Rendered into --help's epilog (see main()) — built from SKIPPABLE_STEPS
+# rather than a hand-maintained list, so it can't drift out of sync with it.
+STEPS_HELP = "\nSteps usable with --skip=/--include= (in run order):\n" + "\n".join(
+    f"  {flag:<18}{step_name}" for flag, step_name in SKIPPABLE_STEPS
+) + "\n"
+
 REQUIRED_TOOLS_HELP = """
 Required external tools (each is only needed for the check(s) noted; a
 missing tool makes that check fail with a clear message — add its step to
@@ -488,7 +494,7 @@ missing tool makes that check fail with a clear message — add its step to
 
 def main():
     parser = argparse.ArgumentParser(description="Verify the podiumd chart.",
-                                     epilog=REQUIRED_TOOLS_HELP,
+                                     epilog=STEPS_HELP + REQUIRED_TOOLS_HELP,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--baseline", default=None,
                         help="baseline release to also check the upgrade doc's SOURCE versions "
@@ -499,17 +505,16 @@ def main():
                         help="CVE scan: itemize CRITICAL/HIGH findings per affected package for "
                              "EVERY image bucket (own, partner-vendor, AND other-vendor), not just "
                              "the terse per-image severity totals a normal run prints")
-    step_names = ", ".join(flag for flag, _ in SKIPPABLE_STEPS)
     parser.add_argument("--skip", default=None, metavar="STEP1,STEP2,...",
-                        help=f"comma-separated (no spaces) list of steps to skip (e.g. to iterate "
-                             f"faster, or work around a known-broken step) — shown as SKIP in the "
-                             f"summary, never counted as a failure. Cannot combine with --include. "
-                             f"Valid steps: {step_names}")
+                        help="comma-separated (no spaces) list of steps to skip (e.g. to iterate "
+                             "faster, or work around a known-broken step) — shown as SKIP in the "
+                             "summary, never counted as a failure. Cannot combine with --include. "
+                             "See the step list below")
     parser.add_argument("--include", default=None, metavar="STEP1,STEP2,...",
-                        help=f"comma-separated (no spaces) list of steps to run — plus any step(s) "
-                             f"each one needs as a prerequisite (see STEP_PREREQUISITES). Every step "
-                             f"not included (directly or as a prerequisite of an included step) shows "
-                             f"as SKIP. Cannot combine with --skip. Valid steps: {step_names}")
+                        help="comma-separated (no spaces) list of steps to run — plus any step(s) "
+                             "each one needs as a prerequisite (see STEP_PREREQUISITES). Every step "
+                             "not included (directly or as a prerequisite of an included step) shows "
+                             "as SKIP. Cannot combine with --skip. See the step list below")
     args = parser.parse_args()
 
     valid_flags = {flag for flag, _ in SKIPPABLE_STEPS}

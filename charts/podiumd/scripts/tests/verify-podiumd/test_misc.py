@@ -93,6 +93,25 @@ def test_skippable_steps_flags_are_unique_and_kebab_case(vp):
         assert " " not in flag
 
 
+def test_steps_help_lists_every_step_flag_and_title(vp):
+    """--help must actually tell you which step names --skip=/--include=
+    accept — a prior version buried that list only inside the (wrapped,
+    easy-to-miss) --skip/--include option help text."""
+    for flag, step_name in vp.SKIPPABLE_STEPS:
+        assert flag in vp.STEPS_HELP
+        assert step_name in vp.STEPS_HELP
+
+
+def test_steps_help_is_in_argparse_epilog(vp, monkeypatch, capsys):
+    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--help"])
+    with pytest.raises(SystemExit) as exc_info:
+        vp.main()
+    assert exc_info.value.code == 0
+    out = capsys.readouterr().out
+    assert "Steps usable with --skip=/--include=" in out
+    assert "kube-score" in out
+
+
 # --- main(): --skip= end-to-end ---
 
 def test_main_skips_requested_steps_and_runs_the_rest(vp, monkeypatch, capsys):
