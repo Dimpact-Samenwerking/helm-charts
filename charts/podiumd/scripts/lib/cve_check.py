@@ -16,15 +16,21 @@ HIGH/CRITICAL CVE with a fix available is a triage decision for a human
 (is the fix actually reachable here, is the severity exploitable in this
 deployment, ...), not a chart-correctness fact this script can gate on.
 
-Scan results are cached by (repository, digest) in .cache/cve-scan-cache.json
-at the repo root (.cache/ is already gitignored repo-wide — same convention
-/helm-docs-check uses for its own binary cache) so a run doesn't re-pull and
-re-scan an image whose pin hasn't changed since last time. Keyed on digest,
-not version, so a sliding tag republished under the same version string
-still invalidates correctly. Capped by CVE_CACHE_TTL_DAYS even for an
-unchanged digest — the image content never changes, but trivy's own
-vulnerability DB does, so a digest that scanned clean a month ago may have
-a newly-disclosed CVE against it today."""
+Scan results are cached by (repository, digest) in
+charts/podiumd/cve-scan-cache.json — deliberately tracked chart content,
+NOT gitignored, so the cache travels with whatever branch/checkout
+someone is on and other contributors (and CI) don't re-pull-and-rescan an
+image someone else already scanned on that same branch. Commit it after
+a --check-cves run if it changed. Keyed on digest, not version, so a
+sliding tag republished under the same version string still invalidates
+correctly. Capped by CVE_CACHE_TTL_DAYS even for an unchanged digest — the
+image content never changes, but trivy's own vulnerability DB does, so a
+digest that scanned clean a month ago may have a newly-disclosed CVE
+against it today. Living at the chart root (not under scripts/) is
+deliberate: unlike this check's own code (which only ever exists on
+feature/podiumd-scripts and is copied in untracked when needed elsewhere),
+the cache is chart content tied to a specific branch's values.yaml pins —
+it belongs on and travels with the actual release/content branches."""
 import json
 import shutil
 from datetime import datetime, timedelta, timezone
@@ -45,14 +51,13 @@ SEVERITY_ORDER = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN"]
 # a CVE disclosed against that digest after it was last scanned.
 CVE_CACHE_TTL_DAYS = 7
 
-CACHE_RELATIVE_PATH = (".cache", "cve-scan-cache.json")
+CACHE_FILENAME = "cve-scan-cache.json"
 
 
 def cache_path(chart_dir):
-    """.cache/cve-scan-cache.json at the repo root. chart_dir is always
-    <repo>/charts/podiumd (this script's own DEFAULT_CHART_DIR), so the
-    repo root is two levels up."""
-    return chart_dir.parent.parent.joinpath(*CACHE_RELATIVE_PATH)
+    """charts/podiumd/cve-scan-cache.json — tracked chart content (see
+    module docstring), not gitignored."""
+    return chart_dir / CACHE_FILENAME
 
 
 def load_cache(chart_dir):
@@ -184,6 +189,10 @@ def check_cves(chart_dir):
         print(f"{len(scan_errors)} image(s) could not be scanned: {', '.join(scan_errors)}")
     print(f"{cache_hits}/{len(targets)} image(s) served from cache (unchanged digest, "
           f"scanned within the last {CVE_CACHE_TTL_DAYS} days)")
+
+    if new_cache != old_cache:
+        print(f"{cache_path(chart_dir)} changed — commit it so other contributors and CI "
+              f"don't re-scan these same images.")
 
     detail = (f"{len(findings)} CVE(s) across {len(targets)} image(s), {cache_hits} cached, "
               f"{len(scan_errors)} scan error(s)")
