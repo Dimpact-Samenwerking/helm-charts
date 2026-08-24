@@ -10,8 +10,9 @@ MEDIUM/LOW/UNKNOWN still only totaled per image, for every bucket including
 other-vendor. Cached by (repository, digest) in charts/podiumd/cve-scan-cache.json —
 tracked chart content, not gitignored, so the cache is committed and
 shared across contributors/CI. No real docker/trivy/registry invocation
-happens in these tests — `run` and `find_newest_same_variant_tag` are
-mocked throughout."""
+happens in these tests — `run` is mocked throughout. Whether a newer tag
+is published at all is lib.image_upgrade_check's job now, not this
+module's — see tests/verify-podiumd/test_image_upgrade_check.py."""
 import json
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
@@ -127,12 +128,6 @@ def sequenced_run(rendered=RENDERED, trivy_by_image=None, ks_returncode=0):
     return run
 
 
-def no_newer_tag(libcvecheck, monkeypatch):
-    """Every image is already on the newest published tag — the common
-    case in tests that don't care about this specific behavior."""
-    monkeypatch.setattr(libcvecheck, "find_newest_same_variant_tag", lambda host, repo, version: version)
-
-
 # --- run_trivy ---
 
 def test_run_trivy_trims_vulnerabilities_to_reporting_fields(libcvecheck, monkeypatch):
@@ -246,11 +241,11 @@ def test_print_package_line_summarizes_above_threshold(libcvecheck, capsys):
 def test_print_package_line_never_shows_fix_version(libcvecheck, capsys):
     """FixedVersion is an internal detail of the base image (an OS/language
     package version), not something this repo pins or can bump directly —
-    only a newer image tag is actionable, and that's already reported once
-    per image via describe_newest_tag. A distro package patched across many
-    piecemeal security advisories (e.g. Debian's bind9-dnsutils) can carry
-    a wildly different FixedVersion per CVE, which is exactly why showing
-    any of them here would be both noisy and misleading."""
+    whether a newer image tag exists at all is lib.image_upgrade_check's
+    job, not this one's. A distro package patched across many piecemeal
+    security advisories (e.g. Debian's bind9-dnsutils) can carry a wildly
+    different FixedVersion per CVE, which is exactly why showing any of
+    them here would be both noisy and misleading."""
     vulns_for_pkg = [
         vuln("HIGH", cve="CVE-1", fixed="1:9.16.42-1~deb11u1"),
         vuln("HIGH", cve="CVE-2", fixed="1:9.16.50-1~deb11u6"),
@@ -261,31 +256,6 @@ def test_print_package_line_never_shows_fix_version(libcvecheck, capsys):
     assert "bind9-dnsutils: HIGH CVE-1, HIGH CVE-2, HIGH CVE-3" in out
     assert "9.16" not in out
     assert "->" not in out
-
-
-# --- describe_newest_tag ---
-
-def test_describe_newest_tag_newer_available(libcvecheck, monkeypatch):
-    monkeypatch.setattr(libcvecheck, "find_newest_same_variant_tag", lambda host, repo, version: "1.1.0")
-    out = libcvecheck.describe_newest_tag("docker.io", "org/repo", "1.0.0")
-    assert "newer tag available: 1.1.0" in out
-
-
-def test_describe_newest_tag_already_latest(libcvecheck, monkeypatch):
-    monkeypatch.setattr(libcvecheck, "find_newest_same_variant_tag", lambda host, repo, version: "1.0.0")
-    out = libcvecheck.describe_newest_tag("docker.io", "org/repo", "1.0.0")
-    assert "no fix available" in out
-
-
-def test_describe_newest_tag_network_error(libcvecheck, monkeypatch):
-    import urllib.error
-
-    def raise_error(host, repo, version):
-        raise urllib.error.URLError("boom")
-
-    monkeypatch.setattr(libcvecheck, "find_newest_same_variant_tag", raise_error)
-    out = libcvecheck.describe_newest_tag("docker.io", "org/repo", "1.0.0")
-    assert "network error" in out
 
 
 # --- check_cves: docker/render preconditions ---
@@ -318,7 +288,6 @@ def test_check_cves_render_failure_fails(vp, libcvecheck, tmp_path, monkeypatch)
 def test_check_cves_splits_own_partner_other_and_never_fails(vp, libcvecheck, tmp_path, monkeypatch, capsys):
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/docker")
-    no_newer_tag(libcvecheck, monkeypatch)
 
     trivy_by_image = {
         "ghcr.io/wearefrank/frank-gateway:104": trivy_result(stdout=json.dumps(
@@ -357,7 +326,6 @@ def test_check_cves_detail_itemizes_every_bucket(vp, libcvecheck, tmp_path, monk
     the full itemized CRIT/HIGH-per-package view."""
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/docker")
-    no_newer_tag(libcvecheck, monkeypatch)
 
     trivy_by_image = {
         "ghcr.io/wearefrank/frank-gateway:104": trivy_result(stdout=json.dumps(
@@ -380,16 +348,13 @@ def test_check_cves_detail_itemizes_every_bucket(vp, libcvecheck, tmp_path, monk
     assert "1 MEDIUM CVE(s)" in out  # other-vendor's MEDIUM still only totaled, even with --detail
 
 
-def test_print_bucket_report_image_line_carries_advice_then_totals_then_packages(libcvecheck, monkeypatch, capsys):
+def test_print_bucket_report_image_line_then_totals_then_packages(libcvecheck, monkeypatch, capsys):
     """Layout, top to bottom, for an itemized image: the image name+vendor
-    line carries the newest-tag advice inline (not a separate trailing
-    line), then the MEDIUM/LOW/UNKNOWN total (if any), then the per-package
+    line, then the MEDIUM/LOW/UNKNOWN total (if any), then the per-package
     CRIT/HIGH lines."""
-    monkeypatch.setattr(libcvecheck, "find_newest_same_variant_tag", lambda host, repo, version: version)
     images = {
         "docker.io/pravega/zookeeper:0.2.15": {
             "bucket": "own", "vendor_label": None,
-            "host": "docker.io", "repo_path": "pravega/zookeeper", "version": "0.2.15",
             "vulns": [
                 vuln("HIGH", cve="CVE-1", pkg="bind9-dnsutils"),
                 vuln("MEDIUM", cve="CVE-2"),
@@ -402,7 +367,6 @@ def test_print_bucket_report_image_line_carries_advice_then_totals_then_packages
 
     lines = [line for line in capsys.readouterr().out.splitlines() if line.strip()]
     header_idx = next(i for i, line in enumerate(lines) if line.startswith("docker.io/pravega/zookeeper:0.2.15"))
-    assert "newest tag already - no fix available" in lines[header_idx]
     assert "1 MEDIUM, 1 LOW CVE(s)" in lines[header_idx + 1]
     assert "bind9-dnsutils: HIGH CVE-1" in lines[header_idx + 2]
 
@@ -411,11 +375,9 @@ def test_print_bucket_report_totals_mode_never_itemizes_even_high_severity(libcv
     """Partner-vendor images (detail_level="totals") get a single per-image
     severity-totals line, covering every severity including CRIT/HIGH — no
     package breakdown, no individual CVE IDs, unlike detail_level="full"."""
-    monkeypatch.setattr(libcvecheck, "find_newest_same_variant_tag", lambda host, repo, version: version)
     images = {
         "docker.io/maykinmedia/objects-api:1.0.0": {
             "bucket": "partner", "vendor_label": "Maykin",
-            "host": "docker.io", "repo_path": "maykinmedia/objects-api", "version": "1.0.0",
             "vulns": [
                 vuln("CRITICAL", cve="CVE-1", pkg="openssl"),
                 vuln("HIGH", cve="CVE-2", pkg="openssl"),
@@ -466,7 +428,6 @@ def test_check_cves_heuristic_fallback_for_disabled_component(vp, libcvecheck, t
     )
     chart_dir = make_chart_dir(tmp_path, values=values)
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/docker")
-    no_newer_tag(libcvecheck, monkeypatch)
 
     trivy_by_image = {
         "docker.io/org/apiproxy:1.0.0": trivy_result(stdout=json.dumps(
@@ -491,7 +452,6 @@ def test_check_cves_heuristic_fallback_for_disabled_component(vp, libcvecheck, t
 def test_check_cves_cache_miss_scans_and_persists(vp, libcvecheck, tmp_path, monkeypatch, capsys):
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/docker")
-    no_newer_tag(libcvecheck, monkeypatch)
     monkeypatch.setattr(libcvecheck, "run", sequenced_run())
 
     ok, detail = vp.check_cves(chart_dir, [])
@@ -506,7 +466,6 @@ def test_check_cves_cache_miss_scans_and_persists(vp, libcvecheck, tmp_path, mon
 def test_check_cves_cache_hit_skips_scanning(vp, libcvecheck, tmp_path, monkeypatch, capsys):
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/docker")
-    no_newer_tag(libcvecheck, monkeypatch)
     key = libcvecheck.cache_key("ghcr.io/wearefrank/frank-gateway", DIGEST_A)
     libcvecheck.save_cache(chart_dir, {
         key: {"scanned_at": datetime.now(timezone.utc).isoformat(),
@@ -534,7 +493,6 @@ def test_check_cves_cache_hit_skips_scanning(vp, libcvecheck, tmp_path, monkeypa
 def test_check_cves_expired_cache_entry_rescans(vp, libcvecheck, tmp_path, monkeypatch, capsys):
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/docker")
-    no_newer_tag(libcvecheck, monkeypatch)
     key = libcvecheck.cache_key("ghcr.io/wearefrank/frank-gateway", DIGEST_A)
     stale = datetime.now(timezone.utc) - timedelta(days=libcvecheck.CVE_CACHE_TTL_DAYS + 1)
     libcvecheck.save_cache(chart_dir, {
@@ -552,7 +510,6 @@ def test_check_cves_expired_cache_entry_rescans(vp, libcvecheck, tmp_path, monke
 def test_check_cves_prunes_entries_for_unpinned_images(vp, libcvecheck, tmp_path, monkeypatch):
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/docker")
-    no_newer_tag(libcvecheck, monkeypatch)
     stale_key = "org/gone@sha256:" + "e" * 64
     libcvecheck.save_cache(chart_dir, {
         stale_key: {"scanned_at": datetime.now(timezone.utc).isoformat(), "vulnerabilities": []},

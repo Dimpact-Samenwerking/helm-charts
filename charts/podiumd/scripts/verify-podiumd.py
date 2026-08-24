@@ -80,7 +80,14 @@ trip:
       Neither ever fails the check yet, though: the backlog is untriaged
       and partly upstream-blocked (see lib.kube_score_check)
 
-  16. every unique digest-pinned image is scanned for known CVEs with a fix
+  16. every unique digest-pinned image has its own newest same-variant tag
+      looked up on its upstream registry (a tag-list call, no image pull —
+      cached by (repository, version), see lib.image_upgrade_check) —
+      "upgradeable" if a numerically-newer tag is currently published,
+      regardless of whether it fixes anything (that's step 17's job).
+      Report-only, never fails (see lib.image_upgrade_check)
+
+  17. every unique digest-pinned image is scanned for known CVEs with a fix
       available, via a per-image `docker run aquasec/trivy:latest` (same
       tool this repo already scans images with in
       .github/workflows/trivy-vuln-scanner.yaml). Deliberately last: pulling
@@ -90,7 +97,7 @@ trip:
       a HIGH/CRITICAL finding is a triage decision for a human, not a
       chart-correctness fact (see lib.cve_check)
 
-  Steps 12-16's "partner vendor" carve-out (see lib.render_scope.friendly_vendor_charts):
+  Steps 12-17's "partner vendor" carve-out (see lib.render_scope.friendly_vendor_charts):
   Maykin, Info(NL), ICATT, Worth, WeAreFrank, Dimpact, and any local
   ("file://") dependency are close/collaborative enough that their
   findings are worth seeing individually, even though this repo still
@@ -100,14 +107,15 @@ trip:
   only ever scan this chart's own templates/checked-out sub-charts, never
   a vendored sub-chart's rendered content.
 
-Steps 12-16 each need an external tool (yamllint/kubeconform/shellcheck/
-kube-score/docker+trivy, respectively) beyond helm — run --help for exactly
-which binary/package each one needs, and the --skip-<name> flag to bypass a
-missing one (skipping means that check doesn't run, not that it passes;
-step 16 is the one exception — a missing docker makes it report itself
-skipped rather than failed, since it was designed as non-blocking even
-before it joined the regular --skip-*/--only-* pipeline). Steps 4-6 are
-pure-Python filesystem/textual scans and need no external tool.
+Steps 12-17 each need an external tool (yamllint/kubeconform/shellcheck/
+kube-score/none (just network)/docker+trivy, respectively) beyond helm —
+run --help for exactly which binary/package each one needs, and the
+--skip-<name> flag to bypass a missing one (skipping means that check
+doesn't run, not that it passes; step 17 is the one exception — a missing
+docker makes it report itself skipped rather than failed, since it was
+designed as non-blocking even before it joined the regular --skip-*/
+--only-* pipeline). Steps 4-6 are pure-Python filesystem/textual scans and
+need no external tool.
 
 Stops at the first failing step and prints a PASS/FAIL summary table, mirroring
 the /helm-precommit workflow (BOM check, dupe check, lint, full render) plus
@@ -140,7 +148,8 @@ Usage:
         # --skip-node-selector, --skip-vendored-tgz, --skip-docs-consistency,
         # --skip-image-digests, --skip-lint, --skip-full-render,
         # --skip-yamllint, --skip-kubeconform, --skip-shellcheck,
-        # --skip-kube-score, --skip-check-cves. See --help for the full list.
+        # --skip-kube-score, --skip-image-upgrades, --skip-check-cves.
+        # See --help for the full list.
         # Note: --skip-check-cves is the flag to reach for if you just want
         # a normal run WITHOUT pulling every image via Docker — step 16 now
         # runs by default like every other step (no more separate opt-in
@@ -182,6 +191,7 @@ from lib.procutil import run
 from lib.dry_check import check_dry
 from lib.image_digests import check_image_digests
 from lib.cve_check import check_cves
+from lib.image_upgrade_check import check_image_upgrades
 from lib.image_references_check import check_image_references
 from lib.node_selector_check import check_node_selector
 from lib.docs_consistency import check_docs_consistency
@@ -417,6 +427,7 @@ SKIPPABLE_STEPS = [
     ("kubeconform", "kubeconform"),
     ("shellcheck", "shellcheck"),
     ("kube-score", "kube-score"),
+    ("image-upgrades", "Image upgrades"),
     ("check-cves", "CVE scan"),
 ]
 
@@ -424,11 +435,11 @@ SKIPPABLE_STEPS = [
 # --only-<step> (see prerequisites_for). Every render-based check
 # (lint/full-render/yamllint/kubeconform/shellcheck/kube-score) needs
 # "Dependencies" to have populated charts/*.tgz first, or its own `helm
-# template`/`helm lint` call fails on unresolved sub-charts — "CVE scan"
-# does its own `helm template` call internally for the same reason. A step
-# not listed here has no prerequisite (it works standalone on
-# values.yaml/the filesystem/the registry, same as it does in the normal
-# full run).
+# template`/`helm lint` call fails on unresolved sub-charts — "Image
+# upgrades" and "CVE scan" each do their own `helm template` call
+# internally for the same reason. A step not listed here has no
+# prerequisite (it works standalone on values.yaml/the filesystem/the
+# registry, same as it does in the normal full run).
 STEP_PREREQUISITES = {
     "Lint": ("Dependencies",),
     "Full render": ("Dependencies",),
@@ -436,6 +447,7 @@ STEP_PREREQUISITES = {
     "kubeconform": ("Dependencies",),
     "shellcheck": ("Dependencies",),
     "kube-score": ("Dependencies",),
+    "Image upgrades": ("Dependencies",),
     "CVE scan": ("Dependencies",),
 }
 
@@ -565,6 +577,7 @@ def main():
     run_step("kubeconform", "kubeconform (rendered output)", check_kubeconform, chart_dir, extra_args)
     run_step("shellcheck", "shellcheck (embedded shell scripts)", check_shellcheck, chart_dir, extra_args)
     run_step("kube-score", "kube-score (resource requests/limits)", check_kube_score, chart_dir, extra_args)
+    run_step("Image upgrades", "Checking for newer published tags", check_image_upgrades, chart_dir, extra_args)
     run_step("CVE scan", "Scanning pinned images for known CVEs (trivy)", check_cves, chart_dir, extra_args,
               args.detail_cve_check)
 
