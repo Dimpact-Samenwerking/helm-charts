@@ -20,6 +20,15 @@ matching-heading table still missing a required column is skipped and
 reported, not treated as an error. Rows from every table that has them
 are concatenated into one CSV, in page order.
 
+Each of the four version values is replaced with "UNKNOWN" if it isn't
+semver-compatible (see lib.confluence_tables.is_semver_compatible) —
+catches a source typo ("3.20", missing its patch digit), two values run
+together with no separator ("5.4.3 5.4.4", from adjacent Confluence
+content blocks the page itself never actually joined), or a placeholder
+like "?". An empty cell (no version at all for that component/version
+combination) is left empty, not replaced — it isn't a malformed value,
+there's just nothing there.
+
 Column/row spans in the header (e.g. "Versie 4.8" spanning two sub-columns
 via colspan, or "Ontwikkelpartij" spanning both header rows via rowspan)
 are expanded automatically — see lib.confluence_tables.expand_grid.
@@ -55,8 +64,8 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 from lib.confluence_tables import (
     effective_header_row_count, expand_grid, extract_tables, fetch_page_html,
-    header_paths, missing_required_release_columns, select_release_columns,
-    tables_under_headings,
+    header_paths, is_semver_compatible, missing_required_release_columns,
+    select_release_columns, tables_under_headings,
 )
 
 CHART_DIR = SCRIPT_DIR.parents[0]
@@ -117,6 +126,16 @@ def parse_args():
     return parser.parse_args()
 
 
+def normalize_version(value):
+    """`value` unchanged if it's empty (no version at all for that cell —
+    not a malformed one) or already semver-compatible; otherwise
+    "UNKNOWN", flagging a value this export can't treat as a real version
+    (see is_semver_compatible for what that covers)."""
+    if not value or is_semver_compatible(value):
+        return value
+    return "UNKNOWN"
+
+
 def resolve_token(args):
     if args.token_file:
         return Path(args.token_file).read_text(encoding="utf-8").strip()
@@ -145,6 +164,7 @@ def extract_release_rows(html, headings=None):
         raise SystemExit(f"error: no table found directly under any of: {', '.join(headings)}")
 
     rows_out = []
+    unknown_count = 0
     for heading, rows in matching:
         grid = expand_grid(rows)
         header_row_count = resolve_header_row_count(rows, grid)
@@ -160,14 +180,18 @@ def extract_release_rows(html, headings=None):
             if not any(cell.strip() for cell in data_row):
                 continue
             ontwikkelpartij = data_row[columns["ontwikkelpartij"]] if columns["ontwikkelpartij"] is not None else ""
-            rows_out.append([heading, data_row[columns["first"]], ontwikkelpartij] +
-                             [data_row[columns[key]] for key in ("v48_app", "v48_helm", "v49_app", "v49_helm")])
+            versions = [normalize_version(data_row[columns[key]]) for key in
+                        ("v48_app", "v48_helm", "v49_app", "v49_helm")]
+            unknown_count += sum(1 for v in versions if v == "UNKNOWN")
+            rows_out.append([heading, data_row[columns["first"]], ontwikkelpartij] + versions)
             matched += 1
         print(f'"{heading}": {matched} row(s) matched')
 
     if not rows_out:
         raise SystemExit("error: every matching-heading table was missing a required column "
                           "(Versie 4.8/4.9 App+Helm) — see the skip reason(s) above")
+    if unknown_count:
+        print(f"{unknown_count} version value(s) were not semver-compatible — replaced with UNKNOWN")
     return rows_out
 
 

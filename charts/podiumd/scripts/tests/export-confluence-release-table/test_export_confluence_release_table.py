@@ -82,6 +82,25 @@ INCOMPLETE_UNDER_TARGET_HEADING_HTML = (
 )
 
 
+# --- normalize_version ---
+
+def test_normalize_version_leaves_valid_semver_untouched(ecrt):
+    assert ecrt.normalize_version("1.27.4") == "1.27.4"
+    assert ecrt.normalize_version("9.10.1-slim") == "9.10.1-slim"
+
+
+def test_normalize_version_leaves_empty_value_untouched(ecrt):
+    """No data at all for that cell isn't a malformed version — nothing
+    to flag."""
+    assert ecrt.normalize_version("") == ""
+
+
+def test_normalize_version_replaces_non_semver_with_unknown(ecrt):
+    assert ecrt.normalize_version("3.20") == "UNKNOWN"
+    assert ecrt.normalize_version("5.4.3 5.4.4") == "UNKNOWN"
+    assert ecrt.normalize_version("?") == "UNKNOWN"
+
+
 # --- resolve_token ---
 
 def make_args(**overrides):
@@ -156,6 +175,14 @@ def test_extract_release_rows_matches_and_reports(ecrt, capsys):
     ]
     out = capsys.readouterr().out
     assert "2 row(s) matched" in out
+
+
+def test_extract_release_rows_replaces_non_semver_version_with_unknown_and_reports_count(ecrt, capsys):
+    html = PRODUCT_TABLE_HTML.replace("<td>5.1.0</td>", "<td>3.20</td>")
+    rows = ecrt.extract_release_rows(html)
+    assert rows[0] == ["Product component versies", "ZAC", "Info(NL)", "5.0.0", "1.0.290", "UNKNOWN", "1.0.297"]
+    out = capsys.readouterr().out
+    assert "1 version value(s) were not semver-compatible — replaced with UNKNOWN" in out
 
 
 def test_extract_release_rows_ignores_table_not_under_any_target_heading(ecrt, capsys):

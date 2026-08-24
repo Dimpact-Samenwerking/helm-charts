@@ -355,3 +355,23 @@ def missing_required_release_columns(columns):
     came back unresolved (None)."""
     required_keys = [key for key, _needles, required in RELEASE_COLUMN_SPECS if required]
     return [key for key in required_keys if columns.get(key) is None]
+
+
+# semver.org's own MAJOR.MINOR.PATCH[-prerelease][+build] grammar, with an
+# optional leading "v" allowed on top — not part of the strict spec, but
+# near-universal in container image tags ("v1.25.4"), and rejecting it
+# would flag the overwhelming majority of real-world tags as "not semver"
+# for a purely cosmetic reason.
+SEMVER_RE = re.compile(
+    r"^v?(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)"
+    r"(?:-(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*)?"
+    r"(?:\+[0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*)?$"
+)
+
+
+def is_semver_compatible(version):
+    """True if `version` matches MAJOR.MINOR.PATCH (see SEMVER_RE) —
+    e.g. "1.27.4" or "9.10.1-slim", but not "3.20" (missing the patch
+    component), "3.14-slim" (same), "5.4.3 5.4.4" (two values run
+    together), or "?"."""
+    return bool(SEMVER_RE.match(version.strip()))
