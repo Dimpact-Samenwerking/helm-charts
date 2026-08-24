@@ -2,9 +2,29 @@
 pure logic plus a mocked-registry integration test. No network access
 needed: registry_tag_exists is monkeypatched wherever a live fetch would
 otherwise happen."""
+import io
+import tarfile
 import urllib.error
 
 import pytest
+import yaml
+
+
+def make_tgz(charts_dir, name, version, values):
+    """A minimal vendored <name>-<version>.tgz containing just
+    <name>/values.yaml, for exercising the subchart-default-repository
+    fallback without a real `helm pull`."""
+    charts_dir.mkdir(parents=True, exist_ok=True)
+    tgz_path = charts_dir / f"{name}-{version}.tgz"
+    data = yaml.safe_dump(values).encode("utf-8")
+    with tarfile.open(tgz_path, "w:gz") as tar:
+        info = tarfile.TarInfo(name=f"{name}/values.yaml")
+        info.size = len(data)
+        tar.addfile(info, io.BytesIO(data))
+
+
+def write_chart_yaml(chart_dir, deps):
+    (chart_dir / "Chart.yaml").write_text(yaml.safe_dump({"dependencies": deps}), encoding="utf-8")
 
 
 # --- parse_repo ---
@@ -111,6 +131,37 @@ def test_find_stale_digests_records_unresolved(sid, tmp_path):
     stale, unresolved, fetch_errors = sid.find_stale_digests(lines, tmp_path / "values.yaml")
     assert stale == [] and fetch_errors == []
     assert len(unresolved) == 1 and unresolved[0]["line"] == 3
+
+
+# --- find_stale_digests: subchart-default repository fallback ---
+
+def test_find_stale_digests_falls_back_to_subchart_default_repository(sid, tmp_path, monkeypatch):
+    """openzaak/openformulieren-style pins: no repository in values.yaml at
+    all, resolved instead from the vendored subchart's own default (the
+    same one Helm merges in at render time)."""
+    lines = ["openzaak:", "  image:", f'    tag: "1.27.4@sha256:{"a" * 64}"']
+    write_chart_yaml(tmp_path, [{"name": "openzaak", "version": "1.14.2", "repository": "@example"}])
+    make_tgz(tmp_path / "charts", "openzaak", "1.14.2", {"image": {"repository": "openzaak/open-zaak"}})
+
+    called = []
+
+    def spy(host, repo, tag):
+        called.append((host, repo, tag))
+        return True, f"sha256:{'a' * 64}"
+
+    monkeypatch.setattr(sid, "registry_tag_exists", spy)
+    stale, unresolved, fetch_errors = sid.find_stale_digests(lines, tmp_path / "values.yaml")
+    assert unresolved == [] and stale == [] and fetch_errors == []
+    assert called == [("docker.io", "openzaak/open-zaak", "1.27.4")]
+
+
+def test_find_stale_digests_stays_unresolved_when_subchart_has_no_default_either(sid, tmp_path):
+    lines = ["openzaak:", "  image:", f'    tag: "1.27.4@sha256:{"a" * 64}"']
+    write_chart_yaml(tmp_path, [{"name": "openzaak", "version": "1.14.2", "repository": "@example"}])
+    make_tgz(tmp_path / "charts", "openzaak", "1.14.2", {"image": {}})  # subchart doesn't default one either
+    stale, unresolved, fetch_errors = sid.find_stale_digests(lines, tmp_path / "values.yaml")
+    assert stale == [] and fetch_errors == []
+    assert len(unresolved) == 1
 
 
 def test_find_stale_digests_retries_once_then_gives_up(sid, tmp_path, monkeypatch):

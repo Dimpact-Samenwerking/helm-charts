@@ -1,7 +1,9 @@
 """Chart.yaml/values.yaml helpers shared by every script that resolves a
 podiumd dependency, pulls a specific chart version, or walks a values tree
 for image references."""
+import re
 import shutil
+import tarfile
 import tempfile
 from pathlib import Path
 
@@ -110,6 +112,78 @@ def pull_chart_values(dep, version):
 
 def version_of(tag):
     return tag.split("@", 1)[0]
+
+
+KEY_LINE_RE = re.compile(r"^(?P<indent>\s*)(?P<key>[\w.\-]+):(?:\s|$)")
+
+
+def dotted_key_path(lines, line_index):
+    """The dotted path of keys enclosing lines[line_index] (inclusive),
+    reconstructed purely from indentation — e.g. "openzaak.image.tag" for
+    a "tag:" line nested under "openzaak: > image:". A plain-text
+    stand-in for a full YAML-document walk, used by digest-pin scanning
+    (lib.image_digests/set-image-digests.py), which already has the exact
+    source line (and its digest/comment) from a regex match on raw
+    `lines` — a full re-parse would lose that line-number association."""
+    stack = []
+    for raw in lines[:line_index + 1]:
+        m = KEY_LINE_RE.match(raw)
+        if not m:
+            continue
+        indent = len(m.group("indent"))
+        while stack and stack[-1][0] >= indent:
+            stack.pop()
+        stack.append((indent, m.group("key")))
+    return ".".join(key for _, key in stack)
+
+
+def subchart_values(chart_dir, dep):
+    """A vendored dependency's own values.yaml (parsed), read straight out
+    of its .tgz under chart_dir/charts/ — the same file Helm merges
+    podiumd's own values.yaml under at render time. None if the .tgz
+    isn't vendored (not pulled yet) or doesn't have the expected layout."""
+    tgz_path = chart_dir / "charts" / f"{dep['name']}-{dep['version']}.tgz"
+    if not tgz_path.is_file():
+        return None
+    try:
+        with tarfile.open(tgz_path) as tar:
+            member = tar.extractfile(f"{dep['name']}/values.yaml")
+            if member is None:
+                return None
+            return yaml.safe_load(member.read()) or {}
+    except (KeyError, tarfile.TarError):
+        return None
+
+
+def subchart_default_repository(chart_dir, lines, pin_line, deps, cache=None):
+    """The `repository:` a digest pin's own component defaults to via its
+    subchart's baked-in values.yaml, for a pin whose "tag:" line has no
+    resolvable "repository:" of its own in podiumd's values.yaml (see
+    resolve_pin_repo in lib.image_digests/set-image-digests.py) — the same
+    value Helm merges in at render time (see subchart_values). `pin_line`
+    is the pin's 1-based "tag:" line number in `lines`; `deps` is
+    Chart.yaml's "dependencies" list. `cache`, if passed, is a dict shared
+    across calls so multiple pins under one component don't each re-read
+    that component's .tgz. Returns None if the path can't be resolved at
+    all (fewer than "<component>.<...>.tag" segments), the component has
+    no matching Chart.yaml dependency, or the subchart doesn't define a
+    default repository at that path either."""
+    path = dotted_key_path(lines, pin_line - 1)
+    segments = path.split(".")
+    if len(segments) < 3:
+        return None
+    component, subpath = segments[0], ".".join(segments[1:-1])
+    dep = find_dependency(deps, component)
+    if dep is None:
+        return None
+    if cache is None:
+        cache = {}
+    if dep["name"] not in cache:
+        cache[dep["name"]] = subchart_values(chart_dir, dep)
+    values = cache[dep["name"]]
+    if values is None:
+        return None
+    return get_path(values, f"{subpath}.repository")
 
 
 def find_images(node, path=""):

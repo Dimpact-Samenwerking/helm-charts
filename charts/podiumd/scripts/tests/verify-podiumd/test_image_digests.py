@@ -2,7 +2,30 @@
 pure logic plus a mocked-registry integration test. No network access
 needed: registry_tag_exists is monkeypatched wherever a live fetch would
 otherwise happen."""
+import io
+import tarfile
 import urllib.error
+
+import yaml
+
+from conftest import make_dep
+
+
+def make_tgz(charts_dir, name, version, values):
+    """A minimal vendored <name>-<version>.tgz containing just
+    <name>/values.yaml, for exercising the subchart-default-repository
+    fallback without a real `helm pull`."""
+    charts_dir.mkdir(parents=True, exist_ok=True)
+    tgz_path = charts_dir / f"{name}-{version}.tgz"
+    data = yaml.safe_dump(values).encode("utf-8")
+    with tarfile.open(tgz_path, "w:gz") as tar:
+        info = tarfile.TarInfo(name=f"{name}/values.yaml")
+        info.size = len(data)
+        tar.addfile(info, io.BytesIO(data))
+
+
+def write_chart_yaml(chart_dir, deps):
+    (chart_dir / "Chart.yaml").write_text(yaml.safe_dump({"dependencies": deps}), encoding="utf-8")
 
 
 
@@ -247,6 +270,71 @@ def test_check_image_digests_skips_unresolved_repository(vp, libimagedigests, tm
     ok, detail = vp.check_image_digests(tmp_path)
     assert ok is True
     assert called == []
+    assert "0/0 matched" in detail
+
+
+# --- check_image_digests: subchart-default repository fallback ---
+
+def test_check_image_digests_falls_back_to_subchart_default_repository(vp, libimagedigests, tmp_path, monkeypatch):
+    """openzaak/openformulieren-style pins: no repository in values.yaml at
+    all, resolved instead from the vendored subchart's own default (the
+    same one Helm merges in at render time)."""
+    write_values(tmp_path, (
+        "openzaak:\n"
+        "  image:\n"
+        f'    tag: "1.27.4@sha256:{"a" * 64}"\n'
+    ))
+    write_chart_yaml(tmp_path, [make_dep("openzaak", "1.14.2")])
+    make_tgz(tmp_path / "charts", "openzaak", "1.14.2", {"image": {"repository": "openzaak/open-zaak"}})
+
+    called = []
+
+    def spy(host, repo, tag):
+        called.append((host, repo, tag))
+        return True, f"sha256:{'a' * 64}"
+
+    monkeypatch.setattr(libimagedigests, "registry_tag_exists", spy)
+    ok, detail = vp.check_image_digests(tmp_path)
+    assert ok is True
+    assert called == [("docker.io", "openzaak/open-zaak", "1.27.4")]
+    assert "1/1 matched" in detail
+
+
+def test_check_image_digests_falls_back_via_alias(vp, libimagedigests, tmp_path, monkeypatch):
+    write_values(tmp_path, (
+        "openformulieren:\n"
+        "  image:\n"
+        f'    tag: "3.4.10@sha256:{"a" * 64}"\n'
+    ))
+    write_chart_yaml(tmp_path, [make_dep("openforms", "1.12.0", alias="openformulieren")])
+    make_tgz(tmp_path / "charts", "openforms", "1.12.0", {"image": {"repository": "openformulieren/open-forms"}})
+    monkeypatch.setattr(libimagedigests, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{'a' * 64}"))
+    ok, detail = vp.check_image_digests(tmp_path)
+    assert ok is True
+    assert "1/1 matched" in detail
+
+
+def test_check_image_digests_stays_unresolved_when_subchart_has_no_default_either(vp, libimagedigests, tmp_path):
+    write_values(tmp_path, (
+        "openzaak:\n"
+        "  image:\n"
+        f'    tag: "1.27.4@sha256:{"a" * 64}"\n'
+    ))
+    write_chart_yaml(tmp_path, [make_dep("openzaak", "1.14.2")])
+    make_tgz(tmp_path / "charts", "openzaak", "1.14.2", {"image": {}})  # subchart doesn't default one either
+    ok, detail = vp.check_image_digests(tmp_path)
+    assert ok is True
+    assert "0/0 matched" in detail
+
+
+def test_check_image_digests_stays_unresolved_without_chart_yaml(vp, libimagedigests, tmp_path):
+    write_values(tmp_path, (
+        "a:\n"
+        "  image:\n"
+        f'    tag: "1.0.0@sha256:{"a" * 64}"\n'
+    ))
+    ok, detail = vp.check_image_digests(tmp_path)
+    assert ok is True
     assert "0/0 matched" in detail
 
 
