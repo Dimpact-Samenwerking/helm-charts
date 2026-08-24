@@ -4,10 +4,12 @@ charts/podiumd/release-table.csv on disk."""
 import pytest
 
 CSV_TEXT = """\
-section,vendor,component,source version app,source version helm,target version app,target version helm
-Product,Info(NL),ZAC,5.0.0,1.0.290,5.1.0,1.0.297
-Product,Maykin,Open Zaak,1.27.0,1.14.0,1.27.4,1.14.2
-Technische,,Elastic operator,3.4.0,3.4.0,,
+section,vendor,used_by,component,source version app,source version helm,target version app,target version helm
+Product,Info(NL),,ZAC,5.0.0,1.0.290,5.1.0,1.0.297
+Product,Maykin,,Open Zaak,1.27.0,1.14.0,1.27.4,1.14.2
+Technische,,,Elastic operator,3.4.0,3.4.0,,
+Technische,,zac,Solr,8.11.0,8.11.0,8.11.0,8.11.0
+Product,ZAC Team,,Some Component,1.0.0,1.0.0,1.0.0,1.0.0
 """
 
 
@@ -26,7 +28,7 @@ def rows(qrt, csv_path):
 # --- load_rows ---
 
 def test_load_rows_reads_all_data_rows(rows):
-    assert len(rows) == 3
+    assert len(rows) == 5
     assert rows[0]["component"] == "ZAC"
 
 
@@ -39,7 +41,7 @@ def test_matching_rows_case_insensitive_substring(qrt, rows):
 
 def test_matching_rows_matches_multiple(qrt, rows):
     matches = qrt.matching_rows(rows, "section", "product")
-    assert [r["component"] for r in matches] == ["ZAC", "Open Zaak"]
+    assert [r["component"] for r in matches] == ["ZAC", "Open Zaak", "Some Component"]
 
 
 def test_matching_rows_no_match_is_empty(qrt, rows):
@@ -49,6 +51,11 @@ def test_matching_rows_no_match_is_empty(qrt, rows):
 def test_matching_rows_matches_vendor_column(qrt, rows):
     matches = qrt.matching_rows(rows, "vendor", "maykin")
     assert [r["component"] for r in matches] == ["Open Zaak"]
+
+
+def test_matching_rows_matches_used_by_column(qrt, rows):
+    matches = qrt.matching_rows(rows, "used_by", "zac")
+    assert [r["component"] for r in matches] == ["Solr"]
 
 
 # --- display_value ---
@@ -103,6 +110,33 @@ def test_main_prints_matches(qrt, monkeypatch, csv_path, capsys):
     out = capsys.readouterr().out
     assert "ZAC" in out
     assert "5.1.0" in out
+
+
+def test_main_component_query_also_shows_used_by_matches(qrt, monkeypatch, csv_path, capsys):
+    run_main(qrt, monkeypatch, csv_path, ["component", "zac"])
+    qrt.main()
+    out = capsys.readouterr().out
+    assert "Used by 'zac':" in out
+    assert "Solr" in out
+    assert "8.11.0" in out
+
+
+def test_main_component_query_omits_used_by_section_when_no_matches(qrt, monkeypatch, csv_path, capsys):
+    run_main(qrt, monkeypatch, csv_path, ["component", "open zaak"])
+    qrt.main()
+    out = capsys.readouterr().out
+    assert "Used by" not in out
+
+
+def test_main_non_component_query_never_shows_used_by_section(qrt, monkeypatch, csv_path, capsys):
+    """"ZAC Team" (vendor) and "Solr" (used_by "zac") both contain "zac" —
+    only a component query should pull in used_by rows."""
+    run_main(qrt, monkeypatch, csv_path, ["vendor", "zac"])
+    qrt.main()
+    out = capsys.readouterr().out
+    assert "Some Component" in out
+    assert "Used by" not in out
+    assert "Solr" not in out
 
 
 def test_main_no_matches_exits_nonzero(qrt, monkeypatch, csv_path, capsys):
