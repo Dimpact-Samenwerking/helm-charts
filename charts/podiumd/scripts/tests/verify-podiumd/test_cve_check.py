@@ -1,11 +1,13 @@
 """run_trivy / check_cves — report-only CVE sweep against every unique
 digest-pinned image, via `docker run aquasec/trivy:latest`, split into
-own/partner-vendor/other-vendor buckets. Own+partner itemize CRITICAL/HIGH
-("CRIT/HIGH") per image, grouped by affected package — one line per
-package listing its CVE IDs, or (past PACKAGE_CVE_LIST_THRESHOLD) a
-summarized count instead of every ID — and total MEDIUM/LOW/UNKNOWN per
-image; other-vendor gets one aggregate line for the whole bucket only.
-Cached by (repository, digest) in charts/podiumd/cve-scan-cache.json —
+own/partner-vendor/other-vendor buckets. By default every bucket gets the
+same terse per-image severity totals (own and partner-vendor) or one
+aggregate rollup line (other-vendor) — see check_cves(..., detail=True) for
+the opt-in itemized view: CRITICAL/HIGH ("CRIT/HIGH") per image, grouped by
+affected package — one line per package listing its CVE IDs, or (past
+PACKAGE_CVE_LIST_THRESHOLD) a summarized count instead of every ID — with
+MEDIUM/LOW/UNKNOWN still only totaled per image, for every bucket including
+other-vendor. Cached by (repository, digest) in charts/podiumd/cve-scan-cache.json —
 tracked chart content, not gitignored, so the cache is committed and
 shared across contributors/CI. No real docker/trivy/registry invocation
 happens in these tests — `run` and `find_newest_same_variant_tag` are
@@ -336,9 +338,8 @@ def test_check_cves_splits_own_partner_other_and_never_fails(vp, libcvecheck, tm
 
     out = capsys.readouterr().out
     assert "--- Own images ---" in out
-    assert "CRIT CVE-OWN-1" in out  # own: CRITICAL itemized, abbreviated
-    assert "1 LOW CVE(s)" in out  # own: LOW only totaled, per image
-    assert "CVE-OWN-2" not in out
+    assert "1 CRIT, 1 LOW CVE(s)" in out  # own: per-image totals only by default, same as partner
+    assert "CVE-OWN-1" not in out and "CVE-OWN-2" not in out
 
     assert "--- Partner-vendor images ---" in out
     assert "[Maykin]" in out
@@ -348,6 +349,35 @@ def test_check_cves_splits_own_partner_other_and_never_fails(vp, libcvecheck, tm
     assert "--- Other-vendor images ---" in out
     assert "1 CRIT/HIGH, 1 MEDIUM/LOW/UNKNOWN" in out
     assert "CVE-OTHER-1" not in out  # other-vendor never itemized, not even CRITICAL
+
+
+def test_check_cves_detail_itemizes_every_bucket(vp, libcvecheck, tmp_path, monkeypatch, capsys):
+    """--detail (detail=True) elevates ALL THREE buckets — including
+    other-vendor, which otherwise never gets per-image detail at all — to
+    the full itemized CRIT/HIGH-per-package view."""
+    chart_dir = make_chart_dir(tmp_path)
+    monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/docker")
+    no_newer_tag(libcvecheck, monkeypatch)
+
+    trivy_by_image = {
+        "ghcr.io/wearefrank/frank-gateway:104": trivy_result(stdout=json.dumps(
+            {"Results": [{"Vulnerabilities": [vuln("CRITICAL", cve="CVE-OWN-1"), vuln("LOW", cve="CVE-OWN-2")]}]})),
+        "docker.io/maykinmedia/objects-api:1.0.0": trivy_result(stdout=json.dumps(
+            {"Results": [{"Vulnerabilities": [vuln("HIGH", cve="CVE-PARTNER-1", pkg="curl")]}]})),
+        "docker.io/alpine/k8s:1.36.2": trivy_result(stdout=json.dumps(
+            {"Results": [{"Vulnerabilities": [vuln("CRITICAL", cve="CVE-OTHER-1", pkg="busybox"),
+                                               vuln("MEDIUM", cve="CVE-OTHER-2")]}]})),
+    }
+    monkeypatch.setattr(libcvecheck, "run", sequenced_run(trivy_by_image=trivy_by_image))
+
+    ok, detail = vp.check_cves(chart_dir, [], detail=True)
+    assert ok is True
+
+    out = capsys.readouterr().out
+    assert "CRIT CVE-OWN-1" in out and "CVE-OWN-2" not in out  # own: itemized, LOW only totaled
+    assert "curl: HIGH CVE-PARTNER-1" in out  # partner: now itemized too
+    assert "busybox: CRIT CVE-OTHER-1" in out  # other-vendor: now itemized too
+    assert "1 MEDIUM CVE(s)" in out  # other-vendor's MEDIUM still only totaled, even with --detail
 
 
 def test_print_bucket_report_image_line_carries_advice_then_totals_then_packages(libcvecheck, monkeypatch, capsys):
@@ -451,7 +481,9 @@ def test_check_cves_heuristic_fallback_for_disabled_component(vp, libcvecheck, t
     # fallback (not a Chart.yaml dependency), not that it's rendered at all.
     assert "1 own (1 img)" in detail
     out = capsys.readouterr().out
-    assert "CVE-APIPROXY" in out
+    assert "docker.io/org/apiproxy:1.0.0" in out
+    assert "1 HIGH CVE(s)" in out  # own: per-image totals by default, no CVE ID itemized
+    assert "CVE-APIPROXY" not in out
 
 
 # --- caching ---
@@ -494,7 +526,8 @@ def test_check_cves_cache_hit_skips_scanning(vp, libcvecheck, tmp_path, monkeypa
     ok, detail = vp.check_cves(chart_dir, [])
     assert ok is True
     out = capsys.readouterr().out
-    assert "CVE-CACHED" in out
+    assert "1 CRIT CVE(s)" in out  # own: per-image totals by default, no CVE ID itemized
+    assert "CVE-CACHED" not in out
     assert "1/3 image(s) served from cache" in out
 
 

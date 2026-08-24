@@ -300,3 +300,37 @@ def test_only_check_cves_runs_it_plus_dependencies(vp, monkeypatch):
     vp.main()
 
     assert ran == ["deps", "cves"]
+
+
+def test_detail_flag_defaults_false_and_is_passed_to_check_cves(vp, monkeypatch):
+    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--only-check-cves"])
+    ran = []
+    _stub_all_checks(vp, monkeypatch, ran)
+    captured = {}
+
+    def fake_check_cves(*a):
+        captured["args"] = a
+        return True, "ok"
+
+    monkeypatch.setattr(vp, "check_cves", fake_check_cves)
+
+    vp.main()
+
+    assert captured["args"][-1] is False
+
+
+def test_detail_flag_true_is_passed_to_check_cves(vp, monkeypatch):
+    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--only-check-cves", "--detail-cve-check"])
+    ran = []
+    _stub_all_checks(vp, monkeypatch, ran)
+    captured = {}
+
+    def fake_check_cves(*a):
+        captured["args"] = a
+        return True, "ok"
+
+    monkeypatch.setattr(vp, "check_cves", fake_check_cves)
+
+    vp.main()
+
+    assert captured["args"][-1] is True

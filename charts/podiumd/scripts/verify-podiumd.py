@@ -153,6 +153,10 @@ Usage:
         # shows as SKIP. Exactly one --only-<step> at a time, and it
         # cannot be combined with --skip-<step> (nothing left to skip
         # once everything but the target is already skipped).
+    verify-podiumd.py --detail-cve-check
+        # CVE scan: itemize CRITICAL/HIGH findings per affected package for
+        # EVERY image bucket (own, partner-vendor, AND other-vendor) instead
+        # of the default terse per-image severity totals — see lib.cve_check.
 
 Exit code is non-zero if any check fails — safe to use as a CI gate.
 """
@@ -478,6 +482,10 @@ def main():
                              "against — a bare version (e.g. 4.8.5) is resolved to the podiumd-4.8.5 "
                              "tag, falling back to the feature/podiumd-4.8.5 branch; anything else is "
                              "used as a literal git ref")
+    parser.add_argument("--detail-cve-check", action="store_true",
+                        help="CVE scan: itemize CRITICAL/HIGH findings per affected package for "
+                             "EVERY image bucket (own, partner-vendor, AND other-vendor), not just "
+                             "the terse per-image severity totals a normal run prints")
     for flag, step_name in SKIPPABLE_STEPS:
         parser.add_argument(f"--skip-{flag}", action="store_true",
                              help=f'skip the "{step_name}" check (e.g. to iterate faster, or work '
@@ -557,7 +565,8 @@ def main():
     run_step("kubeconform", "kubeconform (rendered output)", check_kubeconform, chart_dir, extra_args)
     run_step("shellcheck", "shellcheck (embedded shell scripts)", check_shellcheck, chart_dir, extra_args)
     run_step("kube-score", "kube-score (resource requests/limits)", check_kube_score, chart_dir, extra_args)
-    run_step("CVE scan", "Scanning pinned images for known CVEs (trivy)", check_cves, chart_dir, extra_args)
+    run_step("CVE scan", "Scanning pinned images for known CVEs (trivy)", check_cves, chart_dir, extra_args,
+              args.detail_cve_check)
 
     print_summary(results, overall_ok=True)
 
