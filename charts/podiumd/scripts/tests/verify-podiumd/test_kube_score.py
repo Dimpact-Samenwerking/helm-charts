@@ -6,19 +6,22 @@ policy for — KUBE_SCORE_CHECK_ID scopes to just "container-resources",
 ignoring every other kube-score opinion like NetworkPolicy/
 ImagePullPolicy/SecurityContext).
 
-Unlike check_yamllint/check_kubeconform/check_shellcheck, a vendored
-finding here is NOT gated by a partner-vendor allowlist and NEVER fails
-the check regardless of whether that sub-chart is a partner or not —
-every vendored finding is printed individually (this repo's job to wire
-up regardless of which org maintains the sub-chart), but promoting it to
-a failure is a deliberate future step once the backlog is triaged. Only
-an OWN finding fails.
+Same own/partner-vendor/other-vendor scope split and per-item vs.
+aggregate-only reporting as check_yamllint/check_kubeconform/
+check_shellcheck — a partner-vendor finding is printed individually, an
+other-vendor finding only gets a one-line count. The *fail* policy still
+differs, though: NO vendored finding (partner or not) ever fails the
+check regardless — every vendored finding is this repo's job to wire up
+(via that sub-chart's values.yaml key), but promoting it to a failure is
+a deliberate future step once the backlog is triaged. Only an OWN finding
+fails.
 
 kube-score's JSON output carries no per-resource source info (like
 kubeconform), so each vendored sub-chart is scored as its own separate
 kube-score run to attribute a finding back to its chart. All `helm`/
-`kube-score` subprocess calls are mocked via vp.run — no real kube-score
-or helm invocation happens in these tests."""
+`kube-score` subprocess calls are mocked via vp.run; friendly_vendor_charts
+is mocked too, since these tests use tmp_path (no real Chart.yaml) — no
+real kube-score or helm invocation happens in these tests."""
 import json
 from types import SimpleNamespace
 
@@ -50,6 +53,10 @@ def other_check(grade=1, comments=None):
 
 def ks_result(objects, returncode=1):
     return SimpleNamespace(returncode=returncode, stdout=json.dumps(objects), stderr="")
+
+
+def no_friendly_vendors(libkubescorecheck, monkeypatch):
+    monkeypatch.setattr(libkubescorecheck, "friendly_vendor_charts", lambda chart_dir: {})
 
 
 RENDERED = (
@@ -140,6 +147,7 @@ def test_extract_resource_findings_returns_object_container_summary(libkubescore
 
 def test_check_kube_score_no_findings_passes(vp, libkubescorecheck, tmp_path, monkeypatch):
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/kube-score")
+    no_friendly_vendors(libkubescorecheck, monkeypatch)
     monkeypatch.setattr(libkubescorecheck, "run", sequenced_run(
         own_objects=[ks_object("Deployment", "foo", [resource_check(10)])],
         vendored_objects_by_chart={"zac": [ks_object("Deployment", "zac", [resource_check(10)])]},
@@ -148,11 +156,12 @@ def test_check_kube_score_no_findings_passes(vp, libkubescorecheck, tmp_path, mo
 
     ok, detail = vp.check_kube_score(tmp_path, [])
     assert ok is True
-    assert detail == "0 real (own, fails), 0 across all vendored sub-charts — partner+other (reported, not enforced)"
+    assert detail == "0 real (own, fails), 0 partner-vendor, 0 other-vendor (vendored not enforced)"
 
 
 def test_check_kube_score_own_finding_fails(vp, libkubescorecheck, tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/kube-score")
+    no_friendly_vendors(libkubescorecheck, monkeypatch)
     monkeypatch.setattr(libkubescorecheck, "run", sequenced_run(own_objects=[
         ks_object("Deployment", "foo", [resource_check(1, comments=[
             {"path": "app", "summary": "CPU limit is not set"},
@@ -174,20 +183,23 @@ def test_check_kube_score_ignores_non_resource_checks(vp, libkubescorecheck, tmp
     never be treated as a finding — this check only cares about
     container-resources, the one convention this repo has documented."""
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/kube-score")
+    no_friendly_vendors(libkubescorecheck, monkeypatch)
     monkeypatch.setattr(libkubescorecheck, "run", sequenced_run(own_objects=[
         ks_object("Deployment", "foo", [other_check(), resource_check(10)]),
     ]))
 
     ok, detail = vp.check_kube_score(tmp_path, [])
     assert ok is True
-    assert detail == "0 real (own, fails), 0 across all vendored sub-charts — partner+other (reported, not enforced)"
+    assert detail == "0 real (own, fails), 0 partner-vendor, 0 other-vendor (vendored not enforced)"
 
 
-def test_check_kube_score_vendored_finding_reported_per_item_never_fails(vp, libkubescorecheck, tmp_path, monkeypatch, capsys):
-    """Unlike check_yamllint/check_kubeconform/check_shellcheck, EVERY
-    vendored finding is printed individually (no partner-vendor
-    allowlist gate) — but it must never fail the check regardless."""
+def test_check_kube_score_partner_vendor_finding_reported_per_item_never_fails(vp, libkubescorecheck, tmp_path, monkeypatch, capsys):
+    """A vendored sub-chart from a listed partner org gets its finding
+    printed individually (attributed to the chart it came from, since
+    kube-score is run once per distinct vendored chart precisely so this
+    attribution is possible) but must still never fail."""
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/kube-score")
+    monkeypatch.setattr(libkubescorecheck, "friendly_vendor_charts", lambda chart_dir: {"zac": "Info(NL)"})
     monkeypatch.setattr(libkubescorecheck, "run", sequenced_run(
         own_objects=[],
         vendored_objects_by_chart={"zac": [
@@ -200,11 +212,41 @@ def test_check_kube_score_vendored_finding_reported_per_item_never_fails(vp, lib
     ok, detail = vp.check_kube_score(tmp_path, [])
     assert ok is True
     assert "0 real (own" in detail
-    assert "1 across all vendored" in detail
+    assert "1 partner-vendor" in detail
+    assert "0 other-vendor" in detail
     out = capsys.readouterr().out
     assert "does not fail the check" in out
     assert "[zac] Deployment/apps/v1//zac (zac)" in out
     assert "CPU limit is not set" in out
+
+
+def test_check_kube_score_other_vendor_finding_aggregate_count_only_never_fails(vp, libkubescorecheck, tmp_path, monkeypatch, capsys):
+    """A vendored sub-chart NOT from a listed partner org only ever gets a
+    one-line aggregate count — no per-item detail — but still never fails
+    (unlike check_yamllint/check_kubeconform/check_shellcheck, this
+    finding is still genuinely actionable by this repo, just deprioritized
+    in the output)."""
+    monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/kube-score")
+    no_friendly_vendors(libkubescorecheck, monkeypatch)
+    monkeypatch.setattr(libkubescorecheck, "run", sequenced_run(
+        own_objects=[],
+        vendored_objects_by_chart={"zac": [
+            ks_object("Deployment", "zac", [resource_check(1, comments=[
+                {"path": "zac", "summary": "CPU limit is not set"},
+            ])]),
+        ]},
+    ))
+
+    ok, detail = vp.check_kube_score(tmp_path, [])
+    assert ok is True
+    assert "0 real (own" in detail
+    assert "0 partner-vendor" in detail
+    assert "1 other-vendor" in detail
+    out = capsys.readouterr().out
+    assert "does not fail the check" in out
+    assert "1 other vendored" in out
+    assert "[zac]" not in out  # per-item detail suppressed for other-vendor
+    assert "CPU limit is not set" not in out
 
 
 def test_check_kube_score_crd_only_vendored_chart_is_not_a_failure(vp, libkubescorecheck, tmp_path, monkeypatch):
@@ -213,6 +255,7 @@ def test_check_kube_score_crd_only_vendored_chart_is_not_a_failure(vp, libkubesc
     JSON "null" for it, having nothing to score) must count as 0 findings
     for that chart, not "kube-score produced unparseable output"."""
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/kube-score")
+    no_friendly_vendors(libkubescorecheck, monkeypatch)
 
     def run(cmd, **kwargs):
         if cmd[0] == "kube-score":
@@ -224,7 +267,7 @@ def test_check_kube_score_crd_only_vendored_chart_is_not_a_failure(vp, libkubesc
     monkeypatch.setattr(libkubescorecheck, "run", run)
     ok, detail = vp.check_kube_score(tmp_path, [])
     assert ok is True
-    assert detail == "0 real (own, fails), 0 across all vendored sub-charts — partner+other (reported, not enforced)"
+    assert detail == "0 real (own, fails), 0 partner-vendor, 0 other-vendor (vendored not enforced)"
 
 
 def test_check_kube_score_missing_binary_fails(vp, tmp_path, monkeypatch):
@@ -266,6 +309,7 @@ def test_check_kube_score_unparseable_own_output_fails(vp, libkubescorecheck, tm
 
 def test_check_kube_score_unparseable_vendored_output_fails(vp, libkubescorecheck, tmp_path, monkeypatch):
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/kube-score")
+    no_friendly_vendors(libkubescorecheck, monkeypatch)
     calls = {"n": 0}
 
     def run(cmd, **kwargs):
