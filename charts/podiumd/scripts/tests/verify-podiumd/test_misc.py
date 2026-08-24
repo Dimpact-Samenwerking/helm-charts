@@ -185,6 +185,13 @@ def test_prerequisites_for_render_based_check_needs_dependencies(vp):
     assert vp.prerequisites_for("Helm lint") == {"Dependencies"}
 
 
+def test_prerequisites_for_cve_scan_needs_image_upgrades_too(vp):
+    """CVE scan reads Image upgrades' own cache to mark a finding
+    "upgradable to X" — a bare --include=check-cves must still populate
+    that cache fresh, not just a full run."""
+    assert vp.prerequisites_for("CVE scan") == {"Dependencies", "Image upgrades"}
+
+
 def test_prerequisites_for_standalone_check_has_none(vp):
     assert vp.prerequisites_for("Image references") == set()
     assert vp.prerequisites_for("Dependencies") == set()
@@ -333,14 +340,17 @@ def test_skip_check_cves_skips_it(vp, monkeypatch, capsys):
     assert "CVE scan" in out and "SKIP" in out
 
 
-def test_include_check_cves_runs_it_plus_dependencies(vp, monkeypatch):
+def test_include_check_cves_runs_it_plus_dependencies_and_image_upgrades(vp, monkeypatch):
+    """CVE scan reads Image upgrades' own cache (see lib.cve_check), so a
+    bare --include=check-cves must also run "Image upgrades" first —
+    not just "Dependencies" — or that cache would never get populated."""
     monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--include=check-cves"])
     ran = []
     _stub_all_checks(vp, monkeypatch, ran)
 
     vp.main()
 
-    assert ran == ["deps", "cves"]
+    assert ran == ["deps", "image-upgrades", "cves"]
 
 
 def test_skip_image_upgrades_skips_it(vp, monkeypatch, capsys):

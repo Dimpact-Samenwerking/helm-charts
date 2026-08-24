@@ -83,7 +83,7 @@ trip:
   16. every unique digest-pinned image has its own newest same-variant tag
       looked up on its upstream registry (a tag-list call, no image pull —
       cached by (repository, version), see lib.image_upgrade_check) —
-      "upgradeable" if a numerically-newer tag is currently published,
+      "upgradable" if a numerically-newer tag is currently published,
       regardless of whether it fixes anything (that's step 17's job).
       Report-only, never fails (see lib.image_upgrade_check)
 
@@ -439,7 +439,11 @@ SKIPPABLE_STEPS = [
 # "Dependencies" to have populated charts/*.tgz first, or its own `helm
 # template`/`helm lint` call fails on unresolved sub-charts — "Image
 # upgrades" and "CVE scan" each do their own `helm template` call
-# internally for the same reason. A step not listed here has no
+# internally for the same reason. "CVE scan" additionally needs "Image
+# upgrades" to have actually run: it reads that step's cache (read-only,
+# see lib.cve_check) to annotate a finding "upgradable to X", and a
+# --include=check-cves run with no fresh cache already on disk would
+# otherwise never see one populated. A step not listed here has no
 # prerequisite (it works standalone on values.yaml/the filesystem/the
 # registry, same as it does in the normal full run).
 STEP_PREREQUISITES = {
@@ -450,7 +454,7 @@ STEP_PREREQUISITES = {
     "shellcheck": ("Dependencies",),
     "kube-score": ("Dependencies",),
     "Image upgrades": ("Dependencies",),
-    "CVE scan": ("Dependencies",),
+    "CVE scan": ("Dependencies", "Image upgrades"),
 }
 
 

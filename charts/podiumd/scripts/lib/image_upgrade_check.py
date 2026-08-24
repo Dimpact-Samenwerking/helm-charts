@@ -11,8 +11,8 @@ the ones with an upgrade available — nothing to say about a clean image);
 other-vendor gets one aggregate rollup line, same convention as everywhere
 else this scope split is used — and, like every bucket here, only printed
 at all when at least one of its images has an upgrade available. Prints an
-explicit "OK" line only when NOTHING anywhere is upgradeable; per-bucket
-totals (upgradeable/total, including clean images) are always in the
+explicit "OK" line only when NOTHING anywhere is upgradable; per-bucket
+totals (upgradable/total, including clean images) are always in the
 one-line summary regardless.
 
 Split out of check_cves, where this used to live folded into its summary
@@ -132,8 +132,8 @@ def check_image_upgrades(chart_dir, extra_args):
 
     own_refs, partner_refs, other_refs = refs_in("own"), refs_in("partner"), refs_in("other")
 
-    print_upgradeable("Own images", own_refs, images)
-    print_upgradeable("Partner-vendor images", partner_refs, images)
+    print_upgradable("Own images", own_refs, images)
+    print_upgradable("Partner-vendor images", partner_refs, images)
     print_aggregate("Other-vendor images", other_refs, images)
 
     if not any(info["has_newer"] for info in images.values()):
@@ -151,7 +151,7 @@ def check_image_upgrades(chart_dir, extra_args):
     own_n, own_up = bucket_totals(own_refs, images)
     partner_n, partner_up = bucket_totals(partner_refs, images)
     other_n, other_up = bucket_totals(other_refs, images)
-    detail = (f"upgradeable: {own_up}/{own_n} own, {partner_up}/{partner_n} partner-vendor, "
+    detail = (f"upgradable: {own_up}/{own_n} own, {partner_up}/{partner_n} partner-vendor, "
               f"{other_up}/{other_n} other-vendor; {len(fetch_errors)} fetch error(s)")
     return True, detail
 
@@ -160,20 +160,20 @@ def bucket_totals(refs, images):
     return len(refs), sum(1 for ref in refs if images[ref]["has_newer"])
 
 
-def print_upgradeable(title, refs, images):
-    upgradeable = [ref for ref in refs if images[ref]["has_newer"]]
-    if not upgradeable:
+def print_upgradable(title, refs, images):
+    upgradable = [ref for ref in refs if images[ref]["has_newer"]]
+    if not upgradable:
         return
     print(f"--- {title} ---")
-    for ref in upgradeable:
+    for ref in upgradable:
         info = images[ref]
         vendor = f" [{info['vendor_label']}]" if info["vendor_label"] else ""
         print(f"{ref}{vendor}: newer tag available: {info['newest']}")
 
 
 def print_aggregate(title, refs, images):
-    upgradeable = sum(1 for ref in refs if images[ref]["has_newer"])
-    if not upgradeable:
+    upgradable = sum(1 for ref in refs if images[ref]["has_newer"])
+    if not upgradable:
         return
     print(f"--- {title} ---")
-    print(f"  {upgradeable}/{len(refs)} image(s) have a newer tag published")
+    print(f"  {upgradable}/{len(refs)} image(s) have a newer tag published")

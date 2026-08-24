@@ -325,10 +325,10 @@ def test_check_cves_marks_upgradable_from_image_upgrade_cache(
     vp, libcvecheck, libimageupgradecache, tmp_path, monkeypatch, capsys,
 ):
     """check_cves reads lib.image_upgrade_check's own cache (read-only, no
-    registry call of its own) to append " upgradable" after an image's
-    name when that cache has a fresh entry showing a newer tag — here only
-    frankgateway (own) does; openzaak (partner) has no cache entry at all
-    (never checked, or checked-and-stale), so no marker."""
+    registry call of its own) to append " upgradable to X" after an
+    image's name when that cache has a fresh entry showing a newer tag —
+    here only frankgateway (own) does; openzaak (partner) has no cache
+    entry at all (never checked, or checked-and-stale), so no marker."""
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/docker")
 
@@ -349,7 +349,7 @@ def test_check_cves_marks_upgradable_from_image_upgrade_cache(
     assert ok is True
 
     out = capsys.readouterr().out
-    assert "ghcr.io/wearefrank/frank-gateway:104 upgradable" in out
+    assert "ghcr.io/wearefrank/frank-gateway:104 upgradable to 105" in out
     assert "docker.io/maykinmedia/objects-api:1.0.0 [Maykin]\n" in out  # no marker: no cache entry
 
 
@@ -410,11 +410,11 @@ def test_check_cves_detail_itemizes_every_bucket(vp, libcvecheck, tmp_path, monk
 
 def test_print_bucket_report_image_line_then_totals_then_packages(libcvecheck, monkeypatch, capsys):
     """Layout, top to bottom, for an itemized image: the image name+vendor
-    (+ "upgradable" marker, if set) line, then the MEDIUM/LOW/UNKNOWN total
-    (if any), then the per-package CRIT/HIGH lines."""
+    (+ "upgradable to X" marker, if set) line, then the MEDIUM/LOW/UNKNOWN
+    total (if any), then the per-package CRIT/HIGH lines."""
     images = {
         "docker.io/pravega/zookeeper:0.2.15": {
-            "bucket": "own", "vendor_label": None, "upgradable": True,
+            "bucket": "own", "vendor_label": None, "upgradable_to": "0.2.16",
             "vulns": [
                 vuln("HIGH", cve="CVE-1", pkg="bind9-dnsutils"),
                 vuln("MEDIUM", cve="CVE-2"),
@@ -427,7 +427,7 @@ def test_print_bucket_report_image_line_then_totals_then_packages(libcvecheck, m
 
     lines = [line for line in capsys.readouterr().out.splitlines() if line.strip()]
     header_idx = next(i for i, line in enumerate(lines) if line.startswith("docker.io/pravega/zookeeper:0.2.15"))
-    assert lines[header_idx] == "docker.io/pravega/zookeeper:0.2.15 upgradable"
+    assert lines[header_idx] == "docker.io/pravega/zookeeper:0.2.15 upgradable to 0.2.16"
     assert "1 MEDIUM, 1 LOW CVE(s)" in lines[header_idx + 1]
     assert "bind9-dnsutils: HIGH CVE-1" in lines[header_idx + 2]
 
@@ -439,7 +439,7 @@ def test_print_bucket_report_totals_mode_never_itemizes_even_high_severity(libcv
     Not upgradable here, so no marker."""
     images = {
         "docker.io/maykinmedia/objects-api:1.0.0": {
-            "bucket": "partner", "vendor_label": "Maykin", "upgradable": False,
+            "bucket": "partner", "vendor_label": "Maykin", "upgradable_to": None,
             "vulns": [
                 vuln("CRITICAL", cve="CVE-1", pkg="openssl"),
                 vuln("HIGH", cve="CVE-2", pkg="openssl"),
