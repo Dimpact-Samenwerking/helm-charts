@@ -39,6 +39,13 @@ Column/row spans in the header (e.g. "Versie 4.8" spanning two sub-columns
 via colspan, or "Ontwikkelpartij" spanning both header rows via rowspan)
 are expanded automatically — see lib.confluence_tables.expand_grid.
 
+Prints a large, hard-to-miss warning (not a failure — the CSV is still
+written) if the "target" heading's MAJOR.MINOR (patch ignored) doesn't
+match charts/podiumd/Chart.yaml's own "version:" — this export is for
+whatever release Chart.yaml is currently set to, so a mismatch usually
+means either the wrong Confluence page, or Chart.yaml hasn't been bumped
+to match the page yet. See check_target_matches_chart_version.
+
 Auth: HTTP Basic with your Atlassian account email + an API token
 (https://id.atlassian.com/manage-profile/security/api-tokens — must be a
 *classic* token; the newer "API token with scopes" kind doesn't work with
@@ -68,10 +75,11 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
+from lib.chart import load_yaml
 from lib.confluence_tables import (
     effective_header_row_count, expand_grid, extract_tables, fetch_page_html,
-    header_paths, is_semver_compatible, missing_required_release_columns,
-    select_release_columns, tables_under_headings,
+    find_versie_groups, header_paths, is_semver_compatible, major_minor,
+    missing_required_release_columns, select_release_columns, tables_under_headings,
 )
 
 CHART_DIR = SCRIPT_DIR.parents[0]
@@ -142,6 +150,34 @@ def normalize_version(value):
     return "UNKNOWN"
 
 
+def check_target_matches_chart_version(target_labels, chart_dir):
+    """Prints a large warning to stderr for every distinct label in
+    `target_labels` (see find_versie_groups — the second, "target",
+    "Versie ..." group found per table) whose MAJOR.MINOR doesn't match
+    chart_dir/Chart.yaml's own "version:" (patch ignored). Never raises —
+    a mismatch is worth a human's attention, not a reason to stop
+    exporting whatever the page actually says."""
+    chart_yaml_path = chart_dir / "Chart.yaml"
+    if not chart_yaml_path.is_file():
+        return
+    chart_version = str(load_yaml(chart_yaml_path).get("version", ""))
+    chart_major_minor = major_minor(chart_version)
+    if chart_major_minor is None:
+        return
+
+    mismatched = sorted({label for label in target_labels if major_minor(label) != chart_major_minor})
+    if not mismatched:
+        return
+
+    border = "!" * 72
+    print(border, file=sys.stderr)
+    print("!! WARNING: Confluence target version does NOT match Chart.yaml !!", file=sys.stderr)
+    print(f"!!   Chart.yaml version:        {chart_version}  (major.minor {chart_major_minor})", file=sys.stderr)
+    for label in mismatched:
+        print(f"!!   Confluence target heading: {label!r}  (major.minor {major_minor(label)})", file=sys.stderr)
+    print(border, file=sys.stderr)
+
+
 def resolve_token(args):
     if args.token_file:
         return Path(args.token_file).read_text(encoding="utf-8").strip()
@@ -153,13 +189,17 @@ def resolve_token(args):
     return getpass.getpass("Confluence API token: ")
 
 
-def extract_release_rows(html, headings=None):
+def extract_release_rows(html, headings=None, chart_dir=None):
     """Return the CSV data rows (sectie, component, ontwikkelpartij,
     source version app/helm, target version app/helm) across every table
     directly under one of `headings` (default DEFAULT_HEADINGS) that has
     the required App/Helm columns. Prints a one-line report per matching-
-    heading table (rows matched, or which required column it's missing)."""
+    heading table (rows matched, or which required column it's missing),
+    and a large warning (see check_target_matches_chart_version) if any
+    table's target heading doesn't match `chart_dir` (default CHART_DIR)
+    Chart.yaml's version."""
     headings = headings or DEFAULT_HEADINGS
+    chart_dir = chart_dir or CHART_DIR
     all_tables = extract_tables(html)
     if not all_tables:
         raise SystemExit("error: no <table> found on that page")
@@ -171,10 +211,14 @@ def extract_release_rows(html, headings=None):
 
     rows_out = []
     unknown_count = 0
+    target_labels = []
     for heading, rows in matching:
         grid = expand_grid(rows)
         header_row_count = resolve_header_row_count(rows, grid)
         paths = header_paths(grid, header_row_count)
+        groups = find_versie_groups(paths)
+        if len(groups) == 2:
+            target_labels.append(groups[1][0])
         columns = select_release_columns(paths)
         missing = missing_required_release_columns(columns)
         if missing:
@@ -192,6 +236,8 @@ def extract_release_rows(html, headings=None):
             rows_out.append([heading, data_row[columns["first"]], ontwikkelpartij] + versions)
             matched += 1
         print(f'"{heading}": {matched} row(s) matched')
+
+    check_target_matches_chart_version(target_labels, chart_dir)
 
     if not rows_out:
         raise SystemExit("error: every matching-heading table was missing a required column "

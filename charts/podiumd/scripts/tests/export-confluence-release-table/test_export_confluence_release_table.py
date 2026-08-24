@@ -1,8 +1,24 @@
-"""resolve_token, extract_release_rows, main — with fetch_page_html
-mocked out, so no network access or real Confluence page is needed."""
+"""resolve_token, extract_release_rows, check_target_matches_chart_version,
+main — with fetch_page_html mocked out, so no network access or real
+Confluence page is needed."""
 import csv
 
 import pytest
+
+
+def write_chart_yaml(chart_dir, version):
+    (chart_dir / "Chart.yaml").write_text(f"apiVersion: v2\nname: podiumd\nversion: {version}\n", encoding="utf-8")
+
+
+@pytest.fixture(autouse=True)
+def isolate_chart_dir(ecrt, tmp_path, monkeypatch):
+    """extract_release_rows falls back to the real CHART_DIR (this
+    script's actual parent directory) when no chart_dir is passed
+    explicitly — tests that don't care about
+    check_target_matches_chart_version must not depend on whatever
+    charts/podiumd/Chart.yaml happens to say on disk (or which branch is
+    checked out) at test-run time."""
+    monkeypatch.setattr(ecrt, "CHART_DIR", tmp_path)
 
 PRODUCT_TABLE_HTML = """
 <h2>Product component versies</h2>
@@ -173,6 +189,49 @@ def test_extract_release_rows_handles_inconsistent_th_tagging(ecrt):
     ]
 
 
+# --- check_target_matches_chart_version ---
+
+def test_check_target_matches_chart_version_silent_when_major_minor_matches(ecrt, tmp_path, capsys):
+    write_chart_yaml(tmp_path, "4.9.0")
+    ecrt.check_target_matches_chart_version(["Versie 4.9"], tmp_path)
+    assert capsys.readouterr().err == ""
+
+
+def test_check_target_matches_chart_version_warns_on_mismatch(ecrt, tmp_path, capsys):
+    write_chart_yaml(tmp_path, "4.9.0")
+    ecrt.check_target_matches_chart_version(["Versie 5.0"], tmp_path)
+    err = capsys.readouterr().err
+    assert "WARNING" in err
+    assert "Chart.yaml version:        4.9.0" in err
+    assert "'Versie 5.0'" in err
+
+
+def test_check_target_matches_chart_version_ignores_patch(ecrt, tmp_path, capsys):
+    """Chart.yaml at 4.9.3 (a patch release) must not warn just because
+    the page still says "Versie 4.9" — only major.minor is compared."""
+    write_chart_yaml(tmp_path, "4.9.3")
+    ecrt.check_target_matches_chart_version(["Versie 4.9"], tmp_path)
+    assert capsys.readouterr().err == ""
+
+
+def test_check_target_matches_chart_version_dedupes_repeated_labels(ecrt, tmp_path, capsys):
+    write_chart_yaml(tmp_path, "4.9.0")
+    ecrt.check_target_matches_chart_version(["Versie 5.0", "Versie 5.0", "Versie 5.0"], tmp_path)
+    err = capsys.readouterr().err
+    assert err.count("'Versie 5.0'") == 1
+
+
+def test_check_target_matches_chart_version_no_labels_is_silent(ecrt, tmp_path, capsys):
+    write_chart_yaml(tmp_path, "4.9.0")
+    ecrt.check_target_matches_chart_version([], tmp_path)
+    assert capsys.readouterr().err == ""
+
+
+def test_check_target_matches_chart_version_missing_chart_yaml_is_silent(ecrt, tmp_path, capsys):
+    ecrt.check_target_matches_chart_version(["Versie 5.0"], tmp_path)
+    assert capsys.readouterr().err == ""
+
+
 # --- extract_release_rows ---
 
 def test_extract_release_rows_matches_and_reports(ecrt, capsys):
@@ -262,6 +321,22 @@ def test_extract_release_rows_skips_fully_blank_rows(ecrt):
     )
     rows = ecrt.extract_release_rows(html)
     assert len(rows) == 2  # the all-blank row was skipped, not counted
+
+
+def test_extract_release_rows_warns_when_target_does_not_match_chart_yaml(ecrt, tmp_path, capsys):
+    """PRODUCT_TABLE_HTML's target heading is "Versie 4.9" — a
+    Chart.yaml at a different minor version must trigger the warning."""
+    write_chart_yaml(tmp_path, "5.0.0")
+    ecrt.extract_release_rows(PRODUCT_TABLE_HTML, chart_dir=tmp_path)
+    err = capsys.readouterr().err
+    assert "WARNING" in err
+    assert "'Versie 4.9'" in err
+
+
+def test_extract_release_rows_silent_when_target_matches_chart_yaml(ecrt, tmp_path, capsys):
+    write_chart_yaml(tmp_path, "4.9.0")
+    ecrt.extract_release_rows(PRODUCT_TABLE_HTML, chart_dir=tmp_path)
+    assert capsys.readouterr().err == ""
 
 
 # --- main() integration ---

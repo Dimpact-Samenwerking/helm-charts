@@ -412,3 +412,15 @@ def is_semver_compatible(version):
     e.g. "1.27.4", "9.10.1-slim", "3.14-slim", "3.20", or "v.1.25.4", but
     not "5.4.3 5.4.4" (two values run together) or "?"."""
     return bool(SEMVER_RE.match(version.strip()))
+
+
+MAJOR_MINOR_RE = re.compile(r"(\d+)\.(\d+)")
+
+
+def major_minor(text):
+    """The "MAJOR.MINOR" prefix found anywhere in `text` (the patch
+    component and anything else — a "Versie " label prefix, a "-rc1"
+    suffix — ignored) — e.g. "4.9" from "4.9.0", "Versie 4.9", or
+    "v4.9.2-rc1". None if no such digit.digit pattern is found at all."""
+    m = MAJOR_MINOR_RE.search(text)
+    return f"{m.group(1)}.{m.group(2)}" if m else None

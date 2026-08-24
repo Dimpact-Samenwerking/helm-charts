@@ -3,8 +3,9 @@ extract_tables, tables_under_headings, expand_grid,
 leading_header_row_count, fallback_header_row_count,
 effective_header_row_count, header_paths, find_column,
 find_versie_groups, select_release_columns,
-missing_required_release_columns, is_semver_compatible. fetch_page_html's
-`urlopen` is injected directly, so no network access needed."""
+missing_required_release_columns, is_semver_compatible, major_minor.
+fetch_page_html's `urlopen` is injected directly, so no network access
+needed."""
 import json
 import urllib.error
 
@@ -503,3 +504,19 @@ def test_is_semver_compatible_accepts_valid_versions(libconfluencetables, versio
 ])
 def test_is_semver_compatible_rejects_invalid_versions(libconfluencetables, version):
     assert libconfluencetables.is_semver_compatible(version) is False
+
+
+# --- major_minor ---
+
+def test_major_minor_strips_patch_component(libconfluencetables):
+    assert libconfluencetables.major_minor("4.9.0") == "4.9"
+
+
+def test_major_minor_finds_pattern_inside_a_label(libconfluencetables):
+    assert libconfluencetables.major_minor("Versie 4.9") == "4.9"
+    assert libconfluencetables.major_minor("v4.9.2-rc1") == "4.9"
+
+
+def test_major_minor_no_pattern_returns_none(libconfluencetables):
+    assert libconfluencetables.major_minor("unknown") is None
+    assert libconfluencetables.major_minor("") is None
