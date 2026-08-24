@@ -467,12 +467,12 @@ def test_check_cves_cache_hit_skips_scanning(vp, libcvecheck, tmp_path, monkeypa
     monkeypatch.setattr(libcvecheck, "run", fail_if_scanned)
     ok, detail = vp.check_cves(chart_dir, [])
     assert ok is True
-    assert "1 cached" in detail
     out = capsys.readouterr().out
     assert "CVE-CACHED" in out
+    assert "1/3 image(s) served from cache" in out
 
 
-def test_check_cves_expired_cache_entry_rescans(vp, libcvecheck, tmp_path, monkeypatch):
+def test_check_cves_expired_cache_entry_rescans(vp, libcvecheck, tmp_path, monkeypatch, capsys):
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/docker")
     no_newer_tag(libcvecheck, monkeypatch)
@@ -485,8 +485,9 @@ def test_check_cves_expired_cache_entry_rescans(vp, libcvecheck, tmp_path, monke
 
     ok, detail = vp.check_cves(chart_dir, [])
     assert ok is True
-    assert "0 cached" in detail
     assert "0 own (0 img)" in detail  # stale finding replaced by the fresh (empty) result
+    out = capsys.readouterr().out
+    assert "0/3 image(s) served from cache" in out  # expired entry does not count as a hit
 
 
 def test_check_cves_prunes_entries_for_unpinned_images(vp, libcvecheck, tmp_path, monkeypatch):
