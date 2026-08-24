@@ -34,16 +34,17 @@ individually. MEDIUM/LOW/UNKNOWN are still only totaled per image, even
 with --detail — nothing in this repo can act on those package-by-package
 either, so itemizing them would just be noise.
 
-Each image's line also carries an inline "upgradable" marker when
+Each image's line also carries an inline "upgradable to X" marker when
 lib.image_upgrade_check's own cache (charts/podiumd/image-upgrade-
 cache.json, via lib.image_upgrade_cache) has a fresh entry showing a
 newer same-variant tag is published — read-only here, purely best-effort:
 if there's no fresh cache entry (that check hasn't run recently, or this
 image wasn't in its scope), the marker is just omitted rather than
 triggering a registry call of this module's own. Whether the newer tag
-actually fixes anything is a separate question this module can't answer;
-run --include=image-upgrades (or a full run) to populate/refresh the
-cache this reads.
+actually fixes anything is a separate question this module can't answer.
+"CVE scan" lists "Image upgrades" as a STEP_PREREQUISITES entry in
+verify-podiumd.py specifically so this cache is always freshly populated
+first — a bare --include=check-cves still gets it, not just a full run.
 Ownership is
 determined primarily from the `helm template` render (same authoritative
 "# Source:" attribution the other checks use — this also correctly
@@ -336,14 +337,15 @@ def check_cves(chart_dir, extra_args, detail=False):
             save_cache(chart_dir, new_cache)  # persist incrementally — this sweep is slow
 
         upgrade_entry = upgrade_cache.get(upgrade_cache_key(repository, version))
-        upgradable = bool(upgrade_entry and upgrade_entry_is_fresh(upgrade_entry)
-                           and upgrade_entry["newest"] != version)
+        upgradable_to = None
+        if upgrade_entry and upgrade_entry_is_fresh(upgrade_entry) and upgrade_entry["newest"] != version:
+            upgradable_to = upgrade_entry["newest"]
 
         images[image_ref] = {
             "bucket": bucket_of(label),
             "vendor_label": label if bucket_of(label) == "partner" else None,
             "vulns": vulns,
-            "upgradable": upgradable,
+            "upgradable_to": upgradable_to,
         }
 
     save_cache(chart_dir, new_cache)  # drop entries for images no longer pinned
@@ -442,7 +444,7 @@ def print_bucket_report(title, refs, images, detail_level):
     for ref in refs:
         info = images[ref]
         vendor = f" [{info['vendor_label']}]" if info["vendor_label"] else ""
-        upgradable = " upgradable" if info["upgradable"] else ""
+        upgradable = f" upgradable to {info['upgradable_to']}" if info["upgradable_to"] else ""
         print(f"{ref}{vendor}{upgradable}")
 
         if detail_level == "totals":
