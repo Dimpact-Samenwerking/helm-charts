@@ -12,9 +12,12 @@ Usage:
 import sys
 from pathlib import Path
 
-VALUES_PATH = Path(__file__).resolve().parents[1] / "values.yaml"
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
 
-BOM = b"\xef\xbb\xbf"
+from lib.chart import UTF8_BOM as BOM
+
+VALUES_PATH = SCRIPT_DIR.parents[0] / "values.yaml"
 
 
 def main():

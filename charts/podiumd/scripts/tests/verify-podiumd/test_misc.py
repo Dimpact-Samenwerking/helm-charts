@@ -63,7 +63,7 @@ def test_print_summary_reports_failure(vp, capsys):
 
 
 def test_print_summary_reports_skip(vp, capsys):
-    """A step recorded with ok=None (skipped via --skip-<check>) renders as
+    """A step recorded with ok=None (skipped via --skip=) renders as
     SKIP, not PASS or FAIL, and does not read as a failure."""
     results = [("Lint", None, "skipped"), ("Full render", True, "257 manifests")]
     vp.print_summary(results, overall_ok=True)
@@ -76,8 +76,8 @@ def test_print_summary_reports_skip(vp, capsys):
 
 def test_skippable_steps_names_match_main_run_steps(vp):
     """Every (flag, step name) pair in SKIPPABLE_STEPS must name a step that
-    main() actually runs — a typo here would silently make a --skip-<flag>
-    flag do nothing."""
+    main() actually runs — a typo here would silently make a --skip= entry
+    do nothing."""
     import inspect
     source = inspect.getsource(vp.main)
     for _, step_name in vp.SKIPPABLE_STEPS:
@@ -93,13 +93,13 @@ def test_skippable_steps_flags_are_unique_and_kebab_case(vp):
         assert " " not in flag
 
 
-# --- main(): --skip-<check> end-to-end ---
+# --- main(): --skip= end-to-end ---
 
 def test_main_skips_requested_steps_and_runs_the_rest(vp, monkeypatch, capsys):
-    """--skip-lint --skip-full-render must skip exactly those two steps
+    """--skip=lint,full-render must skip exactly those two steps
     (never calling their check functions) while every other step still runs
     normally, and the run still exits 0."""
-    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--skip-lint", "--skip-full-render"])
+    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--skip=lint,full-render"])
     monkeypatch.setattr(vp, "require_helm", lambda: None)
     monkeypatch.setattr(vp, "resolve_chart_dir", lambda: "/fake/chart/dir")
     monkeypatch.setattr(vp, "ensure_repos_configured", lambda: None)
@@ -148,10 +148,7 @@ def test_main_skips_requested_steps_and_runs_the_rest(vp, monkeypatch, capsys):
 def test_main_skipped_step_does_not_count_as_failure(vp, monkeypatch):
     """Skipping every step except one that fails must still exit non-zero —
     a skip must never mask a real failure in a step that DID run."""
-    monkeypatch.setattr(vp.sys, "argv", [
-        "verify-podiumd.py", "--skip-dependencies", "--skip-image-digests",
-        "--skip-docs-consistency", "--skip-lint", "--skip-full-render",
-    ])
+    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--skip=dependencies,image-digests,docs-consistency,lint,full-render"])
     monkeypatch.setattr(vp, "require_helm", lambda: None)
     monkeypatch.setattr(vp, "resolve_chart_dir", lambda: "/fake/chart/dir")
     monkeypatch.setattr(vp, "ensure_repos_configured", lambda: None)
@@ -174,11 +171,11 @@ def test_prerequisites_for_standalone_check_has_none(vp):
     assert vp.prerequisites_for("Dependencies") == set()
 
 
-# --- main(): --include-<check> end-to-end ---
+# --- main(): --include= end-to-end ---
 
 def _stub_all_checks(vp, monkeypatch, ran):
     """Same stub set test_main_skips_requested_steps_and_runs_the_rest uses
-    — shared here so --include-<check> tests don't have to repeat it."""
+    — shared here so --include= tests don't have to repeat it."""
     def make_check(name):
         def check(*args):
             ran.append(name)
@@ -209,10 +206,10 @@ def _stub_all_checks(vp, monkeypatch, ran):
 
 
 def test_include_flag_runs_target_plus_its_prerequisite(vp, monkeypatch, capsys):
-    """--include-kube-score must also run "Dependencies" (kube-score's own
+    """--include=kube-score must also run "Dependencies" (kube-score's own
     `helm template` call would otherwise fail on unresolved sub-charts) —
     but nothing else."""
-    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--include-kube-score"])
+    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--include=kube-score"])
     ran = []
     _stub_all_checks(vp, monkeypatch, ran)
 
@@ -222,14 +219,14 @@ def test_include_flag_runs_target_plus_its_prerequisite(vp, monkeypatch, capsys)
     out = capsys.readouterr().out
     for skipped in ("UTF-8 format", "Dupe check", "DRY check", "Lint", "Full render", "yamllint"):
         assert skipped in out
-    assert "not included via --include-kube-score" in out
+    assert "not included via --include=kube-score" in out
     assert "All checks passed." in out
 
 
 def test_include_flag_standalone_step_runs_without_dependencies(vp, monkeypatch, capsys):
     """A step with no prerequisite (see prerequisites_for) must run alone —
-    --include-image-references must NOT also run "Dependencies"."""
-    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--include-image-references"])
+    --include=image-references must NOT also run "Dependencies"."""
+    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--include=image-references"])
     ran = []
     _stub_all_checks(vp, monkeypatch, ran)
 
@@ -241,7 +238,7 @@ def test_include_flag_standalone_step_runs_without_dependencies(vp, monkeypatch,
 
 
 def test_include_and_skip_together_errors(vp, monkeypatch, capsys):
-    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--include-lint", "--skip-full-render"])
+    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--include=lint", "--skip=full-render"])
     with pytest.raises(SystemExit) as exc_info:
         vp.main()
     assert exc_info.value.code == 2
@@ -249,11 +246,11 @@ def test_include_and_skip_together_errors(vp, monkeypatch, capsys):
 
 
 def test_multiple_include_flags_run_the_union_plus_each_ones_prerequisites(vp, monkeypatch, capsys):
-    """Unlike the old --only-<step>, multiple --include-<step> flags combine
+    """Unlike the old one-flag-per-step --only-<step>, multiple steps in one --include= combine
     — each named step runs, plus whatever prerequisite(s) any of them need
     (deduplicated, so "Dependencies" only runs once for two render-based
     steps), and everything else still shows as SKIP."""
-    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--include-kube-score", "--include-shellcheck"])
+    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--include=kube-score,shellcheck"])
     ran = []
     _stub_all_checks(vp, monkeypatch, ran)
 
@@ -267,10 +264,10 @@ def test_multiple_include_flags_run_the_union_plus_each_ones_prerequisites(vp, m
 
 
 def test_multiple_include_flags_each_standalone_step_included_independently(vp, monkeypatch):
-    """Two --include-<step> flags with no prerequisite between them (neither
+    """Two steps in one --include= with no prerequisite between them (neither
     needs "Dependencies") must both run, with no unrelated step pulled in."""
     monkeypatch.setattr(vp.sys, "argv",
-                         ["verify-podiumd.py", "--include-image-references", "--include-node-selector"])
+                         ["verify-podiumd.py", "--include=image-references,node-selector"])
     ran = []
     _stub_all_checks(vp, monkeypatch, ran)
 
@@ -279,12 +276,12 @@ def test_multiple_include_flags_each_standalone_step_included_independently(vp, 
     assert ran == ["image-refs", "node-selector"]
 
 
-# --- CVE scan joined the same --skip-*/--include-* family as every other step ---
+# --- CVE scan joined the same --skip=/--include= family as every other step ---
 
 def test_check_cves_no_longer_has_its_own_flag(vp, monkeypatch, capsys):
     """CVE scan used to be gated by a bespoke --check-cves opt-in flag,
-    disconnected from --skip-*/--include-*. It's now just another entry in
-    SKIPPABLE_STEPS (as --skip-check-cves/--include-check-cves), so that
+    disconnected from --skip=/--include=. It's now just another entry in
+    SKIPPABLE_STEPS (selectable via --skip=check-cves/--include=check-cves), so that
     separate flag must be gone — argparse rejects it as unrecognized."""
     monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--check-cves"])
     with pytest.raises(SystemExit) as exc_info:
@@ -306,7 +303,7 @@ def test_cve_scan_runs_by_default(vp, monkeypatch):
 
 
 def test_skip_check_cves_skips_it(vp, monkeypatch, capsys):
-    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--skip-check-cves"])
+    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--skip=check-cves"])
     ran = []
     _stub_all_checks(vp, monkeypatch, ran)
 
@@ -318,7 +315,7 @@ def test_skip_check_cves_skips_it(vp, monkeypatch, capsys):
 
 
 def test_include_check_cves_runs_it_plus_dependencies(vp, monkeypatch):
-    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--include-check-cves"])
+    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--include=check-cves"])
     ran = []
     _stub_all_checks(vp, monkeypatch, ran)
 
@@ -328,7 +325,7 @@ def test_include_check_cves_runs_it_plus_dependencies(vp, monkeypatch):
 
 
 def test_skip_image_upgrades_skips_it(vp, monkeypatch, capsys):
-    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--skip-image-upgrades"])
+    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--skip=image-upgrades"])
     ran = []
     _stub_all_checks(vp, monkeypatch, ran)
 
@@ -340,7 +337,7 @@ def test_skip_image_upgrades_skips_it(vp, monkeypatch, capsys):
 
 
 def test_include_image_upgrades_runs_it_plus_dependencies(vp, monkeypatch):
-    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--include-image-upgrades"])
+    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--include=image-upgrades"])
     ran = []
     _stub_all_checks(vp, monkeypatch, ran)
 
@@ -350,7 +347,7 @@ def test_include_image_upgrades_runs_it_plus_dependencies(vp, monkeypatch):
 
 
 def test_detail_flag_defaults_false_and_is_passed_to_check_cves(vp, monkeypatch):
-    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--include-check-cves"])
+    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--include=check-cves"])
     ran = []
     _stub_all_checks(vp, monkeypatch, ran)
     captured = {}
@@ -367,7 +364,7 @@ def test_detail_flag_defaults_false_and_is_passed_to_check_cves(vp, monkeypatch)
 
 
 def test_detail_flag_true_is_passed_to_check_cves(vp, monkeypatch):
-    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--include-check-cves", "--detail-cve-check"])
+    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--include=check-cves", "--detail-cve-check"])
     ran = []
     _stub_all_checks(vp, monkeypatch, ran)
     captured = {}

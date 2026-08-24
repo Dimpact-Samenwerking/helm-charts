@@ -9,6 +9,11 @@ import yaml
 
 from lib.procutil import run
 
+# A BOM breaks YAML tooling that doesn't expect one. Shared by
+# verify-podiumd.py (detects and reports it — a verify script never writes
+# to a tracked file) and strip-utf8-bom.py (the fixer).
+UTF8_BOM = b"\xef\xbb\xbf"
+
 # component (name or alias) -> dotted values.yaml path(s) for its own image
 # block(s), for components that ship more than one independently-versioned
 # image (e.g. ZAC alone bundles 10+ — opa, solr, zookeeper, curl,

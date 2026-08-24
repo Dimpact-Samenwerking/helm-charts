@@ -10,7 +10,7 @@ currently-pinned tag has drifted.
 
 Slowest step in the pipeline by far — scanning every unique pinned image
 pulls each one via Docker — but runs by default like every other step
-(see --skip-check-cves/--include-check-cves in verify-podiumd.py). Never
+(see --skip=check-cves/--include=check-cves in verify-podiumd.py). Never
 fails the check regardless of severity found — a HIGH/CRITICAL CVE with a
 fix available is a triage decision for a human (is the fix actually
 reachable here, is the severity exploitable in this deployment, ...), not
@@ -42,7 +42,7 @@ if there's no fresh cache entry (that check hasn't run recently, or this
 image wasn't in its scope), the marker is just omitted rather than
 triggering a registry call of this module's own. Whether the newer tag
 actually fixes anything is a separate question this module can't answer;
-run --include-image-upgrades (or a full run) to populate/refresh the
+run --include=image-upgrades (or a full run) to populate/refresh the
 cache this reads.
 Ownership is
 determined primarily from the `helm template` render (same authoritative

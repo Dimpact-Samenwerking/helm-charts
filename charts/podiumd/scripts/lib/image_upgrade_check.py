@@ -20,7 +20,7 @@ line: "does this image have a newer tag published" and "does this image
 have a KNOWN CVE" are independent questions — a newer tag doesn't imply
 it fixes anything, and this check's own answer is useful even for an
 image with zero current CVE findings — so it now runs (and can be
-skipped/run standalone via --skip-image-upgrades/--include-image-upgrades)
+skipped/run standalone via --skip=image-upgrades/--include=image-upgrades)
 on its own.
 
 One registry tag-list call per unique (repository, version) pin — cheap,
