@@ -16,12 +16,15 @@ Usage:
 A target version column that's empty (nothing changed for that app/helm
 version on this release) prints as "UNCHANGED" rather than blank.
 
-Also prints a second table of every row whose "used_by" column is a
-substring of one of the matched rows' own "component" value — e.g.
-querying vendor "info" matches "Zaak - ZAC", and since "zac" (the
-Technische-section rows' used_by value) is contained in that component
-name, the Solr/Zookeeper/... rows ZAC pulls in are listed too, since
-those rows aren't found by the main query itself.
+Also prints a second table of every row whose "used_by" column relates
+to one of the matched rows' own "component" value — either because the
+used_by value is a plain substring of that component name (e.g. "zac"
+is contained in "Zaak - ZAC"), or because the used_by value is a
+Chart.yaml alias whose dependency's full name equals that component
+name with spaces stripped (e.g. used_by "ita" is the alias for
+Chart.yaml dependency "internetaakafhandeling", which is exactly
+"Interne Taak Afhandeling" with spaces removed). Either way, this
+finds rows that aren't matched by the main query itself.
 
 Examples:
     query-release-table.py component zac
@@ -33,6 +36,10 @@ import sys
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
+
+from lib.chart import load_yaml
+
 CHART_DIR = SCRIPT_DIR.parents[0]
 DEFAULT_INPUT = CHART_DIR / "release-table.csv"
 
@@ -51,18 +58,46 @@ def matching_rows(rows, column, text):
     return [row for row in rows if needle in row[column].lower()]
 
 
-def used_by_rows_for(rows, matches):
+def alias_dependency_names(chart_dir):
+    """{alias: dependency_name} for every aliased dependency in
+    chart_dir/Chart.yaml — e.g. {"ita": "internetaakafhandeling", "zac":
+    "zaakafhandelcomponent", ...}. {} if chart_dir has no Chart.yaml
+    (e.g. an isolated test fixture that doesn't care about alias
+    resolution)."""
+    chart_yaml_path = chart_dir / "Chart.yaml"
+    if not chart_yaml_path.is_file():
+        return {}
+    chart_yaml = load_yaml(chart_yaml_path)
+    return {dep["alias"]: dep["name"] for dep in chart_yaml.get("dependencies", []) if dep.get("alias")}
+
+
+def used_by_rows_for(rows, matches, chart_dir=None):
     """Every row in `rows` (excluding `matches` themselves) whose
-    non-empty "used_by" value is a case-insensitive substring of one of
-    `matches`' own "component" values — e.g. "zac" (a Technische row's
-    used_by) is contained in "Zaak - ZAC" (a matched component's name),
-    so that Technische row comes back regardless of which column/text
-    the original query actually matched on."""
+    non-empty "used_by" value relates to one of `matches`' own
+    "component" values, so that a Technische-section row comes back
+    regardless of which column/text the original query actually matched
+    on. Two ways a used_by value can relate to a component name:
+    - plain substring — e.g. "zac" is contained in "Zaak - ZAC"
+    - Chart.yaml alias — e.g. used_by "ita" is the alias for dependency
+      "internetaakafhandeling" (see alias_dependency_names), which is
+      exactly "Interne Taak Afhandeling" with spaces stripped; "ita"
+      itself is not a substring of that component name at all."""
+    chart_dir = chart_dir or CHART_DIR
+    alias_names = alias_dependency_names(chart_dir)
     names = [m["component"].lower() for m in matches]
+    compact_names = [name.replace(" ", "") for name in names]
     match_ids = {id(m) for m in matches}
-    return [row for row in rows
-            if id(row) not in match_ids and row["used_by"]
-            and any(row["used_by"].lower() in name for name in names)]
+
+    result = []
+    for row in rows:
+        used_by = row["used_by"]
+        if not used_by or id(row) in match_ids:
+            continue
+        needle = used_by.lower()
+        dependency_name = alias_names.get(used_by, "").lower()
+        if any(needle in name for name in names) or dependency_name in compact_names:
+            result.append(row)
+    return result
 
 
 def display_value(row, column):
