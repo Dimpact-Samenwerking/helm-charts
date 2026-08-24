@@ -353,7 +353,7 @@ def check_cves(chart_dir, extra_args):
     print_bucket_report("Other-vendor images", other_refs, images, itemize=False)
 
     if not (own_refs or partner_refs or other_refs):
-        print("OK: no known CVEs with a fix available found across pinned images")
+        print("OK: no known CVEs found across pinned images")
 
     if scan_errors:
         print(f"{len(scan_errors)} image(s) could not be scanned: {', '.join(scan_errors)}")
@@ -422,23 +422,22 @@ def print_bucket_report(title, refs, images, itemize):
     if not itemize:
         high = sum(1 for ref in refs for v in images[ref]["vulns"] if v["Severity"] in HIGH_SEVERITIES)
         rest = sum(len(images[ref]["vulns"]) for ref in refs) - high
-        print(f"  {high} CRIT/HIGH, {rest} MEDIUM/LOW/UNKNOWN CVE(s) with a fix available "
-              f"across {len(refs)} image(s) (not itemized)")
+        print(f"  {high} CRIT/HIGH, {rest} MEDIUM/LOW/UNKNOWN CVE(s) across {len(refs)} image(s) "
+              f"(not itemized)")
         return
 
     for ref in refs:
         info = images[ref]
         vendor = f" [{info['vendor_label']}]" if info["vendor_label"] else ""
-        print(f"{ref}{vendor}")
-
-        for pkg, vulns_for_pkg in sorted(high_findings_by_package(info["vulns"]).items()):
-            print_package_line(pkg, vulns_for_pkg)
+        newest = describe_newest_tag(info["host"], info["repo_path"], info["version"])
+        print(f"{ref}{vendor}: {newest}")
 
         rest_counts = Counter(v["Severity"] for v in info["vulns"] if v["Severity"] not in HIGH_SEVERITIES)
         if rest_counts:
             parts = ", ".join(f"{rest_counts[s]} {s}" for s in ("MEDIUM", "LOW", "UNKNOWN") if rest_counts.get(s))
-            print(f"  {parts} CVE(s) with a fix available (not itemized)")
+            print(f"  {parts} CVE(s) (not itemized)")
 
-        newest = describe_newest_tag(info["host"], info["repo_path"], info["version"])
-        print(f"  {newest}")
+        for pkg, vulns_for_pkg in sorted(high_findings_by_package(info["vulns"]).items()):
+            print_package_line(pkg, vulns_for_pkg)
+
         print()
