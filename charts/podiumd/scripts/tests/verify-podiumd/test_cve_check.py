@@ -337,7 +337,7 @@ def test_check_cves_splits_own_partner_other_and_never_fails(vp, libcvecheck, tm
     out = capsys.readouterr().out
     assert "--- Own images ---" in out
     assert "CRIT CVE-OWN-1" in out  # CRITICAL itemized, abbreviated
-    assert "1 LOW CVE(s) with a fix available (not itemized)" in out  # LOW only totaled, per image
+    assert "1 LOW CVE(s) (not itemized)" in out  # LOW only totaled, per image
     assert "CVE-OWN-2" not in out
 
     assert "--- Partner-vendor images ---" in out
@@ -348,6 +348,32 @@ def test_check_cves_splits_own_partner_other_and_never_fails(vp, libcvecheck, tm
     assert "1 CRIT/HIGH, 1 MEDIUM/LOW/UNKNOWN" in out
     assert "not itemized" in out
     assert "CVE-OTHER-1" not in out  # other-vendor never itemized, not even CRITICAL
+
+
+def test_print_bucket_report_image_line_carries_advice_then_totals_then_packages(libcvecheck, monkeypatch, capsys):
+    """Layout, top to bottom, for an itemized image: the image name+vendor
+    line carries the newest-tag advice inline (not a separate trailing
+    line), then the MEDIUM/LOW/UNKNOWN total (if any), then the per-package
+    CRIT/HIGH lines."""
+    monkeypatch.setattr(libcvecheck, "find_newest_same_variant_tag", lambda host, repo, version: version)
+    images = {
+        "docker.io/pravega/zookeeper:0.2.15": {
+            "bucket": "own", "vendor_label": None,
+            "host": "docker.io", "repo_path": "pravega/zookeeper", "version": "0.2.15",
+            "vulns": [
+                vuln("HIGH", cve="CVE-1", pkg="bind9-dnsutils"),
+                vuln("MEDIUM", cve="CVE-2"),
+                vuln("LOW", cve="CVE-3"),
+            ],
+        },
+    }
+    libcvecheck.print_bucket_report("Own images", ["docker.io/pravega/zookeeper:0.2.15"], images, itemize=True)
+
+    lines = [line for line in capsys.readouterr().out.splitlines() if line.strip()]
+    header_idx = next(i for i, line in enumerate(lines) if line.startswith("docker.io/pravega/zookeeper:0.2.15"))
+    assert "already on the newest published tag in this line — no fix available yet" in lines[header_idx]
+    assert "1 MEDIUM, 1 LOW CVE(s) (not itemized)" in lines[header_idx + 1]
+    assert "bind9-dnsutils: HIGH CVE-1" in lines[header_idx + 2]
 
 
 def test_check_cves_no_findings_passes(vp, libcvecheck, tmp_path, monkeypatch, capsys):
