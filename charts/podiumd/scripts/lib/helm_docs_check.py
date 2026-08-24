@@ -20,14 +20,26 @@ that one, and neither substitutes for the other.
 --dry-run makes helm-docs print the regenerated markdown to stdout
 instead of writing README.md — this check never touches the real file,
 matching check_image_digests/check_utf8_format's report-only contract: a
-separate, explicit, human-run step (the real `helm-docs` command, same as
-/helm-docs-check's Tier 1) does the actual fix, never this script."""
+separate, explicit, human-run step does the actual fix, never this
+script — update-podiumd-readme.py wraps the real (non-dry-run) `helm-docs`
+command for that.
+
+On drift, prints an actual unified diff (capped at MAX_DIFF_LINES) rather
+than just a changed-line count — seeing WHICH lines moved is what makes
+the finding actionable; a bare count isn't."""
+import difflib
 import shutil
 
 from lib.procutil import run
 
 README_FILENAME = "README.md"
 TEMPLATE_FILENAME = "README.md.gotmpl"
+FIX_COMMAND = "update-podiumd-readme"
+
+# Past this many diff lines, printing every one stops being useful (a
+# renamed top-level key can ripple through hundreds of rows) — show a
+# capped, representative excerpt instead and say how many more there are.
+MAX_DIFF_LINES = 40
 
 
 def check_helm_docs(chart_dir):
@@ -36,7 +48,7 @@ def check_helm_docs(chart_dir):
 
     readme_path = chart_dir / README_FILENAME
     if not readme_path.is_file():
-        return False, f"{readme_path} does not exist — run helm-docs (see /helm-docs-check) to create it"
+        return False, f"{readme_path} does not exist — run {FIX_COMMAND} to create it"
 
     cmd = ["helm-docs", "--dry-run", "--chart-search-root", str(chart_dir)]
     if (chart_dir / TEMPLATE_FILENAME).is_file():
@@ -53,8 +65,17 @@ def check_helm_docs(chart_dir):
         print(f"OK: {README_FILENAME} matches helm-docs output")
         return True, "in sync"
 
-    changed = sum(1 for a, b in zip(original_lines, regenerated_lines) if a != b) \
-        + abs(len(original_lines) - len(regenerated_lines))
-    print(f"DRIFT: {readme_path} is out of sync with values.yaml — {changed} line(s) would change. "
-          f"Run helm-docs (see /helm-docs-check) to regenerate; never auto-fixed here.")
-    return False, f"{changed} line(s) out of sync"
+    diff = list(difflib.unified_diff(
+        original_lines, regenerated_lines,
+        fromfile=f"{README_FILENAME} (current)", tofile=f"{README_FILENAME} (helm-docs)",
+        lineterm="",
+    ))
+    changed = sum(1 for line in diff if line[:1] in ("+", "-") and line[:3] not in ("+++", "---"))
+
+    print(f"DRIFT: {readme_path} is out of sync with values.yaml — {changed} line(s) would change:")
+    for line in diff[:MAX_DIFF_LINES]:
+        print(f"  {line}")
+    if len(diff) > MAX_DIFF_LINES:
+        print(f"  ... ({len(diff) - MAX_DIFF_LINES} more diff line(s) not shown)")
+    print(f"Run {FIX_COMMAND} to regenerate.")
+    return False, f"{changed} line(s) out of sync — run {FIX_COMMAND}"
