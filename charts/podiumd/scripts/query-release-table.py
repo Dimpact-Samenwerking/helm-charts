@@ -83,6 +83,7 @@ def main():
         print(f"no rows found where {column} contains {text!r}")
         sys.exit(1)
 
+    print(f"Matches for {column} {text!r}:")
     print_table(matches)
 
     if column == "component":
