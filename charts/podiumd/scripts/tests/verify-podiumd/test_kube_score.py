@@ -156,7 +156,7 @@ def test_check_kube_score_no_findings_passes(vp, libkubescorecheck, tmp_path, mo
 
     ok, detail = vp.check_kube_score(tmp_path, [])
     assert ok is True
-    assert detail == "0 real (own, fails), 0 partner-vendor, 0 other-vendor (vendored not enforced)"
+    assert detail == "0 real (own), 0 partner-vendor, 0 other-vendor"
 
 
 def test_check_kube_score_own_finding_fails(vp, libkubescorecheck, tmp_path, monkeypatch, capsys):
@@ -190,7 +190,7 @@ def test_check_kube_score_ignores_non_resource_checks(vp, libkubescorecheck, tmp
 
     ok, detail = vp.check_kube_score(tmp_path, [])
     assert ok is True
-    assert detail == "0 real (own, fails), 0 partner-vendor, 0 other-vendor (vendored not enforced)"
+    assert detail == "0 real (own), 0 partner-vendor, 0 other-vendor"
 
 
 def test_check_kube_score_partner_vendor_finding_reported_per_item_never_fails(vp, libkubescorecheck, tmp_path, monkeypatch, capsys):
@@ -267,7 +267,7 @@ def test_check_kube_score_crd_only_vendored_chart_is_not_a_failure(vp, libkubesc
     monkeypatch.setattr(libkubescorecheck, "run", run)
     ok, detail = vp.check_kube_score(tmp_path, [])
     assert ok is True
-    assert detail == "0 real (own, fails), 0 partner-vendor, 0 other-vendor (vendored not enforced)"
+    assert detail == "0 real (own), 0 partner-vendor, 0 other-vendor"
 
 
 def test_check_kube_score_missing_binary_fails(vp, tmp_path, monkeypatch):
