@@ -185,6 +185,18 @@ def test_extract_release_rows_matches_and_reports(ecrt, capsys):
     assert "2 row(s) matched" in out
 
 
+def test_extract_release_rows_not_tied_to_specific_version_numbers(ecrt):
+    """The page renames "Versie 4.8"/"Versie 4.9" every release — a table
+    headed "Versie 5.0"/"Versie 5.1" instead must resolve exactly the
+    same way, into "source"/"target" by column order, not by number."""
+    html = PRODUCT_TABLE_HTML.replace("Versie 4.8", "Versie 5.0").replace("Versie 4.9", "Versie 5.1")
+    rows = ecrt.extract_release_rows(html)
+    assert rows == [
+        ["Product component versies", "ZAC", "Info(NL)", "5.0.0", "1.0.290", "5.1.0", "1.0.297"],
+        ["Product component versies", "Open Zaak", "Maykin", "1.27.0", "1.14.0", "1.27.4", "1.14.2"],
+    ]
+
+
 def test_extract_release_rows_replaces_non_semver_version_with_unknown_and_reports_count(ecrt, capsys):
     html = PRODUCT_TABLE_HTML.replace("<td>5.1.0</td>", "<td>?</td>")
     rows = ecrt.extract_release_rows(html)
@@ -269,8 +281,8 @@ def test_main_writes_csv(ecrt, tmp_path, monkeypatch, capsys):
 
     with output_path.open(newline="", encoding="utf-8") as f:
         rows = list(csv.reader(f))
-    assert rows[0] == ["sectie", "component", "ontwikkelpartij", "versie 4.8 app", "versie 4.8 helm",
-                        "versie 4.9 app", "versie 4.9 helm"]
+    assert rows[0] == ["sectie", "component", "ontwikkelpartij", "source version app", "source version helm",
+                        "target version app", "target version helm"]
     assert rows[1] == ["Product component versies", "ZAC", "Info(NL)", "5.0.0", "1.0.290", "5.1.0", "1.0.297"]
     assert rows[2] == ["Product component versies", "Open Zaak", "Maykin", "1.27.0", "1.14.0", "1.27.4", "1.14.2"]
     out = capsys.readouterr().out

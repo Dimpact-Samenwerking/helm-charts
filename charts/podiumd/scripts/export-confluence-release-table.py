@@ -13,12 +13,17 @@ From each matching table, extracts: which section it came from, the
 table's own first column (whatever it's labeled — usually the component
 name), "Ontwikkelpartij" (optional — some sections, e.g. shared/technical
 tooling, legitimately have no development-partner column at all), and
-"App"/"Helm" under each of "Versie 4.8" and "Versie 4.9" (required;
-matched by case-insensitive substring, so "versie 4.8"/"Versie 4.8"/
-"V4.8" etc. all work — see lib.confluence_tables.RELEASE_COLUMN_SPECS). A
-matching-heading table still missing a required column is skipped and
-reported, not treated as an error. Rows from every table that has them
-are concatenated into one CSV, in page order.
+"App"/"Helm" under each of the table's two "Versie ..." column groups
+(required) — written to the CSV as "source version"/"target version"
+(first group = source, second = target; see
+lib.confluence_tables.find_versie_groups). The version numbers
+themselves are never hardcoded, since the page renames these two
+headers every release (e.g. "Versie 4.8"/"Versie 4.9" today) — only that
+each one's label starts with "Versie" (case-insensitive) matters. A
+matching-heading table still missing a required column, or that doesn't
+have exactly two such groups, is skipped and reported, not treated as an
+error. Rows from every table that has them are concatenated into one
+CSV, in page order.
 
 Each of the four version values is replaced with "UNKNOWN" if it isn't
 semver-compatible (see lib.confluence_tables.is_semver_compatible — a
@@ -82,7 +87,7 @@ DEFAULT_HEADINGS = [
 ]
 
 CSV_HEADER = ["sectie", "component", "ontwikkelpartij",
-              "versie 4.8 app", "versie 4.8 helm", "versie 4.9 app", "versie 4.9 helm"]
+              "source version app", "source version helm", "target version app", "target version helm"]
 
 # How many extra rows beyond effective_header_row_count()'s own guess to
 # try as the header block — see resolve_header_row_count. Confluence
@@ -150,9 +155,9 @@ def resolve_token(args):
 
 def extract_release_rows(html, headings=None):
     """Return the CSV data rows (sectie, component, ontwikkelpartij,
-    versie 4.8 app/helm, versie 4.9 app/helm) across every table directly
-    under one of `headings` (default DEFAULT_HEADINGS) that has the
-    required App/Helm columns. Prints a one-line report per matching-
+    source version app/helm, target version app/helm) across every table
+    directly under one of `headings` (default DEFAULT_HEADINGS) that has
+    the required App/Helm columns. Prints a one-line report per matching-
     heading table (rows matched, or which required column it's missing)."""
     headings = headings or DEFAULT_HEADINGS
     all_tables = extract_tables(html)
@@ -182,7 +187,7 @@ def extract_release_rows(html, headings=None):
                 continue
             ontwikkelpartij = data_row[columns["ontwikkelpartij"]] if columns["ontwikkelpartij"] is not None else ""
             versions = [normalize_version(data_row[columns[key]]) for key in
-                        ("v48_app", "v48_helm", "v49_app", "v49_helm")]
+                        ("source_app", "source_helm", "target_app", "target_helm")]
             unknown_count += sum(1 for v in versions if v == "UNKNOWN")
             rows_out.append([heading, data_row[columns["first"]], ontwikkelpartij] + versions)
             matched += 1
@@ -190,7 +195,7 @@ def extract_release_rows(html, headings=None):
 
     if not rows_out:
         raise SystemExit("error: every matching-heading table was missing a required column "
-                          "(Versie 4.8/4.9 App+Helm) — see the skip reason(s) above")
+                          "(source/target Versie ... App+Helm) — see the skip reason(s) above")
     if unknown_count:
         print(f"{unknown_count} version value(s) were not semver-compatible — replaced with UNKNOWN")
     return rows_out
