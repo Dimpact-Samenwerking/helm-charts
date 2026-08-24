@@ -10,7 +10,7 @@ currently-pinned tag has drifted.
 
 Slowest step in the pipeline by far — scanning every unique pinned image
 pulls each one via Docker — but runs by default like every other step
-(see --skip-check-cves/--only-check-cves in verify-podiumd.py). Never
+(see --skip-check-cves/--include-check-cves in verify-podiumd.py). Never
 fails the check regardless of severity found — a HIGH/CRITICAL CVE with a
 fix available is a triage decision for a human (is the fix actually
 reachable here, is the severity exploitable in this deployment, ...), not
