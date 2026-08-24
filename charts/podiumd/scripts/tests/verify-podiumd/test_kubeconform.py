@@ -66,6 +66,31 @@ def sequenced_run(own_resources, vendored_resources_by_chart=None, rendered=REND
     return run
 
 
+# --- run_kubeconform / schema cache ---
+
+def test_run_kubeconform_creates_cache_dir_and_passes_cache_flag(libkubeconformcheck, monkeypatch, tmp_path):
+    """kubeconform requires -cache's target directory to already exist (it
+    errors out rather than creating it), so run_kubeconform must mkdir it
+    before invoking the tool — and the flag itself must reach the actual
+    command line."""
+    cache_dir = tmp_path / "kubeconform-schema-cache"
+    monkeypatch.setattr(libkubeconformcheck, "kubeconform_cache_dir", lambda: cache_dir)
+    assert not cache_dir.exists()
+
+    captured = {}
+
+    def fake_run(cmd, **kwargs):
+        captured["cmd"] = cmd
+        return kc_result([])
+
+    monkeypatch.setattr(libkubeconformcheck, "run", fake_run)
+    libkubeconformcheck.run_kubeconform("apiVersion: v1\nkind: ConfigMap\n")
+
+    assert cache_dir.is_dir()
+    assert "-cache" in captured["cmd"]
+    assert str(cache_dir) in captured["cmd"]
+
+
 # --- split_rendered_by_source ---
 
 def test_split_rendered_by_source_separates_own_and_vendored(librenderscope):

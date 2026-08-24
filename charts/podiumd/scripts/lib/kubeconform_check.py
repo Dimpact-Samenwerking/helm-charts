@@ -1,10 +1,17 @@
 """Validates the full `helm template` render against real Kubernetes API
 schemas — catches unknown fields, wrong types, and missing required fields
 that neither `helm lint` nor yamllint check (those only validate chart
-structure / YAML syntax, not API conformance)."""
+structure / YAML syntax, not API conformance).
+
+Every kubeconform invocation passes -cache (see kubeconform_cache_dir) so
+schemas fetched over HTTP are reused across runs instead of re-fetched —
+own templates + one run per distinct vendored chart is several
+kubeconform invocations per check_kubeconform call, all hitting largely
+the same set of Kubernetes API kinds/versions."""
 import json
 import shutil
 from collections import Counter
+from pathlib import Path
 
 from lib.procutil import run
 from lib.render_scope import (
@@ -12,15 +19,25 @@ from lib.render_scope import (
     print_grouped_findings, split_rendered_by_source, supports_skip_schema_validation,
 )
 
-KUBECONFORM_ARGS = [
+KUBECONFORM_BASE_ARGS = [
     "-strict",  # also catch unknown/duplicate fields, not just type mismatches
     "-ignore-missing-schemas",  # this chart's many CRDs (Keycloak, ECK, Redis, ...) have no
                                  # schema in kubeconform's registry — skip them, don't error
     "-verbose",
     "-summary",
     "-output", "json",
-    "-",
 ]
+
+
+def kubeconform_cache_dir():
+    """Where kubeconform's own -cache flag stores every Kubernetes API
+    schema it fetches over HTTP. Shared across every chart/branch/worktree
+    (not scoped under chart_dir) since schemas are keyed by Kubernetes
+    version, not by this chart's content — there's no reason to
+    re-download the same schemas per checkout. kubeconform requires the
+    directory to already exist (it errors out rather than creating it),
+    hence the mkdir in run_kubeconform below."""
+    return Path.home() / ".cache" / "podiumd-kubeconform-schemas"
 
 # statusError covers both "resource couldn't even be parsed" (e.g. the
 # frankgateway duplicate-key bug — a real, structural problem) and, in
@@ -35,7 +52,10 @@ def run_kubeconform(yaml_text):
     "resources" list (each a dict with at least kind/name/version/status/
     msg) — or None if kubeconform's own output couldn't be parsed as JSON
     (a kubeconform bug/crash, not a chart problem)."""
-    result = run(["kubeconform", *KUBECONFORM_ARGS], input=yaml_text, capture_output=True, text=True)
+    cache_dir = kubeconform_cache_dir()
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    args = [*KUBECONFORM_BASE_ARGS, "-cache", str(cache_dir), "-"]
+    result = run(["kubeconform", *args], input=yaml_text, capture_output=True, text=True)
     try:
         return json.loads(result.stdout)["resources"]
     except (json.JSONDecodeError, KeyError):
