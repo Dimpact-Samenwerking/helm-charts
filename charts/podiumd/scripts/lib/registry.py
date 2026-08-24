@@ -139,6 +139,35 @@ def _is_more_specific_tag(candidate, version):
     return cand_suffix == ver_suffix or cand_suffix.startswith(ver_suffix)
 
 
+def find_newest_same_variant_tag(registry_host, repo, version):
+    """The numerically-highest published tag sharing version's suffix/
+    variant (e.g. both "-slim", or both no suffix) — version itself if
+    nothing newer is published, or if version isn't a numeric-style tag at
+    all (nothing to meaningfully compare). Used by check_cves to tell "a
+    newer tag exists, worth checking whether it fixes a given CVE" apart
+    from "already on the newest published tag in this line — no fix
+    available yet." Deliberately a different relation than
+    _is_more_specific_tag (which requires candidate to REFINE version,
+    e.g. "3.14.7-slim" for "3.14-slim") — this instead wants any newer
+    same-variant release, refinement or not."""
+    ver_num, ver_suffix = _numeric_prefix_and_suffix(version)
+    if ver_num is None:
+        return version
+
+    def numeric_tuple(num):
+        return tuple(int(p) for p in num.split("."))
+
+    best, best_key = version, numeric_tuple(ver_num)
+    for tag in list_tags(registry_host, repo):
+        num, suffix = _numeric_prefix_and_suffix(tag)
+        if num is None or suffix != ver_suffix:
+            continue
+        key = numeric_tuple(num)
+        if key > best_key:
+            best, best_key = tag, key
+    return best
+
+
 def find_more_specific_tag_at_same_digest(registry_host, repo, version, live_digest):
     """A currently-published tag that's strictly more specific than version
     (e.g. "3.14.7-slim" for "3.14-slim" — see _is_more_specific_tag) and

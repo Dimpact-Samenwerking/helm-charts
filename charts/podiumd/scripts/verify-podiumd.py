@@ -492,7 +492,7 @@ def main():
 
     log("Scanning pinned images for known CVEs (trivy)")
     if args.check_cves:
-        ok, detail = check_cves(chart_dir)
+        ok, detail = check_cves(chart_dir, extra_args)
         results.append(("CVE scan", ok, detail))
     else:
         print("SKIPPED (opt-in only — pass --check-cves to run; pulls every pinned image via "
