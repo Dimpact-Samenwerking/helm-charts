@@ -183,7 +183,7 @@ def check_shellcheck(chart_dir, extra_args):
     if not (own_real or vendored_friendly or vendored_other):
         print("OK: no shellcheck findings in the rendered chart")
 
-    detail = (f"{len(own_real)} real (own), {len(vendored_friendly)} friendly-vendor, "
+    detail = (f"{len(own_real)} real (own), {len(vendored_friendly)} partner-vendor, "
               f"{len(vendored_other)} other-vendor")
     if own_real:
         return False, detail

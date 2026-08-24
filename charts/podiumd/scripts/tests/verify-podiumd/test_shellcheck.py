@@ -3,7 +3,7 @@ run_shellcheck — lints every shell script embedded in a container's
 command/args (this chart's `command: [".../sh", "-c"], args: [<script>]` /
 `command: [...], args: ["-c", <script>]` convention). Same own/vendored
 scope split as check_yamllint/check_kubeconform: only error/warning-level
-findings in this chart's OWN templates fail; a friendly-vendor finding
+findings in this chart's OWN templates fail; a partner-vendor finding
 (Maykin/Info(NL)/ICATT/Worth/WeAreFrank/Dimpact/local) is printed per-item
 but never fails; any other vendored finding only ever gets a one-line
 aggregate count; info/style are cosmetic and never reported anywhere. All
@@ -125,7 +125,7 @@ def test_check_shellcheck_no_findings_passes(vp, libshellcheckcheck, tmp_path, m
 
     ok, detail = vp.check_shellcheck(tmp_path, [])
     assert ok is True
-    assert detail == "0 real (own), 0 friendly-vendor, 0 other-vendor"
+    assert detail == "0 real (own), 0 partner-vendor, 0 other-vendor"
 
 
 def test_check_shellcheck_own_warning_fails(vp, libshellcheckcheck, tmp_path, monkeypatch, capsys):
@@ -170,7 +170,7 @@ def test_check_shellcheck_info_and_style_never_reported(vp, libshellcheckcheck, 
 
     ok, detail = vp.check_shellcheck(tmp_path, [])
     assert ok is True
-    assert detail == "0 real (own), 0 friendly-vendor, 0 other-vendor"
+    assert detail == "0 real (own), 0 partner-vendor, 0 other-vendor"
     out = capsys.readouterr().out
     assert "2086" not in out
     assert "2006" not in out
@@ -247,7 +247,7 @@ def test_check_shellcheck_friendly_vendor_finding_reported_per_item_never_fails(
     ok, detail = vp.check_shellcheck(tmp_path, [])
     assert ok is True
     assert "0 real (own)" in detail
-    assert "1 friendly-vendor" in detail
+    assert "1 partner-vendor" in detail
     assert "0 other-vendor" in detail
     out = capsys.readouterr().out
     assert "reported for visibility, never a failure" in out
@@ -270,7 +270,7 @@ def test_check_shellcheck_no_scripts_found_passes(vp, libshellcheckcheck, tmp_pa
     monkeypatch.setattr(libshellcheckcheck, "run", run)
     ok, detail = vp.check_shellcheck(tmp_path, [])
     assert ok is True
-    assert detail == "0 real (own), 0 friendly-vendor, 0 other-vendor"
+    assert detail == "0 real (own), 0 partner-vendor, 0 other-vendor"
 
 
 def test_check_shellcheck_missing_binary_fails(vp, tmp_path, monkeypatch):

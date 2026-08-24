@@ -72,15 +72,19 @@ def check_kube_score(chart_dir, extra_args):
     sub-chart's container is still this repo's job to fix (wired via that
     sub-chart's values.yaml key, per the same documented convention) — it
     is not an upstream-code problem the way a YAML-style or shell-script
-    issue is. So every vendored finding is printed individually (grouped
+    issue is. So, unlike those three checks' partner-vendor/other-vendor
+    split (only a partner chart's findings get individual detail), EVERY
+    vendored finding here is printed individually regardless of vendor —
+    partner and other alike, one flat "vendored sub-charts" bucket, no
+    friendlier treatment for a partner chart than any other vendor (grouped
     per container, by chart — kube-score's own JSON carries no per-
     resource source info, so — like check_kubeconform — each vendored
-    sub-chart is scored as its own separate kube-score run), but does NOT
-    fail the check yet: the current backlog is untriaged, and some gaps
-    are upstream-blocked (the sub-chart's own template exposes no
-    resources field at all for a given container — nothing to wire).
-    Only an OWN finding fails; promoting vendored to failing is a
-    deliberate future step once the backlog is resolved or written into
+    sub-chart is scored as its own separate kube-score run). It still does
+    NOT fail the check yet, though: the current backlog is untriaged, and
+    some gaps are upstream-blocked (the sub-chart's own template exposes no
+    resources field at all for a given container — nothing to wire). Only
+    an OWN finding fails; promoting vendored to failing is a deliberate
+    future step once the backlog is resolved or written into
     docs/misc/resource-overview.md as an accepted/upstream-blocked gap."""
     if shutil.which("kube-score") is None:
         return False, "kube-score is not installed (see --skip-kube-score to bypass)"
@@ -128,9 +132,10 @@ def check_kube_score(chart_dir, extra_args):
         print()
 
     if vendored:
-        print(f"Found {len(vendored)} kube-score issue(s) in vendored sub-charts (missing "
-              f"resources.requests/.limits — wireable via this repo's values.yaml per the same "
-              f"convention, but not yet triaged — reported, does not fail the check):")
+        print(f"Found {len(vendored)} kube-score issue(s) across all vendored sub-charts — "
+              f"partner and other alike (missing resources.requests/.limits — wireable via this "
+              f"repo's values.yaml per the same convention, but not yet triaged — reported, does "
+              f"not fail the check):")
         print_grouped_findings(
             vendored,
             key_fn=lambda f: (f[0], f[1], f[2]),
@@ -143,7 +148,8 @@ def check_kube_score(chart_dir, extra_args):
     if not (own_real or vendored):
         print("OK: no kube-score container-resources findings in the rendered chart")
 
-    detail = f"{len(own_real)} real (own, fails), {len(vendored)} in vendored sub-charts (reported, not enforced)"
+    detail = (f"{len(own_real)} real (own, fails), {len(vendored)} across all vendored sub-charts "
+              f"— partner+other (reported, not enforced)")
     if own_real:
         return False, detail
     return True, detail

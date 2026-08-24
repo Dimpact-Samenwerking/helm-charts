@@ -5,7 +5,7 @@ its own) and buckets findings by scope (this chart's own templates/ vs. a
 "friendly" vendored sub-chart — Maykin/Info(NL)/ICATT/Worth/WeAreFrank/
 Dimpact/local — vs. any other vendored sub-chart) and by rule (a real
 structural problem — key-duplicates, syntax — vs. cosmetic style). Only an
-own+real finding fails; a friendly-vendor finding is printed per-item but
+own+real finding fails; a partner-vendor finding is printed per-item but
 never fails; any other vendored finding only ever gets a one-line aggregate
 count; cosmetic findings aren't reported at all anywhere — too noisy to be
 worth surfacing right now. All `helm`/`yamllint` subprocess calls are
@@ -23,7 +23,7 @@ def fake_run(returncode=0, stdout="", stderr=""):
 
 
 def no_friendly_vendors(libyamllintcheck, monkeypatch):
-    """Most tests don't care about the friendly-vendor split — default to
+    """Most tests don't care about the partner-vendor split — default to
     an empty mapping so every vendored finding lands in the plain
     "other vendor" aggregate-count bucket, as before that feature existed."""
     monkeypatch.setattr(libyamllintcheck, "friendly_vendor_charts", lambda chart_dir: {})
@@ -124,7 +124,7 @@ def test_check_yamllint_own_cosmetic_not_reported_at_all(vp, libyamllintcheck, t
     ok, detail = vp.check_yamllint(tmp_path, [])
     assert ok is True
     assert "cosmetic" not in detail
-    assert detail == "0 real (own), 0 friendly-vendor, 0 other-vendor"
+    assert detail == "0 real (own), 0 partner-vendor, 0 other-vendor"
     out = capsys.readouterr().out
     assert "trailing" not in out
     assert "cosmetic" not in out
@@ -181,7 +181,7 @@ def test_check_yamllint_friendly_vendor_finding_reported_per_item_never_fails(vp
     ok, detail = vp.check_yamllint(tmp_path, [])
     assert ok is True
     assert "0 real (own)" in detail
-    assert "1 friendly-vendor" in detail
+    assert "1 partner-vendor" in detail
     assert "0 other-vendor" in detail
     out = capsys.readouterr().out
     assert "reported for visibility, never a failure" in out
