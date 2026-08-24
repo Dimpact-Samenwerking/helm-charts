@@ -126,6 +126,7 @@ def test_main_skips_requested_steps_and_runs_the_rest(vp, monkeypatch, capsys):
     monkeypatch.setattr(vp, "check_kubeconform", make_check("kubeconform"))
     monkeypatch.setattr(vp, "check_shellcheck", make_check("shellcheck"))
     monkeypatch.setattr(vp, "check_kube_score", make_check("kube-score"))
+    monkeypatch.setattr(vp, "check_cves", make_check("cves"))
 
     def fail_if_called(*args):
         raise AssertionError("this check should have been skipped")
@@ -136,7 +137,7 @@ def test_main_skips_requested_steps_and_runs_the_rest(vp, monkeypatch, capsys):
     vp.main()  # must not raise / must not sys.exit
 
     assert ran == ["utf8", "dupe", "dry", "image-refs", "node-selector", "tgz", "docs", "digests",
-                    "deps", "yamllint", "kubeconform", "shellcheck", "kube-score"]
+                    "deps", "yamllint", "kubeconform", "shellcheck", "kube-score", "cves"]
     out = capsys.readouterr().out
     assert "Lint" in out and "SKIP" in out
     assert "Full render" in out and "SKIP" in out
@@ -158,3 +159,144 @@ def test_main_skipped_step_does_not_count_as_failure(vp, monkeypatch):
     with pytest.raises(SystemExit) as exc_info:
         vp.main()
     assert exc_info.value.code == 1
+
+
+# --- prerequisites_for ---
+
+def test_prerequisites_for_render_based_check_needs_dependencies(vp):
+    assert vp.prerequisites_for("kube-score") == {"Dependencies"}
+    assert vp.prerequisites_for("Lint") == {"Dependencies"}
+
+
+def test_prerequisites_for_standalone_check_has_none(vp):
+    assert vp.prerequisites_for("Image references") == set()
+    assert vp.prerequisites_for("Dependencies") == set()
+
+
+# --- main(): --only-<check> end-to-end ---
+
+def _stub_all_checks(vp, monkeypatch, ran):
+    """Same stub set test_main_skips_requested_steps_and_runs_the_rest uses
+    — shared here so --only-<check> tests don't have to repeat it."""
+    def make_check(name):
+        def check(*args):
+            ran.append(name)
+            return True, "ok"
+        return check
+
+    monkeypatch.setattr(vp, "require_helm", lambda: None)
+    monkeypatch.setattr(vp, "resolve_chart_dir", lambda: "/fake/chart/dir")
+    monkeypatch.setattr(vp, "ensure_repos_configured", lambda: None)
+    monkeypatch.setattr(vp, "lint_args_for", lambda chart_dir: [])
+    monkeypatch.setattr(vp, "check_utf8_format", make_check("utf8"))
+    monkeypatch.setattr(vp, "check_dependencies", make_check("deps"))
+    monkeypatch.setattr(vp, "check_duplicate_keys", make_check("dupe"))
+    monkeypatch.setattr(vp, "check_dry", make_check("dry"))
+    monkeypatch.setattr(vp, "check_image_references", make_check("image-refs"))
+    monkeypatch.setattr(vp, "check_node_selector", make_check("node-selector"))
+    monkeypatch.setattr(vp, "check_image_digests", make_check("digests"))
+    monkeypatch.setattr(vp, "check_docs_consistency", make_check("docs"))
+    monkeypatch.setattr(vp, "check_vendored_tgz_extraction", make_check("tgz"))
+    monkeypatch.setattr(vp, "check_lint", make_check("lint"))
+    monkeypatch.setattr(vp, "check_render", make_check("render"))
+    monkeypatch.setattr(vp, "check_yamllint", make_check("yamllint"))
+    monkeypatch.setattr(vp, "check_kubeconform", make_check("kubeconform"))
+    monkeypatch.setattr(vp, "check_shellcheck", make_check("shellcheck"))
+    monkeypatch.setattr(vp, "check_kube_score", make_check("kube-score"))
+    monkeypatch.setattr(vp, "check_cves", make_check("cves"))
+
+
+def test_only_flag_runs_target_plus_its_prerequisite(vp, monkeypatch, capsys):
+    """--only-kube-score must also run "Dependencies" (kube-score's own
+    `helm template` call would otherwise fail on unresolved sub-charts) —
+    but nothing else."""
+    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--only-kube-score"])
+    ran = []
+    _stub_all_checks(vp, monkeypatch, ran)
+
+    vp.main()  # must not raise / must not sys.exit
+
+    assert ran == ["deps", "kube-score"]
+    out = capsys.readouterr().out
+    for skipped in ("UTF-8 format", "Dupe check", "DRY check", "Lint", "Full render", "yamllint"):
+        assert skipped in out
+    assert "--only-kube-score given" in out
+    assert "All checks passed." in out
+
+
+def test_only_flag_standalone_step_runs_without_dependencies(vp, monkeypatch, capsys):
+    """A step with no prerequisite (see prerequisites_for) must run alone —
+    --only-image-references must NOT also run "Dependencies"."""
+    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--only-image-references"])
+    ran = []
+    _stub_all_checks(vp, monkeypatch, ran)
+
+    vp.main()
+
+    assert ran == ["image-refs"]
+    out = capsys.readouterr().out
+    assert "Dependencies" in out and "SKIP" in out
+
+
+def test_only_and_skip_together_errors(vp, monkeypatch, capsys):
+    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--only-lint", "--skip-full-render"])
+    with pytest.raises(SystemExit) as exc_info:
+        vp.main()
+    assert exc_info.value.code == 2
+    assert "cannot be combined" in capsys.readouterr().err
+
+
+def test_multiple_only_flags_errors(vp, monkeypatch, capsys):
+    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--only-lint", "--only-yamllint"])
+    with pytest.raises(SystemExit) as exc_info:
+        vp.main()
+    assert exc_info.value.code == 2
+    assert "only one --only-<step>" in capsys.readouterr().err
+
+
+# --- CVE scan joined the same --skip-*/--only-* family as every other step ---
+
+def test_check_cves_no_longer_has_its_own_flag(vp, monkeypatch, capsys):
+    """CVE scan used to be gated by a bespoke --check-cves opt-in flag,
+    disconnected from --skip-*/--only-*. It's now just another entry in
+    SKIPPABLE_STEPS (as --skip-check-cves/--only-check-cves), so that
+    separate flag must be gone — argparse rejects it as unrecognized."""
+    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--check-cves"])
+    with pytest.raises(SystemExit) as exc_info:
+        vp.main()
+    assert exc_info.value.code == 2
+    assert "unrecognized arguments" in capsys.readouterr().err
+
+
+def test_cve_scan_runs_by_default(vp, monkeypatch):
+    """Unlike its old opt-in self, "CVE scan" now runs by default like every
+    other step — no flag needed to make it run."""
+    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py"])
+    ran = []
+    _stub_all_checks(vp, monkeypatch, ran)
+
+    vp.main()
+
+    assert "cves" in ran
+
+
+def test_skip_check_cves_skips_it(vp, monkeypatch, capsys):
+    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--skip-check-cves"])
+    ran = []
+    _stub_all_checks(vp, monkeypatch, ran)
+
+    vp.main()
+
+    assert "cves" not in ran
+    out = capsys.readouterr().out
+    assert "CVE scan" in out and "SKIP" in out
+
+
+def test_only_check_cves_runs_it_plus_dependencies(vp, monkeypatch):
+    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--only-check-cves"])
+    ran = []
+    _stub_all_checks(vp, monkeypatch, ran)
+
+    vp.main()
+
+    assert ran == ["deps", "cves"]
