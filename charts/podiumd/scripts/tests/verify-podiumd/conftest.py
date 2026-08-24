@@ -28,6 +28,7 @@ import lib.dry_check as dry_check
 import lib.gitutil as gitutil
 import lib.image_digests as image_digests
 import lib.image_references_check as image_references_check
+import lib.image_upgrade_cache as image_upgrade_cache
 import lib.image_upgrade_check as image_upgrade_check
 import lib.kube_score_check as kube_score_check
 import lib.kubeconform_check as kubeconform_check
@@ -130,6 +131,11 @@ def libcvecheck():
 @pytest.fixture(scope="session")
 def libimageupgradecheck():
     return image_upgrade_check
+
+
+@pytest.fixture(scope="session")
+def libimageupgradecache():
+    return image_upgrade_cache
 
 
 def make_dep(name, version, alias=None, repository="@example", condition=None):
