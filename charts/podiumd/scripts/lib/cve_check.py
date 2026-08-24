@@ -18,22 +18,25 @@ a chart-correctness fact this script can gate on.
 
 Same own/partner-vendor/other-vendor scope split as check_yamllint/
 check_kubeconform/check_shellcheck/check_kube_score, reflected in both the
-printed output and the summary line, but each bucket gets a different
-level of detail (see print_bucket_report's detail_level):
-  - own images get CRITICAL/HIGH findings itemized per image, grouped by
-    the affected package/file rather than listed flat: a bundled binary
-    like gotenberg's Chromium can carry hundreds of individually-tracked
-    CVEs against the *same* package, so each package gets one line
-    listing its CVE IDs, or — past PACKAGE_CVE_LIST_THRESHOLD — a single
-    summarized count instead of hundreds of IDs nobody will triage
-    individually. MEDIUM/LOW/UNKNOWN are only totaled per image.
-  - partner-vendor images get per-image severity totals only (every
-    severity, including CRITICAL/HIGH) — no package breakdown, no
-    individual CVE IDs. A partner's own code isn't something this repo
-    can act on package-by-package, so per-image counts are as actionable
-    as it gets here.
+printed output and the summary line. By default every bucket gets the
+same, terse level of detail (see print_bucket_report's detail_level):
+  - own AND partner-vendor images get per-image severity totals only
+    (every severity, including CRITICAL/HIGH) — no package breakdown, no
+    individual CVE IDs. Own images used to itemize CRITICAL/HIGH by
+    default; that's now opt-in (see --detail below) so a normal run's
+    output doesn't depend on which bucket an image happens to fall in.
   - other-vendor images get one aggregate rollup line for the whole
     bucket, no per-image detail at all.
+Pass --detail to switch every bucket (own, partner-vendor, AND
+other-vendor) to full itemization: CRITICAL/HIGH findings per image,
+grouped by the affected package/file rather than listed flat — a bundled
+binary like gotenberg's Chromium can carry hundreds of individually-
+tracked CVEs against the *same* package, so each package gets one line
+listing its CVE IDs, or — past PACKAGE_CVE_LIST_THRESHOLD — a single
+summarized count instead of hundreds of IDs nobody will triage
+individually. MEDIUM/LOW/UNKNOWN are still only totaled per image, even
+with --detail — nothing in this repo can act on those package-by-package
+either, so itemizing them would just be noise.
 Ownership is
 determined primarily from the `helm template` render (same authoritative
 "# Source:" attribution the other checks use — this also correctly
@@ -275,7 +278,7 @@ def describe_newest_tag(host, repo_path, version):
     return f"newer tag available: {newest} — check whether it includes a fix"
 
 
-def check_cves(chart_dir, extra_args):
+def check_cves(chart_dir, extra_args, detail=False):
     if shutil.which("docker") is None:
         return True, "docker is not installed — skipped (see --help)"
 
@@ -355,9 +358,12 @@ def check_cves(chart_dir, extra_args):
 
     own_refs, partner_refs, other_refs = refs_in("own"), refs_in("partner"), refs_in("other")
 
-    print_bucket_report("Own images", own_refs, images, detail_level="full")
-    print_bucket_report("Partner-vendor images", partner_refs, images, detail_level="totals")
-    print_bucket_report("Other-vendor images", other_refs, images, detail_level="aggregate")
+    print_bucket_report("Own images", own_refs, images,
+                         detail_level="full" if detail else "totals")
+    print_bucket_report("Partner-vendor images", partner_refs, images,
+                         detail_level="full" if detail else "totals")
+    print_bucket_report("Other-vendor images", other_refs, images,
+                         detail_level="full" if detail else "aggregate")
 
     if not (own_refs or partner_refs or other_refs):
         print("OK: no known CVEs found across pinned images")
