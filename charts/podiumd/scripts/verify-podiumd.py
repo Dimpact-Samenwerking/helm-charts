@@ -39,19 +39,19 @@ trip:
       keys, syntax errors) in this chart's OWN templates — cosmetic findings
       (trailing whitespace, comment style, ...) aren't reported at all, and
       a vendored sub-chart finding is printed per-item if it's from a
-      friendly/partner vendor, else only gets a one-line count — neither
+      partner vendor, else only gets a one-line count — neither
       scope ever fails except OWN (see lib.yamllint_check)
   12. kubeconform against that same render finds no real API-schema
       violation in this chart's OWN templates (wrong types, unknown fields,
       a resource that doesn't even parse) — a CRD with no known schema
       (Keycloak, ECK, Redis, ...) is skipped, not an error, and vendored
-      findings follow the same friendly-vendor-gets-detail rule, never a
+      findings follow the same partner-vendor-gets-detail rule, never a
       failure (see lib.kubeconform_check)
   13. shellcheck against every shell script embedded in a container's
       command/args in this chart's OWN templates finds no real bug
       (error/warning-level — bad quoting, undefined variables, portability
       issues) — info/style-level suggestions aren't reported at all, and
-      vendored findings follow the same friendly-vendor-gets-detail rule,
+      vendored findings follow the same partner-vendor-gets-detail rule,
       never a failure (see lib.shellcheck_check)
   14. kube-score's container-resources check finds every container in this
       chart's OWN templates declaring CPU/memory requests AND limits, per
@@ -61,12 +61,14 @@ trip:
       ImagePullPolicy, SecurityContext UID/GID, PodDisruptionBudgets, ...)
       is unused, generic best-practice noise this repo has never claimed
       to enforce. A vendored sub-chart's missing resources IS this repo's
-      job (wireable via that sub-chart's values.yaml key, same doc), so
-      every vendored finding is printed individually — but, unlike steps
-      11-13, does NOT yet fail the check: the backlog is untriaged and
-      partly upstream-blocked (see lib.kube_score_check)
+      job (wireable via that sub-chart's values.yaml key, same doc), so —
+      unlike steps 11-13's partner-vendor/other-vendor split — every
+      vendored finding is printed individually regardless of which org
+      maintains that sub-chart, partner or not. It still does NOT yet fail
+      the check, though: the backlog is untriaged and partly
+      upstream-blocked (see lib.kube_score_check)
 
-  Steps 11-13's "friendly vendor" carve-out (see lib.render_scope.friendly_vendor_charts):
+  Steps 11-13's "partner vendor" carve-out (see lib.render_scope.friendly_vendor_charts):
   Maykin, Info(NL), ICATT, Worth, WeAreFrank, Dimpact, and any local
   ("file://") dependency are close/collaborative enough that their
   findings are worth seeing individually, even though this repo still

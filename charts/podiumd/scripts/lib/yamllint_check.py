@@ -63,7 +63,7 @@ def check_yamllint(chart_dir, extra_args):
     Only an OWN + non-cosmetic finding fails the check. Same-root-cause
     repeats in one file are grouped into a single line (an occurrence
     count + line list) rather than one line per hit, both for OWN findings
-    and for friendly-vendor findings."""
+    and for partner-vendor findings."""
     if shutil.which("yamllint") is None:
         return False, "yamllint is not installed (see --skip-yamllint to bypass)"
 
@@ -130,7 +130,7 @@ def check_yamllint(chart_dir, extra_args):
     if not (own_real or vendored_friendly or vendored_other):
         print("OK: no yamllint findings in the rendered chart")
 
-    detail = (f"{len(own_real)} real (own), {len(vendored_friendly)} friendly-vendor, "
+    detail = (f"{len(own_real)} real (own), {len(vendored_friendly)} partner-vendor, "
               f"{len(vendored_other)} other-vendor")
     if own_real:
         return False, detail

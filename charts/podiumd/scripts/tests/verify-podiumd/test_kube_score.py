@@ -7,11 +7,12 @@ ignoring every other kube-score opinion like NetworkPolicy/
 ImagePullPolicy/SecurityContext).
 
 Unlike check_yamllint/check_kubeconform/check_shellcheck, a vendored
-finding here is NOT gated by a friendly-vendor allowlist and NEVER fails
-the check at all (own or not) — every vendored finding is printed
-individually (this repo's job to wire up regardless of which org
-maintains the sub-chart), but promoting it to a failure is a deliberate
-future step once the backlog is triaged. Only an OWN finding fails.
+finding here is NOT gated by a partner-vendor allowlist and NEVER fails
+the check regardless of whether that sub-chart is a partner or not —
+every vendored finding is printed individually (this repo's job to wire
+up regardless of which org maintains the sub-chart), but promoting it to
+a failure is a deliberate future step once the backlog is triaged. Only
+an OWN finding fails.
 
 kube-score's JSON output carries no per-resource source info (like
 kubeconform), so each vendored sub-chart is scored as its own separate
@@ -147,7 +148,7 @@ def test_check_kube_score_no_findings_passes(vp, libkubescorecheck, tmp_path, mo
 
     ok, detail = vp.check_kube_score(tmp_path, [])
     assert ok is True
-    assert detail == "0 real (own, fails), 0 in vendored sub-charts (reported, not enforced)"
+    assert detail == "0 real (own, fails), 0 across all vendored sub-charts — partner+other (reported, not enforced)"
 
 
 def test_check_kube_score_own_finding_fails(vp, libkubescorecheck, tmp_path, monkeypatch, capsys):
@@ -179,12 +180,12 @@ def test_check_kube_score_ignores_non_resource_checks(vp, libkubescorecheck, tmp
 
     ok, detail = vp.check_kube_score(tmp_path, [])
     assert ok is True
-    assert detail == "0 real (own, fails), 0 in vendored sub-charts (reported, not enforced)"
+    assert detail == "0 real (own, fails), 0 across all vendored sub-charts — partner+other (reported, not enforced)"
 
 
 def test_check_kube_score_vendored_finding_reported_per_item_never_fails(vp, libkubescorecheck, tmp_path, monkeypatch, capsys):
     """Unlike check_yamllint/check_kubeconform/check_shellcheck, EVERY
-    vendored finding is printed individually (no friendly-vendor
+    vendored finding is printed individually (no partner-vendor
     allowlist gate) — but it must never fail the check regardless."""
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/kube-score")
     monkeypatch.setattr(libkubescorecheck, "run", sequenced_run(
@@ -199,7 +200,7 @@ def test_check_kube_score_vendored_finding_reported_per_item_never_fails(vp, lib
     ok, detail = vp.check_kube_score(tmp_path, [])
     assert ok is True
     assert "0 real (own" in detail
-    assert "1 in vendored" in detail
+    assert "1 across all vendored" in detail
     out = capsys.readouterr().out
     assert "does not fail the check" in out
     assert "[zac] Deployment/apps/v1//zac (zac)" in out
@@ -223,7 +224,7 @@ def test_check_kube_score_crd_only_vendored_chart_is_not_a_failure(vp, libkubesc
     monkeypatch.setattr(libkubescorecheck, "run", run)
     ok, detail = vp.check_kube_score(tmp_path, [])
     assert ok is True
-    assert detail == "0 real (own, fails), 0 in vendored sub-charts (reported, not enforced)"
+    assert detail == "0 real (own, fails), 0 across all vendored sub-charts — partner+other (reported, not enforced)"
 
 
 def test_check_kube_score_missing_binary_fails(vp, tmp_path, monkeypatch):

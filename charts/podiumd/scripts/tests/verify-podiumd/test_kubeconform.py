@@ -6,7 +6,7 @@ scoping (this chart's own templates/ vs. a vendored sub-chart) happens by
 splitting the render into separate YAML streams BEFORE validation — one for
 this chart's own templates, and one PER DISTINCT vendored chart (so a
 finding can still be attributed to the chart it came from, for the
-friendly-vendor per-item reporting). All `helm`/`kubeconform` subprocess
+partner-vendor per-item reporting). All `helm`/`kubeconform` subprocess
 calls are mocked via vp.run; friendly_vendor_charts is mocked too, since
 these tests use tmp_path (no real Chart.yaml) — no real kubeconform or helm
 invocation happens in these tests."""
@@ -96,7 +96,7 @@ def test_check_kubeconform_no_findings_passes(vp, libkubeconformcheck, tmp_path,
 
     ok, detail = vp.check_kubeconform(tmp_path, [])
     assert ok is True
-    assert detail == "0 real (own), 0 friendly-vendor, 0 other-vendor"
+    assert detail == "0 real (own), 0 partner-vendor, 0 other-vendor"
 
 
 def test_check_kubeconform_own_schema_violation_fails(vp, libkubeconformcheck, tmp_path, monkeypatch, capsys):
@@ -146,7 +146,7 @@ def test_check_kubeconform_skipped_crd_is_not_a_finding(vp, libkubeconformcheck,
 
     ok, detail = vp.check_kubeconform(tmp_path, [])
     assert ok is True
-    assert detail == "0 real (own), 0 friendly-vendor, 0 other-vendor"
+    assert detail == "0 real (own), 0 partner-vendor, 0 other-vendor"
 
 
 def test_check_kubeconform_repeated_root_cause_is_grouped(vp, libkubeconformcheck, tmp_path, monkeypatch, capsys):
@@ -211,7 +211,7 @@ def test_check_kubeconform_friendly_vendor_finding_reported_per_item_never_fails
     ok, detail = vp.check_kubeconform(tmp_path, [])
     assert ok is True
     assert "0 real (own)" in detail
-    assert "1 friendly-vendor" in detail
+    assert "1 partner-vendor" in detail
     assert "0 other-vendor" in detail
     out = capsys.readouterr().out
     assert "reported for visibility, never a failure" in out
