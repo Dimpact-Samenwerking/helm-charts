@@ -19,10 +19,15 @@ deployment, ...), not a chart-correctness fact this script can gate on.
 Same own/partner-vendor/other-vendor scope split as check_yamllint/
 check_kubeconform/check_shellcheck/check_kube_score, reflected in both the
 printed output and the summary line — own and partner-vendor images get
-CRITICAL/HIGH findings itemized per image (MEDIUM/LOW/UNKNOWN are only
-totaled, to keep the wall of output down — trivy's own default scan finds
-thousands of routine base-OS-package CVEs), other-vendor images get one
-aggregate rollup line, no per-image detail at all. Ownership is
+CRITICAL/HIGH findings itemized per image, grouped by the affected
+package/file rather than listed flat: a bundled binary like gotenberg's
+Chromium can carry hundreds of individually-tracked CVEs against the
+*same* package, so each package gets one line listing its CVE IDs, or —
+past PACKAGE_CVE_LIST_THRESHOLD — a single summarized count instead of
+hundreds of IDs nobody will triage individually. MEDIUM/LOW/UNKNOWN are
+only totaled per image, never itemized (still routine base-OS-package
+noise even after the per-package grouping). Other-vendor images get one
+aggregate rollup line for the whole bucket, no per-image detail at all. Ownership is
 determined primarily from the `helm template` render (same authoritative
 "# Source:" attribution the other checks use — this also correctly
 classifies a podiumd-owned template that happens to reuse a vendored
@@ -75,7 +80,7 @@ from lib.procutil import run
 from lib.registry import find_newest_same_variant_tag, parse_repo
 from lib.render_scope import (
     CHART_NAME, OWN_TEMPLATES_PREFIX, chart_name_from_source, friendly_vendor_charts,
-    print_grouped_findings, split_rendered_by_source, supports_skip_schema_validation,
+    split_rendered_by_source, supports_skip_schema_validation,
 )
 
 TRIVY_IMAGE = "aquasec/trivy:latest"
@@ -83,6 +88,11 @@ TRIVY_IMAGE = "aquasec/trivy:latest"
 # trivy adds) sorts last rather than crashing.
 SEVERITY_ORDER = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN"]
 HIGH_SEVERITIES = {"CRITICAL", "HIGH"}
+
+# Past this many CRITICAL/HIGH CVEs against the SAME package/file, listing
+# every ID stops being useful (a bundled binary like gotenberg's Chromium
+# can carry hundreds against one package) — summarize as a count instead.
+PACKAGE_CVE_LIST_THRESHOLD = 5
 
 # Only these four fields are ever used for reporting — everything else
 # trivy returns per vulnerability (Title, Description, References, CVSS
@@ -358,6 +368,41 @@ def bucket_totals(refs, images):
     return len(refs), sum(len(images[ref]["vulns"]) for ref in refs)
 
 
+def severity_label(severity):
+    """Trivy's own "CRITICAL" is the one severity name worth shortening —
+    it's both the most common word in a wall of CVE output and the least
+    ambiguous to abbreviate."""
+    return "CRIT" if severity == "CRITICAL" else severity
+
+
+def high_findings_by_package(vulns):
+    """PkgName -> list of its CRITICAL/HIGH vulnerability dicts — the
+    grouping unit for print_package_line. A single package/file can carry
+    many CVE IDs (a bundled binary like Chromium tracks each fixed CVE
+    separately against the same package), so grouping here is what turns a
+    wall of near-duplicate lines into one line per actionable upgrade."""
+    groups = {}
+    for v in vulns:
+        if v["Severity"] in HIGH_SEVERITIES:
+            groups.setdefault(v["PkgName"], []).append(v)
+    return groups
+
+
+def print_package_line(pkg, vulns_for_pkg):
+    fixed_versions = sorted({v["FixedVersion"] for v in vulns_for_pkg})
+    fix = fixed_versions[0] if len(fixed_versions) == 1 else "/".join(fixed_versions)
+    ordered = sorted(vulns_for_pkg, key=lambda v: SEVERITY_ORDER.index(v["Severity"]))
+
+    if len(ordered) <= PACKAGE_CVE_LIST_THRESHOLD:
+        ids = ", ".join(f"{severity_label(v['Severity'])} {v['VulnerabilityID']}" for v in ordered)
+        print(f"  {pkg} (-> {fix}): {ids}")
+        return
+
+    counts = Counter(v["Severity"] for v in ordered)
+    parts = ", ".join(f"{counts[s]} {severity_label(s)}" for s in SEVERITY_ORDER if counts.get(s))
+    print(f"  {pkg} (-> {fix}): {len(ordered)} CVE(s) ({parts}) — upgrade to fix all")
+
+
 def print_bucket_report(title, refs, images, itemize):
     if not refs:
         return
@@ -366,35 +411,23 @@ def print_bucket_report(title, refs, images, itemize):
     if not itemize:
         high = sum(1 for ref in refs for v in images[ref]["vulns"] if v["Severity"] in HIGH_SEVERITIES)
         rest = sum(len(images[ref]["vulns"]) for ref in refs) - high
-        print(f"  {high} CRITICAL/HIGH, {rest} MEDIUM/LOW/UNKNOWN CVE(s) with a fix available "
+        print(f"  {high} CRIT/HIGH, {rest} MEDIUM/LOW/UNKNOWN CVE(s) with a fix available "
               f"across {len(refs)} image(s) (not itemized)")
         return
 
-    high_findings = []
-    aggregate = Counter()
-    for ref in refs:
-        for v in images[ref]["vulns"]:
-            if v["Severity"] in HIGH_SEVERITIES:
-                high_findings.append((ref, v["Severity"], v["VulnerabilityID"], v["PkgName"], v["FixedVersion"]))
-            else:
-                aggregate[v["Severity"]] += 1
-
-    if high_findings:
-        high_findings.sort(key=lambda f: (SEVERITY_ORDER.index(f[1]), f[0]))
-        print_grouped_findings(
-            high_findings,
-            key_fn=lambda f: f[0],
-            item_fn=lambda f: f"{f[1]} {f[2]} ({f[3]} -> {f[4]})",
-            label_fn=lambda k: k,
-            items_label="CVE(s)",
-        )
-
-    if aggregate:
-        parts = ", ".join(f"{aggregate[s]} {s}" for s in ("MEDIUM", "LOW", "UNKNOWN") if aggregate.get(s))
-        print(f"  {parts} CVE(s) with a fix available across {len(refs)} image(s) (not itemized)")
-
     for ref in refs:
         info = images[ref]
-        newest = describe_newest_tag(info["host"], info["repo_path"], info["version"])
         vendor = f" [{info['vendor_label']}]" if info["vendor_label"] else ""
-        print(f"  {ref}{vendor}: {newest}")
+        print(f"{ref}{vendor}")
+
+        for pkg, vulns_for_pkg in sorted(high_findings_by_package(info["vulns"]).items()):
+            print_package_line(pkg, vulns_for_pkg)
+
+        rest_counts = Counter(v["Severity"] for v in info["vulns"] if v["Severity"] not in HIGH_SEVERITIES)
+        if rest_counts:
+            parts = ", ".join(f"{rest_counts[s]} {s}" for s in ("MEDIUM", "LOW", "UNKNOWN") if rest_counts.get(s))
+            print(f"  {parts} CVE(s) with a fix available (not itemized)")
+
+        newest = describe_newest_tag(info["host"], info["repo_path"], info["version"])
+        print(f"  {newest}")
+        print()
