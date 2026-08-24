@@ -389,8 +389,12 @@ def high_findings_by_package(vulns):
 
 
 def print_package_line(pkg, vulns_for_pkg):
-    fixed_versions = sorted({v["FixedVersion"] for v in vulns_for_pkg})
-    fix = fixed_versions[0] if len(fixed_versions) == 1 else "/".join(fixed_versions)
+    # A distro package patched across many piecemeal security advisories
+    # (e.g. Debian's bind9-dnsutils) can carry a different FixedVersion per
+    # CVE — joining every one of them made this line just as unreadable as
+    # the wall of output it replaced. Show only the highest: upgrading to
+    # it covers every earlier fix too.
+    fix = max(v["FixedVersion"] for v in vulns_for_pkg)
     ordered = sorted(vulns_for_pkg, key=lambda v: SEVERITY_ORDER.index(v["Severity"]))
 
     if len(ordered) <= PACKAGE_CVE_LIST_THRESHOLD:
