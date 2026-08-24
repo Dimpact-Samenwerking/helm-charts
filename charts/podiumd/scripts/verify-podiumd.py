@@ -60,23 +60,24 @@ trip:
       actual policy for; every other kube-score check (NetworkPolicy,
       ImagePullPolicy, SecurityContext UID/GID, PodDisruptionBudgets, ...)
       is unused, generic best-practice noise this repo has never claimed
-      to enforce. A vendored sub-chart's missing resources IS this repo's
-      job (wireable via that sub-chart's values.yaml key, same doc), so —
-      unlike steps 11-13's partner-vendor/other-vendor split — every
-      vendored finding is printed individually regardless of which org
-      maintains that sub-chart, partner or not. It still does NOT yet fail
-      the check, though: the backlog is untriaged and partly
-      upstream-blocked (see lib.kube_score_check)
+      to enforce. Same partner-vendor/other-vendor reporting split as
+      steps 11-13 (partner gets per-item detail, other stays a one-line
+      count) — but a vendored sub-chart's missing resources IS this
+      repo's job regardless of which org maintains it (wireable via that
+      sub-chart's values.yaml key, same doc), so an other-vendor finding
+      here is genuinely actionable, just deprioritized in the output.
+      Neither ever fails the check yet, though: the backlog is untriaged
+      and partly upstream-blocked (see lib.kube_score_check)
 
-  Steps 11-13's "partner vendor" carve-out (see lib.render_scope.friendly_vendor_charts):
+  Steps 11-14's "partner vendor" carve-out (see lib.render_scope.friendly_vendor_charts):
   Maykin, Info(NL), ICATT, Worth, WeAreFrank, Dimpact, and any local
   ("file://") dependency are close/collaborative enough that their
   findings are worth seeing individually, even though this repo still
   can't fix their code directly. Every other vendored sub-chart (elastic,
   redis-operator, keycloak-operator, openbao, ...) stays
-  aggregate-count-only. Step 14 doesn't use this carve-out — see above.
-  Steps 4-5 don't use it either — they only ever scan this chart's own
-  templates in the first place, never a vendored sub-chart's.
+  aggregate-count-only. Steps 4-5 don't use this carve-out — they only
+  ever scan this chart's own templates in the first place, never a
+  vendored sub-chart's.
 
 Steps 11-14 each need an external tool (yamllint/kubeconform/shellcheck/
 kube-score, respectively) beyond helm — run --help for exactly which
