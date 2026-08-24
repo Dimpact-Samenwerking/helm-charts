@@ -18,7 +18,16 @@ trip:
      per .github/copilot-instructions.md's AKS-Blue convention ("all
      workloads" require one) — a template with none can never be made
      compliant by an env-values override (see lib.node_selector_check)
-  6. component versions in Chart.yaml + values.yaml match the matching
+  6. no vendored sub-chart under charts/podiumd/charts/ has BOTH a pinned
+     .tgz package and an extracted directory of the same name sitting next
+     to it — Helm silently prefers the extracted (possibly stale/modified)
+     copy over the pinned package, "has caused broken deployments" per
+     .claude/commands/helm-tgz-inspect.md. A cheap filesystem check, so it
+     runs here rather than after step 8's network round trip — and it must
+     run before step 9 regardless: that step's own dependency rebuild would
+     otherwise wipe the evidence before this check ever saw it (see
+     lib.vendored_tgz_check)
+  7. component versions in Chart.yaml + values.yaml match the matching
      docs/_UPGRADE_PATHS/*-to-<version>-upgrade.md and docs/images/images-<version>.yaml
      (any component the doc lists, not a hardcoded set) — and, given --baseline,
      every component that actually changed vs the baseline (chart version,
@@ -26,19 +35,13 @@ trip:
      mention in the matching values-deltas.md, and — if its image tag
      changed — an entry in images-<version>.yaml, even if no doc mentions
      it yet (see lib.docs_consistency)
-  7. every digest-pinned image in values.yaml still matches its live
+  8. every digest-pinned image in values.yaml still matches its live
      upstream registry digest — except a tag known to slide (this repo's
      git history shows it's changed digest before, or the registry
      currently has a more specific sibling tag at the same digest), where
-     drift is expected and passes, just reported for visibility (see
-     lib.image_digests)
-  8. no vendored sub-chart under charts/podiumd/charts/ has BOTH a pinned
-     .tgz package and an extracted directory of the same name sitting next
-     to it — Helm silently prefers the extracted (possibly stale/modified)
-     copy over the pinned package, "has caused broken deployments" per
-     .claude/commands/helm-tgz-inspect.md. Runs before step 9 deliberately:
-     that step's own dependency rebuild would otherwise wipe the evidence
-     before this check ever saw it (see lib.vendored_tgz_check)
+     drift is expected and passes, just reported for visibility. Deliberately
+     last among the local checks: the only one that hits the network, so
+     everything cheaper fails fast first (see lib.image_digests)
   9. all Chart.yaml dependencies actually resolve and bundle (helm dependency update)
   10. the chart lints cleanly with the CI placeholder values
   11. the chart renders cleanly with `helm template` using the CI placeholder values
@@ -82,7 +85,7 @@ trip:
   findings are worth seeing individually, even though this repo still
   can't fix their code directly. Every other vendored sub-chart (elastic,
   redis-operator, keycloak-operator, openbao, ...) stays
-  aggregate-count-only. Steps 4-5 and 8 don't use this carve-out — they
+  aggregate-count-only. Steps 4-6 don't use this carve-out — they
   only ever scan this chart's own templates/checked-out sub-charts, never
   a vendored sub-chart's rendered content.
 
@@ -90,7 +93,7 @@ Steps 12-15 each need an external tool (yamllint/kubeconform/shellcheck/
 kube-score, respectively) beyond helm — run --help for exactly which
 binary/package each one needs, and the --skip-<name> flag to bypass a
 missing one (skipping means that check doesn't run, not that it passes).
-Steps 4-5 and 8 are pure-Python filesystem/textual scans and need no
+Steps 4-6 are pure-Python filesystem/textual scans and need no
 external tool.
 
 Stops at the first failing step and prints a PASS/FAIL summary table, mirroring
@@ -121,10 +124,10 @@ Usage:
         # that's broken for reasons unrelated to what you're testing.
         # One flag per step: --skip-utf8-format, --skip-dependencies,
         # --skip-dupe-check, --skip-dry-check, --skip-image-references,
-        # --skip-node-selector, --skip-image-digests,
-        # --skip-docs-consistency, --skip-vendored-tgz, --skip-lint,
-        # --skip-full-render, --skip-yamllint, --skip-kubeconform,
-        # --skip-shellcheck, --skip-kube-score. See --help for the full list.
+        # --skip-node-selector, --skip-vendored-tgz, --skip-docs-consistency,
+        # --skip-image-digests, --skip-lint, --skip-full-render,
+        # --skip-yamllint, --skip-kubeconform, --skip-shellcheck,
+        # --skip-kube-score. See --help for the full list.
 
 Exit code is non-zero if any check fails — safe to use as a CI gate.
 """
@@ -375,9 +378,9 @@ SKIPPABLE_STEPS = [
     ("dry-check", "DRY check"),
     ("image-references", "Image references"),
     ("node-selector", "Node selector"),
-    ("image-digests", "Image digests"),
-    ("docs-consistency", "Docs consistency"),
     ("vendored-tgz", "Vendored tgz"),
+    ("docs-consistency", "Docs consistency"),
+    ("image-digests", "Image digests"),
     ("lint", "Lint"),
     ("full-render", "Full render"),
     ("yamllint", "yamllint"),
@@ -446,12 +449,12 @@ def main():
              check_image_references, chart_dir)
     run_step("Node selector", "Checking workloads expose a nodeSelector field",
              check_node_selector, chart_dir)
+    run_step("Vendored tgz", "Checking for extracted dirs shadowing a pinned .tgz",
+             check_vendored_tgz_extraction, chart_dir)
     run_step("Docs consistency", "Checking versions against upgrade docs",
              check_docs_consistency, chart_dir, args.baseline)
     run_step("Image digests", "Checking image digests against upstream registries",
              check_image_digests, chart_dir)
-    run_step("Vendored tgz", "Checking for extracted dirs shadowing a pinned .tgz",
-             check_vendored_tgz_extraction, chart_dir)
 
     log("Ensuring dependency repos are configured")
     ensure_repos_configured()
