@@ -336,17 +336,17 @@ def test_check_cves_splits_own_partner_other_and_never_fails(vp, libcvecheck, tm
 
     out = capsys.readouterr().out
     assert "--- Own images ---" in out
-    assert "CRIT CVE-OWN-1" in out  # CRITICAL itemized, abbreviated
-    assert "1 LOW CVE(s) (not itemized)" in out  # LOW only totaled, per image
+    assert "CRIT CVE-OWN-1" in out  # own: CRITICAL itemized, abbreviated
+    assert "1 LOW CVE(s)" in out  # own: LOW only totaled, per image
     assert "CVE-OWN-2" not in out
 
     assert "--- Partner-vendor images ---" in out
-    assert "CVE-PARTNER-1" in out
     assert "[Maykin]" in out
+    assert "1 HIGH CVE(s)" in out  # partner: per-image totals only, even for HIGH
+    assert "CVE-PARTNER-1" not in out  # partner never itemizes individual CVE IDs
 
     assert "--- Other-vendor images ---" in out
     assert "1 CRIT/HIGH, 1 MEDIUM/LOW/UNKNOWN" in out
-    assert "not itemized" in out
     assert "CVE-OTHER-1" not in out  # other-vendor never itemized, not even CRITICAL
 
 
@@ -367,13 +367,39 @@ def test_print_bucket_report_image_line_carries_advice_then_totals_then_packages
             ],
         },
     }
-    libcvecheck.print_bucket_report("Own images", ["docker.io/pravega/zookeeper:0.2.15"], images, itemize=True)
+    libcvecheck.print_bucket_report("Own images", ["docker.io/pravega/zookeeper:0.2.15"], images,
+                                     detail_level="full")
 
     lines = [line for line in capsys.readouterr().out.splitlines() if line.strip()]
     header_idx = next(i for i, line in enumerate(lines) if line.startswith("docker.io/pravega/zookeeper:0.2.15"))
     assert "newest tag already - no fix available" in lines[header_idx]
-    assert "1 MEDIUM, 1 LOW CVE(s) (not itemized)" in lines[header_idx + 1]
+    assert "1 MEDIUM, 1 LOW CVE(s)" in lines[header_idx + 1]
     assert "bind9-dnsutils: HIGH CVE-1" in lines[header_idx + 2]
+
+
+def test_print_bucket_report_totals_mode_never_itemizes_even_high_severity(libcvecheck, monkeypatch, capsys):
+    """Partner-vendor images (detail_level="totals") get a single per-image
+    severity-totals line, covering every severity including CRIT/HIGH — no
+    package breakdown, no individual CVE IDs, unlike detail_level="full"."""
+    monkeypatch.setattr(libcvecheck, "find_newest_same_variant_tag", lambda host, repo, version: version)
+    images = {
+        "docker.io/maykinmedia/objects-api:1.0.0": {
+            "bucket": "partner", "vendor_label": "Maykin",
+            "host": "docker.io", "repo_path": "maykinmedia/objects-api", "version": "1.0.0",
+            "vulns": [
+                vuln("CRITICAL", cve="CVE-1", pkg="openssl"),
+                vuln("HIGH", cve="CVE-2", pkg="openssl"),
+                vuln("MEDIUM", cve="CVE-3"),
+            ],
+        },
+    }
+    libcvecheck.print_bucket_report("Partner-vendor images", ["docker.io/maykinmedia/objects-api:1.0.0"], images,
+                                     detail_level="totals")
+
+    out = capsys.readouterr().out
+    assert "1 CRIT, 1 HIGH, 1 MEDIUM CVE(s)" in out
+    assert "CVE-1" not in out and "CVE-2" not in out and "CVE-3" not in out
+    assert "openssl" not in out
 
 
 def test_check_cves_no_findings_passes(vp, libcvecheck, tmp_path, monkeypatch, capsys):

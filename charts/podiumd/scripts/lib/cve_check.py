@@ -8,26 +8,33 @@ lags on niche images per .claude/commands/check-image-cves.md) — this
 catches "a newer tag exists with a known fix" regardless of whether the
 currently-pinned tag has drifted.
 
-Opt-in only (--check-cves), NOT part of the default run and not in
-SKIPPABLE_STEPS: scanning every unique pinned image pulls each one via
-Docker and can take several minutes, unlike every other check in this
-pipeline. Never fails the check regardless of severity found — a
-HIGH/CRITICAL CVE with a fix available is a triage decision for a human
-(is the fix actually reachable here, is the severity exploitable in this
-deployment, ...), not a chart-correctness fact this script can gate on.
+Slowest step in the pipeline by far — scanning every unique pinned image
+pulls each one via Docker — but runs by default like every other step
+(see --skip-check-cves/--only-check-cves in verify-podiumd.py). Never
+fails the check regardless of severity found — a HIGH/CRITICAL CVE with a
+fix available is a triage decision for a human (is the fix actually
+reachable here, is the severity exploitable in this deployment, ...), not
+a chart-correctness fact this script can gate on.
 
 Same own/partner-vendor/other-vendor scope split as check_yamllint/
 check_kubeconform/check_shellcheck/check_kube_score, reflected in both the
-printed output and the summary line — own and partner-vendor images get
-CRITICAL/HIGH findings itemized per image, grouped by the affected
-package/file rather than listed flat: a bundled binary like gotenberg's
-Chromium can carry hundreds of individually-tracked CVEs against the
-*same* package, so each package gets one line listing its CVE IDs, or —
-past PACKAGE_CVE_LIST_THRESHOLD — a single summarized count instead of
-hundreds of IDs nobody will triage individually. MEDIUM/LOW/UNKNOWN are
-only totaled per image, never itemized (still routine base-OS-package
-noise even after the per-package grouping). Other-vendor images get one
-aggregate rollup line for the whole bucket, no per-image detail at all. Ownership is
+printed output and the summary line, but each bucket gets a different
+level of detail (see print_bucket_report's detail_level):
+  - own images get CRITICAL/HIGH findings itemized per image, grouped by
+    the affected package/file rather than listed flat: a bundled binary
+    like gotenberg's Chromium can carry hundreds of individually-tracked
+    CVEs against the *same* package, so each package gets one line
+    listing its CVE IDs, or — past PACKAGE_CVE_LIST_THRESHOLD — a single
+    summarized count instead of hundreds of IDs nobody will triage
+    individually. MEDIUM/LOW/UNKNOWN are only totaled per image.
+  - partner-vendor images get per-image severity totals only (every
+    severity, including CRITICAL/HIGH) — no package breakdown, no
+    individual CVE IDs. A partner's own code isn't something this repo
+    can act on package-by-package, so per-image counts are as actionable
+    as it gets here.
+  - other-vendor images get one aggregate rollup line for the whole
+    bucket, no per-image detail at all.
+Ownership is
 determined primarily from the `helm template` render (same authoritative
 "# Source:" attribution the other checks use — this also correctly
 classifies a podiumd-owned template that happens to reuse a vendored
@@ -348,9 +355,9 @@ def check_cves(chart_dir, extra_args):
 
     own_refs, partner_refs, other_refs = refs_in("own"), refs_in("partner"), refs_in("other")
 
-    print_bucket_report("Own images", own_refs, images, itemize=True)
-    print_bucket_report("Partner-vendor images", partner_refs, images, itemize=True)
-    print_bucket_report("Other-vendor images", other_refs, images, itemize=False)
+    print_bucket_report("Own images", own_refs, images, detail_level="full")
+    print_bucket_report("Partner-vendor images", partner_refs, images, detail_level="totals")
+    print_bucket_report("Other-vendor images", other_refs, images, detail_level="aggregate")
 
     if not (own_refs or partner_refs or other_refs):
         print("OK: no known CVEs found across pinned images")
@@ -413,16 +420,33 @@ def print_package_line(pkg, vulns_for_pkg):
     print(f"  {pkg}: {len(ordered)} CVE(s) ({parts})")
 
 
-def print_bucket_report(title, refs, images, itemize):
+def print_severity_totals_line(vulns):
+    counts = Counter(v["Severity"] for v in vulns)
+    parts = ", ".join(f"{counts[s]} {severity_label(s)}" for s in SEVERITY_ORDER if counts.get(s))
+    print(f"  {parts} CVE(s)")
+
+
+def print_bucket_report(title, refs, images, detail_level):
+    """detail_level:
+      "full"      — own images: CRIT/HIGH itemized per affected package
+                    (see print_package_line), MEDIUM/LOW/UNKNOWN just
+                    totaled per image.
+      "totals"    — partner-vendor images: per-image severity totals only
+                    (every severity, including CRIT/HIGH) — no package
+                    breakdown, no individual CVE IDs. A partner's own code
+                    isn't something this repo can act on package-by-
+                    package, so per-image counts are as actionable as
+                    itemizing gets here.
+      "aggregate" — other-vendor images: one rollup line for the whole
+                    bucket, no per-image detail at all."""
     if not refs:
         return
     print(f"--- {title} ---")
 
-    if not itemize:
+    if detail_level == "aggregate":
         high = sum(1 for ref in refs for v in images[ref]["vulns"] if v["Severity"] in HIGH_SEVERITIES)
         rest = sum(len(images[ref]["vulns"]) for ref in refs) - high
-        print(f"  {high} CRIT/HIGH, {rest} MEDIUM/LOW/UNKNOWN CVE(s) across {len(refs)} image(s) "
-              f"(not itemized)")
+        print(f"  {high} CRIT/HIGH, {rest} MEDIUM/LOW/UNKNOWN CVE(s) across {len(refs)} image(s)")
         return
 
     for ref in refs:
@@ -431,12 +455,15 @@ def print_bucket_report(title, refs, images, itemize):
         newest = describe_newest_tag(info["host"], info["repo_path"], info["version"])
         print(f"{ref}{vendor}: {newest}")
 
-        rest_counts = Counter(v["Severity"] for v in info["vulns"] if v["Severity"] not in HIGH_SEVERITIES)
-        if rest_counts:
-            parts = ", ".join(f"{rest_counts[s]} {s}" for s in ("MEDIUM", "LOW", "UNKNOWN") if rest_counts.get(s))
-            print(f"  {parts} CVE(s) (not itemized)")
+        if detail_level == "totals":
+            print_severity_totals_line(info["vulns"])
+        else:
+            rest_counts = Counter(v["Severity"] for v in info["vulns"] if v["Severity"] not in HIGH_SEVERITIES)
+            if rest_counts:
+                parts = ", ".join(f"{rest_counts[s]} {s}" for s in ("MEDIUM", "LOW", "UNKNOWN") if rest_counts.get(s))
+                print(f"  {parts} CVE(s)")
 
-        for pkg, vulns_for_pkg in sorted(high_findings_by_package(info["vulns"]).items()):
-            print_package_line(pkg, vulns_for_pkg)
+            for pkg, vulns_for_pkg in sorted(high_findings_by_package(info["vulns"]).items()):
+                print_package_line(pkg, vulns_for_pkg)
 
         print()
