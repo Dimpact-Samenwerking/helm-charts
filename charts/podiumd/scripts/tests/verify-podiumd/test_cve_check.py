@@ -1,14 +1,9 @@
 """run_trivy / check_cves — report-only CVE sweep against every unique
 digest-pinned image, via `docker run aquasec/trivy:latest`, cached by
-(repository, digest) in .cache/cve-scan-cache.json at the repo root. No
-real docker/trivy invocation happens in these tests — `run` is mocked
-throughout.
-
-chart_dir is always set up as tmp_path/charts/podiumd (mirroring this
-script's real DEFAULT_CHART_DIR = <repo>/charts/podiumd) so cache_path's
-"two levels up" resolves to tmp_path/.cache/, safely contained — using
-tmp_path directly as chart_dir would resolve the cache path OUTSIDE
-tmp_path."""
+(repository, digest) in charts/podiumd/cve-scan-cache.json — tracked chart
+content, not gitignored, so the cache is committed and shared across
+contributors/CI. No real docker/trivy invocation happens in these tests —
+`run` is mocked throughout."""
 import json
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
@@ -23,9 +18,7 @@ def vuln(severity, cve="CVE-2024-0001", pkg="openssl", fixed="3.0.2"):
 
 
 def make_chart_dir(tmp_path):
-    chart_dir = tmp_path / "charts" / "podiumd"
-    chart_dir.mkdir(parents=True)
-    return chart_dir
+    return tmp_path
 
 
 def write_values(chart_dir, text):
@@ -104,20 +97,17 @@ def test_load_cache_missing_file_returns_empty_dict(libcvecheck, tmp_path):
 
 def test_load_cache_corrupted_file_returns_empty_dict(libcvecheck, tmp_path):
     chart_dir = make_chart_dir(tmp_path)
-    path = libcvecheck.cache_path(chart_dir)
-    path.parent.mkdir(parents=True)
-    path.write_text("not json", encoding="utf-8")
+    libcvecheck.cache_path(chart_dir).write_text("not json", encoding="utf-8")
     assert libcvecheck.load_cache(chart_dir) == {}
 
 
-def test_save_cache_writes_json_and_creates_parent_dir(libcvecheck, tmp_path):
+def test_save_cache_writes_json_directly_under_chart_dir(libcvecheck, tmp_path):
     chart_dir = make_chart_dir(tmp_path)
     libcvecheck.save_cache(chart_dir, {"k": "v"})
     path = libcvecheck.cache_path(chart_dir)
     assert path.is_file()
     assert json.loads(path.read_text(encoding="utf-8")) == {"k": "v"}
-    # Resolved to tmp_path/.cache/..., not outside it.
-    assert path.is_relative_to(tmp_path)
+    assert path == chart_dir / "cve-scan-cache.json"
 
 
 # --- check_cves ---
@@ -222,7 +212,7 @@ def test_check_cves_skips_unresolved_repository(vp, libcvecheck, tmp_path, monke
 
 # --- check_cves caching ---
 
-def test_check_cves_cache_miss_scans_and_persists(vp, libcvecheck, tmp_path, monkeypatch):
+def test_check_cves_cache_miss_scans_and_persists(vp, libcvecheck, tmp_path, monkeypatch, capsys):
     chart_dir = make_chart_dir(tmp_path)
     write_values(chart_dir, PIN)
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/docker")
@@ -238,6 +228,27 @@ def test_check_cves_cache_miss_scans_and_persists(vp, libcvecheck, tmp_path, mon
     assert key in saved
     assert saved[key]["vulnerabilities"] == [vuln("HIGH")]
     assert "scanned_at" in saved[key]
+
+    out = capsys.readouterr().out
+    assert "cve-scan-cache.json changed — commit it" in out
+
+
+def test_check_cves_no_op_when_all_cached_skips_commit_reminder(vp, libcvecheck, tmp_path, monkeypatch, capsys):
+    chart_dir = make_chart_dir(tmp_path)
+    write_values(chart_dir, PIN)
+    monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/docker")
+    key = libcvecheck.cache_key("org/repo", DIGEST)
+    libcvecheck.save_cache(chart_dir, {
+        key: {"scanned_at": datetime.now(timezone.utc).isoformat(), "vulnerabilities": []},
+    })
+
+    def fail_if_called(cmd, **kw):
+        raise AssertionError("trivy should not have been invoked — cache hit expected")
+
+    monkeypatch.setattr(libcvecheck, "run", fail_if_called)
+    vp.check_cves(chart_dir)
+    out = capsys.readouterr().out
+    assert "changed — commit it" not in out
 
 
 def test_check_cves_cache_hit_skips_scanning(vp, libcvecheck, tmp_path, monkeypatch, capsys):
