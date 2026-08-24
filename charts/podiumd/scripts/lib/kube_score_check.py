@@ -161,8 +161,8 @@ def check_kube_score(chart_dir, extra_args):
     if not (own_real or vendored_partner or vendored_other):
         print("OK: no kube-score container-resources findings in the rendered chart")
 
-    detail = (f"{len(own_real)} real (own, fails), {len(vendored_partner)} partner-vendor, "
-              f"{len(vendored_other)} other-vendor (vendored not enforced)")
+    detail = (f"{len(own_real)} real (own), {len(vendored_partner)} partner-vendor, "
+              f"{len(vendored_other)} other-vendor")
     if own_real:
         return False, detail
     return True, detail
