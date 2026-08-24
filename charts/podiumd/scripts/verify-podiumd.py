@@ -109,12 +109,12 @@ trip:
 
 Steps 12-17 each need an external tool (yamllint/kubeconform/shellcheck/
 kube-score/none (just network)/docker+trivy, respectively) beyond helm —
-run --help for exactly which binary/package each one needs, and the
---skip-<name> flag to bypass a missing one (skipping means that check
+run --help for exactly which binary/package each one needs, and add its
+step to --skip= to bypass a missing one (skipping means that check
 doesn't run, not that it passes; step 17 is the one exception — a missing
 docker makes it report itself skipped rather than failed, since it was
-designed as non-blocking even before it joined the regular --skip-*/
---include-* pipeline). Steps 4-6 are pure-Python filesystem/textual scans
+designed as non-blocking even before it joined the regular --skip=/
+--include= pipeline). Steps 4-6 are pure-Python filesystem/textual scans
 and need no external tool.
 
 Stops at the first failing step and prints a PASS/FAIL summary table, mirroring
@@ -139,33 +139,30 @@ Usage:
         # `podiumd-4.8.5` tag, falling back to the `feature/podiumd-4.8.5` /
         # `origin/feature/podiumd-4.8.5` branch if the tag doesn't exist yet.
         # Pass an explicit git ref instead of a bare version to use it as-is.
-    verify-podiumd.py --skip-lint --skip-full-render
-        # skip one or more steps entirely (shown as SKIP, never a failure) —
-        # useful to iterate faster on a single check, or work around a step
-        # that's broken for reasons unrelated to what you're testing.
-        # One flag per step: --skip-utf8-format, --skip-dependencies,
-        # --skip-dupe-check, --skip-dry-check, --skip-image-references,
-        # --skip-node-selector, --skip-vendored-tgz, --skip-docs-consistency,
-        # --skip-image-digests, --skip-lint, --skip-full-render,
-        # --skip-yamllint, --skip-kubeconform, --skip-shellcheck,
-        # --skip-kube-score, --skip-image-upgrades, --skip-check-cves.
-        # See --help for the full list.
-        # Note: --skip-check-cves is the flag to reach for if you just want
-        # a normal run WITHOUT pulling every image via Docker — step 16 now
-        # runs by default like every other step (no more separate opt-in
-        # flag), so that's the one most worth skipping day to day.
-    verify-podiumd.py --include-kube-score
-        # the inverse of --skip-*: run ONLY the named step(s) (plus whatever
-        # step(s) each one needs as a prerequisite — e.g. --include-kube-score
-        # also runs "Dependencies" first, since kube-score's render would
-        # otherwise fail with unresolved sub-charts). Every other step shows
-        # as SKIP.
-    verify-podiumd.py --include-kube-score --include-shellcheck
-        # combine multiple --include-<step> flags to run a specific subset —
+    verify-podiumd.py --skip=lint,full-render
+        # skip one or more steps entirely, comma-separated, no spaces
+        # (shown as SKIP, never a failure) — useful to iterate faster on a
+        # single check, or work around a step that's broken for reasons
+        # unrelated to what you're testing. Valid step names: utf8-format,
+        # dependencies, dupe-check, dry-check, image-references,
+        # node-selector, vendored-tgz, docs-consistency, image-digests,
+        # lint, full-render, yamllint, kubeconform, shellcheck, kube-score,
+        # image-upgrades, check-cves. See --help for the full list.
+        # Note: check-cves is the one most worth skipping day to day if you
+        # just want a normal run WITHOUT pulling every image via Docker —
+        # step 17 runs by default like every other step (no separate
+        # opt-in flag).
+    verify-podiumd.py --include=kube-score
+        # the inverse of --skip=: run ONLY the named step(s) (plus whatever
+        # step(s) each one needs as a prerequisite — e.g. kube-score also
+        # pulls in "Dependencies", since its render would otherwise fail on
+        # unresolved sub-charts). Every other step shows as SKIP.
+    verify-podiumd.py --include=kube-score,shellcheck
+        # comma-separate multiple step names to run a specific subset —
         # each one's own prerequisites are still included automatically, so
-        # "Dependencies" here still runs once, not twice. Cannot be combined
-        # with --skip-<step> (nothing left to skip once everything but the
-        # included set is already skipped).
+        # "Dependencies" here still runs once, not twice. --include= cannot
+        # be combined with --skip= (nothing left to skip once everything
+        # but the included set is already skipped).
     verify-podiumd.py --detail-cve-check
         # CVE scan: itemize CRITICAL/HIGH findings per affected package for
         # EVERY image bucket (own, partner-vendor, AND other-vendor) instead
@@ -183,6 +180,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
+from lib.chart import UTF8_BOM
 from lib.procutil import run
 
 # Each check's actual logic lives in its own lib module (see that module's
@@ -238,7 +236,7 @@ def resolve_chart_dir():
 def check_utf8_format(chart_dir):
     values_path = chart_dir / "values.yaml"
     data = values_path.read_bytes()
-    if data[:3] == b"\xef\xbb\xbf":
+    if data[:len(UTF8_BOM)] == UTF8_BOM:
         return False, "BOM found — run strip-utf8-bom.py to fix (this script never writes to values.yaml)"
     print(f"OK: no BOM in {values_path.name}")
     return True, "no BOM"
@@ -413,8 +411,8 @@ def print_summary(results, overall_ok):
         print("One or more checks failed — see details above.")
 
 
-# (flag suffix, step name) for every skippable step, in the order they run —
-# --skip-<flag suffix> on the CLI. Order here also drives --help's listing.
+# (step name for --skip=/--include=, step name) for every skippable step,
+# in the order they run. Order here also drives --help's listing.
 SKIPPABLE_STEPS = [
     ("utf8-format", "UTF-8 format"),
     ("dependencies", "Dependencies"),
@@ -436,7 +434,7 @@ SKIPPABLE_STEPS = [
 ]
 
 # step name -> the step(s) it needs to have actually run first, for
-# --include-<step> (see prerequisites_for). Every render-based check
+# --include= (see prerequisites_for). Every render-based check
 # (lint/full-render/yamllint/kubeconform/shellcheck/kube-score) needs
 # "Dependencies" to have populated charts/*.tgz first, or its own `helm
 # template`/`helm lint` call fails on unresolved sub-charts — "Image
@@ -474,9 +472,8 @@ def prerequisites_for(step_name):
 
 REQUIRED_TOOLS_HELP = """
 Required external tools (each is only needed for the check(s) noted; a
-missing tool makes that check fail with a clear message — pass the
-matching --skip-<name> to bypass it instead, e.g. if it's not installed
-locally):
+missing tool makes that check fail with a clear message — add its step to
+--skip= to bypass it instead, e.g. if it's not installed locally):
   helm         required for every step past "Resolving chart source"
   yamllint     yamllint check              (apt/pip package "yamllint")
   kubeconform  kubeconform check           (https://github.com/yannh/kubeconform — single static binary)
@@ -502,25 +499,36 @@ def main():
                         help="CVE scan: itemize CRITICAL/HIGH findings per affected package for "
                              "EVERY image bucket (own, partner-vendor, AND other-vendor), not just "
                              "the terse per-image severity totals a normal run prints")
-    for flag, step_name in SKIPPABLE_STEPS:
-        parser.add_argument(f"--skip-{flag}", action="store_true",
-                             help=f'skip the "{step_name}" check (e.g. to iterate faster, or work '
-                                  f'around a known-broken step) — shown as SKIP in the summary, never '
-                                  f'counted as a failure')
-    for flag, step_name in SKIPPABLE_STEPS:
-        parser.add_argument(f"--include-{flag}", action="store_true",
-                             help=f'run the "{step_name}" check, plus any step(s) it needs as a '
-                                  f'prerequisite (see STEP_PREREQUISITES) — every step not included '
-                                  f'(directly or as a prerequisite of an included step) shows as '
-                                  f'SKIP. Combine multiple --include-<step> flags to run a specific '
-                                  f'subset; cannot combine with --skip-<step>')
+    step_names = ", ".join(flag for flag, _ in SKIPPABLE_STEPS)
+    parser.add_argument("--skip", default=None, metavar="STEP1,STEP2,...",
+                        help=f"comma-separated (no spaces) list of steps to skip (e.g. to iterate "
+                             f"faster, or work around a known-broken step) — shown as SKIP in the "
+                             f"summary, never counted as a failure. Cannot combine with --include. "
+                             f"Valid steps: {step_names}")
+    parser.add_argument("--include", default=None, metavar="STEP1,STEP2,...",
+                        help=f"comma-separated (no spaces) list of steps to run — plus any step(s) "
+                             f"each one needs as a prerequisite (see STEP_PREREQUISITES). Every step "
+                             f"not included (directly or as a prerequisite of an included step) shows "
+                             f"as SKIP. Cannot combine with --skip. Valid steps: {step_names}")
     args = parser.parse_args()
 
-    skip_flags = [flag for flag, _ in SKIPPABLE_STEPS if getattr(args, f"skip_{flag.replace('-', '_')}")]
-    include_flags = [flag for flag, _ in SKIPPABLE_STEPS if getattr(args, f"include_{flag.replace('-', '_')}")]
+    valid_flags = {flag for flag, _ in SKIPPABLE_STEPS}
+
+    def parse_step_list(raw, option_name):
+        if not raw:
+            return []
+        flags = [f for f in raw.split(",") if f]
+        unknown = [f for f in flags if f not in valid_flags]
+        if unknown:
+            parser.error(f"{option_name}: unknown step(s): {', '.join(unknown)} — valid steps: "
+                          f"{', '.join(flag for flag, _ in SKIPPABLE_STEPS)}")
+        return flags
+
+    skip_flags = parse_step_list(args.skip, "--skip")
+    include_flags = parse_step_list(args.include, "--include")
 
     if include_flags and skip_flags:
-        parser.error("--include-<step> cannot be combined with --skip-<step>")
+        parser.error("--include cannot be combined with --skip")
 
     if include_flags:
         target_steps = {dict(SKIPPABLE_STEPS)[flag] for flag in include_flags}
@@ -543,9 +551,9 @@ def main():
         log(title)
         if name in skipped_steps:
             if include_flags:
-                print(f"SKIPPED (not included via --include-{'/--include-'.join(include_flags)})")
+                print(f"SKIPPED (not included via --include={','.join(include_flags)})")
             else:
-                print(f"SKIPPED (--skip-{dict((n, f) for f, n in SKIPPABLE_STEPS)[name]})")
+                print(f"SKIPPED (--skip={','.join(skip_flags)})")
             results.append((name, None, "skipped"))
             return
         ok, detail = func(*fargs)
