@@ -1,13 +1,15 @@
 """run_trivy / check_cves — report-only CVE sweep against every unique
 digest-pinned image, via `docker run aquasec/trivy:latest`, split into
-own/partner-vendor/other-vendor buckets (own+partner itemize CRITICAL/HIGH
-per image and total MEDIUM/LOW/UNKNOWN; other-vendor gets one aggregate
-line only), cached by (repository, digest) in
-charts/podiumd/cve-scan-cache.json — tracked chart content, not
-gitignored, so the cache is committed and shared across
-contributors/CI. No real docker/trivy/registry invocation happens in
-these tests — `run` and `find_newest_same_variant_tag` are mocked
-throughout."""
+own/partner-vendor/other-vendor buckets. Own+partner itemize CRITICAL/HIGH
+("CRIT/HIGH") per image, grouped by affected package — one line per
+package listing its CVE IDs, or (past PACKAGE_CVE_LIST_THRESHOLD) a
+summarized count instead of every ID — and total MEDIUM/LOW/UNKNOWN per
+image; other-vendor gets one aggregate line for the whole bucket only.
+Cached by (repository, digest) in charts/podiumd/cve-scan-cache.json —
+tracked chart content, not gitignored, so the cache is committed and
+shared across contributors/CI. No real docker/trivy/registry invocation
+happens in these tests — `run` and `find_newest_same_variant_tag` are
+mocked throughout."""
 import json
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
@@ -205,6 +207,41 @@ def test_render_image_labels_own_wins_over_other_sources(libcvecheck):
     assert labels[("shared/img", "1.0", DIGEST_A)] == "own"
 
 
+# --- per-package grouping/summarization ---
+
+def test_severity_label_abbreviates_critical(libcvecheck):
+    assert libcvecheck.severity_label("CRITICAL") == "CRIT"
+    assert libcvecheck.severity_label("HIGH") == "HIGH"
+
+
+def test_high_findings_by_package_groups_and_excludes_low_severity(libcvecheck):
+    vulns = [
+        vuln("CRITICAL", cve="CVE-1", pkg="chromium"),
+        vuln("HIGH", cve="CVE-2", pkg="chromium"),
+        vuln("HIGH", cve="CVE-3", pkg="openssl"),
+        vuln("LOW", cve="CVE-4", pkg="chromium"),
+    ]
+    groups = libcvecheck.high_findings_by_package(vulns)
+    assert {v["VulnerabilityID"] for v in groups["chromium"]} == {"CVE-1", "CVE-2"}
+    assert {v["VulnerabilityID"] for v in groups["openssl"]} == {"CVE-3"}
+
+
+def test_print_package_line_lists_ids_below_threshold(libcvecheck, capsys):
+    vulns_for_pkg = [vuln("CRITICAL", cve="CVE-1", fixed="1.3.4"), vuln("HIGH", cve="CVE-2", fixed="1.3.4")]
+    libcvecheck.print_package_line("libwebp", vulns_for_pkg)
+    out = capsys.readouterr().out
+    assert "libwebp (-> 1.3.4): CRIT CVE-1, HIGH CVE-2" in out
+
+
+def test_print_package_line_summarizes_above_threshold(libcvecheck, capsys):
+    threshold = libcvecheck.PACKAGE_CVE_LIST_THRESHOLD
+    vulns_for_pkg = [vuln("CRITICAL", cve=f"CVE-{i}", fixed="123.0") for i in range(threshold + 1)]
+    libcvecheck.print_package_line("chromium", vulns_for_pkg)
+    out = capsys.readouterr().out
+    assert f"chromium (-> 123.0): {threshold + 1} CVE(s) ({threshold + 1} CRIT) — upgrade to fix all" in out
+    assert "CVE-0" not in out  # individual IDs not listed once past the threshold
+
+
 # --- describe_newest_tag ---
 
 def test_describe_newest_tag_newer_available(libcvecheck, monkeypatch):
@@ -280,8 +317,8 @@ def test_check_cves_splits_own_partner_other_and_never_fails(vp, libcvecheck, tm
 
     out = capsys.readouterr().out
     assert "--- Own images ---" in out
-    assert "CVE-OWN-1" in out  # CRITICAL itemized
-    assert "1 LOW CVE(s)" in out  # LOW only totaled, not itemized
+    assert "CRIT CVE-OWN-1" in out  # CRITICAL itemized, abbreviated
+    assert "1 LOW CVE(s) with a fix available (not itemized)" in out  # LOW only totaled, per image
     assert "CVE-OWN-2" not in out
 
     assert "--- Partner-vendor images ---" in out
@@ -289,7 +326,7 @@ def test_check_cves_splits_own_partner_other_and_never_fails(vp, libcvecheck, tm
     assert "[Maykin]" in out
 
     assert "--- Other-vendor images ---" in out
-    assert "1 CRITICAL/HIGH, 1 MEDIUM/LOW/UNKNOWN" in out
+    assert "1 CRIT/HIGH, 1 MEDIUM/LOW/UNKNOWN" in out
     assert "not itemized" in out
     assert "CVE-OTHER-1" not in out  # other-vendor never itemized, not even CRITICAL
 
