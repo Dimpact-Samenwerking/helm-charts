@@ -22,6 +22,7 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 
 SCRIPT_PATH = SCRIPTS_DIR / "verify-podiumd.py"
 
+import lib.cve_check as cve_check
 import lib.docs_consistency as docs_consistency
 import lib.dry_check as dry_check
 import lib.gitutil as gitutil
@@ -118,6 +119,11 @@ def libnodeselectorcheck():
 @pytest.fixture(scope="session")
 def libvendoredtgzcheck():
     return vendored_tgz_check
+
+
+@pytest.fixture(scope="session")
+def libcvecheck():
+    return cve_check
 
 
 def make_dep(name, version, alias=None, repository="@example", condition=None):
