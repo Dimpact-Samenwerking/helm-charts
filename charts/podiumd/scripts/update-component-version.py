@@ -23,8 +23,8 @@ Examples:
 Writes:
   - charts/podiumd/Chart.yaml: the dependency's "version:" field
   - charts/podiumd/values.yaml: the app's own image "tag:" field(s)
-    (COMPONENT_IMAGE_PATHS below — same convention as verify-component-
-    version.py), set to "<app-version>@sha256:<digest>".
+    (lib.chart.COMPONENT_IMAGE_PATHS — same convention verify-component-
+    version.py uses), set to "<app-version>@sha256:<digest>".
 
 The upstream repository for each image path is read from the TARGET chart
 version's own values.yaml (pulled via helm, same as verify-component-
@@ -72,7 +72,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from lib.chart import find_dependency as _find_dependency
-from lib.chart import get_path, pull_chart_values
+from lib.chart import get_path, image_paths_for, pull_chart_values
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
 from lib.registry import parse_repo, registry_tag_exists
 from lib.upgradedoc import (
@@ -86,13 +86,6 @@ CHART_YAML = SCRIPT_DIR.parents[0] / "Chart.yaml"
 VALUES_YAML = SCRIPT_DIR.parents[0] / "values.yaml"
 DOC_DIR = SCRIPT_DIR.parents[0] / "docs" / "_UPGRADE_PATHS"
 IMAGES_DIR = SCRIPT_DIR.parents[0] / "docs" / "images"
-
-# component (name or alias) -> dotted values.yaml path(s) for its own image
-# block(s) — must stay in sync with verify-component-version.py's copy.
-COMPONENT_IMAGE_PATHS = {
-    "zgw-office-addin": ["frontend.image", "backend.image"],
-}
-DEFAULT_IMAGE_PATHS = ["image"]
 
 NUMBER_WORDS = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten",
                 "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen"]
@@ -525,7 +518,7 @@ def main():
     dep = find_dependency(component)
     chart_name = dep["name"]
     values_key = dep.get("alias", dep["name"])
-    image_paths = COMPONENT_IMAGE_PATHS.get(component, DEFAULT_IMAGE_PATHS)
+    image_paths = image_paths_for(component)
 
     print()
     chart_unchanged = str(dep["version"]) == str(chart_version)

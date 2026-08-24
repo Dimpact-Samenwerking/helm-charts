@@ -25,20 +25,11 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from lib.chart import find_dependency, get_path
+from lib.chart import find_dependency, get_path, image_paths_for
 from lib.gitutil import baseline_ref_candidates, git_show_yaml, resolve_git_ref
 from lib.gitutil import find_repo_root as _find_repo_root
 
 RELATIVE_CHART_DIR = "charts/podiumd"
-
-# component (name or alias) -> dotted values.yaml path(s) for its own image
-# block(s), for components that ship more than one image. Anything not
-# listed here defaults to a single top-level "image" block — same
-# convention as verify-component-version.py.
-COMPONENT_IMAGE_PATHS = {
-    "zgw-office-addin": ["frontend.image", "backend.image"],
-}
-DEFAULT_IMAGE_PATHS = ["image"]
 
 
 def find_repo_root():
@@ -85,7 +76,7 @@ def main():
         sys.exit(1)
 
     values_key = dep.get("alias", dep["name"])
-    image_paths = COMPONENT_IMAGE_PATHS.get(component, DEFAULT_IMAGE_PATHS)
+    image_paths = image_paths_for(component)
     app_versions = find_app_versions(values, values_key, image_paths)
 
     print(f"Component: {component} (Chart.yaml dependency: {dep['name']}, values key: {values_key})")
