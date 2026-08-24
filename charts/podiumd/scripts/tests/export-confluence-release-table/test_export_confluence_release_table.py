@@ -89,6 +89,15 @@ def test_normalize_version_leaves_valid_semver_untouched(ecrt):
     assert ecrt.normalize_version("9.10.1-slim") == "9.10.1-slim"
 
 
+def test_normalize_version_leaves_allowed_variations_untouched(ecrt):
+    """Missing patch component and a stray "." after a leading "v" are
+    allowed variations, not something to flag — see
+    lib.confluence_tables.SEMVER_RE."""
+    assert ecrt.normalize_version("3.20") == "3.20"
+    assert ecrt.normalize_version("3.14-slim") == "3.14-slim"
+    assert ecrt.normalize_version("v.1.25.4") == "v.1.25.4"
+
+
 def test_normalize_version_leaves_empty_value_untouched(ecrt):
     """No data at all for that cell isn't a malformed version — nothing
     to flag."""
@@ -96,7 +105,6 @@ def test_normalize_version_leaves_empty_value_untouched(ecrt):
 
 
 def test_normalize_version_replaces_non_semver_with_unknown(ecrt):
-    assert ecrt.normalize_version("3.20") == "UNKNOWN"
     assert ecrt.normalize_version("5.4.3 5.4.4") == "UNKNOWN"
     assert ecrt.normalize_version("?") == "UNKNOWN"
 
@@ -178,7 +186,7 @@ def test_extract_release_rows_matches_and_reports(ecrt, capsys):
 
 
 def test_extract_release_rows_replaces_non_semver_version_with_unknown_and_reports_count(ecrt, capsys):
-    html = PRODUCT_TABLE_HTML.replace("<td>5.1.0</td>", "<td>3.20</td>")
+    html = PRODUCT_TABLE_HTML.replace("<td>5.1.0</td>", "<td>?</td>")
     rows = ecrt.extract_release_rows(html)
     assert rows[0] == ["Product component versies", "ZAC", "Info(NL)", "5.0.0", "1.0.290", "UNKNOWN", "1.0.297"]
     out = capsys.readouterr().out
