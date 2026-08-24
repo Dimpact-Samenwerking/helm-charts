@@ -14,9 +14,12 @@ to the CSV as "section" — the matched heading with its trailing
 SECTION_SUFFIX, " component versies", stripped off — see section_name),
 the page's own "Ontwikkelpartij" column (optional — some sections, e.g.
 shared/technical tooling, legitimately have no development-partner
-column at all — written to the CSV as "vendor"), the table's own first
-column (whatever it's labeled — usually the component name, written to
-the CSV as "component"), and "App"/"Helm" under each of the table's two
+column at all — written to the CSV as "vendor"), the page's own "Used
+by" column (optional the other way around — only the shared/technical
+tooling tables have it, naming which product/Common Ground component
+pulls that piece of tooling in — written to the CSV as "used_by"), the
+table's own first column (whatever it's labeled — usually the component
+name, written to the CSV as "component"), and "App"/"Helm" under each of the table's two
 "Versie ..." column groups (required) — written to the CSV as "source
 version"/"target version" (first group = source, second = target; see
 lib.confluence_tables.find_versie_groups). The version numbers
@@ -97,7 +100,7 @@ DEFAULT_HEADINGS = [
     "Technische component versies",
 ]
 
-CSV_HEADER = ["section", "vendor", "component",
+CSV_HEADER = ["section", "vendor", "used_by", "component",
               "source version app", "source version helm", "target version app", "target version helm"]
 
 # Stripped from the end of a matched heading before it goes into the CSV's
@@ -208,7 +211,7 @@ def resolve_token(args):
 
 
 def extract_release_rows(html, headings=None, chart_dir=None):
-    """Return the CSV data rows (section, vendor, component,
+    """Return the CSV data rows (section, vendor, used_by, component,
     source version app/helm, target version app/helm) across every table
     directly under one of `headings` (default DEFAULT_HEADINGS) that has
     the required App/Helm columns — "section" is the matched heading with
@@ -250,10 +253,11 @@ def extract_release_rows(html, headings=None, chart_dir=None):
             if not any(cell.strip() for cell in data_row):
                 continue
             vendor = data_row[columns["vendor"]] if columns["vendor"] is not None else ""
+            used_by = data_row[columns["used_by"]] if columns["used_by"] is not None else ""
             versions = [normalize_version(data_row[columns[key]]) for key in
                         ("source_app", "source_helm", "target_app", "target_helm")]
             unknown_count += sum(1 for v in versions if v == "UNKNOWN")
-            rows_out.append([section_name(heading), vendor, data_row[columns["first"]]] + versions)
+            rows_out.append([section_name(heading), vendor, used_by, data_row[columns["first"]]] + versions)
             matched += 1
         print(f'"{heading}": {matched} row(s) matched')
 

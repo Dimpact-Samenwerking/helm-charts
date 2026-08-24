@@ -430,7 +430,8 @@ def test_select_release_columns_full_release_table(libconfluencetables):
     paths = libconfluencetables.header_paths(grid, header_row_count=2)
     columns = libconfluencetables.select_release_columns(paths)
     assert columns == {
-        "first": 0, "vendor": 1, "source_app": 2, "source_helm": 3, "target_app": 4, "target_helm": 5,
+        "first": 0, "vendor": 1, "used_by": None,
+        "source_app": 2, "source_helm": 3, "target_app": 4, "target_helm": 5,
     }
 
 
@@ -439,7 +440,8 @@ def test_select_release_columns_not_tied_to_specific_version_numbers(libconfluen
              ["Versie 5.1", "App"], ["Versie 5.1", "Helm"]]
     columns = libconfluencetables.select_release_columns(paths)
     assert columns == {
-        "first": 0, "vendor": 1, "source_app": 2, "source_helm": 3, "target_app": 4, "target_helm": 5,
+        "first": 0, "vendor": 1, "used_by": None,
+        "source_app": 2, "source_helm": 3, "target_app": 4, "target_helm": 5,
     }
 
 
@@ -447,8 +449,20 @@ def test_select_release_columns_missing_column_is_none(libconfluencetables):
     paths = [[], ["Ontwikkelpartij"]]  # no Versie ... columns at all
     columns = libconfluencetables.select_release_columns(paths)
     assert columns["vendor"] == 1
+    assert columns["used_by"] is None
     assert columns["source_app"] is None
     assert columns["target_helm"] is None
+
+
+def test_select_release_columns_finds_used_by(libconfluencetables):
+    """A "Technische component versies"-style table has "Used by" instead
+    of "Ontwikkelpartij" — naming which product/Common Ground component
+    pulls that piece of tooling in."""
+    paths = [[], ["Used by"], ["Versie 4.8", "App"], ["Versie 4.8", "Helm"],
+             ["Versie 4.9", "App"], ["Versie 4.9", "Helm"]]
+    columns = libconfluencetables.select_release_columns(paths)
+    assert columns["vendor"] is None
+    assert columns["used_by"] == 1
 
 
 def test_select_release_columns_none_when_not_exactly_two_versie_groups(libconfluencetables):
