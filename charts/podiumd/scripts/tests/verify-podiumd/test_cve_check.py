@@ -27,7 +27,7 @@ def vuln(severity, cve="CVE-2024-0001", pkg="openssl", fixed="3.0.2", extra=None
 
 
 def trimmed(v):
-    return {k: v[k] for k in ("VulnerabilityID", "PkgName", "Severity", "FixedVersion")}
+    return {k: v[k] for k in ("VulnerabilityID", "PkgName", "Severity")}
 
 
 DIGEST_A = "a" * 64  # own: frankgateway
@@ -227,25 +227,28 @@ def test_high_findings_by_package_groups_and_excludes_low_severity(libcvecheck):
 
 
 def test_print_package_line_lists_ids_below_threshold(libcvecheck, capsys):
-    vulns_for_pkg = [vuln("CRITICAL", cve="CVE-1", fixed="1.3.4"), vuln("HIGH", cve="CVE-2", fixed="1.3.4")]
+    vulns_for_pkg = [vuln("CRITICAL", cve="CVE-1"), vuln("HIGH", cve="CVE-2")]
     libcvecheck.print_package_line("libwebp", vulns_for_pkg)
     out = capsys.readouterr().out
-    assert "libwebp (-> 1.3.4): CRIT CVE-1, HIGH CVE-2" in out
+    assert "libwebp: CRIT CVE-1, HIGH CVE-2" in out
 
 
 def test_print_package_line_summarizes_above_threshold(libcvecheck, capsys):
     threshold = libcvecheck.PACKAGE_CVE_LIST_THRESHOLD
-    vulns_for_pkg = [vuln("CRITICAL", cve=f"CVE-{i}", fixed="123.0") for i in range(threshold + 1)]
+    vulns_for_pkg = [vuln("CRITICAL", cve=f"CVE-{i}") for i in range(threshold + 1)]
     libcvecheck.print_package_line("chromium", vulns_for_pkg)
     out = capsys.readouterr().out
-    assert f"chromium (-> 123.0): {threshold + 1} CVE(s) ({threshold + 1} CRIT) — upgrade to fix all" in out
+    assert f"chromium: {threshold + 1} CVE(s) ({threshold + 1} CRIT)" in out
 
 
-def test_print_package_line_shows_only_highest_fix_version(libcvecheck, capsys):
-    """A distro package patched across many piecemeal security advisories
-    (e.g. Debian's bind9-dnsutils) can carry a different FixedVersion per
-    CVE — joining every one of them onto the line is exactly the kind of
-    unreadable wall of text this grouping exists to avoid."""
+def test_print_package_line_never_shows_fix_version(libcvecheck, capsys):
+    """FixedVersion is an internal detail of the base image (an OS/language
+    package version), not something this repo pins or can bump directly —
+    only a newer image tag is actionable, and that's already reported once
+    per image via describe_newest_tag. A distro package patched across many
+    piecemeal security advisories (e.g. Debian's bind9-dnsutils) can carry
+    a wildly different FixedVersion per CVE, which is exactly why showing
+    any of them here would be both noisy and misleading."""
     vulns_for_pkg = [
         vuln("HIGH", cve="CVE-1", fixed="1:9.16.42-1~deb11u1"),
         vuln("HIGH", cve="CVE-2", fixed="1:9.16.50-1~deb11u6"),
@@ -253,9 +256,9 @@ def test_print_package_line_shows_only_highest_fix_version(libcvecheck, capsys):
     ]
     libcvecheck.print_package_line("bind9-dnsutils", vulns_for_pkg)
     out = capsys.readouterr().out
-    assert "bind9-dnsutils (-> 1:9.16.50-1~deb11u6):" in out
-    assert "/" not in out
-    assert "CVE-0" not in out  # individual IDs not listed once past the threshold
+    assert "bind9-dnsutils: HIGH CVE-1, HIGH CVE-2, HIGH CVE-3" in out
+    assert "9.16" not in out
+    assert "->" not in out
 
 
 # --- describe_newest_tag ---

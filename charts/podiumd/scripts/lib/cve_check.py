@@ -58,10 +58,15 @@ sliding tag republished under the same version string still invalidates
 correctly. Capped by CVE_CACHE_TTL_DAYS even for an unchanged digest — the
 image content never changes, but trivy's own vulnerability DB does, so a
 digest that scanned clean a month ago may have a newly-disclosed CVE
-against it today. Each cached vulnerability is trimmed to just the four
-fields the report actually uses (VulnerabilityID/PkgName/Severity/
-FixedVersion) — trivy's raw Title/Description/References/CVSS/dates would
-otherwise bloat the committed file for no reporting benefit. Living at
+against it today. Each cached vulnerability is trimmed to just the three
+fields the report actually uses (VulnerabilityID/PkgName/Severity) —
+trivy's raw Title/Description/References/CVSS/dates/FixedVersion would
+otherwise bloat the committed file for no reporting benefit. FixedVersion
+in particular is never shown: this repo only ever pins a base image
+tag/digest, never an individual OS/language package version inside that
+image, so "upgrade to version X" for one bundled package isn't an
+actionable step here — the actionable step (a newer image tag) is
+already reported per-image via describe_newest_tag. Living at
 the chart root (not under scripts/) is deliberate: unlike this check's own
 code (feature/podiumd-scripts only, copied in untracked when needed
 elsewhere), the cache is chart content tied to a specific branch's
@@ -94,10 +99,14 @@ HIGH_SEVERITIES = {"CRITICAL", "HIGH"}
 # can carry hundreds against one package) — summarize as a count instead.
 PACKAGE_CVE_LIST_THRESHOLD = 5
 
-# Only these four fields are ever used for reporting — everything else
+# Only these three fields are ever used for reporting — everything else
 # trivy returns per vulnerability (Title, Description, References, CVSS
-# scores, published/last-modified dates, ...) is dead weight in the cache.
-VULN_FIELDS = ("VulnerabilityID", "PkgName", "Severity", "FixedVersion")
+# scores, published/last-modified dates, FixedVersion, ...) is dead weight
+# in the cache. FixedVersion is deliberately excluded even though trivy
+# reports it: this repo only pins a base image tag/digest, never an
+# individual package version inside that image, so it's not information
+# this report can act on (see describe_newest_tag for the check that is).
+VULN_FIELDS = ("VulnerabilityID", "PkgName", "Severity")
 
 # How long a cached scan result stays valid for an unchanged digest. Long
 # enough that a routine run doesn't re-pull/re-scan every image every time;
@@ -389,22 +398,20 @@ def high_findings_by_package(vulns):
 
 
 def print_package_line(pkg, vulns_for_pkg):
-    # A distro package patched across many piecemeal security advisories
-    # (e.g. Debian's bind9-dnsutils) can carry a different FixedVersion per
-    # CVE — joining every one of them made this line just as unreadable as
-    # the wall of output it replaced. Show only the highest: upgrading to
-    # it covers every earlier fix too.
-    fix = max(v["FixedVersion"] for v in vulns_for_pkg)
+    # No fix-version shown here, deliberately: a package's FixedVersion is
+    # an internal detail of the base image, not something this repo pins
+    # or can bump directly — only a newer image tag is actionable, and
+    # that's already reported once per image via describe_newest_tag.
     ordered = sorted(vulns_for_pkg, key=lambda v: SEVERITY_ORDER.index(v["Severity"]))
 
     if len(ordered) <= PACKAGE_CVE_LIST_THRESHOLD:
         ids = ", ".join(f"{severity_label(v['Severity'])} {v['VulnerabilityID']}" for v in ordered)
-        print(f"  {pkg} (-> {fix}): {ids}")
+        print(f"  {pkg}: {ids}")
         return
 
     counts = Counter(v["Severity"] for v in ordered)
     parts = ", ".join(f"{counts[s]} {severity_label(s)}" for s in SEVERITY_ORDER if counts.get(s))
-    print(f"  {pkg} (-> {fix}): {len(ordered)} CVE(s) ({parts}) — upgrade to fix all")
+    print(f"  {pkg}: {len(ordered)} CVE(s) ({parts})")
 
 
 def print_bucket_report(title, refs, images, itemize):
