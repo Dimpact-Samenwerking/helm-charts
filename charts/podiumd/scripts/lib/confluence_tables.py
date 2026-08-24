@@ -304,57 +304,90 @@ def _normalize(text):
     return " ".join(text.lower().replace("-", "").split())
 
 
-def find_column(paths, contains_all):
-    """Index of the first column whose header path contains every one of
-    `contains_all` as a case-insensitive substring of the joined path
-    text, or None if no column matches."""
+def find_column(paths, contains_all, candidates=None):
+    """Index of the first column (among `candidates`, default: every
+    column) whose header path contains every one of `contains_all` as a
+    case-insensitive substring of the joined path text, or None if no
+    column matches."""
     needles = [_normalize(n) for n in contains_all]
-    for idx, path in enumerate(paths):
-        joined = _normalize(" ".join(path))
+    indices = range(len(paths)) if candidates is None else candidates
+    for idx in indices:
+        joined = _normalize(" ".join(paths[idx]))
         if all(needle in joined for needle in needles):
             return idx
     return None
 
 
+def find_versie_groups(paths):
+    """Ordered list of (label, [column_indices]) for every distinct
+    top-level header group whose own label starts with "Versie" (case-
+    insensitive) — e.g. "Versie 4.8"/"Versie 4.9" today, but the version
+    numbers themselves aren't fixed: the page renames these every
+    release. Order is first-appearance (left to right), so a caller that
+    needs "source" (lower/earlier, left-hand) vs "target" (higher/later,
+    right-hand) can just take groups[0] and groups[1]."""
+    groups = []
+    index_by_label = {}
+    for idx, path in enumerate(paths):
+        if not path or not _normalize(path[0]).startswith("versie"):
+            continue
+        label = path[0]
+        if label not in index_by_label:
+            index_by_label[label] = len(groups)
+            groups.append((label, []))
+        groups[index_by_label[label]][1].append(idx)
+    return groups
+
+
 # The exact column set export-confluence-release-table.py writes to CSV,
 # in order: the table's own first column (whatever it's labeled — usually
-# the component name), "Ontwikkelpartij", then App/Helm under each of
-# "Versie 4.8" and "Versie 4.9". Matched by substring rather than exact
-# text so a header phrased "versie 4.8" vs "Versie 4.8" vs "V4.8" all work.
+# the component name), "Ontwikkelpartij", then App/Helm under each of the
+# two "Versie ..." groups (see find_versie_groups) — first one
+# encountered is "source", second is "target". Matched by substring
+# rather than exact text so a header phrased "versie 4.8" vs "Versie 4.8"
+# vs "V4.8" all work, and the version numbers themselves are never
+# hardcoded, since the page renames them every release.
 #
-# "Ontwikkelpartij" is marked optional, not required: it only makes sense
-# for product-facing components with an actual development partner
-# (ZAC, Open Zaak, ...) — a table of shared/technical tooling (e.g.
-# "Technische component versies" — Elastic operator, Zookeeper, Solr, ...)
+# "Ontwikkelpartij" is optional, not required: it only makes sense for
+# product-facing components with an actual development partner (ZAC,
+# Open Zaak, ...) — a table of shared/technical tooling (e.g. "Technische
+# component versies" — Elastic operator, Zookeeper, Solr, ...)
 # legitimately has no such column at all, and shouldn't be skipped over
-# just for lacking it. The App/Helm version columns are what this export
-# actually exists for, so those stay required.
-RELEASE_COLUMN_SPECS = [
-    ("ontwikkelpartij", ["ontwikkelpartij"], False),
-    ("v48_app", ["4.8", "app"], True),
-    ("v48_helm", ["4.8", "helm"], True),
-    ("v49_app", ["4.9", "app"], True),
-    ("v49_helm", ["4.9", "helm"], True),
-]
+# just for lacking it. The four source/target App+Helm version columns
+# are what this export actually exists for, so those stay required.
+REQUIRED_RELEASE_COLUMNS = ["source_app", "source_helm", "target_app", "target_helm"]
 
 
 def select_release_columns(paths):
-    """{"first": 0, "ontwikkelpartij": <idx>, "v48_app": <idx>, ...} — a
-    value is None wherever no column matched that spec; "first" is always
-    column 0 (the table's own leftmost column, whatever it's labeled),
-    or None if the table has no columns at all."""
-    columns = {"first": 0 if paths else None}
-    for key, needles, _required in RELEASE_COLUMN_SPECS:
-        columns[key] = find_column(paths, needles)
+    """{"first": 0, "ontwikkelpartij": <idx-or-None>, "source_app": ...,
+    "source_helm": ..., "target_app": ..., "target_helm": ...}. "first"
+    is always column 0 (the table's own leftmost column, whatever it's
+    labeled), or None if the table has no columns at all. Every
+    "source_"/"target_" value stays None (see
+    missing_required_release_columns) if find_versie_groups doesn't find
+    exactly two "Versie ..." groups — more or fewer means this table
+    isn't shaped the way this export expects, not that it's this
+    function's job to guess which pair to use."""
+    columns = {
+        "first": 0 if paths else None,
+        "ontwikkelpartij": find_column(paths, ["ontwikkelpartij"]),
+        "source_app": None, "source_helm": None, "target_app": None, "target_helm": None,
+    }
+    groups = find_versie_groups(paths)
+    if len(groups) == 2:
+        (_, source_cols), (_, target_cols) = groups
+        columns["source_app"] = find_column(paths, ["app"], candidates=source_cols)
+        columns["source_helm"] = find_column(paths, ["helm"], candidates=source_cols)
+        columns["target_app"] = find_column(paths, ["app"], candidates=target_cols)
+        columns["target_helm"] = find_column(paths, ["helm"], candidates=target_cols)
     return columns
 
 
 def missing_required_release_columns(columns):
-    """Which of select_release_columns()'s REQUIRED columns (the four
-    App/Helm columns — not "first", not the optional "ontwikkelpartij")
+    """Which of select_release_columns()'s REQUIRED columns (source/
+    target App+Helm — not "first", not the optional "ontwikkelpartij")
     came back unresolved (None)."""
-    required_keys = [key for key, _needles, required in RELEASE_COLUMN_SPECS if required]
-    return [key for key in required_keys if columns.get(key) is None]
+    return [key for key in REQUIRED_RELEASE_COLUMNS if columns.get(key) is None]
 
 
 # A deliberately looser MAJOR.MINOR[.PATCH][-prerelease][+build] grammar

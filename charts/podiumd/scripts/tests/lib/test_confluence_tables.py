@@ -2,9 +2,9 @@
 extract_tables, tables_under_headings, expand_grid,
 leading_header_row_count, fallback_header_row_count,
 effective_header_row_count, header_paths, find_column,
-select_release_columns, missing_required_release_columns.
-fetch_page_html's `urlopen` is injected directly, so no network access
-needed."""
+find_versie_groups, select_release_columns,
+missing_required_release_columns, is_semver_compatible. fetch_page_html's
+`urlopen` is injected directly, so no network access needed."""
 import json
 import urllib.error
 
@@ -371,7 +371,7 @@ def test_header_paths_matches_release_table_structure(libconfluencetables):
     assert paths[5] == ["Versie 4.9", "Helm"]
 
 
-# --- find_column / select_release_columns / missing_required_release_columns ---
+# --- find_column ---
 
 def test_find_column_case_insensitive_substring_match(libconfluencetables):
     paths = [[], ["Ontwikkelpartij"], ["Versie 4.8", "App"]]
@@ -387,22 +387,77 @@ def test_find_column_tolerates_hyphenated_header(libconfluencetables):
     assert libconfluencetables.find_column(paths, ["ontwikkelpartij"]) == 1
 
 
+def test_find_column_restricts_to_candidates(libconfluencetables):
+    paths = [["Versie 4.8", "App"], ["Versie 4.9", "App"]]
+    assert libconfluencetables.find_column(paths, ["app"], candidates=[1]) == 1
+    assert libconfluencetables.find_column(paths, ["app"], candidates=[0]) == 0
+
+
+# --- find_versie_groups ---
+
+def test_find_versie_groups_orders_by_first_appearance(libconfluencetables):
+    paths = [[], ["Ontwikkelpartij"], ["Versie 4.8", "App"], ["Versie 4.8", "Helm"],
+             ["Versie 4.9", "App"], ["Versie 4.9", "Helm"]]
+    groups = libconfluencetables.find_versie_groups(paths)
+    assert groups == [("Versie 4.8", [2, 3]), ("Versie 4.9", [4, 5])]
+
+
+def test_find_versie_groups_not_tied_to_specific_version_numbers(libconfluencetables):
+    """The page renames these headers every release — matching only
+    checks the label starts with "Versie", never a specific number."""
+    paths = [["Versie 5.0", "App"], ["Versie 5.1", "Helm"]]
+    groups = libconfluencetables.find_versie_groups(paths)
+    assert [label for label, _cols in groups] == ["Versie 5.0", "Versie 5.1"]
+
+
+def test_find_versie_groups_case_insensitive(libconfluencetables):
+    paths = [["versie 4.8", "App"]]
+    groups = libconfluencetables.find_versie_groups(paths)
+    assert groups == [("versie 4.8", [0])]
+
+
+def test_find_versie_groups_ignores_non_versie_columns(libconfluencetables):
+    paths = [[], ["Ontwikkelpartij"], ["Wijziging"]]
+    assert libconfluencetables.find_versie_groups(paths) == []
+
+
+# --- select_release_columns / missing_required_release_columns ---
+
 def test_select_release_columns_full_release_table(libconfluencetables):
     tables = libconfluencetables.extract_tables(RELEASE_TABLE_HTML)
     grid = libconfluencetables.expand_grid(tables[0][1])
     paths = libconfluencetables.header_paths(grid, header_row_count=2)
     columns = libconfluencetables.select_release_columns(paths)
     assert columns == {
-        "first": 0, "ontwikkelpartij": 1, "v48_app": 2, "v48_helm": 3, "v49_app": 4, "v49_helm": 5,
+        "first": 0, "ontwikkelpartij": 1, "source_app": 2, "source_helm": 3, "target_app": 4, "target_helm": 5,
+    }
+
+
+def test_select_release_columns_not_tied_to_specific_version_numbers(libconfluencetables):
+    paths = [[], ["Ontwikkelpartij"], ["Versie 5.0", "App"], ["Versie 5.0", "Helm"],
+             ["Versie 5.1", "App"], ["Versie 5.1", "Helm"]]
+    columns = libconfluencetables.select_release_columns(paths)
+    assert columns == {
+        "first": 0, "ontwikkelpartij": 1, "source_app": 2, "source_helm": 3, "target_app": 4, "target_helm": 5,
     }
 
 
 def test_select_release_columns_missing_column_is_none(libconfluencetables):
-    paths = [[], ["Ontwikkelpartij"]]  # no Versie 4.8/4.9 columns at all
+    paths = [[], ["Ontwikkelpartij"]]  # no Versie ... columns at all
     columns = libconfluencetables.select_release_columns(paths)
     assert columns["ontwikkelpartij"] == 1
-    assert columns["v48_app"] is None
-    assert columns["v49_helm"] is None
+    assert columns["source_app"] is None
+    assert columns["target_helm"] is None
+
+
+def test_select_release_columns_none_when_not_exactly_two_versie_groups(libconfluencetables):
+    """One "Versie ..." group (or three+) isn't the source/target pair
+    this export expects — leave everything unresolved rather than
+    guessing which one(s) to use."""
+    paths = [[], ["Versie 4.9", "App"], ["Versie 4.9", "Helm"]]
+    columns = libconfluencetables.select_release_columns(paths)
+    assert columns["source_app"] is None
+    assert columns["target_app"] is None
 
 
 def test_missing_required_release_columns_ontwikkelpartij_not_required(libconfluencetables):
@@ -416,10 +471,10 @@ def test_missing_required_release_columns_ontwikkelpartij_not_required(libconflu
 
 
 def test_missing_required_release_columns_reports_missing_app_helm(libconfluencetables):
-    paths = [[], ["Ontwikkelpartij"], ["Versie 4.8", "App"]]  # missing v48_helm, v49_app, v49_helm
+    paths = [[], ["Ontwikkelpartij"], ["Versie 4.8", "App"], ["Versie 4.9", "App"]]  # no Helm columns at all
     columns = libconfluencetables.select_release_columns(paths)
     missing = libconfluencetables.missing_required_release_columns(columns)
-    assert set(missing) == {"v48_helm", "v49_app", "v49_helm"}
+    assert set(missing) == {"source_helm", "target_helm"}
 
 
 # --- is_semver_compatible ---
