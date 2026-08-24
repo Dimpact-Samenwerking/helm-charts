@@ -303,9 +303,8 @@ def test_check_cves_splits_own_partner_other_and_never_fails(vp, libcvecheck, tm
 
     ok, detail = vp.check_cves(chart_dir, [])
     assert ok is True  # never fails regardless of severity
-    assert "2 own (1 img)" in detail  # CRITICAL + LOW for frankgateway
-    assert "1 partner-vendor (1 img)" in detail
-    assert "2 other-vendor (1 img)" in detail
+    assert detail == ("CVEs: 2 own (1 img), 1 partner-vendor (1 img), 2 other-vendor (1 img); "
+                       "0 scan error(s)")
 
     out = capsys.readouterr().out
     assert "--- Own images ---" in out

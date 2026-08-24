@@ -373,8 +373,8 @@ def check_cves(chart_dir, extra_args, detail=False):
     own_n, own_cve = bucket_totals(own_refs, images)
     partner_n, partner_cve = bucket_totals(partner_refs, images)
     other_n, other_cve = bucket_totals(other_refs, images)
-    detail = (f"{own_cve} own ({own_n} img), {partner_cve} partner-vendor ({partner_n} img), "
-              f"{other_cve} other-vendor ({other_n} img), {len(scan_errors)} scan error(s)")
+    detail = (f"CVEs: {own_cve} own ({own_n} img), {partner_cve} partner-vendor ({partner_n} img), "
+              f"{other_cve} other-vendor ({other_n} img); {len(scan_errors)} scan error(s)")
     return True, detail
 
 
