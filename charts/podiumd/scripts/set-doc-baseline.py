@@ -74,6 +74,13 @@ mentioned (backtick-quoted) anywhere in <new-baseline>-to-<target>-values-
 deltas.md — the same gap verify-podiumd.py's docs-consistency check reports.
 Existing content is never rewritten, only appended to; a component whose
 schema didn't change gets nothing added.
+
+Finally, runs update-podiumd-readme.py — a habit, not because this script
+itself ever touches values.yaml/Chart.yaml (it only reads them): keeps
+README.md from silently drifting if it was already stale from an earlier,
+uncommitted values.yaml edit. Report-only if that fails (e.g. helm-docs
+not installed) — never blocks the actual baseline bump above, which has
+already happened by this point.
 """
 import re
 import subprocess
@@ -97,6 +104,7 @@ CHART_YAML = SCRIPT_DIR.parents[0] / "Chart.yaml"
 VALUES_YAML = SCRIPT_DIR.parents[0] / "values.yaml"
 DOC_DIR = SCRIPT_DIR.parents[0] / "docs" / "_UPGRADE_PATHS"
 IMAGES_DIR = SCRIPT_DIR.parents[0] / "docs" / "images"
+UPDATE_README_SCRIPT = SCRIPT_DIR / "update-podiumd-readme.py"
 
 
 def current_chart_version():
@@ -540,6 +548,10 @@ def main():
         print("Review these lines by hand — old baseline text may remain in free-form prose:")
         for name, lines in review_notes:
             print(f"  {name}: line(s) {', '.join(map(str, lines))}")
+
+    print()
+    print("=== Regenerating README.md (update-podiumd-readme.py) ===")
+    subprocess.run([sys.executable, str(UPDATE_README_SCRIPT)])
 
     print()
     print(f"Done. Run verify-podiumd.py --baseline {new_baseline} to confirm consistency before committing.")

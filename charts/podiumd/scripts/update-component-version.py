@@ -60,6 +60,12 @@ The component's display name in all of this is its values.yaml key (e.g.
 "zgw-office-addin") — not a polished label like "ZGW Office Add-in" — since
 there's no reliable source for that mapping. Rename it by hand afterward if
 you want the polished form.
+
+Finally, runs update-podiumd-readme.py: the version/tag bump above changes
+values.yaml, so README.md's helm-docs-generated values-reference table can
+go stale in the same commit if this step is skipped. Report-only if that
+fails (e.g. helm-docs not installed) — never blocks the version bump
+above, which has already happened by this point.
 """
 import re
 import subprocess
@@ -82,6 +88,7 @@ from lib.upgradedoc import (
 )
 
 VERIFY_SCRIPT = SCRIPT_DIR / "verify-component-version.py"
+UPDATE_README_SCRIPT = SCRIPT_DIR / "update-podiumd-readme.py"
 CHART_YAML = SCRIPT_DIR.parents[0] / "Chart.yaml"
 VALUES_YAML = SCRIPT_DIR.parents[0] / "values.yaml"
 DOC_DIR = SCRIPT_DIR.parents[0] / "docs" / "_UPGRADE_PATHS"
@@ -661,6 +668,10 @@ def main():
         else:
             print()
             print(f"No images-{target}.yaml found — skipping that update.")
+
+    print()
+    print("=== Regenerating README.md (update-podiumd-readme.py) ===")
+    subprocess.run([sys.executable, str(UPDATE_README_SCRIPT)])
 
     print()
     print("Done. Re-render the chart to confirm (verify-podiumd.py or /helm-render-all) before committing.")

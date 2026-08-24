@@ -161,6 +161,24 @@ def test_main_renames_and_updates_title_and_heading(sdb, repo, monkeypatch):
     assert deltas.splitlines()[0] == "# Values deltas — PodiumD 4.8.3 → 4.9.0"
 
 
+def test_main_invokes_update_podiumd_readme(sdb, repo, monkeypatch):
+    """A habit, not because this script itself ever writes to values.yaml/
+    Chart.yaml — see update-podiumd-readme.py's own docstring."""
+    already_faked = subprocess.run  # the autouse stub_update_podiumd_readme fixture's fake_run
+    calls = []
+
+    def spy(cmd, *args, **kwargs):
+        calls.append(cmd)
+        return already_faked(cmd, *args, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", spy)
+    set_argv_and_dir(sdb, monkeypatch, repo, "4.8.3")
+
+    sdb.main()
+
+    assert any(str(sdb.UPDATE_README_SCRIPT) in cmd for cmd in calls)
+
+
 def test_main_is_tracked_by_git_after_rename(sdb, repo, monkeypatch):
     set_argv_and_dir(sdb, monkeypatch, repo, "4.8.3")
     sdb.main()

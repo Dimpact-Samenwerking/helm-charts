@@ -239,6 +239,32 @@ def test_main_writes_both_files_when_verify_passes(ucv, tmp_path, monkeypatch):
     assert f'"5.4.3@sha256:{"b" * 64}"' in values_yaml.read_text(encoding="utf-8")
 
 
+def test_main_invokes_update_podiumd_readme(ucv, tmp_path, monkeypatch):
+    """The version/tag bump above changes values.yaml, so README.md's
+    helm-docs-generated table can go stale in the same commit if this
+    doesn't run — see update-podiumd-readme.py."""
+    chart_yaml, values_yaml = setup_repo(tmp_path, monkeypatch, ucv)
+    calls = []
+    real_run = subprocess.run
+
+    def fake_run(cmd, *args, **kwargs):
+        calls.append(cmd)
+        if cmd and cmd[0] == "git":
+            return real_run(cmd, *args, **kwargs)
+        return subprocess.CompletedProcess(cmd, 0)
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    monkeypatch.setattr(ucv, "resolve_repos", lambda dep, chart_version, paths: {
+        "image": "ghcr.io/infonl/zaakafhandelcomponent"
+    })
+    monkeypatch.setattr(ucv, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "b" * 64))
+    monkeypatch.setattr("sys.argv", ["update-component-version.py", "zac", "5.4.3", "1.0.297"])
+
+    ucv.main()
+
+    assert any(str(ucv.UPDATE_README_SCRIPT) in cmd for cmd in calls)
+
+
 def test_main_refuses_to_write_when_verify_fails(ucv, tmp_path, monkeypatch):
     chart_yaml, values_yaml = setup_repo(tmp_path, monkeypatch, ucv)
     original_chart = chart_yaml.read_text(encoding="utf-8")
