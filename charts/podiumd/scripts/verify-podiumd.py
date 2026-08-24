@@ -480,7 +480,10 @@ REQUIRED_TOOLS_HELP = """
 Required external tools (each is only needed for the check(s) noted; a
 missing tool makes that check fail with a clear message — add its step to
 --skip= to bypass it instead, e.g. if it's not installed locally):
-  helm         required for every step past "Resolving chart source"
+  helm         required to run at all — checked once up front, before any
+               step (even a pure-filesystem one like utf8-format), so a
+               --skip=/--include= selection that avoids every helm-using
+               step still needs it installed
   yamllint     yamllint check              (apt/pip package "yamllint")
   kubeconform  kubeconform check           (https://github.com/yannh/kubeconform — single static binary)
   shellcheck   shellcheck check            (apt package "shellcheck", or https://www.shellcheck.net)
