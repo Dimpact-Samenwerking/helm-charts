@@ -16,6 +16,19 @@ Usage:
 A target version column that's empty (nothing changed for that app/helm
 version on this release) prints as "UNCHANGED" rather than blank.
 
+When <column> is "component", <text> is also resolved as a Chart.yaml
+alias — e.g. "ita" is the alias for dependency "internetaakafhandeling",
+which equals "Interne Taak Afhandeling" with spaces stripped — so
+querying the short alias itself finds the actual product component, not
+just an incidental substring match elsewhere (e.g. "ITA Poller"). A row
+whose own "used_by" is non-empty (Technische-section tooling) is never
+treated as this primary match by itself when a real owning component
+also matched — e.g. querying "kiss" returns "Contact (KISS)" alone here,
+with the tooling it uses (which also happens to have "kiss" literally in
+its own name) appearing in the "used by" table below instead. If no
+owning component matches at all, falls back to whatever raw matches
+exist, so a tooling row can still be found directly by its own name.
+
 Also prints a second table of every row whose "used_by" column relates
 to one of the matched rows' own "component" value — either because the
 used_by value is a plain substring of that component name (e.g. "zac"
@@ -69,6 +82,42 @@ def alias_dependency_names(chart_dir):
         return {}
     chart_yaml = load_yaml(chart_yaml_path)
     return {dep["alias"]: dep["name"] for dep in chart_yaml.get("dependencies", []) if dep.get("alias")}
+
+
+def alias_matched_rows(rows, text, chart_dir):
+    """Rows whose "component" value equals the Chart.yaml dependency name
+    that `text` resolves to as an alias, with spaces stripped — e.g.
+    text "ita" resolves to dependency "internetaakafhandeling" (see
+    alias_dependency_names), which equals "Interne Taak Afhandeling"
+    with spaces removed. The other direction of the same relationship
+    used_by_rows_for resolves — this is what lets querying the alias
+    itself find the actual component, not just an incidental substring
+    match on some unrelated row (e.g. "ITA Poller" also contains "ita")."""
+    dependency_name = alias_dependency_names(chart_dir).get(text.lower())
+    if not dependency_name:
+        return []
+    target = dependency_name.lower()
+    return [row for row in rows if row["component"].lower().replace(" ", "") == target]
+
+
+def component_matches(rows, text, chart_dir):
+    """The row(s) a "component" query for `text` should treat as primary
+    matches. A row whose own "used_by" is non-empty is tooling belonging
+    to some other component (see used_by_rows_for, which is what surfaces
+    it instead, tied to whichever owner row matched here) — so once at
+    least one "owner" row (used_by empty) matches, by plain substring or
+    by Chart.yaml alias (see alias_matched_rows), only owner rows are
+    returned; a tooling row that happens to also contain `text` (e.g.
+    "Kiss Elastic Sync" containing "kiss") is left for the used_by table
+    instead of double-counted here. If no owner row matches at all — e.g.
+    querying a Technische row directly by name, like "solr" — falls back
+    to the raw substring matches, so it can still be found on its own."""
+    raw = matching_rows(rows, "component", text)
+    owners = [row for row in raw if not row["used_by"]]
+    owner_ids = {id(row) for row in owners}
+    owners += [row for row in alias_matched_rows(rows, text, chart_dir)
+               if not row["used_by"] and id(row) not in owner_ids]
+    return owners if owners else raw
 
 
 def used_by_rows_for(rows, matches, chart_dir=None):
@@ -129,7 +178,7 @@ def main():
         sys.exit(1)
 
     rows = load_rows(DEFAULT_INPUT)
-    matches = matching_rows(rows, column, text)
+    matches = component_matches(rows, text, CHART_DIR) if column == "component" else matching_rows(rows, column, text)
     if not matches:
         print(f"no rows found where {column} contains {text!r}")
         sys.exit(1)
