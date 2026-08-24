@@ -155,6 +155,23 @@ def subchart_values(chart_dir, dep):
         return None
 
 
+def _dependency_for_pin(lines, pin_line, deps):
+    """The Chart.yaml dependency + within-component subpath (e.g. "image",
+    "frontend.image") for a digest pin's "tag:" line at pin_line (1-based),
+    or (None, None) if the path can't be resolved to a component at all
+    (fewer than "<component>.<...>.tag" segments) or that component has no
+    matching Chart.yaml dependency."""
+    path = dotted_key_path(lines, pin_line - 1)
+    segments = path.split(".")
+    if len(segments) < 3:
+        return None, None
+    component, subpath = segments[0], ".".join(segments[1:-1])
+    dep = find_dependency(deps, component)
+    if dep is None:
+        return None, None
+    return dep, subpath
+
+
 def subchart_default_repository(chart_dir, lines, pin_line, deps, cache=None):
     """The `repository:` a digest pin's own component defaults to via its
     subchart's baked-in values.yaml, for a pin whose "tag:" line has no
@@ -165,15 +182,9 @@ def subchart_default_repository(chart_dir, lines, pin_line, deps, cache=None):
     Chart.yaml's "dependencies" list. `cache`, if passed, is a dict shared
     across calls so multiple pins under one component don't each re-read
     that component's .tgz. Returns None if the path can't be resolved at
-    all (fewer than "<component>.<...>.tag" segments), the component has
-    no matching Chart.yaml dependency, or the subchart doesn't define a
-    default repository at that path either."""
-    path = dotted_key_path(lines, pin_line - 1)
-    segments = path.split(".")
-    if len(segments) < 3:
-        return None
-    component, subpath = segments[0], ".".join(segments[1:-1])
-    dep = find_dependency(deps, component)
+    all, the component has no matching Chart.yaml dependency, or the
+    subchart doesn't define a default repository at that path either."""
+    dep, subpath = _dependency_for_pin(lines, pin_line, deps)
     if dep is None:
         return None
     if cache is None:
@@ -184,6 +195,23 @@ def subchart_default_repository(chart_dir, lines, pin_line, deps, cache=None):
     if values is None:
         return None
     return get_path(values, f"{subpath}.repository")
+
+
+def subchart_needs_vendoring(chart_dir, lines, pin_line, deps):
+    """True if a digest pin still unresolved by subchart_default_repository
+    could plausibly be resolved after a fresh `helm dependency update`:
+    its component matches a Chart.yaml dependency, but the .tgz that
+    dependency would vendor at the version Chart.yaml currently pins isn't
+    on disk. False for a component with no matching dependency at all
+    (vendoring can never help — see set-image-digests.py, which uses this
+    to decide whether re-vendoring is worth the cost) or one already
+    vendored at the current version (nothing to gain from redoing it — it
+    simply doesn't default a repository at that path)."""
+    dep, _ = _dependency_for_pin(lines, pin_line, deps)
+    if dep is None:
+        return False
+    tgz_path = chart_dir / "charts" / f"{dep['name']}-{dep['version']}.tgz"
+    return not tgz_path.is_file()
 
 
 def find_images(node, path=""):

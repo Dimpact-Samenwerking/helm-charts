@@ -9,6 +9,7 @@ SCRIPTS_DIR = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 import lib.chart as chart
+import lib.dependencies as dependencies
 import lib.gitutil as gitutil
 import lib.procutil as procutil
 import lib.registry as registry
@@ -28,6 +29,11 @@ def libregistry():
 @pytest.fixture(scope="session")
 def libchart():
     return chart
+
+
+@pytest.fixture(scope="session")
+def libdependencies():
+    return dependencies
 
 
 @pytest.fixture(scope="session")

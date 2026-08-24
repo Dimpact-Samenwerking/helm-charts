@@ -134,7 +134,7 @@ def test_main_skips_requested_steps_and_runs_the_rest(vp, monkeypatch, capsys):
     monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--skip=helm-lint,full-render"])
     monkeypatch.setattr(vp, "require_helm", lambda: None)
     monkeypatch.setattr(vp, "resolve_chart_dir", lambda: "/fake/chart/dir")
-    monkeypatch.setattr(vp, "ensure_repos_configured", lambda: None)
+    monkeypatch.setattr(vp, "ensure_repos_configured", lambda: (True, "ok"))
     monkeypatch.setattr(vp, "lint_args_for", lambda chart_dir: [])
 
     ran = []
@@ -184,7 +184,7 @@ def test_main_skipped_step_does_not_count_as_failure(vp, monkeypatch):
     monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--skip=dependencies,image-digests,docs-consistency,helm-lint,full-render"])
     monkeypatch.setattr(vp, "require_helm", lambda: None)
     monkeypatch.setattr(vp, "resolve_chart_dir", lambda: "/fake/chart/dir")
-    monkeypatch.setattr(vp, "ensure_repos_configured", lambda: None)
+    monkeypatch.setattr(vp, "ensure_repos_configured", lambda: (True, "ok"))
     monkeypatch.setattr(vp, "check_utf8_format", lambda *a: (False, "BOM found"))
 
     with pytest.raises(SystemExit) as exc_info:
@@ -233,7 +233,7 @@ def _stub_all_checks(vp, monkeypatch, ran):
 
     monkeypatch.setattr(vp, "require_helm", lambda: None)
     monkeypatch.setattr(vp, "resolve_chart_dir", lambda: "/fake/chart/dir")
-    monkeypatch.setattr(vp, "ensure_repos_configured", lambda: None)
+    monkeypatch.setattr(vp, "ensure_repos_configured", lambda: (True, "ok"))
     monkeypatch.setattr(vp, "lint_args_for", lambda chart_dir: [])
     monkeypatch.setattr(vp, "check_utf8_format", make_check("utf8"))
     monkeypatch.setattr(vp, "check_dependencies", make_check("deps"))

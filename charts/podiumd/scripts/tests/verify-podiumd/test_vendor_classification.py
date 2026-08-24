@@ -32,13 +32,13 @@ def test_alias_used_as_chart_name_not_dependency_name(vp, librenderscope, tmp_pa
     assert "zaakafhandelcomponent" not in result
 
 
-def test_at_alias_repository_resolved_via_required_repos(vp, librenderscope, tmp_path):
+def test_at_alias_repository_resolved_via_required_repos(librenderscope, tmp_path):
     """"@zac" itself doesn't contain "infonl" — only REQUIRED_REPOS'
     resolved URL (https://infonl.github.io/dimpact-zaakafhandelcomponent/)
     does, so resolution must happen before keyword matching."""
     assert "infonl" not in "@zac"
-    assert "zac" in vp.REQUIRED_REPOS
-    assert "infonl" in vp.REQUIRED_REPOS["zac"].lower()
+    assert "zac" in librenderscope.REQUIRED_REPOS
+    assert "infonl" in librenderscope.REQUIRED_REPOS["zac"].lower()
     write_chart_yaml(tmp_path, [
         {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.0", "repository": "@zac"},
     ])
