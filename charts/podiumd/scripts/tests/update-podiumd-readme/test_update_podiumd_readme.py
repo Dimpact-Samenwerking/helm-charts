@@ -74,16 +74,17 @@ def test_real_run_helm_docs_failure_fails(upr, tmp_path, monkeypatch, capsys):
 
 
 def test_real_run_reports_no_changes(upr, tmp_path, monkeypatch, capsys):
-    monkeypatch.setattr(upr, "CHART_DIR", make_chart_dir(tmp_path))
+    chart_dir = make_chart_dir(tmp_path)
+    readme_content = (chart_dir / "README.md").read_text(encoding="utf-8")
+    monkeypatch.setattr(upr, "CHART_DIR", chart_dir)
     monkeypatch.setattr(upr.shutil, "which", lambda name: "/usr/bin/helm-docs")
 
     calls = []
 
     def fake_run(cmd, **kw):
         calls.append(cmd)
-        if cmd[0] == "git":
-            return result(stdout="")
-        return result()
+        # the --dry-run probe reproduces the README verbatim -> nothing to write
+        return result(stdout=readme_content)
 
     monkeypatch.setattr(upr, "run", fake_run)
     monkeypatch.setattr(upr.sys, "argv", ["update-podiumd-readme.py"])
@@ -92,8 +93,8 @@ def test_real_run_reports_no_changes(upr, tmp_path, monkeypatch, capsys):
 
     out = capsys.readouterr().out
     assert "OK: README.md already matched helm-docs output — nothing changed" in out
-    assert calls[0][0] == "helm-docs"
-    assert calls[1][:2] == ["git", "diff"]
+    assert len(calls) == 1  # only the --dry-run probe — real helm-docs/git never invoked
+    assert "--dry-run" in calls[0]
 
 
 def test_real_run_reports_diff_when_changed(upr, tmp_path, monkeypatch, capsys):
