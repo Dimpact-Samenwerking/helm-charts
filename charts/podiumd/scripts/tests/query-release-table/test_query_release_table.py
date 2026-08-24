@@ -58,6 +58,32 @@ def test_matching_rows_matches_used_by_column(qrt, rows):
     assert [r["component"] for r in matches] == ["Solr"]
 
 
+# --- used_by_rows_for ---
+
+def test_used_by_rows_for_finds_rows_by_component_substring(qrt, rows):
+    """"zac" (Solr's used_by) is contained in "ZAC" (the matched row's own
+    component name) — this is what lets a query on ANY column (not just
+    "component") still pull in the tooling that component uses."""
+    zac = [rows[0]]
+    assert [r["component"] for r in qrt.used_by_rows_for(rows, zac)] == ["Solr"]
+
+
+def test_used_by_rows_for_no_match_returns_empty(qrt, rows):
+    open_zaak = [rows[1]]
+    assert qrt.used_by_rows_for(rows, open_zaak) == []
+
+
+def test_used_by_rows_for_excludes_the_matches_themselves(qrt, rows):
+    """A matched row whose own used_by happens to substring-match its own
+    component name (e.g. a "Kiss ..." component with used_by "kiss")
+    must not be echoed back as its own "used by" result."""
+    self_referential = {"component": "Kiss Thing", "used_by": "kiss",
+                         "source version app": "1.0", "source version helm": "1.0",
+                         "target version app": "1.0", "target version helm": "1.0"}
+    all_rows = rows + [self_referential]
+    assert qrt.used_by_rows_for(all_rows, [self_referential]) == []
+
+
 # --- display_value ---
 
 def test_display_value_target_empty_is_unchanged(qrt, rows):
@@ -130,7 +156,7 @@ def test_main_component_query_also_shows_used_by_matches(qrt, monkeypatch, csv_p
     run_main(qrt, monkeypatch, csv_path, ["component", "zac"])
     qrt.main()
     out = capsys.readouterr().out
-    assert "Used by 'zac':" in out
+    assert "Used by matched component(s):" in out
     assert "Solr" in out
     assert "8.11.0" in out
 
@@ -142,15 +168,26 @@ def test_main_component_query_omits_used_by_section_when_no_matches(qrt, monkeyp
     assert "Used by" not in out
 
 
-def test_main_non_component_query_never_shows_used_by_section(qrt, monkeypatch, csv_path, capsys):
-    """"ZAC Team" (vendor) and "Solr" (used_by "zac") both contain "zac" —
-    only a component query should pull in used_by rows."""
-    run_main(qrt, monkeypatch, csv_path, ["vendor", "zac"])
+def test_main_vendor_query_also_shows_used_by_matches(qrt, monkeypatch, csv_path, capsys):
+    """Querying vendor "info" matches component "ZAC" — since "zac" (a
+    Technische row's used_by) is contained in that component name, Solr
+    must show up too, even though the query itself never touched
+    "component" or the text "zac"."""
+    run_main(qrt, monkeypatch, csv_path, ["vendor", "info"])
     qrt.main()
     out = capsys.readouterr().out
-    assert "Some Component" in out
+    assert "Used by matched component(s):" in out
+    assert "Solr" in out
+
+
+def test_main_vendor_query_omits_used_by_section_when_unrelated(qrt, monkeypatch, csv_path, capsys):
+    """Vendor "Maykin" only matches "Open Zaak" — unrelated to any
+    used_by value in the fixture, so no used_by section at all."""
+    run_main(qrt, monkeypatch, csv_path, ["vendor", "maykin"])
+    qrt.main()
+    out = capsys.readouterr().out
+    assert "Open Zaak" in out
     assert "Used by" not in out
-    assert "Solr" not in out
 
 
 def test_main_no_matches_exits_nonzero(qrt, monkeypatch, csv_path, capsys):
