@@ -239,6 +239,22 @@ def test_print_package_line_summarizes_above_threshold(libcvecheck, capsys):
     libcvecheck.print_package_line("chromium", vulns_for_pkg)
     out = capsys.readouterr().out
     assert f"chromium (-> 123.0): {threshold + 1} CVE(s) ({threshold + 1} CRIT) — upgrade to fix all" in out
+
+
+def test_print_package_line_shows_only_highest_fix_version(libcvecheck, capsys):
+    """A distro package patched across many piecemeal security advisories
+    (e.g. Debian's bind9-dnsutils) can carry a different FixedVersion per
+    CVE — joining every one of them onto the line is exactly the kind of
+    unreadable wall of text this grouping exists to avoid."""
+    vulns_for_pkg = [
+        vuln("HIGH", cve="CVE-1", fixed="1:9.16.42-1~deb11u1"),
+        vuln("HIGH", cve="CVE-2", fixed="1:9.16.50-1~deb11u6"),
+        vuln("HIGH", cve="CVE-3", fixed="1:9.16.48-1"),
+    ]
+    libcvecheck.print_package_line("bind9-dnsutils", vulns_for_pkg)
+    out = capsys.readouterr().out
+    assert "bind9-dnsutils (-> 1:9.16.50-1~deb11u6):" in out
+    assert "/" not in out
     assert "CVE-0" not in out  # individual IDs not listed once past the threshold
 
 
