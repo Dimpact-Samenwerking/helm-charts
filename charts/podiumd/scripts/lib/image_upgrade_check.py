@@ -151,8 +151,8 @@ def check_image_upgrades(chart_dir, extra_args):
     own_n, own_up = bucket_totals(own_refs, images)
     partner_n, partner_up = bucket_totals(partner_refs, images)
     other_n, other_up = bucket_totals(other_refs, images)
-    detail = (f"{own_up}/{own_n} own upgradeable, {partner_up}/{partner_n} partner-vendor upgradeable, "
-              f"{other_up}/{other_n} other-vendor upgradeable, {len(fetch_errors)} fetch error(s)")
+    detail = (f"upgradeable: {own_up}/{own_n} own, {partner_up}/{partner_n} partner-vendor, "
+              f"{other_up}/{other_n} other-vendor; {len(fetch_errors)} fetch error(s)")
     return True, detail
 
 

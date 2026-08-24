@@ -153,9 +153,7 @@ def test_check_image_upgrades_splits_own_partner_other_and_never_fails(
 
     ok, detail = vp.check_image_upgrades(chart_dir, [])
     assert ok is True  # never fails
-    assert "1/1 own upgradeable" in detail
-    assert "0/1 partner-vendor upgradeable" in detail
-    assert "0/1 other-vendor upgradeable" in detail
+    assert "upgradeable: 1/1 own, 0/1 partner-vendor, 0/1 other-vendor" in detail
     assert "0 fetch error(s)" in detail
 
     out = capsys.readouterr().out
@@ -177,7 +175,7 @@ def test_check_image_upgrades_partner_upgrade_shown_with_vendor_label(
 
     ok, detail = vp.check_image_upgrades(chart_dir, [])
     assert ok is True
-    assert "1/1 partner-vendor upgradeable" in detail
+    assert "upgradeable: 0/1 own, 1/1 partner-vendor, 0/1 other-vendor" in detail
     out = capsys.readouterr().out
     assert "--- Partner-vendor images ---" in out
     assert "docker.io/maykinmedia/objects-api:1.0.0 [Maykin]: newer tag available: 2.0.0" in out
@@ -191,7 +189,7 @@ def test_check_image_upgrades_other_vendor_aggregate_line(vp, libimageupgradeche
 
     ok, detail = vp.check_image_upgrades(chart_dir, [])
     assert ok is True
-    assert "1/1 other-vendor upgradeable" in detail
+    assert "upgradeable: 0/1 own, 0/1 partner-vendor, 1/1 other-vendor" in detail
     out = capsys.readouterr().out
     assert "--- Other-vendor images ---" in out
     assert "1/1 image(s) have a newer tag published" in out
@@ -205,9 +203,7 @@ def test_check_image_upgrades_nothing_upgradeable_prints_ok(vp, libimageupgradec
 
     ok, detail = vp.check_image_upgrades(chart_dir, [])
     assert ok is True
-    assert "0/1 own upgradeable" in detail
-    assert "0/1 partner-vendor upgradeable" in detail
-    assert "0/1 other-vendor upgradeable" in detail
+    assert "upgradeable: 0/1 own, 0/1 partner-vendor, 0/1 other-vendor" in detail
     out = capsys.readouterr().out
     assert "OK: no newer tag published for any pinned image" in out
     assert "---" not in out  # no bucket had anything to report
@@ -286,7 +282,7 @@ def test_check_image_upgrades_expired_cache_entry_rechecks(vp, libimageupgradech
 
     ok, detail = vp.check_image_upgrades(chart_dir, [])
     assert ok is True
-    assert "0/1 own upgradeable" in detail  # stale "999" replaced by the fresh (unchanged) result
+    assert "upgradeable: 0/1 own" in detail  # stale "999" replaced by the fresh (unchanged) result
     out = capsys.readouterr().out
     assert "0/3 image(s) served from cache" in out  # expired entry does not count as a hit
 
@@ -321,6 +317,6 @@ def test_check_image_upgrades_heuristic_fallback_for_disabled_component(
 
     ok, detail = vp.check_image_upgrades(chart_dir, [])
     assert ok is True
-    assert "1/2 own upgradeable" in detail  # frankgateway + apiproxy, only apiproxy has an upgrade
+    assert "upgradeable: 1/2 own" in detail  # frankgateway + apiproxy, only apiproxy has an upgrade
     out = capsys.readouterr().out
     assert "docker.io/org/apiproxy:1.0.0: newer tag available: 2.0.0" in out
