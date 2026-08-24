@@ -16,6 +16,11 @@ Usage:
 A target version column that's empty (nothing changed for that app/helm
 version on this release) prints as "UNCHANGED" rather than blank.
 
+When <column> is "component", also prints a second table of every row
+whose "used_by" column contains <text> — e.g. querying "zac" additionally
+lists the Technische-section tooling (Solr, Zookeeper, ...) that row says
+ZAC pulls in, since those rows aren't found by the main component match.
+
 Examples:
     query-release-table.py component zac
     query-release-table.py vendor maykin
@@ -79,6 +84,13 @@ def main():
         sys.exit(1)
 
     print_table(matches)
+
+    if column == "component":
+        used_by_matches = matching_rows(rows, "used_by", text)
+        if used_by_matches:
+            print()
+            print(f"Used by {text!r}:")
+            print_table(used_by_matches)
 
 
 if __name__ == "__main__":
