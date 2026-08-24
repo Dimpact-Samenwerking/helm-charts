@@ -3,15 +3,21 @@
 Exports the podiumd release-changes table(s) from a Confluence page into
 charts/podiumd/release-changes.csv.
 
-Scans every <table> on the page (a page can have more than one — e.g. one
-per section) and, from each table that has all of the expected columns,
-extracts: the table's own first column (whatever it's labeled — usually
-the component name), "Ontwikkelpartij", and "App"/"Helm" under each of
-"Versie 4.8" and "Versie 4.9" (matched by case-insensitive substring, so
-"versie 4.8"/"Versie 4.8"/"V4.8" etc. all work — see
-lib.confluence_tables.RELEASE_COLUMN_SPECS). A table missing any of those
-columns is skipped and reported, not treated as an error — a page
-typically has other, unrelated tables too. Rows from every matching table
+Only looks at tables sitting directly under one of --heading (repeatable;
+defaults to the four standard podiumd sections — see DEFAULT_HEADINGS)
+— a page typically has other tables too (release scope/timeline, ...)
+that aren't relevant here and are ignored entirely, not just skipped for
+missing columns.
+
+From each matching table, extracts: which section it came from, the
+table's own first column (whatever it's labeled — usually the component
+name), "Ontwikkelpartij" (optional — some sections, e.g. shared/technical
+tooling, legitimately have no development-partner column at all), and
+"App"/"Helm" under each of "Versie 4.8" and "Versie 4.9" (required;
+matched by case-insensitive substring, so "versie 4.8"/"Versie 4.8"/
+"V4.8" etc. all work — see lib.confluence_tables.RELEASE_COLUMN_SPECS). A
+matching-heading table still missing a required column is skipped and
+reported, not treated as an error. Rows from every table that has them
 are concatenated into one CSV, in page order.
 
 Column/row spans in the header (e.g. "Versie 4.8" spanning two sub-columns
@@ -19,10 +25,13 @@ via colspan, or "Ontwikkelpartij" spanning both header rows via rowspan)
 are expanded automatically — see lib.confluence_tables.expand_grid.
 
 Auth: HTTP Basic with your Atlassian account email + an API token
-(https://id.atlassian.com/manage-profile/security/api-tokens). Prefer
---token-file or the CONFLUENCE_API_TOKEN env var over --token — a token
-passed as a bare CLI argument shows up in shell history and `ps` output.
-Omitting all three prompts for it (hidden input, not echoed).
+(https://id.atlassian.com/manage-profile/security/api-tokens — must be a
+*classic* token; the newer "API token with scopes" kind doesn't work with
+Basic auth against the site directly, and Confluence rejects it with a
+plain 403). Prefer --token-file or the CONFLUENCE_API_TOKEN env var over
+--token — a token passed as a bare CLI argument shows up in shell history
+and `ps` output. Omitting all three prompts for it (hidden input, not
+echoed).
 
 Usage:
     export-confluence-release-table.py --url <page-url> --user <email> --token-file <path>
@@ -30,6 +39,9 @@ Usage:
         # prompts for the token, or reads CONFLUENCE_API_TOKEN if set
     export-confluence-release-table.py --url <page-url> --user <email> --token-file <path> --output /tmp/out.csv
         # write elsewhere instead of the default charts/podiumd/release-changes.csv
+    export-confluence-release-table.py --url <page-url> --user <email> --token-file <path> \\
+        --heading "Product component versies" --heading "Technische component versies"
+        # only these sections, instead of all four defaults
 """
 import argparse
 import csv
@@ -42,14 +54,52 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from lib.confluence_tables import (
-    expand_grid, extract_tables, fetch_page_html, header_paths,
-    leading_header_row_count, select_release_columns,
+    effective_header_row_count, expand_grid, extract_tables, fetch_page_html,
+    header_paths, missing_required_release_columns, select_release_columns,
+    tables_under_headings,
 )
 
 CHART_DIR = SCRIPT_DIR.parents[0]
 DEFAULT_OUTPUT = CHART_DIR / "release-changes.csv"
 
-CSV_HEADER_SUFFIX = ["ontwikkelpartij", "versie 4.8 app", "versie 4.8 helm", "versie 4.9 app", "versie 4.9 helm"]
+# The four sections this export exists for, on the podiumd release-notes
+# Confluence page — pass --heading (repeatable) to override.
+DEFAULT_HEADINGS = [
+    "Product component versies",
+    "Common Ground component versies",
+    "Overige component versies",
+    "Technische component versies",
+]
+
+CSV_HEADER = ["sectie", "component", "ontwikkelpartij",
+              "versie 4.8 app", "versie 4.8 helm", "versie 4.9 app", "versie 4.9 helm"]
+
+# How many extra rows beyond effective_header_row_count()'s own guess to
+# try as the header block — see resolve_header_row_count. Confluence
+# doesn't always tag a sub-header row (e.g. "App"/"Helm" under a <th>
+# "Versie 4.8") as <th> itself; seen in practice on the real podiumd page,
+# where the top header row uses <th> but its own sub-header row uses
+# plain <td>, undercounting the header block by exactly one row.
+MAX_HEADER_ROW_PROBE = 2
+
+
+def resolve_header_row_count(rows, grid):
+    """effective_header_row_count(rows, grid), extended by up to
+    MAX_HEADER_ROW_PROBE extra rows if that's what it takes for
+    select_release_columns to find every required column — see
+    MAX_HEADER_ROW_PROBE for why a table's own <th> tagging can't always
+    be trusted to mark the full header block. Falls back to the
+    untouched base count if no depth in that range resolves everything
+    (extract_release_rows will then report it as missing the usual way)."""
+    base = effective_header_row_count(rows, grid)
+    for extra in range(MAX_HEADER_ROW_PROBE + 1):
+        count = base + extra
+        if count > len(grid):
+            break
+        columns = select_release_columns(header_paths(grid, count))
+        if not missing_required_release_columns(columns):
+            return count
+    return base
 
 
 def parse_args():
@@ -61,6 +111,9 @@ def parse_args():
     parser.add_argument("--token", help="API token (prefer --token-file or CONFLUENCE_API_TOKEN instead)")
     parser.add_argument("--token-file", help="path to a file containing just the API token")
     parser.add_argument("--output", default=str(DEFAULT_OUTPUT), help=f"CSV output path (default: {DEFAULT_OUTPUT})")
+    parser.add_argument("--heading", action="append",
+                         help="only use table(s) directly under this heading (repeatable; "
+                              f"default: {', '.join(DEFAULT_HEADINGS)})")
     return parser.parse_args()
 
 
@@ -75,45 +128,47 @@ def resolve_token(args):
     return getpass.getpass("Confluence API token: ")
 
 
-def extract_release_rows(html):
-    """Return (header_label_for_first_column, rows) across every table on
-    the page that has all the expected release-changes columns. Prints a
-    one-line report per table (matched row count, or why it was skipped)."""
-    tables = extract_tables(html)
-    if not tables:
+def extract_release_rows(html, headings=None):
+    """Return the CSV data rows (sectie, component, ontwikkelpartij,
+    versie 4.8 app/helm, versie 4.9 app/helm) across every table directly
+    under one of `headings` (default DEFAULT_HEADINGS) that has the
+    required App/Helm columns. Prints a one-line report per matching-
+    heading table (rows matched, or which required column it's missing)."""
+    headings = headings or DEFAULT_HEADINGS
+    all_tables = extract_tables(html)
+    if not all_tables:
         raise SystemExit("error: no <table> found on that page")
 
-    first_label = None
+    matching = tables_under_headings(all_tables, headings)
+    print(f"Found {len(all_tables)} table(s) on the page, {len(matching)} under a matching heading")
+    if not matching:
+        raise SystemExit(f"error: no table found directly under any of: {', '.join(headings)}")
+
     rows_out = []
-    for i, rows in enumerate(tables, start=1):
-        if not rows:
-            continue
+    for heading, rows in matching:
         grid = expand_grid(rows)
-        header_row_count = leading_header_row_count(rows) or 1
+        header_row_count = resolve_header_row_count(rows, grid)
         paths = header_paths(grid, header_row_count)
         columns = select_release_columns(paths)
-        missing = [key for key, idx in columns.items() if idx is None]
+        missing = missing_required_release_columns(columns)
         if missing:
-            print(f"Table {i}/{len(tables)}: skipped (missing column(s): {', '.join(missing)})")
+            print(f'"{heading}": skipped (missing required column(s): {", ".join(missing)})')
             continue
-
-        if first_label is None:
-            first_path = paths[columns["first"]]
-            first_label = first_path[-1] if first_path else "component"
 
         matched = 0
         for data_row in grid[header_row_count:]:
             if not any(cell.strip() for cell in data_row):
                 continue
-            rows_out.append([data_row[columns[key]] for key in
-                              ("first", "ontwikkelpartij", "v48_app", "v48_helm", "v49_app", "v49_helm")])
+            ontwikkelpartij = data_row[columns["ontwikkelpartij"]] if columns["ontwikkelpartij"] is not None else ""
+            rows_out.append([heading, data_row[columns["first"]], ontwikkelpartij] +
+                             [data_row[columns[key]] for key in ("v48_app", "v48_helm", "v49_app", "v49_helm")])
             matched += 1
-        print(f"Table {i}/{len(tables)}: {matched} row(s) matched")
+        print(f'"{heading}": {matched} row(s) matched')
 
-    if first_label is None:
-        raise SystemExit("error: no table on that page had all the expected columns "
-                          "(first column, Ontwikkelpartij, Versie 4.8/4.9 App+Helm)")
-    return first_label, rows_out
+    if not rows_out:
+        raise SystemExit("error: every matching-heading table was missing a required column "
+                          "(Versie 4.8/4.9 App+Helm) — see the skip reason(s) above")
+    return rows_out
 
 
 def main():
@@ -121,12 +176,12 @@ def main():
     token = resolve_token(args)
 
     html = fetch_page_html(args.url, args.user, token)
-    first_label, rows = extract_release_rows(html)
+    rows = extract_release_rows(html, args.heading)
 
     output_path = Path(args.output)
     with output_path.open("w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
-        writer.writerow([first_label] + CSV_HEADER_SUFFIX)
+        writer.writerow(CSV_HEADER)
         writer.writerows(rows)
 
     print(f"Wrote {len(rows)} row(s) to {output_path}")
