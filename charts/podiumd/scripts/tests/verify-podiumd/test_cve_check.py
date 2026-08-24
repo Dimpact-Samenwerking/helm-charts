@@ -272,7 +272,7 @@ def test_describe_newest_tag_newer_available(libcvecheck, monkeypatch):
 def test_describe_newest_tag_already_latest(libcvecheck, monkeypatch):
     monkeypatch.setattr(libcvecheck, "find_newest_same_variant_tag", lambda host, repo, version: "1.0.0")
     out = libcvecheck.describe_newest_tag("docker.io", "org/repo", "1.0.0")
-    assert "no fix available yet" in out
+    assert "no fix available" in out
 
 
 def test_describe_newest_tag_network_error(libcvecheck, monkeypatch):
@@ -371,7 +371,7 @@ def test_print_bucket_report_image_line_carries_advice_then_totals_then_packages
 
     lines = [line for line in capsys.readouterr().out.splitlines() if line.strip()]
     header_idx = next(i for i, line in enumerate(lines) if line.startswith("docker.io/pravega/zookeeper:0.2.15"))
-    assert "already on the newest published tag in this line — no fix available yet" in lines[header_idx]
+    assert "newest tag already - no fix available" in lines[header_idx]
     assert "1 MEDIUM, 1 LOW CVE(s) (not itemized)" in lines[header_idx + 1]
     assert "bind9-dnsutils: HIGH CVE-1" in lines[header_idx + 2]
 
