@@ -32,9 +32,14 @@ Pins with no discoverable repository in values.yaml (no active
 commented-out "#repository:" hint) fall back to the same component's
 vendored subchart default (the repository Helm itself merges in at render
 time when podiumd doesn't override it) — see
-lib.chart.subchart_default_repository. Still unresolved after that
-(dependency/.tgz missing, or the subchart doesn't default one there
-either) is reported and left untouched.
+lib.chart.subchart_default_repository. That fallback reads straight from
+charts/podiumd/charts/<name>-<version>.tgz, which is gitignored — on a
+checkout where nothing has vendored dependencies yet (no prior `helm
+dependency update` / verify-podiumd.py run), it won't exist, and those
+pins stay unresolved same as if the subchart had no default either. Run
+`helm dependency update charts/podiumd` (or verify-podiumd.py, which
+does this itself before its own Image digests step) first if that
+matters for the run.
 
 This never touches tag-only image refs that have no "@sha256:..." pin
 (e.g. an apisix default) — those aren't pinned in values.yaml at all and

@@ -23,10 +23,10 @@ trip:
      to it — Helm silently prefers the extracted (possibly stale/modified)
      copy over the pinned package, "has caused broken deployments" per
      .claude/commands/helm-tgz-inspect.md. A cheap filesystem check, so it
-     runs here rather than after step 8's network round trip — and it must
-     run before step 9 regardless: that step's own dependency rebuild would
-     otherwise wipe the evidence before this check ever saw it (see
-     lib.vendored_tgz_check)
+     runs up front with the other trivial scans — and it must run before
+     step 9 regardless: that step's own dependency rebuild (rm -rf charts/
+     + helm dependency update) would otherwise wipe the evidence before
+     this check ever saw it (see lib.vendored_tgz_check)
   7. component versions in Chart.yaml + values.yaml match the matching
      docs/_UPGRADE_PATHS/*-to-<version>-upgrade.md and docs/images/images-<version>.yaml
      (any component the doc lists, not a hardcoded set) — and, given --baseline,
@@ -42,15 +42,20 @@ trip:
      lib.helm_docs_check). Unrelated to step 7: that's upgrade-doc drift
      triggered by a version bump; this is values-reference drift
      triggered by any values.yaml edit at all, version bump or not
-  9. every digest-pinned image in values.yaml still matches its live
-     upstream registry digest — except a tag known to slide (this repo's
-     git history shows it's changed digest before, or the registry
-     currently has a more specific sibling tag at the same digest), where
-     drift is expected and passes, just reported for visibility. Deliberately
-     last among the local checks: the only one that hits the network, so
-     everything cheaper fails fast first (see lib.image_digests)
+  9. all Chart.yaml dependencies actually resolve and bundle (helm
+     dependency update)
 
-  10. all Chart.yaml dependencies actually resolve and bundle (helm dependency update)
+  10. every digest-pinned image in values.yaml still matches its live
+      upstream registry digest — except a tag known to slide (this repo's
+      git history shows it's changed digest before, or the registry
+      currently has a more specific sibling tag at the same digest), where
+      drift is expected and passes, just reported for visibility. Runs
+      right after step 9 rather than with the other local/network checks
+      above: a pin with no "repository:" of its own in values.yaml (e.g.
+      openzaak, openformulieren) falls back to the same component's
+      vendored subchart default, read straight out of its .tgz under
+      charts/podiumd/charts/ — which step 9 is what actually populates
+      (see lib.chart.subchart_default_repository, lib.image_digests)
   11. the chart lints cleanly with the CI placeholder values
   12. the chart renders cleanly with `helm template` using the CI placeholder values
   13. yamllint against that render finds no structurally-real problem (duplicate
@@ -151,8 +156,8 @@ Usage:
         # (shown as SKIP, never a failure) — useful to iterate faster on a
         # single check, or work around a step that's broken for reasons
         # unrelated to what you're testing. Valid step names: utf8-format,
-        # dependencies, dupe-check, dry-check, image-references,
-        # node-selector, vendored-tgz, docs-consistency, helm-docs-check,
+        # dupe-check, dry-check, image-references, node-selector,
+        # vendored-tgz, docs-consistency, helm-docs-check, dependencies,
         # image-digests, helm-lint, full-render, yamllint, kubeconform,
         # shellcheck, kube-score, image-upgrades, check-cves. See --help
         # for the full list.
@@ -424,7 +429,6 @@ def print_summary(results, overall_ok):
 # in the order they run. Order here also drives --help's listing.
 SKIPPABLE_STEPS = [
     ("utf8-format", "UTF-8 format"),
-    ("dependencies", "Dependencies"),
     ("dupe-check", "Dupe check"),
     ("dry-check", "DRY check"),
     ("image-references", "Image references"),
@@ -432,6 +436,7 @@ SKIPPABLE_STEPS = [
     ("vendored-tgz", "Vendored tgz"),
     ("docs-consistency", "Docs consistency"),
     ("helm-docs-check", "Helm docs check"),
+    ("dependencies", "Dependencies"),
     ("image-digests", "Image digests"),
     ("helm-lint", "Helm lint"),
     ("full-render", "Full render"),
@@ -449,14 +454,20 @@ SKIPPABLE_STEPS = [
 # "Dependencies" to have populated charts/*.tgz first, or its own `helm
 # template`/`helm lint` call fails on unresolved sub-charts — "Image
 # upgrades" and "CVE scan" each do their own `helm template` call
-# internally for the same reason. "CVE scan" additionally needs "Image
-# upgrades" to have actually run: it reads that step's cache (read-only,
-# see lib.cve_check) to annotate a finding "upgradable to X", and a
+# internally for the same reason. "Image digests" also needs it, but for a
+# cheaper reason: a pin with no "repository:" of its own falls back to
+# reading the vendored subchart's own default straight out of its .tgz
+# (lib.chart.subchart_default_repository) — charts/*.tgz is gitignored, so
+# on a fresh checkout it doesn't exist at all until "Dependencies" has
+# actually run once. "CVE scan" additionally needs "Image upgrades" to
+# have actually run: it reads that step's cache (read-only, see
+# lib.cve_check) to annotate a finding "upgradable to X", and a
 # --include=check-cves run with no fresh cache already on disk would
 # otherwise never see one populated. A step not listed here has no
 # prerequisite (it works standalone on values.yaml/the filesystem/the
 # registry, same as it does in the normal full run).
 STEP_PREREQUISITES = {
+    "Image digests": ("Dependencies",),
     "Helm lint": ("Dependencies",),
     "Full render": ("Dependencies",),
     "yamllint": ("Dependencies",),
@@ -598,13 +609,14 @@ def main():
              check_docs_consistency, chart_dir, args.baseline)
     run_step("Helm docs check", "Checking README.md against values.yaml (helm-docs)",
              check_helm_docs, chart_dir)
-    run_step("Image digests", "Checking image digests against upstream registries",
-             check_image_digests, chart_dir)
 
     log("Ensuring dependency repos are configured")
     ensure_repos_configured()
 
     run_step("Dependencies", "Resolving dependencies (helm dependency update)", check_dependencies, chart_dir)
+
+    run_step("Image digests", "Checking image digests against upstream registries",
+             check_image_digests, chart_dir)
 
     extra_args = lint_args_for(chart_dir)
     run_step("Helm lint", "helm lint", check_lint, chart_dir, extra_args)
