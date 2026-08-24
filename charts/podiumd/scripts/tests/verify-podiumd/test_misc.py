@@ -85,6 +85,19 @@ def test_skippable_steps_names_match_main_run_steps(vp):
             f'no run_step("{step_name}", ...) call found in main()'
 
 
+def test_skippable_steps_order_matches_main_run_order(vp):
+    """SKIPPABLE_STEPS documents itself as being "in the order they run"
+    (drives --help's listing) — a step listed out of its actual position
+    silently misdocuments --help without failing the membership check
+    above (this caught "Dependencies" having drifted to position 2 in the
+    list while actually running much later, right before "Image
+    digests")."""
+    import inspect
+    source = inspect.getsource(vp.main)
+    positions = [source.index(f'run_step("{step_name}"') for _, step_name in vp.SKIPPABLE_STEPS]
+    assert positions == sorted(positions)
+
+
 def test_skippable_steps_flags_are_unique_and_kebab_case(vp):
     flags = [flag for flag, _ in vp.SKIPPABLE_STEPS]
     assert len(flags) == len(set(flags))
@@ -157,8 +170,8 @@ def test_main_skips_requested_steps_and_runs_the_rest(vp, monkeypatch, capsys):
 
     vp.main()  # must not raise / must not sys.exit
 
-    assert ran == ["utf8", "dupe", "dry", "image-refs", "node-selector", "tgz", "docs", "helm-docs", "digests",
-                    "deps", "yamllint", "kubeconform", "shellcheck", "kube-score", "image-upgrades", "cves"]
+    assert ran == ["utf8", "dupe", "dry", "image-refs", "node-selector", "tgz", "docs", "helm-docs",
+                    "deps", "digests", "yamllint", "kubeconform", "shellcheck", "kube-score", "image-upgrades", "cves"]
     out = capsys.readouterr().out
     assert "Helm lint" in out and "SKIP" in out
     assert "Full render" in out and "SKIP" in out
@@ -184,6 +197,14 @@ def test_main_skipped_step_does_not_count_as_failure(vp, monkeypatch):
 def test_prerequisites_for_render_based_check_needs_dependencies(vp):
     assert vp.prerequisites_for("kube-score") == {"Dependencies"}
     assert vp.prerequisites_for("Helm lint") == {"Dependencies"}
+
+
+def test_prerequisites_for_image_digests_needs_dependencies(vp):
+    """charts/*.tgz is gitignored — on a fresh checkout it doesn't exist at
+    all until "Dependencies" has populated it, which the subchart-default
+    repository fallback (lib.chart.subchart_default_repository) reads
+    from directly."""
+    assert vp.prerequisites_for("Image digests") == {"Dependencies"}
 
 
 def test_prerequisites_for_cve_scan_needs_image_upgrades_too(vp):
@@ -250,6 +271,19 @@ def test_include_flag_runs_target_plus_its_prerequisite(vp, monkeypatch, capsys)
         assert skipped in out
     assert "not included via --include=kube-score" in out
     assert "All checks passed." in out
+
+
+def test_include_flag_image_digests_runs_target_plus_dependencies(vp, monkeypatch, capsys):
+    """--include=image-digests must also run "Dependencies" first, so the
+    subchart-default repository fallback sees a freshly-vendored charts/
+    rather than whatever (if anything) happened to be on disk already."""
+    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--include=image-digests"])
+    ran = []
+    _stub_all_checks(vp, monkeypatch, ran)
+
+    vp.main()
+
+    assert ran == ["deps", "digests"]
 
 
 def test_include_flag_standalone_step_runs_without_dependencies(vp, monkeypatch, capsys):
