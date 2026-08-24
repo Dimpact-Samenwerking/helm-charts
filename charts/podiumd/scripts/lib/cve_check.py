@@ -17,26 +17,33 @@ reachable here, is the severity exploitable in this deployment, ...), not
 a chart-correctness fact this script can gate on.
 
 Same own/partner-vendor/other-vendor scope split as check_yamllint/
-check_kubeconform/check_shellcheck/check_kube_score, reflected in both the
-printed output and the summary line. By default every bucket gets the
-same, terse level of detail (see print_bucket_report's detail_level):
-  - own AND partner-vendor images get per-image severity totals only
-    (every severity, including CRITICAL/HIGH) — no package breakdown, no
-    individual CVE IDs. Own images used to itemize CRITICAL/HIGH by
-    default; that's now opt-in (see --detail below) so a normal run's
-    output doesn't depend on which bucket an image happens to fall in.
-  - other-vendor images get one aggregate rollup line for the whole
-    bucket, no per-image detail at all.
-Pass --detail to switch every bucket (own, partner-vendor, AND
-other-vendor) to full itemization: CRITICAL/HIGH findings per image,
-grouped by the affected package/file rather than listed flat — a bundled
-binary like gotenberg's Chromium can carry hundreds of individually-
-tracked CVEs against the *same* package, so each package gets one line
-listing its CVE IDs, or — past PACKAGE_CVE_LIST_THRESHOLD — a single
-summarized count instead of hundreds of IDs nobody will triage
+check_kubeconform/check_shellcheck/check_kube_score, but — unlike those —
+every bucket gets IDENTICAL output here, own/partner/other alike (see
+print_bucket_report's detail_level): no special-cased aggregate-only
+rollup for other-vendor, so an other-vendor image with a finding is just
+as visible as an own or partner one. By default every bucket gets
+per-image severity totals only (every severity, including CRITICAL/HIGH)
+— no package breakdown, no individual CVE IDs. Pass --detail to switch
+every bucket to full itemization instead: CRITICAL/HIGH findings per
+image, grouped by the affected package/file rather than listed flat — a
+bundled binary like gotenberg's Chromium can carry hundreds of
+individually-tracked CVEs against the *same* package, so each package
+gets one line listing its CVE IDs, or — past PACKAGE_CVE_LIST_THRESHOLD —
+a single summarized count instead of hundreds of IDs nobody will triage
 individually. MEDIUM/LOW/UNKNOWN are still only totaled per image, even
 with --detail — nothing in this repo can act on those package-by-package
 either, so itemizing them would just be noise.
+
+Each image's line also carries an inline "upgradable" marker when
+lib.image_upgrade_check's own cache (charts/podiumd/image-upgrade-
+cache.json, via lib.image_upgrade_cache) has a fresh entry showing a
+newer same-variant tag is published — read-only here, purely best-effort:
+if there's no fresh cache entry (that check hasn't run recently, or this
+image wasn't in its scope), the marker is just omitted rather than
+triggering a registry call of this module's own. Whether the newer tag
+actually fixes anything is a separate question this module can't answer;
+run --include-image-upgrades (or a full run) to populate/refresh the
+cache this reads.
 Ownership is
 determined primarily from the `helm template` render (same authoritative
 "# Source:" attribution the other checks use — this also correctly
@@ -86,6 +93,9 @@ from datetime import datetime, timedelta, timezone
 
 from lib.chart import load_yaml
 from lib.image_digests import scan_digest_pins
+from lib.image_upgrade_cache import cache_entry_is_fresh as upgrade_entry_is_fresh
+from lib.image_upgrade_cache import cache_key as upgrade_cache_key
+from lib.image_upgrade_cache import load_cache as load_upgrade_cache
 from lib.procutil import run
 from lib.registry import parse_repo
 from lib.render_scope import (
@@ -291,6 +301,7 @@ def check_cves(chart_dir, extra_args, detail=False):
     old_cache = load_cache(chart_dir)
     new_cache = {}
     cache_hits = 0
+    upgrade_cache = load_upgrade_cache(chart_dir)
 
     print(f"Scanning {len(targets)} unique pinned image(s) for known CVEs with trivy "
           f"(pulls every image not already cached — this can take a while)...")
@@ -324,10 +335,15 @@ def check_cves(chart_dir, extra_args, detail=False):
             }
             save_cache(chart_dir, new_cache)  # persist incrementally — this sweep is slow
 
+        upgrade_entry = upgrade_cache.get(upgrade_cache_key(repository, version))
+        upgradable = bool(upgrade_entry and upgrade_entry_is_fresh(upgrade_entry)
+                           and upgrade_entry["newest"] != version)
+
         images[image_ref] = {
             "bucket": bucket_of(label),
             "vendor_label": label if bucket_of(label) == "partner" else None,
             "vulns": vulns,
+            "upgradable": upgradable,
         }
 
     save_cache(chart_dir, new_cache)  # drop entries for images no longer pinned
@@ -337,12 +353,10 @@ def check_cves(chart_dir, extra_args, detail=False):
 
     own_refs, partner_refs, other_refs = refs_in("own"), refs_in("partner"), refs_in("other")
 
-    print_bucket_report("Own images", own_refs, images,
-                         detail_level="full" if detail else "totals")
-    print_bucket_report("Partner-vendor images", partner_refs, images,
-                         detail_level="full" if detail else "totals")
-    print_bucket_report("Other-vendor images", other_refs, images,
-                         detail_level="full" if detail else "aggregate")
+    level = "full" if detail else "totals"
+    print_bucket_report("Own images", own_refs, images, detail_level=level)
+    print_bucket_report("Partner-vendor images", partner_refs, images, detail_level=level)
+    print_bucket_report("Other-vendor images", other_refs, images, detail_level=level)
 
     if not (own_refs or partner_refs or other_refs):
         print("OK: no known CVEs found across pinned images")
@@ -412,32 +426,24 @@ def print_severity_totals_line(vulns):
 
 
 def print_bucket_report(title, refs, images, detail_level):
-    """detail_level:
-      "full"      — own images: CRIT/HIGH itemized per affected package
-                    (see print_package_line), MEDIUM/LOW/UNKNOWN just
-                    totaled per image.
-      "totals"    — partner-vendor images: per-image severity totals only
-                    (every severity, including CRIT/HIGH) — no package
-                    breakdown, no individual CVE IDs. A partner's own code
-                    isn't something this repo can act on package-by-
-                    package, so per-image counts are as actionable as
-                    itemizing gets here.
-      "aggregate" — other-vendor images: one rollup line for the whole
-                    bucket, no per-image detail at all."""
+    """detail_level, applied identically regardless of which bucket this is
+    (own/partner-vendor/other-vendor all get the same treatment — no
+    aggregate-only rollup for other-vendor, unlike every other check that
+    uses this own/partner/other scope split):
+      "full"   — CRIT/HIGH itemized per affected package (see
+                 print_package_line), MEDIUM/LOW/UNKNOWN just totaled per
+                 image.
+      "totals" — per-image severity totals only (every severity, including
+                 CRIT/HIGH) — no package breakdown, no individual CVE IDs."""
     if not refs:
         return
     print(f"--- {title} ---")
 
-    if detail_level == "aggregate":
-        high = sum(1 for ref in refs for v in images[ref]["vulns"] if v["Severity"] in HIGH_SEVERITIES)
-        rest = sum(len(images[ref]["vulns"]) for ref in refs) - high
-        print(f"  {high} CRIT/HIGH, {rest} MEDIUM/LOW/UNKNOWN CVE(s) across {len(refs)} image(s)")
-        return
-
     for ref in refs:
         info = images[ref]
         vendor = f" [{info['vendor_label']}]" if info["vendor_label"] else ""
-        print(f"{ref}{vendor}")
+        upgradable = " upgradable" if info["upgradable"] else ""
+        print(f"{ref}{vendor}{upgradable}")
 
         if detail_level == "totals":
             print_severity_totals_line(info["vulns"])

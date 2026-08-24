@@ -1,18 +1,20 @@
 """run_trivy / check_cves — report-only CVE sweep against every unique
 digest-pinned image, via `docker run aquasec/trivy:latest`, split into
-own/partner-vendor/other-vendor buckets. By default every bucket gets the
-same terse per-image severity totals (own and partner-vendor) or one
-aggregate rollup line (other-vendor) — see check_cves(..., detail=True) for
+own/partner-vendor/other-vendor buckets that ALL get identical treatment
+(no aggregate-only rollup for other-vendor). By default every bucket gets
+terse per-image severity totals — see check_cves(..., detail=True) for
 the opt-in itemized view: CRITICAL/HIGH ("CRIT/HIGH") per image, grouped by
 affected package — one line per package listing its CVE IDs, or (past
 PACKAGE_CVE_LIST_THRESHOLD) a summarized count instead of every ID — with
-MEDIUM/LOW/UNKNOWN still only totaled per image, for every bucket including
-other-vendor. Cached by (repository, digest) in charts/podiumd/cve-scan-cache.json —
-tracked chart content, not gitignored, so the cache is committed and
-shared across contributors/CI. No real docker/trivy/registry invocation
-happens in these tests — `run` is mocked throughout. Whether a newer tag
-is published at all is lib.image_upgrade_check's job now, not this
-module's — see tests/verify-podiumd/test_image_upgrade_check.py."""
+MEDIUM/LOW/UNKNOWN still only totaled per image. Cached by (repository,
+digest) in charts/podiumd/cve-scan-cache.json — tracked chart content,
+not gitignored, so the cache is committed and shared across
+contributors/CI. No real docker/trivy/registry invocation happens in
+these tests — `run` is mocked throughout. Whether a newer tag is
+published at all is lib.image_upgrade_check's job, not this module's —
+see tests/verify-podiumd/test_image_upgrade_check.py — but this module
+DOES read that check's cache (lib.image_upgrade_cache), read-only, to
+annotate a finding as "upgradable"."""
 import json
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
@@ -316,8 +318,67 @@ def test_check_cves_splits_own_partner_other_and_never_fails(vp, libcvecheck, tm
     assert "CVE-PARTNER-1" not in out  # partner never itemizes individual CVE IDs
 
     assert "--- Other-vendor images ---" in out
-    assert "1 CRIT/HIGH, 1 MEDIUM/LOW/UNKNOWN" in out
-    assert "CVE-OTHER-1" not in out  # other-vendor never itemized, not even CRITICAL
+    assert "1 CRIT, 1 MEDIUM CVE(s)" in out  # other-vendor: identical treatment to own/partner now
+    assert "CVE-OTHER-1" not in out  # totals only by default, no individual CVE IDs
+
+
+def test_check_cves_marks_upgradable_from_image_upgrade_cache(
+    vp, libcvecheck, libimageupgradecache, tmp_path, monkeypatch, capsys,
+):
+    """check_cves reads lib.image_upgrade_check's own cache (read-only, no
+    registry call of its own) to append " upgradable" after an image's
+    name when that cache has a fresh entry showing a newer tag — here only
+    frankgateway (own) does; openzaak (partner) has no cache entry at all
+    (never checked, or checked-and-stale), so no marker."""
+    chart_dir = make_chart_dir(tmp_path)
+    monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/docker")
+
+    libimageupgradecache.save_cache(chart_dir, {
+        libimageupgradecache.cache_key("ghcr.io/wearefrank/frank-gateway", "104"):
+            {"checked_at": datetime.now(timezone.utc).isoformat(), "newest": "105"},
+    })
+
+    trivy_by_image = {
+        "ghcr.io/wearefrank/frank-gateway:104": trivy_result(stdout=json.dumps(
+            {"Results": [{"Vulnerabilities": [vuln("CRITICAL", cve="CVE-OWN-1")]}]})),
+        "docker.io/maykinmedia/objects-api:1.0.0": trivy_result(stdout=json.dumps(
+            {"Results": [{"Vulnerabilities": [vuln("HIGH", cve="CVE-PARTNER-1")]}]})),
+    }
+    monkeypatch.setattr(libcvecheck, "run", sequenced_run(trivy_by_image=trivy_by_image))
+
+    ok, detail = vp.check_cves(chart_dir, [])
+    assert ok is True
+
+    out = capsys.readouterr().out
+    assert "ghcr.io/wearefrank/frank-gateway:104 upgradable" in out
+    assert "docker.io/maykinmedia/objects-api:1.0.0 [Maykin]\n" in out  # no marker: no cache entry
+
+
+def test_check_cves_stale_upgrade_cache_entry_not_marked_upgradable(
+    vp, libcvecheck, libimageupgradecache, tmp_path, monkeypatch, capsys,
+):
+    """A stale (past IMAGE_UPGRADE_CACHE_TTL_DAYS) entry must not be treated
+    as evidence of an upgrade — cve_check never refreshes this cache itself,
+    so a stale entry is as good as no entry."""
+    chart_dir = make_chart_dir(tmp_path)
+    monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/docker")
+
+    stale = datetime.now(timezone.utc) - timedelta(days=libimageupgradecache.IMAGE_UPGRADE_CACHE_TTL_DAYS + 1)
+    libimageupgradecache.save_cache(chart_dir, {
+        libimageupgradecache.cache_key("ghcr.io/wearefrank/frank-gateway", "104"):
+            {"checked_at": stale.isoformat(), "newest": "105"},
+    })
+
+    trivy_by_image = {
+        "ghcr.io/wearefrank/frank-gateway:104": trivy_result(stdout=json.dumps(
+            {"Results": [{"Vulnerabilities": [vuln("CRITICAL", cve="CVE-OWN-1")]}]})),
+    }
+    monkeypatch.setattr(libcvecheck, "run", sequenced_run(trivy_by_image=trivy_by_image))
+
+    ok, detail = vp.check_cves(chart_dir, [])
+    assert ok is True
+    out = capsys.readouterr().out
+    assert "upgradable" not in out
 
 
 def test_check_cves_detail_itemizes_every_bucket(vp, libcvecheck, tmp_path, monkeypatch, capsys):
@@ -350,11 +411,11 @@ def test_check_cves_detail_itemizes_every_bucket(vp, libcvecheck, tmp_path, monk
 
 def test_print_bucket_report_image_line_then_totals_then_packages(libcvecheck, monkeypatch, capsys):
     """Layout, top to bottom, for an itemized image: the image name+vendor
-    line, then the MEDIUM/LOW/UNKNOWN total (if any), then the per-package
-    CRIT/HIGH lines."""
+    (+ "upgradable" marker, if set) line, then the MEDIUM/LOW/UNKNOWN total
+    (if any), then the per-package CRIT/HIGH lines."""
     images = {
         "docker.io/pravega/zookeeper:0.2.15": {
-            "bucket": "own", "vendor_label": None,
+            "bucket": "own", "vendor_label": None, "upgradable": True,
             "vulns": [
                 vuln("HIGH", cve="CVE-1", pkg="bind9-dnsutils"),
                 vuln("MEDIUM", cve="CVE-2"),
@@ -367,6 +428,7 @@ def test_print_bucket_report_image_line_then_totals_then_packages(libcvecheck, m
 
     lines = [line for line in capsys.readouterr().out.splitlines() if line.strip()]
     header_idx = next(i for i, line in enumerate(lines) if line.startswith("docker.io/pravega/zookeeper:0.2.15"))
+    assert lines[header_idx] == "docker.io/pravega/zookeeper:0.2.15 upgradable"
     assert "1 MEDIUM, 1 LOW CVE(s)" in lines[header_idx + 1]
     assert "bind9-dnsutils: HIGH CVE-1" in lines[header_idx + 2]
 
@@ -374,10 +436,11 @@ def test_print_bucket_report_image_line_then_totals_then_packages(libcvecheck, m
 def test_print_bucket_report_totals_mode_never_itemizes_even_high_severity(libcvecheck, monkeypatch, capsys):
     """Partner-vendor images (detail_level="totals") get a single per-image
     severity-totals line, covering every severity including CRIT/HIGH — no
-    package breakdown, no individual CVE IDs, unlike detail_level="full"."""
+    package breakdown, no individual CVE IDs, unlike detail_level="full".
+    Not upgradable here, so no marker."""
     images = {
         "docker.io/maykinmedia/objects-api:1.0.0": {
-            "bucket": "partner", "vendor_label": "Maykin",
+            "bucket": "partner", "vendor_label": "Maykin", "upgradable": False,
             "vulns": [
                 vuln("CRITICAL", cve="CVE-1", pkg="openssl"),
                 vuln("HIGH", cve="CVE-2", pkg="openssl"),
@@ -389,6 +452,8 @@ def test_print_bucket_report_totals_mode_never_itemizes_even_high_severity(libcv
                                      detail_level="totals")
 
     out = capsys.readouterr().out
+    assert "docker.io/maykinmedia/objects-api:1.0.0 [Maykin]\n" in out
+    assert "upgradable" not in out
     assert "1 CRIT, 1 HIGH, 1 MEDIUM CVE(s)" in out
     assert "CVE-1" not in out and "CVE-2" not in out and "CVE-3" not in out
     assert "openssl" not in out
