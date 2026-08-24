@@ -35,7 +35,14 @@ trip:
      mention in the matching values-deltas.md, and — if its image tag
      changed — an entry in images-<version>.yaml, even if no doc mentions
      it yet (see lib.docs_consistency)
-  8. every digest-pinned image in values.yaml still matches its live
+  8. README.md's values-reference content is not out of sync with
+     values.yaml (a renamed/added/removed key, or a changed default/
+     comment) — regenerated via a real `helm-docs --dry-run` and diffed
+     against the actual file, never written in place (see
+     lib.helm_docs_check). Unrelated to step 7: that's upgrade-doc drift
+     triggered by a version bump; this is values-reference drift
+     triggered by any values.yaml edit at all, version bump or not
+  9. every digest-pinned image in values.yaml still matches its live
      upstream registry digest — except a tag known to slide (this repo's
      git history shows it's changed digest before, or the registry
      currently has a more specific sibling tag at the same digest), where
@@ -43,28 +50,28 @@ trip:
      last among the local checks: the only one that hits the network, so
      everything cheaper fails fast first (see lib.image_digests)
 
-  9. all Chart.yaml dependencies actually resolve and bundle (helm dependency update)
-  10. the chart lints cleanly with the CI placeholder values
-  11. the chart renders cleanly with `helm template` using the CI placeholder values
-  12. yamllint against that render finds no structurally-real problem (duplicate
+  10. all Chart.yaml dependencies actually resolve and bundle (helm dependency update)
+  11. the chart lints cleanly with the CI placeholder values
+  12. the chart renders cleanly with `helm template` using the CI placeholder values
+  13. yamllint against that render finds no structurally-real problem (duplicate
       keys, syntax errors) in this chart's OWN templates — cosmetic findings
       (trailing whitespace, comment style, ...) aren't reported at all, and
       a vendored sub-chart finding is printed per-item if it's from a
       partner vendor, else only gets a one-line count — neither
       scope ever fails except OWN (see lib.yamllint_check)
-  13. kubeconform against that same render finds no real API-schema
+  14. kubeconform against that same render finds no real API-schema
       violation in this chart's OWN templates (wrong types, unknown fields,
       a resource that doesn't even parse) — a CRD with no known schema
       (Keycloak, ECK, Redis, ...) is skipped, not an error, and vendored
       findings follow the same partner-vendor-gets-detail rule, never a
       failure (see lib.kubeconform_check)
-  14. shellcheck against every shell script embedded in a container's
+  15. shellcheck against every shell script embedded in a container's
       command/args in this chart's OWN templates finds no real bug
       (error/warning-level — bad quoting, undefined variables, portability
       issues) — info/style-level suggestions aren't reported at all, and
       vendored findings follow the same partner-vendor-gets-detail rule,
       never a failure (see lib.shellcheck_check)
-  15. kube-score's container-resources check finds every container in this
+  16. kube-score's container-resources check finds every container in this
       chart's OWN templates declaring CPU/memory requests AND limits, per
       .github/copilot-instructions.md's own documented "Resource Requests
       and Limits" convention — the only kube-score check this repo has an
@@ -72,7 +79,7 @@ trip:
       ImagePullPolicy, SecurityContext UID/GID, PodDisruptionBudgets, ...)
       is unused, generic best-practice noise this repo has never claimed
       to enforce. Same partner-vendor/other-vendor reporting split as
-      steps 12-14 (partner gets per-item detail, other stays a one-line
+      steps 13-15 (partner gets per-item detail, other stays a one-line
       count) — but a vendored sub-chart's missing resources IS this
       repo's job regardless of which org maintains it (wireable via that
       sub-chart's values.yaml key, same doc), so an other-vendor finding
@@ -80,14 +87,14 @@ trip:
       Neither ever fails the check yet, though: the backlog is untriaged
       and partly upstream-blocked (see lib.kube_score_check)
 
-  16. every unique digest-pinned image has its own newest same-variant tag
+  17. every unique digest-pinned image has its own newest same-variant tag
       looked up on its upstream registry (a tag-list call, no image pull —
       cached by (repository, version), see lib.image_upgrade_check) —
       "upgradable" if a numerically-newer tag is currently published,
-      regardless of whether it fixes anything (that's step 17's job).
+      regardless of whether it fixes anything (that's step 18's job).
       Report-only, never fails (see lib.image_upgrade_check)
 
-  17. every unique digest-pinned image is scanned for known CVEs with a fix
+  18. every unique digest-pinned image is scanned for known CVEs with a fix
       available, via a per-image `docker run aquasec/trivy:latest` (same
       tool this repo already scans images with in
       .github/workflows/trivy-vuln-scanner.yaml). Deliberately last: pulling
@@ -97,7 +104,7 @@ trip:
       a HIGH/CRITICAL finding is a triage decision for a human, not a
       chart-correctness fact (see lib.cve_check)
 
-  Steps 12-17's "partner vendor" carve-out (see lib.render_scope.friendly_vendor_charts):
+  Steps 13-18's "partner vendor" carve-out (see lib.render_scope.friendly_vendor_charts):
   Maykin, Info(NL), ICATT, Worth, WeAreFrank, Dimpact, and any local
   ("file://") dependency are close/collaborative enough that their
   findings are worth seeing individually, even though this repo still
@@ -107,15 +114,15 @@ trip:
   only ever scan this chart's own templates/checked-out sub-charts, never
   a vendored sub-chart's rendered content.
 
-Steps 12-17 each need an external tool (yamllint/kubeconform/shellcheck/
-kube-score/none (just network)/docker+trivy, respectively) beyond helm —
-run --help for exactly which binary/package each one needs, and add its
-step to --skip= to bypass a missing one (skipping means that check
-doesn't run, not that it passes; step 17 is the one exception — a missing
-docker makes it report itself skipped rather than failed, since it was
-designed as non-blocking even before it joined the regular --skip=/
---include= pipeline). Steps 4-6 are pure-Python filesystem/textual scans
-and need no external tool.
+Steps 8, 13-18 each need an external tool (helm-docs/yamllint/kubeconform/
+shellcheck/kube-score/none (just network)/docker+trivy, respectively)
+beyond helm — run --help for exactly which binary/package each one needs,
+and add its step to --skip= to bypass a missing one (skipping means that
+check doesn't run, not that it passes; step 18 is the one exception — a
+missing docker makes it report itself skipped rather than failed, since
+it was designed as non-blocking even before it joined the regular
+--skip=/--include= pipeline). Steps 4-6 are pure-Python filesystem/
+textual scans and need no external tool.
 
 Stops at the first failing step and prints a PASS/FAIL summary table, mirroring
 the /helm-precommit workflow (BOM check, dupe check, lint, full render) plus
@@ -145,12 +152,13 @@ Usage:
         # single check, or work around a step that's broken for reasons
         # unrelated to what you're testing. Valid step names: utf8-format,
         # dependencies, dupe-check, dry-check, image-references,
-        # node-selector, vendored-tgz, docs-consistency, image-digests,
-        # lint, full-render, yamllint, kubeconform, shellcheck, kube-score,
-        # image-upgrades, check-cves. See --help for the full list.
+        # node-selector, vendored-tgz, docs-consistency, helm-docs-check,
+        # image-digests, helm-lint, full-render, yamllint, kubeconform,
+        # shellcheck, kube-score, image-upgrades, check-cves. See --help
+        # for the full list.
         # Note: check-cves is the one most worth skipping day to day if you
         # just want a normal run WITHOUT pulling every image via Docker —
-        # step 17 runs by default like every other step (no separate
+        # step 18 runs by default like every other step (no separate
         # opt-in flag).
     verify-podiumd.py --include=kube-score
         # the inverse of --skip=: run ONLY the named step(s) (plus whatever
@@ -197,6 +205,7 @@ from lib.image_upgrade_check import check_image_upgrades
 from lib.image_references_check import check_image_references
 from lib.node_selector_check import check_node_selector
 from lib.docs_consistency import check_docs_consistency
+from lib.helm_docs_check import check_helm_docs
 from lib.vendored_tgz_check import check_vendored_tgz_extraction
 from lib.render_scope import (
     CHART_NAME, REQUIRED_REPOS, report_errors_by_subchart, report_largest_templates,
@@ -422,6 +431,7 @@ SKIPPABLE_STEPS = [
     ("node-selector", "Node selector"),
     ("vendored-tgz", "Vendored tgz"),
     ("docs-consistency", "Docs consistency"),
+    ("helm-docs-check", "Helm docs check"),
     ("image-digests", "Image digests"),
     ("helm-lint", "Helm lint"),
     ("full-render", "Full render"),
@@ -488,6 +498,7 @@ missing tool makes that check fail with a clear message — add its step to
                step (even a pure-filesystem one like utf8-format), so a
                --skip=/--include= selection that avoids every helm-using
                step still needs it installed
+  helm-docs    Helm docs check             (https://github.com/norwoodj/helm-docs — single static binary)
   yamllint     yamllint check              (apt/pip package "yamllint")
   kubeconform  kubeconform check           (https://github.com/yannh/kubeconform — single static binary)
   shellcheck   shellcheck check            (apt package "shellcheck", or https://www.shellcheck.net)
@@ -585,6 +596,8 @@ def main():
              check_vendored_tgz_extraction, chart_dir)
     run_step("Docs consistency", "Checking versions against upgrade docs",
              check_docs_consistency, chart_dir, args.baseline)
+    run_step("Helm docs check", "Checking README.md against values.yaml (helm-docs)",
+             check_helm_docs, chart_dir)
     run_step("Image digests", "Checking image digests against upstream registries",
              check_image_digests, chart_dir)
 

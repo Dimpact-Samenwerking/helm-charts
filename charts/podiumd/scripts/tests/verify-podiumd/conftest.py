@@ -26,6 +26,7 @@ import lib.cve_check as cve_check
 import lib.docs_consistency as docs_consistency
 import lib.dry_check as dry_check
 import lib.gitutil as gitutil
+import lib.helm_docs_check as helm_docs_check
 import lib.image_digests as image_digests
 import lib.image_references_check as image_references_check
 import lib.image_upgrade_cache as image_upgrade_cache
@@ -126,6 +127,11 @@ def libvendoredtgzcheck():
 @pytest.fixture(scope="session")
 def libcvecheck():
     return cve_check
+
+
+@pytest.fixture(scope="session")
+def libhelmdocscheck():
+    return helm_docs_check
 
 
 @pytest.fixture(scope="session")

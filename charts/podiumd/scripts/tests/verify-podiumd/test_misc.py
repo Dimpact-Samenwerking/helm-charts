@@ -140,6 +140,7 @@ def test_main_skips_requested_steps_and_runs_the_rest(vp, monkeypatch, capsys):
     monkeypatch.setattr(vp, "check_node_selector", make_check("node-selector"))
     monkeypatch.setattr(vp, "check_image_digests", make_check("digests"))
     monkeypatch.setattr(vp, "check_docs_consistency", make_check("docs"))
+    monkeypatch.setattr(vp, "check_helm_docs", make_check("helm-docs"))
     monkeypatch.setattr(vp, "check_vendored_tgz_extraction", make_check("tgz"))
     monkeypatch.setattr(vp, "check_yamllint", make_check("yamllint"))
     monkeypatch.setattr(vp, "check_kubeconform", make_check("kubeconform"))
@@ -156,7 +157,7 @@ def test_main_skips_requested_steps_and_runs_the_rest(vp, monkeypatch, capsys):
 
     vp.main()  # must not raise / must not sys.exit
 
-    assert ran == ["utf8", "dupe", "dry", "image-refs", "node-selector", "tgz", "docs", "digests",
+    assert ran == ["utf8", "dupe", "dry", "image-refs", "node-selector", "tgz", "docs", "helm-docs", "digests",
                     "deps", "yamllint", "kubeconform", "shellcheck", "kube-score", "image-upgrades", "cves"]
     out = capsys.readouterr().out
     assert "Helm lint" in out and "SKIP" in out
@@ -195,6 +196,7 @@ def test_prerequisites_for_cve_scan_needs_image_upgrades_too(vp):
 def test_prerequisites_for_standalone_check_has_none(vp):
     assert vp.prerequisites_for("Image references") == set()
     assert vp.prerequisites_for("Dependencies") == set()
+    assert vp.prerequisites_for("Helm docs check") == set()
 
 
 # --- main(): --include= end-to-end ---
@@ -220,6 +222,7 @@ def _stub_all_checks(vp, monkeypatch, ran):
     monkeypatch.setattr(vp, "check_node_selector", make_check("node-selector"))
     monkeypatch.setattr(vp, "check_image_digests", make_check("digests"))
     monkeypatch.setattr(vp, "check_docs_consistency", make_check("docs"))
+    monkeypatch.setattr(vp, "check_helm_docs", make_check("helm-docs"))
     monkeypatch.setattr(vp, "check_vendored_tgz_extraction", make_check("tgz"))
     monkeypatch.setattr(vp, "check_lint", make_check("lint"))
     monkeypatch.setattr(vp, "check_render", make_check("render"))
@@ -373,6 +376,30 @@ def test_include_image_upgrades_runs_it_plus_dependencies(vp, monkeypatch):
     vp.main()
 
     assert ran == ["deps", "image-upgrades"]
+
+
+def test_skip_helm_docs_check_skips_it(vp, monkeypatch, capsys):
+    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--skip=helm-docs-check"])
+    ran = []
+    _stub_all_checks(vp, monkeypatch, ran)
+
+    vp.main()
+
+    assert "helm-docs" not in ran
+    out = capsys.readouterr().out
+    assert "Helm docs check" in out and "SKIP" in out
+
+
+def test_include_helm_docs_check_runs_standalone(vp, monkeypatch):
+    """No prerequisite (doesn't need a render/Dependencies) — must run
+    alone, unlike image-upgrades/CVE scan."""
+    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--include=helm-docs-check"])
+    ran = []
+    _stub_all_checks(vp, monkeypatch, ran)
+
+    vp.main()
+
+    assert ran == ["helm-docs"]
 
 
 def test_detail_flag_defaults_false_and_is_passed_to_check_cves(vp, monkeypatch):
