@@ -27,10 +27,14 @@ treated as a component's own release tag, which should never legitimately
 change once published — by default that's the only kind this script
 updates. Pass --all to also update sliding pins.
 
-Pins with no discoverable repository (no active "repository:" sibling key,
-no "# host/repo:tag" reference comment, no commented-out "#repository:"
-hint) are reported and left untouched — this happens for the handful of
-images that rely entirely on their sub-chart's own default repository.
+Pins with no discoverable repository in values.yaml (no active
+"repository:" sibling key, no "# host/repo:tag" reference comment, no
+commented-out "#repository:" hint) fall back to the same component's
+vendored subchart default (the repository Helm itself merges in at render
+time when podiumd doesn't override it) — see
+lib.chart.subchart_default_repository. Still unresolved after that
+(dependency/.tgz missing, or the subchart doesn't default one there
+either) is reported and left untouched.
 
 This never touches tag-only image refs that have no "@sha256:..." pin
 (e.g. an apisix default) — those aren't pinned in values.yaml at all and
@@ -52,9 +56,11 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
+from lib.chart import load_yaml, subchart_default_repository
 from lib.registry import is_sliding_tag, parse_repo, registry_tag_exists
 
-VALUES_PATH = SCRIPT_DIR.parents[0] / "values.yaml"
+CHART_DIR = SCRIPT_DIR.parents[0]
+VALUES_PATH = CHART_DIR / "values.yaml"
 
 DIGEST_PIN_RE = re.compile(
     r'^(?P<indent>\s*)tag:\s*"?(?P<version>[\w][\w.\-]*)@sha256:(?P<digest>[0-9a-f]{64})"?\s*(?:#.*)?$'
@@ -122,8 +128,21 @@ def find_stale_digests(lines, values_path):
     (repository, version, old_digest, new_digest, [line, ...], sliding) —
     see lib.registry.is_sliding_tag for what makes a mismatch "sliding"
     (expected drift) versus a component's own release tag, which should
-    never legitimately change once published."""
+    never legitimately change once published.
+
+    A pin whose "tag:" has no resolvable "repository:" of its own falls
+    back to the same component's vendored subchart default — see
+    lib.chart.subchart_default_repository."""
     pins = scan_digest_pins(lines)
+
+    chart_dir = values_path.parent
+    chart_yaml_path = chart_dir / "Chart.yaml"
+    deps = load_yaml(chart_yaml_path).get("dependencies", []) if chart_yaml_path.is_file() else []
+    subchart_cache = {}
+    for p in pins:
+        if not p["repository"]:
+            p["repository"] = subchart_default_repository(chart_dir, lines, p["line"], deps, subchart_cache)
+
     unresolved = [p for p in pins if not p["repository"]]
 
     targets = {}

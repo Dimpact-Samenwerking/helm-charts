@@ -4,6 +4,7 @@ set-image-digests.py for that)."""
 import re
 import urllib.error
 
+from lib.chart import load_yaml, subchart_default_repository
 from lib.registry import is_sliding_tag, parse_repo, registry_tag_exists
 
 # One "tag: <version>@sha256:<digest>" pin per match, quoted or bare.
@@ -88,10 +89,25 @@ def check_image_digests(chart_dir):
     registry currently has a more specific sibling tag at the same digest;
     see lib.registry.is_sliding_tag. Otherwise it's a component's own
     release tag, which should never legitimately change once published —
-    a mismatch there is a real failure worth investigating."""
+    a mismatch there is a real failure worth investigating.
+
+    A pin whose "tag:" has no resolvable "repository:" of its own in
+    values.yaml (resolve_pin_repo) falls back to the same component's
+    vendored subchart default (lib.chart.subchart_default_repository) —
+    the repository Helm itself merges in at render time when podiumd
+    doesn't override it. Still unresolved after that (dependency/.tgz
+    missing, or the subchart doesn't default one there either) is skipped,
+    same as before."""
     values_path = chart_dir / "values.yaml"
     lines = values_path.read_text(encoding="utf-8").splitlines()
     pins = scan_digest_pins(lines)
+
+    chart_yaml_path = chart_dir / "Chart.yaml"
+    deps = load_yaml(chart_yaml_path).get("dependencies", []) if chart_yaml_path.is_file() else []
+    subchart_cache = {}
+    for p in pins:
+        if not p["repository"]:
+            p["repository"] = subchart_default_repository(chart_dir, lines, p["line"], deps, subchart_cache)
 
     unresolved = [p for p in pins if not p["repository"]]
     targets = {}

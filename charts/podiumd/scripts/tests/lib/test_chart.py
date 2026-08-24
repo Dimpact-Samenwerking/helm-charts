@@ -1,9 +1,27 @@
 """lib.chart — get_path, find_dependency, chart_ref, pull_chart,
 pulled_chart_dir, pull_chart_values, find_images, version_of,
-image_paths_for. `helm pull` is mocked via lib.procutil.run, so no `helm`
-binary or network access needed."""
+image_paths_for, dotted_key_path, subchart_values,
+subchart_default_repository. `helm pull` is mocked via lib.procutil.run,
+so no `helm` binary or network access needed."""
+import io
+import tarfile
+
 import pytest
 import yaml
+
+
+def make_tgz(charts_dir, name, version, values):
+    """A minimal vendored <name>-<version>.tgz containing just
+    <name>/values.yaml — enough to exercise subchart_values/
+    subchart_default_repository without a real `helm pull`."""
+    charts_dir.mkdir(parents=True, exist_ok=True)
+    tgz_path = charts_dir / f"{name}-{version}.tgz"
+    data = yaml.safe_dump(values).encode("utf-8")
+    with tarfile.open(tgz_path, "w:gz") as tar:
+        info = tarfile.TarInfo(name=f"{name}/values.yaml")
+        info.size = len(data)
+        tar.addfile(info, io.BytesIO(data))
+    return tgz_path
 
 
 # --- get_path ---
@@ -194,3 +212,133 @@ def test_image_paths_for_multi_image_component(libchart):
 
 def test_image_paths_for_unlisted_component_defaults_to_single_image_block(libchart):
     assert libchart.image_paths_for("zac") == ["image"]
+
+
+# --- dotted_key_path ---
+
+def test_dotted_key_path_nested_component(libchart):
+    lines = [
+        "openzaak:",
+        "  image:",
+        '    tag: "1.27.4@sha256:aaaa"',
+    ]
+    assert libchart.dotted_key_path(lines, 2) == "openzaak.image.tag"
+
+
+def test_dotted_key_path_ignores_comments_and_blank_lines(libchart):
+    lines = [
+        "a:",
+        "  # a comment",
+        "",
+        "  image:",
+        '    tag: "1.0.0@sha256:aaaa"',
+    ]
+    assert libchart.dotted_key_path(lines, 4) == "a.image.tag"
+
+
+def test_dotted_key_path_pops_stack_on_dedent(libchart):
+    lines = [
+        "a:",
+        "  b:",
+        "    c: 1",
+        "d:",
+        "  e: 2",
+    ]
+    assert libchart.dotted_key_path(lines, 4) == "d.e"
+
+
+# --- subchart_values ---
+
+def test_subchart_values_reads_vendored_tgz(libchart, tmp_path):
+    make_tgz(tmp_path / "charts", "openzaak", "1.14.2", {"image": {"repository": "openzaak/open-zaak"}})
+    dep = {"name": "openzaak", "version": "1.14.2"}
+    assert libchart.subchart_values(tmp_path, dep) == {"image": {"repository": "openzaak/open-zaak"}}
+
+
+def test_subchart_values_missing_tgz_returns_none(libchart, tmp_path):
+    dep = {"name": "openzaak", "version": "1.14.2"}
+    assert libchart.subchart_values(tmp_path, dep) is None
+
+
+def test_subchart_values_missing_member_returns_none(libchart, tmp_path):
+    charts_dir = tmp_path / "charts"
+    charts_dir.mkdir()
+    with tarfile.open(charts_dir / "openzaak-1.14.2.tgz", "w:gz"):
+        pass  # empty archive, no values.yaml member
+    dep = {"name": "openzaak", "version": "1.14.2"}
+    assert libchart.subchart_values(tmp_path, dep) is None
+
+
+# --- subchart_default_repository ---
+
+def test_subchart_default_repository_resolves_via_alias(libchart, tmp_path):
+    """openformulieren is a values.yaml/Chart.yaml alias for the openforms
+    subchart — the .tgz and its internal values.yaml are keyed by the
+    real chart name, not the alias."""
+    make_tgz(tmp_path / "charts", "openforms", "1.12.0", {"image": {"repository": "openformulieren/open-forms"}})
+    deps = [{"name": "openforms", "alias": "openformulieren", "version": "1.12.0"}]
+    lines = [
+        "openformulieren:",
+        "  image:",
+        '    tag: "3.4.10@sha256:aaaa"',
+    ]
+    assert libchart.subchart_default_repository(tmp_path, lines, 3, deps) == "openformulieren/open-forms"
+
+
+def test_subchart_default_repository_nested_subpath(libchart, tmp_path):
+    make_tgz(tmp_path / "charts", "zgw-office-addin", "0.9.352", {
+        "frontend": {"image": {"repository": "example/frontend"}},
+    })
+    deps = [{"name": "zgw-office-addin", "version": "0.9.352"}]
+    lines = [
+        "zgw-office-addin:",
+        "  frontend:",
+        "    image:",
+        '      tag: "v0.9.352@sha256:aaaa"',
+    ]
+    assert libchart.subchart_default_repository(tmp_path, lines, 4, deps) == "example/frontend"
+
+
+def test_subchart_default_repository_unknown_component_returns_none(libchart, tmp_path):
+    lines = ["a:", "  image:", '    tag: "1.0.0@sha256:aaaa"']
+    assert libchart.subchart_default_repository(tmp_path, lines, 3, []) is None
+
+
+def test_subchart_default_repository_too_shallow_path_returns_none(libchart, tmp_path):
+    lines = ['tag: "1.0.0@sha256:aaaa"']
+    assert libchart.subchart_default_repository(tmp_path, lines, 1, [{"name": "a"}]) is None
+
+
+def test_subchart_default_repository_subchart_has_no_repository_at_path(libchart, tmp_path):
+    make_tgz(tmp_path / "charts", "openzaak", "1.14.2", {"image": {}})
+    deps = [{"name": "openzaak", "version": "1.14.2"}]
+    lines = ["openzaak:", "  image:", '    tag: "1.27.4@sha256:aaaa"']
+    assert libchart.subchart_default_repository(tmp_path, lines, 3, deps) is None
+
+
+def test_subchart_default_repository_caches_across_calls(libchart, tmp_path, monkeypatch):
+    make_tgz(tmp_path / "charts", "openzaak", "1.14.2", {
+        "image": {"repository": "openzaak/open-zaak"},
+        "worker": {"image": {"repository": "openzaak/open-zaak-worker"}},
+    })
+    deps = [{"name": "openzaak", "version": "1.14.2"}]
+    lines = [
+        "openzaak:",
+        "  image:",
+        '    tag: "1.27.4@sha256:aaaa"',
+        "  worker:",
+        "    image:",
+        '      tag: "1.27.4@sha256:bbbb"',
+    ]
+    calls = []
+    real_subchart_values = libchart.subchart_values
+
+    def spy(chart_dir, dep):
+        calls.append(dep["name"])
+        return real_subchart_values(chart_dir, dep)
+
+    monkeypatch.setattr(libchart, "subchart_values", spy)
+    cache = {}
+    assert libchart.subchart_default_repository(tmp_path, lines, 3, deps, cache) == "openzaak/open-zaak"
+    assert libchart.subchart_default_repository(tmp_path, lines, 6, deps, cache) == "openzaak/open-zaak-worker"
+    assert calls == ["openzaak"]  # second lookup served from cache, .tgz read only once
