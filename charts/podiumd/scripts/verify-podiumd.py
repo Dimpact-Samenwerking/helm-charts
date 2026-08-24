@@ -139,7 +139,7 @@ Usage:
         # `podiumd-4.8.5` tag, falling back to the `feature/podiumd-4.8.5` /
         # `origin/feature/podiumd-4.8.5` branch if the tag doesn't exist yet.
         # Pass an explicit git ref instead of a bare version to use it as-is.
-    verify-podiumd.py --skip=lint,full-render
+    verify-podiumd.py --skip=helm-lint,full-render
         # skip one or more steps entirely, comma-separated, no spaces
         # (shown as SKIP, never a failure) — useful to iterate faster on a
         # single check, or work around a step that's broken for reasons
@@ -423,7 +423,7 @@ SKIPPABLE_STEPS = [
     ("vendored-tgz", "Vendored tgz"),
     ("docs-consistency", "Docs consistency"),
     ("image-digests", "Image digests"),
-    ("lint", "Lint"),
+    ("helm-lint", "Helm lint"),
     ("full-render", "Full render"),
     ("yamllint", "yamllint"),
     ("kubeconform", "kubeconform"),
@@ -443,7 +443,7 @@ SKIPPABLE_STEPS = [
 # prerequisite (it works standalone on values.yaml/the filesystem/the
 # registry, same as it does in the normal full run).
 STEP_PREREQUISITES = {
-    "Lint": ("Dependencies",),
+    "Helm lint": ("Dependencies",),
     "Full render": ("Dependencies",),
     "yamllint": ("Dependencies",),
     "kubeconform": ("Dependencies",),
@@ -590,7 +590,7 @@ def main():
     run_step("Dependencies", "Resolving dependencies (helm dependency update)", check_dependencies, chart_dir)
 
     extra_args = lint_args_for(chart_dir)
-    run_step("Lint", "helm lint", check_lint, chart_dir, extra_args)
+    run_step("Helm lint", "helm lint", check_lint, chart_dir, extra_args)
     run_step("Full render", "helm template", check_render, chart_dir, extra_args)
     run_step("yamllint", "yamllint (rendered output)", check_yamllint, chart_dir, extra_args)
     run_step("kubeconform", "kubeconform (rendered output)", check_kubeconform, chart_dir, extra_args)

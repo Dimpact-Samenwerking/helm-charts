@@ -115,10 +115,10 @@ def test_steps_help_is_in_argparse_epilog(vp, monkeypatch, capsys):
 # --- main(): --skip= end-to-end ---
 
 def test_main_skips_requested_steps_and_runs_the_rest(vp, monkeypatch, capsys):
-    """--skip=lint,full-render must skip exactly those two steps
+    """--skip=helm-lint,full-render must skip exactly those two steps
     (never calling their check functions) while every other step still runs
     normally, and the run still exits 0."""
-    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--skip=lint,full-render"])
+    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--skip=helm-lint,full-render"])
     monkeypatch.setattr(vp, "require_helm", lambda: None)
     monkeypatch.setattr(vp, "resolve_chart_dir", lambda: "/fake/chart/dir")
     monkeypatch.setattr(vp, "ensure_repos_configured", lambda: None)
@@ -159,7 +159,7 @@ def test_main_skips_requested_steps_and_runs_the_rest(vp, monkeypatch, capsys):
     assert ran == ["utf8", "dupe", "dry", "image-refs", "node-selector", "tgz", "docs", "digests",
                     "deps", "yamllint", "kubeconform", "shellcheck", "kube-score", "image-upgrades", "cves"]
     out = capsys.readouterr().out
-    assert "Lint" in out and "SKIP" in out
+    assert "Helm lint" in out and "SKIP" in out
     assert "Full render" in out and "SKIP" in out
     assert "All checks passed." in out
 
@@ -167,7 +167,7 @@ def test_main_skips_requested_steps_and_runs_the_rest(vp, monkeypatch, capsys):
 def test_main_skipped_step_does_not_count_as_failure(vp, monkeypatch):
     """Skipping every step except one that fails must still exit non-zero —
     a skip must never mask a real failure in a step that DID run."""
-    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--skip=dependencies,image-digests,docs-consistency,lint,full-render"])
+    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--skip=dependencies,image-digests,docs-consistency,helm-lint,full-render"])
     monkeypatch.setattr(vp, "require_helm", lambda: None)
     monkeypatch.setattr(vp, "resolve_chart_dir", lambda: "/fake/chart/dir")
     monkeypatch.setattr(vp, "ensure_repos_configured", lambda: None)
@@ -182,7 +182,7 @@ def test_main_skipped_step_does_not_count_as_failure(vp, monkeypatch):
 
 def test_prerequisites_for_render_based_check_needs_dependencies(vp):
     assert vp.prerequisites_for("kube-score") == {"Dependencies"}
-    assert vp.prerequisites_for("Lint") == {"Dependencies"}
+    assert vp.prerequisites_for("Helm lint") == {"Dependencies"}
 
 
 def test_prerequisites_for_standalone_check_has_none(vp):
@@ -236,7 +236,7 @@ def test_include_flag_runs_target_plus_its_prerequisite(vp, monkeypatch, capsys)
 
     assert ran == ["deps", "kube-score"]
     out = capsys.readouterr().out
-    for skipped in ("UTF-8 format", "Dupe check", "DRY check", "Lint", "Full render", "yamllint"):
+    for skipped in ("UTF-8 format", "Dupe check", "DRY check", "Helm lint", "Full render", "yamllint"):
         assert skipped in out
     assert "not included via --include=kube-score" in out
     assert "All checks passed." in out
@@ -257,7 +257,7 @@ def test_include_flag_standalone_step_runs_without_dependencies(vp, monkeypatch,
 
 
 def test_include_and_skip_together_errors(vp, monkeypatch, capsys):
-    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--include=lint", "--skip=full-render"])
+    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--include=helm-lint", "--skip=full-render"])
     with pytest.raises(SystemExit) as exc_info:
         vp.main()
     assert exc_info.value.code == 2
@@ -277,7 +277,7 @@ def test_multiple_include_flags_run_the_union_plus_each_ones_prerequisites(vp, m
 
     assert ran == ["deps", "shellcheck", "kube-score"]
     out = capsys.readouterr().out
-    for skipped in ("UTF-8 format", "Lint", "Full render", "yamllint", "CVE scan"):
+    for skipped in ("UTF-8 format", "Helm lint", "Full render", "yamllint", "CVE scan"):
         assert skipped in out
     assert "All checks passed." in out
 
