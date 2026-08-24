@@ -16,10 +16,12 @@ Usage:
 A target version column that's empty (nothing changed for that app/helm
 version on this release) prints as "UNCHANGED" rather than blank.
 
-When <column> is "component", also prints a second table of every row
-whose "used_by" column contains <text> — e.g. querying "zac" additionally
-lists the Technische-section tooling (Solr, Zookeeper, ...) that row says
-ZAC pulls in, since those rows aren't found by the main component match.
+Also prints a second table of every row whose "used_by" column is a
+substring of one of the matched rows' own "component" value — e.g.
+querying vendor "info" matches "Zaak - ZAC", and since "zac" (the
+Technische-section rows' used_by value) is contained in that component
+name, the Solr/Zookeeper/... rows ZAC pulls in are listed too, since
+those rows aren't found by the main query itself.
 
 Examples:
     query-release-table.py component zac
@@ -47,6 +49,20 @@ def load_rows(path):
 def matching_rows(rows, column, text):
     needle = text.lower()
     return [row for row in rows if needle in row[column].lower()]
+
+
+def used_by_rows_for(rows, matches):
+    """Every row in `rows` (excluding `matches` themselves) whose
+    non-empty "used_by" value is a case-insensitive substring of one of
+    `matches`' own "component" values — e.g. "zac" (a Technische row's
+    used_by) is contained in "Zaak - ZAC" (a matched component's name),
+    so that Technische row comes back regardless of which column/text
+    the original query actually matched on."""
+    names = [m["component"].lower() for m in matches]
+    match_ids = {id(m) for m in matches}
+    return [row for row in rows
+            if id(row) not in match_ids and row["used_by"]
+            and any(row["used_by"].lower() in name for name in names)]
 
 
 def display_value(row, column):
@@ -86,12 +102,11 @@ def main():
     print(f"Matches for {column} {text!r}:")
     print_table(matches)
 
-    if column == "component":
-        used_by_matches = matching_rows(rows, "used_by", text)
-        if used_by_matches:
-            print()
-            print(f"Used by {text!r}:")
-            print_table(used_by_matches)
+    used_by_matches = used_by_rows_for(rows, matches)
+    if used_by_matches:
+        print()
+        print("Used by matched component(s):")
+        print_table(used_by_matches)
 
 
 if __name__ == "__main__":
