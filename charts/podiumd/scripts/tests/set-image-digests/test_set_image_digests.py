@@ -155,12 +155,95 @@ def test_find_stale_digests_falls_back_to_subchart_default_repository(sid, tmp_p
     assert called == [("docker.io", "openzaak/open-zaak", "1.27.4")]
 
 
-def test_find_stale_digests_stays_unresolved_when_subchart_has_no_default_either(sid, tmp_path):
+def test_find_stale_digests_stays_unresolved_when_subchart_has_no_default_either(sid, tmp_path, monkeypatch):
     lines = ["openzaak:", "  image:", f'    tag: "1.27.4@sha256:{"a" * 64}"']
     write_chart_yaml(tmp_path, [{"name": "openzaak", "version": "1.14.2", "repository": "@example"}])
     make_tgz(tmp_path / "charts", "openzaak", "1.14.2", {"image": {}})  # subchart doesn't default one either
+
+    calls = []
+    monkeypatch.setattr(sid, "ensure_repos_configured", lambda: calls.append("ensure") or (True, "ok"))
+    monkeypatch.setattr(sid, "vendor_dependencies", lambda cd: calls.append("vendor") or (True, "ok"))
+
     stale, unresolved, fetch_errors = sid.find_stale_digests(lines, tmp_path / "values.yaml")
     assert stale == [] and fetch_errors == []
+    assert len(unresolved) == 1
+    assert calls == []  # .tgz already present -> nothing to gain from re-vendoring, never triggered
+
+
+def test_find_stale_digests_vendors_dependencies_when_tgz_missing(sid, tmp_path, monkeypatch):
+    """openzaak-style pin: matching Chart.yaml dependency, but its .tgz
+    isn't vendored at all yet — worth a real re-vendor, unlike the "already
+    vendored, subchart just doesn't default one" case above."""
+    lines = ["openzaak:", "  image:", f'    tag: "1.27.4@sha256:{"a" * 64}"']
+    write_chart_yaml(tmp_path, [{"name": "openzaak", "version": "1.14.2", "repository": "@example"}])
+    # no .tgz vendored at all yet
+
+    calls = []
+
+    def fake_ensure_repos_configured():
+        calls.append("ensure")
+        return True, "ok"
+
+    def fake_vendor_dependencies(chart_dir):
+        calls.append("vendor")
+        make_tgz(chart_dir / "charts", "openzaak", "1.14.2", {"image": {"repository": "openzaak/open-zaak"}})
+        return True, "1 dependencies bundled"
+
+    monkeypatch.setattr(sid, "ensure_repos_configured", fake_ensure_repos_configured)
+    monkeypatch.setattr(sid, "vendor_dependencies", fake_vendor_dependencies)
+    monkeypatch.setattr(sid, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{'a' * 64}"))
+
+    stale, unresolved, fetch_errors = sid.find_stale_digests(lines, tmp_path / "values.yaml")
+    assert calls == ["ensure", "vendor"]
+    assert unresolved == []
+    assert stale == [] and fetch_errors == []
+
+
+def test_find_stale_digests_warns_and_stays_unresolved_when_repos_configuration_fails(sid, tmp_path, monkeypatch, capsys):
+    lines = ["openzaak:", "  image:", f'    tag: "1.27.4@sha256:{"a" * 64}"']
+    write_chart_yaml(tmp_path, [{"name": "openzaak", "version": "1.14.2", "repository": "@example"}])
+
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("vendor_dependencies must never run when ensure_repos_configured failed")
+
+    monkeypatch.setattr(sid, "ensure_repos_configured", lambda: (False, "helm repo add zac failed: network unreachable"))
+    monkeypatch.setattr(sid, "vendor_dependencies", fail_if_called)
+
+    stale, unresolved, fetch_errors = sid.find_stale_digests(lines, tmp_path / "values.yaml")
+    assert len(unresolved) == 1
+    assert stale == [] and fetch_errors == []
+    err = capsys.readouterr().err
+    assert "network unreachable" in err
+    assert "will stay unresolved" in err
+
+
+def test_find_stale_digests_warns_and_stays_unresolved_when_vendoring_fails(sid, tmp_path, monkeypatch, capsys):
+    lines = ["openzaak:", "  image:", f'    tag: "1.27.4@sha256:{"a" * 64}"']
+    write_chart_yaml(tmp_path, [{"name": "openzaak", "version": "1.14.2", "repository": "@example"}])
+
+    monkeypatch.setattr(sid, "ensure_repos_configured", lambda: (True, "ok"))
+    monkeypatch.setattr(sid, "vendor_dependencies", lambda cd: (False, "helm dependency update failed"))
+
+    stale, unresolved, fetch_errors = sid.find_stale_digests(lines, tmp_path / "values.yaml")
+    assert len(unresolved) == 1
+    err = capsys.readouterr().err
+    assert "helm dependency update failed" in err
+
+
+def test_find_stale_digests_never_vendors_when_no_matching_dependency(sid, tmp_path, monkeypatch):
+    """A component with no Chart.yaml dependency at all (e.g. a values.yaml
+    key that isn't a subchart) can never be resolved by vendoring — must
+    not trigger the (real, network-touching) re-vendor path."""
+    lines = ["a:", "  image:", f'    tag: "1.0.0@sha256:{"a" * 64}"']
+    write_chart_yaml(tmp_path, [])  # no dependencies at all
+
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("vendoring must never be attempted for an unmatched component")
+
+    monkeypatch.setattr(sid, "ensure_repos_configured", fail_if_called)
+    monkeypatch.setattr(sid, "vendor_dependencies", fail_if_called)
+
+    stale, unresolved, fetch_errors = sid.find_stale_digests(lines, tmp_path / "values.yaml")
     assert len(unresolved) == 1
 
 

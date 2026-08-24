@@ -138,10 +138,11 @@ it at a different chart source.
 
 The actual check logic lives in charts/podiumd/scripts/lib/ (one module per
 check, plus lib/render_scope.py for the infrastructure shared by every
-check that inspects a `helm template` render) — this file is the CLI
-entry point: argument parsing, the ordered run_step() pipeline, and the
-handful of checks too small/foundational to warrant their own module
-(UTF-8/BOM, duplicate-key scan, helm dependency/lint/render).
+check that inspects a `helm template` render, and lib/dependencies.py for
+the dependency-vendoring set-image-digests.py also needs) — this file is
+the CLI entry point: argument parsing, the ordered run_step() pipeline,
+and the handful of checks too small/foundational to warrant their own
+module (UTF-8/BOM, duplicate-key scan, lint/render).
 
 Usage:
     verify-podiumd.py
@@ -206,6 +207,7 @@ from lib.procutil import run
 from lib.dry_check import check_dry
 from lib.image_digests import check_image_digests
 from lib.cve_check import check_cves
+from lib.dependencies import check_dependencies, ensure_repos_configured
 from lib.image_upgrade_check import check_image_upgrades
 from lib.image_references_check import check_image_references
 from lib.node_selector_check import check_node_selector
@@ -213,7 +215,7 @@ from lib.docs_consistency import check_docs_consistency
 from lib.helm_docs_check import check_helm_docs
 from lib.vendored_tgz_check import check_vendored_tgz_extraction
 from lib.render_scope import (
-    CHART_NAME, REQUIRED_REPOS, report_errors_by_subchart, report_largest_templates,
+    CHART_NAME, report_errors_by_subchart, report_largest_templates,
     supports_skip_schema_validation,
 )
 from lib.yamllint_check import check_yamllint
@@ -254,43 +256,6 @@ def check_utf8_format(chart_dir):
         return False, "BOM found — run strip-utf8-bom.py to fix (this script never writes to values.yaml)"
     print(f"OK: no BOM in {values_path.name}")
     return True, "no BOM"
-
-
-def ensure_repos_configured():
-    for name, url in REQUIRED_REPOS.items():
-        result = run(["helm", "repo", "add", name, url, "--force-update"],
-                      capture_output=True, text=True)
-        if result.returncode != 0:
-            die(f"helm repo add {name} failed\n{result.stderr.strip()}")
-    result = run(["helm", "repo", "update"], capture_output=True, text=True)
-    if result.returncode != 0:
-        die(f"helm repo update failed\n{result.stderr.strip()}")
-
-
-def check_dependencies(chart_dir):
-    shutil.rmtree(chart_dir / "charts", ignore_errors=True)
-    (chart_dir / "Chart.lock").unlink(missing_ok=True)
-    result = run(["helm", "dependency", "update", str(chart_dir)])
-    if result.returncode != 0:
-        return False, "helm dependency update failed"
-
-    result = run(["helm", "dependency", "list", str(chart_dir)], capture_output=True, text=True)
-    if result.returncode != 0:
-        return False, f"helm dependency list failed: {result.stderr.strip()}"
-    print(result.stdout, end="")
-
-    rows = [line for line in result.stdout.splitlines()[1:] if line.strip()]
-    bad_rows = [line for line in rows if line.split()[-1] != "ok"]
-    if bad_rows:
-        return False, "one or more dependencies did not resolve (STATUS != ok above)"
-
-    dep_count = len(rows)
-    chart_count = len(list((chart_dir / "charts").glob("*.tgz")))
-    if dep_count != chart_count:
-        return False, f"expected {dep_count} bundled dependencies, found {chart_count} in charts/"
-    detail = f"{dep_count} dependencies bundled"
-    print(f"OK: all {detail} in charts/")
-    return True, detail
 
 
 def check_duplicate_keys(chart_dir):
@@ -611,7 +576,9 @@ def main():
              check_helm_docs, chart_dir)
 
     log("Ensuring dependency repos are configured")
-    ensure_repos_configured()
+    ok, msg = ensure_repos_configured()
+    if not ok:
+        die(msg)
 
     run_step("Dependencies", "Resolving dependencies (helm dependency update)", check_dependencies, chart_dir)
 

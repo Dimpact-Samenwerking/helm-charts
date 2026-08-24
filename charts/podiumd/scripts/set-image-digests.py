@@ -34,12 +34,13 @@ vendored subchart default (the repository Helm itself merges in at render
 time when podiumd doesn't override it) — see
 lib.chart.subchart_default_repository. That fallback reads straight from
 charts/podiumd/charts/<name>-<version>.tgz, which is gitignored — on a
-checkout where nothing has vendored dependencies yet (no prior `helm
-dependency update` / verify-podiumd.py run), it won't exist, and those
-pins stay unresolved same as if the subchart had no default either. Run
-`helm dependency update charts/podiumd` (or verify-podiumd.py, which
-does this itself before its own Image digests step) first if that
-matters for the run.
+checkout where nothing has vendored dependencies yet it simply won't
+exist, so this script vendors them itself (a real `helm dependency
+update`, same as verify-podiumd.py's own "Dependencies" step) the first
+time a pin actually needs one that isn't already there; if that also
+fails (helm missing, no network, ...) the affected pin(s) are reported
+unresolved and left untouched, same as if the subchart had no default
+either — never a crash.
 
 This never touches tag-only image refs that have no "@sha256:..." pin
 (e.g. an apisix default) — those aren't pinned in values.yaml at all and
@@ -61,7 +62,8 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from lib.chart import load_yaml, subchart_default_repository
+from lib.chart import load_yaml, subchart_default_repository, subchart_needs_vendoring
+from lib.dependencies import check_dependencies as vendor_dependencies, ensure_repos_configured
 from lib.registry import is_sliding_tag, parse_repo, registry_tag_exists
 
 CHART_DIR = SCRIPT_DIR.parents[0]
@@ -137,7 +139,12 @@ def find_stale_digests(lines, values_path):
 
     A pin whose "tag:" has no resolvable "repository:" of its own falls
     back to the same component's vendored subchart default — see
-    lib.chart.subchart_default_repository."""
+    lib.chart.subchart_default_repository. If that's still unresolved
+    specifically because the vendored .tgz isn't there yet (see
+    lib.chart.subchart_needs_vendoring), vendors dependencies once (a real
+    `helm dependency update`) and retries — never for a pin that has no
+    matching Chart.yaml dependency at all, since vendoring can't help
+    that one regardless."""
     pins = scan_digest_pins(lines)
 
     chart_dir = values_path.parent
@@ -146,6 +153,21 @@ def find_stale_digests(lines, values_path):
     subchart_cache = {}
     for p in pins:
         if not p["repository"]:
+            p["repository"] = subchart_default_repository(chart_dir, lines, p["line"], deps, subchart_cache)
+
+    still_unresolved = [p for p in pins if not p["repository"]]
+    if any(subchart_needs_vendoring(chart_dir, lines, p["line"], deps) for p in still_unresolved):
+        print("Some pin(s) rely on their subchart's own default repository, but it isn't "
+              "vendored yet — running `helm dependency update` once to resolve them too.")
+        ok, msg = ensure_repos_configured()
+        if not ok:
+            print(f"WARNING: {msg} — those pin(s) will stay unresolved", file=sys.stderr)
+        else:
+            ok, msg = vendor_dependencies(chart_dir)
+            if not ok:
+                print(f"WARNING: {msg} — those pin(s) will stay unresolved", file=sys.stderr)
+        subchart_cache.clear()
+        for p in still_unresolved:
             p["repository"] = subchart_default_repository(chart_dir, lines, p["line"], deps, subchart_cache)
 
     unresolved = [p for p in pins if not p["repository"]]
