@@ -12,8 +12,9 @@ import yaml
 
 from lib.procutil import run
 from lib.render_scope import (
-    CHART_NAME, OWN_TEMPLATES_PREFIX, chart_name_from_source, friendly_vendor_charts,
-    print_grouped_findings, split_rendered_by_source, supports_skip_schema_validation,
+    CHART_NAME, OWN_TEMPLATES_PREFIX, build_resource_locations, chart_name_from_source,
+    friendly_vendor_charts, print_grouped_findings, resource_line, split_rendered_by_source,
+    supports_skip_schema_validation,
 )
 
 # Any container invoking one of these as its `command`, with "-c" somewhere
@@ -63,7 +64,11 @@ def find_shell_scripts(obj, source, path=""):
 def extract_shell_scripts(docs):
     """docs: list of (source, doc_text) pairs, e.g. from
     split_rendered_by_source. Parses each doc_text as YAML and returns
-    every embedded shell script found in it, tagged with its source."""
+    every embedded shell script found in it, tagged with its source plus
+    the containing resource's own (kind, namespace, name) — constant for
+    every script found within the same doc, one resource per doc — so a
+    finding can later be resolved back to a rendered-output line via
+    lib.render_scope.resource_line."""
     scripts = []
     for source, doc_text in docs:
         try:
@@ -72,7 +77,15 @@ def extract_shell_scripts(docs):
             continue
         if parsed is None:
             continue
-        scripts.extend(find_shell_scripts(parsed, source))
+        if isinstance(parsed, dict):
+            metadata = parsed.get("metadata") or {}
+            kind = parsed.get("kind")
+            namespace = metadata.get("namespace") or ""
+            name = metadata.get("name")
+        else:
+            kind = namespace = name = None  # not a single-object doc — no resource_line lookup possible
+        for found_source, path, shell, script_text in find_shell_scripts(parsed, source):
+            scripts.append((found_source, path, shell, script_text, kind, namespace, name))
     return scripts
 
 
@@ -90,7 +103,7 @@ def run_shellcheck(shell, script_text):
 
 
 def _shellcheck_group_key(finding):
-    _source, _path, c = finding
+    _source, _path, c, _kind, _namespace, _name = finding
     return c.get("level"), c.get("code"), c.get("message")
 
 
@@ -99,21 +112,29 @@ def _shellcheck_group_label(key):
     return f"[{level.upper():7s}] SC{code}: {message}"
 
 
-def _shellcheck_location(finding):
-    """"<source> (<path>) — script line <N>[:<col>]" for one finding
-    (source, path, comment). The line/column are shellcheck's own,
-    against the embedded script text it was fed — position within that
-    script, NOT a line number in the rendered YAML or the template file
-    (shellcheck has no notion of either; `path` is what locates the
-    right container's script among possibly several in the same
-    manifest)."""
-    source, path, c = finding
+def _shellcheck_location(finding, locations):
+    """"<source> (<path>) — script line <N>[:<col>] (rendered line M)" for
+    one finding (source, path, comment, kind, namespace, name). The
+    script line/column are shellcheck's own, against the embedded script
+    text it was fed — position within that script, NOT a line number in
+    the rendered YAML or the template file (shellcheck has no notion of
+    either; `path` is what locates the right container's script among
+    possibly several in the same manifest). "rendered line M" is this
+    finding's containing resource's own start line in the full render
+    (see build_resource_locations) — omitted if it can't be resolved
+    (kind/name missing, or ambiguous — see resource_line)."""
+    source, path, c, kind, namespace, name = finding
     line = c.get("line")
     if not line:
-        return f"{source} ({path})"
-    column = c.get("column")
-    pos = f"{line}:{column}" if column else str(line)
-    return f"{source} ({path}) — script line {pos}"
+        base = f"{source} ({path})"
+    else:
+        column = c.get("column")
+        pos = f"{line}:{column}" if column else str(line)
+        base = f"{source} ({path}) — script line {pos}"
+    if not kind or not name:
+        return base
+    rendered_line = resource_line(locations, kind, name, namespace=namespace)
+    return f"{base} (rendered line {rendered_line})" if rendered_line else base
 
 
 def check_shellcheck(chart_dir, extra_args):
@@ -132,7 +153,12 @@ def check_shellcheck(chart_dir, extra_args):
     sub-chart only ever gets a one-line aggregate count. Within OWN scope,
     error/warning-level findings (shellcheck's own "likely a real bug"
     tiers) fail the check; info/style (suggestions/preferences) aren't
-    reported at all, same policy as check_yamllint's cosmetic findings."""
+    reported at all, same policy as check_yamllint's cosmetic findings.
+    Every per-item location also gets a "(rendered line N)" hint — see
+    _shellcheck_location/build_resource_locations — pointing at the
+    containing resource's own start line in the full render (not the
+    exact script line within it, which is a position kubeconform/
+    kube-score/shellcheck's own line/column already covers separately)."""
     if shutil.which("shellcheck") is None:
         return False, "shellcheck is not installed (see --skip-shellcheck to bypass)"
 
@@ -145,28 +171,30 @@ def check_shellcheck(chart_dir, extra_args):
     if result.returncode != 0:
         return False, "helm template failed to render"
 
+    locations = build_resource_locations(result.stdout)
     docs = split_rendered_by_source(result.stdout)
     vendor_map = friendly_vendor_charts(chart_dir)
     own_docs = [(s, t) for s, t in docs if s.startswith(OWN_TEMPLATES_PREFIX)]
     vendored_docs = [(s, t) for s, t in docs if not s.startswith(OWN_TEMPLATES_PREFIX)]
 
     own_real, vendored_friendly, vendored_other = [], [], []
-    for source, path, shell, script_text in extract_shell_scripts(own_docs):
+    for source, path, shell, script_text, kind, namespace, name in extract_shell_scripts(own_docs):
         comments = run_shellcheck(shell, script_text)
         if comments is None:
             return False, "shellcheck produced unparseable output"
         for c in comments:
             if c.get("level") in SHELLCHECK_FAILING_LEVELS:
-                own_real.append((source, path, c))
+                own_real.append((source, path, c, kind, namespace, name))
 
-    for source, path, shell, script_text in extract_shell_scripts(vendored_docs):
+    for source, path, shell, script_text, kind, namespace, name in extract_shell_scripts(vendored_docs):
         comments = run_shellcheck(shell, script_text)
         if comments is None:
             return False, "shellcheck produced unparseable output"
         chart = chart_name_from_source(source)
         for c in comments:
             if c.get("level") in SHELLCHECK_FAILING_LEVELS:
-                (vendored_friendly if chart in vendor_map else vendored_other).append((source, path, c))
+                finding = (source, path, c, kind, namespace, name)
+                (vendored_friendly if chart in vendor_map else vendored_other).append(finding)
 
     if own_real:
         print(f"Found {len(own_real)} real shellcheck issue(s) in this chart's own templates "
@@ -174,7 +202,7 @@ def check_shellcheck(chart_dir, extra_args):
         print_grouped_findings(
             own_real,
             key_fn=_shellcheck_group_key,
-            item_fn=_shellcheck_location,
+            item_fn=lambda f: _shellcheck_location(f, locations),
             label_fn=_shellcheck_group_label,
             items_label="location(s)",
         )
@@ -186,14 +214,14 @@ def check_shellcheck(chart_dir, extra_args):
         print_grouped_findings(
             vendored_friendly,
             key_fn=_shellcheck_group_key,
-            item_fn=lambda f: f"{_shellcheck_location(f)} [{vendor_map[chart_name_from_source(f[0])]}]",
+            item_fn=lambda f: f"{_shellcheck_location(f, locations)} [{vendor_map[chart_name_from_source(f[0])]}]",
             label_fn=_shellcheck_group_label,
             items_label="location(s)",
         )
         print()
 
     if vendored_other:
-        by_chart = Counter(chart_name_from_source(source) for source, _, _ in vendored_other)
+        by_chart = Counter(chart_name_from_source(source) for source, *_rest in vendored_other)
         print(f"{len(vendored_other)} shellcheck finding(s) across {len(by_chart)} other "
               f"vendored sub-chart(s) (outside this repo's scope, not shown, never a failure)")
 

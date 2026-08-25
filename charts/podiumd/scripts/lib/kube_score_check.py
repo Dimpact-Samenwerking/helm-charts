@@ -8,8 +8,9 @@ from collections import Counter
 
 from lib.procutil import run
 from lib.render_scope import (
-    CHART_NAME, OWN_TEMPLATES_PREFIX, chart_name_from_source, friendly_vendor_charts,
-    print_grouped_findings, split_rendered_by_source, supports_skip_schema_validation,
+    CHART_NAME, OWN_TEMPLATES_PREFIX, build_resource_locations, chart_name_from_source,
+    friendly_vendor_charts, print_grouped_findings, resource_line, split_rendered_by_source,
+    supports_skip_schema_validation,
 )
 
 # The one kube-score check this repo actually has a documented, existing
@@ -62,6 +63,28 @@ def extract_resource_findings(kube_score_objects):
     return findings
 
 
+def parse_kube_score_object_name(object_name):
+    """kube-score's own "Kind/apiVersion/namespace/name" identifier ->
+    (kind, namespace, name), or (None, None, None) if it doesn't have that
+    shape at all. apiVersion itself can contain a "/" (e.g. "batch/v1"),
+    so kind is taken from the front and name/namespace from the back,
+    with whatever's left in the middle (the actual apiVersion, unused
+    here) joined back — a naive 4-way split would misparse a grouped
+    apiVersion like "batch/v1" as two extra fields."""
+    parts = object_name.split("/")
+    if len(parts) < 4:
+        return None, None, None
+    return parts[0], parts[-2], parts[-1]
+
+
+def _kube_score_line_suffix(object_name, locations):
+    kind, namespace, name = parse_kube_score_object_name(object_name)
+    if not kind:
+        return ""
+    line = resource_line(locations, kind, name, namespace=namespace)
+    return f" — rendered line {line}" if line else ""
+
+
 def check_kube_score(chart_dir, extra_args):
     """Checks that every container in the rendered chart declares CPU/
     memory requests AND limits — this repo's own documented convention
@@ -83,7 +106,10 @@ def check_kube_score(chart_dir, extra_args):
     upstream-code problem the way a YAML-style or shell-script issue is.
     So an other-vendor finding here is genuinely actionable, just
     deprioritized in the output (signal-to-noise: partner charts are the
-    ones worth triaging first). It still does NOT fail the check yet,
+    ones worth triaging first). Every per-item finding also gets a
+    "— rendered line N" hint (see build_resource_locations/resource_line
+    in lib.render_scope) — pipe the render to a file (render-podiumd.py)
+    and jump straight there. It still does NOT fail the check yet,
     regardless of vendor: the current backlog is untriaged, and some gaps
     are upstream-blocked (the sub-chart's own template exposes no
     resources field at all for a given container — nothing to wire). Only
@@ -102,6 +128,7 @@ def check_kube_score(chart_dir, extra_args):
     if result.returncode != 0:
         return False, "helm template failed to render"
 
+    locations = build_resource_locations(result.stdout)
     docs = split_rendered_by_source(result.stdout)
     own_text = "".join(text for source, text in docs if source.startswith(OWN_TEMPLATES_PREFIX))
     own_objects = run_kube_score(own_text)
@@ -133,7 +160,7 @@ def check_kube_score(chart_dir, extra_args):
             own_real,
             key_fn=lambda f: (f[0], f[1]),
             item_fn=lambda f: f[2],
-            label_fn=lambda k: f"{k[0]} ({k[1]})",
+            label_fn=lambda k: f"{k[0]} ({k[1]}){_kube_score_line_suffix(k[0], locations)}",
             items_label="issue(s)",
         )
         print()
@@ -147,7 +174,7 @@ def check_kube_score(chart_dir, extra_args):
             vendored_partner,
             key_fn=lambda f: (f[0], f[1], f[2]),
             item_fn=lambda f: f[3],
-            label_fn=lambda k: f"[{k[0]}] {k[1]} ({k[2]})",
+            label_fn=lambda k: f"[{k[0]}] {k[1]} ({k[2]}){_kube_score_line_suffix(k[1], locations)}",
             items_label="issue(s)",
         )
         print()

@@ -8,6 +8,8 @@ check_shellcheck/check_kube_score (lib/*_check.py)."""
 import re
 from collections import Counter
 
+import yaml
+
 from lib.chart import load_yaml
 from lib.procutil import run
 
@@ -217,6 +219,55 @@ def split_rendered_by_source(rendered_text):
         if m:
             result.append((m.group(1).strip(), f"---\n{doc}"))
     return result
+
+
+def build_resource_locations(rendered_text):
+    """Map (kind, namespace, name) -> the 1-based line number where that
+    resource's manifest begins (the line right after its own "# Source:"
+    comment) in the full multi-document `helm template` render — a
+    debugging aid for kubeconform/kube-score findings, neither of which
+    carries a line number of its own (only kind/name, and kubeconform's
+    JSON doesn't even have namespace — see resource_line). namespace is
+    "" for a resource that renders with none set on it (this chart is
+    installed into one namespace via `helm install -n`, so most resources
+    have no templated "namespace:" field at all — but ~50 do in this
+    chart's own render today, so it can't just be ignored)."""
+    lines = rendered_text.splitlines()
+    marker_indices = [i for i, line in enumerate(lines) if line.startswith("# Source: ")]
+    locations = {}
+    for pos, start in enumerate(marker_indices):
+        end = marker_indices[pos + 1] - 1 if pos + 1 < len(marker_indices) else len(lines)
+        doc_lines = lines[start + 1:end]
+        if doc_lines and doc_lines[-1].strip() == "---":
+            doc_lines = doc_lines[:-1]
+        try:
+            parsed = yaml.safe_load("\n".join(doc_lines))
+        except yaml.YAMLError:
+            continue
+        if not isinstance(parsed, dict):
+            continue
+        kind = parsed.get("kind")
+        metadata = parsed.get("metadata") or {}
+        name = metadata.get("name")
+        if not kind or not name:
+            continue
+        namespace = metadata.get("namespace") or ""
+        locations[(kind, namespace, name)] = start + 2  # 1-based line right after "# Source:"
+    return locations
+
+
+def resource_line(locations, kind, name, namespace=None):
+    """Look up a resource's rendered-line hint from build_resource_locations's
+    map. With namespace known (kube-score's own object_name gives one),
+    matches exactly. Without it (kubeconform's JSON has no namespace
+    field), falls back to matching on (kind, name) alone — but only when
+    that's unambiguous across every namespace the same kind/name might
+    render into; otherwise returns None rather than risk pointing at the
+    wrong one."""
+    if namespace is not None:
+        return locations.get((kind, namespace, name))
+    candidates = {line for (k, _ns, n), line in locations.items() if k == kind and n == name}
+    return candidates.pop() if len(candidates) == 1 else None
 
 
 def print_grouped_findings(findings, key_fn, item_fn, label_fn, items_label="line(s)"):

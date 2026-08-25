@@ -141,6 +141,23 @@ def test_check_kubeconform_own_schema_violation_fails(vp, libkubeconformcheck, t
     assert "badField" in out
 
 
+def test_check_kubeconform_own_finding_includes_rendered_line(vp, libkubeconformcheck, tmp_path, monkeypatch, capsys):
+    """RENDERED's frankgateway Service has "metadata: name: frankgateway"
+    starting at line 3 (right after its own "# Source:" comment on line
+    2) — build_resource_locations/resource_line must resolve that and
+    check_kubeconform must print it alongside the kind/name."""
+    monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/kubeconform")
+    no_friendly_vendors(libkubeconformcheck, monkeypatch)
+    monkeypatch.setattr(libkubeconformcheck, "run", sequenced_run(own_resources=[
+        {"kind": "Service", "name": "frankgateway", "status": "statusInvalid", "msg": "bad"},
+    ]))
+
+    vp.check_kubeconform(tmp_path, [])
+
+    out = capsys.readouterr().out
+    assert "Service/frankgateway (rendered line 3)" in out
+
+
 def test_check_kubeconform_own_parse_error_fails(vp, libkubeconformcheck, tmp_path, monkeypatch, capsys):
     """A resource kubeconform's own YAML parser can't even load (e.g. the
     frankgateway duplicate-key bug) is statusError, not statusInvalid — must
@@ -240,7 +257,7 @@ def test_check_kubeconform_friendly_vendor_finding_reported_per_item_never_fails
     assert "0 other-vendor" in detail
     out = capsys.readouterr().out
     assert "reported for visibility, never a failure" in out
-    assert "ConfigMap/zac-config" in out
+    assert "ConfigMap/zac-config (rendered line 9)" in out
     assert "Info(NL)" in out
     assert "badField" in out  # per-item detail, not just a count
 

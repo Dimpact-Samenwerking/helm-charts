@@ -115,6 +115,85 @@ def test_report_errors_by_subchart_groups_by_chart(vp, capsys):
     assert "openzaak: 1" in out
 
 
+# --- build_resource_locations / resource_line ---
+# shared by check_kubeconform/check_kube_score/check_shellcheck to attach a
+# "(rendered line N)" debugging hint to a finding — none of those three
+# tools reports a line number of its own.
+
+def test_build_resource_locations_maps_kind_name_to_start_line(librenderscope):
+    rendered = (
+        "---\n"
+        "# Source: podiumd/templates/a.yaml\n"
+        "apiVersion: v1\n"
+        "kind: Service\n"
+        "metadata:\n"
+        "  name: foo\n"
+    )
+    locations = librenderscope.build_resource_locations(rendered)
+    assert locations == {("Service", "", "foo"): 3}
+
+
+def test_build_resource_locations_captures_namespace(librenderscope):
+    rendered = (
+        "---\n"
+        "# Source: podiumd/templates/a.yaml\n"
+        "apiVersion: v1\n"
+        "kind: Service\n"
+        "metadata:\n"
+        "  name: foo\n"
+        "  namespace: podiumd\n"
+    )
+    locations = librenderscope.build_resource_locations(rendered)
+    assert locations == {("Service", "podiumd", "foo"): 3}
+
+
+def test_build_resource_locations_skips_resource_without_name(librenderscope):
+    rendered = "---\n# Source: podiumd/templates/a.yaml\nkind: Service\n"
+    assert librenderscope.build_resource_locations(rendered) == {}
+
+
+def test_build_resource_locations_multiple_documents(librenderscope):
+    rendered = (
+        "---\n"
+        "# Source: podiumd/templates/a.yaml\n"
+        "kind: Service\n"
+        "metadata:\n"
+        "  name: foo\n"
+        "---\n"
+        "# Source: podiumd/templates/b.yaml\n"
+        "kind: ConfigMap\n"
+        "metadata:\n"
+        "  name: bar\n"
+    )
+    locations = librenderscope.build_resource_locations(rendered)
+    assert locations[("Service", "", "foo")] == 3
+    assert locations[("ConfigMap", "", "bar")] == 8
+
+
+def test_resource_line_exact_match_with_namespace(librenderscope):
+    locations = {("Service", "podiumd", "foo"): 3, ("Service", "other-ns", "foo"): 9}
+    assert librenderscope.resource_line(locations, "Service", "foo", namespace="podiumd") == 3
+    assert librenderscope.resource_line(locations, "Service", "foo", namespace="other-ns") == 9
+
+
+def test_resource_line_falls_back_to_kind_name_when_unique(librenderscope):
+    locations = {("Service", "", "foo"): 3}
+    assert librenderscope.resource_line(locations, "Service", "foo") == 3
+
+
+def test_resource_line_none_when_ambiguous_across_namespaces(librenderscope):
+    """Without a namespace to disambiguate (kubeconform's JSON has none),
+    the same kind+name rendering into two different namespaces must not
+    guess — a wrong line is worse than no hint at all."""
+    locations = {("Service", "ns-a", "foo"): 3, ("Service", "ns-b", "foo"): 9}
+    assert librenderscope.resource_line(locations, "Service", "foo") is None
+
+
+def test_resource_line_none_when_not_found(librenderscope):
+    locations = {("Service", "", "foo"): 3}
+    assert librenderscope.resource_line(locations, "ConfigMap", "bar") is None
+
+
 # --- render_chart ---
 # render_chart lives in lib.render_scope and calls its OWN `run`/
 # supports_skip_schema_validation bindings — same reason
