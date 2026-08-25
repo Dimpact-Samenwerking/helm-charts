@@ -31,6 +31,17 @@ have exactly two such groups, is skipped and reported, not treated as an
 error. Rows from every table that has them are concatenated into one
 CSV, in page order.
 
+Also writes "component" and "alias": if "name" — spaces stripped,
+case-insensitive — exactly equals a `chart_dir`/Chart.yaml dependency's
+own "name" AND that dependency has an alias, "component" gets the
+dependency's name and "alias" gets its alias — e.g. "Interne Taak
+Afhandeling" -> component "internetaakafhandeling", alias "ita". See
+aliased_dependency_names/component_and_alias. This only ever fires for
+a "name" that's *exactly* the dependency's own name with spaces
+removed — most components (e.g. "Zaak - ZAC" vs. dependency name
+"zaakafhandelcomponent") don't match this way; "component" is then
+"UNKNOWN" (there's nothing to resolve it to) and "alias" is left empty.
+
 Each of the four version values is replaced with "UNKNOWN" if it isn't
 semver-compatible (see lib.confluence_tables.is_semver_compatible — a
 deliberately looser check than strict semver.org, allowing an omitted
@@ -100,7 +111,7 @@ DEFAULT_HEADINGS = [
     "Technische component versies",
 ]
 
-CSV_HEADER = ["section", "vendor", "used_by", "name",
+CSV_HEADER = ["section", "vendor", "used_by", "name", "component", "alias",
               "source version app", "source version helm", "target version app", "target version helm"]
 
 # Stripped from the end of a matched heading before it goes into the CSV's
@@ -199,6 +210,30 @@ def check_target_matches_chart_version(target_labels, chart_dir):
     print(border, file=sys.stderr)
 
 
+def aliased_dependency_names(chart_dir):
+    """{dependency_name.lower(): (dependency_name, alias)} for every
+    chart_dir/Chart.yaml dependency that has an alias — e.g.
+    {"internetaakafhandeling": ("internetaakafhandeling", "ita"), ...}.
+    {} if chart_dir has no Chart.yaml."""
+    chart_yaml_path = chart_dir / "Chart.yaml"
+    if not chart_yaml_path.is_file():
+        return {}
+    chart_yaml = load_yaml(chart_yaml_path)
+    return {dep["name"].lower(): (dep["name"], dep["alias"])
+            for dep in chart_yaml.get("dependencies", []) if dep.get("alias")}
+
+
+def component_and_alias(name, aliased_names):
+    """(component, alias) if `name` — lowercased, spaces stripped —
+    exactly matches a Chart.yaml dependency name that has an alias (see
+    aliased_dependency_names) — e.g. "Interne Taak Afhandeling" ->
+    ("internetaakafhandeling", "ita"). ("UNKNOWN", "") otherwise — most
+    components don't share their exact Chart.yaml dependency name this
+    way (e.g. "Zaak - ZAC" vs. dependency name "zaakafhandelcomponent"),
+    and there's nothing to resolve "component" to, rather than guessing."""
+    return aliased_names.get(name.lower().replace(" ", ""), ("UNKNOWN", ""))
+
+
 def resolve_token(args):
     if args.token_file:
         return Path(args.token_file).read_text(encoding="utf-8").strip()
@@ -212,10 +247,11 @@ def resolve_token(args):
 
 def extract_release_rows(html, headings=None, chart_dir=None):
     """Return the CSV data rows (section, vendor, used_by, name,
-    source version app/helm, target version app/helm) across every table
-    directly under one of `headings` (default DEFAULT_HEADINGS) that has
-    the required App/Helm columns — "section" is the matched heading with
-    SECTION_SUFFIX stripped (see section_name). Prints a one-line report
+    component, alias, source version app/helm, target version app/helm)
+    across every table directly under one of `headings` (default
+    DEFAULT_HEADINGS) that has the required App/Helm columns —
+    "section" is the matched heading with SECTION_SUFFIX stripped (see
+    section_name). Prints a one-line report
     per matching-heading table (rows matched, or which required column
     it's missing) — using the real, full heading text, not the
     shortened "section" value — and a large warning (see
@@ -223,6 +259,7 @@ def extract_release_rows(html, headings=None, chart_dir=None):
     doesn't match `chart_dir` (default CHART_DIR) Chart.yaml's version."""
     headings = headings or DEFAULT_HEADINGS
     chart_dir = chart_dir or CHART_DIR
+    aliased_names = aliased_dependency_names(chart_dir)
     all_tables = extract_tables(html)
     if not all_tables:
         raise SystemExit("error: no <table> found on that page")
@@ -254,10 +291,12 @@ def extract_release_rows(html, headings=None, chart_dir=None):
                 continue
             vendor = data_row[columns["vendor"]] if columns["vendor"] is not None else ""
             used_by = data_row[columns["used_by"]] if columns["used_by"] is not None else ""
+            name = data_row[columns["first"]]
+            component, alias = component_and_alias(name, aliased_names)
             versions = [normalize_version(data_row[columns[key]]) for key in
                         ("source_app", "source_helm", "target_app", "target_helm")]
             unknown_count += sum(1 for v in versions if v == "UNKNOWN")
-            rows_out.append([section_name(heading), vendor, used_by, data_row[columns["first"]]] + versions)
+            rows_out.append([section_name(heading), vendor, used_by, name, component, alias] + versions)
             matched += 1
         print(f'"{heading}": {matched} row(s) matched')
 

@@ -4,36 +4,18 @@ charts/podiumd/release-table.csv on disk."""
 import pytest
 
 CSV_TEXT = """\
-section,vendor,used_by,name,source version app,source version helm,target version app,target version helm
-Product,Info(NL),,ZAC,5.0.0,1.0.290,5.1.0,1.0.297
-Product,Maykin,,Open Zaak,1.27.0,1.14.0,1.27.4,1.14.2
-Technische,,,Elastic operator,3.4.0,3.4.0,,
-Technische,,zac,Solr,8.11.0,8.11.0,8.11.0,8.11.0
-Product,ZAC Team,,Some Component,1.0.0,1.0.0,1.0.0,1.0.0
-Product,ICATT,,Interne Taak Afhandeling,3.2.0,3.2.0,3.3.0,3.3.0
-Technische,,ita,ITA Poller,1.0.0,1.0.0,1.0.0,1.0.0
-Product,ICATT,,Contact (KISS),2.2.3,2.2.3,3.0.0,3.0.0
-Technische,,kiss,Kiss Elastic Sync,0.3.3,0.3.3,3.0.0,3.0.0
-Technische,,kiss,PodiumD Adapter,0.6.6,0.6.6,0.6.7,0.6.7
+section,vendor,used_by,name,component,alias,source version app,source version helm,target version app,target version helm
+Product,Info(NL),,ZAC,,,5.0.0,1.0.290,5.1.0,1.0.297
+Product,Maykin,,Open Zaak,,,1.27.0,1.14.0,1.27.4,1.14.2
+Technische,,,Elastic operator,,,3.4.0,3.4.0,,
+Technische,,zac,Solr,,,8.11.0,8.11.0,8.11.0,8.11.0
+Product,ZAC Team,,Some Component,,,1.0.0,1.0.0,1.0.0,1.0.0
+Product,ICATT,,Interne Taak Afhandeling,internetaakafhandeling,ita,3.2.0,3.2.0,3.3.0,3.3.0
+Technische,,ita,ITA Poller,,,1.0.0,1.0.0,1.0.0,1.0.0
+Product,ICATT,,Contact (KISS),,,2.2.3,2.2.3,3.0.0,3.0.0
+Technische,,kiss,Kiss Elastic Sync,,,0.3.3,0.3.3,3.0.0,3.0.0
+Technische,,kiss,PodiumD Adapter,,,0.6.6,0.6.6,0.6.7,0.6.7
 """
-
-
-@pytest.fixture(autouse=True)
-def isolate_chart_dir(qrt, tmp_path, monkeypatch):
-    """used_by_rows_for falls back to the real CHART_DIR (this script's
-    actual parent directory) when no chart_dir is passed explicitly —
-    tests that don't care about Chart.yaml alias resolution must not
-    depend on whatever charts/podiumd/Chart.yaml happens to say on disk
-    (or which branch is checked out) at test-run time."""
-    monkeypatch.setattr(qrt, "CHART_DIR", tmp_path)
-
-
-def write_chart_yaml_with_alias(chart_dir, alias, name):
-    (chart_dir / "Chart.yaml").write_text(
-        "apiVersion: v2\nname: podiumd\nversion: 1.0.0\ndependencies:\n"
-        f"  - name: {name}\n    alias: {alias}\n    version: 1.0.0\n    repository: \"@x\"\n",
-        encoding="utf-8",
-    )
 
 
 @pytest.fixture
@@ -102,95 +84,81 @@ def test_used_by_rows_for_excludes_the_matches_themselves(qrt):
     """A matched row whose own used_by happens to substring-match its own
     name (e.g. a "Kiss ..." row with used_by "kiss") must not be echoed
     back as its own "used by" result."""
-    self_referential = {"name": "Kiss Thing", "used_by": "kiss",
+    self_referential = {"name": "Kiss Thing", "used_by": "kiss", "alias": "",
                          "source version app": "1.0", "source version helm": "1.0",
                          "target version app": "1.0", "target version helm": "1.0"}
     assert qrt.used_by_rows_for([self_referential], [self_referential]) == []
 
 
-# --- alias_dependency_names ---
-
-def test_alias_dependency_names_reads_chart_yaml(qrt, tmp_path):
-    write_chart_yaml_with_alias(tmp_path, "ita", "internetaakafhandeling")
-    assert qrt.alias_dependency_names(tmp_path) == {"ita": "internetaakafhandeling"}
-
-
-def test_alias_dependency_names_missing_chart_yaml_returns_empty(qrt, tmp_path):
-    assert qrt.alias_dependency_names(tmp_path) == {}
-
-
 # --- alias_matched_rows ---
 
-def test_alias_matched_rows_finds_name_by_alias(qrt, rows, tmp_path):
+def test_alias_matched_rows_finds_name_by_alias(qrt, rows):
     """Querying the alias "ita" itself (not a substring of "Interne Taak
-    Afhandeling") must still find that component — the other direction
-    of the relationship used_by_rows_for resolves."""
-    write_chart_yaml_with_alias(tmp_path, "ita", "internetaakafhandeling")
-    matches = qrt.alias_matched_rows(rows, "ita", tmp_path)
+    Afhandeling") must still find that component directly via its own
+    "alias" column (set by export-confluence-release-table.py) — the
+    other direction of the relationship used_by_rows_for resolves."""
+    matches = qrt.alias_matched_rows(rows, "ita")
     assert [r["name"] for r in matches] == ["Interne Taak Afhandeling"]
 
 
-def test_alias_matched_rows_case_insensitive(qrt, rows, tmp_path):
-    write_chart_yaml_with_alias(tmp_path, "ita", "internetaakafhandeling")
-    matches = qrt.alias_matched_rows(rows, "ITA", tmp_path)
+def test_alias_matched_rows_case_insensitive(qrt, rows):
+    matches = qrt.alias_matched_rows(rows, "ITA")
     assert [r["name"] for r in matches] == ["Interne Taak Afhandeling"]
 
 
-def test_alias_matched_rows_unknown_alias_returns_empty(qrt, rows, tmp_path):
-    write_chart_yaml_with_alias(tmp_path, "ita", "internetaakafhandeling")
-    assert qrt.alias_matched_rows(rows, "nonexistent-alias", tmp_path) == []
+def test_alias_matched_rows_unknown_alias_returns_empty(qrt, rows):
+    assert qrt.alias_matched_rows(rows, "nonexistent-alias") == []
 
 
-def test_alias_matched_rows_without_chart_yaml_returns_empty(qrt, rows, tmp_path):
-    assert qrt.alias_matched_rows(rows, "ita", tmp_path) == []
+def test_alias_matched_rows_blank_alias_column_never_matches(qrt, rows):
+    """Most fixture rows have no "alias" set at all — an empty query text
+    must never match against that blank column."""
+    assert qrt.alias_matched_rows(rows, "") == []
 
 
 # --- name_matches ---
 
-def test_name_matches_prefers_owner_over_tooling_substring_hit(qrt, rows, tmp_path):
+def test_name_matches_prefers_owner_over_tooling_substring_hit(qrt, rows):
     """"Kiss Elastic Sync" contains "kiss" and has a non-empty used_by —
     it's tooling, not a standalone component. Once the real owner
     "Contact (KISS)" also matches, only the owner is returned."""
-    matches = qrt.name_matches(rows, "kiss", tmp_path)
+    matches = qrt.name_matches(rows, "kiss")
     assert [r["name"] for r in matches] == ["Contact (KISS)"]
 
 
-def test_name_matches_falls_back_to_raw_when_no_owner_matches(qrt, rows, tmp_path):
+def test_name_matches_falls_back_to_raw_when_no_owner_matches(qrt, rows):
     """"Solr" has no distinct "owner" component matching "solr" at all —
     falls back to the raw substring match so it can still be found
     directly, rather than returning nothing."""
-    matches = qrt.name_matches(rows, "solr", tmp_path)
+    matches = qrt.name_matches(rows, "solr")
     assert [r["name"] for r in matches] == ["Solr"]
 
 
-def test_name_matches_resolves_owner_via_alias_only(qrt, rows, tmp_path):
+def test_name_matches_resolves_owner_via_alias_only(qrt, rows):
     """"ita" matches "ITA Poller" by substring (tooling, excluded) and
-    "Interne Taak Afhandeling" by Chart.yaml alias (the real owner)."""
-    write_chart_yaml_with_alias(tmp_path, "ita", "internetaakafhandeling")
-    matches = qrt.name_matches(rows, "ita", tmp_path)
+    "Interne Taak Afhandeling" by its own "alias" column (the real
+    owner)."""
+    matches = qrt.name_matches(rows, "ita")
     assert [r["name"] for r in matches] == ["Interne Taak Afhandeling"]
 
 
-# --- used_by_rows_for: Chart.yaml alias path ---
+# --- used_by_rows_for: alias path ---
 
-def test_used_by_rows_for_resolves_used_by_via_chart_yaml_alias(qrt, rows, tmp_path):
-    """"ita" isn't a substring of "Interne Taak Afhandeling" at all — only
-    resolving it through Chart.yaml's alias -> dependency-name mapping
-    (see alias_dependency_names) connects it back to that component, since
-    "internetaakafhandeling" is exactly that name with spaces stripped."""
-    write_chart_yaml_with_alias(tmp_path, "ita", "internetaakafhandeling")
+def test_used_by_rows_for_resolves_used_by_via_alias_column(qrt, rows):
+    """"ita" isn't a substring of "Interne Taak Afhandeling" at all —
+    only matching against that row's own "alias" column (set by
+    export-confluence-release-table.py, resolved from Chart.yaml at
+    export time) connects it back to ITA Poller."""
     interne_taak = [r for r in rows if r["name"] == "Interne Taak Afhandeling"]
-    matches = qrt.used_by_rows_for(rows, interne_taak, chart_dir=tmp_path)
+    matches = qrt.used_by_rows_for(rows, interne_taak)
     assert [r["name"] for r in matches] == ["ITA Poller"]
 
 
-def test_used_by_rows_for_without_chart_yaml_misses_the_alias_case(qrt, rows, tmp_path):
-    """Without Chart.yaml to resolve through, the plain-substring rule
-    alone can't connect "ita" to "Interne Taak Afhandeling" — documents
-    why alias_dependency_names exists rather than relying on substring
-    matching only."""
-    interne_taak = [r for r in rows if r["name"] == "Interne Taak Afhandeling"]
-    assert qrt.used_by_rows_for(rows, interne_taak, chart_dir=tmp_path) == []
+def test_used_by_rows_for_blank_alias_misses_the_alias_path(qrt, rows):
+    """A row with no "alias" set can't be connected to tooling that way —
+    only the plain-substring rule (or an explicit alias) works."""
+    some_component = [r for r in rows if r["name"] == "Some Component"]
+    assert qrt.used_by_rows_for(rows, some_component) == []
 
 
 # --- display_value ---
@@ -299,12 +267,11 @@ def test_main_vendor_query_omits_used_by_section_when_unrelated(qrt, monkeypatch
     assert "Used by" not in out
 
 
-def test_main_resolves_used_by_via_chart_yaml_alias(qrt, monkeypatch, csv_path, tmp_path, capsys):
+def test_main_resolves_used_by_via_alias_column(qrt, monkeypatch, csv_path, capsys):
     """End-to-end: querying "Interne Taak Afhandeling" pulls in "ITA
-    Poller" only once Chart.yaml's "ita" alias is available to resolve
-    through — isolate_chart_dir points qrt.CHART_DIR at tmp_path, so
-    writing Chart.yaml there is what main() itself will read."""
-    write_chart_yaml_with_alias(tmp_path, "ita", "internetaakafhandeling")
+    Poller" via its own "alias" column, already baked into the CSV by
+    export-confluence-release-table.py — no Chart.yaml needed at query
+    time."""
     run_main(qrt, monkeypatch, csv_path, ["name", "interne taak"])
     qrt.main()
     out = capsys.readouterr().out
@@ -312,14 +279,11 @@ def test_main_resolves_used_by_via_chart_yaml_alias(qrt, monkeypatch, csv_path, 
     assert "ITA Poller" in out
 
 
-def test_main_name_query_by_alias_shows_owner_as_sole_primary_match(
-        qrt, monkeypatch, csv_path, tmp_path, capsys):
-    """Querying name "ita" resolves to "Interne Taak Afhandeling"
-    itself via the Chart.yaml alias — that's the sole primary match.
-    "ITA Poller" (which also contains "ita" literally) is tooling
-    belonging to it, not a primary match in its own right — see
-    name_matches."""
-    write_chart_yaml_with_alias(tmp_path, "ita", "internetaakafhandeling")
+def test_main_name_query_by_alias_shows_owner_as_sole_primary_match(qrt, monkeypatch, csv_path, capsys):
+    """Querying name "ita" resolves to "Interne Taak Afhandeling" itself
+    via its own "alias" column — that's the sole primary match. "ITA
+    Poller" (which also contains "ita" literally) is tooling belonging
+    to it, not a primary match in its own right — see name_matches."""
     run_main(qrt, monkeypatch, csv_path, ["name", "ita"])
     qrt.main()
     out = capsys.readouterr().out
@@ -328,9 +292,7 @@ def test_main_name_query_by_alias_shows_owner_as_sole_primary_match(
     assert "ITA Poller" not in matches_section
 
 
-def test_main_name_query_by_alias_shows_tooling_in_used_by_exactly_once(
-        qrt, monkeypatch, csv_path, tmp_path, capsys):
-    write_chart_yaml_with_alias(tmp_path, "ita", "internetaakafhandeling")
+def test_main_name_query_by_alias_shows_tooling_in_used_by_exactly_once(qrt, monkeypatch, csv_path, capsys):
     run_main(qrt, monkeypatch, csv_path, ["name", "ita"])
     qrt.main()
     out = capsys.readouterr().out
