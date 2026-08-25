@@ -1,34 +1,35 @@
 #!/usr/bin/env python3
 """
 Query charts/podiumd/release-table.csv (see export-confluence-release-table.py)
-for rows whose "section", "vendor", or "name" column contains a given piece
-of text, and print each match's name plus its four version columns as an
-aligned table.
+for rows whose "section", "vendor", or "component" column contains a given
+piece of text, and print each match's name, component, alias, and four
+version columns as an aligned table.
 
 Usage:
     query-release-table.py <column> <text>
 
-    <column>  one of: section, vendor, name
+    <column>  one of: section, vendor, component
     <text>    matched as a case-insensitive substring against that column
-              (e.g. "zac" matches a component named "ZAC"; "open" matches
-              both "Open Zaak" and "Open Formulieren")
+              (e.g. "zac" matches component "zaakafhandelcomponent"; "open"
+              matches both "Open Zaak" and "Open Formulieren")
 
 A target version column that's empty (nothing changed for that app/helm
 version on this release) prints as "UNCHANGED" rather than blank.
 
-When <column> is "name", <text> is also matched against the CSV's own
-"alias" column (set by export-confluence-release-table.py, resolved from
-Chart.yaml at export time — see its component_and_alias) — e.g. "ita" is
-"Interne Taak Afhandeling"'s alias, so querying it finds that component
-directly, not just an incidental substring match elsewhere (e.g. "ITA
-Poller"). A row whose own "used_by" is non-empty (Technische-section
-tooling) is never treated as this primary match by itself when a real
-owning component also matched — e.g. querying "kiss" returns "Contact
-(KISS)" alone here, with the tooling it uses (which also happens to have
-"kiss" literally in its own name) appearing in the "used by" table below
-instead. If no owning component matches at all, falls back to whatever
-raw matches exist, so a tooling row can still be found directly by its
-own name.
+There is no separate "name" column to query — a component is looked up by
+what it actually IS in the chart, not by whatever the Confluence page
+happens to call it. Querying "component" searches, in order: the CSV's own
+"component" column (set by export-confluence-release-table.py, resolved
+from Chart.yaml — see its component_and_alias), then its "alias" column,
+and only as a last resort — if NEITHER matches anything at all — the row's
+own "name" (e.g. a row whose component never resolved at all, still "UNKNOWN"
+or "MULTIPLE", can still be found this way). See component_matches. Once a
+real component/alias match exists anywhere, name is never consulted, even
+if some unrelated row's own name happens to also contain the query text
+(e.g. querying "kiss" resolves via "Contact (KISS)"'s own component/alias,
+so "Kiss Elastic Sync" — which only coincidentally contains "kiss" in its
+own name — never becomes a primary match; it shows up in the "used by"
+table below instead, tied to the row that resolved).
 
 Also prints a second table of every row whose "used_by" column relates to
 one of the matched rows' own "name"/"alias" value — either because the
@@ -39,7 +40,7 @@ Afhandeling"'s alias). Either way, this finds rows that aren't matched by
 the main query itself.
 
 Examples:
-    query-release-table.py name zac
+    query-release-table.py component zac
     query-release-table.py vendor maykin
     query-release-table.py section technische
 """
@@ -51,9 +52,9 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 CHART_DIR = SCRIPT_DIR.parents[0]
 DEFAULT_INPUT = CHART_DIR / "release-table.csv"
 
-COLUMNS = ("section", "vendor", "name")
-VERSION_COLUMNS = ("source version app", "source version helm", "target version app", "target version helm")
-TARGET_VERSION_COLUMNS = ("target version app", "target version helm")
+COLUMNS = ("section", "vendor", "component")
+VERSION_COLUMNS = ("source_version_app", "source_version_helm", "target_version_app", "target_version_helm")
+TARGET_VERSION_COLUMNS = ("target_version_app", "target_version_helm")
 
 
 def load_rows(path):
@@ -66,37 +67,26 @@ def matching_rows(rows, column, text):
     return [row for row in rows if needle in row[column].lower()]
 
 
-def alias_matched_rows(rows, text):
-    """Rows whose own "alias" column (set by export-confluence-release-
-    table.py — see its component_and_alias, resolved from Chart.yaml at
-    export time) exactly equals `text` — e.g. text "ita" finds "Interne
-    Taak Afhandeling" directly, since its alias column already holds
-    "ita". The other direction of the same relationship used_by_rows_for
-    resolves — this is what lets querying the alias itself find the
-    actual component, not just an incidental substring match on some
-    unrelated row (e.g. "ITA Poller" also contains "ita")."""
-    needle = text.lower()
-    return [row for row in rows if row["alias"] and row["alias"].lower() == needle]
-
-
-def name_matches(rows, text):
-    """The row(s) a "name" query for `text` should treat as primary
-    matches. A row whose own "used_by" is non-empty is tooling belonging
-    to some other component (see used_by_rows_for, which is what surfaces
-    it instead, tied to whichever owner row matched here) — so once at
-    least one "owner" row (used_by empty) matches, by plain substring or
-    by its own "alias" column (see alias_matched_rows), only owner rows
-    are returned; a tooling row that happens to also contain `text` (e.g.
-    "Kiss Elastic Sync" containing "kiss") is left for the used_by table
-    instead of double-counted here. If no owner row matches at all — e.g.
-    querying a Technische row directly by name, like "solr" — falls back
-    to the raw substring matches, so it can still be found on its own."""
-    raw = matching_rows(rows, "name", text)
-    owners = [row for row in raw if not row["used_by"]]
-    owner_ids = {id(row) for row in owners}
-    owners += [row for row in alias_matched_rows(rows, text)
-               if not row["used_by"] and id(row) not in owner_ids]
-    return owners if owners else raw
+def component_matches(rows, text):
+    """The row(s) a "component" query for `text` should treat as
+    matches: rows whose own "component" or "alias" column (both set by
+    export-confluence-release-table.py — see its component_and_alias)
+    contains `text` as a substring — e.g. "keycloak-operator" or its
+    alias find the same row either way. These are the resolved
+    Chart.yaml identifiers themselves, so they're tried first, ahead of
+    the row's own "name" — e.g. querying component "zac" should find the
+    row resolved to component "zaakafhandelcomponent" (alias "zac"), not
+    incidentally match some unrelated row whose own display name happens
+    to contain "zac". Only falls back to matching_rows(rows, "name",
+    text) if NEITHER "component" nor "alias" matches anything at all, so
+    a row that never got resolved to a real component (component is
+    "UNKNOWN" or "MULTIPLE") can still be found by its own name as a
+    last resort."""
+    from_component = matching_rows(rows, "component", text)
+    from_alias = matching_rows(rows, "alias", text)
+    seen = {id(row) for row in from_component}
+    combined = from_component + [row for row in from_alias if id(row) not in seen]
+    return combined if combined else matching_rows(rows, "name", text)
 
 
 def used_by_rows_for(rows, matches):
@@ -134,8 +124,9 @@ def display_value(row, column):
 
 
 def print_table(rows):
-    headers = ["name"] + list(VERSION_COLUMNS)
-    table = [[row["name"]] + [display_value(row, col) for col in VERSION_COLUMNS] for row in rows]
+    headers = ["name", "component", "alias"] + list(VERSION_COLUMNS)
+    table = [[row["name"], row["component"], row["alias"]] +
+             [display_value(row, col) for col in VERSION_COLUMNS] for row in rows]
     widths = [max(len(headers[i]), *(len(r[i]) for r in table)) for i in range(len(headers))]
     print("  ".join(h.ljust(w) for h, w in zip(headers, widths)))
     for r in table:
@@ -155,7 +146,7 @@ def main():
         sys.exit(1)
 
     rows = load_rows(DEFAULT_INPUT)
-    matches = name_matches(rows, text) if column == "name" else matching_rows(rows, column, text)
+    matches = component_matches(rows, text) if column == "component" else matching_rows(rows, column, text)
     if not matches:
         print(f"no rows found where {column} contains {text!r}")
         sys.exit(1)
