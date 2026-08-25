@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
 Query charts/podiumd/release-table.csv (see export-confluence-release-table.py)
-for rows whose "section", "vendor", or "component" column contains a given
-piece of text, and print each match's component plus its four version columns
-as an aligned table.
+for rows whose "section", "vendor", or "name" column contains a given piece
+of text, and print each match's name plus its four version columns as an
+aligned table.
 
 Usage:
     query-release-table.py <column> <text>
 
-    <column>  one of: section, vendor, component
+    <column>  one of: section, vendor, name
     <text>    matched as a case-insensitive substring against that column
               (e.g. "zac" matches a component named "ZAC"; "open" matches
               both "Open Zaak" and "Open Formulieren")
@@ -16,31 +16,31 @@ Usage:
 A target version column that's empty (nothing changed for that app/helm
 version on this release) prints as "UNCHANGED" rather than blank.
 
-When <column> is "component", <text> is also resolved as a Chart.yaml
-alias — e.g. "ita" is the alias for dependency "internetaakafhandeling",
-which equals "Interne Taak Afhandeling" with spaces stripped — so
-querying the short alias itself finds the actual product component, not
-just an incidental substring match elsewhere (e.g. "ITA Poller"). A row
-whose own "used_by" is non-empty (Technische-section tooling) is never
-treated as this primary match by itself when a real owning component
-also matched — e.g. querying "kiss" returns "Contact (KISS)" alone here,
-with the tooling it uses (which also happens to have "kiss" literally in
-its own name) appearing in the "used by" table below instead. If no
-owning component matches at all, falls back to whatever raw matches
-exist, so a tooling row can still be found directly by its own name.
+When <column> is "name", <text> is also resolved as a Chart.yaml alias —
+e.g. "ita" is the alias for dependency "internetaakafhandeling", which
+equals "Interne Taak Afhandeling" with spaces stripped — so querying the
+short alias itself finds the actual product component, not just an
+incidental substring match elsewhere (e.g. "ITA Poller"). A row whose own
+"used_by" is non-empty (Technische-section tooling) is never treated as
+this primary match by itself when a real owning component also matched —
+e.g. querying "kiss" returns "Contact (KISS)" alone here, with the tooling
+it uses (which also happens to have "kiss" literally in its own name)
+appearing in the "used by" table below instead. If no owning component
+matches at all, falls back to whatever raw matches exist, so a tooling row
+can still be found directly by its own name.
 
-Also prints a second table of every row whose "used_by" column relates
-to one of the matched rows' own "component" value — either because the
-used_by value is a plain substring of that component name (e.g. "zac"
-is contained in "Zaak - ZAC"), or because the used_by value is a
-Chart.yaml alias whose dependency's full name equals that component
-name with spaces stripped (e.g. used_by "ita" is the alias for
-Chart.yaml dependency "internetaakafhandeling", which is exactly
-"Interne Taak Afhandeling" with spaces removed). Either way, this
-finds rows that aren't matched by the main query itself.
+Also prints a second table of every row whose "used_by" column relates to
+one of the matched rows' own "name" value — either because the used_by
+value is a plain substring of that name (e.g. "zac" is contained in "Zaak
+- ZAC"), or because the used_by value is a Chart.yaml alias whose
+dependency's full name equals that name with spaces stripped (e.g.
+used_by "ita" is the alias for Chart.yaml dependency
+"internetaakafhandeling", which is exactly "Interne Taak Afhandeling"
+with spaces removed). Either way, this finds rows that aren't matched by
+the main query itself.
 
 Examples:
-    query-release-table.py component zac
+    query-release-table.py name zac
     query-release-table.py vendor maykin
     query-release-table.py section technische
 """
@@ -56,7 +56,7 @@ from lib.chart import load_yaml
 CHART_DIR = SCRIPT_DIR.parents[0]
 DEFAULT_INPUT = CHART_DIR / "release-table.csv"
 
-COLUMNS = ("section", "vendor", "component")
+COLUMNS = ("section", "vendor", "name")
 VERSION_COLUMNS = ("source version app", "source version helm", "target version app", "target version helm")
 TARGET_VERSION_COLUMNS = ("target version app", "target version helm")
 
@@ -85,9 +85,9 @@ def alias_dependency_names(chart_dir):
 
 
 def alias_matched_rows(rows, text, chart_dir):
-    """Rows whose "component" value equals the Chart.yaml dependency name
-    that `text` resolves to as an alias, with spaces stripped — e.g.
-    text "ita" resolves to dependency "internetaakafhandeling" (see
+    """Rows whose "name" value equals the Chart.yaml dependency name that
+    `text` resolves to as an alias, with spaces stripped — e.g. text
+    "ita" resolves to dependency "internetaakafhandeling" (see
     alias_dependency_names), which equals "Interne Taak Afhandeling"
     with spaces removed. The other direction of the same relationship
     used_by_rows_for resolves — this is what lets querying the alias
@@ -97,11 +97,11 @@ def alias_matched_rows(rows, text, chart_dir):
     if not dependency_name:
         return []
     target = dependency_name.lower()
-    return [row for row in rows if row["component"].lower().replace(" ", "") == target]
+    return [row for row in rows if row["name"].lower().replace(" ", "") == target]
 
 
-def component_matches(rows, text, chart_dir):
-    """The row(s) a "component" query for `text` should treat as primary
+def name_matches(rows, text, chart_dir):
+    """The row(s) a "name" query for `text` should treat as primary
     matches. A row whose own "used_by" is non-empty is tooling belonging
     to some other component (see used_by_rows_for, which is what surfaces
     it instead, tied to whichever owner row matched here) — so once at
@@ -112,7 +112,7 @@ def component_matches(rows, text, chart_dir):
     instead of double-counted here. If no owner row matches at all — e.g.
     querying a Technische row directly by name, like "solr" — falls back
     to the raw substring matches, so it can still be found on its own."""
-    raw = matching_rows(rows, "component", text)
+    raw = matching_rows(rows, "name", text)
     owners = [row for row in raw if not row["used_by"]]
     owner_ids = {id(row) for row in owners}
     owners += [row for row in alias_matched_rows(rows, text, chart_dir)
@@ -122,18 +122,18 @@ def component_matches(rows, text, chart_dir):
 
 def used_by_rows_for(rows, matches, chart_dir=None):
     """Every row in `rows` (excluding `matches` themselves) whose
-    non-empty "used_by" value relates to one of `matches`' own
-    "component" values, so that a Technische-section row comes back
-    regardless of which column/text the original query actually matched
-    on. Two ways a used_by value can relate to a component name:
+    non-empty "used_by" value relates to one of `matches`' own "name"
+    values, so that a Technische-section row comes back regardless of
+    which column/text the original query actually matched on. Two ways
+    a used_by value can relate to a name:
     - plain substring — e.g. "zac" is contained in "Zaak - ZAC"
     - Chart.yaml alias — e.g. used_by "ita" is the alias for dependency
       "internetaakafhandeling" (see alias_dependency_names), which is
       exactly "Interne Taak Afhandeling" with spaces stripped; "ita"
-      itself is not a substring of that component name at all."""
+      itself is not a substring of that name at all."""
     chart_dir = chart_dir or CHART_DIR
     alias_names = alias_dependency_names(chart_dir)
-    names = [m["component"].lower() for m in matches]
+    names = [m["name"].lower() for m in matches]
     compact_names = [name.replace(" ", "") for name in names]
     match_ids = {id(m) for m in matches}
 
@@ -157,8 +157,8 @@ def display_value(row, column):
 
 
 def print_table(rows):
-    headers = ["component"] + list(VERSION_COLUMNS)
-    table = [[row["component"]] + [display_value(row, col) for col in VERSION_COLUMNS] for row in rows]
+    headers = ["name"] + list(VERSION_COLUMNS)
+    table = [[row["name"]] + [display_value(row, col) for col in VERSION_COLUMNS] for row in rows]
     widths = [max(len(headers[i]), *(len(r[i]) for r in table)) for i in range(len(headers))]
     print("  ".join(h.ljust(w) for h, w in zip(headers, widths)))
     for r in table:
@@ -178,7 +178,7 @@ def main():
         sys.exit(1)
 
     rows = load_rows(DEFAULT_INPUT)
-    matches = component_matches(rows, text, CHART_DIR) if column == "component" else matching_rows(rows, column, text)
+    matches = name_matches(rows, text, CHART_DIR) if column == "name" else matching_rows(rows, column, text)
     if not matches:
         print(f"no rows found where {column} contains {text!r}")
         sys.exit(1)

@@ -340,7 +340,7 @@ def find_versie_groups(paths):
 
 
 # The exact column set export-confluence-release-table.py writes to CSV
-# (as "section, vendor, used by, component, source version app/helm,
+# (as "section, vendor, used by, name, source version app/helm,
 # target version app/helm"): the table's own first column (whatever it's
 # labeled — usually the component name), "Ontwikkelpartij" (written to
 # the CSV as "vendor"), "Used by" (written to the CSV as "used_by"), then
