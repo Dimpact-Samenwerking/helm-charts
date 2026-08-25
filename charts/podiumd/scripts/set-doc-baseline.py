@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """
 Bump the baseline of every docs/_UPGRADE_PATHS/<baseline>-to-<target>-*.md
-doc for the current chart's target version to a new baseline — e.g. rename
-"4.8.2-to-4.9.0-upgrade.md" to "4.8.3-to-4.9.0-upgrade.md" (and its
-"gemeente-specific"/"values-deltas" siblings), updating each doc's title
-line to match.
-
-The target version is always charts/podiumd/Chart.yaml's own "version:" —
-same as verify-podiumd.py's docs-consistency check — not a parameter,
-since these docs only ever exist for a hop landing on the current chart.
+doc (and docs/images/images-<target>.yaml) for the current chart's target
+version — charts/podiumd/Chart.yaml's own "version:" — to a new baseline,
+e.g. renaming "4.8.2-to-4.9.0-upgrade.md" to "4.8.3-to-4.9.0-upgrade.md",
+updating titles/headings, correcting the "Component versions" table and
+images-manifest entries against Chart.yaml/values.yaml, and flagging any
+values.yaml schema changes not yet mentioned in the values-deltas doc.
+Missing standard docs are created as TODO stubs, never invented. See
+find_target_docs, fix_component_version_table, and
+fix_images_manifest_entries for exactly what gets rewritten vs. just
+reported for manual review.
 
 Usage:
     set-doc-baseline.py <new-baseline>
@@ -16,71 +18,6 @@ Usage:
 Example:
     set-doc-baseline.py 4.8.3
         # if Chart.yaml's version is 4.9.0, renames *-to-4.9.0-*.md
-
-For each doc file matching "<some-baseline>-to-<target>-<suffix>.md":
-  - git-mv it to "<new-baseline>-to-<target>-<suffix>.md" (a no-op, reported
-    as unchanged, if it's already at new-baseline)
-  - update its title line (line 1) baseline -> new-baseline
-  - update a "Component versions (<target> vs <old-baseline>)" heading, if
-    present, the same way
-
-Refuses to touch anything and exits non-zero if two or more source files
-would collide on the same "<suffix>.md" destination — e.g. both a
-"4.8.2-to-4.9.0-upgrade.md" and a "4.8.3-to-4.9.0-upgrade.md" already
-existing side by side. All-or-nothing: either every rename in the batch
-happens, or none do.
-
-If the target has no docs at all yet, or is only missing one of the three
-standard docs (upgrade / gemeente-specific / values-deltas), the missing
-one(s) are created fresh at "<new-baseline>-to-<target>-<suffix>.md" as
-minimal TODO stubs — no content is invented, since nothing exists yet to
-derive it from.
-
-Any other mention of the old baseline in a doc's free-form prose (e.g.
-"already on **4.8.2**") is NOT rewritten automatically — those lines are
-listed at the end for manual review, since blind find/replace on prose
-risks corrupting unrelated text that happens to contain the same version
-string.
-
-Also bumps docs/images/images-<target>.yaml the same way: its "Baseline:
-podiumd X" and "podiumd <target> vs X" header lines, and any
-"<baseline>-to-<target>-<suffix>.md" reference to the just-renamed docs.
-If that manifest doesn't exist yet, a header-only stub (empty image list)
-is created — entries are never invented, since there's nothing to derive
-them from.
-
-Finally, corrects the upgrade doc's "Component versions" table: for every
-row matched to a Chart.yaml dependency, the target (right-hand) version is
-read straight from the current Chart.yaml/values.yaml, and the source
-(left-hand) version from <new-baseline>'s resolved git ref — replacing
-whatever the table currently says with the actual versions at each end. A
-row is only rewritten when both ends are independently verifiable (the
-baseline must resolve to a real git ref, and the component must have
-existed there); anything else is reported, not guessed at.
-
-Does the same for docs/images/images-<target>.yaml's entries: each entry's
-preceding "# <Name> — <source> -> <target>" comment is checked against the
-image actually pinned at that values-tree path (current values.yaml for the
-target, the baseline's git ref for the source) and corrected if either side
-is stale — this is what catches drift like a comment still saying an app
-was "5.0.1" when the real baseline already had it at "5.0.2". An entry
-with no preceding comment at all is reported, not invented.
-
-Finally, for every Chart.yaml dependency that actually changed between the
-baseline and now (chart version, app/image tag, added, or removed), adds any
-"- Key `<dotted>` was added/removed/renamed to `<dotted>`." line describing
-a values.yaml schema change under that component that isn't already
-mentioned (backtick-quoted) anywhere in <new-baseline>-to-<target>-values-
-deltas.md — the same gap verify-podiumd.py's docs-consistency check reports.
-Existing content is never rewritten, only appended to; a component whose
-schema didn't change gets nothing added.
-
-Finally, runs update-podiumd-readme.py — a habit, not because this script
-itself ever touches values.yaml/Chart.yaml (it only reads them): keeps
-README.md from silently drifting if it was already stale from an earlier,
-uncommitted values.yaml edit. Report-only if that fails (e.g. helm-docs
-not installed) — never blocks the actual baseline bump above, which has
-already happened by this point.
 """
 import re
 import subprocess
