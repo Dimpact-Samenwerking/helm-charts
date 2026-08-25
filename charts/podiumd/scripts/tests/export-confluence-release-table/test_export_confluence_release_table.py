@@ -29,6 +29,14 @@ def write_values_yaml(chart_dir, keys):
     )
 
 
+def write_values_yaml_with_global_images(chart_dir, image_keys):
+    """A minimal values.yaml with a top-level global.images map holding
+    each of `image_keys` — mirrors the real chart's
+    global.images.nginx/curl/busybox shared-base-image anchors."""
+    lines = ["global:", "  images:"] + [f"    {key}: {{}}" for key in image_keys]
+    (chart_dir / "values.yaml").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 @pytest.fixture(autouse=True)
 def isolate_chart_dir(ecrt, tmp_path, monkeypatch):
     """extract_release_rows falls back to the real CHART_DIR (this
@@ -436,6 +444,50 @@ def test_component_and_alias_still_unknown_when_no_orphan_key_relates_either(ecr
     assert ecrt.component_and_alias("Open Zaak", [], [("frankgateway", "")]) == ("UNKNOWN", "")
 
 
+# --- global_image_keys ---
+
+def test_global_image_keys_returns_keys_under_global_images(ecrt, tmp_path):
+    write_values_yaml_with_global_images(tmp_path, ["nginx", "curl", "busybox"])
+    assert ecrt.global_image_keys(tmp_path) == ["nginx", "curl", "busybox"]
+
+
+def test_global_image_keys_missing_values_yaml_returns_empty(ecrt, tmp_path):
+    assert ecrt.global_image_keys(tmp_path) == []
+
+
+def test_global_image_keys_missing_global_images_returns_empty(ecrt, tmp_path):
+    write_values_yaml(tmp_path, ["frankgateway"])
+    assert ecrt.global_image_keys(tmp_path) == []
+
+
+# --- component_and_alias: global image key fallback ---
+
+def test_component_and_alias_global_image_key_is_always_multiple(ecrt):
+    """"Nginx unprivileged" relates to nothing else at all, but does
+    relate to global image key "nginx" — a key that exists specifically
+    because it's shared, via YAML anchor, across multiple unrelated
+    components, so it's reported as MULTIPLE rather than a single
+    component, even though only one key matched."""
+    assert ecrt.component_and_alias("Nginx unprivileged", [], [], ["nginx", "curl", "busybox"]) == \
+        ("MULTIPLE", "MULTIPLE")
+
+
+def test_component_and_alias_real_dependency_always_wins_over_global_image_key(ecrt):
+    """A global image key must never hijack a name that already resolves
+    through a real dependency or an orphan key."""
+    deps = [("nginx-ingress", "nginx")]
+    assert ecrt.component_and_alias("nginx", deps, [], ["nginx"]) == ("nginx-ingress", "nginx")
+
+
+def test_component_and_alias_orphan_key_wins_over_global_image_key(ecrt):
+    orphans = [("nginx", "")]
+    assert ecrt.component_and_alias("nginx", [], orphans, ["nginx"]) == ("nginx", "")
+
+
+def test_component_and_alias_still_unknown_when_no_global_image_key_relates_either(ecrt):
+    assert ecrt.component_and_alias("Solr", [], [], ["nginx", "curl", "busybox"]) == ("UNKNOWN", "")
+
+
 # --- extract_release_rows ---
 
 def test_extract_release_rows_matches_and_reports(ecrt, capsys):
@@ -577,6 +629,20 @@ def test_extract_release_rows_resolves_component_via_orphan_values_yaml_key(ecrt
                         "5.0.0", "1.0.290", "5.1.0", "1.0.297"]
 
 
+def test_extract_release_rows_resolves_global_image_key_as_multiple(ecrt, tmp_path):
+    """"Open Zaak" resolves normally via its real dependency; "ZAC"
+    matches nothing real but does relate to global image key "zac" —
+    resolved end-to-end as MULTIPLE, since a global.images key is never
+    treated as a single component's own."""
+    write_chart_yaml_with_dependencies(tmp_path, [("openzaak", "")])
+    write_values_yaml_with_global_images(tmp_path, ["zac"])
+    rows = ecrt.extract_release_rows(PRODUCT_TABLE_HTML, chart_dir=tmp_path)
+    assert rows == [
+        ["Product", "Info(NL)", "", "ZAC", "MULTIPLE", "MULTIPLE", "5.0.0", "1.0.290", "5.1.0", "1.0.297"],
+        ["Product", "Maykin", "", "Open Zaak", "openzaak", "", "1.27.0", "1.14.0", "1.27.4", "1.14.2"],
+    ]
+
+
 
 
 def test_extract_release_rows_used_by_blank_when_table_has_none(ecrt):
@@ -656,8 +722,8 @@ def test_main_writes_csv(ecrt, tmp_path, monkeypatch, capsys):
     with output_path.open(newline="", encoding="utf-8") as f:
         rows = list(csv.reader(f))
     assert rows[0] == ["section", "vendor", "used_by", "name", "component", "alias",
-                        "source version app", "source version helm",
-                        "target version app", "target version helm"]
+                        "source_version_app", "source_version_helm",
+                        "target_version_app", "target_version_helm"]
     assert rows[1] == ["Product", "Info(NL)", "", "ZAC", "UNKNOWN", "", "5.0.0", "1.0.290", "5.1.0", "1.0.297"]
     assert rows[2] == ["Product", "Maykin", "", "Open Zaak", "UNKNOWN", "", "1.27.0", "1.14.0", "1.27.4", "1.14.2"]
     out = capsys.readouterr().out
