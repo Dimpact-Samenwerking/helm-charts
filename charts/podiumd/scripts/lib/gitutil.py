@@ -19,6 +19,14 @@ def find_repo_root(start_path):
     return Path(result.stdout.strip())
 
 
+def current_branch(repo_root):
+    """The current branch name, or "" if HEAD is detached (`git branch
+    --show-current` returns nothing in that case)."""
+    result = run(["git", "-C", str(repo_root), "branch", "--show-current"],
+                 capture_output=True, text=True)
+    return result.stdout.strip()
+
+
 def baseline_ref_candidates(baseline):
     """A bare version like "4.8.5" is resolved to the release tag first, then
     the (possibly not-yet-merged) feature branch. An explicit ref is used as-is."""

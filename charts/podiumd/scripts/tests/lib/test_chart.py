@@ -1,5 +1,5 @@
-"""lib.chart — get_path, find_dependency, chart_ref, pull_chart,
-pulled_chart_dir, pull_chart_values, find_images, version_of,
+"""lib.chart — get_path, replace_scalar_value, find_dependency, chart_ref,
+pull_chart, pulled_chart_dir, pull_chart_values, find_images, version_of,
 image_paths_for, dotted_key_path, subchart_values,
 subchart_default_repository. `helm pull` is mocked via lib.procutil.run,
 so no `helm` binary or network access needed."""
@@ -36,6 +36,30 @@ def test_get_path_missing_returns_none(libchart):
 
 def test_get_path_non_dict_intermediate_returns_none(libchart):
     assert libchart.get_path({"a": "scalar"}, "a.b") is None
+
+
+# --- replace_scalar_value ---
+# moved here from update-component-version.py (see
+# tests/update-component-version/test_update_component_version.py for the
+# ucv.replace_scalar_value re-export, still exercised via that import).
+
+def test_replace_scalar_value_preserves_quotes(libchart):
+    assert libchart.replace_scalar_value('      tag: "1.0.0@sha256:aaaa"\n', "2.0.0@sha256:bbbb") == \
+        '      tag: "2.0.0@sha256:bbbb"\n'
+
+
+def test_replace_scalar_value_preserves_bare_style(libchart):
+    assert libchart.replace_scalar_value("    version: 1.0.297\n", "1.0.298") == "    version: 1.0.298\n"
+
+
+def test_replace_scalar_value_preserves_trailing_comment(libchart):
+    result = libchart.replace_scalar_value('    version: 1.0.297  # pinned\n', "1.0.298")
+    assert result == '    version: 1.0.298  # pinned\n'
+
+
+def test_replace_scalar_value_unparseable_line_raises(libchart):
+    with pytest.raises(SystemExit):
+        libchart.replace_scalar_value("not a key-value line at all\n", "x")
 
 
 # --- find_dependency ---
