@@ -509,6 +509,7 @@ redis-operator:
       image:
         repository: docker.io/alpine/k8s
         tag: "1.36.2@sha256:44ef4942e171939b9c665a4a84beb80e2dcdb9a24330d4651cfdfd2e9deecc47"
+      nodeSelector: {}
       resources:
         requests:
           cpu: 10m
@@ -516,6 +517,13 @@ redis-operator:
         limits:
           cpu: 100m
           memory: 64Mi
+    # -- pre-delete hook Job (templates/redis-ha-pre-delete.yaml) that drains the
+    # RedisReplication CR before the redis-operator's Deployment is torn down.
+    preDeleteJob:
+      image:
+        repository: docker.io/alpine/k8s
+        tag: "1.33.10"
+      nodeSelector: {}
 
 openzaak:
   configuration:
@@ -3542,6 +3550,7 @@ frankgateway:
     repository: ghcr.io/wearefrank/frank-gateway
     tag: "104@sha256:a830b90f8820f5cdb0c382ecef02a302c50d129edc9de81d7daa7af1cf267d98"
   replicas: 1
+  nodeSelector: {}
   resources:
     requests:
       cpu: 100m
@@ -3602,6 +3611,7 @@ frankgateway:
     storage: 2Gi
     # Empty => cluster default StorageClass. jim00 uses managed-csi.
     storageClassName: ""
+    nodeSelector: {}
     resources:
       requests:
         cpu: 50m
@@ -3617,6 +3627,7 @@ frankgateway:
     seed: true
     job:
       image: *curlImage
+      nodeSelector: {}
       backoffLimit: 3
       ttlSecondsAfterFinished: 600
 
@@ -3630,6 +3641,7 @@ frankgateway:
     # auto-login (the dashboard is never exposed directly). Empty => random,
     # stable across upgrades via lookup (Secret frankgateway-dashboard-conf).
     adminPassword: ""
+    nodeSelector: {}
     resources:
       requests:
         cpu: 50m
@@ -3662,6 +3674,7 @@ frankgateway:
         image:
           repository: quay.io/oauth2-proxy/oauth2-proxy
           tag: "v7.7.1"
+        nodeSelector: {}
         resources:
           requests:
             cpu: 25m
@@ -3671,6 +3684,7 @@ frankgateway:
             memory: 256Mi
       shim:
         image: *nginxImage
+        nodeSelector: {}
         resources:
           requests:
             cpu: 25m
@@ -3833,6 +3847,7 @@ openbao:
         registry: quay.io
         repository: openbao/openbao
         tag: "2.5.5"
+      nodeSelector: {}
       resources:
         requests:
           cpu: 50m
@@ -3864,6 +3879,7 @@ openbao:
         registry: docker.io
         repository: library/postgres
         tag: "16-alpine"
+      nodeSelector: {}
       resources:
         requests:
           cpu: 50m

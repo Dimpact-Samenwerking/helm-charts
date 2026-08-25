@@ -17,9 +17,8 @@ metadata:
   name: frankgateway
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "podiumd.labels" . | nindent 4 }}
+    {{- include "podiumd.labelsNamed" (dict "context" . "name" "frankgateway") | nindent 4 }}
     app.kubernetes.io/component: frankgateway
-    app.kubernetes.io/name: frankgateway
 spec:
   selector:
     app.kubernetes.io/name: frankgateway
@@ -47,9 +46,8 @@ metadata:
   name: frankgateway
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "podiumd.labels" . | nindent 4 }}
+    {{- include "podiumd.labelsNamed" (dict "context" . "name" "frankgateway") | nindent 4 }}
     app.kubernetes.io/component: frankgateway
-    app.kubernetes.io/name: frankgateway
 spec:
   replicas: {{ $fg.replicas }}
   selector:
@@ -58,16 +56,15 @@ spec:
   template:
     metadata:
       labels:
-        {{- include "podiumd.labels" . | nindent 8 }}
+        {{- include "podiumd.labelsNamed" (dict "context" . "name" "frankgateway") | nindent 8 }}
         app.kubernetes.io/component: frankgateway
-        app.kubernetes.io/name: frankgateway
       annotations:
         # Roll the pod when the rendered APISIX config changes.
         checksum/config: {{ include (print $.Template.BasePath "/frankgateway-config.yaml") . | sha256sum }}
     spec:
       containers:
         - name: apisix
-          image: "{{ $fg.image.repository }}:{{ $fg.image.tag }}"
+          image: {{ include "podiumd.image" $fg.image }}
           imagePullPolicy: IfNotPresent
           envFrom:
             - secretRef:
@@ -106,4 +103,8 @@ spec:
         - name: config
           secret:
             secretName: frankgateway-apisix-config
+      {{- with $fg.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
 {{- end }}
