@@ -6,11 +6,11 @@ row resolved against charts/podiumd/Chart.yaml and values.yaml (see
 component_and_alias).
 
 Auth: HTTP Basic with your Atlassian email + a *classic* API token (the
-"scoped" kind doesn't work here) from
-https://id.atlassian.com/manage-profile/security/api-tokens — click
-"Create API token", choose "Create classic API token", copy it right
-away (shown once). Prefer --token-file or CONFLUENCE_API_TOKEN over
---token, which leaks into shell history.
+"scoped" kind doesn't work here). To create one: click your profile
+icon -> Account settings -> Security -> scroll to API tokens -> set a
+decent expiration date, then copy the generated token right away and
+store it somewhere secure (shown once). Prefer --token-file or
+CONFLUENCE_API_TOKEN over --token, which leaks into shell history.
 
 Usage:
     export-confluence-release-table.py --url <page-url> --user <email> --token-file <path>
