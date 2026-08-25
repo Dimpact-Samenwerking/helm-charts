@@ -3,23 +3,11 @@
 Verify that a component's target app image version(s) and Helm chart version
 actually exist (published), BEFORE writing them into charts/podiumd/values.yaml
 or Chart.yaml — a non-existent tag or chart version breaks image pulls /
-`helm dependency update` at deploy time rather than at edit time.
-
-Everything about the component is derived from the project rather than
-hardcoded: which Helm repo it lives in and whether the chart version exists
-comes from its charts/podiumd/Chart.yaml dependency entry (resolved and
-pulled the same way as list-component-chart-images.py); the actual image
-repository string comes from that chart's OWN values.yaml, and the registry
-host is inferred from the repository string itself (standard Docker
-convention — "ghcr.io/..." vs a bare "org/repo" implying Docker Hub).
-
-The one thing that can't be derived automatically: a chart's values.yaml
-mixes the app's own image with independently-versioned sidecars (ZAC alone
-ships 10+ images — opa, solr, zookeeper, curl, gotenberg...), and nothing
-in the chart says which one is "the app". lib.chart.COMPONENT_IMAGE_PATHS
-is that one small hint — just a values.yaml path, not a registry or repo —
-and only needed for multi-image components; anything else defaults to the
-top-level "image" block.
+`helm dependency update` at deploy time rather than at edit time. The repo,
+chart version, and registry host are all derived from the project itself
+(Chart.yaml's dependency entry + that chart's own values.yaml); the one
+thing that can't be derived is which of a multi-image chart's images (e.g.
+ZAC's 10+ sidecars) is "the app" — see lib.chart.COMPONENT_IMAGE_PATHS.
 
 Usage:
     verify-component-version.py <component> <app-version> <chart-version>
@@ -61,6 +49,9 @@ def find_dependency(name_or_alias):
 
 
 def main():
+    if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
+        print(__doc__)
+        sys.exit(0)
     if len(sys.argv) != 4:
         print(__doc__)
         sys.exit(1)

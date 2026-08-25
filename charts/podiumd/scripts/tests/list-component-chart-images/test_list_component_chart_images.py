@@ -161,6 +161,15 @@ def test_main_missing_arguments_exits(lci, monkeypatch, capsys):
         lci.main()
 
 
+@pytest.mark.parametrize("flag", ["-h", "--help"])
+def test_main_help_flag_prints_usage_and_exits_zero(lci, monkeypatch, capsys, flag):
+    monkeypatch.setattr("sys.argv", ["list-component-chart-images.py", flag])
+    with pytest.raises(SystemExit) as exc_info:
+        lci.main()
+    assert exc_info.value.code == 0
+    assert capsys.readouterr().out == lci.__doc__ + "\n"
+
+
 def test_main_helm_pull_produces_no_directory_raises(lci, monkeypatch):
     write_chart_yaml(lci, [{"name": "zaakafhandelcomponent", "alias": "zac", "repository": "@zac"}])
     monkeypatch.setattr(lci, "pull_chart", lambda ref, version, dest: None)  # creates nothing

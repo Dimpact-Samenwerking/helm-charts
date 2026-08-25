@@ -3,7 +3,9 @@
 Query charts/podiumd/release-table.csv (see export-confluence-release-table.py)
 for rows whose "section", "vendor", or "component" column contains a given
 piece of text, and print each match's name, component, alias, and four
-version columns as an aligned table.
+version columns as an aligned table — plus a second table of tooling rows
+whose "used_by" relates back to a match (see component_matches and
+used_by_rows_for for exactly how "component" and "used by" are resolved).
 
 Usage:
     query-release-table.py <column> <text>
@@ -12,34 +14,6 @@ Usage:
     <text>    matched as a case-insensitive substring against that column
               (e.g. "zac" matches component "zaakafhandelcomponent"; "open"
               matches both "Open Zaak" and "Open Formulieren")
-
-A target version column prints as "UNCHANGED" rather than its raw value
-when nothing actually changed for that app/helm version on this release —
-either the cell is empty, or it equals its own source column's value
-(e.g. target_version_app == source_version_app).
-
-There is no separate "name" column to query — a component is looked up by
-what it actually IS in the chart, not by whatever the Confluence page
-happens to call it. Querying "component" searches, in order: the CSV's own
-"component" column (set by export-confluence-release-table.py, resolved
-from Chart.yaml — see its component_and_alias), then its "alias" column,
-and only as a last resort — if NEITHER matches anything at all — the row's
-own "name" (e.g. a row whose component never resolved at all, still "UNKNOWN"
-or "MULTIPLE", can still be found this way). See component_matches. Once a
-real component/alias match exists anywhere, name is never consulted, even
-if some unrelated row's own name happens to also contain the query text
-(e.g. querying "kiss" resolves via "Contact (KISS)"'s own component/alias,
-so "Kiss Elastic Sync" — which only coincidentally contains "kiss" in its
-own name — never becomes a primary match; it shows up in the "used by"
-table below instead, tied to the row that resolved).
-
-Also prints a second table of every row whose "used_by" column relates to
-one of the matched rows' own "name"/"alias" value — either because the
-used_by value is a plain substring of that name (e.g. "zac" is contained
-in "Zaak - ZAC"), or because the used_by value exactly equals that row's
-own "alias" column (e.g. used_by "ita" equals "Interne Taak
-Afhandeling"'s alias). Either way, this finds rows that aren't matched by
-the main query itself.
 
 Examples:
     query-release-table.py component zac
@@ -143,6 +117,9 @@ def print_table(rows):
 
 
 def main():
+    if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
+        print(__doc__)
+        sys.exit(0)
     if len(sys.argv) != 3 or sys.argv[1] not in COLUMNS:
         print(__doc__)
         sys.exit(1)

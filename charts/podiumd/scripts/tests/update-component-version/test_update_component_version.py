@@ -286,6 +286,15 @@ def test_main_requires_exactly_three_arguments(ucv, monkeypatch):
     assert exc_info.value.code == 1
 
 
+@pytest.mark.parametrize("flag", ["-h", "--help"])
+def test_main_help_flag_prints_usage_and_exits_zero(ucv, monkeypatch, capsys, flag):
+    monkeypatch.setattr("sys.argv", ["update-component-version.py", flag])
+    with pytest.raises(SystemExit) as exc_info:
+        ucv.main()
+    assert exc_info.value.code == 0
+    assert capsys.readouterr().out == ucv.__doc__ + "\n"
+
+
 # --- main() handling already-current versions ---
 
 def test_main_skips_chart_write_when_chart_version_unchanged(ucv, tmp_path, monkeypatch, capsys):

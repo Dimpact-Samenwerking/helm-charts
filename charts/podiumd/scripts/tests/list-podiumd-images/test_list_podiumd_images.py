@@ -271,6 +271,15 @@ def test_main_refresh_flag_forces_pull(lpi, tmp_path, monkeypatch):
     assert calls == ["zaakafhandelcomponent"]
 
 
+@pytest.mark.parametrize("flag", ["-h", "--help"])
+def test_main_help_flag_prints_usage_and_exits_zero(lpi, monkeypatch, capsys, flag):
+    monkeypatch.setattr("sys.argv", ["list-podiumd-images.py", flag])
+    with pytest.raises(SystemExit) as exc_info:
+        lpi.main()
+    assert exc_info.value.code == 0
+    assert capsys.readouterr().out == lpi.__doc__ + "\n"
+
+
 def test_main_reports_and_continues_on_load_failure(lpi, monkeypatch, capsys):
     lpi.CHART_YAML.write_text(yaml.safe_dump({"dependencies": [
         {"name": "broken-dep", "version": "1.0.0", "repository": "file://../broken"},

@@ -173,3 +173,12 @@ def test_main_requires_exactly_two_arguments(scbv, monkeypatch):
     with pytest.raises(SystemExit) as exc_info:
         scbv.main()
     assert exc_info.value.code == 1
+
+
+@pytest.mark.parametrize("flag", ["-h", "--help"])
+def test_main_help_flag_prints_usage_and_exits_zero(scbv, monkeypatch, capsys, flag):
+    monkeypatch.setattr("sys.argv", ["show-component-baseline-version.py", flag])
+    with pytest.raises(SystemExit) as exc_info:
+        scbv.main()
+    assert exc_info.value.code == 0
+    assert capsys.readouterr().out == scbv.__doc__ + "\n"

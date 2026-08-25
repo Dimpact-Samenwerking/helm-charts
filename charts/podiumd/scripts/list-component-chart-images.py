@@ -58,6 +58,9 @@ def pull_chart(ref, version, dest):
 
 
 def main():
+    if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
+        print(__doc__)
+        sys.exit(0)
     if len(sys.argv) != 3:
         print(__doc__)
         sys.exit(1)

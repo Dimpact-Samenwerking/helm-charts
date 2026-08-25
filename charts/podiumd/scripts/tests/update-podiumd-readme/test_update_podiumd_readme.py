@@ -19,6 +19,21 @@ def make_chart_dir(tmp_path, gotmpl=False):
     return tmp_path
 
 
+@pytest.mark.parametrize("flag", ["-h", "--help"])
+def test_main_help_flag_works_even_when_helm_docs_is_not_installed(upr, tmp_path, monkeypatch, capsys, flag):
+    """--help must never require helm-docs to be on PATH — it's checked
+    for by the caller wanting to actually run this, not someone just
+    asking what the script does."""
+    monkeypatch.setattr(upr, "CHART_DIR", make_chart_dir(tmp_path))
+    monkeypatch.setattr(upr.shutil, "which", lambda name: None)
+    monkeypatch.setattr(upr.sys, "argv", ["update-podiumd-readme.py", flag])
+
+    with pytest.raises(SystemExit) as exc_info:
+        upr.main()
+    assert exc_info.value.code == 0
+    assert capsys.readouterr().out == upr.__doc__ + "\n"
+
+
 def test_helm_docs_not_installed_fails(upr, tmp_path, monkeypatch):
     monkeypatch.setattr(upr, "CHART_DIR", make_chart_dir(tmp_path))
     monkeypatch.setattr(upr.shutil, "which", lambda name: None)

@@ -86,6 +86,9 @@ def is_enabled(condition, root_values):
 
 
 def main():
+    if "-h" in sys.argv[1:] or "--help" in sys.argv[1:]:
+        print(__doc__)
+        sys.exit(0)
     refresh = "--refresh" in sys.argv[1:]
 
     deps = yaml.safe_load(CHART_YAML.read_text())["dependencies"]
