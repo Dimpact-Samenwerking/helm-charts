@@ -192,7 +192,7 @@
 - name: library/python
   url: docker.io/library/python
   version: "3.14.7-slim"
-  digest: "sha256:ce40764625a4ff50df3548277632e7f96c4e77fe75fa848aae9885476e7df5a4"
+  digest: "sha256:83ff1d245a3d57d04152252d3ef9cb361494d0b3395abd65a5ebe91c401c8e83"
 - name: library/python
   url: docker.io/library/python
   version: "3.14-slim"
@@ -200,7 +200,7 @@
 - name: library/solr
   url: docker.io/library/solr
   version: "9.10.1-slim"
-  digest: "sha256:c45d9d93d74d6a5e996120ab7120cdfc531debbc59bd3d6a6736fe240cee9be0"
+  digest: "sha256:389b4a54b6a0b37a028a3f157e4d3b7031cf76def1b14bcaa225ea1e27f79ffb"
 - name: maykinmedia/objects-api
   url: docker.io/maykinmedia/objects-api
   version: "3.6.2"
@@ -240,7 +240,7 @@
 - name: nginxinc/nginx-unprivileged
   url: docker.io/nginxinc/nginx-unprivileged
   version: "1.31.3"
-  digest: "sha256:49c9bef1797e11117a7f490fd00f282e377ac402fec472c72636f90cdbf72e10"
+  digest: "sha256:1ab63ed666197d757cd3ce0ad84c5136f18f774465345785f33423bd1bba4353"
 - name: oauth2-proxy/oauth2-proxy
   url: quay.io/oauth2-proxy/oauth2-proxy
   version: "v7.7.1"

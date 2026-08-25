@@ -14,7 +14,7 @@ global:
   images:
     nginx: &nginxImage
       repository: nginxinc/nginx-unprivileged
-      tag: "1.31.3@sha256:49c9bef1797e11117a7f490fd00f282e377ac402fec472c72636f90cdbf72e10"
+      tag: "1.31.3@sha256:1ab63ed666197d757cd3ce0ad84c5136f18f774465345785f33423bd1bba4353"
       pullPolicy: IfNotPresent
     curl: &curlImage
       repository: curlimages/curl
@@ -94,7 +94,7 @@ keycloak-operator:
         registry: ""
         repository: python
         # Digest-pinned to a specific patch rather than the floating 3.14-slim minor tag.
-        tag: "3.14.7-slim@sha256:ce40764625a4ff50df3548277632e7f96c4e77fe75fa848aae9885476e7df5a4"
+        tag: "3.14.7-slim@sha256:83ff1d245a3d57d04152252d3ef9cb361494d0b3395abd65a5ebe91c401c8e83"
       # Main container: runs psql to execute the generated SQL against the Keycloak DB.
       image:
         registry: ""
@@ -2976,10 +2976,10 @@ zac:
       busyBoxImage: *busyboxImage
       # -- set enabled to provision solrcloud as well
       enabled: true
-      # library/solr:9.10.1-slim@sha256:c45d9d93d74d6a5e996120ab7120cdfc531debbc59bd3d6a6736fe240cee9be0
+      # library/solr:9.10.1-slim@sha256:389b4a54b6a0b37a028a3f157e4d3b7031cf76def1b14bcaa225ea1e27f79ffb
       image:
         #repository:
-        tag: 9.10.1-slim@sha256:c45d9d93d74d6a5e996120ab7120cdfc531debbc59bd3d6a6736fe240cee9be0
+        tag: 9.10.1-slim@sha256:389b4a54b6a0b37a028a3f157e4d3b7031cf76def1b14bcaa225ea1e27f79ffb
       # -- define memory settings for solr in the solrcloud
       javaMem: -Xms512m -Xmx768m
       jobs:
