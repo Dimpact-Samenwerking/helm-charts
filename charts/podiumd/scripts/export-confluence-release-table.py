@@ -46,10 +46,14 @@ for the exact match/substring rules and their priority). "component" is
 "UNKNOWN" (and "alias" left empty) if nothing matches any dependency at
 all — e.g. "Elastic operator", whose dependency "eck-operator" shares no
 text with it either way — or "MULTIPLE" (both fields) if the text
-relates to more than one distinct dependency at once — e.g. "kiss"
-relates to both "kiss-chart" (alias "kiss") and "eck-stack" (alias
-"kiss-eck", which contains "kiss") — rather than silently picking
-whichever dependency happens to come first in Chart.yaml.
+relates to more than one distinct dependency at the SAME priority tier
+(e.g. two dependencies that genuinely share one alias) — rather than
+silently picking whichever dependency happens to come first in
+Chart.yaml. An exact alias match is its own tier ahead of the looser
+substring-relation tier specifically so a case like "kiss" — which
+exactly equals dependency "kiss-chart"'s own alias "kiss", but is also
+a substring of "eck-stack"'s unrelated alias "kiss-eck" — resolves
+outright instead of registering as ambiguous.
 
 Each of the four version values is replaced with "UNKNOWN" if it isn't
 semver-compatible (see lib.confluence_tables.is_semver_compatible — a
@@ -290,9 +294,15 @@ def _tier_matches(candidates, dependencies, predicate):
 
 
 # Tried in this order (first tier with any match wins) so a precise
-# match always beats a fuzzier one — see component_and_alias.
+# match always beats a fuzzier one — see component_and_alias. An EXACT
+# alias match is its own tier, ahead of the looser alias *relation* tier
+# below it: e.g. "kiss" exactly equals dependency "kiss-chart"'s own
+# alias "kiss", and that must resolve outright rather than being treated
+# as ambiguous with "eck-stack" (alias "kiss-eck") just because
+# "kiss-eck" also happens to *contain* "kiss" as a substring.
 _MATCH_TIERS = [
     lambda candidate, dependency_name, alias: candidate == normalize_name(dependency_name),
+    lambda candidate, dependency_name, alias: bool(alias) and candidate == normalize_name(alias),
     lambda candidate, dependency_name, alias: bool(alias) and _related(candidate, normalize_name(alias)),
     lambda candidate, dependency_name, alias: _related(candidate, normalize_name(dependency_name)),
 ]
@@ -306,22 +316,29 @@ def component_and_alias(name, dependencies):
     any match wins):
     1. a candidate exactly equals the dependency's name — e.g. "Interne
        Taak Afhandeling" -> dependency "internetaakafhandeling"
-    2. a candidate relates (see _related) to the dependency's alias —
-       e.g. alias "zac" is contained in "Zaak - ZAC" (as "zaakzac"), or
-       "PABC" (the bracketed part of "Platform Autorisatie Beheer
-       Component (PABC)") exactly equals alias "pabc"
-    3. a candidate relates to the dependency's name — e.g. dependency
+    2. a candidate exactly equals the dependency's alias — e.g. "kiss"
+       (used_by, or the bracketed part of "Contact (KISS)") exactly
+       equals alias "kiss", or "PABC" (the bracketed part of "Platform
+       Autorisatie Beheer Component (PABC)") exactly equals alias "pabc"
+    3. a candidate relates (see _related, a looser substring-either-way
+       check) to the dependency's alias — e.g. alias "zac" is contained
+       in "Zaak - ZAC" (as "zaakzac")
+    4. a candidate relates to the dependency's name — e.g. dependency
        name "openzaak" exactly equals "Open Zaak", or "openinwoner" is
        contained in "Open Inwoner platform" (the bracketed part of
        "Portaal (Open Inwoner platform)")
+    Tiers 2 and 3 are both about the alias, split apart specifically so
+    an exact alias match (tier 2) never loses to a same-tier ambiguity
+    that only exists because some OTHER dependency's alias happens to
+    contain the candidate as a substring (tier 3) — see _MATCH_TIERS.
     ("UNKNOWN", "") if no tier matches any dependency at all — e.g.
     "Elastic operator", whose dependency "eck-operator" shares no text
     with it either way, or a component (like "Solr") that isn't a
     top-level podiumd Chart.yaml dependency at all. ("MULTIPLE",
-    "MULTIPLE") if a tier matches more than one distinct dependency —
-    e.g. "kiss" relates to both dependency "kiss-chart" (alias "kiss")
-    and "eck-stack" (alias "kiss-eck", which contains "kiss") — rather
-    than silently picking whichever came first in Chart.yaml."""
+    "MULTIPLE") if a single tier matches more than one distinct
+    dependency — e.g. two dependencies that genuinely share the exact
+    same alias — rather than silently picking whichever came first in
+    Chart.yaml."""
     candidates = name_candidates(name)
     for tier in _MATCH_TIERS:
         found = _tier_matches(candidates, dependencies, tier)
