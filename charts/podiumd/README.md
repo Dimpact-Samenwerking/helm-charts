@@ -985,7 +985,7 @@ PodiumD Helm chart
 | opennotificaties.configuration.secrets.keycloak_client_secret | string | `""` |  |
 | opennotificaties.flower.enabled | bool | `false` |  |
 | opennotificaties.fullnameOverride | string | `"opennotificaties"` |  |
-| opennotificaties.image.tag | string | `"1.16.1"` |  |
+| opennotificaties.image.tag | string | `"1.16.2@sha256:2988d538b30db30487ed89873877e1d22e12f80dfa42d80ec1a5c97265c7e4cd"` |  |
 | opennotificaties.nameOverride | string | `"opennotificaties"` |  |
 | opennotificaties.otel.disabled | bool | `true` |  |
 | opennotificaties.persistence.existingClaim | string | `"opennotificaties"` |  |

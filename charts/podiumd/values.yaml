@@ -905,6 +905,7 @@ opennotificaties:
     # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
     pkceEnabled: false
   settings:
+    notificationSecInterval: 5
     allowedHosts: opennotificaties.podiumd.svc.cluster.local
     maxRetries: 5
     retryBackoff: 3
@@ -945,7 +946,7 @@ opennotificaties:
     volumeAttributeShareName: opennotificaties
     storageClassName: podiumd-standard
   image:
-    tag: "1.16.1"
+    tag: "1.16.2@sha256:2988d538b30db30487ed89873877e1d22e12f80dfa42d80ec1a5c97265c7e4cd"
   resources:
     requests:
       cpu: 100m

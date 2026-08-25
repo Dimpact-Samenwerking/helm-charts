@@ -44,6 +44,7 @@
 #   17. openinwoner 2.4.2 -> 2.4.3 (chart 2.4.0, unchanged).
 #   18. openzaak 1.27.4 -> 1.29.3 (chart 1.14.2, unchanged).
 #   19. referentielijsten 0.7.3 -> 0.7.4 (chart 0.1.1, unchanged).
+#   20. opennotificaties 1.16.1 -> 1.16.2 (chart 2.0.0, unchanged).
 #
 # See docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md for the operator upgrade notes,
 # and docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-operators-crds.md for the ECK Operator
