@@ -104,7 +104,7 @@ dependencies:
     condition: omc.enabled
   - name: redis-operator
     repository: "@opstree"
-    version: 0.25.0
+    version: 0.26.1
     condition: redis-operator.enabled
   - name: eck-operator
     version: 3.5.0

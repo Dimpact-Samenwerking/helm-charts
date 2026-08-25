@@ -32,6 +32,14 @@
 #      is listed here only because KISS starts using it in this release.
 #   11. PABC 1.1.0 -> 1.1.1 (chart 1.1.0 -> 1.1.1), pabc-api and pabc-migrations.
 #   12. PodiumD Adapter 0.6.6 -> 0.6.7 (chart 0.6.6 -> 0.6.7), podiumd-adapter.
+#   13. Redis (redis-ha) 8.6.2 -> 8.6.6 (opstree/redis, chart unchanged). Same
+#      8.6.x branch; picks up several upstream security fixes (RCE-class RESTORE/
+#      Lua/TLS CVEs) fixed across 8.6.3/8.6.5/8.6.6.
+#   14. redis-exporter 1.82.0 -> 1.89.0 (opstree/redis-exporter). Sidecar is
+#      disabled by default (redisExporter.enabled: false).
+#   15. redis-operator chart 0.25.0 -> 0.26.1, operator image 0.25.0 -> 0.26.0
+#      (quay.io/opstree/redis-operator, both main and init-container image now
+#      explicitly digest-pinned). CRD diff verified as zero (no schema change).
 #
 # See docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md for the operator upgrade notes,
 # and docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-operators-crds.md for the ECK Operator
@@ -151,3 +159,21 @@
   url: docker.io/library/python
   version: "3.14.7-slim"
   digest: "sha256:ce40764625a4ff50df3548277632e7f96c4e77fe75fa848aae9885476e7df5a4"
+
+# Redis (redis-ha) — 8.6.2 -> 8.6.6 (same 8.6.x branch, security patches)
+- name: opstree/redis
+  url: quay.io/opstree/redis
+  version: "v8.6.6"
+  digest: "sha256:12724412997e6acc32783f8c3c1ce8a7657029e06f563ffc8cbd81e2e9de7628"
+
+# redis-exporter — 1.82.0 -> 1.89.0 (sidecar disabled by default)
+- name: opstree/redis-exporter
+  url: quay.io/opstree/redis-exporter
+  version: "v1.89.0"
+  digest: "sha256:00a3628bdd3bb3423a15c5daefa328c471ee609798eed1744fe578c906d20cab"
+
+# redis-operator — 0.25.0 -> 0.26.0 (chart 0.25.0 -> 0.26.1; main + init-container image)
+- name: opstree/redis-operator
+  url: quay.io/opstree/redis-operator
+  version: "v0.26.0"
+  digest: "sha256:1c6818e5e50553f9f3c1b91a8824ae5c1999a0c9416c794ca51431b7f0cb48c3"
