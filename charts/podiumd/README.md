@@ -1,446 +1,559 @@
-# PodiumD
+# podiumd
 
-## PodiumD versions
+![Version: 4.9.0](https://img.shields.io/badge/Version-4.9.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 4.9.0](https://img.shields.io/badge/AppVersion-4.9.0-informational?style=flat-square)
 
-### [4.8.0](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.8.0)
+PodiumD Helm chart
 
-**PodiumD Helm chart version: 4.8.0**
-Release scoped around the Open Inwoner upgrade 2.1.2 → 2.3.1 (chart
-2.1.3 → 2.2.1), spanning upstream 2.2.0 (Django CMS v3 → v4) and 2.3.0
-(opt-in ClamAV virus scanning, ZGW cache-warmup + low-latency worker).
-4.8.0 also carries the 4.7.4/4.7.5/4.7.6/4.7.7 work (Keycloak 26.6.3, Open Zaak
-1.27.3, ZGW Office Add-in 0.9.313, Open Formulieren logging revert); all other
-components remain at their 4.7.7 baseline. Zie
-`docs/_UPGRADE_PATHS/4.7.8-to-4.8.0-upgrade.md` voor details.
+## Requirements
 
-| Component                 | AppVersion       | Change            | ChartVersion | Change         | **Notes**                            |
-|---------------------------|------------------|-------------------|--------------|----------------|--------------------------------------|
-| Open Inwoner              | 2.3.1            | Minor update      | 2.2.1        | Minor update   | CMS v3→v4, opt-in ClamAV virus scan  |
-| Open Zaak                 | 1.27.3           | Patch update      | 1.14.1       |                | 4.7.7 patch folded in                |
+| Repository | Name | Version |
+|------------|------|---------|
+| @adfinis | keycloak-operator | 1.12.1 |
+| @dimpact | brppersonenmock(brp-personen-mock) | 1.2.9 |
+| @maykinmedia | objecten | 2.12.1 |
+| @maykinmedia | objecttypen | 1.6.1 |
+| @maykinmedia | openarchiefbeheer | 2.0.0 |
+| @maykinmedia | openbeheer | 0.1.3 |
+| @maykinmedia | openformulieren(openforms) | 1.12.0 |
+| @maykinmedia | openinwoner | 2.4.0 |
+| @maykinmedia | openklant | 1.11.0 |
+| @maykinmedia | opennotificaties | 2.0.0 |
+| @maykinmedia | openzaak | 1.14.2 |
+| @maykinmedia | referentielijsten(referentielijsten) | 0.1.1 |
+| @opstree | redis-operator | 0.25.0 |
+| @wiremind | clamav | 3.7.1 |
+| @worth-nl | omc(notifynl-omc-nodep) | 0.14.1 |
+| @zac | zac(zaakafhandelcomponent) | 1.0.297 |
+| @zgw-office-addin | zgw-office-addin | 0.0.89 |
+| file://../mi-data | mi(mi-data) | 1.0.0 |
+| https://helm.elastic.co | eck-operator | 3.4.0 |
+| https://helm.elastic.co | kiss-eck(eck-stack) | 0.19.0 |
+| https://openbao.github.io/openbao-helm | openbao | 0.28.4 |
+| https://wearefrank.github.io/charts | zaakbrug | 2.3.28 |
+| oci://ghcr.io/interne-taak-afhandeling | ita(internetaakafhandeling) | 3.2.0 |
+| oci://ghcr.io/klantinteractie-servicesysteem | kiss(kiss-chart) | 2.2.4 |
+| oci://ghcr.io/platform-autorisatie-beheer-component | pabc(pabc) | 1.1.1 |
 
-### [4.7.4](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.7.4)
+## Values
 
-**PodiumD Helm chart version: 4.7.4**
-Security patch release. Keycloak server + operator 26.6.2 → 26.6.3 (16 CVEs,
-notably CVE-2026-9704 token-exchange privilege escalation, CVE-2026-4874 SSRF,
-CVE-2026-9802 refresh-token replay), with the adfinis keycloak-operator chart
-1.11.4 → 1.12.0 (appVersion 26.6.3); the 26.6.3 CRDs are byte-identical to
-26.6.2, so no CRD apply is required. Open Zaak 1.27.1 → 1.27.2 (CVE-2026-54657
-`_zoek` authorization filtering + document bulk-import path-traversal fix). Also
-adds a Datamigratie Keycloak client and Open Zaak credentials (config only, no
-image change). See `docs/_UPGRADE_PATHS/4.7.3-to-4.7.4-upgrade.md`.
-
-| Component                 | AppVersion       | Change            | ChartVersion | Change         | **Notes**                            |
-|---------------------------|------------------|-------------------|--------------|----------------|--------------------------------------|
-| Keycloak                  | 26.6.3           | Security update   | 1.12.0       | Minor update   | Adfinis operator; 26.6.3 fixes 16 CVEs |
-| - Keycloak-config-cli     | 6.5.0-26         |                   |              |                |                                      |
-| Open Zaak                 | 1.27.2           | Security update   | 1.14.1       |                | CVE-2026-54657 (`_zoek` authz) + bulk-import path traversal |
-
-### [4.7.3](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.7.3)
-
-**PodiumD Helm chart version: 4.7.3**
-Patch release scoped around a ZAC hotfix for mail-template rendering
-(ZAC 4.7.1 → 4.7.2). All other components remain at their 4.7.2
-baseline; see the `4.7.2` row below for the unchanged entries.
-
-| Component                 | AppVersion       | Change            | ChartVersion | Change         | **Notes**                            |
-|---------------------------|------------------|-------------------|--------------|----------------|--------------------------------------|
-| Zac                       | 4.7.2            | Patch update      | 1.0.228      |                | Mail-template hotfix                 |
-
-### [4.7.2](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.7.2)
-
-**PodiumD Helm chart version: 4.7.2**
-Componenten op alphabetische volgorde, met sub-charts er onder. Wijzigingen
-tegen `4.6.3` (laatste hier vastgelegde release; 4.7.0 en 4.7.1 zaten
-tussen). Beveiligingsupdates in deze release: Keycloak 26.6.2 (account-takeover-
-class CVEs) en nginx-unprivileged 1.30.2 (CVE-2026-42945 "nginx Rift" RCE
-en CVE-2026-9256). Zie `docs/_UPGRADE_PATHS/4.7.1-to-4.7.2-upgrade.md` voor details.
-
-| Component                 | AppVersion       | Change            | ChartVersion | Change         | **Notes**                            |
-|---------------------------|------------------|-------------------|--------------|----------------|--------------------------------------|
-| APISIX                    | 3.16.0-ubuntu    | New               | 2.14.0       | New            | Opt-in egress gateway (apisix.enabled) |
-| BRP Mock                  |                  |                   | 1.2.8        |                | Only on Test Environments            |
-| ClamAV                    | 1.4.4            |                   | 3.7.1        |                |                                      |
-| ITA                       | 3.1.0            | Patch update      | 3.1.0        | Patch update   |                                      |
-| - Ita poller              | 3.1.0            | Patch update      |              |                |                                      |
-| Keycloak                  | 26.6.2           | Minor + security  | 1.11.4       | Patch update   | Adfinis operator, +security 26.6.2   |
-| - Keycloak-config-cli     | 6.5.0-26         |                   |              |                |                                      |
-| - Curl                    | 8.20.0           | Patch update      |              |                |                                      |
-| Kiss                      | 2.2.2            |                   | 2.2.2        |                |                                      |
-| - Kiss Elastic            |                  |                   | 1.1.0        |                |                                      |
-| - Kiss ElasticSync        | 0.3.2            |                   |              |                |                                      |
-| - PodiumD Adapter         | 0.6.6            |                   |              |                |                                      |
-| Objecten                  | 3.6.0            |                   | 2.12.0       |                |                                      |
-| Objecttypen               | 3.4.2            | Patch update      | 1.6.1        |                |                                      |
-| OMC for NotifyNL          | 1.17.19          | Patch update      | 0.14.1       | Patch update   |                                      |
-| Open Archiefbeheer        | 2.0.0            | Major update      | 2.0.0        | Major update   |                                      |
-| Open Beheer               | 0.9.0            | New               | 0.1.3        | New            |                                      |
-| Open Formulieren          | 3.4.9            | Patch update      | 1.12.0       |                |                                      |
-| Open Inwoner              | 2.1.2            | Patch update      | 2.1.3        |                | Stable 2.1.2 — never use 2.1.2-rc1   |
-| Open Klant                | 2.15.0           |                   | 1.11.0       |                |                                      |
-| Open Notificaties         | 1.15.0           |                   | 1.13.1       |                |                                      |
-| Open Zaak                 | 1.27.1           | Minor update      | 1.14.1       | Minor update   | New optional Azure Blob / S3 backends |
-| PABC                      | 1.1.0            |                   | 1.1.0        |                |                                      |
-| - k8s-wait-for            | v2.0             |                   |              |                |                                      |
-| Redis Operator            | v0.24.0          |                   | 0.24.0       |                |                                      |
-| - Busybox                 | 1.37.0-glibc     |                   |              |                |                                      |
-| - Kubectl                 | 1.34.7           | Minor update      |              |                | alpine/k8s image                     |
-| - Redis                   | v8.6.2           |                   |              |                |                                      |
-| - Redis Exporter          | v1.82.0          |                   |              |                |                                      |
-| Referentielijsten         | 0.7.2            | New               | 0.1.1        | New            |                                      |
-| nginx-unprivileged        | 1.30.2           | Minor + security  |              |                | Shared sidecar for all Django apps   |
-| Zac                       | 4.7.1            | Major update      | 1.0.228      | Minor update   |                                      |
-| - Opa                     | 1.15.2-static    | Minor update      |              |                |                                      |
-| - Opentelemetry Collector | 0.150.1          | Minor update      |              |                | Operator                             |
-| - Solr                    | 9.10.1-slim      |                   | 0.9.1        |                | CVE-2026-22022 + CVE-2026-22444 in 9.10.1 |
-| - Gotenberg               | 8.31.0           |                   |              |                | Office converter                     |
-| - Zookeeper               | 0.2.15           |                   | 0.2.15       |                | Operator                             |
-| ZGW Office Addin          | v0.9.289         | Minor update      | 0.0.87       | Patch update   |                                      |
-
-### [4.6.3](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.6.3)
-
-**PodiumD Helm chart version: 4.6.3**
-Componenten op alphabetische volgorde, met sub-charts er onder:
-
-| Component                 | AppVersion   | Change        | ChartVersion | Change        | **Notes**                 |
-|---------------------------|--------------|---------------|--------------|---------------|---------------------------|
-| BRP Mock                  |              |               | 1.2.8        |               | Only on Test Environments |
-| ClamAV                    | 1.4.4        |               | 3.7.1        |               |                           |
-| ITA                       | 3.0.0        |               | 3.0.0        |               |                           |
-| - Ita poller              | 3.0.0        |               |              |               |                           |
-| Keycloak                  | 26.5.7       |               | 1.11.2       |               |                           |
-| - Keycloak-config-cli     | 6.5.0-26     | Minor update  |              |               |                           |
-| - Curl                    | 8.19.0       | Patch update  |              |               |                           |
-| Kiss                      | 2.2.2        |               | 2.2.2        |               |                           |
-| - Kiss Elastic            |              |               | 1.1.0        |               |                           |
-| - Kiss ElasticSync        | 0.3.2        |               |              |               |                           |
-| - PodiumD Adapter         | 0.6.6        |               |              |               |                           |
-| Objecten                  | 3.6.0        |               | 2.12.0       |               |                           |
-| Objecttypen               | 3.4.1        |               | 1.6.1        |               |                           |
-| OMC for NotifyNL          | 1.17.18      |               | 0.14.0       |               |                           |
-| Open Archiefbeheer        | 1.1.1        |               | 1.5.3        |               |                           |
-| Open Formulieren          | 3.4.7        |               | 1.12.0       |               |                           |
-| Open Inwoner              | 2.1.1        |               | 2.1.3        |               |                           |
-| Open Klant                | 2.15.0       |               | 1.11.0       |               |                           |
-| Open Notificaties         | 1.15.0       |               | 1.13.1       |               |                           |
-| Open Zaak                 | 1.26.0       |               | 1.13.1       |               |                           |
-| PABC                      | 1.1.0        |               | 1.1.0        |               |                           |
-| - k8s-wait-for            | v2.0         |               |              |               |                           |
-| Redis Operator            | v0.24.0      |               | 0.24.0       |               |                           |
-| - Busybox                 | 1.37.0-glibc |               |              |               |                           |
-| - Kubectl                 | 1.33.2       | Minor update  |              |               | alpine/k8s image          |
-| - Redis                   | v8.6.2       | Minor update  |              |               |                           |
-| - Redis Exporter          | v1.82.0      | Minor update  |              |               |                           |
-| Zac                       | 4.3.61       |               | 1.0.208      |               |                           |
-| - Busybox                 | 1.37.0       |               |              |               |                           |
-| - Curl                    | 8.18.0       |               |              |               |                           |
-| - Kubectl                 | 1.25.4       |               |              |               |                           |
-| - Nginx                   | 1.29.5       |               |              |               |                           |
-| - Opa                     | 1.14.0       |               |              |               |                           |
-| - Opentelemetry Collector | 0.146.1      |               | 0.146.0      |               | Operator                  |
-| - Solr                    | 9.10.1       |               | 0.9.1        |               |                           |
-| - Office Converter        | 1.8.2        |               |              |               |                           |
-| - Zookeeper               | 0.2.15       |               | 0.2.15       |               | Operator                  |
-| ZGW Office Addin          | 0.9.251      | Minor update  | 0.0.83       | Minor update  |                           |
-
-### [4.5.14](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.5.14)
-
-**PodiumD Helm chart version: 4.5.14**
-
-| Component          | AppVersion | Change       | ChartVersion | Change                                  |
-|--------------------|------------|--------------|--------------|-----------------------------------------|
-| ClamAV             | 1.4.2      |              | 3.2.0        |                                         |
-| Keycloak           | 26.5.6     | Minor update | 1.11.2       | Bitnami vervangen met Adfinis Operator  |
-| Infinispan         | 15.2       |              | 0.5.0        |                                         |
-| ITA                | 2.0.1      | Patch update | 2.0.1        | Patch update                            |
-| PABC               | 1.0.0      | New          | 1.0.0        | New                                     |
-| Objecten           | 3.5.0      | Minor update | 2.11.0       | Minor update                            |
-| Objecttypen        | 3.4.0      | Minor update | 1.6.0        | Minor update                            |
-| Open Formulieren   | 3.3.9      | Patch update | 1.11.6       |                                         |
-| Open Inwoner       | 2.0.4      | Major update | 2.1.0        | Major update                            |
-| Open Klant         | 2.14.0     | Minor update | 1.10.0       | Minor update                            |
-| Open Notificaties  | 1.14.0     | Minor update | 1.13.0       | Minor update                            |
-| Open Zaak          | 1.26.0     | Minor update | 1.13.0       | Minor update                            |
-| Open Archiefbeheer | 1.1.1      |              | 1.5.3        | Minor update                            |
-| Kiss               | 2.1.0      | Major update | 2.1.0        | Major update                            |
-| Zac                | 4.0.12-1   | Major update | 1.0.165      | Minor update                            |
-| ZGW Office Addin   | 0.9.28     | Minor update | 0.0.65       | Patch update                            |
-
-### [4.4.5](https://github.com/Dimpact-Samenwerking/helm-charts/releases/tag/podiumd-4.4.5)
-
-**PodiumD Helm chart version: 4.4.5**
-
-| Component          | AppVersion | Change       | ChartVersion | Change          |
-|--------------------|------------|--------------|--------------|-----------------|
-| ClamAV             | 1.4.2      |              | 3.2.0        |                 |
-| Keycloak           | 26.3.1     |              | 24.8.0       |                 |
-| Infinispan         | 15.2       |              | 0.5          |                 |
-| ITA                | 2.0.1      | Major update | 2.0.1        |  Major update   |
-| Objecten           | 3.3.1      | Minor update | 2.10.0       |  Minor update   |
-| Objecttypen        | 3.3.0      | Minor update | 1.5.0        |  Minor update   |
-| Open Formulieren   | 3.3.9      | Minor update | 1.11.6       |  Minor update   |
-| Open Inwoner       | 1.35.3     | Minor update | 1.12.0       |  Minor update   |
-| Open Klant         | 2.13.0     | Minor update | 1.9.0        |  Minor update   |
-| Open Notificaties  | 1.13.0     | Minor update | 1.12.0       |  Minor update   |
-| Open Zaak          | 1.25.0     | Minor update | 1.12.0       |  Minor update   |
-| Open Archiefbeheer | 1.1.1      | Minor update | 1.4.1        |                 |
-| Kiss               | 1.3.1      |              |              |                 |
-| Zac                | 3.18.0     | Minor update | 1.0.137      |                 |
-| ZGW Office Addin   | 0.2.50     | Minor update | 0.0.42       |                 |
-
-## Add Used chart repositories:
-
-```shell
-helm repo add dimpact https://Dimpact-Samenwerking.github.io/helm-charts/
-helm repo add kiss-frontend https://raw.githubusercontent.com/Klantinteractie-Servicesysteem/KISS-frontend/main/helm
-helm repo add kiss-adapter https://raw.githubusercontent.com/ICATT-Menselijk-Digitaal/podiumd-adapter/main/helm
-helm repo add maykinmedia https://maykinmedia.github.io/charts
-helm repo add wiremind https://wiremind.github.io/wiremind-helm-charts
-helm repo add solr https://solr.apache.org/charts
-helm repo add opentelemetry https://open-telemetry.github.io/opentelemetry-helm-charts
-helm repo add zac https://infonl.github.io/dimpact-zaakafhandelcomponent/
-helm repo add zgw-office-addin https://infonl.github.io/zgw-office-addin
-helm repo add adfinis https://charts.adfinis.com
-helm repo add worth-nl https://worth-nl.github.io/helm-charts
-helm repo add apisix https://charts.apiseven.com
-```
-
-## PersistentVolume and PersistVolumeClaim resources
-
-PersistentVolume and PersistentVolumeClaim resources are:
-- created during a Helm install or upgrade if the PersistentVolumeClaim referenced by the `persistence.existingClaim` parameter does not yet exist
-- never deleted during a Helm uninstall
-
-In order to determine whether the combination of PersistentVolume and PersistentVolumeClaim should be created,
-the existence of the PersistentVolumeClaim referenced by the `persistence.existingClaim` parameter of the subchart, is checked.
-If the referenced PersistentVolumeClaim does not exist both the PersistentVolume and PersistentVolumeClaim are created during Helm install.
-
-As the PersistentVolume and PersistentVolumeClaim are never deleted during a Helm uninstall, they can be reused by the next Helm install.
-PersistentVolume and PersistentVolumeClaim resources can only be manually deleted or updated after a Helm uninstall.
-If they are deleted they will be recreated during the next Helm install.
-If they are updated they will be reused by the next Helm install.
-The following parameters impact the creation of PersistentVolume reources
-
-| Name                                          | Description                                                                                                                                          | Value |
-|-----------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------|-------|
-| persistentVolume.volumeAttributeShareName     | Value of created PersistentVolume paramer `spec.csi.volumeAttributes.shareName`.<br/>Overrides the `volumeAttributeShareName` parameter per subchart | `""`  |
-| persistentVolume.volumeAttributeResourceGroup | Value of created PersistentVolume paramer `spec.csi.volumeAttributes.resourceGroup`                                                                  | `""`  |
-| persistentVolume.nodeStageSecretRefName       | Value of created PersistentVolume paramer `spec.csi.nodeStageSecretRef.name`                                                                         | `""`  |
-| persistentVolume.nodeStageSecretRefNamespace  | Value of created PersistentVolume paramer `spec.csi.nodeStageSecretRef.namespace`                                                                    | `""`  |
-
-## Parameters
-
-### Global
-
-The following components can be partially configured:
-- Open Zaak
-- Open Notificaties
-
-Kanalen will only be added to Open Notificaties during Helm install, not on Helm upgrade.
-
-| Name                                              | Description                                                                 | Value                                                           |
-|---------------------------------------------------|-----------------------------------------------------------------------------|-----------------------------------------------------------------|
-| global.configuration.enabled                      | Whether component configuration is enabled                                  | `true`                                                          |
-| global.configuration.overwrite                    | Whether existing component configuration is overwritten                     | `true`                                                          |
-| global.configuration.organization                 | Organization name                                                           | `Example gemeente`                                              |
-| global.configuration.openzaakAutorisatiesApi      | Autorisaties API                                                            | `http//openzaak.podiumd.svc.cluster.local/autorisaties/api/v1/` |
-| global.configuration.notificatiesApi              | Notificaties API                                                            | `http://opennotificaties.podiumd.svc.cluster.local/api/v1/`     |
-| global.configuration.notificatiesOpenzaakClientId | ClientId used by Open Notificaties to access autorisaties API               | `notificaties`                                                  |
-| global.configuration.notificatiesOpenzaakSecret   | Secret used by Open Notificaties to access autorisaties API                 | `notificaties-secret`                                           |
-| global.configuration.openzaakNotificatiesClientId | ClientId used by Open Zaak to send notifications                            | `openzaak`                                                      |
-| global.configuration.openzaakNotificatiesSecret   | Secret used by Open Zaak to send notifications                              | `openzaak-secret`                                               |
-| global.imageRegistry                              | Image registry used by Keycloak, Redis, RabitMQ and Elastic                 | `""`                                                            |
-| global.settings.databaseHost                      | Database host used bij objecten, objecttypen, openinwoner, opennotificaties | `""`                                                            |
-
-### keycloak-operator
-
-The Keycloak Operator is deployed via the [adfinis/keycloak-operator](https://artifacthub.io/packages/helm/adfinis/keycloak-operator) Helm chart, which wraps the official upstream Keycloak Operator manifests from [keycloak/keycloak-k8s-resources](https://github.com/keycloak/keycloak-k8s-resources). It installs the `Keycloak` CRD (`k8s.keycloak.org/v2beta1`) and reconciles `Keycloak` custom resources into running pods.
-
-The deprecated Bitnami `keycloak` sub-chart (`keycloak.enabled`) is kept for rollback purposes only and will be removed in a future release. See `docs/apps/keycloak/migrating-to-keycloak-operator.md` for migration instructions.
-
-| Name                                           | Description                                                                          | Value                                    |
-|------------------------------------------------|--------------------------------------------------------------------------------------|------------------------------------------|
-| keycloak-operator.enabled                      | Deploy the Keycloak Operator (adfinis/keycloak-operator chart)                       | `true`                                   |
-| keycloak-operator.operator.image.repository    | Keycloak Operator controller image repository                                        | `quay.io/keycloak/keycloak-operator`     |
-| keycloak-operator.operator.image.tag           | Keycloak Operator controller image tag                                               | `26.6.3`                                 |
-| keycloak.enabled                               | Deploy legacy Bitnami Keycloak sub-chart (deprecated, use keycloak-operator instead) | `false`                                  |
-| keycloak.name                                  | Name of the `Keycloak` CR created by `keycloak-cr.yaml`                              | `keycloak`                               |
-| keycloak.instances                             | Number of Keycloak replicas                                                          | `2`                                      |
-| keycloak.image.tag                             | Keycloak application image tag                                                       | `26.6.3`                                 |
-| keycloak.hostname.hostname                     | Public hostname for the Keycloak service                                             | `""`                                     |
-| keycloak.hostname.admin                        | Hostname for the Keycloak admin console                                              | `""`                                     |
-| keycloak.http.httpEnabled                      | Enable plain HTTP (required when running behind a reverse proxy)                     | `true`                                   |
-| keycloak.proxy.headers                         | Proxy header forwarding mode (e.g. `xforwarded`)                                    | `""`                                     |
-| keycloak.auth.adminUser                        | Initial bootstrap admin username                                                     | `admin`                                  |
-| keycloak.auth.adminPassword                    | Initial bootstrap admin password                                                     | `ChangeMeNow`                            |
-| keycloak.externalDatabase.host                 | PostgreSQL database host                                                             | `""`                                     |
-| keycloak.externalDatabase.database             | PostgreSQL database name                                                             | `""`                                     |
-| keycloak.externalDatabase.user                 | PostgreSQL database username                                                         | `""`                                     |
-| keycloak.externalDatabase.password             | PostgreSQL database password                                                         | `""`                                     |
-| keycloak.secretsName                           | Name of the Secret containing DB credentials for the operator                        | `keycloak-secrets`                       |
-| keycloak.config.realmFrontendUrl               | URL of Keycloak for end-user login (podiumd realm)                                   | `https://keycloak.example.nl`            |
-| keycloak.config.adminFrontendUrl               | URL of Keycloak for admin console login (master realm)                               | `https://keycloak-admin.example.nl`      |
-| keycloak.nodeSelector                          | Node labels for Keycloak pod assignment                                              | `{}`                                     |
-| keycloak.resources                             | Container resource requests and limits                                               | See values.yaml                          |
-
-
-### ClamAV
-
-| Name                    | Description                                                                    | Value           |
-|-------------------------|--------------------------------------------------------------------------------|-----------------|
-| clamav.enabled          | Boolean to override the installation of ClamAV                                 |                 |
-| clamav.clamdConfig      | Override default clamd.conf file. (https://linux.die.net/man/5/clamd.conf)     | see Chart.yaml  |
-| clamav.freshclamConfig  | Override default clamd.conf file. (https://linux.die.net/man/5/freshclam.conf) | see Chart.yaml  |
-| clamav.image.repository | Image repository                                                               | `clamav/clamav` |
-| clamav.image.tag        | Image tag                                                                      | `1.3.1`         |
-| clamav.image.pullPolicy | Image pull policy                                                              | `IfNotPresent`  |
-| clamav.nodeSelector     | Node labels for pod assignment. Evaluated as a template                        | `{}`            |
-| clamav.resources        | Container requests and limits                                                  | See values.yaml |
-
-
-### BRP Mock
-
-| Name                              | Description                                             | Value                                                 |
-|-----------------------------------|---------------------------------------------------------|-------------------------------------------------------|
-| brpmock.enabled                   | Boolean to override the installation of BRP Mock        | `false`                                               |
-| brpmock.nodeSelector              | Node labels for pod assignment. Evaluated as a template | `{}`                                                  |
-| brpmock.brpproxy.image.repository | Proxy image repository                                  | `iswish/haal-centraal-brp-bevragen-proxy`             |
-| brpmock.brpproxy.image.tag        | Proxy image tag                                         | `2.0.20`                                              |
-| brpmock.brpproxy.image.pullPolicy | Proxy image pull policy                                 | `IfNotPresent`                                        |
-| brpmock.brpproxy.resources        | Proxy container requests and limits                     | See values.yaml                                       |
-| brpmock.gbamock.image.repository  | Mock image repository                                   | `ghcr.io/brp-api/haal-centraal-brp-bevragen-gba-mock` |
-| brpmock.gbamock.image.tag         | Mock image tag                                          | `2.0.8`                                               |
-| brpmock.gbamock.image.pullPolicy  | Mock image pull policy                                  | `IfNotPresent`                                        |
-| brpmock.gbamock.resources         | Mock container requests and limits                      | See values.yaml                                       |
-
-
-### Open Zaak
-
-| Name                                               | Description                                                                                                                                           | Value                                                          |
-|----------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------|
-| openzaak.enabled                                   | Boolean to override the installation of Open Zaak                                                                                                     |                                                                |
-| openzaak.configuration.data | string | `""` |  |
-| openzaak.configuration.enabled | bool | `true` |  |
-| openzaak.configuration.initContainer.enabled | bool | `false` |  |
-| openzaak.configuration.job.backoffLimit | int | `6` |  |
-| openzaak.configuration.job.enabled | bool | `true` |  |
-| openzaak.configuration.job.resources | object | `{}` |  |
-| openzaak.configuration.job.restartPolicy | string | `"Never"` |  |
-| openzaak.configuration.job.ttlSecondsAfterFinished | int | `0` |  |
-| openzaak.configuration.oidcSecret | string | `"<openzaak>"` |  |
-| openzaak.configuration.oidcUrl | string | `"https://openzaak.example.nl"` |  |
-| openzaak.configuration.secrets | object | `{}` |  |
-| openzaak.settings.allowedHosts                     | List if allowed hostnames<br/>(i.e. "openzaak.example.nl,openzaak-nginx.podiumd.svc.cluster.local")                                                   | `openzaak-nginx.podiumd.svc.cluster.local`                     |
-| openzaak.settings.database.host                    | Database host                                                                                                                                         | `""`                                                           |
-| openzaak.settings.database.name                    | Database name                                                                                                                                         | `""`                                                           |
-| openzaak.settings.database.username                | Database username                                                                                                                                     | `""`                                                           |
-| openzaak.settings.database.password                | Database user password                                                                                                                                | `""`                                                           |
-| openzaak.settings.database.sslmode                 | Database SSL mode                                                                                                                                     | `prefer`                                                       |
-| openzaak.settings.email.host                       | Email host                                                                                                                                            | `localhost`                                                    |
-| openzaak.settings.email.port                       | Email port                                                                                                                                            | `587`                                                          |
-| openzaak.settings.email.username                   | Email username                                                                                                                                        | `""`                                                           |
-| openzaak.settings.email.password                   | Email user password                                                                                                                                   | `""`                                                           |
-| openzaak.settings.email.useTLS                     | Email use TLS                                                                                                                                         | `true`                                                         |
-| openzaak.settings.secretKey                        | Django secret key. Generate secret key at https://djecrety.ir/                                                                                        | `""`                                                           |
-| openzaak.settings.environment                      | Sets the `ENVIRONMENT` variable                                                                                                                       | `""`                                                           |
-| openzaak.settings.isHttps                          | Use HTTPS                                                                                                                                             | `true`                                                         |
-| openzaak.settings.debug                            | Enable debug mode                                                                                                                                     | `false`                                                        |
-| openzaak.settings.numProxies                       | Number of proxies                                                                                                                                     | `1`                                                            |
-| openzaak.settings.sentry.dsn                       | Url to Sentry (i.e https://sentry.example.com/111)                                                                                                    | `""`                                                           |
-| openzaak.persistence.existingClaim                 | Manually managed Persistent Volume and Claim                                                                                                          | `openzaak`                                                     |
-| openzaak.persistence.mediaMountSubpath             | Media mount subpath                                                                                                                                   | `openzaak/media`                                               |
-| openzaak.persistence.privateMediaMountSubpath      | Private media mount subpath                                                                                                                           | `openzaak/private_media`                                       |
-| openzaak.persistence.size                          | Size of created PersistentVolume                                                                                                                      | `10Gi`                                                         |
-| openzaak.persistentVolume.volumeAttributeShareName | Value of created PersistentVolume paramer `spec.csi.volumeAttributes.shareName`.<br/>Overriden by `.Values.persistentVolume.volumeAttributeShareName` | `openzaak`                                                     |
-| openzaak.image.repository                          | Image repository                                                                                                                                      | `openzaak/open-zaak`                                           |
-| openzaak.image.tag                                 | Image tag                                                                                                                                             | `1.15.0`                                                       |
-| openzaak.image.pullPolicy                          | Image pull policy                                                                                                                                     | `IfNotPresent`                                                 |
-| openzaak.nodeSelector                              | Node labels for pod assignment. Evaluated as a template                                                                                               | `{}`                                                           |
-| openzaak.resources                                 | Container requests and limits                                                                                                                         | See values.yaml                                                |
-| openzaak.worker.resources                          | Worker container requests and limits                                                                                                                  | See values.yaml                                                |
-| openzaak.nginx.image.repository                    | Nginx image repository                                                                                                                                | `nginxinc/nginx-unprivileged`                                  |
-| openzaak.nginx.image.tag                           | Mginx image tag                                                                                                                                       | `stable`                                                       |
-| openzaak.nginx.image.pullPolicy                    | Nginx image pull policy                                                                                                                               | `IfNotPresent`                                                 |
-| openzaak.nginx.resources                           | Nginx container requests and limits                                                                                                                   | See values.yaml                                                |
-| openzaak.redis.image.registry                      | Redis image registry                                                                                                                                  | `docker.io`                                                    |
-| openzaak.redis.image.repository                    | Redis image repository                                                                                                                                | `bitnami/redis`                                                |
-| openzaak.redis.image.tag                           | Redis image tag                                                                                                                                       | `7.0.5-debian-11-r25`                                          |
-| openzaak.redis.image.pullPolicy                    | Redis image pul policy                                                                                                                                | `IfNotPresent`                                                 |
-| openzaak.redis.master.nodeSelector                 | Redis node labels for pod assignment. Evaluated as a template                                                                                         | `{}`                                                           |
-
-### Open Notificaties
-
-| Name                                                                 | Description                                                                                                                                           | Value                                        |
-|----------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------|
-| opennotificaties.enabled                                             | Boolean to override the installation of Open Notificatues                                                                                             | `true`                                       |
-| opennotificaties.configuration.data | string | `""` |  |
-| opennotificaties.configuration.enabled | bool | `true` |  |
-| opennotificaties.configuration.http_request_job.enabled | bool | `false` |  |
-| opennotificaties.configuration.initContainer.enabled | bool | `false` |  |
-| opennotificaties.configuration.job.backoffLimit | int | `6` |  |
-| opennotificaties.configuration.job.enabled | bool | `true` |  |
-| opennotificaties.configuration.job.resources | object | `{}` |  |
-| opennotificaties.configuration.job.restartPolicy | string | `"OnFailure"` |  |
-| opennotificaties.configuration.job.ttlSecondsAfterFinished | int | `0` |  |
-| opennotificaties.configuration.oidcSecret | string | `"<opennotificaties>"` |  |
-| opennotificaties.configuration.oidcUrl | string | `"https://opennotificaties.example.nl"` |  |
-| opennotificaties.configuration.overwrite | bool | `true` |  |
-| opennotificaties.configuration.secrets | object | `{}` |  |                                 |
-| opennotificaties.settings.allowedHosts                               | List if allowed hostnames<br/>(i.e. "openzaak.example.nl,openzaak-nginx.podiumd.svc.cluster.local")                                                   | `opennotificaties.podiumd.svc.cluster.local` |
-| opennotificaties.settings.database.host                              | Database host. Overides global.settings.databaseHost                                                                                                  | `""`                                         |
-| opennotificaties.settings.database.port                              | Database port                                                                                                                                         | `5432`                                       |
-| opennotificaties.settings.database.name                              | Database name                                                                                                                                         | `""`                                         |
-| opennotificaties.settings.database.username                          | Database username                                                                                                                                     | `""`                                         |
-| opennotificaties.settings.database.password                          | Database user password                                                                                                                                | `""`                                         |
-| opennotificaties.settings.database.sslmode                           | Database SSL mode                                                                                                                                     | `prefer`                                     |
-| opennotificaties.settings.email.host                                 | Email host                                                                                                                                            | `localhost`                                  |
-| opennotificaties.settings.email.port                                 | Email port                                                                                                                                            | `587`                                        |
-| opennotificaties.settings.email.username                             | Email username                                                                                                                                        | `""`                                         |
-| opennotificaties.settings.email.password                             | Email user password                                                                                                                                   | `""`                                         |
-| opennotificaties.settings.email.useTLS                               | Email use TLS                                                                                                                                         | `true`                                       |
-| opennotificaties.settings.secretKey                                  | Django secret key. Generate secret key at https://djecrety.ir/                                                                                        | `""`                                         |
-| opennotificaties.settings.environment                                | Sets the `ENVIRONMENT` variable                                                                                                                       | `""`                                         |
-| opennotificaties.settings.isHttps                                    | Use HTTPS                                                                                                                                             | `true`                                       |
-| opennotificaties.settings.debug                                      | Enable debug mode                                                                                                                                     | `false`                                      |
-| opennotificaties.settings.cleanOldNotifications.enabled              | Enable leaning of logged notifications                                                                                                                | `true`                                       |
-| opennotificaties.settings.cleanOldNotifications.daysRetained         | Number of days to retain logged notifications                                                                                                         | `30`                                         |
-| opennotificaties.settings.cleanOldNotifications.cronjob.schedule     | Schedule to run the clean logged notifications cronjob                                                                                                | `"0 0 * * *"`                                |
-| opennotificaties.settings.cleanOldNotifications.cronjob.historyLimit | Number of succesful and failed jobs to keep                                                                                                           | `1`                                          |
-| opennotificaties.settings.maxRetries                                 | Maximum number of automatic retries. After this amount of retries,<br/>Open Notificaties stops trying to deliver the message                          | `5`                                          |
-| opennotificaties.settings.retryBackoff                               | A factor applied to the exponential backoff.<br/>This allows you to tune how quickly automatic retries are performed                                  | `3`                                          |
-| opennotificaties.settings.retryBackoffMax                            | Upper limit to the exponential backoff time                                                                                                           | `48`                                         |
-| opennotificaties.settings.requestsTimeout                            | Timeout in seconds for HTTP requests.                                                                                                           | `60`                                         |
-| opennotificaties.settings.numProxies                                 | Number of proxies                                                                                                                                     | `1`                                          |
-| opennotificaties.settings.sentry.dsn                                 | Url to Sentry (i.e https://sentry.example.com/111)                                                                                                    | `""`                                         |
-| opennotificaties.persistence.existingClaim                           | Manually managed Persistent Volume and Claim                                                                                                          | `opennotificaties`                           |
-| opennotificaties.persistence.mediaMountSubpath                       | Media mount subpath                                                                                                                                   | `opennotificaties/media`                     |
-| opennotificaties.persistence.size                                    | Size of created PersistentVolume                                                                                                                      | `10Gi`                                       |
-| opennotificaties.persistentVolume.volumeAttributeShareName           | Value of created PersistentVolume paramer `spec.csi.volumeAttributes.shareName`.<br/>Overriden by `.Values.persistentVolume.volumeAttributeShareName` | `opennotificaties`                           |
-| opennotificaties.image.repository                                    | Image repository                                                                                                                                      | `openzaak/open-notificaties`                 |
-| opennotificaties.image.tag                                           | Image tag                                                                                                                                             | `1.7.1`                                      |
-| opennotificaties.image.pullPolicy                                    | Image pull policy                                                                                                                                     | `IfNotPresent`                               |
-| opennotificaties.nodeSelector                                        | Node labels for pod assignment. Evaluated as a template                                                                                               | `{}`                                         |
-| opennotificaties.resources                                           | Container requests and limits                                                                                                                         | See values.yaml                              |
-| opennotificaties.worker.resources                                    | Worker container requests and limits                                                                                                                  | See values.yaml                              |
-| opennotificaties.rabbitmq.auth.username                              | RabitMQ username                                                                                                                                      | `guest`                                      |
-| opennotificaties.rabbitmq.auth.password                              | RabitMQ user password                                                                                                                                 | `guest`                                      |
-| opennotificaties.rabbitmq.auth.erlangCookie                          | RabitMQ erlang cookie                                                                                                                                 | `SUPER-SECRET`                               |
-| opennotificaties.rabbitmq.image.repository                           | RabitMQ image repository                                                                                                                              | `bitnami/rabbitmq`                           |
-| opennotificaties.rabbitmq.image.tag                                  | RabitMQ image tag                                                                                                                                     | `3.11.8-debian-11-r0`                        |
-| opennotificaties.rabbitmq.image.pullPolicy                           | RabitMQ image pul policy                                                                                                                              | `IfNotPresent`                               |
-| opennotificaties.rabbitmq.nodeSelector                               | RabitMQ node labels for pod assignment. Evaluated as a template                                                                                       | `{}`                                         |
-| opennotificaties.rabbitmq.resources                                  | RabitMQ container requests and limits                                                                                                                 | See values.yaml                              |
-| opennotificaties.redis.image.registry                                | Redis image registry                                                                                                                                  | `docker.io`                                  |
-| opennotificaties.redis.image.repository                              | Redis image repository                                                                                                                                | `bitnami/redis`                              |
-| opennotificaties.redis.image.tag                                     | Redis image tag                                                                                                                                       | `7.0.5-debian-11-r25`                        |
-| opennotificaties.redis.image.pullPolicy                              | Redis image pul policy                                                                                                                                | `IfNotPresent`                               |
-| opennotificaties.redis.master.nodeSelector                           | Redis node labels for pod assignment. Evaluated as a template                                                                                         | `{}`                                         |
-
-### Objecten
-
-| Name                                               | Description                                                                                                                                           | Value                                |
-|----------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------|
-| objecten.enabled                                   | Boolean to override the installation of Objecten                                                                                                      |                                      |
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| apiproxy.affinity | object | `{}` |  |
+| apiproxy.enabled | bool | `false` |  |
+| apiproxy.errorLogLevel | string | `"notice"` | nginx error_log level (debug|info|notice|warn|error|crit|alert|emerg). "debug" logs full request/response headers (incl. injected API keys/toepassing headers) and is very high-volume — use only for short-lived troubleshooting, never leave enabled given the BRP/citizen-data traffic this proxy carries. |
+| apiproxy.image.pullPolicy | string | `"IfNotPresent"` |  |
+| apiproxy.image.repository | string | `"nginxinc/nginx-unprivileged"` |  |
+| apiproxy.image.tag | string | `"1.31.3@sha256:49c9bef1797e11117a7f490fd00f282e377ac402fec472c72636f90cdbf72e10"` |  |
+| apiproxy.imagePullSecrets | list | `[]` |  |
+| apiproxy.livenessProbe.initialDelaySeconds | int | `5` |  |
+| apiproxy.livenessProbe.periodSeconds | int | `10` |  |
+| apiproxy.locations.bag.<<.hostHeader | string | `"lab.api.mijniconnect.nl"` |  |
+| apiproxy.locations.bag.<<.sslVerify | string | `""` |  |
+| apiproxy.locations.bag.path | string | `"/lvbag/individuelebevragingen/v2/"` |  |
+| apiproxy.locations.bag.targetUrl | string | `"https://lab.api.mijniconnect.nl/iconnect/apibagib/v2/"` |  |
+| apiproxy.locations.bag.urlRewrite.enabled | bool | `false` |  |
+| apiproxy.locations.bag.urlRewrite.internalUrl | string | `"http://api-proxy/lvbag/individuelebevragingen/v2/"` |  |
+| apiproxy.locations.brp.<<.hostHeader | string | `"lab.api.mijniconnect.nl"` |  |
+| apiproxy.locations.brp.<<.sslVerify | string | `""` |  |
+| apiproxy.locations.brp.path | string | `"/haalcentraal/api/brp/"` |  |
+| apiproxy.locations.brp.targetUrl | string | `"https://lab.api.mijniconnect.nl/iconnect/apihcbrp/actueel/prtcl/v2/"` |  |
+| apiproxy.locations.brp.toepassingDefaultValue | string | `""` |  |
+| apiproxy.locations.brp.toepassingHeaderName | string | `""` |  |
+| apiproxy.locations.commonSettings.hostHeader | string | `"lab.api.mijniconnect.nl"` |  |
+| apiproxy.locations.commonSettings.sslVerify | string | `""` |  |
+| apiproxy.locations.kvkBasic.<<.hostHeader | string | `"lab.api.mijniconnect.nl"` |  |
+| apiproxy.locations.kvkBasic.<<.sslVerify | string | `""` |  |
+| apiproxy.locations.kvkBasic.targetUrl | string | `"https://lab.api.mijniconnect.nl/iconnect/apikvk/basprof/v1/v1/basisprofielen"` |  |
+| apiproxy.locations.kvkBranch.<<.hostHeader | string | `"lab.api.mijniconnect.nl"` |  |
+| apiproxy.locations.kvkBranch.<<.sslVerify | string | `""` |  |
+| apiproxy.locations.kvkBranch.targetUrl | string | `"https://lab.api.mijniconnect.nl/iconnect/apikvk/vesprof/v1/v1/vestigingsprofielen"` |  |
+| apiproxy.locations.kvkSearch.<<.hostHeader | string | `"lab.api.mijniconnect.nl"` |  |
+| apiproxy.locations.kvkSearch.<<.sslVerify | string | `""` |  |
+| apiproxy.locations.kvkSearch.targetUrl | string | `"https://lab.api.mijniconnect.nl/iconnect/apikvk/zoeken/v2/zoeken"` |  |
+| apiproxy.nginxCertsSecret | string | `""` | Secret containing client certificate (`client.crt`/`client.key`) and CA bundle (`ca.crt`) for upstream mTLS. Leave empty to disable mTLS and skip the cert volume mount. When set, `sslVerify` auto-derives to "on"; when empty it auto-derives to "off". |
+| apiproxy.nodeSelector | object | `{}` |  |
+| apiproxy.readinessProbe.initialDelaySeconds | int | `5` |  |
+| apiproxy.readinessProbe.periodSeconds | int | `10` |  |
+| apiproxy.replicaCount | int | `1` |  |
+| apiproxy.resolverIp | string | `"10.0.0.10"` |  |
+| apiproxy.resources.limits.cpu | string | `"0.5"` |  |
+| apiproxy.resources.limits.memory | string | `"256Mi"` |  |
+| apiproxy.resources.requests.cpu | string | `"0.1"` |  |
+| apiproxy.resources.requests.memory | string | `"128Mi"` |  |
+| apiproxy.service.containerPort | int | `8080` |  |
+| apiproxy.service.port | int | `80` |  |
+| apiproxy.sslVerifyDepth | int | `6` | Maximum length of the upstream server certificate chain validated by nginx (`proxy_ssl_verify_depth`). Government API gateways occasionally chain through cross-signed intermediates; the nginx default of 1 is too shallow. Per-location overrides: set `apiproxy.locations.<loc>.sslVerifyDepth` to override this global value for a single upstream (e.g. bag, brp, kvkSearch). |
+| apiproxy.tolerations | list | `[]` |  |
+| clamav.clamdConfig | string | `"###############\n# General\n###############\n\nDatabaseDirectory /var/lib/clamav\nTemporaryDirectory /tmp\nLogTime yes\n# CUSTOM: Use pid file in tmp\nPidFile /tmp/clamd.pid\nLocalSocket /tmp/clamd.sock\nTCPSocket 3310\nForeground yes\n# Reload database sequentially to avoid double memory usage (~1.2 GiB vs ~2.4 GiB)\n# Scans are briefly blocked during reload, which is acceptable\nConcurrentDatabaseReload no\nMaxThreads 10\n\n###############\n# Results\n###############\n\nDetectPUA yes\nExcludePUA NetTool\nExcludePUA PWTool\nHeuristicAlerts yes\nBytecode yes\n\n###############\n# Scan\n###############\n\nScanPE yes\nDisableCertCheck yes\nScanELF yes\nAlertBrokenExecutables yes\nScanOLE2 yes\nScanPDF yes\nScanSWF yes\nScanMail yes\nPhishingSignatures yes\nPhishingScanURLs yes\nScanHTML yes\nScanArchive yes\n\n###############\n# Limits\n###############\n\nMaxScanSize 150M\nMaxFileSize 100M\n# Match MaxFileSize so stream scans have the same ceiling as file scans\nStreamMaxLength 100M\nMaxRecursion 10\nMaxFiles 15000\nMaxEmbeddedPE 10M\nMaxHTMLNormalize 10M\nMaxHTMLNoTags 2M\nMaxScriptNormalize 5M\nMaxZipTypeRcg 1M\nMaxPartitions 128\nMaxIconsPE 200\nPCREMatchLimit 10000\nPCRERecMatchLimit 10000\n"` |  |
+| clamav.extraVolumeMounts[0].mountPath | string | `"/var/lib/clamav"` |  |
+| clamav.extraVolumeMounts[0].name | string | `"clamav-data"` |  |
+| clamav.freshclamConfig | string | `"###############\n# General\n###############\n\nDatabaseDirectory /var/lib/clamav\nPidFile /tmp/freshclam.pid\n# CUSTOM: Set defined user\nDatabaseOwner 2000\n\n###############\n# Updates\n###############\n\nDatabaseMirror database.clamav.net\nScriptedUpdates yes\nNotifyClamd /etc/clamav/clamd.conf\nBytecode yes\n"` |  |
+| clamav.fullnameOverride | string | `"clamav"` |  |
+| clamav.image.tag | string | `"1.5.2"` |  |
+| clamav.metrics.enabled | bool | `false` |  |
+| clamav.metrics.image.repository | string | `"docker.io/sergeymakinen/clamav_exporter"` |  |
+| clamav.metrics.image.tag | string | `"v2.1.3"` |  |
+| clamav.metrics.serviceMonitor.enabled | bool | `false` |  |
+| clamav.nameOverride | string | `"clamav"` |  |
+| clamav.persistentVolume.enabled | bool | `true` |  |
+| clamav.persistentVolume.size | string | `"2Gi"` |  |
+| clamav.persistentVolume.storageClass | string | `"managed-csi"` |  |
+| clamav.resources.limits.cpu | string | `"1000m"` |  |
+| clamav.resources.limits.memory | string | `"3Gi"` |  |
+| clamav.resources.requests.cpu | string | `"250m"` |  |
+| clamav.resources.requests.memory | string | `"2Gi"` |  |
+| clamav.startupProbe.failureThreshold | int | `9` |  |
+| clamav.startupProbe.initialDelaySeconds | int | `60` |  |
+| clamav.startupProbe.periodSeconds | int | `30` |  |
+| clamav.startupProbe.timeoutSeconds | int | `5` |  |
+| eck-operator.config.validateStorageClass | bool | `false` |  |
+| eck-operator.createClusterScopedResources | bool | `false` |  |
+| eck-operator.enabled | bool | `true` |  |
+| eck-operator.installCRDs | bool | `true` | the chart installs and upgrades the 12 *.k8s.elastic.co CRDs, in lock-step with the operator version. The CRDs carry helm.sh/resource-policy: keep, so `helm uninstall` never removes them (the Elastic CRs and their data survive). Requires cluster-scope RBAC on the deploying identity. Clusters whose CRDs predate helm ownership (kisselastic era / manual apply) need a one-time adoption: deploy with `--take-ownership` (helm >= 3.17) or annotate the CRDs once — see docs/apps/elastic/migrating-to-eck-stack.md section 4b. Installers without cluster-scope RBAC: set false and apply the CRDs manually (same doc). override: values-enable-observability.yaml sets config.metricsPort and enables podMonitor |
+| eck-operator.managedNamespaces[0] | string | `"podiumd"` |  |
+| eck-operator.podMonitor.enabled | bool | `false` |  |
+| eck-operator.webhook.enabled | bool | `false` |  |
+| frankgateway.admin.adminKey | string | `""` |  |
+| frankgateway.admin.viewerKey | string | `""` |  |
+| frankgateway.apiKeys.envNames[0] | string | `"BAG_API_KEY"` |  |
+| frankgateway.apiKeys.envNames[1] | string | `"KVK_API_KEY"` |  |
+| frankgateway.apiKeys.existingSecret | string | `"frankgateway-api-keys"` |  |
+| frankgateway.dashboard.adminPassword | string | `""` |  |
+| frankgateway.dashboard.auth.dnsResolver | string | `"10.0.0.10"` |  |
+| frankgateway.dashboard.auth.enabled | bool | `true` |  |
+| frankgateway.dashboard.auth.hostname | string | `""` |  |
+| frankgateway.dashboard.auth.oauth2Proxy.image.repository | string | `"quay.io/oauth2-proxy/oauth2-proxy"` |  |
+| frankgateway.dashboard.auth.oauth2Proxy.image.tag | string | `"v7.7.1"` |  |
+| frankgateway.dashboard.auth.oauth2Proxy.nodeSelector | object | `{}` |  |
+| frankgateway.dashboard.auth.oauth2Proxy.resources.limits.cpu | string | `"250m"` |  |
+| frankgateway.dashboard.auth.oauth2Proxy.resources.limits.memory | string | `"256Mi"` |  |
+| frankgateway.dashboard.auth.oauth2Proxy.resources.requests.cpu | string | `"25m"` |  |
+| frankgateway.dashboard.auth.oauth2Proxy.resources.requests.memory | string | `"64Mi"` |  |
+| frankgateway.dashboard.auth.sessionRedisUrl | string | `""` |  |
+| frankgateway.dashboard.auth.shim.image.pullPolicy | string | `"IfNotPresent"` |  |
+| frankgateway.dashboard.auth.shim.image.repository | string | `"nginxinc/nginx-unprivileged"` |  |
+| frankgateway.dashboard.auth.shim.image.tag | string | `"1.31.3@sha256:49c9bef1797e11117a7f490fd00f282e377ac402fec472c72636f90cdbf72e10"` |  |
+| frankgateway.dashboard.auth.shim.nodeSelector | object | `{}` |  |
+| frankgateway.dashboard.auth.shim.resources.limits.cpu | string | `"250m"` |  |
+| frankgateway.dashboard.auth.shim.resources.limits.memory | string | `"128Mi"` |  |
+| frankgateway.dashboard.auth.shim.resources.requests.cpu | string | `"25m"` |  |
+| frankgateway.dashboard.auth.shim.resources.requests.memory | string | `"32Mi"` |  |
+| frankgateway.dashboard.enabled | bool | `true` |  |
+| frankgateway.dashboard.image.repository | string | `"apache/apisix-dashboard"` |  |
+| frankgateway.dashboard.image.tag | string | `"3.0.1-alpine"` |  |
+| frankgateway.dashboard.ingress.clusterIssuer | string | `"letsencrypt-prod"` |  |
+| frankgateway.dashboard.ingress.enabled | bool | `false` |  |
+| frankgateway.dashboard.nodeSelector | object | `{}` |  |
+| frankgateway.dashboard.resources.limits.cpu | string | `"500m"` |  |
+| frankgateway.dashboard.resources.limits.memory | string | `"512Mi"` |  |
+| frankgateway.dashboard.resources.requests.cpu | string | `"50m"` |  |
+| frankgateway.dashboard.resources.requests.memory | string | `"128Mi"` |  |
+| frankgateway.enabled | bool | `false` |  |
+| frankgateway.etcd.image.repository | string | `"quay.io/coreos/etcd"` |  |
+| frankgateway.etcd.image.tag | string | `"v3.5.16"` |  |
+| frankgateway.etcd.nodeSelector | object | `{}` |  |
+| frankgateway.etcd.resources.limits.cpu | string | `"500m"` |  |
+| frankgateway.etcd.resources.limits.memory | string | `"512Mi"` |  |
+| frankgateway.etcd.resources.requests.cpu | string | `"50m"` |  |
+| frankgateway.etcd.resources.requests.memory | string | `"128Mi"` |  |
+| frankgateway.etcd.storage | string | `"2Gi"` |  |
+| frankgateway.etcd.storageClassName | string | `""` |  |
+| frankgateway.image.repository | string | `"ghcr.io/wearefrank/frank-gateway"` |  |
+| frankgateway.image.tag | string | `"104@sha256:a830b90f8820f5cdb0c382ecef02a302c50d129edc9de81d7daa7af1cf267d98"` |  |
+| frankgateway.metrics.enabled | bool | `false` |  |
+| frankgateway.metrics.serviceMonitor.enabled | bool | `false` |  |
+| frankgateway.metrics.serviceMonitor.interval | string | `"30s"` |  |
+| frankgateway.nodeSelector | object | `{}` |  |
+| frankgateway.replicas | int | `1` |  |
+| frankgateway.resources.limits.cpu | string | `"1"` |  |
+| frankgateway.resources.limits.memory | string | `"1Gi"` |  |
+| frankgateway.resources.requests.cpu | string | `"100m"` |  |
+| frankgateway.resources.requests.memory | string | `"256Mi"` |  |
+| frankgateway.routes.job.backoffLimit | int | `3` |  |
+| frankgateway.routes.job.image.pullPolicy | string | `"IfNotPresent"` |  |
+| frankgateway.routes.job.image.repository | string | `"curlimages/curl"` |  |
+| frankgateway.routes.job.image.tag | string | `"8.21.0@sha256:7c12af72ceb38b7432ab85e1a265cff6ae58e06f95539d539b654f2cfa64bb13"` |  |
+| frankgateway.routes.job.nodeSelector | object | `{}` |  |
+| frankgateway.routes.job.ttlSecondsAfterFinished | int | `600` |  |
+| frankgateway.routes.seed | bool | `true` |  |
+| frankgateway.tls.enabled | bool | `false` |  |
+| frankgateway.tls.port | int | `9443` |  |
+| global.configuration.enabled | bool | `true` |  |
+| global.configuration.organization | string | `"Example gemeente"` |  |
+| global.configuration.overwrite | bool | `true` |  |
+| global.imageRegistry | string | `""` |  |
+| global.images.busybox.pullPolicy | string | `"IfNotPresent"` |  |
+| global.images.busybox.repository | string | `"library/busybox"` |  |
+| global.images.busybox.tag | string | `"1.38.0-glibc@sha256:3ba030337caebbfc2232b22b1e435eb213b28e5844a34942c74555bf904a265a"` |  |
+| global.images.curl.pullPolicy | string | `"IfNotPresent"` |  |
+| global.images.curl.repository | string | `"curlimages/curl"` |  |
+| global.images.curl.tag | string | `"8.21.0@sha256:7c12af72ceb38b7432ab85e1a265cff6ae58e06f95539d539b654f2cfa64bb13"` |  |
+| global.images.nginx.pullPolicy | string | `"IfNotPresent"` |  |
+| global.images.nginx.repository | string | `"nginxinc/nginx-unprivileged"` |  |
+| global.images.nginx.tag | string | `"1.31.3@sha256:49c9bef1797e11117a7f490fd00f282e377ac402fec472c72636f90cdbf72e10"` |  |
+| global.settings.databaseHost | string | `""` |  |
+| ita.afdeling.type | string | `"https://ontw-objecttypen.example.nl/api/v2/objecttypes/REP_CONTACT_AFDELING_UUID_REP"` |  |
+| ita.afdeling.typeVersion | int | `1` |  |
+| ita.afdeling.uuid | string | `"REP_CONTACT_AFDELING_UUID_REP"` |  |
+| ita.affinity | object | `{}` |  |
+| ita.apiConnections.object.apiKey | string | `"REP_OBJECTEN_CREDENTIALS_ITA_TOKEN_REP"` |  |
+| ita.apiConnections.object.baseUrl | string | `"https://objecten.example.nl/api/v2/"` |  |
+| ita.apiConnections.openKlant.apiKey | string | `"REP_OPENKLANT_CREDENTIALS_ITA_TOKEN_REP"` |  |
+| ita.apiConnections.openKlant.baseUrl | string | `"https://openklant.example.nl/klantinteracties/api/v1/"` |  |
+| ita.apiConnections.zaakSysteem.baseUrl | string | `"https://openzaak.example.nl"` |  |
+| ita.apiConnections.zaakSysteem.clientId | string | `"ita"` |  |
+| ita.apiConnections.zaakSysteem.key | string | `"REP_OPENZAAK_CREDENTIALS_ITA_SECRET_REP"` |  |
+| ita.database.host | string | `"REP_ITA_DATABASE_HOST_REP"` |  |
+| ita.database.name | string | `"ita"` |  |
+| ita.database.password | string | `"REP_ITA_DATABASE_PASSWORD_REP"` |  |
+| ita.database.port | string | `"5432"` |  |
+| ita.database.username | string | `"ita"` |  |
+| ita.enabled | bool | `true` |  |
+| ita.fullnameOverride | string | `"ita"` |  |
+| ita.groep.type | string | `"https://ontw-objecttypen.example.nl/api/v2/objecttypes/REP_CONTACT_GROEP_UUID_REP"` |  |
+| ita.groep.typeVersion | int | `1` |  |
+| ita.groep.uuid | string | `"REP_CONTACT_GROEP_UUID_REP"` |  |
+| ita.imagePullSecrets | list | `[]` |  |
+| ita.ingress.enabled | bool | `false` |  |
+| ita.ita.baseUrl | string | `"https://ita.example.nl"` |  |
+| ita.logboek.type | string | `"https://ontw-objecttypen.example.nl/api/v2/objecttypes/REP_ITA_ACTIVITEITENLOG_UUID_REP"` |  |
+| ita.logboek.typeVersion | int | `1` |  |
+| ita.medewerker.type | string | `"https://ontw-objecttypen.example.nl/api/v2/objecttypes/REP_CONTACT_MEDEWERKER_UUID_REP"` |  |
+| ita.medewerker.typeVersion | int | `1` |  |
+| ita.medewerker.uuid | string | `"REP_CONTACT_MEDEWERKER_UUID_REP"` |  |
+| ita.nameOverride | string | `""` |  |
+| ita.nodeSelector | object | `{}` |  |
+| ita.poller.image.pullPolicy | string | `"IfNotPresent"` |  |
+| ita.poller.image.repository | string | `"ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller"` |  |
+| ita.poller.image.tag | string | `"3.2.0"` |  |
+| ita.poller.notification.hourThreshold | string | `"-24"` |  |
+| ita.poller.notification.pollerMessage | string | `"Poller uitgevoerd om:"` |  |
+| ita.poller.resources.limits.cpu | string | `"100m"` |  |
+| ita.poller.resources.limits.memory | string | `"256Mi"` |  |
+| ita.poller.resources.requests.cpu | string | `"50m"` |  |
+| ita.poller.resources.requests.memory | string | `"128Mi"` |  |
+| ita.poller.schedule | string | `"*/15 * * * *"` |  |
+| ita.postgresql.enabled | bool | `false` |  |
+| ita.replicaCount | int | `1` |  |
+| ita.smtp.enableSsl | string | `"true"` |  |
+| ita.smtp.fromEmail | string | `""` |  |
+| ita.smtp.host | string | `"mail.example.nl"` |  |
+| ita.smtp.password | string | `""` |  |
+| ita.smtp.port | string | `"587"` |  |
+| ita.smtp.username | string | `""` |  |
+| ita.tolerations | list | `[]` |  |
+| ita.web.image.pullPolicy | string | `"IfNotPresent"` |  |
+| ita.web.image.tag | string | `"3.2.0"` |  |
+| ita.web.oidc.authority | string | `"REP_ITA_OIDC_AUTHORITY_REP"` |  |
+| ita.web.oidc.clientId | string | `"ita"` |  |
+| ita.web.oidc.clientSecret | string | `"REP_ITA_OIDC_CLIENT_SECRET_REP"` |  |
+| ita.web.oidc.emailClaimType | string | `"email"` |  |
+| ita.web.oidc.frontendUrl | string | `"REP_ITA_OIDC_FRONTEND_URL_REP"` |  |
+| ita.web.oidc.functioneelBeheerderRole | string | `"ITA_Functioneel_Beheerder"` |  |
+| ita.web.oidc.itaSystemAccessRole | string | `"ITA_Gebruiker"` |  |
+| ita.web.oidc.nameClaimType | string | `"name"` |  |
+| ita.web.oidc.objectregisterMedewerkerIdClaimType | string | `"samaccountname"` |  |
+| ita.web.oidc.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client for ITA. ITA is a JS frontend; the upstream chart has no app-side PKCE toggle. PKCE support depends on the OIDC client library used by the application. |
+| ita.web.oidc.roleClaimType | string | `"roles"` |  |
+| ita.web.resources.limits.cpu | string | `"200m"` |  |
+| ita.web.resources.limits.memory | string | `"256Mi"` |  |
+| ita.web.resources.requests.cpu | string | `"100m"` |  |
+| ita.web.resources.requests.memory | string | `"128Mi"` |  |
+| ita.web.service.port | int | `80` |  |
+| ita.web.service.type | string | `"ClusterIP"` |  |
+| keycloak-operator.enableServiceMonitor | bool | `false` |  |
+| keycloak-operator.enabled | bool | `true` |  |
+| keycloak-operator.fullnameOverride | string | `"keycloak"` |  |
+| keycloak-operator.jobs.configCliResources | object | `{"limits":{"cpu":"200m","memory":"512Mi"},"requests":{"cpu":"50m","memory":"256Mi"}}` | Resources for the kc-config-cli containers (Spring Boot JVM app) in import-podiumd-realm and import-master-realm jobs. |
+| keycloak-operator.jobs.ensureOperatorSa.clientSecret | string | `""` |  |
+| keycloak-operator.jobs.ensureOperatorSa.enabled | bool | `true` |  |
+| keycloak-operator.jobs.ensureOperatorSa.image.pullPolicy | string | `"IfNotPresent"` |  |
+| keycloak-operator.jobs.ensureOperatorSa.image.repository | string | `"curlimages/curl"` |  |
+| keycloak-operator.jobs.ensureOperatorSa.image.tag | string | `"8.21.0@sha256:7c12af72ceb38b7432ab85e1a265cff6ae58e06f95539d539b654f2cfa64bb13"` |  |
+| keycloak-operator.jobs.ensurePodiumdAdminUser.enabled | bool | `true` |  |
+| keycloak-operator.jobs.ensurePodiumdAdminUser.image.registry | string | `""` |  |
+| keycloak-operator.jobs.ensurePodiumdAdminUser.image.repository | string | `"postgres"` |  |
+| keycloak-operator.jobs.ensurePodiumdAdminUser.image.tag | string | `"16"` |  |
+| keycloak-operator.jobs.ensurePodiumdAdminUser.initImage.registry | string | `""` |  |
+| keycloak-operator.jobs.ensurePodiumdAdminUser.initImage.repository | string | `"python"` |  |
+| keycloak-operator.jobs.ensurePodiumdAdminUser.initImage.tag | string | `"3.14-slim@sha256:b877e50bd90de10af8d82c57a022fc2e0dc731c5320d762a27986facfc3355c1"` |  |
+| keycloak-operator.jobs.importMasterRealm.enabled | bool | `true` |  |
+| keycloak-operator.jobs.importPodiumdRealm.enabled | bool | `true` |  |
+| keycloak-operator.jobs.keycloakUrl | string | `""` | Keycloak URL used by the realm-import jobs (keycloak-config-cli). Empty = in-cluster service (http://keycloak-service:8080). Set only when the jobs must reach Keycloak via another URL; note the public admin host can sit behind a gateway IP-allowlist that blocks cluster egress (403). |
+| keycloak-operator.jobs.resources | object | `{"limits":{"cpu":"200m","memory":"128Mi"},"requests":{"cpu":"50m","memory":"64Mi"}}` | Resources applied to lightweight keycloak job containers (curl, python, psql): ensure-operator-sa, ensure-podiumd-admin-user. |
+| keycloak-operator.operator.config.keycloakImage.repository | string | `"quay.io/keycloak/keycloak"` |  |
+| keycloak-operator.operator.config.keycloakImage.sha | string | `"0aae0de7fca85525f727d3354df17896092de8bb26ae4c12d89c77e5df8cbce4"` |  |
+| keycloak-operator.operator.config.keycloakImage.tag | string | `"26.6.4"` |  |
+| keycloak-operator.operator.image.repository | string | `"quay.io/keycloak/keycloak-operator"` |  |
+| keycloak-operator.operator.image.tag | string | `"26.6.4"` |  |
+| keycloak-operator.operator.resources.limits.cpu | string | `"500m"` |  |
+| keycloak-operator.operator.resources.limits.memory | string | `"768Mi"` |  |
+| keycloak-operator.operator.resources.requests.cpu | string | `"100m"` |  |
+| keycloak-operator.operator.resources.requests.memory | string | `"128Mi"` |  |
+| keycloak-operator.serviceAccount.create | bool | `false` |  |
+| keycloak.additionalOptions[0].name | string | `"health-enabled"` |  |
+| keycloak.additionalOptions[0].value | string | `"true"` |  |
+| keycloak.additionalOptions[1].name | string | `"metrics-enabled"` |  |
+| keycloak.additionalOptions[1].value | string | `"true"` |  |
+| keycloak.additionalOptions[2].name | string | `"cache"` |  |
+| keycloak.additionalOptions[2].value | string | `"ispn"` |  |
+| keycloak.additionalOptions[3].name | string | `"cache-stack"` |  |
+| keycloak.additionalOptions[3].value | string | `""` |  |
+| keycloak.auth.adminPassword | string | `""` |  |
+| keycloak.auth.adminUser | string | `"admin"` |  |
+| keycloak.config.accessTokenLifespan | int | `60` |  |
+| keycloak.config.adminFrontendUrl | string | `"https://keycloak-admin.example.nl"` |  |
+| keycloak.config.clients.datamigratie.enabled | bool | `true` |  |
+| keycloak.config.clients.datamigratie.name | string | `"Datamigratie"` |  |
+| keycloak.config.clients.datamigratie.oidcUrl | string | `"https://datamigratie.example.nl"` |  |
+| keycloak.config.clients.datamigratie.secret | string | `""` |  |
+| keycloak.config.clients.monitoring.enabled | bool | `true` |  |
+| keycloak.config.clients.monitoring.name | string | `"Monitoring (Grafana)"` |  |
+| keycloak.config.clients.monitoring.oidcUrl | string | `"https://monitoring.example.nl"` |  |
+| keycloak.config.clients.monitoring.secret | string | `""` |  |
+| keycloak.config.clients.zaakbrug.enabled | bool | `true` |  |
+| keycloak.config.clients.zaakbrug.name | string | `"Zaakbrug Frank!Framework console"` |  |
+| keycloak.config.clients.zaakbrug.oidcUrl | string | `"https://zaakbrug.example.nl"` |  |
+| keycloak.config.clients.zaakbrug.secret | string | `""` |  |
+| keycloak.config.realm | string | `"podiumd"` | identity provider mapper for the admin realm adminIdentityProviderMappers: {} |
+| keycloak.config.realmDisplayName | string | `"PodiumD"` |  |
+| keycloak.config.realmFrontendUrl | string | `"https://keycloak.example.nl"` |  |
+| keycloak.config.skipGroups | bool | `true` |  |
+| keycloak.config.skipRoles | bool | `true` |  |
+| keycloak.config.smtp.from | string | `"noreply@example.nl"` |  |
+| keycloak.config.smtp.fromDisplayName | string | `"Example Gemeente"` |  |
+| keycloak.config.smtp.port | string | `"587"` |  |
+| keycloak.config.smtp.server | string | `"mail.example.nl"` |  |
+| keycloak.config.smtp.ssl | string | `"false"` |  |
+| keycloak.config.smtp.starttls | string | `"true"` |  |
+| keycloak.db | object | `{"database":"","host":"","passwordSecret":{"key":"","name":""},"port":"","usernameSecret":{"key":"","name":""},"vendor":""}` | db uses the new keycloak-operator CRD structure (falls back to externalDatabase.*) |
+| keycloak.externalDatabase.database | string | `""` |  |
+| keycloak.externalDatabase.host | string | `"postgres"` |  |
+| keycloak.externalDatabase.password | string | `""` |  |
+| keycloak.externalDatabase.port | int | `5432` |  |
+| keycloak.externalDatabase.user | string | `""` |  |
+| keycloak.externalDatabase.vendor | string | `"postgres"` |  |
+| keycloak.features.enabled | list | `[]` |  |
+| keycloak.hostname | object | `{"admin":"","hostname":""}` | new hostname configuration for keycloak-operator, falls back to config.adminFrontendUrl if not defined |
+| keycloak.http.httpEnabled | bool | `true` |  |
+| keycloak.image.registry | string | `""` |  |
+| keycloak.image.repository | string | `"quay.io/keycloak/keycloak"` |  |
+| keycloak.image.tag | string | `"26.6.4@sha256:0aae0de7fca85525f727d3354df17896092de8bb26ae4c12d89c77e5df8cbce4"` |  |
+| keycloak.ingress.enabled | bool | `false` |  |
+| keycloak.instances | string | `"2"` | instances is the new operator-style replica count (falls back to replicaCount) |
+| keycloak.keycloakConfigCli.image.registry | string | `""` |  |
+| keycloak.keycloakConfigCli.image.repository | string | `"adorsys/keycloak-config-cli"` |  |
+| keycloak.keycloakConfigCli.image.tag | string | `"6.5.1-26"` |  |
+| keycloak.name | string | `"keycloak"` |  |
+| keycloak.podTemplate.metadata.labels.app | string | `"keycloak"` |  |
+| keycloak.podTemplate.metadata.labels.version | string | `"26.6.4"` |  |
+| keycloak.podTemplate.spec.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].podAffinityTerm.labelSelector.matchExpressions[0].key | string | `"app"` |  |
+| keycloak.podTemplate.spec.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].podAffinityTerm.labelSelector.matchExpressions[0].operator | string | `"In"` |  |
+| keycloak.podTemplate.spec.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].podAffinityTerm.labelSelector.matchExpressions[0].values[0] | string | `"keycloak"` |  |
+| keycloak.podTemplate.spec.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].podAffinityTerm.topologyKey | string | `"kubernetes.io/hostname"` |  |
+| keycloak.podTemplate.spec.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].weight | int | `100` |  |
+| keycloak.podTemplate.spec.containers[0].livenessProbe.failureThreshold | int | `5` |  |
+| keycloak.podTemplate.spec.containers[0].livenessProbe.httpGet.path | string | `"/health/live"` |  |
+| keycloak.podTemplate.spec.containers[0].livenessProbe.httpGet.port | int | `9000` |  |
+| keycloak.podTemplate.spec.containers[0].livenessProbe.httpGet.scheme | string | `"HTTP"` |  |
+| keycloak.podTemplate.spec.containers[0].livenessProbe.initialDelaySeconds | int | `120` |  |
+| keycloak.podTemplate.spec.containers[0].livenessProbe.periodSeconds | int | `30` |  |
+| keycloak.podTemplate.spec.containers[0].livenessProbe.timeoutSeconds | int | `5` |  |
+| keycloak.podTemplate.spec.containers[0].name | string | `"keycloak"` |  |
+| keycloak.podTemplate.spec.containers[0].readinessProbe.failureThreshold | int | `3` |  |
+| keycloak.podTemplate.spec.containers[0].readinessProbe.httpGet.path | string | `"/health/ready"` |  |
+| keycloak.podTemplate.spec.containers[0].readinessProbe.httpGet.port | int | `9000` |  |
+| keycloak.podTemplate.spec.containers[0].readinessProbe.httpGet.scheme | string | `"HTTP"` |  |
+| keycloak.podTemplate.spec.containers[0].readinessProbe.initialDelaySeconds | int | `60` |  |
+| keycloak.podTemplate.spec.containers[0].readinessProbe.periodSeconds | int | `10` |  |
+| keycloak.podTemplate.spec.containers[0].readinessProbe.timeoutSeconds | int | `5` |  |
+| keycloak.podTemplate.spec.containers[0].resources.limits.cpu | string | `"1000m"` |  |
+| keycloak.podTemplate.spec.containers[0].resources.limits.memory | string | `"1Gi"` |  |
+| keycloak.podTemplate.spec.containers[0].resources.requests.cpu | string | `"250m"` |  |
+| keycloak.podTemplate.spec.containers[0].resources.requests.memory | string | `"512Mi"` |  |
+| keycloak.podTemplate.spec.containers[0].securityContext.allowPrivilegeEscalation | bool | `false` |  |
+| keycloak.podTemplate.spec.containers[0].securityContext.capabilities.drop[0] | string | `"ALL"` |  |
+| keycloak.podTemplate.spec.containers[0].securityContext.runAsNonRoot | bool | `true` |  |
+| keycloak.podTemplate.spec.containers[0].securityContext.runAsUser | int | `1000` |  |
+| keycloak.podTemplate.spec.containers[0].securityContext.seccompProfile.type | string | `"RuntimeDefault"` |  |
+| keycloak.podTemplate.spec.containers[0].startupProbe.failureThreshold | int | `30` |  |
+| keycloak.podTemplate.spec.containers[0].startupProbe.httpGet.path | string | `"/health/started"` |  |
+| keycloak.podTemplate.spec.containers[0].startupProbe.httpGet.port | int | `9000` |  |
+| keycloak.podTemplate.spec.containers[0].startupProbe.httpGet.scheme | string | `"HTTP"` |  |
+| keycloak.podTemplate.spec.containers[0].startupProbe.initialDelaySeconds | int | `30` |  |
+| keycloak.podTemplate.spec.containers[0].startupProbe.periodSeconds | int | `10` |  |
+| keycloak.podTemplate.spec.containers[0].startupProbe.timeoutSeconds | int | `5` |  |
+| keycloak.podTemplate.spec.containers[0].volumeMounts[0].mountPath | string | `"/opt/keycloak/lib/quarkus"` |  |
+| keycloak.podTemplate.spec.containers[0].volumeMounts[0].name | string | `"keycloak-build-data"` |  |
+| keycloak.podTemplate.spec.containers[0].volumeMounts[0].subPath | string | `"quarkus"` |  |
+| keycloak.podTemplate.spec.containers[0].volumeMounts[1].mountPath | string | `"/opt/keycloak/providers"` |  |
+| keycloak.podTemplate.spec.containers[0].volumeMounts[1].name | string | `"keycloak-build-data"` |  |
+| keycloak.podTemplate.spec.containers[0].volumeMounts[1].subPath | string | `"providers"` |  |
+| keycloak.podTemplate.spec.initContainers[0].command[0] | string | `"/bin/bash"` |  |
+| keycloak.podTemplate.spec.initContainers[0].command[1] | string | `"-c"` |  |
+| keycloak.podTemplate.spec.initContainers[0].command[2] | string | `"set -e\nexport KC_DB=postgres\nexport KC_PROXY_HEADERS=xforwarded\nexport KC_CACHE=ispn\nexport KC_METRICS_ENABLED=true\nexport KC_HEALTH_ENABLED=true\n/opt/keycloak/bin/kc.sh build\nrm -rf /opt/keycloak/build/quarkus /opt/keycloak/build/providers\nmkdir -p /opt/keycloak/build/quarkus /opt/keycloak/build/providers\ncp -a /opt/keycloak/lib/quarkus/. /opt/keycloak/build/quarkus/\ncp -a /opt/keycloak/providers/. /opt/keycloak/build/providers/ 2>/dev/null || true\n"` |  |
+| keycloak.podTemplate.spec.initContainers[0].name | string | `"keycloak-builder"` |  |
+| keycloak.podTemplate.spec.initContainers[0].resources.limits.cpu | string | `"1000m"` |  |
+| keycloak.podTemplate.spec.initContainers[0].resources.limits.memory | string | `"1Gi"` |  |
+| keycloak.podTemplate.spec.initContainers[0].resources.requests.cpu | string | `"250m"` |  |
+| keycloak.podTemplate.spec.initContainers[0].resources.requests.memory | string | `"512Mi"` |  |
+| keycloak.podTemplate.spec.initContainers[0].securityContext.allowPrivilegeEscalation | bool | `false` |  |
+| keycloak.podTemplate.spec.initContainers[0].securityContext.capabilities.drop[0] | string | `"ALL"` |  |
+| keycloak.podTemplate.spec.initContainers[0].securityContext.runAsNonRoot | bool | `true` |  |
+| keycloak.podTemplate.spec.initContainers[0].securityContext.runAsUser | int | `1000` |  |
+| keycloak.podTemplate.spec.initContainers[0].securityContext.seccompProfile.type | string | `"RuntimeDefault"` |  |
+| keycloak.podTemplate.spec.initContainers[0].volumeMounts[0].mountPath | string | `"/opt/keycloak/build"` |  |
+| keycloak.podTemplate.spec.initContainers[0].volumeMounts[0].name | string | `"keycloak-build-data"` |  |
+| keycloak.podTemplate.spec.initContainers[0].volumeMounts[0].subPath | string | `""` |  |
+| keycloak.podTemplate.spec.securityContext.fsGroup | int | `1000` |  |
+| keycloak.podTemplate.spec.securityContext.runAsNonRoot | bool | `true` |  |
+| keycloak.podTemplate.spec.securityContext.runAsUser | int | `1000` |  |
+| keycloak.podTemplate.spec.securityContext.seccompProfile.type | string | `"RuntimeDefault"` |  |
+| keycloak.podTemplate.spec.volumes[0].emptyDir | object | `{}` |  |
+| keycloak.podTemplate.spec.volumes[0].name | string | `"keycloak-build-data"` |  |
+| keycloak.proxy | object | `{"headers":"xforwarded"}` | new keycloak entrypoint configuration, falls back to proxyHeaders if headers is not set |
+| keycloak.resources.limits.cpu | string | `"1000m"` |  |
+| keycloak.resources.limits.memory | string | `"2Gi"` |  |
+| keycloak.resources.requests.cpu | string | `"500m"` |  |
+| keycloak.resources.requests.memory | string | `"1700Mi"` |  |
+| keycloak.secretsName | string | `"keycloak-secrets"` |  |
+| kiss-eck.eck-elasticsearch.enabled | bool | `true` |  |
+| kiss-eck.eck-elasticsearch.fullnameOverride | string | `"kiss"` |  |
+| kiss-eck.eck-elasticsearch.nodeSets | list | `[{"config":{"node.roles":["data","ingest","master"],"node.store.allow_mmap":false},"count":3,"name":"default","podTemplate":{"spec":{"nodeSelector":{}}}}]` | default sizing, kept equal to the previous release (kiss-elastic used elasticsearchCount: 3). Environments can override nodeSets (e.g. nodeSelector, count, storage), the same way openinwoner.eck-elasticsearch.nodeSets is set. Note: volumeClaimTemplates is immutable — during a migration keep it equal to the existing PVCs; changing the size needs a manual recreate (see docs/apps/elastic/migrating-to-eck-stack.md). |
+| kiss-eck.eck-elasticsearch.version | string | `"8.19.3"` |  |
+| kiss-eck.eck-enterprise-search.config."app_search.engine.total_fields.limit" | int | `1000` |  |
+| kiss-eck.eck-enterprise-search.config."connector.crawler.crawl.threads.limit" | int | `1` |  |
+| kiss-eck.eck-enterprise-search.config."connector.crawler.http.user_agent" | string | `"PodiumD-Contact-Elastic-Crawler"` | crawler settings can be tuned per environment (DS-5060). Sensible defaults below; override in your environment values file when needed. |
+| kiss-eck.eck-enterprise-search.config."connector.crawler.workers.pool_size.limit" | int | `1` |  |
+| kiss-eck.eck-enterprise-search.config."kibana.host" | string | `"https://kiss-kb-http.podiumd.svc.cluster.local:5601"` |  |
+| kiss-eck.eck-enterprise-search.count | int | `1` |  |
+| kiss-eck.eck-enterprise-search.elasticsearchRef.name | string | `"kiss"` |  |
+| kiss-eck.eck-enterprise-search.enabled | bool | `true` |  |
+| kiss-eck.eck-enterprise-search.fullnameOverride | string | `"kiss"` |  |
+| kiss-eck.eck-enterprise-search.podTemplate.spec.nodeSelector | object | `{}` |  |
+| kiss-eck.eck-enterprise-search.version | string | `"8.19.3"` |  |
+| kiss-eck.eck-kibana.config."server.publicBaseUrl" | string | `"https://kiss-kb-http.podiumd.svc.cluster.local:5601"` |  |
+| kiss-eck.eck-kibana.elasticsearchRef.name | string | `"kiss"` |  |
+| kiss-eck.eck-kibana.enabled | bool | `true` |  |
+| kiss-eck.eck-kibana.enterpriseSearchRef.name | string | `"kiss"` |  |
+| kiss-eck.eck-kibana.fullnameOverride | string | `"kiss"` |  |
+| kiss-eck.eck-kibana.podTemplate.spec.nodeSelector | object | `{}` |  |
+| kiss-eck.eck-kibana.version | string | `"8.19.3"` |  |
+| kiss-eck.enabled | bool | `true` |  |
+| kiss.adapter.baseUrl | string | `""` |  |
+| kiss.adapter.clientId | string | `"kiss_intern"` |  |
+| kiss.adapter.esuite.baseUrl | string | `""` |  |
+| kiss.adapter.esuite.clientId | string | `"<kiss>"` |  |
+| kiss.adapter.esuite.contactverzoektypen | list | `[]` |  |
+| kiss.adapter.esuite.isDefault | bool | `true` |  |
+| kiss.adapter.esuite.secret | string | `""` |  |
+| kiss.adapter.extraEnvVars | list | `[]` | Optionally specify extra list of additional environment variables. |
+| kiss.adapter.extraVolumeMounts | list | `[]` | Optionally specify extra list of additional volumeMounts, for example to trust extra ca certificates. |
+| kiss.adapter.extraVolumes | list | `[]` | Optionally specify extra list of additional volumes, for example to trust extra ca certificates. |
+| kiss.adapter.image.pullPolicy | string | `"IfNotPresent"` |  |
+| kiss.adapter.image.tag | string | `"0.6.6"` |  |
+| kiss.adapter.objecten.baseUrl | string | `""` |  |
+| kiss.adapter.objecten.token | string | `""` |  |
+| kiss.adapter.objecttypen.afdelingUUID | string | `""` |  |
+| kiss.adapter.objecttypen.baseUrlExtern | string | `""` |  |
+| kiss.adapter.objecttypen.baseUrlIntern | string | `""` |  |
+| kiss.adapter.objecttypen.groepUUID | string | `""` |  |
+| kiss.adapter.objecttypen.interneTaakUUID | string | `""` |  |
+| kiss.adapter.objecttypen.kennisartikelUUID | string | `""` |  |
+| kiss.adapter.objecttypen.medewerkerUUID | string | `""` |  |
+| kiss.adapter.objecttypen.token | string | `""` |  |
+| kiss.adapter.objecttypen.vacUUID | string | `""` |  |
+| kiss.adapter.resources.limits.cpu | string | `"200m"` |  |
+| kiss.adapter.resources.limits.memory | string | `"256Mi"` |  |
+| kiss.adapter.resources.requests.cpu | string | `"10m"` |  |
+| kiss.adapter.resources.requests.memory | string | `"100Mi"` |  |
+| kiss.adapter.secret | string | `""` |  |
+| kiss.configuration.oidcSecret | string | `"<kiss>"` |  |
+| kiss.configuration.oidcUrl | string | `"https://kiss.example.nl"` |  |
+| kiss.enabled | bool | `true` |  |
+| kiss.extraEnvVars | list | `[]` | Optionally specify extra list of additional environment variables. Not necesarry for KvK / BRP headers, use the settings for these |
+| kiss.extraVolumeMounts | list | `[]` | Optionally specify extra list of additional volumeMounts, for example to trust extra ca certificates. |
+| kiss.extraVolumes | list | `[]` | Optionally specify extra list of additional volumes, for example to trust extra ca certificates. |
+| kiss.fullnameOverride | string | `"contact"` |  |
+| kiss.image.pullPolicy | string | `"IfNotPresent"` |  |
+| kiss.image.tag | string | `"2.2.4"` |  |
+| kiss.imagePullSecrets | list | `[]` |  |
+| kiss.nameOverride | string | `"contact"` |  |
+| kiss.nodeSelector | object | `{}` |  |
+| kiss.resources.requests.cpu | string | `"100m"` |  |
+| kiss.resources.requests.memory | string | `"256Mi"` |  |
+| kiss.settings.afdelingen.baseUrl | string | `""` |  |
+| kiss.settings.afdelingen.objectTypeUrl | string | `""` |  |
+| kiss.settings.afdelingen.token | string | `""` |  |
+| kiss.settings.database.host | string | `""` |  |
+| kiss.settings.database.name | string | `""` |  |
+| kiss.settings.database.password | string | `""` |  |
+| kiss.settings.database.port | int | `5432` |  |
+| kiss.settings.database.username | string | `""` |  |
+| kiss.settings.elastic.baseUrl | string | `""` |  |
+| kiss.settings.elastic.excludedFieldsKennisbank | list | `[]` |  |
+| kiss.settings.elastic.password | string | `""` |  |
+| kiss.settings.elastic.username | string | `"elastic"` |  |
+| kiss.settings.email.enableSsl | bool | `true` |  |
+| kiss.settings.email.host | string | `""` |  |
+| kiss.settings.email.password | string | `""` |  |
+| kiss.settings.email.port | int | `587` |  |
+| kiss.settings.email.username | string | `""` |  |
+| kiss.settings.enterpriseSearch.baseUrl | string | `""` |  |
+| kiss.settings.enterpriseSearch.engine | string | `"kiss-engine"` |  |
+| kiss.settings.enterpriseSearch.privateApiKey | string | `""` |  |
+| kiss.settings.enterpriseSearch.publicApiKey | string | `""` |  |
+| kiss.settings.feedback.emailFrom | string | `""` |  |
+| kiss.settings.feedback.emailTo | string | `""` |  |
+| kiss.settings.groepen.baseUrl | string | `""` |  |
+| kiss.settings.groepen.objectTypeUrl | string | `""` |  |
+| kiss.settings.groepen.token | string | `""` |  |
+| kiss.settings.haalCentraal.apiKey | string | `""` |  |
+| kiss.settings.haalCentraal.baseUrl | string | `""` |  |
+| kiss.settings.kvk.apiKey | string | `""` |  |
+| kiss.settings.kvk.baseUrl | string | `""` |  |
+| kiss.settings.logboek.baseUrl | string | `""` |  |
+| kiss.settings.logboek.objectTypeUrl | string | `""` |  |
+| kiss.settings.logboek.objectTypeVersion | int | `1` |  |
+| kiss.settings.logboek.token | string | `""` |  |
+| kiss.settings.managementInformatie.apiKey | string | `""` |  |
+| kiss.settings.oidc.authority | string | `""` |  |
+| kiss.settings.oidc.clientId | string | `"kiss"` |  |
+| kiss.settings.oidc.clientSecret | string | `"<kiss>"` |  |
+| kiss.settings.oidc.medewerkerIdentificatie.claim | string | `"samaccountname"` |  |
+| kiss.settings.oidc.medewerkerIdentificatie.truncate | string | `nil` |  |
+| kiss.settings.oidc.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client for KISS. KISS is a React frontend; the OIDC client library must support PKCE. |
+| kiss.settings.organisatieIds | list | `[]` |  |
+| kiss.settings.registers | list | `[]` |  |
+| kiss.settings.syncJobs.image.pullPolicy | string | `"IfNotPresent"` |  |
+| kiss.settings.syncJobs.image.tag | string | `"0.3.3"` |  |
+| kiss.settings.syncJobs.kennisbank.baseUrl | string | `""` |  |
+| kiss.settings.syncJobs.kennisbank.historyLimit | int | `1` |  |
+| kiss.settings.syncJobs.kennisbank.objectTypeUrl | string | `""` |  |
+| kiss.settings.syncJobs.kennisbank.resources.requests.cpu | string | `"50m"` |  |
+| kiss.settings.syncJobs.kennisbank.resources.requests.memory | string | `"128Mi"` |  |
+| kiss.settings.syncJobs.kennisbank.schedule | string | `"*/59 * * * *"` |  |
+| kiss.settings.syncJobs.kennisbank.token | string | `""` |  |
+| kiss.settings.syncJobs.medewerkers.baseUrl | string | `""` |  |
+| kiss.settings.syncJobs.medewerkers.clientId | string | `""` |  |
+| kiss.settings.syncJobs.medewerkers.clientSecret | string | `""` |  |
+| kiss.settings.syncJobs.medewerkers.historyLimit | int | `1` |  |
+| kiss.settings.syncJobs.medewerkers.objectTypeUrl | string | `""` |  |
+| kiss.settings.syncJobs.medewerkers.resources.requests.cpu | string | `"50m"` |  |
+| kiss.settings.syncJobs.medewerkers.resources.requests.memory | string | `"128Mi"` |  |
+| kiss.settings.syncJobs.medewerkers.schedule | string | `"*/59 * * * *"` |  |
+| kiss.settings.syncJobs.sharepoint | list | `[]` |  |
+| kiss.settings.syncJobs.vac.baseUrl | string | `""` |  |
+| kiss.settings.syncJobs.vac.historyLimit | int | `1` |  |
+| kiss.settings.syncJobs.vac.manageFromKiss | bool | `false` |  |
+| kiss.settings.syncJobs.vac.objectTypeUrl | string | `""` |  |
+| kiss.settings.syncJobs.vac.objectTypeVersion | int | `1` |  |
+| kiss.settings.syncJobs.vac.resources.requests.cpu | string | `"50m"` |  |
+| kiss.settings.syncJobs.vac.resources.requests.memory | string | `"128Mi"` |  |
+| kiss.settings.syncJobs.vac.schedule | string | `"*/59 * * * *"` |  |
+| kiss.settings.syncJobs.vac.token | string | `""` |  |
+| kiss.settings.syncJobs.website | list | `[]` |  |
+| mi.enabled | bool | `false` |  |
 | objecten.configuration.data | string | `""` |  |
 | objecten.configuration.demo.enabled | bool | `false` |  |
 | objecten.configuration.enabled | bool | `true` |  |
@@ -449,51 +562,38 @@ The deprecated Bitnami `keycloak` sub-chart (`keycloak.enabled`) is kept for rol
 | objecten.configuration.job.enabled | bool | `true` |  |
 | objecten.configuration.job.resources | object | `{}` |  |
 | objecten.configuration.job.restartPolicy | string | `"OnFailure"` |  |
-| objecten.configuration.job.ttlSecondsAfterFinished | int | `0` |  |
-| objecten.configuration.oidcSecret | string | `"<objecten>"` |  |
+| objecten.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
 | objecten.configuration.oidcUrl | string | `"https://objecten.example.nl"` |  |
-| objecten.configuration.secrets | object | `{}` |  |
-| objecten.settings.allowedHosts                     | List if allowed hostnames<br/>(i.e. "objecten.example.nl,objecten.podiumd.svc.cluster.local")                                                         | `objecten.podiumd.svc.cluster.local` |
-| objecten.settings.database.host                    | Database host. Overides global.settings.databaseHost                                                                                                  | `""`                                 |
-| objecten.settings.database.port                    | Database port                                                                                                                                         | `5432`                               |
-| objecten.settings.database.name                    | Database name                                                                                                                                         | `""`                                 |
-| objecten.settings.database.username                | Database username                                                                                                                                     | `""`                                 |
-| objecten.settings.database.password                | Database user password                                                                                                                                | `""`                                 |
-| objecten.settings.database.sslmode                 | Database SSL mode                                                                                                                                     | `prefer`                             |
-| objecten.settings.email.host                       | Email host                                                                                                                                            | `localhost`                          |
-| objecten.settings.email.port                       | Email port                                                                                                                                            | `587`                                |
-| objecten.settings.email.username                   | Email username                                                                                                                                        | `""`                                 |
-| objecten.settings.email.password                   | Email user password                                                                                                                                   | `""`                                 |
-| objecten.settings.email.useTLS                     | Email use TLS                                                                                                                                         | `true`                               |
-| objecten.settings.secretKey                        | Django secret key. Generate secret key at https://djecrety.ir/                                                                                        | `""`                                 |
-| objecten.settings.environment                      | Sets the `ENVIRONMENT` variable                                                                                                                       | `""`                                 |
-| objecten.settings.isHttps                          | Use HTTPS                                                                                                                                             | `true`                               |
-| objecten.settings.debug                            | Enable debug mode                                                                                                                                     | `false`                              |
-| objecten.settings.sentry.dsn                       | Url to Sentry (i.e https://sentry.example.com/111)                                                                                                    | `""`                                 |
-| objecten.persistence.existingClaim                 | Manually managed Persistent Volume and Claim                                                                                                          | `objecten`                           |
-| objecten.persistence.mediaMountSubpath             | Media mount subpath                                                                                                                                   | `objecten/media`                     |
-| objecten.persistence.size                          | Size of created PersistentVolume                                                                                                                      | `10Gi`                               |
-| objecten.persistentVolume.volumeAttributeShareName | Value of created PersistentVolume paramer `spec.csi.volumeAttributes.shareName`.<br/>Overriden by `.Values.persistentVolume.volumeAttributeShareName` | `objecten`                           |
-| objecten.image.repository                          | Image repository                                                                                                                                      | `maykinmedia/objects-api`            |
-| objecten.image.tag                                 | Image tag                                                                                                                                             | `2.4.4`                              |
-| objecten.image.pullPolicy                          | Image pull policy                                                                                                                                     | `IfNotPresent`                       |
-| objecten.nodeSelector                              | Node labels for pod assignment. Evaluated as a template                                                                                               | `{}`                                 |
-| objecten.resources                                 | Container requests and limits                                                                                                                         | see values.yaml                      |
-| objecten.worker.resources                          | Worker container requests and limits                                                                                                                  | see values.yaml                      |
-| objecten.redis.image.registry                      | Redis image registry                                                                                                                                  | `docker.io`                          |
-| objecten.redis.image.repository                    | Redis image repository                                                                                                                                | `bitnami/redis`                      |
-| objecten.redis.image.tag                           | Redis image tag                                                                                                                                       | `7.0.5-debian-11-r25`                |
-| objecten.redis.image.pullPolicy                    | Redis image pul policy                                                                                                                                | `IfNotPresent`                       |
-| objecten.redis.master.persistence.enabled          | Redis master persistence enabled                                                                                                                      | `true`                               |
-| objecten.redis.master.persistence.size             | Redis master persistence size                                                                                                                         | `"8Gi"`                              |
-| objecten.redis.master.persistence.storageClass     | Redis master persistence storage class                                                                                                                | `""`                                 |
-| objecten.redis.master.nodeSelector                 | Redis node labels for pod assignment. Evaluated as a template                                                                                         | `{}`                                 |
-
-### Objecttypen
-
-| Name                                              | Description                                                                                         | Value                                   |
-|---------------------------------------------------|-----------------------------------------------------------------------------------------------------|-----------------------------------------|
-| objecttypen.enabled                               | Boolean to override the installation of objecttypen                                                 |                                         |
+| objecten.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data. |
+| objecten.configuration.secrets.keycloak_client_secret | string | `""` |  |
+| objecten.flower.enabled | bool | `false` |  |
+| objecten.fullnameOverride | string | `"objecten"` |  |
+| objecten.image.tag | string | `"3.6.2"` |  |
+| objecten.nameOverride | string | `"objecten"` |  |
+| objecten.otel.disabled | bool | `true` |  |
+| objecten.persistence.existingClaim | string | `"objecten"` |  |
+| objecten.persistence.size | string | `"10Gi"` |  |
+| objecten.persistence.storageClassName | string | `"podiumd-standard"` |  |
+| objecten.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
+| objecten.persistentVolume.volumeAttributeShareName | string | `"objecten"` |  |
+| objecten.resources.requests.cpu | string | `"100m"` |  |
+| objecten.resources.requests.memory | string | `"256Mi"` |  |
+| objecten.settings.allowedHosts | string | `"objecten.podiumd.svc.cluster.local"` |  |
+| objecten.settings.cache.axes | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/1"` |  |
+| objecten.settings.cache.default | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/1"` |  |
+| objecten.settings.cache.oidc | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/1"` |  |
+| objecten.settings.celery.brokerUrl | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/2"` |  |
+| objecten.settings.celery.logLevel | string | `"warning"` | Set to debug for test/acceptance environments |
+| objecten.settings.celery.resultBackend | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/2"` |  |
+| objecten.settings.disable2fa | bool | `false` |  |
+| objecten.settings.email.port | int | `587` |  |
+| objecten.settings.email.useTLS | bool | `true` |  |
+| objecten.tags.redis | bool | `false` |  |
+| objecten.worker.livenessProbe.enabled | bool | `true` |  |
+| objecten.worker.maxWorkerLivenessDelta | string | `"300"` |  |
+| objecten.worker.replicaCount | int | `1` |  |
+| objecten.worker.resources.requests.cpu | string | `"50m"` |  |
+| objecten.worker.resources.requests.memory | string | `"192Mi"` |  |
 | objecttypen.configuration.data | string | `""` |  |
 | objecttypen.configuration.enabled | bool | `true` |  |
 | objecttypen.configuration.initContainer.enabled | bool | `false` |  |
@@ -501,201 +601,290 @@ The deprecated Bitnami `keycloak` sub-chart (`keycloak.enabled`) is kept for rol
 | objecttypen.configuration.job.enabled | bool | `true` |  |
 | objecttypen.configuration.job.resources | object | `{}` |  |
 | objecttypen.configuration.job.restartPolicy | string | `"OnFailure"` |  |
-| objecttypen.configuration.job.ttlSecondsAfterFinished | int | `0` |  |
-| objecttypen.configuration.oidcSecret | string | `"<objecttypen>"` |  |
+| objecttypen.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
 | objecttypen.configuration.oidcUrl | string | `"https://objecttypen.example.nl"` |  |
-| objecttypen.configuration.secrets | object | `{}` |  |
+| objecttypen.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data. |
+| objecttypen.configuration.secrets.keycloak_client_secret | string | `""` |  |
 | objecttypen.configuration.token | string | `"<token>"` |  |
-| objecttypen.settings.allowedHosts                 | List if allowed hostnames<br/>(i.e. "objecttypen.example.nl,objecttypen.podiumd.svc.cluster.local") | `objecttypen.podiumd.svc.cluster.local` |
-| objecttypen.settings.database.host                | Database host. Overides global.settings.databaseHost                                                | `""`                                    |
-| objecttypen.settings.database.port                | Database port                                                                                       | `5432`                                  |
-| objecttypen.settings.database.name                | Database name                                                                                       | `""`                                    |
-| objecttypen.settings.database.username            | Database username                                                                                   | `""`                                    |
-| objecttypen.settings.database.password            | Database user password                                                                              | `""`                                    |
-| objecttypen.settings.database.sslmode             | Database SSL mode                                                                                   | `prefer`                                |
-| objecttypen.settings.email.host                   | Email host                                                                                          | `localhost`                             |
-| objecttypen.settings.email.port                   | Email port                                                                                          | `587`                                   |
-| objecttypen.settings.email.username               | Email username                                                                                      | `""`                                    |
-| objecttypen.settings.email.password               | Email user password                                                                                 | `""`                                    |
-| objecttypen.settings.email.useTLS                 | Email use TLS                                                                                       | `true`                                  |
-| objecttypen.settings.secretKey                    | Django secret key. Generate secret key at https://djecrety.ir/                                      | `""`                                    |
-| objecttypen.settings.environment                  | Sets the `ENVIRONMENT` variable                                                                     | `""`                                    |
-| objecttypen.settings.debug                        | Enable debug mode                                                                                   | `false`                                 |
-| objecttypen.settings.sentry.dsn                   | Url to Sentry (i.e https://sentry.example.com/111)                                                  | `""`                                    |
-| objecttypen.image.repository                      | Image repository                                                                                    | `maykinmedia/objecttypes-api`           |
-| objecttypen.image.tag                             | Image tag                                                                                           | `2.2.2`                                 |
-| objecttypen.image.pullPolicy                      | Image pull policy                                                                                   | `IfNotPresent`                          |
-| objecttypen.nodeSelector                          | Node labels for pod assignment. Evaluated as a template                                             | `{}`                                    |
-| objecttypen.resources                             | Container requests and limits                                                                       | See values.yaml                         |
-| objecttypen.redis.image.registry                  | Redis image registry                                                                                | `docker.io`                             |
-| objecttypen.redis.image.repository                | Redis image repository                                                                              | `bitnami/redis`                         |
-| objecttypen.redis.image.tag                       | Redis image tag                                                                                     | `7.0.5-debian-11-r25`                   |
-| objecttypen.redis.image.pullPolicy                | Redis image pul policy                                                                              | `IfNotPresent`                          |
-| objecttypen.redis.master.persistence.enabled      | Redis master persistence enabled                                                                    | `true`                                  |
-| objecttypen.redis.master.persistence.size         | Redis master persistence size                                                                       | `"8Gi"`                                 |
-| objecttypen.redis.master.persistence.storageClass | Redis master persistence storage class                                                              | `""`                                    |
-| objecttypen.redis.master.nodeSelector             | Redis node labels for pod assignment. Evaluated as a template                                       | `{}`                                    |
-
-### Open Archiefbeheer
-
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
+| objecttypen.create_required_objecttypen_job.activeDeadlineSeconds | int | `900` |  |
+| objecttypen.create_required_objecttypen_job.backoffLimit | int | `10` |  |
+| objecttypen.create_required_objecttypen_job.enabled | bool | `true` |  |
+| objecttypen.create_required_objecttypen_job.resources.limits.cpu | string | `"200m"` |  |
+| objecttypen.create_required_objecttypen_job.resources.limits.memory | string | `"128Mi"` |  |
+| objecttypen.create_required_objecttypen_job.resources.requests.cpu | string | `"50m"` |  |
+| objecttypen.create_required_objecttypen_job.resources.requests.memory | string | `"64Mi"` |  |
+| objecttypen.fullnameOverride | string | `"objecttypen"` |  |
+| objecttypen.image.repository | string | `"maykinmedia/objecttypes-api"` |  |
+| objecttypen.image.tag | string | `"3.4.2@sha256:d366e6ede1bb924ea351495f4e88ceba53bb0df02fa5302929daef379131fda1"` |  |
+| objecttypen.nameOverride | string | `"objecttypen"` |  |
+| objecttypen.otel.disabled | bool | `true` |  |
+| objecttypen.resources.requests.cpu | string | `"10m"` |  |
+| objecttypen.resources.requests.memory | string | `"160Mi"` |  |
+| objecttypen.settings.allowedHosts | string | `"objecttypen.podiumd.svc.cluster.local"` |  |
+| objecttypen.settings.cache.axes | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/0"` |  |
+| objecttypen.settings.cache.default | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/0"` |  |
+| objecttypen.settings.disable2fa | bool | `false` |  |
+| objecttypen.settings.email.port | int | `587` |  |
+| objecttypen.settings.email.useTLS | bool | `true` |  |
+| objecttypen.settings.uwsgi.maxRequests | string | `"1000"` |  |
+| objecttypen.settings.uwsgi.processes | string | `"2"` |  |
+| objecttypen.settings.uwsgi.threads | string | `"2"` |  |
+| objecttypen.tags.redis | bool | `false` |  |
+| omc.enabled | bool | `false` |  |
+| omc.fullnameOverride | string | `"omc"` |  |
+| omc.image.tag | string | `"1.17.19"` |  |
+| omc.settings.notify.api.baseUrl | string | `"https://api.notifynl.nl"` |  |
+| omc.settings.omc.auth.jwt.audience | string | `"omc"` |  |
+| omc.settings.omc.auth.jwt.issuer | string | `"omc"` |  |
+| omc.settings.omc.auth.jwt.secret | string | `""` |  |
+| omc.settings.omc.auth.jwt.userId | string | `"OMC (PodiumD)"` |  |
+| omc.settings.omc.auth.jwt.userName | string | `"OMC (PodiumD)"` |  |
+| omc.settings.omc.feature.workflow.version | int | `2` |  |
+| omc.settings.zgw.auth.jwt.issuer | string | `""` |  |
+| omc.settings.zgw.auth.jwt.secret | string | `""` |  |
+| omc.settings.zgw.auth.jwt.userId | string | `"OMC (PodiumD)"` |  |
+| omc.settings.zgw.auth.jwt.userName | string | `"OMC (PodiumD)"` |  |
+| omc.settings.zgw.variable.objectType.decisionInfoObjectType.uuids | string | `"00000000-0000-1000-b000-000000000000"` |  |
+| omc.settings.zgw.variable.objectType.ktoObjectType.uuid | string | `"00000000-0000-1000-b000-000000000000"` |  |
+| omc.settings.zgw.variable.objectType.messageObjectType.uuid | string | `"00000000-0000-1000-b000-000000000000"` |  |
+| omc.settings.zgw.variable.objectType.messageObjectType.version | int | `1` |  |
+| omc.settings.zgw.variable.objectType.taskObjectType.uuid | string | `"00000000-0000-1000-b000-000000000000"` |  |
+| openarchiefbeheer.beat.resources.requests.cpu | string | `"50m"` |  |
+| openarchiefbeheer.beat.resources.requests.memory | string | `"128Mi"` |  |
 | openarchiefbeheer.configuration.data | string | `""` |  |
-| openarchiefbeheer.configuration.enabled | bool | `false` |  |
+| openarchiefbeheer.configuration.enabled | bool | `true` |  |
 | openarchiefbeheer.configuration.job.backoffLimit | int | `6` |  |
 | openarchiefbeheer.configuration.job.enabled | bool | `true` |  |
 | openarchiefbeheer.configuration.job.restartPolicy | string | `"OnFailure"` |  |
-| openarchiefbeheer.configuration.job.ttlSecondsAfterFinished | int | `0` |  |
-| openarchiefbeheer.configuration.oidcSecret | string | `"abc"` |  |
+| openarchiefbeheer.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
 | openarchiefbeheer.configuration.oidcUrl | string | `"https://abc.example.nl"` |  |
-| openarchiefbeheer.configuration.secrets | object | `{}` |  |
-| openarchiefbeheer.enabled | bool | `true` |  |
+| openarchiefbeheer.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. |
+| openarchiefbeheer.configuration.secrets.keycloak_client_secret | string | `""` |  |
+| openarchiefbeheer.enabled | bool | `false` |  |
 | openarchiefbeheer.fullnameOverride | string | `"openarchiefbeheer"` |  |
-| openarchiefbeheer.image.tag | string | `"1.0.0"` |  |
+| openarchiefbeheer.image.tag | string | `"2.0.0@sha256:e5217d748869c62d26393311c3cfdcaacf69d8dde80ca3bc172ff41f3885f0ff"` |  |
 | openarchiefbeheer.nameOverride | string | `"openarchiefbeheer"` |  |
-| openarchiefbeheer.redis.architecture | string | `"standalone"` |  |
-| openarchiefbeheer.redis.auth.enabled | bool | `false` |  |
-| openarchiefbeheer.redis.fullnameOverride | string | `"openarchiefbeheer-redis"` |  |
-| openarchiefbeheer.redis.master.persistence.enabled | bool | `true` |  |
-| openarchiefbeheer.redis.master.persistence.size | string | `"8Gi"` |  |
-| openarchiefbeheer.redis.master.persistence.storageClass | string | `""` |  |
-| openarchiefbeheer.redis.master.resources.requests.cpu | string | `"10m"` |  |
-| openarchiefbeheer.redis.master.resources.requests.memory | string | `"20Mi"` |  |
-| openarchiefbeheer.redis.nameOverride | string | `"openarchiefbeheer-redis"` |  |
+| openarchiefbeheer.nginx.image.pullPolicy | string | `"IfNotPresent"` |  |
+| openarchiefbeheer.nginx.image.repository | string | `"nginxinc/nginx-unprivileged"` |  |
+| openarchiefbeheer.nginx.image.tag | string | `"1.31.3@sha256:49c9bef1797e11117a7f490fd00f282e377ac402fec472c72636f90cdbf72e10"` |  |
+| openarchiefbeheer.nginx.resources.requests.cpu | string | `"10m"` |  |
+| openarchiefbeheer.nginx.resources.requests.memory | string | `"16Mi"` |  |
+| openarchiefbeheer.otel.disabled | bool | `true` |  |
+| openarchiefbeheer.persistence.existingClaim | string | `"openarchiefbeheer"` |  |
+| openarchiefbeheer.persistence.size | string | `"10Gi"` |  |
+| openarchiefbeheer.persistence.storageClassName | string | `"podiumd-standard"` |  |
+| openarchiefbeheer.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
+| openarchiefbeheer.persistentVolume.volumeAttributeShareName | string | `"openarchiefbeheer"` |  |
 | openarchiefbeheer.replicaCount | int | `1` |  |
 | openarchiefbeheer.resources.limits | object | `{}` |  |
 | openarchiefbeheer.resources.requests.cpu | string | `"250m"` |  |
 | openarchiefbeheer.resources.requests.memory | string | `"256Mi"` |  |
 | openarchiefbeheer.settings.allowedHosts | string | `"openarchiefbeheer.podiumd.svc.cluster.local"` |  |
+| openarchiefbeheer.settings.cache.axes | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/13"` |  |
+| openarchiefbeheer.settings.cache.choices | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/14"` |  |
+| openarchiefbeheer.settings.cache.default | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/13"` |  |
+| openarchiefbeheer.settings.celery.brokerUrl | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/14"` |  |
+| openarchiefbeheer.settings.celery.logLevel | string | `"warning"` | Set to debug for test/acceptance environments |
+| openarchiefbeheer.settings.celery.resultBackendl | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/14"` |  |
 | openarchiefbeheer.settings.environment | string | `""` | Name of the environment (used for displaying purposes) |
-| openarchiefbeheer.settings.frontend.apiPath | string | `"/api/v1"` |  |
-| openarchiefbeheer.settings.frontend.apiUrl | string | `""` |  |
-| openarchiefbeheer.settings.frontend.zaakUrlTemplate | string | `""` |  |
+| openarchiefbeheer.settings.frontend | object | `{"apiPath":"/api/v1","apiUrl":"","zaakUrlTemplate":""}` | Controls the log levels of project code and of the OIDC library. Possible values: NOTSET, DEBUG, INFO, WARNING, ERROR, CRITICAL.   level: INFO |
 | openarchiefbeheer.settings.frontendUrl | string | `""` |  |
+| openarchiefbeheer.settings.oidcRenewIdTokenExpirySeconds | int | `1800` |  |
+| openarchiefbeheer.settings.postDestructionVisibilityPeriod | int | `7` | Number of days for which destruction lists will be visible after successful destruction. Defaults to 7. |
+| openarchiefbeheer.settings.relatedCountDisabled | bool | `false` | If true, the inline presentation of related objects is disabled, reducing load on external registers. |
 | openarchiefbeheer.settings.requestsReadTimeout | string | `"5000"` |  |
 | openarchiefbeheer.settings.retry.backoffFactor | string | `""` |  |
 | openarchiefbeheer.settings.retry.statusForcelist | string | `""` |  |
 | openarchiefbeheer.settings.retry.total | string | `""` |  |
-| openarchiefbeheer.settings.waitingPeriod | string | `""` | Number of days to wait before destroying a list. Defaults to 7 in the application. |
-| openarchiefbeheer.tags.redis | bool | `true` |  |
-
-### Open Klant
-
-| Name                                            | Description                                                                                     | Value                                 |
-|-------------------------------------------------|-------------------------------------------------------------------------------------------------|---------------------------------------|
-| openklant.configuration.data | string | `""` |  |
-| openklant.configuration.enabled | bool | `true` |  |
-| openklant.configuration.initContainer.enabled | bool | `false` |  |
-| openklant.configuration.job.backoffLimit | int | `6` |  |
-| openklant.configuration.job.enabled | bool | `true` |  |
-| openklant.configuration.job.resources | object | `{}` |  |
-| openklant.configuration.job.restartPolicy | string | `"OnFailure"` |  |
-| openklant.configuration.job.ttlSecondsAfterFinished | int | `0` |  |
-| openklant.configuration.oidcSecret | string | `"<openklant>"` |  |
-| openklant.configuration.oidcUrl | string | `"https://openklant.example.nl"` |  |
-| openklant.configuration.secrets | object | `{}` |  |
-| openklant.settings.allowedHosts                 | List if allowed hostnames<br/>(i.e. "openklant.example.nl,openklant.podiumd.svc.cluster.local") | `openklant.podiumd.svc.cluster.local` |
-| openklant.settings.database.host                | Database host                                                                                   | `""`                                  |
-| openklant.settings.database.port                | Database port                                                                                   | `5432`                                |
-| openklant.settings.database.name                | Database name                                                                                   | `""`                                  |
-| openklant.settings.database.username            | Database username                                                                               | `""`                                  |
-| openklant.settings.database.password            | Database user password                                                                          | `""`                                  |
-| openklant.settings.database.sslmode             | Database SSL mode                                                                               | `prefer`                              |
-| openklant.settings.email.host                   | Email host                                                                                      | `localhost`                           |
-| openklant.settings.email.port                   | Email port                                                                                      | `587`                                 |
-| openklant.settings.email.username               | Email username                                                                                  | `""`                                  |
-| openklant.settings.email.password               | Email user password                                                                             | `""`                                  |
-| openklant.settings.email.useTLS                 | Email use TLS                                                                                   | `true`                                |
-| openklant.settings.secretKey                    | Django secret key. Generate secret key at https://djecrety.ir/                                  | `""`                                  |
-| openklant.settings.environment                  | Sets the `ENVIRONMENT` variable                                                                 | `""`                                  |
-| openklant.settings.isHttps                      | Use HTTPS                                                                                       | `true`                                |
-| openklant.settings.debug                        | Enable debug mode                                                                               | `false`                               |
-| openklant.settings.sentry.dsn                   | Url to Sentry (i.e https://sentry.example.com/111)                                              | `""`                                  |
-| openklant.image.repository                      | Image repository                                                                                | `maykinmedia/objects-api`             |
-| openklant.image.tag                             | Image tag                                                                                       | `2.3.0`                               |
-| openklant.image.pullPolicy                      | Image pull policy                                                                               | `IfNotPresent`                        |
-| openklant.nodeSelector                          | Node labels for pod assignment. Evaluated as a template                                         | `{}`                                  |
-| openklant.resources                             | Container requests and limits                                                                   | See values.yaml                       |
-| openklant.worker.resources                      | Worker container requests and limits                                                            | See values.yaml                       |
-| openklant.redis.image.registry                  | Redis image registry                                                                            | `docker.io`                           |
-| openklant.redis.image.repository                | Redis image repository                                                                          | `bitnami/redis`                       |
-| openklant.redis.image.tag                       | Redis image tag                                                                                 | `7.0.5-debian-11-r25`                 |
-| openklant.redis.image.pullPolicy                | Redis image pul policy                                                                          | `IfNotPresent`                        |
-| openklant.redis.master.persistence.enabled      | Redis master persistence enabled                                                                | `true`                                |
-| openklant.redis.master.persistence.size         | Redis master persistence size                                                                   | `"8Gi"`                               |
-| openklant.redis.master.persistence.storageClass | Redis master persistence storage class                                                          | `""`                                  |
-| openklant.redis.master.nodeSelector             | Redis node labels for pod assignment. Evaluated as a template                                   | `{}`                                  |
-
-### Open Formulieren
-
-| Name                                                      | Description                                                                                                                                           | Value                                             |
-|-----------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------|
-| openformulieren.enabled                                   | Boolean to override the installation of Open Formulieren                                                                                              |                                                   |
+| openarchiefbeheer.settings.sessionCookieAge | int | `1800` |  |
+| openarchiefbeheer.settings.waitingPeriod | int | `7` | Number of days to wait before destroying a list. Defaults to 7 in the application. |
+| openarchiefbeheer.tags.redis | bool | `false` |  |
+| openarchiefbeheer.worker.livenessProbe.enabled | bool | `true` |  |
+| openarchiefbeheer.worker.resources.requests.cpu | string | `"100m"` |  |
+| openarchiefbeheer.worker.resources.requests.memory | string | `"256Mi"` |  |
+| openbao.configuration.bootstrapTokenSecret | string | `"openbao-bootstrap-token"` |  |
+| openbao.configuration.enabled | bool | `true` |  |
+| openbao.configuration.job.backoffLimit | int | `6` |  |
+| openbao.configuration.job.image.registry | string | `"quay.io"` |  |
+| openbao.configuration.job.image.repository | string | `"openbao/openbao"` |  |
+| openbao.configuration.job.image.tag | string | `"2.5.5"` |  |
+| openbao.configuration.job.nodeSelector | object | `{}` |  |
+| openbao.configuration.job.resources.limits.cpu | string | `"250m"` |  |
+| openbao.configuration.job.resources.limits.memory | string | `"128Mi"` |  |
+| openbao.configuration.job.resources.requests.cpu | string | `"50m"` |  |
+| openbao.configuration.job.resources.requests.memory | string | `"64Mi"` |  |
+| openbao.configuration.job.restartPolicy | string | `"Never"` |  |
+| openbao.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
+| openbao.configuration.keycloak.realm | string | `"podiumd"` |  |
+| openbao.configuration.keycloak.url | string | `"https://keycloak.example.nl"` |  |
+| openbao.configuration.kvPath | string | `"secret"` |  |
+| openbao.configuration.oidcUrl | string | `"https://openbao.example.nl"` |  |
+| openbao.configuration.secrets.keycloak_client_secret | string | `""` |  |
+| openbao.configuration.uploadersGroup | string | `"vault-uploaders"` |  |
+| openbao.configuration.uploadersRole | string | `"uploaders"` |  |
+| openbao.database.host | string | `""` |  |
+| openbao.database.name | string | `"openbao"` |  |
+| openbao.database.password | string | `""` |  |
+| openbao.database.port | int | `5432` |  |
+| openbao.database.schemaJob.backoffLimit | int | `6` |  |
+| openbao.database.schemaJob.image.registry | string | `"docker.io"` |  |
+| openbao.database.schemaJob.image.repository | string | `"library/postgres"` |  |
+| openbao.database.schemaJob.image.tag | string | `"16-alpine"` |  |
+| openbao.database.schemaJob.nodeSelector | object | `{}` |  |
+| openbao.database.schemaJob.resources.limits.cpu | string | `"250m"` |  |
+| openbao.database.schemaJob.resources.limits.memory | string | `"128Mi"` |  |
+| openbao.database.schemaJob.resources.requests.cpu | string | `"50m"` |  |
+| openbao.database.schemaJob.resources.requests.memory | string | `"64Mi"` |  |
+| openbao.database.schemaJob.ttlSecondsAfterFinished | int | `600` |  |
+| openbao.database.secretName | string | `"openbao-db"` |  |
+| openbao.database.sslmode | string | `"require"` |  |
+| openbao.database.username | string | `"openbao-admin"` |  |
+| openbao.enabled | bool | `false` |  |
+| openbao.injector.enabled | bool | `false` |  |
+| openbao.server.dataStorage.enabled | bool | `false` |  |
+| openbao.server.extraLabels."azure.workload.identity/use" | string | `"true"` |  |
+| openbao.server.extraSecretEnvironmentVars[0].envName | string | `"BAO_PG_CONNECTION_URL"` |  |
+| openbao.server.extraSecretEnvironmentVars[0].secretKey | string | `"connection-url"` |  |
+| openbao.server.extraSecretEnvironmentVars[0].secretName | string | `"openbao-db"` |  |
+| openbao.server.ha.config | string | `"ui = true\n\nlistener \"tcp\" {\n  tls_disable     = 1\n  address         = \"[::]:8200\"\n  cluster_address = \"[::]:8201\"\n}\n\nstorage \"postgresql\" {\n  table      = \"openbao_kv_store\"\n  ha_enabled = \"true\"\n  ha_table   = \"openbao_ha_locks\"\n}\n\nservice_registration \"kubernetes\" {}\n"` |  |
+| openbao.server.ha.enabled | bool | `true` |  |
+| openbao.server.ha.raft.enabled | bool | `false` |  |
+| openbao.server.ha.replicas | int | `3` |  |
+| openbao.server.image.registry | string | `"quay.io"` |  |
+| openbao.server.image.repository | string | `"openbao/openbao"` |  |
+| openbao.server.image.tag | string | `""` |  |
+| openbao.server.ingress.enabled | bool | `false` |  |
+| openbao.server.readinessProbe.enabled | bool | `true` |  |
+| openbao.server.readinessProbe.path | string | `"/v1/sys/health?standbyok=true&perfstandbyok=true&uninitcode=200&sealedcode=200"` |  |
+| openbao.server.resources.limits.cpu | string | `"500m"` |  |
+| openbao.server.resources.limits.memory | string | `"512Mi"` |  |
+| openbao.server.resources.requests.cpu | string | `"100m"` |  |
+| openbao.server.resources.requests.memory | string | `"256Mi"` |  |
+| openbao.server.serviceAccount.annotations."azure.workload.identity/client-id" | string | `""` |  |
+| openbao.server.serviceAccount.create | bool | `true` |  |
+| openbao.server.serviceAccount.name | string | `"openbao"` |  |
+| openbao.server.updateStrategyType | string | `"RollingUpdate"` |  |
+| openbeheer.configuration.data | string | `""` |  |
+| openbeheer.configuration.enabled | bool | `true` |  |
+| openbeheer.configuration.job.backoffLimit | int | `6` |  |
+| openbeheer.configuration.job.enabled | bool | `true` |  |
+| openbeheer.configuration.job.resources | object | `{}` |  |
+| openbeheer.configuration.job.restartPolicy | string | `"Never"` |  |
+| openbeheer.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
+| openbeheer.configuration.oidcUrl | string | `"https://openbeheer.example.nl"` |  |
+| openbeheer.configuration.overwrite | bool | `false` |  |
+| openbeheer.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data. |
+| openbeheer.configuration.secrets.keycloak_client_secret | string | `""` |  |
+| openbeheer.configuration.secrets.objecttypen_openbeheer_token | string | `""` |  |
+| openbeheer.configuration.secrets.openzaak_openbeheer_secret | string | `""` |  |
+| openbeheer.enabled | bool | `false` |  |
+| openbeheer.fullnameOverride | string | `"openbeheer"` |  |
+| openbeheer.image.pullPolicy | string | `"IfNotPresent"` |  |
+| openbeheer.image.repository | string | `"maykinmedia/open-beheer"` |  |
+| openbeheer.image.tag | string | `"0.9.1"` |  |
+| openbeheer.nameOverride | string | `"openbeheer"` |  |
+| openbeheer.nginx.image.pullPolicy | string | `"IfNotPresent"` |  |
+| openbeheer.nginx.image.repository | string | `"nginxinc/nginx-unprivileged"` |  |
+| openbeheer.nginx.image.tag | string | `"1.31.3@sha256:49c9bef1797e11117a7f490fd00f282e377ac402fec472c72636f90cdbf72e10"` |  |
+| openbeheer.nginx.resources.requests.cpu | string | `"10m"` |  |
+| openbeheer.nginx.resources.requests.memory | string | `"16Mi"` |  |
+| openbeheer.persistence.enabled | bool | `true` |  |
+| openbeheer.persistence.existingClaim | string | `"openbeheer"` |  |
+| openbeheer.persistence.mediaMountSubpath | string | `"openbeheer/media"` |  |
+| openbeheer.persistence.size | string | `"1Gi"` |  |
+| openbeheer.persistence.storageClassName | string | `"podiumd-standard"` |  |
+| openbeheer.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
+| openbeheer.persistentVolume.volumeAttributeShareName | string | `"openbeheer"` |  |
+| openbeheer.replicaCount | int | `2` |  |
+| openbeheer.resources | object | `{}` |  |
+| openbeheer.securityContext.capabilities.drop[0] | string | `"ALL"` |  |
+| openbeheer.securityContext.readOnlyRootFilesystem | bool | `false` |  |
+| openbeheer.securityContext.runAsNonRoot | bool | `true` |  |
+| openbeheer.securityContext.runAsUser | int | `1000` |  |
+| openbeheer.settings.allowedHosts | string | `"openbeheer-nginx.podiumd.svc.cluster.local"` |  |
+| openbeheer.settings.apiDomain | string | `""` |  |
+| openbeheer.settings.apiPath | string | `"/api/v1"` |  |
+| openbeheer.settings.cache.axes | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/17"` |  |
+| openbeheer.settings.cache.default | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/17"` |  |
+| openbeheer.settings.database.host | string | `""` |  |
+| openbeheer.settings.database.name | string | `""` |  |
+| openbeheer.settings.database.password | string | `""` |  |
+| openbeheer.settings.database.port | int | `5432` |  |
+| openbeheer.settings.database.sslmode | string | `"prefer"` |  |
+| openbeheer.settings.database.username | string | `""` |  |
+| openbeheer.settings.debug | bool | `false` |  |
+| openbeheer.settings.djangoSettingsModule | string | `"openbeheer.conf.docker"` |  |
+| openbeheer.settings.elasticapm.serviceName | string | `""` |  |
+| openbeheer.settings.elasticapm.token | string | `""` |  |
+| openbeheer.settings.elasticapm.url | string | `""` |  |
+| openbeheer.settings.email.defaultFrom | string | `""` |  |
+| openbeheer.settings.email.host | string | `"localhost"` |  |
+| openbeheer.settings.email.password | string | `""` |  |
+| openbeheer.settings.email.port | int | `25` |  |
+| openbeheer.settings.email.useTLS | bool | `false` |  |
+| openbeheer.settings.email.username | string | `""` |  |
+| openbeheer.settings.environment | string | `""` |  |
+| openbeheer.settings.isHttps | bool | `true` |  |
+| openbeheer.settings.secretKey | string | `""` |  |
+| openbeheer.settings.sentry.dsn | string | `""` |  |
+| openbeheer.settings.sessionCookieAge | int | `900` |  |
+| openbeheer.settings.throttling.enable | bool | `true` |  |
+| openbeheer.settings.throttling.rateAnonymous | string | `"2500/hour"` |  |
+| openbeheer.settings.throttling.rateUser | string | `"15000/hour"` |  |
+| openbeheer.settings.useXForwardedHost | bool | `false` |  |
+| openbeheer.settings.uwsgi.master | string | `"1"` |  |
+| openbeheer.settings.uwsgi.maxRequests | string | `"1000"` |  |
+| openbeheer.settings.uwsgi.processes | string | `"2"` |  |
+| openbeheer.settings.uwsgi.threads | string | `"2"` |  |
+| openbeheer.tags.redis | bool | `false` |  |
+| openformulieren.beat.resources.requests.cpu | string | `"10m"` |  |
+| openformulieren.beat.resources.requests.memory | string | `"160Mi"` |  |
 | openformulieren.configuration.data | string | `""` |  |
 | openformulieren.configuration.enabled | bool | `true` |  |
 | openformulieren.configuration.job.backoffLimit | int | `6` |  |
 | openformulieren.configuration.job.enabled | bool | `true` |  |
 | openformulieren.configuration.job.restartPolicy | string | `"OnFailure"` |  |
-| openformulieren.configuration.job.ttlSecondsAfterFinished | int | `0` |  |
-| openformulieren.configuration.oidcSecret | string | `"<openformulieren>"` |  |
+| openformulieren.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
 | openformulieren.configuration.oidcUrl | string | `"https://openformulieren.example.nl"` |  |
-| openformulieren.configuration.secrets | object | `{}` |  |
-| openformulieren.settings.allowedHosts                     | List of allowed hostnames<br/>(i.e. "openformulieren.example.nl,openformulieren-nginx.podiumd.svc.cluster.local")                                     | `openformulieren-nginx.podiumd.svc.cluster.local` |
-| openformulieren.settings.baseUrl                          | Base URL (i.e. "https://openformulieren.example.nl")                                                                                                  | `""`                                              |
-| openformulieren.settings.database.host                    | Database host                                                                                                                                         | `""`                                              |
-| openformulieren.settings.database.port                    | Database port                                                                                                                                         | `5432`                                            |
-| openformulieren.settings.database.name                    | Database name                                                                                                                                         | `""`                                              |
-| openformulieren.settings.database.username                | Database username                                                                                                                                     | `""`                                              |
-| openformulieren.settings.database.password                | Database user password                                                                                                                                | `""`                                              |
-| openformulieren.settings.database.sslmode                 | Database SSL mode                                                                                                                                     | `prefer`                                          |
-| openformulieren.settings.email.host                       | Email host                                                                                                                                            | `localhost`                                       |
-| openformulieren.settings.email.port                       | Email port                                                                                                                                            | `587`                                             |
-| openformulieren.settings.email.username                   | Email username                                                                                                                                        | `""`                                              |
-| openformulieren.settings.email.password                   | Email user password                                                                                                                                   | `""`                                              |
-| openformulieren.settings.email.useTLS                     | Email use TLS                                                                                                                                         | `true`                                            |
-| openformulieren.settings.email.defaultFrom                | Email default `from` email address                                                                                                                    | `""`                                              |
-| openformulieren.settings.secretKey                        | Django secret key. Generate secret key at https://djecrety.ir/                                                                                        | `""`                                              |
-| openformulieren.settings.environment                      | Sets the `ENVIRONMENT` variable                                                                                                                       | `""`                                              |
-| openformulieren.settings.isHttps                          | Use HTTPS                                                                                                                                             | `true`                                            |
-| openformulieren.settings.debug                            | Enable debug mode                                                                                                                                     | `false`                                           |
-| openformulieren.settings.sentry.dsn                       | Url to Sentry (i.e https://sentry.example.com/111)                                                                                                    | `""`                                              |
-| openformulieren.settings.cors.allowedOrigins              | List of allowed origins                                                                                                                               | `[]`                                              |
-| openformulieren.settings.csp.reportSave                   |                                                                                                                                                       | `false`                                           |
-| openformulieren.settings.numProxies                       | Number of proxies                                                                                                                                     | `1`                                               |
-| openformulieren.persistence.existingClaim                 | Manually managed Persistent Volume and Claim                                                                                                          | `openformulieren`                                 |
-| openformulieren.persistence.mediaMountSubpath             | Media mount subpath                                                                                                                                   | `openformulieren/media`                           |
-| openformulieren.persistence.privateMediaMountSubpath      | Private media mount subpath                                                                                                                           | `openformulieren/private_media`                   |
-| openformulieren.persistence.size                          | Size of created PersistentVolume                                                                                                                      | `10Gi`                                            |
-| openformulieren.persistentVolume.volumeAttributeShareName | Value of created PersistentVolume paramer `spec.csi.volumeAttributes.shareName`.<br/>Overriden by `.Values.persistentVolume.volumeAttributeShareName` | `openformulieren`                                 |
-| openformulieren.image.repository                          | Image repository                                                                                                                                      | `openformulieren/open-forms`                      |
-| openformulieren.image.tag                                 | Image tag                                                                                                                                             | `2.7.8`                                           |
-| openformulieren.image.pullPolicy                          | Image pull policy                                                                                                                                     | `IfNotPresent`                                    |
-| openformulieren.extraVolumes                              | Optionally specify extra list of additional volumes                                                                                                   | `[]`                                              |
-| openformulieren.extraVolumeMounts                         | Optionally specify extra list of additional volumeMounts                                                                                              | `[]]`                                             |
-| openformulieren.extraVerifyCerts                          | Path to extra certificates or CA (root) certificates, comma seperated                                                                                 | `""`                                              |
-| openformulieren.nodeSelector                              | Node labels for pod assignment. Evaluated as a template                                                                                               | `{}`                                              |
-| openformulieren.resources                                 | Container requests and limits                                                                                                                         | See values.yaml                                   |
-| openformulieren.worker.resources                          | Worker container requests and limits                                                                                                                  | See values.yaml                                   |
-| openformulieren.beat.resources                            | Beat container requests and limits                                                                                                                    | See values.yaml                                   |
-| openformulieren.nginx.image.repository                    | Nginx image repository                                                                                                                                | `nginxinc/nginx-unprivileged`                     |
-| openformulieren.nginx.image.tag                           | Mginx image tag                                                                                                                                       | `stable`                                          |
-| openformulieren.nginx.image.pullPolicy                    | Nginx image pull policy                                                                                                                               | `IfNotPresent`                                    |
-| openformulieren.nginx.resources                           | Nginx container requests and limits                                                                                                                   | See values.yaml                                   |
-| openformulieren.nginx.config.clientMaxBodySize            | Nginx client max body size                                                                                                                            | `100M`                                            |
-| openformulieren.redis.image.registry                      | Redis image registry                                                                                                                                  | `docker.io`                                       |
-| openformulieren.redis.image.repository                    | Redis image repository                                                                                                                                | `bitnami/redis`                                   |
-| openformulieren.redis.image.tag                           | Redis image tag                                                                                                                                       | `7.0.5-debian-11-r25`                             |
-| openformulieren.redis.image.pullPolicy                    | Redis image pul policy                                                                                                                                | `IfNotPresent`                                    |
-| openformulieren.redis.master.persistence.enabled          | Redis master persistence enabled                                                                                                                      | `true`                                            |
-| openformulieren.redis.master.persistence.size             | Redis master persistence size                                                                                                                         | `"8Gi"`                                           |
-| openformulieren.redis.master.persistence.storageClass     | Redis master persistence storage class                                                                                                                | `""`                                              |
-| openformulieren.redis.master.nodeSelector                 | Redis node labels for pod assignment. Evaluated as a template                                                                                         | `{}`                                              |
-
-### Open Inwoner
-
-| Name                                                      | Description                                                                                                                                           | Value                                         |
-|-----------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------|
-| openinwoner.enabled                                       | Boolean to override the installation of Open Inwoner                                                                                                  |                                               |
+| openformulieren.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data. |
+| openformulieren.configuration.secrets.keycloak_client_secret | string | `""` |  |
+| openformulieren.flower.enabled | bool | `false` |  |
+| openformulieren.fullnameOverride | string | `"openformulieren"` |  |
+| openformulieren.image.tag | string | `"3.4.10@sha256:45755696db647b0c9fecc5d2c78403dbbac0f3c962292e89dee34b405abd1d7c"` |  |
+| openformulieren.nameOverride | string | `"openformulieren"` |  |
+| openformulieren.nginx.config.clientMaxBodySize | string | `"100M"` |  |
+| openformulieren.nginx.image.pullPolicy | string | `"IfNotPresent"` |  |
+| openformulieren.nginx.image.repository | string | `"nginxinc/nginx-unprivileged"` |  |
+| openformulieren.nginx.image.tag | string | `"1.31.3@sha256:49c9bef1797e11117a7f490fd00f282e377ac402fec472c72636f90cdbf72e10"` |  |
+| openformulieren.nginx.resources.requests.cpu | string | `"10m"` |  |
+| openformulieren.nginx.resources.requests.memory | string | `"16Mi"` |  |
+| openformulieren.persistence.existingClaim | string | `"openformulieren"` |  |
+| openformulieren.persistence.mediaMountSubpath | string | `"openformulieren/media"` |  |
+| openformulieren.persistence.privateMediaMountSubpath | string | `"openformulieren/private_media"` |  |
+| openformulieren.persistence.size | string | `"10Gi"` |  |
+| openformulieren.persistence.storageClassName | string | `"podiumd-standard"` |  |
+| openformulieren.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
+| openformulieren.persistentVolume.volumeAttributeShareName | string | `"openformulieren"` |  |
+| openformulieren.resources.requests.cpu | string | `"250m"` |  |
+| openformulieren.resources.requests.memory | string | `"1Gi"` |  |
+| openformulieren.settings.allowedHosts | string | `"openformulieren-nginx.podiumd.svc.cluster.local"` |  |
+| openformulieren.settings.cache.axes | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/9"` |  |
+| openformulieren.settings.cache.default | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/9"` |  |
+| openformulieren.settings.celery.brokerUrl | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/10"` |  |
+| openformulieren.settings.celery.logLevel | string | `"warning"` | Set to debug for test/acceptance environments |
+| openformulieren.settings.celery.resultBackendl | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/10"` |  |
+| openformulieren.settings.email.port | int | `587` |  |
+| openformulieren.settings.email.useTLS | bool | `true` |  |
+| openformulieren.tags.redis | bool | `false` |  |
+| openformulieren.worker.livenessProbe.enabled | bool | `true` |  |
+| openformulieren.worker.maxWorkerLivenessDelta | string | `"300"` |  |
+| openformulieren.worker.replicaCount | int | `1` |  |
+| openformulieren.worker.resources.requests.cpu | string | `"200m"` |  |
+| openformulieren.worker.resources.requests.memory | string | `"1Gi"` |  |
+| openinwoner.beat.resources.requests.cpu | string | `"50m"` |  |
+| openinwoner.beat.resources.requests.memory | string | `"128Mi"` |  |
+| openinwoner.celeryMonitor.resources.requests.cpu | string | `"50m"` |  |
+| openinwoner.celeryMonitor.resources.requests.memory | string | `"64Mi"` |  |
 | openinwoner.configuration.data | string | `""` |  |
 | openinwoner.configuration.enabled | bool | `true` |  |
 | openinwoner.configuration.initContainer.enabled | bool | `false` |  |
@@ -703,220 +892,436 @@ The deprecated Bitnami `keycloak` sub-chart (`keycloak.enabled`) is kept for rol
 | openinwoner.configuration.job.enabled | bool | `true` |  |
 | openinwoner.configuration.job.resources | object | `{}` |  |
 | openinwoner.configuration.job.restartPolicy | string | `"OnFailure"` |  |
-| openinwoner.configuration.job.ttlSecondsAfterFinished | int | `0` |  |
-| openinwoner.configuration.oidcSecret | string | `"<openinwoner>"` |  |
+| openinwoner.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
 | openinwoner.configuration.oidcUrl | string | `"https://openinwoner.example.nl"` |  |
-| openinwoner.configuration.secrets | object | `{}` |  |
-| openinwoner.settings.allowedHosts                         | List if allowed hostnames<br/>(i.e. "openinwoner.example.nl,openinwoner-nginx.podiumd.svc.cluster.local")                                             | `openinwoner-nginx.podiumd.svc.cluster.local` |
-| openinwoner.settings.database.host                        | Database host. Overides global.settings.databaseHost                                                                                                  | `""`                                          |
-| openinwoner.settings.database.port                        | Database port                                                                                                                                         | `5432`                                        |
-| openinwoner.settings.database.name                        | Database name                                                                                                                                         | `""`                                          |
-| openinwoner.settings.database.username                    | Database username                                                                                                                                     | `""`                                          |
-| openinwoner.settings.database.password                    | Database user password                                                                                                                                | `""`                                          |
-| openinwoner.settings.database.sslmode                     | Database SSL mode                                                                                                                                     | `prefer`                                      |
-| openinwoner.settings.email.host                           | Email host                                                                                                                                            | `localhost`                                   |
-| openinwoner.settings.email.port                           | Email port                                                                                                                                            | `587`                                         |
-| openinwoner.settings.email.username                       | Email username                                                                                                                                        | `""`                                          |
-| openinwoner.settings.email.password                       | Email user password                                                                                                                                   | `""`                                          |
-| openinwoner.settings.email.useTLS                         | Email use TLS                                                                                                                                         | `true`                                        |
-| openinwoner.settings.email.defaultFrom                    | Email default `from` email address                                                                                                                    | `""`                                          |
-| openinwoner.settings.secretKey                            | Django secret key. Generate secret key at https://djecrety.ir/                                                                                        | `""`                                          |
-| openinwoner.settings.environment                          | Sets the `ENVIRONMENT` variable                                                                                                                       | `""`                                          |
-| openinwoner.settings.brpVersion                           |                                                                                                                                                       | `""`                                          |
-| openinwoner.settings.digidMock                            | Enable the DigiD mock                                                                                                                                 | `""`                                          |
-| openinwoner.settings.eherkenningMock                      | Enable the eHerkenning mock                                                                                                                           | `""`                                          |
-| openinwoner.settings.isHttps                              | Use HTTPS                                                                                                                                             | `true`                                        |
-| openinwoner.settings.debug                                | Enable debug mode                                                                                                                                     | `false`                                       |
-| openinwoner.settings.numProxies                           | Number of proxies                                                                                                                                     | `1`                                           |
-| openinwoner.settings.sentry.dsn                           | Url to Sentry (i.e https://sentry.example.com/111)                                                                                                    | `""`                                          |
-| openinwoner.settings.smsgateway.apikey                    | SMS gateway api key                                                                                                                                   | `""`                                          |
-| openinwoner.settings.smsgateway.backend                   | SMS gateway backend                                                                                                                                   | `""`                                          |
-| openinwoner.persistence.existingClaim                     | Manually managed Persistent Volume and Claim                                                                                                          | `openinwoner`                                 |
-| openinwoner.persistence.mediaMountSubpath                 | Media mount subpath                                                                                                                                   | `openinwoner/media`                           |
-| openinwoner.persistence.privateMediaMountSubpath          | Private media mount subpath                                                                                                                           | `openinwoner/private_media`                   |
-| openinwoner.persistence.size                              | Size of created PersistentVolume                                                                                                                      | `10Gi`                                        |
-| openinwoner.persistentVolume.volumeAttributeShareName     | Value of created PersistentVolume paramer `spec.csi.volumeAttributes.shareName`.<br/>Overriden by `.Values.persistentVolume.volumeAttributeShareName` | `openinwoner`                                 |
-| openinwoner.image.repository                              | Image repository                                                                                                                                      | `maykinmedia/open-inwoner`                    |
-| openinwoner.image.tag                                     | Image tag                                                                                                                                             | `2.1.2`                                       |
-| openinwoner.image.pullPolicy                              | Image pull policy                                                                                                                                     | `IfNotPresent`                                |
-| openinwoner.nodeSelector                                  | Node labels for pod assignment. Evaluated as a template                                                                                               | `{}`                                          |
-| openinwoner.resources                                     | Container requests and limits                                                                                                                         | See values.yaml                               |
-| openinwoner.worker.resources                              | Worker container requests and limits                                                                                                                  | See values.yaml                               |
-| openinwoner.nginx.config.clientMaxBodySize                | Nginx client max body size                                                                                                                            | `100M`                                        |
-| openinwoner.nginx.image.repository                        | Nginx image repository                                                                                                                                | `nginxinc/nginx-unprivileged`                 |
-| openinwoner.nginx.image.tag                               | Mginx image tag                                                                                                                                       | `stable`                                      |
-| openinwoner.nginx.image.pullPolicy                        | Nginx image pull policy                                                                                                                               | `IfNotPresent`                                |
-| openinwoner.nginx.resources                               | Nginx container requests and limits                                                                                                                   | See values.yaml                               |
-| openinwoner.redis.image.registry                          | Redis image registry                                                                                                                                  | `docker.io`                                   |
-| openinwoner.redis.image.repository                        | Redis image repository                                                                                                                                | `bitnami/redis`                               |
-| openinwoner.redis.image.tag                               | Redis image tag                                                                                                                                       | `7.0.5-debian-11-r25`                         |
-| openinwoner.redis.image.pullPolicy                        | Redis image pul policy                                                                                                                                | `IfNotPresent`                                |
-| openinwoner.redis.master.persistence.enabled              | Redis master persistence enabled                                                                                                                      | `true`                                        |
-| openinwoner.redis.master.persistence.size                 | Redis master persistence size                                                                                                                         | `"8Gi"`                                       |
-| openinwoner.redis.master.persistence.storageClass         | Redis master persistence storage class                                                                                                                | `""`                                          |
-| openinwoner.redis.master.nodeSelector                     | Redis node labels for pod assignment. Evaluated as a template                                                                                         | `{}`                                          |
-| openinwoner.elasticsearch.image.repository                | Elastic search image repository                                                                                                                       | `bitnami/elasticsearch`                       |
-| openinwoner.elasticsearch.image.tag                       | Elastic search image tag                                                                                                                              | `8.6.2-debian-11-r0`                          |
-| openinwoner.elasticsearch.image.pullPolicy                | Elastic search image pul policy                                                                                                                       | `IfNotPresent`                                |
-| openinwoner.elasticsearch.master.persistence.enabled      | Elastic search master persistence enabled                                                                                                             | `true`                                        |
-| openinwoner.elasticsearch.master.persistence.size         | Elastic search master persistence storage size                                                                                                        | `"8Gi"`                                       |
-| openinwoner.elasticsearch.master.persistence.storageClass | Elastic search master persistence storage class                                                                                                       | `""`                                          |
-| openinwoner.elasticsearch.master.nodeSelector             | Elastic search master node labels for pod assignment. Evaluated as a template                                                                         | `{}`                                          |
-| openinwoner.elasticsearch.data.persistence.enabled        | Elastic search data persistence enabled                                                                                                               | `true`                                        |
-| openinwoner.elasticsearch.data.persistence.size           | Elastic search data persistence storage size                                                                                                          | `"8Gi"`                                       |
-| openinwoner.elasticsearch.data.persistence.storageClass   | Elastic search data persistence storage class                                                                                                         | `""`                                          |
-| openinwoner.elasticsearch.data.nodeSelector               | Elastic search data node labels for pod assignment. Evaluated as a template                                                                           | `{}`                                          |
-| openinwoner.elasticsearch.coordinating.nodeSelector       | Elastic search coordinating node labels for pod assignment. Evaluated as a template                                                                   | `{}`                                          |
-
-### PABC
-
-| Name                                       | Description                                                          | Value                    |
-|--------------------------------------------|----------------------------------------------------------------------|--------------------------|
-| pabc.enabled                               | Boolean to override the installation of PABC                         | `false`                  |
-| pabc.fullnameOverride                      | Override for the full deployment name                                | `"pabc"`                 |
-| pabc.image.tag                             | Image tag                                                            | `"1.0.0"`                |
-| pabc.migrations.image.tag                  | Migrations image tag                                                 | `"1.0.0"`                |
-| pabc.settings.database.host                | Database host                                                        | `""`                     |
-| pabc.settings.database.name                | Database name                                                        | `"pabc"`                 |
-| pabc.settings.database.username            | Database username                                                    | `"pabc"`                 |
-| pabc.settings.database.password            | Database password                                                    | `""`                     |
-| pabc.settings.apiKeys                      | List of issued API keys                                              | `[""]`                   |
-| pabc.settings.oidc.authority               | URL of the OpenID Connect Identity Provider                          | `""`                     |
-| pabc.settings.oidc.clientId                | Client ID for accessing the OpenID Connect Identity Provider         | `"pabc"`                 |
-| pabc.settings.oidc.clientSecret            | Secret for the OpenID Connect Identity Provider                      | `""`                     |
-| pabc.settings.oidc.functioneelBeheerderRole | Role claim value required for management functions                   | `"administrator"`        |
-| pabc.settings.oidc.nameClaimType           | JWT claim name containing the full name of the user                  | `"name"`                 |
-| pabc.settings.oidc.roleClaimType           | JWT claim name containing the roles of the user                      | `"roles"`                |
-| pabc.settings.oidc.emailClaimType          | JWT claim name containing the email address of the user              | `"email"`                |
-| pabc.settings.oidc.oidcUrl                 | OIDC URL                                                             | `"https://pabc.example.nl"` |
-| pabc.settings.keycloakAdmin.clientId       | Client ID for accessing Keycloak Admin API                           | `"pabc-keycloak-admin"`  |
-| pabc.settings.keycloakAdmin.clientSecret   | Client secret for accessing Keycloak Admin API                       | `""`                     |
-| pabc.resources                             | Container requests and limits                                        | See values.yaml          |
-
-### KISS
-
-| Name                                    | Description                                                                                     | Value                                 |
-|-----------------------------------------|-------------------------------------------------------------------------------------------------|---------------------------------------|
-| kiss.enabled                             | Boolean to override the installation of KISS                                                                 | `true`                                |
-| kiss.frontend.image.repository           | Frontend image repository                                                                       | `ghcr.io/klantinteractie-servicesysteem/kiss-frontend` |
-| kiss.frontend.image.tag                  | Frontend image tag                                                                              | `"1.3.1"`                             |
-| kiss.frontend.image.pullPolicy           | Frontend image pull policy                                                                      | `IfNotPresent`                        |
-| kiss.frontend.resources                  | Frontend container requests and limits                                                         | See values.yaml                       |
-| kiss.frontend.aspNetCoreEnvironment      | ASP.NET Core environment                                                                        | `Production`                          |
-| kiss.frontend.extraEnvVars               | Optionally specify extra list of additional environment variables                               | `[]`                                  |
-| kiss.adapter.image.repository             | Adapter image repository                                                                        | `ghcr.io/icatt-menselijk-digitaal/podiumd-adapter` |
-| kiss.adapter.image.tag                   | Adapter image tag                                                                               | `"0.6.4"`                             |
-| kiss.adapter.image.pullPolicy            | Adapter image pull policy                                                                       | `IfNotPresent`                        |
-| kiss.adapter.resources                   | Adapter container requests and limits                                                          | See values.yaml                       |
-| kiss.adapter.extraEnvVars                | Optionally specify extra list of additional environment variables                               | `[]`                                  |
-| kiss.frontend.extraVolumes               | Optionally specify extra list of additional volumes                                             | `[]`                                  |
-| kiss.frontend.extraVolumeMounts          | Optionally specify extra list of additional volumeMounts                                        | `[]`                                  |
-| kiss.adapter.extraVolumes                | Optionally specify extra list of additional volumes                                             | `[]`                                  |
-| kiss.adapter.extraVolumeMounts           | Optionally specify extra list of additional volumeMounts                                        | `[]`                                  |
-| kiss.nodeSelector                        | Node labels for pod assignment. Evaluated as a template                                         | `{}`                                  |
-
-### Podiumd Proxy
-
-| Name                                         | Description                                | Value                                                                               |
-|----------------------------------------------|--------------------------------------------|-------------------------------------------------------------------------------------|
-| apiproxy.replicaCount                        | Number of replicas to deploy               | `1`                                                                                 |
-| apiproxy.nameOverride                        | Override for the deployment name           | `""`                                                                                |
-| apiproxy.fullnameOverride                    | Override for the full deployment name      | `""`                                                                                |
-| apiproxy.image.repository                    | Container image repository                 | `nginx`                                                                             |
-| apiproxy.image.tag                           | Container image tag                        | `"1.25-alpine"`                                                                     |
-| apiproxy.image.pullPolicy                    | Image pull policy                          | `IfNotPresent`                                                                      |
-| apiproxy.service.port                        | Service port                               | `8081`                                                                              |
-| apiproxy.resources.limits.cpu                | CPU resource limit                         | `"0.5"`                                                                             |
-| apiproxy.resources.limits.memory             | Memory resource limit                      | `"256Mi"`                                                                           |
-| apiproxy.resources.requests.cpu              | CPU resource request                       | `"0.1"`                                                                             |
-| apiproxy.resources.requests.memory           | Memory resource request                    | `"128Mi"`                                                                           |
-| apiproxy.nginxCertsSecret                    | Secret containing NGINX certificates (empty disables mTLS) | `""`                                                                                |
-| apiproxy.sslVerifyDepth                      | Max upstream TLS chain depth (`proxy_ssl_verify_depth`) | `6`                                                                                 |
-| apiproxy.livenessProbe.initialDelaySeconds   | Initial delay for liveness probe           | `5`                                                                                 |
-| apiproxy.livenessProbe.periodSeconds         | Period between liveness probe checks       | `10`                                                                                |
-| apiproxy.readinessProbe.initialDelaySeconds  | Initial delay for readiness probe          | `5`                                                                                 |
-| apiproxy.readinessProbe.periodSeconds        | Period between readiness probe checks      | `10`                                                                                |
-| apiproxy.locations.*.sslVerify               | SSL verification setting for all locations | `"off"`                                                                             |
-| apiproxy.locations.*.hostHeader              | Host header for all locations              | `"lab.api.mijniconnect.nl"`                                                         |
-| apiproxy.locations.bag.path                  | Base path for BAG                          | `"/lvbag/individuelebevragingen/v2/"`                                               |
-| apiproxy.locations.bag.targetUrl             | Target URL for BAG location                | `"https://lab.api.mijniconnect.nl/iconnect/apibagib/v2/"`                   |
-| apiproxy.locations.brp.path                  | Base path for BRP                          | `"/haalcentraal/api/brp"`                                                           |
-| apiproxy.locations.brp.targetUrl             | Target URL for BRP location                | `"https://lab.api.mijniconnect.nl/iconnect/apihcbrp/actueel/prtcl/v2/personen"`     |
-| apiproxy.locations.kvkSearch.targetUrl       | Target URL for KVK search                  | `"https://lab.api.mijniconnect.nl/iconnect/apikvk/zoeken/v2/zoeken"`                |
-| apiproxy.locations.kvkBasic.targetUrl        | Target URL for KVK basic profiles          | `"https://lab.api.mijniconnect.nl/iconnect/apikvk/basprof/v1/v1/basisprofielen"`    |
-| apiproxy.locations.kvkBranch.targetUrl       | Target URL for KVK branch profiles         | `"https://lab.api.mijniconnect.nl/iconnect/apikvk/vesprof/v1/v1/vestigingsprofielen"` |
-
-#### Create certificate example
-$ kubectl create secret generic api-proxy-certs \
-  --from-file=client.crt="C:\labtenant1.lab.api.mijniconnect.nl.crt" \
-  --from-file=client.key="C:\labtenant1.lab.api.mijniconnect.nl.key.decrypted" \
-  --from-file=ca.crt="C:\lab_api_mijniconnect_nl.crt"
-
-### APISIX
-
-APISIX is deployed as an **outbound (egress) API gateway** for PodiumD applications. PodiumD pods send outbound API calls to the APISIX cluster service for policy enforcement, observability, and (planned) mTLS to upstream services. APISIX is not exposed outside the cluster — no ingress routes are required from APISIX itself.
-
-The chart is wired in via the upstream [`apisix/apisix`](https://github.com/apache/apisix-helm-chart) Helm chart. **Disabled by default** — opt in by setting `apisix.enabled: true`. See `docs/apps/apisix/apisix-egress-gateway.md` for background, the embedded Dashboard UI, route configuration, and the open security TODOs.
-
-The operator GUI is the **embedded APISIX Dashboard**, shipped inside the gateway from APISIX 3.16 onwards and served at the Admin API port (`:9180/ui/`). No separate dashboard chart is required.
-
-| Name                              | Description                                                                                       | Value       |
-|-----------------------------------|---------------------------------------------------------------------------------------------------|-------------|
-| apisix.enabled                    | Deploy the APISIX egress gateway sub-chart (also enables the embedded Dashboard)                  | `false`     |
-| apisix.fullnameOverride           | Override the APISIX release name (so the service is reachable as `apisix.<namespace>.svc...`)     | `"apisix"`  |
-| apisix.ingress-controller.enabled | Deploy the bundled ingress controller (kept off — APISIX is egress-only)                          | `false`     |
-| apisix.service.type               | Kubernetes service type for the APISIX gateway data plane                                         | `ClusterIP` |
-| apisix.admin.enable_admin_ui      | Enable the embedded Dashboard UI on the Admin API port (`:9180/ui/`)                              | `true`      |
-| apisix.admin.type                 | Kubernetes service type for the APISIX Admin API + Dashboard                                      | `ClusterIP` |
-| apisix.apisixYaml                 | Standalone-mode route/upstream/plugin configuration. See egress-gateway doc for the schema        | _(unset)_   |
-
-For the full upstream values reference run:
-
-```shell
-helm show values apisix/apisix --version 2.14.0
-```
-
-### Open Beheer
-
-Open Beheer is a Django-based admin/management UI for the ZGW ecosystem — it configures zaaktypes and informatieobjecttypes via the Open Zaak Catalogi API, object schemas via Objecttypen, and references the public Selectielijst API. Deployed as the `openbeheer` sub-chart (`maykinmedia/open-beheer`). **Disabled by default** — opt in by setting `openbeheer.enabled: true`. See `docs/apps/openbeheer/openbeheer.md` for the overview, dependencies, and enable steps, and `docs/apps/openbeheer/openbeheer-known-issues.md` for the uWSGI master-process restart trap.
-
-### Tags
-
-Tags to add additional unreleased PodiumD functionality.
-
-| Name           | Description                          | Value   |
-|----------------|--------------------------------------|---------|
-| tags.zaak      | Whether PodiumD Zaak is installed    | `false` |
-
-## Upgrading
-
-If an Helm upgrade of a component fails because of a forbidden update to a statefullset spec the statefullset needs to be deleted prior to the Helm upgrade by the following command:
-
-$ kubectl delete sts <component>-redis-master -n podiumd --cascade=orphan
-
-### Upgrading to 4.5.12
-
-The Keycloak Operator ServiceMonitor RBAC resources have been removed from the chart. Helm will automatically delete the `*-keycloak-operator-servicemonitor` ClusterRole and ClusterRoleBinding on upgrade.
-
-However, if you previously ran an earlier version of 4.5.12 (where these resources were still present but renamed from `-view`), or if you are upgrading from 4.5.11, you must also manually remove the orphaned `-view` resources that Helm cannot track:
-
-```
-kubectl delete clusterrole <release>-keycloak-operator-servicemonitor-view --ignore-not-found
-kubectl delete clusterrolebinding <release>-keycloak-operator-servicemonitor-view --ignore-not-found
-```
-
-Replace `<release>` with your Helm release name (default: `podiumd`).
-
-#### ServiceMonitor CRD must be removed
-
-The `monitoring-logging` chart does not manage the `servicemonitors.monitoring.coreos.com` CRD. On clusters where this CRD is present but outdated (built with controller-gen ≤ v0.11.1), the Keycloak Operator will fail with:
-
-```
-failed to create typed patch object: .spec.scrapeProtocols: field not declared in schema
-```
-
-Remove the CRD from the cluster. This also removes all existing `ServiceMonitor` resources — they will be recreated by their respective operators once a newer CRD is installed:
-
-```
-kubectl delete crd servicemonitors.monitoring.coreos.com
-```
+| openinwoner.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data. |
+| openinwoner.configuration.secrets.keycloak_client_secret | string | `""` |  |
+| openinwoner.eck-elasticsearch.enabled | bool | `true` |  |
+| openinwoner.eck-elasticsearch.http | object | `{"tls":{"selfSignedCertificate":{"disabled":true}}}` | image: overrides the Elasticsearch image. ECK does NOT append :version when spec.image is set — include the full tag. For ACR: image: acrprodmgmt.azurecr.io/elasticsearch/elasticsearch:9.2.0 |
+| openinwoner.eck-elasticsearch.version | string | `"9.2.0"` |  |
+| openinwoner.eck-operator.enabled | bool | `false` |  |
+| openinwoner.fullnameOverride | string | `"openinwoner"` |  |
+| openinwoner.image.tag | string | `"2.4.2"` |  |
+| openinwoner.lowLatencyWorker | object | `{"replicaCount":1,"resources":{"requests":{"cpu":"100m","memory":"256Mi"}}}` | New in openinwoner 2.3.0 (chart 2.2.0): dedicated low-latency Celery worker for cache-seeding/warmup tasks. The chart creates this deployment by default (replicaCount 1) on upgrade; resources pinned here to match podiumd conventions. |
+| openinwoner.nameOverride | string | `"openinwoner"` |  |
+| openinwoner.nginx.config.basicAuth.enabled | bool | `false` |  |
+| openinwoner.nginx.config.basicAuth.users | string | `"dimpact:$apr1$E03dZmYK$npjTaXfI05tMJ63gB8dxm."` |  |
+| openinwoner.nginx.config.clientMaxBodySize | string | `"100M"` |  |
+| openinwoner.nginx.image.pullPolicy | string | `"IfNotPresent"` |  |
+| openinwoner.nginx.image.repository | string | `"nginxinc/nginx-unprivileged"` |  |
+| openinwoner.nginx.image.tag | string | `"1.31.3@sha256:49c9bef1797e11117a7f490fd00f282e377ac402fec472c72636f90cdbf72e10"` |  |
+| openinwoner.nginx.resources.requests.cpu | string | `"30m"` |  |
+| openinwoner.nginx.resources.requests.memory | string | `"8Mi"` |  |
+| openinwoner.persistence.existingClaim | string | `"openinwoner"` |  |
+| openinwoner.persistence.size | string | `"10Gi"` |  |
+| openinwoner.persistence.storageClassName | string | `"podiumd-standard"` |  |
+| openinwoner.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
+| openinwoner.persistentVolume.volumeAttributeShareName | string | `"openinwoner"` |  |
+| openinwoner.resources.requests.cpu | string | `"200m"` |  |
+| openinwoner.resources.requests.memory | string | `"1Gi"` |  |
+| openinwoner.settings.allowedHosts | string | `"openinwoner-nginx.podiumd.svc.cluster.local"` |  |
+| openinwoner.settings.brpVersion | string | `""` |  |
+| openinwoner.settings.cache.axes | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/11"` |  |
+| openinwoner.settings.cache.default | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/11"` |  |
+| openinwoner.settings.cacheSeedingQueue | string | `""` | New in openinwoner 2.3.0: Celery queue for cache-seeding tasks. Empty defaults to the low-latency worker queue (see lowLatencyWorker below). |
+| openinwoner.settings.cacheZgwZakenTimeout | string | `""` | New in openinwoner 2.3.0: per-request timeout (seconds) for cached ZGW zaken. Empty uses the application default (300s, raised from 60s upstream). |
+| openinwoner.settings.celery.brokerUrl | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/12"` |  |
+| openinwoner.settings.celery.logLevel | string | `"warning"` | Set to debug for test/acceptance environments |
+| openinwoner.settings.celery.resultBackendl | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/12"` |  |
+| openinwoner.settings.cms4MigrationInitContainer | bool | `true` | New in openinwoner 2.3.0 (chart 2.2.0): runs an init container executing `manage.py cms4_migration` for the Django CMS v3 → v4 migration. Keep true for the first rollout to 2.3.0 so the one-time migration runs; flip to false in a follow-up release once every environment has completed it. Re-running is a no-op. |
+| openinwoner.settings.digidMock | string | `""` |  |
+| openinwoner.settings.eherkenningMock | string | `""` |  |
+| openinwoner.settings.email.port | int | `587` |  |
+| openinwoner.settings.email.useTLS | bool | `true` |  |
+| openinwoner.settings.oidcFrontendLogoutWithHints | bool | `true` |  |
+| openinwoner.settings.otel.disabled | bool | `true` |  |
+| openinwoner.settings.searchIndexInitContainer | bool | `true` |  |
+| openinwoner.tags.redis | bool | `false` |  |
+| openinwoner.worker.livenessProbe.enabled | bool | `true` |  |
+| openinwoner.worker.maxWorkerLivenessDelta | string | `"300"` |  |
+| openinwoner.worker.replicaCount | int | `1` |  |
+| openinwoner.worker.resources.requests.cpu | string | `"200m"` |  |
+| openinwoner.worker.resources.requests.memory | string | `"640Mi"` |  |
+| openklant.configuration.data | string | `""` |  |
+| openklant.configuration.enabled | bool | `true` |  |
+| openklant.configuration.initContainer.enabled | bool | `false` |  |
+| openklant.configuration.job.backoffLimit | int | `6` |  |
+| openklant.configuration.job.enabled | bool | `true` |  |
+| openklant.configuration.job.resources | object | `{}` |  |
+| openklant.configuration.job.restartPolicy | string | `"OnFailure"` |  |
+| openklant.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
+| openklant.configuration.oidcUrl | string | `"https://openklant.example.nl"` |  |
+| openklant.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data. |
+| openklant.configuration.secrets.keycloak_client_secret | string | `""` |  |
+| openklant.fullnameOverride | string | `"openklant"` |  |
+| openklant.image.tag | string | `"2.15.0"` |  |
+| openklant.nameOverride | string | `"openklant"` |  |
+| openklant.nginx.image.pullPolicy | string | `"IfNotPresent"` |  |
+| openklant.nginx.image.repository | string | `"nginxinc/nginx-unprivileged"` |  |
+| openklant.nginx.image.tag | string | `"1.31.3@sha256:49c9bef1797e11117a7f490fd00f282e377ac402fec472c72636f90cdbf72e10"` |  |
+| openklant.nginx.resources.requests.cpu | string | `"10m"` |  |
+| openklant.nginx.resources.requests.memory | string | `"16Mi"` |  |
+| openklant.otel.disabled | bool | `true` |  |
+| openklant.persistence.existingClaim | string | `"openklant"` |  |
+| openklant.persistence.size | string | `"10Gi"` |  |
+| openklant.persistence.storageClassName | string | `"podiumd-standard"` |  |
+| openklant.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
+| openklant.persistentVolume.volumeAttributeShareName | string | `"openklant"` |  |
+| openklant.resources.requests.cpu | string | `"100m"` |  |
+| openklant.resources.requests.memory | string | `"300Mi"` |  |
+| openklant.settings.allowedHosts | string | `"openklant.podiumd.svc.cluster.local"` |  |
+| openklant.settings.cache.axes | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/7"` |  |
+| openklant.settings.cache.default | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/7"` |  |
+| openklant.settings.celery.brokerUrl | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/8"` |  |
+| openklant.settings.celery.logLevel | string | `"warning"` | Set to debug for test/acceptance environments |
+| openklant.settings.celery.resultBackendl | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/8"` |  |
+| openklant.settings.disable2fa | bool | `false` |  |
+| openklant.settings.email.port | int | `587` |  |
+| openklant.settings.email.useTLS | bool | `true` |  |
+| openklant.settings.uwsgi.maxRequests | string | `"1000"` |  |
+| openklant.settings.uwsgi.processes | string | `"2"` |  |
+| openklant.settings.uwsgi.threads | string | `"4"` |  |
+| openklant.tags.redis | bool | `false` |  |
+| openklant.worker.livenessProbe.enabled | bool | `true` |  |
+| openklant.worker.replicaCount | int | `1` |  |
+| openklant.worker.resources.requests.cpu | string | `"50m"` |  |
+| openklant.worker.resources.requests.memory | string | `"200Mi"` |  |
+| opennotificaties.beat.resources.requests.cpu | string | `"50m"` |  |
+| opennotificaties.beat.resources.requests.memory | string | `"128Mi"` |  |
+| opennotificaties.configuration.data | string | `""` |  |
+| opennotificaties.configuration.http_request_job.enabled | bool | `false` |  |
+| opennotificaties.configuration.initContainer.enabled | bool | `false` |  |
+| opennotificaties.configuration.job.backoffLimit | int | `6` |  |
+| opennotificaties.configuration.job.enabled | bool | `true` |  |
+| opennotificaties.configuration.job.resources | object | `{}` |  |
+| opennotificaties.configuration.job.restartPolicy | string | `"OnFailure"` |  |
+| opennotificaties.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
+| opennotificaties.configuration.oidcUrl | string | `"https://opennotificaties.example.nl"` |  |
+| opennotificaties.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data. |
+| opennotificaties.configuration.secrets.keycloak_client_secret | string | `""` |  |
+| opennotificaties.flower.enabled | bool | `false` |  |
+| opennotificaties.fullnameOverride | string | `"opennotificaties"` |  |
+| opennotificaties.image.tag | string | `"1.16.1"` |  |
+| opennotificaties.nameOverride | string | `"opennotificaties"` |  |
+| opennotificaties.otel.disabled | bool | `true` |  |
+| opennotificaties.persistence.existingClaim | string | `"opennotificaties"` |  |
+| opennotificaties.persistence.size | string | `"10Gi"` |  |
+| opennotificaties.persistence.storageClassName | string | `"podiumd-standard"` |  |
+| opennotificaties.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
+| opennotificaties.persistentVolume.volumeAttributeShareName | string | `"opennotificaties"` |  |
+| opennotificaties.resources.requests.cpu | string | `"100m"` |  |
+| opennotificaties.resources.requests.memory | string | `"256Mi"` |  |
+| opennotificaties.settings.allowedHosts | string | `"opennotificaties.podiumd.svc.cluster.local"` |  |
+| opennotificaties.settings.cache.axes | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/3"` |  |
+| opennotificaties.settings.cache.default | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/3"` |  |
+| opennotificaties.settings.celery.brokerUrl | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/6"` |  |
+| opennotificaties.settings.celery.logLevel | string | `"warning"` | Set to debug for test/acceptance environments |
+| opennotificaties.settings.celery.publishBrokerUrl | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/6"` |  |
+| opennotificaties.settings.celery.resultBackend | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/6"` |  |
+| opennotificaties.settings.disable2fa | bool | `false` |  |
+| opennotificaties.settings.email.port | int | `587` |  |
+| opennotificaties.settings.email.useTLS | bool | `true` |  |
+| opennotificaties.settings.maxRetries | int | `5` |  |
+| opennotificaties.settings.messageBroker.celeryResultBackend | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/6"` |  |
+| opennotificaties.settings.requestsTimeout | int | `60` |  |
+| opennotificaties.settings.retryBackoff | int | `3` |  |
+| opennotificaties.settings.retryBackoffMax | int | `48` |  |
+| opennotificaties.tags.redis | bool | `false` |  |
+| opennotificaties.worker.livenessProbe.enabled | bool | `true` |  |
+| opennotificaties.worker.maxWorkerLivenessDelta | string | `"300"` |  |
+| opennotificaties.worker.replicaCount | int | `1` |  |
+| opennotificaties.worker.resources.requests.cpu | string | `"50m"` |  |
+| opennotificaties.worker.resources.requests.memory | string | `"386Mi"` |  |
+| openzaak.beat.resources.requests.cpu | string | `"10m"` |  |
+| openzaak.beat.resources.requests.memory | string | `"160Mi"` |  |
+| openzaak.configuration.data | string | `""` |  |
+| openzaak.configuration.enabled | bool | `true` |  |
+| openzaak.configuration.initContainer.enabled | bool | `false` |  |
+| openzaak.configuration.job.backoffLimit | int | `6` |  |
+| openzaak.configuration.job.enabled | bool | `true` |  |
+| openzaak.configuration.job.resources | object | `{}` |  |
+| openzaak.configuration.job.restartPolicy | string | `"Never"` |  |
+| openzaak.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
+| openzaak.configuration.notificaties.enabled | bool | `true` |  |
+| openzaak.configuration.notificatiesAuthorization.enabled | bool | `true` |  |
+| openzaak.configuration.oidcUrl | string | `"https://openzaak.example.nl"` |  |
+| openzaak.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data. |
+| openzaak.configuration.secrets.keycloak_client_secret | string | `""` |  |
+| openzaak.create_required_catalogi_job.activeDeadlineSeconds | int | `900` |  |
+| openzaak.create_required_catalogi_job.backoffLimit | int | `10` |  |
+| openzaak.create_required_catalogi_job.client_id | string | `"<openzaak_client_id>"` |  |
+| openzaak.create_required_catalogi_job.e2eTestZaaktype.create | bool | `true` |  |
+| openzaak.create_required_catalogi_job.enabled | bool | `true` |  |
+| openzaak.create_required_catalogi_job.resources.limits.cpu | string | `"200m"` |  |
+| openzaak.create_required_catalogi_job.resources.limits.memory | string | `"128Mi"` |  |
+| openzaak.create_required_catalogi_job.resources.requests.cpu | string | `"50m"` |  |
+| openzaak.create_required_catalogi_job.resources.requests.memory | string | `"64Mi"` |  |
+| openzaak.create_required_catalogi_job.secret | string | `"<openzaak_secret>"` |  |
+| openzaak.extraEnvVars | list | `[{"name":"OPENZAAK_PORT","value":"8000"}]` | Override OPENZAAK_PORT to prevent Kubernetes service-discovery injection (tcp://<ip>:80) from being passed to uwsgi as the port number. Since Open Zaak 1.27.3 the app reads OPENZAAK_PORT for uwsgi_port; K8s auto-injects OPENZAAK_PORT=tcp://<svc-ip>:80 for the openzaak Service, which uwsgi cannot parse. See https://github.com/open-zaak/open-zaak/issues/2415 |
+| openzaak.flower.enabled | bool | `false` |  |
+| openzaak.fullnameOverride | string | `"openzaak"` |  |
+| openzaak.image.tag | string | `"1.27.4@sha256:f847e5148d857da07847b5d298d8d7a0b66a299fb48e02e4a28176cc09e8decf"` |  |
+| openzaak.nameOverride | string | `"openzaak"` |  |
+| openzaak.nginx.image.pullPolicy | string | `"IfNotPresent"` |  |
+| openzaak.nginx.image.repository | string | `"nginxinc/nginx-unprivileged"` |  |
+| openzaak.nginx.image.tag | string | `"1.31.3@sha256:49c9bef1797e11117a7f490fd00f282e377ac402fec472c72636f90cdbf72e10"` |  |
+| openzaak.nginx.resources.requests.cpu | string | `"10m"` |  |
+| openzaak.nginx.resources.requests.memory | string | `"16Mi"` |  |
+| openzaak.otel.disabled | bool | `true` |  |
+| openzaak.persistence.existingClaim | string | `"openzaak"` |  |
+| openzaak.persistence.size | string | `"10Gi"` |  |
+| openzaak.persistence.storageClassName | string | `"podiumd-standard"` |  |
+| openzaak.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
+| openzaak.persistentVolume.volumeAttributeShareName | string | `"openzaak"` |  |
+| openzaak.resources.requests.cpu | string | `"250m"` |  |
+| openzaak.resources.requests.memory | string | `"512Mi"` |  |
+| openzaak.settings.allowedHosts | string | `"openzaak-nginx.podiumd.svc.cluster.local"` |  |
+| openzaak.settings.cache.axes | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/4"` |  |
+| openzaak.settings.cache.default | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/4"` |  |
+| openzaak.settings.celery.brokerUrl | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/5"` |  |
+| openzaak.settings.celery.logLevel | string | `"warning"` | Set to debug for test/acceptance environments |
+| openzaak.settings.celery.resultBackendl | string | `"redis://redis-ha-master.podiumd.svc.cluster.local:6379/5"` |  |
+| openzaak.settings.disable2fa | bool | `false` |  |
+| openzaak.settings.documentApiBackend | string | `"filesystem"` | Backend for the Documenten API. Supported values: filesystem | azure_blob_storage |
+| openzaak.settings.email.port | int | `587` |  |
+| openzaak.settings.email.useTLS | bool | `true` |  |
+| openzaak.settings.uwsgi.maxRequests | string | `"1000"` |  |
+| openzaak.settings.uwsgi.processes | string | `"2"` |  |
+| openzaak.settings.uwsgi.threads | string | `"4"` |  |
+| openzaak.tags.redis | bool | `false` |  |
+| openzaak.worker.livenessProbe.enabled | bool | `true` |  |
+| openzaak.worker.maxWorkerLivenessDelta | string | `"300"` |  |
+| openzaak.worker.replicaCount | int | `1` |  |
+| openzaak.worker.resources.requests.cpu | string | `"200m"` |  |
+| openzaak.worker.resources.requests.memory | string | `"1Gi"` |  |
+| pabc.enabled | bool | `true` |  |
+| pabc.fullnameOverride | string | `"pabc"` |  |
+| pabc.image.repository | string | `"acrprodmgmt.azurecr.io/platform-autorisatie-beheer-component/pabc-api"` |  |
+| pabc.image.tag | string | `"1.1.0"` |  |
+| pabc.initContainers.waitFor.image.pullPolicy | string | `"IfNotPresent"` |  |
+| pabc.initContainers.waitFor.image.repository | string | `"acrprodmgmt.azurecr.io/groundnuty/k8s-wait-for"` |  |
+| pabc.initContainers.waitFor.image.tag | string | `"v2.0"` |  |
+| pabc.migrations.image.repository | string | `"acrprodmgmt.azurecr.io/platform-autorisatie-beheer-component/pabc-migrations"` |  |
+| pabc.migrations.image.tag | string | `"1.1.0"` |  |
+| pabc.migrations.nodeSelector | object | `{}` |  |
+| pabc.nodeSelector | object | `{}` |  |
+| pabc.postgresql.enabled | bool | `false` |  |
+| pabc.resources.limits.cpu | string | `"200m"` |  |
+| pabc.resources.limits.memory | string | `"768Mi"` |  |
+| pabc.resources.requests.cpu | string | `"10m"` |  |
+| pabc.resources.requests.memory | string | `"384Mi"` |  |
+| pabc.settings.apiKeys[0] | string | `""` |  |
+| pabc.settings.database.host | string | `""` |  |
+| pabc.settings.database.name | string | `"pabc"` |  |
+| pabc.settings.database.password | string | `""` |  |
+| pabc.settings.database.username | string | `"pabc"` |  |
+| pabc.settings.keycloakAdmin.clientId | string | `"pabc-keycloak-admin"` |  |
+| pabc.settings.keycloakAdmin.clientSecret | string | `""` |  |
+| pabc.settings.oidc.authority | string | `""` |  |
+| pabc.settings.oidc.clientId | string | `"pabc"` |  |
+| pabc.settings.oidc.clientSecret | string | `""` |  |
+| pabc.settings.oidc.emailClaimType | string | `"email"` |  |
+| pabc.settings.oidc.functioneelBeheerderRole | string | `"administrator"` |  |
+| pabc.settings.oidc.nameClaimType | string | `"name"` |  |
+| pabc.settings.oidc.oidcUrl | string | `"https://pabc.example.nl"` |  |
+| pabc.settings.oidc.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. PABC is a .NET app; enable when OpenIdConnect PKCE is configured in the application. |
+| pabc.settings.oidc.roleClaimType | string | `"roles"` |  |
+| persistentVolume.nodeStageSecretRefName | string | `""` |  |
+| persistentVolume.nodeStageSecretRefNamespace | string | `""` |  |
+| persistentVolume.volumeAttributeResourceGroup | string | `""` |  |
+| persistentVolume.volumeAttributeShareName | string | `""` |  |
+| redis-operator.enabled | bool | `true` |  |
+| redis-operator.featureGates.GenerateConfigInInitContainer | bool | `true` |  |
+| redis-operator.redis-ha | object | `{"databases":32,"enabled":true,"image":{"registry":"quay.io","repository":"opstree/redis","tag":"v8.6.2"},"initContainerImage":{"pullPolicy":"IfNotPresent","repository":"library/busybox","tag":"1.38.0-glibc@sha256:3ba030337caebbfc2232b22b1e435eb213b28e5844a34942c74555bf904a265a"},"initContainerResources":{"limits":{"cpu":"50m","memory":"32Mi"},"requests":{"cpu":"10m","memory":"16Mi"}},"labelMasterCronJob":{"enabled":true,"image":{"repository":"docker.io/alpine/k8s","tag":"1.36.2@sha256:44ef4942e171939b9c665a4a84beb80e2dcdb9a24330d4651cfdfd2e9deecc47"},"nodeSelector":{},"resources":{"limits":{"cpu":"100m","memory":"64Mi"},"requests":{"cpu":"10m","memory":"32Mi"}},"schedule":"*/2 * * * *"},"podSecurityContext":{"fsGroup":1000},"preDeleteJob":{"image":{"repository":"docker.io/alpine/k8s","tag":"1.33.10"},"nodeSelector":{}},"redisConfig":{"additionalRedisConfig":""},"redisExporter":{"enabled":false,"image":{"registry":"quay.io","repository":"opstree/redis-exporter","tag":"v1.82.0"},"podMonitor":{"enabled":false,"interval":"30s","scrapeTimeout":"10s"}},"replicaCount":3,"resources":{"limits":{"cpu":"500m","memory":"512Mi"},"requests":{"cpu":"100m","memory":"256Mi"}},"serviceName":"redis-ha","storage":{"volumeClaimTemplate":{"spec":{"accessModes":["ReadWriteOnce"],"resources":{"requests":{"storage":"2Gi"}},"storageClassName":"managed-csi-premiumv2"}}}}` | Shared Redis HA cluster using the RedisReplication CRD from the OT Redis Operator. When redis-operator.redis-ha.enabled is true, individual Redis subcharts per service should be disabled:   servicename:     tags:       redis: false   # disables template references to .Subcharts.redis     redis:       enabled: false # prevents subchart installation  Database allocation:   objecttypen        : db 0  (cache)   objecten           : db 1  (cache), db 2  (celery)   opennotificaties   : db 3  (cache), db 6  (celery result backend; broker nu ook Redis i.p.v. RabbitMQ vanaf chart 2.0.0)   openzaak           : db 4  (cache), db 5  (celery)   openklant          : db 7  (cache), db 8  (celery)   openformulieren    : db 9  (cache), db 10 (celery)   openinwoner        : db 11 (cache), db 12 (celery)   openarchiefbeheer  : db 13 (cache+axes), db 14 (choices + celery)   referentielijsten  : db 15 (cache), db 16 (reserved — celery not yet used)   openbeheer         : db 17 (cache), db 18 (reserved — celery not yet used)   <future component> : db 19 (cache), db 20 (celery)   db 21–31           : unallocated See docs/apps/redis/redis-ha-databases.md for the full allocation table and guidance. |
+| redis-operator.redis-ha.databases | int | `32` | Number of Redis databases to configure. Applied via an initContainer because `databases` is a startup-only parameter and the OT redis-operator does not include the additionalRedisConfig ConfigMap in the main redis.conf (operator limitation in v0.24.0). |
+| redis-operator.redis-ha.initContainerImage | object | `{"pullPolicy":"IfNotPresent","repository":"library/busybox","tag":"1.38.0-glibc@sha256:3ba030337caebbfc2232b22b1e435eb213b28e5844a34942c74555bf904a265a"}` | Image used by the initContainer that appends `databases N` to redis.conf. Override this in environments that restrict public Docker Hub pulls (e.g. point to an ACR mirror). |
+| redis-operator.redis-ha.initContainerResources | object | `{"limits":{"cpu":"50m","memory":"32Mi"},"requests":{"cpu":"10m","memory":"16Mi"}}` | Resources for the initContainer that configures redis.conf. |
+| redis-operator.redis-ha.labelMasterCronJob | object | `{"enabled":true,"image":{"repository":"docker.io/alpine/k8s","tag":"1.36.2@sha256:44ef4942e171939b9c665a4a84beb80e2dcdb9a24330d4651cfdfd2e9deecc47"},"nodeSelector":{},"resources":{"limits":{"cpu":"100m","memory":"64Mi"},"requests":{"cpu":"10m","memory":"32Mi"}},"schedule":"*/2 * * * *"}` | CronJob that periodically reconciles redis-role labels on redis-ha pods. Workaround for a known OT Redis Operator 0.24.0 bug (PR #1720, not yet released) where the operator fails to apply redis-role labels after a simultaneous pod restart, leaving the redis-ha-master Service with no endpoints. Runs every 2 minutes and always reconciles from RedisReplication.status.masterNode — no early-exit if a label already exists. Remove once a redis-operator release containing PR #1720 is available. |
+| redis-operator.redis-ha.podSecurityContext | object | `{"fsGroup":1000}` | Pod security context for Redis pods. fsGroup must match the redis container's GID (1000) so that mounted PVC data directories are writable by the redis process. |
+| redis-operator.redis-ha.preDeleteJob | object | `{"image":{"repository":"docker.io/alpine/k8s","tag":"1.33.10"},"nodeSelector":{}}` | pre-delete hook Job (templates/redis-ha-pre-delete.yaml) that drains the RedisReplication CR before the redis-operator's Deployment is torn down. |
+| redis-operator.redis-ha.redisConfig.additionalRedisConfig | string | `""` | Optional extra redis.conf directives for runtime-configurable parameters. Note: startup-only parameters (e.g. databases) will NOT take effect here due to an operator limitation; use the databases field above instead. |
+| redis-operator.redis-ha.redisExporter.podMonitor | object | `{"enabled":false,"interval":"30s","scrapeTimeout":"10s"}` | PodMonitor for the redis_exporter sidecar (port 9121). Requires Prometheus Operator CRDs (monitoring.coreos.com/v1). Enable via values-enable-observability.yaml. |
+| redis-operator.redis-ha.serviceName | string | `"redis-ha"` | Grafana/Loki `app` + `service_name` label for the redis-ha pods (IN-2060). Without an explicit value the pods inherit `app.kubernetes.io/name: podiumd` from the shared chart labels and show up in Grafana as "podiumd" instead of "redis-ha". Set to "" to omit the override. |
+| redis-operator.redis-ha.storage.volumeClaimTemplate.spec.resources.requests.storage | string | `"2Gi"` | Default storage per Redis replica. To increase, override in your environment values file. Note: managed-csi-premiumv2 supports online volume expansion — patch the PVC directly after resizing:   kubectl patch pvc <pvc-name> -n <namespace> -p '{"spec":{"resources":{"requests":{"storage":"8Gi"}}}}' |
+| redis-operator.redisOperator.imageName | string | `"quay.io/opstree/redis-operator"` |  |
+| redis-operator.redisOperator.imageTag | string | `"v0.25.0"` |  |
+| redis-operator.resources.limits.cpu | string | `"500m"` |  |
+| redis-operator.resources.limits.memory | string | `"256Mi"` |  |
+| redis-operator.resources.requests.cpu | string | `"100m"` |  |
+| redis-operator.resources.requests.memory | string | `"128Mi"` |  |
+| referentielijsten.configuration.data | string | `""` |  |
+| referentielijsten.configuration.enabled | bool | `true` |  |
+| referentielijsten.configuration.initContainer.enabled | bool | `false` |  |
+| referentielijsten.configuration.job.backoffLimit | int | `6` |  |
+| referentielijsten.configuration.job.enabled | bool | `true` |  |
+| referentielijsten.configuration.job.resources | object | `{}` |  |
+| referentielijsten.configuration.job.restartPolicy | string | `"OnFailure"` |  |
+| referentielijsten.configuration.job.ttlSecondsAfterFinished | int | `600` |  |
+| referentielijsten.configuration.oidcUrl | string | `"https://referentielijsten.example.nl"` |  |
+| referentielijsten.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data. |
+| referentielijsten.configuration.secrets.keycloak_client_secret | string | `""` |  |
+| referentielijsten.enabled | bool | `false` |  |
+| referentielijsten.fullnameOverride | string | `"referentielijsten"` |  |
+| referentielijsten.image.pullPolicy | string | `"IfNotPresent"` |  |
+| referentielijsten.image.repository | string | `"maykinmedia/referentielijsten-api"` |  |
+| referentielijsten.image.tag | string | `"0.7.3@sha256:66f3a3da2a086e41ee8dc216b52b65d8dca04a4160c04a90693de2e5cd6dfa5e"` |  |
+| referentielijsten.persistence.enabled | bool | `true` |  |
+| referentielijsten.persistence.existingClaim | string | `"referentielijsten"` |  |
+| referentielijsten.persistence.size | string | `"10Gi"` |  |
+| referentielijsten.persistence.storageClassName | string | `"podiumd-standard"` |  |
+| referentielijsten.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
+| referentielijsten.persistentVolume.volumeAttributeShareName | string | `"referentielijsten"` |  |
+| referentielijsten.replicaCount | int | `1` |  |
+| referentielijsten.settings.allowedHosts | string | `"referentielijsten-nginx.podiumd.svc.cluster.local"` |  |
+| referentielijsten.settings.cache.axes | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/15"` |  |
+| referentielijsten.settings.cache.default | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/15"` |  |
+| referentielijsten.settings.debug | bool | `false` |  |
+| referentielijsten.settings.disable2fa | bool | `false` |  |
+| referentielijsten.settings.djangoSettingsModule | string | `"referentielijsten.conf.docker"` |  |
+| referentielijsten.settings.email.port | int | `587` |  |
+| referentielijsten.settings.email.useTLS | bool | `true` |  |
+| referentielijsten.settings.environment | string | `""` |  |
+| referentielijsten.settings.isHttps | bool | `true` |  |
+| referentielijsten.settings.secretKey | string | `""` |  |
+| referentielijsten.settings.useXForwardedHost | bool | `false` |  |
+| referentielijsten.settings.uwsgi.maxRequests | string | `"1000"` |  |
+| referentielijsten.settings.uwsgi.processes | string | `"2"` |  |
+| referentielijsten.settings.uwsgi.threads | string | `"2"` |  |
+| referentielijsten.tags.redis | bool | `false` |  |
+| serviceAccount.annotations | object | `{}` |  |
+| serviceAccount.automount | bool | `false` |  |
+| serviceAccount.create | bool | `true` |  |
+| serviceAccount.name | string | `""` |  |
+| tags."eck-operator.enabled" | bool | `false` |  |
+| tags.redis | bool | `false` |  |
+| zaakbrug | object | `{"enabled":false,"frank":{"zakenApi":{"jwt":{"password":"","username":"zaakbrug"}}},"image":{"tag":"1.26.15"},"oauthRoleMapping":{"IbisAdmin":"administrators","IbisDataAdmin":"dataadmin","IbisTester":"zaakbrug_admin"},"resources":{"limits":{"cpu":"2","memory":"6Gi"},"requests":{"cpu":"250m","memory":"5Gi"}},"staging":{"enabled":false}}` | --------------------------------------------------------------------------- |
+| zaakbrug.frank | object | `{"zakenApi":{"jwt":{"password":"","username":"zaakbrug"}}}` | ------------------------------------------------------------------------- |
+| zaakbrug.oauthRoleMapping | object | `{"IbisAdmin":"administrators","IbisDataAdmin":"dataadmin","IbisTester":"zaakbrug_admin"}` | ------------------------------------------------------------------------- |
+| zac.auth.clientId | string | `"zac"` |  |
+| zac.auth.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. NOTE: ZAC does not currently support PKCE; this switch is reserved for when PKCE support is added to the ZAC OIDC client. |
+| zac.auth.realm | string | `"podiumd"` |  |
+| zac.auth.secret | string | `"changeme"` |  |
+| zac.auth.server | string | `"http://keycloak.example.nl"` |  |
+| zac.bagApi.apiKey | string | `"dummy"` |  |
+| zac.bagApi.url | string | `"http://bag.example.nl"` |  |
+| zac.brpApi.apiKey.header | string | `"x-api-key"` |  |
+| zac.brpApi.apiKey.value | string | `"dummy"` |  |
+| zac.brpApi.logLevel | string | `"OFF"` |  |
+| zac.brpApi.protocollering.doelbinding.header | string | `""` |  |
+| zac.brpApi.protocollering.doelbinding.perZaaktype | bool | `false` |  |
+| zac.brpApi.protocollering.doelbinding.raadpleegmet | string | `"BRPACT-ZacPersoonBasis"` |  |
+| zac.brpApi.protocollering.doelbinding.zoekmet | string | `"BRPACT-ZoekenAlgemeen"` |  |
+| zac.brpApi.protocollering.enabled | bool | `false` |  |
+| zac.brpApi.protocollering.gebruiker.header | string | `""` |  |
+| zac.brpApi.protocollering.originOin.header | string | `""` |  |
+| zac.brpApi.protocollering.originOin.oin | string | `""` |  |
+| zac.brpApi.protocollering.toepassing.header | string | `""` |  |
+| zac.brpApi.protocollering.toepassing.value | string | `""` |  |
+| zac.brpApi.protocollering.verwerking.extendWithZaaktype | bool | `false` | New in chart 1.0.297+: whether to extend the verwerking register with the zaaktype, i.e. "<register>@<zaaktype>" instead of "<register>" on its own. Must be true for iConnect; leave false for eServices/2Secure. |
+| zac.brpApi.protocollering.verwerking.header | string | `""` |  |
+| zac.brpApi.protocollering.verwerking.register | string | `""` |  |
+| zac.brpApi.url | string | `"http://brp.example.nl"` |  |
+| zac.catalogusDomein | string | `"ALG"` |  |
+| zac.contextUrl | string | `"http://zac.example.nl"` |  |
+| zac.db.host | string | `"postgres"` |  |
+| zac.db.name | string | `"zac"` |  |
+| zac.db.password | string | `"changeme"` |  |
+| zac.db.user | string | `"zac"` |  |
+| zac.enabled | bool | `true` |  |
+| zac.fullnameOverride | string | `"zac"` |  |
+| zac.gemeente.code | string | `"007"` |  |
+| zac.gemeente.mail | string | `"noreply@example.nl"` |  |
+| zac.gemeente.naam | string | `"Example Gemeente"` |  |
+| zac.global.curlImage.pullPolicy | string | `"IfNotPresent"` |  |
+| zac.global.curlImage.repository | string | `"curlimages/curl"` |  |
+| zac.global.curlImage.tag | string | `"8.21.0@sha256:7c12af72ceb38b7432ab85e1a265cff6ae58e06f95539d539b654f2cfa64bb13"` |  |
+| zac.image.pullPolicy | string | `"IfNotPresent"` |  |
+| zac.image.tag | string | `"5.1.0@sha256:d833d2f3dd58eeb58335e9aff9bca67f5885fad0e6a7414003ce9a211d3dc50e"` |  |
+| zac.initContainer.enabled | bool | `true` |  |
+| zac.initContainer.resources.requests.cpu | string | `"50m"` |  |
+| zac.initContainer.resources.requests.memory | string | `"256Mi"` |  |
+| zac.keycloak.adminClient.id | string | `"zac-admin-client"` |  |
+| zac.keycloak.adminClient.secret | string | `"changeme"` |  |
+| zac.klantinteractiesApi.token | string | `"openklanttoken"` |  |
+| zac.klantinteractiesApi.url | string | `"http://open-klant.example.nl"` |  |
+| zac.kvkApi.apiKey | string | `"dummy"` |  |
+| zac.kvkApi.url | string | `"http://kvk.example.nl"` |  |
+| zac.livenessProbe.failureThreshold | int | `16` |  |
+| zac.livenessProbe.path | string | `"/health/ready"` |  |
+| zac.livenessProbe.periodSeconds | int | `30` |  |
+| zac.livenessProbe.timeoutSeconds | int | `1` |  |
+| zac.mail.smtp.password | string | `"dummy"` |  |
+| zac.mail.smtp.port | string | `"587"` |  |
+| zac.mail.smtp.server | string | `"mail.example.nl"` |  |
+| zac.mail.smtp.username | string | `"dummy"` |  |
+| zac.maxFileSizeMB | int | `150` |  |
+| zac.nameOverride | string | `"zac"` |  |
+| zac.nginx.client_max_body_size | string | `"150M"` |  |
+| zac.nginx.enabled | bool | `true` |  |
+| zac.nginx.image.pullPolicy | string | `"IfNotPresent"` |  |
+| zac.nginx.image.repository | string | `"nginxinc/nginx-unprivileged"` |  |
+| zac.nginx.image.tag | string | `"1.31.3@sha256:49c9bef1797e11117a7f490fd00f282e377ac402fec472c72636f90cdbf72e10"` |  |
+| zac.nginx.resources.requests.cpu | string | `"50m"` |  |
+| zac.nginx.resources.requests.memory | string | `"64Mi"` |  |
+| zac.notificationsSecretKey | string | `"changeme"` |  |
+| zac.objectenApi.token | string | `"objectentoken"` |  |
+| zac.objectenApi.url | string | `"http://objecten.example.nl"` |  |
+| zac.objecttypenApi.token | string | `"objecttypentoken"` |  |
+| zac.objecttypenApi.url | string | `"http://objecttypen.example.nl"` |  |
+| zac.office_converter.image.tag | string | `"8.34.0@sha256:67097317623a503ba2a6a7e9ae8db6929a1f7e1bbd88077bacf2d325fbdab923"` |  |
+| zac.opa.image.tag | string | `"1.17.1-static@sha256:c29f8ee8dbe66608a1c04e9be84b04efc46877625e6b0877e559954565209efc"` |  |
+| zac.opa.resources.requests.cpu | string | `"10m"` |  |
+| zac.opa.resources.requests.memory | string | `"20Mi"` |  |
+| zac.opa.sidecar | bool | `true` |  |
+| zac.openForms.url | string | `"http://open-forms.example.nl"` |  |
+| zac.organizations.bron.rsin | string | `"000000000"` |  |
+| zac.organizations.verantwoordelijke.rsin | string | `"000000000"` |  |
+| zac.pabcApi.apiKey | string | `""` |  |
+| zac.pabcApi.url | string | `""` |  |
+| zac.smartDocuments.authentication | string | `""` |  |
+| zac.smartDocuments.enabled | bool | `false` |  |
+| zac.smartDocuments.fixedUserName | string | `""` |  |
+| zac.smartDocuments.url | string | `""` |  |
+| zac.solr-operator.enabled | bool | `true` | turn functionality on/off |
+| zac.solr-operator.image.tag | string | `"v0.9.1@sha256:4db34508137f185d3cad03c7cf7c2b5d6533fb590822effcde9125cff5a90aa2"` |  |
+| zac.solr-operator.nodeSelector | object | `{}` |  |
+| zac.solr-operator.resources.limits.cpu | string | `"500m"` |  |
+| zac.solr-operator.resources.limits.memory | string | `"256Mi"` |  |
+| zac.solr-operator.resources.requests.cpu | string | `"100m"` |  |
+| zac.solr-operator.resources.requests.memory | string | `"128Mi"` |  |
+| zac.solr-operator.solr.busyBoxImage.pullPolicy | string | `"IfNotPresent"` |  |
+| zac.solr-operator.solr.busyBoxImage.repository | string | `"library/busybox"` |  |
+| zac.solr-operator.solr.busyBoxImage.tag | string | `"1.38.0-glibc@sha256:3ba030337caebbfc2232b22b1e435eb213b28e5844a34942c74555bf904a265a"` |  |
+| zac.solr-operator.solr.dataStorage.persistent.reclaimPolicy | string | `"Retain"` | Retain PVCs when the operator scales down Solr (e.g. during node rotation). The default "Delete" causes the operator to destroy PVC data on scale-down, which requires a full index resync from another replica. |
+| zac.solr-operator.solr.enabled | bool | `true` | set enabled to provision solrcloud as well |
+| zac.solr-operator.solr.image.tag | string | `"9.10.1-slim@sha256:c45d9d93d74d6a5e996120ab7120cdfc531debbc59bd3d6a6736fe240cee9be0"` |  |
+| zac.solr-operator.solr.javaMem | string | `"-Xms512m -Xmx768m"` | define memory settings for solr in the solrcloud |
+| zac.solr-operator.solr.jobs.createZacCore | bool | `true` |  |
+| zac.solr-operator.solr.resources.limits.cpu | string | `"2000m"` |  |
+| zac.solr-operator.solr.resources.limits.memory | string | `"2Gi"` |  |
+| zac.solr-operator.solr.resources.requests.cpu | string | `"500m"` |  |
+| zac.solr-operator.solr.resources.requests.memory | string | `"1Gi"` |  |
+| zac.solr-operator.watchNamespaces | string | `"podiumd"` | namespaces to watch for solr-operator |
+| zac.solr-operator.zookeeper-operator | object | `{"crd":{"create":false},"hooks":{"image":{"tag":"v1.25.4@sha256:af5cea3f2e40138df90660c0c073d8b1506fb76c8602a9f48aceb5f4fb052ddc"}},"image":{"tag":"0.2.15@sha256:b2bc4042fdd8fea6613b04f2f602ba4aff1201e79ba35cd0e2df9f3327111b0e"},"resources":{"limits":{"cpu":"200m","memory":"128Mi"},"requests":{"cpu":"50m","memory":"64Mi"}},"watchNamespace":"podiumd","zookeeper":{"image":{"tag":"0.2.15@sha256:c498ebfb76a66f038075e2fa6148528d74d31ca1664f3257fdf82ee779eec9c8"},"resources":{"limits":{"cpu":"500m","memory":"512Mi"},"requests":{"cpu":"100m","memory":"256Mi"}},"storage":{"reclaimPolicy":"Retain"}}}` | install crds using https://github.com/pravega/zookeeper-operator/blob/master/charts/zookeeper-operator/templates/zookeeper.pravega.io_zookeeperclusters_crd.yaml |
+| zac.solr-operator.zookeeper-operator.watchNamespace | string | `"podiumd"` | namespaces to watch for zookeeper-operator |
+| zac.solr-operator.zookeeper-operator.zookeeper.storage.reclaimPolicy | string | `"Retain"` | Retain PVCs when the operator scales down ZooKeeper (e.g. during node rotation). The default "Delete" causes the operator to destroy PVC data on scale-down, which prevents the cluster from recovering quorum after a node replacement event. |
+| zac.zacInternalEndpointsApiKey | string | `"dummy"` |  |
+| zac.zgwApis.clientId | string | `"zac"` |  |
+| zac.zgwApis.secret | string | `"changeme"` |  |
+| zac.zgwApis.url | string | `"http://open-zaak.internal"` |  |
+| zac.zgwApis.urlExtern | string | `"http://open-zaak.example.nl"` |  |
+| zgw-office-addin.backend.image.tag | string | `"v0.9.352@sha256:c5bf9a7beb883c7cf586a65326dacb4fc49a2eaaa08f4eb49f2faabb786b71b4"` |  |
+| zgw-office-addin.backend.msalSecret | string | `""` |  |
+| zgw-office-addin.backend.resources.requests.cpu | string | `"100m"` |  |
+| zgw-office-addin.backend.resources.requests.memory | string | `"256Mi"` |  |
+| zgw-office-addin.backend.zgwApis | object | `{"secret":"","url":"http://open-zaak.example.nl"}` | ZGW API configuration for integration with the ZGW APIs provider (OpenZaak) |
+| zgw-office-addin.common.appEnv | string | `"production"` | Name of the environment (used for display purposes). Default "production" means that no indicator is appended to the DiscplayName in the manifests. |
+| zgw-office-addin.common.frontendUrl | string | `"https://zgw-office-addin.example.nl"` | The frontend public URL where the manifest files and static js file are served |
+| zgw-office-addin.common.msalClientId | string | `""` | MS Azure Client ID assigned to the Office Add-in application |
+| zgw-office-addin.common.msalTenantId | string | `""` | MS Azure Tenant ID of the Office Add-in application |
+| zgw-office-addin.common.podLabels | object | `{"app":"office-addin","service_name":"office-addin"}` | IN-2060: Grafana/Loki app + service_name labels on the office-addin pods. Without these the pods are attributed to the Helm release name ("podiumd"). Requires zgw-office-addin chart >= 0.0.89 (adds podLabels support). |
+| zgw-office-addin.enabled | bool | `true` |  |
+| zgw-office-addin.frontend.image.tag | string | `"v0.9.352@sha256:bf248581519b1644ef0f0b3ecb569f80b0fcf435c58df18547bb714eb6aa4916"` |  |
+| zgw-office-addin.frontend.resources.requests.cpu | string | `"50m"` |  |
+| zgw-office-addin.frontend.resources.requests.memory | string | `"64Mi"` |  |
+| zgw-office-addin.fullnameOverride | string | `"zgw-office-addin"` |  |
