@@ -330,6 +330,30 @@ def test_component_and_alias_unresolved_is_unknown(ecrt):
     assert ecrt.component_and_alias("Open Zaak", []) == ("UNKNOWN", "")
 
 
+def test_component_and_alias_multiple_alias_relation_matches_is_multiple(ecrt):
+    """"kiss" relates to both "kiss-chart"'s own alias "kiss" (exact) and
+    "eck-stack"'s alias "kiss-eck" (which contains "kiss") — a genuine
+    ambiguity at the alias-relation tier, reported as "MULTIPLE" rather
+    than silently picking whichever dependency comes first."""
+    deps = [("kiss-chart", "kiss"), ("eck-stack", "kiss-eck")]
+    assert ecrt.component_and_alias("kiss", deps) == ("MULTIPLE", "MULTIPLE")
+
+
+def test_component_and_alias_multiple_name_relation_matches_is_multiple(ecrt):
+    """Same ambiguity, but at the (alias-less) name-relation tier: "foo"
+    relates to both dependency names "foobar" and "foobaz"."""
+    deps = [("foobar", ""), ("foobaz", "")]
+    assert ecrt.component_and_alias("foo", deps) == ("MULTIPLE", "MULTIPLE")
+
+
+def test_component_and_alias_clean_exact_match_short_circuits_ambiguous_lower_tier(ecrt):
+    """A single exact-name match at tier 1 resolves immediately —
+    without ever reaching tier 2, which would otherwise have been
+    ambiguous between "kiss-chart" and "eck-stack" for this same text."""
+    deps = [("kiss", "k"), ("kiss-chart", "kiss"), ("eck-stack", "kiss-eck")]
+    assert ecrt.component_and_alias("kiss", deps) == ("kiss", "k")
+
+
 # --- extract_release_rows ---
 
 def test_extract_release_rows_matches_and_reports(ecrt, capsys):
@@ -434,6 +458,18 @@ def test_extract_release_rows_resolves_component_via_used_by_not_name(ecrt, tmp_
     write_chart_yaml_with_dependencies(tmp_path, [("zaakafhandelcomponent", "zac")])
     rows = ecrt.extract_release_rows(TECHNISCHE_TABLE_HTML, chart_dir=tmp_path)
     assert rows == [["Technische", "", "ZAC", "Elastic operator", "zaakafhandelcomponent", "zac",
+                      "3.4.0", "3.4.0", "3.5.0", "3.5.0"]]
+
+
+def test_extract_release_rows_resolves_component_as_multiple(ecrt, tmp_path):
+    """A used_by value ("kiss") that relates to two distinct Chart.yaml
+    dependencies ("kiss-chart" and "eck-stack", whose alias "kiss-eck"
+    also contains "kiss") resolves the row to "MULTIPLE"/"MULTIPLE"
+    rather than silently picking one."""
+    write_chart_yaml_with_dependencies(tmp_path, [("kiss-chart", "kiss"), ("eck-stack", "kiss-eck")])
+    html = TECHNISCHE_TABLE_HTML.replace("<td>ZAC</td>", "<td>kiss</td>")
+    rows = ecrt.extract_release_rows(html, chart_dir=tmp_path)
+    assert rows == [["Technische", "", "kiss", "Elastic operator", "MULTIPLE", "MULTIPLE",
                       "3.4.0", "3.4.0", "3.5.0", "3.5.0"]]
 
 
