@@ -13,8 +13,10 @@ Usage:
               (e.g. "zac" matches component "zaakafhandelcomponent"; "open"
               matches both "Open Zaak" and "Open Formulieren")
 
-A target version column that's empty (nothing changed for that app/helm
-version on this release) prints as "UNCHANGED" rather than blank.
+A target version column prints as "UNCHANGED" rather than its raw value
+when nothing actually changed for that app/helm version on this release —
+either the cell is empty, or it equals its own source column's value
+(e.g. target_version_app == source_version_app).
 
 There is no separate "name" column to query — a component is looked up by
 what it actually IS in the chart, not by whatever the Confluence page
@@ -55,6 +57,7 @@ DEFAULT_INPUT = CHART_DIR / "release-table.csv"
 COLUMNS = ("section", "vendor", "component")
 VERSION_COLUMNS = ("source_version_app", "source_version_helm", "target_version_app", "target_version_helm")
 TARGET_VERSION_COLUMNS = ("target_version_app", "target_version_helm")
+TARGET_TO_SOURCE_COLUMN = {"target_version_app": "source_version_app", "target_version_helm": "source_version_helm"}
 
 
 def load_rows(path):
@@ -117,8 +120,14 @@ def used_by_rows_for(rows, matches):
 
 
 def display_value(row, column):
+    """`row[column]` unchanged, except a target version column shows
+    "UNCHANGED" instead of the raw value when either there's no target
+    value at all (empty cell), or the target equals its own source
+    column's value (e.g. target_version_app == source_version_app) —
+    both mean nothing actually changed for that app/helm version on this
+    release."""
     value = row[column]
-    if not value and column in TARGET_VERSION_COLUMNS:
+    if column in TARGET_VERSION_COLUMNS and (not value or value == row[TARGET_TO_SOURCE_COLUMN[column]]):
         return "UNCHANGED"
     return value
 

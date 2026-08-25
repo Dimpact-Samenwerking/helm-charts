@@ -160,6 +160,17 @@ def test_display_value_target_present_is_unaffected(qrt, rows):
     assert qrt.display_value(zac, "target_version_app") == "5.1.0"
 
 
+def test_display_value_target_equal_to_source_is_unchanged(qrt, rows):
+    """A non-empty target that's identical to its own source column (not
+    exercised by the fixture rows, but a legitimate "no real change"
+    case elsewhere in the pipeline — e.g. only the Helm chart version
+    bumped, not the app version) shows UNCHANGED too, not the raw
+    (unchanged) value."""
+    zac = dict(rows[0])
+    zac["target_version_app"] = zac["source_version_app"]
+    assert qrt.display_value(zac, "target_version_app") == "UNCHANGED"
+
+
 def test_display_value_source_empty_stays_empty_not_unchanged(qrt, rows):
     """UNCHANGED is only ever a target-column concept — see the module
     docstring — an empty source value (not exercised by the fixture rows,
