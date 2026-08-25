@@ -174,7 +174,7 @@ def test_check_kube_score_own_finding_fails(vp, libkubescorecheck, tmp_path, mon
     assert "2 real" in detail
     out = capsys.readouterr().out
     assert "fail the check" in out
-    assert "Deployment/apps/v1//foo (app)" in out
+    assert "Deployment/apps/v1//foo (app) — rendered line 3" in out
     assert "CPU limit is not set" in out and "Memory limit is not set" in out
 
 
@@ -216,7 +216,7 @@ def test_check_kube_score_partner_vendor_finding_reported_per_item_never_fails(v
     assert "0 other-vendor" in detail
     out = capsys.readouterr().out
     assert "does not fail the check" in out
-    assert "[zac] Deployment/apps/v1//zac (zac)" in out
+    assert "[zac] Deployment/apps/v1//zac (zac) — rendered line 9" in out
     assert "CPU limit is not set" in out
 
 
@@ -326,3 +326,23 @@ def test_check_kube_score_unparseable_vendored_output_fails(vp, libkubescorechec
     ok, detail = vp.check_kube_score(tmp_path, [])
     assert ok is False
     assert "unparseable" in detail
+
+
+# --- parse_kube_score_object_name ---
+
+def test_parse_kube_score_object_name_core_resource_no_namespace(libkubescorecheck):
+    assert libkubescorecheck.parse_kube_score_object_name("Service/v1//pabc") == ("Service", "", "pabc")
+
+
+def test_parse_kube_score_object_name_grouped_api_version_with_namespace(libkubescorecheck):
+    """apiVersion itself can contain a "/" (e.g. "batch/v1") — a naive
+    4-way split would misparse this; kind must come from the front and
+    name/namespace from the back regardless of how many "/" apiVersion
+    itself contributes in the middle."""
+    assert libkubescorecheck.parse_kube_score_object_name(
+        "Job/batch/v1/podiumd-minikube/zookeeper-operator-post-install-upgrade"
+    ) == ("Job", "podiumd-minikube", "zookeeper-operator-post-install-upgrade")
+
+
+def test_parse_kube_score_object_name_unrecognized_shape_returns_none(libkubescorecheck):
+    assert libkubescorecheck.parse_kube_score_object_name("not-the-expected-shape") == (None, None, None)

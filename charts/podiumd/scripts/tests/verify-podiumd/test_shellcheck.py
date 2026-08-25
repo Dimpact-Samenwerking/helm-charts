@@ -32,6 +32,8 @@ RENDERED = (
     "# Source: podiumd/templates/keycloak-ensure-operator-sa.yaml\n"
     "apiVersion: batch/v1\n"
     "kind: Job\n"
+    "metadata:\n"
+    "  name: keycloak-ensure-operator-sa\n"
     "spec:\n"
     "  template:\n"
     "    spec:\n"
@@ -47,6 +49,8 @@ RENDERED = (
     "# Source: podiumd/charts/zac/templates/deployment.yaml\n"
     "apiVersion: apps/v1\n"
     "kind: Deployment\n"
+    "metadata:\n"
+    "  name: zac\n"
     "spec:\n"
     "  template:\n"
     "    spec:\n"
@@ -54,6 +58,11 @@ RENDERED = (
     "        - name: wait-for-db\n"
     "          command: [\"sh\", \"-c\", \"until nc -z db 5432; do sleep 1; done\"]\n"
 )
+# Absolute (1-based) rendered-output start lines for the two resources above
+# (the line right after each's own "# Source:" comment) — see
+# build_resource_locations in lib.render_scope.
+JOB_RENDERED_LINE = 3
+DEPLOYMENT_RENDERED_LINE = 20
 
 
 # --- find_shell_scripts ---
@@ -96,6 +105,39 @@ def test_find_shell_scripts_recurses_into_nested_structures(libshellcheckcheck):
     }
     found = libshellcheckcheck.find_shell_scripts(manifest, "podiumd/templates/x.yaml")
     assert {f[3] for f in found} == {"echo one", "echo two"}
+
+
+# --- extract_shell_scripts ---
+# unlike find_shell_scripts (source, path, shell, script_text),
+# extract_shell_scripts also carries the containing resource's own
+# (kind, namespace, name) — constant across every script found in the
+# same doc — so a finding can later be resolved to a rendered-output
+# line via lib.render_scope.resource_line.
+
+def test_extract_shell_scripts_carries_resource_identity(libshellcheckcheck):
+    docs = [("podiumd/templates/x.yaml",
+             "kind: Job\nmetadata:\n  name: foo\n  namespace: bar\n"
+             "spec:\n  containers:\n    - command: [\"sh\", \"-c\", \"echo hi\"]\n")]
+    found = libshellcheckcheck.extract_shell_scripts(docs)
+    assert len(found) == 1
+    source, path, shell, script, kind, namespace, name = found[0]
+    assert (kind, namespace, name) == ("Job", "bar", "foo")
+
+
+def test_extract_shell_scripts_no_identity_when_doc_is_not_a_single_object(libshellcheckcheck):
+    """A top-level list (not a single k8s object) has no resource identity
+    at all — kind/namespace/name must degrade to None rather than crash,
+    and _shellcheck_location must skip the rendered-line lookup for it."""
+    docs = [("podiumd/templates/x.yaml", "- command: [\"sh\", \"-c\", \"echo hi\"]\n")]
+    found = libshellcheckcheck.extract_shell_scripts(docs)
+    assert len(found) == 1
+    _source, _path, _shell, _script, kind, namespace, name = found[0]
+    assert (kind, namespace, name) == (None, None, None)
+
+
+def test_extract_shell_scripts_skips_unparseable_doc(libshellcheckcheck):
+    docs = [("podiumd/templates/x.yaml", "not: [valid, yaml: at all")]
+    assert libshellcheckcheck.extract_shell_scripts(docs) == []
 
 
 # --- check_shellcheck ---
@@ -172,7 +214,7 @@ def test_check_shellcheck_location_includes_script_line_and_column(vp, libshellc
     ok, detail = vp.check_shellcheck(tmp_path, [])
     assert ok is False
     out = capsys.readouterr().out
-    assert "script line 3:6" in out
+    assert f"script line 3:6 (rendered line {JOB_RENDERED_LINE})" in out
 
 
 def test_check_shellcheck_location_line_without_column(vp, libshellcheckcheck, tmp_path, monkeypatch, capsys):
@@ -189,6 +231,7 @@ def test_check_shellcheck_location_line_without_column(vp, libshellcheckcheck, t
     out = capsys.readouterr().out
     assert "script line 2" in out
     assert "script line 2:" not in out
+    assert f"(rendered line {JOB_RENDERED_LINE})" in out
 
 
 def test_check_shellcheck_info_and_style_never_reported(vp, libshellcheckcheck, tmp_path, monkeypatch, capsys):
@@ -288,6 +331,7 @@ def test_check_shellcheck_friendly_vendor_finding_reported_per_item_never_fails(
     assert "Unexpected token" in out  # per-item detail, not just a count
     assert "podiumd/charts/zac/templates/deployment.yaml" in out
     assert "script line 1" in out  # location detail survives alongside the vendor tag
+    assert f"(rendered line {DEPLOYMENT_RENDERED_LINE})" in out
 
 
 def test_check_shellcheck_no_scripts_found_passes(vp, libshellcheckcheck, tmp_path, monkeypatch):
