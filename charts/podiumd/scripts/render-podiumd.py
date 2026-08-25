@@ -14,7 +14,10 @@ With no extra args, renders using the default CI values
 verify-podiumd.py check step renders against. Passing any extra args
 replaces that default entirely (they are passed to `helm template` as-is),
 e.g. to render with different --set overrides or to target a single
-template with -s.
+template with -s. Always prints which of the two applies before rendering
+— a custom-args render can fail for reasons (missing values, disabled
+sub-charts) that have nothing to do with any verify-podiumd.py check, so
+don't mistake one for "the standard check just failed".
 
 Examples:
     render-podiumd.py /tmp/podiumd.yaml
@@ -42,7 +45,13 @@ def main():
         sys.exit(1)
 
     output_path = Path(sys.argv[1])
-    extra_args = sys.argv[2:] if len(sys.argv) > 2 else lint_args_for(CHART_DIR)
+    if len(sys.argv) > 2:
+        extra_args = sys.argv[2:]
+        print(f"Rendering with custom args (default -f ci/lint-values.yaml NOT applied): "
+              f"{' '.join(extra_args)}")
+    else:
+        extra_args = lint_args_for(CHART_DIR)
+        print(f"Rendering with default CI values: {' '.join(extra_args) or '(none found)'}")
 
     result = render_chart(CHART_DIR, extra_args)
     if result.returncode != 0:
