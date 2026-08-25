@@ -2451,15 +2451,20 @@ kiss-eck:
       #     resources:
       #       requests:
       #         storage: 8Gi
+  # -- Uit sinds KISS 3.0.0. KISS bevraagt de Elasticsearch-indices rechtstreeks
+  # en crawlt met de Elastic Open Crawler, dus Enterprise Search wordt nergens
+  # meer voor gebruikt. De connector.crawler-instellingen hieronder waren voor
+  # de oude crawler; die zitten nu per site onder kiss.settings.syncJobs.website.
+  # Relevance- en precision-tuning gebeurde in Kibana en werd in Enterprise
+  # Search opgeslagen; dat had al geen effect meer, KISS 3.0.0 gebruikt vast
+  # precision 6. Aanzetten kan nog, maar levert alleen een ongebruikte pod op.
   eck-enterprise-search:
-    enabled: true
+    enabled: false
     fullnameOverride: kiss
     version: "8.19.3"
     config:
       app_search.engine.total_fields.limit: 1000
       kibana.host: https://kiss-kb-http.podiumd.svc.cluster.local:5601
-      # -- crawler settings can be tuned per environment (DS-5060). Sensible
-      # defaults below; override in your environment values file when needed.
       connector.crawler.http.user_agent: "PodiumD-Contact-Elastic-Crawler"
       connector.crawler.crawl.threads.limit: 1
       connector.crawler.workers.pool_size.limit: 1
@@ -2477,8 +2482,8 @@ kiss-eck:
       server.publicBaseUrl: https://kiss-kb-http.podiumd.svc.cluster.local:5601
     elasticsearchRef:
       name: kiss
-    enterpriseSearchRef:
-      name: kiss
+    # enterpriseSearchRef weggehaald: zonder Enterprise Search zou Kibana naar
+    # een niet-bestaande resource verwijzen en blijft de koppeling hangen.
     podTemplate:
       spec:
         nodeSelector: {}
@@ -2487,7 +2492,7 @@ kiss:
   image:
     #   repository: "ghcr.io/klantinteractie-servicesysteem/kiss-frontend"
     pullPolicy: IfNotPresent
-    tag: 2.2.4
+    tag: "3.0.0@sha256:56a9c225d9fb19184ee9ad6c84877e7b5853c280cbb5e0d59edb340c7bb8599c"
   enabled: true
   nameOverride: contact
   fullnameOverride: contact
@@ -2540,11 +2545,9 @@ kiss:
       port: 587
       username: ""
 
-    enterpriseSearch:
-      baseUrl: ""
-      privateApiKey: ""
-      publicApiKey: ""
-      engine: "kiss-engine"
+    # KISS 3.0.0 verwijderde het enterpriseSearch-blok (baseUrl, engine,
+    # publicApiKey, privateApiKey). KISS bevraagt de Elasticsearch-indices
+    # (search-*) nu rechtstreeks. Haal die sleutels ook uit de gemeente-values.
 
     feedback:
       emailFrom: ""
@@ -2594,6 +2597,13 @@ kiss:
       medewerkerIdentificatie:
         claim: samaccountname
         truncate:
+      # -- Rolnamen zoals ze in de podiumd-realm staan (client kiss). KISS 3.0.0
+      # splitst de redacteursrol in REDACTEUR en BEHEERDER; de realm-config in
+      # templates/keycloak-podiumd-realm-config.yaml levert beide rollen.
+      klantcontactmedewerkerRole: "Klantcontactmedewerker"
+      redacteurRole: "Redacteur"
+      kennisbankRole: "Kennisbank"
+      beheerderRole: "Beheerder"
 
     organisatieIds: []
 
@@ -2643,7 +2653,20 @@ kiss:
     syncJobs:
       image:
         # repository: "ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync"
-        tag: "0.3.3"
+        tag: "3.0.0@sha256:64d56ff3039b71806d7d03ecfcd37cede2d31c4146fe4e06d9de6f526415fffb"
+        pullPolicy: IfNotPresent
+      # -- Elastic Open Crawler, vervangt de Enterprise Search web crawler.
+      # Draait als CronJob per site uit syncJobs.website en schrijft
+      # rechtstreeks naar Elasticsearch.
+      crawlerImage:
+        repository: "docker.elastic.co/integrations/crawler"
+        tag: "1.0.0@sha256:6f3c02f6c783711b8d9e133cf10934b137d6547dc1eb10a0d2ccf99ffe2e2d07"
+        pullPolicy: IfNotPresent
+      # -- pre-install/pre-upgrade hook die het search-website* index-template
+      # in Elasticsearch registreert. Heeft alleen curl nodig.
+      indexTemplateImage:
+        repository: "curlimages/curl"
+        tag: "8.21.0@sha256:7c12af72ceb38b7432ab85e1a265cff6ae58e06f95539d539b654f2cfa64bb13"
         pullPolicy: IfNotPresent
       kennisbank:
         baseUrl: ""
@@ -2714,7 +2737,7 @@ kiss:
     secret: ""
     image:
       # repository: ghcr.io/icatt-menselijk-digitaal/podiumd-adapter
-      tag: "0.6.6"
+      tag: "0.6.7@sha256:089d07a6efdfcab07b61b1a75b4d26c14099cc9b206a56419e36ef6f28a26a68"
       pullPolicy: IfNotPresent
     resources:
       requests:
@@ -3306,7 +3329,7 @@ ita:
   web:
     image:
       # repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web"
-      tag: "3.2.0"
+      tag: "3.3.0@sha256:cb56b4809e0c840cbc72814f8a72495fd18860cb08dfb092c12ba3c2cea785df"
       pullPolicy: IfNotPresent
 
     service:
@@ -3337,17 +3360,15 @@ ita:
         cpu: 200m
         memory: 256Mi
 
+  # -- ITA 3.3.0 splitste de poller in twee CronJobs, elk met een eigen
+  # POLLER_MODE. Dit blok levert alleen nog het image en de resources die ze
+  # allebei gebruiken; schedule en notification zijn verhuisd naar
+  # nieuweInternetaakNotificatie hieronder.
   poller:
-    schedule: "*/15 * * * *"
-
     image:
       repository: "ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller"
-      tag: "3.2.0"
+      tag: "3.3.0@sha256:7690650687047c43f08c4f8320b77d821d3551d18478de9a600a2f828600c865"
       pullPolicy: IfNotPresent
-
-    notification:
-      pollerMessage: "Poller uitgevoerd om:"
-      hourThreshold: "-24"
 
     resources:
       requests:
@@ -3356,6 +3377,24 @@ ita:
       limits:
         cpu: 100m
         memory: 256Mi
+
+  # -- CronJob die behandelaars waarschuwt bij een nieuwe internetaak.
+  # Was tot 3.2.0 de enige poller; schedule en notification stonden toen onder
+  # ita.poller. Omgevingen die die sleutels overschrijven moeten ze hierheen
+  # verplaatsen, anders vallen ze stil terug op de chart-defaults.
+  # poller.notification.hourThreshold is niet meer aanwezig in subchart, dus
+  # verwijderd.
+  nieuweInternetaakNotificatie:
+    schedule: "*/15 * * * *"
+
+    notification:
+      pollerMessage: "Poller uitgevoerd om:"
+
+  # -- Nieuw in ITA 3.3.0: dagelijkse herinnering voor verlopen
+  # contactverzoeken, op werkdagen om 07:00.
+  verlopenContactverzoekHerinneringNotificatie:
+    enabled: true
+    schedule: "0 7 * * 1-5"
 
   ingress:
     enabled: false
@@ -3377,12 +3416,12 @@ pabc:
   # k8s-wait-for:v2.0 (see docs/images/images-4.8.0.yaml).
   image:
     repository: acrprodmgmt.azurecr.io/platform-autorisatie-beheer-component/pabc-api
-    tag: 1.1.0
+    tag: "1.1.1@sha256:09a902e43f6cdb214afc369d04005c7b6108fd24b15709f1debbcfb1b446ef42"
   nodeSelector: {}
   migrations:
     image:
       repository: acrprodmgmt.azurecr.io/platform-autorisatie-beheer-component/pabc-migrations
-      tag: 1.1.0
+      tag: "1.1.1@sha256:a3841a2eb78cddd34ebb0de1bfede1db1ae9713921c0d77e4366baceffa86e05"
     nodeSelector: {}
   initContainers:
     waitFor:
@@ -3430,7 +3469,7 @@ omc:
   fullnameOverride: "omc"
   image:
     # repository: ghcr.io/worth-nl/notifynl-omc
-    tag: "1.17.19"
+    tag: "1.17.19" # NOTE: OMC subchart can't handle digest-pinned images, so the tag should contain ONLY version. 
   # BELOW are the resource settings from the subchart, notifynl-omc-nodep which we do not override
   # app:
   #   port: 5270
