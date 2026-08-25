@@ -158,6 +158,39 @@ def test_check_shellcheck_own_error_fails(vp, libshellcheckcheck, tmp_path, monk
     assert "ERROR" in out
 
 
+def test_check_shellcheck_location_includes_script_line_and_column(vp, libshellcheckcheck, tmp_path, monkeypatch, capsys):
+    """Beyond source/path, each location also shows shellcheck's own
+    line (and column, when shellcheck reports one) — position within
+    the embedded script text, not the rendered YAML."""
+    monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
+    no_friendly_vendors(libshellcheckcheck, monkeypatch)
+    monkeypatch.setattr(libshellcheckcheck, "run", sequenced_run(own_comments=[
+        {"level": "warning", "code": 2086, "line": 3, "column": 6,
+         "message": "Double quote to prevent globbing and word splitting."},
+    ]))
+
+    ok, detail = vp.check_shellcheck(tmp_path, [])
+    assert ok is False
+    out = capsys.readouterr().out
+    assert "script line 3:6" in out
+
+
+def test_check_shellcheck_location_line_without_column(vp, libshellcheckcheck, tmp_path, monkeypatch, capsys):
+    """A finding with a line but no column still shows the line alone,
+    not a bare trailing colon."""
+    monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
+    no_friendly_vendors(libshellcheckcheck, monkeypatch)
+    monkeypatch.setattr(libshellcheckcheck, "run", sequenced_run(own_comments=[
+        {"level": "error", "code": 1072, "line": 2, "message": "Unexpected token."},
+    ]))
+
+    ok, detail = vp.check_shellcheck(tmp_path, [])
+    assert ok is False
+    out = capsys.readouterr().out
+    assert "script line 2" in out
+    assert "script line 2:" not in out
+
+
 def test_check_shellcheck_info_and_style_never_reported(vp, libshellcheckcheck, tmp_path, monkeypatch, capsys):
     """info/style findings are cosmetic — not just non-failing, not
     mentioned in output or detail at all, same policy as yamllint."""
@@ -254,6 +287,7 @@ def test_check_shellcheck_friendly_vendor_finding_reported_per_item_never_fails(
     assert "Info(NL)" in out
     assert "Unexpected token" in out  # per-item detail, not just a count
     assert "podiumd/charts/zac/templates/deployment.yaml" in out
+    assert "script line 1" in out  # location detail survives alongside the vendor tag
 
 
 def test_check_shellcheck_no_scripts_found_passes(vp, libshellcheckcheck, tmp_path, monkeypatch):

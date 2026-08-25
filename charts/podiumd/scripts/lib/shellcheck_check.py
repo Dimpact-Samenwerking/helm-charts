@@ -99,6 +99,23 @@ def _shellcheck_group_label(key):
     return f"[{level.upper():7s}] SC{code}: {message}"
 
 
+def _shellcheck_location(finding):
+    """"<source> (<path>) — script line <N>[:<col>]" for one finding
+    (source, path, comment). The line/column are shellcheck's own,
+    against the embedded script text it was fed — position within that
+    script, NOT a line number in the rendered YAML or the template file
+    (shellcheck has no notion of either; `path` is what locates the
+    right container's script among possibly several in the same
+    manifest)."""
+    source, path, c = finding
+    line = c.get("line")
+    if not line:
+        return f"{source} ({path})"
+    column = c.get("column")
+    pos = f"{line}:{column}" if column else str(line)
+    return f"{source} ({path}) — script line {pos}"
+
+
 def check_shellcheck(chart_dir, extra_args):
     """Lints every shell script embedded in a container's command/args
     (this chart's `command: [".../sh", "-c"], args: [<script>]` /
@@ -157,7 +174,7 @@ def check_shellcheck(chart_dir, extra_args):
         print_grouped_findings(
             own_real,
             key_fn=_shellcheck_group_key,
-            item_fn=lambda f: f"{f[0]} ({f[1]})",
+            item_fn=_shellcheck_location,
             label_fn=_shellcheck_group_label,
             items_label="location(s)",
         )
@@ -169,7 +186,7 @@ def check_shellcheck(chart_dir, extra_args):
         print_grouped_findings(
             vendored_friendly,
             key_fn=_shellcheck_group_key,
-            item_fn=lambda f: f"{f[0]} ({f[1]}) [{vendor_map[chart_name_from_source(f[0])]}]",
+            item_fn=lambda f: f"{_shellcheck_location(f)} [{vendor_map[chart_name_from_source(f[0])]}]",
             label_fn=_shellcheck_group_label,
             items_label="location(s)",
         )
