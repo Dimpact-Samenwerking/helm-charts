@@ -31,16 +31,16 @@ have exactly two such groups, is skipped and reported, not treated as an
 error. Rows from every table that has them are concatenated into one
 CSV, in page order.
 
-Also writes "component" and "alias": if "name" — spaces stripped,
-case-insensitive — exactly equals a `chart_dir`/Chart.yaml dependency's
-own "name" AND that dependency has an alias, "component" gets the
-dependency's name and "alias" gets its alias — e.g. "Interne Taak
-Afhandeling" -> component "internetaakafhandeling", alias "ita". See
-aliased_dependency_names/component_and_alias. This only ever fires for
-a "name" that's *exactly* the dependency's own name with spaces
-removed — most components (e.g. "Zaak - ZAC" vs. dependency name
-"zaakafhandelcomponent") don't match this way; "component" is then
-"UNKNOWN" (there's nothing to resolve it to) and "alias" is left empty.
+Also writes "component" and "alias", resolved against every aliased
+`chart_dir`/Chart.yaml dependency two ways (see
+aliased_dependency_names/component_and_alias): "name" — spaces
+stripped, case-insensitive — either exactly equals the dependency's own
+"name" (e.g. "Interne Taak Afhandeling" -> component
+"internetaakafhandeling", alias "ita"), or contains the dependency's
+alias as a substring (e.g. "Zaak - ZAC" contains "zac" -> component
+"zaakafhandelcomponent", alias "zac"). "component" is "UNKNOWN" (and
+"alias" left empty) if neither matches any dependency — e.g. "Open
+Zaak", whose dependency "openzaak" has no alias to match at all.
 
 Each of the four version values is replaced with "UNKNOWN" if it isn't
 semver-compatible (see lib.confluence_tables.is_semver_compatible — a
@@ -211,27 +211,40 @@ def check_target_matches_chart_version(target_labels, chart_dir):
 
 
 def aliased_dependency_names(chart_dir):
-    """{dependency_name.lower(): (dependency_name, alias)} for every
+    """[(dependency_name, alias), ...], in Chart.yaml order, for every
     chart_dir/Chart.yaml dependency that has an alias — e.g.
-    {"internetaakafhandeling": ("internetaakafhandeling", "ita"), ...}.
-    {} if chart_dir has no Chart.yaml."""
+    [("internetaakafhandeling", "ita"), ("zaakafhandelcomponent", "zac"),
+    ...]. [] if chart_dir has no Chart.yaml."""
     chart_yaml_path = chart_dir / "Chart.yaml"
     if not chart_yaml_path.is_file():
-        return {}
+        return []
     chart_yaml = load_yaml(chart_yaml_path)
-    return {dep["name"].lower(): (dep["name"], dep["alias"])
-            for dep in chart_yaml.get("dependencies", []) if dep.get("alias")}
+    return [(dep["name"], dep["alias"]) for dep in chart_yaml.get("dependencies", []) if dep.get("alias")]
 
 
 def component_and_alias(name, aliased_names):
-    """(component, alias) if `name` — lowercased, spaces stripped —
-    exactly matches a Chart.yaml dependency name that has an alias (see
-    aliased_dependency_names) — e.g. "Interne Taak Afhandeling" ->
-    ("internetaakafhandeling", "ita"). ("UNKNOWN", "") otherwise — most
-    components don't share their exact Chart.yaml dependency name this
-    way (e.g. "Zaak - ZAC" vs. dependency name "zaakafhandelcomponent"),
-    and there's nothing to resolve "component" to, rather than guessing."""
-    return aliased_names.get(name.lower().replace(" ", ""), ("UNKNOWN", ""))
+    """(component, alias) for `name` (the CSV "name" column value),
+    resolved against `aliased_names` (see aliased_dependency_names) two
+    ways, tried in this order:
+    - `name` — lowercased, spaces stripped — exactly equals the
+      dependency's own name, e.g. "Interne Taak Afhandeling" ->
+      dependency "internetaakafhandeling" -> ("internetaakafhandeling",
+      "ita")
+    - the dependency's alias appears as a substring of `name` —
+      lowercased, spaces stripped — e.g. alias "zac" is contained in
+      "Zaak - ZAC" (as "zaakzac") -> ("zaakafhandelcomponent", "zac")
+    ("UNKNOWN", "") if neither matches any dependency — most components
+    aren't nameable either way (e.g. "Open Zaak", whose dependency
+    "openzaak" has no alias at all) and are left unresolved rather than
+    guessed at."""
+    compact_name = name.lower().replace(" ", "")
+    for dependency_name, alias in aliased_names:
+        if compact_name == dependency_name.lower():
+            return dependency_name, alias
+    for dependency_name, alias in aliased_names:
+        if alias.lower() in compact_name:
+            return dependency_name, alias
+    return "UNKNOWN", ""
 
 
 def resolve_token(args):
