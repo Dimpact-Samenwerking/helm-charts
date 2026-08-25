@@ -1045,7 +1045,7 @@ PodiumD Helm chart
 | openzaak.extraEnvVars | list | `[{"name":"OPENZAAK_PORT","value":"8000"}]` | Override OPENZAAK_PORT to prevent Kubernetes service-discovery injection (tcp://<ip>:80) from being passed to uwsgi as the port number. Since Open Zaak 1.27.3 the app reads OPENZAAK_PORT for uwsgi_port; K8s auto-injects OPENZAAK_PORT=tcp://<svc-ip>:80 for the openzaak Service, which uwsgi cannot parse. See https://github.com/open-zaak/open-zaak/issues/2415 |
 | openzaak.flower.enabled | bool | `false` |  |
 | openzaak.fullnameOverride | string | `"openzaak"` |  |
-| openzaak.image.tag | string | `"1.27.4@sha256:f847e5148d857da07847b5d298d8d7a0b66a299fb48e02e4a28176cc09e8decf"` |  |
+| openzaak.image.tag | string | `"1.29.3@sha256:7ac22da287ac190a0e1c14849a370c433d3511678dcc8f3897007fd6de6dd4ac"` |  |
 | openzaak.nameOverride | string | `"openzaak"` |  |
 | openzaak.nginx.image.pullPolicy | string | `"IfNotPresent"` |  |
 | openzaak.nginx.image.repository | string | `"nginxinc/nginx-unprivileged"` |  |
