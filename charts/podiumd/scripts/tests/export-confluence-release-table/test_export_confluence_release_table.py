@@ -10,6 +10,15 @@ def write_chart_yaml(chart_dir, version):
     (chart_dir / "Chart.yaml").write_text(f"apiVersion: v2\nname: podiumd\nversion: {version}\n", encoding="utf-8")
 
 
+def write_chart_yaml_with_dependency(chart_dir, name, alias=None):
+    alias_line = f"\n    alias: {alias}" if alias else ""
+    (chart_dir / "Chart.yaml").write_text(
+        "apiVersion: v2\nname: podiumd\nversion: 1.0.0\ndependencies:\n"
+        f"  - name: {name}{alias_line}\n    version: 1.0.0\n    repository: \"@x\"\n",
+        encoding="utf-8",
+    )
+
+
 @pytest.fixture(autouse=True)
 def isolate_chart_dir(ecrt, tmp_path, monkeypatch):
     """extract_release_rows falls back to the real CHART_DIR (this
@@ -185,8 +194,8 @@ def test_extract_release_rows_handles_inconsistent_th_tagging(ecrt):
     <th>-only header count would catch."""
     rows = ecrt.extract_release_rows(PRODUCT_TABLE_INCONSISTENT_TH_HTML)
     assert rows == [
-        ["Product", "Info(NL)", "", "ZAC", "5.0.0", "1.0.290", "5.1.0", "1.0.297"],
-        ["Product", "Maykin", "", "Open Zaak", "1.27.0", "1.14.0", "1.27.4", "1.14.2"],
+        ["Product", "Info(NL)", "", "ZAC", "UNKNOWN", "", "5.0.0", "1.0.290", "5.1.0", "1.0.297"],
+        ["Product", "Maykin", "", "Open Zaak", "UNKNOWN", "", "1.27.0", "1.14.0", "1.27.4", "1.14.2"],
     ]
 
 
@@ -233,16 +242,64 @@ def test_check_target_matches_chart_version_missing_chart_yaml_is_silent(ecrt, t
     assert capsys.readouterr().err == ""
 
 
+# --- aliased_dependency_names / component_and_alias ---
+
+def test_aliased_dependency_names_reads_chart_yaml(ecrt, tmp_path):
+    write_chart_yaml_with_dependency(tmp_path, "internetaakafhandeling", alias="ita")
+    assert ecrt.aliased_dependency_names(tmp_path) == {
+        "internetaakafhandeling": ("internetaakafhandeling", "ita"),
+    }
+
+
+def test_aliased_dependency_names_skips_dependencies_without_alias(ecrt, tmp_path):
+    write_chart_yaml_with_dependency(tmp_path, "openzaak")
+    assert ecrt.aliased_dependency_names(tmp_path) == {}
+
+
+def test_aliased_dependency_names_missing_chart_yaml_returns_empty(ecrt, tmp_path):
+    assert ecrt.aliased_dependency_names(tmp_path) == {}
+
+
+def test_component_and_alias_resolves_exact_match_with_spaces_stripped(ecrt):
+    aliased_names = {"internetaakafhandeling": ("internetaakafhandeling", "ita")}
+    assert ecrt.component_and_alias("Interne Taak Afhandeling", aliased_names) == ("internetaakafhandeling", "ita")
+
+
+def test_component_and_alias_case_insensitive(ecrt):
+    aliased_names = {"internetaakafhandeling": ("internetaakafhandeling", "ita")}
+    assert ecrt.component_and_alias("INTERNE TAAK AFHANDELING", aliased_names) == ("internetaakafhandeling", "ita")
+
+
+def test_component_and_alias_unresolved_is_unknown(ecrt):
+    """"Zaak - ZAC" doesn't equal any dependency name exactly (even with
+    spaces stripped) — "component" becomes UNKNOWN rather than left
+    blank or guessed at, and "alias" stays empty."""
+    assert ecrt.component_and_alias("Zaak - ZAC", {}) == ("UNKNOWN", "")
+
+
 # --- extract_release_rows ---
 
 def test_extract_release_rows_matches_and_reports(ecrt, capsys):
     rows = ecrt.extract_release_rows(PRODUCT_TABLE_HTML)
     assert rows == [
-        ["Product", "Info(NL)", "", "ZAC", "5.0.0", "1.0.290", "5.1.0", "1.0.297"],
-        ["Product", "Maykin", "", "Open Zaak", "1.27.0", "1.14.0", "1.27.4", "1.14.2"],
+        ["Product", "Info(NL)", "", "ZAC", "UNKNOWN", "", "5.0.0", "1.0.290", "5.1.0", "1.0.297"],
+        ["Product", "Maykin", "", "Open Zaak", "UNKNOWN", "", "1.27.0", "1.14.0", "1.27.4", "1.14.2"],
     ]
     out = capsys.readouterr().out
     assert "2 row(s) matched" in out
+
+
+def test_extract_release_rows_resolves_component_and_alias(ecrt, tmp_path):
+    """A Chart.yaml dependency named exactly "zac" (with spaces stripped,
+    identical to the row's own "ZAC") that also has an alias resolves
+    "component"/"alias" for that row; "Open Zaak" doesn't match any
+    dependency name this way and stays UNKNOWN."""
+    write_chart_yaml_with_dependency(tmp_path, "zac", alias="z")
+    rows = ecrt.extract_release_rows(PRODUCT_TABLE_HTML, chart_dir=tmp_path)
+    assert rows == [
+        ["Product", "Info(NL)", "", "ZAC", "zac", "z", "5.0.0", "1.0.290", "5.1.0", "1.0.297"],
+        ["Product", "Maykin", "", "Open Zaak", "UNKNOWN", "", "1.27.0", "1.14.0", "1.27.4", "1.14.2"],
+    ]
 
 
 def test_extract_release_rows_not_tied_to_specific_version_numbers(ecrt):
@@ -252,15 +309,15 @@ def test_extract_release_rows_not_tied_to_specific_version_numbers(ecrt):
     html = PRODUCT_TABLE_HTML.replace("Versie 4.8", "Versie 5.0").replace("Versie 4.9", "Versie 5.1")
     rows = ecrt.extract_release_rows(html)
     assert rows == [
-        ["Product", "Info(NL)", "", "ZAC", "5.0.0", "1.0.290", "5.1.0", "1.0.297"],
-        ["Product", "Maykin", "", "Open Zaak", "1.27.0", "1.14.0", "1.27.4", "1.14.2"],
+        ["Product", "Info(NL)", "", "ZAC", "UNKNOWN", "", "5.0.0", "1.0.290", "5.1.0", "1.0.297"],
+        ["Product", "Maykin", "", "Open Zaak", "UNKNOWN", "", "1.27.0", "1.14.0", "1.27.4", "1.14.2"],
     ]
 
 
 def test_extract_release_rows_replaces_non_semver_version_with_unknown_and_reports_count(ecrt, capsys):
     html = PRODUCT_TABLE_HTML.replace("<td>5.1.0</td>", "<td>?</td>")
     rows = ecrt.extract_release_rows(html)
-    assert rows[0] == ["Product", "Info(NL)", "", "ZAC", "5.0.0", "1.0.290", "UNKNOWN", "1.0.297"]
+    assert rows[0] == ["Product", "Info(NL)", "", "ZAC", "UNKNOWN", "", "5.0.0", "1.0.290", "UNKNOWN", "1.0.297"]
     out = capsys.readouterr().out
     assert "1 version value(s) were not semver-compatible — replaced with UNKNOWN" in out
 
@@ -287,7 +344,7 @@ def test_extract_release_rows_vendor_blank_used_by_populated_for_technische_tabl
     column (vendor blank) but does have "Used by" — the reverse of a
     Product table."""
     rows = ecrt.extract_release_rows(TECHNISCHE_TABLE_HTML)
-    assert rows == [["Technische", "", "ZAC", "Elastic operator", "3.4.0", "3.4.0", "3.5.0", "3.5.0"]]
+    assert rows == [["Technische", "", "ZAC", "Elastic operator", "UNKNOWN", "", "3.4.0", "3.4.0", "3.5.0", "3.5.0"]]
 
 
 def test_extract_release_rows_used_by_blank_when_table_has_none(ecrt):
@@ -366,10 +423,11 @@ def test_main_writes_csv(ecrt, tmp_path, monkeypatch, capsys):
 
     with output_path.open(newline="", encoding="utf-8") as f:
         rows = list(csv.reader(f))
-    assert rows[0] == ["section", "vendor", "used_by", "name", "source version app", "source version helm",
+    assert rows[0] == ["section", "vendor", "used_by", "name", "component", "alias",
+                        "source version app", "source version helm",
                         "target version app", "target version helm"]
-    assert rows[1] == ["Product", "Info(NL)", "", "ZAC", "5.0.0", "1.0.290", "5.1.0", "1.0.297"]
-    assert rows[2] == ["Product", "Maykin", "", "Open Zaak", "1.27.0", "1.14.0", "1.27.4", "1.14.2"]
+    assert rows[1] == ["Product", "Info(NL)", "", "ZAC", "UNKNOWN", "", "5.0.0", "1.0.290", "5.1.0", "1.0.297"]
+    assert rows[2] == ["Product", "Maykin", "", "Open Zaak", "UNKNOWN", "", "1.27.0", "1.14.0", "1.27.4", "1.14.2"]
     out = capsys.readouterr().out
     assert f"Wrote 2 row(s) to {output_path}" in out
 
