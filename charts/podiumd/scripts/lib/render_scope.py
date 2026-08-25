@@ -192,13 +192,17 @@ def print_grouped_findings(findings, key_fn, item_fn, label_fn, items_label="lin
     """Shared grouping printer for check_yamllint/check_kubeconform/
     check_shellcheck/check_kube_score: the same root cause (e.g. a
     duplicated label key) typically shows up once per resource, not once
-    overall — group by key_fn and join the occurrences (item_fn) onto one
-    line, so N near-identical hits print as a handful of lines instead of
-    a wall of repeats."""
+    overall — group by key_fn and list the occurrences (item_fn) one per
+    line under the group's own heading, so N near-identical hits print as
+    a handful of headings instead of a wall of repeats (and each
+    location list stays readable instead of one giant comma-joined
+    line)."""
     groups = {}
     for finding in findings:
         groups.setdefault(key_fn(finding), []).append(finding)
     for key, group in groups.items():
         count = f" x{len(group)}" if len(group) > 1 else ""
         print(f"  {label_fn(key)}{count}")
-        print(f"      {items_label}: {', '.join(item_fn(f) for f in group)}")
+        print(f"      {items_label}:")
+        for f in group:
+            print(f"        {item_fn(f)}")
