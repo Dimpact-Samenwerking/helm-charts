@@ -1,18 +1,19 @@
-"""load_rows, matching_rows, display_value, print_table, main — with
-DEFAULT_INPUT monkeypatched to a fixture CSV, so no dependency on a real
-charts/podiumd/release-table.csv on disk."""
+"""load_rows, matching_rows, component_matches, used_by_rows_for,
+display_value, print_table, main — with DEFAULT_INPUT monkeypatched to a
+fixture CSV, so no dependency on a real charts/podiumd/release-table.csv
+on disk."""
 import pytest
 
 CSV_TEXT = """\
-section,vendor,used_by,name,component,alias,source version app,source version helm,target version app,target version helm
-Product,Info(NL),,ZAC,,,5.0.0,1.0.290,5.1.0,1.0.297
-Product,Maykin,,Open Zaak,,,1.27.0,1.14.0,1.27.4,1.14.2
+section,vendor,used_by,name,component,alias,source_version_app,source_version_helm,target_version_app,target_version_helm
+Product,Info(NL),,ZAC,zaakafhandelcomponent,zac,5.0.0,1.0.290,5.1.0,1.0.297
+Product,Maykin,,Open Zaak,openzaak,,1.27.0,1.14.0,1.27.4,1.14.2
 Technische,,,Elastic operator,,,3.4.0,3.4.0,,
 Technische,,zac,Solr,,,8.11.0,8.11.0,8.11.0,8.11.0
 Product,ZAC Team,,Some Component,,,1.0.0,1.0.0,1.0.0,1.0.0
 Product,ICATT,,Interne Taak Afhandeling,internetaakafhandeling,ita,3.2.0,3.2.0,3.3.0,3.3.0
 Technische,,ita,ITA Poller,,,1.0.0,1.0.0,1.0.0,1.0.0
-Product,ICATT,,Contact (KISS),,,2.2.3,2.2.3,3.0.0,3.0.0
+Product,ICATT,,Contact (KISS),kiss-chart,kiss,2.2.3,2.2.3,3.0.0,3.0.0
 Technische,,kiss,Kiss Elastic Sync,,,0.3.3,0.3.3,3.0.0,3.0.0
 Technische,,kiss,PodiumD Adapter,,,0.6.6,0.6.6,0.6.7,0.6.7
 """
@@ -69,8 +70,8 @@ def test_matching_rows_matches_used_by_column(qrt, rows):
 
 def test_used_by_rows_for_finds_rows_by_name_substring(qrt, rows):
     """"zac" (Solr's used_by) is contained in "ZAC" (the matched row's own
-    name) — this is what lets a query on ANY column (not just "name")
-    still pull in the tooling that row uses."""
+    name) — this is what lets a query on ANY column still pull in the
+    tooling that row uses."""
     zac = [rows[0]]
     assert [r["name"] for r in qrt.used_by_rows_for(rows, zac)] == ["Solr"]
 
@@ -85,61 +86,46 @@ def test_used_by_rows_for_excludes_the_matches_themselves(qrt):
     name (e.g. a "Kiss ..." row with used_by "kiss") must not be echoed
     back as its own "used by" result."""
     self_referential = {"name": "Kiss Thing", "used_by": "kiss", "alias": "",
-                         "source version app": "1.0", "source version helm": "1.0",
-                         "target version app": "1.0", "target version helm": "1.0"}
+                         "source_version_app": "1.0", "source_version_helm": "1.0",
+                         "target_version_app": "1.0", "target_version_helm": "1.0"}
     assert qrt.used_by_rows_for([self_referential], [self_referential]) == []
 
 
-# --- alias_matched_rows ---
+# --- component_matches ---
 
-def test_alias_matched_rows_finds_name_by_alias(qrt, rows):
-    """Querying the alias "ita" itself (not a substring of "Interne Taak
-    Afhandeling") must still find that component directly via its own
-    "alias" column (set by export-confluence-release-table.py) — the
-    other direction of the relationship used_by_rows_for resolves."""
-    matches = qrt.alias_matched_rows(rows, "ita")
-    assert [r["name"] for r in matches] == ["Interne Taak Afhandeling"]
+def test_component_matches_via_component_column(qrt, rows):
+    matches = qrt.component_matches(rows, "zaakafhandelcomponent")
+    assert [r["name"] for r in matches] == ["ZAC"]
 
 
-def test_alias_matched_rows_case_insensitive(qrt, rows):
-    matches = qrt.alias_matched_rows(rows, "ITA")
-    assert [r["name"] for r in matches] == ["Interne Taak Afhandeling"]
+def test_component_matches_via_alias_when_component_does_not_relate(qrt, rows):
+    """"zac" isn't a substring of component "zaakafhandelcomponent"
+    itself, but it exactly equals that row's own "alias" — the alias
+    column is tried before ever falling back to "name"."""
+    matches = qrt.component_matches(rows, "zac")
+    assert [r["name"] for r in matches] == ["ZAC"]
 
 
-def test_alias_matched_rows_unknown_alias_returns_empty(qrt, rows):
-    assert qrt.alias_matched_rows(rows, "nonexistent-alias") == []
-
-
-def test_alias_matched_rows_blank_alias_column_never_matches(qrt, rows):
-    """Most fixture rows have no "alias" set at all — an empty query text
-    must never match against that blank column."""
-    assert qrt.alias_matched_rows(rows, "") == []
-
-
-# --- name_matches ---
-
-def test_name_matches_prefers_owner_over_tooling_substring_hit(qrt, rows):
-    """"Kiss Elastic Sync" contains "kiss" and has a non-empty used_by —
-    it's tooling, not a standalone component. Once the real owner
-    "Contact (KISS)" also matches, only the owner is returned."""
-    matches = qrt.name_matches(rows, "kiss")
-    assert [r["name"] for r in matches] == ["Contact (KISS)"]
-
-
-def test_name_matches_falls_back_to_raw_when_no_owner_matches(qrt, rows):
-    """"Solr" has no distinct "owner" component matching "solr" at all —
-    falls back to the raw substring match so it can still be found
-    directly, rather than returning nothing."""
-    matches = qrt.name_matches(rows, "solr")
+def test_component_matches_falls_back_to_name_when_neither_relates(qrt, rows):
+    """"Solr" has no resolved component or alias of its own at all —
+    falls back to a plain "name" substring match so it can still be
+    found, rather than returning nothing."""
+    matches = qrt.component_matches(rows, "solr")
     assert [r["name"] for r in matches] == ["Solr"]
 
 
-def test_name_matches_resolves_owner_via_alias_only(qrt, rows):
-    """"ita" matches "ITA Poller" by substring (tooling, excluded) and
-    "Interne Taak Afhandeling" by its own "alias" column (the real
-    owner)."""
-    matches = qrt.name_matches(rows, "ita")
-    assert [r["name"] for r in matches] == ["Interne Taak Afhandeling"]
+def test_component_matches_component_or_alias_hit_takes_priority_over_unrelated_name_hit(qrt, rows):
+    """"Contact (KISS)" resolves via its own component/alias ("kiss-chart"
+    / "kiss") — once that's found, "name" is never consulted at all, so
+    "Kiss Elastic Sync" (which only coincidentally contains "kiss" in its
+    own name, but has no component/alias of its own) is correctly left
+    out of the primary matches."""
+    matches = qrt.component_matches(rows, "kiss")
+    assert [r["name"] for r in matches] == ["Contact (KISS)"]
+
+
+def test_component_matches_no_match_anywhere_is_empty(qrt, rows):
+    assert qrt.component_matches(rows, "nonexistent") == []
 
 
 # --- used_by_rows_for: alias path ---
@@ -165,13 +151,13 @@ def test_used_by_rows_for_blank_alias_misses_the_alias_path(qrt, rows):
 
 def test_display_value_target_empty_is_unchanged(qrt, rows):
     elastic = rows[2]
-    assert qrt.display_value(elastic, "target version app") == "UNCHANGED"
-    assert qrt.display_value(elastic, "target version helm") == "UNCHANGED"
+    assert qrt.display_value(elastic, "target_version_app") == "UNCHANGED"
+    assert qrt.display_value(elastic, "target_version_helm") == "UNCHANGED"
 
 
 def test_display_value_target_present_is_unaffected(qrt, rows):
     zac = rows[0]
-    assert qrt.display_value(zac, "target version app") == "5.1.0"
+    assert qrt.display_value(zac, "target_version_app") == "5.1.0"
 
 
 def test_display_value_source_empty_stays_empty_not_unchanged(qrt, rows):
@@ -180,8 +166,8 @@ def test_display_value_source_empty_stays_empty_not_unchanged(qrt, rows):
     but a legitimate "no data" case elsewhere in the pipeline) must not be
     relabeled."""
     elastic = dict(rows[2])
-    elastic["source version app"] = ""
-    assert qrt.display_value(elastic, "source version app") == ""
+    elastic["source_version_app"] = ""
+    assert qrt.display_value(elastic, "source_version_app") == ""
 
 
 # --- print_table ---
@@ -192,6 +178,20 @@ def test_print_table_aligns_columns_with_header(qrt, capsys, rows):
     assert out[0].startswith("name")
     assert "5.0.0" in out[1]
     assert "5.1.0" in out[1]
+
+
+def test_print_table_includes_component_and_alias(qrt, capsys, rows):
+    """component/alias — set by export-confluence-release-table.py — are
+    shown alongside name and the version columns, not just usable for
+    filtering."""
+    ita = next(r for r in rows if r["name"] == "Interne Taak Afhandeling")
+    qrt.print_table([ita])
+    out = capsys.readouterr().out.splitlines()
+    assert out[0].split() == ["name", "component", "alias",
+                               "source_version_app", "source_version_helm",
+                               "target_version_app", "target_version_helm"]
+    assert "internetaakafhandeling" in out[1]
+    assert "ita" in out[1]
 
 
 def test_print_table_shows_unchanged_for_empty_target(qrt, capsys, rows):
@@ -208,7 +208,7 @@ def run_main(qrt, monkeypatch, csv_path, argv):
 
 
 def test_main_prints_matches(qrt, monkeypatch, csv_path, capsys):
-    run_main(qrt, monkeypatch, csv_path, ["name", "zac"])
+    run_main(qrt, monkeypatch, csv_path, ["component", "zac"])
     qrt.main()
     out = capsys.readouterr().out
     assert "ZAC" in out
@@ -218,19 +218,19 @@ def test_main_prints_matches(qrt, monkeypatch, csv_path, capsys):
 def test_main_prints_heading_above_primary_matches(qrt, monkeypatch, csv_path, capsys):
     """The primary matches need their own heading, distinct from "Used by
     ...:" below them — otherwise a single-row primary match (e.g. "Zaak -
-    ZAC" itself, querying name "zac") reads as part of the used_by
+    ZAC" itself, querying component "zac") reads as part of the used_by
     section instead of the actual match."""
-    run_main(qrt, monkeypatch, csv_path, ["name", "zac"])
+    run_main(qrt, monkeypatch, csv_path, ["component", "zac"])
     qrt.main()
     out = capsys.readouterr().out
-    assert "Matches for name 'zac':" in out
+    assert "Matches for component 'zac':" in out
     lines = out.splitlines()
-    heading_index = lines.index("Matches for name 'zac':")
+    heading_index = lines.index("Matches for component 'zac':")
     assert "ZAC" in lines[heading_index + 2]  # header row, then the ZAC data row
 
 
-def test_main_name_query_also_shows_used_by_matches(qrt, monkeypatch, csv_path, capsys):
-    run_main(qrt, monkeypatch, csv_path, ["name", "zac"])
+def test_main_component_query_also_shows_used_by_matches(qrt, monkeypatch, csv_path, capsys):
+    run_main(qrt, monkeypatch, csv_path, ["component", "zac"])
     qrt.main()
     out = capsys.readouterr().out
     assert "Used by matched component(s):" in out
@@ -238,8 +238,8 @@ def test_main_name_query_also_shows_used_by_matches(qrt, monkeypatch, csv_path, 
     assert "8.11.0" in out
 
 
-def test_main_name_query_omits_used_by_section_when_no_matches(qrt, monkeypatch, csv_path, capsys):
-    run_main(qrt, monkeypatch, csv_path, ["name", "open zaak"])
+def test_main_component_query_omits_used_by_section_when_no_matches(qrt, monkeypatch, csv_path, capsys):
+    run_main(qrt, monkeypatch, csv_path, ["component", "open zaak"])
     qrt.main()
     out = capsys.readouterr().out
     assert "Used by" not in out
@@ -271,20 +271,23 @@ def test_main_resolves_used_by_via_alias_column(qrt, monkeypatch, csv_path, caps
     """End-to-end: querying "Interne Taak Afhandeling" pulls in "ITA
     Poller" via its own "alias" column, already baked into the CSV by
     export-confluence-release-table.py — no Chart.yaml needed at query
-    time."""
-    run_main(qrt, monkeypatch, csv_path, ["name", "interne taak"])
+    time. Neither its component nor alias contains "interne taak", so
+    this falls all the way through component_matches to the "name"
+    last resort."""
+    run_main(qrt, monkeypatch, csv_path, ["component", "interne taak"])
     qrt.main()
     out = capsys.readouterr().out
     assert "Used by matched component(s):" in out
     assert "ITA Poller" in out
 
 
-def test_main_name_query_by_alias_shows_owner_as_sole_primary_match(qrt, monkeypatch, csv_path, capsys):
-    """Querying name "ita" resolves to "Interne Taak Afhandeling" itself
-    via its own "alias" column — that's the sole primary match. "ITA
-    Poller" (which also contains "ita" literally) is tooling belonging
-    to it, not a primary match in its own right — see name_matches."""
-    run_main(qrt, monkeypatch, csv_path, ["name", "ita"])
+def test_main_component_query_by_alias_shows_owner_as_sole_primary_match(qrt, monkeypatch, csv_path, capsys):
+    """Querying component "ita" resolves to "Interne Taak Afhandeling"
+    itself via its own "alias" column — that's the sole primary match,
+    found before "name" is ever consulted. "ITA Poller" (which also
+    contains "ita" literally in its own name) is tooling belonging to
+    it, not a primary match in its own right — see component_matches."""
+    run_main(qrt, monkeypatch, csv_path, ["component", "ita"])
     qrt.main()
     out = capsys.readouterr().out
     matches_section = out.split("Used by matched component(s):")[0]
@@ -292,22 +295,21 @@ def test_main_name_query_by_alias_shows_owner_as_sole_primary_match(qrt, monkeyp
     assert "ITA Poller" not in matches_section
 
 
-def test_main_name_query_by_alias_shows_tooling_in_used_by_exactly_once(qrt, monkeypatch, csv_path, capsys):
-    run_main(qrt, monkeypatch, csv_path, ["name", "ita"])
+def test_main_component_query_by_alias_shows_tooling_in_used_by_exactly_once(qrt, monkeypatch, csv_path, capsys):
+    run_main(qrt, monkeypatch, csv_path, ["component", "ita"])
     qrt.main()
     out = capsys.readouterr().out
     assert "Used by matched component(s):" in out
     assert out.count("ITA Poller") == 1
 
 
-def test_main_name_query_kiss_one_owner_match_rest_in_used_by(qrt, monkeypatch, csv_path, capsys):
-    """Regression: querying name "kiss" used to return 3 rows in
-    the primary matches table (every row with "kiss" literally in its
-    own name) and only 1 in used_by. It must be the other way around —
-    "Contact (KISS)" is the sole real component; "Kiss Elastic Sync"
-    (which also contains "kiss") and "PodiumD Adapter" are its tooling
-    and belong in the used_by table instead."""
-    run_main(qrt, monkeypatch, csv_path, ["name", "kiss"])
+def test_main_component_query_kiss_one_owner_match_rest_in_used_by(qrt, monkeypatch, csv_path, capsys):
+    """"Contact (KISS)" resolves via its own component/alias
+    ("kiss-chart" / "kiss") and is the sole primary match; "Kiss Elastic
+    Sync" and "PodiumD Adapter" (which only coincidentally contain
+    "kiss", or have it as used_by) are its tooling and belong in the
+    used_by table instead."""
+    run_main(qrt, monkeypatch, csv_path, ["component", "kiss"])
     qrt.main()
     out = capsys.readouterr().out
     matches_section, _, used_by_section = out.partition("Used by matched component(s):")
@@ -319,7 +321,7 @@ def test_main_name_query_kiss_one_owner_match_rest_in_used_by(qrt, monkeypatch, 
 
 
 def test_main_no_matches_exits_nonzero(qrt, monkeypatch, csv_path, capsys):
-    run_main(qrt, monkeypatch, csv_path, ["name", "nonexistent"])
+    run_main(qrt, monkeypatch, csv_path, ["component", "nonexistent"])
     with pytest.raises(SystemExit) as exc_info:
         qrt.main()
     assert exc_info.value.code != 0
@@ -334,8 +336,19 @@ def test_main_invalid_column_prints_usage(qrt, monkeypatch, csv_path, capsys):
     assert "Usage:" in capsys.readouterr().out
 
 
+def test_main_name_is_no_longer_a_valid_column(qrt, monkeypatch, csv_path, capsys):
+    """"name" was removed as a directly queryable column — component
+    now covers that ground itself, falling back to name internally (see
+    component_matches) rather than exposing it as its own query mode."""
+    run_main(qrt, monkeypatch, csv_path, ["name", "zac"])
+    with pytest.raises(SystemExit) as exc_info:
+        qrt.main()
+    assert exc_info.value.code != 0
+    assert "Usage:" in capsys.readouterr().out
+
+
 def test_main_wrong_arg_count_prints_usage(qrt, monkeypatch, csv_path, capsys):
-    run_main(qrt, monkeypatch, csv_path, ["name"])
+    run_main(qrt, monkeypatch, csv_path, ["component"])
     with pytest.raises(SystemExit) as exc_info:
         qrt.main()
     assert exc_info.value.code != 0
@@ -345,7 +358,7 @@ def test_main_wrong_arg_count_prints_usage(qrt, monkeypatch, csv_path, capsys):
 def test_main_missing_input_file_errors(qrt, monkeypatch, tmp_path, capsys):
     missing = tmp_path / "does-not-exist.csv"
     monkeypatch.setattr(qrt, "DEFAULT_INPUT", missing)
-    monkeypatch.setattr("sys.argv", ["query-release-table.py", "name", "zac"])
+    monkeypatch.setattr("sys.argv", ["query-release-table.py", "component", "zac"])
     with pytest.raises(SystemExit) as exc_info:
         qrt.main()
     assert exc_info.value.code != 0
