@@ -29,7 +29,10 @@ import yaml
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
+from lib.chart import SEMVER_RE as BASELINE_VERSION_RE
+from lib.chart import chart_version
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
+from lib.procutil import run_script
 from lib.upgradedoc import (
     actual_app_version, append_to_doc, canonical_version_cell, compute_changed_components,
     extract_source_version, extract_target_version, find_grouped_preceding_comment_line,
@@ -45,15 +48,15 @@ UPDATE_README_SCRIPT = SCRIPT_DIR / "update-podiumd-readme.py"
 
 
 def current_chart_version():
-    return str(yaml.safe_load(CHART_YAML.read_text(encoding="utf-8"))["version"])
+    return chart_version(CHART_YAML)
 
 # The exact shape a baseline argument must have — bare MAJOR.MINOR.PATCH,
 # matching every doc filename's own "<baseline>-to-<target>-*.md" pattern
 # (see FILENAME_RE_TMPL below). Anything else (a flag like "--help", a
 # git ref, a version with a suffix) is rejected up front by main(), rather
 # than silently being treated as a literal baseline and renaming docs to
-# nonsense like "--help-to-4.9.0-upgrade.md".
-BASELINE_VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
+# nonsense like "--help-to-4.9.0-upgrade.md". (BASELINE_VERSION_RE is
+# lib.chart.SEMVER_RE, imported under this script's own established name.)
 
 FILENAME_RE_TMPL = r"^(?P<baseline>\d+\.\d+\.\d+)-to-{target}-(?P<suffix>[\w\-]+)\.md$"
 TITLE_ARROW_RE_TMPL = r"(?P<baseline>{baseline})(?P<arrow>\s*(?:→|->)\s*){target}"
@@ -502,7 +505,7 @@ def main():
 
     print()
     print("=== Regenerating README.md (update-podiumd-readme.py) ===")
-    subprocess.run([sys.executable, str(UPDATE_README_SCRIPT)])
+    run_script([sys.executable, str(UPDATE_README_SCRIPT)])
 
     print()
     print(f"Done. Run verify-podiumd.py --baseline {new_baseline} to confirm consistency before committing.")

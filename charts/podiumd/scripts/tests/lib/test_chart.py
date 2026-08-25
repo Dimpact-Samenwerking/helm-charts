@@ -1,6 +1,6 @@
-"""lib.chart — get_path, replace_scalar_value, find_dependency, chart_ref,
-pull_chart, pulled_chart_dir, pull_chart_values, find_images, version_of,
-image_paths_for, dotted_key_path, subchart_values,
+"""lib.chart — get_path, replace_scalar_value, chart_version, SEMVER_RE,
+find_dependency, chart_ref, pull_chart, pulled_chart_dir, pull_chart_values,
+find_images, version_of, image_paths_for, dotted_key_path, subchart_values,
 subchart_default_repository. `helm pull` is mocked via lib.procutil.run,
 so no `helm` binary or network access needed."""
 import io
@@ -60,6 +60,29 @@ def test_replace_scalar_value_preserves_trailing_comment(libchart):
 def test_replace_scalar_value_unparseable_line_raises(libchart):
     with pytest.raises(SystemExit):
         libchart.replace_scalar_value("not a key-value line at all\n", "x")
+
+
+# --- chart_version / SEMVER_RE ---
+# shared by set-doc-baseline.py, update-component-version.py, and
+# create-podiumd-version.py's own current_chart_version()/*_VERSION_RE
+# re-exports — see those scripts' own tests for the re-export coverage.
+
+def test_chart_version_reads_top_level_version(libchart, tmp_path):
+    chart_yaml = tmp_path / "Chart.yaml"
+    chart_yaml.write_text("apiVersion: v2\nname: podiumd\nversion: 4.9.0\n", encoding="utf-8")
+    assert libchart.chart_version(chart_yaml) == "4.9.0"
+
+
+def test_semver_re_matches_bare_version(libchart):
+    assert libchart.SEMVER_RE.match("4.8.2")
+    assert libchart.SEMVER_RE.match("10.20.300")
+
+
+def test_semver_re_rejects_anything_else(libchart):
+    assert not libchart.SEMVER_RE.match("4.8")
+    assert not libchart.SEMVER_RE.match("v4.8.2")
+    assert not libchart.SEMVER_RE.match("--help")
+    assert not libchart.SEMVER_RE.match("4.8.2-rc1")
 
 
 # --- find_dependency ---
