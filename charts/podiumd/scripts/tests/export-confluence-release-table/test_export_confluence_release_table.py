@@ -21,6 +21,14 @@ def write_chart_yaml_with_dependencies(chart_dir, deps):
     (chart_dir / "Chart.yaml").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def write_values_yaml(chart_dir, keys):
+    """A minimal values.yaml with each of `keys` as a top-level key
+    mapping to an empty block."""
+    (chart_dir / "values.yaml").write_text(
+        "".join(f"{key}: {{}}\n" for key in keys), encoding="utf-8",
+    )
+
+
 @pytest.fixture(autouse=True)
 def isolate_chart_dir(ecrt, tmp_path, monkeypatch):
     """extract_release_rows falls back to the real CHART_DIR (this
@@ -373,6 +381,61 @@ def test_component_and_alias_clean_exact_match_short_circuits_ambiguous_lower_ti
     assert ecrt.component_and_alias("kiss", deps) == ("kiss", "k")
 
 
+# --- orphan_values_yaml_keys ---
+
+def test_orphan_values_yaml_keys_returns_keys_not_covered_by_any_dependency(ecrt, tmp_path):
+    write_values_yaml(tmp_path, ["frankgateway", "global", "zac"])
+    deps = [("zaakafhandelcomponent", "zac")]
+    assert sorted(ecrt.orphan_values_yaml_keys(tmp_path, deps)) == [("frankgateway", ""), ("global", "")]
+
+
+def test_orphan_values_yaml_keys_excludes_keys_matching_a_dependency_name(ecrt, tmp_path):
+    """A values.yaml key equal to a dependency's own name (not just its
+    alias) is also excluded — e.g. "keycloak-operator" itself, not just
+    the alias-style keys."""
+    write_values_yaml(tmp_path, ["keycloak-operator", "frankgateway"])
+    deps = [("keycloak-operator", "")]
+    assert ecrt.orphan_values_yaml_keys(tmp_path, deps) == [("frankgateway", "")]
+
+
+def test_orphan_values_yaml_keys_missing_values_yaml_returns_empty(ecrt, tmp_path):
+    assert ecrt.orphan_values_yaml_keys(tmp_path, []) == []
+
+
+# --- component_and_alias: orphan key fallback ---
+
+def test_component_and_alias_resolves_via_orphan_key(ecrt):
+    """"Frank Gateway" matches no real dependency at all, but exactly
+    equals the orphan values.yaml key "frankgateway" — resolved as a
+    last resort, with alias left empty (orphan keys aren't Chart.yaml
+    aliases)."""
+    assert ecrt.component_and_alias("Frank Gateway", [], [("frankgateway", "")]) == ("frankgateway", "")
+
+
+def test_component_and_alias_real_dependency_always_wins_over_orphan_key(ecrt):
+    """An orphan key must never hijack a name that already resolves
+    through a real dependency, even if the orphan key would also
+    relate — e.g. values.yaml's own "keycloak" block (the Keycloak
+    instance's own config) must not steal "Keycloak" away from
+    correctly resolving to dependency "keycloak-operator" via the
+    name-relation tier."""
+    deps = [("keycloak-operator", "")]
+    orphans = [("keycloak", "")]
+    assert ecrt.component_and_alias("Keycloak", deps, orphans) == ("keycloak-operator", "")
+
+
+def test_component_and_alias_orphan_key_multiple(ecrt):
+    """The same ambiguity detection applies to the orphan-key fallback
+    pool: two orphan keys relating to the same text is MULTIPLE, not a
+    silent pick."""
+    orphans = [("foobar", ""), ("foobaz", "")]
+    assert ecrt.component_and_alias("foo", [], orphans) == ("MULTIPLE", "MULTIPLE")
+
+
+def test_component_and_alias_still_unknown_when_no_orphan_key_relates_either(ecrt):
+    assert ecrt.component_and_alias("Open Zaak", [], [("frankgateway", "")]) == ("UNKNOWN", "")
+
+
 # --- extract_release_rows ---
 
 def test_extract_release_rows_matches_and_reports(ecrt, capsys):
@@ -501,6 +564,19 @@ def test_extract_release_rows_resolves_component_as_multiple(ecrt, tmp_path):
     rows = ecrt.extract_release_rows(html, chart_dir=tmp_path)
     assert rows == [["Technische", "", "shared", "Elastic operator", "MULTIPLE", "MULTIPLE",
                       "3.4.0", "3.4.0", "3.5.0", "3.5.0"]]
+
+
+def test_extract_release_rows_resolves_component_via_orphan_values_yaml_key(ecrt, tmp_path):
+    """"ZAC" (PRODUCT_TABLE_HTML's own row) doesn't match any real
+    dependency here, but exactly equals the orphan values.yaml key
+    "zac" — resolved end-to-end as a last resort."""
+    write_chart_yaml_with_dependencies(tmp_path, [("openzaak", "")])
+    write_values_yaml(tmp_path, ["zac", "openzaak"])
+    rows = ecrt.extract_release_rows(PRODUCT_TABLE_HTML, chart_dir=tmp_path)
+    assert rows[0] == ["Product", "Info(NL)", "", "ZAC", "zac", "",
+                        "5.0.0", "1.0.290", "5.1.0", "1.0.297"]
+
+
 
 
 def test_extract_release_rows_used_by_blank_when_table_has_none(ecrt):

@@ -55,6 +55,15 @@ exactly equals dependency "kiss-chart"'s own alias "kiss", but is also
 a substring of "eck-stack"'s unrelated alias "kiss-eck" — resolves
 outright instead of registering as ambiguous.
 
+If nothing matches any real dependency at all, falls back to
+`chart_dir`/values.yaml's own top-level keys that AREN'T tied to any
+Chart.yaml dependency (see orphan_values_yaml_keys) — e.g. "Frank
+Gateway" resolves to component "frankgateway", a block templated
+directly by podiumd's own templates rather than backed by a separate
+sub-chart, so it never appears in Chart.yaml's dependency list. This is
+strictly a last resort, so an orphan key can never hijack a name that
+already resolves through a real dependency.
+
 Each of the four version values is replaced with "UNKNOWN" if it isn't
 semver-compatible (see lib.confluence_tables.is_semver_compatible — a
 deliberately looser check than strict semver.org, allowing an omitted
@@ -279,6 +288,31 @@ def chart_dependencies(chart_dir):
     return [(dep["name"], dep.get("alias", "")) for dep in chart_yaml.get("dependencies", [])]
 
 
+def orphan_values_yaml_keys(chart_dir, dependencies):
+    """[(key, ""), ...] for every top-level key of chart_dir/values.yaml
+    that isn't already a Chart.yaml dependency's own name or alias (see
+    `dependencies`, from chart_dependencies) — e.g. "frankgateway", a
+    values.yaml block templated directly by podiumd's own templates
+    rather than backed by a separate Helm sub-chart, so it never appears
+    in Chart.yaml's dependency list at all. [] if chart_dir has no
+    values.yaml. component_and_alias only ever tries these as a last
+    resort, after every real dependency, so an orphan key can never
+    outrank (and thus never regress) a resolution that already works
+    through a real dependency — e.g. values.yaml's own "keycloak" block
+    (the Keycloak instance's own config, separate from the
+    "keycloak-operator" dependency that manages it) must not hijack
+    "Keycloak" away from correctly resolving to "keycloak-operator"."""
+    values_yaml_path = chart_dir / "values.yaml"
+    if not values_yaml_path.is_file():
+        return []
+    values = load_yaml(values_yaml_path)
+    if not isinstance(values, dict):
+        return []
+    known = {normalize_name(dependency_name) for dependency_name, _ in dependencies}
+    known |= {normalize_name(alias) for _, alias in dependencies if alias}
+    return [(key, "") for key in values if normalize_name(key) not in known]
+
+
 def _tier_matches(candidates, dependencies, predicate):
     """{dependency_name: alias} for every dependency in `dependencies`
     where `predicate(candidate, dependency_name, alias)` holds for at
@@ -308,7 +342,21 @@ _MATCH_TIERS = [
 ]
 
 
-def component_and_alias(name, dependencies):
+def _resolve_against(candidates, dependencies):
+    """(dependency_name, alias) from the first tier in _MATCH_TIERS with
+    exactly one distinct match against `dependencies`, ("MULTIPLE",
+    "MULTIPLE") from the first tier with more than one, or None if no
+    tier matches anything at all (caller decides what None means)."""
+    for tier in _MATCH_TIERS:
+        found = _tier_matches(candidates, dependencies, tier)
+        if len(found) == 1:
+            return next(iter(found.items()))
+        if len(found) > 1:
+            return ("MULTIPLE", "MULTIPLE")
+    return None
+
+
+def component_and_alias(name, dependencies, orphan_keys=()):
     """(component, alias) for `name` (the CSV "name" column value),
     resolved against `dependencies` (see chart_dependencies) by trying
     each of name_candidates(name) against every dependency's own
@@ -331,23 +379,26 @@ def component_and_alias(name, dependencies):
     an exact alias match (tier 2) never loses to a same-tier ambiguity
     that only exists because some OTHER dependency's alias happens to
     contain the candidate as a substring (tier 3) — see _MATCH_TIERS.
-    ("UNKNOWN", "") if no tier matches any dependency at all — e.g.
+
+    If nothing matches any real dependency at all, falls back to trying
+    the exact same tiers against `orphan_keys` (see
+    orphan_values_yaml_keys) — values.yaml top-level blocks that aren't
+    backed by any Chart.yaml dependency, like "frankgateway". This is
+    strictly a last resort: a real dependency always wins first, so an
+    orphan key can never hijack a name that already resolves correctly.
+
+    ("UNKNOWN", "") if nothing matches at all, in either pool — e.g.
     "Elastic operator", whose dependency "eck-operator" shares no text
     with it either way, or a component (like "Solr") that isn't a
     top-level podiumd Chart.yaml dependency at all. ("MULTIPLE",
     "MULTIPLE") if a single tier matches more than one distinct
-    dependency — e.g. two dependencies that genuinely share the exact
-    same alias — rather than silently picking whichever came first in
-    Chart.yaml."""
+    dependency (or, in the fallback pool, more than one distinct orphan
+    key) — e.g. two dependencies that genuinely share the exact same
+    alias — rather than silently picking whichever came first."""
     candidates = name_candidates(name)
-    for tier in _MATCH_TIERS:
-        found = _tier_matches(candidates, dependencies, tier)
-        if len(found) == 1:
-            ((dependency_name, alias),) = found.items()
-            return dependency_name, alias
-        if len(found) > 1:
-            return "MULTIPLE", "MULTIPLE"
-    return "UNKNOWN", ""
+    return (_resolve_against(candidates, dependencies)
+            or _resolve_against(candidates, orphan_keys)
+            or ("UNKNOWN", ""))
 
 
 def resolve_token(args):
@@ -376,6 +427,7 @@ def extract_release_rows(html, headings=None, chart_dir=None):
     headings = headings or DEFAULT_HEADINGS
     chart_dir = chart_dir or CHART_DIR
     dependencies = chart_dependencies(chart_dir)
+    orphan_keys = orphan_values_yaml_keys(chart_dir, dependencies)
     all_tables = extract_tables(html)
     if not all_tables:
         raise SystemExit("error: no <table> found on that page")
@@ -413,7 +465,7 @@ def extract_release_rows(html, headings=None, chart_dir=None):
             # Chart.yaml alias (e.g. "zac"), whereas a Technische row's
             # own name (e.g. "Solr") usually shares no text with the
             # component that uses it at all.
-            component, alias = component_and_alias(used_by or name, dependencies)
+            component, alias = component_and_alias(used_by or name, dependencies, orphan_keys)
             versions = [normalize_version(data_row[columns[key]]) for key in
                         ("source_app", "source_helm", "target_app", "target_helm")]
             unknown_count += sum(1 for v in versions if v == "UNKNOWN")
