@@ -13,7 +13,7 @@ ClamAV is the virus scanner of the PodiumD stack. Files that residents upload �
 - **Runtime components:**
   - `clamav-0` — **StatefulSet, 1 replica**. One container running clamd (TCP 3310) with freshclam updating signatures in-place; config injected via `clamav.clamdConfig` and `clamav.freshclamConfig` in `values.yaml`.
   - ClusterIP Service `clamav` (`fullnameOverride: clamav`), port **3310/TCP** (`tcp-clamav`) — clamd's own protocol, not HTTP.
-  - Optional metrics sidecar `docker.io/sergeymakinen/clamav_exporter:v2.1.3` + ServiceMonitor, off by default (`clamav.metrics.enabled` / `clamav.metrics.serviceMonitor.enabled`), enabled by the `values-enable-observability.yaml` overlay. ServiceMonitor requires the Prometheus Operator CRD.
+  - Optional metrics sidecar `docker.io/sergeymakinen/clamav_exporter:v2.1.8` + ServiceMonitor, off by default (`clamav.metrics.enabled` / `clamav.metrics.serviceMonitor.enabled`), enabled by the `values-enable-observability.yaml` overlay. ServiceMonitor requires the Prometheus Operator CRD.
 
 Notable clamd settings from `values.yaml`: `ConcurrentDatabaseReload no` (reload database sequentially to avoid double memory usage, ~1.2 GiB vs ~2.4 GiB; scans block briefly during reload), `MaxScanSize 150M`, `MaxFileSize 100M`, `StreamMaxLength 100M` (upload-size ceiling for stream scans), `MaxThreads 10`.
 

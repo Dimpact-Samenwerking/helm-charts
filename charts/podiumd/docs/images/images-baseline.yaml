@@ -319,6 +319,10 @@
   digest: "sha256:b2bc4042fdd8fea6613b04f2f602ba4aff1201e79ba35cd0e2df9f3327111b0e"
 - name: sergeymakinen/clamav_exporter
   url: docker.io/sergeymakinen/clamav_exporter
+  version: "v2.1.8"
+  digest: "sha256:ac0e23e6b718f265f67de68d9fccbb8e9baccedeba19658fd78dd8a606508e24"
+- name: sergeymakinen/clamav_exporter
+  url: docker.io/sergeymakinen/clamav_exporter
   version: "v2.1.3"
   digest: "sha256:d963eb510065472fd9d9b9e27504638f0ce8a8cfe3fd818f92bcfb7277faaee5"
 - name: wearefrank/frank-gateway
