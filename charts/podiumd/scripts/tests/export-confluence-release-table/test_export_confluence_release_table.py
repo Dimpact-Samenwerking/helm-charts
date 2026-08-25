@@ -426,6 +426,17 @@ def test_extract_release_rows_vendor_blank_used_by_populated_for_technische_tabl
     assert rows == [["Technische", "", "ZAC", "Elastic operator", "UNKNOWN", "", "3.4.0", "3.4.0", "3.5.0", "3.5.0"]]
 
 
+def test_extract_release_rows_resolves_component_via_used_by_not_name(ecrt, tmp_path):
+    """TECHNISCHE_TABLE_HTML's row is named "Elastic operator" (shares no
+    text with any real dependency) but has used_by "ZAC" — a much better
+    resolution signal, since it's already the dependency's own alias.
+    Resolution must use it instead of the row's own name."""
+    write_chart_yaml_with_dependencies(tmp_path, [("zaakafhandelcomponent", "zac")])
+    rows = ecrt.extract_release_rows(TECHNISCHE_TABLE_HTML, chart_dir=tmp_path)
+    assert rows == [["Technische", "", "ZAC", "Elastic operator", "zaakafhandelcomponent", "zac",
+                      "3.4.0", "3.4.0", "3.5.0", "3.5.0"]]
+
+
 def test_extract_release_rows_used_by_blank_when_table_has_none(ecrt):
     """A Product table has no "Used by" column at all (only Ontwikkelpartij)."""
     rows = ecrt.extract_release_rows(PRODUCT_TABLE_HTML)

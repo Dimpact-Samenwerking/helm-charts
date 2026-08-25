@@ -32,10 +32,14 @@ error. Rows from every table that has them are concatenated into one
 CSV, in page order.
 
 Also writes "component" and "alias", resolved against every
-`chart_dir`/Chart.yaml dependency (see chart_dependencies) by comparing
-each of "name"'s normalized forms — the whole thing, and, if it has a
-"... (bracketed part)" shape, the bracketed part and the rest tried
-separately (e.g. "Platform Autorisatie Beheer Component (PABC)" tries
+`chart_dir`/Chart.yaml dependency (see chart_dependencies). The text
+resolved is "used_by" when the row has one (e.g. "zac" for a Technische
+row — that's a much more direct signal than the row's own name, since
+"used_by" is often already a literal Chart.yaml alias), otherwise
+"name". Resolution compares each of that text's normalized forms — the
+whole thing, and, if it has a "... (bracketed part)" shape, the
+bracketed part and the rest tried separately (e.g. "Platform
+Autorisatie Beheer Component (PABC)" tries
 "platformautorisatiebeheercomponent" AND "pabc" on their own) — against
 each dependency's own normalized name and alias (see component_and_alias
 for the exact match/substring rules and their priority). "component" is
@@ -362,7 +366,12 @@ def extract_release_rows(html, headings=None, chart_dir=None):
             vendor = data_row[columns["vendor"]] if columns["vendor"] is not None else ""
             used_by = data_row[columns["used_by"]] if columns["used_by"] is not None else ""
             name = data_row[columns["first"]]
-            component, alias = component_and_alias(name, dependencies)
+            # used_by (when set) is a much better resolution signal than
+            # the row's own name — it's often already a literal
+            # Chart.yaml alias (e.g. "zac"), whereas a Technische row's
+            # own name (e.g. "Solr") usually shares no text with the
+            # component that uses it at all.
+            component, alias = component_and_alias(used_by or name, dependencies)
             versions = [normalize_version(data_row[columns[key]]) for key in
                         ("source_app", "source_helm", "target_app", "target_helm")]
             unknown_count += sum(1 for v in versions if v == "UNKNOWN")
