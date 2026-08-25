@@ -144,7 +144,7 @@ def set_argv_and_repo(scbv, monkeypatch, repo, argv):
 
 
 def test_main_shows_chart_and_app_version_at_baseline(scbv, repo, monkeypatch, capsys):
-    set_argv_and_repo(scbv, monkeypatch, repo, ["zac", "4.8.5"])
+    set_argv_and_repo(scbv, monkeypatch, repo, ["4.8.5", "zac"])
     scbv.main()  # success path: must not raise
     out = capsys.readouterr().out
     assert "Helm chart version: 1.0.297" in out
@@ -153,7 +153,7 @@ def test_main_shows_chart_and_app_version_at_baseline(scbv, repo, monkeypatch, c
 
 
 def test_main_unresolvable_baseline_fails(scbv, repo, monkeypatch, capsys):
-    set_argv_and_repo(scbv, monkeypatch, repo, ["zac", "9.9.9"])
+    set_argv_and_repo(scbv, monkeypatch, repo, ["9.9.9", "zac"])
     with pytest.raises(SystemExit) as exc_info:
         scbv.main()
     assert exc_info.value.code == 1
@@ -161,7 +161,7 @@ def test_main_unresolvable_baseline_fails(scbv, repo, monkeypatch, capsys):
 
 
 def test_main_unknown_component_fails(scbv, repo, monkeypatch, capsys):
-    set_argv_and_repo(scbv, monkeypatch, repo, ["totally-unknown", "4.8.5"])
+    set_argv_and_repo(scbv, monkeypatch, repo, ["4.8.5", "totally-unknown"])
     with pytest.raises(SystemExit) as exc_info:
         scbv.main()
     assert exc_info.value.code == 1

@@ -6,12 +6,12 @@ a release actually shipped before writing an upgrade doc's "source" column,
 without checking out that release or digging through git history by hand.
 
 Usage:
-    show-component-baseline-version.py <component> <baseline>
+    show-component-baseline-version.py <baseline> <component>
 
 Examples:
-    show-component-baseline-version.py zac 4.8.5
-    show-component-baseline-version.py zgw-office-addin 4.8.5
-    show-component-baseline-version.py openformulieren 4.8.5
+    show-component-baseline-version.py 4.8.5 zac
+    show-component-baseline-version.py 4.8.5 zgw-office-addin
+    show-component-baseline-version.py 4.8.5 openformulieren
 
 <baseline> is a bare version (e.g. "4.8.5"), resolved to the podiumd-4.8.5
 git tag, falling back to the feature/podiumd-4.8.5 / origin/feature/podiumd-
@@ -56,7 +56,7 @@ def main():
     if len(sys.argv) != 3:
         print(__doc__)
         sys.exit(1)
-    component, baseline = sys.argv[1], sys.argv[2]
+    baseline, component = sys.argv[1], sys.argv[2]
 
     repo_root = find_repo_root()
     candidates = baseline_ref_candidates(baseline)
