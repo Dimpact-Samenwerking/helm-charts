@@ -38,6 +38,37 @@ def supports_skip_schema_validation():
     return "--skip-schema-validation" in result.stdout
 
 
+def lint_args_for(chart_dir):
+    lint_values = chart_dir / "ci" / "lint-values.yaml"
+    if lint_values.is_file():
+        return ["-f", str(lint_values)]
+    print("WARNING: no ci/lint-values.yaml found — linting with bare defaults only")
+    return []
+
+
+def render_chart(chart_dir, extra_args):
+    """Run `helm template <CHART_NAME> <chart_dir> <extra_args>`, adding
+    --skip-schema-validation when the installed helm supports it (see
+    supports_skip_schema_validation — needed for the KISS sub-chart's JSON
+    schema). Returns the raw subprocess result; every caller decides for
+    itself what a non-zero returncode means and how to report it.
+
+    Not used by the existing check_render/check_yamllint/check_kubeconform/
+    check_shellcheck/check_kube_score — each of those has its own inline
+    `run(["helm", "template", ...])` call that its own test suite mocks via
+    `monkeypatch.setattr(<that check's module>, "run", ...)`, relying on
+    the call living in that module's own globals. Routing them through this
+    function instead would resolve `run` via lib.render_scope's globals,
+    silently breaking that mocking — out of scope for a change those checks
+    didn't ask for. New callers (e.g. render-podiumd.py) are free to use
+    this directly."""
+    template_args = list(extra_args)
+    if supports_skip_schema_validation():
+        template_args.append("--skip-schema-validation")
+    return run(["helm", "template", CHART_NAME, str(chart_dir), *template_args],
+               capture_output=True, text=True)
+
+
 def report_largest_templates(rendered_text):
     source_re = re.compile(r"^# Source: (.+)$")
     counts = Counter()

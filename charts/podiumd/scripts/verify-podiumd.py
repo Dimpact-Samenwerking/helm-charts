@@ -215,7 +215,7 @@ from lib.docs_consistency import check_docs_consistency
 from lib.helm_docs_check import check_helm_docs
 from lib.vendored_tgz_check import check_vendored_tgz_extraction
 from lib.render_scope import (
-    CHART_NAME, report_errors_by_subchart, report_largest_templates,
+    CHART_NAME, lint_args_for, report_errors_by_subchart, report_largest_templates,
     supports_skip_schema_validation,
 )
 from lib.yamllint_check import check_yamllint
@@ -323,14 +323,6 @@ def check_duplicate_keys(chart_dir):
         return False, f"{len(duplicates)} duplicate(s) found"
     print(f"OK: no duplicate keys in {values_path.name}")
     return True, "0 duplicates"
-
-
-def lint_args_for(chart_dir):
-    lint_values = chart_dir / "ci" / "lint-values.yaml"
-    if lint_values.is_file():
-        return ["-f", str(lint_values)]
-    print("WARNING: no ci/lint-values.yaml found — linting with bare defaults only")
-    return []
 
 
 def check_lint(chart_dir, extra_args):

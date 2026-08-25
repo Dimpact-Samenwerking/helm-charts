@@ -113,3 +113,71 @@ def test_report_errors_by_subchart_groups_by_chart(vp, capsys):
     out = capsys.readouterr().out
     assert "zac: 2" in out
     assert "openzaak: 1" in out
+
+
+# --- render_chart ---
+# render_chart lives in lib.render_scope and calls its OWN `run`/
+# supports_skip_schema_validation bindings — same reason
+# test_supports_skip_schema_validation_* above uses librenderscope, not vp.
+
+def _sequenced_run(rendered, returncode=0, stderr="", skip_schema_validation_supported=True):
+    help_stdout = "--skip-schema-validation" if skip_schema_validation_supported else ""
+
+    def _run(cmd, **kwargs):
+        if "--help" in cmd:
+            return SimpleNamespace(returncode=0, stdout=help_stdout, stderr="")
+        return SimpleNamespace(returncode=returncode, stdout=rendered, stderr=stderr)
+    return _run
+
+
+def test_render_chart_returns_helm_templates_result(librenderscope, tmp_path, monkeypatch):
+    rendered = "---\n# Source: podiumd/templates/a.yaml\nkind: Foo\n"
+    monkeypatch.setattr(librenderscope, "run", _sequenced_run(rendered))
+    result = librenderscope.render_chart(tmp_path, [])
+    assert result.returncode == 0
+    assert result.stdout == rendered
+
+
+def test_render_chart_adds_skip_schema_validation_when_supported(librenderscope, tmp_path, monkeypatch):
+    captured = {}
+
+    def _run(cmd, **kwargs):
+        if "--help" in cmd:
+            return SimpleNamespace(returncode=0, stdout="--skip-schema-validation", stderr="")
+        captured["cmd"] = cmd
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(librenderscope, "run", _run)
+    librenderscope.render_chart(tmp_path, ["-f", "values.yaml"])
+    assert "--skip-schema-validation" in captured["cmd"]
+
+
+def test_render_chart_omits_skip_schema_validation_when_unsupported(librenderscope, tmp_path, monkeypatch):
+    captured = {}
+
+    def _run(cmd, **kwargs):
+        if "--help" in cmd:
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+        captured["cmd"] = cmd
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(librenderscope, "run", _run)
+    librenderscope.render_chart(tmp_path, [])
+    assert "--skip-schema-validation" not in captured["cmd"]
+
+
+def test_render_chart_propagates_failure(librenderscope, tmp_path, monkeypatch):
+    monkeypatch.setattr(librenderscope, "run", _sequenced_run("", returncode=1, stderr="Error: broke"))
+    result = librenderscope.render_chart(tmp_path, [])
+    assert result.returncode == 1
+    assert "broke" in result.stderr
+
+
+# --- lint_args_for (moved from verify-podiumd.py — see also
+# tests/verify-podiumd/test_misc.py, which covers the vp.lint_args_for
+# re-export used by main()) ---
+
+def test_lint_args_for_lives_in_render_scope(librenderscope, tmp_path):
+    (tmp_path / "ci").mkdir()
+    (tmp_path / "ci" / "lint-values.yaml").write_text("foo: bar\n")
+    assert librenderscope.lint_args_for(tmp_path) == ["-f", str(tmp_path / "ci" / "lint-values.yaml")]
