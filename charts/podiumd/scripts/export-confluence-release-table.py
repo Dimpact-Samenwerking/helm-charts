@@ -64,6 +64,17 @@ sub-chart, so it never appears in Chart.yaml's dependency list. This is
 strictly a last resort, so an orphan key can never hijack a name that
 already resolves through a real dependency.
 
+If NEITHER of those matches anything either, checks `chart_dir`/
+values.yaml's own global.images keys (see global_image_keys) — e.g.
+"nginx", "curl", "busybox" — base images hoisted out of any single
+component's own block specifically because they're shared, via YAML
+anchor, across multiple unrelated components. A match here is never
+resolved to a single component: it always comes back as "MULTIPLE" (see
+below) — e.g. "Nginx unprivileged" relates to global.images key "nginx",
+which is aliased under nine distinct, unrelated components (openzaak,
+opennotificaties, openformulieren, frankgateway, apiproxy, ...), so
+there's no single owner to report.
+
 Each of the four version values is replaced with "UNKNOWN" if it isn't
 semver-compatible (see lib.confluence_tables.is_semver_compatible — a
 deliberately looser check than strict semver.org, allowing an omitted
@@ -89,10 +100,13 @@ Auth: HTTP Basic with your Atlassian account email + an API token
 (https://id.atlassian.com/manage-profile/security/api-tokens — must be a
 *classic* token; the newer "API token with scopes" kind doesn't work with
 Basic auth against the site directly, and Confluence rejects it with a
-plain 403). Prefer --token-file or the CONFLUENCE_API_TOKEN env var over
---token — a token passed as a bare CLI argument shows up in shell history
-and `ps` output. Omitting all three prompts for it (hidden input, not
-echoed).
+plain 403). To create one: open that URL, click "Create API token", pick
+"Create classic API token" specifically (not the default "scoped" kind),
+give it a label (e.g. "podiumd-release-table"), then copy the token
+immediately — it's only ever shown once. Prefer --token-file or the
+CONFLUENCE_API_TOKEN env var over --token — a token passed as a bare CLI
+argument shows up in shell history and `ps` output. Omitting all three
+prompts for it (hidden input, not echoed).
 
 Usage:
     export-confluence-release-table.py --url <page-url> --user <email> --token-file <path>
@@ -135,7 +149,7 @@ DEFAULT_HEADINGS = [
 ]
 
 CSV_HEADER = ["section", "vendor", "used_by", "name", "component", "alias",
-              "source version app", "source version helm", "target version app", "target version helm"]
+              "source_version_app", "source_version_helm", "target_version_app", "target_version_helm"]
 
 # Stripped from the end of a matched heading before it goes into the CSV's
 # "section" column — "Product component versies" -> "Product", etc. Only
@@ -313,6 +327,29 @@ def orphan_values_yaml_keys(chart_dir, dependencies):
     return [(key, "") for key in values if normalize_name(key) not in known]
 
 
+def global_image_keys(chart_dir):
+    """Every key under chart_dir/values.yaml's top-level global.images map
+    (e.g. "nginx", "curl", "busybox") — base images hoisted out of any
+    single component's own block specifically because they're shared via
+    YAML anchor across multiple, unrelated components (see e.g. the
+    &nginxImage anchor aliased under openzaak, opennotificaties,
+    openformulieren, frankgateway, apiproxy, ... — nine call sites across
+    distinct top-level values.yaml blocks). A key living here at all is
+    proof by construction that it belongs to more than one component, so
+    component_and_alias treats any match against one as MULTIPLE outright
+    rather than guessing which single component "owns" it. [] if
+    chart_dir has no values.yaml, or values.yaml has no global.images
+    map."""
+    values_yaml_path = chart_dir / "values.yaml"
+    if not values_yaml_path.is_file():
+        return []
+    values = load_yaml(values_yaml_path)
+    if not isinstance(values, dict):
+        return []
+    images = (values.get("global") or {}).get("images")
+    return list(images) if isinstance(images, dict) else []
+
+
 def _tier_matches(candidates, dependencies, predicate):
     """{dependency_name: alias} for every dependency in `dependencies`
     where `predicate(candidate, dependency_name, alias)` holds for at
@@ -356,7 +393,7 @@ def _resolve_against(candidates, dependencies):
     return None
 
 
-def component_and_alias(name, dependencies, orphan_keys=()):
+def component_and_alias(name, dependencies, orphan_keys=(), global_image_keys=()):
     """(component, alias) for `name` (the CSV "name" column value),
     resolved against `dependencies` (see chart_dependencies) by trying
     each of name_candidates(name) against every dependency's own
@@ -387,18 +424,31 @@ def component_and_alias(name, dependencies, orphan_keys=()):
     strictly a last resort: a real dependency always wins first, so an
     orphan key can never hijack a name that already resolves correctly.
 
-    ("UNKNOWN", "") if nothing matches at all, in either pool — e.g.
-    "Elastic operator", whose dependency "eck-operator" shares no text
-    with it either way, or a component (like "Solr") that isn't a
-    top-level podiumd Chart.yaml dependency at all. ("MULTIPLE",
-    "MULTIPLE") if a single tier matches more than one distinct
-    dependency (or, in the fallback pool, more than one distinct orphan
-    key) — e.g. two dependencies that genuinely share the exact same
-    alias — rather than silently picking whichever came first."""
+    If NEITHER of those matches anything either, checks whether a
+    candidate relates to one of `global_image_keys` (see
+    global_image_keys) — e.g. "Nginx unprivileged" relates to key
+    "nginx". Unlike the two pools above, a match here is never resolved
+    to a single component: a key living under global.images exists
+    specifically because it's shared, via YAML anchor, across multiple
+    unrelated components, so it always resolves as ("MULTIPLE",
+    "MULTIPLE") outright rather than guessing an owner.
+
+    ("UNKNOWN", "") if nothing matches at all, in any of the three pools
+    — e.g. "Elastic operator", whose dependency "eck-operator" shares no
+    text with it either way, or a component (like "Solr") that isn't a
+    top-level podiumd Chart.yaml dependency, orphan values.yaml key, or
+    global image key at all. ("MULTIPLE", "MULTIPLE") if a single tier
+    matches more than one distinct dependency (or, in the orphan-key
+    pool, more than one distinct orphan key), or if anything at all
+    matches a global image key — rather than silently picking whichever
+    came first."""
     candidates = name_candidates(name)
-    return (_resolve_against(candidates, dependencies)
-            or _resolve_against(candidates, orphan_keys)
-            or ("UNKNOWN", ""))
+    resolved = _resolve_against(candidates, dependencies) or _resolve_against(candidates, orphan_keys)
+    if resolved:
+        return resolved
+    if any(_related(candidate, normalize_name(key)) for candidate in candidates for key in global_image_keys):
+        return ("MULTIPLE", "MULTIPLE")
+    return ("UNKNOWN", "")
 
 
 def resolve_token(args):
@@ -414,7 +464,7 @@ def resolve_token(args):
 
 def extract_release_rows(html, headings=None, chart_dir=None):
     """Return the CSV data rows (section, vendor, used_by, name,
-    component, alias, source version app/helm, target version app/helm)
+    component, alias, source_version_app/helm, target_version_app/helm)
     across every table directly under one of `headings` (default
     DEFAULT_HEADINGS) that has the required App/Helm columns —
     "section" is the matched heading with SECTION_SUFFIX stripped (see
@@ -428,6 +478,7 @@ def extract_release_rows(html, headings=None, chart_dir=None):
     chart_dir = chart_dir or CHART_DIR
     dependencies = chart_dependencies(chart_dir)
     orphan_keys = orphan_values_yaml_keys(chart_dir, dependencies)
+    global_keys = global_image_keys(chart_dir)
     all_tables = extract_tables(html)
     if not all_tables:
         raise SystemExit("error: no <table> found on that page")
@@ -465,7 +516,7 @@ def extract_release_rows(html, headings=None, chart_dir=None):
             # Chart.yaml alias (e.g. "zac"), whereas a Technische row's
             # own name (e.g. "Solr") usually shares no text with the
             # component that uses it at all.
-            component, alias = component_and_alias(used_by or name, dependencies, orphan_keys)
+            component, alias = component_and_alias(used_by or name, dependencies, orphan_keys, global_keys)
             versions = [normalize_version(data_row[columns[key]]) for key in
                         ("source_app", "source_helm", "target_app", "target_helm")]
             unknown_count += sum(1 for v in versions if v == "UNKNOWN")
