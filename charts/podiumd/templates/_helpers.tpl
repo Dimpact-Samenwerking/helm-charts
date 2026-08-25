@@ -126,3 +126,81 @@ Usage:
         {{- tpl (.value | toYaml) .context }}
     {{- end }}
 {{- end -}}
+
+{{/*
+Renders the PersistentVolume + PersistentVolumeClaim pair for a component's
+shared ReadWriteMany storage on the Azure File CSI driver — same shape for
+every component that needs it (objecten, openklant, openzaak, ...); the
+component name is both the .Values key and the resource-name suffix.
+Usage: {{ include "podiumd.storagePVC" (dict "component" "objecten" "context" $) }}
+*/}}
+{{- define "podiumd.storagePVC" -}}
+{{- $component := .component -}}
+{{- $ := .context -}}
+{{- $values := index $.Values $component -}}
+{{- if or $values.enabled (not (hasKey $values "enabled")) -}}
+{{- $pvName := printf "%s-%s" $.Release.Namespace $component -}}
+{{- if not (lookup "v1" "PersistentVolume" "" $pvName) }}
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ $pvName }}
+  labels:
+    {{- include "podiumd.labels" $ | nindent 4 }}
+  annotations:
+    pv.kubernetes.io/provisioned-by: file.csi.azure.com
+    helm.sh/resource-policy: keep
+spec:
+  capacity:
+    storage: {{ $values.persistence.size }}
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: {{ $values.persistentVolume.storageClassName | default "podiumd-standard" }}
+  csi:
+    driver: file.csi.azure.com
+    volumeHandle: {{ $pvName }}
+    volumeAttributes:
+      {{- if $.Values.persistentVolume.volumeAttributeResourceGroup }}
+      resourceGroup: {{ $.Values.persistentVolume.volumeAttributeResourceGroup }}
+      {{- end }}
+      {{- if $.Values.persistentVolume.volumeAttributeShareName }}
+      shareName: {{ $.Values.persistentVolume.volumeAttributeShareName }}
+      {{- else }}
+      shareName: {{ $values.persistentVolume.volumeAttributeShareName }}
+      {{- end }}
+    nodeStageSecretRef:
+      name: {{ $.Values.persistentVolume.nodeStageSecretRefName }}
+      namespace: {{ $.Values.persistentVolume.nodeStageSecretRefNamespace }}
+  mountOptions:
+    - dir_mode=0777
+    - file_mode=0777
+    - uid=1000
+    - gid=1000
+    - mfsymlinks
+    - cache=strict
+    - nosharesock
+    - nobrl
+{{- end }}
+{{- if not (lookup "v1" "PersistentVolumeClaim" $.Release.Namespace $values.persistence.existingClaim) }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $values.persistence.existingClaim }}
+  labels:
+    {{- include "podiumd.labels" $ | nindent 4 }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  volumeName: {{ $pvName }}
+  resources:
+    requests:
+      storage: {{ $values.persistence.size }}
+  accessModes:
+    - ReadWriteMany
+  storageClassName: {{ $values.persistence.storageClassName | default "podiumd-standard" }}
+{{- end }}
+{{- end }}
+{{- end -}}
