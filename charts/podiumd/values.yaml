@@ -896,6 +896,9 @@ opennotificaties:
     retryBackoff: 3
     retryBackoffMax: 48
     requestsTimeout: 60
+    # -- Seconds between execute_notifications runs (chart default 20, minimum 5).
+    # Lowered to the minimum so notifications go out with less delay.
+    notificationSecInterval: 5
     email:
       port: 587
       useTLS: true
