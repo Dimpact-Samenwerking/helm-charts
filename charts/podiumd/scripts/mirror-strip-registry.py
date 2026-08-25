@@ -19,11 +19,18 @@ This replaces the hand-maintained translation table in
 `docs/images/acr-mirror-naming.md`. The rule is mechanical: for any NEW image
 just call `strip_registry(upstream_url)` — nothing to look up.
 
-By default, migrates a gemeente values file from the LEGACY translated ACR
-names to the new stripped-upstream names — handles the three shapes used
-in podiumd.yml: inline `repository:`, inline `imageName:`, and split
-`registry:`/`repository:`. See the options below for `--gen-manifest`
-(print the new-names manifest instead) and `--dry-run`/`--in-place`.
+Two things this script does
+---------------------------
+1. `--gen-manifest` : print an images-manifest block (`name:` / `url:`) for every
+   known image, with `name = strip_registry(url)`. Source of truth for the new
+   ACR repo names.
+2. (default) `rewrite <values.yaml>` : migrate a gemeente values file from the
+   LEGACY translated ACR names to the new stripped-upstream names. Handles the
+   three shapes used in podiumd.yml:
+     - inline   `repository: <registry>/<legacyname>`
+     - inline   `imageName:  <registry>/<legacyname>`
+     - split    `registry: <registry>` + `repository: <legacyname>`
+   Use `--dry-run` (default) to print a unified diff; `--in-place` to write.
 
 LEGACY_UPSTREAM below is one-time migration data (legacy ACR name -> canonical
 upstream url). It exists only to translate files written under the OLD scheme;
