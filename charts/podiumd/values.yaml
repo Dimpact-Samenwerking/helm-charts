@@ -2743,6 +2743,9 @@ kiss:
       requests:
         cpu: 10m
         memory: 100Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
     # -- Optionally specify extra list of additional environment variables.
     extraEnvVars: []
     # e.g:
