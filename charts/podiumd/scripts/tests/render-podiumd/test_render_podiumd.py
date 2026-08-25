@@ -54,6 +54,22 @@ def test_no_extra_args_uses_lint_args_for_default(rp, tmp_path, monkeypatch):
     assert captured["extra_args"] == ["-f", "ci/lint-values.yaml"]
 
 
+def test_no_extra_args_announces_default_ci_values(rp, tmp_path, monkeypatch, capsys):
+    """A schema/render failure from a custom-args run (see the override test
+    below) must never be mistaken for the standard verify-podiumd.py check
+    failing — this printed line is what tells the two apart, so it must
+    always say which basis was actually used before rendering."""
+    output_path = tmp_path / "out.yaml"
+    monkeypatch.setattr(rp.sys, "argv", ["render-podiumd.py", str(output_path)])
+    monkeypatch.setattr(rp, "lint_args_for", lambda chart_dir: ["-f", "ci/lint-values.yaml"])
+    monkeypatch.setattr(rp, "render_chart", fake_render_chart(0, "---\n# Source: a.yaml\nkind: Foo\n"))
+
+    rp.main()
+
+    out = capsys.readouterr().out
+    assert "Rendering with default CI values: -f ci/lint-values.yaml" in out
+
+
 # --- explicit extra CLI args override the default entirely ---
 
 def test_extra_cli_args_override_default_lint_args(rp, tmp_path, monkeypatch):
@@ -77,6 +93,19 @@ def test_extra_cli_args_override_default_lint_args(rp, tmp_path, monkeypatch):
     rp.main()
 
     assert captured["extra_args"] == ["-s", "templates/frankgateway.yaml"]
+
+
+def test_extra_cli_args_announce_custom_render_not_default(rp, tmp_path, monkeypatch, capsys):
+    output_path = tmp_path / "out.yaml"
+    monkeypatch.setattr(rp.sys, "argv",
+                         ["render-podiumd.py", str(output_path), "-s", "templates/frankgateway.yaml"])
+    monkeypatch.setattr(rp, "render_chart", fake_render_chart(0, "---\n# Source: a.yaml\nkind: Foo\n"))
+
+    rp.main()
+
+    out = capsys.readouterr().out
+    assert "Rendering with custom args (default -f ci/lint-values.yaml NOT applied): " \
+           "-s templates/frankgateway.yaml" in out
 
 
 # --- success: writes the rendered output and reports a doc count ---
