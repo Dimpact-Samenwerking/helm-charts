@@ -1807,7 +1807,7 @@ openformulieren:
     volumeAttributeShareName: openformulieren
     storageClassName: podiumd-standard
   image:
-    tag: "3.4.10@sha256:45755696db647b0c9fecc5d2c78403dbbac0f3c962292e89dee34b405abd1d7c"
+    tag: "3.5.6@sha256:f5a5d51a44f39edcfb2143ae5d2ed9525b22ea377faa35fd2cce26b678f7fe83"
   resources:
     requests:
       cpu: 250m

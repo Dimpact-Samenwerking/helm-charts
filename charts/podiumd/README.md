@@ -834,7 +834,7 @@ PodiumD Helm chart
 | openformulieren.configuration.secrets.keycloak_client_secret | string | `""` |  |
 | openformulieren.flower.enabled | bool | `false` |  |
 | openformulieren.fullnameOverride | string | `"openformulieren"` |  |
-| openformulieren.image.tag | string | `"3.4.10@sha256:45755696db647b0c9fecc5d2c78403dbbac0f3c962292e89dee34b405abd1d7c"` |  |
+| openformulieren.image.tag | string | `"3.5.6@sha256:f5a5d51a44f39edcfb2143ae5d2ed9525b22ea377faa35fd2cce26b678f7fe83"` |  |
 | openformulieren.nameOverride | string | `"openformulieren"` |  |
 | openformulieren.nginx.config.clientMaxBodySize | string | `"100M"` |  |
 | openformulieren.nginx.image.pullPolicy | string | `"IfNotPresent"` |  |
