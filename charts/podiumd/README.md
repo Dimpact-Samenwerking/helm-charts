@@ -1150,7 +1150,7 @@ PodiumD Helm chart
 | referentielijsten.fullnameOverride | string | `"referentielijsten"` |  |
 | referentielijsten.image.pullPolicy | string | `"IfNotPresent"` |  |
 | referentielijsten.image.repository | string | `"maykinmedia/referentielijsten-api"` |  |
-| referentielijsten.image.tag | string | `"0.7.3@sha256:66f3a3da2a086e41ee8dc216b52b65d8dca04a4160c04a90693de2e5cd6dfa5e"` |  |
+| referentielijsten.image.tag | string | `"0.7.4@sha256:5501b48fe9b988a72adba14308748e6b5928f851ec66d108bab2fe625eb831a3"` |  |
 | referentielijsten.persistence.enabled | bool | `true` |  |
 | referentielijsten.persistence.existingClaim | string | `"referentielijsten"` |  |
 | referentielijsten.persistence.size | string | `"10Gi"` |  |
