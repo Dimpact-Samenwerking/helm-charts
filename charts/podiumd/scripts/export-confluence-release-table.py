@@ -1,122 +1,21 @@
 #!/usr/bin/env python3
 """
 Exports the podiumd release-changes table(s) from a Confluence page into
-charts/podiumd/release-table.csv.
+charts/podiumd/release-table.csv, including a "component"/"alias" per
+row resolved against charts/podiumd/Chart.yaml and values.yaml (see
+component_and_alias).
 
-Only looks at tables sitting directly under one of --heading (repeatable;
-defaults to the four standard podiumd sections — see DEFAULT_HEADINGS)
-— a page typically has other tables too (release scope/timeline, ...)
-that aren't relevant here and are ignored entirely, not just skipped for
-missing columns.
-
-From each matching table, extracts: which section it came from (written
-to the CSV as "section" — the matched heading with its trailing
-SECTION_SUFFIX, " component versies", stripped off — see section_name),
-the page's own "Ontwikkelpartij" column (optional — some sections, e.g.
-shared/technical tooling, legitimately have no development-partner
-column at all — written to the CSV as "vendor"), the page's own "Used
-by" column (optional the other way around — only the shared/technical
-tooling tables have it, naming which product/Common Ground component
-pulls that piece of tooling in — written to the CSV as "used_by"), the
-table's own first column (whatever it's labeled — usually the component
-name, written to the CSV as "name"), and "App"/"Helm" under each of the table's two
-"Versie ..." column groups (required) — written to the CSV as "source
-version"/"target version" (first group = source, second = target; see
-lib.confluence_tables.find_versie_groups). The version numbers
-themselves are never hardcoded, since the page renames these two
-headers every release (e.g. "Versie 4.8"/"Versie 4.9" today) — only that
-each one's label starts with "Versie" (case-insensitive) matters. A
-matching-heading table still missing a required column, or that doesn't
-have exactly two such groups, is skipped and reported, not treated as an
-error. Rows from every table that has them are concatenated into one
-CSV, in page order.
-
-Also writes "component" and "alias", resolved against every
-`chart_dir`/Chart.yaml dependency (see chart_dependencies). The text
-resolved is "used_by" when the row has one (e.g. "zac" for a Technische
-row — that's a much more direct signal than the row's own name, since
-"used_by" is often already a literal Chart.yaml alias), otherwise
-"name". Resolution compares each of that text's normalized forms — the
-whole thing, and, if it has a "... (bracketed part)" shape, the
-bracketed part and the rest tried separately (e.g. "Platform
-Autorisatie Beheer Component (PABC)" tries
-"platformautorisatiebeheercomponent" AND "pabc" on their own) — against
-each dependency's own normalized name and alias (see component_and_alias
-for the exact match/substring rules and their priority). "component" is
-"UNKNOWN" (and "alias" left empty) if nothing matches any dependency at
-all — e.g. "Elastic operator", whose dependency "eck-operator" shares no
-text with it either way — or "MULTIPLE" (both fields) if the text
-relates to more than one distinct dependency at the SAME priority tier
-(e.g. two dependencies that genuinely share one alias) — rather than
-silently picking whichever dependency happens to come first in
-Chart.yaml. An exact alias match is its own tier ahead of the looser
-substring-relation tier specifically so a case like "kiss" — which
-exactly equals dependency "kiss-chart"'s own alias "kiss", but is also
-a substring of "eck-stack"'s unrelated alias "kiss-eck" — resolves
-outright instead of registering as ambiguous.
-
-If nothing matches any real dependency at all, falls back to
-`chart_dir`/values.yaml's own top-level keys that AREN'T tied to any
-Chart.yaml dependency (see orphan_values_yaml_keys) — e.g. "Frank
-Gateway" resolves to component "frankgateway", a block templated
-directly by podiumd's own templates rather than backed by a separate
-sub-chart, so it never appears in Chart.yaml's dependency list. This is
-strictly a last resort, so an orphan key can never hijack a name that
-already resolves through a real dependency.
-
-If NEITHER of those matches anything either, checks `chart_dir`/
-values.yaml's own global.images keys (see global_image_keys) — e.g.
-"nginx", "curl", "busybox" — base images hoisted out of any single
-component's own block specifically because they're shared, via YAML
-anchor, across multiple unrelated components. A match here is never
-resolved to a single component: it always comes back as "MULTIPLE" (see
-below) — e.g. "Nginx unprivileged" relates to global.images key "nginx",
-which is aliased under nine distinct, unrelated components (openzaak,
-opennotificaties, openformulieren, frankgateway, apiproxy, ...), so
-there's no single owner to report.
-
-Each of the four version values is replaced with "UNKNOWN" if it isn't
-semver-compatible (see lib.confluence_tables.is_semver_compatible — a
-deliberately looser check than strict semver.org, allowing an omitted
-patch component and a stray "." after a leading "v") — catches two
-values run together with no separator ("5.4.3 5.4.4", from adjacent
-Confluence content blocks the page itself never actually joined), or a
-placeholder like "?". An empty cell (no version at all for that component/version
-combination) is left empty, not replaced — it isn't a malformed value,
-there's just nothing there.
-
-Column/row spans in the header (e.g. "Versie 4.8" spanning two sub-columns
-via colspan, or "Ontwikkelpartij" spanning both header rows via rowspan)
-are expanded automatically — see lib.confluence_tables.expand_grid.
-
-Prints a large, hard-to-miss warning (not a failure — the CSV is still
-written) if the "target" heading's MAJOR.MINOR (patch ignored) doesn't
-match charts/podiumd/Chart.yaml's own "version:" — this export is for
-whatever release Chart.yaml is currently set to, so a mismatch usually
-means either the wrong Confluence page, or Chart.yaml hasn't been bumped
-to match the page yet. See check_target_matches_chart_version.
-
-Auth: HTTP Basic with your Atlassian account email + an API token
-(https://id.atlassian.com/manage-profile/security/api-tokens — must be a
-*classic* token; the newer "API token with scopes" kind doesn't work with
-Basic auth against the site directly, and Confluence rejects it with a
-plain 403). To create one: open that URL, click "Create API token", pick
-"Create classic API token" specifically (not the default "scoped" kind),
-give it a label (e.g. "podiumd-release-table"), then copy the token
-immediately — it's only ever shown once. Prefer --token-file or the
-CONFLUENCE_API_TOKEN env var over --token — a token passed as a bare CLI
-argument shows up in shell history and `ps` output. Omitting all three
-prompts for it (hidden input, not echoed).
+Auth: HTTP Basic with your Atlassian email + a *classic* API token (the
+"scoped" kind doesn't work here) from
+https://id.atlassian.com/manage-profile/security/api-tokens — click
+"Create API token", choose "Create classic API token", copy it right
+away (shown once). Prefer --token-file or CONFLUENCE_API_TOKEN over
+--token, which leaks into shell history.
 
 Usage:
     export-confluence-release-table.py --url <page-url> --user <email> --token-file <path>
     export-confluence-release-table.py --url <page-url> --user <email>
         # prompts for the token, or reads CONFLUENCE_API_TOKEN if set
-    export-confluence-release-table.py --url <page-url> --user <email> --token-file <path> --output /tmp/out.csv
-        # write elsewhere instead of the default charts/podiumd/release-table.csv
-    export-confluence-release-table.py --url <page-url> --user <email> --token-file <path> \\
-        --heading "Product component versies" --heading "Technische component versies"
-        # only these sections, instead of all four defaults
 """
 import argparse
 import csv
