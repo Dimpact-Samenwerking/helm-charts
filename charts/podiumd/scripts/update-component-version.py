@@ -39,7 +39,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from lib.chart import find_dependency as _find_dependency
-from lib.chart import get_path, image_paths_for, pull_chart_values
+from lib.chart import get_path, image_paths_for, pull_chart_values, replace_scalar_value
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
 from lib.registry import parse_repo, registry_tag_exists
 from lib.upgradedoc import (
@@ -135,18 +135,6 @@ def locate_dotted_key_line(lines, dotted_path):
         start = idx + 1
         end = find_block_end(lines, idx, indent)
     return idx, indent
-
-
-def replace_scalar_value(line, new_value):
-    """Replace a "key: <value>" line's scalar value, preserving indent, key,
-    quote style, and any trailing comment."""
-    m = re.match(r'^(?P<indent>\s*)(?P<key>[^:\n]+:)\s*(?P<quote>["\']?)'
-                 r'(?P<value>.*?)(?P=quote)\s*(?P<comment>#.*)?\s*$', line)
-    if not m:
-        raise SystemExit(f"error: could not parse line for replacement: {line!r}")
-    quote = m.group("quote")
-    comment = f"  {m.group('comment')}" if m.group("comment") else ""
-    return f"{m.group('indent')}{m.group('key')} {quote}{new_value}{quote}{comment}\n"
 
 
 def update_chart_yaml(chart_name, new_chart_version):

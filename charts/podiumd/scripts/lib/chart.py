@@ -48,6 +48,20 @@ def get_path(node, dotted_path):
     return node
 
 
+def replace_scalar_value(line, new_value):
+    """Replace a "key: <value>" line's scalar value, preserving indent, key,
+    quote style, and any trailing comment. Used to bump a version/tag pin in
+    place without a full yaml.safe_load+dump round trip, which would lose
+    comments and reformat the rest of the file."""
+    m = re.match(r'^(?P<indent>\s*)(?P<key>[^:\n]+:)\s*(?P<quote>["\']?)'
+                 r'(?P<value>.*?)(?P=quote)\s*(?P<comment>#.*)?\s*$', line)
+    if not m:
+        raise SystemExit(f"error: could not parse line for replacement: {line!r}")
+    quote = m.group("quote")
+    comment = f"  {m.group('comment')}" if m.group("comment") else ""
+    return f"{m.group('indent')}{m.group('key')} {quote}{new_value}{quote}{comment}\n"
+
+
 def find_dependency(deps, name_or_alias):
     """The Chart.yaml dependency entry matching this name or alias, or None
     if there isn't one — pure lookup, no I/O; callers load `deps` themselves

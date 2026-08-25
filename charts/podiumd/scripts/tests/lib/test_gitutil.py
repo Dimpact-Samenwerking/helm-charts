@@ -1,5 +1,5 @@
-"""lib.gitutil — find_repo_root, baseline_ref_candidates, resolve_git_ref,
-git_show_yaml, against a real, hermetic temp git repo."""
+"""lib.gitutil — find_repo_root, current_branch, baseline_ref_candidates,
+resolve_git_ref, git_show_yaml, against a real, hermetic temp git repo."""
 import subprocess
 
 import pytest
@@ -37,6 +37,20 @@ def test_find_repo_root_none_outside_a_repo(libgitutil, tmp_path):
     outside = tmp_path / "not-a-repo"
     outside.mkdir()
     assert libgitutil.find_repo_root(outside) is None
+
+
+# --- current_branch ---
+
+def test_current_branch_reads_branch_name(libgitutil, repo):
+    git("checkout", "-q", "-b", "feature/podiumd-4.10.0", cwd=repo)
+    assert libgitutil.current_branch(repo) == "feature/podiumd-4.10.0"
+
+
+def test_current_branch_empty_on_detached_head(libgitutil, repo):
+    head_sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo,
+                               capture_output=True, text=True, check=True).stdout.strip()
+    git("checkout", "-q", head_sha, cwd=repo)
+    assert libgitutil.current_branch(repo) == ""
 
 
 # --- baseline_ref_candidates ---
