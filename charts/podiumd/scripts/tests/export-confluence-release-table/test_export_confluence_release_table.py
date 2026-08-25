@@ -10,13 +10,15 @@ def write_chart_yaml(chart_dir, version):
     (chart_dir / "Chart.yaml").write_text(f"apiVersion: v2\nname: podiumd\nversion: {version}\n", encoding="utf-8")
 
 
-def write_chart_yaml_with_dependency(chart_dir, name, alias=None):
-    alias_line = f"\n    alias: {alias}" if alias else ""
-    (chart_dir / "Chart.yaml").write_text(
-        "apiVersion: v2\nname: podiumd\nversion: 1.0.0\ndependencies:\n"
-        f"  - name: {name}{alias_line}\n    version: 1.0.0\n    repository: \"@x\"\n",
-        encoding="utf-8",
-    )
+def write_chart_yaml_with_dependencies(chart_dir, deps):
+    """`deps`: [(name, alias_or_None), ...]."""
+    lines = ["apiVersion: v2", "name: podiumd", "version: 1.0.0", "dependencies:"]
+    for name, alias in deps:
+        lines.append(f"  - name: {name}")
+        if alias:
+            lines.append(f"    alias: {alias}")
+        lines += ["    version: 1.0.0", '    repository: "@x"']
+    (chart_dir / "Chart.yaml").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 @pytest.fixture(autouse=True)
@@ -242,54 +244,89 @@ def test_check_target_matches_chart_version_missing_chart_yaml_is_silent(ecrt, t
     assert capsys.readouterr().err == ""
 
 
-# --- aliased_dependency_names / component_and_alias ---
+# --- chart_dependencies ---
 
-def test_aliased_dependency_names_reads_chart_yaml(ecrt, tmp_path):
-    write_chart_yaml_with_dependency(tmp_path, "internetaakafhandeling", alias="ita")
-    assert ecrt.aliased_dependency_names(tmp_path) == [("internetaakafhandeling", "ita")]
-
-
-def test_aliased_dependency_names_skips_dependencies_without_alias(ecrt, tmp_path):
-    write_chart_yaml_with_dependency(tmp_path, "openzaak")
-    assert ecrt.aliased_dependency_names(tmp_path) == []
+def test_chart_dependencies_reads_chart_yaml(ecrt, tmp_path):
+    write_chart_yaml_with_dependencies(tmp_path, [("internetaakafhandeling", "ita"), ("openzaak", None)])
+    assert ecrt.chart_dependencies(tmp_path) == [("internetaakafhandeling", "ita"), ("openzaak", "")]
 
 
-def test_aliased_dependency_names_missing_chart_yaml_returns_empty(ecrt, tmp_path):
-    assert ecrt.aliased_dependency_names(tmp_path) == []
+def test_chart_dependencies_missing_chart_yaml_returns_empty(ecrt, tmp_path):
+    assert ecrt.chart_dependencies(tmp_path) == []
 
 
-def test_component_and_alias_resolves_exact_match_with_spaces_stripped(ecrt):
-    aliased_names = [("internetaakafhandeling", "ita")]
-    assert ecrt.component_and_alias("Interne Taak Afhandeling", aliased_names) == ("internetaakafhandeling", "ita")
+# --- normalize_name / name_candidates ---
+
+def test_normalize_name_strips_all_punctuation(ecrt):
+    assert ecrt.normalize_name("Zaak - ZAC") == "zaakzac"
+    assert ecrt.normalize_name("OMC / Notify") == "omcnotify"
+
+
+def test_name_candidates_no_brackets_is_just_the_whole_name(ecrt):
+    assert ecrt.name_candidates("Zaak - ZAC") == ["zaakzac"]
+
+
+def test_name_candidates_splits_bracketed_part_from_the_rest(ecrt):
+    assert ecrt.name_candidates("Contact (KISS)") == ["contactkiss", "contact", "kiss"]
+
+
+def test_name_candidates_dedupes_and_drops_empties(ecrt):
+    """"(KISS)" alone, with nothing outside the brackets, must not
+    produce a spurious empty "rest" candidate."""
+    assert ecrt.name_candidates("(KISS)") == ["kiss"]
+
+
+# --- component_and_alias ---
+
+def test_component_and_alias_exact_name_match(ecrt):
+    deps = [("internetaakafhandeling", "ita")]
+    assert ecrt.component_and_alias("Interne Taak Afhandeling", deps) == ("internetaakafhandeling", "ita")
 
 
 def test_component_and_alias_case_insensitive(ecrt):
-    aliased_names = [("internetaakafhandeling", "ita")]
-    assert ecrt.component_and_alias("INTERNE TAAK AFHANDELING", aliased_names) == ("internetaakafhandeling", "ita")
+    deps = [("internetaakafhandeling", "ita")]
+    assert ecrt.component_and_alias("INTERNE TAAK AFHANDELING", deps) == ("internetaakafhandeling", "ita")
 
 
 def test_component_and_alias_resolves_via_alias_substring(ecrt):
     """"Zaak - ZAC" doesn't equal dependency name "zaakafhandelcomponent"
     exactly, but its own alias "zac" is a literal substring of "Zaak -
-    ZAC" (spaces stripped: "zaakzac") — this is the rule that resolves
-    most real components (the exact-match rule alone only ever fires for
-    a name that's coincidentally identical to its Chart.yaml dependency
-    name, like "Interne Taak Afhandeling")."""
-    aliased_names = [("zaakafhandelcomponent", "zac")]
-    assert ecrt.component_and_alias("Zaak - ZAC", aliased_names) == ("zaakafhandelcomponent", "zac")
+    ZAC" (spaces/dash stripped: "zaakzac") — this is the rule that
+    resolves most real components (the exact-match rule alone only ever
+    fires for a name that's coincidentally identical to its Chart.yaml
+    dependency name, like "Interne Taak Afhandeling")."""
+    deps = [("zaakafhandelcomponent", "zac")]
+    assert ecrt.component_and_alias("Zaak - ZAC", deps) == ("zaakafhandelcomponent", "zac")
 
 
-def test_component_and_alias_exact_match_takes_priority_over_substring(ecrt):
-    """If a name matches one dependency exactly AND another dependency's
-    alias as a substring, the exact match wins."""
-    aliased_names = [("kiss-chart", "kiss"), ("kiss", "k")]
-    assert ecrt.component_and_alias("kiss", aliased_names) == ("kiss", "k")
+def test_component_and_alias_resolves_via_bracketed_alias_exact_match(ecrt):
+    """The bracketed part alone ("PABC") exactly equals the dependency's
+    alias — resolved via name_candidates splitting it out, even though
+    the whole name only contains it as a small piece of a much longer
+    string."""
+    deps = [("pabc", "pabc")]
+    assert ecrt.component_and_alias("Platform Autorisatie Beheer Component (PABC)", deps) == ("pabc", "pabc")
+
+
+def test_component_and_alias_resolves_via_name_relation_without_alias(ecrt):
+    """A dependency with no alias at all can still resolve, purely by its
+    own name relating to (here: being contained in) the bracketed part
+    of the component's name."""
+    deps = [("openinwoner", "")]
+    assert ecrt.component_and_alias("Portaal (Open Inwoner platform)", deps) == ("openinwoner", "")
+
+
+def test_component_and_alias_exact_match_takes_priority_over_alias_relation(ecrt):
+    """"kiss" exactly equals one dependency's own name — that wins over a
+    *different* dependency whose alias merely relates to it."""
+    deps = [("kiss-chart", "kiss"), ("kiss", "k")]
+    assert ecrt.component_and_alias("kiss", deps) == ("kiss", "k")
 
 
 def test_component_and_alias_unresolved_is_unknown(ecrt):
-    """"Open Zaak" doesn't match any dependency by exact name or alias
-    substring — "component" becomes UNKNOWN rather than left blank or
-    guessed at, and "alias" stays empty."""
+    """"Open Zaak" doesn't match any dependency at all — "component"
+    becomes UNKNOWN rather than left blank or guessed at, and "alias"
+    stays empty."""
     assert ecrt.component_and_alias("Open Zaak", []) == ("UNKNOWN", "")
 
 
@@ -313,7 +350,7 @@ def test_extract_release_rows_resolves_component_and_alias_by_exact_match(ecrt, 
     non-colliding alias ("zacalias") — a too-short one (e.g. "z") would
     spuriously substring-match "Open Zaak" too and defeat the point of
     this test."""
-    write_chart_yaml_with_dependency(tmp_path, "zac", alias="zacalias")
+    write_chart_yaml_with_dependencies(tmp_path, [("zac", "zacalias")])
     rows = ecrt.extract_release_rows(PRODUCT_TABLE_HTML, chart_dir=tmp_path)
     assert rows == [
         ["Product", "Info(NL)", "", "ZAC", "zac", "zacalias", "5.0.0", "1.0.290", "5.1.0", "1.0.297"],
@@ -326,10 +363,22 @@ def test_extract_release_rows_resolves_component_and_alias_by_alias_substring(ec
     exactly, but the dependency's own alias "zac" is a substring of it —
     this is the rule that resolves most real components (see
     component_and_alias)."""
-    write_chart_yaml_with_dependency(tmp_path, "zaakafhandelcomponent", alias="zac")
+    write_chart_yaml_with_dependencies(tmp_path, [("zaakafhandelcomponent", "zac")])
     rows = ecrt.extract_release_rows(PRODUCT_TABLE_HTML, chart_dir=tmp_path)
     assert rows[0] == ["Product", "Info(NL)", "", "ZAC", "zaakafhandelcomponent", "zac",
                         "5.0.0", "1.0.290", "5.1.0", "1.0.297"]
+
+
+def test_extract_release_rows_resolves_component_without_alias_via_name_relation(ecrt, tmp_path):
+    """"Open Zaak" resolves purely via a name relation against a
+    dependency that has no alias at all — "component" gets that
+    dependency's name and "alias" stays empty. "ZAC" doesn't relate to
+    "openzaak" at all and stays UNKNOWN."""
+    write_chart_yaml_with_dependencies(tmp_path, [("openzaak", None)])
+    rows = ecrt.extract_release_rows(PRODUCT_TABLE_HTML, chart_dir=tmp_path)
+    assert rows[0][4] == "UNKNOWN"
+    assert rows[1] == ["Product", "Maykin", "", "Open Zaak", "openzaak", "",
+                        "1.27.0", "1.14.0", "1.27.4", "1.14.2"]
 
 
 def test_extract_release_rows_not_tied_to_specific_version_numbers(ecrt):

@@ -31,16 +31,17 @@ have exactly two such groups, is skipped and reported, not treated as an
 error. Rows from every table that has them are concatenated into one
 CSV, in page order.
 
-Also writes "component" and "alias", resolved against every aliased
-`chart_dir`/Chart.yaml dependency two ways (see
-aliased_dependency_names/component_and_alias): "name" — spaces
-stripped, case-insensitive — either exactly equals the dependency's own
-"name" (e.g. "Interne Taak Afhandeling" -> component
-"internetaakafhandeling", alias "ita"), or contains the dependency's
-alias as a substring (e.g. "Zaak - ZAC" contains "zac" -> component
-"zaakafhandelcomponent", alias "zac"). "component" is "UNKNOWN" (and
-"alias" left empty) if neither matches any dependency — e.g. "Open
-Zaak", whose dependency "openzaak" has no alias to match at all.
+Also writes "component" and "alias", resolved against every
+`chart_dir`/Chart.yaml dependency (see chart_dependencies) by comparing
+each of "name"'s normalized forms — the whole thing, and, if it has a
+"... (bracketed part)" shape, the bracketed part and the rest tried
+separately (e.g. "Platform Autorisatie Beheer Component (PABC)" tries
+"platformautorisatiebeheercomponent" AND "pabc" on their own) — against
+each dependency's own normalized name and alias (see component_and_alias
+for the exact match/substring rules and their priority). "component" is
+"UNKNOWN" (and "alias" left empty) if nothing matches any dependency at
+all — e.g. "Elastic operator", whose dependency "eck-operator" shares no
+text with it either way.
 
 Each of the four version values is replaced with "UNKNOWN" if it isn't
 semver-compatible (see lib.confluence_tables.is_semver_compatible — a
@@ -86,6 +87,7 @@ import argparse
 import csv
 import getpass
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -210,40 +212,95 @@ def check_target_matches_chart_version(target_labels, chart_dir):
     print(border, file=sys.stderr)
 
 
-def aliased_dependency_names(chart_dir):
-    """[(dependency_name, alias), ...], in Chart.yaml order, for every
-    chart_dir/Chart.yaml dependency that has an alias — e.g.
-    [("internetaakafhandeling", "ita"), ("zaakafhandelcomponent", "zac"),
-    ...]. [] if chart_dir has no Chart.yaml."""
+NOT_ALNUM_RE = re.compile(r"[^a-z0-9]")
+BRACKETED_RE = re.compile(r"\(([^)]*)\)")
+
+
+def normalize_name(text):
+    """`text` lowercased with every non-alphanumeric character (spaces,
+    dashes, slashes, parentheses, ...) removed — needed because
+    Chart.yaml dependency names are plain lowercase-no-punctuation
+    (e.g. "zgw-office-addin", "internetaakafhandeling") while the page's
+    own component names use all sorts of separators ("Office Add-in",
+    "OMC / Notify")."""
+    return NOT_ALNUM_RE.sub("", text.lower())
+
+
+def name_candidates(name):
+    """Every normalized string worth matching against a Chart.yaml
+    dependency for `name`: the whole thing, and — if `name` has a
+    "... (bracketed part)" shape — the bracketed part and the rest of
+    the string, tried separately as well (e.g. "Platform Autorisatie
+    Beheer Component (PABC)" tries "platformautorisatiebeheercomponentpabc",
+    "platformautorisatiebeheercomponent", AND "pabc" — the last of which
+    is what actually resolves it cleanly, against Chart.yaml dependency
+    "pabc"'s own alias "pabc"). Matching each part on its own (rather
+    than only ever the whole, punctuation-stripped string) avoids a
+    false match spanning the boundary between the two parts, and lets an
+    exact match fire for a part that's short/generic enough that it
+    would only ever relate to something by substring as part of the
+    whole string."""
+    candidates = [normalize_name(name)]
+    match = BRACKETED_RE.search(name)
+    if match:
+        rest = name[:match.start()] + name[match.end():]
+        candidates += [normalize_name(rest), normalize_name(match.group(1))]
+    return list(dict.fromkeys(c for c in candidates if c))
+
+
+def _related(a, b):
+    """True if `a` and `b` (both already normalized) are the same
+    string, or either contains the other whole — the single relation
+    every match rule in component_and_alias reduces to."""
+    return bool(a) and bool(b) and (a in b or b in a)
+
+
+def chart_dependencies(chart_dir):
+    """[(dependency_name, alias_or_empty), ...], in Chart.yaml order,
+    for every chart_dir/Chart.yaml dependency — e.g.
+    [("internetaakafhandeling", "ita"), ("openzaak", ""), ...]. [] if
+    chart_dir has no Chart.yaml."""
     chart_yaml_path = chart_dir / "Chart.yaml"
     if not chart_yaml_path.is_file():
         return []
     chart_yaml = load_yaml(chart_yaml_path)
-    return [(dep["name"], dep["alias"]) for dep in chart_yaml.get("dependencies", []) if dep.get("alias")]
+    return [(dep["name"], dep.get("alias", "")) for dep in chart_yaml.get("dependencies", [])]
 
 
-def component_and_alias(name, aliased_names):
+def component_and_alias(name, dependencies):
     """(component, alias) for `name` (the CSV "name" column value),
-    resolved against `aliased_names` (see aliased_dependency_names) two
-    ways, tried in this order:
-    - `name` — lowercased, spaces stripped — exactly equals the
-      dependency's own name, e.g. "Interne Taak Afhandeling" ->
-      dependency "internetaakafhandeling" -> ("internetaakafhandeling",
-      "ita")
-    - the dependency's alias appears as a substring of `name` —
-      lowercased, spaces stripped — e.g. alias "zac" is contained in
-      "Zaak - ZAC" (as "zaakzac") -> ("zaakafhandelcomponent", "zac")
-    ("UNKNOWN", "") if neither matches any dependency — most components
-    aren't nameable either way (e.g. "Open Zaak", whose dependency
-    "openzaak" has no alias at all) and are left unresolved rather than
-    guessed at."""
-    compact_name = name.lower().replace(" ", "")
-    for dependency_name, alias in aliased_names:
-        if compact_name == dependency_name.lower():
-            return dependency_name, alias
-    for dependency_name, alias in aliased_names:
-        if alias.lower() in compact_name:
-            return dependency_name, alias
+    resolved against `dependencies` (see chart_dependencies) by trying
+    each of name_candidates(name) against every dependency's own
+    normalized name and alias, in this priority order (first hit wins):
+    1. a candidate exactly equals the dependency's name — e.g. "Interne
+       Taak Afhandeling" -> dependency "internetaakafhandeling"
+    2. a candidate relates (see _related) to the dependency's alias —
+       e.g. alias "zac" is contained in "Zaak - ZAC" (as "zaakzac"), or
+       "PABC" (the bracketed part of "Platform Autorisatie Beheer
+       Component (PABC)") exactly equals alias "pabc"
+    3. a candidate relates to the dependency's name — e.g. dependency
+       name "openzaak" exactly equals "Open Zaak", or "openinwoner" is
+       contained in "Open Inwoner platform" (the bracketed part of
+       "Portaal (Open Inwoner platform)")
+    Tried in that order (exact name match, then alias relation, then the
+    looser name relation) so a precise match always wins over a fuzzier
+    one. ("UNKNOWN", "") if nothing matches any dependency at all — e.g.
+    "Elastic operator", whose dependency "eck-operator" shares no text
+    with it either way, or a component (like "Solr") that isn't a
+    top-level podiumd Chart.yaml dependency at all."""
+    candidates = name_candidates(name)
+    for candidate in candidates:
+        for dependency_name, alias in dependencies:
+            if candidate == normalize_name(dependency_name):
+                return dependency_name, alias
+    for candidate in candidates:
+        for dependency_name, alias in dependencies:
+            if alias and _related(candidate, normalize_name(alias)):
+                return dependency_name, alias
+    for candidate in candidates:
+        for dependency_name, alias in dependencies:
+            if _related(candidate, normalize_name(dependency_name)):
+                return dependency_name, alias
     return "UNKNOWN", ""
 
 
@@ -272,7 +329,7 @@ def extract_release_rows(html, headings=None, chart_dir=None):
     doesn't match `chart_dir` (default CHART_DIR) Chart.yaml's version."""
     headings = headings or DEFAULT_HEADINGS
     chart_dir = chart_dir or CHART_DIR
-    aliased_names = aliased_dependency_names(chart_dir)
+    dependencies = chart_dependencies(chart_dir)
     all_tables = extract_tables(html)
     if not all_tables:
         raise SystemExit("error: no <table> found on that page")
@@ -305,7 +362,7 @@ def extract_release_rows(html, headings=None, chart_dir=None):
             vendor = data_row[columns["vendor"]] if columns["vendor"] is not None else ""
             used_by = data_row[columns["used_by"]] if columns["used_by"] is not None else ""
             name = data_row[columns["first"]]
-            component, alias = component_and_alias(name, aliased_names)
+            component, alias = component_and_alias(name, dependencies)
             versions = [normalize_version(data_row[columns[key]]) for key in
                         ("source_app", "source_helm", "target_app", "target_helm")]
             unknown_count += sum(1 for v in versions if v == "UNKNOWN")
