@@ -225,7 +225,8 @@ def test_check_yamllint_repeated_own_finding_in_one_file_is_grouped(vp, libyamll
     out = capsys.readouterr().out
     assert out.count("[ERROR  ]") == 1  # one grouped line, not two
     assert "x2" in out
-    assert "8, 14" in out
+    lines = [line.strip() for line in out.splitlines() if line.strip()]
+    assert lines[-2:] == ["8", "14"]  # one location per line, not comma-joined
 
 
 def test_check_yamllint_missing_binary_fails(vp, tmp_path, monkeypatch):
