@@ -45,7 +45,11 @@ each dependency's own normalized name and alias (see component_and_alias
 for the exact match/substring rules and their priority). "component" is
 "UNKNOWN" (and "alias" left empty) if nothing matches any dependency at
 all — e.g. "Elastic operator", whose dependency "eck-operator" shares no
-text with it either way.
+text with it either way — or "MULTIPLE" (both fields) if the text
+relates to more than one distinct dependency at once — e.g. "kiss"
+relates to both "kiss-chart" (alias "kiss") and "eck-stack" (alias
+"kiss-eck", which contains "kiss") — rather than silently picking
+whichever dependency happens to come first in Chart.yaml.
 
 Each of the four version values is replaced with "UNKNOWN" if it isn't
 semver-compatible (see lib.confluence_tables.is_semver_compatible — a
@@ -271,11 +275,35 @@ def chart_dependencies(chart_dir):
     return [(dep["name"], dep.get("alias", "")) for dep in chart_yaml.get("dependencies", [])]
 
 
+def _tier_matches(candidates, dependencies, predicate):
+    """{dependency_name: alias} for every dependency in `dependencies`
+    where `predicate(candidate, dependency_name, alias)` holds for at
+    least one of `candidates` — every distinct dependency that matches
+    at this priority tier, not just the first, so component_and_alias
+    can tell a clean single match from a genuine ambiguity."""
+    found = {}
+    for candidate in candidates:
+        for dependency_name, alias in dependencies:
+            if dependency_name not in found and predicate(candidate, dependency_name, alias):
+                found[dependency_name] = alias
+    return found
+
+
+# Tried in this order (first tier with any match wins) so a precise
+# match always beats a fuzzier one — see component_and_alias.
+_MATCH_TIERS = [
+    lambda candidate, dependency_name, alias: candidate == normalize_name(dependency_name),
+    lambda candidate, dependency_name, alias: bool(alias) and _related(candidate, normalize_name(alias)),
+    lambda candidate, dependency_name, alias: _related(candidate, normalize_name(dependency_name)),
+]
+
+
 def component_and_alias(name, dependencies):
     """(component, alias) for `name` (the CSV "name" column value),
     resolved against `dependencies` (see chart_dependencies) by trying
     each of name_candidates(name) against every dependency's own
-    normalized name and alias, in this priority order (first hit wins):
+    normalized name and alias, in this priority order (first tier with
+    any match wins):
     1. a candidate exactly equals the dependency's name — e.g. "Interne
        Taak Afhandeling" -> dependency "internetaakafhandeling"
     2. a candidate relates (see _related) to the dependency's alias —
@@ -286,25 +314,22 @@ def component_and_alias(name, dependencies):
        name "openzaak" exactly equals "Open Zaak", or "openinwoner" is
        contained in "Open Inwoner platform" (the bracketed part of
        "Portaal (Open Inwoner platform)")
-    Tried in that order (exact name match, then alias relation, then the
-    looser name relation) so a precise match always wins over a fuzzier
-    one. ("UNKNOWN", "") if nothing matches any dependency at all — e.g.
+    ("UNKNOWN", "") if no tier matches any dependency at all — e.g.
     "Elastic operator", whose dependency "eck-operator" shares no text
     with it either way, or a component (like "Solr") that isn't a
-    top-level podiumd Chart.yaml dependency at all."""
+    top-level podiumd Chart.yaml dependency at all. ("MULTIPLE",
+    "MULTIPLE") if a tier matches more than one distinct dependency —
+    e.g. "kiss" relates to both dependency "kiss-chart" (alias "kiss")
+    and "eck-stack" (alias "kiss-eck", which contains "kiss") — rather
+    than silently picking whichever came first in Chart.yaml."""
     candidates = name_candidates(name)
-    for candidate in candidates:
-        for dependency_name, alias in dependencies:
-            if candidate == normalize_name(dependency_name):
-                return dependency_name, alias
-    for candidate in candidates:
-        for dependency_name, alias in dependencies:
-            if alias and _related(candidate, normalize_name(alias)):
-                return dependency_name, alias
-    for candidate in candidates:
-        for dependency_name, alias in dependencies:
-            if _related(candidate, normalize_name(dependency_name)):
-                return dependency_name, alias
+    for tier in _MATCH_TIERS:
+        found = _tier_matches(candidates, dependencies, tier)
+        if len(found) == 1:
+            ((dependency_name, alias),) = found.items()
+            return dependency_name, alias
+        if len(found) > 1:
+            return "MULTIPLE", "MULTIPLE"
     return "UNKNOWN", ""
 
 
