@@ -70,14 +70,14 @@ keycloak-operator:
     # provisions (RELATED_IMAGE_KEYCLOAK env on the operator Deployment). Must
     # match podiumd's own `keycloak.image` digest above. The adfinis subchart's
     # built-in default still carries the pre-PR#344 digest (sha256:5fdbf2d…), so
-    # we override it here to the refreshed 26.6.4 digest (sha256:0aae0de…).
+    # we override it here to the refreshed 26.7.2 digest (sha256:831330…).
     # NOTE: sha is a SEPARATE field; the template appends it as @sha256:{{ .sha }},
     # so do NOT embed @sha256 in tag (would produce a double digest).
     config:
       keycloakImage:
         repository: quay.io/keycloak/keycloak
-        tag: "26.6.4"
-        sha: "0aae0de7fca85525f727d3354df17896092de8bb26ae4c12d89c77e5df8cbce4"
+        tag: "26.7.2"
+        sha: "831330513f55695572286e521f94fcd3c7e285250ed5b848090265a33192f669"
   serviceAccount:
     create: false
   jobs:
@@ -93,8 +93,8 @@ keycloak-operator:
       initImage:
         registry: ""
         repository: python
-        # Digest-pinned to match docs/images/images-4.8.0.yaml (python 3.14-slim).
-        tag: "3.14-slim@sha256:b877e50bd90de10af8d82c57a022fc2e0dc731c5320d762a27986facfc3355c1"
+        # Digest-pinned to a specific patch rather than the floating 3.14-slim minor tag.
+        tag: "3.14.7-slim@sha256:ce40764625a4ff50df3548277632e7f96c4e77fe75fa848aae9885476e7df5a4"
       # Main container: runs psql to execute the generated SQL against the Keycloak DB.
       image:
         registry: ""
@@ -222,11 +222,11 @@ keycloak:
   http:
     httpEnabled: true
   # image parameters for keycloak-operator
-  # Official Keycloak image: quay.io/keycloak/keycloak:26.6.4
+  # Official Keycloak image: quay.io/keycloak/keycloak:26.7.2
   image:
     registry: ""
     repository: quay.io/keycloak/keycloak
-    tag: "26.6.4@sha256:0aae0de7fca85525f727d3354df17896092de8bb26ae4c12d89c77e5df8cbce4"
+    tag: "26.7.2@sha256:831330513f55695572286e521f94fcd3c7e285250ed5b848090265a33192f669"
   # -- instances is the new operator-style replica count (falls back to replicaCount)
   instances: "2"
   ingress:
@@ -395,7 +395,10 @@ redis-operator:
     GenerateConfigInInitContainer: true
   redisOperator:
     imageName: quay.io/opstree/redis-operator
-    imageTag: "v0.25.0"
+    imageTag: "v0.26.0@sha256:1c6818e5e50553f9f3c1b91a8824ae5c1999a0c9416c794ca51431b7f0cb48c3"
+    # -- Chart default for initContainerImageTag is a plain (non-digest-pinned) "v0.26.0";
+    # override explicitly so the init container is digest-pinned like every other image here.
+    initContainerImageTag: "v0.26.0@sha256:1c6818e5e50553f9f3c1b91a8824ae5c1999a0c9416c794ca51431b7f0cb48c3"
   resources:
     requests:
       cpu: 100m
@@ -436,14 +439,14 @@ redis-operator:
     image:
       registry: quay.io
       repository: opstree/redis
-      tag: "v8.6.2"
+      tag: "v8.6.6@sha256:12724412997e6acc32783f8c3c1ce8a7657029e06f563ffc8cbd81e2e9de7628"
     # override: values-enable-observability.yaml sets redisExporter.enabled: true
     redisExporter:
       enabled: false
       image:
         registry: quay.io
         repository: opstree/redis-exporter
-        tag: "v1.82.0"
+        tag: "v1.89.0@sha256:00a3628bdd3bb3423a15c5daefa328c471ee609798eed1744fe578c906d20cab"
       # -- PodMonitor for the redis_exporter sidecar (port 9121).
       # Requires Prometheus Operator CRDs (monitoring.coreos.com/v1).
       # Enable via values-enable-observability.yaml.
@@ -495,11 +498,14 @@ redis-operator:
       # limitation; use the databases field above instead.
       additionalRedisConfig: ""
     # -- CronJob that periodically reconciles redis-role labels on redis-ha pods.
-    # Workaround for a known OT Redis Operator 0.24.0 bug (PR #1720, not yet released) where
-    # the operator fails to apply redis-role labels after a simultaneous pod restart, leaving
-    # the redis-ha-master Service with no endpoints. Runs every 2 minutes and always reconciles
-    # from RedisReplication.status.masterNode — no early-exit if a label already exists.
-    # Remove once a redis-operator release containing PR #1720 is available.
+    # Workaround for a known OT Redis Operator 0.24.0 bug (PR #1720) where the operator fails to
+    # apply redis-role labels after a simultaneous pod restart, leaving the redis-ha-master
+    # Service with no endpoints. Runs every 2 minutes and always reconciles from
+    # RedisReplication.status.masterNode — no early-exit if a label already exists.
+    # NOTE: PR #1720 has been included since redis-operator 0.25.0 (confirmed present in 0.26.1,
+    # the version currently pinned above). This workaround is a candidate for removal — verify
+    # the operator self-heals correctly on a simultaneous pod restart in a test environment before
+    # setting labelMasterCronJob.enabled: false. See docs/apps/redis/redis-ha.md.
     labelMasterCronJob:
       enabled: true
       # Default: every 2 minutes, always on (suitable for production).
@@ -904,6 +910,9 @@ opennotificaties:
     retryBackoff: 3
     retryBackoffMax: 48
     requestsTimeout: 60
+    # -- Seconds between execute_notifications runs (chart default 20, minimum 5).
+    # Lowered to the minimum so notifications go out with less delay.
+    notificationSecInterval: 5
     email:
       port: 587
       useTLS: true
@@ -2431,7 +2440,7 @@ kiss-eck:
   eck-elasticsearch:
     enabled: true
     fullnameOverride: kiss
-    version: "8.19.3"
+    version: "8.19.19"
     # -- default sizing, kept equal to the previous release (kiss-elastic used
     # elasticsearchCount: 3). Environments can override nodeSets (e.g. nodeSelector,
     # count, storage), the same way openinwoner.eck-elasticsearch.nodeSets is set.
@@ -2469,7 +2478,7 @@ kiss-eck:
   eck-enterprise-search:
     enabled: false
     fullnameOverride: kiss
-    version: "8.19.3"
+    version: "8.19.19"
     config:
       app_search.engine.total_fields.limit: 1000
       kibana.host: https://kiss-kb-http.podiumd.svc.cluster.local:5601
@@ -2485,7 +2494,7 @@ kiss-eck:
   eck-kibana:
     enabled: true
     fullnameOverride: kiss
-    version: "8.19.3"
+    version: "8.19.19"
     config:
       server.publicBaseUrl: https://kiss-kb-http.podiumd.svc.cluster.local:5601
     elasticsearchRef:
@@ -3080,7 +3089,7 @@ clamav:
   # and ServiceMonitor (metrics.serviceMonitor.enabled: true). Supported since clamav chart v3.7.1.
   # serviceMonitor requires the Prometheus Operator CRD (monitoring.coreos.com/v1 ServiceMonitor).
   image:
-    tag: "1.5.2"
+    tag: "1.5.4"
   metrics:
     enabled: false
     image:
