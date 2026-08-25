@@ -356,7 +356,7 @@ The podiumd realm exclusively serves beheer (management) users and municipality 
 | `serviceAccountsEnabled` | `true` | `false` | ✅ Unchanged — this is the client's sole purpose |
 | `redirectUris` / `webOrigins` | (none) | (none) | ✅ Removed — were configured but unused |
 
-**ZAC admin client (`{{ .Values.zac.keycloak.adminClient.id }}`) flows restricted to service-account-only** ← changed from Keycloak defaults
+**ZAC admin client (`.Values.zac.keycloak.adminClient.id`) flows restricted to service-account-only** ← changed from Keycloak defaults
 - **Standard:** BIO 2.0 / ISO 27002:2022 maatregel **8.2** (Geprivilegieerde toegangsrechten); **OWASP ASVS 4.0 V2.1** — ongebruikte authenticatie-flows moeten worden uitgeschakeld
 - **Why:** This client (`.Values.zac.keycloak.adminClient.id`) exists solely so ZAC's own backend can call the Keycloak Admin REST API via its service account — it has never had a legitimate interactive use. Left at Keycloak's defaults it carried `standardFlowEnabled: true` and `directAccessGrantsEnabled: true`, and additionally had `redirectUris`/`webOrigins` configured to `zac.contextUrl` — an enabled AND reachable authorization code flow it never needed, plus an unused password-grant path. Both flows are closed off now, and the now-pointless `redirectUris`/`webOrigins` removed with them (unlike the PABC entry above, this client actually had valid redirect URIs configured, not just an enabled-but-unusable flow).
 - **History:** Same finding class as the PABC entry above — GreyBox Pentest Rotterdam (2026-06-11), "Serviceaccounts gecombineerd met extra flows" (DIV-2602-M-03, finding 15).
