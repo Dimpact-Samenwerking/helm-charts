@@ -366,7 +366,7 @@ def test_main_writes_csv(ecrt, tmp_path, monkeypatch, capsys):
 
     with output_path.open(newline="", encoding="utf-8") as f:
         rows = list(csv.reader(f))
-    assert rows[0] == ["section", "vendor", "used_by", "component", "source version app", "source version helm",
+    assert rows[0] == ["section", "vendor", "used_by", "name", "source version app", "source version helm",
                         "target version app", "target version helm"]
     assert rows[1] == ["Product", "Info(NL)", "", "ZAC", "5.0.0", "1.0.290", "5.1.0", "1.0.297"]
     assert rows[2] == ["Product", "Maykin", "", "Open Zaak", "1.27.0", "1.14.0", "1.27.4", "1.14.2"]

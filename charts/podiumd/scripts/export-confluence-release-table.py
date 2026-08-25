@@ -19,7 +19,7 @@ by" column (optional the other way around — only the shared/technical
 tooling tables have it, naming which product/Common Ground component
 pulls that piece of tooling in — written to the CSV as "used_by"), the
 table's own first column (whatever it's labeled — usually the component
-name, written to the CSV as "component"), and "App"/"Helm" under each of the table's two
+name, written to the CSV as "name"), and "App"/"Helm" under each of the table's two
 "Versie ..." column groups (required) — written to the CSV as "source
 version"/"target version" (first group = source, second = target; see
 lib.confluence_tables.find_versie_groups). The version numbers
@@ -100,7 +100,7 @@ DEFAULT_HEADINGS = [
     "Technische component versies",
 ]
 
-CSV_HEADER = ["section", "vendor", "used_by", "component",
+CSV_HEADER = ["section", "vendor", "used_by", "name",
               "source version app", "source version helm", "target version app", "target version helm"]
 
 # Stripped from the end of a matched heading before it goes into the CSV's
@@ -211,7 +211,7 @@ def resolve_token(args):
 
 
 def extract_release_rows(html, headings=None, chart_dir=None):
-    """Return the CSV data rows (section, vendor, used_by, component,
+    """Return the CSV data rows (section, vendor, used_by, name,
     source version app/helm, target version app/helm) across every table
     directly under one of `headings` (default DEFAULT_HEADINGS) that has
     the required App/Helm columns — "section" is the matched heading with
