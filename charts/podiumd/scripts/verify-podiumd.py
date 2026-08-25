@@ -579,7 +579,7 @@ def main():
 
     extra_args = lint_args_for(chart_dir)
     run_step("Helm lint", "helm lint", check_lint, chart_dir, extra_args)
-    run_step("Full render", "helm template", check_render, chart_dir, extra_args)
+    run_step("Full render", "Full render", check_render, chart_dir, extra_args)
     run_step("yamllint", "yamllint (rendered output)", check_yamllint, chart_dir, extra_args)
     run_step("kubeconform", "kubeconform (rendered output)", check_kubeconform, chart_dir, extra_args)
     run_step("shellcheck", "shellcheck (embedded shell scripts)", check_shellcheck, chart_dir, extra_args)
