@@ -29,7 +29,6 @@ After writing, re-render the chart (verify-podiumd.py or /helm-render-all)
 to confirm before committing.
 """
 import re
-import subprocess
 import sys
 from pathlib import Path
 
@@ -38,9 +37,11 @@ import yaml
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
+from lib.chart import chart_version as _chart_version
 from lib.chart import find_dependency as _find_dependency
 from lib.chart import get_path, image_paths_for, pull_chart_values, replace_scalar_value
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
+from lib.procutil import run_script
 from lib.registry import parse_repo, registry_tag_exists
 from lib.upgradedoc import (
     append_to_doc, canonical_version_cell, describe_key_changes, extract_source_version,
@@ -177,7 +178,7 @@ def update_values_yaml(values_key, image_paths, new_tags_by_path):
 
 
 def current_chart_version():
-    return str(yaml.safe_load(CHART_YAML.read_text(encoding="utf-8"))["version"])
+    return _chart_version(CHART_YAML)
 
 
 def images_manifest_path(target):
@@ -468,7 +469,7 @@ def main():
     component, app_version, chart_version = sys.argv[1], sys.argv[2], sys.argv[3]
 
     print(f"=== Running verify-component-version.py {component} {app_version} {chart_version} ===")
-    result = subprocess.run([sys.executable, str(VERIFY_SCRIPT), component, app_version, chart_version])
+    result = run_script([sys.executable, str(VERIFY_SCRIPT), component, app_version, chart_version])
     if result.returncode != 0:
         print()
         print("FAIL: verify-component-version.py did not pass — refusing to change any files")
@@ -623,7 +624,7 @@ def main():
 
     print()
     print("=== Regenerating README.md (update-podiumd-readme.py) ===")
-    subprocess.run([sys.executable, str(UPDATE_README_SCRIPT)])
+    run_script([sys.executable, str(UPDATE_README_SCRIPT)])
 
     print()
     print("Done. Re-render the chart to confirm (verify-podiumd.py or /helm-render-all) before committing.")

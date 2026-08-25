@@ -27,28 +27,26 @@ Example:
         # set-doc-baseline.py 4.9.0
 """
 import re
-import subprocess
 import sys
 from pathlib import Path
-
-import yaml
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from lib.chart import replace_scalar_value
+from lib.chart import SEMVER_RE as CHART_VERSION_RE
+from lib.chart import chart_version, replace_scalar_value
 from lib.gitutil import current_branch, find_repo_root
+from lib.procutil import run_script
 
 CHART_DIR = SCRIPT_DIR.parent
 CHART_YAML = CHART_DIR / "Chart.yaml"
 SET_DOC_BASELINE_SCRIPT = SCRIPT_DIR / "set-doc-baseline.py"
 
 BRANCH_RE = re.compile(r"^feature/podiumd-(\d+\.\d+\.\d+)$")
-CHART_VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
 
 
 def current_chart_version():
-    return str(yaml.safe_load(CHART_YAML.read_text(encoding="utf-8"))["version"])
+    return chart_version(CHART_YAML)
 
 
 def version_tuple(v):
@@ -111,8 +109,7 @@ def main():
 
     print()
     print(f"=== Running set-doc-baseline.py {baseline} ===")
-    sys.stdout.flush()  # otherwise the lines above can print after the child's own output when stdout isn't a tty
-    result = subprocess.run([sys.executable, str(SET_DOC_BASELINE_SCRIPT), baseline])
+    result = run_script([sys.executable, str(SET_DOC_BASELINE_SCRIPT), baseline])
     sys.exit(result.returncode)
 
 

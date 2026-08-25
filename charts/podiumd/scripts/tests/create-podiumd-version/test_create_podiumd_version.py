@@ -1,8 +1,9 @@
 """create-podiumd-version.py: bumps Chart.yaml's version/appVersion to the
 target named by the current branch, then delegates to set-doc-baseline.py
 for the outgoing (baseline) version. lib.gitutil.current_branch/
-find_repo_root and subprocess.run (the set-doc-baseline.py delegation) are
-mocked out via cpv.* directly — no real git repo or subprocess needed."""
+find_repo_root and lib.procutil.run_script (the set-doc-baseline.py
+delegation) are mocked out via cpv.* directly — no real git repo or
+subprocess needed."""
 import subprocess
 
 import pytest
@@ -178,7 +179,7 @@ def test_success_bumps_chart_and_delegates_to_set_doc_baseline(cpv, tmp_path, mo
         calls.append(cmd)
         return subprocess.CompletedProcess(cmd, 0)
 
-    monkeypatch.setattr(cpv.subprocess, "run", fake_run)
+    monkeypatch.setattr(cpv, "run_script", fake_run)
 
     with pytest.raises(SystemExit) as exc_info:
         cpv.main()
@@ -201,7 +202,7 @@ def test_success_propagates_set_doc_baseline_failure_exit_code(cpv, tmp_path, mo
     monkeypatch.setattr(cpv.sys, "argv", ["create-podiumd-version.py"])
     monkeypatch.setattr(cpv, "find_repo_root", lambda chart_dir: tmp_path)
     monkeypatch.setattr(cpv, "current_branch", lambda repo_root: "feature/podiumd-4.10.0")
-    monkeypatch.setattr(cpv.subprocess, "run", lambda cmd, *a, **k: subprocess.CompletedProcess(cmd, 1))
+    monkeypatch.setattr(cpv, "run_script", lambda cmd, *a, **k: subprocess.CompletedProcess(cmd, 1))
 
     with pytest.raises(SystemExit) as exc_info:
         cpv.main()
