@@ -110,6 +110,14 @@ UPDATE_README_SCRIPT = SCRIPT_DIR / "update-podiumd-readme.py"
 def current_chart_version():
     return str(yaml.safe_load(CHART_YAML.read_text(encoding="utf-8"))["version"])
 
+# The exact shape a baseline argument must have — bare MAJOR.MINOR.PATCH,
+# matching every doc filename's own "<baseline>-to-<target>-*.md" pattern
+# (see FILENAME_RE_TMPL below). Anything else (a flag like "--help", a
+# git ref, a version with a suffix) is rejected up front by main(), rather
+# than silently being treated as a literal baseline and renaming docs to
+# nonsense like "--help-to-4.9.0-upgrade.md".
+BASELINE_VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
+
 FILENAME_RE_TMPL = r"^(?P<baseline>\d+\.\d+\.\d+)-to-{target}-(?P<suffix>[\w\-]+)\.md$"
 TITLE_ARROW_RE_TMPL = r"(?P<baseline>{baseline})(?P<arrow>\s*(?:→|->)\s*){target}"
 COMPONENT_VERSIONS_RE_TMPL = r"Component versions \({target}\s+vs\s+(?P<baseline>{baseline})\)"
@@ -404,10 +412,16 @@ def fix_images_manifest_entries(text, target_values, baseline_values):
 
 
 def main():
+    if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
+        print(__doc__)
+        sys.exit(0)
     if len(sys.argv) != 2:
         print(__doc__)
         sys.exit(1)
     new_baseline = sys.argv[1]
+    if not BASELINE_VERSION_RE.match(new_baseline):
+        print(f"error: '{new_baseline}' is not a valid MAJOR.MINOR.PATCH version")
+        sys.exit(1)
     target = current_chart_version()
 
     by_suffix = find_target_docs(target)

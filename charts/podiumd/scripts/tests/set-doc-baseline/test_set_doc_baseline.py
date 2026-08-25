@@ -240,6 +240,42 @@ def test_main_requires_exactly_one_argument(sdb, monkeypatch):
     assert exc_info.value.code == 1
 
 
+@pytest.mark.parametrize("flag", ["-h", "--help"])
+def test_main_help_flag_prints_usage_and_exits_zero_without_touching_anything(sdb, repo, monkeypatch, capsys, flag):
+    """`--help` must never be treated as `new_baseline` — passing it used to
+    run the whole bump for real with a literal baseline of "--help",
+    renaming docs to "--help-to-<target>-*.md". It must instead print the
+    module docstring and exit 0, leaving every doc untouched."""
+    before = sorted(p.name for p in repo.iterdir())
+    monkeypatch.setattr("sys.argv", ["set-doc-baseline.py", flag])
+    with pytest.raises(SystemExit) as exc_info:
+        sdb.main()
+    assert exc_info.value.code == 0
+    assert capsys.readouterr().out == sdb.__doc__ + "\n"
+    assert sorted(p.name for p in repo.iterdir()) == before
+
+
+@pytest.mark.parametrize("bogus", ["4.8", "4.8.2-rc1", "v4.8.2", "latest", "4.8.2.1", ""])
+def test_main_rejects_non_semver_baseline_without_touching_anything(sdb, repo, monkeypatch, capsys, bogus):
+    """Anything that isn't a bare MAJOR.MINOR.PATCH — a two-part version, a
+    pre-release suffix, a "v" prefix, "latest", four parts, or empty — must
+    be rejected up front with a clear error, not silently treated as a
+    literal baseline (see BASELINE_VERSION_RE). "--help"/"-h" are their own,
+    earlier case (see test_main_help_flag_...), not part of this check."""
+    before = sorted(p.name for p in repo.iterdir())
+    monkeypatch.setattr("sys.argv", ["set-doc-baseline.py", bogus])
+    with pytest.raises(SystemExit) as exc_info:
+        sdb.main()
+    assert exc_info.value.code == 1
+    assert "not a valid MAJOR.MINOR.PATCH version" in capsys.readouterr().out
+    assert sorted(p.name for p in repo.iterdir()) == before
+
+
+def test_main_accepts_valid_semver_baseline(sdb, monkeypatch):
+    assert sdb.BASELINE_VERSION_RE.match("4.8.2")
+    assert sdb.BASELINE_VERSION_RE.match("10.20.300")
+
+
 # --- canonical_version_cell ---
 
 def test_canonical_version_cell_arrow_form(sdb):
