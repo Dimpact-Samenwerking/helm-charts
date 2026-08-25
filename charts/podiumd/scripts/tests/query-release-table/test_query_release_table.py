@@ -339,6 +339,15 @@ def test_main_no_matches_exits_nonzero(qrt, monkeypatch, csv_path, capsys):
     assert "no rows found" in capsys.readouterr().out
 
 
+@pytest.mark.parametrize("flag", ["-h", "--help"])
+def test_main_help_flag_prints_usage_and_exits_zero(qrt, monkeypatch, csv_path, capsys, flag):
+    run_main(qrt, monkeypatch, csv_path, [flag])
+    with pytest.raises(SystemExit) as exc_info:
+        qrt.main()
+    assert exc_info.value.code == 0
+    assert capsys.readouterr().out == qrt.__doc__ + "\n"
+
+
 def test_main_invalid_column_prints_usage(qrt, monkeypatch, csv_path, capsys):
     run_main(qrt, monkeypatch, csv_path, ["bogus", "zac"])
     with pytest.raises(SystemExit) as exc_info:

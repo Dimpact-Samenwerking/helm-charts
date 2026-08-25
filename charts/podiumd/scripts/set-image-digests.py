@@ -1,50 +1,13 @@
 #!/usr/bin/env python3
 """
-Refresh stale digest pins in charts/podiumd/values.yaml.
-
-"Stale" here means the version tag (e.g. "1.31.3") is unchanged, but
-upstream re-published that tag with new base/security layers, so the
-multi-arch index digest changed. The old pinned digest is still pullable
-(it's immutable) — nothing is broken — but the deployment runs old layers
-and misses upstream patches.
-
-For each unique "<repository>:<tag>" pin found in values.yaml, fetches the
-live "Docker-Content-Digest" from the upstream registry and, if it differs
-from the pinned digest, replaces every occurrence of the old 64-hex digest
-with the new one — byte-identical otherwise (tag, quoting, comments
-untouched). A single image (e.g. nginx-unprivileged) can be pinned many
-times; all occurrences are updated together since they share the exact
-same old digest string.
-
-A tag known to slide is treated differently: its digest is EXPECTED to
-drift as upstream re-publishes the tag, so by default it's reported but
-left untouched, not rewritten. "Known to slide" means either this repo's
-own git history shows the tag has changed digest before (direct proof), or
-— only when that's inconclusive — the registry currently has a more
-specific sibling tag at the same digest (e.g. "3.14.7-slim" alongside our
-"3.14-slim", both at the same digest right now). Everything else is
-treated as a component's own release tag, which should never legitimately
-change once published — by default that's the only kind this script
-updates. Pass --all to also update sliding pins.
-
-Pins with no discoverable repository in values.yaml (no active
-"repository:" sibling key, no "# host/repo:tag" reference comment, no
-commented-out "#repository:" hint) fall back to the same component's
-vendored subchart default (the repository Helm itself merges in at render
-time when podiumd doesn't override it) — see
-lib.chart.subchart_default_repository. That fallback reads straight from
-charts/podiumd/charts/<name>-<version>.tgz, which is gitignored — on a
-checkout where nothing has vendored dependencies yet it simply won't
-exist, so this script vendors them itself (a real `helm dependency
-update`, same as verify-podiumd.py's own "Dependencies" step) the first
-time a pin actually needs one that isn't already there; if that also
-fails (helm missing, no network, ...) the affected pin(s) are reported
-unresolved and left untouched, same as if the subchart had no default
-either — never a crash.
-
-This never touches tag-only image refs that have no "@sha256:..." pin
-(e.g. an apisix default) — those aren't pinned in values.yaml at all and
-belong in the release's docs/images/images-<version>.yaml instead.
+Refresh stale digest pins in charts/podiumd/values.yaml — a pin whose
+version tag is unchanged but upstream re-published it with new
+base/security layers, so the multi-arch index digest changed. Fetches the
+live "Docker-Content-Digest" for each unique "<repository>:<tag>" pin and,
+if it differs, replaces every occurrence of the old digest with the new
+one (byte-identical otherwise). See find_stale_digests for how a
+repository is resolved for a pin, and lib.registry.is_sliding_tag for why
+some mismatches are reported but left untouched by default.
 
 Usage:
     set-image-digests.py             # fetch, compare, rewrite stale PINNED digests only
@@ -203,6 +166,9 @@ def find_stale_digests(lines, values_path):
 
 
 def main():
+    if "-h" in sys.argv[1:] or "--help" in sys.argv[1:]:
+        print(__doc__)
+        sys.exit(0)
     dry_run = "--dry-run" in sys.argv[1:]
     update_all = "--all" in sys.argv[1:]
 

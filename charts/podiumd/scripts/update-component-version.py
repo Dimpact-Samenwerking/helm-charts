@@ -3,12 +3,17 @@
 Bump a component's app image version and Helm chart version in
 charts/podiumd/Chart.yaml + values.yaml — but only after verify-component-
 version.py confirms both versions actually exist upstream. Refuses to touch
-either file if that verification fails.
+either file if that verification fails; whichever version is already at
+the requested value is left untouched (not an error).
 
-Either version (or both) may already be at the requested value — that's
-not an error: whichever one is unchanged is reported and left untouched,
-and only the file(s) that actually need a change get written. If both are
-already current, nothing is written at all.
+Also updates the docs for the current podiumd target version, if they
+exist (run set-doc-baseline.py first if not): the upgrade doc's
+"Component versions" table row and Changes section, the values-deltas
+doc, and docs/images/images-<target>.yaml — see find_baseline_docs,
+update_component_table, and images_manifest_path for exactly what gets
+rewritten vs. reported for manual review. Finally runs
+update-podiumd-readme.py so README.md's values-reference table doesn't go
+stale in the same commit.
 
 Usage:
     update-component-version.py <component> <app-version> <chart-version>
@@ -20,52 +25,8 @@ Examples:
         # if 1.12.0 is already the pinned chart version, Chart.yaml is left
         # untouched and only values.yaml's image tag is bumped
 
-Writes:
-  - charts/podiumd/Chart.yaml: the dependency's "version:" field
-  - charts/podiumd/values.yaml: the app's own image "tag:" field(s)
-    (lib.chart.COMPONENT_IMAGE_PATHS — same convention verify-component-
-    version.py uses), set to "<app-version>@sha256:<digest>".
-
-The upstream repository for each image path is read from the TARGET chart
-version's own values.yaml (pulled via helm, same as verify-component-
-version.py) rather than podiumd's own values.yaml — podiumd's override
-often leaves "repository:" unset entirely, relying on the sub-chart's
-default (e.g. openformulieren).
-
-Every other byte in both files is left untouched — only the "version:" /
-"tag:" values change, not formatting, comments, or quoting style. Refuses
-to write if a target line can't be located unambiguously.
-
 After writing, re-render the chart (verify-podiumd.py or /helm-render-all)
 to confirm before committing.
-
-Also updates the docs for the current podiumd target version (Chart.yaml's
-own "version:"), if they exist (run set-doc-baseline.py first if not):
-  - <baseline>-to-<target>-upgrade.md: the component's "Component versions"
-    table row (added if not yet mentioned, updated in place if it is) and,
-    for a brand-new mention, a "### <component> <old> → <new> ..." Changes
-    section with the usual Helm-chart/image-tag-pin bullets.
-  - <baseline>-to-<target>-values-deltas.md: a bullet describing the app/
-    chart bump, plus one line per values.yaml key that was added, removed,
-    or renamed under this component between the old and new values.yaml
-    (backtick-quoted, matching the convention verify-podiumd.py checks for).
-  - docs/images/images-<target>.yaml, if an image tag actually changed: the
-    "# <N> changes:" numbered header list (added or updated), and any
-    existing entry's version/digest/comment (updated in place). An entry
-    that doesn't exist yet is NOT invented — the correct "name:" is an ACR
-    mirror slug that can't be derived here (see docs/images/acr-mirror-
-    naming.md); the exact url/version/digest to add are printed instead.
-
-The component's display name in all of this is its values.yaml key (e.g.
-"zgw-office-addin") — not a polished label like "ZGW Office Add-in" — since
-there's no reliable source for that mapping. Rename it by hand afterward if
-you want the polished form.
-
-Finally, runs update-podiumd-readme.py: the version/tag bump above changes
-values.yaml, so README.md's helm-docs-generated values-reference table can
-go stale in the same commit if this step is skipped. Report-only if that
-fails (e.g. helm-docs not installed) — never blocks the version bump
-above, which has already happened by this point.
 """
 import re
 import subprocess
@@ -510,6 +471,9 @@ def update_images_manifest(images_path, friendly, values_key, old_app, new_app, 
 
 
 def main():
+    if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
+        print(__doc__)
+        sys.exit(0)
     if len(sys.argv) != 4:
         print(__doc__)
         sys.exit(1)

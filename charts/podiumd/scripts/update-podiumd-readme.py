@@ -46,6 +46,9 @@ def build_cmd(dry_run):
 
 
 def main():
+    if "-h" in sys.argv[1:] or "--help" in sys.argv[1:]:
+        print(__doc__)
+        sys.exit(0)
     if shutil.which("helm-docs") is None:
         print("FAIL: helm-docs is not installed (https://github.com/norwoodj/helm-docs)", file=sys.stderr)
         sys.exit(1)

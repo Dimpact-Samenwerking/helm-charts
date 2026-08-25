@@ -21,6 +21,9 @@ VALUES_PATH = SCRIPT_DIR.parents[0] / "values.yaml"
 
 
 def main():
+    if "-h" in sys.argv[1:] or "--help" in sys.argv[1:]:
+        print(__doc__)
+        sys.exit(0)
     dry_run = "--dry-run" in sys.argv[1:]
 
     data = VALUES_PATH.read_bytes()

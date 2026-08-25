@@ -309,6 +309,15 @@ def write_values(path, text):
     path.write_text(text, encoding="utf-8")
 
 
+@pytest.mark.parametrize("flag", ["-h", "--help"])
+def test_main_help_flag_prints_usage_and_exits_zero(sid, monkeypatch, capsys, flag):
+    monkeypatch.setattr("sys.argv", ["set-image-digests.py", flag])
+    with pytest.raises(SystemExit) as exc_info:
+        sid.main()
+    assert exc_info.value.code == 0
+    assert capsys.readouterr().out == sid.__doc__ + "\n"
+
+
 def test_main_dry_run_does_not_write(sid, tmp_path, monkeypatch):
     values_path = tmp_path / "values.yaml"
     original = "a:\n  image:\n    repository: org/repo\n" f'    tag: "1.0.0@sha256:{"a" * 64}"\n'

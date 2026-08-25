@@ -331,3 +331,10 @@ def test_main_no_repository_at_configured_path_fails(vcv, tmp_path, monkeypatch,
 def test_main_requires_exactly_three_arguments(vcv, monkeypatch):
     code = run_main(vcv, monkeypatch, ["zac", "5.4.3"])
     assert code == 1
+
+
+@pytest.mark.parametrize("flag", ["-h", "--help"])
+def test_main_help_flag_prints_usage_and_exits_zero(vcv, monkeypatch, capsys, flag):
+    code = run_main(vcv, monkeypatch, [flag])
+    assert code == 0
+    assert capsys.readouterr().out == vcv.__doc__ + "\n"
