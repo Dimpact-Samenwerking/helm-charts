@@ -239,11 +239,11 @@ def test_check_image_digests_reports_mismatch(vp, libimagedigests, tmp_path, mon
     out = capsys.readouterr().out
     assert "MISMATCH" in out
     assert "org/repo" in out
-    assert "line" in out.lower() or "lines" in out
+    assert "values.yaml:4" in out
     assert "set-image-digests.py" in out
 
 
-def test_check_image_digests_reports_missing_tag_as_fetch_error(vp, libimagedigests, tmp_path, monkeypatch):
+def test_check_image_digests_reports_missing_tag_as_fetch_error(vp, libimagedigests, tmp_path, monkeypatch, capsys):
     write_values(tmp_path, (
         "a:\n"
         "  image:\n"
@@ -254,6 +254,9 @@ def test_check_image_digests_reports_missing_tag_as_fetch_error(vp, libimagedige
     ok, detail = vp.check_image_digests(tmp_path)
     assert ok is False
     assert "fetch error" in detail
+    out = capsys.readouterr().out
+    assert "FETCH-ERR" in out
+    assert "values.yaml:4" in out
 
 
 def test_check_image_digests_retries_once_on_network_error_then_succeeds(vp, libimagedigests, tmp_path, monkeypatch):
@@ -330,6 +333,20 @@ def test_check_image_digests_skips_unresolved_repository(vp, libimagedigests, tm
     assert ok is True
     assert called == []
     assert "0/0 matched" in detail
+
+
+def test_check_image_digests_unresolved_line_names_the_file(vp, libimagedigests, tmp_path, monkeypatch, capsys):
+    """A bare "line N" doesn't say which file N is in — prefix with
+    values.yaml, same convention as check_duplicate_keys."""
+    write_values(tmp_path, (
+        "a:\n"
+        "  image:\n"
+        f'    tag: "1.0.0@sha256:{"a" * 64}"\n'
+    ))
+    monkeypatch.setattr(libimagedigests, "registry_tag_exists", lambda *a: (_ for _ in ()).throw(AssertionError))
+    vp.check_image_digests(tmp_path)
+    out = capsys.readouterr().out
+    assert "values.yaml:3: 1.0.0" in out
 
 
 # --- check_image_digests: subchart-default repository fallback ---
@@ -494,6 +511,7 @@ def test_check_image_digests_reports_split_style_suggestion(vp, libimagedigests,
     assert "1 style suggestion" in detail
     out = capsys.readouterr().out
     assert "split" in out.lower()
+    assert "values.yaml:5" in out
     assert 'repository: "quay.io/opstree/redis"' in out
 
 
@@ -535,6 +553,7 @@ def test_check_image_digests_unverifiable_host_does_not_fail_the_check(vp, libim
     assert "1 unverifiable" in detail
     out = capsys.readouterr().out
     assert "[UNVERIFIABLE]" in out
+    assert "values.yaml:4" in out
     assert "FETCH-ERR" not in out
 
 

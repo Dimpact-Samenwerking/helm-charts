@@ -107,6 +107,7 @@ def check_yamllint(chart_dir, extra_args):
             key_fn=lambda f: (f[1], f[2], f[3], f[4]),
             item_fn=lambda f: str(f[0]),
             label_fn=lambda k: f"[{k[1].upper():7s}] {k[0]}  {k[2]}  ({k[3]})",
+            items_label="rendered line(s)",
         )
         print()
 
@@ -119,6 +120,7 @@ def check_yamllint(chart_dir, extra_args):
             item_fn=lambda f: str(f[0]),
             label_fn=lambda k: (f"[{k[1].upper():7s}] {k[0]} ({vendor_map[chart_name_from_source(k[0])]})"
                                  f"  {k[2]}  ({k[3]})"),
+            items_label="rendered line(s)",
         )
         print()
 
