@@ -9,20 +9,24 @@ string, and so lib.image_digests' own duplicate/drift check and
 release-table.csv's image_basename resolution (both regex/text-based)
 can actually see the pin at all.
 
-One known exception: keycloak-operator's own "operator.image" field
-uses the adfinis keycloak-operator chart's own convention instead — a
-separate sibling "sha:" field the chart's own template appends onto the
-tag at render time ("repository:tag@sha256:{{ .sha }}"). Embedding
-@sha256 directly in "tag" there would produce an invalid double digest
-— see the values.yaml comment above that field. podiumd doesn't
-override "sha" there at all (inherits the vendored chart's own default,
-confirmed by hand against the live registry manifest to be correct for
-the currently-pinned tag) — the sibling "sha:" only ever gets set in
-podiumd's own values.yaml when overriding a stale default, so a
-follow-up structural check here can't tell "not set, correct default"
-apart from "not set, no default at all" without vendoring the
-sub-chart's own values.yaml (a genuinely different, heavier check than
-this one), so this path is exempted outright instead."""
+Two known exceptions:
+- keycloak-operator's own "operator.image" field uses the adfinis
+  keycloak-operator chart's own convention instead — a separate sibling
+  "sha:" field the chart's own template appends onto the tag at render
+  time ("repository:tag@sha256:{{ .sha }}"). Embedding @sha256 directly
+  in "tag" there would produce an invalid double digest — see the
+  values.yaml comment above that field. podiumd doesn't override "sha"
+  there at all (inherits the vendored chart's own default, confirmed by
+  hand against the live registry manifest to be correct for the
+  currently-pinned tag) — the sibling "sha:" only ever gets set in
+  podiumd's own values.yaml when overriding a stale default, so a
+  follow-up structural check here can't tell "not set, correct default"
+  apart from "not set, no default at all" without vendoring the
+  sub-chart's own values.yaml (a genuinely different, heavier check than
+  this one), so this path is exempted outright instead.
+- omc's own image can't be digest-pinned at all — its values.yaml
+  comment says the OMC subchart itself can't handle a digest-pinned
+  tag; the tag must contain ONLY the version."""
 import re
 
 from lib.chart import load_yaml
@@ -39,6 +43,7 @@ DIGEST_SUFFIX_RE = re.compile(r"@sha256:[0-9a-f]{64}$")
 # "tag" — see this module's docstring for why.
 EXEMPT_PATHS = {
     ("keycloak-operator", "operator"),
+    ("omc",),
 }
 
 

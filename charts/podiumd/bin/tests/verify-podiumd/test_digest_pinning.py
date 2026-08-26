@@ -76,6 +76,19 @@ keycloak-operator:
     assert detail == "1 pin(s), 0 unpinned"
 
 
+def test_omc_own_image_is_exempt(vp, tmp_path):
+    """omc's values.yaml comment says the subchart itself can't handle a
+    digest-pinned tag -- must never be flagged."""
+    write_values_yaml(tmp_path, """\
+omc:
+  image:
+    tag: "1.17.19"
+""")
+    ok, detail = vp.check_digest_pinning(tmp_path)
+    assert ok is True
+    assert detail == "1 pin(s), 0 unpinned"
+
+
 def test_keycloak_operator_exemption_does_not_hide_other_violations(vp, tmp_path):
     write_values_yaml(tmp_path, """\
 keycloak-operator:
