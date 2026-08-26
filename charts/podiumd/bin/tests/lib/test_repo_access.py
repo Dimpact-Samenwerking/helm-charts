@@ -235,7 +235,7 @@ def test_check_repo_access_dedupes_shared_repo(librepoaccess, tmp_path, monkeypa
     ok, detail = librepoaccess.check_repo_access(tmp_path)
     assert ok is True
     assert len(calls) == 1
-    assert "1 repo(s)/image(s) reachable (8 references)" in detail
+    assert "1 repo(s)/image(s) reachable (8 references, 0 denylisted, skipped)" in detail
 
 
 def test_check_repo_access_no_values_yaml_only_checks_charts(librepoaccess, tmp_path, monkeypatch):
@@ -243,7 +243,7 @@ def test_check_repo_access_no_values_yaml_only_checks_charts(librepoaccess, tmp_
     monkeypatch.setattr(librepoaccess, "_check_http_repo", lambda url: (True, None))
     ok, detail = librepoaccess.check_repo_access(tmp_path)
     assert ok is True
-    assert "1 repo(s)/image(s) reachable (1 references)" in detail
+    assert "1 repo(s)/image(s) reachable (1 references, 0 denylisted, skipped)" in detail
 
 
 def test_check_repo_access_reports_kind_file_and_line_for_chart_repo(librepoaccess, tmp_path, monkeypatch, capsys):
@@ -309,3 +309,70 @@ def test_check_repo_access_no_network_dependencies_or_images(librepoaccess, tmp_
     ok, detail = librepoaccess.check_repo_access(tmp_path)
     assert ok is True
     assert "0 repo(s)/image(s) reachable" in detail
+
+
+# --- is_denylisted_host ---
+
+def test_is_denylisted_host_matches_azurecr(librepoaccess):
+    assert librepoaccess.is_denylisted_host("acrprodmgmt.azurecr.io") is True
+    assert librepoaccess.is_denylisted_host("azurecr.io") is True
+
+
+def test_is_denylisted_host_ignores_unrelated_host(librepoaccess):
+    assert librepoaccess.is_denylisted_host("ghcr.io") is False
+    assert librepoaccess.is_denylisted_host("docker.io") is False
+
+
+# --- check_repo_access: denylist ---
+
+def test_check_repo_access_skips_denylisted_chart_repo(librepoaccess, tmp_path, monkeypatch, capsys):
+    write_chart_yaml(tmp_path, [{"name": "pabc", "version": "1.1.1",
+                                  "repository": "oci://acrprodmgmt.azurecr.io/some-namespace"}])
+
+    def fail_if_called(*a, **kw):
+        raise AssertionError("a denylisted host must never actually be checked")
+
+    monkeypatch.setattr(librepoaccess, "_check_registry_repo", fail_if_called)
+    ok, detail = librepoaccess.check_repo_access(tmp_path)
+    assert ok is True
+    assert "0 repo(s)/image(s) reachable" in detail
+    assert "1 denylisted, skipped" in detail
+    out = capsys.readouterr().out
+    assert "[SKIP ] chart" in out
+    assert "acrprodmgmt.azurecr.io is denylisted" in out
+
+
+def test_check_repo_access_skips_denylisted_image(librepoaccess, tmp_path, monkeypatch, capsys):
+    write_chart_yaml(tmp_path, [])
+    write_values(tmp_path, (
+        "pabc:\n"
+        "  image:\n"
+        "    repository: acrprodmgmt.azurecr.io/platform-autorisatie-beheer-component/pabc-api\n"
+        f'    tag: "1.1.1@sha256:{"a" * 64}"\n'
+    ))
+
+    def fail_if_called(*a, **kw):
+        raise AssertionError("a denylisted host must never actually be checked")
+
+    monkeypatch.setattr(librepoaccess, "_check_registry_repo", fail_if_called)
+    ok, detail = librepoaccess.check_repo_access(tmp_path)
+    assert ok is True
+    assert "1 denylisted, skipped" in detail
+    out = capsys.readouterr().out
+    assert "[SKIP ] image" in out
+
+
+def test_check_repo_access_denylist_does_not_shadow_unrelated_failure(librepoaccess, tmp_path, monkeypatch):
+    """A denylisted entry is skipped on its own — it must not mask a real
+    failure elsewhere in the same run."""
+    write_chart_yaml(tmp_path, [
+        {"name": "pabc", "version": "1.1.1", "repository": "oci://acrprodmgmt.azurecr.io/some-namespace"},
+        {"name": "zaakbrug", "version": "2.3.28", "repository": "https://wearefrank.github.io/charts"},
+    ])
+    monkeypatch.setattr(librepoaccess, "_check_registry_repo",
+                         lambda *a: (_ for _ in ()).throw(AssertionError("denylisted host checked")))
+    monkeypatch.setattr(librepoaccess, "_check_http_repo", lambda url: (False, "HTTP 403"))
+    ok, detail = librepoaccess.check_repo_access(tmp_path)
+    assert ok is False
+    assert "1/1 repo(s)/image(s) unreachable" in detail
+    assert "1 denylisted, skipped" in detail
