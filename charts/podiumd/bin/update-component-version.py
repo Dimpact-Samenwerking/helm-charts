@@ -15,6 +15,18 @@ rewritten vs. reported for manual review. Finally runs
 update-podiumd-readme.py so README.md's values-reference table doesn't go
 stale in the same commit.
 
+The component name and the image it bumps are not the same thing (zac's
+image is basename "zaakafhandelcomponent"; zgw-office-addin bumps two
+distinctly-named images, frontend + backend) — an image path with an
+explicit "repository:" of its own in values.yaml delegates its actual tag
+update to lib.image_version.update_image_version (see
+update-image-version.py), keyed by that path's own real basename, so an
+image shared with some unrelated component gets updated everywhere it's
+pinned. A path relying on a vendored sub-chart's own default repository
+(nothing explicit to derive a basename from — e.g. openzaak,
+openformulieren) resolves it the original way instead (pulls the target
+chart version and reads its own values.yaml default).
+
 Usage:
     update-component-version.py <component> <app-version> <chart-version>
 
@@ -41,6 +53,7 @@ from lib.chart import chart_version as _chart_version
 from lib.chart import find_dependency as _find_dependency
 from lib.chart import get_path, image_paths_for, pull_chart_values, replace_scalar_value
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
+from lib.image_version import image_basename, update_image_version
 from lib.procutil import run_script
 from lib.registry import parse_repo, registry_tag_exists
 from lib.upgradedoc import (
@@ -505,33 +518,67 @@ def main():
         print("Nothing to update — component is already at the requested versions.")
         sys.exit(0)
 
+    # A component's image basename is not always its own name (e.g.
+    # zgw-office-addin bumps two distinctly-named images, frontend +
+    # backend) — a path with an explicit "repository:" of its own in
+    # values.yaml delegates to lib.image_version's basename-based update,
+    # so an image shared with some unrelated component (e.g.
+    # curlimages/curl, used by several unrelated init containers) gets
+    # updated everywhere it's pinned, not just at this one dotted path. A
+    # path relying on a vendored sub-chart's own default repository (e.g.
+    # openzaak, openformulieren — nothing to derive a basename from) keeps
+    # the original resolve-via-sub-chart-pull behavior instead.
     new_tags_by_path = {}
+    repos = {}
     if paths_to_update:
-        print()
-        print(f"=== Resolving digests for {component} {app_version} (chart {chart_version}) ===")
-        repos = resolve_repos(dep, chart_version, paths_to_update)
+        delegated_paths, fallback_paths = [], []
         for path in paths_to_update:
-            host, repo_path = parse_repo(repos[path])
-            exists, digest = registry_tag_exists(host, repo_path, app_version)
-            if not exists or not digest:
-                print(f"error: {host}/{repo_path}:{app_version} unexpectedly missing on re-check")
-                sys.exit(1)
-            new_tags_by_path[path] = f"{app_version}@{digest}"
-            print(f"  {values_key}.{path}: {host}/{repo_path}:{app_version} -> {digest}")
+            explicit_repo = get_path(values, f"{values_key}.{path}.repository")
+            (delegated_paths if isinstance(explicit_repo, str) and explicit_repo else fallback_paths).append(path)
+
+        if delegated_paths:
+            values_lines = VALUES_YAML.read_text(encoding="utf-8").splitlines()
+            for path in delegated_paths:
+                located = locate_dotted_key_line(values_lines, f"{values_key}.{path}.tag")
+                if located is None:
+                    raise SystemExit(f"error: could not find '{values_key}.{path}.tag' in {VALUES_YAML}")
+                own_line = located[0] + 1  # 1-indexed, matches lib.image_version's line numbering
+                repos[path] = get_path(values, f"{values_key}.{path}.repository")
+                basename = image_basename(repos[path])
+                print()
+                print(f"=== Updating '{basename}' image pin(s) for {values_key}.{path} ===")
+                changes = update_image_version(VALUES_YAML, basename, app_version)
+                for c in changes:
+                    print(f"  values.yaml:{c['line']}  ({c['repository']})")
+                    print(f"    {c['old_version']}@{c['old_digest']}")
+                    print(f"    {c['new_version']}@{c['new_digest']}")
+                own_change = next(c for c in changes if c["line"] == own_line)
+                new_tags_by_path[path] = f"{own_change['new_version']}@{own_change['new_digest']}"
+
+        if fallback_paths:
+            print()
+            print(f"=== Resolving digests via sub-chart default for: {', '.join(fallback_paths)} ===")
+            repos.update(resolve_repos(dep, chart_version, fallback_paths))
+            for path in fallback_paths:
+                host, repo_path = parse_repo(repos[path])
+                exists, digest = registry_tag_exists(host, repo_path, app_version)
+                if not exists or not digest:
+                    print(f"error: {host}/{repo_path}:{app_version} unexpectedly missing on re-check")
+                    sys.exit(1)
+                new_tags_by_path[path] = f"{app_version}@{digest}"
+                print(f"  {values_key}.{path}: {host}/{repo_path}:{app_version} -> {digest}")
+            print()
+            print(f"=== Writing {VALUES_YAML} ===")
+            for dotted, old_v, new_v in update_values_yaml(values_key, fallback_paths, new_tags_by_path):
+                print(f"  {dotted}:")
+                print(f"    {old_v}")
+                print(f"    {new_v}")
 
     if not chart_unchanged:
         print()
         print(f"=== Writing {CHART_YAML} ===")
         old_v, new_v = update_chart_yaml(chart_name, chart_version)
         print(f"  {old_v}  ->  {new_v}")
-
-    if paths_to_update:
-        print()
-        print(f"=== Writing {VALUES_YAML} ===")
-        for dotted, old_v, new_v in update_values_yaml(values_key, paths_to_update, new_tags_by_path):
-            print(f"  {dotted}:")
-            print(f"    {old_v}")
-            print(f"    {new_v}")
 
     target = current_chart_version()
     friendly = values_key

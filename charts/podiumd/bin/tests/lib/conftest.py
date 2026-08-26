@@ -12,6 +12,7 @@ import lib.chart as chart
 import lib.confluence_tables as confluence_tables
 import lib.dependencies as dependencies
 import lib.gitutil as gitutil
+import lib.image_version as image_version
 import lib.procutil as procutil
 import lib.registry as registry
 import lib.repo_access as repo_access
@@ -41,6 +42,11 @@ def libdependencies():
 @pytest.fixture(scope="session")
 def librepoaccess():
     return repo_access
+
+
+@pytest.fixture(scope="session")
+def libimageversion():
+    return image_version
 
 
 @pytest.fixture(scope="session")
