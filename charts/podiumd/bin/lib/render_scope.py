@@ -146,7 +146,7 @@ FRIENDLY_VENDOR_CHART_OVERRIDES = {
 }
 
 
-def _resolve_dependency_repo(repository):
+def resolve_dependency_repo(repository):
     if repository.startswith("@"):
         return REQUIRED_REPOS.get(repository[1:], repository)
     return repository
@@ -173,7 +173,7 @@ def friendly_vendor_charts(chart_dir):
                if name in dep_chart_names}
     for dep in deps:
         chart_name = dep.get("alias", dep["name"])
-        repo = _resolve_dependency_repo(dep.get("repository", ""))
+        repo = resolve_dependency_repo(dep.get("repository", ""))
         if repo.startswith("file://"):
             mapping[chart_name] = "Local"
             continue

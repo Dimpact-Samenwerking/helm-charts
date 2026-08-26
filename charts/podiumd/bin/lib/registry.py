@@ -30,6 +30,17 @@ MANIFEST_HOSTS = {
 BEARER_CHALLENGE_PARAM_RE = re.compile(r'(\w+)="([^"]*)"')
 
 
+def _urlopen(url_or_req, timeout=None):
+    """urllib.request.urlopen, only passing timeout= when the caller asked
+    for one — every existing call site (and its tests, mocking urlopen with
+    a plain single-arg callable) keeps behaving exactly as before; a caller
+    that wants a bounded wait (e.g. lib.repo_access's fast preflight, where
+    a hung connection would defeat the whole point of "fast") passes one
+    explicitly instead of blocking forever on an unreachable host."""
+    kwargs = {"timeout": timeout} if timeout is not None else {}
+    return urllib.request.urlopen(url_or_req, **kwargs)
+
+
 def _parse_bearer_challenge(header_value):
     """Parses a `WWW-Authenticate: Bearer realm="...",service="...",
     scope="..."` challenge into {"realm": ..., "service": ..., "scope": ...}
@@ -42,7 +53,7 @@ def _parse_bearer_challenge(header_value):
     return params if "realm" in params else None
 
 
-def _get_with_dynamic_auth(url, repo, headers):
+def _get_with_dynamic_auth(url, repo, headers, timeout=None):
     """GETs url, retrying once with a bearer token if the registry demands
     one via a WWW-Authenticate challenge that TOKEN_ENDPOINTS didn't already
     anticipate — confirmed 2026-08-26 this is exactly what docker.elastic.co
@@ -52,7 +63,7 @@ def _get_with_dynamic_auth(url, repo, headers):
     carries no Bearer challenge at all (a real auth wall — see
     UNVERIFIABLE_HOSTS) or retrying still fails."""
     try:
-        return urllib.request.urlopen(urllib.request.Request(url, headers=headers))
+        return _urlopen(urllib.request.Request(url, headers=headers), timeout=timeout)
     except urllib.error.HTTPError as e:
         if e.code != 401:
             raise
@@ -62,10 +73,10 @@ def _get_with_dynamic_auth(url, repo, headers):
         query = {"scope": challenge.get("scope") or f"repository:{repo}:pull"}
         if challenge.get("service"):
             query["service"] = challenge["service"]
-        token = json.loads(urllib.request.urlopen(
-            f"{challenge['realm']}?{urllib.parse.urlencode(query)}").read())["token"]
+        token = json.loads(_urlopen(
+            f"{challenge['realm']}?{urllib.parse.urlencode(query)}", timeout=timeout).read())["token"]
         headers = {**headers, "Authorization": f"Bearer {token}"}
-        return urllib.request.urlopen(urllib.request.Request(url, headers=headers))
+        return _urlopen(urllib.request.Request(url, headers=headers), timeout=timeout)
 
 
 # Hosts that reject even an anonymous manifest read outright — not
@@ -97,19 +108,21 @@ def parse_repo(repository):
     return "docker.io", repository
 
 
-def registry_tag_exists(registry_host, repo, tag):
+def registry_tag_exists(registry_host, repo, tag, timeout=None):
     """Return (exists, digest) for <repo>:<tag> on the given registry host,
     using an anonymous pull token where the registry requires one — same
-    flow as /fetch-image-digest."""
+    flow as /fetch-image-digest. timeout (seconds) bounds every request
+    made here; omit it to wait indefinitely, same as before this param
+    existed."""
     headers = {"Accept": MANIFEST_ACCEPT}
     token_url_tmpl = TOKEN_ENDPOINTS.get(registry_host)
     if token_url_tmpl:
-        token = json.loads(urllib.request.urlopen(token_url_tmpl.format(repo=repo)).read())["token"]
+        token = json.loads(_urlopen(token_url_tmpl.format(repo=repo), timeout=timeout).read())["token"]
         headers["Authorization"] = f"Bearer {token}"
     api_host = MANIFEST_HOSTS.get(registry_host, registry_host)
     url = f"https://{api_host}/v2/{repo}/manifests/{tag}"
     try:
-        with _get_with_dynamic_auth(url, repo, headers) as resp:
+        with _get_with_dynamic_auth(url, repo, headers, timeout=timeout) as resp:
             return True, resp.headers.get("Docker-Content-Digest")
     except urllib.error.HTTPError as e:
         if e.code == 404:

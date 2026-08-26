@@ -147,6 +147,7 @@ def test_main_skips_requested_steps_and_runs_the_rest(vp, monkeypatch, capsys):
 
     monkeypatch.setattr(vp, "check_utf8_format", make_check("utf8"))
     monkeypatch.setattr(vp, "check_dependencies", make_check("deps"))
+    monkeypatch.setattr(vp, "check_repo_access", make_check("repo-access"))
     monkeypatch.setattr(vp, "check_duplicate_keys", make_check("dupe"))
     monkeypatch.setattr(vp, "check_dry", make_check("dry"))
     monkeypatch.setattr(vp, "check_image_references", make_check("image-refs"))
@@ -171,7 +172,8 @@ def test_main_skips_requested_steps_and_runs_the_rest(vp, monkeypatch, capsys):
     vp.main()  # must not raise / must not sys.exit
 
     assert ran == ["utf8", "dupe", "dry", "image-refs", "node-selector", "tgz", "docs", "helm-docs",
-                    "deps", "digests", "yamllint", "kubeconform", "shellcheck", "kube-score", "image-upgrades", "cves"]
+                    "repo-access", "deps", "digests", "yamllint", "kubeconform", "shellcheck",
+                    "kube-score", "image-upgrades", "cves"]
     out = capsys.readouterr().out
     assert "Helm lint" in out and "SKIP" in out
     assert "Full render" in out and "SKIP" in out
@@ -195,8 +197,8 @@ def test_main_skipped_step_does_not_count_as_failure(vp, monkeypatch):
 # --- prerequisites_for ---
 
 def test_prerequisites_for_render_based_check_needs_dependencies(vp):
-    assert vp.prerequisites_for("kube-score") == {"Dependencies"}
-    assert vp.prerequisites_for("Helm lint") == {"Dependencies"}
+    assert vp.prerequisites_for("kube-score") == {"Dependencies", "Repo access"}
+    assert vp.prerequisites_for("Helm lint") == {"Dependencies", "Repo access"}
 
 
 def test_prerequisites_for_image_digests_needs_dependencies(vp):
@@ -204,19 +206,26 @@ def test_prerequisites_for_image_digests_needs_dependencies(vp):
     all until "Dependencies" has populated it, which the subchart-default
     repository fallback (lib.chart.subchart_default_repository) reads
     from directly."""
-    assert vp.prerequisites_for("Image digests") == {"Dependencies"}
+    assert vp.prerequisites_for("Image digests") == {"Dependencies", "Repo access"}
 
 
 def test_prerequisites_for_cve_scan_needs_image_upgrades_too(vp):
     """CVE scan reads Image upgrades' own cache to mark a finding
     "upgradable to X" — a bare --include=check-cves must still populate
     that cache fresh, not just a full run."""
-    assert vp.prerequisites_for("CVE scan") == {"Dependencies", "Image upgrades"}
+    assert vp.prerequisites_for("CVE scan") == {"Dependencies", "Image upgrades", "Repo access"}
+
+
+def test_prerequisites_for_dependencies_needs_repo_access(vp):
+    """Not a functional data dependency like the others — just so a bare
+    --include=dependencies still gets the fast fail lib.repo_access exists
+    for, instead of only ever seeing it as part of a full run."""
+    assert vp.prerequisites_for("Dependencies") == {"Repo access"}
 
 
 def test_prerequisites_for_standalone_check_has_none(vp):
     assert vp.prerequisites_for("Image references") == set()
-    assert vp.prerequisites_for("Dependencies") == set()
+    assert vp.prerequisites_for("Repo access") == set()
     assert vp.prerequisites_for("Helm docs check") == set()
 
 
@@ -237,6 +246,7 @@ def _stub_all_checks(vp, monkeypatch, ran):
     monkeypatch.setattr(vp, "lint_args_for", lambda chart_dir: [])
     monkeypatch.setattr(vp, "check_utf8_format", make_check("utf8"))
     monkeypatch.setattr(vp, "check_dependencies", make_check("deps"))
+    monkeypatch.setattr(vp, "check_repo_access", make_check("repo-access"))
     monkeypatch.setattr(vp, "check_duplicate_keys", make_check("dupe"))
     monkeypatch.setattr(vp, "check_dry", make_check("dry"))
     monkeypatch.setattr(vp, "check_image_references", make_check("image-refs"))
@@ -265,7 +275,7 @@ def test_include_flag_runs_target_plus_its_prerequisite(vp, monkeypatch, capsys)
 
     vp.main()  # must not raise / must not sys.exit
 
-    assert ran == ["deps", "kube-score"]
+    assert ran == ["repo-access", "deps", "kube-score"]
     out = capsys.readouterr().out
     for skipped in ("UTF-8 format", "Dupe check", "DRY check", "Helm lint", "Full render", "yamllint"):
         assert skipped in out
@@ -283,7 +293,7 @@ def test_include_flag_image_digests_runs_target_plus_dependencies(vp, monkeypatc
 
     vp.main()
 
-    assert ran == ["deps", "digests"]
+    assert ran == ["repo-access", "deps", "digests"]
 
 
 def test_include_flag_standalone_step_runs_without_dependencies(vp, monkeypatch, capsys):
@@ -319,7 +329,7 @@ def test_multiple_include_flags_run_the_union_plus_each_ones_prerequisites(vp, m
 
     vp.main()
 
-    assert ran == ["deps", "shellcheck", "kube-score"]
+    assert ran == ["repo-access", "deps", "shellcheck", "kube-score"]
     out = capsys.readouterr().out
     for skipped in ("UTF-8 format", "Helm lint", "Full render", "yamllint", "CVE scan"):
         assert skipped in out
@@ -387,7 +397,7 @@ def test_include_check_cves_runs_it_plus_dependencies_and_image_upgrades(vp, mon
 
     vp.main()
 
-    assert ran == ["deps", "image-upgrades", "cves"]
+    assert ran == ["repo-access", "deps", "image-upgrades", "cves"]
 
 
 def test_skip_image_upgrades_skips_it(vp, monkeypatch, capsys):
@@ -409,7 +419,7 @@ def test_include_image_upgrades_runs_it_plus_dependencies(vp, monkeypatch):
 
     vp.main()
 
-    assert ran == ["deps", "image-upgrades"]
+    assert ran == ["repo-access", "deps", "image-upgrades"]
 
 
 def test_skip_helm_docs_check_skips_it(vp, monkeypatch, capsys):
