@@ -102,6 +102,48 @@ def test_registry_tag_exists_reraises_non_404_error(libregistry, monkeypatch):
         libregistry.registry_tag_exists("quay.io", "coreos/etcd", "v3.5.16")
 
 
+def test_registry_tag_exists_discovers_token_via_bearer_challenge(libregistry, monkeypatch):
+    """A host with no TOKEN_ENDPOINTS entry (like docker.elastic.co) that
+    still needs a token: the first attempt 401s with a WWW-Authenticate
+    challenge naming its own realm, which is then queried for a token and
+    retried — no hardcoded host-specific endpoint required."""
+    calls = []
+
+    def fake_urlopen(arg):
+        url = arg if isinstance(arg, str) else arg.full_url
+        calls.append(url)
+        if "docker-auth.elastic.co" in url:
+            return FakeResponse(body=json.dumps({"token": "elastictoken"}).encode())
+        if arg.headers.get("Authorization") == "Bearer elastictoken":
+            return FakeResponse(headers={"Docker-Content-Digest": "sha256:" + "e" * 64})
+        raise urllib.error.HTTPError(
+            url, 401, "Unauthorized",
+            {"WWW-Authenticate": 'Bearer realm="https://docker-auth.elastic.co/auth",'
+                                  'service="token-service",'
+                                  'scope="repository:integrations/crawler:pull"'},
+            BytesIO(b""),
+        )
+
+    monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
+    exists, digest = libregistry.registry_tag_exists("docker.elastic.co", "integrations/crawler", "1.0.0")
+    assert exists is True
+    assert digest == "sha256:" + "e" * 64
+    assert any("docker-auth.elastic.co" in c for c in calls)
+
+
+def test_registry_tag_exists_401_without_challenge_reraises(libregistry, monkeypatch):
+    """A 401 that isn't a Bearer challenge at all (a real auth wall — see
+    UNVERIFIABLE_HOSTS) is not something a token fetch could ever fix —
+    must propagate unchanged, not loop or crash."""
+    def fake_urlopen(req):
+        raise urllib.error.HTTPError(req.full_url, 401, "Unauthorized", {}, BytesIO(b""))
+
+    monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
+    with pytest.raises(urllib.error.HTTPError) as exc_info:
+        libregistry.registry_tag_exists("firewalled-registry.example.com", "some/repo", "1.0.0")
+    assert exc_info.value.code == 401
+
+
 # --- historical_digests_for_tag ---
 
 def git(*args, cwd):
@@ -192,6 +234,48 @@ def test_list_tags_empty_when_missing_from_response(libregistry, monkeypatch):
     monkeypatch.setattr(libregistry.urllib.request, "urlopen",
                          lambda req: FakeResponse(body=json.dumps({}).encode()))
     assert libregistry.list_tags("quay.io", "coreos/etcd") == []
+
+
+def test_list_tags_discovers_token_via_bearer_challenge(libregistry, monkeypatch):
+    def fake_urlopen(arg):
+        url = arg if isinstance(arg, str) else arg.full_url
+        if "docker-auth.elastic.co" in url:
+            return FakeResponse(body=json.dumps({"token": "elastictoken"}).encode())
+        if arg.headers.get("Authorization") == "Bearer elastictoken":
+            return FakeResponse(body=json.dumps({"tags": ["1.0.0"]}).encode())
+        raise urllib.error.HTTPError(
+            url, 401, "Unauthorized",
+            {"WWW-Authenticate": 'Bearer realm="https://docker-auth.elastic.co/auth",'
+                                  'service="token-service"'},
+            BytesIO(b""),
+        )
+
+    monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
+    assert libregistry.list_tags("docker.elastic.co", "integrations/crawler") == ["1.0.0"]
+
+
+# --- _parse_bearer_challenge ---
+
+def test_parse_bearer_challenge_extracts_all_params(libregistry):
+    header = ('Bearer realm="https://docker-auth.elastic.co/auth",'
+              'service="token-service",scope="repository:foo:pull"')
+    assert libregistry._parse_bearer_challenge(header) == {
+        "realm": "https://docker-auth.elastic.co/auth",
+        "service": "token-service",
+        "scope": "repository:foo:pull",
+    }
+
+
+def test_parse_bearer_challenge_none_for_non_bearer_scheme(libregistry):
+    assert libregistry._parse_bearer_challenge('Basic realm="foo"') is None
+
+
+def test_parse_bearer_challenge_none_for_missing_header(libregistry):
+    assert libregistry._parse_bearer_challenge(None) is None
+
+
+def test_parse_bearer_challenge_none_without_realm(libregistry):
+    assert libregistry._parse_bearer_challenge('Bearer service="token-service"') is None
 
 
 # --- _is_more_specific_tag ---
