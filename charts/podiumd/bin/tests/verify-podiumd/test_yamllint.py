@@ -54,8 +54,6 @@ def sequenced_run(yamllint_stdout, yamllint_returncode=1, rendered=RENDERED):
     def run(cmd, **kwargs):
         if cmd[0] == "yamllint":
             return SimpleNamespace(returncode=yamllint_returncode, stdout=yamllint_stdout, stderr="")
-        if "--help" in cmd:
-            return SimpleNamespace(returncode=0, stdout="", stderr="")  # no --skip-schema-validation
         return SimpleNamespace(returncode=0, stdout=rendered, stderr="")  # helm template
     return run
 
@@ -256,8 +254,6 @@ def test_check_yamllint_render_failure_fails(vp, libyamllintcheck, tmp_path, mon
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/yamllint")
 
     def run(cmd, **kwargs):
-        if "--help" in cmd:
-            return SimpleNamespace(returncode=0, stdout="", stderr="")
         return SimpleNamespace(returncode=1, stdout="", stderr="Error: broke")
 
     monkeypatch.setattr(libyamllintcheck, "run", run)

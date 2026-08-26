@@ -10,7 +10,6 @@ from lib.procutil import run
 from lib.render_scope import (
     CHART_NAME, OWN_TEMPLATES_PREFIX, build_resource_locations, chart_name_from_source,
     friendly_vendor_charts, print_grouped_findings, resource_line, split_rendered_by_source,
-    supports_skip_schema_validation,
 )
 
 # The one kube-score check this repo actually has a documented, existing
@@ -119,11 +118,7 @@ def check_kube_score(chart_dir, extra_args):
     if shutil.which("kube-score") is None:
         return False, "kube-score is not installed (see --skip-kube-score to bypass)"
 
-    template_args = list(extra_args)
-    if supports_skip_schema_validation():
-        template_args.append("--skip-schema-validation")
-
-    result = run(["helm", "template", CHART_NAME, str(chart_dir), *template_args],
+    result = run(["helm", "template", CHART_NAME, str(chart_dir), *extra_args],
                  capture_output=True, text=True)
     if result.returncode != 0:
         return False, "helm template failed to render"

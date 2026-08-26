@@ -86,12 +86,10 @@ def make_chart_dir(tmp_path, values=VALUES_YAML, chart_yaml=CHART_YAML):
 
 
 def template_run(rendered=RENDERED, returncode=0):
-    """helm template --help, then the actual helm template render — the
-    only two `run` calls this check makes; every per-image lookup goes
-    through find_newest_same_variant_tag, not `run`."""
+    """The actual helm template render — the only `run` call this check
+    makes; every per-image lookup goes through find_newest_same_variant_tag,
+    not `run`."""
     def run(cmd, **kwargs):
-        if "--help" in cmd:
-            return SimpleNamespace(returncode=0, stdout="--skip-schema-validation", stderr="")
         return SimpleNamespace(returncode=returncode, stdout=rendered, stderr="")
     return run
 

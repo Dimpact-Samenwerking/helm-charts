@@ -228,10 +228,7 @@ from lib.node_selector_check import check_node_selector
 from lib.docs_consistency import check_docs_consistency
 from lib.helm_docs_check import check_helm_docs
 from lib.vendored_tgz_check import check_vendored_tgz_extraction
-from lib.render_scope import (
-    CHART_NAME, lint_args_for, report_errors_by_subchart, report_largest_templates,
-    supports_skip_schema_validation,
-)
+from lib.render_scope import CHART_NAME, lint_args_for, report_errors_by_subchart, report_largest_templates
 from lib.yamllint_check import check_yamllint
 from lib.kubeconform_check import check_kubeconform
 from lib.shellcheck_check import check_shellcheck
@@ -355,18 +352,7 @@ def check_lint(chart_dir, extra_args):
 
 
 def check_render(chart_dir, extra_args):
-    template_args = list(extra_args)
-    if supports_skip_schema_validation():
-        template_args.append("--skip-schema-validation")
-    else:
-        print(
-            "WARNING: this helm version does not support --skip-schema-validation "
-            "(needed for the KISS sub-chart's JSON schema) — CI uses a newer helm "
-            "(azure/setup-helm@v5.0.1) where this works; consider upgrading your "
-            "local helm to match. Rendering without it, may fail on schema validation."
-        )
-
-    result = run(["helm", "template", CHART_NAME, str(chart_dir), *template_args],
+    result = run(["helm", "template", CHART_NAME, str(chart_dir), *extra_args],
                  capture_output=True, text=True)
 
     if result.returncode != 0:

@@ -153,8 +153,6 @@ def sequenced_run(own_comments, vendored_comments=None, rendered=RENDERED, sc_re
             calls["n"] += 1
             comments = own_comments if calls["n"] == 1 else (vendored_comments or [])
             return sc_result(comments, returncode=sc_returncode)
-        if "--help" in cmd:
-            return SimpleNamespace(returncode=0, stdout="", stderr="")
         return SimpleNamespace(returncode=0, stdout=rendered, stderr="")
 
     return run
@@ -262,8 +260,6 @@ def test_check_shellcheck_repeated_root_cause_is_grouped(vp, libshellcheckcheck,
                 {"level": "warning", "code": 3040, "line": 1,
                  "message": "In POSIX sh, set option pipefail is undefined."},
             ])
-        if "--help" in cmd:
-            return SimpleNamespace(returncode=0, stdout="", stderr="")
         # two own scripts with the identical shellcheck finding
         rendered = (
             "---\n"
@@ -339,8 +335,6 @@ def test_check_shellcheck_no_scripts_found_passes(vp, libshellcheckcheck, tmp_pa
     no_friendly_vendors(libshellcheckcheck, monkeypatch)
 
     def run(cmd, **kwargs):
-        if "--help" in cmd:
-            return SimpleNamespace(returncode=0, stdout="", stderr="")
         if cmd[0] == "shellcheck":
             raise AssertionError("shellcheck should never be invoked — no scripts to check")
         return SimpleNamespace(returncode=0, stdout="---\n# Source: podiumd/templates/x.yaml\nkind: ConfigMap\n", stderr="")
@@ -362,8 +356,6 @@ def test_check_shellcheck_render_failure_fails(vp, libshellcheckcheck, tmp_path,
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/shellcheck")
 
     def run(cmd, **kwargs):
-        if "--help" in cmd:
-            return SimpleNamespace(returncode=0, stdout="", stderr="")
         return SimpleNamespace(returncode=1, stdout="", stderr="Error: broke")
 
     monkeypatch.setattr(libshellcheckcheck, "run", run)
@@ -379,8 +371,6 @@ def test_check_shellcheck_unparseable_output_fails(vp, libshellcheckcheck, tmp_p
     def run(cmd, **kwargs):
         if cmd[0] == "shellcheck":
             return SimpleNamespace(returncode=1, stdout="not json", stderr="")
-        if "--help" in cmd:
-            return SimpleNamespace(returncode=0, stdout="", stderr="")
         return SimpleNamespace(returncode=0, stdout=RENDERED, stderr="")
 
     monkeypatch.setattr(libshellcheckcheck, "run", run)

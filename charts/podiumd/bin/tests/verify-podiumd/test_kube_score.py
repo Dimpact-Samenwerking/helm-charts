@@ -90,8 +90,6 @@ def sequenced_run(own_objects, vendored_objects_by_chart=None, rendered=RENDERED
             chart_calls = sorted(vendored_objects_by_chart.keys())
             chart = chart_calls[calls["n"] - 2] if calls["n"] - 2 < len(chart_calls) else None
             return ks_result(vendored_objects_by_chart.get(chart, []), returncode=ks_returncode)
-        if "--help" in cmd:
-            return SimpleNamespace(returncode=0, stdout="", stderr="")
         return SimpleNamespace(returncode=0, stdout=rendered, stderr="")
 
     return run
@@ -260,8 +258,6 @@ def test_check_kube_score_crd_only_vendored_chart_is_not_a_failure(vp, libkubesc
     def run(cmd, **kwargs):
         if cmd[0] == "kube-score":
             return SimpleNamespace(returncode=0, stdout="null", stderr="")
-        if "--help" in cmd:
-            return SimpleNamespace(returncode=0, stdout="", stderr="")
         return SimpleNamespace(returncode=0, stdout=RENDERED, stderr="")
 
     monkeypatch.setattr(libkubescorecheck, "run", run)
@@ -281,8 +277,6 @@ def test_check_kube_score_render_failure_fails(vp, libkubescorecheck, tmp_path, 
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/kube-score")
 
     def run(cmd, **kwargs):
-        if "--help" in cmd:
-            return SimpleNamespace(returncode=0, stdout="", stderr="")
         return SimpleNamespace(returncode=1, stdout="", stderr="Error: broke")
 
     monkeypatch.setattr(libkubescorecheck, "run", run)
@@ -297,8 +291,6 @@ def test_check_kube_score_unparseable_own_output_fails(vp, libkubescorecheck, tm
     def run(cmd, **kwargs):
         if cmd[0] == "kube-score":
             return SimpleNamespace(returncode=1, stdout="not json", stderr="")
-        if "--help" in cmd:
-            return SimpleNamespace(returncode=0, stdout="", stderr="")
         return SimpleNamespace(returncode=0, stdout=RENDERED, stderr="")
 
     monkeypatch.setattr(libkubescorecheck, "run", run)
@@ -318,8 +310,6 @@ def test_check_kube_score_unparseable_vendored_output_fails(vp, libkubescorechec
             if calls["n"] == 1:
                 return ks_result([])
             return SimpleNamespace(returncode=1, stdout="not json", stderr="")
-        if "--help" in cmd:
-            return SimpleNamespace(returncode=0, stdout="", stderr="")
         return SimpleNamespace(returncode=0, stdout=RENDERED, stderr="")
 
     monkeypatch.setattr(libkubescorecheck, "run", run)

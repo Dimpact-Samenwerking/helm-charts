@@ -53,15 +53,11 @@ from lib.image_upgrade_cache import (
 )
 from lib.procutil import run
 from lib.registry import find_newest_same_variant_tag, parse_repo
-from lib.render_scope import CHART_NAME, friendly_vendor_charts, supports_skip_schema_validation
+from lib.render_scope import CHART_NAME, friendly_vendor_charts
 
 
 def check_image_upgrades(chart_dir, extra_args):
-    template_args = list(extra_args)
-    if supports_skip_schema_validation():
-        template_args.append("--skip-schema-validation")
-
-    result = run(["helm", "template", CHART_NAME, str(chart_dir), *template_args],
+    result = run(["helm", "template", CHART_NAME, str(chart_dir), *extra_args],
                  capture_output=True, text=True)
     if result.returncode != 0:
         return False, "helm template failed to render"

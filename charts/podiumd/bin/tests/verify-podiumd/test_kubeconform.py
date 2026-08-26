@@ -59,8 +59,6 @@ def sequenced_run(own_resources, vendored_resources_by_chart=None, rendered=REND
             chart = chart_calls[calls["n"] - 2] if calls["n"] - 2 < len(chart_calls) else None
             resources = vendored_resources_by_chart.get(chart, [])
             return kc_result(resources, returncode=kc_returncode)
-        if "--help" in cmd:
-            return SimpleNamespace(returncode=0, stdout="", stderr="")
         return SimpleNamespace(returncode=0, stdout=rendered, stderr="")
 
     return run
@@ -273,8 +271,6 @@ def test_check_kubeconform_render_failure_fails(vp, libkubeconformcheck, tmp_pat
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/kubeconform")
 
     def run(cmd, **kwargs):
-        if "--help" in cmd:
-            return SimpleNamespace(returncode=0, stdout="", stderr="")
         return SimpleNamespace(returncode=1, stdout="", stderr="Error: broke")
 
     monkeypatch.setattr(libkubeconformcheck, "run", run)
@@ -290,8 +286,6 @@ def test_check_kubeconform_unparseable_own_output_fails(vp, libkubeconformcheck,
     def run(cmd, **kwargs):
         if cmd[0] == "kubeconform":
             return SimpleNamespace(returncode=1, stdout="not json", stderr="")
-        if "--help" in cmd:
-            return SimpleNamespace(returncode=0, stdout="", stderr="")
         return SimpleNamespace(returncode=0, stdout=RENDERED, stderr="")
 
     monkeypatch.setattr(libkubeconformcheck, "run", run)
@@ -314,8 +308,6 @@ def test_check_kubeconform_unparseable_vendored_output_fails(vp, libkubeconformc
             if calls["n"] == 1:
                 return kc_result([])
             return SimpleNamespace(returncode=1, stdout="not json", stderr="")
-        if "--help" in cmd:
-            return SimpleNamespace(returncode=0, stdout="", stderr="")
         return SimpleNamespace(returncode=0, stdout=RENDERED, stderr="")
 
     monkeypatch.setattr(libkubeconformcheck, "run", run)
