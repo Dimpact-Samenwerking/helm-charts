@@ -1083,12 +1083,12 @@ PodiumD Helm chart
 | openzaak.worker.resources.requests.memory | string | `"1Gi"` |  |
 | pabc.enabled | bool | `true` |  |
 | pabc.fullnameOverride | string | `"pabc"` |  |
-| pabc.image.repository | string | `"acrprodmgmt.azurecr.io/platform-autorisatie-beheer-component/pabc-api"` |  |
+| pabc.image.repository | string | `"ghcr.io/platform-autorisatie-beheer-component/pabc-api"` |  |
 | pabc.image.tag | string | `"1.1.1@sha256:09a902e43f6cdb214afc369d04005c7b6108fd24b15709f1debbcfb1b446ef42"` |  |
 | pabc.initContainers.waitFor.image.pullPolicy | string | `"IfNotPresent"` |  |
-| pabc.initContainers.waitFor.image.repository | string | `"acrprodmgmt.azurecr.io/groundnuty/k8s-wait-for"` |  |
+| pabc.initContainers.waitFor.image.repository | string | `"ghcr.io/groundnuty/k8s-wait-for"` |  |
 | pabc.initContainers.waitFor.image.tag | string | `"v2.0"` |  |
-| pabc.migrations.image.repository | string | `"acrprodmgmt.azurecr.io/platform-autorisatie-beheer-component/pabc-migrations"` |  |
+| pabc.migrations.image.repository | string | `"ghcr.io/platform-autorisatie-beheer-component/pabc-migrations"` |  |
 | pabc.migrations.image.tag | string | `"1.1.1@sha256:a3841a2eb78cddd34ebb0de1bfede1db1ae9713921c0d77e4366baceffa86e05"` |  |
 | pabc.migrations.nodeSelector | object | `{}` |  |
 | pabc.nodeSelector | object | `{}` |  |
