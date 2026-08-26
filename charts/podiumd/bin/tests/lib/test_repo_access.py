@@ -235,7 +235,7 @@ def test_check_repo_access_dedupes_shared_repo(librepoaccess, tmp_path, monkeypa
     ok, detail = librepoaccess.check_repo_access(tmp_path)
     assert ok is True
     assert len(calls) == 1
-    assert "1 repo(s)/image(s) reachable (8 references, 0 denylisted, skipped)" in detail
+    assert "1 repo(s)/image(s) reachable (8 references)" in detail
 
 
 def test_check_repo_access_no_values_yaml_only_checks_charts(librepoaccess, tmp_path, monkeypatch):
@@ -243,7 +243,7 @@ def test_check_repo_access_no_values_yaml_only_checks_charts(librepoaccess, tmp_
     monkeypatch.setattr(librepoaccess, "_check_http_repo", lambda url: (True, None))
     ok, detail = librepoaccess.check_repo_access(tmp_path)
     assert ok is True
-    assert "1 repo(s)/image(s) reachable (1 references, 0 denylisted, skipped)" in detail
+    assert "1 repo(s)/image(s) reachable (1 references)" in detail
 
 
 def test_check_repo_access_reports_kind_file_and_line_for_chart_repo(librepoaccess, tmp_path, monkeypatch, capsys):
@@ -325,7 +325,7 @@ def test_is_denylisted_host_ignores_unrelated_host(librepoaccess):
 
 # --- check_repo_access: denylist ---
 
-def test_check_repo_access_skips_denylisted_chart_repo(librepoaccess, tmp_path, monkeypatch, capsys):
+def test_check_repo_access_fails_on_denylisted_chart_repo(librepoaccess, tmp_path, monkeypatch, capsys):
     write_chart_yaml(tmp_path, [{"name": "pabc", "version": "1.1.1",
                                   "repository": "oci://acrprodmgmt.azurecr.io/some-namespace"}])
 
@@ -334,15 +334,15 @@ def test_check_repo_access_skips_denylisted_chart_repo(librepoaccess, tmp_path, 
 
     monkeypatch.setattr(librepoaccess, "_check_registry_repo", fail_if_called)
     ok, detail = librepoaccess.check_repo_access(tmp_path)
-    assert ok is True
-    assert "0 repo(s)/image(s) reachable" in detail
-    assert "1 denylisted, skipped" in detail
+    assert ok is False
+    assert "1 repo(s)/image(s) may not be used (denylisted host)" in detail
+    assert "acrprodmgmt.azurecr.io" in detail
     out = capsys.readouterr().out
-    assert "[SKIP ] chart" in out
-    assert "acrprodmgmt.azurecr.io is denylisted" in out
+    assert "[DENIED] chart" in out
+    assert "acrprodmgmt.azurecr.io may not be used" in out
 
 
-def test_check_repo_access_skips_denylisted_image(librepoaccess, tmp_path, monkeypatch, capsys):
+def test_check_repo_access_fails_on_denylisted_image(librepoaccess, tmp_path, monkeypatch, capsys):
     write_chart_yaml(tmp_path, [])
     write_values(tmp_path, (
         "pabc:\n"
@@ -356,15 +356,16 @@ def test_check_repo_access_skips_denylisted_image(librepoaccess, tmp_path, monke
 
     monkeypatch.setattr(librepoaccess, "_check_registry_repo", fail_if_called)
     ok, detail = librepoaccess.check_repo_access(tmp_path)
-    assert ok is True
-    assert "1 denylisted, skipped" in detail
+    assert ok is False
+    assert "1 repo(s)/image(s) may not be used (denylisted host)" in detail
     out = capsys.readouterr().out
-    assert "[SKIP ] image" in out
+    assert "[DENIED] image" in out
 
 
-def test_check_repo_access_denylist_does_not_shadow_unrelated_failure(librepoaccess, tmp_path, monkeypatch):
-    """A denylisted entry is skipped on its own — it must not mask a real
-    failure elsewhere in the same run."""
+def test_check_repo_access_denylist_failure_combines_with_unrelated_failure(librepoaccess, tmp_path, monkeypatch):
+    """A denylisted entry fails on its own terms — it must not mask (or be
+    masked by) a real reachability failure elsewhere in the same run; both
+    show up in the detail."""
     write_chart_yaml(tmp_path, [
         {"name": "pabc", "version": "1.1.1", "repository": "oci://acrprodmgmt.azurecr.io/some-namespace"},
         {"name": "zaakbrug", "version": "2.3.28", "repository": "https://wearefrank.github.io/charts"},
@@ -375,4 +376,4 @@ def test_check_repo_access_denylist_does_not_shadow_unrelated_failure(librepoacc
     ok, detail = librepoaccess.check_repo_access(tmp_path)
     assert ok is False
     assert "1/1 repo(s)/image(s) unreachable" in detail
-    assert "1 denylisted, skipped" in detail
+    assert "1 repo(s)/image(s) may not be used (denylisted host)" in detail
