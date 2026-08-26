@@ -19,13 +19,15 @@ from lib.render_scope import resolve_dependency_repo
 
 TIMEOUT_SECONDS = 10
 
-# Hosts this environment can never reach directly, regardless of whether
-# the chart/image itself is actually fine — an IP-firewalled ACR host, for
-# instance, always fails from here (same reasoning as lib.registry.
-# UNVERIFIABLE_HOSTS). Denylisted so this fast preflight doesn't report a
-# false failure for something it can never meaningfully test — matches
-# any hostname ending with the suffix, e.g. "azurecr.io" also matches
-# "acrprodmgmt.azurecr.io".
+# Hosts a Chart.yaml dependency or values.yaml image is never allowed to
+# reference directly, regardless of whether that host would actually be
+# reachable — an internal/private registry (an env-specific ACR mirror,
+# say) is an environment concern that belongs in each gemeente's own
+# podiumd.yml override, not this chart's own tracked default (confirmed by
+# hand 2026-08-26: PABC's chart default used to hardcode
+# acrprodmgmt.azurecr.io directly and was reverted to the public ghcr.io
+# upstream for exactly this reason). Matches any hostname ending with the
+# suffix, e.g. "azurecr.io" also matches "acrprodmgmt.azurecr.io".
 DENYLISTED_HOST_SUFFIXES = ("azurecr.io",)
 
 
@@ -152,10 +154,13 @@ def check_repo_access(chart_dir):
     finding is printed with its kind ("chart"/"image"), endpoint, and
     source location (Chart.yaml:<line> or values.yaml:<line>[,<line>...]).
 
-    An entry whose host matches DENYLISTED_HOST_SUFFIXES is skipped
-    outright — never even attempted — and never counted as a failure,
-    same treatment as lib.registry.UNVERIFIABLE_HOSTS gets in "Image
-    digests"."""
+    An entry whose host matches DENYLISTED_HOST_SUFFIXES FAILS outright —
+    the actual reachability check isn't even attempted, since the finding
+    isn't "can this environment reach it right now" but "this chart must
+    not reference this registry directly at all", a stronger and
+    unconditional claim unrelated to lib.registry.UNVERIFIABLE_HOSTS
+    (which excuses a real reachability problem in "Image digests" rather
+    than rejecting the reference itself)."""
     chart_deps = dependency_repos(chart_dir)
     values_path = chart_dir / "values.yaml"
     img_targets = image_repos(values_path) if values_path.is_file() else []
@@ -189,13 +194,15 @@ def check_repo_access(chart_dir):
           f"for {total_refs} network-resolved reference(s)...")
 
     failures = []
-    denylisted = []
+    denied = []
     for kind, description, test_kind, target in entries:
         host = _host_of(test_kind, target)
         if is_denylisted_host(host):
-            denylisted.append((kind, description))
-            print(f"  [SKIP ] {kind:5}  {description}  — {host} is denylisted "
-                  f"(known unreachable from this environment, see DENYLISTED_HOST_SUFFIXES)")
+            denied.append((kind, description, host))
+            print(f"  [DENIED] {kind:5}  {description}  — {host} may not be used: this chart's own "
+                  f"tracked defaults must not reference this registry directly (see "
+                  f"DENYLISTED_HOST_SUFFIXES) — an environment-specific mirror override belongs in "
+                  f"that environment's own podiumd.yml, not here")
             continue
         ok, error = _check_http_repo(target) if test_kind == "http" else _check_registry_repo(*target)
         print(f"  [{'OK' if ok else 'FAIL'}] {kind:5}  {description}"
@@ -203,9 +210,14 @@ def check_repo_access(chart_dir):
         if not ok:
             failures.append((kind, description, error))
 
-    checked = len(entries) - len(denylisted)
-    if failures:
-        detail = "; ".join(f"{kind} {description}: {error}" for kind, description, error in failures)
-        return False, (f"{len(failures)}/{checked} repo(s)/image(s) unreachable or unauthorized "
-                        f"({len(denylisted)} denylisted, skipped) — {detail}")
-    return True, f"{checked} repo(s)/image(s) reachable ({total_refs} references, {len(denylisted)} denylisted, skipped)"
+    checked = len(entries) - len(denied)
+    if failures or denied:
+        parts = []
+        if failures:
+            parts.append(f"{len(failures)}/{checked} repo(s)/image(s) unreachable or unauthorized — "
+                          + "; ".join(f"{kind} {description}: {error}" for kind, description, error in failures))
+        if denied:
+            parts.append(f"{len(denied)} repo(s)/image(s) may not be used (denylisted host) — "
+                          + "; ".join(f"{kind} {description} ({host})" for kind, description, host in denied))
+        return False, " | ".join(parts)
+    return True, f"{checked} repo(s)/image(s) reachable ({total_refs} references)"
