@@ -92,7 +92,7 @@ PodiumD Helm chart
 | clamav.image.tag | string | `"1.5.4"` |  |
 | clamav.metrics.enabled | bool | `false` |  |
 | clamav.metrics.image.repository | string | `"docker.io/sergeymakinen/clamav_exporter"` |  |
-| clamav.metrics.image.tag | string | `"v2.1.8"` |  |
+| clamav.metrics.image.tag | string | `"v2.1.8@sha256:ac0e23e6b718f265f67de68d9fccbb8e9baccedeba19658fd78dd8a606508e24"` |  |
 | clamav.metrics.serviceMonitor.enabled | bool | `false` |  |
 | clamav.nameOverride | string | `"clamav"` |  |
 | clamav.persistentVolume.enabled | bool | `true` |  |
