@@ -10,7 +10,7 @@ currently-pinned tag has drifted.
 
 Slowest step in the pipeline by far — scanning every unique pinned image
 pulls each one via Docker — but runs by default like every other step
-(see --skip=check-cves/--include=check-cves in verify-podiumd.py). Never
+(see --skip=cve-scan/--include=cve-scan in verify-podiumd.py). Never
 fails the check regardless of severity found — a HIGH/CRITICAL CVE with a
 fix available is a triage decision for a human (is the fix actually
 reachable here, is the severity exploitable in this deployment, ...), not
@@ -44,7 +44,7 @@ triggering a registry call of this module's own. Whether the newer tag
 actually fixes anything is a separate question this module can't answer.
 "CVE scan" lists "Image upgrades" as a STEP_PREREQUISITES entry in
 verify-podiumd.py specifically so this cache is always freshly populated
-first — a bare --include=check-cves still gets it, not just a full run.
+first — a bare --include=cve-scan still gets it, not just a full run.
 Ownership is
 determined primarily from the `helm template` render (same authoritative
 "# Source:" attribution the other checks use — this also correctly
@@ -67,7 +67,7 @@ charts/podiumd/cve-scan-cache.json — deliberately tracked chart content,
 NOT gitignored, so the cache travels with whatever branch/checkout
 someone is on and other contributors (and CI) don't re-pull-and-rescan an
 image someone else already scanned on that same branch. Commit it after
-a --check-cves run if it changed. Keyed on digest, not version, so a
+a cve-scan run if it changed. Keyed on digest, not version, so a
 sliding tag republished under the same version string still invalidates
 correctly. Capped by CVE_CACHE_TTL_DAYS even for an unchanged digest — the
 image content never changes, but trivy's own vulnerability DB does, so a
