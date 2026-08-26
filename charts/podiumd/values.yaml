@@ -1118,7 +1118,8 @@ objecten:
     volumeAttributeShareName: objecten
     storageClassName: podiumd-standard
   image:
-    tag: "3.6.2"
+    repository: maykinmedia/objects-api
+    tag: "3.6.2@sha256:6a3a40081016e5072c5355622c0ca3e1ded89228edce7336fc4d8600217344f8"
   resources:
     requests:
       cpu: 100m
@@ -1595,7 +1596,8 @@ openklant:
     volumeAttributeShareName: openklant
     storageClassName: podiumd-standard
   image:
-    tag: "2.15.0"
+    repository: maykinmedia/open-klant
+    tag: "2.15.0@sha256:ce59a2c60dab1c14e62fe34a99511839390dd2d482983c27334241e0d60c693d"
   resources:
     requests:
       cpu: 100m
@@ -3151,7 +3153,8 @@ clamav:
   # and ServiceMonitor (metrics.serviceMonitor.enabled: true). Supported since clamav chart v3.7.1.
   # serviceMonitor requires the Prometheus Operator CRD (monitoring.coreos.com/v1 ServiceMonitor).
   image:
-    tag: "1.5.4"
+    repository: clamav/clamav
+    tag: "1.5.4@sha256:0e85467cb0d6e7d860a45035707741cd5ffc032ffefc6002a3510c75b6d07027"
   metrics:
     enabled: false
     image:
@@ -3791,7 +3794,9 @@ zaakbrug:
   staging:
     enabled: false
   image:
-    tag: "1.26.15"
+    registry: wearefrank
+    repository: zaakbrug
+    tag: "1.26.15@sha256:101d1319ea5706289ce8f22c7f012a12b8378770bb2a5ebf761d72fa46c5ca97"
   # K8s cgroup limits sized for the Frank!Framework JVM heap (subchart
   # default Xms=Xmx=4G via .Values.frank.memory.{minimum,maximum}).
   # Overhead ≈1Gi headroom for non-heap (metaspace, code cache, direct

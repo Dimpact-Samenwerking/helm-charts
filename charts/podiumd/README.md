@@ -89,7 +89,8 @@ PodiumD Helm chart
 | clamav.extraVolumeMounts[0].name | string | `"clamav-data"` |  |
 | clamav.freshclamConfig | string | `"###############\n# General\n###############\n\nDatabaseDirectory /var/lib/clamav\nPidFile /tmp/freshclam.pid\n# CUSTOM: Set defined user\nDatabaseOwner 2000\n\n###############\n# Updates\n###############\n\nDatabaseMirror database.clamav.net\nScriptedUpdates yes\nNotifyClamd /etc/clamav/clamd.conf\nBytecode yes\n"` |  |
 | clamav.fullnameOverride | string | `"clamav"` |  |
-| clamav.image.tag | string | `"1.5.4"` |  |
+| clamav.image.repository | string | `"clamav/clamav"` |  |
+| clamav.image.tag | string | `"1.5.4@sha256:0e85467cb0d6e7d860a45035707741cd5ffc032ffefc6002a3510c75b6d07027"` |  |
 | clamav.metrics.enabled | bool | `false` |  |
 | clamav.metrics.image.repository | string | `"docker.io/sergeymakinen/clamav_exporter"` |  |
 | clamav.metrics.image.tag | string | `"v2.1.8@sha256:ac0e23e6b718f265f67de68d9fccbb8e9baccedeba19658fd78dd8a606508e24"` |  |
@@ -552,7 +553,8 @@ PodiumD Helm chart
 | objecten.configuration.secrets.keycloak_client_secret | string | `""` |  |
 | objecten.flower.enabled | bool | `false` |  |
 | objecten.fullnameOverride | string | `"objecten"` |  |
-| objecten.image.tag | string | `"3.6.2"` |  |
+| objecten.image.repository | string | `"maykinmedia/objects-api"` |  |
+| objecten.image.tag | string | `"3.6.2@sha256:6a3a40081016e5072c5355622c0ca3e1ded89228edce7336fc4d8600217344f8"` |  |
 | objecten.nameOverride | string | `"objecten"` |  |
 | objecten.otel.disabled | bool | `true` |  |
 | objecten.persistence.existingClaim | string | `"objecten"` |  |
@@ -940,7 +942,8 @@ PodiumD Helm chart
 | openklant.configuration.pkceEnabled | bool | `false` | Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data. |
 | openklant.configuration.secrets.keycloak_client_secret | string | `""` |  |
 | openklant.fullnameOverride | string | `"openklant"` |  |
-| openklant.image.tag | string | `"2.15.0"` |  |
+| openklant.image.repository | string | `"maykinmedia/open-klant"` |  |
+| openklant.image.tag | string | `"2.15.0@sha256:ce59a2c60dab1c14e62fe34a99511839390dd2d482983c27334241e0d60c693d"` |  |
 | openklant.nameOverride | string | `"openklant"` |  |
 | openklant.nginx.image.pullPolicy | string | `"IfNotPresent"` |  |
 | openklant.nginx.image.repository | string | `"nginxinc/nginx-unprivileged"` |  |
@@ -1182,7 +1185,7 @@ PodiumD Helm chart
 | serviceAccount.name | string | `""` |  |
 | tags."eck-operator.enabled" | bool | `false` |  |
 | tags.redis | bool | `false` |  |
-| zaakbrug | object | `{"enabled":false,"frank":{"zakenApi":{"jwt":{"password":"","username":"zaakbrug"}}},"image":{"tag":"1.26.15"},"oauthRoleMapping":{"IbisAdmin":"administrators","IbisDataAdmin":"dataadmin","IbisTester":"zaakbrug_admin"},"resources":{"limits":{"cpu":"2","memory":"6Gi"},"requests":{"cpu":"250m","memory":"5Gi"}},"staging":{"enabled":false}}` | --------------------------------------------------------------------------- |
+| zaakbrug | object | `{"enabled":false,"frank":{"zakenApi":{"jwt":{"password":"","username":"zaakbrug"}}},"image":{"registry":"wearefrank","repository":"zaakbrug","tag":"1.26.15@sha256:101d1319ea5706289ce8f22c7f012a12b8378770bb2a5ebf761d72fa46c5ca97"},"oauthRoleMapping":{"IbisAdmin":"administrators","IbisDataAdmin":"dataadmin","IbisTester":"zaakbrug_admin"},"resources":{"limits":{"cpu":"2","memory":"6Gi"},"requests":{"cpu":"250m","memory":"5Gi"}},"staging":{"enabled":false}}` | --------------------------------------------------------------------------- |
 | zaakbrug.frank | object | `{"zakenApi":{"jwt":{"password":"","username":"zaakbrug"}}}` | ------------------------------------------------------------------------- |
 | zaakbrug.oauthRoleMapping | object | `{"IbisAdmin":"administrators","IbisDataAdmin":"dataadmin","IbisTester":"zaakbrug_admin"}` | ------------------------------------------------------------------------- |
 | zac.auth.clientId | string | `"zac"` |  |
