@@ -978,6 +978,39 @@ def test_resolve_image_basenames_unknown_component_is_blank(ecrt, tmp_path):
     assert ecrt.resolve_image_basenames(rows, tmp_path) == [""]
 
 
+def test_resolve_image_basenames_finds_image_under_a_related_orphan_key(ecrt, tmp_path):
+    """keycloak-operator's real app image lives under the separate
+    "keycloak" values.yaml block (podiumd's own Keycloak instance
+    config), not under "keycloak-operator" itself — an orphan key that
+    itself relates to the dependency (see _extra_scope_keys_by_component)
+    must be scanned too, not just the dependency's own top-level key."""
+    write_chart_yaml_with_dependencies(tmp_path, [("keycloak-operator", None)])
+    write_values_yaml_raw(tmp_path, f"""\
+keycloak-operator:
+  jobs:
+    ensurePodiumdAdminUser:
+      initImage:
+        repository: python
+        tag: "3.14.7-slim@sha256:{DIGEST_A}"
+keycloak:
+  image:
+    repository: quay.io/keycloak/keycloak
+    tag: "26.7.2@sha256:{DIGEST_B}"
+""")
+    rows = [
+        ["Overige", "", "", "Keycloak", "keycloak-operator", "", "1", "1", "1", "1"],
+        ["Technische", "", "keycloak-operator", "Python", "keycloak-operator", "", "1", "1", "1", "1"],
+    ]
+    assert ecrt.resolve_image_basenames(rows, tmp_path) == ["keycloak", "python"]
+
+
+def test_extra_scope_keys_by_component_ignores_multiple_and_unrelated_orphan_keys(ecrt, tmp_path):
+    write_chart_yaml_with_dependencies(tmp_path, [("keycloak-operator", None), ("frankgateway", None)])
+    write_values_yaml_raw(tmp_path, "keycloak: {}\nunrelated: {}\n")
+    extra = ecrt._extra_scope_keys_by_component(tmp_path)
+    assert extra == {"keycloak-operator": ["keycloak"]}
+
+
 def test_extract_release_rows_end_to_end_populates_image_basename(ecrt, tmp_path):
     """extract_release_rows itself, not just resolve_image_basenames in
     isolation, must insert the resolved basename at the right column."""

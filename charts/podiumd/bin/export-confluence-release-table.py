@@ -391,6 +391,29 @@ def basenames_under_scope(lines, scope_key):
     return result
 
 
+def _extra_scope_keys_by_component(chart_dir):
+    """{dependency_name: [orphan_key, ...]} for every orphan values.yaml
+    key (see orphan_values_yaml_keys) that itself relates to exactly one
+    real Chart.yaml dependency — e.g. orphan key "keycloak" (podiumd's
+    own Keycloak instance config, values.yaml's separate top-level block
+    from "keycloak-operator") relates to dependency "keycloak-operator"
+    the exact same way component_and_alias would resolve it from row
+    text, so that dependency's own image scan must ALSO look under
+    "keycloak" — its actual app image (keycloak.image.tag) lives there,
+    not under keycloak-operator's own key at all. Only ever ADDS a scope
+    on top of a dependency's own key, mirroring component_and_alias's
+    own real-dependency-first priority; an orphan key relating to more
+    than one dependency (MULTIPLE) or none at all contributes nothing."""
+    dependencies = chart_dependencies(chart_dir)
+    orphan_keys = orphan_values_yaml_keys(chart_dir, dependencies)
+    extra = {}
+    for key, _ in orphan_keys:
+        resolved = _resolve_against(name_candidates(key), dependencies)
+        if resolved and resolved[0] != "MULTIPLE":
+            extra.setdefault(resolved[0], []).append(key)
+    return extra
+
+
 def resolve_image_basenames(rows, chart_dir):
     """A comma-joined image_basename string per row in `rows` (same
     order, same shape as extract_release_rows' own output — [section,
@@ -404,6 +427,15 @@ def resolve_image_basenames(rows, chart_dir):
     ("python"), and keys mix kebab-case/camelCase inconsistently, while
     the actual repository basename is exactly the thing a human-curated
     name is written to describe.
+
+    A component's scope isn't only its own top-level values.yaml key —
+    it also includes any orphan key that itself resolves to that same
+    dependency (see _extra_scope_keys_by_component), since a
+    component's actual image sometimes lives under a values.yaml block
+    that predates/sits outside the Chart.yaml dependency that now
+    manages it (e.g. keycloak-operator's own "Keycloak" row resolves its
+    image under the separate "keycloak" block, not "keycloak-operator"
+    itself).
 
     Every "used_by"-tagged row for one component claims its own
     unambiguous basename first; whatever is left unclaimed under that
@@ -425,6 +457,7 @@ def resolve_image_basenames(rows, chart_dir):
     global_images = (values.get("global") or {}).get("images") or {}
 
     result = [""] * len(rows)
+    extra_scopes = _extra_scope_keys_by_component(chart_dir)
 
     by_component = {}
     for i, row in enumerate(rows):
@@ -434,8 +467,11 @@ def resolve_image_basenames(rows, chart_dir):
         by_component.setdefault(component, {"alias": alias, "indices": []})["indices"].append(i)
 
     for component, info in by_component.items():
-        scope_key = info["alias"] or component
-        available = basenames_under_scope(lines, scope_key)
+        scope_keys = [info["alias"] or component] + extra_scopes.get(component, [])
+        available = {}
+        for scope_key in scope_keys:
+            for basename, pins in basenames_under_scope(lines, scope_key).items():
+                available.setdefault(basename, []).extend(pins)
 
         sub_indices = [i for i in info["indices"] if rows[i][2]]
         primary_indices = [i for i in info["indices"] if not rows[i][2]]
