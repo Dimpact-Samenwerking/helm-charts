@@ -173,9 +173,9 @@ Usage:
         # dupe-check, dry-check, image-references, node-selector,
         # vendored-tgz, docs-consistency, helm-docs-check, repo-access,
         # dependencies, image-digests, helm-lint, full-render, yamllint,
-        # kubeconform, shellcheck, kube-score, image-upgrades, check-cves.
+        # kubeconform, shellcheck, kube-score, image-upgrades, cve-scan.
         # See --help for the full list.
-        # Note: check-cves is the one most worth skipping day to day if you
+        # Note: cve-scan is the one most worth skipping day to day if you
         # just want a normal run WITHOUT pulling every image via Docker —
         # step 19 runs by default like every other step (no separate
         # opt-in flag).
@@ -404,7 +404,7 @@ SKIPPABLE_STEPS = [
     ("shellcheck", "shellcheck"),
     ("kube-score", "kube-score"),
     ("image-upgrades", "Image upgrades"),
-    ("check-cves", "CVE scan"),
+    ("cve-scan", "CVE scan"),
 ]
 
 # step name -> the step(s) it needs to have actually run first, for
@@ -421,7 +421,7 @@ SKIPPABLE_STEPS = [
 # actually run once. "CVE scan" additionally needs "Image upgrades" to
 # have actually run: it reads that step's cache (read-only, see
 # lib.cve_check) to annotate a finding "upgradable to X", and a
-# --include=check-cves run with no fresh cache already on disk would
+# --include=cve-scan run with no fresh cache already on disk would
 # otherwise never see one populated. "Dependencies" itself needs "Repo
 # access" — not a functional data dependency like the others here, just
 # so a lone --include=dependencies run still gets the fast fail lib.repo_

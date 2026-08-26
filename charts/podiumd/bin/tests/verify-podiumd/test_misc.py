@@ -211,7 +211,7 @@ def test_prerequisites_for_image_digests_needs_dependencies(vp):
 
 def test_prerequisites_for_cve_scan_needs_image_upgrades_too(vp):
     """CVE scan reads Image upgrades' own cache to mark a finding
-    "upgradable to X" — a bare --include=check-cves must still populate
+    "upgradable to X" — a bare --include=cve-scan must still populate
     that cache fresh, not just a full run."""
     assert vp.prerequisites_for("CVE scan") == {"Dependencies", "Image upgrades", "Repo access"}
 
@@ -354,7 +354,7 @@ def test_multiple_include_flags_each_standalone_step_included_independently(vp, 
 def test_check_cves_no_longer_has_its_own_flag(vp, monkeypatch, capsys):
     """CVE scan used to be gated by a bespoke --check-cves opt-in flag,
     disconnected from --skip=/--include=. It's now just another entry in
-    SKIPPABLE_STEPS (selectable via --skip=check-cves/--include=check-cves), so that
+    SKIPPABLE_STEPS (selectable via --skip=cve-scan/--include=cve-scan), so that
     separate flag must be gone — argparse rejects it as unrecognized."""
     monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--check-cves"])
     with pytest.raises(SystemExit) as exc_info:
@@ -375,8 +375,8 @@ def test_cve_scan_runs_by_default(vp, monkeypatch):
     assert "cves" in ran
 
 
-def test_skip_check_cves_skips_it(vp, monkeypatch, capsys):
-    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--skip=check-cves"])
+def test_skip_cve_scan_skips_it(vp, monkeypatch, capsys):
+    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--skip=cve-scan"])
     ran = []
     _stub_all_checks(vp, monkeypatch, ran)
 
@@ -387,11 +387,11 @@ def test_skip_check_cves_skips_it(vp, monkeypatch, capsys):
     assert "CVE scan" in out and "SKIP" in out
 
 
-def test_include_check_cves_runs_it_plus_dependencies_and_image_upgrades(vp, monkeypatch):
+def test_include_cve_scan_runs_it_plus_dependencies_and_image_upgrades(vp, monkeypatch):
     """CVE scan reads Image upgrades' own cache (see lib.cve_check), so a
-    bare --include=check-cves must also run "Image upgrades" first —
+    bare --include=cve-scan must also run "Image upgrades" first —
     not just "Dependencies" — or that cache would never get populated."""
-    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--include=check-cves"])
+    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--include=cve-scan"])
     ran = []
     _stub_all_checks(vp, monkeypatch, ran)
 
@@ -447,7 +447,7 @@ def test_include_helm_docs_check_runs_standalone(vp, monkeypatch):
 
 
 def test_detail_flag_defaults_false_and_is_passed_to_check_cves(vp, monkeypatch):
-    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--include=check-cves"])
+    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--include=cve-scan"])
     ran = []
     _stub_all_checks(vp, monkeypatch, ran)
     captured = {}
@@ -464,7 +464,7 @@ def test_detail_flag_defaults_false_and_is_passed_to_check_cves(vp, monkeypatch)
 
 
 def test_detail_flag_true_is_passed_to_check_cves(vp, monkeypatch):
-    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--include=check-cves", "--detail-cve-check"])
+    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd.py", "--include=cve-scan", "--detail-cve-check"])
     ran = []
     _stub_all_checks(vp, monkeypatch, ran)
     captured = {}
