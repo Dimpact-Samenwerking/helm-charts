@@ -3555,7 +3555,7 @@ omc:
   enabled: false
   fullnameOverride: "omc"
   image:
-    # repository: ghcr.io/worth-nl/notifynl-omc
+    # repository: docker.io/worthnl/notifynl-omc
     tag: "1.17.19" # NOTE: OMC subchart can't handle digest-pinned images, so the tag should contain ONLY version.
   # BELOW are the resource settings from the subchart, notifynl-omc-nodep which we do not override
   # app:
