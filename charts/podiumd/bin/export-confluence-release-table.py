@@ -28,12 +28,14 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from lib.chart import load_yaml
+from lib.chart import dotted_key_path, load_yaml
 from lib.confluence_tables import (
     effective_header_row_count, expand_grid, extract_tables, fetch_page_html,
     find_versie_groups, header_paths, is_semver_compatible, major_minor,
     missing_required_release_columns, select_release_columns, tables_under_headings,
 )
+from lib.image_digests import scan_digest_pins
+from lib.image_version import image_basename
 
 CHART_DIR = SCRIPT_DIR.parents[0]
 DEFAULT_OUTPUT = CHART_DIR / "release-table.csv"
@@ -47,7 +49,7 @@ DEFAULT_HEADINGS = [
     "Technische component versies",
 ]
 
-CSV_HEADER = ["section", "vendor", "used_by", "name", "component", "alias",
+CSV_HEADER = ["section", "vendor", "used_by", "name", "component", "alias", "image_basename",
               "source_version_app", "source_version_helm", "target_version_app", "target_version_helm"]
 
 # Stripped from the end of a matched heading before it goes into the CSV's
@@ -350,6 +352,119 @@ def component_and_alias(name, dependencies, orphan_keys=(), global_image_keys=()
     return ("UNKNOWN", "")
 
 
+def _match_one(text, options):
+    """The single string in `options` that `text` unambiguously identifies
+    — an exact normalize_name match if there is exactly one (an option
+    equal to one of name_candidates(text)), else the single option
+    related to it (see _related) if there's exactly one such relation;
+    None if nothing matches, or more than one option ties at the same
+    tier — this never guesses between two equally-plausible options, the
+    same "first tier with exactly one match wins" rule component_and_alias
+    itself already applies to Chart.yaml dependencies (see _resolve_against),
+    just reused here directly against a small set of strings instead of
+    (name, alias) pairs."""
+    candidates = name_candidates(text)
+    exact = {o for o in options if normalize_name(o) in candidates}
+    if len(exact) == 1:
+        return next(iter(exact))
+    if exact:
+        return None
+    related = {o for o in options if any(_related(c, normalize_name(o)) for c in candidates)}
+    return next(iter(related)) if len(related) == 1 else None
+
+
+def basenames_under_scope(lines, scope_key):
+    """{basename: [pin, ...]} for every literal digest pin (see
+    scan_digest_pins) whose values.yaml path starts with scope_key and
+    ends in "...tag" — i.e. every image actually pinned somewhere inside
+    that top-level component's own subtree. A basename maps to more than
+    one pin only if the exact same image is pinned more than once under
+    that same component."""
+    result = {}
+    for pin in scan_digest_pins(lines):
+        if not pin["repository"]:
+            continue
+        path = dotted_key_path(lines, pin["line"] - 1).split(".")
+        if path[0] != scope_key or path[-1] != "tag":
+            continue
+        result.setdefault(image_basename(pin["repository"]), []).append(pin)
+    return result
+
+
+def resolve_image_basenames(rows, chart_dir):
+    """A comma-joined image_basename string per row in `rows` (same
+    order, same shape as extract_release_rows' own output — [section,
+    vendor, used_by, name, component, alias, ...versions]) — the actual
+    values.yaml repository basename(s) each row's version numbers
+    describe. Matches each row's own "used by"-tagged sibling images by
+    NAME against the candidate basenames found under its component's own
+    values.yaml subtree (see basenames_under_scope + _match_one) — not
+    by values-tree PATH, since a path segment often describes a job's
+    ROLE ("ensurePodiumdAdminUser") rather than the image itself
+    ("python"), and keys mix kebab-case/camelCase inconsistently, while
+    the actual repository basename is exactly the thing a human-curated
+    name is written to describe.
+
+    Every "used_by"-tagged row for one component claims its own
+    unambiguous basename first; whatever is left unclaimed under that
+    component's scope (its own top-level image, plus any sibling image
+    sharing one row's version — e.g. zgw-office-addin's frontend AND
+    backend both landing on "Office Add-in") goes to that component's
+    own primary (used_by-blank) row. A MULTIPLE row resolves independently
+    via which global.images key it actually matches (see
+    global_image_keys) — never through a component's own scope, since by
+    definition it isn't owned by any single one. "" wherever nothing
+    can be resolved (component UNKNOWN/blank, or a genuinely ambiguous
+    or missing match) — never a guess."""
+    values_path = chart_dir / "values.yaml"
+    if not values_path.is_file():
+        return ["" for _ in rows]
+    lines = values_path.read_text(encoding="utf-8").splitlines()
+    values = load_yaml(values_path) or {}
+    global_keys = global_image_keys(chart_dir)
+    global_images = (values.get("global") or {}).get("images") or {}
+
+    result = [""] * len(rows)
+
+    by_component = {}
+    for i, row in enumerate(rows):
+        used_by, name, component, alias = row[2], row[3], row[4], row[5]
+        if component in ("MULTIPLE", "UNKNOWN", ""):
+            continue
+        by_component.setdefault(component, {"alias": alias, "indices": []})["indices"].append(i)
+
+    for component, info in by_component.items():
+        scope_key = info["alias"] or component
+        available = basenames_under_scope(lines, scope_key)
+
+        sub_indices = [i for i in info["indices"] if rows[i][2]]
+        primary_indices = [i for i in info["indices"] if not rows[i][2]]
+
+        for i in sub_indices:
+            match = _match_one(rows[i][3], available.keys())
+            if match is not None:
+                result[i] = match
+                del available[match]
+
+        if primary_indices and available:
+            basenames = ",".join(sorted(available))
+            for i in primary_indices:
+                result[i] = basenames
+
+    for i, row in enumerate(rows):
+        used_by, name, component = row[2], row[3], row[4]
+        if component != "MULTIPLE":
+            continue
+        matched_key = _match_one(used_by or name, global_keys)
+        if matched_key is None:
+            continue
+        repo = (global_images.get(matched_key) or {}).get("repository")
+        if repo:
+            result[i] = image_basename(repo)
+
+    return result
+
+
 def resolve_token(args):
     if args.token_file:
         return Path(args.token_file).read_text(encoding="utf-8").strip()
@@ -363,11 +478,11 @@ def resolve_token(args):
 
 def extract_release_rows(html, headings=None, chart_dir=None):
     """Return the CSV data rows (section, vendor, used_by, name,
-    component, alias, source_version_app/helm, target_version_app/helm)
-    across every table directly under one of `headings` (default
-    DEFAULT_HEADINGS) that has the required App/Helm columns —
-    "section" is the matched heading with SECTION_SUFFIX stripped (see
-    section_name). Prints a one-line report
+    component, alias, image_basename, source_version_app/helm,
+    target_version_app/helm) across every table directly under one of
+    `headings` (default DEFAULT_HEADINGS) that has the required App/Helm
+    columns — "section" is the matched heading with SECTION_SUFFIX
+    stripped (see section_name). Prints a one-line report
     per matching-heading table (rows matched, or which required column
     it's missing) — using the real, full heading text, not the
     shortened "section" value — and a large warning (see
@@ -430,6 +545,10 @@ def extract_release_rows(html, headings=None, chart_dir=None):
                           "(source/target Versie ... App+Helm) — see the skip reason(s) above")
     if unknown_count:
         print(f"{unknown_count} version value(s) were not semver-compatible — replaced with UNKNOWN")
+
+    basenames = resolve_image_basenames(rows_out, chart_dir)
+    for row, basename in zip(rows_out, basenames):
+        row.insert(6, basename)
     return rows_out
 
 
