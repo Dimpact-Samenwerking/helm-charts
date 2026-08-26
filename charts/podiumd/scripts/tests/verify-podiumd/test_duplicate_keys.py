@@ -22,6 +22,16 @@ def test_genuine_duplicate_at_root_is_caught(vp, tmp_path):
     assert "1 duplicate" in detail
 
 
+def test_duplicate_message_includes_the_file_name(vp, tmp_path, capsys):
+    """A bare "Line N: duplicate ..." message doesn't say which file that
+    line number is in — easy to lose track of once read out of context
+    (copy-pasted, or read without the surrounding check output)."""
+    chart_dir = write_values(tmp_path, "zac:\n  a: 1\nzac:\n  b: 2\n")
+    vp.check_duplicate_keys(chart_dir)
+    out = capsys.readouterr().out
+    assert "values.yaml:3: duplicate" in out
+
+
 def test_genuine_duplicate_nested_is_caught(vp, tmp_path):
     content = (
         "zac:\n"
