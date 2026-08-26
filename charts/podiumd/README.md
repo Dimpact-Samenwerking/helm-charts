@@ -123,7 +123,7 @@ PodiumD Helm chart
 | frankgateway.dashboard.auth.enabled | bool | `true` |  |
 | frankgateway.dashboard.auth.hostname | string | `""` |  |
 | frankgateway.dashboard.auth.oauth2Proxy.image.repository | string | `"quay.io/oauth2-proxy/oauth2-proxy"` |  |
-| frankgateway.dashboard.auth.oauth2Proxy.image.tag | string | `"v7.7.1"` |  |
+| frankgateway.dashboard.auth.oauth2Proxy.image.tag | string | `"v7.7.1@sha256:f6a4aa83a27e316114bf79664302b1ffb2cc8ce697fb479273af4feb3fb16fe3"` |  |
 | frankgateway.dashboard.auth.oauth2Proxy.nodeSelector | object | `{}` |  |
 | frankgateway.dashboard.auth.oauth2Proxy.resources.limits.cpu | string | `"250m"` |  |
 | frankgateway.dashboard.auth.oauth2Proxy.resources.limits.memory | string | `"256Mi"` |  |
@@ -140,7 +140,7 @@ PodiumD Helm chart
 | frankgateway.dashboard.auth.shim.resources.requests.memory | string | `"32Mi"` |  |
 | frankgateway.dashboard.enabled | bool | `true` |  |
 | frankgateway.dashboard.image.repository | string | `"apache/apisix-dashboard"` |  |
-| frankgateway.dashboard.image.tag | string | `"3.0.1-alpine"` |  |
+| frankgateway.dashboard.image.tag | string | `"3.0.1-alpine@sha256:b5fafc11b76f998269375192ac33efc992d72aa69bfd7f3eb2ca377906cdbb6d"` |  |
 | frankgateway.dashboard.ingress.clusterIssuer | string | `"letsencrypt-prod"` |  |
 | frankgateway.dashboard.ingress.enabled | bool | `false` |  |
 | frankgateway.dashboard.nodeSelector | object | `{}` |  |
@@ -150,7 +150,7 @@ PodiumD Helm chart
 | frankgateway.dashboard.resources.requests.memory | string | `"128Mi"` |  |
 | frankgateway.enabled | bool | `false` |  |
 | frankgateway.etcd.image.repository | string | `"quay.io/coreos/etcd"` |  |
-| frankgateway.etcd.image.tag | string | `"v3.5.16"` |  |
+| frankgateway.etcd.image.tag | string | `"v3.5.16@sha256:d967d98a12dc220a1a290794711dba7eba04b8ce465e12b02383d1bfbb33e159"` |  |
 | frankgateway.etcd.nodeSelector | object | `{}` |  |
 | frankgateway.etcd.resources.limits.cpu | string | `"500m"` |  |
 | frankgateway.etcd.resources.limits.memory | string | `"512Mi"` |  |
@@ -266,7 +266,7 @@ PodiumD Helm chart
 | keycloak-operator.jobs.ensurePodiumdAdminUser.enabled | bool | `true` |  |
 | keycloak-operator.jobs.ensurePodiumdAdminUser.image.registry | string | `""` |  |
 | keycloak-operator.jobs.ensurePodiumdAdminUser.image.repository | string | `"postgres"` |  |
-| keycloak-operator.jobs.ensurePodiumdAdminUser.image.tag | string | `"16"` |  |
+| keycloak-operator.jobs.ensurePodiumdAdminUser.image.tag | string | `"16@sha256:c1b3783309b6499c795eed7c20135a1a4d25cae1b575c3d52c6f536129a1b109"` |  |
 | keycloak-operator.jobs.ensurePodiumdAdminUser.initImage.registry | string | `""` |  |
 | keycloak-operator.jobs.ensurePodiumdAdminUser.initImage.repository | string | `"python"` |  |
 | keycloak-operator.jobs.ensurePodiumdAdminUser.initImage.tag | string | `"3.14.7-slim@sha256:83ff1d245a3d57d04152252d3ef9cb361494d0b3395abd65a5ebe91c401c8e83"` |  |
@@ -336,7 +336,7 @@ PodiumD Helm chart
 | keycloak.instances | string | `"2"` | instances is the new operator-style replica count (falls back to replicaCount) |
 | keycloak.keycloakConfigCli.image.registry | string | `""` |  |
 | keycloak.keycloakConfigCli.image.repository | string | `"adorsys/keycloak-config-cli"` |  |
-| keycloak.keycloakConfigCli.image.tag | string | `"6.5.1-26"` |  |
+| keycloak.keycloakConfigCli.image.tag | string | `"6.5.1-26@sha256:1b22dfaa9ae0c71f74b0342f9221a6510f272da5def683dbba26a98e6b1b1411"` |  |
 | keycloak.name | string | `"keycloak"` |  |
 | keycloak.podTemplate.metadata.labels.app | string | `"keycloak"` |  |
 | keycloak.podTemplate.metadata.labels.version | string | `"26.6.4"` |  |
@@ -690,7 +690,7 @@ PodiumD Helm chart
 | openbao.configuration.enabled | bool | `true` |  |
 | openbao.configuration.job.backoffLimit | int | `6` |  |
 | openbao.configuration.job.image.repository | string | `"quay.io/openbao/openbao"` |  |
-| openbao.configuration.job.image.tag | string | `"2.5.5"` |  |
+| openbao.configuration.job.image.tag | string | `"2.5.5@sha256:6150c4a6b62067db6141c8da7a6a6b5763f4f47c315343d0c848b40fecdfd452"` |  |
 | openbao.configuration.job.nodeSelector | object | `{}` |  |
 | openbao.configuration.job.resources.limits.cpu | string | `"250m"` |  |
 | openbao.configuration.job.resources.limits.memory | string | `"128Mi"` |  |
@@ -711,7 +711,7 @@ PodiumD Helm chart
 | openbao.database.port | int | `5432` |  |
 | openbao.database.schemaJob.backoffLimit | int | `6` |  |
 | openbao.database.schemaJob.image.repository | string | `"docker.io/library/postgres"` |  |
-| openbao.database.schemaJob.image.tag | string | `"16-alpine"` |  |
+| openbao.database.schemaJob.image.tag | string | `"16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685"` |  |
 | openbao.database.schemaJob.nodeSelector | object | `{}` |  |
 | openbao.database.schemaJob.resources.limits.cpu | string | `"250m"` |  |
 | openbao.database.schemaJob.resources.limits.memory | string | `"128Mi"` |  |
@@ -763,7 +763,7 @@ PodiumD Helm chart
 | openbeheer.fullnameOverride | string | `"openbeheer"` |  |
 | openbeheer.image.pullPolicy | string | `"IfNotPresent"` |  |
 | openbeheer.image.repository | string | `"maykinmedia/open-beheer"` |  |
-| openbeheer.image.tag | string | `"0.9.1"` |  |
+| openbeheer.image.tag | string | `"0.9.1@sha256:7c1dfaff1d069afe5d45e421f813078d8112b13c3cf65b5f547e866f6aad4e31"` |  |
 | openbeheer.nameOverride | string | `"openbeheer"` |  |
 | openbeheer.nginx.image.pullPolicy | string | `"IfNotPresent"` |  |
 | openbeheer.nginx.image.repository | string | `"nginxinc/nginx-unprivileged"` |  |
@@ -1087,7 +1087,7 @@ PodiumD Helm chart
 | pabc.image.tag | string | `"1.1.1@sha256:09a902e43f6cdb214afc369d04005c7b6108fd24b15709f1debbcfb1b446ef42"` |  |
 | pabc.initContainers.waitFor.image.pullPolicy | string | `"IfNotPresent"` |  |
 | pabc.initContainers.waitFor.image.repository | string | `"ghcr.io/groundnuty/k8s-wait-for"` |  |
-| pabc.initContainers.waitFor.image.tag | string | `"v2.0"` |  |
+| pabc.initContainers.waitFor.image.tag | string | `"v2.0@sha256:c14d7271e4013b24b34ef0d7144c4610577d0e9110ccc26b163fa28089fa1f4e"` |  |
 | pabc.migrations.image.repository | string | `"ghcr.io/platform-autorisatie-beheer-component/pabc-migrations"` |  |
 | pabc.migrations.image.tag | string | `"1.1.1@sha256:a3841a2eb78cddd34ebb0de1bfede1db1ae9713921c0d77e4366baceffa86e05"` |  |
 | pabc.migrations.nodeSelector | object | `{}` |  |

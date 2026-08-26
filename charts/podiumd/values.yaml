@@ -99,7 +99,7 @@ keycloak-operator:
       image:
         registry: ""
         repository: postgres
-        tag: "16"
+        tag: "16@sha256:c1b3783309b6499c795eed7c20135a1a4d25cae1b575c3d52c6f536129a1b109"
     ensureOperatorSa:
       enabled: true
       # Container: curl-based job to provision the keycloak-operator service account client.
@@ -256,7 +256,7 @@ keycloak:
     image:
       registry: ""
       repository: adorsys/keycloak-config-cli
-      tag: "6.5.1-26"
+      tag: "6.5.1-26@sha256:1b22dfaa9ae0c71f74b0342f9221a6510f272da5def683dbba26a98e6b1b1411"
   podTemplate:
     metadata:
       labels:
@@ -2393,7 +2393,7 @@ openbeheer:
   image:
     repository: maykinmedia/open-beheer
     pullPolicy: IfNotPresent
-    tag: "0.9.1"
+    tag: "0.9.1@sha256:7c1dfaff1d069afe5d45e421f813078d8112b13c3cf65b5f547e866f6aad4e31"
   nameOverride: openbeheer
   fullnameOverride: openbeheer
   securityContext:
@@ -3512,7 +3512,7 @@ pabc:
     waitFor:
       image:
         repository: ghcr.io/groundnuty/k8s-wait-for
-        tag: "v2.0"
+        tag: "v2.0@sha256:c14d7271e4013b24b34ef0d7144c4610577d0e9110ccc26b163fa28089fa1f4e"
         pullPolicy: IfNotPresent
 
   settings:
@@ -3681,7 +3681,7 @@ frankgateway:
   etcd:
     image:
       repository: quay.io/coreos/etcd
-      tag: "v3.5.16"
+      tag: "v3.5.16@sha256:d967d98a12dc220a1a290794711dba7eba04b8ce465e12b02383d1bfbb33e159"
     storage: 2Gi
     # Empty => cluster default StorageClass. jim00 uses managed-csi.
     storageClassName: ""
@@ -3710,7 +3710,7 @@ frankgateway:
     enabled: true
     image:
       repository: apache/apisix-dashboard
-      tag: "3.0.1-alpine"
+      tag: "3.0.1-alpine@sha256:b5fafc11b76f998269375192ac33efc992d72aa69bfd7f3eb2ca377906cdbb6d"
     # Dashboard-internal admin password, used ONLY by the shim's server-side
     # auto-login (the dashboard is never exposed directly). Empty => random,
     # stable across upgrades via lookup (Secret frankgateway-dashboard-conf).
@@ -3747,7 +3747,7 @@ frankgateway:
       oauth2Proxy:
         image:
           repository: quay.io/oauth2-proxy/oauth2-proxy
-          tag: "v7.7.1"
+          tag: "v7.7.1@sha256:f6a4aa83a27e316114bf79664302b1ffb2cc8ce697fb479273af4feb3fb16fe3"
         nodeSelector: {}
         resources:
           requests:
@@ -3919,7 +3919,7 @@ openbao:
       # the openbao subchart appVersion (OpenBao v2.5.5 @ chart 0.28.4).
       image:
         repository: quay.io/openbao/openbao
-        tag: "2.5.5"
+        tag: "2.5.5@sha256:6150c4a6b62067db6141c8da7a6a6b5763f4f47c315343d0c848b40fecdfd452"
       nodeSelector: {}
       resources:
         requests:
@@ -3950,7 +3950,7 @@ openbao:
       ttlSecondsAfterFinished: 600
       image:
         repository: docker.io/library/postgres
-        tag: "16-alpine"
+        tag: "16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685"
       nodeSelector: {}
       resources:
         requests:
