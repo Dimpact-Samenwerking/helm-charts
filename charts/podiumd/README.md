@@ -92,7 +92,7 @@ PodiumD Helm chart
 | clamav.image.tag | string | `"1.5.4"` |  |
 | clamav.metrics.enabled | bool | `false` |  |
 | clamav.metrics.image.repository | string | `"docker.io/sergeymakinen/clamav_exporter"` |  |
-| clamav.metrics.image.tag | string | `"v2.1.3"` |  |
+| clamav.metrics.image.tag | string | `"v2.1.8"` |  |
 | clamav.metrics.serviceMonitor.enabled | bool | `false` |  |
 | clamav.nameOverride | string | `"clamav"` |  |
 | clamav.persistentVolume.enabled | bool | `true` |  |
@@ -823,6 +823,8 @@ PodiumD Helm chart
 | openbeheer.tags.redis | bool | `false` |  |
 | openformulieren.beat.resources.requests.cpu | string | `"10m"` |  |
 | openformulieren.beat.resources.requests.memory | string | `"160Mi"` |  |
+| openformulieren.clamavConfigJob | object | `{"activeDeadlineSeconds":1200,"backoffLimit":15,"clamavHost":"clamav.podiumd.svc.cluster.local","clamavPort":3310,"clamavTimeout":30,"enabled":false,"resources":{"limits":{"cpu":"200m","memory":"256Mi"},"requests":{"cpu":"50m","memory":"128Mi"}},"ttlSecondsAfterFinished":600}` | Seeds Open Forms' GlobalConfiguration singleton (enable_virus_scan, clamav_host/port/timeout) via `manage.py shell`. Open Forms has no declarative setup-configuration step for this — upstream only exposes it through the admin UI (docs/configuration/general/virus_scan.rst) — so this Job writes the same fields directly, verifying the ClamAV connection first the same way GlobalConfiguration.clean() does. Off by default: opt-in per gemeente. See templates/openformulieren-configure-clamav.yaml and docs/apps/openforms/openforms-BASICS.md. |
+| openformulieren.clamavConfigJob.backoffLimit | int | `15` | Retries generously: on first deploy this Job can race both the openformulieren DB migration (image entrypoint) and ClamAV's own cold-start (up to ~5 minutes to load its signature database, see docs/apps/clamav/clamav-BASICS.md) — it fails fast and lets Kubernetes' Job backoff retry until both are ready, rather than needing a wait container or Helm hook ordering. |
 | openformulieren.configuration.data | string | `""` |  |
 | openformulieren.configuration.enabled | bool | `true` |  |
 | openformulieren.configuration.job.backoffLimit | int | `6` |  |
@@ -869,6 +871,8 @@ PodiumD Helm chart
 | openinwoner.beat.resources.requests.memory | string | `"128Mi"` |  |
 | openinwoner.celeryMonitor.resources.requests.cpu | string | `"50m"` |  |
 | openinwoner.celeryMonitor.resources.requests.memory | string | `"64Mi"` |  |
+| openinwoner.clamavConfigJob | object | `{"activeDeadlineSeconds":1200,"backoffLimit":15,"clamavHost":"clamav.podiumd.svc.cluster.local","clamavPort":3310,"clamavTimeout":30,"enabled":false,"resources":{"limits":{"cpu":"200m","memory":"256Mi"},"requests":{"cpu":"50m","memory":"128Mi"}},"ttlSecondsAfterFinished":600}` | Seeds Open Inwoner's SiteConfiguration singleton (enable_virus_scan, clamav_host/port/timeout) via `manage.py shell`. Unlike most SiteConfiguration fields, these four are NOT managed by the site_config_enable/site_config: setup-configuration step — upstream's SiteConfigurationStep omits them from both its required_settings and optional_settings, so setting them under configuration.data is silently ignored. This Job writes them directly and pings clamd itself first (SiteConfiguration.clean() only checks clamav_host is non-empty, it doesn't test connectivity). Off by default: opt-in per gemeente. See templates/openinwoner-configure-clamav.yaml and docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-gemeente-specific.md. |
+| openinwoner.clamavConfigJob.backoffLimit | int | `15` | Retries generously: on first deploy this Job can race both the openinwoner DB migration (image entrypoint) and ClamAV's own cold-start (up to ~5 minutes to load its signature database, see docs/apps/clamav/clamav-BASICS.md) — it fails fast and lets Kubernetes' Job backoff retry until both are ready, rather than needing a wait container or Helm hook ordering. |
 | openinwoner.configuration.data | string | `""` |  |
 | openinwoner.configuration.enabled | bool | `true` |  |
 | openinwoner.configuration.initContainer.enabled | bool | `false` |  |
