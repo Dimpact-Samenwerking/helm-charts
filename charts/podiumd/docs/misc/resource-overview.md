@@ -204,6 +204,7 @@ Default replicas: **2** (web), **1** (worker, beat, celery-monitor, nginx)
 | openinwoner-celery-monitor | 50m | 64Mi | — | — |
 | nginx | 30m | 8Mi | — | — |
 | openinwoner-search-index (init) | — | — | — | — |
+| job: openinwoner-configure-clamav (opt-in) | 50m | 128Mi | 200m | 256Mi |
 
 *openinwoner-search-index init container has no resource settings — needs settings.*
 

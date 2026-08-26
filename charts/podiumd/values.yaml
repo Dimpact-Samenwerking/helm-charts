@@ -1991,20 +1991,13 @@ openinwoner:
     #     items:
     #       - domain: openinwoner.example.nl
     #         name: Gemeente X
-    #   # ClamAV virus scanning of uploaded files (Open Inwoner >= 2.3.0). See
-    #   # docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-gemeente-specific.md for the full
-    #   # explanation — in short: site_config_enable overwrites the ENTIRE
-    #   # SiteConfiguration record on every run (name, colors, banner/help
-    #   # text, GTM/GA codes, everything — see
-    #   # open_inwoner/configurations/bootstrap/siteconfig.py upstream), so
-    #   # merge just these four keys into the gemeente's EXISTING, complete
-    #   # site_config: block above — never deploy this snippet standalone.
-    #   site_config_enable: true
-    #   site_config:
-    #     enable_virus_scan: true
-    #     clamav_host: clamav.podiumd.svc.cluster.local
-    #     clamav_port: 3310
-    #     clamav_timeout: 30.0
+    # ClamAV virus scanning of uploaded files (Open Inwoner >= 2.3.0): NOT
+    # configurable through this declarative step — upstream's
+    # SiteConfigurationStep never manages the four ClamAV fields (absent from
+    # both its required_settings and optional_settings), so setting them
+    # under site_config: above is silently ignored. Use
+    # openinwoner.clamavConfigJob.enabled: true instead — see
+    # docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-gemeente-specific.md.
     secrets:
       keycloak_client_secret: ""
       # openzaak_openinwoner_secret: "<openzaak_openinwoner_secret>"
@@ -2012,6 +2005,38 @@ openinwoner:
     oidcUrl: https://openinwoner.example.nl
     # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
     pkceEnabled: false
+  # -- Seeds Open Inwoner's SiteConfiguration singleton (enable_virus_scan,
+  # clamav_host/port/timeout) via `manage.py shell`. Unlike most
+  # SiteConfiguration fields, these four are NOT managed by the
+  # site_config_enable/site_config: setup-configuration step — upstream's
+  # SiteConfigurationStep omits them from both its required_settings and
+  # optional_settings, so setting them under configuration.data is silently
+  # ignored. This Job writes them directly and pings clamd itself first
+  # (SiteConfiguration.clean() only checks clamav_host is non-empty, it
+  # doesn't test connectivity). Off by default: opt-in per gemeente. See
+  # templates/openinwoner-configure-clamav.yaml and
+  # docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-gemeente-specific.md.
+  clamavConfigJob:
+    enabled: false
+    clamavHost: clamav.podiumd.svc.cluster.local
+    clamavPort: 3310
+    clamavTimeout: 30.0
+    # -- Retries generously: on first deploy this Job can race both the
+    # openinwoner DB migration (image entrypoint) and ClamAV's own cold-start
+    # (up to ~5 minutes to load its signature database, see
+    # docs/apps/clamav/clamav-BASICS.md) — it fails fast and lets Kubernetes'
+    # Job backoff retry until both are ready, rather than needing a wait
+    # container or Helm hook ordering.
+    backoffLimit: 15
+    activeDeadlineSeconds: 1200
+    ttlSecondsAfterFinished: 600
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
   settings:
     allowedHosts: openinwoner-nginx.podiumd.svc.cluster.local
     brpVersion: ""
