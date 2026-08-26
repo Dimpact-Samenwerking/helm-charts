@@ -1,39 +1,42 @@
-section,vendor,used_by,name,component,alias,source_version_app,source_version_helm,target_version_app,target_version_helm
-Product,Maykin Media,,Formulier (Open Formulieren),openforms,openformulieren,3.4.10,1.12.0,3.5.6,1.12.0
-Product,Maykin Media,,Portaal (Open Inwoner platform),openinwoner,,2.4.2,2.4.0,2.4.3,2.4.0
-Product,ICATT,,Contact (KISS),kiss-chart,kiss,2.2.3,2.2.3,3.0.0,3.0.0
-Product,ICATT,,Interne Taak Afhandeling,internetaakafhandeling,ita,3.2.0,3.20,3.3.0,3.3.0
-Product,INFO,,Zaak - ZAC,zaakafhandelcomponent,zac,5.0.2,1.0.297,5.4.4,1.0.297
-Product,Maykin Media,,Zaak - Archiefbeheer (Open Archief Beheer),openarchiefbeheer,,2.0.0,2.0.0,,
-Product,INFO,,Office Add-in,zgw-office-addin,,0.9.352,0.0.89,0.11.0,0.0.92
-Common Ground,Maykin Media,,Open Zaak,openzaak,,1.27.4,1.14.2,1.29.3,1.14.2
-Common Ground,Maykin Media,,Open Klant,openklant,,2.15.0,1.11.0,2.15.0,1.11.0
-Common Ground,Maykin Media,,Objecten API,objecten,,3.6.2,2.12.1,3.6.2,2.12.1
-Common Ground,Maykin Media,,Objecttypen API,objecttypen,,3.4.2,1.6.1,3.4.2,1.6.1
-Common Ground,Maykin Media,,Open Notificaties,opennotificaties,,1.16.1,2.0.0,1.16.2,2.0.0
-Common Ground,ICATT,,Platform Autorisatie Beheer Component (PABC),pabc,pabc,1.1.1,1.1.1,1.1.1,1.1.1
-Common Ground,Maykin Media,,Open Beheer (LBI),openbeheer,,0.9.1,0.1.3,0.9.1,0.1.3
-Common Ground,Maykin Media,,Referentielijst,referentielijsten,referentielijsten,0.7.3,0.1.1,0.7.4,0.1.1
-Common Ground,Worth,,OMC / Notify,notifynl-omc-nodep,omc,1.17.19,0.14.1,1.17.19,0.14.1
-Common Ground,WeAreFrank,,Zaak Brug,zaakbrug,,1.26.13,2.3.28,1.26.18,2.3.32
-Common Ground,WeAreFrank,,Frank Gateway,frankgateway,,1.0.4,1.1.0,1.1.0,1.1.0
-Overige,,,Keycloak,keycloak-operator,,26.6.3,26.6.3,26.7.2,26.7.2
-Overige,,,Clamav,clamav,,1.5.2,3.7.1,1.5.4,3.7.2
-Overige,,,Redis Operator,redis-operator,,0.25.0,0.25.0,0.26.0,0.26.1
-Overige,,,Nginx unprivileged,MULTIPLE,MULTIPLE,1.31.3,,1.31.3,1.31.3
-Overige,,,Busybox,MULTIPLE,MULTIPLE,1.38.0-glibc,,,
-Overige,,,Curl image,MULTIPLE,MULTIPLE,8.20.0,,8.21.0,
-Technische,,,Eck-operator,eck-operator,,3.4.0,3.4.0,3.5.0,3.5.0
-Technische,,,Eck-stack,eck-stack,kiss-eck,8.19.3,0.19.0,8.19.19,0.20.0
-Technische,,zac,Solr operator,zaakafhandelcomponent,zac,0.9.1,,0.9.1,
-Technische,,zac,Solr,zaakafhandelcomponent,zac,9.10.1-slim,,,
-Technische,,zac,Zookeeper,zaakafhandelcomponent,zac,0.2.15,,,
-Technische,,zac,Zookeeper operator,zaakafhandelcomponent,zac,0.2.15,,,
-Technische,,zac,Zookeeper operator hooks (k8s-kubectl),zaakafhandelcomponent,zac,v1.25.4,,,
-Technische,,kiss,PodiumD Adapter,kiss-chart,kiss,0.6.6,,0.6.7,
-Technische,,kiss,Kiss Elastic Sync,kiss-chart,kiss,0.3.3,,3.0.0,
-Technische,,ita,ITA Poller,internetaakafhandeling,ita,3.2.0,3.2.0,3.3.0,3.3.0
-Technische,,zac,Gotenberg,zaakafhandelcomponent,zac,8.30.1,,8.35.0,
-Technische,,keycloak-operator,python image,keycloak-operator,,3.14-slim,,3.14.7-slim,
-Technische,,redis-operator,Redis,redis-operator,,8.6.2,,8.6.6,
-Technische,,redis-operator,Redis Exporter,redis-operator,,1.82.0,,1.89.0,
+section,vendor,used_by,name,component,alias,image_basename,source_version_app,source_version_helm,target_version_app,target_version_helm
+Product,Maykin Media,,Formulier (Open Formulieren),openforms,openformulieren,,3.4.10,1.12.0,3.5.6,1.12.0
+Product,Maykin Media,,Portaal (Open Inwoner platform),openinwoner,,,2.4.2,2.4.0,2.4.3,2.4.0
+Product,ICATT,,Contact (KISS),kiss-chart,kiss,kiss-frontend,2.2.3,2.2.3,3.0.0,3.0.0
+Product,ICATT,,Interne Taak Afhandeling,internetaakafhandeling,ita,"internetaakafhandeling.poller,internetaakafhandeling.web",3.2.0,3.20,3.3.0,3.3.0
+Product,INFO,,Zaak - ZAC,zaakafhandelcomponent,zac,zaakafhandelcomponent,5.0.2,1.0.297,5.4.4,1.0.297
+Product,Maykin Media,,Zaak - Archiefbeheer (Open Archief Beheer),openarchiefbeheer,,open-archiefbeheer,2.0.0,2.0.0,,
+Product,INFO,,Office Add-in,zgw-office-addin,,"zgw-office-addin-backend,zgw-office-addin-frontend",0.9.352,0.0.89,0.11.0,0.0.92
+Common Ground,Maykin Media,,Open Zaak,openzaak,,,1.27.4,1.14.2,1.29.3,1.14.2
+Common Ground,Maykin Media,,Open Klant,openklant,,,2.15.0,1.11.0,2.15.0,1.11.0
+Common Ground,Maykin Media,,Objecten API,objecten,,,3.6.2,2.12.1,3.6.2,2.12.1
+Common Ground,Maykin Media,,Objecttypen API,objecttypen,,objecttypes-api,3.4.2,1.6.1,3.4.2,1.6.1
+Common Ground,Maykin Media,,Open Notificaties,opennotificaties,,,1.16.1,2.0.0,1.16.2,2.0.0
+Common Ground,ICATT,,Platform Autorisatie Beheer Component (PABC),pabc,pabc,"pabc-api,pabc-migrations",1.1.1,1.1.1,1.1.1,1.1.1
+Common Ground,Maykin Media,,Open Beheer (LBI),openbeheer,,,0.9.1,0.1.3,0.9.1,0.1.3
+Common Ground,Maykin Media,,Referentielijst,referentielijsten,referentielijsten,referentielijsten-api,0.7.3,0.1.1,0.7.4,0.1.1
+Common Ground,Worth,,OMC / Notify,notifynl-omc-nodep,omc,,1.17.19,0.14.1,1.17.19,0.14.1
+Common Ground,WeAreFrank,,Zaak Brug,zaakbrug,,,1.26.13,2.3.28,1.26.18,2.3.32
+Common Ground,WeAreFrank,,Frank Gateway,frankgateway,,frank-gateway,1.0.4,1.1.0,1.1.0,1.1.0
+Overige,,,Keycloak,keycloak-operator,,keycloak,26.6.3,26.6.3,26.7.2,26.7.2
+Overige,,,Clamav,clamav,,,1.5.2,3.7.1,1.5.4,3.7.2
+Overige,,,Redis Operator,redis-operator,,,0.25.0,0.25.0,0.26.0,0.26.1
+Overige,,,Nginx unprivileged,MULTIPLE,MULTIPLE,nginx-unprivileged,1.31.3,,1.31.3,1.31.3
+Overige,,,Busybox,MULTIPLE,MULTIPLE,busybox,1.38.0-glibc,,,
+Overige,,,Curl,MULTIPLE,MULTIPLE,curl,8.20.0,,8.21.0,
+Technische,,,Eck-operator,eck-operator,,,3.4.0,3.4.0,3.5.0,3.5.0
+Technische,,,Eck-stack,eck-stack,kiss-eck,,8.19.3,0.19.0,8.19.19,0.20.0
+Technische,,zac,Solr operator,zaakafhandelcomponent,zac,solr-operator,0.9.1,,0.9.1,
+Technische,,zac,Solr,zaakafhandelcomponent,zac,solr,9.10.1-slim,,,
+Technische,,zac,Zookeeper,zaakafhandelcomponent,zac,zookeeper,0.2.15,,,
+Technische,,zac,Zookeeper operator,zaakafhandelcomponent,zac,zookeeper-operator,0.2.15,,,
+Technische,,zac,Zookeeper operator hooks (k8s-kubectl),zaakafhandelcomponent,zac,k8s-kubectl,v1.25.4,,,
+Technische,,zac,OPA,zaakafhandelcomponent,zac,opa,1.17.1-static,,1.19.1-static,
+Technische,,kiss,PodiumD Adapter,kiss-chart,kiss,podiumd-adapter,0.6.6,,0.6.7,
+Technische,,kiss,Kiss Elastic Sync,kiss-chart,kiss,kiss-elastic-sync,0.3.3,,3.0.0,
+Technische,,kiss,Elastic Open Crawler,kiss-chart,kiss,crawler,,,1.0.0,
+Technische,,ita,ITA Poller,internetaakafhandeling,ita,,3.2.0,3.2.0,3.3.0,3.3.0
+Technische,,zac,Gotenberg,zaakafhandelcomponent,zac,gotenberg,8.30.1,,8.35.0,
+Technische,,keycloak-operator,Python,keycloak-operator,,python,3.14-slim,,3.14.7-slim,
+Technische,,redis-operator,Redis-ha,redis-operator,,redis,8.6.2,,8.6.6,
+Technische,,redis-operator,Redis Exporter,redis-operator,,redis-exporter,1.82.0,,1.89.0,
+Technische,,redis-operator,Redis label/pre-delete workaround (k8s),redis-operator,,k8s,,,1.36.2,
