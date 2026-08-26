@@ -8,6 +8,10 @@ import subprocess
 import pytest
 import yaml
 
+import lib.image_version as image_version
+
+OLD_DIGEST = "a" * 64
+
 
 def git(*args, cwd):
     subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True)
@@ -194,7 +198,7 @@ def setup_repo(tmp_path, monkeypatch, ucv):
         "zac:\n"
         "  image:\n"
         "    repository: ghcr.io/infonl/zaakafhandelcomponent\n"
-        '    tag: "5.0.2@sha256:aaaa"\n',
+        f'    tag: "5.0.2@sha256:{OLD_DIGEST}"\n',
         encoding="utf-8",
     )
     doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
@@ -206,6 +210,20 @@ def setup_repo(tmp_path, monkeypatch, ucv):
     monkeypatch.setattr(ucv, "DOC_DIR", doc_dir)
     monkeypatch.setattr(ucv, "IMAGES_DIR", images_dir)
     return chart_yaml, values_yaml
+
+
+def mock_registry_passes(monkeypatch, ucv, digest_char="b"):
+    """A component whose values.yaml image path has an explicit
+    "repository:" (e.g. zac) now delegates its tag update to
+    lib.image_version.update_image_version, which resolves
+    `registry_tag_exists` via ITS OWN globals — not ucv's — so both
+    bindings need mocking for a main() test to avoid a real network call.
+    ucv.registry_tag_exists is still exercised by the sub-chart-default
+    fallback path (e.g. openzaak/openformulieren), so it stays mocked
+    too."""
+    digest = "sha256:" + digest_char * 64
+    monkeypatch.setattr(ucv, "registry_tag_exists", lambda host, repo, tag: (True, digest))
+    monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (True, digest))
 
 
 def mock_verify_passes(monkeypatch):
@@ -230,7 +248,7 @@ def test_main_writes_both_files_when_verify_passes(ucv, tmp_path, monkeypatch):
     monkeypatch.setattr(ucv, "resolve_repos", lambda dep, chart_version, paths: {
         "image": "ghcr.io/infonl/zaakafhandelcomponent"
     })
-    monkeypatch.setattr(ucv, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "b" * 64))
+    mock_registry_passes(monkeypatch, ucv, "b")
     monkeypatch.setattr("sys.argv", ["update-component-version.py", "zac", "5.4.3", "1.0.297"])
 
     ucv.main()  # success path does not raise
@@ -257,7 +275,7 @@ def test_main_invokes_update_podiumd_readme(ucv, tmp_path, monkeypatch):
     monkeypatch.setattr(ucv, "resolve_repos", lambda dep, chart_version, paths: {
         "image": "ghcr.io/infonl/zaakafhandelcomponent"
     })
-    monkeypatch.setattr(ucv, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "b" * 64))
+    mock_registry_passes(monkeypatch, ucv, "b")
     monkeypatch.setattr("sys.argv", ["update-component-version.py", "zac", "5.4.3", "1.0.297"])
 
     ucv.main()
@@ -304,7 +322,7 @@ def test_main_skips_chart_write_when_chart_version_unchanged(ucv, tmp_path, monk
     monkeypatch.setattr(ucv, "resolve_repos", lambda dep, chart_version, paths: {
         "image": "ghcr.io/infonl/zaakafhandelcomponent"
     })
-    monkeypatch.setattr(ucv, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "b" * 64))
+    mock_registry_passes(monkeypatch, ucv, "b")
     # chart_version matches what's already in Chart.yaml (1.0.296); only app version bumps
     monkeypatch.setattr("sys.argv", ["update-component-version.py", "zac", "5.4.3", "1.0.296"])
 
@@ -747,7 +765,7 @@ def test_main_adds_new_component_mention_end_to_end(ucv, tmp_path, monkeypatch):
     monkeypatch.setattr(ucv, "resolve_repos", lambda dep, chart_version, paths: {
         "image": "ghcr.io/infonl/zaakafhandelcomponent"
     })
-    monkeypatch.setattr(ucv, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "c" * 64))
+    mock_registry_passes(monkeypatch, ucv, "c")
     monkeypatch.setattr("sys.argv", ["update-component-version.py", "zac", "5.4.3", "1.0.297"])
 
     ucv.main()
@@ -787,7 +805,7 @@ def test_main_updates_existing_component_mention_end_to_end(ucv, tmp_path, monke
     monkeypatch.setattr(ucv, "resolve_repos", lambda dep, chart_version, paths: {
         "image": "ghcr.io/infonl/zaakafhandelcomponent"
     })
-    monkeypatch.setattr(ucv, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "d" * 64))
+    mock_registry_passes(monkeypatch, ucv, "d")
     monkeypatch.setattr("sys.argv", ["update-component-version.py", "zac", "5.4.3", "1.0.297"])
 
     ucv.main()
@@ -807,7 +825,7 @@ def test_main_skips_doc_updates_when_no_upgrade_doc_exists(ucv, tmp_path, monkey
     monkeypatch.setattr(ucv, "resolve_repos", lambda dep, chart_version, paths: {
         "image": "ghcr.io/infonl/zaakafhandelcomponent"
     })
-    monkeypatch.setattr(ucv, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "e" * 64))
+    mock_registry_passes(monkeypatch, ucv, "e")
     monkeypatch.setattr("sys.argv", ["update-component-version.py", "zac", "5.4.3", "1.0.297"])
 
     ucv.main()  # must not raise even though no docs exist
@@ -846,7 +864,7 @@ def setup_git_repo_for_baseline_test(tmp_path, monkeypatch, ucv):
         "zac:\n"
         "  image:\n"
         "    repository: ghcr.io/infonl/zaakafhandelcomponent\n"
-        '    tag: "5.0.2@sha256:aaaa"\n',
+        '    tag: "5.0.2@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"\n',
         encoding="utf-8",
     )
     git("add", "-A", cwd=tmp_path)
@@ -858,7 +876,7 @@ def setup_git_repo_for_baseline_test(tmp_path, monkeypatch, ucv):
         "zac:\n"
         "  image:\n"
         "    repository: ghcr.io/infonl/zaakafhandelcomponent\n"
-        '    tag: "5.0.2@sha256:aaaa"\n'
+        '    tag: "5.0.2@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"\n'
         "  newFeature:\n"
         "    enabled: true\n",
         encoding="utf-8",
@@ -886,7 +904,7 @@ def test_main_detects_key_added_before_running_against_real_baseline(ucv, tmp_pa
     monkeypatch.setattr(ucv, "resolve_repos", lambda dep, chart_version, paths: {
         "image": "ghcr.io/infonl/zaakafhandelcomponent"
     })
-    monkeypatch.setattr(ucv, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "e" * 64))
+    mock_registry_passes(monkeypatch, ucv, "e")
     monkeypatch.setattr("sys.argv", ["update-component-version.py", "zac", "5.4.3", "1.0.297"])
 
     ucv.main()
@@ -914,7 +932,7 @@ def test_main_notes_when_baseline_unresolvable_for_key_detection(ucv, tmp_path, 
     monkeypatch.setattr(ucv, "resolve_repos", lambda dep, chart_version, paths: {
         "image": "ghcr.io/infonl/zaakafhandelcomponent"
     })
-    monkeypatch.setattr(ucv, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "f" * 64))
+    mock_registry_passes(monkeypatch, ucv, "f")
     monkeypatch.setattr("sys.argv", ["update-component-version.py", "zac", "5.4.3", "1.0.297"])
 
     ucv.main()
@@ -954,7 +972,7 @@ def test_main_touches_only_the_target_component_end_to_end(ucv, tmp_path, monkey
         "zac:\n"
         "  image:\n"
         "    repository: ghcr.io/infonl/zaakafhandelcomponent\n"
-        '    tag: "5.0.2@sha256:aaaa"\n'
+        f'    tag: "5.0.2@sha256:{OLD_DIGEST}"\n'
         "openformulieren:\n"
         "  someFeature:\n"
         "    enabled: true\n"
@@ -998,7 +1016,7 @@ def test_main_touches_only_the_target_component_end_to_end(ucv, tmp_path, monkey
     monkeypatch.setattr(ucv, "resolve_repos", lambda dep, chart_version, paths: {
         "image": "ghcr.io/infonl/zaakafhandelcomponent"
     })
-    monkeypatch.setattr(ucv, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "c" * 64))
+    mock_registry_passes(monkeypatch, ucv, "c")
     monkeypatch.setattr("sys.argv", ["update-component-version.py", "zac", "5.4.3", "1.0.297"])
 
     ucv.main()
