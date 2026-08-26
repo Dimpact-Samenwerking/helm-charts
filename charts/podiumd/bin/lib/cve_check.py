@@ -101,7 +101,7 @@ from lib.procutil import run
 from lib.registry import parse_repo
 from lib.render_scope import (
     CHART_NAME, OWN_TEMPLATES_PREFIX, chart_name_from_source, friendly_vendor_charts,
-    split_rendered_by_source, supports_skip_schema_validation,
+    split_rendered_by_source,
 )
 
 TRIVY_IMAGE = "aquasec/trivy:latest"
@@ -273,11 +273,7 @@ def check_cves(chart_dir, extra_args, detail=False):
     if shutil.which("docker") is None:
         return True, "docker is not installed — skipped (see --help)"
 
-    template_args = list(extra_args)
-    if supports_skip_schema_validation():
-        template_args.append("--skip-schema-validation")
-
-    result = run(["helm", "template", CHART_NAME, str(chart_dir), *template_args],
+    result = run(["helm", "template", CHART_NAME, str(chart_dir), *extra_args],
                  capture_output=True, text=True)
     if result.returncode != 0:
         return False, "helm template failed to render"

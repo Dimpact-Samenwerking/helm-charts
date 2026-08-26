@@ -17,7 +17,6 @@ from lib.procutil import run
 from lib.render_scope import (
     CHART_NAME, OWN_TEMPLATES_PREFIX, build_resource_locations, chart_name_from_source,
     friendly_vendor_charts, print_grouped_findings, resource_line, split_rendered_by_source,
-    supports_skip_schema_validation,
 )
 
 KUBECONFORM_BASE_ARGS = [
@@ -116,11 +115,7 @@ def check_kubeconform(chart_dir, extra_args):
     if shutil.which("kubeconform") is None:
         return False, "kubeconform is not installed (see --skip-kubeconform to bypass)"
 
-    template_args = list(extra_args)
-    if supports_skip_schema_validation():
-        template_args.append("--skip-schema-validation")
-
-    result = run(["helm", "template", CHART_NAME, str(chart_dir), *template_args],
+    result = run(["helm", "template", CHART_NAME, str(chart_dir), *extra_args],
                  capture_output=True, text=True)
     if result.returncode != 0:
         return False, "helm template failed to render"

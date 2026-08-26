@@ -114,8 +114,8 @@ def make_chart_dir(tmp_path, values=VALUES_YAML, chart_yaml=CHART_YAML):
 
 
 def sequenced_run(rendered=RENDERED, trivy_by_image=None, ks_returncode=0):
-    """helm template --help, helm template (render), then one docker/trivy
-    call per check_cves(...) invocation, in target order (sorted by
+    """helm template (render), then one docker/trivy call per
+    check_cves(...) invocation, in target order (sorted by
     (repository, version))."""
     trivy_by_image = trivy_by_image or {}
 
@@ -123,8 +123,6 @@ def sequenced_run(rendered=RENDERED, trivy_by_image=None, ks_returncode=0):
         if cmd[0] == "docker":
             image_ref = cmd[-1]
             return trivy_by_image.get(image_ref, trivy_result(stdout="{}", returncode=ks_returncode))
-        if "--help" in cmd:
-            return SimpleNamespace(returncode=0, stdout="--skip-schema-validation", stderr="")
         return SimpleNamespace(returncode=0, stdout=rendered, stderr="")
 
     return run
@@ -275,8 +273,6 @@ def test_check_cves_render_failure_fails(vp, libcvecheck, tmp_path, monkeypatch)
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/docker")
 
     def run(cmd, **kw):
-        if "--help" in cmd:
-            return SimpleNamespace(returncode=0, stdout="", stderr="")
         return SimpleNamespace(returncode=1, stdout="", stderr="Error: broke")
 
     monkeypatch.setattr(libcvecheck, "run", run)
@@ -540,8 +536,6 @@ def test_check_cves_cache_hit_skips_scanning(vp, libcvecheck, tmp_path, monkeypa
     def fail_if_scanned(cmd, **kw):
         if cmd[0] == "docker" and "frank-gateway" in cmd[-1]:
             raise AssertionError("frank-gateway should have been served from cache")
-        if "--help" in cmd:
-            return SimpleNamespace(returncode=0, stdout="", stderr="")
         if cmd[0] == "docker":
             return trivy_result(stdout="{}")
         return SimpleNamespace(returncode=0, stdout=RENDERED, stderr="")

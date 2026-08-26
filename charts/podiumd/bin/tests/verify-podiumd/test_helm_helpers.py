@@ -1,9 +1,8 @@
-"""check_lint, check_render, supports_skip_schema_validation,
-report_largest_templates, report_errors_by_subchart — with `helm`/`git`
-subprocess calls mocked out via vp.run, so these tests need neither tool
-installed nor network access. check_dependencies now lives in
-lib.dependencies (also used by set-image-digests.py) — see
-tests/lib/test_dependencies.py."""
+"""check_lint, check_render, report_largest_templates,
+report_errors_by_subchart — with `helm`/`git` subprocess calls mocked out
+via vp.run, so these tests need neither tool installed nor network access.
+check_dependencies now lives in lib.dependencies (also used by
+set-image-digests.py) — see tests/lib/test_dependencies.py."""
 from types import SimpleNamespace
 
 
@@ -42,27 +41,10 @@ def test_check_lint_counts_warnings_without_failing(vp, tmp_path, monkeypatch):
     assert "1 warning(s)" in detail
 
 
-# --- supports_skip_schema_validation ---
-
-def test_supports_skip_schema_validation_true(vp, librenderscope, monkeypatch):
-    # supports_skip_schema_validation lives in lib.render_scope and calls its
-    # OWN `run` binding — vp.run only affects code verify-podiumd.py itself
-    # resolves `run` for (check_lint/check_render), so this needs
-    # librenderscope, not vp, as the monkeypatch target.
-    monkeypatch.setattr(librenderscope, "run", fake_run(0, "... --skip-schema-validation ...", ""))
-    assert vp.supports_skip_schema_validation() is True
-
-
-def test_supports_skip_schema_validation_false(vp, librenderscope, monkeypatch):
-    monkeypatch.setattr(librenderscope, "run", fake_run(0, "no such flag documented here", ""))
-    assert vp.supports_skip_schema_validation() is False
-
-
 # --- check_render ---
 
 def test_check_render_success(vp, tmp_path, monkeypatch):
     rendered = "---\n# Source: podiumd/templates/a.yaml\nkind: Foo\n---\n# Source: podiumd/templates/b.yaml\nkind: Bar\n"
-    monkeypatch.setattr(vp, "supports_skip_schema_validation", lambda: True)
     monkeypatch.setattr(vp, "run", fake_run(0, rendered, ""))
     ok, detail = vp.check_render(tmp_path, [])
     assert ok is True
@@ -70,7 +52,6 @@ def test_check_render_success(vp, tmp_path, monkeypatch):
 
 
 def test_check_render_failure_reports_error(vp, tmp_path, monkeypatch):
-    monkeypatch.setattr(vp, "supports_skip_schema_validation", lambda: True)
     monkeypatch.setattr(vp, "run", fake_run(1, "", "Error: something broke"))
     ok, detail = vp.check_render(tmp_path, [])
     assert ok is False
@@ -78,19 +59,10 @@ def test_check_render_failure_reports_error(vp, tmp_path, monkeypatch):
 
 
 def test_check_render_zero_manifests_fails(vp, tmp_path, monkeypatch):
-    monkeypatch.setattr(vp, "supports_skip_schema_validation", lambda: True)
     monkeypatch.setattr(vp, "run", fake_run(0, "", ""))
     ok, detail = vp.check_render(tmp_path, [])
     assert ok is False
     assert "0 manifests" in detail
-
-
-def test_check_render_falls_back_gracefully_without_skip_schema_validation(vp, tmp_path, monkeypatch, capsys):
-    monkeypatch.setattr(vp, "supports_skip_schema_validation", lambda: False)
-    monkeypatch.setattr(vp, "run", fake_run(0, "---\n# Source: a.yaml\nkind: Foo\n", ""))
-    ok, detail = vp.check_render(tmp_path, [])
-    assert ok is True
-    assert "WARNING" in capsys.readouterr().out
 
 
 # --- report_largest_templates / report_errors_by_subchart (just check they don't crash and print something sensible) ---
@@ -195,16 +167,12 @@ def test_resource_line_none_when_not_found(librenderscope):
 
 
 # --- render_chart ---
-# render_chart lives in lib.render_scope and calls its OWN `run`/
-# supports_skip_schema_validation bindings — same reason
-# test_supports_skip_schema_validation_* above uses librenderscope, not vp.
+# render_chart lives in lib.render_scope and calls its OWN `run` binding —
+# same reason every other librenderscope test above uses librenderscope,
+# not vp, as the monkeypatch target.
 
-def _sequenced_run(rendered, returncode=0, stderr="", skip_schema_validation_supported=True):
-    help_stdout = "--skip-schema-validation" if skip_schema_validation_supported else ""
-
+def _sequenced_run(rendered, returncode=0, stderr=""):
     def _run(cmd, **kwargs):
-        if "--help" in cmd:
-            return SimpleNamespace(returncode=0, stdout=help_stdout, stderr="")
         return SimpleNamespace(returncode=returncode, stdout=rendered, stderr=stderr)
     return _run
 
@@ -217,32 +185,16 @@ def test_render_chart_returns_helm_templates_result(librenderscope, tmp_path, mo
     assert result.stdout == rendered
 
 
-def test_render_chart_adds_skip_schema_validation_when_supported(librenderscope, tmp_path, monkeypatch):
+def test_render_chart_passes_extra_args_through(librenderscope, tmp_path, monkeypatch):
     captured = {}
 
     def _run(cmd, **kwargs):
-        if "--help" in cmd:
-            return SimpleNamespace(returncode=0, stdout="--skip-schema-validation", stderr="")
         captured["cmd"] = cmd
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
     monkeypatch.setattr(librenderscope, "run", _run)
     librenderscope.render_chart(tmp_path, ["-f", "values.yaml"])
-    assert "--skip-schema-validation" in captured["cmd"]
-
-
-def test_render_chart_omits_skip_schema_validation_when_unsupported(librenderscope, tmp_path, monkeypatch):
-    captured = {}
-
-    def _run(cmd, **kwargs):
-        if "--help" in cmd:
-            return SimpleNamespace(returncode=0, stdout="", stderr="")
-        captured["cmd"] = cmd
-        return SimpleNamespace(returncode=0, stdout="", stderr="")
-
-    monkeypatch.setattr(librenderscope, "run", _run)
-    librenderscope.render_chart(tmp_path, [])
-    assert "--skip-schema-validation" not in captured["cmd"]
+    assert "-f" in captured["cmd"] and "values.yaml" in captured["cmd"]
 
 
 def test_render_chart_propagates_failure(librenderscope, tmp_path, monkeypatch):
