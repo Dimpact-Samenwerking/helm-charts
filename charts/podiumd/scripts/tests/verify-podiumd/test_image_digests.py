@@ -187,7 +187,11 @@ def test_scan_digest_pins_ignores_non_digest_tags(libimagedigests):
     assert libimagedigests.scan_digest_pins(lines) == []
 
 
-def test_scan_digest_pins_records_split_registry_style(libimagedigests):
+def test_scan_digest_pins_resolves_split_registry_style(libimagedigests):
+    """scan_digest_pins itself only cares about the resolved repository
+    (used for the live lookup) — the split-style style-suggestion is now
+    an independent whole-file scan, see find_split_registry_pairs below,
+    since a split pin isn't guaranteed to be digest-pinned at all."""
     lines = [
         "    image:",
         "      registry: quay.io",
@@ -196,13 +200,65 @@ def test_scan_digest_pins_records_split_registry_style(libimagedigests):
     ]
     pins = libimagedigests.scan_digest_pins(lines)
     assert pins[0]["repository"] == "quay.io/opstree/redis"
-    assert pins[0]["split_registry"] == "quay.io"
 
 
-def test_scan_digest_pins_combined_style_has_no_split_registry(libimagedigests):
+def test_scan_digest_pins_combined_style(libimagedigests):
     lines = ["  image:", "    repository: org/repo", '    tag: "1.0.0@sha256:' + "a" * 64 + '"']
     pins = libimagedigests.scan_digest_pins(lines)
-    assert pins[0]["split_registry"] is None
+    assert pins[0]["repository"] == "org/repo"
+
+
+# --- find_repository_after_registry / find_split_registry_pairs ---
+
+def test_find_repository_after_registry_found(libimagedigests):
+    lines = ["    image:", "      registry: quay.io", "      repository: opstree/redis"]
+    assert libimagedigests.find_repository_after_registry(lines, 1, 6) == "opstree/redis"
+
+
+def test_find_repository_after_registry_none_when_absent(libimagedigests):
+    lines = ["    image:", "      registry: quay.io", "      tag: \"v8.6.6\""]
+    assert libimagedigests.find_repository_after_registry(lines, 1, 6) is None
+
+
+def test_find_repository_after_registry_stops_at_dedent(libimagedigests):
+    lines = ["      registry: quay.io", "    repository: should/not-be-used"]
+    assert libimagedigests.find_repository_after_registry(lines, 0, 6) is None
+
+
+def test_find_split_registry_pairs_finds_pair_without_a_digest_pin(libimagedigests):
+    """The whole point of decoupling this from scan_digest_pins: a split
+    pin with a bare (non-digest-pinned) tag — like openbao's own image
+    blocks — must still be found, even though check_image_digests's own
+    digest-pin scan never sees it at all."""
+    lines = [
+        "  image:",
+        "    registry: quay.io",
+        "    repository: openbao/openbao",
+        '    tag: "2.5.5"',
+    ]
+    pairs = libimagedigests.find_split_registry_pairs(lines)
+    assert pairs == [{"line": 2, "registry": "quay.io", "repository": "quay.io/openbao/openbao"}]
+
+
+def test_find_split_registry_pairs_ignores_combined_style(libimagedigests):
+    lines = ["  image:", "    repository: quay.io/opstree/redis", '    tag: "v8.6.6"']
+    assert libimagedigests.find_split_registry_pairs(lines) == []
+
+
+def test_find_split_registry_pairs_finds_multiple(libimagedigests):
+    lines = [
+        "a:",
+        "  image:",
+        "    registry: quay.io",
+        "    repository: opstree/redis",
+        "b:",
+        "  image:",
+        "    registry: docker.io",
+        "    repository: library/postgres",
+    ]
+    pairs = libimagedigests.find_split_registry_pairs(lines)
+    assert [p["line"] for p in pairs] == [3, 7]
+    assert pairs[1]["repository"] == "docker.io/library/postgres"
 
 
 # --- check_image_digests (mocked registry) ---
@@ -511,8 +567,30 @@ def test_check_image_digests_reports_split_style_suggestion(vp, libimagedigests,
     assert "1 style suggestion" in detail
     out = capsys.readouterr().out
     assert "split" in out.lower()
-    assert "values.yaml:5" in out
+    assert "values.yaml:3" in out
     assert 'repository: "quay.io/opstree/redis"' in out
+
+
+def test_check_image_digests_reports_split_style_suggestion_without_a_digest_pin(
+        vp, libimagedigests, tmp_path, monkeypatch, capsys):
+    """Regression test for the actual gap: a split-style pin with a bare
+    (non-digest-pinned) tag — like openbao's own image blocks — is
+    invisible to scan_digest_pins entirely, but must still get the style
+    suggestion (see find_split_registry_pairs)."""
+    write_values(tmp_path, (
+        "openbao:\n"
+        "  image:\n"
+        "    registry: quay.io\n"
+        "    repository: openbao/openbao\n"
+        '    tag: "2.5.5"\n'
+    ))
+    monkeypatch.setattr(libimagedigests, "registry_tag_exists", lambda *a: (_ for _ in ()).throw(AssertionError))
+    ok, detail = vp.check_image_digests(tmp_path)
+    assert ok is True
+    assert "1 style suggestion" in detail
+    out = capsys.readouterr().out
+    assert "values.yaml:3" in out
+    assert 'repository: "quay.io/openbao/openbao"' in out
 
 
 def test_check_image_digests_combined_style_has_no_suggestion(vp, libimagedigests, tmp_path, monkeypatch, capsys):

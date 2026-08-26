@@ -59,6 +59,51 @@ def find_sibling_registry(lines, tag_line_index, tag_indent):
     return None
 
 
+def find_repository_after_registry(lines, registry_line_index, indent):
+    """The value of a sibling "repository:" key following a "registry:"
+    line at registry_line_index, at the same indent, within the same
+    block (stops at the first dedent). The mirror image of
+    find_sibling_registry, which searches backward from a "tag:" line —
+    this searches forward from a "registry:" line instead, since a split
+    pin's own image block isn't guaranteed to have a digest-pinned "tag:"
+    at all (see find_split_registry_pairs, which needs this to find every
+    split-style pair regardless of whether it's digest-pinned)."""
+    for i in range(registry_line_index + 1, min(registry_line_index + 15, len(lines))):
+        raw = lines[i]
+        if not raw.strip():
+            continue
+        line_indent = len(raw) - len(raw.lstrip(" "))
+        if line_indent < indent:
+            break
+        m = ACTIVE_REPO_RE.match(raw)
+        if m and line_indent == indent:
+            return m.group("repo")
+    return None
+
+
+def find_split_registry_pairs(lines):
+    """Every "registry: <host>" / "repository: <path>" split-style pair in
+    the file, as {"line": <1-based line of "registry:">, "registry":
+    <host>, "repository": <combined "host/path">}, regardless of whether
+    that image block also happens to pin a digest. Unlike scan_digest_pins
+    (which only ever sees an image block that ALSO has a digest-pinned
+    "tag:" nearby), this scans the whole file directly by "registry:" key,
+    so it catches every split-style pin — including a bare (non-digest-
+    pinned) tag like openbao's own image blocks, which check_image_digests
+    itself never looks at."""
+    pairs = []
+    for i, raw in enumerate(lines):
+        m = ACTIVE_REGISTRY_RE.match(raw)
+        if not m:
+            continue
+        indent = len(raw) - len(raw.lstrip(" "))
+        repo = find_repository_after_registry(lines, i, indent)
+        if repo:
+            pairs.append({"line": i + 1, "registry": m.group("registry"),
+                          "repository": f'{m.group("registry")}/{repo}'})
+    return pairs
+
+
 def resolve_pin_repo(lines, tag_line_index, tag_indent):
     """Resolve the upstream repository for a "tag:" pin at tag_line_index.
     Most pins have an active sibling "repository:" key. A minority of
@@ -96,11 +141,7 @@ def resolve_pin_repo(lines, tag_line_index, tag_indent):
 def scan_digest_pins(lines):
     """Yield one record per "tag: <version>@sha256:<digest>" pin in
     values.yaml, with its resolved upstream repository. A single image (e.g.
-    nginx-unprivileged) is typically pinned many times across the file.
-    "split_registry" carries the sibling "registry:" key's value when the
-    pin uses that style (see find_sibling_registry) — None for the more
-    common combined "repository: <host>/<path>" style, or when unresolved
-    entirely."""
+    nginx-unprivileged) is typically pinned many times across the file."""
     pins = []
     for i, raw in enumerate(lines):
         m = DIGEST_PIN_RE.match(raw)
@@ -112,7 +153,6 @@ def scan_digest_pins(lines):
             "version": m.group("version"),
             "digest": m.group("digest"),
             "repository": resolve_pin_repo(lines, i, indent),
-            "split_registry": find_sibling_registry(lines, i, indent),
         })
     return pins
 
@@ -147,12 +187,17 @@ def check_image_digests(chart_dir):
     check on its own — it can't succeed from an unprivileged environment
     regardless of whether the pin itself is correct.
 
-    A pin using the split "registry: <host>" / "repository: <path>" style
-    (e.g. redis-ha's opstree/redis images) gets a one-time style
-    suggestion to use the combined "repository: <host>/<path>" style
-    instead, used everywhere else in this file — confirmed purely
-    cosmetic (podiumd.image in _helpers.tpl renders both identically), so
-    this is a suggestion only and never fails the check."""
+    Every "registry: <host>" / "repository: <path>" split-style pair
+    anywhere in values.yaml (see find_split_registry_pairs) gets a
+    one-time style suggestion to use the combined "repository:
+    <host>/<path>" style instead, used everywhere else in this file —
+    confirmed purely cosmetic (podiumd.image in _helpers.tpl renders both
+    identically), so this is a suggestion only and never fails the check.
+    This scans the whole file directly, independent of scan_digest_pins'
+    own digest-pinned-tag scope, since a split pin isn't guaranteed to
+    have a digest-pinned tag at all (e.g. openbao's own image blocks use
+    bare tags — invisible to the rest of this check, but still worth the
+    style suggestion)."""
     values_path = chart_dir / "values.yaml"
     lines = values_path.read_text(encoding="utf-8").splitlines()
     pins = scan_digest_pins(lines)
@@ -237,13 +282,13 @@ def check_image_digests(chart_dir):
     if mismatches:
         print(f"Run set-image-digests.py to refresh the {len(mismatches)} stale pinned digest(s) above.")
 
-    split_style_pins = [p for p in pins if p.get("split_registry")]
+    split_style_pins = find_split_registry_pairs(lines)
     if split_style_pins:
         print(f"{len(split_style_pins)} pin(s) use a split \"registry:\"/\"repository:\" style — "
               f"functionally identical (podiumd.image in _helpers.tpl renders both the same way), "
               f"but the combined single-key style used elsewhere in this file is easier to grep/audit:")
         for p in split_style_pins:
-            print(f'  values.yaml:{p["line"]}: registry: {p["split_registry"]}  ->  consider instead: '
+            print(f'  values.yaml:{p["line"]}: registry: {p["registry"]}  ->  consider instead: '
                   f'repository: "{p["repository"]}" (drop the separate registry: key)')
 
     detail = (f"{matched}/{len(targets)} matched, {len(sliding_mismatches)} sliding (expected drift), "
