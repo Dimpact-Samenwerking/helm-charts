@@ -136,7 +136,7 @@ this script's own dependency-resolution, image-digest, and docs-consistency chec
 Always verifies charts/podiumd next to this script — there is no way to point
 it at a different chart source.
 
-The actual check logic lives in charts/podiumd/scripts/lib/ (one module per
+The actual check logic lives in charts/podiumd/bin/lib/ (one module per
 check, plus lib/render_scope.py for the infrastructure shared by every
 check that inspects a `helm template` render, and lib/dependencies.py for
 the dependency-vendoring set-image-digests.py also needs) — this file is
@@ -201,7 +201,7 @@ from lib.procutil import run
 # docstring for what it does and why) — main()'s run_step() pipeline is the
 # only thing here that needs the check functions themselves. Tests exercise
 # a check (and any helper it calls) through that same lib module directly —
-# see charts/podiumd/scripts/tests/verify-podiumd/conftest.py's lib*
+# see charts/podiumd/bin/tests/verify-podiumd/conftest.py's lib*
 # fixtures — rather than through this file, so this import list stays
 # exactly what main() calls, no re-exports to keep in sync by hand.
 from lib.dry_check import check_dry
