@@ -1226,7 +1226,7 @@ PodiumD Helm chart
 | zac.global.curlImage.repository | string | `"curlimages/curl"` |  |
 | zac.global.curlImage.tag | string | `"8.21.0@sha256:7c12af72ceb38b7432ab85e1a265cff6ae58e06f95539d539b654f2cfa64bb13"` |  |
 | zac.image.pullPolicy | string | `"IfNotPresent"` |  |
-| zac.image.tag | string | `"5.1.0@sha256:d833d2f3dd58eeb58335e9aff9bca67f5885fad0e6a7414003ce9a211d3dc50e"` |  |
+| zac.image.tag | string | `"5.4.4@sha256:2809ee2d2dc1ca166b88878a50d2850c7e972651f3ee5c35f44e92127c67773a"` |  |
 | zac.initContainer.enabled | bool | `true` |  |
 | zac.initContainer.resources.requests.cpu | string | `"50m"` |  |
 | zac.initContainer.resources.requests.memory | string | `"256Mi"` |  |
@@ -1259,7 +1259,7 @@ PodiumD Helm chart
 | zac.objecttypenApi.token | string | `"objecttypentoken"` |  |
 | zac.objecttypenApi.url | string | `"http://objecttypen.example.nl"` |  |
 | zac.office_converter.image.tag | string | `"8.34.0@sha256:67097317623a503ba2a6a7e9ae8db6929a1f7e1bbd88077bacf2d325fbdab923"` |  |
-| zac.opa.image.tag | string | `"1.17.1-static@sha256:c29f8ee8dbe66608a1c04e9be84b04efc46877625e6b0877e559954565209efc"` |  |
+| zac.opa.image.tag | string | `"1.19.0-static@sha256:2f42ca765bb739b40fc23ee625b3287012acdf8120ad4fcbdab68433a17be144"` |  |
 | zac.opa.resources.requests.cpu | string | `"10m"` |  |
 | zac.opa.resources.requests.memory | string | `"20Mi"` |  |
 | zac.opa.sidecar | bool | `true` |  |
@@ -1273,7 +1273,7 @@ PodiumD Helm chart
 | zac.smartDocuments.fixedUserName | string | `""` |  |
 | zac.smartDocuments.url | string | `""` |  |
 | zac.solr-operator.enabled | bool | `true` | turn functionality on/off |
-| zac.solr-operator.image.tag | string | `"v0.9.1@sha256:4db34508137f185d3cad03c7cf7c2b5d6533fb590822effcde9125cff5a90aa2"` |  |
+| zac.solr-operator.image.tag | string | `"v0.9.1@sha256:38dd9719f0f6e799d04bb8c22fb5eaca3a9fe7ffaf313c296327c6cca02f3c1d"` |  |
 | zac.solr-operator.nodeSelector | object | `{}` |  |
 | zac.solr-operator.resources.limits.cpu | string | `"500m"` |  |
 | zac.solr-operator.resources.limits.memory | string | `"256Mi"` |  |
@@ -1300,7 +1300,7 @@ PodiumD Helm chart
 | zac.zgwApis.secret | string | `"changeme"` |  |
 | zac.zgwApis.url | string | `"http://open-zaak.internal"` |  |
 | zac.zgwApis.urlExtern | string | `"http://open-zaak.example.nl"` |  |
-| zgw-office-addin.backend.image.tag | string | `"v0.9.352@sha256:c5bf9a7beb883c7cf586a65326dacb4fc49a2eaaa08f4eb49f2faabb786b71b4"` |  |
+| zgw-office-addin.backend.image.tag | string | `"0.11.0@sha256:5b188e853531986e31709ed6cae130a891e0014cb267c43ac338b792c84a29ab"` |  |
 | zgw-office-addin.backend.msalSecret | string | `""` |  |
 | zgw-office-addin.backend.resources.requests.cpu | string | `"100m"` |  |
 | zgw-office-addin.backend.resources.requests.memory | string | `"256Mi"` |  |
@@ -1311,7 +1311,7 @@ PodiumD Helm chart
 | zgw-office-addin.common.msalTenantId | string | `""` | MS Azure Tenant ID of the Office Add-in application |
 | zgw-office-addin.common.podLabels | object | `{"app":"office-addin","service_name":"office-addin"}` | IN-2060: Grafana/Loki app + service_name labels on the office-addin pods. Without these the pods are attributed to the Helm release name ("podiumd"). Requires zgw-office-addin chart >= 0.0.89 (adds podLabels support). |
 | zgw-office-addin.enabled | bool | `true` |  |
-| zgw-office-addin.frontend.image.tag | string | `"v0.9.352@sha256:bf248581519b1644ef0f0b3ecb569f80b0fcf435c58df18547bb714eb6aa4916"` |  |
+| zgw-office-addin.frontend.image.tag | string | `"0.11.0@sha256:9a6b3e9023b8cfba152a84dd7477e079490fc7d35562d32e0dc094be81a7f7a2"` |  |
 | zgw-office-addin.frontend.resources.requests.cpu | string | `"50m"` |  |
 | zgw-office-addin.frontend.resources.requests.memory | string | `"64Mi"` |  |
 | zgw-office-addin.fullnameOverride | string | `"zgw-office-addin"` |  |
