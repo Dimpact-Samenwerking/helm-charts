@@ -128,6 +128,58 @@ def find_split_registry_pairs(lines):
     return pairs
 
 
+def find_inconsistent_version_pins(pins):
+    """Every repository pinned as a literal (non-alias) "tag:" in more than
+    one place across values.yaml — always a real problem, just one of two
+    different kinds:
+
+    "duplicate" — every occurrence currently agrees on the exact same
+    (version, digest). There's no legitimate reason two spots need to be
+    hand-typed identically instead of one being a YAML alias ("*name") to
+    the other's anchor ("&name") — confirmed by hand: curlimages/curl is
+    defined once via "&curlImage" and reused via "*curlImage" in three
+    places, but ALSO hand-duplicated verbatim at kiss.settings.elastic.
+    indexTemplateImage, which isn't protected by that alias at all and
+    can silently drift the next time the anchor is bumped without anyone
+    remembering this spot exists.
+
+    "drift" — the occurrences disagree: different versions, or the same
+    version pinned with a different digest (e.g. a sliding tag refreshed
+    at one spot but not the other, invisible to a version-only
+    comparison). This COULD be a deliberate variant of the same
+    repository (e.g. python:3.14-slim vs python:3.14-alpine share the
+    exact repository "library/python", differing only in tag suffix) —
+    but as of 2026-08-26 no repository in this chart is actually pinned
+    at more than one version anywhere, so there's no real precedent this
+    would break; a real future variant pin would need to fail loudly here
+    too rather than let genuine drift slide through unnoticed.
+
+    Grouped by the exact "repository:" string, not by basename (see
+    lib.image_version.image_basename) — a shared basename across
+    different orgs/paths (docker.io/x/tool vs ghcr.io/y/tool) isn't the
+    same image at all, so basename grouping would false-positive there.
+
+    Returns {repository: {"kind": "duplicate"|"drift",
+    "pins": [((version, digest), [line, ...]), ...]}} for every
+    repository pinned literally in more than one place; a repository
+    pinned only once (the common case) is omitted entirely."""
+    by_repo = {}
+    for p in pins:
+        if not p["repository"]:
+            continue
+        by_repo.setdefault(p["repository"], []).append((p["version"], p["digest"], p["line"]))
+
+    findings = {}
+    for repo, entries in by_repo.items():
+        if len(entries) < 2:
+            continue
+        pairs = {}
+        for version, digest, line in entries:
+            pairs.setdefault((version, digest), []).append(line)
+        findings[repo] = {"kind": "duplicate" if len(pairs) == 1 else "drift", "pins": list(pairs.items())}
+    return findings
+
+
 def resolve_pin_repo(lines, tag_line_index, tag_indent):
     """Resolve the upstream repository for a "tag:" pin at tag_line_index.
     Most pins have an active sibling "repository:" key. A minority of
@@ -225,7 +277,16 @@ def check_image_digests(chart_dir):
     independent of scan_digest_pins' own digest-pinned-tag scope, since a
     split pin isn't guaranteed to have a digest-pinned tag at all (e.g.
     openbao's own image blocks use bare tags — invisible to the rest of
-    this check, but still worth the style suggestion)."""
+    this check, but still worth the style suggestion).
+
+    Any repository pinned literally in more than one place in values.yaml
+    (see find_inconsistent_version_pins) FAILS the check, one of two ways:
+    a [DUPLICATE-PIN] (every occurrence agrees — should be a YAML alias to
+    a shared anchor instead of hand-duplicated text, since nothing then
+    stops the un-aliased copy from silently drifting on a future bump) or
+    a [VERSION-DRIFT] (the occurrences disagree — different versions, or
+    the same version pinned with a different digest, e.g. a sliding tag
+    refreshed at one spot but not the other)."""
     values_path = chart_dir / "values.yaml"
     lines = values_path.read_text(encoding="utf-8").splitlines()
     pins = scan_digest_pins(lines)
@@ -319,9 +380,29 @@ def check_image_digests(chart_dir):
             print(f'  values.yaml:{p["line"]}: registry: {p["registry"]}  ->  consider instead: '
                   f'repository: "{p["repository"]}" (drop the separate registry: key)')
 
+    inconsistent = find_inconsistent_version_pins(pins)
+    duplicates = {r: f for r, f in inconsistent.items() if f["kind"] == "duplicate"}
+    drifted = {r: f for r, f in inconsistent.items() if f["kind"] == "drift"}
+
+    for repository, finding in duplicates.items():
+        (version, digest), pin_lines = finding["pins"][0]
+        lines_str = ", ".join(str(n) for n in sorted(pin_lines))
+        print(f"  [DUPLICATE-PIN] {repository}:{version}  hand-duplicated identically at "
+              f"{len(pin_lines)} places (values.yaml:{lines_str}) instead of a shared YAML anchor "
+              f'("&name" once, "*name" everywhere else) — the un-aliased cop{"y" if len(pin_lines) == 2 else "ies"} '
+              f"can silently drift the next time this image is bumped elsewhere")
+
+    for repository, finding in drifted.items():
+        print(f"  [VERSION-DRIFT] {repository} pinned at {len(finding['pins'])} different versions/digests "
+              f"across values.yaml:")
+        for (version, digest), pin_lines in finding["pins"]:
+            lines_str = ", ".join(str(n) for n in pin_lines)
+            print(f"      {version}@sha256:{digest}  (values.yaml:{lines_str})")
+
     detail = (f"{matched}/{len(targets)} matched, {len(sliding_mismatches)} sliding (expected drift), "
               f"{len(mismatches)} stale, {len(fetch_errors)} fetch error(s), "
-              f"{len(unverifiable)} unverifiable, {len(split_style_pins)} style suggestion(s)")
-    if mismatches or fetch_errors:
+              f"{len(unverifiable)} unverifiable, {len(split_style_pins)} style suggestion(s), "
+              f"{len(duplicates)} duplicate pin(s), {len(drifted)} version-drift finding(s)")
+    if mismatches or fetch_errors or inconsistent:
         return False, detail
     return True, detail
