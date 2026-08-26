@@ -5,17 +5,17 @@ on disk."""
 import pytest
 
 CSV_TEXT = """\
-section,vendor,used_by,name,component,alias,source_version_app,source_version_helm,target_version_app,target_version_helm
-Product,Info(NL),,ZAC,zaakafhandelcomponent,zac,5.0.0,1.0.290,5.1.0,1.0.297
-Product,Maykin,,Open Zaak,openzaak,,1.27.0,1.14.0,1.27.4,1.14.2
-Technische,,,Elastic operator,,,3.4.0,3.4.0,,
-Technische,,zac,Solr,,,8.11.0,8.11.0,8.11.0,8.11.0
-Product,ZAC Team,,Some Component,,,1.0.0,1.0.0,1.0.0,1.0.0
-Product,ICATT,,Interne Taak Afhandeling,internetaakafhandeling,ita,3.2.0,3.2.0,3.3.0,3.3.0
-Technische,,ita,ITA Poller,,,1.0.0,1.0.0,1.0.0,1.0.0
-Product,ICATT,,Contact (KISS),kiss-chart,kiss,2.2.3,2.2.3,3.0.0,3.0.0
-Technische,,kiss,Kiss Elastic Sync,,,0.3.3,0.3.3,3.0.0,3.0.0
-Technische,,kiss,PodiumD Adapter,,,0.6.6,0.6.6,0.6.7,0.6.7
+section,vendor,used_by,name,component,alias,image_basename,source_version_app,source_version_helm,target_version_app,target_version_helm
+Product,Info(NL),,ZAC,zaakafhandelcomponent,zac,zaakafhandelcomponent,5.0.0,1.0.290,5.1.0,1.0.297
+Product,Maykin,,Open Zaak,openzaak,,,1.27.0,1.14.0,1.27.4,1.14.2
+Technische,,,Elastic operator,,,,3.4.0,3.4.0,,
+Technische,,zac,Solr,,,solr,8.11.0,8.11.0,8.11.0,8.11.0
+Product,ZAC Team,,Some Component,,,,1.0.0,1.0.0,1.0.0,1.0.0
+Product,ICATT,,Interne Taak Afhandeling,internetaakafhandeling,ita,,3.2.0,3.2.0,3.3.0,3.3.0
+Technische,,ita,ITA Poller,,,,1.0.0,1.0.0,1.0.0,1.0.0
+Product,ICATT,,Contact (KISS),kiss-chart,kiss,kiss-frontend,2.2.3,2.2.3,3.0.0,3.0.0
+Technische,,kiss,Kiss Elastic Sync,,,kiss-elastic-sync,0.3.3,0.3.3,3.0.0,3.0.0
+Technische,,kiss,PodiumD Adapter,,,podiumd-adapter,0.6.6,0.6.6,0.6.7,0.6.7
 """
 
 
@@ -191,6 +191,18 @@ def test_print_table_aligns_columns_with_header(qrt, capsys, rows):
     assert "5.1.0" in out[1]
 
 
+def test_print_table_includes_image_basename(qrt, capsys, rows):
+    """image_basename -- set by export-confluence-release-table.py's own
+    resolve_image_basenames -- is shown alongside component/alias, not
+    just usable for filtering. Uses a row whose image_basename ("kiss-
+    frontend") is a distinct string from its own component ("kiss-chart"),
+    so the assertion can't accidentally pass via the component column."""
+    kiss = next(r for r in rows if r["name"] == "Contact (KISS)")
+    qrt.print_table([kiss])
+    out = capsys.readouterr().out.splitlines()
+    assert "kiss-frontend" in out[1]
+
+
 def test_print_table_includes_component_and_alias(qrt, capsys, rows):
     """component/alias — set by export-confluence-release-table.py — are
     shown alongside name and the version columns, not just usable for
@@ -198,7 +210,7 @@ def test_print_table_includes_component_and_alias(qrt, capsys, rows):
     ita = next(r for r in rows if r["name"] == "Interne Taak Afhandeling")
     qrt.print_table([ita])
     out = capsys.readouterr().out.splitlines()
-    assert out[0].split() == ["name", "component", "alias",
+    assert out[0].split() == ["name", "component", "alias", "image_basename",
                                "source_version_app", "source_version_helm",
                                "target_version_app", "target_version_helm"]
     assert "internetaakafhandeling" in out[1]
