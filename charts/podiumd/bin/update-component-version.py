@@ -41,7 +41,9 @@ After writing, re-render the chart (verify-podiumd.py or /helm-render-all)
 to confirm before committing.
 """
 import re
+import shutil
 import sys
+import tempfile
 from pathlib import Path
 
 import yaml
@@ -51,18 +53,18 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 from lib.chart import chart_version as _chart_version
 from lib.chart import find_dependency as _find_dependency
-from lib.chart import get_path, image_paths_for, pull_chart_values, replace_scalar_value
+from lib.chart import (
+    check_image_versions, get_path, image_paths_for, pull_chart, pulled_chart_dir, replace_scalar_value,
+)
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
 from lib.image_version import image_basename, update_image_version
 from lib.procutil import run_script
-from lib.registry import parse_repo, registry_tag_exists
 from lib.upgradedoc import (
     append_to_doc, canonical_version_cell, describe_key_changes, extract_source_version,
     find_grouped_preceding_comment_line, normalize_name, normalize_version, parse_upgrade_doc_rows,
     replace_version_pair, resolve_entry_path,
 )
 
-VERIFY_SCRIPT = SCRIPT_DIR / "verify-component-version.py"
 UPDATE_README_SCRIPT = SCRIPT_DIR / "update-podiumd-readme.py"
 CHART_YAML = SCRIPT_DIR.parents[0] / "Chart.yaml"
 VALUES_YAML = SCRIPT_DIR.parents[0] / "values.yaml"
@@ -84,20 +86,48 @@ def find_dependency(name_or_alias):
     return dep
 
 
-def resolve_repos(dep, chart_version, paths):
-    """Pull the target chart version and read ITS OWN values.yaml to find
-    each path's default "repository:" — podiumd's own values.yaml may leave
-    "repository:" entirely unset, relying on the sub-chart's default."""
-    sub_values = pull_chart_values(dep, chart_version)
-    repos = {}
-    for path in paths:
-        repo = get_path(sub_values, f"{path}.repository")
-        if not isinstance(repo, str) or not repo:
-            raise SystemExit(
-                f"error: no repository found at {path}.repository in {dep['name']}'s own values.yaml"
-            )
-        repos[path] = repo
-    return repos
+def verify_component_version(dep, image_paths, app_version, chart_version):
+    """Pull the target chart version once and check both that it exists and
+    that `image_paths` resolve to existing app image versions on their
+    actual upstream registries — the single upfront gate main() runs before
+    touching any file. Returns the pulled chart's own values.yaml (parsed)
+    plus lib.chart.check_image_versions' results, so callers needing a
+    fallback path's default repository (see check_image_versions) reuse
+    this same pull/check instead of repeating it. Exits 1 (after printing
+    a FAIL) if the chart version can't be pulled or an image version
+    doesn't exist; never returns in that case."""
+    chart_name = dep["name"]
+    tmpdir = Path(tempfile.mkdtemp(prefix="update-component-version-"))
+    try:
+        print(f"=== Checking chart version {chart_version!r} for {chart_name} ===")
+        ok_chart, stderr = pull_chart(dep, chart_version, tmpdir)
+        status = "FOUND  " if ok_chart else "MISSING"
+        suffix = f"  ({stderr})" if not ok_chart else ""
+        print(f"  [{status}] {chart_name} {chart_version}{suffix}")
+        if not ok_chart:
+            print()
+            print("FAIL: chart version does not exist — refusing to change any files")
+            sys.exit(1)
+
+        chart_dir = pulled_chart_dir(tmpdir)
+        upstream_values = yaml.safe_load((chart_dir / "values.yaml").read_text(encoding="utf-8")) or {}
+
+        print(f"\nChecking app version {app_version!r} for {dep.get('alias', chart_name)}:")
+        image_results = check_image_versions(upstream_values, image_paths, app_version)
+        ok_images = True
+        for r in image_results:
+            status = "FOUND  " if r["exists"] else "MISSING"
+            suffix = f"  digest={r['digest']}" if r["digest"] else ""
+            print(f"  [{status}] {r['host']}/{r['repo_path']}:{app_version}{suffix}")
+            ok_images = ok_images and r["exists"]
+        if not ok_images:
+            print()
+            print("FAIL: one or more app image versions do not exist yet — refusing to change any files")
+            sys.exit(1)
+
+        return {r["path"]: r for r in image_results}
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)
 
 
 def find_block_end(lines, block_start, indent):
@@ -481,17 +511,12 @@ def main():
         sys.exit(1)
     component, app_version, chart_version = sys.argv[1], sys.argv[2], sys.argv[3]
 
-    print(f"=== Running verify-component-version.py {component} {app_version} {chart_version} ===")
-    result = run_script([sys.executable, str(VERIFY_SCRIPT), component, app_version, chart_version])
-    if result.returncode != 0:
-        print()
-        print("FAIL: verify-component-version.py did not pass — refusing to change any files")
-        sys.exit(1)
-
     dep = find_dependency(component)
     chart_name = dep["name"]
     values_key = dep.get("alias", dep["name"])
     image_paths = image_paths_for(component)
+
+    upstream_images = verify_component_version(dep, image_paths, app_version, chart_version)
 
     print()
     chart_unchanged = str(dep["version"]) == str(chart_version)
@@ -557,16 +582,16 @@ def main():
 
         if fallback_paths:
             print()
-            print(f"=== Resolving digests via sub-chart default for: {', '.join(fallback_paths)} ===")
-            repos.update(resolve_repos(dep, chart_version, fallback_paths))
+            print(f"=== Using sub-chart default digests for: {', '.join(fallback_paths)} ===")
             for path in fallback_paths:
-                host, repo_path = parse_repo(repos[path])
-                exists, digest = registry_tag_exists(host, repo_path, app_version)
-                if not exists or not digest:
-                    print(f"error: {host}/{repo_path}:{app_version} unexpectedly missing on re-check")
-                    sys.exit(1)
-                new_tags_by_path[path] = f"{app_version}@{digest}"
-                print(f"  {values_key}.{path}: {host}/{repo_path}:{app_version} -> {digest}")
+                r = upstream_images.get(path)
+                if r is None or not r["exists"] or not r["digest"]:
+                    raise SystemExit(
+                        f"error: no repository found at {path}.repository in {dep['name']}'s own values.yaml"
+                    )
+                repos[path] = r["repository"]
+                new_tags_by_path[path] = f"{app_version}@{r['digest']}"
+                print(f"  {values_key}.{path}: {r['host']}/{r['repo_path']}:{app_version} -> {r['digest']}")
             print()
             print(f"=== Writing {VALUES_YAML} ===")
             for dotted, old_v, new_v in update_values_yaml(values_key, fallback_paths, new_tags_by_path):
