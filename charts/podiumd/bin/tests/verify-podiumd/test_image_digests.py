@@ -261,6 +261,96 @@ def test_find_split_registry_pairs_finds_multiple(libimagedigests):
     assert pairs[1]["repository"] == "docker.io/library/postgres"
 
 
+# --- find_inconsistent_version_pins ---
+
+def test_find_inconsistent_version_pins_flags_same_repo_different_versions(libimagedigests):
+    lines = [
+        "a:",
+        "  image:",
+        "    repository: curlimages/curl",
+        f'    tag: "8.21.0@sha256:{"a" * 64}"',
+        "b:",
+        "  image:",
+        "    repository: curlimages/curl",
+        f'    tag: "8.20.0@sha256:{"b" * 64}"',
+    ]
+    pins = libimagedigests.scan_digest_pins(lines)
+    drift = libimagedigests.find_inconsistent_version_pins(pins)
+    assert drift == {"curlimages/curl": {
+        "kind": "drift",
+        "pins": [(("8.21.0", "a" * 64), [4]), (("8.20.0", "b" * 64), [8])],
+    }}
+
+
+def test_find_inconsistent_version_pins_flags_same_version_different_digest(libimagedigests):
+    """The subtler case: both pins agree on the version string, but the
+    digest has diverged — e.g. a sliding tag re-published upstream and
+    refreshed at one spot but not the other. Invisible to a version-only
+    comparison, since neither pin's version string changed at all. Still
+    classified "drift" (not "duplicate") — the pins disagree, even though
+    only the digest half of the pair differs."""
+    lines = [
+        "a:",
+        "  image:",
+        "    repository: curlimages/curl",
+        f'    tag: "8.21.0@sha256:{"a" * 64}"',
+        "b:",
+        "  image:",
+        "    repository: curlimages/curl",
+        f'    tag: "8.21.0@sha256:{"b" * 64}"',
+    ]
+    pins = libimagedigests.scan_digest_pins(lines)
+    drift = libimagedigests.find_inconsistent_version_pins(pins)
+    assert drift == {"curlimages/curl": {
+        "kind": "drift",
+        "pins": [(("8.21.0", "a" * 64), [4]), (("8.21.0", "b" * 64), [8])],
+    }}
+
+
+def test_find_inconsistent_version_pins_flags_matching_pins_as_duplicate(libimagedigests):
+    """The same repository pinned at the same version AND digest in two
+    places — every pin agrees, so this is a "duplicate" (not "drift")
+    finding: there's no legitimate reason not to use a shared YAML anchor
+    here instead of hand-typing the same pin twice."""
+    lines = [
+        "a:",
+        "  image:",
+        "    repository: curlimages/curl",
+        f'    tag: "8.21.0@sha256:{"a" * 64}"',
+        "b:",
+        "  image:",
+        "    repository: curlimages/curl",
+        f'    tag: "8.21.0@sha256:{"a" * 64}"',
+    ]
+    pins = libimagedigests.scan_digest_pins(lines)
+    drift = libimagedigests.find_inconsistent_version_pins(pins)
+    assert drift == {"curlimages/curl": {"kind": "duplicate", "pins": [(("8.21.0", "a" * 64), [4, 8])]}}
+
+
+def test_find_inconsistent_version_pins_ignores_different_repositories(libimagedigests):
+    """A shared basename across different orgs/paths is not the same
+    image — must never be conflated, only an exact repository match
+    counts."""
+    lines = [
+        "a:",
+        "  image:",
+        "    repository: orgone/tool",
+        f'    tag: "1.0.0@sha256:{"a" * 64}"',
+        "b:",
+        "  image:",
+        "    repository: orgtwo/tool",
+        f'    tag: "2.0.0@sha256:{"b" * 64}"',
+    ]
+    pins = libimagedigests.scan_digest_pins(lines)
+    assert libimagedigests.find_inconsistent_version_pins(pins) == {}
+
+
+def test_find_inconsistent_version_pins_ignores_unresolved_repository(libimagedigests):
+    lines = ["a:", "  image:", f'    tag: "1.0.0@sha256:{"a" * 64}"']
+    pins = libimagedigests.scan_digest_pins(lines)
+    assert libimagedigests.find_inconsistent_version_pins(pins) == {}
+
+
 def test_find_split_registry_pairs_excludes_known_unsafe_path(libimagedigests):
     """openbao.server.image is a raw pass-through into the vendored
     OpenBao chart's own image handling — that chart's own template
@@ -387,6 +477,11 @@ def test_check_image_digests_gives_up_after_one_retry(vp, libimagedigests, tmp_p
 
 
 def test_check_image_digests_dedupes_shared_repo_and_tag(vp, libimagedigests, tmp_path, monkeypatch):
+    """The same repository+tag pinned at two places still only costs one
+    registry fetch — but (since 2026-08-26) it's ALSO now a
+    [DUPLICATE-PIN] failure in its own right (see
+    test_check_image_digests_reports_duplicate_pin): the two concerns are
+    independent, so both are exercised here."""
     write_values(tmp_path, (
         "a:\n"
         "  image:\n"
@@ -405,9 +500,10 @@ def test_check_image_digests_dedupes_shared_repo_and_tag(vp, libimagedigests, tm
 
     monkeypatch.setattr(libimagedigests, "registry_tag_exists", spy)
     ok, detail = vp.check_image_digests(tmp_path)
-    assert ok is True
+    assert ok is False  # duplicate pin — see [DUPLICATE-PIN]
     assert calls == [("docker.io", "org/repo", "1.0.0")]  # fetched once, not twice
     assert "1/1 matched" in detail
+    assert "1 duplicate pin(s)" in detail
 
 
 def test_check_image_digests_skips_unresolved_repository(vp, libimagedigests, tmp_path, monkeypatch):
@@ -602,6 +698,69 @@ def test_check_image_digests_reports_split_style_suggestion(vp, libimagedigests,
     assert "split" in out.lower()
     assert "values.yaml:3" in out
     assert 'repository: "quay.io/opstree/redis"' in out
+
+
+def test_check_image_digests_reports_version_drift(vp, libimagedigests, tmp_path, monkeypatch, capsys):
+    write_values(tmp_path, (
+        "a:\n"
+        "  image:\n"
+        "    repository: curlimages/curl\n"
+        f'    tag: "8.21.0@sha256:{"a" * 64}"\n'
+        "b:\n"
+        "  image:\n"
+        "    repository: curlimages/curl\n"
+        f'    tag: "8.20.0@sha256:{"b" * 64}"\n'
+    ))
+    digests_by_tag = {"8.21.0": "a" * 64, "8.20.0": "b" * 64}
+    monkeypatch.setattr(libimagedigests, "registry_tag_exists",
+                         lambda host, repo, tag: (True, f"sha256:{digests_by_tag[tag]}"))
+    ok, detail = vp.check_image_digests(tmp_path)
+    assert ok is False
+    assert "1 version-drift finding" in detail
+    assert "0 duplicate pin(s)" in detail
+    out = capsys.readouterr().out
+    assert "[VERSION-DRIFT]" in out
+    assert "curlimages/curl" in out
+    assert "8.21.0@sha256:" + "a" * 64 in out
+    assert "8.20.0@sha256:" + "b" * 64 in out
+    assert "values.yaml:4" in out
+    assert "values.yaml:8" in out
+
+
+def test_check_image_digests_reports_duplicate_pin(vp, libimagedigests, tmp_path, monkeypatch, capsys):
+    write_values(tmp_path, (
+        "a:\n"
+        "  image:\n"
+        "    repository: curlimages/curl\n"
+        f'    tag: "8.21.0@sha256:{"a" * 64}"\n'
+        "b:\n"
+        "  image:\n"
+        "    repository: curlimages/curl\n"
+        f'    tag: "8.21.0@sha256:{"a" * 64}"\n'
+    ))
+    monkeypatch.setattr(libimagedigests, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{'a' * 64}"))
+    ok, detail = vp.check_image_digests(tmp_path)
+    assert ok is False
+    assert "1 duplicate pin(s)" in detail
+    assert "0 version-drift finding" in detail
+    out = capsys.readouterr().out
+    assert "[DUPLICATE-PIN] curlimages/curl:8.21.0" in out
+    assert "values.yaml:4, 8" in out
+    assert "YAML anchor" in out
+
+
+def test_check_image_digests_no_inconsistency_when_repository_pinned_once(vp, libimagedigests, tmp_path, monkeypatch):
+    write_values(tmp_path, (
+        "a:\n"
+        "  image:\n"
+        "    repository: curlimages/curl\n"
+        f'    tag: "8.21.0@sha256:{"a" * 64}"\n'
+    ))
+    monkeypatch.setattr(libimagedigests, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{'a' * 64}"))
+    ok, detail = vp.check_image_digests(tmp_path)
+    assert ok is True
+    assert "0 duplicate pin(s)" in detail
+    assert "0 version-drift finding" in detail
 
 
 def test_check_image_digests_reports_split_style_suggestion_without_a_digest_pin(
