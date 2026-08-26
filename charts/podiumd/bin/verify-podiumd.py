@@ -476,6 +476,10 @@ missing tool makes that check fail with a clear message — add its step to
                to "missing tool fails the check": no docker just reports the
                scan as skipped, since it was already designed to never block
                a run over infrastructure it can't assume everyone has)
+  az           optional, Dependencies only — used solely to tell an Azure
+               auth problem apart from a network blip when `helm dependency
+               update` fails against an *.azurecr.io repo; missing/unused az
+               just falls back to the plain retry-with-backoff behavior
 """
 
 

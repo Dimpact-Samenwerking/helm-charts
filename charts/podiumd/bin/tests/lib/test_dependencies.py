@@ -115,7 +115,7 @@ def test_check_dependencies_azure_not_logged_in_skips_retry(libdependencies, tmp
     assert ok is False
     assert calls["update"] == 1  # no retries once an auth problem is confirmed
     assert "acrprodmgmt.azurecr.io" in detail
-    assert "az login" in detail
+    assert "az login --use-device-code" in detail
     assert "az acr login --name acrprodmgmt" in detail
 
 
