@@ -6,7 +6,8 @@
 # Changes:
 #   1. ZAC (Zaakafhandelcomponent) 5.0.2 -> 5.4.4 (chart 1.0.297, unchanged —
 #      the chart line was already bumped ahead of the image in the 4.8.5 hop).
-#      ZAC's opa sidecar also bumped, 1.17.1-static -> 1.19.0-static.
+#      ZAC's bundled sidecar images also bumped: opa 1.17.1-static ->
+#      1.19.1-static, office_converter (gotenberg) 8.34.0 -> 8.36.0.
 #   2. ZGW Office Add-in v0.9.313 -> 0.11.0 (chart 0.0.89, unchanged).
 #      Repository names (zgw-office-addin-{frontend,backend}) unchanged from
 #      4.8.5. Tag scheme dropped the "v" prefix from 0.10.0 onward.
@@ -49,6 +50,8 @@
 #   20. opennotificaties 1.16.1 -> 1.16.2 (chart 2.0.0, unchanged).
 #   21. clamav_exporter (metrics sidecar) v2.1.3 -> v2.1.8 (clamav chart
 #      unchanged). Sidecar disabled by default (clamav.metrics.enabled: false).
+#   22. nginx-unprivileged (shared global.images.nginx anchor, used by every
+#      nginx sidecar in the chart) 1.31.3 -> 1.31.4.
 #
 # See docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md for the operator upgrade notes,
 # and docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-operators-crds.md for the ECK Operator
@@ -63,11 +66,23 @@
   version: "5.4.4"
   digest: "sha256:2809ee2d2dc1ca166b88878a50d2850c7e972651f3ee5c35f44e92127c67773a"
 
-# ZAC opa sidecar — 1.17.1-static -> 1.19.0-static
+# ZAC opa sidecar — 1.17.1-static -> 1.19.1-static
 - name: openpolicyagent/opa
   url: docker.io/openpolicyagent/opa
-  version: "1.19.0-static"
-  digest: "sha256:2f42ca765bb739b40fc23ee625b3287012acdf8120ad4fcbdab68433a17be144"
+  version: "1.19.1-static"
+  digest: "sha256:32bf41d914b1505fea13303f60587cc57bdd2902262177585fb208f5dde76d32"
+
+# ZAC office_converter sidecar — 8.34.0 -> 8.36.0
+- name: gotenberg/gotenberg
+  url: docker.io/gotenberg/gotenberg
+  version: "8.36.0"
+  digest: "sha256:87c16b9f364279d321bc9772d31fa58aa6abe036423c270698bd636c3a8e9466"
+
+# nginx-unprivileged (shared global.images.nginx anchor) — 1.31.3 -> 1.31.4
+- name: nginxinc/nginx-unprivileged
+  url: docker.io/nginxinc/nginx-unprivileged
+  version: "1.31.4"
+  digest: "sha256:197f252f060ed357f2ab98d4256762d7d107c76f18ad8f0b9d5178854611566d"
 
 # ZGW Office Add-in — v0.9.313 -> 0.11.0
 - name: infonl/zgw-office-addin-frontend
