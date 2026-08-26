@@ -364,7 +364,9 @@ def check_cves(chart_dir, extra_args, detail=False):
         print("OK: no known CVEs found across pinned images")
 
     if scan_errors:
-        print(f"{len(scan_errors)} image(s) could not be scanned: {', '.join(scan_errors)}")
+        print(f"{len(scan_errors)} image(s) could not be scanned:")
+        for ref in scan_errors:
+            print(f"  {ref}")
     print(f"{cache_hits}/{len(targets)} image(s) served from cache (unchanged digest, "
           f"scanned within the last {CVE_CACHE_TTL_DAYS} days)")
 

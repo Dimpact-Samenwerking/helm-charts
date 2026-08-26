@@ -481,6 +481,7 @@ def test_check_cves_scan_error_reported_but_still_passes(vp, libcvecheck, tmp_pa
     assert "1 scan error(s)" in detail
     out = capsys.readouterr().out
     assert "SCAN-ERR" in out
+    assert "could not be scanned:\n  ghcr.io/wearefrank/frank-gateway:104" in out
 
 
 def test_check_cves_heuristic_fallback_for_disabled_component(vp, libcvecheck, tmp_path, monkeypatch, capsys):
