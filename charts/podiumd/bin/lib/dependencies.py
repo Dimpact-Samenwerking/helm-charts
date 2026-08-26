@@ -45,12 +45,14 @@ def _azure_login_hint(azure_host):
     try:
         result = run(["az", "account", "show"], capture_output=True, text=True)
     except FileNotFoundError:
-        return (f"Azure CLI (`az`) not found — install it, run `az login`, then "
+        return (f"Azure CLI (`az`) not found — install it, run "
+                f"`az login --use-device-code`, then "
                 f"`az acr login --name {azure_host.split('.')[0]}` before retrying.")
     if result.returncode == 0:
         return None
-    return (f"not logged in to Azure — run `az login`, then "
-            f"`az acr login --name {azure_host.split('.')[0]}`, then re-run this check.")
+    return (f"not logged in to Azure — run `az login --use-device-code` "
+            f"(a plain `az login` needs a local browser, which won't work here), "
+            f"then `az acr login --name {azure_host.split('.')[0]}`, then re-run this check.")
 
 
 def ensure_repos_configured():
