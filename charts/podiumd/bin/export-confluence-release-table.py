@@ -28,14 +28,13 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from lib.chart import dotted_key_path, load_yaml
+from lib.chart import load_yaml
 from lib.confluence_tables import (
     effective_header_row_count, expand_grid, extract_tables, fetch_page_html,
     find_versie_groups, header_paths, is_semver_compatible, major_minor,
     missing_required_release_columns, select_release_columns, tables_under_headings,
 )
-from lib.image_digests import scan_digest_pins
-from lib.image_version import image_basename
+from lib.image_version import basenames_under_scope, image_basename
 
 CHART_DIR = SCRIPT_DIR.parents[0]
 DEFAULT_OUTPUT = CHART_DIR / "release-table.csv"
@@ -371,24 +370,6 @@ def _match_one(text, options):
         return None
     related = {o for o in options if any(_related(c, normalize_name(o)) for c in candidates)}
     return next(iter(related)) if len(related) == 1 else None
-
-
-def basenames_under_scope(lines, scope_key):
-    """{basename: [pin, ...]} for every literal digest pin (see
-    scan_digest_pins) whose values.yaml path starts with scope_key and
-    ends in "...tag" — i.e. every image actually pinned somewhere inside
-    that top-level component's own subtree. A basename maps to more than
-    one pin only if the exact same image is pinned more than once under
-    that same component."""
-    result = {}
-    for pin in scan_digest_pins(lines):
-        if not pin["repository"]:
-            continue
-        path = dotted_key_path(lines, pin["line"] - 1).split(".")
-        if path[0] != scope_key or path[-1] != "tag":
-            continue
-        result.setdefault(image_basename(pin["repository"]), []).append(pin)
-    return result
 
 
 def _extra_scope_keys_by_component(chart_dir):
