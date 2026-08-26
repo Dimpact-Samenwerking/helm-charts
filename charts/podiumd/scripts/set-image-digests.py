@@ -181,12 +181,12 @@ def main():
     if unresolved:
         print(f"\n{len(unresolved)} pin(s) could not be resolved to a repository (skipped):")
         for p in unresolved:
-            print(f"  line {p['line']}: {p['version']}")
+            print(f"  values.yaml:{p['line']}: {p['version']}")
 
     if fetch_errors:
         print(f"\n{len(fetch_errors)} fetch error(s):")
         for repository, version, error, pin_lines in fetch_errors:
-            print(f"  {repository}:{version}  {error}  (lines {', '.join(map(str, pin_lines))})")
+            print(f"  {repository}:{version}  {error}  (values.yaml:{', '.join(map(str, pin_lines))})")
 
     to_update = stale if update_all else [s for s in stale if not s[5]]
     skipped_sliding = [] if update_all else [s for s in stale if s[5]]
@@ -204,7 +204,7 @@ def main():
         print(f"  {repository}:{version}{'  (sliding)' if sliding else ''}")
         print(f"    old: sha256:{old_digest}")
         print(f"    new: {new_digest}")
-        print(f"    lines: {', '.join(map(str, pin_lines))}")
+        print(f"    lines: values.yaml:{', '.join(map(str, pin_lines))}")
         if not dry_run:
             new_hex = new_digest.split("sha256:", 1)[1]
             text = text.replace(old_digest, new_hex)
@@ -215,7 +215,7 @@ def main():
             print(f"  {repository}:{version}")
             print(f"    old: sha256:{old_digest}")
             print(f"    new: {new_digest}")
-            print(f"    lines: {', '.join(map(str, pin_lines))}")
+            print(f"    lines: values.yaml:{', '.join(map(str, pin_lines))}")
 
     if not dry_run:
         VALUES_PATH.write_text(text, encoding="utf-8")

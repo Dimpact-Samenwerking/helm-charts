@@ -112,6 +112,21 @@ def test_check_yamllint_own_key_duplicate_fails(vp, libyamllintcheck, tmp_path, 
     assert "1 real" in detail
 
 
+def test_check_yamllint_finding_line_is_labeled_as_rendered(vp, libyamllintcheck, tmp_path, monkeypatch, capsys):
+    """The line number under a finding is yamllint's own position in the
+    full rendered `helm template` output, not a line in the source
+    template file shown in the group heading above it — label it
+    "rendered line(s)" so that's never ambiguous."""
+    monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/yamllint")
+    no_friendly_vendors(libyamllintcheck, monkeypatch)
+    yamllint_out = '  4:5     error    duplication of key "kind" in mapping  (key-duplicates)\n'
+    monkeypatch.setattr(libyamllintcheck, "run", sequenced_run(yamllint_out))
+
+    vp.check_yamllint(tmp_path, [])
+    out = capsys.readouterr().out
+    assert "rendered line(s):" in out
+
+
 def test_check_yamllint_own_cosmetic_not_reported_at_all(vp, libyamllintcheck, tmp_path, monkeypatch, capsys):
     """Cosmetic findings in our own templates aren't just non-failing —
     they're not mentioned anywhere in the output or detail string at all,
@@ -188,6 +203,7 @@ def test_check_yamllint_friendly_vendor_finding_reported_per_item_never_fails(vp
     assert "podiumd/charts/zac/templates/configmap.yaml" in out
     assert "Info(NL)" in out
     assert "duplication of key" in out  # per-item detail, not just a count
+    assert "rendered line(s):" in out
 
 
 def test_check_yamllint_repeated_own_finding_in_one_file_is_grouped(vp, libyamllintcheck, tmp_path, monkeypatch, capsys):

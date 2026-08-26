@@ -195,10 +195,10 @@ def check_image_digests(chart_dir):
 
         if error and host in UNVERIFIABLE_HOSTS:
             unverifiable.append((repository, version, error, lines_str))
-            print(f"  [UNVERIFIABLE] {host}/{repo_path}:{version}  {error}  (lines {lines_str})")
+            print(f"  [UNVERIFIABLE] {host}/{repo_path}:{version}  {error}  (values.yaml:{lines_str})")
         elif error:
             fetch_errors.append((repository, version, error, lines_str))
-            print(f"  [FETCH-ERR] {host}/{repo_path}:{version}  {error}  (lines {lines_str})")
+            print(f"  [FETCH-ERR] {host}/{repo_path}:{version}  {error}  (values.yaml:{lines_str})")
         elif digest and digest != f"sha256:{pinned_digest}":
             sliding = is_sliding_tag(values_path, host, repo_path, version, digest)
             if sliding:
@@ -207,13 +207,13 @@ def check_image_digests(chart_dir):
                       f"digest change is expected, not a failure)")
                 print(f"      pinned:   sha256:{pinned_digest}")
                 print(f"      upstream: {digest}")
-                print(f"      lines:    {lines_str}")
+                print(f"      lines:    values.yaml:{lines_str}")
             else:
                 mismatches.append((repository, version, pinned_digest, digest, lines_str))
                 print(f"  [MISMATCH ] {host}/{repo_path}:{version}")
                 print(f"      pinned:   sha256:{pinned_digest}")
                 print(f"      upstream: {digest}")
-                print(f"      lines:    {lines_str}")
+                print(f"      lines:    values.yaml:{lines_str}")
         else:
             matched += 1
 
@@ -221,14 +221,14 @@ def check_image_digests(chart_dir):
     if unresolved:
         print(f"{len(unresolved)} pin(s) could not be resolved to a repository (skipped):")
         for p in unresolved:
-            print(f"  line {p['line']}: {p['version']}")
+            print(f"  values.yaml:{p['line']}: {p['version']}")
         print()
 
     if unverifiable:
         print(f"{len(unverifiable)} image(s) on a registry this environment can't reach anonymously "
               f"(not counted as a failure — see lib.registry.UNVERIFIABLE_HOSTS):")
         for repository, version, error, lines_str in unverifiable:
-            print(f"  {repository}:{version}  {error}  (lines {lines_str})")
+            print(f"  {repository}:{version}  {error}  (values.yaml:{lines_str})")
         print()
 
     if sliding_mismatches:
@@ -243,7 +243,7 @@ def check_image_digests(chart_dir):
               f"functionally identical (podiumd.image in _helpers.tpl renders both the same way), "
               f"but the combined single-key style used elsewhere in this file is easier to grep/audit:")
         for p in split_style_pins:
-            print(f'  line {p["line"]}: registry: {p["split_registry"]}  ->  consider instead: '
+            print(f'  values.yaml:{p["line"]}: registry: {p["split_registry"]}  ->  consider instead: '
                   f'repository: "{p["repository"]}" (drop the separate registry: key)')
 
     detail = (f"{matched}/{len(targets)} matched, {len(sliding_mismatches)} sliding (expected drift), "

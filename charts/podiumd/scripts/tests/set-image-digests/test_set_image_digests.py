@@ -351,6 +351,36 @@ def test_main_writes_new_digest_preserving_everything_else(sid, tmp_path, monkey
     assert f'tag: "1.0.0@sha256:{new_digest}"' in updated
 
 
+def test_main_stale_digest_report_names_the_file(sid, tmp_path, monkeypatch, capsys):
+    """A bare "lines: N" doesn't say which file N is in — prefix with
+    values.yaml, same convention as check_image_digests/check_duplicate_keys."""
+    values_path = tmp_path / "values.yaml"
+    old_digest = "a" * 64
+    new_digest = "b" * 64
+    write_values(values_path, f'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:{old_digest}"\n')
+    monkeypatch.setattr(sid, "VALUES_PATH", values_path)
+    monkeypatch.setattr(sid, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{new_digest}"))
+    monkeypatch.setattr(sid, "is_sliding_tag", lambda *a, **k: False)
+    monkeypatch.setattr("sys.argv", ["set-image-digests.py"])
+
+    with pytest.raises(SystemExit):
+        sid.main()
+    out = capsys.readouterr().out
+    assert "lines: values.yaml:4" in out
+
+
+def test_main_unresolved_report_names_the_file(sid, tmp_path, monkeypatch, capsys):
+    values_path = tmp_path / "values.yaml"
+    write_values(values_path, 'a:\n  image:\n    tag: "1.0.0@sha256:' + "a" * 64 + '"\n')
+    monkeypatch.setattr(sid, "VALUES_PATH", values_path)
+    monkeypatch.setattr("sys.argv", ["set-image-digests.py"])
+
+    with pytest.raises(SystemExit):
+        sid.main()
+    out = capsys.readouterr().out
+    assert "values.yaml:3: 1.0.0" in out
+
+
 def test_main_updates_all_occurrences_of_shared_digest(sid, tmp_path, monkeypatch):
     values_path = tmp_path / "values.yaml"
     old_digest = "a" * 64
