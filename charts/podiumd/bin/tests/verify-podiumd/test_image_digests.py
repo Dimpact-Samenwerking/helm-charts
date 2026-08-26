@@ -667,17 +667,21 @@ def test_check_image_digests_unverifiable_host_does_not_fail_the_check(vp, libim
     """A registry this environment can never reach anonymously (see
     lib.registry.UNVERIFIABLE_HOSTS) must be reported distinctly from a
     genuine FETCH-ERR, and must not fail the check on its own — it can't
-    succeed here regardless of whether the pin is actually correct."""
+    succeed here regardless of whether the pin is actually correct.
+    UNVERIFIABLE_HOSTS is empty by default (no such host currently known —
+    see its docstring in lib/registry.py), so this injects a fake one
+    rather than depending on any real, possibly-transient special case."""
     write_values(tmp_path, (
         "pabc:\n"
         "  image:\n"
-        "    repository: acrprodmgmt.azurecr.io/platform-autorisatie-beheer-component/pabc-api\n"
+        "    repository: firewalled-registry.example.com/platform-autorisatie-beheer-component/pabc-api\n"
         f'    tag: "1.1.1@sha256:{"a" * 64}"\n'
     ))
+    monkeypatch.setattr(libimagedigests, "UNVERIFIABLE_HOSTS", {"firewalled-registry.example.com"})
     monkeypatch.setattr(
         libimagedigests, "registry_tag_exists",
         lambda host, repo, tag: (_ for _ in ()).throw(urllib.error.HTTPError(
-            "https://acrprodmgmt.azurecr.io/v2/...", 401, "Unauthorized", {}, None)),
+            "https://firewalled-registry.example.com/v2/...", 401, "Unauthorized", {}, None)),
     )
     ok, detail = vp.check_image_digests(tmp_path)
     assert ok is True

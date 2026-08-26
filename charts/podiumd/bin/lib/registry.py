@@ -3,6 +3,7 @@ live image digest — same flow as documented in /fetch-image-digest."""
 import json
 import re
 import urllib.error
+import urllib.parse
 import urllib.request
 
 from lib.procutil import run
@@ -14,9 +15,10 @@ MANIFEST_ACCEPT = (
     "application/vnd.docker.distribution.manifest.v2+json"
 )
 
-# Registries needing an anonymous pull token before the manifest lookup.
-# Anything else (quay.io, gcr.io, registry.k8s.io, ...) accepts anonymous
-# manifest GETs directly.
+# Registries with a KNOWN token realm, queried preemptively so a normal
+# pull needs only one round trip instead of two (request, get challenged,
+# request again). Not the only registries that need a token — see
+# _get_with_dynamic_auth below for anything not listed here.
 TOKEN_ENDPOINTS = {
     "docker.io": "https://auth.docker.io/token?service=registry.docker.io&scope=repository:{repo}:pull",
     "ghcr.io": "https://ghcr.io/token?scope=repository:{repo}:pull",
@@ -25,20 +27,59 @@ MANIFEST_HOSTS = {
     "docker.io": "registry-1.docker.io",
 }
 
+BEARER_CHALLENGE_PARAM_RE = re.compile(r'(\w+)="([^"]*)"')
+
+
+def _parse_bearer_challenge(header_value):
+    """Parses a `WWW-Authenticate: Bearer realm="...",service="...",
+    scope="..."` challenge into {"realm": ..., "service": ..., "scope": ...}
+    — the standard OCI Distribution auth flow every spec-compliant registry
+    returns on a 401, including ones with no TOKEN_ENDPOINTS entry (see
+    _get_with_dynamic_auth). None if it's not a Bearer challenge at all."""
+    if not header_value or not header_value.lower().startswith("bearer "):
+        return None
+    params = dict(BEARER_CHALLENGE_PARAM_RE.findall(header_value))
+    return params if "realm" in params else None
+
+
+def _get_with_dynamic_auth(url, repo, headers):
+    """GETs url, retrying once with a bearer token if the registry demands
+    one via a WWW-Authenticate challenge that TOKEN_ENDPOINTS didn't already
+    anticipate — confirmed 2026-08-26 this is exactly what docker.elastic.co
+    needs: a direct anonymous manifest GET 401s, but the challenge names its
+    own token realm (docker-auth.elastic.co), and a token from THAT realm is
+    accepted same as any other OCI registry. Re-raises unchanged if the 401
+    carries no Bearer challenge at all (a real auth wall — see
+    UNVERIFIABLE_HOSTS) or retrying still fails."""
+    try:
+        return urllib.request.urlopen(urllib.request.Request(url, headers=headers))
+    except urllib.error.HTTPError as e:
+        if e.code != 401:
+            raise
+        challenge = _parse_bearer_challenge(e.headers.get("WWW-Authenticate"))
+        if not challenge:
+            raise
+        query = {"scope": challenge.get("scope") or f"repository:{repo}:pull"}
+        if challenge.get("service"):
+            query["service"] = challenge["service"]
+        token = json.loads(urllib.request.urlopen(
+            f"{challenge['realm']}?{urllib.parse.urlencode(query)}").read())["token"]
+        headers = {**headers, "Authorization": f"Bearer {token}"}
+        return urllib.request.urlopen(urllib.request.Request(url, headers=headers))
+
+
 # Hosts that reject even an anonymous manifest read outright — not
-# something a better anonymous-token flow could fix from here. Confirmed
-# 2026-08-26: acrprodmgmt.azurecr.io is IP-firewalled to Dimpact's own
-# allowlisted networks (a direct manifest GET returns 401 "authentication
-# required"; its own anonymous-token endpoint returns 403 "client ... is
-# not allowed access", see aka.ms/acr/firewall — this machine's IP simply
-# isn't on the allowlist). docker.elastic.co requires real credentials for
-# anonymous pulls across every repo tested, including elasticsearch/
-# elasticsearch (not just the licensed integrations/* images) — there is
-# no anonymous-token flow to add for it. check_image_digests reports a
-# fetch error against one of these separately from a genuine FETCH-ERR,
-# since it can never succeed from an unprivileged environment regardless
-# of whether the pin itself is correct.
-UNVERIFIABLE_HOSTS = {"acrprodmgmt.azurecr.io", "docker.elastic.co"}
+# something a better auth flow could fix from here (a real IP/network
+# restriction on the registry side, confirmed by hand). check_image_digests
+# reports a fetch error against a host in this set separately from a
+# genuine FETCH-ERR, since it can never succeed from an unprivileged
+# environment regardless of whether the pin itself is correct. Empty for
+# now — acrprodmgmt.azurecr.io was here (IP-firewalled to Dimpact's own
+# allowlisted networks) but is being removed from values.yaml; add a host
+# back here only after confirming by hand that no auth flow can reach it
+# (see _get_with_dynamic_auth first — docker.elastic.co looked the same at
+# first glance and turned out not to belong here).
+UNVERIFIABLE_HOSTS = set()
 
 
 def parse_repo(repository):
@@ -66,9 +107,9 @@ def registry_tag_exists(registry_host, repo, tag):
         token = json.loads(urllib.request.urlopen(token_url_tmpl.format(repo=repo)).read())["token"]
         headers["Authorization"] = f"Bearer {token}"
     api_host = MANIFEST_HOSTS.get(registry_host, registry_host)
-    req = urllib.request.Request(f"https://{api_host}/v2/{repo}/manifests/{tag}", headers=headers)
+    url = f"https://{api_host}/v2/{repo}/manifests/{tag}"
     try:
-        with urllib.request.urlopen(req) as resp:
+        with _get_with_dynamic_auth(url, repo, headers) as resp:
             return True, resp.headers.get("Docker-Content-Digest")
     except urllib.error.HTTPError as e:
         if e.code == 404:
@@ -117,8 +158,8 @@ def list_tags(registry_host, repo):
         token = json.loads(urllib.request.urlopen(token_url_tmpl.format(repo=repo)).read())["token"]
         headers["Authorization"] = f"Bearer {token}"
     api_host = MANIFEST_HOSTS.get(registry_host, registry_host)
-    req = urllib.request.Request(f"https://{api_host}/v2/{repo}/tags/list", headers=headers)
-    with urllib.request.urlopen(req) as resp:
+    url = f"https://{api_host}/v2/{repo}/tags/list"
+    with _get_with_dynamic_auth(url, repo, headers) as resp:
         return json.loads(resp.read()).get("tags") or []
 
 
