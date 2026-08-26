@@ -81,7 +81,7 @@ tag/digest, never an individual OS/language package version inside that
 image, so "upgrade to version X" for one bundled package isn't an
 actionable step here — whether a newer image tag exists at all is
 lib.image_upgrade_check's job, not this module's. Living at
-the chart root (not under scripts/) is deliberate: unlike this check's own
+the chart root (not under bin/) is deliberate: unlike this check's own
 code (feature/podiumd-scripts only, copied in untracked when needed
 elsewhere), the cache is chart content tied to a specific branch's
 values.yaml pins — it belongs on and travels with the actual
