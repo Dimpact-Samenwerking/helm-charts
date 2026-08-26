@@ -346,6 +346,38 @@ The podiumd realm exclusively serves beheer (management) users and municipality 
 - **History:** Flagged in the GreyBox Pentest Rotterdam (2026-06-11) as two related findings on the same client: "Ontbrekende redirect URI configuratie" and "Serviceaccounts gecombineerd met extra flows" (DIV-2602-M-03, findings 6 and 15). Both addressed by this single change.
 - **Implementation:** `keycloak-podiumd-realm-config.yaml` → `clients` → `<pabc.settings.keycloakAdmin.clientId>.standardFlowEnabled/implicitFlowEnabled/directAccessGrantsEnabled: false`
 
+### ZAC Admin Client — Flow Restriction
+
+| Setting | Current value | Keycloak default | Status |
+|---------|--------------|-----------------|--------|
+| `standardFlowEnabled` | `false` | `true` | ✅ Configured (was true) |
+| `implicitFlowEnabled` | `false` | `false` | ✅ Configured — restated explicitly |
+| `directAccessGrantsEnabled` | `false` | `true` | ✅ Configured (was true) |
+| `serviceAccountsEnabled` | `true` | `false` | ✅ Unchanged — this is the client's sole purpose |
+| `redirectUris` / `webOrigins` | (none) | (none) | ✅ Removed — were configured but unused |
+
+**ZAC admin client (`.Values.zac.keycloak.adminClient.id`) flows restricted to service-account-only** ← changed from Keycloak defaults
+- **Standard:** BIO 2.0 / ISO 27002:2022 maatregel **8.2** (Geprivilegieerde toegangsrechten); **OWASP ASVS 4.0 V2.1** — ongebruikte authenticatie-flows moeten worden uitgeschakeld
+- **Why:** This client (`.Values.zac.keycloak.adminClient.id`) exists solely so ZAC's own backend can call the Keycloak Admin REST API via its service account — it has never had a legitimate interactive use. Left at Keycloak's defaults it carried `standardFlowEnabled: true` and `directAccessGrantsEnabled: true`, and additionally had `redirectUris`/`webOrigins` configured to `zac.contextUrl` — an enabled AND reachable authorization code flow it never needed, plus an unused password-grant path. Both flows are closed off now, and the now-pointless `redirectUris`/`webOrigins` removed with them (unlike the PABC entry above, this client actually had valid redirect URIs configured, not just an enabled-but-unusable flow).
+- **History:** Same finding class as the PABC entry above — GreyBox Pentest Rotterdam (2026-06-11), "Serviceaccounts gecombineerd met extra flows" (DIV-2602-M-03, finding 15).
+- **Implementation:** `keycloak-podiumd-realm-config.yaml` → `clients` → `<zac.keycloak.adminClient.id>.standardFlowEnabled/implicitFlowEnabled/directAccessGrantsEnabled: false`, `redirectUris`/`webOrigins` removed
+
+### Monitoring Client — Flow Restriction
+
+| Setting | Current value | Keycloak default | Status |
+|---------|--------------|-----------------|--------|
+| `standardFlowEnabled` | `true` | `true` | ✅ Unchanged — restated explicitly; this client is used interactively |
+| `implicitFlowEnabled` | `false` | `false` | ✅ Configured — restated explicitly |
+| `directAccessGrantsEnabled` | `false` | `true` | ✅ Configured (was true) |
+| `serviceAccountsEnabled` | `"true"` | `false` | ✅ Unchanged — used for automated monitoring/alerting API access alongside the interactive flow |
+| `redirectUris` / `webOrigins` | `{{ .Values.keycloak.config.clients.monitoring.oidcUrl }}/*` | (none) | ✅ Unchanged — genuinely used by the interactive flow, unlike the ZAC entry above |
+
+**Monitoring client's unused flows closed off** ← changed from Keycloak defaults
+- **Standard:** BIO 2.0 / ISO 27002:2022 maatregel **8.2** (Geprivilegieerde toegangsrechten); **OWASP ASVS 4.0 V2.1** — ongebruikte authenticatie-flows moeten worden uitgeschakeld
+- **Why:** Unlike the PABC/ZAC admin clients, this one is genuinely dual-purpose — `standardFlowEnabled` stays on since real users authenticate interactively against the monitoring dashboard (`redirectUris`/`webOrigins` point at its own `oidcUrl`), and `serviceAccountsEnabled` stays on for automated monitoring/alerting API access. Left at Keycloak's defaults it also carried `directAccessGrantsEnabled: true` (an unused password-grant path) — closed off now, alongside restating `implicitFlowEnabled: false` explicitly rather than leaving it implicit.
+- **History:** Same finding as the PABC/ZAC entries above — GreyBox Pentest Rotterdam (2026-06-11), "Serviceaccounts gecombineerd met extra flows" (DIV-2602-M-03, finding 15).
+- **Implementation:** `keycloak-podiumd-realm-config.yaml` → `clients` → `monitoring.implicitFlowEnabled/directAccessGrantsEnabled: false` (`standardFlowEnabled: true` restated explicitly)
+
 ### samaccountname User Profile Restriction
 
 | Setting | Current value | Keycloak default | Status |
