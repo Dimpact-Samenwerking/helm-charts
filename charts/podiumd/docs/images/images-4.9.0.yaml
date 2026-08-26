@@ -4,7 +4,7 @@
 # Images new or changed in podiumd 4.9.0 vs 4.8.5.
 #
 # Changes:
-#   1. ZAC (Zaakafhandelcomponent) 5.0.2 -> 5.4.3 (chart 1.0.297, unchanged —
+#   1. ZAC (Zaakafhandelcomponent) 5.0.2 -> 5.4.4 (chart 1.0.297, unchanged —
 #      the chart line was already bumped ahead of the image in the 4.8.5 hop).
 #      ZAC's opa sidecar also bumped, 1.17.1-static -> 1.19.0-static.
 #   2. ZGW Office Add-in v0.9.313 -> 0.11.0 (chart 0.0.89, unchanged).
@@ -57,11 +57,11 @@
 # Digests are the OCI image index (multi-arch manifest) digest as returned in
 # the Docker-Content-Digest response header from the source registry.
 
-# ZAC — 5.0.2 -> 5.4.3
+# ZAC — 5.0.2 -> 5.4.4
 - name: infonl/zaakafhandelcomponent
   url: ghcr.io/infonl/zaakafhandelcomponent
-  version: "5.4.3"
-  digest: "sha256:c5640dd38aef91fa90b4859f01d631fb19c17146b3920323520a9e75f2632812"
+  version: "5.4.4"
+  digest: "sha256:2809ee2d2dc1ca166b88878a50d2850c7e972651f3ee5c35f44e92127c67773a"
 
 # ZAC opa sidecar — 1.17.1-static -> 1.19.0-static
 - name: openpolicyagent/opa
