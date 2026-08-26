@@ -102,6 +102,31 @@ def test_registry_tag_exists_reraises_non_404_error(libregistry, monkeypatch):
         libregistry.registry_tag_exists("quay.io", "coreos/etcd", "v3.5.16")
 
 
+def test_registry_tag_exists_passes_timeout_when_given(libregistry, monkeypatch):
+    seen = {}
+
+    def fake_urlopen(req, timeout=None):
+        seen["timeout"] = timeout
+        return FakeResponse(headers={"Docker-Content-Digest": "sha256:" + "a" * 64})
+
+    monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
+    libregistry.registry_tag_exists("quay.io", "coreos/etcd", "v3.5.16", timeout=7)
+    assert seen["timeout"] == 7
+
+
+def test_registry_tag_exists_omits_timeout_kwarg_by_default(libregistry, monkeypatch):
+    """Without an explicit timeout, urlopen must be called exactly like
+    before this param existed (no timeout kwarg at all) — a caller mocking
+    urlopen with a plain single-arg callable (every existing test here)
+    must keep working unmodified."""
+    def fake_urlopen(req):
+        return FakeResponse(headers={"Docker-Content-Digest": "sha256:" + "a" * 64})
+
+    monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
+    exists, digest = libregistry.registry_tag_exists("quay.io", "coreos/etcd", "v3.5.16")
+    assert exists is True
+
+
 def test_registry_tag_exists_discovers_token_via_bearer_challenge(libregistry, monkeypatch):
     """A host with no TOKEN_ENDPOINTS entry (like docker.elastic.co) that
     still needs a token: the first attempt 401s with a WWW-Authenticate

@@ -14,6 +14,7 @@ import lib.dependencies as dependencies
 import lib.gitutil as gitutil
 import lib.procutil as procutil
 import lib.registry as registry
+import lib.repo_access as repo_access
 import lib.upgradedoc as upgradedoc
 
 
@@ -35,6 +36,11 @@ def libchart():
 @pytest.fixture(scope="session")
 def libdependencies():
     return dependencies
+
+
+@pytest.fixture(scope="session")
+def librepoaccess():
+    return repo_access
 
 
 @pytest.fixture(scope="session")
