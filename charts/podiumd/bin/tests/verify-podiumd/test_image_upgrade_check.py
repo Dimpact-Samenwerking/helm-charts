@@ -229,7 +229,7 @@ def test_check_image_upgrades_fetch_error_reported_but_still_passes(
     assert "1 fetch error(s)" in detail
     out = capsys.readouterr().out
     assert "FETCH-ERR" in out
-    assert "ghcr.io/wearefrank/frank-gateway:104" in out
+    assert "could not be checked:\n  ghcr.io/wearefrank/frank-gateway:104" in out
 
 
 # --- caching ---

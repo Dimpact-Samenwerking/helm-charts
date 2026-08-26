@@ -140,7 +140,9 @@ def check_image_upgrades(chart_dir, extra_args):
         print("OK: no newer tag published for any pinned image")
 
     if fetch_errors:
-        print(f"{len(fetch_errors)} image(s) could not be checked: {', '.join(fetch_errors)}")
+        print(f"{len(fetch_errors)} image(s) could not be checked:")
+        for ref in fetch_errors:
+            print(f"  {ref}")
     print(f"{cache_hits}/{len(targets)} image(s) served from cache (checked within the last "
           f"{IMAGE_UPGRADE_CACHE_TTL_DAYS} day(s))")
 
