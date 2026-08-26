@@ -25,6 +25,21 @@ MANIFEST_HOSTS = {
     "docker.io": "registry-1.docker.io",
 }
 
+# Hosts that reject even an anonymous manifest read outright — not
+# something a better anonymous-token flow could fix from here. Confirmed
+# 2026-08-26: acrprodmgmt.azurecr.io is IP-firewalled to Dimpact's own
+# allowlisted networks (a direct manifest GET returns 401 "authentication
+# required"; its own anonymous-token endpoint returns 403 "client ... is
+# not allowed access", see aka.ms/acr/firewall — this machine's IP simply
+# isn't on the allowlist). docker.elastic.co requires real credentials for
+# anonymous pulls across every repo tested, including elasticsearch/
+# elasticsearch (not just the licensed integrations/* images) — there is
+# no anonymous-token flow to add for it. check_image_digests reports a
+# fetch error against one of these separately from a genuine FETCH-ERR,
+# since it can never succeed from an unprivileged environment regardless
+# of whether the pin itself is correct.
+UNVERIFIABLE_HOSTS = {"acrprodmgmt.azurecr.io", "docker.elastic.co"}
+
 
 def parse_repo(repository):
     """Split a Docker-style repository string into (registry_host, repo_path)

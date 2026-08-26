@@ -121,6 +121,47 @@ def test_resolve_pin_repo_stops_at_dedent_does_not_leak_across_blocks(libimagedi
     assert libimagedigests.resolve_pin_repo(lines, 4, 4) is None
 
 
+def test_resolve_pin_repo_combines_split_registry_and_repository(libimagedigests):
+    """redis-ha's actual style: registry: quay.io / repository: opstree/redis
+    as two sibling keys, rather than one combined "repository:
+    quay.io/opstree/redis" — must resolve to the same host/path a combined
+    pin would, or the live lookup asks the wrong registry entirely."""
+    lines = [
+        "    image:",
+        "      registry: quay.io",
+        "      repository: opstree/redis",
+        '      tag: "v8.6.6@sha256:aaaa"',
+    ]
+    assert libimagedigests.resolve_pin_repo(lines, 3, 6) == "quay.io/opstree/redis"
+
+
+def test_resolve_pin_repo_registry_key_order_does_not_matter(libimagedigests):
+    lines = [
+        "    image:",
+        "      repository: opstree/redis",
+        "      registry: quay.io",
+        '      tag: "v8.6.6@sha256:aaaa"',
+    ]
+    assert libimagedigests.resolve_pin_repo(lines, 3, 6) == "quay.io/opstree/redis"
+
+
+# --- find_sibling_registry ---
+
+def test_find_sibling_registry_found_at_same_indent(libimagedigests):
+    lines = ["    image:", "      registry: quay.io", "      repository: opstree/redis"]
+    assert libimagedigests.find_sibling_registry(lines, 2, 6) == "quay.io"
+
+
+def test_find_sibling_registry_none_when_absent(libimagedigests):
+    lines = ["    image:", "      repository: org/repo"]
+    assert libimagedigests.find_sibling_registry(lines, 1, 6) is None
+
+
+def test_find_sibling_registry_stops_at_dedent(libimagedigests):
+    lines = ["registry: should/not-be-used", "image:", "  repository: org/repo"]
+    assert libimagedigests.find_sibling_registry(lines, 2, 2) is None
+
+
 # --- scan_digest_pins ---
 
 def test_scan_digest_pins_quoted_and_bare(libimagedigests):
@@ -144,6 +185,24 @@ def test_scan_digest_pins_quoted_and_bare(libimagedigests):
 def test_scan_digest_pins_ignores_non_digest_tags(libimagedigests):
     lines = ["  image:", "    tag: latest"]
     assert libimagedigests.scan_digest_pins(lines) == []
+
+
+def test_scan_digest_pins_records_split_registry_style(libimagedigests):
+    lines = [
+        "    image:",
+        "      registry: quay.io",
+        "      repository: opstree/redis",
+        '      tag: "v8.6.6@sha256:' + "a" * 64 + '"',
+    ]
+    pins = libimagedigests.scan_digest_pins(lines)
+    assert pins[0]["repository"] == "quay.io/opstree/redis"
+    assert pins[0]["split_registry"] == "quay.io"
+
+
+def test_scan_digest_pins_combined_style_has_no_split_registry(libimagedigests):
+    lines = ["  image:", "    repository: org/repo", '    tag: "1.0.0@sha256:' + "a" * 64 + '"']
+    pins = libimagedigests.scan_digest_pins(lines)
+    assert pins[0]["split_registry"] is None
 
 
 # --- check_image_digests (mocked registry) ---
@@ -393,3 +452,105 @@ def test_check_image_digests_pinned_drift_still_fails(vp, libimagedigests, tmp_p
     out = capsys.readouterr().out
     assert "[MISMATCH ]" in out
     assert "zaakafhandelcomponent" in out
+
+
+# --- check_image_digests: split registry:/repository: style ---
+
+def test_check_image_digests_split_style_pin_queries_the_correct_registry(vp, libimagedigests, tmp_path, monkeypatch):
+    """Regression test for the actual bug: a split-style pin (redis-ha's
+    real values.yaml shape) must resolve against ITS OWN registry (quay.io
+    here), not silently fall back to docker.io."""
+    write_values(tmp_path, (
+        "redis-ha:\n"
+        "  image:\n"
+        "    registry: quay.io\n"
+        "    repository: opstree/redis\n"
+        f'    tag: "v8.6.6@sha256:{"a" * 64}"\n'
+    ))
+    calls = []
+
+    def spy(host, repo, tag):
+        calls.append((host, repo, tag))
+        return True, f"sha256:{'a' * 64}"
+
+    monkeypatch.setattr(libimagedigests, "registry_tag_exists", spy)
+    ok, detail = vp.check_image_digests(tmp_path)
+    assert ok is True
+    assert calls == [("quay.io", "opstree/redis", "v8.6.6")]
+    assert "1/1 matched" in detail
+
+
+def test_check_image_digests_reports_split_style_suggestion(vp, libimagedigests, tmp_path, monkeypatch, capsys):
+    write_values(tmp_path, (
+        "redis-ha:\n"
+        "  image:\n"
+        "    registry: quay.io\n"
+        "    repository: opstree/redis\n"
+        f'    tag: "v8.6.6@sha256:{"a" * 64}"\n'
+    ))
+    monkeypatch.setattr(libimagedigests, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{'a' * 64}"))
+    ok, detail = vp.check_image_digests(tmp_path)
+    assert ok is True
+    assert "1 style suggestion" in detail
+    out = capsys.readouterr().out
+    assert "split" in out.lower()
+    assert 'repository: "quay.io/opstree/redis"' in out
+
+
+def test_check_image_digests_combined_style_has_no_suggestion(vp, libimagedigests, tmp_path, monkeypatch, capsys):
+    write_values(tmp_path, (
+        "a:\n"
+        "  image:\n"
+        "    repository: org/repo\n"
+        f'    tag: "1.0.0@sha256:{"a" * 64}"\n'
+    ))
+    monkeypatch.setattr(libimagedigests, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{'a' * 64}"))
+    ok, detail = vp.check_image_digests(tmp_path)
+    assert "0 style suggestion" in detail
+    out = capsys.readouterr().out
+    assert "split" not in out.lower()
+
+
+# --- check_image_digests: UNVERIFIABLE_HOSTS ---
+
+def test_check_image_digests_unverifiable_host_does_not_fail_the_check(vp, libimagedigests, tmp_path, monkeypatch, capsys):
+    """A registry this environment can never reach anonymously (see
+    lib.registry.UNVERIFIABLE_HOSTS) must be reported distinctly from a
+    genuine FETCH-ERR, and must not fail the check on its own — it can't
+    succeed here regardless of whether the pin is actually correct."""
+    write_values(tmp_path, (
+        "pabc:\n"
+        "  image:\n"
+        "    repository: acrprodmgmt.azurecr.io/platform-autorisatie-beheer-component/pabc-api\n"
+        f'    tag: "1.1.1@sha256:{"a" * 64}"\n'
+    ))
+    monkeypatch.setattr(
+        libimagedigests, "registry_tag_exists",
+        lambda host, repo, tag: (_ for _ in ()).throw(urllib.error.HTTPError(
+            "https://acrprodmgmt.azurecr.io/v2/...", 401, "Unauthorized", {}, None)),
+    )
+    ok, detail = vp.check_image_digests(tmp_path)
+    assert ok is True
+    assert "0 fetch error" in detail
+    assert "1 unverifiable" in detail
+    out = capsys.readouterr().out
+    assert "[UNVERIFIABLE]" in out
+    assert "FETCH-ERR" not in out
+
+
+def test_check_image_digests_non_unverifiable_host_fetch_error_still_fails(vp, libimagedigests, tmp_path, monkeypatch):
+    write_values(tmp_path, (
+        "a:\n"
+        "  image:\n"
+        "    repository: org/repo\n"
+        f'    tag: "1.0.0@sha256:{"a" * 64}"\n'
+    ))
+    monkeypatch.setattr(
+        libimagedigests, "registry_tag_exists",
+        lambda host, repo, tag: (_ for _ in ()).throw(urllib.error.HTTPError(
+            "https://docker.io/v2/...", 401, "Unauthorized", {}, None)),
+    )
+    ok, detail = vp.check_image_digests(tmp_path)
+    assert ok is False
+    assert "1 fetch error" in detail
+    assert "0 unverifiable" in detail
