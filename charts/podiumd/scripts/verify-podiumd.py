@@ -278,7 +278,8 @@ def check_duplicate_keys(chart_dir):
         if key in scope_keys[scope_id]:
             parent = " > ".join(scope_id) if scope_id else "(root)"
             duplicates.append(
-                f'Line {line_no}: duplicate "{key}" under [{parent}] (first line {scope_keys[scope_id][key]})'
+                f'{values_path.name}:{line_no}: duplicate "{key}" under [{parent}] '
+                f'(first line {scope_keys[scope_id][key]})'
             )
         else:
             scope_keys[scope_id][key] = line_no
