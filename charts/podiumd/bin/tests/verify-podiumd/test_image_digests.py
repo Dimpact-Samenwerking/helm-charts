@@ -261,6 +261,39 @@ def test_find_split_registry_pairs_finds_multiple(libimagedigests):
     assert pairs[1]["repository"] == "docker.io/library/postgres"
 
 
+def test_find_split_registry_pairs_excludes_known_unsafe_path(libimagedigests):
+    """openbao.server.image is a raw pass-through into the vendored
+    OpenBao chart's own image handling — that chart's own template
+    defaults registry to docker.io when unset, so collapsing this one
+    would silently change the rendered image, not just its spelling.
+    Confirmed by hand in commit 86444dd, which deliberately left it
+    split while collapsing every other pair in the same file."""
+    lines = [
+        "openbao:",
+        "  server:",
+        "    image:",
+        "      registry: quay.io",
+        "      repository: openbao/openbao",
+        '      tag: ""',
+    ]
+    assert libimagedigests.find_split_registry_pairs(lines) == []
+
+
+def test_find_split_registry_pairs_unsafe_path_is_indent_scoped(libimagedigests):
+    """The exclusion is keyed on the full dotted path, not just the leaf
+    "image" segment — a same-named "image" block anywhere else must still
+    be flagged normally."""
+    lines = [
+        "unrelated:",
+        "  image:",
+        "    registry: quay.io",
+        "    repository: opstree/redis",
+    ]
+    pairs = libimagedigests.find_split_registry_pairs(lines)
+    assert len(pairs) == 1
+    assert pairs[0]["repository"] == "quay.io/opstree/redis"
+
+
 # --- check_image_digests (mocked registry) ---
 
 def write_values(chart_dir, text):
@@ -591,6 +624,27 @@ def test_check_image_digests_reports_split_style_suggestion_without_a_digest_pin
     out = capsys.readouterr().out
     assert "values.yaml:3" in out
     assert 'repository: "quay.io/openbao/openbao"' in out
+
+
+def test_check_image_digests_excludes_openbao_server_image_from_suggestion(
+        vp, libimagedigests, tmp_path, monkeypatch, capsys):
+    """openbao.server.image specifically must never get the style
+    suggestion — it's the one confirmed-unsafe-to-collapse split pair
+    (see SPLIT_STYLE_UNSAFE_PATHS)."""
+    write_values(tmp_path, (
+        "openbao:\n"
+        "  server:\n"
+        "    image:\n"
+        "      registry: quay.io\n"
+        "      repository: openbao/openbao\n"
+        '      tag: ""\n'
+    ))
+    monkeypatch.setattr(libimagedigests, "registry_tag_exists", lambda *a: (_ for _ in ()).throw(AssertionError))
+    ok, detail = vp.check_image_digests(tmp_path)
+    assert ok is True
+    assert "0 style suggestion" in detail
+    out = capsys.readouterr().out
+    assert "split" not in out.lower()
 
 
 def test_check_image_digests_combined_style_has_no_suggestion(vp, libimagedigests, tmp_path, monkeypatch, capsys):

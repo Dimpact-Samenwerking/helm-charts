@@ -4,8 +4,26 @@ set-image-digests.py for that)."""
 import re
 import urllib.error
 
-from lib.chart import load_yaml, subchart_default_repository
+from lib.chart import dotted_key_path, load_yaml, subchart_default_repository
 from lib.registry import UNVERIFIABLE_HOSTS, is_sliding_tag, parse_repo, registry_tag_exists
+
+# Split registry:/repository: pairs confirmed NOT safe to collapse into the
+# combined style, even though they otherwise look identical to every other
+# split pair here. Each is a raw pass-through into a VENDORED subchart's
+# own image-handling — not rendered via this chart's own podiumd.image
+# helper (_helpers.tpl), which only ever prefixes "registry" when it's
+# set. A vendored chart's own template can have different (and differing,
+# chart-to-chart) default-registry semantics, so "safe to merge" can't be
+# assumed just because the split style matches.
+SPLIT_STYLE_UNSAFE_PATHS = {
+    # openbao's own upstream chart template defaults its image registry to
+    # "docker.io" when unset, rather than omitting it — collapsing this
+    # into "repository: quay.io/openbao/openbao" would silently produce
+    # the wrong image reference, not an identical one. Confirmed by hand
+    # in commit 86444dd ("collapse registry+repository into a single
+    # field where safe"), which deliberately left this one split.
+    "openbao.server.image",
+}
 
 # One "tag: <version>@sha256:<digest>" pin per match, quoted or bare.
 DIGEST_PIN_RE = re.compile(
@@ -90,13 +108,19 @@ def find_split_registry_pairs(lines):
     "tag:" nearby), this scans the whole file directly by "registry:" key,
     so it catches every split-style pin — including a bare (non-digest-
     pinned) tag like openbao's own image blocks, which check_image_digests
-    itself never looks at."""
+    itself never looks at.
+
+    Skips anything in SPLIT_STYLE_UNSAFE_PATHS — a pair whose enclosing
+    "image:" block isn't provably safe to collapse (see that constant)."""
     pairs = []
     for i, raw in enumerate(lines):
         m = ACTIVE_REGISTRY_RE.match(raw)
         if not m:
             continue
         indent = len(raw) - len(raw.lstrip(" "))
+        block_path = dotted_key_path(lines, i).rsplit(".", 1)[0]
+        if block_path in SPLIT_STYLE_UNSAFE_PATHS:
+            continue
         repo = find_repository_after_registry(lines, i, indent)
         if repo:
             pairs.append({"line": i + 1, "registry": m.group("registry"),
@@ -190,14 +214,18 @@ def check_image_digests(chart_dir):
     Every "registry: <host>" / "repository: <path>" split-style pair
     anywhere in values.yaml (see find_split_registry_pairs) gets a
     one-time style suggestion to use the combined "repository:
-    <host>/<path>" style instead, used everywhere else in this file —
-    confirmed purely cosmetic (podiumd.image in _helpers.tpl renders both
-    identically), so this is a suggestion only and never fails the check.
-    This scans the whole file directly, independent of scan_digest_pins'
-    own digest-pinned-tag scope, since a split pin isn't guaranteed to
-    have a digest-pinned tag at all (e.g. openbao's own image blocks use
-    bare tags — invisible to the rest of this check, but still worth the
-    style suggestion)."""
+    <host>/<path>" style instead, used everywhere else in this file — but
+    only when it's rendered via this chart's own podiumd.image helper
+    (_helpers.tpl), which is confirmed to render both styles identically.
+    A pair fed straight into a VENDORED subchart's own image handling
+    isn't provably safe to collapse the same way (that subchart's own
+    template can default an unset registry differently) — see
+    SPLIT_STYLE_UNSAFE_PATHS for the one confirmed case (openbao's own
+    server image) and why. This scans the whole file directly,
+    independent of scan_digest_pins' own digest-pinned-tag scope, since a
+    split pin isn't guaranteed to have a digest-pinned tag at all (e.g.
+    openbao's own image blocks use bare tags — invisible to the rest of
+    this check, but still worth the style suggestion)."""
     values_path = chart_dir / "values.yaml"
     lines = values_path.read_text(encoding="utf-8").splitlines()
     pins = scan_digest_pins(lines)
