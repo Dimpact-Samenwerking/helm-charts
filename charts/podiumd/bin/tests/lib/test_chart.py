@@ -224,6 +224,61 @@ def test_pull_chart_values_raises_on_pull_failure(libchart, monkeypatch):
         libchart.pull_chart_values(dep, "9.9.9")
 
 
+# --- check_image_versions ---
+
+def test_check_image_versions_single_path_found(libchart, monkeypatch):
+    monkeypatch.setattr(libchart, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:abc"))
+    values = {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent"}}
+    results = libchart.check_image_versions(values, ["image"], "5.4.3")
+    assert results == [{
+        "path": "image", "repository": "ghcr.io/infonl/zaakafhandelcomponent", "host": "ghcr.io",
+        "repo_path": "infonl/zaakafhandelcomponent", "exists": True, "digest": "sha256:abc",
+    }]
+
+
+def test_check_image_versions_reports_missing_tag(libchart, monkeypatch):
+    monkeypatch.setattr(libchart, "registry_tag_exists", lambda host, repo, tag: (False, None))
+    values = {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent"}}
+    results = libchart.check_image_versions(values, ["image"], "9.9.9")
+    assert results[0]["exists"] is False
+    assert results[0]["digest"] is None
+
+
+def test_check_image_versions_checks_every_multi_image_path(libchart, monkeypatch):
+    checked = []
+
+    def fake_registry_tag_exists(host, repo, tag):
+        checked.append(repo)
+        return True, "sha256:fake"
+
+    monkeypatch.setattr(libchart, "registry_tag_exists", fake_registry_tag_exists)
+    values = {
+        "frontend": {"image": {"repository": "ghcr.io/infonl/zgw-office-addin-frontend"}},
+        "backend": {"image": {"repository": "ghcr.io/infonl/zgw-office-addin-backend"}},
+    }
+    results = libchart.check_image_versions(values, ["frontend.image", "backend.image"], "0.11.0")
+    assert checked == ["infonl/zgw-office-addin-frontend", "infonl/zgw-office-addin-backend"]
+    assert [r["path"] for r in results] == ["frontend.image", "backend.image"]
+
+
+def test_check_image_versions_skips_path_with_no_repository(libchart, monkeypatch):
+    """One path missing a "repository:" isn't fatal as long as at least one
+    other path has one — only the resolvable path is checked/returned."""
+    monkeypatch.setattr(libchart, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:fake"))
+    values = {
+        "frontend": {"image": {"repository": "ghcr.io/infonl/zgw-office-addin-frontend"}},
+        "backend": {"image": {}},
+    }
+    results = libchart.check_image_versions(values, ["frontend.image", "backend.image"], "0.11.0")
+    assert [r["path"] for r in results] == ["frontend.image"]
+
+
+def test_check_image_versions_raises_when_no_path_has_a_repository(libchart, monkeypatch):
+    values = {"somethingElse": {"repository": "x/y"}}
+    with pytest.raises(SystemExit, match="no repository found"):
+        libchart.check_image_versions(values, ["image"], "5.4.3")
+
+
 # --- version_of ---
 
 def test_version_of_strips_digest(libchart):

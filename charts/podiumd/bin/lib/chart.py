@@ -10,6 +10,7 @@ from pathlib import Path
 import yaml
 
 from lib.procutil import run
+from lib.registry import parse_repo, registry_tag_exists
 
 # A BOM breaks YAML tooling that doesn't expect one. Shared by
 # verify-podiumd.py (detects and reports it — a verify script never writes
@@ -133,6 +134,38 @@ def pull_chart_values(dep, version):
         return yaml.safe_load((chart_dir / "values.yaml").read_text()) or {}
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+def check_image_versions(values, image_paths, app_version):
+    """[{"path", "repository", "host", "repo_path", "exists", "digest"},
+    ...] for every path in `image_paths` (see image_paths_for) that has a
+    "repository:" in `values` (a pulled chart's own values.yaml — see
+    pull_chart_values), checked against app_version on its actual
+    upstream registry. Shared by verify-image-version.py (a human
+    pre-checking a version before writing it anywhere) and update-
+    component-version.py's own pre-write gate (the same check, reused
+    against the SAME pulled values rather than pulling — and checking —
+    a second time), so there is exactly one place this logic lives.
+
+    Raises SystemExit if NOT ONE of image_paths has a resolvable
+    repository at all — e.g. COMPONENT_IMAGE_PATHS points somewhere this
+    chart version doesn't actually have an image (wrong path, or the
+    chart restructured) — since a caller can't act on zero results
+    either way, and silently reporting "0 checked, all fine" would be
+    misleading."""
+    repos = [(path, repo) for path in image_paths
+             for repo in [get_path(values, f"{path}.repository")] if isinstance(repo, str) and repo]
+    if not repos:
+        raise SystemExit(f"error: no repository found at {', '.join(f'{p}.repository' for p in image_paths)} "
+                          f"— wrong path? see lib.chart.COMPONENT_IMAGE_PATHS")
+
+    results = []
+    for path, repo in repos:
+        host, repo_path = parse_repo(repo)
+        exists, digest = registry_tag_exists(host, repo_path, app_version)
+        results.append({"path": path, "repository": repo, "host": host, "repo_path": repo_path,
+                         "exists": exists, "digest": digest})
+    return results
 
 
 def version_of(tag):
