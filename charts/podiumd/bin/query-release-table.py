@@ -2,8 +2,9 @@
 """
 Query charts/podiumd/release-table.csv (see export-confluence-release-table.py)
 for rows whose "section", "vendor", or "component" column contains a given
-piece of text, and print each match's name, component, alias, and four
-version columns as an aligned table — plus a second table of tooling rows
+piece of text, and print each match's name, component, alias,
+image_basename, and four version columns as an aligned table — plus a
+second table of tooling rows
 whose "used_by" relates back to a match (see component_matches and
 used_by_rows_for for exactly how "component" and "used by" are resolved).
 
@@ -107,8 +108,8 @@ def display_value(row, column):
 
 
 def print_table(rows):
-    headers = ["name", "component", "alias"] + list(VERSION_COLUMNS)
-    table = [[row["name"], row["component"], row["alias"]] +
+    headers = ["name", "component", "alias", "image_basename"] + list(VERSION_COLUMNS)
+    table = [[row["name"], row["component"], row["alias"], row["image_basename"]] +
              [display_value(row, col) for col in VERSION_COLUMNS] for row in rows]
     widths = [max(len(headers[i]), *(len(r[i]) for r in table)) for i in range(len(headers))]
     print("  ".join(h.ljust(w) for h, w in zip(headers, widths)))
