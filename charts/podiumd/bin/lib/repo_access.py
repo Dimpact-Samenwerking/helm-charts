@@ -19,6 +19,19 @@ from lib.render_scope import resolve_dependency_repo
 
 TIMEOUT_SECONDS = 10
 
+# Hosts this environment can never reach directly, regardless of whether
+# the chart/image itself is actually fine — an IP-firewalled ACR host, for
+# instance, always fails from here (same reasoning as lib.registry.
+# UNVERIFIABLE_HOSTS). Denylisted so this fast preflight doesn't report a
+# false failure for something it can never meaningfully test — matches
+# any hostname ending with the suffix, e.g. "azurecr.io" also matches
+# "acrprodmgmt.azurecr.io".
+DENYLISTED_HOST_SUFFIXES = ("azurecr.io",)
+
+
+def is_denylisted_host(host):
+    return any(host.endswith(suffix) for suffix in DENYLISTED_HOST_SUFFIXES)
+
 # "- name: <name>" at the start of a Chart.yaml dependency block — used to
 # re-derive a dependency's own source line, since PyYAML's safe_load (what
 # lib.chart.load_yaml uses) doesn't track source lines at all. Same
@@ -120,6 +133,15 @@ def _check_registry_repo(host, repo_path, version):
     return True, None
 
 
+def _host_of(test_kind, target):
+    """The hostname a given entry would actually be checked against —
+    target is a bare URL string for "http", or a (host, repo_path,
+    version) tuple for "registry" (see check_repo_access's entries)."""
+    if test_kind == "http":
+        return urllib.parse.urlparse(target).hostname or ""
+    return target[0]
+
+
 def check_repo_access(chart_dir):
     """Fails if any repo a Chart.yaml dependency needs, or any registry a
     values.yaml digest pin needs, is unreachable or unauthorized — before
@@ -128,7 +150,12 @@ def check_repo_access(chart_dir):
     problem. Anything sharing the same repo/image (e.g. every @maykinmedia
     chart, or the same image pinned several times) is tested once. Each
     finding is printed with its kind ("chart"/"image"), endpoint, and
-    source location (Chart.yaml:<line> or values.yaml:<line>[,<line>...])."""
+    source location (Chart.yaml:<line> or values.yaml:<line>[,<line>...]).
+
+    An entry whose host matches DENYLISTED_HOST_SUFFIXES is skipped
+    outright — never even attempted — and never counted as a failure,
+    same treatment as lib.registry.UNVERIFIABLE_HOSTS gets in "Image
+    digests"."""
     chart_deps = dependency_repos(chart_dir)
     values_path = chart_dir / "values.yaml"
     img_targets = image_repos(values_path) if values_path.is_file() else []
@@ -162,14 +189,23 @@ def check_repo_access(chart_dir):
           f"for {total_refs} network-resolved reference(s)...")
 
     failures = []
+    denylisted = []
     for kind, description, test_kind, target in entries:
+        host = _host_of(test_kind, target)
+        if is_denylisted_host(host):
+            denylisted.append((kind, description))
+            print(f"  [SKIP ] {kind:5}  {description}  — {host} is denylisted "
+                  f"(known unreachable from this environment, see DENYLISTED_HOST_SUFFIXES)")
+            continue
         ok, error = _check_http_repo(target) if test_kind == "http" else _check_registry_repo(*target)
         print(f"  [{'OK' if ok else 'FAIL'}] {kind:5}  {description}"
               + (f"  — {error}" if error else ""))
         if not ok:
             failures.append((kind, description, error))
 
+    checked = len(entries) - len(denylisted)
     if failures:
         detail = "; ".join(f"{kind} {description}: {error}" for kind, description, error in failures)
-        return False, f"{len(failures)}/{len(entries)} repo(s)/image(s) unreachable or unauthorized — {detail}"
-    return True, f"{len(entries)} repo(s)/image(s) reachable ({total_refs} references)"
+        return False, (f"{len(failures)}/{checked} repo(s)/image(s) unreachable or unauthorized "
+                        f"({len(denylisted)} denylisted, skipped) — {detail}")
+    return True, f"{checked} repo(s)/image(s) reachable ({total_refs} references, {len(denylisted)} denylisted, skipped)"
