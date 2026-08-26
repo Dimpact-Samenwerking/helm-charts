@@ -43,11 +43,16 @@ trip:
      triggered by a version bump; this is values-reference drift
      triggered by any values.yaml edit at all, version bump or not
   9. every repo a Chart.yaml dependency actually needs (a classic Helm
-     repo's index.yaml, or an OCI chart's manifest) is reachable and
-     authorized — a handful of lightweight requests, not a real `helm
-     dependency update`, so an unreachable/unauthorized repo fails here in
-     seconds instead of however far into step 10's full re-download of
-     every dependency the same problem would otherwise surface (see
+     repo's index.yaml, or an OCI chart's manifest), AND every registry a
+     values.yaml digest pin resolves to without needing Dependencies to
+     have vendored anything yet, is reachable and authorized — a handful
+     of lightweight requests, not a real `helm dependency update` or a
+     full image pull, so an unreachable/unauthorized repo/registry fails
+     here in seconds instead of however far into step 10's full
+     re-download (or, for a pin needing the vendored-subchart-default
+     fallback, step 11's own check) the same problem would otherwise
+     surface. Each finding is reported with its kind (chart/image) and
+     source location (Chart.yaml:<line> / values.yaml:<line>) (see
      lib.repo_access)
   10. all Chart.yaml dependencies actually resolve and bundle (helm
       dependency update)
@@ -587,7 +592,7 @@ def main():
     run_step("Helm docs check", "Checking README.md against values.yaml (helm-docs)",
              check_helm_docs, chart_dir)
 
-    run_step("Repo access", "Checking access to Chart.yaml's dependency repos",
+    run_step("Repo access", "Checking access to Chart.yaml's dependency repos and values.yaml's image registries",
              check_repo_access, chart_dir)
 
     log("Ensuring dependency repos are configured")
