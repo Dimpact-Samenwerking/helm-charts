@@ -108,8 +108,16 @@ The HTTPRoute is created by the per-gemeente environment deployment (ADO
   defaults `port: 587`, `useTLS: true`; host set per environment).
 - **ClamAV** — the stack ships a `clamav` service (clamd on TCP 3310,
   `clamav.podiumd.svc.cluster.local:3310`). Virus scanning of file uploads is
-  enabled at runtime in the Open Forms admin (general configuration); there
-  are no ClamAV keys under `openformulieren:` in `values.yaml`.
+  an Open Forms `GlobalConfiguration` setting with no declarative
+  setup-configuration step upstream (admin-UI-only,
+  `docs/configuration/general/virus_scan.rst`) — it's normally enabled at
+  runtime in the Open Forms admin (Configuratie → Algemene configuratie →
+  Virus scan). `openformulieren.clamavConfigJob` (off by default, opt-in per
+  gemeente) automates this instead: a Job runs `manage.py shell` to set
+  `enable_virus_scan`/`clamav_host`/`clamav_port`/`clamav_timeout` directly,
+  verifying the ClamAV connection first the same way the admin form does. See
+  `templates/openformulieren-configure-clamav.yaml` and
+  `docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-gemeente-specific.md`.
 
 ## CPU and memory
 

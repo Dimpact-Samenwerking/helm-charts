@@ -184,6 +184,7 @@ Default replicas: **2** (web), **1** (worker, beat, nginx)
 | openformulieren-worker | 200m | 1Gi | — | — |
 | openformulieren-beat | 10m | 160Mi | — | — |
 | nginx | 10m | 16Mi | — | — |
+| job: openformulieren-configure-clamav (opt-in) | 50m | 128Mi | 200m | 256Mi |
 
 > ⚠️ **Increase for production**: Form submissions can involve PDF generation and file uploads. Suggested: web `250m / 1Gi`, worker `200m / 1Gi`.
 

@@ -905,7 +905,6 @@ opennotificaties:
     # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
     pkceEnabled: false
   settings:
-    notificationSecInterval: 5
     allowedHosts: opennotificaties.podiumd.svc.cluster.local
     maxRetries: 5
     retryBackoff: 3
@@ -1785,6 +1784,36 @@ openformulieren:
     oidcUrl: https://openformulieren.example.nl
     # -- Enable PKCE (S256) on the Keycloak client. Requires mozilla_django_oidc >= 4.0.0 and oidc_use_pkce: true in configuration.data.
     pkceEnabled: false
+  # -- Seeds Open Forms' GlobalConfiguration singleton (enable_virus_scan,
+  # clamav_host/port/timeout) via `manage.py shell`. Open Forms has no
+  # declarative setup-configuration step for this — upstream only exposes
+  # it through the admin UI (docs/configuration/general/virus_scan.rst) —
+  # so this Job writes the same fields directly, verifying the ClamAV
+  # connection first the same way GlobalConfiguration.clean() does.
+  # Off by default: opt-in per gemeente. See
+  # templates/openformulieren-configure-clamav.yaml and
+  # docs/apps/openforms/openforms-BASICS.md.
+  clamavConfigJob:
+    enabled: false
+    clamavHost: clamav.podiumd.svc.cluster.local
+    clamavPort: 3310
+    clamavTimeout: 30
+    # -- Retries generously: on first deploy this Job can race both the
+    # openformulieren DB migration (image entrypoint) and ClamAV's own
+    # cold-start (up to ~5 minutes to load its signature database, see
+    # docs/apps/clamav/clamav-BASICS.md) — it fails fast and lets Kubernetes'
+    # Job backoff retry until both are ready, rather than needing a wait
+    # container or Helm hook ordering.
+    backoffLimit: 15
+    activeDeadlineSeconds: 1200
+    ttlSecondsAfterFinished: 600
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
   settings:
     allowedHosts: openformulieren-nginx.podiumd.svc.cluster.local
     email:
@@ -1962,6 +1991,20 @@ openinwoner:
     #     items:
     #       - domain: openinwoner.example.nl
     #         name: Gemeente X
+    #   # ClamAV virus scanning of uploaded files (Open Inwoner >= 2.3.0). See
+    #   # docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-gemeente-specific.md for the full
+    #   # explanation — in short: site_config_enable overwrites the ENTIRE
+    #   # SiteConfiguration record on every run (name, colors, banner/help
+    #   # text, GTM/GA codes, everything — see
+    #   # open_inwoner/configurations/bootstrap/siteconfig.py upstream), so
+    #   # merge just these four keys into the gemeente's EXISTING, complete
+    #   # site_config: block above — never deploy this snippet standalone.
+    #   site_config_enable: true
+    #   site_config:
+    #     enable_virus_scan: true
+    #     clamav_host: clamav.podiumd.svc.cluster.local
+    #     clamav_port: 3310
+    #     clamav_timeout: 30.0
     secrets:
       keycloak_client_secret: ""
       # openzaak_openinwoner_secret: "<openzaak_openinwoner_secret>"
