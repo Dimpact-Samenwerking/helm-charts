@@ -3,7 +3,7 @@ Product,Maykin Media,,Formulier (Open Formulieren),openforms,openformulieren,3.4
 Product,Maykin Media,,Portaal (Open Inwoner platform),openinwoner,,2.4.2,2.4.0,2.4.3,2.4.0
 Product,ICATT,,Contact (KISS),kiss-chart,kiss,2.2.3,2.2.3,3.0.0,3.0.0
 Product,ICATT,,Interne Taak Afhandeling,internetaakafhandeling,ita,3.2.0,3.20,3.3.0,3.3.0
-Product,INFO,,Zaak - ZAC,zaakafhandelcomponent,zac,5.0.2,1.0.297,5.4.3,1.0.297
+Product,INFO,,Zaak - ZAC,zaakafhandelcomponent,zac,5.0.2,1.0.297,5.4.4,1.0.297
 Product,Maykin Media,,Zaak - Archiefbeheer (Open Archief Beheer),openarchiefbeheer,,2.0.0,2.0.0,,
 Product,INFO,,Office Add-in,zgw-office-addin,,0.9.352,0.0.89,0.11.0,0.0.92
 Common Ground,Maykin Media,,Open Zaak,openzaak,,1.27.4,1.14.2,1.29.3,1.14.2
@@ -22,8 +22,7 @@ Overige,,,Clamav,clamav,,1.5.2,3.7.1,1.5.4,3.7.2
 Overige,,,Redis,redis-operator,,8.6.2,,8.6.2,
 Overige,,,Nginx unprivileged,MULTIPLE,MULTIPLE,1.31.3,,1.31.3,
 Technische,,,Eck-operator,eck-operator,,3.4.0,3.4.0,3.5.0,3.5.0
-Technische,,,Eck-stack,eck-stack,kiss-eck,,0.19.0,,0.20.0
-Technische,,kiss,Kiss Elasticsearch Kiss Kibana Kiss Enterprise Search,kiss-chart,kiss,8.19.3,,8.19.19,
+Technische,,,Eck-stack,eck-stack,kiss-eck,8.19.3,0.19.0,8.19.19,0.20.0
 Technische,,zac,Solr operator,zaakafhandelcomponent,zac,0.9.1,,0.9.1,
 Technische,,zac,Solr,zaakafhandelcomponent,zac,9.10.1-slim,,,
 Technische,,zac,Busybox,zaakafhandelcomponent,zac,1.38.0-glibc,,,
