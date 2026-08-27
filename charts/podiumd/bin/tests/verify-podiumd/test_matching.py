@@ -19,6 +19,15 @@ def test_match_dependency_no_match_returns_none(libupgradedoc):
     assert libupgradedoc.match_dependency("Totally Fictitious Component", deps) is None
 
 
+def test_match_dependency_short_alias_does_not_match_mid_word(libupgradedoc):
+    """"mi" (mi-data's own alias) is a literal substring of
+    "ensurePodiumdAdminUser" (inside "ad-mi-n") — a raw normalize_name(text)
+    containment check would wrongly match it; word-boundary-aligned
+    matching must not."""
+    deps = [make_dep("mi-data", "1.0.0", alias="mi")]
+    assert libupgradedoc.match_dependency("Python (ensurePodiumdAdminUser init image)", deps) is None
+
+
 def test_match_dependency_prefers_longer_more_specific_match(libupgradedoc):
     deps = [
         make_dep("zac", "1.0.297"),

@@ -76,6 +76,26 @@ def test_parse_upgrade_doc_rows_no_table_returns_empty(libupgradedoc):
     assert libupgradedoc.parse_upgrade_doc_rows("# Upgrade guide\n\nJust prose.\n") == []
 
 
+# --- _word_aligned_spans ---
+
+def test_word_aligned_spans_includes_every_contiguous_word_run(libupgradedoc):
+    spans = libupgradedoc._word_aligned_spans("ZGW Office Add-in")
+    assert spans == {
+        "zgw", "zgwoffice", "zgwofficeadd", "zgwofficeaddin",
+        "office", "officeadd", "officeaddin",
+        "add", "addin",
+        "in",
+    }
+
+
+def test_word_aligned_spans_excludes_mid_word_fragments(libupgradedoc):
+    """"mi" never appears as its own span even though it's a literal
+    substring of "admin" — spans only ever concatenate WHOLE words."""
+    spans = libupgradedoc._word_aligned_spans("ensurePodiumdAdminUser")
+    assert "mi" not in spans
+    assert spans == {"ensurepodiumdadminuser"}
+
+
 # --- match_dependency ---
 
 def test_match_dependency_by_alias(libupgradedoc):
@@ -92,6 +112,13 @@ def test_match_dependency_prefers_longest_match(libupgradedoc):
 
 def test_match_dependency_no_match_returns_none(libupgradedoc):
     assert libupgradedoc.match_dependency("Totally Unknown Thing", [{"name": "zac"}]) is None
+
+
+def test_match_dependency_short_alias_does_not_match_mid_word(libupgradedoc):
+    """"mi" is a literal substring of "ensurePodiumdAdminUser" (inside
+    "ad-mi-n") — must not match at all without a real word boundary."""
+    deps = [{"name": "mi-data", "alias": "mi"}]
+    assert libupgradedoc.match_dependency("Python (ensurePodiumdAdminUser init image)", deps) is None
 
 
 # --- image_tag / actual_app_version ---
