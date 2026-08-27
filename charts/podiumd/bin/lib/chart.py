@@ -29,6 +29,14 @@ UTF8_BOM = b"\xef\xbb\xbf"
 # it used to be) so a new multi-image component only needs adding once.
 COMPONENT_IMAGE_PATHS = {
     "zgw-office-addin": ["frontend.image", "backend.image"],
+    # The operator binary itself, and the default Keycloak SERVER image it
+    # stamps onto Keycloak CRs that don't specify their own — upstream
+    # publishes matching version numbers for both (operator vX.Y.Z is built
+    # to manage Keycloak vX.Y.Z), so they should never be bumped one without
+    # the other. Both use the adfinis chart's own split "tag:" + sibling
+    # "sha:" convention instead of an embedded @sha256 digest — see
+    # update-component-version.py's SPLIT_TAG_SHA_PATHS for the write side.
+    "keycloak-operator": ["operator.image", "operator.config.keycloakImage"],
 }
 DEFAULT_IMAGE_PATHS = ["image"]
 
