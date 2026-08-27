@@ -532,9 +532,10 @@ TWO_IMAGES_VALUES = (
 )
 
 
-def test_check_image_digests_sliding_drift_passes(vp, libimagedigests, tmp_path, monkeypatch, capsys):
-    """A tag known to slide drifting must not fail the check — it's
-    expected, routine drift, not a pin bug."""
+def test_check_image_digests_sliding_drift_fails(vp, libimagedigests, tmp_path, monkeypatch, capsys):
+    """A tag known to slide drifting is routine, expected drift -- but the
+    pin is still stale, so it must fail the check like any other stale
+    pin (just labeled/reported differently, pointing at --all)."""
     write_values(tmp_path, TWO_IMAGES_VALUES)
     monkeypatch.setattr(libimagedigests, "registry_tag_exists", lambda host, repo, tag: (
         (True, f"sha256:{'c' * 64}") if repo == "nginxinc/nginx-unprivileged"
@@ -543,7 +544,7 @@ def test_check_image_digests_sliding_drift_passes(vp, libimagedigests, tmp_path,
     monkeypatch.setattr(libimagedigests, "is_sliding_tag",
                          lambda values_path, host, repo, version, live_digest: repo == "nginxinc/nginx-unprivileged")
     ok, detail = vp.check_image_digests(tmp_path)
-    assert ok is True
+    assert ok is False
     assert "1 sliding" in detail
     assert "0 stale" in detail
     out = capsys.readouterr().out
