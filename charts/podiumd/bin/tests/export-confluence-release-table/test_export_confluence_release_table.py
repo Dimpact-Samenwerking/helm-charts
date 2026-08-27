@@ -777,6 +777,27 @@ def test_main_passes_custom_heading_flags_through(ecrt, tmp_path, monkeypatch):
     assert rows[1][0] == "Technische"
 
 
+def test_main_writes_lf_line_endings(ecrt, tmp_path, monkeypatch):
+    """csv's own "excel" dialect defaults to CRLF regardless of platform —
+    every other file in this repo (and git) is LF, so a CRLF write would
+    diff on every single re-export even when nothing actually changed."""
+    output_path = tmp_path / "out.csv"
+    monkeypatch.setattr(ecrt.sys, "argv", [
+        "export-confluence-release-table.py",
+        "--url", "https://example.atlassian.net/wiki/spaces/PCP/pages/123/Title",
+        "--user", "kees@info.nl",
+        "--token", "s3cr3t",
+        "--output", str(output_path),
+    ])
+    monkeypatch.setattr(ecrt, "fetch_page_html", lambda url, user, token: PRODUCT_TABLE_HTML)
+
+    ecrt.main()
+
+    raw = output_path.read_bytes()
+    assert b"\r\n" not in raw
+    assert b"\n" in raw
+
+
 # --- basenames_under_scope / _match_one / resolve_image_basenames ---
 
 DIGEST_A = "a" * 64
