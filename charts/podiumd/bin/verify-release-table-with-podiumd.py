@@ -48,14 +48,31 @@ pulling that specific chart version (see verify-image-version.py) — this
 compares release-table.csv's OWN image_basename column against whatever
 is ALREADY pinned in values.yaml right now, so nothing needs pulling.
 
-Known false positive: a component whose image is pinned under a
-DIFFERENT top-level values.yaml key than its own Chart.yaml dependency
-name/alias (e.g. keycloak-operator's own image lives under the separate
-"keycloak" block, not "keycloak-operator" — see
-export-confluence-release-table.py's own _extra_scope_keys_by_component,
-which exists to work around the exact same case) reports as "not pinned
-anywhere under '<scope>'" here even though it's really just pinned
-somewhere else. Worth a human's judgment call, not a bug in the data.
+Two images can't be found via the normal digest-pinned "tag:" scan
+(lib.image_version.basenames_under_scope, via lib.image_digests.
+scan_digest_pins) at all — the exact same two exceptions lib.
+digest_pinning_check.EXEMPT_PATHS documents for its own, different check
+(whether a tag IS digest-pinned, not what its version is):
+  - keycloak-operator's own actual Keycloak SERVER image lives at
+    operator.config.keycloakImage as a split "tag:"/"sha:" field pair —
+    not a plain "image: {repository, tag}" block, so scan_digest_pins
+    can't see it structurally at all, regardless of scope. Its plain
+    "tag:" value (already just the version, no digest suffix) is read
+    directly instead — see SPECIAL_CASE_BASENAME_TAG_PATHS.
+  - omc's own image tag intentionally carries no digest at all (its
+    subchart can't handle one), so export-confluence-release-table.py
+    itself never resolves an image_basename for its row — checked here
+    independently of that blank column, keyed by component instead — see
+    SPECIAL_CASE_COMPONENT_TAG_PATHS.
+
+Known false positive NOT covered by either special case above:
+keycloak-operator's OWN separate "Keycloak Config CLI" image
+(keycloak.keycloakConfigCli.image) lives under top-level "keycloak", not
+"keycloak-operator" itself (see export-confluence-release-table.py's own
+_extra_scope_keys_by_component, which exists to work around the exact
+same case) — reports as "not pinned anywhere under 'keycloak-operator'"
+here even though it's really just pinned under a sibling scope. Worth a
+human's judgment call, not a bug in the data.
 
 Also compares version text literally, not semantically: a "v" prefix
 difference between the two sides (e.g. release-table "1.89.0" vs
@@ -78,7 +95,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from lib.chart import load_yaml
+from lib.chart import get_path, load_yaml
 from lib.image_version import basenames_under_scope
 
 CHART_DIR = SCRIPT_DIR.parents[0]
@@ -88,6 +105,23 @@ RELEASE_TABLE_CSV = CHART_DIR / "release-table.csv"
 
 UNRESOLVED_COMPONENTS = ("", "UNKNOWN")
 GLOBAL_IMAGES_SCOPE = "global"
+
+# image_basename -> dotted values.yaml path to its own plain "tag:" value,
+# for an image basenames_under_scope can never find via the normal
+# digest-pinned tag scan — see module docstring and
+# lib.digest_pinning_check.EXEMPT_PATHS (the same underlying exception,
+# documented there for a different check).
+SPECIAL_CASE_BASENAME_TAG_PATHS = {
+    "keycloak": "keycloak-operator.operator.config.keycloakImage.tag",
+}
+
+# component (Chart.yaml dependency name) -> dotted values.yaml path to its
+# own plain "tag:" value, for a component export-confluence-release-
+# table.py could never resolve an image_basename for at all (its row's
+# image_basename column is blank) — see module docstring.
+SPECIAL_CASE_COMPONENT_TAG_PATHS = {
+    "notifynl-omc-nodep": "omc.image.tag",
+}
 
 
 def load_release_table(path):
@@ -111,34 +145,66 @@ def check_chart_version(dep, rows, findings):
             )
 
 
-def check_images(scope_key, component, rows, lines, findings):
+def check_special_case_version(row, findings, actual, label):
+    """Compares row["target_version_app"] against `actual` (the plain
+    "tag:" value already read from a SPECIAL_CASE_BASENAME_TAG_PATHS/
+    SPECIAL_CASE_COMPONENT_TAG_PATHS path), for an image
+    basenames_under_scope structurally can't see at all. `label` is what
+    a mismatch message calls the image (e.g. "keycloak-operator.keycloak"
+    or "notifynl-omc-nodep"). No-op if `actual` couldn't be resolved
+    (get_path found nothing at that path) or target is blank/UNKNOWN."""
+    target = row["target_version_app"]
+    if not target or target == "UNKNOWN" or actual is None:
+        return
+    if actual != target:
+        findings["mismatches"].append(
+            f"[IMAGE] {row['name']} ({label}): release-table target {target} != values.yaml {actual}"
+        )
+
+
+def check_images(scope_key, component, rows, lines, findings, values):
     actual_basenames = basenames_under_scope(lines, scope_key)
     csv_basenames = set()
+    component_special_path = SPECIAL_CASE_COMPONENT_TAG_PATHS.get(component)
 
     for row in rows:
         target = row["target_version_app"]
-        for basename in split_basenames(row["image_basename"]):
+        basenames = split_basenames(row["image_basename"])
+        if not basenames:
+            if component_special_path:
+                check_special_case_version(row, findings, get_path(values, component_special_path), component)
+            continue
+
+        for basename in basenames:
             csv_basenames.add(basename)
             pins = actual_basenames.get(basename)
-            if pins is None:
-                findings["missing_from_chart"].append(
-                    f"[IMAGE] release-table image '{basename}' for component '{component}' "
-                    f"(row '{row['name']}') is not pinned anywhere under '{scope_key}' in values.yaml"
-                )
+            if pins is not None:
+                if not target or target == "UNKNOWN":
+                    continue
+                versions = {p["version"] for p in pins}
+                if len(versions) > 1:
+                    findings["ambiguous"].append(
+                        f"[IMAGE] '{basename}' under '{scope_key}' is pinned at {len(versions)} different "
+                        f"versions ({', '.join(sorted(versions))}) -- can't compare to release-table "
+                        f"target {target}"
+                    )
+                elif next(iter(versions)) != target:
+                    findings["mismatches"].append(
+                        f"[IMAGE] {row['name']} ({component}.{basename}): release-table target {target} "
+                        f"!= values.yaml {next(iter(versions))}"
+                    )
                 continue
-            if not target or target == "UNKNOWN":
+
+            basename_special_path = SPECIAL_CASE_BASENAME_TAG_PATHS.get(basename)
+            if basename_special_path:
+                check_special_case_version(row, findings, get_path(values, basename_special_path),
+                                            f"{component}.{basename}")
                 continue
-            versions = {p["version"] for p in pins}
-            if len(versions) > 1:
-                findings["ambiguous"].append(
-                    f"[IMAGE] '{basename}' under '{scope_key}' is pinned at {len(versions)} different versions "
-                    f"({', '.join(sorted(versions))}) -- can't compare to release-table target {target}"
-                )
-            elif next(iter(versions)) != target:
-                findings["mismatches"].append(
-                    f"[IMAGE] {row['name']} ({component}.{basename}): release-table target {target} "
-                    f"!= values.yaml {next(iter(versions))}"
-                )
+
+            findings["missing_from_chart"].append(
+                f"[IMAGE] release-table image '{basename}' for component '{component}' "
+                f"(row '{row['name']}') is not pinned anywhere under '{scope_key}' in values.yaml"
+            )
 
     for basename in actual_basenames:
         if basename not in csv_basenames:
@@ -155,6 +221,7 @@ def compare(rows, deps, values, lines):
     resolved at all (see UNRESOLVED_COMPONENTS) — see module docstring."""
     findings = defaultdict(list)
     unresolved = []
+    values = values if isinstance(values, dict) else {}
 
     rows_by_component = defaultdict(list)
     multiple_rows = []
@@ -170,7 +237,7 @@ def compare(rows, deps, values, lines):
     # Called unconditionally (even with zero multiple_rows) so a global
     # image nobody's row ever resolved to at all still surfaces as
     # missing-from-release-table, not just silently unchecked.
-    check_images(GLOBAL_IMAGES_SCOPE, "MULTIPLE", multiple_rows, lines, findings)
+    check_images(GLOBAL_IMAGES_SCOPE, "MULTIPLE", multiple_rows, lines, findings, values)
 
     checked_components = set()
     for dep in deps:
@@ -184,14 +251,13 @@ def compare(rows, deps, values, lines):
             )
             continue
         check_chart_version(dep, rows_for_component, findings)
-        check_images(dep.get("alias") or component, component, rows_for_component, lines, findings)
+        check_images(dep.get("alias") or component, component, rows_for_component, lines, findings, values)
 
-    values = values if isinstance(values, dict) else {}
     for component, rows_for_component in rows_by_component.items():
         if component in checked_components:
             continue
         if component in values:
-            check_images(component, component, rows_for_component, lines, findings)
+            check_images(component, component, rows_for_component, lines, findings, values)
         else:
             for row in rows_for_component:
                 findings["missing_from_chart"].append(
