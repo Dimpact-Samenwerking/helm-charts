@@ -4,26 +4,8 @@ set-image-digests.py for that)."""
 import re
 import urllib.error
 
-from lib.chart import dotted_key_path, load_yaml, subchart_default_repository
+from lib.chart import load_yaml, subchart_default_repository
 from lib.registry import UNVERIFIABLE_HOSTS, is_sliding_tag, parse_repo, registry_tag_exists
-
-# Split registry:/repository: pairs confirmed NOT safe to collapse into the
-# combined style, even though they otherwise look identical to every other
-# split pair here. Each is a raw pass-through into a VENDORED subchart's
-# own image-handling — not rendered via this chart's own podiumd.image
-# helper (_helpers.tpl), which only ever prefixes "registry" when it's
-# set. A vendored chart's own template can have different (and differing,
-# chart-to-chart) default-registry semantics, so "safe to merge" can't be
-# assumed just because the split style matches.
-SPLIT_STYLE_UNSAFE_PATHS = {
-    # openbao's own upstream chart template defaults its image registry to
-    # "docker.io" when unset, rather than omitting it — collapsing this
-    # into "repository: quay.io/openbao/openbao" would silently produce
-    # the wrong image reference, not an identical one. Confirmed by hand
-    # in commit 86444dd ("collapse registry+repository into a single
-    # field where safe"), which deliberately left this one split.
-    "openbao.server.image",
-}
 
 # One "tag: <version>@sha256:<digest>" pin per match, quoted or bare.
 DIGEST_PIN_RE = re.compile(
@@ -75,57 +57,6 @@ def find_sibling_registry(lines, tag_line_index, tag_indent):
         if m and indent == tag_indent:
             return m.group("registry")
     return None
-
-
-def find_repository_after_registry(lines, registry_line_index, indent):
-    """The value of a sibling "repository:" key following a "registry:"
-    line at registry_line_index, at the same indent, within the same
-    block (stops at the first dedent). The mirror image of
-    find_sibling_registry, which searches backward from a "tag:" line —
-    this searches forward from a "registry:" line instead, since a split
-    pin's own image block isn't guaranteed to have a digest-pinned "tag:"
-    at all (see find_split_registry_pairs, which needs this to find every
-    split-style pair regardless of whether it's digest-pinned)."""
-    for i in range(registry_line_index + 1, min(registry_line_index + 15, len(lines))):
-        raw = lines[i]
-        if not raw.strip():
-            continue
-        line_indent = len(raw) - len(raw.lstrip(" "))
-        if line_indent < indent:
-            break
-        m = ACTIVE_REPO_RE.match(raw)
-        if m and line_indent == indent:
-            return m.group("repo")
-    return None
-
-
-def find_split_registry_pairs(lines):
-    """Every "registry: <host>" / "repository: <path>" split-style pair in
-    the file, as {"line": <1-based line of "registry:">, "registry":
-    <host>, "repository": <combined "host/path">}, regardless of whether
-    that image block also happens to pin a digest. Unlike scan_digest_pins
-    (which only ever sees an image block that ALSO has a digest-pinned
-    "tag:" nearby), this scans the whole file directly by "registry:" key,
-    so it catches every split-style pin — including a bare (non-digest-
-    pinned) tag like openbao's own image blocks, which check_image_digests
-    itself never looks at.
-
-    Skips anything in SPLIT_STYLE_UNSAFE_PATHS — a pair whose enclosing
-    "image:" block isn't provably safe to collapse (see that constant)."""
-    pairs = []
-    for i, raw in enumerate(lines):
-        m = ACTIVE_REGISTRY_RE.match(raw)
-        if not m:
-            continue
-        indent = len(raw) - len(raw.lstrip(" "))
-        block_path = dotted_key_path(lines, i).rsplit(".", 1)[0]
-        if block_path in SPLIT_STYLE_UNSAFE_PATHS:
-            continue
-        repo = find_repository_after_registry(lines, i, indent)
-        if repo:
-            pairs.append({"line": i + 1, "registry": m.group("registry"),
-                          "repository": f'{m.group("registry")}/{repo}'})
-    return pairs
 
 
 def find_inconsistent_version_pins(pins):
@@ -263,22 +194,6 @@ def check_image_digests(chart_dir):
     check on its own — it can't succeed from an unprivileged environment
     regardless of whether the pin itself is correct.
 
-    Every "registry: <host>" / "repository: <path>" split-style pair
-    anywhere in values.yaml (see find_split_registry_pairs) gets a
-    one-time style suggestion to use the combined "repository:
-    <host>/<path>" style instead, used everywhere else in this file — but
-    only when it's rendered via this chart's own podiumd.image helper
-    (_helpers.tpl), which is confirmed to render both styles identically.
-    A pair fed straight into a VENDORED subchart's own image handling
-    isn't provably safe to collapse the same way (that subchart's own
-    template can default an unset registry differently) — see
-    SPLIT_STYLE_UNSAFE_PATHS for the one confirmed case (openbao's own
-    server image) and why. This scans the whole file directly,
-    independent of scan_digest_pins' own digest-pinned-tag scope, since a
-    split pin isn't guaranteed to have a digest-pinned tag at all (e.g.
-    openbao's own image blocks use bare tags — invisible to the rest of
-    this check, but still worth the style suggestion).
-
     Any repository pinned literally in more than one place in values.yaml
     (see find_inconsistent_version_pins) FAILS the check, one of two ways:
     a [DUPLICATE-PIN] (every occurrence agrees — should be a YAML alias to
@@ -371,15 +286,6 @@ def check_image_digests(chart_dir):
     if mismatches:
         print(f"Run set-image-digests.py to refresh the {len(mismatches)} stale pinned digest(s) above.")
 
-    split_style_pins = find_split_registry_pairs(lines)
-    if split_style_pins:
-        print(f"{len(split_style_pins)} pin(s) use a split \"registry:\"/\"repository:\" style — "
-              f"functionally identical (podiumd.image in _helpers.tpl renders both the same way), "
-              f"but the combined single-key style used elsewhere in this file is easier to grep/audit:")
-        for p in split_style_pins:
-            print(f'  values.yaml:{p["line"]}: registry: {p["registry"]}  ->  consider instead: '
-                  f'repository: "{p["repository"]}" (drop the separate registry: key)')
-
     inconsistent = find_inconsistent_version_pins(pins)
     duplicates = {r: f for r, f in inconsistent.items() if f["kind"] == "duplicate"}
     drifted = {r: f for r, f in inconsistent.items() if f["kind"] == "drift"}
@@ -401,7 +307,7 @@ def check_image_digests(chart_dir):
 
     detail = (f"{matched}/{len(targets)} matched, {len(sliding_mismatches)} sliding (expected drift), "
               f"{len(mismatches)} stale, {len(fetch_errors)} fetch error(s), "
-              f"{len(unverifiable)} unverifiable, {len(split_style_pins)} style suggestion(s), "
+              f"{len(unverifiable)} unverifiable, "
               f"{len(duplicates)} duplicate pin(s), {len(drifted)} version-drift finding(s)")
     if mismatches or fetch_errors or inconsistent:
         return False, detail
