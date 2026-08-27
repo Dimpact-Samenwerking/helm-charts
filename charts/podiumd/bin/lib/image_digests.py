@@ -171,13 +171,16 @@ def check_image_digests(chart_dir):
     One network request per unique (repository, version) pair. Never writes
     to values.yaml — use set-image-digests.py to fix confirmed-stale pins.
 
-    A mismatch is classified sliding — expected drift, reported but not
-    counted as a failure — when this repo's own git history shows the tag
-    has changed digest before, or (only if that's inconclusive) the
-    registry currently has a more specific sibling tag at the same digest;
-    see lib.registry.is_sliding_tag. Otherwise it's a component's own
-    release tag, which should never legitimately change once published —
-    a mismatch there is a real failure worth investigating.
+    A mismatch is classified sliding — expected drift, e.g. a floating
+    base-image tag republished with new security patches — when this
+    repo's own git history shows the tag has changed digest before, or
+    (only if that's inconclusive) the registry currently has a more
+    specific sibling tag at the same digest; see lib.registry.
+    is_sliding_tag. Otherwise it's a component's own release tag, which
+    should never legitimately change once published. Either way the pin
+    is stale and FAILS the check — "expected" only means the drift itself
+    isn't surprising, not that the stale pin should be left alone; run
+    set-image-digests.py (--all for a sliding one) to refresh it.
 
     A pin whose "tag:" has no resolvable "repository:" of its own in
     values.yaml (resolve_pin_repo) falls back to the same component's
@@ -253,7 +256,7 @@ def check_image_digests(chart_dir):
             if sliding:
                 sliding_mismatches.append((repository, version, pinned_digest, digest, lines_str))
                 print(f"  [SLIDING  ] {host}/{repo_path}:{version}  (known to drift — "
-                      f"digest change is expected, not a failure)")
+                      f"refresh with set-image-digests.py --all)")
                 print(f"      pinned:   sha256:{pinned_digest}")
                 print(f"      upstream: {digest}")
                 print(f"      lines:    values.yaml:{lines_str}")
@@ -281,8 +284,8 @@ def check_image_digests(chart_dir):
         print()
 
     if sliding_mismatches:
-        print(f"{len(sliding_mismatches)} sliding base-image digest(s) drifted (expected, not a "
-              f"failure) — pass --all to set-image-digests.py to refresh them too.")
+        print(f"Run set-image-digests.py --all to refresh the {len(sliding_mismatches)} "
+              f"sliding digest(s) above.")
     if mismatches:
         print(f"Run set-image-digests.py to refresh the {len(mismatches)} stale pinned digest(s) above.")
 
@@ -305,10 +308,10 @@ def check_image_digests(chart_dir):
             lines_str = ", ".join(str(n) for n in pin_lines)
             print(f"      {version}@sha256:{digest}  (values.yaml:{lines_str})")
 
-    detail = (f"{matched}/{len(targets)} matched, {len(sliding_mismatches)} sliding (expected drift), "
+    detail = (f"{matched}/{len(targets)} matched, {len(sliding_mismatches)} sliding (stale), "
               f"{len(mismatches)} stale, {len(fetch_errors)} fetch error(s), "
               f"{len(unverifiable)} unverifiable, "
               f"{len(duplicates)} duplicate pin(s), {len(drifted)} version-drift finding(s)")
-    if mismatches or fetch_errors or inconsistent:
+    if mismatches or sliding_mismatches or fetch_errors or inconsistent:
         return False, detail
     return True, detail
