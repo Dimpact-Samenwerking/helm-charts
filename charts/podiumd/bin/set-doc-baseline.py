@@ -5,8 +5,10 @@ doc (and docs/images/images-<target>.yaml) for the current chart's target
 version — charts/podiumd/Chart.yaml's own "version:" — to a new baseline,
 e.g. renaming "4.8.2-to-4.9.0-upgrade.md" to "4.8.3-to-4.9.0-upgrade.md",
 updating titles/headings, correcting the "Component versions" table and
-images-manifest entries against Chart.yaml/values.yaml, and flagging any
-values.yaml schema changes not yet mentioned in the values-deltas doc.
+images-manifest entries against Chart.yaml/values.yaml, reordering that
+table's rows and the "## Changes" section's "### ..." blocks to match
+values.yaml's own top-level component order, and flagging any values.yaml
+schema changes not yet mentioned in the values-deltas doc.
 Missing standard docs are created as TODO stubs, never invented. See
 find_target_docs, fix_component_version_table, and
 fix_images_manifest_entries for exactly what gets rewritten vs. just
@@ -37,7 +39,8 @@ from lib.upgradedoc import (
     actual_app_version, append_to_doc, canonical_version_cell, compute_changed_components,
     extract_source_version, extract_target_version, find_grouped_preceding_comment_line,
     find_image_tag_paths, match_dependency, missing_key_change_lines, normalize_version,
-    parse_upgrade_doc_rows, replace_version_pair, resolve_entry_path,
+    parse_upgrade_doc_rows, replace_version_pair, resolve_entry_path, sort_changes_blocks,
+    sort_upgrade_doc_rows,
 )
 
 CHART_YAML = SCRIPT_DIR.parents[0] / "Chart.yaml"
@@ -445,11 +448,10 @@ def main():
     upgrade_path = DOC_DIR / f"{new_baseline}-to-{target}-upgrade.md"
     if upgrade_path.is_file():
         text = upgrade_path.read_text(encoding="utf-8")
-        new_text, changed_rows, unmatched_names, unresolved_names = fix_component_version_table(
+        text, changed_rows, unmatched_names, unresolved_names = fix_component_version_table(
             text, target_deps, target_values, baseline_deps, baseline_values
         )
         if changed_rows:
-            upgrade_path.write_text(new_text, encoding="utf-8")
             print()
             print(f"=== Correcting component version table in {upgrade_path.name} ===")
             for name, app_cell, chart_cell in changed_rows:
@@ -462,6 +464,19 @@ def main():
         if unmatched_names:
             print()
             print(f"Could not match to a Chart.yaml dependency, left as-is: {', '.join(unmatched_names)}")
+
+        text, moved_rows = sort_upgrade_doc_rows(text, target_deps, target_values)
+        text, moved_blocks = sort_changes_blocks(text, target_deps, target_values)
+        if moved_rows or moved_blocks:
+            print()
+            print(f"=== Reordering {upgrade_path.name} to match values.yaml's component order ===")
+            for name, old_pos, new_pos in moved_rows:
+                print(f"  table row '{name}': position {old_pos} -> {new_pos}")
+            for heading, old_pos, new_pos in moved_blocks:
+                print(f"  changes block '### {heading}': position {old_pos} -> {new_pos}")
+
+        if changed_rows or moved_rows or moved_blocks:
+            upgrade_path.write_text(text, encoding="utf-8")
 
     if images_path.is_file():
         text = images_path.read_text(encoding="utf-8")

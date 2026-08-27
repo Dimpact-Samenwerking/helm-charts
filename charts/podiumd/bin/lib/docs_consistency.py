@@ -12,8 +12,9 @@ from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, 
 from lib.upgradedoc import (
     actual_app_version, compute_changed_components, diff_keys, extract_mentioned_dependency_keys,
     extract_source_version, extract_target_version, find_grouped_preceding_comment,
-    find_image_tag_paths, match_dependency, normalize_version, pair_renames, parse_changes_block,
-    parse_upgrade_doc_rows as _parse_upgrade_doc_rows, resolve_entry_path,
+    find_image_tag_paths, find_out_of_order_names, match_dependency, normalize_version, pair_renames,
+    parse_changes_block, parse_upgrade_doc_changes_blocks,
+    parse_upgrade_doc_rows as _parse_upgrade_doc_rows, resolve_entry_path, values_key_order,
 )
 
 
@@ -405,6 +406,24 @@ def check_docs_consistency(chart_dir, baseline=None):
                     f'{doc_path.name}: component "{key}" changed vs {baseline_ref} but has no row '
                     f'in the "Component versions" table'
                 )
+
+        key_order = values_key_order(values)
+        row_names = [row["name"] for row in parse_upgrade_doc_rows(doc_path)]
+        for name_a, name_b in find_out_of_order_names(row_names, deps, key_order):
+            mismatches.append(
+                f'{doc_path.name}: "Component versions" table lists "{name_b}" right after "{name_a}", '
+                f'but values.yaml lists {name_b} before {name_a} — rows should follow values.yaml\'s '
+                f'own component order'
+            )
+
+        changes_headings = [b["heading"] for b in
+                             parse_upgrade_doc_changes_blocks(doc_path.read_text(encoding="utf-8"))]
+        for name_a, name_b in find_out_of_order_names(changes_headings, deps, key_order):
+            mismatches.append(
+                f'{doc_path.name}: "## Changes" section has "### {name_b}" right after "### {name_a}", '
+                f'but values.yaml lists the {name_b} component before {name_a} — Changes blocks should '
+                f'follow values.yaml\'s own component order'
+            )
 
     current_paths = dict(find_image_tag_paths(values))
     baseline_paths = dict(find_image_tag_paths(baseline_values)) if baseline_ref else {}

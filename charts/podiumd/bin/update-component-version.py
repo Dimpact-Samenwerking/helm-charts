@@ -60,9 +60,10 @@ from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, 
 from lib.image_version import image_basename, update_image_version
 from lib.procutil import run_script
 from lib.upgradedoc import (
-    append_to_doc, canonical_version_cell, describe_key_changes, extract_source_version,
-    find_grouped_preceding_comment_line, normalize_name, normalize_version, parse_upgrade_doc_rows,
-    replace_version_pair, resolve_entry_path,
+    append_to_doc, canonical_version_cell, component_order_key, describe_key_changes,
+    extract_source_version, find_grouped_preceding_comment_line, insertion_index, normalize_name,
+    normalize_version, parse_upgrade_doc_changes_blocks, parse_upgrade_doc_rows, replace_version_pair,
+    resolve_entry_path, values_key_order,
 )
 
 UPDATE_README_SCRIPT = SCRIPT_DIR / "update-podiumd-readme.py"
@@ -274,11 +275,13 @@ def find_component_row(rows, friendly):
     return None
 
 
-def update_component_table(text, friendly, old_app, new_app, old_chart, new_chart):
+def update_component_table(text, friendly, old_app, new_app, old_chart, new_chart, deps, values):
     """Update this component's "Component versions" table row if it's
-    already mentioned, or append a new row if it isn't. Returns
-    (new_text, action) where action is "updated" or "added" (or None if the
-    doc has no table at all to append to)."""
+    already mentioned, or insert a new row if it isn't — in values.yaml's
+    own top-level component order relative to the rows already there (see
+    lib.upgradedoc.component_order_key/insertion_index), not always at
+    the end. Returns (new_text, action) where action is "updated" or
+    "added" (or None if the doc has no table at all to insert into)."""
     lines = text.splitlines(keepends=True)
     rows = parse_upgrade_doc_rows(text)
     row = find_component_row(rows, friendly)
@@ -297,7 +300,11 @@ def update_component_table(text, friendly, old_app, new_app, old_chart, new_char
 
     new_row_line = f"| {friendly} | {app_cell} | {chart_cell} | - |\n"
     if rows:
-        insert_at = rows[-1]["line_index"] + 1
+        key_order = values_key_order(values)
+        new_key = component_order_key(friendly, deps, key_order)
+        existing_keys = [component_order_key(r["name"], deps, key_order) for r in rows]
+        idx = insertion_index(new_key, existing_keys)
+        insert_at = rows[idx]["line_index"] if idx < len(rows) else rows[-1]["line_index"] + 1
     else:
         insert_at = None
         for i, line in enumerate(lines):
@@ -336,9 +343,14 @@ def make_changes_section(friendly, target, chart_name, values_key, old_app, new_
     return "".join(lines)
 
 
-def insert_changes_section(text, section_text):
-    """Append section_text as a new "### ..." block at the end of the
-    "## Changes" section (right before the next "## " heading, or EOF)."""
+def insert_changes_section(text, section_text, friendly, deps, values):
+    """Insert section_text as a new "### ..." block into the "## Changes"
+    section, in values.yaml's own top-level component order relative to
+    the blocks already there (see lib.upgradedoc.component_order_key/
+    insertion_index) — not always at the end. Appends right before the
+    next "## " heading (or EOF) if the section doesn't exist yet, or has
+    no blocks of its own yet to compare against."""
+    blocks = parse_upgrade_doc_changes_blocks(text)
     lines = text.splitlines(keepends=True)
     changes_idx = None
     for i, line in enumerate(lines):
@@ -349,11 +361,22 @@ def insert_changes_section(text, section_text):
         if text and not text.endswith("\n\n"):
             text = text.rstrip("\n") + "\n\n"
         return text + section_text
-    insert_at = len(lines)
+
+    section_end = len(lines)
     for i in range(changes_idx + 1, len(lines)):
         if re.match(r"^##\s+\S", lines[i]):
-            insert_at = i
+            section_end = i
             break
+
+    if not blocks:
+        insert_at = section_end
+    else:
+        key_order = values_key_order(values)
+        new_key = component_order_key(friendly, deps, key_order)
+        existing_keys = [component_order_key(b["heading"], deps, key_order) for b in blocks]
+        idx = insertion_index(new_key, existing_keys)
+        insert_at = blocks[idx]["start"] if idx < len(blocks) else section_end
+
     lines[insert_at:insert_at] = [section_text]
     return "".join(lines)
 
@@ -512,6 +535,7 @@ def main():
     component, app_version, chart_version = sys.argv[1], sys.argv[2], sys.argv[3]
 
     dep = find_dependency(component)
+    deps = yaml.safe_load(CHART_YAML.read_text(encoding="utf-8"))["dependencies"]
     chart_name = dep["name"]
     values_key = dep.get("alias", dep["name"])
     image_paths = image_paths_for(component)
@@ -618,13 +642,13 @@ def main():
     else:
         text = upgrade_path.read_text(encoding="utf-8")
         new_text, table_action = update_component_table(text, friendly, old_app, app_version,
-                                                          old_chart, chart_version)
+                                                          old_chart, chart_version, deps, values)
         section_exists = find_changes_section(new_text, friendly)
         section_added = False
         if table_action == "added" and not section_exists:
             section = make_changes_section(friendly, target, chart_name, values_key, old_app, app_version,
                                             old_chart, chart_version, paths_to_update)
-            new_text = insert_changes_section(new_text, section)
+            new_text = insert_changes_section(new_text, section, friendly, deps, values)
             section_added = True
 
         if table_action is not None:
