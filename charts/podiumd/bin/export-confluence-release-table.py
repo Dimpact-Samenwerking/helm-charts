@@ -578,7 +578,12 @@ def main():
 
     output_path = Path(args.output)
     with output_path.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
+        # csv's own "excel" dialect defaults to "\r\n" regardless of
+        # platform; with newline="" (required so it doesn't ALSO get
+        # translated by the text layer) that writes literal CRLF bytes,
+        # which every other file in this repo (and git) treats as a
+        # diff on every re-export. LF matches the rest of the repo.
+        writer = csv.writer(f, lineterminator="\n")
         writer.writerow(CSV_HEADER)
         writer.writerows(rows)
 
