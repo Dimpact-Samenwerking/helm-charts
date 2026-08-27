@@ -1,0 +1,127 @@
+"""lib.image_docs — the "shared image basename as its own pseudo-component"
+doc-update helpers used by update-image-version.py when a basename bump
+touches more than one Chart.yaml component. Convention confirmed against
+docs/_UPGRADE_PATHS/4.8.1-to-4.8.2-upgrade.md (curl/nginx-unprivileged/
+busybox each got their own table row + "### <name> ..." Changes block)."""
+
+
+# --- make_image_changes_section ---
+
+def test_make_image_changes_section_lists_every_pinned_path(libimagedocs):
+    pinned = [("keycloak-operator.jobs.ensureOperatorSa.image.tag", "8.20.0"),
+              ("zac.global.curlImage.tag", "8.20.0")]
+    section = libimagedocs.make_image_changes_section("curl", "4.9.0", "8.20.0", "8.21.0", pinned)
+    assert section.startswith("### curl 8.20.0 → 8.21.0")
+    assert "- `keycloak-operator.jobs.ensureOperatorSa.image.tag` `8.20.0` → `8.21.0`" in section
+    assert "- `zac.global.curlImage.tag` `8.20.0` → `8.21.0`" in section
+    assert "images-4.9.0.yaml" in section
+
+
+def test_make_image_changes_section_per_path_old_version_differs(libimagedocs):
+    """A basename's various pins aren't guaranteed to have all started at
+    the exact same version -- each path's own old version is shown, not
+    one assumed-uniform value."""
+    pinned = [("a.image.tag", "8.19.0"), ("b.image.tag", "8.20.0")]
+    section = libimagedocs.make_image_changes_section("curl", "4.9.0", "8.19.0", "8.21.0", pinned)
+    assert "- `a.image.tag` `8.19.0` → `8.21.0`" in section
+    assert "- `b.image.tag` `8.20.0` → `8.21.0`" in section
+
+
+# --- image_delta_bullet ---
+
+def test_image_delta_bullet_pin_count_singular(libimagedocs):
+    bullet = libimagedocs.image_delta_bullet("curl", "8.20.0", "8.21.0", 1)
+    assert bullet == "- **curl** image `8.20.0 → 8.21.0` — pinned at 1 place in `values.yaml`.\n"
+
+
+def test_image_delta_bullet_pin_count_plural(libimagedocs):
+    bullet = libimagedocs.image_delta_bullet("curl", "8.20.0", "8.21.0", 3)
+    assert bullet == "- **curl** image `8.20.0 → 8.21.0` — pinned at 3 places in `values.yaml`.\n"
+
+
+# --- update_image_manifest ---
+
+def write_manifest(path, text):
+    path.write_text(text, encoding="utf-8")
+
+
+def test_update_image_manifest_updates_existing_entry_and_comment(libimagedocs, tmp_path):
+    path = tmp_path / "images-4.9.0.yaml"
+    write_manifest(path, (
+        "# Baseline: podiumd 4.8.5.\n"
+        "#\n"
+        "# One change:\n"
+        "#   1. curl 8.20.0 -> 8.20.0.\n"
+        "#\n\n"
+        "# curl — 8.20.0 -> 8.20.0\n"
+        "- name: curlimages/curl\n"
+        "  url: docker.io/curlimages/curl\n"
+        '  version: "8.20.0"\n'
+        '  digest: "sha256:aaaa"\n'
+    ))
+    changes_action, entry_updated = libimagedocs.update_image_manifest(
+        path, "curl", "curlimages/curl", "8.20.0", "8.21.0", "sha256:bbbb")
+    assert changes_action == "updated"
+    assert entry_updated is True
+    text = path.read_text(encoding="utf-8")
+    assert "#   1. curl 8.20.0 -> 8.21.0." in text
+    assert "# curl — 8.20.0 -> 8.21.0" in text
+    assert '"8.21.0"' in text
+    assert '"sha256:bbbb"' in text
+
+
+def test_update_image_manifest_adds_new_changes_item_when_absent(libimagedocs, tmp_path):
+    path = tmp_path / "images-4.9.0.yaml"
+    write_manifest(path, (
+        "# Baseline: podiumd 4.8.5.\n"
+        "#\n"
+        "# One change:\n"
+        "#   1. ZAC 5.0.2 -> 5.4.3 (chart 1.0.297, unchanged).\n"
+        "#\n\n"
+        "- name: zac\n"
+        "  url: ghcr.io/infonl/zaakafhandelcomponent\n"
+        '  version: "5.4.3"\n'
+        '  digest: "sha256:aaaa"\n'
+    ))
+    changes_action, entry_updated = libimagedocs.update_image_manifest(
+        path, "curl", "curlimages/curl", "8.20.0", "8.21.0", "sha256:bbbb")
+    assert changes_action == "added"
+    assert entry_updated is False
+    text = path.read_text(encoding="utf-8")
+    assert "Two changes:" in text
+    assert "#   2. curl 8.20.0 -> 8.21.0." in text
+
+
+def test_update_image_manifest_no_matching_entry_reports_not_updated(libimagedocs, tmp_path):
+    path = tmp_path / "images-4.9.0.yaml"
+    write_manifest(path, (
+        "# One change:\n"
+        "#   1. ZAC 5.0.2 -> 5.4.3.\n\n"
+        "- name: zac\n"
+        "  url: ghcr.io/infonl/zaakafhandelcomponent\n"
+        '  version: "5.4.3"\n'
+        '  digest: "sha256:aaaa"\n'
+    ))
+    changes_action, entry_updated = libimagedocs.update_image_manifest(
+        path, "curl", "curlimages/curl", "8.20.0", "8.21.0", "sha256:bbbb")
+    assert entry_updated is False
+
+
+def test_update_image_manifest_matches_entry_by_url_repository(libimagedocs, tmp_path):
+    """The entry is matched by its "url:" resolving to `repository`, not
+    by "name:" (which may be a short ACR-mirror slug, not the repository
+    itself)."""
+    path = tmp_path / "images-4.9.0.yaml"
+    write_manifest(path, (
+        "# One change:\n"
+        "#   1. curl 8.20.0 -> 8.20.0.\n\n"
+        "# curl — 8.20.0 -> 8.20.0\n"
+        "- name: curl\n"
+        "  url: docker.io/curlimages/curl\n"
+        '  version: "8.20.0"\n'
+        '  digest: "sha256:aaaa"\n'
+    ))
+    changes_action, entry_updated = libimagedocs.update_image_manifest(
+        path, "curl", "curlimages/curl", "8.20.0", "8.21.0", "sha256:bbbb")
+    assert entry_updated is True
+    assert '"8.21.0"' in path.read_text(encoding="utf-8")

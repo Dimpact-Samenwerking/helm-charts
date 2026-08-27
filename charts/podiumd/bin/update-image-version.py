@@ -16,6 +16,29 @@ which one you meant. No release-table.csv involved either way — this
 reads straight from Chart.yaml/values.yaml (see
 lib.image_version.resolve_basename).
 
+Also updates the docs for the current podiumd target version, if they
+exist (run set-doc-baseline.py first if not) — the same four docs
+update-component-version.py keeps in sync (upgrade doc table + Changes
+section, values-deltas, images-<target>.yaml), grouped by however many
+distinct Chart.yaml components the bump actually touched:
+  - Exactly one component affected (e.g. resolving "openklant" bumps
+    only openklant's own image): full-fidelity treatment identical to
+    update-component-version.py's own (lib.component_docs) — real Helm
+    chart version shown (unchanged, since this never touches
+    Chart.yaml), values-deltas schema-change detection, per-path
+    images-manifest entries.
+  - More than one component affected (a genuinely shared image, e.g.
+    curl used by several unrelated init containers): treated as its own
+    pseudo-component keyed by the basename itself (lib.image_docs) — a
+    "Component versions" table row with Helm chart column "-", a
+    "### <basename> ..." Changes block listing every place it's pinned,
+    a values-deltas bullet, and one images-manifest entry per distinct
+    repository. Convention confirmed against docs/_UPGRADE_PATHS/
+    4.8.1-to-4.8.2-upgrade.md (curl/nginx-unprivileged/busybox each got
+    exactly this treatment).
+Finally runs update-podiumd-readme.py so README.md's values-reference
+table doesn't go stale in the same commit.
+
 Refuses to touch values.yaml unless the new version verifiably exists
 upstream for every matched repository first — a bad version name fails
 loudly with nothing written, never a half-updated file.
@@ -46,10 +69,247 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
+from lib.chart import dotted_key_path, find_dependency, load_yaml
+from lib.component_docs import (
+    NO_CHANGES_CLAIMED_RE, find_baseline_docs, find_changes_section, images_manifest_path,
+    insert_changes_section, load_baseline_values, make_changes_section, update_component_table,
+    update_images_manifest, values_delta_bullet,
+)
+from lib.image_docs import image_delta_bullet, make_image_changes_section, update_image_manifest
 from lib.image_version import resolve_basename, update_image_version
+from lib.procutil import run_script
+from lib.registry import parse_repo
+from lib.upgradedoc import append_to_doc, describe_key_changes
 
 CHART_DIR = SCRIPT_DIR.parents[0]
+CHART_YAML = CHART_DIR / "Chart.yaml"
 VALUES_YAML = CHART_DIR / "values.yaml"
+DOC_DIR = CHART_DIR / "docs" / "_UPGRADE_PATHS"
+IMAGES_DIR = CHART_DIR / "docs" / "images"
+UPDATE_README_SCRIPT = SCRIPT_DIR / "update-podiumd-readme.py"
+
+
+def group_changes_by_component(changes, values_lines_before_write):
+    """{values_key: {"paths": [dotted image path, ...], "old_app_by_path",
+    "repos", "new_tags_by_path"}} for every distinct top-level component a
+    basename bump's changes touch, plus [(full dotted "...tag" path,
+    old_version), ...] for every change, in file order — the shape both
+    the single-component and shared-image doc-update paths need, derived
+    once here so each `changes` entry's values-tree location is only
+    resolved a single time."""
+    groups = {}
+    full_paths = []
+    for c in changes:
+        path_parts = dotted_key_path(values_lines_before_write, c["line"] - 1).split(".")
+        values_key, image_path = path_parts[0], ".".join(path_parts[1:-1])
+        full_paths.append((".".join(path_parts), c["old_version"]))
+        g = groups.setdefault(values_key, {"paths": [], "old_app_by_path": {}, "repos": {}, "new_tags_by_path": {}})
+        if image_path not in g["paths"]:
+            g["paths"].append(image_path)
+        g["old_app_by_path"][image_path] = c["old_version"]
+        g["repos"][image_path] = c["repository"]
+        g["new_tags_by_path"][image_path] = f"{c['new_version']}@{c['new_digest']}"
+    return groups, full_paths
+
+
+def update_docs_single_component(new_version, target, deps, values, dep, values_key, group):
+    """The exact update-component-version.py doc-update flow (see that
+    script's own main() for the version this was factored out of),
+    applied to a basename bump that happens to affect only this one
+    component — old_chart/new_chart are the SAME (Chart.yaml's own
+    version), since a basename bump never touches Chart.yaml."""
+    chart_name = dep["name"]
+    friendly = values_key
+    chart_version_str = str(dep["version"])
+    image_paths = group["paths"]
+    old_app = group["old_app_by_path"][image_paths[0]]
+    repos = group["repos"]
+    new_tags_by_path = group["new_tags_by_path"]
+
+    baseline, upgrade_path, values_deltas_path = find_baseline_docs(DOC_DIR, target)
+    if upgrade_path is None:
+        print()
+        print(f"No upgrade doc found for target {target} — run set-doc-baseline.py first "
+              f"to scaffold it; skipping doc updates.")
+    else:
+        text = upgrade_path.read_text(encoding="utf-8")
+        new_text, table_action = update_component_table(
+            text, friendly, old_app, new_version, chart_version_str, chart_version_str, deps, values)
+        section_exists = find_changes_section(new_text, friendly)
+        section_added = False
+        if table_action == "added" and not section_exists:
+            section = make_changes_section(friendly, target, chart_name, values_key, old_app, new_version,
+                                            chart_version_str, chart_version_str, image_paths)
+            new_text = insert_changes_section(new_text, section, friendly, deps, values)
+            section_added = True
+        if table_action is not None:
+            upgrade_path.write_text(new_text, encoding="utf-8")
+            print()
+            print(f"=== Updating {upgrade_path.name} ===")
+            print(f"  {table_action} table row")
+            if section_added:
+                print(f"  added '### {friendly} ...' Changes section")
+            elif table_action == "updated" and section_exists:
+                print(f"  note: a '### {friendly} ...' Changes section already exists — "
+                      f"update its version numbers by hand if needed")
+
+    if values_deltas_path is not None:
+        text = values_deltas_path.read_text(encoding="utf-8")
+        new_lines = [values_delta_bullet(friendly, old_app, new_version, chart_version_str, chart_version_str)]
+        baseline_values_at_release = load_baseline_values(VALUES_YAML, baseline)
+        if baseline_values_at_release is None:
+            print()
+            print(f"  note: could not resolve baseline {baseline} to a git ref — skipping "
+                  f"added/removed/renamed key detection for values-deltas.md")
+        else:
+            baseline_subtree = (baseline_values_at_release.get(values_key, {})
+                                 if isinstance(baseline_values_at_release, dict) else {})
+            current_subtree = values.get(values_key, {}) if isinstance(values, dict) else {}
+            new_lines.extend(describe_key_changes(values_key, baseline_subtree, current_subtree))
+        no_changes_claimed = bool(NO_CHANGES_CLAIMED_RE.search(text))
+        values_deltas_path.write_text(append_to_doc(text, new_lines), encoding="utf-8")
+        print()
+        print(f"=== Updating {values_deltas_path.name} ===")
+        for line in new_lines:
+            print(f"  {line.rstrip()}")
+        if no_changes_claimed:
+            print("  note: doc claims 'no gemeente podiumd.yml changes are required' — that's about "
+                  "gemeente ACTION, not about whether anything changed, so it may still hold; "
+                  "double-check it's still true now that this bullet's been added")
+    elif upgrade_path is not None:
+        print()
+        print(f"No values-deltas.md found for baseline {baseline} — skipping that update.")
+
+    images_path = images_manifest_path(IMAGES_DIR, target)
+    if not images_path.is_file():
+        print()
+        print(f"No images-{target}.yaml found — skipping that update.")
+        return
+
+    changes_action, entry_updates, missing_entries = update_images_manifest(
+        images_path, friendly, values_key, old_app, new_version, chart_version_str, chart_version_str,
+        image_paths, repos, new_tags_by_path,
+    )
+    print()
+    print(f"=== Updating {images_path.name} ===")
+    if changes_action:
+        print(f"  {changes_action} 'changes:' list entry")
+    for name in entry_updates:
+        print(f"  updated entry '{name}'")
+    if missing_entries:
+        print("  No existing entry for the following — add manually (see "
+              "docs/images/acr-mirror-naming.md for the correct 'name:' ACR mirror slug):")
+        for path, repo, new_tag in missing_entries:
+            new_app_version, digest = new_tag.split("@", 1)
+            print(f"    # {friendly} — {group['old_app_by_path'].get(path) or '(none)'} -> {new_app_version}")
+            print("    - name: <ACR-mirror-name>")
+            print(f"      url: {repo}")
+            print(f'      version: "{new_app_version}"')
+            print(f'      digest: "{digest}"')
+
+
+def update_docs_shared_image(basename, new_version, changes, pinned, target, deps, values):
+    """The 4.8.1-to-4.8.2-upgrade.md convention for a genuinely shared
+    image (more than one Chart.yaml component pins it): a table row keyed
+    by the basename itself (Helm chart column "-" — see
+    lib.upgradedoc.component_order_key's "unmatched sorts last" rule for
+    why it naturally lands after every real component), a "### <basename>
+    ..." Changes block listing every place it's pinned, a values-deltas
+    bullet, and one images-manifest entry per distinct repository (rare
+    for the SAME basename to span more than one, but not impossible)."""
+    baseline, upgrade_path, values_deltas_path = find_baseline_docs(DOC_DIR, target)
+    old_version = changes[0]["old_version"]
+
+    if upgrade_path is None:
+        print()
+        print(f"No upgrade doc found for target {target} — run set-doc-baseline.py first "
+              f"to scaffold it; skipping doc updates.")
+    else:
+        text = upgrade_path.read_text(encoding="utf-8")
+        new_text, table_action = update_component_table(
+            text, basename, old_version, new_version, None, "-", deps, values)
+        section_exists = find_changes_section(new_text, basename)
+        section_added = False
+        if table_action == "added" and not section_exists:
+            section = make_image_changes_section(basename, target, old_version, new_version, pinned)
+            new_text = insert_changes_section(new_text, section, basename, deps, values)
+            section_added = True
+        if table_action is not None:
+            upgrade_path.write_text(new_text, encoding="utf-8")
+            print()
+            print(f"=== Updating {upgrade_path.name} ===")
+            print(f"  {table_action} table row")
+            if section_added:
+                print(f"  added '### {basename} ...' Changes section")
+            elif table_action == "updated" and section_exists:
+                print(f"  note: a '### {basename} ...' Changes section already exists — "
+                      f"update its version numbers by hand if needed")
+
+    if values_deltas_path is not None:
+        text = values_deltas_path.read_text(encoding="utf-8")
+        new_lines = [image_delta_bullet(basename, old_version, new_version, len(pinned))]
+        no_changes_claimed = bool(NO_CHANGES_CLAIMED_RE.search(text))
+        values_deltas_path.write_text(append_to_doc(text, new_lines), encoding="utf-8")
+        print()
+        print(f"=== Updating {values_deltas_path.name} ===")
+        for line in new_lines:
+            print(f"  {line.rstrip()}")
+        if no_changes_claimed:
+            print("  note: doc claims 'no gemeente podiumd.yml changes are required' — that's about "
+                  "gemeente ACTION, not about whether anything changed, so it may still hold; "
+                  "double-check it's still true now that this bullet's been added")
+    elif upgrade_path is not None:
+        print()
+        print(f"No values-deltas.md found for baseline {baseline} — skipping that update.")
+
+    images_path = images_manifest_path(IMAGES_DIR, target)
+    if not images_path.is_file():
+        print()
+        print(f"No images-{target}.yaml found — skipping that update.")
+        return
+
+    by_repository = {}
+    for c in changes:
+        by_repository.setdefault(c["repository"], c)
+    print()
+    print(f"=== Updating {images_path.name} ===")
+    for repository, c in sorted(by_repository.items()):
+        host, repo_path = parse_repo(repository)
+        changes_action, entry_updated = update_image_manifest(
+            images_path, basename, repo_path, c["old_version"], c["new_version"], c["new_digest"])
+        if changes_action:
+            print(f"  {changes_action} 'changes:' list entry")
+        if entry_updated:
+            print(f"  updated entry for {repo_path}")
+        else:
+            print(f"  No existing entry for {repo_path} — add manually (see "
+                  f"docs/images/acr-mirror-naming.md for the correct 'name:' ACR mirror slug):")
+            print(f"    # {basename} — {c['old_version']} -> {c['new_version']}")
+            print("    - name: <ACR-mirror-name>")
+            print(f"      url: {host}/{repo_path}")
+            print(f'      version: "{c["new_version"]}"')
+            print(f'      digest: "{c["new_digest"]}"')
+
+
+def update_docs(basename, new_version, changes, values_lines_before_write):
+    chart_yaml = load_yaml(CHART_YAML) or {}
+    deps = chart_yaml.get("dependencies", [])
+    target = str(chart_yaml.get("version"))
+    values = load_yaml(VALUES_YAML) or {}
+
+    groups, full_paths = group_changes_by_component(changes, values_lines_before_write)
+
+    if len(groups) == 1:
+        values_key, group = next(iter(groups.items()))
+        dep = find_dependency(deps, values_key)
+        if dep is not None:
+            update_docs_single_component(new_version, target, deps, values, dep, values_key, group)
+            return
+        print()
+        print(f"warning: '{values_key}' has no matching Chart.yaml dependency — "
+              f"treating '{basename}' as a shared image instead")
+
+    update_docs_shared_image(basename, new_version, changes, full_paths, target, deps, values)
 
 
 def main():
@@ -59,12 +319,12 @@ def main():
     if len(sys.argv) != 3:
         print(__doc__)
         sys.exit(1)
-    target, new_version = sys.argv[1], sys.argv[2]
+    target_arg, new_version = sys.argv[1], sys.argv[2]
 
-    lines = VALUES_YAML.read_text(encoding="utf-8").splitlines()
-    basename = resolve_basename(CHART_DIR, lines, target)
-    if basename != target:
-        print(f"'{target}' resolved to image basename '{basename}'")
+    values_lines = VALUES_YAML.read_text(encoding="utf-8").splitlines()
+    basename = resolve_basename(CHART_DIR, values_lines, target_arg)
+    if basename != target_arg:
+        print(f"'{target_arg}' resolved to image basename '{basename}'")
 
     changes = update_image_version(VALUES_YAML, basename, new_version)
     if not changes:
@@ -76,10 +336,17 @@ def main():
         print(f"  values.yaml:{c['line']}  ({c['repository']})")
         print(f"    {c['old_version']}@{c['old_digest']}")
         print(f"    {c['new_version']}@{c['new_digest']}")
+    print()
+    print(f"Updated {len(changes)} pin(s).")
+
+    update_docs(basename, new_version, changes, values_lines)
 
     print()
-    print(f"Updated {len(changes)} pin(s). Re-render the chart to confirm "
-          "(verify-podiumd.py or /helm-render-all) before committing.")
+    print("=== Regenerating README.md (update-podiumd-readme.py) ===")
+    run_script([sys.executable, str(UPDATE_README_SCRIPT)])
+
+    print()
+    print("Done. Re-render the chart to confirm (verify-podiumd.py or /helm-render-all) before committing.")
 
 
 if __name__ == "__main__":

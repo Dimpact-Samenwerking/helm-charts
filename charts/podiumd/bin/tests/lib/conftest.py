@@ -12,6 +12,7 @@ import lib.chart as chart
 import lib.confluence_tables as confluence_tables
 import lib.dependencies as dependencies
 import lib.gitutil as gitutil
+import lib.image_docs as image_docs
 import lib.image_version as image_version
 import lib.procutil as procutil
 import lib.registry as registry
@@ -62,3 +63,8 @@ def libgitutil():
 @pytest.fixture(scope="session")
 def libupgradedoc():
     return upgradedoc
+
+
+@pytest.fixture(scope="session")
+def libimagedocs():
+    return image_docs
