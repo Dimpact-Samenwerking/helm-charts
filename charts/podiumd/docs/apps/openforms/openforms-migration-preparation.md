@@ -1,4 +1,4 @@
-# Open Formulieren — Prapering for version 4.0
+# Open Formulieren — Preparing for version 4.0
 
 Open Formulieren 3.5.x is preparing for a major version. The below deprecations 
 were announced in the 3.5.x line and will become breaking changes in 
