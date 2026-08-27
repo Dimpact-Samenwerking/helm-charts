@@ -397,7 +397,7 @@ def test_main_exits_zero_when_nothing_stale(sid, tmp_path, monkeypatch):
     assert exc_info.value.code == 0
 
 
-# --- main(): --all vs default (sliding vs pinned) ---
+# --- main(): sliding pins are refreshed by default, same as any other ---
 
 def write_two_image_values(path, nginx_digest, zac_digest):
     write_values(path, (
@@ -417,7 +417,11 @@ def mock_is_sliding_tag_by_repo(monkeypatch, sid, sliding_repos):
                          lambda values_path, host, repo, version, live_digest: repo in sliding_repos)
 
 
-def test_main_default_updates_pinned_but_not_sliding(sid, tmp_path, monkeypatch, capsys):
+def test_main_default_updates_sliding_and_pinned_alike(sid, tmp_path, monkeypatch, capsys):
+    """verify-podiumd.py's own check fails on a sliding mismatch the same
+    as a pinned one, so there's no reason for this tool to leave a sliding
+    pin unfixed by default -- both get rewritten in the same run, the
+    sliding one just gets the "(sliding)" label in the report."""
     values_path = tmp_path / "values.yaml"
     old_nginx, new_nginx = "a" * 64, "c" * 64
     old_zac, new_zac = "b" * 64, "d" * 64
@@ -434,66 +438,17 @@ def test_main_default_updates_pinned_but_not_sliding(sid, tmp_path, monkeypatch,
         sid.main()
     assert exc_info.value.code == 0
     updated = values_path.read_text(encoding="utf-8")
-    assert old_nginx in updated  # sliding pin left untouched by default
-    assert new_nginx not in updated
-    assert old_zac not in updated  # pinned tag updated
-    assert new_zac in updated
+    assert old_nginx not in updated and new_nginx in updated  # sliding pin updated too
+    assert old_zac not in updated and new_zac in updated
     out = capsys.readouterr().out
-    assert "not updated (pass --all to include)" in out
+    assert "nginxinc/nginx-unprivileged:1.31.3  (sliding)" in out
 
 
-def test_main_all_flag_updates_sliding_too(sid, tmp_path, monkeypatch):
-    values_path = tmp_path / "values.yaml"
-    old_nginx, new_nginx = "a" * 64, "c" * 64
-    old_zac, new_zac = "b" * 64, "d" * 64
-    write_two_image_values(values_path, old_nginx, old_zac)
-    monkeypatch.setattr(sid, "VALUES_PATH", values_path)
-    monkeypatch.setattr(sid, "registry_tag_exists", lambda host, repo, tag: (
-        (True, f"sha256:{new_nginx}") if repo == "nginxinc/nginx-unprivileged"
-        else (True, f"sha256:{new_zac}")
-    ))
-    mock_is_sliding_tag_by_repo(monkeypatch, sid, {"nginxinc/nginx-unprivileged"})
-    monkeypatch.setattr("sys.argv", ["set-image-digests.py", "--all"])
+# --- main(): <target> scopes to one image ---
 
-    with pytest.raises(SystemExit) as exc_info:
-        sid.main()
-    assert exc_info.value.code == 0
-    updated = values_path.read_text(encoding="utf-8")
-    assert old_nginx not in updated
-    assert new_nginx in updated
-    assert old_zac not in updated
-    assert new_zac in updated
-
-
-def test_main_default_no_pinned_staleness_reports_sliding_skip(sid, tmp_path, monkeypatch, capsys):
-    """Only the sliding pin drifted — default run must still exit cleanly
-    and say nothing was updated, rather than claiming full success silently."""
-    values_path = tmp_path / "values.yaml"
-    old_nginx, new_nginx = "a" * 64, "c" * 64
-    zac_digest = "b" * 64
-    write_two_image_values(values_path, old_nginx, zac_digest)
-    monkeypatch.setattr(sid, "VALUES_PATH", values_path)
-    monkeypatch.setattr(sid, "registry_tag_exists", lambda host, repo, tag: (
-        (True, f"sha256:{new_nginx}") if repo == "nginxinc/nginx-unprivileged"
-        else (True, f"sha256:{zac_digest}")
-    ))
-    mock_is_sliding_tag_by_repo(monkeypatch, sid, {"nginxinc/nginx-unprivileged"})
-    monkeypatch.setattr("sys.argv", ["set-image-digests.py"])
-
-    with pytest.raises(SystemExit) as exc_info:
-        sid.main()
-    assert exc_info.value.code == 0
-    assert old_nginx in values_path.read_text(encoding="utf-8")  # left untouched, not written
-    out = capsys.readouterr().out
-    assert "nothing to update" in out
-    assert "pass --all to include them" in out
-
-
-# --- main(): <target> scopes to one image, refreshed even if sliding ---
-
-def test_main_target_updates_sliding_pin_without_all(sid, tmp_path, monkeypatch):
-    """Naming the image explicitly is enough intent -- no --all needed,
-    even though it's sliding."""
+def test_main_target_updates_sliding_pin(sid, tmp_path, monkeypatch):
+    """Naming the image explicitly still works when it happens to be
+    sliding -- no different from the default, unscoped behavior."""
     values_path = tmp_path / "values.yaml"
     old_nginx, new_nginx = "a" * 64, "c" * 64
     zac_digest = "b" * 64

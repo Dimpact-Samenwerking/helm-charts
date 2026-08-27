@@ -6,22 +6,23 @@ base/security layers, so the multi-arch index digest changed. Fetches the
 live "Docker-Content-Digest" for each unique "<repository>:<tag>" pin and,
 if it differs, replaces every occurrence of the old digest with the new
 one (byte-identical otherwise). See find_stale_digests for how a
-repository is resolved for a pin, and lib.registry.is_sliding_tag for why
-some mismatches are reported but left untouched by default.
+repository is resolved for a pin. Every stale pin is rewritten, sliding or
+not — see lib.registry.is_sliding_tag for what makes a mismatch "sliding"
+(expected drift, e.g. a floating base-image tag) versus a component's own
+release tag; it's still labeled "(sliding)" in the output since that's
+useful context, but verify-podiumd.py's own check fails on either kind
+the same way, so there's no reason to leave one kind unfixed here.
 
 An optional <target> (a bare image basename like "redis", or a Chart.yaml
 dependency's own name/alias like "openklant" — resolved the same way
 update-image-version.py's own <target> is, see lib.image_version.
-resolve_basename) scopes the run to just that one image: it's refreshed
-if stale, SLIDING OR NOT, without needing --all — naming one image
-explicitly is enough intent on its own. Every other stale pin is left
-untouched and unreported for that run.
+resolve_basename) scopes the run to just that one image. Every other
+stale pin is left untouched and unreported for that run.
 
 Usage:
-    set-image-digests.py             # fetch, compare, rewrite stale PINNED digests only
-    set-image-digests.py --all       # also rewrite stale SLIDING digests
-    set-image-digests.py <target>    # scope to one image, refreshed even if sliding
-    set-image-digests.py --dry-run   # fetch and compare only, no write (combine with any of the above)
+    set-image-digests.py             # fetch, compare, rewrite every stale digest
+    set-image-digests.py <target>    # scope to just one image
+    set-image-digests.py --dry-run   # fetch and compare only, no write (combine with either of the above)
 
 Examples:
     set-image-digests.py redis
@@ -50,9 +51,9 @@ VALUES_PATH = CHART_DIR / "values.yaml"
 def find_stale_digests(lines, values_path):
     """Return (stale, unresolved, fetch_errors). stale is a list of
     (repository, version, old_digest, new_digest, [line, ...], sliding) —
-    see lib.registry.is_sliding_tag for what makes a mismatch "sliding"
-    (expected drift) versus a component's own release tag, which should
-    never legitimately change once published.
+    `sliding` (see lib.registry.is_sliding_tag) is purely informational
+    here, used only for the printed "(sliding)" label; every stale pin is
+    treated the same way by main() regardless.
 
     A pin whose "tag:" has no resolvable "repository:" of its own falls
     back to the same component's vendored subchart default — see
@@ -125,7 +126,6 @@ def main():
         print(__doc__)
         sys.exit(0)
     dry_run = "--dry-run" in args
-    update_all = "--all" in args
     positional = [a for a in args if not a.startswith("-")]
     if len(positional) > 1:
         print(f"error: expected at most one target, got: {', '.join(positional)}")
@@ -159,17 +159,11 @@ def main():
         for repository, version, error, pin_lines in fetch_errors:
             print(f"  {repository}:{version}  {error}  (values.yaml:{', '.join(map(str, pin_lines))})")
 
-    # A named target is refreshed regardless of sliding status -- naming
-    # one image explicitly is enough intent on its own, no --all needed.
-    to_update = stale if (update_all or target_basename) else [s for s in stale if not s[5]]
-    skipped_sliding = [] if (update_all or target_basename) else [s for s in stale if s[5]]
+    to_update = stale
 
     if not to_update:
         if target_basename:
             print(f"\n'{target_basename}' has no stale digest to update — nothing to do.")
-        elif skipped_sliding:
-            print(f"\nNo stale pinned digests found — nothing to update. "
-                  f"({len(skipped_sliding)} sliding digest(s) drifted; pass --all to include them.)")
         else:
             print("\nNo stale digests found — nothing to do.")
         sys.exit(1 if fetch_errors else 0)
@@ -183,14 +177,6 @@ def main():
         if not dry_run:
             new_hex = new_digest.split("sha256:", 1)[1]
             text = text.replace(old_digest, new_hex)
-
-    if skipped_sliding:
-        print(f"\n{len(skipped_sliding)} sliding digest(s) not updated (pass --all to include):")
-        for repository, version, old_digest, new_digest, pin_lines, sliding in skipped_sliding:
-            print(f"  {repository}:{version}")
-            print(f"    old: sha256:{old_digest}")
-            print(f"    new: {new_digest}")
-            print(f"    lines: values.yaml:{', '.join(map(str, pin_lines))}")
 
     if not dry_run:
         VALUES_PATH.write_text(text, encoding="utf-8")

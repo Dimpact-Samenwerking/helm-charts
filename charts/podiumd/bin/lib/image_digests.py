@@ -180,7 +180,8 @@ def check_image_digests(chart_dir):
     should never legitimately change once published. Either way the pin
     is stale and FAILS the check — "expected" only means the drift itself
     isn't surprising, not that the stale pin should be left alone; run
-    set-image-digests.py (--all for a sliding one) to refresh it.
+    set-image-digests.py to refresh it (sliding or not, it always
+    rewrites every stale pin it finds).
 
     A pin whose "tag:" has no resolvable "repository:" of its own in
     values.yaml (resolve_pin_repo) falls back to the same component's
@@ -256,7 +257,7 @@ def check_image_digests(chart_dir):
             if sliding:
                 sliding_mismatches.append((repository, version, pinned_digest, digest, lines_str))
                 print(f"  [SLIDING  ] {host}/{repo_path}:{version}  (known to drift — "
-                      f"refresh with set-image-digests.py --all)")
+                      f"refresh with set-image-digests.py)")
                 print(f"      pinned:   sha256:{pinned_digest}")
                 print(f"      upstream: {digest}")
                 print(f"      lines:    values.yaml:{lines_str}")
@@ -284,7 +285,7 @@ def check_image_digests(chart_dir):
         print()
 
     if sliding_mismatches:
-        print(f"Run set-image-digests.py --all to refresh the {len(sliding_mismatches)} "
+        print(f"Run set-image-digests.py to refresh the {len(sliding_mismatches)} "
               f"sliding digest(s) above.")
     if mismatches:
         print(f"Run set-image-digests.py to refresh the {len(mismatches)} stale pinned digest(s) above.")
