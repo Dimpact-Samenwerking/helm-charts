@@ -3864,15 +3864,17 @@ frankgateway:
 zaakbrug:
   enabled: false
   staging:
+    # Permanently off by policy, not just "not currently used" (see the
+    # comment above this block): enabling it pulls in the sub-chart's
+    # bundled bitnami/redis transitive dependency, which Dimpact policy
+    # forbids outright. Deliberately NOT digest-pinning staging.image /
+    # staging.apiProxy.image here as a result — they're just the
+    # sub-chart's own stale upstream defaults (staging.image.tag alone
+    # drifts to "1.9.0" against the actively-maintained main image's
+    # "1.26.15"), never rendered, and pinning them only made
+    # verify-release-table-with-podiumd.py flag a same-basename
+    # version "ambiguity" between the two that doesn't actually matter.
     enabled: false
-    image:
-      registry: wearefrank
-      repository: zaakbrug
-      tag: "1.9.0@sha256:55bcc803f222bd71f90c490419ff6b36dd074428f5987139f07bb0a5521e96f5"
-    apiProxy:
-      image:
-        repository: nginxinc/nginx-unprivileged
-        tag: "stable@sha256:25071e9a69a6f9d5b46e673ed1b4d31df36081d23a256166ce44271ed6d0c47c"
   image:
     registry: wearefrank
     repository: zaakbrug
