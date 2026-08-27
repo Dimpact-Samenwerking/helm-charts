@@ -23,6 +23,7 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 SCRIPT_PATH = SCRIPTS_DIR / "verify-podiumd.py"
 
 import lib.cve_check as cve_check
+import lib.digest_pinning_check as digest_pinning_check
 import lib.docs_consistency as docs_consistency
 import lib.dry_check as dry_check
 import lib.gitutil as gitutil
@@ -57,6 +58,11 @@ def vp():
 @pytest.fixture(scope="session")
 def libdrycheck():
     return dry_check
+
+
+@pytest.fixture(scope="session")
+def libdigestpinningcheck():
+    return digest_pinning_check
 
 
 @pytest.fixture(scope="session")
