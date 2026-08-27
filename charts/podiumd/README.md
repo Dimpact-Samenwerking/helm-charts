@@ -84,6 +84,9 @@ PodiumD Helm chart
 | apiproxy.service.port | int | `80` |  |
 | apiproxy.sslVerifyDepth | int | `6` | Maximum length of the upstream server certificate chain validated by nginx (`proxy_ssl_verify_depth`). Government API gateways occasionally chain through cross-signed intermediates; the nginx default of 1 is too shallow. Per-location overrides: set `apiproxy.locations.<loc>.sslVerifyDepth` to override this global value for a single upstream (e.g. bag, brp, kvkSearch). |
 | apiproxy.tolerations | list | `[]` |  |
+| brppersonenmock.enabled | bool | `false` |  |
+| brppersonenmock.image.repository | string | `"ghcr.io/brp-api/personen-mock"` |  |
+| brppersonenmock.image.tag | string | `"2.7.0-202606230850@sha256:024308250beab8a6327d8f4ce91e630b4bcbd650015a4e86df6db437dc8bb4d7"` |  |
 | clamav.clamdConfig | string | `"###############\n# General\n###############\n\nDatabaseDirectory /var/lib/clamav\nTemporaryDirectory /tmp\nLogTime yes\n# CUSTOM: Use pid file in tmp\nPidFile /tmp/clamd.pid\nLocalSocket /tmp/clamd.sock\nTCPSocket 3310\nForeground yes\n# Reload database sequentially to avoid double memory usage (~1.2 GiB vs ~2.4 GiB)\n# Scans are briefly blocked during reload, which is acceptable\nConcurrentDatabaseReload no\nMaxThreads 10\n\n###############\n# Results\n###############\n\nDetectPUA yes\nExcludePUA NetTool\nExcludePUA PWTool\nHeuristicAlerts yes\nBytecode yes\n\n###############\n# Scan\n###############\n\nScanPE yes\nDisableCertCheck yes\nScanELF yes\nAlertBrokenExecutables yes\nScanOLE2 yes\nScanPDF yes\nScanSWF yes\nScanMail yes\nPhishingSignatures yes\nPhishingScanURLs yes\nScanHTML yes\nScanArchive yes\n\n###############\n# Limits\n###############\n\nMaxScanSize 150M\nMaxFileSize 100M\n# Match MaxFileSize so stream scans have the same ceiling as file scans\nStreamMaxLength 100M\nMaxRecursion 10\nMaxFiles 15000\nMaxEmbeddedPE 10M\nMaxHTMLNormalize 10M\nMaxHTMLNoTags 2M\nMaxScriptNormalize 5M\nMaxZipTypeRcg 1M\nMaxPartitions 128\nMaxIconsPE 200\nPCREMatchLimit 10000\nPCRERecMatchLimit 10000\n"` |  |
 | clamav.extraVolumeMounts[0].mountPath | string | `"/var/lib/clamav"` |  |
 | clamav.extraVolumeMounts[0].name | string | `"clamav-data"` |  |
@@ -192,6 +195,8 @@ PodiumD Helm chart
 | global.images.nginx.pullPolicy | string | `"IfNotPresent"` |  |
 | global.images.nginx.repository | string | `"nginxinc/nginx-unprivileged"` |  |
 | global.images.nginx.tag | string | `"1.31.4@sha256:197f252f060ed357f2ab98d4256762d7d107c76f18ad8f0b9d5178854611566d"` |  |
+| global.images.redis.repository | string | `"redis"` |  |
+| global.images.redis.tag | string | `"8.0@sha256:ae471bdc20de180beed36e347d170ec0bdf8faa327959ea1f24692f22b05b955"` |  |
 | global.settings.databaseHost | string | `""` |  |
 | ita.afdeling.type | string | `"https://ontw-objecttypen.example.nl/api/v2/objecttypes/REP_CONTACT_AFDELING_UUID_REP"` |  |
 | ita.afdeling.typeVersion | int | `1` |  |
@@ -539,6 +544,9 @@ PodiumD Helm chart
 | kiss.settings.syncJobs.vac.token | string | `""` |  |
 | kiss.settings.syncJobs.website | list | `[]` |  |
 | mi.enabled | bool | `false` |  |
+| mi.image.registry | string | `"mcr.microsoft.com"` |  |
+| mi.image.repository | string | `"azure-cli"` |  |
+| mi.image.tag | string | `"2.71.0@sha256:18ec5cf02ba6b46e9858ddff1125baaa1f14ba919f77ebc67c918c891f8df4a2"` |  |
 | objecten.configuration.data | string | `""` |  |
 | objecten.configuration.demo.enabled | bool | `false` |  |
 | objecten.configuration.enabled | bool | `true` |  |
@@ -562,6 +570,8 @@ PodiumD Helm chart
 | objecten.persistence.storageClassName | string | `"podiumd-standard"` |  |
 | objecten.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
 | objecten.persistentVolume.volumeAttributeShareName | string | `"objecten"` |  |
+| objecten.redis.image.repository | string | `"redis"` |  |
+| objecten.redis.image.tag | string | `"8.0@sha256:ae471bdc20de180beed36e347d170ec0bdf8faa327959ea1f24692f22b05b955"` |  |
 | objecten.resources.requests.cpu | string | `"100m"` |  |
 | objecten.resources.requests.memory | string | `"256Mi"` |  |
 | objecten.settings.allowedHosts | string | `"objecten.podiumd.svc.cluster.local"` |  |
@@ -604,6 +614,8 @@ PodiumD Helm chart
 | objecttypen.image.tag | string | `"3.4.2@sha256:d366e6ede1bb924ea351495f4e88ceba53bb0df02fa5302929daef379131fda1"` |  |
 | objecttypen.nameOverride | string | `"objecttypen"` |  |
 | objecttypen.otel.disabled | bool | `true` |  |
+| objecttypen.redis.image.repository | string | `"redis"` |  |
+| objecttypen.redis.image.tag | string | `"8.0@sha256:ae471bdc20de180beed36e347d170ec0bdf8faa327959ea1f24692f22b05b955"` |  |
 | objecttypen.resources.requests.cpu | string | `"10m"` |  |
 | objecttypen.resources.requests.memory | string | `"160Mi"` |  |
 | objecttypen.settings.allowedHosts | string | `"objecttypen.podiumd.svc.cluster.local"` |  |
@@ -661,6 +673,8 @@ PodiumD Helm chart
 | openarchiefbeheer.persistence.storageClassName | string | `"podiumd-standard"` |  |
 | openarchiefbeheer.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
 | openarchiefbeheer.persistentVolume.volumeAttributeShareName | string | `"openarchiefbeheer"` |  |
+| openarchiefbeheer.redis.image.repository | string | `"redis"` |  |
+| openarchiefbeheer.redis.image.tag | string | `"8.0@sha256:ae471bdc20de180beed36e347d170ec0bdf8faa327959ea1f24692f22b05b955"` |  |
 | openarchiefbeheer.replicaCount | int | `1` |  |
 | openarchiefbeheer.resources.limits | object | `{}` |  |
 | openarchiefbeheer.resources.requests.cpu | string | `"250m"` |  |
@@ -707,6 +721,8 @@ PodiumD Helm chart
 | openbao.configuration.secrets.keycloak_client_secret | string | `""` |  |
 | openbao.configuration.uploadersGroup | string | `"vault-uploaders"` |  |
 | openbao.configuration.uploadersRole | string | `"uploaders"` |  |
+| openbao.csi.image.repository | string | `"quay.io/openbao/openbao-csi-provider"` |  |
+| openbao.csi.image.tag | string | `"2.0.2@sha256:3cb312e88c62c926caec03bf69497a16805a29daabb5ad2c7a236ab43bb241db"` |  |
 | openbao.database.host | string | `""` |  |
 | openbao.database.name | string | `"openbao"` |  |
 | openbao.database.password | string | `""` |  |
@@ -725,6 +741,8 @@ PodiumD Helm chart
 | openbao.database.username | string | `"openbao-admin"` |  |
 | openbao.enabled | bool | `false` |  |
 | openbao.injector.enabled | bool | `false` |  |
+| openbao.injector.image.repository | string | `"hashicorp/vault-k8s"` |  |
+| openbao.injector.image.tag | string | `"1.7.2@sha256:ae3d307658b72a1cf35dab9bdf92c995d45cdc7183af0516857714b5bd0ba84d"` |  |
 | openbao.server.dataStorage.enabled | bool | `false` |  |
 | openbao.server.extraLabels."azure.workload.identity/use" | string | `"true"` |  |
 | openbao.server.extraSecretEnvironmentVars[0].envName | string | `"BAO_PG_CONNECTION_URL"` |  |
@@ -748,6 +766,8 @@ PodiumD Helm chart
 | openbao.server.serviceAccount.create | bool | `true` |  |
 | openbao.server.serviceAccount.name | string | `"openbao"` |  |
 | openbao.server.updateStrategyType | string | `"RollingUpdate"` |  |
+| openbao.snapshotAgent.image.repository | string | `"ghcr.io/openbao/openbao-snapshot-agent"` |  |
+| openbao.snapshotAgent.image.tag | string | `"0.3.0@sha256:d7a8ca9d26b12cf226ce093b9051f243c53aefbb8a419b3dc0b554e7575c931c"` |  |
 | openbeheer.configuration.data | string | `""` |  |
 | openbeheer.configuration.enabled | bool | `true` |  |
 | openbeheer.configuration.job.backoffLimit | int | `6` |  |
@@ -779,6 +799,8 @@ PodiumD Helm chart
 | openbeheer.persistence.storageClassName | string | `"podiumd-standard"` |  |
 | openbeheer.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
 | openbeheer.persistentVolume.volumeAttributeShareName | string | `"openbeheer"` |  |
+| openbeheer.redis.image.repository | string | `"redis"` |  |
+| openbeheer.redis.image.tag | string | `"8.0@sha256:ae471bdc20de180beed36e347d170ec0bdf8faa327959ea1f24692f22b05b955"` |  |
 | openbeheer.replicaCount | int | `2` |  |
 | openbeheer.resources | object | `{}` |  |
 | openbeheer.securityContext.capabilities.drop[0] | string | `"ALL"` |  |
@@ -851,6 +873,8 @@ PodiumD Helm chart
 | openformulieren.persistence.storageClassName | string | `"podiumd-standard"` |  |
 | openformulieren.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
 | openformulieren.persistentVolume.volumeAttributeShareName | string | `"openformulieren"` |  |
+| openformulieren.redis.image.repository | string | `"redis"` |  |
+| openformulieren.redis.image.tag | string | `"8.0@sha256:ae471bdc20de180beed36e347d170ec0bdf8faa327959ea1f24692f22b05b955"` |  |
 | openformulieren.resources.requests.cpu | string | `"250m"` |  |
 | openformulieren.resources.requests.memory | string | `"1Gi"` |  |
 | openformulieren.settings.allowedHosts | string | `"openformulieren-nginx.podiumd.svc.cluster.local"` |  |
@@ -905,6 +929,8 @@ PodiumD Helm chart
 | openinwoner.persistence.storageClassName | string | `"podiumd-standard"` |  |
 | openinwoner.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
 | openinwoner.persistentVolume.volumeAttributeShareName | string | `"openinwoner"` |  |
+| openinwoner.redis.image.repository | string | `"redis"` |  |
+| openinwoner.redis.image.tag | string | `"8.0@sha256:ae471bdc20de180beed36e347d170ec0bdf8faa327959ea1f24692f22b05b955"` |  |
 | openinwoner.resources.requests.cpu | string | `"200m"` |  |
 | openinwoner.resources.requests.memory | string | `"1Gi"` |  |
 | openinwoner.settings.allowedHosts | string | `"openinwoner-nginx.podiumd.svc.cluster.local"` |  |
@@ -956,6 +982,8 @@ PodiumD Helm chart
 | openklant.persistence.storageClassName | string | `"podiumd-standard"` |  |
 | openklant.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
 | openklant.persistentVolume.volumeAttributeShareName | string | `"openklant"` |  |
+| openklant.redis.image.repository | string | `"redis"` |  |
+| openklant.redis.image.tag | string | `"8.0@sha256:ae471bdc20de180beed36e347d170ec0bdf8faa327959ea1f24692f22b05b955"` |  |
 | openklant.resources.requests.cpu | string | `"100m"` |  |
 | openklant.resources.requests.memory | string | `"300Mi"` |  |
 | openklant.settings.allowedHosts | string | `"openklant.podiumd.svc.cluster.local"` |  |
@@ -998,6 +1026,8 @@ PodiumD Helm chart
 | opennotificaties.persistence.storageClassName | string | `"podiumd-standard"` |  |
 | opennotificaties.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
 | opennotificaties.persistentVolume.volumeAttributeShareName | string | `"opennotificaties"` |  |
+| opennotificaties.redis.image.repository | string | `"redis"` |  |
+| opennotificaties.redis.image.tag | string | `"8.0@sha256:ae471bdc20de180beed36e347d170ec0bdf8faa327959ea1f24692f22b05b955"` |  |
 | opennotificaties.resources.requests.cpu | string | `"100m"` |  |
 | opennotificaties.resources.requests.memory | string | `"256Mi"` |  |
 | opennotificaties.settings.allowedHosts | string | `"opennotificaties.podiumd.svc.cluster.local"` |  |
@@ -1063,6 +1093,8 @@ PodiumD Helm chart
 | openzaak.persistence.storageClassName | string | `"podiumd-standard"` |  |
 | openzaak.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
 | openzaak.persistentVolume.volumeAttributeShareName | string | `"openzaak"` |  |
+| openzaak.redis.image.repository | string | `"redis"` |  |
+| openzaak.redis.image.tag | string | `"8.0@sha256:ae471bdc20de180beed36e347d170ec0bdf8faa327959ea1f24692f22b05b955"` |  |
 | openzaak.resources.requests.cpu | string | `"250m"` |  |
 | openzaak.resources.requests.memory | string | `"512Mi"` |  |
 | openzaak.settings.allowedHosts | string | `"openzaak-nginx.podiumd.svc.cluster.local"` |  |
@@ -1162,6 +1194,8 @@ PodiumD Helm chart
 | referentielijsten.persistence.storageClassName | string | `"podiumd-standard"` |  |
 | referentielijsten.persistentVolume.storageClassName | string | `"podiumd-standard"` |  |
 | referentielijsten.persistentVolume.volumeAttributeShareName | string | `"referentielijsten"` |  |
+| referentielijsten.redis.image.repository | string | `"redis"` |  |
+| referentielijsten.redis.image.tag | string | `"8.0@sha256:ae471bdc20de180beed36e347d170ec0bdf8faa327959ea1f24692f22b05b955"` |  |
 | referentielijsten.replicaCount | int | `1` |  |
 | referentielijsten.settings.allowedHosts | string | `"referentielijsten-nginx.podiumd.svc.cluster.local"` |  |
 | referentielijsten.settings.cache.axes | string | `"redis-ha-master.podiumd.svc.cluster.local:6379/15"` |  |
@@ -1265,6 +1299,8 @@ PodiumD Helm chart
 | zac.opa.resources.requests.memory | string | `"20Mi"` |  |
 | zac.opa.sidecar | bool | `true` |  |
 | zac.openForms.url | string | `"http://open-forms.example.nl"` |  |
+| zac.opentelemetry-collector.image.repository | string | `"otel/opentelemetry-collector-contrib"` |  |
+| zac.opentelemetry-collector.image.tag | string | `"0.158.0@sha256:c5918f78992ee73b0d6f0e599423ac5ec52dd5d9726733114d6eca53d5a32ed5"` |  |
 | zac.organizations.bron.rsin | string | `"000000000"` |  |
 | zac.organizations.verantwoordelijke.rsin | string | `"000000000"` |  |
 | zac.pabcApi.apiKey | string | `""` |  |
