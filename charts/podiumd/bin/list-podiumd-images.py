@@ -22,12 +22,10 @@ import shutil
 import tarfile
 from pathlib import Path
 
-import yaml
-
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from lib.chart import find_images, version_of
+from lib.chart import find_images, load_yaml, local_chart_dir, pulled_chart_dir, version_of
 from lib.chart import pull_chart as _pull_chart
 
 PODIUMD_DIR = SCRIPT_DIR.parents[0]
@@ -43,25 +41,30 @@ def pull_chart(dep, dest):
 
 
 def load_chart(dep, tmproot, refresh):
-    vendored = VENDORED_DIR / f"{dep['name']}-{dep['version']}.tgz"
-    if not refresh and vendored.exists():
-        dest = tmproot / dep["name"]
-        dest.mkdir()
-        with tarfile.open(vendored) as tf:
-            tf.extractall(dest)
+    local_dir = local_chart_dir(PODIUMD_DIR, dep)
+    if local_dir is not None:
+        # A "file://" dependency has no remote to pull from and no vendored
+        # .tgz shape to extract — --refresh is meaningless for it either
+        # way, since reading its own source directory is already always
+        # current, never stale.
+        if not local_dir.is_dir():
+            raise SystemExit(f"error: dependency '{dep['name']}' declares local path repository "
+                              f"({dep['repository']}), but {local_dir} does not exist")
+        chart_dir = local_dir
     else:
+        vendored = VENDORED_DIR / f"{dep['name']}-{dep['version']}.tgz"
         dest = tmproot / dep["name"]
         dest.mkdir()
-        pull_chart(dep, dest)
+        if not refresh and vendored.exists():
+            with tarfile.open(vendored) as tf:
+                tf.extractall(dest)
+        else:
+            pull_chart(dep, dest)
+        chart_dir = pulled_chart_dir(dest)
 
-    chart_dirs = [p for p in dest.iterdir() if p.is_dir()]
-    if not chart_dirs:
-        raise SystemExit(f"error: no chart directory found for {dep['name']}")
-    chart_dir = chart_dirs[0]
-
-    chart_yaml = yaml.safe_load((chart_dir / "Chart.yaml").read_text())
+    chart_yaml = load_yaml(chart_dir / "Chart.yaml")
     values_path = chart_dir / "values.yaml"
-    values = yaml.safe_load(values_path.read_text()) if values_path.exists() else {}
+    values = load_yaml(values_path) if values_path.exists() else {}
     return chart_yaml, values or {}
 
 
@@ -91,8 +94,8 @@ def main():
         sys.exit(0)
     refresh = "--refresh" in sys.argv[1:]
 
-    deps = yaml.safe_load(CHART_YAML.read_text())["dependencies"]
-    root_values = yaml.safe_load(VALUES_YAML.read_text()) or {}
+    deps = load_yaml(CHART_YAML)["dependencies"]
+    root_values = load_yaml(VALUES_YAML) or {}
     dep_keys = {dep.get("alias", dep["name"]) for dep in deps}
 
     tmproot = Path(tempfile.mkdtemp(prefix="list-podiumd-images-"))
