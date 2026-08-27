@@ -41,46 +41,13 @@ def test_parse_repo_explicit_host(sid):
     assert sid.parse_repo("ghcr.io/infonl/zaakafhandelcomponent") == ("ghcr.io", "infonl/zaakafhandelcomponent")
 
 
-# --- resolve_pin_repo ---
-
-def test_resolve_pin_repo_active_sibling_key(sid):
-    lines = [
-        "    nginx:",
-        "      repository: nginxinc/nginx-unprivileged",
-        '      tag: "1.31.3@sha256:aaaa"',
-    ]
-    assert sid.resolve_pin_repo(lines, 2, 6) == "nginxinc/nginx-unprivileged"
-
-
-def test_resolve_pin_repo_ref_comment_fallback(sid):
-    lines = [
-        "  opa:",
-        "    # openpolicyagent/opa:1.17.1-static@sha256:aaaa",
-        "    image:",
-        "      #repository: openpolicyagent/opa",
-        '      tag: "1.17.1-static@sha256:aaaa"',
-    ]
-    assert sid.resolve_pin_repo(lines, 4, 6) == "openpolicyagent/opa"
-
-
-def test_resolve_pin_repo_commented_repository_key_fallback(sid):
-    lines = [
-        "    image:",
-        "      #repository: maykinmedia/open-archiefbeheer",
-        '      tag: "2.0.0@sha256:aaaa"',
-    ]
-    assert sid.resolve_pin_repo(lines, 2, 6) == "maykinmedia/open-archiefbeheer"
-
-
-def test_resolve_pin_repo_unresolved_returns_none(sid):
-    lines = [
-        "  image:",
-        '    tag: "1.27.4@sha256:aaaa"',
-    ]
-    assert sid.resolve_pin_repo(lines, 1, 4) is None
-
-
 # --- scan_digest_pins ---
+# (resolve_pin_repo, the function scan_digest_pins itself calls to resolve
+# each pin's repository, now lives in lib.image_digests -- deduped there
+# since it already handled split "registry:"/"repository:" style pins
+# (see find_sibling_registry) that this script's own former copy didn't.
+# Its own dedicated tests are tests/verify-podiumd/test_image_digests.py's;
+# no need to duplicate them here.)
 
 def test_scan_digest_pins_quoted_and_bare(sid):
     lines = [
@@ -520,3 +487,119 @@ def test_main_default_no_pinned_staleness_reports_sliding_skip(sid, tmp_path, mo
     out = capsys.readouterr().out
     assert "nothing to update" in out
     assert "pass --all to include them" in out
+
+
+# --- main(): <target> scopes to one image, refreshed even if sliding ---
+
+def test_main_target_updates_sliding_pin_without_all(sid, tmp_path, monkeypatch):
+    """Naming the image explicitly is enough intent -- no --all needed,
+    even though it's sliding."""
+    values_path = tmp_path / "values.yaml"
+    old_nginx, new_nginx = "a" * 64, "c" * 64
+    zac_digest = "b" * 64
+    write_two_image_values(values_path, old_nginx, zac_digest)
+    monkeypatch.setattr(sid, "VALUES_PATH", values_path)
+    monkeypatch.setattr(sid, "registry_tag_exists", lambda host, repo, tag: (
+        (True, f"sha256:{new_nginx}") if repo == "nginxinc/nginx-unprivileged"
+        else (True, f"sha256:{zac_digest}")
+    ))
+    mock_is_sliding_tag_by_repo(monkeypatch, sid, {"nginxinc/nginx-unprivileged"})
+    monkeypatch.setattr("sys.argv", ["set-image-digests.py", "nginx-unprivileged"])
+
+    with pytest.raises(SystemExit) as exc_info:
+        sid.main()
+    assert exc_info.value.code == 0
+    updated = values_path.read_text(encoding="utf-8")
+    assert old_nginx not in updated
+    assert new_nginx in updated
+
+
+def test_main_target_leaves_other_stale_pins_untouched(sid, tmp_path, monkeypatch):
+    """Both images drifted, but only the named one is refreshed -- the
+    other stays exactly as it was, not silently swept in."""
+    values_path = tmp_path / "values.yaml"
+    old_nginx, new_nginx = "a" * 64, "c" * 64
+    old_zac, new_zac = "b" * 64, "d" * 64
+    write_two_image_values(values_path, old_nginx, old_zac)
+    monkeypatch.setattr(sid, "VALUES_PATH", values_path)
+    monkeypatch.setattr(sid, "registry_tag_exists", lambda host, repo, tag: (
+        (True, f"sha256:{new_nginx}") if repo == "nginxinc/nginx-unprivileged"
+        else (True, f"sha256:{new_zac}")
+    ))
+    mock_is_sliding_tag_by_repo(monkeypatch, sid, set())
+    monkeypatch.setattr("sys.argv", ["set-image-digests.py", "nginx-unprivileged"])
+
+    with pytest.raises(SystemExit) as exc_info:
+        sid.main()
+    assert exc_info.value.code == 0
+    updated = values_path.read_text(encoding="utf-8")
+    assert new_nginx in updated
+    assert old_zac in updated and new_zac not in updated
+
+
+def test_main_target_no_stale_digest_reports_nothing_to_do(sid, tmp_path, monkeypatch, capsys):
+    values_path = tmp_path / "values.yaml"
+    nginx_digest = "a" * 64
+    zac_digest = "b" * 64
+    write_two_image_values(values_path, nginx_digest, zac_digest)
+    monkeypatch.setattr(sid, "VALUES_PATH", values_path)
+    monkeypatch.setattr(sid, "registry_tag_exists", lambda host, repo, tag: (
+        (True, f"sha256:{nginx_digest}") if repo == "nginxinc/nginx-unprivileged"
+        else (True, f"sha256:{zac_digest}")
+    ))
+    mock_is_sliding_tag_by_repo(monkeypatch, sid, set())
+    monkeypatch.setattr("sys.argv", ["set-image-digests.py", "nginx-unprivileged"])
+
+    with pytest.raises(SystemExit) as exc_info:
+        sid.main()
+    assert exc_info.value.code == 0
+    out = capsys.readouterr().out
+    assert "'nginx-unprivileged' has no stale digest to update — nothing to do." in out
+
+
+def test_main_target_resolves_dependency_alias(sid, tmp_path, monkeypatch, capsys):
+    """A target that isn't already a real basename ("zac") is resolved via
+    its Chart.yaml alias, same convention as update-image-version.py."""
+    values_path = tmp_path / "values.yaml"
+    old_nginx = "a" * 64
+    old_zac, new_zac = "b" * 64, "d" * 64
+    write_two_image_values(values_path, old_nginx, old_zac)
+    write_chart_yaml(tmp_path, [
+        {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297", "repository": "@zac"},
+    ])
+    monkeypatch.setattr(sid, "CHART_DIR", tmp_path)
+    monkeypatch.setattr(sid, "VALUES_PATH", values_path)
+    monkeypatch.setattr(sid, "registry_tag_exists", lambda host, repo, tag: (
+        (True, f"sha256:{old_nginx}") if repo == "nginxinc/nginx-unprivileged"
+        else (True, f"sha256:{new_zac}")
+    ))
+    mock_is_sliding_tag_by_repo(monkeypatch, sid, set())
+    monkeypatch.setattr("sys.argv", ["set-image-digests.py", "zac"])
+
+    with pytest.raises(SystemExit) as exc_info:
+        sid.main()
+    assert exc_info.value.code == 0
+    out = capsys.readouterr().out
+    assert "'zac' resolved to image basename 'zaakafhandelcomponent'" in out
+    updated = values_path.read_text(encoding="utf-8")
+    assert old_zac not in updated and new_zac in updated
+    assert old_nginx in updated  # untouched -- not the named target
+
+
+def test_main_unknown_target_raises(sid, tmp_path, monkeypatch):
+    values_path = tmp_path / "values.yaml"
+    write_two_image_values(values_path, "a" * 64, "b" * 64)
+    write_chart_yaml(tmp_path, [])
+    monkeypatch.setattr(sid, "CHART_DIR", tmp_path)
+    monkeypatch.setattr(sid, "VALUES_PATH", values_path)
+    monkeypatch.setattr("sys.argv", ["set-image-digests.py", "totally-unknown"])
+
+    with pytest.raises(SystemExit, match="not a pinned image basename"):
+        sid.main()
+
+
+def test_main_more_than_one_target_raises(sid, tmp_path, monkeypatch):
+    monkeypatch.setattr("sys.argv", ["set-image-digests.py", "nginx", "curl"])
+    with pytest.raises(SystemExit) as exc_info:
+        sid.main()
+    assert exc_info.value.code == 1
