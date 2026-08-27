@@ -50,3 +50,4 @@ Technische,,frankgateway,Frank Gateway Etcd,frankgateway,,etcd,,,v3.5.16,
 Technische,,openbao,OpenBao,openbao,,openbao,,,2.5.5,
 Technische,,openbao,OpenBao Schema Job (postgres),openbao,,postgres,,,UNKNOWN,
 Technische,,pabc,PABC Wait For (k8s-wait-for),pabc,pabc,k8s-wait-for,,,v2.0,
+Technische,,,BRP personen mock,brp-personen-mock,brppersonenmock,,,,,1.2.9
