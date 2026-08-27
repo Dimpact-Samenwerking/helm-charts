@@ -968,6 +968,35 @@ frankgateway:
     assert ecrt.resolve_image_basenames(rows, tmp_path) == ["frank-gateway", ""]
 
 
+def test_resolve_image_basenames_primary_row_first_refusal_is_exact_match_only(ecrt, tmp_path):
+    """redis-operator's own primary row name ("Redis Operator") merely
+    CONTAINS basename "redis" as a substring ("redisoperator") — a much
+    weaker signal than frankgateway's EXACT match. Letting primary claim
+    on this fuzzy tier too regressed this real case: "redis" (the actual
+    Redis server image) belongs to the more specific "Redis-ha" sibling
+    row, not the generic "Redis Operator" umbrella row (whose own target
+    version is the operator CHART's own release number, not any single
+    image's version at all — it correctly stays blank, exactly as before
+    this whole fix)."""
+    write_values_yaml_raw(tmp_path, f"""\
+redis-operator:
+  redis:
+    image:
+      repository: quay.io/opstree/redis
+      tag: "v8.6.6@sha256:{DIGEST_A}"
+    exporter:
+      image:
+        repository: quay.io/opstree/redis-exporter
+        tag: "v1.89.0@sha256:{DIGEST_B}"
+""")
+    rows = [
+        ["Overige", "", "", "Redis Operator", "redis-operator", "", "1", "1", "1", "1"],
+        ["Technische", "", "redis-operator", "Redis-ha", "redis-operator", "", "1", "1", "1", "1"],
+        ["Technische", "", "redis-operator", "Redis Exporter", "redis-operator", "", "1", "1", "1", "1"],
+    ]
+    assert ecrt.resolve_image_basenames(rows, tmp_path) == ["", "redis", "redis-exporter"]
+
+
 def test_resolve_image_basenames_primary_row_gets_multiple_leftover_basenames(ecrt, tmp_path):
     """A component with no Technische breakdown at all (e.g.
     zgw-office-addin, whose frontend and backend always move in

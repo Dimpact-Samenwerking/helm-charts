@@ -351,23 +351,44 @@ def component_and_alias(name, dependencies, orphan_keys=(), global_image_keys=()
     return ("UNKNOWN", "")
 
 
+def _exact_options(text, options):
+    """{o for o in options if normalize_name(o) is one of name_candidates(text)}
+    — the raw exact-tier match set _exact_match and _match_one both
+    build on, factored out so neither recomputes it independently."""
+    candidates = name_candidates(text)
+    return {o for o in options if normalize_name(o) in candidates}
+
+
+def _exact_match(text, options):
+    """The single option in `options` whose own normalize_name is exactly
+    one of name_candidates(text) — None if none do, or more than one
+    ties (an ambiguity, never a guess). This is _match_one's own first,
+    strongest tier, exposed separately so a caller can require JUST this
+    level of confidence without also accepting its much weaker fuzzy-
+    containment fallback (see resolve_image_basenames, which lets a
+    component's primary row claim this tier's match before any sibling
+    row is even tried — safe only because an EXACT match is unambiguous
+    on its own; the fuzzy tier is exactly where two textually-overlapping
+    rows can genuinely disagree about which one a shared basename really
+    belongs to)."""
+    exact = _exact_options(text, options)
+    return next(iter(exact)) if len(exact) == 1 else None
+
+
 def _match_one(text, options):
     """The single string in `options` that `text` unambiguously identifies
-    — an exact normalize_name match if there is exactly one (an option
-    equal to one of name_candidates(text)), else the single option
-    related to it (see _related) if there's exactly one such relation;
-    None if nothing matches, or more than one option ties at the same
-    tier — this never guesses between two equally-plausible options, the
-    same "first tier with exactly one match wins" rule component_and_alias
-    itself already applies to Chart.yaml dependencies (see _resolve_against),
-    just reused here directly against a small set of strings instead of
-    (name, alias) pairs."""
-    candidates = name_candidates(text)
-    exact = {o for o in options if normalize_name(o) in candidates}
-    if len(exact) == 1:
-        return next(iter(exact))
+    — an exact match (see _exact_match) if there is one, else the single
+    option related to it (see _related) if there's exactly one such
+    relation; None if nothing matches, or more than one option ties at
+    the same tier — this never guesses between two equally-plausible
+    options, the same "first tier with exactly one match wins" rule
+    component_and_alias itself already applies to Chart.yaml dependencies
+    (see _resolve_against), just reused here directly against a small
+    set of strings instead of (name, alias) pairs."""
+    exact = _exact_options(text, options)
     if exact:
-        return None
+        return next(iter(exact)) if len(exact) == 1 else None
+    candidates = name_candidates(text)
     related = {o for o in options if any(_related(c, normalize_name(o)) for c in candidates)}
     return next(iter(related)) if len(related) == 1 else None
 
@@ -418,18 +439,24 @@ def resolve_image_basenames(rows, chart_dir):
     image under the separate "keycloak" block, not "keycloak-operator"
     itself).
 
-    A component's own primary (used_by-blank) row gets first refusal at
-    an unambiguous match against its own name — claimed BEFORE any
-    "used_by"-tagged sibling gets a turn, so a component whose own
-    default image basename happens to equal (or be a substring of) its
-    plain display name (e.g. frankgateway's own "frank-gateway" image)
-    can't be mistakenly grabbed by a sibling row instead, just because
-    every "<Component> <Role>"-named sibling's text trivially contains
-    that same shared component-name prefix too (see
+    A component's own primary (used_by-blank) row gets first refusal, but
+    ONLY at an EXACT match against its own name (see _exact_match) —
+    claimed BEFORE any "used_by"-tagged sibling gets a turn, so a
+    component whose own default image basename happens to EQUAL its
+    plain display name outright (e.g. frankgateway's own "frank-gateway"
+    image) can't be mistakenly grabbed by a sibling row instead, just
+    because every "<Component> <Role>"-named sibling's text trivially
+    contains that same shared component-name prefix too (see
     test_resolve_image_basenames_primary_claims_its_own_name_before_siblings).
-    A primary row whose own name doesn't relate to anything specific (or
-    relates ambiguously) is untouched by this and behaves exactly as
-    before: every "used_by"-tagged row for one component claims its own
+    Deliberately NOT extended to _match_one's weaker fuzzy-containment
+    tier: a primary row's name merely CONTAINING a basename (e.g. "Redis
+    Operator" containing "redis") is exactly the ambiguous case where a
+    sibling ("Redis-ha") can be the more specific, correct owner instead
+    — letting primary win there too regressed that case while fixing
+    frankgateway (verified against real data). A primary row that
+    doesn't exactly match anything (whether or not it fuzzily relates to
+    something) is untouched by this and behaves exactly as before: every
+    "used_by"-tagged row for one component claims its own
     unambiguous basename; whatever is left unclaimed under that
     component's scope (its own top-level image, plus any sibling image
     sharing one row's version — e.g. zgw-office-addin's frontend AND
@@ -470,7 +497,7 @@ def resolve_image_basenames(rows, chart_dir):
 
         unclaimed_primary_indices = []
         for i in primary_indices:
-            match = _match_one(rows[i][3], available.keys())
+            match = _exact_match(rows[i][3], available.keys())
             if match is not None:
                 result[i] = match
                 del available[match]
