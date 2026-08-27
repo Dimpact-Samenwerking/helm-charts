@@ -100,6 +100,19 @@ def chart_ref(dep):
     raise SystemExit(f"error: unsupported repository scheme: {repo}")
 
 
+def local_chart_dir(chart_dir, dep):
+    """The directory a "file://..." dependency's own repository actually
+    points at, resolved relative to chart_dir (Helm's own convention for
+    local path dependencies) — None for any other repository scheme.
+    `helm pull` can never fetch this (see chart_ref) — a caller wanting
+    that dependency's own Chart.yaml/values.yaml reads them straight from
+    here instead, no pull involved."""
+    repo = dep["repository"]
+    if not repo.startswith("file://"):
+        return None
+    return (chart_dir / repo[len("file://"):]).resolve()
+
+
 def pull_chart(dep, version, dest):
     """Pull a chart version via helm. Returns (ok, stderr)."""
     ref, repo_url = chart_ref(dep)

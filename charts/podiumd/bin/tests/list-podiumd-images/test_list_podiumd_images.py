@@ -2,7 +2,10 @@
 pull_chart, and main() — offline throughout. load_chart's normal path reads a
 locally vendored .tgz (exactly like a real `helm dependency update` output),
 so most of this needs neither `helm` nor network access; the few tests that
-exercise the `helm pull` fallback mock subprocess.run instead."""
+exercise the `helm pull` fallback mock subprocess.run instead. A "file://"
+dependency (e.g. mi-data) skips both the vendored-.tgz and pull paths
+entirely — see lib.chart.local_chart_dir, tested directly in
+tests/lib/test_chart.py — and reads its own source directory instead."""
 import subprocess
 import tarfile
 from types import SimpleNamespace
@@ -158,7 +161,37 @@ def test_load_chart_raises_if_nothing_produced(lpi, tmp_path, monkeypatch):
     monkeypatch.setattr(lpi, "pull_chart", lambda dep, dest: None)
     tmproot = tmp_path / "tmproot"
     tmproot.mkdir()
-    with pytest.raises(SystemExit, match="no chart directory found"):
+    with pytest.raises(SystemExit, match="produced no chart directory"):
+        lpi.load_chart(dep, tmproot, refresh=False)
+
+
+def test_load_chart_reads_local_source_for_file_dependency(lpi, tmp_path, monkeypatch):
+    """A "file://" dependency has no remote to pull from and no vendored
+    .tgz shape to extract — read straight from its own source directory
+    instead, regardless of --refresh (there's nothing to refresh: reading
+    the directory live is already always current)."""
+    dep = {"name": "mi-data", "version": "1.0.0", "repository": "file://../mi-data"}
+    local_dir = tmp_path / "mi-data"
+    local_dir.mkdir()
+    (local_dir / "Chart.yaml").write_text(yaml.safe_dump({"name": "mi-data", "version": "1.0.0"}))
+    (local_dir / "values.yaml").write_text(yaml.safe_dump({"image": {"repository": "azure-cli", "tag": "2.71.0"}}))
+    monkeypatch.setattr(lpi, "local_chart_dir", lambda podiumd_dir, d: local_dir)
+    monkeypatch.setattr(lpi, "pull_chart", lambda dep, dest: (_ for _ in ()).throw(
+        AssertionError("pull_chart should not be called for a file:// dependency")))
+
+    tmproot = tmp_path / "tmproot"
+    tmproot.mkdir()
+    chart_yaml, values = lpi.load_chart(dep, tmproot, refresh=True)
+    assert chart_yaml["version"] == "1.0.0"
+    assert values["image"]["repository"] == "azure-cli"
+
+
+def test_load_chart_local_dependency_missing_directory_raises(lpi, tmp_path, monkeypatch):
+    dep = {"name": "mi-data", "version": "1.0.0", "repository": "file://../mi-data"}
+    monkeypatch.setattr(lpi, "local_chart_dir", lambda podiumd_dir, d: tmp_path / "does-not-exist")
+    tmproot = tmp_path / "tmproot"
+    tmproot.mkdir()
+    with pytest.raises(SystemExit, match="does not exist"):
         lpi.load_chart(dep, tmproot, refresh=False)
 
 
@@ -288,4 +321,4 @@ def test_main_reports_and_continues_on_load_failure(lpi, monkeypatch, capsys):
     run_main(lpi, monkeypatch)
     out = capsys.readouterr().out
     assert "=== broken-dep (broken-dep 1.0.0) ===" in out
-    assert "not fetchable remotely" in out
+    assert "does not exist" in out

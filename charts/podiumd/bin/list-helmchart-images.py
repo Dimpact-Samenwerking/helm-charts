@@ -29,7 +29,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from lib.chart import chart_ref, find_images, load_yaml, pull_chart, pulled_chart_dir, version_of
+from lib.chart import chart_ref, find_images, load_yaml, local_chart_dir, pull_chart, pulled_chart_dir, version_of
 from lib.chart import find_dependency as _find_dependency
 
 CHART_DIR = SCRIPT_DIR.parents[0]
@@ -42,16 +42,6 @@ def find_dependency(name_or_alias):
     if dep is None:
         raise SystemExit(f"error: no dependency named or aliased '{name_or_alias}' found in {CHART_YAML}")
     return dep
-
-
-def local_chart_dir(dep):
-    """The directory a "file://..." dependency's own repository actually
-    points at, resolved relative to CHART_DIR (Helm's own convention for
-    local path dependencies) — None for any other repository scheme."""
-    repo = dep["repository"]
-    if not repo.startswith("file://"):
-        return None
-    return (CHART_DIR / repo[len("file://"):]).resolve()
 
 
 def report_chart(chart_dir, requested_version):
@@ -94,7 +84,7 @@ def main():
     name_or_alias, version = sys.argv[1], sys.argv[2]
     dep = find_dependency(name_or_alias)
 
-    local_dir = local_chart_dir(dep)
+    local_dir = local_chart_dir(CHART_DIR, dep)
     if local_dir is not None:
         if not local_dir.is_dir():
             raise SystemExit(f"error: dependency '{dep['name']}' declares local path repository "

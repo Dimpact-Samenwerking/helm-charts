@@ -1,10 +1,11 @@
 """lib.chart — get_path, replace_scalar_value, chart_version, SEMVER_RE,
-find_dependency, chart_ref, pull_chart, pulled_chart_dir, pull_chart_values,
-find_images, version_of, image_paths_for, dotted_key_path, subchart_values,
-subchart_default_repository. `helm pull` is mocked via lib.procutil.run,
-so no `helm` binary or network access needed."""
+find_dependency, chart_ref, local_chart_dir, pull_chart, pulled_chart_dir,
+pull_chart_values, find_images, version_of, image_paths_for, dotted_key_path,
+subchart_values, subchart_default_repository. `helm pull` is mocked via
+lib.procutil.run, so no `helm` binary or network access needed."""
 import io
 import tarfile
+from pathlib import Path
 
 import pytest
 import yaml
@@ -131,6 +132,18 @@ def test_chart_ref_file_repository_returns_none_none(libchart):
 def test_chart_ref_unsupported_scheme_raises(libchart):
     with pytest.raises(SystemExit, match="unsupported repository scheme"):
         libchart.chart_ref({"name": "x", "repository": "ftp://nope"})
+
+
+# --- local_chart_dir ---
+
+def test_local_chart_dir_resolves_relative_to_chart_dir(libchart, tmp_path):
+    dep = {"name": "mi-data", "repository": "file://../mi-data"}
+    assert libchart.local_chart_dir(tmp_path / "podiumd", dep) == (tmp_path / "mi-data").resolve()
+
+
+def test_local_chart_dir_none_for_other_schemes(libchart):
+    assert libchart.local_chart_dir(Path("/x"), {"name": "zac", "repository": "@zac"}) is None
+    assert libchart.local_chart_dir(Path("/x"), {"name": "zac", "repository": "oci://ghcr.io/x"}) is None
 
 
 # --- pull_chart ---

@@ -1,4 +1,4 @@
-"""find_dependency, local_chart_dir, report_chart, and main() — chart_ref/
+"""find_dependency, report_chart, and main() — chart_ref/local_chart_dir/
 pull_chart/pulled_chart_dir/find_images/version_of themselves are lib.chart's
 own (see tests/lib/test_chart.py); these tests just cover this script's own
 glue, with `helm pull` mocked out via a fake pull_chart so no `helm` binary
@@ -29,19 +29,6 @@ def test_find_dependency_not_found_raises(lhi):
     write_chart_yaml(lhi, [{"name": "zaakafhandelcomponent", "alias": "zac", "repository": "@zac"}])
     with pytest.raises(SystemExit, match="no dependency named or aliased"):
         lhi.find_dependency("totally-unknown")
-
-
-# --- local_chart_dir ---
-
-def test_local_chart_dir_resolves_file_repository(lhi):
-    dep = {"name": "mi-data", "repository": "file://../mi-data"}
-    resolved = lhi.local_chart_dir(dep)
-    assert resolved == (lhi.CHART_DIR / "../mi-data").resolve()
-
-
-def test_local_chart_dir_none_for_other_schemes(lhi):
-    assert lhi.local_chart_dir({"name": "zac", "repository": "@zac"}) is None
-    assert lhi.local_chart_dir({"name": "zac", "repository": "oci://ghcr.io/x"}) is None
 
 
 # --- report_chart ---
@@ -93,7 +80,7 @@ def test_main_reads_local_chart_source_for_file_dependency(lhi, tmp_path, monkey
     local_dir = tmp_path / "mi-data"
     write_chart(local_dir, "mi-data", "1.0.0", app_version="1.0.0",
                 values={"image": {"repository": "mcr.microsoft.com/azure-cli", "tag": "2.71.0"}})
-    monkeypatch.setattr(lhi, "local_chart_dir", lambda dep: local_dir)
+    monkeypatch.setattr(lhi, "local_chart_dir", lambda chart_dir, dep: local_dir)
     monkeypatch.setattr("sys.argv", ["list-helmchart-images.py", "mi-data", "1.0.0"])
 
     lhi.main()
@@ -106,7 +93,7 @@ def test_main_reads_local_chart_source_for_file_dependency(lhi, tmp_path, monkey
 
 def test_main_local_dependency_missing_directory_raises(lhi, tmp_path, monkeypatch):
     write_chart_yaml(lhi, [{"name": "mi-data", "alias": "mi", "repository": "file://../mi-data"}])
-    monkeypatch.setattr(lhi, "local_chart_dir", lambda dep: tmp_path / "does-not-exist")
+    monkeypatch.setattr(lhi, "local_chart_dir", lambda chart_dir, dep: tmp_path / "does-not-exist")
     monkeypatch.setattr("sys.argv", ["list-helmchart-images.py", "mi-data", "1.0.0"])
     with pytest.raises(SystemExit, match="does not exist"):
         lhi.main()
