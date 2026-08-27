@@ -61,17 +61,39 @@ def parse_upgrade_doc_rows(text):
     return rows
 
 
+def _word_aligned_spans(text):
+    """Every contiguous run of words in `text`, concatenated and normalized
+    — e.g. "ZGW Office Add-in (frontend)" -> {"zgw", "zgwoffice",
+    "zgwofficeadd", "zgwofficeaddin", ..., "frontend"}. A substring check
+    against this set can only ever match whole words, never a coincidental
+    mid-word fragment — e.g. alias "mi" is a literal substring of
+    "ensurePodiumdAdminUser" (inside "ad-mi-n"), which a raw
+    normalize_name(text) containment check can't tell apart from a real
+    word-level match."""
+    words = words_of(text)
+    spans = set()
+    for i in range(len(words)):
+        acc = ""
+        for j in range(i, len(words)):
+            acc += words[j]
+            spans.add(acc)
+    return spans
+
+
 def match_dependency(text, deps):
     """Fuzzy-match a doc's free-form component name (e.g. "ZAC
     (Zaakafhandelcomponent)") against Chart.yaml dependencies by name/alias,
     ignoring case and punctuation — so any component the doc mentions is
-    matched, not just a hardcoded set."""
-    norm_text = normalize_name(text)
+    matched, not just a hardcoded set. Matches only at word boundaries (see
+    _word_aligned_spans) — a name/alias short enough to coincidentally
+    appear mid-word in unrelated text (e.g. "mi" inside "AdminUser") can
+    never falsely match."""
+    spans = _word_aligned_spans(text)
     best = None
     for dep in deps:
         for candidate in filter(None, [dep.get("name"), dep.get("alias")]):
             norm_c = normalize_name(candidate)
-            if norm_c and norm_c in norm_text and (best is None or len(norm_c) > len(best[1])):
+            if norm_c and norm_c in spans and (best is None or len(norm_c) > len(best[1])):
                 best = (dep, norm_c)
     return best[0] if best else None
 
