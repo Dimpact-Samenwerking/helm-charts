@@ -130,16 +130,27 @@ def split_basenames(value):
     return [b.strip() for b in value.split(",") if b.strip()]
 
 
+def is_verifiable_target(target):
+    """False for a blank or "UNKNOWN" target column value — nothing to
+    compare against (blank means "no planned change", see query-release-
+    table.py's own UNCHANGED display logic; "UNKNOWN" means export-
+    confluence-release-table.py's own normalize_version couldn't parse
+    the source cell as a version at all). True otherwise."""
+    return bool(target) and target != "UNKNOWN"
+
+
+def report_mismatch(findings, tag, row, label, target, actual, actual_source):
+    findings["mismatches"].append(
+        f"[{tag}] {row['name']} ({label}): release-table target {target} != {actual_source} {actual}"
+    )
+
+
 def check_chart_version(dep, rows, findings):
     actual = str(dep["version"])
     for row in rows:
         target = row["target_version_helm"]
-        if not target or target == "UNKNOWN":
-            continue
-        if target != actual:
-            findings["mismatches"].append(
-                f"[CHART] {row['name']} ({dep['name']}): release-table target {target} != Chart.yaml {actual}"
-            )
+        if is_verifiable_target(target) and target != actual:
+            report_mismatch(findings, "CHART", row, dep["name"], target, actual, "Chart.yaml")
 
 
 def check_special_case_version(row, findings, actual, label):
@@ -151,12 +162,8 @@ def check_special_case_version(row, findings, actual, label):
     or "notifynl-omc-nodep"). No-op if `actual` couldn't be resolved
     (get_path found nothing at that path) or target is blank/UNKNOWN."""
     target = row["target_version_app"]
-    if not target or target == "UNKNOWN" or actual is None:
-        return
-    if actual != target:
-        findings["mismatches"].append(
-            f"[IMAGE] {row['name']} ({label}): release-table target {target} != values.yaml {actual}"
-        )
+    if actual is not None and is_verifiable_target(target) and actual != target:
+        report_mismatch(findings, "IMAGE", row, label, target, actual, "values.yaml")
 
 
 def check_images(scope_key, component, rows, lines, findings, values):
@@ -186,20 +193,19 @@ def check_images(scope_key, component, rows, lines, findings, values):
                 # "keycloak-operator").
                 pins = find_matches(lines, basename) or None
             if pins is not None:
-                if not target or target == "UNKNOWN":
-                    continue
-                versions = {p["version"] for p in pins}
-                if len(versions) > 1:
-                    findings["ambiguous"].append(
-                        f"[IMAGE] '{basename}' under '{scope_key}' is pinned at {len(versions)} different "
-                        f"versions ({', '.join(sorted(versions))}) -- can't compare to release-table "
-                        f"target {target}"
-                    )
-                elif next(iter(versions)) != target:
-                    findings["mismatches"].append(
-                        f"[IMAGE] {row['name']} ({component}.{basename}): release-table target {target} "
-                        f"!= values.yaml {next(iter(versions))}"
-                    )
+                if is_verifiable_target(target):
+                    versions = {p["version"] for p in pins}
+                    if len(versions) > 1:
+                        findings["ambiguous"].append(
+                            f"[IMAGE] '{basename}' under '{scope_key}' is pinned at {len(versions)} different "
+                            f"versions ({', '.join(sorted(versions))}) -- can't compare to release-table "
+                            f"target {target}"
+                        )
+                    else:
+                        actual = next(iter(versions))
+                        if actual != target:
+                            report_mismatch(findings, "IMAGE", row, f"{component}.{basename}", target,
+                                             actual, "values.yaml")
                 continue
 
             basename_special_path = SPECIAL_CASE_BASENAME_TAG_PATHS.get(basename)
