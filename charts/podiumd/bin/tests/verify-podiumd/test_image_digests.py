@@ -188,10 +188,10 @@ def test_scan_digest_pins_ignores_non_digest_tags(libimagedigests):
 
 
 def test_scan_digest_pins_resolves_split_registry_style(libimagedigests):
-    """scan_digest_pins itself only cares about the resolved repository
-    (used for the live lookup) — the split-style style-suggestion is now
-    an independent whole-file scan, see find_split_registry_pairs below,
-    since a split pin isn't guaranteed to be digest-pinned at all."""
+    """scan_digest_pins itself only cares about the resolved repository,
+    used for the live lookup (see resolve_pin_repo/find_sibling_registry) —
+    a split "registry:"/"repository:" pin must resolve to the same
+    combined host/path a single-key pin would."""
     lines = [
         "    image:",
         "      registry: quay.io",
@@ -206,59 +206,6 @@ def test_scan_digest_pins_combined_style(libimagedigests):
     lines = ["  image:", "    repository: org/repo", '    tag: "1.0.0@sha256:' + "a" * 64 + '"']
     pins = libimagedigests.scan_digest_pins(lines)
     assert pins[0]["repository"] == "org/repo"
-
-
-# --- find_repository_after_registry / find_split_registry_pairs ---
-
-def test_find_repository_after_registry_found(libimagedigests):
-    lines = ["    image:", "      registry: quay.io", "      repository: opstree/redis"]
-    assert libimagedigests.find_repository_after_registry(lines, 1, 6) == "opstree/redis"
-
-
-def test_find_repository_after_registry_none_when_absent(libimagedigests):
-    lines = ["    image:", "      registry: quay.io", "      tag: \"v8.6.6\""]
-    assert libimagedigests.find_repository_after_registry(lines, 1, 6) is None
-
-
-def test_find_repository_after_registry_stops_at_dedent(libimagedigests):
-    lines = ["      registry: quay.io", "    repository: should/not-be-used"]
-    assert libimagedigests.find_repository_after_registry(lines, 0, 6) is None
-
-
-def test_find_split_registry_pairs_finds_pair_without_a_digest_pin(libimagedigests):
-    """The whole point of decoupling this from scan_digest_pins: a split
-    pin with a bare (non-digest-pinned) tag — like openbao's own image
-    blocks — must still be found, even though check_image_digests's own
-    digest-pin scan never sees it at all."""
-    lines = [
-        "  image:",
-        "    registry: quay.io",
-        "    repository: openbao/openbao",
-        '    tag: "2.5.5"',
-    ]
-    pairs = libimagedigests.find_split_registry_pairs(lines)
-    assert pairs == [{"line": 2, "registry": "quay.io", "repository": "quay.io/openbao/openbao"}]
-
-
-def test_find_split_registry_pairs_ignores_combined_style(libimagedigests):
-    lines = ["  image:", "    repository: quay.io/opstree/redis", '    tag: "v8.6.6"']
-    assert libimagedigests.find_split_registry_pairs(lines) == []
-
-
-def test_find_split_registry_pairs_finds_multiple(libimagedigests):
-    lines = [
-        "a:",
-        "  image:",
-        "    registry: quay.io",
-        "    repository: opstree/redis",
-        "b:",
-        "  image:",
-        "    registry: docker.io",
-        "    repository: library/postgres",
-    ]
-    pairs = libimagedigests.find_split_registry_pairs(lines)
-    assert [p["line"] for p in pairs] == [3, 7]
-    assert pairs[1]["repository"] == "docker.io/library/postgres"
 
 
 # --- find_inconsistent_version_pins ---
@@ -349,39 +296,6 @@ def test_find_inconsistent_version_pins_ignores_unresolved_repository(libimagedi
     lines = ["a:", "  image:", f'    tag: "1.0.0@sha256:{"a" * 64}"']
     pins = libimagedigests.scan_digest_pins(lines)
     assert libimagedigests.find_inconsistent_version_pins(pins) == {}
-
-
-def test_find_split_registry_pairs_excludes_known_unsafe_path(libimagedigests):
-    """openbao.server.image is a raw pass-through into the vendored
-    OpenBao chart's own image handling — that chart's own template
-    defaults registry to docker.io when unset, so collapsing this one
-    would silently change the rendered image, not just its spelling.
-    Confirmed by hand in commit 86444dd, which deliberately left it
-    split while collapsing every other pair in the same file."""
-    lines = [
-        "openbao:",
-        "  server:",
-        "    image:",
-        "      registry: quay.io",
-        "      repository: openbao/openbao",
-        '      tag: ""',
-    ]
-    assert libimagedigests.find_split_registry_pairs(lines) == []
-
-
-def test_find_split_registry_pairs_unsafe_path_is_indent_scoped(libimagedigests):
-    """The exclusion is keyed on the full dotted path, not just the leaf
-    "image" segment — a same-named "image" block anywhere else must still
-    be flagged normally."""
-    lines = [
-        "unrelated:",
-        "  image:",
-        "    registry: quay.io",
-        "    repository: opstree/redis",
-    ]
-    pairs = libimagedigests.find_split_registry_pairs(lines)
-    assert len(pairs) == 1
-    assert pairs[0]["repository"] == "quay.io/opstree/redis"
 
 
 # --- check_image_digests (mocked registry) ---
@@ -656,7 +570,7 @@ def test_check_image_digests_pinned_drift_still_fails(vp, libimagedigests, tmp_p
     assert "zaakafhandelcomponent" in out
 
 
-# --- check_image_digests: split registry:/repository: style ---
+# --- check_image_digests: split registry:/repository: style resolution ---
 
 def test_check_image_digests_split_style_pin_queries_the_correct_registry(vp, libimagedigests, tmp_path, monkeypatch):
     """Regression test for the actual bug: a split-style pin (redis-ha's
@@ -680,24 +594,6 @@ def test_check_image_digests_split_style_pin_queries_the_correct_registry(vp, li
     assert ok is True
     assert calls == [("quay.io", "opstree/redis", "v8.6.6")]
     assert "1/1 matched" in detail
-
-
-def test_check_image_digests_reports_split_style_suggestion(vp, libimagedigests, tmp_path, monkeypatch, capsys):
-    write_values(tmp_path, (
-        "redis-ha:\n"
-        "  image:\n"
-        "    registry: quay.io\n"
-        "    repository: opstree/redis\n"
-        f'    tag: "v8.6.6@sha256:{"a" * 64}"\n'
-    ))
-    monkeypatch.setattr(libimagedigests, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{'a' * 64}"))
-    ok, detail = vp.check_image_digests(tmp_path)
-    assert ok is True
-    assert "1 style suggestion" in detail
-    out = capsys.readouterr().out
-    assert "split" in out.lower()
-    assert "values.yaml:3" in out
-    assert 'repository: "quay.io/opstree/redis"' in out
 
 
 def test_check_image_digests_reports_version_drift(vp, libimagedigests, tmp_path, monkeypatch, capsys):
@@ -761,63 +657,6 @@ def test_check_image_digests_no_inconsistency_when_repository_pinned_once(vp, li
     assert ok is True
     assert "0 duplicate pin(s)" in detail
     assert "0 version-drift finding" in detail
-
-
-def test_check_image_digests_reports_split_style_suggestion_without_a_digest_pin(
-        vp, libimagedigests, tmp_path, monkeypatch, capsys):
-    """Regression test for the actual gap: a split-style pin with a bare
-    (non-digest-pinned) tag — like openbao's own image blocks — is
-    invisible to scan_digest_pins entirely, but must still get the style
-    suggestion (see find_split_registry_pairs)."""
-    write_values(tmp_path, (
-        "openbao:\n"
-        "  image:\n"
-        "    registry: quay.io\n"
-        "    repository: openbao/openbao\n"
-        '    tag: "2.5.5"\n'
-    ))
-    monkeypatch.setattr(libimagedigests, "registry_tag_exists", lambda *a: (_ for _ in ()).throw(AssertionError))
-    ok, detail = vp.check_image_digests(tmp_path)
-    assert ok is True
-    assert "1 style suggestion" in detail
-    out = capsys.readouterr().out
-    assert "values.yaml:3" in out
-    assert 'repository: "quay.io/openbao/openbao"' in out
-
-
-def test_check_image_digests_excludes_openbao_server_image_from_suggestion(
-        vp, libimagedigests, tmp_path, monkeypatch, capsys):
-    """openbao.server.image specifically must never get the style
-    suggestion — it's the one confirmed-unsafe-to-collapse split pair
-    (see SPLIT_STYLE_UNSAFE_PATHS)."""
-    write_values(tmp_path, (
-        "openbao:\n"
-        "  server:\n"
-        "    image:\n"
-        "      registry: quay.io\n"
-        "      repository: openbao/openbao\n"
-        '      tag: ""\n'
-    ))
-    monkeypatch.setattr(libimagedigests, "registry_tag_exists", lambda *a: (_ for _ in ()).throw(AssertionError))
-    ok, detail = vp.check_image_digests(tmp_path)
-    assert ok is True
-    assert "0 style suggestion" in detail
-    out = capsys.readouterr().out
-    assert "split" not in out.lower()
-
-
-def test_check_image_digests_combined_style_has_no_suggestion(vp, libimagedigests, tmp_path, monkeypatch, capsys):
-    write_values(tmp_path, (
-        "a:\n"
-        "  image:\n"
-        "    repository: org/repo\n"
-        f'    tag: "1.0.0@sha256:{"a" * 64}"\n'
-    ))
-    monkeypatch.setattr(libimagedigests, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{'a' * 64}"))
-    ok, detail = vp.check_image_digests(tmp_path)
-    assert "0 style suggestion" in detail
-    out = capsys.readouterr().out
-    assert "split" not in out.lower()
 
 
 # --- check_image_digests: UNVERIFIABLE_HOSTS ---
