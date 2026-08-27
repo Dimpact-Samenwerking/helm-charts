@@ -418,12 +418,23 @@ def resolve_image_basenames(rows, chart_dir):
     image under the separate "keycloak" block, not "keycloak-operator"
     itself).
 
-    Every "used_by"-tagged row for one component claims its own
-    unambiguous basename first; whatever is left unclaimed under that
+    A component's own primary (used_by-blank) row gets first refusal at
+    an unambiguous match against its own name — claimed BEFORE any
+    "used_by"-tagged sibling gets a turn, so a component whose own
+    default image basename happens to equal (or be a substring of) its
+    plain display name (e.g. frankgateway's own "frank-gateway" image)
+    can't be mistakenly grabbed by a sibling row instead, just because
+    every "<Component> <Role>"-named sibling's text trivially contains
+    that same shared component-name prefix too (see
+    test_resolve_image_basenames_primary_claims_its_own_name_before_siblings).
+    A primary row whose own name doesn't relate to anything specific (or
+    relates ambiguously) is untouched by this and behaves exactly as
+    before: every "used_by"-tagged row for one component claims its own
+    unambiguous basename; whatever is left unclaimed under that
     component's scope (its own top-level image, plus any sibling image
     sharing one row's version — e.g. zgw-office-addin's frontend AND
     backend both landing on "Office Add-in") goes to that component's
-    own primary (used_by-blank) row. A MULTIPLE row resolves independently
+    own primary row. A MULTIPLE row resolves independently
     via which global.images key it actually matches (see
     global_image_keys) — never through a component's own scope, since by
     definition it isn't owned by any single one. "" wherever nothing
@@ -457,15 +468,24 @@ def resolve_image_basenames(rows, chart_dir):
         sub_indices = [i for i in info["indices"] if rows[i][2]]
         primary_indices = [i for i in info["indices"] if not rows[i][2]]
 
+        unclaimed_primary_indices = []
+        for i in primary_indices:
+            match = _match_one(rows[i][3], available.keys())
+            if match is not None:
+                result[i] = match
+                del available[match]
+            else:
+                unclaimed_primary_indices.append(i)
+
         for i in sub_indices:
             match = _match_one(rows[i][3], available.keys())
             if match is not None:
                 result[i] = match
                 del available[match]
 
-        if primary_indices and available:
+        if unclaimed_primary_indices and available:
             basenames = ",".join(sorted(available))
-            for i in primary_indices:
+            for i in unclaimed_primary_indices:
                 result[i] = basenames
 
     for i, row in enumerate(rows):

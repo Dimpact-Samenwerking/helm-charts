@@ -939,6 +939,35 @@ zac:
     assert basenames[0] == "zaakafhandelcomponent"
 
 
+def test_resolve_image_basenames_primary_claims_its_own_name_before_siblings(ecrt, tmp_path):
+    """frankgateway's own default image is literally named "frank-gateway"
+    (same as the component's own plain display name) — every sibling
+    "Frank Gateway <Role>" row's name trivially CONTAINS that same
+    "frankgateway" prefix too, so if a sibling got first refusal it would
+    wrongly claim "frank-gateway" for itself (verified bug: "Frank Gateway
+    Dashboard" claiming "frank-gateway", leaving the real "Frank Gateway"
+    row stuck with "apisix-dashboard" as its only leftover). The primary
+    row's own unambiguous exact match must be claimed FIRST so this can't
+    happen; "Dashboard" itself shares no text with "apisix-dashboard" at
+    all, so it's correctly left blank rather than guessed (same
+    never-guess policy as test_resolve_image_basenames_unresolvable_technische_row_is_blank)."""
+    write_values_yaml_raw(tmp_path, f"""\
+frankgateway:
+  image:
+    repository: ghcr.io/wearefrank/frank-gateway
+    tag: "104@sha256:{DIGEST_A}"
+  dashboard:
+    image:
+      repository: apache/apisix-dashboard
+      tag: "3.0.1-alpine@sha256:{DIGEST_B}"
+""")
+    rows = [
+        ["Common Ground", "WeAreFrank", "", "Frank Gateway", "frankgateway", "", "1", "1", "1", "1"],
+        ["Technische", "", "frankgateway", "Frank Gateway Dashboard", "frankgateway", "", "1", "1", "1", "1"],
+    ]
+    assert ecrt.resolve_image_basenames(rows, tmp_path) == ["frank-gateway", ""]
+
+
 def test_resolve_image_basenames_primary_row_gets_multiple_leftover_basenames(ecrt, tmp_path):
     """A component with no Technische breakdown at all (e.g.
     zgw-office-addin, whose frontend and backend always move in
