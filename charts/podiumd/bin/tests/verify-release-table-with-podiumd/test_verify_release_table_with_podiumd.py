@@ -231,6 +231,65 @@ def test_compare_multi_image_component_checks_every_basename(vrt):
     assert any("zgw-office-addin-backend" in m for m in findings["mismatches"])
 
 
+# --- compare(): special-case images (not seen by the normal digest-pin scan) ---
+
+def keycloak_values(tag="26.7.2"):
+    return {"keycloak-operator": {"operator": {"config": {"keycloakImage": {
+        "repository": "quay.io/keycloak/keycloak", "tag": tag, "sha": "deadbeef",
+    }}}}}
+
+
+def test_compare_checks_keycloak_special_case_image(vrt):
+    """keycloak-operator's own actual Keycloak SERVER image lives as a
+    split "tag:"/"sha:" field pair, not a plain "image:" block — invisible
+    to the normal digest-pin scan regardless of scope, so its plain tag is
+    read directly instead (see SPECIAL_CASE_BASENAME_TAG_PATHS)."""
+    deps = [{"name": "keycloak-operator", "alias": "", "version": "1.12.1"}]
+    rows = [csv_row("Keycloak", "keycloak-operator", image_basename="keycloak", target_app="26.7.3")]
+    findings, _ = vrt.compare(rows, deps, keycloak_values(), [])
+    assert any("target 26.7.3 != values.yaml 26.7.2" in m for m in findings["mismatches"])
+    assert "missing_from_chart" not in findings
+
+
+def test_compare_keycloak_special_case_image_matching_passes(vrt):
+    deps = [{"name": "keycloak-operator", "alias": "", "version": "1.12.1"}]
+    rows = [csv_row("Keycloak", "keycloak-operator", image_basename="keycloak", target_app="26.7.2")]
+    findings, _ = vrt.compare(rows, deps, keycloak_values(), [])
+    assert findings == {}
+
+
+def test_compare_keycloak_config_cli_under_separate_scope_still_reports_missing(vrt):
+    """keycloak-config-cli lives under top-level "keycloak" (a values.yaml
+    sibling block, separate from keycloak-operator's own scope) — a
+    DIFFERENT, still-open limitation the special-case fix doesn't cover;
+    confirms the fix is narrowly scoped to the actual keycloakImage path."""
+    deps = [{"name": "keycloak-operator", "alias": "", "version": "1.12.1"}]
+    rows = [csv_row("Keycloak Config CLI", "keycloak-operator", image_basename="keycloak-config-cli",
+                     target_app="6.5.1-26")]
+    findings, _ = vrt.compare(rows, deps, keycloak_values(), [])
+    assert any("keycloak-config-cli" in m for m in findings["missing_from_chart"])
+
+
+def test_compare_checks_omc_special_case_image(vrt):
+    """omc's own image tag intentionally carries no digest at all, so
+    export-confluence-release-table.py never resolves an image_basename
+    for its row (blank column) — checked here independently, keyed by
+    component instead (see SPECIAL_CASE_COMPONENT_TAG_PATHS)."""
+    deps = [{"name": "notifynl-omc-nodep", "alias": "omc", "version": "0.14.1"}]
+    rows = [csv_row("OMC / Notify", "notifynl-omc-nodep", alias="omc", target_app="1.17.20", target_helm="0.14.1")]
+    values = {"omc": {"image": {"tag": "1.17.19"}}}
+    findings, _ = vrt.compare(rows, deps, values, [])
+    assert any("target 1.17.20 != values.yaml 1.17.19" in m for m in findings["mismatches"])
+
+
+def test_compare_omc_special_case_image_matching_passes(vrt):
+    deps = [{"name": "notifynl-omc-nodep", "alias": "omc", "version": "0.14.1"}]
+    rows = [csv_row("OMC / Notify", "notifynl-omc-nodep", alias="omc", target_app="1.17.19", target_helm="0.14.1")]
+    values = {"omc": {"image": {"tag": "1.17.19"}}}
+    findings, _ = vrt.compare(rows, deps, values, [])
+    assert findings == {}
+
+
 # --- main() ---
 
 def run_main(vrt, monkeypatch, argv):
