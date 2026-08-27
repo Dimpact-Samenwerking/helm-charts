@@ -182,14 +182,21 @@ def locate_dotted_key_line(lines, dotted_path):
 # <version>@sha256:<digest>" pin every other image in this chart uses — the
 # adfinis template renders "repository:tag@sha256:{{ .sha }}" itself, so
 # embedding @sha256 in "tag" too would produce an invalid double digest
-# (see the values.yaml comments above operator.image/operator.config.
-# keycloakImage). Checked BEFORE the normal explicit-repository/subchart-
-# default split below: both paths DO have an explicit "repository:", so
-# without this they'd wrongly take the "delegated" branch, whose write
-# logic (lib.image_version.update_image_version) only ever finds/writes a
+# (see the values.yaml comment above operator.config.keycloakImage).
+# Checked BEFORE the normal explicit-repository/subchart-default split
+# below: this path DOES have an explicit "repository:", so without this it
+# would wrongly take the "delegated" branch, whose write logic
+# (lib.image_version.update_image_version) only ever finds/writes a
 # combined pin and would silently find nothing to change here.
+#
+# operator.image itself is deliberately NOT here (nor in
+# lib.chart.COMPONENT_IMAGE_PATHS) — it has no override at all in
+# values.yaml, since the chart's own template already falls back to
+# "{{ .Values.operator.image.tag | default .Chart.AppVersion }}" with a
+# matching "sha:" bundled for that same appVersion. Bump the
+# keycloak-operator dependency's own chart version in Chart.yaml to move
+# the operator itself, rather than overriding this field.
 SPLIT_TAG_SHA_PATHS = {
-    ("keycloak-operator", "operator.image"),
     ("keycloak-operator", "operator.config.keycloakImage"),
 }
 

@@ -29,14 +29,21 @@ UTF8_BOM = b"\xef\xbb\xbf"
 # it used to be) so a new multi-image component only needs adding once.
 COMPONENT_IMAGE_PATHS = {
     "zgw-office-addin": ["frontend.image", "backend.image"],
-    # The operator binary itself, and the default Keycloak SERVER image it
-    # stamps onto Keycloak CRs that don't specify their own — upstream
-    # publishes matching version numbers for both (operator vX.Y.Z is built
-    # to manage Keycloak vX.Y.Z), so they should never be bumped one without
-    # the other. Both use the adfinis chart's own split "tag:" + sibling
-    # "sha:" convention instead of an embedded @sha256 digest — see
-    # update-component-version.py's SPLIT_TAG_SHA_PATHS for the write side.
-    "keycloak-operator": ["operator.image", "operator.config.keycloakImage"],
+    # The default Keycloak SERVER image the operator stamps onto Keycloak
+    # CRs that don't specify their own — deliberately overridden in
+    # values.yaml to run a Keycloak version ahead of whatever this operator
+    # chart version's own appVersion defaults to. NOT operator.image itself:
+    # that one is intentionally left with no override at all, since the
+    # adfinis chart's own template already falls back to
+    # "{{ .Values.operator.image.tag | default .Chart.AppVersion }}" with a
+    # matching "sha:" bundled for that same appVersion — an explicit
+    # override there would only add a way for tag and digest to drift apart
+    # again. Bump the keycloak-operator dependency's own chart version in
+    # Chart.yaml to move the operator itself. Uses the adfinis chart's own
+    # split "tag:" + sibling "sha:" convention instead of an embedded
+    # @sha256 digest — see update-component-version.py's SPLIT_TAG_SHA_PATHS
+    # for the write side.
+    "keycloak-operator": ["operator.config.keycloakImage"],
 }
 DEFAULT_IMAGE_PATHS = ["image"]
 

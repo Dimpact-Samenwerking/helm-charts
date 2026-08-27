@@ -353,13 +353,16 @@ def test_main_invokes_update_podiumd_readme(ucv, tmp_path, monkeypatch):
 
 
 def setup_keycloak_operator_repo(tmp_path, monkeypatch, ucv):
-    """The real (values_key, image path) structure keycloak-operator's
-    lockstep entry in lib.chart.COMPONENT_IMAGE_PATHS targets: the
-    operator's own image (no "sha" override yet -- relies on the vendored
-    subchart's own default) and the operator's default Keycloak SERVER
-    image (already has an explicit "sha" override) -- deliberately at
-    DIFFERENT (mismatched) versions, mirroring the real drift this
-    feature exists to prevent going forward."""
+    """The real values.yaml structure: operator.image has NO override at
+    all (relies entirely on the vendored adfinis chart's own
+    "{{ .Values.operator.image.tag | default .Chart.AppVersion }}" +
+    matching "sha:" default — deliberately not managed by
+    update-component-version.py or lib.chart.COMPONENT_IMAGE_PATHS, since
+    an explicit override here would only reintroduce a way for tag and
+    digest to drift apart). operator.config.keycloakImage IS an explicit,
+    intentional override (a Keycloak server version ahead of this operator
+    chart version's own appVersion) — the one path this component's
+    COMPONENT_IMAGE_PATHS entry actually manages."""
     chart_yaml = tmp_path / "Chart.yaml"
     values_yaml = tmp_path / "values.yaml"
     chart_yaml.write_text(
@@ -377,7 +380,6 @@ def setup_keycloak_operator_repo(tmp_path, monkeypatch, ucv):
         "  operator:\n"
         "    image:\n"
         "      repository: quay.io/keycloak/keycloak-operator\n"
-        '      tag: "26.6.4"\n'
         "    config:\n"
         "      keycloakImage:\n"
         "        repository: quay.io/keycloak/keycloak\n"
@@ -396,29 +398,28 @@ def setup_keycloak_operator_repo(tmp_path, monkeypatch, ucv):
     return chart_yaml, values_yaml
 
 
-def test_main_bumps_operator_and_keycloak_image_in_lockstep(ucv, tmp_path, monkeypatch):
+def test_main_bumps_only_config_keycloak_image_not_operator_image(ucv, tmp_path, monkeypatch):
     """update-component-version.py keycloak-operator 26.7.3 1.12.1 must
-    bump BOTH operator.image and operator.config.keycloakImage together,
-    each resolved against its OWN repository (different images), written
-    as tag + separate sha -- never a combined @sha256 pin, which would be
-    an invalid double digest for the adfinis chart's own template."""
+    bump ONLY operator.config.keycloakImage, written as tag + separate
+    sha (never a combined @sha256 pin, which would be an invalid double
+    digest for the adfinis chart's own template) — operator.image is
+    deliberately left completely untouched, with no override added."""
     chart_yaml, values_yaml = setup_keycloak_operator_repo(tmp_path, monkeypatch, ucv)
     mock_verify_passes(monkeypatch, ucv, "b")
 
-    new_digest_by_repo = {"keycloak-operator": "sha256:" + "c" * 64, "keycloak": "sha256:" + "d" * 64}
-    monkeypatch.setattr(ucv, "registry_tag_exists",
-                         lambda host, repo, tag: (True, new_digest_by_repo[repo.rsplit("/", 1)[-1]]))
+    monkeypatch.setattr(ucv, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "d" * 64))
     monkeypatch.setattr("sys.argv", ["update-component-version.py", "keycloak-operator", "26.7.3", "1.12.1"])
 
     ucv.main()  # success path does not raise
 
     updated = values_yaml.read_text(encoding="utf-8")
-    assert updated.count('tag: "26.7.3"') == 2
-    assert f'sha: "{"c" * 64}"' in updated  # operator.image's own new sha, newly inserted
+    assert updated.count('tag: "26.7.3"') == 1
     assert f'sha: "{"d" * 64}"' in updated  # config.keycloakImage's own new sha, replaced
     assert OLD_DIGEST not in updated
-    assert "26.6.4" not in updated and "26.7.2" not in updated
+    assert "26.7.2" not in updated
     assert "@sha256" not in updated  # never embedded -- would double-digest this chart's template
+    # operator.image itself: untouched, still no tag/sha override at all
+    assert "  operator:\n    image:\n      repository: quay.io/keycloak/keycloak-operator\n    config:\n" in updated
 
 
 def test_main_refuses_to_write_when_verify_fails(ucv, tmp_path, monkeypatch):
