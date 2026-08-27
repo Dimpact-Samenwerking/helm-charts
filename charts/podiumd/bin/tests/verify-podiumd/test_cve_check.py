@@ -7,9 +7,9 @@ the opt-in itemized view: CRITICAL/HIGH ("CRIT/HIGH") per image, grouped by
 affected package — one line per package listing its CVE IDs, or (past
 PACKAGE_CVE_LIST_THRESHOLD) a summarized count instead of every ID — with
 MEDIUM/LOW/UNKNOWN still only totaled per image. Cached by (repository,
-digest) in charts/podiumd/cve-scan-cache.json — tracked chart content,
-not gitignored, so the cache is committed and shared across
-contributors/CI. No real docker/trivy/registry invocation happens in
+digest) in charts/podiumd/.cache/cve-scan-cache.json — a personal,
+gitignored, per-checkout cache, not shared across contributors/CI. No
+real docker/trivy/registry invocation happens in
 these tests — `run` is mocked throughout. Whether a newer tag is
 published at all is lib.image_upgrade_check's job, not this module's —
 see tests/verify-podiumd/test_image_upgrade_check.py — but this module
@@ -510,7 +510,7 @@ def test_check_cves_heuristic_fallback_for_disabled_component(vp, libcvecheck, t
 
 # --- caching ---
 
-def test_check_cves_cache_miss_scans_and_persists(vp, libcvecheck, tmp_path, monkeypatch, capsys):
+def test_check_cves_cache_miss_scans_and_persists(vp, libcvecheck, tmp_path, monkeypatch):
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/docker")
     monkeypatch.setattr(libcvecheck, "run", sequenced_run())
@@ -519,9 +519,6 @@ def test_check_cves_cache_miss_scans_and_persists(vp, libcvecheck, tmp_path, mon
     assert ok is True
     saved = libcvecheck.load_cache(chart_dir)
     assert libcvecheck.cache_key("ghcr.io/wearefrank/frank-gateway", DIGEST_A) in saved
-
-    out = capsys.readouterr().out
-    assert "cve-scan-cache.json changed — commit it" in out
 
 
 def test_check_cves_cache_hit_skips_scanning(vp, libcvecheck, tmp_path, monkeypatch, capsys):

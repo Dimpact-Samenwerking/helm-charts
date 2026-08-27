@@ -25,20 +25,19 @@ on its own.
 
 One registry tag-list call per unique (repository, version) pin — cheap,
 no image pull — but still worth caching: results are cached by
-(repository, version) in charts/podiumd/image-upgrade-cache.json (see
-lib.image_upgrade_cache — split into its own module so lib.cve_check can
-read this cache too, read-only, to annotate a CVE finding as "upgradable"
-without triggering a registry call of its own), deliberately tracked
-chart content (same rationale as charts/podiumd/cve-scan-cache.json — see
-lib.cve_check's docstring), NOT gitignored, so the cache travels with
-whatever branch/checkout someone is on and other contributors/CI don't
-re-query every registry on every run. IMAGE_UPGRADE_CACHE_TTL_DAYS is
-deliberately much shorter than the CVE cache's TTL: a new tag can be
-published at any moment, so "no newer tag as of yesterday" is a far
-weaker guarantee than "no new CVE disclosed against this exact, unchanged
-digest last week" — caching here is purely about not re-querying every
-registry on every single local run within the same day, not about the
-answer being stable over any longer window.
+(repository, version) in charts/podiumd/.cache/image-upgrade-cache.json
+(see lib.image_upgrade_cache — split into its own module so lib.cve_check
+can read this cache too, read-only, to annotate a CVE finding as
+"upgradable" without triggering a registry call of its own), a personal,
+gitignored, per-checkout cache (same as charts/podiumd/.cache/
+cve-scan-cache.json — see lib.cve_check's docstring), not shared between
+contributors or CI. IMAGE_UPGRADE_CACHE_TTL_DAYS is deliberately much
+shorter than the CVE cache's TTL: a new tag can be published at any
+moment, so "no newer tag as of yesterday" is a far weaker guarantee than
+"no new CVE disclosed against this exact, unchanged digest last week" —
+caching here is purely about not re-querying every registry on every
+single local run within the same day, not about the answer being stable
+over any longer window.
 
 Never fails regardless of findings — a newer tag being published is
 advisory (worth checking whether it's worth bumping to), not something
@@ -49,7 +48,7 @@ from datetime import datetime, timezone
 from lib.cve_check import bucket_of, classify_by_key, dependency_names, render_image_labels, top_level_key_for_line
 from lib.image_digests import scan_digest_pins
 from lib.image_upgrade_cache import (
-    IMAGE_UPGRADE_CACHE_TTL_DAYS, cache_entry_is_fresh, cache_key, cache_path, load_cache, save_cache,
+    IMAGE_UPGRADE_CACHE_TTL_DAYS, cache_entry_is_fresh, cache_key, load_cache, save_cache,
 )
 from lib.procutil import run
 from lib.registry import find_newest_same_variant_tag, parse_repo
@@ -141,10 +140,6 @@ def check_image_upgrades(chart_dir, extra_args):
             print(f"  {ref}")
     print(f"{cache_hits}/{len(targets)} image(s) served from cache (checked within the last "
           f"{IMAGE_UPGRADE_CACHE_TTL_DAYS} day(s))")
-
-    if new_cache != old_cache:
-        print(f"{cache_path(chart_dir)} changed — commit it so other contributors and CI "
-              f"don't re-check these same images today.")
 
     own_n, own_up = bucket_totals(own_refs, images)
     partner_n, partner_up = bucket_totals(partner_refs, images)

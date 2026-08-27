@@ -63,29 +63,24 @@ existing doesn't mean it fixes a given CVE, and that check's answer is
 useful even for an image with zero findings here.
 
 Scan results are cached by (repository, digest) in
-charts/podiumd/cve-scan-cache.json — deliberately tracked chart content,
-NOT gitignored, so the cache travels with whatever branch/checkout
-someone is on and other contributors (and CI) don't re-pull-and-rescan an
-image someone else already scanned on that same branch. Commit it after
-a cve-scan run if it changed. Keyed on digest, not version, so a
-sliding tag republished under the same version string still invalidates
-correctly. Capped by CVE_CACHE_TTL_DAYS even for an unchanged digest — the
-image content never changes, but trivy's own vulnerability DB does, so a
-digest that scanned clean a month ago may have a newly-disclosed CVE
-against it today. Each cached vulnerability is trimmed to just the three
-fields the report actually uses (VulnerabilityID/PkgName/Severity) —
-trivy's raw Title/Description/References/CVSS/dates/FixedVersion would
-otherwise bloat the committed file for no reporting benefit. FixedVersion
-in particular is never shown: this repo only ever pins a base image
-tag/digest, never an individual OS/language package version inside that
-image, so "upgrade to version X" for one bundled package isn't an
-actionable step here — whether a newer image tag exists at all is
-lib.image_upgrade_check's job, not this module's. Living at
-the chart root (not under bin/) is deliberate: unlike this check's own
-code (feature/podiumd-scripts only, copied in untracked when needed
-elsewhere), the cache is chart content tied to a specific branch's
-values.yaml pins — it belongs on and travels with the actual
-release/content branches."""
+charts/podiumd/.cache/cve-scan-cache.json — a personal, gitignored,
+per-checkout cache (see cache_path), not shared between contributors or
+CI: each of those re-scans an image the first time they see its digest,
+same as a cold cache after cloning fresh. Keyed on digest, not version,
+so a sliding tag republished under the same version string still
+invalidates correctly. Capped by CVE_CACHE_TTL_DAYS even for an unchanged
+digest — the image content never changes, but trivy's own vulnerability
+DB does, so a digest that scanned clean a month ago may have a
+newly-disclosed CVE against it today. Each cached vulnerability is
+trimmed to just the three fields the report actually uses
+(VulnerabilityID/PkgName/Severity) — trivy's raw Title/Description/
+References/CVSS/dates/FixedVersion would otherwise bloat the cache file
+for no reporting benefit. FixedVersion in particular is never shown: this
+repo only ever pins a base image tag/digest, never an individual
+OS/language package version inside that image, so "upgrade to version X"
+for one bundled package isn't an actionable step here — whether a newer
+image tag exists at all is lib.image_upgrade_check's job, not this
+module's."""
 import json
 import re
 import shutil
@@ -134,9 +129,9 @@ CACHE_FILENAME = "cve-scan-cache.json"
 
 
 def cache_path(chart_dir):
-    """charts/podiumd/cve-scan-cache.json — tracked chart content (see
-    module docstring), not gitignored."""
-    return chart_dir / CACHE_FILENAME
+    """charts/podiumd/.cache/cve-scan-cache.json — a personal, gitignored,
+    per-checkout cache (see module docstring), never committed."""
+    return chart_dir / ".cache" / CACHE_FILENAME
 
 
 def load_cache(chart_dir):
@@ -365,10 +360,6 @@ def check_cves(chart_dir, extra_args, detail=False):
             print(f"  {ref}")
     print(f"{cache_hits}/{len(targets)} image(s) served from cache (unchanged digest, "
           f"scanned within the last {CVE_CACHE_TTL_DAYS} days)")
-
-    if new_cache != old_cache:
-        print(f"{cache_path(chart_dir)} changed — commit it so other contributors and CI "
-              f"don't re-scan these same images.")
 
     own_n, own_cve = bucket_totals(own_refs, images)
     partner_n, partner_cve = bucket_totals(partner_refs, images)
