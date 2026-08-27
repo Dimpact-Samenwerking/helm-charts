@@ -76,7 +76,7 @@ keycloak-operator:
     config:
       keycloakImage:
         repository: quay.io/keycloak/keycloak
-        tag: "26.6.4"
+        tag: "26.7.2"
         sha: "0aae0de7fca85525f727d3354df17896092de8bb26ae4c12d89c77e5df8cbce4"
   serviceAccount:
     create: false
@@ -226,7 +226,7 @@ keycloak:
   image:
     registry: ""
     repository: quay.io/keycloak/keycloak
-    tag: "26.6.4@sha256:0aae0de7fca85525f727d3354df17896092de8bb26ae4c12d89c77e5df8cbce4"
+    tag: "26.7.2@sha256:9d1f1b2b7261ff53c66cb1092dfcdc34a5fb77e81f9e6a6e75b8b6a795de8067"
   # -- instances is the new operator-style replica count (falls back to replicaCount)
   instances: "2"
   ingress:
