@@ -155,12 +155,56 @@ def test_compare_reports_ambiguous_when_basename_pinned_at_multiple_versions(vrt
 
 # --- compare(): unresolved components ---
 
-@pytest.mark.parametrize("component", ["", "UNKNOWN", "MULTIPLE"])
+@pytest.mark.parametrize("component", ["", "UNKNOWN"])
 def test_compare_lists_unresolved_rows_separately(vrt, component):
     rows = [csv_row("Solr", component)]
     findings, unresolved = vrt.compare(rows, [], {}, [])
     assert findings == {}
     assert unresolved == rows
+
+
+# --- compare(): MULTIPLE (global.images) rows ---
+
+GLOBAL_CURL_BLOCK = (
+    "global:\n"
+    "  images:\n"
+    "    curl:\n"
+    "      repository: docker.io/curlimages/curl\n"
+    f'      tag: "8.22.0@sha256:{DIGEST}"\n'
+)
+
+
+def test_compare_checks_multiple_row_against_global_images(vrt):
+    """A "MULTIPLE" row (a shared base image like curl, hoisted into
+    values.yaml's global.images map) is checked against the "global"
+    scope, not skipped as unresolved."""
+    rows = [csv_row("Curl", "MULTIPLE", alias="MULTIPLE", image_basename="curl", target_app="8.23.0")]
+    findings, unresolved = vrt.compare(rows, [], {}, values_lines(GLOBAL_CURL_BLOCK))
+    assert any("target 8.23.0 != values.yaml 8.22.0" in m for m in findings["mismatches"])
+    assert unresolved == []
+
+
+def test_compare_multiple_row_matching_global_image_passes(vrt):
+    rows = [csv_row("Curl", "MULTIPLE", alias="MULTIPLE", image_basename="curl", target_app="8.22.0")]
+    findings, unresolved = vrt.compare(rows, [], {}, values_lines(GLOBAL_CURL_BLOCK))
+    assert findings == {}
+    assert unresolved == []
+
+
+def test_compare_multiple_row_with_no_image_basename_is_silently_skipped(vrt):
+    """A "MULTIPLE" row export-confluence-release-table.py couldn't even
+    resolve an image_basename for (an ambiguous plain dependency-name
+    collision, not a global image) has nothing to check — not an error."""
+    rows = [csv_row("Something Ambiguous", "MULTIPLE", alias="MULTIPLE", image_basename="")]
+    findings, unresolved = vrt.compare(rows, [], {}, [])
+    assert findings == {}
+    assert unresolved == []
+
+
+def test_compare_reports_global_image_with_no_release_table_row(vrt):
+    findings, _ = vrt.compare([], [], {}, values_lines(GLOBAL_CURL_BLOCK))
+    assert any("'global' image 'curl' is pinned in values.yaml but not tracked" in m
+               for m in findings["missing_from_release_table"])
 
 
 # --- multi-image component (e.g. zgw-office-addin) ---
