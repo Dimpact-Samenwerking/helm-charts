@@ -24,11 +24,23 @@ basenames_under_scope) is the exact same one update-image-version.py's own
 the chart-version lookup is a plain Chart.yaml dependency read, the same
 one update-component-version.py's own pre-write gate uses.
 
-A row whose component is "UNKNOWN" or "MULTIPLE" (export-confluence-
-release-table.py couldn't resolve it to anything at export time) is
-listed separately as unresolved — that's a pre-existing export-time gap,
-not something this script can verify either way, so it isn't scored as a
-failure here.
+A row whose component is "MULTIPLE" is a shared base image hoisted into
+values.yaml's top-level global.images map (see export-confluence-release-
+table.py's own global_image_keys/component_and_alias — e.g. nginx, curl,
+busybox, pinned once and reused via YAML anchor across several unrelated
+components) rather than owned by any single component — its image_basename
+is still resolved by export time, though, so it's checked here the exact
+same way as any other component's images, just scoped to "global" instead
+of a Chart.yaml dependency's own values.yaml block (and with no chart-
+version check, since it isn't backed by a separate Helm chart at all). A
+"MULTIPLE" row export couldn't even resolve an image_basename for (an
+ambiguous plain dependency-name collision, not a global image) has nothing
+to check either way and is silently skipped, same as blank.
+
+A row whose component is "UNKNOWN" (export-confluence-release-table.py
+couldn't resolve it to anything at export time) is listed separately as
+unresolved — that's a pre-existing export-time gap, not something this
+script can verify either way, so it isn't scored as a failure here.
 
 Purely local and network-free (no `helm pull`, no registry calls): a
 "fallback path" component's app image basename can only be discovered by
@@ -74,7 +86,8 @@ CHART_YAML = CHART_DIR / "Chart.yaml"
 VALUES_YAML = CHART_DIR / "values.yaml"
 RELEASE_TABLE_CSV = CHART_DIR / "release-table.csv"
 
-UNRESOLVED_COMPONENTS = ("", "UNKNOWN", "MULTIPLE")
+UNRESOLVED_COMPONENTS = ("", "UNKNOWN")
+GLOBAL_IMAGES_SCOPE = "global"
 
 
 def load_release_table(path):
@@ -144,12 +157,20 @@ def compare(rows, deps, values, lines):
     unresolved = []
 
     rows_by_component = defaultdict(list)
+    multiple_rows = []
     for row in rows:
         component = row["component"]
-        if component in UNRESOLVED_COMPONENTS:
+        if component == "MULTIPLE":
+            multiple_rows.append(row)
+        elif component in UNRESOLVED_COMPONENTS:
             unresolved.append(row)
         else:
             rows_by_component[component].append(row)
+
+    # Called unconditionally (even with zero multiple_rows) so a global
+    # image nobody's row ever resolved to at all still surfaces as
+    # missing-from-release-table, not just silently unchecked.
+    check_images(GLOBAL_IMAGES_SCOPE, "MULTIPLE", multiple_rows, lines, findings)
 
     checked_components = set()
     for dep in deps:
