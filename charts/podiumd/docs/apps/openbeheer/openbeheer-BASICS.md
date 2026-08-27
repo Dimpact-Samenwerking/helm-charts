@@ -17,7 +17,7 @@ roughly 250–270 MiB memory each and near-idle CPU.
 - Upstream: Maykin Media [`open-beheer`](https://github.com/maykinmedia/open-beheer), a
   Django application. New in PodiumD 4.8.0 (IN-2157), **disabled by default**
   (`openbeheer.enabled: false`).
-- Image: `maykinmedia/open-beheer:0.9.1`; nginx sidecar `nginxinc/nginx-unprivileged:1.31.3`
+- Image: `maykinmedia/open-beheer:0.9.1`; nginx sidecar `nginxinc/nginx-unprivileged:1.31.4`
   (shared `global.images.nginx`, digest-pinned).
 - Delivered as a vendored sub-chart dependency (`openbeheer` v0.1.3, repository
   `@maykinmedia`).
