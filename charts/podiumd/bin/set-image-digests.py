@@ -9,15 +9,27 @@ one (byte-identical otherwise). See find_stale_digests for how a
 repository is resolved for a pin, and lib.registry.is_sliding_tag for why
 some mismatches are reported but left untouched by default.
 
+An optional <target> (a bare image basename like "redis", or a Chart.yaml
+dependency's own name/alias like "openklant" — resolved the same way
+update-image-version.py's own <target> is, see lib.image_version.
+resolve_basename) scopes the run to just that one image: it's refreshed
+if stale, SLIDING OR NOT, without needing --all — naming one image
+explicitly is enough intent on its own. Every other stale pin is left
+untouched and unreported for that run.
+
 Usage:
     set-image-digests.py             # fetch, compare, rewrite stale PINNED digests only
     set-image-digests.py --all       # also rewrite stale SLIDING digests
-    set-image-digests.py --dry-run   # fetch and compare only, no write (combine with --all as needed)
+    set-image-digests.py <target>    # scope to one image, refreshed even if sliding
+    set-image-digests.py --dry-run   # fetch and compare only, no write (combine with any of the above)
+
+Examples:
+    set-image-digests.py redis
+    set-image-digests.py openklant    # resolved via Chart.yaml alias, same as update-image-version.py
 
 After a real run, re-render the chart (verify-podiumd.py or
 /helm-render-all) to confirm the new digests are picked up cleanly.
 """
-import re
 import sys
 import urllib.error
 from pathlib import Path
@@ -27,70 +39,12 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 from lib.chart import load_yaml, subchart_default_repository, subchart_needs_vendoring
 from lib.dependencies import check_dependencies as vendor_dependencies, ensure_repos_configured
+from lib.image_digests import scan_digest_pins
+from lib.image_version import image_basename, resolve_basename
 from lib.registry import is_sliding_tag, parse_repo, registry_tag_exists
 
 CHART_DIR = SCRIPT_DIR.parents[0]
 VALUES_PATH = CHART_DIR / "values.yaml"
-
-DIGEST_PIN_RE = re.compile(
-    r'^(?P<indent>\s*)tag:\s*"?(?P<version>[\w][\w.\-]*)@sha256:(?P<digest>[0-9a-f]{64})"?\s*(?:#.*)?$'
-)
-ACTIVE_REPO_RE = re.compile(
-    r'^(?P<indent>\s*)repository:\s*"?(?P<repo>[\w][\w.\-]*(?:/[\w.\-]+)*)"?\s*(?:#.*)?$'
-)
-COMMENTED_REPO_RE = re.compile(
-    r'^\s*#\s*repository:\s*"?(?P<repo>[\w][\w.\-]*(?:/[\w.\-]+)*)"?\s*$'
-)
-REF_COMMENT_RE = re.compile(
-    r'^\s*#\s*(?P<repo>[a-zA-Z0-9][\w.\-]*(?:/[\w.\-]+)*):@?[\w][\w.\-]*(?:@sha256:[0-9a-f]{64})?\s*$'
-)
-
-
-def resolve_pin_repo(lines, tag_line_index, tag_indent):
-    """Resolve the upstream repository for a "tag:" pin at tag_line_index.
-    Most pins have an active sibling "repository:" key. A minority of
-    components (e.g. office_converter, opa, solr-operator) deliberately
-    comment their "repository:" out so gemeente-level ACR-mirror overrides
-    take precedence — for those, fall back to the "# host/repo:tag" style
-    reference comment placed above the "image:" block, or a commented-out
-    "#repository: <value>" key at the same indent."""
-    for i in range(tag_line_index - 1, max(tag_line_index - 15, -1), -1):
-        raw = lines[i]
-        if not raw.strip():
-            continue
-        indent = len(raw) - len(raw.lstrip(" "))
-        if indent < tag_indent:
-            break
-        m = ACTIVE_REPO_RE.match(raw)
-        if m and indent == tag_indent:
-            return m.group("repo")
-    for i in range(tag_line_index - 1, max(tag_line_index - 6, -1), -1):
-        m = REF_COMMENT_RE.match(lines[i])
-        if m:
-            return m.group("repo")
-    for i in range(tag_line_index - 1, max(tag_line_index - 6, -1), -1):
-        m = COMMENTED_REPO_RE.match(lines[i])
-        if m:
-            return m.group("repo")
-    return None
-
-
-def scan_digest_pins(lines):
-    """Yield one record per "tag: <version>@sha256:<digest>" pin in
-    values.yaml, with its resolved upstream repository."""
-    pins = []
-    for i, raw in enumerate(lines):
-        m = DIGEST_PIN_RE.match(raw)
-        if not m:
-            continue
-        indent = len(m.group("indent"))
-        pins.append({
-            "line": i + 1,
-            "version": m.group("version"),
-            "digest": m.group("digest"),
-            "repository": resolve_pin_repo(lines, i, indent),
-        })
-    return pins
 
 
 def find_stale_digests(lines, values_path):
@@ -166,17 +120,34 @@ def find_stale_digests(lines, values_path):
 
 
 def main():
-    if "-h" in sys.argv[1:] or "--help" in sys.argv[1:]:
+    args = sys.argv[1:]
+    if "-h" in args or "--help" in args:
         print(__doc__)
         sys.exit(0)
-    dry_run = "--dry-run" in sys.argv[1:]
-    update_all = "--all" in sys.argv[1:]
+    dry_run = "--dry-run" in args
+    update_all = "--all" in args
+    positional = [a for a in args if not a.startswith("-")]
+    if len(positional) > 1:
+        print(f"error: expected at most one target, got: {', '.join(positional)}")
+        sys.exit(1)
+    target_arg = positional[0] if positional else None
 
     text = VALUES_PATH.read_text(encoding="utf-8")
     lines = text.splitlines()
 
+    target_basename = None
+    if target_arg:
+        target_basename = resolve_basename(CHART_DIR, lines, target_arg)
+        if target_basename != target_arg:
+            print(f"'{target_arg}' resolved to image basename '{target_basename}'")
+
     print(f"Scanning {VALUES_PATH} for digest-pinned images...")
     stale, unresolved, fetch_errors = find_stale_digests(lines, VALUES_PATH)
+
+    if target_basename:
+        stale = [s for s in stale if image_basename(s[0]) == target_basename]
+        unresolved = []  # scoped to one target -- unrelated unresolved pins aren't this run's concern
+        fetch_errors = [f for f in fetch_errors if image_basename(f[0]) == target_basename]
 
     if unresolved:
         print(f"\n{len(unresolved)} pin(s) could not be resolved to a repository (skipped):")
@@ -188,11 +159,15 @@ def main():
         for repository, version, error, pin_lines in fetch_errors:
             print(f"  {repository}:{version}  {error}  (values.yaml:{', '.join(map(str, pin_lines))})")
 
-    to_update = stale if update_all else [s for s in stale if not s[5]]
-    skipped_sliding = [] if update_all else [s for s in stale if s[5]]
+    # A named target is refreshed regardless of sliding status -- naming
+    # one image explicitly is enough intent on its own, no --all needed.
+    to_update = stale if (update_all or target_basename) else [s for s in stale if not s[5]]
+    skipped_sliding = [] if (update_all or target_basename) else [s for s in stale if s[5]]
 
     if not to_update:
-        if skipped_sliding:
+        if target_basename:
+            print(f"\n'{target_basename}' has no stale digest to update — nothing to do.")
+        elif skipped_sliding:
             print(f"\nNo stale pinned digests found — nothing to update. "
                   f"({len(skipped_sliding)} sliding digest(s) drifted; pass --all to include them.)")
         else:
