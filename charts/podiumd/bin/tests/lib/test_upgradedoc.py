@@ -597,3 +597,257 @@ def test_missing_key_change_lines_ignores_unrelated_component(libupgradedoc):
 def test_missing_key_change_lines_empty_when_nothing_changed(libupgradedoc):
     values = {"zac": {"a": 1}}
     assert libupgradedoc.missing_key_change_lines("", {"zac"}, values, values) == []
+
+
+# --- values_key_order ---
+
+def test_values_key_order_returns_top_level_keys_in_file_order(libupgradedoc):
+    values = {"zac": {}, "openzaak": {}, "openinwoner": {}}
+    assert libupgradedoc.values_key_order(values) == ["zac", "openzaak", "openinwoner"]
+
+
+def test_values_key_order_non_dict_returns_empty(libupgradedoc):
+    assert libupgradedoc.values_key_order(None) == []
+
+
+# --- component_order_key ---
+
+DEPS = [
+    {"name": "openzaak", "version": "1.14.2"},
+    {"name": "openinwoner", "version": "2.4.0"},
+    {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"},
+]
+KEY_ORDER = ["openzaak", "zac", "openinwoner"]
+
+
+def test_component_order_key_matches_by_alias(libupgradedoc):
+    assert libupgradedoc.component_order_key("ZAC", DEPS, KEY_ORDER) == 1
+
+
+def test_component_order_key_matches_free_form_name(libupgradedoc):
+    assert libupgradedoc.component_order_key("Open Zaak", DEPS, KEY_ORDER) == 0
+
+
+def test_component_order_key_unmatched_name_sorts_after_every_real_component(libupgradedoc):
+    assert libupgradedoc.component_order_key("nginx-unprivileged (shared sidecar)", DEPS, KEY_ORDER) == len(KEY_ORDER)
+
+
+def test_component_order_key_matched_dep_not_in_key_order_sorts_last(libupgradedoc):
+    """A dependency that resolves fine but isn't a top-level values.yaml key
+    at all (e.g. removed from values.yaml but still in Chart.yaml) can't be
+    placed meaningfully -- falls back to the same "sorts last" sentinel as
+    an unmatched name."""
+    deps = [{"name": "totallyabsent", "version": "1.0.0"}]
+    assert libupgradedoc.component_order_key("TotallyAbsent", deps, KEY_ORDER) == len(KEY_ORDER)
+
+
+# --- find_out_of_order_names ---
+
+def test_find_out_of_order_names_correctly_ordered_is_empty(libupgradedoc):
+    names = ["Open Zaak", "ZAC", "Open Inwoner"]
+    assert libupgradedoc.find_out_of_order_names(names, DEPS, KEY_ORDER) == []
+
+
+def test_find_out_of_order_names_flags_a_swapped_pair(libupgradedoc):
+    names = ["ZAC", "Open Zaak", "Open Inwoner"]
+    assert libupgradedoc.find_out_of_order_names(names, DEPS, KEY_ORDER) == [("ZAC", "Open Zaak")]
+
+
+def test_find_out_of_order_names_two_unmatched_names_never_conflict(libupgradedoc):
+    names = ["Some Shared Sidecar", "Another Shared Thing"]
+    assert libupgradedoc.find_out_of_order_names(names, DEPS, KEY_ORDER) == []
+
+
+def test_find_out_of_order_names_unmatched_before_a_real_component_is_flagged(libupgradedoc):
+    """An unmatched row/heading sorts after every real component -- one
+    appearing BEFORE a real component earlier in values.yaml's own order is
+    still a genuine violation."""
+    names = ["Some Shared Sidecar", "Open Zaak"]
+    assert libupgradedoc.find_out_of_order_names(names, DEPS, KEY_ORDER) == [("Some Shared Sidecar", "Open Zaak")]
+
+
+# --- insertion_index ---
+
+def test_insertion_index_middle(libupgradedoc):
+    assert libupgradedoc.insertion_index(1, [0, 2, 3]) == 1
+
+
+def test_insertion_index_start(libupgradedoc):
+    assert libupgradedoc.insertion_index(-1, [0, 2, 3]) == 0
+
+
+def test_insertion_index_end(libupgradedoc):
+    assert libupgradedoc.insertion_index(5, [0, 2, 3]) == 3
+
+
+def test_insertion_index_empty_existing(libupgradedoc):
+    assert libupgradedoc.insertion_index(0, []) == 0
+
+
+def test_insertion_index_real_component_goes_before_unmatched_ones(libupgradedoc):
+    """A genuinely new, resolvable component (a real, early key) inserted
+    where every existing item is an unmatched/sentinel-keyed row belongs
+    BEFORE all of them -- matches how a real component is expected to sort
+    ahead of a generic/unmatched summary row."""
+    assert libupgradedoc.insertion_index(0, [3, 3, 3]) == 0
+
+
+def test_insertion_index_new_unmatched_item_among_unmatched_ones_goes_last(libupgradedoc):
+    """A new item that itself carries the sentinel key (unmatched) is never
+    inserted ahead of other unmatched items without evidence it belongs
+    there -- it goes after all of them, preserving their relative order."""
+    assert libupgradedoc.insertion_index(3, [3, 3, 3]) == 3
+
+
+# --- parse_upgrade_doc_changes_blocks ---
+
+def test_parse_upgrade_doc_changes_blocks_basic(libupgradedoc):
+    text = (
+        "# Title\n\n"
+        "## Changes\n\n"
+        "### Open Zaak 1.27.3 → 1.27.4\n\n"
+        "Some prose.\n\n"
+        "### Open Inwoner 2.3.1 → 2.4.2\n\n"
+        "More prose.\n"
+    )
+    blocks = libupgradedoc.parse_upgrade_doc_changes_blocks(text)
+    assert [b["heading"] for b in blocks] == ["Open Zaak 1.27.3 → 1.27.4", "Open Inwoner 2.3.1 → 2.4.2"]
+
+
+def test_parse_upgrade_doc_changes_blocks_h4_subheading_is_not_a_separate_block(libupgradedoc):
+    text = (
+        "## Changes\n\n"
+        "### Open Zaak 1.27.3 → 1.27.4\n\n"
+        "#### Action required\n\n"
+        "No action required.\n"
+    )
+    blocks = libupgradedoc.parse_upgrade_doc_changes_blocks(text)
+    assert len(blocks) == 1
+    assert blocks[0]["heading"] == "Open Zaak 1.27.3 → 1.27.4"
+
+
+def test_parse_upgrade_doc_changes_blocks_no_changes_section_is_empty(libupgradedoc):
+    assert libupgradedoc.parse_upgrade_doc_changes_blocks("# Title\n\nJust prose.\n") == []
+
+
+def test_parse_upgrade_doc_changes_blocks_stops_at_next_h2(libupgradedoc):
+    text = (
+        "## Changes\n\n"
+        "### Open Zaak 1.27.3 → 1.27.4\n\n"
+        "Some prose.\n\n"
+        "## Per-environment checklist\n\n"
+        "### A. Prepare\n\n"
+        "- [ ] Do the thing.\n"
+    )
+    blocks = libupgradedoc.parse_upgrade_doc_changes_blocks(text)
+    assert len(blocks) == 1
+    assert blocks[0]["heading"] == "Open Zaak 1.27.3 → 1.27.4"
+
+
+# --- sort_upgrade_doc_rows ---
+
+def test_sort_upgrade_doc_rows_reorders_out_of_order_rows(libupgradedoc):
+    text = (
+        "| Component | App version | Helm chart |\n"
+        "| --- | --- | --- |\n"
+        "| Open Inwoner | 2.4.2 | 2.4.0 |\n"
+        "| Open Zaak | 1.27.4 | 1.14.2 |\n"
+    )
+    new_text, moved = libupgradedoc.sort_upgrade_doc_rows(text, DEPS, {"openzaak": {}, "zac": {}, "openinwoner": {}})
+    assert moved == [("Open Zaak", 2, 1), ("Open Inwoner", 1, 2)]
+    lines = new_text.splitlines()
+    assert lines[2].startswith("| Open Zaak")
+    assert lines[3].startswith("| Open Inwoner")
+
+
+def test_sort_upgrade_doc_rows_already_in_order_is_unchanged(libupgradedoc):
+    text = (
+        "| Component | App version | Helm chart |\n"
+        "| --- | --- | --- |\n"
+        "| Open Zaak | 1.27.4 | 1.14.2 |\n"
+        "| Open Inwoner | 2.4.2 | 2.4.0 |\n"
+    )
+    values = {"openzaak": {}, "zac": {}, "openinwoner": {}}
+    new_text, moved = libupgradedoc.sort_upgrade_doc_rows(text, DEPS, values)
+    assert moved == []
+    assert new_text == text
+
+
+def test_sort_upgrade_doc_rows_fewer_than_two_rows_is_unchanged(libupgradedoc):
+    text = (
+        "| Component | App version | Helm chart |\n"
+        "| --- | --- | --- |\n"
+        "| Open Zaak | 1.27.4 | 1.14.2 |\n"
+    )
+    new_text, moved = libupgradedoc.sort_upgrade_doc_rows(text, DEPS, {"openzaak": {}})
+    assert moved == []
+    assert new_text == text
+
+
+def test_sort_upgrade_doc_rows_unmatched_row_stays_last(libupgradedoc):
+    text = (
+        "| Component | App version | Helm chart |\n"
+        "| --- | --- | --- |\n"
+        "| nginx-unprivileged (shared sidecar) | 1.31.4 | — |\n"
+        "| Open Zaak | 1.27.4 | 1.14.2 |\n"
+    )
+    values = {"openzaak": {}, "zac": {}, "openinwoner": {}}
+    new_text, moved = libupgradedoc.sort_upgrade_doc_rows(text, DEPS, values)
+    lines = new_text.splitlines()
+    assert lines[2].startswith("| Open Zaak")
+    assert lines[3].startswith("| nginx-unprivileged")
+
+
+# --- sort_changes_blocks ---
+
+def test_sort_changes_blocks_reorders_and_preserves_block_content(libupgradedoc):
+    text = (
+        "## Changes\n\n"
+        "### Open Inwoner 2.3.1 → 2.4.2\n\n"
+        "Inwoner details here.\n\n"
+        "### Open Zaak 1.27.3 → 1.27.4\n\n"
+        "Zaak details here.\n"
+    )
+    values = {"openzaak": {}, "zac": {}, "openinwoner": {}}
+    new_text, moved = libupgradedoc.sort_changes_blocks(text, DEPS, values)
+    assert moved == [("Open Zaak 1.27.3 → 1.27.4", 2, 1), ("Open Inwoner 2.3.1 → 2.4.2", 1, 2)]
+    assert "### Open Zaak 1.27.3 → 1.27.4\n\nZaak details here.\n" in new_text
+    assert new_text.index("### Open Zaak") < new_text.index("### Open Inwoner")
+
+
+def test_sort_changes_blocks_already_in_order_is_unchanged(libupgradedoc):
+    text = (
+        "## Changes\n\n"
+        "### Open Zaak 1.27.3 → 1.27.4\n\n"
+        "Zaak details.\n\n"
+        "### Open Inwoner 2.3.1 → 2.4.2\n\n"
+        "Inwoner details.\n"
+    )
+    values = {"openzaak": {}, "zac": {}, "openinwoner": {}}
+    new_text, moved = libupgradedoc.sort_changes_blocks(text, DEPS, values)
+    assert moved == []
+    assert new_text == text
+
+
+def test_sort_changes_blocks_unmatched_block_stays_last_and_later_h2_untouched(libupgradedoc):
+    text = (
+        "## Changes\n\n"
+        "### Fix: something unrelated to any component\n\n"
+        "Generic prose.\n\n"
+        "### Open Zaak 1.27.3 → 1.27.4\n\n"
+        "Zaak details.\n\n"
+        "## Per-environment checklist\n\n"
+        "### A. Prepare\n\n"
+        "- [ ] Do the thing.\n"
+    )
+    values = {"openzaak": {}, "zac": {}, "openinwoner": {}}
+    new_text, moved = libupgradedoc.sort_changes_blocks(text, DEPS, values)
+    assert new_text.index("### Open Zaak") < new_text.index("### Fix: something unrelated")
+    assert "## Per-environment checklist\n\n### A. Prepare\n\n- [ ] Do the thing.\n" in new_text
+
+
+def test_sort_changes_blocks_fewer_than_two_blocks_is_unchanged(libupgradedoc):
+    text = "## Changes\n\n### Open Zaak 1.27.3 → 1.27.4\n\nZaak details.\n"
+    new_text, moved = libupgradedoc.sort_changes_blocks(text, DEPS, {"openzaak": {}})
+    assert moved == []
+    assert new_text == text

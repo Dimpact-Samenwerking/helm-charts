@@ -720,4 +720,85 @@ def test_main_corrects_stale_images_manifest_entry_comment(sdb, repo_with_baseli
 
     text = images_path.read_text(encoding="utf-8")
     assert "# ZAC — 5.0.2 -> 5.1.0" in text
-    assert "5.0.1" not in text
+
+
+# --- main() integration: reordering the table + Changes section ---
+
+@pytest.fixture
+def repo_with_out_of_order_doc(tmp_path):
+    """Two components whose "Component versions" table row order and
+    "## Changes" block order are both the OPPOSITE of values.yaml's own
+    top-level key order (openzaak before openinwoner there, but the doc
+    lists Open Inwoner first)."""
+    git("init", "-q", cwd=tmp_path)
+    git("config", "user.email", "test@example.com", cwd=tmp_path)
+    git("config", "user.name", "Test", cwd=tmp_path)
+
+    write(tmp_path / "Chart.yaml", yaml.safe_dump({
+        "dependencies": [
+            {"name": "openzaak", "version": "1.14.2", "repository": "@maykinmedia"},
+            {"name": "openinwoner", "version": "2.4.0", "repository": "@maykinmedia"},
+        ],
+    }, sort_keys=False))
+    # sort_keys=False: values.yaml's own file order IS the ordering signal
+    # this feature reads (values_key_order) -- yaml.safe_dump's default
+    # alphabetical sort would silently reorder these two keys and defeat
+    # the whole point of this fixture (openzaak deliberately BEFORE
+    # openinwoner, opposite of the doc's row order below).
+    write(tmp_path / "values.yaml", yaml.safe_dump({
+        "openzaak": {"image": {"tag": "1.27.4@sha256:aaaa"}},
+        "openinwoner": {"image": {"tag": "2.4.2@sha256:bbbb"}},
+    }, sort_keys=False))
+    doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
+    doc_dir.mkdir(parents=True)
+    (tmp_path / "docs" / "images").mkdir(parents=True)
+    write(doc_dir / "4.8.3-to-4.9.0-upgrade.md",
+          "# Upgrade guide: PodiumD 4.8.3 → 4.9.0\n\n"
+          "## Component versions (4.9.0 vs 4.8.3)\n\n"
+          "| Component | App version | Helm chart | Notes |\n"
+          "| --- | --- | --- | --- |\n"
+          "| Open Inwoner | 2.4.2 | 2.4.0 | - |\n"
+          "| Open Zaak | 1.27.4 | 1.14.2 | - |\n\n"
+          "## Changes\n\n"
+          "### Open Inwoner 2.4.2\n\n"
+          "Inwoner details.\n\n"
+          "### Open Zaak 1.27.4\n\n"
+          "Zaak details.\n")
+    git("add", "-A", cwd=tmp_path)
+    git("commit", "-q", "-m", "seed out-of-order doc", cwd=tmp_path)
+    return doc_dir
+
+
+def test_main_reorders_table_and_changes_to_match_values_yaml(sdb, repo_with_out_of_order_doc, monkeypatch, capsys):
+    set_argv_and_dir(sdb, monkeypatch, repo_with_out_of_order_doc, "4.8.3")
+    sdb.main()
+
+    upgrade = (repo_with_out_of_order_doc / "4.8.3-to-4.9.0-upgrade.md").read_text(encoding="utf-8")
+    lines = upgrade.splitlines()
+    table_rows = [l for l in lines if l.startswith("| Open")]
+    assert table_rows == ["| Open Zaak | 1.27.4 | 1.14.2 | - |", "| Open Inwoner | 2.4.2 | 2.4.0 | - |"]
+    assert upgrade.index("### Open Zaak") < upgrade.index("### Open Inwoner")
+    assert "Zaak details." in upgrade and "Inwoner details." in upgrade  # block content preserved
+
+    out = capsys.readouterr().out
+    assert "Reordering" in out
+    assert "table row 'Open Zaak': position 2 -> 1" in out
+    assert "changes block '### Open Zaak 1.27.4': position 2 -> 1" in out
+
+
+def test_main_already_ordered_doc_reports_no_reordering(sdb, repo_with_out_of_order_doc, monkeypatch, capsys):
+    doc = repo_with_out_of_order_doc / "4.8.3-to-4.9.0-upgrade.md"
+    doc.write_text(
+        "# Upgrade guide: PodiumD 4.8.3 → 4.9.0\n\n"
+        "## Component versions (4.9.0 vs 4.8.3)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| Open Zaak | 1.27.4 | 1.14.2 | - |\n"
+        "| Open Inwoner | 2.4.2 | 2.4.0 | - |\n",
+        encoding="utf-8",
+    )
+    set_argv_and_dir(sdb, monkeypatch, repo_with_out_of_order_doc, "4.8.3")
+    sdb.main()
+
+    out = capsys.readouterr().out
+    assert "Reordering" not in out

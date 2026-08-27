@@ -492,16 +492,43 @@ def test_find_component_row_no_match_returns_none(ucv):
     assert ucv.find_component_row(rows, "openformulieren") is None
 
 
+DEPS = [
+    {"name": "openformulieren", "version": "1.12.0"},
+    {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"},
+]
+VALUES = {"openformulieren": {}, "zac": {}}
+
+
 def test_update_component_table_adds_new_row(ucv):
     text = (
         "| Component | App version | Helm chart | Notes |\n"
         "| --- | --- | --- | --- |\n"
         "| zac | 5.0.2 → 5.1.0 | 1.0.297 (unchanged) | - |\n"
     )
-    new_text, action = ucv.update_component_table(text, "openformulieren", "3.4.10", "3.5.6", "1.12.0", "1.12.0")
+    new_text, action = ucv.update_component_table(text, "openformulieren", "3.4.10", "3.5.6", "1.12.0", "1.12.0",
+                                                    DEPS, VALUES)
     assert action == "added"
     assert "| openformulieren | 3.4.10 → 3.5.6 | 1.12.0 (unchanged) | - |" in new_text
     assert "| zac | 5.0.2 → 5.1.0 | 1.0.297 (unchanged) | - |" in new_text  # untouched
+
+
+def test_update_component_table_new_row_inserted_in_values_yaml_order(ucv):
+    """openformulieren comes BEFORE zac in VALUES's own top-level key
+    order -- the new row must land above the existing zac row, not always
+    appended at the end."""
+    text = (
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| zac | 5.0.2 → 5.1.0 | 1.0.297 (unchanged) | - |\n"
+    )
+    new_text, action = ucv.update_component_table(text, "openformulieren", "3.4.10", "3.5.6", "1.12.0", "1.12.0",
+                                                    DEPS, VALUES)
+    assert action == "added"
+    lines = [l for l in new_text.splitlines() if l.startswith("| zac") or l.startswith("| openformulieren")]
+    assert lines == [
+        "| openformulieren | 3.4.10 → 3.5.6 | 1.12.0 (unchanged) | - |",
+        "| zac | 5.0.2 → 5.1.0 | 1.0.297 (unchanged) | - |",
+    ]
 
 
 def test_update_component_table_updates_existing_row(ucv):
@@ -510,7 +537,8 @@ def test_update_component_table_updates_existing_row(ucv):
         "| --- | --- | --- | --- |\n"
         "| openformulieren | 3.4.9 → 3.4.10 | 1.12.0 (unchanged) | - |\n"
     )
-    new_text, action = ucv.update_component_table(text, "openformulieren", "3.4.10", "3.5.6", "1.12.0", "1.12.0")
+    new_text, action = ucv.update_component_table(text, "openformulieren", "3.4.10", "3.5.6", "1.12.0", "1.12.0",
+                                                    [], {})
     assert action == "updated"
     assert "| openformulieren | 3.4.10 → 3.5.6 | 1.12.0 (unchanged) | - |" in new_text
     assert "3.4.9" not in new_text
@@ -518,7 +546,8 @@ def test_update_component_table_updates_existing_row(ucv):
 
 def test_update_component_table_no_table_returns_none_action(ucv):
     text = "# Upgrade guide\n\nJust prose, no table.\n"
-    new_text, action = ucv.update_component_table(text, "openformulieren", "3.4.10", "3.5.6", "1.12.0", "1.12.0")
+    new_text, action = ucv.update_component_table(text, "openformulieren", "3.4.10", "3.5.6", "1.12.0", "1.12.0",
+                                                    [], {})
     assert action is None
     assert new_text == text
 
@@ -554,15 +583,29 @@ def test_make_changes_section_includes_chart_bullet_when_changed(ucv):
 
 
 def test_insert_changes_section_appends_before_next_heading(ucv):
+    """No existing block resolves to any dependency here ("zac ..." has no
+    real version text to anchor match_dependency, and DEPS/VALUES aren't
+    supplied) -- falls back to appending at the section end, right before
+    the next "## " heading."""
     text = "## Changes\n\n### zac ...\n\nblah\n\n## Per-environment checklist\n\nsteps\n"
-    new_text = ucv.insert_changes_section(text, "### openformulieren ...\n\n")
+    new_text = ucv.insert_changes_section(text, "### openformulieren ...\n\n", "openformulieren", [], {})
     assert new_text.index("### openformulieren") < new_text.index("## Per-environment checklist")
     assert "### zac ..." in new_text
 
 
+def test_insert_changes_section_inserted_in_values_yaml_order(ucv):
+    """openformulieren comes BEFORE zac in VALUES's own top-level key
+    order -- the new block must land above the existing zac block, not
+    always appended at the end."""
+    text = "## Changes\n\n### zac 5.0.2 → 5.1.0 (chart 1.0.297, unchanged)\n\nblah\n"
+    new_text = ucv.insert_changes_section(
+        text, "### openformulieren 3.4.10 → 3.5.6 (chart 1.12.0, unchanged)\n\n", "openformulieren", DEPS, VALUES)
+    assert new_text.index("### openformulieren") < new_text.index("### zac")
+
+
 def test_insert_changes_section_no_changes_heading_appends_at_end(ucv):
     text = "# Doc\n\nno changes section here\n"
-    new_text = ucv.insert_changes_section(text, "### new section\n")
+    new_text = ucv.insert_changes_section(text, "### new section\n", "openformulieren", [], {})
     assert new_text.endswith("### new section\n")
 
 

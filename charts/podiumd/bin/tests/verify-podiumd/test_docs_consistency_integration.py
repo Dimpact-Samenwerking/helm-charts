@@ -168,3 +168,99 @@ def test_component_changed_with_no_key_diffs_still_needs_values_deltas_mention(v
     ok, detail = vp.check_docs_consistency(chart_repo, baseline="4.8.5")
     assert ok is False
     assert "mismatch" in detail
+
+
+# --- Component versions table / Changes section ordering ---
+
+ORDER_CHART_YAML = """\
+apiVersion: v2
+name: podiumd
+version: 4.9.0
+dependencies:
+  - name: openzaak
+    version: 1.14.2
+    repository: "@maykinmedia"
+  - name: openinwoner
+    version: 2.4.0
+    repository: "@maykinmedia"
+"""
+
+# openzaak's own block comes BEFORE openinwoner's -- this file order is
+# the ordering signal values_key_order reads, so the doc is expected to
+# list Open Zaak before Open Inwoner too.
+ORDER_VALUES_YAML = (
+    'openzaak:\n  image:\n    tag: "1.27.4@sha256:aaaa"\n'
+    'openinwoner:\n  image:\n    tag: "2.4.2@sha256:bbbb"\n'
+)
+
+ZAAK_ROW = "| Open Zaak | 1.27.4 | 1.14.2 | - |"
+INWONER_ROW = "| Open Inwoner | 2.4.2 | 2.4.0 | - |"
+
+
+def order_doc(table_rows, changes_headings):
+    table = "\n".join(table_rows)
+    changes = "\n\n".join(f"### {h}\n\nDetails.\n" for h in changes_headings)
+    return (
+        "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        f"{table}\n\n"
+        "## Changes\n\n"
+        f"{changes}\n"
+    )
+
+
+@pytest.fixture
+def order_chart_dir(tmp_path):
+    chart_dir = tmp_path / "charts" / "podiumd"
+    doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
+    (chart_dir / "docs" / "images").mkdir(parents=True)
+    doc_dir.mkdir(parents=True)
+    (chart_dir / "Chart.yaml").write_text(ORDER_CHART_YAML)
+    (chart_dir / "values.yaml").write_text(ORDER_VALUES_YAML)
+    return chart_dir, doc_dir
+
+
+def test_correctly_ordered_table_and_changes_pass(vp, order_chart_dir):
+    chart_dir, doc_dir = order_chart_dir
+    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
+        order_doc([ZAAK_ROW, INWONER_ROW], ["Open Zaak bump", "Open Inwoner bump"]))
+    ok, detail = vp.check_docs_consistency(chart_dir, baseline=None)
+    assert ok is True, detail
+
+
+def test_out_of_order_table_row_is_caught(vp, order_chart_dir, capsys):
+    chart_dir, doc_dir = order_chart_dir
+    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
+        order_doc([INWONER_ROW, ZAAK_ROW], ["Open Zaak bump", "Open Inwoner bump"]))
+    ok, detail = vp.check_docs_consistency(chart_dir, baseline=None)
+    assert ok is False
+    assert "mismatch" in detail
+    out = capsys.readouterr().out
+    assert '"Component versions" table lists "Open Zaak" right after "Open Inwoner"' in out
+    assert "should follow values.yaml's own component order" in out
+
+
+def test_out_of_order_changes_block_is_caught(vp, order_chart_dir, capsys):
+    chart_dir, doc_dir = order_chart_dir
+    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
+        order_doc([ZAAK_ROW, INWONER_ROW], ["Open Inwoner bump", "Open Zaak bump"]))
+    ok, detail = vp.check_docs_consistency(chart_dir, baseline=None)
+    assert ok is False
+    assert "mismatch" in detail
+    out = capsys.readouterr().out
+    assert '"## Changes" section has "### Open Zaak bump" right after "### Open Inwoner bump"' in out
+    assert "Changes blocks should follow values.yaml's own component order" in out
+
+
+def test_unmatched_summary_row_never_flagged_against_real_components(vp, order_chart_dir):
+    """A row that doesn't resolve to any Chart.yaml dependency (e.g. a
+    shared-image summary row) sorts after every real component and must
+    never itself trigger an ordering mismatch."""
+    chart_dir, doc_dir = order_chart_dir
+    summary_row = "| nginx-unprivileged (shared sidecar) | 1.31.4 | — | - |"
+    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
+        order_doc([ZAAK_ROW, INWONER_ROW, summary_row], ["Open Zaak bump", "Open Inwoner bump"]))
+    ok, detail = vp.check_docs_consistency(chart_dir, baseline=None)
+    assert ok is True, detail

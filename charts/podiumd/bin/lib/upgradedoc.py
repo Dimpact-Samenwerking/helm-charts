@@ -37,6 +37,164 @@ def extract_source_version(cell):
     return m.group(1) if m else None
 
 
+def values_key_order(values):
+    """Top-level keys of values.yaml in the order they appear in the file,
+    top to bottom — yaml.safe_load's mapping is a plain dict, which
+    preserves insertion order (Python 3.7+); for a top-level mapping that
+    IS the file's own line order. Every doc's "Component versions" table
+    and "## Changes" section is expected to mirror this same order, so a
+    reader scanning one can find a component at roughly the same "place"
+    scanning the other."""
+    return list(values.keys()) if isinstance(values, dict) else []
+
+
+def component_order_key(name, deps, key_order):
+    """A doc item's (table row name, or "### ..." Changes heading) sort
+    position: the values.yaml top-level key match_dependency resolves
+    `name` to, as its index in key_order — or len(key_order) (sorts after
+    every real component) when `name` doesn't resolve to a single
+    Chart.yaml dependency at all (e.g. a row summarizing several
+    shared-image components at once, or free-form prose that doesn't name
+    one). Shared by the docs-consistency out-of-order check and
+    set-doc-baseline's own reordering passes, so "what order should this
+    be in" is answered exactly once."""
+    dep = match_dependency(name, deps)
+    values_key = dep.get("alias", dep["name"]) if dep else None
+    if values_key is None:
+        return len(key_order)
+    try:
+        return key_order.index(values_key)
+    except ValueError:
+        return len(key_order)
+
+
+def find_out_of_order_names(names, deps, key_order):
+    """[(name_a, name_b), ...] for every ADJACENT pair whose relative order
+    contradicts values.yaml's own top-level key order (see
+    component_order_key) — checking only adjacent pairs is sufficient to
+    catch any out-of-order sequence, since a non-monotonic sequence always
+    has at least one adjacent inversion. A name that doesn't resolve to any
+    dependency sorts after every real one (see component_order_key) and
+    never itself causes a violation against another such name, since both
+    share the same sentinel key."""
+    violations = []
+    for a, b in zip(names, names[1:]):
+        if component_order_key(b, deps, key_order) < component_order_key(a, deps, key_order):
+            violations.append((a, b))
+    return violations
+
+
+def insertion_index(new_key, existing_keys):
+    """The index into `existing_keys` (each a component_order_key result,
+    in their current order) where an item with new_key should be inserted
+    to keep the sequence in non-decreasing key order: the first position
+    whose existing key is strictly greater, or the end if there is none
+    (also what happens when every existing item shares the same
+    "unmatched" sentinel key — a genuinely new component is never shoved
+    ahead of them without evidence it belongs there)."""
+    for i, k in enumerate(existing_keys):
+        if k > new_key:
+            return i
+    return len(existing_keys)
+
+
+CHANGES_BLOCK_HEADING_RE = re.compile(r"^###\s+(.+)$")
+
+
+def parse_upgrade_doc_changes_blocks(text):
+    """(heading, start, end) for every "### ..." item directly under the
+    "## Changes" section of an upgrade doc — start is the heading line's
+    0-based index, end is exclusive (the next "### " heading, the next
+    "## " heading, or EOF). A "#### ..." (H4) sub-heading nested inside a
+    block (e.g. "#### Action required") is part of that block, not a
+    block of its own — the regex requires exactly 3 "#" immediately
+    followed by whitespace, which a 4th "#" fails. Returns [] if the doc
+    has no "## Changes" section at all."""
+    lines = text.splitlines(keepends=True)
+    changes_idx = None
+    for i, line in enumerate(lines):
+        if line.strip() == "## Changes":
+            changes_idx = i
+            break
+    if changes_idx is None:
+        return []
+
+    section_end = len(lines)
+    for i in range(changes_idx + 1, len(lines)):
+        if re.match(r"^##\s+\S", lines[i]):
+            section_end = i
+            break
+
+    heading_indices = [i for i in range(changes_idx + 1, section_end)
+                        if CHANGES_BLOCK_HEADING_RE.match(lines[i])]
+    blocks = []
+    for j, start in enumerate(heading_indices):
+        end = heading_indices[j + 1] if j + 1 < len(heading_indices) else section_end
+        blocks.append({
+            "heading": CHANGES_BLOCK_HEADING_RE.match(lines[start]).group(1),
+            "start": start,
+            "end": end,
+        })
+    return blocks
+
+
+def sort_upgrade_doc_rows(text, deps, values):
+    """Reorder the "Component versions" table's rows (physically, in the
+    text) to match values.yaml's own top-level key order — see
+    values_key_order/component_order_key. Returns (new_text, moved) where
+    moved is [(name, old_position, new_position)] (1-based, among just the
+    table's own rows) for every row whose position actually changed —
+    empty (and text returned unchanged) if the table already matches, or
+    has fewer than 2 rows to meaningfully order. Row CONTENT is never
+    touched, only which physical line slot it occupies."""
+    rows = parse_upgrade_doc_rows(text)
+    if len(rows) < 2:
+        return text, []
+
+    key_order = values_key_order(values)
+    names = [row["name"] for row in rows]
+    order = sorted(range(len(names)), key=lambda i: component_order_key(names[i], deps, key_order))
+    moved = [(names[i], i + 1, slot + 1) for slot, i in enumerate(order) if i != slot]
+    if not moved:
+        return text, []
+
+    lines = text.splitlines(keepends=True)
+    slots = [row["line_index"] for row in rows]
+    original_lines = [lines[slot] for slot in slots]
+    for slot, i in zip(slots, order):
+        lines[slot] = original_lines[i]
+    return "".join(lines), moved
+
+
+def sort_changes_blocks(text, deps, values):
+    """Reorder the "## Changes" section's "### ..." blocks (each block's
+    full text, heading through its last line before the next block) to
+    match values.yaml's own top-level key order — the same rule
+    sort_upgrade_doc_rows applies to table rows. Returns (new_text, moved)
+    — moved is [(heading, old_position, new_position)] (1-based) for every
+    block that moved; empty (text unchanged) if already in order or fewer
+    than 2 blocks exist."""
+    blocks = parse_upgrade_doc_changes_blocks(text)
+    if len(blocks) < 2:
+        return text, []
+
+    key_order = values_key_order(values)
+    headings = [b["heading"] for b in blocks]
+    order = sorted(range(len(headings)), key=lambda i: component_order_key(headings[i], deps, key_order))
+    moved = [(headings[i], i + 1, slot + 1) for slot, i in enumerate(order) if i != slot]
+    if not moved:
+        return text, []
+
+    lines = text.splitlines(keepends=True)
+    original_texts = ["".join(lines[b["start"]:b["end"]]) for b in blocks]
+    new_texts = [original_texts[i] for i in order]
+
+    first_start, last_end = blocks[0]["start"], blocks[-1]["end"]
+    prefix = "".join(lines[:first_start])
+    suffix = "".join(lines[last_end:])
+    return prefix + "".join(new_texts) + suffix, moved
+
+
 def parse_upgrade_doc_rows(text):
     """Every row of the "Component versions" table — whichever components
     that release actually changed, not a fixed list. Each row carries its
