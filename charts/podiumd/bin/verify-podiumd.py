@@ -181,7 +181,7 @@ Usage:
         # unrelated to what you're testing. Valid step names: utf8-format,
         # dupe-check, dry-check, image-references, node-selector,
         # digest-pinning, vendored-tgz, docs-consistency, helm-docs-check, repo-access,
-        # dependencies, image-digests, helm-lint, full-render, yamllint,
+        # dependencies, subchart-images, image-digests, helm-lint, full-render, yamllint,
         # kubeconform, shellcheck, kube-score, image-upgrades, cve-scan.
         # See --help for the full list.
         # Note: cve-scan is the one most worth skipping day to day if you
@@ -233,7 +233,7 @@ from lib.dependencies import check_dependencies, ensure_repos_configured
 from lib.repo_access import check_repo_access
 from lib.image_upgrade_check import check_image_upgrades
 from lib.image_references_check import check_image_references
-from lib.digest_pinning_check import check_digest_pinning
+from lib.digest_pinning_check import check_digest_pinning, check_subchart_image_visibility
 from lib.node_selector_check import check_node_selector
 from lib.docs_consistency import check_docs_consistency
 from lib.helm_docs_check import check_helm_docs
@@ -407,6 +407,7 @@ SKIPPABLE_STEPS = [
     ("helm-docs-check", "Helm docs check"),
     ("repo-access", "Repo access"),
     ("dependencies", "Dependencies"),
+    ("subchart-images", "Subchart image visibility"),
     ("image-digests", "Image digests"),
     ("helm-lint", "Helm lint"),
     ("full-render", "Full render"),
@@ -429,7 +430,9 @@ SKIPPABLE_STEPS = [
 # reading the vendored subchart's own default straight out of its .tgz
 # (lib.chart.subchart_default_repository) — charts/*.tgz is gitignored, so
 # on a fresh checkout it doesn't exist at all until "Dependencies" has
-# actually run once. "CVE scan" additionally needs "Image upgrades" to
+# actually run once. "Subchart image visibility" needs it for the same
+# reason — it reads every vendored dependency's own default values.yaml
+# straight out of its .tgz (lib.chart.subchart_values). "CVE scan" additionally needs "Image upgrades" to
 # have actually run: it reads that step's cache (read-only, see
 # lib.cve_check) to annotate a finding "upgradable to X", and a
 # --include=cve-scan run with no fresh cache already on disk would
@@ -442,6 +445,7 @@ SKIPPABLE_STEPS = [
 # full run).
 STEP_PREREQUISITES = {
     "Dependencies": ("Repo access",),
+    "Subchart image visibility": ("Dependencies",),
     "Image digests": ("Dependencies",),
     "Helm lint": ("Dependencies",),
     "Full render": ("Dependencies",),
@@ -600,6 +604,10 @@ def main():
         die(msg)
 
     run_step("Dependencies", "Resolving dependencies (helm dependency update)", check_dependencies, chart_dir)
+
+    run_step("Subchart image visibility",
+             "Checking for images defined only in a vendored sub-chart's own default values.yaml",
+             check_subchart_image_visibility, chart_dir)
 
     run_step("Image digests", "Checking image digests against upstream registries",
              check_image_digests, chart_dir)

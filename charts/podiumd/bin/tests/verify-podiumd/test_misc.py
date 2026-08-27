@@ -153,6 +153,7 @@ def test_main_skips_requested_steps_and_runs_the_rest(vp, monkeypatch, capsys):
     monkeypatch.setattr(vp, "check_image_references", make_check("image-refs"))
     monkeypatch.setattr(vp, "check_node_selector", make_check("node-selector"))
     monkeypatch.setattr(vp, "check_digest_pinning", make_check("digest-pinning"))
+    monkeypatch.setattr(vp, "check_subchart_image_visibility", make_check("subchart-images"))
     monkeypatch.setattr(vp, "check_image_digests", make_check("digests"))
     monkeypatch.setattr(vp, "check_docs_consistency", make_check("docs"))
     monkeypatch.setattr(vp, "check_helm_docs", make_check("helm-docs"))
@@ -173,8 +174,8 @@ def test_main_skips_requested_steps_and_runs_the_rest(vp, monkeypatch, capsys):
     vp.main()  # must not raise / must not sys.exit
 
     assert ran == ["utf8", "dupe", "dry", "image-refs", "node-selector", "digest-pinning", "tgz", "docs",
-                    "helm-docs", "repo-access", "deps", "digests", "yamllint", "kubeconform", "shellcheck",
-                    "kube-score", "image-upgrades", "cves"]
+                    "helm-docs", "repo-access", "deps", "subchart-images", "digests", "yamllint", "kubeconform",
+                    "shellcheck", "kube-score", "image-upgrades", "cves"]
     out = capsys.readouterr().out
     assert "Helm lint" in out and "SKIP" in out
     assert "Full render" in out and "SKIP" in out
@@ -253,6 +254,7 @@ def _stub_all_checks(vp, monkeypatch, ran):
     monkeypatch.setattr(vp, "check_image_references", make_check("image-refs"))
     monkeypatch.setattr(vp, "check_node_selector", make_check("node-selector"))
     monkeypatch.setattr(vp, "check_digest_pinning", make_check("digest-pinning"))
+    monkeypatch.setattr(vp, "check_subchart_image_visibility", make_check("subchart-images"))
     monkeypatch.setattr(vp, "check_image_digests", make_check("digests"))
     monkeypatch.setattr(vp, "check_docs_consistency", make_check("docs"))
     monkeypatch.setattr(vp, "check_helm_docs", make_check("helm-docs"))

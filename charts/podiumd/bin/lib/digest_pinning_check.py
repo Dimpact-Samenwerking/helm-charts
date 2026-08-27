@@ -29,7 +29,7 @@ Two known exceptions:
   tag; the tag must contain ONLY the version."""
 import re
 
-from lib.chart import load_yaml
+from lib.chart import get_path, load_yaml, subchart_values
 from lib.upgradedoc import find_image_tag_paths
 
 # "@sha256:<64 hex chars>" at the end of a tag value — the same shape
@@ -70,3 +70,68 @@ def check_digest_pinning(chart_dir):
         print(f"  {'.'.join(path)}.image.tag: {tag!r}")
 
     return False, f"{len(missing)}/{len(images)} image(s) not digest-pinned"
+
+
+def find_unresolved_subchart_images(chart_dir):
+    """(scope_key, subpath, tag, already_pinned) for every "image: {tag:
+    ...}" block found in a vendored dependency's OWN default values.yaml
+    (see lib.chart.subchart_values) that podiumd's own values.yaml does
+    NOT override at the corresponding path — i.e. an image the check
+    above can never see, since it only ever walks podiumd's own
+    values.yaml, not a sub-chart's. `scope_key` is the dependency's alias
+    (or name) as used in podiumd's own values.yaml; `subpath` is the
+    dotted path within that scope ("" for the sub-chart's own top-level
+    "image:"). A dependency not yet vendored (no .tgz under
+    chart_dir/charts/ — see the "Dependencies" step) is silently skipped,
+    since there's nothing on disk yet to read; a genuinely un-findable
+    default counts the same as no default at all rather than a hard
+    error, since Helm itself would fall back to whatever's actually
+    vendored at render time regardless of what this scan can parse.
+
+    Deliberately NOT cross-checked against EXEMPT_PATHS above — those
+    exempt fields (keycloak-operator.operator, omc) are ones podiumd DOES
+    override in its own values.yaml (that's the whole reason they need an
+    exemption from the check above), so they already have an own_tag here
+    and never show up as unresolved in the first place."""
+    chart_yaml = load_yaml(chart_dir / "Chart.yaml")
+    own_values = load_yaml(chart_dir / "values.yaml") or {}
+
+    findings = []
+    for dep in chart_yaml.get("dependencies", []):
+        scope_key = dep.get("alias") or dep["name"]
+        sub_values = subchart_values(chart_dir, dep)
+        if sub_values is None:
+            continue
+        for path, tag in find_image_tag_paths(sub_values):
+            subpath = ".".join(path)
+            own_image_tag_path = f"{scope_key}.{subpath}.image.tag" if subpath else f"{scope_key}.image.tag"
+            if get_path(own_values, own_image_tag_path) is None:
+                findings.append((scope_key, subpath, tag, bool(DIGEST_SUFFIX_RE.search(tag))))
+    return findings
+
+
+def check_subchart_image_visibility(chart_dir):
+    """Report-only: lists every image find_unresolved_subchart_images()
+    finds, so a NEW one introduced by a dependency bump doesn't silently
+    stay invisible to the pinning discipline the rest of this chart
+    follows. Never fails the run — whether a given sub-chart-default
+    image actually warrants a podiumd override (vs. being fine left as
+    dead config, a permanently-disabled feature, or a generic default
+    nobody needs to touch) is a per-case judgment call this scan can't
+    make on its own; a human decides that from the report."""
+    findings = find_unresolved_subchart_images(chart_dir)
+    if not findings:
+        print("OK: no sub-chart-default images found without a podiumd override")
+        return True, "0 unresolved"
+
+    unpinned = [f for f in findings if not f[3]]
+    print(f"Found {len(findings)} image(s) defined only in a vendored sub-chart's own "
+          f"default values.yaml, with no podiumd override — invisible to the digest-"
+          f"pinning check above ({len(unpinned)} of these use a floating tag in that "
+          f"default). Not a failure: decide per image whether it warrants an override.")
+    for scope_key, subpath, tag, pinned in sorted(findings):
+        own_image_tag_path = f"{scope_key}.{subpath}.image.tag" if subpath else f"{scope_key}.image.tag"
+        marker = "pinned" if pinned else "FLOATING"
+        print(f"  {own_image_tag_path}: {tag!r} ({marker} in the sub-chart's own default)")
+
+    return True, f"{len(findings)} unresolved ({len(unpinned)} floating tag(s)) — report only"
