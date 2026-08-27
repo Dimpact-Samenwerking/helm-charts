@@ -65,6 +65,7 @@ from lib.component_docs import (
 )
 from lib.image_version import image_basename, update_image_version
 from lib.procutil import run_script
+from lib.registry import parse_repo, registry_tag_exists
 from lib.upgradedoc import append_to_doc, describe_key_changes
 
 UPDATE_README_SCRIPT = SCRIPT_DIR / "update-podiumd-readme.py"
@@ -174,6 +175,81 @@ def locate_dotted_key_line(lines, dotted_path):
         start = idx + 1
         end = find_block_end(lines, idx, indent)
     return idx, indent
+
+
+# (values_key, path) pairs using the adfinis keycloak-operator chart's own
+# split "tag:" + sibling "sha:" convention instead of the combined "tag:
+# <version>@sha256:<digest>" pin every other image in this chart uses — the
+# adfinis template renders "repository:tag@sha256:{{ .sha }}" itself, so
+# embedding @sha256 in "tag" too would produce an invalid double digest
+# (see the values.yaml comments above operator.image/operator.config.
+# keycloakImage). Checked BEFORE the normal explicit-repository/subchart-
+# default split below: both paths DO have an explicit "repository:", so
+# without this they'd wrongly take the "delegated" branch, whose write
+# logic (lib.image_version.update_image_version) only ever finds/writes a
+# combined pin and would silently find nothing to change here.
+SPLIT_TAG_SHA_PATHS = {
+    ("keycloak-operator", "operator.image"),
+    ("keycloak-operator", "operator.config.keycloakImage"),
+}
+
+
+def locate_parent_block(lines, dotted_path):
+    """Walk a dotted path down through nested mapping blocks, returning
+    (indent, start, end) for the FINAL segment's own body: the indent of
+    its own key line, and the [start, end) line range its children
+    occupy. The same walk locate_dotted_key_line does, just stopping one
+    level higher so a caller can look for more than one sibling key
+    within that body — see locate_tag_and_sha, which needs both "tag"
+    and "sha". None if any segment can't be found unambiguously."""
+    segments = dotted_path.split(".")
+    indent, start, end = -1, 0, len(lines)
+    for seg in segments:
+        idx = find_child_key_line(lines, seg, indent, start, end)
+        if idx is None:
+            return None
+        indent = len(lines[idx]) - len(lines[idx].lstrip(" "))
+        start = idx + 1
+        end = find_block_end(lines, idx, indent)
+    return indent, start, end
+
+
+def locate_tag_and_sha(lines, values_key, path):
+    """(tag_line_index, tag_indent, sha_line_index_or_None) for the
+    "tag:"/"sha:" pair at values_key.path — see SPLIT_TAG_SHA_PATHS for
+    why these two fields need this instead of the usual combined pin.
+    sha_line_index is None when podiumd doesn't override "sha" yet at
+    this path (the vendored subchart's own default sha applies as-is,
+    e.g. operator.image today) — the caller inserts a new "sha:" line
+    right after "tag:" in that case, rather than editing one that isn't
+    there. Returns None if "tag:" itself can't be found."""
+    located = locate_parent_block(lines, f"{values_key}.{path}")
+    if located is None:
+        return None
+    parent_indent, start, end = located
+    tag_idx = find_child_key_line(lines, "tag", parent_indent, start, end)
+    if tag_idx is None:
+        return None
+    tag_indent = len(lines[tag_idx]) - len(lines[tag_idx].lstrip(" "))
+    sha_idx = find_child_key_line(lines, "sha", parent_indent, start, end)
+    return tag_idx, tag_indent, sha_idx
+
+
+def write_tag_and_sha(lines, tag_line_index, tag_indent, sha_line_index, new_version, new_digest_hex):
+    """Write new_version into the "tag:" line at tag_line_index — bare,
+    never embedding @sha256 (see SPLIT_TAG_SHA_PATHS) — and
+    new_digest_hex (the bare hex digest, no "sha256:" prefix; the
+    chart's own template appends that itself) into the sibling "sha:"
+    line if one already exists, or inserts a new one right after "tag:"
+    at the same indent if podiumd doesn't override it yet. Mutates
+    `lines` in place (keepends=True, matching update_values_yaml's own
+    convention); returns nothing."""
+    lines[tag_line_index] = replace_scalar_value(lines[tag_line_index], new_version)
+    if sha_line_index is not None:
+        lines[sha_line_index] = replace_scalar_value(lines[sha_line_index], new_digest_hex)
+    else:
+        indent_str = " " * tag_indent
+        lines.insert(tag_line_index + 1, f'{indent_str}sha: "{new_digest_hex}"\n')
 
 
 def update_chart_yaml(chart_name, new_chart_version):
@@ -286,10 +362,37 @@ def main():
     new_tags_by_path = {}
     repos = {}
     if paths_to_update:
-        delegated_paths, fallback_paths = [], []
+        split_paths, delegated_paths, fallback_paths = [], [], []
         for path in paths_to_update:
+            if (values_key, path) in SPLIT_TAG_SHA_PATHS:
+                split_paths.append(path)
+                continue
             explicit_repo = get_path(values, f"{values_key}.{path}.repository")
             (delegated_paths if isinstance(explicit_repo, str) and explicit_repo else fallback_paths).append(path)
+
+        if split_paths:
+            values_lines = VALUES_YAML.read_text(encoding="utf-8").splitlines(keepends=True)
+            print()
+            print(f"=== Writing split tag/sha pin(s) for {', '.join(f'{values_key}.{p}' for p in split_paths)} ===")
+            for path in split_paths:
+                repo = get_path(values, f"{values_key}.{path}.repository")
+                if not isinstance(repo, str) or not repo:
+                    raise SystemExit(f"error: no repository found at {values_key}.{path}.repository in {VALUES_YAML}")
+                repos[path] = repo
+                host, repo_path = parse_repo(repo)
+                exists, digest = registry_tag_exists(host, repo_path, app_version)
+                if not exists or not digest:
+                    raise SystemExit(f"error: {host}/{repo_path}:{app_version} not found upstream")
+                digest_hex = digest.split("sha256:", 1)[1]
+                located = locate_tag_and_sha(values_lines, values_key, path)
+                if located is None:
+                    raise SystemExit(f"error: could not find '{values_key}.{path}.tag' in {VALUES_YAML}")
+                tag_idx, tag_indent, sha_idx = located
+                write_tag_and_sha(values_lines, tag_idx, tag_indent, sha_idx, app_version, digest_hex)
+                new_tags_by_path[path] = f"{app_version}@sha256:{digest_hex}"
+                print(f"  {values_key}.{path}: {host}/{repo_path}:{app_version} -> sha256:{digest_hex}"
+                      f"{'  (adding sha: — no override yet)' if sha_idx is None else ''}")
+            VALUES_YAML.write_text("".join(values_lines), encoding="utf-8")
 
         if delegated_paths:
             values_lines = VALUES_YAML.read_text(encoding="utf-8").splitlines()
