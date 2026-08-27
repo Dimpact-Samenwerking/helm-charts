@@ -1,0 +1,506 @@
+"""Checks that component versions in Chart.yaml + values.yaml match the
+matching docs/_UPGRADE_PATHS/*-to-<version>-upgrade.md and
+docs/images/images-<version>.yaml — and, given a baseline, that every
+component that actually changed vs. the baseline has a row/mention/entry
+in the right doc, even if no doc mentions it yet."""
+import re
+
+import yaml
+
+from lib.chart import load_yaml
+from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
+from lib.upgradedoc import (
+    actual_app_version, compute_changed_components, diff_keys, extract_mentioned_dependency_keys,
+    extract_source_version, extract_target_version, find_grouped_preceding_comment,
+    find_image_tag_paths, find_out_of_order_names, match_dependency, normalize_version, pair_renames,
+    parse_changes_block, parse_upgrade_doc_changes_blocks,
+    parse_upgrade_doc_rows as _parse_upgrade_doc_rows, resolve_entry_path, values_key_order,
+)
+
+
+def parse_upgrade_doc_rows(doc_path):
+    return _parse_upgrade_doc_rows(doc_path.read_text(encoding="utf-8"))
+
+
+def check_doc_title(doc_path, baseline, podiumd_version):
+    """Verify a doc's first line states the "<baseline> → <podiumd_version>"
+    pair — catches a doc that was renamed without updating its own heading."""
+    lines = doc_path.read_text(encoding="utf-8").splitlines()
+    first_line = lines[0] if lines else ""
+    if not re.search(rf"{re.escape(baseline)}\s*(?:→|->)\s*{re.escape(podiumd_version)}", first_line):
+        return [f'{doc_path.name} title line "{first_line}" does not read '
+                f'"{baseline} → {podiumd_version}"']
+    return []
+
+
+def check_companion_doc(doc_dir, baseline, podiumd_version, suffix):
+    """When a bare-version baseline is given, verify the matching
+    <baseline>-to-<podiumd_version>-<suffix>.md exists and its title line
+    states the same "<baseline> → <podiumd_version>" pair."""
+    name = f"{baseline}-to-{podiumd_version}-{suffix}.md"
+    doc_path = doc_dir / name
+    if not doc_path.is_file():
+        return name, [f'expected "{name}" does not exist']
+    return name, check_doc_title(doc_path, baseline, podiumd_version)
+
+
+def check_markdown_format(doc_path):
+    """Minimal sanity check that a doc is well-formed markdown, before trying
+    to parse anything out of it: non-empty, opens with a level-1 heading, and
+    any fenced code blocks are balanced (an unclosed ``` silently swallows
+    the rest of the file when rendered)."""
+    text = doc_path.read_text(encoding="utf-8")
+    if not text.strip():
+        return ["file is empty"]
+
+    issues = []
+    first_line = text.splitlines()[0]
+    if not first_line.startswith("# "):
+        issues.append(f'first line "{first_line}" is not a level-1 heading ("# ...")')
+
+    fence_count = len(re.findall(r"^```", text, re.MULTILINE))
+    if fence_count % 2 != 0:
+        issues.append(f"{fence_count} fenced code block markers (```) — unbalanced")
+
+    return issues
+
+
+def check_baseline_doc_set(doc_dir, baseline, podiumd_version):
+    """Existence + markdown-format precheck for all three baseline docs,
+    run BEFORE any content-based check on them — a doc that's missing or
+    malformed makes every downstream check on it meaningless."""
+    issues = []
+    for suffix in ("upgrade", "gemeente-specific", "values-deltas"):
+        name = f"{baseline}-to-{podiumd_version}-{suffix}.md"
+        doc_path = doc_dir / name
+        if not doc_path.is_file():
+            issues.append(f'expected "{name}" does not exist')
+            continue
+        issues.extend(f"{name}: {issue}" for issue in check_markdown_format(doc_path))
+    return issues
+
+
+SIBLING_DOC_RE = re.compile(
+    r"(\d+\.\d+\.\d+)-to-(\d+\.\d+\.\d+)-(upgrade|gemeente-specific|values-deltas)\.md")
+IMAGES_REF_RE = re.compile(r"images-(\d+\.\d+\.\d+)\.yaml")
+
+
+def check_pointer_consistency(doc_path, baseline, podiumd_version, doc_dir, images_dir):
+    """Every reference to a sibling <X>-to-<Y>-*.md doc or an images-<Z>.yaml
+    manifest found anywhere in this doc — comment, prose, or markdown link.
+    A reference whose target release (Y or Z) isn't podiumd_version is about
+    some other historical hop and is left alone; one that targets the current
+    release must have the current baseline as its source, and must actually
+    exist (catches a reference left stale after a rename)."""
+    text = doc_path.read_text(encoding="utf-8")
+    issues = []
+
+    for m in SIBLING_DOC_RE.finditer(text):
+        from_v, to_v, suffix = m.groups()
+        if normalize_version(to_v) != normalize_version(podiumd_version):
+            continue
+        if normalize_version(from_v) != normalize_version(baseline):
+            issues.append(f'{doc_path.name}: reference "{m.group(0)}" targets podiumd '
+                           f'{podiumd_version} but its baseline is "{from_v}", expected "{baseline}"')
+        elif not (doc_dir / m.group(0)).is_file():
+            issues.append(f'{doc_path.name}: reference "{m.group(0)}" does not exist')
+
+    for m in IMAGES_REF_RE.finditer(text):
+        version = m.group(1)
+        if normalize_version(version) != normalize_version(podiumd_version):
+            issues.append(f'{doc_path.name}: reference "{m.group(0)}" targets podiumd '
+                           f'{version}, expected "{podiumd_version}"')
+        elif not (images_dir / m.group(0)).is_file():
+            issues.append(f'{doc_path.name}: reference "{m.group(0)}" does not exist')
+
+    return issues
+
+
+def check_images_manifest_format(images_path, baseline, podiumd_version, deps, values, baseline_values):
+    """Existence + YAML-validity + header-comment-accuracy precheck for the
+    images manifest, run BEFORE the entry-by-entry content checks — mirrors
+    check_baseline_doc_set for the three markdown docs."""
+    if not images_path.is_file():
+        return [f'expected "{images_path.name}" does not exist']
+
+    text = images_path.read_text(encoding="utf-8")
+    try:
+        entries = yaml.safe_load(text)
+    except yaml.YAMLError as e:
+        return [f"{images_path.name} is not valid YAML: {e}"]
+    if not isinstance(entries, list) or not all(isinstance(e, dict) for e in entries):
+        return [f"{images_path.name} does not contain a YAML list of mappings"]
+    for i, entry in enumerate(entries):
+        missing = [k for k in ("name", "url", "version", "digest") if k not in entry]
+        if missing:
+            return [f'{images_path.name} entry #{i + 1} is missing key(s): {", ".join(missing)}']
+
+    issues = []
+
+    baseline_m = re.search(r"Baseline:\s*podiumd\s+([\w.\-]+)", text)
+    if not baseline_m:
+        issues.append(f'{images_path.name}: no "Baseline: podiumd <version>" line found')
+    elif normalize_version(baseline_m.group(1)) != normalize_version(baseline):
+        issues.append(f'{images_path.name}: baseline line says "{baseline_m.group(1)}", expected "{baseline}"')
+
+    vs_m = re.search(r"podiumd\s+([\w.\-]+)\s+vs\s+([\w.\-]+)", text)
+    if not vs_m:
+        issues.append(f'{images_path.name}: no "podiumd <target> vs <baseline>" line found')
+    else:
+        vs_target, vs_baseline = vs_m.group(1).rstrip("."), vs_m.group(2).rstrip(".")
+        if normalize_version(vs_target) != normalize_version(podiumd_version):
+            issues.append(f'{images_path.name}: "... vs ..." line says target "{vs_target}", '
+                           f'expected "{podiumd_version}"')
+        if normalize_version(vs_baseline) != normalize_version(baseline):
+            issues.append(f'{images_path.name}: "... vs ..." line says baseline "{vs_baseline}", '
+                           f'expected "{baseline}"')
+
+    for item in parse_changes_block(text):
+        dep = match_dependency(item["name"], deps)
+        if not dep:
+            issues.append(f'{images_path.name}: Changes item "{item["name"]}" — '
+                           f'no matching Chart.yaml dependency')
+            continue
+        values_key = dep.get("alias", dep["name"])
+        actual_app = actual_app_version(values, values_key)
+        actual_chart = dep["version"]
+        baseline_app = actual_app_version(baseline_values, values_key) if baseline_values else None
+
+        if item["app"] and actual_app and normalize_version(item["app"]) != normalize_version(actual_app):
+            issues.append(f'{images_path.name}: Changes item "{item["name"]}" target app '
+                           f'"{item["app"]}" != values.yaml "{actual_app}"')
+        if item["chart"] and normalize_version(item["chart"]) != normalize_version(actual_chart):
+            issues.append(f'{images_path.name}: Changes item "{item["name"]}" target chart '
+                           f'"{item["chart"]}" != Chart.yaml "{actual_chart}"')
+        if item["app_source"] and baseline_app and \
+                normalize_version(item["app_source"]) != normalize_version(baseline_app):
+            issues.append(f'{images_path.name}: Changes item "{item["name"]}" source app '
+                           f'"{item["app_source"]}" != baseline "{baseline_app}"')
+
+    lines = text.splitlines()
+    entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
+    current_paths = dict(find_image_tag_paths(values))
+    baseline_paths = dict(find_image_tag_paths(baseline_values)) if baseline_values else {}
+
+    def component_of(entry):
+        path = resolve_entry_path(entry["name"], current_paths.keys())
+        return path[0] if path else None
+
+    def same_group(entry_a, entry_b):
+        return (component_of(entry_a) is not None
+                and component_of(entry_a) == component_of(entry_b)
+                and entry_a.get("version") == entry_b.get("version"))
+
+    for index, (entry, line_idx) in enumerate(zip(entries, entry_line_indices)):
+        comment = find_grouped_preceding_comment(
+            lines, entries, entry_line_indices, index, same_group)
+        if not comment:
+            issues.append(f'{images_path.name}: entry "{entry["name"]}" has no preceding comment')
+            continue
+
+        target = extract_target_version(comment)
+        if target and normalize_version(target) != normalize_version(entry["version"]):
+            issues.append(f'{images_path.name}: entry "{entry["name"]}" comment says target '
+                           f'"{target}", entry version is "{entry["version"]}"')
+
+        if baseline_paths:
+            path = resolve_entry_path(entry["name"], current_paths.keys())
+            baseline_tag = baseline_paths.get(path) if path else None
+            baseline_version = baseline_tag.split("@")[0] if baseline_tag else None
+            source = extract_source_version(comment)
+            if source and baseline_version and \
+                    normalize_version(source) != normalize_version(baseline_version):
+                issues.append(f'{images_path.name}: entry "{entry["name"]}" comment says source '
+                               f'"{source}", baseline actually has "{baseline_version}"')
+
+    return issues
+
+
+def check_values_deltas_content(doc_path, changed_component_keys, baseline_values, values):
+    """Verify every top-level component key that was added, removed, or
+    renamed between the baseline and now is actually mentioned (backtick-
+    quoted, matching the doc convention) in values-deltas.md."""
+    text = doc_path.read_text(encoding="utf-8")
+    backtick_spans = re.findall(r"`([^`]+)`", text)
+    no_changes_claimed = bool(re.search(
+        r"no\s+gemeente\s+`?podiumd\.yml`?\s+changes\s+are\s+required", text, re.IGNORECASE))
+
+    issues = []
+    all_added, all_removed, all_renamed = [], [], []
+    for values_key in sorted(changed_component_keys):
+        baseline_subtree = baseline_values.get(values_key, {}) if isinstance(baseline_values, dict) else {}
+        current_subtree = values.get(values_key, {}) if isinstance(values, dict) else {}
+        diffs = list(diff_keys(baseline_subtree, current_subtree, (values_key,)))
+        added = [p for kind, p in diffs if kind == "added"]
+        removed = [p for kind, p in diffs if kind == "removed"]
+        renamed, added, removed = pair_renames(added, removed, baseline_subtree, current_subtree)
+        all_added.extend(added)
+        all_removed.extend(removed)
+        all_renamed.extend(renamed)
+
+    def mentioned(dotted):
+        return any(dotted in span or span in dotted for span in backtick_spans)
+
+    for path in all_added:
+        dotted = ".".join(path)
+        if not mentioned(dotted):
+            issues.append(f'{doc_path.name}: key "{dotted}" was added but is not mentioned '
+                           f'(backtick-quoted) anywhere in the doc')
+    for path in all_removed:
+        dotted = ".".join(path)
+        if not mentioned(dotted):
+            issues.append(f'{doc_path.name}: key "{dotted}" was removed but is not mentioned '
+                           f'(backtick-quoted) anywhere in the doc')
+    for old_path, new_path in all_renamed:
+        old_dotted, new_dotted = ".".join(old_path), ".".join(new_path)
+        if not (mentioned(old_dotted) and mentioned(new_dotted)):
+            issues.append(f'{doc_path.name}: key "{old_dotted}" appears renamed to "{new_dotted}" '
+                           f'but this rename is not mentioned (backtick-quoted, both sides) in the doc')
+
+    if issues and no_changes_claimed:
+        issues.insert(0, f'{doc_path.name}: claims "No gemeente podiumd.yml changes are required" '
+                          f'but {len(issues)} key change(s) were found — see below')
+    return issues
+
+
+def check_docs_consistency(chart_dir, baseline=None):
+    chart_yaml = load_yaml(chart_dir / "Chart.yaml")
+    podiumd_version = str(chart_yaml["version"])
+    deps = chart_yaml.get("dependencies", [])
+    values = load_yaml(chart_dir / "values.yaml") or {}
+
+    mismatches = []
+    checked = []
+    changed_component_keys = set()
+
+    doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
+    is_bare_version = bool(baseline and re.match(r"^\d+\.\d+\.\d+", baseline))
+
+    if is_bare_version:
+        precheck_issues = check_baseline_doc_set(doc_dir, baseline, podiumd_version)
+        if precheck_issues:
+            print(f"FOUND {len(precheck_issues)} issue(s) with the baseline doc set "
+                  f"(checked before any other check on these documents):")
+            for issue in precheck_issues:
+                print(" ", issue)
+            return False, f"{len(precheck_issues)} baseline doc issue(s)"
+
+        images_dir = chart_dir / "docs" / "images"
+        pointer_docs = [doc_dir / f"{baseline}-to-{podiumd_version}-{suffix}.md"
+                        for suffix in ("upgrade", "gemeente-specific", "values-deltas")]
+        images_path_for_pointers = images_dir / f"images-{podiumd_version}.yaml"
+        if images_path_for_pointers.is_file():
+            pointer_docs.append(images_path_for_pointers)
+        pointer_issues = [issue for doc in pointer_docs
+                           for issue in check_pointer_consistency(doc, baseline, podiumd_version,
+                                                                   doc_dir, images_dir)]
+        if pointer_issues:
+            print(f"FOUND {len(pointer_issues)} pointer issue(s) "
+                  f"(checked before any other check on these documents):")
+            for issue in pointer_issues:
+                print(" ", issue)
+            return False, f"{len(pointer_issues)} pointer issue(s)"
+
+    if is_bare_version:
+        doc_glob = f"{baseline}-to-{podiumd_version}-upgrade.md"
+    else:
+        doc_glob = f"*-to-{podiumd_version}-upgrade.md"
+    doc_matches = sorted(doc_dir.glob(doc_glob))
+
+    if baseline:
+        if is_bare_version:
+            for suffix in ("gemeente-specific", "values-deltas"):
+                doc_name, doc_mismatches = check_companion_doc(doc_dir, baseline, podiumd_version, suffix)
+                checked.append(doc_name)
+                mismatches.extend(doc_mismatches)
+        else:
+            print(f'WARNING: --baseline "{baseline}" is not a bare version — cannot check '
+                  f'for matching gemeente-specific / values-deltas docs')
+
+    baseline_ref, baseline_chart_yaml, baseline_values = None, None, {}
+    if baseline:
+        repo_root = find_repo_root(chart_dir)
+        candidates = baseline_ref_candidates(baseline)
+        if not repo_root:
+            mismatches.append(f'baseline "{baseline}": {chart_dir} is not inside a git repository')
+        else:
+            baseline_ref = resolve_git_ref(repo_root, candidates)
+            if not baseline_ref:
+                mismatches.append(f'baseline "{baseline}": could not resolve to a git ref '
+                                   f'(tried {", ".join(candidates)})')
+            else:
+                rel_chart_dir = chart_dir.relative_to(repo_root)
+                baseline_chart_yaml = git_show_yaml(repo_root, baseline_ref, f"{rel_chart_dir}/Chart.yaml")
+                baseline_values = git_show_yaml(repo_root, baseline_ref, f"{rel_chart_dir}/values.yaml") or {}
+                if baseline_chart_yaml is None:
+                    mismatches.append(f'baseline "{baseline}" (ref {baseline_ref}): '
+                                       f'could not read Chart.yaml at that ref')
+                    baseline_ref = None
+
+    baseline_deps = baseline_chart_yaml.get("dependencies", []) if baseline_chart_yaml else []
+    # Ground truth for "did this component actually change" — independent of
+    # what the docs currently say, so it also catches a component that
+    # changed but was never added to any doc at all.
+    actual_changed_keys = (
+        compute_changed_components(deps, baseline_deps, values, baseline_values)
+        if baseline_ref else set()
+    )
+
+    if not doc_matches:
+        print(f"WARNING: no upgrade doc matches {doc_glob} — skipping doc check")
+    else:
+        if len(doc_matches) > 1:
+            print(f"WARNING: multiple upgrade docs match {doc_glob}: "
+                  f"{', '.join(p.name for p in doc_matches)} — using {doc_matches[-1].name}")
+        doc_path = doc_matches[-1]
+        checked.append(doc_path.name)
+        if is_bare_version:
+            mismatches.extend(check_doc_title(doc_path, baseline, podiumd_version))
+        if baseline_ref:
+            checked.append(f"baseline {baseline_ref}")
+
+        for row in parse_upgrade_doc_rows(doc_path):
+            dep = match_dependency(row["name"], deps)
+            if not dep:
+                print(f'  (doc row "{row["name"]}" — no matching Chart.yaml dependency, skipped)')
+                continue
+            values_key = dep.get("alias", dep["name"])
+            changed_component_keys.add(values_key)
+            actual_chart = dep["version"]
+            actual_app = actual_app_version(values, values_key)
+
+            if row["chart"] and normalize_version(row["chart"]) != normalize_version(actual_chart):
+                mismatches.append(
+                    f'{values_key} ("{row["name"]}") target chart: Chart.yaml has "{actual_chart}", '
+                    f'{doc_path.name} says "{row["chart"]}"'
+                )
+            if row["app"] and actual_app and \
+                    normalize_version(row["app"]) != normalize_version(actual_app):
+                mismatches.append(
+                    f'{values_key} ("{row["name"]}") target app: values.yaml image tag is "{actual_app}", '
+                    f'{doc_path.name} says "{row["app"]}"'
+                )
+
+            if not baseline_ref:
+                continue
+            baseline_dep = match_dependency(row["name"], baseline_deps)
+            baseline_chart_actual = baseline_dep["version"] if baseline_dep else None
+            baseline_app_actual = actual_app_version(baseline_values, values_key)
+
+            if row["chart_source"] and baseline_chart_actual and \
+                    normalize_version(row["chart_source"]) != normalize_version(baseline_chart_actual):
+                mismatches.append(
+                    f'{values_key} ("{row["name"]}") source chart: {baseline_ref} has '
+                    f'"{baseline_chart_actual}", {doc_path.name} says "{row["chart_source"]}"'
+                )
+            if row["app_source"] and baseline_app_actual and \
+                    normalize_version(row["app_source"]) != normalize_version(baseline_app_actual):
+                mismatches.append(
+                    f'{values_key} ("{row["name"]}") source app: {baseline_ref} has '
+                    f'"{baseline_app_actual}", {doc_path.name} says "{row["app_source"]}"'
+                )
+
+        if baseline_ref:
+            for key in sorted(actual_changed_keys - changed_component_keys):
+                mismatches.append(
+                    f'{doc_path.name}: component "{key}" changed vs {baseline_ref} but has no row '
+                    f'in the "Component versions" table'
+                )
+
+        key_order = values_key_order(values)
+        row_names = [row["name"] for row in parse_upgrade_doc_rows(doc_path)]
+        for name_a, name_b in find_out_of_order_names(row_names, deps, key_order):
+            mismatches.append(
+                f'{doc_path.name}: "Component versions" table lists "{name_b}" right after "{name_a}", '
+                f'but values.yaml lists {name_b} before {name_a} — rows should follow values.yaml\'s '
+                f'own component order'
+            )
+
+        changes_headings = [b["heading"] for b in
+                             parse_upgrade_doc_changes_blocks(doc_path.read_text(encoding="utf-8"))]
+        for name_a, name_b in find_out_of_order_names(changes_headings, deps, key_order):
+            mismatches.append(
+                f'{doc_path.name}: "## Changes" section has "### {name_b}" right after "### {name_a}", '
+                f'but values.yaml lists the {name_b} component before {name_a} — Changes blocks should '
+                f'follow values.yaml\'s own component order'
+            )
+
+    current_paths = dict(find_image_tag_paths(values))
+    baseline_paths = dict(find_image_tag_paths(baseline_values)) if baseline_ref else {}
+
+    images_path = chart_dir / "docs" / "images" / f"images-{podiumd_version}.yaml"
+
+    if is_bare_version:
+        format_issues = check_images_manifest_format(
+            images_path, baseline, podiumd_version, deps, values,
+            baseline_values if baseline_ref else {}
+        )
+        if format_issues:
+            print(f"FOUND {len(format_issues)} issue(s) with the images manifest "
+                  f"(checked before any other check on it):")
+            for issue in format_issues:
+                print(" ", issue)
+            return False, f"{len(format_issues)} images-manifest issue(s)"
+
+    if not images_path.is_file():
+        print(f"WARNING: no images manifest at {images_path.name} — skipping images-manifest check")
+    else:
+        checked.append(images_path.name)
+        covered_paths = set()
+        for entry in (load_yaml(images_path) or []):
+            name = entry.get("name")
+            if not name:
+                continue
+            path = resolve_entry_path(name, current_paths.keys())
+            if not path:
+                print(f'  (images-manifest entry "{name}" — no matching image in values.yaml, skipped)')
+                continue
+            covered_paths.add(path)
+
+            expected_tag = f'{entry["version"]}@{entry["digest"]}'
+            actual_tag = current_paths[path]
+            if actual_tag != expected_tag:
+                mismatches.append(
+                    f'{name}: values.yaml tag is "{actual_tag}", '
+                    f'{images_path.name} says "{expected_tag}"'
+                )
+
+            if baseline_ref and baseline_paths.get(path) == expected_tag:
+                mismatches.append(
+                    f'{name}: listed in {images_path.name} as new/changed, but {baseline_ref} '
+                    f'already has this exact tag ("{expected_tag}") — did it actually change?'
+                )
+
+        if baseline_ref and actual_changed_keys:
+            for path, current_tag in current_paths.items():
+                if path[0] not in actual_changed_keys or path in covered_paths:
+                    continue
+                if baseline_paths.get(path) != current_tag:
+                    mismatches.append(
+                        f'{"/".join(path)}: tag changed ("{baseline_paths.get(path)}" -> '
+                        f'"{current_tag}") between {baseline_ref} and now, but has no entry '
+                        f'in {images_path.name}'
+                    )
+
+    if baseline_ref and is_bare_version and actual_changed_keys:
+        values_deltas_path = doc_dir / f"{baseline}-to-{podiumd_version}-values-deltas.md"
+        mentioned_keys = extract_mentioned_dependency_keys(
+            values_deltas_path.read_text(encoding="utf-8"), deps)
+        for key in sorted(actual_changed_keys - mentioned_keys):
+            mismatches.append(
+                f'{values_deltas_path.name}: component "{key}" changed vs {baseline_ref} but is '
+                f'not mentioned anywhere in the doc'
+            )
+        mismatches.extend(check_values_deltas_content(
+            values_deltas_path, actual_changed_keys, baseline_values, values))
+
+    if not checked:
+        return True, "no matching docs found — skipped"
+
+    if mismatches:
+        print(f"FOUND {len(mismatches)} mismatch(es) vs {', '.join(checked)}:")
+        for m in mismatches:
+            print(" ", m)
+        return False, f"{len(mismatches)} mismatch(es)"
+    print(f"OK: chart versions match {', '.join(checked)}")
+    return True, f"matches {', '.join(checked)}"

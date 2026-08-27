@@ -1,0 +1,81 @@
+#!/usr/bin/env python3
+"""
+Verify that a component's target Helm chart version actually exists
+(published), BEFORE writing it into charts/podiumd/Chart.yaml — a
+non-existent chart version breaks `helm dependency update` at deploy time
+rather than at edit time. The Helm repo is derived from Chart.yaml's own
+dependency entry.
+
+Usage:
+    verify-helmchart-version.py <component> <chart-version>
+
+Examples:
+    verify-helmchart-version.py zac 1.0.297
+    verify-helmchart-version.py zgw-office-addin 0.0.92
+    verify-helmchart-version.py openformulieren 1.12.0
+
+Requires the Helm repositories to already be added (see /helm-repos or
+charts/podiumd/scripts/add-helm-repos.sh) and the `helm` CLI on PATH.
+
+For checking the component's app IMAGE version instead, see
+verify-image-version.py — that check separately needs the chart version
+too (to discover the correct image repository path from that chart's own
+values.yaml), so the two aren't fully independent even though they check
+different things.
+
+Exit code is non-zero if the chart version does not exist — safe to use
+as a gate before bumping Chart.yaml.
+"""
+import shutil
+import sys
+import tempfile
+from pathlib import Path
+
+import yaml
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
+
+from lib.chart import find_dependency as _find_dependency
+from lib.chart import pull_chart
+
+CHART_YAML = SCRIPT_DIR.parents[0] / "Chart.yaml"
+
+
+def find_dependency(name_or_alias):
+    deps = yaml.safe_load(CHART_YAML.read_text())["dependencies"]
+    dep = _find_dependency(deps, name_or_alias)
+    if dep is None:
+        raise SystemExit(f"error: no dependency named or aliased '{name_or_alias}' found in {CHART_YAML}")
+    return dep
+
+
+def main():
+    if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
+        print(__doc__)
+        sys.exit(0)
+    if len(sys.argv) != 3:
+        print(__doc__)
+        sys.exit(1)
+    component, chart_version = sys.argv[1], sys.argv[2]
+
+    dep = find_dependency(component)
+    chart_name = dep["name"]
+
+    tmpdir = Path(tempfile.mkdtemp(prefix="verify-helmchart-version-"))
+    try:
+        print(f"Checking chart version {chart_version!r} for {chart_name}:")
+        ok, stderr = pull_chart(dep, chart_version, tmpdir)
+        status = "FOUND  " if ok else "MISSING"
+        suffix = f"  ({stderr})" if not ok else ""
+        print(f"  [{status}] {chart_name} {chart_version}{suffix}")
+
+        print()
+        print("OK: chart version exists" if ok else "FAIL: chart version does not exist")
+        sys.exit(0 if ok else 1)
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+if __name__ == "__main__":
+    main()

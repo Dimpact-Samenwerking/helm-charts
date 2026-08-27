@@ -1,0 +1,1107 @@
+"""resolve_token, extract_release_rows, check_target_matches_chart_version,
+main — with fetch_page_html mocked out, so no network access or real
+Confluence page is needed."""
+import csv
+
+import pytest
+
+
+def write_chart_yaml(chart_dir, version):
+    (chart_dir / "Chart.yaml").write_text(f"apiVersion: v2\nname: podiumd\nversion: {version}\n", encoding="utf-8")
+
+
+def write_chart_yaml_with_dependencies(chart_dir, deps):
+    """`deps`: [(name, alias_or_None), ...]."""
+    lines = ["apiVersion: v2", "name: podiumd", "version: 1.0.0", "dependencies:"]
+    for name, alias in deps:
+        lines.append(f"  - name: {name}")
+        if alias:
+            lines.append(f"    alias: {alias}")
+        lines += ["    version: 1.0.0", '    repository: "@x"']
+    (chart_dir / "Chart.yaml").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def write_values_yaml(chart_dir, keys):
+    """A minimal values.yaml with each of `keys` as a top-level key
+    mapping to an empty block."""
+    (chart_dir / "values.yaml").write_text(
+        "".join(f"{key}: {{}}\n" for key in keys), encoding="utf-8",
+    )
+
+
+def write_values_yaml_with_global_images(chart_dir, image_keys):
+    """A minimal values.yaml with a top-level global.images map holding
+    each of `image_keys` — mirrors the real chart's
+    global.images.nginx/curl/busybox shared-base-image anchors."""
+    lines = ["global:", "  images:"] + [f"    {key}: {{}}" for key in image_keys]
+    (chart_dir / "values.yaml").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+@pytest.fixture(autouse=True)
+def isolate_chart_dir(ecrt, tmp_path, monkeypatch):
+    """extract_release_rows falls back to the real CHART_DIR (this
+    script's actual parent directory) when no chart_dir is passed
+    explicitly — tests that don't care about
+    check_target_matches_chart_version must not depend on whatever
+    charts/podiumd/Chart.yaml happens to say on disk (or which branch is
+    checked out) at test-run time."""
+    monkeypatch.setattr(ecrt, "CHART_DIR", tmp_path)
+
+PRODUCT_TABLE_HTML = """
+<h2>Product component versies</h2>
+<table>
+<tbody>
+<tr>
+<th rowspan="2"></th>
+<th rowspan="2">Ontwikkelpartij</th>
+<th colspan="2">Versie 4.8</th>
+<th colspan="2">Versie 4.9</th>
+</tr>
+<tr>
+<th>App</th>
+<th>Helm</th>
+<th>App</th>
+<th>Helm</th>
+</tr>
+<tr>
+<td>ZAC</td>
+<td>Info(NL)</td>
+<td>5.0.0</td>
+<td>1.0.290</td>
+<td>5.1.0</td>
+<td>1.0.297</td>
+</tr>
+<tr>
+<td>Open Zaak</td>
+<td>Maykin</td>
+<td>1.27.0</td>
+<td>1.14.0</td>
+<td>1.27.4</td>
+<td>1.14.2</td>
+</tr>
+</tbody>
+</table>
+"""
+
+# "Technische component versies" tables don't have a development-partner
+# column at all — "Used by" instead (naming the product/Common Ground
+# component that pulls this piece of tooling in), which isn't required.
+TECHNISCHE_TABLE_HTML = """
+<h2>Technische component versies</h2>
+<table>
+<tbody>
+<tr>
+<th rowspan="2"></th>
+<th rowspan="2">Used by</th>
+<th colspan="2">Versie 4.8</th>
+<th colspan="2">Versie 4.9</th>
+</tr>
+<tr>
+<th>App</th>
+<th>Helm</th>
+<th>App</th>
+<th>Helm</th>
+</tr>
+<tr>
+<td>Elastic operator</td>
+<td>ZAC</td>
+<td>3.4.0</td>
+<td>3.4.0</td>
+<td>3.5.0</td>
+<td>3.5.0</td>
+</tr>
+</tbody>
+</table>
+"""
+
+# A table with no heading at all above it — not under any of the target
+# sections, so it's ignored outright, not merely "skipped for missing
+# columns".
+UNRELATED_TABLE_HTML = "<table><tr><th>Legend</th></tr><tr><td>n/a</td></tr></table>"
+
+# Under a target heading, but genuinely missing the required App/Helm
+# columns — this one SHOULD be reported as skipped.
+INCOMPLETE_UNDER_TARGET_HEADING_HTML = (
+    "<h2>Overige component versies</h2><table><tr><th>Naam</th></tr><tr><td>iets</td></tr></table>"
+)
+
+
+# --- normalize_version ---
+
+def test_normalize_version_leaves_valid_semver_untouched(ecrt):
+    assert ecrt.normalize_version("1.27.4") == "1.27.4"
+    assert ecrt.normalize_version("9.10.1-slim") == "9.10.1-slim"
+
+
+def test_normalize_version_leaves_allowed_variations_untouched(ecrt):
+    """Missing patch component and a stray "." after a leading "v" are
+    allowed variations, not something to flag — see
+    lib.confluence_tables.SEMVER_RE."""
+    assert ecrt.normalize_version("3.20") == "3.20"
+    assert ecrt.normalize_version("3.14-slim") == "3.14-slim"
+    assert ecrt.normalize_version("v.1.25.4") == "v.1.25.4"
+
+
+def test_normalize_version_leaves_empty_value_untouched(ecrt):
+    """No data at all for that cell isn't a malformed version — nothing
+    to flag."""
+    assert ecrt.normalize_version("") == ""
+
+
+def test_normalize_version_replaces_non_semver_with_unknown(ecrt):
+    assert ecrt.normalize_version("5.4.3 5.4.4") == "UNKNOWN"
+    assert ecrt.normalize_version("?") == "UNKNOWN"
+
+
+# --- resolve_token ---
+
+def make_args(**overrides):
+    from types import SimpleNamespace
+    defaults = {"token_file": None, "token": None}
+    defaults.update(overrides)
+    return SimpleNamespace(**defaults)
+
+
+def test_resolve_token_prefers_token_file(ecrt, tmp_path):
+    token_file = tmp_path / "token.txt"
+    token_file.write_text("  s3cr3t-from-file  \n", encoding="utf-8")
+    args = make_args(token_file=str(token_file), token="ignored-since-file-wins")
+    assert ecrt.resolve_token(args) == "s3cr3t-from-file"
+
+
+def test_resolve_token_falls_back_to_token_arg(ecrt):
+    args = make_args(token="s3cr3t-from-arg")
+    assert ecrt.resolve_token(args) == "s3cr3t-from-arg"
+
+
+def test_resolve_token_falls_back_to_env_var(ecrt, monkeypatch):
+    monkeypatch.setenv("CONFLUENCE_API_TOKEN", "s3cr3t-from-env")
+    args = make_args()
+    assert ecrt.resolve_token(args) == "s3cr3t-from-env"
+
+
+def test_resolve_token_prompts_as_last_resort(ecrt, monkeypatch):
+    monkeypatch.delenv("CONFLUENCE_API_TOKEN", raising=False)
+    monkeypatch.setattr(ecrt.getpass, "getpass", lambda prompt: "s3cr3t-from-prompt")
+    args = make_args()
+    assert ecrt.resolve_token(args) == "s3cr3t-from-prompt"
+
+
+# Same shape as PRODUCT_TABLE_HTML, but the "App"/"Helm" sub-header row
+# is plain <td>, not <th> — seen on the real podiumd page, where
+# Confluence's own <th> tagging is inconsistent between a table's header
+# rows.
+PRODUCT_TABLE_INCONSISTENT_TH_HTML = PRODUCT_TABLE_HTML.replace(
+    "<tr>\n<th>App</th>\n<th>Helm</th>\n<th>App</th>\n<th>Helm</th>\n</tr>",
+    "<tr>\n<td>App</td>\n<td>Helm</td>\n<td>App</td>\n<td>Helm</td>\n</tr>",
+)
+
+
+# --- resolve_header_row_count ---
+
+def test_resolve_header_row_count_extends_past_inconsistent_th_tagging(ecrt):
+    from lib.confluence_tables import expand_grid, extract_tables
+    _heading, rows = extract_tables(PRODUCT_TABLE_INCONSISTENT_TH_HTML)[0]
+    grid = expand_grid(rows)
+    assert ecrt.resolve_header_row_count(rows, grid) == 2
+
+
+def test_extract_release_rows_handles_inconsistent_th_tagging(ecrt):
+    """End-to-end: the same table with a <td>-tagged sub-header row must
+    still resolve every required column, not just the ones a strict
+    <th>-only header count would catch."""
+    rows = ecrt.extract_release_rows(PRODUCT_TABLE_INCONSISTENT_TH_HTML)
+    assert rows == [
+        ["Product", "Info(NL)", "", "ZAC", "UNKNOWN", "", "", "5.0.0", "1.0.290", "5.1.0", "1.0.297"],
+        ["Product", "Maykin", "", "Open Zaak", "UNKNOWN", "", "", "1.27.0", "1.14.0", "1.27.4", "1.14.2"],
+    ]
+
+
+# --- check_target_matches_chart_version ---
+
+def test_check_target_matches_chart_version_silent_when_major_minor_matches(ecrt, tmp_path, capsys):
+    write_chart_yaml(tmp_path, "4.9.0")
+    ecrt.check_target_matches_chart_version(["Versie 4.9"], tmp_path)
+    assert capsys.readouterr().err == ""
+
+
+def test_check_target_matches_chart_version_warns_on_mismatch(ecrt, tmp_path, capsys):
+    write_chart_yaml(tmp_path, "4.9.0")
+    ecrt.check_target_matches_chart_version(["Versie 5.0"], tmp_path)
+    err = capsys.readouterr().err
+    assert "WARNING" in err
+    assert "Chart.yaml version:        4.9.0" in err
+    assert "'Versie 5.0'" in err
+
+
+def test_check_target_matches_chart_version_ignores_patch(ecrt, tmp_path, capsys):
+    """Chart.yaml at 4.9.3 (a patch release) must not warn just because
+    the page still says "Versie 4.9" — only major.minor is compared."""
+    write_chart_yaml(tmp_path, "4.9.3")
+    ecrt.check_target_matches_chart_version(["Versie 4.9"], tmp_path)
+    assert capsys.readouterr().err == ""
+
+
+def test_check_target_matches_chart_version_dedupes_repeated_labels(ecrt, tmp_path, capsys):
+    write_chart_yaml(tmp_path, "4.9.0")
+    ecrt.check_target_matches_chart_version(["Versie 5.0", "Versie 5.0", "Versie 5.0"], tmp_path)
+    err = capsys.readouterr().err
+    assert err.count("'Versie 5.0'") == 1
+
+
+def test_check_target_matches_chart_version_no_labels_is_silent(ecrt, tmp_path, capsys):
+    write_chart_yaml(tmp_path, "4.9.0")
+    ecrt.check_target_matches_chart_version([], tmp_path)
+    assert capsys.readouterr().err == ""
+
+
+def test_check_target_matches_chart_version_missing_chart_yaml_is_silent(ecrt, tmp_path, capsys):
+    ecrt.check_target_matches_chart_version(["Versie 5.0"], tmp_path)
+    assert capsys.readouterr().err == ""
+
+
+# --- chart_dependencies ---
+
+def test_chart_dependencies_reads_chart_yaml(ecrt, tmp_path):
+    write_chart_yaml_with_dependencies(tmp_path, [("internetaakafhandeling", "ita"), ("openzaak", None)])
+    assert ecrt.chart_dependencies(tmp_path) == [("internetaakafhandeling", "ita"), ("openzaak", "")]
+
+
+def test_chart_dependencies_missing_chart_yaml_returns_empty(ecrt, tmp_path):
+    assert ecrt.chart_dependencies(tmp_path) == []
+
+
+# --- normalize_name / name_candidates ---
+
+def test_normalize_name_strips_all_punctuation(ecrt):
+    assert ecrt.normalize_name("Zaak - ZAC") == "zaakzac"
+    assert ecrt.normalize_name("OMC / Notify") == "omcnotify"
+
+
+def test_name_candidates_no_brackets_is_just_the_whole_name(ecrt):
+    assert ecrt.name_candidates("Zaak - ZAC") == ["zaakzac"]
+
+
+def test_name_candidates_splits_bracketed_part_from_the_rest(ecrt):
+    assert ecrt.name_candidates("Contact (KISS)") == ["contactkiss", "contact", "kiss"]
+
+
+def test_name_candidates_dedupes_and_drops_empties(ecrt):
+    """"(KISS)" alone, with nothing outside the brackets, must not
+    produce a spurious empty "rest" candidate."""
+    assert ecrt.name_candidates("(KISS)") == ["kiss"]
+
+
+# --- component_and_alias ---
+
+def test_component_and_alias_exact_name_match(ecrt):
+    deps = [("internetaakafhandeling", "ita")]
+    assert ecrt.component_and_alias("Interne Taak Afhandeling", deps) == ("internetaakafhandeling", "ita")
+
+
+def test_component_and_alias_case_insensitive(ecrt):
+    deps = [("internetaakafhandeling", "ita")]
+    assert ecrt.component_and_alias("INTERNE TAAK AFHANDELING", deps) == ("internetaakafhandeling", "ita")
+
+
+def test_component_and_alias_resolves_via_alias_substring(ecrt):
+    """"Zaak - ZAC" doesn't equal dependency name "zaakafhandelcomponent"
+    exactly, but its own alias "zac" is a literal substring of "Zaak -
+    ZAC" (spaces/dash stripped: "zaakzac") — this is the rule that
+    resolves most real components (the exact-match rule alone only ever
+    fires for a name that's coincidentally identical to its Chart.yaml
+    dependency name, like "Interne Taak Afhandeling")."""
+    deps = [("zaakafhandelcomponent", "zac")]
+    assert ecrt.component_and_alias("Zaak - ZAC", deps) == ("zaakafhandelcomponent", "zac")
+
+
+def test_component_and_alias_resolves_via_bracketed_alias_exact_match(ecrt):
+    """The bracketed part alone ("PABC") exactly equals the dependency's
+    alias — resolved via name_candidates splitting it out, even though
+    the whole name only contains it as a small piece of a much longer
+    string."""
+    deps = [("pabc", "pabc")]
+    assert ecrt.component_and_alias("Platform Autorisatie Beheer Component (PABC)", deps) == ("pabc", "pabc")
+
+
+def test_component_and_alias_resolves_via_name_relation_without_alias(ecrt):
+    """A dependency with no alias at all can still resolve, purely by its
+    own name relating to (here: being contained in) the bracketed part
+    of the component's name."""
+    deps = [("openinwoner", "")]
+    assert ecrt.component_and_alias("Portaal (Open Inwoner platform)", deps) == ("openinwoner", "")
+
+
+def test_component_and_alias_exact_match_takes_priority_over_alias_relation(ecrt):
+    """"kiss" exactly equals one dependency's own name — that wins over a
+    *different* dependency whose alias merely relates to it."""
+    deps = [("kiss-chart", "kiss"), ("kiss", "k")]
+    assert ecrt.component_and_alias("kiss", deps) == ("kiss", "k")
+
+
+def test_component_and_alias_unresolved_is_unknown(ecrt):
+    """"Open Zaak" doesn't match any dependency at all — "component"
+    becomes UNKNOWN rather than left blank or guessed at, and "alias"
+    stays empty."""
+    assert ecrt.component_and_alias("Open Zaak", []) == ("UNKNOWN", "")
+
+
+def test_component_and_alias_exact_alias_match_beats_substring_ambiguity(ecrt):
+    """"kiss" exactly equals "kiss-chart"'s own alias "kiss" — that must
+    resolve outright, even though "eck-stack"'s alias "kiss-eck" also
+    happens to *contain* "kiss" as a substring. An exact alias match is
+    its own tier, ahead of the looser substring-relation tier, precisely
+    so this isn't treated as an ambiguity."""
+    deps = [("kiss-chart", "kiss"), ("eck-stack", "kiss-eck")]
+    assert ecrt.component_and_alias("kiss", deps) == ("kiss-chart", "kiss")
+
+
+def test_component_and_alias_multiple_when_two_dependencies_share_exact_alias(ecrt):
+    """A genuine ambiguity at the exact-alias tier: two dependencies
+    that (however unusually) share the literal same alias — there's no
+    principled way to prefer one over the other."""
+    deps = [("foo-chart", "shared"), ("bar-chart", "shared")]
+    assert ecrt.component_and_alias("shared", deps) == ("MULTIPLE", "MULTIPLE")
+
+
+def test_component_and_alias_multiple_alias_relation_matches_is_multiple(ecrt):
+    """A genuine ambiguity at the (looser, substring) alias-relation
+    tier: "somekisseck" isn't an exact alias match for either dependency
+    (ruling out tier 2), but contains both "kiss-chart"'s alias "kiss"
+    and "eck-stack"'s alias "kiss-eck" as substrings."""
+    deps = [("kiss-chart", "kiss"), ("eck-stack", "kiss-eck")]
+    assert ecrt.component_and_alias("somekisseck", deps) == ("MULTIPLE", "MULTIPLE")
+
+
+def test_component_and_alias_multiple_name_relation_matches_is_multiple(ecrt):
+    """Same ambiguity, but at the (alias-less) name-relation tier: "foo"
+    relates to both dependency names "foobar" and "foobaz"."""
+    deps = [("foobar", ""), ("foobaz", "")]
+    assert ecrt.component_and_alias("foo", deps) == ("MULTIPLE", "MULTIPLE")
+
+
+def test_component_and_alias_clean_exact_match_short_circuits_ambiguous_lower_tier(ecrt):
+    """A single exact-name match at tier 1 resolves immediately —
+    without ever reaching the looser alias-relation tier, which would
+    otherwise have been ambiguous between "kiss-chart" and "eck-stack"
+    for this same text."""
+    deps = [("kiss", "k"), ("kiss-chart", "kiss"), ("eck-stack", "kiss-eck")]
+    assert ecrt.component_and_alias("kiss", deps) == ("kiss", "k")
+
+
+# --- orphan_values_yaml_keys ---
+
+def test_orphan_values_yaml_keys_returns_keys_not_covered_by_any_dependency(ecrt, tmp_path):
+    write_values_yaml(tmp_path, ["frankgateway", "global", "zac"])
+    deps = [("zaakafhandelcomponent", "zac")]
+    assert sorted(ecrt.orphan_values_yaml_keys(tmp_path, deps)) == [("frankgateway", ""), ("global", "")]
+
+
+def test_orphan_values_yaml_keys_excludes_keys_matching_a_dependency_name(ecrt, tmp_path):
+    """A values.yaml key equal to a dependency's own name (not just its
+    alias) is also excluded — e.g. "keycloak-operator" itself, not just
+    the alias-style keys."""
+    write_values_yaml(tmp_path, ["keycloak-operator", "frankgateway"])
+    deps = [("keycloak-operator", "")]
+    assert ecrt.orphan_values_yaml_keys(tmp_path, deps) == [("frankgateway", "")]
+
+
+def test_orphan_values_yaml_keys_missing_values_yaml_returns_empty(ecrt, tmp_path):
+    assert ecrt.orphan_values_yaml_keys(tmp_path, []) == []
+
+
+# --- component_and_alias: orphan key fallback ---
+
+def test_component_and_alias_resolves_via_orphan_key(ecrt):
+    """"Frank Gateway" matches no real dependency at all, but exactly
+    equals the orphan values.yaml key "frankgateway" — resolved as a
+    last resort, with alias left empty (orphan keys aren't Chart.yaml
+    aliases)."""
+    assert ecrt.component_and_alias("Frank Gateway", [], [("frankgateway", "")]) == ("frankgateway", "")
+
+
+def test_component_and_alias_real_dependency_always_wins_over_orphan_key(ecrt):
+    """An orphan key must never hijack a name that already resolves
+    through a real dependency, even if the orphan key would also
+    relate — e.g. values.yaml's own "keycloak" block (the Keycloak
+    instance's own config) must not steal "Keycloak" away from
+    correctly resolving to dependency "keycloak-operator" via the
+    name-relation tier."""
+    deps = [("keycloak-operator", "")]
+    orphans = [("keycloak", "")]
+    assert ecrt.component_and_alias("Keycloak", deps, orphans) == ("keycloak-operator", "")
+
+
+def test_component_and_alias_orphan_key_multiple(ecrt):
+    """The same ambiguity detection applies to the orphan-key fallback
+    pool: two orphan keys relating to the same text is MULTIPLE, not a
+    silent pick."""
+    orphans = [("foobar", ""), ("foobaz", "")]
+    assert ecrt.component_and_alias("foo", [], orphans) == ("MULTIPLE", "MULTIPLE")
+
+
+def test_component_and_alias_still_unknown_when_no_orphan_key_relates_either(ecrt):
+    assert ecrt.component_and_alias("Open Zaak", [], [("frankgateway", "")]) == ("UNKNOWN", "")
+
+
+# --- global_image_keys ---
+
+def test_global_image_keys_returns_keys_under_global_images(ecrt, tmp_path):
+    write_values_yaml_with_global_images(tmp_path, ["nginx", "curl", "busybox"])
+    assert ecrt.global_image_keys(tmp_path) == ["nginx", "curl", "busybox"]
+
+
+def test_global_image_keys_missing_values_yaml_returns_empty(ecrt, tmp_path):
+    assert ecrt.global_image_keys(tmp_path) == []
+
+
+def test_global_image_keys_missing_global_images_returns_empty(ecrt, tmp_path):
+    write_values_yaml(tmp_path, ["frankgateway"])
+    assert ecrt.global_image_keys(tmp_path) == []
+
+
+# --- component_and_alias: global image key fallback ---
+
+def test_component_and_alias_global_image_key_is_always_multiple(ecrt):
+    """"Nginx unprivileged" relates to nothing else at all, but does
+    relate to global image key "nginx" — a key that exists specifically
+    because it's shared, via YAML anchor, across multiple unrelated
+    components, so it's reported as MULTIPLE rather than a single
+    component, even though only one key matched."""
+    assert ecrt.component_and_alias("Nginx unprivileged", [], [], ["nginx", "curl", "busybox"]) == \
+        ("MULTIPLE", "MULTIPLE")
+
+
+def test_component_and_alias_real_dependency_always_wins_over_global_image_key(ecrt):
+    """A global image key must never hijack a name that already resolves
+    through a real dependency or an orphan key."""
+    deps = [("nginx-ingress", "nginx")]
+    assert ecrt.component_and_alias("nginx", deps, [], ["nginx"]) == ("nginx-ingress", "nginx")
+
+
+def test_component_and_alias_orphan_key_wins_over_global_image_key(ecrt):
+    orphans = [("nginx", "")]
+    assert ecrt.component_and_alias("nginx", [], orphans, ["nginx"]) == ("nginx", "")
+
+
+def test_component_and_alias_still_unknown_when_no_global_image_key_relates_either(ecrt):
+    assert ecrt.component_and_alias("Solr", [], [], ["nginx", "curl", "busybox"]) == ("UNKNOWN", "")
+
+
+# --- extract_release_rows ---
+
+def test_extract_release_rows_matches_and_reports(ecrt, capsys):
+    rows = ecrt.extract_release_rows(PRODUCT_TABLE_HTML)
+    assert rows == [
+        ["Product", "Info(NL)", "", "ZAC", "UNKNOWN", "", "", "5.0.0", "1.0.290", "5.1.0", "1.0.297"],
+        ["Product", "Maykin", "", "Open Zaak", "UNKNOWN", "", "", "1.27.0", "1.14.0", "1.27.4", "1.14.2"],
+    ]
+    out = capsys.readouterr().out
+    assert "2 row(s) matched" in out
+
+
+def test_extract_release_rows_resolves_component_and_alias_by_exact_match(ecrt, tmp_path):
+    """A Chart.yaml dependency named exactly "zac" (with spaces stripped,
+    identical to the row's own "ZAC") that also has an alias resolves
+    "component"/"alias" for that row; "Open Zaak" doesn't match any
+    dependency name this way and stays UNKNOWN. Uses a deliberately
+    non-colliding alias ("zacalias") — a too-short one (e.g. "z") would
+    spuriously substring-match "Open Zaak" too and defeat the point of
+    this test."""
+    write_chart_yaml_with_dependencies(tmp_path, [("zac", "zacalias")])
+    rows = ecrt.extract_release_rows(PRODUCT_TABLE_HTML, chart_dir=tmp_path)
+    assert rows == [
+        ["Product", "Info(NL)", "", "ZAC", "zac", "zacalias", "", "5.0.0", "1.0.290", "5.1.0", "1.0.297"],
+        ["Product", "Maykin", "", "Open Zaak", "UNKNOWN", "", "", "1.27.0", "1.14.0", "1.27.4", "1.14.2"],
+    ]
+
+
+def test_extract_release_rows_resolves_component_and_alias_by_alias_substring(ecrt, tmp_path):
+    """"ZAC" doesn't equal dependency name "zaakafhandelcomponent"
+    exactly, but the dependency's own alias "zac" is a substring of it —
+    this is the rule that resolves most real components (see
+    component_and_alias)."""
+    write_chart_yaml_with_dependencies(tmp_path, [("zaakafhandelcomponent", "zac")])
+    rows = ecrt.extract_release_rows(PRODUCT_TABLE_HTML, chart_dir=tmp_path)
+    assert rows[0] == ["Product", "Info(NL)", "", "ZAC", "zaakafhandelcomponent", "zac", "",
+                        "5.0.0", "1.0.290", "5.1.0", "1.0.297"]
+
+
+def test_extract_release_rows_resolves_component_without_alias_via_name_relation(ecrt, tmp_path):
+    """"Open Zaak" resolves purely via a name relation against a
+    dependency that has no alias at all — "component" gets that
+    dependency's name and "alias" stays empty. "ZAC" doesn't relate to
+    "openzaak" at all and stays UNKNOWN."""
+    write_chart_yaml_with_dependencies(tmp_path, [("openzaak", None)])
+    rows = ecrt.extract_release_rows(PRODUCT_TABLE_HTML, chart_dir=tmp_path)
+    assert rows[0][4] == "UNKNOWN"
+    assert rows[1] == ["Product", "Maykin", "", "Open Zaak", "openzaak", "", "",
+                        "1.27.0", "1.14.0", "1.27.4", "1.14.2"]
+
+
+def test_extract_release_rows_not_tied_to_specific_version_numbers(ecrt):
+    """The page renames "Versie 4.8"/"Versie 4.9" every release — a table
+    headed "Versie 5.0"/"Versie 5.1" instead must resolve exactly the
+    same way, into "source"/"target" by column order, not by number."""
+    html = PRODUCT_TABLE_HTML.replace("Versie 4.8", "Versie 5.0").replace("Versie 4.9", "Versie 5.1")
+    rows = ecrt.extract_release_rows(html)
+    assert rows == [
+        ["Product", "Info(NL)", "", "ZAC", "UNKNOWN", "", "", "5.0.0", "1.0.290", "5.1.0", "1.0.297"],
+        ["Product", "Maykin", "", "Open Zaak", "UNKNOWN", "", "", "1.27.0", "1.14.0", "1.27.4", "1.14.2"],
+    ]
+
+
+def test_extract_release_rows_replaces_non_semver_version_with_unknown_and_reports_count(ecrt, capsys):
+    html = PRODUCT_TABLE_HTML.replace("<td>5.1.0</td>", "<td>?</td>")
+    rows = ecrt.extract_release_rows(html)
+    assert rows[0] == ["Product", "Info(NL)", "", "ZAC", "UNKNOWN", "", "", "5.0.0", "1.0.290", "UNKNOWN", "1.0.297"]
+    out = capsys.readouterr().out
+    assert "1 version value(s) were not semver-compatible — replaced with UNKNOWN" in out
+
+
+def test_extract_release_rows_ignores_table_not_under_any_target_heading(ecrt, capsys):
+    html = UNRELATED_TABLE_HTML + PRODUCT_TABLE_HTML
+    rows = ecrt.extract_release_rows(html)
+    assert len(rows) == 2
+    out = capsys.readouterr().out
+    assert "Found 2 table(s) on the page, 1 under a matching heading" in out
+    assert "Legend" not in out  # the unrelated table was never even reported on
+
+
+def test_extract_release_rows_reports_skip_for_incomplete_table_under_target_heading(ecrt, capsys):
+    html = INCOMPLETE_UNDER_TARGET_HEADING_HTML + PRODUCT_TABLE_HTML
+    rows = ecrt.extract_release_rows(html)
+    assert len(rows) == 2
+    out = capsys.readouterr().out
+    assert '"Overige component versies": skipped (missing required column(s):' in out
+
+
+def test_extract_release_rows_vendor_blank_used_by_populated_for_technische_table(ecrt):
+    """A "Technische component versies" table has no Ontwikkelpartij
+    column (vendor blank) but does have "Used by" — the reverse of a
+    Product table."""
+    rows = ecrt.extract_release_rows(TECHNISCHE_TABLE_HTML)
+    assert rows == [["Technische", "", "ZAC", "Elastic operator", "UNKNOWN", "", "",
+                      "3.4.0", "3.4.0", "3.5.0", "3.5.0"]]
+
+
+def test_extract_release_rows_resolves_component_via_used_by_not_name(ecrt, tmp_path):
+    """TECHNISCHE_TABLE_HTML's row is named "Elastic operator" (shares no
+    text with any real dependency) but has used_by "ZAC" — a much better
+    resolution signal, since it's already the dependency's own alias.
+    Resolution must use it instead of the row's own name."""
+    write_chart_yaml_with_dependencies(tmp_path, [("zaakafhandelcomponent", "zac")])
+    rows = ecrt.extract_release_rows(TECHNISCHE_TABLE_HTML, chart_dir=tmp_path)
+    assert rows == [["Technische", "", "ZAC", "Elastic operator", "zaakafhandelcomponent", "zac", "",
+                      "3.4.0", "3.4.0", "3.5.0", "3.5.0"]]
+
+
+def test_extract_release_rows_resolves_exact_alias_match_despite_unrelated_substring_alias(ecrt, tmp_path):
+    """A used_by value ("kiss") that exactly equals one dependency's own
+    alias resolves outright, even with a second dependency ("eck-stack")
+    present whose own alias ("kiss-eck") merely contains "kiss" as a
+    substring — this must NOT register as an ambiguity."""
+    write_chart_yaml_with_dependencies(tmp_path, [("kiss-chart", "kiss"), ("eck-stack", "kiss-eck")])
+    html = TECHNISCHE_TABLE_HTML.replace("<td>ZAC</td>", "<td>kiss</td>")
+    rows = ecrt.extract_release_rows(html, chart_dir=tmp_path)
+    assert rows == [["Technische", "", "kiss", "Elastic operator", "kiss-chart", "kiss", "",
+                      "3.4.0", "3.4.0", "3.5.0", "3.5.0"]]
+
+
+def test_extract_release_rows_resolves_component_as_multiple(ecrt, tmp_path):
+    """A used_by value ("shared") that's the literal same alias on two
+    distinct Chart.yaml dependencies resolves the row to
+    "MULTIPLE"/"MULTIPLE" rather than silently picking one."""
+    write_chart_yaml_with_dependencies(tmp_path, [("foo-chart", "shared"), ("bar-chart", "shared")])
+    html = TECHNISCHE_TABLE_HTML.replace("<td>ZAC</td>", "<td>shared</td>")
+    rows = ecrt.extract_release_rows(html, chart_dir=tmp_path)
+    assert rows == [["Technische", "", "shared", "Elastic operator", "MULTIPLE", "MULTIPLE", "",
+                      "3.4.0", "3.4.0", "3.5.0", "3.5.0"]]
+
+
+def test_extract_release_rows_resolves_component_via_orphan_values_yaml_key(ecrt, tmp_path):
+    """"ZAC" (PRODUCT_TABLE_HTML's own row) doesn't match any real
+    dependency here, but exactly equals the orphan values.yaml key
+    "zac" — resolved end-to-end as a last resort."""
+    write_chart_yaml_with_dependencies(tmp_path, [("openzaak", "")])
+    write_values_yaml(tmp_path, ["zac", "openzaak"])
+    rows = ecrt.extract_release_rows(PRODUCT_TABLE_HTML, chart_dir=tmp_path)
+    assert rows[0] == ["Product", "Info(NL)", "", "ZAC", "zac", "", "",
+                        "5.0.0", "1.0.290", "5.1.0", "1.0.297"]
+
+
+def test_extract_release_rows_resolves_global_image_key_as_multiple(ecrt, tmp_path):
+    """"Open Zaak" resolves normally via its real dependency; "ZAC"
+    matches nothing real but does relate to global image key "zac" —
+    resolved end-to-end as MULTIPLE, since a global.images key is never
+    treated as a single component's own."""
+    write_chart_yaml_with_dependencies(tmp_path, [("openzaak", "")])
+    write_values_yaml_with_global_images(tmp_path, ["zac"])
+    rows = ecrt.extract_release_rows(PRODUCT_TABLE_HTML, chart_dir=tmp_path)
+    assert rows == [
+        ["Product", "Info(NL)", "", "ZAC", "MULTIPLE", "MULTIPLE", "", "5.0.0", "1.0.290", "5.1.0", "1.0.297"],
+        ["Product", "Maykin", "", "Open Zaak", "openzaak", "", "", "1.27.0", "1.14.0", "1.27.4", "1.14.2"],
+    ]
+
+
+
+
+def test_extract_release_rows_used_by_blank_when_table_has_none(ecrt):
+    """A Product table has no "Used by" column at all (only Ontwikkelpartij)."""
+    rows = ecrt.extract_release_rows(PRODUCT_TABLE_HTML)
+    assert all(row[2] == "" for row in rows)  # used_by is the 3rd column: section, vendor, used_by, ...
+
+
+def test_extract_release_rows_combines_multiple_sections(ecrt):
+    rows = ecrt.extract_release_rows(PRODUCT_TABLE_HTML + TECHNISCHE_TABLE_HTML)
+    assert [r[0] for r in rows] == ["Product", "Product",
+                                     "Technische"]
+
+
+def test_extract_release_rows_custom_headings_overrides_default(ecrt):
+    rows = ecrt.extract_release_rows(PRODUCT_TABLE_HTML + TECHNISCHE_TABLE_HTML,
+                                      headings=["Technische component versies"])
+    assert len(rows) == 1
+    assert rows[0][0] == "Technische"
+
+
+def test_extract_release_rows_no_tables_raises(ecrt):
+    with pytest.raises(SystemExit, match="no <table> found"):
+        ecrt.extract_release_rows("<p>no tables here</p>")
+
+
+def test_extract_release_rows_no_table_under_target_heading_raises(ecrt):
+    with pytest.raises(SystemExit, match="no table found directly under any of"):
+        ecrt.extract_release_rows(UNRELATED_TABLE_HTML)
+
+
+def test_extract_release_rows_every_matching_table_incomplete_raises(ecrt):
+    with pytest.raises(SystemExit, match="every matching-heading table was missing a required column"):
+        ecrt.extract_release_rows(INCOMPLETE_UNDER_TARGET_HEADING_HTML)
+
+
+def test_extract_release_rows_skips_fully_blank_rows(ecrt):
+    html = PRODUCT_TABLE_HTML.replace(
+        "<tr>\n<td>Open Zaak</td>",
+        "<tr><td></td><td></td><td></td><td></td><td></td><td></td></tr>\n<tr>\n<td>Open Zaak</td>",
+    )
+    rows = ecrt.extract_release_rows(html)
+    assert len(rows) == 2  # the all-blank row was skipped, not counted
+
+
+def test_extract_release_rows_warns_when_target_does_not_match_chart_yaml(ecrt, tmp_path, capsys):
+    """PRODUCT_TABLE_HTML's target heading is "Versie 4.9" — a
+    Chart.yaml at a different minor version must trigger the warning."""
+    write_chart_yaml(tmp_path, "5.0.0")
+    ecrt.extract_release_rows(PRODUCT_TABLE_HTML, chart_dir=tmp_path)
+    err = capsys.readouterr().err
+    assert "WARNING" in err
+    assert "'Versie 4.9'" in err
+
+
+def test_extract_release_rows_silent_when_target_matches_chart_yaml(ecrt, tmp_path, capsys):
+    write_chart_yaml(tmp_path, "4.9.0")
+    ecrt.extract_release_rows(PRODUCT_TABLE_HTML, chart_dir=tmp_path)
+    assert capsys.readouterr().err == ""
+
+
+# --- main() integration ---
+
+def test_main_writes_csv(ecrt, tmp_path, monkeypatch, capsys):
+    output_path = tmp_path / "release-table.csv"
+    monkeypatch.setattr(ecrt.sys, "argv", [
+        "export-confluence-release-table.py",
+        "--url", "https://example.atlassian.net/wiki/spaces/PCP/pages/123/Title",
+        "--user", "kees@info.nl",
+        "--token", "s3cr3t",
+        "--output", str(output_path),
+    ])
+    monkeypatch.setattr(ecrt, "fetch_page_html", lambda url, user, token: PRODUCT_TABLE_HTML)
+
+    ecrt.main()
+
+    with output_path.open(newline="", encoding="utf-8") as f:
+        rows = list(csv.reader(f))
+    assert rows[0] == ["section", "vendor", "used_by", "name", "component", "alias", "image_basename",
+                        "source_version_app", "source_version_helm",
+                        "target_version_app", "target_version_helm"]
+    assert rows[1] == ["Product", "Info(NL)", "", "ZAC", "UNKNOWN", "", "", "5.0.0", "1.0.290", "5.1.0", "1.0.297"]
+    assert rows[2] == ["Product", "Maykin", "", "Open Zaak", "UNKNOWN", "", "",
+                        "1.27.0", "1.14.0", "1.27.4", "1.14.2"]
+    out = capsys.readouterr().out
+    assert f"Wrote 2 row(s) to {output_path}" in out
+
+
+def test_main_passes_resolved_token_and_url_user_through(ecrt, tmp_path, monkeypatch):
+    output_path = tmp_path / "out.csv"
+    monkeypatch.setattr(ecrt.sys, "argv", [
+        "export-confluence-release-table.py",
+        "--url", "https://example.atlassian.net/wiki/spaces/PCP/pages/123/Title",
+        "--user", "kees@info.nl",
+        "--token", "s3cr3t",
+        "--output", str(output_path),
+    ])
+    captured = {}
+
+    def fake_fetch(url, user, token):
+        captured.update(url=url, user=user, token=token)
+        return PRODUCT_TABLE_HTML
+
+    monkeypatch.setattr(ecrt, "fetch_page_html", fake_fetch)
+    ecrt.main()
+    assert captured == {
+        "url": "https://example.atlassian.net/wiki/spaces/PCP/pages/123/Title",
+        "user": "kees@info.nl",
+        "token": "s3cr3t",
+    }
+
+
+def test_main_passes_custom_heading_flags_through(ecrt, tmp_path, monkeypatch):
+    output_path = tmp_path / "out.csv"
+    monkeypatch.setattr(ecrt.sys, "argv", [
+        "export-confluence-release-table.py",
+        "--url", "https://example.atlassian.net/wiki/spaces/PCP/pages/123/Title",
+        "--user", "kees@info.nl",
+        "--token", "s3cr3t",
+        "--output", str(output_path),
+        "--heading", "Technische component versies",
+    ])
+    monkeypatch.setattr(ecrt, "fetch_page_html",
+                         lambda url, user, token: PRODUCT_TABLE_HTML + TECHNISCHE_TABLE_HTML)
+
+    ecrt.main()
+
+    with output_path.open(newline="", encoding="utf-8") as f:
+        rows = list(csv.reader(f))
+    assert len(rows) == 2  # header + the one Technische row only
+    assert rows[1][0] == "Technische"
+
+
+def test_main_writes_lf_line_endings(ecrt, tmp_path, monkeypatch):
+    """csv's own "excel" dialect defaults to CRLF regardless of platform —
+    every other file in this repo (and git) is LF, so a CRLF write would
+    diff on every single re-export even when nothing actually changed."""
+    output_path = tmp_path / "out.csv"
+    monkeypatch.setattr(ecrt.sys, "argv", [
+        "export-confluence-release-table.py",
+        "--url", "https://example.atlassian.net/wiki/spaces/PCP/pages/123/Title",
+        "--user", "kees@info.nl",
+        "--token", "s3cr3t",
+        "--output", str(output_path),
+    ])
+    monkeypatch.setattr(ecrt, "fetch_page_html", lambda url, user, token: PRODUCT_TABLE_HTML)
+
+    ecrt.main()
+
+    raw = output_path.read_bytes()
+    assert b"\r\n" not in raw
+    assert b"\n" in raw
+
+
+# --- basenames_under_scope / _match_one / resolve_image_basenames ---
+
+DIGEST_A = "a" * 64
+DIGEST_B = "b" * 64
+DIGEST_C = "c" * 64
+
+
+def write_values_yaml_raw(chart_dir, text):
+    (chart_dir / "values.yaml").write_text(text, encoding="utf-8")
+
+
+def test_match_one_exact_beats_containment(ecrt):
+    """"Solr" exactly equals candidate "solr", so it must win outright —
+    even though "solr" also relates to "solr-operator" by containment."""
+    assert ecrt._match_one("Solr", {"solr", "solr-operator"}) == "solr"
+
+
+def test_match_one_falls_back_to_unambiguous_containment(ecrt):
+    """"Redis-ha" doesn't exactly equal any candidate, but relates to
+    exactly one ("redis", contained in "redisha") — resolved via the
+    fallback tier."""
+    assert ecrt._match_one("Redis-ha", {"redis-operator", "redis", "redis-exporter"}) == "redis"
+
+
+def test_match_one_bracket_content_resolves_a_role_named_row(ecrt):
+    """"Zookeeper operator hooks (k8s-kubectl)" shares no text at all with
+    "k8s-kubectl" as a whole string, but name_candidates' bracket
+    extraction tries the bracket content on its own, which matches
+    exactly."""
+    assert ecrt._match_one("Zookeeper operator hooks (k8s-kubectl)", {"k8s-kubectl", "solr"}) == "k8s-kubectl"
+
+
+def test_match_one_ambiguous_exact_match_is_none(ecrt):
+    """"Foo (Bar)" yields candidates "foobar", "foo", AND "bar" (see
+    name_candidates) — two DIFFERENT options each exactly matching a
+    different one of those candidates is still an ambiguity, never a
+    guess."""
+    assert ecrt._match_one("Foo (Bar)", {"foo", "bar"}) is None
+
+
+def test_match_one_no_relation_is_none(ecrt):
+    assert ecrt._match_one("ITA Poller", {"internetaakafhandeling.poller"}) is None
+
+
+def test_basenames_under_scope_finds_nested_pins(ecrt, tmp_path):
+    write_values_yaml_raw(tmp_path, f"""\
+zac:
+  image:
+    repository: ghcr.io/infonl/zaakafhandelcomponent
+    tag: "5.0.0@sha256:{DIGEST_A}"
+  solr-operator:
+    image:
+      repository: apache/solr-operator
+      tag: "0.9.1@sha256:{DIGEST_B}"
+""")
+    lines = (tmp_path / "values.yaml").read_text(encoding="utf-8").splitlines()
+    available = ecrt.basenames_under_scope(lines, "zac")
+    assert set(available) == {"zaakafhandelcomponent", "solr-operator"}
+
+
+def test_basenames_under_scope_ignores_other_components(ecrt, tmp_path):
+    write_values_yaml_raw(tmp_path, f"""\
+zac:
+  image:
+    repository: ghcr.io/infonl/zaakafhandelcomponent
+    tag: "5.0.0@sha256:{DIGEST_A}"
+openzaak:
+  image:
+    repository: openzaak/open-zaak
+    tag: "1.0.0@sha256:{DIGEST_B}"
+""")
+    lines = (tmp_path / "values.yaml").read_text(encoding="utf-8").splitlines()
+    assert set(ecrt.basenames_under_scope(lines, "zac")) == {"zaakafhandelcomponent"}
+
+
+def test_resolve_image_basenames_missing_values_yaml_is_blank(ecrt, tmp_path):
+    rows = [["Product", "", "", "ZAC", "zaakafhandelcomponent", "zac", "1", "1", "1", "1"]]
+    assert ecrt.resolve_image_basenames(rows, tmp_path) == [""]
+
+
+def test_resolve_image_basenames_technische_row_matches_its_own_image(ecrt, tmp_path):
+    write_values_yaml_raw(tmp_path, f"""\
+zac:
+  image:
+    repository: ghcr.io/infonl/zaakafhandelcomponent
+    tag: "5.0.0@sha256:{DIGEST_A}"
+  solr-operator:
+    image:
+      repository: apache/solr-operator
+      tag: "0.9.1@sha256:{DIGEST_B}"
+""")
+    rows = [
+        ["Product", "", "", "Zaak - ZAC", "zaakafhandelcomponent", "zac", "1", "1", "1", "1"],
+        ["Technische", "", "zac", "Solr operator", "zaakafhandelcomponent", "zac", "1", "1", "1", "1"],
+    ]
+    assert ecrt.resolve_image_basenames(rows, tmp_path) == ["zaakafhandelcomponent", "solr-operator"]
+
+
+def test_resolve_image_basenames_role_named_row_resolves_via_bracket_hint(ecrt, tmp_path):
+    write_values_yaml_raw(tmp_path, f"""\
+zac:
+  image:
+    repository: ghcr.io/infonl/zaakafhandelcomponent
+    tag: "5.0.0@sha256:{DIGEST_A}"
+  solr-operator:
+    zookeeper-operator:
+      hooks:
+        image:
+          repository: lachlanevenson/k8s-kubectl
+          tag: "v1.25.4@sha256:{DIGEST_C}"
+""")
+    rows = [
+        ["Product", "", "", "Zaak - ZAC", "zaakafhandelcomponent", "zac", "1", "1", "1", "1"],
+        ["Technische", "", "zac", "Zookeeper operator hooks (k8s-kubectl)", "zaakafhandelcomponent", "zac",
+         "1", "1", "1", "1"],
+    ]
+    assert ecrt.resolve_image_basenames(rows, tmp_path) == ["zaakafhandelcomponent", "k8s-kubectl"]
+
+
+def test_resolve_image_basenames_primary_row_gets_leftover_after_technische_claims(ecrt, tmp_path):
+    """Once every "used_by"-tagged sibling has claimed its own basename,
+    whatever's left under that component's scope — here, just its own
+    top-level image — goes to the primary (used_by-blank) row."""
+    write_values_yaml_raw(tmp_path, f"""\
+zac:
+  image:
+    repository: ghcr.io/infonl/zaakafhandelcomponent
+    tag: "5.0.0@sha256:{DIGEST_A}"
+  solr-operator:
+    image:
+      repository: apache/solr-operator
+      tag: "0.9.1@sha256:{DIGEST_B}"
+""")
+    rows = [
+        ["Product", "", "", "Zaak - ZAC", "zaakafhandelcomponent", "zac", "1", "1", "1", "1"],
+        ["Technische", "", "zac", "Solr operator", "zaakafhandelcomponent", "zac", "1", "1", "1", "1"],
+    ]
+    basenames = ecrt.resolve_image_basenames(rows, tmp_path)
+    assert basenames[0] == "zaakafhandelcomponent"
+
+
+def test_resolve_image_basenames_primary_claims_its_own_name_before_siblings(ecrt, tmp_path):
+    """frankgateway's own default image is literally named "frank-gateway"
+    (same as the component's own plain display name) — every sibling
+    "Frank Gateway <Role>" row's name trivially CONTAINS that same
+    "frankgateway" prefix too, so if a sibling got first refusal it would
+    wrongly claim "frank-gateway" for itself (verified bug: "Frank Gateway
+    Dashboard" claiming "frank-gateway", leaving the real "Frank Gateway"
+    row stuck with "apisix-dashboard" as its only leftover). The primary
+    row's own unambiguous exact match must be claimed FIRST so this can't
+    happen; "Dashboard" itself shares no text with "apisix-dashboard" at
+    all, so it's correctly left blank rather than guessed (same
+    never-guess policy as test_resolve_image_basenames_unresolvable_technische_row_is_blank)."""
+    write_values_yaml_raw(tmp_path, f"""\
+frankgateway:
+  image:
+    repository: ghcr.io/wearefrank/frank-gateway
+    tag: "104@sha256:{DIGEST_A}"
+  dashboard:
+    image:
+      repository: apache/apisix-dashboard
+      tag: "3.0.1-alpine@sha256:{DIGEST_B}"
+""")
+    rows = [
+        ["Common Ground", "WeAreFrank", "", "Frank Gateway", "frankgateway", "", "1", "1", "1", "1"],
+        ["Technische", "", "frankgateway", "Frank Gateway Dashboard", "frankgateway", "", "1", "1", "1", "1"],
+    ]
+    assert ecrt.resolve_image_basenames(rows, tmp_path) == ["frank-gateway", ""]
+
+
+def test_resolve_image_basenames_primary_row_first_refusal_is_exact_match_only(ecrt, tmp_path):
+    """redis-operator's own primary row name ("Redis Operator") merely
+    CONTAINS basename "redis" as a substring ("redisoperator") — a much
+    weaker signal than frankgateway's EXACT match. Letting primary claim
+    on this fuzzy tier too regressed this real case: "redis" (the actual
+    Redis server image) belongs to the more specific "Redis-ha" sibling
+    row, not the generic "Redis Operator" umbrella row (whose own target
+    version is the operator CHART's own release number, not any single
+    image's version at all — it correctly stays blank, exactly as before
+    this whole fix)."""
+    write_values_yaml_raw(tmp_path, f"""\
+redis-operator:
+  redis:
+    image:
+      repository: quay.io/opstree/redis
+      tag: "v8.6.6@sha256:{DIGEST_A}"
+    exporter:
+      image:
+        repository: quay.io/opstree/redis-exporter
+        tag: "v1.89.0@sha256:{DIGEST_B}"
+""")
+    rows = [
+        ["Overige", "", "", "Redis Operator", "redis-operator", "", "1", "1", "1", "1"],
+        ["Technische", "", "redis-operator", "Redis-ha", "redis-operator", "", "1", "1", "1", "1"],
+        ["Technische", "", "redis-operator", "Redis Exporter", "redis-operator", "", "1", "1", "1", "1"],
+    ]
+    assert ecrt.resolve_image_basenames(rows, tmp_path) == ["", "redis", "redis-exporter"]
+
+
+def test_resolve_image_basenames_primary_row_gets_multiple_leftover_basenames(ecrt, tmp_path):
+    """A component with no Technische breakdown at all (e.g.
+    zgw-office-addin, whose frontend and backend always move in
+    lockstep and share one row/version) gets every leftover basename
+    comma-joined onto its single primary row."""
+    write_values_yaml_raw(tmp_path, f"""\
+zgw-office-addin:
+  frontend:
+    image:
+      repository: ghcr.io/infonl/zgw-office-addin-frontend
+      tag: "0.11.0@sha256:{DIGEST_A}"
+  backend:
+    image:
+      repository: ghcr.io/infonl/zgw-office-addin-backend
+      tag: "0.11.0@sha256:{DIGEST_B}"
+""")
+    rows = [["Product", "", "", "Office Add-in", "zgw-office-addin", "", "1", "1", "1", "1"]]
+    basenames = ecrt.resolve_image_basenames(rows, tmp_path)
+    assert set(basenames[0].split(",")) == {"zgw-office-addin-frontend", "zgw-office-addin-backend"}
+
+
+def test_resolve_image_basenames_unresolvable_technische_row_is_blank(ecrt, tmp_path):
+    """"ITA Poller" shares no text at all with the actual repository
+    basename ("internetaakafhandeling.poller") — left blank rather than
+    guessed."""
+    write_values_yaml_raw(tmp_path, f"""\
+ita:
+  poller:
+    image:
+      repository: ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller
+      tag: "3.2.0@sha256:{DIGEST_A}"
+""")
+    rows = [["Technische", "", "ita", "ITA Poller", "internetaakafhandeling", "ita", "1", "1", "1", "1"]]
+    assert ecrt.resolve_image_basenames(rows, tmp_path) == [""]
+
+
+def test_resolve_image_basenames_multiple_row_resolves_via_global_image_key(ecrt, tmp_path):
+    write_values_yaml_raw(tmp_path, f"""\
+global:
+  images:
+    curl:
+      repository: curlimages/curl
+      tag: "8.21.0@sha256:{DIGEST_A}"
+""")
+    rows = [["Overige", "", "", "curl", "MULTIPLE", "MULTIPLE", "1", "1", "1", "1"]]
+    assert ecrt.resolve_image_basenames(rows, tmp_path) == ["curl"]
+
+
+def test_resolve_image_basenames_multiple_row_no_repository_is_blank(ecrt, tmp_path):
+    write_values_yaml_raw(tmp_path, "global:\n  images:\n    curl: {}\n")
+    rows = [["Overige", "", "", "curl", "MULTIPLE", "MULTIPLE", "1", "1", "1", "1"]]
+    assert ecrt.resolve_image_basenames(rows, tmp_path) == [""]
+
+
+def test_resolve_image_basenames_unknown_component_is_blank(ecrt, tmp_path):
+    write_values_yaml_raw(tmp_path, "")
+    rows = [["Technische", "", "", "python image", "UNKNOWN", "", "1", "1", "1", "1"]]
+    assert ecrt.resolve_image_basenames(rows, tmp_path) == [""]
+
+
+def test_resolve_image_basenames_finds_image_under_a_related_orphan_key(ecrt, tmp_path):
+    """keycloak-operator's real app image lives under the separate
+    "keycloak" values.yaml block (podiumd's own Keycloak instance
+    config), not under "keycloak-operator" itself — an orphan key that
+    itself relates to the dependency (see _extra_scope_keys_by_component)
+    must be scanned too, not just the dependency's own top-level key."""
+    write_chart_yaml_with_dependencies(tmp_path, [("keycloak-operator", None)])
+    write_values_yaml_raw(tmp_path, f"""\
+keycloak-operator:
+  jobs:
+    ensurePodiumdAdminUser:
+      initImage:
+        repository: python
+        tag: "3.14.7-slim@sha256:{DIGEST_A}"
+keycloak:
+  image:
+    repository: quay.io/keycloak/keycloak
+    tag: "26.7.2@sha256:{DIGEST_B}"
+""")
+    rows = [
+        ["Overige", "", "", "Keycloak", "keycloak-operator", "", "1", "1", "1", "1"],
+        ["Technische", "", "keycloak-operator", "Python", "keycloak-operator", "", "1", "1", "1", "1"],
+    ]
+    assert ecrt.resolve_image_basenames(rows, tmp_path) == ["keycloak", "python"]
+
+
+def test_extra_scope_keys_by_component_ignores_multiple_and_unrelated_orphan_keys(ecrt, tmp_path):
+    write_chart_yaml_with_dependencies(tmp_path, [("keycloak-operator", None), ("frankgateway", None)])
+    write_values_yaml_raw(tmp_path, "keycloak: {}\nunrelated: {}\n")
+    extra = ecrt._extra_scope_keys_by_component(tmp_path)
+    assert extra == {"keycloak-operator": ["keycloak"]}
+
+
+def test_extract_release_rows_end_to_end_populates_image_basename(ecrt, tmp_path):
+    """extract_release_rows itself, not just resolve_image_basenames in
+    isolation, must insert the resolved basename at the right column."""
+    write_chart_yaml_with_dependencies(tmp_path, [("zaakafhandelcomponent", "zac")])
+    values_path = tmp_path / "values.yaml"
+    values_path.write_text(f"""\
+zac:
+  image:
+    repository: ghcr.io/infonl/zaakafhandelcomponent
+    tag: "5.0.0@sha256:{DIGEST_A}"
+""", encoding="utf-8")
+    html = PRODUCT_TABLE_HTML.replace("<td>ZAC</td>", "<td>ZAC</td>")
+    rows = ecrt.extract_release_rows(html, chart_dir=tmp_path)
+    assert rows[0] == ["Product", "Info(NL)", "", "ZAC", "zaakafhandelcomponent", "zac", "zaakafhandelcomponent",
+                        "5.0.0", "1.0.290", "5.1.0", "1.0.297"]
