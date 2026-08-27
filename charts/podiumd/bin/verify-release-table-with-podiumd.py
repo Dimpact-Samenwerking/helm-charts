@@ -302,7 +302,7 @@ def print_report(findings, unresolved):
 
     if unresolved:
         print(f"\nSkipped ({len(unresolved)} row(s) with an unresolved component in release-table.csv):")
-        for row in unresolved:
+        for row in sorted(unresolved, key=lambda r: r["name"]):
             print(f"  - '{row['name']}' (component={row['component'] or '(blank)'})")
 
     if not any_findings:

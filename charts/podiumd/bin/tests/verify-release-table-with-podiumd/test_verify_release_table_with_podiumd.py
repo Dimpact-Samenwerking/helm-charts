@@ -315,6 +315,34 @@ def test_compare_omc_special_case_image_matching_passes(vrt):
     assert findings == {}
 
 
+# --- print_report(): output is sorted per category ---
+
+def test_print_report_sorts_findings_within_each_section(vrt, capsys):
+    findings = {
+        "mismatches": [
+            "[IMAGE] Zulu (zulu): release-table target 1 != values.yaml 2",
+            "[CHART] Alpha (alpha): release-table target 1 != Chart.yaml 2",
+        ],
+    }
+    vrt.print_report(findings, [])
+    lines = [l for l in capsys.readouterr().out.splitlines() if l.startswith("  [")]
+    assert lines == [
+        "  [CHART] Alpha (alpha): release-table target 1 != Chart.yaml 2",
+        "  [IMAGE] Zulu (zulu): release-table target 1 != values.yaml 2",
+    ]
+
+
+def test_print_report_sorts_unresolved_rows_by_name(vrt, capsys):
+    unresolved = [csv_row("Zulu", "UNKNOWN"), csv_row("Alpha", ""), csv_row("Mike", "UNKNOWN")]
+    vrt.print_report({}, unresolved)
+    lines = [l for l in capsys.readouterr().out.splitlines() if l.strip().startswith("- '")]
+    assert lines == [
+        "  - 'Alpha' (component=(blank))",
+        "  - 'Mike' (component=UNKNOWN)",
+        "  - 'Zulu' (component=UNKNOWN)",
+    ]
+
+
 # --- main() ---
 
 def run_main(vrt, monkeypatch, argv):
