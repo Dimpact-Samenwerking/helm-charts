@@ -267,7 +267,7 @@ PodiumD Helm chart
 | keycloak-operator.jobs.ensurePodiumdAdminUser.enabled | bool | `true` |  |
 | keycloak-operator.jobs.ensurePodiumdAdminUser.image.registry | string | `""` |  |
 | keycloak-operator.jobs.ensurePodiumdAdminUser.image.repository | string | `"postgres"` |  |
-| keycloak-operator.jobs.ensurePodiumdAdminUser.image.tag | string | `"16@sha256:c1b3783309b6499c795eed7c20135a1a4d25cae1b575c3d52c6f536129a1b109"` |  |
+| keycloak-operator.jobs.ensurePodiumdAdminUser.image.tag | string | `"16.15@sha256:f1c3376c26f2609ab9f29f71f824103fe2fcd8ee0346485cb6122a4f93df6f94"` |  |
 | keycloak-operator.jobs.ensurePodiumdAdminUser.initImage.registry | string | `""` |  |
 | keycloak-operator.jobs.ensurePodiumdAdminUser.initImage.repository | string | `"python"` |  |
 | keycloak-operator.jobs.ensurePodiumdAdminUser.initImage.tag | string | `"3.14.7-slim@sha256:83ff1d245a3d57d04152252d3ef9cb361494d0b3395abd65a5ebe91c401c8e83"` |  |
@@ -1155,7 +1155,7 @@ PodiumD Helm chart
 | referentielijsten.fullnameOverride | string | `"referentielijsten"` |  |
 | referentielijsten.image.pullPolicy | string | `"IfNotPresent"` |  |
 | referentielijsten.image.repository | string | `"maykinmedia/referentielijsten-api"` |  |
-| referentielijsten.image.tag | string | `"0.7.4@sha256:5501b48fe9b988a72adba14308748e6b5928f851ec66d108bab2fe625eb831a3"` |  |
+| referentielijsten.image.tag | string | `"0.7.3@sha256:66f3a3da2a086e41ee8dc216b52b65d8dca04a4160c04a90693de2e5cd6dfa5e"` |  |
 | referentielijsten.persistence.enabled | bool | `true` |  |
 | referentielijsten.persistence.existingClaim | string | `"referentielijsten"` |  |
 | referentielijsten.persistence.size | string | `"10Gi"` |  |
@@ -1274,7 +1274,7 @@ PodiumD Helm chart
 | zac.smartDocuments.fixedUserName | string | `""` |  |
 | zac.smartDocuments.url | string | `""` |  |
 | zac.solr-operator.enabled | bool | `true` | turn functionality on/off |
-| zac.solr-operator.image.tag | string | `"v0.9.1@sha256:38dd9719f0f6e799d04bb8c22fb5eaca3a9fe7ffaf313c296327c6cca02f3c1d"` |  |
+| zac.solr-operator.image.tag | string | `"v0.9.1@sha256:4db34508137f185d3cad03c7cf7c2b5d6533fb590822effcde9125cff5a90aa2"` |  |
 | zac.solr-operator.nodeSelector | object | `{}` |  |
 | zac.solr-operator.resources.limits.cpu | string | `"500m"` |  |
 | zac.solr-operator.resources.limits.memory | string | `"256Mi"` |  |

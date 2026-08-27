@@ -46,11 +46,10 @@
 #   16. openformulieren 3.4.10 -> 3.5.6 (chart 1.12.0, unchanged).
 #   17. openinwoner 2.4.2 -> 2.4.3 (chart 2.4.0, unchanged).
 #   18. openzaak 1.27.4 -> 1.29.3 (chart 1.14.2, unchanged).
-#   19. referentielijsten 0.7.3 -> 0.7.4 (chart 0.1.1, unchanged).
-#   20. opennotificaties 1.16.1 -> 1.16.2 (chart 2.0.0, unchanged).
-#   21. clamav_exporter (metrics sidecar) v2.1.3 -> v2.1.8 (clamav chart
+#   19. opennotificaties 1.16.1 -> 1.16.2 (chart 2.0.0, unchanged).
+#   20. clamav_exporter (metrics sidecar) v2.1.3 -> v2.1.8 (clamav chart
 #      unchanged). Sidecar disabled by default (clamav.metrics.enabled: false).
-#   22. nginx-unprivileged (shared global.images.nginx anchor, used by every
+#   21. nginx-unprivileged (shared global.images.nginx anchor, used by every
 #      nginx sidecar in the chart) 1.31.3 -> 1.31.4.
 #
 # See docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md for the operator upgrade notes,
