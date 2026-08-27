@@ -16,7 +16,7 @@ worker of about 1 GiB.
 
 - Upstream project: [Open Forms](https://github.com/open-formulieren/open-forms)
   (Maykin Media), image `openformulieren/open-forms`, tag pinned in
-  `values.yaml` (`3.4.10@sha256:45755696db647b0c9fecc5d2c78403dbbac0f3c962292e89dee34b405abd1d7c`).
+  `values.yaml` (`3.5.6@sha256:<digest>` — see `docs/images/images-4.8.6.yaml`).
 - Deployed as the `openforms` subchart (v1.12.0, repo `@maykinmedia`), aliased
   to values key **`openformulieren`** — note the docs folder is `openforms`
   but every values path below starts with `openformulieren.`.
@@ -29,7 +29,7 @@ worker of about 1 GiB.
     enabled, `maxWorkerLivenessDelta: "300"`)
   - `openformulieren-beat` — 1 replica (Celery beat scheduler)
   - `openformulieren-nginx` — nginx front (image `nginxinc/nginx-unprivileged`
-    tag `1.31.3@sha256:1ab63ed666197d757cd3ce0ad84c5136f18f774465345785f33423bd1bba4353`,
+    tag `1.31.3@sha256:49c9bef1797e11117a7f490fd00f282e377ac402fec472c72636f90cdbf72e10`,
     `clientMaxBodySize: 100M`)
   - `django-setup-configuration` Job (`configuration.job`, `backoffLimit: 6`,
     `ttlSecondsAfterFinished: 600`) — applies declarative config on install/upgrade
