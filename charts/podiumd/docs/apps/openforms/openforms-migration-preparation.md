@@ -10,7 +10,7 @@ Several scripts have been added to Open Formulieren that help in this migration.
 This page lists those scripts. 
 
 
-#### 1. Diagnostic script to check "disable next" logic actions
+### 1. Diagnostic script to check "disable next" logic actions
    
 The "disable next" logic action now requires the target step to be explicitly specified. 
 When upgrading to a 3.5.x version, a migration runs automatically but cannot guarantee correctness in all cases. Open Formulieren offers a diagnostic script to identify forms where the automatic migration may have assigned the wrong step. 
@@ -30,7 +30,7 @@ The below steps must be taken per gemeente.
    2. Share the result with form designers, they must review and correct any flagged rules manually.
 
 
-#### 2. Diagnostic script to check for cyclic or unstable logic
+### 2. Diagnostic script to check for cyclic or unstable logic
 
 Open Forms 4.0 will enforce this as a hard requirement; start resolving now:
 
@@ -41,6 +41,8 @@ Open Forms 4.0 will enforce this as a hard requirement; start resolving now:
 
 Report the output to form designers so they can work through the flagged forms before
 the 4.0 upgrade.
+
+This script has been available since version 3.5.0.
 
 
 ### 3. Migration script to remove  Legacy logic evaluation (removed in 4.0)
