@@ -16,7 +16,7 @@ worker of about 1 GiB.
 
 - Upstream project: [Open Forms](https://github.com/open-formulieren/open-forms)
   (Maykin Media), image `openformulieren/open-forms`, tag pinned in
-  `values.yaml` (`3.4.10@sha256:45755696db647b0c9fecc5d2c78403dbbac0f3c962292e89dee34b405abd1d7c`).
+  `values.yaml` (`3.5.6@sha256:<digest>` — see `docs/images/images-4.9.0.yaml`).
 - Deployed as the `openforms` subchart (v1.12.0, repo `@maykinmedia`), aliased
   to values key **`openformulieren`** — note the docs folder is `openforms`
   but every values path below starts with `openformulieren.`.
@@ -87,7 +87,7 @@ The HTTPRoute is created by the per-gemeente environment deployment (ADO
   - DB **9** — cache, default + axes
     (`settings.cache.default/axes: redis-ha-master.podiumd.svc.cluster.local:6379/9`)
   - DB **10** — Celery broker + result backend
-    (`settings.celery.brokerUrl` / `settings.celery.resultBackendl`:
+    (`settings.celery.brokerUrl` / `settings.celery.resultBackend`:
     `redis://redis-ha-master.podiumd.svc.cluster.local:6379/10`)
   - Allocation table: `docs/apps/redis/redis-ha-databases.md`
 - **Keycloak** — OIDC client in the `podiumd` realm for admin login, wired via
@@ -183,5 +183,4 @@ baseline (dev/accp), not peak.
 
 ## Related documents
 
-None — this folder has only the BASICS file; no deep-dive documents exist yet
-for this component.
+- [openforms-migration-preparation.md](openforms-migration-preparation.md) — documents scripts to be used in preparation for version 4.0.
