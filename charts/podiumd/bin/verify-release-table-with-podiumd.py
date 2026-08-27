@@ -18,10 +18,16 @@ A row's "component"/"alias"/"image_basename" columns are already resolved
 by export-confluence-release-table.py — this reads them directly rather
 than re-deriving anything from free-form text (component is always a
 literal Chart.yaml dependency name, or a values.yaml top-level key for a
-no-separate-chart component). The image lookup (lib.image_version.
-basenames_under_scope) is the exact same one update-image-version.py's own
-<target> resolution (lib.image_version.resolve_basename) is built on, and
-the chart-version lookup is a plain Chart.yaml dependency read, the same
+no-separate-chart component). The image lookup is the exact same two lib.
+image_version calls update-image-version.py's own <target> resolution
+(lib.image_version.resolve_basename) is built on, tried in the same
+order: first basenames_under_scope, scoped to the component's own
+values.yaml subtree (fast, and the common case); if that misses, a plain
+find_matches search across the WHOLE file, since a basename is a real
+repository identity, not a values.yaml path, and can legitimately be
+pinned under a sibling scope instead (e.g. keycloak-config-cli lives
+under top-level "keycloak", not its own component's "keycloak-operator").
+The chart-version lookup is a plain Chart.yaml dependency read, the same
 one update-component-version.py's own pre-write gate uses.
 
 A row whose component is "MULTIPLE" is a shared base image hoisted into
@@ -65,15 +71,6 @@ digest_pinning_check.EXEMPT_PATHS documents for its own, different check
     independently of that blank column, keyed by component instead — see
     SPECIAL_CASE_COMPONENT_TAG_PATHS.
 
-Known false positive NOT covered by either special case above:
-keycloak-operator's OWN separate "Keycloak Config CLI" image
-(keycloak.keycloakConfigCli.image) lives under top-level "keycloak", not
-"keycloak-operator" itself (see export-confluence-release-table.py's own
-_extra_scope_keys_by_component, which exists to work around the exact
-same case) — reports as "not pinned anywhere under 'keycloak-operator'"
-here even though it's really just pinned under a sibling scope. Worth a
-human's judgment call, not a bug in the data.
-
 Also compares version text literally, not semantically: a "v" prefix
 difference between the two sides (e.g. release-table "1.89.0" vs
 values.yaml "v1.89.0") is reported as a mismatch even though the actual
@@ -96,7 +93,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from lib.chart import get_path, load_yaml
-from lib.image_version import basenames_under_scope
+from lib.image_version import basenames_under_scope, find_matches
 
 CHART_DIR = SCRIPT_DIR.parents[0]
 CHART_YAML = CHART_DIR / "Chart.yaml"
@@ -178,6 +175,16 @@ def check_images(scope_key, component, rows, lines, findings, values):
         for basename in basenames:
             csv_basenames.add(basename)
             pins = actual_basenames.get(basename)
+            if pins is None:
+                # Not under this component's own scope — same fallback
+                # update-image-version.py's own <target> resolution uses
+                # (lib.image_version.resolve_basename's first, unscoped
+                # find_matches try): a basename is a real repository
+                # identity, not a values.yaml path, so it can legitimately
+                # be pinned under a sibling scope instead (e.g. keycloak-
+                # config-cli lives under top-level "keycloak", not
+                # "keycloak-operator").
+                pins = find_matches(lines, basename) or None
             if pins is not None:
                 if not target or target == "UNKNOWN":
                     continue

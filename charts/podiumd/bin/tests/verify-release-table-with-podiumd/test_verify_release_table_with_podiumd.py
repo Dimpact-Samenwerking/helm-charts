@@ -258,16 +258,41 @@ def test_compare_keycloak_special_case_image_matching_passes(vrt):
     assert findings == {}
 
 
-def test_compare_keycloak_config_cli_under_separate_scope_still_reports_missing(vrt):
+def test_compare_finds_basename_pinned_under_a_sibling_scope(vrt):
     """keycloak-config-cli lives under top-level "keycloak" (a values.yaml
     sibling block, separate from keycloak-operator's own scope) — a
-    DIFFERENT, still-open limitation the special-case fix doesn't cover;
-    confirms the fix is narrowly scoped to the actual keycloakImage path."""
+    basename is a real repository identity, not a values.yaml path, so it
+    can be pinned somewhere other than its own component's scope. Found
+    via the same whole-file find_matches fallback update-image-version.py's
+    own <target> resolution uses (lib.image_version.resolve_basename)."""
+    keycloak_config_cli_block = (
+        "keycloak:\n"
+        "  keycloakConfigCli:\n"
+        "    image:\n"
+        "      repository: adorsys/keycloak-config-cli\n"
+        f'      tag: "6.5.1-26@sha256:{"c" * 64}"\n'
+    )
+    deps = [{"name": "keycloak-operator", "alias": "", "version": "1.12.1"}]
+    rows = [csv_row("Keycloak Config CLI", "keycloak-operator", image_basename="keycloak-config-cli",
+                     target_app="6.5.2-27")]
+    findings, _ = vrt.compare(rows, deps, {}, values_lines(keycloak_config_cli_block))
+    assert any("target 6.5.2-27 != values.yaml 6.5.1-26" in m for m in findings["mismatches"])
+    assert "missing_from_chart" not in findings
+
+
+def test_compare_sibling_scope_basename_matching_passes(vrt):
+    keycloak_config_cli_block = (
+        "keycloak:\n"
+        "  keycloakConfigCli:\n"
+        "    image:\n"
+        "      repository: adorsys/keycloak-config-cli\n"
+        f'      tag: "6.5.1-26@sha256:{"c" * 64}"\n'
+    )
     deps = [{"name": "keycloak-operator", "alias": "", "version": "1.12.1"}]
     rows = [csv_row("Keycloak Config CLI", "keycloak-operator", image_basename="keycloak-config-cli",
                      target_app="6.5.1-26")]
-    findings, _ = vrt.compare(rows, deps, keycloak_values(), [])
-    assert any("keycloak-config-cli" in m for m in findings["missing_from_chart"])
+    findings, _ = vrt.compare(rows, deps, {}, values_lines(keycloak_config_cli_block))
+    assert findings == {}
 
 
 def test_compare_checks_omc_special_case_image(vrt):
