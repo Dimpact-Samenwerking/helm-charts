@@ -232,7 +232,7 @@ def test_check_image_upgrades_fetch_error_reported_but_still_passes(
 
 # --- caching ---
 
-def test_check_image_upgrades_cache_miss_scans_and_persists(vp, libimageupgradecheck, tmp_path, monkeypatch, capsys):
+def test_check_image_upgrades_cache_miss_scans_and_persists(vp, libimageupgradecheck, tmp_path, monkeypatch):
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(libimageupgradecheck, "run", template_run())
     monkeypatch.setattr(libimageupgradecheck, "find_newest_same_variant_tag", newest_tag_for())
@@ -241,9 +241,6 @@ def test_check_image_upgrades_cache_miss_scans_and_persists(vp, libimageupgradec
     assert ok is True
     saved = libimageupgradecheck.load_cache(chart_dir)
     assert libimageupgradecheck.cache_key("ghcr.io/wearefrank/frank-gateway", "104") in saved
-
-    out = capsys.readouterr().out
-    assert "image-upgrade-cache.json changed — commit it" in out
 
 
 def test_check_image_upgrades_cache_hit_skips_registry_call(vp, libimageupgradecheck, tmp_path, monkeypatch, capsys):

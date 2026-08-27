@@ -4,3 +4,4 @@ temp-*.yaml
 temp-*.txt
 *.doc
 *.swp
+.cache/

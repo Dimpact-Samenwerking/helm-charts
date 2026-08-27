@@ -1,5 +1,6 @@
 """JSON cache for image-upgrade-tag lookups
-(charts/podiumd/image-upgrade-cache.json), shared by lib.image_upgrade_check
+(charts/podiumd/.cache/image-upgrade-cache.json — a personal, gitignored,
+per-checkout cache, see cache_path), shared by lib.image_upgrade_check
 (which populates it via a live registry check) and lib.cve_check (which
 reads it read-only, to annotate a CVE finding as "upgradable" without
 triggering a registry round trip of its own — see that module's
@@ -19,9 +20,10 @@ IMAGE_UPGRADE_CACHE_TTL_DAYS = 1
 
 
 def cache_path(chart_dir):
-    """charts/podiumd/image-upgrade-cache.json — tracked chart content
-    (same rationale as cve_check's own cache), not gitignored."""
-    return chart_dir / CACHE_FILENAME
+    """charts/podiumd/.cache/image-upgrade-cache.json — a personal,
+    gitignored, per-checkout cache (same as cve_check's own), never
+    committed."""
+    return chart_dir / ".cache" / CACHE_FILENAME
 
 
 def load_cache(chart_dir):
