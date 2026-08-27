@@ -8,7 +8,7 @@ import urllib.error
 
 import yaml
 
-from conftest import make_dep
+from dep_helpers import make_dep
 
 
 def make_tgz(charts_dir, name, version, values):

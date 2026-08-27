@@ -1,7 +1,7 @@
 """match_dependency and resolve_entry_path — including the two disambiguation
 bugs found (and fixed) during development: resolve_entry_path picking the
 wrong sibling path via naive longest-substring matching."""
-from conftest import make_dep
+from dep_helpers import make_dep
 
 
 def test_match_dependency_by_name(libupgradedoc):

@@ -1,0 +1,238 @@
+#!/usr/bin/env python3
+"""
+Compare charts/podiumd/release-table.csv (see
+export-confluence-release-table.py) against the CURRENT
+charts/podiumd/Chart.yaml + values.yaml, and report:
+
+  - version mismatches: a row's target_version_helm/target_version_app
+    disagrees with what's actually pinned right now
+  - missing from release-table.csv: a real Chart.yaml dependency with no
+    row at all, or an image pinned in values.yaml under a tracked
+    component's own scope that no row's image_basename mentions
+  - missing from Chart.yaml/values.yaml: a row whose resolved "component"
+    isn't a Chart.yaml dependency (or values.yaml top-level key, for a
+    component with no separate Helm chart, e.g. frankgateway) anymore, or
+    whose image_basename names an image no longer pinned there
+
+A row's "component"/"alias"/"image_basename" columns are already resolved
+by export-confluence-release-table.py — this reads them directly rather
+than re-deriving anything from free-form text (component is always a
+literal Chart.yaml dependency name, or a values.yaml top-level key for a
+no-separate-chart component). The image lookup (lib.image_version.
+basenames_under_scope) is the exact same one update-image-version.py's own
+<target> resolution (lib.image_version.resolve_basename) is built on, and
+the chart-version lookup is a plain Chart.yaml dependency read, the same
+one update-component-version.py's own pre-write gate uses.
+
+A row whose component is "UNKNOWN" or "MULTIPLE" (export-confluence-
+release-table.py couldn't resolve it to anything at export time) is
+listed separately as unresolved — that's a pre-existing export-time gap,
+not something this script can verify either way, so it isn't scored as a
+failure here.
+
+Purely local and network-free (no `helm pull`, no registry calls): a
+"fallback path" component's app image basename can only be discovered by
+pulling that specific chart version (see verify-image-version.py) — this
+compares release-table.csv's OWN image_basename column against whatever
+is ALREADY pinned in values.yaml right now, so nothing needs pulling.
+
+Known false positive: a component whose image is pinned under a
+DIFFERENT top-level values.yaml key than its own Chart.yaml dependency
+name/alias (e.g. keycloak-operator's own image lives under the separate
+"keycloak" block, not "keycloak-operator" — see
+export-confluence-release-table.py's own _extra_scope_keys_by_component,
+which exists to work around the exact same case) reports as "not pinned
+anywhere under '<scope>'" here even though it's really just pinned
+somewhere else. Worth a human's judgment call, not a bug in the data.
+
+Also compares version text literally, not semantically: a "v" prefix
+difference between the two sides (e.g. release-table "1.89.0" vs
+values.yaml "v1.89.0") is reported as a mismatch even though the actual
+version is the same — the release-table column and the values.yaml pin
+are supposed to record the identical string, so a drift there is itself
+worth surfacing rather than silently normalized away.
+
+Usage:
+    verify-release-table-with-podiumd.py
+
+Exit code is non-zero if any version mismatch, missing-from-release-table,
+or missing-from-chart-or-values item was found.
+"""
+import csv
+import sys
+from collections import defaultdict
+from pathlib import Path
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
+
+from lib.chart import load_yaml
+from lib.image_version import basenames_under_scope
+
+CHART_DIR = SCRIPT_DIR.parents[0]
+CHART_YAML = CHART_DIR / "Chart.yaml"
+VALUES_YAML = CHART_DIR / "values.yaml"
+RELEASE_TABLE_CSV = CHART_DIR / "release-table.csv"
+
+UNRESOLVED_COMPONENTS = ("", "UNKNOWN", "MULTIPLE")
+
+
+def load_release_table(path):
+    with path.open(newline="", encoding="utf-8") as f:
+        return list(csv.DictReader(f))
+
+
+def split_basenames(value):
+    return [b.strip() for b in value.split(",") if b.strip()]
+
+
+def check_chart_version(dep, rows, findings):
+    actual = str(dep["version"])
+    for row in rows:
+        target = row["target_version_helm"]
+        if not target or target == "UNKNOWN":
+            continue
+        if target != actual:
+            findings["mismatches"].append(
+                f"[CHART] {row['name']} ({dep['name']}): release-table target {target} != Chart.yaml {actual}"
+            )
+
+
+def check_images(scope_key, component, rows, lines, findings):
+    actual_basenames = basenames_under_scope(lines, scope_key)
+    csv_basenames = set()
+
+    for row in rows:
+        target = row["target_version_app"]
+        for basename in split_basenames(row["image_basename"]):
+            csv_basenames.add(basename)
+            pins = actual_basenames.get(basename)
+            if pins is None:
+                findings["missing_from_chart"].append(
+                    f"[IMAGE] release-table image '{basename}' for component '{component}' "
+                    f"(row '{row['name']}') is not pinned anywhere under '{scope_key}' in values.yaml"
+                )
+                continue
+            if not target or target == "UNKNOWN":
+                continue
+            versions = {p["version"] for p in pins}
+            if len(versions) > 1:
+                findings["ambiguous"].append(
+                    f"[IMAGE] '{basename}' under '{scope_key}' is pinned at {len(versions)} different versions "
+                    f"({', '.join(sorted(versions))}) -- can't compare to release-table target {target}"
+                )
+            elif next(iter(versions)) != target:
+                findings["mismatches"].append(
+                    f"[IMAGE] {row['name']} ({component}.{basename}): release-table target {target} "
+                    f"!= values.yaml {next(iter(versions))}"
+                )
+
+    for basename in actual_basenames:
+        if basename not in csv_basenames:
+            findings["missing_from_release_table"].append(
+                f"[IMAGE] '{scope_key}' image '{basename}' is pinned in values.yaml but not tracked "
+                f"in release-table.csv"
+            )
+
+
+def compare(rows, deps, values, lines):
+    """{"mismatches", "ambiguous", "missing_from_release_table",
+    "missing_from_chart"}: str -> [str, ...], plus the separate list of
+    rows whose component export-confluence-release-table.py never
+    resolved at all (see UNRESOLVED_COMPONENTS) — see module docstring."""
+    findings = defaultdict(list)
+    unresolved = []
+
+    rows_by_component = defaultdict(list)
+    for row in rows:
+        component = row["component"]
+        if component in UNRESOLVED_COMPONENTS:
+            unresolved.append(row)
+        else:
+            rows_by_component[component].append(row)
+
+    checked_components = set()
+    for dep in deps:
+        component = dep["name"]
+        checked_components.add(component)
+        rows_for_component = rows_by_component.get(component, [])
+        if not rows_for_component:
+            alias_suffix = f" (alias '{dep['alias']}')" if dep.get("alias") else ""
+            findings["missing_from_release_table"].append(
+                f"[CHART] Chart.yaml dependency '{component}'{alias_suffix} has no release-table.csv row"
+            )
+            continue
+        check_chart_version(dep, rows_for_component, findings)
+        check_images(dep.get("alias") or component, component, rows_for_component, lines, findings)
+
+    values = values if isinstance(values, dict) else {}
+    for component, rows_for_component in rows_by_component.items():
+        if component in checked_components:
+            continue
+        if component in values:
+            check_images(component, component, rows_for_component, lines, findings)
+        else:
+            for row in rows_for_component:
+                findings["missing_from_chart"].append(
+                    f"[CHART] release-table row '{row['name']}' resolves to component '{component}', "
+                    f"which is not a Chart.yaml dependency or a top-level values.yaml key"
+                )
+
+    return dict(findings), unresolved
+
+
+SECTIONS = [
+    ("mismatches", "Version mismatches"),
+    ("ambiguous", "Ambiguous pins (can't verify)"),
+    ("missing_from_release_table", "Missing from release-table.csv"),
+    ("missing_from_chart", "Missing from Chart.yaml / values.yaml"),
+]
+
+
+def print_report(findings, unresolved):
+    any_findings = False
+    for key, title in SECTIONS:
+        items = findings.get(key)
+        if not items:
+            continue
+        any_findings = True
+        print(f"\n{title}:")
+        for item in sorted(items):
+            print(f"  {item}")
+
+    if unresolved:
+        print(f"\nSkipped ({len(unresolved)} row(s) with an unresolved component in release-table.csv):")
+        for row in unresolved:
+            print(f"  - '{row['name']}' (component={row['component'] or '(blank)'})")
+
+    if not any_findings:
+        print("OK: release-table.csv matches Chart.yaml / values.yaml")
+    return any_findings
+
+
+def main():
+    if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
+        print(__doc__)
+        sys.exit(0)
+    if len(sys.argv) != 1:
+        print(__doc__)
+        sys.exit(1)
+
+    if not RELEASE_TABLE_CSV.is_file():
+        print(f"error: {RELEASE_TABLE_CSV} not found")
+        print("Create it first with export-confluence-release-table.py.")
+        sys.exit(1)
+    rows = load_release_table(RELEASE_TABLE_CSV)
+
+    chart_yaml = load_yaml(CHART_YAML) if CHART_YAML.is_file() else {}
+    deps = (chart_yaml or {}).get("dependencies", [])
+    values = load_yaml(VALUES_YAML) if VALUES_YAML.is_file() else {}
+    lines = VALUES_YAML.read_text(encoding="utf-8").splitlines() if VALUES_YAML.is_file() else []
+
+    findings, unresolved = compare(rows, deps, values, lines)
+    any_findings = print_report(findings, unresolved)
+    sys.exit(1 if any_findings else 0)
+
+
+if __name__ == "__main__":
+    main()
