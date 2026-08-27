@@ -694,16 +694,7 @@ def test_update_component_table_no_table_returns_none_action(ucv):
     assert new_text == text
 
 
-# --- find_changes_section / make_changes_section / insert_changes_section ---
-
-def test_find_changes_section_detects_existing_heading(ucv):
-    text = "## Changes\n\n### openformulieren 3.4.10 → 3.5.6 (chart 1.12.0, unchanged)\n"
-    assert ucv.find_changes_section(text, "openformulieren") is True
-
-
-def test_find_changes_section_false_when_absent(ucv):
-    assert ucv.find_changes_section("## Changes\n\n### zac ...\n", "openformulieren") is False
-
+# --- make_changes_section / insert_changes_section ---
 
 def test_make_changes_section_includes_bullets(ucv):
     section = ucv.make_changes_section(
@@ -1013,10 +1004,150 @@ def test_main_updates_existing_component_mention_end_to_end(ucv, tmp_path, monke
     upgrade = (ucv.DOC_DIR / "4.8.5-to-4.9.0-upgrade.md").read_text(encoding="utf-8")
     assert "| zac | 5.0.2 → 5.4.3 | 1.0.296 → 1.0.297 | - |" in upgrade
     assert "| zac | 5.0.1 → 5.0.2 |" not in upgrade  # old row content is gone
-    # existing Changes section is left alone (not duplicated / rewritten) —
-    # it still says 5.0.1 since that's a pre-existing, untouched section
+    # the existing Changes section is rewritten from scratch (not left
+    # stale, not duplicated) to match the table row's own new transition —
+    # the old "5.0.1 → 5.0.2" heading is gone entirely
     assert upgrade.count("### zac") == 1
-    assert "### zac 5.0.1 → 5.0.2 (chart 1.0.296, unchanged)" in upgrade
+    assert "### zac 5.0.1 → 5.0.2" not in upgrade
+    assert "### zac 5.0.2 → 5.4.3 (chart 1.0.296 → 1.0.297)" in upgrade
+
+
+# --- main() vs the TRUE git baseline: reset-to-baseline removal, and
+# collapsing more than one bump in a release cycle into a single entry ---
+
+def commit_baseline_tag(tmp_path):
+    init_git_repo(tmp_path)
+    git("add", "-A", cwd=tmp_path)
+    git("commit", "-q", "-m", "baseline", cwd=tmp_path)
+    git("tag", "podiumd-4.8.5", cwd=tmp_path)
+
+
+def test_main_removes_all_docs_when_reset_back_to_baseline(ucv, tmp_path, monkeypatch):
+    """A component bumped once (baseline 5.0.2 -> 5.5.0, already fully
+    documented) and then reset all the way back to its baseline version
+    has nothing left to report: the table row, Changes section,
+    values-delta bullet, and images-manifest 'changes:' entry/comment
+    must all be removed, not left describing a transition that no longer
+    happened net of baseline. The manifest ENTRY itself must still show
+    the correct (baseline) version/digest -- it lists every image
+    regardless of change-tracking."""
+    chart_yaml, values_yaml = setup_repo(tmp_path, monkeypatch, ucv)
+    commit_baseline_tag(tmp_path)  # baseline: chart 1.0.296, zac 5.0.2@sha256:aaaa...
+
+    # Simulate "already bumped to 5.5.0 earlier in this release cycle" --
+    # chart version stays at baseline (1.0.296), only the app tag moved.
+    values_yaml.write_text(
+        "zac:\n"
+        "  image:\n"
+        "    repository: ghcr.io/infonl/zaakafhandelcomponent\n"
+        f'    tag: "5.5.0@sha256:{OLD_DIGEST}"\n',
+        encoding="utf-8",
+    )
+    setup_docs(
+        ucv, monkeypatch,
+        upgrade_text=(
+            "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+            "## Component versions (4.9.0 vs 4.8.5)\n\n"
+            "| Component | App version | Helm chart | Notes |\n"
+            "| --- | --- | --- | --- |\n"
+            "| zac | 5.0.2 → 5.5.0 | 1.0.296 (unchanged) | - |\n\n"
+            "## Changes\n\n"
+            "### zac 5.0.2 → 5.5.0 (chart 1.0.296, unchanged)\n\nblah\n"
+        ),
+        values_deltas_text=(
+            "# Values deltas — PodiumD 4.8.5 → 4.9.0\n\n"
+            "- **zac** app `5.0.2 → 5.5.0` (chart `1.0.296`, unchanged) — image tag only.\n"
+        ),
+        images_text=(
+            "# One change:\n"
+            "#   1. zac 5.0.2 -> 5.5.0 (chart 1.0.296, unchanged).\n"
+            "#\n\n"
+            "# zac — 5.0.2 -> 5.5.0\n"
+            "- name: zac\n"
+            "  url: ghcr.io/infonl/zaakafhandelcomponent\n"
+            '  version: "5.5.0"\n'
+            f'  digest: "sha256:{OLD_DIGEST}"\n'
+        ),
+    )
+    mock_verify_passes(monkeypatch, ucv)
+    # Same digest baseline already recorded -- re-resolving 5.0.2 (a real,
+    # immutable released version) from the registry always returns this
+    # same digest, exactly like it would outside this mocked test.
+    mock_registry_passes(monkeypatch, ucv, "a")
+    monkeypatch.setattr("sys.argv", ["update-component-version.py", "zac", "5.0.2", "1.0.296"])
+
+    ucv.main()
+
+    upgrade = (ucv.DOC_DIR / "4.8.5-to-4.9.0-upgrade.md").read_text(encoding="utf-8")
+    assert "| zac |" not in upgrade
+    assert "### zac" not in upgrade
+
+    deltas = (ucv.DOC_DIR / "4.8.5-to-4.9.0-values-deltas.md").read_text(encoding="utf-8")
+    assert "**zac**" not in deltas
+
+    images = (ucv.IMAGES_DIR / "images-4.9.0.yaml").read_text(encoding="utf-8")
+    assert "Zero changes:" in images
+    assert "zac 5.0.2" not in images  # the numbered "changes:" list item is gone
+    assert "# zac —" not in images  # the entry's now-stale source comment is gone too
+    assert '"5.0.2"' in images  # the entry itself still lists the correct (reset) version
+
+
+def test_main_collapses_repeated_bump_into_single_baseline_entry(ucv, tmp_path, monkeypatch):
+    """Bumping zac to 5.4.3 and then, within the same release cycle,
+    reconsidering to 5.5.0 instead must leave exactly ONE entry in each
+    doc showing baseline -> final (5.0.2 -> 5.5.0) -- never two entries,
+    and never an intermediate-hop transition like "5.4.3 -> 5.5.0"."""
+    chart_yaml, values_yaml = setup_repo(tmp_path, monkeypatch, ucv)
+    commit_baseline_tag(tmp_path)  # baseline: chart 1.0.296, zac 5.0.2@sha256:aaaa...
+    setup_docs(
+        ucv, monkeypatch,
+        upgrade_text=(
+            "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+            "## Component versions (4.9.0 vs 4.8.5)\n\n"
+            "| Component | App version | Helm chart | Notes |\n"
+            "| --- | --- | --- | --- |\n\n"
+            "## Changes\n\n"
+        ),
+        values_deltas_text="# Values deltas — PodiumD 4.8.5 → 4.9.0\n\n",
+        images_text=(
+            "# Baseline: podiumd 4.8.5.\n"
+            "#\n"
+            "# Zero changes:\n"
+            "#\n\n"
+            "- name: zac\n"
+            "  url: ghcr.io/infonl/zaakafhandelcomponent\n"
+            '  version: "5.0.2"\n'
+            f'  digest: "sha256:{OLD_DIGEST}"\n'
+        ),
+    )
+    mock_verify_passes(monkeypatch, ucv)
+
+    mock_registry_passes(monkeypatch, ucv, "b")
+    monkeypatch.setattr("sys.argv", ["update-component-version.py", "zac", "5.4.3", "1.0.297"])
+    ucv.main()
+
+    mock_registry_passes(monkeypatch, ucv, "c")
+    monkeypatch.setattr("sys.argv", ["update-component-version.py", "zac", "5.5.0", "1.0.297"])
+    ucv.main()
+
+    upgrade = (ucv.DOC_DIR / "4.8.5-to-4.9.0-upgrade.md").read_text(encoding="utf-8")
+    assert upgrade.count("| zac |") == 1
+    assert "| zac | 5.0.2 → 5.5.0 | 1.0.296 → 1.0.297 | - |" in upgrade
+    assert "5.4.3" not in upgrade
+    assert upgrade.count("### zac") == 1
+    assert "### zac 5.0.2 → 5.5.0 (chart 1.0.296 → 1.0.297)" in upgrade
+
+    deltas = (ucv.DOC_DIR / "4.8.5-to-4.9.0-values-deltas.md").read_text(encoding="utf-8")
+    assert deltas.count("**zac**") == 1
+    assert "5.4.3" not in deltas
+    assert "**zac** app `5.0.2 → 5.5.0` (chart `1.0.296 → 1.0.297`) — chart + image tag." in deltas
+
+    images = (ucv.IMAGES_DIR / "images-4.9.0.yaml").read_text(encoding="utf-8")
+    assert "One change:" in images
+    assert "5.4.3" not in images
+    assert "1. zac 5.0.2 -> 5.5.0 (chart 1.0.296 -> 1.0.297)." in images
+    assert '"5.5.0"' in images
+    assert f'"sha256:{"c" * 64}"' in images
 
 
 def test_main_skips_doc_updates_when_no_upgrade_doc_exists(ucv, tmp_path, monkeypatch, capsys):

@@ -59,14 +59,16 @@ from lib.chart import (
 from lib.component_docs import NO_CHANGES_CLAIMED_RE
 from lib.component_docs import (
     find_baseline_docs as _find_baseline_docs,
-    find_changes_section, images_manifest_path as _images_manifest_path, insert_changes_section,
-    load_baseline_values as _load_baseline_values, make_changes_section, update_component_table,
+    images_manifest_path as _images_manifest_path, insert_changes_section,
+    load_baseline_state as _load_baseline_state, load_baseline_values as _load_baseline_values,
+    make_changes_section, remove_changes_section, remove_component_from_images_manifest,
+    remove_component_row, remove_component_values_delta, update_component_table,
     update_images_manifest, values_delta_bullet,
 )
 from lib.image_version import image_basename, update_image_version
 from lib.procutil import run_script
 from lib.registry import parse_repo, registry_tag_exists
-from lib.upgradedoc import append_to_doc, describe_key_changes
+from lib.upgradedoc import append_to_doc, compute_changed_components, describe_key_changes
 
 UPDATE_README_SCRIPT = SCRIPT_DIR / "update-podiumd-readme.py"
 CHART_YAML = SCRIPT_DIR.parents[0] / "Chart.yaml"
@@ -314,6 +316,10 @@ def load_baseline_values(baseline):
     return _load_baseline_values(VALUES_YAML, baseline)
 
 
+def load_baseline_state(baseline):
+    return _load_baseline_state(CHART_YAML, VALUES_YAML, baseline)
+
+
 def main():
     if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
         print(__doc__)
@@ -447,62 +453,110 @@ def main():
 
     target = current_chart_version()
     friendly = values_key
+    # Fallback "old" values when the baseline itself can't be resolved (see
+    # below) -- whatever was on disk right before this particular run, the
+    # only prior behavior this script had.
     old_chart = str(dep["version"])
     old_app = old_app_by_path.get(image_paths[0])
 
     baseline, upgrade_path, values_deltas_path = find_baseline_docs(target)
+
+    # Compare against the TRUE release baseline (git-resolved), not
+    # "whatever this script itself last left on disk" -- the only way a
+    # component bumped more than once in one release cycle (1 -> 3, then
+    # reconsidered to 1 -> 2) still ends up documented as ONE baseline ->
+    # final transition instead of accumulating each intermediate hop, and
+    # the only way to tell "back to baseline, nothing left to document"
+    # apart from "a genuine (if numerically backwards-looking) change".
+    # See lib.upgradedoc.compute_changed_components.
+    baseline_deps = baseline_values = None
+    reset_to_baseline = False
+    if baseline is not None:
+        baseline_deps, baseline_values = load_baseline_state(baseline)
+    if baseline_deps is not None:
+        current_deps = yaml.safe_load(CHART_YAML.read_text(encoding="utf-8"))["dependencies"]
+        current_values = yaml.safe_load(VALUES_YAML.read_text(encoding="utf-8")) or {}
+        changed_keys = compute_changed_components(current_deps, baseline_deps, current_values, baseline_values)
+        reset_to_baseline = friendly not in changed_keys
+
+        baseline_dep = _find_dependency(baseline_deps, chart_name)
+        if baseline_dep is not None:
+            old_chart = str(baseline_dep["version"])
+            baseline_tag = get_path(baseline_values, f"{values_key}.{image_paths[0]}.tag") or ""
+            old_app = baseline_tag.split("@", 1)[0] or None
+
     if upgrade_path is None:
         print()
         print(f"No upgrade doc found for target {target} — run set-doc-baseline.py first "
               f"to scaffold it; skipping doc updates.")
+    elif reset_to_baseline:
+        text = upgrade_path.read_text(encoding="utf-8")
+        new_text, row_removed = remove_component_row(text, friendly)
+        new_text, section_removed = remove_changes_section(new_text, friendly)
+        if row_removed or section_removed:
+            upgrade_path.write_text(new_text, encoding="utf-8")
+        print()
+        print(f"=== Updating {upgrade_path.name} ===")
+        print(f"  {friendly} is back at its baseline {baseline} version — nothing left to document")
+        if row_removed:
+            print("  removed table row")
+        if section_removed:
+            print(f"  removed '### {friendly} ...' Changes section")
     else:
         text = upgrade_path.read_text(encoding="utf-8")
         new_text, table_action = update_component_table(text, friendly, old_app, app_version,
                                                           old_chart, chart_version, deps, values)
-        section_exists = find_changes_section(new_text, friendly)
-        section_added = False
-        if table_action == "added" and not section_exists:
+        if table_action is not None:
+            # Always rewritten from scratch against the current baseline ->
+            # final transition, rather than only ever created once on the
+            # first bump -- a later hop (e.g. reconsidering 3 for 2) would
+            # otherwise leave the ORIGINAL "### ... 1 -> 3 ..." prose
+            # section stale even though the table row itself now correctly
+            # says "1 -> 2".
+            new_text, _ = remove_changes_section(new_text, friendly)
             section = make_changes_section(friendly, target, chart_name, values_key, old_app, app_version,
                                             old_chart, chart_version, paths_to_update)
             new_text = insert_changes_section(new_text, section, friendly, deps, values)
-            section_added = True
-
-        if table_action is not None:
             upgrade_path.write_text(new_text, encoding="utf-8")
             print()
             print(f"=== Updating {upgrade_path.name} ===")
             print(f"  {table_action} table row")
-            if section_added:
-                print(f"  added '### {friendly} ...' Changes section")
-            elif table_action == "updated" and section_exists:
-                print(f"  note: a '### {friendly} ...' Changes section already exists — "
-                      f"update its version numbers by hand if needed")
+            print(f"  (re)wrote '### {friendly} ...' Changes section")
 
     if values_deltas_path is not None:
         text = values_deltas_path.read_text(encoding="utf-8")
-        new_lines = [values_delta_bullet(friendly, old_app, app_version, old_chart, chart_version)]
-        current_values_after = yaml.safe_load(VALUES_YAML.read_text(encoding="utf-8")) or {}
-        current_subtree = current_values_after.get(values_key, {})
-        baseline_values_at_release = load_baseline_values(baseline)
-        if baseline_values_at_release is None:
+        text, bullet_removed = remove_component_values_delta(text, friendly)
+        if reset_to_baseline:
+            values_deltas_path.write_text(text, encoding="utf-8")
             print()
-            print(f"  note: could not resolve baseline {baseline} to a git ref — skipping "
-                  f"added/removed/renamed key detection for values-deltas.md")
+            print(f"=== Updating {values_deltas_path.name} ===")
+            print(f"  {friendly} is back at its baseline {baseline} version — "
+                  f"{'removed its bullet' if bullet_removed else 'nothing to remove'}")
         else:
-            baseline_subtree = (baseline_values_at_release.get(values_key, {})
-                                 if isinstance(baseline_values_at_release, dict) else {})
-            new_lines.extend(describe_key_changes(values_key, baseline_subtree, current_subtree))
+            new_lines = [values_delta_bullet(friendly, old_app, app_version, old_chart, chart_version)]
+            current_values_after = yaml.safe_load(VALUES_YAML.read_text(encoding="utf-8")) or {}
+            current_subtree = current_values_after.get(values_key, {})
+            baseline_values_at_release = (baseline_values if baseline_deps is not None
+                                           else load_baseline_values(baseline))
+            if baseline_values_at_release is None:
+                print()
+                print(f"  note: could not resolve baseline {baseline} to a git ref — skipping "
+                      f"added/removed/renamed key detection for values-deltas.md")
+            else:
+                baseline_subtree = (baseline_values_at_release.get(values_key, {})
+                                     if isinstance(baseline_values_at_release, dict) else {})
+                new_lines.extend(describe_key_changes(values_key, baseline_subtree, current_subtree))
 
-        no_changes_claimed = bool(NO_CHANGES_CLAIMED_RE.search(text))
-        values_deltas_path.write_text(append_to_doc(text, new_lines), encoding="utf-8")
-        print()
-        print(f"=== Updating {values_deltas_path.name} ===")
-        for line in new_lines:
-            print(f"  {line.rstrip()}")
-        if no_changes_claimed:
-            print("  note: doc claims 'no gemeente podiumd.yml changes are required' — that's about "
-                  "gemeente ACTION, not about whether anything changed, so it may still hold; "
-                  "double-check it's still true now that this bullet's been added")
+            no_changes_claimed = bool(NO_CHANGES_CLAIMED_RE.search(text))
+            values_deltas_path.write_text(append_to_doc(text, new_lines), encoding="utf-8")
+            print()
+            print(f"=== Updating {values_deltas_path.name} ===")
+            for line in new_lines:
+                print(f"  {line.rstrip()}")
+            if no_changes_claimed:
+                print("  note: doc claims 'no gemeente podiumd.yml changes are required' — that's about "
+                      "gemeente ACTION, not about whether anything changed, so it may still hold; "
+                      "double-check it's still true now that this bullet's been added")
     elif upgrade_path is not None:
         print()
         print(f"No values-deltas.md found for baseline {baseline} — skipping that update.")
@@ -510,26 +564,37 @@ def main():
     if paths_to_update:
         images_path = images_manifest_path(target)
         if images_path.is_file():
-            changes_action, entry_updates, missing_entries = update_images_manifest(
-                images_path, friendly, values_key, old_app, app_version, old_chart, chart_version,
-                paths_to_update, repos, new_tags_by_path,
-            )
-            print()
-            print(f"=== Updating {images_path.name} ===")
-            if changes_action:
-                print(f"  {changes_action} 'changes:' list entry")
-            for name in entry_updates:
-                print(f"  updated entry '{name}'")
-            if missing_entries:
-                print("  No existing entry for the following — add manually (see "
-                      "docs/images/acr-mirror-naming.md for the correct 'name:' ACR mirror slug):")
-                for path, repo, new_tag in missing_entries:
-                    new_app_version, digest = new_tag.split("@", 1)
-                    print(f"    # {friendly} — {old_app_by_path.get(path) or '(none)'} -> {new_app_version}")
-                    print("    - name: <ACR-mirror-name>")
-                    print(f"      url: {repo}")
-                    print(f'      version: "{new_app_version}"')
-                    print(f'      digest: "{digest}"')
+            if reset_to_baseline:
+                changes_action, entry_updates = remove_component_from_images_manifest(
+                    images_path, friendly, values_key, paths_to_update, repos, new_tags_by_path)
+                print()
+                print(f"=== Updating {images_path.name} ===")
+                if changes_action:
+                    print(f"  {friendly} is back at its baseline {baseline} version — "
+                          f"removed 'changes:' list entry")
+                for name in entry_updates:
+                    print(f"  updated entry '{name}' (now matches baseline — no longer a documented change)")
+            else:
+                changes_action, entry_updates, missing_entries = update_images_manifest(
+                    images_path, friendly, values_key, old_app, app_version, old_chart, chart_version,
+                    paths_to_update, repos, new_tags_by_path,
+                )
+                print()
+                print(f"=== Updating {images_path.name} ===")
+                if changes_action:
+                    print(f"  {changes_action} 'changes:' list entry")
+                for name in entry_updates:
+                    print(f"  updated entry '{name}'")
+                if missing_entries:
+                    print("  No existing entry for the following — add manually (see "
+                          "docs/images/acr-mirror-naming.md for the correct 'name:' ACR mirror slug):")
+                    for path, repo, new_tag in missing_entries:
+                        new_app_version, digest = new_tag.split("@", 1)
+                        print(f"    # {friendly} — {old_app_by_path.get(path) or '(none)'} -> {new_app_version}")
+                        print("    - name: <ACR-mirror-name>")
+                        print(f"      url: {repo}")
+                        print(f'      version: "{new_app_version}"')
+                        print(f'      digest: "{digest}"')
         else:
             print()
             print(f"No images-{target}.yaml found — skipping that update.")

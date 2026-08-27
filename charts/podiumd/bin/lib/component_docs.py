@@ -72,6 +72,35 @@ def load_baseline_values(values_path, baseline):
     return git_show_yaml(repo_root, ref, str(rel_values_path))
 
 
+def load_baseline_state(chart_yaml_path, values_path, baseline):
+    """(baseline_deps, baseline_values) as they actually were at baseline's
+    resolved git ref — same ref resolution as load_baseline_values, but
+    also pulls Chart.yaml so a caller can tell whether a component's own
+    CHART version (not just an image tag under it) has moved from
+    baseline. Feeds lib.upgradedoc.compute_changed_components, which is
+    the ground truth for "has this component actually changed since
+    baseline at all" — used to decide whether a bump's own "old" version
+    for docs should be the true baseline (so a component bumped more than
+    once in one release cycle still shows baseline → final, not
+    each-intermediate-hop → final) or whether there's no longer any change
+    left to document. Returns (None, None) if the baseline can't be
+    resolved (e.g. that release hasn't been tagged yet) — callers then
+    fall back to their own before-this-run comparison instead."""
+    repo_root = find_repo_root(values_path.parent)
+    if repo_root is None:
+        return None, None
+    ref = resolve_git_ref(repo_root, baseline_ref_candidates(baseline))
+    if ref is None:
+        return None, None
+    rel_chart_yaml = chart_yaml_path.relative_to(repo_root)
+    baseline_chart_yaml = git_show_yaml(repo_root, ref, str(rel_chart_yaml))
+    if baseline_chart_yaml is None:
+        return None, None
+    rel_values_path = values_path.relative_to(repo_root)
+    baseline_values = git_show_yaml(repo_root, ref, str(rel_values_path)) or {}
+    return baseline_chart_yaml.get("dependencies", []), baseline_values
+
+
 def find_component_row(rows, friendly):
     norm_friendly = normalize_name(friendly)
     for row in rows:
@@ -121,14 +150,20 @@ def update_component_table(text, friendly, old_app, new_app, old_chart, new_char
     return "".join(lines), "added"
 
 
-def find_changes_section(text, friendly):
-    """Whether a "### ..." heading already mentions this component."""
-    norm_friendly = normalize_name(friendly)
-    for line in text.splitlines():
-        m = re.match(r"^###\s+(.+)$", line)
-        if m and norm_friendly in normalize_name(m.group(1)):
-            return True
-    return False
+def remove_component_row(text, friendly):
+    """Delete this component's row from the "Component versions" table
+    entirely — the counterpart to update_component_table's "added"/
+    "updated" for a bump that nets out to no change from baseline at all
+    (see lib.upgradedoc.compute_changed_components): there's no longer a
+    source → target transition to show a row for. Returns
+    (new_text, removed)."""
+    rows = parse_upgrade_doc_rows(text)
+    row = find_component_row(rows, friendly)
+    if row is None:
+        return text, False
+    lines = text.splitlines(keepends=True)
+    del lines[row["line_index"]]
+    return "".join(lines), True
 
 
 def make_changes_section(friendly, target, chart_name, values_key, old_app, new_app,
@@ -186,6 +221,25 @@ def insert_changes_section(text, section_text, friendly, deps, values):
     return "".join(lines)
 
 
+def remove_changes_section(text, friendly):
+    """Delete this component's "### ..." block from the "## Changes"
+    section entirely — the counterpart to insert_changes_section for a
+    bump that nets out to no change from baseline at all. Also swallows
+    the block's own trailing blank line(s) so removal doesn't leave a
+    double gap before whatever follows. Returns (new_text, removed)."""
+    blocks = parse_upgrade_doc_changes_blocks(text)
+    norm_friendly = normalize_name(friendly)
+    block = next((b for b in blocks if norm_friendly in normalize_name(b["heading"])), None)
+    if block is None:
+        return text, False
+    lines = text.splitlines(keepends=True)
+    start, end = block["start"], block["end"]
+    while end < len(lines) and not lines[end].strip():
+        end += 1
+    del lines[start:end]
+    return "".join(lines), True
+
+
 def values_delta_bullet(friendly, old_app, new_app, old_chart, new_chart):
     app_changed = normalize_version(old_app) != normalize_version(new_app)
     chart_changed = normalize_version(old_chart) != normalize_version(new_chart)
@@ -193,6 +247,37 @@ def values_delta_bullet(friendly, old_app, new_app, old_chart, new_chart):
     chart_bit = f"`{old_chart} → {new_chart}`" if chart_changed else f"`{new_chart}`, unchanged"
     note = "image tag only" if not chart_changed else "chart + image tag"
     return f"- **{friendly}** app {app_bit} (chart {chart_bit}) — {note}.\n"
+
+
+def remove_component_values_delta(text, friendly):
+    """Delete this component's version-bullet block from values-deltas.md
+    entirely: the "- **<friendly>** app ..." (values_delta_bullet) or
+    "- **<basename>** image ..." (lib.image_docs.image_delta_bullet)
+    bullet line, plus any immediately-following describe_key_changes
+    lines appended alongside it (a bullet's own caller always appends
+    them together as one contiguous block — see append_to_doc). Used both
+    to collapse more than one bump within a release into a single
+    up-to-date bullet (remove the stale one before appending the fresh
+    one) and to remove it outright when a bump nets out to no change from
+    baseline at all. Returns (new_text, removed)."""
+    lines = text.splitlines(keepends=True)
+    norm_friendly = normalize_name(friendly)
+    bullet_re = re.compile(r"^-\s+\*\*([^*]+)\*\*\s+\w+\b")
+    start = None
+    for i, line in enumerate(lines):
+        m = bullet_re.match(line)
+        if m and norm_friendly in normalize_name(m.group(1)):
+            start = i
+            break
+    if start is None:
+        return text, False
+    end = start + 1
+    while end < len(lines) and lines[end].startswith("- ") and not bullet_re.match(lines[end]):
+        end += 1
+    while end < len(lines) and not lines[end].strip():
+        end += 1
+    del lines[start:end]
+    return "".join(lines), True
 
 
 def values_tree_path_for(values_key, image_path):
@@ -326,3 +411,100 @@ def update_images_manifest(images_path, friendly, values_key, old_app, new_app, 
     if new_text != original_text:
         images_path.write_text(new_text, encoding="utf-8")
     return changes_action, entry_updates, missing_entries
+
+
+def remove_component_from_images_manifest(images_path, friendly, values_key, paths_to_update, repos,
+                                           new_tags_by_path):
+    """Counterpart to update_images_manifest for a bump that nets out to no
+    change from baseline at all (see lib.upgradedoc.compute_changed_
+    components): still writes each touched entry's final version/digest —
+    the manifest's job is to list the correct final state for every image
+    regardless of change-tracking — but removes the "changes:" list item
+    and each entry's own preceding source comment instead of updating
+    them, since there is no longer anything to document. Returns
+    (changes_action, entry_names_updated) — changes_action is "removed" or
+    None (no matching list item found)."""
+    original_text = images_path.read_text(encoding="utf-8")
+    lines = original_text.splitlines(keepends=True)
+
+    header_idx = None
+    for i, line in enumerate(lines):
+        if CHANGES_HEADER_RE.match(line):
+            header_idx = i
+            break
+
+    changes_action = None
+    if header_idx is not None:
+        item_indices = []
+        for i in range(header_idx + 1, len(lines)):
+            if lines[i].rstrip("\n") == "#" or not lines[i].startswith("#"):
+                break
+            if re.match(r"^#\s*\d+\.", lines[i]):
+                item_indices.append(i)
+
+        norm_friendly = normalize_name(friendly)
+        match_idx = None
+        for idx in item_indices:
+            m = CHANGES_ITEM_RE.match(lines[idx])
+            if m and norm_friendly in normalize_name(m.group("rest")):
+                match_idx = idx
+                break
+
+        if match_idx is not None:
+            del lines[match_idx]
+            remaining_indices = [i - 1 if i > match_idx else i for i in item_indices if i != match_idx]
+            for new_num, idx in enumerate(remaining_indices, start=1):
+                m = CHANGES_ITEM_RE.match(lines[idx])
+                lines[idx] = f"#   {new_num}. {m.group('rest')}\n"
+            remaining = len(remaining_indices)
+            count_word = NUMBER_WORDS[remaining] if remaining < len(NUMBER_WORDS) else str(remaining)
+            noun = "change" if remaining == 1 else "changes"
+            header_m = CHANGES_HEADER_RE.match(lines[header_idx])
+            lines[header_idx] = f"{header_m.group('indent')}{count_word} {noun}:\n"
+            changes_action = "removed"
+
+    entries = yaml.safe_load("".join(lines)) or []
+    if not isinstance(entries, list):
+        entries = []
+    entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
+
+    def component_of(entry):
+        return values_key if normalize_name(values_key) in normalize_name(entry["name"]) else None
+
+    def same_group(entry_a, entry_b):
+        return (component_of(entry_a) is not None
+                and component_of(entry_a) == component_of(entry_b)
+                and entry_a.get("version") == entry_b.get("version"))
+
+    entry_updates, comment_lines_to_remove = [], []
+    for path in paths_to_update:
+        target_path = values_tree_path_for(values_key, path)
+        entry, entry_idx, index = find_matching_images_entry(entries, entry_line_indices, target_path)
+        if entry is None:
+            continue
+        new_app_version, digest = new_tags_by_path[path].split("@", 1)
+        block_end2 = len(lines)
+        for i in range(entry_idx + 1, len(lines)):
+            if re.match(r"^-\s*name:", lines[i]) or not lines[i].strip():
+                block_end2 = i
+                break
+        for i in range(entry_idx, block_end2):
+            m = re.match(r"^\s*(version|digest):", lines[i])
+            if not m:
+                continue
+            new_value = new_app_version if m.group(1) == "version" else digest
+            lines[i] = replace_scalar_value(lines[i], new_value)
+
+        comment_idx = find_grouped_preceding_comment_line(
+            lines, entries, entry_line_indices, index, same_group)
+        if comment_idx is not None and extract_source_version(lines[comment_idx]):
+            comment_lines_to_remove.append(comment_idx)
+        entry_updates.append(entry["name"])
+
+    for idx in sorted(set(comment_lines_to_remove), reverse=True):
+        del lines[idx]
+
+    new_text = "".join(lines)
+    if new_text != original_text:
+        images_path.write_text(new_text, encoding="utf-8")
+    return changes_action, entry_updates

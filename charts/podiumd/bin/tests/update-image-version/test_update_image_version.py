@@ -5,6 +5,8 @@ imported binding (update_image_version lives in lib.image_version, which
 resolves `registry_tag_exists` via ITS OWN globals — see
 lib.image_version's import — so tests patch that module directly, same as
 tests/lib/test_image_version.py does)."""
+import subprocess
+
 import pytest
 
 
@@ -171,7 +173,7 @@ def test_main_single_component_updates_upgrade_doc_table_and_changes(uiv, tmp_pa
 
     out = capsys.readouterr().out
     assert "added table row" in out
-    assert "added '### openklant ...' Changes section" in out
+    assert "(re)wrote '### openklant ...' Changes section" in out
 
 
 # --- doc updates: multiple components affected -> shared-image (lib.image_docs) treatment ---
@@ -236,5 +238,150 @@ def test_main_shared_image_creates_pseudo_component_row_and_changes_block(uiv, t
 
     out = capsys.readouterr().out
     assert "added table row" in out
-    assert "added '### curl ...' Changes section" in out
+    assert "(re)wrote '### curl ...' Changes section" in out
     assert "updated entry for curlimages/curl" in out
+
+
+# --- shared-image doc updates vs the TRUE git baseline: reset-to-baseline
+# removal, and collapsing more than one bump into a single entry ---
+
+def git(*args, cwd):
+    subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True)
+
+
+def commit_baseline_tag(tmp_path, baseline):
+    git("init", "-q", cwd=tmp_path)
+    git("config", "user.email", "test@example.com", cwd=tmp_path)
+    git("config", "user.name", "Test", cwd=tmp_path)
+    git("add", "-A", cwd=tmp_path)
+    git("commit", "-q", "-m", "baseline", cwd=tmp_path)
+    git("tag", f"podiumd-{baseline}", cwd=tmp_path)
+
+
+CURL_VALUES_TMPL = (
+    "keycloak-operator:\n"
+    "  jobs:\n"
+    "    ensureOperatorSa:\n"
+    "      image:\n"
+    "        repository: curlimages/curl\n"
+    '        tag: "{version}@sha256:{digest}"\n'
+    "zac:\n"
+    "  global:\n"
+    "    curlImage:\n"
+    "      repository: curlimages/curl\n"
+    '      tag: "{version}@sha256:{digest}"\n'
+)
+
+
+def test_main_removes_shared_image_docs_when_reset_back_to_baseline(uiv, tmp_path, monkeypatch):
+    """curl bumped to 8.21.0 (already fully documented as a shared-image
+    pseudo-component) and then reset back to its baseline version has
+    nothing left to report: the table row, Changes section,
+    values-delta bullet, and images-manifest 'changes:' entry/comment
+    must all be removed -- the manifest ENTRY itself still lists the
+    correct (baseline) version/digest."""
+    write_chart_yaml(tmp_path, [("keycloak-operator", None), ("zac", None)])
+    write_values(tmp_path, CURL_VALUES_TMPL.format(version="8.20.0", digest="a" * 64))
+    monkeypatch.setattr(uiv, "CHART_DIR", tmp_path)
+    monkeypatch.setattr(uiv, "VALUES_YAML", tmp_path / "values.yaml")
+    commit_baseline_tag(tmp_path, "0.9.0")  # baseline: curl 8.20.0@sha256:aaaa... everywhere
+
+    # Simulate "already bumped to 8.21.0 earlier in this release cycle".
+    write_values(tmp_path, CURL_VALUES_TMPL.format(version="8.21.0", digest="a" * 64))
+    write_doc(uiv.DOC_DIR, "0.9.0-to-1.0.0-upgrade.md",
+              "# Upgrade guide: PodiumD 0.9.0 → 1.0.0\n\n"
+              "## Component versions (1.0.0 vs 0.9.0)\n\n"
+              "| Component | App version | Helm chart | Notes |\n"
+              "| --- | --- | --- | --- |\n"
+              "| curl | 8.20.0 → 8.21.0 | - | - |\n\n"
+              "## Changes\n\n"
+              "### curl 8.20.0 → 8.21.0\n\nblah\n")
+    write_doc(uiv.DOC_DIR, "0.9.0-to-1.0.0-values-deltas.md",
+              "# Values deltas — PodiumD 0.9.0 → 1.0.0\n\n"
+              "- **curl** image `8.20.0 → 8.21.0` — pinned at 2 places in `values.yaml`.\n")
+    write_doc(uiv.IMAGES_DIR, "images-1.0.0.yaml",
+              "# Baseline: podiumd 0.9.0.\n#\n# One change:\n#   1. curl 8.20.0 -> 8.21.0.\n#\n\n"
+              "# curl — 8.20.0 -> 8.21.0\n"
+              "- name: curlimages/curl\n"
+              "  url: docker.io/curlimages/curl\n"
+              '  version: "8.21.0"\n'
+              f'  digest: "sha256:{"a" * 64}"\n')
+
+    import lib.image_version as image_version
+    # Same digest baseline already recorded -- re-resolving 8.20.0 (a real,
+    # immutable released version) from the registry always returns this
+    # same digest, exactly like it would outside this mocked test.
+    monkeypatch.setattr(image_version, "registry_tag_exists",
+                         lambda host, repo, tag: (True, "sha256:" + "a" * 64))
+    monkeypatch.setattr("sys.argv", ["update-image-version.py", "curl", "8.20.0"])
+
+    uiv.main()
+
+    upgrade = (uiv.DOC_DIR / "0.9.0-to-1.0.0-upgrade.md").read_text(encoding="utf-8")
+    assert "| curl |" not in upgrade
+    assert "### curl" not in upgrade
+
+    deltas = (uiv.DOC_DIR / "0.9.0-to-1.0.0-values-deltas.md").read_text(encoding="utf-8")
+    assert "**curl**" not in deltas
+
+    manifest = (uiv.IMAGES_DIR / "images-1.0.0.yaml").read_text(encoding="utf-8")
+    assert "Zero changes:" in manifest
+    assert "curl 8.20.0" not in manifest  # the numbered "changes:" list item is gone
+    assert "# curl —" not in manifest  # the entry's now-stale source comment is gone too
+    assert '"8.20.0"' in manifest  # the entry itself still lists the correct (reset) version
+
+
+def test_main_collapses_repeated_shared_image_bump_into_single_baseline_entry(uiv, tmp_path, monkeypatch):
+    """Bumping curl to 8.21.0 and then, within the same release cycle,
+    reconsidering to 8.22.0 instead must leave exactly ONE entry in each
+    doc showing baseline -> final (8.20.0 -> 8.22.0) -- never two entries,
+    and never an intermediate-hop transition like "8.21.0 -> 8.22.0"."""
+    write_chart_yaml(tmp_path, [("keycloak-operator", None), ("zac", None)])
+    write_values(tmp_path, CURL_VALUES_TMPL.format(version="8.20.0", digest="a" * 64))
+    monkeypatch.setattr(uiv, "CHART_DIR", tmp_path)
+    monkeypatch.setattr(uiv, "VALUES_YAML", tmp_path / "values.yaml")
+    commit_baseline_tag(tmp_path, "0.9.0")  # baseline: curl 8.20.0@sha256:aaaa... everywhere
+    write_doc(uiv.DOC_DIR, "0.9.0-to-1.0.0-upgrade.md",
+              "# Upgrade guide: PodiumD 0.9.0 → 1.0.0\n\n"
+              "## Component versions (1.0.0 vs 0.9.0)\n\n"
+              "| Component | App version | Helm chart | Notes |\n"
+              "| --- | --- | --- | --- |\n\n"
+              "## Changes\n")
+    write_doc(uiv.DOC_DIR, "0.9.0-to-1.0.0-values-deltas.md",
+              "# Values deltas — PodiumD 0.9.0 → 1.0.0\n\n")
+    write_doc(uiv.IMAGES_DIR, "images-1.0.0.yaml",
+              "# Baseline: podiumd 0.9.0.\n#\n# Zero changes:\n#\n\n"
+              "- name: curlimages/curl\n"
+              "  url: docker.io/curlimages/curl\n"
+              '  version: "8.20.0"\n'
+              f'  digest: "sha256:{"a" * 64}"\n')
+
+    import lib.image_version as image_version
+    monkeypatch.setattr(image_version, "registry_tag_exists",
+                         lambda host, repo, tag: (True, "sha256:" + "b" * 64))
+    monkeypatch.setattr("sys.argv", ["update-image-version.py", "curl", "8.21.0"])
+    uiv.main()
+
+    monkeypatch.setattr(image_version, "registry_tag_exists",
+                         lambda host, repo, tag: (True, "sha256:" + "c" * 64))
+    monkeypatch.setattr("sys.argv", ["update-image-version.py", "curl", "8.22.0"])
+    uiv.main()
+
+    upgrade = (uiv.DOC_DIR / "0.9.0-to-1.0.0-upgrade.md").read_text(encoding="utf-8")
+    assert upgrade.count("| curl |") == 1
+    assert "| curl | 8.20.0 → 8.22.0 | - | - |" in upgrade
+    assert "8.21.0" not in upgrade
+    assert upgrade.count("### curl") == 1
+    assert "### curl 8.20.0 → 8.22.0" in upgrade
+
+    deltas = (uiv.DOC_DIR / "0.9.0-to-1.0.0-values-deltas.md").read_text(encoding="utf-8")
+    assert deltas.count("**curl**") == 1
+    assert "8.21.0" not in deltas
+    assert "- **curl** image `8.20.0 → 8.22.0` — pinned at 2 places in `values.yaml`." in deltas
+
+    manifest = (uiv.IMAGES_DIR / "images-1.0.0.yaml").read_text(encoding="utf-8")
+    assert "One change:" in manifest
+    assert "8.21.0" not in manifest
+    assert "#   1. curl 8.20.0 -> 8.22.0." in manifest
+    assert '"8.22.0"' in manifest
+    assert f'"sha256:{"c" * 64}"' in manifest
