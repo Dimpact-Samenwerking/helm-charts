@@ -53,7 +53,7 @@
 - name: clamav/clamav
   url: docker.io/clamav/clamav
   version: "1.5.4"
-  digest: "sha256:78810772a92b4a9168115bc6b2e0ffd702640893b9577f8c3d0432762d2655c4"
+  digest: "sha256:0e85467cb0d6e7d860a45035707741cd5ffc032ffefc6002a3510c75b6d07027"
 - name: clamav/clamav
   url: docker.io/clamav/clamav
   version: "1.5.2"
@@ -204,7 +204,7 @@
 - name: library/python
   url: docker.io/library/python
   version: "3.14.7-slim"
-  digest: "sha256:83ff1d245a3d57d04152252d3ef9cb361494d0b3395abd65a5ebe91c401c8e83"
+  digest: "sha256:cae66f2ef0ec51a9891263eeee7f987dacf0a9879e8aa9353d5606e0530619a5"
 - name: library/python
   url: docker.io/library/python
   version: "3.14-slim"
