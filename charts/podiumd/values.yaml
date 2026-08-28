@@ -70,14 +70,17 @@ keycloak-operator:
     # provisions (RELATED_IMAGE_KEYCLOAK env on the operator Deployment). Must
     # match podiumd's own `keycloak.image` digest above. The adfinis subchart's
     # built-in default still carries the pre-PR#344 digest (sha256:5fdbf2d…), so
-    # we override it here to the refreshed 26.7.2 digest (sha256:831330…).
+    # we override it here to the refreshed 26.7.2 digest (sha256:9d1f1b2b…).
+    # Note: quay.io has re-published the 26.7.2 tag under a new digest twice
+    # now (sha256:6efbadc… -> sha256:831330… -> sha256:9d1f1b2b…, as of
+    # 2026-08-28) — re-verify live before trusting this pin at release time.
     # NOTE: sha is a SEPARATE field; the template appends it as @sha256:{{ .sha }},
     # so do NOT embed @sha256 in tag (would produce a double digest).
     config:
       keycloakImage:
         repository: quay.io/keycloak/keycloak
         tag: "26.7.2"
-        sha: "831330513f55695572286e521f94fcd3c7e285250ed5b848090265a33192f669"
+        sha: "9d1f1b2b7261ff53c66cb1092dfcdc34a5fb77e81f9e6a6e75b8b6a795de8067"
   serviceAccount:
     create: false
   jobs:
@@ -226,7 +229,7 @@ keycloak:
   image:
     registry: ""
     repository: quay.io/keycloak/keycloak
-    tag: "26.7.2@sha256:831330513f55695572286e521f94fcd3c7e285250ed5b848090265a33192f669"
+    tag: "26.7.2@sha256:9d1f1b2b7261ff53c66cb1092dfcdc34a5fb77e81f9e6a6e75b8b6a795de8067"
   # -- instances is the new operator-style replica count (falls back to replicaCount)
   instances: "2"
   ingress:

@@ -157,7 +157,7 @@
 - name: keycloak/keycloak
   url: quay.io/keycloak/keycloak
   version: "26.7.2"
-  digest: "sha256:831330513f55695572286e521f94fcd3c7e285250ed5b848090265a33192f669"
+  digest: "sha256:9d1f1b2b7261ff53c66cb1092dfcdc34a5fb77e81f9e6a6e75b8b6a795de8067"
 
 # ECK Operator — 3.4.0 -> 3.5.0 (chart eck-operator 3.4.0 -> 3.5.0).
 # CRD schema diff verified additive-only (28 fields added, 0 removed).
