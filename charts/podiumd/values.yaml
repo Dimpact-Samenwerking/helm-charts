@@ -756,6 +756,23 @@ openzaak:
     disabled: true
 
 opennotificaties:
+  # -- Override OPENNOTIFICATIES_PORT to prevent Kubernetes service-discovery
+  # injection (tcp://<ip>:80) from being passed to uwsgi as the port number.
+  # Since Open Notificaties 1.16.2 the app reads OPENNOTIFICATIES_PORT for
+  # uwsgi_port; K8s auto-injects OPENNOTIFICATIES_PORT=tcp://<svc-ip>:80 for the
+  # opennotificaties Service, so uwsgi binds on the Service ClusterIP instead of
+  # the pod and both probes get "connection refused". Same defect as
+  # OPENZAAK_PORT above (Open Zaak 1.27.3).
+  # Only bites when the release's Service is named "opennotificaties", i.e. the
+  # chart default: environments that set fullnameOverride (the QA rigs use
+  # "notificaties") never see it.
+  # NOTE: a gemeente that sets its own opennotificaties.extraEnvVars REPLACES
+  # this list and silently loses the fix — keep this entry when overriding.
+  # The clean fix is enableServiceLinks: false, as the openzaak subchart
+  # (1.14.2) does; the opennotificaties subchart (2.0.0) has no such value yet.
+  extraEnvVars:
+    - name: OPENNOTIFICATIES_PORT
+      value: "8000"
   configuration:
     http_request_job:
       enabled: false
