@@ -52,6 +52,11 @@ Open Inwoner ("Mijn omgeving") is the citizen self-service portal of PodiumD. Re
 - **KvK**: company data lookup for eHerkenning users (configured in the app/admin).
 - **SMTP**: outgoing mail, `settings.email` (port 587, TLS).
 - **OTel**: disabled by default (`settings.otel.disabled: true`); the `values-enable-observability.yaml` overlay enables it.
+- **ClamAV** (file-upload virus scanning): off by default, opt-in via
+  `openinwoner.clamavConfigJob.enabled: true` — upstream's declarative
+  `site_config:` step doesn't manage these fields, so a dedicated Job seeds
+  them instead; see `docs/apps/clamav/clamav-BASICS.md` and
+  `docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-gemeente-specific.md`.
 
 ## CPU and memory
 

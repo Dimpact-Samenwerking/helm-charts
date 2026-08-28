@@ -1,0 +1,97 @@
+{{/*
+Open Forms has no declarative setup-configuration step for its ClamAV
+GlobalConfiguration fields (enable_virus_scan/clamav_host/clamav_port/
+clamav_timeout) — upstream only exposes them via the admin UI. This Job
+seeds them directly through `manage.py shell`, using the app's own image so
+Django settings/DB env vars line up exactly with the running app.
+
+GlobalConfiguration.clean() does a LIVE clamd PING before allowing the admin
+to save these fields; this script mirrors that same check explicitly (via
+openforms.config.utils.verify_clamav_connection) and exits non-zero if
+ClamAV isn't reachable yet, relying on the Job's backoffLimit/
+activeDeadlineSeconds to retry until both ClamAV and the openformulieren DB
+migrations are ready — same "eventually consistent, plain Job" approach the
+create-required-*.yaml jobs use elsewhere in this chart, no Helm hook needed.
+
+Writes with save(update_fields=[...]) rather than full_clean()/save() to
+avoid tripping model-wide validators on unrelated GlobalConfiguration fields
+this job doesn't touch.
+*/}}
+{{- if and (or .Values.openformulieren.enabled (not (hasKey .Values.openformulieren "enabled"))) .Values.openformulieren.clamavConfigJob.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: openformulieren-configure-clamav
+  labels:
+    {{- include "podiumd.labels" . | nindent 4 }}
+    app.kubernetes.io/component: openformulieren
+spec:
+  backoffLimit: {{ .Values.openformulieren.clamavConfigJob.backoffLimit }}
+  activeDeadlineSeconds: {{ .Values.openformulieren.clamavConfigJob.activeDeadlineSeconds }}
+  ttlSecondsAfterFinished: {{ .Values.openformulieren.clamavConfigJob.ttlSecondsAfterFinished }}
+  template:
+    metadata:
+      labels:
+        {{- include "podiumd.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: openformulieren
+    spec:
+      serviceAccountName: {{ include "podiumd.serviceAccountName" . }}
+      restartPolicy: OnFailure
+      {{- if .Values.openformulieren.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.openformulieren.nodeSelector | nindent 8 }}
+      {{- else if .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: configure-clamav
+          image: {{ include "podiumd.image" .Values.openformulieren.image }}
+          imagePullPolicy: {{ .Values.openformulieren.image.pullPolicy | default "IfNotPresent" }}
+          command: ["/app/src/manage.py"]
+          args:
+            - shell
+            - -c
+            - |
+              from openforms.config.models import GlobalConfiguration
+              from openforms.config.utils import verify_clamav_connection
+
+              config = GlobalConfiguration.get_solo()
+              config.enable_virus_scan = True
+              config.clamav_host = {{ .Values.openformulieren.clamavConfigJob.clamavHost | quote }}
+              config.clamav_port = {{ .Values.openformulieren.clamavConfigJob.clamavPort }}
+              config.clamav_timeout = {{ .Values.openformulieren.clamavConfigJob.clamavTimeout }}
+
+              result = verify_clamav_connection(
+                  host=config.clamav_host,
+                  port=config.clamav_port,
+                  timeout=config.clamav_timeout,
+              )
+              if not result.can_connect:
+                  raise SystemExit(f"Cannot connect to ClamAV: {result.error}")
+
+              config.save(
+                  update_fields=[
+                      "enable_virus_scan",
+                      "clamav_host",
+                      "clamav_port",
+                      "clamav_timeout",
+                  ]
+              )
+              print("ClamAV virus scan configuration applied.")
+          envFrom:
+            - secretRef:
+                name: openformulieren
+            - configMapRef:
+                name: openformulieren
+          resources:
+            {{- toYaml .Values.openformulieren.clamavConfigJob.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.openformulieren.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+{{- end }}

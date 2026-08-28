@@ -9,7 +9,7 @@ by hand, PodiumD ships one central "operator" (Elastic Cloud on Kubernetes,
 ECK) that automatically creates and maintains the Elasticsearch clusters inside
 the Kubernetes cluster. It needs no database and no public web address — it is
 only reachable by the other PodiumD applications. Footprint is significant:
-the two search clusters together use roughly 8–10 GB of memory in a typical
+the two search clusters together use roughly 6–8 GB of memory in a typical
 environment, so plan node capacity accordingly.
 
 ## What it is
@@ -20,14 +20,16 @@ deployed via Elastic's official Helm charts from `https://helm.elastic.co`:
 - **`eck-operator`** (chart 3.4.0, image `elastic/eck-operator:3.4.0`) — the
   central operator, one `elastic-operator` StatefulSet (1 pod) that watches the
   `podiumd` namespace (`eck-operator.managedNamespaces: [podiumd]`) and
-  reconciles all `Elasticsearch` / `Kibana` / `EnterpriseSearch` custom
-  resources there. The chart also installs the 12 `*.k8s.elastic.co` CRDs
+  reconciles all `Elasticsearch` and `Kibana` custom resources there
+  (`EnterpriseSearch` CRDs remain installed but no KISS CR is deployed since
+  KISS 3.0.0). The chart also installs the 12 `*.k8s.elastic.co` CRDs
   (`installCRDs: true`, annotated `helm.sh/resource-policy: keep`).
 - **`kiss-eck`** (alias of chart `eck-stack` 0.19.0) — renders the KISS custom
   resources: `Elasticsearch` named `kiss` (version **8.19.3**, nodeSet
-  `default`, 3 nodes → StatefulSet `kiss-es-default`), `Kibana` `kiss`
-  (pod `kiss-kb-*`) and `EnterpriseSearch` `kiss` (pod `kiss-ent-*`, runs the
-  web crawler for the KISS knowledge base, engine `kiss-engine`).
+  `default`, 3 nodes → StatefulSet `kiss-es-default`) and `Kibana` `kiss`
+  (pod `kiss-kb-*`). `EnterpriseSearch` is disabled since KISS 3.0.0 — KISS
+  queries the `search-*` Elasticsearch indices directly; websites are crawled
+  by the Elastic Open Crawler running as a CronJob per site.
 - **`openinwoner-elasticsearch`** — a second `Elasticsearch` CR (version
   **9.2.0**) rendered by the `openinwoner` subchart
   (`openinwoner.eck-elasticsearch`), 1 node on ontw/dim1 and 2 on accp,
@@ -37,7 +39,7 @@ deployed via Elastic's official Helm charts from `https://helm.elastic.co`:
 
 Runtime components in the `podiumd` namespace: `elastic-operator-0`
 (operator), `kiss-es-default-{0,1,2}` (ES data/master/ingest nodes),
-`kiss-kb-*` (Kibana), `kiss-ent-*` (Enterprise Search),
+`kiss-kb-*` (Kibana),
 `openinwoner-elasticsearch-es-default-{0..n}` (Open Inwoner ES nodes).
 
 Enablement: the current chart enables the stack by default — dependency
@@ -76,7 +78,7 @@ explicit size/class (e.g. `managed-csi`, 8Gi) per environment. **Warning:**
 upgrades keep it identical to the existing PVCs; resizing requires a manual
 StatefulSet recreate or snapshot/restore (see the migration runbook).
 
-Kibana, Enterprise Search and the operator itself are stateless (no PVC).
+Kibana and the operator itself are stateless (no PVC).
 
 ### Routing / exposure (NGINX Gateway Fabric)
 
@@ -85,18 +87,18 @@ the stack via the ECK-generated ClusterIP services:
 
 - `kiss-es-http.podiumd.svc.cluster.local:9200` (HTTPS, ECK self-signed cert)
 - `kiss-kb-http.podiumd.svc.cluster.local:5601` (Kibana)
-- `kiss-ent-http.podiumd.svc.cluster.local:3002` (Enterprise Search)
 - `openinwoner-elasticsearch-es-http.podiumd.svc.cluster.local:9200`
   (HTTP — self-signed TLS is disabled for this CR in the chart)
 
 ### Other dependencies
 
-- **Consumers:** KISS connects via `kiss.config.elastic.baseUrl` /
-  `username` (default `elastic`) / `password` and
-  `kiss.config.enterpriseSearch.baseUrl` / API keys / `engine: kiss-engine`;
-  Open Inwoner's web/worker pods use the `openinwoner-elasticsearch` cluster
-  for portal search (`openinwoner-search-index` init container builds the
-  index). The KISS sync job image `kiss-elastic-sync` feeds the knowledge base.
+- **Consumers:** KISS connects via `kiss.settings.elastic.baseUrl` /
+  `username` (default `elastic`) / `password` (Secret `kiss-es-elastic-user`);
+  the Elastic Open Crawler writes website content directly to the `search-*`
+  Elasticsearch indices. Open Inwoner's web/worker pods use the
+  `openinwoner-elasticsearch` cluster for portal search
+  (`openinwoner-search-index` init container builds the index). The KISS sync
+  jobs (`kiss-elastic-sync`) feed the structured knowledge base.
 - **Credentials:** ECK generates the built-in `elastic` superuser password in
   Secrets `kiss-es-elastic-user` and
   `openinwoner-elasticsearch-es-elastic-user`.
@@ -104,9 +106,6 @@ the stack via the ECK-generated ClusterIP services:
   deploying identity needs cluster-scope RBAC (SSC pipeline: `useClusterAdmin:
   true`). Clusters with pre-4.8.0 CRDs need the one-time adoption script
   `charts/podiumd/scripts/pre-upgrade-prep-4.8.0.sh` before the first deploy.
-- **Crawler tuning:** Enterprise Search crawler settings (user agent, thread /
-  worker pool limits) are per-environment under
-  `kiss-eck.eck-enterprise-search.config`.
 - **Observability (optional):** `values-enable-observability.yaml` enables the
   operator `podMonitor` (requires the Prometheus Operator `PodMonitor` CRD).
 - No Redis, no Keycloak client, no Open Zaak / Open Notificaties registration.
@@ -121,24 +120,21 @@ injected by the ECK operator, tunable via the CR's `podTemplate`):
 | elastic-operator (manager) | 100m | 150Mi | 1000m | 1Gi | |
 | kiss elasticsearch (x3) `(op)` | not set (burstable) | 2Gi | not set | 2Gi | via `kiss-eck.eck-elasticsearch` nodeSet podTemplate |
 | kiss kibana `(op)` | not set (burstable) | 1Gi | not set | 1Gi | via Kibana CR podTemplate |
-| kiss enterprise-search `(op)` | not set (burstable) | 4Gi | not set | 4Gi | via EnterpriseSearch CR podTemplate |
 | elastic-internal-init-filesystem (init) `(op)` | 100m | 50Mi | 100m | 50Mi | set by operator |
 | openinwoner elasticsearch (ontw-dim1, 1 node) | 200m | 1536Mi | 1000m | 1536Mi | per-env via `openinwoner.eck-elasticsearch.nodeSets` |
 
 **Observed usage** (kubectl top, 2026-07-10): on ontw the ES data nodes sit at
-16–27m / 1674–1744Mi each (x3), Enterprise Search at 8m / 3478Mi, Kibana at
+16–27m / 1674–1744Mi each (x3), Kibana at
 11m / 630Mi, the operator at 4m / 69Mi and the Open Inwoner ES node at
-14m / 1509Mi. accp is nearly identical (ES ~1750Mi x3, kiss-ent 3531Mi,
+14m / 1509Mi. accp is nearly identical (ES ~1750Mi x3,
 kiss-kb 688Mi, operator 123Mi, OIP ES x2 at 1563–1594Mi). Memory sits close to
 the request/limit (JVM heap is sized from the limit), CPU is near-idle at
 dev/accp load — treat CPU as baseline, not peak.
 
-**Increase for production** (flagged in `resource-overview.md`): the KISS ES,
-Kibana and Enterprise Search containers have only memory limits and no CPU
+**Increase for production** (flagged in `resource-overview.md`): the KISS ES and Kibana containers have only memory limits and no CPU
 requests, putting them in the Burstable QoS class (eviction candidates under
 node pressure). Suggested production settings: ES `500m / 4Gi`
-(request = limit for Guaranteed QoS), Kibana `200m / 1Gi`, Enterprise Search
-`500m / 4Gi`. For Open Inwoner ES, production recommendation is 3 nodes at
+(request = limit for Guaranteed QoS), Kibana `200m / 1Gi`. For Open Inwoner ES, production recommendation is 3 nodes at
 `500m / 4Gi` request, `2000m / 4Gi` limit — a single node is a SPOF for
 search. PDBs are managed by ECK: `kiss-es-default` has `minAvailable: 1`;
 `openinwoner-elasticsearch-es-default` defaults to `minAvailable: 0` and

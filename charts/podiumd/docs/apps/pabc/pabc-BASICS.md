@@ -20,13 +20,15 @@ hostname for the management UI. Footprint is tiny: a single small pod.
   pulled from `oci://ghcr.io/platform-autorisatie-beheer-component`
   (chart `pabc`, version `1.1.1`; container image tags are `1.1.0`, one minor
   version behind the chart).
-- Images — pinned to the ACR mirror because the pabc 1.1.1 subchart templates
-  image references literally (no `global.imageRegistry` support) and AKS
-  Gatekeeper only allows `acrprodmgmt.azurecr.io/*`
-  (see `docs/images/images-4.8.0.yaml`):
-  - `acrprodmgmt.azurecr.io/platform-autorisatie-beheer-component/pabc-api:1.1.0`
-  - `acrprodmgmt.azurecr.io/platform-autorisatie-beheer-component/pabc-migrations:1.1.0`
-  - `acrprodmgmt.azurecr.io/groundnuty/k8s-wait-for:v2.0` (init containers)
+- Images — chart default points at the public upstream repos
+  (`ghcr.io/platform-autorisatie-beheer-component/pabc-{api,migrations}`,
+  `ghcr.io/groundnuty/k8s-wait-for`). The pabc 1.1.1 subchart templates image
+  references literally (no `global.imageRegistry` support), so any
+  environment behind AKS Gatekeeper (which only allows
+  `acrprodmgmt.azurecr.io/*`, see `docs/images/images-4.8.0.yaml`) **must**
+  override `pabc.image.repository` / `pabc.migrations.image.repository` /
+  `pabc.initContainers.waitFor.image.repository` in that gemeente's own
+  `podiumd.yml` — the chart default alone is not pullable there.
 - Role in PodiumD: single source of authorisation data for ZAC. ZAC queries
   the PABC API (`X-API-KEY` header) to resolve which Keycloak groups hold
   which ZAC application roles per zaaktype/domain. As of ZAC 5.0.1 the old
@@ -149,9 +151,12 @@ will fail until the pod reschedules. (`resource-overview.md` still says
      `pabc.settings.keycloakAdmin.clientSecret`
    - `pabc.settings.apiKeys: ["<key>"]`
    - `pabc.nodeSelector: {kubernetes.azure.com/mode: user}` on aks-blue
-     clusters; image repositories are already pinned to the
-     `acrprodmgmt.azurecr.io` mirror — mirror the three images first if the
-     ACR does not have them yet.
+     clusters; also set `pabc.image.repository` /
+     `pabc.migrations.image.repository` /
+     `pabc.initContainers.waitFor.image.repository` to the
+     `acrprodmgmt.azurecr.io` mirror path there — the chart default points at
+     the public upstream repos, which Gatekeeper blocks. Mirror the three
+     images first if the ACR does not have them yet.
 4. **Keycloak clients**: automatic — the realm config job creates `pabc` and
    `pabc-keycloak-admin` when `global.configuration.enabled: true`. To
    re-provision after changing `oidcUrl` or rotating secrets, set

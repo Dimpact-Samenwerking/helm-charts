@@ -13,7 +13,7 @@ ClamAV is the virus scanner of the PodiumD stack. Files that residents upload �
 - **Runtime components:**
   - `clamav-0` — **StatefulSet, 1 replica**. One container running clamd (TCP 3310) with freshclam updating signatures in-place; config injected via `clamav.clamdConfig` and `clamav.freshclamConfig` in `values.yaml`.
   - ClusterIP Service `clamav` (`fullnameOverride: clamav`), port **3310/TCP** (`tcp-clamav`) — clamd's own protocol, not HTTP.
-  - Optional metrics sidecar `docker.io/sergeymakinen/clamav_exporter:v2.1.3` + ServiceMonitor, off by default (`clamav.metrics.enabled` / `clamav.metrics.serviceMonitor.enabled`), enabled by the `values-enable-observability.yaml` overlay. ServiceMonitor requires the Prometheus Operator CRD.
+  - Optional metrics sidecar `docker.io/sergeymakinen/clamav_exporter:v2.1.8` + ServiceMonitor, off by default (`clamav.metrics.enabled` / `clamav.metrics.serviceMonitor.enabled`), enabled by the `values-enable-observability.yaml` overlay. ServiceMonitor requires the Prometheus Operator CRD.
 
 Notable clamd settings from `values.yaml`: `ConcurrentDatabaseReload no` (reload database sequentially to avoid double memory usage, ~1.2 GiB vs ~2.4 GiB; scans block briefly during reload), `MaxScanSize 150M`, `MaxFileSize 100M`, `StreamMaxLength 100M` (upload-size ceiling for stream scans), `MaxThreads 10`.
 
@@ -42,7 +42,14 @@ Yes — one PVC for the signature database:
   - `database.clamav.net` — HTTPS (TCP 443), CDN download mirror (`clamav.freshclamConfig` `DatabaseMirror database.clamav.net`).
   See [clamav-security-updates.md](clamav-security-updates.md) for details and proxy options.
 - No Redis, no Keycloak client, no Open Zaak / Open Notificaties registration, no SMTP.
-- Consumers: Open Formulieren (file-upload virus scanning); any other app that speaks the clamd protocol can use the same service.
+- Consumers: Open Formulieren and Open Inwoner (file-upload virus scanning —
+  enable via `openformulieren.clamavConfigJob.enabled: true` /
+  `openinwoner.clamavConfigJob.enabled: true`, off by default, since neither
+  app's declarative config mechanism manages these fields; see
+  `docs/apps/openforms/openforms-BASICS.md`,
+  `docs/apps/openinwoner/openinwoner-BASICS.md`, and
+  `docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-gemeente-specific.md`); any other app
+  that speaks the clamd protocol can use the same service.
 
 ## CPU and memory
 
@@ -62,7 +69,7 @@ Startup: cold start loads ~3.2M signatures from disk; the startup probe allows u
 2. **Enable:** ClamAV is deployed by default — the chart defaults set no top-level `clamav.enabled` key, and Helm treats the Chart.yaml condition `clamav.enabled` as satisfied when the path is absent. Set `clamav.enabled: false` in gemeente values to opt out. Keep the image tag pinned (`clamav.image.tag`).
 3. **Storage:** nothing to pre-provision — the 2Gi `managed-csi` PVC is created by the chart (`clamav.persistentVolume`).
 4. **First boot:** expect a slow start on an empty volume — the entrypoint runs freshclam synchronously to download the full signature database before clamd starts, then signature loading takes minutes. Watch `kubectl logs -n podiumd clamav-0` for freshclam download progress and `clamd started`.
-5. **Wire up consumers:** point the consuming application at host `clamav` (or `clamav.podiumd.svc.cluster.local`), port `3310`. For Open Formulieren this is configured in the Open Forms admin interface (virus-scan / ClamAV settings), not via chart values.
+5. **Wire up consumers:** point the consuming application at host `clamav` (or `clamav.podiumd.svc.cluster.local`), port `3310`. For Open Formulieren, either configure this manually in the admin interface (virus-scan / ClamAV settings) or set `openformulieren.clamavConfigJob.enabled: true` to have a Job do it declaratively (see `docs/apps/openforms/openforms-BASICS.md`). For Open Inwoner, set `openinwoner.clamavConfigJob.enabled: true` (see `docs/apps/openinwoner/openinwoner-BASICS.md`) — its own declarative `site_config:` step doesn't manage these fields.
 6. **Optional monitoring:** apply the `values-enable-observability.yaml` overlay (or set `clamav.metrics.enabled: true` and `clamav.metrics.serviceMonitor.enabled: true`) for the Prometheus exporter sidecar.
 7. **Verify:**
    - `kubectl get pods -n podiumd clamav-0` — Running and Ready (startup probe passed).

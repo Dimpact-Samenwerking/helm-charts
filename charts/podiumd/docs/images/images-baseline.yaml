@@ -52,6 +52,10 @@
   digest: "sha256:43062e9200a1ae7cb92f1830acf0ab7ca19272dea0756400caaeb4748bed9fa5"
 - name: clamav/clamav
   url: docker.io/clamav/clamav
+  version: "1.5.4"
+  digest: "sha256:0e85467cb0d6e7d860a45035707741cd5ffc032ffefc6002a3510c75b6d07027"
+- name: clamav/clamav
+  url: docker.io/clamav/clamav
   version: "1.5.2"
   digest: "sha256:1b6443c4a7b456baa1abfaf9796815f8d21e2fb558dbaed5b682fd4552d8b0c3"
 - name: clamav/clamav
@@ -64,16 +68,22 @@
   digest: "sha256:d967d98a12dc220a1a290794711dba7eba04b8ce465e12b02383d1bfbb33e159"
 - name: curlimages/curl
   url: docker.io/curlimages/curl
-  version: "8.20.0"
-  digest: "sha256:b3f1fb2a51d923260350d21b8654bbc607164a987e2f7c84a0ac199a67df812a"
-- name: curlimages/curl
-  url: docker.io/curlimages/curl
   version: "8.21.0"
   digest: "sha256:7c12af72ceb38b7432ab85e1a265cff6ae58e06f95539d539b654f2cfa64bb13"
 - name: elastic/eck-operator
   url: docker.io/elastic/eck-operator
+  version: "3.5.0"
+  digest: "sha256:b6f261372d9d9af7b00aab03efea25263314d16063c4d440ac322e52c2fdf314"
+- name: elastic/eck-operator
+  url: docker.io/elastic/eck-operator
   version: "3.1.0"
   digest: "sha256:46e08ba3aed87431c909607cd6c29a5940f48f3ebc9f250bf84380059861684e"
+# Kiss's ECK-managed Elasticsearch (contact search) — separate cluster from
+# the eck-elasticsearch instance below.
+- name: elasticsearch/elasticsearch
+  url: docker.elastic.co/elasticsearch/elasticsearch
+  version: "8.19.19"
+  digest: "sha256:5dbf405a97e008f3024cf6f8f4a314d91b765d82954530893dcc13f8e87d21f4"
 # Elasticsearch (ECK-managed cluster). Lives on docker.elastic.co, which has no
 # anonymous JSON tag API, so the digest must be resolved with a registry client
 # (crane/skopeo) and pinned here.
@@ -81,6 +91,11 @@
 - name: elasticsearch/elasticsearch
   url: docker.elastic.co/elasticsearch/elasticsearch
   version: "9.2.0"
+# Kiss's ECK-managed Enterprise Search (contact search).
+- name: enterprise-search/enterprise-search
+  url: docker.elastic.co/enterprise-search/enterprise-search
+  version: "8.19.19"
+  digest: "sha256:83e75654a20826027829a072197698358c6ee6e53c3305558a69f7d89992ab16"
 - name: gotenberg/gotenberg
   url: docker.io/gotenberg/gotenberg
   version: "8.34.0"
@@ -94,35 +109,56 @@
 # TODO digest: crane digest ghcr.io/icatt-menselijk-digitaal/podiumd-adapter:0.6.6
 - name: icatt-menselijk-digitaal/podiumd-adapter
   url: ghcr.io/icatt-menselijk-digitaal/podiumd-adapter
-  version: "0.6.6"
+  version: "0.6.7"
+  digest: "sha256:089d07a6efdfcab07b61b1a75b4d26c14099cc9b206a56419e36ef6f28a26a68"
+- name: infonl/zaakafhandelcomponent
+  url: ghcr.io/infonl/zaakafhandelcomponent
+  version: "5.4.0"
+  digest: "sha256:93b959ce15a41130a2f9fc03d1cb681d03ae5a8791c54f31a946761ed53c89cf"
+- name: infonl/zaakafhandelcomponent
+  url: ghcr.io/infonl/zaakafhandelcomponent
+  version: "5.1.0"
+  digest: "sha256:d833d2f3dd58eeb58335e9aff9bca67f5885fad0e6a7414003ce9a211d3dc50e"
 - name: infonl/zaakafhandelcomponent
   url: ghcr.io/infonl/zaakafhandelcomponent
   version: "5.0.2"
   digest: "sha256:e334f327008f99304cd545e61f528a44d583162c9bb67f4a589479248a93df3c"
 - name: infonl/zgw-office-addin-backend
   url: ghcr.io/infonl/zgw-office-addin-backend
+  version: "0.11.0"
+  digest: "sha256:5b188e853531986e31709ed6cae130a891e0014cb267c43ac338b792c84a29ab"
+- name: infonl/zgw-office-addin-backend
+  url: ghcr.io/infonl/zgw-office-addin-backend
+  version: "v0.9.352"
+  digest: "sha256:c5bf9a7beb883c7cf586a65326dacb4fc49a2eaaa08f4eb49f2faabb786b71b4"
+- name: infonl/zgw-office-addin-backend
+  url: ghcr.io/infonl/zgw-office-addin-backend
   version: "v0.9.313"
   digest: "sha256:64d49e401de5005c5f2b61c68fac72f5d7ba4f640dca5288d21f82cf57bcc8fb"
+- name: infonl/zgw-office-addin-frontend
+  url: ghcr.io/infonl/zgw-office-addin-frontend
+  version: "0.11.0"
+  digest: "sha256:9a6b3e9023b8cfba152a84dd7477e079490fc7d35562d32e0dc094be81a7f7a2"
+- name: infonl/zgw-office-addin-frontend
+  url: ghcr.io/infonl/zgw-office-addin-frontend
+  version: "v0.9.352"
+  digest: "sha256:bf248581519b1644ef0f0b3ecb569f80b0fcf435c58df18547bb714eb6aa4916"
 - name: infonl/zgw-office-addin-frontend
   url: ghcr.io/infonl/zgw-office-addin-frontend
   version: "v0.9.313"
   digest: "sha256:02cbd45a83f09f89b85dcd040840f9fb3e9bbadf67282edd6d258697a68684c7"
 - name: interne-taak-afhandeling/internetaakafhandeling.poller
   url: ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller
-  version: "3.2.0"
-  digest: "sha256:eee4567fd5bfaa7eb2ec13fa1a34cfabb402939ffdc79de8159f5dc00754bafb"
-- name: interne-taak-afhandeling/internetaakafhandeling.poller
-  url: ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller
-  version: "3.1.0"
-  digest: "sha256:67fa6cd37b9d38cd7317ee714a553b4bb2250d8998d2481e0f4cd2311e089383"
+  version: "3.3.0"
+  digest: "sha256:7690650687047c43f08c4f8320b77d821d3551d18478de9a600a2f828600c865"
 - name: interne-taak-afhandeling/internetaakafhandeling.web
   url: ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web
-  version: "3.2.0"
-  digest: "sha256:159489884a041ec9222e6e2a0f0c5ff2a70f93d7b7885fa19c6be2c59d658015"
-- name: interne-taak-afhandeling/internetaakafhandeling.web
-  url: ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web
-  version: "3.1.0"
-  digest: "sha256:40bcd34e672366fd71f4522775259c85580348a373a53a8ff3235bcb8aeeda06"
+  version: "3.3.0"
+  digest: "sha256:cb56b4809e0c840cbc72814f8a72495fd18860cb08dfb092c12ba3c2cea785df"
+- name: keycloak/keycloak
+  url: quay.io/keycloak/keycloak
+  version: "26.7.2"
+  digest: "sha256:9d1f1b2b7261ff53c66cb1092dfcdc34a5fb77e81f9e6a6e75b8b6a795de8067"
 - name: keycloak/keycloak
   url: quay.io/keycloak/keycloak
   version: "26.6.3"
@@ -131,26 +167,24 @@
   url: quay.io/keycloak/keycloak-operator
   version: "26.6.3"
   digest: "sha256:40301d2bb0eeb6eb5c6c47b2ee8bc28f156c3c5626db21dbf6b7b37c0110696c"
+# Kiss's ECK-managed Kibana (contact search).
+- name: kibana/kibana
+  url: docker.elastic.co/kibana/kibana
+  version: "8.19.19"
+  digest: "sha256:cc1f9f8c09e2fe0869965ccbf4008a4af0b2691b370fe189dfb8e19f516215c7"
+# Elastic Open Crawler — replaces the Enterprise Search web crawler for KISS.
+- name: integrations/crawler
+  url: docker.elastic.co/integrations/crawler
+  version: "1.0.0"
+  digest: "sha256:6f3c02f6c783711b8d9e133cf10934b137d6547dc1eb10a0d2ccf99ffe2e2d07"
 - name: klantinteractie-servicesysteem/kiss-elastic-sync
   url: ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync
-  version: "0.3.3"
-  digest: "sha256:f26bd91d96ec8f1875e1ce7a2386788913240bc3b70a520926db444ba61e424c"
-- name: klantinteractie-servicesysteem/kiss-elastic-sync
-  url: ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync
-  version: "0.3.2"
-  digest: "sha256:289278af6137e84055ba15ab694405d90778970dc9f6f33d3806fd8d6e867cd4"
+  version: "3.0.0"
+  digest: "sha256:64d56ff3039b71806d7d03ecfcd37cede2d31c4146fe4e06d9de6f526415fffb"
 - name: klantinteractie-servicesysteem/kiss-frontend
   url: ghcr.io/klantinteractie-servicesysteem/kiss-frontend
-  version: "2.2.4"
-  digest: "sha256:7c7b58109dc6ca7e66bb21b9cd2902ac09d6a764e70cff396e93ca0fcfa293e9"
-- name: klantinteractie-servicesysteem/kiss-frontend
-  url: ghcr.io/klantinteractie-servicesysteem/kiss-frontend
-  version: "2.2.3"
-  digest: "sha256:a12276517ce7846e5ebe40373de8c4960fb41182958a668ad60254b088252252"
-- name: klantinteractie-servicesysteem/kiss-frontend
-  url: ghcr.io/klantinteractie-servicesysteem/kiss-frontend
-  version: "2.2.2"
-  digest: "sha256:57eaf4f998a6c631333665d91b068dbc3109fed187ae828e1f2bc775fec65caf"
+  version: "3.0.0"
+  digest: "sha256:56a9c225d9fb19184ee9ad6c84877e7b5853c280cbb5e0d59edb340c7bb8599c"
 - name: lachlanevenson/k8s-kubectl
   url: docker.io/lachlanevenson/k8s-kubectl
   version: "v1.25.4"
@@ -169,12 +203,16 @@
   digest: "sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777"
 - name: library/python
   url: docker.io/library/python
+  version: "3.14.7-slim"
+  digest: "sha256:cae66f2ef0ec51a9891263eeee7f987dacf0a9879e8aa9353d5606e0530619a5"
+- name: library/python
+  url: docker.io/library/python
   version: "3.14-slim"
   digest: "sha256:b877e50bd90de10af8d82c57a022fc2e0dc731c5320d762a27986facfc3355c1"
 - name: library/solr
   url: docker.io/library/solr
   version: "9.10.1-slim"
-  digest: "sha256:c45d9d93d74d6a5e996120ab7120cdfc531debbc59bd3d6a6736fe240cee9be0"
+  digest: "sha256:389b4a54b6a0b37a028a3f157e4d3b7031cf76def1b14bcaa225ea1e27f79ffb"
 - name: maykinmedia/objects-api
   url: docker.io/maykinmedia/objects-api
   version: "3.6.2"
@@ -214,7 +252,7 @@
 - name: nginxinc/nginx-unprivileged
   url: docker.io/nginxinc/nginx-unprivileged
   version: "1.31.3"
-  digest: "sha256:49c9bef1797e11117a7f490fd00f282e377ac402fec472c72636f90cdbf72e10"
+  digest: "sha256:1ab63ed666197d757cd3ce0ad84c5136f18f774465345785f33423bd1bba4353"
 - name: oauth2-proxy/oauth2-proxy
   url: quay.io/oauth2-proxy/oauth2-proxy
   version: "v7.7.1"
@@ -229,6 +267,10 @@
   digest: "sha256:45755696db647b0c9fecc5d2c78403dbbac0f3c962292e89dee34b405abd1d7c"
 - name: openpolicyagent/opa
   url: docker.io/openpolicyagent/opa
+  version: "1.18.2-static"
+  digest: "sha256:57f7d06808fff6de3ea1d698e6430990973ca1370be0e54975f0083d615521da"
+- name: openpolicyagent/opa
+  url: docker.io/openpolicyagent/opa
   version: "1.17.1-static"
   digest: "sha256:c29f8ee8dbe66608a1c04e9be84b04efc46877625e6b0877e559954565209efc"
 - name: openzaak/open-notificaties
@@ -241,12 +283,24 @@
   digest: "sha256:f847e5148d857da07847b5d298d8d7a0b66a299fb48e02e4a28176cc09e8decf"
 - name: opstree/redis
   url: quay.io/opstree/redis
+  version: "v8.6.6"
+  digest: "sha256:12724412997e6acc32783f8c3c1ce8a7657029e06f563ffc8cbd81e2e9de7628"
+- name: opstree/redis
+  url: quay.io/opstree/redis
   version: "v8.6.2"
   digest: "sha256:5f79911253cb74636e8e97555b08095902d46a835c6423adb123295b00ba70d7"
 - name: opstree/redis-exporter
   url: quay.io/opstree/redis-exporter
+  version: "v1.89.0"
+  digest: "sha256:00a3628bdd3bb3423a15c5daefa328c471ee609798eed1744fe578c906d20cab"
+- name: opstree/redis-exporter
+  url: quay.io/opstree/redis-exporter
   version: "v1.82.0"
   digest: "sha256:bce422b4bba8721bef04d5ca491eeec2b53278698b4bd9790f81fbb287cdfe88"
+- name: opstree/redis-operator
+  url: quay.io/opstree/redis-operator
+  version: "v0.26.0"
+  digest: "sha256:1c6818e5e50553f9f3c1b91a8824ae5c1999a0c9416c794ca51431b7f0cb48c3"
 - name: opstree/redis-operator
   url: quay.io/opstree/redis-operator
   version: "v0.25.0"
@@ -257,8 +311,16 @@
   digest: "sha256:14d4d994523f43bd87f67001c934330a0d972812f403d8f34dea29ea295201b4"
 - name: platform-autorisatie-beheer-component/pabc-api
   url: ghcr.io/platform-autorisatie-beheer-component/pabc-api
+  version: "1.1.1"
+  digest: "sha256:09a902e43f6cdb214afc369d04005c7b6108fd24b15709f1debbcfb1b446ef42"
+- name: platform-autorisatie-beheer-component/pabc-api
+  url: ghcr.io/platform-autorisatie-beheer-component/pabc-api
   version: "1.1.0"
   digest: "sha256:66e83416f41d546eba8b6a7f2ea061da2d293fab6b9e22f129934127f4c31b3d"
+- name: platform-autorisatie-beheer-component/pabc-migrations
+  url: ghcr.io/platform-autorisatie-beheer-component/pabc-migrations
+  version: "1.1.1"
+  digest: "sha256:a3841a2eb78cddd34ebb0de1bfede1db1ae9713921c0d77e4366baceffa86e05"
 - name: platform-autorisatie-beheer-component/pabc-migrations
   url: ghcr.io/platform-autorisatie-beheer-component/pabc-migrations
   version: "1.1.0"
@@ -271,6 +333,10 @@
   url: docker.io/pravega/zookeeper-operator
   version: "0.2.15"
   digest: "sha256:b2bc4042fdd8fea6613b04f2f602ba4aff1201e79ba35cd0e2df9f3327111b0e"
+- name: sergeymakinen/clamav_exporter
+  url: docker.io/sergeymakinen/clamav_exporter
+  version: "v2.1.8"
+  digest: "sha256:ac0e23e6b718f265f67de68d9fccbb8e9baccedeba19658fd78dd8a606508e24"
 - name: sergeymakinen/clamav_exporter
   url: docker.io/sergeymakinen/clamav_exporter
   version: "v2.1.3"

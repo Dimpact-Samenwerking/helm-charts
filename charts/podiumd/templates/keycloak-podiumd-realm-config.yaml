@@ -271,6 +271,9 @@ data:
       - clientId: monitoring
         name: {{ .Values.keycloak.config.clients.monitoring.name|quote }}
         enabled: {{ .Values.keycloak.config.clients.monitoring.enabled }}
+        standardFlowEnabled: true
+        implicitFlowEnabled: false
+        directAccessGrantsEnabled: false
         secret: $(KC_SECRET_MONITORING)
         clientAuthenticatorType: client-secret
         redirectUris:
@@ -812,10 +815,9 @@ data:
         enabled: true
         clientAuthenticatorType: client-secret
         secret: $(KC_SECRET_ZAC_ADMIN)
-        redirectUris:
-          - "{{ .Values.zac.contextUrl | trimSuffix "/" }}/*"
-        webOrigins:
-          - "{{ .Values.zac.contextUrl | trimSuffix "/" }}/*"
+        standardFlowEnabled: false
+        implicitFlowEnabled: false
+        directAccessGrantsEnabled: false
         serviceAccountsEnabled: true
         protocolMappers:
           - name: "Client Host"
@@ -1090,6 +1092,7 @@ data:
           - name: {{ .Values.openbao.configuration.uploadersRole | quote }}
         kiss:
           - name: Redacteur
+          - name: Beheerder
           - name: Klantcontactmedewerker
           - name: Kennisbank
         zac:

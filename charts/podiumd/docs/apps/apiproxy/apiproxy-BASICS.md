@@ -8,7 +8,7 @@ The API Proxy is a small traffic forwarder that sits between PodiumD application
 
 An nginx-based forward proxy rendered directly by the umbrella chart (no sub-chart, no upstream project). Templates: `charts/podiumd/templates/api-proxy-configmap.yaml`, `api-proxy-deployment.yaml`, `api-proxy-service.yaml`. Disabled by default (`apiproxy.enabled: false`).
 
-- Image: `nginxinc/nginx-unprivileged:1.31.3` (digest-pinned in `values.yaml`,
+- Image: `nginxinc/nginx-unprivileged:1.31.4` (digest-pinned in `values.yaml`,
   shared `global.images.nginx` anchor).
 - Runtime components: a single `nginx` container in Deployment `api-proxy` (1 replica), ClusterIP Service `api-proxy` (port 80 → container port 8080), plus a ConfigMap `api-proxy-nginx-config` holding the generated `nginx.conf`. The deployment name can be changed with `apiproxy.nameOverride` (e.g. `iconnect-proxy`).
 - Role in the stack: one stable in-cluster endpoint (`http://api-proxy.podiumd.svc.cluster.local/`) that fronts external APIs. Per upstream `location` it can inject an API key (`X-Api-Key` for BAG, `apikey` for the KvK endpoints), set the upstream `Host` header, do mTLS to the upstream, verify the upstream certificate chain (`sslVerifyDepth`, default 6), rewrite external URLs in response bodies back to the proxy URL (BAG, via `sub_filter`), and pass through or default an `X-Toepassing` application header (BRP/iConnect).
