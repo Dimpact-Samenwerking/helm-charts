@@ -1,6 +1,6 @@
 # monitoring-logging
 
-![Version: 1.0.15](https://img.shields.io/badge/Version-1.0.15-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 1.0.15](https://img.shields.io/badge/AppVersion-1.0.15-informational?style=flat-square)
+![Version: 1.0.16](https://img.shields.io/badge/Version-1.0.16-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 1.0.16](https://img.shields.io/badge/AppVersion-1.0.16-informational?style=flat-square)
 
 A monitoring stack using Loki, Prometheus, Grafana Alloy, OpenTelemetry Collector, and Grafana. Optionally includes Grafana Tempo for distributed tracing.
 
