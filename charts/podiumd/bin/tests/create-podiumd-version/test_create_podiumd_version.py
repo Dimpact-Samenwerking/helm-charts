@@ -73,6 +73,17 @@ def test_update_chart_version_missing_version_line_raises(cpv, tmp_path, monkeyp
         cpv.update_chart_version("4.10.0")
 
 
+# --- write_release_baseline ---
+
+def test_write_release_baseline_writes_bare_version_plus_newline(cpv, tmp_path, monkeypatch):
+    release_baseline_file = tmp_path / "release-baseline"
+    monkeypatch.setattr(cpv, "RELEASE_BASELINE_FILE", release_baseline_file)
+
+    cpv.write_release_baseline("4.9.0")
+
+    assert release_baseline_file.read_text(encoding="utf-8") == "4.9.0\n"
+
+
 # --- main(): argument/help handling ---
 
 def test_help_flag_prints_docstring_and_exits_0(cpv, monkeypatch, capsys):
@@ -168,7 +179,9 @@ def test_success_bumps_chart_and_delegates_to_set_doc_baseline(cpv, tmp_path, mo
     lexically), so this case doubles as the regression test for that."""
     chart_yaml = tmp_path / "Chart.yaml"
     write_chart_yaml(chart_yaml, "4.9.0")
+    release_baseline_file = tmp_path / "release-baseline"
     monkeypatch.setattr(cpv, "CHART_YAML", chart_yaml)
+    monkeypatch.setattr(cpv, "RELEASE_BASELINE_FILE", release_baseline_file)
     monkeypatch.setattr(cpv.sys, "argv", ["create-podiumd-version"])
     monkeypatch.setattr(cpv, "find_repo_root", lambda chart_dir: tmp_path)
     monkeypatch.setattr(cpv, "current_branch", lambda repo_root: "feature/podiumd-4.10.0")
@@ -186,12 +199,14 @@ def test_success_bumps_chart_and_delegates_to_set_doc_baseline(cpv, tmp_path, mo
 
     assert exc_info.value.code == 0
     assert chart_yaml.read_text().splitlines()[3] == "version: 4.10.0"
+    assert release_baseline_file.read_text(encoding="utf-8") == "4.9.0\n"
     assert len(calls) == 1
     assert calls[0][0] == cpv.sys.executable
     assert calls[0][1] == str(cpv.SET_DOC_BASELINE_SCRIPT)
     assert calls[0][2] == "4.9.0"
     out = capsys.readouterr().out
     assert "4.9.0 -> 4.10.0" in out
+    assert "release-baseline: 4.9.0" in out
     assert "set-doc-baseline 4.9.0" in out
 
 
@@ -199,6 +214,7 @@ def test_success_propagates_set_doc_baseline_failure_exit_code(cpv, tmp_path, mo
     chart_yaml = tmp_path / "Chart.yaml"
     write_chart_yaml(chart_yaml, "4.9.0")
     monkeypatch.setattr(cpv, "CHART_YAML", chart_yaml)
+    monkeypatch.setattr(cpv, "RELEASE_BASELINE_FILE", tmp_path / "release-baseline")
     monkeypatch.setattr(cpv.sys, "argv", ["create-podiumd-version"])
     monkeypatch.setattr(cpv, "find_repo_root", lambda chart_dir: tmp_path)
     monkeypatch.setattr(cpv, "current_branch", lambda repo_root: "feature/podiumd-4.10.0")

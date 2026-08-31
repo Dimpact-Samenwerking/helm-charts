@@ -74,7 +74,7 @@ Notes:
 - tools support `--help`
 
 Tools:
-- `create-podiumd-version`: uses version in `charts/podiumd/Chart.yaml` as baseline release, update version in `Chart.yaml` and create updgrade docs in `charts/podiumd/docs/_UPGRADE_PATHS`
+- `create-podiumd-version`: uses version in `charts/podiumd/Chart.yaml` as baseline release, update version in `Chart.yaml`, record the baseline in `charts/podiumd/release-baseline` and create updgrade docs in `charts/podiumd/docs/_UPGRADE_PATHS`
 - `export-confluence-release-table`: fetch release data from confluence and store it in `charts/podiumd/release-table.csv`
 - `list-helmchart-images`: list images in a helm chart, given chart name and version
 - `list-podiumd-images`: list images in `charts/podiumd`

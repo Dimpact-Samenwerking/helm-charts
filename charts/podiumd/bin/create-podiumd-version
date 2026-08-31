@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
 Open a new podiumd release cycle: bump charts/podiumd/Chart.yaml's own
-version/appVersion to the target named by the current branch, then scaffold
-the upgrade-path docs for the outgoing version as the new baseline (runs
+version/appVersion to the target named by the current branch, record the
+outgoing version in charts/podiumd/release-baseline, then scaffold the
+upgrade-path docs for the outgoing version as the new baseline (runs
 set-doc-baseline).
 
 Reads everything from repo state — no arguments:
@@ -23,8 +24,8 @@ Usage:
 Example:
     # on branch feature/podiumd-4.10.0, with Chart.yaml at version: 4.9.0
     create-podiumd-version
-        # bumps Chart.yaml's version/appVersion 4.9.0 -> 4.10.0, then runs
-        # set-doc-baseline 4.9.0
+        # bumps Chart.yaml's version/appVersion 4.9.0 -> 4.10.0, writes
+        # "4.9.0\n" to release-baseline, then runs set-doc-baseline 4.9.0
 """
 import re
 import sys
@@ -40,6 +41,7 @@ from lib.procutil import run_script
 
 CHART_DIR = SCRIPT_DIR.parent
 CHART_YAML = CHART_DIR / "Chart.yaml"
+RELEASE_BASELINE_FILE = CHART_DIR / "release-baseline"
 SET_DOC_BASELINE_SCRIPT = SCRIPT_DIR / "set-doc-baseline"
 
 BRANCH_RE = re.compile(r"^feature/podiumd-(\d+\.\d+\.\d+)$")
@@ -71,6 +73,13 @@ def update_chart_version(new_version):
         raise SystemExit(f"error: could not find a top-level 'version:' line in {CHART_YAML}")
     CHART_YAML.write_text("".join(lines), encoding="utf-8")
     return changed
+
+
+def write_release_baseline(baseline):
+    """Records the outgoing version so other scripts/CI can read the
+    release baseline (`.read_text().strip()`) without a --baseline flag
+    or parsing an upgrade-doc filename."""
+    RELEASE_BASELINE_FILE.write_text(f"{baseline}\n", encoding="utf-8")
 
 
 def main():
@@ -106,6 +115,9 @@ def main():
 
     changed = update_chart_version(target)
     print(f"{CHART_YAML.name}: {', '.join(changed)} {baseline} -> {target}")
+
+    write_release_baseline(baseline)
+    print(f"{RELEASE_BASELINE_FILE.name}: {baseline}")
 
     print()
     print(f"=== Running set-doc-baseline {baseline} ===")
