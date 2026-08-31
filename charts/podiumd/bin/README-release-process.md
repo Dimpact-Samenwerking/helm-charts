@@ -14,7 +14,7 @@
 ## Setup
 
 ### Required external tools
-`verify-podiumd --help` documents this same list (why each one is needed, and which check falls back gracefully vs. fails outright when it's missing):
+`verify-podiumd` needs the tools below, one per check — `verify-podiumd --help` points back to this table instead of repeating it. A missing tool fails that check with a clear message (add its step to `--skip=` to bypass it) — `docker` and `az` are the two exceptions, falling back gracefully instead (see their own rows):
 
 | Tool | Needed for | Debian | macOS |
 | --- | --- | --- | --- |

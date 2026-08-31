@@ -511,26 +511,12 @@ STEPS_HELP = "\nSteps usable with --skip=/--include= (in run order):\n" + "\n".j
 ) + "\n"
 
 REQUIRED_TOOLS_HELP = """
-Required external tools (each is only needed for the check(s) noted; a
-missing tool makes that check fail with a clear message — add its step to
---skip= to bypass it instead, e.g. if it's not installed locally):
-  helm         required to run at all — checked once up front, before any
-               step (even a pure-filesystem one like utf8-format), so a
-               --skip=/--include= selection that avoids every helm-using
-               step still needs it installed
-  helm-docs    Helm docs check             (https://github.com/norwoodj/helm-docs — single static binary)
-  yamllint     yamllint check              (apt/pip package "yamllint")
-  kubeconform  kubeconform check           (https://github.com/yannh/kubeconform — single static binary)
-  shellcheck   shellcheck check            (apt package "shellcheck", or https://www.shellcheck.net)
-  kube-score   kube-score check            (https://github.com/zegl/kube-score — single static binary)
-  docker       CVE scan (pulls trivy + every pinned image — the one exception
-               to "missing tool fails the check": no docker just reports the
-               scan as skipped, since it was already designed to never block
-               a run over infrastructure it can't assume everyone has)
-  az           optional, Dependencies only — used solely to tell an Azure
-               auth problem apart from a network blip when `helm dependency
-               update` fails against an *.azurecr.io repo; missing/unused az
-               just falls back to the plain retry-with-backoff behavior
+Required external tools: see charts/podiumd/bin/README-release-process.md#setup
+for the full per-tool/per-check list and Debian/macOS install instructions.
+A missing tool makes its check fail with a clear message — add its step
+to --skip= to bypass it instead, e.g. if it's not installed locally.
+docker is the one exception: missing docker just reports the CVE scan as
+skipped, never blocks a run.
 """
 
 
