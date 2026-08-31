@@ -34,20 +34,18 @@ def images_manifest_path(images_dir, target):
     return images_dir / f"images-{target}.yaml"
 
 
-def find_baseline_docs(doc_dir, target):
-    """(baseline, upgrade_path, values_deltas_path) for the single
-    <baseline>-to-<target>-*.md doc set for this podiumd version, or
-    (None, None, None) if the upgrade doc doesn't exist yet — run
-    set-doc-baseline first to scaffold it."""
-    matches = list(doc_dir.glob(f"*-to-{target}-upgrade.md"))
-    if len(matches) != 1:
-        return None, None, None
-    m = re.match(rf"^(?P<baseline>\d+\.\d+\.\d+)-to-{re.escape(target)}-upgrade\.md$", matches[0].name)
-    if not m:
-        return None, None, None
-    baseline = m.group("baseline")
+def baseline_doc_paths(doc_dir, baseline, target):
+    """(upgrade_path, values_deltas_path) for the <baseline>-to-<target>-
+    *.md doc set, or (None, None) if baseline is None (release-baseline
+    doesn't exist yet) or the upgrade doc itself doesn't exist yet — run
+    set-doc-baseline first to scaffold it either way."""
+    if baseline is None:
+        return None, None
+    upgrade_path = doc_dir / f"{baseline}-to-{target}-upgrade.md"
+    if not upgrade_path.is_file():
+        return None, None
     values_deltas_path = doc_dir / f"{baseline}-to-{target}-values-deltas.md"
-    return baseline, matches[0], (values_deltas_path if values_deltas_path.is_file() else None)
+    return upgrade_path, (values_deltas_path if values_deltas_path.is_file() else None)
 
 
 def load_baseline_values(values_path, baseline):
