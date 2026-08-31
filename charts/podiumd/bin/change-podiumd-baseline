@@ -4,8 +4,10 @@ Change the release baseline recorded in charts/podiumd/release-baseline
 (written by create-podiumd-version at the start of a release cycle) —
 for correcting a mistake, or rebasing the release onto a different
 baseline mid-cycle. Also rebases the docs onto the new baseline (runs
-fix-doc-baseline) — see that script for exactly what gets renamed/
-rewritten vs. just reported for manual review.
+fix-doc-consistency — see that script for exactly what gets renamed/
+rewritten vs. just reported for manual review) and, as a safety net for
+any values.yaml drift README.md hadn't already picked up, regenerates it
+too (runs fix-podiumd-readme).
 
 <new-baseline> must resolve to an actual release: the podiumd-<version>
 git tag, falling back to the feature/podiumd-<version> / origin/feature/
@@ -30,7 +32,8 @@ from lib.procutil import run_script
 
 CHART_DIR = SCRIPT_DIR.parent
 RELEASE_BASELINE_FILE = CHART_DIR / "release-baseline"
-FIX_DOC_BASELINE_SCRIPT = SCRIPT_DIR / "fix-doc-baseline"
+FIX_DOC_CONSISTENCY_SCRIPT = SCRIPT_DIR / "fix-doc-consistency"
+FIX_README_SCRIPT = SCRIPT_DIR / "fix-podiumd-readme"
 
 
 def read_current_baseline():
@@ -71,8 +74,14 @@ def main():
         print(f"{RELEASE_BASELINE_FILE.name}: {old_baseline or '(none)'} -> {new_baseline} (resolved to {ref})")
 
     print()
-    print(f"=== Running fix-doc-baseline {new_baseline} ===")
-    result = run_script([sys.executable, str(FIX_DOC_BASELINE_SCRIPT), new_baseline])
+    print(f"=== Running fix-doc-consistency {new_baseline} ===")
+    result = run_script([sys.executable, str(FIX_DOC_CONSISTENCY_SCRIPT), new_baseline])
+    if result.returncode != 0:
+        sys.exit(result.returncode)
+
+    print()
+    print("=== Regenerating README.md (fix-podiumd-readme) ===")
+    result = run_script([sys.executable, str(FIX_README_SCRIPT)])
     sys.exit(result.returncode)
 
 

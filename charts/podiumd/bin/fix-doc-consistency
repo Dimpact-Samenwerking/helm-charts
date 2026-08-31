@@ -30,15 +30,15 @@ release-baseline — see that script for the usual "rebase onto a
 different baseline" workflow. Also runnable standalone.
 
 Usage:
-    fix-doc-baseline [<new-baseline>]
+    fix-doc-consistency [<new-baseline>]
         # <new-baseline> defaults to release-baseline's content if omitted
         # (error if that file doesn't exist either) — this script itself
         # never writes release-baseline; see change-podiumd-baseline.
 
 Example:
-    fix-doc-baseline 4.8.3
+    fix-doc-consistency 4.8.3
         # if Chart.yaml's version is 4.9.0, renames *-to-4.9.0-*.md
-    fix-doc-baseline
+    fix-doc-consistency
         # same, but reads "4.8.3" from release-baseline instead
 """
 import re
@@ -55,7 +55,6 @@ from lib.chart import SEMVER_RE as BASELINE_VERSION_RE
 from lib.chart import chart_version, release_baseline
 from lib.component_docs import IMAGES_STUB_TEMPLATE, STANDARD_SUFFIXES, STUB_TEMPLATES, existing_doc_baselines
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
-from lib.procutil import run_script
 from lib.upgradedoc import (
     actual_app_version, append_to_doc, canonical_version_cell, compute_changed_components,
     extract_source_version, extract_target_version, find_grouped_preceding_comment_line,
@@ -68,7 +67,6 @@ CHART_YAML = SCRIPT_DIR.parents[0] / "Chart.yaml"
 VALUES_YAML = SCRIPT_DIR.parents[0] / "values.yaml"
 DOC_DIR = SCRIPT_DIR.parents[0] / "docs" / "_UPGRADE_PATHS"
 IMAGES_DIR = SCRIPT_DIR.parents[0] / "docs" / "images"
-FIX_README_SCRIPT = SCRIPT_DIR / "fix-podiumd-readme"
 
 
 def current_chart_version():
@@ -511,11 +509,8 @@ def main():
             print(f"  {name}: line(s) {', '.join(map(str, lines))}")
 
     print()
-    print("=== Regenerating README.md (fix-podiumd-readme) ===")
-    run_script([sys.executable, str(FIX_README_SCRIPT)])
-
-    print()
-    print("Done. Run verify-podiumd to confirm consistency before committing.")
+    print("Done. Run fix-podiumd-readme to regenerate README.md, then verify-podiumd to "
+          "confirm consistency before committing.")
 
 
 if __name__ == "__main__":

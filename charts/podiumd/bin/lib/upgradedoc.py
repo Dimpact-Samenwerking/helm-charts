@@ -1,5 +1,5 @@
 """Upgrade-doc parsing/matching helpers shared by verify-podiumd's
-docs-consistency check and fix-doc-baseline's version-correction pass."""
+docs-consistency check and fix-doc-consistency's version-correction pass."""
 import re
 
 
@@ -56,7 +56,7 @@ def component_order_key(name, deps, key_order):
     Chart.yaml dependency at all (e.g. a row summarizing several
     shared-image components at once, or free-form prose that doesn't name
     one). Shared by the docs-consistency out-of-order check and
-    fix-doc-baseline's own reordering passes, so "what order should this
+    fix-doc-consistency's own reordering passes, so "what order should this
     be in" is answered exactly once."""
     dep = match_dependency(name, deps)
     values_key = dep.get("alias", dep["name"]) if dep else None

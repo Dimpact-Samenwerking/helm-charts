@@ -61,7 +61,7 @@ def find_markdown_files(chart_dir):
       exists — see lib.chart.release_baseline) any <baseline> other than
       its content. Both parts matter: a doc can only be "the current
       release's own" if it's the exact <baseline>-to-<target> pair
-      fix-doc-baseline would itself rebase onto right now — the same
+      fix-doc-consistency would itself rebase onto right now — the same
       two-part key lib.component_docs.baseline_doc_paths uses to
       identify that same doc set. A past release's own upgrade docs are
       closed out and frozen; nobody's touching them again, so linting

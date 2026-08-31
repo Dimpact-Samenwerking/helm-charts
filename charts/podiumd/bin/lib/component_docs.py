@@ -8,7 +8,7 @@ always equals new_chart there, since an image-only bump never touches
 Chart.yaml).
 
 Also holds the standard-doc-set scaffolding shared by create-doc-version
-and fix-doc-baseline (STANDARD_SUFFIXES/STUB_TEMPLATES/
+and fix-doc-consistency (STANDARD_SUFFIXES/STUB_TEMPLATES/
 IMAGES_STUB_TEMPLATE, existing_doc_baselines, create_missing_docs) — the
 "create fresh vs. rebase existing" split lives entirely in those two
 scripts' own control flow; only the shared data/scan/create pieces live
@@ -58,7 +58,7 @@ def baseline_doc_paths(doc_dir, baseline, target):
 # The three docs verify-podiumd's check_baseline_doc_set expects for every
 # target — missing ones are created as stubs, not just renamed. Shared by
 # create-doc-version (creates whichever are missing for a fresh target)
-# and fix-doc-baseline (renames existing ones, and falls back to the
+# and fix-doc-consistency (renames existing ones, and falls back to the
 # same fresh-create for whichever were never scaffolded at all).
 STANDARD_SUFFIXES = ("upgrade", "gemeente-specific", "values-deltas")
 
@@ -115,7 +115,7 @@ def existing_doc_baselines(doc_dir, target):
     doc currently in doc_dir, whatever baseline each one currently names —
     the raw "what's actually there" scan. Shared by create-doc-version (to
     detect a baseline mismatch worth refusing fresh-creation over) and
-    fix-doc-baseline (to know what to rename)."""
+    fix-doc-consistency (to know what to rename)."""
     pattern = re.compile(DOC_FILENAME_RE_TMPL.format(target=re.escape(target)))
     by_suffix = {}
     for path in doc_dir.glob(f"*-to-{target}-*.md"):
