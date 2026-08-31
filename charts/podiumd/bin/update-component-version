@@ -6,12 +6,14 @@ version.py confirms both versions actually exist upstream. Refuses to touch
 either file if that verification fails; whichever version is already at
 the requested value is left untouched (not an error).
 
-Also updates the docs for the current podiumd target version, if they
-exist (run set-doc-baseline first if not): the upgrade doc's
-"Component versions" table row and Changes section, the values-deltas
-doc, and docs/images/images-<target>.yaml — see find_baseline_docs,
-update_component_table, and images_manifest_path for exactly what gets
-rewritten vs. reported for manual review. Finally runs
+Also updates the docs for the current podiumd target version, using
+release-baseline as the baseline (run create-podiumd-version/
+change-podiumd-baseline first if it doesn't exist, then set-doc-baseline
+to scaffold the docs) — the upgrade doc's "Component versions" table row
+and Changes section, the values-deltas doc, and
+docs/images/images-<target>.yaml — see lib.component_docs.
+baseline_doc_paths, update_component_table, and images_manifest_path for
+exactly what gets rewritten vs. reported for manual review. Finally runs
 update-podiumd-readme so README.md's values-reference table doesn't go
 stale in the same commit.
 
@@ -53,12 +55,13 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 from lib.chart import chart_version as _chart_version
 from lib.chart import find_dependency as _find_dependency
+from lib.chart import release_baseline as _release_baseline
 from lib.chart import (
     check_image_versions, get_path, image_paths_for, pull_chart, pulled_chart_dir, replace_scalar_value,
 )
 from lib.component_docs import NO_CHANGES_CLAIMED_RE
 from lib.component_docs import (
-    find_baseline_docs as _find_baseline_docs,
+    baseline_doc_paths as _baseline_doc_paths,
     images_manifest_path as _images_manifest_path, insert_changes_section,
     load_baseline_state as _load_baseline_state, load_baseline_values as _load_baseline_values,
     make_changes_section, remove_changes_section, remove_component_from_images_manifest,
@@ -71,10 +74,11 @@ from lib.registry import parse_repo, registry_tag_exists
 from lib.upgradedoc import append_to_doc, compute_changed_components, describe_key_changes
 
 UPDATE_README_SCRIPT = SCRIPT_DIR / "update-podiumd-readme"
-CHART_YAML = SCRIPT_DIR.parents[0] / "Chart.yaml"
-VALUES_YAML = SCRIPT_DIR.parents[0] / "values.yaml"
-DOC_DIR = SCRIPT_DIR.parents[0] / "docs" / "_UPGRADE_PATHS"
-IMAGES_DIR = SCRIPT_DIR.parents[0] / "docs" / "images"
+CHART_DIR = SCRIPT_DIR.parents[0]
+CHART_YAML = CHART_DIR / "Chart.yaml"
+VALUES_YAML = CHART_DIR / "values.yaml"
+DOC_DIR = CHART_DIR / "docs" / "_UPGRADE_PATHS"
+IMAGES_DIR = CHART_DIR / "docs" / "images"
 
 def find_dependency(name_or_alias):
     deps = yaml.safe_load(CHART_YAML.read_text())["dependencies"]
@@ -308,8 +312,8 @@ def images_manifest_path(target):
     return _images_manifest_path(IMAGES_DIR, target)
 
 
-def find_baseline_docs(target):
-    return _find_baseline_docs(DOC_DIR, target)
+def baseline_doc_paths(baseline, target):
+    return _baseline_doc_paths(DOC_DIR, baseline, target)
 
 
 def load_baseline_values(baseline):
@@ -459,7 +463,8 @@ def main():
     old_chart = str(dep["version"])
     old_app = old_app_by_path.get(image_paths[0])
 
-    baseline, upgrade_path, values_deltas_path = find_baseline_docs(target)
+    baseline = _release_baseline(CHART_DIR)
+    upgrade_path, values_deltas_path = baseline_doc_paths(baseline, target)
 
     # Compare against the TRUE release baseline (git-resolved), not
     # "whatever this script itself last left on disk" -- the only way a
@@ -487,8 +492,12 @@ def main():
 
     if upgrade_path is None:
         print()
-        print(f"No upgrade doc found for target {target} — run set-doc-baseline first "
-              f"to scaffold it; skipping doc updates.")
+        if baseline is None:
+            print("No release-baseline found — run create-podiumd-version/"
+                  "change-podiumd-baseline first; skipping doc updates.")
+        else:
+            print(f"No upgrade doc found for target {target} — run set-doc-baseline first "
+                  f"to scaffold it; skipping doc updates.")
     elif reset_to_baseline:
         text = upgrade_path.read_text(encoding="utf-8")
         new_text, row_removed = remove_component_row(text, friendly)

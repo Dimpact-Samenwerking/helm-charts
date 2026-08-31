@@ -69,9 +69,9 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from lib.chart import dotted_key_path, find_dependency, get_path, load_yaml
+from lib.chart import dotted_key_path, find_dependency, get_path, load_yaml, release_baseline
 from lib.component_docs import (
-    NO_CHANGES_CLAIMED_RE, find_baseline_docs, images_manifest_path, insert_changes_section,
+    NO_CHANGES_CLAIMED_RE, baseline_doc_paths, images_manifest_path, insert_changes_section,
     load_baseline_state, load_baseline_values, make_changes_section, remove_changes_section,
     remove_component_from_images_manifest, remove_component_row, remove_component_values_delta,
     update_component_table, update_images_manifest, values_delta_bullet,
@@ -129,7 +129,8 @@ def update_docs_single_component(new_version, target, deps, values, dep, values_
     repos = group["repos"]
     new_tags_by_path = group["new_tags_by_path"]
 
-    baseline, upgrade_path, values_deltas_path = find_baseline_docs(DOC_DIR, target)
+    baseline = release_baseline(CHART_DIR)
+    upgrade_path, values_deltas_path = baseline_doc_paths(DOC_DIR, baseline, target)
 
     # Compare against the TRUE release baseline (git-resolved), not
     # "whatever this script itself last left on disk" -- see
@@ -153,8 +154,12 @@ def update_docs_single_component(new_version, target, deps, values, dep, values_
 
     if upgrade_path is None:
         print()
-        print(f"No upgrade doc found for target {target} — run set-doc-baseline first "
-              f"to scaffold it; skipping doc updates.")
+        if baseline is None:
+            print("No release-baseline found — run create-podiumd-version/"
+                  "change-podiumd-baseline first; skipping doc updates.")
+        else:
+            print(f"No upgrade doc found for target {target} — run set-doc-baseline first "
+                  f"to scaffold it; skipping doc updates.")
     elif reset_to_baseline:
         text = upgrade_path.read_text(encoding="utf-8")
         new_text, row_removed = remove_component_row(text, friendly)
@@ -267,7 +272,8 @@ def update_docs_shared_image(basename, new_version, changes, pinned, target, dep
     ..." Changes block listing every place it's pinned, a values-deltas
     bullet, and one images-manifest entry per distinct repository (rare
     for the SAME basename to span more than one, but not impossible)."""
-    baseline, upgrade_path, values_deltas_path = find_baseline_docs(DOC_DIR, target)
+    baseline = release_baseline(CHART_DIR)
+    upgrade_path, values_deltas_path = baseline_doc_paths(DOC_DIR, baseline, target)
 
     # Compare against the TRUE release baseline (git-resolved) rather than
     # "whatever's on disk right before this run" -- same reasoning as
@@ -292,8 +298,12 @@ def update_docs_shared_image(basename, new_version, changes, pinned, target, dep
 
     if upgrade_path is None:
         print()
-        print(f"No upgrade doc found for target {target} — run set-doc-baseline first "
-              f"to scaffold it; skipping doc updates.")
+        if baseline is None:
+            print("No release-baseline found — run create-podiumd-version/"
+                  "change-podiumd-baseline first; skipping doc updates.")
+        else:
+            print(f"No upgrade doc found for target {target} — run set-doc-baseline first "
+                  f"to scaffold it; skipping doc updates.")
     elif reset_to_baseline:
         text = upgrade_path.read_text(encoding="utf-8")
         new_text, row_removed = remove_component_row(text, basename)
