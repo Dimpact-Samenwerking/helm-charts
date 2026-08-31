@@ -1,8 +1,8 @@
 """Update the docs for a single component's version bump: the upgrade
 doc's "Component versions" table row + "## Changes" section, the
 values-deltas doc, and docs/images/images-<target>.yaml. Shared by
-update-component-version.py (a component's own app+chart bump — old_chart
-may differ from new_chart) and update-image-version.py (a shared image
+update-component-version (a component's own app+chart bump — old_chart
+may differ from new_chart) and update-image-version (a shared image
 basename's bump, applied per component it happens to affect — old_chart
 always equals new_chart there, since an image-only bump never touches
 Chart.yaml).
@@ -38,7 +38,7 @@ def find_baseline_docs(doc_dir, target):
     """(baseline, upgrade_path, values_deltas_path) for the single
     <baseline>-to-<target>-*.md doc set for this podiumd version, or
     (None, None, None) if the upgrade doc doesn't exist yet — run
-    set-doc-baseline.py first to scaffold it."""
+    set-doc-baseline first to scaffold it."""
     matches = list(doc_dir.glob(f"*-to-{target}-upgrade.md"))
     if len(matches) != 1:
         return None, None, None

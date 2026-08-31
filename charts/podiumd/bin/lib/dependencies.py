@@ -1,15 +1,15 @@
 """Vendors every Chart.yaml dependency into charts/*.tgz via a real `helm
-dependency update` — the action behind verify-podiumd.py's "Dependencies"
+dependency update` — the action behind verify-podiumd's "Dependencies"
 step, extracted here (rather than kept inline like check_lint/check_render)
-because set-image-digests.py also needs to trigger it: its subchart-
+because set-image-digests also needs to trigger it: its subchart-
 default-repository fallback (lib.chart.subchart_default_repository) reads
 straight from charts/*.tgz, which is gitignored — on a checkout where
 nothing has vendored dependencies yet, it simply doesn't exist.
 
 Both functions here return (ok, detail)/(ok, message) rather than the
-die()-and-sys.exit() verify-podiumd.py originally used for a repo-add
+die()-and-sys.exit() verify-podiumd originally used for a repo-add
 failure: a lib module has no business deciding a whole process should
-exit — that's a policy call each caller makes for itself. verify-podiumd.py
+exit — that's a policy call each caller makes for itself. verify-podiumd
 still dies on failure (same as before, just one level up); set-image-
 digests.py instead warns and carries on with whatever it could already
 resolve, since a failed re-vendor there means only its subchart-default

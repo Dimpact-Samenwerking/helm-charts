@@ -6,7 +6,7 @@ path. Used only when a basename bump (lib.image_version.
 update_image_version) actually touches more than one Chart.yaml
 component — a bump resolving to exactly one component (e.g. via a
 dependency alias like "openklant") gets the SAME full-fidelity treatment
-update-component-version.py itself uses (lib.component_docs, real chart
+update-component-version itself uses (lib.component_docs, real chart
 version), not this module.
 
 Convention confirmed against docs/_UPGRADE_PATHS/4.8.1-to-4.8.2-

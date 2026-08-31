@@ -6,12 +6,12 @@ a release actually shipped before writing an upgrade doc's "source" column,
 without checking out that release or digging through git history by hand.
 
 Usage:
-    show-component-baseline-version.py <baseline> <component>
+    show-component-baseline-version <baseline> <component>
 
 Examples:
-    show-component-baseline-version.py 4.8.5 zac
-    show-component-baseline-version.py 4.8.5 zgw-office-addin
-    show-component-baseline-version.py 4.8.5 openformulieren
+    show-component-baseline-version 4.8.5 zac
+    show-component-baseline-version 4.8.5 zgw-office-addin
+    show-component-baseline-version 4.8.5 openformulieren
 
 <baseline> is a bare version (e.g. "4.8.5"), resolved to the podiumd-4.8.5
 git tag, falling back to the feature/podiumd-4.8.5 / origin/feature/podiumd-

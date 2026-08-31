@@ -1,7 +1,7 @@
 """Fetches a Confluence page's storage-format body and extracts its
 <table>s into plain-text grids (colspan/rowspan expanded), paired with
 the nearest preceding heading, plus the specific "release changes"
-column-matching used by export-confluence-release-table.py. stdlib only
+column-matching used by export-confluence-release-table. stdlib only
 (html.parser/urllib) — no bs4/requests dependency, matching every other
 script in this toolset.
 
@@ -339,7 +339,7 @@ def find_versie_groups(paths):
     return groups
 
 
-# The exact column set export-confluence-release-table.py writes to CSV
+# The exact column set export-confluence-release-table writes to CSV
 # (as "section, vendor, used by, name, source version app/helm,
 # target version app/helm"): the table's own first column (whatever it's
 # labeled — usually the component name), "Ontwikkelpartij" (written to

@@ -710,7 +710,7 @@ def test_extract_release_rows_silent_when_target_matches_chart_yaml(ecrt, tmp_pa
 def test_main_writes_csv(ecrt, tmp_path, monkeypatch, capsys):
     output_path = tmp_path / "release-table.csv"
     monkeypatch.setattr(ecrt.sys, "argv", [
-        "export-confluence-release-table.py",
+        "export-confluence-release-table",
         "--url", "https://example.atlassian.net/wiki/spaces/PCP/pages/123/Title",
         "--user", "kees@info.nl",
         "--token", "s3cr3t",
@@ -735,7 +735,7 @@ def test_main_writes_csv(ecrt, tmp_path, monkeypatch, capsys):
 def test_main_passes_resolved_token_and_url_user_through(ecrt, tmp_path, monkeypatch):
     output_path = tmp_path / "out.csv"
     monkeypatch.setattr(ecrt.sys, "argv", [
-        "export-confluence-release-table.py",
+        "export-confluence-release-table",
         "--url", "https://example.atlassian.net/wiki/spaces/PCP/pages/123/Title",
         "--user", "kees@info.nl",
         "--token", "s3cr3t",
@@ -759,7 +759,7 @@ def test_main_passes_resolved_token_and_url_user_through(ecrt, tmp_path, monkeyp
 def test_main_passes_custom_heading_flags_through(ecrt, tmp_path, monkeypatch):
     output_path = tmp_path / "out.csv"
     monkeypatch.setattr(ecrt.sys, "argv", [
-        "export-confluence-release-table.py",
+        "export-confluence-release-table",
         "--url", "https://example.atlassian.net/wiki/spaces/PCP/pages/123/Title",
         "--user", "kees@info.nl",
         "--token", "s3cr3t",
@@ -783,7 +783,7 @@ def test_main_writes_lf_line_endings(ecrt, tmp_path, monkeypatch):
     diff on every single re-export even when nothing actually changed."""
     output_path = tmp_path / "out.csv"
     monkeypatch.setattr(ecrt.sys, "argv", [
-        "export-confluence-release-table.py",
+        "export-confluence-release-table",
         "--url", "https://example.atlassian.net/wiki/spaces/PCP/pages/123/Title",
         "--user", "kees@info.nl",
         "--token", "s3cr3t",

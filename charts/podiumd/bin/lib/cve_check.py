@@ -10,7 +10,7 @@ currently-pinned tag has drifted.
 
 Slowest step in the pipeline by far — scanning every unique pinned image
 pulls each one via Docker — but runs by default like every other step
-(see --skip=cve-scan/--include=cve-scan in verify-podiumd.py). Never
+(see --skip=cve-scan/--include=cve-scan in verify-podiumd). Never
 fails the check regardless of severity found — a HIGH/CRITICAL CVE with a
 fix available is a triage decision for a human (is the fix actually
 reachable here, is the severity exploitable in this deployment, ...), not
@@ -43,7 +43,7 @@ image wasn't in its scope), the marker is just omitted rather than
 triggering a registry call of this module's own. Whether the newer tag
 actually fixes anything is a separate question this module can't answer.
 "CVE scan" lists "Image upgrades" as a STEP_PREREQUISITES entry in
-verify-podiumd.py specifically so this cache is always freshly populated
+verify-podiumd specifically so this cache is always freshly populated
 first — a bare --include=cve-scan still gets it, not just a full run.
 Ownership is
 determined primarily from the `helm template` render (same authoritative

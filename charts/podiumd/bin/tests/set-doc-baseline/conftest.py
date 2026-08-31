@@ -1,17 +1,19 @@
-"""Loads set-doc-baseline.py (a hyphenated filename, not importable
+"""Loads set-doc-baseline (a hyphenated filename, not importable
 normally) as a module named `sdb` so tests can call its functions directly."""
 import importlib.util
+from importlib.machinery import SourceFileLoader
 import subprocess
 from pathlib import Path
 
 import pytest
 
-SCRIPT_PATH = Path(__file__).resolve().parents[2] / "set-doc-baseline.py"
+SCRIPT_PATH = Path(__file__).resolve().parents[2] / "set-doc-baseline"
 
 
 @pytest.fixture(scope="session")
 def sdb():
-    spec = importlib.util.spec_from_file_location("set_doc_baseline", SCRIPT_PATH)
+    loader = SourceFileLoader("set_doc_baseline", str(SCRIPT_PATH))
+    spec = importlib.util.spec_from_file_location("set_doc_baseline", SCRIPT_PATH, loader=loader)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -19,7 +21,7 @@ def sdb():
 
 @pytest.fixture(autouse=True)
 def stub_update_podiumd_readme(sdb, monkeypatch):
-    """main() unconditionally shells out to update-podiumd-readme.py at the
+    """main() unconditionally shells out to update-podiumd-readme at the
     end of a successful run (see UPDATE_README_SCRIPT) — stub just that one
     subprocess.run call (a real regen would need a real helm-docs binary
     and would touch the actual charts/podiumd/README.md, not this test's

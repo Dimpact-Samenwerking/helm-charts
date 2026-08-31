@@ -1,17 +1,18 @@
-"""Loads verify-podiumd.py (a hyphenated filename, not importable normally)
+"""Loads verify-podiumd (a hyphenated filename, not importable normally)
 as a module named `vp` so tests can call its functions directly.
 
 Also provides one fixture per lib/*_check.py module the checks were
 refactored into (same convention as tests/lib/conftest.py's libregistry/
 libchart/etc. fixtures). Most tests still go through `vp.check_X(...)` —
-that keeps working unchanged since verify-podiumd.py re-exports every
+that keeps working unchanged since verify-podiumd re-exports every
 check function. But a monkeypatch on a *helper* a moved check calls
 internally (run, friendly_vendor_charts, registry_tag_exists, ...) must
 target the module that check now actually lives in — `vp.run` only
-affects code whose global `run` was bound by verify-podiumd.py's own
+affects code whose global `run` was bound by verify-podiumd's own
 imports, not a lib module's separate `from lib.procutil import run`
 binding. Use e.g. `libyamllintcheck` for those cases."""
 import importlib.util
+from importlib.machinery import SourceFileLoader
 import sys
 from pathlib import Path
 
@@ -20,7 +21,7 @@ import pytest
 SCRIPTS_DIR = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(SCRIPTS_DIR))
 
-SCRIPT_PATH = SCRIPTS_DIR / "verify-podiumd.py"
+SCRIPT_PATH = SCRIPTS_DIR / "verify-podiumd"
 
 import lib.cve_check as cve_check
 import lib.digest_pinning_check as digest_pinning_check
@@ -44,7 +45,8 @@ import lib.yamllint_check as yamllint_check
 
 
 def _load_module():
-    spec = importlib.util.spec_from_file_location("verify_podiumd", SCRIPT_PATH)
+    loader = SourceFileLoader("verify_podiumd", str(SCRIPT_PATH))
+    spec = importlib.util.spec_from_file_location("verify_podiumd", SCRIPT_PATH, loader=loader)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module

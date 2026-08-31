@@ -1,5 +1,5 @@
-"""Upgrade-doc parsing/matching helpers shared by verify-podiumd.py's
-docs-consistency check and set-doc-baseline.py's version-correction pass."""
+"""Upgrade-doc parsing/matching helpers shared by verify-podiumd's
+docs-consistency check and set-doc-baseline's version-correction pass."""
 import re
 
 
@@ -567,7 +567,7 @@ def extract_mentioned_dependency_keys(text, deps):
 def describe_key_changes(values_key, baseline_subtree, current_subtree):
     """One "- Key `<dotted>` was added/removed/renamed to `<dotted>`." line
     per top-level key change under this component — backtick-quoted,
-    matching the convention verify-podiumd.py's own check looks for.
+    matching the convention verify-podiumd's own check looks for.
 
     Paths passed to diff_keys/pair_renames are relative to the subtree
     itself (path=()), NOT prefixed with values_key — pair_renames's own
@@ -594,7 +594,7 @@ def describe_key_changes(values_key, baseline_subtree, current_subtree):
 
 def missing_key_change_lines(text, changed_component_keys, baseline_values, values):
     """Every describe_key_changes() line for a changed component that isn't
-    already mentioned (backtick-quoted, matching verify-podiumd.py's own
+    already mentioned (backtick-quoted, matching verify-podiumd's own
     check_values_deltas_content convention) anywhere in text. A rename line
     carries two backtick spans (old and new key); both must already be
     mentioned for the line to count as covered, else it's reported as

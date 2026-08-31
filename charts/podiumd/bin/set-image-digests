@@ -10,25 +10,25 @@ repository is resolved for a pin. Every stale pin is rewritten, sliding or
 not — see lib.registry.is_sliding_tag for what makes a mismatch "sliding"
 (expected drift, e.g. a floating base-image tag) versus a component's own
 release tag; it's still labeled "(sliding)" in the output since that's
-useful context, but verify-podiumd.py's own check fails on either kind
+useful context, but verify-podiumd's own check fails on either kind
 the same way, so there's no reason to leave one kind unfixed here.
 
 An optional <target> (a bare image basename like "redis", or a Chart.yaml
 dependency's own name/alias like "openklant" — resolved the same way
-update-image-version.py's own <target> is, see lib.image_version.
+update-image-version's own <target> is, see lib.image_version.
 resolve_basename) scopes the run to just that one image. Every other
 stale pin is left untouched and unreported for that run.
 
 Usage:
-    set-image-digests.py             # fetch, compare, rewrite every stale digest
-    set-image-digests.py <target>    # scope to just one image
-    set-image-digests.py --dry-run   # fetch and compare only, no write (combine with either of the above)
+    set-image-digests             # fetch, compare, rewrite every stale digest
+    set-image-digests <target>    # scope to just one image
+    set-image-digests --dry-run   # fetch and compare only, no write (combine with either of the above)
 
 Examples:
-    set-image-digests.py redis
-    set-image-digests.py openklant    # resolved via Chart.yaml alias, same as update-image-version.py
+    set-image-digests redis
+    set-image-digests openklant    # resolved via Chart.yaml alias, same as update-image-version
 
-After a real run, re-render the chart (verify-podiumd.py or
+After a real run, re-render the chart (verify-podiumd or
 /helm-render-all) to confirm the new digests are picked up cleanly.
 """
 import sys
@@ -181,7 +181,7 @@ def main():
     if not dry_run:
         VALUES_PATH.write_text(text, encoding="utf-8")
         print(f"\nWrote {len(to_update)} updated digest(s) to {VALUES_PATH}.")
-        print("Re-render the chart to confirm (verify-podiumd.py or /helm-render-all) before committing.")
+        print("Re-render the chart to confirm (verify-podiumd or /helm-render-all) before committing.")
 
     sys.exit(1 if fetch_errors else 0)
 

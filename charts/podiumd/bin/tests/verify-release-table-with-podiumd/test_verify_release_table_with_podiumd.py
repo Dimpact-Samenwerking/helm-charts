@@ -1,5 +1,5 @@
 """compare() (the pure comparison core) and main() for
-verify-release-table-with-podiumd.py. compare() takes plain in-memory
+verify-release-table-with-podiumd. compare() takes plain in-memory
 deps/values/lines/rows, so these tests need neither a real Chart.yaml nor
 network access; main()'s own tests just cover its file-loading/CLI glue."""
 import pytest
@@ -59,7 +59,7 @@ def test_compare_no_findings_when_everything_matches(vrt):
 @pytest.mark.parametrize("target_app,target_helm", [("", ""), ("UNKNOWN", "UNKNOWN")])
 def test_compare_skips_blank_or_unknown_targets(vrt, target_app, target_helm):
     """A blank/UNKNOWN target means "nothing planned to compare" (see
-    query-release-table.py's own UNCHANGED display logic) — not a
+    query-release-table's own UNCHANGED display logic) — not a
     mismatch just because it differs textually from the actual version."""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     rows = [csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac", image_basename="zaakafhandelcomponent",
@@ -192,7 +192,7 @@ def test_compare_multiple_row_matching_global_image_passes(vrt):
 
 
 def test_compare_multiple_row_with_no_image_basename_is_silently_skipped(vrt):
-    """A "MULTIPLE" row export-confluence-release-table.py couldn't even
+    """A "MULTIPLE" row export-confluence-release-table couldn't even
     resolve an image_basename for (an ambiguous plain dependency-name
     collision, not a global image) has nothing to check — not an error."""
     rows = [csv_row("Something Ambiguous", "MULTIPLE", alias="MULTIPLE", image_basename="")]
@@ -263,7 +263,7 @@ def test_compare_finds_basename_pinned_under_a_sibling_scope(vrt):
     sibling block, separate from keycloak-operator's own scope) — a
     basename is a real repository identity, not a values.yaml path, so it
     can be pinned somewhere other than its own component's scope. Found
-    via the same whole-file find_matches fallback update-image-version.py's
+    via the same whole-file find_matches fallback update-image-version's
     own <target> resolution uses (lib.image_version.resolve_basename)."""
     keycloak_config_cli_block = (
         "keycloak:\n"
@@ -297,7 +297,7 @@ def test_compare_sibling_scope_basename_matching_passes(vrt):
 
 def test_compare_checks_omc_special_case_image(vrt):
     """omc's own image tag intentionally carries no digest at all, so
-    export-confluence-release-table.py never resolves an image_basename
+    export-confluence-release-table never resolves an image_basename
     for its row (blank column) — checked here independently, keyed by
     component instead (see SPECIAL_CASE_COMPONENT_TAG_PATHS)."""
     deps = [{"name": "notifynl-omc-nodep", "alias": "omc", "version": "0.14.1"}]
@@ -346,7 +346,7 @@ def test_print_report_sorts_unresolved_rows_by_name(vrt, capsys):
 # --- main() ---
 
 def run_main(vrt, monkeypatch, argv):
-    monkeypatch.setattr("sys.argv", ["verify-release-table-with-podiumd.py", *argv])
+    monkeypatch.setattr("sys.argv", ["verify-release-table-with-podiumd", *argv])
     with pytest.raises(SystemExit) as exc_info:
         vrt.main()
     return exc_info.value.code

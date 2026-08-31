@@ -17,13 +17,13 @@ reads straight from Chart.yaml/values.yaml (see
 lib.image_version.resolve_basename).
 
 Also updates the docs for the current podiumd target version, if they
-exist (run set-doc-baseline.py first if not) — the same four docs
-update-component-version.py keeps in sync (upgrade doc table + Changes
+exist (run set-doc-baseline first if not) — the same four docs
+update-component-version keeps in sync (upgrade doc table + Changes
 section, values-deltas, images-<target>.yaml), grouped by however many
 distinct Chart.yaml components the bump actually touched:
   - Exactly one component affected (e.g. resolving "openklant" bumps
     only openklant's own image): full-fidelity treatment identical to
-    update-component-version.py's own (lib.component_docs) — real Helm
+    update-component-version's own (lib.component_docs) — real Helm
     chart version shown (unchanged, since this never touches
     Chart.yaml), values-deltas schema-change detection, per-path
     images-manifest entries.
@@ -36,7 +36,7 @@ distinct Chart.yaml components the bump actually touched:
     repository. Convention confirmed against docs/_UPGRADE_PATHS/
     4.8.1-to-4.8.2-upgrade.md (curl/nginx-unprivileged/busybox each got
     exactly this treatment).
-Finally runs update-podiumd-readme.py so README.md's values-reference
+Finally runs update-podiumd-readme so README.md's values-reference
 table doesn't go stale in the same commit.
 
 Refuses to touch values.yaml unless the new version verifiably exists
@@ -44,23 +44,23 @@ upstream for every matched repository first — a bad version name fails
 loudly with nothing written, never a half-updated file.
 
 Usage:
-    update-image-version.py <target> <new-version>
+    update-image-version <target> <new-version>
 
 Examples:
-    update-image-version.py curl 8.22.0
+    update-image-version curl 8.22.0
         # updates every "repository: .../curl" pin's tag, wherever it appears
-    update-image-version.py pabc-api 1.1.2
-    update-image-version.py openklant 2.15.1
+    update-image-version pabc-api 1.1.2
+    update-image-version openklant 2.15.1
         # "openklant" isn't a basename -- resolved as a Chart.yaml
         # dependency whose own values.yaml scope pins exactly one image
 
 A component's app version is not always its image's basename (e.g.
 zgw-office-addin bumps two distinctly-named images, frontend + backend) —
-see update-component-version.py, which resolves each of a component's
+see update-component-version, which resolves each of a component's
 image path(s) to its own actual basename and calls this same logic
 (lib.image_version.update_image_version) per path.
 
-After writing, re-render the chart (verify-podiumd.py or /helm-render-all)
+After writing, re-render the chart (verify-podiumd or /helm-render-all)
 to confirm before committing.
 """
 import sys
@@ -90,7 +90,7 @@ CHART_YAML = CHART_DIR / "Chart.yaml"
 VALUES_YAML = CHART_DIR / "values.yaml"
 DOC_DIR = CHART_DIR / "docs" / "_UPGRADE_PATHS"
 IMAGES_DIR = CHART_DIR / "docs" / "images"
-UPDATE_README_SCRIPT = SCRIPT_DIR / "update-podiumd-readme.py"
+UPDATE_README_SCRIPT = SCRIPT_DIR / "update-podiumd-readme"
 
 
 def group_changes_by_component(changes, values_lines_before_write):
@@ -117,7 +117,7 @@ def group_changes_by_component(changes, values_lines_before_write):
 
 
 def update_docs_single_component(new_version, target, deps, values, dep, values_key, group):
-    """The exact update-component-version.py doc-update flow (see that
+    """The exact update-component-version doc-update flow (see that
     script's own main() for the version this was factored out of),
     applied to a basename bump that happens to affect only this one
     component — old_chart/new_chart are the SAME (Chart.yaml's own
@@ -133,7 +133,7 @@ def update_docs_single_component(new_version, target, deps, values, dep, values_
 
     # Compare against the TRUE release baseline (git-resolved), not
     # "whatever this script itself last left on disk" -- see
-    # update-component-version.py's own main() for why (a component
+    # update-component-version's own main() for why (a component
     # bumped more than once in one release cycle collapses to a single
     # baseline -> final entry instead of accumulating each intermediate
     # hop; a bump that nets out to no change vs baseline has nothing left
@@ -153,7 +153,7 @@ def update_docs_single_component(new_version, target, deps, values, dep, values_
 
     if upgrade_path is None:
         print()
-        print(f"No upgrade doc found for target {target} — run set-doc-baseline.py first "
+        print(f"No upgrade doc found for target {target} — run set-doc-baseline first "
               f"to scaffold it; skipping doc updates.")
     elif reset_to_baseline:
         text = upgrade_path.read_text(encoding="utf-8")
@@ -271,7 +271,7 @@ def update_docs_shared_image(basename, new_version, changes, pinned, target, dep
 
     # Compare against the TRUE release baseline (git-resolved) rather than
     # "whatever's on disk right before this run" -- same reasoning as
-    # update_docs_single_component/update-component-version.py's main().
+    # update_docs_single_component/update-component-version's main().
     # A basename bump always targets every matching pin uniformly, so
     # resolve_basename_baseline_version only has an opinion when every
     # touched pin actually started at the same baseline version.
@@ -292,7 +292,7 @@ def update_docs_shared_image(basename, new_version, changes, pinned, target, dep
 
     if upgrade_path is None:
         print()
-        print(f"No upgrade doc found for target {target} — run set-doc-baseline.py first "
+        print(f"No upgrade doc found for target {target} — run set-doc-baseline first "
               f"to scaffold it; skipping doc updates.")
     elif reset_to_baseline:
         text = upgrade_path.read_text(encoding="utf-8")
@@ -435,11 +435,11 @@ def main():
     update_docs(basename, new_version, changes, values_lines)
 
     print()
-    print("=== Regenerating README.md (update-podiumd-readme.py) ===")
+    print("=== Regenerating README.md (update-podiumd-readme) ===")
     run_script([sys.executable, str(UPDATE_README_SCRIPT)])
 
     print()
-    print("Done. Re-render the chart to confirm (verify-podiumd.py or /helm-render-all) before committing.")
+    print("Done. Re-render the chart to confirm (verify-podiumd or /helm-render-all) before committing.")
 
 
 if __name__ == "__main__":

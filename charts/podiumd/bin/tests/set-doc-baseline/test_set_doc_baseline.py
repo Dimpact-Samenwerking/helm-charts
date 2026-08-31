@@ -139,7 +139,7 @@ def repo(tmp_path):
 
 
 def set_argv_and_dir(sdb, monkeypatch, doc_dir, new_baseline, target="4.9.0"):
-    monkeypatch.setattr("sys.argv", ["set-doc-baseline.py", new_baseline])
+    monkeypatch.setattr("sys.argv", ["set-doc-baseline", new_baseline])
     monkeypatch.setattr(sdb, "DOC_DIR", doc_dir)
     monkeypatch.setattr(sdb, "IMAGES_DIR", doc_dir.parent / "images")
     monkeypatch.setattr(sdb, "CHART_YAML", doc_dir.parents[1] / "Chart.yaml")
@@ -163,7 +163,7 @@ def test_main_renames_and_updates_title_and_heading(sdb, repo, monkeypatch):
 
 def test_main_invokes_update_podiumd_readme(sdb, repo, monkeypatch):
     """A habit, not because this script itself ever writes to values.yaml/
-    Chart.yaml — see update-podiumd-readme.py's own docstring."""
+    Chart.yaml — see update-podiumd-readme's own docstring."""
     already_faked = subprocess.run  # the autouse stub_update_podiumd_readme fixture's fake_run
     calls = []
 
@@ -234,7 +234,7 @@ def test_main_already_at_new_baseline_is_a_noop(sdb, repo, monkeypatch, capsys):
 
 
 def test_main_requires_exactly_one_argument(sdb, monkeypatch):
-    monkeypatch.setattr("sys.argv", ["set-doc-baseline.py"])
+    monkeypatch.setattr("sys.argv", ["set-doc-baseline"])
     with pytest.raises(SystemExit) as exc_info:
         sdb.main()
     assert exc_info.value.code == 1
@@ -247,7 +247,7 @@ def test_main_help_flag_prints_usage_and_exits_zero_without_touching_anything(sd
     renaming docs to "--help-to-<target>-*.md". It must instead print the
     module docstring and exit 0, leaving every doc untouched."""
     before = sorted(p.name for p in repo.iterdir())
-    monkeypatch.setattr("sys.argv", ["set-doc-baseline.py", flag])
+    monkeypatch.setattr("sys.argv", ["set-doc-baseline", flag])
     with pytest.raises(SystemExit) as exc_info:
         sdb.main()
     assert exc_info.value.code == 0
@@ -263,7 +263,7 @@ def test_main_rejects_non_semver_baseline_without_touching_anything(sdb, repo, m
     literal baseline (see BASELINE_VERSION_RE). "--help"/"-h" are their own,
     earlier case (see test_main_help_flag_...), not part of this check."""
     before = sorted(p.name for p in repo.iterdir())
-    monkeypatch.setattr("sys.argv", ["set-doc-baseline.py", bogus])
+    monkeypatch.setattr("sys.argv", ["set-doc-baseline", bogus])
     with pytest.raises(SystemExit) as exc_info:
         sdb.main()
     assert exc_info.value.code == 1

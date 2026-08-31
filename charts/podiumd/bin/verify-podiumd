@@ -161,20 +161,20 @@ it at a different chart source.
 The actual check logic lives in charts/podiumd/bin/lib/ (one module per
 check, plus lib/render_scope.py for the infrastructure shared by every
 check that inspects a `helm template` render, and lib/dependencies.py for
-the dependency-vendoring set-image-digests.py also needs) — this file is
+the dependency-vendoring set-image-digests also needs) — this file is
 the CLI entry point: argument parsing, the ordered run_step() pipeline,
 and the handful of checks too small/foundational to warrant their own
 module (UTF-8/BOM, duplicate-key scan, lint/render).
 
 Usage:
-    verify-podiumd.py
-    verify-podiumd.py --baseline 4.8.5
+    verify-podiumd
+    verify-podiumd --baseline 4.8.5
         # also check the doc's SOURCE (left-hand) versions for each changed
         # component against the actual baseline release — resolved to the
         # `podiumd-4.8.5` tag, falling back to the `feature/podiumd-4.8.5` /
         # `origin/feature/podiumd-4.8.5` branch if the tag doesn't exist yet.
         # Pass an explicit git ref instead of a bare version to use it as-is.
-    verify-podiumd.py --skip=helm-lint,full-render
+    verify-podiumd --skip=helm-lint,full-render
         # skip one or more steps entirely, comma-separated, no spaces
         # (shown as SKIP, never a failure) — useful to iterate faster on a
         # single check, or work around a step that's broken for reasons
@@ -188,18 +188,18 @@ Usage:
         # just want a normal run WITHOUT pulling every image via Docker —
         # step 20 runs by default like every other step (no separate
         # opt-in flag).
-    verify-podiumd.py --include=kube-score
+    verify-podiumd --include=kube-score
         # the inverse of --skip=: run ONLY the named step(s) (plus whatever
         # step(s) each one needs as a prerequisite — e.g. kube-score also
         # pulls in "Dependencies", since its render would otherwise fail on
         # unresolved sub-charts). Every other step shows as SKIP.
-    verify-podiumd.py --include=kube-score,shellcheck
+    verify-podiumd --include=kube-score,shellcheck
         # comma-separate multiple step names to run a specific subset —
         # each one's own prerequisites are still included automatically, so
         # "Dependencies" here still runs once, not twice. --include= cannot
         # be combined with --skip= (nothing left to skip once everything
         # but the included set is already skipped).
-    verify-podiumd.py --detail-cve-check
+    verify-podiumd --detail-cve-check
         # CVE scan: itemize CRITICAL/HIGH findings per affected package for
         # EVERY image bucket (own, partner-vendor, AND other-vendor) instead
         # of the default terse per-image severity totals — see lib.cve_check.
@@ -274,7 +274,7 @@ def check_utf8_format(chart_dir):
     values_path = chart_dir / "values.yaml"
     data = values_path.read_bytes()
     if data[:len(UTF8_BOM)] == UTF8_BOM:
-        return False, "BOM found — run strip-utf8-bom.py to fix (this script never writes to values.yaml)"
+        return False, "BOM found — run strip-utf8-bom to fix (this script never writes to values.yaml)"
     print(f"OK: no BOM in {values_path.name}")
     return True, "no BOM"
 

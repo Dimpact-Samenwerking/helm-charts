@@ -1,7 +1,7 @@
-"""create-podiumd-version.py: bumps Chart.yaml's version/appVersion to the
-target named by the current branch, then delegates to set-doc-baseline.py
+"""create-podiumd-version: bumps Chart.yaml's version/appVersion to the
+target named by the current branch, then delegates to set-doc-baseline
 for the outgoing (baseline) version. lib.gitutil.current_branch/
-find_repo_root and lib.procutil.run_script (the set-doc-baseline.py
+find_repo_root and lib.procutil.run_script (the set-doc-baseline
 delegation) are mocked out via cpv.* directly — no real git repo or
 subprocess needed."""
 import subprocess
@@ -76,7 +76,7 @@ def test_update_chart_version_missing_version_line_raises(cpv, tmp_path, monkeyp
 # --- main(): argument/help handling ---
 
 def test_help_flag_prints_docstring_and_exits_0(cpv, monkeypatch, capsys):
-    monkeypatch.setattr(cpv.sys, "argv", ["create-podiumd-version.py", "--help"])
+    monkeypatch.setattr(cpv.sys, "argv", ["create-podiumd-version", "--help"])
     with pytest.raises(SystemExit) as exc_info:
         cpv.main()
     assert exc_info.value.code == 0
@@ -84,7 +84,7 @@ def test_help_flag_prints_docstring_and_exits_0(cpv, monkeypatch, capsys):
 
 
 def test_unexpected_arg_prints_docstring_and_exits_1(cpv, monkeypatch, capsys):
-    monkeypatch.setattr(cpv.sys, "argv", ["create-podiumd-version.py", "unexpected"])
+    monkeypatch.setattr(cpv.sys, "argv", ["create-podiumd-version", "unexpected"])
     with pytest.raises(SystemExit) as exc_info:
         cpv.main()
     assert exc_info.value.code == 1
@@ -94,7 +94,7 @@ def test_unexpected_arg_prints_docstring_and_exits_1(cpv, monkeypatch, capsys):
 # --- main(): precondition failures ---
 
 def test_not_a_git_repo_fails(cpv, monkeypatch, capsys):
-    monkeypatch.setattr(cpv.sys, "argv", ["create-podiumd-version.py"])
+    monkeypatch.setattr(cpv.sys, "argv", ["create-podiumd-version"])
     monkeypatch.setattr(cpv, "find_repo_root", lambda chart_dir: None)
 
     with pytest.raises(SystemExit) as exc_info:
@@ -105,7 +105,7 @@ def test_not_a_git_repo_fails(cpv, monkeypatch, capsys):
 
 
 def test_wrong_branch_name_fails(cpv, tmp_path, monkeypatch, capsys):
-    monkeypatch.setattr(cpv.sys, "argv", ["create-podiumd-version.py"])
+    monkeypatch.setattr(cpv.sys, "argv", ["create-podiumd-version"])
     monkeypatch.setattr(cpv, "find_repo_root", lambda chart_dir: tmp_path)
     monkeypatch.setattr(cpv, "current_branch", lambda repo_root: "feature/podiumd-4.10.0-something")
 
@@ -119,7 +119,7 @@ def test_wrong_branch_name_fails(cpv, tmp_path, monkeypatch, capsys):
 
 
 def test_detached_head_fails_with_readable_message(cpv, tmp_path, monkeypatch, capsys):
-    monkeypatch.setattr(cpv.sys, "argv", ["create-podiumd-version.py"])
+    monkeypatch.setattr(cpv.sys, "argv", ["create-podiumd-version"])
     monkeypatch.setattr(cpv, "find_repo_root", lambda chart_dir: tmp_path)
     monkeypatch.setattr(cpv, "current_branch", lambda repo_root: "")
 
@@ -134,7 +134,7 @@ def test_baseline_not_older_than_target_fails(cpv, tmp_path, monkeypatch, capsys
     chart_yaml = tmp_path / "Chart.yaml"
     write_chart_yaml(chart_yaml, "4.10.0")
     monkeypatch.setattr(cpv, "CHART_YAML", chart_yaml)
-    monkeypatch.setattr(cpv.sys, "argv", ["create-podiumd-version.py"])
+    monkeypatch.setattr(cpv.sys, "argv", ["create-podiumd-version"])
     monkeypatch.setattr(cpv, "find_repo_root", lambda chart_dir: tmp_path)
     monkeypatch.setattr(cpv, "current_branch", lambda repo_root: "feature/podiumd-4.9.0")
 
@@ -150,7 +150,7 @@ def test_baseline_equal_to_target_fails(cpv, tmp_path, monkeypatch, capsys):
     chart_yaml = tmp_path / "Chart.yaml"
     write_chart_yaml(chart_yaml, "4.9.0")
     monkeypatch.setattr(cpv, "CHART_YAML", chart_yaml)
-    monkeypatch.setattr(cpv.sys, "argv", ["create-podiumd-version.py"])
+    monkeypatch.setattr(cpv.sys, "argv", ["create-podiumd-version"])
     monkeypatch.setattr(cpv, "find_repo_root", lambda chart_dir: tmp_path)
     monkeypatch.setattr(cpv, "current_branch", lambda repo_root: "feature/podiumd-4.9.0")
 
@@ -169,7 +169,7 @@ def test_success_bumps_chart_and_delegates_to_set_doc_baseline(cpv, tmp_path, mo
     chart_yaml = tmp_path / "Chart.yaml"
     write_chart_yaml(chart_yaml, "4.9.0")
     monkeypatch.setattr(cpv, "CHART_YAML", chart_yaml)
-    monkeypatch.setattr(cpv.sys, "argv", ["create-podiumd-version.py"])
+    monkeypatch.setattr(cpv.sys, "argv", ["create-podiumd-version"])
     monkeypatch.setattr(cpv, "find_repo_root", lambda chart_dir: tmp_path)
     monkeypatch.setattr(cpv, "current_branch", lambda repo_root: "feature/podiumd-4.10.0")
 
@@ -192,14 +192,14 @@ def test_success_bumps_chart_and_delegates_to_set_doc_baseline(cpv, tmp_path, mo
     assert calls[0][2] == "4.9.0"
     out = capsys.readouterr().out
     assert "4.9.0 -> 4.10.0" in out
-    assert "set-doc-baseline.py 4.9.0" in out
+    assert "set-doc-baseline 4.9.0" in out
 
 
 def test_success_propagates_set_doc_baseline_failure_exit_code(cpv, tmp_path, monkeypatch):
     chart_yaml = tmp_path / "Chart.yaml"
     write_chart_yaml(chart_yaml, "4.9.0")
     monkeypatch.setattr(cpv, "CHART_YAML", chart_yaml)
-    monkeypatch.setattr(cpv.sys, "argv", ["create-podiumd-version.py"])
+    monkeypatch.setattr(cpv.sys, "argv", ["create-podiumd-version"])
     monkeypatch.setattr(cpv, "find_repo_root", lambda chart_dir: tmp_path)
     monkeypatch.setattr(cpv, "current_branch", lambda repo_root: "feature/podiumd-4.10.0")
     monkeypatch.setattr(cpv, "run_script", lambda cmd, *a, **k: subprocess.CompletedProcess(cmd, 1))

@@ -3,7 +3,7 @@
 Open a new podiumd release cycle: bump charts/podiumd/Chart.yaml's own
 version/appVersion to the target named by the current branch, then scaffold
 the upgrade-path docs for the outgoing version as the new baseline (runs
-set-doc-baseline.py).
+set-doc-baseline).
 
 Reads everything from repo state — no arguments:
   - baseline: the chart's current version (Chart.yaml's "version:", before
@@ -18,13 +18,13 @@ Refuses to run if:
     target would scaffold the upgrade docs backwards).
 
 Usage:
-    create-podiumd-version.py
+    create-podiumd-version
 
 Example:
     # on branch feature/podiumd-4.10.0, with Chart.yaml at version: 4.9.0
-    create-podiumd-version.py
+    create-podiumd-version
         # bumps Chart.yaml's version/appVersion 4.9.0 -> 4.10.0, then runs
-        # set-doc-baseline.py 4.9.0
+        # set-doc-baseline 4.9.0
 """
 import re
 import sys
@@ -40,7 +40,7 @@ from lib.procutil import run_script
 
 CHART_DIR = SCRIPT_DIR.parent
 CHART_YAML = CHART_DIR / "Chart.yaml"
-SET_DOC_BASELINE_SCRIPT = SCRIPT_DIR / "set-doc-baseline.py"
+SET_DOC_BASELINE_SCRIPT = SCRIPT_DIR / "set-doc-baseline"
 
 BRANCH_RE = re.compile(r"^feature/podiumd-(\d+\.\d+\.\d+)$")
 
@@ -108,7 +108,7 @@ def main():
     print(f"{CHART_YAML.name}: {', '.join(changed)} {baseline} -> {target}")
 
     print()
-    print(f"=== Running set-doc-baseline.py {baseline} ===")
+    print(f"=== Running set-doc-baseline {baseline} ===")
     result = run_script([sys.executable, str(SET_DOC_BASELINE_SCRIPT), baseline])
     sys.exit(result.returncode)
 

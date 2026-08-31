@@ -1,37 +1,37 @@
 #!/usr/bin/env python3
 """
 Render the podiumd chart to a file — the same `helm template` invocation
-verify-podiumd.py's checks run internally (via lib.render_scope.render_chart),
+verify-podiumd's checks run internally (via lib.render_scope.render_chart),
 so the rendered output matches exactly what a failing check saw. Useful for
-debugging the cause of a failed verify-podiumd.py check: render to a file
+debugging the cause of a failed verify-podiumd check: render to a file
 and inspect the manifest that check was actually looking at.
 
 Usage:
-    render-podiumd.py [output-file] [extra helm template args...]
-    render-podiumd.py --stdout [extra helm template args...]
+    render-podiumd [output-file] [extra helm template args...]
+    render-podiumd --stdout [extra helm template args...]
 
 With no output-file, writes to charts/podiumd/rendered-helm.yaml (next to
 this script). With --stdout instead of a file, the rendered manifest goes
 to stdout — every other message (including report_largest_templates'
 summary) goes to stderr instead, so stdout stays pure YAML and can be
-piped/redirected (e.g. `render-podiumd.py --stdout | less`).
+piped/redirected (e.g. `render-podiumd --stdout | less`).
 
 With no extra args, renders using the default CI values
 (charts/podiumd/ci/lint-values.yaml, if present) — the same defaults every
-verify-podiumd.py check step renders against. Passing any extra args
+verify-podiumd check step renders against. Passing any extra args
 replaces that default entirely (they are passed to `helm template` as-is),
 e.g. to render with different --set overrides or to target a single
 template with -s. Always announces which of the two applies before
 rendering — a custom-args render can fail for reasons (missing values,
-disabled sub-charts) that have nothing to do with any verify-podiumd.py
+disabled sub-charts) that have nothing to do with any verify-podiumd
 check, so don't mistake one for "the standard check just failed".
 
 Examples:
-    render-podiumd.py
+    render-podiumd
         # writes charts/podiumd/rendered-helm.yaml, default CI values
-    render-podiumd.py /tmp/podiumd.yaml
-    render-podiumd.py /tmp/frankgateway.yaml -s templates/frankgateway.yaml --set kiss.enabled=false
-    render-podiumd.py --stdout | grep -A5 'kind: Deployment'
+    render-podiumd /tmp/podiumd.yaml
+    render-podiumd /tmp/frankgateway.yaml -s templates/frankgateway.yaml --set kiss.enabled=false
+    render-podiumd --stdout | grep -A5 'kind: Deployment'
 """
 import contextlib
 import sys

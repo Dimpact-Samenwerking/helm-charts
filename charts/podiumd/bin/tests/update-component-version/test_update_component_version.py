@@ -290,7 +290,7 @@ def mock_registry_passes(monkeypatch, ucv, digest_char="b"):
 
 
 def mock_verify_passes(monkeypatch, ucv, digest_char="b", calls=None):
-    """Fakes update-component-version.py's own upfront verify_component_version
+    """Fakes update-component-version's own upfront verify_component_version
     step (a chart pull + lib.chart.check_image_versions call) so main()'s
     tests don't need real helm/network access. check_image_versions' own
     correctness is covered by tests/lib/test_chart.py — this only fakes "the
@@ -320,7 +320,7 @@ def test_main_writes_both_files_when_verify_passes(ucv, tmp_path, monkeypatch):
     chart_yaml, values_yaml = setup_repo(tmp_path, monkeypatch, ucv)
     mock_verify_passes(monkeypatch, ucv)
     mock_registry_passes(monkeypatch, ucv, "b")
-    monkeypatch.setattr("sys.argv", ["update-component-version.py", "zac", "5.4.3", "1.0.297"])
+    monkeypatch.setattr("sys.argv", ["update-component-version", "zac", "5.4.3", "1.0.297"])
 
     ucv.main()  # success path does not raise
 
@@ -331,7 +331,7 @@ def test_main_writes_both_files_when_verify_passes(ucv, tmp_path, monkeypatch):
 def test_main_invokes_update_podiumd_readme(ucv, tmp_path, monkeypatch):
     """The version/tag bump above changes values.yaml, so README.md's
     helm-docs-generated table can go stale in the same commit if this
-    doesn't run — see update-podiumd-readme.py."""
+    doesn't run — see update-podiumd-readme."""
     chart_yaml, values_yaml = setup_repo(tmp_path, monkeypatch, ucv)
     calls = []
     real_run = subprocess.run
@@ -345,7 +345,7 @@ def test_main_invokes_update_podiumd_readme(ucv, tmp_path, monkeypatch):
     monkeypatch.setattr(subprocess, "run", fake_run)
     mock_verify_passes(monkeypatch, ucv)
     mock_registry_passes(monkeypatch, ucv, "b")
-    monkeypatch.setattr("sys.argv", ["update-component-version.py", "zac", "5.4.3", "1.0.297"])
+    monkeypatch.setattr("sys.argv", ["update-component-version", "zac", "5.4.3", "1.0.297"])
 
     ucv.main()
 
@@ -357,7 +357,7 @@ def setup_keycloak_operator_repo(tmp_path, monkeypatch, ucv):
     all (relies entirely on the vendored adfinis chart's own
     "{{ .Values.operator.image.tag | default .Chart.AppVersion }}" +
     matching "sha:" default — deliberately not managed by
-    update-component-version.py or lib.chart.COMPONENT_IMAGE_PATHS, since
+    update-component-version or lib.chart.COMPONENT_IMAGE_PATHS, since
     an explicit override here would only reintroduce a way for tag and
     digest to drift apart). operator.config.keycloakImage IS an explicit,
     intentional override (a Keycloak server version ahead of this operator
@@ -399,7 +399,7 @@ def setup_keycloak_operator_repo(tmp_path, monkeypatch, ucv):
 
 
 def test_main_bumps_only_config_keycloak_image_not_operator_image(ucv, tmp_path, monkeypatch):
-    """update-component-version.py keycloak-operator 26.7.3 1.12.1 must
+    """update-component-version keycloak-operator 26.7.3 1.12.1 must
     bump ONLY operator.config.keycloakImage, written as tag + separate
     sha (never a combined @sha256 pin, which would be an invalid double
     digest for the adfinis chart's own template) — operator.image is
@@ -408,7 +408,7 @@ def test_main_bumps_only_config_keycloak_image_not_operator_image(ucv, tmp_path,
     mock_verify_passes(monkeypatch, ucv, "b")
 
     monkeypatch.setattr(ucv, "registry_tag_exists", lambda host, repo, tag: (True, "sha256:" + "d" * 64))
-    monkeypatch.setattr("sys.argv", ["update-component-version.py", "keycloak-operator", "26.7.3", "1.12.1"])
+    monkeypatch.setattr("sys.argv", ["update-component-version", "keycloak-operator", "26.7.3", "1.12.1"])
 
     ucv.main()  # success path does not raise
 
@@ -427,7 +427,7 @@ def test_main_refuses_to_write_when_verify_fails(ucv, tmp_path, monkeypatch):
     original_chart = chart_yaml.read_text(encoding="utf-8")
     original_values = values_yaml.read_text(encoding="utf-8")
     monkeypatch.setattr(ucv, "pull_chart", lambda dep, version, dest: (False, "version not found"))
-    monkeypatch.setattr("sys.argv", ["update-component-version.py", "zac", "5.4.3", "1.0.297"])
+    monkeypatch.setattr("sys.argv", ["update-component-version", "zac", "5.4.3", "1.0.297"])
 
     with pytest.raises(SystemExit) as exc_info:
         ucv.main()
@@ -437,7 +437,7 @@ def test_main_refuses_to_write_when_verify_fails(ucv, tmp_path, monkeypatch):
 
 
 def test_main_requires_exactly_three_arguments(ucv, monkeypatch):
-    monkeypatch.setattr("sys.argv", ["update-component-version.py", "zac"])
+    monkeypatch.setattr("sys.argv", ["update-component-version", "zac"])
     with pytest.raises(SystemExit) as exc_info:
         ucv.main()
     assert exc_info.value.code == 1
@@ -445,7 +445,7 @@ def test_main_requires_exactly_three_arguments(ucv, monkeypatch):
 
 @pytest.mark.parametrize("flag", ["-h", "--help"])
 def test_main_help_flag_prints_usage_and_exits_zero(ucv, monkeypatch, capsys, flag):
-    monkeypatch.setattr("sys.argv", ["update-component-version.py", flag])
+    monkeypatch.setattr("sys.argv", ["update-component-version", flag])
     with pytest.raises(SystemExit) as exc_info:
         ucv.main()
     assert exc_info.value.code == 0
@@ -460,7 +460,7 @@ def test_main_skips_chart_write_when_chart_version_unchanged(ucv, tmp_path, monk
     mock_verify_passes(monkeypatch, ucv)
     mock_registry_passes(monkeypatch, ucv, "b")
     # chart_version matches what's already in Chart.yaml (1.0.296); only app version bumps
-    monkeypatch.setattr("sys.argv", ["update-component-version.py", "zac", "5.4.3", "1.0.296"])
+    monkeypatch.setattr("sys.argv", ["update-component-version", "zac", "5.4.3", "1.0.296"])
 
     ucv.main()
 
@@ -476,7 +476,7 @@ def test_main_skips_values_write_when_app_version_unchanged(ucv, tmp_path, monke
     calls = []
     mock_verify_passes(monkeypatch, ucv, calls=calls)
     # app_version matches the pinned tag's version (5.0.2); only chart version bumps
-    monkeypatch.setattr("sys.argv", ["update-component-version.py", "zac", "5.0.2", "1.0.297"])
+    monkeypatch.setattr("sys.argv", ["update-component-version", "zac", "5.0.2", "1.0.297"])
 
     ucv.main()
 
@@ -492,7 +492,7 @@ def test_main_exits_zero_and_writes_nothing_when_both_unchanged(ucv, tmp_path, m
     original_chart = chart_yaml.read_text(encoding="utf-8")
     original_values = values_yaml.read_text(encoding="utf-8")
     mock_verify_passes(monkeypatch, ucv)
-    monkeypatch.setattr("sys.argv", ["update-component-version.py", "zac", "5.0.2", "1.0.296"])
+    monkeypatch.setattr("sys.argv", ["update-component-version", "zac", "5.0.2", "1.0.296"])
 
     with pytest.raises(SystemExit) as exc_info:
         ucv.main()
@@ -960,7 +960,7 @@ def test_main_adds_new_component_mention_end_to_end(ucv, tmp_path, monkeypatch):
     )
     mock_verify_passes(monkeypatch, ucv)
     mock_registry_passes(monkeypatch, ucv, "c")
-    monkeypatch.setattr("sys.argv", ["update-component-version.py", "zac", "5.4.3", "1.0.297"])
+    monkeypatch.setattr("sys.argv", ["update-component-version", "zac", "5.4.3", "1.0.297"])
 
     ucv.main()
 
@@ -997,7 +997,7 @@ def test_main_updates_existing_component_mention_end_to_end(ucv, tmp_path, monke
     )
     mock_verify_passes(monkeypatch, ucv)
     mock_registry_passes(monkeypatch, ucv, "d")
-    monkeypatch.setattr("sys.argv", ["update-component-version.py", "zac", "5.4.3", "1.0.297"])
+    monkeypatch.setattr("sys.argv", ["update-component-version", "zac", "5.4.3", "1.0.297"])
 
     ucv.main()
 
@@ -1074,7 +1074,7 @@ def test_main_removes_all_docs_when_reset_back_to_baseline(ucv, tmp_path, monkey
     # immutable released version) from the registry always returns this
     # same digest, exactly like it would outside this mocked test.
     mock_registry_passes(monkeypatch, ucv, "a")
-    monkeypatch.setattr("sys.argv", ["update-component-version.py", "zac", "5.0.2", "1.0.296"])
+    monkeypatch.setattr("sys.argv", ["update-component-version", "zac", "5.0.2", "1.0.296"])
 
     ucv.main()
 
@@ -1123,11 +1123,11 @@ def test_main_collapses_repeated_bump_into_single_baseline_entry(ucv, tmp_path, 
     mock_verify_passes(monkeypatch, ucv)
 
     mock_registry_passes(monkeypatch, ucv, "b")
-    monkeypatch.setattr("sys.argv", ["update-component-version.py", "zac", "5.4.3", "1.0.297"])
+    monkeypatch.setattr("sys.argv", ["update-component-version", "zac", "5.4.3", "1.0.297"])
     ucv.main()
 
     mock_registry_passes(monkeypatch, ucv, "c")
-    monkeypatch.setattr("sys.argv", ["update-component-version.py", "zac", "5.5.0", "1.0.297"])
+    monkeypatch.setattr("sys.argv", ["update-component-version", "zac", "5.5.0", "1.0.297"])
     ucv.main()
 
     upgrade = (ucv.DOC_DIR / "4.8.5-to-4.9.0-upgrade.md").read_text(encoding="utf-8")
@@ -1154,7 +1154,7 @@ def test_main_skips_doc_updates_when_no_upgrade_doc_exists(ucv, tmp_path, monkey
     setup_repo(tmp_path, monkeypatch, ucv)
     mock_verify_passes(monkeypatch, ucv)
     mock_registry_passes(monkeypatch, ucv, "e")
-    monkeypatch.setattr("sys.argv", ["update-component-version.py", "zac", "5.4.3", "1.0.297"])
+    monkeypatch.setattr("sys.argv", ["update-component-version", "zac", "5.4.3", "1.0.297"])
 
     ucv.main()  # must not raise even though no docs exist
 
@@ -1167,7 +1167,7 @@ def test_main_skips_doc_updates_when_no_upgrade_doc_exists(ucv, tmp_path, monkey
 def setup_git_repo_for_baseline_test(tmp_path, monkeypatch, ucv):
     """A real git repo with a baseline commit tagged podiumd-4.8.5, then a
     values.yaml schema key added on top — as if someone hand-edited it to
-    prepare this hop, BEFORE running update-component-version.py. That
+    prepare this hop, BEFORE running update-component-version. That
     ordering is exactly what the old before/after-this-script-run comparison
     could never see (the key was already present on both sides of that
     comparison); comparing against the real git baseline must catch it."""
@@ -1199,7 +1199,7 @@ def setup_git_repo_for_baseline_test(tmp_path, monkeypatch, ucv):
     git("commit", "-q", "-m", "baseline", cwd=tmp_path)
     git("tag", "podiumd-4.8.5", cwd=tmp_path)
 
-    # the schema edit, made BEFORE update-component-version.py ever runs
+    # the schema edit, made BEFORE update-component-version ever runs
     values_yaml.write_text(
         "zac:\n"
         "  image:\n"
@@ -1230,7 +1230,7 @@ def test_main_detects_key_added_before_running_against_real_baseline(ucv, tmp_pa
 
     mock_verify_passes(monkeypatch, ucv)
     mock_registry_passes(monkeypatch, ucv, "e")
-    monkeypatch.setattr("sys.argv", ["update-component-version.py", "zac", "5.4.3", "1.0.297"])
+    monkeypatch.setattr("sys.argv", ["update-component-version", "zac", "5.4.3", "1.0.297"])
 
     ucv.main()
 
@@ -1255,7 +1255,7 @@ def test_main_notes_when_baseline_unresolvable_for_key_detection(ucv, tmp_path, 
 
     mock_verify_passes(monkeypatch, ucv)
     mock_registry_passes(monkeypatch, ucv, "f")
-    monkeypatch.setattr("sys.argv", ["update-component-version.py", "zac", "5.4.3", "1.0.297"])
+    monkeypatch.setattr("sys.argv", ["update-component-version", "zac", "5.4.3", "1.0.297"])
 
     ucv.main()
 
@@ -1336,7 +1336,7 @@ def test_main_touches_only_the_target_component_end_to_end(ucv, tmp_path, monkey
 
     mock_verify_passes(monkeypatch, ucv)
     mock_registry_passes(monkeypatch, ucv, "c")
-    monkeypatch.setattr("sys.argv", ["update-component-version.py", "zac", "5.4.3", "1.0.297"])
+    monkeypatch.setattr("sys.argv", ["update-component-version", "zac", "5.4.3", "1.0.297"])
 
     ucv.main()
 

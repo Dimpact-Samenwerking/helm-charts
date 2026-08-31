@@ -1,6 +1,6 @@
-"""find_dependency and main() for verify-image-version.py. `pull_chart_values`
+"""find_dependency and main() for verify-image-version. `pull_chart_values`
 (the actual `helm pull` + values.yaml read) and `check_image_versions` (the
-actual registry check, shared with update-component-version.py's own
+actual registry check, shared with update-component-version's own
 pre-write gate — see lib.chart.check_image_versions) are both covered by
 tests/lib/test_chart.py; these tests mock them out and only exercise this
 script's own glue: looking up the Chart.yaml dependency, resolving
@@ -37,7 +37,7 @@ def test_find_dependency_not_found_raises(viv, tmp_path, monkeypatch):
 # --- main() ---
 
 def run_main(viv, monkeypatch, argv):
-    monkeypatch.setattr("sys.argv", ["verify-image-version.py", *argv])
+    monkeypatch.setattr("sys.argv", ["verify-image-version", *argv])
     with pytest.raises(SystemExit) as exc_info:
         viv.main()
     return exc_info.value

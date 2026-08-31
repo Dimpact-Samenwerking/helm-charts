@@ -7,12 +7,12 @@ either file if that verification fails; whichever version is already at
 the requested value is left untouched (not an error).
 
 Also updates the docs for the current podiumd target version, if they
-exist (run set-doc-baseline.py first if not): the upgrade doc's
+exist (run set-doc-baseline first if not): the upgrade doc's
 "Component versions" table row and Changes section, the values-deltas
 doc, and docs/images/images-<target>.yaml — see find_baseline_docs,
 update_component_table, and images_manifest_path for exactly what gets
 rewritten vs. reported for manual review. Finally runs
-update-podiumd-readme.py so README.md's values-reference table doesn't go
+update-podiumd-readme so README.md's values-reference table doesn't go
 stale in the same commit.
 
 The component name and the image it bumps are not the same thing (zac's
@@ -20,7 +20,7 @@ image is basename "zaakafhandelcomponent"; zgw-office-addin bumps two
 distinctly-named images, frontend + backend) — an image path with an
 explicit "repository:" of its own in values.yaml delegates its actual tag
 update to lib.image_version.update_image_version (see
-update-image-version.py), keyed by that path's own real basename, so an
+update-image-version), keyed by that path's own real basename, so an
 image shared with some unrelated component gets updated everywhere it's
 pinned. A path relying on a vendored sub-chart's own default repository
 (nothing explicit to derive a basename from — e.g. openzaak,
@@ -28,16 +28,16 @@ openformulieren) resolves it the original way instead (pulls the target
 chart version and reads its own values.yaml default).
 
 Usage:
-    update-component-version.py <component> <app-version> <chart-version>
+    update-component-version <component> <app-version> <chart-version>
 
 Examples:
-    update-component-version.py zac 5.4.3 1.0.297
-    update-component-version.py zgw-office-addin v0.9.352 0.0.92
-    update-component-version.py openformulieren 3.5.6 1.12.0
+    update-component-version zac 5.4.3 1.0.297
+    update-component-version zgw-office-addin v0.9.352 0.0.92
+    update-component-version openformulieren 3.5.6 1.12.0
         # if 1.12.0 is already the pinned chart version, Chart.yaml is left
         # untouched and only values.yaml's image tag is bumped
 
-After writing, re-render the chart (verify-podiumd.py or /helm-render-all)
+After writing, re-render the chart (verify-podiumd or /helm-render-all)
 to confirm before committing.
 """
 import re
@@ -70,7 +70,7 @@ from lib.procutil import run_script
 from lib.registry import parse_repo, registry_tag_exists
 from lib.upgradedoc import append_to_doc, compute_changed_components, describe_key_changes
 
-UPDATE_README_SCRIPT = SCRIPT_DIR / "update-podiumd-readme.py"
+UPDATE_README_SCRIPT = SCRIPT_DIR / "update-podiumd-readme"
 CHART_YAML = SCRIPT_DIR.parents[0] / "Chart.yaml"
 VALUES_YAML = SCRIPT_DIR.parents[0] / "values.yaml"
 DOC_DIR = SCRIPT_DIR.parents[0] / "docs" / "_UPGRADE_PATHS"
@@ -487,7 +487,7 @@ def main():
 
     if upgrade_path is None:
         print()
-        print(f"No upgrade doc found for target {target} — run set-doc-baseline.py first "
+        print(f"No upgrade doc found for target {target} — run set-doc-baseline first "
               f"to scaffold it; skipping doc updates.")
     elif reset_to_baseline:
         text = upgrade_path.read_text(encoding="utf-8")
@@ -600,11 +600,11 @@ def main():
             print(f"No images-{target}.yaml found — skipping that update.")
 
     print()
-    print("=== Regenerating README.md (update-podiumd-readme.py) ===")
+    print("=== Regenerating README.md (update-podiumd-readme) ===")
     run_script([sys.executable, str(UPDATE_README_SCRIPT)])
 
     print()
-    print("Done. Re-render the chart to confirm (verify-podiumd.py or /helm-render-all) before committing.")
+    print("Done. Re-render the chart to confirm (verify-podiumd or /helm-render-all) before committing.")
 
 
 if __name__ == "__main__":

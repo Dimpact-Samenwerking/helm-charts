@@ -3,7 +3,7 @@ template` render: scoping a finding to this chart's own templates/ vs. a
 vendored sub-chart, classifying a vendored sub-chart as a "friendly"
 partner vendor worth per-item detail, splitting/mapping the render back to
 its source templates, and the common grouped-findings printer. Used by
-check_render (verify-podiumd.py) and check_yamllint/check_kubeconform/
+check_render (verify-podiumd) and check_yamllint/check_kubeconform/
 check_shellcheck/check_kube_score (lib/*_check.py)."""
 import re
 from collections import Counter
@@ -55,7 +55,7 @@ def render_chart(chart_dir, extra_args):
     the call living in that module's own globals. Routing them through this
     function instead would resolve `run` via lib.render_scope's globals,
     silently breaking that mocking — out of scope for a change those checks
-    didn't ask for. New callers (e.g. render-podiumd.py) are free to use
+    didn't ask for. New callers (e.g. render-podiumd) are free to use
     this directly."""
     return run(["helm", "template", CHART_NAME, str(chart_dir), *extra_args],
                capture_output=True, text=True)

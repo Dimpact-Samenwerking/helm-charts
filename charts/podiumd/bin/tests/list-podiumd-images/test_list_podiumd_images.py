@@ -241,7 +241,7 @@ def test_pull_chart_failure_raises(lpi, tmp_path, monkeypatch):
 # --- main() ---
 
 def run_main(lpi, monkeypatch, argv=()):
-    monkeypatch.setattr("sys.argv", ["list-podiumd-images.py", *argv])
+    monkeypatch.setattr("sys.argv", ["list-podiumd-images", *argv])
     lpi.main()
 
 
@@ -306,7 +306,7 @@ def test_main_refresh_flag_forces_pull(lpi, tmp_path, monkeypatch):
 
 @pytest.mark.parametrize("flag", ["-h", "--help"])
 def test_main_help_flag_prints_usage_and_exits_zero(lpi, monkeypatch, capsys, flag):
-    monkeypatch.setattr("sys.argv", ["list-podiumd-images.py", flag])
+    monkeypatch.setattr("sys.argv", ["list-podiumd-images", flag])
     with pytest.raises(SystemExit) as exc_info:
         lpi.main()
     assert exc_info.value.code == 0
