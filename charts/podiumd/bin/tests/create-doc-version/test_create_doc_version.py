@@ -1,7 +1,7 @@
 """create-doc-version's main() — argument parsing, and end-to-end wiring
 into lib.component_docs.existing_doc_baselines/create_missing_docs (both
 covered directly in tests/lib/test_component_docs.py). run_script (the
-fix-podiumd-readme delegation) is mocked out via cdv.run_script
+fix-helm-doc delegation) is mocked out via cdv.run_script
 directly — no real subprocess needed."""
 import subprocess
 
@@ -133,7 +133,7 @@ def test_refuses_when_doc_exists_under_a_different_baseline(cdv, tmp_path, monke
     assert existing.read_text(encoding="utf-8") == "real content\n"  # untouched
 
 
-def test_invokes_fix_podiumd_readme(cdv, tmp_path, monkeypatch):
+def test_invokes_fix_helm_doc(cdv, tmp_path, monkeypatch):
     setup_dirs(cdv, tmp_path, monkeypatch)
     calls = []
     monkeypatch.setattr(cdv, "run_script", lambda cmd, *a, **k: (calls.append(cmd), subprocess.CompletedProcess(cmd, 0))[1])
@@ -141,4 +141,4 @@ def test_invokes_fix_podiumd_readme(cdv, tmp_path, monkeypatch):
 
     cdv.main()
 
-    assert any(str(cdv.FIX_README_SCRIPT) in cmd for cmd in calls)
+    assert any(str(cdv.FIX_HELM_DOC_SCRIPT) in cmd for cmd in calls)

@@ -50,7 +50,7 @@ CHART_DIR = SCRIPT_DIR.parents[0]
 CHART_YAML = CHART_DIR / "Chart.yaml"
 DOC_DIR = CHART_DIR / "docs" / "_UPGRADE_PATHS"
 IMAGES_DIR = CHART_DIR / "docs" / "images"
-FIX_README_SCRIPT = SCRIPT_DIR / "fix-podiumd-readme"
+FIX_HELM_DOC_SCRIPT = SCRIPT_DIR / "fix-helm-doc"
 
 
 def current_chart_version():
@@ -102,8 +102,8 @@ def main():
         print("  nothing to do — every doc already exists")
 
     print()
-    print("=== Regenerating README.md (fix-podiumd-readme) ===")
-    run_script([sys.executable, str(FIX_README_SCRIPT)])
+    print("=== Regenerating README.md (fix-helm-doc) ===")
+    run_script([sys.executable, str(FIX_HELM_DOC_SCRIPT)])
 
 
 if __name__ == "__main__":

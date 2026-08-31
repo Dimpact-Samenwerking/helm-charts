@@ -11,7 +11,7 @@ values.yaml bump itself (the pre-existing convention here — only
 VALUES_YAML used to matter) would silently read/write the REAL
 charts/podiumd/Chart.yaml and docs/ tree instead. A test can still
 override any of these further (e.g. write its own Chart.yaml) for its
-own scenario. Also stubs the unconditional fix-podiumd-readme
+own scenario. Also stubs the unconditional fix-helm-doc
 subprocess call at the end of main(), same convention as
 tests/set-doc-baseline/conftest.py."""
 import importlib.util
@@ -56,9 +56,9 @@ def isolate_paths(uiv, tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def stub_fix_podiumd_readme(uiv, monkeypatch):
+def stub_fix_helm_doc(uiv, monkeypatch):
     real_run = subprocess.run
-    target = str(uiv.FIX_README_SCRIPT)
+    target = str(uiv.FIX_HELM_DOC_SCRIPT)
 
     def fake_run(cmd, *args, **kwargs):
         if isinstance(cmd, (list, tuple)) and target in cmd:

@@ -198,7 +198,7 @@ Usage:
         # unrelated to what you're testing. Valid step names: utf8-format,
         # dupe-check, dry-check, image-references, node-selector,
         # digest-pinning, vendored-tgz, release-baseline, docs-consistency,
-        # helm-docs, markdown, repo-access, dependencies, subchart-images,
+        # helm-doc, markdown, repo-access, dependencies, subchart-images,
         # image-digests, helm-lint, full-render, yamllint, kubeconform,
         # shellcheck, kube-score, image-upgrades, cve-scan.
         # See --help for the full list.
@@ -446,7 +446,7 @@ SKIPPABLE_STEPS = [
     ("vendored-tgz", "Vendored tgz"),
     ("release-baseline", "Release baseline"),
     ("docs-consistency", "Docs consistency"),
-    ("helm-docs", "Helm docs"),
+    ("helm-doc", "Helm doc"),
     ("markdown", "Markdown lint"),
     ("repo-access", "Repo access"),
     ("dependencies", "Dependencies"),
@@ -620,7 +620,7 @@ def main():
     baseline = read_release_baseline(chart_dir)
     run_step("Docs consistency", "Checking versions against upgrade docs",
              check_docs_consistency, chart_dir, baseline)
-    run_step("Helm docs", "Checking README.md against values.yaml (helm-docs)",
+    run_step("Helm doc", "Checking README.md against values.yaml (helm-docs)",
              check_helm_docs, chart_dir)
     run_step("Markdown lint", "Checking markdown docs with pymarkdown",
              check_markdown, chart_dir)

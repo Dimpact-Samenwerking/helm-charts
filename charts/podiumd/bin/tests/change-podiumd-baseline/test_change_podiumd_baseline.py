@@ -55,12 +55,12 @@ def set_up(cpb, monkeypatch, repo, argv, release_baseline_file):
     monkeypatch.setattr("sys.argv", ["change-podiumd-baseline", *argv])
     monkeypatch.setattr(cpb, "find_repo_root", lambda chart_dir: repo)
     monkeypatch.setattr(cpb, "RELEASE_BASELINE_FILE", release_baseline_file)
-    # fix-doc-consistency and fix-podiumd-readme are invoked for real by
+    # fix-doc-consistency and fix-helm-doc are invoked for real by
     # main() on any success path — fake both here (a real run would need
     # its own hermetic Chart.yaml/docs tree, and would otherwise run
     # against the REAL charts/podiumd since these are genuine subprocesses,
     # not something monkeypatch can reach into); test_main_invokes_fix_doc_consistency
-    # and test_main_invokes_fix_podiumd_readme_after_fix_doc_consistency cover
+    # and test_main_invokes_fix_helm_doc_after_fix_doc_consistency cover
     # the calls themselves.
     monkeypatch.setattr(cpb, "run_script", lambda cmd, *a, **k: subprocess.CompletedProcess(cmd, 0))
 
@@ -122,7 +122,7 @@ def test_main_invokes_fix_doc_consistency(cpb, repo, tmp_path, monkeypatch, caps
     assert "fix-doc-consistency 4.8.5" in capsys.readouterr().out
 
 
-def test_main_invokes_fix_podiumd_readme_after_fix_doc_consistency(cpb, repo, tmp_path, monkeypatch, capsys):
+def test_main_invokes_fix_helm_doc_after_fix_doc_consistency(cpb, repo, tmp_path, monkeypatch, capsys):
     release_baseline_file = tmp_path / "release-baseline"
     set_up(cpb, monkeypatch, repo, ["4.8.5"], release_baseline_file)
     calls = []
@@ -135,8 +135,8 @@ def test_main_invokes_fix_podiumd_readme_after_fix_doc_consistency(cpb, repo, tm
     assert exc_info.value.code == 0
     assert len(calls) == 2
     assert calls[1][0] == cpb.sys.executable
-    assert calls[1][1] == str(cpb.FIX_README_SCRIPT)
-    assert "fix-podiumd-readme" in capsys.readouterr().out
+    assert calls[1][1] == str(cpb.FIX_HELM_DOC_SCRIPT)
+    assert "fix-helm-doc" in capsys.readouterr().out
 
 
 def test_main_propagates_fix_doc_consistency_failure_exit_code(cpb, repo, tmp_path, monkeypatch):
@@ -150,7 +150,7 @@ def test_main_propagates_fix_doc_consistency_failure_exit_code(cpb, repo, tmp_pa
     assert exc_info.value.code == 1
 
 
-def test_main_skips_fix_podiumd_readme_when_fix_doc_consistency_fails(cpb, repo, tmp_path, monkeypatch):
+def test_main_skips_fix_helm_doc_when_fix_doc_consistency_fails(cpb, repo, tmp_path, monkeypatch):
     release_baseline_file = tmp_path / "release-baseline"
     set_up(cpb, monkeypatch, repo, ["4.8.5"], release_baseline_file)
     calls = []
@@ -165,15 +165,15 @@ def test_main_skips_fix_podiumd_readme_when_fix_doc_consistency_fails(cpb, repo,
         cpb.main()
 
     assert exc_info.value.code == 1
-    assert len(calls) == 1  # fix-podiumd-readme never invoked
+    assert len(calls) == 1  # fix-helm-doc never invoked
 
 
-def test_main_propagates_fix_podiumd_readme_failure_exit_code(cpb, repo, tmp_path, monkeypatch):
+def test_main_propagates_fix_helm_doc_failure_exit_code(cpb, repo, tmp_path, monkeypatch):
     release_baseline_file = tmp_path / "release-baseline"
     set_up(cpb, monkeypatch, repo, ["4.8.5"], release_baseline_file)
 
     def fake_run_script(cmd, *a, **k):
-        returncode = 1 if str(cpb.FIX_README_SCRIPT) in cmd else 0
+        returncode = 1 if str(cpb.FIX_HELM_DOC_SCRIPT) in cmd else 0
         return subprocess.CompletedProcess(cmd, returncode)
 
     monkeypatch.setattr(cpb, "run_script", fake_run_script)
