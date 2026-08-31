@@ -21,8 +21,8 @@
 
 ### When release is rebased on a different baseline
 - rebase the branch on the new baseline
-- run `set-doc-baseline` to update the baseline for the docs
 - run `change-podiumd-baseline` to update `charts/podiumd/release-baseline`
+- run `set-doc-baseline` to update the baseline for the docs
 - run `verify-podiumd` to check consistency, if not ok, fix the issues
 - commit+push the changes
 
@@ -52,7 +52,6 @@ This updates just a container image version in a release.
 - create a PR to merge the my-changes branch into the release branch
 
 ### Fix and debug tools
-- `change-podiumd-baseline`: corrects the baseline recorded in `charts/podiumd/release-baseline` (e.g. after `create-podiumd-version` recorded the wrong one, or a rebase onto a different baseline)
 - `render-podiumd`: outputs a rendered chart, so that line-numbers in output of verify-podiumd can be matched
 - `set-doc-baseline`: changes the baseline version of doc filenames and components and images in it
 - `set-image-digests`: updates image digests for one specific image or all stale images
