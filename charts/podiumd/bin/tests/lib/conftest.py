@@ -9,6 +9,7 @@ SCRIPTS_DIR = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 import lib.chart as chart
+import lib.component_docs as component_docs
 import lib.confluence_tables as confluence_tables
 import lib.dependencies as dependencies
 import lib.gitutil as gitutil
@@ -68,3 +69,8 @@ def libupgradedoc():
 @pytest.fixture(scope="session")
 def libimagedocs():
     return image_docs
+
+
+@pytest.fixture(scope="session")
+def libcomponentdocs():
+    return component_docs

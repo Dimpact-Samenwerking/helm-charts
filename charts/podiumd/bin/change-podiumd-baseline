@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
 Change the release baseline recorded in charts/podiumd/release-baseline
-(written by create-podiumd-version at the start of a release cycle) — for
-correcting a mistake, or setting it by hand on a release that predates
-that file (e.g. after rebasing onto a different baseline — see
-set-doc-baseline, which does not touch this file).
+(written by create-podiumd-version at the start of a release cycle) —
+for correcting a mistake, or rebasing the release onto a different
+baseline mid-cycle. Also rebases the docs onto the new baseline (runs
+change-doc-baseline) — see that script for exactly what gets renamed/
+rewritten vs. just reported for manual review.
 
 <new-baseline> must resolve to an actual release: the podiumd-<version>
 git tag, falling back to the feature/podiumd-<version> / origin/feature/
@@ -25,9 +26,11 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from lib.gitutil import find_repo_root, resolve_baseline_ref
+from lib.procutil import run_script
 
 CHART_DIR = SCRIPT_DIR.parent
 RELEASE_BASELINE_FILE = CHART_DIR / "release-baseline"
+CHANGE_DOC_BASELINE_SCRIPT = SCRIPT_DIR / "change-doc-baseline"
 
 
 def read_current_baseline():
@@ -66,6 +69,11 @@ def main():
         print(f"{RELEASE_BASELINE_FILE.name}: already {new_baseline} (resolved to {ref}) — nothing changed")
     else:
         print(f"{RELEASE_BASELINE_FILE.name}: {old_baseline or '(none)'} -> {new_baseline} (resolved to {ref})")
+
+    print()
+    print(f"=== Running change-doc-baseline {new_baseline} ===")
+    result = run_script([sys.executable, str(CHANGE_DOC_BASELINE_SCRIPT), new_baseline])
+    sys.exit(result.returncode)
 
 
 if __name__ == "__main__":

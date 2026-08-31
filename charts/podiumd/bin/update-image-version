@@ -17,7 +17,7 @@ reads straight from Chart.yaml/values.yaml (see
 lib.image_version.resolve_basename).
 
 Also updates the docs for the current podiumd target version, if they
-exist (run set-doc-baseline first if not) — the same four docs
+exist (run create-doc-version first if not) — the same four docs
 update-component-version keeps in sync (upgrade doc table + Changes
 section, values-deltas, images-<target>.yaml), grouped by however many
 distinct Chart.yaml components the bump actually touched:
@@ -158,7 +158,7 @@ def update_docs_single_component(new_version, target, deps, values, dep, values_
             print("No release-baseline found — run create-podiumd-version/"
                   "change-podiumd-baseline first; skipping doc updates.")
         else:
-            print(f"No upgrade doc found for target {target} — run set-doc-baseline first "
+            print(f"No upgrade doc found for target {target} — run create-doc-version first "
                   f"to scaffold it; skipping doc updates.")
     elif reset_to_baseline:
         text = upgrade_path.read_text(encoding="utf-8")
@@ -302,7 +302,7 @@ def update_docs_shared_image(basename, new_version, changes, pinned, target, dep
             print("No release-baseline found — run create-podiumd-version/"
                   "change-podiumd-baseline first; skipping doc updates.")
         else:
-            print(f"No upgrade doc found for target {target} — run set-doc-baseline first "
+            print(f"No upgrade doc found for target {target} — run create-doc-version first "
                   f"to scaffold it; skipping doc updates.")
     elif reset_to_baseline:
         text = upgrade_path.read_text(encoding="utf-8")

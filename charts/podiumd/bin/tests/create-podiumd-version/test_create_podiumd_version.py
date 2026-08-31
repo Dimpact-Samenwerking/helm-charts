@@ -1,8 +1,8 @@
 """create-podiumd-version: bumps Chart.yaml's version/appVersion to the
-target named by the current branch, then delegates to set-doc-baseline
+target named by the current branch, then delegates to create-doc-version
 for the outgoing (baseline) version. lib.gitutil.current_branch and
-lib.procutil.run_script (the set-doc-baseline delegation) are mocked out
-via cpv.* directly. find_repo_root, however, is only mocked to point at
+lib.procutil.run_script (the create-doc-version delegation) are mocked
+out via cpv.* directly. find_repo_root, however, is only mocked to point at
 a real, hermetic temp git repo (the `repo` fixture) rather than faked
 outright — main() now resolves the baseline to an actual git ref via
 resolve_baseline_ref before it writes anything, and a bare tmp_path
@@ -224,12 +224,12 @@ def test_success_bumps_chart_and_delegates_to_set_doc_baseline(cpv, repo, monkey
     assert release_baseline_file.read_text(encoding="utf-8") == "4.9.0\n"
     assert len(calls) == 1
     assert calls[0][0] == cpv.sys.executable
-    assert calls[0][1] == str(cpv.SET_DOC_BASELINE_SCRIPT)
+    assert calls[0][1] == str(cpv.CREATE_DOC_VERSION_SCRIPT)
     assert calls[0][2] == "4.9.0"
     out = capsys.readouterr().out
     assert "4.9.0 -> 4.10.0" in out
     assert "release-baseline: 4.9.0 (resolved to podiumd-4.9.0)" in out
-    assert "set-doc-baseline 4.9.0" in out
+    assert "create-doc-version 4.9.0" in out
 
 
 def test_success_propagates_set_doc_baseline_failure_exit_code(cpv, repo, monkeypatch):

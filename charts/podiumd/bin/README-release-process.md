@@ -21,8 +21,7 @@
 
 ### When release is rebased on a different baseline
 - rebase the branch on the new baseline
-- run `change-podiumd-baseline` to update `charts/podiumd/release-baseline`
-- run `set-doc-baseline` to update the baseline for the docs
+- run `change-podiumd-baseline` to update `charts/podiumd/release-baseline` and rebase the docs
 - run `verify-podiumd` to check consistency, if not ok, fix the issues
 - commit+push the changes
 
@@ -52,8 +51,9 @@ This updates just a container image version in a release.
 - create a PR to merge the my-changes branch into the release branch
 
 ### Fix and debug tools
+- `change-doc-baseline`: rebases doc filenames and components and images in them onto a different baseline (normally run automatically by `change-podiumd-baseline`)
+- `create-doc-version`: scaffolds any of the standard docs missing for the current target version (normally run automatically by `create-podiumd-version`)
 - `render-podiumd`: outputs a rendered chart, so that line-numbers in output of verify-podiumd can be matched
-- `set-doc-baseline`: changes the baseline version of doc filenames and components and images in it
 - `set-image-digests`: updates image digests for one specific image or all stale images
 - `strip-utf8-bom`: strip the utf8-bom of `charts/podiumd/values.yaml`
 - `update-podiumd-readme`: re-generate `charts/podiumd/README.md` using `helm-doc`
@@ -75,14 +75,15 @@ Notes:
 - tools support `--help`
 
 Tools:
-- `change-podiumd-baseline`: change the baseline recorded in `charts/podiumd/release-baseline`, given a baseline that must resolve to an existing `podiumd-<version>` tag or `feature/podiumd-<version>` branch
-- `create-podiumd-version`: uses version in `charts/podiumd/Chart.yaml` as baseline release, update version in `Chart.yaml`, record the baseline in `charts/podiumd/release-baseline` and create updgrade docs in `charts/podiumd/docs/_UPGRADE_PATHS`
+- `change-doc-baseline`: given a new baseline, rebases doc filenames and components and images in them onto it (creates the standard docs fresh instead, for whichever were never scaffolded under any baseline at all)
+- `change-podiumd-baseline`: change the baseline recorded in `charts/podiumd/release-baseline` and rebase the docs onto it (runs `change-doc-baseline`), given a baseline that must resolve to an existing `podiumd-<version>` tag or `feature/podiumd-<version>` branch
+- `create-doc-version`: create the standard docs for the current target version, for whichever don't already exist — refuses if docs already exist under a different baseline (use `change-doc-baseline` for that instead)
+- `create-podiumd-version`: uses version in `charts/podiumd/Chart.yaml` as baseline release, update version in `Chart.yaml`, record the baseline in `charts/podiumd/release-baseline` and create upgrade docs (runs `create-doc-version`)
 - `export-confluence-release-table`: fetch release data from confluence and store it in `charts/podiumd/release-table.csv`
 - `list-helmchart-images`: list images in a helm chart, given chart name and version
 - `list-podiumd-images`: list images in `charts/podiumd`
 - `query-release-table`: query release data from `charts/podiumd/release-table.csv` by section, vendor, component
 - `render-podiumd`: outputs a rendered chart, so that line-numbers in output of verify-podiumd can be matched
-- `set-doc-baseline`: given a new baseline, it changes the baseline version of doc filenames and components and images in it
 - `set-image-digests`: updates image digests for one specific image or all stale images
 - `show-component-baseline-version`: get the version of component, given the baseline version and the component name
 - `strip-utf8-bom`: strip the utf8-bom of `charts/podiumd/values.yaml`
