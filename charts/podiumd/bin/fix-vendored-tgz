@@ -1,0 +1,59 @@
+#!/usr/bin/env python3
+"""
+Delete every extracted charts/podiumd/charts/<name>/ directory that
+shadows a pinned <name>-<version>.tgz of the same name — Helm silently
+prefers the extracted (possibly stale/modified) directory over the
+pinned package, which "has caused broken deployments" per
+.claude/commands/helm-tgz-inspect.md. verify-podiumd's "Vendored tgz"
+step only detects and reports this (a verify script never writes to a
+tracked file); this script is the fixer. Own-scope only isn't a relevant
+distinction here — this check has no vendor/own split to begin with, it's
+about charts/podiumd/charts/ itself.
+
+Usage:
+    fix-vendored-tgz             # delete every shadowing extracted directory
+    fix-vendored-tgz --dry-run   # report only, no delete
+"""
+import shutil
+import sys
+from pathlib import Path
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
+
+from lib.vendored_tgz_check import find_extracted_vendored_dirs
+
+CHART_DIR = SCRIPT_DIR.parents[0]
+
+
+def main():
+    if "-h" in sys.argv[1:] or "--help" in sys.argv[1:]:
+        print(__doc__)
+        sys.exit(0)
+    dry_run = "--dry-run" in sys.argv[1:]
+
+    extracted = find_extracted_vendored_dirs(CHART_DIR)
+    if not extracted:
+        print("OK: no vendored sub-chart has both a pinned .tgz and an extracted directory")
+        sys.exit(0)
+
+    charts_subdir = CHART_DIR / "charts"
+
+    if dry_run:
+        print(f"Found {len(extracted)} extracted director{'y' if len(extracted) == 1 else 'ies'} "
+              f"shadowing a pinned .tgz (dry-run, not deleting):")
+        for name in extracted:
+            print(f"  charts/{name}/")
+        sys.exit(1)
+
+    for name in extracted:
+        shutil.rmtree(charts_subdir / name)
+        print(f"Deleted charts/{name}/ (was shadowing a pinned {name}-<version>.tgz)")
+
+    print(f"Removed {len(extracted)} extracted director{'y' if len(extracted) == 1 else 'ies'} "
+          f"— re-run verify-podiumd to confirm")
+    sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()
