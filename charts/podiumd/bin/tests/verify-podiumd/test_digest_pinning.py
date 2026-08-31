@@ -221,7 +221,7 @@ def test_unoverridden_floating_subchart_image_is_reported_but_never_fails(vp, tm
     ok, detail = vp.check_subchart_image_visibility(tmp_path)
 
     assert ok is True
-    assert detail == "1 unresolved (1 floating tag(s)) — report only"
+    assert detail == "1 unresolved (1 floating tag(s), 0 exempt) — report only"
     out = capsys.readouterr().out
     assert "oz.image.tag: '1.14.2' (FLOATING in the sub-chart's own default)" in out
 
@@ -236,7 +236,7 @@ def test_unoverridden_already_pinned_subchart_image_is_reported_as_pinned(vp, tm
     ok, detail = vp.check_subchart_image_visibility(tmp_path)
 
     assert ok is True
-    assert detail == "1 unresolved (0 floating tag(s)) — report only"
+    assert detail == "1 unresolved (0 floating tag(s), 0 exempt) — report only"
     out = capsys.readouterr().out
     assert f"zac.opentelemetry-collector.image.tag: '0.169.0@sha256:{DIGEST_A}' (pinned in the sub-chart's own default)" in out
 
@@ -294,7 +294,75 @@ def test_multiple_unresolved_images_all_reported(vp, tmp_path, capsys):
     ok, detail = vp.check_subchart_image_visibility(tmp_path)
 
     assert ok is True
-    assert detail == "2 unresolved (2 floating tag(s)) — report only"
+    assert detail == "2 unresolved (2 floating tag(s), 0 exempt) — report only"
     out = capsys.readouterr().out
     assert "openzaak.redis.image.tag" in out
     assert "openklant.redis.image.tag" in out
+
+
+# --- SUBCHART_VISIBILITY_EXEMPT (staging etc.) ---
+
+def test_exempted_subchart_visibility_finding_is_not_reported(vp, tmp_path, capsys):
+    write_chart_yaml(tmp_path, [make_dep("zaakbrug", "2.3.28")])
+    make_tgz(tmp_path / "charts", "zaakbrug", "2.3.28",
+              {"staging": {"image": {"repository": "openzaak/open-zaak", "tag": "1.9.0"}}})
+    write_values_yaml(tmp_path, "{}\n")
+
+    ok, detail = vp.check_subchart_image_visibility(tmp_path)
+
+    assert ok is True
+    assert detail == "0 unresolved (1 exempt)"
+    out = capsys.readouterr().out
+    assert "zaakbrug.staging" not in out
+    assert "1 exempt" in out
+
+
+def test_exempted_subchart_visibility_prefix_matches_nested_path_too(vp, tmp_path):
+    """SUBCHART_VISIBILITY_EXEMPT's ("zaakbrug", "staging") entry must also
+    cover staging.apiProxy — a path segment prefix match, not just an
+    exact-path one — since the whole staging deployment mode (main image
+    AND its API proxy sidecar) is what's permanently disabled."""
+    write_chart_yaml(tmp_path, [make_dep("zaakbrug", "2.3.28")])
+    make_tgz(tmp_path / "charts", "zaakbrug", "2.3.28",
+              {"staging": {"apiProxy": {"image": {"repository": "nginxinc/nginx-unprivileged", "tag": "stable"}}}})
+    write_values_yaml(tmp_path, "{}\n")
+
+    ok, detail = vp.check_subchart_image_visibility(tmp_path)
+
+    assert ok is True
+    assert detail == "0 unresolved (1 exempt)"
+
+
+def test_exemption_is_scoped_to_its_own_dependency_only(vp, tmp_path, capsys):
+    """A DIFFERENT dependency's own "staging"-named key must NOT be
+    silently swallowed by zaakbrug's own exemption — the exemption is
+    keyed on (scope_key, subpath), not a bare rule-name match."""
+    write_chart_yaml(tmp_path, [make_dep("openzaak", "1.14.2")])
+    make_tgz(tmp_path / "charts", "openzaak", "1.14.2",
+              {"staging": {"image": {"repository": "openzaak/open-zaak", "tag": "1.14.2"}}})
+    write_values_yaml(tmp_path, "{}\n")
+
+    ok, detail = vp.check_subchart_image_visibility(tmp_path)
+
+    assert ok is True
+    assert detail == "1 unresolved (1 floating tag(s), 0 exempt) — report only"
+    out = capsys.readouterr().out
+    assert "openzaak.staging.image.tag" in out
+
+
+def test_exempt_and_non_exempt_findings_mixed(vp, tmp_path, capsys):
+    write_chart_yaml(tmp_path, [make_dep("zaakbrug", "2.3.28"), make_dep("openzaak", "1.14.2")])
+    make_tgz(tmp_path / "charts", "zaakbrug", "2.3.28",
+              {"staging": {"image": {"repository": "openzaak/open-zaak", "tag": "1.9.0"}}})
+    make_tgz(tmp_path / "charts", "openzaak", "1.14.2",
+              {"redis": {"image": {"repository": "redis", "tag": "8.0"}}})
+    write_values_yaml(tmp_path, "{}\n")
+
+    ok, detail = vp.check_subchart_image_visibility(tmp_path)
+
+    assert ok is True
+    assert detail == "1 unresolved (1 floating tag(s), 1 exempt) — report only"
+    out = capsys.readouterr().out
+    assert "zaakbrug.staging" not in out
+    assert "openzaak.redis.image.tag" in out
+    assert "1 more already reviewed and exempted" in out
