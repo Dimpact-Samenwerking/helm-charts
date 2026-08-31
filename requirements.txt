@@ -1,0 +1,6 @@
+# Python tools for charts/podiumd/bin/'s scripts, tests, and verify-podiumd's
+# markdown check — see charts/podiumd/bin/README-release-process.md#setup.
+# Intentionally unpinned: these are lint tools, not runtime dependencies —
+# picking up new rules/versions is desirable, not a compatibility risk.
+ruff
+pymarkdownlnt

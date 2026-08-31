@@ -1,6 +1,7 @@
 # Release Process
 
 ## Table of contents
+- [Setup](#setup)
 - [Process steps](#process-steps)
   - [Start a new release](#start-a-new-release)
   - [When release is rebased on a different baseline](#when-release-is-rebased-on-a-different-baseline)
@@ -9,6 +10,38 @@
   - [Fix and debug tools](#fix-and-debug-tools)
   - [Check or finalize the release](#check-or-finalize-the-release)
 - [Tools overview](#tools-overview)
+
+## Setup
+
+### Required external tools
+`verify-podiumd --help` documents this same list (why each one is needed, and which check falls back gracefully vs. fails outright when it's missing):
+
+| Tool | Needed for | Debian | macOS |
+| --- | --- | --- | --- |
+| `helm` | required to run at all | no apt package — official install script: `curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 \| bash` | `brew install helm` |
+| `helm-docs` | Helm docs check | no apt package — download the `.deb` from the [latest release](https://github.com/norwoodj/helm-docs/releases) and `sudo dpkg -i helm-docs_*.deb` | `brew install helm-docs` |
+| `yamllint` | yamllint check | `sudo apt install yamllint` | `brew install yamllint` |
+| `kubeconform` | kubeconform check | no apt package — download the static binary from the [latest release](https://github.com/yannh/kubeconform/releases) | `brew install kubeconform` |
+| `shellcheck` | shellcheck check | `sudo apt install shellcheck` | `brew install shellcheck` |
+| `kube-score` | kube-score check | no apt package — download the static binary from the [latest release](https://github.com/zegl/kube-score/releases) | `brew install kube-score` |
+| `docker` | CVE scan (optional — missing docker just reports the scan as skipped, never blocks a run) | `sudo apt install docker.io` | `brew install --cask docker` (Docker Desktop), or `brew install colima docker docker-compose docker-credential-helper` for a free/no-license-limit CLI-only alternative |
+| `az` | optional, Dependencies only (tells an Azure auth problem apart from a network blip — missing/unused `az` just falls back to plain retry-with-backoff) | `sudo apt install azure-cli` (in Debian's own `bookworm/main` repo, no extra source needed) | `brew install azure-cli` |
+
+### Python tools (`ruff`, `pymarkdown`)
+The `charts/podiumd/bin/` scripts' own tests use `ruff` for linting, and `verify-podiumd`'s markdown check uses `pymarkdown` — both installed into a project-root virtualenv, not system-wide: both Debian's system Python and macOS's Homebrew Python refuse a bare `pip install` ("externally managed environment", PEP 668).
+
+Debian only — install the venv module first if it isn't already (Debian splits it out of the base `python3` package):
+```bash
+sudo apt install python3-venv
+```
+
+Then, from the repo root (works the same on Debian and macOS):
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+```
+
+`.venv/` is gitignored — safe to delete and recreate any time with the two commands above.
 
 ## Process steps
 
