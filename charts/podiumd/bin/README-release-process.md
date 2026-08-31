@@ -22,6 +22,7 @@
 ### When release is rebased on a different baseline
 - rebase the branch on the new baseline
 - run `set-doc-baseline` to update the baseline for the docs
+- run `change-podiumd-baseline` to update `charts/podiumd/release-baseline`
 - run `verify-podiumd` to check consistency, if not ok, fix the issues
 - commit+push the changes
 
