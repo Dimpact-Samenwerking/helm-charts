@@ -78,6 +78,45 @@ carried (and 4.7.0 inherited). It is **not part of any official upgrade** and
 Always pin `openinwoner.image.tag` to a stable version. If you see `2.1.2-rc1`
 anywhere in an environment values file, fix it.
 
+## ⚠️ Open Zaak `TRIGGER` privilege — grant it before deploying 4.9.0
+
+Open Zaak 1.29.0 (PodiumD **4.9.0**) is the first release whose migrations
+create a database **trigger**. If the `TRIGGER` privilege has been revoked on
+the Open Zaak tables — as it is in any environment that ran a
+privilege-hardening pass — migration `documenten.0037` aborts with
+`permission denied`, the deploy fails and the pod restart-loops. Being the
+owner of the table or the database does **not** help: an explicit revoke wins
+over ownership.
+
+The migration runs automatically on pod startup, so **this has to be fixed in
+the database before `helm upgrade`**, not after. Check, substituting the role
+from `openzaak.settings.database.username`:
+
+```sql
+SELECT count(*) AS tables_without_trigger_privilege
+FROM information_schema.tables t
+WHERE t.table_schema = 'public'
+  AND t.table_type = 'BASE TABLE'
+  AND NOT has_table_privilege('<openzaak_db_user>',
+                              format('%I.%I', t.table_schema, t.table_name),
+                              'TRIGGER');
+```
+
+If it is not `0`:
+
+```sql
+GRANT TRIGGER ON ALL TABLES IN SCHEMA public TO "<openzaak_db_user>";
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT TRIGGER ON TABLES TO "<openzaak_db_user>";
+```
+
+The same applies to every other component database that has had `TRIGGER`
+revoked — each one fails the first time one of its own migrations creates a
+trigger. Details, and recovery after a failed deploy:
+[`apps/openzaak/openzaak-known-issues.md`](apps/openzaak/openzaak-known-issues.md)
+and the [4.9.0 upgrade guide](_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md).
+
 ---
 
 # For chart maintainers
