@@ -51,6 +51,7 @@ This updates just a container image version in a release.
 - create a PR to merge the my-changes branch into the release branch
 
 ### Fix and debug tools
+- `change-podiumd-baseline`: corrects the baseline recorded in `charts/podiumd/release-baseline` (e.g. after `create-podiumd-version` recorded the wrong one, or a rebase onto a different baseline)
 - `render-podiumd`: outputs a rendered chart, so that line-numbers in output of verify-podiumd can be matched
 - `set-doc-baseline`: changes the baseline version of doc filenames and components and images in it
 - `set-image-digests`: updates image digests for one specific image or all stale images
@@ -74,6 +75,7 @@ Notes:
 - tools support `--help`
 
 Tools:
+- `change-podiumd-baseline`: change the baseline recorded in `charts/podiumd/release-baseline`, given a baseline that must resolve to an existing `podiumd-<version>` tag or `feature/podiumd-<version>` branch
 - `create-podiumd-version`: uses version in `charts/podiumd/Chart.yaml` as baseline release, update version in `Chart.yaml`, record the baseline in `charts/podiumd/release-baseline` and create updgrade docs in `charts/podiumd/docs/_UPGRADE_PATHS`
 - `export-confluence-release-table`: fetch release data from confluence and store it in `charts/podiumd/release-table.csv`
 - `list-helmchart-images`: list images in a helm chart, given chart name and version
