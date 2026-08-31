@@ -19,3 +19,4 @@ ci/
 scripts/
 bin/
 release-table.csv
+release-baseline
