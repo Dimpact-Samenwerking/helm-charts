@@ -448,12 +448,17 @@ def main():
                 print(f"  {name}: app {app_cell}  |  chart {chart_cell}")
         if unresolved_names:
             print()
-            print(f"Could not verify source version for: {', '.join(unresolved_names)}"
-                  f" — baseline {new_baseline} doesn't resolve to a git ref, or the component "
+            print(f"Could not verify source version for {len(unresolved_names)} component(s) — "
+                  f"baseline {new_baseline} doesn't resolve to a git ref, or the component "
                   f"didn't exist there yet. Table left as-is for these; review by hand.")
+            for name in unresolved_names:
+                print(f"  {name}")
         if unmatched_names:
             print()
-            print(f"Could not match to a Chart.yaml dependency, left as-is: {', '.join(unmatched_names)}")
+            print(f"Could not match {len(unmatched_names)} component(s) to a Chart.yaml "
+                  f"dependency, left as-is:")
+            for name in unmatched_names:
+                print(f"  {name}")
 
         text, moved_rows = sort_upgrade_doc_rows(text, target_deps, target_values)
         text, moved_blocks = sort_changes_blocks(text, target_deps, target_values)
@@ -481,9 +486,11 @@ def main():
                 print(f"  {name}: {source} -> {target_ver}")
         if unresolved_entry_names:
             print()
-            print(f"Could not verify source/target version for: {', '.join(unresolved_entry_names)}"
-                  f" — no preceding comment, unresolvable values-tree path, or baseline "
+            print(f"Could not verify source/target version for {len(unresolved_entry_names)} "
+                  f"entry(s) — no preceding comment, unresolvable values-tree path, or baseline "
                   f"{new_baseline} doesn't resolve to a git ref. Left as-is; review by hand.")
+            for name in unresolved_entry_names:
+                print(f"  {name}")
 
     values_deltas_path = DOC_DIR / f"{new_baseline}-to-{target}-values-deltas.md"
     if values_deltas_path.is_file():
@@ -509,8 +516,7 @@ def main():
             print(f"  {name}: line(s) {', '.join(map(str, lines))}")
 
     print()
-    print("Done. Run fix-helm-doc to regenerate README.md, then verify-podiumd to "
-          "confirm consistency before committing.")
+    print("Done.")
 
 
 if __name__ == "__main__":

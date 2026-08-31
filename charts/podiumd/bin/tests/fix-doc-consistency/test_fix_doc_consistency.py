@@ -814,3 +814,73 @@ def test_main_already_ordered_doc_reports_no_reordering(cdb, repo_with_out_of_or
 
     out = capsys.readouterr().out
     assert "Reordering" not in out
+
+
+# --- main() print formatting: multi-item lists split one per line, not comma-joined ---
+
+def test_main_reports_unmatched_components_one_per_line(cdb, repo, monkeypatch, capsys):
+    write(repo / "4.8.2-to-4.9.0-upgrade.md",
+          "# Upgrade guide: PodiumD 4.8.2 → 4.9.0\n\n"
+          "## Component versions (4.9.0 vs 4.8.2)\n\n"
+          "| Component | App version | Helm chart | Notes |\n"
+          "| --- | --- | --- | --- |\n"
+          "| Totally Unknown Thing A | 1.0.0 → 2.0.0 | 1.0.0 → 2.0.0 | - |\n"
+          "| Totally Unknown Thing B | 1.0.0 → 2.0.0 | 1.0.0 → 2.0.0 | - |\n")
+    set_argv_and_dir(cdb, monkeypatch, repo, "4.8.2")
+
+    cdb.main()
+
+    out = capsys.readouterr().out
+    assert "Could not match 2 component(s) to a Chart.yaml dependency, left as-is:" in out
+    assert "  Totally Unknown Thing A" in out
+    assert "  Totally Unknown Thing B" in out
+    assert "Totally Unknown Thing A, Totally Unknown Thing B" not in out
+
+
+def test_main_reports_unresolved_source_versions_one_per_line(cdb, repo, monkeypatch, capsys):
+    """Multiple components whose source (baseline) version can't be
+    verified must each get their own line, not be crammed onto one
+    comma-joined line — the header states the count, one name per line
+    follows."""
+    write(repo.parents[1] / "Chart.yaml", yaml.safe_dump({
+        "dependencies": [
+            {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257", "repository": "@zac"},
+            {"name": "openzaak", "version": "1.14.2", "repository": "@openzaak"},
+        ],
+    }))
+    write(repo.parents[1] / "values.yaml", yaml.safe_dump({
+        "zac": {"image": {"tag": "5.1.0@sha256:aaaa"}},
+        "openzaak": {"image": {"tag": "1.29.3@sha256:bbbb"}},
+    }))
+    write(repo / "4.8.2-to-4.9.0-upgrade.md",
+          "# Upgrade guide: PodiumD 4.8.2 → 4.9.0\n\n"
+          "## Component versions (4.9.0 vs 4.8.2)\n\n"
+          "| Component | App version | Helm chart | Notes |\n"
+          "| --- | --- | --- | --- |\n"
+          "| ZAC (Zaakafhandelcomponent) | 5.0.1 → 5.1.0 | 1.0.251 → 1.0.257 | - |\n"
+          "| Open Zaak | 1.27.4 → 1.29.3 | 1.14.2 (unchanged) | - |\n")
+    set_argv_and_dir(cdb, monkeypatch, repo, "4.8.2")
+
+    cdb.main()
+
+    out = capsys.readouterr().out
+    assert "Could not verify source version for 2 component(s)" in out
+    assert "  ZAC (Zaakafhandelcomponent)" in out
+    assert "  Open Zaak" in out
+    assert "ZAC (Zaakafhandelcomponent), Open Zaak" not in out
+
+
+def test_main_reports_unresolved_image_entries_one_per_line(cdb, repo, monkeypatch, capsys):
+    images_dir = repo.parent / "images"
+    write(images_dir / "images-4.9.0.yaml",
+          '- name: totally-unknown-a\n  version: "1.0.0"\n'
+          '- name: totally-unknown-b\n  version: "1.0.0"\n')
+    set_argv_and_dir(cdb, monkeypatch, repo, "4.8.2")
+
+    cdb.main()
+
+    out = capsys.readouterr().out
+    assert "Could not verify source/target version for 2 entry(s)" in out
+    assert "  totally-unknown-a" in out
+    assert "  totally-unknown-b" in out
+    assert "totally-unknown-a, totally-unknown-b" not in out
