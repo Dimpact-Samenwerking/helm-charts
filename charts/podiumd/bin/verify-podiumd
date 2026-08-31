@@ -45,9 +45,9 @@ trip:
      wouldn't otherwise be caught until something actually reads it
   9. component versions in Chart.yaml + values.yaml match the matching
      docs/_UPGRADE_PATHS/*-to-<version>-upgrade.md and docs/images/images-<version>.yaml
-     (any component the doc lists, not a hardcoded set) — and, given a
-     baseline (--baseline, or release-baseline's content if that flag
-     isn't passed), every component that actually changed vs the baseline (chart version,
+     (any component the doc lists, not a hardcoded set) — and, given
+     release-baseline's content as the baseline (step 8, above — no
+     separate flag), every component that actually changed vs the baseline (chart version,
      app/image tag, added, or removed) has a row in that upgrade.md, a
      mention in the matching values-deltas.md, and — if its image tag
      changed — an entry in images-<version>.yaml, even if no doc mentions
@@ -176,12 +176,10 @@ module (UTF-8/BOM, duplicate-key scan, release-baseline, lint/render).
 
 Usage:
     verify-podiumd
-    verify-podiumd --baseline 4.8.5
-        # also check the doc's SOURCE (left-hand) versions for each changed
-        # component against the actual baseline release — resolved to the
-        # `podiumd-4.8.5` tag, falling back to the `feature/podiumd-4.8.5` /
-        # `origin/feature/podiumd-4.8.5` branch if the tag doesn't exist yet.
-        # Pass an explicit git ref instead of a bare version to use it as-is.
+        # if charts/podiumd/release-baseline exists, its content is also
+        # used to check the doc's SOURCE (left-hand) versions for each
+        # changed component against the actual baseline release — see
+        # step 9's docstring, above.
     verify-podiumd --skip=helm-lint,full-render
         # skip one or more steps entirely, comma-separated, no spaces
         # (shown as SKIP, never a failure) — useful to iterate faster on a
@@ -540,12 +538,6 @@ def main():
     parser = argparse.ArgumentParser(description="Verify the podiumd chart.",
                                      epilog=STEPS_HELP + REQUIRED_TOOLS_HELP,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--baseline", default=None,
-                        help="baseline release to also check the upgrade doc's SOURCE versions "
-                             "against — a bare version (e.g. 4.8.5) is resolved to the podiumd-4.8.5 "
-                             "tag, falling back to the feature/podiumd-4.8.5 branch; anything else is "
-                             "used as a literal git ref. Defaults to release-baseline's content, if "
-                             "that file exists and this flag isn't given")
     parser.add_argument("--detail-cve-check", action="store_true",
                         help="CVE scan: itemize CRITICAL/HIGH findings per affected package for "
                              "EVERY image bucket (own, partner-vendor, AND other-vendor), not just "
@@ -626,12 +618,7 @@ def main():
     run_step("Release baseline", "Checking release-baseline resolves to a real release",
              check_release_baseline, chart_dir)
 
-    baseline = args.baseline
-    if baseline is None:
-        baseline = read_release_baseline(chart_dir)
-        if baseline is not None:
-            print(f"Docs consistency: no --baseline given, using release-baseline's '{baseline}'")
-
+    baseline = read_release_baseline(chart_dir)
     run_step("Docs consistency", "Checking versions against upgrade docs",
              check_docs_consistency, chart_dir, baseline)
     run_step("Helm docs check", "Checking README.md against values.yaml (helm-docs)",
