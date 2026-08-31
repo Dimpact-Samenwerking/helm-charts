@@ -7,7 +7,11 @@ baseline, e.g. renaming "4.8.2-to-4.9.0-upgrade.md" to
 "4.8.3-to-4.9.0-upgrade.md", updating titles/headings and any sibling-doc
 cross-reference (any "<X>-to-<target>-*.md" mention, wherever it appears
 in the text — this chart supports exactly one upgrade path per target, so
-every such reference always means the current baseline), correcting the
+every such reference always means the current baseline). A doc already
+at the target baseline is checked for a stale sibling reference too
+(a scar from an earlier, incomplete rebase this doc's own baseline
+already moved past) even though nothing else about it changes. Also
+correcting the
 "Component versions" table and images-manifest entries against
 Chart.yaml/values.yaml, reordering that table's rows and the "## Changes"
 section's "### ..." blocks to match values.yaml's own top-level
@@ -367,7 +371,19 @@ def main():
 
         [(old_baseline, path)] = by_suffix[suffix]
         if old_baseline == new_baseline:
-            print(f"  {path.name}: already baseline {new_baseline} — unchanged")
+            # Already at the target baseline itself, but a sibling-doc
+            # reference can still be stale — a scar from an earlier,
+            # incomplete rebase this doc's own baseline already moved past
+            # (see update_sibling_doc_refs). Worth checking even on this
+            # no-rename path: nothing else below would ever touch this
+            # doc again once it's "unchanged".
+            text = path.read_text(encoding="utf-8")
+            text, refs_changed = update_sibling_doc_refs(text, target, new_baseline)
+            if refs_changed:
+                path.write_text(text, encoding="utf-8")
+                print(f"  {path.name}: already baseline {new_baseline} — fixed stale sibling doc reference(s)")
+            else:
+                print(f"  {path.name}: already baseline {new_baseline} — unchanged")
             continue
 
         new_name = f"{new_baseline}-to-{target}-{suffix}.md"
