@@ -18,6 +18,7 @@ import lib.image_version as image_version
 import lib.procutil as procutil
 import lib.registry as registry
 import lib.repo_access as repo_access
+import lib.repo_access_cache as repo_access_cache
 import lib.upgradedoc as upgradedoc
 
 
@@ -44,6 +45,11 @@ def libdependencies():
 @pytest.fixture(scope="session")
 def librepoaccess():
     return repo_access
+
+
+@pytest.fixture(scope="session")
+def librepoaccesscache():
+    return repo_access_cache
 
 
 @pytest.fixture(scope="session")

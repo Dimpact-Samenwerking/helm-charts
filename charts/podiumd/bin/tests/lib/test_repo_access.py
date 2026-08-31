@@ -2,7 +2,9 @@
 _check_registry_repo, check_repo_access. No network needed:
 urllib.request.urlopen and lib.registry.registry_tag_exists are
 monkeypatched wherever a live fetch would otherwise happen."""
+import json
 import urllib.error
+from datetime import datetime, timezone
 
 import yaml
 
@@ -377,3 +379,112 @@ def test_check_repo_access_denylist_failure_combines_with_unrelated_failure(libr
     assert ok is False
     assert "1/1 repo(s)/image(s) unreachable" in detail
     assert "1 repo(s)/image(s) may not be used (denylisted host)" in detail
+
+
+# --- check_repo_access caching (lib.repo_access_cache) ---
+
+def test_check_repo_access_second_run_uses_cache_not_network(librepoaccess, tmp_path, monkeypatch, capsys):
+    write_chart_yaml(tmp_path, [{"name": "openzaak", "version": "1.14.2", "repository": "@maykinmedia"}])
+    calls = []
+    monkeypatch.setattr(librepoaccess, "_check_http_repo", lambda url: (calls.append(url), (True, None))[1])
+
+    ok1, _ = librepoaccess.check_repo_access(tmp_path)
+    capsys.readouterr()
+    ok2, detail2 = librepoaccess.check_repo_access(tmp_path)
+
+    assert ok1 is True and ok2 is True
+    assert len(calls) == 1  # second run hit the cache, not _check_http_repo again
+    assert "1 repo(s)/image(s) reachable" in detail2
+    assert "(cached)" in capsys.readouterr().out
+
+
+def test_check_repo_access_failure_is_never_cached(librepoaccess, tmp_path, monkeypatch):
+    write_chart_yaml(tmp_path, [{"name": "openzaak", "version": "1.14.2", "repository": "@maykinmedia"}])
+    calls = []
+    monkeypatch.setattr(librepoaccess, "_check_http_repo", lambda url: (calls.append(url), (False, "HTTP 500"))[1])
+
+    ok1, _ = librepoaccess.check_repo_access(tmp_path)
+    ok2, _ = librepoaccess.check_repo_access(tmp_path)
+
+    assert ok1 is False and ok2 is False
+    assert len(calls) == 2  # never cached — retried fresh both times
+
+
+def test_check_repo_access_stale_cache_entry_is_not_used(librepoaccess, librepoaccesscache, tmp_path, monkeypatch):
+    write_chart_yaml(tmp_path, [{"name": "openzaak", "version": "1.14.2", "repository": "@maykinmedia"}])
+    calls = []
+    monkeypatch.setattr(librepoaccess, "_check_http_repo", lambda url: (calls.append(url), (True, None))[1])
+    librepoaccess.check_repo_access(tmp_path)
+    assert len(calls) == 1
+
+    # simulate the cached entry being older than the TTL
+    cache_file = librepoaccesscache.cache_path(tmp_path)
+    stale = {"http:https://maykinmedia.github.io/charts/": {"checked_at": "2000-01-01T00:00:00+00:00"}}
+    cache_file.write_text(json.dumps(stale), encoding="utf-8")
+
+    ok, _ = librepoaccess.check_repo_access(tmp_path)
+    assert ok is True
+    assert len(calls) == 2  # stale entry ignored, checked fresh again
+
+
+def test_check_repo_access_cache_is_per_entry_not_all_or_nothing(librepoaccess, tmp_path, monkeypatch):
+    """A fresh cache hit for one entry must not suppress a real check for a
+    DIFFERENT, not-yet-cached entry in the same run."""
+    write_chart_yaml(tmp_path, [
+        {"name": "openzaak", "version": "1.14.2", "repository": "@maykinmedia"},
+        {"name": "kiss-chart", "version": "3.0.0", "repository": "oci://ghcr.io/klantinteractie-servicesysteem"},
+    ])
+    http_calls, registry_calls = [], []
+    monkeypatch.setattr(librepoaccess, "_check_http_repo", lambda url: (http_calls.append(url), (True, None))[1])
+    monkeypatch.setattr(librepoaccess, "_check_registry_repo",
+                         lambda *a: (registry_calls.append(a), (True, None))[1])
+    librepoaccess.check_repo_access(tmp_path)
+    assert len(http_calls) == 1 and len(registry_calls) == 1
+
+    write_chart_yaml(tmp_path, [
+        {"name": "openzaak", "version": "1.14.2", "repository": "@maykinmedia"},
+        {"name": "kiss-chart", "version": "3.0.1", "repository": "oci://ghcr.io/klantinteractie-servicesysteem"},
+    ])
+    librepoaccess.check_repo_access(tmp_path)
+    assert len(http_calls) == 1  # cached, no second network call
+    assert len(registry_calls) == 2  # different version -> different cache key -> fresh check
+
+
+# --- lib.repo_access_cache (pure helpers) ---
+
+def test_cache_key_http_and_registry_shapes_differ(librepoaccesscache):
+    assert librepoaccesscache.cache_key("http", "https://example.invalid/") == "http:https://example.invalid/"
+    assert (librepoaccesscache.cache_key("registry", ("ghcr.io", "org/repo", "1.0.0"))
+            == "registry:ghcr.io/org/repo:1.0.0")
+
+
+def test_cache_entry_is_fresh_true_for_recent_timestamp(librepoaccesscache):
+    entry = {"checked_at": datetime.now(timezone.utc).isoformat()}
+    assert librepoaccesscache.cache_entry_is_fresh(entry) is True
+
+
+def test_cache_entry_is_fresh_false_for_old_timestamp(librepoaccesscache):
+    entry = {"checked_at": "2000-01-01T00:00:00+00:00"}
+    assert librepoaccesscache.cache_entry_is_fresh(entry) is False
+
+
+def test_cache_entry_is_fresh_false_for_malformed_entry(librepoaccesscache):
+    assert librepoaccesscache.cache_entry_is_fresh({}) is False
+    assert librepoaccesscache.cache_entry_is_fresh({"checked_at": "not-a-date"}) is False
+
+
+def test_load_cache_missing_file_returns_empty_dict(librepoaccesscache, tmp_path):
+    assert librepoaccesscache.load_cache(tmp_path) == {}
+
+
+def test_load_cache_corrupt_file_returns_empty_dict(librepoaccesscache, tmp_path):
+    path = librepoaccesscache.cache_path(tmp_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("not json", encoding="utf-8")
+    assert librepoaccesscache.load_cache(tmp_path) == {}
+
+
+def test_save_and_load_cache_round_trips(librepoaccesscache, tmp_path):
+    data = {"http:https://example.invalid/": {"checked_at": "2026-01-01T00:00:00+00:00"}}
+    librepoaccesscache.save_cache(tmp_path, data)
+    assert librepoaccesscache.load_cache(tmp_path) == data

@@ -6,16 +6,25 @@ digests" (which does its own live registry check) only runs AFTER
 Dependencies — so an unreachable or unauthorized repo/registry is much
 cheaper, and much earlier, to catch here: one lightweight request per
 unique repo/image, bounded by TIMEOUT_SECONDS, before either of those
-steps does any real (and much more expensive) work."""
+steps does any real (and much more expensive) work.
+
+A successful check is cached for a short window (see
+lib.repo_access_cache) — the same set of repos/images gets re-verified
+on every verify-podiumd re-run, and enough of those in a short dev-loop
+window is exactly what exhausts Docker Hub's anonymous pull-rate limit
+("Too Many Requests"). A failure is never cached — see that module's own
+docstring for why."""
 import re
 import urllib.error
 import urllib.parse
 import urllib.request
+from datetime import datetime, timezone
 
 from lib.chart import load_yaml
 from lib.image_digests import scan_digest_pins
 from lib.registry import parse_repo, registry_tag_exists
 from lib.render_scope import resolve_dependency_repo
+from lib.repo_access_cache import cache_entry_is_fresh, cache_key, load_cache, save_cache
 
 TIMEOUT_SECONDS = 10
 
@@ -160,7 +169,11 @@ def check_repo_access(chart_dir):
     not reference this registry directly at all", a stronger and
     unconditional claim unrelated to lib.registry.UNVERIFIABLE_HOSTS
     (which excuses a real reachability problem in "Image digests" rather
-    than rejecting the reference itself)."""
+    than rejecting the reference itself).
+
+    A successful entry is cached for a short window and printed as
+    "(cached)" on a hit — see lib.repo_access_cache for the TTL and why a
+    failure is deliberately never cached."""
     chart_deps = dependency_repos(chart_dir)
     values_path = chart_dir / "values.yaml"
     img_targets = image_repos(values_path) if values_path.is_file() else []
@@ -193,6 +206,9 @@ def check_repo_access(chart_dir):
     print(f"Checking access to {len(entries)} unique repo(s)/image(s) "
           f"for {total_refs} network-resolved reference(s)...")
 
+    cache = load_cache(chart_dir)
+    cache_dirty = False
+
     failures = []
     denied = []
     for kind, description, test_kind, target in entries:
@@ -204,11 +220,24 @@ def check_repo_access(chart_dir):
                   f"DENYLISTED_HOST_SUFFIXES) — an environment-specific mirror override belongs in "
                   f"that environment's own podiumd.yml, not here")
             continue
+
+        key = cache_key(test_kind, target)
+        entry = cache.get(key)
+        if entry and cache_entry_is_fresh(entry):
+            print(f"  [OK] {kind:5}  {description}  (cached)")
+            continue
+
         ok, error = _check_http_repo(target) if test_kind == "http" else _check_registry_repo(*target)
         print(f"  [{'OK' if ok else 'FAIL'}] {kind:5}  {description}"
               + (f"  — {error}" if error else ""))
         if not ok:
             failures.append((kind, description, error))
+        else:
+            cache[key] = {"checked_at": datetime.now(timezone.utc).isoformat()}
+            cache_dirty = True
+
+    if cache_dirty:
+        save_cache(chart_dir, cache)
 
     checked = len(entries) - len(denied)
     if failures or denied:
