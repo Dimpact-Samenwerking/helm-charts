@@ -1,0 +1,131 @@
+#!/usr/bin/env python3
+"""
+Auto-fixes whatever pymarkdown's own `fix` mode can safely resolve across
+every *.md file under charts/podiumd/ (same file selection as
+lib.markdown_check.find_markdown_files — a vendored sub-chart's docs and
+the helm-docs-generated README.md excluded) — the fixer for
+verify-podiumd's "Markdown lint" step, which only ever reports findings
+(report-only by design, see lib.markdown_check).
+
+MD031 (blanks-around-fences) is disabled here specifically because its
+FIX action (not its detection — a plain `pymarkdown scan`, and
+verify-podiumd's own check, still report it normally) has a confirmed
+crash bug on at least one real doc in this repo ("BadPluginError ...
+MD031 had a critical failure during the 'next_token' action"),
+reproduced live against docs/_UPGRADE_PATHS/4.6.6-to-4.7.3-upgrade.md:374
+(a closing code fence). Disabling MD031's fix pass avoids the crash
+entirely (confirmed across the whole docs tree) at the cost of leaving
+that one rule's own findings unfixed here.
+
+Only ever resolves a genuine subset of findings (confirmed live: MD004,
+MD005, MD009, MD012, MD029, MD037, MD038, MD047 fully, MD022 partially)
+— MD024 (duplicate headings), MD031, MD032, MD033, MD036, MD040 (missing
+fence language), MD041, MD025 and others need human judgment (which
+heading to rename, what fence language to declare, ...) and are
+correctly left untouched; verify-podiumd's markdown check still reports
+whatever remains.
+
+Usage:
+    fix-markdown             # fix every *.md file under charts/podiumd/
+    fix-markdown --dry-run   # report which files would change, no write
+"""
+import shutil
+import sys
+import tempfile
+from pathlib import Path
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
+
+from lib.markdown_check import MARKDOWN_DISABLED_RULES, find_markdown_files, find_pymarkdown
+from lib.procutil import run
+
+CHART_DIR = SCRIPT_DIR.parents[0]
+
+# md031's FIX action (not its detection) has a confirmed crash bug on at
+# least one real doc here — see module docstring. Detection stays on
+# (verify-podiumd's own check still reports it); only the fix pass skips it.
+MARKDOWN_FIX_DISABLED_RULES = MARKDOWN_DISABLED_RULES + ",md031"
+
+
+def run_fix(pymarkdown, files):
+    """Runs `pymarkdown fix` against files (writes in place) and returns
+    the list of paths pymarkdown itself reported as "Fixed: <path>"."""
+    result = run([pymarkdown, "-d", MARKDOWN_FIX_DISABLED_RULES, "fix", *[str(f) for f in files]],
+                 capture_output=True, text=True)
+    output = result.stdout + result.stderr
+    fixed = [Path(line[len("Fixed: "):].strip()) for line in output.splitlines()
+             if line.startswith("Fixed: ")]
+    return fixed
+
+
+def dry_run_fix(pymarkdown, files, chart_dir):
+    """Copies every file into a throwaway tmpdir (preserving its path
+    relative to chart_dir), runs the real fix there, and reports which
+    ones would change — the real files are never touched."""
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_dir = Path(tmp)
+        tmp_files = []
+        for f in files:
+            rel = f.relative_to(chart_dir)
+            tmp_path = tmp_dir / rel
+            tmp_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(f, tmp_path)
+            tmp_files.append(tmp_path)
+
+        run_fix(pymarkdown, tmp_files)
+
+        changed = []
+        for f in files:
+            rel = f.relative_to(chart_dir)
+            if f.read_bytes() != (tmp_dir / rel).read_bytes():
+                changed.append(rel)
+        return changed
+
+
+def main():
+    if "-h" in sys.argv[1:] or "--help" in sys.argv[1:]:
+        print(__doc__)
+        sys.exit(0)
+    dry_run = "--dry-run" in sys.argv[1:]
+
+    pymarkdown = find_pymarkdown(CHART_DIR)
+    if pymarkdown is None:
+        print("pymarkdown is not installed (see README-release-process.md#setup)")
+        sys.exit(1)
+
+    files = find_markdown_files(CHART_DIR)
+    if not files:
+        print("OK: no markdown files found")
+        sys.exit(0)
+
+    if dry_run:
+        changed = dry_run_fix(pymarkdown, files, CHART_DIR)
+        if not changed:
+            print("OK: nothing pymarkdown fix could resolve (dry-run)")
+            sys.exit(0)
+        print(f"{len(changed)} file(s) would be fixed (dry-run, not writing):")
+        for rel in sorted(changed):
+            print(f"  {rel}")
+        sys.exit(1)
+
+    fixed = run_fix(pymarkdown, files)
+    if not fixed:
+        print("OK: nothing pymarkdown fix could resolve")
+        sys.exit(0)
+
+    print(f"Fixed {len(fixed)} file(s):")
+    for path in sorted(fixed):
+        try:
+            rel = path.relative_to(CHART_DIR)
+        except ValueError:
+            rel = path
+        print(f"  {rel}")
+    print("\nSome findings (MD024, MD031, MD032, MD033, MD036, MD040, MD041, MD025, "
+          "...) need human judgment and are left for verify-podiumd's markdown check "
+          "to keep reporting.")
+    sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()
