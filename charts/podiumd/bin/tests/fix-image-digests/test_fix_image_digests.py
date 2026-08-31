@@ -3,6 +3,7 @@ pure logic plus a mocked-registry integration test. No network access
 needed: registry_tag_exists is monkeypatched wherever a live fetch would
 otherwise happen."""
 import io
+import subprocess
 import tarfile
 import urllib.error
 
@@ -316,6 +317,74 @@ def test_main_writes_new_digest_preserving_everything_else(sid, tmp_path, monkey
     updated = values_path.read_text(encoding="utf-8")
     assert old_digest not in updated
     assert f'tag: "1.0.0@sha256:{new_digest}"' in updated
+
+
+def test_main_invokes_fix_helm_doc_after_a_real_write(sid, tmp_path, monkeypatch, capsys):
+    values_path = tmp_path / "values.yaml"
+    write_values(values_path, f'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:{"a" * 64}"\n')
+    monkeypatch.setattr(sid, "VALUES_PATH", values_path)
+    monkeypatch.setattr(sid, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{'b' * 64}"))
+    monkeypatch.setattr(sid, "is_sliding_tag", lambda *a, **k: False)
+    monkeypatch.setattr("sys.argv", ["fix-image-digests"])
+    calls = []
+    monkeypatch.setattr(sid, "run_script",
+                         lambda cmd, *a, **k: (calls.append(cmd), subprocess.CompletedProcess(cmd, 0))[1])
+
+    with pytest.raises(SystemExit) as exc_info:
+        sid.main()
+
+    assert exc_info.value.code == 0
+    assert len(calls) == 1
+    assert calls[0] == [sid.sys.executable, str(sid.FIX_HELM_DOC_SCRIPT)]
+    assert "fix-helm-doc" in capsys.readouterr().out
+
+
+def test_main_dry_run_does_not_invoke_fix_helm_doc(sid, tmp_path, monkeypatch):
+    values_path = tmp_path / "values.yaml"
+    write_values(values_path, f'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:{"a" * 64}"\n')
+    monkeypatch.setattr(sid, "VALUES_PATH", values_path)
+    monkeypatch.setattr(sid, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{'b' * 64}"))
+    monkeypatch.setattr(sid, "is_sliding_tag", lambda *a, **k: False)
+    monkeypatch.setattr("sys.argv", ["fix-image-digests", "--dry-run"])
+    calls = []
+    monkeypatch.setattr(sid, "run_script", lambda cmd, *a, **k: calls.append(cmd))
+
+    with pytest.raises(SystemExit):
+        sid.main()
+
+    assert calls == []
+
+
+def test_main_nothing_stale_does_not_invoke_fix_helm_doc(sid, tmp_path, monkeypatch):
+    values_path = tmp_path / "values.yaml"
+    digest = "a" * 64
+    write_values(values_path, f'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:{digest}"\n')
+    monkeypatch.setattr(sid, "VALUES_PATH", values_path)
+    monkeypatch.setattr(sid, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{digest}"))
+    monkeypatch.setattr(sid, "is_sliding_tag", lambda *a, **k: False)
+    monkeypatch.setattr("sys.argv", ["fix-image-digests"])
+    calls = []
+    monkeypatch.setattr(sid, "run_script", lambda cmd, *a, **k: calls.append(cmd))
+
+    with pytest.raises(SystemExit):
+        sid.main()
+
+    assert calls == []
+
+
+def test_main_propagates_fix_helm_doc_failure_exit_code(sid, tmp_path, monkeypatch):
+    values_path = tmp_path / "values.yaml"
+    write_values(values_path, f'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:{"a" * 64}"\n')
+    monkeypatch.setattr(sid, "VALUES_PATH", values_path)
+    monkeypatch.setattr(sid, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{'b' * 64}"))
+    monkeypatch.setattr(sid, "is_sliding_tag", lambda *a, **k: False)
+    monkeypatch.setattr("sys.argv", ["fix-image-digests"])
+    monkeypatch.setattr(sid, "run_script", lambda cmd, *a, **k: subprocess.CompletedProcess(cmd, 1))
+
+    with pytest.raises(SystemExit) as exc_info:
+        sid.main()
+
+    assert exc_info.value.code == 1
 
 
 def test_main_stale_digest_report_names_the_file(sid, tmp_path, monkeypatch, capsys):
