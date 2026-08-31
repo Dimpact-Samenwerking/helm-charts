@@ -10,9 +10,11 @@ def pymarkdown_result(stdout, returncode=1, stderr=""):
     return SimpleNamespace(returncode=returncode, stdout=stdout, stderr=stderr)
 
 
-def make_chart_dir(tmp_path, files=None):
+def make_chart_dir(tmp_path, files=None, release_baseline=None):
     tmp_path.mkdir(parents=True, exist_ok=True)
     (tmp_path / "Chart.yaml").write_text("name: podiumd\nversion: 4.9.0\n", encoding="utf-8")
+    if release_baseline is not None:
+        (tmp_path / "release-baseline").write_text(release_baseline, encoding="utf-8")
     for rel_path, content in (files or {}).items():
         p = tmp_path / rel_path
         p.parent.mkdir(parents=True, exist_ok=True)
@@ -38,6 +40,69 @@ def test_find_markdown_files_excludes_generated_readme(libmarkdowncheck, tmp_pat
     })
     found = libmarkdowncheck.find_markdown_files(chart_dir)
     assert found == [chart_dir / "docs" / "foo.md"]
+
+
+def test_find_markdown_files_excludes_upgrade_path_docs_for_other_releases(libmarkdowncheck, tmp_path):
+    """Chart.yaml's version is 4.9.0 (see make_chart_dir) — a doc targeting
+    some other release is closed out and frozen, nobody's ever touching
+    it again."""
+    chart_dir = make_chart_dir(tmp_path, files={
+        "docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md": "# current\n",
+        "docs/_UPGRADE_PATHS/4.7.1-to-4.7.2-upgrade.md": "# old\n",
+        "docs/_UPGRADE_PATHS/4.6.6-to-4.7.3-values-deltas.md": "# older still\n",
+    })
+    found = libmarkdowncheck.find_markdown_files(chart_dir)
+    assert found == [chart_dir / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"]
+
+
+def test_find_markdown_files_excludes_target_match_with_wrong_baseline(libmarkdowncheck, tmp_path):
+    """release-baseline says '4.8.5' — a doc targeting 4.9.0 but still
+    naming some OTHER baseline is exactly what fix-doc-baseline would
+    itself rename right now; it isn't "the current release's own" doc
+    yet, so it stays out of scope until that rename happens."""
+    chart_dir = make_chart_dir(tmp_path, release_baseline="4.8.5", files={
+        "docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md": "# correct baseline\n",
+        "docs/_UPGRADE_PATHS/4.7.9-to-4.9.0-values-deltas.md": "# stale baseline, same target\n",
+    })
+    found = libmarkdowncheck.find_markdown_files(chart_dir)
+    assert found == [chart_dir / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"]
+
+
+def test_find_markdown_files_target_only_match_when_release_baseline_missing(libmarkdowncheck, tmp_path):
+    """No release-baseline file at all (older releases and fresh checkouts
+    predate it, see lib.chart.release_baseline) — falls back to matching
+    by target only, same as before baseline-matching existed."""
+    chart_dir = make_chart_dir(tmp_path, files={
+        "docs/_UPGRADE_PATHS/4.7.9-to-4.9.0-upgrade.md": "# no baseline file to compare against\n",
+    })
+    found = libmarkdowncheck.find_markdown_files(chart_dir)
+    assert found == [chart_dir / "docs" / "_UPGRADE_PATHS" / "4.7.9-to-4.9.0-upgrade.md"]
+
+
+def test_find_markdown_files_includes_current_release_upgrade_path_docs_of_any_suffix(libmarkdowncheck, tmp_path):
+    """Suffix is intentionally permissive (not enumerated) — a non-standard
+    doc type (operators-crds, say) for the CURRENT release must still be
+    in scope."""
+    chart_dir = make_chart_dir(tmp_path, files={
+        "docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-operators-crds.md": "# ops\n",
+    })
+    found = libmarkdowncheck.find_markdown_files(chart_dir)
+    assert found == [chart_dir / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-operators-crds.md"]
+
+
+def test_find_markdown_files_generic_docs_stay_in_scope_regardless_of_release(libmarkdowncheck, tmp_path):
+    """Only docs/_UPGRADE_PATHS/*.md is release-scoped — everything else
+    (docs/apps/, docs/architecture/, this chart's own bin/ docs, ...)
+    isn't tied to one release and always stays in scope."""
+    chart_dir = make_chart_dir(tmp_path, files={
+        "docs/apps/keycloak/keycloak-BASICS.md": "# keycloak\n",
+        "bin/README-release-process.md": "# release process\n",
+    })
+    found = libmarkdowncheck.find_markdown_files(chart_dir)
+    assert found == [
+        chart_dir / "bin" / "README-release-process.md",
+        chart_dir / "docs" / "apps" / "keycloak" / "keycloak-BASICS.md",
+    ]
 
 
 def test_find_pymarkdown_prefers_repo_root_venv(libmarkdowncheck, tmp_path, monkeypatch):
