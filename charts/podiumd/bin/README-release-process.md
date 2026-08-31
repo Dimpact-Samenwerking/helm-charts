@@ -101,14 +101,13 @@ This updates just a container image version in a release.
 
 ### Fix and debug tools
 - `fix-doc-consistency`: rebases doc filenames and components and images in them onto a different baseline (normally run automatically by `change-podiumd-baseline`)
-- `create-doc-version`: scaffolds any of the standard docs missing for the current target version (normally run automatically by `create-podiumd-version`)
-- `render-podiumd`: outputs a rendered chart, so that line-numbers in output of verify-podiumd can be matched
 - `fix-image-digests`: updates image digests for one specific image or all stale images
-- `fix-utf8-bom`: strip the utf8-bom of `charts/podiumd/values.yaml`
-- `fix-podiumd-readme`: re-generate `charts/podiumd/README.md` using `helm-doc`
-- `fix-node-selector`: insert the required `nodeSelector` into any own template missing one
-- `fix-vendored-tgz`: delete an extracted sub-chart directory shadowing its own pinned `.tgz`
 - `fix-markdown`: auto-fix whatever pymarkdown's own `fix` mode can safely resolve
+- `fix-node-selector`: insert the required `nodeSelector` into any own template missing one
+- `fix-podiumd-readme`: re-generate `charts/podiumd/README.md` using `helm-doc`
+- `fix-utf8-bom`: strip the utf8-bom of `charts/podiumd/values.yaml`
+- `fix-vendored-tgz`: delete an extracted sub-chart directory shadowing its own pinned `.tgz`
+- `render-podiumd`: outputs a rendered chart, so that line-numbers in output of verify-podiumd can be matched
 
 ### Check or finalize the release
 - per changes branch:
@@ -127,25 +126,25 @@ Notes:
 - tools support `--help`
 
 Tools:
-- `fix-doc-consistency`: given a new baseline, rebases doc filenames and components and images in them onto it (creates the standard docs fresh instead, for whichever were never scaffolded under any baseline at all)
 - `change-podiumd-baseline`: change the baseline recorded in `charts/podiumd/release-baseline` and rebase the docs onto it (runs `fix-doc-consistency`, then `fix-podiumd-readme`), given a baseline that must resolve to an existing `podiumd-<version>` tag or `feature/podiumd-<version>` branch
 - `create-doc-version`: create the standard docs for the current target version, for whichever don't already exist — refuses if docs already exist under a different baseline (use `fix-doc-consistency` for that instead)
 - `create-podiumd-version`: uses version in `charts/podiumd/Chart.yaml` as baseline release, update version in `Chart.yaml`, record the baseline in `charts/podiumd/release-baseline` and create upgrade docs (runs `create-doc-version`)
 - `export-confluence-release-table`: fetch release data from confluence and store it in `charts/podiumd/release-table.csv`
+- `fix-doc-consistency`: given a new baseline, rebases doc filenames and components and images in them onto it (creates the standard docs fresh instead, for whichever were never scaffolded under any baseline at all)
+- `fix-image-digests`: updates image digests for one specific image or all stale images
+- `fix-markdown`: auto-fix whatever pymarkdown's own `fix` mode can safely resolve
+- `fix-node-selector`: insert the required `nodeSelector` into any own template missing one
+- `fix-podiumd-readme`: re-generate `charts/podiumd/README.md` using `helm-doc`
+- `fix-utf8-bom`: strip the utf8-bom of `charts/podiumd/values.yaml`
+- `fix-vendored-tgz`: delete an extracted sub-chart directory shadowing its own pinned `.tgz`
 - `list-helmchart-images`: list images in a helm chart, given chart name and version
 - `list-podiumd-images`: list images in `charts/podiumd`
 - `query-release-table`: query release data from `charts/podiumd/release-table.csv` by section, vendor, component
 - `render-podiumd`: outputs a rendered chart, so that line-numbers in output of verify-podiumd can be matched
-- `fix-image-digests`: updates image digests for one specific image or all stale images
-- `fix-markdown`: auto-fix whatever pymarkdown's own `fix` mode can safely resolve
-- `fix-node-selector`: insert the required `nodeSelector` into any own template missing one
-- `fix-vendored-tgz`: delete an extracted sub-chart directory shadowing its own pinned `.tgz`
 - `show-component-baseline-version`: get the Helm chart AND app image version(s) of a component, given the baseline version and the component name
 - `show-image-baseline-version`: get just the app image version(s) of a component, given the baseline version and the component name (same shape as `show-component-baseline-version`, minus the Helm chart version)
-- `fix-utf8-bom`: strip the utf8-bom of `charts/podiumd/values.yaml`
 - `update-component-version`: update the version of component, given component name, app-version and helm-version
 - `update-image-version`: update the version of image, given image name and version
-- `fix-podiumd-readme`: re-generate `charts/podiumd/README.md` using `helm-doc`
 - `verify-component-version`: verify that a component's helm-chart version AND app image version(s) exist, given component name, app-version and chart-version (same shape as `update-component-version`) — pre-flight check for that command
 - `verify-image-version`: verify that an image version exists for an already-pinned image, given image name and version (same shape as `update-image-version`) — pre-flight check for that command, no chart involved
 - `verify-podiumd`: verify podiumd's consistency, references, policies 
