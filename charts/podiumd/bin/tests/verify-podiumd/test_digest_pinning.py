@@ -26,10 +26,13 @@ def write_chart_yaml(chart_dir, deps):
     (chart_dir / "Chart.yaml").write_text(yaml.safe_dump({"dependencies": deps}), encoding="utf-8")
 
 
-def make_tgz(charts_dir, name, version, values):
-    """A minimal vendored <name>-<version>.tgz containing just
-    <name>/values.yaml — enough to exercise subchart_values without a
-    real `helm pull`."""
+def make_tgz(charts_dir, name, version, values, templates=None):
+    """A minimal vendored <name>-<version>.tgz containing <name>/values.yaml
+    and, if `templates` is given (a {filename: text} dict), <name>/templates/
+    <filename> for each entry — enough to exercise subchart_values and
+    subchart_template_text without a real `helm pull`. `templates=None`
+    (the default) omits templates/ entirely, matching a vendored .tgz whose
+    layout subchart_template_text can't make sense of."""
     charts_dir.mkdir(parents=True, exist_ok=True)
     tgz_path = charts_dir / f"{name}-{version}.tgz"
     data = yaml.safe_dump(values).encode("utf-8")
@@ -37,6 +40,11 @@ def make_tgz(charts_dir, name, version, values):
         info = tarfile.TarInfo(name=f"{name}/values.yaml")
         info.size = len(data)
         tar.addfile(info, io.BytesIO(data))
+        for filename, text in (templates or {}).items():
+            tpl_data = text.encode("utf-8")
+            tpl_info = tarfile.TarInfo(name=f"{name}/templates/{filename}")
+            tpl_info.size = len(tpl_data)
+            tar.addfile(tpl_info, io.BytesIO(tpl_data))
 
 
 def test_no_values_yaml_passes(vp, tmp_path):
@@ -366,3 +374,67 @@ def test_exempt_and_non_exempt_findings_mixed(vp, tmp_path, capsys):
     assert "zaakbrug.staging" not in out
     assert "openzaak.redis.image.tag" in out
     assert "1 more already reviewed and exempted" in out
+
+
+# --- subchart_template_text (structurally unreferenced keys) ---
+
+def test_unreferenced_subchart_key_is_dropped_when_templates_show_it_is_dead(vp, tmp_path, capsys):
+    """A vendored sub-chart's own top-level values key (e.g. pabc's "web"/
+    "poller") that no template in that same sub-chart ever reads is
+    structurally inert — reporting it as "unresolved" is just noise, since
+    no podiumd override there could ever change what gets rendered."""
+    write_chart_yaml(tmp_path, [make_dep("pabc", "1.1.1")])
+    make_tgz(tmp_path / "charts", "pabc", "1.1.1",
+              {"image": {"repository": "pabc/pabc-api", "tag": "1.1.1"},
+               "web": {"image": {"tag": "1.1.1"}}},
+              templates={"deployment.yaml": "image: {{ .Values.image.repository }}:{{ .Values.image.tag }}\n"})
+    write_values_yaml(tmp_path, f"""\
+pabc:
+  image:
+    repository: pabc/pabc-api
+    tag: "1.1.1@sha256:{DIGEST_A}"
+""")
+
+    ok, detail = vp.check_subchart_image_visibility(tmp_path)
+
+    assert ok is True
+    assert detail == "0 unresolved"
+    out = capsys.readouterr().out
+    assert "web" not in out
+
+
+def test_referenced_subchart_key_is_still_reported_even_with_templates_present(vp, tmp_path, capsys):
+    """The flip side of the above: a key a template DOES read must still be
+    reported as unresolved — the filter only drops keys with zero textual
+    reference anywhere in templates/, not everything just because
+    templates/ happens to be readable."""
+    write_chart_yaml(tmp_path, [make_dep("openzaak", "1.14.2")])
+    make_tgz(tmp_path / "charts", "openzaak", "1.14.2",
+              {"redis": {"image": {"repository": "redis", "tag": "8.0"}}},
+              templates={"deployment.yaml": "image: {{ .Values.redis.image.repository }}\n"})
+    write_values_yaml(tmp_path, "{}\n")
+
+    ok, detail = vp.check_subchart_image_visibility(tmp_path)
+
+    assert ok is True
+    assert detail == "1 unresolved (1 floating tag(s), 0 exempt) — report only"
+    out = capsys.readouterr().out
+    assert "openzaak.redis.image.tag" in out
+
+
+def test_unreferenced_key_without_a_templates_dir_at_all_is_still_reported(vp, tmp_path, capsys):
+    """A vendored .tgz with no templates/ directory at all (the shape
+    every other test's make_tgz call already uses) is "can't tell", not
+    "definitely unreferenced" — must NOT be filtered out just because the
+    haystack subchart_template_text would see is empty."""
+    write_chart_yaml(tmp_path, [make_dep("pabc", "1.1.1")])
+    make_tgz(tmp_path / "charts", "pabc", "1.1.1",
+              {"web": {"image": {"tag": "1.1.1"}}})
+    write_values_yaml(tmp_path, "{}\n")
+
+    ok, detail = vp.check_subchart_image_visibility(tmp_path)
+
+    assert ok is True
+    assert detail == "1 unresolved (1 floating tag(s), 0 exempt) — report only"
+    out = capsys.readouterr().out
+    assert "pabc.web.image.tag" in out

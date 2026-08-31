@@ -11,10 +11,12 @@ import pytest
 import yaml
 
 
-def make_tgz(charts_dir, name, version, values):
-    """A minimal vendored <name>-<version>.tgz containing just
-    <name>/values.yaml — enough to exercise subchart_values/
-    subchart_default_repository without a real `helm pull`."""
+def make_tgz(charts_dir, name, version, values, templates=None):
+    """A minimal vendored <name>-<version>.tgz containing <name>/values.yaml
+    and, if `templates` is given (a {filename: text} dict), <name>/templates/
+    <filename> for each entry — enough to exercise subchart_values/
+    subchart_default_repository/subchart_template_text without a real
+    `helm pull`."""
     charts_dir.mkdir(parents=True, exist_ok=True)
     tgz_path = charts_dir / f"{name}-{version}.tgz"
     data = yaml.safe_dump(values).encode("utf-8")
@@ -22,6 +24,11 @@ def make_tgz(charts_dir, name, version, values):
         info = tarfile.TarInfo(name=f"{name}/values.yaml")
         info.size = len(data)
         tar.addfile(info, io.BytesIO(data))
+        for filename, text in (templates or {}).items():
+            tpl_data = text.encode("utf-8")
+            tpl_info = tarfile.TarInfo(name=f"{name}/templates/{filename}")
+            tpl_info.size = len(tpl_data)
+            tar.addfile(tpl_info, io.BytesIO(tpl_data))
     return tgz_path
 
 
@@ -512,6 +519,35 @@ def test_subchart_values_missing_member_returns_none(libchart, tmp_path):
         pass  # empty archive, no values.yaml member
     dep = {"name": "openzaak", "version": "1.14.2"}
     assert libchart.subchart_values(tmp_path, dep) is None
+
+
+# --- subchart_template_text ---
+
+def test_subchart_template_text_concatenates_all_template_files(libchart, tmp_path):
+    make_tgz(tmp_path / "charts", "pabc", "1.1.1", {"image": {"repository": "pabc/pabc-api"}},
+             templates={
+                 "deployment.yaml": "image: {{ .Values.image.repository }}\n",
+                 "service.yaml": "kind: Service\n",
+             })
+    dep = {"name": "pabc", "version": "1.1.1"}
+    text = libchart.subchart_template_text(tmp_path, dep)
+    assert "{{ .Values.image.repository }}" in text
+    assert "kind: Service" in text
+
+
+def test_subchart_template_text_missing_tgz_returns_none(libchart, tmp_path):
+    dep = {"name": "pabc", "version": "1.1.1"}
+    assert libchart.subchart_template_text(tmp_path, dep) is None
+
+
+def test_subchart_template_text_no_templates_dir_returns_none(libchart, tmp_path):
+    """A .tgz with only values.yaml (no templates/ at all — the shape
+    make_tgz produces when `templates` is omitted) is "can't tell", not
+    an empty-but-valid haystack — callers must be able to distinguish the
+    two, so this returns None rather than ""."""
+    make_tgz(tmp_path / "charts", "pabc", "1.1.1", {"image": {"repository": "pabc/pabc-api"}})
+    dep = {"name": "pabc", "version": "1.1.1"}
+    assert libchart.subchart_template_text(tmp_path, dep) is None
 
 
 # --- subchart_default_repository ---
