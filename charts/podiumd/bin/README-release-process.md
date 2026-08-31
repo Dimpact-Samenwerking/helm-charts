@@ -26,7 +26,7 @@
 - `kube-score` — kube-score check
 - `docker` — CVE scan (optional — missing docker just reports the scan as skipped, never blocks a run)
 - `az` — optional, Dependencies only (tells an Azure auth problem apart from a network blip — missing/unused `az` just falls back to plain retry-with-backoff)
-- `python3-venv` (Debian only — see below) — to create the `.venv` these scripts' own Python tools (`ruff`, `pymarkdown` — the full list is `requirements.txt`, not repeated here) live in, since both Debian's system Python and macOS's Homebrew Python refuse a bare `pip install` ("externally managed environment", PEP 668)
+- `python3-venv` (Debian only — see below) — to create the `.venv` these scripts' own Python tools (`ruff`, `pymarkdown` — the full list is this same directory's `requirements.txt`, not repeated here) live in, since both Debian's system Python and macOS's Homebrew Python refuse a bare `pip install` ("externally managed environment", PEP 668)
 
 ### Debian setup
 `helm`/`helm-docs`/`kubeconform`/`kube-score` have no Debian package — installed straight from their own GitHub releases instead:
@@ -49,7 +49,7 @@ sudo install -m 0755 /tmp/kube-score /usr/local/bin/kube-score
 
 # Python tools (ruff, pymarkdown), from the repo root
 python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
+.venv/bin/pip install -r charts/podiumd/bin/requirements.txt
 ```
 
 ### macOS setup
@@ -61,7 +61,7 @@ brew install --cask docker   # or: brew install colima docker docker-compose doc
 # Python tools (ruff, pymarkdown), from the repo root — python3-venv isn't
 # a separate package here, venv is already part of Python's standard library
 python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
+.venv/bin/pip install -r charts/podiumd/bin/requirements.txt
 ```
 
 `.venv/` is gitignored — safe to delete and recreate any time with the two commands above.
