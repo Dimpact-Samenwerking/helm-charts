@@ -14,7 +14,6 @@ still dies on failure (same as before, just one level up); set-image-
 digests.py instead warns and carries on with whatever it could already
 resolve, since a failed re-vendor there means only its subchart-default
 fallback stays degraded, not that the whole run is meaningless."""
-import re
 import shutil
 import time
 
@@ -26,33 +25,6 @@ from lib.render_scope import REQUIRED_REPOS
 # before it's treated as a real failure.
 RETRY_ATTEMPTS = 3
 RETRY_BACKOFF_SECONDS = (5, 15, 45)
-
-AZURE_HOST_RE = re.compile(r"\b([a-z0-9-]+\.azurecr\.io)\b", re.IGNORECASE)
-
-
-def _find_azure_host(text):
-    match = AZURE_HOST_RE.search(text)
-    return match.group(1) if match else None
-
-
-def _azure_login_hint(azure_host):
-    """Checks `az account show` and returns a hint to append to the failure
-    message when the user isn't logged in to Azure, or None if they already
-    are (so the failure is something else — retrying is still worthwhile).
-    A `helm dependency update` failure against an ACR-hosted repo gives no
-    way to tell "not logged in" apart from "network blip" from its own
-    error output alone, and retrying an auth failure only wastes time."""
-    try:
-        result = run(["az", "account", "show"], capture_output=True, text=True)
-    except FileNotFoundError:
-        return (f"Azure CLI (`az`) not found — install it, run "
-                f"`az login --use-device-code`, then "
-                f"`az acr login --name {azure_host.split('.')[0]}` before retrying.")
-    if result.returncode == 0:
-        return None
-    return (f"not logged in to Azure — run `az login --use-device-code` "
-            f"(a plain `az login` needs a local browser, which won't work here), "
-            f"then `az acr login --name {azure_host.split('.')[0]}`, then re-run this check.")
 
 
 def ensure_repos_configured():
@@ -75,9 +47,7 @@ def check_dependencies(chart_dir):
     update`) and confirms every Chart.yaml dependency actually resolved
     and bundled. Retries the update a few times on failure (Helm always
     re-downloads every dependency here — see module docstring — and that
-    fails intermittently on some repos), except when the failing repo is
-    Azure-hosted (*.azurecr.io) and the user isn't logged in to Azure:
-    retrying an auth failure never helps, so that's reported immediately."""
+    fails intermittently on some repos)."""
     shutil.rmtree(chart_dir / "charts", ignore_errors=True)
     (chart_dir / "Chart.lock").unlink(missing_ok=True)
 
@@ -89,12 +59,6 @@ def check_dependencies(chart_dir):
         print(output, end="" if output.endswith("\n") else "\n")
         if result.returncode == 0:
             break
-
-        azure_host = _find_azure_host(output)
-        if azure_host:
-            hint = _azure_login_hint(azure_host)
-            if hint:
-                return False, f"helm dependency update failed reaching {azure_host}: {hint}"
 
         if attempt < RETRY_ATTEMPTS:
             delay = RETRY_BACKOFF_SECONDS[attempt - 1]

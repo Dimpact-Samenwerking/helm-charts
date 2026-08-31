@@ -97,64 +97,6 @@ def test_check_dependencies_retries_then_succeeds(libdependencies, tmp_path, mon
     assert calls["update"] == 2
 
 
-def test_check_dependencies_azure_not_logged_in_skips_retry(libdependencies, tmp_path, monkeypatch):
-    calls = {"update": 0}
-
-    def sequenced_run(cmd, **kwargs):
-        if cmd[:2] == ["az", "account"]:
-            return SimpleNamespace(returncode=1, stdout="", stderr="Please run 'az login'")
-        calls["update"] += 1
-        return SimpleNamespace(
-            returncode=1, stdout="",
-            stderr="Error: could not download from https://acrprodmgmt.azurecr.io/helm/foo: 401 Unauthorized",
-        )
-
-    monkeypatch.setattr(libdependencies, "run", sequenced_run)
-    monkeypatch.setattr(libdependencies.time, "sleep", lambda *_: None)
-    ok, detail = libdependencies.check_dependencies(tmp_path)
-    assert ok is False
-    assert calls["update"] == 1  # no retries once an auth problem is confirmed
-    assert "acrprodmgmt.azurecr.io" in detail
-    assert "az login --use-device-code" in detail
-    assert "az acr login --name acrprodmgmt" in detail
-
-
-def test_check_dependencies_azure_logged_in_still_retries(libdependencies, tmp_path, monkeypatch):
-    calls = {"update": 0}
-
-    def sequenced_run(cmd, **kwargs):
-        if cmd[:2] == ["az", "account"]:
-            return SimpleNamespace(returncode=0, stdout="{}", stderr="")
-        calls["update"] += 1
-        return SimpleNamespace(
-            returncode=1, stdout="",
-            stderr="Error: could not download from https://acrprodmgmt.azurecr.io/helm/foo: timeout",
-        )
-
-    monkeypatch.setattr(libdependencies, "run", sequenced_run)
-    monkeypatch.setattr(libdependencies.time, "sleep", lambda *_: None)
-    ok, detail = libdependencies.check_dependencies(tmp_path)
-    assert ok is False
-    assert calls["update"] == 3  # already logged in, so a network blip still gets retried
-    assert "after 3 attempt" in detail
-
-
-def test_check_dependencies_azure_cli_missing(libdependencies, tmp_path, monkeypatch):
-    def sequenced_run(cmd, **kwargs):
-        if cmd[:2] == ["az", "account"]:
-            raise FileNotFoundError("az not found")
-        return SimpleNamespace(
-            returncode=1, stdout="",
-            stderr="Error: could not download from https://acrprodmgmt.azurecr.io/helm/foo",
-        )
-
-    monkeypatch.setattr(libdependencies, "run", sequenced_run)
-    monkeypatch.setattr(libdependencies.time, "sleep", lambda *_: None)
-    ok, detail = libdependencies.check_dependencies(tmp_path)
-    assert ok is False
-    assert "Azure CLI (`az`) not found" in detail
-
-
 def test_check_dependencies_count_mismatch(libdependencies, tmp_path, monkeypatch):
     (tmp_path / "charts").mkdir()
     # only one .tgz on disk but the dependency list reports two
