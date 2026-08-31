@@ -1,24 +1,28 @@
 #!/usr/bin/env python3
 """
-Show the Helm chart version and app image version(s) pinned for a podiumd
-component at a given baseline podiumd release — useful for finding out what
-a release actually shipped before writing an upgrade doc's "source" column,
-without checking out that release or digging through git history by hand.
-For just the image side (no Helm chart version), see show-image-
-baseline-version instead — same <baseline> <component> shape, and both
-scripts resolve the component's baseline state via the same
-lib.chart.component_state_at_ref.
+Show the app image version(s) pinned for a podiumd component at a given
+baseline podiumd release — useful for finding out what a release
+actually shipped before writing an upgrade doc's "source" column,
+without checking out that release or digging through git history by
+hand. Same <baseline> <component> shape as show-component-baseline-
+version, which also reports the component's Helm chart version — this
+one reports ONLY the image side (both resolve the component's baseline
+state via the same lib.chart.component_state_at_ref, which
+show-component-baseline-version delegates its own image lookup to as
+well) — matching the narrower scope update-image-version/
+verify-image-version already have relative to
+update-component-version/verify-component-version.
 
 Usage:
-    show-component-baseline-version [<baseline>] <component>
+    show-image-baseline-version [<baseline>] <component>
         # <baseline> defaults to release-baseline's content if omitted
         # (error if that file doesn't exist either)
 
 Examples:
-    show-component-baseline-version 4.8.5 zac
-    show-component-baseline-version 4.8.5 zgw-office-addin
-    show-component-baseline-version 4.8.5 openformulieren
-    show-component-baseline-version zac
+    show-image-baseline-version 4.8.5 zac
+    show-image-baseline-version 4.8.5 zgw-office-addin
+    show-image-baseline-version 4.8.5 openformulieren
+    show-image-baseline-version zac
         # same as the first example, but reads "4.8.5" from release-baseline
 
 <baseline> is a bare version (e.g. "4.8.5"), resolved to the podiumd-4.8.5
@@ -82,7 +86,6 @@ def main():
 
     print(f"Component: {component} (Chart.yaml dependency: {dep['name']}, values key: {values_key})")
     print(f"Baseline: {baseline} (resolved to {ref})")
-    print(f"Helm chart version: {dep['version']}")
     if app_versions:
         print("App version(s):")
         for label, tag in app_versions:
