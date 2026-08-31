@@ -92,17 +92,25 @@ def test_find_markdown_files_includes_current_release_upgrade_path_docs_of_any_s
 
 def test_find_markdown_files_generic_docs_stay_in_scope_regardless_of_release(libmarkdowncheck, tmp_path):
     """Only docs/_UPGRADE_PATHS/*.md is release-scoped — everything else
-    (docs/apps/, docs/architecture/, this chart's own bin/ docs, ...)
-    isn't tied to one release and always stays in scope."""
+    (docs/apps/, docs/architecture/, ...) isn't tied to one release and
+    always stays in scope."""
+    chart_dir = make_chart_dir(tmp_path, files={
+        "docs/apps/keycloak/keycloak-BASICS.md": "# keycloak\n",
+    })
+    found = libmarkdowncheck.find_markdown_files(chart_dir)
+    assert found == [chart_dir / "docs" / "apps" / "keycloak" / "keycloak-BASICS.md"]
+
+
+def test_find_markdown_files_excludes_bin_dir(libmarkdowncheck, tmp_path):
+    """chart_dir/bin/ is this chart's own release tooling, not part of the
+    chart release itself — out of scope regardless of anything else."""
     chart_dir = make_chart_dir(tmp_path, files={
         "docs/apps/keycloak/keycloak-BASICS.md": "# keycloak\n",
         "bin/README-release-process.md": "# release process\n",
+        "bin/tests/some-doc.md": "# nested bin doc\n",
     })
     found = libmarkdowncheck.find_markdown_files(chart_dir)
-    assert found == [
-        chart_dir / "bin" / "README-release-process.md",
-        chart_dir / "docs" / "apps" / "keycloak" / "keycloak-BASICS.md",
-    ]
+    assert found == [chart_dir / "docs" / "apps" / "keycloak" / "keycloak-BASICS.md"]
 
 
 def test_find_pymarkdown_prefers_repo_root_venv(libmarkdowncheck, tmp_path, monkeypatch):
