@@ -1,0 +1,137 @@
+#!/usr/bin/env python3
+"""
+Insert `nodeSelector: kubernetes.azure.com/mode: user` into every
+Deployment/StatefulSet/DaemonSet/Job/CronJob in this chart's OWN
+templates/*.yaml that's missing one — verify-podiumd's "Node selector"
+step only detects and reports this (per .github/copilot-instructions.md's
+AKS-Blue convention); this script is the fixer.
+
+Anchors the insertion on that document's own `containers:` key (always a
+required sibling of nodeSelector in the pod spec, regardless of how deep
+a particular kind nests it — e.g. CronJob's spec.jobTemplate.spec.
+template.spec.containers vs. Deployment's spec.template.spec.containers)
+rather than modeling each kind's full spec path, and matches its exact
+indentation — the same best-effort textual approach
+lib.node_selector_check's own detection already uses (Go template syntax
+breaks a real YAML parser, so this can't be a structural rewrite either).
+
+A document with no `containers:` key at all (so no reliable anchor to
+insert next to) is left untouched and reported for manual review instead
+of guessed at.
+
+Usage:
+    fix-node-selector             # insert nodeSelector where missing
+    fix-node-selector --dry-run   # report only, no write
+"""
+import re
+import sys
+from pathlib import Path
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
+
+from lib.node_selector_check import DOC_SPLIT_RE, NAME_RE, NODE_SELECTOR_RE, WORKLOAD_KIND_RE
+
+CHART_DIR = SCRIPT_DIR.parents[0]
+
+# Spaces only — matches this chart's own indentation convention (see real
+# templates); doesn't match "initContainers:" since "init" isn't part of
+# the indent group.
+CONTAINERS_RE = re.compile(r"^(?P<indent>[ ]*)containers:[ \t]*$", re.MULTILINE)
+
+NODE_SELECTOR_BLOCK = "{indent}nodeSelector:\n{indent}  kubernetes.azure.com/mode: user\n"
+
+
+def split_docs_with_offsets(text):
+    """Same split lib.node_selector_check.scan_missing_node_selector uses
+    (DOC_SPLIT_RE), but keeping each doc's own (start, end) char offset
+    into `text` so a fix can be spliced back at the right place."""
+    seps = list(DOC_SPLIT_RE.finditer(text))
+    starts = [0] + [m.end() for m in seps]
+    ends = [m.start() for m in seps] + [len(text)]
+    return [(text[s:e], s) for s, e in zip(starts, ends)]
+
+
+def find_fixes(text):
+    """Returns (fixes, unresolved) for one file's text:
+    - fixes: list of (insert_at, new_text, kind, name) — insert_at is an
+      absolute offset into `text`, new_text the nodeSelector block to
+      splice in there (right before the containers: line, matching its
+      own indentation).
+    - unresolved: list of (kind, name) for a workload doc missing
+      nodeSelector with no containers: key to anchor on."""
+    fixes = []
+    unresolved = []
+    for doc, offset in split_docs_with_offsets(text):
+        kind_m = WORKLOAD_KIND_RE.search(doc)
+        if not kind_m:
+            continue
+        if NODE_SELECTOR_RE.search(doc):
+            continue
+        name_m = NAME_RE.search(doc)
+        name = name_m.group(1).strip() if name_m else "(unknown name)"
+
+        containers_m = CONTAINERS_RE.search(doc)
+        if not containers_m:
+            unresolved.append((kind_m.group(1), name))
+            continue
+
+        indent = containers_m.group("indent")
+        insert_at = offset + containers_m.start()
+        fixes.append((insert_at, NODE_SELECTOR_BLOCK.format(indent=indent), kind_m.group(1), name))
+    return fixes, unresolved
+
+
+def apply_fixes(text, fixes):
+    """Splices every fix into text, in reverse offset order so an earlier
+    insertion's position isn't shifted by a later one applied first."""
+    for insert_at, new_text, _kind, _name in sorted(fixes, key=lambda f: f[0], reverse=True):
+        text = text[:insert_at] + new_text + text[insert_at:]
+    return text
+
+
+def main():
+    if "-h" in sys.argv[1:] or "--help" in sys.argv[1:]:
+        print(__doc__)
+        sys.exit(0)
+    dry_run = "--dry-run" in sys.argv[1:]
+
+    templates_dir = CHART_DIR / "templates"
+    total_fixed = 0
+    total_unresolved = []
+
+    for path in sorted(templates_dir.rglob("*.yaml")):
+        if not path.is_file():
+            continue
+        text = path.read_text(encoding="utf-8")
+        fixes, unresolved = find_fixes(text)
+        rel = path.relative_to(CHART_DIR)
+
+        for _insert_at, _new_text, kind, name in fixes:
+            action = "would insert" if dry_run else "inserted"
+            print(f"  {rel}  {kind}/{name}: {action} nodeSelector")
+        for kind, name in unresolved:
+            print(f"  {rel}  {kind}/{name}: no containers: key found — left as-is, review by hand")
+            total_unresolved.append((rel, kind, name))
+
+        if fixes and not dry_run:
+            path.write_text(apply_fixes(text, fixes), encoding="utf-8")
+
+        total_fixed += len(fixes)
+
+    if total_fixed == 0 and not total_unresolved:
+        print("OK: every Deployment/StatefulSet/DaemonSet/Job/CronJob in templates/*.yaml "
+              "already exposes a nodeSelector field")
+        sys.exit(0)
+
+    if dry_run:
+        print(f"\n{total_fixed} nodeSelector insertion(s) would be made (dry-run, not writing)")
+        sys.exit(1)
+
+    print(f"\nInserted nodeSelector into {total_fixed} template(s)"
+          + (f"; {len(total_unresolved)} left unresolved — review by hand" if total_unresolved else ""))
+    sys.exit(1 if total_unresolved else 0)
+
+
+if __name__ == "__main__":
+    main()
