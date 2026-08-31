@@ -3,13 +3,13 @@
 Regenerate charts/podiumd/README.md via the real `helm-docs` command — the
 fixer for verify-podiumd's "Helm docs" step (lib.helm_docs_check),
 which only ever reports drift via `helm-docs --dry-run` and never writes
-to the real file itself. Same convention as strip-utf8-bom/
-set-image-digests: a report-only check pairs with a separate, explicit
+to the real file itself. Same convention as fix-utf8-bom/
+fix-image-digests: a report-only check pairs with a separate, explicit
 fixer script.
 
 Usage:
-    update-podiumd-readme             # regenerate README.md in place
-    update-podiumd-readme --dry-run   # report only, no write — delegates
+    fix-podiumd-readme             # regenerate README.md in place
+    fix-podiumd-readme --dry-run   # report only, no write — delegates
                                           # to the exact same check
                                           # verify-podiumd runs
                                           # (lib.helm_docs_check.check_helm_docs)

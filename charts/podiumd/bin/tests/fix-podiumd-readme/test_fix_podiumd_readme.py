@@ -26,7 +26,7 @@ def test_main_help_flag_works_even_when_helm_docs_is_not_installed(upr, tmp_path
     asking what the script does."""
     monkeypatch.setattr(upr, "CHART_DIR", make_chart_dir(tmp_path))
     monkeypatch.setattr(upr.shutil, "which", lambda name: None)
-    monkeypatch.setattr(upr.sys, "argv", ["update-podiumd-readme", flag])
+    monkeypatch.setattr(upr.sys, "argv", ["fix-podiumd-readme", flag])
 
     with pytest.raises(SystemExit) as exc_info:
         upr.main()
@@ -37,7 +37,7 @@ def test_main_help_flag_works_even_when_helm_docs_is_not_installed(upr, tmp_path
 def test_helm_docs_not_installed_fails(upr, tmp_path, monkeypatch):
     monkeypatch.setattr(upr, "CHART_DIR", make_chart_dir(tmp_path))
     monkeypatch.setattr(upr.shutil, "which", lambda name: None)
-    monkeypatch.setattr(upr.sys, "argv", ["update-podiumd-readme"])
+    monkeypatch.setattr(upr.sys, "argv", ["fix-podiumd-readme"])
 
     with pytest.raises(SystemExit) as exc_info:
         upr.main()
@@ -48,7 +48,7 @@ def test_dry_run_passes_when_in_sync(upr, tmp_path, monkeypatch):
     monkeypatch.setattr(upr, "CHART_DIR", make_chart_dir(tmp_path))
     monkeypatch.setattr(upr.shutil, "which", lambda name: "/usr/bin/helm-docs")
     monkeypatch.setattr(upr, "check_helm_docs", lambda chart_dir: (True, "in sync"))
-    monkeypatch.setattr(upr.sys, "argv", ["update-podiumd-readme", "--dry-run"])
+    monkeypatch.setattr(upr.sys, "argv", ["fix-podiumd-readme", "--dry-run"])
 
     with pytest.raises(SystemExit) as exc_info:
         upr.main()
@@ -66,7 +66,7 @@ def test_dry_run_fails_on_drift_without_writing(upr, tmp_path, monkeypatch):
         raise AssertionError("--dry-run must never invoke `run` (real helm-docs/git) itself")
 
     monkeypatch.setattr(upr, "run", fail_if_called)
-    monkeypatch.setattr(upr.sys, "argv", ["update-podiumd-readme", "--dry-run"])
+    monkeypatch.setattr(upr.sys, "argv", ["fix-podiumd-readme", "--dry-run"])
 
     with pytest.raises(SystemExit) as exc_info:
         upr.main()
@@ -78,7 +78,7 @@ def test_real_run_helm_docs_failure_fails(upr, tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(upr, "CHART_DIR", make_chart_dir(tmp_path))
     monkeypatch.setattr(upr.shutil, "which", lambda name: "/usr/bin/helm-docs")
     monkeypatch.setattr(upr, "run", lambda cmd, **kw: result(returncode=1, stderr="boom"))
-    monkeypatch.setattr(upr.sys, "argv", ["update-podiumd-readme"])
+    monkeypatch.setattr(upr.sys, "argv", ["fix-podiumd-readme"])
 
     with pytest.raises(SystemExit) as exc_info:
         upr.main()
@@ -102,7 +102,7 @@ def test_real_run_reports_no_changes(upr, tmp_path, monkeypatch, capsys):
         return result(stdout=readme_content)
 
     monkeypatch.setattr(upr, "run", fake_run)
-    monkeypatch.setattr(upr.sys, "argv", ["update-podiumd-readme"])
+    monkeypatch.setattr(upr.sys, "argv", ["fix-podiumd-readme"])
 
     upr.main()
 
@@ -122,7 +122,7 @@ def test_real_run_reports_diff_when_changed(upr, tmp_path, monkeypatch, capsys):
         return result()
 
     monkeypatch.setattr(upr, "run", fake_run)
-    monkeypatch.setattr(upr.sys, "argv", ["update-podiumd-readme"])
+    monkeypatch.setattr(upr.sys, "argv", ["fix-podiumd-readme"])
 
     upr.main()
 
@@ -141,7 +141,7 @@ def test_command_omits_template_files_without_gotmpl(upr, tmp_path, monkeypatch)
         return result()
 
     monkeypatch.setattr(upr, "run", fake_run)
-    monkeypatch.setattr(upr.sys, "argv", ["update-podiumd-readme"])
+    monkeypatch.setattr(upr.sys, "argv", ["fix-podiumd-readme"])
 
     upr.main()
 
@@ -158,7 +158,7 @@ def test_command_includes_template_files_with_gotmpl(upr, tmp_path, monkeypatch)
         return result()
 
     monkeypatch.setattr(upr, "run", fake_run)
-    monkeypatch.setattr(upr.sys, "argv", ["update-podiumd-readme"])
+    monkeypatch.setattr(upr.sys, "argv", ["fix-podiumd-readme"])
 
     upr.main()
 

@@ -14,7 +14,7 @@ and Changes section, the values-deltas doc, and
 docs/images/images-<target>.yaml — see lib.component_docs.
 baseline_doc_paths, update_component_table, and images_manifest_path for
 exactly what gets rewritten vs. reported for manual review. Finally runs
-update-podiumd-readme so README.md's values-reference table doesn't go
+fix-podiumd-readme so README.md's values-reference table doesn't go
 stale in the same commit.
 
 The component name and the image it bumps are not the same thing (zac's
@@ -73,7 +73,7 @@ from lib.procutil import run_script
 from lib.registry import parse_repo, registry_tag_exists
 from lib.upgradedoc import append_to_doc, compute_changed_components, describe_key_changes
 
-UPDATE_README_SCRIPT = SCRIPT_DIR / "update-podiumd-readme"
+FIX_README_SCRIPT = SCRIPT_DIR / "fix-podiumd-readme"
 CHART_DIR = SCRIPT_DIR.parents[0]
 CHART_YAML = CHART_DIR / "Chart.yaml"
 VALUES_YAML = CHART_DIR / "values.yaml"
@@ -609,8 +609,8 @@ def main():
             print(f"No images-{target}.yaml found — skipping that update.")
 
     print()
-    print("=== Regenerating README.md (update-podiumd-readme) ===")
-    run_script([sys.executable, str(UPDATE_README_SCRIPT)])
+    print("=== Regenerating README.md (fix-podiumd-readme) ===")
+    run_script([sys.executable, str(FIX_README_SCRIPT)])
 
     print()
     print("Done. Re-render the chart to confirm (verify-podiumd or /helm-render-all) before committing.")

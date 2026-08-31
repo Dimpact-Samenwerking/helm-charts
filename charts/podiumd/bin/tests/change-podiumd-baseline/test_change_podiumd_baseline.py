@@ -55,11 +55,11 @@ def set_up(cpb, monkeypatch, repo, argv, release_baseline_file):
     monkeypatch.setattr("sys.argv", ["change-podiumd-baseline", *argv])
     monkeypatch.setattr(cpb, "find_repo_root", lambda chart_dir: repo)
     monkeypatch.setattr(cpb, "RELEASE_BASELINE_FILE", release_baseline_file)
-    # change-doc-baseline is invoked for real by main() on any success path
+    # fix-doc-baseline is invoked for real by main() on any success path
     # — fake it here (a real run would need its own hermetic Chart.yaml/
     # docs tree, and would otherwise run against the REAL charts/podiumd
     # since it's a genuine subprocess, not something monkeypatch can reach
-    # into); test_main_invokes_change_doc_baseline covers the call itself.
+    # into); test_main_invokes_fix_doc_baseline covers the call itself.
     monkeypatch.setattr(cpb, "run_script", lambda cmd, *a, **k: subprocess.CompletedProcess(cmd, 0))
 
 
@@ -103,7 +103,7 @@ def test_main_same_baseline_is_a_noop_message_but_still_writes(cpb, repo, tmp_pa
     assert "already 4.8.5" in capsys.readouterr().out
 
 
-def test_main_invokes_change_doc_baseline(cpb, repo, tmp_path, monkeypatch, capsys):
+def test_main_invokes_fix_doc_baseline(cpb, repo, tmp_path, monkeypatch, capsys):
     release_baseline_file = tmp_path / "release-baseline"
     set_up(cpb, monkeypatch, repo, ["4.8.5"], release_baseline_file)
     calls = []
@@ -116,12 +116,12 @@ def test_main_invokes_change_doc_baseline(cpb, repo, tmp_path, monkeypatch, caps
     assert exc_info.value.code == 0
     assert len(calls) == 1
     assert calls[0][0] == cpb.sys.executable
-    assert calls[0][1] == str(cpb.CHANGE_DOC_BASELINE_SCRIPT)
+    assert calls[0][1] == str(cpb.FIX_DOC_BASELINE_SCRIPT)
     assert calls[0][2] == "4.8.5"
-    assert "change-doc-baseline 4.8.5" in capsys.readouterr().out
+    assert "fix-doc-baseline 4.8.5" in capsys.readouterr().out
 
 
-def test_main_propagates_change_doc_baseline_failure_exit_code(cpb, repo, tmp_path, monkeypatch):
+def test_main_propagates_fix_doc_baseline_failure_exit_code(cpb, repo, tmp_path, monkeypatch):
     release_baseline_file = tmp_path / "release-baseline"
     set_up(cpb, monkeypatch, repo, ["4.8.5"], release_baseline_file)
     monkeypatch.setattr(cpb, "run_script", lambda cmd, *a, **k: subprocess.CompletedProcess(cmd, 1))

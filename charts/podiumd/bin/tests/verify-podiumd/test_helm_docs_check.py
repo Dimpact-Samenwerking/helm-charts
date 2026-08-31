@@ -36,7 +36,7 @@ def test_readme_missing_fails(libhelmdocscheck, vp, tmp_path, monkeypatch):
     ok, detail = vp.check_helm_docs(chart_dir)
     assert ok is False
     assert "does not exist" in detail
-    assert "update-podiumd-readme" in detail
+    assert "fix-podiumd-readme" in detail
 
 
 def test_helm_docs_command_failure_fails(libhelmdocscheck, vp, tmp_path, monkeypatch):
@@ -69,7 +69,7 @@ def test_drift_fails_and_reports_changed_line_count(libhelmdocscheck, vp, tmp_pa
 
     ok, detail = vp.check_helm_docs(chart_dir)
     assert ok is False
-    assert detail == "1 line(s) out of sync — run update-podiumd-readme"
+    assert detail == "1 line(s) out of sync — run fix-podiumd-readme"
     out = capsys.readouterr().out
     assert "DRIFT" in out
     assert "1 line(s) would change" in out
@@ -104,7 +104,7 @@ def test_drift_caps_diff_output_and_reports_how_many_were_dropped(libhelmdocsche
     assert "more diff line(s) not shown" in out
 
 
-def test_run_update_podiumd_readme_hint_shown_on_drift(libhelmdocscheck, vp, tmp_path, monkeypatch, capsys):
+def test_run_fix_podiumd_readme_hint_shown_on_drift(libhelmdocscheck, vp, tmp_path, monkeypatch, capsys):
     chart_dir = make_chart_dir(tmp_path)
     monkeypatch.setattr(vp.shutil, "which", lambda name: "/usr/bin/helm-docs")
     regenerated = README_CONTENT + "| newkey | string | `\"x\"` |  |\n"
@@ -113,7 +113,7 @@ def test_run_update_podiumd_readme_hint_shown_on_drift(libhelmdocscheck, vp, tmp
     vp.check_helm_docs(chart_dir)
 
     out = capsys.readouterr().out
-    assert "Run update-podiumd-readme to regenerate." in out
+    assert "Run fix-podiumd-readme to regenerate." in out
     assert "never auto-fixed here" not in out
     assert "/helm-docs-check" not in out
 

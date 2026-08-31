@@ -1,6 +1,6 @@
 """lib.component_docs — existing_doc_baselines, create_missing_docs,
 baseline_doc_paths, images_manifest_path: the standard-doc-set scan/
-create/path helpers shared by create-doc-version and change-doc-baseline.
+create/path helpers shared by create-doc-version and fix-doc-baseline.
 The per-component doc-rewrite helpers (fix_component_version_table and
 friends) are exercised through update-component-version/update-image-
 version's own test suites instead, against realistic doc fixtures."""
@@ -58,7 +58,7 @@ def test_existing_doc_baselines_empty_when_no_match(libcomponentdocs, tmp_path):
 def test_existing_doc_baselines_multiple_sources_for_one_suffix(libcomponentdocs, tmp_path):
     """Two different baselines both claiming the same suffix for this
     target — the exact shape create-doc-version's mismatch refusal and
-    change-doc-baseline's collision refusal both key off."""
+    fix-doc-baseline's collision refusal both key off."""
     (tmp_path / "4.8.2-to-4.9.0-upgrade.md").write_text("x", encoding="utf-8")
     (tmp_path / "4.8.3-to-4.9.0-upgrade.md").write_text("x", encoding="utf-8")
     by_suffix = libcomponentdocs.existing_doc_baselines(tmp_path, "4.9.0")

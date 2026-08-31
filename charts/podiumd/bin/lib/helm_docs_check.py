@@ -21,7 +21,7 @@ that one, and neither substitutes for the other.
 instead of writing README.md — this check never touches the real file,
 matching check_image_digests/check_utf8_format's report-only contract: a
 separate, explicit, human-run step does the actual fix, never this
-script — update-podiumd-readme wraps the real (non-dry-run) `helm-docs`
+script — fix-podiumd-readme wraps the real (non-dry-run) `helm-docs`
 command for that.
 
 On drift, prints an actual unified diff (capped at MAX_DIFF_LINES) rather
@@ -34,7 +34,7 @@ from lib.procutil import run
 
 README_FILENAME = "README.md"
 TEMPLATE_FILENAME = "README.md.gotmpl"
-FIX_COMMAND = "update-podiumd-readme"
+FIX_COMMAND = "fix-podiumd-readme"
 
 # Past this many diff lines, printing every one stops being useful (a
 # renamed top-level key can ripple through hundreds of rows) — show a
