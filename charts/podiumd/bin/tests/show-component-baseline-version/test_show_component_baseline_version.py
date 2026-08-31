@@ -1,6 +1,8 @@
-"""baseline_ref_candidates, find_dependency, get_path, find_app_versions —
-pure logic, no git/network needed — plus resolve_git_ref/git_show_yaml and
-a full main() integration test against a real, hermetic temp git repo."""
+"""find_dependency, get_path, find_app_versions — pure logic, no git/network
+needed — plus git_show_yaml and a full main() integration test against a
+real, hermetic temp git repo. baseline_ref_candidates/resolve_git_ref
+themselves are lib.gitutil's own (see tests/lib/test_gitutil.py) — this
+script only calls through resolve_baseline_ref, exercised here via main()."""
 import subprocess
 
 import pytest
@@ -9,19 +11,6 @@ import yaml
 
 def git(*args, cwd):
     subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True)
-
-
-# --- baseline_ref_candidates ---
-
-def test_baseline_ref_candidates_bare_version(scbv):
-    assert scbv.baseline_ref_candidates("4.8.5") == [
-        "podiumd-4.8.5", "origin/feature/podiumd-4.8.5", "feature/podiumd-4.8.5"
-    ]
-
-
-def test_baseline_ref_candidates_explicit_ref(scbv):
-    assert scbv.baseline_ref_candidates("origin/some-branch") == ["origin/some-branch"]
-    assert scbv.baseline_ref_candidates("abc1234") == ["abc1234"]
 
 
 # --- find_dependency ---
@@ -109,14 +98,6 @@ def repo(tmp_path):
     return tmp_path
 
 
-def test_resolve_git_ref_finds_tag(scbv, repo):
-    assert scbv.resolve_git_ref(repo, ["nonexistent", "podiumd-4.8.5"]) == "podiumd-4.8.5"
-
-
-def test_resolve_git_ref_returns_none_when_nothing_resolves(scbv, repo):
-    assert scbv.resolve_git_ref(repo, ["nope-1", "nope-2"]) is None
-
-
 def test_git_show_yaml_reads_historical_content(scbv, repo):
     data = scbv.git_show_yaml(repo, "podiumd-4.8.5", "charts/podiumd/values.yaml")
     assert data["zac"]["image"]["tag"] == "5.0.2@sha256:abc"
@@ -168,8 +149,33 @@ def test_main_unknown_component_fails(scbv, repo, monkeypatch, capsys):
     assert "no dependency named or aliased" in capsys.readouterr().out
 
 
-def test_main_requires_exactly_two_arguments(scbv, monkeypatch):
-    monkeypatch.setattr("sys.argv", ["show-component-baseline-version", "zac"])
+def test_main_uses_release_baseline_when_omitted(scbv, repo, monkeypatch, capsys):
+    (repo / "charts" / "podiumd" / "release-baseline").write_text("4.8.5\n", encoding="utf-8")
+    set_argv_and_repo(scbv, monkeypatch, repo, ["zac"])
+    scbv.main()  # success path: must not raise
+    out = capsys.readouterr().out
+    assert "No <baseline> given — using release-baseline's '4.8.5'" in out
+    assert "Baseline: 4.8.5 (resolved to podiumd-4.8.5)" in out
+    assert "5.0.2" in out
+
+
+def test_main_no_baseline_given_and_no_release_baseline_file_fails(scbv, repo, monkeypatch, capsys):
+    set_argv_and_repo(scbv, monkeypatch, repo, ["zac"])
+    with pytest.raises(SystemExit) as exc_info:
+        scbv.main()
+    assert exc_info.value.code == 1
+    assert "no <baseline> given and release-baseline doesn't exist" in capsys.readouterr().out
+
+
+def test_main_requires_at_least_one_argument(scbv, monkeypatch):
+    monkeypatch.setattr("sys.argv", ["show-component-baseline-version"])
+    with pytest.raises(SystemExit) as exc_info:
+        scbv.main()
+    assert exc_info.value.code == 1
+
+
+def test_main_too_many_arguments_fails(scbv, monkeypatch):
+    monkeypatch.setattr("sys.argv", ["show-component-baseline-version", "4.8.5", "zac", "extra"])
     with pytest.raises(SystemExit) as exc_info:
         scbv.main()
     assert exc_info.value.code == 1

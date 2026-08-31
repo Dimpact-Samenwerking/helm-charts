@@ -1,156 +1,126 @@
-"""find_dependency and main() for verify-image-version. `pull_chart_values`
-(the actual `helm pull` + values.yaml read) and `check_image_versions` (the
-actual registry check, shared with update-component-version's own
-pre-write gate — see lib.chart.check_image_versions) are both covered by
-tests/lib/test_chart.py; these tests mock them out and only exercise this
-script's own glue: looking up the Chart.yaml dependency, resolving
-image_paths_for(component), and reporting FOUND/MISSING/OK/FAIL."""
+"""verify-image-version's main() — argument parsing and end-to-end wiring
+into lib.image_version.resolve_basename/check_basename_version. No
+network needed: lib.registry.registry_tag_exists is monkeypatched via the
+image_version module's own imported binding (check_basename_version lives
+in lib.image_version, which resolves registry_tag_exists via ITS OWN
+globals — see lib.image_version's import — so tests patch that module
+directly, same as tests/update-image-version/test_update_image_version.py
+does)."""
 import pytest
-import yaml
 
 
-def write_chart_yaml(viv, dependencies):
-    viv.CHART_YAML.write_text(yaml.safe_dump({"dependencies": dependencies}))
+def write_values(tmp_path, text):
+    path = tmp_path / "values.yaml"
+    path.write_text(text, encoding="utf-8")
+    return path
 
 
-# --- find_dependency ---
-
-def test_find_dependency_by_name(viv, tmp_path, monkeypatch):
-    monkeypatch.setattr(viv, "CHART_YAML", tmp_path / "Chart.yaml")
-    write_chart_yaml(viv, [{"name": "zaakafhandelcomponent", "alias": "zac", "repository": "@zac"}])
-    assert viv.find_dependency("zaakafhandelcomponent")["alias"] == "zac"
-
-
-def test_find_dependency_by_alias(viv, tmp_path, monkeypatch):
-    monkeypatch.setattr(viv, "CHART_YAML", tmp_path / "Chart.yaml")
-    write_chart_yaml(viv, [{"name": "zaakafhandelcomponent", "alias": "zac", "repository": "@zac"}])
-    assert viv.find_dependency("zac")["name"] == "zaakafhandelcomponent"
+def write_chart_yaml(chart_dir, deps):
+    """`deps`: [(name, alias_or_none), ...]."""
+    lines = ["apiVersion: v2", "name: podiumd", "version: 1.0.0", "dependencies:"]
+    for name, alias in deps:
+        lines.append(f"  - name: {name}")
+        if alias:
+            lines.append(f"    alias: {alias}")
+        lines += ["    version: 1.0.0", '    repository: "@x"']
+    (chart_dir / "Chart.yaml").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def test_find_dependency_not_found_raises(viv, tmp_path, monkeypatch):
-    monkeypatch.setattr(viv, "CHART_YAML", tmp_path / "Chart.yaml")
-    write_chart_yaml(viv, [{"name": "zaakafhandelcomponent", "alias": "zac", "repository": "@zac"}])
-    with pytest.raises(SystemExit, match="no dependency named or aliased"):
-        viv.find_dependency("totally-unknown")
-
-
-# --- main() ---
-
-def run_main(viv, monkeypatch, argv):
-    monkeypatch.setattr("sys.argv", ["verify-image-version", *argv])
+def test_help_flag_prints_docstring_and_exits_zero(viv, monkeypatch, capsys):
+    monkeypatch.setattr("sys.argv", ["verify-image-version", "--help"])
     with pytest.raises(SystemExit) as exc_info:
         viv.main()
-    return exc_info.value
-
-
-def test_main_single_image_component_success(viv, tmp_path, monkeypatch, capsys):
-    monkeypatch.setattr(viv, "CHART_YAML", tmp_path / "Chart.yaml")
-    write_chart_yaml(viv, [{"name": "zaakafhandelcomponent", "alias": "zac", "repository": "@zac"}])
-    monkeypatch.setattr(viv, "pull_chart_values", lambda dep, version: {"image": {"repository": "x/y"}})
-    monkeypatch.setattr(viv, "check_image_versions", lambda values, image_paths, app_version: [
-        {"path": "image", "repository": "ghcr.io/infonl/zaakafhandelcomponent", "host": "ghcr.io",
-         "repo_path": "infonl/zaakafhandelcomponent", "exists": True, "digest": "sha256:fake"},
-    ])
-
-    exc = run_main(viv, monkeypatch, ["zac", "5.4.3", "1.0.297"])
-    assert exc.code == 0
-    out = capsys.readouterr().out
-    assert "[FOUND  ] ghcr.io/infonl/zaakafhandelcomponent:5.4.3  digest=sha256:fake" in out
-    assert "OK: image version(s) exist" in out
-
-
-def test_main_multi_image_component_checks_both(viv, tmp_path, monkeypatch, capsys):
-    monkeypatch.setattr(viv, "CHART_YAML", tmp_path / "Chart.yaml")
-    write_chart_yaml(viv, [{"name": "zgw-office-addin", "repository": "@zgw-office-addin"}])
-    checked_paths = []
-
-    def fake_check_image_versions(values, image_paths, app_version):
-        checked_paths.extend(image_paths)
-        return [
-            {"path": "frontend.image", "repository": "ghcr.io/infonl/zgw-office-addin-frontend", "host": "ghcr.io",
-             "repo_path": "infonl/zgw-office-addin-frontend", "exists": True, "digest": "sha256:aaaa"},
-            {"path": "backend.image", "repository": "ghcr.io/infonl/zgw-office-addin-backend", "host": "ghcr.io",
-             "repo_path": "infonl/zgw-office-addin-backend", "exists": True, "digest": "sha256:bbbb"},
-        ]
-
-    monkeypatch.setattr(viv, "pull_chart_values", lambda dep, version: {})
-    monkeypatch.setattr(viv, "check_image_versions", fake_check_image_versions)
-
-    exc = run_main(viv, monkeypatch, ["zgw-office-addin", "0.11.0", "0.0.92"])
-    assert exc.code == 0
-    assert checked_paths == ["frontend.image", "backend.image"]
-
-
-def test_main_dockerhub_component(viv, tmp_path, monkeypatch, capsys):
-    """openformulieren ships on Docker Hub — the registry must be inferred
-    from the repository string, not assumed to be ghcr for everything."""
-    monkeypatch.setattr(viv, "CHART_YAML", tmp_path / "Chart.yaml")
-    write_chart_yaml(viv, [{"name": "openforms", "alias": "openformulieren", "repository": "@maykinmedia"}])
-    monkeypatch.setattr(viv, "pull_chart_values", lambda dep, version: {})
-    monkeypatch.setattr(viv, "check_image_versions", lambda values, image_paths, app_version: [
-        {"path": "image", "repository": "openformulieren/open-forms", "host": "docker.io",
-         "repo_path": "openformulieren/open-forms", "exists": True, "digest": "sha256:fake"},
-    ])
-
-    exc = run_main(viv, monkeypatch, ["openformulieren", "3.5.6", "1.12.0"])
-    assert exc.code == 0
-    assert "docker.io/openformulieren/open-forms:3.5.6" in capsys.readouterr().out
-
-
-def test_main_missing_chart_version_propagates_pull_failure(viv, tmp_path, monkeypatch):
-    """pull_chart_values (lib.chart) already raises SystemExit with a clear
-    message when the chart version can't be pulled — main() has nothing to
-    add here, so this just confirms it isn't swallowed."""
-    monkeypatch.setattr(viv, "CHART_YAML", tmp_path / "Chart.yaml")
-    write_chart_yaml(viv, [{"name": "zaakafhandelcomponent", "alias": "zac", "repository": "@zac"}])
-
-    def raise_pull_failure(dep, version):
-        raise SystemExit(f"error: could not pull {dep['name']} {version}: version not found")
-
-    monkeypatch.setattr(viv, "pull_chart_values", raise_pull_failure)
-    exc = run_main(viv, monkeypatch, ["zac", "5.4.3", "9.9.9"])
-    assert "could not pull" in str(exc)
-
-
-def test_main_missing_app_version_fails(viv, tmp_path, monkeypatch, capsys):
-    monkeypatch.setattr(viv, "CHART_YAML", tmp_path / "Chart.yaml")
-    write_chart_yaml(viv, [{"name": "zaakafhandelcomponent", "alias": "zac", "repository": "@zac"}])
-    monkeypatch.setattr(viv, "pull_chart_values", lambda dep, version: {"image": {"repository": "x/y"}})
-    monkeypatch.setattr(viv, "check_image_versions", lambda values, image_paths, app_version: [
-        {"path": "image", "repository": "ghcr.io/infonl/zaakafhandelcomponent", "host": "ghcr.io",
-         "repo_path": "infonl/zaakafhandelcomponent", "exists": False, "digest": None},
-    ])
-
-    exc = run_main(viv, monkeypatch, ["zac", "9.9.9", "1.0.297"])
-    assert exc.code == 1
-    out = capsys.readouterr().out
-    assert "[MISSING]" in out
-    assert "FAIL: one or more app image versions" in out
-
-
-def test_main_no_repository_at_configured_path_propagates(viv, tmp_path, monkeypatch):
-    """check_image_versions (lib.chart) already raises SystemExit with a
-    clear message when none of COMPONENT_IMAGE_PATHS resolves to a
-    repository — main() has nothing to add here either."""
-    monkeypatch.setattr(viv, "CHART_YAML", tmp_path / "Chart.yaml")
-    write_chart_yaml(viv, [{"name": "zaakafhandelcomponent", "alias": "zac", "repository": "@zac"}])
-    monkeypatch.setattr(viv, "pull_chart_values", lambda dep, version: {"somethingElse": {"repository": "x/y"}})
-
-    def raise_no_repo(values, image_paths, app_version):
-        raise SystemExit(f"error: no repository found at {', '.join(f'{p}.repository' for p in image_paths)}")
-
-    monkeypatch.setattr(viv, "check_image_versions", raise_no_repo)
-    exc = run_main(viv, monkeypatch, ["zac", "5.4.3", "1.0.297"])
-    assert "no repository found" in str(exc)
-
-
-def test_main_requires_exactly_three_arguments(viv, monkeypatch):
-    exc = run_main(viv, monkeypatch, ["zac", "5.4.3"])
-    assert exc.code == 1
-
-
-@pytest.mark.parametrize("flag", ["-h", "--help"])
-def test_main_help_flag_prints_usage_and_exits_zero(viv, monkeypatch, capsys, flag):
-    exc = run_main(viv, monkeypatch, [flag])
-    assert exc.code == 0
+    assert exc_info.value.code == 0
     assert capsys.readouterr().out == viv.__doc__ + "\n"
+
+
+def test_wrong_arg_count_prints_docstring_and_exits_one(viv, monkeypatch, capsys):
+    monkeypatch.setattr("sys.argv", ["verify-image-version", "only-one-arg"])
+    with pytest.raises(SystemExit) as exc_info:
+        viv.main()
+    assert exc_info.value.code == 1
+    assert "Usage:" in capsys.readouterr().out
+
+
+def test_main_found_reports_ok(viv, tmp_path, monkeypatch, capsys):
+    values_path = write_values(tmp_path, (
+        "pabc:\n"
+        "  image:\n"
+        "    repository: ghcr.io/platform-autorisatie-beheer-component/pabc-api\n"
+        f'    tag: "1.1.1@sha256:{"a" * 64}"\n'
+    ))
+    monkeypatch.setattr(viv, "VALUES_YAML", values_path)
+    import lib.image_version as image_version
+    monkeypatch.setattr(image_version, "registry_tag_exists",
+                         lambda host, repo, tag: (True, "sha256:" + "b" * 64))
+    monkeypatch.setattr("sys.argv", ["verify-image-version", "pabc-api", "1.1.2"])
+
+    with pytest.raises(SystemExit) as exc_info:
+        viv.main()
+
+    assert exc_info.value.code == 0
+    out = capsys.readouterr().out
+    assert f"[FOUND  ] ghcr.io/platform-autorisatie-beheer-component/pabc-api:1.1.2  digest=sha256:{'b' * 64}" in out
+    assert "OK: image version exists" in out
+
+
+def test_main_missing_reports_fail(viv, tmp_path, monkeypatch, capsys):
+    values_path = write_values(tmp_path, (
+        "pabc:\n"
+        "  image:\n"
+        "    repository: ghcr.io/platform-autorisatie-beheer-component/pabc-api\n"
+        f'    tag: "1.1.1@sha256:{"a" * 64}"\n'
+    ))
+    monkeypatch.setattr(viv, "VALUES_YAML", values_path)
+    import lib.image_version as image_version
+    monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (False, None))
+    monkeypatch.setattr("sys.argv", ["verify-image-version", "pabc-api", "9.9.9"])
+
+    with pytest.raises(SystemExit) as exc_info:
+        viv.main()
+
+    assert exc_info.value.code == 1
+    out = capsys.readouterr().out
+    assert "[MISSING] ghcr.io/platform-autorisatie-beheer-component/pabc-api:9.9.9" in out
+    assert "FAIL: image version does not exist yet" in out
+
+
+def test_main_resolves_component_alias_to_its_one_image(viv, tmp_path, monkeypatch, capsys):
+    """"openklant" isn't a basename -- resolved as a Chart.yaml dependency
+    whose own values.yaml scope pins exactly one image ("open-klant")."""
+    write_chart_yaml(tmp_path, [("openklant", None)])
+    values_path = write_values(tmp_path, (
+        "openklant:\n"
+        "  image:\n"
+        "    repository: maykinmedia/open-klant\n"
+        f'    tag: "2.15.0@sha256:{"a" * 64}"\n'
+    ))
+    monkeypatch.setattr(viv, "CHART_DIR", tmp_path)
+    monkeypatch.setattr(viv, "VALUES_YAML", values_path)
+    import lib.image_version as image_version
+    monkeypatch.setattr(image_version, "registry_tag_exists",
+                         lambda host, repo, tag: (True, "sha256:" + "b" * 64))
+    monkeypatch.setattr("sys.argv", ["verify-image-version", "openklant", "2.15.1"])
+
+    with pytest.raises(SystemExit) as exc_info:
+        viv.main()
+
+    assert exc_info.value.code == 0
+    out = capsys.readouterr().out
+    assert "for 'open-klant'" in out
+    assert "maykinmedia/open-klant:2.15.1" in out
+
+
+def test_main_unresolvable_target_propagates(viv, tmp_path, monkeypatch):
+    """resolve_basename (lib.image_version) already raises SystemExit with
+    a clear message when <image> matches neither a pinned basename nor a
+    Chart.yaml dependency — main() has nothing to add here. No Chart.yaml
+    at all here (not even an empty one) — resolve_basename treats that
+    the same as a dependency-less chart (deps=[])."""
+    values_path = write_values(tmp_path, "foo: bar\n")
+    monkeypatch.setattr(viv, "CHART_DIR", tmp_path)
+    monkeypatch.setattr(viv, "VALUES_YAML", values_path)
+    monkeypatch.setattr("sys.argv", ["verify-image-version", "totally-unknown", "1.0.0"])
+
+    with pytest.raises(SystemExit, match="is not a pinned image basename"):
+        viv.main()

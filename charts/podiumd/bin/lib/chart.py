@@ -3,6 +3,7 @@ podiumd dependency, pulls a specific chart version, or walks a values tree
 for image references."""
 import re
 import shutil
+import sys
 import tarfile
 import tempfile
 from pathlib import Path
@@ -65,6 +66,20 @@ SEMVER_RE = re.compile(r"^\d+\.\d+\.\d+$")
 
 def chart_version(chart_yaml_path):
     return str(load_yaml(chart_yaml_path)["version"])
+
+
+def release_baseline(chart_dir):
+    """The baseline recorded in chart_dir/release-baseline by
+    create-podiumd-version/change-podiumd-baseline, or None if that file
+    doesn't exist yet (older releases and fresh checkouts predate it) —
+    the shared read side every other script (verify-podiumd's release-
+    baseline check and its Docs consistency default, set-doc-baseline's
+    default argument, change-podiumd-baseline's old-value display) reads
+    through, so they see the same value the same way."""
+    baseline_file = chart_dir / "release-baseline"
+    if not baseline_file.is_file():
+        return None
+    return baseline_file.read_text(encoding="utf-8").strip()
 
 
 def get_path(node, dotted_path):
@@ -164,12 +179,39 @@ def pull_chart_values(dep, version):
         shutil.rmtree(tmpdir, ignore_errors=True)
 
 
+def verify_chart_version(dep, version):
+    """The chart-existence check verify-component-version owns: pull
+    `version` of `dep`, print a "Checking chart version ... [FOUND/
+    MISSING]" line, and exit 1 with a FAIL message if the pull failed.
+    Returns the pulled chart's own values.yaml (parsed) on success —
+    verify-component-version's own app-image check needs that values.yaml
+    to resolve the image repository/host, so the chart-version check
+    itself lives in exactly this one place rather than being
+    reimplemented."""
+    chart_name = dep["name"]
+    tmpdir = Path(tempfile.mkdtemp(prefix="verify-chart-version-"))
+    try:
+        print(f"Checking chart version {version!r} for {chart_name}:")
+        ok, stderr = pull_chart(dep, version, tmpdir)
+        status = "FOUND  " if ok else "MISSING"
+        suffix = f"  ({stderr})" if not ok else ""
+        print(f"  [{status}] {chart_name} {version}{suffix}")
+        if not ok:
+            print()
+            print("FAIL: chart version does not exist")
+            sys.exit(1)
+        chart_dir = pulled_chart_dir(tmpdir)
+        return yaml.safe_load((chart_dir / "values.yaml").read_text()) or {}
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+
 def check_image_versions(values, image_paths, app_version):
     """[{"path", "repository", "host", "repo_path", "exists", "digest"},
     ...] for every path in `image_paths` (see image_paths_for) that has a
     "repository:" in `values` (a pulled chart's own values.yaml — see
-    pull_chart_values), checked against app_version on its actual
-    upstream registry. Shared by verify-image-version (a human
+    verify_chart_version/pull_chart_values), checked against app_version on its actual
+    upstream registry. Shared by verify-component-version (a human
     pre-checking a version before writing it anywhere) and update-
     component-version.py's own pre-write gate (the same check, reused
     against the SAME pulled values rather than pulling — and checking —

@@ -1,6 +1,7 @@
-"""lib.image_version — image_basename, find_matches, update_image_version.
-No network needed: lib.registry.registry_tag_exists is monkeypatched
-wherever a live fetch would otherwise happen."""
+"""lib.image_version — image_basename, find_matches, check_basename_version,
+update_image_version, resolve_basename. No network needed: lib.registry.
+registry_tag_exists is monkeypatched wherever a live fetch would otherwise
+happen."""
 import pytest
 
 
@@ -89,6 +90,71 @@ def test_find_matches_ignores_unresolved_repository(libimageversion):
         '    tag: "1.29.3@sha256:' + "a" * 64 + '"',
     ]
     assert libimageversion.find_matches(lines, "openzaak") == []
+
+
+# --- check_basename_version ---
+
+def test_check_basename_version_reports_found(libimageversion, monkeypatch):
+    lines = [
+        "pabc:",
+        "  image:",
+        "    repository: ghcr.io/platform-autorisatie-beheer-component/pabc-api",
+        '    tag: "1.1.1@sha256:' + "a" * 64 + '"',
+    ]
+    monkeypatch.setattr(libimageversion, "registry_tag_exists",
+                         lambda host, repo, tag: (True, "sha256:" + "b" * 64))
+
+    results = libimageversion.check_basename_version(lines, "pabc-api", "1.1.2")
+
+    assert results == [{
+        "repository": "ghcr.io/platform-autorisatie-beheer-component/pabc-api",
+        "host": "ghcr.io", "repo_path": "platform-autorisatie-beheer-component/pabc-api",
+        "exists": True, "digest": "sha256:" + "b" * 64,
+    }]
+
+
+def test_check_basename_version_reports_missing(libimageversion, monkeypatch):
+    lines = [
+        "pabc:",
+        "  image:",
+        "    repository: ghcr.io/platform-autorisatie-beheer-component/pabc-api",
+        '    tag: "1.1.1@sha256:' + "a" * 64 + '"',
+    ]
+    monkeypatch.setattr(libimageversion, "registry_tag_exists", lambda host, repo, tag: (False, None))
+
+    results = libimageversion.check_basename_version(lines, "pabc-api", "9.9.9")
+
+    assert results[0]["exists"] is False
+    assert results[0]["digest"] is None
+
+
+def test_check_basename_version_dedupes_shared_repository(libimageversion, monkeypatch):
+    """The same basename pinned twice under the SAME repository (e.g.
+    curl used by several unrelated init containers) only needs one
+    registry lookup, same as update_image_version's own dedup."""
+    lines = [
+        "a:", "  image:", "    repository: curlimages/curl",
+        '    tag: "8.21.0@sha256:' + "a" * 64 + '"',
+        "b:", "  sub:", "    image:", "      repository: curlimages/curl",
+        '      tag: "8.21.0@sha256:' + "a" * 64 + '"',
+    ]
+    calls = []
+
+    def fake_registry_tag_exists(host, repo, tag):
+        calls.append((host, repo, tag))
+        return True, "sha256:" + "b" * 64
+
+    monkeypatch.setattr(libimageversion, "registry_tag_exists", fake_registry_tag_exists)
+
+    results = libimageversion.check_basename_version(lines, "curl", "8.22.0")
+
+    assert len(results) == 1
+    assert len(calls) == 1
+
+
+def test_check_basename_version_no_match_raises(libimageversion):
+    with pytest.raises(SystemExit, match="no image pin with basename 'curl' found"):
+        libimageversion.check_basename_version([], "curl", "8.22.0")
 
 
 # --- update_image_version ---

@@ -1,79 +1,68 @@
 #!/usr/bin/env python3
 """
-Verify that a component's target app image version(s) actually exist
-(published), BEFORE writing them into charts/podiumd/values.yaml — a
-non-existent tag breaks image pulls at deploy time rather than at edit
-time. The repository and registry host are derived from the TARGET chart
-version's own values.yaml (pulled fresh — a version bump can add a new
-sidecar or move a repository path); the one thing that can't be derived is
-which of a multi-image chart's images (e.g. ZAC's 10+ sidecars) is "the
-app" — see lib.chart.COMPONENT_IMAGE_PATHS.
+Verify that a new image tag actually exists (published) for a
+values.yaml image pin, BEFORE writing it — a non-existent tag breaks the
+pull at deploy time rather than at edit time. Same <target> <new-version>
+shape as update-image-version's own arguments: this is that bump's
+pre-flight check, run by hand before committing to it.
 
-This is why <chart-version> is still required here even though this
-script only checks the APP version: without pulling that specific chart
-version there's no way to know which repository to check at all. See
-verify-helmchart-version for checking the chart version on its own.
+<image> can be a bare repository basename (e.g. "curl") or a Chart.yaml
+dependency's own name/alias, resolved to the single image it pins —
+identical resolution to update-image-version's own <target>, and the
+same lib.image_version.resolve_basename call. Reads straight from the
+CURRENT values.yaml/Chart.yaml, never pulls a chart: unlike
+verify-component-version, no chart-version bump is involved here at all
+— see that script instead when the Helm chart version is changing too.
 
 Usage:
-    verify-image-version <component> <app-version> <chart-version>
+    verify-image-version <image> <image-version>
 
 Examples:
-    verify-image-version zac 5.4.3 1.0.297
-    verify-image-version zgw-office-addin 0.12.0 0.0.92
-    verify-image-version openformulieren 3.5.6 1.12.0
+    verify-image-version curl 8.22.0
+    verify-image-version pabc-api 1.1.2
+    verify-image-version openklant 2.15.1
+        # "openklant" isn't a basename -- resolved as a Chart.yaml
+        # dependency whose own values.yaml scope pins exactly one image
 
-Requires the Helm repositories to already be added (see /helm-repos or
-charts/podiumd/scripts/add-helm-repos.sh) and the `helm` CLI on PATH.
-
-Exit code is non-zero if the chart version can't even be pulled, or if
-any of the component's app image versions do not exist yet — safe to use
-as a gate before bumping values.yaml.
+Exit code is non-zero if <image> doesn't resolve to a pinned image, or if
+<image-version> does not exist yet for one of its distinct repositories
+— safe to use as a gate before bumping values.yaml.
 """
 import sys
 from pathlib import Path
 
-import yaml
-
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from lib.chart import check_image_versions, image_paths_for, pull_chart_values
-from lib.chart import find_dependency as _find_dependency
+from lib.image_version import check_basename_version, resolve_basename
 
-CHART_YAML = SCRIPT_DIR.parents[0] / "Chart.yaml"
-
-
-def find_dependency(name_or_alias):
-    deps = yaml.safe_load(CHART_YAML.read_text())["dependencies"]
-    dep = _find_dependency(deps, name_or_alias)
-    if dep is None:
-        raise SystemExit(f"error: no dependency named or aliased '{name_or_alias}' found in {CHART_YAML}")
-    return dep
+CHART_DIR = SCRIPT_DIR.parents[0]
+VALUES_YAML = CHART_DIR / "values.yaml"
 
 
 def main():
     if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
         print(__doc__)
         sys.exit(0)
-    if len(sys.argv) != 4:
+    if len(sys.argv) != 3:
         print(__doc__)
         sys.exit(1)
-    component, app_version, chart_version = sys.argv[1], sys.argv[2], sys.argv[3]
+    image, image_version = sys.argv[1], sys.argv[2]
 
-    dep = find_dependency(component)
-    values = pull_chart_values(dep, chart_version)
-    results = check_image_versions(values, image_paths_for(component), app_version)
+    lines = VALUES_YAML.read_text(encoding="utf-8").splitlines()
+    basename = resolve_basename(CHART_DIR, lines, image)
+    results = check_basename_version(lines, basename, image_version)
 
-    print(f"Checking app version {app_version!r} for {component} (chart {chart_version}):")
+    print(f"Checking image version {image_version!r} for {basename!r}:")
     ok = True
     for r in results:
         status = "FOUND  " if r["exists"] else "MISSING"
         suffix = f"  digest={r['digest']}" if r["digest"] else ""
-        print(f"  [{status}] {r['host']}/{r['repo_path']}:{app_version}{suffix}")
+        print(f"  [{status}] {r['host']}/{r['repo_path']}:{image_version}{suffix}")
         ok = ok and r["exists"]
 
     print()
-    print("OK: image version(s) exist" if ok else "FAIL: one or more app image versions do not exist yet")
+    print("OK: image version exists" if ok else "FAIL: image version does not exist yet")
     sys.exit(0 if ok else 1)
 
 
