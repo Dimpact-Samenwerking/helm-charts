@@ -17,3 +17,5 @@ docs/
 # CI-only lint values
 ci/
 scripts/
+bin/
+release-table.csv
