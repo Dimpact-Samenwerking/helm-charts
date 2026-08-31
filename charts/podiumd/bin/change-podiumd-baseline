@@ -1,0 +1,74 @@
+#!/usr/bin/env python3
+"""
+Change the release baseline recorded in charts/podiumd/release-baseline
+(written by create-podiumd-version at the start of a release cycle) — for
+correcting a mistake, or setting it by hand on a release that predates
+that file (e.g. after rebasing onto a different baseline — see
+set-doc-baseline, which does not touch this file).
+
+<new-baseline> must resolve to an actual release: the podiumd-<version>
+git tag, falling back to the feature/podiumd-<version> / origin/feature/
+podiumd-<version> branch if the tag doesn't exist yet (same resolution as
+show-component-baseline-version) — refuses to record a baseline that
+doesn't exist.
+
+Usage:
+    change-podiumd-baseline <new-baseline>
+
+Example:
+    change-podiumd-baseline 4.8.5
+"""
+import sys
+from pathlib import Path
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
+
+from lib.gitutil import baseline_ref_candidates, find_repo_root, resolve_git_ref
+
+CHART_DIR = SCRIPT_DIR.parent
+RELEASE_BASELINE_FILE = CHART_DIR / "release-baseline"
+
+
+def read_current_baseline():
+    if not RELEASE_BASELINE_FILE.is_file():
+        return None
+    return RELEASE_BASELINE_FILE.read_text(encoding="utf-8").strip()
+
+
+def write_release_baseline(baseline):
+    RELEASE_BASELINE_FILE.write_text(f"{baseline}\n", encoding="utf-8")
+
+
+def main():
+    if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
+        print(__doc__)
+        sys.exit(0)
+    if len(sys.argv) != 2:
+        print(__doc__)
+        sys.exit(1)
+    new_baseline = sys.argv[1]
+
+    repo_root = find_repo_root(CHART_DIR)
+    if repo_root is None:
+        print("error: not inside a git repository")
+        sys.exit(1)
+
+    candidates = baseline_ref_candidates(new_baseline)
+    ref = resolve_git_ref(repo_root, candidates)
+    if not ref:
+        print(f"error: could not resolve baseline '{new_baseline}' to a git ref "
+              f"(tried {', '.join(candidates)})")
+        sys.exit(1)
+
+    old_baseline = read_current_baseline()
+    write_release_baseline(new_baseline)
+
+    if old_baseline == new_baseline:
+        print(f"{RELEASE_BASELINE_FILE.name}: already {new_baseline} (resolved to {ref}) — nothing changed")
+    else:
+        print(f"{RELEASE_BASELINE_FILE.name}: {old_baseline or '(none)'} -> {new_baseline} (resolved to {ref})")
+
+
+if __name__ == "__main__":
+    main()
