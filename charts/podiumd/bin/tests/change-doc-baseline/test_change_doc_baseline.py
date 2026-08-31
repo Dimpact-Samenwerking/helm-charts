@@ -144,6 +144,25 @@ def test_main_renames_and_updates_title_and_heading(cdb, repo, monkeypatch):
     assert deltas.splitlines()[0] == "# Values deltas — PodiumD 4.8.3 → 4.9.0"
 
 
+def test_main_rewrites_sibling_doc_references_within_the_docs_themselves(cdb, repo, monkeypatch):
+    """A values-deltas doc pointing at its sibling upgrade.md by the old
+    baseline (e.g. a markdown link left over from the last rebase) must be
+    rewritten too, not just flagged for manual review — this chart
+    supports exactly one upgrade path per target, so every such reference
+    always means the current baseline."""
+    write(repo / "4.8.2-to-4.9.0-values-deltas.md",
+          "# Values deltas — PodiumD 4.8.2 → 4.9.0\n\n"
+          "Background and failure modes in "
+          "[`4.8.2-to-4.9.0-upgrade.md`](4.8.2-to-4.9.0-upgrade.md).\n")
+    set_argv_and_dir(cdb, monkeypatch, repo, "4.8.3")
+
+    cdb.main()
+
+    deltas = (repo / "4.8.3-to-4.9.0-values-deltas.md").read_text(encoding="utf-8")
+    assert "[`4.8.3-to-4.9.0-upgrade.md`](4.8.3-to-4.9.0-upgrade.md)" in deltas
+    assert "4.8.2" not in deltas
+
+
 def test_main_invokes_update_podiumd_readme(cdb, repo, monkeypatch):
     """A habit, not because this script itself ever writes to values.yaml/
     Chart.yaml — see update-podiumd-readme's own docstring."""
@@ -216,8 +235,15 @@ def test_main_already_at_new_baseline_is_a_noop(cdb, repo, monkeypatch, capsys):
     assert "already baseline 4.8.2 — unchanged" in out
 
 
-def test_main_requires_exactly_one_argument(cdb, monkeypatch):
+def test_main_no_argument_and_no_release_baseline_errors(cdb, monkeypatch):
+    """Zero arguments is otherwise valid (falls back to release-baseline's
+    content — see set_argv_and_dir's own baseline-arg tests) — only the
+    combination of no argument AND no release-baseline to fall back to is
+    an error. release_baseline mocked directly (never CHART_YAML/DOC_DIR)
+    so this can't accidentally read/touch the real chart's own
+    release-baseline/docs if the mock were ever missed."""
     monkeypatch.setattr("sys.argv", ["change-doc-baseline"])
+    monkeypatch.setattr(cdb, "release_baseline", lambda chart_dir: None)
     with pytest.raises(SystemExit) as exc_info:
         cdb.main()
     assert exc_info.value.code == 1
