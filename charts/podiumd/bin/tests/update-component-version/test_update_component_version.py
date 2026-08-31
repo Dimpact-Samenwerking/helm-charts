@@ -18,6 +18,27 @@ def git(*args, cwd):
     subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True)
 
 
+@pytest.fixture(autouse=True)
+def block_real_subprocess_calls(monkeypatch):
+    """main() shells out to update-podiumd-readme via subprocess.run — fake
+    that (and anything else) here so a test can't accidentally run the real
+    script against the real repo. git commands still run for real, since
+    the hermetic tmp-repo tests (git() helper, init_git_repo) need them.
+    Returns the list of commands seen, for tests that want to assert what
+    main() invoked."""
+    calls = []
+    real_run = subprocess.run
+
+    def fake_run(cmd, *args, **kwargs):
+        calls.append(cmd)
+        if cmd and cmd[0] == "git":
+            return real_run(cmd, *args, **kwargs)
+        return subprocess.CompletedProcess(cmd, 0)
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    return calls
+
+
 # --- parse_repo ---
 
 # --- find_block_end / find_child_key_line ---
@@ -328,21 +349,12 @@ def test_main_writes_both_files_when_verify_passes(ucv, tmp_path, monkeypatch):
     assert f'"5.4.3@sha256:{"b" * 64}"' in values_yaml.read_text(encoding="utf-8")
 
 
-def test_main_invokes_update_podiumd_readme(ucv, tmp_path, monkeypatch):
+def test_main_invokes_update_podiumd_readme(ucv, tmp_path, monkeypatch, block_real_subprocess_calls):
     """The version/tag bump above changes values.yaml, so README.md's
     helm-docs-generated table can go stale in the same commit if this
     doesn't run — see update-podiumd-readme."""
+    calls = block_real_subprocess_calls
     chart_yaml, values_yaml = setup_repo(tmp_path, monkeypatch, ucv)
-    calls = []
-    real_run = subprocess.run
-
-    def fake_run(cmd, *args, **kwargs):
-        calls.append(cmd)
-        if cmd and cmd[0] == "git":
-            return real_run(cmd, *args, **kwargs)
-        return subprocess.CompletedProcess(cmd, 0)
-
-    monkeypatch.setattr(subprocess, "run", fake_run)
     mock_verify_passes(monkeypatch, ucv)
     mock_registry_passes(monkeypatch, ucv, "b")
     monkeypatch.setattr("sys.argv", ["update-component-version", "zac", "5.4.3", "1.0.297"])
