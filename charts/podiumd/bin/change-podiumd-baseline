@@ -7,7 +7,7 @@ baseline mid-cycle. Also rebases the docs onto the new baseline (runs
 fix-doc-consistency — see that script for exactly what gets renamed/
 rewritten vs. just reported for manual review) and, as a safety net for
 any values.yaml drift README.md hadn't already picked up, regenerates it
-too (runs fix-podiumd-readme).
+too (runs fix-helm-doc).
 
 <new-baseline> must resolve to an actual release: the podiumd-<version>
 git tag, falling back to the feature/podiumd-<version> / origin/feature/
@@ -33,7 +33,7 @@ from lib.procutil import run_script
 CHART_DIR = SCRIPT_DIR.parent
 RELEASE_BASELINE_FILE = CHART_DIR / "release-baseline"
 FIX_DOC_CONSISTENCY_SCRIPT = SCRIPT_DIR / "fix-doc-consistency"
-FIX_README_SCRIPT = SCRIPT_DIR / "fix-podiumd-readme"
+FIX_HELM_DOC_SCRIPT = SCRIPT_DIR / "fix-helm-doc"
 
 
 def read_current_baseline():
@@ -80,8 +80,8 @@ def main():
         sys.exit(result.returncode)
 
     print()
-    print("=== Regenerating README.md (fix-podiumd-readme) ===")
-    result = run_script([sys.executable, str(FIX_README_SCRIPT)])
+    print("=== Regenerating README.md (fix-helm-doc) ===")
+    result = run_script([sys.executable, str(FIX_HELM_DOC_SCRIPT)])
     sys.exit(result.returncode)
 
 

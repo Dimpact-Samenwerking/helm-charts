@@ -18,7 +18,7 @@
 
 ### Required external tools
 `verify-podiumd` needs each of these for its checks:
-- `helm-docs` — Helm docs
+- `helm-docs` — Helm doc
 - `yamllint` — yamllint check
 - `kubeconform` — kubeconform check
 - `shellcheck` — shellcheck check
@@ -101,10 +101,10 @@ This updates just a container image version in a release.
 
 ### Fix and debug tools
 - `fix-doc-consistency`: rebases doc filenames and components and images in them onto a different baseline (normally run automatically by `change-podiumd-baseline`)
-- `fix-image-digests`: updates image digests for one specific image or all stale images
+- `fix-helm-doc`: re-generate `charts/podiumd/README.md` using `helm-docs`
+- `fix-image-digests`: updates image digests for one specific image or all stale images (also runs `fix-helm-doc` on any real write)
 - `fix-markdown`: auto-fix whatever pymarkdown's own `fix` mode can safely resolve
 - `fix-node-selector`: insert the required `nodeSelector` into any own template missing one
-- `fix-podiumd-readme`: re-generate `charts/podiumd/README.md` using `helm-doc`
 - `fix-utf8-bom`: strip the utf8-bom of `charts/podiumd/values.yaml`
 - `fix-vendored-tgz`: delete an extracted sub-chart directory shadowing its own pinned `.tgz`
 - `render-podiumd`: outputs a rendered chart, so that line-numbers in output of verify-podiumd can be matched
@@ -126,15 +126,15 @@ Notes:
 - tools support `--help`
 
 Tools:
-- `change-podiumd-baseline`: change the baseline recorded in `charts/podiumd/release-baseline` and rebase the docs onto it (runs `fix-doc-consistency`, then `fix-podiumd-readme`), given a baseline that must resolve to an existing `podiumd-<version>` tag or `feature/podiumd-<version>` branch
+- `change-podiumd-baseline`: change the baseline recorded in `charts/podiumd/release-baseline` and rebase the docs onto it (runs `fix-doc-consistency`, then `fix-helm-doc`), given a baseline that must resolve to an existing `podiumd-<version>` tag or `feature/podiumd-<version>` branch
 - `create-doc-version`: create the standard docs for the current target version, for whichever don't already exist — refuses if docs already exist under a different baseline (use `fix-doc-consistency` for that instead)
 - `create-podiumd-version`: uses version in `charts/podiumd/Chart.yaml` as baseline release, update version in `Chart.yaml`, record the baseline in `charts/podiumd/release-baseline` and create upgrade docs (runs `create-doc-version`)
 - `export-confluence-release-table`: fetch release data from confluence and store it in `charts/podiumd/release-table.csv`
 - `fix-doc-consistency`: given a new baseline, rebases doc filenames and components and images in them onto it (creates the standard docs fresh instead, for whichever were never scaffolded under any baseline at all)
-- `fix-image-digests`: updates image digests for one specific image or all stale images
+- `fix-helm-doc`: re-generate `charts/podiumd/README.md` using `helm-docs`
+- `fix-image-digests`: updates image digests for one specific image or all stale images (also runs `fix-helm-doc` on any real write)
 - `fix-markdown`: auto-fix whatever pymarkdown's own `fix` mode can safely resolve
 - `fix-node-selector`: insert the required `nodeSelector` into any own template missing one
-- `fix-podiumd-readme`: re-generate `charts/podiumd/README.md` using `helm-doc`
 - `fix-utf8-bom`: strip the utf8-bom of `charts/podiumd/values.yaml`
 - `fix-vendored-tgz`: delete an extracted sub-chart directory shadowing its own pinned `.tgz`
 - `list-helmchart-images`: list images in a helm chart, given chart name and version

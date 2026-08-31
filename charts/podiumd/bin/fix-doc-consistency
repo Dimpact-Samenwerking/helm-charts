@@ -509,7 +509,7 @@ def main():
             print(f"  {name}: line(s) {', '.join(map(str, lines))}")
 
     print()
-    print("Done. Run fix-podiumd-readme to regenerate README.md, then verify-podiumd to "
+    print("Done. Run fix-helm-doc to regenerate README.md, then verify-podiumd to "
           "confirm consistency before committing.")
 
 

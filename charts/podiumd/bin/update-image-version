@@ -36,7 +36,7 @@ distinct Chart.yaml components the bump actually touched:
     repository. Convention confirmed against docs/_UPGRADE_PATHS/
     4.8.1-to-4.8.2-upgrade.md (curl/nginx-unprivileged/busybox each got
     exactly this treatment).
-Finally runs fix-podiumd-readme so README.md's values-reference
+Finally runs fix-helm-doc so README.md's values-reference
 table doesn't go stale in the same commit.
 
 Refuses to touch values.yaml unless the new version verifiably exists
@@ -90,7 +90,7 @@ CHART_YAML = CHART_DIR / "Chart.yaml"
 VALUES_YAML = CHART_DIR / "values.yaml"
 DOC_DIR = CHART_DIR / "docs" / "_UPGRADE_PATHS"
 IMAGES_DIR = CHART_DIR / "docs" / "images"
-FIX_README_SCRIPT = SCRIPT_DIR / "fix-podiumd-readme"
+FIX_HELM_DOC_SCRIPT = SCRIPT_DIR / "fix-helm-doc"
 
 
 def group_changes_by_component(changes, values_lines_before_write):
@@ -445,8 +445,8 @@ def main():
     update_docs(basename, new_version, changes, values_lines)
 
     print()
-    print("=== Regenerating README.md (fix-podiumd-readme) ===")
-    run_script([sys.executable, str(FIX_README_SCRIPT)])
+    print("=== Regenerating README.md (fix-helm-doc) ===")
+    run_script([sys.executable, str(FIX_HELM_DOC_SCRIPT)])
 
     print()
     print("Done. Re-render the chart to confirm (verify-podiumd or /helm-render-all) before committing.")
