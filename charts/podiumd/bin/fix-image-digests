@@ -29,7 +29,11 @@ Examples:
     fix-image-digests openklant    # resolved via Chart.yaml alias, same as update-image-version
 
 After a real run, re-render the chart (verify-podiumd or
-/helm-render-all) to confirm the new digests are picked up cleanly.
+/helm-render-all) to confirm the new digests are picked up cleanly. A
+real (non-dry-run, non-empty) run also regenerates README.md (runs
+fix-helm-doc) — its values-reference table embeds the same digest
+strings this script just rewrote, so it goes stale the moment values.yaml
+changes.
 """
 import sys
 import urllib.error
@@ -42,10 +46,12 @@ from lib.chart import load_yaml, subchart_default_repository, subchart_needs_ven
 from lib.dependencies import check_dependencies as vendor_dependencies, ensure_repos_configured
 from lib.image_digests import scan_digest_pins
 from lib.image_version import image_basename, resolve_basename
+from lib.procutil import run_script
 from lib.registry import is_sliding_tag, parse_repo, registry_tag_exists
 
 CHART_DIR = SCRIPT_DIR.parents[0]
 VALUES_PATH = CHART_DIR / "values.yaml"
+FIX_HELM_DOC_SCRIPT = SCRIPT_DIR / "fix-helm-doc"
 
 
 def find_stale_digests(lines, values_path):
@@ -182,6 +188,12 @@ def main():
         VALUES_PATH.write_text(text, encoding="utf-8")
         print(f"\nWrote {len(to_update)} updated digest(s) to {VALUES_PATH}.")
         print("Re-render the chart to confirm (verify-podiumd or /helm-render-all) before committing.")
+
+        print()
+        print("=== Regenerating README.md (fix-helm-doc) ===")
+        result = run_script([sys.executable, str(FIX_HELM_DOC_SCRIPT)])
+        if result.returncode != 0:
+            sys.exit(result.returncode)
 
     sys.exit(1 if fetch_errors else 0)
 
