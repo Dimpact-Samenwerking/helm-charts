@@ -6,7 +6,7 @@ version: 4.8.6
 appVersion: "4.8.6"
 dependencies:
   - name: keycloak-operator
-    version: 1.12.1
+    version: 1.13.0
     repository: "@adfinis"
     condition: keycloak-operator.enabled
   - name: clamav
