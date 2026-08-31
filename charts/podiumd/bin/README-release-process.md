@@ -18,7 +18,7 @@
 
 ### Required external tools
 `verify-podiumd` needs each of these for its checks:
-- `helm-docs` — Helm docs check
+- `helm-docs` — Helm docs
 - `yamllint` — yamllint check
 - `kubeconform` — kubeconform check
 - `shellcheck` — shellcheck check

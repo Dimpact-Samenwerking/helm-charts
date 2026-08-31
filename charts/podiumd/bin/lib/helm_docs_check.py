@@ -7,7 +7,7 @@ CI-safe version scoped to charts/podiumd only, matching every other check
 in this pipeline. No fallback heuristic here: if `helm-docs` isn't
 installed, this check fails with a clear message like every other
 external-tool check in this pipeline (yamllint/kubeconform/shellcheck/
-kube-score) — pass --skip=helm-docs-check to bypass.
+kube-score) — pass --skip=helm-docs to bypass.
 
 Relation to check_docs_consistency (a separate step, see lib.
 docs_consistency): none. That check verifies docs/_UPGRADE_PATHS/*.md and
