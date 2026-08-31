@@ -29,7 +29,7 @@ Two known exceptions:
   tag; the tag must contain ONLY the version."""
 import re
 
-from lib.chart import get_path, load_yaml, subchart_values
+from lib.chart import get_path, load_yaml, subchart_template_text, subchart_values
 from lib.upgradedoc import find_image_tag_paths
 
 # "@sha256:<64 hex chars>" at the end of a tag value — the same shape
@@ -119,6 +119,18 @@ def find_unresolved_subchart_images(chart_dir):
     error, since Helm itself would fall back to whatever's actually
     vendored at render time regardless of what this scan can parse.
 
+    Also silently drops a finding whose top-level values key is never
+    referenced anywhere in that same sub-chart's own templates/ (see
+    subchart_template_text) -- e.g. pabc's own "web"/"poller" keys, which
+    no template in the pabc chart reads at all: setting a podiumd override
+    there would be structurally inert regardless of value, so it is not
+    even a judgment call the way SUBCHART_VISIBILITY_EXEMPT's entries are.
+    Only applied when templates/ was actually readable (non-None) -- a
+    dependency with no readable templates/ at all (an unusually-shaped
+    chart, or a test fixture that only vendors values.yaml) can't be told
+    apart from "genuinely unreferenced" by an empty haystack, so every
+    finding for it is kept instead of silently swallowed.
+
     Deliberately NOT cross-checked against EXEMPT_PATHS above — those
     exempt fields (keycloak-operator.operator, omc) are ones podiumd DOES
     override in its own values.yaml (that's the whole reason they need an
@@ -133,10 +145,14 @@ def find_unresolved_subchart_images(chart_dir):
         sub_values = subchart_values(chart_dir, dep)
         if sub_values is None:
             continue
+        template_text = subchart_template_text(chart_dir, dep)
         for path, tag in find_image_tag_paths(sub_values):
             subpath = ".".join(path)
             own_image_tag_path = f"{scope_key}.{subpath}.image.tag" if subpath else f"{scope_key}.image.tag"
             if get_path(own_values, own_image_tag_path) is None:
+                top_level_key = path[0] if path else "image"
+                if template_text is not None and not re.search(rf"\b{re.escape(top_level_key)}\b", template_text):
+                    continue
                 findings.append((scope_key, subpath, tag, bool(DIGEST_SUFFIX_RE.search(tag))))
     return findings
 

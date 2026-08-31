@@ -327,6 +327,35 @@ def subchart_values(chart_dir, dep):
         return None
 
 
+def subchart_template_text(chart_dir, dep):
+    """Every file under a vendored dependency's own templates/ directory
+    (same .tgz/vendoring mechanics as subchart_values), concatenated into
+    one blob — a plain-text haystack for "is this values.yaml key ever
+    referenced by the sub-chart's own templates at all", not a real
+    template parse. None if the .tgz isn't vendored, or has no
+    templates/ directory at all (an unusually-shaped chart, or a minimal
+    test fixture) — callers must treat that as "can't tell" and NOT as
+    "definitely unreferenced", since an empty haystack would otherwise
+    make every key look unreferenced."""
+    tgz_path = chart_dir / "charts" / f"{dep['name']}-{dep['version']}.tgz"
+    if not tgz_path.is_file():
+        return None
+    prefix = f"{dep['name']}/templates/"
+    try:
+        with tarfile.open(tgz_path) as tar:
+            members = [m for m in tar.getmembers() if m.isfile() and m.name.startswith(prefix)]
+            if not members:
+                return None
+            parts = []
+            for member in members:
+                f = tar.extractfile(member)
+                if f is not None:
+                    parts.append(f.read().decode("utf-8", errors="replace"))
+            return "\n".join(parts)
+    except tarfile.TarError:
+        return None
+
+
 def _dependency_for_pin(lines, pin_line, deps):
     """The Chart.yaml dependency + within-component subpath (e.g. "image",
     "frontend.image") for a digest pin's "tag:" line at pin_line (1-based),
