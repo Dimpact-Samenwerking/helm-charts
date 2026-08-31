@@ -38,10 +38,10 @@ persistentVolume:
 keycloak-operator:
   enabled: true
   # Adfinis Helm chart wrapping the official Keycloak Operator manifests.
-  # Chart: https://charts.adfinis.com / adfinis/keycloak-operator (chart 1.12.1, appVersion 26.6.4)
+  # Chart: https://charts.adfinis.com / adfinis/keycloak-operator (chart 1.13.0, appVersion 26.7.2)
   # Note: it appears that the podname automatically appends -operator.
-  # Official operator image: quay.io/keycloak/keycloak-operator:26.6.4
-  # Note: adfinis chart 1.12.1 targets appVersion 26.6.4; operator + server image pinned to 26.6.4 below.
+  # Official operator image: quay.io/keycloak/keycloak-operator:26.7.2
+  # Note: adfinis chart 1.13.0 targets appVersion 26.7.2; operator + server image pinned to 26.7.2 below.
   # override: values-enable-observability.yaml sets enableServiceMonitor: true
   enableServiceMonitor: false
   fullnameOverride: keycloak
@@ -52,12 +52,15 @@ keycloak-operator:
       # `keycloak.image` (which uses the podiumd.image helper, repository:tag),
       # the adfinis subchart appends its own digest from a SEPARATE `operator.image.sha`
       # field: `repository:tag@sha256:{{ .sha }}`. Putting @sha256 in the tag
-      # produces an invalid DOUBLE digest (…:26.6.4@sha256:xxx@sha256:xxx).
-      # The chart's default operator.image.sha already pins the matching 26.6.4
-      # digest (sha256:831827a0a…). To DISABLE digest pinning (e.g. on aks-blue
-      # / ACR-mirror envs where the mirrored digest differs), set
-      # `operator.image.sha: ""`. See docs/_UPGRADE_PATHS/4.7.3-to-4.7.4-upgrade.md.
-      tag: "26.6.4"
+      # produces an invalid DOUBLE digest (…:26.7.2@sha256:xxx@sha256:xxx).
+      # The chart's bundled default operator.image.sha for 1.13.0 is stale
+      # (doesn't match any manifest under the 26.7.2 tag), so it's overridden
+      # explicitly below with the real registry digest. To DISABLE digest
+      # pinning (e.g. on aks-blue / ACR-mirror envs where the mirrored digest
+      # differs), set `operator.image.sha: ""`. See
+      # docs/_UPGRADE_PATHS/4.7.3-to-4.7.4-upgrade.md.
+      tag: "26.7.2"
+      sha: "f6079999aa773f1846de01c9014d19c3c677d35570361fd7c01c0830836e4041"
     resources:
       requests:
         cpu: 100m
@@ -264,7 +267,7 @@ keycloak:
     metadata:
       labels:
         app: keycloak
-        version: 26.6.4
+        version: 26.7.2
       # override: values-enable-observability.yaml adds prometheus.io scrape annotations
     spec:
       securityContext:
