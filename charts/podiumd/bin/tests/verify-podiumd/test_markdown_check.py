@@ -1,0 +1,134 @@
+"""check_markdown — lints every *.md file under chart_dir with pymarkdown,
+report-only (never fails on a finding, only on a missing pymarkdown
+install). No real pymarkdown binary is invoked in most of these tests —
+`run` is mocked throughout except where find_pymarkdown itself is under
+test."""
+from types import SimpleNamespace
+
+
+def pymarkdown_result(stdout, returncode=1, stderr=""):
+    return SimpleNamespace(returncode=returncode, stdout=stdout, stderr=stderr)
+
+
+def make_chart_dir(tmp_path, files=None):
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    (tmp_path / "Chart.yaml").write_text("name: podiumd\nversion: 4.9.0\n", encoding="utf-8")
+    for rel_path, content in (files or {}).items():
+        p = tmp_path / rel_path
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(content, encoding="utf-8")
+    return tmp_path
+
+
+def test_find_markdown_files_excludes_vendored_charts_dir(libmarkdowncheck, tmp_path):
+    chart_dir = make_chart_dir(tmp_path, files={
+        "README.md": "# a\n",
+        "docs/foo.md": "# b\n",
+        "charts/some-subchart/README.md": "# c\n",
+    })
+    found = libmarkdowncheck.find_markdown_files(chart_dir)
+    assert found == [chart_dir / "README.md", chart_dir / "docs" / "foo.md"]
+
+
+def test_find_pymarkdown_prefers_repo_root_venv(libmarkdowncheck, tmp_path, monkeypatch):
+    repo_root = tmp_path
+    chart_dir = make_chart_dir(tmp_path / "charts" / "podiumd")
+    venv_bin = repo_root / ".venv" / "bin"
+    venv_bin.mkdir(parents=True)
+    pymarkdown_path = venv_bin / "pymarkdown"
+    pymarkdown_path.write_text("", encoding="utf-8")
+
+    monkeypatch.setattr(libmarkdowncheck, "find_repo_root", lambda start: repo_root)
+    monkeypatch.setattr(libmarkdowncheck.shutil, "which", lambda name: None)
+
+    assert libmarkdowncheck.find_pymarkdown(chart_dir) == str(pymarkdown_path)
+
+
+def test_find_pymarkdown_falls_back_to_path(libmarkdowncheck, tmp_path, monkeypatch):
+    chart_dir = make_chart_dir(tmp_path)
+    monkeypatch.setattr(libmarkdowncheck, "find_repo_root", lambda start: None)
+    monkeypatch.setattr(libmarkdowncheck.shutil, "which",
+                         lambda name: "/usr/local/bin/pymarkdown" if name == "pymarkdown" else None)
+
+    assert libmarkdowncheck.find_pymarkdown(chart_dir) == "/usr/local/bin/pymarkdown"
+
+
+def test_find_pymarkdown_returns_none_when_unavailable(libmarkdowncheck, tmp_path, monkeypatch):
+    chart_dir = make_chart_dir(tmp_path)
+    monkeypatch.setattr(libmarkdowncheck, "find_repo_root", lambda start: None)
+    monkeypatch.setattr(libmarkdowncheck.shutil, "which", lambda name: None)
+
+    assert libmarkdowncheck.find_pymarkdown(chart_dir) is None
+
+
+def test_pymarkdown_not_installed_fails(libmarkdowncheck, vp, tmp_path, monkeypatch):
+    chart_dir = make_chart_dir(tmp_path, files={"README.md": "# a\n"})
+    monkeypatch.setattr(libmarkdowncheck, "find_pymarkdown", lambda chart_dir: None)
+    ok, detail = vp.check_markdown(chart_dir)
+    assert ok is False
+    assert "not installed" in detail
+
+
+def test_no_markdown_files_passes(libmarkdowncheck, vp, tmp_path, monkeypatch, capsys):
+    chart_dir = make_chart_dir(tmp_path)
+    monkeypatch.setattr(libmarkdowncheck, "find_pymarkdown", lambda chart_dir: "/usr/local/bin/pymarkdown")
+    ok, detail = vp.check_markdown(chart_dir)
+    assert ok is True
+    assert detail == "no markdown files"
+    assert "OK: no markdown files found" in capsys.readouterr().out
+
+
+def test_no_findings_passes(libmarkdowncheck, vp, tmp_path, monkeypatch, capsys):
+    chart_dir = make_chart_dir(tmp_path, files={"README.md": "# a\n"})
+    monkeypatch.setattr(libmarkdowncheck, "find_pymarkdown", lambda chart_dir: "/usr/local/bin/pymarkdown")
+    monkeypatch.setattr(libmarkdowncheck, "run", lambda cmd, **kw: pymarkdown_result("", returncode=0))
+
+    ok, detail = vp.check_markdown(chart_dir)
+    assert ok is True
+    assert detail == "0 finding(s) (report-only)"
+    assert "OK: no markdown findings" in capsys.readouterr().out
+
+
+def test_findings_are_report_only_never_fail(libmarkdowncheck, vp, tmp_path, monkeypatch, capsys):
+    chart_dir = make_chart_dir(tmp_path, files={"README.md": "Not a heading\n"})
+    monkeypatch.setattr(libmarkdowncheck, "find_pymarkdown", lambda chart_dir: "/usr/local/bin/pymarkdown")
+    finding_line = (f"{chart_dir / 'README.md'}:1:1: MD041: First line in file should be a top level "
+                     f"heading (first-line-heading,first-line-h1)\n")
+    monkeypatch.setattr(libmarkdowncheck, "run", lambda cmd, **kw: pymarkdown_result(finding_line))
+
+    ok, detail = vp.check_markdown(chart_dir)
+    assert ok is True
+    assert detail == "1 finding(s) (report-only)"
+    out = capsys.readouterr().out
+    assert "Found 1 markdown finding(s)" in out
+    assert "MD041 (first-line-heading)" in out
+    assert "README.md:1:1  First line in file should be a top level heading" in out
+
+
+def test_disables_line_length_rule(libmarkdowncheck, vp, tmp_path, monkeypatch):
+    chart_dir = make_chart_dir(tmp_path, files={"README.md": "# a\n"})
+    monkeypatch.setattr(libmarkdowncheck, "find_pymarkdown", lambda chart_dir: "/usr/local/bin/pymarkdown")
+    captured = {}
+
+    def fake_run(cmd, **kw):
+        captured["cmd"] = cmd
+        return pymarkdown_result("", returncode=0)
+
+    monkeypatch.setattr(libmarkdowncheck, "run", fake_run)
+    vp.check_markdown(chart_dir)
+
+    assert captured["cmd"][:4] == ["/usr/local/bin/pymarkdown", "-d", "md013", "scan"]
+    assert str(chart_dir / "README.md") in captured["cmd"]
+
+
+def test_paths_are_shown_relative_to_chart_dir(libmarkdowncheck, vp, tmp_path, monkeypatch, capsys):
+    chart_dir = make_chart_dir(tmp_path, files={"docs/foo.md": "Not a heading\n"})
+    monkeypatch.setattr(libmarkdowncheck, "find_pymarkdown", lambda chart_dir: "/usr/local/bin/pymarkdown")
+    finding_line = (f"{chart_dir / 'docs' / 'foo.md'}:1:1: MD041: First line in file should be a top "
+                     f"level heading (first-line-heading,first-line-h1)\n")
+    monkeypatch.setattr(libmarkdowncheck, "run", lambda cmd, **kw: pymarkdown_result(finding_line))
+
+    vp.check_markdown(chart_dir)
+    out = capsys.readouterr().out
+    assert "docs/foo.md:1:1" in out
+    assert str(chart_dir) not in out

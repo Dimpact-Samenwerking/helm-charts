@@ -1,0 +1,100 @@
+"""Runs pymarkdown against every *.md file under chart_dir — report-only:
+this repo's docs predate any markdown-style convention, and pymarkdown's
+default rule set finds ~300 pre-existing issues across the docs tree today
+(mostly stylistic — blank-line placement around lists/headings/fences, list
+indentation, ...). Failing the build over that the moment this check starts
+existing would just make verify-podiumd permanently red instead of catching
+anything new. Findings still print, grouped by rule, for whoever wants to
+clean them up; this can graduate to failing on a specific rule once there's
+an actual documented convention to enforce it against (see check_kube_score
+for what that looks like once one exists).
+
+line-length (MD013) is disabled outright, not just left unreported — same
+call as check_yamllint's own line-length: disable (tables/links/prose
+routinely exceed it, pure noise) — it alone accounts for ~89% of all
+findings here and would drown out everything else in the report if left
+on."""
+import re
+import shutil
+from pathlib import Path
+
+from lib.gitutil import find_repo_root
+from lib.procutil import run
+from lib.render_scope import print_grouped_findings
+
+MARKDOWN_DISABLED_RULES = "md013"
+
+MARKDOWN_FINDING_RE = re.compile(
+    r"^(?P<path>.+?):(?P<line>\d+):(?P<col>\d+):\s+"
+    r"(?P<rule>MD\d+):\s+(?P<message>.*?)\s*\((?P<aliases>[a-z0-9,-]+)\)\s*$",
+    re.MULTILINE,
+)
+
+
+def find_markdown_files(chart_dir):
+    """Every *.md file under chart_dir, excluding chart_dir/charts/ — a
+    vendored sub-chart's own docs, if ever extracted from its .tgz, aren't
+    ours to fix."""
+    vendored = chart_dir / "charts"
+    return sorted(p for p in chart_dir.rglob("*.md") if vendored not in p.parents)
+
+
+def find_pymarkdown(chart_dir):
+    """<repo-root>/.venv/bin/pymarkdown (the documented setup path — see
+    README-release-process.md#setup) if it exists, else whatever's on
+    PATH (a global/differently-managed install), else None."""
+    repo_root = find_repo_root(chart_dir)
+    if repo_root is not None:
+        venv_bin = repo_root / ".venv" / "bin" / "pymarkdown"
+        if venv_bin.is_file():
+            return str(venv_bin)
+    return shutil.which("pymarkdown")
+
+
+def _relative_path(path_str, base_dir):
+    try:
+        return str(Path(path_str).relative_to(base_dir))
+    except ValueError:
+        return path_str
+
+
+def check_markdown(chart_dir):
+    """Lints every *.md file under chart_dir with pymarkdown, MD013
+    (line-length) disabled (see module docstring). Always report-only —
+    findings print, grouped by rule, but never fail the check; only a
+    missing pymarkdown install does (matching every other external-tool
+    check here)."""
+    pymarkdown = find_pymarkdown(chart_dir)
+    if pymarkdown is None:
+        return False, ("pymarkdown is not installed (see "
+                        "README-release-process.md#setup, or --skip=markdown to bypass)")
+
+    files = find_markdown_files(chart_dir)
+    if not files:
+        print("OK: no markdown files found")
+        return True, "no markdown files"
+
+    result = run([pymarkdown, "-d", MARKDOWN_DISABLED_RULES, "scan", *[str(f) for f in files]],
+                 capture_output=True, text=True)
+    output = result.stdout + result.stderr
+
+    findings = []
+    for m in MARKDOWN_FINDING_RE.finditer(output):
+        d = m.groupdict()
+        d["path"] = _relative_path(d["path"], chart_dir)
+        findings.append(d)
+
+    if findings:
+        print(f"Found {len(findings)} markdown finding(s) across {len(files)} file(s) "
+              f"(report-only, never fails):")
+        print_grouped_findings(
+            findings,
+            key_fn=lambda f: (f["rule"], f["aliases"].split(",")[0]),
+            item_fn=lambda f: f"{f['path']}:{f['line']}:{f['col']}  {f['message']}",
+            label_fn=lambda k: f"{k[0]} ({k[1]})",
+            items_label="location(s)",
+        )
+    else:
+        print(f"OK: no markdown findings across {len(files)} file(s)")
+
+    return True, f"{len(findings)} finding(s) (report-only)"
