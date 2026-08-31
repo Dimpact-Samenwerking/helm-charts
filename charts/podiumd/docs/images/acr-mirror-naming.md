@@ -78,17 +78,17 @@ Column 1 lists the canonical upstream `url:` value (without tag).
 | `docker.io/apache/apisix`                                    | `apisix`                                 |                                             |
 | `docker.io/library/busybox`                                  | `busybox`                                |                                             |
 | `docker.io/clamav/clamav`                                    | `clamav`                                 |                                             |
-| `docker.io/clamav/clamav-prometheus-exporter` *              | `clamav_exporter`                        | underscore, not hyphen                      |
-| `ghcr.io/info-nl/contact-adapter` *                          | `contact-adapter`                        |                                             |
-| `ghcr.io/info-nl/contact-frontend` *                         | `contact-frontend`                       |                                             |
-| `ghcr.io/info-nl/contact-sync` *                             | `contact-sync`                           |                                             |
+| `docker.io/clamav/clamav-prometheus-exporter` *| `clamav_exporter`                        | underscore, not hyphen                      |
+| `ghcr.io/info-nl/contact-adapter`*                          | `contact-adapter`                        |                                             |
+| `ghcr.io/info-nl/contact-frontend` *| `contact-frontend`                       |                                             |
+| `ghcr.io/info-nl/contact-sync`*                             | `contact-sync`                           |                                             |
 | `docker.io/curlimages/curl`                                  | `curl`                                   |                                             |
 | `docker.io/elastic/eck-operator`                             | `eck-operator`                           |                                             |
 | `docker.io/elastic/elasticsearch`                            | `elasticsearch/elasticsearch`            | keeps `<vendor>/<repo>` path                |
 | `docker.io/elastic/enterprise-search`                        | `enterprise-search/enterprise-search`    | keeps `<vendor>/<repo>` path                |
 | `gcr.io/etcd-development/etcd`                               | `etcd`                                   |                                             |
 | `docker.io/gotenberg/gotenberg`                              | `gotenberg`                              |                                             |
-| `docker.io/redhat/ubi8-micro`                                | `infinispan-init` *                      | infinispan init container                   |
+| `docker.io/redhat/ubi8-micro`                                | `infinispan-init` *| infinispan init container                   |
 | `docker.io/infinispan/server`                                | `infinispan-server`                      |                                             |
 | `ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller` | `internetaakafhandeling.poller`      | dot in repo name                            |
 | `ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web`    | `internetaakafhandeling.web`         | dot in repo name                            |
@@ -96,7 +96,7 @@ Column 1 lists the canonical upstream `url:` value (without tag).
 | `docker.io/lachlanevenson/k8s-kubectl`                       | `k8s-kubectl`                            |                                             |
 | `docker.io/groundnuty/k8s-wait-for`                          | `k8s-wait-for`                           |                                             |
 | `quay.io/keycloak/keycloak`                                  | `keycloak`                               |                                             |
-| `quay.io/keycloak/keycloak-config-cli` *                     | `keycloak-config-cli`                    |                                             |
+| `quay.io/keycloak/keycloak-config-cli`*                     | `keycloak-config-cli`                    |                                             |
 | `quay.io/keycloak/keycloak-operator`                         | `keycloak-operator`                      |                                             |
 | `docker.io/elastic/kibana`                                   | `kibana/kibana`                          | keeps `<vendor>/<repo>` path                |
 | `docker.io/nginxinc/nginx-unprivileged`                      | `nginx-unprivileged`                     | keeps hyphen (unlike open-*)                |
@@ -114,8 +114,8 @@ Column 1 lists the canonical upstream `url:` value (without tag).
 | `docker.io/maykinmedia/open-notificaties`                    | `opennotificaties`                       | drops hyphen                                |
 | `docker.io/openzaak/open-zaak`                               | `openzaak`                               | drops hyphen                                |
 | `ghcr.io/open-telemetry/opentelemetry-collector-contrib`     | `opentelemetry-collector-contrib`        |                                             |
-| `ghcr.io/info-nl/pabc-api` *                                 | `pabc-api`                               |                                             |
-| `docker.io/brpapi/personen-mock` *                           | `personen-mock`                          | brp-personen-mock sub-chart                 |
+| `ghcr.io/info-nl/pabc-api` *| `pabc-api`                               |                                             |
+| `docker.io/brpapi/personen-mock`*                           | `personen-mock`                          | brp-personen-mock sub-chart                 |
 | `docker.io/bitnami/rabbitmq` (or library)                    | `rabbitmq`                               |                                             |
 | `docker.io/library/redis` (or bitnami)                       | `redis`                                  |                                             |
 | `docker.io/oliver006/redis_exporter`                         | `redis-exporter`                         | hyphen, not underscore (unlike clamav)      |

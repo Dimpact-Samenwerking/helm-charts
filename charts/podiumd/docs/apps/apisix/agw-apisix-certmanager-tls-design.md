@@ -1073,15 +1073,15 @@ path, the WAF policy, Let's Encrypt issuance, and the Key Vault sync.
 
 Append to the §10 plan:
 
-9. Request PKIoverheid private services certificates (OIN of the serving
+1. Request PKIoverheid private services certificates (OIN of the serving
    organization) for Inway and Manager — **longest lead time; start first.**
-10. Deploy FSC-NLX (Manager, Inway, txlog, controller) in the `fsc` namespace
+2. Deploy FSC-NLX (Manager, Inway, txlog, controller) in the `fsc` namespace
     with the internal CA issuer for component-internal TLS.
-11. Add the AGW L4 listeners/pools/rules (§12.3); verify TCP probe health.
-12. Publish DNS for `fsc-inway`/`fsc-manager` hostnames; register the
+3. Add the AGW L4 listeners/pools/rules (§12.3); verify TCP probe health.
+4. Publish DNS for `fsc-inway`/`fsc-manager` hostnames; register the
     organization and the `open-zaak` service in the Group Directory.
-13. Run the Logius fsc-test-suite; archive the results as compliance evidence.
-14. Negotiate the first Contract with a peer and validate an end-to-end
+5. Run the Logius fsc-test-suite; archive the results as compliance evidence.
+6. Negotiate the first Contract with a peer and validate an end-to-end
     request: peer Outway → AGW :8443 → Inway → `openzaak-nginx`, confirming
     the transaction appears in both peers' transaction logs.
 
