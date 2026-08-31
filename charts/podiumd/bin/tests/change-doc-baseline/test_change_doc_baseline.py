@@ -235,6 +235,27 @@ def test_main_already_at_new_baseline_is_a_noop(cdb, repo, monkeypatch, capsys):
     assert "already baseline 4.8.2 — unchanged" in out
 
 
+def test_main_already_at_new_baseline_still_fixes_a_stale_sibling_reference(cdb, repo, monkeypatch, capsys):
+    """A doc already at the target baseline is otherwise a pure no-op
+    (see test above) — except a stale sibling-doc reference left over
+    from an earlier, incomplete rebase (the doc's OWN baseline already
+    moved past it, but a link inside it didn't) must still be fixed, or
+    nothing else in this script would ever touch that doc again."""
+    write(repo / "4.8.2-to-4.9.0-values-deltas.md",
+          "# Values deltas — PodiumD 4.8.2 → 4.9.0\n\n"
+          "Background and failure modes in "
+          "[`4.8.1-to-4.9.0-upgrade.md`](4.8.1-to-4.9.0-upgrade.md).\n")
+    set_argv_and_dir(cdb, monkeypatch, repo, "4.8.2")
+
+    cdb.main()
+
+    deltas = (repo / "4.8.2-to-4.9.0-values-deltas.md").read_text(encoding="utf-8")
+    assert "[`4.8.2-to-4.9.0-upgrade.md`](4.8.2-to-4.9.0-upgrade.md)" in deltas
+    assert "4.8.1" not in deltas
+    out = capsys.readouterr().out
+    assert "4.8.2-to-4.9.0-values-deltas.md: already baseline 4.8.2 — fixed stale sibling doc reference(s)" in out
+
+
 def test_main_no_argument_and_no_release_baseline_errors(cdb, monkeypatch):
     """Zero arguments is otherwise valid (falls back to release-baseline's
     content — see set_argv_and_dir's own baseline-arg tests) — only the
