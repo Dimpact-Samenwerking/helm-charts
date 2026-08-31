@@ -114,7 +114,7 @@ def test_nothing_to_do_when_everything_already_exists(cdv, tmp_path, monkeypatch
 def test_refuses_when_doc_exists_under_a_different_baseline(cdv, tmp_path, monkeypatch, capsys):
     """The whole point of the split: never silently rebase docs that
     should have been created fresh (or vice versa) — this is
-    fix-doc-baseline's job, so refuse outright instead."""
+    fix-doc-consistency's job, so refuse outright instead."""
     doc_dir, images_dir = setup_dirs(cdv, tmp_path, monkeypatch)
     existing = doc_dir / "4.8.4-to-4.9.0-upgrade.md"
     existing.write_text("real content\n", encoding="utf-8")
@@ -127,7 +127,7 @@ def test_refuses_when_doc_exists_under_a_different_baseline(cdv, tmp_path, monke
     out = capsys.readouterr().out
     assert "already exist for target 4.9.0 under a different baseline" in out
     assert "4.8.4-to-4.9.0-upgrade.md" in out
-    assert "use fix-doc-baseline instead" in out
+    assert "use fix-doc-consistency instead" in out
     # refuses to create ANYTHING, not just the conflicting suffix
     assert not (doc_dir / "4.8.5-to-4.9.0-gemeente-specific.md").exists()
     assert existing.read_text(encoding="utf-8") == "real content\n"  # untouched

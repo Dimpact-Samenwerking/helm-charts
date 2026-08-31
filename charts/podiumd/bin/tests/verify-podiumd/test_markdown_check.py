@@ -57,7 +57,7 @@ def test_find_markdown_files_excludes_upgrade_path_docs_for_other_releases(libma
 
 def test_find_markdown_files_excludes_target_match_with_wrong_baseline(libmarkdowncheck, tmp_path):
     """release-baseline says '4.8.5' — a doc targeting 4.9.0 but still
-    naming some OTHER baseline is exactly what fix-doc-baseline would
+    naming some OTHER baseline is exactly what fix-doc-consistency would
     itself rename right now; it isn't "the current release's own" doc
     yet, so it stays out of scope until that rename happens."""
     chart_dir = make_chart_dir(tmp_path, release_baseline="4.8.5", files={

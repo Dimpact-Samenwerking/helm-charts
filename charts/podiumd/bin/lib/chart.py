@@ -75,7 +75,7 @@ def release_baseline(chart_dir):
     doesn't exist yet (older releases and fresh checkouts predate it) —
     the shared read side every other script (verify-podiumd's release-
     baseline check and its Docs consistency default, create-doc-version's
-    and fix-doc-baseline's default argument, change-podiumd-baseline's
+    and fix-doc-consistency's default argument, change-podiumd-baseline's
     old-value display, update-component-version's and update-image-
     version's own doc updates) reads through, so they see the same value
     the same way."""
