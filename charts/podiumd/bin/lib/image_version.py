@@ -3,7 +3,7 @@ matches a given image name — the "same base image pinned in more than one
 place" case (e.g. curlimages/curl, used as a generic init-container/
 health-check helper by more than one unrelated component) that a single
 dotted-path update can't reach on its own. Shared by update-image-
-version.py's own CLI and update-component-version.py: a component's app
+version.py's own CLI and update-component-version: a component's app
 version bump resolves to one or more of these basename updates — the
 component name and the image name are not always the same (e.g.
 zgw-office-addin bumps two distinctly-named images, frontend + backend)."""
@@ -36,7 +36,7 @@ def basenames_under_scope(lines, scope_key):
     ends in "...tag" — i.e. every image actually pinned somewhere inside
     that top-level component's own subtree. A basename maps to more than
     one pin only if the exact same image is pinned more than once under
-    that same component. Shared by export-confluence-release-table.py's
+    that same component. Shared by export-confluence-release-table's
     own image_basename resolution and resolve_basename below — pure
     values.yaml text, no release-table.csv involved either way."""
     result = {}
@@ -53,7 +53,7 @@ def basenames_under_scope(lines, scope_key):
 def resolve_basename(chart_dir, lines, target):
     """The single image basename `target` actually identifies — either
     directly (a real basename with at least one digest pin already, the
-    existing update-image-version.py CLI contract, tried first so this
+    existing update-image-version CLI contract, tried first so this
     never changes behavior for a call that already works today), or via
     a Chart.yaml dependency's own name/alias (see lib.chart.
     find_dependency — an EXACT match, unlike export-confluence-release-

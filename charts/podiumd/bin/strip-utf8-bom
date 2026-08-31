@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
 Strip a UTF-8 BOM (bytes EF BB BF) from charts/podiumd/values.yaml, if
-present. A BOM breaks YAML tooling that doesn't expect one — verify-podiumd.py
+present. A BOM breaks YAML tooling that doesn't expect one — verify-podiumd
 only detects and reports it (a verify script never writes to a tracked
 file); this script is the fixer.
 
 Usage:
-    strip-utf8-bom.py             # strip the BOM in place, if present
-    strip-utf8-bom.py --dry-run   # report only, no write
+    strip-utf8-bom             # strip the BOM in place, if present
+    strip-utf8-bom --dry-run   # report only, no write
 """
 import sys
 from pathlib import Path

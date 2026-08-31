@@ -12,15 +12,15 @@ app" — see lib.chart.COMPONENT_IMAGE_PATHS.
 This is why <chart-version> is still required here even though this
 script only checks the APP version: without pulling that specific chart
 version there's no way to know which repository to check at all. See
-verify-helmchart-version.py for checking the chart version on its own.
+verify-helmchart-version for checking the chart version on its own.
 
 Usage:
-    verify-image-version.py <component> <app-version> <chart-version>
+    verify-image-version <component> <app-version> <chart-version>
 
 Examples:
-    verify-image-version.py zac 5.4.3 1.0.297
-    verify-image-version.py zgw-office-addin 0.12.0 0.0.92
-    verify-image-version.py openformulieren 3.5.6 1.12.0
+    verify-image-version zac 5.4.3 1.0.297
+    verify-image-version zgw-office-addin 0.12.0 0.0.92
+    verify-image-version openformulieren 3.5.6 1.12.0
 
 Requires the Helm repositories to already be added (see /helm-repos or
 charts/podiumd/scripts/add-helm-repos.sh) and the `helm` CLI on PATH.

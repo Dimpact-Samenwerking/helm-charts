@@ -40,7 +40,7 @@ def test_get_path_non_dict_intermediate_returns_none(libchart):
 
 
 # --- replace_scalar_value ---
-# moved here from update-component-version.py (see
+# moved here from update-component-version (see
 # tests/update-component-version/test_update_component_version.py for the
 # ucv.replace_scalar_value re-export, still exercised via that import).
 
@@ -64,8 +64,8 @@ def test_replace_scalar_value_unparseable_line_raises(libchart):
 
 
 # --- chart_version / SEMVER_RE ---
-# shared by set-doc-baseline.py, update-component-version.py, and
-# create-podiumd-version.py's own current_chart_version()/*_VERSION_RE
+# shared by set-doc-baseline, update-component-version, and
+# create-podiumd-version's own current_chart_version()/*_VERSION_RE
 # re-exports — see those scripts' own tests for the re-export coverage.
 
 def test_chart_version_reads_top_level_version(libchart, tmp_path):

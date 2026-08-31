@@ -15,10 +15,10 @@ fix_images_manifest_entries for exactly what gets rewritten vs. just
 reported for manual review.
 
 Usage:
-    set-doc-baseline.py <new-baseline>
+    set-doc-baseline <new-baseline>
 
 Example:
-    set-doc-baseline.py 4.8.3
+    set-doc-baseline 4.8.3
         # if Chart.yaml's version is 4.9.0, renames *-to-4.9.0-*.md
 """
 import re
@@ -47,7 +47,7 @@ CHART_YAML = SCRIPT_DIR.parents[0] / "Chart.yaml"
 VALUES_YAML = SCRIPT_DIR.parents[0] / "values.yaml"
 DOC_DIR = SCRIPT_DIR.parents[0] / "docs" / "_UPGRADE_PATHS"
 IMAGES_DIR = SCRIPT_DIR.parents[0] / "docs" / "images"
-UPDATE_README_SCRIPT = SCRIPT_DIR / "update-podiumd-readme.py"
+UPDATE_README_SCRIPT = SCRIPT_DIR / "update-podiumd-readme"
 
 
 def current_chart_version():
@@ -65,7 +65,7 @@ FILENAME_RE_TMPL = r"^(?P<baseline>\d+\.\d+\.\d+)-to-{target}-(?P<suffix>[\w\-]+
 TITLE_ARROW_RE_TMPL = r"(?P<baseline>{baseline})(?P<arrow>\s*(?:→|->)\s*){target}"
 COMPONENT_VERSIONS_RE_TMPL = r"Component versions \({target}\s+vs\s+(?P<baseline>{baseline})\)"
 
-# Same shape as verify-podiumd.py's SIBLING_DOC_RE/IMAGES_REF check — any
+# Same shape as verify-podiumd's SIBLING_DOC_RE/IMAGES_REF check — any
 # reference to one of the just-renamed docs, whatever baseline it names.
 SIBLING_DOC_RE_TMPL = r"(?P<baseline>\d+\.\d+\.\d+)-to-{target}-(?P<suffix>upgrade|gemeente-specific|values-deltas)\.md"
 BASELINE_LINE_RE = re.compile(r"(?P<prefix>Baseline:\s*podiumd\s+)(?P<baseline>\d+\.\d+\.\d+)")
@@ -83,7 +83,7 @@ IMAGES_STUB_TEMPLATE = (
     "[]\n"
 )
 
-# The three docs verify-podiumd.py's check_baseline_doc_set expects for
+# The three docs verify-podiumd's check_baseline_doc_set expects for
 # every target — missing ones are created as stubs, not just renamed.
 STANDARD_SUFFIXES = ("upgrade", "gemeente-specific", "values-deltas")
 
@@ -519,11 +519,11 @@ def main():
             print(f"  {name}: line(s) {', '.join(map(str, lines))}")
 
     print()
-    print("=== Regenerating README.md (update-podiumd-readme.py) ===")
+    print("=== Regenerating README.md (update-podiumd-readme) ===")
     run_script([sys.executable, str(UPDATE_README_SCRIPT)])
 
     print()
-    print(f"Done. Run verify-podiumd.py --baseline {new_baseline} to confirm consistency before committing.")
+    print(f"Done. Run verify-podiumd --baseline {new_baseline} to confirm consistency before committing.")
 
 
 if __name__ == "__main__":

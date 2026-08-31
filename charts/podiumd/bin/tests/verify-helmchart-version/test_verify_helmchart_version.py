@@ -1,4 +1,4 @@
-"""find_dependency and main() for verify-helmchart-version.py. `pull_chart` itself
+"""find_dependency and main() for verify-helmchart-version. `pull_chart` itself
 (and the `helm` subprocess it wraps) is covered by tests/lib/test_chart.py —
 these tests mock it out and only exercise this script's own glue: looking up
 the Chart.yaml dependency and reporting FOUND/MISSING/OK/FAIL."""
@@ -34,7 +34,7 @@ def test_find_dependency_not_found_raises(vhcv, tmp_path, monkeypatch):
 # --- main() ---
 
 def run_main(vhcv, monkeypatch, argv):
-    monkeypatch.setattr("sys.argv", ["verify-helmchart-version.py", *argv])
+    monkeypatch.setattr("sys.argv", ["verify-helmchart-version", *argv])
     with pytest.raises(SystemExit) as exc_info:
         vhcv.main()
     return exc_info.value.code

@@ -15,7 +15,7 @@ def test_main_help_flag_prints_usage_and_exits_zero_without_touching_the_file(su
     original = BOM + b"zac:\n  enabled: true\n"
     write(values_path, original)
     monkeypatch.setattr(sub, "VALUES_PATH", values_path)
-    monkeypatch.setattr("sys.argv", ["strip-utf8-bom.py", flag])
+    monkeypatch.setattr("sys.argv", ["strip-utf8-bom", flag])
 
     with pytest.raises(SystemExit) as exc_info:
         sub.main()
@@ -29,7 +29,7 @@ def test_no_bom_exits_zero_and_leaves_file_untouched(sub, tmp_path, monkeypatch)
     original = b"zac:\n  enabled: true\n"
     write(values_path, original)
     monkeypatch.setattr(sub, "VALUES_PATH", values_path)
-    monkeypatch.setattr("sys.argv", ["strip-utf8-bom.py"])
+    monkeypatch.setattr("sys.argv", ["strip-utf8-bom"])
 
     with pytest.raises(SystemExit) as exc_info:
         sub.main()
@@ -41,7 +41,7 @@ def test_bom_is_stripped_and_exits_zero(sub, tmp_path, monkeypatch):
     values_path = tmp_path / "values.yaml"
     write(values_path, BOM + b"zac:\n  enabled: true\n")
     monkeypatch.setattr(sub, "VALUES_PATH", values_path)
-    monkeypatch.setattr("sys.argv", ["strip-utf8-bom.py"])
+    monkeypatch.setattr("sys.argv", ["strip-utf8-bom"])
 
     with pytest.raises(SystemExit) as exc_info:
         sub.main()
@@ -54,7 +54,7 @@ def test_dry_run_reports_bom_but_does_not_write(sub, tmp_path, monkeypatch):
     original = BOM + b"zac:\n  enabled: true\n"
     write(values_path, original)
     monkeypatch.setattr(sub, "VALUES_PATH", values_path)
-    monkeypatch.setattr("sys.argv", ["strip-utf8-bom.py", "--dry-run"])
+    monkeypatch.setattr("sys.argv", ["strip-utf8-bom", "--dry-run"])
 
     with pytest.raises(SystemExit) as exc_info:
         sub.main()
@@ -67,7 +67,7 @@ def test_dry_run_no_bom_exits_zero(sub, tmp_path, monkeypatch):
     original = b"zac:\n  enabled: true\n"
     write(values_path, original)
     monkeypatch.setattr(sub, "VALUES_PATH", values_path)
-    monkeypatch.setattr("sys.argv", ["strip-utf8-bom.py", "--dry-run"])
+    monkeypatch.setattr("sys.argv", ["strip-utf8-bom", "--dry-run"])
 
     with pytest.raises(SystemExit) as exc_info:
         sub.main()

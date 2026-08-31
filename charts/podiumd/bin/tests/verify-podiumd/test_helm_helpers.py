@@ -2,7 +2,7 @@
 report_errors_by_subchart — with `helm`/`git` subprocess calls mocked out
 via vp.run, so these tests need neither tool installed nor network access.
 check_dependencies now lives in lib.dependencies (also used by
-set-image-digests.py) — see tests/lib/test_dependencies.py."""
+set-image-digests) — see tests/lib/test_dependencies.py."""
 from types import SimpleNamespace
 
 
@@ -204,7 +204,7 @@ def test_render_chart_propagates_failure(librenderscope, tmp_path, monkeypatch):
     assert "broke" in result.stderr
 
 
-# --- lint_args_for (moved from verify-podiumd.py — see also
+# --- lint_args_for (moved from verify-podiumd — see also
 # tests/verify-podiumd/test_misc.py, which covers the vp.lint_args_for
 # re-export used by main()) ---
 

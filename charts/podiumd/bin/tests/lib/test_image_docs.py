@@ -1,5 +1,5 @@
 """lib.image_docs — the "shared image basename as its own pseudo-component"
-doc-update helpers used by update-image-version.py when a basename bump
+doc-update helpers used by update-image-version when a basename bump
 touches more than one Chart.yaml component. Convention confirmed against
 docs/_UPGRADE_PATHS/4.8.1-to-4.8.2-upgrade.md (curl/nginx-unprivileged/
 busybox each got their own table row + "### <name> ..." Changes block)."""

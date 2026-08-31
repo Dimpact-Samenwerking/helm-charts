@@ -133,7 +133,7 @@ def test_component_matches_no_match_anywhere_is_empty(qrt, rows):
 def test_used_by_rows_for_resolves_used_by_via_alias_column(qrt, rows):
     """"ita" isn't a substring of "Interne Taak Afhandeling" at all —
     only matching against that row's own "alias" column (set by
-    export-confluence-release-table.py, resolved from Chart.yaml at
+    export-confluence-release-table, resolved from Chart.yaml at
     export time) connects it back to ITA Poller."""
     interne_taak = [r for r in rows if r["name"] == "Interne Taak Afhandeling"]
     matches = qrt.used_by_rows_for(rows, interne_taak)
@@ -192,7 +192,7 @@ def test_print_table_aligns_columns_with_header(qrt, capsys, rows):
 
 
 def test_print_table_includes_image_basename(qrt, capsys, rows):
-    """image_basename -- set by export-confluence-release-table.py's own
+    """image_basename -- set by export-confluence-release-table's own
     resolve_image_basenames -- is shown alongside component/alias, not
     just usable for filtering. Uses a row whose image_basename ("kiss-
     frontend") is a distinct string from its own component ("kiss-chart"),
@@ -204,7 +204,7 @@ def test_print_table_includes_image_basename(qrt, capsys, rows):
 
 
 def test_print_table_includes_component_and_alias(qrt, capsys, rows):
-    """component/alias — set by export-confluence-release-table.py — are
+    """component/alias — set by export-confluence-release-table — are
     shown alongside name and the version columns, not just usable for
     filtering."""
     ita = next(r for r in rows if r["name"] == "Interne Taak Afhandeling")
@@ -227,7 +227,7 @@ def test_print_table_shows_unchanged_for_empty_target(qrt, capsys, rows):
 
 def run_main(qrt, monkeypatch, csv_path, argv):
     monkeypatch.setattr(qrt, "DEFAULT_INPUT", csv_path)
-    monkeypatch.setattr("sys.argv", ["query-release-table.py"] + argv)
+    monkeypatch.setattr("sys.argv", ["query-release-table"] + argv)
 
 
 def test_main_prints_matches(qrt, monkeypatch, csv_path, capsys):
@@ -293,7 +293,7 @@ def test_main_vendor_query_omits_used_by_section_when_unrelated(qrt, monkeypatch
 def test_main_resolves_used_by_via_alias_column(qrt, monkeypatch, csv_path, capsys):
     """End-to-end: querying "Interne Taak Afhandeling" pulls in "ITA
     Poller" via its own "alias" column, already baked into the CSV by
-    export-confluence-release-table.py — no Chart.yaml needed at query
+    export-confluence-release-table — no Chart.yaml needed at query
     time. Neither its component nor alias contains "interne taak", so
     this falls all the way through component_matches to the "name"
     last resort."""
@@ -390,10 +390,10 @@ def test_main_wrong_arg_count_prints_usage(qrt, monkeypatch, csv_path, capsys):
 def test_main_missing_input_file_errors(qrt, monkeypatch, tmp_path, capsys):
     missing = tmp_path / "does-not-exist.csv"
     monkeypatch.setattr(qrt, "DEFAULT_INPUT", missing)
-    monkeypatch.setattr("sys.argv", ["query-release-table.py", "component", "zac"])
+    monkeypatch.setattr("sys.argv", ["query-release-table", "component", "zac"])
     with pytest.raises(SystemExit) as exc_info:
         qrt.main()
     assert exc_info.value.code != 0
     out = capsys.readouterr().out
     assert "not found" in out
-    assert "export-confluence-release-table.py" in out
+    assert "export-confluence-release-table" in out

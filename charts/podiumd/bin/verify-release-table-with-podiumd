@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Compare charts/podiumd/release-table.csv (see
-export-confluence-release-table.py) against the CURRENT
+export-confluence-release-table) against the CURRENT
 charts/podiumd/Chart.yaml + values.yaml, and report:
 
   - version mismatches: a row's target_version_helm/target_version_app
@@ -15,11 +15,11 @@ charts/podiumd/Chart.yaml + values.yaml, and report:
     whose image_basename names an image no longer pinned there
 
 A row's "component"/"alias"/"image_basename" columns are already resolved
-by export-confluence-release-table.py — this reads them directly rather
+by export-confluence-release-table — this reads them directly rather
 than re-deriving anything from free-form text (component is always a
 literal Chart.yaml dependency name, or a values.yaml top-level key for a
 no-separate-chart component). The image lookup is the exact same two lib.
-image_version calls update-image-version.py's own <target> resolution
+image_version calls update-image-version's own <target> resolution
 (lib.image_version.resolve_basename) is built on, tried in the same
 order: first basenames_under_scope, scoped to the component's own
 values.yaml subtree (fast, and the common case); if that misses, a plain
@@ -28,7 +28,7 @@ repository identity, not a values.yaml path, and can legitimately be
 pinned under a sibling scope instead (e.g. keycloak-config-cli lives
 under top-level "keycloak", not its own component's "keycloak-operator").
 The chart-version lookup is a plain Chart.yaml dependency read, the same
-one update-component-version.py's own pre-write gate uses.
+one update-component-version's own pre-write gate uses.
 
 A row whose component is "MULTIPLE" is a shared base image hoisted into
 values.yaml's top-level global.images map (see export-confluence-release-
@@ -43,14 +43,14 @@ version check, since it isn't backed by a separate Helm chart at all). A
 ambiguous plain dependency-name collision, not a global image) has nothing
 to check either way and is silently skipped, same as blank.
 
-A row whose component is "UNKNOWN" (export-confluence-release-table.py
+A row whose component is "UNKNOWN" (export-confluence-release-table
 couldn't resolve it to anything at export time) is listed separately as
 unresolved — that's a pre-existing export-time gap, not something this
 script can verify either way, so it isn't scored as a failure here.
 
 Purely local and network-free (no `helm pull`, no registry calls): a
 "fallback path" component's app image basename can only be discovered by
-pulling that specific chart version (see verify-image-version.py) — this
+pulling that specific chart version (see verify-image-version) — this
 compares release-table.csv's OWN image_basename column against whatever
 is ALREADY pinned in values.yaml right now, so nothing needs pulling.
 
@@ -66,7 +66,7 @@ digest_pinning_check.EXEMPT_PATHS documents for its own, different check
     "tag:" value (already just the version, no digest suffix) is read
     directly instead — see SPECIAL_CASE_BASENAME_TAG_PATHS.
   - omc's own image tag intentionally carries no digest at all (its
-    subchart can't handle one), so export-confluence-release-table.py
+    subchart can't handle one), so export-confluence-release-table
     itself never resolves an image_basename for its row — checked here
     independently of that blank column, keyed by component instead — see
     SPECIAL_CASE_COMPONENT_TAG_PATHS.
@@ -79,7 +79,7 @@ are supposed to record the identical string, so a drift there is itself
 worth surfacing rather than silently normalized away.
 
 Usage:
-    verify-release-table-with-podiumd.py
+    verify-release-table-with-podiumd
 
 Exit code is non-zero if any version mismatch, missing-from-release-table,
 or missing-from-chart-or-values item was found.
@@ -184,7 +184,7 @@ def check_images(scope_key, component, rows, lines, findings, values):
             pins = actual_basenames.get(basename)
             if pins is None:
                 # Not under this component's own scope — same fallback
-                # update-image-version.py's own <target> resolution uses
+                # update-image-version's own <target> resolution uses
                 # (lib.image_version.resolve_basename's first, unscoped
                 # find_matches try): a basename is a real repository
                 # identity, not a values.yaml path, so it can legitimately
@@ -230,7 +230,7 @@ def check_images(scope_key, component, rows, lines, findings, values):
 def compare(rows, deps, values, lines):
     """{"mismatches", "ambiguous", "missing_from_release_table",
     "missing_from_chart"}: str -> [str, ...], plus the separate list of
-    rows whose component export-confluence-release-table.py never
+    rows whose component export-confluence-release-table never
     resolved at all (see UNRESOLVED_COMPONENTS) — see module docstring."""
     findings = defaultdict(list)
     unresolved = []
@@ -320,7 +320,7 @@ def main():
 
     if not RELEASE_TABLE_CSV.is_file():
         print(f"error: {RELEASE_TABLE_CSV} not found")
-        print("Create it first with export-confluence-release-table.py.")
+        print("Create it first with export-confluence-release-table.")
         sys.exit(1)
     rows = load_release_table(RELEASE_TABLE_CSV)
 

@@ -7,18 +7,18 @@ rather than at edit time. The Helm repo is derived from Chart.yaml's own
 dependency entry.
 
 Usage:
-    verify-helmchart-version.py <component> <chart-version>
+    verify-helmchart-version <component> <chart-version>
 
 Examples:
-    verify-helmchart-version.py zac 1.0.297
-    verify-helmchart-version.py zgw-office-addin 0.0.92
-    verify-helmchart-version.py openformulieren 1.12.0
+    verify-helmchart-version zac 1.0.297
+    verify-helmchart-version zgw-office-addin 0.0.92
+    verify-helmchart-version openformulieren 1.12.0
 
 Requires the Helm repositories to already be added (see /helm-repos or
 charts/podiumd/scripts/add-helm-repos.sh) and the `helm` CLI on PATH.
 
 For checking the component's app IMAGE version instead, see
-verify-image-version.py — that check separately needs the chart version
+verify-image-version — that check separately needs the chart version
 too (to discover the correct image repository path from that chart's own
 values.yaml), so the two aren't fully independent even though they check
 different things.

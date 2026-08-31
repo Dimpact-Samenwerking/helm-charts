@@ -1,4 +1,4 @@
-"""Loads update-image-version.py (a hyphenated filename, not importable
+"""Loads update-image-version (a hyphenated filename, not importable
 normally) as a module named `uiv` so tests can call its functions/main()
 directly.
 
@@ -11,22 +11,24 @@ values.yaml bump itself (the pre-existing convention here — only
 VALUES_YAML used to matter) would silently read/write the REAL
 charts/podiumd/Chart.yaml and docs/ tree instead. A test can still
 override any of these further (e.g. write its own Chart.yaml) for its
-own scenario. Also stubs the unconditional update-podiumd-readme.py
+own scenario. Also stubs the unconditional update-podiumd-readme
 subprocess call at the end of main(), same convention as
 tests/set-doc-baseline/conftest.py."""
 import importlib.util
+from importlib.machinery import SourceFileLoader
 import subprocess
 from pathlib import Path
 
 import pytest
 import yaml
 
-SCRIPT_PATH = Path(__file__).resolve().parents[2] / "update-image-version.py"
+SCRIPT_PATH = Path(__file__).resolve().parents[2] / "update-image-version"
 
 
 @pytest.fixture(scope="session")
 def uiv():
-    spec = importlib.util.spec_from_file_location("update_image_version_cli", SCRIPT_PATH)
+    loader = SourceFileLoader("update_image_version_cli", str(SCRIPT_PATH))
+    spec = importlib.util.spec_from_file_location("update_image_version_cli", SCRIPT_PATH, loader=loader)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module

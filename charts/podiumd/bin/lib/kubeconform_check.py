@@ -105,7 +105,7 @@ def check_kubeconform(chart_dir, extra_args):
     separate kubeconform run, to know which chart a finding belongs to).
     Every per-item finding also gets a "(rendered line N)" hint when it
     can be resolved unambiguously (see build_resource_locations/
-    resource_line) — pipe the render to a file (render-podiumd.py) and
+    resource_line) — pipe the render to a file (render-podiumd) and
     jump straight there.
 
     Only an own+real finding (a genuine schema violation, or a resource

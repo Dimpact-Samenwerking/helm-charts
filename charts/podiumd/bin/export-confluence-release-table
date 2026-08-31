@@ -13,8 +13,8 @@ store it somewhere secure (shown once). Prefer --token-file or
 CONFLUENCE_API_TOKEN over --token, which leaks into shell history.
 
 Usage:
-    export-confluence-release-table.py --url <page-url> --user <email> --token-file <path>
-    export-confluence-release-table.py --url <page-url> --user <email>
+    export-confluence-release-table --url <page-url> --user <email> --token-file <path>
+    export-confluence-release-table --url <page-url> --user <email>
         # prompts for the token, or reads CONFLUENCE_API_TOKEN if set
 """
 import argparse

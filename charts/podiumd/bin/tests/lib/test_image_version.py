@@ -262,7 +262,7 @@ openzaak:
 
 def test_resolve_basename_already_a_real_basename_short_circuits(libimageversion, tmp_path):
     """No Chart.yaml needed at all when `target` is already a basename
-    with real pins -- existing update-image-version.py CLI behavior must
+    with real pins -- existing update-image-version CLI behavior must
     never change for a call that already works today."""
     values_path = write_values(tmp_path, f"""\
 a:

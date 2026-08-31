@@ -6,7 +6,7 @@ values.yaml merged with podiumd's own overrides in values.yaml, plus any
 images configured directly at the top level of podiumd's own values.yaml.
 
 Usage:
-    list-podiumd-images.py [--refresh]
+    list-podiumd-images [--refresh]
 
     --refresh   Ignore locally vendored charts/podiumd/charts/*.tgz and
                 always `helm pull` the pinned version instead.

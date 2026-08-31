@@ -107,7 +107,7 @@ def check_kube_score(chart_dir, extra_args):
     deprioritized in the output (signal-to-noise: partner charts are the
     ones worth triaging first). Every per-item finding also gets a
     "— rendered line N" hint (see build_resource_locations/resource_line
-    in lib.render_scope) — pipe the render to a file (render-podiumd.py)
+    in lib.render_scope) — pipe the render to a file (render-podiumd)
     and jump straight there. It still does NOT fail the check yet,
     regardless of vendor: the current backlog is untriaged, and some gaps
     are upstream-blocked (the sub-chart's own template exposes no

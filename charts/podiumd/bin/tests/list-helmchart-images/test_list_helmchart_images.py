@@ -81,7 +81,7 @@ def test_main_reads_local_chart_source_for_file_dependency(lhi, tmp_path, monkey
     write_chart(local_dir, "mi-data", "1.0.0", app_version="1.0.0",
                 values={"image": {"repository": "mcr.microsoft.com/azure-cli", "tag": "2.71.0"}})
     monkeypatch.setattr(lhi, "local_chart_dir", lambda chart_dir, dep: local_dir)
-    monkeypatch.setattr("sys.argv", ["list-helmchart-images.py", "mi-data", "1.0.0"])
+    monkeypatch.setattr("sys.argv", ["list-helmchart-images", "mi-data", "1.0.0"])
 
     lhi.main()
 
@@ -94,7 +94,7 @@ def test_main_reads_local_chart_source_for_file_dependency(lhi, tmp_path, monkey
 def test_main_local_dependency_missing_directory_raises(lhi, tmp_path, monkeypatch):
     write_chart_yaml(lhi, [{"name": "mi-data", "alias": "mi", "repository": "file://../mi-data"}])
     monkeypatch.setattr(lhi, "local_chart_dir", lambda chart_dir, dep: tmp_path / "does-not-exist")
-    monkeypatch.setattr("sys.argv", ["list-helmchart-images.py", "mi-data", "1.0.0"])
+    monkeypatch.setattr("sys.argv", ["list-helmchart-images", "mi-data", "1.0.0"])
     with pytest.raises(SystemExit, match="does not exist"):
         lhi.main()
 
@@ -111,7 +111,7 @@ def test_main_full_flow_prints_chart_and_images(lhi, monkeypatch, capsys):
         return True, ""
 
     monkeypatch.setattr(lhi, "pull_chart", fake_pull_chart)
-    monkeypatch.setattr("sys.argv", ["list-helmchart-images.py", "zac", "1.0.297"])
+    monkeypatch.setattr("sys.argv", ["list-helmchart-images", "zac", "1.0.297"])
     lhi.main()
 
     out = capsys.readouterr().out
@@ -124,7 +124,7 @@ def test_main_full_flow_prints_chart_and_images(lhi, monkeypatch, capsys):
 def test_main_pull_failure_raises_systemexit(lhi, monkeypatch):
     write_chart_yaml(lhi, [{"name": "zaakafhandelcomponent", "alias": "zac", "repository": "@zac"}])
     monkeypatch.setattr(lhi, "pull_chart", lambda dep, version, dest: (False, "version not found"))
-    monkeypatch.setattr("sys.argv", ["list-helmchart-images.py", "zac", "9.9.9"])
+    monkeypatch.setattr("sys.argv", ["list-helmchart-images", "zac", "9.9.9"])
     with pytest.raises(SystemExit, match="helm pull failed"):
         lhi.main()
 
@@ -132,20 +132,20 @@ def test_main_pull_failure_raises_systemexit(lhi, monkeypatch):
 def test_main_helm_pull_produces_no_directory_raises(lhi, monkeypatch):
     write_chart_yaml(lhi, [{"name": "zaakafhandelcomponent", "alias": "zac", "repository": "@zac"}])
     monkeypatch.setattr(lhi, "pull_chart", lambda dep, version, dest: (True, ""))  # creates nothing
-    monkeypatch.setattr("sys.argv", ["list-helmchart-images.py", "zac", "1.0.297"])
+    monkeypatch.setattr("sys.argv", ["list-helmchart-images", "zac", "1.0.297"])
     with pytest.raises(SystemExit, match="produced no chart directory"):
         lhi.main()
 
 
 def test_main_missing_arguments_exits(lhi, monkeypatch):
-    monkeypatch.setattr("sys.argv", ["list-helmchart-images.py", "zac"])
+    monkeypatch.setattr("sys.argv", ["list-helmchart-images", "zac"])
     with pytest.raises(SystemExit):
         lhi.main()
 
 
 @pytest.mark.parametrize("flag", ["-h", "--help"])
 def test_main_help_flag_prints_usage_and_exits_zero(lhi, monkeypatch, capsys, flag):
-    monkeypatch.setattr("sys.argv", ["list-helmchart-images.py", flag])
+    monkeypatch.setattr("sys.argv", ["list-helmchart-images", flag])
     with pytest.raises(SystemExit) as exc_info:
         lhi.main()
     assert exc_info.value.code == 0

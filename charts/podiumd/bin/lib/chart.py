@@ -13,8 +13,8 @@ from lib.procutil import run
 from lib.registry import parse_repo, registry_tag_exists
 
 # A BOM breaks YAML tooling that doesn't expect one. Shared by
-# verify-podiumd.py (detects and reports it — a verify script never writes
-# to a tracked file) and strip-utf8-bom.py (the fixer).
+# verify-podiumd (detects and reports it — a verify script never writes
+# to a tracked file) and strip-utf8-bom (the fixer).
 UTF8_BOM = b"\xef\xbb\xbf"
 
 # component (name or alias) -> dotted values.yaml path(s) for its own image
@@ -41,7 +41,7 @@ COMPONENT_IMAGE_PATHS = {
     # again. Bump the keycloak-operator dependency's own chart version in
     # Chart.yaml to move the operator itself. Uses the adfinis chart's own
     # split "tag:" + sibling "sha:" convention instead of an embedded
-    # @sha256 digest — see update-component-version.py's SPLIT_TAG_SHA_PATHS
+    # @sha256 digest — see update-component-version's SPLIT_TAG_SHA_PATHS
     # for the write side.
     "keycloak-operator": ["operator.config.keycloakImage"],
 }
@@ -169,7 +169,7 @@ def check_image_versions(values, image_paths, app_version):
     ...] for every path in `image_paths` (see image_paths_for) that has a
     "repository:" in `values` (a pulled chart's own values.yaml — see
     pull_chart_values), checked against app_version on its actual
-    upstream registry. Shared by verify-image-version.py (a human
+    upstream registry. Shared by verify-image-version (a human
     pre-checking a version before writing it anywhere) and update-
     component-version.py's own pre-write gate (the same check, reused
     against the SAME pulled values rather than pulling — and checking —
@@ -208,7 +208,7 @@ def dotted_key_path(lines, line_index):
     reconstructed purely from indentation — e.g. "openzaak.image.tag" for
     a "tag:" line nested under "openzaak: > image:". A plain-text
     stand-in for a full YAML-document walk, used by digest-pin scanning
-    (lib.image_digests/set-image-digests.py), which already has the exact
+    (lib.image_digests/set-image-digests), which already has the exact
     source line (and its digest/comment) from a regex match on raw
     `lines` — a full re-parse would lose that line-number association."""
     stack = []
@@ -262,7 +262,7 @@ def subchart_default_repository(chart_dir, lines, pin_line, deps, cache=None):
     """The `repository:` a digest pin's own component defaults to via its
     subchart's baked-in values.yaml, for a pin whose "tag:" line has no
     resolvable "repository:" of its own in podiumd's values.yaml (see
-    resolve_pin_repo in lib.image_digests/set-image-digests.py) — the same
+    resolve_pin_repo in lib.image_digests/set-image-digests) — the same
     value Helm merges in at render time (see subchart_values). `pin_line`
     is the pin's 1-based "tag:" line number in `lines`; `deps` is
     Chart.yaml's "dependencies" list. `cache`, if passed, is a dict shared
@@ -289,7 +289,7 @@ def subchart_needs_vendoring(chart_dir, lines, pin_line, deps):
     its component matches a Chart.yaml dependency, but the .tgz that
     dependency would vendor at the version Chart.yaml currently pins isn't
     on disk. False for a component with no matching dependency at all
-    (vendoring can never help — see set-image-digests.py, which uses this
+    (vendoring can never help — see set-image-digests, which uses this
     to decide whether re-vendoring is worth the cost) or one already
     vendored at the current version (nothing to gain from redoing it — it
     simply doesn't default a repository at that path)."""

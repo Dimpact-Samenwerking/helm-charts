@@ -4,13 +4,13 @@ List every container image (repository + tag) and every sub-chart dependency
 declared by a podiumd dependency chart, at a given chart version.
 
 Usage:
-    list-helmchart-images.py <chart-name-or-alias> <chart-version>
+    list-helmchart-images <chart-name-or-alias> <chart-version>
 
 Examples:
-    list-helmchart-images.py zac 1.0.297
-    list-helmchart-images.py zaakafhandelcomponent 1.0.297
-    list-helmchart-images.py zgw-office-addin 0.0.92
-    list-helmchart-images.py mi-data 1.0.0
+    list-helmchart-images zac 1.0.297
+    list-helmchart-images zaakafhandelcomponent 1.0.297
+    list-helmchart-images zgw-office-addin 0.0.92
+    list-helmchart-images mi-data 1.0.0
         # mi-data (and any other "file://" local-path dependency) is read
         # straight from its own source directory instead of being pulled —
         # `helm pull` has no way to fetch a local relative path at all, and

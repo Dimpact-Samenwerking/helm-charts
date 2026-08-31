@@ -1,6 +1,6 @@
-"""render-podiumd.py: renders the podiumd chart to a file of the caller's
+"""render-podiumd: renders the podiumd chart to a file of the caller's
 choice via lib.render_scope.render_chart/lint_args_for — the same helpers
-verify-podiumd.py's own checks use, so this stays DRY with them rather than
+verify-podiumd's own checks use, so this stays DRY with them rather than
 re-implementing the `helm template` invocation. helm/render_chart are
 mocked out via rp.render_chart directly (same level test_misc.py's
 --skip=/--include= tests mock vp.check_X at) — no real helm invocation
@@ -19,7 +19,7 @@ def fake_render_chart(returncode=0, stdout="", stderr=""):
 # --- -h/--help and argument validation ---
 
 def test_help_flag_prints_docstring_and_exits_0(rp, monkeypatch, capsys):
-    monkeypatch.setattr(rp.sys, "argv", ["render-podiumd.py", "--help"])
+    monkeypatch.setattr(rp.sys, "argv", ["render-podiumd", "--help"])
     with pytest.raises(SystemExit) as exc_info:
         rp.main()
     assert exc_info.value.code == 0
@@ -34,7 +34,7 @@ def test_no_args_writes_to_default_output(rp, tmp_path, monkeypatch, capsys):
     now the common "just render it" case."""
     default_output = tmp_path / "rendered-helm.yaml"
     monkeypatch.setattr(rp, "DEFAULT_OUTPUT", default_output)
-    monkeypatch.setattr(rp.sys, "argv", ["render-podiumd.py"])
+    monkeypatch.setattr(rp.sys, "argv", ["render-podiumd"])
     monkeypatch.setattr(rp, "lint_args_for", lambda chart_dir: [])
     monkeypatch.setattr(rp, "render_chart", fake_render_chart(0, "---\n# Source: a.yaml\nkind: Foo\n"))
 
@@ -49,7 +49,7 @@ def test_no_args_writes_to_default_output(rp, tmp_path, monkeypatch, capsys):
 
 def test_no_extra_args_uses_lint_args_for_default(rp, tmp_path, monkeypatch):
     output_path = tmp_path / "out.yaml"
-    monkeypatch.setattr(rp.sys, "argv", ["render-podiumd.py", str(output_path)])
+    monkeypatch.setattr(rp.sys, "argv", ["render-podiumd", str(output_path)])
     monkeypatch.setattr(rp, "lint_args_for", lambda chart_dir: ["-f", "ci/lint-values.yaml"])
 
     captured = {}
@@ -67,11 +67,11 @@ def test_no_extra_args_uses_lint_args_for_default(rp, tmp_path, monkeypatch):
 
 def test_no_extra_args_announces_default_ci_values(rp, tmp_path, monkeypatch, capsys):
     """A schema/render failure from a custom-args run (see the override test
-    below) must never be mistaken for the standard verify-podiumd.py check
+    below) must never be mistaken for the standard verify-podiumd check
     failing — this printed line is what tells the two apart, so it must
     always say which basis was actually used before rendering."""
     output_path = tmp_path / "out.yaml"
-    monkeypatch.setattr(rp.sys, "argv", ["render-podiumd.py", str(output_path)])
+    monkeypatch.setattr(rp.sys, "argv", ["render-podiumd", str(output_path)])
     monkeypatch.setattr(rp, "lint_args_for", lambda chart_dir: ["-f", "ci/lint-values.yaml"])
     monkeypatch.setattr(rp, "render_chart", fake_render_chart(0, "---\n# Source: a.yaml\nkind: Foo\n"))
 
@@ -86,7 +86,7 @@ def test_no_extra_args_announces_default_ci_values(rp, tmp_path, monkeypatch, ca
 def test_extra_cli_args_override_default_lint_args(rp, tmp_path, monkeypatch):
     output_path = tmp_path / "out.yaml"
     monkeypatch.setattr(rp.sys, "argv",
-                         ["render-podiumd.py", str(output_path), "-s", "templates/frankgateway.yaml"])
+                         ["render-podiumd", str(output_path), "-s", "templates/frankgateway.yaml"])
 
     def fail_if_called(chart_dir):
         raise AssertionError("lint_args_for must not be called when extra args are given")
@@ -109,7 +109,7 @@ def test_extra_cli_args_override_default_lint_args(rp, tmp_path, monkeypatch):
 def test_extra_cli_args_announce_custom_render_not_default(rp, tmp_path, monkeypatch, capsys):
     output_path = tmp_path / "out.yaml"
     monkeypatch.setattr(rp.sys, "argv",
-                         ["render-podiumd.py", str(output_path), "-s", "templates/frankgateway.yaml"])
+                         ["render-podiumd", str(output_path), "-s", "templates/frankgateway.yaml"])
     monkeypatch.setattr(rp, "render_chart", fake_render_chart(0, "---\n# Source: a.yaml\nkind: Foo\n"))
 
     rp.main()
@@ -124,7 +124,7 @@ def test_extra_cli_args_announce_custom_render_not_default(rp, tmp_path, monkeyp
 def test_success_writes_rendered_output_to_file(rp, tmp_path, monkeypatch, capsys):
     output_path = tmp_path / "out.yaml"
     rendered = "---\n# Source: podiumd/templates/a.yaml\nkind: Foo\n---\n# Source: podiumd/templates/b.yaml\nkind: Bar\n"
-    monkeypatch.setattr(rp.sys, "argv", ["render-podiumd.py", str(output_path)])
+    monkeypatch.setattr(rp.sys, "argv", ["render-podiumd", str(output_path)])
     monkeypatch.setattr(rp, "lint_args_for", lambda chart_dir: [])
     monkeypatch.setattr(rp, "render_chart", fake_render_chart(0, rendered))
 
@@ -140,7 +140,7 @@ def test_success_writes_rendered_output_to_file(rp, tmp_path, monkeypatch, capsy
 
 def test_failure_does_not_write_file_and_exits_1(rp, tmp_path, monkeypatch, capsys):
     output_path = tmp_path / "out.yaml"
-    monkeypatch.setattr(rp.sys, "argv", ["render-podiumd.py", str(output_path)])
+    monkeypatch.setattr(rp.sys, "argv", ["render-podiumd", str(output_path)])
     monkeypatch.setattr(rp, "lint_args_for", lambda chart_dir: [])
     monkeypatch.setattr(rp, "render_chart", fake_render_chart(1, "", "Error: podiumd/charts/zac/templates/a.yaml: broke"))
 
@@ -158,7 +158,7 @@ def test_failure_does_not_write_file_and_exits_1(rp, tmp_path, monkeypatch, caps
 
 def test_stdout_flag_writes_rendered_yaml_to_stdout(rp, monkeypatch, capsys):
     rendered = "---\n# Source: a.yaml\nkind: Foo\n"
-    monkeypatch.setattr(rp.sys, "argv", ["render-podiumd.py", "--stdout"])
+    monkeypatch.setattr(rp.sys, "argv", ["render-podiumd", "--stdout"])
     monkeypatch.setattr(rp, "lint_args_for", lambda chart_dir: [])
     monkeypatch.setattr(rp, "render_chart", fake_render_chart(0, rendered))
 
@@ -173,7 +173,7 @@ def test_stdout_flag_puts_status_and_summary_on_stderr(rp, monkeypatch, capsys):
         "---\n# Source: podiumd/templates/a.yaml\nkind: Foo\n"
         "---\n# Source: podiumd/templates/b.yaml\nkind: Bar\n"
     )
-    monkeypatch.setattr(rp.sys, "argv", ["render-podiumd.py", "--stdout"])
+    monkeypatch.setattr(rp.sys, "argv", ["render-podiumd", "--stdout"])
     monkeypatch.setattr(rp, "lint_args_for", lambda chart_dir: ["-f", "ci/lint-values.yaml"])
     monkeypatch.setattr(rp, "render_chart", fake_render_chart(0, rendered))
 
@@ -188,7 +188,7 @@ def test_stdout_flag_puts_status_and_summary_on_stderr(rp, monkeypatch, capsys):
 
 def test_stdout_flag_with_extra_args(rp, monkeypatch, capsys):
     rendered = "---\n# Source: a.yaml\nkind: Foo\n"
-    monkeypatch.setattr(rp.sys, "argv", ["render-podiumd.py", "--stdout", "-s", "templates/frankgateway.yaml"])
+    monkeypatch.setattr(rp.sys, "argv", ["render-podiumd", "--stdout", "-s", "templates/frankgateway.yaml"])
 
     def fail_if_called(chart_dir):
         raise AssertionError("lint_args_for must not be called when extra args are given")
@@ -210,7 +210,7 @@ def test_stdout_flag_with_extra_args(rp, monkeypatch, capsys):
 
 
 def test_stdout_flag_failure_puts_everything_on_stderr_and_writes_nothing(rp, monkeypatch, capsys):
-    monkeypatch.setattr(rp.sys, "argv", ["render-podiumd.py", "--stdout"])
+    monkeypatch.setattr(rp.sys, "argv", ["render-podiumd", "--stdout"])
     monkeypatch.setattr(rp, "lint_args_for", lambda chart_dir: [])
     monkeypatch.setattr(rp, "render_chart",
                          fake_render_chart(1, "", "Error: podiumd/charts/zac/templates/a.yaml: broke"))

@@ -139,7 +139,7 @@ def test_find_repo_root_returns_repo_root(scbv, repo, monkeypatch):
 # so only the failure-path tests wrap the call in pytest.raises(SystemExit).
 
 def set_argv_and_repo(scbv, monkeypatch, repo, argv):
-    monkeypatch.setattr("sys.argv", ["show-component-baseline-version.py", *argv])
+    monkeypatch.setattr("sys.argv", ["show-component-baseline-version", *argv])
     monkeypatch.setattr(scbv, "find_repo_root", lambda: repo)
 
 
@@ -169,7 +169,7 @@ def test_main_unknown_component_fails(scbv, repo, monkeypatch, capsys):
 
 
 def test_main_requires_exactly_two_arguments(scbv, monkeypatch):
-    monkeypatch.setattr("sys.argv", ["show-component-baseline-version.py", "zac"])
+    monkeypatch.setattr("sys.argv", ["show-component-baseline-version", "zac"])
     with pytest.raises(SystemExit) as exc_info:
         scbv.main()
     assert exc_info.value.code == 1
@@ -177,7 +177,7 @@ def test_main_requires_exactly_two_arguments(scbv, monkeypatch):
 
 @pytest.mark.parametrize("flag", ["-h", "--help"])
 def test_main_help_flag_prints_usage_and_exits_zero(scbv, monkeypatch, capsys, flag):
-    monkeypatch.setattr("sys.argv", ["show-component-baseline-version.py", flag])
+    monkeypatch.setattr("sys.argv", ["show-component-baseline-version", flag])
     with pytest.raises(SystemExit) as exc_info:
         scbv.main()
     assert exc_info.value.code == 0
