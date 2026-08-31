@@ -2,6 +2,9 @@
 
 ## Table of contents
 - [Setup](#setup)
+  - [Required external tools](#required-external-tools)
+  - [Debian setup](#debian-setup)
+  - [macOS setup](#macos-setup)
 - [Process steps](#process-steps)
   - [Start a new release](#start-a-new-release)
   - [When release is rebased on a different baseline](#when-release-is-rebased-on-a-different-baseline)
@@ -14,29 +17,49 @@
 ## Setup
 
 ### Required external tools
-`verify-podiumd` needs the tools below, one per check — `verify-podiumd --help` points back to this table instead of repeating it. A missing tool fails that check with a clear message (add its step to `--skip=` to bypass it) — `docker` and `az` are the two exceptions, falling back gracefully instead (see their own rows):
+`verify-podiumd` needs each of these for the check(s) noted — `verify-podiumd --help` points back to this section instead of repeating it. A missing tool fails that check with a clear message (add its step to `--skip=` to bypass it) — `docker` and `az` are the two exceptions, falling back gracefully instead:
+- `helm` — required to run at all
+- `helm-docs` — Helm docs check
+- `yamllint` — yamllint check
+- `kubeconform` — kubeconform check
+- `shellcheck` — shellcheck check
+- `kube-score` — kube-score check
+- `docker` — CVE scan (optional — missing docker just reports the scan as skipped, never blocks a run)
+- `az` — optional, Dependencies only (tells an Azure auth problem apart from a network blip — missing/unused `az` just falls back to plain retry-with-backoff)
+- `python3-venv` (Debian only — see below) — to create the `.venv` these scripts' own Python tools (`ruff`, `pymarkdown` — the full list is `requirements.txt`, not repeated here) live in, since both Debian's system Python and macOS's Homebrew Python refuse a bare `pip install` ("externally managed environment", PEP 668)
 
-| Tool | Needed for | Debian | macOS |
-| --- | --- | --- | --- |
-| `helm` | required to run at all | no apt package — official install script: `curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 \| bash` | `brew install helm` |
-| `helm-docs` | Helm docs check | no apt package — download the `.deb` from the [latest release](https://github.com/norwoodj/helm-docs/releases) and `sudo dpkg -i helm-docs_*.deb` | `brew install helm-docs` |
-| `yamllint` | yamllint check | `sudo apt install yamllint` | `brew install yamllint` |
-| `kubeconform` | kubeconform check | no apt package — download the static binary from the [latest release](https://github.com/yannh/kubeconform/releases) | `brew install kubeconform` |
-| `shellcheck` | shellcheck check | `sudo apt install shellcheck` | `brew install shellcheck` |
-| `kube-score` | kube-score check | no apt package — download the static binary from the [latest release](https://github.com/zegl/kube-score/releases) | `brew install kube-score` |
-| `docker` | CVE scan (optional — missing docker just reports the scan as skipped, never blocks a run) | `sudo apt install docker.io` | `brew install --cask docker` (Docker Desktop), or `brew install colima docker docker-compose docker-credential-helper` for a free/no-license-limit CLI-only alternative |
-| `az` | optional, Dependencies only (tells an Azure auth problem apart from a network blip — missing/unused `az` just falls back to plain retry-with-backoff) | `sudo apt install azure-cli` (in Debian's own `bookworm/main` repo, no extra source needed) | `brew install azure-cli` |
-
-### Python tools (`ruff`, `pymarkdown`)
-The `charts/podiumd/bin/` scripts' own tests use `ruff` for linting, and `verify-podiumd`'s markdown check uses `pymarkdown` — both installed into a project-root virtualenv, not system-wide: both Debian's system Python and macOS's Homebrew Python refuse a bare `pip install` ("externally managed environment", PEP 668).
-
-Debian only — install the venv module first if it isn't already (Debian splits it out of the base `python3` package):
+### Debian setup
+`helm`/`helm-docs`/`kubeconform`/`kube-score` have no Debian package — installed straight from their own GitHub releases instead:
 ```bash
-sudo apt install python3-venv
+sudo apt install -y yamllint shellcheck docker.io azure-cli python3-venv
+
+# helm
+curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+# helm-docs
+curl -sL "$(curl -s https://api.github.com/repos/norwoodj/helm-docs/releases/latest | grep -o 'https://[^"]*_Linux_x86_64\.deb')" -o /tmp/helm-docs.deb
+sudo dpkg -i /tmp/helm-docs.deb
+
+# kubeconform
+curl -sL "$(curl -s https://api.github.com/repos/yannh/kubeconform/releases/latest | grep -o 'https://[^"]*kubeconform-linux-amd64\.tar\.gz')" | sudo tar -xz -C /usr/local/bin kubeconform
+
+# kube-score
+curl -sL "$(curl -s https://api.github.com/repos/zegl/kube-score/releases/latest | grep -o 'https://[^"]*kube-score_[0-9.]*_linux_amd64"' | tr -d '"')" -o /tmp/kube-score
+sudo install -m 0755 /tmp/kube-score /usr/local/bin/kube-score
+
+# Python tools (ruff, pymarkdown), from the repo root
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
 ```
 
-Then, from the repo root (works the same on Debian and macOS):
+### macOS setup
 ```bash
+brew install helm helm-docs yamllint kubeconform shellcheck kube-score azure-cli
+brew install --cask docker   # or: brew install colima docker docker-compose docker-credential-helper
+                              # for a free/no-license-limit CLI-only alternative to Docker Desktop
+
+# Python tools (ruff, pymarkdown), from the repo root — python3-venv isn't
+# a separate package here, venv is already part of Python's standard library
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 ```
