@@ -8,7 +8,7 @@ the requested value is left untouched (not an error).
 
 Also updates the docs for the current podiumd target version, using
 release-baseline as the baseline (run create-podiumd-version/
-change-podiumd-baseline first if it doesn't exist, then set-doc-baseline
+change-podiumd-baseline first if it doesn't exist, then create-doc-version
 to scaffold the docs) — the upgrade doc's "Component versions" table row
 and Changes section, the values-deltas doc, and
 docs/images/images-<target>.yaml — see lib.component_docs.
@@ -496,7 +496,7 @@ def main():
             print("No release-baseline found — run create-podiumd-version/"
                   "change-podiumd-baseline first; skipping doc updates.")
         else:
-            print(f"No upgrade doc found for target {target} — run set-doc-baseline first "
+            print(f"No upgrade doc found for target {target} — run create-doc-version first "
                   f"to scaffold it; skipping doc updates.")
     elif reset_to_baseline:
         text = upgrade_path.read_text(encoding="utf-8")

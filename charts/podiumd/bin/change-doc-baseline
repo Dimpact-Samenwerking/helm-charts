@@ -1,29 +1,37 @@
 #!/usr/bin/env python3
 """
-Bump the baseline of every docs/_UPGRADE_PATHS/<baseline>-to-<target>-*.md
-doc (and docs/images/images-<target>.yaml) for the current chart's target
-version — charts/podiumd/Chart.yaml's own "version:" — to a new baseline,
-e.g. renaming "4.8.2-to-4.9.0-upgrade.md" to "4.8.3-to-4.9.0-upgrade.md",
-updating titles/headings, correcting the "Component versions" table and
-images-manifest entries against Chart.yaml/values.yaml, reordering that
-table's rows and the "## Changes" section's "### ..." blocks to match
-values.yaml's own top-level component order, and flagging any values.yaml
-schema changes not yet mentioned in the values-deltas doc.
-Missing standard docs are created as TODO stubs, never invented. See
-find_target_docs, fix_component_version_table, and
+Rebase every docs/_UPGRADE_PATHS/<baseline>-to-<target>-*.md doc (and
+docs/images/images-<target>.yaml) for the current chart's target
+version — charts/podiumd/Chart.yaml's own "version:" — onto a new
+baseline, e.g. renaming "4.8.2-to-4.9.0-upgrade.md" to
+"4.8.3-to-4.9.0-upgrade.md", updating titles/headings, correcting the
+"Component versions" table and images-manifest entries against
+Chart.yaml/values.yaml, reordering that table's rows and the "## Changes"
+section's "### ..." blocks to match values.yaml's own top-level
+component order, and flagging any values.yaml schema changes not yet
+mentioned in the values-deltas doc. Any of the three standard docs that
+don't already exist under ANY baseline for this target are created as
+TODO stubs instead (nothing to rebase) — see create-doc-version for a
+script that ONLY ever does that, refusing outright if docs already exist
+under some other baseline (this script owns rebasing those on purpose;
+that one refuses to touch them). See fix_component_version_table and
 fix_images_manifest_entries for exactly what gets rewritten vs. just
 reported for manual review.
 
+Called automatically by change-podiumd-baseline, right after it writes
+release-baseline — see that script for the usual "rebase onto a
+different baseline" workflow. Also runnable standalone.
+
 Usage:
-    set-doc-baseline [<new-baseline>]
+    change-doc-baseline [<new-baseline>]
         # <new-baseline> defaults to release-baseline's content if omitted
         # (error if that file doesn't exist either) — this script itself
         # never writes release-baseline; see change-podiumd-baseline.
 
 Example:
-    set-doc-baseline 4.8.3
+    change-doc-baseline 4.8.3
         # if Chart.yaml's version is 4.9.0, renames *-to-4.9.0-*.md
-    set-doc-baseline
+    change-doc-baseline
         # same, but reads "4.8.3" from release-baseline instead
 """
 import re
@@ -38,6 +46,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 from lib.chart import SEMVER_RE as BASELINE_VERSION_RE
 from lib.chart import chart_version, release_baseline
+from lib.component_docs import IMAGES_STUB_TEMPLATE, STANDARD_SUFFIXES, STUB_TEMPLATES, existing_doc_baselines
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
 from lib.procutil import run_script
 from lib.upgradedoc import (
@@ -60,13 +69,13 @@ def current_chart_version():
 
 # The exact shape a baseline argument must have — bare MAJOR.MINOR.PATCH,
 # matching every doc filename's own "<baseline>-to-<target>-*.md" pattern
-# (see FILENAME_RE_TMPL below). Anything else (a flag like "--help", a
-# git ref, a version with a suffix) is rejected up front by main(), rather
-# than silently being treated as a literal baseline and renaming docs to
-# nonsense like "--help-to-4.9.0-upgrade.md". (BASELINE_VERSION_RE is
-# lib.chart.SEMVER_RE, imported under this script's own established name.)
+# (see lib.component_docs.DOC_FILENAME_RE_TMPL). Anything else (a flag
+# like "--help", a git ref, a version with a suffix) is rejected up front
+# by main(), rather than silently being treated as a literal baseline and
+# renaming docs to nonsense like "--help-to-4.9.0-upgrade.md".
+# (BASELINE_VERSION_RE is lib.chart.SEMVER_RE, imported under this
+# script's own established name.)
 
-FILENAME_RE_TMPL = r"^(?P<baseline>\d+\.\d+\.\d+)-to-{target}-(?P<suffix>[\w\-]+)\.md$"
 TITLE_ARROW_RE_TMPL = r"(?P<baseline>{baseline})(?P<arrow>\s*(?:→|->)\s*){target}"
 COMPONENT_VERSIONS_RE_TMPL = r"Component versions \({target}\s+vs\s+(?P<baseline>{baseline})\)"
 
@@ -75,65 +84,6 @@ COMPONENT_VERSIONS_RE_TMPL = r"Component versions \({target}\s+vs\s+(?P<baseline
 SIBLING_DOC_RE_TMPL = r"(?P<baseline>\d+\.\d+\.\d+)-to-{target}-(?P<suffix>upgrade|gemeente-specific|values-deltas)\.md"
 BASELINE_LINE_RE = re.compile(r"(?P<prefix>Baseline:\s*podiumd\s+)(?P<baseline>\d+\.\d+\.\d+)")
 VS_LINE_RE_TMPL = r"(?P<prefix>podiumd\s+{target}\s+vs\s+)(?P<baseline>\d+\.\d+\.\d+)"
-
-IMAGES_STUB_TEMPLATE = (
-    "# Baseline: podiumd {baseline}. Re-verify before release.\n"
-    "#\n"
-    "# Images new or changed in podiumd {target} vs {baseline}.\n"
-    "#\n"
-    "# See docs/_UPGRADE_PATHS/{baseline}-to-{target}-upgrade.md for the operator upgrade notes.\n"
-    "#\n"
-    "# Digests are the OCI image index (multi-arch manifest) digest as returned in\n"
-    "# the Docker-Content-Digest response header from the source registry.\n\n"
-    "[]\n"
-)
-
-# The three docs verify-podiumd's check_baseline_doc_set expects for
-# every target — missing ones are created as stubs, not just renamed.
-STANDARD_SUFFIXES = ("upgrade", "gemeente-specific", "values-deltas")
-
-STUB_TEMPLATES = {
-    "upgrade": (
-        "# Upgrade guide: PodiumD {baseline} → {target}\n\n"
-        "> See the Confluence Releases page for the agreed application\n"
-        "> targets: <https://dimpact.atlassian.net/wiki/spaces/PCP/pages/7602191/Releases+PodiumD>.\n\n"
-        "TODO: describe this hop's changes.\n\n"
-        "## Component versions ({target} vs {baseline})\n\n"
-        "| Component | App version | Helm chart | Notes |\n"
-        "| --- | --- | --- | --- |\n\n"
-        "## Changes\n\n"
-        "TODO\n"
-    ),
-    "gemeente-specific": (
-        "# Gemeente-specific notes — PodiumD {baseline} → {target}\n\n"
-        "Findings for this hop that apply to a **specific gemeente or environment** —\n"
-        "not to the release in general — are collected here: data quirks, local\n"
-        "overrides, hosting particulars, incident follow-ups.\n\n"
-        "_None recorded yet._\n\n"
-        "<!-- Add entries per gemeente/environment:\n\n"
-        "## <gemeente> (<env>)\n\n"
-        "- What was hit, why it is specific to this environment, and the\n"
-        "  fix/workaround applied.\n"
-        "-->\n"
-    ),
-    "values-deltas": (
-        "# Values deltas — PodiumD {baseline} → {target}\n\n"
-        "TODO: describe any gemeente `podiumd.yml` changes required for this hop.\n"
-    ),
-}
-
-
-def find_target_docs(target):
-    """Return {suffix: (baseline, path)} for every doc matching
-    "<baseline>-to-<target>-<suffix>.md" in DOC_DIR."""
-    pattern = re.compile(FILENAME_RE_TMPL.format(target=re.escape(target)))
-    by_suffix = {}
-    for path in DOC_DIR.glob(f"*-to-{target}-*.md"):
-        m = pattern.match(path.name)
-        if not m:
-            continue
-        by_suffix.setdefault(m.group("suffix"), []).append((m.group("baseline"), path))
-    return by_suffix
 
 
 def find_collisions(by_suffix):
@@ -382,7 +332,7 @@ def main():
         sys.exit(1)
     target = current_chart_version()
 
-    by_suffix = find_target_docs(target)
+    by_suffix = existing_doc_baselines(DOC_DIR, target)
 
     collisions = find_collisions(by_suffix)
     if collisions:
@@ -538,7 +488,7 @@ def main():
     run_script([sys.executable, str(UPDATE_README_SCRIPT)])
 
     print()
-    print(f"Done. Run verify-podiumd --baseline {new_baseline} to confirm consistency before committing.")
+    print("Done. Run verify-podiumd to confirm consistency before committing.")
 
 
 if __name__ == "__main__":

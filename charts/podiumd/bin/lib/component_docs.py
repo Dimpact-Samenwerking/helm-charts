@@ -7,8 +7,15 @@ basename's bump, applied per component it happens to affect — old_chart
 always equals new_chart there, since an image-only bump never touches
 Chart.yaml).
 
+Also holds the standard-doc-set scaffolding shared by create-doc-version
+and change-doc-baseline (STANDARD_SUFFIXES/STUB_TEMPLATES/
+IMAGES_STUB_TEMPLATE, existing_doc_baselines, create_missing_docs) — the
+"create fresh vs. rebase existing" split lives entirely in those two
+scripts' own control flow; only the shared data/scan/create pieces live
+here.
+
 Every path here (doc_dir/images_dir/values_path) is passed in explicitly
-rather than read from a module-level constant, since the two callers each
+rather than read from a module-level constant, since the callers each
 resolve their own CHART_DIR-relative paths independently."""
 import re
 
@@ -38,7 +45,7 @@ def baseline_doc_paths(doc_dir, baseline, target):
     """(upgrade_path, values_deltas_path) for the <baseline>-to-<target>-
     *.md doc set, or (None, None) if baseline is None (release-baseline
     doesn't exist yet) or the upgrade doc itself doesn't exist yet — run
-    set-doc-baseline first to scaffold it either way."""
+    create-doc-version first to scaffold it either way."""
     if baseline is None:
         return None, None
     upgrade_path = doc_dir / f"{baseline}-to-{target}-upgrade.md"
@@ -46,6 +53,96 @@ def baseline_doc_paths(doc_dir, baseline, target):
         return None, None
     values_deltas_path = doc_dir / f"{baseline}-to-{target}-values-deltas.md"
     return upgrade_path, (values_deltas_path if values_deltas_path.is_file() else None)
+
+
+# The three docs verify-podiumd's check_baseline_doc_set expects for every
+# target — missing ones are created as stubs, not just renamed. Shared by
+# create-doc-version (creates whichever are missing for a fresh target)
+# and change-doc-baseline (renames existing ones, and falls back to the
+# same fresh-create for whichever were never scaffolded at all).
+STANDARD_SUFFIXES = ("upgrade", "gemeente-specific", "values-deltas")
+
+STUB_TEMPLATES = {
+    "upgrade": (
+        "# Upgrade guide: PodiumD {baseline} → {target}\n\n"
+        "> See the Confluence Releases page for the agreed application\n"
+        "> targets: <https://dimpact.atlassian.net/wiki/spaces/PCP/pages/7602191/Releases+PodiumD>.\n\n"
+        "TODO: describe this hop's changes.\n\n"
+        "## Component versions ({target} vs {baseline})\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n\n"
+        "## Changes\n\n"
+        "TODO\n"
+    ),
+    "gemeente-specific": (
+        "# Gemeente-specific notes — PodiumD {baseline} → {target}\n\n"
+        "Findings for this hop that apply to a **specific gemeente or environment** —\n"
+        "not to the release in general — are collected here: data quirks, local\n"
+        "overrides, hosting particulars, incident follow-ups.\n\n"
+        "_None recorded yet._\n\n"
+        "<!-- Add entries per gemeente/environment:\n\n"
+        "## <gemeente> (<env>)\n\n"
+        "- What was hit, why it is specific to this environment, and the\n"
+        "  fix/workaround applied.\n"
+        "-->\n"
+    ),
+    "values-deltas": (
+        "# Values deltas — PodiumD {baseline} → {target}\n\n"
+        "TODO: describe any gemeente `podiumd.yml` changes required for this hop.\n"
+    ),
+}
+
+IMAGES_STUB_TEMPLATE = (
+    "# Baseline: podiumd {baseline}. Re-verify before release.\n"
+    "#\n"
+    "# Images new or changed in podiumd {target} vs {baseline}.\n"
+    "#\n"
+    "# See docs/_UPGRADE_PATHS/{baseline}-to-{target}-upgrade.md for the operator upgrade notes.\n"
+    "#\n"
+    "# Digests are the OCI image index (multi-arch manifest) digest as returned in\n"
+    "# the Docker-Content-Digest response header from the source registry.\n\n"
+    "[]\n"
+)
+
+# The shape a doc filename's baseline segment must have — bare
+# MAJOR.MINOR.PATCH, matching create-podiumd-version/change-podiumd-
+# baseline's own release-baseline convention.
+DOC_FILENAME_RE_TMPL = r"^(?P<baseline>\d+\.\d+\.\d+)-to-{target}-(?P<suffix>[\w\-]+)\.md$"
+
+
+def existing_doc_baselines(doc_dir, target):
+    """{suffix: [(baseline, path), ...]} for every *-to-<target>-<suffix>.md
+    doc currently in doc_dir, whatever baseline each one currently names —
+    the raw "what's actually there" scan. Shared by create-doc-version (to
+    detect a baseline mismatch worth refusing fresh-creation over) and
+    change-doc-baseline (to know what to rename)."""
+    pattern = re.compile(DOC_FILENAME_RE_TMPL.format(target=re.escape(target)))
+    by_suffix = {}
+    for path in doc_dir.glob(f"*-to-{target}-*.md"):
+        m = pattern.match(path.name)
+        if not m:
+            continue
+        by_suffix.setdefault(m.group("suffix"), []).append((m.group("baseline"), path))
+    return by_suffix
+
+
+def create_missing_docs(doc_dir, images_dir, baseline, target):
+    """Create whichever of the three standard <baseline>-to-<target>-*.md
+    docs, and docs/images/images-<target>.yaml, don't already exist yet,
+    as TODO stubs — never overwrites an existing file. Returns the
+    filenames actually created (upgrade/gemeente-specific/values-deltas
+    order, images manifest last)."""
+    created = []
+    for suffix in STANDARD_SUFFIXES:
+        path = doc_dir / f"{baseline}-to-{target}-{suffix}.md"
+        if not path.is_file():
+            path.write_text(STUB_TEMPLATES[suffix].format(baseline=baseline, target=target), encoding="utf-8")
+            created.append(path.name)
+    images_path = images_manifest_path(images_dir, target)
+    if not images_path.is_file():
+        images_path.write_text(IMAGES_STUB_TEMPLATE.format(baseline=baseline, target=target), encoding="utf-8")
+        created.append(images_path.name)
+    return created
 
 
 def load_baseline_values(values_path, baseline):

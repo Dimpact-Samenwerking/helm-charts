@@ -64,9 +64,10 @@ def test_replace_scalar_value_unparseable_line_raises(libchart):
 
 
 # --- chart_version / SEMVER_RE ---
-# shared by set-doc-baseline, update-component-version, and
-# create-podiumd-version's own current_chart_version()/*_VERSION_RE
-# re-exports — see those scripts' own tests for the re-export coverage.
+# shared by create-doc-version, change-doc-baseline, update-component-
+# version, and create-podiumd-version's own current_chart_version()/
+# *_VERSION_RE re-exports — see those scripts' own tests for the
+# re-export coverage.
 
 def test_chart_version_reads_top_level_version(libchart, tmp_path):
     chart_yaml = tmp_path / "Chart.yaml"
@@ -88,8 +89,9 @@ def test_semver_re_rejects_anything_else(libchart):
 
 # --- release_baseline ---
 # shared by verify-podiumd's release-baseline check and its Docs
-# consistency default, set-doc-baseline's default argument, and
-# show-component-baseline-version's default argument.
+# consistency default, create-doc-version's and change-doc-baseline's
+# default argument, and show-component-baseline-version's default
+# argument.
 
 def test_release_baseline_reads_and_strips_the_file(libchart, tmp_path):
     (tmp_path / "release-baseline").write_text("4.8.4\n", encoding="utf-8")
