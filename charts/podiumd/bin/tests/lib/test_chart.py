@@ -86,6 +86,20 @@ def test_semver_re_rejects_anything_else(libchart):
     assert not libchart.SEMVER_RE.match("4.8.2-rc1")
 
 
+# --- release_baseline ---
+# shared by verify-podiumd's release-baseline check and its Docs
+# consistency default, set-doc-baseline's default argument, and
+# show-component-baseline-version's default argument.
+
+def test_release_baseline_reads_and_strips_the_file(libchart, tmp_path):
+    (tmp_path / "release-baseline").write_text("4.8.4\n", encoding="utf-8")
+    assert libchart.release_baseline(tmp_path) == "4.8.4"
+
+
+def test_release_baseline_none_when_file_missing(libchart, tmp_path):
+    assert libchart.release_baseline(tmp_path) is None
+
+
 # --- find_dependency ---
 
 def test_find_dependency_by_name(libchart):
@@ -235,6 +249,43 @@ def test_pull_chart_values_raises_on_pull_failure(libchart, monkeypatch):
     dep = {"name": "openforms", "repository": "@maykinmedia"}
     with pytest.raises(SystemExit, match="could not pull"):
         libchart.pull_chart_values(dep, "9.9.9")
+
+
+# --- verify_chart_version ---
+# The chart-existence check verify-component-version owns (and
+# verify-image-version no longer reimplements) — pull, report FOUND/
+# MISSING, and either return the pulled values.yaml or exit 1.
+
+def test_verify_chart_version_found_returns_values(libchart, monkeypatch, capsys):
+    def fake_pull_chart(dep, version, dest):
+        chart_dir = dest / dep["name"]
+        chart_dir.mkdir(parents=True)
+        (chart_dir / "values.yaml").write_text(
+            yaml.safe_dump({"image": {"repository": "infonl/zac"}}), encoding="utf-8"
+        )
+        return True, ""
+
+    monkeypatch.setattr(libchart, "pull_chart", fake_pull_chart)
+    dep = {"name": "zaakafhandelcomponent", "repository": "@zac"}
+
+    values = libchart.verify_chart_version(dep, "1.0.297")
+
+    assert values == {"image": {"repository": "infonl/zac"}}
+    out = capsys.readouterr().out
+    assert "[FOUND  ] zaakafhandelcomponent 1.0.297" in out
+
+
+def test_verify_chart_version_missing_exits_one(libchart, monkeypatch, capsys):
+    monkeypatch.setattr(libchart, "pull_chart", lambda dep, version, dest: (False, "version not found"))
+    dep = {"name": "zaakafhandelcomponent", "repository": "@zac"}
+
+    with pytest.raises(SystemExit) as exc_info:
+        libchart.verify_chart_version(dep, "9.9.9")
+
+    assert exc_info.value.code == 1
+    out = capsys.readouterr().out
+    assert "[MISSING] zaakafhandelcomponent 9.9.9  (version not found)" in out
+    assert "FAIL: chart version does not exist" in out
 
 
 # --- check_image_versions ---

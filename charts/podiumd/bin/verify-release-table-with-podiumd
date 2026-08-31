@@ -50,7 +50,7 @@ script can verify either way, so it isn't scored as a failure here.
 
 Purely local and network-free (no `helm pull`, no registry calls): a
 "fallback path" component's app image basename can only be discovered by
-pulling that specific chart version (see verify-image-version) — this
+pulling that specific chart version (see verify-component-version) — this
 compares release-table.csv's OWN image_basename column against whatever
 is ALREADY pinned in values.yaml right now, so nothing needs pulling.
 

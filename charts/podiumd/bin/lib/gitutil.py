@@ -44,6 +44,19 @@ def resolve_git_ref(repo_root, candidates):
     return None
 
 
+def resolve_baseline_ref(repo_root, baseline):
+    """baseline_ref_candidates + resolve_git_ref, with a ready-to-print
+    error message on a miss — shared by every caller that must refuse an
+    unresolvable baseline (change-podiumd-baseline, create-podiumd-version,
+    verify-podiumd's release-baseline check). Returns (ref, error): error
+    is None on success."""
+    candidates = baseline_ref_candidates(baseline)
+    ref = resolve_git_ref(repo_root, candidates)
+    if ref:
+        return ref, None
+    return None, f"could not resolve baseline '{baseline}' to a git ref (tried {', '.join(candidates)})"
+
+
 def git_show_yaml(repo_root, ref, relpath):
     result = run(["git", "-C", str(repo_root), "show", f"{ref}:{relpath}"], capture_output=True, text=True)
     if result.returncode != 0:

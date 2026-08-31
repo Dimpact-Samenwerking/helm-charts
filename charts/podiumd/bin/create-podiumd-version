@@ -14,9 +14,12 @@ Reads everything from repo state — no arguments:
     convention — see README.md#branching-strategy).
 
 Refuses to run if:
-  - the branch name doesn't match that shape, or
+  - the branch name doesn't match that shape,
   - the target isn't strictly newer than the baseline (a same-or-lower
-    target would scaffold the upgrade docs backwards).
+    target would scaffold the upgrade docs backwards), or
+  - the baseline doesn't resolve to an actual podiumd-<baseline> tag or
+    feature/podiumd-<baseline> branch (same check as
+    change-podiumd-baseline, via lib.gitutil.resolve_baseline_ref).
 
 Usage:
     create-podiumd-version
@@ -36,7 +39,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 from lib.chart import SEMVER_RE as CHART_VERSION_RE
 from lib.chart import chart_version, replace_scalar_value
-from lib.gitutil import current_branch, find_repo_root
+from lib.gitutil import current_branch, find_repo_root, resolve_baseline_ref
 from lib.procutil import run_script
 
 CHART_DIR = SCRIPT_DIR.parent
@@ -113,11 +116,16 @@ def main():
               f"target {target} (from the branch name) — refusing to open a version that isn't newer")
         sys.exit(1)
 
+    ref, error = resolve_baseline_ref(repo_root, baseline)
+    if error:
+        print(f"error: {error}")
+        sys.exit(1)
+
     changed = update_chart_version(target)
     print(f"{CHART_YAML.name}: {', '.join(changed)} {baseline} -> {target}")
 
     write_release_baseline(baseline)
-    print(f"{RELEASE_BASELINE_FILE.name}: {baseline}")
+    print(f"{RELEASE_BASELINE_FILE.name}: {baseline} (resolved to {ref})")
 
     print()
     print(f"=== Running set-doc-baseline {baseline} ===")

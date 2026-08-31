@@ -1,5 +1,7 @@
 """die, require_helm, resolve_chart_dir, lint_args_for, print_summary — the
 small orchestration helpers not covered elsewhere."""
+from pathlib import Path
+
 import pytest
 
 
@@ -133,7 +135,7 @@ def test_main_skips_requested_steps_and_runs_the_rest(vp, monkeypatch, capsys):
     normally, and the run still exits 0."""
     monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd", "--skip=helm-lint,full-render"])
     monkeypatch.setattr(vp, "require_helm", lambda: None)
-    monkeypatch.setattr(vp, "resolve_chart_dir", lambda: "/fake/chart/dir")
+    monkeypatch.setattr(vp, "resolve_chart_dir", lambda: Path("/fake/chart/dir"))
     monkeypatch.setattr(vp, "ensure_repos_configured", lambda: (True, "ok"))
     monkeypatch.setattr(vp, "lint_args_for", lambda chart_dir: [])
 
@@ -187,7 +189,7 @@ def test_main_skipped_step_does_not_count_as_failure(vp, monkeypatch):
     a skip must never mask a real failure in a step that DID run."""
     monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd", "--skip=dependencies,image-digests,docs-consistency,helm-lint,full-render"])
     monkeypatch.setattr(vp, "require_helm", lambda: None)
-    monkeypatch.setattr(vp, "resolve_chart_dir", lambda: "/fake/chart/dir")
+    monkeypatch.setattr(vp, "resolve_chart_dir", lambda: Path("/fake/chart/dir"))
     monkeypatch.setattr(vp, "ensure_repos_configured", lambda: (True, "ok"))
     monkeypatch.setattr(vp, "check_utf8_format", lambda *a: (False, "BOM found"))
 
@@ -243,7 +245,7 @@ def _stub_all_checks(vp, monkeypatch, ran):
         return check
 
     monkeypatch.setattr(vp, "require_helm", lambda: None)
-    monkeypatch.setattr(vp, "resolve_chart_dir", lambda: "/fake/chart/dir")
+    monkeypatch.setattr(vp, "resolve_chart_dir", lambda: Path("/fake/chart/dir"))
     monkeypatch.setattr(vp, "ensure_repos_configured", lambda: (True, "ok"))
     monkeypatch.setattr(vp, "lint_args_for", lambda chart_dir: [])
     monkeypatch.setattr(vp, "check_utf8_format", make_check("utf8"))

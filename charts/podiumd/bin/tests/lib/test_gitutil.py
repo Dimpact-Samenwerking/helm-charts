@@ -1,5 +1,6 @@
 """lib.gitutil — find_repo_root, current_branch, baseline_ref_candidates,
-resolve_git_ref, git_show_yaml, against a real, hermetic temp git repo."""
+resolve_git_ref, resolve_baseline_ref, git_show_yaml, against a real,
+hermetic temp git repo."""
 import subprocess
 
 import pytest
@@ -74,6 +75,23 @@ def test_resolve_git_ref_finds_tag(libgitutil, repo):
 
 def test_resolve_git_ref_none_when_nothing_resolves(libgitutil, repo):
     assert libgitutil.resolve_git_ref(repo, ["nope-1", "nope-2"]) is None
+
+
+# --- resolve_baseline_ref ---
+
+def test_resolve_baseline_ref_resolves_the_tag(libgitutil, repo):
+    ref, error = libgitutil.resolve_baseline_ref(repo, "4.8.5")
+    assert ref == "podiumd-4.8.5"
+    assert error is None
+
+
+def test_resolve_baseline_ref_error_names_every_candidate_tried(libgitutil, repo):
+    ref, error = libgitutil.resolve_baseline_ref(repo, "9.9.9")
+    assert ref is None
+    assert error == (
+        "could not resolve baseline '9.9.9' to a git ref "
+        "(tried podiumd-9.9.9, origin/feature/podiumd-9.9.9, feature/podiumd-9.9.9)"
+    )
 
 
 # --- git_show_yaml ---

@@ -6,12 +6,16 @@ a release actually shipped before writing an upgrade doc's "source" column,
 without checking out that release or digging through git history by hand.
 
 Usage:
-    show-component-baseline-version <baseline> <component>
+    show-component-baseline-version [<baseline>] <component>
+        # <baseline> defaults to release-baseline's content if omitted
+        # (error if that file doesn't exist either)
 
 Examples:
     show-component-baseline-version 4.8.5 zac
     show-component-baseline-version 4.8.5 zgw-office-addin
     show-component-baseline-version 4.8.5 openformulieren
+    show-component-baseline-version zac
+        # same as the first example, but reads "4.8.5" from release-baseline
 
 <baseline> is a bare version (e.g. "4.8.5"), resolved to the podiumd-4.8.5
 git tag, falling back to the feature/podiumd-4.8.5 / origin/feature/podiumd-
@@ -25,8 +29,8 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from lib.chart import find_dependency, get_path, image_paths_for
-from lib.gitutil import baseline_ref_candidates, git_show_yaml, resolve_git_ref
+from lib.chart import find_dependency, get_path, image_paths_for, release_baseline
+from lib.gitutil import git_show_yaml, resolve_baseline_ref
 from lib.gitutil import find_repo_root as _find_repo_root
 
 RELATIVE_CHART_DIR = "charts/podiumd"
@@ -53,17 +57,27 @@ def main():
     if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
         print(__doc__)
         sys.exit(0)
-    if len(sys.argv) != 3:
+    if len(sys.argv) == 2:
+        baseline, component = None, sys.argv[1]
+    elif len(sys.argv) == 3:
+        baseline, component = sys.argv[1], sys.argv[2]
+    else:
         print(__doc__)
         sys.exit(1)
-    baseline, component = sys.argv[1], sys.argv[2]
 
     repo_root = find_repo_root()
-    candidates = baseline_ref_candidates(baseline)
-    ref = resolve_git_ref(repo_root, candidates)
-    if not ref:
-        print(f"error: could not resolve baseline '{baseline}' to a git ref "
-              f"(tried {', '.join(candidates)})")
+
+    if baseline is None:
+        baseline = release_baseline(repo_root / RELATIVE_CHART_DIR)
+        if baseline is None:
+            print("error: no <baseline> given and release-baseline doesn't exist "
+                  "— pass <baseline> explicitly")
+            sys.exit(1)
+        print(f"No <baseline> given — using release-baseline's '{baseline}'")
+
+    ref, error = resolve_baseline_ref(repo_root, baseline)
+    if error:
+        print(f"error: {error}")
         sys.exit(1)
 
     chart_yaml = git_show_yaml(repo_root, ref, f"{RELATIVE_CHART_DIR}/Chart.yaml")

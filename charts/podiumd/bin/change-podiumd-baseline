@@ -24,7 +24,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from lib.gitutil import baseline_ref_candidates, find_repo_root, resolve_git_ref
+from lib.gitutil import find_repo_root, resolve_baseline_ref
 
 CHART_DIR = SCRIPT_DIR.parent
 RELEASE_BASELINE_FILE = CHART_DIR / "release-baseline"
@@ -54,11 +54,9 @@ def main():
         print("error: not inside a git repository")
         sys.exit(1)
 
-    candidates = baseline_ref_candidates(new_baseline)
-    ref = resolve_git_ref(repo_root, candidates)
-    if not ref:
-        print(f"error: could not resolve baseline '{new_baseline}' to a git ref "
-              f"(tried {', '.join(candidates)})")
+    ref, error = resolve_baseline_ref(repo_root, new_baseline)
+    if error:
+        print(f"error: {error}")
         sys.exit(1)
 
     old_baseline = read_current_baseline()

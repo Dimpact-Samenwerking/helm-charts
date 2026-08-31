@@ -89,7 +89,7 @@ Tools:
 - `update-component-version`: update the version of component, given component name, app-version and helm-version
 - `update-image-version`: update the version of image, given image name and version
 - `update-podiumd-readme`: re-generate `charts/podiumd/README.md` using `helm-doc`
-- `verify-helmchart-version`: verify that a helm-chart exists, given component name and version 
-- `verify-image-version`: verify that an image exists, given image name and version
+- `verify-component-version`: verify that a component's helm-chart version AND app image version(s) exist, given component name, app-version and chart-version (same shape as `update-component-version`) — pre-flight check for that command
+- `verify-image-version`: verify that an image version exists for an already-pinned image, given image name and version (same shape as `update-image-version`) — pre-flight check for that command, no chart involved
 - `verify-podiumd`: verify podiumd's consistency, references, policies 
 - `verify-release-table-with-podiumd`: verify the confluence exported release table against podiumd's implementation

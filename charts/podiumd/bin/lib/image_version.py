@@ -92,6 +92,37 @@ def resolve_basename(chart_dir, lines, target):
     return next(iter(available))
 
 
+def check_basename_version(lines, basename, new_version):
+    """[{"repository", "host", "repo_path", "exists", "digest"}, ...] one
+    per DISTINCT repository among find_matches(lines, basename)'s pins
+    (the same basename is sometimes pinned under more than one unrelated
+    repository path), checked against new_version on its actual upstream
+    registry. Read-only — never writes — shared by verify-image-version
+    (a human pre-checking a version before writing it anywhere; that
+    script resolves an arbitrary <image> argument to a basename via
+    resolve_basename first) and could be reused by update_image_version's
+    own upfront verification gate above, though that one currently keeps
+    its inline loop since it also needs the digest values it collects.
+
+    Raises SystemExit if no pin matches basename at all — a caller can't
+    act on zero results either way."""
+    matches = find_matches(lines, basename)
+    if not matches:
+        raise SystemExit(f"error: no image pin with basename '{basename}' found")
+
+    results = []
+    seen_repositories = set()
+    for m in matches:
+        if m["repository"] in seen_repositories:
+            continue
+        seen_repositories.add(m["repository"])
+        host, repo_path = parse_repo(m["repository"])
+        exists, digest = registry_tag_exists(host, repo_path, new_version)
+        results.append({"repository": m["repository"], "host": host, "repo_path": repo_path,
+                         "exists": exists, "digest": digest})
+    return results
+
+
 def update_image_version(values_path, basename, new_version):
     """Update every values.yaml tag pin whose repository basename is
     `basename` to new_version, re-resolving each one's digest against the

@@ -1,12 +1,34 @@
 """create-podiumd-version: bumps Chart.yaml's version/appVersion to the
 target named by the current branch, then delegates to set-doc-baseline
-for the outgoing (baseline) version. lib.gitutil.current_branch/
-find_repo_root and lib.procutil.run_script (the set-doc-baseline
-delegation) are mocked out via cpv.* directly — no real git repo or
-subprocess needed."""
+for the outgoing (baseline) version. lib.gitutil.current_branch and
+lib.procutil.run_script (the set-doc-baseline delegation) are mocked out
+via cpv.* directly. find_repo_root, however, is only mocked to point at
+a real, hermetic temp git repo (the `repo` fixture) rather than faked
+outright — main() now resolves the baseline to an actual git ref via
+resolve_baseline_ref before it writes anything, and a bare tmp_path
+isn't a git repo at all, so that resolution needs something real to
+succeed against."""
 import subprocess
 
 import pytest
+
+
+def git(*args, cwd):
+    subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True)
+
+
+@pytest.fixture
+def repo(tmp_path):
+    """A hermetic git repo tagged podiumd-4.9.0 — the baseline every
+    main() success-path test below bumps away from."""
+    git("init", "-q", cwd=tmp_path)
+    git("config", "user.email", "test@example.com", cwd=tmp_path)
+    git("config", "user.name", "Test", cwd=tmp_path)
+    (tmp_path / "README.md").write_text("x\n", encoding="utf-8")
+    git("add", "-A", cwd=tmp_path)
+    git("commit", "-q", "-m", "baseline", cwd=tmp_path)
+    git("tag", "podiumd-4.9.0", cwd=tmp_path)
+    return tmp_path
 
 
 def write_chart_yaml(path, version, app_version=None):
@@ -173,17 +195,17 @@ def test_baseline_equal_to_target_fails(cpv, tmp_path, monkeypatch, capsys):
 
 # --- main(): success path ---
 
-def test_success_bumps_chart_and_delegates_to_set_doc_baseline(cpv, tmp_path, monkeypatch, capsys):
+def test_success_bumps_chart_and_delegates_to_set_doc_baseline(cpv, repo, monkeypatch, capsys):
     """Numeric comparison must beat lexical: 4.9.0 -> 4.10.0 would look
     like a *downgrade* under plain string comparison ("4.9.0" > "4.10.0"
     lexically), so this case doubles as the regression test for that."""
-    chart_yaml = tmp_path / "Chart.yaml"
+    chart_yaml = repo / "Chart.yaml"
     write_chart_yaml(chart_yaml, "4.9.0")
-    release_baseline_file = tmp_path / "release-baseline"
+    release_baseline_file = repo / "release-baseline"
     monkeypatch.setattr(cpv, "CHART_YAML", chart_yaml)
     monkeypatch.setattr(cpv, "RELEASE_BASELINE_FILE", release_baseline_file)
     monkeypatch.setattr(cpv.sys, "argv", ["create-podiumd-version"])
-    monkeypatch.setattr(cpv, "find_repo_root", lambda chart_dir: tmp_path)
+    monkeypatch.setattr(cpv, "find_repo_root", lambda chart_dir: repo)
     monkeypatch.setattr(cpv, "current_branch", lambda repo_root: "feature/podiumd-4.10.0")
 
     calls = []
@@ -206,17 +228,17 @@ def test_success_bumps_chart_and_delegates_to_set_doc_baseline(cpv, tmp_path, mo
     assert calls[0][2] == "4.9.0"
     out = capsys.readouterr().out
     assert "4.9.0 -> 4.10.0" in out
-    assert "release-baseline: 4.9.0" in out
+    assert "release-baseline: 4.9.0 (resolved to podiumd-4.9.0)" in out
     assert "set-doc-baseline 4.9.0" in out
 
 
-def test_success_propagates_set_doc_baseline_failure_exit_code(cpv, tmp_path, monkeypatch):
-    chart_yaml = tmp_path / "Chart.yaml"
+def test_success_propagates_set_doc_baseline_failure_exit_code(cpv, repo, monkeypatch):
+    chart_yaml = repo / "Chart.yaml"
     write_chart_yaml(chart_yaml, "4.9.0")
     monkeypatch.setattr(cpv, "CHART_YAML", chart_yaml)
-    monkeypatch.setattr(cpv, "RELEASE_BASELINE_FILE", tmp_path / "release-baseline")
+    monkeypatch.setattr(cpv, "RELEASE_BASELINE_FILE", repo / "release-baseline")
     monkeypatch.setattr(cpv.sys, "argv", ["create-podiumd-version"])
-    monkeypatch.setattr(cpv, "find_repo_root", lambda chart_dir: tmp_path)
+    monkeypatch.setattr(cpv, "find_repo_root", lambda chart_dir: repo)
     monkeypatch.setattr(cpv, "current_branch", lambda repo_root: "feature/podiumd-4.10.0")
     monkeypatch.setattr(cpv, "run_script", lambda cmd, *a, **k: subprocess.CompletedProcess(cmd, 1))
 
@@ -224,3 +246,26 @@ def test_success_propagates_set_doc_baseline_failure_exit_code(cpv, tmp_path, mo
         cpv.main()
 
     assert exc_info.value.code == 1
+
+
+def test_baseline_unresolvable_fails_without_writing_anything(cpv, repo, monkeypatch, capsys):
+    """A baseline that doesn't resolve to a real podiumd-<baseline> tag or
+    feature/podiumd-<baseline> branch must refuse before touching
+    Chart.yaml or release-baseline — same guard change-podiumd-baseline
+    enforces on write, reused here via lib.gitutil.resolve_baseline_ref."""
+    chart_yaml = repo / "Chart.yaml"
+    write_chart_yaml(chart_yaml, "9.9.9")  # no podiumd-9.9.9 tag/branch exists
+    release_baseline_file = repo / "release-baseline"
+    monkeypatch.setattr(cpv, "CHART_YAML", chart_yaml)
+    monkeypatch.setattr(cpv, "RELEASE_BASELINE_FILE", release_baseline_file)
+    monkeypatch.setattr(cpv.sys, "argv", ["create-podiumd-version"])
+    monkeypatch.setattr(cpv, "find_repo_root", lambda chart_dir: repo)
+    monkeypatch.setattr(cpv, "current_branch", lambda repo_root: "feature/podiumd-9.9.10")
+
+    with pytest.raises(SystemExit) as exc_info:
+        cpv.main()
+
+    assert exc_info.value.code == 1
+    assert "could not resolve baseline '9.9.9'" in capsys.readouterr().out
+    assert chart_yaml.read_text().splitlines()[3] == "version: 9.9.9"  # untouched
+    assert not release_baseline_file.is_file()
