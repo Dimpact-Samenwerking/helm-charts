@@ -231,7 +231,7 @@ def test_prerequisites_for_dependencies_needs_repo_access(vp):
 def test_prerequisites_for_standalone_check_has_none(vp):
     assert vp.prerequisites_for("Image references") == set()
     assert vp.prerequisites_for("Repo access") == set()
-    assert vp.prerequisites_for("Helm docs check") == set()
+    assert vp.prerequisites_for("Helm docs") == set()
 
 
 # --- main(): --include= end-to-end ---
@@ -430,8 +430,8 @@ def test_include_image_upgrades_runs_it_plus_dependencies(vp, monkeypatch):
     assert ran == ["repo-access", "deps", "image-upgrades"]
 
 
-def test_skip_helm_docs_check_skips_it(vp, monkeypatch, capsys):
-    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd", "--skip=helm-docs-check"])
+def test_skip_helm_docs_skips_it(vp, monkeypatch, capsys):
+    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd", "--skip=helm-docs"])
     ran = []
     _stub_all_checks(vp, monkeypatch, ran)
 
@@ -439,13 +439,13 @@ def test_skip_helm_docs_check_skips_it(vp, monkeypatch, capsys):
 
     assert "helm-docs" not in ran
     out = capsys.readouterr().out
-    assert "Helm docs check" in out and "SKIP" in out
+    assert "Helm docs" in out and "SKIP" in out
 
 
-def test_include_helm_docs_check_runs_standalone(vp, monkeypatch):
+def test_include_helm_docs_runs_standalone(vp, monkeypatch):
     """No prerequisite (doesn't need a render/Dependencies) — must run
     alone, unlike image-upgrades/CVE scan."""
-    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd", "--include=helm-docs-check"])
+    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd", "--include=helm-docs"])
     ran = []
     _stub_all_checks(vp, monkeypatch, ran)
 
