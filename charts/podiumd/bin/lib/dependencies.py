@@ -1,7 +1,7 @@
 """Vendors every Chart.yaml dependency into charts/*.tgz via a real `helm
 dependency update` — the action behind verify-podiumd's "Dependencies"
 step, extracted here (rather than kept inline like check_lint/check_render)
-because set-image-digests also needs to trigger it: its subchart-
+because fix-image-digests also needs to trigger it: its subchart-
 default-repository fallback (lib.chart.subchart_default_repository) reads
 straight from charts/*.tgz, which is gitignored — on a checkout where
 nothing has vendored dependencies yet, it simply doesn't exist.

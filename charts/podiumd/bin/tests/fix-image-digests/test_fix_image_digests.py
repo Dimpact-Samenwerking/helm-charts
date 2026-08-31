@@ -278,7 +278,7 @@ def write_values(path, text):
 
 @pytest.mark.parametrize("flag", ["-h", "--help"])
 def test_main_help_flag_prints_usage_and_exits_zero(sid, monkeypatch, capsys, flag):
-    monkeypatch.setattr("sys.argv", ["set-image-digests", flag])
+    monkeypatch.setattr("sys.argv", ["fix-image-digests", flag])
     with pytest.raises(SystemExit) as exc_info:
         sid.main()
     assert exc_info.value.code == 0
@@ -292,7 +292,7 @@ def test_main_dry_run_does_not_write(sid, tmp_path, monkeypatch):
     monkeypatch.setattr(sid, "VALUES_PATH", values_path)
     monkeypatch.setattr(sid, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{'b' * 64}"))
     monkeypatch.setattr(sid, "is_sliding_tag", lambda *a, **k: False)
-    monkeypatch.setattr("sys.argv", ["set-image-digests", "--dry-run"])
+    monkeypatch.setattr("sys.argv", ["fix-image-digests", "--dry-run"])
 
     with pytest.raises(SystemExit) as exc_info:
         sid.main()
@@ -308,7 +308,7 @@ def test_main_writes_new_digest_preserving_everything_else(sid, tmp_path, monkey
     monkeypatch.setattr(sid, "VALUES_PATH", values_path)
     monkeypatch.setattr(sid, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{new_digest}"))
     monkeypatch.setattr(sid, "is_sliding_tag", lambda *a, **k: False)
-    monkeypatch.setattr("sys.argv", ["set-image-digests"])
+    monkeypatch.setattr("sys.argv", ["fix-image-digests"])
 
     with pytest.raises(SystemExit) as exc_info:
         sid.main()
@@ -328,7 +328,7 @@ def test_main_stale_digest_report_names_the_file(sid, tmp_path, monkeypatch, cap
     monkeypatch.setattr(sid, "VALUES_PATH", values_path)
     monkeypatch.setattr(sid, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{new_digest}"))
     monkeypatch.setattr(sid, "is_sliding_tag", lambda *a, **k: False)
-    monkeypatch.setattr("sys.argv", ["set-image-digests"])
+    monkeypatch.setattr("sys.argv", ["fix-image-digests"])
 
     with pytest.raises(SystemExit):
         sid.main()
@@ -340,7 +340,7 @@ def test_main_unresolved_report_names_the_file(sid, tmp_path, monkeypatch, capsy
     values_path = tmp_path / "values.yaml"
     write_values(values_path, 'a:\n  image:\n    tag: "1.0.0@sha256:' + "a" * 64 + '"\n')
     monkeypatch.setattr(sid, "VALUES_PATH", values_path)
-    monkeypatch.setattr("sys.argv", ["set-image-digests"])
+    monkeypatch.setattr("sys.argv", ["fix-image-digests"])
 
     with pytest.raises(SystemExit):
         sid.main()
@@ -361,7 +361,7 @@ def test_main_updates_all_occurrences_of_shared_digest(sid, tmp_path, monkeypatc
     monkeypatch.setattr(sid, "VALUES_PATH", values_path)
     monkeypatch.setattr(sid, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{new_digest}"))
     monkeypatch.setattr(sid, "is_sliding_tag", lambda *a, **k: False)
-    monkeypatch.setattr("sys.argv", ["set-image-digests"])
+    monkeypatch.setattr("sys.argv", ["fix-image-digests"])
 
     with pytest.raises(SystemExit):
         sid.main()
@@ -378,7 +378,7 @@ def test_main_exits_nonzero_on_fetch_error(sid, tmp_path, monkeypatch):
         sid, "registry_tag_exists",
         lambda host, repo, tag: (_ for _ in ()).throw(urllib.error.URLError("down")),
     )
-    monkeypatch.setattr("sys.argv", ["set-image-digests"])
+    monkeypatch.setattr("sys.argv", ["fix-image-digests"])
 
     with pytest.raises(SystemExit) as exc_info:
         sid.main()
@@ -390,7 +390,7 @@ def test_main_exits_zero_when_nothing_stale(sid, tmp_path, monkeypatch):
     write_values(values_path, f'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:{"a" * 64}"\n')
     monkeypatch.setattr(sid, "VALUES_PATH", values_path)
     monkeypatch.setattr(sid, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{'a' * 64}"))
-    monkeypatch.setattr("sys.argv", ["set-image-digests"])
+    monkeypatch.setattr("sys.argv", ["fix-image-digests"])
 
     with pytest.raises(SystemExit) as exc_info:
         sid.main()
@@ -432,7 +432,7 @@ def test_main_default_updates_sliding_and_pinned_alike(sid, tmp_path, monkeypatc
         else (True, f"sha256:{new_zac}")
     ))
     mock_is_sliding_tag_by_repo(monkeypatch, sid, {"nginxinc/nginx-unprivileged"})
-    monkeypatch.setattr("sys.argv", ["set-image-digests"])
+    monkeypatch.setattr("sys.argv", ["fix-image-digests"])
 
     with pytest.raises(SystemExit) as exc_info:
         sid.main()
@@ -459,7 +459,7 @@ def test_main_target_updates_sliding_pin(sid, tmp_path, monkeypatch):
         else (True, f"sha256:{zac_digest}")
     ))
     mock_is_sliding_tag_by_repo(monkeypatch, sid, {"nginxinc/nginx-unprivileged"})
-    monkeypatch.setattr("sys.argv", ["set-image-digests", "nginx-unprivileged"])
+    monkeypatch.setattr("sys.argv", ["fix-image-digests", "nginx-unprivileged"])
 
     with pytest.raises(SystemExit) as exc_info:
         sid.main()
@@ -482,7 +482,7 @@ def test_main_target_leaves_other_stale_pins_untouched(sid, tmp_path, monkeypatc
         else (True, f"sha256:{new_zac}")
     ))
     mock_is_sliding_tag_by_repo(monkeypatch, sid, set())
-    monkeypatch.setattr("sys.argv", ["set-image-digests", "nginx-unprivileged"])
+    monkeypatch.setattr("sys.argv", ["fix-image-digests", "nginx-unprivileged"])
 
     with pytest.raises(SystemExit) as exc_info:
         sid.main()
@@ -503,7 +503,7 @@ def test_main_target_no_stale_digest_reports_nothing_to_do(sid, tmp_path, monkey
         else (True, f"sha256:{zac_digest}")
     ))
     mock_is_sliding_tag_by_repo(monkeypatch, sid, set())
-    monkeypatch.setattr("sys.argv", ["set-image-digests", "nginx-unprivileged"])
+    monkeypatch.setattr("sys.argv", ["fix-image-digests", "nginx-unprivileged"])
 
     with pytest.raises(SystemExit) as exc_info:
         sid.main()
@@ -529,7 +529,7 @@ def test_main_target_resolves_dependency_alias(sid, tmp_path, monkeypatch, capsy
         else (True, f"sha256:{new_zac}")
     ))
     mock_is_sliding_tag_by_repo(monkeypatch, sid, set())
-    monkeypatch.setattr("sys.argv", ["set-image-digests", "zac"])
+    monkeypatch.setattr("sys.argv", ["fix-image-digests", "zac"])
 
     with pytest.raises(SystemExit) as exc_info:
         sid.main()
@@ -547,14 +547,14 @@ def test_main_unknown_target_raises(sid, tmp_path, monkeypatch):
     write_chart_yaml(tmp_path, [])
     monkeypatch.setattr(sid, "CHART_DIR", tmp_path)
     monkeypatch.setattr(sid, "VALUES_PATH", values_path)
-    monkeypatch.setattr("sys.argv", ["set-image-digests", "totally-unknown"])
+    monkeypatch.setattr("sys.argv", ["fix-image-digests", "totally-unknown"])
 
     with pytest.raises(SystemExit, match="not a pinned image basename"):
         sid.main()
 
 
 def test_main_more_than_one_target_raises(sid, tmp_path, monkeypatch):
-    monkeypatch.setattr("sys.argv", ["set-image-digests", "nginx", "curl"])
+    monkeypatch.setattr("sys.argv", ["fix-image-digests", "nginx", "curl"])
     with pytest.raises(SystemExit) as exc_info:
         sid.main()
     assert exc_info.value.code == 1

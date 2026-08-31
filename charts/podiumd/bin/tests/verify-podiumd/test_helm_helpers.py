@@ -2,7 +2,7 @@
 report_errors_by_subchart — with `helm`/`git` subprocess calls mocked out
 via vp.run, so these tests need neither tool installed nor network access.
 check_dependencies now lives in lib.dependencies (also used by
-set-image-digests) — see tests/lib/test_dependencies.py."""
+fix-image-digests) — see tests/lib/test_dependencies.py."""
 from types import SimpleNamespace
 
 

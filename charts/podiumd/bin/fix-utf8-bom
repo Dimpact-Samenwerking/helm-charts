@@ -6,8 +6,8 @@ only detects and reports it (a verify script never writes to a tracked
 file); this script is the fixer.
 
 Usage:
-    strip-utf8-bom             # strip the BOM in place, if present
-    strip-utf8-bom --dry-run   # report only, no write
+    fix-utf8-bom             # strip the BOM in place, if present
+    fix-utf8-bom --dry-run   # report only, no write
 """
 import sys
 from pathlib import Path

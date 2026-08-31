@@ -20,13 +20,13 @@ resolve_basename) scopes the run to just that one image. Every other
 stale pin is left untouched and unreported for that run.
 
 Usage:
-    set-image-digests             # fetch, compare, rewrite every stale digest
-    set-image-digests <target>    # scope to just one image
-    set-image-digests --dry-run   # fetch and compare only, no write (combine with either of the above)
+    fix-image-digests             # fetch, compare, rewrite every stale digest
+    fix-image-digests <target>    # scope to just one image
+    fix-image-digests --dry-run   # fetch and compare only, no write (combine with either of the above)
 
 Examples:
-    set-image-digests redis
-    set-image-digests openklant    # resolved via Chart.yaml alias, same as update-image-version
+    fix-image-digests redis
+    fix-image-digests openklant    # resolved via Chart.yaml alias, same as update-image-version
 
 After a real run, re-render the chart (verify-podiumd or
 /helm-render-all) to confirm the new digests are picked up cleanly.

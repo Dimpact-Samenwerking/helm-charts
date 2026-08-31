@@ -333,7 +333,7 @@ def test_check_image_digests_reports_mismatch(vp, libimagedigests, tmp_path, mon
     assert "MISMATCH" in out
     assert "org/repo" in out
     assert "values.yaml:4" in out
-    assert "set-image-digests" in out
+    assert "fix-image-digests" in out
 
 
 def test_check_image_digests_reports_missing_tag_as_fetch_error(vp, libimagedigests, tmp_path, monkeypatch, capsys):

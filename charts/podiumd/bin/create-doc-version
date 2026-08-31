@@ -5,12 +5,12 @@ Create the standard docs/_UPGRADE_PATHS/<baseline>-to-<target>-*.md set
 <target>.yaml for the current chart's target version — charts/podiumd/
 Chart.yaml's own "version:" — as TODO stubs, for whichever of those
 don't already exist. Never renames or rewrites an existing doc — see
-change-doc-baseline for that (rebasing docs already scaffolded under a
+fix-doc-baseline for that (rebasing docs already scaffolded under a
 different baseline onto a new one).
 
 Refuses to create anything if a doc already exists for this target under
 a DIFFERENT baseline than the one given — that's exactly the situation
-change-doc-baseline exists for. Silently creating fresh stubs next to
+fix-doc-baseline exists for. Silently creating fresh stubs next to
 docs already scaffolded under some other baseline (this script's
 ancestor, set-doc-baseline, could do exactly that — blindly rebase docs
 that should have been left alone, or the reverse) is the one thing this
@@ -50,7 +50,7 @@ CHART_DIR = SCRIPT_DIR.parents[0]
 CHART_YAML = CHART_DIR / "Chart.yaml"
 DOC_DIR = CHART_DIR / "docs" / "_UPGRADE_PATHS"
 IMAGES_DIR = CHART_DIR / "docs" / "images"
-UPDATE_README_SCRIPT = SCRIPT_DIR / "update-podiumd-readme"
+FIX_README_SCRIPT = SCRIPT_DIR / "fix-podiumd-readme"
 
 
 def current_chart_version():
@@ -90,7 +90,7 @@ def main():
             for b, path in sorted(entries):
                 print(f"  {path.name}  (baseline {b})")
         print()
-        print("If this baseline change is intentional (a rebase), use change-doc-baseline instead.")
+        print("If this baseline change is intentional (a rebase), use fix-doc-baseline instead.")
         sys.exit(1)
 
     print(f"=== Creating docs for baseline {baseline} -> target {target} ===")
@@ -102,8 +102,8 @@ def main():
         print("  nothing to do — every doc already exists")
 
     print()
-    print("=== Regenerating README.md (update-podiumd-readme) ===")
-    run_script([sys.executable, str(UPDATE_README_SCRIPT)])
+    print("=== Regenerating README.md (fix-podiumd-readme) ===")
+    run_script([sys.executable, str(FIX_README_SCRIPT)])
 
 
 if __name__ == "__main__":

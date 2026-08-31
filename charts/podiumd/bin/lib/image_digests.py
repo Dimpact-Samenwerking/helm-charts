@@ -1,6 +1,6 @@
 """Verifies every digest-pinned image in values.yaml still matches its live
 upstream registry digest — report-only, never writes to values.yaml (see
-set-image-digests for that)."""
+fix-image-digests for that)."""
 import re
 import urllib.error
 
@@ -169,7 +169,7 @@ def check_image_digests(chart_dir):
     its live upstream registry digest, to catch pins that are stale (tag
     unchanged, but upstream re-published it with new base/security layers).
     One network request per unique (repository, version) pair. Never writes
-    to values.yaml — use set-image-digests to fix confirmed-stale pins.
+    to values.yaml — use fix-image-digests to fix confirmed-stale pins.
 
     A mismatch is classified sliding — expected drift, e.g. a floating
     base-image tag republished with new security patches — when this
@@ -180,7 +180,7 @@ def check_image_digests(chart_dir):
     should never legitimately change once published. Either way the pin
     is stale and FAILS the check — "expected" only means the drift itself
     isn't surprising, not that the stale pin should be left alone; run
-    set-image-digests to refresh it (sliding or not, it always
+    fix-image-digests to refresh it (sliding or not, it always
     rewrites every stale pin it finds).
 
     A pin whose "tag:" has no resolvable "repository:" of its own in
@@ -257,7 +257,7 @@ def check_image_digests(chart_dir):
             if sliding:
                 sliding_mismatches.append((repository, version, pinned_digest, digest, lines_str))
                 print(f"  [SLIDING  ] {host}/{repo_path}:{version}  (known to drift — "
-                      f"refresh with set-image-digests)")
+                      f"refresh with fix-image-digests)")
                 print(f"      pinned:   sha256:{pinned_digest}")
                 print(f"      upstream: {digest}")
                 print(f"      lines:    values.yaml:{lines_str}")
@@ -285,10 +285,10 @@ def check_image_digests(chart_dir):
         print()
 
     if sliding_mismatches:
-        print(f"Run set-image-digests to refresh the {len(sliding_mismatches)} "
+        print(f"Run fix-image-digests to refresh the {len(sliding_mismatches)} "
               f"sliding digest(s) above.")
     if mismatches:
-        print(f"Run set-image-digests to refresh the {len(mismatches)} stale pinned digest(s) above.")
+        print(f"Run fix-image-digests to refresh the {len(mismatches)} stale pinned digest(s) above.")
 
     inconsistent = find_inconsistent_version_pins(pins)
     duplicates = {r: f for r, f in inconsistent.items() if f["kind"] == "duplicate"}

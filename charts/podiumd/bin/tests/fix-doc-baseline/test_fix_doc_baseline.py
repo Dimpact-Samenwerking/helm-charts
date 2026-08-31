@@ -122,7 +122,7 @@ def repo(tmp_path):
 
 
 def set_argv_and_dir(cdb, monkeypatch, doc_dir, new_baseline, target="4.9.0"):
-    monkeypatch.setattr("sys.argv", ["change-doc-baseline", new_baseline])
+    monkeypatch.setattr("sys.argv", ["fix-doc-baseline", new_baseline])
     monkeypatch.setattr(cdb, "DOC_DIR", doc_dir)
     monkeypatch.setattr(cdb, "IMAGES_DIR", doc_dir.parent / "images")
     monkeypatch.setattr(cdb, "CHART_YAML", doc_dir.parents[1] / "Chart.yaml")
@@ -163,10 +163,10 @@ def test_main_rewrites_sibling_doc_references_within_the_docs_themselves(cdb, re
     assert "4.8.2" not in deltas
 
 
-def test_main_invokes_update_podiumd_readme(cdb, repo, monkeypatch):
+def test_main_invokes_fix_podiumd_readme(cdb, repo, monkeypatch):
     """A habit, not because this script itself ever writes to values.yaml/
-    Chart.yaml — see update-podiumd-readme's own docstring."""
-    already_faked = subprocess.run  # the autouse stub_update_podiumd_readme fixture's fake_run
+    Chart.yaml — see fix-podiumd-readme's own docstring."""
+    already_faked = subprocess.run  # the autouse stub_fix_podiumd_readme fixture's fake_run
     calls = []
 
     def spy(cmd, *args, **kwargs):
@@ -178,7 +178,7 @@ def test_main_invokes_update_podiumd_readme(cdb, repo, monkeypatch):
 
     cdb.main()
 
-    assert any(str(cdb.UPDATE_README_SCRIPT) in cmd for cmd in calls)
+    assert any(str(cdb.FIX_README_SCRIPT) in cmd for cmd in calls)
 
 
 def test_main_is_tracked_by_git_after_rename(cdb, repo, monkeypatch):
@@ -263,7 +263,7 @@ def test_main_no_argument_and_no_release_baseline_errors(cdb, monkeypatch):
     an error. release_baseline mocked directly (never CHART_YAML/DOC_DIR)
     so this can't accidentally read/touch the real chart's own
     release-baseline/docs if the mock were ever missed."""
-    monkeypatch.setattr("sys.argv", ["change-doc-baseline"])
+    monkeypatch.setattr("sys.argv", ["fix-doc-baseline"])
     monkeypatch.setattr(cdb, "release_baseline", lambda chart_dir: None)
     with pytest.raises(SystemExit) as exc_info:
         cdb.main()
@@ -277,7 +277,7 @@ def test_main_help_flag_prints_usage_and_exits_zero_without_touching_anything(cd
     renaming docs to "--help-to-<target>-*.md". It must instead print the
     module docstring and exit 0, leaving every doc untouched."""
     before = sorted(p.name for p in repo.iterdir())
-    monkeypatch.setattr("sys.argv", ["change-doc-baseline", flag])
+    monkeypatch.setattr("sys.argv", ["fix-doc-baseline", flag])
     with pytest.raises(SystemExit) as exc_info:
         cdb.main()
     assert exc_info.value.code == 0
@@ -293,7 +293,7 @@ def test_main_rejects_non_semver_baseline_without_touching_anything(cdb, repo, m
     literal baseline (see BASELINE_VERSION_RE). "--help"/"-h" are their own,
     earlier case (see test_main_help_flag_...), not part of this check."""
     before = sorted(p.name for p in repo.iterdir())
-    monkeypatch.setattr("sys.argv", ["change-doc-baseline", bogus])
+    monkeypatch.setattr("sys.argv", ["fix-doc-baseline", bogus])
     with pytest.raises(SystemExit) as exc_info:
         cdb.main()
     assert exc_info.value.code == 1

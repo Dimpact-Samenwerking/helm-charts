@@ -1,7 +1,7 @@
 """create-doc-version's main() — argument parsing, and end-to-end wiring
 into lib.component_docs.existing_doc_baselines/create_missing_docs (both
 covered directly in tests/lib/test_component_docs.py). run_script (the
-update-podiumd-readme delegation) is mocked out via cdv.run_script
+fix-podiumd-readme delegation) is mocked out via cdv.run_script
 directly — no real subprocess needed."""
 import subprocess
 
@@ -114,7 +114,7 @@ def test_nothing_to_do_when_everything_already_exists(cdv, tmp_path, monkeypatch
 def test_refuses_when_doc_exists_under_a_different_baseline(cdv, tmp_path, monkeypatch, capsys):
     """The whole point of the split: never silently rebase docs that
     should have been created fresh (or vice versa) — this is
-    change-doc-baseline's job, so refuse outright instead."""
+    fix-doc-baseline's job, so refuse outright instead."""
     doc_dir, images_dir = setup_dirs(cdv, tmp_path, monkeypatch)
     existing = doc_dir / "4.8.4-to-4.9.0-upgrade.md"
     existing.write_text("real content\n", encoding="utf-8")
@@ -127,13 +127,13 @@ def test_refuses_when_doc_exists_under_a_different_baseline(cdv, tmp_path, monke
     out = capsys.readouterr().out
     assert "already exist for target 4.9.0 under a different baseline" in out
     assert "4.8.4-to-4.9.0-upgrade.md" in out
-    assert "use change-doc-baseline instead" in out
+    assert "use fix-doc-baseline instead" in out
     # refuses to create ANYTHING, not just the conflicting suffix
     assert not (doc_dir / "4.8.5-to-4.9.0-gemeente-specific.md").exists()
     assert existing.read_text(encoding="utf-8") == "real content\n"  # untouched
 
 
-def test_invokes_update_podiumd_readme(cdv, tmp_path, monkeypatch):
+def test_invokes_fix_podiumd_readme(cdv, tmp_path, monkeypatch):
     setup_dirs(cdv, tmp_path, monkeypatch)
     calls = []
     monkeypatch.setattr(cdv, "run_script", lambda cmd, *a, **k: (calls.append(cmd), subprocess.CompletedProcess(cmd, 0))[1])
@@ -141,4 +141,4 @@ def test_invokes_update_podiumd_readme(cdv, tmp_path, monkeypatch):
 
     cdv.main()
 
-    assert any(str(cdv.UPDATE_README_SCRIPT) in cmd for cmd in calls)
+    assert any(str(cdv.FIX_README_SCRIPT) in cmd for cmd in calls)

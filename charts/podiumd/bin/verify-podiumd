@@ -180,7 +180,7 @@ it at a different chart source.
 The actual check logic lives in charts/podiumd/bin/lib/ (one module per
 check, plus lib/render_scope.py for the infrastructure shared by every
 check that inspects a `helm template` render, and lib/dependencies.py for
-the dependency-vendoring set-image-digests also needs) — this file is
+the dependency-vendoring fix-image-digests also needs) — this file is
 the CLI entry point: argument parsing, the ordered run_step() pipeline,
 and the handful of checks too small/foundational to warrant their own
 module (UTF-8/BOM, duplicate-key scan, release-baseline, lint/render).
@@ -294,7 +294,7 @@ def check_utf8_format(chart_dir):
     values_path = chart_dir / "values.yaml"
     data = values_path.read_bytes()
     if data[:len(UTF8_BOM)] == UTF8_BOM:
-        return False, "BOM found — run strip-utf8-bom to fix (this script never writes to values.yaml)"
+        return False, "BOM found — run fix-utf8-bom to fix (this script never writes to values.yaml)"
     print(f"OK: no BOM in {values_path.name}")
     return True, "no BOM"
 

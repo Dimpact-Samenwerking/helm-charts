@@ -4,7 +4,7 @@ Change the release baseline recorded in charts/podiumd/release-baseline
 (written by create-podiumd-version at the start of a release cycle) —
 for correcting a mistake, or rebasing the release onto a different
 baseline mid-cycle. Also rebases the docs onto the new baseline (runs
-change-doc-baseline) — see that script for exactly what gets renamed/
+fix-doc-baseline) — see that script for exactly what gets renamed/
 rewritten vs. just reported for manual review.
 
 <new-baseline> must resolve to an actual release: the podiumd-<version>
@@ -30,7 +30,7 @@ from lib.procutil import run_script
 
 CHART_DIR = SCRIPT_DIR.parent
 RELEASE_BASELINE_FILE = CHART_DIR / "release-baseline"
-CHANGE_DOC_BASELINE_SCRIPT = SCRIPT_DIR / "change-doc-baseline"
+FIX_DOC_BASELINE_SCRIPT = SCRIPT_DIR / "fix-doc-baseline"
 
 
 def read_current_baseline():
@@ -71,8 +71,8 @@ def main():
         print(f"{RELEASE_BASELINE_FILE.name}: {old_baseline or '(none)'} -> {new_baseline} (resolved to {ref})")
 
     print()
-    print(f"=== Running change-doc-baseline {new_baseline} ===")
-    result = run_script([sys.executable, str(CHANGE_DOC_BASELINE_SCRIPT), new_baseline])
+    print(f"=== Running fix-doc-baseline {new_baseline} ===")
+    result = run_script([sys.executable, str(FIX_DOC_BASELINE_SCRIPT), new_baseline])
     sys.exit(result.returncode)
 
 
