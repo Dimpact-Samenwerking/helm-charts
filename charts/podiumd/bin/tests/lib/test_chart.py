@@ -119,6 +119,83 @@ def test_find_dependency_not_found_returns_none(libchart):
     assert libchart.find_dependency(deps, "totally-unknown") is None
 
 
+# --- find_app_versions ---
+# shared by show-component-baseline-version and show-image-baseline-
+# version, via component_state_at_ref below.
+
+def test_find_app_versions_single_image(libchart):
+    values = {"zac": {"image": {"tag": "5.0.2@sha256:abc"}}}
+    assert libchart.find_app_versions(values, "zac", ["image"]) == [("image", "5.0.2@sha256:abc")]
+
+
+def test_find_app_versions_multi_image(libchart):
+    values = {"zgw-office-addin": {
+        "frontend": {"image": {"tag": "v0.9.313@sha256:a"}},
+        "backend": {"image": {"tag": "v0.9.313@sha256:b"}},
+    }}
+    result = libchart.find_app_versions(values, "zgw-office-addin", ["frontend.image", "backend.image"])
+    assert result == [("frontend.image", "v0.9.313@sha256:a"), ("backend.image", "v0.9.313@sha256:b")]
+
+
+def test_find_app_versions_missing_key_returns_empty(libchart):
+    assert libchart.find_app_versions({}, "zac", ["image"]) == []
+
+
+def test_find_app_versions_empty_tag_is_skipped(libchart):
+    values = {"zac": {"image": {"tag": ""}}}
+    assert libchart.find_app_versions(values, "zac", ["image"]) == []
+
+
+# --- component_state_at_ref ---
+# the full "resolve a component's baseline state via git show" pipeline
+# shared by show-component-baseline-version and show-image-baseline-
+# version. git_show_yaml itself (and the real `git show` it wraps) is
+# lib.gitutil's own — see tests/lib/test_gitutil.py — these tests mock it
+# out and only exercise this function's own glue: reading Chart.yaml,
+# finding the dependency, and looking up its app version(s).
+
+def test_component_state_at_ref_success(libchart, monkeypatch):
+    def fake_git_show_yaml(repo_root, ref, relpath):
+        if relpath.endswith("Chart.yaml"):
+            return {"dependencies": [
+                {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"},
+            ]}
+        return {"zac": {"image": {"tag": "5.0.2@sha256:abc"}}}
+
+    monkeypatch.setattr(libchart, "git_show_yaml", fake_git_show_yaml)
+
+    dep, values_key, image_paths, app_versions, error = libchart.component_state_at_ref(
+        "repo_root", "podiumd-4.8.5", "charts/podiumd", "zac")
+
+    assert error is None
+    assert dep["name"] == "zaakafhandelcomponent"
+    assert values_key == "zac"
+    assert image_paths == ["image"]
+    assert app_versions == [("image", "5.0.2@sha256:abc")]
+
+
+def test_component_state_at_ref_unreadable_chart_yaml(libchart, monkeypatch):
+    monkeypatch.setattr(libchart, "git_show_yaml", lambda repo_root, ref, relpath: None)
+
+    dep, values_key, image_paths, app_versions, error = libchart.component_state_at_ref(
+        "repo_root", "podiumd-4.8.5", "charts/podiumd", "zac")
+
+    assert dep is values_key is image_paths is app_versions is None
+    assert error == "could not read charts/podiumd/Chart.yaml at podiumd-4.8.5"
+
+
+def test_component_state_at_ref_dependency_not_found(libchart, monkeypatch):
+    monkeypatch.setattr(libchart, "git_show_yaml",
+                         lambda repo_root, ref, relpath: {"dependencies": []} if relpath.endswith("Chart.yaml") else {})
+
+    dep, values_key, image_paths, app_versions, error = libchart.component_state_at_ref(
+        "repo_root", "podiumd-4.8.5", "charts/podiumd", "totally-unknown")
+
+    assert dep is values_key is image_paths is app_versions is None
+    assert error == ("no dependency named or aliased 'totally-unknown' "
+                      "in charts/podiumd/Chart.yaml at podiumd-4.8.5")
+
+
 # --- chart_ref ---
 
 def test_chart_ref_alias_repository(libchart):

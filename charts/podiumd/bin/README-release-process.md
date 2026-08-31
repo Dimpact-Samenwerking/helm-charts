@@ -85,7 +85,8 @@ Tools:
 - `query-release-table`: query release data from `charts/podiumd/release-table.csv` by section, vendor, component
 - `render-podiumd`: outputs a rendered chart, so that line-numbers in output of verify-podiumd can be matched
 - `set-image-digests`: updates image digests for one specific image or all stale images
-- `show-component-baseline-version`: get the version of component, given the baseline version and the component name
+- `show-component-baseline-version`: get the Helm chart AND app image version(s) of a component, given the baseline version and the component name
+- `show-image-baseline-version`: get just the app image version(s) of a component, given the baseline version and the component name (same shape as `show-component-baseline-version`, minus the Helm chart version)
 - `strip-utf8-bom`: strip the utf8-bom of `charts/podiumd/values.yaml`
 - `update-component-version`: update the version of component, given component name, app-version and helm-version
 - `update-image-version`: update the version of image, given image name and version

@@ -1,8 +1,10 @@
-"""find_dependency, get_path, find_app_versions — pure logic, no git/network
-needed — plus git_show_yaml and a full main() integration test against a
-real, hermetic temp git repo. baseline_ref_candidates/resolve_git_ref
-themselves are lib.gitutil's own (see tests/lib/test_gitutil.py) — this
-script only calls through resolve_baseline_ref, exercised here via main()."""
+"""main() integration against a real, hermetic temp git repo, plus the
+find_repo_root wrapper. find_dependency/get_path/find_app_versions and
+component_state_at_ref (which wires them together with git_show_yaml)
+are lib.chart's own (see tests/lib/test_chart.py) — baseline_ref_
+candidates/resolve_git_ref are lib.gitutil's own (see
+tests/lib/test_gitutil.py) — this script only calls through
+resolve_baseline_ref/component_state_at_ref, exercised here via main()."""
 import subprocess
 
 import pytest
@@ -12,64 +14,6 @@ import yaml
 def git(*args, cwd):
     subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True)
 
-
-# --- find_dependency ---
-
-def test_find_dependency_by_name(scbv):
-    deps = [{"name": "zaakafhandelcomponent", "alias": "zac"}]
-    assert scbv.find_dependency(deps, "zaakafhandelcomponent")["alias"] == "zac"
-
-
-def test_find_dependency_by_alias(scbv):
-    deps = [{"name": "zaakafhandelcomponent", "alias": "zac"}]
-    assert scbv.find_dependency(deps, "zac")["name"] == "zaakafhandelcomponent"
-
-
-def test_find_dependency_not_found_returns_none(scbv):
-    deps = [{"name": "zaakafhandelcomponent", "alias": "zac"}]
-    assert scbv.find_dependency(deps, "totally-unknown") is None
-
-
-# --- get_path ---
-
-def test_get_path_nested(scbv):
-    assert scbv.get_path({"a": {"b": {"c": 1}}}, "a.b.c") == 1
-
-
-def test_get_path_missing_returns_none(scbv):
-    assert scbv.get_path({"a": {}}, "a.b.c") is None
-
-
-def test_get_path_non_dict_intermediate_returns_none(scbv):
-    assert scbv.get_path({"a": "scalar"}, "a.b") is None
-
-
-# --- find_app_versions ---
-
-def test_find_app_versions_single_image(scbv):
-    values = {"zac": {"image": {"tag": "5.0.2@sha256:abc"}}}
-    assert scbv.find_app_versions(values, "zac", ["image"]) == [("image", "5.0.2@sha256:abc")]
-
-
-def test_find_app_versions_multi_image(scbv):
-    values = {"zgw-office-addin": {
-        "frontend": {"image": {"tag": "v0.9.313@sha256:a"}},
-        "backend": {"image": {"tag": "v0.9.313@sha256:b"}},
-    }}
-    result = scbv.find_app_versions(values, "zgw-office-addin", ["frontend.image", "backend.image"])
-    assert result == [("frontend.image", "v0.9.313@sha256:a"), ("backend.image", "v0.9.313@sha256:b")]
-
-
-def test_find_app_versions_missing_key_returns_empty(scbv):
-    assert scbv.find_app_versions({}, "zac", ["image"]) == []
-
-
-def test_find_app_versions_empty_tag_is_skipped(scbv):
-    values = {"zac": {"image": {"tag": ""}}}
-    assert scbv.find_app_versions(values, "zac", ["image"]) == []
-
-
-# --- git-backed helpers, against a real hermetic temp repo ---
 
 @pytest.fixture
 def repo(tmp_path):
@@ -96,17 +40,6 @@ def repo(tmp_path):
     git("add", "-A", cwd=tmp_path)
     git("commit", "-q", "-m", "bump zac", cwd=tmp_path)
     return tmp_path
-
-
-def test_git_show_yaml_reads_historical_content(scbv, repo):
-    data = scbv.git_show_yaml(repo, "podiumd-4.8.5", "charts/podiumd/values.yaml")
-    assert data["zac"]["image"]["tag"] == "5.0.2@sha256:abc"
-    data_head = scbv.git_show_yaml(repo, "HEAD", "charts/podiumd/values.yaml")
-    assert data_head["zac"]["image"]["tag"] == "5.4.3@sha256:def"
-
-
-def test_git_show_yaml_returns_none_for_missing_file(scbv, repo):
-    assert scbv.git_show_yaml(repo, "HEAD", "does-not-exist.yaml") is None
 
 
 def test_find_repo_root_returns_repo_root(scbv, repo, monkeypatch):

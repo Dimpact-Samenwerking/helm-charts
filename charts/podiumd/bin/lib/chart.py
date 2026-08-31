@@ -10,6 +10,7 @@ from pathlib import Path
 
 import yaml
 
+from lib.gitutil import git_show_yaml
 from lib.procutil import run
 from lib.registry import parse_repo, registry_tag_exists
 
@@ -114,6 +115,47 @@ def find_dependency(deps, name_or_alias):
         if dep["name"] == name_or_alias or dep.get("alias") == name_or_alias:
             return dep
     return None
+
+
+def find_app_versions(values, values_key, image_paths):
+    """[(image_path, tag), ...] for every image_paths entry (see
+    image_paths_for) that has an explicit tag override under
+    values[values_key] — empty if the component relies entirely on its
+    chart's own image defaults. Shared by show-component-baseline-version
+    and show-image-baseline-version (which this lets delegate its own
+    image-only lookup to, via component_state_at_ref below)."""
+    base = values.get(values_key, {}) if isinstance(values, dict) else {}
+    versions = []
+    for path in image_paths:
+        tag = get_path(base, f"{path}.tag")
+        if tag:
+            versions.append((path, tag))
+    return versions
+
+
+def component_state_at_ref(repo_root, ref, chart_dir_relpath, component):
+    """(dep, values_key, image_paths, app_versions, error) for
+    `component`'s Chart.yaml dependency entry + declared image tag(s) as
+    they were at ref, via `git show` (no checkout needed) — every path
+    show-component-baseline-version and show-image-baseline-version each
+    need to look up a component's baseline state, since neither ever
+    needs Chart.yaml/values.yaml without the other. On failure, error is
+    a ready-to-print reason (no "error: " prefix — callers format that
+    themselves) and the other four are None; on success error is None.
+    Never raises: a caller-facing lookup like this treats "not found" as
+    an ordinary, reportable outcome, not an exceptional one."""
+    chart_yaml = git_show_yaml(repo_root, ref, f"{chart_dir_relpath}/Chart.yaml")
+    if chart_yaml is None:
+        return None, None, None, None, f"could not read {chart_dir_relpath}/Chart.yaml at {ref}"
+    dep = find_dependency(chart_yaml.get("dependencies", []), component)
+    if not dep:
+        return None, None, None, None, (f"no dependency named or aliased '{component}' "
+                                         f"in {chart_dir_relpath}/Chart.yaml at {ref}")
+    values = git_show_yaml(repo_root, ref, f"{chart_dir_relpath}/values.yaml") or {}
+    values_key = dep.get("alias", dep["name"])
+    image_paths = image_paths_for(component)
+    app_versions = find_app_versions(values, values_key, image_paths)
+    return dep, values_key, image_paths, app_versions, None
 
 
 def chart_ref(dep):
