@@ -1,5 +1,5 @@
 """JSON cache for image-upgrade-tag lookups
-(charts/podiumd/.cache/image-upgrade-cache.json — a personal, gitignored,
+(<repo-root>/.cache/image-upgrade-cache.json — a personal, gitignored,
 per-checkout cache, see cache_path), shared by lib.image_upgrade_check
 (which populates it via a live registry check) and lib.cve_check (which
 reads it read-only, to annotate a CVE finding as "upgradable" without
@@ -11,6 +11,8 @@ cve_check."""
 import json
 from datetime import datetime, timedelta, timezone
 
+from lib.gitutil import find_repo_root
+
 CACHE_FILENAME = "image-upgrade-cache.json"
 
 # A new tag can be published at any moment, so this is deliberately much
@@ -20,10 +22,14 @@ IMAGE_UPGRADE_CACHE_TTL_DAYS = 1
 
 
 def cache_path(chart_dir):
-    """charts/podiumd/.cache/image-upgrade-cache.json — a personal,
+    """<repo-root>/.cache/image-upgrade-cache.json — a personal,
     gitignored, per-checkout cache (same as cve_check's own), never
-    committed."""
-    return chart_dir / ".cache" / CACHE_FILENAME
+    committed. Rooted at the repo root (not chart_dir) so root
+    .gitignore's plain /.cache/ entry covers it without a chart-specific
+    rule. Falls back to chart_dir itself if it isn't inside a git
+    checkout."""
+    root = find_repo_root(chart_dir) or chart_dir
+    return root / ".cache" / CACHE_FILENAME
 
 
 def load_cache(chart_dir):

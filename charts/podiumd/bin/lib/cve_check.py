@@ -63,7 +63,7 @@ existing doesn't mean it fixes a given CVE, and that check's answer is
 useful even for an image with zero findings here.
 
 Scan results are cached by (repository, digest) in
-charts/podiumd/.cache/cve-scan-cache.json — a personal, gitignored,
+<repo-root>/.cache/cve-scan-cache.json — a personal, gitignored,
 per-checkout cache (see cache_path), not shared between contributors or
 CI: each of those re-scans an image the first time they see its digest,
 same as a cold cache after cloning fresh. Keyed on digest, not version,
@@ -88,6 +88,7 @@ from collections import Counter
 from datetime import datetime, timedelta, timezone
 
 from lib.chart import load_yaml
+from lib.gitutil import find_repo_root
 from lib.image_digests import scan_digest_pins
 from lib.image_upgrade_cache import cache_entry_is_fresh as upgrade_entry_is_fresh
 from lib.image_upgrade_cache import cache_key as upgrade_cache_key
@@ -129,9 +130,13 @@ CACHE_FILENAME = "cve-scan-cache.json"
 
 
 def cache_path(chart_dir):
-    """charts/podiumd/.cache/cve-scan-cache.json — a personal, gitignored,
-    per-checkout cache (see module docstring), never committed."""
-    return chart_dir / ".cache" / CACHE_FILENAME
+    """<repo-root>/.cache/cve-scan-cache.json — a personal, gitignored,
+    per-checkout cache (see module docstring), never committed. Rooted at
+    the repo root (not chart_dir) so root .gitignore's plain /.cache/
+    entry covers it without a chart-specific rule. Falls back to chart_dir
+    itself if it isn't inside a git checkout."""
+    root = find_repo_root(chart_dir) or chart_dir
+    return root / ".cache" / CACHE_FILENAME
 
 
 def load_cache(chart_dir):

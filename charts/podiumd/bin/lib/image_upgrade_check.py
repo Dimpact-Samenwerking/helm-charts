@@ -25,11 +25,11 @@ on its own.
 
 One registry tag-list call per unique (repository, version) pin — cheap,
 no image pull — but still worth caching: results are cached by
-(repository, version) in charts/podiumd/.cache/image-upgrade-cache.json
+(repository, version) in <repo-root>/.cache/image-upgrade-cache.json
 (see lib.image_upgrade_cache — split into its own module so lib.cve_check
 can read this cache too, read-only, to annotate a CVE finding as
 "upgradable" without triggering a registry call of its own), a personal,
-gitignored, per-checkout cache (same as charts/podiumd/.cache/
+gitignored, per-checkout cache (same as <repo-root>/.cache/
 cve-scan-cache.json — see lib.cve_check's docstring), not shared between
 contributors or CI. IMAGE_UPGRADE_CACHE_TTL_DAYS is deliberately much
 shorter than the CVE cache's TTL: a new tag can be published at any

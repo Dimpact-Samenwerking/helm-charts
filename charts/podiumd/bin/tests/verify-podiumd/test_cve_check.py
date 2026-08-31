@@ -7,7 +7,7 @@ the opt-in itemized view: CRITICAL/HIGH ("CRIT/HIGH") per image, grouped by
 affected package — one line per package listing its CVE IDs, or (past
 PACKAGE_CVE_LIST_THRESHOLD) a summarized count instead of every ID — with
 MEDIUM/LOW/UNKNOWN still only totaled per image. Cached by (repository,
-digest) in charts/podiumd/.cache/cve-scan-cache.json — a personal,
+digest) in <repo-root>/.cache/cve-scan-cache.json — a personal,
 gitignored, per-checkout cache, not shared across contributors/CI. No
 real docker/trivy/registry invocation happens in
 these tests — `run` is mocked throughout. Whether a newer tag is
