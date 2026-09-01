@@ -103,12 +103,13 @@ def test_compare_reports_image_pinned_but_not_tracked(vrt):
 def test_compare_missing_image_hint_names_table_and_resolvable_row_text(vrt):
     """The finding's own second line must name the exact Confluence table
     (read off this component's own existing row) and exactly what a new
-    row needs to say — "Used by" containing the component's own
-    identifier, and a Name containing the missing basename — so
+    row needs to say — a Name containing the missing basename — so
     resolve_image_basenames/component_and_alias resolve it on the next
-    export, not just a vague pointer to "add it somewhere". The version
-    is explicitly labeled "App" since this table (unlike "Technische
-    component versies") still splits its "Versie ..." column into
+    export, not just a vague pointer to "add it somewhere". No "Used by"
+    mentioned: "Product component versies" (like Common Ground/Overige)
+    has no such column at all -- only "Technische component versies"
+    does (see missing_image_hint). The version is explicitly labeled
+    "App" since this table still splits its "Versie ..." column into
     separate App/Helm sub-columns — a human needs to know which one to
     fill in."""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
@@ -117,8 +118,24 @@ def test_compare_missing_image_hint_names_table_and_resolvable_row_text(vrt):
     findings, _ = vrt.compare(rows, deps, {}, values_lines(ZAC_BLOCK))
     hint = next(m for m in findings["missing_from_release_table"] if "zaakafhandelcomponent" in m)
     assert '\n      Confluence: add row to "Product component versies"' in hint
-    assert '"Used by": "zac", Name containing "zaakafhandelcomponent"' in hint
+    assert 'Name containing "zaakafhandelcomponent"' in hint
+    assert "Used by" not in hint
     assert "App version (currently) 5.4.3" in hint
+
+
+def test_compare_missing_image_hint_on_technische_table_mentions_used_by(vrt):
+    """"Technische component versies" is the one table that actually has
+    a "Used by" column (see export-confluence-release-table's own
+    component_and_alias/extract_release_rows) -- a real (non-MULTIPLE)
+    component's own row there DOES get the "Used by" guidance, unlike on
+    any other table."""
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+    rows = [{**csv_row("Elastic operator", "zaakafhandelcomponent", alias="zac", image_basename="",
+                       target_helm="1.0.297"), "section": "Technische"}]
+    findings, _ = vrt.compare(rows, deps, {}, values_lines(ZAC_BLOCK))
+    hint = next(m for m in findings["missing_from_release_table"] if "zaakafhandelcomponent" in m)
+    assert '\n      Confluence: add row to "Technische component versies"' in hint
+    assert '"Used by": "zac", Name containing "zaakafhandelcomponent"' in hint
 
 
 # --- compare(): missing from Chart.yaml / values.yaml ---
