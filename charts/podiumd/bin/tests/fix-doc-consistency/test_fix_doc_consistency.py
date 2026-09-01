@@ -335,6 +335,7 @@ def test_fix_component_version_table_corrects_stale_source(cdb):
 
 def test_fix_component_version_table_leaves_correct_row_untouched(cdb):
     text = (
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
         "| Component | App version | Helm chart | Notes |\n"
         "| --- | --- | --- | --- |\n"
         "| ZAC (Zaakafhandelcomponent) | 5.0.2 → 5.1.0 | 1.0.297 → 1.0.257 | ACR mirror only |\n"
@@ -352,6 +353,7 @@ def test_fix_component_version_table_leaves_correct_row_untouched(cdb):
 
 def test_fix_component_version_table_unmatched_component_reported(cdb):
     text = (
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
         "| Component | App version | Helm chart | Notes |\n"
         "| --- | --- | --- | --- |\n"
         "| Totally Unknown Thing | 1.0.0 → 2.0.0 | 1.0.0 → 2.0.0 | - |\n"
@@ -367,6 +369,7 @@ def test_fix_component_version_table_unmatched_component_reported(cdb):
 
 def test_fix_component_version_table_no_baseline_data_reported_unresolved(cdb):
     text = (
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
         "| Component | App version | Helm chart | Notes |\n"
         "| --- | --- | --- | --- |\n"
         "| ZAC (Zaakafhandelcomponent) | 5.0.1 → 5.1.0 | 1.0.251 → 1.0.257 | ACR mirror only |\n"
