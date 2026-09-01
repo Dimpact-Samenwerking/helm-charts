@@ -127,7 +127,8 @@ def test_print_image_lines_leads_with_key_basename_version(lpi, capsys):
     ]
     lpi.print_image_lines([("pabc", "image", "ghcr.io/x/pabc-api", f"1.1.1@sha256:{'a' * 64}")], lines)
     out = capsys.readouterr().out
-    assert f"pabc  pabc-api  1.1.1  ghcr.io/x/pabc-api:1.1.1@sha256:{'a' * 64}    (path: image)" in out
+    assert "pabc  pabc-api  1.1.1" in out
+    assert f"ghcr.io/x/pabc-api:1.1.1@sha256:{'a' * 64}    (path: image)" in out
     assert "—" not in out  # resolvable -- no trailing note
 
 
@@ -135,6 +136,23 @@ def test_print_image_lines_appends_note_when_not_resolvable(lpi, capsys):
     lpi.print_image_lines([("openbeheer", "image", "maykinmedia/open-beheer", "0.9.0")], [])
     out = capsys.readouterr().out
     assert "not a literal digest pin in values.yaml" in out
+
+
+def test_print_image_lines_puts_note_on_first_line_not_the_detail_line(lpi, capsys):
+    """The note is exactly what decides whether <key> <basename> (the
+    first line) is usable -- it belongs there, not on the second,
+    repo:tag/path detail line."""
+    lines = [
+        "global:",
+        "  images:",
+        "    curl:",
+        "      repository: curlimages/curl",
+        f'      tag: "8.21.0@sha256:{"a" * 64}"',
+    ]
+    lpi.print_image_lines([("zac", "global.curlImage", "curlimages/curl", f"8.21.0@sha256:{'a' * 64}")], lines)
+    first_line, detail_line = capsys.readouterr().out.splitlines()
+    assert "shared via global.images — use: MULTIPLE curl" in first_line
+    assert "—" not in detail_line
 
 
 # --- is_enabled ---
