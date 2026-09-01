@@ -19,17 +19,23 @@ row at all yet (see add_missing_component_rows — the same "component ...
 changed vs ... but has no row" gap verify-podiumd's own doc-consistency
 check reports), reordering the table's rows and the "## Changes"
 section's "### ..." blocks to match values.yaml's own top-level
-component order, and flagging any values.yaml schema changes not yet
-mentioned in the values-deltas doc. Any of the three standard docs that
-don't already exist under ANY baseline for this target are created as
-TODO stubs instead (nothing to rebase) — see create-doc-version for a
-script that ONLY ever does that, refusing outright if docs already exist
-under some other baseline (this script owns rebasing those on purpose;
-that one refuses to touch them). See fix_component_version_table,
-add_missing_component_rows, and fix_images_manifest_entries for exactly
-what gets rewritten/added vs. just reported for manual review (an
-images-manifest entry is NEVER auto-added — its "name:" field needs a
-human-chosen ACR-mirror slug, see docs/images/acr-mirror-naming.md).
+component order. Also ADDING a "- **<name>** app ..." bullet to the
+values-deltas doc for a component that changed but was never mentioned
+there at all (see add_missing_values_delta_bullets — the "component ...
+changed vs ... but is not mentioned anywhere in the doc" gap, distinct
+from missing_key_change_lines's own "- Key `...` was added/removed"
+lines for NESTED schema changes under an already-mentioned component),
+and flagging any such schema changes still missing after that. Any of
+the three standard docs that don't already exist under ANY baseline for
+this target are created as TODO stubs instead (nothing to rebase) — see
+create-doc-version for a script that ONLY ever does that, refusing
+outright if docs already exist under some other baseline (this script
+owns rebasing those on purpose; that one refuses to touch them). See
+fix_component_version_table, add_missing_component_rows,
+add_missing_values_delta_bullets, and fix_images_manifest_entries for
+exactly what gets rewritten/added vs. just reported for manual review
+(an images-manifest entry is NEVER auto-added — its "name:" field needs
+a human-chosen ACR-mirror slug, see docs/images/acr-mirror-naming.md).
 
 Called automatically by change-podiumd-baseline, right after it writes
 release-baseline.yaml's upgrade_docs key — see that script for the
@@ -65,7 +71,7 @@ from lib.chart import chart_version
 from lib.chart import upgrade_docs_baseline as read_upgrade_docs_baseline
 from lib.component_docs import (
     IMAGES_STUB_TEMPLATE, STANDARD_SUFFIXES, STUB_TEMPLATES, add_missing_component_rows,
-    existing_doc_baselines,
+    add_missing_values_delta_bullets, existing_doc_baselines,
 )
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
 from lib.upgradedoc import (
@@ -527,13 +533,29 @@ def main():
         else:
             changed_keys = compute_changed_components(target_deps, baseline_deps, target_values, baseline_values)
             text = values_deltas_path.read_text(encoding="utf-8")
+            write_needed = False
+
+            text, added_bullet_names = add_missing_values_delta_bullets(
+                text, target_deps, target_values, baseline_deps, baseline_values, changed_keys
+            )
+            if added_bullet_names:
+                write_needed = True
+                print()
+                print(f"=== Adding missing component mention(s) to {values_deltas_path.name} ===")
+                for name in added_bullet_names:
+                    print(f"  {name}")
+
             new_lines = missing_key_change_lines(text, changed_keys, baseline_values, target_values)
             if new_lines:
-                values_deltas_path.write_text(append_to_doc(text, new_lines), encoding="utf-8")
+                write_needed = True
+                text = append_to_doc(text, new_lines)
                 print()
                 print(f"=== Adding missing key-change mentions to {values_deltas_path.name} ===")
                 for line in new_lines:
                     print(f"  {line.rstrip()}")
+
+            if write_needed:
+                values_deltas_path.write_text(text, encoding="utf-8")
 
     if review_notes:
         print()
