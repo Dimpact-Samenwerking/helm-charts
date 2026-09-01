@@ -216,14 +216,23 @@ def missing_image_hint(rows, scope_key, component, basename, versions):
     from its own Name relating to the image key itself — no "Used by"
     needed, though naming a consuming component there is still good
     documentation.
-    """
+
+    `versions` are the image's own tag(s) — always an App version (see
+    CSV_HEADER's own source/target_version_APP), never a Helm chart
+    version (a component's chart version is a whole different, already-
+    separately-checked thing — see check_chart_version). Said so
+    explicitly here, not just "version", since every table but
+    "Technische component versies" still splits its "Versie ..." column
+    into separate App/Helm sub-columns (see lib.confluence_tables.
+    select_release_columns) — without naming which one, a human has no
+    way to tell which sub-column this value actually belongs in."""
     where = confluence_table_hint(rows, component)
     version_text = ", ".join(sorted(versions))
     if component == MULTIPLE_KEY:
         what = f'Name containing "{basename}"'
     else:
         what = f'"Used by": "{scope_key}", Name containing "{basename}"'
-    return f"Confluence: add row to {where} — {what}, version (currently) {version_text}"
+    return f"Confluence: add row to {where} — {what}, App version (currently) {version_text}"
 
 
 def check_images(scope_key, component, rows, lines, findings, values):

@@ -106,7 +106,11 @@ def test_compare_missing_image_hint_names_table_and_resolvable_row_text(vrt):
     row needs to say — "Used by" containing the component's own
     identifier, and a Name containing the missing basename — so
     resolve_image_basenames/component_and_alias resolve it on the next
-    export, not just a vague pointer to "add it somewhere"."""
+    export, not just a vague pointer to "add it somewhere". The version
+    is explicitly labeled "App" since this table (unlike "Technische
+    component versies") still splits its "Versie ..." column into
+    separate App/Helm sub-columns — a human needs to know which one to
+    fill in."""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     rows = [csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac", image_basename="",
                      target_helm="1.0.297")]
@@ -114,7 +118,7 @@ def test_compare_missing_image_hint_names_table_and_resolvable_row_text(vrt):
     hint = next(m for m in findings["missing_from_release_table"] if "zaakafhandelcomponent" in m)
     assert '\n      Confluence: add row to "Product component versies"' in hint
     assert '"Used by": "zac", Name containing "zaakafhandelcomponent"' in hint
-    assert "version (currently) 5.4.3" in hint
+    assert "App version (currently) 5.4.3" in hint
 
 
 # --- compare(): missing from Chart.yaml / values.yaml ---
@@ -248,7 +252,7 @@ def test_compare_missing_multiple_image_hint_has_no_used_by_and_guesses_technisc
     assert '\n      Confluence: add row to "Technische component versies"' in hint
     assert 'Name containing "curl"' in hint
     assert "Used by" not in hint
-    assert "version (currently) 8.22.0" in hint
+    assert "App version (currently) 8.22.0" in hint
 
 
 # --- multi-image component (e.g. zgw-office-addin) ---
