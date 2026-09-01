@@ -24,10 +24,10 @@ import yaml
 from lib.chart import image_paths_for, replace_scalar_value
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
 from lib.upgradedoc import (
-    actual_app_version, canonical_version_cell, component_order_key, extract_source_version,
-    find_grouped_preceding_comment_line, insertion_index, match_dependency, normalize_name,
-    normalize_version, parse_upgrade_doc_changes_blocks, parse_upgrade_doc_rows, replace_version_pair,
-    resolve_entry_path, values_key_order,
+    _word_aligned_spans, actual_app_version, canonical_version_cell, component_order_key,
+    extract_source_version, find_grouped_preceding_comment_line, insertion_index, match_dependency,
+    normalize_name, normalize_version, parse_upgrade_doc_changes_blocks, parse_upgrade_doc_rows,
+    replace_version_pair, resolve_entry_path, values_key_order,
 )
 
 NUMBER_WORDS = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten",
@@ -198,9 +198,18 @@ def load_baseline_state(chart_yaml_path, values_path, upgrade_docs_baseline):
 
 
 def find_component_row(rows, friendly):
+    """The row whose own Name mentions `friendly` — matched only at word
+    boundaries (see lib.upgradedoc.match_dependency/_word_aligned_spans,
+    which need the exact same protection for the exact same reason): a
+    short friendly/values_key like "mi" is a literal substring of
+    "ensurePodiumdAdminUser" (inside "ad-mi-n"), which a raw
+    normalize_name() containment check can't tell apart from a real
+    word-level match — update_component_table would otherwise silently
+    overwrite that unrelated row's own cells instead of inserting "mi"'s
+    own new row."""
     norm_friendly = normalize_name(friendly)
     for row in rows:
-        if norm_friendly in normalize_name(row["name"]):
+        if norm_friendly in _word_aligned_spans(row["name"]):
             return row
     return None
 
@@ -322,10 +331,14 @@ def remove_changes_section(text, friendly):
     section entirely — the counterpart to insert_changes_section for a
     bump that nets out to no change from upgrade_docs_baseline at all. Also swallows
     the block's own trailing blank line(s) so removal doesn't leave a
-    double gap before whatever follows. Returns (new_text, removed)."""
+    double gap before whatever follows. Matched only at word boundaries
+    (see find_component_row's own identical protection) — a short
+    friendly/values_key must never delete an unrelated block just
+    because it's a coincidental mid-word substring of that block's own
+    heading. Returns (new_text, removed)."""
     blocks = parse_upgrade_doc_changes_blocks(text)
     norm_friendly = normalize_name(friendly)
-    block = next((b for b in blocks if norm_friendly in normalize_name(b["heading"])), None)
+    block = next((b for b in blocks if norm_friendly in _word_aligned_spans(b["heading"])), None)
     if block is None:
         return text, False
     lines = text.splitlines(keepends=True)

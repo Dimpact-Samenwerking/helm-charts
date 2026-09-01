@@ -631,6 +631,54 @@ def test_main_leaves_existing_row_untouched_when_adding_missing_ones(
     assert "| ZAC (Zaakafhandelcomponent) | 5.0.2 (unchanged) | 1.0.297 (unchanged) | n/a |" in upgrade
 
 
+@pytest.fixture
+def repo_with_short_alias_collision_risk(tmp_path):
+    """Regression fixture: "mi" is a real Chart.yaml dependency alias
+    short enough to be a literal mid-word substring of an unrelated
+    EXISTING row's own Name — "ensurePodiumdAdminUser" contains "mi"
+    (inside "ad-mi-n"). Before find_component_row's own word-boundary fix,
+    add_missing_component_rows("mi") would silently overwrite that
+    unrelated Python row's cells instead of inserting "mi"'s own new row."""
+    git("init", "-q", cwd=tmp_path)
+    git("config", "user.email", "test@example.com", cwd=tmp_path)
+    git("config", "user.name", "Test", cwd=tmp_path)
+
+    write(tmp_path / "Chart.yaml", yaml.safe_dump({
+        "dependencies": [
+            {"name": "mi-data", "alias": "mi", "version": "1.0.0", "repository": "@dimpact"},
+        ],
+    }))
+    write(tmp_path / "values.yaml", yaml.safe_dump({"mi": {"image": {"tag": "2.0.0@sha256:aaaa"}}}))
+    doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
+    doc_dir.mkdir(parents=True)
+    (tmp_path / "docs" / "images").mkdir(parents=True)
+    git("add", "-A", cwd=tmp_path)
+    git("commit", "-q", "-m", "baseline state", cwd=tmp_path)
+    git("tag", "podiumd-4.8.5", cwd=tmp_path)
+
+    write(tmp_path / "values.yaml", yaml.safe_dump({"mi": {"image": {"tag": "2.1.0@sha256:bbbb"}}}))
+    write(doc_dir / "4.8.3-to-4.9.0-upgrade.md",
+          "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+          "## Component versions (4.9.0 vs 4.8.5)\n\n"
+          "| Component | App version | Helm chart | Notes |\n"
+          "| --- | --- | --- | --- |\n"
+          "| Python (ensurePodiumdAdminUser init image) | 3.14-slim (unchanged) | 1.0.0 (unchanged) | - |\n\n"
+          "## Changes\n\n")
+    git("add", "-A", cwd=tmp_path)
+    git("commit", "-q", "-m", "bump mi, no doc row added", cwd=tmp_path)
+    return doc_dir
+
+
+def test_main_short_alias_does_not_corrupt_unrelated_row(cdb, repo_with_short_alias_collision_risk, monkeypatch):
+    set_argv_and_dir(cdb, monkeypatch, repo_with_short_alias_collision_risk, "4.8.5")
+    cdb.main()
+
+    upgrade = (repo_with_short_alias_collision_risk / "4.8.5-to-4.9.0-upgrade.md").read_text(encoding="utf-8")
+    assert ("| Python (ensurePodiumdAdminUser init image) | 3.14-slim (unchanged) | 1.0.0 (unchanged) "
+            "| - |") in upgrade
+    assert "| mi | 2.0.0 → 2.1.0 | 1.0.0 (unchanged) | - |" in upgrade
+
+
 # --- main() integration: values-deltas.md missing key-change mentions ---
 
 @pytest.fixture
