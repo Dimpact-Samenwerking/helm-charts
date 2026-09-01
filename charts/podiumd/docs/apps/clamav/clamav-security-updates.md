@@ -247,4 +247,3 @@ available as long as more than 1 is running.
   is set if `replicaCount: 1` to prevent upgrade deadlocks.
 - The PDB setting lives in environment-specific values files (e.g. `temp-ontw-dim1.yaml`) if different
   environments require different availability guarantees. The base `values.yaml` leaves it disabled.
-

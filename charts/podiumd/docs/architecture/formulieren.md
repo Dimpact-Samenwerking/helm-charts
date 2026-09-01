@@ -2,7 +2,6 @@
 
 ## Architectuur context binnen PodiumD
 
-
 ```mermaid
 C4Context
 
