@@ -156,9 +156,9 @@ def test_compare_reports_chart_version_never_tracked(vrt):
     hint = next(m for m in findings["missing_from_release_table"] if "'openbao' has release-table" in m)
     assert "[CHART] Chart.yaml dependency 'openbao' has release-table.csv row(s), but none records " \
            "a Helm chart version" in hint
-    assert ('\n      Confluence: remove "OpenBao" from "Technische component versies" (no Helm column '
-            'there) and add it instead to whichever of Product/Common Ground/Overige component versies '
-            'fits — Name "OpenBao", Helm version 0.28.4, App version 2.5.5') in hint
+    assert ('\n      Confluence: remove "OpenBao" from "Technische component versies" and add it instead '
+            'to whichever of "Product/Common Ground/Overige component versies" fits — Name "OpenBao", '
+            'Helm version 0.28.4, App version 2.5.5') in hint
     assert "postgres" not in hint
 
 
