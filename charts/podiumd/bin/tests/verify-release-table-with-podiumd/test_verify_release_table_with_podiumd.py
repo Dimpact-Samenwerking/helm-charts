@@ -27,6 +27,18 @@ ZAC_BLOCK = (
     f'    tag: "5.4.3@sha256:{DIGEST}"\n'
 )
 
+# zac's own PRIMARY image (zac.image, matching lib.chart.
+# DEFAULT_IMAGE_PATHS) plus a sidecar image nested elsewhere (zac.
+# opentelemetry-collector.image) that is NEVER zac's primary image, no
+# matter how deep or shallow the nesting -- see lib.chart.
+# image_paths_for / COMPONENT_IMAGE_PATHS.
+ZAC_WITH_SIDECAR_BLOCK = ZAC_BLOCK + (
+    "  opentelemetry-collector:\n"
+    "    image:\n"
+    "      repository: otel/opentelemetry-collector-contrib\n"
+    f'      tag: "0.158.0@sha256:{DIGEST}"\n'
+)
+
 
 # --- compare(): version mismatches ---
 
@@ -66,6 +78,46 @@ def test_compare_skips_blank_or_unknown_targets(vrt, target_app, target_helm):
                      target_app=target_app, target_helm=target_helm)]
     findings, _ = vrt.compare(rows, deps, {}, values_lines(ZAC_BLOCK))
     assert findings == {}
+
+
+# --- is_primary_image ---
+
+def test_is_primary_image_default_path(vrt):
+    """DEFAULT_IMAGE_PATHS (["image"]) covers the common single-image
+    component -- zac's own "zaakafhandelcomponent" pin, at zac.image.tag."""
+    lines = values_lines(ZAC_BLOCK)
+    pins = vrt.basenames_under_scope(lines, "zac")["zaakafhandelcomponent"]
+    assert vrt.is_primary_image("zaakafhandelcomponent", lines, pins[0]) is True
+
+
+def test_is_primary_image_false_for_sidecar(vrt):
+    """A sidecar image nested elsewhere is never the component's primary
+    one, no matter how deep or shallow the nesting."""
+    lines = values_lines(ZAC_WITH_SIDECAR_BLOCK)
+    pins = vrt.basenames_under_scope(lines, "zac")["opentelemetry-collector-contrib"]
+    assert vrt.is_primary_image("zaakafhandelcomponent", lines, pins[0]) is False
+
+
+def test_is_primary_image_multi_image_component_override(vrt):
+    """COMPONENT_IMAGE_PATHS overrides DEFAULT_IMAGE_PATHS for a multi-
+    image component -- zgw-office-addin's own frontend+backend are BOTH
+    primary, per lib.chart.COMPONENT_IMAGE_PATHS."""
+    lines = values_lines(
+        "zgw-office-addin:\n"
+        "  frontend:\n"
+        "    image:\n"
+        "      repository: ghcr.io/infonl/zgw-office-addin-frontend\n"
+        f'      tag: "1.0.0@sha256:{DIGEST}"\n'
+        "  backend:\n"
+        "    image:\n"
+        "      repository: ghcr.io/infonl/zgw-office-addin-backend\n"
+        f'      tag: "1.0.0@sha256:{DIGEST}"\n'
+    )
+    available = vrt.basenames_under_scope(lines, "zgw-office-addin")
+    frontend_pin = available["zgw-office-addin-frontend"][0]
+    backend_pin = available["zgw-office-addin-backend"][0]
+    assert vrt.is_primary_image("zgw-office-addin", lines, frontend_pin) is True
+    assert vrt.is_primary_image("zgw-office-addin", lines, backend_pin) is True
 
 
 # --- compare(): missing from release-table.csv ---
@@ -123,19 +175,36 @@ def test_compare_missing_image_hint_names_table_and_resolvable_row_text(vrt):
     assert "App version (currently) 5.4.3" in hint
 
 
-def test_compare_missing_image_hint_on_technische_table_mentions_used_by(vrt):
-    """"Technische component versies" is the one table that actually has
-    a "Used by" column (see export-confluence-release-table's own
-    component_and_alias/extract_release_rows) -- a real (non-MULTIPLE)
-    component's own row there DOES get the "Used by" guidance, unlike on
-    any other table."""
+def test_compare_missing_primary_image_uses_own_table_without_used_by(vrt):
+    """A component's own PRIMARY application image (see lib.chart.
+    image_paths_for/DEFAULT_IMAGE_PATHS -- zac.image, here) never needs
+    "Used by", even when its only tracked row happens to live on
+    "Technische component versies": it's this row's own identity, not a
+    sibling image being attributed to some other consuming component."""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     rows = [{**csv_row("Elastic operator", "zaakafhandelcomponent", alias="zac", image_basename="",
                        target_helm="1.0.297"), "section": "Technische"}]
     findings, _ = vrt.compare(rows, deps, {}, values_lines(ZAC_BLOCK))
     hint = next(m for m in findings["missing_from_release_table"] if "zaakafhandelcomponent" in m)
     assert '\n      Confluence: add row to "Technische component versies"' in hint
-    assert '"Used by": "zac", Name containing "zaakafhandelcomponent"' in hint
+    assert 'Name containing "zaakafhandelcomponent"' in hint
+    assert "Used by" not in hint
+
+
+def test_compare_missing_sidecar_image_always_goes_to_technische_with_used_by(vrt):
+    """A component's own sidecar/init-container image -- NOT its primary
+    application image, see lib.chart.image_paths_for -- always goes to
+    "Technische component versies" with "Used by" naming the component,
+    regardless of which table the component's own primary row actually
+    lives on (here, "Product")."""
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+    rows = [csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac",
+                     image_basename="zaakafhandelcomponent", target_helm="1.0.297")]
+    findings, _ = vrt.compare(rows, deps, {}, values_lines(ZAC_WITH_SIDECAR_BLOCK))
+    hint = next(m for m in findings["missing_from_release_table"]
+                if "opentelemetry-collector-contrib" in m)
+    assert '\n      Confluence: add row to "Technische component versies"' in hint
+    assert '"Used by": "zac", Name containing "opentelemetry-collector-contrib"' in hint
 
 
 # --- compare(): missing from Chart.yaml / values.yaml ---

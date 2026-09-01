@@ -100,7 +100,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from lib.chart import get_path, load_yaml
+from lib.chart import dotted_key_path, get_path, image_paths_for, load_yaml
 from lib.image_version import GLOBAL_IMAGES_SCOPE, MULTIPLE_KEY, basenames_under_scope, find_matches
 
 CHART_DIR = SCRIPT_DIR.parents[0]
@@ -201,30 +201,68 @@ def confluence_table_hint(rows, component):
     return GENERIC_TABLE_HINT
 
 
-def missing_image_hint(rows, scope_key, component, basename, versions):
-    """Second line for an "[IMAGE] ... not tracked" finding: which
-    Confluence table to add a row to (see confluence_table_hint), and
-    what that row needs to say so export-confluence-release-table's own
-    resolve_image_basenames/component_and_alias resolve it right back
-    to this same component/basename on the next export — a human is
-    free to phrase the row's actual "Name" however reads best (e.g.
-    "ZAC Gotenberg", not literally "gotenberg"); the one hard
-    requirement, spelled out here so a re-export doesn't silently leave
-    it unresolved again, is that the text contain `basename` (matched by
-    substring — see lib "_related" in export-confluence-release-table).
+def is_primary_image(component, lines, pin):
+    """True if `pin` (one of basenames_under_scope()'s own pins, with its
+    own "line") sits at one of `component`'s own primary application
+    image path(s) — see lib.chart.image_paths_for/COMPONENT_IMAGE_PATHS/
+    DEFAULT_IMAGE_PATHS, the EXACT SAME registry update-component-
+    version's own <app-version> argument targets (via
+    update_values_yaml's "{values_key}.{path}.tag" — the same shape
+    reconstructed here from `pin`'s own line). DEFAULT_IMAGE_PATHS
+    (["image"]) covers the common single-image case; COMPONENT_IMAGE_
+    PATHS overrides it for a multi-image component like zgw-office-
+    addin's own frontend+backend (both primary), or keycloak-operator's
+    own non-standard split-path SERVER image (invisible to
+    basenames_under_scope in the first place, so never actually reaches
+    this check — see SPECIAL_CASE_BASENAME_TAG_PATHS/
+    SPECIAL_CASE_COMPONENT_TAG_PATHS instead).
 
-    "Used by" is only ever mentioned when the target table is
-    "Technische component versies" — the ONE table that actually has a
-    "Used by" column at all (see export-confluence-release-table's own
-    module docstring: "Technische component versies" tables use "Used
-    by"; Product/Common Ground/Overige use "Ontwikkelpartij" instead,
-    which this export never derives a component from — see
-    component_and_alias's own used_by-or-name fallback). Mentioning it
-    for a table that doesn't have it would just tell a human to add a
-    column that isn't there. A MULTIPLE row (a values.yaml
-    global.images.* image, shared across components) resolves purely
-    from its own Name relating to the image key itself, so it never
-    needs "Used by" either, even on the Technische table.
+    Anything NOT in that list — a sidecar/init-container image nested
+    elsewhere, e.g. "zac.opentelemetry-collector.image.tag" or
+    "zac.opa.image.tag" — is never that component's primary image, no
+    matter how deep or shallow the nesting: it's exactly what update-
+    image-version's own <basename> targets instead of update-component-
+    version's <app-version>, and belongs on "Technische component
+    versies", with "Used by" naming the component that pulls it in (see
+    missing_image_hint). Meaningless for MULTIPLE_KEY (values.yaml
+    global.images.* entries never have a "primary" component at all) —
+    never checked for it."""
+    path = dotted_key_path(lines, pin["line"] - 1).split(".")
+    relative = ".".join(path[1:-1])
+    return relative in image_paths_for(component)
+
+
+def missing_image_hint(rows, scope_key, component, basename, versions, primary):
+    """Second line for an "[IMAGE] ... not tracked" finding: which
+    Confluence table to add a row to, and what that row needs to say so
+    export-confluence-release-table's own resolve_image_basenames/
+    component_and_alias resolve it right back to this same component/
+    basename on the next export — a human is free to phrase the row's
+    actual "Name" however reads best (e.g. "ZAC Gotenberg", not
+    literally "gotenberg"); the one hard requirement, spelled out here
+    so a re-export doesn't silently leave it unresolved again, is that
+    the text contain `basename` (matched by substring — see lib
+    "_related" in export-confluence-release-table).
+
+    A real (non-MULTIPLE) component's own PRIMARY image (see
+    is_primary_image) goes on whichever table its own existing row is
+    already on (see confluence_table_hint) — no "Used by" needed there,
+    since it's that row's own Name doing the resolving. Every other
+    image — a sidecar/init-container, never the component's primary one
+    — always goes on "Technische component versies" instead, WITH "Used
+    by" naming `scope_key` (already the human-facing identifier used
+    everywhere else, e.g. "zac"), regardless of which table the
+    component's own primary row lives on: "Used by" is the one thing
+    that actually scopes a sibling row's basename match to this
+    component (see resolve_image_basenames) — the ONLY column that does,
+    and the ONLY table ("Technische component versies") that has a "Used
+    by" column at all (see export-confluence-release-table's own module
+    docstring: Product/Common Ground/Overige use "Ontwikkelpartij"
+    instead, which this export never derives a component from — see
+    component_and_alias's own used_by-or-name fallback). A MULTIPLE row
+    (a values.yaml global.images.* image, shared across components)
+    resolves purely from its own Name relating to the image key itself,
+    so it never needs "Used by" either, even there.
 
     `versions` are the image's own tag(s) — always an App version (see
     CSV_HEADER's own source/target_version_APP), never a Helm chart
@@ -235,11 +273,12 @@ def missing_image_hint(rows, scope_key, component, basename, versions):
     into separate App/Helm sub-columns (see lib.confluence_tables.
     select_release_columns) — without naming which one, a human has no
     way to tell which sub-column this value actually belongs in."""
-    where = confluence_table_hint(rows, component)
     version_text = ", ".join(sorted(versions))
-    if component != MULTIPLE_KEY and where == TECHNISCHE_TABLE_HINT:
+    if component != MULTIPLE_KEY and not primary:
+        where = TECHNISCHE_TABLE_HINT
         what = f'"Used by": "{scope_key}", Name containing "{basename}"'
     else:
+        where = confluence_table_hint(rows, component)
         what = f'Name containing "{basename}"'
     return f"Confluence: add row to {where} — {what}, App version (currently) {version_text}"
 
@@ -300,8 +339,10 @@ def check_images(scope_key, component, rows, lines, findings, values):
 
     for basename in actual_basenames:
         if basename not in csv_basenames:
-            versions = {p["version"] for p in actual_basenames[basename]}
-            hint = missing_image_hint(rows, scope_key, component, basename, versions)
+            pins = actual_basenames[basename]
+            versions = {p["version"] for p in pins}
+            primary = component != MULTIPLE_KEY and is_primary_image(component, lines, pins[0])
+            hint = missing_image_hint(rows, scope_key, component, basename, versions, primary)
             findings["missing_from_release_table"].append(
                 f"[IMAGE] '{scope_key}' image '{basename}' is pinned in values.yaml but not tracked "
                 f"in release-table.csv\n      {hint}"
