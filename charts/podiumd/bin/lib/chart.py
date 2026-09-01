@@ -119,6 +119,24 @@ def release_table_baseline(chart_dir):
     return _release_baselines(chart_dir).get("release_table")
 
 
+def write_release_baselines(chart_dir, upgrade_docs=None, release_table=None):
+    """Read-modify-write chart_dir/release-baseline.yaml, updating only
+    whichever of upgrade_docs/release_table is given (None leaves that
+    key untouched, whatever it already was) — the single write path
+    shared by create-podiumd-version (writes upgrade_docs on every
+    release cycle, release_table only on a minor bump) and
+    change-podiumd-baseline (writes upgrade_docs only, never
+    release_table), so neither script risks clobbering the other's own
+    key by writing a fresh two-key file from scratch."""
+    path = chart_dir / RELEASE_BASELINES_FILE_NAME
+    data = _release_baselines(chart_dir)
+    if upgrade_docs is not None:
+        data["upgrade_docs"] = upgrade_docs
+    if release_table is not None:
+        data["release_table"] = release_table
+    path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
+
+
 def get_path(node, dotted_path):
     for key in dotted_path.split("."):
         if not isinstance(node, dict):

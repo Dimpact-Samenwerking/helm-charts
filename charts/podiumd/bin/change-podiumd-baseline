@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 """
-Change the release baseline recorded in charts/podiumd/release-baseline
-(written by create-podiumd-version at the start of a release cycle) —
-for correcting a mistake, or rebasing the release onto a different
-baseline mid-cycle. Also rebases the docs onto the new baseline (runs
-fix-doc-consistency — see that script for exactly what gets renamed/
-rewritten vs. just reported for manual review) and, as a safety net for
-any values.yaml drift README.md hadn't already picked up, regenerates it
-too (runs fix-helm-doc).
+Change the upgrade_docs baseline recorded in charts/podiumd/release-
+baseline.yaml (written by create-podiumd-version at the start of a
+release cycle) — for correcting a mistake, or rebasing the release onto
+a different baseline mid-cycle. Also rebases the docs onto the new
+baseline (runs fix-doc-consistency — see that script for exactly what
+gets renamed/rewritten vs. just reported for manual review) and, as a
+safety net for any values.yaml drift README.md hadn't already picked
+up, regenerates it too (runs fix-helm-doc).
+
+Only ever touches upgrade_docs — never release_table, which only ever
+changes via create-podiumd-version's own minor-bump rule. There is no
+equivalent "change" tool for release_table.
 
 <new-baseline> must resolve to an actual release: the podiumd-<version>
 git tag, falling back to the feature/podiumd-<version> / origin/feature/
@@ -27,23 +31,14 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
+from lib.chart import upgrade_docs_baseline as read_upgrade_docs_baseline
+from lib.chart import write_release_baselines
 from lib.gitutil import find_repo_root, resolve_baseline_ref
 from lib.procutil import run_script
 
 CHART_DIR = SCRIPT_DIR.parent
-RELEASE_BASELINE_FILE = CHART_DIR / "release-baseline"
 FIX_DOC_CONSISTENCY_SCRIPT = SCRIPT_DIR / "fix-doc-consistency"
 FIX_HELM_DOC_SCRIPT = SCRIPT_DIR / "fix-helm-doc"
-
-
-def read_current_baseline():
-    if not RELEASE_BASELINE_FILE.is_file():
-        return None
-    return RELEASE_BASELINE_FILE.read_text(encoding="utf-8").strip()
-
-
-def write_release_baseline(baseline):
-    RELEASE_BASELINE_FILE.write_text(f"{baseline}\n", encoding="utf-8")
 
 
 def main():
@@ -65,13 +60,15 @@ def main():
         print(f"error: {error}")
         sys.exit(1)
 
-    old_baseline = read_current_baseline()
-    write_release_baseline(new_baseline)
+    old_baseline = read_upgrade_docs_baseline(CHART_DIR)
+    write_release_baselines(CHART_DIR, upgrade_docs=new_baseline)
 
     if old_baseline == new_baseline:
-        print(f"{RELEASE_BASELINE_FILE.name}: already {new_baseline} (resolved to {ref}) — nothing changed")
+        print(f"release-baseline.yaml: upgrade_docs already {new_baseline} "
+              f"(resolved to {ref}) — nothing changed")
     else:
-        print(f"{RELEASE_BASELINE_FILE.name}: {old_baseline or '(none)'} -> {new_baseline} (resolved to {ref})")
+        print(f"release-baseline.yaml: upgrade_docs {old_baseline or '(none)'} -> {new_baseline} "
+              f"(resolved to {ref})")
 
     print()
     print(f"=== Running fix-doc-consistency {new_baseline} ===")

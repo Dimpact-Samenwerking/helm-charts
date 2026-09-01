@@ -158,6 +158,35 @@ def test_release_baselines_independent_of_old_plain_text_file(libchart, tmp_path
     assert libchart.release_baseline(tmp_path) == "4.8.4"
 
 
+# --- write_release_baselines ---
+
+def test_write_release_baselines_creates_file_with_both_keys(libchart, tmp_path):
+    libchart.write_release_baselines(tmp_path, upgrade_docs="4.9.0", release_table="4.8.5")
+    assert libchart.upgrade_docs_baseline(tmp_path) == "4.9.0"
+    assert libchart.release_table_baseline(tmp_path) == "4.8.5"
+
+
+def test_write_release_baselines_updates_only_upgrade_docs_leaves_release_table(libchart, tmp_path):
+    libchart.write_release_baselines(tmp_path, upgrade_docs="4.9.0", release_table="4.8.5")
+    libchart.write_release_baselines(tmp_path, upgrade_docs="4.9.1")
+    assert libchart.upgrade_docs_baseline(tmp_path) == "4.9.1"
+    assert libchart.release_table_baseline(tmp_path) == "4.8.5"
+
+
+def test_write_release_baselines_updates_only_release_table_leaves_upgrade_docs(libchart, tmp_path):
+    libchart.write_release_baselines(tmp_path, upgrade_docs="4.9.0", release_table="4.8.5")
+    libchart.write_release_baselines(tmp_path, release_table="4.9.0")
+    assert libchart.upgrade_docs_baseline(tmp_path) == "4.9.0"
+    assert libchart.release_table_baseline(tmp_path) == "4.9.0"
+
+
+def test_write_release_baselines_no_args_leaves_both_unchanged(libchart, tmp_path):
+    libchart.write_release_baselines(tmp_path, upgrade_docs="4.9.0", release_table="4.8.5")
+    libchart.write_release_baselines(tmp_path)
+    assert libchart.upgrade_docs_baseline(tmp_path) == "4.9.0"
+    assert libchart.release_table_baseline(tmp_path) == "4.8.5"
+
+
 # --- find_dependency ---
 
 def test_find_dependency_by_name(libchart):

@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """
-Show the app image version(s) pinned for a podiumd component at a given
-baseline podiumd release — useful for finding out what a release
-actually shipped before writing an upgrade doc's "source" column,
-without checking out that release or digging through git history by
-hand. Same <baseline> <component> shape as show-component-baseline-
-version, which also reports the component's Helm chart version — this
-one reports ONLY the image side (both resolve the component's baseline
+Show the app image version(s) pinned for a podiumd component at BOTH
+recorded release-baseline.yaml baselines (upgrade_docs and
+release_table — see lib.chart for what each means) — useful for finding
+out what a release actually shipped before writing an upgrade doc's
+"source" column, without checking out that release or digging through
+git history by hand. Same shape as show-component-baseline-version,
+which also reports the component's Helm chart version — this one
+reports ONLY the image side (both resolve the component's baseline
 state via the same lib.chart.component_state_at_ref, which
 show-component-baseline-version delegates its own image lookup to as
 well) — matching the narrower scope update-image-version/
@@ -14,21 +15,19 @@ verify-image-version already have relative to
 update-component-version/verify-component-version.
 
 Usage:
-    show-image-baseline-version [<baseline>] <component>
-        # <baseline> defaults to release-baseline's content if omitted
-        # (error if that file doesn't exist either)
+    show-image-baseline-version <component>
 
 Examples:
-    show-image-baseline-version 4.8.5 zac
-    show-image-baseline-version 4.8.5 zgw-office-addin
-    show-image-baseline-version 4.8.5 openformulieren
     show-image-baseline-version zac
-        # same as the first example, but reads "4.8.5" from release-baseline
+    show-image-baseline-version zgw-office-addin
+    show-image-baseline-version openformulieren
 
-<baseline> is a bare version (e.g. "4.8.5"), resolved to the podiumd-4.8.5
-git tag, falling back to the feature/podiumd-4.8.5 / origin/feature/podiumd-
-4.8.5 branch if the tag doesn't exist yet — or an explicit git ref, used
-as-is. Reads charts/podiumd/Chart.yaml + values.yaml as they were at that
+Each baseline is a bare version (e.g. "4.8.5"), resolved to the
+podiumd-4.8.5 git tag, falling back to the feature/podiumd-4.8.5 /
+origin/feature/podiumd-4.8.5 branch if the tag doesn't exist yet. A
+baseline missing from release-baseline.yaml is skipped (noted, not an
+error); this only fails outright if NEITHER baseline could be shown at
+all. Reads charts/podiumd/Chart.yaml + values.yaml as they were at each
 ref via `git show` — no checkout needed.
 """
 import sys
@@ -37,7 +36,9 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from lib.chart import component_state_at_ref, release_baseline
+from lib.chart import component_state_at_ref
+from lib.chart import release_table_baseline as read_release_table_baseline
+from lib.chart import upgrade_docs_baseline as read_upgrade_docs_baseline
 from lib.gitutil import resolve_baseline_ref
 from lib.gitutil import find_repo_root as _find_repo_root
 
@@ -51,49 +52,64 @@ def find_repo_root():
     return repo_root
 
 
-def main():
-    if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
-        print(__doc__)
-        sys.exit(0)
-    if len(sys.argv) == 2:
-        baseline, component = None, sys.argv[1]
-    elif len(sys.argv) == 3:
-        baseline, component = sys.argv[1], sys.argv[2]
-    else:
-        print(__doc__)
-        sys.exit(1)
-
-    repo_root = find_repo_root()
-
+def show_at_baseline(repo_root, label, baseline, component):
+    """Prints this component's image state at `baseline` (labeled
+    `label`, "upgrade_docs" or "release_table"), or a one-line note
+    instead if `baseline` is None or doesn't resolve/apply. Returns
+    True if the component's state was actually shown."""
+    print(f"=== {label} baseline ===")
     if baseline is None:
-        baseline = release_baseline(repo_root / RELATIVE_CHART_DIR)
-        if baseline is None:
-            print("error: no <baseline> given and release-baseline doesn't exist "
-                  "— pass <baseline> explicitly")
-            sys.exit(1)
-        print(f"No <baseline> given — using release-baseline's '{baseline}'")
+        print(f"  (release-baseline.yaml has no {label} key — skipping)")
+        print()
+        return False
 
     ref, error = resolve_baseline_ref(repo_root, baseline)
     if error:
-        print(f"error: {error}")
-        sys.exit(1)
+        print(f"  error: {error}")
+        print()
+        return False
 
     dep, values_key, image_paths, app_versions, error = component_state_at_ref(
         repo_root, ref, RELATIVE_CHART_DIR, component)
     if error:
-        print(f"error: {error}")
-        sys.exit(1)
+        print(f"  error: {error}")
+        print()
+        return False
 
-    print(f"Component: {component} (Chart.yaml dependency: {dep['name']}, values key: {values_key})")
-    print(f"Baseline: {baseline} (resolved to {ref})")
+    print(f"  Component: {component} (Chart.yaml dependency: {dep['name']}, values key: {values_key})")
+    print(f"  Baseline: {baseline} (resolved to {ref})")
     if app_versions:
-        print("App version(s):")
-        for label, tag in app_versions:
+        print("  App version(s):")
+        for name, tag in app_versions:
             version = tag.split("@", 1)[0]
-            print(f"  {label}: {version}  ({tag})")
+            print(f"    {name}: {version}  ({tag})")
     else:
-        print(f"App version: no tag override found at {', '.join(image_paths)} "
+        print(f"  App version: no tag override found at {', '.join(image_paths)} "
               f"under '{values_key}:' — chart default applies")
+    print()
+    return True
+
+
+def main():
+    if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
+        print(__doc__)
+        sys.exit(0)
+    if len(sys.argv) != 2:
+        print(__doc__)
+        sys.exit(1)
+    component = sys.argv[1]
+
+    repo_root = find_repo_root()
+    chart_dir = repo_root / RELATIVE_CHART_DIR
+
+    upgrade_docs = read_upgrade_docs_baseline(chart_dir)
+    release_table = read_release_table_baseline(chart_dir)
+
+    shown_upgrade_docs = show_at_baseline(repo_root, "upgrade_docs", upgrade_docs, component)
+    shown_release_table = show_at_baseline(repo_root, "release_table", release_table, component)
+
+    if not shown_upgrade_docs and not shown_release_table:
+        sys.exit(1)
 
 
 if __name__ == "__main__":
