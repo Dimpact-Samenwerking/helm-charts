@@ -679,6 +679,89 @@ def test_main_short_alias_does_not_corrupt_unrelated_row(cdb, repo_with_short_al
     assert "| mi | 2.0.0 → 2.1.0 | 1.0.0 (unchanged) | - |" in upgrade
 
 
+# --- main() integration: values-deltas.md missing top-level component mention ---
+
+@pytest.fixture
+def repo_with_unmentioned_component_bump(tmp_path):
+    """zaakbrug's own app image tag changed between the baseline tag and
+    HEAD, but values-deltas.md never got a top-level "**zaakbrug**"
+    bullet at all — a different gap than missing_key_change_lines (which
+    is about NESTED schema keys under an already-mentioned component),
+    the one add_missing_values_delta_bullets exists to fill in."""
+    git("init", "-q", cwd=tmp_path)
+    git("config", "user.email", "test@example.com", cwd=tmp_path)
+    git("config", "user.name", "Test", cwd=tmp_path)
+
+    write(tmp_path / "Chart.yaml", yaml.safe_dump({
+        "dependencies": [
+            {"name": "zaakbrug", "version": "2.3.28", "repository": "https://wearefrank.github.io/charts"},
+        ],
+    }))
+    write(tmp_path / "values.yaml", yaml.safe_dump({"zaakbrug": {"image": {"tag": "1.26.14@sha256:aaaa"}}}))
+    doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
+    doc_dir.mkdir(parents=True)
+    (tmp_path / "docs" / "images").mkdir(parents=True)
+    git("add", "-A", cwd=tmp_path)
+    git("commit", "-q", "-m", "baseline state", cwd=tmp_path)
+    git("tag", "podiumd-4.8.5", cwd=tmp_path)
+
+    write(tmp_path / "values.yaml", yaml.safe_dump({"zaakbrug": {"image": {"tag": "1.26.15@sha256:bbbb"}}}))
+    write(doc_dir / "4.8.3-to-4.9.0-values-deltas.md",
+          "# Values deltas — PodiumD 4.8.3 → 4.9.0\n\nNo unrelated changes.\n")
+    git("add", "-A", cwd=tmp_path)
+    git("commit", "-q", "-m", "bump zaakbrug, no values-deltas mention", cwd=tmp_path)
+    return doc_dir
+
+
+def test_main_adds_missing_values_delta_bullet(cdb, repo_with_unmentioned_component_bump, monkeypatch, capsys):
+    set_argv_and_dir(cdb, monkeypatch, repo_with_unmentioned_component_bump, "4.8.5")
+    cdb.main()
+
+    deltas = (repo_with_unmentioned_component_bump / "4.8.5-to-4.9.0-values-deltas.md").read_text(
+        encoding="utf-8")
+    assert "- **zaakbrug** app `1.26.14 → 1.26.15` (chart `2.3.28`, unchanged) — image tag only.\n" in deltas
+    assert "No unrelated changes." in deltas  # existing content preserved
+    out = capsys.readouterr().out
+    assert "Adding missing component mention(s)" in out
+    assert "zaakbrug" in out
+
+
+def test_main_does_not_duplicate_already_mentioned_component_bullet(
+        cdb, repo_with_unmentioned_component_bump, monkeypatch, capsys):
+    doc = repo_with_unmentioned_component_bump / "4.8.3-to-4.9.0-values-deltas.md"
+    doc.write_text(
+        "# Values deltas — PodiumD 4.8.3 → 4.9.0\n\n"
+        "- **zaakbrug** app `1.26.14 → 1.26.15` (chart `2.3.28`, unchanged) — image tag only.\n",
+        encoding="utf-8",
+    )
+    set_argv_and_dir(cdb, monkeypatch, repo_with_unmentioned_component_bump, "4.8.5")
+    cdb.main()
+
+    deltas = (repo_with_unmentioned_component_bump / "4.8.5-to-4.9.0-values-deltas.md").read_text(
+        encoding="utf-8")
+    assert deltas.count("**zaakbrug**") == 1
+    out = capsys.readouterr().out
+    assert "Adding missing component mention(s)" not in out
+
+
+def test_main_adds_todo_bullet_when_app_version_unresolvable(cdb, repo_with_undocumented_component_bumps,
+                                                               monkeypatch):
+    """keycloak-operator's real app version lives at a split tag/sha path
+    actual_app_version doesn't know about — same fixture as the
+    "Component versions" row tests, exercised here for the values-deltas
+    bullet instead."""
+    write(repo_with_undocumented_component_bumps / "4.8.3-to-4.9.0-values-deltas.md",
+          "# Values deltas — PodiumD 4.8.3 → 4.9.0\n\nNo unrelated changes.\n")
+    git("add", "-A", cwd=repo_with_undocumented_component_bumps)
+    git("commit", "-q", "-m", "add values-deltas doc", cwd=repo_with_undocumented_component_bumps)
+    set_argv_and_dir(cdb, monkeypatch, repo_with_undocumented_component_bumps, "4.8.5")
+    cdb.main()
+
+    deltas = (repo_with_undocumented_component_bumps / "4.8.5-to-4.9.0-values-deltas.md").read_text(
+        encoding="utf-8")
+    assert "- **keycloak-operator** chart `1.12.1 → 1.13.0` — TODO: describe this component's changes" in deltas
+
+
 # --- main() integration: values-deltas.md missing key-change mentions ---
 
 @pytest.fixture

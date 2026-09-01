@@ -24,10 +24,11 @@ import yaml
 from lib.chart import image_paths_for, replace_scalar_value
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
 from lib.upgradedoc import (
-    _word_aligned_spans, actual_app_version, canonical_version_cell, component_order_key,
-    extract_source_version, find_grouped_preceding_comment_line, insertion_index, match_dependency,
-    normalize_name, normalize_version, parse_upgrade_doc_changes_blocks, parse_upgrade_doc_rows,
-    replace_version_pair, resolve_entry_path, values_key_order,
+    _word_aligned_spans, actual_app_version, append_to_doc, canonical_version_cell, component_order_key,
+    extract_mentioned_dependency_keys, extract_source_version, find_grouped_preceding_comment_line,
+    insertion_index, match_dependency, normalize_name, normalize_version,
+    parse_upgrade_doc_changes_blocks, parse_upgrade_doc_rows, replace_version_pair, resolve_entry_path,
+    values_key_order,
 )
 
 NUMBER_WORDS = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten",
@@ -437,6 +438,51 @@ def values_delta_bullet(friendly, old_app, new_app, old_chart, new_chart):
     chart_bit = f"`{old_chart} → {new_chart}`" if chart_changed else f"`{new_chart}`, unchanged"
     note = "image tag only" if not chart_changed else "chart + image tag"
     return f"- **{friendly}** app {app_bit} (chart {chart_bit}) — {note}.\n"
+
+
+def add_missing_values_delta_bullets(text, target_deps, target_values, baseline_deps, baseline_values,
+                                      actual_changed_keys):
+    """Append a "- **<name>** app ..." bullet (see values_delta_bullet) for
+    every key in `actual_changed_keys` that isn't already mentioned via a
+    bold "**Name**" span anywhere in `text` (see extract_mentioned_
+    dependency_keys — the exact gap check_docs_consistency's own
+    "component ... changed vs ... but is not mentioned anywhere in the
+    doc" finding reports). Resolves each bullet's own old/new app+chart
+    versions the same way add_missing_component_rows does for the
+    "Component versions" table row, so a component's bullet here and its
+    table row always agree.
+
+    A key with no matching Chart.yaml dependency at all is skipped (see
+    dep_for_values_key) — nothing here can be generated confidently
+    without a real Chart.yaml version to read. A key whose app version
+    can't be resolved via actual_app_version's own two known shapes gets
+    a short TODO bullet instead of a value-less "app `None`" line.
+    Returns (new_text, added_names)."""
+    mentioned_keys = extract_mentioned_dependency_keys(text, target_deps)
+    new_lines = []
+    added_names = []
+    for key in sorted(actual_changed_keys - mentioned_keys):
+        dep = dep_for_values_key(target_deps, key)
+        if dep is None:
+            continue
+        baseline_dep = dep_for_values_key(baseline_deps, key) if baseline_deps else None
+        old_chart = str(baseline_dep["version"]) if baseline_dep else None
+        new_chart = str(dep["version"])
+        old_app = actual_app_version(baseline_values, key) if baseline_values else None
+        new_app = actual_app_version(target_values, key)
+
+        if new_app is not None:
+            new_lines.append(values_delta_bullet(key, old_app or new_app, new_app,
+                                                  old_chart or new_chart, new_chart))
+        else:
+            chart_bit = (f"`{old_chart} → {new_chart}`"
+                         if old_chart and normalize_version(old_chart) != normalize_version(new_chart)
+                         else f"`{new_chart}`, unchanged")
+            new_lines.append(f"- **{key}** chart {chart_bit} — TODO: describe this component's "
+                              f"changes; its app version could not be resolved automatically.\n")
+        added_names.append(key)
+
+    return append_to_doc(text, new_lines), added_names
 
 
 def remove_component_values_delta(text, friendly):
