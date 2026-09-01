@@ -319,7 +319,7 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
         if precheck_issues:
             print(f"FOUND {len(precheck_issues)} issue(s) with the upgrade_docs_baseline doc set "
                   f"(checked before any other check on these documents):")
-            for issue in precheck_issues:
+            for issue in sorted(precheck_issues):
                 print(" ", issue)
             return False, f"{len(precheck_issues)} upgrade_docs_baseline doc issue(s)"
 
@@ -335,7 +335,7 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
         if pointer_issues:
             print(f"FOUND {len(pointer_issues)} pointer issue(s) "
                   f"(checked before any other check on these documents):")
-            for issue in pointer_issues:
+            for issue in sorted(pointer_issues):
                 print(" ", issue)
             return False, f"{len(pointer_issues)} pointer issue(s)"
 
@@ -547,7 +547,7 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
 
     if mismatches:
         print(f"FOUND {len(mismatches)} mismatch(es) vs {', '.join(checked)}:")
-        for m in mismatches:
+        for m in sorted(mismatches):
             print(" ", m)
         return False, f"{len(mismatches)} mismatch(es)"
     print(f"OK: chart versions match {', '.join(checked)}")
