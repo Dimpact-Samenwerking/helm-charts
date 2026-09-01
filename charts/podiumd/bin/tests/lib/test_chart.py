@@ -109,6 +109,55 @@ def test_release_baseline_none_when_file_missing(libchart, tmp_path):
     assert libchart.release_baseline(tmp_path) is None
 
 
+# --- upgrade_docs_baseline / release_table_baseline ---
+# release-baseline.yaml, the successor to release_baseline()/release-
+# baseline above — see lib.chart's RELEASE_BASELINES_FILE_NAME/
+# _release_baselines for why podiumd now needs two baselines instead of
+# one (incremental _UPGRADE_PATHS/images-manifest vs. cumulative
+# release-table.csv).
+
+def test_upgrade_docs_baseline_reads_the_key(libchart, tmp_path):
+    (tmp_path / "release-baseline.yaml").write_text(
+        "upgrade_docs: '4.9.0'\nrelease_table: '4.8.5'\n", encoding="utf-8")
+    assert libchart.upgrade_docs_baseline(tmp_path) == "4.9.0"
+
+
+def test_release_table_baseline_reads_the_key(libchart, tmp_path):
+    (tmp_path / "release-baseline.yaml").write_text(
+        "upgrade_docs: '4.9.0'\nrelease_table: '4.8.5'\n", encoding="utf-8")
+    assert libchart.release_table_baseline(tmp_path) == "4.8.5"
+
+
+def test_upgrade_docs_baseline_none_when_file_missing(libchart, tmp_path):
+    assert libchart.upgrade_docs_baseline(tmp_path) is None
+
+
+def test_release_table_baseline_none_when_file_missing(libchart, tmp_path):
+    assert libchart.release_table_baseline(tmp_path) is None
+
+
+def test_upgrade_docs_baseline_none_when_key_missing(libchart, tmp_path):
+    (tmp_path / "release-baseline.yaml").write_text("release_table: '4.8.5'\n", encoding="utf-8")
+    assert libchart.upgrade_docs_baseline(tmp_path) is None
+
+
+def test_release_table_baseline_none_when_key_missing(libchart, tmp_path):
+    (tmp_path / "release-baseline.yaml").write_text("upgrade_docs: '4.9.0'\n", encoding="utf-8")
+    assert libchart.release_table_baseline(tmp_path) is None
+
+
+def test_release_baselines_independent_of_old_plain_text_file(libchart, tmp_path):
+    """The two files/mechanisms coexist and never read each other's
+    data — the new file being absent must not fall back to the old
+    plain-text release-baseline file, and vice versa."""
+    (tmp_path / "release-baseline").write_text("4.8.4\n", encoding="utf-8")
+    assert libchart.upgrade_docs_baseline(tmp_path) is None
+    assert libchart.release_table_baseline(tmp_path) is None
+
+    (tmp_path / "release-baseline.yaml").write_text("upgrade_docs: '4.9.0'\n", encoding="utf-8")
+    assert libchart.release_baseline(tmp_path) == "4.8.4"
+
+
 # --- find_dependency ---
 
 def test_find_dependency_by_name(libchart):

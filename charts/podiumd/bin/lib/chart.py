@@ -85,6 +85,40 @@ def release_baseline(chart_dir):
     return baseline_file.read_text(encoding="utf-8").strip()
 
 
+RELEASE_BASELINES_FILE_NAME = "release-baseline.yaml"
+
+
+def _release_baselines(chart_dir):
+    """The parsed contents of chart_dir/release-baseline.yaml (the
+    successor to release_baseline()/release-baseline above — see that
+    file's own header comment for why podiumd now needs two baselines
+    instead of one), or {} if the file doesn't exist yet. Not a public
+    accessor itself: callers want upgrade_docs_baseline/
+    release_table_baseline below, which each read one specific key."""
+    path = chart_dir / RELEASE_BASELINES_FILE_NAME
+    if not path.is_file():
+        return {}
+    return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+
+
+def upgrade_docs_baseline(chart_dir):
+    """The incremental baseline _UPGRADE_PATHS/*.md and docs/images/
+    images-<target>.yaml are written against — the immediately
+    preceding release, advanced on every release cycle (see
+    create-podiumd-version). None if release-baseline.yaml or this key
+    doesn't exist yet."""
+    return _release_baselines(chart_dir).get("upgrade_docs")
+
+
+def release_table_baseline(chart_dir):
+    """The cumulative baseline release-table.csv (the Confluence
+    release-notes export) was last generated against — advanced only on
+    a minor version bump (see create-podiumd-version), left untouched by
+    a patch bump. None if release-baseline.yaml or this key doesn't
+    exist yet."""
+    return _release_baselines(chart_dir).get("release_table")
+
+
 def get_path(node, dotted_path):
     for key in dotted_path.split("."):
         if not isinstance(node, dict):

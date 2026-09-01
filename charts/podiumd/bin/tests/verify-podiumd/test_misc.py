@@ -161,6 +161,7 @@ def test_main_skips_requested_steps_and_runs_the_rest(vp, monkeypatch, capsys):
     monkeypatch.setattr(vp, "check_helm_docs", make_check("helm-docs"))
     monkeypatch.setattr(vp, "check_markdown", make_check("markdown"))
     monkeypatch.setattr(vp, "check_vendored_tgz_extraction", make_check("tgz"))
+    monkeypatch.setattr(vp, "check_release_baseline", make_check("release-baseline"))
     monkeypatch.setattr(vp, "check_yamllint", make_check("yamllint"))
     monkeypatch.setattr(vp, "check_kubeconform", make_check("kubeconform"))
     monkeypatch.setattr(vp, "check_shellcheck", make_check("shellcheck"))
@@ -176,9 +177,10 @@ def test_main_skips_requested_steps_and_runs_the_rest(vp, monkeypatch, capsys):
 
     vp.main()  # must not raise / must not sys.exit
 
-    assert ran == ["utf8", "dupe", "dry", "image-refs", "node-selector", "digest-pinning", "tgz", "docs",
-                    "helm-docs", "markdown", "repo-access", "deps", "subchart-images", "digests", "yamllint",
-                    "kubeconform", "shellcheck", "kube-score", "image-upgrades", "cves"]
+    assert ran == ["utf8", "dupe", "dry", "image-refs", "node-selector", "digest-pinning", "tgz",
+                    "release-baseline", "docs", "helm-docs", "markdown", "repo-access", "deps",
+                    "subchart-images", "digests", "yamllint", "kubeconform", "shellcheck", "kube-score",
+                    "image-upgrades", "cves"]
     out = capsys.readouterr().out
     assert "Helm lint" in out and "SKIP" in out
     assert "Full render" in out and "SKIP" in out
@@ -263,6 +265,7 @@ def _stub_all_checks(vp, monkeypatch, ran):
     monkeypatch.setattr(vp, "check_helm_docs", make_check("helm-docs"))
     monkeypatch.setattr(vp, "check_markdown", make_check("markdown"))
     monkeypatch.setattr(vp, "check_vendored_tgz_extraction", make_check("tgz"))
+    monkeypatch.setattr(vp, "check_release_baseline", make_check("release-baseline"))
     monkeypatch.setattr(vp, "check_lint", make_check("lint"))
     monkeypatch.setattr(vp, "check_render", make_check("render"))
     monkeypatch.setattr(vp, "check_yamllint", make_check("yamllint"))
