@@ -1,34 +1,44 @@
 #!/usr/bin/env python3
 """
-Show the app image version(s) pinned for a podiumd component at BOTH
-recorded release-baseline.yaml baselines (upgrade_docs and
-release_table — see lib.chart for what each means) — useful for finding
-out what a release actually shipped before writing an upgrade doc's
-"source" column, without checking out that release or digging through
-git history by hand. Same shape as show-component-baseline-version,
-which also reports the component's Helm chart version — this one
-reports ONLY the image side (both resolve the component's baseline
-state via the same lib.chart.component_state_at_ref, which
-show-component-baseline-version delegates its own image lookup to as
-well) — matching the narrower scope update-image-version/
-verify-image-version already have relative to
-update-component-version/verify-component-version.
+Show the image version(s) pinned for <key> <basename> at BOTH recorded
+release-baseline.yaml baselines (upgrade_docs and release_table — see
+lib.chart for what each means) — useful for finding out what a release
+actually shipped before writing an upgrade doc's "source" column, without
+checking out that release or digging through git history by hand.
+
+<key> is either a Chart.yaml dependency's own top-level values.yaml key
+(a component, e.g. "openklant", "zac") or the literal "MULTIPLE" — the
+same convention release-table.csv itself uses (see export-confluence-
+release-table's component_and_alias) for a base image shared across
+several unrelated components via values.yaml's global.images anchor
+block. <key> <basename> together must resolve to exactly one real image
+pin under that scope, at whichever baseline is being shown — the same
+resolution update-image-version/verify-image-version's own <key>
+<basename> use (lib.image_version.resolve_scoped_matches), just applied
+to values.yaml text as it was at each baseline's ref (via `git show`)
+instead of the current file. Same narrower scope (one image, not a whole
+component) as update-image-version/verify-image-version have relative to
+update-component-version/verify-component-version — see
+show-component-baseline-version instead for a component's Helm chart
+version plus every image path it declares.
 
 Usage:
-    show-image-baseline-version <component>
+    show-image-baseline-version <key> <basename>
 
 Examples:
-    show-image-baseline-version zac
-    show-image-baseline-version zgw-office-addin
-    show-image-baseline-version openformulieren
+    show-image-baseline-version zac zaakafhandelcomponent
+    show-image-baseline-version keycloak-operator python
+    show-image-baseline-version MULTIPLE curl
 
 Each baseline is a bare version (e.g. "4.8.5"), resolved to the
 podiumd-4.8.5 git tag, falling back to the feature/podiumd-4.8.5 /
 origin/feature/podiumd-4.8.5 branch if the tag doesn't exist yet. A
 baseline missing from release-baseline.yaml is skipped (noted, not an
-error); this only fails outright if NEITHER baseline could be shown at
-all. Reads charts/podiumd/Chart.yaml + values.yaml as they were at each
-ref via `git show` — no checkout needed.
+error); a baseline where <key> <basename> doesn't resolve uniquely (not
+pinned there yet, or removed since) is also just noted, not fatal — this
+only fails outright if NEITHER baseline could show anything at all.
+Reads charts/podiumd/values.yaml as it was at each ref via `git show` —
+no checkout needed.
 """
 import sys
 from pathlib import Path
@@ -36,13 +46,13 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from lib.chart import component_state_at_ref
 from lib.chart import release_table_baseline as read_release_table_baseline
 from lib.chart import upgrade_docs_baseline as read_upgrade_docs_baseline
-from lib.gitutil import resolve_baseline_ref
 from lib.gitutil import find_repo_root as _find_repo_root
+from lib.gitutil import git_show_text, resolve_baseline_ref
+from lib.image_version import resolve_scoped_matches
 
-RELATIVE_CHART_DIR = "charts/podiumd"
+RELATIVE_VALUES_YAML = "charts/podiumd/values.yaml"
 
 
 def find_repo_root():
@@ -52,11 +62,12 @@ def find_repo_root():
     return repo_root
 
 
-def show_at_baseline(repo_root, label, baseline, component):
-    """Prints this component's image state at `baseline` (labeled
+def show_at_baseline(repo_root, label, baseline, key, basename):
+    """Prints <key> <basename>'s resolved pin(s) at `baseline` (labeled
     `label`, "upgrade_docs" or "release_table"), or a one-line note
-    instead if `baseline` is None or doesn't resolve/apply. Returns
-    True if the component's state was actually shown."""
+    instead if `baseline` is None, doesn't resolve to a git ref, or
+    <key> <basename> doesn't resolve uniquely there. Returns True if the
+    image's state was actually shown."""
     print(f"=== {label} baseline ===")
     if baseline is None:
         print(f"  (release-baseline.yaml has no {label} key — skipping)")
@@ -69,23 +80,22 @@ def show_at_baseline(repo_root, label, baseline, component):
         print()
         return False
 
-    dep, values_key, image_paths, app_versions, error = component_state_at_ref(
-        repo_root, ref, RELATIVE_CHART_DIR, component)
-    if error:
-        print(f"  error: {error}")
+    text = git_show_text(repo_root, ref, RELATIVE_VALUES_YAML)
+    if text is None:
+        print(f"  error: could not read {RELATIVE_VALUES_YAML} at {ref}")
         print()
         return False
 
-    print(f"  Component: {component} (Chart.yaml dependency: {dep['name']}, values key: {values_key})")
+    try:
+        matches = resolve_scoped_matches(text.splitlines(), key, basename)
+    except SystemExit as e:
+        print(f"  {e}")
+        print()
+        return False
+
     print(f"  Baseline: {baseline} (resolved to {ref})")
-    if app_versions:
-        print("  App version(s):")
-        for name, tag in app_versions:
-            version = tag.split("@", 1)[0]
-            print(f"    {name}: {version}  ({tag})")
-    else:
-        print(f"  App version: no tag override found at {', '.join(image_paths)} "
-              f"under '{values_key}:' — chart default applies")
+    for m in matches:
+        print(f"    {m['repository']}: {m['version']}  (sha256:{m['digest']})")
     print()
     return True
 
@@ -94,19 +104,19 @@ def main():
     if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
         print(__doc__)
         sys.exit(0)
-    if len(sys.argv) != 2:
+    if len(sys.argv) != 3:
         print(__doc__)
         sys.exit(1)
-    component = sys.argv[1]
+    key, basename = sys.argv[1], sys.argv[2]
 
     repo_root = find_repo_root()
-    chart_dir = repo_root / RELATIVE_CHART_DIR
+    chart_dir = repo_root / "charts" / "podiumd"
 
     upgrade_docs = read_upgrade_docs_baseline(chart_dir)
     release_table = read_release_table_baseline(chart_dir)
 
-    shown_upgrade_docs = show_at_baseline(repo_root, "upgrade_docs", upgrade_docs, component)
-    shown_release_table = show_at_baseline(repo_root, "release_table", release_table, component)
+    shown_upgrade_docs = show_at_baseline(repo_root, "upgrade_docs", upgrade_docs, key, basename)
+    shown_release_table = show_at_baseline(repo_root, "release_table", release_table, key, basename)
 
     if not shown_upgrade_docs and not shown_release_table:
         sys.exit(1)

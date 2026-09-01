@@ -1,11 +1,11 @@
 """verify-image-version's main() — argument parsing and end-to-end wiring
-into lib.image_version.resolve_basename/check_basename_version. No
-network needed: lib.registry.registry_tag_exists is monkeypatched via the
-image_version module's own imported binding (check_basename_version lives
-in lib.image_version, which resolves registry_tag_exists via ITS OWN
-globals — see lib.image_version's import — so tests patch that module
-directly, same as tests/update-image-version/test_update_image_version.py
-does)."""
+into lib.image_version.check_basename_version (and, transitively,
+resolve_scoped_matches). No network needed: lib.registry.
+registry_tag_exists is monkeypatched via the image_version module's own
+imported binding (check_basename_version lives in lib.image_version,
+which resolves registry_tag_exists via ITS OWN globals — see
+lib.image_version's import — so tests patch that module directly, same
+as tests/update-image-version/test_update_image_version.py does)."""
 import pytest
 
 
@@ -53,7 +53,7 @@ def test_main_found_reports_ok(viv, tmp_path, monkeypatch, capsys):
     import lib.image_version as image_version
     monkeypatch.setattr(image_version, "registry_tag_exists",
                          lambda host, repo, tag: (True, "sha256:" + "b" * 64))
-    monkeypatch.setattr("sys.argv", ["verify-image-version", "pabc-api", "1.1.2"])
+    monkeypatch.setattr("sys.argv", ["verify-image-version", "pabc", "pabc-api", "1.1.2"])
 
     with pytest.raises(SystemExit) as exc_info:
         viv.main()
@@ -74,7 +74,7 @@ def test_main_missing_reports_fail(viv, tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(viv, "VALUES_YAML", values_path)
     import lib.image_version as image_version
     monkeypatch.setattr(image_version, "registry_tag_exists", lambda host, repo, tag: (False, None))
-    monkeypatch.setattr("sys.argv", ["verify-image-version", "pabc-api", "9.9.9"])
+    monkeypatch.setattr("sys.argv", ["verify-image-version", "pabc", "pabc-api", "9.9.9"])
 
     with pytest.raises(SystemExit) as exc_info:
         viv.main()
@@ -85,9 +85,9 @@ def test_main_missing_reports_fail(viv, tmp_path, monkeypatch, capsys):
     assert "FAIL: image version does not exist yet" in out
 
 
-def test_main_resolves_component_alias_to_its_one_image(viv, tmp_path, monkeypatch, capsys):
-    """"openklant" isn't a basename -- resolved as a Chart.yaml dependency
-    whose own values.yaml scope pins exactly one image ("open-klant")."""
+def test_main_resolves_given_component_key_and_basename(viv, tmp_path, monkeypatch, capsys):
+    """<key> "openklant" scopes the search to that component's own
+    values.yaml subtree, where <basename> "open-klant" is pinned."""
     write_chart_yaml(tmp_path, [("openklant", None)])
     values_path = write_values(tmp_path, (
         "openklant:\n"
@@ -100,27 +100,25 @@ def test_main_resolves_component_alias_to_its_one_image(viv, tmp_path, monkeypat
     import lib.image_version as image_version
     monkeypatch.setattr(image_version, "registry_tag_exists",
                          lambda host, repo, tag: (True, "sha256:" + "b" * 64))
-    monkeypatch.setattr("sys.argv", ["verify-image-version", "openklant", "2.15.1"])
+    monkeypatch.setattr("sys.argv", ["verify-image-version", "openklant", "open-klant", "2.15.1"])
 
     with pytest.raises(SystemExit) as exc_info:
         viv.main()
 
     assert exc_info.value.code == 0
     out = capsys.readouterr().out
-    assert "for 'open-klant'" in out
+    assert "for 'openklant' 'open-klant'" in out
     assert "maykinmedia/open-klant:2.15.1" in out
 
 
 def test_main_unresolvable_target_propagates(viv, tmp_path, monkeypatch):
-    """resolve_basename (lib.image_version) already raises SystemExit with
-    a clear message when <image> matches neither a pinned basename nor a
-    Chart.yaml dependency — main() has nothing to add here. No Chart.yaml
-    at all here (not even an empty one) — resolve_basename treats that
-    the same as a dependency-less chart (deps=[])."""
+    """resolve_scoped_matches (lib.image_version) already raises
+    SystemExit with a clear message when <key> <basename> doesn't
+    resolve to any pinned image — main() has nothing to add here."""
     values_path = write_values(tmp_path, "foo: bar\n")
     monkeypatch.setattr(viv, "CHART_DIR", tmp_path)
     monkeypatch.setattr(viv, "VALUES_YAML", values_path)
-    monkeypatch.setattr("sys.argv", ["verify-image-version", "totally-unknown", "1.0.0"])
+    monkeypatch.setattr("sys.argv", ["verify-image-version", "foo", "totally-unknown", "1.0.0"])
 
-    with pytest.raises(SystemExit, match="is not a pinned image basename"):
+    with pytest.raises(SystemExit, match="no image pin with basename 'totally-unknown' found under 'foo'"):
         viv.main()

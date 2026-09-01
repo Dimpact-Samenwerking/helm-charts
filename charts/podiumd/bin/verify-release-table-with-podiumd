@@ -93,7 +93,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from lib.chart import get_path, load_yaml
-from lib.image_version import basenames_under_scope, find_matches
+from lib.image_version import GLOBAL_IMAGES_SCOPE, MULTIPLE_KEY, basenames_under_scope, find_matches
 
 CHART_DIR = SCRIPT_DIR.parents[0]
 CHART_YAML = CHART_DIR / "Chart.yaml"
@@ -101,7 +101,6 @@ VALUES_YAML = CHART_DIR / "values.yaml"
 RELEASE_TABLE_CSV = CHART_DIR / "release-table.csv"
 
 UNRESOLVED_COMPONENTS = ("", "UNKNOWN")
-GLOBAL_IMAGES_SCOPE = "global"
 
 # image_basename -> dotted values.yaml path to its own plain "tag:" value,
 # for an image basenames_under_scope can never find via the normal
@@ -240,7 +239,7 @@ def compare(rows, deps, values, lines):
     multiple_rows = []
     for row in rows:
         component = row["component"]
-        if component == "MULTIPLE":
+        if component == MULTIPLE_KEY:
             multiple_rows.append(row)
         elif component in UNRESOLVED_COMPONENTS:
             unresolved.append(row)
@@ -250,7 +249,7 @@ def compare(rows, deps, values, lines):
     # Called unconditionally (even with zero multiple_rows) so a global
     # image nobody's row ever resolved to at all still surfaces as
     # missing-from-release-table, not just silently unchecked.
-    check_images(GLOBAL_IMAGES_SCOPE, "MULTIPLE", multiple_rows, lines, findings, values)
+    check_images(GLOBAL_IMAGES_SCOPE, MULTIPLE_KEY, multiple_rows, lines, findings, values)
 
     checked_components = set()
     for dep in deps:

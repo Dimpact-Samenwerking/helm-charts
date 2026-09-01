@@ -1,64 +1,64 @@
 #!/usr/bin/env python3
 """
 Bump every values.yaml image tag pin sharing a given image's basename (the
-last "/"-separated segment of its "repository:" value) to a new version,
-re-resolving each pin's digest against the registry. The same base image
-is sometimes pinned in more than one unrelated place (e.g.
-curlimages/curl, used as a generic init-container/health-check helper) —
-every one of those gets updated together, not just the first found.
+last "/"-separated segment of its "repository:" value), scoped to <key>,
+to a new version, re-resolving each pin's digest against the registry.
 
-<target> can also be a Chart.yaml dependency's own name or alias instead
-of a bare basename (e.g. "openklant", "zac") — tried only if <target>
-isn't already a real basename, and only resolved when that dependency
-pins exactly one image; a dependency pinning several (most of them —
-e.g. "zac" has eight) fails loudly listing them instead of guessing
-which one you meant. No release-table.csv involved either way — this
-reads straight from Chart.yaml/values.yaml (see
-lib.image_version.resolve_basename).
+<key> is either a Chart.yaml dependency's own top-level values.yaml key
+(a component, e.g. "openklant", "zac") or the literal "MULTIPLE" — the
+same convention release-table.csv itself uses (see export-confluence-
+release-table's component_and_alias) for a base image shared across
+several unrelated components via values.yaml's global.images anchor
+block (e.g. curlimages/curl or redis, pinned once there and aliased
+everywhere else — updating it here updates every alias at once, since
+they're all the same YAML node). <key> <basename> together must resolve
+to exactly one real image pin under that scope — this fails loudly
+rather than guessing if the basename isn't pinned there at all, or (rare)
+resolves to more than one distinct repository (see
+lib.image_version.resolve_scoped_matches). No release-table.csv involved
+either way — this reads straight from Chart.yaml/values.yaml.
 
 Also updates the docs for the current podiumd target version, if they
 exist (run create-doc-version first if not) — the same four docs
 update-component-version keeps in sync (upgrade doc table + Changes
-section, values-deltas, images-<target>.yaml), grouped by however many
-distinct Chart.yaml components the bump actually touched:
-  - Exactly one component affected (e.g. resolving "openklant" bumps
-    only openklant's own image): full-fidelity treatment identical to
-    update-component-version's own (lib.component_docs) — real Helm
-    chart version shown (unchanged, since this never touches
-    Chart.yaml), values-deltas schema-change detection, per-path
-    images-manifest entries.
-  - More than one component affected (a genuinely shared image, e.g.
-    curl used by several unrelated init containers): treated as its own
-    pseudo-component keyed by the basename itself (lib.image_docs) — a
-    "Component versions" table row with Helm chart column "-", a
-    "### <basename> ..." Changes block listing every place it's pinned,
-    a values-deltas bullet, and one images-manifest entry per distinct
-    repository. Convention confirmed against docs/_UPGRADE_PATHS/
-    4.8.1-to-4.8.2-upgrade.md (curl/nginx-unprivileged/busybox each got
-    exactly this treatment).
+section, values-deltas, images-<target>.yaml):
+  - <key> is a real Chart.yaml dependency (the common case): full-
+    fidelity treatment identical to update-component-version's own
+    (lib.component_docs) — real Helm chart version shown (unchanged,
+    since this never touches Chart.yaml), values-deltas schema-change
+    detection, per-path images-manifest entries.
+  - <key> is "MULTIPLE" (no Chart.yaml dependency named "global"):
+    treated as its own pseudo-component keyed by the basename itself
+    (lib.image_docs) — a "Component versions" table row with Helm chart
+    column "-", a "### <basename> ..." Changes block listing every place
+    it's pinned, a values-deltas bullet, and one images-manifest entry
+    per distinct repository. Convention confirmed against docs/
+    _UPGRADE_PATHS/4.8.1-to-4.8.2-upgrade.md (curl/nginx-unprivileged/
+    busybox each got exactly this treatment).
 Finally runs fix-helm-doc so README.md's values-reference
 table doesn't go stale in the same commit.
 
 Refuses to touch values.yaml unless the new version verifiably exists
-upstream for every matched repository first — a bad version name fails
+upstream for the matched repository first — a bad version name fails
 loudly with nothing written, never a half-updated file.
 
 Usage:
-    update-image-version <target> <new-version>
+    update-image-version <key> <basename> <new-version>
 
 Examples:
-    update-image-version curl 8.22.0
-        # updates every "repository: .../curl" pin's tag, wherever it appears
-    update-image-version pabc-api 1.1.2
-    update-image-version openklant 2.15.1
-        # "openklant" isn't a basename -- resolved as a Chart.yaml
-        # dependency whose own values.yaml scope pins exactly one image
+    update-image-version zac zaakafhandelcomponent 5.4.4
+    update-image-version keycloak-operator python 3.15.7-slim
+        # keycloak-operator's own ensurePodiumdAdminUser init image
+    update-image-version MULTIPLE curl 8.22.0
+        # curlimages/curl lives under global.images -- shared by several
+        # unrelated components, all updated together via the one anchor
 
 A component's app version is not always its image's basename (e.g.
 zgw-office-addin bumps two distinctly-named images, frontend + backend) —
 see update-component-version, which resolves each of a component's
 image path(s) to its own actual basename and calls this same logic
-(lib.image_version.update_image_version) per path.
+(lib.image_version.update_image_version) per path, scoped to that
+component.
 
 After writing, re-render the chart (verify-podiumd or /helm-render-all)
 to confirm before committing.
@@ -81,7 +81,7 @@ from lib.image_docs import (
     image_delta_bullet, make_image_changes_section, remove_image_manifest_entry,
     resolve_basename_baseline_version, update_image_manifest,
 )
-from lib.image_version import resolve_basename, update_image_version
+from lib.image_version import update_image_version
 from lib.procutil import run_script
 from lib.registry import parse_repo
 from lib.upgradedoc import append_to_doc, compute_changed_components, describe_key_changes, normalize_version
@@ -401,17 +401,18 @@ def update_docs(basename, new_version, changes, values_lines_before_write):
     target = str(chart_yaml.get("version"))
     values = load_yaml(VALUES_YAML) or {}
 
+    # <key> <basename> already resolved to a single scope (see
+    # lib.image_version.resolve_scoped_matches) before any pin was
+    # touched, so `changes` can only ever belong to ONE top-level
+    # values.yaml key here — either a real Chart.yaml dependency (the
+    # common case) or "global" (the MULTIPLE_KEY case, which never has
+    # one, since no dependency is literally named "global").
     groups, full_paths = group_changes_by_component(changes, values_lines_before_write)
-
-    if len(groups) == 1:
-        values_key, group = next(iter(groups.items()))
-        dep = find_dependency(deps, values_key)
-        if dep is not None:
-            update_docs_single_component(new_version, target, deps, values, dep, values_key, group)
-            return
-        print()
-        print(f"warning: '{values_key}' has no matching Chart.yaml dependency — "
-              f"treating '{basename}' as a shared image instead")
+    values_key, group = next(iter(groups.items()))
+    dep = find_dependency(deps, values_key)
+    if dep is not None:
+        update_docs_single_component(new_version, target, deps, values, dep, values_key, group)
+        return
 
     update_docs_shared_image(basename, new_version, changes, full_paths, target, deps, values)
 
@@ -420,19 +421,16 @@ def main():
     if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
         print(__doc__)
         sys.exit(0)
-    if len(sys.argv) != 3:
+    if len(sys.argv) != 4:
         print(__doc__)
         sys.exit(1)
-    target_arg, new_version = sys.argv[1], sys.argv[2]
+    key, basename, new_version = sys.argv[1], sys.argv[2], sys.argv[3]
 
     values_lines = VALUES_YAML.read_text(encoding="utf-8").splitlines()
-    basename = resolve_basename(CHART_DIR, values_lines, target_arg)
-    if basename != target_arg:
-        print(f"'{target_arg}' resolved to image basename '{basename}'")
 
-    changes = update_image_version(VALUES_YAML, basename, new_version)
+    changes = update_image_version(VALUES_YAML, key, basename, new_version)
     if not changes:
-        print(f"'{basename}' is already at {new_version} everywhere it's pinned — nothing to do.")
+        print(f"'{basename}' under '{key}' is already at {new_version} everywhere it's pinned — nothing to do.")
         return
 
     print(f"=== Writing {VALUES_YAML} ===")
