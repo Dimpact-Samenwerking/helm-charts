@@ -142,7 +142,10 @@ def test_compare_reports_chart_version_never_tracked(vrt):
     chart version was never tracked at all. The hint must name openbao's
     own "OpenBao" row specifically -- NOT the sidecar "postgres" row,
     even though both are on "Technische component versies", which has no
-    Helm column at all -- and point at the other three tables instead."""
+    Helm column at all -- and give the exact remove/add instructions and
+    field values (Name, Helm version, App version), not just point at
+    "the other three tables" and leave the rest to be worked out by
+    hand."""
     deps = [{"name": "openbao", "alias": "", "version": "0.28.4"}]
     rows = [
         {**csv_row("OpenBao", "openbao", image_basename="openbao", target_app="2.5.5"), "section": "Technische"},
@@ -153,22 +156,37 @@ def test_compare_reports_chart_version_never_tracked(vrt):
     hint = next(m for m in findings["missing_from_release_table"] if "'openbao' has release-table" in m)
     assert "[CHART] Chart.yaml dependency 'openbao' has release-table.csv row(s), but none records " \
            "a Helm chart version" in hint
-    assert '\n      Confluence: "OpenBao"\'s own row is on "Technische component versies"' in hint
+    assert ('\n      Confluence: remove "OpenBao" from "Technische component versies" (no Helm column '
+            'there) and add it instead to whichever of Product/Common Ground/Overige component versies '
+            'fits — Name "OpenBao", Helm version 0.28.4, App version 2.5.5') in hint
     assert "postgres" not in hint
-    assert "Product/Common Ground/Overige component versies instead" in hint
+
+
+def test_compare_chart_version_never_tracked_omits_app_version_when_unknown(vrt):
+    """If the existing row's own App version isn't known yet either (no
+    target, no source), the hint doesn't fabricate one -- it just leaves
+    that part out rather than printing a blank or misleading value."""
+    deps = [{"name": "openbao", "alias": "", "version": "0.28.4"}]
+    rows = [{**csv_row("OpenBao", "openbao", image_basename="openbao"), "section": "Technische"}]
+    findings, _ = vrt.compare(rows, deps, openbao_values(), values_lines(OPENBAO_BLOCK))
+    hint = next(m for m in findings["missing_from_release_table"] if "'openbao' has release-table" in m)
+    assert 'Name "OpenBao", Helm version 0.28.4' in hint
+    assert "App version" not in hint
 
 
 def test_compare_chart_version_never_tracked_names_primary_row_on_other_table(vrt):
     """On a table that DOES have a Helm sub-column (anything but
     "Technische component versies"), the fix is just to fill in the
     existing cell on the component's own primary row -- named
-    specifically, not just "this row" or "the table"."""
+    specifically, not just "this row" or "the table" -- with the exact
+    Helm version to write there."""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     rows = [csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac", image_basename="zaakafhandelcomponent",
                      target_app="5.4.3")]  # target_helm/source_helm both left blank
     findings, _ = vrt.compare(rows, deps, {}, values_lines(ZAC_BLOCK))
     hint = next(m for m in findings["missing_from_release_table"] if "zaakafhandelcomponent" in m)
-    assert 'Confluence: fill in the Helm version cell on "Zaak - ZAC" ("Product component versies")' in hint
+    assert ('Confluence: fill in the Helm version cell on "Zaak - ZAC" ("Product component versies") '
+            'with 1.0.297') in hint
 
 
 def test_compare_chart_version_never_tracked_no_primary_row_yet(vrt):
