@@ -359,24 +359,42 @@ def find_versie_groups(paths):
 # ("Technische component versies" — Elastic operator, Zookeeper, Solr,
 # ...) to say which product/Common Ground component pulls that piece of
 # tooling in — neither column existing on a given table is a reason to
-# skip it. The four source/target App+Helm version columns are what this
-# export actually exists for, so those stay required.
-REQUIRED_RELEASE_COLUMNS = ["source_app", "source_helm", "target_app", "target_helm"]
+# skip it.
+#
+# The Helm columns are optional too, for the same reason: as of 2026-09,
+# the "Technische component versies" table on the real page dropped its
+# App/Helm sub-header split entirely (its Helm cells were always empty
+# anyway) and just has one bare version column per "Versie ..." group —
+# find_column(paths, ["helm"], ...) then finds nothing there, same as it
+# already does for a table missing "vendor"/"used_by". Only the App
+# columns (one per "Versie ..." group) are still required — without
+# those there's no version data to export at all.
+REQUIRED_RELEASE_COLUMNS = ["source_app", "target_app"]
 
 
 def select_release_columns(paths):
     """{"first": 0, "vendor": <idx-or-None>, "used_by": <idx-or-None>,
-    "source_app": ..., "source_helm": ..., "target_app": ...,
-    "target_helm": ...} — "vendor" is matched against the page's own
-    "Ontwikkelpartij" column and "used_by" against its "Used by" column,
-    just exposed under shorter/snake_case names in the CSV. "first" is
-    always column 0 (the table's own leftmost column, whatever it's
-    labeled), or None if the table has no columns at all. Every
-    "source_"/"target_" value stays None (see
+    "source_app": ..., "source_helm": <idx-or-None>, "target_app": ...,
+    "target_helm": <idx-or-None>} — "vendor" is matched against the
+    page's own "Ontwikkelpartij" column and "used_by" against its "Used
+    by" column, just exposed under shorter/snake_case names in the CSV.
+    "first" is always column 0 (the table's own leftmost column,
+    whatever it's labeled), or None if the table has no columns at all.
+    "source_app"/"target_app" stay None (see
     missing_required_release_columns) if find_versie_groups doesn't find
     exactly two "Versie ..." groups — more or fewer means this table
     isn't shaped the way this export expects, not that it's this
-    function's job to guess which pair to use."""
+    function's job to guess which pair to use. "source_helm"/
+    "target_helm" are optional — None on a table whose "Versie ..."
+    groups have no separate Helm sub-column at all (e.g. "Technische
+    component versies", whose Helm cells were always empty anyway).
+
+    A "Versie ..." group with exactly ONE column, that isn't itself
+    labeled "Helm", is that group's App column even without its own
+    "App" sub-label — with Helm gone, a lone column that isn't Helm
+    can't be anything else, so it's matched by position rather than
+    text, keeping this working whether the page kept a (now redundant)
+    "App" sub-header row or dropped the sub-header split entirely."""
     columns = {
         "first": 0 if paths else None,
         "vendor": find_column(paths, ["ontwikkelpartij"]),
@@ -386,17 +404,19 @@ def select_release_columns(paths):
     groups = find_versie_groups(paths)
     if len(groups) == 2:
         (_, source_cols), (_, target_cols) = groups
-        columns["source_app"] = find_column(paths, ["app"], candidates=source_cols)
         columns["source_helm"] = find_column(paths, ["helm"], candidates=source_cols)
-        columns["target_app"] = find_column(paths, ["app"], candidates=target_cols)
+        columns["source_app"] = (source_cols[0] if len(source_cols) == 1 and columns["source_helm"] is None
+                                  else find_column(paths, ["app"], candidates=source_cols))
         columns["target_helm"] = find_column(paths, ["helm"], candidates=target_cols)
+        columns["target_app"] = (target_cols[0] if len(target_cols) == 1 and columns["target_helm"] is None
+                                  else find_column(paths, ["app"], candidates=target_cols))
     return columns
 
 
 def missing_required_release_columns(columns):
     """Which of select_release_columns()'s REQUIRED columns (source/
-    target App+Helm — not "first", not the optional "vendor"/"used_by")
-    came back unresolved (None)."""
+    target App — not "first", not the optional "vendor"/"used_by"/
+    "source_helm"/"target_helm") came back unresolved (None)."""
     return [key for key in REQUIRED_RELEASE_COLUMNS if columns.get(key) is None]
 
 

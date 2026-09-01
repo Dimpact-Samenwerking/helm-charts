@@ -544,12 +544,17 @@ def extract_release_rows(html, headings=None, chart_dir=None):
     """Return the CSV data rows (section, vendor, used_by, name,
     component, alias, image_basename, source_version_app/helm,
     target_version_app/helm) across every table directly under one of
-    `headings` (default DEFAULT_HEADINGS) that has the required App/Helm
-    columns — "section" is the matched heading with SECTION_SUFFIX
-    stripped (see section_name). Prints a one-line report
-    per matching-heading table (rows matched, or which required column
-    it's missing) — using the real, full heading text, not the
-    shortened "section" value — and a large warning (see
+    `headings` (default DEFAULT_HEADINGS) that has the required source/
+    target App columns — "section" is the matched heading with
+    SECTION_SUFFIX stripped (see section_name). A table with no separate
+    Helm sub-column at all (see lib.confluence_tables.
+    REQUIRED_RELEASE_COLUMNS — "Technische component versies" on the
+    real page, since 2026-09) still exports, just with blank
+    source/target_version_helm cells, same as any other value this
+    export never saw a version for. Prints a one-line report per
+    matching-heading table (rows matched, or which required column it's
+    missing) — using the real, full heading text, not the shortened
+    "section" value — and a large warning (see
     check_target_matches_chart_version) if any table's target heading
     doesn't match `chart_dir` (default CHART_DIR) Chart.yaml's version."""
     headings = headings or DEFAULT_HEADINGS
@@ -595,8 +600,12 @@ def extract_release_rows(html, headings=None, chart_dir=None):
             # own name (e.g. "Solr") usually shares no text with the
             # component that uses it at all.
             component, alias = component_and_alias(used_by or name, dependencies, orphan_keys, global_keys)
-            versions = [normalize_version(data_row[columns[key]]) for key in
-                        ("source_app", "source_helm", "target_app", "target_helm")]
+            # source_app/target_app are guaranteed resolved (see
+            # missing_required_release_columns above); source_helm/
+            # target_helm are optional and blank exactly like a missing
+            # vendor/used_by cell when this table has no Helm sub-column.
+            versions = [normalize_version(data_row[columns[key]]) if columns[key] is not None else ""
+                        for key in ("source_app", "source_helm", "target_app", "target_helm")]
             unknown_count += sum(1 for v in versions if v == "UNKNOWN")
             rows_out.append([section_name(heading), vendor, used_by, name, component, alias] + versions)
             matched += 1
@@ -606,7 +615,7 @@ def extract_release_rows(html, headings=None, chart_dir=None):
 
     if not rows_out:
         raise SystemExit("error: every matching-heading table was missing a required column "
-                          "(source/target Versie ... App+Helm) — see the skip reason(s) above")
+                          "(source/target Versie ... App) — see the skip reason(s) above")
     if unknown_count:
         print(f"{unknown_count} version value(s) were not semver-compatible — replaced with UNKNOWN")
 
