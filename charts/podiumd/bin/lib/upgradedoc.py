@@ -582,12 +582,30 @@ def compute_changed_components(deps, baseline_deps, values, baseline_values):
     return changed
 
 
+FENCED_CODE_BLOCK_RE = re.compile(r"```.*?```", re.DOTALL)
+
+
+def strip_fenced_code_blocks(text):
+    """`text` with every ```...``` fenced code block blanked out. A single
+    backtick or "**" sequence inside example code isn't a real inline-
+    code/bold span, but naively pairing delimiters across the WHOLE
+    document (see extract_mentioned_dependency_keys/
+    missing_key_change_lines/lib.docs_consistency.
+    check_values_deltas_content, all of which scan a free-form doc for
+    such spans) desyncs every pairing after the first fence — silently
+    hiding real, already-mentioned spans later in the doc from an
+    "is this already covered" check, which then wrongly reports (or
+    re-adds) content that's already there. Scan the stripped text for
+    spans, never the original."""
+    return FENCED_CODE_BLOCK_RE.sub("", text)
+
+
 def extract_mentioned_dependency_keys(text, deps):
     """Component keys mentioned via a bold "**Name**" span anywhere in a
     free-form doc (e.g. a values-deltas.md bullet like "- **ZAC** app ..."),
     matched the same fuzzy way as an upgrade-doc table row's name."""
     mentioned = set()
-    for m in re.finditer(r"\*\*([^*]+)\*\*", text):
+    for m in re.finditer(r"\*\*([^*]+)\*\*", strip_fenced_code_blocks(text)):
         dep = match_dependency(m.group(1), deps)
         if dep:
             mentioned.add(dep.get("alias", dep["name"]))
@@ -628,8 +646,14 @@ def missing_key_change_lines(text, changed_component_keys, baseline_values, valu
     check_values_deltas_content convention) anywhere in text. A rename line
     carries two backtick spans (old and new key); both must already be
     mentioned for the line to count as covered, else it's reported as
-    missing so a partial/stale rename mention still gets caught."""
-    backtick_spans = re.findall(r"`([^`]+)`", text)
+    missing so a partial/stale rename mention still gets caught.
+
+    A line whose exact text is already present verbatim in `text` is
+    never reported either way, even if the "mentioned" check above
+    somehow missed it — a second, independent backstop against
+    re-adding content that's already there (see strip_fenced_code_blocks
+    for the one known way the "mentioned" check itself can be fooled)."""
+    backtick_spans = re.findall(r"`([^`]+)`", strip_fenced_code_blocks(text))
 
     def mentioned(span):
         return any(span in other or other in span for other in backtick_spans)
@@ -640,7 +664,7 @@ def missing_key_change_lines(text, changed_component_keys, baseline_values, valu
         current_subtree = values.get(values_key, {}) if isinstance(values, dict) else {}
         for line in describe_key_changes(values_key, baseline_subtree, current_subtree):
             spans_in_line = re.findall(r"`([^`]+)`", line)
-            if not all(mentioned(span) for span in spans_in_line):
+            if line not in text and not all(mentioned(span) for span in spans_in_line):
                 lines.append(line)
     return lines
 

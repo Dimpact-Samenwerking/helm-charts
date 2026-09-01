@@ -580,6 +580,20 @@ def test_extract_mentioned_dependency_keys_no_bold_spans_is_empty(libupgradedoc)
     assert libupgradedoc.extract_mentioned_dependency_keys("plain text, no bold at all", deps) == set()
 
 
+def test_extract_mentioned_dependency_keys_ignores_fenced_code_block(libupgradedoc):
+    """A single "**" pair used inside a fenced code block (e.g. Python's
+    own `**kwargs`) must never desync bold-span pairing for the REST of
+    the document — see strip_fenced_code_blocks."""
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+    text = (
+        "```python\n"
+        "def f(**kwargs): pass\n"
+        "```\n\n"
+        "- **ZAC** app `5.0.2 → 5.4.3` (chart `1.0.297`, unchanged) — image tag only.\n"
+    )
+    assert libupgradedoc.extract_mentioned_dependency_keys(text, deps) == {"zac"}
+
+
 # --- describe_key_changes / append_to_doc ---
 
 def test_describe_key_changes_reports_added_removed_renamed(libupgradedoc):
@@ -643,6 +657,35 @@ def test_missing_key_change_lines_ignores_unrelated_component(libupgradedoc):
 def test_missing_key_change_lines_empty_when_nothing_changed(libupgradedoc):
     values = {"zac": {"a": 1}}
     assert libupgradedoc.missing_key_change_lines("", {"zac"}, values, values) == []
+
+
+def test_missing_key_change_lines_ignores_mention_inside_fenced_code_block(libupgradedoc):
+    """A key mentioned only inside an unrelated fenced code block (an odd
+    number of backticks there desyncs regex pairing for the rest of the
+    doc) must not be treated as "already mentioned" for a real bullet —
+    see strip_fenced_code_blocks. Real-world case: a values-deltas.md
+    with 5 fenced snippets caused this to silently re-add nearly its
+    entire existing bullet list as "missing"."""
+    baseline_values = {"zac": {"brpApi": {}}}
+    values = {"zac": {"brpApi": {"logLevel": "OFF"}}}
+    text = (
+        "```yaml\n"
+        "some: `unbalanced backtick example\n"
+        "```\n\n"
+        "New field `zac.brpApi.logLevel`, defaults to `OFF`.\n"
+    )
+    assert libupgradedoc.missing_key_change_lines(text, {"zac"}, baseline_values, values) == []
+
+
+def test_missing_key_change_lines_never_reports_a_line_already_present_verbatim(libupgradedoc):
+    """A second, independent backstop alongside the "mentioned" check
+    above: a generated line whose exact text is already in the doc is
+    never re-added, regardless of whether "mentioned" itself would also
+    have caught it."""
+    baseline_values = {"zac": {"brpApi": {}}}
+    values = {"zac": {"brpApi": {"logLevel": "OFF"}}}
+    text = "- Key `zac.brpApi.logLevel` was added.\n"
+    assert libupgradedoc.missing_key_change_lines(text, {"zac"}, baseline_values, values) == []
 
 
 # --- values_key_order ---

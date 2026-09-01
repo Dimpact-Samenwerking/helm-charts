@@ -21,13 +21,13 @@ import re
 
 import yaml
 
-from lib.chart import replace_scalar_value
+from lib.chart import image_paths_for, replace_scalar_value
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
 from lib.upgradedoc import (
-    canonical_version_cell, component_order_key, extract_source_version,
-    find_grouped_preceding_comment_line, insertion_index, normalize_name, normalize_version,
-    parse_upgrade_doc_changes_blocks, parse_upgrade_doc_rows, replace_version_pair, resolve_entry_path,
-    values_key_order,
+    actual_app_version, canonical_version_cell, component_order_key, extract_source_version,
+    find_grouped_preceding_comment_line, insertion_index, match_dependency, normalize_name,
+    normalize_version, parse_upgrade_doc_changes_blocks, parse_upgrade_doc_rows, replace_version_pair,
+    resolve_entry_path, values_key_order,
 )
 
 NUMBER_WORDS = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten",
@@ -334,6 +334,87 @@ def remove_changes_section(text, friendly):
         end += 1
     del lines[start:end]
     return "".join(lines), True
+
+
+def dep_for_values_key(deps, values_key):
+    """The Chart.yaml dependency whose own alias-or-name equals
+    values_key — the reverse of "dep.get('alias', dep['name'])" — or
+    None if no dependency owns that key (e.g. an orphan top-level
+    values.yaml block with no separate chart, like frankgateway)."""
+    for dep in deps:
+        if dep.get("alias", dep["name"]) == values_key:
+            return dep
+    return None
+
+
+def add_missing_component_rows(text, target_deps, target_values, baseline_deps, baseline_values,
+                                actual_changed_keys, target):
+    """Insert a new "Component versions" table row + matching "### ..."
+    Changes section for every key in `actual_changed_keys` (see
+    lib.upgradedoc.compute_changed_components) that doesn't already have
+    a row — read straight from `text` itself via the same match_dependency
+    lookup lib.docs_consistency.check_docs_consistency's own "component
+    ... changed vs ... but has no row" finding uses, so this always
+    targets exactly what that finding reports.
+
+    Reuses update_component_table/make_changes_section exactly as
+    update-component-version's own single-component bump does, just
+    driven by Chart.yaml/values.yaml's CURRENT state instead of a
+    human-typed <app-version>/<chart-version> pair — an auto-added row is
+    indistinguishable from one a real bump would have produced, right
+    down to using the dependency's own literal name/alias as the row's
+    Name (immune to a "Keycloak" vs "keycloak-operator" style naming
+    drift a hand-picked display name can fall into, since match_dependency
+    always matches its own exact source unambiguously).
+
+    A key with no matching Chart.yaml dependency at all (e.g. an orphan
+    values.yaml block like frankgateway) is skipped — there's no
+    dep["version"] to read a Helm chart version from, so nothing here
+    can be generated confidently; add that row by hand. A key whose app
+    version can't be resolved via actual_app_version's own two known
+    shapes (<key>.image.tag, frontend/backend — e.g. keycloak-operator's
+    own split tag/sha path, or a chart with no app image of its own at
+    all) gets a "-" app-version placeholder and a short TODO-stub Changes
+    section instead of guessing at prose. Returns (new_text, added_names)."""
+    matched_keys = set()
+    for row in parse_upgrade_doc_rows(text):
+        dep = match_dependency(row["name"], target_deps)
+        if dep:
+            matched_keys.add(dep.get("alias", dep["name"]))
+
+    added_names = []
+    for key in sorted(actual_changed_keys - matched_keys):
+        dep = dep_for_values_key(target_deps, key)
+        if dep is None:
+            continue
+        chart_name = dep["name"]
+        baseline_dep = dep_for_values_key(baseline_deps, key) if baseline_deps else None
+        old_chart = str(baseline_dep["version"]) if baseline_dep else None
+        new_chart = str(dep["version"])
+        old_app = actual_app_version(baseline_values, key) if baseline_values else None
+        new_app = actual_app_version(target_values, key)
+
+        text, table_action = update_component_table(
+            text, key, old_app, new_app if new_app is not None else "-", old_chart, new_chart,
+            target_deps, target_values)
+        if table_action is None:
+            continue  # doc has no "Component versions" table at all to insert into
+
+        text, _ = remove_changes_section(text, key)
+        if new_app is not None:
+            section = make_changes_section(key, target, chart_name, key, old_app or new_app, new_app,
+                                            old_chart or new_chart, new_chart, image_paths_for(chart_name))
+        else:
+            chart_suffix = (f"{old_chart} → {new_chart}"
+                             if old_chart and normalize_version(old_chart) != normalize_version(new_chart)
+                             else new_chart)
+            section = (f"### {key} {chart_suffix}\n\n"
+                        f"TODO: describe this component's changes — its app version could not be "
+                        f"resolved automatically.\n\n")
+        text = insert_changes_section(text, section, key, target_deps, target_values)
+        added_names.append(key)
+
+    return text, added_names
 
 
 def values_delta_bullet(friendly, old_app, new_app, old_chart, new_chart):
