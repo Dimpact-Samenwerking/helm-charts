@@ -313,16 +313,36 @@ def actual_app_version(values, values_key):
 
 
 def find_image_tag_paths(node, path=()):
-    """Yield (path, tag) for every "image: {tag: ...}" block anywhere in a
-    values tree, keyed by its full path — e.g. ("zac", "opa") for
-    zac.opa.image.tag. Structural, so it finds sidecars too, not just
-    top-level Chart.yaml dependencies."""
+    """Yield (path, tag) for every "<key>: {tag: ...}" block anywhere in a
+    values tree, where <key> is "image" or ends with "Image" (e.g.
+    "initImage", alongside "image" in the very same job, for a component
+    that needs more than one distinctly-named image — a single "image"
+    key can't serve both). Keyed by its full path INCLUDING that key
+    itself — e.g. ("zac", "opa", "image") for zac.opa.image.tag, or
+    ("keycloak-operator", "jobs", "ensurePodiumdAdminUser", "initImage")
+    for that job's own init-container image. Structural, so it finds
+    sidecars too, not just top-level Chart.yaml dependencies.
+
+    Deliberately keyed on the "...Image" suffix specifically, not "any
+    dict shaped like {tag, repository}" — a reusable template like
+    global.images.nginx/curl/busybox/redis (itself never rendered
+    anywhere on its own, just aliased into real "image:"/"...Image:"
+    sites via a YAML anchor) would otherwise be double-counted as its
+    own separate, spurious usage location; "images" (plural, the
+    container dict those templates live under) doesn't itself end in
+    "Image" (capital I), so this excludes it correctly.
+
+    NOTE: the yielded path now always ends in the image key itself
+    (unlike this function's earlier "image"-only shape, which omitted
+    it since every caller could safely assume ".image.tag") — a caller
+    reconstructing a dotted values.yaml reference must use path[-1],
+    not a hardcoded ".image.tag" suffix."""
     if isinstance(node, dict):
-        image = node.get("image")
-        if isinstance(image, dict) and image.get("tag"):
-            yield path, image["tag"]
         for key, value in node.items():
-            if key == "image":
+            if (key == "image" or key.endswith("Image")) and isinstance(value, dict) and value.get("tag"):
+                yield path + (key,), value["tag"]
+        for key, value in node.items():
+            if key == "image" or key.endswith("Image"):
                 continue
             yield from find_image_tag_paths(value, path + (str(key),))
     elif isinstance(node, list):
@@ -338,7 +358,16 @@ def resolve_entry_path(entry_name, paths):
     The innermost path segment must match the entry's last word: without that,
     sibling paths sharing a coincidental prefix (e.g. zac.solr-operator.solr
     vs zac.solr-operator.zookeeper-operator.zookeeper — both start with
-    "zac"+"solr"+"operator") are indistinguishable by substring matching alone."""
+    "zac"+"solr"+"operator") are indistinguishable by substring matching alone.
+
+    A path's own trailing "image"/"...Image" segment (see
+    find_image_tag_paths — the generic marker for which key under that
+    parent actually holds the tag, not a meaningful descriptor on its
+    own) is excluded from matching, the same way a path built this
+    function's original way (before more than one image-key name became
+    possible) never had it there to begin with. The full path, trailing
+    segment included, is still what gets returned — callers use it
+    as-is for a dict lookup back into whatever produced it."""
     entry_words = words_of(entry_name)
     if not entry_words:
         return None
@@ -346,7 +375,8 @@ def resolve_entry_path(entry_name, paths):
 
     best = None
     for path in paths:
-        path_words = [w for segment in path for w in words_of(segment)]
+        descriptive = path[:-1] if path and (path[-1] == "image" or path[-1].endswith("Image")) else path
+        path_words = [w for segment in descriptive for w in words_of(segment)]
         if not path_words or path_words[-1] != entry_words[-1]:
             continue
         norm_path = "".join(path_words)

@@ -114,6 +114,25 @@ keycloak-operator:
     assert detail == "1 pin(s), 0 unpinned"
 
 
+def test_keycloak_operator_keycloak_image_is_exempt(vp, tmp_path):
+    """keycloak-operator.operator.config.keycloakImage uses the exact
+    same split tag/sha convention as operator.image above -- only
+    visible to this check at all since find_image_tag_paths started
+    recognizing "...Image"-suffixed keys, not just the literal "image"."""
+    write_values_yaml(tmp_path, """\
+keycloak-operator:
+  operator:
+    config:
+      keycloakImage:
+        repository: quay.io/keycloak/keycloak
+        tag: "26.7.3"
+        sha: "ff4257d0d64efbe99ed1ddfaf07765cc3c36dc7518bf8324d41961327f441c54"
+""")
+    ok, detail = vp.check_digest_pinning(tmp_path)
+    assert ok is True
+    assert detail == "1 pin(s), 0 unpinned"
+
+
 def test_omc_own_image_is_exempt(vp, tmp_path):
     """omc's values.yaml comment says the subchart itself can't handle a
     digest-pinned tag -- must never be flagged."""
@@ -183,6 +202,45 @@ zac:
     out = capsys.readouterr().out
     assert "clamav.metrics.image.tag" in out
     assert "pabc.initContainers.waitFor.image.tag" in out
+
+
+def test_suffixed_image_key_is_enforced_too(vp, tmp_path, capsys):
+    """A component needing more than one distinctly-named image (e.g. a
+    job's main "image" plus a separate "initImage") can't use the bare
+    "image" key for both — real-world case: ensurePodiumdAdminUser's
+    Python init image. Regression: find_image_tag_paths used to only
+    recognize the literal key "image", silently exempting every
+    "...Image"-suffixed sibling from digest-pin enforcement entirely."""
+    write_values_yaml(tmp_path, """\
+keycloak-operator:
+  jobs:
+    ensurePodiumdAdminUser:
+      initImage:
+        repository: python
+        tag: "3.14-slim"
+""")
+    ok, detail = vp.check_digest_pinning(tmp_path)
+    assert ok is False
+    assert detail == "1/1 image(s) not digest-pinned"
+    out = capsys.readouterr().out
+    assert "keycloak-operator.jobs.ensurePodiumdAdminUser.initImage.tag: '3.14-slim'" in out
+
+
+def test_plural_images_container_not_treated_as_an_image_block(vp, tmp_path):
+    """"images" (plural, a container of several named templates, e.g.
+    global.images.nginx) must not itself be flagged — it doesn't end in
+    "Image" (capital I), so only its own literally-"image"/"...Image"-
+    keyed children would ever be."""
+    write_values_yaml(tmp_path, """\
+global:
+  images:
+    nginx:
+      repository: nginxinc/nginx-unprivileged
+      tag: "1.31.4"
+""")
+    ok, detail = vp.check_digest_pinning(tmp_path)
+    assert ok is True
+    assert detail == "0 pin(s), 0 unpinned"
 
 
 # --- check_subchart_image_visibility / find_unresolved_subchart_images ---

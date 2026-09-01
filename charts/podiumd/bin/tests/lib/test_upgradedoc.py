@@ -153,8 +153,8 @@ def test_find_image_tag_paths_finds_nested_images(libupgradedoc):
         },
     }
     paths = dict(libupgradedoc.find_image_tag_paths(values))
-    assert paths[("zac",)] == "5.1.0@sha256:aaaa"
-    assert paths[("zac", "opa")] == "1.19.0-static@sha256:bbbb"
+    assert paths[("zac", "image")] == "5.1.0@sha256:aaaa"
+    assert paths[("zac", "opa", "image")] == "1.19.0-static@sha256:bbbb"
 
 
 def test_find_image_tag_paths_ignores_tagless_image_blocks(libupgradedoc):
@@ -165,7 +165,35 @@ def test_find_image_tag_paths_ignores_tagless_image_blocks(libupgradedoc):
 def test_find_image_tag_paths_walks_lists(libupgradedoc):
     values = {"items": [{"image": {"tag": "1.0@sha256:aaaa"}}]}
     paths = dict(libupgradedoc.find_image_tag_paths(values))
-    assert paths[("items", "0")] == "1.0@sha256:aaaa"
+    assert paths[("items", "0", "image")] == "1.0@sha256:aaaa"
+
+
+def test_find_image_tag_paths_finds_suffixed_image_key(libupgradedoc):
+    """A component needing more than one distinctly-named image (e.g. a
+    job's main "image" plus a separate "initImage") can't use the same
+    bare "image" key for both — any key ending in "Image" counts too."""
+    values = {
+        "keycloak-operator": {
+            "jobs": {
+                "ensurePodiumdAdminUser": {
+                    "image": {"tag": "16-alpine@sha256:aaaa"},
+                    "initImage": {"tag": "3.14.7-slim@sha256:bbbb"},
+                }
+            }
+        }
+    }
+    paths = dict(libupgradedoc.find_image_tag_paths(values))
+    assert paths[("keycloak-operator", "jobs", "ensurePodiumdAdminUser", "image")] == "16-alpine@sha256:aaaa"
+    assert paths[("keycloak-operator", "jobs", "ensurePodiumdAdminUser", "initImage")] == "3.14.7-slim@sha256:bbbb"
+
+
+def test_find_image_tag_paths_excludes_plural_images_container(libupgradedoc):
+    """"images" (plural, a container of several named templates, e.g.
+    global.images.nginx/curl/busybox/redis) must NOT itself be treated as
+    an image block — it doesn't end in "Image" (capital I), only its own
+    children (if literally keyed "image"/"...Image") would be."""
+    values = {"global": {"images": {"nginx": {"tag": "1.31.4@sha256:aaaa"}}}}
+    assert dict(libupgradedoc.find_image_tag_paths(values)) == {}
 
 
 # --- resolve_entry_path ---
@@ -183,6 +211,24 @@ def test_resolve_entry_path_last_word_must_match(libupgradedoc):
 
 def test_resolve_entry_path_no_match_returns_none(libupgradedoc):
     assert libupgradedoc.resolve_entry_path("totally-unrelated", [("zac",)]) is None
+
+
+def test_resolve_entry_path_ignores_trailing_image_key_for_matching(libupgradedoc):
+    """A path from find_image_tag_paths always ends in the image key
+    itself ("image", or an "...Image"-suffixed sibling) — that trailing
+    segment is a structural marker, not a meaningful descriptor, so it
+    must not be what "last word must match" is checked against (every
+    such path would otherwise end in the word "image" and never match
+    any real entry name again). The FULL path — trailing segment
+    included — is still what gets returned."""
+    paths = [("zac", "opa", "image")]
+    assert libupgradedoc.resolve_entry_path("opa", paths) == ("zac", "opa", "image")
+
+
+def test_resolve_entry_path_ignores_trailing_suffixed_image_key(libupgradedoc):
+    paths = [("keycloak-operator", "python", "initImage")]
+    assert libupgradedoc.resolve_entry_path("python", paths) == \
+        ("keycloak-operator", "python", "initImage")
 
 
 # --- find_preceding_comment ---

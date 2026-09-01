@@ -77,9 +77,9 @@ def test_find_image_tag_paths_finds_sidecars(libupgradedoc):
         }
     }
     paths = dict(libupgradedoc.find_image_tag_paths(values))
-    assert paths[("zac",)] == "5.4.3@sha256:a"
-    assert paths[("zac", "opa")] == "1.19.0-static@sha256:b"
-    assert paths[("zac", "solr-operator", "solr")] == "9.10.1-slim@sha256:c"
+    assert paths[("zac", "image")] == "5.4.3@sha256:a"
+    assert paths[("zac", "opa", "image")] == "1.19.0-static@sha256:b"
+    assert paths[("zac", "solr-operator", "solr", "image")] == "9.10.1-slim@sha256:c"
 
 
 def test_find_image_tag_paths_skips_empty_tag(libupgradedoc):
@@ -90,7 +90,7 @@ def test_find_image_tag_paths_skips_empty_tag(libupgradedoc):
 def test_find_image_tag_paths_walks_lists(libupgradedoc):
     values = {"items": [{"image": {"tag": "1.0@sha256:a"}}]}
     paths = dict(libupgradedoc.find_image_tag_paths(values))
-    assert paths[("items", "0")] == "1.0@sha256:a"
+    assert paths[("items", "0", "image")] == "1.0@sha256:a"
 
 
 def test_baseline_ref_candidates_bare_version(libgitutil):
