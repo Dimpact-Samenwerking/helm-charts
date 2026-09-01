@@ -234,7 +234,10 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from lib.chart import UTF8_BOM, release_baseline as read_release_baseline
+from lib.chart import UTF8_BOM, RELEASE_BASELINES_FILE_NAME
+from lib.chart import release_baseline as read_release_baseline
+from lib.chart import release_table_baseline as read_release_table_baseline
+from lib.chart import upgrade_docs_baseline as read_upgrade_docs_baseline
 from lib.gitutil import find_repo_root, resolve_baseline_ref
 from lib.procutil import run
 
@@ -300,24 +303,37 @@ def check_utf8_format(chart_dir):
 
 
 def check_release_baseline(chart_dir):
-    """Verifies release-baseline still resolves to a real release —
-    catches a baseline recorded before its podiumd-<version> tag/branch
-    existed, or one that's since been deleted. Not present is fine."""
-    baseline_file = chart_dir / "release-baseline"
-    baseline = read_release_baseline(chart_dir)
-    if baseline is None:
-        print(f"OK: no {baseline_file.name} to check")
-        return True, "no release-baseline file"
-
+    """Verifies both release-baseline.yaml baselines (upgrade_docs,
+    release_table) resolve to a real release — catches a baseline
+    recorded before its podiumd-<version> tag/branch existed, or one
+    that's since been deleted. Unlike the old single release-baseline
+    file this replaces, a missing key (or a missing file) is itself a
+    failure here, for either key independently — release-baseline.yaml
+    is committed with real values from day one, not an optional
+    artifact older releases/fresh checkouts might predate."""
+    baselines_file = chart_dir / RELEASE_BASELINES_FILE_NAME
     repo_root = find_repo_root(chart_dir)
     if repo_root is None:
-        return False, f"{baseline_file.name}: not inside a git repository"
+        return False, f"{baselines_file.name}: not inside a git repository"
 
-    ref, error = resolve_baseline_ref(repo_root, baseline)
-    if error:
-        return False, f"{baseline_file.name}: {error}"
-    print(f"OK: {baseline_file.name} '{baseline}' resolves to {ref}")
-    return True, f"resolves to {ref}"
+    failures, resolved = [], []
+    for key, baseline in (("upgrade_docs", read_upgrade_docs_baseline(chart_dir)),
+                          ("release_table", read_release_table_baseline(chart_dir))):
+        if baseline is None:
+            failures.append(f"{key}: missing from {baselines_file.name}")
+            continue
+        ref, error = resolve_baseline_ref(repo_root, baseline)
+        if error:
+            failures.append(f"{key} '{baseline}': {error}")
+            continue
+        print(f"OK: {baselines_file.name} {key} '{baseline}' resolves to {ref}")
+        resolved.append(f"{key} -> {ref}")
+
+    if failures:
+        for failure in failures:
+            print(f"FAIL: {failure}")
+        return False, "; ".join(failures)
+    return True, ", ".join(resolved)
 
 
 def check_duplicate_keys(chart_dir):
