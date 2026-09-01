@@ -310,6 +310,18 @@ def chart_version_ever_tracked(rows):
     return any(is_verifiable_target(row["target_version_helm"]) or row["source_version_helm"] for row in rows)
 
 
+def row_app_version(row):
+    """The already-known app version for `row` — its own target if a
+    bump is planned/verifiable (see is_verifiable_target), else its own
+    previously-recorded source — the value missing_chart_version_hint
+    carries over into a relocated/new row alongside the chart version,
+    so a human doesn't have to go look it up again. "" if neither is
+    known yet (a row that has never been exported with a real app
+    version at all)."""
+    target = row["target_version_app"]
+    return target if is_verifiable_target(target) else row["source_version_app"]
+
+
 def missing_chart_version_hint(chart_dir, lines, scope_key, component, dep, values, rows):
     """Second line for a "[CHART] ... never recorded a Helm chart
     version" finding — naming the SPECIFIC row this chart's own version
@@ -326,6 +338,12 @@ def missing_chart_version_hint(chart_dir, lines, scope_key, component, dep, valu
     since 2026-09, see module docstring) — tracking this dependency's
     chart version at all then needs a row on one of the other three
     tables instead, not just filling in a cell that doesn't exist here.
+    Spells out the exact remove/add actions and field values (Name,
+    Helm version, App version — see row_app_version) rather than just
+    naming the row and leaving the rest to be worked out by hand: WHICH
+    of the other three tables fits is still a human judgment call this
+    script can't make (see GENERIC_TABLE_HINT), but everything else
+    about the new row is already fully known from the existing one.
     If the primary row can't even be identified yet (no existing row
     claims that basename — see the companion "[IMAGE] ... not tracked"
     finding for it), says so instead of guessing which row to point at."""
@@ -334,12 +352,16 @@ def missing_chart_version_hint(chart_dir, lines, scope_key, component, dep, valu
         return ("Confluence: none of the existing row(s) is this chart's own primary-image row yet "
                 "(see the companion [IMAGE] finding for its own basename, if listed) — add the Helm "
                 "version to that row once it exists")
+    name = primary_row["name"]
     where = f'"{primary_row["section"]} component versies"'
+    chart_version = str(dep["version"])
     if where == TECHNISCHE_TABLE_HINT:
-        return (f'Confluence: "{primary_row["name"]}"\'s own row is on {where}, which has no Helm '
-                f"column at all — if this chart's version should be tracked, move (or add a second) "
-                f'row for it to Product/Common Ground/Overige component versies instead')
-    return f'Confluence: fill in the Helm version cell on "{primary_row["name"]}" ({where})'
+        app_version = row_app_version(primary_row)
+        app_version_suffix = f", App version {app_version}" if app_version else ""
+        return (f'Confluence: remove "{name}" from {where} (no Helm column there) and add it instead to '
+                f'whichever of Product/Common Ground/Overige component versies fits — Name "{name}", '
+                f"Helm version {chart_version}{app_version_suffix}")
+    return f'Confluence: fill in the Helm version cell on "{name}" ({where}) with {chart_version}'
 
 
 def check_chart_version(dep, scope_key, rows, lines, values, chart_dir, findings):
