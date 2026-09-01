@@ -5,6 +5,24 @@ podiumd chart: for each Chart.yaml dependency, the sub-chart's default
 values.yaml merged with podiumd's own overrides in values.yaml, plus any
 images configured directly at the top level of podiumd's own values.yaml.
 
+Each image line leads with "<key> <basename> <version>" — the same
+argument order update-image-version/verify-image-version/
+show-image-baseline-version take — followed by the full "<repo>:<tag>"
+(with digest) and, for extra context, the values.yaml path it was found
+at. That covers both common uses of this output: filling in a Confluence
+release-notes row (repo:tag/digest, appVersion, chart version, sub-chart
+dependencies), and getting the exact arguments to hand one of those
+other scripts.
+
+<key> <basename> is only real, resolvable input for those other scripts
+when it's a literal digest pin in THIS chart's own values.yaml — the
+same lib.image_version.resolve_scoped_matches check they use. A line
+whose image instead comes from the sub-chart's own default (no podiumd
+override at all), from a shared values.yaml global.images.* image
+aliased into more than one component, or from a split tag/sha or
+non-digest pin those tools can't see structurally, gets a trailing note
+explaining why instead of a silently-wrong copy/paste.
+
 Usage:
     list-podiumd-images [--refresh]
 
@@ -27,6 +45,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 from lib.chart import find_images, load_yaml, local_chart_dir, pulled_chart_dir, version_of
 from lib.chart import pull_chart as _pull_chart
+from lib.image_version import MULTIPLE_KEY, image_basename, resolve_scoped_matches
 
 PODIUMD_DIR = SCRIPT_DIR.parents[0]
 CHART_YAML = PODIUMD_DIR / "Chart.yaml"
@@ -77,6 +96,51 @@ def deep_merge(base, override):
     return override if override is not None else base
 
 
+def resolution_note(values_lines, key, basename):
+    """None if <key> <basename> is real, resolvable input for update-
+    image-version/verify-image-version/show-image-baseline-version (see
+    lib.image_version.resolve_scoped_matches) — otherwise a short,
+    human-readable reason it isn't, so a reader doesn't copy/paste a
+    pair that will just fail elsewhere. Falls back to checking
+    MULTIPLE_KEY (values.yaml's global.images.* scope) before giving up,
+    since that's the single most common reason a per-component <key>
+    doesn't resolve: the image lives under global.images and is only
+    ALIASED into this component, with no literal pin of its own here."""
+    try:
+        resolve_scoped_matches(values_lines, key, basename)
+        return None
+    except SystemExit:
+        pass
+    if key != MULTIPLE_KEY:
+        try:
+            resolve_scoped_matches(values_lines, MULTIPLE_KEY, basename)
+            return f"shared via global.images — use: {MULTIPLE_KEY} {basename}"
+        except SystemExit:
+            pass
+    return "not a literal digest pin in values.yaml (chart default, split tag/sha, or no digest)"
+
+
+def print_image_lines(rows, values_lines):
+    """rows: [(key, path, repo, tag), ...]. Prints one column-aligned
+    "<key> <basename> <version>  <repo>:<tag>" line per row (see module
+    docstring), with the values.yaml path it was found at and any
+    resolution_note as trailing context."""
+    entries = []
+    for key, path, repo, tag in rows:
+        entries.append((key, image_basename(repo), version_of(tag), repo, tag, path))
+    entries.sort(key=lambda e: (e[0], e[5]))
+    kwidth = max(len(e[0]) for e in entries)
+    bwidth = max(len(e[1]) for e in entries)
+    vwidth = max(len(e[2]) for e in entries)
+    for key, basename, version, repo, tag, path in entries:
+        note = resolution_note(values_lines, key, basename)
+        line = (f"  {key.ljust(kwidth)}  {basename.ljust(bwidth)}  {version.ljust(vwidth)}  "
+                f"{repo}:{tag}    (path: {path})")
+        if note:
+            line += f"  — {note}"
+        print(line)
+
+
 def is_enabled(condition, root_values):
     if not condition:
         return True
@@ -97,6 +161,7 @@ def main():
     deps = load_yaml(CHART_YAML)["dependencies"]
     root_values = load_yaml(VALUES_YAML) or {}
     dep_keys = {dep.get("alias", dep["name"]) for dep in deps}
+    values_lines = VALUES_YAML.read_text(encoding="utf-8").splitlines()
 
     tmproot = Path(tempfile.mkdtemp(prefix="list-podiumd-images-"))
     try:
@@ -104,13 +169,10 @@ def main():
         top_level_images = []
         for key, value in root_values.items():
             if key not in dep_keys:
-                top_level_images.extend(find_images(value, key))
+                top_level_images.extend((key, path, repo, tag) for path, repo, tag in find_images(value))
         if top_level_images:
             print("=== podiumd top-level values (not part of a dependency) ===")
-            width = max(len(p) for p, _, _ in top_level_images)
-            vwidth = max(len(version_of(t)) for _, _, t in top_level_images)
-            for path, repo, tag in sorted(top_level_images):
-                print(f"  {path.ljust(width)}  {version_of(tag).ljust(vwidth)}  {repo}:{tag}")
+            print_image_lines(top_level_images, values_lines)
             print()
 
         for dep in deps:
@@ -137,10 +199,7 @@ def main():
             merged = deep_merge(defaults, overrides)
             images = find_images(merged)
             if images:
-                width = max(len(p) for p, _, _ in images)
-                vwidth = max(len(version_of(t)) for _, _, t in images)
-                for path, repo, tag in sorted(images):
-                    print(f"  {path.ljust(width)}  {version_of(tag).ljust(vwidth)}  {repo}:{tag}")
+                print_image_lines([(key, path, repo, tag) for path, repo, tag in images], values_lines)
             else:
                 print("  (no image references found)")
             print()

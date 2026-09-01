@@ -83,6 +83,60 @@ def test_find_images_skips_missing_or_empty_tag(lpi):
     assert lpi.find_images({"image": {"repository": "r"}}) == []
 
 
+# --- resolution_note ---
+
+def test_resolution_note_resolvable_pair_returns_none(lpi):
+    lines = [
+        "pabc:",
+        "  image:",
+        "    repository: ghcr.io/x/pabc-api",
+        f'    tag: "1.1.1@sha256:{"a" * 64}"',
+    ]
+    assert lpi.resolution_note(lines, "pabc", "pabc-api") is None
+
+
+def test_resolution_note_shared_global_image_points_to_multiple(lpi):
+    """A basename only literally pinned under values.yaml's global.images
+    scope, not under the component asking about it, isn't a dead end --
+    it's pointed at the key that DOES resolve (MULTIPLE, see
+    lib.image_version.MULTIPLE_KEY)."""
+    lines = [
+        "global:",
+        "  images:",
+        "    curl:",
+        "      repository: curlimages/curl",
+        f'      tag: "8.21.0@sha256:{"a" * 64}"',
+    ]
+    assert lpi.resolution_note(lines, "zac", "curl") == "shared via global.images — use: MULTIPLE curl"
+
+
+def test_resolution_note_unresolvable_pair_reports_generic_reason(lpi):
+    assert lpi.resolution_note([], "openbeheer", "open-beheer") == (
+        "not a literal digest pin in values.yaml (chart default, split tag/sha, or no digest)"
+    )
+
+
+# --- print_image_lines ---
+
+def test_print_image_lines_leads_with_key_basename_version(lpi, capsys):
+    lines = [
+        "pabc:",
+        "  image:",
+        "    repository: ghcr.io/x/pabc-api",
+        f'    tag: "1.1.1@sha256:{"a" * 64}"',
+    ]
+    lpi.print_image_lines([("pabc", "image", "ghcr.io/x/pabc-api", f"1.1.1@sha256:{'a' * 64}")], lines)
+    out = capsys.readouterr().out
+    assert f"pabc  pabc-api  1.1.1  ghcr.io/x/pabc-api:1.1.1@sha256:{'a' * 64}    (path: image)" in out
+    assert "—" not in out  # resolvable -- no trailing note
+
+
+def test_print_image_lines_appends_note_when_not_resolvable(lpi, capsys):
+    lpi.print_image_lines([("openbeheer", "image", "maykinmedia/open-beheer", "0.9.0")], [])
+    out = capsys.readouterr().out
+    assert "not a literal digest pin in values.yaml" in out
+
+
 # --- is_enabled ---
 
 def test_is_enabled_no_condition_defaults_true(lpi):

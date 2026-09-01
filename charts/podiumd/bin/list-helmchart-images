@@ -3,6 +3,18 @@
 List every container image (repository + tag) and every sub-chart dependency
 declared by a podiumd dependency chart, at a given chart version.
 
+Each image line leads with "<key> <basename> <version>" — the same
+argument order update-image-version/verify-image-version/
+show-image-baseline-version take — followed by the full "<repo>:<tag>"
+and, for extra context, the values.yaml path it was found at. <key> is
+this dependency's own name/alias (the same one <chart-name-or-alias>
+above resolved to). Unlike list-podiumd-images, there's no check that
+<key> <basename> is already a literal pin in podiumd's OWN values.yaml —
+this reads a chart version straight from its own source (pulled fresh,
+or local), typically BEFORE it's been integrated into podiumd at all, so
+<key> <basename> here is what you'd use once you've added the override,
+not necessarily something that resolves yet.
+
 Usage:
     list-helmchart-images <chart-name-or-alias> <chart-version>
 
@@ -31,6 +43,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 from lib.chart import chart_ref, find_images, load_yaml, local_chart_dir, pull_chart, pulled_chart_dir, version_of
 from lib.chart import find_dependency as _find_dependency
+from lib.image_version import image_basename
 
 CHART_DIR = SCRIPT_DIR.parents[0]
 CHART_YAML = CHART_DIR / "Chart.yaml"
@@ -44,7 +57,7 @@ def find_dependency(name_or_alias):
     return dep
 
 
-def report_chart(chart_dir, requested_version):
+def report_chart(chart_dir, requested_version, key):
     chart_yaml = load_yaml(chart_dir / "Chart.yaml")
     values_yaml = load_yaml(chart_dir / "values.yaml") or {}
 
@@ -65,10 +78,12 @@ def report_chart(chart_dir, requested_version):
     images = find_images(values_yaml)
     if images:
         print("\nImage references:")
-        width = max(len(path) for path, _, _ in images)
-        vwidth = max(len(version_of(tag)) for _, _, tag in images)
-        for path, repo, tag in sorted(images):
-            print(f"  {path.ljust(width)}  {version_of(tag).ljust(vwidth)}  {repo}:{tag}")
+        entries = [(key, image_basename(repo), version_of(tag), repo, tag, path) for path, repo, tag in images]
+        entries.sort(key=lambda e: e[5])
+        bwidth = max(len(e[1]) for e in entries)
+        vwidth = max(len(e[2]) for e in entries)
+        for key_, basename, version, repo, tag, path in entries:
+            print(f"  {key_}  {basename.ljust(bwidth)}  {version.ljust(vwidth)}  {repo}:{tag}    (path: {path})")
     else:
         print("\nNo image references found in values.yaml")
 
@@ -83,6 +98,7 @@ def main():
 
     name_or_alias, version = sys.argv[1], sys.argv[2]
     dep = find_dependency(name_or_alias)
+    key = dep.get("alias", dep["name"])
 
     local_dir = local_chart_dir(CHART_DIR, dep)
     if local_dir is not None:
@@ -90,7 +106,7 @@ def main():
             raise SystemExit(f"error: dependency '{dep['name']}' declares local path repository "
                               f"({dep['repository']}), but {local_dir} does not exist")
         print(f"Reading local chart source: {local_dir}")
-        report_chart(local_dir, version)
+        report_chart(local_dir, version, key)
         return
 
     tmpdir = Path(tempfile.mkdtemp(prefix="list-helmchart-images-"))
@@ -100,7 +116,7 @@ def main():
         ok, stderr = pull_chart(dep, version, tmpdir)
         if not ok:
             raise SystemExit(f"error: helm pull failed for {ref}@{version}\n{stderr}")
-        report_chart(pulled_chart_dir(tmpdir), version)
+        report_chart(pulled_chart_dir(tmpdir), version, key)
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)
 
