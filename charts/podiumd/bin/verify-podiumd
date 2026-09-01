@@ -176,7 +176,7 @@ connection.
 
 Stops at the first failing step and prints a PASS/FAIL summary table, mirroring
 the /helm-precommit workflow (BOM check, dupe check, lint, full render) plus
-this script's own dependency-resolution, image-digest, and docs-consistency checks.
+this script's own dependency-resolution, image-digest, and doc-consistency checks.
 
 Always verifies charts/podiumd next to this script — there is no way to point
 it at a different chart source.
@@ -201,7 +201,7 @@ Usage:
         # single check, or work around a step that's broken for reasons
         # unrelated to what you're testing. Valid step names: utf8-format,
         # dupe-check, dry-check, image-references, node-selector,
-        # digest-pinning, vendored-tgz, release-baseline, docs-consistency,
+        # digest-pinning, vendored-tgz, release-baseline, doc-consistency,
         # helm-doc, markdown, repo-access, dependencies, subchart-images,
         # image-digests, helm-lint, full-render, yamllint, kubeconform,
         # shellcheck, kube-score, image-upgrades, cve-scan.
@@ -464,7 +464,7 @@ SKIPPABLE_STEPS = [
     ("digest-pinning", "Digest pinning"),
     ("vendored-tgz", "Vendored tgz"),
     ("release-baseline", "Release baseline"),
-    ("docs-consistency", "Docs consistency"),
+    ("doc-consistency", "Doc consistency"),
     ("helm-doc", "Helm doc"),
     ("markdown", "Markdown lint"),
     ("repo-access", "Repo access"),
@@ -637,7 +637,7 @@ def main():
              check_release_baseline, chart_dir)
 
     upgrade_docs_baseline = read_upgrade_docs_baseline(chart_dir)
-    run_step("Docs consistency", "Checking versions against upgrade docs",
+    run_step("Doc consistency", "Checking versions against upgrade docs",
              check_docs_consistency, chart_dir, upgrade_docs_baseline)
     run_step("Helm doc", "Checking README.md against values.yaml (helm-docs)",
              check_helm_docs, chart_dir)
