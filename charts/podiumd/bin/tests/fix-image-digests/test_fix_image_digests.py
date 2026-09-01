@@ -513,7 +513,7 @@ def test_main_default_updates_sliding_and_pinned_alike(sid, tmp_path, monkeypatc
     assert "nginxinc/nginx-unprivileged:1.31.3  (sliding)" in out
 
 
-# --- main(): <target> scopes to one image ---
+# --- main(): <key> <basename> scopes to one image ---
 
 def test_main_target_updates_sliding_pin(sid, tmp_path, monkeypatch):
     """Naming the image explicitly still works when it happens to be
@@ -528,7 +528,7 @@ def test_main_target_updates_sliding_pin(sid, tmp_path, monkeypatch):
         else (True, f"sha256:{zac_digest}")
     ))
     mock_is_sliding_tag_by_repo(monkeypatch, sid, {"nginxinc/nginx-unprivileged"})
-    monkeypatch.setattr("sys.argv", ["fix-image-digests", "nginx-unprivileged"])
+    monkeypatch.setattr("sys.argv", ["fix-image-digests", "nginx", "nginx-unprivileged"])
 
     with pytest.raises(SystemExit) as exc_info:
         sid.main()
@@ -551,7 +551,7 @@ def test_main_target_leaves_other_stale_pins_untouched(sid, tmp_path, monkeypatc
         else (True, f"sha256:{new_zac}")
     ))
     mock_is_sliding_tag_by_repo(monkeypatch, sid, set())
-    monkeypatch.setattr("sys.argv", ["fix-image-digests", "nginx-unprivileged"])
+    monkeypatch.setattr("sys.argv", ["fix-image-digests", "nginx", "nginx-unprivileged"])
 
     with pytest.raises(SystemExit) as exc_info:
         sid.main()
@@ -572,39 +572,33 @@ def test_main_target_no_stale_digest_reports_nothing_to_do(sid, tmp_path, monkey
         else (True, f"sha256:{zac_digest}")
     ))
     mock_is_sliding_tag_by_repo(monkeypatch, sid, set())
-    monkeypatch.setattr("sys.argv", ["fix-image-digests", "nginx-unprivileged"])
+    monkeypatch.setattr("sys.argv", ["fix-image-digests", "nginx", "nginx-unprivileged"])
 
     with pytest.raises(SystemExit) as exc_info:
         sid.main()
     assert exc_info.value.code == 0
     out = capsys.readouterr().out
-    assert "'nginx-unprivileged' has no stale digest to update — nothing to do." in out
+    assert "'nginx' 'nginx-unprivileged' has no stale digest to update — nothing to do." in out
 
 
-def test_main_target_resolves_dependency_alias(sid, tmp_path, monkeypatch, capsys):
-    """A target that isn't already a real basename ("zac") is resolved via
-    its Chart.yaml alias, same convention as update-image-version."""
+def test_main_target_resolves_given_key_and_basename(sid, tmp_path, monkeypatch, capsys):
+    """<key> "zac" scopes the search to that component's own values.yaml
+    subtree, where <basename> "zaakafhandelcomponent" is pinned."""
     values_path = tmp_path / "values.yaml"
     old_nginx = "a" * 64
     old_zac, new_zac = "b" * 64, "d" * 64
     write_two_image_values(values_path, old_nginx, old_zac)
-    write_chart_yaml(tmp_path, [
-        {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297", "repository": "@zac"},
-    ])
-    monkeypatch.setattr(sid, "CHART_DIR", tmp_path)
     monkeypatch.setattr(sid, "VALUES_PATH", values_path)
     monkeypatch.setattr(sid, "registry_tag_exists", lambda host, repo, tag: (
         (True, f"sha256:{old_nginx}") if repo == "nginxinc/nginx-unprivileged"
         else (True, f"sha256:{new_zac}")
     ))
     mock_is_sliding_tag_by_repo(monkeypatch, sid, set())
-    monkeypatch.setattr("sys.argv", ["fix-image-digests", "zac"])
+    monkeypatch.setattr("sys.argv", ["fix-image-digests", "zac", "zaakafhandelcomponent"])
 
     with pytest.raises(SystemExit) as exc_info:
         sid.main()
     assert exc_info.value.code == 0
-    out = capsys.readouterr().out
-    assert "'zac' resolved to image basename 'zaakafhandelcomponent'" in out
     updated = values_path.read_text(encoding="utf-8")
     assert old_zac not in updated and new_zac in updated
     assert old_nginx in updated  # untouched -- not the named target
@@ -613,17 +607,24 @@ def test_main_target_resolves_dependency_alias(sid, tmp_path, monkeypatch, capsy
 def test_main_unknown_target_raises(sid, tmp_path, monkeypatch):
     values_path = tmp_path / "values.yaml"
     write_two_image_values(values_path, "a" * 64, "b" * 64)
-    write_chart_yaml(tmp_path, [])
-    monkeypatch.setattr(sid, "CHART_DIR", tmp_path)
     monkeypatch.setattr(sid, "VALUES_PATH", values_path)
-    monkeypatch.setattr("sys.argv", ["fix-image-digests", "totally-unknown"])
+    monkeypatch.setattr("sys.argv", ["fix-image-digests", "nginx", "totally-unknown"])
 
-    with pytest.raises(SystemExit, match="not a pinned image basename"):
+    with pytest.raises(SystemExit, match="no image pin with basename 'totally-unknown' found under 'nginx'"):
         sid.main()
 
 
-def test_main_more_than_one_target_raises(sid, tmp_path, monkeypatch):
-    monkeypatch.setattr("sys.argv", ["fix-image-digests", "nginx", "curl"])
+def test_main_more_than_two_targets_raises(sid, tmp_path, monkeypatch):
+    monkeypatch.setattr("sys.argv", ["fix-image-digests", "nginx", "nginx-unprivileged", "extra"])
+    with pytest.raises(SystemExit) as exc_info:
+        sid.main()
+    assert exc_info.value.code == 1
+
+
+def test_main_one_target_raises(sid, tmp_path, monkeypatch):
+    """<key> <basename> must be given together -- a lone positional
+    argument is rejected rather than guessed at."""
+    monkeypatch.setattr("sys.argv", ["fix-image-digests", "nginx"])
     with pytest.raises(SystemExit) as exc_info:
         sid.main()
     assert exc_info.value.code == 1
