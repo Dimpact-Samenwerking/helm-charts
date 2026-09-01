@@ -6,13 +6,14 @@ values.yaml merged with podiumd's own overrides in values.yaml, plus any
 images configured directly at the top level of podiumd's own values.yaml.
 
 Each image is printed as two lines. The first is short: "<key> <basename>
-<version>" — the same argument order update-image-version/verify-image-
-version/show-image-baseline-version take, so it doubles as the exact
-arguments to hand one of those scripts. The second, indented line has
-the full "<repo>:<tag>" (digest included, never truncated) and, for
-extra context, the values.yaml path it was found at — for filling in a
-Confluence release-notes row (repo:tag/digest, appVersion, chart
-version, sub-chart dependencies) or manual lookup.
+<version>  (path: ...)" — <key> <basename> <version> is the same
+argument order update-image-version/verify-image-version/show-image-
+baseline-version take, so it doubles as the exact arguments to hand one
+of those scripts; the values.yaml path it was found at is right there
+too. The second, indented line has the full "<repo>:<tag>" (digest
+included, never truncated) — for filling in a Confluence release-notes
+row (repo:tag/digest, appVersion, chart version, sub-chart dependencies)
+or manual lookup.
 
 <key> <basename> is only real, resolvable input for those other scripts
 when it's a literal digest pin in THIS chart's own values.yaml — the
@@ -20,10 +21,10 @@ same lib.image_version.resolve_scoped_matches check they use. A row
 whose image instead comes from the sub-chart's own default (no podiumd
 override at all), from a shared values.yaml global.images.* image
 aliased into more than one component, or from a split tag/sha or
-non-digest pin those tools can't see structurally, gets a trailing note
-on its FIRST line explaining why instead of a silently-wrong copy/paste
-— that's precisely what decides whether <key> <basename> is usable, so
-it belongs right next to it, not buried in the detail line.
+non-digest pin those tools can't see structurally, gets a short trailing
+hint on its FIRST line ("use MULTIPLE <basename>", or "unresolvable")
+instead of a silently-wrong copy/paste — kept brief so it fits
+comfortably alongside <key> <basename> <version> and the path.
 
 Usage:
     list-podiumd-images [--refresh]
@@ -101,13 +102,15 @@ def deep_merge(base, override):
 def resolution_note(values_lines, key, basename):
     """None if <key> <basename> is real, resolvable input for update-
     image-version/verify-image-version/show-image-baseline-version (see
-    lib.image_version.resolve_scoped_matches) — otherwise a short,
-    human-readable reason it isn't, so a reader doesn't copy/paste a
-    pair that will just fail elsewhere. Falls back to checking
-    MULTIPLE_KEY (values.yaml's global.images.* scope) before giving up,
-    since that's the single most common reason a per-component <key>
-    doesn't resolve: the image lives under global.images and is only
-    ALIASED into this component, with no literal pin of its own here."""
+    lib.image_version.resolve_scoped_matches) — otherwise a short hint
+    so a reader doesn't copy/paste a pair that will just fail elsewhere.
+    Falls back to checking MULTIPLE_KEY (values.yaml's global.images.*
+    scope) before giving up, since that's the single most common reason
+    a per-component <key> doesn't resolve: the image lives under
+    global.images and is only ALIASED into this component, with no
+    literal pin of its own here — kept to the one thing a reader needs
+    (the key that DOES work) so it still fits on the row's short first
+    line alongside <key> <basename> <version> and the values.yaml path."""
     try:
         resolve_scoped_matches(values_lines, key, basename)
         return None
@@ -116,35 +119,37 @@ def resolution_note(values_lines, key, basename):
     if key != MULTIPLE_KEY:
         try:
             resolve_scoped_matches(values_lines, MULTIPLE_KEY, basename)
-            return f"shared via global.images — use: {MULTIPLE_KEY} {basename}"
+            return f"use {MULTIPLE_KEY} {basename}"
         except SystemExit:
             pass
-    return "not a literal digest pin in values.yaml (chart default, split tag/sha, or no digest)"
+    return "unresolvable"
 
 
 def print_image_lines(rows, values_lines):
     """rows: [(key, path, repo, tag), ...]. Prints two lines per row (see
     module docstring): a short, column-aligned "<key> <basename>
-    <version>" line — exactly the copy/paste-able input for update-
-    image-version/verify-image-version/show-image-baseline-version, plus
-    any resolution_note right there since that's precisely what decides
-    whether this row's <key> <basename> is real input for those scripts
-    — followed by an indented line with the full "<repo>:<tag>" (digest
-    included, never truncated) and the values.yaml path, for Confluence
-    or manual lookup."""
+    <version>  (path: ...)" line — <key> <basename> <version> is exactly
+    the copy/paste-able input for update-image-version/verify-image-
+    version/show-image-baseline-version, plus any resolution_note right
+    there since that's precisely what decides whether this row's <key>
+    <basename> is real input for those scripts — followed by an indented
+    line with the full "<repo>:<tag>" (digest included, never truncated),
+    for Confluence or manual lookup."""
     entries = []
     for key, path, repo, tag in rows:
         entries.append((key, image_basename(repo), version_of(tag), repo, tag, path))
     entries.sort(key=lambda e: (e[0], e[5]))
     kwidth = max(len(e[0]) for e in entries)
     bwidth = max(len(e[1]) for e in entries)
+    vwidth = max(len(e[2]) for e in entries)
     for key, basename, version, repo, tag, path in entries:
         note = resolution_note(values_lines, key, basename)
-        line = f"  {key.ljust(kwidth)}  {basename.ljust(bwidth)}  {version}"
+        line = (f"  {key.ljust(kwidth)}  {basename.ljust(bwidth)}  {version.ljust(vwidth)}  "
+                f"(path: {path})")
         if note:
             line += f"  — {note}"
         print(line)
-        print(f"      {repo}:{tag}    (path: {path})")
+        print(f"      {repo}:{tag}")
 
 
 def is_enabled(condition, root_values):
