@@ -57,8 +57,17 @@ def resolve_baseline_ref(repo_root, baseline):
     return None, f"could not resolve baseline '{baseline}' to a git ref (tried {', '.join(candidates)})"
 
 
-def git_show_yaml(repo_root, ref, relpath):
+def git_show_text(repo_root, ref, relpath):
+    """The raw text of relpath as it was at ref, or None if it doesn't
+    exist there — for a caller that needs values.yaml's own literal
+    lines (e.g. lib.image_version's scan_digest_pins/dotted_key_path
+    text scanners), not its parsed structure."""
     result = run(["git", "-C", str(repo_root), "show", f"{ref}:{relpath}"], capture_output=True, text=True)
     if result.returncode != 0:
         return None
-    return yaml.safe_load(result.stdout)
+    return result.stdout
+
+
+def git_show_yaml(repo_root, ref, relpath):
+    text = git_show_text(repo_root, ref, relpath)
+    return yaml.safe_load(text) if text is not None else None

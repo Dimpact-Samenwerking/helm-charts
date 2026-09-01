@@ -1,19 +1,29 @@
 """main() integration against a real, hermetic temp git repo, plus the
-find_repo_root wrapper — the same shape as show-component-baseline-
-version's own tests (both scripts resolve via the same
-lib.chart.component_state_at_ref; see tests/lib/test_chart.py for that
-function's own coverage).
+find_repo_root wrapper — <key> <basename> resolved via lib.image_version.
+resolve_scoped_matches against values.yaml TEXT as it was at each
+release-baseline.yaml baseline (via `git show`), same resolution
+update-image-version/verify-image-version's own <key> <basename> use,
+just applied to a past ref instead of the current file.
 
 No <baseline> CLI argument anymore — main() always shows state at BOTH
 release-baseline.yaml baselines (upgrade_docs, release_table)."""
 import subprocess
 
 import pytest
-import yaml
 
 
 def git(*args, cwd):
     subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True)
+
+
+def write_zac_values(chart_dir, version, digest):
+    (chart_dir / "values.yaml").write_text(
+        "zac:\n"
+        "  image:\n"
+        "    repository: ghcr.io/infonl/zaakafhandelcomponent\n"
+        f'    tag: "{version}@sha256:{digest}"\n',
+        encoding="utf-8",
+    )
 
 
 @pytest.fixture
@@ -23,21 +33,17 @@ def repo(tmp_path):
     git("config", "user.name", "Test", cwd=tmp_path)
     chart_dir = tmp_path / "charts" / "podiumd"
     chart_dir.mkdir(parents=True)
-    (chart_dir / "Chart.yaml").write_text(yaml.safe_dump({
-        "dependencies": [
-            {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297", "repository": "@zac"},
-        ]
-    }))
-    (chart_dir / "values.yaml").write_text(yaml.safe_dump({
-        "zac": {"image": {"tag": "5.0.2@sha256:abc"}}
-    }))
+    write_zac_values(chart_dir, "5.0.2", "a" * 64)
     git("add", "-A", cwd=tmp_path)
     git("commit", "-q", "-m", "baseline", cwd=tmp_path)
     git("tag", "podiumd-4.8.5", cwd=tmp_path)
 
-    (chart_dir / "values.yaml").write_text(yaml.safe_dump({
-        "zac": {"image": {"tag": "5.4.3@sha256:def"}}
-    }))
+    (chart_dir / "values.yaml").write_text("zac: {}\n", encoding="utf-8")
+    git("add", "-A", cwd=tmp_path)
+    git("commit", "-q", "-m", "rely on chart default", cwd=tmp_path)
+    git("tag", "podiumd-4.9.0", cwd=tmp_path)
+
+    write_zac_values(chart_dir, "5.4.3", "b" * 64)
     git("add", "-A", cwd=tmp_path)
     git("commit", "-q", "-m", "bump zac", cwd=tmp_path)
     return tmp_path
@@ -62,48 +68,40 @@ def test_find_repo_root_returns_repo_root(sibv, repo, monkeypatch):
 # main() only calls sys.exit() on error paths; on success it just returns,
 # so only the failure-path tests wrap the call in pytest.raises(SystemExit).
 
-def set_argv_and_repo(sibv, monkeypatch, repo, component):
-    monkeypatch.setattr("sys.argv", ["show-image-baseline-version", component])
+def set_argv_and_repo(sibv, monkeypatch, repo, key, basename):
+    monkeypatch.setattr("sys.argv", ["show-image-baseline-version", key, basename])
     monkeypatch.setattr(sibv, "find_repo_root", lambda: repo)
 
 
 def test_main_shows_both_baselines(sibv, repo, monkeypatch, capsys):
     write_baselines(repo, upgrade_docs="4.8.5", release_table="4.8.5")
-    set_argv_and_repo(sibv, monkeypatch, repo, "zac")
+    set_argv_and_repo(sibv, monkeypatch, repo, "zac", "zaakafhandelcomponent")
     sibv.main()  # success path: must not raise
     out = capsys.readouterr().out
     assert "=== upgrade_docs baseline ===" in out
     assert "=== release_table baseline ===" in out
-    assert out.count("Component: zac (Chart.yaml dependency: zaakafhandelcomponent, values key: zac)") == 2
-    assert out.count("5.0.2@sha256:abc") == 2
+    assert out.count(f"ghcr.io/infonl/zaakafhandelcomponent: 5.0.2  (sha256:{'a' * 64})") == 2
     assert "5.4.3" not in out  # must read the BASELINE tag's content, not HEAD
-    assert "Helm chart version" not in out  # the one thing it deliberately omits
 
 
-def test_main_no_tag_override_reports_chart_default(sibv, repo, monkeypatch, capsys):
-    """A component relying entirely on its chart's own image default (no
-    values.yaml override) still resolves — just nothing to report."""
-    (repo / "charts" / "podiumd" / "Chart.yaml").write_text(yaml.safe_dump({
-        "dependencies": [
-            {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297", "repository": "@zac"},
-        ]
-    }))
-    (repo / "charts" / "podiumd" / "values.yaml").write_text(yaml.safe_dump({"zac": {}}))
-    git("add", "-A", cwd=repo)
-    git("commit", "-q", "-m", "no override", cwd=repo)
-    git("tag", "-f", "podiumd-4.8.5", cwd=repo)
-    write_baselines(repo, upgrade_docs="4.8.5")
+def test_main_no_pin_at_baseline_is_noted_not_fatal(sibv, repo, monkeypatch, capsys):
+    """<key> <basename> not pinned at all at ONE baseline (the component
+    relies entirely on its chart's own image default there, e.g.
+    podiumd-4.9.0 in the `repo` fixture) is just a note there, not a
+    crash overall — the other baseline still resolves fine."""
+    write_baselines(repo, upgrade_docs="4.8.5", release_table="4.9.0")
+    set_argv_and_repo(sibv, monkeypatch, repo, "zac", "zaakafhandelcomponent")
 
-    set_argv_and_repo(sibv, monkeypatch, repo, "zac")
-    sibv.main()
+    sibv.main()  # upgrade_docs alone resolving is enough to succeed overall
 
     out = capsys.readouterr().out
-    assert "no tag override found at image under 'zac:' — chart default applies" in out
+    assert f"ghcr.io/infonl/zaakafhandelcomponent: 5.0.2  (sha256:{'a' * 64})" in out
+    assert "no image pin with basename 'zaakafhandelcomponent' found under 'zac'" in out
 
 
 def test_main_missing_release_table_key_is_noted_not_an_error(sibv, repo, monkeypatch, capsys):
     write_baselines(repo, upgrade_docs="4.8.5")
-    set_argv_and_repo(sibv, monkeypatch, repo, "zac")
+    set_argv_and_repo(sibv, monkeypatch, repo, "zac", "zaakafhandelcomponent")
     sibv.main()  # upgrade_docs alone is enough to succeed overall
     out = capsys.readouterr().out
     assert "=== upgrade_docs baseline ===" in out
@@ -112,15 +110,15 @@ def test_main_missing_release_table_key_is_noted_not_an_error(sibv, repo, monkey
 
 def test_main_unresolvable_baseline_noted_other_still_shown(sibv, repo, monkeypatch, capsys):
     write_baselines(repo, upgrade_docs="9.9.9", release_table="4.8.5")
-    set_argv_and_repo(sibv, monkeypatch, repo, "zac")
+    set_argv_and_repo(sibv, monkeypatch, repo, "zac", "zaakafhandelcomponent")
     sibv.main()  # release_table alone is enough to succeed overall
     out = capsys.readouterr().out
     assert "could not resolve baseline" in out
-    assert "5.0.2@sha256:abc" in out
+    assert f"5.0.2  (sha256:{'a' * 64})" in out
 
 
 def test_main_neither_baseline_shown_fails(sibv, repo, monkeypatch, capsys):
-    set_argv_and_repo(sibv, monkeypatch, repo, "zac")
+    set_argv_and_repo(sibv, monkeypatch, repo, "zac", "zaakafhandelcomponent")
     with pytest.raises(SystemExit) as exc_info:
         sibv.main()
     assert exc_info.value.code == 1
@@ -129,16 +127,16 @@ def test_main_neither_baseline_shown_fails(sibv, repo, monkeypatch, capsys):
     assert "release-baseline.yaml has no release_table key" in out
 
 
-def test_main_unknown_component_fails(sibv, repo, monkeypatch, capsys):
+def test_main_unknown_key_fails(sibv, repo, monkeypatch, capsys):
     write_baselines(repo, upgrade_docs="4.8.5", release_table="4.8.5")
-    set_argv_and_repo(sibv, monkeypatch, repo, "totally-unknown")
+    set_argv_and_repo(sibv, monkeypatch, repo, "totally-unknown", "zaakafhandelcomponent")
     with pytest.raises(SystemExit) as exc_info:
         sibv.main()
     assert exc_info.value.code == 1
-    assert "no dependency named or aliased" in capsys.readouterr().out
+    assert "no image pin with basename 'zaakafhandelcomponent' found under 'totally-unknown'" in capsys.readouterr().out
 
 
-def test_main_requires_exactly_one_argument(sibv, monkeypatch):
+def test_main_requires_exactly_two_arguments(sibv, monkeypatch):
     monkeypatch.setattr("sys.argv", ["show-image-baseline-version"])
     with pytest.raises(SystemExit) as exc_info:
         sibv.main()
@@ -146,7 +144,7 @@ def test_main_requires_exactly_one_argument(sibv, monkeypatch):
 
 
 def test_main_too_many_arguments_fails(sibv, monkeypatch):
-    monkeypatch.setattr("sys.argv", ["show-image-baseline-version", "zac", "extra"])
+    monkeypatch.setattr("sys.argv", ["show-image-baseline-version", "zac", "zaakafhandelcomponent", "extra"])
     with pytest.raises(SystemExit) as exc_info:
         sibv.main()
     assert exc_info.value.code == 1

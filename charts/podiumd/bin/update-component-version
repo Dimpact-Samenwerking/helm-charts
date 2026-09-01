@@ -23,12 +23,15 @@ image is basename "zaakafhandelcomponent"; zgw-office-addin bumps two
 distinctly-named images, frontend + backend) — an image path with an
 explicit "repository:" of its own in values.yaml delegates its actual tag
 update to lib.image_version.update_image_version (see
-update-image-version), keyed by that path's own real basename, so an
-image shared with some unrelated component gets updated everywhere it's
-pinned. A path relying on a vendored sub-chart's own default repository
-(nothing explicit to derive a basename from — e.g. openzaak,
-openformulieren) resolves it the original way instead (pulls the target
-chart version and reads its own values.yaml default).
+update-image-version), scoped to this component and keyed by that path's
+own real basename — so a basename this component happens to share with
+some unrelated component (rare, and only ever true today for a base
+image already hoisted into values.yaml's global.images anchor block, see
+MULTIPLE_KEY) is never touched outside this component's own scope. A
+path relying on a vendored sub-chart's own default repository (nothing
+explicit to derive a basename from — e.g. openzaak, openformulieren)
+resolves it the original way instead (pulls the target chart version and
+reads its own values.yaml default).
 
 Usage:
     update-component-version <component> <app-version> <chart-version>
@@ -423,7 +426,7 @@ def main():
                 basename = image_basename(repos[path])
                 print()
                 print(f"=== Updating '{basename}' image pin(s) for {values_key}.{path} ===")
-                changes = update_image_version(VALUES_YAML, basename, app_version)
+                changes = update_image_version(VALUES_YAML, values_key, basename, app_version)
                 for c in changes:
                     print(f"  values.yaml:{c['line']}  ({c['repository']})")
                     print(f"    {c['old_version']}@{c['old_digest']}")

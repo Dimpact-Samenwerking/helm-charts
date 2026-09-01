@@ -54,7 +54,7 @@ def test_main_updates_matching_pin(uiv, tmp_path, monkeypatch, capsys):
     import lib.image_version as image_version
     monkeypatch.setattr(image_version, "registry_tag_exists",
                          lambda host, repo, tag: (True, "sha256:" + "b" * 64))
-    monkeypatch.setattr("sys.argv", ["update-image-version", "pabc-api", "1.1.2"])
+    monkeypatch.setattr("sys.argv", ["update-image-version", "pabc", "pabc-api", "1.1.2"])
 
     uiv.main()
 
@@ -71,16 +71,16 @@ def test_main_reports_noop_when_already_at_target(uiv, tmp_path, monkeypatch, ca
         f'    tag: "1.1.2@sha256:{"a" * 64}"\n'
     ))
     monkeypatch.setattr(uiv, "VALUES_YAML", values_path)
-    monkeypatch.setattr("sys.argv", ["update-image-version", "pabc-api", "1.1.2"])
+    monkeypatch.setattr("sys.argv", ["update-image-version", "pabc", "pabc-api", "1.1.2"])
 
     uiv.main()
 
     assert "nothing to do" in capsys.readouterr().out
 
 
-def test_main_resolves_component_alias_to_its_one_image(uiv, tmp_path, monkeypatch, capsys):
-    """"openklant" isn't a basename -- resolved as a Chart.yaml dependency
-    whose own values.yaml scope pins exactly one image ("open-klant")."""
+def test_main_resolves_given_component_key_and_basename(uiv, tmp_path, monkeypatch, capsys):
+    """<key> "openklant" scopes the search to that component's own
+    values.yaml subtree, where <basename> "open-klant" is pinned."""
     write_chart_yaml(tmp_path, [("openklant", None)])
     values_path = write_values(tmp_path, (
         "openklant:\n"
@@ -93,37 +93,38 @@ def test_main_resolves_component_alias_to_its_one_image(uiv, tmp_path, monkeypat
     import lib.image_version as image_version
     monkeypatch.setattr(image_version, "registry_tag_exists",
                          lambda host, repo, tag: (True, "sha256:" + "b" * 64))
-    monkeypatch.setattr("sys.argv", ["update-image-version", "openklant", "2.15.1"])
+    monkeypatch.setattr("sys.argv", ["update-image-version", "openklant", "open-klant", "2.15.1"])
 
     uiv.main()
 
-    out = capsys.readouterr().out
-    assert "'openklant' resolved to image basename 'open-klant'" in out
     assert f'2.15.1@sha256:{"b" * 64}' in values_path.read_text(encoding="utf-8")
 
 
-def test_main_raises_on_component_alias_with_multiple_images(uiv, tmp_path, monkeypatch, capsys):
+def test_main_raises_when_basename_not_unique_under_key(uiv, tmp_path, monkeypatch, capsys):
+    """Two DISTINCT repositories sharing a basename under the same <key>
+    can't be identified uniquely (see lib.image_version.
+    resolve_scoped_matches) -- an error, never a guess."""
     write_chart_yaml(tmp_path, [("zaakafhandelcomponent", "zac")])
     values_path = write_values(tmp_path, (
         "zac:\n"
         "  image:\n"
-        f'    repository: ghcr.io/infonl/zaakafhandelcomponent\n    tag: "5.0.0@sha256:{"a" * 64}"\n'
-        "  solr-operator:\n"
+        f'    repository: org-one/curl\n    tag: "1.0.0@sha256:{"a" * 64}"\n'
+        "  sidecar:\n"
         "    image:\n"
-        f'      repository: apache/solr-operator\n      tag: "0.9.1@sha256:{"b" * 64}"\n'
+        f'      repository: org-two/curl\n      tag: "1.0.0@sha256:{"b" * 64}"\n'
     ))
     monkeypatch.setattr(uiv, "CHART_DIR", tmp_path)
     monkeypatch.setattr(uiv, "VALUES_YAML", values_path)
-    monkeypatch.setattr("sys.argv", ["update-image-version", "zac", "5.4.4"])
+    monkeypatch.setattr("sys.argv", ["update-image-version", "zac", "curl", "2.0.0"])
 
-    with pytest.raises(SystemExit, match="which pins 2 distinct images"):
+    with pytest.raises(SystemExit, match="'curl' under 'zac' is not unique"):
         uiv.main()
 
 
 def test_main_exits_on_no_match(uiv, tmp_path, monkeypatch, capsys):
     values_path = write_values(tmp_path, "a:\n  image:\n    repository: org/repo\n    tag: \"1.0.0@sha256:" + "a" * 64 + "\"\n")
     monkeypatch.setattr(uiv, "VALUES_YAML", values_path)
-    monkeypatch.setattr("sys.argv", ["update-image-version", "curl", "8.22.0"])
+    monkeypatch.setattr("sys.argv", ["update-image-version", "a", "curl", "8.22.0"])
 
     with pytest.raises(SystemExit):
         uiv.main()
@@ -161,7 +162,7 @@ def test_main_single_component_updates_upgrade_doc_table_and_changes(uiv, tmp_pa
     import lib.image_version as image_version
     monkeypatch.setattr(image_version, "registry_tag_exists",
                          lambda host, repo, tag: (True, "sha256:" + "b" * 64))
-    monkeypatch.setattr("sys.argv", ["update-image-version", "openklant", "2.15.1"])
+    monkeypatch.setattr("sys.argv", ["update-image-version", "openklant", "open-klant", "2.15.1"])
 
     uiv.main()
 
@@ -180,24 +181,26 @@ def test_main_single_component_updates_upgrade_doc_table_and_changes(uiv, tmp_pa
 # --- doc updates: multiple components affected -> shared-image (lib.image_docs) treatment ---
 
 def test_main_shared_image_creates_pseudo_component_row_and_changes_block(uiv, tmp_path, monkeypatch, capsys):
-    """curl pinned under two unrelated components -- gets its own table
-    row (Helm chart column "-") and a "### curl ..." Changes block
-    listing every place it's pinned, matching the
-    4.8.1-to-4.8.2-upgrade.md convention -- NOT one row/section per
-    affected component."""
+    """curl, shared via values.yaml's global.images anchor block and
+    aliased into two unrelated components -- gets its own table row
+    (Helm chart column "-") and a "### curl ..." Changes block, matching
+    the 4.8.1-to-4.8.2-upgrade.md convention -- NOT a row/section for
+    either aliasing component. key=MULTIPLE (see lib.image_version.
+    MULTIPLE_KEY) is release-table.csv's own convention for this case."""
     write_chart_yaml(tmp_path, [("keycloak-operator", None), ("zac", None)])
     values_path = write_values(tmp_path, (
+        "global:\n"
+        "  images:\n"
+        "    curl: &curlImage\n"
+        "      repository: curlimages/curl\n"
+        f'      tag: "8.20.0@sha256:{"a" * 64}"\n'
         "keycloak-operator:\n"
         "  jobs:\n"
         "    ensureOperatorSa:\n"
-        "      image:\n"
-        "        repository: curlimages/curl\n"
-        f'        tag: "8.20.0@sha256:{"a" * 64}"\n'
+        "      image: *curlImage\n"
         "zac:\n"
         "  global:\n"
-        "    curlImage:\n"
-        "      repository: curlimages/curl\n"
-        f'      tag: "8.20.0@sha256:{"a" * 64}"\n'
+        "    curlImage: *curlImage\n"
     ))
     monkeypatch.setattr(uiv, "CHART_DIR", tmp_path)
     monkeypatch.setattr(uiv, "VALUES_YAML", values_path)
@@ -220,18 +223,17 @@ def test_main_shared_image_creates_pseudo_component_row_and_changes_block(uiv, t
     import lib.image_version as image_version
     monkeypatch.setattr(image_version, "registry_tag_exists",
                          lambda host, repo, tag: (True, "sha256:" + "b" * 64))
-    monkeypatch.setattr("sys.argv", ["update-image-version", "curl", "8.21.0"])
+    monkeypatch.setattr("sys.argv", ["update-image-version", "MULTIPLE", "curl", "8.21.0"])
 
     uiv.main()
 
     upgrade = (uiv.DOC_DIR / "0.9.0-to-1.0.0-upgrade.md").read_text(encoding="utf-8")
     assert "| curl | 8.20.0 → 8.21.0 | - | - |" in upgrade
     assert "### curl 8.20.0 → 8.21.0" in upgrade
-    assert "`keycloak-operator.jobs.ensureOperatorSa.image.tag` `8.20.0` → `8.21.0`" in upgrade
-    assert "`zac.global.curlImage.tag` `8.20.0` → `8.21.0`" in upgrade
+    assert "`global.images.curl.tag` `8.20.0` → `8.21.0`" in upgrade
 
     deltas = (uiv.DOC_DIR / "0.9.0-to-1.0.0-values-deltas.md").read_text(encoding="utf-8")
-    assert "- **curl** image `8.20.0 → 8.21.0` — pinned at 2 places in `values.yaml`." in deltas
+    assert "- **curl** image `8.20.0 → 8.21.0` — pinned at 1 place in `values.yaml`." in deltas
 
     manifest = (uiv.IMAGES_DIR / "images-1.0.0.yaml").read_text(encoding="utf-8")
     assert "#   1. curl 8.20.0 -> 8.21.0." in manifest
@@ -262,17 +264,18 @@ def commit_baseline_tag(tmp_path, baseline):
 
 
 CURL_VALUES_TMPL = (
+    "global:\n"
+    "  images:\n"
+    "    curl: &curlImage\n"
+    "      repository: curlimages/curl\n"
+    '      tag: "{version}@sha256:{digest}"\n'
     "keycloak-operator:\n"
     "  jobs:\n"
     "    ensureOperatorSa:\n"
-    "      image:\n"
-    "        repository: curlimages/curl\n"
-    '        tag: "{version}@sha256:{digest}"\n'
+    "      image: *curlImage\n"
     "zac:\n"
     "  global:\n"
-    "    curlImage:\n"
-    "      repository: curlimages/curl\n"
-    '      tag: "{version}@sha256:{digest}"\n'
+    "    curlImage: *curlImage\n"
 )
 
 
@@ -301,7 +304,7 @@ def test_main_removes_shared_image_docs_when_reset_back_to_baseline(uiv, tmp_pat
               "### curl 8.20.0 → 8.21.0\n\nblah\n")
     write_doc(uiv.DOC_DIR, "0.9.0-to-1.0.0-values-deltas.md",
               "# Values deltas — PodiumD 0.9.0 → 1.0.0\n\n"
-              "- **curl** image `8.20.0 → 8.21.0` — pinned at 2 places in `values.yaml`.\n")
+              "- **curl** image `8.20.0 → 8.21.0` — pinned at 1 place in `values.yaml`.\n")
     write_doc(uiv.IMAGES_DIR, "images-1.0.0.yaml",
               "# Baseline: podiumd 0.9.0.\n#\n# One change:\n#   1. curl 8.20.0 -> 8.21.0.\n#\n\n"
               "# curl — 8.20.0 -> 8.21.0\n"
@@ -316,7 +319,7 @@ def test_main_removes_shared_image_docs_when_reset_back_to_baseline(uiv, tmp_pat
     # same digest, exactly like it would outside this mocked test.
     monkeypatch.setattr(image_version, "registry_tag_exists",
                          lambda host, repo, tag: (True, "sha256:" + "a" * 64))
-    monkeypatch.setattr("sys.argv", ["update-image-version", "curl", "8.20.0"])
+    monkeypatch.setattr("sys.argv", ["update-image-version", "MULTIPLE", "curl", "8.20.0"])
 
     uiv.main()
 
@@ -362,12 +365,12 @@ def test_main_collapses_repeated_shared_image_bump_into_single_baseline_entry(ui
     import lib.image_version as image_version
     monkeypatch.setattr(image_version, "registry_tag_exists",
                          lambda host, repo, tag: (True, "sha256:" + "b" * 64))
-    monkeypatch.setattr("sys.argv", ["update-image-version", "curl", "8.21.0"])
+    monkeypatch.setattr("sys.argv", ["update-image-version", "MULTIPLE", "curl", "8.21.0"])
     uiv.main()
 
     monkeypatch.setattr(image_version, "registry_tag_exists",
                          lambda host, repo, tag: (True, "sha256:" + "c" * 64))
-    monkeypatch.setattr("sys.argv", ["update-image-version", "curl", "8.22.0"])
+    monkeypatch.setattr("sys.argv", ["update-image-version", "MULTIPLE", "curl", "8.22.0"])
     uiv.main()
 
     upgrade = (uiv.DOC_DIR / "0.9.0-to-1.0.0-upgrade.md").read_text(encoding="utf-8")
@@ -380,7 +383,7 @@ def test_main_collapses_repeated_shared_image_bump_into_single_baseline_entry(ui
     deltas = (uiv.DOC_DIR / "0.9.0-to-1.0.0-values-deltas.md").read_text(encoding="utf-8")
     assert deltas.count("**curl**") == 1
     assert "8.21.0" not in deltas
-    assert "- **curl** image `8.20.0 → 8.22.0` — pinned at 2 places in `values.yaml`." in deltas
+    assert "- **curl** image `8.20.0 → 8.22.0` — pinned at 1 place in `values.yaml`." in deltas
 
     manifest = (uiv.IMAGES_DIR / "images-1.0.0.yaml").read_text(encoding="utf-8")
     assert "One change:" in manifest

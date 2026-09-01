@@ -1,5 +1,6 @@
-"""lib.image_version — image_basename, find_matches, check_basename_version,
-update_image_version, resolve_basename. No network needed: lib.registry.
+"""lib.image_version — image_basename, find_matches, find_matches_in_scope,
+resolve_scoped_matches, check_basename_version, update_image_version,
+basenames_under_scope, resolve_basename. No network needed: lib.registry.
 registry_tag_exists is monkeypatched wherever a live fetch would otherwise
 happen."""
 import pytest
@@ -92,6 +93,56 @@ def test_find_matches_ignores_unresolved_repository(libimageversion):
     assert libimageversion.find_matches(lines, "openzaak") == []
 
 
+# --- find_matches_in_scope / resolve_scoped_matches ---
+
+def test_find_matches_in_scope_finds_pins_under_key(libimageversion):
+    lines = [
+        "a:", "  image:", "    repository: curlimages/curl",
+        '    tag: "8.21.0@sha256:' + "a" * 64 + '"',
+        "b:", "  image:", "    repository: curlimages/curl",
+        '    tag: "8.21.0@sha256:' + "a" * 64 + '"',
+    ]
+    matches = libimageversion.find_matches_in_scope(lines, "a", "curl")
+    assert [m["line"] for m in matches] == [4]
+
+
+def test_resolve_scoped_matches_multiple_key_translates_to_global_scope(libimageversion):
+    """MULTIPLE_KEY (release-table.csv's own convention for a base image
+    shared across several unrelated components) resolves against
+    values.yaml's global.images scope, not a literal "MULTIPLE" key."""
+    lines = [
+        "global:",
+        "  images:",
+        "    curl:", "      repository: curlimages/curl",
+        '      tag: "8.21.0@sha256:' + "a" * 64 + '"',
+    ]
+    matches = libimageversion.resolve_scoped_matches(lines, libimageversion.MULTIPLE_KEY, "curl")
+    assert [m["line"] for m in matches] == [5]
+
+
+def test_resolve_scoped_matches_no_match_under_key_raises(libimageversion):
+    lines = [
+        "a:", "  image:", "    repository: curlimages/curl",
+        '    tag: "8.21.0@sha256:' + "a" * 64 + '"',
+    ]
+    with pytest.raises(SystemExit, match="no image pin with basename 'curl' found under 'b'"):
+        libimageversion.resolve_scoped_matches(lines, "b", "curl")
+
+
+def test_resolve_scoped_matches_ambiguous_repository_under_key_raises(libimageversion):
+    """Two DISTINCT repositories sharing a basename under the SAME
+    scope key can't be identified uniquely from <key> <basename> alone —
+    an error, never a guess."""
+    lines = [
+        "a:", "  image:", "    repository: org-one/curl",
+        '    tag: "1.0.0@sha256:' + "a" * 64 + '"',
+        "  sidecar:", "    image:", "      repository: org-two/curl",
+        '      tag: "1.0.0@sha256:' + "a" * 64 + '"',
+    ]
+    with pytest.raises(SystemExit, match="'curl' under 'a' is not unique"):
+        libimageversion.resolve_scoped_matches(lines, "a", "curl")
+
+
 # --- check_basename_version ---
 
 def test_check_basename_version_reports_found(libimageversion, monkeypatch):
@@ -104,7 +155,7 @@ def test_check_basename_version_reports_found(libimageversion, monkeypatch):
     monkeypatch.setattr(libimageversion, "registry_tag_exists",
                          lambda host, repo, tag: (True, "sha256:" + "b" * 64))
 
-    results = libimageversion.check_basename_version(lines, "pabc-api", "1.1.2")
+    results = libimageversion.check_basename_version(lines, "pabc", "pabc-api", "1.1.2")
 
     assert results == [{
         "repository": "ghcr.io/platform-autorisatie-beheer-component/pabc-api",
@@ -122,7 +173,7 @@ def test_check_basename_version_reports_missing(libimageversion, monkeypatch):
     ]
     monkeypatch.setattr(libimageversion, "registry_tag_exists", lambda host, repo, tag: (False, None))
 
-    results = libimageversion.check_basename_version(lines, "pabc-api", "9.9.9")
+    results = libimageversion.check_basename_version(lines, "pabc", "pabc-api", "9.9.9")
 
     assert results[0]["exists"] is False
     assert results[0]["digest"] is None
@@ -130,13 +181,15 @@ def test_check_basename_version_reports_missing(libimageversion, monkeypatch):
 
 def test_check_basename_version_dedupes_shared_repository(libimageversion, monkeypatch):
     """The same basename pinned twice under the SAME repository (e.g.
-    curl used by several unrelated init containers) only needs one
-    registry lookup, same as update_image_version's own dedup."""
+    curl, shared via values.yaml's global.images anchor block) only
+    needs one registry lookup, same as update_image_version's own
+    dedup."""
     lines = [
-        "a:", "  image:", "    repository: curlimages/curl",
-        '    tag: "8.21.0@sha256:' + "a" * 64 + '"',
-        "b:", "  sub:", "    image:", "      repository: curlimages/curl",
+        "global:",
+        "  a:", "    image:", "      repository: curlimages/curl",
         '      tag: "8.21.0@sha256:' + "a" * 64 + '"',
+        "  b:", "    sub:", "      image:", "        repository: curlimages/curl",
+        '        tag: "8.21.0@sha256:' + "a" * 64 + '"',
     ]
     calls = []
 
@@ -146,15 +199,15 @@ def test_check_basename_version_dedupes_shared_repository(libimageversion, monke
 
     monkeypatch.setattr(libimageversion, "registry_tag_exists", fake_registry_tag_exists)
 
-    results = libimageversion.check_basename_version(lines, "curl", "8.22.0")
+    results = libimageversion.check_basename_version(lines, libimageversion.MULTIPLE_KEY, "curl", "8.22.0")
 
     assert len(results) == 1
     assert len(calls) == 1
 
 
 def test_check_basename_version_no_match_raises(libimageversion):
-    with pytest.raises(SystemExit, match="no image pin with basename 'curl' found"):
-        libimageversion.check_basename_version([], "curl", "8.22.0")
+    with pytest.raises(SystemExit, match="no image pin with basename 'curl' found under 'a'"):
+        libimageversion.check_basename_version([], "a", "curl", "8.22.0")
 
 
 # --- update_image_version ---
@@ -168,7 +221,7 @@ def test_update_image_version_single_match(libimageversion, tmp_path, monkeypatc
     ))
     monkeypatch.setattr(libimageversion, "registry_tag_exists",
                          lambda host, repo, tag: (True, "sha256:" + "b" * 64))
-    changes = libimageversion.update_image_version(values_path, "pabc-api", "1.1.2")
+    changes = libimageversion.update_image_version(values_path, "pabc", "pabc-api", "1.1.2")
     assert len(changes) == 1
     assert changes[0] == {
         "line": 4, "repository": "ghcr.io/platform-autorisatie-beheer-component/pabc-api",
@@ -179,17 +232,19 @@ def test_update_image_version_single_match(libimageversion, tmp_path, monkeypatc
 
 
 def test_update_image_version_updates_all_shared_occurrences(libimageversion, tmp_path, monkeypatch):
-    """curlimages/curl pinned at two unrelated places — both must update,
+    """curlimages/curl, shared via values.yaml's global.images anchor
+    block, pinned at two unrelated places under it — both must update,
     with only one registry lookup between them."""
     values_path = write_values(tmp_path, (
-        "images:\n"
-        "  curl: &curlImage\n"
-        "    repository: curlimages/curl\n"
-        f'    tag: "8.21.0@sha256:{"a" * 64}"\n'
-        "kiss:\n"
-        "  indexTemplateImage:\n"
-        "    repository: curlimages/curl\n"
-        f'    tag: "8.21.0@sha256:{"a" * 64}"\n'
+        "global:\n"
+        "  images:\n"
+        "    curl: &curlImage\n"
+        "      repository: curlimages/curl\n"
+        f'      tag: "8.21.0@sha256:{"a" * 64}"\n'
+        "  kiss:\n"
+        "    indexTemplateImage:\n"
+        "      repository: curlimages/curl\n"
+        f'      tag: "8.21.0@sha256:{"a" * 64}"\n'
     ))
     calls = []
 
@@ -198,8 +253,8 @@ def test_update_image_version_updates_all_shared_occurrences(libimageversion, tm
         return True, "sha256:" + "c" * 64
 
     monkeypatch.setattr(libimageversion, "registry_tag_exists", fake_registry_tag_exists)
-    changes = libimageversion.update_image_version(values_path, "curl", "8.22.0")
-    assert [c["line"] for c in changes] == [4, 8]
+    changes = libimageversion.update_image_version(values_path, libimageversion.MULTIPLE_KEY, "curl", "8.22.0")
+    assert [c["line"] for c in changes] == [5, 9]
     assert len(calls) == 1  # deduped: same repository, one lookup
     text = values_path.read_text(encoding="utf-8")
     assert text.count(f'8.22.0@sha256:{"c" * 64}') == 2
@@ -207,8 +262,8 @@ def test_update_image_version_updates_all_shared_occurrences(libimageversion, tm
 
 def test_update_image_version_no_match_raises(libimageversion, tmp_path):
     values_path = write_values(tmp_path, "a:\n  image:\n    repository: org/repo\n    tag: \"1.0.0@sha256:" + "a" * 64 + "\"\n")
-    with pytest.raises(SystemExit, match="no image pin with basename 'curl'"):
-        libimageversion.update_image_version(values_path, "curl", "8.22.0")
+    with pytest.raises(SystemExit, match="no image pin with basename 'curl' found under 'a'"):
+        libimageversion.update_image_version(values_path, "a", "curl", "8.22.0")
 
 
 def test_update_image_version_already_at_target_is_noop(libimageversion, tmp_path, monkeypatch):
@@ -224,7 +279,7 @@ def test_update_image_version_already_at_target_is_noop(libimageversion, tmp_pat
 
     monkeypatch.setattr(libimageversion, "registry_tag_exists", fail_if_called)
     original = values_path.read_text(encoding="utf-8")
-    changes = libimageversion.update_image_version(values_path, "pabc-api", "1.1.2")
+    changes = libimageversion.update_image_version(values_path, "pabc", "pabc-api", "1.1.2")
     assert changes == []
     assert values_path.read_text(encoding="utf-8") == original
 
@@ -234,19 +289,20 @@ def test_update_image_version_only_updates_stale_occurrence(libimageversion, tmp
     the other actually gets rewritten, but the registry is still queried
     (needed for the one that IS changing)."""
     values_path = write_values(tmp_path, (
-        "a:\n"
-        "  image:\n"
-        "    repository: curlimages/curl\n"
-        f'    tag: "8.22.0@sha256:{"a" * 64}"\n'
-        "b:\n"
-        "  image:\n"
-        "    repository: curlimages/curl\n"
-        f'    tag: "8.21.0@sha256:{"a" * 64}"\n'
+        "global:\n"
+        "  a:\n"
+        "    image:\n"
+        "      repository: curlimages/curl\n"
+        f'      tag: "8.22.0@sha256:{"a" * 64}"\n'
+        "  b:\n"
+        "    image:\n"
+        "      repository: curlimages/curl\n"
+        f'      tag: "8.21.0@sha256:{"a" * 64}"\n'
     ))
     monkeypatch.setattr(libimageversion, "registry_tag_exists",
                          lambda host, repo, tag: (True, "sha256:" + "c" * 64))
-    changes = libimageversion.update_image_version(values_path, "curl", "8.22.0")
-    assert [c["line"] for c in changes] == [8]
+    changes = libimageversion.update_image_version(values_path, libimageversion.MULTIPLE_KEY, "curl", "8.22.0")
+    assert [c["line"] for c in changes] == [9]
 
 
 def test_update_image_version_raises_when_version_missing_upstream(libimageversion, tmp_path, monkeypatch):
@@ -259,35 +315,32 @@ def test_update_image_version_raises_when_version_missing_upstream(libimageversi
     monkeypatch.setattr(libimageversion, "registry_tag_exists", lambda host, repo, tag: (False, None))
     original = values_path.read_text(encoding="utf-8")
     with pytest.raises(SystemExit, match="not found upstream"):
-        libimageversion.update_image_version(values_path, "pabc-api", "9.9.9")
+        libimageversion.update_image_version(values_path, "pabc", "pabc-api", "9.9.9")
     assert values_path.read_text(encoding="utf-8") == original  # nothing written on failure
 
 
-def test_update_image_version_atomic_across_multiple_repositories(libimageversion, tmp_path, monkeypatch):
-    """Two DIFFERENT repositories sharing a basename (unusual, but
-    possible) — if the second one's version doesn't exist upstream,
-    nothing is written for either, even though the first one's lookup
-    already succeeded."""
+def test_update_image_version_ambiguous_repositories_under_key_raises(libimageversion, tmp_path, monkeypatch):
+    """Two DISTINCT repositories sharing a basename under the SAME scope
+    key can't be identified uniquely (see resolve_scoped_matches) —
+    rejected before any registry lookup or write happens."""
     values_path = write_values(tmp_path, (
         "a:\n"
         "  image:\n"
         "    repository: org-one/curl\n"
         f'    tag: "1.0.0@sha256:{"a" * 64}"\n'
-        "b:\n"
-        "  image:\n"
-        "    repository: org-two/curl\n"
-        f'    tag: "1.0.0@sha256:{"a" * 64}"\n'
+        "  sidecar:\n"
+        "    image:\n"
+        "      repository: org-two/curl\n"
+        f'      tag: "1.0.0@sha256:{"a" * 64}"\n'
     ))
 
-    def fake_registry_tag_exists(host, repo, tag):
-        if repo == "org-two/curl":
-            return False, None
-        return True, "sha256:" + "c" * 64
+    def fail_if_called(*a, **kw):
+        raise AssertionError("registry should not be queried when the image isn't identified uniquely")
 
-    monkeypatch.setattr(libimageversion, "registry_tag_exists", fake_registry_tag_exists)
+    monkeypatch.setattr(libimageversion, "registry_tag_exists", fail_if_called)
     original = values_path.read_text(encoding="utf-8")
-    with pytest.raises(SystemExit):
-        libimageversion.update_image_version(values_path, "curl", "2.0.0")
+    with pytest.raises(SystemExit, match="'curl' under 'a' is not unique"):
+        libimageversion.update_image_version(values_path, "a", "curl", "2.0.0")
     assert values_path.read_text(encoding="utf-8") == original
 
 
