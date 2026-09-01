@@ -8,7 +8,12 @@ charts/podiumd/Chart.yaml + values.yaml, and report:
     disagrees with what's actually pinned right now
   - missing from release-table.csv: a real Chart.yaml dependency with no
     row at all, or an image pinned in values.yaml under a tracked
-    component's own scope that no row's image_basename mentions
+    component's own scope that no row's image_basename mentions — each
+    finding's own second line names the Confluence "... component
+    versies" table to add it to (see confluence_table_hint), plus
+    exactly what the new row needs to say (see missing_image_hint) for
+    export-confluence-release-table's own component/image matching to
+    resolve it right back to this same component/basename next time
   - missing from Chart.yaml/values.yaml: a row whose resolved "component"
     isn't a Chart.yaml dependency (or values.yaml top-level key, for a
     component with no separate Helm chart, e.g. frankgateway) anymore, or
@@ -168,6 +173,59 @@ def check_special_case_version(row, findings, actual, label):
         report_mismatch(findings, "IMAGE", row, label, target, actual, "values.yaml")
 
 
+# Printed as a "missing_from_release_table" finding's own second line
+# (see print_report) whenever no Confluence section could be inferred
+# for it — a brand-new Chart.yaml dependency has no existing
+# release-table.csv row at all to read a "section" value from.
+GENERIC_TABLE_HINT = "whichever table fits (Product/Common Ground/Overige/Technische component versies)"
+
+
+def confluence_table_hint(rows, component):
+    """Which Confluence table (e.g. '"Technische component versies"
+    table') a "missing from release-table.csv" finding should actually
+    be added to — read off the "section" column (see export-confluence-
+    release-table's CSV_HEADER) of any one of `rows`, since every row
+    for the same component/MULTIPLE_KEY is exported under the same
+    table. Falls back to GENERIC_TABLE_HINT when `rows` is empty and no
+    better guess applies — except MULTIPLE_KEY, where every values.yaml
+    global.images entry is, by convention, exported under "Technische"
+    (see module docstring), a safe guess even with zero existing
+    "MULTIPLE" rows to read a section from at all."""
+    if rows:
+        return f'"{rows[0]["section"]} component versies" table'
+    if component == MULTIPLE_KEY:
+        return '"Technische component versies" table'
+    return GENERIC_TABLE_HINT
+
+
+def missing_image_hint(rows, scope_key, component, basename, versions):
+    """Second line for an "[IMAGE] ... not tracked" finding: which
+    Confluence table to add a row to (see confluence_table_hint), and
+    what that row needs to say so export-confluence-release-table's own
+    resolve_image_basenames/component_and_alias resolve it right back
+    to this same component/basename on the next export — a human is
+    free to phrase the row's actual "Name" however reads best (e.g.
+    "ZAC Gotenberg", not literally "gotenberg"); the one hard
+    requirement, spelled out here so a re-export doesn't silently leave
+    it unresolved again, is that the text contain `basename` (matched by
+    substring — see lib "_related" in export-confluence-release-table),
+    and — for a real component, not MULTIPLE — that "Used by" contain
+    `scope_key` (already the human-facing identifier used everywhere
+    else, e.g. "zac", "openklant"). A MULTIPLE row (a values.yaml
+    global.images.* image, shared across components) resolves purely
+    from its own Name relating to the image key itself — no "Used by"
+    needed, though naming a consuming component there is still good
+    documentation.
+    """
+    where = confluence_table_hint(rows, component)
+    version_text = ", ".join(sorted(versions))
+    if component == MULTIPLE_KEY:
+        what = f'a Name containing "{basename}"'
+    else:
+        what = f'"Used by" containing "{scope_key}" and a Name containing "{basename}"'
+    return f"Confluence: add a row to the {where} — {what} (currently pinned at {version_text})"
+
+
 def check_images(scope_key, component, rows, lines, findings, values):
     actual_basenames = basenames_under_scope(lines, scope_key)
     csv_basenames = set()
@@ -224,9 +282,11 @@ def check_images(scope_key, component, rows, lines, findings, values):
 
     for basename in actual_basenames:
         if basename not in csv_basenames:
+            versions = {p["version"] for p in actual_basenames[basename]}
+            hint = missing_image_hint(rows, scope_key, component, basename, versions)
             findings["missing_from_release_table"].append(
                 f"[IMAGE] '{scope_key}' image '{basename}' is pinned in values.yaml but not tracked "
-                f"in release-table.csv"
+                f"in release-table.csv\n      {hint}"
             )
 
 
@@ -262,8 +322,11 @@ def compare(rows, deps, values, lines):
         rows_for_component = rows_by_component.get(component, [])
         if not rows_for_component:
             alias_suffix = f" (alias '{dep['alias']}')" if dep.get("alias") else ""
+            identifier = dep.get("alias") or component
             findings["missing_from_release_table"].append(
-                f"[CHART] Chart.yaml dependency '{component}'{alias_suffix} has no release-table.csv row"
+                f"[CHART] Chart.yaml dependency '{component}'{alias_suffix} has no release-table.csv row\n"
+                f'      Confluence: add a row to the {GENERIC_TABLE_HINT} — Name or "Used by" containing '
+                f'"{identifier}" (no existing row for this component to read a section from)'
             )
             continue
         check_chart_version(dep, rows_for_component, findings)
