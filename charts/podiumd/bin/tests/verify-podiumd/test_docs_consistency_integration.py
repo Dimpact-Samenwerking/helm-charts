@@ -174,6 +174,28 @@ def test_undocumented_new_component_is_caught_everywhere(vp, chart_repo, capsys)
     assert "openformulieren" in out and "has no entry in images-4.9.0.yaml" in out
 
 
+def test_images_manifest_format_issue_does_not_swallow_other_mismatches(vp, chart_repo, capsys):
+    """A format problem in images-<target>.yaml (e.g. a stale header
+    comment) must not discard mismatches an earlier, completely unrelated
+    check already found — like a component's own row going unmatched (see
+    match_dependency) and so never being counted as covering a change
+    already recorded in Chart.yaml/values.yaml. Both must be reported
+    together in the same run, not one hiding the other."""
+    doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
+    doc.write_text(doc.read_text().replace("ZAC (Zaakafhandelcomponent)", "Some Unrelated Name"))
+
+    images_path = chart_repo / "docs" / "images" / "images-4.9.0.yaml"
+    images_path.write_text(images_path.read_text().replace("Baseline: podiumd 4.8.5", "Baseline: podiumd 9.9.9"))
+
+    ok, detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
+    out = capsys.readouterr().out
+
+    assert ok is False
+    assert 'component "zac" changed vs' in out
+    assert 'has no row in the "Component versions" table' in out
+    assert 'upgrade_docs_baseline line says "9.9.9", expected "4.8.5"' in out
+
+
 def test_component_changed_with_no_key_diffs_still_needs_values_deltas_mention(vp, chart_repo):
     """Even when a component's app/chart bump doesn't touch any values.yaml
     schema (no keys added/removed/renamed), it must still be mentioned

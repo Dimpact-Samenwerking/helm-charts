@@ -468,20 +468,30 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
 
     images_path = chart_dir / "docs" / "images" / f"images-{podiumd_version}.yaml"
 
+    # Whether the manifest's own entries are safe to interpret at all (valid
+    # YAML, a list of dicts with the required keys — see
+    # check_images_manifest_format) — False skips the entry-by-entry checks
+    # below (they'd have nothing well-formed to read), but must NOT discard
+    # mismatches already found above (e.g. a missing "Component versions"
+    # table row) the way an early return here used to: those are completely
+    # unrelated to this manifest's own formatting, and a human fixing a
+    # header-comment typo shouldn't have to re-run this check a second time
+    # just to learn about them.
+    images_format_ok = True
     if is_bare_version:
         format_issues = check_images_manifest_format(
             images_path, upgrade_docs_baseline, podiumd_version, deps, values,
             baseline_values if baseline_ref else {}
         )
         if format_issues:
-            print(f"FOUND {len(format_issues)} issue(s) with the images manifest "
-                  f"(checked before any other check on it):")
-            for issue in format_issues:
-                print(" ", issue)
-            return False, f"{len(format_issues)} images-manifest issue(s)"
+            images_format_ok = False
+            checked.append(images_path.name)
+            mismatches.extend(format_issues)
 
     if not images_path.is_file():
         print(f"WARNING: no images manifest at {images_path.name} — skipping images-manifest check")
+    elif not images_format_ok:
+        pass  # format issue(s) already recorded above; entries aren't safely interpretable until fixed
     else:
         checked.append(images_path.name)
         covered_paths = set()
