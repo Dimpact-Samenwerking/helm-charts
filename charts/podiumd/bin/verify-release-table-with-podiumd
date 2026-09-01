@@ -180,6 +180,9 @@ def check_special_case_version(row, findings, actual, label):
 GENERIC_TABLE_HINT = "whichever table fits (Product/Common Ground/Overige/Technische component versies)"
 
 
+TECHNISCHE_TABLE_HINT = '"Technische component versies"'
+
+
 def confluence_table_hint(rows, component):
     """Which Confluence table (e.g. '"Technische component versies"') a
     "missing from release-table.csv" finding should actually be added
@@ -194,7 +197,7 @@ def confluence_table_hint(rows, component):
     if rows:
         return f'"{rows[0]["section"]} component versies"'
     if component == MULTIPLE_KEY:
-        return '"Technische component versies"'
+        return TECHNISCHE_TABLE_HINT
     return GENERIC_TABLE_HINT
 
 
@@ -208,14 +211,20 @@ def missing_image_hint(rows, scope_key, component, basename, versions):
     "ZAC Gotenberg", not literally "gotenberg"); the one hard
     requirement, spelled out here so a re-export doesn't silently leave
     it unresolved again, is that the text contain `basename` (matched by
-    substring — see lib "_related" in export-confluence-release-table),
-    and — for a real component, not MULTIPLE — that "Used by" contain
-    `scope_key` (already the human-facing identifier used everywhere
-    else, e.g. "zac", "openklant"). A MULTIPLE row (a values.yaml
+    substring — see lib "_related" in export-confluence-release-table).
+
+    "Used by" is only ever mentioned when the target table is
+    "Technische component versies" — the ONE table that actually has a
+    "Used by" column at all (see export-confluence-release-table's own
+    module docstring: "Technische component versies" tables use "Used
+    by"; Product/Common Ground/Overige use "Ontwikkelpartij" instead,
+    which this export never derives a component from — see
+    component_and_alias's own used_by-or-name fallback). Mentioning it
+    for a table that doesn't have it would just tell a human to add a
+    column that isn't there. A MULTIPLE row (a values.yaml
     global.images.* image, shared across components) resolves purely
-    from its own Name relating to the image key itself — no "Used by"
-    needed, though naming a consuming component there is still good
-    documentation.
+    from its own Name relating to the image key itself, so it never
+    needs "Used by" either, even on the Technische table.
 
     `versions` are the image's own tag(s) — always an App version (see
     CSV_HEADER's own source/target_version_APP), never a Helm chart
@@ -228,10 +237,10 @@ def missing_image_hint(rows, scope_key, component, basename, versions):
     way to tell which sub-column this value actually belongs in."""
     where = confluence_table_hint(rows, component)
     version_text = ", ".join(sorted(versions))
-    if component == MULTIPLE_KEY:
-        what = f'Name containing "{basename}"'
-    else:
+    if component != MULTIPLE_KEY and where == TECHNISCHE_TABLE_HINT:
         what = f'"Used by": "{scope_key}", Name containing "{basename}"'
+    else:
+        what = f'Name containing "{basename}"'
     return f"Confluence: add row to {where} — {what}, App version (currently) {version_text}"
 
 
