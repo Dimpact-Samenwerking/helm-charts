@@ -36,18 +36,22 @@ trip:
      step 12 regardless: that step's own dependency rebuild (rm -rf charts/
      + helm dependency update) would otherwise wipe the evidence before
      this check ever saw it (see lib.vendored_tgz_check)
-  8. release-baseline (if present — older releases and fresh checkouts
-     predate this file, so its absence isn't a failure) resolves to an
-     actual podiumd-<baseline> tag or feature/podiumd-<baseline> branch —
-     same resolve_baseline_ref check create-podiumd-version and
-     change-podiumd-baseline refuse to write an unresolvable baseline
-     with, run here too since either one recording a bad value on disk
-     wouldn't otherwise be caught until something actually reads it
+  8. release-baseline.yaml's two baselines (upgrade_docs and
+     release_table — see lib.chart for what each means) each resolve to
+     an actual podiumd-<baseline> tag or feature/podiumd-<baseline>
+     branch — a missing file or missing key is itself a failure now
+     (this file is committed with real values from day one, unlike the
+     single release-baseline file it replaced), same as a present-but-
+     unresolvable one. Same resolve_baseline_ref check create-podiumd-
+     version and change-podiumd-baseline refuse to write an unresolvable
+     baseline with, run here too since either one recording a bad value
+     on disk wouldn't otherwise be caught until something actually
+     reads it
   9. component versions in Chart.yaml + values.yaml match the matching
      docs/_UPGRADE_PATHS/*-to-<version>-upgrade.md and docs/images/images-<version>.yaml
      (any component the doc lists, not a hardcoded set) — and, given
-     release-baseline's content as the baseline (step 8, above — no
-     separate flag), every component that actually changed vs the baseline (chart version,
+     release-baseline.yaml's upgrade_docs content as the baseline (step
+     8, above — no separate flag), every component that actually changed vs the baseline (chart version,
      app/image tag, added, or removed) has a row in that upgrade.md, a
      mention in the matching values-deltas.md, and — if its image tag
      changed — an entry in images-<version>.yaml, even if no doc mentions
@@ -187,10 +191,10 @@ module (UTF-8/BOM, duplicate-key scan, release-baseline, lint/render).
 
 Usage:
     verify-podiumd
-        # if charts/podiumd/release-baseline exists, its content is also
-        # used to check the doc's SOURCE (left-hand) versions for each
-        # changed component against the actual baseline release — see
-        # step 9's docstring, above.
+        # if charts/podiumd/release-baseline.yaml's upgrade_docs key
+        # exists, its content is also used to check the doc's SOURCE
+        # (left-hand) versions for each changed component against the
+        # actual baseline release — see step 9's docstring, above.
     verify-podiumd --skip=helm-lint,full-render
         # skip one or more steps entirely, comma-separated, no spaces
         # (shown as SKIP, never a failure) — useful to iterate faster on a

@@ -69,32 +69,19 @@ def chart_version(chart_yaml_path):
     return str(load_yaml(chart_yaml_path)["version"])
 
 
-def release_baseline(chart_dir):
-    """The baseline recorded in chart_dir/release-baseline by
-    create-podiumd-version/change-podiumd-baseline, or None if that file
-    doesn't exist yet (older releases and fresh checkouts predate it) —
-    the shared read side every other script (verify-podiumd's release-
-    baseline check and its Docs consistency default, create-doc-version's
-    and fix-doc-consistency's default argument, change-podiumd-baseline's
-    old-value display, update-component-version's and update-image-
-    version's own doc updates) reads through, so they see the same value
-    the same way."""
-    baseline_file = chart_dir / "release-baseline"
-    if not baseline_file.is_file():
-        return None
-    return baseline_file.read_text(encoding="utf-8").strip()
-
-
 RELEASE_BASELINES_FILE_NAME = "release-baseline.yaml"
 
 
 def _release_baselines(chart_dir):
-    """The parsed contents of chart_dir/release-baseline.yaml (the
-    successor to release_baseline()/release-baseline above — see that
-    file's own header comment for why podiumd now needs two baselines
-    instead of one), or {} if the file doesn't exist yet. Not a public
-    accessor itself: callers want upgrade_docs_baseline/
-    release_table_baseline below, which each read one specific key."""
+    """The parsed contents of chart_dir/release-baseline.yaml — upgrade_
+    docs (the incremental baseline _UPGRADE_PATHS/*.md and docs/images/
+    images-<target>.yaml are written against) and release_table (the
+    cumulative baseline release-table.csv was last generated against;
+    see upgrade_docs_baseline/release_table_baseline below for why
+    podiumd needs two baselines instead of one) — or {} if the file
+    doesn't exist yet. Not a public accessor itself: callers want
+    upgrade_docs_baseline/release_table_baseline below, which each read
+    one specific key."""
     path = chart_dir / RELEASE_BASELINES_FILE_NAME
     if not path.is_file():
         return {}

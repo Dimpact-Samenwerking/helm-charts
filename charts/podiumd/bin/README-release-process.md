@@ -70,7 +70,7 @@ python3 -m venv .venv
 
 ### When release is rebased on a different baseline
 - rebase the branch on the new baseline
-- run `change-podiumd-baseline` to update `charts/podiumd/release-baseline` and rebase the docs
+- run `change-podiumd-baseline` to update `charts/podiumd/release-baseline.yaml`'s `upgrade_docs` key and rebase the docs
 - run `verify-podiumd` to check consistency, if not ok, fix the issues
 - commit+push the changes
 
@@ -80,7 +80,7 @@ A component consists of a helm-chart and a container image.
 - create a branch from the release branch (`podiumd-<version>`), name it `podiumd-<version>-<my_changes>`
 - run `query-release-table vendor <name>` or `query-release-table component <name>`, to show changes
 - per component:
-    - run `show-component-baseline-version` to show the baseline version, check it in confluence
+    - run `show-component-baseline-version` to show both baseline versions, check them in confluence
     - run `update-component-version <component> <app-version> <helm-version>` to update the app+helm version using the queried data
     - check change docs from the component and add relevant changes to the update docs 
     - run `verify-podiumd` to check consistency, if not ok, fix the issues
@@ -93,7 +93,7 @@ This updates just a container image version in a release.
 - create a branch from the release branch (`podiumd-<version>`), name it `podiumd-<version>-<my_changes>`
 - run `query-release-table section <overige|technische>` or `query-release-table component <name>`, to show changes
 - per images:
-    - run `show-image-baseline-version` to show the baseline version, check it in confluence
+    - run `show-image-baseline-version` to show both baseline versions, check them in confluence
     - run `update-image-version <image> <version>` to update the app (= image) version using the queried data
     - run `verify-podiumd` to check consistency, if not ok, fix the issues
     - commit+push the changes
@@ -126,9 +126,9 @@ Notes:
 - tools support `--help`
 
 Tools:
-- `change-podiumd-baseline`: change the baseline recorded in `charts/podiumd/release-baseline` and rebase the docs onto it (runs `fix-doc-consistency`, then `fix-helm-doc`), given a baseline that must resolve to an existing `podiumd-<version>` tag or `feature/podiumd-<version>` branch
+- `change-podiumd-baseline`: change the `upgrade_docs` baseline recorded in `charts/podiumd/release-baseline.yaml` and rebase the docs onto it (runs `fix-doc-consistency`, then `fix-helm-doc`), given a baseline that must resolve to an existing `podiumd-<version>` tag or `feature/podiumd-<version>` branch — never touches `release_table` (that only ever changes via `create-podiumd-version`)
 - `create-doc-version`: create the standard docs for the current target version, for whichever don't already exist — refuses if docs already exist under a different baseline (use `fix-doc-consistency` for that instead)
-- `create-podiumd-version`: uses version in `charts/podiumd/Chart.yaml` as baseline release, update version in `Chart.yaml`, record the baseline in `charts/podiumd/release-baseline` and create upgrade docs (runs `create-doc-version`)
+- `create-podiumd-version`: uses version in `charts/podiumd/Chart.yaml` as the outgoing baseline release, updates version in `Chart.yaml`, records that baseline in `charts/podiumd/release-baseline.yaml` and creates upgrade docs (runs `create-doc-version`) — refuses unless the outgoing→target jump is a single patch increment (records `upgrade_docs` only) or a single minor increment (records both `upgrade_docs` and `release_table`); major-version bumps and skipped versions aren't supported
 - `export-confluence-release-table`: fetch release data from confluence and store it in `charts/podiumd/release-table.csv`
 - `fix-doc-consistency`: given a new baseline, rebases doc filenames and components and images in them onto it (creates the standard docs fresh instead, for whichever were never scaffolded under any baseline at all)
 - `fix-helm-doc`: re-generate `charts/podiumd/README.md` using `helm-docs`
@@ -141,8 +141,8 @@ Tools:
 - `list-podiumd-images`: list images in `charts/podiumd`
 - `query-release-table`: query release data from `charts/podiumd/release-table.csv` by section, vendor, component
 - `render-podiumd`: outputs a rendered chart, so that line-numbers in output of verify-podiumd can be matched
-- `show-component-baseline-version`: get the Helm chart AND app image version(s) of a component, given the baseline version and the component name
-- `show-image-baseline-version`: get just the app image version(s) of a component, given the baseline version and the component name (same shape as `show-component-baseline-version`, minus the Helm chart version)
+- `show-component-baseline-version`: get the Helm chart AND app image version(s) of a component at BOTH `release-baseline.yaml` baselines (`upgrade_docs`, `release_table`), given the component name
+- `show-image-baseline-version`: get just the app image version(s) of a component at BOTH `release-baseline.yaml` baselines, given the component name (same shape as `show-component-baseline-version`, minus the Helm chart version)
 - `update-component-version`: update the version of component, given component name, app-version and helm-version
 - `update-image-version`: update the version of image, given image name and version
 - `verify-component-version`: verify that a component's helm-chart version AND app image version(s) exist, given component name, app-version and chart-version (same shape as `update-component-version`) — pre-flight check for that command
