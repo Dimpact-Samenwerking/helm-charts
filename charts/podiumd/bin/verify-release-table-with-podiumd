@@ -7,11 +7,18 @@ charts/podiumd/Chart.yaml + values.yaml, and report:
   - version mismatches: a row's target_version_helm/target_version_app
     disagrees with what's actually pinned right now
   - missing from release-table.csv: a real Chart.yaml dependency with no
-    row at all, or an image pinned in values.yaml under a tracked
-    component's own scope that no row's image_basename mentions — each
-    finding's own second line names the Confluence "... component
-    versies" table to add it to (see confluence_table_hint), plus
-    exactly what the new row needs to say (see missing_image_hint) for
+    row at all; a dependency that HAS row(s), but none of them has ever
+    recorded a Helm chart version at all (see chart_version_ever_
+    tracked — not merely "no change planned this cycle", which a blank
+    target_version_helm on an otherwise-tracked row already means; see
+    is_verifiable_target) — this catches a chart silently going
+    untracked, e.g. because its own row lives on "Technische component
+    versies", which has no Helm column at all to record one in; or an
+    image pinned in values.yaml under a tracked component's own scope
+    that no row's image_basename mentions — each finding's own second
+    line names the Confluence "... component versies" table to add it
+    to (see confluence_table_hint), plus exactly what the new row needs
+    to say (see missing_image_hint/missing_chart_version_hint) for
     export-confluence-release-table's own component/image matching to
     resolve it right back to this same component/basename next time
   - missing from Chart.yaml/values.yaml: a row whose resolved "component"
@@ -152,12 +159,48 @@ def report_mismatch(findings, tag, row, label, target, actual, actual_source):
     )
 
 
+def chart_version_ever_tracked(rows):
+    """True if ANY of `rows` has ever recorded a Helm chart version for
+    this component — either a verifiable target_version_helm (a bump is
+    planned, or was already made and is just waiting for the next
+    baseline advance), or a non-blank source_version_helm (recorded at
+    some past baseline, even if this cycle plans no change). False only
+    when EVERY row's Helm columns are blank across the board — this
+    dependency's chart version was never captured in release-table.csv
+    at all, not merely "no change planned this cycle" (which
+    is_verifiable_target's own blank-target convention is for)."""
+    return any(is_verifiable_target(row["target_version_helm"]) or row["source_version_helm"] for row in rows)
+
+
+def missing_chart_version_hint(rows, component):
+    """Second line for a "[CHART] ... never recorded a Helm chart
+    version" finding: the same table an image finding would point at
+    (see confluence_table_hint), called out explicitly when that table
+    structurally has no Helm sub-column at all (see lib.
+    confluence_tables.select_release_columns — true for "Technische
+    component versies" since 2026-09, see module docstring) — tracking
+    this dependency's chart version at all then needs a row on one of
+    the other three tables instead, not just filling in a cell that
+    doesn't exist on this one."""
+    where = confluence_table_hint(rows, component)
+    if where == TECHNISCHE_TABLE_HINT:
+        return (f"Confluence: {where} has no Helm column at all — if this chart's version should be "
+                f"tracked, it needs a row on Product/Common Ground/Overige component versies instead")
+    return f"Confluence: fill in the Helm version cell for this row on {where}"
+
+
 def check_chart_version(dep, rows, findings):
     actual = str(dep["version"])
     for row in rows:
         target = row["target_version_helm"]
         if is_verifiable_target(target) and target != actual:
             report_mismatch(findings, "CHART", row, dep["name"], target, actual, "Chart.yaml")
+    if not chart_version_ever_tracked(rows):
+        hint = missing_chart_version_hint(rows, dep["name"])
+        findings["missing_from_release_table"].append(
+            f"[CHART] Chart.yaml dependency '{dep['name']}' has release-table.csv row(s), but none "
+            f"records a Helm chart version\n      {hint}"
+        )
 
 
 def check_special_case_version(row, findings, actual, label):
