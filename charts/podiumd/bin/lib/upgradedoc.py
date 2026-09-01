@@ -195,12 +195,40 @@ def sort_changes_blocks(text, deps, values):
     return prefix + "".join(new_texts) + suffix, moved
 
 
+COMPONENT_VERSIONS_HEADING_RE = re.compile(r"^##\s+Component versions\b")
+
+
 def parse_upgrade_doc_rows(text):
-    """Every row of the "Component versions" table — whichever components
-    that release actually changed, not a fixed list. Each row carries its
-    0-based `line_index` in `text` for callers that need to rewrite it."""
+    """Every row of the "## Component versions (... vs ...)" table
+    SPECIFICALLY — scoped to that one section (the heading through the
+    next "## " heading, or EOF), never any OTHER pipe-table that happens
+    to appear elsewhere in the doc (e.g. a component's own subsection
+    listing an unrelated settings-migration table, whose own header cell
+    like "Setting" isn't literally "Component" either, so an unscoped
+    scan would treat it — and every data row under it — as a real
+    Component-versions row too, matching nothing in match_dependency and
+    getting reported as such). [] if the doc has no such heading at all.
+    Each row carries its 0-based `line_index` in `text` for callers that
+    need to rewrite it — whichever components that release actually
+    changed, not a fixed list."""
+    lines = text.splitlines()
+    start = None
+    for i, line in enumerate(lines):
+        if COMPONENT_VERSIONS_HEADING_RE.match(line.strip()):
+            start = i + 1
+            break
+    if start is None:
+        return []
+
+    end = len(lines)
+    for i in range(start, len(lines)):
+        if re.match(r"^##\s+\S", lines[i]):
+            end = i
+            break
+
     rows = []
-    for i, line in enumerate(text.splitlines()):
+    for i in range(start, end):
+        line = lines[i]
         if not line.strip().startswith("|"):
             continue
         cells = [c.strip() for c in line.strip().strip("|").split("|")]

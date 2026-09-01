@@ -46,7 +46,31 @@ def test_no_table_returns_empty_list(libdocsconsistency, tmp_path):
 
 def test_lines_that_are_not_full_table_rows_are_skipped(libdocsconsistency, tmp_path):
     doc = tmp_path / "doc.md"
-    doc.write_text("# Title\n\n| only two cells |\n| ZAC | 5.0.2 -> 5.4.3 | 1.0.297 |\n")
+    doc.write_text("# Title\n\n## Component versions (4.9.0 vs 4.8.5)\n\n"
+                    "| only two cells |\n| ZAC | 5.0.2 -> 5.4.3 | 1.0.297 |\n")
     rows = libdocsconsistency.parse_upgrade_doc_rows(doc)
     assert len(rows) == 1
     assert rows[0]["name"] == "ZAC"
+
+
+def test_only_scans_the_component_versions_section(libdocsconsistency, tmp_path):
+    """A pipe-table elsewhere in the doc (e.g. a component's own
+    subsection listing an unrelated settings-migration table) must never
+    be picked up as a "Component versions" row — see
+    strip_fenced_code_blocks's own sibling fix for the same class of
+    "one regex scans the whole document" bug."""
+    doc = tmp_path / "doc.md"
+    doc.write_text(
+        "# Upgrade guide\n\n"
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart |\n"
+        "| --- | --- | --- |\n"
+        "| ZAC (Zaakafhandelcomponent) | 5.0.2 → 5.4.3 | 1.0.297 (unchanged) |\n\n"
+        "## Open Zaak\n\n"
+        "| Setting | Old default | New default |\n"
+        "| --- | --- | --- |\n"
+        "| `LOG_REQUESTS` | `False` | `True` |\n"
+    )
+    rows = libdocsconsistency.parse_upgrade_doc_rows(doc)
+    names = [r["name"] for r in rows]
+    assert names == ["ZAC (Zaakafhandelcomponent)"]

@@ -656,8 +656,12 @@ DEPS = [
 VALUES = {"openformulieren": {}, "zac": {}}
 
 
+COMPONENT_VERSIONS_HEADING = "## Component versions (4.9.0 vs 4.8.5)\n\n"
+
+
 def test_update_component_table_adds_new_row(ucv):
     text = (
+        COMPONENT_VERSIONS_HEADING +
         "| Component | App version | Helm chart | Notes |\n"
         "| --- | --- | --- | --- |\n"
         "| zac | 5.0.2 → 5.1.0 | 1.0.297 (unchanged) | - |\n"
@@ -674,6 +678,7 @@ def test_update_component_table_new_row_inserted_in_values_yaml_order(ucv):
     order -- the new row must land above the existing zac row, not always
     appended at the end."""
     text = (
+        COMPONENT_VERSIONS_HEADING +
         "| Component | App version | Helm chart | Notes |\n"
         "| --- | --- | --- | --- |\n"
         "| zac | 5.0.2 → 5.1.0 | 1.0.297 (unchanged) | - |\n"
@@ -690,6 +695,7 @@ def test_update_component_table_new_row_inserted_in_values_yaml_order(ucv):
 
 def test_update_component_table_updates_existing_row(ucv):
     text = (
+        COMPONENT_VERSIONS_HEADING +
         "| Component | App version | Helm chart | Notes |\n"
         "| --- | --- | --- | --- |\n"
         "| openformulieren | 3.4.9 → 3.4.10 | 1.12.0 (unchanged) | - |\n"

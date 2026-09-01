@@ -835,8 +835,12 @@ def test_parse_upgrade_doc_changes_blocks_stops_at_next_h2(libupgradedoc):
 
 # --- sort_upgrade_doc_rows ---
 
+COMPONENT_VERSIONS_HEADING = "## Component versions (4.9.0 vs 4.8.5)\n\n"
+
+
 def test_sort_upgrade_doc_rows_reorders_out_of_order_rows(libupgradedoc):
     text = (
+        COMPONENT_VERSIONS_HEADING +
         "| Component | App version | Helm chart |\n"
         "| --- | --- | --- |\n"
         "| Open Inwoner | 2.4.2 | 2.4.0 |\n"
@@ -845,12 +849,13 @@ def test_sort_upgrade_doc_rows_reorders_out_of_order_rows(libupgradedoc):
     new_text, moved = libupgradedoc.sort_upgrade_doc_rows(text, DEPS, {"openzaak": {}, "zac": {}, "openinwoner": {}})
     assert moved == [("Open Zaak", 2, 1), ("Open Inwoner", 1, 2)]
     lines = new_text.splitlines()
-    assert lines[2].startswith("| Open Zaak")
-    assert lines[3].startswith("| Open Inwoner")
+    assert lines[4].startswith("| Open Zaak")
+    assert lines[5].startswith("| Open Inwoner")
 
 
 def test_sort_upgrade_doc_rows_already_in_order_is_unchanged(libupgradedoc):
     text = (
+        COMPONENT_VERSIONS_HEADING +
         "| Component | App version | Helm chart |\n"
         "| --- | --- | --- |\n"
         "| Open Zaak | 1.27.4 | 1.14.2 |\n"
@@ -864,6 +869,7 @@ def test_sort_upgrade_doc_rows_already_in_order_is_unchanged(libupgradedoc):
 
 def test_sort_upgrade_doc_rows_fewer_than_two_rows_is_unchanged(libupgradedoc):
     text = (
+        COMPONENT_VERSIONS_HEADING +
         "| Component | App version | Helm chart |\n"
         "| --- | --- | --- |\n"
         "| Open Zaak | 1.27.4 | 1.14.2 |\n"
@@ -875,6 +881,7 @@ def test_sort_upgrade_doc_rows_fewer_than_two_rows_is_unchanged(libupgradedoc):
 
 def test_sort_upgrade_doc_rows_unmatched_row_stays_last(libupgradedoc):
     text = (
+        COMPONENT_VERSIONS_HEADING +
         "| Component | App version | Helm chart |\n"
         "| --- | --- | --- |\n"
         "| nginx-unprivileged (shared sidecar) | 1.31.4 | — |\n"
@@ -883,8 +890,8 @@ def test_sort_upgrade_doc_rows_unmatched_row_stays_last(libupgradedoc):
     values = {"openzaak": {}, "zac": {}, "openinwoner": {}}
     new_text, moved = libupgradedoc.sort_upgrade_doc_rows(text, DEPS, values)
     lines = new_text.splitlines()
-    assert lines[2].startswith("| Open Zaak")
-    assert lines[3].startswith("| nginx-unprivileged")
+    assert lines[4].startswith("| Open Zaak")
+    assert lines[5].startswith("| nginx-unprivileged")
 
 
 # --- sort_changes_blocks ---
