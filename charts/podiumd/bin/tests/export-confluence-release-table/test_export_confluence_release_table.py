@@ -114,6 +114,31 @@ TECHNISCHE_TABLE_HTML = """
 </table>
 """
 
+# Same shape as TECHNISCHE_TABLE_HTML, but without the App/Helm
+# sub-header split at all -- since 2026-09 the real page's "Technische
+# component versies" table dropped its Helm sub-column entirely (its
+# cells were always empty anyway), leaving one bare column per
+# "Versie ..." group.
+TECHNISCHE_TABLE_NO_HELM_HTML = """
+<h2>Technische component versies</h2>
+<table>
+<tbody>
+<tr>
+<th></th>
+<th>Used by</th>
+<th>Versie 4.8</th>
+<th>Versie 4.9</th>
+</tr>
+<tr>
+<td>Elastic operator</td>
+<td>ZAC</td>
+<td>3.4.0</td>
+<td>3.5.0</td>
+</tr>
+</tbody>
+</table>
+"""
+
 # A table with no heading at all above it — not under any of the target
 # sections, so it's ignored outright, not merely "skipped for missing
 # columns".
@@ -583,6 +608,16 @@ def test_extract_release_rows_vendor_blank_used_by_populated_for_technische_tabl
     rows = ecrt.extract_release_rows(TECHNISCHE_TABLE_HTML)
     assert rows == [["Technische", "", "ZAC", "Elastic operator", "UNKNOWN", "", "",
                       "3.4.0", "3.4.0", "3.5.0", "3.5.0"]]
+
+
+def test_extract_release_rows_technische_table_without_helm_column(ecrt):
+    """Since 2026-09 the real page's "Technische component versies" table
+    has no Helm sub-column at all (it was always empty) -- the row must
+    still be exported, with blank source/target_version_helm cells
+    instead of being skipped as missing a required column."""
+    rows = ecrt.extract_release_rows(TECHNISCHE_TABLE_NO_HELM_HTML)
+    assert rows == [["Technische", "", "ZAC", "Elastic operator", "UNKNOWN", "", "",
+                      "3.4.0", "", "3.5.0", ""]]
 
 
 def test_extract_release_rows_resolves_component_via_used_by_not_name(ecrt, tmp_path):

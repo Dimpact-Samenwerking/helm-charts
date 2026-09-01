@@ -465,6 +465,20 @@ def test_select_release_columns_finds_used_by(libconfluencetables):
     assert columns["used_by"] == 1
 
 
+def test_select_release_columns_lone_versie_column_is_app_even_without_label(libconfluencetables):
+    """A "Versie ..." group with exactly one column (Helm dropped
+    entirely, e.g. "Technische component versies" since 2026-09) is
+    always that group's App column, whether or not it still carries its
+    own "App" sub-label — matched by position, not text, since a lone
+    column can't be anything else."""
+    paths = [[], ["Used by"], ["Versie 4.8"], ["Versie 4.9"]]
+    columns = libconfluencetables.select_release_columns(paths)
+    assert columns["source_app"] == 2
+    assert columns["target_app"] == 3
+    assert columns["source_helm"] is None
+    assert columns["target_helm"] is None
+
+
 def test_select_release_columns_none_when_not_exactly_two_versie_groups(libconfluencetables):
     """One "Versie ..." group (or three+) isn't the source/target pair
     this export expects — leave everything unresolved rather than
@@ -485,11 +499,23 @@ def test_missing_required_release_columns_vendor_not_required(libconfluencetable
     assert libconfluencetables.missing_required_release_columns(columns) == []
 
 
-def test_missing_required_release_columns_reports_missing_app_helm(libconfluencetables):
+def test_missing_required_release_columns_helm_not_required(libconfluencetables):
+    """A table with no Helm sub-column at all (e.g. "Technische component
+    versies" on the real page, since 2026-09 -- its Helm cells were
+    always empty anyway) reports nothing missing, as long as both App
+    columns resolve."""
     paths = [[], ["Ontwikkelpartij"], ["Versie 4.8", "App"], ["Versie 4.9", "App"]]  # no Helm columns at all
     columns = libconfluencetables.select_release_columns(paths)
+    assert columns["source_helm"] is None
+    assert columns["target_helm"] is None
+    assert libconfluencetables.missing_required_release_columns(columns) == []
+
+
+def test_missing_required_release_columns_reports_missing_app(libconfluencetables):
+    paths = [[], ["Ontwikkelpartij"], ["Versie 4.8", "Helm"], ["Versie 4.9", "Helm"]]  # no App columns at all
+    columns = libconfluencetables.select_release_columns(paths)
     missing = libconfluencetables.missing_required_release_columns(columns)
-    assert set(missing) == {"source_helm", "target_helm"}
+    assert set(missing) == {"source_app", "target_app"}
 
 
 # --- is_semver_compatible ---
