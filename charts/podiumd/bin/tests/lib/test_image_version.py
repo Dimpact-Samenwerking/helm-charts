@@ -1,6 +1,6 @@
 """lib.image_version — image_basename, find_matches, find_matches_in_scope,
 resolve_scoped_matches, check_basename_version, update_image_version,
-basenames_under_scope, resolve_basename. No network needed: lib.registry.
+basenames_under_scope. No network needed: lib.registry.
 registry_tag_exists is monkeypatched wherever a live fetch would otherwise
 happen."""
 import pytest
@@ -10,17 +10,6 @@ def write_values(tmp_path, text):
     path = tmp_path / "values.yaml"
     path.write_text(text, encoding="utf-8")
     return path
-
-
-def write_chart_yaml(chart_dir, deps):
-    """`deps`: [(name, alias_or_none), ...]."""
-    lines = ["apiVersion: v2", "name: podiumd", "version: 1.0.0", "dependencies:"]
-    for name, alias in deps:
-        lines.append(f"  - name: {name}")
-        if alias:
-            lines.append(f"    alias: {alias}")
-        lines += ["    version: 1.0.0", '    repository: "@x"']
-    (chart_dir / "Chart.yaml").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 # --- image_basename ---
@@ -375,83 +364,3 @@ openzaak:
 """)
     lines = values_path.read_text(encoding="utf-8").splitlines()
     assert set(libimageversion.basenames_under_scope(lines, "zac")) == {"zaakafhandelcomponent"}
-
-
-# --- resolve_basename ---
-
-def test_resolve_basename_already_a_real_basename_short_circuits(libimageversion, tmp_path):
-    """No Chart.yaml needed at all when `target` is already a basename
-    with real pins -- existing update-image-version CLI behavior must
-    never change for a call that already works today."""
-    values_path = write_values(tmp_path, f"""\
-a:
-  image:
-    repository: curlimages/curl
-    tag: "8.21.0@sha256:{"a" * 64}"
-""")
-    lines = values_path.read_text(encoding="utf-8").splitlines()
-    assert libimageversion.resolve_basename(tmp_path, lines, "curl") == "curl"
-
-
-def test_resolve_basename_dependency_with_exactly_one_image_resolves(libimageversion, tmp_path):
-    write_chart_yaml(tmp_path, [("openklant", None)])
-    values_path = write_values(tmp_path, f"""\
-openklant:
-  image:
-    repository: maykinmedia/open-klant
-    tag: "2.15.0@sha256:{"a" * 64}"
-""")
-    lines = values_path.read_text(encoding="utf-8").splitlines()
-    assert libimageversion.resolve_basename(tmp_path, lines, "openklant") == "open-klant"
-
-
-def test_resolve_basename_resolves_via_alias_not_just_name(libimageversion, tmp_path):
-    write_chart_yaml(tmp_path, [("zaakafhandelcomponent", "zac")])
-    values_path = write_values(tmp_path, f"""\
-zac:
-  image:
-    repository: ghcr.io/infonl/zaakafhandelcomponent
-    tag: "5.0.0@sha256:{"a" * 64}"
-""")
-    lines = values_path.read_text(encoding="utf-8").splitlines()
-    assert libimageversion.resolve_basename(tmp_path, lines, "zac") == "zaakafhandelcomponent"
-
-
-def test_resolve_basename_dependency_with_multiple_images_raises_listing_them(libimageversion, tmp_path):
-    write_chart_yaml(tmp_path, [("zaakafhandelcomponent", "zac")])
-    values_path = write_values(tmp_path, f"""\
-zac:
-  image:
-    repository: ghcr.io/infonl/zaakafhandelcomponent
-    tag: "5.0.0@sha256:{"a" * 64}"
-  solr-operator:
-    image:
-      repository: apache/solr-operator
-      tag: "0.9.1@sha256:{"b" * 64}"
-""")
-    lines = values_path.read_text(encoding="utf-8").splitlines()
-    with pytest.raises(SystemExit, match="solr-operator.*zaakafhandelcomponent"):
-        libimageversion.resolve_basename(tmp_path, lines, "zac")
-
-
-def test_resolve_basename_dependency_with_no_images_raises(libimageversion, tmp_path):
-    write_chart_yaml(tmp_path, [("openzaak", None)])
-    values_path = write_values(tmp_path, "openzaak:\n  enabled: true\n")
-    lines = values_path.read_text(encoding="utf-8").splitlines()
-    with pytest.raises(SystemExit, match="no digest-pinned image was found"):
-        libimageversion.resolve_basename(tmp_path, lines, "openzaak")
-
-
-def test_resolve_basename_unresolvable_target_raises(libimageversion, tmp_path):
-    write_chart_yaml(tmp_path, [("openzaak", None)])
-    values_path = write_values(tmp_path, "openzaak:\n  enabled: true\n")
-    lines = values_path.read_text(encoding="utf-8").splitlines()
-    with pytest.raises(SystemExit, match="is not a pinned image basename"):
-        libimageversion.resolve_basename(tmp_path, lines, "nonexistent-thing")
-
-
-def test_resolve_basename_no_chart_yaml_still_raises_cleanly(libimageversion, tmp_path):
-    values_path = write_values(tmp_path, "openzaak:\n  enabled: true\n")
-    lines = values_path.read_text(encoding="utf-8").splitlines()
-    with pytest.raises(SystemExit, match="is not a pinned image basename"):
-        libimageversion.resolve_basename(tmp_path, lines, "openzaak")

@@ -13,20 +13,23 @@ release tag; it's still labeled "(sliding)" in the output since that's
 useful context, but verify-podiumd's own check fails on either kind
 the same way, so there's no reason to leave one kind unfixed here.
 
-An optional <target> (a bare image basename like "redis", or a Chart.yaml
-dependency's own name/alias like "openklant" — resolved the same way
-update-image-version's own <target> is, see lib.image_version.
-resolve_basename) scopes the run to just that one image. Every other
-stale pin is left untouched and unreported for that run.
+An optional <key> <basename> pair — the same scoping update-image-version/
+verify-image-version/show-image-baseline-version use (<key> is a
+Chart.yaml dependency's own top-level values.yaml key, or the literal
+"MULTIPLE" for a base image shared via values.yaml's global.images
+anchor block — see lib.image_version.MULTIPLE_KEY) — resolves to exactly
+one image (lib.image_version.resolve_scoped_matches) and scopes the run
+to just that one. Every other stale pin is left untouched and unreported
+for that run.
 
 Usage:
-    fix-image-digests             # fetch, compare, rewrite every stale digest
-    fix-image-digests <target>    # scope to just one image
-    fix-image-digests --dry-run   # fetch and compare only, no write (combine with either of the above)
+    fix-image-digests                    # fetch, compare, rewrite every stale digest
+    fix-image-digests <key> <basename>   # scope to just one image
+    fix-image-digests --dry-run          # fetch and compare only, no write (combine with either of the above)
 
 Examples:
-    fix-image-digests redis
-    fix-image-digests openklant    # resolved via Chart.yaml alias, same as update-image-version
+    fix-image-digests MULTIPLE redis
+    fix-image-digests openklant open-klant
 
 After a real run, re-render the chart (verify-podiumd or
 /helm-render-all) to confirm the new digests are picked up cleanly. A
@@ -45,7 +48,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 from lib.chart import load_yaml, subchart_default_repository, subchart_needs_vendoring
 from lib.dependencies import check_dependencies as vendor_dependencies, ensure_repos_configured
 from lib.image_digests import scan_digest_pins
-from lib.image_version import image_basename, resolve_basename
+from lib.image_version import resolve_scoped_matches
 from lib.procutil import run_script
 from lib.registry import is_sliding_tag, parse_repo, registry_tag_exists
 
@@ -133,27 +136,25 @@ def main():
         sys.exit(0)
     dry_run = "--dry-run" in args
     positional = [a for a in args if not a.startswith("-")]
-    if len(positional) > 1:
-        print(f"error: expected at most one target, got: {', '.join(positional)}")
+    if len(positional) not in (0, 2):
+        print(f"error: expected either no target, or <key> <basename> — got: {', '.join(positional)}")
         sys.exit(1)
-    target_arg = positional[0] if positional else None
+    key, basename = positional if positional else (None, None)
 
     text = VALUES_PATH.read_text(encoding="utf-8")
     lines = text.splitlines()
 
-    target_basename = None
-    if target_arg:
-        target_basename = resolve_basename(CHART_DIR, lines, target_arg)
-        if target_basename != target_arg:
-            print(f"'{target_arg}' resolved to image basename '{target_basename}'")
+    target_repository = None
+    if key is not None:
+        target_repository = resolve_scoped_matches(lines, key, basename)[0]["repository"]
 
     print(f"Scanning {VALUES_PATH} for digest-pinned images...")
     stale, unresolved, fetch_errors = find_stale_digests(lines, VALUES_PATH)
 
-    if target_basename:
-        stale = [s for s in stale if image_basename(s[0]) == target_basename]
+    if target_repository:
+        stale = [s for s in stale if s[0] == target_repository]
         unresolved = []  # scoped to one target -- unrelated unresolved pins aren't this run's concern
-        fetch_errors = [f for f in fetch_errors if image_basename(f[0]) == target_basename]
+        fetch_errors = [f for f in fetch_errors if f[0] == target_repository]
 
     if unresolved:
         print(f"\n{len(unresolved)} pin(s) could not be resolved to a repository (skipped):")
@@ -168,8 +169,8 @@ def main():
     to_update = stale
 
     if not to_update:
-        if target_basename:
-            print(f"\n'{target_basename}' has no stale digest to update — nothing to do.")
+        if target_repository:
+            print(f"\n'{key}' '{basename}' has no stale digest to update — nothing to do.")
         else:
             print("\nNo stale digests found — nothing to do.")
         sys.exit(1 if fetch_errors else 0)
