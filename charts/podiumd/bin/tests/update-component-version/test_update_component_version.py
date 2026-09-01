@@ -943,7 +943,7 @@ def test_update_images_manifest_new_item_lands_after_continuation_line(ucv, tmp_
 # --- main() integration: doc updates end-to-end ---
 
 def setup_docs(ucv, monkeypatch, upgrade_text, values_deltas_text=None, images_text=None):
-    write(ucv.CHART_DIR / "release-baseline", "4.8.5\n")
+    write(ucv.CHART_DIR / "release-baseline.yaml", 'upgrade_docs: "4.8.5"\n')
     doc_dir = ucv.DOC_DIR
     write(doc_dir / "4.8.5-to-4.9.0-upgrade.md", upgrade_text)
     if values_deltas_text is not None:
@@ -1172,7 +1172,7 @@ def test_main_collapses_repeated_bump_into_single_baseline_entry(ucv, tmp_path, 
 
 def test_main_skips_doc_updates_when_no_upgrade_doc_exists(ucv, tmp_path, monkeypatch, capsys):
     setup_repo(tmp_path, monkeypatch, ucv)
-    write(tmp_path / "release-baseline", "4.8.5\n")  # baseline known, doc itself just missing
+    write(tmp_path / "release-baseline.yaml", 'upgrade_docs: "4.8.5"\n')  # baseline known, doc itself just missing
     mock_verify_passes(monkeypatch, ucv)
     mock_registry_passes(monkeypatch, ucv, "e")
     monkeypatch.setattr("sys.argv", ["update-component-version", "zac", "5.4.3", "1.0.297"])
@@ -1189,10 +1189,10 @@ def test_main_skips_doc_updates_when_no_release_baseline(ucv, tmp_path, monkeypa
     mock_registry_passes(monkeypatch, ucv, "e")
     monkeypatch.setattr("sys.argv", ["update-component-version", "zac", "5.4.3", "1.0.297"])
 
-    ucv.main()  # must not raise even though release-baseline doesn't exist
+    ucv.main()  # must not raise even though release-baseline.yaml doesn't exist
 
     out = capsys.readouterr().out
-    assert "No release-baseline found" in out
+    assert "No release-baseline.yaml upgrade_docs key found" in out
 
 
 # --- main(): values-deltas key-change detection against the real baseline ---
@@ -1242,7 +1242,7 @@ def setup_git_repo_for_baseline_test(tmp_path, monkeypatch, ucv):
         "    enabled: true\n",
         encoding="utf-8",
     )
-    (tmp_path / "release-baseline").write_text("4.8.5\n", encoding="utf-8")
+    (tmp_path / "release-baseline.yaml").write_text('upgrade_docs: "4.8.5"\n', encoding="utf-8")
 
     monkeypatch.setattr(ucv, "CHART_DIR", tmp_path)
     monkeypatch.setattr(ucv, "CHART_YAML", chart_yaml)
@@ -1278,7 +1278,7 @@ def test_main_notes_when_baseline_unresolvable_for_key_detection(ucv, tmp_path, 
     main() must say so and continue (still write the version bullet), not
     silently skip the note or crash."""
     setup_repo(tmp_path, monkeypatch, ucv)
-    write(tmp_path / "release-baseline", "4.8.5\n")
+    write(tmp_path / "release-baseline.yaml", 'upgrade_docs: "4.8.5"\n')
     write(ucv.DOC_DIR / "4.8.5-to-4.9.0-upgrade.md",
           "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
           "## Component versions (4.9.0 vs 4.8.5)\n\n"
@@ -1296,7 +1296,7 @@ def test_main_notes_when_baseline_unresolvable_for_key_detection(ucv, tmp_path, 
     ucv.main()
 
     out = capsys.readouterr().out
-    assert "could not resolve baseline 4.8.5" in out
+    assert "could not resolve upgrade_docs_baseline 4.8.5" in out
     deltas = (ucv.DOC_DIR / "4.8.5-to-4.9.0-values-deltas.md").read_text(encoding="utf-8")
     assert "**zac** app" in deltas  # version bullet still written
 
@@ -1364,7 +1364,7 @@ def test_main_touches_only_the_target_component_end_to_end(ucv, tmp_path, monkey
     (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(upgrade_text, encoding="utf-8")
     (doc_dir / "4.8.5-to-4.9.0-values-deltas.md").write_text(values_deltas_text, encoding="utf-8")
     (images_dir / "images-4.9.0.yaml").write_text(images_text, encoding="utf-8")
-    (tmp_path / "release-baseline").write_text("4.8.5\n", encoding="utf-8")
+    (tmp_path / "release-baseline.yaml").write_text('upgrade_docs: "4.8.5"\n', encoding="utf-8")
 
     monkeypatch.setattr(ucv, "CHART_DIR", tmp_path)
     monkeypatch.setattr(ucv, "CHART_YAML", chart_yaml)

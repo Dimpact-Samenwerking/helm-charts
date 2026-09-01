@@ -239,14 +239,14 @@ def test_main_already_at_new_baseline_still_fixes_a_stale_sibling_reference(cdb,
 
 
 def test_main_no_argument_and_no_release_baseline_errors(cdb, monkeypatch):
-    """Zero arguments is otherwise valid (falls back to release-baseline's
-    content — see set_argv_and_dir's own baseline-arg tests) — only the
-    combination of no argument AND no release-baseline to fall back to is
-    an error. release_baseline mocked directly (never CHART_YAML/DOC_DIR)
+    """Zero arguments is otherwise valid (falls back to release-baseline.
+    yaml's upgrade_docs content) — only the combination of no argument AND
+    no upgrade_docs baseline to fall back to is an error.
+    read_upgrade_docs_baseline mocked directly (never CHART_YAML/DOC_DIR)
     so this can't accidentally read/touch the real chart's own
-    release-baseline/docs if the mock were ever missed."""
+    release-baseline.yaml/docs if the mock were ever missed."""
     monkeypatch.setattr("sys.argv", ["fix-doc-consistency"])
-    monkeypatch.setattr(cdb, "release_baseline", lambda chart_dir: None)
+    monkeypatch.setattr(cdb, "read_upgrade_docs_baseline", lambda chart_dir: None)
     with pytest.raises(SystemExit) as exc_info:
         cdb.main()
     assert exc_info.value.code == 1

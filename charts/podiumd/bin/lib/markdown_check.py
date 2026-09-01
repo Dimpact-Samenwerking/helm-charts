@@ -25,7 +25,8 @@ import re
 import shutil
 from pathlib import Path
 
-from lib.chart import chart_version, release_baseline
+from lib.chart import chart_version
+from lib.chart import upgrade_docs_baseline as read_upgrade_docs_baseline
 from lib.gitutil import find_repo_root
 from lib.procutil import run
 from lib.render_scope import print_grouped_findings
@@ -57,10 +58,11 @@ def find_markdown_files(chart_dir):
       helm-docs' to fix, not something hand-editing this repo's docs can
       change.
     - docs/_UPGRADE_PATHS/<baseline>-to-<target>-*.md for any <target>
-      other than the current chart version, AND (when release-baseline
-      exists — see lib.chart.release_baseline) any <baseline> other than
-      its content. Both parts matter: a doc can only be "the current
-      release's own" if it's the exact <baseline>-to-<target> pair
+      other than the current chart version, AND (when release-baseline.
+      yaml's upgrade_docs key exists — see lib.chart.upgrade_docs_baseline)
+      any <baseline> other than its content. Both parts matter: a doc
+      can only be "the current release's own" if it's the exact
+      <baseline>-to-<target> pair
       fix-doc-consistency would itself rebase onto right now — the same
       two-part key lib.component_docs.baseline_doc_paths uses to
       identify that same doc set. A past release's own upgrade docs are
@@ -73,7 +75,7 @@ def find_markdown_files(chart_dir):
     readme = chart_dir / "README.md"
     upgrade_paths_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
     current_target = chart_version(chart_dir / "Chart.yaml")
-    current_baseline = release_baseline(chart_dir)
+    current_baseline = read_upgrade_docs_baseline(chart_dir)
 
     def in_scope(p):
         if vendored in p.parents or bin_dir in p.parents or p == readme:

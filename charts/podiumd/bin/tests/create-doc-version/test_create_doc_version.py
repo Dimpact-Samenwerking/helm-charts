@@ -50,7 +50,7 @@ def test_invalid_baseline_format_fails(cdv, tmp_path, monkeypatch, capsys):
     assert "is not a valid MAJOR.MINOR.PATCH version" in capsys.readouterr().out
 
 
-# --- main(): release-baseline default ---
+# --- main(): release-baseline.yaml default ---
 
 def test_no_baseline_given_and_no_release_baseline_fails(cdv, tmp_path, monkeypatch, capsys):
     setup_dirs(cdv, tmp_path, monkeypatch)
@@ -58,18 +58,19 @@ def test_no_baseline_given_and_no_release_baseline_fails(cdv, tmp_path, monkeypa
     with pytest.raises(SystemExit) as exc_info:
         cdv.main()
     assert exc_info.value.code == 1
-    assert "no <baseline> given and release-baseline doesn't exist" in capsys.readouterr().out
+    assert ("no <upgrade_docs_baseline> given and release-baseline.yaml's "
+            "upgrade_docs key doesn't exist") in capsys.readouterr().out
 
 
 def test_no_baseline_given_uses_release_baseline(cdv, tmp_path, monkeypatch, capsys):
     doc_dir, images_dir = setup_dirs(cdv, tmp_path, monkeypatch)
-    (tmp_path / "release-baseline").write_text("4.8.5\n", encoding="utf-8")
+    (tmp_path / "release-baseline.yaml").write_text('upgrade_docs: "4.8.5"\n', encoding="utf-8")
     monkeypatch.setattr("sys.argv", ["create-doc-version"])
 
     cdv.main()  # success path: must not raise
 
     out = capsys.readouterr().out
-    assert "No <baseline> given — using release-baseline's '4.8.5'" in out
+    assert "No <upgrade_docs_baseline> given — using release-baseline.yaml's upgrade_docs '4.8.5'" in out
     assert (doc_dir / "4.8.5-to-4.9.0-upgrade.md").is_file()
 
 
@@ -125,7 +126,7 @@ def test_refuses_when_doc_exists_under_a_different_baseline(cdv, tmp_path, monke
 
     assert exc_info.value.code == 1
     out = capsys.readouterr().out
-    assert "already exist for target 4.9.0 under a different baseline" in out
+    assert "already exist for target 4.9.0 under a different upgrade_docs_baseline" in out
     assert "4.8.4-to-4.9.0-upgrade.md" in out
     assert "use fix-doc-consistency instead" in out
     # refuses to create ANYTHING, not just the conflicting suffix

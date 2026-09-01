@@ -41,17 +41,18 @@ def images_manifest_path(images_dir, target):
     return images_dir / f"images-{target}.yaml"
 
 
-def baseline_doc_paths(doc_dir, baseline, target):
-    """(upgrade_path, values_deltas_path) for the <baseline>-to-<target>-
-    *.md doc set, or (None, None) if baseline is None (release-baseline
-    doesn't exist yet) or the upgrade doc itself doesn't exist yet — run
-    create-doc-version first to scaffold it either way."""
-    if baseline is None:
+def baseline_doc_paths(doc_dir, upgrade_docs_baseline, target):
+    """(upgrade_path, values_deltas_path) for the <upgrade_docs_baseline>-to-<target>-
+    *.md doc set, or (None, None) if upgrade_docs_baseline is None
+    (release-baseline.yaml's own upgrade_docs key doesn't exist yet) or
+    the upgrade doc itself doesn't exist yet — run create-doc-version
+    first to scaffold it either way."""
+    if upgrade_docs_baseline is None:
         return None, None
-    upgrade_path = doc_dir / f"{baseline}-to-{target}-upgrade.md"
+    upgrade_path = doc_dir / f"{upgrade_docs_baseline}-to-{target}-upgrade.md"
     if not upgrade_path.is_file():
         return None, None
-    values_deltas_path = doc_dir / f"{baseline}-to-{target}-values-deltas.md"
+    values_deltas_path = doc_dir / f"{upgrade_docs_baseline}-to-{target}-values-deltas.md"
     return upgrade_path, (values_deltas_path if values_deltas_path.is_file() else None)
 
 
@@ -64,18 +65,18 @@ STANDARD_SUFFIXES = ("upgrade", "gemeente-specific", "values-deltas")
 
 STUB_TEMPLATES = {
     "upgrade": (
-        "# Upgrade guide: PodiumD {baseline} → {target}\n\n"
+        "# Upgrade guide: PodiumD {upgrade_docs_baseline} → {target}\n\n"
         "> See the Confluence Releases page for the agreed application\n"
         "> targets: <https://dimpact.atlassian.net/wiki/spaces/PCP/pages/7602191/Releases+PodiumD>.\n\n"
         "TODO: describe this hop's changes.\n\n"
-        "## Component versions ({target} vs {baseline})\n\n"
+        "## Component versions ({target} vs {upgrade_docs_baseline})\n\n"
         "| Component | App version | Helm chart | Notes |\n"
         "| --- | --- | --- | --- |\n\n"
         "## Changes\n\n"
         "TODO\n"
     ),
     "gemeente-specific": (
-        "# Gemeente-specific notes — PodiumD {baseline} → {target}\n\n"
+        "# Gemeente-specific notes — PodiumD {upgrade_docs_baseline} → {target}\n\n"
         "Findings for this hop that apply to a **specific gemeente or environment** —\n"
         "not to the release in general — are collected here: data quirks, local\n"
         "overrides, hosting particulars, incident follow-ups.\n\n"
@@ -87,34 +88,34 @@ STUB_TEMPLATES = {
         "-->\n"
     ),
     "values-deltas": (
-        "# Values deltas — PodiumD {baseline} → {target}\n\n"
+        "# Values deltas — PodiumD {upgrade_docs_baseline} → {target}\n\n"
         "TODO: describe any gemeente `podiumd.yml` changes required for this hop.\n"
     ),
 }
 
 IMAGES_STUB_TEMPLATE = (
-    "# Baseline: podiumd {baseline}. Re-verify before release.\n"
+    "# Baseline: podiumd {upgrade_docs_baseline}. Re-verify before release.\n"
     "#\n"
-    "# Images new or changed in podiumd {target} vs {baseline}.\n"
+    "# Images new or changed in podiumd {target} vs {upgrade_docs_baseline}.\n"
     "#\n"
-    "# See docs/_UPGRADE_PATHS/{baseline}-to-{target}-upgrade.md for the operator upgrade notes.\n"
+    "# See docs/_UPGRADE_PATHS/{upgrade_docs_baseline}-to-{target}-upgrade.md for the operator upgrade notes.\n"
     "#\n"
     "# Digests are the OCI image index (multi-arch manifest) digest as returned in\n"
     "# the Docker-Content-Digest response header from the source registry.\n\n"
     "[]\n"
 )
 
-# The shape a doc filename's baseline segment must have — bare
+# The shape a doc filename's upgrade_docs_baseline segment must have — bare
 # MAJOR.MINOR.PATCH, matching create-podiumd-version/change-podiumd-
-# baseline's own release-baseline convention.
-DOC_FILENAME_RE_TMPL = r"^(?P<baseline>\d+\.\d+\.\d+)-to-{target}-(?P<suffix>[\w\-]+)\.md$"
+# baseline's own release-baseline.yaml upgrade_docs convention.
+DOC_FILENAME_RE_TMPL = r"^(?P<upgrade_docs_baseline>\d+\.\d+\.\d+)-to-{target}-(?P<suffix>[\w\-]+)\.md$"
 
 
 def existing_doc_baselines(doc_dir, target):
-    """{suffix: [(baseline, path), ...]} for every *-to-<target>-<suffix>.md
-    doc currently in doc_dir, whatever baseline each one currently names —
+    """{suffix: [(upgrade_docs_baseline, path), ...]} for every *-to-<target>-<suffix>.md
+    doc currently in doc_dir, whatever upgrade_docs_baseline each one currently names —
     the raw "what's actually there" scan. Shared by create-doc-version (to
-    detect a baseline mismatch worth refusing fresh-creation over) and
+    detect an upgrade_docs_baseline mismatch worth refusing fresh-creation over) and
     fix-doc-consistency (to know what to rename)."""
     pattern = re.compile(DOC_FILENAME_RE_TMPL.format(target=re.escape(target)))
     by_suffix = {}
@@ -122,69 +123,69 @@ def existing_doc_baselines(doc_dir, target):
         m = pattern.match(path.name)
         if not m:
             continue
-        by_suffix.setdefault(m.group("suffix"), []).append((m.group("baseline"), path))
+        by_suffix.setdefault(m.group("suffix"), []).append((m.group("upgrade_docs_baseline"), path))
     return by_suffix
 
 
-def create_missing_docs(doc_dir, images_dir, baseline, target):
-    """Create whichever of the three standard <baseline>-to-<target>-*.md
+def create_missing_docs(doc_dir, images_dir, upgrade_docs_baseline, target):
+    """Create whichever of the three standard <upgrade_docs_baseline>-to-<target>-*.md
     docs, and docs/images/images-<target>.yaml, don't already exist yet,
     as TODO stubs — never overwrites an existing file. Returns the
     filenames actually created (upgrade/gemeente-specific/values-deltas
     order, images manifest last)."""
     created = []
     for suffix in STANDARD_SUFFIXES:
-        path = doc_dir / f"{baseline}-to-{target}-{suffix}.md"
+        path = doc_dir / f"{upgrade_docs_baseline}-to-{target}-{suffix}.md"
         if not path.is_file():
-            path.write_text(STUB_TEMPLATES[suffix].format(baseline=baseline, target=target), encoding="utf-8")
+            path.write_text(STUB_TEMPLATES[suffix].format(upgrade_docs_baseline=upgrade_docs_baseline, target=target), encoding="utf-8")
             created.append(path.name)
     images_path = images_manifest_path(images_dir, target)
     if not images_path.is_file():
-        images_path.write_text(IMAGES_STUB_TEMPLATE.format(baseline=baseline, target=target), encoding="utf-8")
+        images_path.write_text(IMAGES_STUB_TEMPLATE.format(upgrade_docs_baseline=upgrade_docs_baseline, target=target), encoding="utf-8")
         created.append(images_path.name)
     return created
 
 
-def load_baseline_values(values_path, baseline):
+def load_baseline_values(values_path, upgrade_docs_baseline):
     """values.yaml as it actually was at the release these docs are written
     against (resolved via git) — NOT "before this script's own edit". A
     tag-only bump never touches values.yaml's schema, so a before/after-
     this-run comparison would always be empty regardless of what actually
-    changed for this component since the real baseline; comparing against
-    the true baseline is the only way to catch a values.yaml schema change
+    changed for this component since the real upgrade_docs_baseline; comparing against
+    the true upgrade_docs_baseline is the only way to catch a values.yaml schema change
     (new/removed/renamed key) made by hand as part of this hop, whenever
-    during the hop that edit happened. Returns None if the baseline can't
+    during the hop that edit happened. Returns None if the upgrade_docs_baseline can't
     be resolved (e.g. that release hasn't been tagged yet) — callers then
     skip key-change detection rather than comparing against nothing
     meaningful."""
     repo_root = find_repo_root(values_path.parent)
     if repo_root is None:
         return None
-    ref = resolve_git_ref(repo_root, baseline_ref_candidates(baseline))
+    ref = resolve_git_ref(repo_root, baseline_ref_candidates(upgrade_docs_baseline))
     if ref is None:
         return None
     rel_values_path = values_path.relative_to(repo_root)
     return git_show_yaml(repo_root, ref, str(rel_values_path))
 
 
-def load_baseline_state(chart_yaml_path, values_path, baseline):
-    """(baseline_deps, baseline_values) as they actually were at baseline's
+def load_baseline_state(chart_yaml_path, values_path, upgrade_docs_baseline):
+    """(baseline_deps, baseline_values) as they actually were at upgrade_docs_baseline's
     resolved git ref — same ref resolution as load_baseline_values, but
     also pulls Chart.yaml so a caller can tell whether a component's own
     CHART version (not just an image tag under it) has moved from
-    baseline. Feeds lib.upgradedoc.compute_changed_components, which is
+    upgrade_docs_baseline. Feeds lib.upgradedoc.compute_changed_components, which is
     the ground truth for "has this component actually changed since
-    baseline at all" — used to decide whether a bump's own "old" version
-    for docs should be the true baseline (so a component bumped more than
-    once in one release cycle still shows baseline → final, not
+    upgrade_docs_baseline at all" — used to decide whether a bump's own "old" version
+    for docs should be the true upgrade_docs_baseline (so a component bumped more than
+    once in one release cycle still shows upgrade_docs_baseline → final, not
     each-intermediate-hop → final) or whether there's no longer any change
-    left to document. Returns (None, None) if the baseline can't be
+    left to document. Returns (None, None) if the upgrade_docs_baseline can't be
     resolved (e.g. that release hasn't been tagged yet) — callers then
     fall back to their own before-this-run comparison instead."""
     repo_root = find_repo_root(values_path.parent)
     if repo_root is None:
         return None, None
-    ref = resolve_git_ref(repo_root, baseline_ref_candidates(baseline))
+    ref = resolve_git_ref(repo_root, baseline_ref_candidates(upgrade_docs_baseline))
     if ref is None:
         return None, None
     rel_chart_yaml = chart_yaml_path.relative_to(repo_root)
@@ -248,7 +249,7 @@ def update_component_table(text, friendly, old_app, new_app, old_chart, new_char
 def remove_component_row(text, friendly):
     """Delete this component's row from the "Component versions" table
     entirely — the counterpart to update_component_table's "added"/
-    "updated" for a bump that nets out to no change from baseline at all
+    "updated" for a bump that nets out to no change from upgrade_docs_baseline at all
     (see lib.upgradedoc.compute_changed_components): there's no longer a
     source → target transition to show a row for. Returns
     (new_text, removed)."""
@@ -319,7 +320,7 @@ def insert_changes_section(text, section_text, friendly, deps, values):
 def remove_changes_section(text, friendly):
     """Delete this component's "### ..." block from the "## Changes"
     section entirely — the counterpart to insert_changes_section for a
-    bump that nets out to no change from baseline at all. Also swallows
+    bump that nets out to no change from upgrade_docs_baseline at all. Also swallows
     the block's own trailing blank line(s) so removal doesn't leave a
     double gap before whatever follows. Returns (new_text, removed)."""
     blocks = parse_upgrade_doc_changes_blocks(text)
@@ -354,7 +355,7 @@ def remove_component_values_delta(text, friendly):
     to collapse more than one bump within a release into a single
     up-to-date bullet (remove the stale one before appending the fresh
     one) and to remove it outright when a bump nets out to no change from
-    baseline at all. Returns (new_text, removed)."""
+    upgrade_docs_baseline at all. Returns (new_text, removed)."""
     lines = text.splitlines(keepends=True)
     norm_friendly = normalize_name(friendly)
     bullet_re = re.compile(r"^-\s+\*\*([^*]+)\*\*\s+\w+\b")
@@ -511,7 +512,7 @@ def update_images_manifest(images_path, friendly, values_key, old_app, new_app, 
 def remove_component_from_images_manifest(images_path, friendly, values_key, paths_to_update, repos,
                                            new_tags_by_path):
     """Counterpart to update_images_manifest for a bump that nets out to no
-    change from baseline at all (see lib.upgradedoc.compute_changed_
+    change from upgrade_docs_baseline at all (see lib.upgradedoc.compute_changed_
     components): still writes each touched entry's final version/digest —
     the manifest's job is to list the correct final state for every image
     regardless of change-tracking — but removes the "changes:" list item

@@ -26,20 +26,23 @@ fix_images_manifest_entries for exactly what gets rewritten vs. just
 reported for manual review.
 
 Called automatically by change-podiumd-baseline, right after it writes
-release-baseline — see that script for the usual "rebase onto a
-different baseline" workflow. Also runnable standalone.
+release-baseline.yaml's upgrade_docs key — see that script for the
+usual "rebase onto a different baseline" workflow. Also runnable
+standalone.
 
 Usage:
     fix-doc-consistency [<new-baseline>]
-        # <new-baseline> defaults to release-baseline's content if omitted
-        # (error if that file doesn't exist either) — this script itself
-        # never writes release-baseline; see change-podiumd-baseline.
+        # <new-baseline> defaults to release-baseline.yaml's upgrade_docs
+        # content if omitted (error if that key doesn't exist either) —
+        # this script itself never writes release-baseline.yaml; see
+        # change-podiumd-baseline.
 
 Example:
     fix-doc-consistency 4.8.3
         # if Chart.yaml's version is 4.9.0, renames *-to-4.9.0-*.md
     fix-doc-consistency
-        # same, but reads "4.8.3" from release-baseline instead
+        # same, but reads "4.8.3" from release-baseline.yaml's
+        # upgrade_docs key instead
 """
 import re
 import subprocess
@@ -52,7 +55,8 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from lib.chart import SEMVER_RE as BASELINE_VERSION_RE
-from lib.chart import chart_version, release_baseline
+from lib.chart import chart_version
+from lib.chart import upgrade_docs_baseline as read_upgrade_docs_baseline
 from lib.component_docs import IMAGES_STUB_TEMPLATE, STANDARD_SUFFIXES, STUB_TEMPLATES, existing_doc_baselines
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
 from lib.upgradedoc import (
@@ -330,12 +334,12 @@ def main():
     if len(sys.argv) == 2:
         new_baseline = sys.argv[1]
     else:
-        new_baseline = release_baseline(CHART_YAML.parent)
+        new_baseline = read_upgrade_docs_baseline(CHART_YAML.parent)
         if new_baseline is None:
-            print("error: no <new-baseline> given and release-baseline doesn't exist "
-                  "— pass <new-baseline> explicitly")
+            print("error: no <new-baseline> given and release-baseline.yaml's "
+                  "upgrade_docs key doesn't exist — pass <new-baseline> explicitly")
             sys.exit(1)
-        print(f"No <new-baseline> given — using release-baseline's '{new_baseline}'")
+        print(f"No <new-baseline> given — using release-baseline.yaml's upgrade_docs '{new_baseline}'")
 
     if not BASELINE_VERSION_RE.match(new_baseline):
         print(f"error: '{new_baseline}' is not a valid MAJOR.MINOR.PATCH version")
@@ -362,7 +366,7 @@ def main():
         if suffix not in by_suffix:
             new_name = f"{new_baseline}-to-{target}-{suffix}.md"
             new_path = DOC_DIR / new_name
-            new_path.write_text(STUB_TEMPLATES[suffix].format(baseline=new_baseline, target=target),
+            new_path.write_text(STUB_TEMPLATES[suffix].format(upgrade_docs_baseline=new_baseline, target=target),
                                  encoding="utf-8")
             print(f"  {new_name}: created (was missing)")
             continue
@@ -410,7 +414,7 @@ def main():
 
     images_path = images_manifest_path(target)
     if not images_path.is_file():
-        images_path.write_text(IMAGES_STUB_TEMPLATE.format(baseline=new_baseline, target=target),
+        images_path.write_text(IMAGES_STUB_TEMPLATE.format(upgrade_docs_baseline=new_baseline, target=target),
                                 encoding="utf-8")
         print(f"  {images_path.name}: created (was missing)")
     else:
