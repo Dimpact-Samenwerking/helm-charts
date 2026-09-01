@@ -85,8 +85,8 @@ def test_compare_dependency_missing_hint_names_resolvable_identifier(vrt):
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     findings, _ = vrt.compare([], deps, {}, [])
     hint = next(m for m in findings["missing_from_release_table"] if "zaakafhandelcomponent" in m)
-    assert "\n      Confluence: add a row to the whichever table fits" in hint
-    assert 'Name or "Used by" containing "zac"' in hint
+    assert "\n      Confluence: add row to whichever table fits" in hint
+    assert 'Name or "Used by": "zac"' in hint
 
 
 def test_compare_reports_image_pinned_but_not_tracked(vrt):
@@ -112,9 +112,9 @@ def test_compare_missing_image_hint_names_table_and_resolvable_row_text(vrt):
                      target_helm="1.0.297")]
     findings, _ = vrt.compare(rows, deps, {}, values_lines(ZAC_BLOCK))
     hint = next(m for m in findings["missing_from_release_table"] if "zaakafhandelcomponent" in m)
-    assert '\n      Confluence: add a row to the "Product component versies" table' in hint
-    assert '"Used by" containing "zac" and a Name containing "zaakafhandelcomponent"' in hint
-    assert "(currently pinned at 5.4.3)" in hint
+    assert '\n      Confluence: add row to "Product component versies"' in hint
+    assert '"Used by": "zac", Name containing "zaakafhandelcomponent"' in hint
+    assert "version (currently) 5.4.3" in hint
 
 
 # --- compare(): missing from Chart.yaml / values.yaml ---
@@ -245,10 +245,10 @@ def test_compare_missing_multiple_image_hint_has_no_used_by_and_guesses_technisc
     global.images entry is, by convention, exported there)."""
     findings, _ = vrt.compare([], [], {}, values_lines(GLOBAL_CURL_BLOCK))
     hint = next(m for m in findings["missing_from_release_table"] if "'global' image 'curl'" in m)
-    assert '\n      Confluence: add a row to the "Technische component versies" table' in hint
-    assert 'a Name containing "curl"' in hint
+    assert '\n      Confluence: add row to "Technische component versies"' in hint
+    assert 'Name containing "curl"' in hint
     assert "Used by" not in hint
-    assert "(currently pinned at 8.22.0)" in hint
+    assert "version (currently) 8.22.0" in hint
 
 
 # --- multi-image component (e.g. zgw-office-addin) ---

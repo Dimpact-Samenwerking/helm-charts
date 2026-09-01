@@ -181,20 +181,20 @@ GENERIC_TABLE_HINT = "whichever table fits (Product/Common Ground/Overige/Techni
 
 
 def confluence_table_hint(rows, component):
-    """Which Confluence table (e.g. '"Technische component versies"
-    table') a "missing from release-table.csv" finding should actually
-    be added to — read off the "section" column (see export-confluence-
-    release-table's CSV_HEADER) of any one of `rows`, since every row
-    for the same component/MULTIPLE_KEY is exported under the same
-    table. Falls back to GENERIC_TABLE_HINT when `rows` is empty and no
-    better guess applies — except MULTIPLE_KEY, where every values.yaml
-    global.images entry is, by convention, exported under "Technische"
-    (see module docstring), a safe guess even with zero existing
-    "MULTIPLE" rows to read a section from at all."""
+    """Which Confluence table (e.g. '"Technische component versies"') a
+    "missing from release-table.csv" finding should actually be added
+    to — read off the "section" column (see export-confluence-release-
+    table's CSV_HEADER) of any one of `rows`, since every row for the
+    same component/MULTIPLE_KEY is exported under the same table. Falls
+    back to GENERIC_TABLE_HINT when `rows` is empty and no better guess
+    applies — except MULTIPLE_KEY, where every values.yaml global.images
+    entry is, by convention, exported under "Technische" (see module
+    docstring), a safe guess even with zero existing "MULTIPLE" rows to
+    read a section from at all."""
     if rows:
-        return f'"{rows[0]["section"]} component versies" table'
+        return f'"{rows[0]["section"]} component versies"'
     if component == MULTIPLE_KEY:
-        return '"Technische component versies" table'
+        return '"Technische component versies"'
     return GENERIC_TABLE_HINT
 
 
@@ -220,10 +220,10 @@ def missing_image_hint(rows, scope_key, component, basename, versions):
     where = confluence_table_hint(rows, component)
     version_text = ", ".join(sorted(versions))
     if component == MULTIPLE_KEY:
-        what = f'a Name containing "{basename}"'
+        what = f'Name containing "{basename}"'
     else:
-        what = f'"Used by" containing "{scope_key}" and a Name containing "{basename}"'
-    return f"Confluence: add a row to the {where} — {what} (currently pinned at {version_text})"
+        what = f'"Used by": "{scope_key}", Name containing "{basename}"'
+    return f"Confluence: add row to {where} — {what}, version (currently) {version_text}"
 
 
 def check_images(scope_key, component, rows, lines, findings, values):
@@ -325,8 +325,8 @@ def compare(rows, deps, values, lines):
             identifier = dep.get("alias") or component
             findings["missing_from_release_table"].append(
                 f"[CHART] Chart.yaml dependency '{component}'{alias_suffix} has no release-table.csv row\n"
-                f'      Confluence: add a row to the {GENERIC_TABLE_HINT} — Name or "Used by" containing '
-                f'"{identifier}" (no existing row for this component to read a section from)'
+                f'      Confluence: add row to {GENERIC_TABLE_HINT} — Name or "Used by": "{identifier}" '
+                f"(no existing row to read a section from)"
             )
             continue
         check_chart_version(dep, rows_for_component, findings)
