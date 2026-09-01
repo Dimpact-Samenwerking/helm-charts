@@ -99,7 +99,7 @@ def test_images_manifest_format_stale_baseline_header(libdocsconsistency, tmp_pa
     images_path.write_text(text)
     issues = libdocsconsistency.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, {})
     assert any('baseline line says "4.8.2"' in i for i in issues)
-    assert any('"... vs ..." line says baseline "4.8.2"' in i for i in issues)
+    assert any('"... vs ..." line says upgrade_docs_baseline "4.8.2"' in i for i in issues)
 
 
 def test_images_manifest_format_trailing_period_not_captured(libdocsconsistency, tmp_path):

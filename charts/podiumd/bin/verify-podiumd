@@ -235,7 +235,6 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from lib.chart import UTF8_BOM, RELEASE_BASELINES_FILE_NAME
-from lib.chart import release_baseline as read_release_baseline
 from lib.chart import release_table_baseline as read_release_table_baseline
 from lib.chart import upgrade_docs_baseline as read_upgrade_docs_baseline
 from lib.gitutil import find_repo_root, resolve_baseline_ref
@@ -633,9 +632,9 @@ def main():
     run_step("Release baseline", "Checking release-baseline resolves to a real release",
              check_release_baseline, chart_dir)
 
-    baseline = read_release_baseline(chart_dir)
+    upgrade_docs_baseline = read_upgrade_docs_baseline(chart_dir)
     run_step("Docs consistency", "Checking versions against upgrade docs",
-             check_docs_consistency, chart_dir, baseline)
+             check_docs_consistency, chart_dir, upgrade_docs_baseline)
     run_step("Helm doc", "Checking README.md against values.yaml (helm-docs)",
              check_helm_docs, chart_dir)
     run_step("Markdown lint", "Checking markdown docs with pymarkdown",

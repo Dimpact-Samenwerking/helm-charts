@@ -95,12 +95,12 @@ def chart_repo(tmp_path):
 
 
 def test_fully_consistent_chart_passes_with_baseline(vp, chart_repo):
-    ok, detail = vp.check_docs_consistency(chart_repo, baseline="4.8.5")
+    ok, detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
     assert ok is True, detail
 
 
 def test_fully_consistent_chart_passes_without_baseline(vp, chart_repo):
-    ok, detail = vp.check_docs_consistency(chart_repo, baseline=None)
+    ok, detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline=None)
     assert ok is True, detail
 
 
@@ -110,7 +110,7 @@ def test_no_matching_docs_is_a_soft_pass(vp, tmp_path):
     (chart_dir / "docs" / "images").mkdir(parents=True)
     (chart_dir / "Chart.yaml").write_text(CHART_YAML)
     (chart_dir / "values.yaml").write_text(values_yaml("5.4.3"))
-    ok, detail = vp.check_docs_consistency(chart_dir, baseline=None)
+    ok, detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline=None)
     assert ok is True
     assert "skipped" in detail
 
@@ -118,7 +118,7 @@ def test_no_matching_docs_is_a_soft_pass(vp, tmp_path):
 def test_wrong_target_version_in_doc_is_caught(vp, chart_repo):
     doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
     doc.write_text(UPGRADE_DOC.format(baseline="4.8.5", app_source="5.0.2", app_target="5.9.9"))
-    ok, detail = vp.check_docs_consistency(chart_repo, baseline="4.8.5")
+    ok, detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
     assert ok is False
     assert "mismatch" in detail
 
@@ -126,13 +126,13 @@ def test_wrong_target_version_in_doc_is_caught(vp, chart_repo):
 def test_wrong_source_version_vs_baseline_is_caught(vp, chart_repo):
     doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
     doc.write_text(UPGRADE_DOC.format(baseline="4.8.5", app_source="9.9.9", app_target="5.4.3"))
-    ok, detail = vp.check_docs_consistency(chart_repo, baseline="4.8.5")
+    ok, detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
     assert ok is False
     assert "mismatch" in detail
 
 
 def test_unresolvable_baseline_is_caught(vp, chart_repo):
-    ok, detail = vp.check_docs_consistency(chart_repo, baseline="9.9.9")
+    ok, detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="9.9.9")
     assert ok is False
 
 
@@ -146,7 +146,7 @@ def test_undocumented_new_component_is_caught_everywhere(vp, chart_repo, capsys)
     (chart_repo / "values.yaml").write_text(
         values_yaml("5.4.3") + 'openformulieren:\n  image:\n    tag: "3.5.6@sha256:cccc"\n')
 
-    ok, detail = vp.check_docs_consistency(chart_repo, baseline="4.8.5")
+    ok, detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
     assert ok is False
     assert "mismatch" in detail
 
@@ -165,7 +165,7 @@ def test_component_changed_with_no_key_diffs_still_needs_values_deltas_mention(v
     doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-values-deltas.md"
     doc.write_text("# Values deltas — PodiumD 4.8.5 → 4.9.0\n\n"
                     "No gemeente podiumd.yml changes are required for this hop.\n")
-    ok, detail = vp.check_docs_consistency(chart_repo, baseline="4.8.5")
+    ok, detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
     assert ok is False
     assert "mismatch" in detail
 
@@ -226,7 +226,7 @@ def test_correctly_ordered_table_and_changes_pass(vp, order_chart_dir):
     chart_dir, doc_dir = order_chart_dir
     (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
         order_doc([ZAAK_ROW, INWONER_ROW], ["Open Zaak bump", "Open Inwoner bump"]))
-    ok, detail = vp.check_docs_consistency(chart_dir, baseline=None)
+    ok, detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline=None)
     assert ok is True, detail
 
 
@@ -234,7 +234,7 @@ def test_out_of_order_table_row_is_caught(vp, order_chart_dir, capsys):
     chart_dir, doc_dir = order_chart_dir
     (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
         order_doc([INWONER_ROW, ZAAK_ROW], ["Open Zaak bump", "Open Inwoner bump"]))
-    ok, detail = vp.check_docs_consistency(chart_dir, baseline=None)
+    ok, detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline=None)
     assert ok is False
     assert "mismatch" in detail
     out = capsys.readouterr().out
@@ -246,7 +246,7 @@ def test_out_of_order_changes_block_is_caught(vp, order_chart_dir, capsys):
     chart_dir, doc_dir = order_chart_dir
     (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
         order_doc([ZAAK_ROW, INWONER_ROW], ["Open Inwoner bump", "Open Zaak bump"]))
-    ok, detail = vp.check_docs_consistency(chart_dir, baseline=None)
+    ok, detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline=None)
     assert ok is False
     assert "mismatch" in detail
     out = capsys.readouterr().out
@@ -262,5 +262,5 @@ def test_unmatched_summary_row_never_flagged_against_real_components(vp, order_c
     summary_row = "| nginx-unprivileged (shared sidecar) | 1.31.4 | — | - |"
     (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
         order_doc([ZAAK_ROW, INWONER_ROW, summary_row], ["Open Zaak bump", "Open Inwoner bump"]))
-    ok, detail = vp.check_docs_consistency(chart_dir, baseline=None)
+    ok, detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline=None)
     assert ok is True, detail
