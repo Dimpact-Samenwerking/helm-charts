@@ -536,6 +536,101 @@ def test_main_corrects_stale_table_using_real_baseline_tag(cdb, repo_with_baseli
     assert "Correcting component version table" in out
 
 
+# --- main() integration: adding a missing "Component versions" row ---
+
+@pytest.fixture
+def repo_with_undocumented_component_bumps(tmp_path):
+    """Two dependencies changed between the baseline tag and HEAD but
+    neither ever got a row in the upgrade doc's "Component versions"
+    table at all — the real gap add_missing_component_rows exists to
+    fill in. "openformulieren" has a plain resolvable app image
+    (actual_app_version's common <key>.image.tag shape); "keycloak-
+    operator" doesn't (its real app version lives at a split tag/sha
+    path actual_app_version doesn't know about — the same shape that
+    forces a TODO-stub Changes section instead of full prose)."""
+    git("init", "-q", cwd=tmp_path)
+    git("config", "user.email", "test@example.com", cwd=tmp_path)
+    git("config", "user.name", "Test", cwd=tmp_path)
+
+    write(tmp_path / "Chart.yaml", yaml.safe_dump({
+        "dependencies": [
+            {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297", "repository": "@zac"},
+            {"name": "openforms", "alias": "openformulieren", "version": "1.11.0", "repository": "@maykinmedia"},
+            {"name": "keycloak-operator", "version": "1.12.1", "repository": "@adfinis"},
+        ],
+    }))
+    write(tmp_path / "values.yaml", yaml.safe_dump({
+        "zac": {"image": {"tag": "5.0.2@sha256:bbbb"}},
+        "openformulieren": {"image": {"tag": "3.4.10@sha256:cccc"}},
+        "keycloak-operator": {"operator": {"config": {"keycloakImage": {"tag": "26.6.4", "sha": "eeee"}}}},
+    }))
+    doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
+    doc_dir.mkdir(parents=True)
+    (tmp_path / "docs" / "images").mkdir(parents=True)
+    git("add", "-A", cwd=tmp_path)
+    git("commit", "-q", "-m", "baseline state", cwd=tmp_path)
+    git("tag", "podiumd-4.8.5", cwd=tmp_path)
+
+    write(tmp_path / "Chart.yaml", yaml.safe_dump({
+        "dependencies": [
+            {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297", "repository": "@zac"},
+            {"name": "openforms", "alias": "openformulieren", "version": "1.12.0", "repository": "@maykinmedia"},
+            {"name": "keycloak-operator", "version": "1.13.0", "repository": "@adfinis"},
+        ],
+    }))
+    write(tmp_path / "values.yaml", yaml.safe_dump({
+        "zac": {"image": {"tag": "5.0.2@sha256:bbbb"}},
+        "openformulieren": {"image": {"tag": "3.5.6@sha256:dddd"}},
+        "keycloak-operator": {"operator": {"config": {"keycloakImage": {"tag": "26.7.3", "sha": "ffff"}}}},
+    }))
+    write(doc_dir / "4.8.3-to-4.9.0-upgrade.md",
+          "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+          "## Component versions (4.9.0 vs 4.8.5)\n\n"
+          "| Component | App version | Helm chart | Notes |\n"
+          "| --- | --- | --- | --- |\n"
+          "| ZAC (Zaakafhandelcomponent) | 5.0.2 (unchanged) | 1.0.297 (unchanged) | n/a |\n\n"
+          "## Changes\n\n")
+    git("add", "-A", cwd=tmp_path)
+    git("commit", "-q", "-m", "bump openformulieren + keycloak-operator, no doc rows added", cwd=tmp_path)
+    return doc_dir
+
+
+def test_main_adds_missing_row_with_resolvable_app_version(cdb, repo_with_undocumented_component_bumps,
+                                                             monkeypatch, capsys):
+    set_argv_and_dir(cdb, monkeypatch, repo_with_undocumented_component_bumps, "4.8.5")
+    cdb.main()
+
+    upgrade = (repo_with_undocumented_component_bumps / "4.8.5-to-4.9.0-upgrade.md").read_text(encoding="utf-8")
+    assert "| openformulieren | 3.4.10 → 3.5.6 | 1.11.0 → 1.12.0 | - |" in upgrade
+    assert "### openformulieren 3.4.10 → 3.5.6 (chart 1.11.0 → 1.12.0)" in upgrade
+    assert "TODO" not in upgrade.split("### openformulieren")[1].split("###")[0]
+    out = capsys.readouterr().out
+    assert "Adding missing component row(s)" in out
+    assert "openformulieren" in out
+
+
+def test_main_adds_missing_row_with_unresolvable_app_version_as_todo_stub(
+        cdb, repo_with_undocumented_component_bumps, monkeypatch, capsys):
+    set_argv_and_dir(cdb, monkeypatch, repo_with_undocumented_component_bumps, "4.8.5")
+    cdb.main()
+
+    upgrade = (repo_with_undocumented_component_bumps / "4.8.5-to-4.9.0-upgrade.md").read_text(encoding="utf-8")
+    assert "| keycloak-operator | - | 1.12.1 → 1.13.0 | - |" in upgrade
+    assert "### keycloak-operator 1.12.1 → 1.13.0" in upgrade
+    assert "TODO: describe this component's changes" in upgrade
+    out = capsys.readouterr().out
+    assert "keycloak-operator" in out
+
+
+def test_main_leaves_existing_row_untouched_when_adding_missing_ones(
+        cdb, repo_with_undocumented_component_bumps, monkeypatch):
+    set_argv_and_dir(cdb, monkeypatch, repo_with_undocumented_component_bumps, "4.8.5")
+    cdb.main()
+
+    upgrade = (repo_with_undocumented_component_bumps / "4.8.5-to-4.9.0-upgrade.md").read_text(encoding="utf-8")
+    assert "| ZAC (Zaakafhandelcomponent) | 5.0.2 (unchanged) | 1.0.297 (unchanged) | n/a |" in upgrade
+
+
 # --- main() integration: values-deltas.md missing key-change mentions ---
 
 @pytest.fixture
@@ -593,6 +688,33 @@ def test_main_does_not_duplicate_already_mentioned_key_change(cdb, repo_with_und
     doc = repo_with_undocumented_schema_change / "4.8.3-to-4.9.0-values-deltas.md"
     doc.write_text(
         "# Values deltas — PodiumD 4.8.3 → 4.9.0\n\n"
+        "Removed `zac.brpApi.protocollering.verwerking.extendWithZaaktype` — no longer needed.\n",
+        encoding="utf-8",
+    )
+    set_argv_and_dir(cdb, monkeypatch, repo_with_undocumented_schema_change, "4.8.5")
+    cdb.main()
+
+    deltas = (repo_with_undocumented_schema_change / "4.8.5-to-4.9.0-values-deltas.md").read_text(
+        encoding="utf-8")
+    assert deltas.count("extendWithZaaktype") == 1
+    out = capsys.readouterr().out
+    assert "Adding missing key-change mentions" not in out
+
+
+def test_main_ignores_mention_inside_fenced_code_block_and_does_not_duplicate(
+        cdb, repo_with_undocumented_schema_change, monkeypatch, capsys):
+    """Regression: a fenced code block earlier in the doc (containing an
+    unbalanced backtick, as real-world example snippets often do) used to
+    desync backtick-span pairing for the REST of the document, making an
+    already-mentioned key look unmentioned — main() would then re-add a
+    duplicate mention right next to the real one instead of recognizing
+    it (see lib.upgradedoc.strip_fenced_code_blocks)."""
+    doc = repo_with_undocumented_schema_change / "4.8.3-to-4.9.0-values-deltas.md"
+    doc.write_text(
+        "# Values deltas — PodiumD 4.8.3 → 4.9.0\n\n"
+        "```yaml\n"
+        "some: `unbalanced backtick example\n"
+        "```\n\n"
         "Removed `zac.brpApi.protocollering.verwerking.extendWithZaaktype` — no longer needed.\n",
         encoding="utf-8",
     )

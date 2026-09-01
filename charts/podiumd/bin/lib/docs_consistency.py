@@ -17,7 +17,8 @@ from lib.upgradedoc import (
     extract_source_version, extract_target_version, find_grouped_preceding_comment,
     find_image_tag_paths, find_out_of_order_names, match_dependency, normalize_version, pair_renames,
     parse_changes_block, parse_upgrade_doc_changes_blocks,
-    parse_upgrade_doc_rows as _parse_upgrade_doc_rows, resolve_entry_path, values_key_order,
+    parse_upgrade_doc_rows as _parse_upgrade_doc_rows, resolve_entry_path, strip_fenced_code_blocks,
+    values_key_order,
 )
 
 
@@ -259,7 +260,7 @@ def check_values_deltas_content(doc_path, changed_component_keys, baseline_value
     renamed between the upgrade_docs_baseline and now is actually mentioned (backtick-
     quoted, matching the doc convention) in values-deltas.md."""
     text = doc_path.read_text(encoding="utf-8")
-    backtick_spans = re.findall(r"`([^`]+)`", text)
+    backtick_spans = re.findall(r"`([^`]+)`", strip_fenced_code_blocks(text))
     no_changes_claimed = bool(re.search(
         r"no\s+gemeente\s+`?podiumd\.yml`?\s+changes\s+are\s+required", text, re.IGNORECASE))
 

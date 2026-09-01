@@ -13,7 +13,11 @@ at the target baseline is checked for a stale sibling reference too
 already moved past) even though nothing else about it changes. Also
 correcting the
 "Component versions" table and images-manifest entries against
-Chart.yaml/values.yaml, reordering that table's rows and the "## Changes"
+Chart.yaml/values.yaml, ADDING a new table row + matching "### ..."
+Changes section for a component that changed vs the baseline but has no
+row at all yet (see add_missing_component_rows — the same "component ...
+changed vs ... but has no row" gap verify-podiumd's own doc-consistency
+check reports), reordering the table's rows and the "## Changes"
 section's "### ..." blocks to match values.yaml's own top-level
 component order, and flagging any values.yaml schema changes not yet
 mentioned in the values-deltas doc. Any of the three standard docs that
@@ -21,9 +25,11 @@ don't already exist under ANY baseline for this target are created as
 TODO stubs instead (nothing to rebase) — see create-doc-version for a
 script that ONLY ever does that, refusing outright if docs already exist
 under some other baseline (this script owns rebasing those on purpose;
-that one refuses to touch them). See fix_component_version_table and
-fix_images_manifest_entries for exactly what gets rewritten vs. just
-reported for manual review.
+that one refuses to touch them). See fix_component_version_table,
+add_missing_component_rows, and fix_images_manifest_entries for exactly
+what gets rewritten/added vs. just reported for manual review (an
+images-manifest entry is NEVER auto-added — its "name:" field needs a
+human-chosen ACR-mirror slug, see docs/images/acr-mirror-naming.md).
 
 Called automatically by change-podiumd-baseline, right after it writes
 release-baseline.yaml's upgrade_docs key — see that script for the
@@ -57,7 +63,10 @@ sys.path.insert(0, str(SCRIPT_DIR))
 from lib.chart import SEMVER_RE as BASELINE_VERSION_RE
 from lib.chart import chart_version
 from lib.chart import upgrade_docs_baseline as read_upgrade_docs_baseline
-from lib.component_docs import IMAGES_STUB_TEMPLATE, STANDARD_SUFFIXES, STUB_TEMPLATES, existing_doc_baselines
+from lib.component_docs import (
+    IMAGES_STUB_TEMPLATE, STANDARD_SUFFIXES, STUB_TEMPLATES, add_missing_component_rows,
+    existing_doc_baselines,
+)
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
 from lib.upgradedoc import (
     actual_app_version, append_to_doc, canonical_version_cell, compute_changed_components,
@@ -438,6 +447,10 @@ def main():
 
     target_deps, target_values = load_target_state()
     baseline_deps, baseline_values = load_baseline_state(new_baseline)
+    actual_changed_keys = (
+        compute_changed_components(target_deps, baseline_deps, target_values, baseline_values)
+        if baseline_deps is not None else set()
+    )
 
     upgrade_path = DOC_DIR / f"{new_baseline}-to-{target}-upgrade.md"
     if upgrade_path.is_file():
@@ -464,6 +477,15 @@ def main():
             for name in unmatched_names:
                 print(f"  {name}")
 
+        text, added_names = add_missing_component_rows(
+            text, target_deps, target_values, baseline_deps, baseline_values, actual_changed_keys, target
+        )
+        if added_names:
+            print()
+            print(f"=== Adding missing component row(s) + Changes section(s) to {upgrade_path.name} ===")
+            for name in added_names:
+                print(f"  {name}")
+
         text, moved_rows = sort_upgrade_doc_rows(text, target_deps, target_values)
         text, moved_blocks = sort_changes_blocks(text, target_deps, target_values)
         if moved_rows or moved_blocks:
@@ -474,7 +496,7 @@ def main():
             for heading, old_pos, new_pos in moved_blocks:
                 print(f"  changes block '### {heading}': position {old_pos} -> {new_pos}")
 
-        if changed_rows or moved_rows or moved_blocks:
+        if changed_rows or added_names or moved_rows or moved_blocks:
             upgrade_path.write_text(text, encoding="utf-8")
 
     if images_path.is_file():
