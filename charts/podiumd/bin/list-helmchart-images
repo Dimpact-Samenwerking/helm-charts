@@ -4,18 +4,17 @@ List every container image (repository + tag) and every sub-chart dependency
 declared by a podiumd dependency chart, at a given chart version.
 
 Each image is printed as two lines. The first is short: "<key> <basename>
-<version>" — the same argument order update-image-version/verify-image-
-version/show-image-baseline-version take, so it doubles as the exact
-arguments to hand one of those scripts; <key> is this dependency's own
-name/alias (the same one <chart-name-or-alias> above resolved to). The
-second, indented line has the full "<repo>:<tag>" and, for extra
-context, the values.yaml path it was found at. Unlike list-podiumd-
-images, there's no check that <key> <basename> is already a literal pin
-in podiumd's OWN values.yaml — this reads a chart version straight from
-its own source (pulled fresh, or local), typically BEFORE it's been
-integrated into podiumd at all, so <key> <basename> here is what you'd
-use once you've added the override, not necessarily something that
-resolves yet.
+<version>  (path: ...)" — <key> <basename> <version> is the same
+argument order update-image-version/verify-image-version/show-image-
+baseline-version take, so it doubles as the exact arguments to hand one
+of those scripts; <key> is this dependency's own name/alias (the same
+one <chart-name-or-alias> above resolved to). The second, indented line
+has the full "<repo>:<tag>". Unlike list-podiumd-images, there's no
+check that <key> <basename> is already a literal pin in podiumd's OWN
+values.yaml — this reads a chart version straight from its own source
+(pulled fresh, or local), typically BEFORE it's been integrated into
+podiumd at all, so <key> <basename> here is what you'd use once you've
+added the override, not necessarily something that resolves yet.
 
 Usage:
     list-helmchart-images <chart-name-or-alias> <chart-version>
@@ -83,9 +82,10 @@ def report_chart(chart_dir, requested_version, key):
         entries = [(key, image_basename(repo), version_of(tag), repo, tag, path) for path, repo, tag in images]
         entries.sort(key=lambda e: e[5])
         bwidth = max(len(e[1]) for e in entries)
+        vwidth = max(len(e[2]) for e in entries)
         for key_, basename, version, repo, tag, path in entries:
-            print(f"  {key_}  {basename.ljust(bwidth)}  {version}")
-            print(f"      {repo}:{tag}    (path: {path})")
+            print(f"  {key_}  {basename.ljust(bwidth)}  {version.ljust(vwidth)}  (path: {path})")
+            print(f"      {repo}:{tag}")
     else:
         print("\nNo image references found in values.yaml")
 
