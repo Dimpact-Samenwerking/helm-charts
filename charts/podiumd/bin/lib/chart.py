@@ -46,13 +46,16 @@ COMPONENT_IMAGE_PATHS = {
     # @sha256 digest — see update-component-version's SPLIT_TAG_SHA_PATHS
     # for the write side.
     "keycloak-operator": ["operator.config.keycloakImage"],
-    # openbao's own primary application image isn't at the usual bare
-    # "image" key at all — it's the OpenBao server image, pinned at the
-    # schema-init Job's own image block (the only place this chart pins
-    # it explicitly; "openbao.image" itself has no override in
-    # values.yaml, relying entirely on the chart's own appVersion
-    # default).
-    "openbao": ["configuration.job.image"],
+    # The real running OpenBao SERVER (the upstream openbao-helm
+    # subchart's own "server" key) — NOT "openbao.configuration.job.image",
+    # which despite reusing the same OpenBao binary is podiumd's own
+    # one-off post-deploy bao-config Job (enables OIDC auth, kv-v2 mount,
+    # uploader policy — see the values.yaml comment above that key), not
+    # the primary application. "server.image" has an explicit
+    # "repository:" override in values.yaml but a blank "tag:" (relies on
+    # the chart's own appVersion default) — image_paths_for callers still
+    # resolve a real repository from that override alone.
+    "openbao": ["server.image"],
 }
 DEFAULT_IMAGE_PATHS = ["image"]
 
@@ -269,31 +272,28 @@ def pull_chart_values(dep, version):
         shutil.rmtree(tmpdir, ignore_errors=True)
 
 
-def verify_chart_version(dep, version):
-    """The chart-existence check verify-component-version owns: pull
-    `version` of `dep`, print a "Checking chart version ... [FOUND/
-    MISSING]" line, and exit 1 with a FAIL message if the pull failed.
-    Returns the pulled chart's own values.yaml (parsed) on success —
-    verify-component-version's own app-image check needs that values.yaml
-    to resolve the image repository/host, so the chart-version check
-    itself lives in exactly this one place rather than being
-    reimplemented."""
+def verify_chart_version(chart_dir, dep, version):
+    """The chart-existence check verify-component-version owns: resolve
+    `version` of `dep` via resolve_chart_values (preferring an already-
+    vendored charts/<name>-<version>.tgz over a fresh `helm pull` — see
+    resolve_chart_values), print a "Checking chart version ... [FOUND/
+    MISSING]" line, and exit 1 with a FAIL message if that resolution
+    failed. Returns the resolved chart's own values.yaml (parsed) on
+    success — verify-component-version's own app-image check needs that
+    values.yaml to resolve the image repository/host, so the
+    chart-version check itself lives in exactly this one place rather
+    than being reimplemented."""
     chart_name = dep["name"]
-    tmpdir = Path(tempfile.mkdtemp(prefix="verify-chart-version-"))
-    try:
-        print(f"Checking chart version {version!r} for {chart_name}:")
-        ok, stderr = pull_chart(dep, version, tmpdir)
-        status = "FOUND  " if ok else "MISSING"
-        suffix = f"  ({stderr})" if not ok else ""
-        print(f"  [{status}] {chart_name} {version}{suffix}")
-        if not ok:
-            print()
-            print("FAIL: chart version does not exist")
-            sys.exit(1)
-        chart_dir = pulled_chart_dir(tmpdir)
-        return yaml.safe_load((chart_dir / "values.yaml").read_text()) or {}
-    finally:
-        shutil.rmtree(tmpdir, ignore_errors=True)
+    print(f"Checking chart version {version!r} for {chart_name}:")
+    values, source, error = resolve_chart_values(chart_dir, dep, version)
+    status = "FOUND  " if values is not None else "MISSING"
+    suffix = f"  ({source})" if values is not None else f"  ({error})"
+    print(f"  [{status}] {chart_name} {version}{suffix}")
+    if values is None:
+        print()
+        print("FAIL: chart version does not exist")
+        sys.exit(1)
+    return values
 
 
 def check_image_versions(values, image_paths, app_version):
@@ -355,12 +355,15 @@ def dotted_key_path(lines, line_index):
     return ".".join(key for _, key in stack)
 
 
-def subchart_values(chart_dir, dep):
+def subchart_values(chart_dir, dep, version=None):
     """A vendored dependency's own values.yaml (parsed), read straight out
-    of its .tgz under chart_dir/charts/ — the same file Helm merges
-    podiumd's own values.yaml under at render time. None if the .tgz
-    isn't vendored (not pulled yet) or doesn't have the expected layout."""
-    tgz_path = chart_dir / "charts" / f"{dep['name']}-{dep['version']}.tgz"
+    of its .tgz under chart_dir/charts/ at `version` (default: dep
+    ["version"], i.e. the currently-pinned version) — the same file Helm
+    merges podiumd's own values.yaml under at render time. None if that
+    exact version isn't vendored (not pulled yet, or a different version
+    is) or the .tgz doesn't have the expected layout."""
+    version = version or dep["version"]
+    tgz_path = chart_dir / "charts" / f"{dep['name']}-{version}.tgz"
     if not tgz_path.is_file():
         return None
     try:
@@ -371,6 +374,82 @@ def subchart_values(chart_dir, dep):
             return yaml.safe_load(member.read()) or {}
     except (KeyError, tarfile.TarError):
         return None
+
+
+def resolve_chart_values(chart_dir, dep, version, allow_pull=True):
+    """(values, source, error) for `dep` at `version` — preferring an
+    already-vendored charts/<name>-<version>.tgz (source "vendored", via
+    subchart_values, no network) and only falling back to a fresh `helm
+    pull` (source "pulled") when allow_pull is True and no vendored copy
+    exists at that exact version. This is the "if the proper version is
+    already downloaded, use it, don't re-download" shared by
+    verify_chart_version and update-component-version's own chart-version
+    check — an app-only bump (the common case) targets the SAME chart
+    version already vendored on disk, so the pull those previously always
+    did was pure waste. On failure — nothing vendored and either pulling
+    is disabled or the pull itself failed — values and source are None
+    and error is a ready-to-print reason (no "error: " prefix — callers
+    format that themselves)."""
+    values = subchart_values(chart_dir, dep, version)
+    if values is not None:
+        return values, "vendored", None
+    if not allow_pull:
+        return None, None, f"{dep['name']} {version} is not vendored, and pulling is disabled"
+    tmpdir = Path(tempfile.mkdtemp(prefix="resolve-chart-values-"))
+    try:
+        ok, stderr = pull_chart(dep, version, tmpdir)
+        if not ok:
+            return None, None, stderr
+        pulled_dir = pulled_chart_dir(tmpdir)
+        return yaml.safe_load((pulled_dir / "values.yaml").read_text(encoding="utf-8")) or {}, "pulled", None
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+def primary_image_repositories(chart_dir, dep, own_values, version=None, allow_pull=True):
+    """({path: repository_or_None, ...}, error_or_None) for every one of
+    dep's own primary image path(s) (see image_paths_for(dep["name"])) —
+    THE single place "what repository does this component's primary
+    image actually resolve to" is computed, reused by verify-release-
+    table-with-podiumd (allow_pull=False — offline only), verify_chart_
+    version, and update-component-version, which previously each
+    resolved this differently (or, for verify-release-table-with-
+    podiumd, not at all for a component relying entirely on its
+    subchart's own default repository, e.g. openzaak/openformulieren —
+    that was this function's whole reason for existing).
+
+    For each path: podiumd's OWN explicit "repository:" override in
+    `own_values` wins if present; otherwise falls back to the subchart's
+    own default repository at `version` (default: dep["version"], i.e.
+    the CURRENTLY pinned chart version) via resolve_chart_values —
+    resolved at most once and reused across every path that needs it,
+    not once per path. A path's value is None if NEITHER source has a
+    repository there at all; error (from resolve_chart_version, if it
+    was ever needed) is None whenever every path resolved via its own
+    explicit override, even if the subchart isn't vendored and pulling
+    is disabled — nothing depended on the subchart in that case.
+    `chart_dir` may itself be None (a caller with no vendored-charts
+    location at all, e.g. a pure in-memory test) — treated exactly like
+    "not vendored, and pulling is disabled", never raising."""
+    values_key = dep.get("alias") or dep["name"]
+    version = version or dep["version"]
+    results = {}
+    subchart_state = None  # lazily filled on first path that needs it: (values_or_None, error_or_None)
+    for path in image_paths_for(dep["name"]):
+        repo = get_path(own_values, f"{values_key}.{path}.repository")
+        if isinstance(repo, str) and repo:
+            results[path] = repo
+            continue
+        if subchart_state is None:
+            if chart_dir is None:
+                subchart_state = (None, f"no chart_dir given — can't resolve {dep['name']}'s subchart default")
+            else:
+                values, _source, err = resolve_chart_values(chart_dir, dep, version, allow_pull=allow_pull)
+                subchart_state = (values, err)
+        values, err = subchart_state
+        results[path] = get_path(values, f"{path}.repository") if values is not None else None
+    error = subchart_state[1] if subchart_state is not None else None
+    return results, error
 
 
 def subchart_template_text(chart_dir, dep):

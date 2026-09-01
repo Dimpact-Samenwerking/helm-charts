@@ -47,7 +47,8 @@ sys.path.insert(0, str(SCRIPT_DIR))
 from lib.chart import check_image_versions, image_paths_for, verify_chart_version
 from lib.chart import find_dependency as _find_dependency
 
-CHART_YAML = SCRIPT_DIR.parents[0] / "Chart.yaml"
+CHART_DIR = SCRIPT_DIR.parents[0]
+CHART_YAML = CHART_DIR / "Chart.yaml"
 
 
 def find_dependency(name_or_alias):
@@ -68,7 +69,7 @@ def main():
     component, app_version, chart_version = sys.argv[1], sys.argv[2], sys.argv[3]
 
     dep = find_dependency(component)
-    values = verify_chart_version(dep, chart_version)  # exits 1 itself if missing
+    values = verify_chart_version(CHART_DIR, dep, chart_version)  # exits 1 itself if missing
     results = check_image_versions(values, image_paths_for(component), app_version)
 
     print()

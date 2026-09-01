@@ -2,9 +2,29 @@
 verify-release-table-with-podiumd. compare() takes plain in-memory
 deps/values/lines/rows, so these tests need neither a real Chart.yaml nor
 network access; main()'s own tests just cover its file-loading/CLI glue."""
+import io
+import tarfile
+
 import pytest
+import yaml
 
 DIGEST = "a" * 64
+
+
+def make_vendored_tgz(chart_dir, name, version, values):
+    """A minimal vendored <name>-<version>.tgz under chart_dir/charts/ --
+    just enough for lib.chart.subchart_values (via primary_image_
+    repositories's own subchart-default fallback, see
+    primary_image_basename) to read a real values.yaml out of it,
+    mirroring tests/lib/test_chart.py's own make_tgz helper."""
+    charts_dir = chart_dir / "charts"
+    charts_dir.mkdir(parents=True, exist_ok=True)
+    tgz_path = charts_dir / f"{name}-{version}.tgz"
+    data = yaml.safe_dump(values).encode("utf-8")
+    with tarfile.open(tgz_path, "w:gz") as tar:
+        info = tarfile.TarInfo(name=f"{name}/values.yaml")
+        info.size = len(data)
+        tar.addfile(info, io.BytesIO(data))
 
 
 def csv_row(name, component, alias="", image_basename="", source_app="", source_helm="",
@@ -39,16 +59,26 @@ ZAC_WITH_SIDECAR_BLOCK = ZAC_BLOCK + (
     f'      tag: "0.158.0@sha256:{DIGEST}"\n'
 )
 
-# openbao's own PRIMARY image is NOT at the usual bare "image" key --
-# see lib.chart.COMPONENT_IMAGE_PATHS["openbao"] -- it's the schema-init
-# Job's own image block; "openbao.image" itself has no override at all
-# in the real chart (blank tag, relies on the chart's own appVersion
-# default). Plus a sidecar image (openbao.database.schemaJob.image --
-# the real shape of its own "postgres" schema-migration job) that is
-# NEVER openbao's primary image, mirroring the real chart's own two
-# "openbao" release-table.csv rows -- one for each.
+# openbao's own PRIMARY image is server.image (lib.chart.COMPONENT_IMAGE_
+# PATHS["openbao"]) -- it has an explicit "repository:" override in the
+# real chart but an intentionally blank "tag:" (relies on the chart's own
+# appVersion default), so it's NEVER actually digest-pinned as text --
+# is_primary_image's own text scan correctly finds nothing primary here,
+# so primary_image_basename must fall back to its own-override branch of
+# lib.chart.primary_image_repositories instead (see openbao_values() --
+# server.image DOES have its own "repository:", just no digest-pinned
+# "tag:", so no subchart pull/vendored-tgz lookup is ever needed for this
+# particular fixture). configuration.job.image and database.schemaJob.
+# image are real digest-pinned SIDECARS (openbao's own one-off bao-config
+# Job and its postgres schema-migration Job) -- never primary, mirroring
+# the real chart's own two separate "openbao" release-table.csv rows, one
+# for each.
 OPENBAO_BLOCK = (
     "openbao:\n"
+    "  server:\n"
+    "    image:\n"
+    "      repository: openbao/openbao\n"
+    '      tag: ""\n'
     "  configuration:\n"
     "    job:\n"
     "      image:\n"
@@ -60,6 +90,18 @@ OPENBAO_BLOCK = (
     "        repository: library/postgres\n"
     f'        tag: "16-alpine@sha256:{DIGEST}"\n'
 )
+
+
+def openbao_values(tag=""):
+    """The parsed values.yaml equivalent of OPENBAO_BLOCK's own server.
+    image block -- needed alongside OPENBAO_BLOCK (the `values` param of
+    compare()/check_chart_version/check_images is otherwise only ever
+    consulted for SPECIAL_CASE_*_TAG_PATHS lookups elsewhere in this
+    suite, so most fixtures here just pass {} — this one can't, since
+    primary_image_basename's own-override fallback reads podiumd's
+    "repository:" override straight out of this parsed dict, not out of
+    `lines`)."""
+    return {"openbao": {"server": {"image": {"repository": "openbao/openbao", "tag": tag}}}}
 
 
 # --- compare(): version mismatches ---
@@ -107,7 +149,7 @@ def test_compare_reports_chart_version_never_tracked(vrt):
         {**csv_row("OpenBao Schema Job (postgres)", "openbao", image_basename="postgres", target_app="UNKNOWN"),
          "section": "Technische"},
     ]
-    findings, _ = vrt.compare(rows, deps, {}, values_lines(OPENBAO_BLOCK))
+    findings, _ = vrt.compare(rows, deps, openbao_values(), values_lines(OPENBAO_BLOCK))
     hint = next(m for m in findings["missing_from_release_table"] if "'openbao' has release-table" in m)
     assert "[CHART] Chart.yaml dependency 'openbao' has release-table.csv row(s), but none records " \
            "a Helm chart version" in hint
@@ -136,9 +178,33 @@ def test_compare_chart_version_never_tracked_no_primary_row_yet(vrt):
     deps = [{"name": "openbao", "alias": "", "version": "0.28.4"}]
     rows = [{**csv_row("OpenBao Schema Job (postgres)", "openbao", image_basename="postgres", target_app="UNKNOWN"),
              "section": "Technische"}]
-    findings, _ = vrt.compare(rows, deps, {}, values_lines(OPENBAO_BLOCK))
+    findings, _ = vrt.compare(rows, deps, openbao_values(), values_lines(OPENBAO_BLOCK))
     hint = next(m for m in findings["missing_from_release_table"] if "'openbao' has release-table" in m)
     assert "none of the existing row(s) is this chart's own primary-image row yet" in hint
+
+
+def test_compare_chart_version_never_tracked_resolves_primary_via_vendored_subchart(vrt, tmp_path):
+    """openzaak-style: values.yaml pins a real digest for its own primary
+    image but with NO "repository:" of its own at all -- relies entirely
+    on the vendored openzaak subchart's own default repository. The plain
+    digest-pin text scan (basenames_under_scope) can't compute a basename
+    for a pin with no repository, so before this fix the primary row for
+    a component shaped like this could never be identified at all --
+    primary_image_basename's own subchart-default fallback (lib.chart.
+    primary_image_repositories) now resolves it from the vendored .tgz
+    instead, with no network access, correctly naming the ONE row that
+    claims the resolved "open-zaak" basename."""
+    make_vendored_tgz(tmp_path, "openzaak", "4.9.1", {"image": {"repository": "openzaak/open-zaak"}})
+    openzaak_block = (
+        "openzaak:\n"
+        "  image:\n"
+        f'    tag: "3.28.0@sha256:{DIGEST}"\n'
+    )
+    deps = [{"name": "openzaak", "alias": "", "version": "4.9.1"}]
+    rows = [csv_row("Open Zaak", "openzaak", image_basename="open-zaak", target_app="3.28.0")]
+    findings, _ = vrt.compare(rows, deps, {}, values_lines(openzaak_block), tmp_path)
+    hint = next(m for m in findings["missing_from_release_table"] if "'openzaak' has release-table" in m)
+    assert 'Confluence: fill in the Helm version cell on "Open Zaak" ("Product component versies")' in hint
 
 
 @pytest.mark.parametrize("target_app,target_helm", [("", ""), ("UNKNOWN", "UNKNOWN")])
