@@ -68,6 +68,38 @@ def test_compare_no_findings_when_everything_matches(vrt):
     assert unresolved == []
 
 
+def test_compare_reports_chart_version_never_tracked(vrt):
+    """openbao's real-world case: its own Chart.yaml dependency has
+    row(s) in release-table.csv, but NEITHER ever recorded a Helm chart
+    version (both source_version_helm and target_version_helm blank on
+    every row) -- silently treated as "nothing changed" by the plain
+    mismatch check alone, even though the chart version was never
+    tracked at all. Its own row lives on "Technische component
+    versies", which has no Helm column at all -- the hint must say so,
+    and point at the other three tables instead of a cell that doesn't
+    exist here."""
+    deps = [{"name": "openbao", "alias": "", "version": "0.28.4"}]
+    rows = [{**csv_row("OpenBao", "openbao", image_basename="openbao", target_app="2.5.5"), "section": "Technische"}]
+    findings, _ = vrt.compare(rows, deps, {}, [])
+    hint = next(m for m in findings["missing_from_release_table"] if "openbao" in m)
+    assert "[CHART] Chart.yaml dependency 'openbao' has release-table.csv row(s), but none records " \
+           "a Helm chart version" in hint
+    assert '\n      Confluence: "Technische component versies" has no Helm column at all' in hint
+    assert "Product/Common Ground/Overige component versies instead" in hint
+
+
+def test_compare_chart_version_never_tracked_on_other_table_suggests_filling_cell(vrt):
+    """On a table that DOES have a Helm sub-column (anything but
+    "Technische component versies"), the fix is just to fill in the
+    existing cell -- not add a whole new row elsewhere."""
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+    rows = [csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac", image_basename="zaakafhandelcomponent",
+                     target_app="5.4.3")]  # target_helm/source_helm both left blank
+    findings, _ = vrt.compare(rows, deps, {}, values_lines(ZAC_BLOCK))
+    hint = next(m for m in findings["missing_from_release_table"] if "zaakafhandelcomponent" in m)
+    assert 'Confluence: fill in the Helm version cell for this row on "Product component versies"' in hint
+
+
 @pytest.mark.parametrize("target_app,target_helm", [("", ""), ("UNKNOWN", "UNKNOWN")])
 def test_compare_skips_blank_or_unknown_targets(vrt, target_app, target_helm):
     """A blank/UNKNOWN target means "nothing planned to compare" (see
@@ -75,7 +107,7 @@ def test_compare_skips_blank_or_unknown_targets(vrt, target_app, target_helm):
     mismatch just because it differs textually from the actual version."""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     rows = [csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac", image_basename="zaakafhandelcomponent",
-                     target_app=target_app, target_helm=target_helm)]
+                     source_helm="1.0.297", target_app=target_app, target_helm=target_helm)]
     findings, _ = vrt.compare(rows, deps, {}, values_lines(ZAC_BLOCK))
     assert findings == {}
 
@@ -387,7 +419,8 @@ def test_compare_checks_keycloak_special_case_image(vrt):
 
 def test_compare_keycloak_special_case_image_matching_passes(vrt):
     deps = [{"name": "keycloak-operator", "alias": "", "version": "1.12.1"}]
-    rows = [csv_row("Keycloak", "keycloak-operator", image_basename="keycloak", target_app="26.7.2")]
+    rows = [csv_row("Keycloak", "keycloak-operator", image_basename="keycloak",
+                     source_helm="1.12.1", target_app="26.7.2")]
     findings, _ = vrt.compare(rows, deps, keycloak_values(), [])
     assert findings == {}
 
@@ -424,7 +457,7 @@ def test_compare_sibling_scope_basename_matching_passes(vrt):
     )
     deps = [{"name": "keycloak-operator", "alias": "", "version": "1.12.1"}]
     rows = [csv_row("Keycloak Config CLI", "keycloak-operator", image_basename="keycloak-config-cli",
-                     target_app="6.5.1-26")]
+                     source_helm="1.12.1", target_app="6.5.1-26")]
     findings, _ = vrt.compare(rows, deps, {}, values_lines(keycloak_config_cli_block))
     assert findings == {}
 
