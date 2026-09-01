@@ -400,7 +400,7 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
         for row in parse_upgrade_doc_rows(doc_path):
             dep = match_dependency(row["name"], deps)
             if not dep:
-                print(f'  (doc row "{row["name"]}" — no matching Chart.yaml dependency, skipped)')
+                print(f'  {doc_path.name}: doc row "{row["name"]}" has no matching Chart.yaml dependency — skipped')
                 continue
             values_key = dep.get("alias", dep["name"])
             changed_component_keys.add(values_key)

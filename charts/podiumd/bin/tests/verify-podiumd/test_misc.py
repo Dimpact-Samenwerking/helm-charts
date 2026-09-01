@@ -190,7 +190,7 @@ def test_main_skips_requested_steps_and_runs_the_rest(vp, monkeypatch, capsys):
 def test_main_skipped_step_does_not_count_as_failure(vp, monkeypatch):
     """Skipping every step except one that fails must still exit non-zero —
     a skip must never mask a real failure in a step that DID run."""
-    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd", "--skip=dependencies,image-digests,docs-consistency,helm-lint,full-render"])
+    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd", "--skip=dependencies,image-digests,doc-consistency,helm-lint,full-render"])
     monkeypatch.setattr(vp, "require_helm", lambda: None)
     monkeypatch.setattr(vp, "resolve_chart_dir", lambda: Path("/fake/chart/dir"))
     monkeypatch.setattr(vp, "ensure_repos_configured", lambda: (True, "ok"))

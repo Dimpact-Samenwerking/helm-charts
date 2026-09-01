@@ -115,6 +115,23 @@ def test_no_matching_docs_is_a_soft_pass(vp, tmp_path):
     assert "skipped" in detail
 
 
+def test_unmatched_row_print_names_the_doc_file(vp, chart_repo, capsys):
+    """The unmatched-row print names which upgrade doc file the "no
+    matching Chart.yaml dependency" row was found in — there can be more
+    than one upgrade doc in play across a chart's history, so the row
+    name alone isn't enough to locate it — and has no superfluous
+    wrapping parens around the whole message."""
+    doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
+    doc.write_text(doc.read_text() + "| Keycloak | 1.0.0 → 1.0.1 | 1.0.0 (unchanged) | n/a |\n")
+
+    vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
+
+    out = capsys.readouterr().out
+    assert ('4.8.5-to-4.9.0-upgrade.md: doc row "Keycloak" has no matching Chart.yaml dependency '
+            '— skipped') in out
+    assert "(doc row" not in out
+
+
 def test_wrong_target_version_in_doc_is_caught(vp, chart_repo):
     doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
     doc.write_text(UPGRADE_DOC.format(baseline="4.8.5", app_source="5.0.2", app_target="5.9.9"))
