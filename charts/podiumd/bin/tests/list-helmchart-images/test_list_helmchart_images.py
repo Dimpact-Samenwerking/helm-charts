@@ -52,7 +52,8 @@ def test_report_chart_prints_chart_deps_and_images(lhi, tmp_path, capsys):
     out = capsys.readouterr().out
     assert "Chart: zaakafhandelcomponent 1.0.297 (appVersion: 5.5)" in out
     assert "opentelemetry-collector: 0.169.0" in out
-    assert "zac  zaakafhandelcomponent  5.4.3  ghcr.io/infonl/zaakafhandelcomponent:5.4.3@sha256:abc" in out
+    assert "zac  zaakafhandelcomponent  5.4.3" in out
+    assert "ghcr.io/infonl/zaakafhandelcomponent:5.4.3@sha256:abc" in out
 
 
 def test_report_chart_no_image_references(lhi, tmp_path, capsys):
@@ -88,7 +89,8 @@ def test_main_reads_local_chart_source_for_file_dependency(lhi, tmp_path, monkey
     out = capsys.readouterr().out
     assert f"Reading local chart source: {local_dir}" in out
     assert "Chart: mi-data 1.0.0" in out
-    assert "mi  azure-cli  2.71.0  mcr.microsoft.com/azure-cli:2.71.0" in out
+    assert "mi  azure-cli  2.71.0" in out
+    assert "mcr.microsoft.com/azure-cli:2.71.0" in out
 
 
 def test_main_local_dependency_missing_directory_raises(lhi, tmp_path, monkeypatch):
@@ -118,7 +120,8 @@ def test_main_full_flow_prints_chart_and_images(lhi, monkeypatch, capsys):
     assert "Pulling zac/zaakafhandelcomponent @ 1.0.297" in out
     assert "Chart: zaakafhandelcomponent 1.0.297 (appVersion: 5.5)" in out
     assert "opentelemetry-collector: 0.169.0" in out
-    assert "zac  zaakafhandelcomponent  5.4.3  ghcr.io/infonl/zaakafhandelcomponent:5.4.3@sha256:abc" in out
+    assert "zac  zaakafhandelcomponent  5.4.3" in out
+    assert "ghcr.io/infonl/zaakafhandelcomponent:5.4.3@sha256:abc" in out
 
 
 def test_main_pull_failure_raises_systemexit(lhi, monkeypatch):
