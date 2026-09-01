@@ -19,15 +19,32 @@ to flag charts approaching the limit before a real cluster does.
 
 This is an estimate, not a byte-exact reproduction: it doesn't split hook
 resources out of the manifest into a separate `hooks` array the way a real
-`helm install` does (small metadata overhead is under-counted), and Python's
-gzip vs Go's may differ by a small amount for the same input. Treat the
-percentage as directionally accurate, not to the byte.
+`helm install` does (small metadata overhead is under-counted), it doesn't
+account for `Release.Info.Notes` (rendered NOTES.txt — neither chart here
+has a root templates/NOTES.txt today, so this is currently a no-op gap, not
+a live discrepancy), and Python's gzip vs Go's may differ by a small amount
+for the same input. Treat the percentage as directionally accurate, not to
+the byte.
+
+The JSON shape built by build_release() is a hand-reimplementation of
+encodeRelease()'s Go structs (helm.sh/helm/v4/pkg/release + pkg/chart),
+not generated from them — it was cross-checked once against a Go-SDK-based
+reference implementation at authoring time (see the PR description), but
+nothing here re-verifies that match automatically. If a future Helm major
+version changes Release/Chart struct shape or json tags, this script can
+silently drift out of sync with no signal other than the reported
+percentage looking wrong. Re-diff against encodeRelease() in
+helm.sh/helm/v4/pkg/storage/driver/util.go after any Helm major-version
+bump in this repo's tooling.
 
 Usage:
     helm-release-secret-size.py --chart charts/podiumd -f charts/podiumd/ci/lint-values.yaml --record
     helm-release-secret-size.py --chart charts/monitoring-logging --record
 
-Requires: helm, yq (https://github.com/mikefarah/yq) on PATH.
+Requires: helm, yq (mikefarah/yq v4, https://github.com/mikefarah/yq) on
+PATH — NOT kislyuk/yq (the `pip install yq` package used elsewhere in this
+repo's CI), which has an incompatible CLI (`-o=json` is not a kislyuk/yq
+flag).
 """
 from __future__ import annotations
 
@@ -38,7 +55,6 @@ import gzip
 import io
 import json
 import pathlib
-import re
 import subprocess
 import sys
 import tarfile
@@ -46,6 +62,22 @@ import tempfile
 
 SECRET_LIMIT = 1024 * 1024
 WARN_THRESHOLD = 0.90
+
+
+def check_yq():
+    try:
+        result = subprocess.run(["yq", "--version"], capture_output=True, text=True)
+    except FileNotFoundError:
+        print("Error: yq not found on PATH. Install mikefarah/yq v4: brew install yq", file=sys.stderr)
+        sys.exit(1)
+    if "mikefarah" not in result.stdout:
+        print(
+            f"Error: yq on PATH does not look like mikefarah/yq v4 (got: {result.stdout.strip()!r}). "
+            "This script requires mikefarah/yq's `-o=json` flag — kislyuk/yq (`pip install yq`, used "
+            "elsewhere in this repo's CI) is NOT compatible. Install mikefarah/yq: brew install yq",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
 
 def run_yq_json(path: pathlib.Path):
@@ -88,6 +120,32 @@ def packaged_files(chart_dir: pathlib.Path) -> dict[str, bytes]:
     return out
 
 
+def check_subchart_freshness(chart_dir: pathlib.Path, metadata: dict):
+    """`helm package` (as used by packaged_files()) bundles whatever is
+    already vendored under <chart_dir>/charts/ as-is — it does NOT run
+    `helm dependency update` first. If Chart.yaml's declared dependency
+    version was just bumped but `helm dependency update` wasn't re-run,
+    the estimate below silently reflects the stale, still-vendored
+    subchart tree instead of the version actually being released."""
+    charts_subdir = chart_dir / "charts"
+    vendored = list(charts_subdir.glob("*.tgz")) if charts_subdir.is_dir() else []
+    for dep in metadata.get("dependencies") or []:
+        name, version = dep.get("name"), dep.get("version")
+        if not name or not version:
+            continue
+        matches = [p for p in vendored if p.name.startswith(f"{name}-")]
+        if not matches:
+            continue  # not vendored locally (e.g. condition-disabled) — nothing to compare
+        if not any(p.name == f"{name}-{version}.tgz" for p in matches):
+            found = ", ".join(sorted(p.name for p in matches))
+            print(
+                f"⚠️  WARNING: Chart.yaml declares {name}@{version}, but the vendored "
+                f"charts/ directory has {found} — run `helm dependency update` before "
+                "trusting this estimate; it may be sized against a stale subchart.",
+                file=sys.stderr,
+            )
+
+
 def bucket_files(paths: dict[str, bytes]):
     """Mirror helm's loader.LoadFiles bucketing: everything under charts/ is
     a subchart (excluded — dependencies is an unexported Go field, never
@@ -107,20 +165,32 @@ def bucket_files(paths: dict[str, bytes]):
     return templates, files
 
 
-def yq_json_bytes(data: bytes):
+def yq_json_bytes(data: bytes, source: str = "<input>"):
     result = subprocess.run(["yq", "-o=json", "-"], input=data, capture_output=True)
+    if result.returncode != 0:
+        raise RuntimeError(f"yq failed on {source}: {result.stderr.decode(errors='replace').strip()}")
     text = result.stdout.strip()
     return json.loads(text) if text else {}
 
 
 def build_release(chart_dir: pathlib.Path, values_file: pathlib.Path | None, manifest: str, name: str, namespace: str):
     paths = packaged_files(chart_dir)
-    metadata = yq_json_bytes(paths["Chart.yaml"])
-    values = yq_json_bytes(paths["values.yaml"]) if "values.yaml" in paths else {}
+    metadata = yq_json_bytes(paths["Chart.yaml"], "Chart.yaml")
+    values = yq_json_bytes(paths["values.yaml"], "values.yaml") if "values.yaml" in paths else {}
     schema_b64 = b64(paths["values.schema.json"]) if "values.schema.json" in paths else None
-    lock = yq_json_bytes(paths["Chart.lock"]) if "Chart.lock" in paths else None
+    lock = yq_json_bytes(paths["Chart.lock"], "Chart.lock") if "Chart.lock" in paths else None
     templates, files = bucket_files(paths)
     config = run_yq_json(values_file) if values_file else None
+    check_subchart_freshness(chart_dir, metadata)
+
+    if "templates/NOTES.txt" in paths:
+        print(
+            "⚠️  WARNING: this chart has a root templates/NOTES.txt. Rendering it into "
+            "Release.Info.Notes the way `helm install` does requires Go template "
+            "evaluation this script doesn't perform, so the estimate below omits it "
+            "entirely — treat the reported size as an under-count for this chart.",
+            file=sys.stderr,
+        )
 
     now = datetime.datetime.now(datetime.timezone.utc).isoformat()
     release = {
@@ -130,6 +200,7 @@ def build_release(chart_dir: pathlib.Path, values_file: pathlib.Path | None, man
             "last_deployed": now,
             "description": "Install complete",
             "status": "deployed",
+            "notes": None,
         },
         "chart": {
             "metadata": metadata,
@@ -166,12 +237,28 @@ def record_result(chart_dir: pathlib.Path, chart_name: str, version: str, encode
     )
 
     if doc_path.exists():
-        text = doc_path.read_text()
-        pattern = re.compile(rf"^\|\s*{re.escape(version)}\s*\|.*\|$", re.MULTILINE)
-        if pattern.search(text):
-            text = pattern.sub(row, text)
-        else:
-            text = text.rstrip("\n") + "\n" + row + "\n"
+        lines = doc_path.read_text().splitlines()
+        replaced = False
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            if not stripped.startswith("|") or stripped.startswith("|---"):
+                continue
+            cells = [c.strip() for c in stripped.strip("|").split("|")]
+            if cells and cells[0] == version:
+                if replaced:
+                    print(
+                        f"⚠️  WARNING: {doc_path} already had more than one row for "
+                        f"version {version} before this update — leaving the extras "
+                        "in place, only the first match was replaced. Clean up "
+                        "duplicates by hand.",
+                        file=sys.stderr,
+                    )
+                    continue
+                lines[i] = row
+                replaced = True
+        if not replaced:
+            lines.append(row)
+        text = "\n".join(lines) + "\n"
     else:
         text = header + row + "\n"
 
@@ -187,6 +274,8 @@ def main():
     parser.add_argument("--namespace", default="default")
     parser.add_argument("--record", action="store_true", help="append/update a row in <chart>/docs/release-secret-size.md")
     args = parser.parse_args()
+
+    check_yq()
 
     chart_dir = pathlib.Path(args.chart).resolve()
     name = args.name or chart_dir.name

@@ -7,4 +7,4 @@ Estimated size of the base64(gzip(json)) payload Helm stores in the
 
 | Version | Encoded bytes | % of 1 MiB limit | Date |
 |---|---|---|---|
-| 1.0.15 | 406,992 | 38.8% | 2026-08-10 |
+| 1.0.15 | 407,364 | 38.8% | 2026-09-01 |
