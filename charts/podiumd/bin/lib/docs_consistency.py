@@ -119,6 +119,30 @@ def check_pointer_consistency(doc_path, upgrade_docs_baseline, podiumd_version, 
     return issues
 
 
+def _match_changes_item_to_entry(item_name, entries):
+    """Best-effort match of a Changes-block item's free-form name (e.g.
+    "Python (ensurePodiumdAdminUser init image)") to one of this SAME
+    images-manifest's own entries — for an item that isn't a component at
+    all (a plain image with no Chart.yaml dependency of its own to check
+    against), so it isn't wrongly flagged as "no matching Chart.yaml
+    dependency" just because it was never going to have one. Deliberately
+    self-contained (reads only the file already being validated) rather
+    than reaching into release-table.csv's own "used_by" column — that
+    file is release_table_baseline-scoped, not upgrade_docs_baseline-
+    scoped, and isn't guaranteed to exist or be current for whatever hop
+    is being checked here.
+
+    Reuses match_dependency's own word-containment matching, against each
+    entry's final name segment (e.g. "python" from "library/python", an
+    ACR-mirror-style slug the item's own prose never spells out in full)
+    rather than a Chart.yaml dependency's name/alias. None if no entry's
+    basename shows up this way."""
+    candidates = [{"name": entry["name"].rsplit("/", 1)[-1], "_entry": entry}
+                  for entry in entries if entry.get("name")]
+    match = match_dependency(item_name, candidates)
+    return match["_entry"] if match else None
+
+
 def check_images_manifest_format(images_path, upgrade_docs_baseline, podiumd_version, deps, values, baseline_values):
     """Existence + YAML-validity + header-comment-accuracy precheck for the
     images manifest, run BEFORE the entry-by-entry content checks — mirrors
@@ -160,19 +184,30 @@ def check_images_manifest_format(images_path, upgrade_docs_baseline, podiumd_ver
 
     for item in parse_changes_block(text):
         dep = match_dependency(item["name"], deps)
-        if not dep:
-            issues.append(f'{images_path.name}: Changes item "{item["name"]}" — '
-                           f'no matching Chart.yaml dependency')
-            continue
-        values_key = dep.get("alias", dep["name"])
-        actual_app = actual_app_version(values, values_key)
-        actual_chart = dep["version"]
-        baseline_app = actual_app_version(baseline_values, values_key) if baseline_values else None
+        if dep:
+            values_key = dep.get("alias", dep["name"])
+            actual_app = actual_app_version(values, values_key)
+            actual_chart = dep["version"]
+            baseline_app = actual_app_version(baseline_values, values_key) if baseline_values else None
+        else:
+            # Not every Changes item is a component — a plain image (e.g. an
+            # init-container image with no subchart/dependency of its own)
+            # has nothing in Chart.yaml to match against at all; fall back
+            # to this same manifest's own entries instead of treating that
+            # as an error (see _match_changes_item_to_entry).
+            entry = _match_changes_item_to_entry(item["name"], entries)
+            if entry is None:
+                issues.append(f'{images_path.name}: Changes item "{item["name"]}" — no matching '
+                               f'Chart.yaml dependency or images-manifest entry')
+                continue
+            actual_app = entry.get("version")
+            actual_chart = None  # a plain image has no chart version to check
+            baseline_app = None  # no baseline lookup available without a component scope
 
         if item["app"] and actual_app and normalize_version(item["app"]) != normalize_version(actual_app):
             issues.append(f'{images_path.name}: Changes item "{item["name"]}" target app '
                            f'"{item["app"]}" != values.yaml "{actual_app}"')
-        if item["chart"] and normalize_version(item["chart"]) != normalize_version(actual_chart):
+        if item["chart"] and actual_chart and normalize_version(item["chart"]) != normalize_version(actual_chart):
             issues.append(f'{images_path.name}: Changes item "{item["name"]}" target chart '
                            f'"{item["chart"]}" != Chart.yaml "{actual_chart}"')
         if item["app_source"] and baseline_app and \
