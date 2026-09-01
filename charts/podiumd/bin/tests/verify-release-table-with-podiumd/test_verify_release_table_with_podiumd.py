@@ -76,6 +76,19 @@ def test_compare_reports_dependency_with_no_release_table_row(vrt):
     assert any("Chart.yaml dependency 'openklant'" in m for m in findings["missing_from_release_table"])
 
 
+def test_compare_dependency_missing_hint_names_resolvable_identifier(vrt):
+    """The finding's own second line must tell a human exactly what text
+    to write on the Confluence page so the NEXT export resolves this row
+    back to the same dependency (see lib.export's component_and_alias) —
+    the dependency's own alias when it has one (a real Chart.yaml
+    dependency's alias always wins an exact-match tier on its own)."""
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+    findings, _ = vrt.compare([], deps, {}, [])
+    hint = next(m for m in findings["missing_from_release_table"] if "zaakafhandelcomponent" in m)
+    assert "\n      Confluence: add a row to the whichever table fits" in hint
+    assert 'Name or "Used by" containing "zac"' in hint
+
+
 def test_compare_reports_image_pinned_but_not_tracked(vrt):
     """values.yaml pins an image under zac's own scope that no
     release-table.csv row mentions at all."""
@@ -85,6 +98,23 @@ def test_compare_reports_image_pinned_but_not_tracked(vrt):
     findings, _ = vrt.compare(rows, deps, {}, values_lines(ZAC_BLOCK))
     assert any("'zaakafhandelcomponent' is pinned in values.yaml but not tracked" in m
                for m in findings["missing_from_release_table"])
+
+
+def test_compare_missing_image_hint_names_table_and_resolvable_row_text(vrt):
+    """The finding's own second line must name the exact Confluence table
+    (read off this component's own existing row) and exactly what a new
+    row needs to say — "Used by" containing the component's own
+    identifier, and a Name containing the missing basename — so
+    resolve_image_basenames/component_and_alias resolve it on the next
+    export, not just a vague pointer to "add it somewhere"."""
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+    rows = [csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac", image_basename="",
+                     target_helm="1.0.297")]
+    findings, _ = vrt.compare(rows, deps, {}, values_lines(ZAC_BLOCK))
+    hint = next(m for m in findings["missing_from_release_table"] if "zaakafhandelcomponent" in m)
+    assert '\n      Confluence: add a row to the "Product component versies" table' in hint
+    assert '"Used by" containing "zac" and a Name containing "zaakafhandelcomponent"' in hint
+    assert "(currently pinned at 5.4.3)" in hint
 
 
 # --- compare(): missing from Chart.yaml / values.yaml ---
@@ -205,6 +235,20 @@ def test_compare_reports_global_image_with_no_release_table_row(vrt):
     findings, _ = vrt.compare([], [], {}, values_lines(GLOBAL_CURL_BLOCK))
     assert any("'global' image 'curl' is pinned in values.yaml but not tracked" in m
                for m in findings["missing_from_release_table"])
+
+
+def test_compare_missing_multiple_image_hint_has_no_used_by_and_guesses_technische(vrt):
+    """A MULTIPLE row resolves purely from its own Name relating to the
+    global image key -- no "Used by" needed (see
+    resolve_image_basenames). With zero existing "MULTIPLE" rows to read
+    a section from at all, "Technische" is still a safe guess (every
+    global.images entry is, by convention, exported there)."""
+    findings, _ = vrt.compare([], [], {}, values_lines(GLOBAL_CURL_BLOCK))
+    hint = next(m for m in findings["missing_from_release_table"] if "'global' image 'curl'" in m)
+    assert '\n      Confluence: add a row to the "Technische component versies" table' in hint
+    assert 'a Name containing "curl"' in hint
+    assert "Used by" not in hint
+    assert "(currently pinned at 8.22.0)" in hint
 
 
 # --- multi-image component (e.g. zgw-office-addin) ---
