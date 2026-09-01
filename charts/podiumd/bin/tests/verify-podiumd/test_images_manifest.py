@@ -191,3 +191,57 @@ def test_images_manifest_format_source_vs_baseline_mismatch(libdocsconsistency, 
     images_path.write_text(REAL_MANIFEST)
     issues = libdocsconsistency.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, baseline_values)
     assert any('comment says source "1.17.1-static"' in i for i in issues)
+
+
+# --- Changes items for plain images with no Chart.yaml dependency of their
+# own (e.g. an init-container image) -- must fall back to this same
+# manifest's own entries instead of being flagged as a missing dependency ---
+
+PYTHON_MANIFEST = """\
+# Baseline: podiumd 4.8.5 (origin/feature/podiumd-4.8.5 @ f27a008).
+#
+# Images new or changed in podiumd 4.9.0 vs 4.8.5.
+#
+# Changes:
+#   1. Python (ensurePodiumdAdminUser init image) 3.14-slim -> 3.14.7-slim —
+#      now pinned to a specific patch instead of the floating minor tag.
+#
+# See docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md for the operator upgrade notes.
+
+# Python (ensurePodiumdAdminUser init image) — 3.14-slim -> 3.14.7-slim
+- name: library/python
+  url: docker.io/library/python
+  version: "3.14.7-slim"
+  digest: "sha256:ccc"
+"""
+
+
+def test_images_manifest_format_plain_image_changes_item_matches_entry(libdocsconsistency, tmp_path):
+    """A Changes item for a plain image (no Chart.yaml dependency of its
+    own) must not be flagged just because match_dependency finds nothing —
+    it should resolve against this manifest's own "library/python" entry
+    instead and pass, since the target versions agree."""
+    images_path = tmp_path / "images-4.9.0.yaml"
+    images_path.write_text(PYTHON_MANIFEST)
+    issues = libdocsconsistency.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, {})
+    assert issues == []
+
+
+def test_images_manifest_format_plain_image_changes_item_target_mismatch(libdocsconsistency, tmp_path):
+    """Once resolved to its entry, a real mismatch must still be caught."""
+    text = PYTHON_MANIFEST.replace("3.14-slim -> 3.14.7-slim —", "3.14-slim -> 9.9.9 —")
+    images_path = tmp_path / "images-4.9.0.yaml"
+    images_path.write_text(text)
+    issues = libdocsconsistency.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, {})
+    assert any("target app" in i and "9.9.9" in i for i in issues)
+
+
+def test_images_manifest_format_changes_item_matching_neither_dep_nor_entry_still_reported(
+        libdocsconsistency, tmp_path):
+    text = PYTHON_MANIFEST.replace(
+        "Python (ensurePodiumdAdminUser init image)", "Totally Unknown Thing")
+    images_path = tmp_path / "images-4.9.0.yaml"
+    images_path.write_text(text)
+    issues = libdocsconsistency.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, {})
+    assert any('Totally Unknown Thing" — no matching Chart.yaml dependency or images-manifest entry' in i
+               for i in issues)
