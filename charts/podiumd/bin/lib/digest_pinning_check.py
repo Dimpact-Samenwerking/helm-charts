@@ -9,7 +9,7 @@ string, and so lib.image_digests' own duplicate/drift check and
 release-table.csv's image_basename resolution (both regex/text-based)
 can actually see the pin at all.
 
-Two known exceptions:
+Three known exceptions:
 - keycloak-operator's own "operator.image" field uses the adfinis
   keycloak-operator chart's own convention instead — a separate sibling
   "sha:" field the chart's own template appends onto the tag at render
@@ -24,6 +24,16 @@ Two known exceptions:
   apart from "not set, no default at all" without vendoring the
   sub-chart's own values.yaml (a genuinely different, heavier check than
   this one), so this path is exempted outright instead.
+- keycloak-operator's own "operator.config.keycloakImage" field (the
+  default Keycloak SERVER image the operator stamps onto CRs that don't
+  specify their own — see lib.chart.COMPONENT_IMAGE_PATHS) uses the
+  exact same split "tag:"/"sha:" convention, for the same reason — same
+  exemption. Confirmed by hand against the real values.yaml: podiumd
+  DOES override this one's own "sha:" explicitly (it deliberately runs a
+  Keycloak version ahead of whatever the operator chart's own appVersion
+  defaults to), unlike operator.image's inherited default above, but the
+  same "not set vs. wrong default" ambiguity this check can't resolve
+  structurally still applies.
 - omc's own image can't be digest-pinned at all — its values.yaml
   comment says the OMC subchart itself can't handle a digest-pinned
   tag; the tag must contain ONLY the version."""
@@ -38,12 +48,14 @@ from lib.upgradedoc import find_image_tag_paths
 # line to regex.
 DIGEST_SUFFIX_RE = re.compile(r"@sha256:[0-9a-f]{64}$")
 
-# (dotted path, as the tuple find_image_tag_paths itself yields) for
-# every field that intentionally does NOT embed a digest in its own
-# "tag" — see this module's docstring for why.
+# (dotted path, as the tuple find_image_tag_paths itself yields — always
+# ending in the image key itself, "image" or an "...Image"-suffixed
+# sibling) for every field that intentionally does NOT embed a digest in
+# its own "tag" — see this module's docstring for why.
 EXEMPT_PATHS = {
-    ("keycloak-operator", "operator"),
-    ("omc",),
+    ("keycloak-operator", "operator", "image"),
+    ("keycloak-operator", "operator", "config", "keycloakImage"),
+    ("omc", "image"),
 }
 
 # (scope_key, subpath prefix) for every vendored-subchart-default image
@@ -98,20 +110,22 @@ def check_digest_pinning(chart_dir):
     print(f"Found {len(missing)} image tag(s) not digest-pinned "
           f"(missing \"@sha256:<64 hex chars>\"):")
     for path, tag in sorted(missing):
-        print(f"  {'.'.join(path)}.image.tag: {tag!r}")
+        print(f"  {'.'.join(path)}.tag: {tag!r}")
 
     return False, f"{len(missing)}/{len(images)} image(s) not digest-pinned"
 
 
 def find_unresolved_subchart_images(chart_dir):
-    """(scope_key, subpath, tag, already_pinned) for every "image: {tag:
-    ...}" block found in a vendored dependency's OWN default values.yaml
-    (see lib.chart.subchart_values) that podiumd's own values.yaml does
-    NOT override at the corresponding path — i.e. an image the check
-    above can never see, since it only ever walks podiumd's own
-    values.yaml, not a sub-chart's. `scope_key` is the dependency's alias
-    (or name) as used in podiumd's own values.yaml; `subpath` is the
-    dotted path within that scope ("" for the sub-chart's own top-level
+    """(scope_key, subpath, tag, already_pinned) for every "<key>: {tag:
+    ...}" block ("image", or an "...Image"-suffixed sibling — see
+    lib.upgradedoc.find_image_tag_paths) found in a vendored dependency's
+    OWN default values.yaml (see lib.chart.subchart_values) that podiumd's
+    own values.yaml does NOT override at the corresponding path — i.e. an
+    image the check above can never see, since it only ever walks
+    podiumd's own values.yaml, not a sub-chart's. `scope_key` is the
+    dependency's alias (or name) as used in podiumd's own values.yaml;
+    `subpath` is the dotted path within that scope, always ending in the
+    image key itself (just "image" for the sub-chart's own top-level
     "image:"). A dependency not yet vendored (no .tgz under
     chart_dir/charts/ — see the "Dependencies" step) is silently skipped,
     since there's nothing on disk yet to read; a genuinely un-findable
@@ -148,9 +162,9 @@ def find_unresolved_subchart_images(chart_dir):
         template_text = subchart_template_text(chart_dir, dep)
         for path, tag in find_image_tag_paths(sub_values):
             subpath = ".".join(path)
-            own_image_tag_path = f"{scope_key}.{subpath}.image.tag" if subpath else f"{scope_key}.image.tag"
+            own_image_tag_path = f"{scope_key}.{subpath}.tag"
             if get_path(own_values, own_image_tag_path) is None:
-                top_level_key = path[0] if path else "image"
+                top_level_key = path[0]
                 if template_text is not None and not re.search(rf"\b{re.escape(top_level_key)}\b", template_text):
                     continue
                 findings.append((scope_key, subpath, tag, bool(DIGEST_SUFFIX_RE.search(tag))))
@@ -186,7 +200,7 @@ def check_subchart_image_visibility(chart_dir):
           f"SUBCHART_VISIBILITY_EXEMPT). Not a failure: decide per image whether it "
           f"warrants an override.")
     for scope_key, subpath, tag, pinned in sorted(findings):
-        own_image_tag_path = f"{scope_key}.{subpath}.image.tag" if subpath else f"{scope_key}.image.tag"
+        own_image_tag_path = f"{scope_key}.{subpath}.tag"
         marker = "pinned" if pinned else "FLOATING"
         print(f"  {own_image_tag_path}: {tag!r} ({marker} in the sub-chart's own default)")
 
