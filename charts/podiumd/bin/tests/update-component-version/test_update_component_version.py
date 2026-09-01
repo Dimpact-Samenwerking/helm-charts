@@ -4,7 +4,6 @@ pure logic plus a mocked-subprocess/mocked-registry integration test (no
 helm or network access needed). load_baseline_values and the values-deltas
 key-change tests use a real, hermetic temp git repo."""
 import subprocess
-from pathlib import Path
 
 import pytest
 import yaml
@@ -313,18 +312,16 @@ def mock_registry_passes(monkeypatch, ucv, digest_char="b"):
 
 def mock_verify_passes(monkeypatch, ucv, digest_char="b", calls=None):
     """Fakes update-component-version's own upfront verify_component_version
-    step (a chart pull + lib.chart.check_image_versions call) so main()'s
-    tests don't need real helm/network access. check_image_versions' own
-    correctness is covered by tests/lib/test_chart.py — this only fakes "the
-    chart version and its images exist", returning FOUND for every path
-    passed in. If `calls` is given, each check_image_versions invocation's
-    image_paths argument is appended to it — lets a test assert the upfront
-    check ran exactly once (no second/fallback re-check)."""
+    step (a lib.chart.resolve_chart_values call + lib.chart.
+    check_image_versions call) so main()'s tests don't need real
+    helm/network access. resolve_chart_values/check_image_versions' own
+    correctness is covered by tests/lib/test_chart.py — this only fakes
+    "the chart version and its images exist", returning FOUND for every
+    path passed in. If `calls` is given, each check_image_versions
+    invocation's image_paths argument is appended to it — lets a test
+    assert the upfront check ran exactly once (no second/fallback
+    re-check)."""
     digest = "sha256:" + digest_char * 64
-
-    def fake_pulled_chart_dir(tmpdir):
-        Path(tmpdir, "values.yaml").write_text("{}\n", encoding="utf-8")
-        return Path(tmpdir)
 
     def fake_check_image_versions(values, image_paths, app_version):
         if calls is not None:
@@ -333,8 +330,7 @@ def mock_verify_passes(monkeypatch, ucv, digest_char="b", calls=None):
                  "repo_path": "infonl/zaakafhandelcomponent", "exists": True, "digest": digest}
                 for p in image_paths]
 
-    monkeypatch.setattr(ucv, "pull_chart", lambda dep, version, dest: (True, ""))
-    monkeypatch.setattr(ucv, "pulled_chart_dir", fake_pulled_chart_dir)
+    monkeypatch.setattr(ucv, "resolve_chart_values", lambda chart_dir, dep, version, allow_pull=True: ({}, "vendored", None))
     monkeypatch.setattr(ucv, "check_image_versions", fake_check_image_versions)
 
 
@@ -440,7 +436,8 @@ def test_main_refuses_to_write_when_verify_fails(ucv, tmp_path, monkeypatch):
     chart_yaml, values_yaml = setup_repo(tmp_path, monkeypatch, ucv)
     original_chart = chart_yaml.read_text(encoding="utf-8")
     original_values = values_yaml.read_text(encoding="utf-8")
-    monkeypatch.setattr(ucv, "pull_chart", lambda dep, version, dest: (False, "version not found"))
+    monkeypatch.setattr(ucv, "resolve_chart_values",
+                         lambda chart_dir, dep, version, allow_pull=True: (None, None, "version not found"))
     monkeypatch.setattr("sys.argv", ["update-component-version", "zac", "5.4.3", "1.0.297"])
 
     with pytest.raises(SystemExit) as exc_info:
@@ -524,12 +521,11 @@ def test_verify_component_version_returns_upstream_image_results(ucv, monkeypatc
     dep = {"name": "openforms", "alias": "openformulieren", "version": "1.11.0", "repository": "@maykinmedia"}
     digest = "sha256:" + "c" * 64
 
-    def fake_pulled_chart_dir(tmpdir):
-        Path(tmpdir, "values.yaml").write_text("image:\n  repository: maykinmedia/open-forms\n", encoding="utf-8")
-        return Path(tmpdir)
-
-    monkeypatch.setattr(ucv, "pull_chart", lambda dep_arg, version, dest: (True, ""))
-    monkeypatch.setattr(ucv, "pulled_chart_dir", fake_pulled_chart_dir)
+    monkeypatch.setattr(
+        ucv, "resolve_chart_values",
+        lambda chart_dir, dep_arg, version, allow_pull=True: (
+            {"image": {"repository": "maykinmedia/open-forms"}}, "pulled", None),
+    )
     monkeypatch.setattr(
         ucv, "check_image_versions",
         lambda values, image_paths, app_version: [
@@ -544,7 +540,8 @@ def test_verify_component_version_returns_upstream_image_results(ucv, monkeypatc
 
 def test_verify_component_version_exits_on_pull_failure(ucv, monkeypatch):
     dep = {"name": "openforms", "repository": "@maykinmedia"}
-    monkeypatch.setattr(ucv, "pull_chart", lambda dep_arg, version, dest: (False, "chart version not found"))
+    monkeypatch.setattr(ucv, "resolve_chart_values",
+                         lambda chart_dir, dep_arg, version, allow_pull=True: (None, None, "chart version not found"))
     with pytest.raises(SystemExit):
         ucv.verify_component_version(dep, ["image"], "3.5.6", "9.9.9")
 
@@ -552,12 +549,11 @@ def test_verify_component_version_exits_on_pull_failure(ucv, monkeypatch):
 def test_verify_component_version_exits_when_image_does_not_exist(ucv, monkeypatch):
     dep = {"name": "openforms", "repository": "@maykinmedia"}
 
-    def fake_pulled_chart_dir(tmpdir):
-        Path(tmpdir, "values.yaml").write_text("image:\n  repository: maykinmedia/open-forms\n", encoding="utf-8")
-        return Path(tmpdir)
-
-    monkeypatch.setattr(ucv, "pull_chart", lambda dep_arg, version, dest: (True, ""))
-    monkeypatch.setattr(ucv, "pulled_chart_dir", fake_pulled_chart_dir)
+    monkeypatch.setattr(
+        ucv, "resolve_chart_values",
+        lambda chart_dir, dep_arg, version, allow_pull=True: (
+            {"image": {"repository": "maykinmedia/open-forms"}}, "pulled", None),
+    )
     monkeypatch.setattr(
         ucv, "check_image_versions",
         lambda values, image_paths, app_version: [

@@ -47,7 +47,7 @@ def run_main(vcv, monkeypatch, argv):
 def test_main_single_image_component_success(vcv, tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(vcv, "CHART_YAML", tmp_path / "Chart.yaml")
     write_chart_yaml(vcv, [{"name": "zaakafhandelcomponent", "alias": "zac", "repository": "@zac"}])
-    monkeypatch.setattr(vcv, "verify_chart_version", lambda dep, version: {"image": {"repository": "x/y"}})
+    monkeypatch.setattr(vcv, "verify_chart_version", lambda chart_dir, dep, version: {"image": {"repository": "x/y"}})
     monkeypatch.setattr(vcv, "check_image_versions", lambda values, image_paths, app_version: [
         {"path": "image", "repository": "ghcr.io/infonl/zaakafhandelcomponent", "host": "ghcr.io",
          "repo_path": "infonl/zaakafhandelcomponent", "exists": True, "digest": "sha256:fake"},
@@ -74,7 +74,7 @@ def test_main_multi_image_component_checks_both(vcv, tmp_path, monkeypatch, caps
              "repo_path": "infonl/zgw-office-addin-backend", "exists": True, "digest": "sha256:bbbb"},
         ]
 
-    monkeypatch.setattr(vcv, "verify_chart_version", lambda dep, version: {})
+    monkeypatch.setattr(vcv, "verify_chart_version", lambda chart_dir, dep, version: {})
     monkeypatch.setattr(vcv, "check_image_versions", fake_check_image_versions)
 
     exc = run_main(vcv, monkeypatch, ["zgw-office-addin", "0.11.0", "0.0.92"])
@@ -87,7 +87,7 @@ def test_main_dockerhub_component(vcv, tmp_path, monkeypatch, capsys):
     from the repository string, not assumed to be ghcr for everything."""
     monkeypatch.setattr(vcv, "CHART_YAML", tmp_path / "Chart.yaml")
     write_chart_yaml(vcv, [{"name": "openforms", "alias": "openformulieren", "repository": "@maykinmedia"}])
-    monkeypatch.setattr(vcv, "verify_chart_version", lambda dep, version: {})
+    monkeypatch.setattr(vcv, "verify_chart_version", lambda chart_dir, dep, version: {})
     monkeypatch.setattr(vcv, "check_image_versions", lambda values, image_paths, app_version: [
         {"path": "image", "repository": "openformulieren/open-forms", "host": "docker.io",
          "repo_path": "openformulieren/open-forms", "exists": True, "digest": "sha256:fake"},
@@ -105,7 +105,7 @@ def test_main_missing_chart_version_propagates(vcv, tmp_path, monkeypatch):
     monkeypatch.setattr(vcv, "CHART_YAML", tmp_path / "Chart.yaml")
     write_chart_yaml(vcv, [{"name": "zaakafhandelcomponent", "alias": "zac", "repository": "@zac"}])
 
-    def raise_pull_failure(dep, version):
+    def raise_pull_failure(chart_dir, dep, version):
         raise SystemExit(1)
 
     monkeypatch.setattr(vcv, "verify_chart_version", raise_pull_failure)
@@ -116,7 +116,7 @@ def test_main_missing_chart_version_propagates(vcv, tmp_path, monkeypatch):
 def test_main_missing_app_version_fails(vcv, tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(vcv, "CHART_YAML", tmp_path / "Chart.yaml")
     write_chart_yaml(vcv, [{"name": "zaakafhandelcomponent", "alias": "zac", "repository": "@zac"}])
-    monkeypatch.setattr(vcv, "verify_chart_version", lambda dep, version: {"image": {"repository": "x/y"}})
+    monkeypatch.setattr(vcv, "verify_chart_version", lambda chart_dir, dep, version: {"image": {"repository": "x/y"}})
     monkeypatch.setattr(vcv, "check_image_versions", lambda values, image_paths, app_version: [
         {"path": "image", "repository": "ghcr.io/infonl/zaakafhandelcomponent", "host": "ghcr.io",
          "repo_path": "infonl/zaakafhandelcomponent", "exists": False, "digest": None},
@@ -135,7 +135,8 @@ def test_main_no_repository_at_configured_path_propagates(vcv, tmp_path, monkeyp
     repository — main() has nothing to add here either."""
     monkeypatch.setattr(vcv, "CHART_YAML", tmp_path / "Chart.yaml")
     write_chart_yaml(vcv, [{"name": "zaakafhandelcomponent", "alias": "zac", "repository": "@zac"}])
-    monkeypatch.setattr(vcv, "verify_chart_version", lambda dep, version: {"somethingElse": {"repository": "x/y"}})
+    monkeypatch.setattr(vcv, "verify_chart_version",
+                         lambda chart_dir, dep, version: {"somethingElse": {"repository": "x/y"}})
 
     def raise_no_repo(values, image_paths, app_version):
         raise SystemExit(f"error: no repository found at {', '.join(f'{p}.repository' for p in image_paths)}")

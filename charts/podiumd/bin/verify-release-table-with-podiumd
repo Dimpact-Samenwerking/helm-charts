@@ -63,11 +63,19 @@ couldn't resolve it to anything at export time) is listed separately as
 unresolved — that's a pre-existing export-time gap, not something this
 script can verify either way, so it isn't scored as a failure here.
 
-Purely local and network-free (no `helm pull`, no registry calls): a
-"fallback path" component's app image basename can only be discovered by
-pulling that specific chart version (see verify-component-version) — this
+Purely local and network-free (no `helm pull`, no registry calls): this
 compares release-table.csv's OWN image_basename column against whatever
 is ALREADY pinned in values.yaml right now, so nothing needs pulling.
+Even a "fallback path" component's own primary image (one with no
+explicit "repository:" override in podiumd's own values.yaml at all,
+relying entirely on its subchart's own default — e.g. openzaak,
+opennotificaties) resolves its basename locally, from whatever .tgz is
+ALREADY vendored under charts/podiumd/charts/ (see lib.chart.
+primary_image_repositories) — never a fresh pull. If that subchart isn't
+vendored at its currently-pinned version, the primary basename for that
+component just can't be resolved yet (see primary_image_basename) — the
+same "not pulling" tradeoff verify-component-version makes explicitly,
+just silent here.
 
 Two images can't be found via the normal digest-pinned "tag:" scan
 (lib.image_version.basenames_under_scope, via lib.image_digests.
@@ -107,8 +115,8 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from lib.chart import dotted_key_path, get_path, image_paths_for, load_yaml
-from lib.image_version import GLOBAL_IMAGES_SCOPE, MULTIPLE_KEY, basenames_under_scope, find_matches
+from lib.chart import dotted_key_path, get_path, image_paths_for, load_yaml, primary_image_repositories
+from lib.image_version import GLOBAL_IMAGES_SCOPE, MULTIPLE_KEY, basenames_under_scope, find_matches, image_basename
 
 CHART_DIR = SCRIPT_DIR.parents[0]
 CHART_YAML = CHART_DIR / "Chart.yaml"
@@ -231,22 +239,48 @@ def is_primary_image(component, lines, pin):
     return relative in image_paths_for(component)
 
 
-def primary_image_basename(lines, scope_key, component):
+def primary_image_basename(chart_dir, lines, scope_key, component, dep, values):
     """The basename of `component`'s own primary application image (see
-    is_primary_image) — e.g. "openbao" for openbao's own top-level
-    "image" path — or None if it can't be resolved uniquely (no pin at
-    any of image_paths_for(component)'s own path(s) under this scope
-    yet — see the companion "[IMAGE] ... not tracked" finding for that
-    basename itself in that case; or, in principle, more than one
-    distinct basename claiming to be primary, which shouldn't happen
-    given image_paths_for's own paths are always distinct, but is never
-    guessed at regardless)."""
+    is_primary_image) — e.g. "openbao" for openbao's own "server.image"
+    path. Tries the plain digest-pin text scan first (basenames_under_
+    scope — the common case, whenever the primary path has its own
+    explicit "repository:" in podiumd's values.yaml); if that finds
+    nothing at all AND `dep` is a real Chart.yaml dependency (None for a
+    bare top-level values.yaml key with no separate chart, e.g.
+    frankgateway — nothing to resolve a subchart default against), falls
+    back to lib.chart.primary_image_repositories instead — the fix for a
+    primary image whose repository comes entirely from its subchart's
+    own default (e.g. openzaak, openformulieren), invisible to the text
+    scan since basenames_under_scope can only compute a basename from a
+    pin with a resolvable repository of its own. Network-free either
+    way: primary_image_repositories is called with allow_pull=False — a
+    subchart that isn't vendored under `chart_dir` yet just can't be
+    resolved this way until it is; `chart_dir` may itself be None (the
+    test-only "no vendored charts available at all" case) without ever
+    raising, as long as no path actually needs the subchart fallback
+    (an own explicit override is enough on its own).
+
+    None if neither approach resolves a unique basename: no pin at any
+    of image_paths_for(component)'s own path(s) under this scope yet AND
+    (no dep to fall back on, or the subchart doesn't default one either,
+    or isn't resolvable at all without a real `chart_dir`) — see the
+    companion "[IMAGE] ... not tracked" finding for that basename itself
+    in that case; or, in principle, more than one distinct basename
+    claiming to be primary, which shouldn't happen given image_paths_
+    for's own paths are always distinct, but is never guessed at
+    regardless."""
     primaries = {basename for basename, pins in basenames_under_scope(lines, scope_key).items()
                  if any(is_primary_image(component, lines, pin) for pin in pins)}
-    return next(iter(primaries)) if len(primaries) == 1 else None
+    if primaries:
+        return next(iter(primaries)) if len(primaries) == 1 else None
+    if dep is None:
+        return None
+    repos, _error = primary_image_repositories(chart_dir, dep, values, allow_pull=False)
+    resolved = {image_basename(repo) for repo in repos.values() if repo}
+    return next(iter(resolved)) if len(resolved) == 1 else None
 
 
-def find_primary_row(lines, scope_key, component, rows):
+def find_primary_row(chart_dir, lines, scope_key, component, dep, values, rows):
     """The one row in `rows` whose own image_basename column claims
     `component`'s own primary application image basename (see
     primary_image_basename) — the ONLY row a chart's own Helm version
@@ -254,7 +288,7 @@ def find_primary_row(lines, scope_key, component, rows):
     its sibling "OpenBao Schema Job (postgres)" row, even though both
     share the same component. None if the primary basename can't be
     resolved, or no existing row claims it yet."""
-    basename = primary_image_basename(lines, scope_key, component)
+    basename = primary_image_basename(chart_dir, lines, scope_key, component, dep, values)
     if basename is None:
         return None
     for row in rows:
@@ -276,7 +310,7 @@ def chart_version_ever_tracked(rows):
     return any(is_verifiable_target(row["target_version_helm"]) or row["source_version_helm"] for row in rows)
 
 
-def missing_chart_version_hint(lines, scope_key, component, rows):
+def missing_chart_version_hint(chart_dir, lines, scope_key, component, dep, values, rows):
     """Second line for a "[CHART] ... never recorded a Helm chart
     version" finding — naming the SPECIFIC row this chart's own version
     belongs next to (see find_primary_row), not just whichever table
@@ -295,7 +329,7 @@ def missing_chart_version_hint(lines, scope_key, component, rows):
     If the primary row can't even be identified yet (no existing row
     claims that basename — see the companion "[IMAGE] ... not tracked"
     finding for it), says so instead of guessing which row to point at."""
-    primary_row = find_primary_row(lines, scope_key, component, rows)
+    primary_row = find_primary_row(chart_dir, lines, scope_key, component, dep, values, rows)
     if primary_row is None:
         return ("Confluence: none of the existing row(s) is this chart's own primary-image row yet "
                 "(see the companion [IMAGE] finding for its own basename, if listed) — add the Helm "
@@ -308,14 +342,14 @@ def missing_chart_version_hint(lines, scope_key, component, rows):
     return f'Confluence: fill in the Helm version cell on "{primary_row["name"]}" ({where})'
 
 
-def check_chart_version(dep, scope_key, rows, lines, findings):
+def check_chart_version(dep, scope_key, rows, lines, values, chart_dir, findings):
     actual = str(dep["version"])
     for row in rows:
         target = row["target_version_helm"]
         if is_verifiable_target(target) and target != actual:
             report_mismatch(findings, "CHART", row, dep["name"], target, actual, "Chart.yaml")
     if not chart_version_ever_tracked(rows):
-        hint = missing_chart_version_hint(lines, scope_key, dep["name"], rows)
+        hint = missing_chart_version_hint(chart_dir, lines, scope_key, dep["name"], dep, values, rows)
         findings["missing_from_release_table"].append(
             f"[CHART] Chart.yaml dependency '{dep['name']}' has release-table.csv row(s), but none "
             f"records a Helm chart version\n      {hint}"
@@ -373,10 +407,16 @@ def missing_image_hint(rows, scope_key, component, basename, versions, primary):
     return f"Confluence: add row to {where} — {what}, App version (currently) {version_text}"
 
 
-def check_images(scope_key, component, rows, lines, findings, values):
+def check_images(scope_key, component, rows, lines, findings, values, dep=None, chart_dir=None):
     actual_basenames = basenames_under_scope(lines, scope_key)
     csv_basenames = set()
     component_special_path = SPECIAL_CASE_COMPONENT_TAG_PATHS.get(component)
+    # Resolved once per component (not per pin) — see primary_image_basename;
+    # only ever consulted below for a basename release-table.csv doesn't
+    # track yet, to decide whether it's this component's own primary image
+    # (no "Used by" needed) or a sidecar (always needs one).
+    primary_basename = None if component == MULTIPLE_KEY else primary_image_basename(
+        chart_dir, lines, scope_key, component, dep, values)
 
     for row in rows:
         target = row["target_version_app"]
@@ -431,7 +471,7 @@ def check_images(scope_key, component, rows, lines, findings, values):
         if basename not in csv_basenames:
             pins = actual_basenames[basename]
             versions = {p["version"] for p in pins}
-            primary = component != MULTIPLE_KEY and is_primary_image(component, lines, pins[0])
+            primary = component != MULTIPLE_KEY and basename == primary_basename
             hint = missing_image_hint(rows, scope_key, component, basename, versions, primary)
             findings["missing_from_release_table"].append(
                 f"[IMAGE] '{scope_key}' image '{basename}' is pinned in values.yaml but not tracked "
@@ -439,11 +479,19 @@ def check_images(scope_key, component, rows, lines, findings, values):
             )
 
 
-def compare(rows, deps, values, lines):
+def compare(rows, deps, values, lines, chart_dir=None):
     """{"mismatches", "ambiguous", "missing_from_release_table",
     "missing_from_chart"}: str -> [str, ...], plus the separate list of
     rows whose component export-confluence-release-table never
-    resolved at all (see UNRESOLVED_COMPONENTS) — see module docstring."""
+    resolved at all (see UNRESOLVED_COMPONENTS) — see module docstring.
+
+    `chart_dir` (the podiumd chart's own root — see lib.chart.
+    subchart_values) is only ever consulted as a last resort, to resolve
+    a component's primary image via its vendored subchart's own default
+    repository (see primary_image_basename) — None (the default) simply
+    disables that one fallback, which is all every test in this suite
+    that doesn't care about it needs (never touches a real filesystem
+    path either way)."""
     findings = defaultdict(list)
     unresolved = []
     values = values if isinstance(values, dict) else {}
@@ -479,13 +527,18 @@ def compare(rows, deps, values, lines):
             )
             continue
         scope_key = dep.get("alias") or component
-        check_chart_version(dep, scope_key, rows_for_component, lines, findings)
-        check_images(scope_key, component, rows_for_component, lines, findings, values)
+        check_chart_version(dep, scope_key, rows_for_component, lines, values, chart_dir, findings)
+        check_images(scope_key, component, rows_for_component, lines, findings, values, dep, chart_dir)
 
     for component, rows_for_component in rows_by_component.items():
         if component in checked_components:
             continue
         if component in values:
+            # No Chart.yaml dependency — a bare top-level values.yaml key
+            # (e.g. frankgateway). Primary-image resolution still works via
+            # the plain text scan (see primary_image_basename); only the
+            # subchart-default fallback is unavailable here, since there's
+            # no vendored chart to resolve one from.
             check_images(component, component, rows_for_component, lines, findings, values)
         else:
             for row in rows_for_component:
@@ -545,7 +598,7 @@ def main():
     values = load_yaml(VALUES_YAML) if VALUES_YAML.is_file() else {}
     lines = VALUES_YAML.read_text(encoding="utf-8").splitlines() if VALUES_YAML.is_file() else []
 
-    findings, unresolved = compare(rows, deps, values, lines)
+    findings, unresolved = compare(rows, deps, values, lines, CHART_DIR)
     any_findings = print_report(findings, unresolved)
     sys.exit(1 if any_findings else 0)
 

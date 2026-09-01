@@ -1,8 +1,9 @@
 """lib.chart — get_path, replace_scalar_value, chart_version, SEMVER_RE,
 find_dependency, chart_ref, local_chart_dir, pull_chart, pulled_chart_dir,
 pull_chart_values, find_images, version_of, image_paths_for, dotted_key_path,
-subchart_values, subchart_default_repository. `helm pull` is mocked via
-lib.procutil.run, so no `helm` binary or network access needed."""
+subchart_values, subchart_default_repository, resolve_chart_values,
+primary_image_repositories. `helm pull` is mocked via lib.procutil.run, so
+no `helm` binary or network access needed."""
 import io
 import tarfile
 from pathlib import Path
@@ -391,7 +392,7 @@ def test_pull_chart_values_raises_on_pull_failure(libchart, monkeypatch):
 # verify-image-version no longer reimplements) — pull, report FOUND/
 # MISSING, and either return the pulled values.yaml or exit 1.
 
-def test_verify_chart_version_found_returns_values(libchart, monkeypatch, capsys):
+def test_verify_chart_version_found_returns_values(libchart, tmp_path, monkeypatch, capsys):
     def fake_pull_chart(dep, version, dest):
         chart_dir = dest / dep["name"]
         chart_dir.mkdir(parents=True)
@@ -401,21 +402,35 @@ def test_verify_chart_version_found_returns_values(libchart, monkeypatch, capsys
         return True, ""
 
     monkeypatch.setattr(libchart, "pull_chart", fake_pull_chart)
-    dep = {"name": "zaakafhandelcomponent", "repository": "@zac"}
+    dep = {"name": "zaakafhandelcomponent", "version": "1.0.297", "repository": "@zac"}
 
-    values = libchart.verify_chart_version(dep, "1.0.297")
+    values = libchart.verify_chart_version(tmp_path, dep, "1.0.297")
 
     assert values == {"image": {"repository": "infonl/zac"}}
     out = capsys.readouterr().out
     assert "[FOUND  ] zaakafhandelcomponent 1.0.297" in out
 
 
-def test_verify_chart_version_missing_exits_one(libchart, monkeypatch, capsys):
+def test_verify_chart_version_prefers_vendored_tgz_without_pulling(libchart, tmp_path, monkeypatch, capsys):
+    def raise_if_pulled(dep, version, dest):
+        raise AssertionError("should not pull — an exact-version .tgz is already vendored")
+
+    monkeypatch.setattr(libchart, "pull_chart", raise_if_pulled)
+    dep = {"name": "openzaak", "version": "4.9.1", "repository": "@openzaak"}
+    make_tgz(tmp_path / "charts", "openzaak", "4.9.1", {"image": {"repository": "openzaak/open-zaak"}})
+
+    values = libchart.verify_chart_version(tmp_path, dep, "4.9.1")
+
+    assert values == {"image": {"repository": "openzaak/open-zaak"}}
+    assert "[FOUND  ] openzaak 4.9.1  (vendored)" in capsys.readouterr().out
+
+
+def test_verify_chart_version_missing_exits_one(libchart, tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(libchart, "pull_chart", lambda dep, version, dest: (False, "version not found"))
-    dep = {"name": "zaakafhandelcomponent", "repository": "@zac"}
+    dep = {"name": "zaakafhandelcomponent", "version": "1.0.297", "repository": "@zac"}
 
     with pytest.raises(SystemExit) as exc_info:
-        libchart.verify_chart_version(dep, "9.9.9")
+        libchart.verify_chart_version(tmp_path, dep, "9.9.9")
 
     assert exc_info.value.code == 1
     out = capsys.readouterr().out
@@ -568,6 +583,159 @@ def test_subchart_values_missing_member_returns_none(libchart, tmp_path):
         pass  # empty archive, no values.yaml member
     dep = {"name": "openzaak", "version": "1.14.2"}
     assert libchart.subchart_values(tmp_path, dep) is None
+
+
+# --- resolve_chart_values ---
+
+def test_resolve_chart_values_prefers_vendored_over_pulling(libchart, tmp_path, monkeypatch):
+    def raise_if_pulled(dep, version, dest):
+        raise AssertionError("should not pull — already vendored at this exact version")
+
+    monkeypatch.setattr(libchart, "pull_chart", raise_if_pulled)
+    make_tgz(tmp_path / "charts", "openzaak", "1.14.2", {"image": {"repository": "openzaak/open-zaak"}})
+    dep = {"name": "openzaak", "version": "1.14.2"}
+
+    values, source, error = libchart.resolve_chart_values(tmp_path, dep, "1.14.2")
+
+    assert values == {"image": {"repository": "openzaak/open-zaak"}}
+    assert source == "vendored"
+    assert error is None
+
+
+def test_resolve_chart_values_falls_back_to_pull_when_not_vendored(libchart, tmp_path, monkeypatch):
+    def fake_pull_chart(dep, version, dest):
+        chart_dir = dest / dep["name"]
+        chart_dir.mkdir(parents=True)
+        (chart_dir / "values.yaml").write_text(
+            yaml.safe_dump({"image": {"repository": "openzaak/open-zaak"}}), encoding="utf-8"
+        )
+        return True, ""
+
+    monkeypatch.setattr(libchart, "pull_chart", fake_pull_chart)
+    dep = {"name": "openzaak", "version": "1.15.0"}  # not the vendored 1.14.2 from the test above
+
+    values, source, error = libchart.resolve_chart_values(tmp_path, dep, "1.15.0")
+
+    assert values == {"image": {"repository": "openzaak/open-zaak"}}
+    assert source == "pulled"
+    assert error is None
+
+
+def test_resolve_chart_values_pull_failure_returns_error(libchart, tmp_path, monkeypatch):
+    monkeypatch.setattr(libchart, "pull_chart", lambda dep, version, dest: (False, "version not found"))
+    dep = {"name": "openzaak", "version": "9.9.9"}
+
+    values, source, error = libchart.resolve_chart_values(tmp_path, dep, "9.9.9")
+
+    assert values is None
+    assert source is None
+    assert error == "version not found"
+
+
+def test_resolve_chart_values_no_pull_allowed_and_not_vendored_returns_error(libchart, tmp_path, monkeypatch):
+    def raise_if_pulled(dep, version, dest):
+        raise AssertionError("should not pull — allow_pull is False")
+
+    monkeypatch.setattr(libchart, "pull_chart", raise_if_pulled)
+    dep = {"name": "openzaak", "version": "1.15.0"}
+
+    values, source, error = libchart.resolve_chart_values(tmp_path, dep, "1.15.0", allow_pull=False)
+
+    assert values is None
+    assert source is None
+    assert "not vendored" in error
+
+
+# --- primary_image_repositories ---
+
+def test_primary_image_repositories_own_override_wins(libchart, tmp_path, monkeypatch):
+    def raise_if_pulled(dep, version, dest):
+        raise AssertionError("own override present — should never consult the subchart")
+
+    monkeypatch.setattr(libchart, "pull_chart", raise_if_pulled)
+    dep = {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}
+    own_values = {"zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent"}}}
+
+    repos, error = libchart.primary_image_repositories(tmp_path, dep, own_values, allow_pull=False)
+
+    assert repos == {"image": "ghcr.io/infonl/zaakafhandelcomponent"}
+    assert error is None
+
+
+def test_primary_image_repositories_falls_back_to_subchart_default(libchart, tmp_path):
+    """openzaak-style: no "repository:" override of its own at all — only
+    a "tag:" — resolved from the vendored subchart's own default instead,
+    with no network access (allow_pull=False)."""
+    make_tgz(tmp_path / "charts", "openzaak", "4.9.1", {"image": {"repository": "openzaak/open-zaak"}})
+    dep = {"name": "openzaak", "alias": "", "version": "4.9.1"}
+    own_values = {"openzaak": {"image": {"tag": "3.28.0@sha256:aaaa"}}}
+
+    repos, error = libchart.primary_image_repositories(tmp_path, dep, own_values, allow_pull=False)
+
+    assert repos == {"image": "openzaak/open-zaak"}
+    assert error is None
+
+
+def test_primary_image_repositories_multi_path_component_reads_subchart_once(libchart, tmp_path, monkeypatch):
+    """zgw-office-addin-style: two distinct primary paths, neither with
+    its own override — both resolved from the SAME vendored subchart
+    values.yaml, read only once and reused across both paths."""
+    make_tgz(tmp_path / "charts", "zgw-office-addin", "0.0.92", {
+        "frontend": {"image": {"repository": "ghcr.io/infonl/zgw-office-addin-frontend"}},
+        "backend": {"image": {"repository": "ghcr.io/infonl/zgw-office-addin-backend"}},
+    })
+    dep = {"name": "zgw-office-addin", "alias": "", "version": "0.0.92"}
+    calls = []
+    real_subchart_values = libchart.subchart_values
+
+    def spy(chart_dir, dep_arg, version=None):
+        calls.append(dep_arg["name"])
+        return real_subchart_values(chart_dir, dep_arg, version)
+
+    monkeypatch.setattr(libchart, "subchart_values", spy)
+
+    repos, error = libchart.primary_image_repositories(tmp_path, dep, {}, allow_pull=False)
+
+    assert repos == {
+        "frontend.image": "ghcr.io/infonl/zgw-office-addin-frontend",
+        "backend.image": "ghcr.io/infonl/zgw-office-addin-backend",
+    }
+    assert error is None
+    assert calls == ["zgw-office-addin"]  # fetched once, reused for the second path
+
+
+def test_primary_image_repositories_unresolvable_without_vendored_chart(libchart, tmp_path):
+    dep = {"name": "openzaak", "alias": "", "version": "4.9.1"}
+    own_values = {"openzaak": {"image": {"tag": "3.28.0@sha256:aaaa"}}}
+
+    repos, error = libchart.primary_image_repositories(tmp_path, dep, own_values, allow_pull=False)
+
+    assert repos == {"image": None}
+    assert error is not None
+
+
+def test_primary_image_repositories_chart_dir_none_is_safe_when_unneeded(libchart):
+    """A caller with no vendored-charts location at all (e.g. a pure
+    in-memory test) never crashes, as long as no path actually needs the
+    subchart fallback — see verify-release-table-with-podiumd's own
+    compare(), whose chart_dir defaults to None."""
+    dep = {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}
+    own_values = {"zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent"}}}
+
+    repos, error = libchart.primary_image_repositories(None, dep, own_values, allow_pull=False)
+
+    assert repos == {"image": "ghcr.io/infonl/zaakafhandelcomponent"}
+    assert error is None
+
+
+def test_primary_image_repositories_chart_dir_none_and_needed_returns_error(libchart):
+    dep = {"name": "openzaak", "alias": "", "version": "4.9.1"}
+    own_values = {"openzaak": {"image": {"tag": "3.28.0@sha256:aaaa"}}}
+
+    repos, error = libchart.primary_image_repositories(None, dep, own_values, allow_pull=False)
+
+    assert repos == {"image": None}
+    assert error is not None
 
 
 # --- subchart_template_text ---

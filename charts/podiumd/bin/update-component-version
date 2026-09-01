@@ -47,9 +47,7 @@ After writing, re-render the chart (verify-podiumd or /helm-render-all)
 to confirm before committing.
 """
 import re
-import shutil
 import sys
-import tempfile
 from pathlib import Path
 
 import yaml
@@ -61,7 +59,7 @@ from lib.chart import chart_version as _chart_version
 from lib.chart import find_dependency as _find_dependency
 from lib.chart import upgrade_docs_baseline as _read_upgrade_docs_baseline
 from lib.chart import (
-    check_image_versions, get_path, image_paths_for, pull_chart, pulled_chart_dir, replace_scalar_value,
+    check_image_versions, get_path, image_paths_for, replace_scalar_value, resolve_chart_values,
 )
 from lib.component_docs import NO_CHANGES_CLAIMED_RE
 from lib.component_docs import (
@@ -93,47 +91,44 @@ def find_dependency(name_or_alias):
 
 
 def verify_component_version(dep, image_paths, app_version, chart_version):
-    """Pull the target chart version once and check both that it exists and
-    that `image_paths` resolve to existing app image versions on their
-    actual upstream registries — the single upfront gate main() runs before
-    touching any file. Returns the pulled chart's own values.yaml (parsed)
-    plus lib.chart.check_image_versions' results, so callers needing a
-    fallback path's default repository (see check_image_versions) reuse
-    this same pull/check instead of repeating it. Exits 1 (after printing
-    a FAIL) if the chart version can't be pulled or an image version
-    doesn't exist; never returns in that case."""
+    """Resolve the target chart version's own values.yaml once (see
+    lib.chart.resolve_chart_values — prefers an already-vendored
+    charts/<name>-<chart_version>.tgz over a fresh `helm pull`, the
+    common case for an app-only bump where chart_version is already
+    what's pinned) and check both that it exists and that `image_paths`
+    resolve to existing app image versions on their actual upstream
+    registries — the single upfront gate main() runs before touching any
+    file. Returns lib.chart.check_image_versions' results keyed by path,
+    so callers needing a fallback path's default repository (see
+    check_image_versions) reuse this same resolve/check instead of
+    repeating it. Exits 1 (after printing a FAIL) if the chart version
+    can't be resolved or an image version doesn't exist; never returns
+    in that case."""
     chart_name = dep["name"]
-    tmpdir = Path(tempfile.mkdtemp(prefix="update-component-version-"))
-    try:
-        print(f"=== Checking chart version {chart_version!r} for {chart_name} ===")
-        ok_chart, stderr = pull_chart(dep, chart_version, tmpdir)
-        status = "FOUND  " if ok_chart else "MISSING"
-        suffix = f"  ({stderr})" if not ok_chart else ""
-        print(f"  [{status}] {chart_name} {chart_version}{suffix}")
-        if not ok_chart:
-            print()
-            print("FAIL: chart version does not exist — refusing to change any files")
-            sys.exit(1)
+    print(f"=== Checking chart version {chart_version!r} for {chart_name} ===")
+    upstream_values, source, error = resolve_chart_values(CHART_DIR, dep, chart_version)
+    status = "FOUND  " if upstream_values is not None else "MISSING"
+    suffix = f"  ({source})" if upstream_values is not None else f"  ({error})"
+    print(f"  [{status}] {chart_name} {chart_version}{suffix}")
+    if upstream_values is None:
+        print()
+        print("FAIL: chart version does not exist — refusing to change any files")
+        sys.exit(1)
 
-        chart_dir = pulled_chart_dir(tmpdir)
-        upstream_values = yaml.safe_load((chart_dir / "values.yaml").read_text(encoding="utf-8")) or {}
+    print(f"\nChecking app version {app_version!r} for {dep.get('alias', chart_name)}:")
+    image_results = check_image_versions(upstream_values, image_paths, app_version)
+    ok_images = True
+    for r in image_results:
+        status = "FOUND  " if r["exists"] else "MISSING"
+        suffix = f"  digest={r['digest']}" if r["digest"] else ""
+        print(f"  [{status}] {r['host']}/{r['repo_path']}:{app_version}{suffix}")
+        ok_images = ok_images and r["exists"]
+    if not ok_images:
+        print()
+        print("FAIL: one or more app image versions do not exist yet — refusing to change any files")
+        sys.exit(1)
 
-        print(f"\nChecking app version {app_version!r} for {dep.get('alias', chart_name)}:")
-        image_results = check_image_versions(upstream_values, image_paths, app_version)
-        ok_images = True
-        for r in image_results:
-            status = "FOUND  " if r["exists"] else "MISSING"
-            suffix = f"  digest={r['digest']}" if r["digest"] else ""
-            print(f"  [{status}] {r['host']}/{r['repo_path']}:{app_version}{suffix}")
-            ok_images = ok_images and r["exists"]
-        if not ok_images:
-            print()
-            print("FAIL: one or more app image versions do not exist yet — refusing to change any files")
-            sys.exit(1)
-
-        return {r["path"]: r for r in image_results}
-    finally:
-        shutil.rmtree(tmpdir, ignore_errors=True)
+    return {r["path"]: r for r in image_results}
 
 
 def find_block_end(lines, block_start, indent):
