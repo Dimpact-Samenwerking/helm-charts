@@ -10,11 +10,12 @@ def pymarkdown_result(stdout, returncode=1, stderr=""):
     return SimpleNamespace(returncode=returncode, stdout=stdout, stderr=stderr)
 
 
-def make_chart_dir(tmp_path, files=None, release_baseline=None):
+def make_chart_dir(tmp_path, files=None, upgrade_docs_baseline=None):
     tmp_path.mkdir(parents=True, exist_ok=True)
     (tmp_path / "Chart.yaml").write_text("name: podiumd\nversion: 4.9.0\n", encoding="utf-8")
-    if release_baseline is not None:
-        (tmp_path / "release-baseline").write_text(release_baseline, encoding="utf-8")
+    if upgrade_docs_baseline is not None:
+        (tmp_path / "release-baseline.yaml").write_text(
+            f'upgrade_docs: "{upgrade_docs_baseline}"\n', encoding="utf-8")
     for rel_path, content in (files or {}).items():
         p = tmp_path / rel_path
         p.parent.mkdir(parents=True, exist_ok=True)
@@ -56,11 +57,12 @@ def test_find_markdown_files_excludes_upgrade_path_docs_for_other_releases(libma
 
 
 def test_find_markdown_files_excludes_target_match_with_wrong_baseline(libmarkdowncheck, tmp_path):
-    """release-baseline says '4.8.5' — a doc targeting 4.9.0 but still
-    naming some OTHER baseline is exactly what fix-doc-consistency would
-    itself rename right now; it isn't "the current release's own" doc
-    yet, so it stays out of scope until that rename happens."""
-    chart_dir = make_chart_dir(tmp_path, release_baseline="4.8.5", files={
+    """release-baseline.yaml's upgrade_docs key says '4.8.5' — a doc
+    targeting 4.9.0 but still naming some OTHER baseline is exactly what
+    fix-doc-consistency would itself rename right now; it isn't "the
+    current release's own" doc yet, so it stays out of scope until that
+    rename happens."""
+    chart_dir = make_chart_dir(tmp_path, upgrade_docs_baseline="4.8.5", files={
         "docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md": "# correct baseline\n",
         "docs/_UPGRADE_PATHS/4.7.9-to-4.9.0-values-deltas.md": "# stale baseline, same target\n",
     })
@@ -69,9 +71,9 @@ def test_find_markdown_files_excludes_target_match_with_wrong_baseline(libmarkdo
 
 
 def test_find_markdown_files_target_only_match_when_release_baseline_missing(libmarkdowncheck, tmp_path):
-    """No release-baseline file at all (older releases and fresh checkouts
-    predate it, see lib.chart.release_baseline) — falls back to matching
-    by target only, same as before baseline-matching existed."""
+    """No release-baseline.yaml upgrade_docs key at all (see
+    lib.chart.upgrade_docs_baseline) — falls back to matching by target
+    only, same as before baseline-matching existed."""
     chart_dir = make_chart_dir(tmp_path, files={
         "docs/_UPGRADE_PATHS/4.7.9-to-4.9.0-upgrade.md": "# no baseline file to compare against\n",
     })

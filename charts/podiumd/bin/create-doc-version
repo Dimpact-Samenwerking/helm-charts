@@ -1,31 +1,33 @@
 #!/usr/bin/env python3
 """
-Create the standard docs/_UPGRADE_PATHS/<baseline>-to-<target>-*.md set
+Create the standard docs/_UPGRADE_PATHS/<upgrade_docs_baseline>-to-<target>-*.md set
 (upgrade, gemeente-specific, values-deltas) and docs/images/images-
 <target>.yaml for the current chart's target version — charts/podiumd/
 Chart.yaml's own "version:" — as TODO stubs, for whichever of those
 don't already exist. Never renames or rewrites an existing doc — see
 fix-doc-consistency for that (rebasing docs already scaffolded under a
-different baseline onto a new one).
+different upgrade_docs_baseline onto a new one).
 
 Refuses to create anything if a doc already exists for this target under
-a DIFFERENT baseline than the one given — that's exactly the situation
+a DIFFERENT upgrade_docs_baseline than the one given — that's exactly the situation
 fix-doc-consistency exists for. Silently creating fresh stubs next to
-docs already scaffolded under some other baseline (this script's
+docs already scaffolded under some other upgrade_docs_baseline (this script's
 ancestor, set-doc-baseline, could do exactly that — blindly rebase docs
 that should have been left alone, or the reverse) is the one thing this
 split makes structurally impossible: creating and rebasing are now two
 different scripts, so neither can accidentally do the other's job.
 
 Called automatically by create-podiumd-version, right after it bumps
-Chart.yaml and writes release-baseline — see that script for the usual
-"open a new release" workflow. Also runnable standalone to re-scaffold a
-doc that's missing without going through the whole flow.
+Chart.yaml and writes release-baseline.yaml's upgrade_docs key — see
+that script for the usual "open a new release" workflow. Also runnable
+standalone to re-scaffold a doc that's missing without going through
+the whole flow.
 
 Usage:
-    create-doc-version [<baseline>]
-        # <baseline> defaults to release-baseline's content if omitted
-        # (error if that file doesn't exist either)
+    create-doc-version [<upgrade_docs_baseline>]
+        # <upgrade_docs_baseline> defaults to release-baseline.yaml's
+        # upgrade_docs content if omitted (error if that key doesn't
+        # exist either)
 
 Example:
     create-doc-version 4.9.0
@@ -33,7 +35,8 @@ Example:
         # 4.9.0-to-4.10.0-{upgrade,gemeente-specific,values-deltas}.md
         # and images-4.10.0.yaml don't already exist
     create-doc-version
-        # same, but reads "4.9.0" from release-baseline instead
+        # same, but reads "4.9.0" from release-baseline.yaml's
+        # upgrade_docs key instead
 """
 import sys
 from pathlib import Path
@@ -42,7 +45,8 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from lib.chart import SEMVER_RE as BASELINE_VERSION_RE
-from lib.chart import chart_version, release_baseline
+from lib.chart import chart_version
+from lib.chart import upgrade_docs_baseline as read_upgrade_docs_baseline
 from lib.component_docs import create_missing_docs, existing_doc_baselines
 from lib.procutil import run_script
 
@@ -66,35 +70,36 @@ def main():
         sys.exit(1)
 
     if len(sys.argv) == 2:
-        baseline = sys.argv[1]
+        upgrade_docs_baseline = sys.argv[1]
     else:
-        baseline = release_baseline(CHART_DIR)
-        if baseline is None:
-            print("error: no <baseline> given and release-baseline doesn't exist "
-                  "— pass <baseline> explicitly")
+        upgrade_docs_baseline = read_upgrade_docs_baseline(CHART_DIR)
+        if upgrade_docs_baseline is None:
+            print("error: no <upgrade_docs_baseline> given and release-baseline.yaml's "
+                  "upgrade_docs key doesn't exist — pass <upgrade_docs_baseline> explicitly")
             sys.exit(1)
-        print(f"No <baseline> given — using release-baseline's '{baseline}'")
+        print(f"No <upgrade_docs_baseline> given — using release-baseline.yaml's "
+              f"upgrade_docs '{upgrade_docs_baseline}'")
 
-    if not BASELINE_VERSION_RE.match(baseline):
-        print(f"error: '{baseline}' is not a valid MAJOR.MINOR.PATCH version")
+    if not BASELINE_VERSION_RE.match(upgrade_docs_baseline):
+        print(f"error: '{upgrade_docs_baseline}' is not a valid MAJOR.MINOR.PATCH version")
         sys.exit(1)
     target = current_chart_version()
 
     by_suffix = existing_doc_baselines(DOC_DIR, target)
     mismatched = {suffix: entries for suffix, entries in by_suffix.items()
-                  if any(b != baseline for b, _ in entries)}
+                  if any(b != upgrade_docs_baseline for b, _ in entries)}
     if mismatched:
-        print(f"error: doc(s) already exist for target {target} under a different baseline "
-              f"than '{baseline}' — refusing to create fresh docs next to them:")
+        print(f"error: doc(s) already exist for target {target} under a different upgrade_docs_baseline "
+              f"than '{upgrade_docs_baseline}' — refusing to create fresh docs next to them:")
         for suffix, entries in sorted(mismatched.items()):
             for b, path in sorted(entries):
-                print(f"  {path.name}  (baseline {b})")
+                print(f"  {path.name}  (upgrade_docs_baseline {b})")
         print()
-        print("If this baseline change is intentional (a rebase), use fix-doc-consistency instead.")
+        print("If this upgrade_docs_baseline change is intentional (a rebase), use fix-doc-consistency instead.")
         sys.exit(1)
 
-    print(f"=== Creating docs for baseline {baseline} -> target {target} ===")
-    created = create_missing_docs(DOC_DIR, IMAGES_DIR, baseline, target)
+    print(f"=== Creating docs for upgrade_docs_baseline {upgrade_docs_baseline} -> target {target} ===")
+    created = create_missing_docs(DOC_DIR, IMAGES_DIR, upgrade_docs_baseline, target)
     if created:
         for name in created:
             print(f"  {name}: created")
