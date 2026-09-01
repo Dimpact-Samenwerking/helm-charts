@@ -40,8 +40,12 @@ keycloak-operator:
   # Adfinis Helm chart wrapping the official Keycloak Operator manifests.
   # Chart: https://charts.adfinis.com / adfinis/keycloak-operator (chart 1.13.0, appVersion 26.7.2)
   # Note: it appears that the podname automatically appends -operator.
-  # Official operator image: quay.io/keycloak/keycloak-operator:26.7.2
-  # Note: adfinis chart 1.13.0 targets appVersion 26.7.2; operator + server image pinned to 26.7.2 below.
+  # Official operator image: quay.io/keycloak/keycloak-operator:26.7.3
+  # Note: images are deliberately AHEAD of the chart line here — adfinis
+  # hasn't published a chart targeting 26.7.3 yet (still 1.13.0 / appVersion
+  # 26.7.2 as of 2026-08-31). Operator + server image pinned to 26.7.3 below
+  # for the 20-CVE 26.7.3 security release; bump the keycloak-operator chart
+  # dependency separately once adfinis catches up.
   # override: values-enable-observability.yaml sets enableServiceMonitor: true
   enableServiceMonitor: false
   fullnameOverride: keycloak
@@ -52,15 +56,16 @@ keycloak-operator:
       # `keycloak.image` (which uses the podiumd.image helper, repository:tag),
       # the adfinis subchart appends its own digest from a SEPARATE `operator.image.sha`
       # field: `repository:tag@sha256:{{ .sha }}`. Putting @sha256 in the tag
-      # produces an invalid DOUBLE digest (…:26.7.2@sha256:xxx@sha256:xxx).
+      # produces an invalid DOUBLE digest (…:26.7.3@sha256:xxx@sha256:xxx).
       # The chart's bundled default operator.image.sha for 1.13.0 is stale
-      # (doesn't match any manifest under the 26.7.2 tag), so it's overridden
-      # explicitly below with the real registry digest. To DISABLE digest
-      # pinning (e.g. on aks-blue / ACR-mirror envs where the mirrored digest
-      # differs), set `operator.image.sha: ""`. See
+      # (doesn't match any manifest under the 26.7.3 tag — it doesn't even
+      # know this tag exists yet), so it's overridden explicitly below with
+      # the real registry digest. To DISABLE digest pinning (e.g. on aks-blue
+      # / ACR-mirror envs where the mirrored digest differs), set
+      # `operator.image.sha: ""`. See
       # docs/_UPGRADE_PATHS/4.7.3-to-4.7.4-upgrade.md.
-      tag: "26.7.2"
-      sha: "f6079999aa773f1846de01c9014d19c3c677d35570361fd7c01c0830836e4041"
+      tag: "26.7.3"
+      sha: "e3856fd1aeb404f0e6ae2180b01875c8eeebd3748b0e5d955da77b5d41095ae4"
     resources:
       requests:
         cpu: 100m
@@ -72,18 +77,15 @@ keycloak-operator:
     # Default Keycloak SERVER image the operator stamps onto Keycloak CRs it
     # provisions (RELATED_IMAGE_KEYCLOAK env on the operator Deployment). Must
     # match podiumd's own `keycloak.image` digest above. The adfinis subchart's
-    # built-in default still carries the pre-PR#344 digest (sha256:5fdbf2d…), so
-    # we override it here to the refreshed 26.7.2 digest (sha256:9d1f1b2b…).
-    # Note: quay.io has re-published the 26.7.2 tag under a new digest twice
-    # now (sha256:6efbadc… -> sha256:831330… -> sha256:9d1f1b2b…, as of
-    # 2026-08-28) — re-verify live before trusting this pin at release time.
+    # built-in default still carries a stale digest (doesn't know about 26.7.3
+    # at all yet), so we override it here to the 26.7.3 digest (sha256:ff4257d…).
     # NOTE: sha is a SEPARATE field; the template appends it as @sha256:{{ .sha }},
     # so do NOT embed @sha256 in tag (would produce a double digest).
     config:
       keycloakImage:
         repository: quay.io/keycloak/keycloak
-        tag: "26.7.2"
-        sha: "9d1f1b2b7261ff53c66cb1092dfcdc34a5fb77e81f9e6a6e75b8b6a795de8067"
+        tag: "26.7.3"
+        sha: "ff4257d0d64efbe99ed1ddfaf07765cc3c36dc7518bf8324d41961327f441c54"
   serviceAccount:
     create: false
   jobs:
@@ -228,11 +230,11 @@ keycloak:
   http:
     httpEnabled: true
   # image parameters for keycloak-operator
-  # Official Keycloak image: quay.io/keycloak/keycloak:26.7.2
+  # Official Keycloak image: quay.io/keycloak/keycloak:26.7.3
   image:
     registry: ""
     repository: quay.io/keycloak/keycloak
-    tag: "26.7.2@sha256:9d1f1b2b7261ff53c66cb1092dfcdc34a5fb77e81f9e6a6e75b8b6a795de8067"
+    tag: "26.7.3@sha256:ff4257d0d64efbe99ed1ddfaf07765cc3c36dc7518bf8324d41961327f441c54"
   # -- instances is the new operator-style replica count (falls back to replicaCount)
   instances: "2"
   ingress:
@@ -267,7 +269,7 @@ keycloak:
     metadata:
       labels:
         app: keycloak
-        version: 26.7.2
+        version: 26.7.3
       # override: values-enable-observability.yaml adds prometheus.io scrape annotations
     spec:
       securityContext:

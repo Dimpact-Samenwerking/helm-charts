@@ -1,0 +1,27 @@
+# Baseline: podiumd 4.9.0 — re-verify before release.
+#
+# Images new or changed in podiumd 4.9.1 vs 4.9.0.
+#
+# See docs/_UPGRADE_PATHS/4.9.0-to-4.9.1-upgrade.md for the operator upgrade notes.
+#
+# Digests are the OCI image index (multi-arch manifest) digest as returned in
+# the Docker-Content-Digest response header from the source registry.
+
+# Keycloak server: 26.7.2 -> 26.7.3 (4.9.0 already pinned 26.7.2 here, but the
+# keycloak-operator's own operator.image lagged at 26.6.4 -- see below)
+- name: keycloak
+  url: quay.io/keycloak/keycloak
+  version: "26.7.3"
+  digest: "sha256:ff4257d0d64efbe99ed1ddfaf07765cc3c36dc7518bf8324d41961327f441c54"
+
+# Keycloak Operator: 26.6.4 -> 26.7.3 (Helm chart keycloak-operator 1.12.1 -> 1.13.0).
+# Two steps folded into one image bump: completing the 4.9.0 hop's
+# inconsistent partial pin (operator image was left at 26.6.4 while the
+# server image had already moved to 26.7.2), then a further image-only bump
+# to 26.7.3 for the 20-CVE security release -- the adfinis chart itself
+# stays at 1.13.0 (appVersion 26.7.2) since no chart targeting 26.7.3 has
+# been published yet.
+- name: keycloak-operator
+  url: quay.io/keycloak/keycloak-operator
+  version: "26.7.3"
+  digest: "sha256:e3856fd1aeb404f0e6ae2180b01875c8eeebd3748b0e5d955da77b5d41095ae4"
