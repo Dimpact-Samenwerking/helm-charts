@@ -39,6 +39,28 @@ ZAC_WITH_SIDECAR_BLOCK = ZAC_BLOCK + (
     f'      tag: "0.158.0@sha256:{DIGEST}"\n'
 )
 
+# openbao's own PRIMARY image is NOT at the usual bare "image" key --
+# see lib.chart.COMPONENT_IMAGE_PATHS["openbao"] -- it's the schema-init
+# Job's own image block; "openbao.image" itself has no override at all
+# in the real chart (blank tag, relies on the chart's own appVersion
+# default). Plus a sidecar image (openbao.database.schemaJob.image --
+# the real shape of its own "postgres" schema-migration job) that is
+# NEVER openbao's primary image, mirroring the real chart's own two
+# "openbao" release-table.csv rows -- one for each.
+OPENBAO_BLOCK = (
+    "openbao:\n"
+    "  configuration:\n"
+    "    job:\n"
+    "      image:\n"
+    "        repository: quay.io/openbao/openbao\n"
+    f'        tag: "2.5.5@sha256:{DIGEST}"\n'
+    "  database:\n"
+    "    schemaJob:\n"
+    "      image:\n"
+    "        repository: library/postgres\n"
+    f'        tag: "16-alpine@sha256:{DIGEST}"\n'
+)
+
 
 # --- compare(): version mismatches ---
 
@@ -69,35 +91,54 @@ def test_compare_no_findings_when_everything_matches(vrt):
 
 
 def test_compare_reports_chart_version_never_tracked(vrt):
-    """openbao's real-world case: its own Chart.yaml dependency has
-    row(s) in release-table.csv, but NEITHER ever recorded a Helm chart
-    version (both source_version_helm and target_version_helm blank on
-    every row) -- silently treated as "nothing changed" by the plain
-    mismatch check alone, even though the chart version was never
-    tracked at all. Its own row lives on "Technische component
-    versies", which has no Helm column at all -- the hint must say so,
-    and point at the other three tables instead of a cell that doesn't
-    exist here."""
+    """openbao's real-world case: its own Chart.yaml dependency has TWO
+    rows in release-table.csv (its own "OpenBao" row, plus a sibling
+    "OpenBao Schema Job (postgres)" row for a sidecar image), but
+    NEITHER ever recorded a Helm chart version (both source_version_helm
+    and target_version_helm blank on every row) -- silently treated as
+    "nothing changed" by the plain mismatch check alone, even though the
+    chart version was never tracked at all. The hint must name openbao's
+    own "OpenBao" row specifically -- NOT the sidecar "postgres" row,
+    even though both are on "Technische component versies", which has no
+    Helm column at all -- and point at the other three tables instead."""
     deps = [{"name": "openbao", "alias": "", "version": "0.28.4"}]
-    rows = [{**csv_row("OpenBao", "openbao", image_basename="openbao", target_app="2.5.5"), "section": "Technische"}]
-    findings, _ = vrt.compare(rows, deps, {}, [])
-    hint = next(m for m in findings["missing_from_release_table"] if "openbao" in m)
+    rows = [
+        {**csv_row("OpenBao", "openbao", image_basename="openbao", target_app="2.5.5"), "section": "Technische"},
+        {**csv_row("OpenBao Schema Job (postgres)", "openbao", image_basename="postgres", target_app="UNKNOWN"),
+         "section": "Technische"},
+    ]
+    findings, _ = vrt.compare(rows, deps, {}, values_lines(OPENBAO_BLOCK))
+    hint = next(m for m in findings["missing_from_release_table"] if "'openbao' has release-table" in m)
     assert "[CHART] Chart.yaml dependency 'openbao' has release-table.csv row(s), but none records " \
            "a Helm chart version" in hint
-    assert '\n      Confluence: "Technische component versies" has no Helm column at all' in hint
+    assert '\n      Confluence: "OpenBao"\'s own row is on "Technische component versies"' in hint
+    assert "postgres" not in hint
     assert "Product/Common Ground/Overige component versies instead" in hint
 
 
-def test_compare_chart_version_never_tracked_on_other_table_suggests_filling_cell(vrt):
+def test_compare_chart_version_never_tracked_names_primary_row_on_other_table(vrt):
     """On a table that DOES have a Helm sub-column (anything but
     "Technische component versies"), the fix is just to fill in the
-    existing cell -- not add a whole new row elsewhere."""
+    existing cell on the component's own primary row -- named
+    specifically, not just "this row" or "the table"."""
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     rows = [csv_row("Zaak - ZAC", "zaakafhandelcomponent", alias="zac", image_basename="zaakafhandelcomponent",
                      target_app="5.4.3")]  # target_helm/source_helm both left blank
     findings, _ = vrt.compare(rows, deps, {}, values_lines(ZAC_BLOCK))
     hint = next(m for m in findings["missing_from_release_table"] if "zaakafhandelcomponent" in m)
-    assert 'Confluence: fill in the Helm version cell for this row on "Product component versies"' in hint
+    assert 'Confluence: fill in the Helm version cell on "Zaak - ZAC" ("Product component versies")' in hint
+
+
+def test_compare_chart_version_never_tracked_no_primary_row_yet(vrt):
+    """Neither existing row claims the component's own primary basename
+    yet (only a sidecar row exists so far) -- the hint must not guess
+    which row to point at."""
+    deps = [{"name": "openbao", "alias": "", "version": "0.28.4"}]
+    rows = [{**csv_row("OpenBao Schema Job (postgres)", "openbao", image_basename="postgres", target_app="UNKNOWN"),
+             "section": "Technische"}]
+    findings, _ = vrt.compare(rows, deps, {}, values_lines(OPENBAO_BLOCK))
+    hint = next(m for m in findings["missing_from_release_table"] if "'openbao' has release-table" in m)
+    assert "none of the existing row(s) is this chart's own primary-image row yet" in hint
 
 
 @pytest.mark.parametrize("target_app,target_helm", [("", ""), ("UNKNOWN", "UNKNOWN")])

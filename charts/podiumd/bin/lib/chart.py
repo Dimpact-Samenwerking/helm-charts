@@ -46,6 +46,13 @@ COMPONENT_IMAGE_PATHS = {
     # @sha256 digest — see update-component-version's SPLIT_TAG_SHA_PATHS
     # for the write side.
     "keycloak-operator": ["operator.config.keycloakImage"],
+    # openbao's own primary application image isn't at the usual bare
+    # "image" key at all — it's the OpenBao server image, pinned at the
+    # schema-init Job's own image block (the only place this chart pins
+    # it explicitly; "openbao.image" itself has no override in
+    # values.yaml, relying entirely on the chart's own appVersion
+    # default).
+    "openbao": ["configuration.job.image"],
 }
 DEFAULT_IMAGE_PATHS = ["image"]
 
