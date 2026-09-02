@@ -357,27 +357,50 @@ def changes_heading_identities(heading, deps, canonical_names):
     as resolve_component_identity) is always returned alone — its own
     "<parent> - <basename>" shape necessarily contains the parent
     dependency's name too (e.g. "redis-operator - redis"), which is
-    expected and correct, not a second, competing identity. Otherwise
-    every real Chart.yaml dependency whose own name/alias is found as a
-    word-aligned span (see _word_aligned_spans) anywhere in the text is
-    collected — usually exactly one, but a heading naming two components
-    at once (real case: "### ECK Operator 3.4.0 → 3.5.0 + ECK Stack
-    (kiss-eck) 0.19.0 → 0.20.0") returns both; see find_changes_row_
-    correspondence_gaps for what happens to a heading resolving to
-    anything other than exactly one identity. Empty if the heading names
-    no real component at all."""
+    expected and correct, not a second, competing identity.
+
+    Otherwise every real Chart.yaml dependency whose own name/alias
+    matches a contiguous word-range of the heading is collected — usually
+    exactly one, but a heading naming two components at once (real case:
+    "### ECK Operator 3.4.0 → 3.5.0 + ECK Stack (kiss-eck) 0.19.0 →
+    0.20.0") returns both; see find_changes_row_correspondence_gaps for
+    what happens to a heading resolving to anything other than exactly
+    one identity. Unlike match_dependency's own word-SPAN (unordered
+    concatenation) check, matches here are tracked by exact word
+    position, so a match whose own range is entirely contained within
+    another, strictly longer match at the SAME position never counts as
+    a second, independent mention — real case: eck-stack's own alias
+    "kiss-eck" tokenizes to the words "kiss"+"eck", and the standalone
+    "kiss" word inside it is ALSO, coincidentally, the real KISS
+    dependency's own alias; without this containment filter, any heading
+    mentioning "kiss-eck" would wrongly also count as separately naming
+    KISS. This generalizes match_dependency's own "longest match wins"
+    tie-break (built for picking a single winner) to a multi-match scan
+    where several genuinely different matches can legitimately coexist
+    side by side. Empty if the heading names no real component at all."""
     sidecar_path = match_canonical_sidecar_name(heading, canonical_names)
     if sidecar_path is not None:
         return {("sidecar", sidecar_path)}
-    spans = _word_aligned_spans(heading)
-    identities = set()
+    words = words_of(heading)
+    matches = []  # [(start, end, values_key), ...], end exclusive
     for dep in deps:
         for candidate in filter(None, [dep.get("name"), dep.get("alias")]):
             norm_c = normalize_name(candidate)
-            if norm_c and norm_c in spans:
-                identities.add(("dep", dep.get("alias", dep["name"])))
-                break
-    return identities
+            if not norm_c:
+                continue
+            for start in range(len(words)):
+                acc = ""
+                for end in range(start, len(words)):
+                    acc += words[end]
+                    if len(acc) > len(norm_c):
+                        break
+                    if acc == norm_c:
+                        matches.append((start, end + 1, dep.get("alias", dep["name"])))
+                        break
+    kept = [key for start, end, key in matches
+            if not any(o_start <= start and end <= o_end and (o_start, o_end) != (start, end)
+                       for o_start, o_end, _ in matches)]
+    return {("dep", key) for key in kept}
 
 
 def find_changes_row_correspondence_gaps(rows, headings, deps, canonical_names):
