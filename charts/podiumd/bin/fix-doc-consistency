@@ -34,8 +34,10 @@ owns rebasing those on purpose; that one refuses to touch them). See
 fix_component_version_table, add_missing_component_rows,
 add_missing_values_delta_bullets, and fix_images_manifest_entries for
 exactly what gets rewritten/added vs. just reported for manual review
-(an images-manifest entry is NEVER auto-added — its "name:" field needs
-a human-chosen ACR-mirror slug, see docs/images/acr-mirror-naming.md).
+(an images-manifest entry is NEVER auto-added — its "name:"/"url:" are
+mechanically derivable now, see docs/images/acr-mirror-naming.md, but the
+manifest's own per-group comments and "# Changes:" narrative need a human
+to explain WHY each change happened, not just that it did).
 
 Called automatically by change-podiumd-baseline, right after it writes
 release-baseline.yaml's upgrade_docs key — see that script for the
