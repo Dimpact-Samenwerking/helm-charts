@@ -410,7 +410,7 @@ def test_sidecar_row_wrong_target_app_is_caught(vp, redis_sidecar_chart_repo, ca
 
     assert ok is False
     out = capsys.readouterr().out
-    assert ('redis-operator.redis-ha ("redis-operator - redis") target app: values.yaml image tag is '
+    assert ('redis-operator.redis-ha.image ("redis-operator - redis") target app: values.yaml image tag is '
             '"8.6.6", 4.8.5-to-4.9.0-upgrade.md says "9.9.9"') in out
 
 
@@ -422,7 +422,7 @@ def test_sidecar_row_wrong_source_app_vs_baseline_is_caught(vp, redis_sidecar_ch
 
     assert ok is False
     out = capsys.readouterr().out
-    assert ('redis-operator.redis-ha ("redis-operator - redis") source app: podiumd-4.8.5 has "8.6.2", '
+    assert ('redis-operator.redis-ha.image ("redis-operator - redis") source app: podiumd-4.8.5 has "8.6.2", '
             '4.8.5-to-4.9.0-upgrade.md says "1.1.1"') in out
 
 
@@ -525,6 +525,128 @@ def test_unchanged_sidecar_with_no_row_is_not_flagged(vp, tmp_path, capsys):
 
     out = capsys.readouterr().out
     assert "redis-operator - redis-exporter" not in out
+
+
+JOB_TWO_IMAGES_VALUES_TMPL = (
+    "redis-operator:\n"
+    "  jobs:\n"
+    "    setup:\n"
+    "      image:\n"
+    "        repository: quay.io/opstree/redis\n"
+    '        tag: "8.6.2@sha256:aaaa"\n'
+    "      initImage:\n"
+    "        repository: quay.io/opstree/redis-init\n"
+    '        tag: "{init_tag}@sha256:bbbb"\n'
+)
+
+
+def test_sidecar_app_version_resolved_from_its_own_trailing_image_key(vp, tmp_path):
+    """A sidecar whose trailing values-tree key is NOT literally "image"
+    (e.g. "initImage", sitting right next to a sibling "image" key in the
+    very same job) must be compared against ITS OWN tag — not a hardcoded
+    ".image.tag" guess, which would silently grab the sibling "image"
+    key's tag instead and report a bogus mismatch. No baseline/images-
+    manifest machinery involved here on purpose — this is purely about
+    resolving the CURRENT tag from the right path (that's a separate,
+    unrelated fuzzy matcher — see resolve_entry_path)."""
+    chart_dir = tmp_path / "charts" / "podiumd"
+    doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
+    doc_dir.mkdir(parents=True)
+    (chart_dir / "docs" / "images").mkdir(parents=True)
+
+    (chart_dir / "Chart.yaml").write_text(REDIS_CHART_YAML)
+    (chart_dir / "values.yaml").write_text(JOB_TWO_IMAGES_VALUES_TMPL.format(init_tag="3.14.7-slim"))
+    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
+        "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| redis-operator - redis-init | 3.14.6-slim → 3.14.7-slim | - | ACR mirror only |\n\n"
+        "See [`4.8.5-to-4.9.0-values-deltas.md`](4.8.5-to-4.9.0-values-deltas.md).\n"
+    )
+
+    ok, detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline=None)
+
+    assert ok is True, detail
+
+
+def test_unresolvable_canonical_named_row_is_not_fuzzy_matched_to_a_real_dependency(vp, tmp_path, capsys):
+    """A row shaped like the canonical "<values_key> - <basename>" sidecar
+    form, but whose repository can't be resolved at all (no own override,
+    no vendored subchart default — e.g. commented out, PodiumD Adapter's
+    real-world case), has no entry in canonical_names. It must be reported
+    as unresolvable — never fall through to match_dependency's fuzzy
+    word-span matching, which would otherwise match its leading word
+    ("redis-operator") to the real redis-operator dependency and compare
+    the row against THAT dependency's own unrelated actual app version."""
+    repo_root = tmp_path
+    chart_dir = repo_root / "charts" / "podiumd"
+    doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
+    images_dir = chart_dir / "docs" / "images"
+    for d in (doc_dir, images_dir):
+        d.mkdir(parents=True)
+
+    git("init", "-q", cwd=repo_root)
+    git("config", "user.email", "test@example.com", cwd=repo_root)
+    git("config", "user.name", "Test", cwd=repo_root)
+
+    # redis-operator's own primary "image" (unrelated to the unresolvable
+    # sidecar row below) plus redis-ha's normally-resolvable one, so a
+    # fuzzy match onto the dependency's own row would have something
+    # concrete (and wrong) to compare against.
+    values_tmpl = (
+        "redis-operator:\n"
+        "  image:\n"
+        "    repository: quay.io/opstree/redis-operator\n"
+        '    tag: "{op_tag}@sha256:cccc"\n'
+        "  redis-ha:\n"
+        "    image:\n"
+        "      repository: quay.io/opstree/redis\n"
+        '      tag: "8.6.2@sha256:aaaa"\n'
+        "  ghost:\n"
+        "    image:\n"
+        "      # repository intentionally omitted — unresolvable, no subchart vendored either\n"
+        '      tag: "{ghost_tag}@sha256:dddd"\n'
+    )
+
+    (chart_dir / "Chart.yaml").write_text(REDIS_CHART_YAML)
+    (chart_dir / "values.yaml").write_text(values_tmpl.format(op_tag="0.26.1", ghost_tag="0.6.6"))
+    git("add", "-A", cwd=repo_root)
+    git("commit", "-q", "-m", "baseline", cwd=repo_root)
+    git("tag", "podiumd-4.8.5", cwd=repo_root)
+
+    (chart_dir / "values.yaml").write_text(values_tmpl.format(op_tag="0.27.0", ghost_tag="0.6.7"))
+    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
+        "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| redis-operator | 0.26.1 → 0.27.0 | 0.26.1 (unchanged) | n/a |\n"
+        "| redis-operator - ghost | 0.6.6 → 0.6.7 | - | ACR mirror only |\n\n"
+        "See [`4.8.5-to-4.9.0-values-deltas.md`](4.8.5-to-4.9.0-values-deltas.md).\n"
+    )
+    (doc_dir / "4.8.5-to-4.9.0-gemeente-specific.md").write_text(REDIS_GEMEENTE_DOC.format(baseline="4.8.5"))
+    (doc_dir / "4.8.5-to-4.9.0-values-deltas.md").write_text(
+        "# Values deltas — PodiumD 4.8.5 → 4.9.0\n\n"
+        "- **redis-operator** app `0.26.1 → 0.27.0` — image tag only.\n"
+        "- **ghost** app `0.6.6 → 0.6.7` — image tag only.\n\n"
+        "No gemeente podiumd.yml changes are required for this hop.\n")
+    (images_dir / "images-4.9.0.yaml").write_text(
+        REDIS_IMAGES_MANIFEST.format(baseline="4.8.5", app_source="0.26.1", app_target="0.27.0"))
+    git("add", "-A", cwd=repo_root)
+    git("commit", "-q", "-m", "bump redis-operator and its unresolvable ghost sidecar", cwd=repo_root)
+
+    ok, detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline="4.8.5")
+
+    assert ok is False
+    out = capsys.readouterr().out
+    assert ('4.8.5-to-4.9.0-upgrade.md: doc row "redis-operator - ghost" does not match a Chart.yaml '
+            'dependency or a canonical sidecar/shared-image name') in out
+    # The bug this guards against: falling through to match_dependency
+    # would fuzzy-match "redis-operator - ghost" onto the real
+    # redis-operator dependency and wrongly compare its own actual app
+    # version (0.27.0) against the ghost row's app column (0.6.6 → 0.6.7).
+    assert 'redis-operator ("redis-operator - ghost")' not in out
 
 
 def test_chart_only_component_with_no_app_image_is_not_flagged(vp, chart_repo, capsys):
