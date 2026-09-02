@@ -15,10 +15,10 @@ from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, 
 from lib.upgradedoc import (
     actual_app_version, compute_changed_components, diff_keys, extract_mentioned_dependency_keys,
     extract_source_version, extract_target_version, find_grouped_preceding_comment,
-    find_image_tag_paths, find_out_of_order_names, is_exact_dependency_match, match_dependency,
-    match_dependency_excluding_sidecar_names, normalize_version, pair_renames, parse_changes_block,
-    parse_upgrade_doc_changes_blocks, parse_upgrade_doc_rows as _parse_upgrade_doc_rows, resolve_entry_path,
-    strip_fenced_code_blocks, values_key_order,
+    find_image_tag_paths, find_out_of_order_names, find_wrong_or_duplicate_dependency_claims,
+    match_dependency, match_dependency_excluding_sidecar_names, normalize_version, pair_renames,
+    parse_changes_block, parse_upgrade_doc_changes_blocks, parse_upgrade_doc_rows as _parse_upgrade_doc_rows,
+    resolve_entry_path, strip_fenced_code_blocks, values_key_order,
 )
 
 
@@ -183,7 +183,26 @@ def check_images_manifest_format(images_path, upgrade_docs_baseline, podiumd_ver
             issues.append(f'{images_path.name}: "... vs ..." line says upgrade_docs_baseline "{vs_baseline}", '
                            f'expected "{upgrade_docs_baseline}"')
 
-    for item in parse_changes_block(text):
+    items = list(parse_changes_block(text))
+    # Same two deterministic gaps as lib.docs_consistency's own upgrade-doc
+    # row loop (see find_wrong_or_duplicate_dependency_claims) — a
+    # free-form Changes item fuzzy-matching a dependency another item
+    # already exactly claims. Real, live case this catches: item "Kiss's
+    # ECK-managed Elasticsearch/Kibana/Enterprise Search 8.19.3 ->
+    # 8.19.19" fuzzy-matches the real "kiss" dependency on the word
+    # "kiss" (there's also an exact "KISS 2.2.4 -> 3.0.0" item) and was
+    # being compared against kiss's own unrelated actual app version —
+    # same for "clamav_exporter (metrics sidecar) ..." vs the exact
+    # "ClamAV ..." item.
+    duplicate_names, wrong_fuzzy_names = find_wrong_or_duplicate_dependency_claims(
+        [item["name"] for item in items], deps)
+
+    for item in items:
+        if item["name"] in duplicate_names or item["name"] in wrong_fuzzy_names:
+            issues.append(f'{images_path.name}: Changes item "{item["name"]}" is wrong or stale — '
+                           f'not found in Chart.yaml or values.yaml')
+            continue
+
         # match_dependency_excluding_sidecar_names, not match_dependency
         # directly — a canonical sidecar/shared-image Changes item like
         # "keycloak-operator - python 3.14-slim -> 3.14.7-slim." must
@@ -437,44 +456,12 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
         rows = list(parse_upgrade_doc_rows(doc_path))
 
         # Two more deterministic gaps, checked once up front before the
-        # main per-row pass below:
-        #
-        # 1. Two rows with the literal same name are always wrong,
-        #    whatever they resolve to — one is a leftover/typo'd
-        #    duplicate.
-        # 2. Once one row EXACTLY names a real Chart.yaml dependency (see
-        #    is_exact_dependency_match — "KISS", not just "mentions kiss
-        #    somewhere"), no OTHER row may still claim that same
-        #    dependency merely by match_dependency's fuzzy word-
-        #    containment. Real case this catches: a stale "Kiss
-        #    Elasticsearch" row fuzzy-matched the real "kiss" dependency
-        #    and happened to already show its current actual app/chart
-        #    version, so the ordinary per-row check below found nothing
-        #    wrong — even though the row doesn't correspond to anything
-        #    in Chart.yaml/values.yaml as its own tracked item at all.
-        name_counts = {}
-        for row in rows:
-            name_counts[row["name"]] = name_counts.get(row["name"], 0) + 1
-        duplicate_names = {name for name, count in name_counts.items() if count > 1}
-
-        exact_claims = {}  # values_key -> the row name that exactly claims it
-        for row in rows:
-            if row["name"] in duplicate_names:
-                continue
-            dep = match_dependency_excluding_sidecar_names(row["name"], deps)
-            if dep is not None and is_exact_dependency_match(row["name"], dep):
-                exact_claims[dep.get("alias", dep["name"])] = row["name"]
-
-        wrong_fuzzy_names = set()
-        for row in rows:
-            if row["name"] in duplicate_names or row["name"] in exact_claims.values():
-                continue
-            dep = match_dependency_excluding_sidecar_names(row["name"], deps)
-            if dep is None:
-                continue
-            key = dep.get("alias", dep["name"])
-            if key in exact_claims:
-                wrong_fuzzy_names.add(row["name"])
+        # main per-row pass below — see find_wrong_or_duplicate_dependency_
+        # claims for exactly what these catch (duplicate row names, and a
+        # free-form row fuzzy-matching a dependency another row already
+        # exactly claims, e.g. a stale "Kiss Elasticsearch" row).
+        duplicate_names, wrong_fuzzy_names = find_wrong_or_duplicate_dependency_claims(
+            [row["name"] for row in rows], deps)
 
         for name in sorted(duplicate_names | wrong_fuzzy_names):
             mismatches.append(

@@ -324,6 +324,59 @@ def is_exact_dependency_match(name, dep):
     return any(normalize_name(c) == norm for c in (dep.get("name"), dep.get("alias")) if c)
 
 
+def find_wrong_or_duplicate_dependency_claims(names, deps):
+    """(duplicate_names, wrong_fuzzy_names) for a list of free-form names
+    each purporting to describe a Chart.yaml dependency — a doc row's own
+    Name cell, or an images-manifest "# Changes:" item's own free-form
+    text. Two deterministic gaps neither ordinary per-row/per-item
+    content checking catches on its own:
+
+    - duplicate_names: any name appearing more than once in `names` — a
+      leftover/typo'd duplicate, whatever it resolves to.
+    - wrong_fuzzy_names: any name that only fuzzy-matches (match_dependency_
+      excluding_sidecar_names) a dependency ALREADY exactly claimed (see
+      is_exact_dependency_match) by another name in `names`. Real case
+      this catches: a stale free-form item/row like "Kiss Elasticsearch"
+      or "Kiss's ECK-managed Elasticsearch/Kibana/Enterprise Search"
+      fuzzy-matches the real "kiss" dependency on the word "kiss" —
+      exactly the same collision the doc's own exact "KISS" row/item
+      already legitimately claims — so an ordinary content check comparing
+      it against kiss's own actual app/chart version finds nothing wrong
+      whenever those numbers happen to already agree, even though the
+      free-form one doesn't correspond to anything in Chart.yaml/
+      values.yaml as its own tracked item at all.
+
+    Callers should skip their own normal per-name resolution entirely for
+    any name in either returned set, reporting it as wrong/stale instead —
+    see lib.docs_consistency's own row loop and Changes-block loop for the
+    exact pattern."""
+    name_counts = {}
+    for name in names:
+        name_counts[name] = name_counts.get(name, 0) + 1
+    duplicate_names = {name for name, count in name_counts.items() if count > 1}
+
+    exact_claims = {}  # values_key -> the name that exactly claims it
+    for name in names:
+        if name in duplicate_names:
+            continue
+        dep = match_dependency_excluding_sidecar_names(name, deps)
+        if dep is not None and is_exact_dependency_match(name, dep):
+            exact_claims[dep.get("alias", dep["name"])] = name
+
+    wrong_fuzzy_names = set()
+    for name in names:
+        if name in duplicate_names or name in exact_claims.values():
+            continue
+        dep = match_dependency_excluding_sidecar_names(name, deps)
+        if dep is None:
+            continue
+        key = dep.get("alias", dep["name"])
+        if key in exact_claims:
+            wrong_fuzzy_names.add(name)
+
+    return duplicate_names, wrong_fuzzy_names
+
+
 def canonical_version_cell(actual_source, actual_target):
     """A "Component versions" table cell in the established style:
     "<target> (unchanged)" when source==target, else "<source> → <target>"."""
@@ -603,15 +656,67 @@ def pair_renames(added, removed, baseline_node, current_node):
     return renamed, added_left, removed_left
 
 
+def _finalize_changes_item(rest):
+    # extract_source_version/extract_target_version's own [\w.\-]* token
+    # regex treats "." as a valid version character (needed for "1.31.4"
+    # itself) — harmless for a table cell, but a Changes item is free-form
+    # PROSE that often ends its own sentence with a period right after the
+    # version with nothing else in between (e.g. "... 1.31.3 -> 1.31.4."),
+    # which the regex greedily swallows as if it were part of the version.
+    # A version never legitimately ends in a literal ".", so stripping one
+    # trailing period here is always safe.
+    app_source = extract_source_version(rest)
+    if app_source:
+        app_source = app_source.rstrip(".")
+    app_target = extract_target_version(rest)
+    if app_target:
+        app_target = app_target.rstrip(".")
+    chart_m = re.search(r"\(chart\s+([^)]+)\)", rest)
+    chart_source = extract_source_version(chart_m.group(1)) if chart_m else None
+    if chart_source:
+        chart_source = chart_source.rstrip(".")
+    chart_target = extract_target_version(chart_m.group(1)) if chart_m else None
+    if chart_target:
+        chart_target = chart_target.rstrip(".")
+    name = rest
+    if app_source:
+        idx = rest.find(app_source)
+        if idx > 0:
+            name = rest[:idx].strip()
+    return {"name": name, "app_source": app_source, "app": app_target,
+            "chart_source": chart_source, "chart": chart_target}
+
+
 def parse_changes_block(text):
     """Parse the "# Changes:" numbered-list block in an images manifest's
     header comment, e.g.:
         #   1. ZAC (Zaakafhandelcomponent) 5.0.2 -> 5.4.3 (chart 1.0.297, unchanged).
         #   2. ZGW Office Add-in v0.9.313 -> 0.11.0 (chart 0.0.89 -> 0.0.92).
     into the same shape as parse_upgrade_doc_rows, so it can be checked with
-    the same helpers."""
+    the same helpers.
+
+    A wrapped continuation line — indented to roughly the same column the
+    item's own text starts at (2+ spaces after "#", e.g. "#      nginx
+    sidecar...", vs. an ordinary comment's single-space "# See docs/...")
+    — is joined onto its own item's text before parsing name/app/chart
+    out of it. Not just a cosmetic nicety: an item whose own
+    "<source> -> <target>" pair (or "(chart ...)" span) is itself split
+    across the wrap, e.g.
+        #   21. nginx-unprivileged (shared global.images.nginx anchor, used by every
+        #      nginx sidecar in the chart) 1.31.3 -> 1.31.4.
+    used to see only line 1 — no arrow pattern there at all, so
+    extract_source_version/extract_target_version's own "no arrow found"
+    fallback (first word-like token) grabbed the item's own leading word
+    "nginx-unprivileged" as a fake version instead, silently truncating
+    its name to boot. The 2-space threshold is what actually tells a
+    continuation apart from an ordinary single-space "#" comment line
+    (a blank "#", or a trailing "# See docs/..." remark right after the
+    list with no blank line separating them) — both single-space forms
+    end whichever item is currently accumulating, the same way a new
+    numbered line does, rather than being swallowed into it."""
     items = []
     in_changes = False
+    current = None  # raw text accumulated so far for the item being parsed
     for line in text.splitlines():
         if not line.startswith("#"):
             if in_changes:
@@ -622,25 +727,26 @@ def parse_changes_block(text):
             continue
         if not in_changes:
             continue
+
         # "\.\s+" (period, then whitespace) — not "\.\s*" — so a version number
         # like "1.17.1-static" (period immediately followed by a digit) on an
         # indented continuation line is never mistaken for a new list item
         m = re.match(r"^#\s*\d+\.\s+(.+)$", line)
-        if not m:
+        if m:
+            if current is not None:
+                items.append(_finalize_changes_item(current))
+            current = m.group(1)
             continue
-        rest = m.group(1)
-        app_source = extract_source_version(rest)
-        app_target = extract_target_version(rest)
-        chart_m = re.search(r"\(chart\s+([^)]+)\)", rest)
-        chart_source = extract_source_version(chart_m.group(1)) if chart_m else None
-        chart_target = extract_target_version(chart_m.group(1)) if chart_m else None
-        name = rest
-        if app_source:
-            idx = rest.find(app_source)
-            if idx > 0:
-                name = rest[:idx].strip()
-        items.append({"name": name, "app_source": app_source, "app": app_target,
-                      "chart_source": chart_source, "chart": chart_target})
+
+        cont_m = re.match(r"^#\s{2,}(\S.*)$", line)
+        if cont_m and current is not None:
+            current += " " + cont_m.group(1)
+        elif current is not None:
+            items.append(_finalize_changes_item(current))
+            current = None
+
+    if current is not None:
+        items.append(_finalize_changes_item(current))
     return items
 
 
