@@ -837,18 +837,26 @@ def test_changes_section_with_no_table_row_is_caught(vp, order_chart_dir, capsys
            '"Component versions" table' in out
 
 
-def test_plus_joined_changes_heading_covers_both_named_components(vp, order_chart_dir):
-    """A single "### ..." heading can cover two components at once, joined
-    with " + " (the real-world case this was written for: "### ECK
-    Operator 3.4.0 → 3.5.0 + ECK Stack (kiss-eck) 0.19.0 → 0.20.0") — both
-    Open Zaak's and Open Inwoner's own table rows must be satisfied by
-    this one combined heading, not just whichever of the two match_
-    dependency's own single-best-match would otherwise pick."""
+def test_plus_joined_changes_heading_is_flagged_but_not_as_a_missing_row(vp, order_chart_dir, capsys):
+    """A single "### ..." heading joining two components at once via " + "
+    (the real-world case this was written for: "### ECK Operator 3.4.0 →
+    3.5.0 + ECK Stack (kiss-eck) 0.19.0 → 0.20.0") is reported as its own
+    "combines multiple components" finding — each should get its own
+    heading. But changes_heading_identities still resolves BOTH sides
+    (not just whichever of the two match_dependency's own single-best-
+    match would otherwise pick), so combining them never ALSO produces a
+    spurious "row has no matching section" finding for Open Zaak or Open
+    Inwoner — that would be the same root cause reported twice."""
     chart_dir, doc_dir = order_chart_dir
     (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
         order_doc([ZAAK_ROW, INWONER_ROW], ["Open Zaak bump + Open Inwoner bump"]))
     ok, detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline=None)
-    assert ok is True, detail
+    assert ok is False
+    assert "mismatch" in detail
+    out = capsys.readouterr().out
+    assert '"## Changes" section "### Open Zaak bump + Open Inwoner bump" combines multiple components ' \
+           'via " + " — each should have its own "### ..." section' in out
+    assert "has no matching" not in out
 
 
 def test_changes_heading_naming_no_real_component_is_caught_as_no_matching_row(vp, order_chart_dir, capsys):
@@ -867,3 +875,17 @@ def test_changes_heading_naming_no_real_component_is_caught_as_no_matching_row(v
     out = capsys.readouterr().out
     assert '"## Changes" section "### Unrelated release note" has no matching row in the ' \
            '"Component versions" table' in out
+
+
+def test_plus_in_heading_not_joining_two_real_components_is_not_flagged_as_combined(vp, order_chart_dir, capsys):
+    """A literal "+" in a heading isn't itself the signal — only a "+"
+    that actually separates two or more REAL, distinct components is a
+    combined heading. Here only "Open Zaak" resolves to anything; the
+    other side is plain prose, so this must not be flagged as combining
+    multiple components (it's still a normal, single-component
+    heading)."""
+    chart_dir, doc_dir = order_chart_dir
+    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
+        order_doc([ZAAK_ROW, INWONER_ROW], ["Open Zaak bump + misc cleanup", "Open Inwoner bump"]))
+    vp.check_docs_consistency(chart_dir, upgrade_docs_baseline=None)
+    assert "combines multiple components" not in capsys.readouterr().out

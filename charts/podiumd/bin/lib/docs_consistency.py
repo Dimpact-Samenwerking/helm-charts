@@ -15,11 +15,11 @@ from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, 
 from lib.upgradedoc import (
     actual_app_version, compute_changed_components, diff_keys, extract_mentioned_dependency_keys,
     extract_source_version, extract_target_version, find_changes_row_correspondence_gaps,
-    find_grouped_preceding_comment, find_image_tag_paths, find_out_of_order_names,
-    find_wrong_or_duplicate_dependency_claims, match_dependency, match_dependency_excluding_sidecar_names,
-    normalize_version, pair_renames, parse_changes_block, parse_upgrade_doc_changes_blocks,
-    parse_upgrade_doc_rows as _parse_upgrade_doc_rows, resolve_entry_path, strip_fenced_code_blocks,
-    values_key_order,
+    find_combined_changes_headings, find_grouped_preceding_comment, find_image_tag_paths,
+    find_out_of_order_names, find_wrong_or_duplicate_dependency_claims, match_dependency,
+    match_dependency_excluding_sidecar_names, normalize_version, pair_renames, parse_changes_block,
+    parse_upgrade_doc_changes_blocks, parse_upgrade_doc_rows as _parse_upgrade_doc_rows, resolve_entry_path,
+    strip_fenced_code_blocks, values_key_order,
 )
 
 
@@ -598,6 +598,12 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
                 mismatches.append(
                     f'{doc_path.name}: "## Changes" section "### {heading}" has no matching row in the '
                     f'"Component versions" table'
+                )
+
+            for heading in find_combined_changes_headings(changes_headings, deps, canonical_names):
+                mismatches.append(
+                    f'{doc_path.name}: "## Changes" section "### {heading}" combines multiple components '
+                    f'via " + " — each should have its own "### ..." section'
                 )
 
     images_path = chart_dir / "docs" / "images" / f"images-{podiumd_version}.yaml"
