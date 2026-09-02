@@ -818,6 +818,38 @@ def test_main_adds_missing_sidecar_row_for_global_shared_image(
     assert "### curl 8.10.1 → 8.11.0" in upgrade
 
 
+def test_main_adds_missing_changes_section_for_an_existing_dependency_row(
+        cdb, repo_with_undocumented_sidecar_bump, monkeypatch, capsys):
+    """ZAC's own table row already existed (unchanged, correct) but had
+    no "### ..." Changes section of its own at all — add_missing_
+    changes_sections fills that in using the SAME make_changes_section
+    template update-component-version/add_missing_component_rows
+    themselves use, driven by the row's OWN cells (both unchanged here)
+    rather than a fresh baseline lookup."""
+    set_argv_and_dir(cdb, monkeypatch, repo_with_undocumented_sidecar_bump, "4.8.5")
+    cdb.main()
+
+    upgrade = (repo_with_undocumented_sidecar_bump / "4.8.5-to-4.9.0-upgrade.md").read_text(encoding="utf-8")
+    assert "### ZAC (Zaakafhandelcomponent) 5.0.2 → 5.0.2 (chart 1.0.297, unchanged)" in upgrade
+    out = capsys.readouterr().out
+    assert "Adding missing '### ...' Changes section(s)" in out
+    assert "ZAC (Zaakafhandelcomponent)" in out
+
+
+def test_main_adds_todo_stub_section_when_row_has_no_app_version(
+        cdb, repo_with_undocumented_sidecar_bump, monkeypatch):
+    """redis-operator's own row app cell is "-" (nothing recorded there
+    to build real prose from) — a short TODO-stub section is added
+    instead of guessing, the same fallback add_missing_component_rows
+    itself uses for the same reason."""
+    set_argv_and_dir(cdb, monkeypatch, repo_with_undocumented_sidecar_bump, "4.8.5")
+    cdb.main()
+
+    upgrade = (repo_with_undocumented_sidecar_bump / "4.8.5-to-4.9.0-upgrade.md").read_text(encoding="utf-8")
+    assert "### redis-operator 0.26.1\n" in upgrade
+    assert "TODO: describe this component's changes" in upgrade
+
+
 def test_main_does_not_duplicate_an_existing_sidecar_row(
         cdb, repo_with_undocumented_sidecar_bump, monkeypatch):
     doc_dir = repo_with_undocumented_sidecar_bump
@@ -832,8 +864,13 @@ def test_main_does_not_duplicate_an_existing_sidecar_row(
     cdb.main()
 
     upgrade = doc.read_text(encoding="utf-8")
-    assert upgrade.count("redis-operator - redis") == 1
+    assert upgrade.count("| redis-operator - redis |") == 1
     assert "already documented by hand" in upgrade
+    # The row already existed (hand-written), so add_missing_sidecar_rows
+    # itself has nothing to add — but it still had no "### ..." section of
+    # its own yet, which add_missing_changes_sections now fills in, using
+    # the row's own hand-typed cells verbatim.
+    assert "### redis-operator - redis 8.6.2 → 8.6.6" in upgrade
 
 
 def test_main_leaves_unchanged_sidecar_with_no_row_alone(cdb, tmp_path, monkeypatch, capsys):
