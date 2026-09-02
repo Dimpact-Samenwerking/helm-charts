@@ -519,8 +519,9 @@ def main():
         if unresolved_entry_names:
             print()
             print(f"Could not verify source/target version for {len(unresolved_entry_names)} "
-                  f"entry(s) — no preceding comment, unresolvable values-tree path, or baseline "
-                  f"{new_baseline} doesn't resolve to a git ref. Left as-is; review by hand.")
+                  f"entry(s) in {images_path.name} — no preceding comment, unresolvable "
+                  f"values-tree path, or baseline {new_baseline} doesn't resolve to a git ref. "
+                  f"Left as-is; review by hand.")
             for name in unresolved_entry_names:
                 print(f"  {name}")
 

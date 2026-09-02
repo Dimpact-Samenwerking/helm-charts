@@ -1158,7 +1158,7 @@ def test_main_reports_unresolved_image_entries_one_per_line(cdb, repo, monkeypat
     cdb.main()
 
     out = capsys.readouterr().out
-    assert "Could not verify source/target version for 2 entry(s)" in out
+    assert "Could not verify source/target version for 2 entry(s) in images-4.9.0.yaml" in out
     assert "  totally-unknown-a" in out
     assert "  totally-unknown-b" in out
     assert "totally-unknown-a, totally-unknown-b" not in out
