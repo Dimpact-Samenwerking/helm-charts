@@ -865,6 +865,59 @@ def test_repository_path_map_skips_unresolvable_and_multiple_deps(libchart, tmp_
     assert mapping == {"infonl/zaakafhandelcomponent": ("zac", "image")}
 
 
+# --- canonical_sidecar_row_names ---
+
+def test_canonical_sidecar_row_names_dependency_sidecar(libchart, tmp_path):
+    dep = {"name": "redis-operator", "alias": "", "version": "0.26.0"}
+    values = {"redis-operator": {"redis-ha": {"image": {"repository": "quay.io/opstree/redis"}}}}
+    paths = [("redis-operator", "redis-ha", "image")]
+
+    names = libchart.canonical_sidecar_row_names(tmp_path, [dep], values, paths, allow_pull=False)
+
+    assert names == {"redis-operator - redis": ("redis-operator", "redis-ha", "image")}
+
+
+def test_canonical_sidecar_row_names_excludes_dependencys_own_primary_image(libchart, tmp_path):
+    """The dependency's own registered primary image (image_paths_for) is
+    NOT a sidecar — match_dependency already covers it by the
+    dependency's plain name/alias, so it must not show up here too."""
+    dep = {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}
+    values = {"zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent"}}}
+    paths = [("zac", "image")]
+
+    names = libchart.canonical_sidecar_row_names(tmp_path, [dep], values, paths, allow_pull=False)
+
+    assert names == {}
+
+
+def test_canonical_sidecar_row_names_global_shared_image(libchart, tmp_path):
+    """A "global"-rooted image has no single owning dependency at all —
+    the canonical name is bare "<basename>" (update-image-version's
+    MULTIPLE_KEY convention), never "<values_key> - <basename>"."""
+    values = {"global": {"images": {"nginx": {"image": {"repository": "docker.io/nginxinc/nginx-unprivileged"}}}}}
+    paths = [("global", "images", "nginx", "image")]
+
+    names = libchart.canonical_sidecar_row_names(tmp_path, [], values, paths, allow_pull=False)
+
+    assert names == {"nginx-unprivileged": ("global", "images", "nginx", "image")}
+
+
+def test_canonical_sidecar_row_names_multiple_sidecars_stay_distinct(libchart, tmp_path):
+    values = {"redis-operator": {
+        "redis-ha": {"image": {"repository": "quay.io/opstree/redis"}},
+        "redis-exporter": {"image": {"repository": "quay.io/opstree/redis-exporter"}},
+    }}
+    dep = {"name": "redis-operator", "alias": "", "version": "0.26.0"}
+    paths = [("redis-operator", "redis-ha", "image"), ("redis-operator", "redis-exporter", "image")]
+
+    names = libchart.canonical_sidecar_row_names(tmp_path, [dep], values, paths, allow_pull=False)
+
+    assert names == {
+        "redis-operator - redis": ("redis-operator", "redis-ha", "image"),
+        "redis-operator - redis-exporter": ("redis-operator", "redis-exporter", "image"),
+    }
+
+
 # --- subchart_template_text ---
 
 def test_subchart_template_text_concatenates_all_template_files(libchart, tmp_path):

@@ -537,6 +537,56 @@ def repository_path_map(chart_dir, deps, values, paths, allow_pull=False):
     return mapping
 
 
+def canonical_sidecar_row_names(chart_dir, deps, values, paths, allow_pull=False):
+    """{canonical doc-row name: values-tree path} for every image path
+    that isn't a Chart.yaml dependency's own name/alias directly — the
+    two other shapes update-image-version actually writes a doc row
+    under (see its own update_docs_single_component/
+    update_docs_shared_image):
+    - "<values_key> - <basename>" for a sidecar nested under a real
+      dependency (e.g. "redis-operator - redis", "redis-operator -
+      redis-exporter") — `basename` is that image's own repository's
+      last "/"-segment, resolved via repository_path_map (own
+      override in `values` if present, else the owning dependency's
+      vendored subchart default).
+    - bare "<basename>" for an image pinned under the shared "global"
+      top-level key (update-image-version's MULTIPLE_KEY convention —
+      no single dependency owns it, so there's no "<values_key> -"
+      prefix at all; its own repository is always set explicitly
+      there, never a subchart-default fallback).
+
+    A dependency's own PRIMARY image (image_paths_for) is deliberately
+    excluded — match_dependency already covers that case by the
+    dependency's plain name/alias, and this function exists
+    specifically for what match_dependency can't reach.
+
+    Exists so a doc row that doesn't match a real dependency can still
+    be checked against a real, deterministically-computed canonical
+    name — never guessed at from free-form prose (see
+    resolve_entry_path's own fuzzy word-matching, which this
+    deliberately does NOT reuse)."""
+    by_values_key = {(dep.get("alias") or dep["name"]): dep for dep in deps}
+    sidecar_paths, global_paths = [], []
+    for path in paths:
+        if not path:
+            continue
+        if path[0] == "global":
+            global_paths.append(path)
+            continue
+        dep = by_values_key.get(path[0])
+        if dep is not None and ".".join(path[1:]) not in set(image_paths_for(dep["name"])):
+            sidecar_paths.append(path)
+
+    names = {}
+    for repo, path in repository_path_map(chart_dir, deps, values, sidecar_paths, allow_pull=allow_pull).items():
+        names[f"{path[0]} - {repo.rsplit('/', 1)[-1]}"] = path
+    for path in global_paths:
+        repo = get_path(values, ".".join(path) + ".repository")
+        if isinstance(repo, str) and repo:
+            names[strip_registry_host(repo).rsplit("/", 1)[-1]] = path
+    return names
+
+
 def subchart_template_text(chart_dir, dep):
     """Every file under a vendored dependency's own templates/ directory
     (same .tgz/vendoring mechanics as subchart_values), concatenated into
