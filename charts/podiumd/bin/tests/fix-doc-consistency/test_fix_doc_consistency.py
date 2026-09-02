@@ -322,7 +322,7 @@ def test_fix_component_version_table_corrects_stale_source(cdb):
     baseline_values = {"zac": {"image": {"tag": "5.0.2@sha256:bbbb"}}}
 
     new_text, changed, unmatched, unresolved = cdb.fix_component_version_table(
-        text, target_deps, target_values, baseline_deps, baseline_values
+        text, None, target_deps, target_values, baseline_deps, baseline_values
     )
     assert unmatched == [] and unresolved == []
     assert len(changed) == 1
@@ -345,7 +345,7 @@ def test_fix_component_version_table_leaves_correct_row_untouched(cdb):
     baseline_values = {"zac": {"image": {"tag": "5.0.2@sha256:bbbb"}}}
 
     new_text, changed, unmatched, unresolved = cdb.fix_component_version_table(
-        text, target_deps, target_values, baseline_deps, baseline_values
+        text, None, target_deps, target_values, baseline_deps, baseline_values
     )
     assert changed == []
     assert new_text == text
@@ -360,7 +360,7 @@ def test_fix_component_version_table_unmatched_component_reported(cdb):
     )
     target_deps, target_values = target_deps_and_values()
     new_text, changed, unmatched, unresolved = cdb.fix_component_version_table(
-        text, target_deps, target_values, [{"name": "zac", "version": "1.0.297"}], {}
+        text, None, target_deps, target_values, [{"name": "zac", "version": "1.0.297"}], {}
     )
     assert changed == []
     assert unmatched == ["Totally Unknown Thing"]
@@ -376,10 +376,90 @@ def test_fix_component_version_table_no_baseline_data_reported_unresolved(cdb):
     )
     target_deps, target_values = target_deps_and_values()
     new_text, changed, unmatched, unresolved = cdb.fix_component_version_table(
-        text, target_deps, target_values, None, None
+        text, None, target_deps, target_values, None, None
     )
     assert changed == []
     assert unresolved == ["ZAC (Zaakafhandelcomponent)"]
+    assert new_text == text
+
+
+def redis_sidecar_deps_and_values(target_chart="0.26.1", baseline_chart="0.25.0", target_tag="8.6.6"):
+    target_deps = [{"name": "redis-operator", "version": target_chart}]
+    baseline_deps = [{"name": "redis-operator", "version": baseline_chart}]
+    target_values = {"redis-operator": {"redis-ha": {"image": {
+        "repository": "quay.io/opstree/redis", "tag": f"{target_tag}@sha256:aaaa"}}}}
+    baseline_values = {"redis-operator": {"redis-ha": {"image": {
+        "repository": "quay.io/opstree/redis", "tag": "8.6.2@sha256:aaaa"}}}}
+    return target_deps, target_values, baseline_deps, baseline_values
+
+
+def test_fix_component_version_table_leaves_a_correct_sidecar_row_untouched(cdb):
+    """Regression test: a correctly-phrased canonical sidecar row (see
+    lib.chart.canonical_sidecar_row_names) must never be "corrected"
+    against its unrelated owning dependency's own chart/app version —
+    match_dependency fuzzy-matches "redis-operator - redis" to the real
+    "redis-operator" dependency on its leading word, which used to
+    silently rewrite this row's Helm-chart cell from "-" to
+    "0.25.0 → 0.26.1" (redis-operator's own chart bump, nothing to do
+    with this sidecar row at all)."""
+    text = (
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| redis-operator - redis | 8.6.2 → 8.6.6 | - | ACR mirror only |\n"
+    )
+    target_deps, target_values, baseline_deps, baseline_values = redis_sidecar_deps_and_values()
+
+    new_text, changed, unmatched, unresolved = cdb.fix_component_version_table(
+        text, None, target_deps, target_values, baseline_deps, baseline_values
+    )
+    assert changed == []
+    assert new_text == text
+
+
+def test_fix_component_version_table_corrects_a_stale_sidecar_row_using_its_own_tag(cdb):
+    """A sidecar row's App-version cell IS still corrected when stale —
+    against its OWN resolved tag, never the owning dependency's. Its
+    Helm-chart cell stays "-" regardless (never rewritten to the
+    dependency's own chart version, the exact corruption this guards
+    against)."""
+    text = (
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| redis-operator - redis | 8.6.2 → 9.9.9 | - | ACR mirror only |\n"
+    )
+    target_deps, target_values, baseline_deps, baseline_values = redis_sidecar_deps_and_values()
+
+    new_text, changed, unmatched, unresolved = cdb.fix_component_version_table(
+        text, None, target_deps, target_values, baseline_deps, baseline_values
+    )
+    assert len(changed) == 1
+    assert "8.6.2 → 8.6.6" in new_text
+    assert "9.9.9" not in new_text
+    assert "| redis-operator - redis | 8.6.2 → 8.6.6 | - | ACR mirror only |" in new_text
+
+
+def test_fix_component_version_table_unresolvable_canonical_row_reported_not_corrupted(cdb):
+    """A row shaped like the canonical sidecar form but with no
+    resolvable repository (e.g. "kiss - podiumd-adapter", commented out
+    in real life) must be reported as unresolved — never fall through
+    to match_dependency and get "corrected" against an unrelated real
+    dependency's own actual version just because it shares a leading
+    word."""
+    text = (
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| redis-operator - ghost | 0.6.6 → 0.6.7 | - | ACR mirror only |\n"
+    )
+    target_deps, target_values, baseline_deps, baseline_values = redis_sidecar_deps_and_values()
+
+    new_text, changed, unmatched, unresolved = cdb.fix_component_version_table(
+        text, None, target_deps, target_values, baseline_deps, baseline_values
+    )
+    assert changed == []
+    assert unresolved == ["redis-operator - ghost"]
     assert new_text == text
 
 
