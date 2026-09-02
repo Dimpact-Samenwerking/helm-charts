@@ -222,6 +222,99 @@ def test_stale_pointer_reference_does_not_block_every_other_check(vp, chart_repo
     assert 'has no row in the "Component versions" table' in out
 
 
+# --- unresolvable app version (a component whose real image path isn't
+# actual_app_version's own two known shapes) ---
+
+KEYCLOAK_CHART_YAML = """\
+apiVersion: v2
+name: podiumd
+version: 4.9.0
+dependencies:
+  - name: keycloak-operator
+    version: 1.12.1
+    repository: "@adfinis"
+"""
+
+KEYCLOAK_UPGRADE_DOC = """\
+# Upgrade guide: PodiumD {baseline} → 4.9.0
+
+## Component versions (4.9.0 vs {baseline})
+
+| Component | App version | Helm chart | Notes |
+| --- | --- | --- | --- |
+| keycloak-operator | - | 1.12.1 (unchanged) | - |
+
+See [`{baseline}-to-4.9.0-values-deltas.md`]({baseline}-to-4.9.0-values-deltas.md).
+"""
+KEYCLOAK_GEMEENTE_DOC = "# Gemeente-specific notes — PodiumD {baseline} → 4.9.0\n\nNone.\n"
+KEYCLOAK_VALUES_DELTAS_DOC = ("# Values deltas — PodiumD {baseline} → 4.9.0\n\n"
+                              "No gemeente podiumd.yml changes are required for this hop.\n")
+
+
+def keycloak_values(tag):
+    return f'keycloak-operator:\n  operator:\n    config:\n      keycloakImage:\n        tag: "{tag}"\n'
+
+
+@pytest.fixture
+def keycloak_chart_repo(tmp_path):
+    """keycloak-operator's own real primary app image lives at the
+    non-standard "operator.config.keycloakImage.tag" split-path
+    convention — invisible to actual_app_version's own two known shapes
+    (<key>.image.tag, frontend/backend) — the real-world case
+    unresolvable_app_version_hint exists to catch."""
+    repo_root = tmp_path
+    chart_dir = repo_root / "charts" / "podiumd"
+    doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
+    doc_dir.mkdir(parents=True)
+
+    git("init", "-q", cwd=repo_root)
+    git("config", "user.email", "test@example.com", cwd=repo_root)
+    git("config", "user.name", "Test", cwd=repo_root)
+
+    (chart_dir / "Chart.yaml").write_text(KEYCLOAK_CHART_YAML)
+    (chart_dir / "values.yaml").write_text(keycloak_values("26.6.4"))
+    git("add", "-A", cwd=repo_root)
+    git("commit", "-q", "-m", "baseline", cwd=repo_root)
+    git("tag", "podiumd-4.8.5", cwd=repo_root)
+
+    (chart_dir / "values.yaml").write_text(keycloak_values("26.7.2"))
+    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(KEYCLOAK_UPGRADE_DOC.format(baseline="4.8.5"))
+    (doc_dir / "4.8.5-to-4.9.0-gemeente-specific.md").write_text(KEYCLOAK_GEMEENTE_DOC.format(baseline="4.8.5"))
+    (doc_dir / "4.8.5-to-4.9.0-values-deltas.md").write_text(KEYCLOAK_VALUES_DELTAS_DOC.format(baseline="4.8.5"))
+    git("add", "-A", cwd=repo_root)
+    git("commit", "-q", "-m", "bump keycloak-operator app image, row left unresolved", cwd=repo_root)
+
+    return chart_dir
+
+
+def test_unresolvable_app_version_is_flagged_not_silently_skipped(vp, keycloak_chart_repo, capsys):
+    ok, detail = vp.check_docs_consistency(keycloak_chart_repo, upgrade_docs_baseline="4.8.5")
+    out = capsys.readouterr().out
+
+    assert ok is False
+    assert ('keycloak-operator: app version could not be verified (actual_app_version doesn\'t '
+            'recognize this component\'s own image path) — values.yaml has "26.7.2" at '
+            'keycloak-operator.operator.config.keycloakImage.tag') in out
+
+
+def test_chart_only_component_with_no_app_image_is_not_flagged(vp, chart_repo, capsys):
+    """A component genuinely without an app image of its own (not in
+    lib.chart.COMPONENT_IMAGE_PATHS, and no plain "image" key either)
+    must never trigger the unresolvable-app-version hint — there's
+    nothing there to find via any path, so silence is correct, not a
+    gap."""
+    (chart_repo / "Chart.yaml").write_text(
+        CHART_YAML + '  - name: redis-operator\n    version: "0.26.1"\n    repository: "@opstree"\n')
+    doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
+    doc.write_text(doc.read_text().replace(
+        "See [`",
+        "| redis-operator | - | 0.26.1 (unchanged) | chart-only, no app image |\n\nSee [`"))
+
+    vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
+    out = capsys.readouterr().out
+    assert "app version could not be verified" not in out
+
+
 def test_component_changed_with_no_key_diffs_still_needs_values_deltas_mention(vp, chart_repo):
     """Even when a component's app/chart bump doesn't touch any values.yaml
     schema (no keys added/removed/renamed), it must still be mentioned

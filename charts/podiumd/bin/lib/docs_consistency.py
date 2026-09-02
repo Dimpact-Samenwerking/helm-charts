@@ -10,7 +10,7 @@ import re
 
 import yaml
 
-from lib.chart import load_yaml
+from lib.chart import get_path, image_paths_for, load_yaml
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
 from lib.upgradedoc import (
     actual_app_version, compute_changed_components, diff_keys, extract_mentioned_dependency_keys,
@@ -302,6 +302,32 @@ def check_values_deltas_content(doc_path, changed_component_keys, baseline_value
     return issues
 
 
+def unresolvable_app_version_hint(values, values_key, component):
+    """When actual_app_version can't resolve ANY app version for this
+    component (its own two known shapes — "<key>.image.tag" and the
+    frontend/backend lockstep pair — don't apply), check whether
+    lib.chart's own richer per-component image-path registry
+    (COMPONENT_IMAGE_PATHS, via image_paths_for) knows a DIFFERENT path
+    where a real, resolvable tag actually lives — e.g. keycloak-
+    operator's own split-path "operator.config.keycloakImage.tag"
+    convention, invisible to actual_app_version's simpler two-shape
+    check. If so, this is a genuine "doc-consistency can't verify this
+    component's own app version at all" gap worth surfacing — not a
+    component that legitimately has no app image of its own (a chart-
+    only component isn't in COMPONENT_IMAGE_PATHS at all, so
+    image_paths_for falls back to the SAME "image" path
+    actual_app_version already tried and failed at, and this correctly
+    finds nothing new either). Returns a ready-to-append hint string, or
+    None if nothing resolvable was found there either."""
+    for path in image_paths_for(component):
+        tag = get_path(values, f"{values_key}.{path}.tag")
+        if tag:
+            return (f'{values_key}: app version could not be verified (actual_app_version doesn\'t '
+                     f'recognize this component\'s own image path) — values.yaml has '
+                     f'"{tag.split("@", 1)[0]}" at {values_key}.{path}.tag')
+    return None
+
+
 def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
     chart_yaml = load_yaml(chart_dir / "Chart.yaml")
     podiumd_version = str(chart_yaml["version"])
@@ -427,6 +453,10 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
                     f'{values_key} ("{row["name"]}") target app: values.yaml image tag is "{actual_app}", '
                     f'{doc_path.name} says "{row["app"]}"'
                 )
+            elif actual_app is None:
+                hint = unresolvable_app_version_hint(values, values_key, dep["name"])
+                if hint:
+                    mismatches.append(f'{doc_path.name}: {hint}')
 
             if not baseline_ref:
                 continue
