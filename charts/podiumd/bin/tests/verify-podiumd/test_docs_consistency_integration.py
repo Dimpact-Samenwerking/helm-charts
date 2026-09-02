@@ -144,8 +144,8 @@ def test_duplicate_row_names_are_reported(vp, chart_repo, capsys):
 
     assert ok is False
     out = capsys.readouterr().out
-    assert ('4.8.5-to-4.9.0-upgrade.md: doc row "ZAC (Zaakafhandelcomponent)" appears more than once '
-            'in the "Component versions" table') in out
+    assert ('4.8.5-to-4.9.0-upgrade.md: doc row "ZAC (Zaakafhandelcomponent)" is wrong or stale — '
+            'not found in Chart.yaml or values.yaml') in out
 
 
 def test_exact_dependency_match_wins_over_a_fuzzy_duplicate_claim(vp, chart_repo, capsys):
@@ -162,8 +162,8 @@ def test_exact_dependency_match_wins_over_a_fuzzy_duplicate_claim(vp, chart_repo
 
     assert ok is False
     out = capsys.readouterr().out
-    assert ('4.8.5-to-4.9.0-upgrade.md: doc row "ZAC (Zaakafhandelcomponent)" only fuzzy-matches '
-            'Chart.yaml dependency "zac", which is already exactly named by row "zac"') in out
+    assert ('4.8.5-to-4.9.0-upgrade.md: doc row "ZAC (Zaakafhandelcomponent)" is wrong or stale — '
+            'not found in Chart.yaml or values.yaml') in out
     # The exact row itself, with correct data, is never flagged.
     assert 'doc row "zac" ' not in out
 
