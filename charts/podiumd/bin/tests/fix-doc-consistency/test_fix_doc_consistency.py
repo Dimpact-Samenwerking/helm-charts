@@ -658,6 +658,145 @@ def test_main_leaves_existing_row_untouched_when_adding_missing_ones(
 
 
 @pytest.fixture
+def repo_with_undocumented_sidecar_bump(tmp_path):
+    """redis-operator's own row already exists (unchanged, correct) —
+    add_missing_component_rows has nothing to do at the top level. Its
+    nested redis-ha sidecar image DID change vs baseline, but has no row
+    of its own at all — the real gap add_missing_sidecar_rows exists to
+    fill, mirroring the actual keycloak-operator/postgres case this
+    feature was built for (a resolvable sidecar bumped alongside its
+    already-documented parent, never given its own canonical row).
+    "curl" lives under the shared "global.images" anchor — no owning
+    Chart.yaml dependency at all — to exercise add_missing_sidecar_rows'
+    OTHER shape (bare basename, no "<component> - " prefix) in the same
+    fixture."""
+    git("init", "-q", cwd=tmp_path)
+    git("config", "user.email", "test@example.com", cwd=tmp_path)
+    git("config", "user.name", "Test", cwd=tmp_path)
+
+    write(tmp_path / "Chart.yaml", yaml.safe_dump({
+        "dependencies": [
+            {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297", "repository": "@zac"},
+            {"name": "redis-operator", "version": "0.26.1", "repository": "@opstree"},
+        ],
+    }))
+    write(tmp_path / "values.yaml", yaml.safe_dump({
+        "zac": {"image": {"tag": "5.0.2@sha256:bbbb"}},
+        "redis-operator": {"redis-ha": {"image": {
+            "repository": "quay.io/opstree/redis", "tag": "8.6.2@sha256:aaaa"}}},
+        "global": {"images": {"curlImage": {
+            "repository": "curlimages/curl", "tag": "8.10.1@sha256:cccc"}}},
+    }))
+    doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
+    doc_dir.mkdir(parents=True)
+    (tmp_path / "docs" / "images").mkdir(parents=True)
+    git("add", "-A", cwd=tmp_path)
+    git("commit", "-q", "-m", "baseline state", cwd=tmp_path)
+    git("tag", "podiumd-4.8.5", cwd=tmp_path)
+
+    write(tmp_path / "values.yaml", yaml.safe_dump({
+        "zac": {"image": {"tag": "5.0.2@sha256:bbbb"}},
+        "redis-operator": {"redis-ha": {"image": {
+            "repository": "quay.io/opstree/redis", "tag": "8.6.6@sha256:aaaa"}}},
+        "global": {"images": {"curlImage": {
+            "repository": "curlimages/curl", "tag": "8.11.0@sha256:dddd"}}},
+    }))
+    write(doc_dir / "4.8.5-to-4.9.0-upgrade.md",
+          "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+          "## Component versions (4.9.0 vs 4.8.5)\n\n"
+          "| Component | App version | Helm chart | Notes |\n"
+          "| --- | --- | --- | --- |\n"
+          "| ZAC (Zaakafhandelcomponent) | 5.0.2 (unchanged) | 1.0.297 (unchanged) | n/a |\n"
+          "| redis-operator | - | 0.26.1 (unchanged) | n/a |\n\n"
+          "## Changes\n\n")
+    git("add", "-A", cwd=tmp_path)
+    git("commit", "-q", "-m", "bump redis-ha's redis image + shared curl, no sidecar rows added", cwd=tmp_path)
+    return doc_dir
+
+
+def test_main_adds_missing_sidecar_row_nested_under_a_dependency(
+        cdb, repo_with_undocumented_sidecar_bump, monkeypatch, capsys):
+    set_argv_and_dir(cdb, monkeypatch, repo_with_undocumented_sidecar_bump, "4.8.5")
+    cdb.main()
+
+    upgrade = (repo_with_undocumented_sidecar_bump / "4.8.5-to-4.9.0-upgrade.md").read_text(encoding="utf-8")
+    assert "| redis-operator - redis | 8.6.2 → 8.6.6 | - | - |" in upgrade
+    assert "### redis-operator - redis 8.6.2 → 8.6.6" in upgrade
+    assert "chart" not in upgrade.split("### redis-operator - redis")[1].split("###")[0].lower()
+    out = capsys.readouterr().out
+    assert "Adding missing sidecar/shared-image row(s)" in out
+    assert "redis-operator - redis" in out
+
+
+def test_main_adds_missing_sidecar_row_for_global_shared_image(
+        cdb, repo_with_undocumented_sidecar_bump, monkeypatch):
+    set_argv_and_dir(cdb, monkeypatch, repo_with_undocumented_sidecar_bump, "4.8.5")
+    cdb.main()
+
+    upgrade = (repo_with_undocumented_sidecar_bump / "4.8.5-to-4.9.0-upgrade.md").read_text(encoding="utf-8")
+    assert "| curl | 8.10.1 → 8.11.0 | - | - |" in upgrade
+    assert "### curl 8.10.1 → 8.11.0" in upgrade
+
+
+def test_main_does_not_duplicate_an_existing_sidecar_row(
+        cdb, repo_with_undocumented_sidecar_bump, monkeypatch):
+    doc_dir = repo_with_undocumented_sidecar_bump
+    doc = doc_dir / "4.8.5-to-4.9.0-upgrade.md"
+    doc.write_text(doc.read_text(encoding="utf-8").replace(
+        "| redis-operator | - | 0.26.1 (unchanged) | n/a |\n",
+        "| redis-operator | - | 0.26.1 (unchanged) | n/a |\n"
+        "| redis-operator - redis | 8.6.2 → 8.6.6 | - | already documented by hand |\n"
+    ), encoding="utf-8")
+
+    set_argv_and_dir(cdb, monkeypatch, doc_dir, "4.8.5")
+    cdb.main()
+
+    upgrade = doc.read_text(encoding="utf-8")
+    assert upgrade.count("redis-operator - redis") == 1
+    assert "already documented by hand" in upgrade
+
+
+def test_main_leaves_unchanged_sidecar_with_no_row_alone(cdb, tmp_path, monkeypatch, capsys):
+    """A sidecar whose tag never changed vs baseline must never get a
+    row added just because it happens to have no row yet — only a real
+    gap (tag actually changed) is worth documenting."""
+    git("init", "-q", cwd=tmp_path)
+    git("config", "user.email", "test@example.com", cwd=tmp_path)
+    git("config", "user.name", "Test", cwd=tmp_path)
+
+    write(tmp_path / "Chart.yaml", yaml.safe_dump({
+        "dependencies": [{"name": "redis-operator", "version": "0.26.1", "repository": "@opstree"}],
+    }))
+    write(tmp_path / "values.yaml", yaml.safe_dump({
+        "redis-operator": {"redis-ha": {"image": {
+            "repository": "quay.io/opstree/redis", "tag": "8.6.2@sha256:aaaa"}}},
+    }))
+    doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
+    doc_dir.mkdir(parents=True)
+    (tmp_path / "docs" / "images").mkdir(parents=True)
+    git("add", "-A", cwd=tmp_path)
+    git("commit", "-q", "-m", "baseline state", cwd=tmp_path)
+    git("tag", "podiumd-4.8.5", cwd=tmp_path)
+
+    write(doc_dir / "4.8.5-to-4.9.0-upgrade.md",
+          "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+          "## Component versions (4.9.0 vs 4.8.5)\n\n"
+          "| Component | App version | Helm chart | Notes |\n"
+          "| --- | --- | --- | --- |\n\n"
+          "## Changes\n\n")
+    git("add", "-A", cwd=tmp_path)
+    git("commit", "-q", "-m", "unrelated commit, redis-ha's own image untouched", cwd=tmp_path)
+
+    set_argv_and_dir(cdb, monkeypatch, doc_dir, "4.8.5")
+    cdb.main()
+
+    upgrade = (doc_dir / "4.8.5-to-4.9.0-upgrade.md").read_text(encoding="utf-8")
+    assert "redis-operator - redis" not in upgrade
+    out = capsys.readouterr().out
+    assert "Adding missing sidecar/shared-image row(s)" not in out
+
+
+@pytest.fixture
 def repo_with_short_alias_collision_risk(tmp_path):
     """Regression fixture: "mi" is a real Chart.yaml dependency alias
     short enough to be a literal mid-word substring of an unrelated

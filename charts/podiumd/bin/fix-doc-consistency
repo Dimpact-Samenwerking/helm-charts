@@ -17,27 +17,34 @@ Chart.yaml/values.yaml, ADDING a new table row + matching "### ..."
 Changes section for a component that changed vs the baseline but has no
 row at all yet (see add_missing_component_rows — the same "component ...
 changed vs ... but has no row" gap verify-podiumd's own doc-consistency
-check reports), reordering the table's rows and the "## Changes"
-section's "### ..." blocks to match values.yaml's own top-level
-component order. Also ADDING a "- **<name>** app ..." bullet to the
-values-deltas doc for a component that changed but was never mentioned
-there at all (see add_missing_values_delta_bullets — the "component ...
-changed vs ... but is not mentioned anywhere in the doc" gap, distinct
-from missing_key_change_lines's own "- Key `...` was added/removed"
-lines for NESTED schema changes under an already-mentioned component),
-and flagging any such schema changes still missing after that. Any of
-the three standard docs that don't already exist under ANY baseline for
-this target are created as TODO stubs instead (nothing to rebase) — see
-create-doc-version for a script that ONLY ever does that, refusing
-outright if docs already exist under some other baseline (this script
-owns rebasing those on purpose; that one refuses to touch them). See
-fix_component_version_table, add_missing_component_rows,
-add_missing_values_delta_bullets, and fix_images_manifest_entries for
-exactly what gets rewritten/added vs. just reported for manual review
-(an images-manifest entry is NEVER auto-added — its "name:"/"url:" are
-mechanically derivable now, see docs/images/acr-mirror-naming.md, but the
-manifest's own per-group comments and "# Changes:" narrative need a human
-to explain WHY each change happened, not just that it did).
+check reports), and likewise for a sidecar/shared image whose OWN row is
+missing even though its owning dependency's row already exists (see
+lib.image_docs.add_missing_sidecar_rows — the "sidecar/shared image ...
+changed vs ... but has no row" gap, e.g. a nested init-container image
+bumped alongside its parent component but never given its own
+"<component> - <basename>" row), reordering the table's rows and the
+"## Changes" section's "### ..." blocks to match values.yaml's own
+top-level component order. Also ADDING a "- **<name>** app ..." bullet to
+the values-deltas doc for a component that changed but was never
+mentioned there at all (see add_missing_values_delta_bullets — the
+"component ... changed vs ... but is not mentioned anywhere in the doc"
+gap, distinct from missing_key_change_lines's own "- Key `...` was
+added/removed" lines for NESTED schema changes under an already-mentioned
+component), and flagging any such schema changes still missing after
+that. Any of the three standard docs that don't already exist under ANY
+baseline for this target are created as TODO stubs instead (nothing to
+rebase) — see create-doc-version for a script that ONLY ever does that,
+refusing outright if docs already exist under some other baseline (this
+script owns rebasing those on purpose; that one refuses to touch them).
+See fix_component_version_table, add_missing_component_rows,
+add_missing_sidecar_rows, add_missing_values_delta_bullets, and
+fix_images_manifest_entries for exactly what gets rewritten/added vs.
+just reported for manual review (an images-manifest entry is NEVER
+auto-added — its "name:"/"url:" are mechanically derivable now, see
+docs/images/acr-mirror-naming.md, but the manifest's own per-group
+comments and "# Changes:" narrative need a human to explain WHY each
+change happened, not just that it did — a sidecar row's own values-delta
+mention is likewise never auto-added, for the same reason).
 
 Called automatically by change-podiumd-baseline, right after it writes
 release-baseline.yaml's upgrade_docs key — see that script for the
@@ -76,6 +83,7 @@ from lib.component_docs import (
     add_missing_values_delta_bullets, existing_doc_baselines,
 )
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
+from lib.image_docs import add_missing_sidecar_rows
 from lib.upgradedoc import (
     actual_app_version, append_to_doc, canonical_version_cell, compute_changed_components,
     extract_source_version, extract_target_version, find_grouped_preceding_comment_line,
@@ -502,6 +510,19 @@ def main():
             for name in added_names:
                 print(f"  {name}")
 
+        if baseline_deps is not None:
+            text, added_sidecar_names = add_missing_sidecar_rows(
+                text, CHART_YAML.parent, target_deps, target_values, baseline_values, target
+            )
+            if added_sidecar_names:
+                print()
+                print(f"=== Adding missing sidecar/shared-image row(s) + Changes section(s) "
+                      f"to {upgrade_path.name} ===")
+                for name in added_sidecar_names:
+                    print(f"  {name}")
+        else:
+            added_sidecar_names = []
+
         text, moved_rows = sort_upgrade_doc_rows(text, target_deps, target_values)
         text, moved_blocks = sort_changes_blocks(text, target_deps, target_values)
         if moved_rows or moved_blocks:
@@ -512,7 +533,7 @@ def main():
             for heading, old_pos, new_pos in moved_blocks:
                 print(f"  changes block '### {heading}': position {old_pos} -> {new_pos}")
 
-        if changed_rows or added_names or moved_rows or moved_blocks:
+        if changed_rows or added_names or added_sidecar_names or moved_rows or moved_blocks:
             upgrade_path.write_text(text, encoding="utf-8")
 
     if images_path.is_file():

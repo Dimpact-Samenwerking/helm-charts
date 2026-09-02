@@ -18,9 +18,15 @@ last" rule already produces that with no special-casing needed here,
 since a bare basename never matches a Chart.yaml dependency by name."""
 import re
 
-from lib.chart import get_path, replace_scalar_value
-from lib.component_docs import CHANGES_HEADER_RE, CHANGES_ITEM_RE, NUMBER_WORDS
-from lib.upgradedoc import extract_source_version, find_preceding_comment_line, normalize_name, replace_version_pair
+from lib.chart import canonical_sidecar_row_names, get_path, replace_scalar_value
+from lib.component_docs import (
+    CHANGES_HEADER_RE, CHANGES_ITEM_RE, NUMBER_WORDS, insert_changes_section, remove_changes_section,
+    update_component_table,
+)
+from lib.upgradedoc import (
+    extract_source_version, find_image_tag_paths, find_preceding_comment_line, normalize_name,
+    parse_upgrade_doc_rows, replace_version_pair,
+)
 
 
 def make_image_changes_section(basename, target, old_version, new_version, pinned):
@@ -43,6 +49,60 @@ def make_image_changes_section(basename, target, old_version, new_version, pinne
 def image_delta_bullet(basename, old_version, new_version, pin_count):
     plural = "s" if pin_count != 1 else ""
     return f"- **{basename}** image `{old_version} → {new_version}` — pinned at {pin_count} place{plural} in `values.yaml`.\n"
+
+
+def add_missing_sidecar_rows(text, chart_dir, deps, target_values, baseline_values, target):
+    """Insert a new "Component versions" table row + matching "### ..."
+    Changes section for every canonical sidecar/shared-image name (see
+    lib.chart.canonical_sidecar_row_names — "<values_key> - <basename>"
+    for a sidecar nested under a real dependency, bare "<basename>" for
+    a shared "global" image) whose tag changed vs baseline but doesn't
+    already have a row of its own. The sidecar/shared-image counterpart
+    to lib.component_docs.add_missing_component_rows, which only ever
+    covers a real Chart.yaml dependency's own row — this closes exactly
+    the "sidecar/shared image ... changed vs ... but has no row" gap
+    lib.docs_consistency.check_docs_consistency's own canonical_names
+    loop reports.
+
+    Always uses make_image_changes_section's own "shared image" prose/
+    heading shape (chart column "-", no Helm-chart mention at all) —
+    even for a sidecar nested under a real dependency — since that's the
+    shape this chart's own docs actually use for every canonical sidecar
+    row today (a sidecar's "chart version" is really just its owning
+    dependency's, which is exactly what lib.docs_consistency's own row
+    check deliberately never compares for these rows either — see its
+    `actual_chart = None` for the sidecar branch). Returns (new_text,
+    added_names)."""
+    current_paths = dict(find_image_tag_paths(target_values))
+    baseline_paths = dict(find_image_tag_paths(baseline_values)) if baseline_values else {}
+    canonical_names = canonical_sidecar_row_names(chart_dir, deps, target_values, current_paths.keys())
+
+    matched_paths = {path for row in parse_upgrade_doc_rows(text)
+                      for path in [canonical_names.get(row["name"])] if path is not None}
+
+    added_names = []
+    for name, path in sorted(canonical_names.items()):
+        if path in matched_paths:
+            continue
+        current_tag = current_paths.get(path)
+        baseline_tag = baseline_paths.get(path)
+        if current_tag is None or current_tag == baseline_tag:
+            continue
+        new_app = current_tag.split("@", 1)[0]
+        old_app = baseline_tag.split("@", 1)[0] if baseline_tag else None
+
+        text, table_action = update_component_table(text, name, old_app, new_app, None, "-", deps, target_values)
+        if table_action is None:
+            continue  # doc has no "Component versions" table at all to insert into
+
+        text, _ = remove_changes_section(text, name)
+        dotted_path = ".".join(path) + ".tag"
+        section = make_image_changes_section(name, target, old_app or new_app, new_app,
+                                              [(dotted_path, old_app or new_app)])
+        text = insert_changes_section(text, section, name, deps, target_values)
+        added_names.append(name)
+
+    return text, added_names
 
 
 def resolve_basename_baseline_version(baseline_values, full_paths):
