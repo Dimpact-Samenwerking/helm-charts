@@ -393,6 +393,7 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
         if baseline_ref else set()
     )
     current_paths = dict(find_image_tag_paths(values))
+    baseline_paths = dict(find_image_tag_paths(baseline_values)) if baseline_ref else {}
 
     if not doc_matches:
         print(f"WARNING: no upgrade doc matches {doc_glob} — skipping doc check")
@@ -408,6 +409,7 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
             checked.append(f"upgrade_docs_baseline {baseline_ref}")
 
         canonical_names = canonical_sidecar_row_names(chart_dir, deps, values, current_paths.keys())
+        matched_sidecar_paths = set()
 
         for row in parse_upgrade_doc_rows(doc_path):
             # canonical_names is an EXACT lookup — checked first and, on a
@@ -432,6 +434,7 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
                 actual_chart = dep["version"]
                 actual_app = actual_app_version(values, values_key, dep["name"])
             else:
+                matched_sidecar_paths.add(sidecar_path)
                 top_level_key = sidecar_path[0]
                 values_key = ".".join(sidecar_path[:-1])
                 actual_chart = None
@@ -481,6 +484,22 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
                     f'in the "Component versions" table'
                 )
 
+            # The check above only catches a component with NO row at all —
+            # a dependency whose own primary row exists already satisfies
+            # it, even when one of ITS OWN sidecars changed and has no row
+            # of its own (e.g. redis-operator's own row exists, but its
+            # nested redis-ha image bump has never been added at all — a
+            # true omission match_dependency's own row-matching can't see,
+            # since there's no row whose name even claims to be about it).
+            for name, path in sorted(canonical_names.items()):
+                if path in matched_sidecar_paths:
+                    continue
+                if baseline_paths.get(path) != current_paths.get(path):
+                    mismatches.append(
+                        f'{doc_path.name}: sidecar/shared image "{name}" changed vs {baseline_ref} '
+                        f'but has no row in the "Component versions" table'
+                    )
+
         key_order = values_key_order(values)
         row_names = [row["name"] for row in parse_upgrade_doc_rows(doc_path)]
         for name_a, name_b in find_out_of_order_names(row_names, deps, key_order):
@@ -498,8 +517,6 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
                 f'but values.yaml lists the {name_b} component before {name_a} — Changes blocks should '
                 f'follow values.yaml\'s own component order'
             )
-
-    baseline_paths = dict(find_image_tag_paths(baseline_values)) if baseline_ref else {}
 
     images_path = chart_dir / "docs" / "images" / f"images-{podiumd_version}.yaml"
 
