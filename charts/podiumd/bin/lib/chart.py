@@ -70,6 +70,37 @@ def image_paths_for(component):
     return COMPONENT_IMAGE_PATHS.get(component, DEFAULT_IMAGE_PATHS)
 
 
+# component (name, not alias — same convention as COMPONENT_IMAGE_PATHS) ->
+# dotted values.yaml path(s), each pointing DIRECTLY at a bare version
+# string — not the "<path>.image.tag" shape COMPONENT_IMAGE_PATHS/
+# DEFAULT_IMAGE_PATHS assume (see lib.upgradedoc.actual_app_version, which
+# tries these as a second pass, unsuffixed, only once every image_paths_for
+# candidate has failed to resolve a tag). Exists for a component whose real
+# app version genuinely isn't expressed as an "image: {repository, tag}"
+# block at all:
+# - eck-stack (kiss-eck): the ECK operator's own CRD convention — a bare
+#   "version:" field per managed resource (eck-elasticsearch/eck-kibana/
+#   eck-enterprise-search all track the SAME Elastic stack version in
+#   lockstep here), which the operator maps to real container images
+#   internally. First of the two that resolves wins, same "no single
+#   canonical one, list several" reasoning as COMPONENT_IMAGE_PATHS' own
+#   multi-image entries — eck-enterprise-search deliberately excluded since
+#   it's disabled by default in this chart (see its own values.yaml
+#   comment), so it's not the best of the three to lead with either way.
+# - redis-operator: the OPERATOR's own image (as opposed to redis-ha, the
+#   database instance it manages, which DOES use the ordinary "image:"
+#   shape) — the upstream chart's own "imageName:"/"imageTag:" convention,
+#   two separate sibling string fields instead of one nested "image:" dict.
+COMPONENT_VERSION_PATHS = {
+    "eck-stack": ["eck-elasticsearch.version", "eck-kibana.version"],
+    "redis-operator": ["redisOperator.imageTag"],
+}
+
+
+def version_paths_for(component):
+    return COMPONENT_VERSION_PATHS.get(component, [])
+
+
 def load_yaml(path):
     return yaml.safe_load(path.read_text(encoding="utf-8"))
 
