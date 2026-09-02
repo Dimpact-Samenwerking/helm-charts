@@ -121,6 +121,43 @@ def test_match_dependency_short_alias_does_not_match_mid_word(libupgradedoc):
     assert libupgradedoc.match_dependency("Python (ensurePodiumdAdminUser init image)", deps) is None
 
 
+# --- changes_heading_identities ---
+
+def test_changes_heading_identities_single_component(libupgradedoc):
+    deps = [{"name": "eck-stack", "alias": "kiss-eck", "version": "0.20.0"}]
+    idents = libupgradedoc.changes_heading_identities(
+        "ECK Stack (kiss-eck) 8.19.3 → 8.19.19 (chart 0.19.0 → 0.20.0)", deps, {})
+    assert idents == {("dep", "kiss-eck")}
+
+
+def test_changes_heading_identities_two_real_components(libupgradedoc):
+    deps = [
+        {"name": "eck-operator", "version": "3.5.0"},
+        {"name": "eck-stack", "alias": "kiss-eck", "version": "0.20.0"},
+    ]
+    idents = libupgradedoc.changes_heading_identities(
+        "ECK Operator 3.4.0 → 3.5.0 + ECK Stack (kiss-eck) 0.19.0 → 0.20.0", deps, {})
+    assert idents == {("dep", "eck-operator"), ("dep", "kiss-eck")}
+
+
+def test_changes_heading_identities_does_not_double_count_an_alias_nested_inside_another(libupgradedoc):
+    """Regression test: eck-stack's own alias "kiss-eck" tokenizes to the
+    words "kiss"+"eck" — the standalone "kiss" word inside it is ALSO,
+    coincidentally, the real KISS dependency's own alias. Without a
+    containment filter, this heading would wrongly resolve to BOTH
+    "kiss-eck" and "kiss" (two identities), when it only ever names one
+    real component — the same class of bug find_changes_row_
+    correspondence_gaps exists to catch would then wrongly flag this
+    heading as ambiguous and its row as missing a section."""
+    deps = [
+        {"name": "kiss", "alias": "KISS", "version": "3.0.0"},
+        {"name": "eck-stack", "alias": "kiss-eck", "version": "0.20.0"},
+    ]
+    idents = libupgradedoc.changes_heading_identities(
+        "ECK Stack (kiss-eck) 8.19.3 → 8.19.19 (chart 0.19.0 → 0.20.0)", deps, {})
+    assert idents == {("dep", "kiss-eck")}
+
+
 # --- actual_app_version ---
 
 def test_actual_app_version_single_image(libupgradedoc):
