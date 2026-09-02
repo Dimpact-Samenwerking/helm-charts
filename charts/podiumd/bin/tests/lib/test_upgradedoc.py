@@ -233,6 +233,47 @@ def test_resolve_entry_path_ignores_trailing_suffixed_image_key(libupgradedoc):
         ("keycloak-operator", "python", "initImage")
 
 
+# --- resolve_entry_image_path ---
+
+def test_resolve_entry_image_path_exact_repo_map_hit(libupgradedoc):
+    """A strip-registry-shaped manifest name ("infonl/zaakafhandelcomponent")
+    doesn't fuzzy-word-match the values.yaml key ("zac") at all — repo_map
+    is what makes it resolve, via an exact dict lookup rather than a guess."""
+    paths = [("zac",)]
+    repo_map = {"infonl/zaakafhandelcomponent": ("zac",)}
+    entry = {"name": "infonl/zaakafhandelcomponent", "url": "ghcr.io/infonl/zaakafhandelcomponent"}
+    assert libupgradedoc.resolve_entry_image_path(entry, paths, repo_map) == ("zac",)
+
+
+def test_resolve_entry_image_path_falls_back_without_repo_map(libupgradedoc):
+    """No repo_map at all (e.g. a caller that never built one) — same
+    fuzzy name-word matching as resolve_entry_path alone."""
+    paths = [("zac",)]
+    entry = {"name": "zac"}
+    assert libupgradedoc.resolve_entry_image_path(entry, paths) == ("zac",)
+
+
+def test_resolve_entry_image_path_falls_back_when_repo_map_has_no_hit(libupgradedoc):
+    """repo_map given but this entry's name isn't in it (e.g. a nested
+    sidecar with no Chart.yaml dependency of its own) — falls back to
+    fuzzy name-word matching rather than giving up."""
+    paths = [("zac", "opa", "image")]
+    repo_map = {"infonl/zaakafhandelcomponent": ("zac",)}
+    entry = {"name": "opa", "url": "docker.io/openpolicyagent/opa"}
+    assert libupgradedoc.resolve_entry_image_path(entry, paths, repo_map) == ("zac", "opa", "image")
+
+
+def test_resolve_entry_image_path_ignores_repo_map_hit_not_in_paths(libupgradedoc):
+    """A repo_map hit pointing at a path that isn't actually in this
+    call's own paths (e.g. the component didn't exist yet at baseline)
+    is not trusted blindly — falls back to fuzzy matching, which
+    correctly finds nothing either."""
+    paths = [("unrelated",)]
+    repo_map = {"infonl/zaakafhandelcomponent": ("zac",)}
+    entry = {"name": "infonl/zaakafhandelcomponent"}
+    assert libupgradedoc.resolve_entry_image_path(entry, paths, repo_map) is None
+
+
 # --- find_preceding_comment ---
 
 def test_find_preceding_comment_joins_consecutive_comment_lines(libupgradedoc):
