@@ -34,15 +34,20 @@ def find_images_without_repository(chart_dir, allow_pull=False):
     is checked against podiumd's own override first, else the owning
     dependency's vendored subchart default (resolved at most once per
     dependency and reused across every one of its paths, same caching
-    lib.chart.repository_path_map/primary_image_repositories use); a
-    path rooted at the shared "global" key is checked directly against
-    podiumd's own values.yaml only — same two shapes lib.chart.
-    canonical_sidecar_row_names itself distinguishes, and for the same
-    reason (a "global.*" anchor's own repository is always set
-    explicitly there, never inherited from a subchart). A path rooted
-    at neither (an orphan top-level values.yaml block with no matching
-    Chart.yaml dependency at all) is reported too — there's nothing to
-    resolve it against either way."""
+    lib.chart.repository_path_map/primary_image_repositories use).
+
+    A path rooted at anything else — the shared "global" anchor, or one
+    of podiumd's own directly-templated top-level blocks with no
+    Chart.yaml dependency of its own at all (e.g. "adapter"'s own
+    siblings "keycloak", "apiproxy", "frankgateway" — real Deployments
+    this chart's OWN templates/*.yaml render straight from podiumd's own
+    values.yaml, never a vendored subchart) — is checked directly
+    against podiumd's own values.yaml ONLY: there is no subchart to fall
+    back to either way, so "no owning dependency" must never by itself
+    mean "missing" the way it first did here (that treated every one of
+    these orphan blocks as broken even though each has a perfectly real
+    repository of its own — confirmed live against the real chart, 9 of
+    the first 10 findings this way were exactly this false positive)."""
     chart_yaml = load_yaml(chart_dir / "Chart.yaml")
     deps = chart_yaml.get("dependencies", [])
     values = load_yaml(chart_dir / "values.yaml") or {}
@@ -54,19 +59,16 @@ def find_images_without_repository(chart_dir, allow_pull=False):
         if not path:
             continue
 
-        if path[0] == "global":
-            repo = get_path(values, ".".join(path) + ".repository")
-            if not isinstance(repo, str) or not repo:
-                missing.append(path)
+        own_repo = get_path(values, ".".join(path) + ".repository")
+        if isinstance(own_repo, str) and own_repo:
             continue
 
         dep = by_values_key.get(path[0])
         if dep is None:
+            # No Chart.yaml dependency owns this key — nothing to fall
+            # back to, so podiumd's own (already-checked-above) value is
+            # the only possible answer.
             missing.append(path)
-            continue
-
-        own_repo = get_path(values, ".".join(path) + ".repository")
-        if isinstance(own_repo, str) and own_repo:
             continue
 
         if dep["name"] not in subchart_cache:

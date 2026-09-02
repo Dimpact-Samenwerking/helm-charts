@@ -133,6 +133,43 @@ global:
     assert "global.images.curlImage" in out
 
 
+def test_orphan_top_level_block_with_own_repository_passes(vp, tmp_path):
+    """Regression test: a top-level values.yaml block with NO matching
+    Chart.yaml dependency at all (podiumd's own directly-templated
+    resources, e.g. the real "keycloak"/"apiproxy"/"frankgateway"
+    blocks — real Deployments rendered straight from podiumd's own
+    templates/*.yaml, never a vendored subchart) must still be checked
+    against podiumd's own value — "no owning dependency" must never by
+    itself mean "missing" the way it first did here, treating every one
+    of these as broken even though each has a perfectly real repository
+    of its own. "keycloak" deliberately shares a name with the REAL
+    "keycloak-operator" dependency's own alias-less top-level key to
+    prove they're not confused with each other."""
+    write_chart_yaml(tmp_path, [make_dep("keycloak-operator", "1.12.1")])
+    write_values_yaml(tmp_path, f"""\
+keycloak:
+  image:
+    repository: quay.io/keycloak/keycloak
+    tag: "26.7.2@sha256:{DIGEST_A}"
+""")
+    ok, detail = vp.check_image_repository(tmp_path)
+    assert ok is True, detail
+    assert detail == "0 missing repository"
+
+
+def test_orphan_top_level_block_without_repository_is_reported(vp, tmp_path, capsys):
+    write_chart_yaml(tmp_path, [])
+    write_values_yaml(tmp_path, f"""\
+apiproxy:
+  image:
+    tag: "1.31.4@sha256:{DIGEST_A}"
+""")
+    ok, detail = vp.check_image_repository(tmp_path)
+    assert ok is False
+    out = capsys.readouterr().out
+    assert "apiproxy.image" in out
+
+
 def test_nested_sidecar_repository_resolved_via_subchart_default(vp, tmp_path):
     """A sub-chart default nested under more than one key (a sidecar)
     resolves via the SAME nested path in the vendored default, not just
