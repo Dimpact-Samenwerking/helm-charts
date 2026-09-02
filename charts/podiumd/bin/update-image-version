@@ -135,13 +135,13 @@ def update_docs_single_component(new_version, target, deps, values, dep, values_
     own primary image (or another sidecar's own row): find_component_row
     matches by word-containment against a SINGLE name, so two different
     images sharing that same `values_key` name are indistinguishable to
-    it. Disambiguated as "<values_key> (<basename>)" instead — both are
+    it. Disambiguated as "<values_key> - <basename>" instead — both are
     already-resolved, exact inputs (resolve_scoped_matches guarantees
     <values_key> <basename> identifies exactly one distinct repository),
     not a guess."""
     chart_name = dep["name"]
     is_primary_image = set(group["paths"]) <= set(image_paths_for(dep["name"]))
-    friendly = values_key if is_primary_image else f"{values_key} ({basename})"
+    friendly = values_key if is_primary_image else f"{values_key} - {basename}"
     chart_version_str = str(dep["version"])
     image_paths = group["paths"]
     repos = group["repos"]
@@ -168,7 +168,7 @@ def update_docs_single_component(new_version, target, deps, values, dep, values_
         changed_keys = compute_changed_components(current_deps, baseline_deps, current_values, baseline_values)
         # compute_changed_components only ever returns top-level values.yaml
         # keys (see its own docstring) — never `friendly`'s own possibly-
-        # disambiguated "<values_key> (<basename>)" form, which wouldn't be
+        # disambiguated "<values_key> - <basename>" form, which wouldn't be
         # a member of that set even when this specific image DID change.
         reset_to_baseline = values_key not in changed_keys
         baseline_tag = get_path(baseline_values, f"{values_key}.{image_paths[0]}.tag") or ""
