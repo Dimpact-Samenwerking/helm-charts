@@ -426,6 +426,24 @@ def resolve_entry_path(entry_name, paths):
     return best[0] if best else None
 
 
+def resolve_entry_image_path(entry, paths, repo_map=None):
+    """Match an images-manifest entry (the full {"name", "url", ...}
+    mapping) to a values-tree path — an exact repo_map lookup first
+    (see lib.chart.repository_path_map: under the current strip-
+    registry convention an entry's "name:" IS the repository in that
+    same stripped form, so this is a direct dict hit, not a guess),
+    falling back to resolve_entry_path's fuzzy name-word matching when
+    repo_map has nothing for it (no repo_map given, an older manifest
+    entry still under the legacy hand-translated slug convention, or a
+    nested image with no Chart.yaml dependency of its own — e.g. a
+    component's bundled sidecar — that repo_map doesn't cover at all)."""
+    if repo_map:
+        path = repo_map.get(entry["name"])
+        if path is not None and path in paths:
+            return path
+    return resolve_entry_path(entry["name"], paths)
+
+
 def find_preceding_comment(lines, entry_line_index):
     """The comment line(s) immediately above a "- name: ..." line, e.g.
     "# ZAC OPA sidecar — 1.17.1-static -> 1.19.0-static" right above the opa

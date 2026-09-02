@@ -452,6 +452,56 @@ def primary_image_repositories(chart_dir, dep, own_values, version=None, allow_p
     return results, error
 
 
+def strip_registry_host(url):
+    """Drop the leading registry host from an image url, keep the rest —
+    the same rule as scripts/mirror-strip-registry.py's own
+    strip_registry (this chart's images-manifest naming convention, see
+    docs/images/acr-mirror-naming.md): a first path segment counts as a
+    registry host when it contains "." or ":" (docker.io, quay.io,
+    ghcr.io, gcr.io, host:port, ...) or is "localhost"; anything else
+    (already-bare "library/redis") is returned unchanged. Duplicated
+    here rather than imported — that script lives outside this
+    package's own lib/ layout, and the rule is small and stable enough
+    not to be worth reaching across for."""
+    url = url.strip().split("@", 1)[0]
+    head, _, rest = url.partition("/")
+    if rest and ("." in head or ":" in head or head == "localhost"):
+        return rest
+    return url
+
+
+def repository_path_map(chart_dir, deps, values, allow_pull=False):
+    """{strip_registry_host(repository): values-tree path} for every
+    dependency's own primary image path(s) (image_paths_for) whose
+    repository actually resolves (own explicit override in `values` if
+    present, else the vendored subchart's own default — see
+    primary_image_repositories).
+
+    Exists because an images-manifest entry's "name:" is, under the
+    current strip-registry convention, exactly a repository in this
+    same stripped form (docs/images/acr-mirror-naming.md) — so this map
+    gives an exact entry -> values-tree-path match, where
+    resolve_entry_path's fuzzy name-word matching breaks down: a
+    manifest name like "infonl/zaakafhandelcomponent" no longer
+    resembles the values.yaml key ("zac") the way the old hand-
+    translated slugs (name: "zac") did.
+
+    allow_pull defaults to False (offline-only, matching primary_image_
+    repositories' own default) — a doc-consistency check has no
+    business making a network pull; whatever's already vendored is what
+    it works with."""
+    mapping = {}
+    for dep in deps:
+        values_key = dep.get("alias") or dep["name"]
+        repos, _error = primary_image_repositories(chart_dir, dep, values, allow_pull=allow_pull)
+        for path_suffix, repo in repos.items():
+            if not repo:
+                continue
+            path = (values_key, *path_suffix.split("."))
+            mapping[strip_registry_host(repo)] = path
+    return mapping
+
+
 def subchart_template_text(chart_dir, dep):
     """Every file under a vendored dependency's own templates/ directory
     (same .tgz/vendoring mechanics as subchart_values), concatenated into

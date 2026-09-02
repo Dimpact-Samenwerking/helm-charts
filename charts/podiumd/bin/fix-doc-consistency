@@ -69,7 +69,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from lib.chart import SEMVER_RE as BASELINE_VERSION_RE
-from lib.chart import chart_version
+from lib.chart import chart_version, repository_path_map
 from lib.chart import upgrade_docs_baseline as read_upgrade_docs_baseline
 from lib.component_docs import (
     IMAGES_STUB_TEMPLATE, STANDARD_SUFFIXES, STUB_TEMPLATES, add_missing_component_rows,
@@ -80,7 +80,7 @@ from lib.upgradedoc import (
     actual_app_version, append_to_doc, canonical_version_cell, compute_changed_components,
     extract_source_version, extract_target_version, find_grouped_preceding_comment_line,
     find_image_tag_paths, match_dependency, missing_key_change_lines, normalize_version,
-    parse_upgrade_doc_rows, replace_version_pair, resolve_entry_path, sort_changes_blocks,
+    parse_upgrade_doc_rows, replace_version_pair, resolve_entry_image_path, sort_changes_blocks,
     sort_upgrade_doc_rows,
 )
 
@@ -260,16 +260,16 @@ def fix_component_version_table(text, target_deps, target_values, baseline_deps,
     return "".join(lines), changed_rows, unmatched_names, unresolved_names
 
 
-def resolve_entry_version(name, paths):
+def resolve_entry_version(entry, paths, repo_map=None):
     """The app version pinned at the values-tree path this images-manifest
-    entry name resolves to, or None if it can't be resolved (no matching
+    entry resolves to, or None if it can't be resolved (no matching
     path, or that path has no version, e.g. the component didn't exist yet)."""
-    path = resolve_entry_path(name, paths.keys())
+    path = resolve_entry_image_path(entry, paths.keys(), repo_map)
     tag = paths.get(path) if path else None
     return tag.split("@")[0] if tag else None
 
 
-def fix_images_manifest_entries(text, target_values, baseline_values):
+def fix_images_manifest_entries(text, target_values, baseline_values, repo_map=None):
     """Rewrite each images-manifest entry's preceding comment to state the
     actual source (baseline) and target versions for the image at its
     matched values-tree path. An entry is only rewritten when both ends are
@@ -280,7 +280,15 @@ def fix_images_manifest_entries(text, target_values, baseline_values):
     from whichever entry reaches it first — later entries sharing the same
     comment line just confirm they agree, or are reported as unresolved if
     they don't (never silently overwritten twice). Returns (new_text,
-    changed_entries, unresolved_names)."""
+    changed_entries, unresolved_names).
+
+    repo_map (see lib.chart.repository_path_map) lets an entry match its
+    values-tree path exactly via its own "name:"/repository, rather than
+    resolve_entry_path's fuzzy name-word matching alone — the difference
+    that matters for a component whose current strip-registry-shaped
+    manifest name (e.g. "infonl/zaakafhandelcomponent") no longer
+    resembles its values.yaml key ("zac") the way the old hand-
+    translated slug did."""
     lines = text.splitlines(keepends=True)
     try:
         entries = yaml.safe_load(text)
@@ -294,7 +302,7 @@ def fix_images_manifest_entries(text, target_values, baseline_values):
     baseline_paths = dict(find_image_tag_paths(baseline_values)) if baseline_values else {}
 
     def component_of(entry):
-        path = resolve_entry_path(entry["name"], current_paths.keys())
+        path = resolve_entry_image_path(entry, current_paths.keys(), repo_map)
         return path[0] if path else None
 
     def same_group(entry_a, entry_b):
@@ -312,8 +320,8 @@ def fix_images_manifest_entries(text, target_values, baseline_values):
             unresolved_names.append(name)
             continue
 
-        actual_target = resolve_entry_version(name, current_paths)
-        actual_baseline = resolve_entry_version(name, baseline_paths)
+        actual_target = resolve_entry_version(entry, current_paths, repo_map)
+        actual_baseline = resolve_entry_version(entry, baseline_paths, repo_map)
 
         if actual_target is None or actual_baseline is None:
             unresolved_names.append(name)
@@ -509,8 +517,9 @@ def main():
 
     if images_path.is_file():
         text = images_path.read_text(encoding="utf-8")
+        repo_map = repository_path_map(CHART_YAML.parent, target_deps, target_values)
         new_text, changed_entries, unresolved_entry_names = fix_images_manifest_entries(
-            text, target_values, baseline_values
+            text, target_values, baseline_values, repo_map
         )
         if changed_entries:
             images_path.write_text(new_text, encoding="utf-8")

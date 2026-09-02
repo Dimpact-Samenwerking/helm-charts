@@ -738,6 +738,60 @@ def test_primary_image_repositories_chart_dir_none_and_needed_returns_error(libc
     assert error is not None
 
 
+# --- strip_registry_host ---
+
+@pytest.mark.parametrize("url,expected", [
+    ("quay.io/keycloak/keycloak", "keycloak/keycloak"),
+    ("docker.io/maykinmedia/open-inwoner", "maykinmedia/open-inwoner"),
+    ("ghcr.io/infonl/zaakafhandelcomponent", "infonl/zaakafhandelcomponent"),
+    ("docker.io/library/redis", "library/redis"),
+    ("localhost:5000/foo/bar", "foo/bar"),
+    ("acrprodmgmt.azurecr.io/infonl/zac:5.4.4", "infonl/zac:5.4.4"),
+    ("infonl/zaakafhandelcomponent", "infonl/zaakafhandelcomponent"),  # already stripped
+    ("ghcr.io/infonl/zaakafhandelcomponent@sha256:aaaa", "infonl/zaakafhandelcomponent"),
+])
+def test_strip_registry_host(libchart, url, expected):
+    assert libchart.strip_registry_host(url) == expected
+
+
+# --- repository_path_map ---
+
+def test_repository_path_map_own_override(libchart, tmp_path):
+    dep = {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}
+    own_values = {"zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent"}}}
+
+    mapping = libchart.repository_path_map(tmp_path, [dep], own_values, allow_pull=False)
+
+    assert mapping == {"infonl/zaakafhandelcomponent": ("zac", "image")}
+
+
+def test_repository_path_map_subchart_default(libchart, tmp_path):
+    make_tgz(tmp_path / "charts", "openzaak", "4.9.1", {"image": {"repository": "openzaak/open-zaak"}})
+    dep = {"name": "openzaak", "alias": "", "version": "4.9.1"}
+    own_values = {"openzaak": {"image": {"tag": "3.28.0@sha256:aaaa"}}}
+
+    mapping = libchart.repository_path_map(tmp_path, [dep], own_values, allow_pull=False)
+
+    assert mapping == {"openzaak/open-zaak": ("openzaak", "image")}
+
+
+def test_repository_path_map_skips_unresolvable_and_multiple_deps(libchart, tmp_path):
+    """A dependency whose repository can't be resolved at all (no
+    override, subchart not vendored) is silently skipped, not an error
+    for the whole map — the other, resolvable dependencies still end up
+    in it."""
+    zac = {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}
+    openzaak = {"name": "openzaak", "alias": "", "version": "4.9.1"}  # not vendored here
+    own_values = {
+        "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent"}},
+        "openzaak": {"image": {"tag": "3.28.0@sha256:aaaa"}},
+    }
+
+    mapping = libchart.repository_path_map(tmp_path, [zac, openzaak], own_values, allow_pull=False)
+
+    assert mapping == {"infonl/zaakafhandelcomponent": ("zac", "image")}
+
+
 # --- subchart_template_text ---
 
 def test_subchart_template_text_concatenates_all_template_files(libchart, tmp_path):

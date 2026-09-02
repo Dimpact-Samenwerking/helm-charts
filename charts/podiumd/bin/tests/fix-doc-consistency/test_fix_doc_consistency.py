@@ -905,12 +905,22 @@ def test_replace_version_pair_no_match_returns_unchanged(cdb):
 
 def test_resolve_entry_version_finds_matching_path(cdb):
     paths = {("zac",): "5.1.0@sha256:aaaa", ("zgw-office-addin", "frontend"): "v0.9.352@sha256:bbbb"}
-    assert cdb.resolve_entry_version("zac", paths) == "5.1.0"
-    assert cdb.resolve_entry_version("zgw-office-addin-frontend", paths) == "v0.9.352"
+    assert cdb.resolve_entry_version({"name": "zac"}, paths) == "5.1.0"
+    assert cdb.resolve_entry_version({"name": "zgw-office-addin-frontend"}, paths) == "v0.9.352"
 
 
 def test_resolve_entry_version_none_when_unresolvable(cdb):
-    assert cdb.resolve_entry_version("totally-unknown", {}) is None
+    assert cdb.resolve_entry_version({"name": "totally-unknown"}, {}) is None
+
+
+def test_resolve_entry_version_uses_repo_map_for_strip_registry_names(cdb):
+    """"infonl/zaakafhandelcomponent" doesn't fuzzy-word-match the "zac"
+    values key at all — repo_map is what makes a current-convention
+    manifest name resolve."""
+    paths = {("zac",): "5.4.4@sha256:aaaa"}
+    repo_map = {"infonl/zaakafhandelcomponent": ("zac",)}
+    assert cdb.resolve_entry_version({"name": "infonl/zaakafhandelcomponent"}, paths) is None
+    assert cdb.resolve_entry_version({"name": "infonl/zaakafhandelcomponent"}, paths, repo_map) == "5.4.4"
 
 
 # --- fix_images_manifest_entries ---
@@ -965,6 +975,34 @@ def test_fix_images_manifest_entries_reports_unresolvable_baseline(cdb):
     assert new_text == text
 
 
+def test_fix_images_manifest_entries_resolves_strip_registry_name_via_repo_map(cdb):
+    """"infonl/zaakafhandelcomponent" (the current strip-registry manifest
+    naming convention) doesn't fuzzy-word-match the values.yaml key
+    ("zac") at all — without repo_map this entry would be unresolved."""
+    text = (
+        "# ZAC — 5.0.1 -> 5.1.0\n"
+        "- name: infonl/zaakafhandelcomponent\n"
+        "  url: ghcr.io/infonl/zaakafhandelcomponent\n"
+        '  version: "5.1.0"\n'
+        '  digest: "sha256:aaaa"\n'
+    )
+    target_values = {"zac": {"image": {"tag": "5.1.0@sha256:aaaa"}}}
+    baseline_values = {"zac": {"image": {"tag": "5.0.2@sha256:bbbb"}}}
+    repo_map = {"infonl/zaakafhandelcomponent": ("zac", "image")}
+
+    new_text, changed, unresolved = cdb.fix_images_manifest_entries(
+        text, target_values, baseline_values, repo_map)
+    assert unresolved == []
+    assert changed == [("infonl/zaakafhandelcomponent", "5.0.2", "5.1.0")]
+    assert "# ZAC — 5.0.2 -> 5.1.0" in new_text
+
+    # without repo_map, the same entry is unresolved -- proves repo_map is
+    # what makes the difference, not some other fixture quirk
+    new_text2, changed2, unresolved2 = cdb.fix_images_manifest_entries(text, target_values, baseline_values)
+    assert changed2 == []
+    assert unresolved2 == ["infonl/zaakafhandelcomponent"]
+
+
 def test_fix_images_manifest_entries_fixes_shared_group_comment_via_either_entry(cdb):
     """zgw-office-addin's frontend + backend share one comment (backend has
     none of its own, separated by a blank line) — backend must be fixed via
@@ -1006,6 +1044,59 @@ def test_main_corrects_stale_images_manifest_entry_comment(cdb, repo_with_baseli
           '  version: "5.1.0"\n'
           '  digest: "sha256:aaaa"\n')
     set_argv_and_dir(cdb, monkeypatch, repo_with_baseline_tag, "4.8.5")
+    cdb.main()
+
+    text = images_path.read_text(encoding="utf-8")
+    assert "# ZAC — 5.0.2 -> 5.1.0" in text
+
+
+def test_main_corrects_strip_registry_named_entry_via_repo_map(cdb, tmp_path, monkeypatch):
+    """Same as test_main_corrects_stale_images_manifest_entry_comment, but
+    with the images-manifest entry under the CURRENT strip-registry name
+    ("infonl/zaakafhandelcomponent") instead of the old short slug
+    ("zac") — main() must build repo_map from the real Chart.yaml/
+    values.yaml and pass it through for this to resolve at all."""
+    git("init", "-q", cwd=tmp_path)
+    git("config", "user.email", "test@example.com", cwd=tmp_path)
+    git("config", "user.name", "Test", cwd=tmp_path)
+
+    write(tmp_path / "Chart.yaml", yaml.safe_dump({
+        "dependencies": [
+            {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297", "repository": "@zac"},
+        ],
+    }))
+    write(tmp_path / "values.yaml", yaml.safe_dump({
+        "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.0.2@sha256:bbbb"}},
+    }))
+    doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
+    doc_dir.mkdir(parents=True)
+    images_dir = tmp_path / "docs" / "images"
+    images_dir.mkdir(parents=True)
+    git("add", "-A", cwd=tmp_path)
+    git("commit", "-q", "-m", "baseline state", cwd=tmp_path)
+    git("tag", "podiumd-4.8.5", cwd=tmp_path)
+
+    write(tmp_path / "values.yaml", yaml.safe_dump({
+        "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.1.0@sha256:aaaa"}},
+    }))
+    write(doc_dir / "4.8.3-to-4.9.0-upgrade.md",
+          "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+          "## Component versions (4.9.0 vs 4.8.5)\n\n"
+          "| Component | App version | Helm chart | Notes |\n"
+          "| --- | --- | --- | --- |\n"
+          "| ZAC (Zaakafhandelcomponent) | 5.0.2 → 5.1.0 | 1.0.297 (unchanged) | ACR mirror only |\n")
+    images_path = images_dir / "images-4.9.0.yaml"
+    write(images_path,
+          "# Baseline: podiumd 4.8.5. Re-verify before release.\n\n"
+          "# ZAC — 5.0.1 -> 5.1.0\n"
+          "- name: infonl/zaakafhandelcomponent\n"
+          "  url: ghcr.io/infonl/zaakafhandelcomponent\n"
+          '  version: "5.1.0"\n'
+          '  digest: "sha256:aaaa"\n')
+    git("add", "-A", cwd=tmp_path)
+    git("commit", "-q", "-m", "bump zac, stale images-manifest comment", cwd=tmp_path)
+
+    set_argv_and_dir(cdb, monkeypatch, doc_dir, "4.8.5")
     cdb.main()
 
     text = images_path.read_text(encoding="utf-8")
