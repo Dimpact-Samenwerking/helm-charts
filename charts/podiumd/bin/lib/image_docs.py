@@ -24,9 +24,9 @@ from lib.component_docs import (
     make_changes_section, remove_changes_section, update_component_table,
 )
 from lib.upgradedoc import (
-    extract_source_version, find_changes_row_correspondence_gaps, find_image_tag_paths,
-    find_preceding_comment_line, normalize_name, parse_upgrade_doc_changes_blocks, parse_upgrade_doc_rows,
-    replace_version_pair, resolve_component_identity,
+    actual_app_version, changes_heading_has_app_version, changes_heading_identities, extract_source_version,
+    find_changes_row_correspondence_gaps, find_image_tag_paths, find_preceding_comment_line, normalize_name,
+    parse_upgrade_doc_changes_blocks, parse_upgrade_doc_rows, replace_version_pair, resolve_component_identity,
 )
 
 
@@ -182,6 +182,95 @@ def add_missing_changes_sections(text, deps, target_values, target, canonical_na
         added_names.append(row["name"])
 
     return text, added_names
+
+
+def _remove_changes_block_by_exact_heading(text, heading):
+    """remove_changes_section, but matched by EXACT heading text instead
+    of fuzzy word-span containment — used for replacing a specific,
+    already-identified stale heading (see update_stale_app_version_
+    headings), where a fuzzy match risks hitting the wrong block if some
+    OTHER heading happens to share words with this one. Returns
+    (new_text, removed)."""
+    blocks = parse_upgrade_doc_changes_blocks(text)
+    block = next((b for b in blocks if b["heading"] == heading), None)
+    if block is None:
+        return text, False
+    lines = text.splitlines(keepends=True)
+    start, end = block["start"], block["end"]
+    while end < len(lines) and not lines[end].strip():
+        end += 1
+    del lines[start:end]
+    return "".join(lines), True
+
+
+def update_stale_app_version_headings(text, chart_dir, deps, target_values, target, canonical_names):
+    """Regenerate a "### ..." Changes section whose own heading is
+    missing the primary-image app version (see lib.upgradedoc.changes_
+    heading_has_app_version) for a component that DOES have one
+    resolvable now (real case: "### openbao 0.28.4" — add_missing_
+    component_rows' own chart-only TODO-stub shape, written back before
+    actual_app_version could resolve anything — fixed later by
+    registering openbao in COMPONENT_IMAGE_PATHS/adding the vendored-
+    chart appVersion fallback, but the already-written heading never
+    gets touched just because resolution got smarter). Built the exact
+    same way add_missing_changes_sections builds a genuinely missing
+    section (see build_changes_section_for_row), from that component's
+    OWN table row — the stale heading's entire old body is discarded
+    (there's no reliable way to tell which part of its own prose is
+    still accurate once the heading itself was already wrong, same
+    reasoning as a freshly-added section).
+
+    Only ever touches a heading naming EXACTLY ONE real "dep" component
+    (never a sidecar — a canonical sidecar heading is only ever written
+    once its own tag is already known, so this gap doesn't apply to
+    it — see canonical_sidecar_row_names) whose actual_app_version DOES
+    resolve; a heading that's ambiguous, orphaned, or genuinely has no
+    resolvable app version yet is left exactly as-is, matching the same
+    finding lib.docs_consistency.check_docs_consistency's own "is
+    missing the primary-image app version" check reports. Returns
+    (new_text, updated_headings) — updated_headings is the ORIGINAL
+    (pre-fix) heading text for every section actually rewritten."""
+    rows_by_identity = {}
+    for row in parse_upgrade_doc_rows(text):
+        ident = resolve_component_identity(row["name"], deps, canonical_names)
+        if ident is not None:
+            rows_by_identity[ident] = row
+
+    stale_headings = []
+    for heading in [b["heading"] for b in parse_upgrade_doc_changes_blocks(text)]:
+        if changes_heading_has_app_version(heading):
+            continue
+        idents = changes_heading_identities(heading, deps, canonical_names)
+        if len(idents) != 1:
+            continue
+        ident = next(iter(idents))
+        if ident[0] != "dep":
+            continue
+        stale_headings.append((heading, ident))
+
+    updated_headings = []
+    for heading, ident in stale_headings:
+        _, values_key = ident
+        dep = dep_for_values_key(deps, values_key)
+        if dep is None:
+            continue
+        actual_app = actual_app_version(target_values, values_key, dep["name"], chart_dir=chart_dir, dep=dep)
+        if not actual_app:
+            continue
+        row = rows_by_identity.get(ident)
+        if row is None:
+            continue
+        section = build_changes_section_for_row(row, ident, deps, target)
+        if section is None:
+            continue
+
+        text, removed = _remove_changes_block_by_exact_heading(text, heading)
+        if not removed:
+            continue
+        text = insert_changes_section(text, section, row["name"], deps, target_values)
+        updated_headings.append(heading)
+
+    return text, updated_headings
 
 
 def resolve_basename_baseline_version(baseline_values, full_paths):
