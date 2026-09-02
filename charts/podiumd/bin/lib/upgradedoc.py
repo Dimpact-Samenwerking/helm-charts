@@ -348,31 +348,41 @@ def resolve_component_identity(text, deps, canonical_names):
 
 
 def changes_heading_identities(heading, deps, canonical_names):
-    """The set of component identities (see resolve_component_identity) a
-    "### ..." Changes heading names — usually exactly one, but a heading
-    covering two components at once, joined with " + " (e.g. "ECK
-    Operator 3.4.0 → 3.5.0 + ECK Stack (kiss-eck) 0.19.0 → 0.20.0"),
-    resolves BOTH sides independently: resolve_component_identity on the
-    whole heading would only ever return match_dependency's own single
-    longest-match winner, silently dropping whichever of the two loses
-    (real case: "eck-operator" beats "eck-stack" on raw match length,
-    so the combined heading would otherwise only ever count as covering
-    ECK Operator). Embedded version numbers/arrows never interfere —
-    resolution only ever looks for a dependency's own name/alias (or a
-    canonical sidecar name) as a whole word-aligned span, wherever it
-    appears. Empty if the heading (or a "+"-joined side of it) names no
-    real component at all."""
+    """The set of component identities (see resolve_component_identity)
+    found anywhere in a "### ..." Changes heading's text, assessed as a
+    whole — never split on "+" or any other separator, since a doc could
+    join two components with any wording at all ("and", a comma, ...);
+    what matters is what the text actually names, not which character
+    joins it. A canonical sidecar match (checked first, same precedence
+    as resolve_component_identity) is always returned alone — its own
+    "<parent> - <basename>" shape necessarily contains the parent
+    dependency's name too (e.g. "redis-operator - redis"), which is
+    expected and correct, not a second, competing identity. Otherwise
+    every real Chart.yaml dependency whose own name/alias is found as a
+    word-aligned span (see _word_aligned_spans) anywhere in the text is
+    collected — usually exactly one, but a heading naming two components
+    at once (real case: "### ECK Operator 3.4.0 → 3.5.0 + ECK Stack
+    (kiss-eck) 0.19.0 → 0.20.0") returns both; see find_changes_row_
+    correspondence_gaps for what happens to a heading resolving to
+    anything other than exactly one identity. Empty if the heading names
+    no real component at all."""
+    sidecar_path = match_canonical_sidecar_name(heading, canonical_names)
+    if sidecar_path is not None:
+        return {("sidecar", sidecar_path)}
+    spans = _word_aligned_spans(heading)
     identities = set()
-    for part in re.split(r"\s\+\s", heading):
-        ident = resolve_component_identity(part, deps, canonical_names)
-        if ident is not None:
-            identities.add(ident)
+    for dep in deps:
+        for candidate in filter(None, [dep.get("name"), dep.get("alias")]):
+            norm_c = normalize_name(candidate)
+            if norm_c and norm_c in spans:
+                identities.add(("dep", dep.get("alias", dep["name"])))
+                break
     return identities
 
 
 def find_changes_row_correspondence_gaps(rows, headings, deps, canonical_names):
     """Cross-check the "Component versions" table against the "## Changes"
-    section: every row naming a real component should have at least one
+    section: every row naming a real component should have exactly one
     Changes heading naming that same component, and vice versa — a real
     omission neither side's own internal checks (out-of-order, missing-
     vs-baseline) can see, since each only ever looks at one of the two
@@ -380,19 +390,30 @@ def find_changes_row_correspondence_gaps(rows, headings, deps, canonical_names):
     component's row/section exists at all (e.g. a row added without ever
     writing its narrative Changes section, or a Changes section written
     for a component whose table row was forgotten, renamed, or never
-    added). A row/heading-side that doesn't resolve to any real
-    component at all (free-form prose, or a row already flagged
-    elsewhere as wrong/stale — see find_wrong_or_duplicate_dependency_
-    claims) is silently skipped on ITS OWN side, but still correctly
-    fails to satisfy the OTHER side's correspondence, e.g. a Changes
-    heading that never names its component at all (real case: "Keycloak
-    app image 26.6.4 → 26.7.2" — never says "keycloak-operator" or even
-    "operator") is reported as having no matching row, exactly like one
-    that names an unrelated/wrong component would be. Returns
-    (rows_without_heading, headings_without_row), each a list of the
-    original row name / heading text, in their original order."""
+    added).
+
+    A heading only ever credits a row when changes_heading_identities
+    finds EXACTLY one component in it — a heading naming zero (an
+    orphan, real case: "Keycloak app image 26.6.4 → 26.7.2", which never
+    says "keycloak-operator" or even "operator") or two-or-more (real
+    case: the ECK Operator/ECK Stack example above) never credits any
+    component's row, and is itself always reported as having no matching
+    row, exactly like a heading naming the wrong component would be —
+    "assess the text as a whole" cuts both ways: a heading either
+    unambiguously names one row, or it's wrong, never a shortcut to
+    satisfying two rows at once.
+
+    A row/heading-side that doesn't resolve to any real component at all
+    (free-form prose, or a row already flagged elsewhere as wrong/stale
+    — see find_wrong_or_duplicate_dependency_claims) is silently skipped
+    on ITS OWN side. Returns (rows_without_heading, headings_without_row),
+    each a list of the original row name / heading text, in their
+    original order."""
     heading_identity_sets = [changes_heading_identities(h, deps, canonical_names) for h in headings]
-    all_heading_identities = set().union(*heading_identity_sets) if heading_identity_sets else set()
+    all_heading_identities = set()
+    for idents in heading_identity_sets:
+        if len(idents) == 1:
+            all_heading_identities |= idents
 
     row_identities = set()
     rows_without_heading = []
@@ -405,27 +426,9 @@ def find_changes_row_correspondence_gaps(rows, headings, deps, canonical_names):
             rows_without_heading.append(row["name"])
 
     headings_without_row = [heading for heading, idents in zip(headings, heading_identity_sets)
-                             if idents.isdisjoint(row_identities)]
+                             if len(idents) != 1 or idents.isdisjoint(row_identities)]
 
     return rows_without_heading, headings_without_row
-
-
-def find_combined_changes_headings(headings, deps, canonical_names):
-    """"### ..." Changes headings that join two or more components at once
-    via " + " (e.g. "ECK Operator 3.4.0 → 3.5.0 + ECK Stack (kiss-eck)
-    0.19.0 → 0.20.0") — reported here as its own finding, even though
-    changes_heading_identities/find_changes_row_correspondence_gaps
-    still resolve both sides and treat the heading as documenting both
-    components (so combining them never also produces a spurious "row
-    has no matching section" finding for whichever component doesn't
-    happen to win a single-heading match). Each component is meant to
-    get its own "### ..." section. Only a "+" that actually separates
-    two or more REAL, distinct components is reported — plain prose
-    that happens to contain the word "and"/a literal "+" for some other
-    reason never resolves to more than one identity and is left alone.
-    Returns the original heading text for every combined one found."""
-    return [heading for heading in headings
-            if len(changes_heading_identities(heading, deps, canonical_names)) > 1]
 
 
 def is_exact_dependency_match(name, dep):

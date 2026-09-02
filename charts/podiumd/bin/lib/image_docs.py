@@ -24,9 +24,9 @@ from lib.component_docs import (
     make_changes_section, remove_changes_section, update_component_table,
 )
 from lib.upgradedoc import (
-    changes_heading_identities, extract_source_version, find_changes_row_correspondence_gaps,
-    find_combined_changes_headings, find_image_tag_paths, find_preceding_comment_line, normalize_name,
-    parse_upgrade_doc_changes_blocks, parse_upgrade_doc_rows, replace_version_pair, resolve_component_identity,
+    extract_source_version, find_changes_row_correspondence_gaps, find_image_tag_paths,
+    find_preceding_comment_line, normalize_name, parse_upgrade_doc_changes_blocks, parse_upgrade_doc_rows,
+    replace_version_pair, resolve_component_identity,
 )
 
 
@@ -182,79 +182,6 @@ def add_missing_changes_sections(text, deps, target_values, target, canonical_na
         added_names.append(row["name"])
 
     return text, added_names
-
-
-def _remove_changes_block_by_exact_heading(text, heading):
-    """remove_changes_section, but matched by EXACT heading text instead
-    of fuzzy word-span containment — used for splitting a "+"-joined
-    combined heading (see split_combined_changes_headings), where the
-    heading to remove is already known precisely (from find_combined_
-    changes_headings) and a fuzzy match risks hitting the wrong block
-    entirely, since a combined heading's words necessarily overlap with
-    EVERY component it names. Returns (new_text, removed)."""
-    blocks = parse_upgrade_doc_changes_blocks(text)
-    block = next((b for b in blocks if b["heading"] == heading), None)
-    if block is None:
-        return text, False
-    lines = text.splitlines(keepends=True)
-    start, end = block["start"], block["end"]
-    while end < len(lines) and not lines[end].strip():
-        end += 1
-    del lines[start:end]
-    return "".join(lines), True
-
-
-def split_combined_changes_headings(text, deps, target_values, target, canonical_names):
-    """Split a "### ..." Changes heading that combines two or more
-    components at once via " + " (see lib.upgradedoc.find_combined_
-    changes_headings — real case: "### ECK Operator 3.4.0 → 3.5.0 + ECK
-    Stack (kiss-eck) 0.19.0 → 0.20.0") into one "### ..." section per
-    component — each built the same way add_missing_changes_sections
-    builds a missing one (see build_changes_section_for_row), from that
-    component's OWN "Component versions" table row, never from the
-    combined heading's own body text (there's no reliable way to tell
-    which part of shared prose belongs to which component, so it's
-    discarded rather than guessed at — the split sections start as
-    TODO-stub-or-real exactly like a freshly-added missing section
-    would, ready for a human to flesh out the prose once split). A
-    component named by the heading with no table row of its own (or no
-    resolvable identity at all) is skipped for that component only — the
-    combined heading is still removed and whatever OTHER component(s) it
-    named still get their own section. Returns (new_text, split_headings)
-    for every combined heading actually split (at least one component
-    resolved)."""
-    headings = [b["heading"] for b in parse_upgrade_doc_changes_blocks(text)]
-    combined = find_combined_changes_headings(headings, deps, canonical_names)
-    if not combined:
-        return text, []
-
-    rows_by_identity = {}
-    for row in parse_upgrade_doc_rows(text):
-        ident = resolve_component_identity(row["name"], deps, canonical_names)
-        if ident is not None:
-            rows_by_identity[ident] = row
-
-    split_headings = []
-    for heading in combined:
-        sections = []
-        for ident in changes_heading_identities(heading, deps, canonical_names):
-            row = rows_by_identity.get(ident)
-            if row is None:
-                continue
-            section = build_changes_section_for_row(row, ident, deps, target)
-            if section is not None:
-                sections.append((row["name"], section))
-        if not sections:
-            continue
-
-        text, removed = _remove_changes_block_by_exact_heading(text, heading)
-        if not removed:
-            continue
-        for friendly, section in sections:
-            text = insert_changes_section(text, section, friendly, deps, target_values)
-        split_headings.append(heading)
-
-    return text, split_headings
 
 
 def resolve_basename_baseline_version(baseline_values, full_paths):
