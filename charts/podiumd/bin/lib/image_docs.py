@@ -18,14 +18,15 @@ last" rule already produces that with no special-casing needed here,
 since a bare basename never matches a Chart.yaml dependency by name."""
 import re
 
-from lib.chart import canonical_sidecar_row_names, get_path, replace_scalar_value
+from lib.chart import canonical_sidecar_row_names, get_path, image_paths_for, replace_scalar_value
 from lib.component_docs import (
-    CHANGES_HEADER_RE, CHANGES_ITEM_RE, NUMBER_WORDS, insert_changes_section, remove_changes_section,
-    update_component_table,
+    CHANGES_HEADER_RE, CHANGES_ITEM_RE, NUMBER_WORDS, dep_for_values_key, insert_changes_section,
+    make_changes_section, remove_changes_section, update_component_table,
 )
 from lib.upgradedoc import (
-    extract_source_version, find_image_tag_paths, find_preceding_comment_line, normalize_name,
-    parse_upgrade_doc_rows, replace_version_pair,
+    extract_source_version, find_changes_row_correspondence_gaps, find_image_tag_paths,
+    find_preceding_comment_line, normalize_name, parse_upgrade_doc_changes_blocks, parse_upgrade_doc_rows,
+    replace_version_pair, resolve_component_identity,
 )
 
 
@@ -101,6 +102,74 @@ def add_missing_sidecar_rows(text, chart_dir, deps, target_values, baseline_valu
                                               [(dotted_path, old_app or new_app)])
         text = insert_changes_section(text, section, name, deps, target_values)
         added_names.append(name)
+
+    return text, added_names
+
+
+def add_missing_changes_sections(text, deps, target_values, target, canonical_names):
+    """Insert a "### ..." Changes section — using the SAME template
+    add_missing_component_rows/add_missing_sidecar_rows themselves use
+    (make_changes_section for a real Chart.yaml dependency,
+    make_image_changes_section for a canonical sidecar/shared-image) —
+    for every "Component versions" table row that already exists but has
+    no matching section of its own yet (see lib.upgradedoc.
+    find_changes_row_correspondence_gaps's own rows_without_heading, the
+    same gap lib.docs_consistency.check_docs_consistency's "table row
+    ... has no matching "### ..." section" finding reports).
+
+    Unlike add_missing_component_rows/add_missing_sidecar_rows, this
+    never recomputes old/new versions from actual_app_version or a git
+    baseline — the row's OWN app/chart cells are used verbatim (already
+    corrected against Chart.yaml/values.yaml by fix_component_version_
+    table, earlier in the same fix-doc-consistency run, if they needed
+    it), so the generated section can never disagree with what the row
+    right above it already visibly says. A row resolving to neither a
+    real dependency nor a canonical sidecar is skipped (already reported
+    elsewhere as wrong/stale — see find_wrong_or_duplicate_dependency_
+    claims). A row whose own app cell has no resolvable target version
+    at all (e.g. "-") gets a short TODO-stub section instead of
+    guessing at prose, the same fallback add_missing_component_rows uses
+    for the same reason. Returns (new_text, added_names)."""
+    rows = parse_upgrade_doc_rows(text)
+    headings = [b["heading"] for b in parse_upgrade_doc_changes_blocks(text)]
+    rows_without_heading, _ = find_changes_row_correspondence_gaps(rows, headings, deps, canonical_names)
+    if not rows_without_heading:
+        return text, []
+    missing = set(rows_without_heading)
+
+    added_names = []
+    for row in rows:
+        if row["name"] not in missing:
+            continue
+        ident = resolve_component_identity(row["name"], deps, canonical_names)
+        if ident is None:
+            continue
+        kind, value = ident
+
+        if row["app"] is None:
+            chart_bit = row["chart"] or row["chart_source"] or "-"
+            section = (f"### {row['name']} {chart_bit}\n\n"
+                       f"TODO: describe this component's changes — its app version could not be "
+                       f"resolved from the table row.\n\n")
+        elif kind == "dep":
+            dep = dep_for_values_key(deps, value)
+            if dep is None:
+                continue
+            section = make_changes_section(
+                row["name"], target, dep["name"], value,
+                row["app_source"] or row["app"], row["app"],
+                row["chart_source"] or row["chart"] or str(dep["version"]), row["chart"] or str(dep["version"]),
+                image_paths_for(dep["name"])
+            )
+        else:
+            dotted_path = ".".join(value) + ".tag"
+            section = make_image_changes_section(
+                row["name"], target, row["app_source"] or row["app"], row["app"],
+                [(dotted_path, row["app_source"] or row["app"])]
+            )
+
+        text = insert_changes_section(text, section, row["name"], deps, target_values)
+        added_names.append(row["name"])
 
     return text, added_names
 
