@@ -479,6 +479,22 @@ def find_changes_row_correspondence_gaps(rows, headings, deps, canonical_names):
     return rows_without_heading, headings_without_row
 
 
+def changes_heading_has_app_version(heading):
+    """Whether a "### ..." Changes heading's own text shows an app-
+    version pair at all. make_changes_section's own template always
+    writes the app pair as "<old> → <new>" immediately after the
+    component name — even when unchanged, e.g. "openzaak 1.27.4 →
+    1.29.3" or "objecten 3.6.2 → 3.6.2" — only the "(chart ...)" portion
+    ever uses the arrow-less "X, unchanged" shape for an unchanged
+    value. A heading with no arrow anywhere (real case: "### openbao
+    0.28.4" — add_missing_component_rows' own chart-only TODO-stub
+    shape, used when actual_app_version couldn't resolve anything at
+    the time) reliably signals no app version was ever written, not
+    just that it happens to equal the source (which would still show
+    the arrow)."""
+    return "→" in heading or "->" in heading
+
+
 def is_exact_dependency_match(name, dep):
     """True if `name`, normalized (case/punctuation-insensitive), equals
     `dep`'s own name or alias EXACTLY — not just a fuzzy word-span

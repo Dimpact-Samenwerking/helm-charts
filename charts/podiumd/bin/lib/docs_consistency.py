@@ -13,13 +13,13 @@ import yaml
 from lib.chart import canonical_sidecar_row_names, get_path, load_yaml
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
 from lib.upgradedoc import (
-    actual_app_version, compute_changed_components, diff_keys, extract_mentioned_dependency_keys,
-    extract_source_version, extract_target_version, find_changes_row_correspondence_gaps,
-    find_grouped_preceding_comment, find_image_tag_paths, find_out_of_order_names,
-    find_wrong_or_duplicate_dependency_claims, match_dependency, match_dependency_excluding_sidecar_names,
-    normalize_version, pair_renames, parse_changes_block, parse_upgrade_doc_changes_blocks,
-    parse_upgrade_doc_rows as _parse_upgrade_doc_rows, resolve_entry_path, strip_fenced_code_blocks,
-    values_key_order,
+    actual_app_version, changes_heading_has_app_version, changes_heading_identities, compute_changed_components,
+    diff_keys, extract_mentioned_dependency_keys, extract_source_version, extract_target_version,
+    find_changes_row_correspondence_gaps, find_grouped_preceding_comment, find_image_tag_paths,
+    find_out_of_order_names, find_wrong_or_duplicate_dependency_claims, match_dependency,
+    match_dependency_excluding_sidecar_names, normalize_version, pair_renames, parse_changes_block,
+    parse_upgrade_doc_changes_blocks, parse_upgrade_doc_rows as _parse_upgrade_doc_rows, resolve_entry_path,
+    strip_fenced_code_blocks, values_key_order,
 )
 
 
@@ -355,6 +355,13 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
     mismatches = []
     checked = []
     changed_component_keys = set()
+    # (kind, values_key) identity -> its resolved, real app version (see
+    # resolve_component_identity) — populated below for every "dep" row
+    # whose own actual_app_version resolves to something. Used after the
+    # row loop to catch a Changes heading whose own text never shows an
+    # app-version pair at all for a component that DOES have one — see
+    # "is missing the primary-image app version" below.
+    resolved_app_by_identity = {}
 
     doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
     is_bare_version = bool(upgrade_docs_baseline and re.match(r"^\d+\.\d+\.\d+", upgrade_docs_baseline))
@@ -497,6 +504,8 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
                 top_level_key = values_key = dep.get("alias", dep["name"])
                 actual_chart = dep["version"]
                 actual_app = actual_app_version(values, values_key, dep["name"], chart_dir=chart_dir, dep=dep)
+                if actual_app:
+                    resolved_app_by_identity[("dep", values_key)] = actual_app
             else:
                 matched_sidecar_paths.add(sidecar_path)
                 top_level_key = sidecar_path[0]
@@ -600,6 +609,27 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
                     f'{doc_path.name}: "## Changes" section "### {heading}" has no matching row in the '
                     f'"Component versions" table'
                 )
+
+            # A heading naming exactly one "dep" component that DOES have a
+            # real, resolved app version (see resolved_app_by_identity)
+            # must actually show it — a heading written back when that
+            # version wasn't resolvable yet (e.g. openbao's own "###
+            # openbao 0.28.4" — chart-only, add_missing_component_rows'
+            # TODO-stub shape) never gets rewritten just because
+            # actual_app_version later learns how to resolve it (fix-
+            # doc-consistency never rewrites an EXISTING section's own
+            # text), so this can silently go stale forever unless checked
+            # for directly.
+            for heading in changes_headings:
+                idents = changes_heading_identities(heading, deps, canonical_names)
+                if len(idents) != 1:
+                    continue
+                actual_app = resolved_app_by_identity.get(next(iter(idents)))
+                if actual_app and not changes_heading_has_app_version(heading):
+                    mismatches.append(
+                        f'{doc_path.name}: "## Changes" section "### {heading}" is missing the '
+                        f'primary-image app version in its own heading — values.yaml shows "{actual_app}"'
+                    )
 
     images_path = chart_dir / "docs" / "images" / f"images-{podiumd_version}.yaml"
 

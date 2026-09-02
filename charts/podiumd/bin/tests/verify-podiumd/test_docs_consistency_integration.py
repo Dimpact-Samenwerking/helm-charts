@@ -769,7 +769,7 @@ def order_chart_dir(tmp_path):
 def test_correctly_ordered_table_and_changes_pass(vp, order_chart_dir):
     chart_dir, doc_dir = order_chart_dir
     (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
-        order_doc([ZAAK_ROW, INWONER_ROW], ["Open Zaak bump", "Open Inwoner bump"]))
+        order_doc([ZAAK_ROW, INWONER_ROW], ["Open Zaak bump 1.27.4 → 1.27.4", "Open Inwoner bump 2.4.2 → 2.4.2"]))
     ok, detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline=None)
     assert ok is True, detail
 
@@ -880,6 +880,27 @@ def test_changes_heading_naming_no_real_component_is_caught_as_no_matching_row(v
            '"Component versions" table' in out
 
 
+def test_changes_heading_missing_app_version_is_caught(vp, order_chart_dir, capsys):
+    """A "### ..." heading naming a real, resolvable component but never
+    showing its app version at all (real case: "### openbao 0.28.4" —
+    add_missing_component_rows' own chart-only TODO-stub shape, written
+    back when actual_app_version couldn't resolve anything yet) must be
+    flagged once that version DOES become resolvable — a stale heading
+    like this is never rewritten automatically (fix-doc-consistency
+    never touches an EXISTING section's own text), so nothing else would
+    ever catch it going stale."""
+    chart_dir, doc_dir = order_chart_dir
+    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
+        order_doc([ZAAK_ROW, INWONER_ROW], ["Open Zaak bump", "Open Inwoner bump 2.4.2 → 2.4.2"]))
+    ok, detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline=None)
+    assert ok is False
+    assert "mismatch" in detail
+    out = capsys.readouterr().out
+    assert '"## Changes" section "### Open Zaak bump" is missing the primary-image app version ' \
+           'in its own heading — values.yaml shows "1.27.4"' in out
+    assert 'section "### Open Inwoner bump 2.4.2 → 2.4.2" is missing the primary-image app version' not in out
+
+
 def test_plus_in_heading_not_naming_two_real_components_still_resolves_normally(vp, order_chart_dir, capsys):
     """A literal "+" in a heading isn't itself the signal — assessment
     never splits on it at all. Here only "Open Zaak" names a real
@@ -889,7 +910,8 @@ def test_plus_in_heading_not_naming_two_real_components_still_resolves_normally(
     single-component heading."""
     chart_dir, doc_dir = order_chart_dir
     (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
-        order_doc([ZAAK_ROW, INWONER_ROW], ["Open Zaak bump + misc cleanup", "Open Inwoner bump"]))
+        order_doc([ZAAK_ROW, INWONER_ROW],
+                  ["Open Zaak bump 1.27.4 → 1.27.4 + misc cleanup", "Open Inwoner bump 2.4.2 → 2.4.2"]))
     ok, detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline=None)
     assert ok is True, detail
     out = capsys.readouterr().out
