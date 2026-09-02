@@ -56,6 +56,12 @@ COMPONENT_IMAGE_PATHS = {
     # the chart's own appVersion default) — image_paths_for callers still
     # resolve a real repository from that override alone.
     "openbao": ["server.image"],
+    # ITA has no single "app" image at all — web and poller are two
+    # co-equal images, same lockstep shape as zgw-office-addin's own
+    # frontend+backend split (both happen to share one version here, but
+    # that's not guaranteed by the chart itself, hence listing both
+    # rather than picking one as "the" primary).
+    "internetaakafhandeling": ["web.image", "poller.image"],
 }
 DEFAULT_IMAGE_PATHS = ["image"]
 
