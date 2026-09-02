@@ -168,3 +168,40 @@ openzaak:
     out = capsys.readouterr().out
     assert "redis-operator.redis-ha.image" in out
     assert "openzaak.image" in out
+
+
+def test_multiple_paths_sharing_the_same_repository_are_all_resolved(vp, tmp_path):
+    """Regression test: several own-override paths that happen to pin
+    the EXACT same repository (e.g. a shared nginx image aliased via a
+    YAML anchor across multiple components) must each be recognized as
+    resolved independently — an earlier implementation reused
+    lib.chart.repository_path_map's own output, which is keyed by the
+    repository string and silently collapses down to a single survivor
+    whenever more than one path shares one, wrongly flagging every
+    other path sharing that repository as "missing" even though each
+    one's own values.yaml content has a perfectly real repository set."""
+    write_chart_yaml(tmp_path, [
+        make_dep("openarchiefbeheer", "2.0.0"),
+        make_dep("openklant", "1.11.0"),
+        make_dep("openformulieren", "1.12.0"),
+    ])
+    write_values_yaml(tmp_path, f"""\
+openarchiefbeheer:
+  nginx:
+    image:
+      repository: nginxinc/nginx-unprivileged
+      tag: "1.31.4@sha256:{DIGEST_A}"
+openklant:
+  nginx:
+    image:
+      repository: nginxinc/nginx-unprivileged
+      tag: "1.31.4@sha256:{DIGEST_A}"
+openformulieren:
+  nginx:
+    image:
+      repository: nginxinc/nginx-unprivileged
+      tag: "1.31.4@sha256:{DIGEST_A}"
+""")
+    ok, detail = vp.check_image_repository(tmp_path)
+    assert ok is True, detail
+    assert detail == "0 missing repository"
