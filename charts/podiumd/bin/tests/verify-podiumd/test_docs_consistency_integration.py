@@ -442,6 +442,91 @@ def test_sidecar_row_with_old_style_phrasing_is_flagged_as_wrong_phrasing(vp, re
             'dependency or a canonical sidecar/shared-image name') in out
 
 
+def test_sidecar_with_no_row_at_all_is_caught_as_missing(vp, redis_sidecar_chart_repo, capsys):
+    """A changed sidecar image with NO row at all — not even a wrongly-
+    phrased one — must still be flagged: the dependency's own row
+    doesn't exist here either, so the existing "component changed but
+    has no row" check (which only tracks top-level keys) has nothing to
+    anchor on; this needs its own per-sidecar-path check."""
+    doc = redis_sidecar_chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
+    doc.write_text(
+        "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n\n"
+        "See [`4.8.5-to-4.9.0-values-deltas.md`](4.8.5-to-4.9.0-values-deltas.md).\n"
+    )
+
+    ok, detail = vp.check_docs_consistency(redis_sidecar_chart_repo, upgrade_docs_baseline="4.8.5")
+
+    assert ok is False
+    out = capsys.readouterr().out
+    assert ('4.8.5-to-4.9.0-upgrade.md: sidecar/shared image "redis-operator - redis" changed vs '
+            'podiumd-4.8.5 but has no row in the "Component versions" table') in out
+
+
+REDIS_TWO_IMAGES_VALUES_TMPL = (
+    "redis-operator:\n"
+    "  redis-ha:\n"
+    "    image:\n"
+    "      repository: quay.io/opstree/redis\n"
+    '      tag: "{redis_tag}@sha256:aaaa"\n'
+    "    redisExporter:\n"
+    "      image:\n"
+    "        repository: quay.io/opstree/redis-exporter\n"
+    '        tag: "{exporter_tag}@sha256:bbbb"\n'
+)
+
+
+def test_unchanged_sidecar_with_no_row_is_not_flagged(vp, tmp_path, capsys):
+    """Only the sidecar image that actually CHANGED vs baseline gets
+    flagged as missing a row — a sibling sidecar with no row of its own
+    but an UNCHANGED tag is correctly left alone, same "only report a
+    real gap" rule the top-level "component changed but has no row"
+    check already follows."""
+    repo_root = tmp_path
+    chart_dir = repo_root / "charts" / "podiumd"
+    doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
+    images_dir = chart_dir / "docs" / "images"
+    for d in (doc_dir, images_dir):
+        d.mkdir(parents=True)
+
+    git("init", "-q", cwd=repo_root)
+    git("config", "user.email", "test@example.com", cwd=repo_root)
+    git("config", "user.name", "Test", cwd=repo_root)
+
+    (chart_dir / "Chart.yaml").write_text(REDIS_CHART_YAML)
+    (chart_dir / "values.yaml").write_text(
+        REDIS_TWO_IMAGES_VALUES_TMPL.format(redis_tag="8.6.2", exporter_tag="1.82.0"))
+    git("add", "-A", cwd=repo_root)
+    git("commit", "-q", "-m", "baseline", cwd=repo_root)
+    git("tag", "podiumd-4.8.5", cwd=repo_root)
+
+    # redis-ha's own redis image changes; redisExporter does not.
+    (chart_dir / "values.yaml").write_text(
+        REDIS_TWO_IMAGES_VALUES_TMPL.format(redis_tag="8.6.6", exporter_tag="1.82.0"))
+    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
+        "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| redis-operator - redis | 8.6.2 → 8.6.6 | - | ACR mirror only |\n\n"
+        "See [`4.8.5-to-4.9.0-values-deltas.md`](4.8.5-to-4.9.0-values-deltas.md).\n"
+    )
+    (doc_dir / "4.8.5-to-4.9.0-gemeente-specific.md").write_text(REDIS_GEMEENTE_DOC.format(baseline="4.8.5"))
+    (doc_dir / "4.8.5-to-4.9.0-values-deltas.md").write_text(
+        REDIS_VALUES_DELTAS_DOC.format(baseline="4.8.5", app_source="8.6.2", app_target="8.6.6"))
+    (images_dir / "images-4.9.0.yaml").write_text(
+        REDIS_IMAGES_MANIFEST.format(baseline="4.8.5", app_source="8.6.2", app_target="8.6.6"))
+    git("add", "-A", cwd=repo_root)
+    git("commit", "-q", "-m", "bump redis-ha's redis image only", cwd=repo_root)
+
+    vp.check_docs_consistency(chart_dir, upgrade_docs_baseline="4.8.5")
+
+    out = capsys.readouterr().out
+    assert "redis-operator - redis-exporter" not in out
+
+
 def test_chart_only_component_with_no_app_image_is_not_flagged(vp, chart_repo, capsys):
     """A component genuinely without an app image of its own (not in
     lib.chart.COMPONENT_IMAGE_PATHS, and no plain "image" key either)
