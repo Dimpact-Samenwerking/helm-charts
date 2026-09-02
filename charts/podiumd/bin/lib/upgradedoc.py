@@ -410,6 +410,24 @@ def find_changes_row_correspondence_gaps(rows, headings, deps, canonical_names):
     return rows_without_heading, headings_without_row
 
 
+def find_combined_changes_headings(headings, deps, canonical_names):
+    """"### ..." Changes headings that join two or more components at once
+    via " + " (e.g. "ECK Operator 3.4.0 → 3.5.0 + ECK Stack (kiss-eck)
+    0.19.0 → 0.20.0") — reported here as its own finding, even though
+    changes_heading_identities/find_changes_row_correspondence_gaps
+    still resolve both sides and treat the heading as documenting both
+    components (so combining them never also produces a spurious "row
+    has no matching section" finding for whichever component doesn't
+    happen to win a single-heading match). Each component is meant to
+    get its own "### ..." section. Only a "+" that actually separates
+    two or more REAL, distinct components is reported — plain prose
+    that happens to contain the word "and"/a literal "+" for some other
+    reason never resolves to more than one identity and is left alone.
+    Returns the original heading text for every combined one found."""
+    return [heading for heading in headings
+            if len(changes_heading_identities(heading, deps, canonical_names)) > 1]
+
+
 def is_exact_dependency_match(name, dep):
     """True if `name`, normalized (case/punctuation-insensitive), equals
     `dep`'s own name or alias EXACTLY — not just a fuzzy word-span
