@@ -943,15 +943,16 @@ KEY_ORDER = ["openzaak", "zac", "openinwoner"]
 
 
 def test_component_order_key_matches_by_alias(libupgradedoc):
-    assert libupgradedoc.component_order_key("ZAC", DEPS, KEY_ORDER) == 1
+    assert libupgradedoc.component_order_key("ZAC", DEPS, KEY_ORDER) == (1, 0)
 
 
 def test_component_order_key_matches_free_form_name(libupgradedoc):
-    assert libupgradedoc.component_order_key("Open Zaak", DEPS, KEY_ORDER) == 0
+    assert libupgradedoc.component_order_key("Open Zaak", DEPS, KEY_ORDER) == (0, 0)
 
 
 def test_component_order_key_unmatched_name_sorts_after_every_real_component(libupgradedoc):
-    assert libupgradedoc.component_order_key("nginx-unprivileged (shared sidecar)", DEPS, KEY_ORDER) == len(KEY_ORDER)
+    assert libupgradedoc.component_order_key("nginx-unprivileged (shared sidecar)", DEPS, KEY_ORDER) \
+        == (len(KEY_ORDER), 0)
 
 
 def test_component_order_key_matched_dep_not_in_key_order_sorts_last(libupgradedoc):
@@ -960,7 +961,20 @@ def test_component_order_key_matched_dep_not_in_key_order_sorts_last(libupgraded
     placed meaningfully -- falls back to the same "sorts last" sentinel as
     an unmatched name."""
     deps = [{"name": "totallyabsent", "version": "1.0.0"}]
-    assert libupgradedoc.component_order_key("TotallyAbsent", deps, KEY_ORDER) == len(KEY_ORDER)
+    assert libupgradedoc.component_order_key("TotallyAbsent", deps, KEY_ORDER) == (len(KEY_ORDER), 0)
+
+
+def test_component_order_key_sidecar_sorts_after_its_own_parent_row(libupgradedoc):
+    """A canonical sidecar name ("<parent> - <basename>") always resolves
+    to the SAME values_key_index as its owning dependency's own row via
+    match_dependency's fuzzy word-containment — the " - " secondary bit
+    is what keeps the sidecar from sorting before (or, without any
+    tie-break, merely wherever it already happened to be — Python's sort
+    is stable) its own parent."""
+    assert libupgradedoc.component_order_key("redis-operator", DEPS + [
+        {"name": "redis-operator", "version": "0.26.0"}], KEY_ORDER + ["redis-operator"]) == (3, 0)
+    assert libupgradedoc.component_order_key("redis-operator - redis", DEPS + [
+        {"name": "redis-operator", "version": "0.26.0"}], KEY_ORDER + ["redis-operator"]) == (3, 1)
 
 
 # --- find_out_of_order_names ---

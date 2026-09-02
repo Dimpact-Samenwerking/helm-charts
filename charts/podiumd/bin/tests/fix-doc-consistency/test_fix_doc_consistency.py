@@ -1530,6 +1530,52 @@ def test_main_already_ordered_doc_reports_no_reordering(cdb, repo_with_out_of_or
     assert "Reordering" not in out
 
 
+def test_main_reorders_a_sidecar_row_to_come_after_its_own_parent_row(cdb, tmp_path, monkeypatch, capsys):
+    """A canonical sidecar row ("redis-operator - redis") resolves to the
+    SAME values_key_index as its owning dependency's own row ("redis-
+    operator") via match_dependency's fuzzy word-containment — before the
+    " - " secondary tie-break, two same-key items just kept whatever
+    relative order they already had (Python's sort is stable), silently
+    tolerating a sidecar appearing BEFORE its own parent. Here the doc
+    starts with the sidecar row first; it must end up after."""
+    git("init", "-q", cwd=tmp_path)
+    git("config", "user.email", "test@example.com", cwd=tmp_path)
+    git("config", "user.name", "Test", cwd=tmp_path)
+
+    write(tmp_path / "Chart.yaml", yaml.safe_dump({
+        "dependencies": [{"name": "redis-operator", "version": "0.26.1", "repository": "@opstree"}],
+    }))
+    write(tmp_path / "values.yaml", yaml.safe_dump({
+        "redis-operator": {"redis-ha": {"image": {
+            "repository": "quay.io/opstree/redis", "tag": "8.6.6@sha256:aaaa"}}},
+    }))
+    doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
+    doc_dir.mkdir(parents=True)
+    (tmp_path / "docs" / "images").mkdir(parents=True)
+    write(doc_dir / "4.8.3-to-4.9.0-upgrade.md",
+          "# Upgrade guide: PodiumD 4.8.3 → 4.9.0\n\n"
+          "## Component versions (4.9.0 vs 4.8.3)\n\n"
+          "| Component | App version | Helm chart | Notes |\n"
+          "| --- | --- | --- | --- |\n"
+          "| redis-operator - redis | 8.6.2 → 8.6.6 | - | - |\n"
+          "| redis-operator | 0.26.1 (unchanged) | 0.26.1 (unchanged) | - |\n")
+    git("add", "-A", cwd=tmp_path)
+    git("commit", "-q", "-m", "seed sidecar-before-parent doc", cwd=tmp_path)
+
+    set_argv_and_dir(cdb, monkeypatch, doc_dir, "4.8.3")
+    cdb.main()
+
+    upgrade = (doc_dir / "4.8.3-to-4.9.0-upgrade.md").read_text(encoding="utf-8")
+    lines = upgrade.splitlines()
+    table_rows = [l for l in lines if l.startswith("| redis-operator")]
+    assert table_rows == [
+        "| redis-operator | 0.26.1 (unchanged) | 0.26.1 (unchanged) | - |",
+        "| redis-operator - redis | 8.6.2 → 8.6.6 | - | - |",
+    ]
+    out = capsys.readouterr().out
+    assert "Reordering" in out
+
+
 # --- main() print formatting: multi-item lists split one per line, not comma-joined ---
 
 def test_main_reports_unmatched_components_one_per_line(cdb, repo, monkeypatch, capsys):

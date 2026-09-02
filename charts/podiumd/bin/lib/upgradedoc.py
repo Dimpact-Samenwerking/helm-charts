@@ -52,22 +52,34 @@ def values_key_order(values):
 
 def component_order_key(name, deps, key_order):
     """A doc item's (table row name, or "### ..." Changes heading) sort
-    position: the values.yaml top-level key match_dependency resolves
-    `name` to, as its index in key_order — or len(key_order) (sorts after
-    every real component) when `name` doesn't resolve to a single
-    Chart.yaml dependency at all (e.g. a row summarizing several
-    shared-image components at once, or free-form prose that doesn't name
-    one). Shared by the docs-consistency out-of-order check and
-    fix-doc-consistency's own reordering passes, so "what order should this
-    be in" is answered exactly once."""
+    position: (values_key_index, is_sidecar) — values_key_index is the
+    values.yaml top-level key match_dependency resolves `name` to, as its
+    index in key_order, or len(key_order) (sorts after every real
+    component) when `name` doesn't resolve to a single Chart.yaml
+    dependency at all (e.g. a row summarizing several shared-image
+    components at once, or free-form prose that doesn't name one).
+    is_sidecar (0 or 1) is a secondary tie-break: a canonical sidecar/
+    shared-image name always contains " - " (see lib.chart.
+    canonical_sidecar_row_names — "<parent> - <basename>", the only shape
+    that ever does), so it always sorts right AFTER its owning
+    dependency's own row/section even though match_dependency's fuzzy
+    word-containment resolves BOTH to the very same values_key_index —
+    without this bit, two same-key items keep whatever relative order
+    they already happened to have in the doc (Python's sort is stable),
+    which silently tolerated a sidecar appearing BEFORE its own parent.
+    A tuple compares lexicographically, so this is a drop-in replacement
+    for the plain int this used to return. Shared by the docs-consistency
+    out-of-order check and fix-doc-consistency's own reordering/insertion
+    passes, so "what order should this be in" is answered exactly once."""
     dep = match_dependency(name, deps)
     values_key = dep.get("alias", dep["name"]) if dep else None
+    is_sidecar = 1 if " - " in name else 0
     if values_key is None:
-        return len(key_order)
+        return (len(key_order), is_sidecar)
     try:
-        return key_order.index(values_key)
+        return (key_order.index(values_key), is_sidecar)
     except ValueError:
-        return len(key_order)
+        return (len(key_order), is_sidecar)
 
 
 def find_out_of_order_names(names, deps, key_order):
