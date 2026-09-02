@@ -65,9 +65,11 @@ trip:
      triggered by any values.yaml edit at all, version bump or not
   11. every *.md file under charts/podiumd/ (this chart's own docs, not a
       vendored sub-chart's) is linted with pymarkdown, MD013 (line-length)
-      disabled — same call as step 16's own line-length: disable, tables/
-      links/prose routinely exceed it, pure noise, and it alone accounts
-      for the vast majority of this repo's current findings. Report-only,
+      and MD014 (commands-show-output) disabled — same call as step 16's
+      own line-length: disable, tables/links/prose routinely exceed
+      MD013, pure noise, and it alone accounts for the vast majority of
+      this repo's current findings; MD014 is disabled per the user's own
+      request (see lib.markdown_check's module docstring). Report-only,
       never fails on a finding: this repo's docs predate any markdown-
       style convention, so failing the build the moment this check starts
       existing would just make it permanently red instead of catching

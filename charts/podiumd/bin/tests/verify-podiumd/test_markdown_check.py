@@ -190,7 +190,7 @@ def test_findings_are_report_only_never_fail(libmarkdowncheck, vp, tmp_path, mon
     assert "docs/foo.md:1:1  First line in file should be a top level heading" in out
 
 
-def test_disables_line_length_rule(libmarkdowncheck, vp, tmp_path, monkeypatch):
+def test_disables_line_length_and_commands_show_output_rules(libmarkdowncheck, vp, tmp_path, monkeypatch):
     chart_dir = make_chart_dir(tmp_path, files={"docs/foo.md": "# a\n"})
     monkeypatch.setattr(libmarkdowncheck, "find_pymarkdown", lambda chart_dir: "/usr/local/bin/pymarkdown")
     captured = {}
@@ -202,7 +202,7 @@ def test_disables_line_length_rule(libmarkdowncheck, vp, tmp_path, monkeypatch):
     monkeypatch.setattr(libmarkdowncheck, "run", fake_run)
     vp.check_markdown(chart_dir)
 
-    assert captured["cmd"][:4] == ["/usr/local/bin/pymarkdown", "-d", "md013", "scan"]
+    assert captured["cmd"][:4] == ["/usr/local/bin/pymarkdown", "-d", "md013,md014", "scan"]
     assert str(chart_dir / "docs" / "foo.md") in captured["cmd"]
 
 
