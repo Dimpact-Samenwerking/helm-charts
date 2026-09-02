@@ -245,3 +245,46 @@ def test_images_manifest_format_changes_item_matching_neither_dep_nor_entry_stil
     issues = libdocsconsistency.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, {})
     assert any('Totally Unknown Thing" — no matching Chart.yaml dependency or images-manifest entry' in i
                for i in issues)
+
+
+# --- exact-vs-fuzzy Changes item collision (real-world case: "Kiss's
+# ECK-managed Elasticsearch/..." fuzzy-matching the real "kiss" dependency
+# even though an exact "KISS ..." item already legitimately claims it) ---
+
+KISS_MANIFEST = """\
+# Baseline: podiumd 4.8.5 (origin/feature/podiumd-4.8.5 @ f27a008).
+#
+# Images new or changed in podiumd 4.9.0 vs 4.8.5.
+#
+# Changes:
+#   1. Kiss's ECK-managed Elasticsearch/Kibana/Enterprise Search 8.19.3 -> 8.19.19
+#      (16-patch bump on the same 8.19.x branch, all three components in lockstep).
+#   2. KISS 2.2.4 -> 3.0.0.
+#
+# See docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md for the operator upgrade notes.
+
+[]
+"""
+
+KISS_DEPS = [make_dep("kiss-chart", "3.0.0", alias="kiss")]
+KISS_VALUES = {"kiss": {"image": {"tag": "3.0.0@sha256:bbb"}}}
+
+
+def test_images_manifest_format_exact_item_wins_over_fuzzy_changes_item(libdocsconsistency, tmp_path):
+    """Regression test: item "Kiss's ECK-managed Elasticsearch/Kibana/
+    Enterprise Search 8.19.3 -> 8.19.19" fuzzy-matches the real "kiss"
+    dependency on the word "kiss" (there's also an exact "KISS 2.2.4 ->
+    3.0.0" item) and used to be compared against kiss's own unrelated
+    actual app version (3.0.0), producing a bogus mismatch. Now it's
+    reported as wrong/stale instead, and the exact item passes cleanly."""
+    images_path = tmp_path / "images-4.9.0.yaml"
+    images_path.write_text(KISS_MANIFEST)
+    issues = libdocsconsistency.check_images_manifest_format(
+        images_path, "4.8.5", "4.9.0", KISS_DEPS, KISS_VALUES, {})
+    assert any(
+        'Changes item "Kiss\'s ECK-managed Elasticsearch/Kibana/Enterprise Search" is wrong or stale '
+        '— not found in Chart.yaml or values.yaml' in i
+        for i in issues
+    )
+    assert not any("8.19.19" in i for i in issues)
+    assert not any(i.startswith('images-4.9.0.yaml: Changes item "KISS"') for i in issues)

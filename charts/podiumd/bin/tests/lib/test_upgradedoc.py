@@ -513,6 +513,86 @@ def test_parse_changes_block_version_with_dot_not_mistaken_for_new_item(libupgra
     assert items[1]["app"] == "5.4.3"
 
 
+def test_parse_changes_block_joins_a_wrapped_version_pair(libupgradedoc):
+    """Regression test: an item whose own "<source> -> <target>" pair
+    sits on a WRAPPED continuation line (not the numbered line itself)
+    used to be silently unparseable — extract_source_version/
+    extract_target_version's own "no arrow found" fallback grabbed the
+    item's own leading word ("nginx-unprivileged") as a fake version,
+    since the numbered line alone never had an arrow in it at all."""
+    text = (
+        "# Changes:\n"
+        "#   21. nginx-unprivileged (shared global.images.nginx anchor, used by every\n"
+        "#      nginx sidecar in the chart) 1.31.3 -> 1.31.4.\n"
+        "#\n"
+        "# See docs/_UPGRADE_PATHS/...\n"
+    )
+    items = libupgradedoc.parse_changes_block(text)
+    assert len(items) == 1
+    assert items[0]["name"] == (
+        "nginx-unprivileged (shared global.images.nginx anchor, used by every "
+        "nginx sidecar in the chart)"
+    )
+    assert items[0]["app_source"] == "1.31.3"
+    assert items[0]["app"] == "1.31.4"  # not "1.31.4." — trailing sentence period stripped
+
+
+def test_parse_changes_block_joins_a_wrapped_chart_version(libupgradedoc):
+    """The same continuation-joining fixes a second, previously silent
+    gap: a "(chart ...)" span whose own closing paren is on the wrapped
+    line never matched at all before (chart_source/chart just stayed
+    None, so the chart comparison was silently skipped rather than
+    actually verified)."""
+    text = (
+        "# Changes:\n"
+        "#   1. ZAC 5.0.2 -> 5.4.4 (chart 1.0.297, unchanged — the chart line was\n"
+        "#      already bumped ahead of the image in the 4.8.5 hop).\n"
+    )
+    items = libupgradedoc.parse_changes_block(text)
+    assert len(items) == 1
+    assert items[0]["chart_source"] == "1.0.297"
+    assert items[0]["chart"] == "1.0.297"
+
+
+def test_parse_changes_block_strips_trailing_sentence_period_even_on_a_single_line(libupgradedoc):
+    """The trailing-period fix isn't specific to wrapped items — any
+    Changes item whose version is the last thing before its own
+    sentence-ending period, single-line or not, must have it stripped."""
+    text = "# Changes:\n#   1. curl 8.20.0 -> 8.21.0.\n"
+    items = libupgradedoc.parse_changes_block(text)
+    assert len(items) == 1
+    assert items[0]["app_source"] == "8.20.0"
+    assert items[0]["app"] == "8.21.0"
+
+
+def test_parse_changes_block_trailing_remark_does_not_get_absorbed_into_last_item(libupgradedoc):
+    """A trailing "# See docs/..." remark right after the last item, with
+    no blank "#" line separating them, must never be swallowed into that
+    item's own text — it's indented with the ordinary single-space
+    comment convention, not the 2+-space continuation indent, so it's
+    distinguishable from a real wrapped continuation line."""
+    text = (
+        "# Changes:\n"
+        "#   1. ZAC 5.0.2 -> 5.4.3\n"
+        "# See docs/_UPGRADE_PATHS/...\n"
+    )
+    items = libupgradedoc.parse_changes_block(text)
+    assert len(items) == 1
+    assert items[0]["name"] == "ZAC"
+    assert "See docs" not in items[0]["name"]
+
+
+def test_parse_changes_block_last_item_with_no_trailing_hash_line_still_finalizes(libupgradedoc):
+    """The very last item in the block, with nothing at all following it
+    (no blank "#" line, no trailing remark, file just ends) must still
+    be finalized — not silently dropped because there was no later line
+    to trigger it."""
+    text = "# Changes:\n#   1. ZAC 5.0.2 -> 5.4.3"
+    items = libupgradedoc.parse_changes_block(text)
+    assert len(items) == 1
+    assert items[0]["name"] == "ZAC"
+
+
 # --- canonical_version_cell ---
 
 def test_canonical_version_cell_arrow_form(libupgradedoc):
