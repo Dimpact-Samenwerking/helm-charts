@@ -850,6 +850,65 @@ def test_main_adds_todo_stub_section_when_row_has_no_app_version(
     assert "TODO: describe this component's changes" in upgrade
 
 
+def test_main_updates_a_changes_heading_missing_its_app_version(cdb, tmp_path, monkeypatch):
+    """Regression test: the real openbao case — a "### ..." heading
+    written back when actual_app_version couldn't resolve anything yet
+    (chart-only, add_missing_component_rows' own TODO-stub shape) is
+    regenerated once that version DOES become resolvable (here: via the
+    vendored-chart appVersion fallback for a component registered in
+    COMPONENT_IMAGE_PATHS) — built from the row's own already-correct
+    cells, same template add_missing_changes_sections itself uses. The
+    old heading's own body text is discarded; there's no reliable way to
+    tell which part of it was ever accurate."""
+    import io
+    import tarfile
+
+    from lib.chart import COMPONENT_IMAGE_PATHS
+    monkeypatch.setitem(COMPONENT_IMAGE_PATHS, "widget", ["image"])
+
+    git("init", "-q", cwd=tmp_path)
+    git("config", "user.email", "test@example.com", cwd=tmp_path)
+    git("config", "user.name", "Test", cwd=tmp_path)
+
+    write(tmp_path / "Chart.yaml", yaml.safe_dump({
+        "dependencies": [{"name": "widget", "version": "2.0.0", "repository": "@example"}],
+    }))
+    write(tmp_path / "values.yaml", yaml.safe_dump({
+        "widget": {"image": {"repository": "example/widget", "tag": ""}},
+    }))
+    doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
+    doc_dir.mkdir(parents=True)
+    (tmp_path / "docs" / "images").mkdir(parents=True)
+
+    charts_dir = tmp_path / "charts"
+    charts_dir.mkdir()
+    with tarfile.open(charts_dir / "widget-2.0.0.tgz", "w:gz") as tar:
+        chart_data = yaml.safe_dump({"apiVersion": "v2", "version": "2.0.0", "appVersion": "9.9.9"}).encode("utf-8")
+        info = tarfile.TarInfo(name="widget/Chart.yaml")
+        info.size = len(chart_data)
+        tar.addfile(info, io.BytesIO(chart_data))
+
+    write(doc_dir / "4.8.5-to-4.9.0-upgrade.md",
+          "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+          "## Component versions (4.9.0 vs 4.8.5)\n\n"
+          "| Component | App version | Helm chart | Notes |\n"
+          "| --- | --- | --- | --- |\n"
+          "| widget | 9.9.9 (unchanged) | 2.0.0 (unchanged) | - |\n\n"
+          "## Changes\n\n"
+          "### widget 2.0.0\n\n"
+          "TODO: describe this component's changes — its app version could not be resolved automatically.\n\n")
+    git("add", "-A", cwd=tmp_path)
+    git("commit", "-q", "-m", "seed doc with a stale chart-only heading", cwd=tmp_path)
+
+    set_argv_and_dir(cdb, monkeypatch, doc_dir, "4.8.5")
+    cdb.main()
+
+    upgrade = (doc_dir / "4.8.5-to-4.9.0-upgrade.md").read_text(encoding="utf-8")
+    assert "### widget 9.9.9 → 9.9.9 (chart 2.0.0, unchanged)" in upgrade
+    assert "TODO: describe this component's changes" not in upgrade
+    assert "### widget 2.0.0\n" not in upgrade
+
+
 def test_main_adds_sections_for_both_rows_named_by_a_two_component_heading(
         cdb, repo_with_undocumented_sidecar_bump, monkeypatch, capsys):
     """A "### ..." heading naming two components at once (real case:
@@ -1486,9 +1545,9 @@ def repo_with_out_of_order_doc(tmp_path):
           "| Open Inwoner | 2.4.2 | 2.4.0 | - |\n"
           "| Open Zaak | 1.27.4 | 1.14.2 | - |\n\n"
           "## Changes\n\n"
-          "### Open Inwoner 2.4.2\n\n"
+          "### Open Inwoner 2.4.2 → 2.4.2\n\n"
           "Inwoner details.\n\n"
-          "### Open Zaak 1.27.4\n\n"
+          "### Open Zaak 1.27.4 → 1.27.4\n\n"
           "Zaak details.\n")
     git("add", "-A", cwd=tmp_path)
     git("commit", "-q", "-m", "seed out-of-order doc", cwd=tmp_path)
@@ -1509,7 +1568,7 @@ def test_main_reorders_table_and_changes_to_match_values_yaml(cdb, repo_with_out
     out = capsys.readouterr().out
     assert "Reordering" in out
     assert "table row 'Open Zaak': position 2 -> 1" in out
-    assert "changes block '### Open Zaak 1.27.4': position 2 -> 1" in out
+    assert "changes block '### Open Zaak 1.27.4 → 1.27.4': position 2 -> 1" in out
 
 
 def test_main_already_ordered_doc_reports_no_reordering(cdb, repo_with_out_of_order_doc, monkeypatch, capsys):
