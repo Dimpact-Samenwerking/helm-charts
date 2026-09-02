@@ -134,6 +134,40 @@ def test_unmatched_row_is_reported_as_a_wrong_phrasing_mismatch(vp, chart_repo, 
             'or a canonical sidecar/shared-image name') in out
 
 
+def test_duplicate_row_names_are_reported(vp, chart_repo, capsys):
+    """Two rows with the literal same name are always wrong, whatever
+    they resolve to — a leftover/typo'd duplicate."""
+    doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
+    doc.write_text(doc.read_text() + "| ZAC (Zaakafhandelcomponent) | 5.0.2 → 5.4.3 | 1.0.297 (unchanged) | dup |\n")
+
+    ok, detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
+
+    assert ok is False
+    out = capsys.readouterr().out
+    assert ('4.8.5-to-4.9.0-upgrade.md: doc row "ZAC (Zaakafhandelcomponent)" appears more than once '
+            'in the "Component versions" table') in out
+
+
+def test_exact_dependency_match_wins_over_a_fuzzy_duplicate_claim(vp, chart_repo, capsys):
+    """A row that only fuzzy-matches a real dependency (e.g. the real-
+    world "Kiss Elasticsearch" row fuzzy-matching "kiss") must be
+    flagged as wrong once ANOTHER row exactly names that same
+    dependency — even when the fuzzy row's own app/chart cells already
+    happen to equal the dependency's own actual version, so the
+    ordinary per-row content check alone would never catch it."""
+    doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
+    doc.write_text(doc.read_text() + "| zac | 5.0.2 → 5.4.3 | 1.0.297 (unchanged) | exact match |\n")
+
+    ok, detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
+
+    assert ok is False
+    out = capsys.readouterr().out
+    assert ('4.8.5-to-4.9.0-upgrade.md: doc row "ZAC (Zaakafhandelcomponent)" only fuzzy-matches '
+            'Chart.yaml dependency "zac", which is already exactly named by row "zac"') in out
+    # The exact row itself, with correct data, is never flagged.
+    assert 'doc row "zac" ' not in out
+
+
 def test_wrong_target_version_in_doc_is_caught(vp, chart_repo):
     doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
     doc.write_text(UPGRADE_DOC.format(baseline="4.8.5", app_source="5.0.2", app_target="5.9.9"))

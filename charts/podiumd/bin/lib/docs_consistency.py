@@ -15,10 +15,10 @@ from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, 
 from lib.upgradedoc import (
     actual_app_version, compute_changed_components, diff_keys, extract_mentioned_dependency_keys,
     extract_source_version, extract_target_version, find_grouped_preceding_comment,
-    find_image_tag_paths, find_out_of_order_names, match_dependency, match_dependency_excluding_sidecar_names,
-    normalize_version, pair_renames, parse_changes_block, parse_upgrade_doc_changes_blocks,
-    parse_upgrade_doc_rows as _parse_upgrade_doc_rows, resolve_entry_path, strip_fenced_code_blocks,
-    values_key_order,
+    find_image_tag_paths, find_out_of_order_names, is_exact_dependency_match, match_dependency,
+    match_dependency_excluding_sidecar_names, normalize_version, pair_renames, parse_changes_block,
+    parse_upgrade_doc_changes_blocks, parse_upgrade_doc_rows as _parse_upgrade_doc_rows, resolve_entry_path,
+    strip_fenced_code_blocks, values_key_order,
 )
 
 
@@ -434,7 +434,63 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
         canonical_names = canonical_sidecar_row_names(chart_dir, deps, values, current_paths.keys())
         matched_sidecar_paths = set()
 
-        for row in parse_upgrade_doc_rows(doc_path):
+        rows = list(parse_upgrade_doc_rows(doc_path))
+
+        # Two more deterministic gaps, checked once up front before the
+        # main per-row pass below:
+        #
+        # 1. Two rows with the literal same name are always wrong,
+        #    whatever they resolve to — one is a leftover/typo'd
+        #    duplicate.
+        # 2. Once one row EXACTLY names a real Chart.yaml dependency (see
+        #    is_exact_dependency_match — "KISS", not just "mentions kiss
+        #    somewhere"), no OTHER row may still claim that same
+        #    dependency merely by match_dependency's fuzzy word-
+        #    containment. Real case this catches: a stale "Kiss
+        #    Elasticsearch" row fuzzy-matched the real "kiss" dependency
+        #    and happened to already show its current actual app/chart
+        #    version, so the ordinary per-row check below found nothing
+        #    wrong — even though the row doesn't correspond to anything
+        #    in Chart.yaml/values.yaml as its own tracked item at all.
+        name_counts = {}
+        for row in rows:
+            name_counts[row["name"]] = name_counts.get(row["name"], 0) + 1
+        duplicate_names = {name for name, count in name_counts.items() if count > 1}
+
+        exact_claims = {}  # values_key -> the row name that exactly claims it
+        for row in rows:
+            if row["name"] in duplicate_names:
+                continue
+            dep = match_dependency_excluding_sidecar_names(row["name"], deps)
+            if dep is not None and is_exact_dependency_match(row["name"], dep):
+                exact_claims[dep.get("alias", dep["name"])] = row["name"]
+
+        wrong_fuzzy_names = {}  # row name -> (values_key, exact row name)
+        for row in rows:
+            if row["name"] in duplicate_names or row["name"] in exact_claims.values():
+                continue
+            dep = match_dependency_excluding_sidecar_names(row["name"], deps)
+            if dep is None:
+                continue
+            key = dep.get("alias", dep["name"])
+            if key in exact_claims:
+                wrong_fuzzy_names[row["name"]] = (key, exact_claims[key])
+
+        for name in sorted(duplicate_names):
+            mismatches.append(
+                f'{doc_path.name}: doc row "{name}" appears more than once in the '
+                f'"Component versions" table'
+            )
+        for name, (key, exact_name) in sorted(wrong_fuzzy_names.items()):
+            mismatches.append(
+                f'{doc_path.name}: doc row "{name}" only fuzzy-matches Chart.yaml dependency '
+                f'"{key}", which is already exactly named by row "{exact_name}" — wrong or stale row'
+            )
+
+        for row in rows:
+            if row["name"] in duplicate_names or row["name"] in wrong_fuzzy_names:
+                continue
+
             # canonical_names is an EXACT lookup — checked first and, on a
             # hit, taken over match_dependency_excluding_sidecar_names
             # entirely. That helper (rather than plain match_dependency)
