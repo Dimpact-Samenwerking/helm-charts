@@ -18,15 +18,15 @@ last" rule already produces that with no special-casing needed here,
 since a bare basename never matches a Chart.yaml dependency by name."""
 import re
 
-from lib.chart import canonical_sidecar_row_names, get_path, image_paths_for, replace_scalar_value
+from lib.chart import canonical_sidecar_row_names, get_path, image_paths_for, replace_scalar_value, version_paths_for
 from lib.component_docs import (
     CHANGES_HEADER_RE, CHANGES_ITEM_RE, NUMBER_WORDS, dep_for_values_key, insert_changes_section,
     make_changes_section, remove_changes_section, update_component_table,
 )
 from lib.upgradedoc import (
-    extract_source_version, find_changes_row_correspondence_gaps, find_image_tag_paths,
-    find_preceding_comment_line, normalize_name, parse_upgrade_doc_changes_blocks, parse_upgrade_doc_rows,
-    replace_version_pair, resolve_component_identity,
+    changes_heading_identities, extract_source_version, find_changes_row_correspondence_gaps,
+    find_combined_changes_headings, find_image_tag_paths, find_preceding_comment_line, normalize_name,
+    parse_upgrade_doc_changes_blocks, parse_upgrade_doc_rows, replace_version_pair, resolve_component_identity,
 )
 
 
@@ -106,30 +106,61 @@ def add_missing_sidecar_rows(text, chart_dir, deps, target_values, baseline_valu
     return text, added_names
 
 
+def build_changes_section_for_row(row, ident, deps, target):
+    """The "### ..." Changes section for a single table row + its already-
+    resolved identity (see resolve_component_identity) — make_changes_
+    section for a real Chart.yaml dependency, make_image_changes_section
+    for a canonical sidecar/shared-image. Always built from the row's OWN
+    app/chart cells verbatim, never recomputed from actual_app_version or
+    a git baseline — the generated section can never disagree with what
+    the row right above it already visibly says. A row whose own app
+    cell has no resolvable target version at all (e.g. "-") gets a short
+    TODO-stub section instead of guessing at prose, the same fallback
+    add_missing_component_rows uses for the same reason. None if `ident`
+    names a "dep" identity whose Chart.yaml dependency can't be found
+    (shouldn't happen — ident was itself resolved against `deps`)."""
+    kind, value = ident
+    if row["app"] is None:
+        chart_bit = row["chart"] or row["chart_source"] or "-"
+        return (f"### {row['name']} {chart_bit}\n\n"
+                f"TODO: describe this component's changes — its app version could not be "
+                f"resolved from the table row.\n\n")
+    if kind == "dep":
+        dep = dep_for_values_key(deps, value)
+        if dep is None:
+            return None
+        # version_paths_for wins outright when registered — a component
+        # listed there (e.g. eck-stack's bare "...version:" fields, the
+        # ECK operator's own CRD convention) has no "{repository, tag}"
+        # block at all, so falling back to image_paths_for's generic
+        # DEFAULT_IMAGE_PATHS guess (the ordinary "<key>.image.tag"
+        # shape) would point the bullet at a path that doesn't exist.
+        version_paths = version_paths_for(dep["name"])
+        image_paths = [] if version_paths else image_paths_for(dep["name"])
+        return make_changes_section(
+            row["name"], target, dep["name"], value,
+            row["app_source"] or row["app"], row["app"],
+            row["chart_source"] or row["chart"] or str(dep["version"]), row["chart"] or str(dep["version"]),
+            image_paths, version_paths
+        )
+    dotted_path = ".".join(value) + ".tag"
+    return make_image_changes_section(
+        row["name"], target, row["app_source"] or row["app"], row["app"],
+        [(dotted_path, row["app_source"] or row["app"])]
+    )
+
+
 def add_missing_changes_sections(text, deps, target_values, target, canonical_names):
-    """Insert a "### ..." Changes section — using the SAME template
-    add_missing_component_rows/add_missing_sidecar_rows themselves use
-    (make_changes_section for a real Chart.yaml dependency,
-    make_image_changes_section for a canonical sidecar/shared-image) —
-    for every "Component versions" table row that already exists but has
-    no matching section of its own yet (see lib.upgradedoc.
+    """Insert a "### ..." Changes section (see build_changes_section_for_
+    row) for every "Component versions" table row that already exists
+    but has no matching section of its own yet (see lib.upgradedoc.
     find_changes_row_correspondence_gaps's own rows_without_heading, the
     same gap lib.docs_consistency.check_docs_consistency's "table row
-    ... has no matching "### ..." section" finding reports).
-
-    Unlike add_missing_component_rows/add_missing_sidecar_rows, this
-    never recomputes old/new versions from actual_app_version or a git
-    baseline — the row's OWN app/chart cells are used verbatim (already
-    corrected against Chart.yaml/values.yaml by fix_component_version_
-    table, earlier in the same fix-doc-consistency run, if they needed
-    it), so the generated section can never disagree with what the row
-    right above it already visibly says. A row resolving to neither a
-    real dependency nor a canonical sidecar is skipped (already reported
-    elsewhere as wrong/stale — see find_wrong_or_duplicate_dependency_
-    claims). A row whose own app cell has no resolvable target version
-    at all (e.g. "-") gets a short TODO-stub section instead of
-    guessing at prose, the same fallback add_missing_component_rows uses
-    for the same reason. Returns (new_text, added_names)."""
+    ... has no matching "### ..." section" finding reports). A row
+    resolving to neither a real dependency nor a canonical sidecar is
+    skipped (already reported elsewhere as wrong/stale — see find_
+    wrong_or_duplicate_dependency_claims). Returns (new_text,
+    added_names)."""
     rows = parse_upgrade_doc_rows(text)
     headings = [b["heading"] for b in parse_upgrade_doc_changes_blocks(text)]
     rows_without_heading, _ = find_changes_row_correspondence_gaps(rows, headings, deps, canonical_names)
@@ -144,34 +175,86 @@ def add_missing_changes_sections(text, deps, target_values, target, canonical_na
         ident = resolve_component_identity(row["name"], deps, canonical_names)
         if ident is None:
             continue
-        kind, value = ident
-
-        if row["app"] is None:
-            chart_bit = row["chart"] or row["chart_source"] or "-"
-            section = (f"### {row['name']} {chart_bit}\n\n"
-                       f"TODO: describe this component's changes — its app version could not be "
-                       f"resolved from the table row.\n\n")
-        elif kind == "dep":
-            dep = dep_for_values_key(deps, value)
-            if dep is None:
-                continue
-            section = make_changes_section(
-                row["name"], target, dep["name"], value,
-                row["app_source"] or row["app"], row["app"],
-                row["chart_source"] or row["chart"] or str(dep["version"]), row["chart"] or str(dep["version"]),
-                image_paths_for(dep["name"])
-            )
-        else:
-            dotted_path = ".".join(value) + ".tag"
-            section = make_image_changes_section(
-                row["name"], target, row["app_source"] or row["app"], row["app"],
-                [(dotted_path, row["app_source"] or row["app"])]
-            )
-
+        section = build_changes_section_for_row(row, ident, deps, target)
+        if section is None:
+            continue
         text = insert_changes_section(text, section, row["name"], deps, target_values)
         added_names.append(row["name"])
 
     return text, added_names
+
+
+def _remove_changes_block_by_exact_heading(text, heading):
+    """remove_changes_section, but matched by EXACT heading text instead
+    of fuzzy word-span containment — used for splitting a "+"-joined
+    combined heading (see split_combined_changes_headings), where the
+    heading to remove is already known precisely (from find_combined_
+    changes_headings) and a fuzzy match risks hitting the wrong block
+    entirely, since a combined heading's words necessarily overlap with
+    EVERY component it names. Returns (new_text, removed)."""
+    blocks = parse_upgrade_doc_changes_blocks(text)
+    block = next((b for b in blocks if b["heading"] == heading), None)
+    if block is None:
+        return text, False
+    lines = text.splitlines(keepends=True)
+    start, end = block["start"], block["end"]
+    while end < len(lines) and not lines[end].strip():
+        end += 1
+    del lines[start:end]
+    return "".join(lines), True
+
+
+def split_combined_changes_headings(text, deps, target_values, target, canonical_names):
+    """Split a "### ..." Changes heading that combines two or more
+    components at once via " + " (see lib.upgradedoc.find_combined_
+    changes_headings — real case: "### ECK Operator 3.4.0 → 3.5.0 + ECK
+    Stack (kiss-eck) 0.19.0 → 0.20.0") into one "### ..." section per
+    component — each built the same way add_missing_changes_sections
+    builds a missing one (see build_changes_section_for_row), from that
+    component's OWN "Component versions" table row, never from the
+    combined heading's own body text (there's no reliable way to tell
+    which part of shared prose belongs to which component, so it's
+    discarded rather than guessed at — the split sections start as
+    TODO-stub-or-real exactly like a freshly-added missing section
+    would, ready for a human to flesh out the prose once split). A
+    component named by the heading with no table row of its own (or no
+    resolvable identity at all) is skipped for that component only — the
+    combined heading is still removed and whatever OTHER component(s) it
+    named still get their own section. Returns (new_text, split_headings)
+    for every combined heading actually split (at least one component
+    resolved)."""
+    headings = [b["heading"] for b in parse_upgrade_doc_changes_blocks(text)]
+    combined = find_combined_changes_headings(headings, deps, canonical_names)
+    if not combined:
+        return text, []
+
+    rows_by_identity = {}
+    for row in parse_upgrade_doc_rows(text):
+        ident = resolve_component_identity(row["name"], deps, canonical_names)
+        if ident is not None:
+            rows_by_identity[ident] = row
+
+    split_headings = []
+    for heading in combined:
+        sections = []
+        for ident in changes_heading_identities(heading, deps, canonical_names):
+            row = rows_by_identity.get(ident)
+            if row is None:
+                continue
+            section = build_changes_section_for_row(row, ident, deps, target)
+            if section is not None:
+                sections.append((row["name"], section))
+        if not sections:
+            continue
+
+        text, removed = _remove_changes_block_by_exact_heading(text, heading)
+        if not removed:
+            continue
+        for friendly, section in sections:
+            text = insert_changes_section(text, section, friendly, deps, target_values)
+        split_headings.append(heading)
+
+    return text, split_headings
 
 
 def resolve_basename_baseline_version(baseline_values, full_paths):

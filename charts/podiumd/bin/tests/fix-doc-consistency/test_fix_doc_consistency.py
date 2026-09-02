@@ -850,6 +850,94 @@ def test_main_adds_todo_stub_section_when_row_has_no_app_version(
     assert "TODO: describe this component's changes" in upgrade
 
 
+def test_main_splits_a_combined_changes_heading(
+        cdb, repo_with_undocumented_sidecar_bump, monkeypatch, capsys):
+    """A "### ..." heading joining two components at once via " + " (real
+    case: "### ECK Operator 3.4.0 -> 3.5.0 + ECK Stack (kiss-eck) 0.19.0
+    -> 0.20.0") gets split into one proper section per component, each
+    built from that component's OWN table row — never from the combined
+    heading's own shared prose, which is discarded rather than guessed
+    at."""
+    doc_dir = repo_with_undocumented_sidecar_bump
+    doc = doc_dir / "4.8.5-to-4.9.0-upgrade.md"
+    doc.write_text(doc.read_text(encoding="utf-8").replace(
+        "## Changes\n\n",
+        "## Changes\n\n"
+        "### ZAC (Zaakafhandelcomponent) 5.0.2 (unchanged) + redis-operator 0.26.1 (unchanged)\n\n"
+        "Some shared prose that should be discarded on split.\n\n"
+    ), encoding="utf-8")
+
+    set_argv_and_dir(cdb, monkeypatch, doc_dir, "4.8.5")
+    cdb.main()
+
+    upgrade = doc.read_text(encoding="utf-8")
+    assert "### ZAC (Zaakafhandelcomponent) 5.0.2 → 5.0.2 (chart 1.0.297, unchanged)" in upgrade
+    assert "### redis-operator 0.26.1\n" in upgrade
+    assert "+ redis-operator" not in upgrade
+    assert "Some shared prose that should be discarded" not in upgrade
+    out = capsys.readouterr().out
+    assert "Splitting combined '### ...' Changes section(s)" in out
+
+
+def test_main_splits_combined_heading_using_version_pin_for_a_version_paths_component(
+        cdb, tmp_path, monkeypatch):
+    """The split section for a component registered in COMPONENT_VERSION_
+    PATHS (e.g. eck-stack's bare "...version:" fields, the ECK operator's
+    own CRD convention) must use a "Version pin" bullet, never the
+    generic "Image tag pin `<key>.image.tag`" guess — that path doesn't
+    even exist in values.yaml for a component shaped this way."""
+    from lib.chart import COMPONENT_VERSION_PATHS
+    monkeypatch.setitem(COMPONENT_VERSION_PATHS, "widget-b", ["version"])
+
+    git("init", "-q", cwd=tmp_path)
+    git("config", "user.email", "test@example.com", cwd=tmp_path)
+    git("config", "user.name", "Test", cwd=tmp_path)
+
+    write(tmp_path / "Chart.yaml", yaml.safe_dump({
+        "dependencies": [
+            {"name": "widget-a", "version": "1.0.0", "repository": "@example"},
+            {"name": "widget-b", "version": "2.0.0", "repository": "@example"},
+        ],
+    }))
+    write(tmp_path / "values.yaml", yaml.safe_dump({
+        "widget-a": {"image": {"tag": "1.1.0@sha256:aaaa"}},
+        "widget-b": {"version": "2.1.0"},
+    }))
+    doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
+    doc_dir.mkdir(parents=True)
+    (tmp_path / "docs" / "images").mkdir(parents=True)
+    git("add", "-A", cwd=tmp_path)
+    git("commit", "-q", "-m", "baseline state", cwd=tmp_path)
+    git("tag", "podiumd-4.8.5", cwd=tmp_path)
+
+    write(tmp_path / "values.yaml", yaml.safe_dump({
+        "widget-a": {"image": {"tag": "1.2.0@sha256:bbbb"}},
+        "widget-b": {"version": "2.2.0"},
+    }))
+    write(doc_dir / "4.8.5-to-4.9.0-upgrade.md",
+          "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+          "## Component versions (4.9.0 vs 4.8.5)\n\n"
+          "| Component | App version | Helm chart | Notes |\n"
+          "| --- | --- | --- | --- |\n"
+          "| widget-a | 1.1.0 → 1.2.0 | 1.0.0 (unchanged) | - |\n"
+          "| widget-b | 2.1.0 → 2.2.0 | 2.0.0 (unchanged) | - |\n\n"
+          "## Changes\n\n"
+          "### widget-a 1.1.0 → 1.2.0 + widget-b 2.1.0 → 2.2.0\n\n"
+          "Shared prose.\n\n")
+    git("add", "-A", cwd=tmp_path)
+    git("commit", "-q", "-m", "bump", cwd=tmp_path)
+
+    set_argv_and_dir(cdb, monkeypatch, doc_dir, "4.8.5")
+    cdb.main()
+
+    upgrade = (doc_dir / "4.8.5-to-4.9.0-upgrade.md").read_text(encoding="utf-8")
+    assert "### widget-a 1.1.0 → 1.2.0 (chart 1.0.0, unchanged)" in upgrade
+    assert "Image tag pin `widget-a.image.tag`" in upgrade
+    assert "### widget-b 2.1.0 → 2.2.0 (chart 2.0.0, unchanged)" in upgrade
+    assert "Version pin `widget-b.version`" in upgrade
+    assert "Image tag pin `widget-b" not in upgrade
+
+
 def test_main_does_not_duplicate_an_existing_sidecar_row(
         cdb, repo_with_undocumented_sidecar_bump, monkeypatch):
     doc_dir = repo_with_undocumented_sidecar_bump

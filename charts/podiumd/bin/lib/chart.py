@@ -616,7 +616,19 @@ def canonical_sidecar_row_names(chart_dir, deps, values, paths, allow_pull=False
 
     names = {}
     for repo, path in repository_path_map(chart_dir, deps, values, sidecar_paths, allow_pull=allow_pull).items():
-        names[f"{path[0]} - {repo.rsplit('/', 1)[-1]}"] = path
+        basename = repo.rsplit("/", 1)[-1]
+        # A self-referential name ("keycloak-operator - keycloak-operator" —
+        # real case: keycloak-operator.operator.image, the operator's own
+        # container, whose repo basename happens to equal the dependency's
+        # own values key) is structurally indistinguishable from "this IS
+        # the dependency's own row" — match_dependency already covers that
+        # case via the bare dependency name. Never auto-documented under
+        # the wrong (sidecar/image) template as if it were a genuinely
+        # distinct nested image; register it in COMPONENT_IMAGE_PATHS (or
+        # document it by hand) instead if it ever needs its own row.
+        if basename.lower() == path[0].lower():
+            continue
+        names[f"{path[0]} - {basename}"] = path
     for path in global_paths:
         repo = get_path(values, ".".join(path) + ".repository")
         if isinstance(repo, str) and repo:

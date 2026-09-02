@@ -897,6 +897,26 @@ def test_canonical_sidecar_row_names_excludes_dependencys_own_primary_image(libc
     assert names == {}
 
 
+def test_canonical_sidecar_row_names_excludes_self_referential_basename(libchart, tmp_path):
+    """A nested image whose OWN repository basename happens to equal the
+    parent dependency's own values key (real case: keycloak-operator.
+    operator.image, the operator's own container — NOT registered in
+    COMPONENT_IMAGE_PATHS, unlike operator.config.keycloakImage) must
+    never produce a "<key> - <key>" canonical name — that's structurally
+    indistinguishable from "this IS the dependency's own row"
+    (match_dependency already covers that case by the bare dependency
+    name), and auto-documenting it under the sidecar/image template
+    would be wrong regardless of what it's actually for."""
+    dep = {"name": "keycloak-operator", "alias": "", "version": "1.12.1"}
+    values = {"keycloak-operator": {"operator": {
+        "image": {"repository": "quay.io/keycloak/keycloak-operator"}}}}
+    paths = [("keycloak-operator", "operator", "image")]
+
+    names = libchart.canonical_sidecar_row_names(tmp_path, [dep], values, paths, allow_pull=False)
+
+    assert names == {}
+
+
 def test_canonical_sidecar_row_names_global_shared_image(libchart, tmp_path):
     """A "global"-rooted image has no single owning dependency at all —
     the canonical name is bare "<basename>" (update-image-version's
