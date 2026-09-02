@@ -2,7 +2,7 @@
 docs-consistency check and fix-doc-consistency's version-correction pass."""
 import re
 
-from lib.chart import get_path, image_paths_for
+from lib.chart import get_path, image_paths_for, version_paths_for
 
 
 def normalize_version(v):
@@ -425,16 +425,34 @@ def actual_app_version(values, values_key, component=None):
     tag wins; there's no single "the" app version for a two-image
     component, so this picks one rather than reporting both).
 
+    If none of those resolve, falls back to lib.chart.version_paths_for
+    (component)'s own dotted path(s), read DIRECTLY (no ".tag" suffix
+    appended) — for a component whose real app version isn't expressed
+    as an "image: {repository, tag}" block at all, e.g. eck-stack's own
+    bare "eck-elasticsearch.version" CRD field, or redis-operator's own
+    split "redisOperator.imageTag" (sibling to "imageName", not nested
+    under a common "image:" key). Without this fallback, a real app-
+    version change on one of these components was invisible to every
+    caller of this function — the doc-consistency row/Changes-item check
+    silently skipped comparing it at all (its own "actual_app and ..."
+    guard short-circuits on None), so a wrong OR MISSING app-version cell
+    for kiss-eck's own real 8.19.3 -> 8.19.19 Elastic-stack bump went
+    uncaught; confirmed live.
+
     `component` is the Chart.yaml dependency's own NAME (COMPONENT_
-    IMAGE_PATHS is keyed by name, not alias) — defaults to `values_key`
-    when omitted, since name and alias/values_key coincide for every
-    currently-registered entry; pass the real name explicitly once a
-    registered component ever has a distinct alias, so the registry
-    lookup still finds it."""
+    IMAGE_PATHS/COMPONENT_VERSION_PATHS are both keyed by name, not
+    alias) — defaults to `values_key` when omitted, since name and
+    alias/values_key coincide for every currently-registered entry; pass
+    the real name explicitly once a registered component ever has a
+    distinct alias, so the registry lookup still finds it."""
     for path in image_paths_for(component or values_key):
         tag = get_path(values, f"{values_key}.{path}.tag")
         if tag:
             return tag.split("@")[0]
+    for path in version_paths_for(component or values_key):
+        version = get_path(values, f"{values_key}.{path}")
+        if isinstance(version, str) and version:
+            return version.split("@")[0]
     return None
 
 

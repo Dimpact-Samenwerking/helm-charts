@@ -145,6 +145,38 @@ def test_actual_app_version_uses_component_for_aliased_registry_lookup(libupgrad
     assert libupgradedoc.actual_app_version(values, "kc") is None
 
 
+def test_actual_app_version_falls_back_to_bare_version_field(libupgradedoc):
+    """Regression test: eck-stack's own real app version isn't an
+    "image: {tag: ...}" block at all — the ECK operator's own CRD
+    convention is a bare "version:" field, which COMPONENT_VERSION_PATHS
+    registers as a second-pass fallback (read directly, no ".tag"
+    suffix). Without it this returned None, so a real 8.19.3 -> 8.19.19
+    app-version change was invisible to every check that calls this."""
+    values = {"kiss-eck": {"eck-elasticsearch": {"version": "8.19.19"}}}
+    assert libupgradedoc.actual_app_version(values, "kiss-eck", "eck-stack") == "8.19.19"
+
+
+def test_actual_app_version_falls_back_to_split_image_tag_field(libupgradedoc):
+    """Regression test: redis-operator's own OPERATOR image (as opposed
+    to redis-ha, the database instance it manages) uses the upstream
+    chart's own "imageName:"/"imageTag:" convention — two sibling string
+    fields, not one nested "image:" dict — also invisible without the
+    COMPONENT_VERSION_PATHS fallback."""
+    values = {"redis-operator": {"redisOperator": {
+        "imageName": "quay.io/opstree/redis-operator", "imageTag": "v0.26.0"}}}
+    assert libupgradedoc.actual_app_version(values, "redis-operator") == "v0.26.0"
+
+
+def test_actual_app_version_image_tag_path_tried_before_version_path(libupgradedoc, monkeypatch):
+    """The "image: {tag: ...}" pass always runs first — COMPONENT_
+    VERSION_PATHS is only ever a fallback for when NONE of a
+    component's image_paths_for candidates resolved anything."""
+    monkeypatch.setitem(libupgradedoc.version_paths_for.__globals__["COMPONENT_VERSION_PATHS"],
+                         "widget", ["fallback.version"])
+    values = {"widget": {"image": {"tag": "1.0.0@sha256:abc"}, "fallback": {"version": "9.9.9"}}}
+    assert libupgradedoc.actual_app_version(values, "widget") == "1.0.0"
+
+
 # --- find_image_tag_paths ---
 
 def test_find_image_tag_paths_finds_nested_images(libupgradedoc):
