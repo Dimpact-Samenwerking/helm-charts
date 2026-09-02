@@ -267,7 +267,7 @@ def fix_component_version_table(text, chart_dir, target_deps, target_values, bas
                 continue
             values_key = dep.get("alias", dep["name"])
             actual_target_chart = str(dep["version"])
-            actual_target_app = actual_app_version(target_values, values_key, dep["name"])
+            actual_target_app = actual_app_version(target_values, values_key, dep["name"], chart_dir=chart_dir, dep=dep)
 
             baseline_dep = match_dependency_excluding_sidecar_names(row["name"], baseline_deps) \
                 if baseline_deps else None
@@ -536,7 +536,8 @@ def main():
                 print(f"  {name}")
 
         text, added_names = add_missing_component_rows(
-            text, target_deps, target_values, baseline_deps, baseline_values, actual_changed_keys, target
+            text, CHART_YAML.parent, target_deps, target_values, baseline_deps, baseline_values,
+            actual_changed_keys, target
         )
         if added_names:
             print()
@@ -617,7 +618,7 @@ def main():
             write_needed = False
 
             text, added_bullet_names = add_missing_values_delta_bullets(
-                text, target_deps, target_values, baseline_deps, baseline_values, changed_keys
+                text, CHART_YAML.parent, target_deps, target_values, baseline_deps, baseline_values, changed_keys
             )
             if added_bullet_names:
                 write_needed = True

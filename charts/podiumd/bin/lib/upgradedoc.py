@@ -2,7 +2,7 @@
 docs-consistency check and fix-doc-consistency's version-correction pass."""
 import re
 
-from lib.chart import get_path, image_paths_for, version_paths_for
+from lib.chart import COMPONENT_IMAGE_PATHS, get_path, image_paths_for, subchart_app_version, version_paths_for
 
 
 def normalize_version(v):
@@ -389,10 +389,23 @@ def changes_heading_identities(heading, deps, canonical_names):
     KISS. This generalizes match_dependency's own "longest match wins"
     tie-break (built for picking a single winner) to a multi-match scan
     where several genuinely different matches can legitimately coexist
-    side by side. Empty if the heading names no real component at all."""
+    side by side. Empty if the heading names no real component at all —
+    including when it LOOKS like a canonical sidecar reference (contains
+    " - ", the shape's own literal delimiter — never a real dependency's
+    own name/alias, nor any other legitimate punctuation in a heading;
+    same rule match_dependency_excluding_sidecar_names already applies
+    for a table row's own name) but doesn't actually match one (real
+    case: "### openbao - openbao 2.5.5 → 2.5.5" — self-referential,
+    canonical_sidecar_row_names refuses to name a sidecar after its own
+    parent, see that function's own docstring). Without this guard, the
+    word "openbao" appearing plainly in that broken heading would still
+    resolve it to the REAL "openbao" dependency, silently crediting a
+    row that this heading doesn't actually, correctly document at all."""
     sidecar_path = match_canonical_sidecar_name(heading, canonical_names)
     if sidecar_path is not None:
         return {("sidecar", sidecar_path)}
+    if " - " in heading:
+        return set()
     words = words_of(heading)
     matches = []  # [(start, end, values_key), ...], end exclusive
     for dep in deps:
@@ -571,7 +584,7 @@ def replace_version_pair(line, new_source, new_target):
     return new_line if count else line
 
 
-def actual_app_version(values, values_key, component=None):
+def actual_app_version(values, values_key, component=None, chart_dir=None, dep=None):
     """The app version currently pinned for a component — tries each of
     lib.chart.image_paths_for(component)'s own dotted path(s) in turn:
     the plain "<key>.image.tag" shape for the common case
@@ -597,20 +610,38 @@ def actual_app_version(values, values_key, component=None):
     for kiss-eck's own real 8.19.3 -> 8.19.19 Elastic-stack bump went
     uncaught; confirmed live.
 
+    If THAT still doesn't resolve, and both `chart_dir` and `dep` (the
+    full Chart.yaml dependency dict — needs its own "version" too, not
+    just its name) are given, falls back to lib.chart.subchart_app_
+    version — but ONLY for a component with its own COMPONENT_IMAGE_
+    PATHS entry, never the generic DEFAULT_IMAGE_PATHS guess. A
+    registered path with an explicit but deliberately BLANK "tag:"
+    override (e.g. openbao's own "server.image.tag" — the repository is
+    pinned, but the tag is left for the chart's own pinned appVersion to
+    supply) is a DELIBERATE design signal that a human already vouched
+    for; the same blank tag on an UNREGISTERED component could just as
+    easily mean "not actually running this image at all," which nothing
+    here can tell apart — so this never applies to eck-operator or any
+    other component that merely happens to also float on its own
+    chart's appVersion without being explicitly registered for it.
+
     `component` is the Chart.yaml dependency's own NAME (COMPONENT_
     IMAGE_PATHS/COMPONENT_VERSION_PATHS are both keyed by name, not
     alias) — defaults to `values_key` when omitted, since name and
     alias/values_key coincide for every currently-registered entry; pass
     the real name explicitly once a registered component ever has a
     distinct alias, so the registry lookup still finds it."""
-    for path in image_paths_for(component or values_key):
+    resolved_component = component or values_key
+    for path in image_paths_for(resolved_component):
         tag = get_path(values, f"{values_key}.{path}.tag")
         if tag:
             return tag.split("@")[0]
-    for path in version_paths_for(component or values_key):
+    for path in version_paths_for(resolved_component):
         version = get_path(values, f"{values_key}.{path}")
         if isinstance(version, str) and version:
             return version.split("@")[0]
+    if chart_dir is not None and dep is not None and resolved_component in COMPONENT_IMAGE_PATHS:
+        return subchart_app_version(chart_dir, dep)
     return None
 
 
