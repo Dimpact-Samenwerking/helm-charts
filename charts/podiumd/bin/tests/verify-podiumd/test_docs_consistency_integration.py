@@ -196,6 +196,32 @@ def test_images_manifest_format_issue_does_not_swallow_other_mismatches(vp, char
     assert 'upgrade_docs_baseline line says "9.9.9", expected "4.8.5"' in out
 
 
+def test_stale_pointer_reference_does_not_block_every_other_check(vp, chart_repo, capsys):
+    """A stale sibling-doc reference (a scar from an earlier, incomplete
+    baseline rebase — the doc file itself was renamed, but an in-text
+    link to its OLD name was never updated) used to make
+    check_pointer_consistency's own precheck early-return immediately,
+    so NOTHING else in check_docs_consistency ever ran at all — not the
+    "Component versions" table check, not the values-deltas mention
+    check, nothing. A single broken link anywhere could hide every real
+    problem in the doc set. Both the pointer issue and an unrelated,
+    already-present mismatch must now be reported together."""
+    gemeente = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-gemeente-specific.md"
+    gemeente.write_text(gemeente.read_text() + "\nSee [4.8.3-to-4.9.0-upgrade.md](4.8.3-to-4.9.0-upgrade.md).\n")
+
+    doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
+    doc.write_text(doc.read_text().replace("ZAC (Zaakafhandelcomponent)", "Some Unrelated Name"))
+
+    ok, detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
+    out = capsys.readouterr().out
+
+    assert ok is False
+    assert ('reference "4.8.3-to-4.9.0-upgrade.md" targets podiumd 4.9.0 but its upgrade_docs_baseline '
+            'is "4.8.3", expected "4.8.5"') in out
+    assert 'component "zac" changed vs' in out
+    assert 'has no row in the "Component versions" table' in out
+
+
 def test_component_changed_with_no_key_diffs_still_needs_values_deltas_mention(vp, chart_repo):
     """Even when a component's app/chart bump doesn't touch any values.yaml
     schema (no keys added/removed/renamed), it must still be mentioned

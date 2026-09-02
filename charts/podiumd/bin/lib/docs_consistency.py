@@ -324,6 +324,19 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
                 print(" ", issue)
             return False, f"{len(precheck_issues)} upgrade_docs_baseline doc issue(s)"
 
+        # Unlike check_baseline_doc_set above, a stale sibling-doc/images-
+        # manifest reference is a pure content finding about a doc that DOES
+        # exist and IS well-formed — nothing downstream needs to read or
+        # parse the reference itself, so there's no crash risk in still
+        # running every other check. Recorded into `mismatches` (reported
+        # together with everything else at the end) rather than an early
+        # return, so a single stale link can no longer hide every other
+        # finding this function would otherwise have made (e.g. missing
+        # "Component versions" rows, missing values-deltas mentions,
+        # images-manifest content mismatches) — the exact bug class fixed
+        # for check_images_manifest_format's own early return, just here
+        # for a precheck that had NOTHING already computed to lose, so it
+        # was invisible until a real doc set tripped it.
         images_dir = chart_dir / "docs" / "images"
         pointer_docs = [doc_dir / f"{upgrade_docs_baseline}-to-{podiumd_version}-{suffix}.md"
                         for suffix in ("upgrade", "gemeente-specific", "values-deltas")]
@@ -333,12 +346,7 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
         pointer_issues = [issue for doc in pointer_docs
                            for issue in check_pointer_consistency(doc, upgrade_docs_baseline, podiumd_version,
                                                                    doc_dir, images_dir)]
-        if pointer_issues:
-            print(f"FOUND {len(pointer_issues)} pointer issue(s) "
-                  f"(checked before any other check on these documents):")
-            for issue in sorted(pointer_issues):
-                print(" ", issue)
-            return False, f"{len(pointer_issues)} pointer issue(s)"
+        mismatches.extend(pointer_issues)
 
     if is_bare_version:
         doc_glob = f"{upgrade_docs_baseline}-to-{podiumd_version}-upgrade.md"
