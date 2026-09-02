@@ -14,11 +14,12 @@ from lib.chart import canonical_sidecar_row_names, get_path, load_yaml
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
 from lib.upgradedoc import (
     actual_app_version, compute_changed_components, diff_keys, extract_mentioned_dependency_keys,
-    extract_source_version, extract_target_version, find_grouped_preceding_comment,
-    find_image_tag_paths, find_out_of_order_names, find_wrong_or_duplicate_dependency_claims,
-    match_dependency, match_dependency_excluding_sidecar_names, normalize_version, pair_renames,
-    parse_changes_block, parse_upgrade_doc_changes_blocks, parse_upgrade_doc_rows as _parse_upgrade_doc_rows,
-    resolve_entry_path, strip_fenced_code_blocks, values_key_order,
+    extract_source_version, extract_target_version, find_changes_row_correspondence_gaps,
+    find_grouped_preceding_comment, find_image_tag_paths, find_out_of_order_names,
+    find_wrong_or_duplicate_dependency_claims, match_dependency, match_dependency_excluding_sidecar_names,
+    normalize_version, pair_renames, parse_changes_block, parse_upgrade_doc_changes_blocks,
+    parse_upgrade_doc_rows as _parse_upgrade_doc_rows, resolve_entry_path, strip_fenced_code_blocks,
+    values_key_order,
 )
 
 
@@ -571,14 +572,33 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
                 f'own component order'
             )
 
-        changes_headings = [b["heading"] for b in
-                             parse_upgrade_doc_changes_blocks(doc_path.read_text(encoding="utf-8"))]
+        doc_text = doc_path.read_text(encoding="utf-8")
+        changes_headings = [b["heading"] for b in parse_upgrade_doc_changes_blocks(doc_text)]
         for name_a, name_b in find_out_of_order_names(changes_headings, deps, key_order):
             mismatches.append(
                 f'{doc_path.name}: "## Changes" section has "### {name_b}" right after "### {name_a}", '
                 f'but values.yaml lists the {name_b} component before {name_a} — Changes blocks should '
                 f'follow values.yaml\'s own component order'
             )
+
+        # Only checked when the doc actually has a "## Changes" heading at
+        # all — a fixture/stub doc that never got that far yet (no section
+        # to compare against) would otherwise have EVERY row reported as
+        # missing its heading, which isn't the gap this check exists to
+        # catch.
+        has_changes_section = any(line.strip() == "## Changes" for line in doc_text.splitlines())
+        if has_changes_section:
+            rows_without_heading, headings_without_row = find_changes_row_correspondence_gaps(
+                rows, changes_headings, deps, canonical_names)
+            for name in rows_without_heading:
+                mismatches.append(
+                    f'{doc_path.name}: table row "{name}" has no matching "### ..." section under "## Changes"'
+                )
+            for heading in headings_without_row:
+                mismatches.append(
+                    f'{doc_path.name}: "## Changes" section "### {heading}" has no matching row in the '
+                    f'"Component versions" table'
+                )
 
     images_path = chart_dir / "docs" / "images" / f"images-{podiumd_version}.yaml"
 

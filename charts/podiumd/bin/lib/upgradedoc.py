@@ -308,6 +308,108 @@ def match_dependency_excluding_sidecar_names(text, deps):
     return None if " - " in text else match_dependency(text, deps)
 
 
+def match_canonical_sidecar_name(text, canonical_names):
+    """canonical_names.get(text) for an exact hit (a table row's own bare
+    name, with no trailing text) — falling back to a fuzzy word-span
+    containment match (see _word_aligned_spans/match_dependency) for a
+    "### ..." Changes heading, whose canonical sidecar name is always
+    followed by version/arrow text the exact lookup can't see past (e.g.
+    "redis-operator - k8s 1.36.2 → 1.36.2" vs the table row's own bare
+    "redis-operator - k8s"). Longest name wins on overlap, the same
+    tie-break match_dependency itself uses. None if nothing matches."""
+    exact = canonical_names.get(text)
+    if exact is not None:
+        return exact
+    spans = _word_aligned_spans(text)
+    best = None
+    for name, path in canonical_names.items():
+        norm_c = normalize_name(name)
+        if norm_c and norm_c in spans and (best is None or len(norm_c) > len(best[1])):
+            best = (path, norm_c)
+    return best[0] if best else None
+
+
+def resolve_component_identity(text, deps, canonical_names):
+    """The single component `text` names — ("sidecar", path) or ("dep",
+    values_key) — or None if it names no real Chart.yaml dependency or
+    canonical sidecar/shared-image at all. The same two-step resolution
+    docs_consistency.py's own table-row loop applies inline (sidecar
+    name checked first, since match_dependency_excluding_sidecar_names
+    refuses anything containing " - " on purpose), generalized here so
+    changes_heading_identities can apply it to free-form Changes-heading
+    text too, not just a table row's own bare name."""
+    sidecar_path = match_canonical_sidecar_name(text, canonical_names)
+    if sidecar_path is not None:
+        return ("sidecar", sidecar_path)
+    dep = match_dependency_excluding_sidecar_names(text, deps)
+    if dep is not None:
+        return ("dep", dep.get("alias", dep["name"]))
+    return None
+
+
+def changes_heading_identities(heading, deps, canonical_names):
+    """The set of component identities (see resolve_component_identity) a
+    "### ..." Changes heading names — usually exactly one, but a heading
+    covering two components at once, joined with " + " (e.g. "ECK
+    Operator 3.4.0 → 3.5.0 + ECK Stack (kiss-eck) 0.19.0 → 0.20.0"),
+    resolves BOTH sides independently: resolve_component_identity on the
+    whole heading would only ever return match_dependency's own single
+    longest-match winner, silently dropping whichever of the two loses
+    (real case: "eck-operator" beats "eck-stack" on raw match length,
+    so the combined heading would otherwise only ever count as covering
+    ECK Operator). Embedded version numbers/arrows never interfere —
+    resolution only ever looks for a dependency's own name/alias (or a
+    canonical sidecar name) as a whole word-aligned span, wherever it
+    appears. Empty if the heading (or a "+"-joined side of it) names no
+    real component at all."""
+    identities = set()
+    for part in re.split(r"\s\+\s", heading):
+        ident = resolve_component_identity(part, deps, canonical_names)
+        if ident is not None:
+            identities.add(ident)
+    return identities
+
+
+def find_changes_row_correspondence_gaps(rows, headings, deps, canonical_names):
+    """Cross-check the "Component versions" table against the "## Changes"
+    section: every row naming a real component should have at least one
+    Changes heading naming that same component, and vice versa — a real
+    omission neither side's own internal checks (out-of-order, missing-
+    vs-baseline) can see, since each only ever looks at one of the two
+    lists at a time, never asking whether the OTHER list agrees a given
+    component's row/section exists at all (e.g. a row added without ever
+    writing its narrative Changes section, or a Changes section written
+    for a component whose table row was forgotten, renamed, or never
+    added). A row/heading-side that doesn't resolve to any real
+    component at all (free-form prose, or a row already flagged
+    elsewhere as wrong/stale — see find_wrong_or_duplicate_dependency_
+    claims) is silently skipped on ITS OWN side, but still correctly
+    fails to satisfy the OTHER side's correspondence, e.g. a Changes
+    heading that never names its component at all (real case: "Keycloak
+    app image 26.6.4 → 26.7.2" — never says "keycloak-operator" or even
+    "operator") is reported as having no matching row, exactly like one
+    that names an unrelated/wrong component would be. Returns
+    (rows_without_heading, headings_without_row), each a list of the
+    original row name / heading text, in their original order."""
+    heading_identity_sets = [changes_heading_identities(h, deps, canonical_names) for h in headings]
+    all_heading_identities = set().union(*heading_identity_sets) if heading_identity_sets else set()
+
+    row_identities = set()
+    rows_without_heading = []
+    for row in rows:
+        ident = resolve_component_identity(row["name"], deps, canonical_names)
+        if ident is None:
+            continue
+        row_identities.add(ident)
+        if ident not in all_heading_identities:
+            rows_without_heading.append(row["name"])
+
+    headings_without_row = [heading for heading, idents in zip(headings, heading_identity_sets)
+                             if idents.isdisjoint(row_identities)]
+
+    return rows_without_heading, headings_without_row
+
+
 def is_exact_dependency_match(name, dep):
     """True if `name`, normalized (case/punctuation-insensitive), equals
     `dep`'s own name or alias EXACTLY — not just a fuzzy word-span
