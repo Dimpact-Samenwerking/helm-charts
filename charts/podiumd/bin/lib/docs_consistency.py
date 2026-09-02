@@ -465,7 +465,7 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
             if dep is not None and is_exact_dependency_match(row["name"], dep):
                 exact_claims[dep.get("alias", dep["name"])] = row["name"]
 
-        wrong_fuzzy_names = {}  # row name -> (values_key, exact row name)
+        wrong_fuzzy_names = set()
         for row in rows:
             if row["name"] in duplicate_names or row["name"] in exact_claims.values():
                 continue
@@ -474,17 +474,11 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
                 continue
             key = dep.get("alias", dep["name"])
             if key in exact_claims:
-                wrong_fuzzy_names[row["name"]] = (key, exact_claims[key])
+                wrong_fuzzy_names.add(row["name"])
 
-        for name in sorted(duplicate_names):
+        for name in sorted(duplicate_names | wrong_fuzzy_names):
             mismatches.append(
-                f'{doc_path.name}: doc row "{name}" appears more than once in the '
-                f'"Component versions" table'
-            )
-        for name, (key, exact_name) in sorted(wrong_fuzzy_names.items()):
-            mismatches.append(
-                f'{doc_path.name}: doc row "{name}" only fuzzy-matches Chart.yaml dependency '
-                f'"{key}", which is already exactly named by row "{exact_name}" — wrong or stale row'
+                f'{doc_path.name}: doc row "{name}" is wrong or stale — not found in Chart.yaml or values.yaml'
             )
 
         for row in rows:
