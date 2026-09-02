@@ -674,6 +674,10 @@ def pair_renames(added, removed, baseline_node, current_node):
     return renamed, added_left, removed_left
 
 
+BARE_CHART_CLAUSE_RE = re.compile(
+    r"\bchart\s+`?[A-Za-z0-9][\w.\-]*`?\s*(?:→|->)\s*`?[A-Za-z0-9][\w.\-]*`?", re.IGNORECASE)
+
+
 def _finalize_changes_item(rest):
     # extract_source_version/extract_target_version's own [\w.\-]* token
     # regex treats "." as a valid version character (needed for "1.31.4"
@@ -683,24 +687,54 @@ def _finalize_changes_item(rest):
     # which the regex greedily swallows as if it were part of the version.
     # A version never legitimately ends in a literal ".", so stripping one
     # trailing period here is always safe.
-    app_source = extract_source_version(rest)
-    if app_source:
-        app_source = app_source.rstrip(".")
-    app_target = extract_target_version(rest)
-    if app_target:
-        app_target = app_target.rstrip(".")
     chart_m = re.search(r"\(chart\s+([^)]+)\)", rest)
     chart_source = extract_source_version(chart_m.group(1)) if chart_m else None
+    chart_target = extract_target_version(chart_m.group(1)) if chart_m else None
+
+    # A "chart <source> -> <target>" mention written WITHOUT the usual
+    # "(chart ...)" parens is the same signal — must never be mistaken for
+    # the item's own APP version, whether it's the only version pair
+    # present at all (a chart-only bump, e.g. "ECK Stack (kiss-eck) chart
+    # 0.19.0 -> 0.20.0 (no image change of its own).") or the FIRST of
+    # two pairs in one sentence (e.g. "redis-operator chart 0.25.0 ->
+    # 0.26.1, operator image 0.25.0 -> 0.26.0" — the real app pair is the
+    # SECOND one). Removed from the text searched for the app version
+    # below, so a bracketed chart_m match above still wins if both forms
+    # somehow appear (unlikely, but chart_source/chart_target already set
+    # from it isn't overwritten).
+    app_search_text = rest
+    bare_chart_m = BARE_CHART_CLAUSE_RE.search(rest)
+    if bare_chart_m:
+        if chart_source is None:
+            chart_source = extract_source_version(bare_chart_m.group(0))
+            chart_target = extract_target_version(bare_chart_m.group(0))
+        app_search_text = rest[:bare_chart_m.start()] + " " + rest[bare_chart_m.end():]
+
+    # extract_source_version/extract_target_version's own "no arrow found"
+    # fallback (first word-like token) would otherwise grab whatever text
+    # is left over (e.g. "no image change of its own" for a genuinely
+    # chart-only item like the ECK Stack example above) as a fake app
+    # version — only trust a result when there's a REAL arrow left to find.
+    if re.search(r"(?:→|->)", app_search_text):
+        app_source = extract_source_version(app_search_text)
+        app_target = extract_target_version(app_search_text)
+    else:
+        app_source = app_target = None
+
+    if app_source:
+        app_source = app_source.rstrip(".")
+    if app_target:
+        app_target = app_target.rstrip(".")
     if chart_source:
         chart_source = chart_source.rstrip(".")
-    chart_target = extract_target_version(chart_m.group(1)) if chart_m else None
     if chart_target:
         chart_target = chart_target.rstrip(".")
+
     name = rest
     if app_source:
-        idx = rest.find(app_source)
+        idx = app_search_text.find(app_source)
         if idx > 0:
-            name = rest[:idx].strip()
+            name = app_search_text[:idx].strip()
     return {"name": name, "app_source": app_source, "app": app_target,
             "chart_source": chart_source, "chart": chart_target}
 

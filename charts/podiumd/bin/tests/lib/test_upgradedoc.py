@@ -586,6 +586,47 @@ def test_parse_changes_block_joins_a_wrapped_chart_version(libupgradedoc):
     assert items[0]["chart"] == "1.0.297"
 
 
+def test_parse_changes_block_chart_only_item_with_no_parens_has_no_fake_app_version(libupgradedoc):
+    """Regression test: a chart-only item that states its version pair as
+    a bare "chart <source> -> <target>" clause (no "(chart ...)" parens
+    at all) must never have that pair mistaken for the item's own APP
+    version — the real-world case this was found from: "ECK Stack
+    (kiss-eck) chart 0.19.0 -> 0.20.0 (no image change of its own)."
+    used to grab "0.19.0 -> 0.20.0" as a fake app version once eck-stack
+    became resolvable via COMPONENT_VERSION_PATHS, silently comparing it
+    against the real (unrelated) app version and reporting a bogus
+    mismatch."""
+    text = (
+        "# Changes:\n"
+        "#   6. ECK Stack (kiss-eck) chart 0.19.0 -> 0.20.0 (no image change of\n"
+        "#      its own).\n"
+    )
+    items = libupgradedoc.parse_changes_block(text)
+    assert len(items) == 1
+    assert items[0]["chart_source"] == "0.19.0"
+    assert items[0]["chart"] == "0.20.0"
+    assert items[0]["app_source"] is None
+    assert items[0]["app"] is None
+
+
+def test_parse_changes_block_chart_pair_before_app_pair_both_extracted_correctly(libupgradedoc):
+    """The real-world redis-operator case: BOTH a bare chart clause and a
+    real app-version pair appear in the same sentence, chart first — the
+    chart pair must not be mistaken for the app pair, and the real app
+    pair (the second one) must still be found correctly."""
+    text = (
+        "# Changes:\n"
+        "#   15. redis-operator chart 0.25.0 -> 0.26.1, operator image 0.25.0 ->\n"
+        "#      0.26.0 (quay.io/opstree/redis-operator, digest-pinned).\n"
+    )
+    items = libupgradedoc.parse_changes_block(text)
+    assert len(items) == 1
+    assert items[0]["chart_source"] == "0.25.0"
+    assert items[0]["chart"] == "0.26.1"
+    assert items[0]["app_source"] == "0.25.0"
+    assert items[0]["app"] == "0.26.0"
+
+
 def test_parse_changes_block_strips_trailing_sentence_period_even_on_a_single_line(libupgradedoc):
     """The trailing-period fix isn't specific to wrapped items — any
     Changes item whose version is the last thing before its own
