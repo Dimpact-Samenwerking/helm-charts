@@ -470,12 +470,31 @@ def strip_registry_host(url):
     return url
 
 
-def repository_path_map(chart_dir, deps, values, allow_pull=False):
+def repository_path_map(chart_dir, deps, values, paths, allow_pull=False):
     """{strip_registry_host(repository): values-tree path} for every
-    dependency's own primary image path(s) (image_paths_for) whose
-    repository actually resolves (own explicit override in `values` if
-    present, else the vendored subchart's own default — see
-    primary_image_repositories).
+    path in `paths` (e.g. lib.upgradedoc.find_image_tag_paths(values)'s
+    own keys) that resolves to a repository — not just each
+    dependency's own "primary" image (image_paths_for /
+    primary_image_repositories) but every nested sidecar under it too.
+    ZAC's own opa/office_converter sidecars are the motivating case:
+    their real repository lives in ZAC's OWN vendored subchart
+    values.yaml (a plain top-level "opa.image.repository" key there),
+    not podiumd's — podiumd's own values.yaml only overrides their
+    "tag:", leaving "repository:" commented out for documentation.
+
+    Resolution per path: podiumd's OWN explicit "repository:" override
+    at that exact nested location wins if present (get_path(values,
+    ".".join(path) + ".repository")); otherwise the owning
+    dependency's vendored subchart's own default at the same relative
+    location (get_path(subchart_values, ".".join(path[1:]) +
+    ".repository"), via resolve_chart_values) — resolved AT MOST ONCE
+    per dependency and reused across every one of its paths, the same
+    caching primary_image_repositories does for its own narrower
+    curated-path case. A path whose first segment doesn't match any
+    known dependency's own values-tree key (alias or name), or whose
+    repository can't be resolved either way, is silently skipped — not
+    every image belongs to a Chart.yaml dependency at all (e.g. a
+    shared global.images.* anchor, or a genuinely un-vendored subchart).
 
     Exists because an images-manifest entry's "name:" is, under the
     current strip-registry convention, exactly a repository in this
@@ -490,14 +509,30 @@ def repository_path_map(chart_dir, deps, values, allow_pull=False):
     repositories' own default) — a doc-consistency check has no
     business making a network pull; whatever's already vendored is what
     it works with."""
+    by_values_key = {(dep.get("alias") or dep["name"]): dep for dep in deps}
+    subchart_cache = {}  # dep name -> (values_or_None, error_or_None)
     mapping = {}
-    for dep in deps:
-        values_key = dep.get("alias") or dep["name"]
-        repos, _error = primary_image_repositories(chart_dir, dep, values, allow_pull=allow_pull)
-        for path_suffix, repo in repos.items():
-            if not repo:
-                continue
-            path = (values_key, *path_suffix.split("."))
+    for path in paths:
+        dep = by_values_key.get(path[0]) if path else None
+        if dep is None:
+            continue
+
+        own_repo = get_path(values, ".".join(path) + ".repository")
+        if isinstance(own_repo, str) and own_repo:
+            mapping[strip_registry_host(own_repo)] = path
+            continue
+
+        if dep["name"] not in subchart_cache:
+            if chart_dir is None:
+                subchart_cache[dep["name"]] = (None, f"no chart_dir given — can't resolve {dep['name']}'s subchart default")
+            else:
+                sub_values, _source, err = resolve_chart_values(chart_dir, dep, dep["version"], allow_pull=allow_pull)
+                subchart_cache[dep["name"]] = (sub_values, err)
+        sub_values, _error = subchart_cache[dep["name"]]
+        if sub_values is None:
+            continue
+        repo = get_path(sub_values, ".".join(path[1:]) + ".repository")
+        if isinstance(repo, str) and repo:
             mapping[strip_registry_host(repo)] = path
     return mapping
 
