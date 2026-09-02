@@ -225,14 +225,14 @@ def fix_component_version_table(text, target_deps, target_values, baseline_deps,
             continue
         values_key = dep.get("alias", dep["name"])
         actual_target_chart = str(dep["version"])
-        actual_target_app = actual_app_version(target_values, values_key)
+        actual_target_app = actual_app_version(target_values, values_key, dep["name"])
 
         baseline_dep = match_dependency(row["name"], baseline_deps) if baseline_deps else None
         if baseline_dep is None:
             unresolved_names.append(row["name"])
             continue
         actual_baseline_chart = str(baseline_dep["version"])
-        actual_baseline_app = actual_app_version(baseline_values, values_key)
+        actual_baseline_app = actual_app_version(baseline_values, values_key, dep["name"])
 
         row_changed = False
         line = lines[row["line_index"]]

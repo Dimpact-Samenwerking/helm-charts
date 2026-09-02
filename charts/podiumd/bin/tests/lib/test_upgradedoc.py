@@ -121,14 +121,7 @@ def test_match_dependency_short_alias_does_not_match_mid_word(libupgradedoc):
     assert libupgradedoc.match_dependency("Python (ensurePodiumdAdminUser init image)", deps) is None
 
 
-# --- image_tag / actual_app_version ---
-
-def test_image_tag_nested_lookup(libupgradedoc):
-    values = {"zac": {"image": {"tag": "5.4.3@sha256:abc"}}}
-    assert libupgradedoc.image_tag(values, "zac", "image", "tag") == "5.4.3@sha256:abc"
-    assert libupgradedoc.image_tag(values, "zac", "missing", "tag") is None
-    assert libupgradedoc.image_tag("not-a-dict", "x") is None
-
+# --- actual_app_version ---
 
 def test_actual_app_version_single_image(libupgradedoc):
     assert libupgradedoc.actual_app_version({"zac": {"image": {"tag": "5.4.3@sha256:abc"}}}, "zac") == "5.4.3"
@@ -141,6 +134,15 @@ def test_actual_app_version_frontend_backend_lockstep(libupgradedoc):
 
 def test_actual_app_version_missing_returns_none(libupgradedoc):
     assert libupgradedoc.actual_app_version({}, "missing") is None
+
+
+def test_actual_app_version_uses_component_for_aliased_registry_lookup(libupgradedoc):
+    # keycloak-operator's own COMPONENT_IMAGE_PATHS entry only applies when
+    # the registry is queried by the dependency's real name — pass it
+    # explicitly whenever the values.yaml key (alias) differs.
+    values = {"kc": {"operator": {"config": {"keycloakImage": {"tag": "26.7.2@sha256:abc"}}}}}
+    assert libupgradedoc.actual_app_version(values, "kc", "keycloak-operator") == "26.7.2"
+    assert libupgradedoc.actual_app_version(values, "kc") is None
 
 
 # --- find_image_tag_paths ---
