@@ -21,7 +21,7 @@ import re
 
 import yaml
 
-from lib.chart import image_paths_for, replace_scalar_value
+from lib.chart import image_paths_for, replace_scalar_value, version_paths_for
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
 from lib.upgradedoc import (
     _word_aligned_spans, actual_app_version, append_to_doc, canonical_version_cell, component_order_key,
@@ -273,7 +273,19 @@ def remove_component_row(text, friendly):
 
 
 def make_changes_section(friendly, target, chart_name, values_key, old_app, new_app,
-                          old_chart, new_chart, image_paths):
+                          old_chart, new_chart, image_paths, version_paths=()):
+    """`image_paths` (see lib.chart.image_paths_for) are rendered as
+    "Image tag pin `<values_key>.<path>.tag`" bullets — the ordinary
+    "{repository, tag}" block shape. `version_paths` (see lib.chart.
+    version_paths_for) are for a component whose real app version isn't
+    expressed that way at all (e.g. eck-stack's bare "...version:"
+    fields, the ECK operator's own CRD convention) — rendered as
+    "Version pin `<path>`" bullets instead, no ".tag" suffix (there's no
+    sibling "repository:" key to go with it). Passing image_paths for a
+    component actually shaped like version_paths (or vice versa) would
+    silently generate a bullet pointing at a values.yaml path that
+    doesn't exist — callers must use lib.chart.image_paths_for/version_
+    paths_for's own registration to know which applies."""
     chart_changed = normalize_version(old_chart) != normalize_version(new_chart)
     chart_suffix = f" (chart {old_chart} → {new_chart})" if chart_changed else f" (chart {new_chart}, unchanged)"
     lines = [f"### {friendly} {old_app} → {new_app}{chart_suffix}\n\n"]
@@ -284,6 +296,9 @@ def make_changes_section(friendly, target, chart_name, values_key, old_app, new_
         lines.append("  `charts/podiumd/Chart.yaml`.\n")
     for path in image_paths:
         lines.append(f"- Image tag pin `{values_key}.{path}.tag` `{old_app}` → `{new_app}` in\n")
+        lines.append("  `charts/podiumd/values.yaml`.\n")
+    for path in version_paths:
+        lines.append(f"- Version pin `{values_key}.{path}` `{old_app}` → `{new_app}` in\n")
         lines.append("  `charts/podiumd/values.yaml`.\n")
     lines.append(f"- Image / digest: see [`images-{target}.yaml`](../images/images-{target}.yaml).\n\n")
     return "".join(lines)
@@ -421,8 +436,14 @@ def add_missing_component_rows(text, target_deps, target_values, baseline_deps, 
 
         text, _ = remove_changes_section(text, key)
         if new_app is not None:
+            # version_paths_for wins outright when registered — see
+            # make_changes_section's own docstring for why image_paths_for's
+            # generic "<key>.image.tag" guess would be wrong for a
+            # component actually shaped like version_paths (e.g. eck-stack).
+            version_paths = version_paths_for(chart_name)
+            image_paths = [] if version_paths else image_paths_for(chart_name)
             section = make_changes_section(key, target, chart_name, key, old_app or new_app, new_app,
-                                            old_chart or new_chart, new_chart, image_paths_for(chart_name))
+                                            old_chart or new_chart, new_chart, image_paths, version_paths)
         else:
             chart_suffix = (f"{old_chart} → {new_chart}"
                              if old_chart and normalize_version(old_chart) != normalize_version(new_chart)
