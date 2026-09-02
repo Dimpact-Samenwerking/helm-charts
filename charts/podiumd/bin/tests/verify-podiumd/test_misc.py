@@ -188,17 +188,131 @@ def test_main_skips_requested_steps_and_runs_the_rest(vp, monkeypatch, capsys):
 
 
 def test_main_skipped_step_does_not_count_as_failure(vp, monkeypatch):
-    """Skipping every step except one that fails must still exit non-zero —
-    a skip must never mask a real failure in a step that DID run."""
+    """A step failing must not stop the run — every other non-blocked step
+    still runs (see test_main_continues_past_a_failed_step for that part
+    in detail) — but the whole run must still exit non-zero: a later step
+    running fine must never mask an earlier real failure, same as a
+    --skip=d step must never mask one either."""
     monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd", "--skip=dependencies,image-digests,doc-consistency,helm-lint,full-render"])
     monkeypatch.setattr(vp, "require_helm", lambda: None)
     monkeypatch.setattr(vp, "resolve_chart_dir", lambda: Path("/fake/chart/dir"))
     monkeypatch.setattr(vp, "ensure_repos_configured", lambda: (True, "ok"))
+    monkeypatch.setattr(vp, "lint_args_for", lambda chart_dir: [])
     monkeypatch.setattr(vp, "check_utf8_format", lambda *a: (False, "BOM found"))
+
+    def ok(*args):
+        return True, "ok"
+
+    for name in ("check_repo_access", "check_duplicate_keys", "check_dry", "check_image_references",
+                 "check_node_selector", "check_digest_pinning", "check_vendored_tgz_extraction",
+                 "check_release_baseline", "check_helm_docs", "check_markdown",
+                 "check_subchart_image_visibility", "check_image_repository", "check_yamllint",
+                 "check_kubeconform", "check_shellcheck", "check_kube_score", "check_image_upgrades",
+                 "check_cves"):
+        monkeypatch.setattr(vp, name, ok)
 
     with pytest.raises(SystemExit) as exc_info:
         vp.main()
     assert exc_info.value.code == 1
+
+
+def test_main_continues_past_a_failed_step(vp, monkeypatch, capsys):
+    """The actual behavior this session's change is about: a failing step
+    must not stop the run. Every OTHER step (that isn't itself blocked by
+    the failure via STEP_PREREQUISITES) still runs and gets its own real
+    result in the summary — not silently skipped, not aborted."""
+    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd"])
+    monkeypatch.setattr(vp, "require_helm", lambda: None)
+    monkeypatch.setattr(vp, "resolve_chart_dir", lambda: Path("/fake/chart/dir"))
+    monkeypatch.setattr(vp, "ensure_repos_configured", lambda: (True, "ok"))
+    monkeypatch.setattr(vp, "lint_args_for", lambda chart_dir: [])
+
+    ran = []
+
+    def make_check(name, result=(True, "ok")):
+        def check(*args):
+            ran.append(name)
+            return result
+        return check
+
+    monkeypatch.setattr(vp, "check_utf8_format", make_check("utf8", (False, "BOM found")))
+    monkeypatch.setattr(vp, "check_dependencies", make_check("deps"))
+    monkeypatch.setattr(vp, "check_repo_access", make_check("repo-access"))
+    monkeypatch.setattr(vp, "check_duplicate_keys", make_check("dupe"))
+    monkeypatch.setattr(vp, "check_dry", make_check("dry"))
+    monkeypatch.setattr(vp, "check_image_references", make_check("image-refs"))
+    monkeypatch.setattr(vp, "check_node_selector", make_check("node-selector"))
+    monkeypatch.setattr(vp, "check_digest_pinning", make_check("digest-pinning"))
+    monkeypatch.setattr(vp, "check_subchart_image_visibility", make_check("subchart-images"))
+    monkeypatch.setattr(vp, "check_image_repository", make_check("image-repository"))
+    monkeypatch.setattr(vp, "check_image_digests", make_check("digests"))
+    monkeypatch.setattr(vp, "check_docs_consistency", make_check("docs"))
+    monkeypatch.setattr(vp, "check_helm_docs", make_check("helm-docs"))
+    monkeypatch.setattr(vp, "check_markdown", make_check("markdown"))
+    monkeypatch.setattr(vp, "check_vendored_tgz_extraction", make_check("tgz"))
+    monkeypatch.setattr(vp, "check_release_baseline", make_check("release-baseline"))
+    monkeypatch.setattr(vp, "check_lint", make_check("helm-lint"))
+    monkeypatch.setattr(vp, "check_render", make_check("full-render"))
+    monkeypatch.setattr(vp, "check_yamllint", make_check("yamllint"))
+    monkeypatch.setattr(vp, "check_kubeconform", make_check("kubeconform"))
+    monkeypatch.setattr(vp, "check_shellcheck", make_check("shellcheck"))
+    monkeypatch.setattr(vp, "check_kube_score", make_check("kube-score"))
+    monkeypatch.setattr(vp, "check_image_upgrades", make_check("image-upgrades"))
+    monkeypatch.setattr(vp, "check_cves", make_check("cves"))
+
+    with pytest.raises(SystemExit) as exc_info:
+        vp.main()
+    assert exc_info.value.code == 1
+
+    # "UTF-8 format" fails first, but every other step still actually ran —
+    # none of them are in "UTF-8 format"'s own STEP_PREREQUISITES chain.
+    assert ran == ["utf8", "dupe", "dry", "image-refs", "node-selector", "digest-pinning", "tgz",
+                    "release-baseline", "docs", "helm-docs", "markdown", "repo-access", "deps",
+                    "subchart-images", "image-repository", "digests", "helm-lint", "full-render",
+                    "yamllint", "kubeconform", "shellcheck", "kube-score", "image-upgrades", "cves"]
+    out = capsys.readouterr().out
+    assert "UTF-8 format" in out and "FAIL" in out
+    assert "One or more checks failed" in out
+
+
+def test_main_skips_dependents_of_a_failed_prerequisite(vp, monkeypatch, capsys):
+    """"Dependencies" failing must skip every step whose STEP_PREREQUISITES
+    chain includes it (render-based checks, image digests, subchart image
+    visibility, image repository, ...) rather than attempting them against
+    charts/*.tgz that never got populated — a second, less informative
+    failure about the exact same root cause. Steps with no such dependency
+    (the cheap local/content checks) still run normally."""
+    monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd"])
+    monkeypatch.setattr(vp, "require_helm", lambda: None)
+    monkeypatch.setattr(vp, "resolve_chart_dir", lambda: Path("/fake/chart/dir"))
+    monkeypatch.setattr(vp, "ensure_repos_configured", lambda: (True, "ok"))
+    monkeypatch.setattr(vp, "lint_args_for", lambda chart_dir: [])
+
+    def ok(*args):
+        return True, "ok"
+
+    for name in ("check_utf8_format", "check_duplicate_keys", "check_dry", "check_image_references",
+                 "check_node_selector", "check_digest_pinning", "check_vendored_tgz_extraction",
+                 "check_release_baseline", "check_docs_consistency", "check_helm_docs", "check_markdown",
+                 "check_repo_access"):
+        monkeypatch.setattr(vp, name, ok)
+
+    def fail_if_called(*args):
+        raise AssertionError("this check should have been skipped as a prerequisite's dependent")
+
+    monkeypatch.setattr(vp, "check_dependencies", lambda *a: (False, "helm dependency update failed"))
+    for name in ("check_subchart_image_visibility", "check_image_repository", "check_image_digests",
+                 "check_lint", "check_render", "check_yamllint", "check_kubeconform", "check_shellcheck",
+                 "check_kube_score", "check_image_upgrades", "check_cves"):
+        monkeypatch.setattr(vp, name, fail_if_called)
+
+    with pytest.raises(SystemExit) as exc_info:
+        vp.main()
+    assert exc_info.value.code == 1
+
+    out = capsys.readouterr().out
+    assert "Dependencies" in out and "FAIL" in out
+    assert 'prerequisite "Dependencies" failed' in out
 
 
 # --- prerequisites_for ---
