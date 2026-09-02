@@ -10,7 +10,7 @@ import re
 
 import yaml
 
-from lib.chart import load_yaml
+from lib.chart import canonical_sidecar_row_names, load_yaml
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
 from lib.upgradedoc import (
     actual_app_version, compute_changed_components, diff_keys, extract_mentioned_dependency_keys,
@@ -392,6 +392,7 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
         compute_changed_components(deps, baseline_deps, values, baseline_values)
         if baseline_ref else set()
     )
+    current_paths = dict(find_image_tag_paths(values))
 
     if not doc_matches:
         print(f"WARNING: no upgrade doc matches {doc_glob} — skipping doc check")
@@ -406,15 +407,37 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
         if baseline_ref:
             checked.append(f"upgrade_docs_baseline {baseline_ref}")
 
+        canonical_names = canonical_sidecar_row_names(chart_dir, deps, values, current_paths.keys())
+
         for row in parse_upgrade_doc_rows(doc_path):
-            dep = match_dependency(row["name"], deps)
-            if not dep:
-                print(f'  {doc_path.name}: doc row "{row["name"]}" has no matching Chart.yaml dependency — skipped')
+            # canonical_names is an EXACT lookup — checked first and, on a
+            # hit, taken over match_dependency's own fuzzy word-span
+            # matching entirely: a canonical sidecar name like "redis-
+            # operator - redis" contains "redis-operator" as a leading
+            # word-span, which match_dependency would otherwise happily
+            # (and wrongly) match to that dependency's own row.
+            sidecar_path = canonical_names.get(row["name"])
+            dep = None if sidecar_path is not None else match_dependency(row["name"], deps)
+            if sidecar_path is None and dep is None:
+                mismatches.append(
+                    f'{doc_path.name}: doc row "{row["name"]}" does not match a Chart.yaml '
+                    f'dependency or a canonical sidecar/shared-image name ("<component> - '
+                    f'<basename>" or "<basename>", the exact form update-image-version writes) '
+                    f'— wrong phrasing, or a stale row'
+                )
                 continue
-            values_key = dep.get("alias", dep["name"])
-            changed_component_keys.add(values_key)
-            actual_chart = dep["version"]
-            actual_app = actual_app_version(values, values_key, dep["name"])
+
+            if dep is not None:
+                top_level_key = values_key = dep.get("alias", dep["name"])
+                actual_chart = dep["version"]
+                actual_app = actual_app_version(values, values_key, dep["name"])
+            else:
+                top_level_key = sidecar_path[0]
+                values_key = ".".join(sidecar_path[:-1])
+                actual_chart = None
+                actual_app = actual_app_version(values, values_key)
+
+            changed_component_keys.add(top_level_key)
 
             if row["chart"] and normalize_version(row["chart"]) != normalize_version(actual_chart):
                 mismatches.append(
@@ -429,9 +452,14 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
 
             if not baseline_ref:
                 continue
-            baseline_dep = match_dependency(row["name"], baseline_deps)
-            baseline_chart_actual = baseline_dep["version"] if baseline_dep else None
-            baseline_app_actual = actual_app_version(baseline_values, values_key, dep["name"])
+
+            if dep is not None:
+                baseline_dep = match_dependency(row["name"], baseline_deps)
+                baseline_chart_actual = baseline_dep["version"] if baseline_dep else None
+                baseline_app_actual = actual_app_version(baseline_values, values_key, dep["name"])
+            else:
+                baseline_chart_actual = None
+                baseline_app_actual = actual_app_version(baseline_values, values_key)
 
             if row["chart_source"] and baseline_chart_actual and \
                     normalize_version(row["chart_source"]) != normalize_version(baseline_chart_actual):
@@ -471,7 +499,6 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
                 f'follow values.yaml\'s own component order'
             )
 
-    current_paths = dict(find_image_tag_paths(values))
     baseline_paths = dict(find_image_tag_paths(baseline_values)) if baseline_ref else {}
 
     images_path = chart_dir / "docs" / "images" / f"images-{podiumd_version}.yaml"

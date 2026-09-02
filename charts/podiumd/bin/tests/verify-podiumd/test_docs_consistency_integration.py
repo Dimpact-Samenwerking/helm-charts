@@ -115,21 +115,23 @@ def test_no_matching_docs_is_a_soft_pass(vp, tmp_path):
     assert "skipped" in detail
 
 
-def test_unmatched_row_print_names_the_doc_file(vp, chart_repo, capsys):
-    """The unmatched-row print names which upgrade doc file the "no
-    matching Chart.yaml dependency" row was found in — there can be more
-    than one upgrade doc in play across a chart's history, so the row
-    name alone isn't enough to locate it — and has no superfluous
-    wrapping parens around the whole message."""
+def test_unmatched_row_is_reported_as_a_wrong_phrasing_mismatch(vp, chart_repo, capsys):
+    """A row that matches neither a Chart.yaml dependency nor a
+    canonical sidecar/shared-image name (see
+    lib.chart.canonical_sidecar_row_names) is a real, reportable
+    mismatch now — not a silently-skipped info print. "Keycloak" isn't
+    a dependency this fixture's Chart.yaml has at all, and doesn't
+    match the "<component> - <basename>"/"<basename>" form
+    update-image-version itself writes."""
     doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
     doc.write_text(doc.read_text() + "| Keycloak | 1.0.0 → 1.0.1 | 1.0.0 (unchanged) | n/a |\n")
 
-    vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
+    ok, detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
 
+    assert ok is False
     out = capsys.readouterr().out
-    assert ('4.8.5-to-4.9.0-upgrade.md: doc row "Keycloak" has no matching Chart.yaml dependency '
-            '— skipped') in out
-    assert "(doc row" not in out
+    assert ('4.8.5-to-4.9.0-upgrade.md: doc row "Keycloak" does not match a Chart.yaml dependency '
+            'or a canonical sidecar/shared-image name') in out
 
 
 def test_wrong_target_version_in_doc_is_caught(vp, chart_repo):
@@ -304,6 +306,142 @@ def test_component_specific_image_path_mismatch_is_flagged_not_silently_skipped(
             '4.8.5-to-4.9.0-upgrade.md says "-"') in out
 
 
+# --- sidecar image (not a dependency's own primary image, but nested
+# under it) -- doc row named "<values_key> - <basename>", the exact
+# canonical form update-image-version writes (see
+# lib.chart.canonical_sidecar_row_names) ---
+
+REDIS_CHART_YAML = """\
+apiVersion: v2
+name: podiumd
+version: 4.9.0
+dependencies:
+  - name: redis-operator
+    version: 0.26.1
+    repository: "@ot-helm"
+"""
+
+REDIS_UPGRADE_DOC = """\
+# Upgrade guide: PodiumD {baseline} → 4.9.0
+
+## Component versions (4.9.0 vs {baseline})
+
+| Component | App version | Helm chart | Notes |
+| --- | --- | --- | --- |
+| redis-operator - redis | {app_source} → {app_target} | - | ACR mirror only |
+
+See [`{baseline}-to-4.9.0-values-deltas.md`]({baseline}-to-4.9.0-values-deltas.md).
+"""
+REDIS_GEMEENTE_DOC = "# Gemeente-specific notes — PodiumD {baseline} → 4.9.0\n\nNone.\n"
+REDIS_VALUES_DELTAS_DOC = ("# Values deltas — PodiumD {baseline} → 4.9.0\n\n"
+                            "- **redis-operator** app `{app_source} → {app_target}` — image tag only.\n\n"
+                            "No gemeente podiumd.yml changes are required for this hop.\n")
+REDIS_IMAGES_MANIFEST = """\
+# Baseline: podiumd {baseline} (test @ 0000000).
+#
+# Images new or changed in podiumd 4.9.0 vs {baseline}.
+#
+# Changes:
+#   1. redis-ha {app_source} -> {app_target}
+#
+# See docs/_UPGRADE_PATHS/{baseline}-to-4.9.0-upgrade.md for the operator upgrade notes.
+
+# redis-ha — {app_source} -> {app_target}
+- name: redis-ha
+  url: quay.io/opstree/redis
+  version: "{app_target}"
+  digest: "sha256:abc"
+"""
+
+
+def redis_values(tag):
+    return (f'redis-operator:\n  redis-ha:\n    image:\n      repository: quay.io/opstree/redis\n'
+            f'      tag: "{tag}@sha256:abc"\n')
+
+
+@pytest.fixture
+def redis_sidecar_chart_repo(tmp_path):
+    """redis-ha's own image is nested under the "redis-operator"
+    dependency's own values — not that dependency's own registered
+    primary image (image_paths_for defaults to "image", which doesn't
+    exist here at all) — a sidecar, matched only via
+    canonical_sidecar_row_names, never match_dependency."""
+    repo_root = tmp_path
+    chart_dir = repo_root / "charts" / "podiumd"
+    doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
+    images_dir = chart_dir / "docs" / "images"
+    for d in (doc_dir, images_dir):
+        d.mkdir(parents=True)
+
+    git("init", "-q", cwd=repo_root)
+    git("config", "user.email", "test@example.com", cwd=repo_root)
+    git("config", "user.name", "Test", cwd=repo_root)
+
+    (chart_dir / "Chart.yaml").write_text(REDIS_CHART_YAML)
+    (chart_dir / "values.yaml").write_text(redis_values("8.6.2"))
+    git("add", "-A", cwd=repo_root)
+    git("commit", "-q", "-m", "baseline", cwd=repo_root)
+    git("tag", "podiumd-4.8.5", cwd=repo_root)
+
+    (chart_dir / "values.yaml").write_text(redis_values("8.6.6"))
+    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
+        REDIS_UPGRADE_DOC.format(baseline="4.8.5", app_source="8.6.2", app_target="8.6.6"))
+    (doc_dir / "4.8.5-to-4.9.0-gemeente-specific.md").write_text(REDIS_GEMEENTE_DOC.format(baseline="4.8.5"))
+    (doc_dir / "4.8.5-to-4.9.0-values-deltas.md").write_text(
+        REDIS_VALUES_DELTAS_DOC.format(baseline="4.8.5", app_source="8.6.2", app_target="8.6.6"))
+    (images_dir / "images-4.9.0.yaml").write_text(
+        REDIS_IMAGES_MANIFEST.format(baseline="4.8.5", app_source="8.6.2", app_target="8.6.6"))
+    git("add", "-A", cwd=repo_root)
+    git("commit", "-q", "-m", "bump redis-ha's redis image, row uses canonical sidecar name", cwd=repo_root)
+
+    return chart_dir
+
+
+def test_sidecar_row_with_canonical_name_is_verified(vp, redis_sidecar_chart_repo):
+    ok, detail = vp.check_docs_consistency(redis_sidecar_chart_repo, upgrade_docs_baseline="4.8.5")
+    assert ok is True, detail
+
+
+def test_sidecar_row_wrong_target_app_is_caught(vp, redis_sidecar_chart_repo, capsys):
+    doc = redis_sidecar_chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
+    doc.write_text(REDIS_UPGRADE_DOC.format(baseline="4.8.5", app_source="8.6.2", app_target="9.9.9"))
+
+    ok, detail = vp.check_docs_consistency(redis_sidecar_chart_repo, upgrade_docs_baseline="4.8.5")
+
+    assert ok is False
+    out = capsys.readouterr().out
+    assert ('redis-operator.redis-ha ("redis-operator - redis") target app: values.yaml image tag is '
+            '"8.6.6", 4.8.5-to-4.9.0-upgrade.md says "9.9.9"') in out
+
+
+def test_sidecar_row_wrong_source_app_vs_baseline_is_caught(vp, redis_sidecar_chart_repo, capsys):
+    doc = redis_sidecar_chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
+    doc.write_text(REDIS_UPGRADE_DOC.format(baseline="4.8.5", app_source="1.1.1", app_target="8.6.6"))
+
+    ok, detail = vp.check_docs_consistency(redis_sidecar_chart_repo, upgrade_docs_baseline="4.8.5")
+
+    assert ok is False
+    out = capsys.readouterr().out
+    assert ('redis-operator.redis-ha ("redis-operator - redis") source app: podiumd-4.8.5 has "8.6.2", '
+            '4.8.5-to-4.9.0-upgrade.md says "1.1.1"') in out
+
+
+def test_sidecar_row_with_old_style_phrasing_is_flagged_as_wrong_phrasing(vp, redis_sidecar_chart_repo, capsys):
+    """A row naming the same real sidecar image, but NOT in the exact
+    canonical "<values_key> - <basename>" form update-image-version
+    writes, is now a reportable mismatch — not silently skipped, and
+    not fuzzy-matched into "close enough" either."""
+    doc = redis_sidecar_chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-upgrade.md"
+    doc.write_text(doc.read_text().replace("redis-operator - redis", "Redis (redis-ha)"))
+
+    ok, detail = vp.check_docs_consistency(redis_sidecar_chart_repo, upgrade_docs_baseline="4.8.5")
+
+    assert ok is False
+    out = capsys.readouterr().out
+    assert ('4.8.5-to-4.9.0-upgrade.md: doc row "Redis (redis-ha)" does not match a Chart.yaml '
+            'dependency or a canonical sidecar/shared-image name') in out
+
+
 def test_chart_only_component_with_no_app_image_is_not_flagged(vp, chart_repo, capsys):
     """A component genuinely without an app image of its own (not in
     lib.chart.COMPONENT_IMAGE_PATHS, and no plain "image" key either)
@@ -419,13 +557,17 @@ def test_out_of_order_changes_block_is_caught(vp, order_chart_dir, capsys):
     assert "Changes blocks should follow values.yaml's own component order" in out
 
 
-def test_unmatched_summary_row_never_flagged_against_real_components(vp, order_chart_dir):
+def test_unmatched_summary_row_never_flagged_against_real_components(vp, order_chart_dir, capsys):
     """A row that doesn't resolve to any Chart.yaml dependency (e.g. a
     shared-image summary row) sorts after every real component and must
-    never itself trigger an ordering mismatch."""
+    never itself trigger an ORDERING mismatch — it's now separately
+    flagged as a wrong-phrasing mismatch (doesn't match a canonical
+    sidecar/shared-image name either — see canonical_sidecar_row_names),
+    but that's a different, unrelated finding from what this test is
+    about."""
     chart_dir, doc_dir = order_chart_dir
     summary_row = "| nginx-unprivileged (shared sidecar) | 1.31.4 | — | - |"
     (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
         order_doc([ZAAK_ROW, INWONER_ROW, summary_row], ["Open Zaak bump", "Open Inwoner bump"]))
-    ok, detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline=None)
-    assert ok is True, detail
+    vp.check_docs_consistency(chart_dir, upgrade_docs_baseline=None)
+    assert "own component order" not in capsys.readouterr().out
