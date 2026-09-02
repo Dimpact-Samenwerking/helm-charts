@@ -308,6 +308,22 @@ def match_dependency_excluding_sidecar_names(text, deps):
     return None if " - " in text else match_dependency(text, deps)
 
 
+def is_exact_dependency_match(name, dep):
+    """True if `name`, normalized (case/punctuation-insensitive), equals
+    `dep`'s own name or alias EXACTLY — not just a fuzzy word-span
+    containment match (see match_dependency). Distinguishes "this row
+    literally IS the dependency" (e.g. "KISS") from "this row merely
+    mentions it somewhere in a longer free-form name" (e.g. "Kiss
+    Elasticsearch", which match_dependency also resolves to the same
+    dependency via its normal word-containment matching, even though the
+    row is actually describing something else entirely — a real doc-
+    consistency gap this distinction exists to catch: once one row
+    exactly claims a dependency, no other row should be allowed to
+    silently claim the same one merely by fuzzy containment)."""
+    norm = normalize_name(name)
+    return any(normalize_name(c) == norm for c in (dep.get("name"), dep.get("alias")) if c)
+
+
 def canonical_version_cell(actual_source, actual_target):
     """A "Component versions" table cell in the established style:
     "<target> (unchanged)" when source==target, else "<source> → <target>"."""
