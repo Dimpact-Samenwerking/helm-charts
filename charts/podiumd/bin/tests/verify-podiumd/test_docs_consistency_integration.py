@@ -812,3 +812,58 @@ def test_unmatched_summary_row_never_flagged_against_real_components(vp, order_c
         order_doc([ZAAK_ROW, INWONER_ROW, summary_row], ["Open Zaak bump", "Open Inwoner bump"]))
     vp.check_docs_consistency(chart_dir, upgrade_docs_baseline=None)
     assert "own component order" not in capsys.readouterr().out
+
+
+def test_table_row_with_no_changes_section_is_caught(vp, order_chart_dir, capsys):
+    chart_dir, doc_dir = order_chart_dir
+    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
+        order_doc([ZAAK_ROW, INWONER_ROW], ["Open Zaak bump"]))
+    ok, detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline=None)
+    assert ok is False
+    assert "mismatch" in detail
+    out = capsys.readouterr().out
+    assert 'table row "Open Inwoner" has no matching "### ..." section under "## Changes"' in out
+
+
+def test_changes_section_with_no_table_row_is_caught(vp, order_chart_dir, capsys):
+    chart_dir, doc_dir = order_chart_dir
+    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
+        order_doc([ZAAK_ROW], ["Open Zaak bump", "Open Inwoner bump"]))
+    ok, detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline=None)
+    assert ok is False
+    assert "mismatch" in detail
+    out = capsys.readouterr().out
+    assert '"## Changes" section "### Open Inwoner bump" has no matching row in the ' \
+           '"Component versions" table' in out
+
+
+def test_plus_joined_changes_heading_covers_both_named_components(vp, order_chart_dir):
+    """A single "### ..." heading can cover two components at once, joined
+    with " + " (the real-world case this was written for: "### ECK
+    Operator 3.4.0 → 3.5.0 + ECK Stack (kiss-eck) 0.19.0 → 0.20.0") — both
+    Open Zaak's and Open Inwoner's own table rows must be satisfied by
+    this one combined heading, not just whichever of the two match_
+    dependency's own single-best-match would otherwise pick."""
+    chart_dir, doc_dir = order_chart_dir
+    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
+        order_doc([ZAAK_ROW, INWONER_ROW], ["Open Zaak bump + Open Inwoner bump"]))
+    ok, detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline=None)
+    assert ok is True, detail
+
+
+def test_changes_heading_naming_no_real_component_is_caught_as_no_matching_row(vp, order_chart_dir, capsys):
+    """A Changes heading that never actually names a real Chart.yaml
+    dependency at all (the real-world case: "### Keycloak app image
+    26.6.4 → 26.7.2" — never says "keycloak-operator" or even
+    "operator") still has to be reported as having no matching table
+    row, the same as a heading naming the wrong component would be —
+    resolving to nothing is not itself a pass."""
+    chart_dir, doc_dir = order_chart_dir
+    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
+        order_doc([ZAAK_ROW, INWONER_ROW], ["Open Zaak bump", "Open Inwoner bump", "Unrelated release note"]))
+    ok, detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline=None)
+    assert ok is False
+    assert "mismatch" in detail
+    out = capsys.readouterr().out
+    assert '"## Changes" section "### Unrelated release note" has no matching row in the ' \
+           '"Component versions" table' in out
