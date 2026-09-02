@@ -69,7 +69,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from lib.chart import dotted_key_path, find_dependency, get_path, load_yaml
+from lib.chart import dotted_key_path, find_dependency, get_path, image_paths_for, load_yaml
 from lib.chart import upgrade_docs_baseline as read_upgrade_docs_baseline
 from lib.component_docs import (
     NO_CHANGES_CLAIMED_RE, baseline_doc_paths, images_manifest_path, insert_changes_section,
@@ -117,14 +117,31 @@ def group_changes_by_component(changes, values_lines_before_write):
     return groups, full_paths
 
 
-def update_docs_single_component(new_version, target, deps, values, dep, values_key, group):
+def update_docs_single_component(new_version, target, deps, values, dep, values_key, group, basename):
     """The exact update-component-version doc-update flow (see that
     script's own main() for the version this was factored out of),
     applied to a basename bump that happens to affect only this one
     component — old_chart/new_chart are the SAME (Chart.yaml's own
-    version), since a basename bump never touches Chart.yaml."""
+    version), since a basename bump never touches Chart.yaml.
+
+    The doc row/Changes-section/values-delta bullet is named
+    `values_key` alone when the bumped image is this dependency's own
+    registered primary image (image_paths_for) — the usual,
+    unambiguous case, same display name as ever. For any OTHER image
+    under this dependency's own subtree (a sidecar — e.g. redis-ha's
+    own redis image or its redis-exporter sidecar, both nested under
+    "redis-operator") `values_key` alone would collide with — and
+    silently corrupt — the row already representing the dependency's
+    own primary image (or another sidecar's own row): find_component_row
+    matches by word-containment against a SINGLE name, so two different
+    images sharing that same `values_key` name are indistinguishable to
+    it. Disambiguated as "<values_key> (<basename>)" instead — both are
+    already-resolved, exact inputs (resolve_scoped_matches guarantees
+    <values_key> <basename> identifies exactly one distinct repository),
+    not a guess."""
     chart_name = dep["name"]
-    friendly = values_key
+    is_primary_image = set(group["paths"]) <= set(image_paths_for(dep["name"]))
+    friendly = values_key if is_primary_image else f"{values_key} ({basename})"
     chart_version_str = str(dep["version"])
     image_paths = group["paths"]
     repos = group["repos"]
@@ -149,7 +166,11 @@ def update_docs_single_component(new_version, target, deps, values, dep, values_
         current_deps = load_yaml(CHART_YAML).get("dependencies", [])
         current_values = load_yaml(VALUES_YAML) or {}
         changed_keys = compute_changed_components(current_deps, baseline_deps, current_values, baseline_values)
-        reset_to_baseline = friendly not in changed_keys
+        # compute_changed_components only ever returns top-level values.yaml
+        # keys (see its own docstring) — never `friendly`'s own possibly-
+        # disambiguated "<values_key> (<basename>)" form, which wouldn't be
+        # a member of that set even when this specific image DID change.
+        reset_to_baseline = values_key not in changed_keys
         baseline_tag = get_path(baseline_values, f"{values_key}.{image_paths[0]}.tag") or ""
         old_app = baseline_tag.split("@", 1)[0] or old_app
 
@@ -411,7 +432,7 @@ def update_docs(basename, new_version, changes, values_lines_before_write):
     values_key, group = next(iter(groups.items()))
     dep = find_dependency(deps, values_key)
     if dep is not None:
-        update_docs_single_component(new_version, target, deps, values, dep, values_key, group)
+        update_docs_single_component(new_version, target, deps, values, dep, values_key, group, basename)
         return
 
     update_docs_shared_image(basename, new_version, changes, full_paths, target, deps, values)
