@@ -526,6 +526,13 @@ def test_image_paths_for_multi_image_component(libchart):
     assert libchart.image_paths_for("zgw-office-addin") == ["frontend.image", "backend.image"]
 
 
+def test_image_paths_for_ita_web_and_poller(libchart):
+    """ITA has no single "app" image at all — web and poller are two
+    co-equal images, same lockstep shape as zgw-office-addin's own
+    frontend+backend split."""
+    assert libchart.image_paths_for("internetaakafhandeling") == ["web.image", "poller.image"]
+
+
 def test_image_paths_for_unlisted_component_defaults_to_single_image_block(libchart):
     assert libchart.image_paths_for("zac") == ["image"]
 
