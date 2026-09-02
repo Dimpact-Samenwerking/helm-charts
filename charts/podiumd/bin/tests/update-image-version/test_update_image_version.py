@@ -197,7 +197,7 @@ def test_main_sidecar_bump_gets_disambiguated_row_name(uiv, tmp_path, monkeypatc
     """redis-ha's own image lives under "redis-operator" but isn't that
     dependency's own registered primary image (image_paths_for defaults
     to just "image", which doesn't exist here) -- the row/section must
-    be named "redis-operator (redis)", not bare "redis-operator"."""
+    be named "redis-operator - redis", not bare "redis-operator"."""
     write_chart_yaml(tmp_path, [("redis-operator", None)])
     values_path = write_values(tmp_path, REDIS_VALUES_TMPL.format(version="8.6.2", digest="a" * 64))
     monkeypatch.setattr(uiv, "CHART_DIR", tmp_path)
@@ -219,14 +219,14 @@ def test_main_sidecar_bump_gets_disambiguated_row_name(uiv, tmp_path, monkeypatc
     uiv.main()
 
     upgrade = (uiv.DOC_DIR / "0.9.0-to-1.0.0-upgrade.md").read_text(encoding="utf-8")
-    assert "| redis-operator (redis) | 8.6.2 → 8.6.6 | 1.0.0 (unchanged) | - |" in upgrade
-    assert "### redis-operator (redis) 8.6.2 → 8.6.6" in upgrade
+    assert "| redis-operator - redis | 8.6.2 → 8.6.6 | 1.0.0 (unchanged) | - |" in upgrade
+    assert "### redis-operator - redis 8.6.2 → 8.6.6" in upgrade
 
     deltas = (uiv.DOC_DIR / "0.9.0-to-1.0.0-values-deltas.md").read_text(encoding="utf-8")
-    assert "- **redis-operator (redis)** app `8.6.2 → 8.6.6`" in deltas
+    assert "- **redis-operator - redis** app `8.6.2 → 8.6.6`" in deltas
 
     out = capsys.readouterr().out
-    assert "(re)wrote '### redis-operator (redis) ...' Changes section" in out
+    assert "(re)wrote '### redis-operator - redis ...' Changes section" in out
 
 
 def test_main_sidecar_bump_does_not_corrupt_dependencys_own_row(uiv, tmp_path, monkeypatch):
@@ -258,7 +258,7 @@ def test_main_sidecar_bump_does_not_corrupt_dependencys_own_row(uiv, tmp_path, m
 
     upgrade = (uiv.DOC_DIR / "0.9.0-to-1.0.0-upgrade.md").read_text(encoding="utf-8")
     assert "| redis-operator | 0.25.0 → 0.26.0 | 0.25.0 → 0.26.1 | ACR mirror only |" in upgrade
-    assert "| redis-operator (redis) | 8.6.2 → 8.6.6 | 1.0.0 (unchanged) | - |" in upgrade
+    assert "| redis-operator - redis | 8.6.2 → 8.6.6 | 1.0.0 (unchanged) | - |" in upgrade
 
 
 def test_main_sidecar_reset_to_baseline_uses_raw_values_key(uiv, tmp_path, monkeypatch):
@@ -279,12 +279,12 @@ def test_main_sidecar_reset_to_baseline_uses_raw_values_key(uiv, tmp_path, monke
               "## Component versions (1.0.0 vs 0.9.0)\n\n"
               "| Component | App version | Helm chart | Notes |\n"
               "| --- | --- | --- | --- |\n"
-              "| redis-operator (redis) | 8.6.2 → 8.6.6 | 1.0.0 (unchanged) | - |\n\n"
+              "| redis-operator - redis | 8.6.2 → 8.6.6 | 1.0.0 (unchanged) | - |\n\n"
               "## Changes\n\n"
-              "### redis-operator (redis) 8.6.2 → 8.6.6\n\nblah\n")
+              "### redis-operator - redis 8.6.2 → 8.6.6\n\nblah\n")
     write_doc(uiv.DOC_DIR, "0.9.0-to-1.0.0-values-deltas.md",
               "# Values deltas — PodiumD 0.9.0 → 1.0.0\n\n"
-              "- **redis-operator (redis)** app `8.6.2 → 8.6.6` (chart `1.0.0`, unchanged) — image tag only.\n")
+              "- **redis-operator - redis** app `8.6.2 → 8.6.6` (chart `1.0.0`, unchanged) — image tag only.\n")
 
     import lib.image_version as image_version
     monkeypatch.setattr(image_version, "registry_tag_exists",
@@ -294,10 +294,10 @@ def test_main_sidecar_reset_to_baseline_uses_raw_values_key(uiv, tmp_path, monke
     uiv.main()
 
     upgrade = (uiv.DOC_DIR / "0.9.0-to-1.0.0-upgrade.md").read_text(encoding="utf-8")
-    assert "redis-operator (redis)" not in upgrade
+    assert "redis-operator - redis" not in upgrade
 
     deltas = (uiv.DOC_DIR / "0.9.0-to-1.0.0-values-deltas.md").read_text(encoding="utf-8")
-    assert "redis-operator (redis)" not in deltas
+    assert "redis-operator - redis" not in deltas
 
 
 # --- doc updates: multiple components affected -> shared-image (lib.image_docs) treatment ---
