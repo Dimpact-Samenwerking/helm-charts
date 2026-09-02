@@ -10,7 +10,7 @@ import re
 
 import yaml
 
-from lib.chart import canonical_sidecar_row_names, load_yaml
+from lib.chart import canonical_sidecar_row_names, get_path, load_yaml
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
 from lib.upgradedoc import (
     actual_app_version, compute_changed_components, diff_keys, extract_mentioned_dependency_keys,
@@ -302,6 +302,21 @@ def check_values_deltas_content(doc_path, changed_component_keys, baseline_value
     return issues
 
 
+def sidecar_tag(values, sidecar_path):
+    """The tag pinned at a sidecar's own values-tree path (as returned by
+    canonical_sidecar_row_names — already ending in the real image key
+    itself, e.g. "initImage", not a hardcoded "image") — deliberately
+    NOT actual_app_version, whose DEFAULT_IMAGE_PATHS fallback always
+    appends ".image.tag" regardless of the sidecar's real trailing key,
+    silently resolving to an unrelated sibling image's tag whenever that
+    key isn't literally "image" (e.g. keycloak-operator's own
+    ensurePodiumdAdminUser job pins BOTH "image" and "initImage" —
+    stripping the trailing key and re-guessing ".image.tag" would
+    compare the row against the wrong one of the two)."""
+    tag = get_path(values, ".".join(sidecar_path) + ".tag")
+    return tag.split("@", 1)[0] if isinstance(tag, str) and tag else None
+
+
 def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
     chart_yaml = load_yaml(chart_dir / "Chart.yaml")
     podiumd_version = str(chart_yaml["version"])
@@ -419,7 +434,18 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
             # word-span, which match_dependency would otherwise happily
             # (and wrongly) match to that dependency's own row.
             sidecar_path = canonical_names.get(row["name"])
-            dep = None if sidecar_path is not None else match_dependency(row["name"], deps)
+            # " - " is the canonical sidecar-name delimiter (see
+            # canonical_sidecar_row_names) and never appears inside a real
+            # Chart.yaml dependency's own name/alias — so a row shaped
+            # like that with no exact canonical_names hit (its repository
+            # couldn't be resolved at all, e.g. "kiss - podiumd-adapter")
+            # must NOT fall through to match_dependency's fuzzy word-span
+            # matching, which would otherwise happily (and wrongly) match
+            # its leading word to an unrelated real dependency (here,
+            # "kiss" itself).
+            dep = None
+            if sidecar_path is None and " - " not in row["name"]:
+                dep = match_dependency(row["name"], deps)
             if sidecar_path is None and dep is None:
                 mismatches.append(
                     f'{doc_path.name}: doc row "{row["name"]}" does not match a Chart.yaml '
@@ -436,9 +462,9 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
             else:
                 matched_sidecar_paths.add(sidecar_path)
                 top_level_key = sidecar_path[0]
-                values_key = ".".join(sidecar_path[:-1])
+                values_key = ".".join(sidecar_path)
                 actual_chart = None
-                actual_app = actual_app_version(values, values_key)
+                actual_app = sidecar_tag(values, sidecar_path)
 
             changed_component_keys.add(top_level_key)
 
@@ -462,7 +488,7 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
                 baseline_app_actual = actual_app_version(baseline_values, values_key, dep["name"])
             else:
                 baseline_chart_actual = None
-                baseline_app_actual = actual_app_version(baseline_values, values_key)
+                baseline_app_actual = sidecar_tag(baseline_values, sidecar_path)
 
             if row["chart_source"] and baseline_chart_actual and \
                     normalize_version(row["chart_source"]) != normalize_version(baseline_chart_actual):
