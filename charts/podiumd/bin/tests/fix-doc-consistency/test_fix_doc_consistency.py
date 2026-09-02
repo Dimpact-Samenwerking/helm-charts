@@ -850,42 +850,45 @@ def test_main_adds_todo_stub_section_when_row_has_no_app_version(
     assert "TODO: describe this component's changes" in upgrade
 
 
-def test_main_splits_a_combined_changes_heading(
+def test_main_adds_sections_for_both_rows_named_by_a_two_component_heading(
         cdb, repo_with_undocumented_sidecar_bump, monkeypatch, capsys):
-    """A "### ..." heading joining two components at once via " + " (real
-    case: "### ECK Operator 3.4.0 -> 3.5.0 + ECK Stack (kiss-eck) 0.19.0
-    -> 0.20.0") gets split into one proper section per component, each
-    built from that component's OWN table row — never from the combined
-    heading's own shared prose, which is discarded rather than guessed
-    at."""
+    """A "### ..." heading naming two components at once (real case:
+    "### ECK Operator 3.4.0 -> 3.5.0 + ECK Stack (kiss-eck) 0.19.0 ->
+    0.20.0") is assessed as a whole, never split — it credits NEITHER
+    component's row (see find_changes_row_correspondence_gaps), so
+    add_missing_changes_sections adds a proper section for EACH one from
+    its own table row. The combined heading itself is left completely
+    untouched — deciding what its shared prose was actually about, or
+    how to rename/split it, needs a human, not a guess."""
     doc_dir = repo_with_undocumented_sidecar_bump
     doc = doc_dir / "4.8.5-to-4.9.0-upgrade.md"
+    combined_heading = "### ZAC (Zaakafhandelcomponent) 5.0.2 (unchanged) + redis-operator 0.26.1 (unchanged)\n\n"
     doc.write_text(doc.read_text(encoding="utf-8").replace(
         "## Changes\n\n",
-        "## Changes\n\n"
-        "### ZAC (Zaakafhandelcomponent) 5.0.2 (unchanged) + redis-operator 0.26.1 (unchanged)\n\n"
-        "Some shared prose that should be discarded on split.\n\n"
+        "## Changes\n\n" + combined_heading + "Some shared prose that must not be touched.\n\n"
     ), encoding="utf-8")
 
     set_argv_and_dir(cdb, monkeypatch, doc_dir, "4.8.5")
     cdb.main()
 
     upgrade = doc.read_text(encoding="utf-8")
+    assert combined_heading in upgrade
+    assert "Some shared prose that must not be touched." in upgrade
     assert "### ZAC (Zaakafhandelcomponent) 5.0.2 → 5.0.2 (chart 1.0.297, unchanged)" in upgrade
     assert "### redis-operator 0.26.1\n" in upgrade
-    assert "+ redis-operator" not in upgrade
-    assert "Some shared prose that should be discarded" not in upgrade
     out = capsys.readouterr().out
-    assert "Splitting combined '### ...' Changes section(s)" in out
+    assert "Adding missing '### ...' Changes section(s)" in out
+    assert "ZAC (Zaakafhandelcomponent)" in out
+    assert "redis-operator" in out
 
 
-def test_main_splits_combined_heading_using_version_pin_for_a_version_paths_component(
-        cdb, tmp_path, monkeypatch):
-    """The split section for a component registered in COMPONENT_VERSION_
-    PATHS (e.g. eck-stack's bare "...version:" fields, the ECK operator's
-    own CRD convention) must use a "Version pin" bullet, never the
-    generic "Image tag pin `<key>.image.tag`" guess — that path doesn't
-    even exist in values.yaml for a component shaped this way."""
+def test_main_adds_version_pin_bullet_for_a_version_paths_component(cdb, tmp_path, monkeypatch):
+    """The section add_missing_changes_sections adds for a component
+    registered in COMPONENT_VERSION_PATHS (e.g. eck-stack's bare
+    "...version:" fields, the ECK operator's own CRD convention) must
+    use a "Version pin" bullet, never the generic "Image tag pin
+    `<key>.image.tag`" guess — that path doesn't even exist in
+    values.yaml for a component shaped this way."""
     from lib.chart import COMPONENT_VERSION_PATHS
     monkeypatch.setitem(COMPONENT_VERSION_PATHS, "widget-b", ["version"])
 
@@ -921,9 +924,7 @@ def test_main_splits_combined_heading_using_version_pin_for_a_version_paths_comp
           "| --- | --- | --- | --- |\n"
           "| widget-a | 1.1.0 → 1.2.0 | 1.0.0 (unchanged) | - |\n"
           "| widget-b | 2.1.0 → 2.2.0 | 2.0.0 (unchanged) | - |\n\n"
-          "## Changes\n\n"
-          "### widget-a 1.1.0 → 1.2.0 + widget-b 2.1.0 → 2.2.0\n\n"
-          "Shared prose.\n\n")
+          "## Changes\n\n")
     git("add", "-A", cwd=tmp_path)
     git("commit", "-q", "-m", "bump", cwd=tmp_path)
 

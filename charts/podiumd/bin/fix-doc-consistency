@@ -83,7 +83,7 @@ from lib.component_docs import (
     add_missing_values_delta_bullets, existing_doc_baselines,
 )
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
-from lib.image_docs import add_missing_changes_sections, add_missing_sidecar_rows, split_combined_changes_headings
+from lib.image_docs import add_missing_changes_sections, add_missing_sidecar_rows
 from lib.upgradedoc import (
     actual_app_version, append_to_doc, canonical_version_cell, compute_changed_components,
     extract_source_version, extract_target_version, find_grouped_preceding_comment_line,
@@ -561,15 +561,6 @@ def main():
         canonical_names = canonical_sidecar_row_names(CHART_YAML.parent, target_deps, target_values,
                                                         current_paths.keys())
 
-        text, split_headings = split_combined_changes_headings(
-            text, target_deps, target_values, target, canonical_names
-        )
-        if split_headings:
-            print()
-            print(f"=== Splitting combined '### ...' Changes section(s) in {upgrade_path.name} ===")
-            for heading in split_headings:
-                print(f"  {heading}")
-
         text, added_section_names = add_missing_changes_sections(
             text, target_deps, target_values, target, canonical_names
         )
@@ -589,8 +580,7 @@ def main():
             for heading, old_pos, new_pos in moved_blocks:
                 print(f"  changes block '### {heading}': position {old_pos} -> {new_pos}")
 
-        if (changed_rows or added_names or added_sidecar_names or split_headings or added_section_names
-                or moved_rows or moved_blocks):
+        if changed_rows or added_names or added_sidecar_names or added_section_names or moved_rows or moved_blocks:
             upgrade_path.write_text(text, encoding="utf-8")
 
     if images_path.is_file():
