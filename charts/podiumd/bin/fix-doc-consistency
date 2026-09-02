@@ -76,7 +76,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from lib.chart import SEMVER_RE as BASELINE_VERSION_RE
-from lib.chart import chart_version, repository_path_map
+from lib.chart import canonical_sidecar_row_names, chart_version, repository_path_map
 from lib.chart import upgrade_docs_baseline as read_upgrade_docs_baseline
 from lib.component_docs import (
     IMAGES_STUB_TEMPLATE, STANDARD_SUFFIXES, STUB_TEMPLATES, add_missing_component_rows,
@@ -87,7 +87,7 @@ from lib.image_docs import add_missing_sidecar_rows
 from lib.upgradedoc import (
     actual_app_version, append_to_doc, canonical_version_cell, compute_changed_components,
     extract_source_version, extract_target_version, find_grouped_preceding_comment_line,
-    find_image_tag_paths, match_dependency, missing_key_change_lines, normalize_version,
+    find_image_tag_paths, match_dependency_excluding_sidecar_names, missing_key_change_lines, normalize_version,
     parse_upgrade_doc_rows, replace_version_pair, resolve_entry_image_path, sort_changes_blocks,
     sort_upgrade_doc_rows,
 )
@@ -218,31 +218,64 @@ def load_baseline_state(new_baseline):
     return baseline_chart_yaml.get("dependencies", []), baseline_values
 
 
-def fix_component_version_table(text, target_deps, target_values, baseline_deps, baseline_values):
+def fix_component_version_table(text, chart_dir, target_deps, target_values, baseline_deps, baseline_values):
     """Rewrite each "Component versions" table row's App/Helm-chart cells to
     the actual baseline (source) and target versions found in git/Chart.yaml/
     values.yaml. A row is only rewritten when both its source and target are
     independently verifiable; anything else is left as-is and reported.
-    Returns (new_text, changed_rows, unmatched_names, unresolved_names)."""
+
+    A row using the canonical sidecar/shared-image name (see
+    lib.chart.canonical_sidecar_row_names — "<values_key> - <basename>" or
+    bare "<basename>") is corrected against ITS OWN resolved tag instead of
+    match_dependency's real-dependency lookup — that fuzzy match would
+    otherwise collide with an unrelated real dependency sharing the row's
+    leading word (e.g. "redis-operator - redis" silently corrected against
+    the real "redis-operator" dependency's own actual chart/app version,
+    which happened here before this guard existed). Its Helm-chart cell is
+    never rewritten (stays whatever it already says — "-", same convention
+    add_missing_sidecar_rows itself writes — since a sidecar has no Helm
+    chart version of its own to verify against, same as
+    lib.docs_consistency's own row check). Returns (new_text, changed_rows,
+    unmatched_names, unresolved_names)."""
     lines = text.splitlines(keepends=True)
     rows = parse_upgrade_doc_rows(text)
     changed_rows, unmatched_names, unresolved_names = [], [], []
 
-    for row in rows:
-        dep = match_dependency(row["name"], target_deps)
-        if dep is None:
-            unmatched_names.append(row["name"])
-            continue
-        values_key = dep.get("alias", dep["name"])
-        actual_target_chart = str(dep["version"])
-        actual_target_app = actual_app_version(target_values, values_key, dep["name"])
+    current_paths = dict(find_image_tag_paths(target_values))
+    baseline_paths = dict(find_image_tag_paths(baseline_values)) if baseline_values else {}
+    canonical_names = canonical_sidecar_row_names(chart_dir, target_deps, target_values, current_paths.keys())
 
-        baseline_dep = match_dependency(row["name"], baseline_deps) if baseline_deps else None
-        if baseline_dep is None:
+    for row in rows:
+        sidecar_path = canonical_names.get(row["name"])
+        if sidecar_path is None and " - " in row["name"]:
             unresolved_names.append(row["name"])
             continue
-        actual_baseline_chart = str(baseline_dep["version"])
-        actual_baseline_app = actual_app_version(baseline_values, values_key, dep["name"])
+
+        if sidecar_path is not None:
+            current_tag = current_paths.get(sidecar_path)
+            baseline_tag = baseline_paths.get(sidecar_path)
+            actual_target_app = current_tag.split("@", 1)[0] if current_tag else None
+            actual_baseline_app = baseline_tag.split("@", 1)[0] if baseline_tag else None
+            if actual_target_app is None or actual_baseline_app is None:
+                unresolved_names.append(row["name"])
+                continue
+            actual_target_chart = actual_baseline_chart = None
+        else:
+            dep = match_dependency_excluding_sidecar_names(row["name"], target_deps)
+            if dep is None:
+                unmatched_names.append(row["name"])
+                continue
+            values_key = dep.get("alias", dep["name"])
+            actual_target_chart = str(dep["version"])
+            actual_target_app = actual_app_version(target_values, values_key, dep["name"])
+
+            baseline_dep = match_dependency_excluding_sidecar_names(row["name"], baseline_deps) \
+                if baseline_deps else None
+            if baseline_dep is None:
+                unresolved_names.append(row["name"])
+                continue
+            actual_baseline_chart = str(baseline_dep["version"])
+            actual_baseline_app = actual_app_version(baseline_values, values_key, dep["name"])
 
         row_changed = False
         line = lines[row["line_index"]]
@@ -255,8 +288,9 @@ def fix_component_version_table(text, target_deps, target_values, baseline_deps,
             cells[1] = canonical_version_cell(actual_baseline_app, actual_target_app)
             row_changed = True
 
-        if normalize_version(row["chart_source"]) != normalize_version(actual_baseline_chart) \
-                or normalize_version(row["chart"]) != normalize_version(actual_target_chart):
+        if actual_target_chart is not None and actual_baseline_chart is not None and (
+                normalize_version(row["chart_source"]) != normalize_version(actual_baseline_chart)
+                or normalize_version(row["chart"]) != normalize_version(actual_target_chart)):
             cells[2] = canonical_version_cell(actual_baseline_chart, actual_target_chart)
             row_changed = True
 
@@ -480,7 +514,7 @@ def main():
     if upgrade_path.is_file():
         text = upgrade_path.read_text(encoding="utf-8")
         text, changed_rows, unmatched_names, unresolved_names = fix_component_version_table(
-            text, target_deps, target_values, baseline_deps, baseline_values
+            text, CHART_YAML.parent, target_deps, target_values, baseline_deps, baseline_values
         )
         if changed_rows:
             print()

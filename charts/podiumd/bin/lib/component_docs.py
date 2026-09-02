@@ -26,7 +26,7 @@ from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, 
 from lib.upgradedoc import (
     _word_aligned_spans, actual_app_version, append_to_doc, canonical_version_cell, component_order_key,
     extract_mentioned_dependency_keys, extract_source_version, find_grouped_preceding_comment_line,
-    insertion_index, match_dependency, normalize_name, normalize_version,
+    insertion_index, match_dependency_excluding_sidecar_names, normalize_name, normalize_version,
     parse_upgrade_doc_changes_blocks, parse_upgrade_doc_rows, replace_version_pair, resolve_entry_path,
     values_key_order,
 )
@@ -392,7 +392,12 @@ def add_missing_component_rows(text, target_deps, target_values, baseline_deps, 
     section instead of guessing at prose. Returns (new_text, added_names)."""
     matched_keys = set()
     for row in parse_upgrade_doc_rows(text):
-        dep = match_dependency(row["name"], target_deps)
+        # match_dependency_excluding_sidecar_names, not match_dependency
+        # directly — a canonical sidecar row like "redis-operator -
+        # redis" must never register as if it were redis-operator's OWN
+        # row, which would wrongly suppress adding redis-operator's real
+        # row if IT independently changed with no row of its own yet.
+        dep = match_dependency_excluding_sidecar_names(row["name"], target_deps)
         if dep:
             matched_keys.add(dep.get("alias", dep["name"]))
 

@@ -286,6 +286,28 @@ def match_dependency(text, deps):
     return best[0] if best else None
 
 
+def match_dependency_excluding_sidecar_names(text, deps):
+    """match_dependency, but refuses to match at all when `text` contains
+    " - " — the canonical sidecar/shared-image delimiter (see
+    lib.chart.canonical_sidecar_row_names) — since that shape never
+    appears in a real Chart.yaml dependency's own name/alias. Without
+    this guard, a canonical name like "redis-operator - redis" fuzzy-
+    matches the real "redis-operator" dependency on its leading word
+    (match_dependency's whole point is exactly this kind of loose
+    word-containment match), silently corrupting or suppressing
+    whatever the caller does with that match — e.g. fix-doc-consistency's
+    own table-row correction once overwrote a sidecar row's app/chart
+    cells with its unrelated owning dependency's own actual versions
+    this way.
+
+    Use this everywhere match_dependency is asked "is this really
+    talking about a real Chart.yaml component" (row/bullet/Changes-item
+    matching, mention detection) — NOT in component_order_key, which
+    deliberately wants that same fuzzy containment so a canonical
+    sidecar row still sorts near its owning dependency in the doc."""
+    return None if " - " in text else match_dependency(text, deps)
+
+
 def canonical_version_cell(actual_source, actual_target):
     """A "Component versions" table cell in the established style:
     "<target> (unchanged)" when source==target, else "<source> → <target>"."""
@@ -656,10 +678,16 @@ def strip_fenced_code_blocks(text):
 def extract_mentioned_dependency_keys(text, deps):
     """Component keys mentioned via a bold "**Name**" span anywhere in a
     free-form doc (e.g. a values-deltas.md bullet like "- **ZAC** app ..."),
-    matched the same fuzzy way as an upgrade-doc table row's name."""
+    matched the same fuzzy way as an upgrade-doc table row's name. Uses
+    match_dependency_excluding_sidecar_names, not match_dependency
+    directly — a canonical sidecar/shared-image bullet like "- **redis-
+    operator - redis** app ..." must never register as mentioning the
+    real "redis-operator" dependency (see that function's own
+    docstring); doing so would wrongly suppress redis-operator's own
+    bullet as "already mentioned" if it changed independently."""
     mentioned = set()
     for m in re.finditer(r"\*\*([^*]+)\*\*", strip_fenced_code_blocks(text)):
-        dep = match_dependency(m.group(1), deps)
+        dep = match_dependency_excluding_sidecar_names(m.group(1), deps)
         if dep:
             mentioned.add(dep.get("alias", dep["name"]))
     return mentioned

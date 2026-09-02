@@ -15,8 +15,8 @@ from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, 
 from lib.upgradedoc import (
     actual_app_version, compute_changed_components, diff_keys, extract_mentioned_dependency_keys,
     extract_source_version, extract_target_version, find_grouped_preceding_comment,
-    find_image_tag_paths, find_out_of_order_names, match_dependency, normalize_version, pair_renames,
-    parse_changes_block, parse_upgrade_doc_changes_blocks,
+    find_image_tag_paths, find_out_of_order_names, match_dependency, match_dependency_excluding_sidecar_names,
+    normalize_version, pair_renames, parse_changes_block, parse_upgrade_doc_changes_blocks,
     parse_upgrade_doc_rows as _parse_upgrade_doc_rows, resolve_entry_path, strip_fenced_code_blocks,
     values_key_order,
 )
@@ -184,7 +184,15 @@ def check_images_manifest_format(images_path, upgrade_docs_baseline, podiumd_ver
                            f'expected "{upgrade_docs_baseline}"')
 
     for item in parse_changes_block(text):
-        dep = match_dependency(item["name"], deps)
+        # match_dependency_excluding_sidecar_names, not match_dependency
+        # directly — a canonical sidecar/shared-image Changes item like
+        # "keycloak-operator - python 3.14-slim -> 3.14.7-slim." must
+        # never fuzzy-match the real "keycloak-operator" dependency on
+        # its leading word and get compared against ITS OWN unrelated
+        # actual app version; it falls through to the "plain image"
+        # entry-matching branch below instead, same as any other
+        # non-component Changes item.
+        dep = match_dependency_excluding_sidecar_names(item["name"], deps)
         if dep:
             values_key = dep.get("alias", dep["name"])
             actual_app = actual_app_version(values, values_key, dep["name"])
@@ -428,24 +436,15 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
 
         for row in parse_upgrade_doc_rows(doc_path):
             # canonical_names is an EXACT lookup — checked first and, on a
-            # hit, taken over match_dependency's own fuzzy word-span
-            # matching entirely: a canonical sidecar name like "redis-
-            # operator - redis" contains "redis-operator" as a leading
-            # word-span, which match_dependency would otherwise happily
-            # (and wrongly) match to that dependency's own row.
+            # hit, taken over match_dependency_excluding_sidecar_names
+            # entirely. That helper (rather than plain match_dependency)
+            # covers the remaining case: a row with no exact canonical_names
+            # hit (its repository couldn't be resolved at all, e.g. "kiss -
+            # podiumd-adapter") must still never fall through to a fuzzy
+            # word-span match against an unrelated real dependency (here,
+            # "kiss" itself) just because it shares a leading word.
             sidecar_path = canonical_names.get(row["name"])
-            # " - " is the canonical sidecar-name delimiter (see
-            # canonical_sidecar_row_names) and never appears inside a real
-            # Chart.yaml dependency's own name/alias — so a row shaped
-            # like that with no exact canonical_names hit (its repository
-            # couldn't be resolved at all, e.g. "kiss - podiumd-adapter")
-            # must NOT fall through to match_dependency's fuzzy word-span
-            # matching, which would otherwise happily (and wrongly) match
-            # its leading word to an unrelated real dependency (here,
-            # "kiss" itself).
-            dep = None
-            if sidecar_path is None and " - " not in row["name"]:
-                dep = match_dependency(row["name"], deps)
+            dep = None if sidecar_path is not None else match_dependency_excluding_sidecar_names(row["name"], deps)
             if sidecar_path is None and dep is None:
                 mismatches.append(
                     f'{doc_path.name}: doc row "{row["name"]}" does not match a Chart.yaml '
