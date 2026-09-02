@@ -1,0 +1,20 @@
+# Baseline: podiumd 4.8.5 — re-verify before release.
+#
+# Images new or changed in podiumd 4.8.6 vs 4.8.5.
+#
+# See docs/_UPGRADE_PATHS/4.8.5-to-4.8.6-upgrade.md for the operator upgrade notes.
+#
+# Digests are the OCI image index (multi-arch manifest) digest as returned in
+# the Docker-Content-Digest response header from the source registry.
+
+# Keycloak server: 26.6.4 -> 26.7.2
+- name: keycloak
+  url: quay.io/keycloak/keycloak
+  version: "26.7.2"
+  digest: "sha256:9d1f1b2b7261ff53c66cb1092dfcdc34a5fb77e81f9e6a6e75b8b6a795de8067"
+
+# Keycloak Operator: 26.6.4 -> 26.7.2 (Helm chart keycloak-operator 1.12.1 -> 1.13.0)
+- name: keycloak-operator
+  url: quay.io/keycloak/keycloak-operator
+  version: "26.7.2"
+  digest: "sha256:f6079999aa773f1846de01c9014d19c3c677d35570361fd7c01c0830836e4041"
