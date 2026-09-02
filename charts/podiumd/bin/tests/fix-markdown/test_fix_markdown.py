@@ -51,7 +51,7 @@ def test_run_fix_returns_paths_pymarkdown_reported_as_fixed(sub, tmp_path, monke
     assert (chart_dir / "docs" / "b.md").read_text(encoding="utf-8") == CLEAN
 
 
-def test_run_fix_disables_md013_and_md031(sub, tmp_path, monkeypatch):
+def test_run_fix_disables_md013_md014_and_md031(sub, tmp_path, monkeypatch):
     chart_dir = make_chart(tmp_path, {"docs/a.md": CLEAN})
     captured = {}
 
@@ -62,7 +62,7 @@ def test_run_fix_disables_md013_and_md031(sub, tmp_path, monkeypatch):
     monkeypatch.setattr(sub, "run", fake_run)
     sub.run_fix("pymarkdown", [chart_dir / "docs" / "a.md"])
 
-    assert captured["cmd"][:4] == ["pymarkdown", "-d", "md013,md031", "fix"]
+    assert captured["cmd"][:4] == ["pymarkdown", "-d", "md013,md014,md031", "fix"]
 
 
 # --- dry_run_fix ---

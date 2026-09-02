@@ -20,7 +20,15 @@ line-length (MD013) is disabled outright, not just left unreported — same
 call as check_yamllint's own line-length: disable (tables/links/prose
 routinely exceed it, pure noise) — it alone accounts for ~89% of all
 findings here and would drown out everything else in the report if left
-on."""
+on.
+
+commands-show-output (MD014) is disabled too, at the user's explicit
+request — it flags a fenced shell block where every line starts with
+"$" (the theory being a command with no shown output nearby is less
+useful as documentation). This repo's docs are reference material —
+command snippets are routinely shown on their own, without a captured
+transcript — so the rule would just add noise here, same call as
+MD013."""
 import re
 import shutil
 from pathlib import Path
@@ -31,7 +39,7 @@ from lib.gitutil import find_repo_root
 from lib.procutil import run
 from lib.render_scope import print_grouped_findings
 
-MARKDOWN_DISABLED_RULES = "md013"
+MARKDOWN_DISABLED_RULES = "md013,md014"
 
 MARKDOWN_FINDING_RE = re.compile(
     r"^(?P<path>.+?):(?P<line>\d+):(?P<col>\d+):\s+"
@@ -113,7 +121,8 @@ def _relative_path(path_str, base_dir):
 
 def check_markdown(chart_dir):
     """Lints every *.md file under chart_dir with pymarkdown, MD013
-    (line-length) disabled (see module docstring). Always report-only —
+    (line-length) and MD014 (commands-show-output) disabled (see module
+    docstring). Always report-only —
     findings print, grouped by rule, but never fail the check; only a
     missing pymarkdown install does (matching every other external-tool
     check here)."""
