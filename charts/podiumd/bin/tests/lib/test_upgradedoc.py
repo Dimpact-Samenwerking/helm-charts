@@ -158,6 +158,32 @@ def test_changes_heading_identities_does_not_double_count_an_alias_nested_inside
     assert idents == {("dep", "kiss-eck")}
 
 
+def test_changes_heading_identities_self_referential_sidecar_shape_resolves_to_nothing(libupgradedoc):
+    """Regression test: a heading shaped like a canonical sidecar
+    reference ("<parent> - <basename>", " - " being the shape's own
+    literal delimiter) that doesn't actually match any REAL canonical
+    sidecar name (real case: "### openbao - openbao 2.5.5 → 2.5.5" —
+    self-referential, canonical_sidecar_row_names refuses to name a
+    sidecar after its own parent) must resolve to NO identity at all —
+    never fall through to a coincidental plain word match against the
+    real "openbao" dependency just because the word "openbao" happens
+    to appear in the broken heading's own text too."""
+    deps = [{"name": "openbao", "version": "0.28.4"}]
+    idents = libupgradedoc.changes_heading_identities("openbao - openbao 2.5.5 → 2.5.5", deps, {})
+    assert idents == set()
+
+
+def test_changes_heading_identities_real_sidecar_still_resolves_despite_dash(libupgradedoc):
+    """The " - " guard must never swallow a REAL canonical sidecar match
+    — only applies once match_canonical_sidecar_name has already had its
+    own shot and failed."""
+    canonical_names = {"openbao - postgres": ("openbao", "database", "schemaJob", "image")}
+    deps = [{"name": "openbao", "version": "0.28.4"}]
+    idents = libupgradedoc.changes_heading_identities(
+        "openbao - postgres 16-alpine → 16-alpine", deps, canonical_names)
+    assert idents == {("sidecar", ("openbao", "database", "schemaJob", "image"))}
+
+
 # --- actual_app_version ---
 
 def test_actual_app_version_single_image(libupgradedoc):
@@ -212,6 +238,62 @@ def test_actual_app_version_image_tag_path_tried_before_version_path(libupgraded
                          "widget", ["fallback.version"])
     values = {"widget": {"image": {"tag": "1.0.0@sha256:abc"}, "fallback": {"version": "9.9.9"}}}
     assert libupgradedoc.actual_app_version(values, "widget") == "1.0.0"
+
+
+def _make_vendored_tgz(charts_dir, name, version, values, chart_yaml):
+    import io
+    import tarfile
+
+    import yaml
+
+    charts_dir.mkdir(parents=True, exist_ok=True)
+    tgz_path = charts_dir / f"{name}-{version}.tgz"
+    with tarfile.open(tgz_path, "w:gz") as tar:
+        for filename, content in ((f"{name}/values.yaml", values), (f"{name}/Chart.yaml", chart_yaml)):
+            data = yaml.safe_dump(content).encode("utf-8")
+            info = tarfile.TarInfo(name=filename)
+            info.size = len(data)
+            tar.addfile(info, io.BytesIO(data))
+    return tgz_path
+
+
+def test_actual_app_version_falls_back_to_vendored_subchart_app_version(libupgradedoc, tmp_path, monkeypatch):
+    """Regression test: openbao's own "server.image.tag" is explicitly
+    overridden in values.yaml but deliberately left blank (see
+    lib.chart.COMPONENT_IMAGE_PATHS["openbao"]'s own comment) — relies
+    on the vendored chart's own Chart.yaml "appVersion" instead, which
+    nothing but this third fallback pass can see. Without chart_dir/dep,
+    behavior is unchanged (still returns None) — this fallback is opt-in
+    per caller."""
+    monkeypatch.setitem(libupgradedoc.image_paths_for.__globals__["COMPONENT_IMAGE_PATHS"],
+                         "openbao", ["server.image"])
+    _make_vendored_tgz(tmp_path / "charts", "openbao", "0.28.4",
+                        {"server": {"image": {"tag": ""}}},
+                        {"apiVersion": "v2", "version": "0.28.4", "appVersion": "v2.5.5"})
+    values = {"openbao": {"server": {"image": {"repository": "quay.io/openbao/openbao", "tag": ""}}}}
+    dep = {"name": "openbao", "version": "0.28.4"}
+
+    assert libupgradedoc.actual_app_version(values, "openbao", "openbao") is None
+    assert libupgradedoc.actual_app_version(
+        values, "openbao", "openbao", chart_dir=tmp_path, dep=dep) == "v2.5.5"
+
+
+def test_actual_app_version_subchart_fallback_only_for_registered_components(libupgradedoc, tmp_path):
+    """The vendored-appVersion fallback never applies to a component with
+    no COMPONENT_IMAGE_PATHS entry of its own (e.g. eck-operator, which
+    also floats on its own chart's appVersion but is deliberately left
+    unresolved — already documented in images-manifest prose, not a
+    gap) — a blank/missing tag on an unregistered component could just
+    as easily mean "not actually running this image," which nothing
+    here can tell apart from openbao's own deliberate design."""
+    _make_vendored_tgz(tmp_path / "charts", "eck-operator", "3.5.0",
+                        {"image": {"tag": ""}},
+                        {"apiVersion": "v2", "version": "3.5.0", "appVersion": "3.5.0"})
+    values = {"eck-operator": {"image": {"repository": "docker.elastic.co/eck/eck-operator", "tag": ""}}}
+    dep = {"name": "eck-operator", "version": "3.5.0"}
+
+    assert libupgradedoc.actual_app_version(
+        values, "eck-operator", "eck-operator", chart_dir=tmp_path, dep=dep) is None
 
 
 # --- find_image_tag_paths ---

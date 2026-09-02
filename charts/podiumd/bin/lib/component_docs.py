@@ -376,7 +376,7 @@ def dep_for_values_key(deps, values_key):
     return None
 
 
-def add_missing_component_rows(text, target_deps, target_values, baseline_deps, baseline_values,
+def add_missing_component_rows(text, chart_dir, target_deps, target_values, baseline_deps, baseline_values,
                                 actual_changed_keys, target):
     """Insert a new "Component versions" table row + matching "### ..."
     Changes section for every key in `actual_changed_keys` (see
@@ -400,11 +400,12 @@ def add_missing_component_rows(text, target_deps, target_values, baseline_deps, 
     values.yaml block like frankgateway) is skipped — there's no
     dep["version"] to read a Helm chart version from, so nothing here
     can be generated confidently; add that row by hand. A key whose app
-    version can't be resolved via actual_app_version's own two known
-    shapes (<key>.image.tag, frontend/backend — e.g. keycloak-operator's
-    own split tag/sha path, or a chart with no app image of its own at
-    all) gets a "-" app-version placeholder and a short TODO-stub Changes
-    section instead of guessing at prose. Returns (new_text, added_names)."""
+    version can't be resolved via actual_app_version's own known shapes
+    (<key>.image.tag, frontend/backend, COMPONENT_VERSION_PATHS' bare
+    version fields, or a registered COMPONENT_IMAGE_PATHS component's
+    vendored-chart appVersion fallback — see that function's own
+    docstring) gets a "-" app-version placeholder and a short TODO-stub
+    Changes section instead of guessing at prose. Returns (new_text, added_names)."""
     matched_keys = set()
     for row in parse_upgrade_doc_rows(text):
         # match_dependency_excluding_sidecar_names, not match_dependency
@@ -426,7 +427,7 @@ def add_missing_component_rows(text, target_deps, target_values, baseline_deps, 
         old_chart = str(baseline_dep["version"]) if baseline_dep else None
         new_chart = str(dep["version"])
         old_app = actual_app_version(baseline_values, key, chart_name) if baseline_values else None
-        new_app = actual_app_version(target_values, key, chart_name)
+        new_app = actual_app_version(target_values, key, chart_name, chart_dir=chart_dir, dep=dep)
 
         text, table_action = update_component_table(
             text, key, old_app, new_app if new_app is not None else "-", old_chart, new_chart,
@@ -466,7 +467,7 @@ def values_delta_bullet(friendly, old_app, new_app, old_chart, new_chart):
     return f"- **{friendly}** app {app_bit} (chart {chart_bit}) — {note}.\n"
 
 
-def add_missing_values_delta_bullets(text, target_deps, target_values, baseline_deps, baseline_values,
+def add_missing_values_delta_bullets(text, chart_dir, target_deps, target_values, baseline_deps, baseline_values,
                                       actual_changed_keys):
     """Append a "- **<name>** app ..." bullet (see values_delta_bullet) for
     every key in `actual_changed_keys` that isn't already mentioned via a
@@ -481,8 +482,9 @@ def add_missing_values_delta_bullets(text, target_deps, target_values, baseline_
     A key with no matching Chart.yaml dependency at all is skipped (see
     dep_for_values_key) — nothing here can be generated confidently
     without a real Chart.yaml version to read. A key whose app version
-    can't be resolved via actual_app_version's own two known shapes gets
-    a short TODO bullet instead of a value-less "app `None`" line.
+    can't be resolved via actual_app_version's own known shapes (see
+    that function's own docstring) gets a short TODO bullet instead of
+    a value-less "app `None`" line.
     Returns (new_text, added_names)."""
     mentioned_keys = extract_mentioned_dependency_keys(text, target_deps)
     new_lines = []
@@ -495,7 +497,7 @@ def add_missing_values_delta_bullets(text, target_deps, target_values, baseline_
         old_chart = str(baseline_dep["version"]) if baseline_dep else None
         new_chart = str(dep["version"])
         old_app = actual_app_version(baseline_values, key, dep["name"]) if baseline_values else None
-        new_app = actual_app_version(target_values, key, dep["name"])
+        new_app = actual_app_version(target_values, key, dep["name"], chart_dir=chart_dir, dep=dep)
 
         if new_app is not None:
             new_lines.append(values_delta_bullet(key, old_app or new_app, new_app,

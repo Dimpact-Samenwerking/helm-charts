@@ -413,6 +413,35 @@ def subchart_values(chart_dir, dep, version=None):
         return None
 
 
+def subchart_app_version(chart_dir, dep, version=None):
+    """A vendored dependency's own Chart.yaml "appVersion" field — the
+    real app version a subchart's own template falls back to via Helm's
+    own "{{ .Values.<x>.tag | default .Chart.AppVersion }}" convention,
+    for a component whose COMPONENT_IMAGE_PATHS-registered image path
+    has an explicit but deliberately BLANK "tag:" override in podiumd's
+    own values.yaml — e.g. openbao's own "server.image.tag" (see that
+    registry entry's own comment): the repository is overridden to pin
+    the mirror, but the tag is left for the chart's own pinned appVersion
+    to supply, so lib.upgradedoc.actual_app_version's own values.yaml
+    lookup alone can never see the real version there at all. Same
+    vendored-.tgz-only lookup as subchart_values (no network fallback —
+    see resolve_chart_values for that). None if that exact version isn't
+    vendored, its Chart.yaml can't be read, or it has no appVersion."""
+    version = version or dep["version"]
+    tgz_path = chart_dir / "charts" / f"{dep['name']}-{version}.tgz"
+    if not tgz_path.is_file():
+        return None
+    try:
+        with tarfile.open(tgz_path) as tar:
+            member = tar.extractfile(f"{dep['name']}/Chart.yaml")
+            if member is None:
+                return None
+            chart_yaml = yaml.safe_load(member.read()) or {}
+            return chart_yaml.get("appVersion")
+    except (KeyError, tarfile.TarError):
+        return None
+
+
 def resolve_chart_values(chart_dir, dep, version, allow_pull=True):
     """(values, source, error) for `dep` at `version` — preferring an
     already-vendored charts/<name>-<version>.tgz (source "vendored", via

@@ -12,12 +12,13 @@ import pytest
 import yaml
 
 
-def make_tgz(charts_dir, name, version, values, templates=None):
+def make_tgz(charts_dir, name, version, values, templates=None, chart_yaml=None):
     """A minimal vendored <name>-<version>.tgz containing <name>/values.yaml
     and, if `templates` is given (a {filename: text} dict), <name>/templates/
     <filename> for each entry — enough to exercise subchart_values/
     subchart_default_repository/subchart_template_text without a real
-    `helm pull`."""
+    `helm pull`. `chart_yaml`, if given (a dict), is ALSO written as
+    <name>/Chart.yaml — for subchart_app_version."""
     charts_dir.mkdir(parents=True, exist_ok=True)
     tgz_path = charts_dir / f"{name}-{version}.tgz"
     data = yaml.safe_dump(values).encode("utf-8")
@@ -30,6 +31,11 @@ def make_tgz(charts_dir, name, version, values, templates=None):
             tpl_info = tarfile.TarInfo(name=f"{name}/templates/{filename}")
             tpl_info.size = len(tpl_data)
             tar.addfile(tpl_info, io.BytesIO(tpl_data))
+        if chart_yaml is not None:
+            chart_data = yaml.safe_dump(chart_yaml).encode("utf-8")
+            chart_info = tarfile.TarInfo(name=f"{name}/Chart.yaml")
+            chart_info.size = len(chart_data)
+            tar.addfile(chart_info, io.BytesIO(chart_data))
     return tgz_path
 
 
@@ -590,6 +596,33 @@ def test_subchart_values_missing_member_returns_none(libchart, tmp_path):
         pass  # empty archive, no values.yaml member
     dep = {"name": "openzaak", "version": "1.14.2"}
     assert libchart.subchart_values(tmp_path, dep) is None
+
+
+# --- subchart_app_version ---
+
+def test_subchart_app_version_reads_vendored_chart_yaml(libchart, tmp_path):
+    make_tgz(tmp_path / "charts", "openbao", "0.28.4", {"server": {"image": {"tag": ""}}},
+             chart_yaml={"apiVersion": "v2", "version": "0.28.4", "appVersion": "v2.5.5"})
+    dep = {"name": "openbao", "version": "0.28.4"}
+    assert libchart.subchart_app_version(tmp_path, dep) == "v2.5.5"
+
+
+def test_subchart_app_version_missing_tgz_returns_none(libchart, tmp_path):
+    dep = {"name": "openbao", "version": "0.28.4"}
+    assert libchart.subchart_app_version(tmp_path, dep) is None
+
+
+def test_subchart_app_version_missing_member_returns_none(libchart, tmp_path):
+    make_tgz(tmp_path / "charts", "openbao", "0.28.4", {"server": {"image": {"tag": ""}}})  # no chart_yaml
+    dep = {"name": "openbao", "version": "0.28.4"}
+    assert libchart.subchart_app_version(tmp_path, dep) is None
+
+
+def test_subchart_app_version_no_app_version_field_returns_none(libchart, tmp_path):
+    make_tgz(tmp_path / "charts", "openbao", "0.28.4", {"server": {"image": {"tag": ""}}},
+             chart_yaml={"apiVersion": "v2", "version": "0.28.4"})
+    dep = {"name": "openbao", "version": "0.28.4"}
+    assert libchart.subchart_app_version(tmp_path, dep) is None
 
 
 # --- resolve_chart_values ---

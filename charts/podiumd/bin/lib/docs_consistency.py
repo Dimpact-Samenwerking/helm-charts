@@ -145,7 +145,8 @@ def _match_changes_item_to_entry(item_name, entries):
     return match["_entry"] if match else None
 
 
-def check_images_manifest_format(images_path, upgrade_docs_baseline, podiumd_version, deps, values, baseline_values):
+def check_images_manifest_format(images_path, upgrade_docs_baseline, podiumd_version, deps, values, baseline_values,
+                                  chart_dir=None):
     """Existence + YAML-validity + header-comment-accuracy precheck for the
     images manifest, run BEFORE the entry-by-entry content checks — mirrors
     check_baseline_doc_set for the three markdown docs."""
@@ -215,7 +216,7 @@ def check_images_manifest_format(images_path, upgrade_docs_baseline, podiumd_ver
         dep = match_dependency_excluding_sidecar_names(item["name"], deps)
         if dep:
             values_key = dep.get("alias", dep["name"])
-            actual_app = actual_app_version(values, values_key, dep["name"])
+            actual_app = actual_app_version(values, values_key, dep["name"], chart_dir=chart_dir, dep=dep)
             actual_chart = dep["version"]
             baseline_app = actual_app_version(baseline_values, values_key, dep["name"]) if baseline_values else None
         else:
@@ -495,7 +496,7 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
             if dep is not None:
                 top_level_key = values_key = dep.get("alias", dep["name"])
                 actual_chart = dep["version"]
-                actual_app = actual_app_version(values, values_key, dep["name"])
+                actual_app = actual_app_version(values, values_key, dep["name"], chart_dir=chart_dir, dep=dep)
             else:
                 matched_sidecar_paths.add(sidecar_path)
                 top_level_key = sidecar_path[0]
@@ -615,7 +616,7 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
     if is_bare_version:
         format_issues = check_images_manifest_format(
             images_path, upgrade_docs_baseline, podiumd_version, deps, values,
-            baseline_values if baseline_ref else {}
+            baseline_values if baseline_ref else {}, chart_dir=chart_dir
         )
         if format_issues:
             images_format_ok = False
