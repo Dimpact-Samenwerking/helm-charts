@@ -1,5 +1,5 @@
 """normalize_version, normalize_name, words_of, extract_target_version,
-extract_source_version, image_tag, actual_app_version, find_image_tag_paths,
+extract_source_version, actual_app_version, find_image_tag_paths,
 baseline_ref_candidates."""
 import pytest
 
@@ -51,21 +51,18 @@ def test_extract_version_handles_no_match(libupgradedoc):
     assert libupgradedoc.extract_source_version("!!!") is None
 
 
-def test_image_tag_walks_nested_path(libupgradedoc):
-    values = {"zac": {"image": {"tag": "5.4.3@sha256:abc"}}}
-    assert libupgradedoc.image_tag(values, "zac", "image", "tag") == "5.4.3@sha256:abc"
-    assert libupgradedoc.image_tag(values, "zac", "missing", "tag") is None
-    assert libupgradedoc.image_tag(values, "missing") is None
-    assert libupgradedoc.image_tag("not-a-dict", "x") is None
-
-
-def test_actual_app_version_tries_plain_frontend_backend(libupgradedoc):
+def test_actual_app_version_tries_default_image_path(libupgradedoc):
     assert libupgradedoc.actual_app_version({"zac": {"image": {"tag": "5.4.3@sha256:abc"}}}, "zac") == "5.4.3"
-    assert libupgradedoc.actual_app_version(
-        {"addin": {"frontend": {"image": {"tag": "0.11.0@sha256:abc"}}}}, "addin") == "0.11.0"
-    assert libupgradedoc.actual_app_version(
-        {"addin": {"backend": {"image": {"tag": "0.11.0@sha256:abc"}}}}, "addin") == "0.11.0"
     assert libupgradedoc.actual_app_version({}, "missing") is None
+
+
+def test_actual_app_version_uses_component_image_paths_registry(libupgradedoc):
+    # zgw-office-addin is registered in lib.chart.COMPONENT_IMAGE_PATHS with
+    # a frontend/backend pair instead of the default "image" path.
+    assert libupgradedoc.actual_app_version(
+        {"addin": {"frontend": {"image": {"tag": "0.11.0@sha256:abc"}}}}, "addin", "zgw-office-addin") == "0.11.0"
+    assert libupgradedoc.actual_app_version(
+        {"addin": {"backend": {"image": {"tag": "0.11.0@sha256:abc"}}}}, "addin", "zgw-office-addin") == "0.11.0"
 
 
 def test_find_image_tag_paths_finds_sidecars(libupgradedoc):

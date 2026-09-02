@@ -222,8 +222,10 @@ def test_stale_pointer_reference_does_not_block_every_other_check(vp, chart_repo
     assert 'has no row in the "Component versions" table' in out
 
 
-# --- unresolvable app version (a component whose real image path isn't
-# actual_app_version's own two known shapes) ---
+# --- component-specific image path (a component whose real app image
+# lives at a non-default path from lib.chart.COMPONENT_IMAGE_PATHS,
+# resolved via image_paths_for rather than actual_app_version's own
+# hardcoded shapes) ---
 
 KEYCLOAK_CHART_YAML = """\
 apiVersion: v2
@@ -259,9 +261,11 @@ def keycloak_values(tag):
 def keycloak_chart_repo(tmp_path):
     """keycloak-operator's own real primary app image lives at the
     non-standard "operator.config.keycloakImage.tag" split-path
-    convention — invisible to actual_app_version's own two known shapes
-    (<key>.image.tag, frontend/backend) — the real-world case
-    unresolvable_app_version_hint exists to catch."""
+    convention, registered in lib.chart.COMPONENT_IMAGE_PATHS — the
+    real-world case that used to be invisible to actual_app_version's
+    own two hardcoded shapes (<key>.image.tag, frontend/backend), and
+    is why the doc row below (app version pinned at "-") must now be
+    flagged as a mismatch instead of silently skipped."""
     repo_root = tmp_path
     chart_dir = repo_root / "charts" / "podiumd"
     doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
@@ -287,21 +291,24 @@ def keycloak_chart_repo(tmp_path):
     return chart_dir
 
 
-def test_unresolvable_app_version_is_flagged_not_silently_skipped(vp, keycloak_chart_repo, capsys):
+def test_component_specific_image_path_mismatch_is_flagged_not_silently_skipped(vp, keycloak_chart_repo, capsys):
+    """The doc row pins app version "-" while values.yaml actually has
+    "26.7.2" at keycloak-operator's own registered image path — this
+    must surface as a normal target-app mismatch, not be silently
+    skipped just because the doc cell was empty."""
     ok, detail = vp.check_docs_consistency(keycloak_chart_repo, upgrade_docs_baseline="4.8.5")
     out = capsys.readouterr().out
 
     assert ok is False
-    assert ('keycloak-operator: app version could not be verified (actual_app_version doesn\'t '
-            'recognize this component\'s own image path) — values.yaml has "26.7.2" at '
-            'keycloak-operator.operator.config.keycloakImage.tag') in out
+    assert ('keycloak-operator ("keycloak-operator") target app: values.yaml image tag is "26.7.2", '
+            '4.8.5-to-4.9.0-upgrade.md says "-"') in out
 
 
 def test_chart_only_component_with_no_app_image_is_not_flagged(vp, chart_repo, capsys):
     """A component genuinely without an app image of its own (not in
     lib.chart.COMPONENT_IMAGE_PATHS, and no plain "image" key either)
-    must never trigger the unresolvable-app-version hint — there's
-    nothing there to find via any path, so silence is correct, not a
+    must never trigger a target-app mismatch — actual_app_version can't
+    resolve anything to compare against, so silence is correct, not a
     gap."""
     (chart_repo / "Chart.yaml").write_text(
         CHART_YAML + '  - name: redis-operator\n    version: "0.26.1"\n    repository: "@opstree"\n')
@@ -312,7 +319,7 @@ def test_chart_only_component_with_no_app_image_is_not_flagged(vp, chart_repo, c
 
     vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
     out = capsys.readouterr().out
-    assert "app version could not be verified" not in out
+    assert "target app" not in out
 
 
 def test_component_changed_with_no_key_diffs_still_needs_values_deltas_mention(vp, chart_repo):

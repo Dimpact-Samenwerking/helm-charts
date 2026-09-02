@@ -543,14 +543,16 @@ def test_main_corrects_stale_table_using_real_baseline_tag(cdb, repo_with_baseli
 
 @pytest.fixture
 def repo_with_undocumented_component_bumps(tmp_path):
-    """Two dependencies changed between the baseline tag and HEAD but
-    neither ever got a row in the upgrade doc's "Component versions"
-    table at all — the real gap add_missing_component_rows exists to
-    fill in. "openformulieren" has a plain resolvable app image
-    (actual_app_version's common <key>.image.tag shape); "keycloak-
-    operator" doesn't (its real app version lives at a split tag/sha
-    path actual_app_version doesn't know about — the same shape that
-    forces a TODO-stub Changes section instead of full prose)."""
+    """Three dependencies changed between the baseline tag and HEAD but
+    none of them ever got a row in the upgrade doc's "Component
+    versions" table at all — the real gap add_missing_component_rows
+    exists to fill in. "openformulieren" and "keycloak-operator" both
+    have a resolvable app image (the former via actual_app_version's
+    default "<key>.image.tag" shape, the latter via its own registered
+    lib.chart.COMPONENT_IMAGE_PATHS split-path entry); "redis-operator"
+    is chart-only — no matching values.yaml image at all — the genuine
+    case that forces a TODO-stub Changes section instead of full
+    prose."""
     git("init", "-q", cwd=tmp_path)
     git("config", "user.email", "test@example.com", cwd=tmp_path)
     git("config", "user.name", "Test", cwd=tmp_path)
@@ -560,6 +562,7 @@ def repo_with_undocumented_component_bumps(tmp_path):
             {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297", "repository": "@zac"},
             {"name": "openforms", "alias": "openformulieren", "version": "1.11.0", "repository": "@maykinmedia"},
             {"name": "keycloak-operator", "version": "1.12.1", "repository": "@adfinis"},
+            {"name": "redis-operator", "version": "0.26.1", "repository": "@opstree"},
         ],
     }))
     write(tmp_path / "values.yaml", yaml.safe_dump({
@@ -579,6 +582,7 @@ def repo_with_undocumented_component_bumps(tmp_path):
             {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297", "repository": "@zac"},
             {"name": "openforms", "alias": "openformulieren", "version": "1.12.0", "repository": "@maykinmedia"},
             {"name": "keycloak-operator", "version": "1.13.0", "repository": "@adfinis"},
+            {"name": "redis-operator", "version": "0.27.0", "repository": "@opstree"},
         ],
     }))
     write(tmp_path / "values.yaml", yaml.safe_dump({
@@ -594,7 +598,8 @@ def repo_with_undocumented_component_bumps(tmp_path):
           "| ZAC (Zaakafhandelcomponent) | 5.0.2 (unchanged) | 1.0.297 (unchanged) | n/a |\n\n"
           "## Changes\n\n")
     git("add", "-A", cwd=tmp_path)
-    git("commit", "-q", "-m", "bump openformulieren + keycloak-operator, no doc rows added", cwd=tmp_path)
+    git("commit", "-q", "-m", "bump openformulieren + keycloak-operator + redis-operator, no doc rows added",
+        cwd=tmp_path)
     return doc_dir
 
 
@@ -612,17 +617,35 @@ def test_main_adds_missing_row_with_resolvable_app_version(cdb, repo_with_undocu
     assert "openformulieren" in out
 
 
+def test_main_adds_missing_row_with_component_specific_image_path(
+        cdb, repo_with_undocumented_component_bumps, monkeypatch, capsys):
+    """keycloak-operator's real app version lives at its own registered
+    lib.chart.COMPONENT_IMAGE_PATHS split-path — actual_app_version
+    resolves it just like a plain "<key>.image.tag" component, so the
+    new row gets a full app-version cell and Changes section, not a
+    TODO stub."""
+    set_argv_and_dir(cdb, monkeypatch, repo_with_undocumented_component_bumps, "4.8.5")
+    cdb.main()
+
+    upgrade = (repo_with_undocumented_component_bumps / "4.8.5-to-4.9.0-upgrade.md").read_text(encoding="utf-8")
+    assert "| keycloak-operator | 26.6.4 → 26.7.3 | 1.12.1 → 1.13.0 | - |" in upgrade
+    assert "### keycloak-operator 26.6.4 → 26.7.3 (chart 1.12.1 → 1.13.0)" in upgrade
+    assert "TODO" not in upgrade.split("### keycloak-operator")[1].split("###")[0]
+    out = capsys.readouterr().out
+    assert "keycloak-operator" in out
+
+
 def test_main_adds_missing_row_with_unresolvable_app_version_as_todo_stub(
         cdb, repo_with_undocumented_component_bumps, monkeypatch, capsys):
     set_argv_and_dir(cdb, monkeypatch, repo_with_undocumented_component_bumps, "4.8.5")
     cdb.main()
 
     upgrade = (repo_with_undocumented_component_bumps / "4.8.5-to-4.9.0-upgrade.md").read_text(encoding="utf-8")
-    assert "| keycloak-operator | - | 1.12.1 → 1.13.0 | - |" in upgrade
-    assert "### keycloak-operator 1.12.1 → 1.13.0" in upgrade
+    assert "| redis-operator | - | 0.26.1 → 0.27.0 | - |" in upgrade
+    assert "### redis-operator 0.26.1 → 0.27.0" in upgrade
     assert "TODO: describe this component's changes" in upgrade
     out = capsys.readouterr().out
-    assert "keycloak-operator" in out
+    assert "redis-operator" in out
 
 
 def test_main_leaves_existing_row_untouched_when_adding_missing_ones(
@@ -749,10 +772,9 @@ def test_main_does_not_duplicate_already_mentioned_component_bullet(
 
 def test_main_adds_todo_bullet_when_app_version_unresolvable(cdb, repo_with_undocumented_component_bumps,
                                                                monkeypatch):
-    """keycloak-operator's real app version lives at a split tag/sha path
-    actual_app_version doesn't know about — same fixture as the
-    "Component versions" row tests, exercised here for the values-deltas
-    bullet instead."""
+    """redis-operator is chart-only — no matching values.yaml image at
+    all — same fixture as the "Component versions" row tests, exercised
+    here for the values-deltas bullet instead."""
     write(repo_with_undocumented_component_bumps / "4.8.3-to-4.9.0-values-deltas.md",
           "# Values deltas — PodiumD 4.8.3 → 4.9.0\n\nNo unrelated changes.\n")
     git("add", "-A", cwd=repo_with_undocumented_component_bumps)
@@ -762,7 +784,7 @@ def test_main_adds_todo_bullet_when_app_version_unresolvable(cdb, repo_with_undo
 
     deltas = (repo_with_undocumented_component_bumps / "4.8.5-to-4.9.0-values-deltas.md").read_text(
         encoding="utf-8")
-    assert "- **keycloak-operator** chart `1.12.1 → 1.13.0` — TODO: describe this component's changes" in deltas
+    assert "- **redis-operator** chart `0.26.1 → 0.27.0` — TODO: describe this component's changes" in deltas
 
 
 # --- main() integration: values-deltas.md missing key-change mentions ---

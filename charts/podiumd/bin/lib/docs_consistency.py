@@ -10,7 +10,7 @@ import re
 
 import yaml
 
-from lib.chart import get_path, image_paths_for, load_yaml
+from lib.chart import load_yaml
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
 from lib.upgradedoc import (
     actual_app_version, compute_changed_components, diff_keys, extract_mentioned_dependency_keys,
@@ -187,9 +187,9 @@ def check_images_manifest_format(images_path, upgrade_docs_baseline, podiumd_ver
         dep = match_dependency(item["name"], deps)
         if dep:
             values_key = dep.get("alias", dep["name"])
-            actual_app = actual_app_version(values, values_key)
+            actual_app = actual_app_version(values, values_key, dep["name"])
             actual_chart = dep["version"]
-            baseline_app = actual_app_version(baseline_values, values_key) if baseline_values else None
+            baseline_app = actual_app_version(baseline_values, values_key, dep["name"]) if baseline_values else None
         else:
             # Not every Changes item is a component — a plain image (e.g. an
             # init-container image with no subchart/dependency of its own)
@@ -300,32 +300,6 @@ def check_values_deltas_content(doc_path, changed_component_keys, baseline_value
         issues.insert(0, f'{doc_path.name}: claims "No gemeente podiumd.yml changes are required" '
                           f'but {len(issues)} key change(s) were found — see below')
     return issues
-
-
-def unresolvable_app_version_hint(values, values_key, component):
-    """When actual_app_version can't resolve ANY app version for this
-    component (its own two known shapes — "<key>.image.tag" and the
-    frontend/backend lockstep pair — don't apply), check whether
-    lib.chart's own richer per-component image-path registry
-    (COMPONENT_IMAGE_PATHS, via image_paths_for) knows a DIFFERENT path
-    where a real, resolvable tag actually lives — e.g. keycloak-
-    operator's own split-path "operator.config.keycloakImage.tag"
-    convention, invisible to actual_app_version's simpler two-shape
-    check. If so, this is a genuine "doc-consistency can't verify this
-    component's own app version at all" gap worth surfacing — not a
-    component that legitimately has no app image of its own (a chart-
-    only component isn't in COMPONENT_IMAGE_PATHS at all, so
-    image_paths_for falls back to the SAME "image" path
-    actual_app_version already tried and failed at, and this correctly
-    finds nothing new either). Returns a ready-to-append hint string, or
-    None if nothing resolvable was found there either."""
-    for path in image_paths_for(component):
-        tag = get_path(values, f"{values_key}.{path}.tag")
-        if tag:
-            return (f'{values_key}: app version could not be verified (actual_app_version doesn\'t '
-                     f'recognize this component\'s own image path) — values.yaml has '
-                     f'"{tag.split("@", 1)[0]}" at {values_key}.{path}.tag')
-    return None
 
 
 def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
@@ -440,29 +414,24 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
             values_key = dep.get("alias", dep["name"])
             changed_component_keys.add(values_key)
             actual_chart = dep["version"]
-            actual_app = actual_app_version(values, values_key)
+            actual_app = actual_app_version(values, values_key, dep["name"])
 
             if row["chart"] and normalize_version(row["chart"]) != normalize_version(actual_chart):
                 mismatches.append(
                     f'{values_key} ("{row["name"]}") target chart: Chart.yaml has "{actual_chart}", '
                     f'{doc_path.name} says "{row["chart"]}"'
                 )
-            if row["app"] and actual_app and \
-                    normalize_version(row["app"]) != normalize_version(actual_app):
+            if actual_app and normalize_version(row["app"]) != normalize_version(actual_app):
                 mismatches.append(
                     f'{values_key} ("{row["name"]}") target app: values.yaml image tag is "{actual_app}", '
-                    f'{doc_path.name} says "{row["app"]}"'
+                    f'{doc_path.name} says "{row["app"] or "-"}"'
                 )
-            elif actual_app is None:
-                hint = unresolvable_app_version_hint(values, values_key, dep["name"])
-                if hint:
-                    mismatches.append(f'{doc_path.name}: {hint}')
 
             if not baseline_ref:
                 continue
             baseline_dep = match_dependency(row["name"], baseline_deps)
             baseline_chart_actual = baseline_dep["version"] if baseline_dep else None
-            baseline_app_actual = actual_app_version(baseline_values, values_key)
+            baseline_app_actual = actual_app_version(baseline_values, values_key, dep["name"])
 
             if row["chart_source"] and baseline_chart_actual and \
                     normalize_version(row["chart_source"]) != normalize_version(baseline_chart_actual):
@@ -470,11 +439,11 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
                     f'{values_key} ("{row["name"]}") source chart: {baseline_ref} has '
                     f'"{baseline_chart_actual}", {doc_path.name} says "{row["chart_source"]}"'
                 )
-            if row["app_source"] and baseline_app_actual and \
+            if baseline_app_actual and \
                     normalize_version(row["app_source"]) != normalize_version(baseline_app_actual):
                 mismatches.append(
                     f'{values_key} ("{row["name"]}") source app: {baseline_ref} has '
-                    f'"{baseline_app_actual}", {doc_path.name} says "{row["app_source"]}"'
+                    f'"{baseline_app_actual}", {doc_path.name} says "{row["app_source"] or "-"}"'
                 )
 
         if baseline_ref:

@@ -2,6 +2,8 @@
 docs-consistency check and fix-doc-consistency's version-correction pass."""
 import re
 
+from lib.chart import get_path, image_paths_for
+
 
 def normalize_version(v):
     return v.lstrip("vV") if v else v
@@ -284,15 +286,6 @@ def match_dependency(text, deps):
     return best[0] if best else None
 
 
-def image_tag(values, *path):
-    node = values
-    for key in path:
-        if not isinstance(node, dict):
-            return None
-        node = node.get(key)
-    return node
-
-
 def canonical_version_cell(actual_source, actual_target):
     """A "Component versions" table cell in the established style:
     "<target> (unchanged)" when source==target, else "<source> → <target>"."""
@@ -329,12 +322,26 @@ def replace_version_pair(line, new_source, new_target):
     return new_line if count else line
 
 
-def actual_app_version(values, values_key):
-    """The app version currently pinned for a component, trying the
-    single-image ("<key>.image.tag") and the frontend/backend lockstep
-    shape in turn — the two conventions seen across podiumd's components."""
-    for suffix in ((), ("frontend",), ("backend",)):
-        tag = image_tag(values, values_key, *suffix, "image", "tag")
+def actual_app_version(values, values_key, component=None):
+    """The app version currently pinned for a component — tries each of
+    lib.chart.image_paths_for(component)'s own dotted path(s) in turn:
+    the plain "<key>.image.tag" shape for the common case
+    (DEFAULT_IMAGE_PATHS), or a component-specific override from
+    COMPONENT_IMAGE_PATHS for one with a non-standard primary-image
+    location — e.g. keycloak-operator's own split "operator.config.
+    keycloakImage.tag" path, openbao's "server.image", or zgw-office-
+    addin's frontend+backend pair (the first of those two with a real
+    tag wins; there's no single "the" app version for a two-image
+    component, so this picks one rather than reporting both).
+
+    `component` is the Chart.yaml dependency's own NAME (COMPONENT_
+    IMAGE_PATHS is keyed by name, not alias) — defaults to `values_key`
+    when omitted, since name and alias/values_key coincide for every
+    currently-registered entry; pass the real name explicitly once a
+    registered component ever has a distinct alias, so the registry
+    lookup still finds it."""
+    for path in image_paths_for(component or values_key):
+        tag = get_path(values, f"{values_key}.{path}.tag")
         if tag:
             return tag.split("@")[0]
     return None

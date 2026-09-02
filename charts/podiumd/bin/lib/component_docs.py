@@ -405,8 +405,8 @@ def add_missing_component_rows(text, target_deps, target_values, baseline_deps, 
         baseline_dep = dep_for_values_key(baseline_deps, key) if baseline_deps else None
         old_chart = str(baseline_dep["version"]) if baseline_dep else None
         new_chart = str(dep["version"])
-        old_app = actual_app_version(baseline_values, key) if baseline_values else None
-        new_app = actual_app_version(target_values, key)
+        old_app = actual_app_version(baseline_values, key, chart_name) if baseline_values else None
+        new_app = actual_app_version(target_values, key, chart_name)
 
         text, table_action = update_component_table(
             text, key, old_app, new_app if new_app is not None else "-", old_chart, new_chart,
@@ -468,8 +468,8 @@ def add_missing_values_delta_bullets(text, target_deps, target_values, baseline_
         baseline_dep = dep_for_values_key(baseline_deps, key) if baseline_deps else None
         old_chart = str(baseline_dep["version"]) if baseline_dep else None
         new_chart = str(dep["version"])
-        old_app = actual_app_version(baseline_values, key) if baseline_values else None
-        new_app = actual_app_version(target_values, key)
+        old_app = actual_app_version(baseline_values, key, dep["name"]) if baseline_values else None
+        new_app = actual_app_version(target_values, key, dep["name"])
 
         if new_app is not None:
             new_lines.append(values_delta_bullet(key, old_app or new_app, new_app,
