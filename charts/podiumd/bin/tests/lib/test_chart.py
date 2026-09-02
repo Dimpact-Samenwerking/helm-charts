@@ -760,7 +760,7 @@ def test_repository_path_map_own_override(libchart, tmp_path):
     dep = {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}
     own_values = {"zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent"}}}
 
-    mapping = libchart.repository_path_map(tmp_path, [dep], own_values, allow_pull=False)
+    mapping = libchart.repository_path_map(tmp_path, [dep], own_values, [("zac", "image")], allow_pull=False)
 
     assert mapping == {"infonl/zaakafhandelcomponent": ("zac", "image")}
 
@@ -770,9 +770,81 @@ def test_repository_path_map_subchart_default(libchart, tmp_path):
     dep = {"name": "openzaak", "alias": "", "version": "4.9.1"}
     own_values = {"openzaak": {"image": {"tag": "3.28.0@sha256:aaaa"}}}
 
-    mapping = libchart.repository_path_map(tmp_path, [dep], own_values, allow_pull=False)
+    mapping = libchart.repository_path_map(tmp_path, [dep], own_values, [("openzaak", "image")], allow_pull=False)
 
     assert mapping == {"openzaak/open-zaak": ("openzaak", "image")}
+
+
+def test_repository_path_map_nested_sidecar_via_subchart_default(libchart, tmp_path):
+    """ZAC's own opa/office_converter sidecars: podiumd's own values.yaml
+    only overrides their "tag:" (the "repository:" is commented out for
+    documentation, not real YAML) — the real repository has to come
+    from ZAC's OWN vendored subchart values.yaml, at the path with the
+    dependency's own values-tree key ("zac") stripped off."""
+    make_tgz(tmp_path / "charts", "zaakafhandelcomponent", "1.0.297", {
+        "image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent"},
+        "opa": {"image": {"repository": "openpolicyagent/opa"}},
+        "office_converter": {"image": {"repository": "gotenberg/gotenberg"}},
+    })
+    dep = {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}
+    own_values = {"zac": {
+        "image": {"tag": "5.4.4@sha256:aaaa"},
+        "opa": {"image": {"tag": "1.19.1-static@sha256:bbbb"}},
+        "office_converter": {"image": {"tag": "8.36.0@sha256:cccc"}},
+    }}
+    paths = [("zac", "image"), ("zac", "opa", "image"), ("zac", "office_converter", "image")]
+
+    mapping = libchart.repository_path_map(tmp_path, [dep], own_values, paths, allow_pull=False)
+
+    assert mapping == {
+        "infonl/zaakafhandelcomponent": ("zac", "image"),
+        "openpolicyagent/opa": ("zac", "opa", "image"),
+        "gotenberg/gotenberg": ("zac", "office_converter", "image"),
+    }
+
+
+def test_repository_path_map_subchart_values_reused_across_paths(libchart, tmp_path, monkeypatch):
+    """The vendored subchart's own values.yaml is read at most once for
+    a given dependency, however many of its own paths need it —
+    same caching guarantee as primary_image_repositories."""
+    make_tgz(tmp_path / "charts", "zaakafhandelcomponent", "1.0.297", {
+        "image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent"},
+        "opa": {"image": {"repository": "openpolicyagent/opa"}},
+    })
+    dep = {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}
+    own_values = {"zac": {
+        "image": {"tag": "5.4.4@sha256:aaaa"},
+        "opa": {"image": {"tag": "1.19.1-static@sha256:bbbb"}},
+    }}
+    paths = [("zac", "image"), ("zac", "opa", "image")]
+    calls = []
+    real_subchart_values = libchart.subchart_values
+
+    def spy(chart_dir, dep_arg, version=None):
+        calls.append(dep_arg["name"])
+        return real_subchart_values(chart_dir, dep_arg, version)
+
+    monkeypatch.setattr(libchart, "subchart_values", spy)
+
+    libchart.repository_path_map(tmp_path, [dep], own_values, paths, allow_pull=False)
+
+    assert calls == ["zaakafhandelcomponent"]
+
+
+def test_repository_path_map_skips_path_with_no_known_dependency(libchart, tmp_path):
+    """A path whose first segment isn't any dependency's own values-tree
+    key at all (e.g. a shared global.images.* anchor) is silently
+    skipped, not an error."""
+    dep = {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}
+    own_values = {
+        "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent"}},
+        "global": {"images": {"nginx": {"image": {"repository": "nginxinc/nginx-unprivileged"}}}},
+    }
+    paths = [("zac", "image"), ("global", "images", "nginx", "image")]
+
+    mapping = libchart.repository_path_map(tmp_path, [dep], own_values, paths, allow_pull=False)
+
+    assert mapping == {"infonl/zaakafhandelcomponent": ("zac", "image")}
 
 
 def test_repository_path_map_skips_unresolvable_and_multiple_deps(libchart, tmp_path):
@@ -786,8 +858,9 @@ def test_repository_path_map_skips_unresolvable_and_multiple_deps(libchart, tmp_
         "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent"}},
         "openzaak": {"image": {"tag": "3.28.0@sha256:aaaa"}},
     }
+    paths = [("zac", "image"), ("openzaak", "image")]
 
-    mapping = libchart.repository_path_map(tmp_path, [zac, openzaak], own_values, allow_pull=False)
+    mapping = libchart.repository_path_map(tmp_path, [zac, openzaak], own_values, paths, allow_pull=False)
 
     assert mapping == {"infonl/zaakafhandelcomponent": ("zac", "image")}
 

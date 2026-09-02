@@ -517,7 +517,8 @@ def main():
 
     if images_path.is_file():
         text = images_path.read_text(encoding="utf-8")
-        repo_map = repository_path_map(CHART_YAML.parent, target_deps, target_values)
+        target_paths = [p for p, _tag in find_image_tag_paths(target_values)]
+        repo_map = repository_path_map(CHART_YAML.parent, target_deps, target_values, target_paths)
         new_text, changed_entries, unresolved_entry_names = fix_images_manifest_entries(
             text, target_values, baseline_values, repo_map
         )
