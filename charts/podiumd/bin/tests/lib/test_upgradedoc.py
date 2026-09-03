@@ -723,6 +723,29 @@ def test_is_primary_image_path_nested_sidecar_is_not_primary(libupgradedoc):
     assert libupgradedoc.is_primary_image_path(("redis-operator", "redis-ha", "image"), deps) is False
 
 
+def test_is_primary_image_path_version_paths_for_field_is_primary(libupgradedoc):
+    """redis-operator's own split "redisOperator.imageTag" field (lib.
+    chart.version_paths_for's own bare-scalar fallback for a component
+    with no "image: {tag}" block at all — actual_app_version's own
+    second-pass lookup) is its primary, same as a "normal" image_paths_
+    for match — real case: without this, redis-operator's OWN manifest
+    entry was wrongly classified as an unrecognized sidecar of itself."""
+    deps = [{"name": "redis-operator", "version": "1.0.0"}]
+    assert libupgradedoc.is_primary_image_path(("redis-operator", "redisOperator", "imageTag"), deps) is True
+
+
+def test_is_primary_image_path_eck_stack_registered_version_fields_are_primary(libupgradedoc):
+    """eck-stack's own two COMPONENT_VERSION_PATHS entries (eck-
+    elasticsearch + eck-kibana) are co-equal primaries, same "no single
+    canonical one, list several" shape as zgw-office-addin's frontend +
+    backend — eck-enterprise-search, deliberately NOT registered there
+    (disabled by default), stays a real sidecar needing its own header."""
+    deps = [{"name": "eck-stack", "alias": "kiss-eck", "version": "1.0.0"}]
+    assert libupgradedoc.is_primary_image_path(("kiss-eck", "eck-elasticsearch", "version"), deps) is True
+    assert libupgradedoc.is_primary_image_path(("kiss-eck", "eck-kibana", "version"), deps) is True
+    assert libupgradedoc.is_primary_image_path(("kiss-eck", "eck-enterprise-search", "version"), deps) is False
+
+
 def test_is_primary_image_path_no_owning_dependency_is_not_primary(libupgradedoc):
     deps = [{"name": "zac", "version": "1.0.0"}]
     assert libupgradedoc.is_primary_image_path(("global", "images", "nginx"), deps) is False
@@ -869,6 +892,24 @@ def test_find_images_manifest_faulty_headers_orphan_top_level_block_is_exempt(li
     assert problems == []
 
 
+def test_find_images_manifest_faulty_headers_version_paths_for_primary_is_exempt(libupgradedoc):
+    """redis-operator's OWN manifest entry (its real app version comes
+    from version_paths_for's "redisOperator.imageTag" field, not an
+    "image: {tag}" block) is a PRIMARY, not a sidecar — same real case
+    -upgrade.md's own "### redis-operator ..." heading already names
+    plain "redis-operator", not "redis-operator - <something>"."""
+    text = "# redis-operator 0.25.0 -> 0.26.0 (chart 0.25.0 -> 0.26.1)\n- name: opstree/redis-operator\n  version: \"0.26.0\"\n"
+    lines = text.splitlines()
+    entries = [{"name": "opstree/redis-operator", "version": "0.26.0"}]
+    entry_line_indices = _entry_line_indices(lines)
+    current_paths = {("redis-operator", "redisOperator", "imageTag"): "0.26.0"}
+    repo_map = {"opstree/redis-operator": ("redis-operator", "redisOperator", "imageTag")}
+
+    problems = libupgradedoc.find_images_manifest_faulty_headers(
+        entries, entry_line_indices, lines, REDIS_OPERATOR_DEPS, current_paths, repo_map, canonical_names={})
+    assert problems == []
+
+
 # --- path_display_name ---
 
 def test_path_display_name_primary_dependency_image_uses_bare_key(libupgradedoc):
@@ -905,6 +946,21 @@ def test_path_display_name_falls_back_to_dotted_path(libupgradedoc):
     than guessing at a name."""
     assert libupgradedoc.path_display_name(
         ("mystery", "nested", "image"), deps=[], canonical_names={}) == "mystery.nested.image"
+
+
+def test_path_display_name_version_paths_for_field_uses_bare_key(libupgradedoc):
+    """A dependency whose real app version comes from lib.chart.
+    version_paths_for's own bare-scalar fallback (no "image: {tag}"
+    block at all — redis-operator's own split "redisOperator.imageTag")
+    is ALSO its primary, displaying as just its values key — the exact
+    same convention actual_app_version already uses for -upgrade.md's
+    own row/Changes heading (there literally named "redis-operator").
+    Before _is_dependency_primary_rel_path existed, this path matched
+    neither image_paths_for nor canonical_names and fell back to the
+    raw dotted path, real case reported live against images-4.9.0.yaml."""
+    deps = [{"name": "redis-operator", "version": "1.0.0"}]
+    assert libupgradedoc.path_display_name(
+        ("redis-operator", "redisOperator", "imageTag"), deps, canonical_names={}) == "redis-operator"
 
 
 # --- find_preceding_comment ---
