@@ -919,6 +919,63 @@ def test_update_images_manifest_updates_existing_entry(ucv, tmp_path):
     assert '"sha256:cccc"' in text
 
 
+def test_update_images_manifest_recognizes_bare_changes_header(ucv, tmp_path):
+    """A bare "# Changes:" header (no leading count word) — the real,
+    hand-curated images-4.9.0.yaml's own actual shape, and lib.
+    component_docs.IMAGES_STUB_TEMPLATE's own fresh one — must still be
+    found and updated. Before find_images_manifest_changes_header was
+    shared, this function's own header search only matched
+    CHANGES_HEADER_RE's counted form, so a bare header was silently
+    invisible to it: changes_action stayed None and the numbered item
+    list was never touched, even though the entry itself still updated
+    fine below."""
+    images_path = tmp_path / "images-4.9.0.yaml"
+    images_path.write_text(
+        "# Changes:\n"
+        "#   1. zac 5.0.2 -> 5.1.0 (chart 1.0.297, unchanged).\n"
+        "#\n"
+        "# ZAC — 5.0.2 -> 5.1.0\n"
+        "- name: zac\n"
+        '  version: "5.1.0"\n'
+        '  digest: "sha256:aaaa"\n',
+        encoding="utf-8",
+    )
+    changes_action, entry_updates, missing = ucv.update_images_manifest(
+        images_path, "zac", "zac", "5.1.0", "5.4.3", "1.0.297", "1.0.297",
+        ["image"], {"image": "ghcr.io/infonl/zaakafhandelcomponent"}, {"image": "5.4.3@sha256:cccc"},
+    )
+    assert changes_action == "updated"
+    assert entry_updates == ["zac"]
+    text = images_path.read_text(encoding="utf-8")
+    assert "1. zac 5.1.0 -> 5.4.3 (chart 1.0.297, unchanged)." in text
+    # The bare header itself is left exactly as-is — never invents a
+    # count word it didn't already have.
+    assert text.startswith("# Changes:\n")
+
+
+def test_update_images_manifest_bare_header_new_item_no_count_word_invented(ucv, tmp_path):
+    images_path = tmp_path / "images-4.9.0.yaml"
+    images_path.write_text(
+        "# Changes:\n"
+        "#   1. zac 5.0.2 -> 5.1.0 (chart 1.0.297, unchanged).\n"
+        "#\n"
+        "# ZAC — 5.0.2 -> 5.1.0\n"
+        "- name: zac\n"
+        '  version: "5.1.0"\n'
+        '  digest: "sha256:aaaa"\n',
+        encoding="utf-8",
+    )
+    changes_action, entry_updates, missing = ucv.update_images_manifest(
+        images_path, "openformulieren", "openformulieren", "3.4.10", "3.5.6", "1.12.0", "1.12.0",
+        ["image"], {"image": "openformulieren/open-forms"}, {"image": "3.5.6@sha256:dddd"},
+    )
+    assert changes_action == "added"
+    assert missing == [("image", "openformulieren/open-forms", "3.5.6@sha256:dddd")]
+    text = images_path.read_text(encoding="utf-8")
+    assert text.startswith("# Changes:\n")
+    assert "2. openformulieren 3.4.10 -> 3.5.6 (chart 1.12.0, unchanged)." in text
+
+
 def test_update_images_manifest_reports_missing_entry(ucv, tmp_path):
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text(
