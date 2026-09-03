@@ -716,6 +716,31 @@ def strip_registry_host(url):
     return url
 
 
+def global_image_paths(values):
+    """[(path, tag), ...] for every entry directly under "global.images."
+    — the shared base-image anchors (nginx/curl/busybox — see the
+    values.yaml comment "Shared image references, reused via YAML
+    anchors") a real dependency's own sidecar OR one of podiumd's own
+    orphan top-level blocks (apiproxy, frankgateway, ...) can alias via
+    "<some path>.image: *nginxImage" and the like. NOT found by find_
+    image_tag_paths' own generic "<key ending in Image>" structural scan
+    at all — the container key here is the base image's own bare name
+    ("nginx"/"curl"/"busybox"), not "...Image", and "images" (the plural
+    container one level up) is deliberately excluded from that scan
+    (see its own docstring) specifically so this one shared template
+    block is never counted as its own separate USAGE the way every
+    alias SITE already is. Exists so a caller building the images-
+    manifest's own path set can ALSO consider "global.images.<name>"
+    itself as a candidate — the one true source every aliasing usage
+    site actually points at — alongside those usage sites, not just
+    the sites on their own."""
+    images = get_path(values, "global.images")
+    if not isinstance(images, dict):
+        return []
+    return [(("global", "images", name), block["tag"])
+            for name, block in images.items() if isinstance(block, dict) and block.get("tag")]
+
+
 def repo_group_representative(repo_paths, deps):
     """The single path a shared-repository group (see paths_by_
     repository) should be treated as "the" path for — ranking each
@@ -723,23 +748,32 @@ def repo_group_representative(repo_paths, deps):
     traversal order — the historical "repo_paths[-1]" convention every
     caller of paths_by_repository used to inline separately) among
     whichever rank tier actually has a member:
-    1. (highest) a REAL Chart.yaml dependency's own registered PRIMARY
-       image path (is_primary_image_path AND it has an owning
-       dependency) — the SAME thing -upgrade.md's own actual_app_
-       version-based resolution (dependency-first, never routed through
-       a repository-group tie-break at all) already prefers.
-    2. a path with no owning Chart.yaml dependency at all (podiumd's
+    1. (highest) a path rooted at "global" (see global_image_paths) —
+       the one true source EVERY other candidate in a group like this
+       can only ever be an ALIAS of (a YAML anchor, not a coincidence),
+       so it always wins outright regardless of what else is in the
+       group. Real case: "nginxinc/nginx-unprivileged" is aliased by
+       apiproxy's own top-level image AND by 8+ real dependencies' own
+       nginx sidecars alike — every one of them is genuinely the exact
+       same pinned image, so there is exactly one right "component" to
+       attribute a version change to: "global" itself, not whichever
+       alias site happened to sort first/last among the others.
+    2. a REAL Chart.yaml dependency's own registered PRIMARY image path
+       (is_primary_image_path AND it has an owning dependency) — the
+       SAME thing -upgrade.md's own actual_app_version-based resolution
+       (dependency-first, never routed through a repository-group tie-
+       break at all) already prefers.
+    3. a path with no owning Chart.yaml dependency at all (podiumd's
        own directly-templated top-level block — is_primary_image_path
        is ALSO True for these, per its own "no parent to be a sidecar
-       of" rule, but that's a much weaker claim than tier 1's real
+       of" rule, but that's a much weaker claim than tier 2's real
        ownership) — correct as the group's representative on its own
-       when NO tier-1 member exists, e.g. nginx-unprivileged's shared
-       global.images.nginx anchor, owned by no single dependency at all.
-    3. (lowest) a real dependency's own SIDECAR path.
+       when NO tier-2 (or tier-1 "global") member exists.
+    4. (lowest) a real dependency's own SIDECAR path.
 
-    Real case tier 1 exists for: "keycloak.image" (tier 2 — podiumd's
+    Real case tier 2 exists for: "keycloak.image" (tier 3 — podiumd's
     own directly-templated top-level override) and "keycloak-operator.
-    operator.config.keycloakImage" (tier 1 — keycloak-operator's own
+    operator.config.keycloakImage" (tier 2 — keycloak-operator's own
     COMPONENT_IMAGE_PATHS-registered primary image) share the exact
     same repository, kept in sync by convention (see the real hand-
     written comment above the images-manifest entry). Both count as
@@ -751,6 +785,8 @@ def repo_group_representative(repo_paths, deps):
     by_values_key = {(dep.get("alias") or dep["name"]): dep for dep in deps}
 
     def rank(path):
+        if path[0] == "global":
+            return 3
         dep = by_values_key.get(path[0])
         if dep is not None and is_primary_image_path(path, deps):
             return 2

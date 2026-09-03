@@ -1663,6 +1663,55 @@ def test_add_missing_images_manifest_entries_split_tag_sha_no_sha_override_still
     assert new_text == text
 
 
+@pytest.fixture
+def global_image_chart_dir(tmp_path):
+    """apiproxy's own real shape: an orphan top-level block (no Chart.yaml
+    dependency of its own) whose SOLE image aliases the shared
+    global.images.nginx anchor — the same YAML-anchored value, not a
+    coincidentally-matching repository."""
+    write(tmp_path / "Chart.yaml", yaml.safe_dump({"dependencies": []}))
+    write(tmp_path / "values.yaml", yaml.safe_dump({
+        "global": {"images": {"nginx": {
+            "repository": "nginxinc/nginx-unprivileged", "tag": "1.31.4@sha256:aaaa"}}},
+        "apiproxy": {"image": {"repository": "nginxinc/nginx-unprivileged", "tag": "1.31.4@sha256:aaaa"}},
+    }))
+    return tmp_path
+
+
+def test_add_missing_images_manifest_entries_global_image_gets_one_entry_not_per_alias(
+        cdb, global_image_chart_dir):
+    """Real feature: a shared global.images.* anchor gets exactly ONE
+    entry, named via its own bare basename and positioned under
+    "global" 's own values.yaml order — never a separate entry for
+    apiproxy (or any other component) that merely aliases the same
+    anchor. repo_group_representative's own "global" tier plus find_
+    images_manifest_list_diff's existing repo-group collapse are what
+    make this "just work": apiproxy's own path is never independently
+    considered "missing" at all once it collapses to the same
+    representative as global.images.nginx itself."""
+    text = ""
+    deps = []
+    target_values = {
+        "global": {"images": {"nginx": {
+            "repository": "nginxinc/nginx-unprivileged", "tag": "1.31.4@sha256:aaaa"}}},
+        "apiproxy": {"image": {"repository": "nginxinc/nginx-unprivileged", "tag": "1.31.4@sha256:aaaa"}},
+    }
+    baseline_values = {
+        "global": {"images": {"nginx": {
+            "repository": "nginxinc/nginx-unprivileged", "tag": "1.31.3@sha256:bbbb"}}},
+        "apiproxy": {"image": {"repository": "nginxinc/nginx-unprivileged", "tag": "1.31.3@sha256:bbbb"}},
+    }
+
+    new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
+        text, global_image_chart_dir, deps, target_values, baseline_values)
+
+    assert skipped == []
+    assert added == ["nginx-unprivileged"]
+    assert new_text.count("- name: nginxinc/nginx-unprivileged") == 1
+    assert "# nginx-unprivileged 1.31.3 -> 1.31.4" in new_text
+    assert "apiproxy" not in new_text
+
+
 def test_add_missing_images_manifest_entries_skips_image_with_no_resolvable_repository(
         cdb, images_manifest_chart_dir):
     """kiss.adapter.image's own real-world case: no own override AND no
