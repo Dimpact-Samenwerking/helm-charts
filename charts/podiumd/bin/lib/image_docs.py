@@ -18,7 +18,10 @@ last" rule already produces that with no special-casing needed here,
 since a bare basename never matches a Chart.yaml dependency by name."""
 import re
 
-from lib.chart import canonical_sidecar_row_names, get_path, image_paths_for, replace_scalar_value, version_paths_for
+from lib.chart import (
+    canonical_sidecar_row_names, get_path, global_image_paths, image_paths_for, replace_scalar_value,
+    version_paths_for,
+)
 from lib.component_docs import (
     CHANGES_HEADER_RE, CHANGES_ITEM_RE, NUMBER_WORDS, dep_for_values_key, insert_changes_section,
     make_changes_section, remove_changes_section, update_component_table,
@@ -72,10 +75,21 @@ def add_missing_sidecar_rows(text, chart_dir, deps, target_values, baseline_valu
     row today (a sidecar's "chart version" is really just its owning
     dependency's, which is exactly what lib.docs_consistency's own row
     check deliberately never compares for these rows either — see its
-    `actual_chart = None` for the sidecar branch). Returns (new_text,
+    `actual_chart = None` for the sidecar branch). global_image_paths is
+    folded into current_paths/baseline_paths so a shared global.images.*
+    anchor (e.g. nginx-unprivileged, aliased by 10+ components' own
+    sidecars at once) resolves to canonical_sidecar_row_names' own bare-
+    basename "global" row — ONE row for the whole chart — rather than
+    each aliasing component's own dependency independently qualifying
+    for its OWN "<dep> - <basename>" row for the exact same image bump
+    (real case: "zac - nginx-unprivileged" and "frankgateway - nginx-
+    unprivileged" both showing up as separate rows for what is, via the
+    shared anchor, the identical version change). Returns (new_text,
     added_names)."""
     current_paths = dict(find_image_tag_paths(target_values))
+    current_paths.update(global_image_paths(target_values))
     baseline_paths = dict(find_image_tag_paths(baseline_values)) if baseline_values else {}
+    baseline_paths.update(global_image_paths(baseline_values) if baseline_values else [])
     canonical_names = canonical_sidecar_row_names(chart_dir, deps, target_values, current_paths.keys())
 
     matched_paths = {path for row in parse_upgrade_doc_rows(text)

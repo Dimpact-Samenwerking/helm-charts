@@ -1324,6 +1324,37 @@ def test_canonical_sidecar_row_names_global_shared_image(libchart, tmp_path):
     assert names == {"nginx-unprivileged": ("global", "images", "nginx", "image")}
 
 
+def test_canonical_sidecar_row_names_excludes_sidecar_sharing_a_global_repository(libchart, tmp_path):
+    """Real bug: zac's own nginx sidecar and frankgateway's own nginx
+    sidecar both alias the exact same global.images.nginx anchor — each
+    independently registering its own "<dep> - nginx-unprivileged" name
+    gave the SAME version bump two separate, equally-valid-looking
+    canonical names ("zac - nginx-unprivileged" AND "frankgateway -
+    nginx-unprivileged" both showing up as separate -upgrade.md rows).
+    Only the bare "global" name should ever be registered for this
+    shared repository — the per-component ones are excluded entirely,
+    not just deprioritized."""
+    deps = [
+        {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"},
+        {"name": "frankgateway", "alias": "", "version": "1.1.0"},
+    ]
+    values = {
+        "global": {"images": {"nginx": {"repository": "nginxinc/nginx-unprivileged"}}},
+        "zac": {"nginx": {"image": {"repository": "nginxinc/nginx-unprivileged"}}},
+        "frankgateway": {"dashboard": {"auth": {"shim": {
+            "image": {"repository": "nginxinc/nginx-unprivileged"}}}}},
+    }
+    paths = [
+        ("global", "images", "nginx"),
+        ("zac", "nginx", "image"),
+        ("frankgateway", "dashboard", "auth", "shim", "image"),
+    ]
+
+    names = libchart.canonical_sidecar_row_names(tmp_path, deps, values, paths, allow_pull=False)
+
+    assert names == {"nginx-unprivileged": ("global", "images", "nginx")}
+
+
 def test_canonical_sidecar_row_names_multiple_sidecars_stay_distinct(libchart, tmp_path):
     values = {"redis-operator": {
         "redis-ha": {"image": {"repository": "quay.io/opstree/redis"}},

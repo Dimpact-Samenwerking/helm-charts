@@ -960,7 +960,19 @@ def canonical_sidecar_row_names(chart_dir, deps, values, paths, allow_pull=False
     be checked against a real, deterministically-computed canonical
     name — never guessed at from free-form prose (see
     resolve_entry_path's own fuzzy word-matching, which this
-    deliberately does NOT reuse)."""
+    deliberately does NOT reuse).
+
+    A sidecar path whose OWN repository matches one of `global_paths`'
+    own resolved repositories (real case: several real dependencies'
+    own nginx sidecars, each aliasing the exact same global.images.
+    nginx anchor) is excluded from the "<values_key> - <basename>"
+    registration entirely — the bare "global" name below already covers
+    it, and registering BOTH would give the same version bump two
+    independent, equally-valid-looking canonical names (real bug: "zac
+    - nginx-unprivileged" and "frankgateway - nginx-unprivileged" both
+    showing up as separate rows for what is, via the shared anchor, the
+    identical change) rather than the one true "global" row every OTHER
+    caller of this same shared image already expects."""
     by_values_key = {(dep.get("alias") or dep["name"]): dep for dep in deps}
     sidecar_paths, global_paths = [], []
     for path in paths:
@@ -973,8 +985,16 @@ def canonical_sidecar_row_names(chart_dir, deps, values, paths, allow_pull=False
         if dep is not None and ".".join(path[1:]) not in set(image_paths_for(dep["name"])):
             sidecar_paths.append(path)
 
+    global_repos = set()
+    for path in global_paths:
+        repo = get_path(values, ".".join(path) + ".repository")
+        if isinstance(repo, str) and repo:
+            global_repos.add(strip_registry_host(repo))
+
     names = {}
     for repo, path in repository_path_map(chart_dir, deps, values, sidecar_paths, allow_pull=allow_pull).items():
+        if repo in global_repos:
+            continue
         basename = repo.rsplit("/", 1)[-1]
         # A self-referential name ("keycloak-operator - keycloak-operator" —
         # real case: keycloak-operator.operator.image, the operator's own
