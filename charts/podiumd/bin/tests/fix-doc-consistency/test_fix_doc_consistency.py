@@ -2677,6 +2677,67 @@ def test_sort_images_manifest_changes_items_reorders_and_renumbers(cdb):
     assert lines[4] == "#   2. zac 5.0.2 -> 5.4.4.\n"
 
 
+def test_sort_images_manifest_changes_items_display_name_exact_match_takes_priority(cdb):
+    """Real bug: "kiss" (a dependency's own bare alias) shares no word
+    at all with its own image's repository basename ("kiss-frontend"),
+    so match_changes_item_to_entry's fuzzy basename-in-text search could
+    never resolve it — landing "kiss"'s own primary item far from its
+    real sidecars ("kiss - crawler", "kiss - kiss-elastic-sync") despite
+    the entry list itself already grouping all three together. Given
+    display_name_positions, matched by EXACT prefix instead."""
+    entries = [{"name": "klantinteractie-servicesysteem/kiss-frontend", "version": "3.0.0"},
+               {"name": "integrations/crawler", "version": "1.0.0"},
+               {"name": "opstree/redis-operator", "version": "0.26.0"}]
+    entry_positions = {"klantinteractie-servicesysteem/kiss-frontend": 0,
+                        "integrations/crawler": 1, "opstree/redis-operator": 2}
+    display_name_positions = {"kiss": 0, "kiss - crawler": 1, "redis-operator": 2}
+    lines = [
+        "# Changes:\n",
+        "#   1. redis-operator 0.25.0 -> 0.26.0.\n",
+        "#   2. kiss 2.2.4 -> 3.0.0.\n",
+        "#   3. kiss - crawler 1.0.0 -> 1.0.0.\n",
+        "\n",
+    ]
+    moved = cdb.sort_images_manifest_changes_items(lines, entries, entry_positions, display_name_positions)
+    assert moved == [("kiss 2.2.4 -> 3.0.0.", 2, 1), ("kiss - crawler 1.0.0 -> 1.0.0.", 3, 2),
+                      ("redis-operator 0.25.0 -> 0.26.0.", 1, 3)]
+    assert lines[1] == "#   1. kiss 2.2.4 -> 3.0.0.\n"
+    assert lines[2] == "#   2. kiss - crawler 1.0.0 -> 1.0.0.\n"
+    assert lines[3] == "#   3. redis-operator 0.25.0 -> 0.26.0.\n"
+
+
+def test_sort_images_manifest_changes_items_display_name_prefers_longest_match(cdb):
+    """"keycloak-operator" is itself a valid, shorter prefix of
+    "keycloak-operator - postgres 16 -> 16.15." — the longer, more
+    specific display name must win, not the primary's own shorter one."""
+    entries = [{"name": "postgres", "version": "16.15"}, {"name": "keycloak/keycloak", "version": "26.7.2"}]
+    entry_positions = {"postgres": 1, "keycloak/keycloak": 0}
+    display_name_positions = {"keycloak-operator": 0, "keycloak-operator - postgres": 1}
+    lines = [
+        "# Changes:\n",
+        "#   1. keycloak-operator - postgres 16 -> 16.15.\n",
+        "#   2. keycloak-operator 26.6.4 -> 26.7.2.\n",
+        "\n",
+    ]
+    cdb.sort_images_manifest_changes_items(lines, entries, entry_positions, display_name_positions)
+    assert lines[1] == "#   1. keycloak-operator 26.6.4 -> 26.7.2.\n"
+    assert lines[2] == "#   2. keycloak-operator - postgres 16 -> 16.15.\n"
+
+
+def test_sort_images_manifest_changes_items_no_display_name_positions_falls_back_to_fuzzy(cdb):
+    """Omitting display_name_positions (the default) behaves exactly as
+    before — the existing fuzzy match_changes_item_to_entry path, fully
+    unaffected."""
+    lines = [
+        "# Changes:\n",
+        "#   1. zac 5.0.2 -> 5.4.4.\n",
+        "#   2. redis-operator 0.25.0 -> 0.26.0.\n",
+        "\n",
+    ]
+    moved = cdb.sort_images_manifest_changes_items(lines, CHANGES_ITEMS_ENTRIES, CHANGES_ITEMS_POSITIONS)
+    assert moved == [("redis-operator 0.25.0 -> 0.26.0.", 2, 1), ("zac 5.0.2 -> 5.4.4.", 1, 2)]
+
+
 def test_sort_images_manifest_changes_items_continuation_line_travels_with_item(cdb):
     """A wrapped continuation line (2+ spaces after "#") stays attached
     to its own item when that item moves — never split off or left

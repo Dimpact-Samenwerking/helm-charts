@@ -99,8 +99,8 @@ from lib.upgradedoc import (
     append_to_doc, canonical_version_cell, component_version_cell, compute_changed_components,
     extract_source_version, extract_target_version, find_all_image_and_version_paths,
     find_grouped_preceding_comment_line, find_image_tag_paths, find_images_manifest_list_diff,
-    images_manifest_block_start, images_manifest_entries_share_group, images_manifest_entry_positions,
-    insertion_index, is_primary_image_path,
+    images_manifest_block_start, images_manifest_display_name_positions, images_manifest_entries_share_group,
+    images_manifest_entry_positions, insertion_index, is_primary_image_path,
     match_dependency_excluding_sidecar_names, missing_key_change_lines, normalize_version, parse_upgrade_doc_rows,
     path_display_name, replace_version_pair, resolve_component_row, resolve_entry_image_path, sort_changes_blocks,
     sort_images_manifest_entries, sort_upgrade_doc_rows, values_key_order,
@@ -517,7 +517,32 @@ def _insert_images_manifest_header_item(lines, deps, key_order, order_key, new_k
     # the new entry.
 
 
-def sort_images_manifest_changes_items(lines, entries, entry_positions):
+def _match_changes_item_display_name(rest, display_name_positions):
+    """The longest key of display_name_positions that `rest` starts with
+    (followed by a space, or an exact match) — every auto-inserted
+    Changes item's own text is always built as f"{name} {old} -> {new}."
+    (see add_missing_images_manifest_entries' own version_text), so this
+    is an EXACT match for anything the tooling itself wrote, never a
+    guess — unlike match_changes_item_to_entry's fuzzy basename-in-text
+    search, which has no way to resolve a name like "kiss" or "kiss-eck"
+    that shares no word at all with its own entry's repository basename
+    ("kiss-frontend", "elasticsearch"/"kibana"). A hand-written free-form
+    item (e.g. "Keycloak app image 26.6.4 -> 26.7.2 (...)") simply won't
+    start with any known display name, and the caller falls back to
+    match_changes_item_to_entry for that case instead. Longest match
+    wins so a primary's own display name ("keycloak-operator") is never
+    chosen over its own sidecar's longer, " - "-suffixed one ("keycloak-
+    operator - postgres") sharing the same prefix. None if nothing
+    matches."""
+    best = None
+    for name in display_name_positions:
+        if rest == name or rest.startswith(name + " "):
+            if best is None or len(name) > len(best):
+                best = name
+    return best
+
+
+def sort_images_manifest_changes_items(lines, entries, entry_positions, display_name_positions=None):
     """Reorder the images-manifest's own "# Changes:" numbered item list
     (see _find_images_manifest_changes_header) to MIRROR the entry
     list's own final order (entry_positions — see lib.upgradedoc.
@@ -533,19 +558,31 @@ def sort_images_manifest_changes_items(lines, entries, entry_positions):
     BEFORE that dependency's own real sidecars instead of after
     "keycloak"'s own actual entry) — a mismatch the entry list itself
     can never have, since it resolves entries via repo_map/values-tree
-    paths, not prose. Each item is matched to one of THIS SAME
-    manifest's own entries via lib.docs_consistency.match_changes_item_
+    paths, not prose. Each item is matched EXACTLY first, by display
+    name (see _match_changes_item_display_name/display_name_positions —
+    lib.upgradedoc.images_manifest_display_name_positions, computed the
+    SAME group-level way entry_positions is) — the only reliable option
+    for a display name sharing no word at all with its own entry's
+    repository basename (real case: "kiss" and "kiss-eck" share nothing
+    with their own images' basenames "kiss-frontend" and "elasticsearch"
+    /"kibana", so match_changes_item_to_entry's own fuzzy basename-in-
+    text search could never resolve them — landing "kiss"/"kiss-eck"'s
+    own primary items far from their real sidecars despite the ENTRY
+    list itself already grouping them correctly). display_name_
+    positions defaults to None (falls straight through to the fuzzy
+    path below) for a caller with no deps/values/repo_map/canonical_
+    names handy. Falls back to lib.docs_consistency.match_changes_item_
     to_entry (the SAME resolution check_images_manifest_format's own
-    Changes-item check already uses for a plain image with no Chart.yaml
-    dependency of its own), then ordered by that entry's own position —
-    an item that doesn't resolve to any entry sorts last, never dragged
-    around by a real item's move. A wrapped continuation line
-    (parse_changes_block's own 2-space-indented shape) travels WITH its
-    own item, never split from it. Items are renumbered 1..N to match
-    their new position. Mutates `lines` in place. Returns [(item_text,
-    old_position, new_position)] (1-based) for every item that actually
-    moved — empty (lines untouched) if the header doesn't exist or has
-    fewer than 2 items."""
+    Changes-item check already uses) only when the exact match finds
+    nothing — free-form hand-written prose that never repeats any
+    entry's own display name verbatim. An item resolving via NEITHER
+    sorts last, never dragged around by a real item's move. A wrapped
+    continuation line (parse_changes_block's own 2-space-indented shape)
+    travels WITH its own item, never split from it. Items are renumbered
+    1..N to match their new position. Mutates `lines` in place. Returns
+    [(item_text, old_position, new_position)] (1-based) for every item
+    that actually moved — empty (lines untouched) if the header doesn't
+    exist or has fewer than 2 items."""
     header_idx, _header_has_count = find_images_manifest_changes_header(lines)
     if header_idx is None:
         return []
@@ -565,8 +602,12 @@ def sort_images_manifest_changes_items(lines, entries, entry_positions):
     items = []
     for start, end in zip(item_starts, item_ends):
         rest = CHANGES_ITEM_RE.match(lines[start]).group("rest")
-        entry = match_changes_item_to_entry(rest, entries)
-        position = entry_positions.get(entry["name"], len(entry_positions)) if entry else len(entry_positions)
+        display_name = _match_changes_item_display_name(rest, display_name_positions or {})
+        if display_name is not None:
+            position = display_name_positions[display_name]
+        else:
+            entry = match_changes_item_to_entry(rest, entries)
+            position = entry_positions.get(entry["name"], len(entry_positions)) if entry else len(entry_positions)
         items.append({"start": start, "end": end, "rest": rest, "key": position})
 
     order = sorted(range(len(items)), key=lambda i: items[i]["key"])
@@ -1122,8 +1163,11 @@ def main():
             entries_for_header_sort = []
         entry_positions = images_manifest_entry_positions(before_sort, target_deps, target_values, repo_map,
                                                             canonical_names)
+        display_name_positions = images_manifest_display_name_positions(before_sort, target_deps, target_values,
+                                                                          repo_map, canonical_names)
         lines = before_sort.splitlines(keepends=True)
-        moved_header_items = sort_images_manifest_changes_items(lines, entries_for_header_sort, entry_positions)
+        moved_header_items = sort_images_manifest_changes_items(lines, entries_for_header_sort, entry_positions,
+                                                                  display_name_positions)
         text = "".join(lines)
         text, moved_entries = sort_images_manifest_entries(text, target_deps, target_values, repo_map,
                                                              canonical_names)
