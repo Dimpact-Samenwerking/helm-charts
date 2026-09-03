@@ -101,6 +101,52 @@ def version_paths_for(component):
     return COMPONENT_VERSION_PATHS.get(component, [])
 
 
+def _is_dependency_primary_rel_path(dep, rel_path):
+    """rel_path (path[1:], dotted) is one of dep's own PRIMARY image/
+    version fields — image_paths_for's "image: {tag}" shape first, else
+    (same fallback lib.upgradedoc.actual_app_version already uses for
+    the -upgrade.md row/Changes-heading's own app-version lookup)
+    version_paths_for's own bare-scalar fields for a component whose
+    real app version isn't expressed as an "image:" block at all —
+    redis-operator's own split "redisOperator.imageTag" (sibling to
+    "imageName", not nested under a common "image:" key), or eck-stack's
+    "eck-elasticsearch.version"/"eck-kibana.version". Shared by lib.
+    upgradedoc.path_display_name and is_primary_image_path so the two
+    can never disagree about which path counts as "the" primary."""
+    return rel_path in set(image_paths_for(dep["name"])) or rel_path in set(version_paths_for(dep["name"]))
+
+
+def is_primary_image_path(path, deps):
+    """True when path is one of a Chart.yaml dependency's own PRIMARY
+    image/version field(s) — see _is_dependency_primary_rel_path (image_
+    paths_for's "image: {tag}" shape, or version_paths_for's own bare-
+    scalar fallback — either can hold several co-equal fields, e.g.
+    zgw-office-addin's frontend + backend, or eck-stack's own eck-
+    elasticsearch + eck-kibana version fields) rather than a nested
+    sidecar or a shared "global" image — the same primary/sidecar split
+    lib.upgradedoc.path_display_name's own branch already makes,
+    factored out here so a caller can ask the question on its own,
+    without needing a canonical_names mapping too — and so
+    repo_group_representative (this module) can use it directly, since
+    lib.chart is a dependency of lib.upgradedoc, never the reverse.
+
+    ALSO True for a path with NO owning Chart.yaml dependency at all
+    (podiumd's own directly-templated top-level block — "keycloak",
+    "apiproxy", "frankgateway", the shared "global" anchor — see this
+    module's own image_repository_check-adjacent docstrings for the
+    real cases): there's no PARENT for such a path to be a SIDECAR of,
+    so it's treated as its own standalone/primary entity, never subject
+    to sidecar-only rules (needing a "#   sidecar: ..." header, sorting
+    after its own top-level key's primary slot)."""
+    if not path:
+        return False
+    by_values_key = {(dep.get("alias") or dep["name"]): dep for dep in deps}
+    dep = by_values_key.get(path[0])
+    if dep is None:
+        return True
+    return _is_dependency_primary_rel_path(dep, ".".join(path[1:]))
+
+
 # component (name, not alias) -> the sibling dotted path holding a
 # COMPONENT_VERSION_PATHS entry's own repository — for the rare case
 # where that repository IS explicitly overridable in podiumd's OWN
@@ -634,6 +680,52 @@ def strip_registry_host(url):
     return url
 
 
+def repo_group_representative(repo_paths, deps):
+    """The single path a shared-repository group (see paths_by_
+    repository) should be treated as "the" path for — ranking each
+    candidate and returning the LAST (values.yaml's own top-level key
+    traversal order — the historical "repo_paths[-1]" convention every
+    caller of paths_by_repository used to inline separately) among
+    whichever rank tier actually has a member:
+    1. (highest) a REAL Chart.yaml dependency's own registered PRIMARY
+       image path (is_primary_image_path AND it has an owning
+       dependency) — the SAME thing -upgrade.md's own actual_app_
+       version-based resolution (dependency-first, never routed through
+       a repository-group tie-break at all) already prefers.
+    2. a path with no owning Chart.yaml dependency at all (podiumd's
+       own directly-templated top-level block — is_primary_image_path
+       is ALSO True for these, per its own "no parent to be a sidecar
+       of" rule, but that's a much weaker claim than tier 1's real
+       ownership) — correct as the group's representative on its own
+       when NO tier-1 member exists, e.g. nginx-unprivileged's shared
+       global.images.nginx anchor, owned by no single dependency at all.
+    3. (lowest) a real dependency's own SIDECAR path.
+
+    Real case tier 1 exists for: "keycloak.image" (tier 2 — podiumd's
+    own directly-templated top-level override) and "keycloak-operator.
+    operator.config.keycloakImage" (tier 1 — keycloak-operator's own
+    COMPONENT_IMAGE_PATHS-registered primary image) share the exact
+    same repository, kept in sync by convention (see the real hand-
+    written comment above the images-manifest entry). Both count as
+    "primary" under is_primary_image_path's own rule, so ranking by
+    that alone still landed on whichever was discovered LAST during
+    values.yaml's own top-level traversal (keycloak, since it sorts
+    after keycloak-operator there) — the tier split here is what
+    actually prefers real ownership over "no parent at all"."""
+    by_values_key = {(dep.get("alias") or dep["name"]): dep for dep in deps}
+
+    def rank(path):
+        dep = by_values_key.get(path[0])
+        if dep is not None and is_primary_image_path(path, deps):
+            return 2
+        if dep is None:
+            return 1
+        return 0
+
+    best = max(rank(path) for path in repo_paths)
+    return [path for path in repo_paths if rank(path) == best][-1]
+
+
 def paths_by_repository(chart_dir, deps, values, paths, allow_pull=False):
     """{strip_registry_host(repository): [path, ...]} for every path in
     `paths` (e.g. lib.upgradedoc.find_image_tag_paths(values)'s own
@@ -753,19 +845,19 @@ def paths_by_repository(chart_dir, deps, values, paths, allow_pull=False):
 def repository_path_map(chart_dir, deps, values, paths, allow_pull=False):
     """{strip_registry_host(repository): values-tree path} — paths_by_
     repository's own per-repository groups, collapsed to each group's
-    single last-processed path. Exists because an images-manifest
-    entry's "name:" is, under the current strip-registry convention,
-    exactly a repository in this same stripped form (docs/images/acr-
-    mirror-naming.md) — so this map gives an exact entry -> values-
-    tree-path match, where resolve_entry_path's fuzzy name-word
-    matching breaks down: a manifest name like
+    single representative path (see repo_group_representative). Exists
+    because an images-manifest entry's "name:" is, under the current
+    strip-registry convention, exactly a repository in this same
+    stripped form (docs/images/acr-mirror-naming.md) — so this map gives
+    an exact entry -> values-tree-path match, where resolve_entry_path's
+    fuzzy name-word matching breaks down: a manifest name like
     "infonl/zaakafhandelcomponent" no longer resembles the values.yaml
     key ("zac") the way the old hand-translated slugs (name: "zac")
     did. A single survivor per repository is exactly right for THIS
     purpose (one entry, one path, done) — see paths_by_repository's own
     docstring for why a caller needing every path a shared repository
     covers (not just one) should use that function directly instead."""
-    return {repo: repo_paths[-1] for repo, repo_paths
+    return {repo: repo_group_representative(repo_paths, deps) for repo, repo_paths
             in paths_by_repository(chart_dir, deps, values, paths, allow_pull=allow_pull).items()}
 
 

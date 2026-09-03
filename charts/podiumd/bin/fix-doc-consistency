@@ -80,7 +80,9 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from lib.chart import SEMVER_RE as BASELINE_VERSION_RE
-from lib.chart import canonical_sidecar_row_names, chart_version, paths_by_repository, version_of
+from lib.chart import (
+    canonical_sidecar_row_names, chart_version, paths_by_repository, repo_group_representative, version_of,
+)
 from lib.chart import upgrade_docs_baseline as read_upgrade_docs_baseline
 from lib.component_docs import (
     CHANGES_HEADER_RE, CHANGES_ITEM_RE, IMAGES_STUB_TEMPLATE, NUMBER_WORDS, STANDARD_SUFFIXES, STUB_TEMPLATES,
@@ -669,7 +671,7 @@ def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, ba
         entries = []
 
     repo_groups = paths_by_repository(chart_dir, deps, target_values, current_paths.keys())
-    repo_map = {repo: group_paths[-1] for repo, group_paths in repo_groups.items()}
+    repo_map = {repo: repo_group_representative(group_paths, deps) for repo, group_paths in repo_groups.items()}
     path_to_repo = {path: repo for repo, group_paths in repo_groups.items() for path in group_paths}
     unresolvable_paths = set(find_images_without_repository(chart_dir))
     canonical_names = canonical_sidecar_row_names(chart_dir, deps, target_values, current_paths.keys())
@@ -995,7 +997,8 @@ def main():
         text = images_path.read_text(encoding="utf-8")
         target_paths = [p for p, _tag in find_all_image_and_version_paths(target_values, target_deps)]
         repo_groups = paths_by_repository(CHART_YAML.parent, target_deps, target_values, target_paths)
-        repo_map = {repo: group_paths[-1] for repo, group_paths in repo_groups.items()}
+        repo_map = {repo: repo_group_representative(group_paths, target_deps)
+                    for repo, group_paths in repo_groups.items()}
         canonical_names = canonical_sidecar_row_names(CHART_YAML.parent, target_deps, target_values, target_paths)
         new_text, changed_entries, unresolved_entry_names = fix_images_manifest_entries(
             text, target_deps, target_values, baseline_values, repo_map
