@@ -246,13 +246,18 @@ def find_component_row(rows, friendly):
     return None
 
 
-def update_component_table(text, friendly, old_app, new_app, old_chart, new_chart, deps, values):
+def update_component_table(text, friendly, old_app, new_app, old_chart, new_chart, deps, values,
+                            canonical_names=None):
     """Update this component's "Component versions" table row if it's
     already mentioned, or insert a new row if it isn't — in values.yaml's
     own top-level component order relative to the rows already there (see
     lib.upgradedoc.component_order_key/insertion_index), not always at
-    the end. Returns (new_text, action) where action is "updated" or
-    "added" (or None if the doc has no table at all to insert into)."""
+    the end. canonical_names, when given, lets a bare "global" shared-
+    image row (e.g. "nginx-unprivileged") insert at its own real
+    values.yaml position instead of always last — see component_order_
+    key's own docstring. Returns (new_text, action) where action is
+    "updated" or "added" (or None if the doc has no table at all to
+    insert into)."""
     lines = text.splitlines(keepends=True)
     rows = parse_upgrade_doc_rows(text)
     row = find_component_row(rows, friendly)
@@ -272,8 +277,8 @@ def update_component_table(text, friendly, old_app, new_app, old_chart, new_char
     new_row_line = f"| {friendly} | {app_cell} | {chart_cell} | - |\n"
     if rows:
         key_order = values_key_order(values)
-        new_key = component_order_key(friendly, deps, key_order)
-        existing_keys = [component_order_key(r["name"], deps, key_order) for r in rows]
+        new_key = component_order_key(friendly, deps, key_order, canonical_names)
+        existing_keys = [component_order_key(r["name"], deps, key_order, canonical_names) for r in rows]
         idx = insertion_index(new_key, existing_keys)
         insert_at = rows[idx]["line_index"] if idx < len(rows) else rows[-1]["line_index"] + 1
     else:
@@ -335,13 +340,16 @@ def make_changes_section(friendly, target, chart_name, values_key, old_app, new_
     return "".join(lines)
 
 
-def insert_changes_section(text, section_text, friendly, deps, values):
+def insert_changes_section(text, section_text, friendly, deps, values, canonical_names=None):
     """Insert section_text as a new "### ..." block into the "## Changes"
     section, in values.yaml's own top-level component order relative to
     the blocks already there (see lib.upgradedoc.component_order_key/
-    insertion_index) — not always at the end. Appends right before the
-    next "## " heading (or EOF) if the section doesn't exist yet, or has
-    no blocks of its own yet to compare against."""
+    insertion_index) — not always at the end. canonical_names, when
+    given, lets a bare "global" shared-image section (e.g. "nginx-
+    unprivileged") insert at its own real values.yaml position instead
+    of always last — see component_order_key's own docstring. Appends
+    right before the next "## " heading (or EOF) if the section doesn't
+    exist yet, or has no blocks of its own yet to compare against."""
     blocks = parse_upgrade_doc_changes_blocks(text)
     lines = text.splitlines(keepends=True)
     changes_idx = None
@@ -364,8 +372,8 @@ def insert_changes_section(text, section_text, friendly, deps, values):
         insert_at = section_end
     else:
         key_order = values_key_order(values)
-        new_key = component_order_key(friendly, deps, key_order)
-        existing_keys = [component_order_key(b["heading"], deps, key_order) for b in blocks]
+        new_key = component_order_key(friendly, deps, key_order, canonical_names)
+        existing_keys = [component_order_key(b["heading"], deps, key_order, canonical_names) for b in blocks]
         idx = insertion_index(new_key, existing_keys)
         insert_at = blocks[idx]["start"] if idx < len(blocks) else section_end
 

@@ -106,7 +106,8 @@ def add_missing_sidecar_rows(text, chart_dir, deps, target_values, baseline_valu
         new_app = current_tag.split("@", 1)[0]
         old_app = baseline_tag.split("@", 1)[0] if baseline_tag else None
 
-        text, table_action = update_component_table(text, name, old_app, new_app, None, "-", deps, target_values)
+        text, table_action = update_component_table(text, name, old_app, new_app, None, "-", deps, target_values,
+                                                     canonical_names)
         if table_action is None:
             continue  # doc has no "Component versions" table at all to insert into
 
@@ -114,7 +115,7 @@ def add_missing_sidecar_rows(text, chart_dir, deps, target_values, baseline_valu
         dotted_path = ".".join(path) + ".tag"
         section = make_image_changes_section(name, target, old_app or new_app, new_app,
                                               [(dotted_path, old_app or new_app)])
-        text = insert_changes_section(text, section, name, deps, target_values)
+        text = insert_changes_section(text, section, name, deps, target_values, canonical_names)
         added_names.append(name)
 
     return text, added_names
@@ -192,7 +193,7 @@ def add_missing_changes_sections(text, deps, target_values, target, canonical_na
         section = build_changes_section_for_row(row, ident, deps, target)
         if section is None:
             continue
-        text = insert_changes_section(text, section, row["name"], deps, target_values)
+        text = insert_changes_section(text, section, row["name"], deps, target_values, canonical_names)
         added_names.append(row["name"])
 
     return text, added_names
@@ -281,7 +282,7 @@ def update_stale_app_version_headings(text, chart_dir, deps, target_values, targ
         text, removed = _remove_changes_block_by_exact_heading(text, heading)
         if not removed:
             continue
-        text = insert_changes_section(text, section, row["name"], deps, target_values)
+        text = insert_changes_section(text, section, row["name"], deps, target_values, canonical_names)
         updated_headings.append(heading)
 
     return text, updated_headings

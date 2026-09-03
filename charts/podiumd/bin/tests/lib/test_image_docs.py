@@ -50,6 +50,41 @@ def test_add_missing_sidecar_rows_global_image_gets_one_row_not_per_alias(libima
     assert "frankgateway - nginx-unprivileged" not in new_text
 
 
+def test_add_missing_sidecar_rows_global_row_inserted_at_its_own_position_not_last(libimagedocs, tmp_path):
+    """Real bug reported live: re-running the fix script placed the new
+    "nginx-unprivileged" row at the very END of the table (component_
+    order_key's own "unmatched sorts last" fallback), when it should sort
+    to the TOP — "global:" is values.yaml's own FIRST key, and the
+    images-manifest's own equivalent entry already sorts there."""
+    deps = [{"name": "openzaak", "alias": "", "version": "1.14.2"}]
+    target_values = {
+        "global": {"images": {"nginx": {
+            "repository": "nginxinc/nginx-unprivileged", "tag": "1.31.4@sha256:aaaa"}}},
+        "openzaak": {"nginx": {"image": {
+            "repository": "nginxinc/nginx-unprivileged", "tag": "1.31.4@sha256:aaaa"}}},
+    }
+    baseline_values = {
+        "global": {"images": {"nginx": {
+            "repository": "nginxinc/nginx-unprivileged", "tag": "1.31.3@sha256:bbbb"}}},
+        "openzaak": {"nginx": {"image": {
+            "repository": "nginxinc/nginx-unprivileged", "tag": "1.31.3@sha256:bbbb"}}},
+    }
+    text = (
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| openzaak | 1.27.4 → 1.29.3 | 1.14.2 (unchanged) | - |\n"
+    )
+
+    new_text, added = libimagedocs.add_missing_sidecar_rows(
+        text, tmp_path, deps, target_values, baseline_values, "4.9.0")
+
+    assert added == ["nginx-unprivileged"]
+    rows = [line for line in new_text.splitlines() if line.startswith("|") and "---" not in line]
+    assert rows[1].startswith("| nginx-unprivileged")
+    assert rows[2].startswith("| openzaak")
+
+
 # --- make_image_changes_section ---
 
 def test_make_image_changes_section_lists_every_pinned_path(libimagedocs):
