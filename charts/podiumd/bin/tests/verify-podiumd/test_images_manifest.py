@@ -253,6 +253,92 @@ def test_images_manifest_format_component_version_path_change_is_recognized(libd
     assert not any("has no entry" in i for i in issues)
 
 
+def make_nested_subchart_tgz(chart_dir, name, version, nested_charts):
+    """A minimal vendored <name>-<version>.tgz with, for each (nested
+    chart name, values.yaml raw text) pair in `nested_charts`, a
+    "<name>/charts/<nested>/values.yaml" member — enough to exercise
+    nested_subchart_documented_image_repository without a real
+    `helm pull`."""
+    import tarfile
+    from io import BytesIO
+    charts_dir = chart_dir / "charts"
+    charts_dir.mkdir(parents=True, exist_ok=True)
+    tgz_path = charts_dir / f"{name}-{version}.tgz"
+    with tarfile.open(tgz_path, "w:gz") as tar:
+        data = yaml.safe_dump({}).encode("utf-8")
+        info = tarfile.TarInfo(name=f"{name}/values.yaml")
+        info.size = len(data)
+        tar.addfile(info, BytesIO(data))
+        for nested_name, text in nested_charts.items():
+            raw = text.encode("utf-8")
+            raw_info = tarfile.TarInfo(name=f"{name}/charts/{nested_name}/values.yaml")
+            raw_info.size = len(raw)
+            tar.addfile(raw_info, BytesIO(raw))
+
+
+ECK_STACK_DEPS = [make_dep("eck-stack", "0.20.0", alias="kiss-eck")]
+
+ECK_STACK_MANIFEST = """\
+# Baseline: podiumd 4.8.5 (test @ 0000000).
+#
+# Images new or changed in podiumd 4.9.0 vs 4.8.5.
+#
+# Changes:
+#   1. eck-stack 8.19.3 -> 8.19.19 (chart 0.19.0 -> 0.20.0).
+#
+# See docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md for the operator upgrade notes.
+
+# eck-stack — 8.19.3 -> 8.19.19
+- name: elasticsearch/elasticsearch
+  url: docker.elastic.co/elasticsearch/elasticsearch
+  version: "8.19.19"
+  digest: "sha256:aaa"
+- name: kibana/kibana
+  url: docker.elastic.co/kibana/kibana
+  version: "8.19.19"
+  digest: "sha256:bbb"
+- name: enterprise-search/enterprise-search
+  url: docker.elastic.co/enterprise-search/enterprise-search
+  version: "8.19.19"
+  digest: "sha256:ccc"
+"""
+
+
+def eck_stack_values(version):
+    return {"kiss-eck": {
+        "eck-elasticsearch": {"version": version},
+        "eck-kibana": {"version": version},
+        "eck-enterprise-search": {"version": version},
+    }}
+
+
+def test_images_manifest_format_sidecars_recognized_within_group_by_basename(libdocsconsistency, tmp_path):
+    """kibana/enterprise-search share elasticsearch's ONE group header
+    (no comment of their own, same convention every other multi-entry
+    group in the real manifest uses — e.g. ZGW Office Add-in's frontend
+    + backend) — component_of must resolve ALL THREE via the same
+    deterministic repo_map lookup the list-diff check already uses, not
+    fuzzy word-matching against the group's own free-form header text,
+    so none of them are wrongly flagged as having no preceding comment."""
+    (tmp_path / "Chart.yaml").write_text(yaml.safe_dump({"dependencies": ECK_STACK_DEPS}), encoding="utf-8")
+    (tmp_path / "values.yaml").write_text(yaml.safe_dump(eck_stack_values("8.19.19")), encoding="utf-8")
+    make_nested_subchart_tgz(tmp_path, "eck-stack", "0.20.0", {
+        "eck-elasticsearch": "# image: docker.elastic.co/elasticsearch/elasticsearch:9.5.0\n",
+        "eck-kibana": "# image: docker.elastic.co/kibana/kibana:9.5.0\n",
+        "eck-enterprise-search": "# image: docker.elastic.co/enterprise-search/enterprise-search:8.19.0\n",
+    })
+    images_path = tmp_path / "images-4.9.0.yaml"
+    images_path.write_text(ECK_STACK_MANIFEST)
+
+    issues = libdocsconsistency.check_images_manifest_format(
+        images_path, "4.8.5", "4.9.0", ECK_STACK_DEPS,
+        eck_stack_values("8.19.19"), eck_stack_values("8.19.3"), chart_dir=tmp_path)
+
+    assert not any("has no preceding comment" in i for i in issues)
+    assert not any("did not change" in i for i in issues)
+    assert not any("has no entry" in i for i in issues)
+
+
 # --- Changes items for plain images with no Chart.yaml dependency of their
 # own (e.g. an init-container image) -- must fall back to this same
 # manifest's own entries instead of being flagged as a missing dependency ---
