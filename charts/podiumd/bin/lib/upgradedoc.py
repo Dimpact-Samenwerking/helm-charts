@@ -1015,12 +1015,27 @@ def is_primary_image_path(path, deps):
     sidecar or a shared "global" image — the same primary/sidecar split
     path_display_name's own branch already makes, factored out here so
     a caller can ask the question on its own, without needing a
-    canonical_names mapping too."""
+    canonical_names mapping too.
+
+    ALSO True for a path with NO owning Chart.yaml dependency at all
+    (podiumd's own directly-templated top-level block — "keycloak",
+    "apiproxy", "frankgateway", the shared "global" anchor — see lib.
+    image_repository_check's own docstring for the real cases): there's
+    no PARENT for such a path to be a SIDECAR of, so it's treated as its
+    own standalone/primary entity, never subject to sidecar-only rules
+    (needing a "#   sidecar: ..." header, sorting after its own top-
+    level key's primary slot). This used to be a separate, one-off
+    "path[0] not in by_values_key" check duplicated in find_images_
+    manifest_faulty_headers alone — folded in here so every caller
+    (including images_manifest_entry_order_key) gets it automatically,
+    rather than each new caller having to remember to re-add it."""
     if not path:
         return False
     by_values_key = {(dep.get("alias") or dep["name"]): dep for dep in deps}
     dep = by_values_key.get(path[0])
-    return dep is not None and _is_dependency_primary_rel_path(dep, ".".join(path[1:]))
+    if dep is None:
+        return True
+    return _is_dependency_primary_rel_path(dep, ".".join(path[1:]))
 
 
 def _own_header_top_line(lines, entry_line_index):
@@ -1120,12 +1135,13 @@ def find_images_manifest_faulty_headers(entries, entry_line_indices, lines, deps
     docstring for the real cases) — there's no PARENT for such an entry
     to be a "sidecar OF", so the "#   sidecar: <parent> - ..." shape
     doesn't apply to it; its own free-form header (explaining WHY it's
-    listed, not whose sidecar it is) is exactly the right shape already."""
-    by_values_key = {(dep.get("alias") or dep["name"]): dep for dep in deps}
+    listed, not whose sidecar it is) is exactly the right shape already
+    (see is_primary_image_path, which treats "no owning dependency" as
+    primary/standalone for exactly this reason)."""
     problems = []
     for entry, line_idx in zip(entries, entry_line_indices):
         path = resolve_entry_image_path(entry, current_paths.keys(), repo_map)
-        if path is None or path[0] not in by_values_key or is_primary_image_path(path, deps):
+        if path is None or is_primary_image_path(path, deps):
             continue
         display_name = path_display_name(path, deps, canonical_names)
         top_line = _own_header_top_line(lines, line_idx)
@@ -1312,6 +1328,24 @@ def find_images_manifest_out_of_order_names(entries, entry_line_indices, lines, 
     return violations
 
 
+def _collapse_group_internal_blank_lines(group_text):
+    """Within one multi-entry group's own captured text, drop every
+    blank line that separates two of the group's own entries — a shared
+    header's entries sit directly below one another, no blank line
+    between them, matching the convention every OTHER multi-entry group
+    in the real manifest already follows (e.g. eck-stack's elasticsearch/
+    kibana/enterprise-search trio). Only the chunk's own TRAILING blank
+    line(s) — the separator before the NEXT group — are preserved: this
+    strips a line only when further non-blank content still follows it
+    within this same chunk, never the chunk's own tail."""
+    lines = group_text.splitlines(keepends=True)
+    last_content = len(lines)
+    while last_content > 0 and lines[last_content - 1].strip() == "":
+        last_content -= 1
+    body = [line for line in lines[:last_content] if line.strip() != ""]
+    return "".join(body + lines[last_content:])
+
+
 def sort_images_manifest_entries(text, deps, values, repo_map, canonical_names):
     """Reorder the images manifest's own entry GROUPS (physically, in
     the text) to match values.yaml's own top-level key order — see
@@ -1320,11 +1354,16 @@ def sort_images_manifest_entries(text, deps, values, repo_map, canonical_names):
     -upgrade.md's own rows/Changes blocks. A group (see _images_
     manifest_groups) is moved as ONE physical unit, never split, so a
     shared header always stays directly above every entry it actually
-    covers. Returns (new_text, moved) where moved is [(display_name,
-    old_position, new_position)] (1-based, among just the manifest's
-    own groups) for every group whose position actually changed — empty
-    (and text returned unchanged) if the manifest already matches, has
-    fewer than 2 groups to meaningfully order, or isn't valid YAML."""
+    covers. Also collapses blank lines WITHIN a multi-entry group (see
+    _collapse_group_internal_blank_lines) — applied to every such group,
+    not just ones that moved, since it's a separate formatting concern
+    from ordering. Returns (new_text, moved) where moved is [(display_
+    name, old_position, new_position)] (1-based, among just the
+    manifest's own groups) for every group whose position actually
+    changed — empty list, but new_text may still differ from text if
+    only blank lines were collapsed; both text and moved are exactly
+    (text, []) only when NEITHER changed anything — e.g. isn't valid
+    YAML, or has fewer than 2 entries total."""
     lines = text.splitlines(keepends=True)
     try:
         entries = yaml.safe_load(text)
@@ -1342,21 +1381,23 @@ def sort_images_manifest_entries(text, deps, values, repo_map, canonical_names):
     current_paths = dict(find_all_image_and_version_paths(values, deps))
     groups = _images_manifest_groups(entries, entry_line_indices, lines, current_paths, repo_map, deps,
                                       canonical_names)
-    if len(groups) < 2:
-        return text, []
 
     key_order = values_key_order(values)
     order = sorted(range(len(groups)),
-                    key=lambda gi: images_manifest_entry_order_key(groups[gi][1], deps, key_order))
+                    key=lambda gi: images_manifest_entry_order_key(groups[gi][1], deps, key_order)) \
+        if len(groups) >= 2 else list(range(len(groups)))
     moved = [(groups[i][2], i + 1, slot + 1) for slot, i in enumerate(order) if i != slot]
-    if not moved:
-        return text, []
 
     starts = [images_manifest_block_start(lines, entry_line_indices[indices[0]]) for indices, _, _ in groups]
     ends = starts[1:] + [len(lines)]
     original_texts = ["".join(lines[s:e]) for s, e in zip(starts, ends)]
-    new_texts = [original_texts[i] for i in order]
+    collapsed_texts = [_collapse_group_internal_blank_lines(t) if len(indices) > 1 else t
+                        for (indices, _, _), t in zip(groups, original_texts)]
 
+    if not moved and collapsed_texts == original_texts:
+        return text, []
+
+    new_texts = [collapsed_texts[i] for i in order]
     prefix = "".join(lines[:starts[0]])
     return prefix + "".join(new_texts), moved
 

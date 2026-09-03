@@ -746,9 +746,13 @@ def test_is_primary_image_path_eck_stack_registered_version_fields_are_primary(l
     assert libupgradedoc.is_primary_image_path(("kiss-eck", "eck-enterprise-search", "version"), deps) is False
 
 
-def test_is_primary_image_path_no_owning_dependency_is_not_primary(libupgradedoc):
+def test_is_primary_image_path_no_owning_dependency_is_primary(libupgradedoc):
+    """A path with no owning Chart.yaml dependency at all (podiumd's own
+    directly-templated top-level block, or the shared "global" anchor)
+    has no PARENT to be a sidecar of — treated as its own standalone/
+    primary entity, never subject to sidecar-only rules."""
     deps = [{"name": "zac", "version": "1.0.0"}]
-    assert libupgradedoc.is_primary_image_path(("global", "images", "nginx"), deps) is False
+    assert libupgradedoc.is_primary_image_path(("global", "images", "nginx"), deps) is True
 
 
 def test_is_primary_image_path_empty_path_is_not_primary(libupgradedoc):
@@ -1045,6 +1049,66 @@ def test_sort_images_manifest_entries_moves_shared_group_as_one_unit(libupgraded
     assert new_text.index("zgw-office-addin-frontend") < new_text.index("zgw-office-addin-backend") \
         < new_text.index("opstree/redis-operator")
     assert new_text.index("# ZGW Office Add-in") < new_text.index("zgw-office-addin-frontend")
+    # The blank line the fixture had WITHIN the frontend/backend group is
+    # gone — entries sharing one header sit directly below each other.
+    assert "0.11.0\"\n\n- name: infonl/zgw-office-addin-backend" not in new_text
+    assert "0.11.0\"\n- name: infonl/zgw-office-addin-backend" in new_text
+
+
+def test_sort_images_manifest_entries_collapses_internal_blank_lines_even_without_reordering(libupgradedoc):
+    """A group with a blank line between its own entries gets tidied
+    even when NO group actually changes position — this is a separate
+    formatting concern from ordering, not conditional on it."""
+    text = (
+        "# ZGW Office Add-in -> 0.11.0\n"
+        "- name: infonl/zgw-office-addin-frontend\n"
+        "  version: \"0.11.0\"\n"
+        "\n"
+        "- name: infonl/zgw-office-addin-backend\n"
+        "  version: \"0.11.0\"\n"
+        "\n"
+        "# redis-operator 0.25.0 -> 0.26.0\n"
+        "- name: opstree/redis-operator\n"
+        "  version: \"0.26.0\"\n"
+    )
+    deps = [{"name": "zgw-office-addin", "version": "1.0.0"}, {"name": "redis-operator", "version": "1.0.0"}]
+    values = {
+        "zgw-office-addin": {"frontend": {"image": {"tag": "0.11.0"}}, "backend": {"image": {"tag": "0.11.0"}}},
+        "redis-operator": {"image": {"tag": "0.26.0"}},
+    }
+    repo_map = {"infonl/zgw-office-addin-frontend": ("zgw-office-addin", "frontend", "image"),
+                "infonl/zgw-office-addin-backend": ("zgw-office-addin", "backend", "image"),
+                "opstree/redis-operator": ("redis-operator", "image")}
+
+    new_text, moved = libupgradedoc.sort_images_manifest_entries(text, deps, values, repo_map, canonical_names={})
+
+    assert moved == []  # already in the correct order — nothing repositioned
+    assert new_text != text  # but the internal blank line was still tidied
+    assert "0.11.0\"\n\n- name: infonl/zgw-office-addin-backend" not in new_text
+    assert "0.11.0\"\n- name: infonl/zgw-office-addin-backend" in new_text
+
+
+def test_sort_images_manifest_entries_no_blank_lines_no_reorder_is_truly_unchanged(libupgradedoc):
+    """Nothing to tidy and nothing to reorder — text comes back byte-
+    identical, matching the function's own "unchanged" convention."""
+    text = (
+        "# redis-operator 0.25.0 -> 0.26.0\n"
+        "- name: opstree/redis-operator\n"
+        "  version: \"0.26.0\"\n"
+        "\n"
+        "# zac 5.0.2 -> 5.4.4\n"
+        "- name: infonl/zaakafhandelcomponent\n"
+        "  version: \"5.4.4\"\n"
+    )
+    deps = [{"name": "redis-operator", "version": "1.0.0"},
+            {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.0"}]
+    values = {"redis-operator": {"image": {"tag": "0.26.0"}}, "zac": {"image": {"tag": "5.4.4"}}}
+    repo_map = {"opstree/redis-operator": ("redis-operator", "image"),
+                "infonl/zaakafhandelcomponent": ("zac", "image")}
+
+    new_text, moved = libupgradedoc.sort_images_manifest_entries(text, deps, values, repo_map, canonical_names={})
+    assert new_text == text
+    assert moved == []
 
 
 def test_sort_images_manifest_entries_invalid_yaml_returns_unchanged(libupgradedoc):
