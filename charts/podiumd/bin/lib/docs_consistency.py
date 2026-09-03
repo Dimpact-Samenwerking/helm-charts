@@ -17,7 +17,8 @@ from lib.upgradedoc import (
     actual_app_version, changes_heading_has_app_version, changes_heading_identities, compute_changed_components,
     diff_keys, extract_mentioned_dependency_keys, extract_source_version, extract_target_version,
     find_all_image_and_version_paths, find_changes_row_correspondence_gaps, find_grouped_preceding_comment,
-    find_image_tag_paths, find_images_manifest_list_diff, find_out_of_order_names,
+    find_image_tag_paths, find_images_manifest_faulty_headers, find_images_manifest_list_diff,
+    find_out_of_order_names,
     find_wrong_or_duplicate_dependency_claims, match_dependency, match_dependency_excluding_sidecar_names,
     normalize_version, pair_renames, parse_changes_block, parse_upgrade_doc_changes_blocks,
     parse_upgrade_doc_rows as _parse_upgrade_doc_rows, path_display_name, resolve_component_row,
@@ -281,6 +282,8 @@ def check_images_manifest_format(images_path, upgrade_docs_baseline, podiumd_ver
     # itself is fixed to name that component properly.
     repo_groups = paths_by_repository(chart_dir, deps, values, current_paths.keys()) if chart_dir is not None else {}
     repo_map = {repo: paths[-1] for repo, paths in repo_groups.items()}
+    canonical_names = canonical_sidecar_row_names(chart_dir, deps, values, current_paths.keys()) \
+        if chart_dir is not None else {}
 
     def component_of(entry):
         path = resolve_entry_image_path(entry, current_paths.keys(), repo_map)
@@ -313,11 +316,31 @@ def check_images_manifest_format(images_path, upgrade_docs_baseline, podiumd_ver
                 issues.append(f'{images_path.name}: entry "{entry["name"]}" comment says source '
                                f'"{source}", upgrade_docs_baseline actually has "{baseline_version}"')
 
+    # Structural, independent of upgrade_docs_baseline: a sidecar image
+    # (see is_primary_image_path) needs its OWN indented "#   sidecar:
+    # <parent> - <basename> ..." header, never a plain header borrowed
+    # from a preceding entry via same_group's "same component, same
+    # declared version" heuristic — that heuristic is only ever a proxy
+    # for "these two entries genuinely bumped in lockstep", and a
+    # sidecar whose real version history diverges from its parent's
+    # (kiss-elastic-sync: 0.3.3 -> 3.0.0, sharing "# KISS — 2.2.4 ->
+    # 3.0.0" purely because both happen to land on 3.0.0 this release)
+    # silently inherits a header that doesn't describe it at all.
+    if chart_dir is not None:
+        for name, expected, problem in find_images_manifest_faulty_headers(
+                entries, entry_line_indices, lines, deps, current_paths, repo_map, canonical_names):
+            if problem == "missing":
+                issues.append(f'{images_path.name}: entry "{name}" is a sidecar of "{expected.split(" - ")[0]}" '
+                               f'but has no own "#   sidecar: {expected} ..." header — it may be sharing a '
+                               f'preceding entry\'s header, which only describes THAT entry\'s own version bump')
+            else:
+                issues.append(f'{images_path.name}: entry "{name}" has its own sidecar header, but it '
+                               f'does not name "{expected}"')
+
     # Only checked once there's something real to diff against — without
     # a resolvable upgrade_docs_baseline, "changed" can't be computed at
     # all (baseline_values is {} in that case, so baseline_paths is too).
     if baseline_paths and chart_dir is not None:
-        canonical_names = canonical_sidecar_row_names(chart_dir, deps, values, current_paths.keys())
         unresolvable_paths = set(find_images_without_repository(chart_dir))
         missing_paths, stale_entry_names, unmatched_entry_names = find_images_manifest_list_diff(
             entries, current_paths, baseline_paths, repo_map, repo_groups, unresolvable_paths)

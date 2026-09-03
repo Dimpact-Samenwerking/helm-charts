@@ -407,7 +407,7 @@ REDIS_IMAGES_MANIFEST = """\
 #
 # See docs/_UPGRADE_PATHS/{baseline}-to-4.9.0-upgrade.md for the operator upgrade notes.
 
-# redis-ha — {app_source} -> {app_target}
+#   sidecar: redis-operator - redis {app_source} -> {app_target}
 - name: redis-ha
   url: quay.io/opstree/redis
   version: "{app_target}"
