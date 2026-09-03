@@ -2214,6 +2214,135 @@ def test_add_missing_images_manifest_entries_backfills_header_item_for_existing_
     assert new_text.count("- name: postgres") == 1
 
 
+@pytest.fixture
+def zgw_office_addin_chart_dir(tmp_path):
+    """zgw-office-addin's own frontend + backend images — one of
+    COMPONENT_IMAGE_PATHS' MULTI-image "lockstep" entries (both share
+    ONE path_display_name, "zgw-office-addin") — each with its own
+    explicit "repository:" override, matching lib.chart.paths_by_
+    repository's own "no owning dependency needed" resolution."""
+    write(tmp_path / "Chart.yaml", yaml.safe_dump({
+        "dependencies": [{"name": "zgw-office-addin", "version": "0.0.89", "repository": "@infonl"}],
+    }))
+    write(tmp_path / "values.yaml", yaml.safe_dump({
+        "zgw-office-addin": {
+            "frontend": {"image": {"repository": "infonl/zgw-office-addin-frontend", "tag": "0.11.0@sha256:aaaa"}},
+            "backend": {"image": {"repository": "infonl/zgw-office-addin-backend", "tag": "0.11.0@sha256:bbbb"}},
+        },
+    }))
+    return tmp_path
+
+
+def test_add_missing_images_manifest_entries_lockstep_component_gets_one_header_item_not_two(
+        cdb, zgw_office_addin_chart_dir):
+    """Real bug: a multi-image lockstep component reports TWO missing_
+    paths (frontend + backend), both resolving to the SAME path_display_
+    name ("zgw-office-addin") — the per-path loop used to insert a
+    header item for EACH one unconditionally, producing two identical
+    "#   N. zgw-office-addin v0.9.313 -> 0.11.0." items for what is really
+    ONE logical change (same bug class internetaakafhandeling's web+
+    poller and eck-stack's elasticsearch+kibana can trigger too). Both
+    paths still get their own comment+entry block — only the SECOND
+    header item is now skipped, the same whole-word "already mentioned"
+    check the backfill pass already uses."""
+    text = "# Changes:\n"
+    deps = [{"name": "zgw-office-addin", "version": "0.0.89"}]
+    target_values = {"zgw-office-addin": {
+        "frontend": {"image": {"repository": "infonl/zgw-office-addin-frontend", "tag": "0.11.0@sha256:aaaa"}},
+        "backend": {"image": {"repository": "infonl/zgw-office-addin-backend", "tag": "0.11.0@sha256:bbbb"}},
+    }}
+    baseline_values = {"zgw-office-addin": {
+        "frontend": {"image": {"repository": "infonl/zgw-office-addin-frontend", "tag": "v0.9.313@sha256:cccc"}},
+        "backend": {"image": {"repository": "infonl/zgw-office-addin-backend", "tag": "v0.9.313@sha256:dddd"}},
+    }}
+
+    new_text, added, skipped, _backfilled = cdb.add_missing_images_manifest_entries(
+        text, zgw_office_addin_chart_dir, deps, target_values, baseline_values)
+
+    assert skipped == []
+    assert added == ["zgw-office-addin", "zgw-office-addin"]
+    assert new_text.count("zgw-office-addin v0.9.313 -> 0.11.0.") == 1
+    assert new_text.count("- name: infonl/zgw-office-addin-frontend") == 1
+    assert new_text.count("- name: infonl/zgw-office-addin-backend") == 1
+
+
+# --- dedupe_images_manifest_changes_items ---
+
+
+def test_dedupe_images_manifest_changes_items_removes_exact_repeat_and_renumbers(cdb):
+    """Real symptom: a lockstep component's TWO missing_paths each got
+    their own identical header item on an earlier (buggy) run — the
+    second, exact-duplicate "ita 3.2.0 -> 3.3.0." item is dropped, and
+    every item after it is renumbered down by one."""
+    lines = [
+        "# Changes:\n",
+        "#   1. redis-operator 0.25.0 -> 0.26.0.\n",
+        "#   2. ita 3.2.0 -> 3.3.0.\n",
+        "#   3. ita 3.2.0 -> 3.3.0.\n",
+        "#   4. zac 5.0.2 -> 5.4.4.\n",
+        "\n",
+    ]
+    removed = cdb.dedupe_images_manifest_changes_items(lines)
+    assert removed == ["ita 3.2.0 -> 3.3.0."]
+    assert lines[1] == "#   1. redis-operator 0.25.0 -> 0.26.0.\n"
+    assert lines[2] == "#   2. ita 3.2.0 -> 3.3.0.\n"
+    assert lines[3] == "#   3. zac 5.0.2 -> 5.4.4.\n"
+    assert lines[4] == "\n"
+    assert len(lines) == 5
+
+
+def test_dedupe_images_manifest_changes_items_updates_header_count_word(cdb):
+    lines = [
+        "# Four changes:\n",
+        "#   1. openzaak 1.27.4 -> 1.29.3.\n",
+        "#   2. kiss-eck 8.19.3 -> 8.19.19.\n",
+        "#   3. kiss-eck 8.19.3 -> 8.19.19.\n",
+        "#   4. zac 5.0.2 -> 5.4.4.\n",
+    ]
+    removed = cdb.dedupe_images_manifest_changes_items(lines)
+    assert removed == ["kiss-eck 8.19.3 -> 8.19.19."]
+    assert lines[0] == "# Three changes:\n"
+
+
+def test_dedupe_images_manifest_changes_items_continuation_line_travels_with_kept_item(cdb):
+    """A wrapped continuation line is part of the item's own compared
+    text, and moves/stays with whichever occurrence of that item is
+    kept — never left orphaned or duplicated on its own."""
+    lines = [
+        "# Changes:\n",
+        "#   1. openzaak 1.27.4 -> 1.29.3.\n",
+        "#   2. ita 3.2.0 -> 3.3.0. Web and\n",
+        "#      poller, tag bumps only.\n",
+        "#   3. ita 3.2.0 -> 3.3.0. Web and\n",
+        "#      poller, tag bumps only.\n",
+    ]
+    removed = cdb.dedupe_images_manifest_changes_items(lines)
+    assert removed == ["ita 3.2.0 -> 3.3.0. Web and"]
+    assert lines == [
+        "# Changes:\n",
+        "#   1. openzaak 1.27.4 -> 1.29.3.\n",
+        "#   2. ita 3.2.0 -> 3.3.0. Web and\n",
+        "#      poller, tag bumps only.\n",
+    ]
+
+
+def test_dedupe_images_manifest_changes_items_no_duplicates_is_a_noop(cdb):
+    lines = [
+        "# Changes:\n",
+        "#   1. openzaak 1.27.4 -> 1.29.3.\n",
+        "#   2. zac 5.0.2 -> 5.4.4.\n",
+    ]
+    original = list(lines)
+    removed = cdb.dedupe_images_manifest_changes_items(lines)
+    assert removed == []
+    assert lines == original
+
+
+def test_dedupe_images_manifest_changes_items_no_header_returns_empty(cdb):
+    lines = ["- name: opstree/redis-operator\n", '  version: "0.26.0"\n']
+    assert cdb.dedupe_images_manifest_changes_items(lines) == []
+
+
 def test_add_missing_images_manifest_entries_does_not_backfill_already_covered_entry(
         cdb, ordered_images_manifest_chart_dir):
     """An entry already named in some existing header item is left

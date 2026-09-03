@@ -517,6 +517,73 @@ def _insert_images_manifest_header_item(lines, deps, key_order, order_key, new_k
     # the new entry.
 
 
+def dedupe_images_manifest_changes_items(lines):
+    """Remove an exact-duplicate item from the images-manifest's own "#
+    Changes:" numbered list — the real bug a multi-image "lockstep"
+    component (zgw-office-addin's frontend + backend, eck-stack's
+    elasticsearch + kibana, internetaakafhandeling's web + poller — see
+    COMPONENT_IMAGE_PATHS/COMPONENT_VERSION_PATHS) could trigger before
+    add_missing_images_manifest_entries' own per-path loop learned to
+    check for an already-mentioned name: several missing_paths sharing
+    ONE path_display_name each got their own header item inserted,
+    identical text and all, even though they're one logical change.
+
+    Compares each item's FULL text (its own first line's "rest" plus any
+    wrapped continuation line(s), the same shape sort_images_manifest_
+    changes_items' own item blocks use) verbatim — the first occurrence
+    of a given text wins, every later exact repeat is dropped outright
+    (nothing distinguishes them worth keeping, so there's nothing to
+    merge). Remaining items are renumbered 1..N, and the header's own
+    leading count word (if it has one) is updated to match. Mutates
+    `lines` in place. Returns the list of removed item texts — empty if
+    nothing was a duplicate, or the header doesn't exist."""
+    header_idx, header_has_count = find_images_manifest_changes_header(lines)
+    if header_idx is None:
+        return []
+
+    item_starts = []
+    block_end = header_idx + 1
+    for i in range(header_idx + 1, len(lines)):
+        if lines[i].rstrip("\n") == "#" or not lines[i].startswith("#"):
+            break
+        block_end = i + 1
+        if CHANGES_ITEM_RE.match(lines[i]):
+            item_starts.append(i)
+    if not item_starts:
+        return []
+
+    item_ends = item_starts[1:] + [block_end]
+    seen = set()
+    keep_chunks = []
+    removed = []
+    for start, end in zip(item_starts, item_ends):
+        rest = CHANGES_ITEM_RE.match(lines[start]).group("rest")
+        full_text = rest + "".join(lines[start + 1:end])
+        if full_text in seen:
+            removed.append(rest)
+            continue
+        seen.add(full_text)
+        keep_chunks.append(lines[start:end])
+
+    if not removed:
+        return []
+
+    new_block = []
+    for slot, chunk in enumerate(keep_chunks):
+        chunk = list(chunk)
+        chunk[0] = CHANGES_ITEM_RE.sub(lambda m, n=slot + 1: f"#   {n}. {m.group('rest')}", chunk[0])
+        new_block.extend(chunk)
+    lines[item_starts[0]:block_end] = new_block
+
+    if header_has_count:
+        total = len(keep_chunks)
+        count_word = NUMBER_WORDS[total] if total < len(NUMBER_WORDS) else str(total)
+        noun = "change" if total == 1 else "changes"
+        header_m = CHANGES_HEADER_RE.match(lines[header_idx])
+        lines[header_idx] = f"{header_m.group('indent')}{count_word} {noun}:\n"
+    return removed
+
+
 def _match_changes_item_display_name(rest, display_name_positions):
     """The longest key of display_name_positions that `rest` starts with
     (followed by a space, or an exact match) — every auto-inserted
@@ -815,8 +882,18 @@ def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, ba
             while lines and not lines[-1].strip():
                 lines.pop()
 
-        _insert_images_manifest_header_item(
-            lines, deps, key_order, order_key, new_key, f"{version_text}.")
+        # A multi-image "lockstep" component (zgw-office-addin's frontend +
+        # backend, eck-stack's elasticsearch + kibana, internetaakafhandeling's
+        # web + poller — see COMPONENT_IMAGE_PATHS/COMPONENT_VERSION_PATHS)
+        # contributes SEVERAL missing_paths sharing the SAME path_display_name,
+        # each getting its own comment+entry block below — but they're still
+        # ONE logical change, so only the FIRST one gets a header item; the
+        # same whole-word/whole-phrase check the second pass (backfilled_names)
+        # already uses to skip an entry whose name is already mentioned.
+        header_text = _images_manifest_changes_header_text(lines)
+        if not re.search(rf"\b{re.escape(name)}\b", header_text, re.IGNORECASE):
+            _insert_images_manifest_header_item(
+                lines, deps, key_order, order_key, new_key, f"{version_text}.")
 
         entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
         entry_keys = []
@@ -1155,6 +1232,15 @@ def main():
                 print(f"=== Adding missing '# Changes:' header item(s) to {images_path.name} ===")
                 for name in backfilled_header_names:
                     print(f"  {name} (entry already existed — only its header item was missing)")
+
+        lines = images_path.read_text(encoding="utf-8").splitlines(keepends=True)
+        removed_duplicate_items = dedupe_images_manifest_changes_items(lines)
+        if removed_duplicate_items:
+            images_path.write_text("".join(lines), encoding="utf-8")
+            print()
+            print(f"=== Removing duplicate '# Changes:' header item(s) from {images_path.name} ===")
+            for item_text in removed_duplicate_items:
+                print(f"  {item_text}")
 
         before_sort = images_path.read_text(encoding="utf-8")
         try:
