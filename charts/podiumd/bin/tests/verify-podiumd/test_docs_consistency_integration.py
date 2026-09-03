@@ -1008,14 +1008,29 @@ See [`{baseline}-to-4.9.0-values-deltas.md`]({baseline}-to-4.9.0-values-deltas.m
 """
 NEW_DEP_GEMEENTE_DOC = "# Gemeente-specific notes — PodiumD {baseline} → 4.9.0\n\nNone.\n"
 NEW_DEP_VALUES_DELTAS_DOC = ("# Values deltas — PodiumD {baseline} → 4.9.0\n\n"
-                             "- **openklant** newly added.\n\n"
+                             "- **openklant** newly added (`openklant.image`).\n\n"
                              "No gemeente podiumd.yml changes are required for this hop.\n")
+NEW_DEP_IMAGES_MANIFEST = """\
+# Baseline: podiumd {baseline} (test @ 0000000).
+#
+# Images new or changed in podiumd 4.9.0 vs {baseline}.
+#
+# Changes: none.
+#
+# See docs/_UPGRADE_PATHS/{baseline}-to-4.9.0-upgrade.md for the operator upgrade notes.
+
+# openklant — 2.15.0
+- name: openklant/open-klant
+  url: openklant/open-klant
+  version: "2.15.0"
+  digest: "sha256:abc"
+"""
 
 
 def new_dep_values():
     return ('zac:\n  image:\n    repository: ghcr.io/infonl/zaakafhandelcomponent\n'
             '    tag: "5.0.2@sha256:aaaa"\n'
-            'openklant:\n  image:\n    tag: "2.15.0@sha256:bbbb"\n')
+            'openklant:\n  image:\n    repository: openklant/open-klant\n    tag: "2.15.0@sha256:bbbb"\n')
 
 
 @pytest.fixture
@@ -1025,14 +1040,19 @@ def new_dependency_chart_repo(tmp_path):
     source (baseline) version can never be verified against a baseline
     that has no such dependency at all — this is the exact real-world
     gap fix-doc-consistency's own fix_component_version_table already
-    tracks as "unresolved" (left uncorrected, reported for manual
-    review) that check_docs_consistency used to silently treat as
-    clean, since it never had anything to compare the row's claimed
-    source version against."""
+    tracks as "unresolved" (left uncorrected, and now written as
+    "2.15.0 (new)" rather than left blank), which check_docs_consistency
+    used to silently treat as clean, since it never had anything to
+    compare the row's claimed source version against. Otherwise a fully
+    clean, complete doc set — nothing else here should surface any
+    mismatch, so the row-source warning's own severity (warning, not
+    failure) can be checked in isolation."""
     repo_root = tmp_path
     chart_dir = repo_root / "charts" / "podiumd"
     doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
-    doc_dir.mkdir(parents=True)
+    images_dir = chart_dir / "docs" / "images"
+    for d in (doc_dir, images_dir):
+        d.mkdir(parents=True)
 
     git("init", "-q", cwd=repo_root)
     git("config", "user.email", "test@example.com", cwd=repo_root)
@@ -1050,25 +1070,28 @@ def new_dependency_chart_repo(tmp_path):
     (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(NEW_DEP_UPGRADE_DOC.format(baseline="4.8.5"))
     (doc_dir / "4.8.5-to-4.9.0-gemeente-specific.md").write_text(NEW_DEP_GEMEENTE_DOC.format(baseline="4.8.5"))
     (doc_dir / "4.8.5-to-4.9.0-values-deltas.md").write_text(NEW_DEP_VALUES_DELTAS_DOC.format(baseline="4.8.5"))
+    (images_dir / "images-4.9.0.yaml").write_text(NEW_DEP_IMAGES_MANIFEST.format(baseline="4.8.5"))
     git("add", "-A", cwd=repo_root)
     git("commit", "-q", "-m", "add openklant, a brand-new dependency", cwd=repo_root)
 
     return chart_dir
 
 
-def test_new_dependency_unresolvable_baseline_row_is_reported_not_silently_clean(
+def test_new_dependency_unresolvable_baseline_row_is_a_warning_not_a_failure(
         vp, new_dependency_chart_repo, capsys):
     """A doc row for a component that didn't exist at the baseline ref at
-    all must be flagged as unverifiable — resolve_component_row's
-    baseline_resolved=False, shared with fix-doc-consistency's own
-    unresolved_names bucket, closes the gap where this row's source
-    cells were never actually compared against anything, yet reported
-    as clean."""
+    all must be surfaced (never silently treated as clean, since its
+    source cells were never actually compared against anything) — but
+    only as a warning, not a mismatch: there's nothing wrong with the
+    doc here, a brand-new component simply has no baseline to compare
+    against, same reason fix-doc-consistency's own fix_component_
+    version_table doesn't treat it as an error either (writes "(new)"
+    cells for it instead of reporting it for manual review)."""
     ok, detail = vp.check_docs_consistency(new_dependency_chart_repo, upgrade_docs_baseline="4.8.5")
     out = capsys.readouterr().out
 
-    assert ok is False
-    assert ('4.8.5-to-4.9.0-upgrade.md: doc row "openklant" source version could not be '
+    assert ok is True, detail
+    assert ('WARNING: 4.8.5-to-4.9.0-upgrade.md: doc row "openklant" source version could not be '
             'verified against') in out
     assert 'openklant" target app' not in out  # target side still resolves fine, no false mismatch there
 

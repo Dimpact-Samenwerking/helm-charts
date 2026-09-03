@@ -1027,6 +1027,33 @@ def test_canonical_version_cell_unchanged_form(libupgradedoc):
     assert libupgradedoc.canonical_version_cell("1.0.297", "1.0.297") == "1.0.297 (unchanged)"
 
 
+# --- new_component_version_cell / component_version_cell ---
+
+def test_new_component_version_cell(libupgradedoc):
+    assert libupgradedoc.new_component_version_cell("2.15.0") == "2.15.0 (new)"
+
+
+def test_component_version_cell_with_baseline_delegates_to_canonical(libupgradedoc):
+    assert libupgradedoc.component_version_cell("5.0.2", "5.1.0") == "5.0.2 → 5.1.0"
+    assert libupgradedoc.component_version_cell("1.0.297", "1.0.297") == "1.0.297 (unchanged)"
+
+
+def test_component_version_cell_no_baseline_real_version_is_new(libupgradedoc):
+    assert libupgradedoc.component_version_cell(None, "2.15.0") == "2.15.0 (new)"
+
+
+def test_component_version_cell_no_baseline_placeholder_stays_bare(libupgradedoc):
+    """The "-" not-applicable placeholder a sidecar row's own Helm-chart
+    cell already legitimately uses must never get annotated "(new)" —
+    that would misread "no chart version of its own to compare" as
+    "brand new"."""
+    assert libupgradedoc.component_version_cell(None, "-") == "-"
+
+
+def test_component_version_cell_no_baseline_no_target_either(libupgradedoc):
+    assert libupgradedoc.component_version_cell(None, None) is None
+
+
 # --- find_preceding_comment_line / replace_version_pair ---
 
 def test_find_preceding_comment_line_finds_arrow_comment(libupgradedoc):
@@ -1604,6 +1631,27 @@ def test_resolve_component_row_sidecar_missing_baseline_tag_is_unresolved(libupg
         baseline_deps=baseline_deps, baseline_values={})
 
     assert resolved["baseline_resolved"] is False
+    assert resolved["target_app"] == "8.6.6"  # target side resolves fine — this row IS new, not broken
+
+
+def test_resolve_component_row_sidecar_target_itself_unresolvable_also_baseline_resolved_false(libupgradedoc):
+    """canonical_names naming a path with no real tag in target_values at
+    all can't happen via canonical_sidecar_row_names' own derivation (it
+    only ever names paths find_image_tag_paths already found a tag at),
+    but resolve_component_row itself doesn't assume that — a caller
+    telling "new" (target resolves, baseline doesn't) apart from
+    "broken" (target doesn't resolve either) needs target_app itself,
+    not just this single boolean, which is exactly why fix-doc-
+    consistency's own fix_component_version_table checks both."""
+    target_deps, target_values, baseline_deps, baseline_values = _redis_sidecar_deps_and_values()
+    canonical_names = {"redis-operator - ghost-sidecar": ("redis-operator", "redis-ha", "ghostImage")}
+
+    resolved = libupgradedoc.resolve_component_row(
+        "redis-operator - ghost-sidecar", None, canonical_names, target_deps, target_values,
+        baseline_deps=baseline_deps, baseline_values=baseline_values)
+
+    assert resolved["baseline_resolved"] is False
+    assert resolved["target_app"] is None
 
 
 def test_resolve_component_row_sidecar_shaped_name_with_no_canonical_match_is_unmatched(libupgradedoc):

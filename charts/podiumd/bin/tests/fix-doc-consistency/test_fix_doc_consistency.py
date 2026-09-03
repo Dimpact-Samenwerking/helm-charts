@@ -463,6 +463,72 @@ def test_fix_component_version_table_unresolvable_canonical_row_reported_not_cor
     assert new_text == text
 
 
+def test_fix_component_version_table_new_dependency_annotated_new_not_reported_unresolved(cdb):
+    """A dependency with no matching entry at all in the baseline
+    Chart.yaml (brand new this hop) gets "(new)" cells instead of being
+    left untouched and reported for manual review — this row's
+    baseline_resolved is unambiguously False (Chart.yaml either has the
+    dependency at that ref or it doesn't), so there's nothing to
+    "review by hand" here."""
+    text = (
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| openklant | 2.15.0 | 1.11.0 | - |\n"
+    )
+    target_deps = [{"name": "openklant", "version": "1.11.0"}]
+    target_values = {"openklant": {"image": {"tag": "2.15.0@sha256:aaaa"}}}
+
+    new_text, changed, unmatched, unresolved = cdb.fix_component_version_table(
+        text, None, target_deps, target_values, [], {}
+    )
+    assert unmatched == [] and unresolved == []
+    assert len(changed) == 1
+    assert "| openklant | 2.15.0 (new) | 1.11.0 (new) | - |" in new_text
+
+
+def test_fix_component_version_table_new_dependency_already_annotated_is_untouched(cdb):
+    """Idempotent: a row already correctly reading "(new)" is left alone,
+    not endlessly re-flagged as changed on every run."""
+    text = (
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| openklant | 2.15.0 (new) | 1.11.0 (new) | - |\n"
+    )
+    target_deps = [{"name": "openklant", "version": "1.11.0"}]
+    target_values = {"openklant": {"image": {"tag": "2.15.0@sha256:aaaa"}}}
+
+    new_text, changed, unmatched, unresolved = cdb.fix_component_version_table(
+        text, None, target_deps, target_values, [], {}
+    )
+    assert changed == []
+    assert new_text == text
+
+
+def test_fix_component_version_table_new_sidecar_app_annotated_new_chart_cell_untouched(cdb):
+    """A sidecar with no baseline tag at all (brand new this hop) gets
+    its App cell annotated "(new)" — its Helm-chart cell stays "-"
+    regardless, same as every other sidecar row; there's no chart
+    version of its own to annotate."""
+    text = (
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| redis-operator - k8s | 1.36.2 | - | ACR mirror only |\n"
+    )
+    target_deps, target_values, baseline_deps, baseline_values = redis_sidecar_deps_and_values()
+    target_values["redis-operator"]["redis-ha"]["preDeleteJob"] = {
+        "image": {"repository": "alpine/k8s", "tag": "1.36.2@sha256:cccc"}}
+
+    new_text, changed, unmatched, unresolved = cdb.fix_component_version_table(
+        text, None, target_deps, target_values, baseline_deps, baseline_values
+    )
+    assert unmatched == [] and unresolved == []
+    assert len(changed) == 1
+    assert "| redis-operator - k8s | 1.36.2 (new) | - | ACR mirror only |" in new_text
+
+
 # --- current_chart_version ---
 
 def test_current_chart_version_reads_chart_yaml(cdb, tmp_path, monkeypatch):
