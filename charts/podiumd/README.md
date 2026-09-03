@@ -1,6 +1,6 @@
 # podiumd
 
-![Version: 4.9.0](https://img.shields.io/badge/Version-4.9.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 4.9.0](https://img.shields.io/badge/AppVersion-4.9.0-informational?style=flat-square)
+![Version: 4.9.1](https://img.shields.io/badge/Version-4.9.1-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 4.9.1](https://img.shields.io/badge/AppVersion-4.9.1-informational?style=flat-square)
 
 PodiumD Helm chart
 
@@ -8,7 +8,7 @@ PodiumD Helm chart
 
 | Repository | Name | Version |
 |------------|------|---------|
-| @adfinis | keycloak-operator | 1.12.1 |
+| @adfinis | keycloak-operator | 1.13.0 |
 | @dimpact | brppersonenmock(brp-personen-mock) | 1.2.9 |
 | @maykinmedia | objecten | 2.12.1 |
 | @maykinmedia | objecttypen | 1.6.1 |
@@ -281,9 +281,11 @@ PodiumD Helm chart
 | keycloak-operator.jobs.keycloakUrl | string | `""` | Keycloak URL used by the realm-import jobs (keycloak-config-cli). Empty = in-cluster service (http://keycloak-service:8080). Set only when the jobs must reach Keycloak via another URL; note the public admin host can sit behind a gateway IP-allowlist that blocks cluster egress (403). |
 | keycloak-operator.jobs.resources | object | `{"limits":{"cpu":"200m","memory":"128Mi"},"requests":{"cpu":"50m","memory":"64Mi"}}` | Resources applied to lightweight keycloak job containers (curl, python, psql): ensure-operator-sa, ensure-podiumd-admin-user. |
 | keycloak-operator.operator.config.keycloakImage.repository | string | `"quay.io/keycloak/keycloak"` |  |
-| keycloak-operator.operator.config.keycloakImage.sha | string | `"9d1f1b2b7261ff53c66cb1092dfcdc34a5fb77e81f9e6a6e75b8b6a795de8067"` |  |
-| keycloak-operator.operator.config.keycloakImage.tag | string | `"26.7.2"` |  |
+| keycloak-operator.operator.config.keycloakImage.sha | string | `"ff4257d0d64efbe99ed1ddfaf07765cc3c36dc7518bf8324d41961327f441c54"` |  |
+| keycloak-operator.operator.config.keycloakImage.tag | string | `"26.7.3"` |  |
 | keycloak-operator.operator.image.repository | string | `"quay.io/keycloak/keycloak-operator"` |  |
+| keycloak-operator.operator.image.sha | string | `"e3856fd1aeb404f0e6ae2180b01875c8eeebd3748b0e5d955da77b5d41095ae4"` |  |
+| keycloak-operator.operator.image.tag | string | `"26.7.3"` |  |
 | keycloak-operator.operator.resources.limits.cpu | string | `"500m"` |  |
 | keycloak-operator.operator.resources.limits.memory | string | `"768Mi"` |  |
 | keycloak-operator.operator.resources.requests.cpu | string | `"100m"` |  |
@@ -336,7 +338,7 @@ PodiumD Helm chart
 | keycloak.http.httpEnabled | bool | `true` |  |
 | keycloak.image.registry | string | `""` |  |
 | keycloak.image.repository | string | `"quay.io/keycloak/keycloak"` |  |
-| keycloak.image.tag | string | `"26.7.2@sha256:9d1f1b2b7261ff53c66cb1092dfcdc34a5fb77e81f9e6a6e75b8b6a795de8067"` |  |
+| keycloak.image.tag | string | `"26.7.3@sha256:ff4257d0d64efbe99ed1ddfaf07765cc3c36dc7518bf8324d41961327f441c54"` |  |
 | keycloak.ingress.enabled | bool | `false` |  |
 | keycloak.instances | string | `"2"` | instances is the new operator-style replica count (falls back to replicaCount) |
 | keycloak.keycloakConfigCli.image.registry | string | `""` |  |
@@ -344,7 +346,7 @@ PodiumD Helm chart
 | keycloak.keycloakConfigCli.image.tag | string | `"6.5.1-26@sha256:1b22dfaa9ae0c71f74b0342f9221a6510f272da5def683dbba26a98e6b1b1411"` |  |
 | keycloak.name | string | `"keycloak"` |  |
 | keycloak.podTemplate.metadata.labels.app | string | `"keycloak"` |  |
-| keycloak.podTemplate.metadata.labels.version | string | `"26.6.4"` |  |
+| keycloak.podTemplate.metadata.labels.version | string | `"26.7.3"` |  |
 | keycloak.podTemplate.spec.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].podAffinityTerm.labelSelector.matchExpressions[0].key | string | `"app"` |  |
 | keycloak.podTemplate.spec.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].podAffinityTerm.labelSelector.matchExpressions[0].operator | string | `"In"` |  |
 | keycloak.podTemplate.spec.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].podAffinityTerm.labelSelector.matchExpressions[0].values[0] | string | `"keycloak"` |  |
