@@ -1842,6 +1842,45 @@ def test_add_missing_images_manifest_entries_no_header_still_orders_body(
     assert openzaak_idx < kc_idx < zac_idx
 
 
+def test_add_missing_images_manifest_entries_empty_bare_header_gets_first_item(
+        cdb, ordered_images_manifest_chart_dir):
+    """The real symptom a fresh lib.component_docs.IMAGES_STUB_TEMPLATE
+    file has: a bare "# Changes:" header with NO items under it yet
+    (not "no header at all" — see the no_header_still_orders_body test
+    above, a genuinely different case). Before IMAGES_STUB_TEMPLATE
+    included this header line at all, a freshly-created manifest had
+    no anchor whatsoever for a numbered item to attach to, so new
+    entries were added to the body but silently never got a matching
+    "# Changes:" item — exactly the "top comment list stayed '[]'"
+    symptom reported live."""
+    text = (
+        "# Baseline: podiumd 4.8.5. Re-verify before release.\n"
+        "#\n"
+        "# Images new or changed in podiumd 4.9.0 vs 4.8.5.\n"
+        "#\n"
+        "# Changes:\n"
+        "#\n"
+        "# See docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md for the operator upgrade notes.\n"
+        "#\n"
+        "# Digests are the OCI image index (multi-arch manifest) digest as returned in\n"
+        "# the Docker-Content-Digest response header from the source registry.\n\n"
+        "[]\n"
+    )
+
+    new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
+        text, ordered_images_manifest_chart_dir, _ordered_deps(), _ordered_target_values(),
+        _ordered_baseline_values())
+
+    assert skipped == []
+    assert set(added) == {"keycloak-operator - postgres", "openzaak", "zac"}
+    # The bare "# Changes:" header actually got numbered items under it —
+    # not left as the literal "[]" placeholder with nothing above it.
+    header_idx = new_text.index("# Changes:\n")
+    first_item_idx = new_text.index("#   1. ")
+    assert header_idx < first_item_idx < header_idx + len("# Changes:\n") + 40
+    assert "# See docs/_UPGRADE_PATHS" in new_text  # rest of the header preserved
+
+
 def test_add_missing_images_manifest_entries_backfills_header_item_for_existing_entry(
         cdb, ordered_images_manifest_chart_dir):
     """A component that already has its own comment+entry block (e.g.

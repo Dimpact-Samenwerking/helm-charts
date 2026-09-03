@@ -34,8 +34,37 @@ from lib.upgradedoc import (
 NUMBER_WORDS = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten",
                 "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen"]
 CHANGES_HEADER_RE = re.compile(r"^(?P<indent>#\s*)(?P<count_word>\w+)\s+changes?:\s*$", re.IGNORECASE)
+# A plain "# Changes:" images-manifest header with no leading count word at
+# all — CHANGES_HEADER_RE requires one ("# Twenty Two changes:"), but a
+# hand-curated header (this chart's own real images-4.9.0.yaml, extensively
+# rewritten with rich per-item prose) may never have picked that convention
+# up, and IMAGES_STUB_TEMPLATE's own fresh "# Changes:" line never has one
+# either. See find_images_manifest_changes_header, the shared "recognize
+# either shape" lookup.
+BARE_CHANGES_HEADER_RE = re.compile(r"^(?P<indent>#\s*)[Cc]hanges:\s*$")
 CHANGES_ITEM_RE = re.compile(r"^#\s*(?P<num>\d+)\.\s+(?P<rest>.+)$")
 NO_CHANGES_CLAIMED_RE = re.compile(r"no\s+gemeente\s+`?podiumd\.yml`?\s+changes\s+are\s+required", re.IGNORECASE)
+
+
+def find_images_manifest_changes_header(lines):
+    """(header_idx, header_has_count) for the images-manifest's own "#
+    Changes:" header — matching EITHER CHANGES_HEADER_RE's counted form
+    ("# Twenty One changes:") or BARE_CHANGES_HEADER_RE's plain "#
+    Changes:" (no count word at all — the real, hand-curated images-
+    4.9.0.yaml header's own actual shape, and IMAGES_STUB_TEMPLATE's own
+    fresh one). (None, False) if neither is found anywhere in the file.
+    Shared by fix-doc-consistency's own header-item insertion/reordering
+    and update_images_manifest below — before this was factored out,
+    update_images_manifest checked CHANGES_HEADER_RE alone, so it never
+    recognized (and so never updated) a bare "# Changes:" header — the
+    exact shape both the real hand-curated file and a freshly-stubbed
+    one actually have."""
+    for i, line in enumerate(lines):
+        if CHANGES_HEADER_RE.match(line):
+            return i, True
+        if BARE_CHANGES_HEADER_RE.match(line):
+            return i, False
+    return None, False
 
 
 def images_manifest_path(images_dir, target):
@@ -98,6 +127,8 @@ IMAGES_STUB_TEMPLATE = (
     "# Baseline: podiumd {upgrade_docs_baseline}. Re-verify before release.\n"
     "#\n"
     "# Images new or changed in podiumd {target} vs {upgrade_docs_baseline}.\n"
+    "#\n"
+    "# Changes:\n"
     "#\n"
     "# See docs/_UPGRADE_PATHS/{upgrade_docs_baseline}-to-{target}-upgrade.md for the operator upgrade notes.\n"
     "#\n"
@@ -616,11 +647,7 @@ def update_images_manifest(images_path, friendly, values_key, old_app, new_app, 
     original_text = images_path.read_text(encoding="utf-8")
     lines = original_text.splitlines(keepends=True)
 
-    header_idx = None
-    for i, line in enumerate(lines):
-        if CHANGES_HEADER_RE.match(line):
-            header_idx = i
-            break
+    header_idx, header_has_count = find_images_manifest_changes_header(lines)
 
     changes_action = None
     if header_idx is not None:
@@ -653,10 +680,16 @@ def update_images_manifest(images_path, friendly, values_key, old_app, new_app, 
             new_num = len(item_indices) + 1
             insert_at = block_end if item_indices else header_idx + 1
             lines.insert(insert_at, f"#   {new_num}. {item_text}\n")
-            count_word = NUMBER_WORDS[new_num] if new_num < len(NUMBER_WORDS) else str(new_num)
-            noun = "change" if new_num == 1 else "changes"
-            header_m = CHANGES_HEADER_RE.match(lines[header_idx])
-            lines[header_idx] = f"{header_m.group('indent')}{count_word} {noun}:\n"
+            if header_has_count:
+                count_word = NUMBER_WORDS[new_num] if new_num < len(NUMBER_WORDS) else str(new_num)
+                noun = "change" if new_num == 1 else "changes"
+                header_m = CHANGES_HEADER_RE.match(lines[header_idx])
+                lines[header_idx] = f"{header_m.group('indent')}{count_word} {noun}:\n"
+            # else: header was already a bare "# Changes:" label with no
+            # count word of its own — left exactly as-is, matching
+            # whatever style this file already uses; only the numbered
+            # item list itself needed the new entry (same convention
+            # fix-doc-consistency's own header-item insertion follows).
             changes_action = "added"
 
     entries = yaml.safe_load("".join(lines)) or []
@@ -695,11 +728,7 @@ def remove_component_from_images_manifest(images_path, friendly, values_key, pat
     original_text = images_path.read_text(encoding="utf-8")
     lines = original_text.splitlines(keepends=True)
 
-    header_idx = None
-    for i, line in enumerate(lines):
-        if CHANGES_HEADER_RE.match(line):
-            header_idx = i
-            break
+    header_idx, header_has_count = find_images_manifest_changes_header(lines)
 
     changes_action = None
     if header_idx is not None:
@@ -725,10 +754,13 @@ def remove_component_from_images_manifest(images_path, friendly, values_key, pat
                 m = CHANGES_ITEM_RE.match(lines[idx])
                 lines[idx] = f"#   {new_num}. {m.group('rest')}\n"
             remaining = len(remaining_indices)
-            count_word = NUMBER_WORDS[remaining] if remaining < len(NUMBER_WORDS) else str(remaining)
-            noun = "change" if remaining == 1 else "changes"
-            header_m = CHANGES_HEADER_RE.match(lines[header_idx])
-            lines[header_idx] = f"{header_m.group('indent')}{count_word} {noun}:\n"
+            if header_has_count:
+                count_word = NUMBER_WORDS[remaining] if remaining < len(NUMBER_WORDS) else str(remaining)
+                noun = "change" if remaining == 1 else "changes"
+                header_m = CHANGES_HEADER_RE.match(lines[header_idx])
+                lines[header_idx] = f"{header_m.group('indent')}{count_word} {noun}:\n"
+            # else: bare "# Changes:" header — left as-is, same convention
+            # update_images_manifest's own insertion path follows.
             changes_action = "removed"
 
     entries = yaml.safe_load("".join(lines)) or []

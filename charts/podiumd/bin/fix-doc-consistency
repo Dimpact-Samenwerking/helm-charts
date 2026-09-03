@@ -85,6 +85,7 @@ from lib.chart import upgrade_docs_baseline as read_upgrade_docs_baseline
 from lib.component_docs import (
     CHANGES_HEADER_RE, CHANGES_ITEM_RE, IMAGES_STUB_TEMPLATE, NUMBER_WORDS, STANDARD_SUFFIXES, STUB_TEMPLATES,
     add_missing_component_rows, add_missing_values_delta_bullets, existing_doc_baselines,
+    find_images_manifest_changes_header,
 )
 from lib.docs_consistency import match_changes_item_to_entry
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
@@ -127,16 +128,6 @@ COMPONENT_VERSIONS_RE_TMPL = r"Component versions \({target}\s+vs\s+(?P<baseline
 SIBLING_DOC_RE_TMPL = r"(?P<baseline>\d+\.\d+\.\d+)-to-{target}-(?P<suffix>upgrade|gemeente-specific|values-deltas)\.md"
 BASELINE_LINE_RE = re.compile(r"(?P<prefix>Baseline:\s*podiumd\s+)(?P<baseline>\d+\.\d+\.\d+)")
 VS_LINE_RE_TMPL = r"(?P<prefix>podiumd\s+{target}\s+vs\s+)(?P<baseline>\d+\.\d+\.\d+)"
-
-# A plain "# Changes:" images-manifest header with no leading count word
-# at all — lib.component_docs.CHANGES_HEADER_RE requires one ("# Twenty
-# Two changes:"), but a hand-curated header (this chart's own real
-# images-4.9.0.yaml, extensively rewritten with rich per-item prose) may
-# never have picked that convention up. Recognized as a valid anchor
-# too, so add_missing_images_manifest_entries can still find and extend
-# the numbered item list under it — but never rewritten with a count
-# word of its own if it didn't have one already (see header_has_count).
-BARE_CHANGES_HEADER_RE = re.compile(r"^(?P<indent>#\s*)[Cc]hanges:\s*$")
 
 
 def find_collisions(by_suffix):
@@ -439,19 +430,6 @@ def fix_images_manifest_entries(text, deps, target_values, baseline_values, repo
     return "".join(lines), changed_entries, unresolved_names
 
 
-def _find_images_manifest_changes_header(lines):
-    """(header_idx, header_has_count) for the images-manifest's own "#
-    Changes:" header — matching EITHER CHANGES_HEADER_RE's counted form
-    ("# Twenty One changes:") or BARE_CHANGES_HEADER_RE's plain "#
-    Changes:" (no count word at all — the real, hand-curated images-
-    4.9.0.yaml header's own actual shape). (None, False) if neither is
-    found anywhere in the file."""
-    for i, line in enumerate(lines):
-        if CHANGES_HEADER_RE.match(line):
-            return i, True
-        if BARE_CHANGES_HEADER_RE.match(line):
-            return i, False
-    return None, False
 
 
 def _images_manifest_changes_header_text(lines):
@@ -461,7 +439,7 @@ def _images_manifest_changes_header_text(lines):
     whether some entry's own display name is already mentioned
     somewhere in there, before deciding it needs a header item of its
     own backfilled."""
-    header_idx, _has_count = _find_images_manifest_changes_header(lines)
+    header_idx, _has_count = find_images_manifest_changes_header(lines)
     if header_idx is None:
         return ""
     block_end = header_idx + 1
@@ -487,7 +465,7 @@ def _insert_images_manifest_header_item(lines, deps, key_order, order_key, new_k
     rewrites the header line's own leading count word if it already had
     one (see header_has_count) — never invents one for a bare "#
     Changes:" label."""
-    header_idx, header_has_count = _find_images_manifest_changes_header(lines)
+    header_idx, header_has_count = find_images_manifest_changes_header(lines)
     if header_idx is None:
         return
 
@@ -561,7 +539,7 @@ def sort_images_manifest_changes_items(lines, entries, entry_positions):
     old_position, new_position)] (1-based) for every item that actually
     moved — empty (lines untouched) if the header doesn't exist or has
     fewer than 2 items."""
-    header_idx, _header_has_count = _find_images_manifest_changes_header(lines)
+    header_idx, _header_has_count = find_images_manifest_changes_header(lines)
     if header_idx is None:
         return []
 

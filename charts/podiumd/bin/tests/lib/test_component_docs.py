@@ -113,3 +113,18 @@ def test_create_missing_docs_nothing_to_do_when_all_exist(libcomponentdocs, tmp_
     (images_dir / "images-4.9.0.yaml").write_text("x", encoding="utf-8")
 
     assert libcomponentdocs.create_missing_docs(doc_dir, images_dir, "4.8.5", "4.9.0") == []
+
+
+def test_images_stub_template_has_a_changes_header(libcomponentdocs):
+    """A fresh images-manifest stub must include a "# Changes:" anchor
+    line, not just the bare "[]" YAML placeholder — without it, find_
+    images_manifest_changes_header finds nothing, so add_missing_images_
+    manifest_entries (and update_images_manifest) can add new entries to
+    the body but never a matching numbered item above them, silently
+    leaving the "# Changes:" section looking like the literal "[]" it
+    started as (real symptom reported live)."""
+    text = libcomponentdocs.IMAGES_STUB_TEMPLATE.format(upgrade_docs_baseline="4.8.5", target="4.9.0")
+    lines = text.splitlines(keepends=True)
+    header_idx, header_has_count = libcomponentdocs.find_images_manifest_changes_header(lines)
+    assert header_idx is not None
+    assert header_has_count is False
