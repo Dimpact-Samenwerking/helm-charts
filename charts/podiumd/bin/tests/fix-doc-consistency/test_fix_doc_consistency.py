@@ -2274,7 +2274,7 @@ def test_main_reports_unmatched_components_one_per_line(cdb, repo, monkeypatch, 
     cdb.main()
 
     out = capsys.readouterr().out
-    assert "Could not match 2 component(s) to a Chart.yaml dependency, left as-is:" in out
+    assert "Could not match 2 component(s) in 4.8.2-to-4.9.0-upgrade.md to a Chart.yaml dependency, left as-is:" in out
     assert "  Totally Unknown Thing A" in out
     assert "  Totally Unknown Thing B" in out
     assert "Totally Unknown Thing A, Totally Unknown Thing B" not in out
@@ -2307,7 +2307,7 @@ def test_main_reports_unresolved_source_versions_one_per_line(cdb, repo, monkeyp
     cdb.main()
 
     out = capsys.readouterr().out
-    assert "Could not verify source version for 2 component(s)" in out
+    assert "Could not verify source version for 2 component(s) in 4.8.2-to-4.9.0-upgrade.md" in out
     assert "  ZAC (Zaakafhandelcomponent)" in out
     assert "  Open Zaak" in out
     assert "ZAC (Zaakafhandelcomponent), Open Zaak" not in out
