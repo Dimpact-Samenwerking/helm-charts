@@ -702,6 +702,153 @@ def test_find_images_manifest_list_diff_flags_entry_for_unresolvable_path_as_sta
     assert unmatched == []
 
 
+# --- is_primary_image_path ---
+
+def test_is_primary_image_path_default_image_key(libupgradedoc):
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.0"}]
+    assert libupgradedoc.is_primary_image_path(("zac", "image"), deps) is True
+
+
+def test_is_primary_image_path_multi_container_dependency(libupgradedoc):
+    """zgw-office-addin's frontend + backend are BOTH registered as
+    primary images (lib.chart.COMPONENT_IMAGE_PATHS) — co-equal
+    containers of one dependency, not one primary + a sidecar."""
+    deps = [{"name": "zgw-office-addin", "version": "1.0.0"}]
+    assert libupgradedoc.is_primary_image_path(("zgw-office-addin", "frontend", "image"), deps) is True
+    assert libupgradedoc.is_primary_image_path(("zgw-office-addin", "backend", "image"), deps) is True
+
+
+def test_is_primary_image_path_nested_sidecar_is_not_primary(libupgradedoc):
+    deps = [{"name": "redis-operator", "version": "1.0.0"}]
+    assert libupgradedoc.is_primary_image_path(("redis-operator", "redis-ha", "image"), deps) is False
+
+
+def test_is_primary_image_path_no_owning_dependency_is_not_primary(libupgradedoc):
+    deps = [{"name": "zac", "version": "1.0.0"}]
+    assert libupgradedoc.is_primary_image_path(("global", "images", "nginx"), deps) is False
+
+
+def test_is_primary_image_path_empty_path_is_not_primary(libupgradedoc):
+    assert libupgradedoc.is_primary_image_path(None, []) is False
+    assert libupgradedoc.is_primary_image_path((), []) is False
+
+
+# --- find_images_manifest_faulty_headers ---
+
+REDIS_OPERATOR_DEPS = [{"name": "redis-operator", "version": "1.0.0"}]
+
+
+def _entry_line_indices(lines):
+    return [i for i, line in enumerate(lines) if line.lstrip().startswith("- name:")]
+
+
+def test_find_images_manifest_faulty_headers_correct_sidecar_header_is_not_flagged(libupgradedoc):
+    text = (
+        "# redis-operator 0.25.0 -> 0.26.0 (chart 0.25.0 -> 0.26.1)\n"
+        "- name: redis-operator\n"
+        "  version: \"0.26.0\"\n"
+        "\n"
+        "#   sidecar: redis-operator - redis 8.6.2 -> 8.6.6\n"
+        "- name: redis-ha\n"
+        "  version: \"8.6.6\"\n"
+    )
+    lines = text.splitlines()
+    entries = [{"name": "redis-operator", "version": "0.26.0"}, {"name": "redis-ha", "version": "8.6.6"}]
+    entry_line_indices = _entry_line_indices(lines)
+    current_paths = {("redis-operator", "image"): "0.26.0", ("redis-operator", "redis-ha", "image"): "8.6.6"}
+    repo_map = {"redis-operator": ("redis-operator", "image"), "redis-ha": ("redis-operator", "redis-ha", "image")}
+    canonical_names = {"redis-operator - redis": ("redis-operator", "redis-ha", "image")}
+
+    problems = libupgradedoc.find_images_manifest_faulty_headers(
+        entries, entry_line_indices, lines, REDIS_OPERATOR_DEPS, current_paths, repo_map, canonical_names)
+    assert problems == []
+
+
+def test_find_images_manifest_faulty_headers_sidecar_sharing_parents_plain_header_is_missing(libupgradedoc):
+    """The real kiss-elastic-sync case: a sidecar entry with NO comment
+    of its own, sitting right after its parent's plain (unindented, no
+    "sidecar:" keyword) header — flagged as "missing", not silently
+    treated as covered by the parent's header."""
+    text = (
+        "# redis-operator 0.25.0 -> 0.26.0 (chart 0.25.0 -> 0.26.1)\n"
+        "- name: redis-operator\n"
+        "  version: \"0.26.0\"\n"
+        "\n"
+        "- name: redis-ha\n"
+        "  version: \"8.6.6\"\n"
+    )
+    lines = text.splitlines()
+    entries = [{"name": "redis-operator", "version": "0.26.0"}, {"name": "redis-ha", "version": "8.6.6"}]
+    entry_line_indices = _entry_line_indices(lines)
+    current_paths = {("redis-operator", "image"): "0.26.0", ("redis-operator", "redis-ha", "image"): "8.6.6"}
+    repo_map = {"redis-operator": ("redis-operator", "image"), "redis-ha": ("redis-operator", "redis-ha", "image")}
+    canonical_names = {"redis-operator - redis": ("redis-operator", "redis-ha", "image")}
+
+    problems = libupgradedoc.find_images_manifest_faulty_headers(
+        entries, entry_line_indices, lines, REDIS_OPERATOR_DEPS, current_paths, repo_map, canonical_names)
+    assert problems == [("redis-ha", "redis-operator - redis", "missing")]
+
+
+def test_find_images_manifest_faulty_headers_sidecar_header_naming_wrong_component(libupgradedoc):
+    text = (
+        "#   sidecar: redis-operator - redis-exporter 1.82.0 -> 1.89.0\n"
+        "- name: redis-ha\n"
+        "  version: \"8.6.6\"\n"
+    )
+    lines = text.splitlines()
+    entries = [{"name": "redis-ha", "version": "8.6.6"}]
+    entry_line_indices = _entry_line_indices(lines)
+    current_paths = {("redis-operator", "redis-ha", "image"): "8.6.6"}
+    repo_map = {"redis-ha": ("redis-operator", "redis-ha", "image")}
+    canonical_names = {"redis-operator - redis": ("redis-operator", "redis-ha", "image")}
+
+    problems = libupgradedoc.find_images_manifest_faulty_headers(
+        entries, entry_line_indices, lines, REDIS_OPERATOR_DEPS, current_paths, repo_map, canonical_names)
+    assert problems == [("redis-ha", "redis-operator - redis", "wrong_name")]
+
+
+def test_find_images_manifest_faulty_headers_primary_entry_never_checked(libupgradedoc):
+    """A dependency's own primary image is exempt — including a
+    multi-container dependency's second co-equal primary sharing the
+    first's plain header (zgw-office-addin frontend + backend), which
+    is expected and correct, not a sidecar needing its own header."""
+    text = (
+        "# ZGW Office Add-in -> 0.11.0\n"
+        "- name: infonl/zgw-office-addin-frontend\n"
+        "  version: \"0.11.0\"\n"
+        "\n"
+        "- name: infonl/zgw-office-addin-backend\n"
+        "  version: \"0.11.0\"\n"
+    )
+    lines = text.splitlines()
+    entries = [{"name": "infonl/zgw-office-addin-frontend", "version": "0.11.0"},
+               {"name": "infonl/zgw-office-addin-backend", "version": "0.11.0"}]
+    entry_line_indices = _entry_line_indices(lines)
+    deps = [{"name": "zgw-office-addin", "version": "1.0.0"}]
+    current_paths = {("zgw-office-addin", "frontend", "image"): "0.11.0",
+                      ("zgw-office-addin", "backend", "image"): "0.11.0"}
+    repo_map = {}
+
+    problems = libupgradedoc.find_images_manifest_faulty_headers(
+        entries, entry_line_indices, lines, deps, current_paths, repo_map, canonical_names={})
+    assert problems == []
+
+
+def test_find_images_manifest_faulty_headers_unresolvable_entry_skipped(libupgradedoc):
+    """An entry that doesn't resolve to any values-tree path at all is
+    skipped — find_images_manifest_list_diff's unmatched_entry_names
+    already reports it; there's no "expected name" to validate a header
+    against for something that isn't a real image."""
+    text = "- name: does-not-exist\n  version: \"1.0.0\"\n"
+    lines = text.splitlines()
+    entries = [{"name": "does-not-exist", "version": "1.0.0"}]
+    entry_line_indices = _entry_line_indices(lines)
+
+    problems = libupgradedoc.find_images_manifest_faulty_headers(
+        entries, entry_line_indices, lines, [], current_paths={}, repo_map={}, canonical_names={})
+    assert problems == []
+
+
 # --- path_display_name ---
 
 def test_path_display_name_primary_dependency_image_uses_bare_key(libupgradedoc):

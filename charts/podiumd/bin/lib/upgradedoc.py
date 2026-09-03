@@ -952,6 +952,110 @@ def path_display_name(path, deps, canonical_names):
     return ".".join(path)
 
 
+SIDECAR_HEADER_RE = re.compile(r"^#\s{2,}sidecar:\s*(?P<text>.*)$", re.IGNORECASE)
+
+
+def is_primary_image_path(path, deps):
+    """True when path is one of a Chart.yaml dependency's own PRIMARY
+    image(s) (lib.chart.image_paths_for — usually just "image",
+    occasionally several co-equal containers like zgw-office-addin's
+    frontend + backend or internetaakafhandeling's web + poller) rather
+    than a nested sidecar or a shared "global" image — the same primary/
+    sidecar split path_display_name's own branch already makes,
+    factored out here so a caller can ask the question on its own,
+    without needing a canonical_names mapping too."""
+    if not path:
+        return False
+    by_values_key = {(dep.get("alias") or dep["name"]): dep for dep in deps}
+    dep = by_values_key.get(path[0])
+    return dep is not None and ".".join(path[1:]) in set(image_paths_for(dep["name"]))
+
+
+def _own_header_top_line(lines, entry_line_index):
+    """The raw (whitespace-preserving) text of the TOPMOST line in this
+    entry's own directly-preceding comment block, or None when there's
+    no comment directly above it at all (a blank/non-comment line sits
+    there instead — the entry either shares a preceding entry's header
+    via the legacy same-group convention find_grouped_preceding_comment
+    (_line) still supports, or has no header whatsoever). Unlike find_
+    preceding_comment(_line), this never requires the line to state a
+    version pair — a header can legitimately have none (a brand-new
+    component, or free-form context prose) and the sidecar/primary shape
+    check this feeds only cares about the line's own leading "#"/indent,
+    never its content."""
+    j = entry_line_index - 1
+    top = None
+    while j >= 0 and lines[j].strip().startswith("#"):
+        top = lines[j]
+        j -= 1
+    return top
+
+
+def _header_name_segment(text):
+    """The header's own component-name portion — everything before its
+    version pair (or before a trailing "(...)" aside, or the whole text
+    when neither is present), with a trailing dash/em-dash separator
+    stripped. Comparing only this isolated segment (not the header's
+    full text) for EXACT equality — never a "startswith" check against
+    the full text — matters because one canonical sidecar name can be a
+    literal text-prefix of another's ("redis-operator - redis" is a
+    prefix of "redis-operator - redis-exporter" once punctuation is
+    stripped by normalize_name); a startswith check would silently
+    accept the wrong sidecar's header as long as it named the RIGHT
+    parent and happened to start with the right basename's own letters."""
+    m = VERSION_PAIR_RE.search(text)
+    name = text[:m.start()] if m else text
+    name = name.split("(", 1)[0]
+    return name.rstrip(" \t—-")
+
+
+def find_images_manifest_faulty_headers(entries, entry_line_indices, lines, deps, current_paths, repo_map,
+                                         canonical_names):
+    """[(entry_name, expected_display_name, problem), ...] for every
+    SIDECAR entry (see is_primary_image_path — a co-equal primary image
+    like zgw-office-addin's frontend/backend is exempt, expected and
+    fine to keep sharing one plain header) whose own header doesn't
+    correctly, unambiguously identify it. problem is:
+    - "missing": no own indented "#   sidecar: ..." header directly
+      above the entry at all — it may be silently sharing a PRECEDING
+      entry's plain header instead (the exact ambiguity that let one
+      shared "# KISS — 2.2.4 -> 3.0.0" header wrongly stand in for
+      kiss-elastic-sync's own, genuinely different 0.3.3 -> 3.0.0 bump,
+      since same_group's "same component + same declared version" test
+      is only ever a proxy for "these two entries bumped in lockstep",
+      not a guarantee).
+    - "wrong_name": it HAS its own indented sidecar header, but that
+      header's own name segment (see _header_name_segment — everything
+      before the version pair) doesn't EXACTLY equal "<parent> -
+      <basename>" (see path_display_name) — the same canonical sidecar-
+      naming convention -upgrade.md's own "### <parent> - <basename>
+      ..." Changes headings already use, the indent and "sidecar:"
+      keyword aside. Exact equality, not a prefix check: "redis-operator
+      - redis" is a literal text-prefix of "redis-operator - redis-
+      exporter" once normalize_name strips punctuation, so a startswith
+      comparison would wrongly accept the redis-exporter sidecar's own
+      header as if it named plain "redis".
+
+    An entry that doesn't resolve to any values-tree path at all is
+    skipped entirely — already reported elsewhere (see find_images_
+    manifest_list_diff's unmatched_entry_names), and there's no real
+    "expected name" to check a header against for something that isn't
+    a real image."""
+    problems = []
+    for entry, line_idx in zip(entries, entry_line_indices):
+        path = resolve_entry_image_path(entry, current_paths.keys(), repo_map)
+        if path is None or is_primary_image_path(path, deps):
+            continue
+        display_name = path_display_name(path, deps, canonical_names)
+        top_line = _own_header_top_line(lines, line_idx)
+        match = SIDECAR_HEADER_RE.match(top_line) if top_line is not None else None
+        if match is None:
+            problems.append((entry["name"], display_name, "missing"))
+        elif normalize_name(_header_name_segment(match.group("text"))) != normalize_name(display_name):
+            problems.append((entry["name"], display_name, "wrong_name"))
+    return problems
+
+
 def find_images_manifest_list_diff(entries, current_paths, baseline_paths, repo_map, repo_groups,
                                     unresolvable_paths):
     """(missing_paths, extra_entry_names) — the images-manifest's own
