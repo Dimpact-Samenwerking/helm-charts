@@ -22,7 +22,8 @@ Upgrade one hop at a time, in order. Each guide covers exactly one hop.
 
 | You are on | Read, in this order |
 |---|---|
-| 4.8.5 | [`4.8.5-to-4.9.0-upgrade.md`](_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md) |
+| 4.8.6 | [`4.8.6-to-4.9.0-upgrade.md`](_UPGRADE_PATHS/4.8.6-to-4.9.0-upgrade.md) |
+| 4.8.5 | [`4.8.5-to-4.9.0-upgrade.md`](_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md) — or, if you are taking the Keycloak security patch first, [`4.8.5-to-4.8.6-upgrade.md`](_UPGRADE_PATHS/4.8.5-to-4.8.6-upgrade.md) → then the 4.8.6 guide |
 | 4.8.4 | [`4.8.4-to-4.8.5-upgrade.md`](_UPGRADE_PATHS/4.8.4-to-4.8.5-upgrade.md) |
 | 4.8.3 | [`4.8.3-to-4.8.4-upgrade.md`](_UPGRADE_PATHS/4.8.3-to-4.8.4-upgrade.md) |
 | 4.8.2 | [`4.8.2-to-4.8.3-upgrade.md`](_UPGRADE_PATHS/4.8.2-to-4.8.3-upgrade.md) |
@@ -89,7 +90,16 @@ not needed when deploying one.
 
 ```
 4.5.15 ─▶ 4.5.16 ─▶ 4.6.4 ─▶ 4.6.8 ─▶ 4.7.3 ─▶ 4.7.4 ─▶ 4.7.5 ─▶ 4.7.6 ─▶ 4.7.7 ─▶ 4.7.8 ─▶ 4.8.0 ─▶ 4.8.1 ─▶ 4.8.2 ─▶ 4.8.3 ─▶ 4.8.4 ─▶ 4.8.5 ─▶ 4.9.0
+                                                                                                                                         ╰▶ 4.8.6 ─▶ 4.9.0   (optional Keycloak security patch)
 ```
+
+**4.8.6** is an optional side step off 4.8.5: a Keycloak-only security
+patch (26.6.4 → 26.7.2, 23 CVEs, adfinis operator chart 1.12.1 → 1.13.0)
+for environments that needed it before 4.9.0 was ready. Both routes land on
+4.9.0. Note that 4.9.0 branched from 4.8.5 and kept the operator on 1.12.1 /
+26.6.4, so 4.8.6 → 4.9.0 **downgrades the operator** while the Keycloak
+server image stays on 26.7.2 — see
+[`4.8.6-to-4.9.0-upgrade.md`](_UPGRADE_PATHS/4.8.6-to-4.9.0-upgrade.md).
 
 Each hop has exactly **one** upgrade guide and a matching image manifest (the
 ACR-mirror set for that hop):
@@ -109,6 +119,8 @@ ACR-mirror set for that hop):
 | 4.8.3 → 4.8.4   | [`4.8.3-to-4.8.4-upgrade.md`](_UPGRADE_PATHS/4.8.3-to-4.8.4-upgrade.md)   | [`images/images-4.8.4.yaml`](images/images-4.8.4.yaml) |
 | 4.8.4 → 4.8.5   | [`4.8.4-to-4.8.5-upgrade.md`](_UPGRADE_PATHS/4.8.4-to-4.8.5-upgrade.md)   | [`images/images-4.8.5.yaml`](images/images-4.8.5.yaml) |
 | 4.8.5 → 4.9.0   | [`4.8.5-to-4.9.0-upgrade.md`](_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md)   | [`images/images-4.9.0.yaml`](images/images-4.9.0.yaml) |
+| 4.8.5 → 4.8.6   | [`4.8.5-to-4.8.6-upgrade.md`](_UPGRADE_PATHS/4.8.5-to-4.8.6-upgrade.md)   | [`images/images-4.8.6.yaml`](images/images-4.8.6.yaml) |
+| 4.8.6 → 4.9.0   | [`4.8.6-to-4.9.0-upgrade.md`](_UPGRADE_PATHS/4.8.6-to-4.9.0-upgrade.md)   | [`images/images-4.9.0.yaml`](images/images-4.9.0.yaml) |
 
 > The 4.6.4 → 4.6.8 and 4.6.8 → 4.7.6 guides are **consolidated**: each folds
 > several intermediate releases into one document so an operator reads one
