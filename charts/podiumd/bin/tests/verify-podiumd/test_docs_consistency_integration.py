@@ -971,6 +971,108 @@ def test_changes_heading_missing_app_version_is_caught(vp, order_chart_dir, caps
     assert 'section "### Open Inwoner bump 2.4.2 → 2.4.2" is missing the primary-image app version' not in out
 
 
+NEW_DEP_CHART_YAML_BASELINE = """\
+apiVersion: v2
+name: podiumd
+version: 4.8.5
+dependencies:
+  - name: zaakafhandelcomponent
+    alias: zac
+    version: 1.0.297
+    repository: "@zac"
+"""
+NEW_DEP_CHART_YAML_TARGET = """\
+apiVersion: v2
+name: podiumd
+version: 4.9.0
+dependencies:
+  - name: zaakafhandelcomponent
+    alias: zac
+    version: 1.0.297
+    repository: "@zac"
+  - name: openklant
+    version: 2.15.0
+    repository: "@openklant"
+"""
+NEW_DEP_UPGRADE_DOC = """\
+# Upgrade guide: PodiumD {baseline} → 4.9.0
+
+## Component versions (4.9.0 vs {baseline})
+
+| Component | App version | Helm chart | Notes |
+| --- | --- | --- | --- |
+| ZAC (Zaakafhandelcomponent) | 5.0.2 (unchanged) | 1.0.297 (unchanged) | n/a |
+| openklant | 2.15.0 (new) | 2.15.0 (new) | - |
+
+See [`{baseline}-to-4.9.0-values-deltas.md`]({baseline}-to-4.9.0-values-deltas.md).
+"""
+NEW_DEP_GEMEENTE_DOC = "# Gemeente-specific notes — PodiumD {baseline} → 4.9.0\n\nNone.\n"
+NEW_DEP_VALUES_DELTAS_DOC = ("# Values deltas — PodiumD {baseline} → 4.9.0\n\n"
+                             "- **openklant** newly added.\n\n"
+                             "No gemeente podiumd.yml changes are required for this hop.\n")
+
+
+def new_dep_values():
+    return ('zac:\n  image:\n    repository: ghcr.io/infonl/zaakafhandelcomponent\n'
+            '    tag: "5.0.2@sha256:aaaa"\n'
+            'openklant:\n  image:\n    tag: "2.15.0@sha256:bbbb"\n')
+
+
+@pytest.fixture
+def new_dependency_chart_repo(tmp_path):
+    """"openklant" doesn't exist at all at the baseline ref — added as a
+    brand-new Chart.yaml dependency in this release. Its doc row's
+    source (baseline) version can never be verified against a baseline
+    that has no such dependency at all — this is the exact real-world
+    gap fix-doc-consistency's own fix_component_version_table already
+    tracks as "unresolved" (left uncorrected, reported for manual
+    review) that check_docs_consistency used to silently treat as
+    clean, since it never had anything to compare the row's claimed
+    source version against."""
+    repo_root = tmp_path
+    chart_dir = repo_root / "charts" / "podiumd"
+    doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
+    doc_dir.mkdir(parents=True)
+
+    git("init", "-q", cwd=repo_root)
+    git("config", "user.email", "test@example.com", cwd=repo_root)
+    git("config", "user.name", "Test", cwd=repo_root)
+
+    (chart_dir / "Chart.yaml").write_text(NEW_DEP_CHART_YAML_BASELINE)
+    (chart_dir / "values.yaml").write_text(
+        'zac:\n  image:\n    repository: ghcr.io/infonl/zaakafhandelcomponent\n    tag: "5.0.2@sha256:aaaa"\n')
+    git("add", "-A", cwd=repo_root)
+    git("commit", "-q", "-m", "baseline", cwd=repo_root)
+    git("tag", "podiumd-4.8.5", cwd=repo_root)
+
+    (chart_dir / "Chart.yaml").write_text(NEW_DEP_CHART_YAML_TARGET)
+    (chart_dir / "values.yaml").write_text(new_dep_values())
+    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(NEW_DEP_UPGRADE_DOC.format(baseline="4.8.5"))
+    (doc_dir / "4.8.5-to-4.9.0-gemeente-specific.md").write_text(NEW_DEP_GEMEENTE_DOC.format(baseline="4.8.5"))
+    (doc_dir / "4.8.5-to-4.9.0-values-deltas.md").write_text(NEW_DEP_VALUES_DELTAS_DOC.format(baseline="4.8.5"))
+    git("add", "-A", cwd=repo_root)
+    git("commit", "-q", "-m", "add openklant, a brand-new dependency", cwd=repo_root)
+
+    return chart_dir
+
+
+def test_new_dependency_unresolvable_baseline_row_is_reported_not_silently_clean(
+        vp, new_dependency_chart_repo, capsys):
+    """A doc row for a component that didn't exist at the baseline ref at
+    all must be flagged as unverifiable — resolve_component_row's
+    baseline_resolved=False, shared with fix-doc-consistency's own
+    unresolved_names bucket, closes the gap where this row's source
+    cells were never actually compared against anything, yet reported
+    as clean."""
+    ok, detail = vp.check_docs_consistency(new_dependency_chart_repo, upgrade_docs_baseline="4.8.5")
+    out = capsys.readouterr().out
+
+    assert ok is False
+    assert ('4.8.5-to-4.9.0-upgrade.md: doc row "openklant" source version could not be '
+            'verified against') in out
+    assert 'openklant" target app' not in out  # target side still resolves fine, no false mismatch there
+
+
 def test_plus_in_heading_not_naming_two_real_components_still_resolves_normally(vp, order_chart_dir, capsys):
     """A literal "+" in a heading isn't itself the signal — assessment
     never splits on it at all. Here only "Open Zaak" names a real
