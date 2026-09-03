@@ -1,0 +1,1019 @@
+#!/usr/bin/env python3
+"""
+Rebase every docs/_UPGRADE_PATHS/<baseline>-to-<target>-*.md doc (and
+docs/images/images-<target>.yaml) for the current chart's target
+version — charts/podiumd/Chart.yaml's own "version:" — onto a new
+baseline, e.g. renaming "4.8.2-to-4.9.0-upgrade.md" to
+"4.8.3-to-4.9.0-upgrade.md", updating titles/headings and any sibling-doc
+cross-reference (any "<X>-to-<target>-*.md" mention, wherever it appears
+in the text — this chart supports exactly one upgrade path per target, so
+every such reference always means the current baseline). A doc already
+at the target baseline is checked for a stale sibling reference too
+(a scar from an earlier, incomplete rebase this doc's own baseline
+already moved past) even though nothing else about it changes. Also
+correcting the
+"Component versions" table and images-manifest entries against
+Chart.yaml/values.yaml, ADDING a new table row + matching "### ..."
+Changes section for a component that changed vs the baseline but has no
+row at all yet (see add_missing_component_rows — the same "component ...
+changed vs ... but has no row" gap verify-podiumd's own doc-consistency
+check reports), and likewise for a sidecar/shared image whose OWN row is
+missing even though its owning dependency's row already exists (see
+lib.image_docs.add_missing_sidecar_rows — the "sidecar/shared image ...
+changed vs ... but has no row" gap, e.g. a nested init-container image
+bumped alongside its parent component but never given its own
+"<component> - <basename>" row), reordering the table's rows and the
+"## Changes" section's "### ..." blocks to match values.yaml's own
+top-level component order. Also ADDING a "- **<name>** app ..." bullet to
+the values-deltas doc for a component that changed but was never
+mentioned there at all (see add_missing_values_delta_bullets — the
+"component ... changed vs ... but is not mentioned anywhere in the doc"
+gap, distinct from missing_key_change_lines's own "- Key `...` was
+added/removed" lines for NESTED schema changes under an already-mentioned
+component), and flagging any such schema changes still missing after
+that. Any of the three standard docs that don't already exist under ANY
+baseline for this target are created as TODO stubs instead (nothing to
+rebase) — see create-doc-version for a script that ONLY ever does that,
+refusing outright if docs already exist under some other baseline (this
+script owns rebasing those on purpose; that one refuses to touch them).
+See fix_component_version_table, add_missing_component_rows,
+add_missing_sidecar_rows, add_missing_values_delta_bullets,
+fix_images_manifest_entries, and add_missing_images_manifest_entries for
+exactly what gets rewritten/added vs. just reported for manual review. A
+missing images-manifest entry IS auto-added now (its own "# ... — <old>
+-> <new>" comment and version/digest all mechanically derivable from
+values.yaml's own already-pinned tag) — but with "name:"/"url:" both set
+to the same resolved repository string rather than the curated ACR
+mirror slug docs/images/acr-mirror-naming.md documents, which has no
+reliable mechanical formula and stays a human's job to correct by hand
+afterward. A sidecar row's own values-delta mention is still never
+auto-added — no mechanically-derivable placeholder exists for prose
+explaining WHY a change happened, unlike a manifest entry's own fields.
+
+Called automatically by change-podiumd-baseline, right after it writes
+release-baseline.yaml's upgrade_docs key — see that script for the
+usual "rebase onto a different baseline" workflow. Also runnable
+standalone.
+
+Usage:
+    fix-doc-consistency [<new-baseline>]
+        # <new-baseline> defaults to release-baseline.yaml's upgrade_docs
+        # content if omitted (error if that key doesn't exist either) —
+        # this script itself never writes release-baseline.yaml; see
+        # change-podiumd-baseline.
+
+Example:
+    fix-doc-consistency 4.8.3
+        # if Chart.yaml's version is 4.9.0, renames *-to-4.9.0-*.md
+    fix-doc-consistency
+        # same, but reads "4.8.3" from release-baseline.yaml's
+        # upgrade_docs key instead
+"""
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+import yaml
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
+
+from lib.chart import SEMVER_RE as BASELINE_VERSION_RE
+from lib.chart import canonical_sidecar_row_names, chart_version, paths_by_repository, version_of
+from lib.chart import upgrade_docs_baseline as read_upgrade_docs_baseline
+from lib.component_docs import (
+    CHANGES_HEADER_RE, CHANGES_ITEM_RE, IMAGES_STUB_TEMPLATE, NUMBER_WORDS, STANDARD_SUFFIXES, STUB_TEMPLATES,
+    add_missing_component_rows, add_missing_values_delta_bullets, existing_doc_baselines,
+)
+from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
+from lib.image_docs import add_missing_changes_sections, add_missing_sidecar_rows, update_stale_app_version_headings
+from lib.image_repository_check import find_images_without_repository
+from lib.upgradedoc import (
+    actual_app_version, append_to_doc, canonical_version_cell, compute_changed_components,
+    extract_source_version, extract_target_version, find_grouped_preceding_comment_line,
+    find_image_tag_paths, find_images_manifest_list_diff, insertion_index,
+    match_dependency_excluding_sidecar_names, missing_key_change_lines, normalize_version, parse_upgrade_doc_rows,
+    path_display_name, replace_version_pair, resolve_entry_image_path, sort_changes_blocks, sort_upgrade_doc_rows,
+    values_key_order,
+)
+
+CHART_YAML = SCRIPT_DIR.parents[0] / "Chart.yaml"
+VALUES_YAML = SCRIPT_DIR.parents[0] / "values.yaml"
+DOC_DIR = SCRIPT_DIR.parents[0] / "docs" / "_UPGRADE_PATHS"
+IMAGES_DIR = SCRIPT_DIR.parents[0] / "docs" / "images"
+
+
+def current_chart_version():
+    return chart_version(CHART_YAML)
+
+# The exact shape a baseline argument must have — bare MAJOR.MINOR.PATCH,
+# matching every doc filename's own "<baseline>-to-<target>-*.md" pattern
+# (see lib.component_docs.DOC_FILENAME_RE_TMPL). Anything else (a flag
+# like "--help", a git ref, a version with a suffix) is rejected up front
+# by main(), rather than silently being treated as a literal baseline and
+# renaming docs to nonsense like "--help-to-4.9.0-upgrade.md".
+# (BASELINE_VERSION_RE is lib.chart.SEMVER_RE, imported under this
+# script's own established name.)
+
+TITLE_ARROW_RE_TMPL = r"(?P<baseline>{baseline})(?P<arrow>\s*(?:→|->)\s*){target}"
+COMPONENT_VERSIONS_RE_TMPL = r"Component versions \({target}\s+vs\s+(?P<baseline>{baseline})\)"
+
+# Same shape as verify-podiumd's SIBLING_DOC_RE/IMAGES_REF check — any
+# reference to one of the just-renamed docs, whatever baseline it names.
+SIBLING_DOC_RE_TMPL = r"(?P<baseline>\d+\.\d+\.\d+)-to-{target}-(?P<suffix>upgrade|gemeente-specific|values-deltas)\.md"
+BASELINE_LINE_RE = re.compile(r"(?P<prefix>Baseline:\s*podiumd\s+)(?P<baseline>\d+\.\d+\.\d+)")
+VS_LINE_RE_TMPL = r"(?P<prefix>podiumd\s+{target}\s+vs\s+)(?P<baseline>\d+\.\d+\.\d+)"
+
+# A plain "# Changes:" images-manifest header with no leading count word
+# at all — lib.component_docs.CHANGES_HEADER_RE requires one ("# Twenty
+# Two changes:"), but a hand-curated header (this chart's own real
+# images-4.9.0.yaml, extensively rewritten with rich per-item prose) may
+# never have picked that convention up. Recognized as a valid anchor
+# too, so add_missing_images_manifest_entries can still find and extend
+# the numbered item list under it — but never rewritten with a count
+# word of its own if it didn't have one already (see header_has_count).
+BARE_CHANGES_HEADER_RE = re.compile(r"^(?P<indent>#\s*)[Cc]hanges:\s*$")
+
+
+def find_collisions(by_suffix):
+    """suffix -> [(baseline, path), ...] for every suffix with more than one
+    source file — these would collide on the same rename destination."""
+    return {suffix: entries for suffix, entries in by_suffix.items() if len(entries) > 1}
+
+
+def git_mv(src, dst):
+    result = subprocess.run(["git", "mv", str(src), str(dst)], cwd=src.parent, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise SystemExit(f"error: git mv {src} -> {dst} failed: {result.stderr.strip()}")
+
+
+def update_title_line(text, old_baseline, target, new_baseline):
+    """Replace "<old_baseline> → <target>" (or "->") on the title line
+    (line 1) only. Returns (new_text, changed)."""
+    lines = text.splitlines(keepends=True)
+    if not lines:
+        return text, False
+    pattern = re.compile(TITLE_ARROW_RE_TMPL.format(baseline=re.escape(old_baseline), target=re.escape(target)))
+    new_first, count = pattern.subn(lambda m: f"{new_baseline}{m.group('arrow')}{target}", lines[0])
+    if count == 0:
+        return text, False
+    lines[0] = new_first
+    return "".join(lines), True
+
+
+def update_component_versions_heading(text, old_baseline, target, new_baseline):
+    """Replace a "Component versions (<target> vs <old_baseline>)" heading
+    anywhere in the body, if present. Returns (new_text, changed)."""
+    pattern = re.compile(COMPONENT_VERSIONS_RE_TMPL.format(baseline=re.escape(old_baseline), target=re.escape(target)))
+    new_text, count = pattern.subn(f"Component versions ({target} vs {new_baseline})", text)
+    return new_text, count > 0
+
+
+def remaining_mentions(text, old_baseline):
+    """Line numbers (1-indexed) where old_baseline still appears, for a
+    manual-review reminder — every match, not just ones already handled."""
+    return [i + 1 for i, line in enumerate(text.splitlines()) if old_baseline in line]
+
+
+def images_manifest_path(target):
+    return IMAGES_DIR / f"images-{target}.yaml"
+
+
+def extract_images_baseline(text):
+    """The version named on the "Baseline: podiumd X" line, or None if the
+    manifest doesn't have one (malformed/legacy header)."""
+    m = BASELINE_LINE_RE.search(text)
+    return m.group("baseline") if m else None
+
+
+def update_sibling_doc_refs(text, target, new_baseline):
+    """Rewrite any "<some-baseline>-to-<target>-<suffix>.md" reference
+    (whatever baseline it currently names) to the new baseline — these docs
+    were just renamed. Used both on the per-suffix docs themselves (a
+    values-deltas doc pointing at its sibling upgrade.md, say) and on
+    images-<target>.yaml. Safe unconditionally: this chart supports exactly
+    one upgrade path per target, so a reference targeting `target` always
+    means the current baseline, never some other still-valid historical
+    hop. Returns (new_text, changed)."""
+    pattern = re.compile(SIBLING_DOC_RE_TMPL.format(target=re.escape(target)))
+    new_text, count = pattern.subn(lambda m: f"{new_baseline}-to-{target}-{m.group('suffix')}.md", text)
+    return new_text, count > 0
+
+
+def update_images_manifest_baseline(text, target, new_baseline):
+    """Rewrite the "Baseline: podiumd X" and "podiumd <target> vs X" lines
+    to the new baseline, whatever X currently is. Returns (new_text, changed)."""
+    text, n1 = BASELINE_LINE_RE.subn(rf"\g<prefix>{new_baseline}", text)
+    vs_pattern = re.compile(VS_LINE_RE_TMPL.format(target=re.escape(target)))
+    text, n2 = vs_pattern.subn(rf"\g<prefix>{new_baseline}", text)
+    return text, (n1 + n2) > 0
+
+
+def load_target_state():
+    chart_yaml = yaml.safe_load(CHART_YAML.read_text(encoding="utf-8"))
+    values = yaml.safe_load(VALUES_YAML.read_text(encoding="utf-8")) or {}
+    return chart_yaml.get("dependencies", []), values
+
+
+def load_baseline_state(new_baseline):
+    """(deps, values) as they were at new_baseline's resolved git ref, or
+    (None, None) if it can't be resolved (e.g. that release hasn't been cut
+    yet) — callers skip table-version correction gracefully in that case."""
+    repo_root = find_repo_root(CHART_YAML.parent)
+    if repo_root is None:
+        return None, None
+    ref = resolve_git_ref(repo_root, baseline_ref_candidates(new_baseline))
+    if ref is None:
+        return None, None
+    rel_chart_dir = CHART_YAML.parent.relative_to(repo_root)
+    baseline_chart_yaml = git_show_yaml(repo_root, ref, f"{rel_chart_dir}/Chart.yaml")
+    if baseline_chart_yaml is None:
+        return None, None
+    baseline_values = git_show_yaml(repo_root, ref, f"{rel_chart_dir}/values.yaml") or {}
+    return baseline_chart_yaml.get("dependencies", []), baseline_values
+
+
+def fix_component_version_table(text, chart_dir, target_deps, target_values, baseline_deps, baseline_values):
+    """Rewrite each "Component versions" table row's App/Helm-chart cells to
+    the actual baseline (source) and target versions found in git/Chart.yaml/
+    values.yaml. A row is only rewritten when both its source and target are
+    independently verifiable; anything else is left as-is and reported.
+
+    A row using the canonical sidecar/shared-image name (see
+    lib.chart.canonical_sidecar_row_names — "<values_key> - <basename>" or
+    bare "<basename>") is corrected against ITS OWN resolved tag instead of
+    match_dependency's real-dependency lookup — that fuzzy match would
+    otherwise collide with an unrelated real dependency sharing the row's
+    leading word (e.g. "redis-operator - redis" silently corrected against
+    the real "redis-operator" dependency's own actual chart/app version,
+    which happened here before this guard existed). Its Helm-chart cell is
+    never rewritten (stays whatever it already says — "-", same convention
+    add_missing_sidecar_rows itself writes — since a sidecar has no Helm
+    chart version of its own to verify against, same as
+    lib.docs_consistency's own row check). Returns (new_text, changed_rows,
+    unmatched_names, unresolved_names)."""
+    lines = text.splitlines(keepends=True)
+    rows = parse_upgrade_doc_rows(text)
+    changed_rows, unmatched_names, unresolved_names = [], [], []
+
+    current_paths = dict(find_image_tag_paths(target_values))
+    baseline_paths = dict(find_image_tag_paths(baseline_values)) if baseline_values else {}
+    canonical_names = canonical_sidecar_row_names(chart_dir, target_deps, target_values, current_paths.keys())
+
+    for row in rows:
+        sidecar_path = canonical_names.get(row["name"])
+        if sidecar_path is None and " - " in row["name"]:
+            unresolved_names.append(row["name"])
+            continue
+
+        if sidecar_path is not None:
+            current_tag = current_paths.get(sidecar_path)
+            baseline_tag = baseline_paths.get(sidecar_path)
+            actual_target_app = current_tag.split("@", 1)[0] if current_tag else None
+            actual_baseline_app = baseline_tag.split("@", 1)[0] if baseline_tag else None
+            if actual_target_app is None or actual_baseline_app is None:
+                unresolved_names.append(row["name"])
+                continue
+            actual_target_chart = actual_baseline_chart = None
+        else:
+            dep = match_dependency_excluding_sidecar_names(row["name"], target_deps)
+            if dep is None:
+                unmatched_names.append(row["name"])
+                continue
+            values_key = dep.get("alias", dep["name"])
+            actual_target_chart = str(dep["version"])
+            actual_target_app = actual_app_version(target_values, values_key, dep["name"], chart_dir=chart_dir, dep=dep)
+
+            baseline_dep = match_dependency_excluding_sidecar_names(row["name"], baseline_deps) \
+                if baseline_deps else None
+            if baseline_dep is None:
+                unresolved_names.append(row["name"])
+                continue
+            actual_baseline_chart = str(baseline_dep["version"])
+            actual_baseline_app = actual_app_version(baseline_values, values_key, dep["name"])
+
+        row_changed = False
+        line = lines[row["line_index"]]
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+
+        if actual_target_app is not None and actual_baseline_app is not None and (
+            normalize_version(row["app_source"]) != normalize_version(actual_baseline_app)
+            or normalize_version(row["app"]) != normalize_version(actual_target_app)
+        ):
+            cells[1] = canonical_version_cell(actual_baseline_app, actual_target_app)
+            row_changed = True
+
+        if actual_target_chart is not None and actual_baseline_chart is not None and (
+                normalize_version(row["chart_source"]) != normalize_version(actual_baseline_chart)
+                or normalize_version(row["chart"]) != normalize_version(actual_target_chart)):
+            cells[2] = canonical_version_cell(actual_baseline_chart, actual_target_chart)
+            row_changed = True
+
+        if row_changed:
+            suffix = "\n" if line.endswith("\n") else ""
+            lines[row["line_index"]] = "| " + " | ".join(cells) + " |" + suffix
+            changed_rows.append((row["name"], cells[1], cells[2]))
+
+    return "".join(lines), changed_rows, unmatched_names, unresolved_names
+
+
+def resolve_entry_version(entry, paths, repo_map=None):
+    """The app version pinned at the values-tree path this images-manifest
+    entry resolves to, or None if it can't be resolved (no matching
+    path, or that path has no version, e.g. the component didn't exist yet)."""
+    path = resolve_entry_image_path(entry, paths.keys(), repo_map)
+    tag = paths.get(path) if path else None
+    return tag.split("@")[0] if tag else None
+
+
+def fix_images_manifest_entries(text, target_values, baseline_values, repo_map=None):
+    """Rewrite each images-manifest entry's preceding comment to state the
+    actual source (baseline) and target versions for the image at its
+    matched values-tree path. An entry is only rewritten when both ends are
+    independently verifiable (a resolvable baseline, and the component
+    existed there); anything else is reported, not guessed at. A component
+    whose images share one comment across several entries (e.g.
+    zgw-office-addin's frontend + backend) has that comment fixed once,
+    from whichever entry reaches it first — later entries sharing the same
+    comment line just confirm they agree, or are reported as unresolved if
+    they don't (never silently overwritten twice). Returns (new_text,
+    changed_entries, unresolved_names).
+
+    repo_map (see lib.chart.repository_path_map) lets an entry match its
+    values-tree path exactly via its own "name:"/repository, rather than
+    resolve_entry_path's fuzzy name-word matching alone — the difference
+    that matters for a component whose current strip-registry-shaped
+    manifest name (e.g. "infonl/zaakafhandelcomponent") no longer
+    resembles its values.yaml key ("zac") the way the old hand-
+    translated slug did."""
+    lines = text.splitlines(keepends=True)
+    try:
+        entries = yaml.safe_load(text)
+    except yaml.YAMLError:
+        return text, [], []
+    if not isinstance(entries, list):
+        return text, [], []
+
+    entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
+    current_paths = dict(find_image_tag_paths(target_values))
+    baseline_paths = dict(find_image_tag_paths(baseline_values)) if baseline_values else {}
+
+    def component_of(entry):
+        path = resolve_entry_image_path(entry, current_paths.keys(), repo_map)
+        return path[0] if path else None
+
+    def same_group(entry_a, entry_b):
+        return (component_of(entry_a) is not None
+                and component_of(entry_a) == component_of(entry_b)
+                and entry_a.get("version") == entry_b.get("version"))
+
+    changed_entries, unresolved_names = [], []
+    fixed_comment_versions = {}
+    for index, (entry, line_idx) in enumerate(zip(entries, entry_line_indices)):
+        name = entry["name"]
+        comment_idx = find_grouped_preceding_comment_line(
+            lines, entries, entry_line_indices, index, same_group)
+        if comment_idx is None:
+            unresolved_names.append(name)
+            continue
+
+        actual_target = resolve_entry_version(entry, current_paths, repo_map)
+        actual_baseline = resolve_entry_version(entry, baseline_paths, repo_map)
+
+        if actual_target is None or actual_baseline is None:
+            unresolved_names.append(name)
+            continue
+
+        if comment_idx in fixed_comment_versions:
+            prev_baseline, prev_target = fixed_comment_versions[comment_idx]
+            if normalize_version(prev_baseline) != normalize_version(actual_baseline) or \
+                    normalize_version(prev_target) != normalize_version(actual_target):
+                unresolved_names.append(name)
+            continue
+
+        comment_line = lines[comment_idx]
+        doc_source = extract_source_version(comment_line)
+        doc_target = extract_target_version(comment_line)
+        fixed_comment_versions[comment_idx] = (actual_baseline, actual_target)
+        if normalize_version(doc_source) == normalize_version(actual_baseline) and \
+                normalize_version(doc_target) == normalize_version(actual_target):
+            continue
+
+        lines[comment_idx] = replace_version_pair(comment_line, actual_baseline, actual_target)
+        changed_entries.append((name, actual_baseline, actual_target))
+
+    return "".join(lines), changed_entries, unresolved_names
+
+
+def _images_manifest_block_start(lines, entry_line_idx):
+    """The line index where this entry's own preceding comment block
+    begins (or the entry line itself if it has none) — walks upward
+    through contiguous "#"-prefixed lines directly above. When the
+    comment is actually shared with an earlier entry (see
+    find_grouped_preceding_comment), this naturally lands on that
+    earlier entry's own comment start too — inserting a new block right
+    before it never splits an existing group."""
+    i = entry_line_idx
+    while i > 0 and lines[i - 1].lstrip().startswith("#"):
+        i -= 1
+    return i
+
+
+def _find_images_manifest_changes_header(lines):
+    """(header_idx, header_has_count) for the images-manifest's own "#
+    Changes:" header — matching EITHER CHANGES_HEADER_RE's counted form
+    ("# Twenty One changes:") or BARE_CHANGES_HEADER_RE's plain "#
+    Changes:" (no count word at all — the real, hand-curated images-
+    4.9.0.yaml header's own actual shape). (None, False) if neither is
+    found anywhere in the file."""
+    for i, line in enumerate(lines):
+        if CHANGES_HEADER_RE.match(line):
+            return i, True
+        if BARE_CHANGES_HEADER_RE.match(line):
+            return i, False
+    return None, False
+
+
+def _images_manifest_changes_header_text(lines):
+    """The full "# Changes:" header block's own text — header line
+    through its last numbered item (and any wrapped continuation
+    lines) — or "" if the file has no header at all. Used to check
+    whether some entry's own display name is already mentioned
+    somewhere in there, before deciding it needs a header item of its
+    own backfilled."""
+    header_idx, _has_count = _find_images_manifest_changes_header(lines)
+    if header_idx is None:
+        return ""
+    block_end = header_idx + 1
+    for i in range(header_idx + 1, len(lines)):
+        if lines[i].rstrip("\n") == "#" or not lines[i].startswith("#"):
+            break
+        block_end = i + 1
+    return "".join(lines[header_idx:block_end])
+
+
+def _insert_images_manifest_header_item(lines, deps, key_order, order_key, new_key, item_text):
+    """Insert "#   N. <item_text>" into the images-manifest's own "#
+    Changes:" header list (see _find_images_manifest_changes_header) at
+    the position matching new_key relative to what's already there (see
+    lib.upgradedoc.component_order_key/insertion_index — the SAME
+    ordering convention upgrade.md's own table rows/Changes sections
+    use), renumbering every subsequent item. An existing item that
+    can't be resolved to a real dependency (free-form prose, matched
+    via match_dependency_excluding_sidecar_names the same way
+    check_images_manifest_format's own Changes-item check does) sorts
+    last for THIS purpose only — never causes it to move. Mutates
+    `lines` in place; a no-op if the file has no header at all. Only
+    rewrites the header line's own leading count word if it already had
+    one (see header_has_count) — never invents one for a bare "#
+    Changes:" label."""
+    header_idx, header_has_count = _find_images_manifest_changes_header(lines)
+    if header_idx is None:
+        return
+
+    item_indices = []
+    block_end = header_idx + 1
+    for i in range(header_idx + 1, len(lines)):
+        if lines[i].rstrip("\n") == "#" or not lines[i].startswith("#"):
+            break
+        block_end = i + 1
+        if CHANGES_ITEM_RE.match(lines[i]):
+            item_indices.append(i)
+
+    item_keys = []
+    for idx in item_indices:
+        m = CHANGES_ITEM_RE.match(lines[idx])
+        item_dep = match_dependency_excluding_sidecar_names(m.group("rest"), deps) if m else None
+        if item_dep is None:
+            item_keys.append((len(key_order), 0))
+            continue
+        item_keys.append(order_key(item_dep.get("alias", item_dep["name"]), False))
+
+    insert_slot = insertion_index(new_key, item_keys)
+    insert_line = item_indices[insert_slot] if insert_slot < len(item_indices) else block_end
+    lines.insert(insert_line, f"#   {insert_slot + 1}. {item_text}\n")
+
+    for later_idx in range(insert_line + 1, len(lines)):
+        if lines[later_idx].rstrip("\n") == "#" or not lines[later_idx].startswith("#"):
+            break
+        m = CHANGES_ITEM_RE.match(lines[later_idx])
+        if m:
+            lines[later_idx] = f"#   {int(m.group('num')) + 1}. {m.group('rest')}\n"
+
+    if header_has_count:
+        total = len(item_indices) + 1
+        count_word = NUMBER_WORDS[total] if total < len(NUMBER_WORDS) else str(total)
+        noun = "change" if total == 1 else "changes"
+        header_m = CHANGES_HEADER_RE.match(lines[header_idx])
+        lines[header_idx] = f"{header_m.group('indent')}{count_word} {noun}:\n"
+    # else: header was already a bare "# Changes:" label with no count
+    # word of its own — left exactly as-is, matching whatever style
+    # this file already uses; only the numbered item list itself needed
+    # the new entry.
+
+
+def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, baseline_values):
+    """Insert a new entry (+ its own "# <name> — <old> -> <new>" comment,
+    and a matching numbered item in the "# Changes:" header list) for
+    every image lib.upgradedoc.find_images_manifest_list_diff's own
+    missing_paths reports — the "changed vs ... but has no entry" gap
+    verify-podiumd's own doc-consistency check reports.
+
+    Both the header item and the comment+entry block are inserted at the
+    position matching values.yaml's own top-level component order
+    relative to what's already there (see lib.upgradedoc.
+    component_order_key/insertion_index — the SAME ordering convention
+    upgrade.md's own table rows/Changes sections use), not always
+    appended at the end. An existing header item (free-form prose,
+    matched via match_dependency_excluding_sidecar_names the same way
+    check_images_manifest_format's own Changes-item check does) or entry
+    (via its own resolved values-tree path) that can't be resolved to a
+    real dependency sorts last for THIS purpose only — never guessed at,
+    never causing an EXISTING item to move; it just means a new item
+    might land after a cluster of unresolvable ones instead of exactly
+    where it "should" go, which is still always at least as good as the
+    previous always-append-at-the-end behavior.
+
+    "name:" and "url:" are both set to the SAME resolved repository
+    string (lib.chart.paths_by_repository's own stripped form) rather
+    than the curated ACR mirror slug docs/images/acr-mirror-naming.md
+    documents — that lookup has no reliable mechanical formula and stays
+    a human's job to correct by hand; a mechanically-derivable, self-
+    consistent placeholder here (it's also exactly the value repo_map's
+    own exact-match lookup already expects, so a later fix-doc-
+    consistency run resolves it cleanly) beats leaving the whole entry
+    out entirely.
+
+    version/digest come directly from target_values' own already-pinned
+    tag — no registry call needed here, unlike update-image-version's
+    OWN missing_entries handling (lib.component_docs.
+    update_images_manifest), which fetches a real digest as part of ITS
+    job of writing a brand new pin in the first place; this function
+    only ever documents a pin that already exists.
+
+    A path whose current tag has no "@sha256:..." digest at all (rare —
+    almost every image is digest-pinned after the chart-wide digest-
+    pinning sweep, #437) can't produce a valid entry (digest is a
+    required field — see check_images_manifest_format's own entry-key
+    validation) and is reported separately rather than silently skipped
+    or written incomplete; same treatment for a path find_images_
+    manifest_list_diff reports as missing but that has no resolvable
+    repository here either (shouldn't normally happen — missing_paths
+    already excludes lib.image_repository_check.find_images_without_
+    repository's own result — kept as a defensive fallback, never a
+    crash or bad data).
+
+    A SECOND pass then backfills a header item for any entry that
+    already has its own comment+entry block (e.g. one this same
+    function added on an EARLIER run, before header-list support
+    existed) but was never given one — checked by whether the entry's
+    own display name appears anywhere in the header block's text at
+    all (case-insensitive, whole-word/whole-phrase — "ZAC" covers "zac",
+    but "ita" is never mistaken for a substring buried inside an
+    unrelated word like "digital"), not by dependency resolution: a
+    header item mentioning the same DEPENDENCY (e.g. "Keycloak app image
+    26.6.4 -> 26.7.2 (keycloak-operator chart unchanged, ...)") does NOT
+    mean a nested sidecar of that same dependency (e.g.
+    "keycloak-operator - postgres") is covered too — only an item that
+    actually names THAT exact entry counts. An entry whose own display
+    name is path_display_name's raw-dotted-path fallback (no real
+    dependency or canonical sidecar name resolves it at all — rare, see
+    that function's own docstring) is skipped entirely, never even
+    checked or reported: a dotted values.yaml path is not a phrase any
+    human would write in prose, so it's both unsearchable here and not
+    a name worth adding to a curated header list verbatim. Old/new
+    version for a backfilled item are read from the entry's own
+    existing comment (extract_source_version/extract_target_version),
+    never recomputed — the SAME "generated from data already in the
+    doc" principle as everywhere else in this function.
+
+    Processes one path/entry at a time, re-parsing the (already
+    updated) text before computing the next insertion point — simpler
+    and safer than tracking how earlier insertions shift later line
+    indices by hand.
+
+    Returns (new_text, added_names, skipped_names, backfilled_names)."""
+    current_paths = dict(find_image_tag_paths(target_values))
+    baseline_paths = dict(find_image_tag_paths(baseline_values)) if baseline_values else {}
+    try:
+        entries = yaml.safe_load(text) or []
+    except yaml.YAMLError:
+        entries = []
+    if not isinstance(entries, list):
+        entries = []
+
+    repo_groups = paths_by_repository(chart_dir, deps, target_values, current_paths.keys())
+    repo_map = {repo: group_paths[-1] for repo, group_paths in repo_groups.items()}
+    path_to_repo = {path: repo for repo, group_paths in repo_groups.items() for path in group_paths}
+    unresolvable_paths = set(find_images_without_repository(chart_dir))
+    canonical_names = canonical_sidecar_row_names(chart_dir, deps, target_values, current_paths.keys())
+    key_order = values_key_order(target_values)
+
+    missing_paths, _extra_entry_names = find_images_manifest_list_diff(
+        entries, current_paths, baseline_paths, repo_map, repo_groups, unresolvable_paths)
+
+    def order_key(values_key, is_sidecar):
+        try:
+            return (key_order.index(values_key), 1 if is_sidecar else 0)
+        except ValueError:
+            return (len(key_order), 1 if is_sidecar else 0)
+
+    added_names, skipped_names = [], []
+    for path in missing_paths:
+        repo = path_to_repo.get(path)
+        current_tag = current_paths[path]
+        name = path_display_name(path, deps, canonical_names)
+        if repo is None or "@" not in current_tag:
+            skipped_names.append(name)
+            continue
+
+        new_version, digest = current_tag.split("@", 1)
+        baseline_tag = baseline_paths.get(path)
+        old_version = version_of(baseline_tag) if baseline_tag else new_version
+        new_key = order_key(path[0], " - " in name)
+
+        lines = text.splitlines(keepends=True)
+        if lines and not lines[-1].endswith("\n"):
+            lines[-1] += "\n"
+
+        _insert_images_manifest_header_item(
+            lines, deps, key_order, order_key, new_key, f"{name} {old_version} -> {new_version}.")
+
+        entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
+        entry_keys = []
+        for idx in entry_line_indices:
+            m = re.match(r"^-\s*name:\s*(\S+)\s*$", lines[idx])
+            entry_path = resolve_entry_image_path({"name": m.group(1)}, current_paths.keys(), repo_map) \
+                if m else None
+            if entry_path is None:
+                entry_keys.append((len(key_order), 0))
+                continue
+            entry_display = path_display_name(entry_path, deps, canonical_names)
+            entry_keys.append(order_key(entry_path[0], " - " in entry_display))
+
+        block_lines = [
+            f"# {name} — {old_version} -> {new_version}\n",
+            f"- name: {repo}\n",
+            f"  url: {repo}\n",
+            f'  version: "{new_version}"\n',
+            f'  digest: "{digest}"\n',
+        ]
+        body_slot = insertion_index(new_key, entry_keys)
+        if body_slot < len(entry_line_indices):
+            insert_at = _images_manifest_block_start(lines, entry_line_indices[body_slot])
+            lines[insert_at:insert_at] = block_lines + ["\n"]
+        else:
+            lines.append("\n")
+            lines.extend(block_lines)
+
+        text = "".join(lines)
+        added_names.append(name)
+
+    backfilled_names = []
+    while True:
+        lines = text.splitlines(keepends=True)
+        header_text = _images_manifest_changes_header_text(lines)
+        if not header_text:
+            break
+
+        entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
+        target = None
+        for idx in entry_line_indices:
+            m = re.match(r"^-\s*name:\s*(\S+)\s*$", lines[idx])
+            entry_path = resolve_entry_image_path({"name": m.group(1)}, current_paths.keys(), repo_map) \
+                if m else None
+            if entry_path is None:
+                continue
+            entry_name = path_display_name(entry_path, deps, canonical_names)
+            if entry_name == ".".join(entry_path):
+                # path_display_name's own raw-dotted-path fallback (no
+                # real dependency/canonical-sidecar name resolves this
+                # path at all — see that function's own docstring) —
+                # never a phrase a human would write in prose, so it's
+                # both unsearchable (see the word-boundary check below)
+                # and not a name worth adding to a curated header list
+                # verbatim. Left alone entirely, not even reported.
+                continue
+            if re.search(rf"\b{re.escape(entry_name)}\b", header_text, re.IGNORECASE):
+                continue
+            comment_text = "".join(lines[_images_manifest_block_start(lines, idx):idx])
+            entry_new = extract_target_version(comment_text)
+            if entry_new is None:
+                continue
+            entry_old = extract_source_version(comment_text) or entry_new
+            target = (entry_path, entry_name, entry_old, entry_new)
+            break
+
+        if target is None:
+            break
+
+        entry_path, entry_name, entry_old, entry_new = target
+        new_key = order_key(entry_path[0], " - " in entry_name)
+        _insert_images_manifest_header_item(
+            lines, deps, key_order, order_key, new_key, f"{entry_name} {entry_old} -> {entry_new}.")
+        text = "".join(lines)
+        backfilled_names.append(entry_name)
+
+    return text, added_names, skipped_names, backfilled_names
+
+
+def main():
+    if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
+        print(__doc__)
+        sys.exit(0)
+    if len(sys.argv) not in (1, 2):
+        print(__doc__)
+        sys.exit(1)
+
+    if len(sys.argv) == 2:
+        new_baseline = sys.argv[1]
+    else:
+        new_baseline = read_upgrade_docs_baseline(CHART_YAML.parent)
+        if new_baseline is None:
+            print("error: no <new-baseline> given and release-baseline.yaml's "
+                  "upgrade_docs key doesn't exist — pass <new-baseline> explicitly")
+            sys.exit(1)
+        print(f"No <new-baseline> given — using release-baseline.yaml's upgrade_docs '{new_baseline}'")
+
+    if not BASELINE_VERSION_RE.match(new_baseline):
+        print(f"error: '{new_baseline}' is not a valid MAJOR.MINOR.PATCH version")
+        sys.exit(1)
+    target = current_chart_version()
+
+    by_suffix = existing_doc_baselines(DOC_DIR, target)
+
+    collisions = find_collisions(by_suffix)
+    if collisions:
+        print(f"error: multiple source docs would collide on the same target for '{target}':")
+        for suffix, entries in sorted(collisions.items()):
+            print(f"  {suffix}:")
+            for baseline, path in sorted(entries):
+                print(f"    {path.name}  (baseline {baseline})")
+        print()
+        print("Refusing to rename anything — resolve the collision above first.")
+        sys.exit(1)
+
+    print(f"=== Bumping baseline for target {target} to {new_baseline} ===")
+    review_notes = []
+    all_suffixes = sorted(set(by_suffix) | set(STANDARD_SUFFIXES))
+    for suffix in all_suffixes:
+        if suffix not in by_suffix:
+            new_name = f"{new_baseline}-to-{target}-{suffix}.md"
+            new_path = DOC_DIR / new_name
+            new_path.write_text(STUB_TEMPLATES[suffix].format(upgrade_docs_baseline=new_baseline, target=target),
+                                 encoding="utf-8")
+            print(f"  {new_name}: created (was missing)")
+            continue
+
+        [(old_baseline, path)] = by_suffix[suffix]
+        if old_baseline == new_baseline:
+            # Already at the target baseline itself, but a sibling-doc
+            # reference can still be stale — a scar from an earlier,
+            # incomplete rebase this doc's own baseline already moved past
+            # (see update_sibling_doc_refs). Worth checking even on this
+            # no-rename path: nothing else below would ever touch this
+            # doc again once it's "unchanged".
+            text = path.read_text(encoding="utf-8")
+            text, refs_changed = update_sibling_doc_refs(text, target, new_baseline)
+            if refs_changed:
+                path.write_text(text, encoding="utf-8")
+                print(f"  {path.name}: already baseline {new_baseline} — fixed stale sibling doc reference(s)")
+            else:
+                print(f"  {path.name}: already baseline {new_baseline} — unchanged")
+            continue
+
+        new_name = f"{new_baseline}-to-{target}-{suffix}.md"
+        new_path = DOC_DIR / new_name
+        text = path.read_text(encoding="utf-8")
+
+        text, title_changed = update_title_line(text, old_baseline, target, new_baseline)
+        text, heading_changed = update_component_versions_heading(text, old_baseline, target, new_baseline)
+        text, refs_changed = update_sibling_doc_refs(text, target, new_baseline)
+
+        if path != new_path:
+            git_mv(path, new_path)
+        new_path.write_text(text, encoding="utf-8")
+
+        print(f"  {path.name} -> {new_name}")
+        if title_changed:
+            print(f"    title line: {old_baseline} -> {new_baseline}")
+        if heading_changed:
+            print(f"    'Component versions' heading: {old_baseline} -> {new_baseline}")
+        if refs_changed:
+            print(f"    sibling doc references: -> {new_baseline}-to-{target}-*.md")
+
+        leftovers = remaining_mentions(text, old_baseline)
+        if leftovers:
+            review_notes.append((new_name, leftovers))
+
+    images_path = images_manifest_path(target)
+    if not images_path.is_file():
+        images_path.write_text(IMAGES_STUB_TEMPLATE.format(upgrade_docs_baseline=new_baseline, target=target),
+                                encoding="utf-8")
+        print(f"  {images_path.name}: created (was missing)")
+    else:
+        text = images_path.read_text(encoding="utf-8")
+        old_images_baseline = extract_images_baseline(text)
+        if old_images_baseline == new_baseline:
+            print(f"  {images_path.name}: already baseline {new_baseline} — unchanged")
+        else:
+            text, refs_changed = update_sibling_doc_refs(text, target, new_baseline)
+            text, baseline_changed = update_images_manifest_baseline(text, target, new_baseline)
+            images_path.write_text(text, encoding="utf-8")
+            print(f"  {images_path.name}: baseline updated")
+            if refs_changed:
+                print(f"    doc references -> {new_baseline}-to-{target}-*.md")
+            if baseline_changed:
+                print(f"    baseline header line(s): -> {new_baseline}")
+            if old_images_baseline:
+                leftovers = remaining_mentions(text, old_images_baseline)
+                if leftovers:
+                    review_notes.append((images_path.name, leftovers))
+
+    target_deps, target_values = load_target_state()
+    baseline_deps, baseline_values = load_baseline_state(new_baseline)
+    actual_changed_keys = (
+        compute_changed_components(target_deps, baseline_deps, target_values, baseline_values)
+        if baseline_deps is not None else set()
+    )
+
+    upgrade_path = DOC_DIR / f"{new_baseline}-to-{target}-upgrade.md"
+    if upgrade_path.is_file():
+        text = upgrade_path.read_text(encoding="utf-8")
+        text, changed_rows, unmatched_names, unresolved_names = fix_component_version_table(
+            text, CHART_YAML.parent, target_deps, target_values, baseline_deps, baseline_values
+        )
+        if changed_rows:
+            print()
+            print(f"=== Correcting component version table in {upgrade_path.name} ===")
+            for name, app_cell, chart_cell in changed_rows:
+                print(f"  {name}: app {app_cell}  |  chart {chart_cell}")
+        if unresolved_names:
+            print()
+            print(f"Could not verify source version for {len(unresolved_names)} component(s) — "
+                  f"baseline {new_baseline} doesn't resolve to a git ref, or the component "
+                  f"didn't exist there yet. Table left as-is for these; review by hand.")
+            for name in unresolved_names:
+                print(f"  {name}")
+        if unmatched_names:
+            print()
+            print(f"Could not match {len(unmatched_names)} component(s) to a Chart.yaml "
+                  f"dependency, left as-is:")
+            for name in unmatched_names:
+                print(f"  {name}")
+
+        text, added_names = add_missing_component_rows(
+            text, CHART_YAML.parent, target_deps, target_values, baseline_deps, baseline_values,
+            actual_changed_keys, target
+        )
+        if added_names:
+            print()
+            print(f"=== Adding missing component row(s) + Changes section(s) to {upgrade_path.name} ===")
+            for name in added_names:
+                print(f"  {name}")
+
+        if baseline_deps is not None:
+            text, added_sidecar_names = add_missing_sidecar_rows(
+                text, CHART_YAML.parent, target_deps, target_values, baseline_values, target
+            )
+            if added_sidecar_names:
+                print()
+                print(f"=== Adding missing sidecar/shared-image row(s) + Changes section(s) "
+                      f"to {upgrade_path.name} ===")
+                for name in added_sidecar_names:
+                    print(f"  {name}")
+        else:
+            added_sidecar_names = []
+
+        current_paths = dict(find_image_tag_paths(target_values))
+        canonical_names = canonical_sidecar_row_names(CHART_YAML.parent, target_deps, target_values,
+                                                        current_paths.keys())
+
+        text, added_section_names = add_missing_changes_sections(
+            text, target_deps, target_values, target, canonical_names
+        )
+        if added_section_names:
+            print()
+            print(f"=== Adding missing '### ...' Changes section(s) to {upgrade_path.name} ===")
+            for name in added_section_names:
+                print(f"  {name}")
+
+        text, updated_stale_headings = update_stale_app_version_headings(
+            text, CHART_YAML.parent, target_deps, target_values, target, canonical_names
+        )
+        if updated_stale_headings:
+            print()
+            print(f"=== Updating '### ...' Changes section(s) missing their app version in "
+                  f"{upgrade_path.name} ===")
+            for heading in updated_stale_headings:
+                print(f"  {heading}")
+
+        text, moved_rows = sort_upgrade_doc_rows(text, target_deps, target_values)
+        text, moved_blocks = sort_changes_blocks(text, target_deps, target_values)
+        if moved_rows or moved_blocks:
+            print()
+            print(f"=== Reordering {upgrade_path.name} to match values.yaml's component order ===")
+            for name, old_pos, new_pos in moved_rows:
+                print(f"  table row '{name}': position {old_pos} -> {new_pos}")
+            for heading, old_pos, new_pos in moved_blocks:
+                print(f"  changes block '### {heading}': position {old_pos} -> {new_pos}")
+
+        if (changed_rows or added_names or added_sidecar_names or added_section_names or updated_stale_headings
+                or moved_rows or moved_blocks):
+            upgrade_path.write_text(text, encoding="utf-8")
+
+    if images_path.is_file():
+        text = images_path.read_text(encoding="utf-8")
+        target_paths = [p for p, _tag in find_image_tag_paths(target_values)]
+        repo_groups = paths_by_repository(CHART_YAML.parent, target_deps, target_values, target_paths)
+        repo_map = {repo: group_paths[-1] for repo, group_paths in repo_groups.items()}
+        new_text, changed_entries, unresolved_entry_names = fix_images_manifest_entries(
+            text, target_values, baseline_values, repo_map
+        )
+        if changed_entries:
+            images_path.write_text(new_text, encoding="utf-8")
+            print()
+            print(f"=== Correcting entry comments in {images_path.name} ===")
+            for name, source, target_ver in changed_entries:
+                print(f"  {name}: {source} -> {target_ver}")
+        if unresolved_entry_names:
+            print()
+            print(f"Could not verify source/target version for {len(unresolved_entry_names)} "
+                  f"entry(s) in {images_path.name} — no preceding comment, unresolvable "
+                  f"values-tree path, or baseline {new_baseline} doesn't resolve to a git ref. "
+                  f"Left as-is; review by hand.")
+            for name in unresolved_entry_names:
+                print(f"  {name}")
+
+        if baseline_values:
+            text = images_path.read_text(encoding="utf-8")
+            new_text, added_entry_names, skipped_entry_names, backfilled_header_names = \
+                add_missing_images_manifest_entries(
+                    text, CHART_YAML.parent, target_deps, target_values, baseline_values
+                )
+            if added_entry_names:
+                images_path.write_text(new_text, encoding="utf-8")
+                print()
+                print(f"=== Adding missing entr(y/ies) to {images_path.name} ===")
+                for name in added_entry_names:
+                    print(f"  {name} (review 'name:' for the correct ACR mirror slug)")
+            if skipped_entry_names:
+                print()
+                print(f"Could not add an entry for {len(skipped_entry_names)} changed image(s) in "
+                      f"{images_path.name} — no resolvable repository, or its values.yaml tag has no "
+                      f"digest pinned yet. Add by hand.")
+                for name in skipped_entry_names:
+                    print(f"  {name}")
+            if backfilled_header_names:
+                images_path.write_text(new_text, encoding="utf-8")
+                print()
+                print(f"=== Adding missing '# Changes:' header item(s) to {images_path.name} ===")
+                for name in backfilled_header_names:
+                    print(f"  {name} (entry already existed — only its header item was missing)")
+
+    values_deltas_path = DOC_DIR / f"{new_baseline}-to-{target}-values-deltas.md"
+    if values_deltas_path.is_file():
+        if baseline_deps is None or baseline_values is None:
+            print()
+            print(f"Could not resolve baseline {new_baseline} to a git ref — skipping "
+                  f"added/removed/renamed key detection for {values_deltas_path.name}.")
+        else:
+            changed_keys = compute_changed_components(target_deps, baseline_deps, target_values, baseline_values)
+            text = values_deltas_path.read_text(encoding="utf-8")
+            write_needed = False
+
+            text, added_bullet_names = add_missing_values_delta_bullets(
+                text, CHART_YAML.parent, target_deps, target_values, baseline_deps, baseline_values, changed_keys
+            )
+            if added_bullet_names:
+                write_needed = True
+                print()
+                print(f"=== Adding missing component mention(s) to {values_deltas_path.name} ===")
+                for name in added_bullet_names:
+                    print(f"  {name}")
+
+            new_lines = missing_key_change_lines(text, changed_keys, baseline_values, target_values)
+            if new_lines:
+                write_needed = True
+                text = append_to_doc(text, new_lines)
+                print()
+                print(f"=== Adding missing key-change mentions to {values_deltas_path.name} ===")
+                for line in new_lines:
+                    print(f"  {line.rstrip()}")
+
+            if write_needed:
+                values_deltas_path.write_text(text, encoding="utf-8")
+
+    if review_notes:
+        print()
+        print("Review these lines by hand — old baseline text may remain in free-form prose:")
+        for name, lines in review_notes:
+            print(f"  {name}: line(s) {', '.join(map(str, lines))}")
+
+    print()
+    print("Done.")
+
+
+if __name__ == "__main__":
+    main()
