@@ -14,7 +14,7 @@ on:
     # edited without triggering a run of itself.
     paths-ignore:
       - '**/docs/**'
-      - '**.md'
+      - '**/*.md'
       - '.github/workflows/**'
 
 jobs:
