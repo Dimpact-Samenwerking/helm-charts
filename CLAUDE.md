@@ -19,6 +19,7 @@ The umbrella chart is `charts/podiumd`, composing many sub-charts (openzaak, ope
 
 @.claude/memory/branch-workflow.md
 @.claude/memory/render-verify.md
+@.claude/memory/reuse-existing-logic.md
 
 ## Skills
 
