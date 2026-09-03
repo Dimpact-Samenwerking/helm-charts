@@ -1462,6 +1462,35 @@ def images_manifest_display_name_positions(text, deps, values, repo_map, canonic
     return positions
 
 
+def match_changes_item_display_name(rest, display_name_positions):
+    """The longest key of display_name_positions that `rest` starts with
+    (followed by a space, or an exact match) — every auto-inserted
+    Changes item's own text is always built as f"{name} {old} -> {new}."
+    (see fix-doc-consistency's add_missing_images_manifest_entries' own
+    version_text), so this is an EXACT match for anything the tooling
+    itself wrote, never a guess — unlike lib.docs_consistency.match_
+    changes_item_to_entry's fuzzy basename-in-text search, which has no
+    way to resolve a name like "kiss" or "kiss-eck" that shares no word
+    at all with its own entry's repository basename ("kiss-frontend",
+    "elasticsearch"/"kibana"). A hand-written free-form item (e.g.
+    "Keycloak app image 26.6.4 -> 26.7.2 (...)") simply won't start with
+    any known display name, and the caller falls back to match_changes_
+    item_to_entry for that case instead. Longest match wins so a
+    primary's own display name ("keycloak-operator") is never chosen
+    over its own sidecar's longer, " - "-suffixed one ("keycloak-
+    operator - postgres") sharing the same prefix. None if nothing
+    matches. Shared by fix-doc-consistency's own sort_images_manifest_
+    changes_items (the fixer) and lib.docs_consistency's own out-of-
+    order/missing-mention checks — the SAME resolution, so checker and
+    fixer can never disagree about what a Changes item "is"."""
+    best = None
+    for name in display_name_positions:
+        if rest == name or rest.startswith(name + " "):
+            if best is None or len(name) > len(best):
+                best = name
+    return best
+
+
 def sort_images_manifest_entries(text, deps, values, repo_map, canonical_names):
     """Reorder the images manifest's own entry GROUPS (physically, in
     the text) to match values.yaml's own top-level key order — see

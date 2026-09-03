@@ -67,6 +67,91 @@ def find_images_manifest_changes_header(lines):
     return None, False
 
 
+def images_manifest_order_key(key_order, values_key, is_sidecar):
+    """(index-in-key_order, 0-or-1-for-sidecar) sort key for an images-
+    manifest "# Changes:" item belonging to `values_key` — an unknown
+    values_key (not in key_order at all) sorts LAST, never crashes.
+    Shared by every caller that inserts/positions a header item relative
+    to values.yaml's own top-level component order (update_images_
+    manifest below, lib.image_docs.update_image_manifest, fix-doc-
+    consistency's own add_missing_images_manifest_entries) so they can
+    never independently drift on what "in order" means."""
+    try:
+        return (key_order.index(values_key), 1 if is_sidecar else 0)
+    except ValueError:
+        return (len(key_order), 1 if is_sidecar else 0)
+
+
+def insert_images_manifest_header_item(lines, deps, key_order, new_key, item_text):
+    """Insert "#   N. <item_text>" into the images-manifest's own "#
+    Changes:" header list (see find_images_manifest_changes_header) at
+    the position matching new_key relative to what's already there (see
+    lib.upgradedoc.component_order_key/insertion_index — the SAME
+    ordering convention upgrade.md's own table rows/Changes sections
+    use, via images_manifest_order_key above), renumbering every
+    subsequent item. An existing item that can't be resolved to a real
+    dependency (free-form prose, matched via match_dependency_excluding_
+    sidecar_names the same way check_images_manifest_format's own
+    Changes-item check does) sorts last for THIS purpose only — never
+    causes it to move. Mutates `lines` in place; a no-op if the file has
+    no header at all. Only rewrites the header line's own leading count
+    word if it already had one (see header_has_count) — never invents
+    one for a bare "# Changes:" label.
+
+    Shared by update_images_manifest below (a real component's own app+
+    chart bump — the common case update-component-version/update-image-
+    version write) and fix-doc-consistency's own add_missing_images_
+    manifest_entries (a changed image with no entry/header item at all
+    yet) — before this was factored out here, update_images_manifest had
+    its OWN separate, append-only version (new items always landed at
+    the very end, out of values.yaml's own order, only ever fixed by a
+    LATER fix-doc-consistency run), which could silently drift from this
+    one on what "correct" position even means."""
+    header_idx, header_has_count = find_images_manifest_changes_header(lines)
+    if header_idx is None:
+        return
+
+    item_indices = []
+    block_end = header_idx + 1
+    for i in range(header_idx + 1, len(lines)):
+        if lines[i].rstrip("\n") == "#" or not lines[i].startswith("#"):
+            break
+        block_end = i + 1
+        if CHANGES_ITEM_RE.match(lines[i]):
+            item_indices.append(i)
+
+    item_keys = []
+    for idx in item_indices:
+        m = CHANGES_ITEM_RE.match(lines[idx])
+        item_dep = match_dependency_excluding_sidecar_names(m.group("rest"), deps) if m else None
+        if item_dep is None:
+            item_keys.append((len(key_order), 0))
+            continue
+        item_keys.append(images_manifest_order_key(key_order, item_dep.get("alias", item_dep["name"]), False))
+
+    insert_slot = insertion_index(new_key, item_keys)
+    insert_line = item_indices[insert_slot] if insert_slot < len(item_indices) else block_end
+    lines.insert(insert_line, f"#   {insert_slot + 1}. {item_text}\n")
+
+    for later_idx in range(insert_line + 1, len(lines)):
+        if lines[later_idx].rstrip("\n") == "#" or not lines[later_idx].startswith("#"):
+            break
+        m = CHANGES_ITEM_RE.match(lines[later_idx])
+        if m:
+            lines[later_idx] = f"#   {int(m.group('num')) + 1}. {m.group('rest')}\n"
+
+    if header_has_count:
+        total = len(item_indices) + 1
+        count_word = NUMBER_WORDS[total] if total < len(NUMBER_WORDS) else str(total)
+        noun = "change" if total == 1 else "changes"
+        header_m = CHANGES_HEADER_RE.match(lines[header_idx])
+        lines[header_idx] = f"{header_m.group('indent')}{count_word} {noun}:\n"
+    # else: header was already a bare "# Changes:" label with no count
+    # word of its own — left exactly as-is, matching whatever style
+    # this file already uses; only the numbered item list itself needed
+    # the new entry.
+
+
 def images_manifest_path(images_dir, target):
     return images_dir / f"images-{target}.yaml"
 
@@ -641,7 +726,7 @@ def update_images_manifest_entry(lines, entries, entry_line_indices, index, new_
 
 
 def update_images_manifest(images_path, friendly, values_key, old_app, new_app, old_chart, new_chart,
-                            paths_to_update, repos, new_tags_by_path):
+                            paths_to_update, repos, new_tags_by_path, deps, values):
     """Update the "# <N> changes:" header list and any existing entries'
     version/digest/comment for this component. Returns (changes_action,
     entry_names_updated, missing_entries) where missing_entries is
@@ -651,20 +736,30 @@ def update_images_manifest(images_path, friendly, values_key, old_app, new_app, 
     function doesn't compute it — a full manifest entry still needs a
     human-authored comment/heading, so callers print a placeholder and
     leave the whole entry for manual review rather than a script writing
-    part of it and a human the rest."""
+    part of it and a human the rest.
+
+    deps/values position a brand-new header item at its own values.yaml-
+    order slot (via insert_images_manifest_header_item/images_manifest_
+    order_key — the SAME convention fix-doc-consistency's own add_
+    missing_images_manifest_entries already uses) instead of always
+    appending at the very end — real bug this fixes: update-image-
+    version/update-component-version writing a new item that then sat
+    out of order until a LATER fix-doc-consistency run reshuffled it,
+    even though nothing else about the manifest was actually wrong.
+    Updating an EXISTING item never needs them for anything — the far
+    more common path here — so they're only ever read on a genuinely new
+    item."""
     original_text = images_path.read_text(encoding="utf-8")
     lines = original_text.splitlines(keepends=True)
 
-    header_idx, header_has_count = find_images_manifest_changes_header(lines)
+    header_idx, _header_has_count = find_images_manifest_changes_header(lines)
 
     changes_action = None
     if header_idx is not None:
         item_indices = []
-        block_end = header_idx + 1
         for i in range(header_idx + 1, len(lines)):
             if lines[i].rstrip("\n") == "#" or not lines[i].startswith("#"):
                 break
-            block_end = i + 1
             if re.match(r"^#\s*\d+\.", lines[i]):
                 item_indices.append(i)
 
@@ -685,19 +780,9 @@ def update_images_manifest(images_path, friendly, values_key, old_app, new_app, 
             lines[match_idx] = f"#   {m.group('num')}. {item_text}\n"
             changes_action = "updated"
         else:
-            new_num = len(item_indices) + 1
-            insert_at = block_end if item_indices else header_idx + 1
-            lines.insert(insert_at, f"#   {new_num}. {item_text}\n")
-            if header_has_count:
-                count_word = NUMBER_WORDS[new_num] if new_num < len(NUMBER_WORDS) else str(new_num)
-                noun = "change" if new_num == 1 else "changes"
-                header_m = CHANGES_HEADER_RE.match(lines[header_idx])
-                lines[header_idx] = f"{header_m.group('indent')}{count_word} {noun}:\n"
-            # else: header was already a bare "# Changes:" label with no
-            # count word of its own — left exactly as-is, matching
-            # whatever style this file already uses; only the numbered
-            # item list itself needed the new entry (same convention
-            # fix-doc-consistency's own header-item insertion follows).
+            key_order = values_key_order(values)
+            new_key = images_manifest_order_key(key_order, values_key, " - " in friendly)
+            insert_images_manifest_header_item(lines, deps, key_order, new_key, item_text)
             changes_action = "added"
 
     entries = yaml.safe_load("".join(lines)) or []
