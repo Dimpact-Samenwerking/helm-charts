@@ -382,6 +382,17 @@ def test_find_component_version_tags_skips_unset_field(libupgradedoc):
     assert dict(libupgradedoc.find_component_version_tags(values, deps)) == {}
 
 
+def test_find_component_version_tags_includes_nested_subchart_registered_field(libupgradedoc):
+    """eck-enterprise-search.version is registered in COMPONENT_VERSION_
+    PATH_NESTED_SUBCHARTS but deliberately excluded from COMPONENT_
+    VERSION_PATHS itself (disabled by default, not the "pick ONE app
+    version" candidate) — still a real, discoverable image here."""
+    deps = [{"name": "eck-stack", "alias": "kiss-eck", "version": "0.20.0"}]
+    values = {"kiss-eck": {"eck-enterprise-search": {"version": "8.19.19"}}}
+    paths = dict(libupgradedoc.find_component_version_tags(values, deps))
+    assert paths[("kiss-eck", "eck-enterprise-search", "version")] == "8.19.19"
+
+
 def test_find_component_version_tags_ignores_unregistered_dependency(libupgradedoc):
     deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
     values = {"zac": {"image": {"tag": "5.4.4@sha256:aaaa"}}}
