@@ -516,6 +516,47 @@ def test_version_of_strips_digest(libchart):
     assert libchart.version_of("1.19.0-static") == "1.19.0-static"
 
 
+# --- resolved_digest_pin ---
+
+def test_resolved_digest_pin_already_embedded_returned_as_is(libchart):
+    values = {"zac": {"image": {"tag": "5.4.4@sha256:aaaa"}}}
+
+    assert libchart.resolved_digest_pin(values, ("zac", "image"), "5.4.4@sha256:aaaa") == "5.4.4@sha256:aaaa"
+
+
+def test_resolved_digest_pin_split_tag_sha_combines_sibling_sha(libchart):
+    """keycloak-operator's own primary image (operator.config.keycloakImage)
+    uses the adfinis chart's own split "tag:"/"sha:" convention — the
+    "tag:" value alone never carries "@sha256:...", so a caller needing a
+    real digest-pinned string (e.g. a new images-manifest entry) has to
+    read it from the sibling "sha:" field instead."""
+    path = ("keycloak-operator", "operator", "config", "keycloakImage")
+    values = {"keycloak-operator": {"operator": {"config": {"keycloakImage": {
+        "tag": "26.7.2", "sha": "9d1f1b2b7261ff53c66cb1092dfcdc34a5fb77e81f9e6a6e75b8b6a795de8067"}}}}}
+
+    assert libchart.resolved_digest_pin(values, path, "26.7.2") == (
+        "26.7.2@sha256:9d1f1b2b7261ff53c66cb1092dfcdc34a5fb77e81f9e6a6e75b8b6a795de8067")
+
+
+def test_resolved_digest_pin_split_tag_sha_no_sha_override_returns_none(libchart):
+    """The vendored subchart's own default "sha:" (inherited, no podiumd
+    override at all) isn't visible from values.yaml alone — nothing to
+    combine, so this can't produce a digest-pinned string yet."""
+    path = ("keycloak-operator", "operator", "config", "keycloakImage")
+    values = {"keycloak-operator": {"operator": {"config": {"keycloakImage": {"tag": "26.7.2"}}}}}
+
+    assert libchart.resolved_digest_pin(values, path, "26.7.2") is None
+
+
+def test_resolved_digest_pin_ordinary_path_with_no_digest_returns_none(libchart):
+    """A path outside SPLIT_TAG_SHA_PATHS with a bare, non-digest-pinned
+    tag has no sibling field to fall back to at all — genuinely
+    unresolvable here, unlike the split-tag-sha case."""
+    values = {"openzaak": {"image": {"tag": "1.29.3"}}}
+
+    assert libchart.resolved_digest_pin(values, ("openzaak", "image"), "1.29.3") is None
+
+
 # --- find_images ---
 
 def test_find_images_nested_dict_and_list(libchart):

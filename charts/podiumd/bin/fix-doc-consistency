@@ -81,7 +81,8 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 from lib.chart import SEMVER_RE as BASELINE_VERSION_RE
 from lib.chart import (
-    canonical_sidecar_row_names, chart_version, paths_by_repository, repo_group_representative, version_of,
+    canonical_sidecar_row_names, chart_version, paths_by_repository, repo_group_representative,
+    resolved_digest_pin, version_of,
 )
 from lib.chart import upgrade_docs_baseline as read_upgrade_docs_baseline
 from lib.component_docs import (
@@ -691,11 +692,12 @@ def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, ba
         repo = path_to_repo.get(path)
         current_tag = current_paths[path]
         name = path_display_name(path, deps, canonical_names)
-        if repo is None or "@" not in current_tag:
+        pinned_tag = resolved_digest_pin(target_values, path, current_tag)
+        if repo is None or pinned_tag is None:
             skipped_names.append(name)
             continue
 
-        new_version, digest = current_tag.split("@", 1)
+        new_version, digest = pinned_tag.split("@", 1)
         baseline_tag = baseline_paths.get(path)
         old_version = version_of(baseline_tag) if baseline_tag else new_version
         new_key = order_key(path[0], " - " in name)
@@ -704,6 +706,27 @@ def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, ba
         lines = text.splitlines(keepends=True)
         if lines and not lines[-1].endswith("\n"):
             lines[-1] += "\n"
+
+        # A still-untouched IMAGES_STUB_TEMPLATE (or any manifest with no
+        # entries yet) ends in a literal bare "[]" — yaml.safe_load's own
+        # valid empty-list spelling. Leaving it in place while inserting
+        # the first real entry below it would produce "[]" followed by a
+        # "- name: ..." block, which is not valid YAML for a SECOND
+        # document — yaml.safe_load raises on it, and the try/except
+        # above that parses `entries` silently falls back to treating the
+        # (now actually non-empty) file as having NO entries at all on
+        # every subsequent run, re-adding everything already there.
+        # Stripped here (only when actually present — never touches an
+        # unrelated trailing blank line on every OTHER insert) instead of
+        # at parse time so it's gone even before the very first insert. A
+        # manifest that still has this stub can only be entirely empty of
+        # real entries (the stub is never left behind once anything gets
+        # added past this point), so trimming the file's own trailing
+        # blank lines afterward is always safe here.
+        if any(line.strip() == "[]" for line in lines):
+            lines = [line for line in lines if line.strip() != "[]"]
+            while lines and not lines[-1].strip():
+                lines.pop()
 
         _insert_images_manifest_header_item(
             lines, deps, key_order, order_key, new_key, f"{version_text}.")

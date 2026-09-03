@@ -101,6 +101,42 @@ def version_paths_for(component):
     return COMPONENT_VERSION_PATHS.get(component, [])
 
 
+# COMPONENT_IMAGE_PATHS path (as the tuple find_image_tag_paths/
+# find_all_image_and_version_paths itself yields) whose "tag:" field
+# never embeds an "@sha256:..." digest at all — the adfinis keycloak-
+# operator chart's own split "tag:" + sibling "sha:" convention instead
+# (its own template appends "@sha256:{{ .sha }}" itself; embedding it in
+# "tag:" too would produce an invalid double digest — see the values.yaml
+# comment above operator.config.keycloakImage). Same underlying fact
+# update-component-version's own SPLIT_TAG_SHA_PATHS documents for the
+# WRITE side (dotted-string keyed, since that script edits raw text
+# lines rather than walking a parsed values tree) and lib.
+# digest_pinning_check.EXEMPT_PATHS documents for ITS own "must every
+# tag be digest-pinned" check — this module's own tuple-keyed form, for
+# a caller (resolved_digest_pin) that needs the ACTUAL digest value, not
+# just an "is this path exempt" boolean.
+SPLIT_TAG_SHA_PATHS = {
+    ("keycloak-operator", "operator", "config", "keycloakImage"),
+}
+
+
+def resolved_digest_pin(values, path, tag):
+    """`tag`'s own "@sha256:<hex>" suffix if it already has one, else —
+    for a SPLIT_TAG_SHA_PATHS path only — that same digest read from the
+    path's own sibling "sha:" field instead (bare hex, no "sha256:"
+    prefix of its own — see update-component-version's write_tag_and_sha)
+    and combined into the usual "<tag>@sha256:<hex>" shape. None when
+    neither source has a digest at all (an ordinary path with no "@" in
+    its tag, or a SPLIT_TAG_SHA_PATHS path with no "sha:" override yet —
+    inherits the vendored subchart's own default, not visible here)."""
+    if "@" in tag:
+        return tag
+    if path not in SPLIT_TAG_SHA_PATHS:
+        return None
+    sha = get_path(values, ".".join(path) + ".sha")
+    return f"{tag}@sha256:{sha}" if isinstance(sha, str) and sha else None
+
+
 def _is_dependency_primary_rel_path(dep, rel_path):
     """rel_path (path[1:], dotted) is one of dep's own PRIMARY image/
     version fields — image_paths_for's "image: {tag}" shape first, else

@@ -1599,6 +1599,70 @@ def test_add_missing_images_manifest_entries_skips_when_no_digest_pinned(cdb, im
     assert new_text == text
 
 
+@pytest.fixture
+def keycloak_operator_chart_dir(tmp_path):
+    """keycloak-operator's own primary image (operator.config.keycloakImage)
+    uses the adfinis chart's own split "tag:"/"sha:" convention — its
+    "tag:" alone never carries "@sha256:...", the real case
+    resolved_digest_pin exists for."""
+    write(tmp_path / "Chart.yaml", yaml.safe_dump({
+        "dependencies": [{"name": "keycloak-operator", "version": "1.12.1", "repository": "@adfinis"}],
+    }))
+    write(tmp_path / "values.yaml", yaml.safe_dump({
+        "keycloak-operator": {"operator": {"config": {"keycloakImage": {
+            "repository": "quay.io/keycloak/keycloak", "tag": "26.7.2", "sha": "9d1f1b2b"}}}},
+    }))
+    return tmp_path
+
+
+def test_add_missing_images_manifest_entries_split_tag_sha_primary_gets_entry(cdb, keycloak_operator_chart_dir):
+    """Real bug: keycloak-operator's own primary image was silently
+    SKIPPED entirely (treated the same as "no digest pinned yet") since
+    its "tag:" never embeds "@sha256:..." — the digest lives in the
+    sibling "sha:" field instead. Must be read from there, not skipped."""
+    text = ""
+    deps = [{"name": "keycloak-operator", "version": "1.12.1"}]
+    target_values = {"keycloak-operator": {"operator": {"config": {"keycloakImage": {
+        "repository": "quay.io/keycloak/keycloak", "tag": "26.7.2", "sha": "9d1f1b2b"}}}}}
+    baseline_values = {"keycloak-operator": {"operator": {"config": {"keycloakImage": {
+        "repository": "quay.io/keycloak/keycloak", "tag": "26.6.4", "sha": "eeeeeeee"}}}}}
+
+    new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
+        text, keycloak_operator_chart_dir, deps, target_values, baseline_values)
+
+    assert skipped == []
+    assert added == ["keycloak-operator"]
+    assert "# keycloak-operator 26.6.4 -> 26.7.2" in new_text
+    assert "- name: keycloak/keycloak" in new_text
+    assert 'version: "26.7.2"' in new_text
+    assert 'digest: "sha256:9d1f1b2b"' in new_text
+
+
+def test_add_missing_images_manifest_entries_split_tag_sha_no_sha_override_still_skipped(
+        cdb, keycloak_operator_chart_dir):
+    """No podiumd override for the sibling "sha:" field at all (inherits
+    the vendored subchart's own default, not visible from values.yaml) —
+    genuinely can't produce a digest-pinned entry, so still reported as
+    skipped rather than writing one with a missing/wrong digest."""
+    write(keycloak_operator_chart_dir / "values.yaml", yaml.safe_dump({
+        "keycloak-operator": {"operator": {"config": {"keycloakImage": {
+            "repository": "quay.io/keycloak/keycloak", "tag": "26.7.2"}}}},
+    }))
+    text = ""
+    deps = [{"name": "keycloak-operator", "version": "1.12.1"}]
+    target_values = {"keycloak-operator": {"operator": {"config": {"keycloakImage": {
+        "repository": "quay.io/keycloak/keycloak", "tag": "26.7.2"}}}}}
+    baseline_values = {"keycloak-operator": {"operator": {"config": {"keycloakImage": {
+        "repository": "quay.io/keycloak/keycloak", "tag": "26.6.4"}}}}}
+
+    new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
+        text, keycloak_operator_chart_dir, deps, target_values, baseline_values)
+
+    assert added == []
+    assert skipped == ["keycloak-operator"]
+    assert new_text == text
+
+
 def test_add_missing_images_manifest_entries_skips_image_with_no_resolvable_repository(
         cdb, images_manifest_chart_dir):
     """kiss.adapter.image's own real-world case: no own override AND no
@@ -1879,6 +1943,63 @@ def test_add_missing_images_manifest_entries_empty_bare_header_gets_first_item(
     first_item_idx = new_text.index("#   1. ")
     assert header_idx < first_item_idx < header_idx + len("# Changes:\n") + 40
     assert "# See docs/_UPGRADE_PATHS" in new_text  # rest of the header preserved
+
+
+def test_add_missing_images_manifest_entries_stub_placeholder_not_left_alongside_first_entry(
+        cdb, ordered_images_manifest_chart_dir):
+    """Real bug: the fresh stub's own literal bare "[]" (yaml.safe_load's
+    empty-list spelling) was left in place while the first real entry got
+    inserted right after it — "[]" followed by a "- name: ..." block is
+    NOT valid YAML for a single document, so the result couldn't be
+    parsed back at all."""
+    text = (
+        "# Baseline: podiumd 4.8.5. Re-verify before release.\n"
+        "#\n"
+        "# Changes:\n"
+        "#\n\n"
+        "[]\n"
+    )
+
+    new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
+        text, ordered_images_manifest_chart_dir, _ordered_deps(), _ordered_target_values(),
+        _ordered_baseline_values())
+
+    assert skipped == []
+    assert set(added) == {"keycloak-operator - postgres", "openzaak", "zac"}
+    assert "[]" not in new_text
+    yaml.safe_load(new_text)  # must not raise
+
+
+def test_add_missing_images_manifest_entries_second_run_is_a_noop_not_a_duplicate(
+        cdb, ordered_images_manifest_chart_dir):
+    """Real bug downstream of the "[]" placeholder surviving the first
+    insert: since the resulting file was invalid YAML, a second run's own
+    `yaml.safe_load(text)` raised and silently fell back to `entries =
+    []` — treating the (now actually non-empty) manifest as if it still
+    had NOTHING in it, and re-adding every single entry a second time
+    right alongside the first copies. A clean run must be idempotent."""
+    text = (
+        "# Baseline: podiumd 4.8.5. Re-verify before release.\n"
+        "#\n"
+        "# Changes:\n"
+        "#\n\n"
+        "[]\n"
+    )
+
+    first_text, first_added, _skipped, _backfilled = cdb.add_missing_images_manifest_entries(
+        text, ordered_images_manifest_chart_dir, _ordered_deps(), _ordered_target_values(),
+        _ordered_baseline_values())
+    assert first_added != []
+
+    second_text, second_added, second_skipped, second_backfilled = cdb.add_missing_images_manifest_entries(
+        first_text, ordered_images_manifest_chart_dir, _ordered_deps(), _ordered_target_values(),
+        _ordered_baseline_values())
+
+    assert second_added == []
+    assert second_backfilled == []
+    assert second_text == first_text
+    assert second_text.count("- name: postgres") == 1
+    assert second_text.count("- name: openzaak/open-zaak") == 1
 
 
 def test_add_missing_images_manifest_entries_backfills_header_item_for_existing_entry(
