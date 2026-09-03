@@ -2764,7 +2764,7 @@ kiss:
       # rechtstreeks naar Elasticsearch.
       crawlerImage:
         repository: "docker.elastic.co/integrations/crawler"
-        tag: "1.0.0@sha256:6f3c02f6c783711b8d9e133cf10934b137d6547dc1eb10a0d2ccf99ffe2e2d07"
+        tag: "1.0.1@sha256:0575cb7401b55bf60461f3e1fe846c324adee55da27de4c41b18041ff3f6a59b"
         pullPolicy: IfNotPresent
       # -- pre-install/pre-upgrade hook die het search-website* index-template
       # in Elasticsearch registreert. Heeft alleen curl nodig.
