@@ -649,7 +649,7 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
 
         key_order = values_key_order(values)
         row_names = [row["name"] for row in parse_upgrade_doc_rows(doc_path)]
-        for name_a, name_b in find_out_of_order_names(row_names, deps, key_order):
+        for name_a, name_b in find_out_of_order_names(row_names, deps, key_order, canonical_names):
             mismatches.append(
                 f'{doc_path.name}: "Component versions" table lists "{name_b}" right after "{name_a}", '
                 f'but values.yaml lists {name_b} before {name_a} — rows should follow values.yaml\'s '
@@ -658,7 +658,7 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
 
         doc_text = doc_path.read_text(encoding="utf-8")
         changes_headings = [b["heading"] for b in parse_upgrade_doc_changes_blocks(doc_text)]
-        for name_a, name_b in find_out_of_order_names(changes_headings, deps, key_order):
+        for name_a, name_b in find_out_of_order_names(changes_headings, deps, key_order, canonical_names):
             mismatches.append(
                 f'{doc_path.name}: "## Changes" section has "### {name_b}" right after "### {name_a}", '
                 f'but values.yaml lists the {name_b} component before {name_a} — Changes blocks should '

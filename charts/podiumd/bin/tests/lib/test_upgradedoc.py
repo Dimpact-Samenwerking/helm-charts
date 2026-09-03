@@ -1927,6 +1927,33 @@ def test_component_order_key_unmatched_name_sorts_after_every_real_component(lib
         == (len(KEY_ORDER), 0)
 
 
+def test_component_order_key_global_shared_image_uses_its_own_values_position(libupgradedoc):
+    """Real bug: a bare "global" shared-image name (e.g. "nginx-
+    unprivileged") never embeds any dependency's own name/alias as a
+    substring, so match_dependency finds nothing and this used to always
+    fall to the "unmatched sorts last" sentinel — even though "global:"
+    is values.yaml's own FIRST top-level key. Given canonical_names, it
+    now resolves via its own real position instead."""
+    key_order = ["global"] + KEY_ORDER
+    canonical_names = {"nginx-unprivileged": ("global", "images", "nginx")}
+
+    assert libupgradedoc.component_order_key(
+        "nginx-unprivileged", DEPS, key_order, canonical_names) == (0, 0)
+
+    # A "### ..." Changes heading has version/arrow text after the name —
+    # match_canonical_sidecar_name's own fuzzy word-span fallback still
+    # finds it.
+    assert libupgradedoc.component_order_key(
+        "nginx-unprivileged 1.31.3 → 1.31.4", DEPS, key_order, canonical_names) == (0, 0)
+
+
+def test_component_order_key_no_canonical_names_given_is_unaffected(libupgradedoc):
+    """Omitting canonical_names entirely behaves exactly as before — real
+    dependency names and their own sidecars are never affected by this
+    parameter either way."""
+    assert libupgradedoc.component_order_key("nginx-unprivileged", DEPS, KEY_ORDER) == (len(KEY_ORDER), 0)
+
+
 def test_component_order_key_matched_dep_not_in_key_order_sorts_last(libupgradedoc):
     """A dependency that resolves fine but isn't a top-level values.yaml key
     at all (e.g. removed from values.yaml but still in Chart.yaml) can't be
@@ -2113,6 +2140,32 @@ def test_sort_upgrade_doc_rows_unmatched_row_stays_last(libupgradedoc):
     assert lines[5].startswith("| nginx-unprivileged")
 
 
+def test_sort_upgrade_doc_rows_global_row_sorts_to_its_own_real_position(libupgradedoc):
+    """Real bug: "nginx-unprivileged" (a canonical "global" shared-image
+    row — see canonical_sidecar_row_names) always sorted LAST, even
+    though "global:" is values.yaml's own FIRST top-level key and the
+    images-manifest's own equivalent sort already places it there. Given
+    canonical_names, it now sorts to the front, matching images-v2.yaml's
+    own order."""
+    text = (
+        COMPONENT_VERSIONS_HEADING +
+        "| Component | App version | Helm chart |\n"
+        "| --- | --- | --- |\n"
+        "| Open Zaak | 1.27.4 | 1.14.2 |\n"
+        "| nginx-unprivileged | 1.31.3 → 1.31.4 | - |\n"
+        "| Open Inwoner | 2.4.2 | 2.4.0 |\n"
+    )
+    values = {"global": {}, "openzaak": {}, "zac": {}, "openinwoner": {}}
+    canonical_names = {"nginx-unprivileged": ("global", "images", "nginx")}
+
+    new_text, moved = libupgradedoc.sort_upgrade_doc_rows(text, DEPS, values, canonical_names)
+
+    lines = new_text.splitlines()
+    assert lines[4].startswith("| nginx-unprivileged")
+    assert lines[5].startswith("| Open Zaak")
+    assert lines[6].startswith("| Open Inwoner")
+
+
 # --- sort_changes_blocks ---
 
 def test_sort_changes_blocks_reorders_and_preserves_block_content(libupgradedoc):
@@ -2159,6 +2212,29 @@ def test_sort_changes_blocks_unmatched_block_stays_last_and_later_h2_untouched(l
     new_text, moved = libupgradedoc.sort_changes_blocks(text, DEPS, values)
     assert new_text.index("### Open Zaak") < new_text.index("### Fix: something unrelated")
     assert "## Per-environment checklist\n\n### A. Prepare\n\n- [ ] Do the thing.\n" in new_text
+
+
+def test_sort_changes_blocks_global_block_sorts_to_its_own_real_position(libupgradedoc):
+    """Same real bug as sort_upgrade_doc_rows, for the "### ..." Changes
+    heading shape — the heading text has version/arrow text after the
+    canonical name (match_canonical_sidecar_name's own fuzzy word-span
+    fallback handles that, unlike an exact dict-key lookup)."""
+    text = (
+        "## Changes\n\n"
+        "### Open Zaak 1.27.3 → 1.27.4\n\n"
+        "Zaak details.\n\n"
+        "### nginx-unprivileged 1.31.3 → 1.31.4\n\n"
+        "Shared image details.\n\n"
+        "### Open Inwoner 2.4.2 → 2.4.3\n\n"
+        "Inwoner details.\n"
+    )
+    values = {"global": {}, "openzaak": {}, "zac": {}, "openinwoner": {}}
+    canonical_names = {"nginx-unprivileged": ("global", "images", "nginx")}
+
+    new_text, moved = libupgradedoc.sort_changes_blocks(text, DEPS, values, canonical_names)
+
+    assert new_text.index("### nginx-unprivileged") < new_text.index("### Open Zaak") \
+        < new_text.index("### Open Inwoner")
 
 
 def test_sort_changes_blocks_fewer_than_two_blocks_is_unchanged(libupgradedoc):

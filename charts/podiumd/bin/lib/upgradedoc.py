@@ -55,7 +55,7 @@ def values_key_order(values):
     return list(values.keys()) if isinstance(values, dict) else []
 
 
-def component_order_key(name, deps, key_order):
+def component_order_key(name, deps, key_order, canonical_names=None):
     """A doc item's (table row name, or "### ..." Changes heading) sort
     position: (values_key_index, is_sidecar) — values_key_index is the
     values.yaml top-level key match_dependency resolves `name` to, as its
@@ -75,10 +75,33 @@ def component_order_key(name, deps, key_order):
     A tuple compares lexicographically, so this is a drop-in replacement
     for the plain int this used to return. Shared by the docs-consistency
     out-of-order check and fix-doc-consistency's own reordering/insertion
-    passes, so "what order should this be in" is answered exactly once."""
+    passes, so "what order should this be in" is answered exactly once.
+
+    canonical_names (canonical_sidecar_row_names' own {name: path} map,
+    optional) is consulted ONLY when match_dependency finds no real
+    dependency at all — a bare "global" shared-image name (e.g. "nginx-
+    unprivileged") never embeds any dependency's own name/alias as a
+    substring the way "<dep> - <basename>" sidecar names do, so match_
+    dependency's fuzzy word-containment has nothing to find and this
+    used to always fall to the "unmatched sorts last" sentinel — even
+    though "global:" is values.yaml's own FIRST top-level key, and the
+    images-manifest's own equivalent sort (images_manifest_entry_order_
+    key, keyed on the entry's already-RESOLVED path rather than fuzzy-
+    matching the name) already sorts it there correctly. Matched via
+    match_canonical_sidecar_name (exact bare-name hit for a table row,
+    fuzzy word-span containment for a "### ..." Changes heading whose
+    name is followed by version/arrow text) rather than a raw dict
+    lookup, so both doc shapes resolve the same way. Omit (or pass
+    None) wherever a canonical_names lookup isn't available/relevant —
+    behaves exactly as before, real dependency names and their own "<dep>
+    - <basename>" sidecars are entirely unaffected either way."""
     dep = match_dependency(name, deps)
     values_key = dep.get("alias", dep["name"]) if dep else None
     is_sidecar = 1 if " - " in name else 0
+    if values_key is None and canonical_names is not None:
+        path = match_canonical_sidecar_name(name, canonical_names)
+        if path:
+            values_key = path[0]
     if values_key is None:
         return (len(key_order), is_sidecar)
     try:
@@ -87,18 +110,20 @@ def component_order_key(name, deps, key_order):
         return (len(key_order), is_sidecar)
 
 
-def find_out_of_order_names(names, deps, key_order):
+def find_out_of_order_names(names, deps, key_order, canonical_names=None):
     """[(name_a, name_b), ...] for every ADJACENT pair whose relative order
     contradicts values.yaml's own top-level key order (see
     component_order_key) — checking only adjacent pairs is sufficient to
     catch any out-of-order sequence, since a non-monotonic sequence always
     has at least one adjacent inversion. A name that doesn't resolve to any
-    dependency sorts after every real one (see component_order_key) and
-    never itself causes a violation against another such name, since both
-    share the same sentinel key."""
+    dependency (and, given canonical_names, doesn't resolve to a "global"
+    shared-image path either) sorts after every real one (see component_
+    order_key) and never itself causes a violation against another such
+    name, since both share the same sentinel key."""
     violations = []
     for a, b in zip(names, names[1:]):
-        if component_order_key(b, deps, key_order) < component_order_key(a, deps, key_order):
+        if (component_order_key(b, deps, key_order, canonical_names)
+                < component_order_key(a, deps, key_order, canonical_names)):
             violations.append((a, b))
     return violations
 
@@ -157,22 +182,26 @@ def parse_upgrade_doc_changes_blocks(text):
     return blocks
 
 
-def sort_upgrade_doc_rows(text, deps, values):
+def sort_upgrade_doc_rows(text, deps, values, canonical_names=None):
     """Reorder the "Component versions" table's rows (physically, in the
     text) to match values.yaml's own top-level key order — see
-    values_key_order/component_order_key. Returns (new_text, moved) where
-    moved is [(name, old_position, new_position)] (1-based, among just the
-    table's own rows) for every row whose position actually changed —
-    empty (and text returned unchanged) if the table already matches, or
-    has fewer than 2 rows to meaningfully order. Row CONTENT is never
-    touched, only which physical line slot it occupies."""
+    values_key_order/component_order_key. canonical_names, when given,
+    lets a bare "global" shared-image row (e.g. "nginx-unprivileged")
+    sort by its own real values.yaml position instead of always last —
+    see component_order_key's own docstring. Returns (new_text, moved)
+    where moved is [(name, old_position, new_position)] (1-based, among
+    just the table's own rows) for every row whose position actually
+    changed — empty (and text returned unchanged) if the table already
+    matches, or has fewer than 2 rows to meaningfully order. Row CONTENT
+    is never touched, only which physical line slot it occupies."""
     rows = parse_upgrade_doc_rows(text)
     if len(rows) < 2:
         return text, []
 
     key_order = values_key_order(values)
     names = [row["name"] for row in rows]
-    order = sorted(range(len(names)), key=lambda i: component_order_key(names[i], deps, key_order))
+    order = sorted(range(len(names)),
+                    key=lambda i: component_order_key(names[i], deps, key_order, canonical_names))
     moved = [(names[i], i + 1, slot + 1) for slot, i in enumerate(order) if i != slot]
     if not moved:
         return text, []
@@ -185,21 +214,23 @@ def sort_upgrade_doc_rows(text, deps, values):
     return "".join(lines), moved
 
 
-def sort_changes_blocks(text, deps, values):
+def sort_changes_blocks(text, deps, values, canonical_names=None):
     """Reorder the "## Changes" section's "### ..." blocks (each block's
     full text, heading through its last line before the next block) to
     match values.yaml's own top-level key order — the same rule
-    sort_upgrade_doc_rows applies to table rows. Returns (new_text, moved)
-    — moved is [(heading, old_position, new_position)] (1-based) for every
-    block that moved; empty (text unchanged) if already in order or fewer
-    than 2 blocks exist."""
+    sort_upgrade_doc_rows applies to table rows (see canonical_names'
+    own docstring there for the "global" shared-image case this also
+    fixes). Returns (new_text, moved) — moved is [(heading, old_position,
+    new_position)] (1-based) for every block that moved; empty (text
+    unchanged) if already in order or fewer than 2 blocks exist."""
     blocks = parse_upgrade_doc_changes_blocks(text)
     if len(blocks) < 2:
         return text, []
 
     key_order = values_key_order(values)
     headings = [b["heading"] for b in blocks]
-    order = sorted(range(len(headings)), key=lambda i: component_order_key(headings[i], deps, key_order))
+    order = sorted(range(len(headings)),
+                    key=lambda i: component_order_key(headings[i], deps, key_order, canonical_names))
     moved = [(headings[i], i + 1, slot + 1) for slot, i in enumerate(order) if i != slot]
     if not moved:
         return text, []

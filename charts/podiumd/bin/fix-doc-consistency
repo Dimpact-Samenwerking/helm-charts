@@ -1025,8 +1025,8 @@ def main():
             for heading in updated_stale_headings:
                 print(f"  {heading}")
 
-        text, moved_rows = sort_upgrade_doc_rows(text, target_deps, target_values)
-        text, moved_blocks = sort_changes_blocks(text, target_deps, target_values)
+        text, moved_rows = sort_upgrade_doc_rows(text, target_deps, target_values, canonical_names)
+        text, moved_blocks = sort_changes_blocks(text, target_deps, target_values, canonical_names)
         if moved_rows or moved_blocks:
             print()
             print(f"=== Reordering {upgrade_path.name} to match values.yaml's component order ===")
