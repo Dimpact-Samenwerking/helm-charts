@@ -547,9 +547,14 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
                 continue
 
             if resolved["baseline_resolved"] is False:
-                mismatches.append(
-                    f'{doc_path.name}: doc row "{row["name"]}" source version could not be '
-                    f'verified against {baseline_ref} — the component didn\'t exist there yet, '
+                # A warning, not a mismatch — most commonly a brand-new
+                # component with no baseline version to compare against at
+                # all (fix-doc-consistency's own fix_component_version_
+                # table writes "(new)" cells for exactly this row shape),
+                # not a doc/reality disagreement this check exists to catch.
+                print(
+                    f'WARNING: {doc_path.name}: doc row "{row["name"]}" source version could not '
+                    f'be verified against {baseline_ref} — the component didn\'t exist there yet, '
                     f'or its version isn\'t resolvable there; source cells left unchecked'
                 )
                 continue

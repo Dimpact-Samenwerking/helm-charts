@@ -24,7 +24,7 @@ import yaml
 from lib.chart import image_paths_for, replace_scalar_value, version_paths_for
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
 from lib.upgradedoc import (
-    _word_aligned_spans, actual_app_version, append_to_doc, canonical_version_cell, component_order_key,
+    _word_aligned_spans, actual_app_version, append_to_doc, component_order_key, component_version_cell,
     extract_mentioned_dependency_keys, extract_source_version, find_grouped_preceding_comment_line,
     insertion_index, match_dependency_excluding_sidecar_names, normalize_name, normalize_version,
     parse_upgrade_doc_changes_blocks, parse_upgrade_doc_rows, replace_version_pair, resolve_entry_path,
@@ -226,8 +226,8 @@ def update_component_table(text, friendly, old_app, new_app, old_chart, new_char
     rows = parse_upgrade_doc_rows(text)
     row = find_component_row(rows, friendly)
 
-    app_cell = canonical_version_cell(old_app, new_app) if old_app else new_app
-    chart_cell = canonical_version_cell(old_chart, new_chart) if old_chart else new_chart
+    app_cell = component_version_cell(old_app, new_app)
+    chart_cell = component_version_cell(old_chart, new_chart)
 
     if row is not None:
         old_line = lines[row["line_index"]]

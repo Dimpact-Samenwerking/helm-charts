@@ -574,6 +574,31 @@ def canonical_version_cell(actual_source, actual_target):
     return f"{actual_source} → {actual_target}"
 
 
+def new_component_version_cell(actual_target):
+    """A "Component versions" table cell for a component with no baseline
+    version at all — brand new this hop: "<target> (new)", the third
+    member of canonical_version_cell's own "<target> (unchanged)" /
+    "<source> → <target>" family."""
+    return f"{actual_target} (new)"
+
+
+def component_version_cell(old, new):
+    """canonical_version_cell(old, new) when a baseline value exists;
+    new_component_version_cell(new) when it doesn't AND `new` is a real
+    version — never for the literal "-" not-applicable placeholder a
+    sidecar row's own Helm-chart cell already legitimately uses (that's
+    "no chart version of its own to compare", not "brand new"); bare
+    `new` otherwise (e.g. `new` itself unresolvable). The single place
+    both update_component_table (a fresh row) and fix-doc-consistency's
+    own fix_component_version_table (correcting an existing one) decide
+    this cell's text, so the two can't drift on when "(new)" applies."""
+    if old:
+        return canonical_version_cell(old, new)
+    if new and new != "-":
+        return new_component_version_cell(new)
+    return new
+
+
 VERSION_PAIR_RE = re.compile(
     r"(?P<source>[A-Za-z0-9][\w.\-]*)\s*(?P<arrow>→|->)\s*(?P<target>[A-Za-z0-9][\w.\-]*)"
 )

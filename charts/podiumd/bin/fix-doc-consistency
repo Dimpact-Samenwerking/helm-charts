@@ -90,7 +90,7 @@ from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, 
 from lib.image_docs import add_missing_changes_sections, add_missing_sidecar_rows, update_stale_app_version_headings
 from lib.image_repository_check import find_images_without_repository
 from lib.upgradedoc import (
-    append_to_doc, canonical_version_cell, compute_changed_components,
+    append_to_doc, canonical_version_cell, component_version_cell, compute_changed_components,
     extract_source_version, extract_target_version, find_grouped_preceding_comment_line,
     find_image_tag_paths, find_images_manifest_list_diff, insertion_index,
     match_dependency_excluding_sidecar_names, missing_key_change_lines, normalize_version, parse_upgrade_doc_rows,
@@ -238,7 +238,12 @@ def fix_component_version_table(text, chart_dir, target_deps, target_values, bas
     """Rewrite each "Component versions" table row's App/Helm-chart cells to
     the actual baseline (source) and target versions found in git/Chart.yaml/
     values.yaml. A row is only rewritten when both its source and target are
-    independently verifiable; anything else is left as-is and reported.
+    independently verifiable — EXCEPT a component that genuinely doesn't
+    exist at the baseline ref yet (a brand-new dependency, or a sidecar
+    whose own tag isn't pinned there), which gets "<target> (new)" cells
+    instead (see lib.upgradedoc.component_version_cell) rather than being
+    left untouched; a row whose CURRENT version can't be resolved either
+    is left as-is and reported, same as before.
 
     A row using the canonical sidecar/shared-image name (see
     lib.chart.canonical_sidecar_row_names — "<values_key> - <basename>" or
@@ -283,11 +288,45 @@ def fix_component_version_table(text, chart_dir, target_deps, target_values, bas
                 unmatched_names.append(row["name"])
             continue
 
-        if resolved["baseline_resolved"] is not True:
+        if resolved["baseline_resolved"] is None:
             unresolved_names.append(row["name"])
             continue
 
         actual_target_chart, actual_target_app = resolved["target_chart"], resolved["target_app"]
+
+        if resolved["baseline_resolved"] is False:
+            # A dependency's own target chart/app resolve independently of
+            # the baseline entirely, so False here unambiguously means "no
+            # such dependency at the baseline ref yet" — brand new; write
+            # "(new)" cells. A sidecar's False also covers "the CURRENT tag
+            # itself couldn't be resolved either" (a genuinely broken row,
+            # not a new one) — target_app being present is what tells the
+            # two apart.
+            if resolved["dep"] is None and actual_target_app is None:
+                unresolved_names.append(row["name"])
+                continue
+
+            row_changed = False
+            line = lines[row["line_index"]]
+            cells = [c.strip() for c in line.strip().strip("|").split("|")]
+
+            if actual_target_app is not None:
+                new_app_cell = component_version_cell(None, actual_target_app)
+                if cells[1] != new_app_cell:
+                    cells[1] = new_app_cell
+                    row_changed = True
+            if actual_target_chart is not None:
+                new_chart_cell = component_version_cell(None, actual_target_chart)
+                if cells[2] != new_chart_cell:
+                    cells[2] = new_chart_cell
+                    row_changed = True
+
+            if row_changed:
+                suffix = "\n" if line.endswith("\n") else ""
+                lines[row["line_index"]] = "| " + " | ".join(cells) + " |" + suffix
+                changed_rows.append((row["name"], cells[1], cells[2]))
+            continue
+
         actual_baseline_chart, actual_baseline_app = resolved["baseline_chart"], resolved["baseline_app"]
 
         row_changed = False

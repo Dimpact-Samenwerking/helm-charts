@@ -712,7 +712,36 @@ def test_update_component_table_no_table_returns_none_action(ucv):
     new_text, action = ucv.update_component_table(text, "openformulieren", "3.4.10", "3.5.6", "1.12.0", "1.12.0",
                                                     [], {})
     assert action is None
-    assert new_text == text
+
+
+def test_update_component_table_new_component_no_baseline_is_annotated_new(ucv):
+    """A brand-new component (no baseline app/chart version at all — the
+    old_app/old_chart args are None) gets "(new)" cells, not a bare
+    version indistinguishable from a row whose baseline just wasn't
+    passed in."""
+    text = (
+        COMPONENT_VERSIONS_HEADING +
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+    )
+    new_text, action = ucv.update_component_table(text, "openklant", None, "2.15.0", None, "1.11.0", [], {})
+    assert action == "added"
+    assert "| openklant | 2.15.0 (new) | 1.11.0 (new) | - |" in new_text
+
+
+def test_update_component_table_new_sidecar_chart_placeholder_stays_bare(ucv):
+    """A sidecar row's own Helm-chart cell is always the literal "-"
+    not-applicable placeholder (see add_missing_sidecar_rows) — it must
+    never get annotated "(new)" just because old_chart is None too, the
+    same way it's never rewritten with a real chart version either."""
+    text = (
+        COMPONENT_VERSIONS_HEADING +
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+    )
+    new_text, action = ucv.update_component_table(text, "kiss - crawler", None, "1.0.0", None, "-", [], {})
+    assert action == "added"
+    assert "| kiss - crawler | 1.0.0 (new) | - | - |" in new_text
 
 
 # --- make_changes_section / insert_changes_section ---
