@@ -1157,11 +1157,22 @@ def find_images_manifest_list_diff(entries, current_paths, baseline_paths, repo_
     [path, ...]} grouping. A repository shared by more than one path
     (e.g. several "<component>.nginx.image" sidecars all aliasing the
     same global.images.nginx YAML anchor) is ONE image needing at most
-    ONE entry between all of them, not one each — every path in such a
-    group is collapsed to repo_map's own single representative path
-    (the same one an entry naming that repository resolves to via
-    resolve_entry_image_path) before diffing, so the other, redundant
-    paths in the group can never show up as spuriously "missing".
+    ONE entry between all of them, not one each — resolved through repo_
+    map's own single representative path (the same one an entry naming
+    that repository resolves to via resolve_entry_image_path) for BOTH
+    directions: an existing entry naming that repository always matches
+    the representative regardless of which member resolve_entry_path's
+    fuzzy fallback happens to land on, and "did this image actually
+    change" is decided ONLY by the representative's OWN before/after
+    tag — never by whether some OTHER member of the group merely started
+    being used somewhere new. Real case: kiss's own indexTemplateImage
+    started aliasing curlimages/curl for the first time in 4.9.0 (no
+    baseline value for THAT path at all), while global.images.curl
+    itself (repo_map's own representative for that repository) has the
+    exact same tag before and after — the group must NOT be flagged
+    "changed" on the strength of kiss's own brand-new usage alone; the
+    manifest lists images whose version or digest actually changed,
+    never "is newly used somewhere" on its own.
 
     unresolvable_paths: lib.image_repository_check.find_images_without_
     repository's own result — a path with no resolvable repository at
@@ -1200,9 +1211,10 @@ def find_images_manifest_list_diff(entries, current_paths, baseline_paths, repo_
         baseline_tag = baseline_paths.get(path)
         return baseline_tag is None or version_of(tag) != version_of(baseline_tag)
 
-    changed_paths = {representative_of.get(path, path)
-                      for path, tag in current_paths.items()
-                      if version_changed(path, tag) and path not in unresolvable_paths}
+    changed_paths = {path for path, tag in current_paths.items()
+                      if representative_of.get(path, path) == path
+                      and path not in unresolvable_paths
+                      and version_changed(path, tag)}
 
     matched_paths = set()
     stale_entry_names, unmatched_entry_names = [], []
