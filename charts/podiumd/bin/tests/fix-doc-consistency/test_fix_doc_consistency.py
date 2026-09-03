@@ -2327,9 +2327,14 @@ def test_main_reorders_a_sidecar_row_to_come_after_its_own_parent_row(cdb, tmp_p
 
 # --- sort_images_manifest_changes_items ---
 
-CHANGES_ITEMS_DEPS = [{"name": "redis-operator", "version": "1.0.0"},
-                      {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.0"}]
-CHANGES_ITEMS_KEY_ORDER = ["redis-operator", "zac"]
+# entries + entry_positions mirror what images_manifest_entry_positions
+# would compute for a manifest listing redis-operator's own entry
+# BEFORE zac's — position is what sort_images_manifest_changes_items
+# now mirrors, instead of an independently fuzzy-matched dependency
+# order (see the function's own docstring for why that regressed).
+CHANGES_ITEMS_ENTRIES = [{"name": "opstree/redis-operator", "version": "0.26.0"},
+                         {"name": "infonl/zac", "version": "5.4.4"}]
+CHANGES_ITEMS_POSITIONS = {"opstree/redis-operator": 0, "infonl/zac": 1}
 
 
 def test_sort_images_manifest_changes_items_reorders_and_renumbers(cdb):
@@ -2341,7 +2346,7 @@ def test_sort_images_manifest_changes_items_reorders_and_renumbers(cdb):
         "#   2. redis-operator 0.25.0 -> 0.26.0.\n",
         "\n",
     ]
-    moved = cdb.sort_images_manifest_changes_items(lines, CHANGES_ITEMS_DEPS, CHANGES_ITEMS_KEY_ORDER)
+    moved = cdb.sort_images_manifest_changes_items(lines, CHANGES_ITEMS_ENTRIES, CHANGES_ITEMS_POSITIONS)
     assert moved == [("redis-operator 0.25.0 -> 0.26.0.", 2, 1), ("zac 5.0.2 -> 5.4.4.", 1, 2)]
     assert lines[3] == "#   1. redis-operator 0.25.0 -> 0.26.0.\n"
     assert lines[4] == "#   2. zac 5.0.2 -> 5.4.4.\n"
@@ -2358,7 +2363,7 @@ def test_sort_images_manifest_changes_items_continuation_line_travels_with_item(
         "#      nginx sidecar in the chart) 0.25.0 -> 0.26.0.\n",
         "\n",
     ]
-    moved = cdb.sort_images_manifest_changes_items(lines, CHANGES_ITEMS_DEPS, CHANGES_ITEMS_KEY_ORDER)
+    moved = cdb.sort_images_manifest_changes_items(lines, CHANGES_ITEMS_ENTRIES, CHANGES_ITEMS_POSITIONS)
     assert len(moved) == 2
     assert lines[1].startswith("#   1. redis-operator (shared")
     assert lines[2] == "#      nginx sidecar in the chart) 0.25.0 -> 0.26.0.\n"
@@ -2366,9 +2371,10 @@ def test_sort_images_manifest_changes_items_continuation_line_travels_with_item(
 
 
 def test_sort_images_manifest_changes_items_unresolved_item_sorts_last(cdb):
-    """An item that doesn't resolve to any real dependency (free-form
-    prose) sorts after every real one — same sentinel component_order_
-    key uses elsewhere — never dragged around by a real item's move."""
+    """An item that doesn't resolve to any of this manifest's own
+    entries (free-form prose — see lib.docs_consistency.match_changes_
+    item_to_entry) sorts after every real one — never dragged around by
+    a real item's move."""
     lines = [
         "# Changes:\n",
         "#   1. Totally Unknown Thing 1.0.0 -> 2.0.0.\n",
@@ -2376,10 +2382,34 @@ def test_sort_images_manifest_changes_items_unresolved_item_sorts_last(cdb):
         "#   3. redis-operator 0.25.0 -> 0.26.0.\n",
         "\n",
     ]
-    cdb.sort_images_manifest_changes_items(lines, CHANGES_ITEMS_DEPS, CHANGES_ITEMS_KEY_ORDER)
+    cdb.sort_images_manifest_changes_items(lines, CHANGES_ITEMS_ENTRIES, CHANGES_ITEMS_POSITIONS)
     assert lines[1] == "#   1. redis-operator 0.25.0 -> 0.26.0.\n"
     assert lines[2] == "#   2. zac 5.0.2 -> 5.4.4.\n"
     assert lines[3] == "#   3. Totally Unknown Thing 1.0.0 -> 2.0.0.\n"
+
+
+def test_sort_images_manifest_changes_items_mirrors_entry_order_not_fuzzy_dependency_match(cdb):
+    """The real bug this redesign fixes: an item's own free-form prose
+    mentioning an unrelated dependency's name only incidentally (here,
+    "keycloak-operator" inside a parenthetical aside about "keycloak
+    app image") must NOT be fuzzy-matched to that dependency — it must
+    follow whichever entry match_changes_item_to_entry actually
+    resolves it to (its own "keycloak/keycloak" entry), landing at
+    THAT entry's own real position, not wherever a "keycloak-operator"
+    dependency-name match would have placed it."""
+    entries = [{"name": "postgres", "version": "16.15"}, {"name": "keycloak/keycloak", "version": "26.7.2"}]
+    positions = {"postgres": 0, "keycloak/keycloak": 1}
+    lines = [
+        "# Changes:\n",
+        "#   1. Keycloak app image 26.6.4 -> 26.7.2 (keycloak-operator chart\n",
+        "#      unchanged, 1.12.1).\n",
+        "#   2. keycloak-operator - postgres 16 -> 16.15.\n",
+        "\n",
+    ]
+    moved = cdb.sort_images_manifest_changes_items(lines, entries, positions)
+    assert len(moved) == 2
+    assert lines[1] == "#   1. keycloak-operator - postgres 16 -> 16.15.\n"
+    assert lines[2].startswith("#   2. Keycloak app image")
 
 
 def test_sort_images_manifest_changes_items_already_ordered_reports_nothing(cdb):
@@ -2390,14 +2420,14 @@ def test_sort_images_manifest_changes_items_already_ordered_reports_nothing(cdb)
         "\n",
     ]
     original = list(lines)
-    moved = cdb.sort_images_manifest_changes_items(lines, CHANGES_ITEMS_DEPS, CHANGES_ITEMS_KEY_ORDER)
+    moved = cdb.sort_images_manifest_changes_items(lines, CHANGES_ITEMS_ENTRIES, CHANGES_ITEMS_POSITIONS)
     assert moved == []
     assert lines == original
 
 
 def test_sort_images_manifest_changes_items_no_header_is_a_noop(cdb):
     lines = ["- name: opstree/redis-operator\n", '  version: "0.26.0"\n']
-    moved = cdb.sort_images_manifest_changes_items(lines, CHANGES_ITEMS_DEPS, CHANGES_ITEMS_KEY_ORDER)
+    moved = cdb.sort_images_manifest_changes_items(lines, CHANGES_ITEMS_ENTRIES, CHANGES_ITEMS_POSITIONS)
     assert moved == []
 
 

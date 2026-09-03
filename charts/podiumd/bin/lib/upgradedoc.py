@@ -1346,6 +1346,64 @@ def _collapse_group_internal_blank_lines(group_text):
     return "".join(body + lines[last_content:])
 
 
+def _images_manifest_sorted_groups(entries, entry_line_indices, lines, deps, values, repo_map, canonical_names):
+    """(groups, order) — groups from _images_manifest_groups; order is
+    the permutation (list of original group indices, in their NEW
+    sorted sequence) sort_images_manifest_entries physically applies,
+    computed via values_key_order/images_manifest_entry_order_key.
+    Shared with images_manifest_entry_positions so any caller needing
+    "what position does entry X end up at" (see sort_images_manifest_
+    changes_items, which mirrors the entry list's own final order
+    rather than computing a second, independent one) never re-derives
+    the grouping/sort-key logic on its own."""
+    current_paths = dict(find_all_image_and_version_paths(values, deps))
+    groups = _images_manifest_groups(entries, entry_line_indices, lines, current_paths, repo_map, deps,
+                                      canonical_names)
+    key_order = values_key_order(values)
+    order = sorted(range(len(groups)),
+                    key=lambda gi: images_manifest_entry_order_key(groups[gi][1], deps, key_order)) \
+        if len(groups) >= 2 else list(range(len(groups)))
+    return groups, order
+
+
+def images_manifest_entry_positions(text, deps, values, repo_map, canonical_names):
+    """{entry_name: 0-based final position} for every entry in the
+    images manifest, after applying the SAME group-level reordering
+    sort_images_manifest_entries itself performs — for a caller that
+    needs to mirror the entry list's own final order (see sort_images_
+    manifest_changes_items) rather than compute a second, independently-
+    sorted order via free-form text matching, which can disagree with
+    where the entry list itself puts something (real case: a Changes
+    item mentioning "keycloak-operator" only incidentally, inside its
+    own parenthetical aside, fuzzy-matched that dependency and landed
+    ahead of its real sidecars instead of following its actual entry's
+    own position). Every entry sharing one group gets that group's own
+    single position. {} if the manifest isn't valid YAML or has fewer
+    than 2 entries — same guards sort_images_manifest_entries applies."""
+    lines = text.splitlines(keepends=True)
+    try:
+        entries = yaml.safe_load(text)
+    except yaml.YAMLError:
+        return {}
+    if not isinstance(entries, list):
+        return {}
+
+    entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
+    n = min(len(entries), len(entry_line_indices))
+    entries, entry_line_indices = entries[:n], entry_line_indices[:n]
+    if n < 2:
+        return {}
+
+    groups, order = _images_manifest_sorted_groups(entries, entry_line_indices, lines, deps, values, repo_map,
+                                                     canonical_names)
+    position_of_group = {orig_i: slot for slot, orig_i in enumerate(order)}
+    positions = {}
+    for group_index, (indices, _path, _name) in enumerate(groups):
+        for entry_index in indices:
+            positions[entries[entry_index]["name"]] = position_of_group[group_index]
+    return positions
+
+
 def sort_images_manifest_entries(text, deps, values, repo_map, canonical_names):
     """Reorder the images manifest's own entry GROUPS (physically, in
     the text) to match values.yaml's own top-level key order — see
@@ -1378,14 +1436,8 @@ def sort_images_manifest_entries(text, deps, values, repo_map, canonical_names):
     if n < 2:
         return text, []
 
-    current_paths = dict(find_all_image_and_version_paths(values, deps))
-    groups = _images_manifest_groups(entries, entry_line_indices, lines, current_paths, repo_map, deps,
-                                      canonical_names)
-
-    key_order = values_key_order(values)
-    order = sorted(range(len(groups)),
-                    key=lambda gi: images_manifest_entry_order_key(groups[gi][1], deps, key_order)) \
-        if len(groups) >= 2 else list(range(len(groups)))
+    groups, order = _images_manifest_sorted_groups(entries, entry_line_indices, lines, deps, values, repo_map,
+                                                     canonical_names)
     moved = [(groups[i][2], i + 1, slot + 1) for slot, i in enumerate(order) if i != slot]
 
     starts = [images_manifest_block_start(lines, entry_line_indices[indices[0]]) for indices, _, _ in groups]
