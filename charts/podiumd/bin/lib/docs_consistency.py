@@ -12,6 +12,7 @@ import yaml
 
 from lib.chart import canonical_sidecar_row_names, get_path, load_yaml, paths_by_repository
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
+from lib.image_repository_check import find_images_without_repository
 from lib.upgradedoc import (
     actual_app_version, changes_heading_has_app_version, changes_heading_identities, compute_changed_components,
     diff_keys, extract_mentioned_dependency_keys, extract_source_version, extract_target_version,
@@ -292,8 +293,9 @@ def check_images_manifest_format(images_path, upgrade_docs_baseline, podiumd_ver
         repo_groups = paths_by_repository(chart_dir, deps, values, current_paths.keys())
         repo_map = {repo: paths[-1] for repo, paths in repo_groups.items()}
         canonical_names = canonical_sidecar_row_names(chart_dir, deps, values, current_paths.keys())
+        unresolvable_paths = set(find_images_without_repository(chart_dir))
         missing_paths, extra_entry_names = find_images_manifest_list_diff(
-            entries, current_paths, baseline_paths, repo_map, repo_groups)
+            entries, current_paths, baseline_paths, repo_map, repo_groups, unresolvable_paths)
         for path in missing_paths:
             name = path_display_name(path, deps, canonical_names)
             issues.append(f'{images_path.name}: image "{name}" changed vs '

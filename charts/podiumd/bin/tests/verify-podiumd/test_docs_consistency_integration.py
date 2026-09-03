@@ -56,7 +56,8 @@ def git(*args, cwd):
 
 
 def values_yaml(app_version):
-    return f'zac:\n  image:\n    tag: "{app_version}@sha256:abc"\n'
+    return (f'zac:\n  image:\n    repository: ghcr.io/infonl/zaakafhandelcomponent\n'
+            f'    tag: "{app_version}@sha256:abc"\n')
 
 
 @pytest.fixture
@@ -197,7 +198,8 @@ def test_undocumented_new_component_is_caught_everywhere(vp, chart_repo, capsys)
     (chart_repo / "Chart.yaml").write_text(
         CHART_YAML + '  - name: openformulieren\n    version: "1.12.0"\n    repository: "@openformulieren"\n')
     (chart_repo / "values.yaml").write_text(
-        values_yaml("5.4.3") + 'openformulieren:\n  image:\n    tag: "3.5.6@sha256:cccc"\n')
+        values_yaml("5.4.3") +
+        'openformulieren:\n  image:\n    repository: openformulieren/open-forms\n    tag: "3.5.6@sha256:cccc"\n')
 
     ok, detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
     assert ok is False
