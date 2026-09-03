@@ -10,16 +10,16 @@ import re
 
 import yaml
 
-from lib.chart import canonical_sidecar_row_names, get_path, load_yaml
+from lib.chart import canonical_sidecar_row_names, get_path, load_yaml, repository_path_map
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
 from lib.upgradedoc import (
     actual_app_version, changes_heading_has_app_version, changes_heading_identities, compute_changed_components,
     diff_keys, extract_mentioned_dependency_keys, extract_source_version, extract_target_version,
     find_changes_row_correspondence_gaps, find_grouped_preceding_comment, find_image_tag_paths,
-    find_out_of_order_names, find_wrong_or_duplicate_dependency_claims, match_dependency,
-    match_dependency_excluding_sidecar_names, normalize_version, pair_renames, parse_changes_block,
-    parse_upgrade_doc_changes_blocks, parse_upgrade_doc_rows as _parse_upgrade_doc_rows, resolve_entry_path,
-    strip_fenced_code_blocks, values_key_order,
+    find_images_manifest_list_diff, find_out_of_order_names, find_wrong_or_duplicate_dependency_claims,
+    match_dependency, match_dependency_excluding_sidecar_names, normalize_version, pair_renames,
+    parse_changes_block, parse_upgrade_doc_changes_blocks, parse_upgrade_doc_rows as _parse_upgrade_doc_rows,
+    resolve_entry_path, strip_fenced_code_blocks, values_key_order,
 )
 
 
@@ -149,7 +149,11 @@ def check_images_manifest_format(images_path, upgrade_docs_baseline, podiumd_ver
                                   chart_dir=None):
     """Existence + YAML-validity + header-comment-accuracy precheck for the
     images manifest, run BEFORE the entry-by-entry content checks — mirrors
-    check_baseline_doc_set for the three markdown docs."""
+    check_baseline_doc_set for the three markdown docs. Also checks the
+    manifest's own entry LIST against the full, actual set of images that
+    changed vs upgrade_docs_baseline (see find_images_manifest_list_diff)
+    — every changed image must have an entry, and every entry must
+    correspond to a real change, once chart_dir is given."""
     if not images_path.is_file():
         return [f'expected "{images_path.name}" does not exist']
 
@@ -280,6 +284,20 @@ def check_images_manifest_format(images_path, upgrade_docs_baseline, podiumd_ver
                     normalize_version(source) != normalize_version(baseline_version):
                 issues.append(f'{images_path.name}: entry "{entry["name"]}" comment says source '
                                f'"{source}", upgrade_docs_baseline actually has "{baseline_version}"')
+
+    # Only checked once there's something real to diff against — without
+    # a resolvable upgrade_docs_baseline, "changed" can't be computed at
+    # all (baseline_values is {} in that case, so baseline_paths is too).
+    if baseline_paths and chart_dir is not None:
+        repo_map = repository_path_map(chart_dir, deps, values, current_paths.keys())
+        missing_paths, extra_entry_names = find_images_manifest_list_diff(
+            entries, current_paths, baseline_paths, repo_map)
+        for path in missing_paths:
+            issues.append(f'{images_path.name}: image "{".".join(path)}" changed vs '
+                           f'{upgrade_docs_baseline} but has no entry')
+        for name in extra_entry_names:
+            issues.append(f'{images_path.name}: entry "{name}" is listed but its image did not '
+                           f'change vs {upgrade_docs_baseline}')
 
     return issues
 
@@ -659,7 +677,6 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
         pass  # format issue(s) already recorded above; entries aren't safely interpretable until fixed
     else:
         checked.append(images_path.name)
-        covered_paths = set()
         for entry in (load_yaml(images_path) or []):
             name = entry.get("name")
             if not name:
@@ -668,7 +685,6 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
             if not path:
                 print(f'  (images-manifest entry "{name}" — no matching image in values.yaml, skipped)')
                 continue
-            covered_paths.add(path)
 
             expected_tag = f'{entry["version"]}@{entry["digest"]}'
             actual_tag = current_paths[path]
@@ -683,17 +699,6 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
                     f'{name}: listed in {images_path.name} as new/changed, but {baseline_ref} '
                     f'already has this exact tag ("{expected_tag}") — did it actually change?'
                 )
-
-        if baseline_ref and actual_changed_keys:
-            for path, current_tag in current_paths.items():
-                if path[0] not in actual_changed_keys or path in covered_paths:
-                    continue
-                if baseline_paths.get(path) != current_tag:
-                    mismatches.append(
-                        f'{"/".join(path)}: tag changed ("{baseline_paths.get(path)}" -> '
-                        f'"{current_tag}") between {baseline_ref} and now, but has no entry '
-                        f'in {images_path.name}'
-                    )
 
     if baseline_ref and is_bare_version and actual_changed_keys:
         values_deltas_path = doc_dir / f"{upgrade_docs_baseline}-to-{podiumd_version}-values-deltas.md"
