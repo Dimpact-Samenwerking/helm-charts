@@ -822,6 +822,16 @@ def find_images_manifest_list_diff(entries, current_paths, baseline_paths, repo_
     extra_entry_names = []
     for entry in entries:
         path = resolve_entry_image_path(entry, current_paths.keys(), repo_map)
+        # An entry can resolve to ANY path in a shared-repository group —
+        # repo_map's own exact "name: is a stripped repository" hit
+        # always lands on repo_map's chosen representative already, but
+        # resolve_entry_path's fuzzy name-word fallback (e.g. manifest
+        # name "redis-ha" fuzzy-matching the literal path segment
+        # ("redis-operator", "redis-ha", "image")) can land on any OTHER
+        # member instead — collapsed the same way changed_paths already
+        # is, so the two sides can never disagree about which path
+        # "counts" for a shared image.
+        path = representative_of.get(path, path) if path is not None else None
         if path is not None:
             matched_paths.add(path)
         if path is None or path not in changed_paths:

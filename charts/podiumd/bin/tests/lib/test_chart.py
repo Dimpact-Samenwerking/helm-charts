@@ -871,20 +871,42 @@ def test_repository_path_map_subchart_values_reused_across_paths(libchart, tmp_p
     assert calls == ["zaakafhandelcomponent"]
 
 
-def test_repository_path_map_skips_path_with_no_known_dependency(libchart, tmp_path):
+def test_repository_path_map_skips_path_with_no_known_dependency_and_no_own_repository(libchart, tmp_path):
     """A path whose first segment isn't any dependency's own values-tree
-    key at all (e.g. a shared global.images.* anchor) is silently
-    skipped, not an error."""
+    key at all, AND has no own "repository:" override either — nothing
+    to resolve it against either way — is silently skipped, not an
+    error."""
     dep = {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}
     own_values = {
         "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent"}},
-        "global": {"images": {"nginx": {"image": {"repository": "nginxinc/nginx-unprivileged"}}}},
+        "mystery": {"image": {"tag": "1.0.0@sha256:aaaa"}},
     }
-    paths = [("zac", "image"), ("global", "images", "nginx", "image")]
+    paths = [("zac", "image"), ("mystery", "image")]
 
     mapping = libchart.repository_path_map(tmp_path, [dep], own_values, paths, allow_pull=False)
 
     assert mapping == {"infonl/zaakafhandelcomponent": ("zac", "image")}
+
+
+def test_repository_path_map_includes_own_repository_with_no_known_dependency(libchart, tmp_path):
+    """A path whose first segment isn't any Chart.yaml dependency at all
+    — one of podiumd's own directly-templated top-level blocks, like the
+    real "apiproxy"/"frankgateway"/"keycloak" — is still resolved when
+    podiumd's own values.yaml sets its "repository:" directly (same
+    resolution order lib.image_repository_check.find_images_without_
+    repository already uses: own override first, dependency status
+    irrelevant to that lookup). Real case this exists for: "apiproxy"
+    aliases the very same shared global.images.nginx anchor a real
+    dependency's own "<component>.nginx.image" sidecar does — excluding
+    it here would wrongly split one shared-image group in two."""
+    own_values = {
+        "apiproxy": {"image": {"repository": "nginxinc/nginx-unprivileged", "tag": "1.31.4@sha256:aaaa"}},
+    }
+    paths = [("apiproxy", "image")]
+
+    mapping = libchart.repository_path_map(tmp_path, [], own_values, paths, allow_pull=False)
+
+    assert mapping == {"nginxinc/nginx-unprivileged": ("apiproxy", "image")}
 
 
 def test_repository_path_map_skips_unresolvable_and_multiple_deps(libchart, tmp_path):

@@ -550,17 +550,32 @@ def paths_by_repository(chart_dir, deps, values, paths, allow_pull=False):
 
     Resolution per path: podiumd's OWN explicit "repository:" override
     at that exact nested location wins if present (get_path(values,
-    ".".join(path) + ".repository")); otherwise the owning
-    dependency's vendored subchart's own default at the same relative
+    ".".join(path) + ".repository")) — checked FIRST and regardless of
+    whether path[0] is even a known Chart.yaml dependency, same
+    resolution order lib.image_repository_check.find_images_without_
+    repository already uses, and for the same reason: podiumd's own
+    values.yaml answers this directly, no dependency needed to ask it.
+    Real case this matters for: "apiproxy"/"frankgateway"/"keycloak" are
+    podiumd's own directly-templated top-level blocks with no Chart.yaml
+    dependency of their own at all, yet several of them alias the very
+    same shared global.images.nginx anchor a real dependency's own
+    "<component>.nginx.image" sidecar does — excluding them here would
+    silently split one shared-image group into "the dependencies' own
+    usages" (correctly grouped) plus "everyone else" (each wrongly on
+    its own), the exact opposite of this function's whole purpose.
+
+    Only once there's no own override does a known dependency matter at
+    all — its vendored subchart's own default at the same relative
     location (get_path(subchart_values, ".".join(path[1:]) +
     ".repository"), via resolve_chart_values) — resolved AT MOST ONCE
     per dependency and reused across every one of its paths, the same
     caching primary_image_repositories does for its own narrower
-    curated-path case. A path whose first segment doesn't match any
-    known dependency's own values-tree key (alias or name), or whose
-    repository can't be resolved either way, is silently skipped — not
-    every image belongs to a Chart.yaml dependency at all (e.g. a
-    shared global.images.* anchor, or a genuinely un-vendored subchart).
+    curated-path case. A path whose repository can't be resolved either
+    way (no own override, AND either no known dependency or its
+    subchart doesn't set one either) is silently skipped — not every
+    image belongs to a Chart.yaml dependency at all, and not every
+    image, dependency or not, has an explicit repository set anywhere
+    this function can see.
 
     More than one path landing under the same repository is the normal,
     expected shape for a base image shared across several unrelated
@@ -580,13 +595,13 @@ def paths_by_repository(chart_dir, deps, values, paths, allow_pull=False):
     subchart_cache = {}  # dep name -> (values_or_None, error_or_None)
     groups = {}
     for path in paths:
-        dep = by_values_key.get(path[0]) if path else None
-        if dep is None:
-            continue
-
         own_repo = get_path(values, ".".join(path) + ".repository")
         if isinstance(own_repo, str) and own_repo:
             groups.setdefault(strip_registry_host(own_repo), []).append(path)
+            continue
+
+        dep = by_values_key.get(path[0]) if path else None
+        if dep is None:
             continue
 
         if dep["name"] not in subchart_cache:

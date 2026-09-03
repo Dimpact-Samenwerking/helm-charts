@@ -544,6 +544,29 @@ def test_sidecar_missing_from_images_manifest_uses_canonical_name(vp, redis_side
     assert "redis-operator.redis-ha.image" not in out
 
 
+def test_orphan_top_level_block_sharing_a_dependencys_sidecar_repository_is_covered(
+        vp, redis_sidecar_chart_repo, capsys):
+    """A top-level values.yaml block with no Chart.yaml dependency of its
+    own at all (podiumd's own directly-templated "apiproxy"/
+    "frankgateway"/"keycloak" blocks are the real cases) that shares the
+    exact same repository as a real dependency's own sidecar (e.g. both
+    alias the same shared global.images.nginx anchor) is covered by that
+    ONE sidecar's own manifest entry too — not flagged as its own,
+    separate "changed but has no entry" gap just because it isn't rooted
+    at a known Chart.yaml dependency."""
+    values_path = redis_sidecar_chart_repo / "values.yaml"
+    values_path.write_text(
+        values_path.read_text() +
+        'apiproxy:\n  image:\n    repository: quay.io/opstree/redis\n    tag: "8.6.6@sha256:abc"\n'
+    )
+
+    ok, detail = vp.check_docs_consistency(redis_sidecar_chart_repo, upgrade_docs_baseline="4.8.5")
+
+    assert ok is True, detail
+    out = capsys.readouterr().out
+    assert "apiproxy" not in out
+
+
 REDIS_TWO_IMAGES_VALUES_TMPL = (
     "redis-operator:\n"
     "  redis-ha:\n"
