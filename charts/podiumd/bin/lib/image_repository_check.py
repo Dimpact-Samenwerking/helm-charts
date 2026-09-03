@@ -1,8 +1,9 @@
-"""Verifies every "image: {tag: ...}" block in this chart's own
-values.yaml (see lib.upgradedoc.find_image_tag_paths) resolves to an
-actual, non-empty repository — either podiumd's own override, or the
-owning dependency's vendored subchart default (the same own-vs-
-subchart-default resolution lib.chart.repository_path_map uses, but
+"""Verifies every "image: {tag: ...}" block, plus every registered bare
+tag/version field (see lib.upgradedoc.find_all_image_and_version_paths),
+in this chart's own values.yaml resolves to an actual, non-empty
+repository — either podiumd's own override, or the owning dependency's
+vendored subchart default (the same own-vs-subchart-default resolution
+lib.chart.repository_path_map uses, but
 checked PER PATH here — repository_path_map's own output is keyed by
 the repository string, which silently collapses down to one survivor
 whenever more than one path shares the same repository, e.g. several
@@ -23,8 +24,8 @@ subchart has no "adapter" key in its own defaults either — so the
 podiumd-adapter Deployment currently renders "image: :0.6.7@sha256:...",
 confirmed both by rendering the podiumd.image helper directly and
 against a real `helm template` output already checked into this repo."""
-from lib.chart import get_path, load_yaml, resolve_chart_values
-from lib.upgradedoc import find_image_tag_paths
+from lib.chart import get_path, load_yaml, resolve_chart_values, version_repository_path_for
+from lib.upgradedoc import find_all_image_and_version_paths
 
 
 def find_images_without_repository(chart_dir, allow_pull=False):
@@ -55,7 +56,7 @@ def find_images_without_repository(chart_dir, allow_pull=False):
     subchart_cache = {}  # dep name -> subchart values or None
 
     missing = []
-    for path, _tag in find_image_tag_paths(values):
+    for path, _tag in find_all_image_and_version_paths(values, deps):
         if not path:
             continue
 
@@ -70,6 +71,12 @@ def find_images_without_repository(chart_dir, allow_pull=False):
             # the only possible answer.
             missing.append(path)
             continue
+
+        sibling_rel = version_repository_path_for(dep["name"])
+        if sibling_rel:
+            sibling_repo = get_path(values, f"{path[0]}.{sibling_rel}")
+            if isinstance(sibling_repo, str) and sibling_repo:
+                continue
 
         if dep["name"] not in subchart_cache:
             sub_values, _source, _err = resolve_chart_values(chart_dir, dep, dep["version"], allow_pull=allow_pull)

@@ -2,6 +2,8 @@
 regressions found during development: a version number like "1.17.1-static"
 on a continuation line being mistaken for a new numbered list item, and a
 trailing period being captured as part of a version."""
+import yaml
+
 from dep_helpers import make_dep
 
 REAL_MANIFEST = """\
@@ -191,6 +193,64 @@ def test_images_manifest_format_source_vs_baseline_mismatch(libdocsconsistency, 
     images_path.write_text(REAL_MANIFEST)
     issues = libdocsconsistency.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, baseline_values)
     assert any('comment says source "1.17.1-static"' in i for i in issues)
+
+
+# --- the list-diff check (chart_dir given) against a COMPONENT_VERSION_
+# PATHS-registered component — real bug: redis-operator's own image is
+# pinned as flat sibling scalars ("redisOperator.imageTag"/"imageName"),
+# never nested under an "image:" dict at all, so it was completely
+# invisible to the list-diff's structural scan — a real version bump
+# was reported as "entry ... is listed but its image did not change".
+
+REDIS_OPERATOR_DEPS = [make_dep("redis-operator", "0.26.1")]
+
+
+def redis_operator_values(tag):
+    # redis-ha's own sidecar image (ordinary "image: {tag: ...}" shape,
+    # UNCHANGED between baseline and target here) — present so
+    # find_image_tag_paths' structural scan finds SOMETHING even
+    # without the fix, and the list-diff's own "if baseline_paths and
+    # chart_dir is not None" guard doesn't short-circuit the whole
+    # check before it ever reaches redis-operator's own entry; a
+    # values.yaml with ONLY the COMPONENT_VERSION_PATHS-shaped field
+    # would make current_paths/baseline_paths empty regardless of the
+    # fix, silently skipping the check instead of exercising it.
+    return {"redis-operator": {
+        "redisOperator": {"imageName": "quay.io/opstree/redis-operator", "imageTag": f"{tag}@sha256:aaa"},
+        "redis-ha": {"image": {"repository": "quay.io/opstree/redis", "tag": "8.6.6@sha256:bbb"}},
+    }}
+
+
+REDIS_OPERATOR_MANIFEST = """\
+# Baseline: podiumd 4.8.5 (test @ 0000000).
+#
+# Images new or changed in podiumd 4.9.0 vs 4.8.5.
+#
+# Changes:
+#   1. redis-operator 0.25.0 -> 0.26.0 (chart 0.25.0 -> 0.26.1).
+#
+# See docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md for the operator upgrade notes.
+
+# redis-operator — 0.25.0 -> 0.26.0
+- name: opstree/redis-operator
+  url: quay.io/opstree/redis-operator
+  version: "v0.26.0"
+  digest: "sha256:aaa"
+"""
+
+
+def test_images_manifest_format_component_version_path_change_is_recognized(libdocsconsistency, tmp_path):
+    (tmp_path / "Chart.yaml").write_text(yaml.safe_dump({"dependencies": REDIS_OPERATOR_DEPS}), encoding="utf-8")
+    (tmp_path / "values.yaml").write_text(yaml.safe_dump(redis_operator_values("v0.26.0")), encoding="utf-8")
+    images_path = tmp_path / "images-4.9.0.yaml"
+    images_path.write_text(REDIS_OPERATOR_MANIFEST)
+
+    issues = libdocsconsistency.check_images_manifest_format(
+        images_path, "4.8.5", "4.9.0", REDIS_OPERATOR_DEPS,
+        redis_operator_values("v0.26.0"), redis_operator_values("v0.25.0"), chart_dir=tmp_path)
+
+    assert not any("did not change" in i for i in issues)
+    assert not any("has no entry" in i for i in issues)
 
 
 # --- Changes items for plain images with no Chart.yaml dependency of their

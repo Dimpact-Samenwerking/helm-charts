@@ -349,6 +349,56 @@ def test_find_image_tag_paths_excludes_plural_images_container(libupgradedoc):
     assert dict(libupgradedoc.find_image_tag_paths(values)) == {}
 
 
+# --- find_component_version_tags / find_all_image_and_version_paths ---
+# Real bug this closes: redis-operator's own image is pinned as flat
+# sibling scalars ("redisOperator.imageTag"/"imageName", registered in
+# lib.chart.COMPONENT_VERSION_PATHS), never nested under an "image:"/
+# "...Image:" dict at all — find_image_tag_paths' generic structural
+# scan can never see it, so the images-manifest list-diff check
+# (lib.docs_consistency.check_images_manifest_format) silently treated
+# a real version bump as "did not change vs baseline".
+
+def test_find_component_version_tags_finds_registered_bare_field(libupgradedoc):
+    deps = [{"name": "redis-operator", "version": "0.26.1"}]
+    values = {"redis-operator": {"redisOperator": {
+        "imageName": "quay.io/opstree/redis-operator",
+        "imageTag": "v0.26.0@sha256:aaaa",
+    }}}
+    paths = dict(libupgradedoc.find_component_version_tags(values, deps))
+    assert paths[("redis-operator", "redisOperator", "imageTag")] == "v0.26.0@sha256:aaaa"
+
+
+def test_find_component_version_tags_uses_alias_not_name_for_the_values_key(libupgradedoc):
+    deps = [{"name": "eck-stack", "alias": "kiss-eck", "version": "0.20.0"}]
+    values = {"kiss-eck": {"eck-elasticsearch": {"version": "8.19.19"}, "eck-kibana": {"version": "8.19.19"}}}
+    paths = dict(libupgradedoc.find_component_version_tags(values, deps))
+    assert paths[("kiss-eck", "eck-elasticsearch", "version")] == "8.19.19"
+    assert paths[("kiss-eck", "eck-kibana", "version")] == "8.19.19"
+
+
+def test_find_component_version_tags_skips_unset_field(libupgradedoc):
+    deps = [{"name": "redis-operator", "version": "0.26.1"}]
+    values = {"redis-operator": {}}
+    assert dict(libupgradedoc.find_component_version_tags(values, deps)) == {}
+
+
+def test_find_component_version_tags_ignores_unregistered_dependency(libupgradedoc):
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+    values = {"zac": {"image": {"tag": "5.4.4@sha256:aaaa"}}}
+    assert dict(libupgradedoc.find_component_version_tags(values, deps)) == {}
+
+
+def test_find_all_image_and_version_paths_combines_both(libupgradedoc):
+    deps = [{"name": "redis-operator", "version": "0.26.1"}]
+    values = {"redis-operator": {
+        "redisOperator": {"imageName": "quay.io/opstree/redis-operator", "imageTag": "v0.26.0@sha256:aaaa"},
+        "redis-ha": {"image": {"tag": "8.6.6@sha256:bbbb"}},
+    }}
+    paths = dict(libupgradedoc.find_all_image_and_version_paths(values, deps))
+    assert paths[("redis-operator", "redisOperator", "imageTag")] == "v0.26.0@sha256:aaaa"
+    assert paths[("redis-operator", "redis-ha", "image")] == "8.6.6@sha256:bbbb"
+
+
 # --- resolve_entry_path ---
 
 def test_resolve_entry_path_exact_match(libupgradedoc):
