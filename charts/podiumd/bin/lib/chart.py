@@ -536,17 +536,17 @@ def strip_registry_host(url):
     return url
 
 
-def repository_path_map(chart_dir, deps, values, paths, allow_pull=False):
-    """{strip_registry_host(repository): values-tree path} for every
-    path in `paths` (e.g. lib.upgradedoc.find_image_tag_paths(values)'s
-    own keys) that resolves to a repository — not just each
-    dependency's own "primary" image (image_paths_for /
-    primary_image_repositories) but every nested sidecar under it too.
-    ZAC's own opa/office_converter sidecars are the motivating case:
-    their real repository lives in ZAC's OWN vendored subchart
-    values.yaml (a plain top-level "opa.image.repository" key there),
-    not podiumd's — podiumd's own values.yaml only overrides their
-    "tag:", leaving "repository:" commented out for documentation.
+def paths_by_repository(chart_dir, deps, values, paths, allow_pull=False):
+    """{strip_registry_host(repository): [path, ...]} for every path in
+    `paths` (e.g. lib.upgradedoc.find_image_tag_paths(values)'s own
+    keys) that resolves to a repository — not just each dependency's
+    own "primary" image (image_paths_for / primary_image_repositories)
+    but every nested sidecar under it too. ZAC's own opa/office_
+    converter sidecars are the motivating case: their real repository
+    lives in ZAC's OWN vendored subchart values.yaml (a plain top-level
+    "opa.image.repository" key there), not podiumd's — podiumd's own
+    values.yaml only overrides their "tag:", leaving "repository:"
+    commented out for documentation.
 
     Resolution per path: podiumd's OWN explicit "repository:" override
     at that exact nested location wins if present (get_path(values,
@@ -562,14 +562,15 @@ def repository_path_map(chart_dir, deps, values, paths, allow_pull=False):
     every image belongs to a Chart.yaml dependency at all (e.g. a
     shared global.images.* anchor, or a genuinely un-vendored subchart).
 
-    Exists because an images-manifest entry's "name:" is, under the
-    current strip-registry convention, exactly a repository in this
-    same stripped form (docs/images/acr-mirror-naming.md) — so this map
-    gives an exact entry -> values-tree-path match, where
-    resolve_entry_path's fuzzy name-word matching breaks down: a
-    manifest name like "infonl/zaakafhandelcomponent" no longer
-    resembles the values.yaml key ("zac") the way the old hand-
-    translated slugs (name: "zac") did.
+    More than one path landing under the same repository is the normal,
+    expected shape for a base image shared across several unrelated
+    components via values.yaml's global.images anchor block (nginx,
+    curl, busybox, redis — pinned once, aliased everywhere else via a
+    YAML anchor/alias — see lib.image_version's own MULTIPLE_KEY
+    convention for the same "one shared image, many usage sites" idea)
+    — e.g. every "<component>.nginx.image" sidecar aliasing the same
+    global.images.nginx anchor lands together here, all under
+    "nginxinc/nginx-unprivileged".
 
     allow_pull defaults to False (offline-only, matching primary_image_
     repositories' own default) — a doc-consistency check has no
@@ -577,7 +578,7 @@ def repository_path_map(chart_dir, deps, values, paths, allow_pull=False):
     it works with."""
     by_values_key = {(dep.get("alias") or dep["name"]): dep for dep in deps}
     subchart_cache = {}  # dep name -> (values_or_None, error_or_None)
-    mapping = {}
+    groups = {}
     for path in paths:
         dep = by_values_key.get(path[0]) if path else None
         if dep is None:
@@ -585,7 +586,7 @@ def repository_path_map(chart_dir, deps, values, paths, allow_pull=False):
 
         own_repo = get_path(values, ".".join(path) + ".repository")
         if isinstance(own_repo, str) and own_repo:
-            mapping[strip_registry_host(own_repo)] = path
+            groups.setdefault(strip_registry_host(own_repo), []).append(path)
             continue
 
         if dep["name"] not in subchart_cache:
@@ -599,8 +600,27 @@ def repository_path_map(chart_dir, deps, values, paths, allow_pull=False):
             continue
         repo = get_path(sub_values, ".".join(path[1:]) + ".repository")
         if isinstance(repo, str) and repo:
-            mapping[strip_registry_host(repo)] = path
-    return mapping
+            groups.setdefault(strip_registry_host(repo), []).append(path)
+    return groups
+
+
+def repository_path_map(chart_dir, deps, values, paths, allow_pull=False):
+    """{strip_registry_host(repository): values-tree path} — paths_by_
+    repository's own per-repository groups, collapsed to each group's
+    single last-processed path. Exists because an images-manifest
+    entry's "name:" is, under the current strip-registry convention,
+    exactly a repository in this same stripped form (docs/images/acr-
+    mirror-naming.md) — so this map gives an exact entry -> values-
+    tree-path match, where resolve_entry_path's fuzzy name-word
+    matching breaks down: a manifest name like
+    "infonl/zaakafhandelcomponent" no longer resembles the values.yaml
+    key ("zac") the way the old hand-translated slugs (name: "zac")
+    did. A single survivor per repository is exactly right for THIS
+    purpose (one entry, one path, done) — see paths_by_repository's own
+    docstring for why a caller needing every path a shared repository
+    covers (not just one) should use that function directly instead."""
+    return {repo: repo_paths[-1] for repo, repo_paths
+            in paths_by_repository(chart_dir, deps, values, paths, allow_pull=allow_pull).items()}
 
 
 def canonical_sidecar_row_names(chart_dir, deps, values, paths, allow_pull=False):
