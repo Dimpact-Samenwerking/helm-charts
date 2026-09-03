@@ -4,28 +4,36 @@
 # Images new or changed in podiumd 4.9.0 vs 4.8.5.
 #
 # Changes:
-#   1. ZAC (Zaakafhandelcomponent) 5.0.2 -> 5.4.4 (chart 1.0.297, unchanged —
+#   1. clamav - clamav_exporter v2.1.3 -> v2.1.8.
+#   2. redis-operator - redis-exporter 1.82.0 -> 1.89.0.
+#   3. redis-operator - redis 8.6.2 -> 8.6.6.
+#   4. zac - gotenberg 8.34.0 -> 8.36.0.
+#   5. zac - opa 1.17.1-static -> 1.19.1-static.
+#   6. redis-operator - k8s 1.36.2 -> 1.36.2.
+#   7. keycloak-operator - python 3.14-slim -> 3.14.7-slim.
+#   8. keycloak-operator - postgres 16 -> 16.15.
+#   9. ZAC (Zaakafhandelcomponent) 5.0.2 -> 5.4.4 (chart 1.0.297, unchanged —
 #      the chart line was already bumped ahead of the image in the 4.8.5 hop).
 #      ZAC's bundled sidecar images also bumped: opa 1.17.1-static ->
 #      1.19.1-static, office_converter (gotenberg) 8.34.0 -> 8.36.0.
-#   2. ZGW Office Add-in v0.9.313 -> 0.11.0 (chart 0.0.89, unchanged).
+#   10. ZGW Office Add-in v0.9.313 -> 0.11.0 (chart 0.0.89, unchanged).
 #      Repository names (zgw-office-addin-{frontend,backend}) unchanged from
 #      4.8.5. Tag scheme dropped the "v" prefix from 0.10.0 onward.
-#   3. ClamAV 1.5.2 -> 1.5.4 (chart clamav 3.7.1 -> 3.7.2).
-#   4. Keycloak app image 26.6.4 -> 26.7.2 (keycloak-operator chart unchanged,
+#   11. ClamAV 1.5.2 -> 1.5.4 (chart clamav 3.7.1 -> 3.7.2).
+#   12. Keycloak app image 26.6.4 -> 26.7.2 (keycloak-operator chart unchanged,
 #      1.12.1 — no operator release yet supports 26.7.x).
-#   5. ECK Operator 3.4.0 -> 3.5.0 (chart eck-operator 3.4.0 -> 3.5.0; image tag
+#   13. ECK Operator 3.4.0 -> 3.5.0 (chart eck-operator 3.4.0 -> 3.5.0; image tag
 #      floats on the chart's appVersion, no override in values.yaml). CRD schema
 #      change verified additive-only — see
 #      docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-operators-crds.md.
-#   6. ECK Stack (kiss-eck) chart 0.19.0 -> 0.20.0 (no image change of its own).
-#   7. Kiss's ECK-managed Elasticsearch/Kibana/Enterprise Search 8.19.3 -> 8.19.19
+#   14. ECK Stack (kiss-eck) chart 0.19.0 -> 0.20.0 (no image change of its own).
+#   15. Kiss's ECK-managed Elasticsearch/Kibana/Enterprise Search 8.19.3 -> 8.19.19
 #      (16-patch bump on the same 8.19.x branch, all three components in lockstep).
-#   8. Python (ensurePodiumdAdminUser init image) 3.14-slim -> 3.14.7-slim —
+#   16. Python (ensurePodiumdAdminUser init image) 3.14-slim -> 3.14.7-slim —
 #      now pinned to a specific patch instead of the floating minor tag.
-#   9. ITA 3.2.0 -> 3.3.0 (chart internetaakafhandeling 3.2.0 -> 3.3.0), web and
+#   17. ITA 3.2.0 -> 3.3.0 (chart internetaakafhandeling 3.2.0 -> 3.3.0), web and
 #      poller. No new images, tag bumps only.
-#   10. KISS 2.2.4 -> 3.0.0 (kiss-chart 2.2.4 -> 3.0.0), kiss-elastic-sync 0.3.3 ->
+#   18. KISS 2.2.4 -> 3.0.0 (kiss-chart 2.2.4 -> 3.0.0), kiss-elastic-sync 0.3.3 ->
 #      3.0.0. Enterprise Search is gone: the Elastic Open Crawler now runs as a
 #      CronJob per site, and curl registers the search-website* index template in
 #      a pre-install/pre-upgrade hook.
@@ -33,23 +41,23 @@
 #      imported before the 4.9.0 rollout, or Azure Policy blocks pod creation.
 #      curlimages/curl:8.20.0 is already mirrored (see images-baseline.yaml) and
 #      is listed here only because KISS starts using it in this release.
-#   11. PABC 1.1.0 -> 1.1.1 (chart 1.1.0 -> 1.1.1), pabc-api and pabc-migrations.
-#   12. PodiumD Adapter 0.6.6 -> 0.6.7 (chart 0.6.6 -> 0.6.7), podiumd-adapter.
-#   13. Redis (redis-ha) 8.6.2 -> 8.6.6 (opstree/redis, chart unchanged). Same
+#   19. PABC 1.1.0 -> 1.1.1 (chart 1.1.0 -> 1.1.1), pabc-api and pabc-migrations.
+#   20. PodiumD Adapter 0.6.6 -> 0.6.7 (chart 0.6.6 -> 0.6.7), podiumd-adapter.
+#   21. Redis (redis-ha) 8.6.2 -> 8.6.6 (opstree/redis, chart unchanged). Same
 #      8.6.x branch; picks up several upstream security fixes (RCE-class RESTORE/
 #      Lua/TLS CVEs) fixed across 8.6.3/8.6.5/8.6.6.
-#   14. redis-exporter 1.82.0 -> 1.89.0 (opstree/redis-exporter). Sidecar is
+#   22. redis-exporter 1.82.0 -> 1.89.0 (opstree/redis-exporter). Sidecar is
 #      disabled by default (redisExporter.enabled: false).
-#   15. redis-operator chart 0.25.0 -> 0.26.1, operator image 0.25.0 -> 0.26.0
+#   23. redis-operator chart 0.25.0 -> 0.26.1, operator image 0.25.0 -> 0.26.0
 #      (quay.io/opstree/redis-operator, both main and init-container image now
 #      explicitly digest-pinned). CRD diff verified as zero (no schema change).
-#   16. openformulieren 3.4.10 -> 3.5.6 (chart 1.12.0, unchanged).
-#   17. openinwoner 2.4.2 -> 2.4.3 (chart 2.4.0, unchanged).
-#   18. openzaak 1.27.4 -> 1.29.3 (chart 1.14.2, unchanged).
-#   19. opennotificaties 1.16.1 -> 1.16.2 (chart 2.0.0, unchanged).
-#   20. clamav_exporter (metrics sidecar) v2.1.3 -> v2.1.8 (clamav chart
+#   24. openformulieren 3.4.10 -> 3.5.6 (chart 1.12.0, unchanged).
+#   25. openinwoner 2.4.2 -> 2.4.3 (chart 2.4.0, unchanged).
+#   26. openzaak 1.27.4 -> 1.29.3 (chart 1.14.2, unchanged).
+#   27. opennotificaties 1.16.1 -> 1.16.2 (chart 2.0.0, unchanged).
+#   28. clamav_exporter (metrics sidecar) v2.1.3 -> v2.1.8 (clamav chart
 #      unchanged). Sidecar disabled by default (clamav.metrics.enabled: false).
-#   21. nginx-unprivileged (shared global.images.nginx anchor, used by every
+#   29. nginx-unprivileged (shared global.images.nginx anchor, used by every
 #      nginx sidecar in the chart) 1.31.3 -> 1.31.4.
 #
 # See docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md for the operator upgrade notes,
@@ -58,6 +66,48 @@
 #
 # Digests are the OCI image index (multi-arch manifest) digest as returned in
 # the Docker-Content-Digest response header from the source registry.
+
+# keycloak-operator - postgres — 16 -> 16.15
+- name: postgres
+  url: postgres
+  version: "16.15"
+  digest: "sha256:f1c3376c26f2609ab9f29f71f824103fe2fcd8ee0346485cb6122a4f93df6f94"
+
+# keycloak-operator - python — 3.14-slim -> 3.14.7-slim
+- name: python
+  url: python
+  version: "3.14.7-slim"
+  digest: "sha256:cae66f2ef0ec51a9891263eeee7f987dacf0a9879e8aa9353d5606e0530619a5"
+
+# redis-operator - k8s — 1.36.2 -> 1.36.2
+- name: alpine/k8s
+  url: alpine/k8s
+  version: "1.36.2"
+  digest: "sha256:44ef4942e171939b9c665a4a84beb80e2dcdb9a24330d4651cfdfd2e9deecc47"
+
+# openzaak — 1.27.4 -> 1.29.3
+- name: openzaak/open-zaak
+  url: openzaak/open-zaak
+  version: "1.29.3"
+  digest: "sha256:7ac22da287ac190a0e1c14849a370c433d3511678dcc8f3897007fd6de6dd4ac"
+
+# opennotificaties — 1.16.1 -> 1.16.2
+- name: openzaak/open-notificaties
+  url: openzaak/open-notificaties
+  version: "1.16.2"
+  digest: "sha256:2988d538b30db30487ed89873877e1d22e12f80dfa42d80ec1a5c97265c7e4cd"
+
+# openformulieren — 3.4.10 -> 3.5.6
+- name: openformulieren/open-forms
+  url: openformulieren/open-forms
+  version: "3.5.6"
+  digest: "sha256:f5a5d51a44f39edcfb2143ae5d2ed9525b22ea377faa35fd2cce26b678f7fe83"
+
+# openinwoner — 2.4.2 -> 2.4.3
+- name: maykinmedia/open-inwoner
+  url: maykinmedia/open-inwoner
+  version: "2.4.3"
+  digest: "sha256:c2ff751143c260874a1ebcdcc7e07dc213cffee70c3ea5a9589948e3f5da43e4"
 
 # ZAC — 5.0.2 -> 5.4.4
 - name: infonl/zaakafhandelcomponent
