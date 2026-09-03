@@ -1040,11 +1040,19 @@ def find_images_manifest_faulty_headers(entries, entry_line_indices, lines, deps
     skipped entirely — already reported elsewhere (see find_images_
     manifest_list_diff's unmatched_entry_names), and there's no real
     "expected name" to check a header against for something that isn't
-    a real image."""
+    a real image. Likewise skipped: a path rooted at anything with no
+    Chart.yaml dependency of its own at all (podiumd's own directly-
+    templated top-level blocks — "keycloak", "apiproxy", "frankgateway",
+    the shared "global" anchor — see lib.image_repository_check's own
+    docstring for the real cases) — there's no PARENT for such an entry
+    to be a "sidecar OF", so the "#   sidecar: <parent> - ..." shape
+    doesn't apply to it; its own free-form header (explaining WHY it's
+    listed, not whose sidecar it is) is exactly the right shape already."""
+    by_values_key = {(dep.get("alias") or dep["name"]): dep for dep in deps}
     problems = []
     for entry, line_idx in zip(entries, entry_line_indices):
         path = resolve_entry_image_path(entry, current_paths.keys(), repo_map)
-        if path is None or is_primary_image_path(path, deps):
+        if path is None or path[0] not in by_values_key or is_primary_image_path(path, deps):
             continue
         display_name = path_display_name(path, deps, canonical_names)
         top_line = _own_header_top_line(lines, line_idx)
