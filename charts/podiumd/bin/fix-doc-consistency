@@ -92,10 +92,11 @@ from lib.image_repository_check import find_images_without_repository
 from lib.upgradedoc import (
     append_to_doc, canonical_version_cell, component_version_cell, compute_changed_components,
     extract_source_version, extract_target_version, find_all_image_and_version_paths,
-    find_grouped_preceding_comment_line, find_image_tag_paths, find_images_manifest_list_diff, insertion_index,
+    find_grouped_preceding_comment_line, find_image_tag_paths, find_images_manifest_list_diff,
+    images_manifest_block_start, images_manifest_entries_share_group, insertion_index,
     match_dependency_excluding_sidecar_names, missing_key_change_lines, normalize_version, parse_upgrade_doc_rows,
     path_display_name, replace_version_pair, resolve_component_row, resolve_entry_image_path, sort_changes_blocks,
-    sort_upgrade_doc_rows, values_key_order,
+    sort_images_manifest_entries, sort_upgrade_doc_rows, values_key_order,
 )
 
 CHART_YAML = SCRIPT_DIR.parents[0] / "Chart.yaml"
@@ -395,14 +396,8 @@ def fix_images_manifest_entries(text, deps, target_values, baseline_values, repo
     current_paths = dict(find_all_image_and_version_paths(target_values, deps))
     baseline_paths = dict(find_all_image_and_version_paths(baseline_values, deps)) if baseline_values else {}
 
-    def component_of(entry):
-        path = resolve_entry_image_path(entry, current_paths.keys(), repo_map)
-        return path[0] if path else None
-
     def same_group(entry_a, entry_b):
-        return (component_of(entry_a) is not None
-                and component_of(entry_a) == component_of(entry_b)
-                and entry_a.get("version") == entry_b.get("version"))
+        return images_manifest_entries_share_group(entry_a, entry_b, current_paths, repo_map)
 
     changed_entries, unresolved_names = [], []
     fixed_comment_versions = {}
@@ -440,20 +435,6 @@ def fix_images_manifest_entries(text, deps, target_values, baseline_values, repo
         changed_entries.append((name, actual_baseline, actual_target))
 
     return "".join(lines), changed_entries, unresolved_names
-
-
-def _images_manifest_block_start(lines, entry_line_idx):
-    """The line index where this entry's own preceding comment block
-    begins (or the entry line itself if it has none) — walks upward
-    through contiguous "#"-prefixed lines directly above. When the
-    comment is actually shared with an earlier entry (see
-    find_grouped_preceding_comment), this naturally lands on that
-    earlier entry's own comment start too — inserting a new block right
-    before it never splits an existing group."""
-    i = entry_line_idx
-    while i > 0 and lines[i - 1].lstrip().startswith("#"):
-        i -= 1
-    return i
 
 
 def _find_images_manifest_changes_header(lines):
@@ -697,7 +678,7 @@ def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, ba
         ]
         body_slot = insertion_index(new_key, entry_keys)
         if body_slot < len(entry_line_indices):
-            insert_at = _images_manifest_block_start(lines, entry_line_indices[body_slot])
+            insert_at = images_manifest_block_start(lines, entry_line_indices[body_slot])
             lines[insert_at:insert_at] = block_lines + ["\n"]
         else:
             lines.append("\n")
@@ -733,7 +714,7 @@ def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, ba
                 continue
             if re.search(rf"\b{re.escape(entry_name)}\b", header_text, re.IGNORECASE):
                 continue
-            comment_text = "".join(lines[_images_manifest_block_start(lines, idx):idx])
+            comment_text = "".join(lines[images_manifest_block_start(lines, idx):idx])
             entry_new = extract_target_version(comment_text)
             if entry_new is None:
                 continue
@@ -965,6 +946,7 @@ def main():
         target_paths = [p for p, _tag in find_all_image_and_version_paths(target_values, target_deps)]
         repo_groups = paths_by_repository(CHART_YAML.parent, target_deps, target_values, target_paths)
         repo_map = {repo: group_paths[-1] for repo, group_paths in repo_groups.items()}
+        canonical_names = canonical_sidecar_row_names(CHART_YAML.parent, target_deps, target_values, target_paths)
         new_text, changed_entries, unresolved_entry_names = fix_images_manifest_entries(
             text, target_deps, target_values, baseline_values, repo_map
         )
@@ -1008,6 +990,16 @@ def main():
                 print(f"=== Adding missing '# Changes:' header item(s) to {images_path.name} ===")
                 for name in backfilled_header_names:
                     print(f"  {name} (entry already existed — only its header item was missing)")
+
+        text = images_path.read_text(encoding="utf-8")
+        text, moved_entries = sort_images_manifest_entries(text, target_deps, target_values, repo_map,
+                                                             canonical_names)
+        if moved_entries:
+            images_path.write_text(text, encoding="utf-8")
+            print()
+            print(f"=== Reordering {images_path.name} to match values.yaml's component order ===")
+            for name, old_pos, new_pos in moved_entries:
+                print(f"  entry '{name}': position {old_pos} -> {new_pos}")
 
     values_deltas_path = DOC_DIR / f"{new_baseline}-to-{target}-values-deltas.md"
     if values_deltas_path.is_file():

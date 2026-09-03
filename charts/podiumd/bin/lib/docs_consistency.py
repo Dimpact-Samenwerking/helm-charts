@@ -18,8 +18,9 @@ from lib.upgradedoc import (
     diff_keys, extract_mentioned_dependency_keys, extract_source_version, extract_target_version,
     find_all_image_and_version_paths, find_changes_row_correspondence_gaps, find_grouped_preceding_comment,
     find_image_tag_paths, find_images_manifest_faulty_headers, find_images_manifest_list_diff,
-    find_out_of_order_names,
-    find_wrong_or_duplicate_dependency_claims, match_dependency, match_dependency_excluding_sidecar_names,
+    find_images_manifest_out_of_order_names, find_out_of_order_names, find_wrong_or_duplicate_dependency_claims,
+    images_manifest_entries_share_group,
+    match_dependency, match_dependency_excluding_sidecar_names,
     normalize_version, pair_renames, parse_changes_block, parse_upgrade_doc_changes_blocks,
     parse_upgrade_doc_rows as _parse_upgrade_doc_rows, path_display_name, resolve_component_row,
     resolve_entry_image_path, resolve_entry_path, strip_fenced_code_blocks, values_key_order,
@@ -285,14 +286,8 @@ def check_images_manifest_format(images_path, upgrade_docs_baseline, podiumd_ver
     canonical_names = canonical_sidecar_row_names(chart_dir, deps, values, current_paths.keys()) \
         if chart_dir is not None else {}
 
-    def component_of(entry):
-        path = resolve_entry_image_path(entry, current_paths.keys(), repo_map)
-        return path[0] if path else None
-
     def same_group(entry_a, entry_b):
-        return (component_of(entry_a) is not None
-                and component_of(entry_a) == component_of(entry_b)
-                and entry_a.get("version") == entry_b.get("version"))
+        return images_manifest_entries_share_group(entry_a, entry_b, current_paths, repo_map)
 
     for index, (entry, line_idx) in enumerate(zip(entries, entry_line_indices)):
         comment = find_grouped_preceding_comment(
@@ -336,6 +331,18 @@ def check_images_manifest_format(images_path, upgrade_docs_baseline, podiumd_ver
             else:
                 issues.append(f'{images_path.name}: entry "{name}" has its own sidecar header, but it '
                                f'does not name "{expected}"')
+
+    # Also structural, independent of upgrade_docs_baseline: entries
+    # (or shared-header groups) should follow values.yaml's own top-
+    # level component order — the same rule find_out_of_order_names
+    # already enforces for -upgrade.md's own rows/Changes headings.
+    if chart_dir is not None:
+        key_order = values_key_order(values)
+        for name_a, name_b in find_images_manifest_out_of_order_names(
+                entries, entry_line_indices, lines, deps, current_paths, repo_map, canonical_names, key_order):
+            issues.append(f'{images_path.name}: entry "{name_b}" is listed right after "{name_a}", but '
+                           f'values.yaml lists {name_b} before {name_a} — entries should follow values.yaml\'s '
+                           f'own component order')
 
     # Only checked once there's something real to diff against — without
     # a resolvable upgrade_docs_baseline, "changed" can't be computed at

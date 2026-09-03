@@ -2325,6 +2325,61 @@ def test_main_reorders_a_sidecar_row_to_come_after_its_own_parent_row(cdb, tmp_p
     assert "Reordering" in out
 
 
+def test_main_reorders_images_manifest_to_match_values_yaml(cdb, tmp_path, monkeypatch, capsys):
+    """images-4.9.0.yaml lists zac before redis-operator, but values.yaml
+    (via sort_keys=False — see repo_with_out_of_order_doc's own comment
+    on why the dict's own insertion order matters) lists redis-operator
+    first — main() must reorder the manifest's own entries too, not just
+    the "Component versions" table/Changes blocks."""
+    git("init", "-q", cwd=tmp_path)
+    git("config", "user.email", "test@example.com", cwd=tmp_path)
+    git("config", "user.name", "Test", cwd=tmp_path)
+
+    write(tmp_path / "Chart.yaml", yaml.safe_dump({
+        "dependencies": [
+            {"name": "redis-operator", "version": "0.26.1", "repository": "@opstree"},
+            {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297", "repository": "@zac"},
+        ],
+    }, sort_keys=False))
+    write(tmp_path / "values.yaml", yaml.safe_dump({
+        "redis-operator": {"image": {"repository": "quay.io/opstree/redis-operator", "tag": "0.26.0@sha256:aaaa"}},
+        "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.4.4@sha256:bbbb"}},
+    }, sort_keys=False))
+    doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
+    doc_dir.mkdir(parents=True)
+    images_dir = tmp_path / "docs" / "images"
+    images_dir.mkdir(parents=True)
+    images_path = images_dir / "images-4.9.0.yaml"
+    write(images_path,
+          "# Baseline: podiumd 4.8.5. Re-verify before release.\n\n"
+          "# zac 5.0.2 -> 5.4.4\n"
+          "- name: infonl/zaakafhandelcomponent\n"
+          "  url: ghcr.io/infonl/zaakafhandelcomponent\n"
+          '  version: "5.4.4"\n'
+          '  digest: "sha256:bbbb"\n\n'
+          "# redis-operator 0.25.0 -> 0.26.0\n"
+          "- name: opstree/redis-operator\n"
+          "  url: quay.io/opstree/redis-operator\n"
+          '  version: "0.26.0"\n'
+          '  digest: "sha256:aaaa"\n')
+    git("add", "-A", cwd=tmp_path)
+    git("commit", "-q", "-m", "seed out-of-order images manifest", cwd=tmp_path)
+
+    set_argv_and_dir(cdb, monkeypatch, doc_dir, "4.8.5")
+    cdb.main()
+
+    text = images_path.read_text(encoding="utf-8")
+    assert text.index("opstree/redis-operator") < text.index("infonl/zaakafhandelcomponent")
+    # Each entry's own comment travels WITH it, never left behind.
+    assert text.index("# redis-operator") < text.index("- name: opstree/redis-operator")
+    assert text.index("# zac") < text.index("- name: infonl/zaakafhandelcomponent")
+
+    out = capsys.readouterr().out
+    assert "Reordering" in out
+    assert "entry 'redis-operator': position 2 -> 1" in out
+    assert "entry 'zac': position 1 -> 2" in out
+
+
 # --- main() print formatting: multi-item lists split one per line, not comma-joined ---
 
 def test_main_reports_unmatched_components_one_per_line(cdb, repo, monkeypatch, capsys):
