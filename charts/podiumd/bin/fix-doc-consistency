@@ -569,16 +569,24 @@ def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, ba
     function added on an EARLIER run, before header-list support
     existed) but was never given one — checked by whether the entry's
     own display name appears anywhere in the header block's text at
-    all, not by dependency resolution: a header item mentioning the
-    same DEPENDENCY (e.g. "Keycloak app image 26.6.4 -> 26.7.2
-    (keycloak-operator chart unchanged, ...)") does NOT mean a nested
-    sidecar of that same dependency (e.g. "keycloak-operator -
-    postgres") is covered too — only an item that actually names THAT
-    exact entry counts. Old/new version for a backfilled item are read
-    from the entry's own existing comment (extract_source_version/
-    extract_target_version), never recomputed — the SAME "generated
-    from data already in the doc" principle as everywhere else in this
-    function.
+    all (case-insensitive, whole-word/whole-phrase — "ZAC" covers "zac",
+    but "ita" is never mistaken for a substring buried inside an
+    unrelated word like "digital"), not by dependency resolution: a
+    header item mentioning the same DEPENDENCY (e.g. "Keycloak app image
+    26.6.4 -> 26.7.2 (keycloak-operator chart unchanged, ...)") does NOT
+    mean a nested sidecar of that same dependency (e.g.
+    "keycloak-operator - postgres") is covered too — only an item that
+    actually names THAT exact entry counts. An entry whose own display
+    name is path_display_name's raw-dotted-path fallback (no real
+    dependency or canonical sidecar name resolves it at all — rare, see
+    that function's own docstring) is skipped entirely, never even
+    checked or reported: a dotted values.yaml path is not a phrase any
+    human would write in prose, so it's both unsearchable here and not
+    a name worth adding to a curated header list verbatim. Old/new
+    version for a backfilled item are read from the entry's own
+    existing comment (extract_source_version/extract_target_version),
+    never recomputed — the SAME "generated from data already in the
+    doc" principle as everywhere else in this function.
 
     Processes one path/entry at a time, re-parsing the (already
     updated) text before computing the next insertion point — simpler
@@ -678,7 +686,16 @@ def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, ba
             if entry_path is None:
                 continue
             entry_name = path_display_name(entry_path, deps, canonical_names)
-            if entry_name in header_text:
+            if entry_name == ".".join(entry_path):
+                # path_display_name's own raw-dotted-path fallback (no
+                # real dependency/canonical-sidecar name resolves this
+                # path at all — see that function's own docstring) —
+                # never a phrase a human would write in prose, so it's
+                # both unsearchable (see the word-boundary check below)
+                # and not a name worth adding to a curated header list
+                # verbatim. Left alone entirely, not even reported.
+                continue
+            if re.search(rf"\b{re.escape(entry_name)}\b", header_text, re.IGNORECASE):
                 continue
             comment_text = "".join(lines[_images_manifest_block_start(lines, idx):idx])
             entry_new = extract_target_version(comment_text)

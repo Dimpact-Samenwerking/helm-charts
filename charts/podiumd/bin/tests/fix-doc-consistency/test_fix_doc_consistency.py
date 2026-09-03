@@ -1859,6 +1859,107 @@ def test_add_missing_images_manifest_entries_backfill_is_noop_when_already_cover
     assert new_text == text
 
 
+def test_add_missing_images_manifest_entries_backfill_coverage_check_is_case_insensitive(
+        cdb, ordered_images_manifest_chart_dir):
+    """A header item written in natural prose case ("ZAC
+    (Zaakafhandelcomponent) 5.0.2 -> ...") still covers the entry whose
+    own display name is the bare, lowercase values key ("zac") — real
+    case this matters for: the actual images-4.9.0.yaml header
+    capitalizes every component name in its own prose. Whole-word, not
+    a raw substring — "ita" is never mistaken for a match buried inside
+    an unrelated word."""
+    text = (
+        "# Two changes:\n"
+        "#   1. openzaak 1.27.4 -> 1.29.3.\n"
+        "#   2. ZAC (Zaakafhandelcomponent) 5.0.2 -> 5.1.0 (some digital detail).\n"
+        "\n"
+        "# openzaak — 1.27.4 -> 1.29.3\n"
+        "- name: openzaak/open-zaak\n"
+        "  url: openzaak/open-zaak\n"
+        '  version: "1.29.3"\n'
+        '  digest: "sha256:aaaa"\n'
+        "\n"
+        "# zac — 5.0.2 -> 5.1.0\n"
+        "- name: infonl/zaakafhandelcomponent\n"
+        "  url: infonl/zaakafhandelcomponent\n"
+        '  version: "5.1.0"\n'
+        '  digest: "sha256:cccc"\n'
+        "\n"
+        "# keycloak-operator - postgres — 16 -> 16.15\n"
+        "- name: postgres\n"
+        "  url: postgres\n"
+        '  version: "16.15"\n'
+        '  digest: "sha256:bbbb"\n'
+    )
+
+    new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
+        text, ordered_images_manifest_chart_dir, _ordered_deps(), _ordered_target_values(),
+        _ordered_baseline_values())
+
+    # "zac" is already covered (case-insensitively) by item 2 — only
+    # keycloak-operator - postgres genuinely needs a new item. The
+    # stray "digital" in item 2's own text never gets mistaken for an
+    # "ita"-shaped match either (there's no "ita" entry here at all, but
+    # this fixture wouldn't spuriously match anything from it).
+    assert added == []
+    assert skipped == []
+    assert backfilled == ["keycloak-operator - postgres"]
+    assert new_text.count("ZAC (Zaakafhandelcomponent)") == 1  # item 2 untouched, never duplicated
+
+
+def test_add_missing_images_manifest_entries_skips_dotted_fallback_name_entirely(
+        cdb, tmp_path):
+    """An entry whose own display name is path_display_name's raw-
+    dotted-path fallback (no real Chart.yaml dependency AND no
+    canonical sidecar name resolves it — real case: podiumd's own
+    "keycloak" top-level block, distinct from the "keycloak-operator"
+    dependency) is never backfilled a header item, and never reported
+    either — a dotted values.yaml path is not a phrase worth adding to
+    a curated header list verbatim."""
+    write(tmp_path / "Chart.yaml", yaml.safe_dump({
+        "dependencies": [
+            {"name": "openzaak", "version": "1.14.2", "repository": "@openzaak"},
+        ],
+    }))
+    write(tmp_path / "values.yaml", yaml.safe_dump({
+        "openzaak": {"image": {"repository": "openzaak/open-zaak", "tag": "1.29.3@sha256:aaaa"}},
+        "keycloak": {"image": {"repository": "keycloak/keycloak", "tag": "26.7.2@sha256:bbbb"}},
+    }))
+    deps = [{"name": "openzaak", "version": "1.14.2"}]
+    target_values = {
+        "openzaak": {"image": {"repository": "openzaak/open-zaak", "tag": "1.29.3@sha256:aaaa"}},
+        "keycloak": {"image": {"repository": "keycloak/keycloak", "tag": "26.7.2@sha256:bbbb"}},
+    }
+    baseline_values = {
+        "openzaak": {"image": {"repository": "openzaak/open-zaak", "tag": "1.27.4@sha256:aaaa"}},
+        "keycloak": {"image": {"repository": "keycloak/keycloak", "tag": "26.6.4@sha256:eeee"}},
+    }
+    text = (
+        "# One change:\n"
+        "#   1. openzaak 1.27.4 -> 1.29.3.\n"
+        "\n"
+        "# openzaak — 1.27.4 -> 1.29.3\n"
+        "- name: openzaak/open-zaak\n"
+        "  url: openzaak/open-zaak\n"
+        '  version: "1.29.3"\n'
+        '  digest: "sha256:aaaa"\n'
+        "\n"
+        "# keycloak.image — 26.6.4 -> 26.7.2\n"
+        "- name: keycloak/keycloak\n"
+        "  url: keycloak/keycloak\n"
+        '  version: "26.7.2"\n'
+        '  digest: "sha256:bbbb"\n'
+    )
+
+    new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
+        text, tmp_path, deps, target_values, baseline_values)
+
+    assert added == []
+    assert skipped == []
+    assert backfilled == []
+    assert new_text == text
+
+
 # --- main() integration: images-manifest entry-comment correction ---
 
 def test_main_corrects_stale_images_manifest_entry_comment(cdb, repo_with_baseline_tag, monkeypatch):
