@@ -478,7 +478,7 @@ def _insert_images_manifest_header_item(lines, deps, key_order, order_key, new_k
         if lines[i].rstrip("\n") == "#" or not lines[i].startswith("#"):
             break
         block_end = i + 1
-        if re.match(r"^#\s*\d+\.", lines[i]):
+        if CHANGES_ITEM_RE.match(lines[i]):
             item_indices.append(i)
 
     item_keys = []

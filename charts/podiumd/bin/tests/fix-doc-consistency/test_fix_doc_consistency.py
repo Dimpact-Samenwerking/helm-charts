@@ -1665,6 +1665,56 @@ def test_add_missing_images_manifest_entries_inserts_at_correct_body_and_header_
     assert "- name: infonl/zaakafhandelcomponent" in new_text
 
 
+def test_add_missing_images_manifest_entries_ignores_wrapped_line_that_looks_like_an_item(
+        cdb, ordered_images_manifest_chart_dir):
+    """A wrapped CONTINUATION line that happens to start with a version
+    number (e.g. "1.19.1-static, ...") must never be mistaken for a
+    genuine "#   N. ..." numbered item — real case this corrupted:
+    item 1's own real-world continuation text "ZAC's bundled sidecar
+    images also bumped: opa 1.17.1-static ->\n1.19.1-static,
+    office_converter ..." got its SECOND line ("1.19.1-static, ...")
+    matched as if it were its own item, splitting item 1's own prose in
+    two around a newly-inserted item. CHANGES_ITEM_RE (which requires
+    whitespace after the period) never makes this mistake; a looser
+    "\\d+\\." regex does."""
+    text = (
+        "# One change:\n"
+        "#   1. openzaak 1.27.4 -> 1.29.3. Also touches related versions:\n"
+        "#      1.19.1-static and 2.3.4-slim, both unrelated to this number.\n"
+        "\n"
+        "# openzaak — 1.27.4 -> 1.29.3\n"
+        "- name: openzaak/open-zaak\n"
+        "  url: openzaak/open-zaak\n"
+        '  version: "1.29.3"\n'
+        '  digest: "sha256:aaaa"\n'
+        "\n"
+        "# zac — 5.0.2 -> 5.1.0\n"
+        "- name: infonl/zaakafhandelcomponent\n"
+        "  url: infonl/zaakafhandelcomponent\n"
+        '  version: "5.1.0"\n'
+        '  digest: "sha256:cccc"\n'
+        "\n"
+        "# keycloak-operator - postgres — 16 -> 16.15\n"
+        "- name: postgres\n"
+        "  url: postgres\n"
+        '  version: "16.15"\n'
+        '  digest: "sha256:bbbb"\n'
+    )
+
+    new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
+        text, ordered_images_manifest_chart_dir, _ordered_deps(), _ordered_target_values(),
+        _ordered_baseline_values())
+
+    assert added == []
+    assert skipped == []
+    assert set(backfilled) == {"zac", "keycloak-operator - postgres"}
+    # Item 1's own two-line prose stays intact and adjacent to whatever
+    # item follows it — never torn apart around a newly-inserted item.
+    assert ("#   1. openzaak 1.27.4 -> 1.29.3. Also touches related versions:\n"
+            "#      1.19.1-static and 2.3.4-slim, both unrelated to this number.\n"
+            "#   2.") in new_text
+
+
 def test_add_missing_images_manifest_entries_valid_yaml_after_middle_insertion(
         cdb, ordered_images_manifest_chart_dir):
     """The inserted block is properly blank-line-separated from its
