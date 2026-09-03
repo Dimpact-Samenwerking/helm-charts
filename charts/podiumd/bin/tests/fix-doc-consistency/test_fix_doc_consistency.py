@@ -4,7 +4,9 @@ against a real, hermetic temp git repo (git mv shells out to git, so it
 needs a real working tree). existing_doc_baselines itself is
 lib.component_docs' own (see tests/lib/test_component_docs.py) — this
 script only calls through it, exercised here via main()."""
+import io
 import subprocess
+import tarfile
 
 import pytest
 import yaml
@@ -16,6 +18,29 @@ def git(*args, cwd):
 
 def write(path, text):
     path.write_text(text, encoding="utf-8")
+
+
+def make_tgz(charts_dir, name, version, values, raw_files=None):
+    """A minimal vendored <name>-<version>.tgz — enough to exercise
+    documented_repository_for_path (nested_subchart_documented_image_
+    repository under the hood) without a real `helm pull`. raw_files (a
+    {internal tar path: text} dict, e.g. "<name>/charts/<nested>/
+    values.yaml") writes each verbatim, matching tests/lib/test_chart.py's
+    own make_tgz (not importable across test files in this codebase's
+    per-file test-helper convention)."""
+    charts_dir.mkdir(parents=True, exist_ok=True)
+    tgz_path = charts_dir / f"{name}-{version}.tgz"
+    data = yaml.safe_dump(values).encode("utf-8")
+    with tarfile.open(tgz_path, "w:gz") as tar:
+        info = tarfile.TarInfo(name=f"{name}/values.yaml")
+        info.size = len(data)
+        tar.addfile(info, io.BytesIO(data))
+        for internal_path, text in (raw_files or {}).items():
+            raw_data = text.encode("utf-8")
+            raw_info = tarfile.TarInfo(name=internal_path)
+            raw_info.size = len(raw_data)
+            tar.addfile(raw_info, io.BytesIO(raw_data))
+    return tgz_path
 
 
 # --- find_collisions ---
@@ -1597,6 +1622,97 @@ def test_add_missing_images_manifest_entries_skips_when_no_digest_pinned(cdb, im
     assert added == []
     assert skipped == ["zac"]
     assert new_text == text
+
+
+@pytest.fixture
+def eck_stack_chart_dir(tmp_path):
+    """eck-stack's own bare "version:" CRD fields (see COMPONENT_
+    VERSION_PATH_NESTED_SUBCHARTS) never carry a digest anywhere in
+    values.yaml at all — the real case documented_repository_for_path/
+    the allow_pull registry fallback exist for. The repository comes
+    from the vendored eck-elasticsearch sub-subchart's own commented-
+    out documented example, the only place it's recorded."""
+    make_tgz(tmp_path / "charts", "eck-stack", "0.20.0", {}, raw_files={
+        "eck-stack/charts/eck-elasticsearch/values.yaml": (
+            "# Elasticsearch Docker image to deploy.\n#\n"
+            "# image: docker.elastic.co/elasticsearch/elasticsearch:9.5.0\n"
+        ),
+    })
+    write(tmp_path / "Chart.yaml", yaml.safe_dump({
+        "dependencies": [{"name": "eck-stack", "alias": "kiss-eck", "version": "0.20.0",
+                           "repository": "https://helm.elastic.co"}],
+    }))
+    write(tmp_path / "values.yaml", yaml.safe_dump({"kiss-eck": {"eck-elasticsearch": {"version": "8.19.19"}}}))
+    return tmp_path
+
+
+def test_add_missing_images_manifest_entries_allow_pull_fetches_digest_from_registry(
+        cdb, eck_stack_chart_dir, monkeypatch):
+    """Real feature: the repository resolves fine (via the vendored
+    subchart's own documented example), but resolved_digest_pin alone
+    can never produce a digest for a bare CRD version field — nothing
+    in values.yaml carries one. With allow_pull=True, a real registry
+    manifest lookup (the same call /fetch-image-digest and update-
+    image-version's own missing_entries handling already make) fills
+    it in instead of skipping."""
+    deps = [{"name": "eck-stack", "alias": "kiss-eck", "version": "0.20.0"}]
+    target_values = {"kiss-eck": {"eck-elasticsearch": {"version": "8.19.19"}}}
+    baseline_values = {"kiss-eck": {"eck-elasticsearch": {"version": "8.19.3"}}}
+    fake_digest = "sha256:" + "a" * 64
+    calls = []
+
+    def fake_registry_tag_exists(host, repo, tag):
+        calls.append((host, repo, tag))
+        return True, fake_digest
+
+    monkeypatch.setattr(cdb, "registry_tag_exists", fake_registry_tag_exists)
+
+    new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
+        "", eck_stack_chart_dir, deps, target_values, baseline_values, allow_pull=True)
+
+    assert skipped == []
+    assert added == ["kiss-eck"]
+    assert calls == [("docker.elastic.co", "elasticsearch/elasticsearch", "8.19.19")]
+    assert f'digest: "{fake_digest}"' in new_text
+    assert 'version: "8.19.19"' in new_text
+
+
+def test_add_missing_images_manifest_entries_allow_pull_false_never_touches_network(
+        cdb, eck_stack_chart_dir, monkeypatch):
+    """Default allow_pull=False must never call the registry at all —
+    left exactly as before: skipped, no network access attempted."""
+    deps = [{"name": "eck-stack", "alias": "kiss-eck", "version": "0.20.0"}]
+    target_values = {"kiss-eck": {"eck-elasticsearch": {"version": "8.19.19"}}}
+    baseline_values = {"kiss-eck": {"eck-elasticsearch": {"version": "8.19.3"}}}
+
+    def fail_if_called(host, repo, tag):
+        raise AssertionError("registry_tag_exists must never be called when allow_pull=False")
+
+    monkeypatch.setattr(cdb, "registry_tag_exists", fail_if_called)
+
+    new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
+        "", eck_stack_chart_dir, deps, target_values, baseline_values)
+
+    assert added == []
+    assert skipped == ["kiss-eck"]
+    assert new_text == ""
+
+
+def test_add_missing_images_manifest_entries_allow_pull_registry_miss_still_skips(
+        cdb, eck_stack_chart_dir, monkeypatch):
+    """The registry genuinely has no such tag (exists=False) — still
+    reported as skipped, not a crash or a bad/partial entry."""
+    deps = [{"name": "eck-stack", "alias": "kiss-eck", "version": "0.20.0"}]
+    target_values = {"kiss-eck": {"eck-elasticsearch": {"version": "8.19.19"}}}
+    baseline_values = {"kiss-eck": {"eck-elasticsearch": {"version": "8.19.3"}}}
+
+    monkeypatch.setattr(cdb, "registry_tag_exists", lambda host, repo, tag: (False, None))
+
+    new_text, added, skipped, backfilled = cdb.add_missing_images_manifest_entries(
+        "", eck_stack_chart_dir, deps, target_values, baseline_values, allow_pull=True)
+
+    assert added == []
+    assert skipped == ["kiss-eck"]
 
 
 @pytest.fixture

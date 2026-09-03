@@ -281,6 +281,30 @@ def nested_subchart_documented_image_repository(chart_dir, dep, nested_chart_nam
     return m.group(1) if m else None
 
 
+def documented_repository_for_path(chart_dir, deps, path):
+    """The FULL, unstripped repository a COMPONENT_VERSION_PATH_NESTED_
+    SUBCHARTS-registered path resolves to (e.g. "docker.elastic.co/
+    elasticsearch/elasticsearch") via nested_subchart_documented_image_
+    repository — the exact same "nested subchart" resolution paths_by_
+    repository's own third fallback branch uses internally, exposed
+    here on its own for a caller that needs the repository in a form a
+    REAL registry call can use (parse_repo/registry_tag_exists) —
+    paths_by_repository/repository_path_map only ever need the
+    STRIPPED form (strip_registry_host) for repo-group matching, never
+    this. None if `path` doesn't resolve through a registered nested
+    subchart at all, or that subchart isn't vendored at chart_dir."""
+    if not path:
+        return None
+    by_values_key = {(dep.get("alias") or dep["name"]): dep for dep in deps}
+    dep = by_values_key.get(path[0])
+    if dep is None or chart_dir is None:
+        return None
+    nested_chart_name = nested_subchart_name_for(dep["name"], ".".join(path[1:]))
+    if not nested_chart_name:
+        return None
+    return nested_subchart_documented_image_repository(chart_dir, dep, nested_chart_name)
+
+
 def load_yaml(path):
     return yaml.safe_load(path.read_text(encoding="utf-8"))
 
