@@ -125,7 +125,7 @@ def check_pointer_consistency(doc_path, upgrade_docs_baseline, podiumd_version, 
     return issues
 
 
-def _match_changes_item_to_entry(item_name, entries):
+def match_changes_item_to_entry(item_name, entries):
     """Best-effort match of a Changes-block item's free-form name (e.g.
     "Python (ensurePodiumdAdminUser init image)") to one of this SAME
     images-manifest's own entries — for an item that isn't a component at
@@ -245,8 +245,8 @@ def check_images_manifest_format(images_path, upgrade_docs_baseline, podiumd_ver
             # init-container image with no subchart/dependency of its own)
             # has nothing in Chart.yaml to match against at all; fall back
             # to this same manifest's own entries instead of treating that
-            # as an error (see _match_changes_item_to_entry).
-            entry = _match_changes_item_to_entry(item["name"], entries)
+            # as an error (see match_changes_item_to_entry).
+            entry = match_changes_item_to_entry(item["name"], entries)
             if entry is None:
                 issues.append(f'{images_path.name}: Changes item "{item["name"]}" — no matching '
                                f'Chart.yaml dependency or images-manifest entry')

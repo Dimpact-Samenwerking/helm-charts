@@ -1,10 +1,10 @@
-"""lib.docs_consistency — _match_changes_item_to_entry: matches a plain
+"""lib.docs_consistency — match_changes_item_to_entry: matches a plain
 (non-component) "# Changes:" item to its images-manifest entry by
 basename, used when match_dependency_excluding_sidecar_names already
 ruled out a real Chart.yaml dependency."""
 
 
-# --- _match_changes_item_to_entry ---
+# --- match_changes_item_to_entry ---
 
 def test_match_changes_item_to_entry_canonical_sidecar_name_matches_own_basename(libdocsconsistency):
     """A canonical "<key> - <basename>" sidecar name (see
@@ -17,7 +17,7 @@ def test_match_changes_item_to_entry_canonical_sidecar_name_matches_own_basename
     keycloak_entry = {"name": "keycloak/keycloak", "version": "26.7.2"}
     postgres_entry = {"name": "postgres", "version": "16.15"}
 
-    match = libdocsconsistency._match_changes_item_to_entry(
+    match = libdocsconsistency.match_changes_item_to_entry(
         "keycloak-operator - postgres", [keycloak_entry, postgres_entry])
 
     assert match is postgres_entry
@@ -28,7 +28,7 @@ def test_match_changes_item_to_entry_plain_name_matches_by_basename(libdocsconsi
     against entry basenames, unchanged from before the fix above."""
     entry = {"name": "library/python", "version": "3.14.7-slim"}
 
-    match = libdocsconsistency._match_changes_item_to_entry("python", [entry])
+    match = libdocsconsistency.match_changes_item_to_entry("python", [entry])
 
     assert match is entry
 
@@ -36,6 +36,6 @@ def test_match_changes_item_to_entry_plain_name_matches_by_basename(libdocsconsi
 def test_match_changes_item_to_entry_no_match_returns_none(libdocsconsistency):
     entries = [{"name": "postgres", "version": "16.15"}]
 
-    match = libdocsconsistency._match_changes_item_to_entry("gotenberg", entries)
+    match = libdocsconsistency.match_changes_item_to_entry("gotenberg", entries)
 
     assert match is None

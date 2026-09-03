@@ -86,14 +86,16 @@ from lib.component_docs import (
     CHANGES_HEADER_RE, CHANGES_ITEM_RE, IMAGES_STUB_TEMPLATE, NUMBER_WORDS, STANDARD_SUFFIXES, STUB_TEMPLATES,
     add_missing_component_rows, add_missing_values_delta_bullets, existing_doc_baselines,
 )
+from lib.docs_consistency import match_changes_item_to_entry
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
 from lib.image_docs import add_missing_changes_sections, add_missing_sidecar_rows, update_stale_app_version_headings
 from lib.image_repository_check import find_images_without_repository
 from lib.upgradedoc import (
-    append_to_doc, canonical_version_cell, component_order_key, component_version_cell, compute_changed_components,
+    append_to_doc, canonical_version_cell, component_version_cell, compute_changed_components,
     extract_source_version, extract_target_version, find_all_image_and_version_paths,
     find_grouped_preceding_comment_line, find_image_tag_paths, find_images_manifest_list_diff,
-    images_manifest_block_start, images_manifest_entries_share_group, insertion_index,
+    images_manifest_block_start, images_manifest_entries_share_group, images_manifest_entry_positions,
+    insertion_index,
     match_dependency_excluding_sidecar_names, missing_key_change_lines, normalize_version, parse_upgrade_doc_rows,
     path_display_name, replace_version_pair, resolve_component_row, resolve_entry_image_path, sort_changes_blocks,
     sort_images_manifest_entries, sort_upgrade_doc_rows, values_key_order,
@@ -530,22 +532,35 @@ def _insert_images_manifest_header_item(lines, deps, key_order, order_key, new_k
     # the new entry.
 
 
-def sort_images_manifest_changes_items(lines, deps, key_order):
+def sort_images_manifest_changes_items(lines, entries, entry_positions):
     """Reorder the images-manifest's own "# Changes:" numbered item list
-    (see _find_images_manifest_changes_header) to match values.yaml's
-    own top-level component order — the SAME rule sort_images_manifest_
-    entries already applies to the entry list below it. An item's own
-    free-form text ("redis-operator - redis-exporter 1.82.0 -> 1.89.0.")
-    is shaped exactly like one of -upgrade.md's own "### ..." Changes
-    headings, so component_order_key (fuzzy match_dependency + a " - "
-    sidecar check) already resolves it correctly — the SAME function
-    sort_changes_blocks uses for those headings, no new resolution
-    logic needed. A wrapped continuation line (parse_changes_block's own
-    2-space-indented shape) travels WITH its own item, never split from
-    it. Items are renumbered 1..N to match their new position. Mutates
-    `lines` in place. Returns [(item_text, old_position, new_position)]
-    (1-based) for every item that actually moved — empty (lines
-    untouched) if the header doesn't exist or has fewer than 2 items."""
+    (see _find_images_manifest_changes_header) to MIRROR the entry
+    list's own final order (entry_positions — see lib.upgradedoc.
+    images_manifest_entry_positions, computed from the SAME group-level
+    sort sort_images_manifest_entries itself applies) — never a second,
+    independently-computed order. An earlier version sorted items via
+    component_order_key's own fuzzy match_dependency, the same function
+    -upgrade.md's own "### ..." Changes headings use — but a Changes
+    item's free-form prose can mention an unrelated dependency's name
+    only incidentally (real case: "Keycloak app image 26.6.4 -> 26.7.2
+    (keycloak-operator chart unchanged, ...)" fuzzy-matched dependency
+    "keycloak-operator" via that parenthetical aside alone, landing it
+    BEFORE that dependency's own real sidecars instead of after
+    "keycloak"'s own actual entry) — a mismatch the entry list itself
+    can never have, since it resolves entries via repo_map/values-tree
+    paths, not prose. Each item is matched to one of THIS SAME
+    manifest's own entries via lib.docs_consistency.match_changes_item_
+    to_entry (the SAME resolution check_images_manifest_format's own
+    Changes-item check already uses for a plain image with no Chart.yaml
+    dependency of its own), then ordered by that entry's own position —
+    an item that doesn't resolve to any entry sorts last, never dragged
+    around by a real item's move. A wrapped continuation line
+    (parse_changes_block's own 2-space-indented shape) travels WITH its
+    own item, never split from it. Items are renumbered 1..N to match
+    their new position. Mutates `lines` in place. Returns [(item_text,
+    old_position, new_position)] (1-based) for every item that actually
+    moved — empty (lines untouched) if the header doesn't exist or has
+    fewer than 2 items."""
     header_idx, _header_has_count = _find_images_manifest_changes_header(lines)
     if header_idx is None:
         return []
@@ -565,8 +580,9 @@ def sort_images_manifest_changes_items(lines, deps, key_order):
     items = []
     for start, end in zip(item_starts, item_ends):
         rest = CHANGES_ITEM_RE.match(lines[start]).group("rest")
-        items.append({"start": start, "end": end, "rest": rest,
-                       "key": component_order_key(rest, deps, key_order)})
+        entry = match_changes_item_to_entry(rest, entries)
+        position = entry_positions.get(entry["name"], len(entry_positions)) if entry else len(entry_positions)
+        items.append({"start": start, "end": end, "rest": rest, "key": position})
 
     order = sorted(range(len(items)), key=lambda i: items[i]["key"])
     moved = [(items[i]["rest"], i + 1, slot + 1) for slot, i in enumerate(order) if i != slot]
@@ -1001,7 +1017,6 @@ def main():
         repo_groups = paths_by_repository(CHART_YAML.parent, target_deps, target_values, target_paths)
         repo_map = {repo: group_paths[-1] for repo, group_paths in repo_groups.items()}
         canonical_names = canonical_sidecar_row_names(CHART_YAML.parent, target_deps, target_values, target_paths)
-        key_order = values_key_order(target_values)
         new_text, changed_entries, unresolved_entry_names = fix_images_manifest_entries(
             text, target_deps, target_values, baseline_values, repo_map
         )
@@ -1047,8 +1062,14 @@ def main():
                     print(f"  {name} (entry already existed — only its header item was missing)")
 
         before_sort = images_path.read_text(encoding="utf-8")
+        try:
+            entries_for_header_sort = yaml.safe_load(before_sort) or []
+        except yaml.YAMLError:
+            entries_for_header_sort = []
+        entry_positions = images_manifest_entry_positions(before_sort, target_deps, target_values, repo_map,
+                                                            canonical_names)
         lines = before_sort.splitlines(keepends=True)
-        moved_header_items = sort_images_manifest_changes_items(lines, target_deps, key_order)
+        moved_header_items = sort_images_manifest_changes_items(lines, entries_for_header_sort, entry_positions)
         text = "".join(lines)
         text, moved_entries = sort_images_manifest_entries(text, target_deps, target_values, repo_map,
                                                              canonical_names)
