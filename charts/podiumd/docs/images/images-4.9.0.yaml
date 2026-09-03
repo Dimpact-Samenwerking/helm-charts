@@ -1,264 +1,195 @@
-# Baseline: podiumd 4.8.5 (main @ cc293f8). Re-verify before release:
-#   git diff cc293f8..HEAD -- charts/podiumd/Chart.yaml charts/podiumd/values.yaml
+# Baseline: podiumd 4.8.5. Re-verify before release.
 #
 # Images new or changed in podiumd 4.9.0 vs 4.8.5.
 #
 # Changes:
-#   1. clamav - clamav_exporter v2.1.3 -> v2.1.8.
-#   2. redis-operator - redis-exporter 1.82.0 -> 1.89.0.
-#   3. redis-operator - redis 8.6.2 -> 8.6.6.
-#   4. zac - gotenberg 8.34.0 -> 8.36.0.
-#   5. zac - opa 1.17.1-static -> 1.19.1-static.
-#   6. redis-operator - k8s 1.36.2 -> 1.36.2.
-#   7. keycloak-operator - python 3.14-slim -> 3.14.7-slim.
-#   8. keycloak-operator - postgres 16 -> 16.15.
-#   9. ZAC (Zaakafhandelcomponent) 5.0.2 -> 5.4.4 (chart 1.0.297, unchanged —
-#      the chart line was already bumped ahead of the image in the 4.8.5 hop).
-#      ZAC's bundled sidecar images also bumped: opa 1.17.1-static ->
-#      1.19.1-static, office_converter (gotenberg) 8.34.0 -> 8.36.0.
-#   10. ZGW Office Add-in v0.9.313 -> 0.11.0 (chart 0.0.89, unchanged).
-#      Repository names (zgw-office-addin-{frontend,backend}) unchanged from
-#      4.8.5. Tag scheme dropped the "v" prefix from 0.10.0 onward.
-#   11. ClamAV 1.5.2 -> 1.5.4 (chart clamav 3.7.1 -> 3.7.2).
-#   12. Keycloak app image 26.6.4 -> 26.7.2 (keycloak-operator chart unchanged,
-#      1.12.1 — no operator release yet supports 26.7.x).
-#   13. ECK Operator 3.4.0 -> 3.5.0 (chart eck-operator 3.4.0 -> 3.5.0; image tag
-#      floats on the chart's appVersion, no override in values.yaml). CRD schema
-#      change verified additive-only — see
-#      docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-operators-crds.md.
-#   14. ECK Stack (kiss-eck) chart 0.19.0 -> 0.20.0 (no image change of its own).
-#   15. Kiss's ECK-managed Elasticsearch/Kibana/Enterprise Search 8.19.3 -> 8.19.19
-#      (16-patch bump on the same 8.19.x branch, all three components in lockstep).
-#   16. Python (ensurePodiumdAdminUser init image) 3.14-slim -> 3.14.7-slim —
-#      now pinned to a specific patch instead of the floating minor tag.
-#   17. ITA 3.2.0 -> 3.3.0 (chart internetaakafhandeling 3.2.0 -> 3.3.0), web and
-#      poller. No new images, tag bumps only.
-#   18. KISS 2.2.4 -> 3.0.0 (kiss-chart 2.2.4 -> 3.0.0), kiss-elastic-sync 0.3.3 ->
-#      3.0.0. Enterprise Search is gone: the Elastic Open Crawler now runs as a
-#      CronJob per site, and curl registers the search-website* index template in
-#      a pre-install/pre-upgrade hook.
-#      docker.elastic.co/integrations/crawler is NEW to the mirror and must be
-#      imported before the 4.9.0 rollout, or Azure Policy blocks pod creation.
-#      curlimages/curl:8.20.0 is already mirrored (see images-baseline.yaml) and
-#      is listed here only because KISS starts using it in this release.
-#   19. PABC 1.1.0 -> 1.1.1 (chart 1.1.0 -> 1.1.1), pabc-api and pabc-migrations.
-#   20. PodiumD Adapter 0.6.6 -> 0.6.7 (chart 0.6.6 -> 0.6.7), podiumd-adapter.
-#   21. Redis (redis-ha) 8.6.2 -> 8.6.6 (opstree/redis, chart unchanged). Same
-#      8.6.x branch; picks up several upstream security fixes (RCE-class RESTORE/
-#      Lua/TLS CVEs) fixed across 8.6.3/8.6.5/8.6.6.
-#   22. redis-exporter 1.82.0 -> 1.89.0 (opstree/redis-exporter). Sidecar is
-#      disabled by default (redisExporter.enabled: false).
-#   23. redis-operator chart 0.25.0 -> 0.26.1, operator image 0.25.0 -> 0.26.0
-#      (quay.io/opstree/redis-operator, both main and init-container image now
-#      explicitly digest-pinned). CRD diff verified as zero (no schema change).
-#   24. openformulieren 3.4.10 -> 3.5.6 (chart 1.12.0, unchanged).
-#   25. openinwoner 2.4.2 -> 2.4.3 (chart 2.4.0, unchanged).
-#   26. openzaak 1.27.4 -> 1.29.3 (chart 1.14.2, unchanged).
-#   27. opennotificaties 1.16.1 -> 1.16.2 (chart 2.0.0, unchanged).
-#   28. clamav_exporter (metrics sidecar) v2.1.3 -> v2.1.8 (clamav chart
-#      unchanged). Sidecar disabled by default (clamav.metrics.enabled: false).
-#   29. nginx-unprivileged (shared global.images.nginx anchor, used by every
-#      nginx sidecar in the chart) 1.31.3 -> 1.31.4.
+#   1. nginx-unprivileged 1.31.3 -> 1.31.4.
+#   2. keycloak-operator 26.6.4 -> 26.7.2.
+#   3. keycloak-operator - postgres 16 -> 16.15.
+#   4. keycloak-operator - python 3.14-slim -> 3.14.7-slim.
+#   5. redis-operator v0.25.0 -> v0.26.0.
+#   6. redis-operator - redis v8.6.2 -> v8.6.6.
+#   7. redis-operator - k8s 1.36.2 -> 1.36.2.
+#   8. redis-operator - redis-exporter v1.82.0 -> v1.89.0.
+#   9. openzaak 1.27.4 -> 1.29.3.
+#   10. opennotificaties 1.16.1 -> 1.16.2.
+#   11. openformulieren 3.4.10 -> 3.5.6.
+#   12. openinwoner 2.4.2 -> 2.4.3.
+#   13. kiss-eck 8.19.3 -> 8.19.19.
+#   14. kiss-eck - enterprise-search 8.19.3 -> 8.19.19.
+#   15. kiss 2.2.4 -> 3.0.0.
+#   16. kiss - crawler 1.0.0 -> 1.0.0.
+#   17. kiss - kiss-elastic-sync 0.3.3 -> 3.0.0.
+#   18. zac 5.0.2 -> 5.4.4.
+#   19. zac - gotenberg 8.34.0 -> 8.36.0.
+#   20. zac - opa 1.17.1-static -> 1.19.1-static.
+#   21. zgw-office-addin v0.9.313 -> 0.11.0.
+#   22. clamav 1.5.2 -> 1.5.4.
+#   23. clamav - clamav_exporter v2.1.3 -> v2.1.8.
+#   24. ita 3.2.0 -> 3.3.0.
+#   25. pabc 1.1.0 -> 1.1.1.
+#   26. pabc - pabc-migrations 1.1.0 -> 1.1.1.
 #
-# See docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md for the operator upgrade notes,
-# and docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-operators-crds.md for the ECK Operator
-# CRD change.
+# See docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md for the operator upgrade notes.
 #
 # Digests are the OCI image index (multi-arch manifest) digest as returned in
 # the Docker-Content-Digest response header from the source registry.
 
-# keycloak-operator - postgres — 16 -> 16.15
+# nginx-unprivileged 1.31.3 -> 1.31.4
+- name: nginxinc/nginx-unprivileged
+  url: nginxinc/nginx-unprivileged
+  version: "1.31.4"
+  digest: "sha256:197f252f060ed357f2ab98d4256762d7d107c76f18ad8f0b9d5178854611566d"
+
+# keycloak-operator 26.6.4 -> 26.7.2
+- name: keycloak/keycloak
+  url: keycloak/keycloak
+  version: "26.7.2"
+  digest: "sha256:9d1f1b2b7261ff53c66cb1092dfcdc34a5fb77e81f9e6a6e75b8b6a795de8067"
+#   sidecar: keycloak-operator - postgres 16 -> 16.15
 - name: postgres
   url: postgres
   version: "16.15"
   digest: "sha256:f1c3376c26f2609ab9f29f71f824103fe2fcd8ee0346485cb6122a4f93df6f94"
-
-# keycloak-operator - python — 3.14-slim -> 3.14.7-slim
+#   sidecar: keycloak-operator - python 3.14-slim -> 3.14.7-slim
 - name: python
   url: python
   version: "3.14.7-slim"
   digest: "sha256:cae66f2ef0ec51a9891263eeee7f987dacf0a9879e8aa9353d5606e0530619a5"
 
-# redis-operator - k8s — 1.36.2 -> 1.36.2
+# redis-operator v0.25.0 -> v0.26.0
+- name: opstree/redis-operator
+  url: opstree/redis-operator
+  version: "v0.26.0"
+  digest: "sha256:1c6818e5e50553f9f3c1b91a8824ae5c1999a0c9416c794ca51431b7f0cb48c3"
+#   sidecar: redis-operator - redis v8.6.2 -> v8.6.6
+- name: opstree/redis
+  url: opstree/redis
+  version: "v8.6.6"
+  digest: "sha256:12724412997e6acc32783f8c3c1ce8a7657029e06f563ffc8cbd81e2e9de7628"
+#   sidecar: redis-operator - k8s 1.36.2 -> 1.36.2
 - name: alpine/k8s
   url: alpine/k8s
   version: "1.36.2"
   digest: "sha256:44ef4942e171939b9c665a4a84beb80e2dcdb9a24330d4651cfdfd2e9deecc47"
+#   sidecar: redis-operator - redis-exporter v1.82.0 -> v1.89.0
+- name: opstree/redis-exporter
+  url: opstree/redis-exporter
+  version: "v1.89.0"
+  digest: "sha256:00a3628bdd3bb3423a15c5daefa328c471ee609798eed1744fe578c906d20cab"
 
-# openzaak — 1.27.4 -> 1.29.3
+# openzaak 1.27.4 -> 1.29.3
 - name: openzaak/open-zaak
   url: openzaak/open-zaak
   version: "1.29.3"
   digest: "sha256:7ac22da287ac190a0e1c14849a370c433d3511678dcc8f3897007fd6de6dd4ac"
 
-# opennotificaties — 1.16.1 -> 1.16.2
+# opennotificaties 1.16.1 -> 1.16.2
 - name: openzaak/open-notificaties
   url: openzaak/open-notificaties
   version: "1.16.2"
   digest: "sha256:2988d538b30db30487ed89873877e1d22e12f80dfa42d80ec1a5c97265c7e4cd"
 
-# openformulieren — 3.4.10 -> 3.5.6
+# openformulieren 3.4.10 -> 3.5.6
 - name: openformulieren/open-forms
   url: openformulieren/open-forms
   version: "3.5.6"
   digest: "sha256:f5a5d51a44f39edcfb2143ae5d2ed9525b22ea377faa35fd2cce26b678f7fe83"
 
-# openinwoner — 2.4.2 -> 2.4.3
+# openinwoner 2.4.2 -> 2.4.3
 - name: maykinmedia/open-inwoner
   url: maykinmedia/open-inwoner
   version: "2.4.3"
   digest: "sha256:c2ff751143c260874a1ebcdcc7e07dc213cffee70c3ea5a9589948e3f5da43e4"
 
-# ZAC — 5.0.2 -> 5.4.4
-- name: infonl/zaakafhandelcomponent
-  url: ghcr.io/infonl/zaakafhandelcomponent
-  version: "5.4.4"
-  digest: "sha256:2809ee2d2dc1ca166b88878a50d2850c7e972651f3ee5c35f44e92127c67773a"
-
-# ZAC opa sidecar — 1.17.1-static -> 1.19.1-static
-- name: openpolicyagent/opa
-  url: docker.io/openpolicyagent/opa
-  version: "1.19.1-static"
-  digest: "sha256:32bf41d914b1505fea13303f60587cc57bdd2902262177585fb208f5dde76d32"
-
-# ZAC office_converter sidecar — 8.34.0 -> 8.36.0
-- name: gotenberg/gotenberg
-  url: docker.io/gotenberg/gotenberg
-  version: "8.36.0"
-  digest: "sha256:87c16b9f364279d321bc9772d31fa58aa6abe036423c270698bd636c3a8e9466"
-
-# nginx-unprivileged (shared global.images.nginx anchor) — 1.31.3 -> 1.31.4
-- name: nginxinc/nginx-unprivileged
-  url: docker.io/nginxinc/nginx-unprivileged
-  version: "1.31.4"
-  digest: "sha256:197f252f060ed357f2ab98d4256762d7d107c76f18ad8f0b9d5178854611566d"
-
-# ZGW Office Add-in — v0.9.313 -> 0.11.0
-- name: infonl/zgw-office-addin-frontend
-  url: ghcr.io/infonl/zgw-office-addin-frontend
-  version: "0.11.0"
-  digest: "sha256:9a6b3e9023b8cfba152a84dd7477e079490fc7d35562d32e0dc094be81a7f7a2"
-
-- name: infonl/zgw-office-addin-backend
-  url: ghcr.io/infonl/zgw-office-addin-backend
-  version: "0.11.0"
-  digest: "sha256:5b188e853531986e31709ed6cae130a891e0014cb267c43ac338b792c84a29ab"
-
-# ITA — 3.2.0 -> 3.3.0
-- name: interne-taak-afhandeling/internetaakafhandeling.web
-  url: ghcr.io/interne-taak-afhandeling/internetaakafhandeling.web
-  version: "3.3.0"
-  digest: "sha256:cb56b4809e0c840cbc72814f8a72495fd18860cb08dfb092c12ba3c2cea785df"
-
-- name: interne-taak-afhandeling/internetaakafhandeling.poller
-  url: ghcr.io/interne-taak-afhandeling/internetaakafhandeling.poller
-  version: "3.3.0"
-  digest: "sha256:7690650687047c43f08c4f8320b77d821d3551d18478de9a600a2f828600c865"
-
-# KISS — 2.2.4 -> 3.0.0
-- name: klantinteractie-servicesysteem/kiss-frontend
-  url: ghcr.io/klantinteractie-servicesysteem/kiss-frontend
-  version: "3.0.0"
-  digest: "sha256:56a9c225d9fb19184ee9ad6c84877e7b5853c280cbb5e0d59edb340c7bb8599c"
-
-- name: klantinteractie-servicesysteem/kiss-elastic-sync
-  url: ghcr.io/klantinteractie-servicesysteem/kiss-elastic-sync
-  version: "3.0.0"
-  digest: "sha256:64d56ff3039b71806d7d03ecfcd37cede2d31c4146fe4e06d9de6f526415fffb"
-
-# NEW in 4.9.0 — Elastic Open Crawler, replaces the Enterprise Search web crawler
-- name: integrations/crawler
-  url: docker.elastic.co/integrations/crawler
-  version: "1.0.0"
-  digest: "sha256:6f3c02f6c783711b8d9e133cf10934b137d6547dc1eb10a0d2ccf99ffe2e2d07"
-
-# Already mirrored — curl, now also used by the KISS index-template pre-upgrade hook
-- name: curlimages/curl
-  url: docker.io/curlimages/curl
-  version: "8.21.0"
-  digest: "sha256:7c12af72ceb38b7432ab85e1a265cff6ae58e06f95539d539b654f2cfa64bb13"
-
-# PABC — 1.1.0 -> 1.1.1
-- name: platform-autorisatie-beheer-component/pabc-api
-  url: ghcr.io/platform-autorisatie-beheer-component/pabc-api
-  version: "1.1.1"
-  digest: "sha256:09a902e43f6cdb214afc369d04005c7b6108fd24b15709f1debbcfb1b446ef42"
-- name: platform-autorisatie-beheer-component/pabc-migrations
-  url: ghcr.io/platform-autorisatie-beheer-component/pabc-migrations
-  version: "1.1.1"
-  digest: "sha256:a3841a2eb78cddd34ebb0de1bfede1db1ae9713921c0d77e4366baceffa86e05"
-
-
-# PodiumD Adapter 0.6.6 -> 0.6.7 
-- name: icatt-menselijk-digitaal/podiumd-adapter
-  url: ghcr.io/icatt-menselijk-digitaal/podiumd-adapter
-  version: "0.6.7"
-  digest: "sha256:089d07a6efdfcab07b61b1a75b4d26c14099cc9b206a56419e36ef6f28a26a68"
-
-# ClamAV daemon — 1.5.2 -> 1.5.4 (chart clamav 3.7.1 -> 3.7.2)
-- name: clamav/clamav
-  url: docker.io/clamav/clamav
-  version: "1.5.4"
-  digest: "sha256:0e85467cb0d6e7d860a45035707741cd5ffc032ffefc6002a3510c75b6d07027"
-
-# Keycloak server — 26.6.4 -> 26.7.2 (app image only; keycloak-operator chart
-# stays 1.12.1). keycloak-operator.config.keycloakImage (RELATED_IMAGE_KEYCLOAK)
-# kept in sync with this — see comment in values.yaml.
-- name: keycloak/keycloak
-  url: quay.io/keycloak/keycloak
-  version: "26.7.2"
-  digest: "sha256:9d1f1b2b7261ff53c66cb1092dfcdc34a5fb77e81f9e6a6e75b8b6a795de8067"
-
-# ECK Operator — 3.4.0 -> 3.5.0 (chart eck-operator 3.4.0 -> 3.5.0).
-# CRD schema diff verified additive-only (28 fields added, 0 removed).
-- name: elastic/eck-operator
-  url: docker.io/elastic/eck-operator
-  version: "3.5.0"
-  digest: "sha256:b6f261372d9d9af7b00aab03efea25263314d16063c4d440ac322e52c2fdf314"
-
-# Kiss's ECK-managed Elasticsearch/Kibana/Enterprise Search — 8.19.3 -> 8.19.19
-# (kiss-eck.eck-elasticsearch/eck-kibana/eck-enterprise-search `version:` fields;
-# eck-stack chart itself also bumped 0.19.0 -> 0.20.0, no image of its own).
+# kiss-eck 8.19.3 -> 8.19.19
 - name: elasticsearch/elasticsearch
-  url: docker.elastic.co/elasticsearch/elasticsearch
+  url: elasticsearch/elasticsearch
   version: "8.19.19"
   digest: "sha256:5dbf405a97e008f3024cf6f8f4a314d91b765d82954530893dcc13f8e87d21f4"
+# kiss-eck 8.19.3 -> 8.19.19
 - name: kibana/kibana
-  url: docker.elastic.co/kibana/kibana
+  url: kibana/kibana
   version: "8.19.19"
   digest: "sha256:cc1f9f8c09e2fe0869965ccbf4008a4af0b2691b370fe189dfb8e19f516215c7"
+#   sidecar: kiss-eck - enterprise-search 8.19.3 -> 8.19.19
 - name: enterprise-search/enterprise-search
-  url: docker.elastic.co/enterprise-search/enterprise-search
+  url: enterprise-search/enterprise-search
   version: "8.19.19"
   digest: "sha256:83e75654a20826027829a072197698358c6ee6e53c3305558a69f7d89992ab16"
 
-# Python (ensurePodiumdAdminUser init image) — 3.14-slim -> 3.14.7-slim
-# Pinned to a specific patch instead of the floating 3.14-slim minor tag.
-- name: library/python
-  url: docker.io/library/python
-  version: "3.14.7-slim"
-  digest: "sha256:cae66f2ef0ec51a9891263eeee7f987dacf0a9879e8aa9353d5606e0530619a5"
+# kiss 2.2.4 -> 3.0.0
+- name: klantinteractie-servicesysteem/kiss-frontend
+  url: klantinteractie-servicesysteem/kiss-frontend
+  version: "3.0.0"
+  digest: "sha256:56a9c225d9fb19184ee9ad6c84877e7b5853c280cbb5e0d59edb340c7bb8599c"
+#   sidecar: kiss - crawler 1.0.0 -> 1.0.0
+- name: integrations/crawler
+  url: integrations/crawler
+  version: "1.0.0"
+  digest: "sha256:6f3c02f6c783711b8d9e133cf10934b137d6547dc1eb10a0d2ccf99ffe2e2d07"
+#   sidecar: kiss - kiss-elastic-sync 0.3.3 -> 3.0.0
+- name: klantinteractie-servicesysteem/kiss-elastic-sync
+  url: klantinteractie-servicesysteem/kiss-elastic-sync
+  version: "3.0.0"
+  digest: "sha256:64d56ff3039b71806d7d03ecfcd37cede2d31c4146fe4e06d9de6f526415fffb"
 
-# Redis (redis-ha) — 8.6.2 -> 8.6.6 (same 8.6.x branch, security patches)
-- name: opstree/redis
-  url: quay.io/opstree/redis
-  version: "v8.6.6"
-  digest: "sha256:12724412997e6acc32783f8c3c1ce8a7657029e06f563ffc8cbd81e2e9de7628"
+# zac 5.0.2 -> 5.4.4
+- name: infonl/zaakafhandelcomponent
+  url: infonl/zaakafhandelcomponent
+  version: "5.4.4"
+  digest: "sha256:2809ee2d2dc1ca166b88878a50d2850c7e972651f3ee5c35f44e92127c67773a"
+#   sidecar: zac - gotenberg 8.34.0 -> 8.36.0
+- name: gotenberg/gotenberg
+  url: gotenberg/gotenberg
+  version: "8.36.0"
+  digest: "sha256:87c16b9f364279d321bc9772d31fa58aa6abe036423c270698bd636c3a8e9466"
+#   sidecar: zac - opa 1.17.1-static -> 1.19.1-static
+- name: openpolicyagent/opa
+  url: openpolicyagent/opa
+  version: "1.19.1-static"
+  digest: "sha256:32bf41d914b1505fea13303f60587cc57bdd2902262177585fb208f5dde76d32"
 
-# redis-exporter — 1.82.0 -> 1.89.0 (sidecar disabled by default)
-- name: opstree/redis-exporter
-  url: quay.io/opstree/redis-exporter
-  version: "v1.89.0"
-  digest: "sha256:00a3628bdd3bb3423a15c5daefa328c471ee609798eed1744fe578c906d20cab"
+# zgw-office-addin v0.9.313 -> 0.11.0
+- name: infonl/zgw-office-addin-backend
+  url: infonl/zgw-office-addin-backend
+  version: "0.11.0"
+  digest: "sha256:5b188e853531986e31709ed6cae130a891e0014cb267c43ac338b792c84a29ab"
+# zgw-office-addin v0.9.313 -> 0.11.0
+- name: infonl/zgw-office-addin-frontend
+  url: infonl/zgw-office-addin-frontend
+  version: "0.11.0"
+  digest: "sha256:9a6b3e9023b8cfba152a84dd7477e079490fc7d35562d32e0dc094be81a7f7a2"
 
-# redis-operator — 0.25.0 -> 0.26.0 (chart 0.25.0 -> 0.26.1; main + init-container image)
-- name: opstree/redis-operator
-  url: quay.io/opstree/redis-operator
-  version: "v0.26.0"
-  digest: "sha256:1c6818e5e50553f9f3c1b91a8824ae5c1999a0c9416c794ca51431b7f0cb48c3"
-
-# clamav_exporter (metrics sidecar) — v2.1.3 -> v2.1.8 (disabled by default)
+# clamav 1.5.2 -> 1.5.4
+- name: clamav/clamav
+  url: clamav/clamav
+  version: "1.5.4"
+  digest: "sha256:0e85467cb0d6e7d860a45035707741cd5ffc032ffefc6002a3510c75b6d07027"
+#   sidecar: clamav - clamav_exporter v2.1.3 -> v2.1.8
 - name: sergeymakinen/clamav_exporter
-  url: docker.io/sergeymakinen/clamav_exporter
+  url: sergeymakinen/clamav_exporter
   version: "v2.1.8"
   digest: "sha256:ac0e23e6b718f265f67de68d9fccbb8e9baccedeba19658fd78dd8a606508e24"
+
+# ita 3.2.0 -> 3.3.0
+- name: interne-taak-afhandeling/internetaakafhandeling.poller
+  url: interne-taak-afhandeling/internetaakafhandeling.poller
+  version: "3.3.0"
+  digest: "sha256:7690650687047c43f08c4f8320b77d821d3551d18478de9a600a2f828600c865"
+# ita 3.2.0 -> 3.3.0
+- name: interne-taak-afhandeling/internetaakafhandeling.web
+  url: interne-taak-afhandeling/internetaakafhandeling.web
+  version: "3.3.0"
+  digest: "sha256:cb56b4809e0c840cbc72814f8a72495fd18860cb08dfb092c12ba3c2cea785df"
+
+# pabc 1.1.0 -> 1.1.1
+- name: platform-autorisatie-beheer-component/pabc-api
+  url: platform-autorisatie-beheer-component/pabc-api
+  version: "1.1.1"
+  digest: "sha256:09a902e43f6cdb214afc369d04005c7b6108fd24b15709f1debbcfb1b446ef42"
+#   sidecar: pabc - pabc-migrations 1.1.0 -> 1.1.1
+- name: platform-autorisatie-beheer-component/pabc-migrations
+  url: platform-autorisatie-beheer-component/pabc-migrations
+  version: "1.1.1"
+  digest: "sha256:a3841a2eb78cddd34ebb0de1bfede1db1ae9713921c0d77e4366baceffa86e05"
