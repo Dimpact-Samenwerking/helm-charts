@@ -477,16 +477,49 @@ def test_find_images_manifest_list_diff_finds_entry_matching_nothing(libupgraded
     assert extra == ["does-not-exist"]
 
 
-def test_find_images_manifest_list_diff_catches_digest_only_repin(libupgradedoc):
-    """A tag whose version number is unchanged but whose digest was
-    re-pinned still counts as "changed" — matches this manifest's own
-    "newly digest-pinned... tag unchanged" convention."""
+def test_find_images_manifest_list_diff_ignores_digest_only_repin(libupgradedoc):
+    """A tag whose VERSION is unchanged but whose digest was re-pinned
+    is NOT reported as missing — a chart-wide digest-pinning sweep (see
+    PR #437) touches virtually every image's digest at once with no app-
+    version change behind any of it; requiring a manifest entry for
+    every single one would defeat the whole point of a curated "what
+    actually changed" list. A deliberate, individually-notable digest-
+    only re-pin (this manifest's own "newly digest-pinned... tag
+    unchanged" convention) stays a judgment call for whoever writes the
+    manifest, not something this check demands."""
     entries = []
     current_paths = {("zac",): "1.1.0@sha256:newdigest"}
     baseline_paths = {("zac",): "1.1.0@sha256:olddigest"}
     missing, extra = libupgradedoc.find_images_manifest_list_diff(
         entries, current_paths, baseline_paths, repo_map={}, repo_groups={}, unresolvable_paths=set())
+    assert missing == []
+    assert extra == []
+
+
+def test_find_images_manifest_list_diff_still_catches_a_real_version_change(libupgradedoc):
+    """A real version bump — even one that ALSO changes the digest, the
+    normal shape for any real tag bump — is still reported as missing,
+    same as always. Only a version-IDENTICAL digest re-pin is ignored."""
+    entries = []
+    current_paths = {("zac",): "1.2.0@sha256:newdigest"}
+    baseline_paths = {("zac",): "1.1.0@sha256:olddigest"}
+    missing, extra = libupgradedoc.find_images_manifest_list_diff(
+        entries, current_paths, baseline_paths, repo_map={}, repo_groups={}, unresolvable_paths=set())
     assert missing == [("zac",)]
+    assert extra == []
+
+
+def test_find_images_manifest_list_diff_treats_brand_new_path_as_changed(libupgradedoc):
+    """A path with no baseline entry at all (a genuinely new image, not
+    in baseline_paths) is still reported as missing — there is no
+    "version" to compare it against, so it can never be mistaken for a
+    digest-only repin."""
+    entries = []
+    current_paths = {("newcomponent", "image"): "1.0.0@sha256:aaaa"}
+    baseline_paths = {}
+    missing, extra = libupgradedoc.find_images_manifest_list_diff(
+        entries, current_paths, baseline_paths, repo_map={}, repo_groups={}, unresolvable_paths=set())
+    assert missing == [("newcomponent", "image")]
     assert extra == []
 
 
