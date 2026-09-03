@@ -96,7 +96,7 @@ from lib.upgradedoc import (
     extract_source_version, extract_target_version, find_all_image_and_version_paths,
     find_grouped_preceding_comment_line, find_image_tag_paths, find_images_manifest_list_diff,
     images_manifest_block_start, images_manifest_entries_share_group, images_manifest_entry_positions,
-    insertion_index,
+    insertion_index, is_primary_image_path,
     match_dependency_excluding_sidecar_names, missing_key_change_lines, normalize_version, parse_upgrade_doc_rows,
     path_display_name, replace_version_pair, resolve_component_row, resolve_entry_image_path, sort_changes_blocks,
     sort_images_manifest_entries, sort_upgrade_doc_rows, values_key_order,
@@ -697,13 +697,14 @@ def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, ba
         baseline_tag = baseline_paths.get(path)
         old_version = version_of(baseline_tag) if baseline_tag else new_version
         new_key = order_key(path[0], " - " in name)
+        version_text = f"{name} {old_version} -> {new_version}"
 
         lines = text.splitlines(keepends=True)
         if lines and not lines[-1].endswith("\n"):
             lines[-1] += "\n"
 
         _insert_images_manifest_header_item(
-            lines, deps, key_order, order_key, new_key, f"{name} {old_version} -> {new_version}.")
+            lines, deps, key_order, order_key, new_key, f"{version_text}.")
 
         entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
         entry_keys = []
@@ -717,8 +718,9 @@ def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, ba
             entry_display = path_display_name(entry_path, deps, canonical_names)
             entry_keys.append(order_key(entry_path[0], " - " in entry_display))
 
+        header_prefix = "# " if is_primary_image_path(path, deps) else "#   sidecar: "
         block_lines = [
-            f"# {name} — {old_version} -> {new_version}\n",
+            f"{header_prefix}{version_text}\n",
             f"- name: {repo}\n",
             f"  url: {repo}\n",
             f'  version: "{new_version}"\n',

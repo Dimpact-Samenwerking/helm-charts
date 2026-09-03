@@ -1536,7 +1536,7 @@ def test_add_missing_images_manifest_entries_appends_new_entry(cdb, images_manif
 
     assert skipped == []
     assert added == ["zac"]
-    assert "# zac — 5.0.2 -> 5.1.0" in new_text
+    assert "# zac 5.0.2 -> 5.1.0" in new_text  # primary: plain "# " prefix, no em-dash
     assert "- name: infonl/zaakafhandelcomponent" in new_text
     assert "url: infonl/zaakafhandelcomponent" in new_text
     assert 'version: "5.1.0"' in new_text
@@ -1718,7 +1718,7 @@ def test_add_missing_images_manifest_entries_inserts_at_correct_body_and_header_
 
     lines = new_text.splitlines()
     openzaak_idx = next(i for i, line in enumerate(lines) if line.startswith("# openzaak"))
-    kc_idx = next(i for i, line in enumerate(lines) if line.startswith("# keycloak-operator - postgres"))
+    kc_idx = next(i for i, line in enumerate(lines) if line.startswith("#   sidecar: keycloak-operator - postgres"))
     zac_idx = next(i for i, line in enumerate(lines) if line.startswith("# zac"))
     assert openzaak_idx < kc_idx < zac_idx
 
@@ -1837,7 +1837,7 @@ def test_add_missing_images_manifest_entries_no_header_still_orders_body(
     assert added == ["keycloak-operator - postgres"]
     lines = new_text.splitlines()
     openzaak_idx = next(i for i, line in enumerate(lines) if line.startswith("# openzaak"))
-    kc_idx = next(i for i, line in enumerate(lines) if line.startswith("# keycloak-operator - postgres"))
+    kc_idx = next(i for i, line in enumerate(lines) if line.startswith("#   sidecar: keycloak-operator - postgres"))
     zac_idx = next(i for i, line in enumerate(lines) if line.startswith("# zac"))
     assert openzaak_idx < kc_idx < zac_idx
 
@@ -2229,7 +2229,7 @@ def test_main_adds_missing_images_manifest_entry(cdb, tmp_path, monkeypatch):
     cdb.main()
 
     text = images_path.read_text(encoding="utf-8")
-    assert "# zac — 5.0.2 -> 5.1.0" in text
+    assert "# zac 5.0.2 -> 5.1.0" in text
     assert "- name: infonl/zaakafhandelcomponent" in text
     assert "url: infonl/zaakafhandelcomponent" in text
     assert 'version: "5.1.0"' in text
