@@ -2,6 +2,8 @@
 docs-consistency check and fix-doc-consistency's version-correction pass."""
 import re
 
+import yaml
+
 from lib.chart import (
     COMPONENT_IMAGE_PATHS, get_path, image_paths_for, nested_subchart_registered_paths, subchart_app_version,
     version_of, version_paths_for,
@@ -931,6 +933,32 @@ def resolve_entry_image_path(entry, paths, repo_map=None):
     return resolve_entry_path(entry["name"], paths)
 
 
+def entry_component(entry, current_paths, repo_map):
+    """The top-level values-tree component an images-manifest entry
+    resolves to (path[0], via resolve_entry_image_path), or None when it
+    doesn't resolve to any real path at all."""
+    path = resolve_entry_image_path(entry, current_paths.keys(), repo_map)
+    return path[0] if path else None
+
+
+def images_manifest_entries_share_group(entry_a, entry_b, current_paths, repo_map):
+    """True when entry_a and entry_b are part of ONE shared-comment
+    group in the images manifest — same top-level component AND the
+    same declared manifest "version" (evidence of one lockstep bump
+    across images, not just a coincidentally-shared values-tree
+    prefix — see find_images_manifest_faulty_headers for why this is
+    only ever a proxy, never a guarantee). Shared by check_images_
+    manifest_format, fix_images_manifest_entries, and sort_images_
+    manifest_entries so the three can never disagree about which
+    entries move/get validated/get fixed together — before this was
+    factored out, it was duplicated as an identical closure in both
+    lib.docs_consistency and fix-doc-consistency."""
+    component_a = entry_component(entry_a, current_paths, repo_map)
+    return (component_a is not None
+            and component_a == entry_component(entry_b, current_paths, repo_map)
+            and entry_a.get("version") == entry_b.get("version"))
+
+
 def _is_dependency_primary_rel_path(dep, rel_path):
     """rel_path (path[1:], dotted) is one of dep's own PRIMARY image/
     version fields — lib.chart.image_paths_for's "image: {tag}" shape
@@ -1013,6 +1041,27 @@ def _own_header_top_line(lines, entry_line_index):
         top = lines[j]
         j -= 1
     return top
+
+
+def images_manifest_block_start(lines, entry_line_idx):
+    """The line index where this entry's own preceding comment block
+    begins (or the entry line itself if it has none) — walks upward
+    through contiguous "#"-prefixed lines directly above. When the
+    comment is actually shared with an earlier entry (see find_grouped_
+    preceding_comment), this naturally lands on that earlier entry's own
+    comment start too — inserting a new block right before it never
+    splits an existing group, and sort_images_manifest_entries relies on
+    this same landing to move a whole shared-comment group as one
+    physical unit. Unlike _own_header_top_line (which returns None when
+    there's no comment at all, for a caller that needs to tell "no
+    header" apart from "has one"), this always returns a usable line
+    index — the entry's own line itself when there's nothing above it —
+    for callers that need "where does this entry's physical block, with
+    or without a header, begin" instead."""
+    i = entry_line_idx
+    while i > 0 and lines[i - 1].lstrip().startswith("#"):
+        i -= 1
+    return i
 
 
 def _header_name_segment(text):
@@ -1186,6 +1235,130 @@ def find_images_manifest_list_diff(entries, current_paths, baseline_paths, repo_
 
     missing_paths = sorted(changed_paths - matched_paths)
     return missing_paths, stale_entry_names, unmatched_entry_names
+
+
+def images_manifest_entry_order_key(path, deps, key_order):
+    """An images-manifest entry's own sort key — (values_key_index,
+    is_sidecar), the SAME shape and meaning component_order_key already
+    uses for -upgrade.md's own rows/Changes headings — computed from the
+    entry's own RESOLVED values-tree path (see resolve_entry_image_path)
+    rather than component_order_key's fuzzy name-word matching: the
+    images manifest already has a deterministic path for every entry,
+    so falling back to fuzzy matching here would be a regression (see
+    is_primary_image_path/path_display_name for the same primary/
+    sidecar split, reused here rather than re-derived). path=None (an
+    entry that doesn't resolve to any real values-tree path at all —
+    see find_images_manifest_list_diff's unmatched_entry_names) sorts
+    after every real one, the same sentinel component_order_key uses
+    for a name that doesn't resolve to any dependency at all."""
+    if path is None:
+        return (len(key_order), 1)
+    try:
+        idx = key_order.index(path[0])
+    except ValueError:
+        idx = len(key_order)
+    is_sidecar = 0 if is_primary_image_path(path, deps) else 1
+    return (idx, is_sidecar)
+
+
+def _images_manifest_groups(entries, entry_line_indices, lines, current_paths, repo_map, deps, canonical_names):
+    """[(indices, path, display_name), ...] — one entry per physical
+    GROUP of consecutive entries sharing a single preceding comment
+    (see find_grouped_preceding_comment_line/images_manifest_entries_
+    share_group), in the manifest's current top-to-bottom order. `path`/
+    `display_name` are the group's FIRST entry's own resolved values-
+    tree path (see resolve_entry_image_path) and path_display_name (or
+    the raw entry name when unresolvable). Shared by sort_images_
+    manifest_entries (which physically reorders these) and find_images_
+    manifest_out_of_order_names (which only compares adjacent keys) so
+    the two can never disagree about what counts as one group."""
+    n = len(entries)
+
+    def same_group(entry_a, entry_b):
+        return images_manifest_entries_share_group(entry_a, entry_b, current_paths, repo_map)
+
+    comment_idx_for = [find_grouped_preceding_comment_line(lines, entries, entry_line_indices, i, same_group)
+                        for i in range(n)]
+    index_groups = []
+    for i in range(n):
+        if i > 0 and comment_idx_for[i] is not None and comment_idx_for[i] == comment_idx_for[i - 1]:
+            index_groups[-1].append(i)
+        else:
+            index_groups.append([i])
+
+    groups = []
+    for indices in index_groups:
+        path = resolve_entry_image_path(entries[indices[0]], current_paths.keys(), repo_map)
+        name = path_display_name(path, deps, canonical_names) if path else entries[indices[0]]["name"]
+        groups.append((indices, path, name))
+    return groups
+
+
+def find_images_manifest_out_of_order_names(entries, entry_line_indices, lines, deps, current_paths, repo_map,
+                                             canonical_names, key_order):
+    """[(name_a, name_b), ...] for every ADJACENT pair of images-
+    manifest GROUPS (see _images_manifest_groups) whose relative order
+    contradicts values.yaml's own top-level key order (see images_
+    manifest_entry_order_key) — same "adjacent pairs are sufficient to
+    catch any non-monotonic sequence" reasoning find_out_of_order_names
+    already uses for -upgrade.md's own rows/Changes headings."""
+    groups = _images_manifest_groups(entries, entry_line_indices, lines, current_paths, repo_map, deps,
+                                      canonical_names)
+    violations = []
+    for (_, path_a, name_a), (_, path_b, name_b) in zip(groups, groups[1:]):
+        if (images_manifest_entry_order_key(path_b, deps, key_order)
+                < images_manifest_entry_order_key(path_a, deps, key_order)):
+            violations.append((name_a, name_b))
+    return violations
+
+
+def sort_images_manifest_entries(text, deps, values, repo_map, canonical_names):
+    """Reorder the images manifest's own entry GROUPS (physically, in
+    the text) to match values.yaml's own top-level key order — see
+    values_key_order/images_manifest_entry_order_key, the same rule
+    sort_upgrade_doc_rows/sort_changes_blocks already apply to
+    -upgrade.md's own rows/Changes blocks. A group (see _images_
+    manifest_groups) is moved as ONE physical unit, never split, so a
+    shared header always stays directly above every entry it actually
+    covers. Returns (new_text, moved) where moved is [(display_name,
+    old_position, new_position)] (1-based, among just the manifest's
+    own groups) for every group whose position actually changed — empty
+    (and text returned unchanged) if the manifest already matches, has
+    fewer than 2 groups to meaningfully order, or isn't valid YAML."""
+    lines = text.splitlines(keepends=True)
+    try:
+        entries = yaml.safe_load(text)
+    except yaml.YAMLError:
+        return text, []
+    if not isinstance(entries, list):
+        return text, []
+
+    entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
+    n = min(len(entries), len(entry_line_indices))
+    entries, entry_line_indices = entries[:n], entry_line_indices[:n]
+    if n < 2:
+        return text, []
+
+    current_paths = dict(find_all_image_and_version_paths(values, deps))
+    groups = _images_manifest_groups(entries, entry_line_indices, lines, current_paths, repo_map, deps,
+                                      canonical_names)
+    if len(groups) < 2:
+        return text, []
+
+    key_order = values_key_order(values)
+    order = sorted(range(len(groups)),
+                    key=lambda gi: images_manifest_entry_order_key(groups[gi][1], deps, key_order))
+    moved = [(groups[i][2], i + 1, slot + 1) for slot, i in enumerate(order) if i != slot]
+    if not moved:
+        return text, []
+
+    starts = [images_manifest_block_start(lines, entry_line_indices[indices[0]]) for indices, _, _ in groups]
+    ends = starts[1:] + [len(lines)]
+    original_texts = ["".join(lines[s:e]) for s, e in zip(starts, ends)]
+    new_texts = [original_texts[i] for i in order]
+
+    prefix = "".join(lines[:starts[0]])
+    return prefix + "".join(new_texts), moved
 
 
 def find_preceding_comment(lines, entry_line_index):

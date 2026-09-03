@@ -910,6 +910,159 @@ def test_find_images_manifest_faulty_headers_version_paths_for_primary_is_exempt
     assert problems == []
 
 
+# --- images_manifest_entry_order_key ---
+
+def test_images_manifest_entry_order_key_primary_uses_values_key_index(libupgradedoc):
+    deps = [{"name": "zac", "version": "1.0.0"}]
+    key_order = ["redis-operator", "zac"]
+    assert libupgradedoc.images_manifest_entry_order_key(("zac", "image"), deps, key_order) == (1, 0)
+
+
+def test_images_manifest_entry_order_key_sidecar_sorts_after_primary(libupgradedoc):
+    deps = [{"name": "redis-operator", "version": "1.0.0"}]
+    key_order = ["redis-operator", "zac"]
+    assert libupgradedoc.images_manifest_entry_order_key(
+        ("redis-operator", "redis-ha", "image"), deps, key_order) == (0, 1)
+
+
+def test_images_manifest_entry_order_key_unresolved_path_sorts_last(libupgradedoc):
+    """path=None (an entry that doesn't resolve to any real values-tree
+    path at all) sorts after every real component — same sentinel
+    component_order_key uses for a name matching no dependency."""
+    key_order = ["redis-operator", "zac"]
+    assert libupgradedoc.images_manifest_entry_order_key(None, deps=[], key_order=key_order) == (2, 1)
+
+
+def test_images_manifest_entry_order_key_unknown_values_key_sorts_last(libupgradedoc):
+    """path[0] not in key_order at all (shouldn't happen for a real
+    resolved path, but stays a sane sentinel rather than crashing)."""
+    deps = [{"name": "mystery", "version": "1.0.0"}]
+    key_order = ["redis-operator", "zac"]
+    assert libupgradedoc.images_manifest_entry_order_key(("mystery", "image"), deps, key_order) == (2, 0)
+
+
+# --- find_images_manifest_out_of_order_names / sort_images_manifest_entries ---
+
+def _images_manifest_two_component_fixture():
+    """zac then redis-operator, in that order — own comments, no shared
+    groups. `values` has real "image: {tag: ...}" blocks for both, so
+    resolve_entry_image_path (used internally by sort_images_manifest_
+    entries) actually resolves each entry, not just the standalone
+    current_paths/repo_map handed to the out-of-order check directly."""
+    text = (
+        "# zac 5.0.2 -> 5.4.4\n"
+        "- name: infonl/zaakafhandelcomponent\n"
+        "  version: \"5.4.4\"\n"
+        "\n"
+        "# redis-operator 0.25.0 -> 0.26.0\n"
+        "- name: opstree/redis-operator\n"
+        "  version: \"0.26.0\"\n"
+    )
+    entries = [{"name": "infonl/zaakafhandelcomponent", "version": "5.4.4"},
+               {"name": "opstree/redis-operator", "version": "0.26.0"}]
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.0"},
+            {"name": "redis-operator", "version": "1.0.0"}]
+    values = {"redis-operator": {"image": {"tag": "0.26.0"}}, "zac": {"image": {"tag": "5.4.4"}}}
+    current_paths = {("zac", "image"): "5.4.4", ("redis-operator", "image"): "0.26.0"}
+    repo_map = {"infonl/zaakafhandelcomponent": ("zac", "image"),
+                "opstree/redis-operator": ("redis-operator", "image")}
+    key_order = ["redis-operator", "zac"]
+    return text, entries, deps, values, current_paths, repo_map, key_order
+
+
+def test_find_images_manifest_out_of_order_names_detects_violation(libupgradedoc):
+    text, entries, deps, values, current_paths, repo_map, key_order = _images_manifest_two_component_fixture()
+    lines = text.splitlines()
+    entry_line_indices = _entry_line_indices(lines)
+
+    violations = libupgradedoc.find_images_manifest_out_of_order_names(
+        entries, entry_line_indices, lines, deps, current_paths, repo_map, canonical_names={}, key_order=key_order)
+    assert violations == [("zac", "redis-operator")]
+
+
+def test_find_images_manifest_out_of_order_names_correctly_ordered_reports_nothing(libupgradedoc):
+    text, entries, deps, values, current_paths, repo_map, key_order = _images_manifest_two_component_fixture()
+    lines = text.splitlines()
+    entry_line_indices = _entry_line_indices(lines)
+    key_order = ["zac", "redis-operator"]  # now matches the manifest's actual order
+
+    violations = libupgradedoc.find_images_manifest_out_of_order_names(
+        entries, entry_line_indices, lines, deps, current_paths, repo_map, canonical_names={}, key_order=key_order)
+    assert violations == []
+
+
+def test_sort_images_manifest_entries_reorders_to_match_values_yaml(libupgradedoc):
+    text, entries, deps, values, current_paths, repo_map, key_order = _images_manifest_two_component_fixture()
+    # values' own dict insertion order (redis-operator, zac) IS values_key_order's source.
+
+    new_text, moved = libupgradedoc.sort_images_manifest_entries(text, deps, values, repo_map, canonical_names={})
+
+    assert moved == [("redis-operator", 2, 1), ("zac", 1, 2)]
+    assert new_text.index("redis-operator") < new_text.index("zaakafhandelcomponent")
+    # Each entry's own comment travels WITH it, never left behind.
+    assert new_text.index("# redis-operator") < new_text.index("- name: opstree/redis-operator")
+    assert new_text.index("# zac") < new_text.index("- name: infonl/zaakafhandelcomponent")
+
+
+def test_sort_images_manifest_entries_already_ordered_reports_nothing(libupgradedoc):
+    text, entries, deps, values, current_paths, repo_map, key_order = _images_manifest_two_component_fixture()
+    values = {"zac": values["zac"], "redis-operator": values["redis-operator"]}  # matches manifest's actual order
+
+    new_text, moved = libupgradedoc.sort_images_manifest_entries(text, deps, values, repo_map, canonical_names={})
+    assert moved == []
+    assert new_text == text
+
+
+def test_sort_images_manifest_entries_moves_shared_group_as_one_unit(libupgradedoc):
+    """A group of entries sharing ONE header (e.g. zgw-office-addin's
+    frontend + backend, both primaries of the same dependency) moves
+    together — the shared header is never left behind or split from
+    only some of the entries it covers."""
+    text = (
+        "# redis-operator 0.25.0 -> 0.26.0\n"
+        "- name: opstree/redis-operator\n"
+        "  version: \"0.26.0\"\n"
+        "\n"
+        "# ZGW Office Add-in -> 0.11.0\n"
+        "- name: infonl/zgw-office-addin-frontend\n"
+        "  version: \"0.11.0\"\n"
+        "\n"
+        "- name: infonl/zgw-office-addin-backend\n"
+        "  version: \"0.11.0\"\n"
+    )
+    deps = [{"name": "redis-operator", "version": "1.0.0"}, {"name": "zgw-office-addin", "version": "1.0.0"}]
+    values = {
+        "zgw-office-addin": {"frontend": {"image": {"tag": "0.11.0"}}, "backend": {"image": {"tag": "0.11.0"}}},
+        "redis-operator": {"image": {"tag": "0.26.0"}},
+    }
+    repo_map = {"opstree/redis-operator": ("redis-operator", "image"),
+                "infonl/zgw-office-addin-frontend": ("zgw-office-addin", "frontend", "image"),
+                "infonl/zgw-office-addin-backend": ("zgw-office-addin", "backend", "image")}
+
+    new_text, moved = libupgradedoc.sort_images_manifest_entries(text, deps, values, repo_map, canonical_names={})
+
+    assert moved == [("zgw-office-addin", 2, 1), ("redis-operator", 1, 2)]
+    assert new_text.index("zgw-office-addin-frontend") < new_text.index("zgw-office-addin-backend") \
+        < new_text.index("opstree/redis-operator")
+    assert new_text.index("# ZGW Office Add-in") < new_text.index("zgw-office-addin-frontend")
+
+
+def test_sort_images_manifest_entries_invalid_yaml_returns_unchanged(libupgradedoc):
+    text = "not: valid: yaml: at: all: [\n"
+    new_text, moved = libupgradedoc.sort_images_manifest_entries(text, deps=[], values={}, repo_map={},
+                                                                   canonical_names={})
+    assert new_text == text
+    assert moved == []
+
+
+def test_sort_images_manifest_entries_single_entry_reports_nothing(libupgradedoc):
+    text = "- name: opstree/redis-operator\n  version: \"0.26.0\"\n"
+    new_text, moved = libupgradedoc.sort_images_manifest_entries(text, deps=[], values={}, repo_map={},
+                                                                   canonical_names={})
+    assert new_text == text
+    assert moved == []
+
+
 # --- path_display_name ---
 
 def test_path_display_name_primary_dependency_image_uses_bare_key(libupgradedoc):
