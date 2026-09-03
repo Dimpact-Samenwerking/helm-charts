@@ -967,6 +967,37 @@ def test_paths_by_repository_matches_repository_path_map_last_survivor(libchart,
     assert mapping == {repo: repo_paths[-1] for repo, repo_paths in groups.items()}
 
 
+def test_paths_by_repository_resolves_via_component_version_repository_sibling(libchart, tmp_path):
+    """redis-operator's own image has no "<path>.repository" field at
+    all — its repository lives at the sibling "imageName:" field next
+    to "imageTag:" (see COMPONENT_VERSION_REPOSITORY_PATHS), a shape
+    the ordinary "own override, else subchart default" resolution never
+    finds on its own."""
+    dep = {"name": "redis-operator", "version": "0.26.1"}
+    values = {"redis-operator": {"redisOperator": {
+        "imageName": "quay.io/opstree/redis-operator", "imageTag": "v0.26.0@sha256:aaaa"}}}
+    paths = [("redis-operator", "redisOperator", "imageTag")]
+
+    groups = libchart.paths_by_repository(tmp_path, [dep], values, paths, allow_pull=False)
+
+    assert groups == {"opstree/redis-operator": [("redis-operator", "redisOperator", "imageTag")]}
+
+
+def test_paths_by_repository_no_sibling_registered_falls_through_to_subchart(libchart, tmp_path):
+    """eck-stack's own COMPONENT_VERSION_PATHS entries ("version:" bare
+    fields) have no registered repository sibling at all — must not
+    error, just fall through exactly as an unregistered component
+    would (no own override, no vendored subchart here either -> path
+    silently excluded, not a crash)."""
+    dep = {"name": "eck-stack", "alias": "kiss-eck", "version": "0.20.0"}
+    values = {"kiss-eck": {"eck-elasticsearch": {"version": "8.19.19"}}}
+    paths = [("kiss-eck", "eck-elasticsearch", "version")]
+
+    groups = libchart.paths_by_repository(tmp_path, [dep], values, paths, allow_pull=False)
+
+    assert groups == {}
+
+
 # --- canonical_sidecar_row_names ---
 
 def test_canonical_sidecar_row_names_dependency_sidecar(libchart, tmp_path):

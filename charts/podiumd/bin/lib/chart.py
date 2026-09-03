@@ -101,6 +101,24 @@ def version_paths_for(component):
     return COMPONENT_VERSION_PATHS.get(component, [])
 
 
+# component (name, not alias) -> the sibling dotted path holding a
+# COMPONENT_VERSION_PATHS entry's own repository — for the rare case
+# where that repository IS explicitly overridable in podiumd's OWN
+# values.yaml (redis-operator's own "imageName:"/"imageTag:" sibling-
+# field convention), so paths_by_repository/find_images_without_
+# repository can resolve one at all; a bare "version:" field with no
+# such sibling (eck-stack's own two entries) is correctly left out —
+# there is no repository override to find here, by design (the ECK
+# operator maps that version to its own internal images).
+COMPONENT_VERSION_REPOSITORY_PATHS = {
+    "redis-operator": "redisOperator.imageName",
+}
+
+
+def version_repository_path_for(component):
+    return COMPONENT_VERSION_REPOSITORY_PATHS.get(component)
+
+
 def load_yaml(path):
     return yaml.safe_load(path.read_text(encoding="utf-8"))
 
@@ -555,6 +573,13 @@ def paths_by_repository(chart_dir, deps, values, paths, allow_pull=False):
     resolution order lib.image_repository_check.find_images_without_
     repository already uses, and for the same reason: podiumd's own
     values.yaml answers this directly, no dependency needed to ask it.
+    Next, for a path from lib.upgradedoc.find_component_version_tags (a
+    COMPONENT_VERSION_PATHS-registered bare tag/version field, never
+    nested under an "image:"/"...Image:" dict with its own
+    "repository:" sibling in the first place) — version_repository_
+    path_for(dep["name"])'s own sibling field, when that component
+    registers one (redis-operator's own "imageName:", sibling to
+    "imageTag:").
     Real case this matters for: "apiproxy"/"frankgateway"/"keycloak" are
     podiumd's own directly-templated top-level blocks with no Chart.yaml
     dependency of their own at all, yet several of them alias the very
@@ -603,6 +628,13 @@ def paths_by_repository(chart_dir, deps, values, paths, allow_pull=False):
         dep = by_values_key.get(path[0]) if path else None
         if dep is None:
             continue
+
+        sibling_rel = version_repository_path_for(dep["name"])
+        if sibling_rel:
+            sibling_repo = get_path(values, f"{path[0]}.{sibling_rel}")
+            if isinstance(sibling_repo, str) and sibling_repo:
+                groups.setdefault(strip_registry_host(sibling_repo), []).append(path)
+                continue
 
         if dep["name"] not in subchart_cache:
             if chart_dir is None:

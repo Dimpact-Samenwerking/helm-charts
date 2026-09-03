@@ -91,8 +91,8 @@ from lib.image_docs import add_missing_changes_sections, add_missing_sidecar_row
 from lib.image_repository_check import find_images_without_repository
 from lib.upgradedoc import (
     append_to_doc, canonical_version_cell, component_version_cell, compute_changed_components,
-    extract_source_version, extract_target_version, find_grouped_preceding_comment_line,
-    find_image_tag_paths, find_images_manifest_list_diff, insertion_index,
+    extract_source_version, extract_target_version, find_all_image_and_version_paths,
+    find_grouped_preceding_comment_line, find_image_tag_paths, find_images_manifest_list_diff, insertion_index,
     match_dependency_excluding_sidecar_names, missing_key_change_lines, normalize_version, parse_upgrade_doc_rows,
     path_display_name, replace_version_pair, resolve_component_row, resolve_entry_image_path, sort_changes_blocks,
     sort_upgrade_doc_rows, values_key_order,
@@ -363,7 +363,7 @@ def resolve_entry_version(entry, paths, repo_map=None):
     return tag.split("@")[0] if tag else None
 
 
-def fix_images_manifest_entries(text, target_values, baseline_values, repo_map=None):
+def fix_images_manifest_entries(text, deps, target_values, baseline_values, repo_map=None):
     """Rewrite each images-manifest entry's preceding comment to state the
     actual source (baseline) and target versions for the image at its
     matched values-tree path. An entry is only rewritten when both ends are
@@ -392,8 +392,8 @@ def fix_images_manifest_entries(text, target_values, baseline_values, repo_map=N
         return text, [], []
 
     entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
-    current_paths = dict(find_image_tag_paths(target_values))
-    baseline_paths = dict(find_image_tag_paths(baseline_values)) if baseline_values else {}
+    current_paths = dict(find_all_image_and_version_paths(target_values, deps))
+    baseline_paths = dict(find_all_image_and_version_paths(baseline_values, deps)) if baseline_values else {}
 
     def component_of(entry):
         path = resolve_entry_image_path(entry, current_paths.keys(), repo_map)
@@ -630,8 +630,8 @@ def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, ba
     indices by hand.
 
     Returns (new_text, added_names, skipped_names, backfilled_names)."""
-    current_paths = dict(find_image_tag_paths(target_values))
-    baseline_paths = dict(find_image_tag_paths(baseline_values)) if baseline_values else {}
+    current_paths = dict(find_all_image_and_version_paths(target_values, deps))
+    baseline_paths = dict(find_all_image_and_version_paths(baseline_values, deps)) if baseline_values else {}
     try:
         entries = yaml.safe_load(text) or []
     except yaml.YAMLError:
@@ -962,11 +962,11 @@ def main():
 
     if images_path.is_file():
         text = images_path.read_text(encoding="utf-8")
-        target_paths = [p for p, _tag in find_image_tag_paths(target_values)]
+        target_paths = [p for p, _tag in find_all_image_and_version_paths(target_values, target_deps)]
         repo_groups = paths_by_repository(CHART_YAML.parent, target_deps, target_values, target_paths)
         repo_map = {repo: group_paths[-1] for repo, group_paths in repo_groups.items()}
         new_text, changed_entries, unresolved_entry_names = fix_images_manifest_entries(
-            text, target_values, baseline_values, repo_map
+            text, target_deps, target_values, baseline_values, repo_map
         )
         if changed_entries:
             images_path.write_text(new_text, encoding="utf-8")

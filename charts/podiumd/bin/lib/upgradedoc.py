@@ -834,6 +834,36 @@ def find_image_tag_paths(node, path=()):
             yield from find_image_tag_paths(item, path + (str(i),))
 
 
+def find_component_version_tags(values, deps):
+    """(path, value) for every lib.chart.COMPONENT_VERSION_PATHS-
+    registered bare tag/version field that's actually pinned in
+    `values` — the ONE shape find_image_tag_paths' own generic
+    "<key ending in Image>: {tag: ...}" structural scan can never see,
+    since these are flat scalar sibling fields (e.g. redis-operator's
+    own "redisOperator.imageTag", not nested under an "image:"/
+    "...Image:" dict with a "tag:" key at all — see COMPONENT_VERSION_
+    PATHS' own docstring for why). Use find_all_image_and_version_paths
+    for a chart-wide scan that includes both; this on its own only when
+    just the registered paths are wanted."""
+    for dep in deps:
+        values_key = dep.get("alias", dep["name"])
+        for rel in version_paths_for(dep["name"]):
+            value = get_path(values, f"{values_key}.{rel}")
+            if isinstance(value, str) and value:
+                yield tuple(values_key.split(".")) + tuple(rel.split(".")), value
+
+
+def find_all_image_and_version_paths(values, deps):
+    """find_image_tag_paths(values) plus find_component_version_tags(values,
+    deps) — every image tag AND registered bare-version pin in one
+    combined [(path, value), ...] list. Use this (not find_image_tag_
+    paths alone) anywhere the FULL, exhaustive set of what's actually
+    pinned matters — detecting whether a component's image changed vs
+    baseline, most notably — never just the ordinary "image:"/
+    "...Image:" dict shape."""
+    return list(find_image_tag_paths(values)) + list(find_component_version_tags(values, deps))
+
+
 def resolve_entry_path(entry_name, paths):
     """Match an images-manifest entry name (e.g. "zgw-office-addin-frontend")
     to a values-tree path (e.g. ("zgw-office-addin", "frontend")) by comparing
@@ -1261,8 +1291,8 @@ def compute_changed_components(deps, baseline_deps, values, baseline_values):
     current_by_key = {dep.get("alias", dep["name"]): dep for dep in deps}
     baseline_by_key = {dep.get("alias", dep["name"]): dep for dep in baseline_deps}
 
-    current_paths = dict(find_image_tag_paths(values))
-    baseline_paths = dict(find_image_tag_paths(baseline_values)) if baseline_values else {}
+    current_paths = dict(find_all_image_and_version_paths(values, deps))
+    baseline_paths = dict(find_all_image_and_version_paths(baseline_values, deps)) if baseline_values else {}
 
     def subtree_paths(key, paths):
         return {p: t for p, t in paths.items() if p[0] == key}

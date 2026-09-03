@@ -16,12 +16,12 @@ from lib.image_repository_check import find_images_without_repository
 from lib.upgradedoc import (
     actual_app_version, changes_heading_has_app_version, changes_heading_identities, compute_changed_components,
     diff_keys, extract_mentioned_dependency_keys, extract_source_version, extract_target_version,
-    find_changes_row_correspondence_gaps, find_grouped_preceding_comment, find_image_tag_paths,
-    find_images_manifest_list_diff, find_out_of_order_names, find_wrong_or_duplicate_dependency_claims,
-    match_dependency, match_dependency_excluding_sidecar_names, normalize_version, pair_renames,
-    parse_changes_block, parse_upgrade_doc_changes_blocks, parse_upgrade_doc_rows as _parse_upgrade_doc_rows,
-    path_display_name, resolve_component_row, resolve_entry_path, strip_fenced_code_blocks,
-    values_key_order,
+    find_all_image_and_version_paths, find_changes_row_correspondence_gaps, find_grouped_preceding_comment,
+    find_image_tag_paths, find_images_manifest_list_diff, find_out_of_order_names,
+    find_wrong_or_duplicate_dependency_claims, match_dependency, match_dependency_excluding_sidecar_names,
+    normalize_version, pair_renames, parse_changes_block, parse_upgrade_doc_changes_blocks,
+    parse_upgrade_doc_rows as _parse_upgrade_doc_rows, path_display_name, resolve_component_row,
+    resolve_entry_path, strip_fenced_code_blocks, values_key_order,
 )
 
 
@@ -266,8 +266,8 @@ def check_images_manifest_format(images_path, upgrade_docs_baseline, podiumd_ver
 
     lines = text.splitlines()
     entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
-    current_paths = dict(find_image_tag_paths(values))
-    baseline_paths = dict(find_image_tag_paths(baseline_values)) if baseline_values else {}
+    current_paths = dict(find_all_image_and_version_paths(values, deps))
+    baseline_paths = dict(find_all_image_and_version_paths(baseline_values, deps)) if baseline_values else {}
 
     def component_of(entry):
         path = resolve_entry_path(entry["name"], current_paths.keys())
