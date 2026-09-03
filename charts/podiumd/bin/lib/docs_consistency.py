@@ -21,7 +21,7 @@ from lib.upgradedoc import (
     find_wrong_or_duplicate_dependency_claims, match_dependency, match_dependency_excluding_sidecar_names,
     normalize_version, pair_renames, parse_changes_block, parse_upgrade_doc_changes_blocks,
     parse_upgrade_doc_rows as _parse_upgrade_doc_rows, path_display_name, resolve_component_row,
-    resolve_entry_path, strip_fenced_code_blocks, values_key_order,
+    resolve_entry_image_path, resolve_entry_path, strip_fenced_code_blocks, values_key_order,
 )
 
 
@@ -269,8 +269,21 @@ def check_images_manifest_format(images_path, upgrade_docs_baseline, podiumd_ver
     current_paths = dict(find_all_image_and_version_paths(values, deps))
     baseline_paths = dict(find_all_image_and_version_paths(baseline_values, deps)) if baseline_values else {}
 
+    # repo_map (see lib.chart.repository_path_map) built once, up front,
+    # and reused everywhere an entry needs matching to its values-tree
+    # path below — the SAME deterministic, exact "name: is a repository"
+    # lookup a doc row's own sidecar name resolves through (see
+    # canonical_sidecar_row_names, also repo_map-based) — never
+    # resolve_entry_path's fuzzy word-matching alone, which two entries
+    # sharing one comment (see same_group) need to be able to trust:
+    # word-matching a group's own free-form header prose to a component
+    # is exactly the kind of guess that stays wrong until the header
+    # itself is fixed to name that component properly.
+    repo_groups = paths_by_repository(chart_dir, deps, values, current_paths.keys()) if chart_dir is not None else {}
+    repo_map = {repo: paths[-1] for repo, paths in repo_groups.items()}
+
     def component_of(entry):
-        path = resolve_entry_path(entry["name"], current_paths.keys())
+        path = resolve_entry_image_path(entry, current_paths.keys(), repo_map)
         return path[0] if path else None
 
     def same_group(entry_a, entry_b):
@@ -291,7 +304,7 @@ def check_images_manifest_format(images_path, upgrade_docs_baseline, podiumd_ver
                            f'"{target}", entry version is "{entry["version"]}"')
 
         if baseline_paths:
-            path = resolve_entry_path(entry["name"], current_paths.keys())
+            path = resolve_entry_image_path(entry, current_paths.keys(), repo_map)
             baseline_tag = baseline_paths.get(path) if path else None
             baseline_version = baseline_tag.split("@")[0] if baseline_tag else None
             source = extract_source_version(comment)
@@ -304,8 +317,6 @@ def check_images_manifest_format(images_path, upgrade_docs_baseline, podiumd_ver
     # a resolvable upgrade_docs_baseline, "changed" can't be computed at
     # all (baseline_values is {} in that case, so baseline_paths is too).
     if baseline_paths and chart_dir is not None:
-        repo_groups = paths_by_repository(chart_dir, deps, values, current_paths.keys())
-        repo_map = {repo: paths[-1] for repo, paths in repo_groups.items()}
         canonical_names = canonical_sidecar_row_names(chart_dir, deps, values, current_paths.keys())
         unresolvable_paths = set(find_images_without_repository(chart_dir))
         missing_paths, extra_entry_names = find_images_manifest_list_diff(
