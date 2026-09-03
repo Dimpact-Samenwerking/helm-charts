@@ -1403,6 +1403,65 @@ def images_manifest_entry_positions(text, deps, values, repo_map, canonical_name
     return positions
 
 
+def images_manifest_display_name_positions(text, deps, values, repo_map, canonical_names):
+    """{display_name: 0-based final position} — the SAME group-level
+    positions images_manifest_entry_positions computes, keyed by each
+    group's own path_display_name instead of its entries' raw YAML
+    "name:" fields. Exists for matching a "# Changes:" item's own text
+    by EXACT prefix (see fix-doc-consistency's sort_images_manifest_
+    changes_items) rather than match_changes_item_to_entry's fuzzy
+    basename-in-text search — which only ever works when an entry's own
+    repository basename happens to appear in the item's own display
+    name (true for a "global" shared image, whose display name IS its
+    basename, and true by coincidence for a dependency like "keycloak-
+    operator" whose alias happens to start with its own image's
+    basename "keycloak") but is never true in general: "kiss" (the
+    dependency's own alias) shares no word at all with "kiss-frontend"
+    (its own image's repository basename), and "kiss-eck" shares
+    nothing with "elasticsearch"/"kibana" either — every auto-inserted
+    item's own text is built as f"{name} {old} -> {new}." (see
+    add_missing_images_manifest_entries' own version_text) using this
+    EXACT display name, so matching against it directly is never a
+    guess for anything the tooling itself wrote.
+
+    More than one group can legitimately share one display name (real
+    case: kiss-eck's own eck-elasticsearch and eck-kibana version
+    fields are two SEPARATE groups — each has its own distinct "###"
+    comment, no single header covers both — but path_display_name gives
+    both the same bare "kiss-eck", since neither is registered as more
+    "the" primary than the other). The FIRST (lowest) position among
+    same-named groups wins — they're adjacent either way (both resolve
+    to the exact same values-tree top-level key, so images_manifest_
+    entry_order_key never separates them), so either position places a
+    matching Changes item correctly alongside the rest of that family.
+
+    {} under the exact same guards images_manifest_entry_positions
+    applies (invalid YAML, or fewer than 2 entries)."""
+    lines = text.splitlines(keepends=True)
+    try:
+        entries = yaml.safe_load(text)
+    except yaml.YAMLError:
+        return {}
+    if not isinstance(entries, list):
+        return {}
+
+    entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
+    n = min(len(entries), len(entry_line_indices))
+    entries, entry_line_indices = entries[:n], entry_line_indices[:n]
+    if n < 2:
+        return {}
+
+    groups, order = _images_manifest_sorted_groups(entries, entry_line_indices, lines, deps, values, repo_map,
+                                                     canonical_names)
+    position_of_group = {orig_i: slot for slot, orig_i in enumerate(order)}
+    positions = {}
+    for group_index, (_indices, _path, name) in enumerate(groups):
+        position = position_of_group[group_index]
+        if name not in positions or position < positions[name]:
+            positions[name] = position
+    return positions
+
+
 def sort_images_manifest_entries(text, deps, values, repo_map, canonical_names):
     """Reorder the images manifest's own entry GROUPS (physically, in
     the text) to match values.yaml's own top-level key order — see

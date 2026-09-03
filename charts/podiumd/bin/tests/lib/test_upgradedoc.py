@@ -1246,6 +1246,87 @@ def test_sort_images_manifest_entries_global_entry_sorts_first_not_last(libupgra
     assert new_text.index("curlimages/curl") < new_text.index("opstree/redis-operator")
 
 
+def test_images_manifest_display_name_positions_matches_entry_positions_order(libupgradedoc):
+    """Real bug scenario: "kiss"'s own image basename ("kiss-frontend")
+    shares no word with its display name ("kiss"), and "kiss-eck"'s two
+    primaries' basenames ("elasticsearch"/"kibana") share no word with
+    theirs either — match_changes_item_to_entry can never resolve these
+    by fuzzy basename-in-text search. images_manifest_display_name_
+    positions must still expose their TRUE position (matching the
+    already-correct YAML entry order) keyed by display name so callers
+    can match Changes items by exact display-name prefix instead."""
+    text = (
+        "# redis-operator 0.25.0 -> 0.26.0\n"
+        "- name: opstree/redis-operator\n"
+        "  version: \"0.26.0\"\n"
+        "\n"
+        "# kiss-eck 8.19.3 -> 8.19.19\n"
+        "- name: elasticsearch/elasticsearch\n"
+        "  version: \"8.19.19\"\n"
+        "# kiss-eck 8.19.3 -> 8.19.19\n"
+        "- name: kibana/kibana\n"
+        "  version: \"8.19.19\"\n"
+        "#   sidecar: kiss-eck - enterprise-search 8.19.3 -> 8.19.19\n"
+        "- name: enterprise-search/enterprise-search\n"
+        "  version: \"8.19.19\"\n"
+        "\n"
+        "# kiss 2.2.4 -> 3.0.0\n"
+        "- name: klantinteractie-servicesysteem/kiss-frontend\n"
+        "  version: \"3.0.0\"\n"
+        "#   sidecar: kiss - crawler 1.0.0 -> 1.0.0\n"
+        "- name: integrations/crawler\n"
+        "  version: \"1.0.0\"\n"
+    )
+    deps = [{"name": "redis-operator", "version": "1.0.0"},
+            {"name": "eck-stack", "alias": "kiss-eck", "version": "1.0.0"},
+            {"name": "klantinteractie-servicesysteem", "alias": "kiss", "version": "1.0.0"}]
+    values = {
+        "redis-operator": {"redisOperator": {"imageTag": "0.26.0"}},
+        "kiss-eck": {"eck-elasticsearch": {"version": "8.19.19"}, "eck-kibana": {"version": "8.19.19"},
+                     "eck-enterprise-search": {"version": "8.19.19"}},
+        "kiss": {"image": {"tag": "3.0.0"}, "crawler": {"image": {"tag": "1.0.0"}}},
+    }
+    repo_map = {"opstree/redis-operator": ("redis-operator", "redisOperator", "imageTag"),
+                "elasticsearch/elasticsearch": ("kiss-eck", "eck-elasticsearch", "version"),
+                "kibana/kibana": ("kiss-eck", "eck-kibana", "version"),
+                "enterprise-search/enterprise-search": ("kiss-eck", "eck-enterprise-search", "version"),
+                "klantinteractie-servicesysteem/kiss-frontend": ("kiss", "image"),
+                "integrations/crawler": ("kiss", "crawler", "image")}
+    canonical_names = {"kiss - crawler": ("kiss", "crawler", "image"),
+                        "kiss-eck - enterprise-search": ("kiss-eck", "eck-enterprise-search", "version")}
+
+    display_positions = libupgradedoc.images_manifest_display_name_positions(text, deps, values, repo_map,
+                                                                               canonical_names)
+
+    assert display_positions["kiss"] < display_positions["kiss - crawler"]
+    assert display_positions["kiss-eck"] < display_positions["kiss-eck - enterprise-search"]
+    assert display_positions["redis-operator"] < display_positions["kiss-eck"]
+    assert display_positions["kiss-eck - enterprise-search"] < display_positions["kiss"]
+
+
+def test_images_manifest_display_name_positions_ambiguous_name_keeps_first_position(libupgradedoc):
+    """Two separate groups can legitimately share one display name (e.g.
+    two "kiss-eck" primaries for elasticsearch/kibana) — the map must
+    keep the FIRST (lowest) position for that name, not the last one it
+    happens to see."""
+    text = (
+        "# kiss-eck 8.19.3 -> 8.19.19\n"
+        "- name: elasticsearch/elasticsearch\n"
+        "  version: \"8.19.19\"\n"
+        "# kiss-eck 8.19.3 -> 8.19.19\n"
+        "- name: kibana/kibana\n"
+        "  version: \"8.19.19\"\n"
+    )
+    deps = [{"name": "eck-stack", "alias": "kiss-eck", "version": "1.0.0"}]
+    values = {"kiss-eck": {"eck-elasticsearch": {"version": "8.19.19"}, "eck-kibana": {"version": "8.19.19"}}}
+    repo_map = {"elasticsearch/elasticsearch": ("kiss-eck", "eck-elasticsearch", "version"),
+                "kibana/kibana": ("kiss-eck", "eck-kibana", "version")}
+
+    display_positions = libupgradedoc.images_manifest_display_name_positions(text, deps, values, repo_map,
+                                                                               canonical_names={})
+    assert display_positions == {"kiss-eck": 0}
+
+
 def test_sort_images_manifest_entries_no_blank_lines_no_reorder_is_truly_unchanged(libupgradedoc):
     """Nothing to tidy and nothing to reorder — text comes back byte-
     identical, matching the function's own "unchanged" convention."""
