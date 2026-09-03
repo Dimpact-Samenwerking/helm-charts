@@ -90,12 +90,12 @@ from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, 
 from lib.image_docs import add_missing_changes_sections, add_missing_sidecar_rows, update_stale_app_version_headings
 from lib.image_repository_check import find_images_without_repository
 from lib.upgradedoc import (
-    actual_app_version, append_to_doc, canonical_version_cell, compute_changed_components,
+    append_to_doc, canonical_version_cell, compute_changed_components,
     extract_source_version, extract_target_version, find_grouped_preceding_comment_line,
     find_image_tag_paths, find_images_manifest_list_diff, insertion_index,
     match_dependency_excluding_sidecar_names, missing_key_change_lines, normalize_version, parse_upgrade_doc_rows,
-    path_display_name, replace_version_pair, resolve_entry_image_path, sort_changes_blocks, sort_upgrade_doc_rows,
-    values_key_order,
+    path_display_name, replace_version_pair, resolve_component_row, resolve_entry_image_path, sort_changes_blocks,
+    sort_upgrade_doc_rows, values_key_order,
 )
 
 CHART_YAML = SCRIPT_DIR.parents[0] / "Chart.yaml"
@@ -258,40 +258,37 @@ def fix_component_version_table(text, chart_dir, target_deps, target_values, bas
     changed_rows, unmatched_names, unresolved_names = [], [], []
 
     current_paths = dict(find_image_tag_paths(target_values))
-    baseline_paths = dict(find_image_tag_paths(baseline_values)) if baseline_values else {}
     canonical_names = canonical_sidecar_row_names(chart_dir, target_deps, target_values, current_paths.keys())
 
     for row in rows:
-        sidecar_path = canonical_names.get(row["name"])
-        if sidecar_path is None and " - " in row["name"]:
+        # resolve_component_row is shared with lib.docs_consistency's own
+        # row-checker (check_docs_consistency) — see its docstring for why
+        # (a checker/fixer that resolve a row two different ways can
+        # silently drift apart on what "correct" even means).
+        resolved = resolve_component_row(
+            row["name"], chart_dir, canonical_names, target_deps, target_values,
+            baseline_deps=baseline_deps, baseline_values=baseline_values,
+        )
+        if resolved["kind"] == "unmatched":
+            # A row shaped like the canonical sidecar form ("<key> -
+            # <basename>") with no resolvable repository (e.g. "kiss -
+            # podiumd-adapter", commented out in real life) is reported as
+            # unresolved rather than unmatched — never fall through to
+            # match_dependency and get "corrected" against an unrelated
+            # real dependency's own actual version just because it shares
+            # a leading word.
+            if " - " in row["name"]:
+                unresolved_names.append(row["name"])
+            else:
+                unmatched_names.append(row["name"])
+            continue
+
+        if resolved["baseline_resolved"] is not True:
             unresolved_names.append(row["name"])
             continue
 
-        if sidecar_path is not None:
-            current_tag = current_paths.get(sidecar_path)
-            baseline_tag = baseline_paths.get(sidecar_path)
-            actual_target_app = current_tag.split("@", 1)[0] if current_tag else None
-            actual_baseline_app = baseline_tag.split("@", 1)[0] if baseline_tag else None
-            if actual_target_app is None or actual_baseline_app is None:
-                unresolved_names.append(row["name"])
-                continue
-            actual_target_chart = actual_baseline_chart = None
-        else:
-            dep = match_dependency_excluding_sidecar_names(row["name"], target_deps)
-            if dep is None:
-                unmatched_names.append(row["name"])
-                continue
-            values_key = dep.get("alias", dep["name"])
-            actual_target_chart = str(dep["version"])
-            actual_target_app = actual_app_version(target_values, values_key, dep["name"], chart_dir=chart_dir, dep=dep)
-
-            baseline_dep = match_dependency_excluding_sidecar_names(row["name"], baseline_deps) \
-                if baseline_deps else None
-            if baseline_dep is None:
-                unresolved_names.append(row["name"])
-                continue
-            actual_baseline_chart = str(baseline_dep["version"])
-            actual_baseline_app = actual_app_version(baseline_values, values_key, dep["name"])
+        actual_target_chart, actual_target_app = resolved["target_chart"], resolved["target_app"]
+        actual_baseline_chart, actual_baseline_app = resolved["baseline_chart"], resolved["baseline_app"]
 
         row_changed = False
         line = lines[row["line_index"]]

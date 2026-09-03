@@ -10,7 +10,7 @@ import re
 
 import yaml
 
-from lib.chart import canonical_sidecar_row_names, get_path, load_yaml, paths_by_repository
+from lib.chart import canonical_sidecar_row_names, load_yaml, paths_by_repository
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
 from lib.image_repository_check import find_images_without_repository
 from lib.upgradedoc import (
@@ -20,7 +20,8 @@ from lib.upgradedoc import (
     find_images_manifest_list_diff, find_out_of_order_names, find_wrong_or_duplicate_dependency_claims,
     match_dependency, match_dependency_excluding_sidecar_names, normalize_version, pair_renames,
     parse_changes_block, parse_upgrade_doc_changes_blocks, parse_upgrade_doc_rows as _parse_upgrade_doc_rows,
-    path_display_name, resolve_entry_path, strip_fenced_code_blocks, values_key_order,
+    path_display_name, resolve_component_row, resolve_entry_path, strip_fenced_code_blocks,
+    values_key_order,
 )
 
 
@@ -367,21 +368,6 @@ def check_values_deltas_content(doc_path, changed_component_keys, baseline_value
     return issues
 
 
-def sidecar_tag(values, sidecar_path):
-    """The tag pinned at a sidecar's own values-tree path (as returned by
-    canonical_sidecar_row_names — already ending in the real image key
-    itself, e.g. "initImage", not a hardcoded "image") — deliberately
-    NOT actual_app_version, whose DEFAULT_IMAGE_PATHS fallback always
-    appends ".image.tag" regardless of the sidecar's real trailing key,
-    silently resolving to an unrelated sibling image's tag whenever that
-    key isn't literally "image" (e.g. keycloak-operator's own
-    ensurePodiumdAdminUser job pins BOTH "image" and "initImage" —
-    stripping the trailing key and re-guessing ".image.tag" would
-    compare the row against the wrong one of the two)."""
-    tag = get_path(values, ".".join(sidecar_path) + ".tag")
-    return tag.split("@", 1)[0] if isinstance(tag, str) and tag else None
-
-
 def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
     chart_yaml = load_yaml(chart_dir / "Chart.yaml")
     podiumd_version = str(chart_yaml["version"])
@@ -517,17 +503,15 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
             if row["name"] in duplicate_names or row["name"] in wrong_fuzzy_names:
                 continue
 
-            # canonical_names is an EXACT lookup — checked first and, on a
-            # hit, taken over match_dependency_excluding_sidecar_names
-            # entirely. That helper (rather than plain match_dependency)
-            # covers the remaining case: a row with no exact canonical_names
-            # hit (its repository couldn't be resolved at all, e.g. "kiss -
-            # podiumd-adapter") must still never fall through to a fuzzy
-            # word-span match against an unrelated real dependency (here,
-            # "kiss" itself) just because it shares a leading word.
-            sidecar_path = canonical_names.get(row["name"])
-            dep = None if sidecar_path is not None else match_dependency_excluding_sidecar_names(row["name"], deps)
-            if sidecar_path is None and dep is None:
+            # resolve_component_row is shared with fix-doc-consistency's own
+            # row-rewriter (fix_component_version_table) — see its docstring
+            # for why (a checker/fixer that resolve a row two different ways
+            # can silently drift apart on what "correct" even means).
+            resolved = resolve_component_row(
+                row["name"], chart_dir, canonical_names, deps, values,
+                baseline_deps=baseline_deps if baseline_ref else None, baseline_values=baseline_values,
+            )
+            if resolved["kind"] == "unmatched":
                 mismatches.append(
                     f'{doc_path.name}: doc row "{row["name"]}" does not match a Chart.yaml '
                     f'dependency or a canonical sidecar/shared-image name ("<component> - '
@@ -536,18 +520,15 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
                 )
                 continue
 
+            dep, sidecar_path = resolved["dep"], resolved["sidecar_path"]
+            values_key, top_level_key = resolved["values_key"], resolved["top_level_key"]
+            actual_chart, actual_app = resolved["target_chart"], resolved["target_app"]
+
             if dep is not None:
-                top_level_key = values_key = dep.get("alias", dep["name"])
-                actual_chart = dep["version"]
-                actual_app = actual_app_version(values, values_key, dep["name"], chart_dir=chart_dir, dep=dep)
                 if actual_app:
                     resolved_app_by_identity[("dep", values_key)] = actual_app
             else:
                 matched_sidecar_paths.add(sidecar_path)
-                top_level_key = sidecar_path[0]
-                values_key = ".".join(sidecar_path)
-                actual_chart = None
-                actual_app = sidecar_tag(values, sidecar_path)
 
             changed_component_keys.add(top_level_key)
 
@@ -565,13 +546,15 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
             if not baseline_ref:
                 continue
 
-            if dep is not None:
-                baseline_dep = match_dependency(row["name"], baseline_deps)
-                baseline_chart_actual = baseline_dep["version"] if baseline_dep else None
-                baseline_app_actual = actual_app_version(baseline_values, values_key, dep["name"])
-            else:
-                baseline_chart_actual = None
-                baseline_app_actual = sidecar_tag(baseline_values, sidecar_path)
+            if resolved["baseline_resolved"] is False:
+                mismatches.append(
+                    f'{doc_path.name}: doc row "{row["name"]}" source version could not be '
+                    f'verified against {baseline_ref} — the component didn\'t exist there yet, '
+                    f'or its version isn\'t resolvable there; source cells left unchecked'
+                )
+                continue
+
+            baseline_chart_actual, baseline_app_actual = resolved["baseline_chart"], resolved["baseline_app"]
 
             if row["chart_source"] and baseline_chart_actual and \
                     normalize_version(row["chart_source"]) != normalize_version(baseline_chart_actual):

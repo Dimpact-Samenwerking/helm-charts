@@ -1508,3 +1508,114 @@ def test_sort_changes_blocks_fewer_than_two_blocks_is_unchanged(libupgradedoc):
     new_text, moved = libupgradedoc.sort_changes_blocks(text, DEPS, {"openzaak": {}})
     assert moved == []
     assert new_text == text
+
+
+# --- resolve_component_row ---
+# The one place fix-doc-consistency's row-rewriter and lib.docs_consistency's
+# row-checker both resolve a "Component versions" table row — see its own
+# docstring for the drift this closes.
+
+def _redis_sidecar_deps_and_values(target_tag="8.6.6", baseline_tag="8.6.2"):
+    target_deps = [{"name": "redis-operator", "version": "0.26.1"}]
+    baseline_deps = [{"name": "redis-operator", "version": "0.25.0"}]
+    target_values = {"redis-operator": {"redis-ha": {"image": {
+        "repository": "quay.io/opstree/redis", "tag": f"{target_tag}@sha256:aaaa"}}}}
+    baseline_values = {"redis-operator": {"redis-ha": {"image": {
+        "repository": "quay.io/opstree/redis", "tag": f"{baseline_tag}@sha256:aaaa"}}}}
+    return target_deps, target_values, baseline_deps, baseline_values
+
+
+def test_resolve_component_row_unmatched_name(libupgradedoc):
+    resolved = libupgradedoc.resolve_component_row("Totally Unknown Thing", None, {}, DEPS, {})
+    assert resolved == {"kind": "unmatched"}
+
+
+def test_resolve_component_row_dependency_no_baseline_requested(libupgradedoc):
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+    values = {"zac": {"image": {"tag": "5.4.4@sha256:aaaa"}}}
+
+    resolved = libupgradedoc.resolve_component_row("ZAC", None, {}, deps, values)
+
+    assert resolved["kind"] == "dependency"
+    assert resolved["values_key"] == resolved["top_level_key"] == "zac"
+    assert resolved["target_chart"] == "1.0.297"
+    assert resolved["target_app"] == "5.4.4"
+    assert resolved["baseline_resolved"] is None
+    assert resolved["baseline_chart"] is None
+    assert resolved["baseline_app"] is None
+
+
+def test_resolve_component_row_dependency_baseline_resolved(libupgradedoc):
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+    values = {"zac": {"image": {"tag": "5.4.4@sha256:aaaa"}}}
+    baseline_deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257"}]
+    baseline_values = {"zac": {"image": {"tag": "5.1.0@sha256:bbbb"}}}
+
+    resolved = libupgradedoc.resolve_component_row(
+        "ZAC", None, {}, deps, values, baseline_deps=baseline_deps, baseline_values=baseline_values)
+
+    assert resolved["baseline_resolved"] is True
+    assert resolved["baseline_chart"] == "1.0.257"
+    assert resolved["baseline_app"] == "5.1.0"
+
+
+def test_resolve_component_row_dependency_missing_from_baseline_is_unresolved(libupgradedoc):
+    """The component doesn't exist yet at the baseline ref (no matching
+    Chart.yaml dependency there) — baseline_resolved is False, not just a
+    None app/chart, so a caller can tell "asked and failed" apart from
+    "never asked"."""
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+    values = {"zac": {"image": {"tag": "5.4.4@sha256:aaaa"}}}
+
+    resolved = libupgradedoc.resolve_component_row(
+        "ZAC", None, {}, deps, values, baseline_deps=[], baseline_values={})
+
+    assert resolved["kind"] == "dependency"
+    assert resolved["baseline_resolved"] is False
+    assert resolved["baseline_chart"] is None
+    assert resolved["baseline_app"] is None
+
+
+def test_resolve_component_row_sidecar_resolved(libupgradedoc):
+    target_deps, target_values, baseline_deps, baseline_values = _redis_sidecar_deps_and_values()
+    canonical_names = {"redis-operator - redis": ("redis-operator", "redis-ha", "image")}
+
+    resolved = libupgradedoc.resolve_component_row(
+        "redis-operator - redis", None, canonical_names, target_deps, target_values,
+        baseline_deps=baseline_deps, baseline_values=baseline_values)
+
+    assert resolved["kind"] == "sidecar"
+    assert resolved["dep"] is None
+    assert resolved["values_key"] == "redis-operator.redis-ha.image"
+    assert resolved["top_level_key"] == "redis-operator"
+    assert resolved["target_chart"] is None  # a sidecar has no chart version of its own
+    assert resolved["target_app"] == "8.6.6"
+    assert resolved["baseline_resolved"] is True
+    assert resolved["baseline_chart"] is None
+    assert resolved["baseline_app"] == "8.6.2"
+
+
+def test_resolve_component_row_sidecar_missing_baseline_tag_is_unresolved(libupgradedoc):
+    target_deps, target_values, baseline_deps, _ = _redis_sidecar_deps_and_values()
+    canonical_names = {"redis-operator - redis": ("redis-operator", "redis-ha", "image")}
+
+    resolved = libupgradedoc.resolve_component_row(
+        "redis-operator - redis", None, canonical_names, target_deps, target_values,
+        baseline_deps=baseline_deps, baseline_values={})
+
+    assert resolved["baseline_resolved"] is False
+
+
+def test_resolve_component_row_sidecar_shaped_name_with_no_canonical_match_is_unmatched(libupgradedoc):
+    """"redis-operator - ghost" isn't in canonical_names at all — must
+    never fall through to a fuzzy match_dependency lookup against the
+    real "redis-operator" dependency just because it shares a leading
+    word; reported as unmatched, same as any other unresolvable name."""
+    target_deps, target_values, baseline_deps, baseline_values = _redis_sidecar_deps_and_values()
+    canonical_names = {"redis-operator - redis": ("redis-operator", "redis-ha", "image")}
+
+    resolved = libupgradedoc.resolve_component_row(
+        "redis-operator - ghost", None, canonical_names, target_deps, target_values,
+        baseline_deps=baseline_deps, baseline_values=baseline_values)
+
+    assert resolved == {"kind": "unmatched"}

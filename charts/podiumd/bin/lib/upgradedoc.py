@@ -663,6 +663,114 @@ def actual_app_version(values, values_key, component=None, chart_dir=None, dep=N
     return None
 
 
+def sidecar_tag(values, sidecar_path):
+    """The tag pinned at a sidecar's own values-tree path (as returned by
+    lib.chart.canonical_sidecar_row_names — already ending in the real
+    image key itself, e.g. "initImage", not a hardcoded "image") —
+    deliberately NOT actual_app_version, whose DEFAULT_IMAGE_PATHS
+    fallback always appends ".image.tag" regardless of the sidecar's
+    real trailing key, silently resolving to an unrelated sibling
+    image's tag whenever that key isn't literally "image" (e.g.
+    keycloak-operator's own ensurePodiumdAdminUser job pins BOTH
+    "image" and "initImage" — stripping the trailing key and re-
+    guessing ".image.tag" would compare the row against the wrong one
+    of the two)."""
+    tag = get_path(values, ".".join(sidecar_path) + ".tag")
+    return tag.split("@", 1)[0] if isinstance(tag, str) and tag else None
+
+
+def resolve_component_row(row_name, chart_dir, canonical_names, deps, values,
+                           baseline_deps=None, baseline_values=None):
+    """Resolve a "Component versions" table row's name to the real
+    component it identifies, and its actual target (and, if requested,
+    source) versions — the one place both fix-doc-consistency's row-
+    rewriter (fix_component_version_table) and lib.docs_consistency's
+    row-checker (check_docs_consistency) resolve a row, so the two can't
+    quietly drift apart on what a row's real versions are again — they
+    already had: the checker used to call plain match_dependency for the
+    baseline-side lookup instead of match_dependency_excluding_sidecar_
+    names, and had no way to flag a row whose baseline version simply
+    couldn't be resolved at all (no matching Chart.yaml dependency at
+    that ref, or a sidecar tag missing there) — the fixer already
+    tracked that itself (as its own "unresolved" bucket, left the row
+    untouched, and told the operator to review by hand), but the
+    checker silently reported such a row as clean, since it never
+    compares against a baseline value it never got.
+
+    canonical_names is lib.chart.canonical_sidecar_row_names(...)'s own
+    {row name: values-tree path} map — computed once by the caller,
+    since both callers already need it for other rows too.
+
+    Pass `baseline_deps=None` (the default) to skip baseline resolution
+    entirely — `baseline_resolved` then stays None, not False, so a
+    caller that deliberately isn't checking a baseline (no
+    upgrade_docs_baseline given) can tell that apart from a baseline
+    that was requested but couldn't be resolved for this one component.
+
+    Returns a dict:
+      {"kind": "unmatched"}
+          row_name matches neither a Chart.yaml dependency nor a
+          canonical sidecar/shared-image name — nothing else to
+          resolve. Deliberately NOT resolved any further here: a row
+          shaped like the canonical sidecar form ("<key> - <basename>")
+          but with no matching entry in canonical_names must never fall
+          through to a fuzzy match_dependency lookup and get treated as
+          the unrelated real dependency its leading word happens to
+          share — see match_dependency_excluding_sidecar_names.
+      {"kind": "sidecar" | "dependency",
+       "dep": <Chart.yaml dependency dict> or None (sidecar case),
+       "sidecar_path": <tuple> or None (dependency case),
+       "values_key": ..., "top_level_key": ...,
+       "target_chart": ... or None (sidecar: always None — no chart
+           version of its own to verify against),
+       "target_app": ... or None,
+       "baseline_resolved": None (baseline_deps was None) | bool,
+       "baseline_chart": ... or None,
+       "baseline_app": ... or None}"""
+    sidecar_path = canonical_names.get(row_name)
+    dep = None if sidecar_path is not None else match_dependency_excluding_sidecar_names(row_name, deps)
+
+    if sidecar_path is None and dep is None:
+        return {"kind": "unmatched"}
+
+    result = {"dep": dep, "sidecar_path": sidecar_path}
+
+    if sidecar_path is not None:
+        result["kind"] = "sidecar"
+        result["values_key"] = ".".join(sidecar_path)
+        result["top_level_key"] = sidecar_path[0]
+        result["target_chart"] = None
+        result["target_app"] = sidecar_tag(values, sidecar_path)
+    else:
+        values_key = dep.get("alias", dep["name"])
+        result["kind"] = "dependency"
+        result["values_key"] = values_key
+        result["top_level_key"] = values_key
+        result["target_chart"] = str(dep["version"])
+        result["target_app"] = actual_app_version(values, values_key, dep["name"], chart_dir=chart_dir, dep=dep)
+
+    result["baseline_resolved"] = None
+    result["baseline_chart"] = None
+    result["baseline_app"] = None
+
+    if baseline_deps is not None:
+        baseline_values = baseline_values or {}
+        if sidecar_path is not None:
+            baseline_app = sidecar_tag(baseline_values, sidecar_path)
+            result["baseline_app"] = baseline_app
+            result["baseline_resolved"] = result["target_app"] is not None and baseline_app is not None
+        else:
+            baseline_dep = match_dependency_excluding_sidecar_names(row_name, baseline_deps)
+            if baseline_dep is None:
+                result["baseline_resolved"] = False
+            else:
+                result["baseline_resolved"] = True
+                result["baseline_chart"] = str(baseline_dep["version"])
+                result["baseline_app"] = actual_app_version(baseline_values, result["values_key"], dep["name"])
+
+    return result
+
+
 def find_image_tag_paths(node, path=()):
     """Yield (path, tag) for every "<key>: {tag: ...}" block anywhere in a
     values tree, where <key> is "image" or ends with "Image" (e.g.
