@@ -10,7 +10,7 @@ import re
 
 import yaml
 
-from lib.chart import canonical_sidecar_row_names, load_yaml, paths_by_repository
+from lib.chart import canonical_sidecar_row_names, load_yaml, paths_by_repository, repo_group_representative
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
 from lib.image_repository_check import find_images_without_repository
 from lib.upgradedoc import (
@@ -282,7 +282,7 @@ def check_images_manifest_format(images_path, upgrade_docs_baseline, podiumd_ver
     # is exactly the kind of guess that stays wrong until the header
     # itself is fixed to name that component properly.
     repo_groups = paths_by_repository(chart_dir, deps, values, current_paths.keys()) if chart_dir is not None else {}
-    repo_map = {repo: paths[-1] for repo, paths in repo_groups.items()}
+    repo_map = {repo: repo_group_representative(paths, deps) for repo, paths in repo_groups.items()}
     canonical_names = canonical_sidecar_row_names(chart_dir, deps, values, current_paths.keys()) \
         if chart_dir is not None else {}
 

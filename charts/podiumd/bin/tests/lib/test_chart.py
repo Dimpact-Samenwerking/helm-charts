@@ -988,6 +988,89 @@ def test_repository_path_map_skips_unresolvable_and_multiple_deps(libchart, tmp_
     assert mapping == {"infonl/zaakafhandelcomponent": ("zac", "image")}
 
 
+# --- repo_group_representative ---
+
+def test_repo_group_representative_real_dependency_primary_beats_orphan(libchart):
+    """The keycloak/keycloak-operator case: "keycloak.image" is podiumd's
+    own directly-templated top-level override (tier 2 — no owning
+    Chart.yaml dependency at all) and "keycloak-operator.operator.
+    config.keycloakImage" is keycloak-operator's own COMPONENT_IMAGE_
+    PATHS-registered primary image (tier 1 — real ownership). Both count
+    as "primary" under is_primary_image_path alone, and "keycloak" sorts
+    after "keycloak-operator" in values.yaml top-level traversal, so a
+    naive "last path wins" pick lands on the orphan — real ownership
+    must win instead."""
+    deps = [{"name": "keycloak-operator", "alias": "", "version": "26.7.3"}]
+    repo_paths = [
+        ("keycloak-operator", "operator", "config", "keycloakImage"),
+        ("keycloak", "image"),
+    ]
+
+    assert libchart.repo_group_representative(repo_paths, deps) == (
+        "keycloak-operator", "operator", "config", "keycloakImage")
+
+
+def test_repo_group_representative_order_independent(libchart):
+    """Same case, paths given in the opposite order — the real
+    dependency's own path must still win, not just "whichever came
+    first"."""
+    deps = [{"name": "keycloak-operator", "alias": "", "version": "26.7.3"}]
+    repo_paths = [
+        ("keycloak", "image"),
+        ("keycloak-operator", "operator", "config", "keycloakImage"),
+    ]
+
+    assert libchart.repo_group_representative(repo_paths, deps) == (
+        "keycloak-operator", "operator", "config", "keycloakImage")
+
+
+def test_repo_group_representative_orphan_only_falls_back_to_last(libchart):
+    """No real dependency in the group at all (e.g. "apiproxy" and
+    "frankgateway" both aliasing the same shared global.images.nginx
+    anchor, neither a Chart.yaml dependency of its own) — falls back to
+    the last path, the historical convention every caller used to
+    inline."""
+    repo_paths = [("apiproxy", "image"), ("frankgateway", "image")]
+
+    assert libchart.repo_group_representative(repo_paths, []) == ("frankgateway", "image")
+
+
+def test_repo_group_representative_sidecars_only_falls_back_to_last(libchart):
+    """No path in the group is a dependency's own PRIMARY path (e.g. two
+    unrelated dependencies' sidecars sharing one base image, like nginx)
+    — falls back to the last path, same as before this function
+    existed."""
+    deps = [
+        {"name": "openzaak", "alias": "", "version": "4.9.1"},
+        {"name": "openformulieren", "alias": "", "version": "3.5.6"},
+    ]
+    repo_paths = [("openzaak", "nginx", "image"), ("openformulieren", "nginx", "image")]
+
+    assert libchart.repo_group_representative(repo_paths, deps) == ("openformulieren", "nginx", "image")
+
+
+def test_repository_path_map_prefers_dependency_own_primary_over_orphan(libchart, tmp_path):
+    """Integration-level version of the keycloak/keycloak-operator case
+    through repository_path_map itself — the map entry for the shared
+    repository resolves to the real dependency's own path, not podiumd's
+    orphan top-level override, matching -upgrade.md's own dependency-
+    first name resolution (never routed through this map at all)."""
+    dep = {"name": "keycloak-operator", "alias": "", "version": "26.7.3"}
+    own_values = {
+        "keycloak-operator": {"operator": {"config": {
+            "keycloakImage": {"repository": "quay.io/keycloak/keycloak", "tag": "26.7.3"}}}},
+        "keycloak": {"image": {"repository": "quay.io/keycloak/keycloak", "tag": "26.7.3"}},
+    }
+    paths = [
+        ("keycloak-operator", "operator", "config", "keycloakImage"),
+        ("keycloak", "image"),
+    ]
+
+    mapping = libchart.repository_path_map(tmp_path, [dep], own_values, paths, allow_pull=False)
+
+    assert mapping == {"keycloak/keycloak": ("keycloak-operator", "operator", "config", "keycloakImage")}
+
+
 # --- paths_by_repository ---
 
 def test_paths_by_repository_groups_shared_repository(libchart, tmp_path):

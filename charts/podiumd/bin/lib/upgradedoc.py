@@ -5,8 +5,8 @@ import re
 import yaml
 
 from lib.chart import (
-    COMPONENT_IMAGE_PATHS, get_path, image_paths_for, nested_subchart_registered_paths, subchart_app_version,
-    version_of, version_paths_for,
+    COMPONENT_IMAGE_PATHS, get_path, image_paths_for, is_primary_image_path, nested_subchart_registered_paths,
+    subchart_app_version, version_of, version_paths_for,
 )
 
 
@@ -959,28 +959,6 @@ def images_manifest_entries_share_group(entry_a, entry_b, current_paths, repo_ma
             and entry_a.get("version") == entry_b.get("version"))
 
 
-def _is_dependency_primary_rel_path(dep, rel_path):
-    """rel_path (path[1:], dotted) is one of dep's own PRIMARY image/
-    version fields — lib.chart.image_paths_for's "image: {tag}" shape
-    first, else (same fallback actual_app_version already uses for the
-    -upgrade.md row/Changes-heading's own app-version lookup)
-    lib.chart.version_paths_for's own bare-scalar fields for a component
-    whose real app version isn't expressed as an "image:" block at all —
-    redis-operator's own split "redisOperator.imageTag" (sibling to
-    "imageName", not nested under a common "image:" key), or eck-stack's
-    "eck-elasticsearch.version"/"eck-kibana.version". Shared by path_
-    display_name and is_primary_image_path so the two can never
-    disagree about which path counts as "the" primary — before this,
-    path_display_name only checked image_paths_for, so a dependency
-    whose real app version came from version_paths_for instead (redis-
-    operator's own manifest entry, real case) displayed as a raw dotted
-    fallback path and was wrongly treated as a sidecar needing its own
-    "#   sidecar: ..." header, even though -upgrade.md's own row/Changes
-    heading (via actual_app_version, which already tries both) correctly
-    names it plain "redis-operator"."""
-    return rel_path in set(image_paths_for(dep["name"])) or rel_path in set(version_paths_for(dep["name"]))
-
-
 def path_display_name(path, deps, canonical_names):
     """The doc-facing name for a values-tree image path — "<values_key>"
     for a dependency's own primary image (same convention as every
@@ -994,7 +972,7 @@ def path_display_name(path, deps, canonical_names):
     in practice, never the normal case."""
     by_values_key = {(dep.get("alias") or dep["name"]): dep for dep in deps}
     dep = by_values_key.get(path[0])
-    if dep is not None and _is_dependency_primary_rel_path(dep, ".".join(path[1:])):
+    if dep is not None and is_primary_image_path(path, deps):
         return path[0]
     for name, candidate_path in canonical_names.items():
         if candidate_path == path:
@@ -1003,39 +981,6 @@ def path_display_name(path, deps, canonical_names):
 
 
 SIDECAR_HEADER_RE = re.compile(r"^#\s{2,}sidecar:\s*(?P<text>.*)$", re.IGNORECASE)
-
-
-def is_primary_image_path(path, deps):
-    """True when path is one of a Chart.yaml dependency's own PRIMARY
-    image/version field(s) — see _is_dependency_primary_rel_path (image_
-    paths_for's "image: {tag}" shape, or version_paths_for's own bare-
-    scalar fallback — either can hold several co-equal fields, e.g.
-    zgw-office-addin's frontend + backend, or eck-stack's own eck-
-    elasticsearch + eck-kibana version fields) rather than a nested
-    sidecar or a shared "global" image — the same primary/sidecar split
-    path_display_name's own branch already makes, factored out here so
-    a caller can ask the question on its own, without needing a
-    canonical_names mapping too.
-
-    ALSO True for a path with NO owning Chart.yaml dependency at all
-    (podiumd's own directly-templated top-level block — "keycloak",
-    "apiproxy", "frankgateway", the shared "global" anchor — see lib.
-    image_repository_check's own docstring for the real cases): there's
-    no PARENT for such a path to be a SIDECAR of, so it's treated as its
-    own standalone/primary entity, never subject to sidecar-only rules
-    (needing a "#   sidecar: ..." header, sorting after its own top-
-    level key's primary slot). This used to be a separate, one-off
-    "path[0] not in by_values_key" check duplicated in find_images_
-    manifest_faulty_headers alone — folded in here so every caller
-    (including images_manifest_entry_order_key) gets it automatically,
-    rather than each new caller having to remember to re-add it."""
-    if not path:
-        return False
-    by_values_key = {(dep.get("alias") or dep["name"]): dep for dep in deps}
-    dep = by_values_key.get(path[0])
-    if dep is None:
-        return True
-    return _is_dependency_primary_rel_path(dep, ".".join(path[1:]))
 
 
 def _own_header_top_line(lines, entry_line_index):
