@@ -851,15 +851,16 @@ def main():
                 print(f"  {name}: app {app_cell}  |  chart {chart_cell}")
         if unresolved_names:
             print()
-            print(f"Could not verify source version for {len(unresolved_names)} component(s) — "
-                  f"baseline {new_baseline} doesn't resolve to a git ref, or the component "
-                  f"didn't exist there yet. Table left as-is for these; review by hand.")
+            print(f"Could not verify source version for {len(unresolved_names)} component(s) in "
+                  f"{upgrade_path.name} — baseline {new_baseline} doesn't resolve to a git ref, "
+                  f"or the component didn't exist there yet. Table left as-is for these; review "
+                  f"by hand.")
             for name in unresolved_names:
                 print(f"  {name}")
         if unmatched_names:
             print()
-            print(f"Could not match {len(unmatched_names)} component(s) to a Chart.yaml "
-                  f"dependency, left as-is:")
+            print(f"Could not match {len(unmatched_names)} component(s) in {upgrade_path.name} "
+                  f"to a Chart.yaml dependency, left as-is:")
             for name in unmatched_names:
                 print(f"  {name}")
 
