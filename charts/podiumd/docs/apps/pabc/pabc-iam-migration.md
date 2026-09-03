@@ -48,8 +48,10 @@ application roles, six functional roles matching the Keycloak group names, and
 mappings that mirror the `zac` client roles those groups had in the old setup,
 including the equivalent of `domein_elk_zaaktype`.
 
-The Job name contains a checksum of the dataset, so it runs once and then stays
-put across upgrades. It only runs again if the dataset itself changes.
+The Job name contains a checksum of the dataset and of the rendered pod
+template, so it runs once and then stays put across upgrades. It only runs again
+if the dataset changes, or if something that decides what the Job does changes,
+such as the migrations image tag or the seed job resources.
 
 > **Seeding replaces everything.** The migration service deletes all
 > applications, application roles, functional roles, domains, entity types and
