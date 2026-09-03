@@ -519,6 +519,31 @@ def test_sidecar_with_no_row_at_all_is_caught_as_missing(vp, redis_sidecar_chart
             'podiumd-4.8.5 but has no row in the "Component versions" table') in out
 
 
+def test_sidecar_missing_from_images_manifest_uses_canonical_name(vp, redis_sidecar_chart_repo, capsys):
+    """A changed sidecar image with no images-manifest entry at all is
+    reported under its canonical "<values_key> - <basename>" name (the
+    same name every other check/row/heading for this sidecar already
+    uses) — never the raw dotted values.yaml path."""
+    images_path = redis_sidecar_chart_repo / "docs" / "images" / "images-4.9.0.yaml"
+    images_path.write_text(
+        "# Baseline: podiumd 4.8.5 (test @ 0000000).\n"
+        "#\n"
+        "# Images new or changed in podiumd 4.9.0 vs 4.8.5.\n"
+        "#\n"
+        "# Changes: none.\n"
+        "#\n"
+        "# See docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md for the operator upgrade notes.\n"
+        "[]\n"
+    )
+
+    ok, detail = vp.check_docs_consistency(redis_sidecar_chart_repo, upgrade_docs_baseline="4.8.5")
+
+    assert ok is False
+    out = capsys.readouterr().out
+    assert 'image "redis-operator - redis" changed vs 4.8.5 but has no entry' in out
+    assert "redis-operator.redis-ha.image" not in out
+
+
 REDIS_TWO_IMAGES_VALUES_TMPL = (
     "redis-operator:\n"
     "  redis-ha:\n"

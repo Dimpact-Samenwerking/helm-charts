@@ -504,6 +504,44 @@ def test_find_images_manifest_list_diff_uses_repo_map_for_resolution(libupgraded
     assert extra == []
 
 
+# --- path_display_name ---
+
+def test_path_display_name_primary_dependency_image_uses_bare_key(libupgradedoc):
+    """A dependency's own primary image (image_paths_for's default
+    "image" path) displays as just its values key — the same name every
+    "component "<key>" changed vs ..." message elsewhere already uses,
+    never the dotted values.yaml path."""
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.0"}]
+    assert libupgradedoc.path_display_name(("zac", "image"), deps, canonical_names={}) == "zac"
+
+
+def test_path_display_name_sidecar_uses_canonical_name(libupgradedoc):
+    """A nested sidecar path resolves via canonical_names
+    (canonical_sidecar_row_names's own {name: path} mapping) to its
+    "<key> - <basename>" doc name."""
+    deps = [{"name": "redis-operator", "version": "1.0.0"}]
+    canonical_names = {"redis-operator - redis": ("redis-operator", "redis-ha", "image")}
+    assert libupgradedoc.path_display_name(
+        ("redis-operator", "redis-ha", "image"), deps, canonical_names) == "redis-operator - redis"
+
+
+def test_path_display_name_global_uses_bare_basename(libupgradedoc):
+    """A shared "global" image resolves to canonical_names' bare
+    basename, with no "<key> -" prefix at all."""
+    canonical_names = {"curl": ("global", "images", "curl", "image")}
+    assert libupgradedoc.path_display_name(
+        ("global", "images", "curl", "image"), deps=[], canonical_names=canonical_names) == "curl"
+
+
+def test_path_display_name_falls_back_to_dotted_path(libupgradedoc):
+    """A path covered by neither a real dependency's primary image nor
+    canonical_names (e.g. an image with no vendored/own repository to
+    resolve a basename from) falls back to the raw dotted path rather
+    than guessing at a name."""
+    assert libupgradedoc.path_display_name(
+        ("mystery", "nested", "image"), deps=[], canonical_names={}) == "mystery.nested.image"
+
+
 # --- find_preceding_comment ---
 
 def test_find_preceding_comment_joins_consecutive_comment_lines(libupgradedoc):
