@@ -1088,6 +1088,81 @@ def test_sort_images_manifest_entries_collapses_internal_blank_lines_even_withou
     assert "0.11.0\"\n- name: infonl/zgw-office-addin-backend" in new_text
 
 
+def test_sort_images_manifest_entries_collapses_between_separately_headered_sidecars(libupgradedoc):
+    """Real bug: a component's own primary image and its sidecars almost
+    always have their OWN separate comment header each (different
+    versions bumped independently — e.g. keycloak-operator's own
+    postgres/python job images never share ITS "26.6.4 -> 26.7.2" header)
+    — so they're three separate _images_manifest_groups, not one shared-
+    header group. Blank lines must still collapse across all three, not
+    just within a single literal shared header — the whole family reads
+    as ONE visual block, blank-line-separated only from the NEXT
+    component."""
+    text = (
+        "# keycloak-operator 26.6.4 -> 26.7.2\n"
+        "- name: keycloak/keycloak\n"
+        "  version: \"26.7.2\"\n"
+        "\n"
+        "#   sidecar: keycloak-operator - postgres 16 -> 16.15\n"
+        "- name: postgres\n"
+        "  version: \"16.15\"\n"
+        "\n"
+        "#   sidecar: keycloak-operator - python 3.14-slim -> 3.14.7-slim\n"
+        "- name: python\n"
+        "  version: \"3.14.7-slim\"\n"
+        "\n"
+        "# redis-operator 0.25.0 -> 0.26.0\n"
+        "- name: opstree/redis-operator\n"
+        "  version: \"0.26.0\"\n"
+    )
+    deps = [{"name": "keycloak-operator", "version": "1.0.0"}, {"name": "redis-operator", "version": "1.0.0"}]
+    values = {
+        "keycloak-operator": {"operator": {"config": {"keycloakImage": {"tag": "26.7.2"}}},
+                               "job": {"postgres": {"image": {"tag": "16.15"}},
+                                       "python": {"image": {"tag": "3.14.7-slim"}}}},
+        "redis-operator": {"image": {"tag": "0.26.0"}},
+    }
+    repo_map = {"keycloak/keycloak": ("keycloak-operator", "operator", "config", "keycloakImage"),
+                "postgres": ("keycloak-operator", "job", "postgres", "image"),
+                "python": ("keycloak-operator", "job", "python", "image"),
+                "opstree/redis-operator": ("redis-operator", "image")}
+
+    new_text, moved = libupgradedoc.sort_images_manifest_entries(text, deps, values, repo_map, canonical_names={})
+
+    assert moved == []
+    # No blank line between the primary and either sidecar, or between
+    # the two sidecars — one unbroken block for the whole component.
+    assert "26.7.2\"\n#   sidecar: keycloak-operator - postgres" in new_text
+    assert "16.15\"\n#   sidecar: keycloak-operator - python" in new_text
+    # The blank line separating this component from the NEXT one (a
+    # genuinely different top-level component) is preserved.
+    assert "3.14.7-slim\"\n\n# redis-operator" in new_text
+
+
+def test_sort_images_manifest_entries_never_merges_two_unresolved_entries(libupgradedoc):
+    """Two entries that each fail to resolve to any real values-tree path
+    at all must never be merged into one block just because they happen
+    to sit next to each other — only a real, matching component
+    identifies one family, not "both unknown"."""
+    text = (
+        "# mystery one\n"
+        "- name: totally/unknown-one\n"
+        "  version: \"1.0.0\"\n"
+        "\n"
+        "# mystery two\n"
+        "- name: totally/unknown-two\n"
+        "  version: \"2.0.0\"\n"
+    )
+    deps = []
+    values = {}
+    repo_map = {}
+
+    new_text, moved = libupgradedoc.sort_images_manifest_entries(text, deps, values, repo_map, canonical_names={})
+
+    assert new_text == text
+    assert moved == []
+
+
 def test_sort_images_manifest_entries_no_blank_lines_no_reorder_is_truly_unchanged(libupgradedoc):
     """Nothing to tidy and nothing to reorder — text comes back byte-
     identical, matching the function's own "unchanged" convention."""

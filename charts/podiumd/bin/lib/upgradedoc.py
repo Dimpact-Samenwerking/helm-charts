@@ -1357,16 +1357,35 @@ def sort_images_manifest_entries(text, deps, values, repo_map, canonical_names):
     -upgrade.md's own rows/Changes blocks. A group (see _images_
     manifest_groups) is moved as ONE physical unit, never split, so a
     shared header always stays directly above every entry it actually
-    covers. Also collapses blank lines WITHIN a multi-entry group (see
-    _collapse_group_internal_blank_lines) — applied to every such group,
-    not just ones that moved, since it's a separate formatting concern
-    from ordering. Returns (new_text, moved) where moved is [(display_
-    name, old_position, new_position)] (1-based, among just the
-    manifest's own groups) for every group whose position actually
-    changed — empty list, but new_text may still differ from text if
-    only blank lines were collapsed; both text and moved are exactly
-    (text, []) only when NEITHER changed anything — e.g. isn't valid
-    YAML, or has fewer than 2 entries total."""
+    covers.
+
+    Also collapses blank lines between entries belonging to the SAME
+    top-level component (see _collapse_group_internal_blank_lines) — a
+    broader notion than _images_manifest_groups' own "shares one literal
+    comment line" grouping: a component's own sidecars almost always
+    have their own separate header each (different versions bumped
+    independently, e.g. keycloak-operator's own postgres/python job
+    images), yet the whole family — primary plus every sidecar — is
+    still meant to read as ONE visual block, blank-line-separated only
+    from the NEXT component, not internally. Computed on the manifest's
+    FINAL (post-sort) order, over RUNS of consecutive same-component
+    groups — the sort above already guarantees every such run sits
+    together (stable sort: entries sharing one component always compare
+    equal by images_manifest_entry_order_key, so their original relative
+    order survives untouched, and no other component's own tied key can
+    wedge between them) — never merging two groups whose component can't
+    be resolved at all (path is None) even if they happen to sit next to
+    each other; only a real, matching component identifies one family.
+    Applied regardless of whether anything moved, since it's a separate
+    formatting concern from ordering.
+
+    Returns (new_text, moved) where moved is [(display_name, old_
+    position, new_position)] (1-based, among just the manifest's own
+    groups) for every group whose position actually changed — empty
+    list, but new_text may still differ from text if only blank lines
+    were collapsed; both text and moved are exactly (text, []) only when
+    NEITHER changed anything — e.g. isn't valid YAML, or has fewer than
+    2 entries total."""
     lines = text.splitlines(keepends=True)
     try:
         entries = yaml.safe_load(text)
@@ -1388,15 +1407,33 @@ def sort_images_manifest_entries(text, deps, values, repo_map, canonical_names):
     starts = [images_manifest_block_start(lines, entry_line_indices[indices[0]]) for indices, _, _ in groups]
     ends = starts[1:] + [len(lines)]
     original_texts = ["".join(lines[s:e]) for s, e in zip(starts, ends)]
-    collapsed_texts = [_collapse_group_internal_blank_lines(t) if len(indices) > 1 else t
+    # A single GROUP already spanning more than one entry (a literal
+    # shared header, e.g. zgw-office-addin's own frontend+backend) needs
+    # its own internal collapse first — the broader cross-group merge
+    # below only ever looks at whole groups, so this is the only place
+    # that removes a blank line hand-inserted BETWEEN two entries that
+    # already share one comment line.
+    per_group_texts = [_collapse_group_internal_blank_lines(t) if len(indices) > 1 else t
                         for (indices, _, _), t in zip(groups, original_texts)]
+    components = [path[0] if path else None for _, path, _ in groups]
 
-    if not moved and collapsed_texts == original_texts:
-        return text, []
+    ordered_texts = [per_group_texts[i] for i in order]
+    ordered_components = [components[i] for i in order]
 
-    new_texts = [collapsed_texts[i] for i in order]
+    merged_texts = []
+    run_start = 0
+    for i in range(1, len(ordered_texts) + 1):
+        at_end = i == len(ordered_texts)
+        if at_end or ordered_components[i] is None or ordered_components[i] != ordered_components[run_start]:
+            run_text = "".join(ordered_texts[run_start:i])
+            merged_texts.append(_collapse_group_internal_blank_lines(run_text) if i - run_start > 1 else run_text)
+            run_start = i
+
     prefix = "".join(lines[:starts[0]])
-    return prefix + "".join(new_texts), moved
+    new_text = prefix + "".join(merged_texts)
+    if new_text == text:
+        return text, []
+    return new_text, moved
 
 
 def find_preceding_comment(lines, entry_line_index):
