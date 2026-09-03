@@ -1,8 +1,6 @@
----
-title: YAML/JSON Schema validation for `values.yaml`
----
+# YAML/JSON Schema validation for `values.yaml`
 
-Why you see schema validation errors
+## Why you see schema validation errors
 -------------------------------
 
 `charts/podiumd/values.yaml` contains an editor directive at the top that tells the YAML language server to validate the file with a JSON Schema:
@@ -13,7 +11,7 @@ Why you see schema validation errors
 
 That schema used to only declare the `kiss` subtree, so the language server flagged many other top-level keys (for example `keycloak`, `global`, `persistentVolume`, etc.) as "not declared in schema". Those editor/IDE inspection results are surfaced during commits as warnings or errors depending on your IDE settings.
 
-What we changed
+## What we changed
 ----------------
 
 To avoid spurious errors while keeping validation for the KISS subtree, `kiss.schema.json` was updated to declare a root object and allow other top-level keys:
@@ -23,7 +21,7 @@ To avoid spurious errors while keeping validation for the KISS subtree, `kiss.sc
 
 This is a conservative, low-risk change that preserves useful validation for KISS-specific config while preventing false positives for the umbrella chart's many other settings.
 
-How to avoid warnings in your IDE
+## How to avoid warnings in your IDE
 --------------------------------
 
 If you still see warnings during commit, here are recommended options:
@@ -43,17 +41,16 @@ If you still see warnings during commit, here are recommended options:
 5. Produce a complete schema for the umbrella chart (long-term)
    - Create a combined JSON Schema that documents every top-level key used in `values.yaml`. This is the most accurate approach but requires significant maintenance as the chart evolves.
 
-Notes and recommendations
+## Notes and recommendations
 -------------------------
 - The current change in `kiss.schema.json` (allowing additional properties) is intentionally conservative: it retains helpful validation where it matters and prevents annoying, false-positive errors.
 - If you prefer a different approach (remove the schema directive, or create a stricter combined schema), say which and I can make that change.
 - This file documents why the change was made so future contributors understand the rationale.
 
-Related files
+## Related files
 -------------
 - `charts/podiumd/kiss.schema.json` — the JSON Schema used by the YAML language server for `values.yaml`
 - `charts/podiumd/values.yaml` — the values file that includes the `$schema` directive
 
 ---
 Last updated: April 20, 2026
-

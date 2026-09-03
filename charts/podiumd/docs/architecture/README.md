@@ -6,7 +6,7 @@ PodiumD is opgezet door Dimpact als een platform van applicaties voor gemeenteli
 
 ## Architectuur
 
-Hieronder staat het System Context diagram van PodiumD, dat de architectuur van het PodiumD systeem weergeeft. 
+Hieronder staat het System Context diagram van PodiumD, dat de architectuur van het PodiumD systeem weergeeft.
 Het diagram toont de interacties tussen de verschillende componenten, zowel binnen als buiten de PodiumD context.
 
 ```mermaid

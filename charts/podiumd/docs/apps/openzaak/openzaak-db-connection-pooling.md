@@ -5,7 +5,7 @@
 > ⚠️ **Partially experimental** — this document proposes two independent sets of changes with different stability statuses:
 >
 > - **uWSGI settings** (`processes`, `threads`, `maxRequests`) — **not experimental**. These are standard uWSGI configuration knobs, fully supported and carry no caveats in the Open Zaak chart or documentation.
-> - **DB connection pooling** (`dbPool.enabled: true`) — **explicitly experimental**. Open Zaak marks this as *not recommended for production use*. See: https://open-api-framework.readthedocs.io/en/latest/connection_pooling.html
+> - **DB connection pooling** (`dbPool.enabled: true`) — **explicitly experimental**. Open Zaak marks this as *not recommended for production use*. See: [https://open-api-framework.readthedocs.io/en/latest/connection_pooling.html]
 >
 > The uWSGI settings can be applied independently and safely. The pooling settings should only be applied after testing in a non-production environment and verifying stability under load — or once the Open Zaak team lifts the experimental label.
 
