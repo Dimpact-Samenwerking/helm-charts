@@ -420,6 +420,99 @@ def _images_manifest_block_start(lines, entry_line_idx):
     return i
 
 
+def _find_images_manifest_changes_header(lines):
+    """(header_idx, header_has_count) for the images-manifest's own "#
+    Changes:" header — matching EITHER CHANGES_HEADER_RE's counted form
+    ("# Twenty One changes:") or BARE_CHANGES_HEADER_RE's plain "#
+    Changes:" (no count word at all — the real, hand-curated images-
+    4.9.0.yaml header's own actual shape). (None, False) if neither is
+    found anywhere in the file."""
+    for i, line in enumerate(lines):
+        if CHANGES_HEADER_RE.match(line):
+            return i, True
+        if BARE_CHANGES_HEADER_RE.match(line):
+            return i, False
+    return None, False
+
+
+def _images_manifest_changes_header_text(lines):
+    """The full "# Changes:" header block's own text — header line
+    through its last numbered item (and any wrapped continuation
+    lines) — or "" if the file has no header at all. Used to check
+    whether some entry's own display name is already mentioned
+    somewhere in there, before deciding it needs a header item of its
+    own backfilled."""
+    header_idx, _has_count = _find_images_manifest_changes_header(lines)
+    if header_idx is None:
+        return ""
+    block_end = header_idx + 1
+    for i in range(header_idx + 1, len(lines)):
+        if lines[i].rstrip("\n") == "#" or not lines[i].startswith("#"):
+            break
+        block_end = i + 1
+    return "".join(lines[header_idx:block_end])
+
+
+def _insert_images_manifest_header_item(lines, deps, key_order, order_key, new_key, item_text):
+    """Insert "#   N. <item_text>" into the images-manifest's own "#
+    Changes:" header list (see _find_images_manifest_changes_header) at
+    the position matching new_key relative to what's already there (see
+    lib.upgradedoc.component_order_key/insertion_index — the SAME
+    ordering convention upgrade.md's own table rows/Changes sections
+    use), renumbering every subsequent item. An existing item that
+    can't be resolved to a real dependency (free-form prose, matched
+    via match_dependency_excluding_sidecar_names the same way
+    check_images_manifest_format's own Changes-item check does) sorts
+    last for THIS purpose only — never causes it to move. Mutates
+    `lines` in place; a no-op if the file has no header at all. Only
+    rewrites the header line's own leading count word if it already had
+    one (see header_has_count) — never invents one for a bare "#
+    Changes:" label."""
+    header_idx, header_has_count = _find_images_manifest_changes_header(lines)
+    if header_idx is None:
+        return
+
+    item_indices = []
+    block_end = header_idx + 1
+    for i in range(header_idx + 1, len(lines)):
+        if lines[i].rstrip("\n") == "#" or not lines[i].startswith("#"):
+            break
+        block_end = i + 1
+        if re.match(r"^#\s*\d+\.", lines[i]):
+            item_indices.append(i)
+
+    item_keys = []
+    for idx in item_indices:
+        m = CHANGES_ITEM_RE.match(lines[idx])
+        item_dep = match_dependency_excluding_sidecar_names(m.group("rest"), deps) if m else None
+        if item_dep is None:
+            item_keys.append((len(key_order), 0))
+            continue
+        item_keys.append(order_key(item_dep.get("alias", item_dep["name"]), False))
+
+    insert_slot = insertion_index(new_key, item_keys)
+    insert_line = item_indices[insert_slot] if insert_slot < len(item_indices) else block_end
+    lines.insert(insert_line, f"#   {insert_slot + 1}. {item_text}\n")
+
+    for later_idx in range(insert_line + 1, len(lines)):
+        if lines[later_idx].rstrip("\n") == "#" or not lines[later_idx].startswith("#"):
+            break
+        m = CHANGES_ITEM_RE.match(lines[later_idx])
+        if m:
+            lines[later_idx] = f"#   {int(m.group('num')) + 1}. {m.group('rest')}\n"
+
+    if header_has_count:
+        total = len(item_indices) + 1
+        count_word = NUMBER_WORDS[total] if total < len(NUMBER_WORDS) else str(total)
+        noun = "change" if total == 1 else "changes"
+        header_m = CHANGES_HEADER_RE.match(lines[header_idx])
+        lines[header_idx] = f"{header_m.group('indent')}{count_word} {noun}:\n"
+    # else: header was already a bare "# Changes:" label with no count
+    # word of its own — left exactly as-is, matching whatever style
+    # this file already uses; only the numbered item list itself needed
+    # the new entry.
+
+
 def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, baseline_values):
     """Insert a new entry (+ its own "# <name> — <old> -> <new>" comment,
     and a matching numbered item in the "# Changes:" header list) for
@@ -471,12 +564,28 @@ def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, ba
     repository's own result — kept as a defensive fallback, never a
     crash or bad data).
 
-    Processes one missing path at a time, re-parsing the (already
+    A SECOND pass then backfills a header item for any entry that
+    already has its own comment+entry block (e.g. one this same
+    function added on an EARLIER run, before header-list support
+    existed) but was never given one — checked by whether the entry's
+    own display name appears anywhere in the header block's text at
+    all, not by dependency resolution: a header item mentioning the
+    same DEPENDENCY (e.g. "Keycloak app image 26.6.4 -> 26.7.2
+    (keycloak-operator chart unchanged, ...)") does NOT mean a nested
+    sidecar of that same dependency (e.g. "keycloak-operator -
+    postgres") is covered too — only an item that actually names THAT
+    exact entry counts. Old/new version for a backfilled item are read
+    from the entry's own existing comment (extract_source_version/
+    extract_target_version), never recomputed — the SAME "generated
+    from data already in the doc" principle as everywhere else in this
+    function.
+
+    Processes one path/entry at a time, re-parsing the (already
     updated) text before computing the next insertion point — simpler
     and safer than tracking how earlier insertions shift later line
     indices by hand.
 
-    Returns (new_text, added_names, skipped_names)."""
+    Returns (new_text, added_names, skipped_names, backfilled_names)."""
     current_paths = dict(find_image_tag_paths(target_values))
     baseline_paths = dict(find_image_tag_paths(baseline_values)) if baseline_values else {}
     try:
@@ -520,55 +629,8 @@ def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, ba
         if lines and not lines[-1].endswith("\n"):
             lines[-1] += "\n"
 
-        header_idx, header_has_count = None, False
-        for i, line in enumerate(lines):
-            if CHANGES_HEADER_RE.match(line):
-                header_idx, header_has_count = i, True
-                break
-            if BARE_CHANGES_HEADER_RE.match(line):
-                header_idx, header_has_count = i, False
-                break
-
-        if header_idx is not None:
-            item_indices = []
-            block_end = header_idx + 1
-            for i in range(header_idx + 1, len(lines)):
-                if lines[i].rstrip("\n") == "#" or not lines[i].startswith("#"):
-                    break
-                block_end = i + 1
-                if re.match(r"^#\s*\d+\.", lines[i]):
-                    item_indices.append(i)
-
-            item_keys = []
-            for idx in item_indices:
-                m = CHANGES_ITEM_RE.match(lines[idx])
-                item_dep = match_dependency_excluding_sidecar_names(m.group("rest"), deps) if m else None
-                if item_dep is None:
-                    item_keys.append((len(key_order), 0))
-                    continue
-                item_keys.append(order_key(item_dep.get("alias", item_dep["name"]), False))
-
-            insert_slot = insertion_index(new_key, item_keys)
-            insert_line = item_indices[insert_slot] if insert_slot < len(item_indices) else block_end
-            lines.insert(insert_line, f"#   {insert_slot + 1}. {name} {old_version} -> {new_version}.\n")
-
-            for later_idx in range(insert_line + 1, len(lines)):
-                if lines[later_idx].rstrip("\n") == "#" or not lines[later_idx].startswith("#"):
-                    break
-                m = CHANGES_ITEM_RE.match(lines[later_idx])
-                if m:
-                    lines[later_idx] = f"#   {int(m.group('num')) + 1}. {m.group('rest')}\n"
-
-            if header_has_count:
-                total = len(item_indices) + 1
-                count_word = NUMBER_WORDS[total] if total < len(NUMBER_WORDS) else str(total)
-                noun = "change" if total == 1 else "changes"
-                header_m = CHANGES_HEADER_RE.match(lines[header_idx])
-                lines[header_idx] = f"{header_m.group('indent')}{count_word} {noun}:\n"
-            # else: header was already a bare "# Changes:" label with no
-            # count word of its own — left exactly as-is, matching
-            # whatever style this file already uses; only the numbered
-            # item list itself needed the new entry.
+        _insert_images_manifest_header_item(
+            lines, deps, key_order, order_key, new_key, f"{name} {old_version} -> {new_version}.")
 
         entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
         entry_keys = []
@@ -600,7 +662,43 @@ def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, ba
         text = "".join(lines)
         added_names.append(name)
 
-    return text, added_names, skipped_names
+    backfilled_names = []
+    while True:
+        lines = text.splitlines(keepends=True)
+        header_text = _images_manifest_changes_header_text(lines)
+        if not header_text:
+            break
+
+        entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
+        target = None
+        for idx in entry_line_indices:
+            m = re.match(r"^-\s*name:\s*(\S+)\s*$", lines[idx])
+            entry_path = resolve_entry_image_path({"name": m.group(1)}, current_paths.keys(), repo_map) \
+                if m else None
+            if entry_path is None:
+                continue
+            entry_name = path_display_name(entry_path, deps, canonical_names)
+            if entry_name in header_text:
+                continue
+            comment_text = "".join(lines[_images_manifest_block_start(lines, idx):idx])
+            entry_new = extract_target_version(comment_text)
+            if entry_new is None:
+                continue
+            entry_old = extract_source_version(comment_text) or entry_new
+            target = (entry_path, entry_name, entry_old, entry_new)
+            break
+
+        if target is None:
+            break
+
+        entry_path, entry_name, entry_old, entry_new = target
+        new_key = order_key(entry_path[0], " - " in entry_name)
+        _insert_images_manifest_header_item(
+            lines, deps, key_order, order_key, new_key, f"{entry_name} {entry_old} -> {entry_new}.")
+        text = "".join(lines)
+        backfilled_names.append(entry_name)
+
+    return text, added_names, skipped_names, backfilled_names
 
 
 def main():
@@ -833,9 +931,10 @@ def main():
 
         if baseline_values:
             text = images_path.read_text(encoding="utf-8")
-            new_text, added_entry_names, skipped_entry_names = add_missing_images_manifest_entries(
-                text, CHART_YAML.parent, target_deps, target_values, baseline_values
-            )
+            new_text, added_entry_names, skipped_entry_names, backfilled_header_names = \
+                add_missing_images_manifest_entries(
+                    text, CHART_YAML.parent, target_deps, target_values, baseline_values
+                )
             if added_entry_names:
                 images_path.write_text(new_text, encoding="utf-8")
                 print()
@@ -849,6 +948,12 @@ def main():
                       f"digest pinned yet. Add by hand.")
                 for name in skipped_entry_names:
                     print(f"  {name}")
+            if backfilled_header_names:
+                images_path.write_text(new_text, encoding="utf-8")
+                print()
+                print(f"=== Adding missing '# Changes:' header item(s) to {images_path.name} ===")
+                for name in backfilled_header_names:
+                    print(f"  {name} (entry already existed — only its header item was missing)")
 
     values_deltas_path = DOC_DIR / f"{new_baseline}-to-{target}-values-deltas.md"
     if values_deltas_path.is_file():
