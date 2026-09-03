@@ -849,6 +849,26 @@ def test_find_images_manifest_faulty_headers_unresolvable_entry_skipped(libupgra
     assert problems == []
 
 
+def test_find_images_manifest_faulty_headers_orphan_top_level_block_is_exempt(libupgradedoc):
+    """A path rooted at podiumd's own directly-templated top-level block
+    with no Chart.yaml dependency of its own at all (real cases:
+    "keycloak", "apiproxy", "frankgateway" — see lib.image_repository_
+    check's own docstring) has no PARENT to be a "sidecar OF", so it's
+    never subject to the "#   sidecar: <parent> - ..." shape — its own
+    free-form header (explaining why it's listed) is correct as-is."""
+    text = "# Keycloak server -> 26.7.2 (app image only)\n- name: keycloak/keycloak\n  version: \"26.7.2\"\n"
+    lines = text.splitlines()
+    entries = [{"name": "keycloak/keycloak", "version": "26.7.2"}]
+    entry_line_indices = _entry_line_indices(lines)
+    current_paths = {("keycloak", "image"): "26.7.2"}
+    repo_map = {"keycloak/keycloak": ("keycloak", "image")}
+
+    problems = libupgradedoc.find_images_manifest_faulty_headers(
+        entries, entry_line_indices, lines, deps=[{"name": "keycloak-operator", "version": "1.0.0"}],
+        current_paths=current_paths, repo_map=repo_map, canonical_names={})
+    assert problems == []
+
+
 # --- path_display_name ---
 
 def test_path_display_name_primary_dependency_image_uses_bare_key(libupgradedoc):
