@@ -218,7 +218,9 @@ This renders `files/pabc-dataset.json` into the `pabc-dataset` ConfigMap and run
 `pabc-seed-job-<checksum>` once, using the `pabc-migrations` image with
 `JSON_DATASET_PATH`. The dataset declares the application as
 `zaakafhandelcomponent` directly, so no rename is needed. The Job name carries a
-checksum of the dataset, so it does not rerun on later upgrades.
+checksum of the dataset and of the rendered pod template, so it does not rerun
+on later upgrades unless one of those changes. A chart version bump on its own
+does not re-seed.
 
 Seeding **replaces** all PABC content, so leave it disabled on environments that
 have already been curated through the PABC UI. See
