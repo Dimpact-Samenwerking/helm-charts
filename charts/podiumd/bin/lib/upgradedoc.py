@@ -2,7 +2,9 @@
 docs-consistency check and fix-doc-consistency's version-correction pass."""
 import re
 
-from lib.chart import COMPONENT_IMAGE_PATHS, get_path, image_paths_for, subchart_app_version, version_paths_for
+from lib.chart import (
+    COMPONENT_IMAGE_PATHS, get_path, image_paths_for, subchart_app_version, version_of, version_paths_for,
+)
 
 
 def normalize_version(v):
@@ -783,12 +785,20 @@ def find_images_manifest_list_diff(entries, current_paths, baseline_paths, repo_
                                     unresolvable_paths):
     """(missing_paths, extra_entry_names) — the images-manifest's own
     "list of changed images" checked against the FULL, actual set of
-    every image tag pin whose value differs between the target
-    (current_paths) and upgrade_docs_baseline (baseline_paths) — see
-    find_image_tag_paths for what these dicts hold; comparing the whole
-    tag STRING (not just the version number) also catches a re-pin with
-    the same tag but a new digest, matching this manifest's own
-    "newly digest-pinned... tag unchanged" convention.
+    every image tag pin whose VERSION (lib.chart.version_of — the tag
+    with any "@sha256:..." digest suffix stripped) differs between the
+    target (current_paths) and upgrade_docs_baseline (baseline_paths)
+    — see find_image_tag_paths for what these dicts hold. Deliberately
+    version-only, not the full tag string: a chart-wide digest-pinning
+    sweep (see PR #437) can touch the digest of virtually every image
+    at once with no app-version change behind any of it — comparing
+    full tag strings would demand a manifest entry for every single one
+    of those, defeating the whole point of a curated "what actually
+    changed" list. A real, individually-deliberate digest-only re-pin
+    (this manifest's own "newly digest-pinned... tag unchanged"
+    convention) is a judgment call for whoever writes the manifest, not
+    something this check can distinguish from routine sweep noise by
+    the tag string alone — so it's never treated as required here.
 
     Each entry is matched to its values-tree path via resolve_entry_
     image_path — repo_map's exact "name: is a stripped repository"
@@ -827,9 +837,13 @@ def find_images_manifest_list_diff(entries, current_paths, baseline_paths, repo_
     representative_of = {path: repo_map[repo] for repo, paths in repo_groups.items()
                           for path in paths if repo in repo_map}
 
+    def version_changed(path, tag):
+        baseline_tag = baseline_paths.get(path)
+        return baseline_tag is None or version_of(tag) != version_of(baseline_tag)
+
     changed_paths = {representative_of.get(path, path)
                       for path, tag in current_paths.items()
-                      if tag != baseline_paths.get(path) and path not in unresolvable_paths}
+                      if version_changed(path, tag) and path not in unresolvable_paths}
 
     matched_paths = set()
     extra_entry_names = []
