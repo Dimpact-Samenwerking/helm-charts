@@ -37,14 +37,18 @@ rebase) — see create-doc-version for a script that ONLY ever does that,
 refusing outright if docs already exist under some other baseline (this
 script owns rebasing those on purpose; that one refuses to touch them).
 See fix_component_version_table, add_missing_component_rows,
-add_missing_sidecar_rows, add_missing_values_delta_bullets, and
-fix_images_manifest_entries for exactly what gets rewritten/added vs.
-just reported for manual review (an images-manifest entry is NEVER
-auto-added — its "name:"/"url:" are mechanically derivable now, see
-docs/images/acr-mirror-naming.md, but the manifest's own per-group
-comments and "# Changes:" narrative need a human to explain WHY each
-change happened, not just that it did — a sidecar row's own values-delta
-mention is likewise never auto-added, for the same reason).
+add_missing_sidecar_rows, add_missing_values_delta_bullets,
+fix_images_manifest_entries, and add_missing_images_manifest_entries for
+exactly what gets rewritten/added vs. just reported for manual review. A
+missing images-manifest entry IS auto-added now (its own "# ... — <old>
+-> <new>" comment and version/digest all mechanically derivable from
+values.yaml's own already-pinned tag) — but with "name:"/"url:" both set
+to the same resolved repository string rather than the curated ACR
+mirror slug docs/images/acr-mirror-naming.md documents, which has no
+reliable mechanical formula and stays a human's job to correct by hand
+afterward. A sidecar row's own values-delta mention is still never
+auto-added — no mechanically-derivable placeholder exists for prose
+explaining WHY a change happened, unlike a manifest entry's own fields.
 
 Called automatically by change-podiumd-baseline, right after it writes
 release-baseline.yaml's upgrade_docs key — see that script for the
@@ -76,7 +80,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from lib.chart import SEMVER_RE as BASELINE_VERSION_RE
-from lib.chart import canonical_sidecar_row_names, chart_version, repository_path_map
+from lib.chart import canonical_sidecar_row_names, chart_version, paths_by_repository, version_of
 from lib.chart import upgrade_docs_baseline as read_upgrade_docs_baseline
 from lib.component_docs import (
     IMAGES_STUB_TEMPLATE, STANDARD_SUFFIXES, STUB_TEMPLATES, add_missing_component_rows,
@@ -84,12 +88,13 @@ from lib.component_docs import (
 )
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
 from lib.image_docs import add_missing_changes_sections, add_missing_sidecar_rows, update_stale_app_version_headings
+from lib.image_repository_check import find_images_without_repository
 from lib.upgradedoc import (
     actual_app_version, append_to_doc, canonical_version_cell, compute_changed_components,
     extract_source_version, extract_target_version, find_grouped_preceding_comment_line,
-    find_image_tag_paths, match_dependency_excluding_sidecar_names, missing_key_change_lines, normalize_version,
-    parse_upgrade_doc_rows, replace_version_pair, resolve_entry_image_path, sort_changes_blocks,
-    sort_upgrade_doc_rows,
+    find_image_tag_paths, find_images_manifest_list_diff, match_dependency_excluding_sidecar_names,
+    missing_key_change_lines, normalize_version, parse_upgrade_doc_rows, path_display_name, replace_version_pair,
+    resolve_entry_image_path, sort_changes_blocks, sort_upgrade_doc_rows,
 )
 
 CHART_YAML = SCRIPT_DIR.parents[0] / "Chart.yaml"
@@ -390,6 +395,87 @@ def fix_images_manifest_entries(text, target_values, baseline_values, repo_map=N
     return "".join(lines), changed_entries, unresolved_names
 
 
+def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, baseline_values):
+    """Append a new entry (+ its own "# <name> — <old> -> <new>" comment)
+    for every image lib.upgradedoc.find_images_manifest_list_diff's own
+    missing_paths reports — the "changed vs ... but has no entry" gap
+    verify-podiumd's own doc-consistency check reports.
+
+    "name:" and "url:" are both set to the SAME resolved repository
+    string (lib.chart.paths_by_repository's own stripped form) rather
+    than the curated ACR mirror slug docs/images/acr-mirror-naming.md
+    documents — that lookup has no reliable mechanical formula and stays
+    a human's job to correct by hand; a mechanically-derivable, self-
+    consistent placeholder here (it's also exactly the value repo_map's
+    own exact-match lookup already expects, so a later fix-doc-
+    consistency run resolves it cleanly) beats leaving the whole entry
+    out entirely.
+
+    version/digest come directly from target_values' own already-pinned
+    tag — no registry call needed here, unlike update-image-version's
+    OWN missing_entries handling (lib.component_docs.
+    update_images_manifest), which fetches a real digest as part of ITS
+    job of writing a brand new pin in the first place; this function
+    only ever documents a pin that already exists.
+
+    A path whose current tag has no "@sha256:..." digest at all (rare —
+    almost every image is digest-pinned after the chart-wide digest-
+    pinning sweep, #437) can't produce a valid entry (digest is a
+    required field — see check_images_manifest_format's own entry-key
+    validation) and is reported separately rather than silently skipped
+    or written incomplete; same treatment for a path find_images_
+    manifest_list_diff reports as missing but that has no resolvable
+    repository here either (shouldn't normally happen — missing_paths
+    already excludes lib.image_repository_check.find_images_without_
+    repository's own result — kept as a defensive fallback, never a
+    crash or bad data).
+
+    Returns (new_text, added_names, skipped_names)."""
+    current_paths = dict(find_image_tag_paths(target_values))
+    baseline_paths = dict(find_image_tag_paths(baseline_values)) if baseline_values else {}
+    try:
+        entries = yaml.safe_load(text) or []
+    except yaml.YAMLError:
+        entries = []
+    if not isinstance(entries, list):
+        entries = []
+
+    repo_groups = paths_by_repository(chart_dir, deps, target_values, current_paths.keys())
+    repo_map = {repo: group_paths[-1] for repo, group_paths in repo_groups.items()}
+    path_to_repo = {path: repo for repo, group_paths in repo_groups.items() for path in group_paths}
+    unresolvable_paths = set(find_images_without_repository(chart_dir))
+    canonical_names = canonical_sidecar_row_names(chart_dir, deps, target_values, current_paths.keys())
+
+    missing_paths, _extra_entry_names = find_images_manifest_list_diff(
+        entries, current_paths, baseline_paths, repo_map, repo_groups, unresolvable_paths)
+
+    lines = text.splitlines(keepends=True)
+    if lines and not lines[-1].endswith("\n"):
+        lines[-1] += "\n"
+
+    added_names, skipped_names = [], []
+    for path in missing_paths:
+        repo = path_to_repo.get(path)
+        current_tag = current_paths[path]
+        name = path_display_name(path, deps, canonical_names)
+        if repo is None or "@" not in current_tag:
+            skipped_names.append(name)
+            continue
+
+        new_version, digest = current_tag.split("@", 1)
+        baseline_tag = baseline_paths.get(path)
+        old_version = version_of(baseline_tag) if baseline_tag else new_version
+
+        lines.append(f"\n# {name} — {old_version} -> {new_version}\n")
+        lines.append(f"- name: {repo}\n")
+        lines.append(f"  url: {repo}\n")
+        lines.append(f'  version: "{new_version}"\n')
+        lines.append(f'  digest: "{digest}"\n')
+        added_names.append(name)
+
+    return "".join(lines), added_names, skipped_names
+
+
 def main():
     if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
         print(__doc__)
@@ -598,7 +684,8 @@ def main():
     if images_path.is_file():
         text = images_path.read_text(encoding="utf-8")
         target_paths = [p for p, _tag in find_image_tag_paths(target_values)]
-        repo_map = repository_path_map(CHART_YAML.parent, target_deps, target_values, target_paths)
+        repo_groups = paths_by_repository(CHART_YAML.parent, target_deps, target_values, target_paths)
+        repo_map = {repo: group_paths[-1] for repo, group_paths in repo_groups.items()}
         new_text, changed_entries, unresolved_entry_names = fix_images_manifest_entries(
             text, target_values, baseline_values, repo_map
         )
@@ -616,6 +703,26 @@ def main():
                   f"Left as-is; review by hand.")
             for name in unresolved_entry_names:
                 print(f"  {name}")
+
+        if baseline_values:
+            text = images_path.read_text(encoding="utf-8")
+            new_text, added_entry_names, skipped_entry_names = add_missing_images_manifest_entries(
+                text, CHART_YAML.parent, target_deps, target_values, baseline_values
+            )
+            if added_entry_names:
+                images_path.write_text(new_text, encoding="utf-8")
+                print()
+                print(f"=== Adding missing entr(y/ies) to {images_path.name} ===")
+                for name in added_entry_names:
+                    print(f"  {name} (review 'name:'/'url:' — see docs/images/acr-mirror-naming.md "
+                          f"for the correct ACR mirror slug)")
+            if skipped_entry_names:
+                print()
+                print(f"Could not add an entry for {len(skipped_entry_names)} changed image(s) in "
+                      f"{images_path.name} — no resolvable repository, or its values.yaml tag has no "
+                      f"digest pinned yet. Add by hand.")
+                for name in skipped_entry_names:
+                    print(f"  {name}")
 
     values_deltas_path = DOC_DIR / f"{new_baseline}-to-{target}-values-deltas.md"
     if values_deltas_path.is_file():
