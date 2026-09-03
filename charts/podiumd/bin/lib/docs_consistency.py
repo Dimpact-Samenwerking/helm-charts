@@ -19,7 +19,7 @@ from lib.upgradedoc import (
     find_images_manifest_list_diff, find_out_of_order_names, find_wrong_or_duplicate_dependency_claims,
     match_dependency, match_dependency_excluding_sidecar_names, normalize_version, pair_renames,
     parse_changes_block, parse_upgrade_doc_changes_blocks, parse_upgrade_doc_rows as _parse_upgrade_doc_rows,
-    resolve_entry_path, strip_fenced_code_blocks, values_key_order,
+    path_display_name, resolve_entry_path, strip_fenced_code_blocks, values_key_order,
 )
 
 
@@ -290,10 +290,12 @@ def check_images_manifest_format(images_path, upgrade_docs_baseline, podiumd_ver
     # all (baseline_values is {} in that case, so baseline_paths is too).
     if baseline_paths and chart_dir is not None:
         repo_map = repository_path_map(chart_dir, deps, values, current_paths.keys())
+        canonical_names = canonical_sidecar_row_names(chart_dir, deps, values, current_paths.keys())
         missing_paths, extra_entry_names = find_images_manifest_list_diff(
             entries, current_paths, baseline_paths, repo_map)
         for path in missing_paths:
-            issues.append(f'{images_path.name}: image "{".".join(path)}" changed vs '
+            name = path_display_name(path, deps, canonical_names)
+            issues.append(f'{images_path.name}: image "{name}" changed vs '
                            f'{upgrade_docs_baseline} but has no entry')
         for name in extra_entry_names:
             issues.append(f'{images_path.name}: entry "{name}" is listed but its image did not '

@@ -758,6 +758,27 @@ def resolve_entry_image_path(entry, paths, repo_map=None):
     return resolve_entry_path(entry["name"], paths)
 
 
+def path_display_name(path, deps, canonical_names):
+    """The doc-facing name for a values-tree image path — "<values_key>"
+    for a dependency's own primary image (same convention as every
+    "component "<key>" changed vs ..." message elsewhere in this check),
+    else whatever name canonical_names (canonical_sidecar_row_names's own
+    {name: path} mapping — "<values_key> - <basename>" for a sidecar,
+    bare "<basename>" for a shared "global" image) maps this exact path
+    to. Falls back to the raw dotted path only when neither covers it
+    (e.g. an image with no Chart.yaml dependency and no vendored/own
+    repository to resolve a basename from at all) — this should be rare
+    in practice, never the normal case."""
+    by_values_key = {(dep.get("alias") or dep["name"]): dep for dep in deps}
+    dep = by_values_key.get(path[0])
+    if dep is not None and ".".join(path[1:]) in set(image_paths_for(dep["name"])):
+        return path[0]
+    for name, candidate_path in canonical_names.items():
+        if candidate_path == path:
+            return name
+    return ".".join(path)
+
+
 def find_images_manifest_list_diff(entries, current_paths, baseline_paths, repo_map):
     """(missing_paths, extra_entry_names) — the images-manifest's own
     "list of changed images" checked against the FULL, actual set of
