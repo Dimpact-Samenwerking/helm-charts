@@ -714,8 +714,7 @@ def main():
                 print()
                 print(f"=== Adding missing entr(y/ies) to {images_path.name} ===")
                 for name in added_entry_names:
-                    print(f"  {name} (review 'name:'/'url:' — see docs/images/acr-mirror-naming.md "
-                          f"for the correct ACR mirror slug)")
+                    print(f"  {name} (review 'name:' for the correct ACR mirror slug)")
             if skipped_entry_names:
                 print()
                 print(f"Could not add an entry for {len(skipped_entry_names)} changed image(s) in "
