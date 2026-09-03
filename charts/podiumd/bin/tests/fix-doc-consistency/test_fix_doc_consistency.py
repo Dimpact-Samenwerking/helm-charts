@@ -1436,6 +1436,141 @@ def test_fix_images_manifest_entries_fixes_shared_group_comment_via_either_entry
     assert "v0.9.300" not in new_text
 
 
+# --- add_missing_images_manifest_entries ---
+
+@pytest.fixture
+def images_manifest_chart_dir(tmp_path):
+    """A real Chart.yaml + values.yaml on disk (needed by
+    lib.image_repository_check.find_images_without_repository, which
+    reads them itself rather than taking already-loaded dicts) — zac's
+    own "repository:" is set explicitly so its primary image resolves,
+    matching lib.chart.paths_by_repository's own "no owning dependency
+    needed for an own override" resolution."""
+    write(tmp_path / "Chart.yaml", yaml.safe_dump({
+        "dependencies": [
+            {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257", "repository": "@zac"},
+        ],
+    }))
+    write(tmp_path / "values.yaml", yaml.safe_dump({
+        "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.1.0@sha256:aaaa"}},
+    }))
+    return tmp_path
+
+
+def test_add_missing_images_manifest_entries_appends_new_entry(cdb, images_manifest_chart_dir):
+    text = "# Baseline: podiumd 4.8.5.\n"
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257"}]
+    target_values = {"zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent",
+                                        "tag": "5.1.0@sha256:aaaa"}}}
+    baseline_values = {"zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent",
+                                          "tag": "5.0.2@sha256:bbbb"}}}
+
+    new_text, added, skipped = cdb.add_missing_images_manifest_entries(
+        text, images_manifest_chart_dir, deps, target_values, baseline_values)
+
+    assert skipped == []
+    assert added == ["zac"]
+    assert "# zac — 5.0.2 -> 5.1.0" in new_text
+    assert "- name: infonl/zaakafhandelcomponent" in new_text
+    assert "url: infonl/zaakafhandelcomponent" in new_text
+    assert 'version: "5.1.0"' in new_text
+    assert 'digest: "sha256:aaaa"' in new_text
+
+
+def test_add_missing_images_manifest_entries_name_and_url_are_the_same_resolved_repository(
+        cdb, images_manifest_chart_dir):
+    """Both fields are set to the same repo_map key on purpose — the
+    curated ACR mirror slug (docs/images/acr-mirror-naming.md) has no
+    mechanical formula and stays a human's job to fix afterward."""
+    text = ""
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257"}]
+    target_values = {"zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent",
+                                        "tag": "5.1.0@sha256:aaaa"}}}
+
+    _new_text, added, _skipped = cdb.add_missing_images_manifest_entries(
+        text, images_manifest_chart_dir, deps, target_values, baseline_values={})
+    assert added == ["zac"]
+
+
+def test_add_missing_images_manifest_entries_noop_when_entry_already_covers_it(cdb, images_manifest_chart_dir):
+    text = (
+        "# zac — 5.0.2 -> 5.1.0\n"
+        "- name: infonl/zaakafhandelcomponent\n"
+        "  url: infonl/zaakafhandelcomponent\n"
+        '  version: "5.1.0"\n'
+        '  digest: "sha256:aaaa"\n'
+    )
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257"}]
+    target_values = {"zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent",
+                                        "tag": "5.1.0@sha256:aaaa"}}}
+    baseline_values = {"zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent",
+                                          "tag": "5.0.2@sha256:bbbb"}}}
+
+    new_text, added, skipped = cdb.add_missing_images_manifest_entries(
+        text, images_manifest_chart_dir, deps, target_values, baseline_values)
+    assert added == []
+    assert skipped == []
+    assert new_text == text
+
+
+def test_add_missing_images_manifest_entries_skips_when_no_digest_pinned(cdb, images_manifest_chart_dir):
+    """A path whose current tag has no "@sha256:..." at all can't
+    produce a valid entry (digest is a required field) — reported as
+    skipped, not silently dropped or written incomplete."""
+    write(images_manifest_chart_dir / "values.yaml", yaml.safe_dump({
+        "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.1.0"}},
+    }))
+    text = ""
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257"}]
+    target_values = {"zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.1.0"}}}
+    baseline_values = {"zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent",
+                                          "tag": "5.0.2@sha256:bbbb"}}}
+
+    new_text, added, skipped = cdb.add_missing_images_manifest_entries(
+        text, images_manifest_chart_dir, deps, target_values, baseline_values)
+    assert added == []
+    assert skipped == ["zac"]
+    assert new_text == text
+
+
+def test_add_missing_images_manifest_entries_skips_image_with_no_resolvable_repository(
+        cdb, images_manifest_chart_dir):
+    """kiss.adapter.image's own real-world case: no own override AND no
+    vendored subchart default — not a real, referenceable image, so
+    never auto-added (matches lib.image_repository_check.
+    find_images_without_repository's own definition of "unresolvable",
+    reused via find_images_manifest_list_diff)."""
+    write(images_manifest_chart_dir / "Chart.yaml", yaml.safe_dump({
+        "dependencies": [
+            {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257", "repository": "@zac"},
+            {"name": "kiss-chart", "alias": "kiss", "version": "3.0.0", "repository": "@kiss"},
+        ],
+    }))
+    write(images_manifest_chart_dir / "values.yaml", yaml.safe_dump({
+        "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.1.0@sha256:aaaa"}},
+        "kiss": {"adapter": {"image": {"tag": "0.6.7@sha256:cccc"}}},
+    }))
+    text = ""
+    deps = [
+        {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257"},
+        {"name": "kiss-chart", "alias": "kiss", "version": "3.0.0"},
+    ]
+    target_values = {
+        "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.1.0@sha256:aaaa"}},
+        "kiss": {"adapter": {"image": {"tag": "0.6.7@sha256:cccc"}}},
+    }
+    baseline_values = {
+        "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.0.2@sha256:bbbb"}},
+        "kiss": {"adapter": {"image": {"tag": "0.6.6@sha256:dddd"}}},
+    }
+
+    new_text, added, skipped = cdb.add_missing_images_manifest_entries(
+        text, images_manifest_chart_dir, deps, target_values, baseline_values)
+    assert added == ["zac"]
+    assert skipped == []  # kiss.adapter.image is excluded entirely, not reported as skipped either
+    assert "kiss" not in new_text
+
+
 # --- main() integration: images-manifest entry-comment correction ---
 
 def test_main_corrects_stale_images_manifest_entry_comment(cdb, repo_with_baseline_tag, monkeypatch):
@@ -1505,6 +1640,56 @@ def test_main_corrects_strip_registry_named_entry_via_repo_map(cdb, tmp_path, mo
 
     text = images_path.read_text(encoding="utf-8")
     assert "# ZAC — 5.0.2 -> 5.1.0" in text
+
+
+def test_main_adds_missing_images_manifest_entry(cdb, tmp_path, monkeypatch):
+    """A component that changed vs baseline but has NO images-manifest
+    entry at all yet (the "changed vs ... but has no entry" gap verify-
+    podiumd's own doc-consistency check reports) gets a new entry
+    appended by main() — not just reported for manual review."""
+    git("init", "-q", cwd=tmp_path)
+    git("config", "user.email", "test@example.com", cwd=tmp_path)
+    git("config", "user.name", "Test", cwd=tmp_path)
+
+    write(tmp_path / "Chart.yaml", yaml.safe_dump({
+        "dependencies": [
+            {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297", "repository": "@zac"},
+        ],
+    }))
+    write(tmp_path / "values.yaml", yaml.safe_dump({
+        "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.0.2@sha256:bbbb"}},
+    }))
+    doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
+    doc_dir.mkdir(parents=True)
+    images_dir = tmp_path / "docs" / "images"
+    images_dir.mkdir(parents=True)
+    git("add", "-A", cwd=tmp_path)
+    git("commit", "-q", "-m", "baseline state", cwd=tmp_path)
+    git("tag", "podiumd-4.8.5", cwd=tmp_path)
+
+    write(tmp_path / "values.yaml", yaml.safe_dump({
+        "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.1.0@sha256:aaaa"}},
+    }))
+    write(doc_dir / "4.8.3-to-4.9.0-upgrade.md",
+          "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+          "## Component versions (4.9.0 vs 4.8.5)\n\n"
+          "| Component | App version | Helm chart | Notes |\n"
+          "| --- | --- | --- | --- |\n"
+          "| ZAC (Zaakafhandelcomponent) | 5.0.2 → 5.1.0 | 1.0.297 (unchanged) | ACR mirror only |\n")
+    images_path = images_dir / "images-4.9.0.yaml"
+    write(images_path, "# Baseline: podiumd 4.8.5. Re-verify before release.\n\n[]\n")
+    git("add", "-A", cwd=tmp_path)
+    git("commit", "-q", "-m", "bump zac, no images-manifest entry yet", cwd=tmp_path)
+
+    set_argv_and_dir(cdb, monkeypatch, doc_dir, "4.8.5")
+    cdb.main()
+
+    text = images_path.read_text(encoding="utf-8")
+    assert "# zac — 5.0.2 -> 5.1.0" in text
+    assert "- name: infonl/zaakafhandelcomponent" in text
+    assert "url: infonl/zaakafhandelcomponent" in text
+    assert 'version: "5.1.0"' in text
+    assert 'digest: "sha256:aaaa"' in text
 
 
 # --- main() integration: reordering the table + Changes section ---
