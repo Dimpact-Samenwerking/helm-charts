@@ -124,3 +124,7 @@ dependencies:
     version: 0.28.4
     repository: "https://openbao.github.io/openbao-helm"
     condition: openbao.enabled
+  - name: frankgateway
+    version: 1.1.0
+    repository: "https://wearefrank.github.io/charts"
+    condition: frankgateway.enabled
