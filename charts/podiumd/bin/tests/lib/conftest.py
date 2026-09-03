@@ -12,6 +12,7 @@ import lib.chart as chart
 import lib.component_docs as component_docs
 import lib.confluence_tables as confluence_tables
 import lib.dependencies as dependencies
+import lib.docs_consistency as docs_consistency
 import lib.gitutil as gitutil
 import lib.image_docs as image_docs
 import lib.image_version as image_version
@@ -80,3 +81,8 @@ def libimagedocs():
 @pytest.fixture(scope="session")
 def libcomponentdocs():
     return component_docs
+
+
+@pytest.fixture(scope="session")
+def libdocsconsistency():
+    return docs_consistency
