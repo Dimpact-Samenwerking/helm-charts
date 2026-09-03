@@ -207,7 +207,27 @@ def test_undocumented_new_component_is_caught_everywhere(vp, chart_repo, capsys)
     assert 'component "openformulieren" changed vs' in out
     assert 'has no row in the "Component versions" table' in out
     assert 'is not mentioned anywhere in the doc' in out
-    assert "openformulieren" in out and "has no entry in images-4.9.0.yaml" in out
+    assert "openformulieren" in out and 'changed vs 4.8.5 but has no entry' in out
+
+
+def test_images_manifest_entry_with_no_real_change_is_caught(vp, chart_repo, capsys):
+    """The images manifest must list the EXACT set of changed images —
+    an entry that doesn't resolve to any real values-tree image (typo'd
+    or stale name) is flagged as extra, not silently accepted."""
+    images_path = chart_repo / "docs" / "images" / "images-4.9.0.yaml"
+    images_path.write_text(images_path.read_text() + (
+        '\n# stale entry — does not correspond to any actual change\n'
+        '- name: does-not-exist\n'
+        '  url: ghcr.io/infonl/does-not-exist\n'
+        '  version: "1.0.0"\n'
+        '  digest: "sha256:deadbeef"\n'
+    ))
+
+    ok, detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
+    assert ok is False
+
+    out = capsys.readouterr().out
+    assert ('entry "does-not-exist" is listed but its image did not change vs 4.8.5') in out
 
 
 def test_images_manifest_format_issue_does_not_swallow_other_mismatches(vp, chart_repo, capsys):

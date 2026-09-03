@@ -758,6 +758,43 @@ def resolve_entry_image_path(entry, paths, repo_map=None):
     return resolve_entry_path(entry["name"], paths)
 
 
+def find_images_manifest_list_diff(entries, current_paths, baseline_paths, repo_map):
+    """(missing_paths, extra_entry_names) — the images-manifest's own
+    "list of changed images" checked against the FULL, actual set of
+    every image tag pin whose value differs between the target
+    (current_paths) and upgrade_docs_baseline (baseline_paths) — see
+    find_image_tag_paths for what these dicts hold; comparing the whole
+    tag STRING (not just the version number) also catches a re-pin with
+    the same tag but a new digest, matching this manifest's own
+    "newly digest-pinned... tag unchanged" convention.
+
+    Each entry is matched to its values-tree path via resolve_entry_
+    image_path — repo_map's exact "name: is a stripped repository"
+    match first, falling back to fuzzy name-word matching — the SAME
+    resolution the rest of this images-manifest check already uses.
+
+    missing_paths: every path whose tag actually changed but no entry
+    resolves to it at all — a real change the manifest never mentions.
+    extra_entry_names: every entry's own "name:" that either doesn't
+    resolve to any real values-tree path at all, or resolves to one
+    whose tag did NOT actually change — listed without a real reason to
+    be there. Both empty means the manifest lists the EXACT set of
+    changed images, nothing more and nothing less."""
+    changed_paths = {path for path, tag in current_paths.items() if tag != baseline_paths.get(path)}
+
+    matched_paths = set()
+    extra_entry_names = []
+    for entry in entries:
+        path = resolve_entry_image_path(entry, current_paths.keys(), repo_map)
+        if path is not None:
+            matched_paths.add(path)
+        if path is None or path not in changed_paths:
+            extra_entry_names.append(entry["name"])
+
+    missing_paths = sorted(changed_paths - matched_paths)
+    return missing_paths, extra_entry_names
+
+
 def find_preceding_comment(lines, entry_line_index):
     """The comment line(s) immediately above a "- name: ..." line, e.g.
     "# ZAC OPA sidecar — 1.17.1-static -> 1.19.0-static" right above the opa

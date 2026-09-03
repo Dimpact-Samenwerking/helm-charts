@@ -425,6 +425,85 @@ def test_resolve_entry_image_path_ignores_repo_map_hit_not_in_paths(libupgradedo
     assert libupgradedoc.resolve_entry_image_path(entry, paths, repo_map) is None
 
 
+# --- find_images_manifest_list_diff ---
+
+def test_find_images_manifest_list_diff_exact_list_reports_nothing(libupgradedoc):
+    """The manifest lists exactly the one image that actually changed —
+    both halves come back empty."""
+    entries = [{"name": "zac"}]
+    current_paths = {("zac",): "1.2.0@sha256:new"}
+    baseline_paths = {("zac",): "1.1.0@sha256:old"}
+    missing, extra = libupgradedoc.find_images_manifest_list_diff(
+        entries, current_paths, baseline_paths, repo_map={})
+    assert missing == []
+    assert extra == []
+
+
+def test_find_images_manifest_list_diff_finds_missing_changed_image(libupgradedoc):
+    """A path whose tag actually changed but has no manifest entry at all
+    resolving to it is reported as missing."""
+    entries = []
+    current_paths = {("zac",): "1.2.0@sha256:new"}
+    baseline_paths = {("zac",): "1.1.0@sha256:old"}
+    missing, extra = libupgradedoc.find_images_manifest_list_diff(
+        entries, current_paths, baseline_paths, repo_map={})
+    assert missing == [("zac",)]
+    assert extra == []
+
+
+def test_find_images_manifest_list_diff_finds_entry_for_unchanged_image(libupgradedoc):
+    """An entry that resolves to a real path, but that path's tag is
+    identical between baseline and current — listed without a real
+    reason to be there."""
+    entries = [{"name": "zac"}]
+    current_paths = {("zac",): "1.1.0@sha256:old"}
+    baseline_paths = {("zac",): "1.1.0@sha256:old"}
+    missing, extra = libupgradedoc.find_images_manifest_list_diff(
+        entries, current_paths, baseline_paths, repo_map={})
+    assert missing == []
+    assert extra == ["zac"]
+
+
+def test_find_images_manifest_list_diff_finds_entry_matching_nothing(libupgradedoc):
+    """An entry whose name doesn't resolve to any values-tree path at
+    all (typo, stale, or a component that's since been removed) is also
+    reported as extra."""
+    entries = [{"name": "does-not-exist"}]
+    current_paths = {("zac",): "1.1.0@sha256:old"}
+    baseline_paths = {("zac",): "1.1.0@sha256:old"}
+    missing, extra = libupgradedoc.find_images_manifest_list_diff(
+        entries, current_paths, baseline_paths, repo_map={})
+    assert missing == []
+    assert extra == ["does-not-exist"]
+
+
+def test_find_images_manifest_list_diff_catches_digest_only_repin(libupgradedoc):
+    """A tag whose version number is unchanged but whose digest was
+    re-pinned still counts as "changed" — matches this manifest's own
+    "newly digest-pinned... tag unchanged" convention."""
+    entries = []
+    current_paths = {("zac",): "1.1.0@sha256:newdigest"}
+    baseline_paths = {("zac",): "1.1.0@sha256:olddigest"}
+    missing, extra = libupgradedoc.find_images_manifest_list_diff(
+        entries, current_paths, baseline_paths, repo_map={})
+    assert missing == [("zac",)]
+    assert extra == []
+
+
+def test_find_images_manifest_list_diff_uses_repo_map_for_resolution(libupgradedoc):
+    """Entry resolution goes through resolve_entry_image_path — a
+    strip-registry-shaped name only matches via repo_map, same as that
+    function's own exact-hit behavior."""
+    entries = [{"name": "infonl/zaakafhandelcomponent"}]
+    current_paths = {("zac",): "1.2.0@sha256:new"}
+    baseline_paths = {("zac",): "1.1.0@sha256:old"}
+    repo_map = {"infonl/zaakafhandelcomponent": ("zac",)}
+    missing, extra = libupgradedoc.find_images_manifest_list_diff(
+        entries, current_paths, baseline_paths, repo_map)
+    assert missing == []
+    assert extra == []
+
+
 # --- find_preceding_comment ---
 
 def test_find_preceding_comment_joins_consecutive_comment_lines(libupgradedoc):
