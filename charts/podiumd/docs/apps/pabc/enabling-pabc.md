@@ -195,11 +195,42 @@ After the first successful deploy, the PABC database must be seeded with:
 - Functional roles that map 1:1 to the Keycloak group names in the `podiumd` realm
 - A domain and mappings that authorise each group for its intended ZAC roles
 
-**Important:** The `pabc-migrations` job seeds the application with the name `"zac"`, but ZAC always sends `application-name="zaakafhandelcomponent"` to the PABC API. Without renaming the application, all ZAC authorisation calls return empty results. The init job below corrects this.
+**Important:** The `pabc-migrations` job creates the schema only. On a fresh
+database it inserts no data at all, and where it did seed an application it used
+the name `"zac"` while ZAC always sends `application-name="zaakafhandelcomponent"`.
+Either way, all ZAC authorisation calls return empty results until the database
+is seeded, and every user sees "u heeft geen toestemming om deze pagina te
+bekijken".
 
-### Automated approach (recommended)
+### Chart-native seed job (recommended, PodiumD 4.8.4+)
 
-Run the PABC init job from `podiumd-infra`:
+Enable both values on the environment and run a normal `helm upgrade`:
+
+```yaml
+pabc:
+  datasetConfigMap:
+    enabled: true
+  seedJob:
+    enabled: true
+```
+
+This renders `files/pabc-dataset.json` into the `pabc-dataset` ConfigMap and runs
+`pabc-seed-job-<checksum>` once, using the `pabc-migrations` image with
+`JSON_DATASET_PATH`. The dataset declares the application as
+`zaakafhandelcomponent` directly, so no rename is needed. The Job name carries a
+checksum of the dataset and of the rendered pod template, so it does not rerun
+on later upgrades unless one of those changes. A chart version bump on its own
+does not re-seed.
+
+Seeding **replaces** all PABC content, so leave it disabled on environments that
+have already been curated through the PABC UI. See
+[pabc-iam-migration.md](./pabc-iam-migration.md) for the full switch-over.
+
+### Older init job from podiumd-infra (fallback)
+
+Superseded by the seed job above, and blocked by the Azure Policy allowed-images
+constraint on `aks-blue-*` clusters because it uses `postgres:15` and
+`curlimages/curl`. Still useful on clusters without that constraint:
 
 ```bash
 kubectl delete job post-deployment-pabc-init -n podiumd --ignore-not-found

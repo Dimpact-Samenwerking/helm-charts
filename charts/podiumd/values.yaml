@@ -3566,6 +3566,36 @@ pabc:
       repository: ghcr.io/platform-autorisatie-beheer-component/pabc-migrations
       tag: "1.1.1@sha256:a3841a2eb78cddd34ebb0de1bfede1db1ae9713921c0d77e4366baceffa86e05"
     nodeSelector: {}
+    # The migrations image can also seed data from a JSON dataset via
+    # dataSetPath (JSON_DATASET_PATH) + extraVolumes/extraVolumeMounts.
+    # CAUTION: this job reruns on every helm upgrade and the migration
+    # service REPLACES all applications, roles, domains, entity types and
+    # mappings with the dataset contents each run — PABC UI edits are lost.
+    # Prefer a one-shot seed Job that mounts the pabc-dataset ConfigMap
+    # (see datasetConfigMap below) and runs this same image once.
+  # -- When enabled, renders files/pabc-dataset.json into a ConfigMap named
+  # pabc-dataset, for a (one-shot) seed job running the migrations image with
+  # JSON_DATASET_PATH, or for migrations.dataSetPath (see caution above).
+  # Required by seedJob below.
+  datasetConfigMap:
+    enabled: false
+  # -- One-shot Job that seeds the PABC database from the pabc-dataset
+  # ConfigMap. Enable together with datasetConfigMap on an environment whose
+  # PABC is still empty: without it ZAC resolves no application roles at all and
+  # every user lands on "u heeft geen toestemming om deze pagina te bekijken".
+  #
+  # The Job name carries a checksum of the dataset, so it runs once and stays
+  # put across upgrades; editing files/pabc-dataset.json re-seeds on purpose.
+  # Seeding REPLACES all PABC content — on an environment that has already been
+  # curated through the PABC UI, leave this disabled.
+  seedJob:
+    enabled: false
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "10m"
+      limits:
+        memory: "512Mi"
   initContainers:
     waitFor:
       image:
