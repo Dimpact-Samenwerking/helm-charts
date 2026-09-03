@@ -646,7 +646,7 @@ def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, ba
     canonical_names = canonical_sidecar_row_names(chart_dir, deps, target_values, current_paths.keys())
     key_order = values_key_order(target_values)
 
-    missing_paths, _extra_entry_names = find_images_manifest_list_diff(
+    missing_paths, _stale_entry_names, _unmatched_entry_names = find_images_manifest_list_diff(
         entries, current_paths, baseline_paths, repo_map, repo_groups, unresolvable_paths)
 
     def order_key(values_key, is_sidecar):

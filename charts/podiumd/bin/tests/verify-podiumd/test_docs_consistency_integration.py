@@ -214,8 +214,12 @@ def test_undocumented_new_component_is_caught_everywhere(vp, chart_repo, capsys)
 
 def test_images_manifest_entry_with_no_real_change_is_caught(vp, chart_repo, capsys):
     """The images manifest must list the EXACT set of changed images —
-    an entry that doesn't resolve to any real values-tree image (typo'd
-    or stale name) is flagged as extra, not silently accepted."""
+    an entry that doesn't resolve to any real values-tree image at all
+    (typo'd or stale name) is flagged with the same "wrong or stale —
+    not found" wording used for a -upgrade.md row that names no real
+    component (see find_images_manifest_list_diff's unmatched_entry_
+    names), not the "did not change" message reserved for an entry that
+    DOES resolve to a real, merely-unchanged path."""
     images_path = chart_repo / "docs" / "images" / "images-4.9.0.yaml"
     images_path.write_text(images_path.read_text() + (
         '\n# stale entry — does not correspond to any actual change\n'
@@ -229,7 +233,8 @@ def test_images_manifest_entry_with_no_real_change_is_caught(vp, chart_repo, cap
     assert ok is False
 
     out = capsys.readouterr().out
-    assert ('entry "does-not-exist" is listed but its image did not change vs 4.8.5') in out
+    assert ('entry "does-not-exist" is wrong or stale — '
+            'not found in Chart.yaml or values.yaml') in out
 
 
 def test_images_manifest_format_issue_does_not_swallow_other_mismatches(vp, chart_repo, capsys):

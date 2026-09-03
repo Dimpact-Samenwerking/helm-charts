@@ -999,10 +999,21 @@ def find_images_manifest_list_diff(entries, current_paths, baseline_paths, repo_
 
     missing_paths: every (already-collapsed) path whose tag actually
     changed but no entry resolves to it at all — a real change the
-    manifest never mentions. extra_entry_names: every entry's own
-    "name:" that either doesn't resolve to any real values-tree path at
-    all, or resolves to one whose tag did NOT actually change — listed
-    without a real reason to be there. Both empty means the manifest
+    manifest never mentions. stale_entry_names: every entry's own
+    "name:" that DOES resolve to a real values-tree path, but that
+    path's tag did NOT actually change — listed without a real reason
+    to be there. unmatched_entry_names: every entry's own "name:" that
+    doesn't resolve to any real values-tree path AT ALL — same "wrong
+    phrasing, or a stale row" gap a -upgrade.md row that names no real
+    component reports (see check_docs_consistency's own duplicate_
+    names/wrong_fuzzy_names handling), kept SEPARATE from stale_entry_
+    names since "this entry's image is unchanged" and "this entry
+    doesn't correspond to anything at all" call for two different fixes
+    (drop a stale entry outright; a genuinely unmatched one needs its
+    own name/repository corrected, or a values-tree lookup this
+    function's own registries don't cover yet added — see
+    lib.chart.COMPONENT_VERSION_PATH_NESTED_SUBCHARTS for a real
+    example of the second kind). All three empty means the manifest
     lists the EXACT set of changed images, nothing more and nothing
     less."""
     representative_of = {path: repo_map[repo] for repo, paths in repo_groups.items()
@@ -1017,7 +1028,7 @@ def find_images_manifest_list_diff(entries, current_paths, baseline_paths, repo_
                       if version_changed(path, tag) and path not in unresolvable_paths}
 
     matched_paths = set()
-    extra_entry_names = []
+    stale_entry_names, unmatched_entry_names = [], []
     for entry in entries:
         path = resolve_entry_image_path(entry, current_paths.keys(), repo_map)
         # An entry can resolve to ANY path in a shared-repository group —
@@ -1030,13 +1041,15 @@ def find_images_manifest_list_diff(entries, current_paths, baseline_paths, repo_
         # is, so the two sides can never disagree about which path
         # "counts" for a shared image.
         path = representative_of.get(path, path) if path is not None else None
-        if path is not None:
-            matched_paths.add(path)
-        if path is None or path not in changed_paths:
-            extra_entry_names.append(entry["name"])
+        if path is None:
+            unmatched_entry_names.append(entry["name"])
+            continue
+        matched_paths.add(path)
+        if path not in changed_paths:
+            stale_entry_names.append(entry["name"])
 
     missing_paths = sorted(changed_paths - matched_paths)
-    return missing_paths, extra_entry_names
+    return missing_paths, stale_entry_names, unmatched_entry_names
 
 
 def find_preceding_comment(lines, entry_line_index):

@@ -319,15 +319,18 @@ def check_images_manifest_format(images_path, upgrade_docs_baseline, podiumd_ver
     if baseline_paths and chart_dir is not None:
         canonical_names = canonical_sidecar_row_names(chart_dir, deps, values, current_paths.keys())
         unresolvable_paths = set(find_images_without_repository(chart_dir))
-        missing_paths, extra_entry_names = find_images_manifest_list_diff(
+        missing_paths, stale_entry_names, unmatched_entry_names = find_images_manifest_list_diff(
             entries, current_paths, baseline_paths, repo_map, repo_groups, unresolvable_paths)
         for path in missing_paths:
             name = path_display_name(path, deps, canonical_names)
             issues.append(f'{images_path.name}: image "{name}" changed vs '
                            f'{upgrade_docs_baseline} but has no entry')
-        for name in extra_entry_names:
+        for name in stale_entry_names:
             issues.append(f'{images_path.name}: entry "{name}" is listed but its image did not '
                            f'change vs {upgrade_docs_baseline}')
+        for name in unmatched_entry_names:
+            issues.append(f'{images_path.name}: entry "{name}" is wrong or stale — '
+                           f'not found in Chart.yaml or values.yaml')
 
     return issues
 
