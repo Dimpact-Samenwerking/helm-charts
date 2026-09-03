@@ -5,6 +5,51 @@ docs/_UPGRADE_PATHS/4.8.1-to-4.8.2-upgrade.md (curl/nginx-unprivileged/
 busybox each got their own table row + "### <name> ..." Changes block)."""
 
 
+# --- add_missing_sidecar_rows ---
+
+def test_add_missing_sidecar_rows_global_image_gets_one_row_not_per_alias(libimagedocs, tmp_path):
+    """Real bug: nginx-unprivileged is aliased by zac's own nginx sidecar
+    AND frankgateway's own nginx sidecar (the same global.images.nginx
+    anchor) — before global_image_paths was folded into current_paths
+    here, canonical_sidecar_row_names never saw a "global"-rooted path
+    at all, so each real dependency's own sidecar independently
+    qualified for its own "<dep> - nginx-unprivileged" row, giving the
+    SAME version bump two separate rows. Must be exactly one, bare
+    "nginx-unprivileged" row instead."""
+    deps = [
+        {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"},
+        {"name": "frankgateway", "alias": "", "version": "1.1.0"},
+    ]
+    target_values = {
+        "global": {"images": {"nginx": {
+            "repository": "nginxinc/nginx-unprivileged", "tag": "1.31.4@sha256:aaaa"}}},
+        "zac": {"nginx": {"image": {"repository": "nginxinc/nginx-unprivileged", "tag": "1.31.4@sha256:aaaa"}}},
+        "frankgateway": {"dashboard": {"auth": {"shim": {"image": {
+            "repository": "nginxinc/nginx-unprivileged", "tag": "1.31.4@sha256:aaaa"}}}}},
+    }
+    baseline_values = {
+        "global": {"images": {"nginx": {
+            "repository": "nginxinc/nginx-unprivileged", "tag": "1.31.3@sha256:bbbb"}}},
+        "zac": {"nginx": {"image": {"repository": "nginxinc/nginx-unprivileged", "tag": "1.31.3@sha256:bbbb"}}},
+        "frankgateway": {"dashboard": {"auth": {"shim": {"image": {
+            "repository": "nginxinc/nginx-unprivileged", "tag": "1.31.3@sha256:bbbb"}}}}},
+    }
+    text = (
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+    )
+
+    new_text, added = libimagedocs.add_missing_sidecar_rows(
+        text, tmp_path, deps, target_values, baseline_values, "4.9.0")
+
+    assert added == ["nginx-unprivileged"]
+    assert "| nginx-unprivileged | 1.31.3 → 1.31.4 | - | - |" in new_text
+    assert "### nginx-unprivileged 1.31.3 → 1.31.4" in new_text
+    assert "zac - nginx-unprivileged" not in new_text
+    assert "frankgateway - nginx-unprivileged" not in new_text
+
+
 # --- make_image_changes_section ---
 
 def test_make_image_changes_section_lists_every_pinned_path(libimagedocs):

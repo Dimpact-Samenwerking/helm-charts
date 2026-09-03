@@ -514,7 +514,9 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
         if baseline_ref else set()
     )
     current_paths = dict(find_image_tag_paths(values))
+    current_paths.update(global_image_paths(values))
     baseline_paths = dict(find_image_tag_paths(baseline_values)) if baseline_ref else {}
+    baseline_paths.update(global_image_paths(baseline_values) if baseline_ref else [])
 
     if not doc_matches:
         print(f"WARNING: no upgrade doc matches {doc_glob} — skipping doc check")

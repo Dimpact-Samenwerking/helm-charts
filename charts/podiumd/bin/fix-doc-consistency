@@ -260,6 +260,7 @@ def fix_component_version_table(text, chart_dir, target_deps, target_values, bas
     changed_rows, unmatched_names, unresolved_names = [], [], []
 
     current_paths = dict(find_image_tag_paths(target_values))
+    current_paths.update(global_image_paths(target_values))
     canonical_names = canonical_sidecar_row_names(chart_dir, target_deps, target_values, current_paths.keys())
 
     for row in rows:
@@ -1001,6 +1002,7 @@ def main():
             added_sidecar_names = []
 
         current_paths = dict(find_image_tag_paths(target_values))
+        current_paths.update(global_image_paths(target_values))
         canonical_names = canonical_sidecar_row_names(CHART_YAML.parent, target_deps, target_values,
                                                         current_paths.keys())
 
