@@ -13,6 +13,7 @@ import yaml
 from lib.chart import (
     canonical_sidecar_row_names, global_image_paths, load_yaml, paths_by_repository, repo_group_representative,
 )
+from lib.component_docs import CHANGES_ITEM_RE, find_images_manifest_changes_header
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
 from lib.image_repository_check import find_images_without_repository
 from lib.upgradedoc import (
@@ -21,7 +22,8 @@ from lib.upgradedoc import (
     find_all_image_and_version_paths, find_changes_row_correspondence_gaps, find_grouped_preceding_comment,
     find_image_tag_paths, find_images_manifest_faulty_headers, find_images_manifest_list_diff,
     find_images_manifest_out_of_order_names, find_out_of_order_names, find_wrong_or_duplicate_dependency_claims,
-    images_manifest_entries_share_group,
+    images_manifest_display_name_positions, images_manifest_entries_share_group, images_manifest_entry_positions,
+    match_changes_item_display_name,
     match_dependency, match_dependency_excluding_sidecar_names,
     normalize_version, pair_renames, parse_changes_block, parse_upgrade_doc_changes_blocks,
     parse_upgrade_doc_rows as _parse_upgrade_doc_rows, path_display_name, resolve_component_row,
@@ -162,6 +164,162 @@ def match_changes_item_to_entry(item_name, entries):
     search_text = item_name.split(" - ", 1)[1] if " - " in item_name else item_name
     match = match_dependency(search_text, candidates)
     return match["_entry"] if match else None
+
+
+def _images_manifest_changes_items(lines):
+    """[(rest, start, end), ...] for every "#   N. ..." item in the images-
+    manifest's own "# Changes:" header list — `rest` is the item's own
+    text (first line only, matching CHANGES_ITEM_RE's own "rest" group;
+    a wrapped continuation line is skipped, never needed for either
+    caller below), `start`/`end` its own line-index span. [] if the
+    header doesn't exist, or has no items at all. Deliberately returns
+    even a SINGLE item — unlike fix-doc-consistency's own sort_images_
+    manifest_changes_items, which floors at 2 (nothing to reorder with
+    just one) — find_images_manifest_entries_missing_changes_mention
+    still needs to know about a lone existing item to correctly credit
+    it as covering its own entry; find_images_manifest_changes_items_
+    out_of_order applies its own >= 2 floor itself, separately, for
+    exactly that reordering reason. Factored out so both callers can
+    never disagree about which lines make up "the list"."""
+    header_idx, _has_count = find_images_manifest_changes_header(lines)
+    if header_idx is None:
+        return []
+    item_starts = []
+    block_end = header_idx + 1
+    for i in range(header_idx + 1, len(lines)):
+        if lines[i].rstrip("\n") == "#" or not lines[i].startswith("#"):
+            break
+        block_end = i + 1
+        if CHANGES_ITEM_RE.match(lines[i]):
+            item_starts.append(i)
+    if not item_starts:
+        return []
+    item_ends = item_starts[1:] + [block_end]
+    return [(CHANGES_ITEM_RE.match(lines[start]).group("rest"), start, end)
+            for start, end in zip(item_starts, item_ends)]
+
+
+def find_images_manifest_changes_items_out_of_order(text, entries, entry_positions, display_name_positions):
+    """[(item_a_text, item_b_text), ...] for every ADJACENT pair of "#
+    Changes:" items whose relative order contradicts entry_positions/
+    display_name_positions' own order (lib.upgradedoc.images_manifest_
+    entry_positions/images_manifest_display_name_positions — the SAME
+    final order sort_images_manifest_entries itself applies to the
+    manifest's own entry list) — same "adjacent pairs are sufficient to
+    catch any non-monotonic sequence" reasoning find_images_manifest_
+    out_of_order_names already uses for the entry list itself. That
+    check only ever covers the ENTRIES, never this header list — a real
+    gap: a manifest can have its entries perfectly grouped/ordered while
+    the "# Changes:" list above them is scrambled relative to it (real
+    case: "kiss"/"kiss-eck" items landing far from their own sidecars'
+    items purely because match_changes_item_to_entry's fuzzy basename
+    search can't resolve a display name sharing no word with its own
+    entry's repository basename), and nothing previously reported that.
+
+    Resolves each item via the EXACT same two-tier match fix-doc-
+    consistency's own sort_images_manifest_changes_items applies —
+    match_changes_item_display_name's exact prefix match first,
+    match_changes_item_to_entry's fuzzy basename match as fallback — so
+    checker and fixer can never disagree about what "in order" means.
+    An item resolving via NEITHER sorts last, same as the fixer — never
+    flagged as out of place relative to a resolvable neighbor just
+    because it's free-form prose with nothing to match against."""
+    lines = text.splitlines(keepends=True)
+    items = _images_manifest_changes_items(lines)
+    if len(items) < 2:
+        return []
+
+    keys = []
+    for rest, _start, _end in items:
+        display_name = match_changes_item_display_name(rest, display_name_positions)
+        if display_name is not None:
+            keys.append(display_name_positions[display_name])
+        else:
+            entry = match_changes_item_to_entry(rest, entries)
+            keys.append(entry_positions.get(entry["name"], len(entry_positions)) if entry else len(entry_positions))
+
+    return [(items[i][0], items[i + 1][0]) for i in range(len(items) - 1) if keys[i + 1] < keys[i]]
+
+
+def find_images_manifest_entries_missing_changes_mention(text, entries, deps, values, repo_map, canonical_names):
+    """Display names (lib.upgradedoc.path_display_name) of every images-
+    manifest entry GROUP (lib.upgradedoc.images_manifest_entry_positions'
+    own group-level position) that has no "# Changes:" item resolving
+    back to it at all — the gap fix-doc-consistency's own add_missing_
+    images_manifest_entries' second ("backfill") pass exists to patch,
+    with no check counterpart until now: find_images_manifest_list_diff's
+    own missing_paths only ever catches a changed image with no ENTRY,
+    never an entry that exists (and is otherwise perfectly correct) but
+    was simply never added to the header list — e.g. a component added
+    by hand straight into the body, or a manifest edited before header-
+    list items existed for it at all.
+
+    "Resolving back to it" means the SAME two-tier match find_images_
+    manifest_changes_items_out_of_order/fix-doc-consistency's own sort_
+    images_manifest_changes_items apply — match_changes_item_display_
+    name's exact prefix match against the entry's own canonical display
+    name, OR match_changes_item_to_entry's fuzzy basename match against
+    the entry's own raw "name:" — a free-form item using neither form
+    (real case: a bare "redis-ha ..." item for what canonical_sidecar_
+    row_names would call "redis-operator - redis") still counts as
+    covering it, exactly as it already does for ordering/sorting; this
+    is deliberately NOT a literal string search for the display name
+    inside the header, which would wrongly demand every item spell out
+    that one exact phrase.
+
+    Compared by DISPLAY NAME, not by entry_positions' own per-entry
+    position — a multi-image "lockstep" component (zgw-office-addin's
+    frontend + backend, eck-stack's elasticsearch + kibana, ita's web +
+    poller) has SEVERAL entries, each its own distinct position, but ALL
+    sharing one display name; one Changes item naming that shared
+    display name (the dedupe_images_manifest_changes_items-fixed shape —
+    see fix-doc-consistency) legitimately covers every one of them, not
+    just whichever single entry happens to sit at display_name_
+    positions' own lowest-position pick.
+
+    A group whose own display name is path_display_name's raw-dotted-
+    path fallback (no real dependency/canonical-sidecar name resolves it
+    at all — rare) is skipped entirely, same reasoning as the fixer's
+    own backfill pass: never a phrase a human would write in prose, so
+    it's not a gap worth reporting. [] under the same guards images_
+    manifest_entry_positions applies (invalid YAML, or fewer than 2
+    entries) — nothing to cross-check with just 0 or 1 entries."""
+    entry_positions = images_manifest_entry_positions(text, deps, values, repo_map, canonical_names)
+    if not entry_positions:
+        return []
+    display_name_positions = images_manifest_display_name_positions(text, deps, values, repo_map, canonical_names)
+
+    current_paths = dict(find_all_image_and_version_paths(values, deps))
+    current_paths.update(global_image_paths(values))
+
+    def entry_display_name(entry):
+        path = resolve_entry_image_path(entry, current_paths.keys(), repo_map)
+        return path_display_name(path, deps, canonical_names) if path else None
+
+    lines = text.splitlines(keepends=True)
+    covered_names = set()
+    for rest, _start, _end in _images_manifest_changes_items(lines):
+        display_name = match_changes_item_display_name(rest, display_name_positions)
+        if display_name is not None:
+            covered_names.add(display_name)
+            continue
+        entry = match_changes_item_to_entry(rest, entries)
+        matched_name = entry_display_name(entry) if entry is not None else None
+        if matched_name is not None:
+            covered_names.add(matched_name)
+
+    missing, seen = [], set()
+    for entry in entries:
+        if not isinstance(entry, dict) or entry.get("name") not in entry_positions:
+            continue
+        path = resolve_entry_image_path(entry, current_paths.keys(), repo_map)
+        display_name = path_display_name(path, deps, canonical_names) if path else None
+        if display_name is None or display_name in seen or display_name == ".".join(path):
+            continue
+        seen.add(display_name)
+        if display_name not in covered_names:
+            missing.append(display_name)
+    return sorted(missing)
 
 
 def check_images_manifest_format(images_path, upgrade_docs_baseline, podiumd_version, deps, values, baseline_values,
@@ -347,6 +505,26 @@ def check_images_manifest_format(images_path, upgrade_docs_baseline, podiumd_ver
             issues.append(f'{images_path.name}: entry "{name_b}" is listed right after "{name_a}", but '
                            f'values.yaml lists {name_b} before {name_a} — entries should follow values.yaml\'s '
                            f'own component order')
+
+    # Also structural, independent of upgrade_docs_baseline: the "#
+    # Changes:" header's OWN numbered item list should follow the SAME
+    # order as the entry list just checked above — the two can silently
+    # disagree (entries correctly grouped/ordered, header list scrambled
+    # relative to them) with nothing else here to catch it.
+    if chart_dir is not None:
+        entry_positions = images_manifest_entry_positions(text, deps, values, repo_map, canonical_names)
+        display_name_positions = images_manifest_display_name_positions(text, deps, values, repo_map,
+                                                                          canonical_names)
+        for item_a, item_b in find_images_manifest_changes_items_out_of_order(
+                text, entries, entry_positions, display_name_positions):
+            issues.append(f'{images_path.name}: "# Changes:" list has "{item_b}" right after "{item_a}", but '
+                           f'the entry list has them in the opposite order — Changes items should follow the '
+                           f'same order as the entries below them')
+
+        for name in find_images_manifest_entries_missing_changes_mention(
+                text, entries, deps, values, repo_map, canonical_names):
+            issues.append(f'{images_path.name}: image "{name}" has an entry but no mention in the '
+                           f'"# Changes:" list')
 
     # Only checked once there's something real to diff against — without
     # a resolvable upgrade_docs_baseline, "changed" can't be computed at

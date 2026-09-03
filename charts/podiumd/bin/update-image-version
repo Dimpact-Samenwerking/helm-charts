@@ -265,7 +265,7 @@ def update_docs_single_component(new_version, target, deps, values, dep, values_
 
     changes_action, entry_updates, missing_entries = update_images_manifest(
         images_path, friendly, values_key, old_app, new_version, chart_version_str, chart_version_str,
-        image_paths, repos, new_tags_by_path,
+        image_paths, repos, new_tags_by_path, deps=deps, values=values,
     )
     print()
     print(f"=== Updating {images_path.name} ===")

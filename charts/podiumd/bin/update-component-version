@@ -585,7 +585,7 @@ def main():
             else:
                 changes_action, entry_updates, missing_entries = update_images_manifest(
                     images_path, friendly, values_key, old_app, app_version, old_chart, chart_version,
-                    paths_to_update, repos, new_tags_by_path,
+                    paths_to_update, repos, new_tags_by_path, deps=deps, values=values,
                 )
                 print()
                 print(f"=== Updating {images_path.name} ===")

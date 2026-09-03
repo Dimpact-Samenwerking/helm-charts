@@ -88,7 +88,7 @@ from lib.chart import upgrade_docs_baseline as read_upgrade_docs_baseline
 from lib.component_docs import (
     CHANGES_HEADER_RE, CHANGES_ITEM_RE, IMAGES_STUB_TEMPLATE, NUMBER_WORDS, STANDARD_SUFFIXES, STUB_TEMPLATES,
     add_missing_component_rows, add_missing_values_delta_bullets, existing_doc_baselines,
-    find_images_manifest_changes_header,
+    find_images_manifest_changes_header, images_manifest_order_key, insert_images_manifest_header_item,
 )
 from lib.docs_consistency import match_changes_item_to_entry
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
@@ -101,6 +101,7 @@ from lib.upgradedoc import (
     find_grouped_preceding_comment_line, find_image_tag_paths, find_images_manifest_list_diff,
     images_manifest_block_start, images_manifest_display_name_positions, images_manifest_entries_share_group,
     images_manifest_entry_positions, insertion_index, is_primary_image_path,
+    match_changes_item_display_name,
     match_dependency_excluding_sidecar_names, missing_key_change_lines, normalize_version, parse_upgrade_doc_rows,
     path_display_name, replace_version_pair, resolve_component_row, resolve_entry_image_path, sort_changes_blocks,
     sort_images_manifest_entries, sort_upgrade_doc_rows, values_key_order,
@@ -457,66 +458,6 @@ def _images_manifest_changes_header_text(lines):
     return "".join(lines[header_idx:block_end])
 
 
-def _insert_images_manifest_header_item(lines, deps, key_order, order_key, new_key, item_text):
-    """Insert "#   N. <item_text>" into the images-manifest's own "#
-    Changes:" header list (see _find_images_manifest_changes_header) at
-    the position matching new_key relative to what's already there (see
-    lib.upgradedoc.component_order_key/insertion_index — the SAME
-    ordering convention upgrade.md's own table rows/Changes sections
-    use), renumbering every subsequent item. An existing item that
-    can't be resolved to a real dependency (free-form prose, matched
-    via match_dependency_excluding_sidecar_names the same way
-    check_images_manifest_format's own Changes-item check does) sorts
-    last for THIS purpose only — never causes it to move. Mutates
-    `lines` in place; a no-op if the file has no header at all. Only
-    rewrites the header line's own leading count word if it already had
-    one (see header_has_count) — never invents one for a bare "#
-    Changes:" label."""
-    header_idx, header_has_count = find_images_manifest_changes_header(lines)
-    if header_idx is None:
-        return
-
-    item_indices = []
-    block_end = header_idx + 1
-    for i in range(header_idx + 1, len(lines)):
-        if lines[i].rstrip("\n") == "#" or not lines[i].startswith("#"):
-            break
-        block_end = i + 1
-        if CHANGES_ITEM_RE.match(lines[i]):
-            item_indices.append(i)
-
-    item_keys = []
-    for idx in item_indices:
-        m = CHANGES_ITEM_RE.match(lines[idx])
-        item_dep = match_dependency_excluding_sidecar_names(m.group("rest"), deps) if m else None
-        if item_dep is None:
-            item_keys.append((len(key_order), 0))
-            continue
-        item_keys.append(order_key(item_dep.get("alias", item_dep["name"]), False))
-
-    insert_slot = insertion_index(new_key, item_keys)
-    insert_line = item_indices[insert_slot] if insert_slot < len(item_indices) else block_end
-    lines.insert(insert_line, f"#   {insert_slot + 1}. {item_text}\n")
-
-    for later_idx in range(insert_line + 1, len(lines)):
-        if lines[later_idx].rstrip("\n") == "#" or not lines[later_idx].startswith("#"):
-            break
-        m = CHANGES_ITEM_RE.match(lines[later_idx])
-        if m:
-            lines[later_idx] = f"#   {int(m.group('num')) + 1}. {m.group('rest')}\n"
-
-    if header_has_count:
-        total = len(item_indices) + 1
-        count_word = NUMBER_WORDS[total] if total < len(NUMBER_WORDS) else str(total)
-        noun = "change" if total == 1 else "changes"
-        header_m = CHANGES_HEADER_RE.match(lines[header_idx])
-        lines[header_idx] = f"{header_m.group('indent')}{count_word} {noun}:\n"
-    # else: header was already a bare "# Changes:" label with no count
-    # word of its own — left exactly as-is, matching whatever style
-    # this file already uses; only the numbered item list itself needed
-    # the new entry.
-
-
 def dedupe_images_manifest_changes_items(lines):
     """Remove an exact-duplicate item from the images-manifest's own "#
     Changes:" numbered list — the real bug a multi-image "lockstep"
@@ -584,31 +525,6 @@ def dedupe_images_manifest_changes_items(lines):
     return removed
 
 
-def _match_changes_item_display_name(rest, display_name_positions):
-    """The longest key of display_name_positions that `rest` starts with
-    (followed by a space, or an exact match) — every auto-inserted
-    Changes item's own text is always built as f"{name} {old} -> {new}."
-    (see add_missing_images_manifest_entries' own version_text), so this
-    is an EXACT match for anything the tooling itself wrote, never a
-    guess — unlike match_changes_item_to_entry's fuzzy basename-in-text
-    search, which has no way to resolve a name like "kiss" or "kiss-eck"
-    that shares no word at all with its own entry's repository basename
-    ("kiss-frontend", "elasticsearch"/"kibana"). A hand-written free-form
-    item (e.g. "Keycloak app image 26.6.4 -> 26.7.2 (...)") simply won't
-    start with any known display name, and the caller falls back to
-    match_changes_item_to_entry for that case instead. Longest match
-    wins so a primary's own display name ("keycloak-operator") is never
-    chosen over its own sidecar's longer, " - "-suffixed one ("keycloak-
-    operator - postgres") sharing the same prefix. None if nothing
-    matches."""
-    best = None
-    for name in display_name_positions:
-        if rest == name or rest.startswith(name + " "):
-            if best is None or len(name) > len(best):
-                best = name
-    return best
-
-
 def sort_images_manifest_changes_items(lines, entries, entry_positions, display_name_positions=None):
     """Reorder the images-manifest's own "# Changes:" numbered item list
     (see _find_images_manifest_changes_header) to MIRROR the entry
@@ -626,8 +542,8 @@ def sort_images_manifest_changes_items(lines, entries, entry_positions, display_
     "keycloak"'s own actual entry) — a mismatch the entry list itself
     can never have, since it resolves entries via repo_map/values-tree
     paths, not prose. Each item is matched EXACTLY first, by display
-    name (see _match_changes_item_display_name/display_name_positions —
-    lib.upgradedoc.images_manifest_display_name_positions, computed the
+    name (see lib.upgradedoc.match_changes_item_display_name and its own
+    display_name_positions — images_manifest_display_name_positions, computed the
     SAME group-level way entry_positions is) — the only reliable option
     for a display name sharing no word at all with its own entry's
     repository basename (real case: "kiss" and "kiss-eck" share nothing
@@ -669,7 +585,7 @@ def sort_images_manifest_changes_items(lines, entries, entry_positions, display_
     items = []
     for start, end in zip(item_starts, item_ends):
         rest = CHANGES_ITEM_RE.match(lines[start]).group("rest")
-        display_name = _match_changes_item_display_name(rest, display_name_positions or {})
+        display_name = match_changes_item_display_name(rest, display_name_positions or {})
         if display_name is not None:
             position = display_name_positions[display_name]
         else:
@@ -828,10 +744,7 @@ def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, ba
         entries, current_paths, baseline_paths, repo_map, repo_groups, unresolvable_paths)
 
     def order_key(values_key, is_sidecar):
-        try:
-            return (key_order.index(values_key), 1 if is_sidecar else 0)
-        except ValueError:
-            return (len(key_order), 1 if is_sidecar else 0)
+        return images_manifest_order_key(key_order, values_key, is_sidecar)
 
     added_names, skipped_names = [], []
     for path in missing_paths:
@@ -892,8 +805,7 @@ def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, ba
         # already uses to skip an entry whose name is already mentioned.
         header_text = _images_manifest_changes_header_text(lines)
         if not re.search(rf"\b{re.escape(name)}\b", header_text, re.IGNORECASE):
-            _insert_images_manifest_header_item(
-                lines, deps, key_order, order_key, new_key, f"{version_text}.")
+            insert_images_manifest_header_item(lines, deps, key_order, new_key, f"{version_text}.")
 
         entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
         entry_keys = []
@@ -966,8 +878,7 @@ def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, ba
 
         entry_path, entry_name, entry_old, entry_new = target
         new_key = order_key(entry_path[0], " - " in entry_name)
-        _insert_images_manifest_header_item(
-            lines, deps, key_order, order_key, new_key, f"{entry_name} {entry_old} -> {entry_new}.")
+        insert_images_manifest_header_item(lines, deps, key_order, new_key, f"{entry_name} {entry_old} -> {entry_new}.")
         text = "".join(lines)
         backfilled_names.append(entry_name)
 

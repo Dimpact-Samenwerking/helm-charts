@@ -409,6 +409,189 @@ def test_images_manifest_format_correctly_ordered_entries_are_not_flagged(libdoc
     assert not any("is listed right after" in i for i in issues)
 
 
+def test_images_manifest_format_changes_list_out_of_order_is_flagged(libdocsconsistency, tmp_path):
+    """Real gap: the "# Changes:" header list can be scrambled relative
+    to values.yaml's own order even while the ENTRY list below it (the
+    only thing find_images_manifest_out_of_order_names checks) is
+    already correctly ordered — nothing previously caught this."""
+    deps = [
+        {"name": "redis-operator", "version": "1.0.0"},
+        {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.0"},
+    ]
+    values = {
+        "redis-operator": {"image": {"repository": "quay.io/opstree/redis-operator", "tag": "0.26.0@sha256:aaaa"}},
+        "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.4.4@sha256:bbbb"}},
+    }
+    (tmp_path / "Chart.yaml").write_text(yaml.safe_dump({"dependencies": deps}, sort_keys=False), encoding="utf-8")
+    (tmp_path / "values.yaml").write_text(yaml.safe_dump(values, sort_keys=False), encoding="utf-8")
+    images_path = tmp_path / "images-4.9.0.yaml"
+    images_path.write_text(
+        "# Baseline: podiumd 4.8.5.\n#\n# podiumd 4.9.0 vs 4.8.5.\n#\n"
+        "# Changes:\n"
+        "#   1. zac 5.0.2 -> 5.4.4.\n"
+        "#   2. redis-operator 0.25.0 -> 0.26.0.\n\n"
+        "# redis-operator 0.25.0 -> 0.26.0\n"
+        "- name: opstree/redis-operator\n"
+        "  url: quay.io/opstree/redis-operator\n"
+        '  version: "0.26.0"\n'
+        '  digest: "sha256:aaaa"\n\n'
+        "# zac 5.0.2 -> 5.4.4\n"
+        "- name: infonl/zaakafhandelcomponent\n"
+        "  url: ghcr.io/infonl/zaakafhandelcomponent\n"
+        '  version: "5.4.4"\n'
+        '  digest: "sha256:bbbb"\n'
+    )
+
+    issues = libdocsconsistency.check_images_manifest_format(
+        images_path, "4.8.5", "4.9.0", deps, values, {}, chart_dir=tmp_path)
+
+    assert any('"# Changes:" list has "redis-operator 0.25.0 -> 0.26.0." right after '
+                '"zac 5.0.2 -> 5.4.4."' in i for i in issues)
+
+
+def test_images_manifest_format_changes_list_correct_order_is_not_flagged(libdocsconsistency, tmp_path):
+    deps = [
+        {"name": "redis-operator", "version": "1.0.0"},
+        {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.0"},
+    ]
+    values = {
+        "redis-operator": {"image": {"repository": "quay.io/opstree/redis-operator", "tag": "0.26.0@sha256:aaaa"}},
+        "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.4.4@sha256:bbbb"}},
+    }
+    (tmp_path / "Chart.yaml").write_text(yaml.safe_dump({"dependencies": deps}, sort_keys=False), encoding="utf-8")
+    (tmp_path / "values.yaml").write_text(yaml.safe_dump(values, sort_keys=False), encoding="utf-8")
+    images_path = tmp_path / "images-4.9.0.yaml"
+    images_path.write_text(
+        "# Baseline: podiumd 4.8.5.\n#\n# podiumd 4.9.0 vs 4.8.5.\n#\n"
+        "# Changes:\n"
+        "#   1. redis-operator 0.25.0 -> 0.26.0.\n"
+        "#   2. zac 5.0.2 -> 5.4.4.\n\n"
+        "# redis-operator 0.25.0 -> 0.26.0\n"
+        "- name: opstree/redis-operator\n"
+        "  url: quay.io/opstree/redis-operator\n"
+        '  version: "0.26.0"\n'
+        '  digest: "sha256:aaaa"\n\n'
+        "# zac 5.0.2 -> 5.4.4\n"
+        "- name: infonl/zaakafhandelcomponent\n"
+        "  url: ghcr.io/infonl/zaakafhandelcomponent\n"
+        '  version: "5.4.4"\n'
+        '  digest: "sha256:bbbb"\n'
+    )
+
+    issues = libdocsconsistency.check_images_manifest_format(
+        images_path, "4.8.5", "4.9.0", deps, values, {}, chart_dir=tmp_path)
+
+    assert not any('"# Changes:" list has' in i for i in issues)
+
+
+def test_images_manifest_format_entry_with_no_changes_mention_is_flagged(libdocsconsistency, tmp_path):
+    """Real gap: an entry can be present and perfectly correct (right
+    version/digest, own preceding comment) yet never appear anywhere in
+    the "# Changes:" header list at all — find_images_manifest_list_
+    diff's own missing_paths only ever catches a changed image with no
+    ENTRY, never an entry with no header MENTION."""
+    deps = [
+        {"name": "redis-operator", "version": "1.0.0"},
+        {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.0"},
+    ]
+    values = {
+        "redis-operator": {"image": {"repository": "quay.io/opstree/redis-operator", "tag": "0.26.0@sha256:aaaa"}},
+        "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.4.4@sha256:bbbb"}},
+    }
+    (tmp_path / "Chart.yaml").write_text(yaml.safe_dump({"dependencies": deps}, sort_keys=False), encoding="utf-8")
+    (tmp_path / "values.yaml").write_text(yaml.safe_dump(values, sort_keys=False), encoding="utf-8")
+    images_path = tmp_path / "images-4.9.0.yaml"
+    images_path.write_text(
+        "# Baseline: podiumd 4.8.5.\n#\n# podiumd 4.9.0 vs 4.8.5.\n#\n"
+        "# Changes:\n"
+        "#   1. redis-operator 0.25.0 -> 0.26.0.\n\n"
+        "# redis-operator 0.25.0 -> 0.26.0\n"
+        "- name: opstree/redis-operator\n"
+        "  url: quay.io/opstree/redis-operator\n"
+        '  version: "0.26.0"\n'
+        '  digest: "sha256:aaaa"\n\n'
+        "# zac 5.0.2 -> 5.4.4\n"
+        "- name: infonl/zaakafhandelcomponent\n"
+        "  url: ghcr.io/infonl/zaakafhandelcomponent\n"
+        '  version: "5.4.4"\n'
+        '  digest: "sha256:bbbb"\n'
+    )
+
+    issues = libdocsconsistency.check_images_manifest_format(
+        images_path, "4.8.5", "4.9.0", deps, values, {}, chart_dir=tmp_path)
+
+    assert any('image "zac" has an entry but no mention in the "# Changes:" list' in i for i in issues)
+
+
+def test_images_manifest_format_free_form_mention_still_counts_as_covered(libdocsconsistency, tmp_path):
+    """A Changes item using free-form prose that only resolves to an
+    entry via match_changes_item_to_entry's fuzzy basename match (never
+    the entry's own canonical "<key> - <basename>" display name — real
+    case: "redis-ha" for what canonical_sidecar_row_names would call
+    "redis-operator - redis") still counts as covering it — this must
+    NOT be flagged as a missing mention just because the exact display
+    name string never appears verbatim."""
+    deps = [{"name": "redis-operator", "version": "1.0.0"}]
+    values = {"redis-operator": {"redis-ha": {"image": {
+        "repository": "quay.io/opstree/redis", "tag": "8.6.6@sha256:aaaa"}}}}
+    (tmp_path / "Chart.yaml").write_text(yaml.safe_dump({"dependencies": deps}, sort_keys=False), encoding="utf-8")
+    (tmp_path / "values.yaml").write_text(yaml.safe_dump(values, sort_keys=False), encoding="utf-8")
+    images_path = tmp_path / "images-4.9.0.yaml"
+    images_path.write_text(
+        "# Baseline: podiumd 4.8.5.\n#\n# podiumd 4.9.0 vs 4.8.5.\n#\n"
+        "# Changes:\n"
+        "#   1. redis-ha 8.6.2 -> 8.6.6\n"
+        "#   2. some other free-form item -> nothing to do with this\n\n"
+        "#   sidecar: redis-operator - redis 8.6.2 -> 8.6.6\n"
+        "- name: redis-ha\n"
+        "  url: quay.io/opstree/redis\n"
+        '  version: "8.6.6"\n'
+        '  digest: "sha256:aaaa"\n'
+    )
+
+    issues = libdocsconsistency.check_images_manifest_format(
+        images_path, "4.8.5", "4.9.0", deps, values, {}, chart_dir=tmp_path)
+
+    assert not any("no mention in the" in i for i in issues)
+
+
+def test_images_manifest_format_one_item_covers_every_entry_in_a_lockstep_group(libdocsconsistency, tmp_path):
+    """A multi-image "lockstep" component (zgw-office-addin's frontend +
+    backend — one of COMPONENT_IMAGE_PATHS' multi-path entries) has TWO
+    separate entries, each its own distinct entry_positions slot, but
+    both share ONE display name — ONE Changes item naming that shared
+    display name must cover BOTH entries, not just whichever one happens
+    to sit at the lower position. (Comparing by raw position instead of
+    display name was an earlier, wrong version of this same check.)"""
+    deps = [{"name": "zgw-office-addin", "version": "0.0.89"}]
+    values = {"zgw-office-addin": {
+        "frontend": {"image": {"repository": "infonl/zgw-office-addin-frontend", "tag": "0.11.0@sha256:aaaa"}},
+        "backend": {"image": {"repository": "infonl/zgw-office-addin-backend", "tag": "0.11.0@sha256:bbbb"}},
+    }}
+    (tmp_path / "Chart.yaml").write_text(yaml.safe_dump({"dependencies": deps}, sort_keys=False), encoding="utf-8")
+    (tmp_path / "values.yaml").write_text(yaml.safe_dump(values, sort_keys=False), encoding="utf-8")
+    images_path = tmp_path / "images-4.9.0.yaml"
+    images_path.write_text(
+        "# Baseline: podiumd 4.8.5.\n#\n# podiumd 4.9.0 vs 4.8.5.\n#\n"
+        "# Changes:\n"
+        "#   1. zgw-office-addin 0.9.313 -> 0.11.0.\n\n"
+        "# zgw-office-addin 0.9.313 -> 0.11.0\n"
+        "- name: infonl/zgw-office-addin-frontend\n"
+        "  url: infonl/zgw-office-addin-frontend\n"
+        '  version: "0.11.0"\n'
+        '  digest: "sha256:aaaa"\n'
+        "- name: infonl/zgw-office-addin-backend\n"
+        "  url: infonl/zgw-office-addin-backend\n"
+        '  version: "0.11.0"\n'
+        '  digest: "sha256:bbbb"\n'
+    )
+
+    issues = libdocsconsistency.check_images_manifest_format(
+        images_path, "4.8.5", "4.9.0", deps, values, {}, chart_dir=tmp_path)
+
+    assert not any("no mention in the" in i for i in issues)
+
+
 # --- Changes items for plain images with no Chart.yaml dependency of their
 # own (e.g. an init-container image) -- must fall back to this same
 # manifest's own entries instead of being flagged as a missing dependency ---

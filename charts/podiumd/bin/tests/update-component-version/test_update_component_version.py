@@ -909,6 +909,7 @@ def test_update_images_manifest_updates_existing_entry(ucv, tmp_path):
     changes_action, entry_updates, missing = ucv.update_images_manifest(
         images_path, "zac", "zac", "5.1.0", "5.4.3", "1.0.297", "1.0.297",
         ["image"], {"image": "ghcr.io/infonl/zaakafhandelcomponent"}, {"image": "5.4.3@sha256:cccc"},
+        [], {},
     )
     assert changes_action == "updated"
     assert entry_updates == ["zac"]
@@ -943,6 +944,7 @@ def test_update_images_manifest_recognizes_bare_changes_header(ucv, tmp_path):
     changes_action, entry_updates, missing = ucv.update_images_manifest(
         images_path, "zac", "zac", "5.1.0", "5.4.3", "1.0.297", "1.0.297",
         ["image"], {"image": "ghcr.io/infonl/zaakafhandelcomponent"}, {"image": "5.4.3@sha256:cccc"},
+        [], {},
     )
     assert changes_action == "updated"
     assert entry_updates == ["zac"]
@@ -968,6 +970,7 @@ def test_update_images_manifest_bare_header_new_item_no_count_word_invented(ucv,
     changes_action, entry_updates, missing = ucv.update_images_manifest(
         images_path, "openformulieren", "openformulieren", "3.4.10", "3.5.6", "1.12.0", "1.12.0",
         ["image"], {"image": "openformulieren/open-forms"}, {"image": "3.5.6@sha256:dddd"},
+        [], {},
     )
     assert changes_action == "added"
     assert missing == [("image", "openformulieren/open-forms", "3.5.6@sha256:dddd")]
@@ -991,6 +994,7 @@ def test_update_images_manifest_reports_missing_entry(ucv, tmp_path):
     changes_action, entry_updates, missing = ucv.update_images_manifest(
         images_path, "openformulieren", "openformulieren", "3.4.10", "3.5.6", "1.12.0", "1.12.0",
         ["image"], {"image": "openformulieren/open-forms"}, {"image": "3.5.6@sha256:dddd"},
+        [], {},
     )
     assert changes_action == "added"
     assert entry_updates == []
@@ -1020,12 +1024,52 @@ def test_update_images_manifest_new_item_lands_after_continuation_line(ucv, tmp_
     changes_action, entry_updates, missing = ucv.update_images_manifest(
         images_path, "openformulieren", "openformulieren", "3.4.10", "3.5.6", "1.12.0", "1.12.0",
         ["image"], {"image": "openformulieren/open-forms"}, {"image": "3.5.6@sha256:dddd"},
+        [], {},
     )
     assert changes_action == "added"
     lines = images_path.read_text(encoding="utf-8").splitlines()
     assert lines[3] == "#      Repository names (zgw-office-addin-{frontend,backend}) unchanged from 4.8.5."
     assert lines[4] == "#   3. openformulieren 3.4.10 -> 3.5.6 (chart 1.12.0, unchanged)."
     assert lines[5] == "#"
+
+
+def test_update_images_manifest_new_item_inserted_at_values_yaml_position_not_appended(ucv, tmp_path):
+    """Real bug: a brand-new "# Changes:" header item used to always land
+    at the very end of the list regardless of values.yaml's own
+    component order, only ever fixed by a LATER fix-doc-consistency run.
+    Given real deps/values, redis-operator's own new item must land
+    BEFORE zac's existing one — redis-operator is values.yaml's first
+    top-level key here — not after it."""
+    images_path = tmp_path / "images-4.9.0.yaml"
+    images_path.write_text(
+        "# One change:\n"
+        "#   1. zac 5.0.2 -> 5.4.3 (chart 1.0.297, unchanged).\n"
+        "#\n"
+        "# ZAC — 5.0.2 -> 5.4.3\n"
+        "- name: zac\n"
+        '  version: "5.4.3"\n'
+        '  digest: "sha256:aaaa"\n',
+        encoding="utf-8",
+    )
+    deps = [
+        {"name": "redis-operator", "version": "1.0.0"},
+        {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"},
+    ]
+    values = {
+        "redis-operator": {"image": {"repository": "opstree/redis-operator", "tag": "0.26.0@sha256:bbbb"}},
+        "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.4.3@sha256:aaaa"}},
+    }
+    changes_action, _entry_updates, missing = ucv.update_images_manifest(
+        images_path, "redis-operator", "redis-operator", "0.25.0", "0.26.0", "1.0.0", "1.0.0",
+        ["image"], {"image": "opstree/redis-operator"}, {"image": "0.26.0@sha256:bbbb"},
+        deps, values,
+    )
+    assert changes_action == "added"
+    assert missing == [("image", "opstree/redis-operator", "0.26.0@sha256:bbbb")]
+    text = images_path.read_text(encoding="utf-8")
+    assert "#   1. redis-operator 0.25.0 -> 0.26.0 (chart 1.0.0, unchanged).\n" in text
+    assert "#   2. zac 5.0.2 -> 5.4.3 (chart 1.0.297, unchanged).\n" in text
+    assert "Two changes:" in text
 
 
 # --- main() integration: doc updates end-to-end ---
@@ -1487,6 +1531,12 @@ def test_main_touches_only_the_target_component_end_to_end(ucv, tmp_path, monkey
     assert values_deltas_text in deltas_after  # openformulieren's own line, verbatim, still there
 
     images_after = (images_dir / "images-4.9.0.yaml").read_text(encoding="utf-8")
-    assert "1. openformulieren 3.4.9 -> 3.4.10 (chart 1.12.0, unchanged)." in images_after
+    # openformulieren's own header ITEM renumbers from "1." to "2." — zac's
+    # own new item is correctly inserted BEFORE it (zac is Chart.yaml's
+    # first dependency, openforms its second), not just appended after the
+    # existing item the way an earlier, position-blind version of this
+    # insertion used to. Its TEXT is still exactly what it was.
+    assert "2. openformulieren 3.4.9 -> 3.4.10 (chart 1.12.0, unchanged)." in images_after
+    assert "1. zac 5.0.2 -> 5.4.3 (chart 1.0.296 -> 1.0.297)." in images_after
     assert '"3.4.10"' in images_after
     assert "sha256:bbbb" in images_after
