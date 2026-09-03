@@ -139,10 +139,23 @@ def _match_changes_item_to_entry(item_name, entries):
     entry's final name segment (e.g. "python" from "library/python", an
     ACR-mirror-style slug the item's own prose never spells out in full)
     rather than a Chart.yaml dependency's name/alias. None if no entry's
-    basename shows up this way."""
+    basename shows up this way.
+
+    A canonical "<key> - <basename>" sidecar name (see
+    lib.chart.canonical_sidecar_row_names — the same " - " delimiter
+    match_dependency_excluding_sidecar_names already trusts as never
+    appearing in a real dependency's own name/alias) is matched on its
+    OWN basename specifically, not the whole string: matching the whole
+    string risks the LEADING <key> word fuzzy-matching an UNRELATED
+    entry that happens to share that word — real case: "keycloak-
+    operator - postgres" (the postgres client image bundled with the
+    keycloak-operator dependency) wrongly matched the "keycloak" entry
+    (keycloak's own, unrelated primary image) instead of "postgres",
+    since match_dependency has no reason to prefer the trailing word."""
     candidates = [{"name": entry["name"].rsplit("/", 1)[-1], "_entry": entry}
                   for entry in entries if entry.get("name")]
-    match = match_dependency(item_name, candidates)
+    search_text = item_name.split(" - ", 1)[1] if " - " in item_name else item_name
+    match = match_dependency(search_text, candidates)
     return match["_entry"] if match else None
 
 
