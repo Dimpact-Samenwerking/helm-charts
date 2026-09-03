@@ -81,8 +81,8 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 from lib.chart import SEMVER_RE as BASELINE_VERSION_RE
 from lib.chart import (
-    canonical_sidecar_row_names, chart_version, global_image_paths, paths_by_repository,
-    repo_group_representative, resolved_digest_pin, version_of,
+    canonical_sidecar_row_names, chart_version, documented_repository_for_path, global_image_paths,
+    paths_by_repository, repo_group_representative, resolved_digest_pin, version_of,
 )
 from lib.chart import upgrade_docs_baseline as read_upgrade_docs_baseline
 from lib.component_docs import (
@@ -94,6 +94,7 @@ from lib.docs_consistency import match_changes_item_to_entry
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
 from lib.image_docs import add_missing_changes_sections, add_missing_sidecar_rows, update_stale_app_version_headings
 from lib.image_repository_check import find_images_without_repository
+from lib.registry import parse_repo, registry_tag_exists
 from lib.upgradedoc import (
     append_to_doc, canonical_version_cell, component_version_cell, compute_changed_components,
     extract_source_version, extract_target_version, find_all_image_and_version_paths,
@@ -584,12 +585,27 @@ def sort_images_manifest_changes_items(lines, entries, entry_positions):
     return moved
 
 
-def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, baseline_values):
+def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, baseline_values, allow_pull=False):
     """Insert a new entry (+ its own "# <name> — <old> -> <new>" comment,
     and a matching numbered item in the "# Changes:" header list) for
     every image lib.upgradedoc.find_images_manifest_list_diff's own
     missing_paths reports — the "changed vs ... but has no entry" gap
     verify-podiumd's own doc-consistency check reports.
+
+    allow_pull (default False, matching every other allow_pull-taking
+    function in this codebase — offline unless explicitly opted into)
+    gates ONE specific fallback: a path whose repository resolves fine
+    but whose current tag has no digest anywhere in values.yaml at all
+    (real case: eck-stack's own bare "version:" CRD fields — elastic
+    search/kibana/enterprise-search — never carry a digest locally,
+    unlike an ordinary "image: {repository, tag}" block) tries a REAL
+    registry manifest lookup (lib.registry.registry_tag_exists, the
+    same call /fetch-image-digest and update-image-version's own
+    missing_entries handling already make) for that exact version,
+    using documented_repository_for_path's own UNSTRIPPED repository —
+    before falling back to skipped_names. With allow_pull left False,
+    behavior is unchanged: skipped exactly as before, network never
+    touched.
 
     Both the header item and the comment+entry block are inserted at the
     position matching values.yaml's own top-level component order
@@ -715,6 +731,14 @@ def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, ba
         current_tag = current_paths[path]
         name = path_display_name(path, deps, canonical_names)
         pinned_tag = resolved_digest_pin(target_values, path, current_tag)
+        if pinned_tag is None and allow_pull:
+            full_repo = documented_repository_for_path(chart_dir, deps, path)
+            if full_repo:
+                host, repo_path = parse_repo(full_repo)
+                print(f"  fetching digest for {full_repo}:{current_tag} from the registry...")
+                exists, digest_hex = registry_tag_exists(host, repo_path, current_tag)
+                if exists and digest_hex:
+                    pinned_tag = f"{current_tag}@{digest_hex}"
         if repo is None or pinned_tag is None:
             skipped_names.append(name)
             continue
@@ -1069,7 +1093,7 @@ def main():
             text = images_path.read_text(encoding="utf-8")
             new_text, added_entry_names, skipped_entry_names, backfilled_header_names = \
                 add_missing_images_manifest_entries(
-                    text, CHART_YAML.parent, target_deps, target_values, baseline_values
+                    text, CHART_YAML.parent, target_deps, target_values, baseline_values, allow_pull=True
                 )
             if added_entry_names:
                 images_path.write_text(new_text, encoding="utf-8")
