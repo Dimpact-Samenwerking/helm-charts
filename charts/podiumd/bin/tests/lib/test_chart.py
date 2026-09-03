@@ -905,6 +905,46 @@ def test_repository_path_map_skips_unresolvable_and_multiple_deps(libchart, tmp_
     assert mapping == {"infonl/zaakafhandelcomponent": ("zac", "image")}
 
 
+# --- paths_by_repository ---
+
+def test_paths_by_repository_groups_shared_repository(libchart, tmp_path):
+    """Several paths resolving to the same repository (e.g. every
+    "<component>.nginx.image" sidecar aliasing the same shared
+    global.images.nginx YAML anchor) land together under that one
+    repository, in the order they were processed — not collapsed down
+    to a single survivor the way repository_path_map's own result is."""
+    openzaak = {"name": "openzaak", "alias": "", "version": "4.9.1"}
+    openformulieren = {"name": "openformulieren", "alias": "", "version": "3.5.6"}
+    own_values = {
+        "openzaak": {"nginx": {"image": {"repository": "nginxinc/nginx-unprivileged"}}},
+        "openformulieren": {"nginx": {"image": {"repository": "nginxinc/nginx-unprivileged"}}},
+    }
+    paths = [("openzaak", "nginx", "image"), ("openformulieren", "nginx", "image")]
+
+    groups = libchart.paths_by_repository(tmp_path, [openzaak, openformulieren], own_values, paths, allow_pull=False)
+
+    assert groups == {"nginxinc/nginx-unprivileged": [
+        ("openzaak", "nginx", "image"), ("openformulieren", "nginx", "image")]}
+
+
+def test_paths_by_repository_matches_repository_path_map_last_survivor(libchart, tmp_path):
+    """repository_path_map's own single-path result is exactly this
+    function's own group, collapsed to its last entry — the two must
+    never disagree about which path "wins" for a shared repository."""
+    openzaak = {"name": "openzaak", "alias": "", "version": "4.9.1"}
+    openformulieren = {"name": "openformulieren", "alias": "", "version": "3.5.6"}
+    own_values = {
+        "openzaak": {"nginx": {"image": {"repository": "nginxinc/nginx-unprivileged"}}},
+        "openformulieren": {"nginx": {"image": {"repository": "nginxinc/nginx-unprivileged"}}},
+    }
+    paths = [("openzaak", "nginx", "image"), ("openformulieren", "nginx", "image")]
+
+    groups = libchart.paths_by_repository(tmp_path, [openzaak, openformulieren], own_values, paths, allow_pull=False)
+    mapping = libchart.repository_path_map(tmp_path, [openzaak, openformulieren], own_values, paths, allow_pull=False)
+
+    assert mapping == {repo: repo_paths[-1] for repo, repo_paths in groups.items()}
+
+
 # --- canonical_sidecar_row_names ---
 
 def test_canonical_sidecar_row_names_dependency_sidecar(libchart, tmp_path):

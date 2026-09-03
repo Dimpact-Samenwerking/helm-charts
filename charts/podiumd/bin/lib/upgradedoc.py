@@ -779,7 +779,7 @@ def path_display_name(path, deps, canonical_names):
     return ".".join(path)
 
 
-def find_images_manifest_list_diff(entries, current_paths, baseline_paths, repo_map):
+def find_images_manifest_list_diff(entries, current_paths, baseline_paths, repo_map, repo_groups):
     """(missing_paths, extra_entry_names) — the images-manifest's own
     "list of changed images" checked against the FULL, actual set of
     every image tag pin whose value differs between the target
@@ -794,14 +794,29 @@ def find_images_manifest_list_diff(entries, current_paths, baseline_paths, repo_
     match first, falling back to fuzzy name-word matching — the SAME
     resolution the rest of this images-manifest check already uses.
 
-    missing_paths: every path whose tag actually changed but no entry
-    resolves to it at all — a real change the manifest never mentions.
-    extra_entry_names: every entry's own "name:" that either doesn't
-    resolve to any real values-tree path at all, or resolves to one
-    whose tag did NOT actually change — listed without a real reason to
-    be there. Both empty means the manifest lists the EXACT set of
-    changed images, nothing more and nothing less."""
-    changed_paths = {path for path, tag in current_paths.items() if tag != baseline_paths.get(path)}
+    repo_groups: lib.chart.paths_by_repository's own {repository:
+    [path, ...]} grouping. A repository shared by more than one path
+    (e.g. several "<component>.nginx.image" sidecars all aliasing the
+    same global.images.nginx YAML anchor) is ONE image needing at most
+    ONE entry between all of them, not one each — every path in such a
+    group is collapsed to repo_map's own single representative path
+    (the same one an entry naming that repository resolves to via
+    resolve_entry_image_path) before diffing, so the other, redundant
+    paths in the group can never show up as spuriously "missing".
+
+    missing_paths: every (already-collapsed) path whose tag actually
+    changed but no entry resolves to it at all — a real change the
+    manifest never mentions. extra_entry_names: every entry's own
+    "name:" that either doesn't resolve to any real values-tree path at
+    all, or resolves to one whose tag did NOT actually change — listed
+    without a real reason to be there. Both empty means the manifest
+    lists the EXACT set of changed images, nothing more and nothing
+    less."""
+    representative_of = {path: repo_map[repo] for repo, paths in repo_groups.items()
+                          for path in paths if repo in repo_map}
+
+    changed_paths = {representative_of.get(path, path)
+                      for path, tag in current_paths.items() if tag != baseline_paths.get(path)}
 
     matched_paths = set()
     extra_entry_names = []

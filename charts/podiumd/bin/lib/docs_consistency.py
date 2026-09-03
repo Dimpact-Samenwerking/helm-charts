@@ -10,7 +10,7 @@ import re
 
 import yaml
 
-from lib.chart import canonical_sidecar_row_names, get_path, load_yaml, repository_path_map
+from lib.chart import canonical_sidecar_row_names, get_path, load_yaml, paths_by_repository
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
 from lib.upgradedoc import (
     actual_app_version, changes_heading_has_app_version, changes_heading_identities, compute_changed_components,
@@ -289,10 +289,11 @@ def check_images_manifest_format(images_path, upgrade_docs_baseline, podiumd_ver
     # a resolvable upgrade_docs_baseline, "changed" can't be computed at
     # all (baseline_values is {} in that case, so baseline_paths is too).
     if baseline_paths and chart_dir is not None:
-        repo_map = repository_path_map(chart_dir, deps, values, current_paths.keys())
+        repo_groups = paths_by_repository(chart_dir, deps, values, current_paths.keys())
+        repo_map = {repo: paths[-1] for repo, paths in repo_groups.items()}
         canonical_names = canonical_sidecar_row_names(chart_dir, deps, values, current_paths.keys())
         missing_paths, extra_entry_names = find_images_manifest_list_diff(
-            entries, current_paths, baseline_paths, repo_map)
+            entries, current_paths, baseline_paths, repo_map, repo_groups)
         for path in missing_paths:
             name = path_display_name(path, deps, canonical_names)
             issues.append(f'{images_path.name}: image "{name}" changed vs '

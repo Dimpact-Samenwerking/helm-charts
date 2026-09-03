@@ -434,7 +434,7 @@ def test_find_images_manifest_list_diff_exact_list_reports_nothing(libupgradedoc
     current_paths = {("zac",): "1.2.0@sha256:new"}
     baseline_paths = {("zac",): "1.1.0@sha256:old"}
     missing, extra = libupgradedoc.find_images_manifest_list_diff(
-        entries, current_paths, baseline_paths, repo_map={})
+        entries, current_paths, baseline_paths, repo_map={}, repo_groups={})
     assert missing == []
     assert extra == []
 
@@ -446,7 +446,7 @@ def test_find_images_manifest_list_diff_finds_missing_changed_image(libupgradedo
     current_paths = {("zac",): "1.2.0@sha256:new"}
     baseline_paths = {("zac",): "1.1.0@sha256:old"}
     missing, extra = libupgradedoc.find_images_manifest_list_diff(
-        entries, current_paths, baseline_paths, repo_map={})
+        entries, current_paths, baseline_paths, repo_map={}, repo_groups={})
     assert missing == [("zac",)]
     assert extra == []
 
@@ -459,7 +459,7 @@ def test_find_images_manifest_list_diff_finds_entry_for_unchanged_image(libupgra
     current_paths = {("zac",): "1.1.0@sha256:old"}
     baseline_paths = {("zac",): "1.1.0@sha256:old"}
     missing, extra = libupgradedoc.find_images_manifest_list_diff(
-        entries, current_paths, baseline_paths, repo_map={})
+        entries, current_paths, baseline_paths, repo_map={}, repo_groups={})
     assert missing == []
     assert extra == ["zac"]
 
@@ -472,7 +472,7 @@ def test_find_images_manifest_list_diff_finds_entry_matching_nothing(libupgraded
     current_paths = {("zac",): "1.1.0@sha256:old"}
     baseline_paths = {("zac",): "1.1.0@sha256:old"}
     missing, extra = libupgradedoc.find_images_manifest_list_diff(
-        entries, current_paths, baseline_paths, repo_map={})
+        entries, current_paths, baseline_paths, repo_map={}, repo_groups={})
     assert missing == []
     assert extra == ["does-not-exist"]
 
@@ -485,7 +485,7 @@ def test_find_images_manifest_list_diff_catches_digest_only_repin(libupgradedoc)
     current_paths = {("zac",): "1.1.0@sha256:newdigest"}
     baseline_paths = {("zac",): "1.1.0@sha256:olddigest"}
     missing, extra = libupgradedoc.find_images_manifest_list_diff(
-        entries, current_paths, baseline_paths, repo_map={})
+        entries, current_paths, baseline_paths, repo_map={}, repo_groups={})
     assert missing == [("zac",)]
     assert extra == []
 
@@ -498,9 +498,59 @@ def test_find_images_manifest_list_diff_uses_repo_map_for_resolution(libupgraded
     current_paths = {("zac",): "1.2.0@sha256:new"}
     baseline_paths = {("zac",): "1.1.0@sha256:old"}
     repo_map = {"infonl/zaakafhandelcomponent": ("zac",)}
+    repo_groups = {"infonl/zaakafhandelcomponent": [("zac",)]}
     missing, extra = libupgradedoc.find_images_manifest_list_diff(
-        entries, current_paths, baseline_paths, repo_map)
+        entries, current_paths, baseline_paths, repo_map, repo_groups)
     assert missing == []
+    assert extra == []
+
+
+def test_find_images_manifest_list_diff_collapses_shared_repository_group(libupgradedoc):
+    """Several paths sharing the same repository (e.g. every
+    "<component>.nginx.image" sidecar aliasing the same shared
+    global.images.nginx YAML anchor) are ONE image needing at most ONE
+    entry between all of them — an entry covering the group's
+    representative path (repo_map's own single survivor) satisfies
+    every path in the group, not just that one."""
+    entries = [{"name": "nginxinc/nginx-unprivileged"}]
+    current_paths = {
+        ("openzaak", "nginx", "image"): "1.31.4@sha256:new",
+        ("openformulieren", "nginx", "image"): "1.31.4@sha256:new",
+        ("openinwoner", "nginx", "image"): "1.31.4@sha256:new",
+    }
+    baseline_paths = {
+        ("openzaak", "nginx", "image"): "1.31.3@sha256:old",
+        ("openformulieren", "nginx", "image"): "1.31.3@sha256:old",
+        ("openinwoner", "nginx", "image"): "1.31.3@sha256:old",
+    }
+    repo_groups = {"nginxinc/nginx-unprivileged": list(current_paths.keys())}
+    repo_map = {"nginxinc/nginx-unprivileged": ("openinwoner", "nginx", "image")}
+
+    missing, extra = libupgradedoc.find_images_manifest_list_diff(
+        entries, current_paths, baseline_paths, repo_map, repo_groups)
+    assert missing == []
+    assert extra == []
+
+
+def test_find_images_manifest_list_diff_reports_shared_group_missing_once(libupgradedoc):
+    """The same shared-repository group, but with NO entry covering it
+    at all — reported as missing exactly ONCE (the group's single
+    representative path), never once per aliased usage site."""
+    entries = []
+    current_paths = {
+        ("openzaak", "nginx", "image"): "1.31.4@sha256:new",
+        ("openformulieren", "nginx", "image"): "1.31.4@sha256:new",
+    }
+    baseline_paths = {
+        ("openzaak", "nginx", "image"): "1.31.3@sha256:old",
+        ("openformulieren", "nginx", "image"): "1.31.3@sha256:old",
+    }
+    repo_groups = {"nginxinc/nginx-unprivileged": list(current_paths.keys())}
+    repo_map = {"nginxinc/nginx-unprivileged": ("openformulieren", "nginx", "image")}
+
+    missing, extra = libupgradedoc.find_images_manifest_list_diff(
+        entries, current_paths, baseline_paths, repo_map, repo_groups)
+    assert missing == [("openformulieren", "nginx", "image")]
     assert extra == []
 
 
