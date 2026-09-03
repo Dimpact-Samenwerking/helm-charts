@@ -5,8 +5,8 @@ import re
 import yaml
 
 from lib.chart import (
-    COMPONENT_IMAGE_PATHS, get_path, image_paths_for, is_primary_image_path, nested_subchart_registered_paths,
-    subchart_app_version, version_of, version_paths_for,
+    COMPONENT_IMAGE_PATHS, get_path, global_image_paths, image_paths_for, is_primary_image_path,
+    nested_subchart_registered_paths, subchart_app_version, version_of, version_paths_for,
 )
 
 
@@ -1300,8 +1300,19 @@ def _images_manifest_sorted_groups(entries, entry_line_indices, lines, deps, val
     "what position does entry X end up at" (see sort_images_manifest_
     changes_items, which mirrors the entry list's own final order
     rather than computing a second, independent one) never re-derives
-    the grouping/sort-key logic on its own."""
+    the grouping/sort-key logic on its own.
+
+    current_paths includes global_image_paths(values) alongside the
+    ordinary scan — without it, an entry naming a shared base image
+    (e.g. "curlimages/curl") can't resolve back to its own repo_map hit
+    at all (resolve_entry_image_path's own "path in paths" guard fails
+    for a path this dict doesn't contain), falls through to fuzzy name-
+    word matching, and sorts as if unresolved — landing at the very END
+    of the manifest instead of under "global" 's own values.yaml
+    position (first, since "global:" is the file's own first top-level
+    key)."""
     current_paths = dict(find_all_image_and_version_paths(values, deps))
+    current_paths.update(global_image_paths(values))
     groups = _images_manifest_groups(entries, entry_line_indices, lines, current_paths, repo_map, deps,
                                       canonical_names)
     key_order = values_key_order(values)

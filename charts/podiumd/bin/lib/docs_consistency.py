@@ -10,7 +10,9 @@ import re
 
 import yaml
 
-from lib.chart import canonical_sidecar_row_names, load_yaml, paths_by_repository, repo_group_representative
+from lib.chart import (
+    canonical_sidecar_row_names, global_image_paths, load_yaml, paths_by_repository, repo_group_representative,
+)
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
 from lib.image_repository_check import find_images_without_repository
 from lib.upgradedoc import (
@@ -269,7 +271,9 @@ def check_images_manifest_format(images_path, upgrade_docs_baseline, podiumd_ver
     lines = text.splitlines()
     entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
     current_paths = dict(find_all_image_and_version_paths(values, deps))
+    current_paths.update(global_image_paths(values))
     baseline_paths = dict(find_all_image_and_version_paths(baseline_values, deps)) if baseline_values else {}
+    baseline_paths.update(global_image_paths(baseline_values) if baseline_values else [])
 
     # repo_map (see lib.chart.repository_path_map) built once, up front,
     # and reused everywhere an entry needs matching to its values-tree

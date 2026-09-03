@@ -1029,7 +1029,68 @@ def test_repository_path_map_skips_unresolvable_and_multiple_deps(libchart, tmp_
     assert mapping == {"infonl/zaakafhandelcomponent": ("zac", "image")}
 
 
+# --- global_image_paths ---
+
+def test_global_image_paths_reads_every_shared_anchor(libchart):
+    values = {"global": {"images": {
+        "nginx": {"repository": "nginxinc/nginx-unprivileged", "tag": "1.31.4@sha256:aaaa"},
+        "curl": {"repository": "curlimages/curl", "tag": "8.21.0@sha256:bbbb"},
+    }}}
+
+    paths = dict(libchart.global_image_paths(values))
+
+    assert paths == {
+        ("global", "images", "nginx"): "1.31.4@sha256:aaaa",
+        ("global", "images", "curl"): "8.21.0@sha256:bbbb",
+    }
+
+
+def test_global_image_paths_skips_entries_without_a_tag(libchart):
+    values = {"global": {"images": {
+        "nginx": {"repository": "nginxinc/nginx-unprivileged"},  # no tag set
+    }}}
+
+    assert libchart.global_image_paths(values) == []
+
+
+def test_global_image_paths_no_global_images_block_returns_empty(libchart):
+    assert libchart.global_image_paths({}) == []
+    assert libchart.global_image_paths({"global": {"configuration": {}}}) == []
+
+
 # --- repo_group_representative ---
+
+def test_repo_group_representative_global_beats_everything(libchart):
+    """The shared nginx-unprivileged anchor: aliased by apiproxy's own
+    top-level image (orphan) AND by a real dependency's own nginx
+    sidecar alike. Neither alias site is "the" component this image
+    belongs to — "global" (the one true source both merely point at) is,
+    regardless of how many other candidates are in the group or what
+    tier they'd otherwise rank at."""
+    deps = [{"name": "openzaak", "alias": "", "version": "1.14.2"}]
+    repo_paths = [
+        ("apiproxy", "image"),
+        ("openzaak", "nginx", "image"),
+        ("global", "images", "nginx"),
+    ]
+
+    assert libchart.repo_group_representative(repo_paths, deps) == ("global", "images", "nginx")
+
+
+def test_repo_group_representative_global_beats_real_dependency_primary(libchart):
+    """Even a real dependency's own PRIMARY image (the highest of the
+    other tiers) never outranks "global" — structurally impossible in
+    practice (a primary app image is never itself a global-anchor
+    alias), but the ranking itself must still be unconditional, not just
+    "usually wins"."""
+    deps = [{"name": "openzaak", "alias": "", "version": "1.14.2"}]
+    repo_paths = [
+        ("openzaak", "image"),
+        ("global", "images", "nginx"),
+    ]
+
+    assert libchart.repo_group_representative(repo_paths, deps) == ("global", "images", "nginx")
+
 
 def test_repo_group_representative_real_dependency_primary_beats_orphan(libchart):
     """The keycloak/keycloak-operator case: "keycloak.image" is podiumd's

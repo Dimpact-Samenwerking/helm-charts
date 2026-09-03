@@ -1163,6 +1163,39 @@ def test_sort_images_manifest_entries_never_merges_two_unresolved_entries(libupg
     assert moved == []
 
 
+def test_sort_images_manifest_entries_global_entry_sorts_first_not_last(libupgradedoc):
+    """Real bug: an entry naming a shared global.images.* anchor (e.g.
+    "curlimages/curl") couldn't resolve its own repo_map hit at all
+    during sorting — _images_manifest_sorted_groups computed its OWN
+    current_paths internally via find_all_image_and_version_paths alone,
+    which never includes global_image_paths, so resolve_entry_image_
+    path's "path in paths" guard failed and the entry fell through to
+    fuzzy name-word matching, landing at the very END of the manifest
+    instead of under "global" 's own values.yaml position (first, since
+    "global:" is the file's own first top-level key)."""
+    text = (
+        "# curl 8.21.0 -> 8.21.0\n"
+        "- name: curlimages/curl\n"
+        "  version: \"8.21.0\"\n"
+        "\n"
+        "# redis-operator 0.25.0 -> 0.26.0\n"
+        "- name: opstree/redis-operator\n"
+        "  version: \"0.26.0\"\n"
+    )
+    deps = [{"name": "redis-operator", "version": "1.0.0"}]
+    values = {
+        "global": {"images": {"curl": {"repository": "curlimages/curl", "tag": "8.21.0@sha256:aaaa"}}},
+        "redis-operator": {"image": {"tag": "0.26.0"}},
+    }
+    repo_map = {"curlimages/curl": ("global", "images", "curl"),
+                "opstree/redis-operator": ("redis-operator", "image")}
+
+    new_text, moved = libupgradedoc.sort_images_manifest_entries(text, deps, values, repo_map, canonical_names={})
+
+    assert moved == []  # already correctly positioned — global sorts before redis-operator
+    assert new_text.index("curlimages/curl") < new_text.index("opstree/redis-operator")
+
+
 def test_sort_images_manifest_entries_no_blank_lines_no_reorder_is_truly_unchanged(libupgradedoc):
     """Nothing to tidy and nothing to reorder — text comes back byte-
     identical, matching the function's own "unchanged" convention."""

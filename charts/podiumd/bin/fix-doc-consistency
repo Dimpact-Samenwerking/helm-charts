@@ -81,8 +81,8 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 from lib.chart import SEMVER_RE as BASELINE_VERSION_RE
 from lib.chart import (
-    canonical_sidecar_row_names, chart_version, paths_by_repository, repo_group_representative,
-    resolved_digest_pin, version_of,
+    canonical_sidecar_row_names, chart_version, global_image_paths, paths_by_repository,
+    repo_group_representative, resolved_digest_pin, version_of,
 )
 from lib.chart import upgrade_docs_baseline as read_upgrade_docs_baseline
 from lib.component_docs import (
@@ -390,7 +390,9 @@ def fix_images_manifest_entries(text, deps, target_values, baseline_values, repo
 
     entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
     current_paths = dict(find_all_image_and_version_paths(target_values, deps))
+    current_paths.update(global_image_paths(target_values))
     baseline_paths = dict(find_all_image_and_version_paths(baseline_values, deps)) if baseline_values else {}
+    baseline_paths.update(global_image_paths(baseline_values) if baseline_values else [])
 
     def same_group(entry_a, entry_b):
         return images_manifest_entries_share_group(entry_a, entry_b, current_paths, repo_map)
@@ -661,9 +663,28 @@ def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, ba
     and safer than tracking how earlier insertions shift later line
     indices by hand.
 
+    global_image_paths(target_values/baseline_values) is folded into
+    current_paths/baseline_paths up front so "global.images.nginx" (and
+    every other shared base-image anchor) participates in this same
+    missing-entry scan as its own path, not just via whichever
+    component happens to alias it. Combined with repo_group_
+    representative's own "global" tier (always wins), a changed shared
+    image gets EXACTLY ONE entry — named via the bare basename
+    (path_display_name's own canonical_names lookup already handles
+    this, see canonical_sidecar_row_names' "global" branch) and
+    positioned under "global" 's own values.yaml order (first, since
+    "global:" is the very first top-level key) — never one entry per
+    aliasing component: every OTHER member of that repository group is
+    already collapsed to this SAME representative path before missing_
+    paths is even computed (find_images_manifest_list_diff), so it can
+    never independently show up here as its own separate "missing"
+    entry needing one of its own.
+
     Returns (new_text, added_names, skipped_names, backfilled_names)."""
     current_paths = dict(find_all_image_and_version_paths(target_values, deps))
+    current_paths.update(global_image_paths(target_values))
     baseline_paths = dict(find_all_image_and_version_paths(baseline_values, deps)) if baseline_values else {}
+    baseline_paths.update(global_image_paths(baseline_values) if baseline_values else [])
     try:
         entries = yaml.safe_load(text) or []
     except yaml.YAMLError:
@@ -1018,7 +1039,8 @@ def main():
 
     if images_path.is_file():
         text = images_path.read_text(encoding="utf-8")
-        target_paths = [p for p, _tag in find_all_image_and_version_paths(target_values, target_deps)]
+        target_paths = ([p for p, _tag in find_all_image_and_version_paths(target_values, target_deps)]
+                         + [p for p, _tag in global_image_paths(target_values)])
         repo_groups = paths_by_repository(CHART_YAML.parent, target_deps, target_values, target_paths)
         repo_map = {repo: repo_group_representative(group_paths, target_deps)
                     for repo, group_paths in repo_groups.items()}
