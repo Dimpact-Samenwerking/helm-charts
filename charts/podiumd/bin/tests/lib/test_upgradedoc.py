@@ -665,6 +665,56 @@ def test_find_images_manifest_list_diff_reports_shared_group_missing_once(libupg
     assert unmatched == []
 
 
+def test_find_images_manifest_list_diff_ignores_non_representative_new_usage(libupgradedoc):
+    """Real bug: kiss's own indexTemplateImage started aliasing curlimages/
+    curl for the first time in 4.9.0 (no baseline value for THAT path at
+    all — brand new usage, not a version bump), while global.images.curl
+    itself (the group's own representative) has the exact same tag before
+    and after. The group must NOT be flagged "changed" on the strength of
+    kiss's own brand-new usage alone — the manifest lists images whose
+    version or digest actually changed, never "is newly used somewhere"
+    by itself."""
+    entries = []
+    current_paths = {
+        ("kiss", "settings", "syncJobs", "indexTemplateImage"): "8.21.0@sha256:same",
+        ("global", "images", "curl"): "8.21.0@sha256:same",
+    }
+    baseline_paths = {
+        # kiss's own path has NO baseline entry at all — genuinely new usage
+        ("global", "images", "curl"): "8.21.0@sha256:same",
+    }
+    repo_groups = {"curlimages/curl": list(current_paths.keys())}
+    repo_map = {"curlimages/curl": ("global", "images", "curl")}
+
+    missing, stale, unmatched = libupgradedoc.find_images_manifest_list_diff(
+        entries, current_paths, baseline_paths, repo_map, repo_groups, unresolvable_paths=set())
+    assert missing == []
+    assert stale == []
+    assert unmatched == []
+
+
+def test_find_images_manifest_list_diff_representative_change_still_caught_despite_other_member(
+        libupgradedoc):
+    """The flip side of the above: the representative itself DID change,
+    even though some OTHER group member (not the representative) happens
+    to be unchanged — still correctly reported as missing."""
+    entries = []
+    current_paths = {
+        ("frankgateway", "dashboard", "auth", "shim", "image"): "1.31.4@sha256:new",  # other member, unchanged
+        ("global", "images", "nginx"): "1.31.4@sha256:new",
+    }
+    baseline_paths = {
+        ("frankgateway", "dashboard", "auth", "shim", "image"): "1.31.4@sha256:new",
+        ("global", "images", "nginx"): "1.31.3@sha256:old",
+    }
+    repo_groups = {"nginxinc/nginx-unprivileged": list(current_paths.keys())}
+    repo_map = {"nginxinc/nginx-unprivileged": ("global", "images", "nginx")}
+
+    missing, stale, unmatched = libupgradedoc.find_images_manifest_list_diff(
+        entries, current_paths, baseline_paths, repo_map, repo_groups, unresolvable_paths=set())
+    assert missing == [("global", "images", "nginx")]
+
+
 def test_find_images_manifest_list_diff_excludes_unresolvable_path_from_missing(libupgradedoc):
     """A path with no resolvable repository at all (real case:
     kiss.adapter.image — see lib.image_repository_check.
