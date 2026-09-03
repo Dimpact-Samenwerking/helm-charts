@@ -1571,6 +1571,161 @@ def test_add_missing_images_manifest_entries_skips_image_with_no_resolvable_repo
     assert "kiss" not in new_text
 
 
+@pytest.fixture
+def ordered_images_manifest_chart_dir(tmp_path):
+    """Three dependencies, values.yaml top-level order openzaak ->
+    keycloak-operator -> zac — keycloak-operator's own postgres sidecar
+    resolves via an own override, no vendored subchart tgz needed."""
+    write(tmp_path / "Chart.yaml", yaml.safe_dump({
+        "dependencies": [
+            {"name": "openzaak", "version": "1.14.2", "repository": "@openzaak"},
+            {"name": "keycloak-operator", "version": "1.12.1", "repository": "@adfinis"},
+            {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257", "repository": "@zac"},
+        ],
+    }))
+    write(tmp_path / "values.yaml", yaml.safe_dump({
+        "openzaak": {"image": {"repository": "openzaak/open-zaak", "tag": "1.29.3@sha256:aaaa"}},
+        "keycloak-operator": {
+            "job": {"postgres": {"image": {"repository": "postgres", "tag": "16.15@sha256:bbbb"}}}},
+        "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.1.0@sha256:cccc"}},
+    }))
+    return tmp_path
+
+
+def _ordered_deps():
+    return [
+        {"name": "openzaak", "version": "1.14.2"},
+        {"name": "keycloak-operator", "version": "1.12.1"},
+        {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.257"},
+    ]
+
+
+def _ordered_target_values():
+    return {
+        "openzaak": {"image": {"repository": "openzaak/open-zaak", "tag": "1.29.3@sha256:aaaa"}},
+        "keycloak-operator": {
+            "job": {"postgres": {"image": {"repository": "postgres", "tag": "16.15@sha256:bbbb"}}}},
+        "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.1.0@sha256:cccc"}},
+    }
+
+
+def _ordered_baseline_values():
+    return {
+        "openzaak": {"image": {"repository": "openzaak/open-zaak", "tag": "1.27.4@sha256:aaaa"}},
+        "keycloak-operator": {
+            "job": {"postgres": {"image": {"repository": "postgres", "tag": "16.0@sha256:eeee"}}}},
+        "zac": {"image": {"repository": "ghcr.io/infonl/zaakafhandelcomponent", "tag": "5.0.2@sha256:cccc"}},
+    }
+
+
+def test_add_missing_images_manifest_entries_inserts_at_correct_body_and_header_position(
+        cdb, ordered_images_manifest_chart_dir):
+    """A missing entry for the MIDDLE component (values.yaml order
+    openzaak -> keycloak-operator -> zac) is inserted between the
+    existing openzaak and zac blocks — both in the body and in the "#
+    Changes:" header's own numbered list — not appended after zac just
+    because zac happened to be added to the file first."""
+    text = (
+        "# Two changes:\n"
+        "#   1. openzaak 1.27.4 -> 1.29.3.\n"
+        "#   2. zac 5.0.2 -> 5.1.0.\n"
+        "\n"
+        "# openzaak — 1.27.4 -> 1.29.3\n"
+        "- name: openzaak/open-zaak\n"
+        "  url: openzaak/open-zaak\n"
+        '  version: "1.29.3"\n'
+        '  digest: "sha256:aaaa"\n'
+        "\n"
+        "# zac — 5.0.2 -> 5.1.0\n"
+        "- name: infonl/zaakafhandelcomponent\n"
+        "  url: infonl/zaakafhandelcomponent\n"
+        '  version: "5.1.0"\n'
+        '  digest: "sha256:cccc"\n'
+    )
+
+    new_text, added, skipped = cdb.add_missing_images_manifest_entries(
+        text, ordered_images_manifest_chart_dir, _ordered_deps(), _ordered_target_values(),
+        _ordered_baseline_values())
+
+    assert skipped == []
+    assert added == ["keycloak-operator - postgres"]
+
+    lines = new_text.splitlines()
+    openzaak_idx = next(i for i, line in enumerate(lines) if line.startswith("# openzaak"))
+    kc_idx = next(i for i, line in enumerate(lines) if line.startswith("# keycloak-operator - postgres"))
+    zac_idx = next(i for i, line in enumerate(lines) if line.startswith("# zac"))
+    assert openzaak_idx < kc_idx < zac_idx
+
+    assert "#   2. keycloak-operator - postgres 16.0 -> 16.15." in new_text
+    assert "#   3. zac 5.0.2 -> 5.1.0." in new_text
+    assert "# Three changes:" in new_text
+    # Both existing entries' own content stays exactly as it was.
+    assert "#   1. openzaak 1.27.4 -> 1.29.3." in new_text
+    assert "- name: openzaak/open-zaak" in new_text
+    assert "- name: infonl/zaakafhandelcomponent" in new_text
+
+
+def test_add_missing_images_manifest_entries_valid_yaml_after_middle_insertion(
+        cdb, ordered_images_manifest_chart_dir):
+    """The inserted block is properly blank-line-separated from its
+    neighbors on both sides — the result parses as a valid, 3-entry
+    manifest, not malformed or merged-together YAML."""
+    text = (
+        "# openzaak — 1.27.4 -> 1.29.3\n"
+        "- name: openzaak/open-zaak\n"
+        "  url: openzaak/open-zaak\n"
+        '  version: "1.29.3"\n'
+        '  digest: "sha256:aaaa"\n'
+        "\n"
+        "# zac — 5.0.2 -> 5.1.0\n"
+        "- name: infonl/zaakafhandelcomponent\n"
+        "  url: infonl/zaakafhandelcomponent\n"
+        '  version: "5.1.0"\n'
+        '  digest: "sha256:cccc"\n'
+    )
+
+    new_text, added, skipped = cdb.add_missing_images_manifest_entries(
+        text, ordered_images_manifest_chart_dir, _ordered_deps(), _ordered_target_values(),
+        _ordered_baseline_values())
+
+    assert skipped == []
+    assert added == ["keycloak-operator - postgres"]
+    entries = yaml.safe_load(new_text)
+    assert [e["name"] for e in entries] == ["openzaak/open-zaak", "postgres", "infonl/zaakafhandelcomponent"]
+
+
+def test_add_missing_images_manifest_entries_no_header_still_orders_body(
+        cdb, ordered_images_manifest_chart_dir):
+    """No "# Changes:" header at all in this file — the body still gets
+    ordered correctly; nothing about header-handling is required for
+    body ordering to work."""
+    text = (
+        "# openzaak — 1.27.4 -> 1.29.3\n"
+        "- name: openzaak/open-zaak\n"
+        "  url: openzaak/open-zaak\n"
+        '  version: "1.29.3"\n'
+        '  digest: "sha256:aaaa"\n'
+        "\n"
+        "# zac — 5.0.2 -> 5.1.0\n"
+        "- name: infonl/zaakafhandelcomponent\n"
+        "  url: infonl/zaakafhandelcomponent\n"
+        '  version: "5.1.0"\n'
+        '  digest: "sha256:cccc"\n'
+    )
+
+    new_text, added, skipped = cdb.add_missing_images_manifest_entries(
+        text, ordered_images_manifest_chart_dir, _ordered_deps(), _ordered_target_values(),
+        _ordered_baseline_values())
+
+    assert skipped == []
+    assert added == ["keycloak-operator - postgres"]
+    lines = new_text.splitlines()
+    openzaak_idx = next(i for i, line in enumerate(lines) if line.startswith("# openzaak"))
+    kc_idx = next(i for i, line in enumerate(lines) if line.startswith("# keycloak-operator - postgres"))
+    zac_idx = next(i for i, line in enumerate(lines) if line.startswith("# zac"))
+    assert openzaak_idx < kc_idx < zac_idx
+
+
 # --- main() integration: images-manifest entry-comment correction ---
 
 def test_main_corrects_stale_images_manifest_entry_comment(cdb, repo_with_baseline_tag, monkeypatch):

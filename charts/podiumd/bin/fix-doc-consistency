@@ -83,8 +83,8 @@ from lib.chart import SEMVER_RE as BASELINE_VERSION_RE
 from lib.chart import canonical_sidecar_row_names, chart_version, paths_by_repository, version_of
 from lib.chart import upgrade_docs_baseline as read_upgrade_docs_baseline
 from lib.component_docs import (
-    IMAGES_STUB_TEMPLATE, STANDARD_SUFFIXES, STUB_TEMPLATES, add_missing_component_rows,
-    add_missing_values_delta_bullets, existing_doc_baselines,
+    CHANGES_HEADER_RE, CHANGES_ITEM_RE, IMAGES_STUB_TEMPLATE, NUMBER_WORDS, STANDARD_SUFFIXES, STUB_TEMPLATES,
+    add_missing_component_rows, add_missing_values_delta_bullets, existing_doc_baselines,
 )
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
 from lib.image_docs import add_missing_changes_sections, add_missing_sidecar_rows, update_stale_app_version_headings
@@ -92,9 +92,10 @@ from lib.image_repository_check import find_images_without_repository
 from lib.upgradedoc import (
     actual_app_version, append_to_doc, canonical_version_cell, compute_changed_components,
     extract_source_version, extract_target_version, find_grouped_preceding_comment_line,
-    find_image_tag_paths, find_images_manifest_list_diff, match_dependency_excluding_sidecar_names,
-    missing_key_change_lines, normalize_version, parse_upgrade_doc_rows, path_display_name, replace_version_pair,
-    resolve_entry_image_path, sort_changes_blocks, sort_upgrade_doc_rows,
+    find_image_tag_paths, find_images_manifest_list_diff, insertion_index,
+    match_dependency_excluding_sidecar_names, missing_key_change_lines, normalize_version, parse_upgrade_doc_rows,
+    path_display_name, replace_version_pair, resolve_entry_image_path, sort_changes_blocks, sort_upgrade_doc_rows,
+    values_key_order,
 )
 
 CHART_YAML = SCRIPT_DIR.parents[0] / "Chart.yaml"
@@ -123,6 +124,16 @@ COMPONENT_VERSIONS_RE_TMPL = r"Component versions \({target}\s+vs\s+(?P<baseline
 SIBLING_DOC_RE_TMPL = r"(?P<baseline>\d+\.\d+\.\d+)-to-{target}-(?P<suffix>upgrade|gemeente-specific|values-deltas)\.md"
 BASELINE_LINE_RE = re.compile(r"(?P<prefix>Baseline:\s*podiumd\s+)(?P<baseline>\d+\.\d+\.\d+)")
 VS_LINE_RE_TMPL = r"(?P<prefix>podiumd\s+{target}\s+vs\s+)(?P<baseline>\d+\.\d+\.\d+)"
+
+# A plain "# Changes:" images-manifest header with no leading count word
+# at all — lib.component_docs.CHANGES_HEADER_RE requires one ("# Twenty
+# Two changes:"), but a hand-curated header (this chart's own real
+# images-4.9.0.yaml, extensively rewritten with rich per-item prose) may
+# never have picked that convention up. Recognized as a valid anchor
+# too, so add_missing_images_manifest_entries can still find and extend
+# the numbered item list under it — but never rewritten with a count
+# word of its own if it didn't have one already (see header_has_count).
+BARE_CHANGES_HEADER_RE = re.compile(r"^(?P<indent>#\s*)[Cc]hanges:\s*$")
 
 
 def find_collisions(by_suffix):
@@ -395,11 +406,41 @@ def fix_images_manifest_entries(text, target_values, baseline_values, repo_map=N
     return "".join(lines), changed_entries, unresolved_names
 
 
+def _images_manifest_block_start(lines, entry_line_idx):
+    """The line index where this entry's own preceding comment block
+    begins (or the entry line itself if it has none) — walks upward
+    through contiguous "#"-prefixed lines directly above. When the
+    comment is actually shared with an earlier entry (see
+    find_grouped_preceding_comment), this naturally lands on that
+    earlier entry's own comment start too — inserting a new block right
+    before it never splits an existing group."""
+    i = entry_line_idx
+    while i > 0 and lines[i - 1].lstrip().startswith("#"):
+        i -= 1
+    return i
+
+
 def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, baseline_values):
-    """Append a new entry (+ its own "# <name> — <old> -> <new>" comment)
-    for every image lib.upgradedoc.find_images_manifest_list_diff's own
+    """Insert a new entry (+ its own "# <name> — <old> -> <new>" comment,
+    and a matching numbered item in the "# Changes:" header list) for
+    every image lib.upgradedoc.find_images_manifest_list_diff's own
     missing_paths reports — the "changed vs ... but has no entry" gap
     verify-podiumd's own doc-consistency check reports.
+
+    Both the header item and the comment+entry block are inserted at the
+    position matching values.yaml's own top-level component order
+    relative to what's already there (see lib.upgradedoc.
+    component_order_key/insertion_index — the SAME ordering convention
+    upgrade.md's own table rows/Changes sections use), not always
+    appended at the end. An existing header item (free-form prose,
+    matched via match_dependency_excluding_sidecar_names the same way
+    check_images_manifest_format's own Changes-item check does) or entry
+    (via its own resolved values-tree path) that can't be resolved to a
+    real dependency sorts last for THIS purpose only — never guessed at,
+    never causing an EXISTING item to move; it just means a new item
+    might land after a cluster of unresolvable ones instead of exactly
+    where it "should" go, which is still always at least as good as the
+    previous always-append-at-the-end behavior.
 
     "name:" and "url:" are both set to the SAME resolved repository
     string (lib.chart.paths_by_repository's own stripped form) rather
@@ -430,6 +471,11 @@ def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, ba
     repository's own result — kept as a defensive fallback, never a
     crash or bad data).
 
+    Processes one missing path at a time, re-parsing the (already
+    updated) text before computing the next insertion point — simpler
+    and safer than tracking how earlier insertions shift later line
+    indices by hand.
+
     Returns (new_text, added_names, skipped_names)."""
     current_paths = dict(find_image_tag_paths(target_values))
     baseline_paths = dict(find_image_tag_paths(baseline_values)) if baseline_values else {}
@@ -445,13 +491,16 @@ def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, ba
     path_to_repo = {path: repo for repo, group_paths in repo_groups.items() for path in group_paths}
     unresolvable_paths = set(find_images_without_repository(chart_dir))
     canonical_names = canonical_sidecar_row_names(chart_dir, deps, target_values, current_paths.keys())
+    key_order = values_key_order(target_values)
 
     missing_paths, _extra_entry_names = find_images_manifest_list_diff(
         entries, current_paths, baseline_paths, repo_map, repo_groups, unresolvable_paths)
 
-    lines = text.splitlines(keepends=True)
-    if lines and not lines[-1].endswith("\n"):
-        lines[-1] += "\n"
+    def order_key(values_key, is_sidecar):
+        try:
+            return (key_order.index(values_key), 1 if is_sidecar else 0)
+        except ValueError:
+            return (len(key_order), 1 if is_sidecar else 0)
 
     added_names, skipped_names = [], []
     for path in missing_paths:
@@ -465,15 +514,93 @@ def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, ba
         new_version, digest = current_tag.split("@", 1)
         baseline_tag = baseline_paths.get(path)
         old_version = version_of(baseline_tag) if baseline_tag else new_version
+        new_key = order_key(path[0], " - " in name)
 
-        lines.append(f"\n# {name} — {old_version} -> {new_version}\n")
-        lines.append(f"- name: {repo}\n")
-        lines.append(f"  url: {repo}\n")
-        lines.append(f'  version: "{new_version}"\n')
-        lines.append(f'  digest: "{digest}"\n')
+        lines = text.splitlines(keepends=True)
+        if lines and not lines[-1].endswith("\n"):
+            lines[-1] += "\n"
+
+        header_idx, header_has_count = None, False
+        for i, line in enumerate(lines):
+            if CHANGES_HEADER_RE.match(line):
+                header_idx, header_has_count = i, True
+                break
+            if BARE_CHANGES_HEADER_RE.match(line):
+                header_idx, header_has_count = i, False
+                break
+
+        if header_idx is not None:
+            item_indices = []
+            block_end = header_idx + 1
+            for i in range(header_idx + 1, len(lines)):
+                if lines[i].rstrip("\n") == "#" or not lines[i].startswith("#"):
+                    break
+                block_end = i + 1
+                if re.match(r"^#\s*\d+\.", lines[i]):
+                    item_indices.append(i)
+
+            item_keys = []
+            for idx in item_indices:
+                m = CHANGES_ITEM_RE.match(lines[idx])
+                item_dep = match_dependency_excluding_sidecar_names(m.group("rest"), deps) if m else None
+                if item_dep is None:
+                    item_keys.append((len(key_order), 0))
+                    continue
+                item_keys.append(order_key(item_dep.get("alias", item_dep["name"]), False))
+
+            insert_slot = insertion_index(new_key, item_keys)
+            insert_line = item_indices[insert_slot] if insert_slot < len(item_indices) else block_end
+            lines.insert(insert_line, f"#   {insert_slot + 1}. {name} {old_version} -> {new_version}.\n")
+
+            for later_idx in range(insert_line + 1, len(lines)):
+                if lines[later_idx].rstrip("\n") == "#" or not lines[later_idx].startswith("#"):
+                    break
+                m = CHANGES_ITEM_RE.match(lines[later_idx])
+                if m:
+                    lines[later_idx] = f"#   {int(m.group('num')) + 1}. {m.group('rest')}\n"
+
+            if header_has_count:
+                total = len(item_indices) + 1
+                count_word = NUMBER_WORDS[total] if total < len(NUMBER_WORDS) else str(total)
+                noun = "change" if total == 1 else "changes"
+                header_m = CHANGES_HEADER_RE.match(lines[header_idx])
+                lines[header_idx] = f"{header_m.group('indent')}{count_word} {noun}:\n"
+            # else: header was already a bare "# Changes:" label with no
+            # count word of its own — left exactly as-is, matching
+            # whatever style this file already uses; only the numbered
+            # item list itself needed the new entry.
+
+        entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
+        entry_keys = []
+        for idx in entry_line_indices:
+            m = re.match(r"^-\s*name:\s*(\S+)\s*$", lines[idx])
+            entry_path = resolve_entry_image_path({"name": m.group(1)}, current_paths.keys(), repo_map) \
+                if m else None
+            if entry_path is None:
+                entry_keys.append((len(key_order), 0))
+                continue
+            entry_display = path_display_name(entry_path, deps, canonical_names)
+            entry_keys.append(order_key(entry_path[0], " - " in entry_display))
+
+        block_lines = [
+            f"# {name} — {old_version} -> {new_version}\n",
+            f"- name: {repo}\n",
+            f"  url: {repo}\n",
+            f'  version: "{new_version}"\n',
+            f'  digest: "{digest}"\n',
+        ]
+        body_slot = insertion_index(new_key, entry_keys)
+        if body_slot < len(entry_line_indices):
+            insert_at = _images_manifest_block_start(lines, entry_line_indices[body_slot])
+            lines[insert_at:insert_at] = block_lines + ["\n"]
+        else:
+            lines.append("\n")
+            lines.extend(block_lines)
+
+        text = "".join(lines)
         added_names.append(name)
 
-    return "".join(lines), added_names, skipped_names
+    return text, added_names, skipped_names
 
 
 def main():
