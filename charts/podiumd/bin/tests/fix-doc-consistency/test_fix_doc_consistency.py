@@ -2325,6 +2325,82 @@ def test_main_reorders_a_sidecar_row_to_come_after_its_own_parent_row(cdb, tmp_p
     assert "Reordering" in out
 
 
+# --- sort_images_manifest_changes_items ---
+
+CHANGES_ITEMS_DEPS = [{"name": "redis-operator", "version": "1.0.0"},
+                      {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.0"}]
+CHANGES_ITEMS_KEY_ORDER = ["redis-operator", "zac"]
+
+
+def test_sort_images_manifest_changes_items_reorders_and_renumbers(cdb):
+    lines = [
+        "# Baseline: podiumd 4.8.5.\n",
+        "#\n",
+        "# Changes:\n",
+        "#   1. zac 5.0.2 -> 5.4.4.\n",
+        "#   2. redis-operator 0.25.0 -> 0.26.0.\n",
+        "\n",
+    ]
+    moved = cdb.sort_images_manifest_changes_items(lines, CHANGES_ITEMS_DEPS, CHANGES_ITEMS_KEY_ORDER)
+    assert moved == [("redis-operator 0.25.0 -> 0.26.0.", 2, 1), ("zac 5.0.2 -> 5.4.4.", 1, 2)]
+    assert lines[3] == "#   1. redis-operator 0.25.0 -> 0.26.0.\n"
+    assert lines[4] == "#   2. zac 5.0.2 -> 5.4.4.\n"
+
+
+def test_sort_images_manifest_changes_items_continuation_line_travels_with_item(cdb):
+    """A wrapped continuation line (2+ spaces after "#") stays attached
+    to its own item when that item moves — never split off or left
+    behind at its old position."""
+    lines = [
+        "# Changes:\n",
+        "#   1. zac 5.0.2 -> 5.4.4.\n",
+        "#   2. redis-operator (shared global.images.nginx anchor, used by every\n",
+        "#      nginx sidecar in the chart) 0.25.0 -> 0.26.0.\n",
+        "\n",
+    ]
+    moved = cdb.sort_images_manifest_changes_items(lines, CHANGES_ITEMS_DEPS, CHANGES_ITEMS_KEY_ORDER)
+    assert len(moved) == 2
+    assert lines[1].startswith("#   1. redis-operator (shared")
+    assert lines[2] == "#      nginx sidecar in the chart) 0.25.0 -> 0.26.0.\n"
+    assert lines[3] == "#   2. zac 5.0.2 -> 5.4.4.\n"
+
+
+def test_sort_images_manifest_changes_items_unresolved_item_sorts_last(cdb):
+    """An item that doesn't resolve to any real dependency (free-form
+    prose) sorts after every real one — same sentinel component_order_
+    key uses elsewhere — never dragged around by a real item's move."""
+    lines = [
+        "# Changes:\n",
+        "#   1. Totally Unknown Thing 1.0.0 -> 2.0.0.\n",
+        "#   2. zac 5.0.2 -> 5.4.4.\n",
+        "#   3. redis-operator 0.25.0 -> 0.26.0.\n",
+        "\n",
+    ]
+    cdb.sort_images_manifest_changes_items(lines, CHANGES_ITEMS_DEPS, CHANGES_ITEMS_KEY_ORDER)
+    assert lines[1] == "#   1. redis-operator 0.25.0 -> 0.26.0.\n"
+    assert lines[2] == "#   2. zac 5.0.2 -> 5.4.4.\n"
+    assert lines[3] == "#   3. Totally Unknown Thing 1.0.0 -> 2.0.0.\n"
+
+
+def test_sort_images_manifest_changes_items_already_ordered_reports_nothing(cdb):
+    lines = [
+        "# Changes:\n",
+        "#   1. redis-operator 0.25.0 -> 0.26.0.\n",
+        "#   2. zac 5.0.2 -> 5.4.4.\n",
+        "\n",
+    ]
+    original = list(lines)
+    moved = cdb.sort_images_manifest_changes_items(lines, CHANGES_ITEMS_DEPS, CHANGES_ITEMS_KEY_ORDER)
+    assert moved == []
+    assert lines == original
+
+
+def test_sort_images_manifest_changes_items_no_header_is_a_noop(cdb):
+    lines = ["- name: opstree/redis-operator\n", '  version: "0.26.0"\n']
+    moved = cdb.sort_images_manifest_changes_items(lines, CHANGES_ITEMS_DEPS, CHANGES_ITEMS_KEY_ORDER)
+    assert moved == []
+
+
 def test_main_reorders_images_manifest_to_match_values_yaml(cdb, tmp_path, monkeypatch, capsys):
     """images-4.9.0.yaml lists zac before redis-operator, but values.yaml
     (via sort_keys=False — see repo_with_out_of_order_doc's own comment
@@ -2351,7 +2427,12 @@ def test_main_reorders_images_manifest_to_match_values_yaml(cdb, tmp_path, monke
     images_dir.mkdir(parents=True)
     images_path = images_dir / "images-4.9.0.yaml"
     write(images_path,
-          "# Baseline: podiumd 4.8.5. Re-verify before release.\n\n"
+          "# Baseline: podiumd 4.8.5. Re-verify before release.\n"
+          "#\n"
+          "# Changes:\n"
+          "#   1. zac 5.0.2 -> 5.4.4.\n"
+          "#   2. redis-operator 0.25.0 -> 0.26.0.\n"
+          "\n"
           "# zac 5.0.2 -> 5.4.4\n"
           "- name: infonl/zaakafhandelcomponent\n"
           "  url: ghcr.io/infonl/zaakafhandelcomponent\n"
@@ -2373,9 +2454,14 @@ def test_main_reorders_images_manifest_to_match_values_yaml(cdb, tmp_path, monke
     # Each entry's own comment travels WITH it, never left behind.
     assert text.index("# redis-operator") < text.index("- name: opstree/redis-operator")
     assert text.index("# zac") < text.index("- name: infonl/zaakafhandelcomponent")
+    # The "# Changes:" numbered list is ALSO reordered and renumbered.
+    assert "#   1. redis-operator 0.25.0 -> 0.26.0.\n" in text
+    assert "#   2. zac 5.0.2 -> 5.4.4.\n" in text
 
     out = capsys.readouterr().out
     assert "Reordering" in out
+    assert "'# Changes:' item 2 -> 1: redis-operator 0.25.0 -> 0.26.0." in out
+    assert "'# Changes:' item 1 -> 2: zac 5.0.2 -> 5.4.4." in out
     assert "entry 'redis-operator': position 2 -> 1" in out
     assert "entry 'zac': position 1 -> 2" in out
 
