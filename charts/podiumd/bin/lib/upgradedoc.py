@@ -779,7 +779,8 @@ def path_display_name(path, deps, canonical_names):
     return ".".join(path)
 
 
-def find_images_manifest_list_diff(entries, current_paths, baseline_paths, repo_map, repo_groups):
+def find_images_manifest_list_diff(entries, current_paths, baseline_paths, repo_map, repo_groups,
+                                    unresolvable_paths):
     """(missing_paths, extra_entry_names) — the images-manifest's own
     "list of changed images" checked against the FULL, actual set of
     every image tag pin whose value differs between the target
@@ -804,6 +805,17 @@ def find_images_manifest_list_diff(entries, current_paths, baseline_paths, repo_
     resolve_entry_image_path) before diffing, so the other, redundant
     paths in the group can never show up as spuriously "missing".
 
+    unresolvable_paths: lib.image_repository_check.find_images_without_
+    repository's own result — a path with no resolvable repository at
+    all (real case: kiss.adapter.image, whose "repository:" is
+    commented out in podiumd's own values.yaml AND the vendored kiss-
+    chart subchart has no "adapter" default either, so it isn't a real,
+    referenceable image at all — see that function's own docstring)
+    never needs a manifest entry: there is nothing a {name, url,
+    version, digest} entry could even correspond to. That check already
+    reports it as broken on its own; this one has no business demanding
+    a manifest entry for it too.
+
     missing_paths: every (already-collapsed) path whose tag actually
     changed but no entry resolves to it at all — a real change the
     manifest never mentions. extra_entry_names: every entry's own
@@ -816,7 +828,8 @@ def find_images_manifest_list_diff(entries, current_paths, baseline_paths, repo_
                           for path in paths if repo in repo_map}
 
     changed_paths = {representative_of.get(path, path)
-                      for path, tag in current_paths.items() if tag != baseline_paths.get(path)}
+                      for path, tag in current_paths.items()
+                      if tag != baseline_paths.get(path) and path not in unresolvable_paths}
 
     matched_paths = set()
     extra_entry_names = []

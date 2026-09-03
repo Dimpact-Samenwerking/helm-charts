@@ -434,7 +434,7 @@ def test_find_images_manifest_list_diff_exact_list_reports_nothing(libupgradedoc
     current_paths = {("zac",): "1.2.0@sha256:new"}
     baseline_paths = {("zac",): "1.1.0@sha256:old"}
     missing, extra = libupgradedoc.find_images_manifest_list_diff(
-        entries, current_paths, baseline_paths, repo_map={}, repo_groups={})
+        entries, current_paths, baseline_paths, repo_map={}, repo_groups={}, unresolvable_paths=set())
     assert missing == []
     assert extra == []
 
@@ -446,7 +446,7 @@ def test_find_images_manifest_list_diff_finds_missing_changed_image(libupgradedo
     current_paths = {("zac",): "1.2.0@sha256:new"}
     baseline_paths = {("zac",): "1.1.0@sha256:old"}
     missing, extra = libupgradedoc.find_images_manifest_list_diff(
-        entries, current_paths, baseline_paths, repo_map={}, repo_groups={})
+        entries, current_paths, baseline_paths, repo_map={}, repo_groups={}, unresolvable_paths=set())
     assert missing == [("zac",)]
     assert extra == []
 
@@ -459,7 +459,7 @@ def test_find_images_manifest_list_diff_finds_entry_for_unchanged_image(libupgra
     current_paths = {("zac",): "1.1.0@sha256:old"}
     baseline_paths = {("zac",): "1.1.0@sha256:old"}
     missing, extra = libupgradedoc.find_images_manifest_list_diff(
-        entries, current_paths, baseline_paths, repo_map={}, repo_groups={})
+        entries, current_paths, baseline_paths, repo_map={}, repo_groups={}, unresolvable_paths=set())
     assert missing == []
     assert extra == ["zac"]
 
@@ -472,7 +472,7 @@ def test_find_images_manifest_list_diff_finds_entry_matching_nothing(libupgraded
     current_paths = {("zac",): "1.1.0@sha256:old"}
     baseline_paths = {("zac",): "1.1.0@sha256:old"}
     missing, extra = libupgradedoc.find_images_manifest_list_diff(
-        entries, current_paths, baseline_paths, repo_map={}, repo_groups={})
+        entries, current_paths, baseline_paths, repo_map={}, repo_groups={}, unresolvable_paths=set())
     assert missing == []
     assert extra == ["does-not-exist"]
 
@@ -485,7 +485,7 @@ def test_find_images_manifest_list_diff_catches_digest_only_repin(libupgradedoc)
     current_paths = {("zac",): "1.1.0@sha256:newdigest"}
     baseline_paths = {("zac",): "1.1.0@sha256:olddigest"}
     missing, extra = libupgradedoc.find_images_manifest_list_diff(
-        entries, current_paths, baseline_paths, repo_map={}, repo_groups={})
+        entries, current_paths, baseline_paths, repo_map={}, repo_groups={}, unresolvable_paths=set())
     assert missing == [("zac",)]
     assert extra == []
 
@@ -500,7 +500,7 @@ def test_find_images_manifest_list_diff_uses_repo_map_for_resolution(libupgraded
     repo_map = {"infonl/zaakafhandelcomponent": ("zac",)}
     repo_groups = {"infonl/zaakafhandelcomponent": [("zac",)]}
     missing, extra = libupgradedoc.find_images_manifest_list_diff(
-        entries, current_paths, baseline_paths, repo_map, repo_groups)
+        entries, current_paths, baseline_paths, repo_map, repo_groups, unresolvable_paths=set())
     assert missing == []
     assert extra == []
 
@@ -527,7 +527,7 @@ def test_find_images_manifest_list_diff_collapses_shared_repository_group(libupg
     repo_map = {"nginxinc/nginx-unprivileged": ("openinwoner", "nginx", "image")}
 
     missing, extra = libupgradedoc.find_images_manifest_list_diff(
-        entries, current_paths, baseline_paths, repo_map, repo_groups)
+        entries, current_paths, baseline_paths, repo_map, repo_groups, unresolvable_paths=set())
     assert missing == []
     assert extra == []
 
@@ -549,9 +549,41 @@ def test_find_images_manifest_list_diff_reports_shared_group_missing_once(libupg
     repo_map = {"nginxinc/nginx-unprivileged": ("openformulieren", "nginx", "image")}
 
     missing, extra = libupgradedoc.find_images_manifest_list_diff(
-        entries, current_paths, baseline_paths, repo_map, repo_groups)
+        entries, current_paths, baseline_paths, repo_map, repo_groups, unresolvable_paths=set())
     assert missing == [("openformulieren", "nginx", "image")]
     assert extra == []
+
+
+def test_find_images_manifest_list_diff_excludes_unresolvable_path_from_missing(libupgradedoc):
+    """A path with no resolvable repository at all (real case:
+    kiss.adapter.image — see lib.image_repository_check.
+    find_images_without_repository's own docstring) isn't a real,
+    referenceable image the manifest could ever meaningfully document —
+    never reported as missing just because its tag happens to differ
+    from baseline."""
+    entries = []
+    current_paths = {("kiss", "adapter", "image"): "0.6.7@sha256:new"}
+    baseline_paths = {("kiss", "adapter", "image"): "0.6.6@sha256:old"}
+    missing, extra = libupgradedoc.find_images_manifest_list_diff(
+        entries, current_paths, baseline_paths, repo_map={}, repo_groups={},
+        unresolvable_paths={("kiss", "adapter", "image")})
+    assert missing == []
+    assert extra == []
+
+
+def test_find_images_manifest_list_diff_flags_entry_for_unresolvable_path_as_extra(libupgradedoc):
+    """An entry that DOES exist for a path with no resolvable repository
+    is flagged as extra too — such a path isn't a real image the
+    manifest has any reason to list at all, whether or not something
+    fuzzy-matches it by name."""
+    entries = [{"name": "adapter"}]
+    current_paths = {("kiss", "adapter", "image"): "0.6.7@sha256:new"}
+    baseline_paths = {("kiss", "adapter", "image"): "0.6.6@sha256:old"}
+    missing, extra = libupgradedoc.find_images_manifest_list_diff(
+        entries, current_paths, baseline_paths, repo_map={}, repo_groups={},
+        unresolvable_paths={("kiss", "adapter", "image")})
+    assert missing == []
+    assert extra == ["adapter"]
 
 
 # --- path_display_name ---
