@@ -12,13 +12,18 @@ import pytest
 import yaml
 
 
-def make_tgz(charts_dir, name, version, values, templates=None, chart_yaml=None):
+def make_tgz(charts_dir, name, version, values, templates=None, chart_yaml=None, raw_files=None):
     """A minimal vendored <name>-<version>.tgz containing <name>/values.yaml
     and, if `templates` is given (a {filename: text} dict), <name>/templates/
     <filename> for each entry — enough to exercise subchart_values/
     subchart_default_repository/subchart_template_text without a real
     `helm pull`. `chart_yaml`, if given (a dict), is ALSO written as
-    <name>/Chart.yaml — for subchart_app_version."""
+    <name>/Chart.yaml — for subchart_app_version. `raw_files`, if given
+    (a {internal tar path: text} dict, paths relative to the tgz root —
+    e.g. "<name>/charts/<nested>/values.yaml"), writes each verbatim —
+    for nested_subchart_raw_text/nested_subchart_documented_image_
+    repository, where the content isn't real structured YAML (a
+    commented-out example line) so yaml.safe_dump can't produce it."""
     charts_dir.mkdir(parents=True, exist_ok=True)
     tgz_path = charts_dir / f"{name}-{version}.tgz"
     data = yaml.safe_dump(values).encode("utf-8")
@@ -36,6 +41,11 @@ def make_tgz(charts_dir, name, version, values, templates=None, chart_yaml=None)
             chart_info = tarfile.TarInfo(name=f"{name}/Chart.yaml")
             chart_info.size = len(chart_data)
             tar.addfile(chart_info, io.BytesIO(chart_data))
+        for internal_path, text in (raw_files or {}).items():
+            raw_data = text.encode("utf-8")
+            raw_info = tarfile.TarInfo(name=internal_path)
+            raw_info.size = len(raw_data)
+            tar.addfile(raw_info, io.BytesIO(raw_data))
     return tgz_path
 
 
@@ -625,6 +635,57 @@ def test_subchart_app_version_no_app_version_field_returns_none(libchart, tmp_pa
     assert libchart.subchart_app_version(tmp_path, dep) is None
 
 
+# --- nested_subchart_raw_text / nested_subchart_documented_image_repository ---
+
+def test_nested_subchart_raw_text_reads_nested_file(libchart, tmp_path):
+    dep = {"name": "eck-stack", "version": "0.20.0"}
+    make_tgz(tmp_path / "charts", "eck-stack", "0.20.0", {}, raw_files={
+        "eck-stack/charts/eck-elasticsearch/values.yaml": "# hello\n",
+    })
+    assert libchart.nested_subchart_raw_text(tmp_path, dep, "eck-elasticsearch", "values.yaml") == "# hello\n"
+
+
+def test_nested_subchart_raw_text_missing_tgz_returns_none(libchart, tmp_path):
+    dep = {"name": "eck-stack", "version": "0.20.0"}
+    assert libchart.nested_subchart_raw_text(tmp_path, dep, "eck-elasticsearch", "values.yaml") is None
+
+
+def test_nested_subchart_raw_text_missing_nested_chart_returns_none(libchart, tmp_path):
+    """The outer .tgz IS vendored, but has no charts/eck-kibana/ inside
+    it at all (e.g. a stale/mismatched registry entry) — no crash."""
+    dep = {"name": "eck-stack", "version": "0.20.0"}
+    make_tgz(tmp_path / "charts", "eck-stack", "0.20.0", {}, raw_files={
+        "eck-stack/charts/eck-elasticsearch/values.yaml": "# hello\n",
+    })
+    assert libchart.nested_subchart_raw_text(tmp_path, dep, "eck-kibana", "values.yaml") is None
+
+
+def test_nested_subchart_documented_image_repository_extracts_first_example(libchart, tmp_path):
+    """The FIRST "# image: <repo>[:<tag>]" comment wins — every ECK-
+    family sub-subchart lists the plain "<repo>:<version>" form first,
+    then a digest-suffixed variant, then a bare "@sha256:..." form; only
+    the plain repository (no tag, no digest) is wanted."""
+    dep = {"name": "eck-stack", "version": "0.20.0"}
+    make_tgz(tmp_path / "charts", "eck-stack", "0.20.0", {}, raw_files={
+        "eck-stack/charts/eck-kibana/values.yaml": (
+            "# Kibana Docker image to deploy.\n#\n"
+            "# image: docker.elastic.co/kibana/kibana:9.5.0\n"
+            "# image: docker.elastic.co/kibana/kibana:9.5.0@sha256:<digest>\n"
+            "# image: docker.elastic.co/kibana/kibana@sha256:<digest>\n"
+        ),
+    })
+    assert (libchart.nested_subchart_documented_image_repository(tmp_path, dep, "eck-kibana")
+            == "docker.elastic.co/kibana/kibana")
+
+
+def test_nested_subchart_documented_image_repository_no_comment_returns_none(libchart, tmp_path):
+    dep = {"name": "eck-stack", "version": "0.20.0"}
+    make_tgz(tmp_path / "charts", "eck-stack", "0.20.0", {}, raw_files={
+        "eck-stack/charts/eck-kibana/values.yaml": "enabled: true\n",
+    })
+    assert libchart.nested_subchart_documented_image_repository(tmp_path, dep, "eck-kibana") is None
+
+
 # --- resolve_chart_values ---
 
 def test_resolve_chart_values_prefers_vendored_over_pulling(libchart, tmp_path, monkeypatch):
@@ -983,12 +1044,13 @@ def test_paths_by_repository_resolves_via_component_version_repository_sibling(l
     assert groups == {"opstree/redis-operator": [("redis-operator", "redisOperator", "imageTag")]}
 
 
-def test_paths_by_repository_no_sibling_registered_falls_through_to_subchart(libchart, tmp_path):
+def test_paths_by_repository_nested_subchart_not_vendored_falls_through(libchart, tmp_path):
     """eck-stack's own COMPONENT_VERSION_PATHS entries ("version:" bare
-    fields) have no registered repository sibling at all — must not
-    error, just fall through exactly as an unregistered component
-    would (no own override, no vendored subchart here either -> path
-    silently excluded, not a crash)."""
+    fields) have a registered nested-subchart lookup (see
+    COMPONENT_VERSION_PATH_NESTED_SUBCHARTS), but the .tgz itself isn't
+    vendored at tmp_path — must not error, just fall through exactly
+    as an unregistered component would (no own override, no vendored
+    subchart either -> path silently excluded, not a crash)."""
     dep = {"name": "eck-stack", "alias": "kiss-eck", "version": "0.20.0"}
     values = {"kiss-eck": {"eck-elasticsearch": {"version": "8.19.19"}}}
     paths = [("kiss-eck", "eck-elasticsearch", "version")]
@@ -996,6 +1058,28 @@ def test_paths_by_repository_no_sibling_registered_falls_through_to_subchart(lib
     groups = libchart.paths_by_repository(tmp_path, [dep], values, paths, allow_pull=False)
 
     assert groups == {}
+
+
+def test_paths_by_repository_resolves_via_nested_subchart_documented_default(libchart, tmp_path):
+    """eck-stack's own three "version:" fields have no repository
+    anywhere in podiumd's own values.yaml, nor a live default in the
+    vendored eck-stack chart's own top-level values.yaml — only a
+    commented-out example inside its NESTED eck-elasticsearch sub-
+    subchart's own values.yaml, which is what this resolves through."""
+    dep = {"name": "eck-stack", "alias": "kiss-eck", "version": "0.20.0"}
+    make_tgz(tmp_path / "charts", "eck-stack", "0.20.0", {}, raw_files={
+        "eck-stack/charts/eck-elasticsearch/values.yaml": (
+            "# Elasticsearch Docker image to deploy.\n#\n"
+            "# image: docker.elastic.co/elasticsearch/elasticsearch:9.5.0\n"
+            "# image: docker.elastic.co/elasticsearch/elasticsearch:9.5.0@sha256:<digest>\n"
+        ),
+    })
+    values = {"kiss-eck": {"eck-elasticsearch": {"version": "8.19.19"}}}
+    paths = [("kiss-eck", "eck-elasticsearch", "version")]
+
+    groups = libchart.paths_by_repository(tmp_path, [dep], values, paths, allow_pull=False)
+
+    assert groups == {"elasticsearch/elasticsearch": [("kiss-eck", "eck-elasticsearch", "version")]}
 
 
 # --- canonical_sidecar_row_names ---

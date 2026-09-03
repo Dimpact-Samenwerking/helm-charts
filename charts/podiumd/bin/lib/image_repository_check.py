@@ -24,7 +24,10 @@ subchart has no "adapter" key in its own defaults either — so the
 podiumd-adapter Deployment currently renders "image: :0.6.7@sha256:...",
 confirmed both by rendering the podiumd.image helper directly and
 against a real `helm template` output already checked into this repo."""
-from lib.chart import get_path, load_yaml, resolve_chart_values, version_repository_path_for
+from lib.chart import (
+    get_path, load_yaml, nested_subchart_documented_image_repository, nested_subchart_name_for,
+    resolve_chart_values, version_repository_path_for,
+)
 from lib.upgradedoc import find_all_image_and_version_paths
 
 
@@ -54,6 +57,7 @@ def find_images_without_repository(chart_dir, allow_pull=False):
     values = load_yaml(chart_dir / "values.yaml") or {}
     by_values_key = {(dep.get("alias") or dep["name"]): dep for dep in deps}
     subchart_cache = {}  # dep name -> subchart values or None
+    nested_subchart_cache = {}  # (dep name, nested chart name) -> repository_or_None
 
     missing = []
     for path, _tag in find_all_image_and_version_paths(values, deps):
@@ -76,6 +80,16 @@ def find_images_without_repository(chart_dir, allow_pull=False):
         if sibling_rel:
             sibling_repo = get_path(values, f"{path[0]}.{sibling_rel}")
             if isinstance(sibling_repo, str) and sibling_repo:
+                continue
+
+        nested_rel = ".".join(path[1:])
+        nested_chart_name = nested_subchart_name_for(dep["name"], nested_rel)
+        if nested_chart_name:
+            cache_key = (dep["name"], nested_chart_name)
+            if cache_key not in nested_subchart_cache:
+                nested_subchart_cache[cache_key] = nested_subchart_documented_image_repository(
+                    chart_dir, dep, nested_chart_name)
+            if nested_subchart_cache[cache_key]:
                 continue
 
         if dep["name"] not in subchart_cache:

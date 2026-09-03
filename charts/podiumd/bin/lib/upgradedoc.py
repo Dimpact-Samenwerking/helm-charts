@@ -3,7 +3,8 @@ docs-consistency check and fix-doc-consistency's version-correction pass."""
 import re
 
 from lib.chart import (
-    COMPONENT_IMAGE_PATHS, get_path, image_paths_for, subchart_app_version, version_of, version_paths_for,
+    COMPONENT_IMAGE_PATHS, get_path, image_paths_for, nested_subchart_registered_paths, subchart_app_version,
+    version_of, version_paths_for,
 )
 
 
@@ -835,19 +836,26 @@ def find_image_tag_paths(node, path=()):
 
 
 def find_component_version_tags(values, deps):
-    """(path, value) for every lib.chart.COMPONENT_VERSION_PATHS-
-    registered bare tag/version field that's actually pinned in
-    `values` — the ONE shape find_image_tag_paths' own generic
-    "<key ending in Image>: {tag: ...}" structural scan can never see,
-    since these are flat scalar sibling fields (e.g. redis-operator's
-    own "redisOperator.imageTag", not nested under an "image:"/
-    "...Image:" dict with a "tag:" key at all — see COMPONENT_VERSION_
-    PATHS' own docstring for why). Use find_all_image_and_version_paths
-    for a chart-wide scan that includes both; this on its own only when
-    just the registered paths are wanted."""
+    """(path, value) for every lib.chart.COMPONENT_VERSION_PATHS- or
+    COMPONENT_VERSION_PATH_NESTED_SUBCHARTS-registered bare tag/version
+    field that's actually pinned in `values` — the ONE shape
+    find_image_tag_paths' own generic "<key ending in Image>: {tag:
+    ...}" structural scan can never see, since these are flat scalar
+    sibling fields (e.g. redis-operator's own "redisOperator.imageTag",
+    not nested under an "image:"/"...Image:" dict with a "tag:" key at
+    all — see COMPONENT_VERSION_PATHS' own docstring for why). The two
+    registries' own field lists are unioned — COMPONENT_VERSION_PATH_
+    NESTED_SUBCHARTS registers a few fields COMPONENT_VERSION_PATHS
+    deliberately excludes from ITS narrower "pick ONE representative
+    app version" list (eck-stack's own "eck-enterprise-search.version",
+    disabled by default) that are still real, matchable images here.
+    Use find_all_image_and_version_paths for a chart-wide scan that
+    includes both this and find_image_tag_paths; this on its own only
+    when just the registered paths are wanted."""
     for dep in deps:
         values_key = dep.get("alias", dep["name"])
-        for rel in version_paths_for(dep["name"]):
+        rels = set(version_paths_for(dep["name"])) | set(nested_subchart_registered_paths(dep["name"]))
+        for rel in rels:
             value = get_path(values, f"{values_key}.{rel}")
             if isinstance(value, str) and value:
                 yield tuple(values_key.split(".")) + tuple(rel.split(".")), value
