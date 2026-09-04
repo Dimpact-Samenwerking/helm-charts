@@ -21,14 +21,14 @@ import re
 
 import yaml
 
-from lib.chart import image_paths_for, replace_scalar_value, version_paths_for
+from lib.chart import NATIVE_COMPONENTS, image_paths_for, replace_scalar_value, version_paths_for
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
 from lib.upgradedoc import (
     _word_aligned_spans, actual_app_version, append_to_doc, component_order_key, component_version_cell,
     COMPONENT_VERSIONS_HEADING_RE, extract_mentioned_dependency_keys, extract_source_version,
     find_grouped_preceding_comment_line, insertion_index, match_dependency_excluding_sidecar_names,
-    normalize_name, normalize_version, parse_upgrade_doc_changes_blocks, parse_upgrade_doc_rows,
-    replace_version_pair, resolve_entry_path, values_key_order,
+    match_native_component, normalize_name, normalize_version, parse_upgrade_doc_changes_blocks,
+    parse_upgrade_doc_rows, replace_version_pair, resolve_entry_path, values_key_order,
 )
 
 NUMBER_WORDS = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten",
@@ -545,16 +545,21 @@ def add_missing_component_rows(text, chart_dir, target_deps, target_values, base
     drift a hand-picked display name can fall into, since match_dependency
     always matches its own exact source unambiguously).
 
-    A key with no matching Chart.yaml dependency at all (e.g. an orphan
-    values.yaml block like frankgateway) is skipped — there's no
-    dep["version"] to read a Helm chart version from, so nothing here
-    can be generated confidently; add that row by hand. A key whose app
-    version can't be resolved via actual_app_version's own known shapes
-    (<key>.image.tag, frontend/backend, COMPONENT_VERSION_PATHS' bare
-    version fields, or a registered COMPONENT_IMAGE_PATHS component's
-    vendored-chart appVersion fallback — see that function's own
-    docstring) gets a "-" app-version placeholder and a short TODO-stub
-    Changes section instead of guessing at prose. Returns (new_text, added_names)."""
+    A key with no matching Chart.yaml dependency AND no lib.chart.
+    NATIVE_COMPONENTS entry either is skipped — there's no dep["version"]
+    to read a Helm chart version from, and nothing here can tell it apart
+    from a genuinely unrelated top-level key; add that row by hand. A
+    NATIVE_COMPONENTS key (e.g. frankgateway) instead gets old_chart=None,
+    new_chart="-" — the same chart-less convention update-component-
+    version's own "native" chart-version already writes — so its row's
+    Helm-chart cell reads the bare "-" placeholder, never a guessed
+    version. A key whose app version can't be resolved via actual_app_
+    version's own known shapes (<key>.image.tag, frontend/backend,
+    COMPONENT_VERSION_PATHS' bare version fields, or a registered
+    COMPONENT_IMAGE_PATHS component's vendored-chart appVersion fallback
+    — see that function's own docstring) gets a "-" app-version
+    placeholder and a short TODO-stub Changes section instead of
+    guessing at prose. Returns (new_text, added_names)."""
     matched_keys = set()
     for row in parse_upgrade_doc_rows(text):
         # match_dependency_excluding_sidecar_names, not match_dependency
@@ -565,16 +570,25 @@ def add_missing_component_rows(text, chart_dir, target_deps, target_values, base
         dep = match_dependency_excluding_sidecar_names(row["name"], target_deps)
         if dep:
             matched_keys.add(dep.get("alias", dep["name"]))
+            continue
+        native_key = match_native_component(row["name"], NATIVE_COMPONENTS)
+        if native_key:
+            matched_keys.add(native_key)
 
     added_names = []
     for key in sorted(actual_changed_keys - matched_keys):
         dep = dep_for_values_key(target_deps, key)
-        if dep is None:
+        if dep is not None:
+            chart_name = dep["name"]
+            baseline_dep = dep_for_values_key(baseline_deps, key) if baseline_deps else None
+            old_chart = str(baseline_dep["version"]) if baseline_dep else None
+            new_chart = str(dep["version"])
+        elif key in NATIVE_COMPONENTS:
+            chart_name = key
+            old_chart = None
+            new_chart = "-"
+        else:
             continue
-        chart_name = dep["name"]
-        baseline_dep = dep_for_values_key(baseline_deps, key) if baseline_deps else None
-        old_chart = str(baseline_dep["version"]) if baseline_dep else None
-        new_chart = str(dep["version"])
         old_app = actual_app_version(baseline_values, key, chart_name) if baseline_values else None
         new_app = actual_app_version(target_values, key, chart_name, chart_dir=chart_dir, dep=dep)
 
@@ -634,29 +648,39 @@ def add_missing_values_delta_bullets(text, chart_dir, target_deps, target_values
     "Component versions" table row, so a component's bullet here and its
     table row always agree.
 
-    A key with no matching Chart.yaml dependency at all is skipped (see
-    dep_for_values_key) — nothing here can be generated confidently
-    without a real Chart.yaml version to read. A key whose app version
-    can't be resolved via actual_app_version's own known shapes (see
-    that function's own docstring) gets a short TODO bullet instead of
-    a value-less "app `None`" line.
+    A key with no matching Chart.yaml dependency AND no lib.chart.
+    NATIVE_COMPONENTS entry either is skipped — nothing here can be
+    generated confidently without a real Chart.yaml version to read, or
+    the chart-less convention (see add_missing_component_rows) to fall
+    back to. A key whose app version can't be resolved via actual_app_
+    version's own known shapes (see that function's own docstring) gets
+    a short TODO bullet instead of a value-less "app `None`" line.
     Returns (new_text, added_names)."""
     mentioned_keys = extract_mentioned_dependency_keys(text, target_deps)
     new_lines = []
     added_names = []
     for key in sorted(actual_changed_keys - mentioned_keys):
         dep = dep_for_values_key(target_deps, key)
-        if dep is None:
+        if dep is not None:
+            chart_name = dep["name"]
+            baseline_dep = dep_for_values_key(baseline_deps, key) if baseline_deps else None
+            old_chart = str(baseline_dep["version"]) if baseline_dep else None
+            new_chart = str(dep["version"])
+        elif key in NATIVE_COMPONENTS:
+            chart_name = key
+            old_chart = None
+            new_chart = "-"
+        else:
             continue
-        baseline_dep = dep_for_values_key(baseline_deps, key) if baseline_deps else None
-        old_chart = str(baseline_dep["version"]) if baseline_dep else None
-        new_chart = str(dep["version"])
-        old_app = actual_app_version(baseline_values, key, dep["name"]) if baseline_values else None
-        new_app = actual_app_version(target_values, key, dep["name"], chart_dir=chart_dir, dep=dep)
+        old_app = actual_app_version(baseline_values, key, chart_name) if baseline_values else None
+        new_app = actual_app_version(target_values, key, chart_name, chart_dir=chart_dir, dep=dep)
 
         if new_app is not None:
             new_lines.append(values_delta_bullet(key, old_app or new_app, new_app,
                                                   old_chart or new_chart, new_chart))
+        elif new_chart == "-":
+            new_lines.append(f"- **{key}** — TODO: describe this component's changes; its app "
+                              f"version could not be resolved automatically.\n")
         else:
             chart_bit = (f"`{old_chart} → {new_chart}`"
                          if old_chart and normalize_version(old_chart) != normalize_version(new_chart)
