@@ -354,6 +354,7 @@ def test_check_image_digests_reports_mismatch(vp, libimagedigests, tmp_path, mon
     assert "org/repo" in out
     assert "values.yaml:4" in out
     assert "fix-image-digests" in out
+    assert "[1/1] checking docker.io/org/repo:1.0.0..." in out  # progress line, printed before every check
 
 
 def test_check_image_digests_reports_missing_tag_as_fetch_error(vp, libimagedigests, tmp_path, monkeypatch, capsys):

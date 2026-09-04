@@ -162,6 +162,11 @@ def test_check_image_upgrades_splits_own_partner_other_and_never_fails(
     assert "--- Other-vendor images ---" not in out  # nothing upgradable there
     assert "OK: no newer tag published for any pinned image" not in out  # frankgateway IS upgradable
 
+    # a per-image progress line for each of the 3 (uncached) lookups
+    progress_lines = [line for line in out.splitlines() if "checking" in line and "newer tag" in line]
+    assert len(progress_lines) == 3
+    assert any(line.startswith("  [1/3] checking ") for line in progress_lines)
+
 
 def test_check_image_upgrades_partner_upgrade_shown_with_vendor_label(
     vp, libimageupgradecheck, tmp_path, monkeypatch, capsys,
@@ -263,6 +268,7 @@ def test_check_image_upgrades_cache_hit_skips_registry_call(vp, libimageupgradec
     out = capsys.readouterr().out
     assert "newer tag available: 999" in out  # cached value still used for reporting
     assert "1/3 image(s) served from cache" in out
+    assert "wearefrank/frank-gateway" not in "".join(line for line in out.splitlines() if "checking" in line)
 
 
 def test_check_image_upgrades_expired_cache_entry_rechecks(vp, libimageupgradecheck, tmp_path, monkeypatch, capsys):

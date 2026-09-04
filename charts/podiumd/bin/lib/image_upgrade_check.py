@@ -85,7 +85,7 @@ def check_image_upgrades(chart_dir, extra_args):
 
     images = {}
     fetch_errors = []
-    for (repository, version), (digest, line) in targets:
+    for i, ((repository, version), (digest, line)) in enumerate(targets, 1):
         host, repo_path = parse_repo(repository)
         image_ref = f"{host}/{repo_path}:{version}"
         key = cache_key(repository, version)
@@ -101,6 +101,11 @@ def check_image_upgrades(chart_dir, extra_args):
             cache_hits += 1
             new_cache[key] = cached
         else:
+            # A cache hit is near-instant and stays silent (same
+            # convention as check_cves — only totaled in the final
+            # "N/M served from cache" line); a real tag-list call is the
+            # one thing here worth announcing as it starts.
+            print(f"  [{i}/{len(targets)}] checking {image_ref} for a newer tag...", flush=True)
             try:
                 newest = find_newest_same_variant_tag(host, repo_path, version)
             except (urllib.error.URLError, OSError) as e:
