@@ -178,7 +178,7 @@ def test_main_skips_requested_steps_and_runs_the_rest(vp, monkeypatch, capsys):
     vp.main()  # must not raise / must not sys.exit
 
     assert ran == ["utf8", "dupe", "dry", "image-refs", "node-selector", "digest-pinning", "tgz",
-                    "release-baseline", "docs", "helm-docs", "markdown", "repo-access", "deps",
+                    "release-baseline", "helm-docs", "markdown", "repo-access", "deps", "docs",
                     "subchart-images", "digests", "yamllint", "kubeconform", "shellcheck",
                     "kube-score", "image-upgrades", "cves"]
     out = capsys.readouterr().out
@@ -267,7 +267,7 @@ def test_main_continues_past_a_failed_step(vp, monkeypatch, capsys):
     # "UTF-8 format" fails first, but every other step still actually ran —
     # none of them are in "UTF-8 format"'s own STEP_PREREQUISITES chain.
     assert ran == ["utf8", "dupe", "dry", "image-refs", "node-selector", "digest-pinning", "tgz",
-                    "release-baseline", "docs", "helm-docs", "markdown", "repo-access", "deps",
+                    "release-baseline", "helm-docs", "markdown", "repo-access", "deps", "docs",
                     "subchart-images", "image-repository", "digests", "helm-lint", "full-render",
                     "yamllint", "kubeconform", "shellcheck", "kube-score",
                     "image-upgrades", "cves"]
@@ -279,10 +279,11 @@ def test_main_continues_past_a_failed_step(vp, monkeypatch, capsys):
 def test_main_skips_dependents_of_a_failed_prerequisite(vp, monkeypatch, capsys):
     """"Dependencies" failing must skip every step whose STEP_PREREQUISITES
     chain includes it (render-based checks, image digests, subchart image
-    visibility, image repository, ...) rather than attempting them against
-    charts/*.tgz that never got populated — a second, less informative
-    failure about the exact same root cause. Steps with no such dependency
-    (the cheap local/content checks) still run normally."""
+    visibility, image repository, doc consistency, ...) rather than
+    attempting them against charts/*.tgz that never got populated — a
+    second, less informative failure about the exact same root cause.
+    Steps with no such dependency (the cheap local/content checks) still
+    run normally."""
     monkeypatch.setattr(vp.sys, "argv", ["verify-podiumd"])
     monkeypatch.setattr(vp, "require_helm", lambda: None)
     monkeypatch.setattr(vp, "resolve_chart_dir", lambda: Path("/fake/chart/dir"))
@@ -294,7 +295,7 @@ def test_main_skips_dependents_of_a_failed_prerequisite(vp, monkeypatch, capsys)
 
     for name in ("check_utf8_format", "check_duplicate_keys", "check_dry", "check_image_references",
                  "check_node_selector", "check_digest_pinning", "check_vendored_tgz_extraction",
-                 "check_release_baseline", "check_docs_consistency", "check_helm_docs", "check_markdown",
+                 "check_release_baseline", "check_helm_docs", "check_markdown",
                  "check_repo_access"):
         monkeypatch.setattr(vp, name, ok)
 
@@ -302,8 +303,8 @@ def test_main_skips_dependents_of_a_failed_prerequisite(vp, monkeypatch, capsys)
         raise AssertionError("this check should have been skipped as a prerequisite's dependent")
 
     monkeypatch.setattr(vp, "check_dependencies", lambda *a: (False, "helm dependency update failed"))
-    for name in ("check_subchart_image_visibility", "check_image_repository", "check_image_digests",
-                 "check_lint", "check_render", "check_yamllint", "check_kubeconform",
+    for name in ("check_docs_consistency", "check_subchart_image_visibility", "check_image_repository",
+                 "check_image_digests", "check_lint", "check_render", "check_yamllint", "check_kubeconform",
                  "check_shellcheck", "check_kube_score", "check_image_upgrades", "check_cves"):
         monkeypatch.setattr(vp, name, fail_if_called)
 
@@ -329,6 +330,16 @@ def test_prerequisites_for_image_digests_needs_dependencies(vp):
     repository fallback (lib.chart.subchart_default_repository) reads
     from directly."""
     assert vp.prerequisites_for("Image digests") == {"Dependencies", "Repo access"}
+
+
+def test_prerequisites_for_doc_consistency_needs_dependencies(vp):
+    """The images manifest's entry-by-entry checks resolve a sidecar/
+    primary image that's only ever set inside a vendored dependency's own
+    values.yaml (e.g. zac's gotenberg/opa, kiss-eck's elasticsearch/
+    kibana) via the same vendored-.tgz-only lookup Image digests uses —
+    without this, such an entry silently reads as "not found in Chart.yaml
+    or values.yaml" instead of surfacing the real Dependencies failure."""
+    assert vp.prerequisites_for("Doc consistency") == {"Dependencies", "Repo access"}
 
 
 def test_prerequisites_for_cve_scan_needs_image_upgrades_too(vp):
