@@ -202,8 +202,32 @@ def test_disables_line_length_and_commands_show_output_rules(libmarkdowncheck, v
     monkeypatch.setattr(libmarkdowncheck, "run", fake_run)
     vp.check_markdown(chart_dir)
 
-    assert captured["cmd"][:4] == ["/usr/local/bin/pymarkdown", "-d", "md013,md014", "scan"]
-    assert str(chart_dir / "docs" / "foo.md") in captured["cmd"]
+    cmd = captured["cmd"]
+    assert cmd[0] == "/usr/local/bin/pymarkdown"
+    assert cmd[1:3] == ["-d", "md013,md014"]
+    assert "scan" in cmd
+    assert cmd.index("-d") < cmd.index("scan")
+    assert str(chart_dir / "docs" / "foo.md") in cmd
+    # every file arg comes after "scan"
+    assert cmd.index(str(chart_dir / "docs" / "foo.md")) > cmd.index("scan")
+
+
+def test_md024_scoped_to_siblings_only(libmarkdowncheck, vp, tmp_path, monkeypatch):
+    """MD024 (no-duplicate-heading) is left on but restricted to duplicates
+    under the same parent — several docs deliberately repeat subsection
+    names under different parents (see module docstring)."""
+    chart_dir = make_chart_dir(tmp_path, files={"docs/foo.md": "# a\n"})
+    monkeypatch.setattr(libmarkdowncheck, "find_pymarkdown", lambda chart_dir: "/usr/local/bin/pymarkdown")
+    captured = {}
+    monkeypatch.setattr(libmarkdowncheck, "run",
+                         lambda cmd, **kw: (captured.__setitem__("cmd", cmd), pymarkdown_result("", 0))[1])
+
+    vp.check_markdown(chart_dir)
+
+    cmd = captured["cmd"]
+    assert "-s" in cmd
+    assert "plugins.md024.siblings_only=$!True" in cmd
+    assert cmd.index("-s") < cmd.index("scan")
 
 
 def test_paths_are_shown_relative_to_chart_dir(libmarkdowncheck, vp, tmp_path, monkeypatch, capsys):

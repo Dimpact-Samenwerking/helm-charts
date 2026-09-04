@@ -28,7 +28,17 @@ request — it flags a fenced shell block where every line starts with
 useful as documentation). This repo's docs are reference material —
 command snippets are routinely shown on their own, without a captured
 transcript — so the rule would just add noise here, same call as
-MD013."""
+MD013.
+
+no-duplicate-heading (MD024) is left ON but scoped to siblings_only —
+pymarkdown's default flags ANY two headings with identical text anywhere
+in a file, but several docs here are deliberately structured as the same
+subsection repeated under different parents (keycloak-security-updates.md
+is "### Brute Force Protection" / "### Password Policy" / ... once per
+realm; the images docs repeat "## Changes" per hop). siblings_only
+restricts the rule to duplicates under the SAME parent heading — a
+genuine copy-paste slip is still caught, a correct parallel structure no
+longer is."""
 import re
 import shutil
 from pathlib import Path
@@ -40,6 +50,11 @@ from lib.procutil import run
 from lib.render_scope import print_grouped_findings
 
 MARKDOWN_DISABLED_RULES = "md013,md014"
+
+# pymarkdown plugin settings applied on every invocation (scan and fix).
+# md024.siblings_only: only flag a duplicate heading when it repeats
+# under the SAME parent — see module docstring.
+MARKDOWN_PLUGIN_SETTINGS = ["-s", "plugins.md024.siblings_only=$!True"]
 
 MARKDOWN_FINDING_RE = re.compile(
     r"^(?P<path>.+?):(?P<line>\d+):(?P<col>\d+):\s+"
@@ -136,7 +151,8 @@ def check_markdown(chart_dir):
         print("OK: no markdown files found")
         return True, "no markdown files"
 
-    result = run([pymarkdown, "-d", MARKDOWN_DISABLED_RULES, "scan", *[str(f) for f in files]],
+    result = run([pymarkdown, "-d", MARKDOWN_DISABLED_RULES, *MARKDOWN_PLUGIN_SETTINGS,
+                  "scan", *[str(f) for f in files]],
                  capture_output=True, text=True)
     output = result.stdout + result.stderr
 
