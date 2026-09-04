@@ -482,11 +482,11 @@ SKIPPABLE_STEPS = [
     ("digest-pinning", "Digest pinning"),
     ("vendored-tgz", "Vendored tgz"),
     ("release-baseline", "Release baseline"),
-    ("doc-consistency", "Doc consistency"),
     ("helm-doc", "Helm doc"),
     ("markdown", "Markdown lint"),
     ("repo-access", "Repo access"),
     ("dependencies", "Dependencies"),
+    ("doc-consistency", "Doc consistency"),
     ("subchart-images", "Subchart image visibility"),
     ("image-repository", "Image repository"),
     ("image-digests", "Image digests"),
@@ -515,7 +515,14 @@ SKIPPABLE_STEPS = [
 # reason — it reads every vendored dependency's own default values.yaml
 # straight out of its .tgz (lib.chart.subchart_values). "Image repository"
 # needs it too, for the exact same reason (lib.chart.repository_path_map
-# falls back to the same vendored default). "CVE scan" additionally needs "Image upgrades" to
+# falls back to the same vendored default). "Doc consistency" needs it too,
+# for the exact same reason again: the images manifest's entry-by-entry
+# checks resolve a sidecar/primary image that's only ever set inside a
+# vendored dependency's own values.yaml (e.g. zac's gotenberg/opa, kiss-
+# eck's elasticsearch/kibana) via that same vendored-.tgz-only lookup —
+# without it, every such entry silently reads as "not found in Chart.yaml
+# or values.yaml" instead of the real "Dependencies" failure underneath it.
+# "CVE scan" additionally needs "Image upgrades" to
 # have actually run: it reads that step's cache (read-only, see
 # lib.cve_check) to annotate a finding "upgradable to X", and a
 # --include=cve-scan run with no fresh cache already on disk would
@@ -528,6 +535,7 @@ SKIPPABLE_STEPS = [
 # full run).
 STEP_PREREQUISITES = {
     "Dependencies": ("Repo access",),
+    "Doc consistency": ("Dependencies",),
     "Subchart image visibility": ("Dependencies",),
     "Image repository": ("Dependencies",),
     "Image digests": ("Dependencies",),
@@ -677,9 +685,6 @@ def main():
     run_step("Release baseline", "Checking release-baseline resolves to a real release",
              check_release_baseline, chart_dir)
 
-    upgrade_docs_baseline = read_upgrade_docs_baseline(chart_dir)
-    run_step("Doc consistency", "Checking versions against upgrade docs",
-             check_docs_consistency, chart_dir, upgrade_docs_baseline)
     run_step("Helm doc", "Checking README.md against values.yaml (helm-docs)",
              check_helm_docs, chart_dir)
     run_step("Markdown lint", "Checking markdown docs with pymarkdown",
@@ -694,6 +699,10 @@ def main():
         die(msg)
 
     run_step("Dependencies", "Resolving dependencies (helm dependency update)", check_dependencies, chart_dir)
+
+    upgrade_docs_baseline = read_upgrade_docs_baseline(chart_dir)
+    run_step("Doc consistency", "Checking versions against upgrade docs",
+             check_docs_consistency, chart_dir, upgrade_docs_baseline)
 
     run_step("Subchart image visibility",
              "Checking for images defined only in a vendored sub-chart's own default values.yaml",
