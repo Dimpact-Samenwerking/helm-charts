@@ -183,6 +183,18 @@ Settings that are already at a secure default are logged for audit purposes but 
 - **Why:** Without a maximum lifespan, offline sessions (used by native/mobile apps and persistent refresh tokens) never expire by absolute age — only by idle timeout. If a refresh token is stolen and used before the idle timeout resets, it can be kept alive indefinitely. Bounding lifetime to 90 days limits the maximum exposure window.
 - **Implementation:** `keycloak-master-realm-config.yaml` → `offlineSessionMaxLifespanEnabled`, `offlineSessionMaxLifespan`
 
+### Offline Access Disabled
+
+| Setting | Current value | Keycloak default | Status |
+|---------|--------------|-----------------|--------|
+| `defaultOptionalClientScopes` | `[address, phone, microprofile-jwt]` | `[address, phone, offline_access, microprofile-jwt]` | ✅ Configured (`offline_access` removed) |
+| `admin-cli.optionalClientScopes` | `[address, phone, microprofile-jwt]` | inherited realm default | ✅ Configured (`offline_access` removed) |
+
+**`offline_access` removed from realm defaults and from every client** ← changed from Keycloak's built-in default
+- **Standard:** RFC 9700 (OAuth 2.0 Security BCP) — grant only the scopes a client actually needs; BIO 2.0 / ISO 27002:2022 maatregel **8.5**; **OWASP ASVS 4.0 V1.2.1** (economy of privilege)
+- **Why:** `offline_access` lets a client obtain a refresh token that keeps working after the user's browser session ends, bounded only by the offline-session lifespan/idle-timeout above rather than by an active login. The only client in this realm is the bootstrap `admin-cli` used for a one-time ROPC login and the `/kc-idp-secret` operator fallback — neither needs a token that survives after that login completes. Removing the optional scope closes off a persistent-access grant that nothing here legitimately uses.
+- **Implementation:** `keycloak-master-realm-config.yaml` → realm-level `defaultOptionalClientScopes`; `clients.admin-cli.optionalClientScopes`
+
 ## Podiumd Realm
 
 The podiumd realm exclusively serves beheer (management) users and municipality staff.
@@ -449,6 +461,18 @@ The podiumd realm exclusively serves beheer (management) users and municipality 
 - **Standard:** **RFC 9700** §2.2.2; **Forum / OAuth NL GOV**; BIO 2.0 / ISO 27002:2022 maatregel **8.5**; **OWASP ASVS 4.0 V3.3.4**
 - **Why:** Same rationale as master realm. 90-day maximum lifespan is a reasonable absolute bound on offline sessions for internal users.
 - **Implementation:** `keycloak-podiumd-realm-config.yaml` → `offlineSessionMaxLifespanEnabled`, `offlineSessionMaxLifespan`
+
+### Offline Access Disabled
+
+| Setting | Current value | Keycloak default | Status |
+|---------|--------------|-----------------|--------|
+| `defaultOptionalClientScopes` | `[address, phone, microprofile-jwt]` | `[address, phone, offline_access, microprofile-jwt]` | ✅ Configured (`offline_access` removed) |
+| `<every client>.optionalClientScopes` | `[address, phone, microprofile-jwt]` | inherited realm default | ✅ Configured (`offline_access` removed) |
+
+**`offline_access` removed from realm defaults and from every client** ← changed from Keycloak's built-in default
+- **Standard:** RFC 9700 (OAuth 2.0 Security BCP) — grant only the scopes a client actually needs; BIO 2.0 / ISO 27002:2022 maatregel **8.5**; **OWASP ASVS 4.0 V1.2.1** (economy of privilege)
+- **Why:** `offline_access` lets a client obtain a refresh token that keeps working after the user's browser session ends, bounded only by the offline-session lifespan/idle-timeout above rather than by an active login. Every client in this realm is either a browser-redirect app for internal beheer users or a service account — none legitimately needs a refresh token that outlives the user's session or the service account's own client-credentials flow. `defaultOptionalClientScopes` stops new clients from getting the scope; the same list is referenced as `optionalClientScopes: *defaultOptionalClientScopes` (a YAML anchor/alias, resolved by keycloak-config-cli's YAML parser) on every existing client (`account-console`, `account`, `admin-cli`, and each application client) to strip it from clients that already had it via Keycloak's built-in realm default.
+- **Implementation:** `keycloak-podiumd-realm-config.yaml` → realm-level `defaultOptionalClientScopes: &defaultOptionalClientScopes`; `optionalClientScopes: *defaultOptionalClientScopes` on every entry under `clients`
 
 ### OTP Algorithm (Under Investigation)
 
