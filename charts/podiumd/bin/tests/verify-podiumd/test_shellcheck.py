@@ -95,6 +95,23 @@ def test_find_shell_scripts_ignores_non_shell_commands(libshellcheckcheck):
     assert found == []
 
 
+def test_find_shell_scripts_tolerates_scalar_args_alongside_list_command(libshellcheckcheck):
+    """A malformed manifest where command is a list but args is a scalar
+    string (a bare-rendered `args: {{ .Values.x }}`, a CRD instance, a
+    hand-written Pod) must not raise `list + str` — the scan just uses the
+    list half and lets yamllint/kubeconform report the bad field."""
+    manifest = {"spec": {"containers": [
+        {"name": "a", "command": ["sh", "-c", "echo hi"], "args": "{{ .Values.extraArgs }}"},
+    ]}}
+    found = libshellcheckcheck.find_shell_scripts(manifest, "podiumd/templates/x.yaml")
+    assert [f[3] for f in found] == ["echo hi"]
+
+    # command scalar + args list: also must not raise (shell name is
+    # unknowable from a scalar command, so nothing is extracted).
+    manifest = {"command": "/bin/sh", "args": ["-c", "echo hi"]}
+    assert libshellcheckcheck.find_shell_scripts(manifest, "x.yaml") == []
+
+
 def test_find_shell_scripts_recurses_into_nested_structures(libshellcheckcheck):
     manifest = {
         "spec": {"template": {"spec": {"initContainers": [

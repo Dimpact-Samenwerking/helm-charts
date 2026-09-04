@@ -267,6 +267,17 @@ def check_image_digests(chart_dir):
                 print(f"      pinned:   sha256:{pinned_digest}")
                 print(f"      upstream: {digest}")
                 print(f"      lines:    values.yaml:{lines_str}")
+        elif not digest:
+            # Tag exists, but the manifest response carried no
+            # Docker-Content-Digest header (some registries/media types, a
+            # caching proxy that strips it) — we cannot confirm the pin, so
+            # it must NOT be counted as matched. Same "couldn't verify"
+            # bucket as an unreachable host (not a build failure), matching
+            # update_image_version / check_basename_version's own
+            # `if not exists or not digest` guard.
+            reason = "registry returned no digest header"
+            unverifiable.append((repository, version, reason, lines_str))
+            print(f"  [UNVERIFIABLE] {host}/{repo_path}:{version}  {reason}  (values.yaml:{lines_str})")
         else:
             matched += 1
 

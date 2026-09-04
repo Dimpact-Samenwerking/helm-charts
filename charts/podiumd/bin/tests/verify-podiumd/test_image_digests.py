@@ -317,6 +317,26 @@ def test_check_image_digests_all_match(vp, libimagedigests, tmp_path, monkeypatc
     assert "1/1 matched" in detail
 
 
+def test_check_image_digests_no_digest_header_is_unverifiable_not_matched(vp, libimagedigests, tmp_path,
+                                                                          monkeypatch, capsys):
+    """registry_tag_exists returns (True, None) when a 200 manifest response
+    carried no Docker-Content-Digest header (some registries/proxies). The
+    pin cannot be confirmed, so it must NOT count as matched — it goes in
+    the same 'couldn't verify' bucket as an unreachable host."""
+    write_values(tmp_path, (
+        "a:\n"
+        "  image:\n"
+        "    repository: org/repo\n"
+        f'    tag: "1.0.0@sha256:{"a" * 64}"\n'
+    ))
+    monkeypatch.setattr(libimagedigests, "registry_tag_exists", lambda host, repo, tag: (True, None))
+    ok, detail = vp.check_image_digests(tmp_path)
+    assert ok is True  # not a build failure, same as an unreachable host
+    assert "0/1 matched" in detail
+    assert "1 unverifiable" in detail
+    assert "[UNVERIFIABLE]" in capsys.readouterr().out
+
+
 def test_check_image_digests_reports_mismatch(vp, libimagedigests, tmp_path, monkeypatch, capsys):
     write_values(tmp_path, (
         "a:\n"
