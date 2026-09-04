@@ -309,7 +309,7 @@ def check_cves(chart_dir, extra_args, detail=False):
 
     images = {}
     scan_errors = []
-    for (repository, version), (digest, line) in targets:
+    for i, ((repository, version), (digest, line)) in enumerate(targets, 1):
         host, repo_path = parse_repo(repository)
         image_ref = f"{host}/{repo_path}:{version}"
         key = cache_key(repository, digest)
@@ -325,6 +325,12 @@ def check_cves(chart_dir, extra_args, detail=False):
             cache_hits += 1
             new_cache[key] = cached
         else:
+            # The slow path — a cache hit is near-instant and stays silent
+            # here (same convention as before: only totaled in the final
+            # "N/M served from cache" line), but an actual docker pull +
+            # trivy scan can take a real while per image, so this is the
+            # one thing in the loop worth announcing as it starts.
+            print(f"  [{i}/{len(targets)}] scanning {image_ref} (docker pull + trivy)...", flush=True)
             vulns = run_trivy(image_ref)
             if vulns is None:
                 scan_errors.append(image_ref)

@@ -15,6 +15,7 @@ digests.py instead warns and carries on with whatever it could already
 resolve, since a failed re-vendor there means only its subchart-default
 fallback stays degraded, not that the whole run is meaningless."""
 import shutil
+import sys
 import time
 
 from lib.procutil import run
@@ -47,16 +48,28 @@ def check_dependencies(chart_dir):
     update`) and confirms every Chart.yaml dependency actually resolved
     and bundled. Retries the update a few times on failure (Helm always
     re-downloads every dependency here — see module docstring — and that
-    fails intermittently on some repos)."""
+    fails intermittently on some repos).
+
+    Deliberately does NOT capture_output= this call, unlike every other
+    `run(...)` here: `helm dependency update` re-downloads every single
+    dependency from scratch (see above) and prints its own per-dependency
+    "Downloading X from repo Y" progress as it goes — capturing it would
+    buffer that away until the whole (often tens-of-seconds) update
+    finishes, making this step look hung the entire time. Letting the
+    subprocess inherit stdout/stderr directly instead streams Helm's own
+    progress live, interleaved with this step's own prints — flushing
+    first (same reason lib.procutil.run_script's own docstring flushes
+    before a live-streamed child) so an earlier, still-buffered print
+    from this process can't end up appearing AFTER output the child
+    already wrote straight to the same fd."""
     shutil.rmtree(chart_dir / "charts", ignore_errors=True)
     (chart_dir / "Chart.lock").unlink(missing_ok=True)
 
     result = None
     for attempt in range(1, RETRY_ATTEMPTS + 1):
-        result = run(["helm", "dependency", "update", str(chart_dir)],
-                      capture_output=True, text=True)
-        output = result.stdout + result.stderr
-        print(output, end="" if output.endswith("\n") else "\n")
+        print(f"Running helm dependency update (attempt {attempt}/{RETRY_ATTEMPTS})...")
+        sys.stdout.flush()
+        result = run(["helm", "dependency", "update", str(chart_dir)])
         if result.returncode == 0:
             break
 
