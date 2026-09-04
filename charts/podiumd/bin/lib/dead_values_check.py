@@ -121,6 +121,25 @@ Cost control has two independent halves:
    via the full-chart scope in the first place skips this re-check
    (nothing to re-confirm).
 
+   One specific false positive is common enough, and cheap enough to
+   know about upfront, that it's worth excluding before ever reaching
+   the safety net at all rather than burning a slow full-chart
+   confirmation on it every time: a dependency's own Chart.yaml
+   "condition:" leaf (see _condition_leaf_paths) can never be honestly
+   null-tested within that dependency's own sub-chart scope — a
+   "condition:" only gates whether Helm includes the dependency AT THE
+   PARENT level, so a standalone render of it (no parent to gate) always
+   renders regardless of what this one leaf says. Real, measured
+   examples: eck-operator.enabled, clamav.metrics.enabled, kiss-eck.enabled
+   all looked "dead" to their own sub-chart scope purely for this reason
+   (kiss-eck's own vendored chart is actually named "eck-stack" — a
+   further-nested umbrella whose OWN dependencies have the identical
+   issue one level down, not yet addressed). Excluded from every scope's
+   candidate pool entirely (same mechanism as SUBCHART_VISIBILITY_EXEMPT,
+   just a different, dependency-derived set of paths) rather than tested
+   and then rejected — already known live by construction, since it's
+   the exact same leaf _enable_overlay forces true.
+
 Parallelism: every render this module ever issues is fully independent —
 its own throwaway temp overlay file, no shared state — so
 _run_dead_value_search dispatches an entire level of the top-down walk
@@ -194,25 +213,59 @@ def flatten_leaves(node, path=()):
         yield path, node
 
 
-def _candidate_leaves(node, path):
+def _candidate_leaves(node, path, exempt_full_paths=frozenset()):
     """flatten_leaves(node, path), minus a value that's already null
-    (nulling a null is a no-op — nothing to learn) and any path
+    (nulling a null is a no-op — nothing to learn), any path
     SUBCHART_VISIBILITY_EXEMPT already has a standing, reviewed answer
-    for (see this module's docstring)."""
+    for (see this module's docstring), and any path in exempt_full_paths
+    (see _condition_leaf_paths — a dependency's own Chart.yaml
+    "condition:" leaf, already known live by construction, never worth
+    testing at all)."""
     for leaf_path, value in flatten_leaves(node, path):
         if value is None or not leaf_path:
             continue
         if subchart_visibility_exempt_reason(leaf_path[0], ".".join(leaf_path[1:])):
             continue
+        if leaf_path in exempt_full_paths:
+            continue
         yield leaf_path
 
 
-def candidate_leaf_paths(values):
+def candidate_leaf_paths(values, exempt_full_paths=frozenset()):
     """Every path _candidate_leaves finds in podiumd's own values.yaml
     worth null-testing — the full, flat list (used for the "N checked"
     count; the actual search walks the same candidates hierarchically,
     scope by scope, rather than through this flat list)."""
-    return list(_candidate_leaves(values, ()))
+    return list(_candidate_leaves(values, (), exempt_full_paths))
+
+
+def _condition_leaf_paths(chart_dir):
+    """Every Chart.yaml dependency's own "condition:" as a full leaf-path
+    tuple (e.g. ("eck-operator", "enabled")) — the exact same set
+    _enable_overlay forces true. Excluded from every scope's candidate
+    pool entirely (see _candidate_leaves) rather than tested at all:
+    this ONE specific leaf can never be honestly null-tested within a
+    sub-chart's own standalone scope (see _resolve_scope) — a
+    dependency's "condition:" only gates whether Helm includes it AT
+    THE PARENT level, so a standalone render of that one dependency
+    (no parent to gate) always renders it regardless of what this leaf
+    says, making it look permanently "dead" there — a real, measured
+    example: eck-operator.enabled, clamav.metrics.enabled, and
+    kiss-eck.enabled (kiss-eck's own vendored chart is actually named
+    "eck-stack" — a further-nested umbrella whose OWN dependencies have
+    the exact same issue one level down, not yet addressed here) all
+    showed up as false positives in the sub-chart scope before being
+    correctly rejected by the full-chart confirmation pass — this
+    exemption skips the wasted round-trip through that slow confirmation
+    for the one leaf already known, by construction, to always survive
+    it."""
+    chart_yaml = load_yaml(chart_dir / "Chart.yaml") or {}
+    paths = set()
+    for dep in chart_yaml.get("dependencies", []):
+        condition = dep.get("condition")
+        if condition:
+            paths.add(tuple(condition.split(".")))
+    return paths
 
 
 def _set_null(tree, path):
@@ -607,7 +660,7 @@ def _resolve_scope(chart_dir, merged_values, dep_by_key, key, own_scope, full_sc
     return scope
 
 
-def _run_dead_value_search(executor, roots, total=None):
+def _run_dead_value_search(executor, roots, total=None, exempt_full_paths=frozenset()):
     """(scope, full_path) for every candidate "looks dead within its own
     scope" leaf found by walking `roots` (a [(scope, path, node), ...]
     list, one entry per subtree to search) top-down — see this module's
@@ -616,7 +669,8 @@ def _run_dead_value_search(executor, roots, total=None):
     submitting more work to the same executor). `total` is only for the
     progress line printed after each level — the denominator for "N/total
     resolved so far" — omit it (e.g. a small confirmation-pass re-run) to
-    skip printing progress for that call."""
+    skip printing progress for that call. exempt_full_paths is passed
+    straight through to _candidate_leaves (see _condition_leaf_paths)."""
     found = []
     resolved = 0
     frontier = list(roots)
@@ -625,7 +679,7 @@ def _run_dead_value_search(executor, roots, total=None):
         level += 1
         pending = []
         for scope, path, node in frontier:
-            leaf_paths = list(_candidate_leaves(node, path))
+            leaf_paths = list(_candidate_leaves(node, path, exempt_full_paths))
             if leaf_paths:
                 pending.append((scope, path, node, leaf_paths))
         if not pending:
@@ -685,7 +739,8 @@ def _confirm_against_full_chart(executor, full_scope, candidates):
 
 def check_dead_values(chart_dir, extra_args):
     values = load_yaml(chart_dir / "values.yaml") or {}
-    total = len(candidate_leaf_paths(values))
+    condition_paths = _condition_leaf_paths(chart_dir)
+    total = len(candidate_leaf_paths(values, condition_paths))
 
     print(f"Null-testing {total} values.yaml leaf(ves) against the baseline render "
           f"(top-down, per-subchart where possible, up to {DEAD_VALUES_MAX_WORKERS} in parallel)...",
@@ -729,7 +784,7 @@ def check_dead_values(chart_dir, extra_args):
                   flush=True)
 
             print("Searching top-down for dead leaves...", flush=True)
-            found = _run_dead_value_search(executor, roots, total)
+            found = _run_dead_value_search(executor, roots, total, condition_paths)
             confirmed = [path for scope, path in found if scope is full_scope]
             to_confirm = [path for scope, path in found if scope is not full_scope]
             if to_confirm:
