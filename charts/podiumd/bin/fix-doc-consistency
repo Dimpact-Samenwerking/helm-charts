@@ -320,6 +320,19 @@ def fix_component_version_table(text, chart_dir, target_deps, target_values, bas
                 if cells[2] != new_chart_cell:
                     cells[2] = new_chart_cell
                     row_changed = True
+            elif resolved["kind"] == "native" and cells[2] != "-":
+                # A NATIVE_COMPONENTS component (see lib.chart.
+                # NATIVE_COMPONENTS) never has a chart to verify against at
+                # all — unlike a sidecar's own "-" (trusted correct from
+                # the moment add_missing_sidecar_rows first writes it),
+                # this one CAN start out wrong (real case: frankgateway's
+                # own row wrongly showed a real-looking chart version after
+                # a mistaken Chart.yaml dependency was briefly added) and
+                # nothing else ever corrects it back, since the two
+                # `actual_target_chart is not None` branches here and below
+                # both always skip a native row's chart cell entirely.
+                cells[2] = "-"
+                row_changed = True
 
             if row_changed:
                 suffix = "\n" if line.endswith("\n") else ""
@@ -344,6 +357,14 @@ def fix_component_version_table(text, chart_dir, target_deps, target_values, bas
                 normalize_version(row["chart_source"]) != normalize_version(actual_baseline_chart)
                 or normalize_version(row["chart"]) != normalize_version(actual_target_chart)):
             cells[2] = canonical_version_cell(actual_baseline_chart, actual_target_chart)
+            row_changed = True
+        elif resolved["kind"] == "native" and cells[2] != "-":
+            # See the identical branch above (the baseline_resolved=False
+            # case) — same forced correction, needed here too since a
+            # native component's own baseline CAN independently resolve
+            # (both app versions found — frankgateway's real case) while
+            # its chart cell still wrongly shows a real-looking version.
+            cells[2] = "-"
             row_changed = True
 
         if row_changed:

@@ -404,19 +404,30 @@ def match_canonical_sidecar_name(text, canonical_names):
 
 def resolve_component_identity(text, deps, canonical_names):
     """The single component `text` names — ("sidecar", path) or ("dep",
-    values_key) — or None if it names no real Chart.yaml dependency or
-    canonical sidecar/shared-image at all. The same two-step resolution
+    values_key) — or None if it names no real Chart.yaml dependency,
+    canonical sidecar/shared-image, or NATIVE_COMPONENTS component (see
+    lib.chart.NATIVE_COMPONENTS) at all. The same two-step resolution
     docs_consistency.py's own table-row loop applies inline (sidecar
     name checked first, since match_dependency_excluding_sidecar_names
     refuses anything containing " - " on purpose), generalized here so
     changes_heading_identities can apply it to free-form Changes-heading
-    text too, not just a table row's own bare name."""
+    text too, not just a table row's own bare name.
+
+    A NATIVE_COMPONENTS match is returned as ("dep", values_key) too —
+    same identity shape as a real dependency, deliberately: every caller
+    here only ever asks "does this row/heading's identity match that
+    OTHER row/heading's identity", never "is this backed by a real
+    Chart.yaml dependency", so a native component needs no third,
+    parallel identity shape of its own."""
     sidecar_path = match_canonical_sidecar_name(text, canonical_names)
     if sidecar_path is not None:
         return ("sidecar", sidecar_path)
     dep = match_dependency_excluding_sidecar_names(text, deps)
     if dep is not None:
         return ("dep", dep.get("alias", dep["name"]))
+    native_key = match_native_component(text, NATIVE_COMPONENTS)
+    if native_key is not None:
+        return ("dep", native_key)
     return None
 
 
@@ -461,7 +472,14 @@ def changes_heading_identities(heading, deps, canonical_names):
     parent, see that function's own docstring). Without this guard, the
     word "openbao" appearing plainly in that broken heading would still
     resolve it to the REAL "openbao" dependency, silently crediting a
-    row that this heading doesn't actually, correctly document at all."""
+    row that this heading doesn't actually, correctly document at all.
+
+    A NATIVE_COMPONENTS component (see lib.chart.NATIVE_COMPONENTS) is
+    matched the exact same word-position way, as its own single
+    candidate (it has no separate name/alias pair — it isn't in
+    Chart.yaml at all) — same reasoning as resolve_component_identity's
+    own native fallback: identity-wise it's indistinguishable from a
+    real dependency to every caller of this set."""
     sidecar_path = match_canonical_sidecar_name(heading, canonical_names)
     if sidecar_path is not None:
         return {("sidecar", sidecar_path)}
@@ -469,20 +487,22 @@ def changes_heading_identities(heading, deps, canonical_names):
         return set()
     words = words_of(heading)
     matches = []  # [(start, end, values_key), ...], end exclusive
-    for dep in deps:
-        for candidate in filter(None, [dep.get("name"), dep.get("alias")]):
-            norm_c = normalize_name(candidate)
-            if not norm_c:
-                continue
-            for start in range(len(words)):
-                acc = ""
-                for end in range(start, len(words)):
-                    acc += words[end]
-                    if len(acc) > len(norm_c):
-                        break
-                    if acc == norm_c:
-                        matches.append((start, end + 1, dep.get("alias", dep["name"])))
-                        break
+    candidates_by_key = [(cand, dep.get("alias", dep["name"]))
+                          for dep in deps for cand in filter(None, [dep.get("name"), dep.get("alias")])]
+    candidates_by_key += [(key, key) for key in NATIVE_COMPONENTS]
+    for candidate, key in candidates_by_key:
+        norm_c = normalize_name(candidate)
+        if not norm_c:
+            continue
+        for start in range(len(words)):
+            acc = ""
+            for end in range(start, len(words)):
+                acc += words[end]
+                if len(acc) > len(norm_c):
+                    break
+                if acc == norm_c:
+                    matches.append((start, end + 1, key))
+                    break
     kept = [key for start, end, key in matches
             if not any(o_start <= start and end <= o_end and (o_start, o_end) != (start, end)
                        for o_start, o_end, _ in matches)]
@@ -798,28 +818,34 @@ def resolve_component_row(row_name, chart_dir, canonical_names, deps, values,
 
     Returns a dict:
       {"kind": "unmatched"}
-          row_name matches neither a Chart.yaml dependency nor a
-          canonical sidecar/shared-image name — nothing else to
+          row_name matches neither a Chart.yaml dependency, a
+          canonical sidecar/shared-image name, nor a NATIVE_COMPONENTS
+          component (see lib.chart.NATIVE_COMPONENTS) — nothing else to
           resolve. Deliberately NOT resolved any further here: a row
           shaped like the canonical sidecar form ("<key> - <basename>")
           but with no matching entry in canonical_names must never fall
           through to a fuzzy match_dependency lookup and get treated as
           the unrelated real dependency its leading word happens to
           share — see match_dependency_excluding_sidecar_names.
-      {"kind": "sidecar" | "dependency",
-       "dep": <Chart.yaml dependency dict> or None (sidecar case),
-       "sidecar_path": <tuple> or None (dependency case),
+      {"kind": "sidecar" | "dependency" | "native",
+       "dep": <Chart.yaml dependency dict> or None (sidecar/native case),
+       "sidecar_path": <tuple> or None (dependency/native case),
        "values_key": ..., "top_level_key": ...,
-       "target_chart": ... or None (sidecar: always None — no chart
-           version of its own to verify against),
+       "target_chart": ... or None (sidecar/native: always None — no
+           chart version of its own to verify against),
        "target_app": ... or None,
        "baseline_resolved": None (baseline_deps was None) | bool,
        "baseline_chart": ... or None,
        "baseline_app": ... or None}"""
     sidecar_path = canonical_names.get(row_name)
     dep = None if sidecar_path is not None else match_dependency_excluding_sidecar_names(row_name, deps)
+    # NATIVE_COMPONENTS component (see lib.chart.NATIVE_COMPONENTS) — no
+    # Chart.yaml dependency at all, checked only once neither of the above
+    # matched, same precedence match_native_component's other callers use.
+    native_key = None if (sidecar_path is not None or dep is not None) \
+        else match_native_component(row_name, NATIVE_COMPONENTS)
 
-    if sidecar_path is None and dep is None:
+    if sidecar_path is None and dep is None and native_key is None:
         return {"kind": "unmatched"}
 
     result = {"dep": dep, "sidecar_path": sidecar_path}
@@ -830,13 +856,26 @@ def resolve_component_row(row_name, chart_dir, canonical_names, deps, values,
         result["top_level_key"] = sidecar_path[0]
         result["target_chart"] = None
         result["target_app"] = sidecar_tag(values, sidecar_path)
-    else:
+    elif dep is not None:
         values_key = dep.get("alias", dep["name"])
         result["kind"] = "dependency"
         result["values_key"] = values_key
         result["top_level_key"] = values_key
         result["target_chart"] = str(dep["version"])
         result["target_app"] = actual_app_version(values, values_key, dep["name"], chart_dir=chart_dir, dep=dep)
+    else:
+        # No chart at all to verify against (never even attempted) — same
+        # "-" not-applicable convention a sidecar's own chart-less cell
+        # already uses (see component_version_cell), just via a different
+        # kind here since a native component's TARGET APP still needs
+        # resolving (a sidecar's target_app comes from sidecar_tag, a real
+        # dependency's from actual_app_version — a native component is
+        # its own top-level key, so it's the latter, keyed on itself).
+        result["kind"] = "native"
+        result["values_key"] = native_key
+        result["top_level_key"] = native_key
+        result["target_chart"] = None
+        result["target_app"] = actual_app_version(values, native_key, native_key)
 
     result["baseline_resolved"] = None
     result["baseline_chart"] = None
@@ -848,7 +887,7 @@ def resolve_component_row(row_name, chart_dir, canonical_names, deps, values,
             baseline_app = sidecar_tag(baseline_values, sidecar_path)
             result["baseline_app"] = baseline_app
             result["baseline_resolved"] = result["target_app"] is not None and baseline_app is not None
-        else:
+        elif dep is not None:
             baseline_dep = match_dependency_excluding_sidecar_names(row_name, baseline_deps)
             if baseline_dep is None:
                 result["baseline_resolved"] = False
@@ -856,6 +895,14 @@ def resolve_component_row(row_name, chart_dir, canonical_names, deps, values,
                 result["baseline_resolved"] = True
                 result["baseline_chart"] = str(baseline_dep["version"])
                 result["baseline_app"] = actual_app_version(baseline_values, result["values_key"], dep["name"])
+        else:
+            # Same "no existence check possible, just compare both app
+            # versions" shape as the sidecar branch above — there's no
+            # dep to ask "did this exist at the baseline ref", only
+            # whether native_key's own image tag was resolvable there too.
+            baseline_app = actual_app_version(baseline_values, native_key, native_key)
+            result["baseline_app"] = baseline_app
+            result["baseline_resolved"] = result["target_app"] is not None and baseline_app is not None
 
     return result
 
@@ -1924,12 +1971,18 @@ def extract_mentioned_dependency_keys(text, deps):
     operator - redis** app ..." must never register as mentioning the
     real "redis-operator" dependency (see that function's own
     docstring); doing so would wrongly suppress redis-operator's own
-    bullet as "already mentioned" if it changed independently."""
+    bullet as "already mentioned" if it changed independently. A
+    NATIVE_COMPONENTS component (see lib.chart.NATIVE_COMPONENTS) is
+    matched the same way, via match_native_component."""
     mentioned = set()
     for m in re.finditer(r"\*\*([^*]+)\*\*", strip_fenced_code_blocks(text)):
         dep = match_dependency_excluding_sidecar_names(m.group(1), deps)
         if dep:
             mentioned.add(dep.get("alias", dep["name"]))
+            continue
+        native_key = match_native_component(m.group(1), NATIVE_COMPONENTS)
+        if native_key:
+            mentioned.add(native_key)
     return mentioned
 
 

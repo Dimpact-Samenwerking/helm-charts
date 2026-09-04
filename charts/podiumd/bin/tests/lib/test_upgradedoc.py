@@ -2491,6 +2491,49 @@ def test_resolve_component_row_dependency_missing_from_baseline_is_unresolved(li
     assert resolved["baseline_app"] is None
 
 
+def test_resolve_component_row_native_component_no_baseline_requested(libupgradedoc):
+    """frankgateway (see lib.chart.NATIVE_COMPONENTS) has no Chart.yaml
+    dependency at all — deps is empty on purpose."""
+    values = {"frankgateway": {"image": {"tag": "104@sha256:aaaa"}}}
+
+    resolved = libupgradedoc.resolve_component_row("frankgateway", None, {}, [], values)
+
+    assert resolved["kind"] == "native"
+    assert resolved["dep"] is None
+    assert resolved["sidecar_path"] is None
+    assert resolved["values_key"] == resolved["top_level_key"] == "frankgateway"
+    assert resolved["target_chart"] is None  # no chart at all to verify against
+    assert resolved["target_app"] == "104"
+    assert resolved["baseline_resolved"] is None
+
+
+def test_resolve_component_row_native_component_baseline_resolved(libupgradedoc):
+    values = {"frankgateway": {"image": {"tag": "104@sha256:bbbb"}}}
+    baseline_values = {"frankgateway": {"image": {"tag": "100@sha256:aaaa"}}}
+
+    resolved = libupgradedoc.resolve_component_row(
+        "frankgateway", None, {}, [], values, baseline_deps=[], baseline_values=baseline_values)
+
+    assert resolved["kind"] == "native"
+    assert resolved["baseline_resolved"] is True
+    assert resolved["baseline_chart"] is None
+    assert resolved["baseline_app"] == "100"
+
+
+def test_resolve_component_row_native_component_missing_from_baseline_is_unresolved(libupgradedoc):
+    """Mirrors a real dependency's own "missing from baseline" case — no
+    frankgateway key at all at the baseline ref means baseline_app can't
+    resolve, so baseline_resolved is False rather than a silent None."""
+    values = {"frankgateway": {"image": {"tag": "104@sha256:bbbb"}}}
+
+    resolved = libupgradedoc.resolve_component_row(
+        "frankgateway", None, {}, [], values, baseline_deps=[], baseline_values={})
+
+    assert resolved["kind"] == "native"
+    assert resolved["baseline_resolved"] is False
+    assert resolved["baseline_app"] is None
+
+
 def test_resolve_component_row_sidecar_resolved(libupgradedoc):
     target_deps, target_values, baseline_deps, baseline_values = _redis_sidecar_deps_and_values()
     canonical_names = {"redis-operator - redis": ("redis-operator", "redis-ha", "image")}

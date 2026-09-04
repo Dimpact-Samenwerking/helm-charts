@@ -1017,7 +1017,13 @@ def canonical_sidecar_row_names(chart_dir, deps, values, paths, allow_pull=False
     - nginx-unprivileged" and "frankgateway - nginx-unprivileged" both
     showing up as separate rows for what is, via the shared anchor, the
     identical change) rather than the one true "global" row every OTHER
-    caller of this same shared image already expects."""
+    caller of this same shared image already expects.
+
+    A NATIVE_COMPONENTS component's own nested images (e.g. frankgateway's
+    etcd/apisix-dashboard/oauth2-proxy) are registered the exact same
+    "<values_key> - <basename>" way — it has no Chart.yaml dependency at
+    all, but it's still the real owner of its own subordinate images, the
+    same as any dependency is of its own."""
     by_values_key = {(dep.get("alias") or dep["name"]): dep for dep in deps}
     sidecar_paths, global_paths = [], []
     for path in paths:
@@ -1027,7 +1033,14 @@ def canonical_sidecar_row_names(chart_dir, deps, values, paths, allow_pull=False
             global_paths.append(path)
             continue
         dep = by_values_key.get(path[0])
-        if dep is not None and ".".join(path[1:]) not in set(image_paths_for(dep["name"])):
+        # A NATIVE_COMPONENTS component (e.g. frankgateway) owns its own
+        # nested sidecars the same way a real Chart.yaml dependency does —
+        # path[0] itself IS the component's name here (no alias possible;
+        # it isn't in Chart.yaml at all), so image_paths_for(path[0])
+        # excludes its own primary image the same way image_paths_for(dep
+        # ["name"]) does for a real dependency just below.
+        owner_name = dep["name"] if dep is not None else (path[0] if path[0] in NATIVE_COMPONENTS else None)
+        if owner_name is not None and ".".join(path[1:]) not in set(image_paths_for(owner_name)):
             sidecar_paths.append(path)
 
     global_repos = set()

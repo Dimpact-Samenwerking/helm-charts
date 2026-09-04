@@ -762,15 +762,19 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
                 )
                 continue
 
-            dep, sidecar_path = resolved["dep"], resolved["sidecar_path"]
+            sidecar_path = resolved["sidecar_path"]
             values_key, top_level_key = resolved["values_key"], resolved["top_level_key"]
             actual_chart, actual_app = resolved["target_chart"], resolved["target_app"]
 
-            if dep is not None:
-                if actual_app:
-                    resolved_app_by_identity[("dep", values_key)] = actual_app
-            else:
+            if resolved["kind"] == "sidecar":
                 matched_sidecar_paths.add(sidecar_path)
+            elif actual_app:
+                # "dependency" and "native" (see lib.chart.NATIVE_COMPONENTS)
+                # share this identity shape — resolve_component_identity/
+                # changes_heading_identities both resolve a native
+                # component to ("dep", values_key) too, so this dict's own
+                # keys must match theirs.
+                resolved_app_by_identity[("dep", values_key)] = actual_app
 
             changed_component_keys.add(top_level_key)
 

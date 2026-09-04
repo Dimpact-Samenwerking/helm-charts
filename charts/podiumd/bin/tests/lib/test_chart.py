@@ -1279,6 +1279,30 @@ def test_canonical_sidecar_row_names_dependency_sidecar(libchart, tmp_path):
     assert names == {"redis-operator - redis": ("redis-operator", "redis-ha", "image")}
 
 
+def test_canonical_sidecar_row_names_native_component_sidecar(libchart, tmp_path):
+    """frankgateway (see lib.chart.NATIVE_COMPONENTS) has no Chart.yaml
+    dependency at all — deps is empty on purpose — but it's still the
+    real owner of its own nested sidecar images, the same as a real
+    dependency is of its own."""
+    values = {"frankgateway": {"etcd": {"image": {"repository": "quay.io/coreos/etcd"}}}}
+    paths = [("frankgateway", "etcd", "image")]
+
+    names = libchart.canonical_sidecar_row_names(tmp_path, [], values, paths, allow_pull=False)
+
+    assert names == {"frankgateway - etcd": ("frankgateway", "etcd", "image")}
+
+
+def test_canonical_sidecar_row_names_excludes_native_components_own_primary_image(libchart, tmp_path):
+    """Same exclusion as a real dependency's own primary image — frankgateway's
+    OWN top-level image is not a sidecar of itself."""
+    values = {"frankgateway": {"image": {"repository": "ghcr.io/wearefrank/frank-gateway"}}}
+    paths = [("frankgateway", "image")]
+
+    names = libchart.canonical_sidecar_row_names(tmp_path, [], values, paths, allow_pull=False)
+
+    assert names == {}
+
+
 def test_canonical_sidecar_row_names_excludes_dependencys_own_primary_image(libchart, tmp_path):
     """The dependency's own registered primary image (image_paths_for) is
     NOT a sidecar — match_dependency already covers it by the

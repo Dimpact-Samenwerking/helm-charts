@@ -465,6 +465,54 @@ def test_fix_component_version_table_corrects_a_stale_sidecar_row_using_its_own_
     assert "| redis-operator - redis | 8.6.2 → 8.6.6 | - | ACR mirror only |" in new_text
 
 
+def test_fix_component_version_table_corrects_a_native_components_wrong_chart_cell(cdb):
+    """Real bug this guards against: frankgateway (see lib.chart.
+    NATIVE_COMPONENTS — no Chart.yaml dependency at all) briefly gained a
+    mistaken Chart.yaml dependency entry, and its row's Helm-chart cell
+    was written as if it were a real version ("1.1.0"). Unlike a
+    sidecar's own "-" (trusted correct from the moment it's first
+    written), a native component's chart cell CAN start out wrong like
+    this, and nothing else ever corrects it back — this is the one place
+    that does."""
+    text = (
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| frankgateway | 104 (unchanged) | 1.1.0 (new) | - |\n"
+    )
+    target_deps = [{"name": "zac", "version": "1.0.297"}]
+    target_values = {"frankgateway": {"image": {"tag": "104@sha256:aaaa"}}}
+    baseline_deps = [{"name": "zac", "version": "1.0.297"}]
+    baseline_values = {"frankgateway": {"image": {"tag": "104@sha256:aaaa"}}}
+
+    new_text, changed, unmatched, unresolved = cdb.fix_component_version_table(
+        text, None, target_deps, target_values, baseline_deps, baseline_values
+    )
+    assert unmatched == [] and unresolved == []
+    assert len(changed) == 1
+    assert "| frankgateway | 104 (unchanged) | - | - |" in new_text
+    assert "1.1.0" not in new_text
+
+
+def test_fix_component_version_table_leaves_a_correct_native_component_row_untouched(cdb):
+    text = (
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| frankgateway | 104 (unchanged) | - | - |\n"
+    )
+    target_deps = [{"name": "zac", "version": "1.0.297"}]
+    target_values = {"frankgateway": {"image": {"tag": "104@sha256:aaaa"}}}
+    baseline_deps = [{"name": "zac", "version": "1.0.297"}]
+    baseline_values = {"frankgateway": {"image": {"tag": "104@sha256:aaaa"}}}
+
+    new_text, changed, unmatched, unresolved = cdb.fix_component_version_table(
+        text, None, target_deps, target_values, baseline_deps, baseline_values
+    )
+    assert changed == []
+    assert new_text == text
+
+
 def test_fix_component_version_table_unresolvable_canonical_row_reported_not_corrupted(cdb):
     """A row shaped like the canonical sidecar form but with no
     resolvable repository (e.g. "kiss - podiumd-adapter", commented out
@@ -1263,6 +1311,71 @@ def test_main_does_not_duplicate_already_mentioned_component_bullet(
     assert deltas.count("**zaakbrug**") == 1
     out = capsys.readouterr().out
     assert "Adding missing component mention(s)" not in out
+
+
+@pytest.fixture
+def repo_with_unmentioned_native_component_bump(tmp_path):
+    """frankgateway (see lib.chart.NATIVE_COMPONENTS) has no Chart.yaml
+    dependency at all — its own app image tag changed between the
+    baseline tag and HEAD, with no "Component versions" row and no
+    values-deltas mention at all yet, real end-to-end coverage for both
+    add_missing_component_rows and add_missing_values_delta_bullets'
+    own NATIVE_COMPONENTS branches together."""
+    git("init", "-q", cwd=tmp_path)
+    git("config", "user.email", "test@example.com", cwd=tmp_path)
+    git("config", "user.name", "Test", cwd=tmp_path)
+
+    write(tmp_path / "Chart.yaml", yaml.safe_dump({
+        "dependencies": [
+            {"name": "zaakbrug", "version": "2.3.28", "repository": "https://wearefrank.github.io/charts"},
+        ],
+    }))
+    write(tmp_path / "values.yaml", yaml.safe_dump({
+        "zaakbrug": {"image": {"tag": "1.26.15@sha256:aaaa"}},
+        "frankgateway": {"image": {"tag": "100@sha256:aaaa"}},
+    }))
+    doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
+    doc_dir.mkdir(parents=True)
+    (tmp_path / "docs" / "images").mkdir(parents=True)
+    git("add", "-A", cwd=tmp_path)
+    git("commit", "-q", "-m", "baseline state", cwd=tmp_path)
+    git("tag", "podiumd-4.8.5", cwd=tmp_path)
+
+    write(tmp_path / "values.yaml", yaml.safe_dump({
+        "zaakbrug": {"image": {"tag": "1.26.15@sha256:aaaa"}},
+        "frankgateway": {"image": {"tag": "104@sha256:bbbb"}},
+    }))
+    write(doc_dir / "4.8.3-to-4.9.0-upgrade.md",
+          "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+          "## Component versions (4.9.0 vs 4.8.5)\n\n"
+          "| Component | App version | Helm chart | Notes |\n"
+          "| --- | --- | --- | --- |\n"
+          "| zaakbrug | 1.26.15 (unchanged) | 2.3.28 (unchanged) | - |\n\n"
+          "## Changes\n\n")
+    write(doc_dir / "4.8.3-to-4.9.0-values-deltas.md",
+          "# Values deltas — PodiumD 4.8.3 → 4.9.0\n\nNo unrelated changes.\n")
+    git("add", "-A", cwd=tmp_path)
+    git("commit", "-q", "-m", "bump frankgateway, no row or values-deltas mention", cwd=tmp_path)
+    return doc_dir
+
+
+def test_main_adds_missing_native_component_row_and_bullet(
+        cdb, repo_with_unmentioned_native_component_bump, monkeypatch, capsys):
+    set_argv_and_dir(cdb, monkeypatch, repo_with_unmentioned_native_component_bump, "4.8.5")
+    cdb.main()
+
+    upgrade = (repo_with_unmentioned_native_component_bump / "4.8.5-to-4.9.0-upgrade.md").read_text(
+        encoding="utf-8")
+    assert "| frankgateway | 100 → 104 | - | - |" in upgrade
+
+    deltas = (repo_with_unmentioned_native_component_bump / "4.8.5-to-4.9.0-values-deltas.md").read_text(
+        encoding="utf-8")
+    assert ("- **frankgateway** app `100 → 104` — image tag only "
+            "(no separate Helm chart for this component).\n") in deltas
+
+    out = capsys.readouterr().out
+    assert "Adding missing component row(s)" in out
+    assert "Adding missing component mention(s)" in out
 
 
 def test_main_adds_todo_bullet_when_app_version_unresolvable(cdb, repo_with_undocumented_component_bumps,
