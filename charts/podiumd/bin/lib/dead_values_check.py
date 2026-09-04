@@ -36,19 +36,24 @@ re-deriving the same prefix-match logic).
 
 Cost control: naively re-rendering once per leaf (podiumd's own
 values.yaml has on the order of a thousand of them) would mean a
-thousand-plus `helm template` calls. Instead, leaves are nulled out in
-batches (see DEAD_VALUES_BATCH_SIZE): if nulling an entire batch at once
-still reproduces the baseline exactly, every leaf in that batch is
-confirmed dead in a single render (the common case — most of this
-chart's values ARE live, but the ones that aren't tend to cluster
-harmlessly). Only when a batch's render either errors (a `required`/
-values-schema guard tripped by one of its nulled leaves) or comes back
-different from baseline does this fall back to re-rendering each of that
-batch's leaves individually — the only way to attribute the effect to a
-specific leaf. Worst case (every leaf in every batch turns out to be
-load-bearing) costs one wasted batch render per batch on top of the
-same one-per-leaf renders a naive approach would always pay — never
-asymptotically worse.
+thousand-plus `helm template` calls. Instead of a flat, arbitrary batch
+size, this walks values.yaml's own tree top-down (see
+_find_dead_in_subtree): a whole subtree (e.g. one top-level component
+key, or any dict node under it) is null-tested as ONE unit first: every
+leaf under it nulled together in a single render. If that reproduces
+the baseline exactly, every leaf anywhere under that subtree is
+confirmed dead in that one render, however many there are and however
+deep — no further recursion needed. Only when a subtree's combined
+render either errors (a `required`/values-schema guard tripped by one
+of its nulled leaves) or comes back different from baseline does this
+recurse into that subtree's own immediate children and repeat the same
+test on each of them, narrowing down one level at a time until it
+bottoms out at individual leaves. A real, wholly-unused block (a whole
+disabled feature, an orphaned override) collapses to one render
+regardless of size; a live subtree costs one render per node actually
+walked down to reach its live leaves, plus one for each dead sibling
+pruned along the way — never more than testing every leaf individually
+would have anyway.
 
 Structural (parsed multi-doc YAML) comparison, not raw text, is used to
 decide "identical to baseline" — Go's `range` over a map has no
@@ -79,11 +84,6 @@ from lib.digest_pinning_check import subchart_visibility_exempt_reason
 from lib.procutil import run
 from lib.render_scope import CHART_NAME
 
-# How many leaves get nulled out together in one render before falling
-# back to one-render-per-leaf for just that batch — see this module's
-# docstring for the cost/accuracy tradeoff.
-DEAD_VALUES_BATCH_SIZE = 25
-
 
 def flatten_leaves(node, path=()):
     """(path tuple, value) for every leaf under node — a dict is only a
@@ -99,20 +99,25 @@ def flatten_leaves(node, path=()):
         yield path, node
 
 
+def _candidate_leaves(node, path):
+    """flatten_leaves(node, path), minus a value that's already null
+    (nulling a null is a no-op — nothing to learn) and any path
+    SUBCHART_VISIBILITY_EXEMPT already has a standing, reviewed answer
+    for (see this module's docstring)."""
+    for leaf_path, value in flatten_leaves(node, path):
+        if value is None or not leaf_path:
+            continue
+        if subchart_visibility_exempt_reason(leaf_path[0], ".".join(leaf_path[1:])):
+            continue
+        yield leaf_path
+
+
 def candidate_leaf_paths(values):
-    """Every flatten_leaves path in podiumd's own values.yaml worth
-    null-testing: skips a value that's already null (nulling a null is a
-    no-op — nothing to learn) and any path SUBCHART_VISIBILITY_EXEMPT
-    already has a standing, reviewed answer for (see this module's
-    docstring)."""
-    paths = []
-    for path, value in flatten_leaves(values):
-        if value is None or not path:
-            continue
-        if subchart_visibility_exempt_reason(path[0], ".".join(path[1:])):
-            continue
-        paths.append(path)
-    return paths
+    """Every path _candidate_leaves finds in podiumd's own values.yaml
+    worth null-testing — the full, flat list (used for the "N checked"
+    count; _find_dead_in_subtree walks the same candidates hierarchically
+    rather than through this flat list)."""
+    return list(_candidate_leaves(values, ()))
 
 
 def _set_null(tree, path):
@@ -152,46 +157,47 @@ def _render_with_null_overrides(chart_dir, extra_args, paths):
         overlay_path.unlink()
 
 
-def _find_dead_in_batch(chart_dir, extra_args, baseline_docs, paths):
-    """Dead-code candidates (a sublist of paths) within one batch — see
-    this module's docstring for the batch/fallback strategy."""
-    docs = _render_with_null_overrides(chart_dir, extra_args, paths)
-    if docs is not None and docs == baseline_docs:
-        return list(paths)
-    if len(paths) == 1:
+def _find_dead_in_subtree(chart_dir, extra_args, baseline_docs, path, node):
+    """Dead-code candidates within node (rooted at path) — see this
+    module's docstring for the top-down/recurse-on-diff strategy. Only
+    ever recurses into node.items() when node is a dict with more than
+    one candidate leaf under it: flatten_leaves treats a list, an empty
+    dict, or a scalar as exactly one leaf each, so leaf_paths having more
+    than one entry already guarantees node is a non-empty dict here."""
+    leaf_paths = list(_candidate_leaves(node, path))
+    if not leaf_paths:
         return []
+
+    docs = _render_with_null_overrides(chart_dir, extra_args, leaf_paths)
+    if docs is not None and docs == baseline_docs:
+        return leaf_paths
+    if len(leaf_paths) == 1:
+        return []
+
     dead = []
-    for path in paths:
-        docs = _render_with_null_overrides(chart_dir, extra_args, [path])
-        if docs is not None and docs == baseline_docs:
-            dead.append(path)
+    for key, child in node.items():
+        dead.extend(_find_dead_in_subtree(chart_dir, extra_args, baseline_docs, path + (key,), child))
     return dead
-
-
-def find_dead_values(chart_dir, extra_args, baseline_docs, paths):
-    """Dead-code candidates across every path, batched DEAD_VALUES_BATCH_
-    SIZE at a time (see _find_dead_in_batch)."""
-    dead = []
-    for start in range(0, len(paths), DEAD_VALUES_BATCH_SIZE):
-        batch = paths[start:start + DEAD_VALUES_BATCH_SIZE]
-        dead.extend(_find_dead_in_batch(chart_dir, extra_args, baseline_docs, batch))
-    return sorted(dead)
 
 
 def check_dead_values(chart_dir, extra_args):
     values = load_yaml(chart_dir / "values.yaml") or {}
-    paths = candidate_leaf_paths(values)
+    total = len(candidate_leaf_paths(values))
 
-    print(f"Null-testing {len(paths)} values.yaml leaf(ves) against the baseline render...")
+    print(f"Null-testing {total} values.yaml leaf(ves) against the baseline render "
+          f"(top-down, whole subtrees at a time)...")
     baseline_docs = _render(chart_dir, extra_args)
     if baseline_docs is None:
         return True, "skipped — baseline render failed"
 
-    dead = find_dead_values(chart_dir, extra_args, baseline_docs, paths)
+    dead = []
+    for key, child in values.items():
+        dead.extend(_find_dead_in_subtree(chart_dir, extra_args, baseline_docs, (key,), child))
+    dead.sort()
 
     if not dead:
-        print(f"OK: no dead values.yaml entries found ({len(paths)} checked)")
-        return True, f"0/{len(paths)} dead"
+        print(f"OK: no dead values.yaml entries found ({total} checked)")
+        return True, f"0/{total} dead"
 
     print(f"Found {len(dead)} values.yaml leaf(ves) whose value never surfaces in the "
           f"rendered chart (nulling it made no difference to the maximal render) — "
@@ -199,4 +205,4 @@ def check_dead_values(chart_dir, extra_args):
     for path in dead:
         print(f"  {'.'.join(path)}")
 
-    return True, f"{len(dead)}/{len(paths)} dead (report only)"
+    return True, f"{len(dead)}/{total} dead (report only)"

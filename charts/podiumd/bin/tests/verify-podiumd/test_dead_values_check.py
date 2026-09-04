@@ -4,10 +4,9 @@ fake `run` simulates a tiny renderer that only cares about two modeled
 leaves (foo.used — echoed into its output; required.field — makes the
 render fail entirely if nulled), so every other leaf (foo.dead) is
 "dead" by construction. See lib.dead_values_check's own module
-docstring for the batch/fallback strategy this exercises."""
+docstring for the top-down/recurse-on-diff strategy this exercises."""
 from types import SimpleNamespace
 
-import pytest
 import yaml
 
 CHART_YAML = "apiVersion: v2\nname: podiumd\nversion: 0.0.1\n"
@@ -45,9 +44,6 @@ def _deep_merge(base, overlay):
             _deep_merge(base[key], value)
         else:
             base[key] = value
-
-
-_MISSING = object()
 
 
 def _get(tree, path, default):
@@ -124,11 +120,12 @@ def test_check_dead_values_finds_the_one_dead_leaf(libdeadvaluescheck, tmp_path,
     assert "required.field" not in out
 
 
-def test_check_dead_values_whole_batch_confirmed_dead_in_one_render(libdeadvaluescheck, tmp_path, monkeypatch):
+def test_check_dead_values_whole_subtree_confirmed_dead_in_one_render(libdeadvaluescheck, tmp_path, monkeypatch):
     """Two leaves the fake model never reads at all — nulling both at once
-    still matches baseline, so both are confirmed dead without any
-    per-leaf fallback render (only 2 `run` calls total: baseline + the
-    one combined batch render)."""
+    (the whole "foo" subtree, tested as one unit) still matches baseline,
+    so both are confirmed dead without ever recursing into "foo"'s own
+    children (only 2 `run` calls total: baseline + the one combined
+    subtree render)."""
     chart_dir = make_chart_dir(tmp_path, values="foo:\n  dead1: \"x\"\n  dead2: \"y\"\n")
     call_log = []
     monkeypatch.setattr(libdeadvaluescheck, "run", fake_run(call_log))
@@ -138,6 +135,36 @@ def test_check_dead_values_whole_batch_confirmed_dead_in_one_render(libdeadvalue
     assert ok is True
     assert detail == "2/2 dead (report only)"
     assert len(call_log) == 2
+
+
+def test_check_dead_values_deep_dead_subtree_confirmed_regardless_of_depth(libdeadvaluescheck, tmp_path, monkeypatch):
+    """The whole point of testing top-down: "bar"'s two dead leaves sit 4
+    levels deep, but since NEITHER is ever read, nulling the entire "bar"
+    subtree in one render already matches baseline — no need to recurse
+    into bar.a, then bar.a.b, then each leaf individually. Only 3 `run`
+    calls total: baseline, "foo" (used, so it's tested and rejected at
+    the top level), "bar" (dead, confirmed in one shot despite its
+    depth)."""
+    chart_dir = make_chart_dir(
+        tmp_path,
+        values=(
+            "foo:\n"
+            '  used: "abc"\n'
+            "bar:\n"
+            "  a:\n"
+            "    b:\n"
+            '      c: "dead1"\n'
+            '      d: "dead2"\n'
+        ),
+    )
+    call_log = []
+    monkeypatch.setattr(libdeadvaluescheck, "run", fake_run(call_log))
+
+    ok, detail = libdeadvaluescheck.check_dead_values(chart_dir, [])
+
+    assert ok is True
+    assert detail == "2/3 dead (report only)"
+    assert len(call_log) == 3
 
 
 def test_check_dead_values_nothing_dead_prints_ok(libdeadvaluescheck, tmp_path, monkeypatch, capsys):
@@ -163,15 +190,3 @@ def test_check_dead_values_baseline_render_failure_is_skipped_not_failed(libdead
 
     assert ok is True
     assert detail == "skipped — baseline render failed"
-
-
-@pytest.mark.parametrize("batch_size", [1, 2, 3, 25])
-def test_check_dead_values_result_independent_of_batch_size(libdeadvaluescheck, tmp_path, monkeypatch, batch_size):
-    chart_dir = make_chart_dir(tmp_path)
-    monkeypatch.setattr(libdeadvaluescheck, "run", fake_run())
-    monkeypatch.setattr(libdeadvaluescheck, "DEAD_VALUES_BATCH_SIZE", batch_size)
-
-    ok, detail = libdeadvaluescheck.check_dead_values(chart_dir, [])
-
-    assert ok is True
-    assert detail == "1/3 dead (report only)"
