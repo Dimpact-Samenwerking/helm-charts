@@ -328,6 +328,13 @@ def test_check_cves_splits_own_partner_other_and_never_fails(vp, libcvecheck, tm
     assert "1 CRIT, 1 MEDIUM CVE(s)" in out  # other-vendor: identical treatment to own/partner now
     assert "CVE-OTHER-1" not in out  # totals only by default, no individual CVE IDs
 
+    # a per-image progress line for each of the 3 (uncached) scans, so a
+    # slow trivy pull doesn't look like the step hung
+    scan_lines = [line for line in out.splitlines() if "scanning" in line and "docker pull + trivy" in line]
+    assert len(scan_lines) == 3
+    assert any(line.startswith("  [1/3] scanning ") for line in scan_lines)
+    assert any(line.startswith("  [3/3] scanning ") for line in scan_lines)
+
 
 def test_check_cves_marks_upgradable_from_image_upgrade_cache(
     vp, libcvecheck, libimageupgradecache, tmp_path, monkeypatch, capsys,
@@ -556,6 +563,7 @@ def test_check_cves_cache_hit_skips_scanning(vp, libcvecheck, tmp_path, monkeypa
     assert "1 CRIT CVE(s)" in out  # own: per-image totals by default, no CVE ID itemized
     assert "CVE-CACHED" not in out
     assert "1/3 image(s) served from cache" in out
+    assert "frank-gateway" not in "".join(line for line in out.splitlines() if "scanning" in line)
 
 
 def test_check_cves_expired_cache_entry_rescans(vp, libcvecheck, tmp_path, monkeypatch, capsys):

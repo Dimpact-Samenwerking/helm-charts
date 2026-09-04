@@ -45,7 +45,7 @@ def test_ensure_repos_configured_repo_update_failure(libdependencies, monkeypatc
 
 # --- check_dependencies ---
 
-def test_check_dependencies_success(libdependencies, tmp_path, monkeypatch):
+def test_check_dependencies_success(libdependencies, tmp_path, monkeypatch, capsys):
     dep_list_output = "NAME\tVERSION\tREPOSITORY\tSTATUS\na\t1.0\t@x\tok\nb\t2.0\t@x\tok\n"
 
     def sequenced_run(cmd, **kwargs):
@@ -64,6 +64,10 @@ def test_check_dependencies_success(libdependencies, tmp_path, monkeypatch):
     ok, detail = libdependencies.check_dependencies(tmp_path)
     assert ok is True
     assert "2 dependencies bundled" in detail
+    # announced before the (potentially slow, re-downloads everything)
+    # update call, so it's visible even before Helm's own live-streamed
+    # progress starts appearing
+    assert "Running helm dependency update (attempt 1/3)..." in capsys.readouterr().out
 
 
 def test_check_dependencies_update_failure(libdependencies, tmp_path, monkeypatch):
@@ -75,7 +79,7 @@ def test_check_dependencies_update_failure(libdependencies, tmp_path, monkeypatc
     assert "after 3 attempt" in detail
 
 
-def test_check_dependencies_retries_then_succeeds(libdependencies, tmp_path, monkeypatch):
+def test_check_dependencies_retries_then_succeeds(libdependencies, tmp_path, monkeypatch, capsys):
     dep_list_output = "NAME\tVERSION\tREPOSITORY\tSTATUS\na\t1.0\t@x\tok\n"
     calls = {"update": 0}
 
@@ -95,6 +99,9 @@ def test_check_dependencies_retries_then_succeeds(libdependencies, tmp_path, mon
     ok, detail = libdependencies.check_dependencies(tmp_path)
     assert ok is True
     assert calls["update"] == 2
+    out = capsys.readouterr().out
+    assert "Running helm dependency update (attempt 1/3)..." in out
+    assert "Running helm dependency update (attempt 2/3)..." in out
 
 
 def test_check_dependencies_count_mismatch(libdependencies, tmp_path, monkeypatch):
