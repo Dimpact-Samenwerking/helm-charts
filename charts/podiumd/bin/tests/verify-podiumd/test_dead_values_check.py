@@ -32,11 +32,15 @@ def make_chart_dir(tmp_path, values=VALUES_YAML):
     return tmp_path
 
 
-def write_chart_yaml_with_dep(tmp_path, dep):
+def write_chart_yaml_with_deps(tmp_path, deps):
     (tmp_path / "Chart.yaml").write_text(
-        yaml.safe_dump({"apiVersion": "v2", "name": "podiumd", "version": "0.0.1", "dependencies": [dep]}),
+        yaml.safe_dump({"apiVersion": "v2", "name": "podiumd", "version": "0.0.1", "dependencies": deps}),
         encoding="utf-8",
     )
+
+
+def write_chart_yaml_with_dep(tmp_path, dep):
+    write_chart_yaml_with_deps(tmp_path, [dep])
 
 
 def make_tgz(charts_dir, name, version):
@@ -129,6 +133,22 @@ def test_candidate_leaf_paths_skips_subchart_visibility_exempt(libdeadvalueschec
     paths = libdeadvaluescheck.candidate_leaf_paths(values)
     assert ("zaakbrug", "staging", "apiProxy", "tag") not in paths
     assert ("zaakbrug", "other") in paths
+
+
+def test_candidate_leaf_paths_skips_exempt_full_paths(libdeadvaluescheck):
+    values = {"zac": {"enabled": True, "used": "x"}}
+    paths = libdeadvaluescheck.candidate_leaf_paths(values, {("zac", "enabled")})
+    assert paths == [("zac", "used")]
+
+
+def test_condition_leaf_paths_reads_every_dependency_condition(libdeadvaluescheck, tmp_path):
+    write_chart_yaml_with_deps(tmp_path, [
+        make_dep("zac", "1.0.0", condition="zac.enabled"),
+        make_dep("eck-stack", "1.0.0", alias="kiss-eck", condition="kiss-eck.enabled"),
+        make_dep("no-condition-dep", "1.0.0"),
+    ])
+    paths = libdeadvaluescheck._condition_leaf_paths(tmp_path)
+    assert paths == {("zac", "enabled"), ("kiss-eck", "enabled")}
 
 
 # --- check_dead_values (mocked run) ---
@@ -294,6 +314,37 @@ def test_check_dead_values_safety_net_rejects_scoped_false_positive(libdeadvalue
 
     assert ok is True
     assert detail == "0/2 dead"
+
+
+def test_check_dead_values_never_nulls_a_dependencys_own_condition_leaf(libdeadvaluescheck, tmp_path, monkeypatch):
+    """zac.enabled is Chart.yaml's own "condition:" for the zac
+    dependency — real, measured bug: a standalone render of a
+    dependency has no parent to gate, so nulling this ONE leaf within
+    zac's own sub-chart scope can never be honestly observed (it always
+    renders regardless). Excluded from candidacy entirely (see
+    _condition_leaf_paths) rather than tested and then rejected —
+    verified here by making the whole test fail if "enabled" ever shows
+    up nulled in ANY overlay this check writes, scoped or full."""
+    write_chart_yaml_with_dep(tmp_path, make_dep("zac", "1.0.0", condition="zac.enabled"))
+    make_tgz(tmp_path / "charts", "zac", "1.0.0")
+    (tmp_path / "values.yaml").write_text('zac:\n  enabled: true\n  used: "abc"\n', encoding="utf-8")
+
+    scoped_run = fake_run_scoped()
+    seen_overlays = []
+
+    def spying_run(cmd, **kwargs):
+        seen_overlays.append(_overlay_values(cmd))  # read the -f file BEFORE it gets unlinked
+        return scoped_run(cmd, **kwargs)
+
+    monkeypatch.setattr(libdeadvaluescheck, "run", spying_run)
+
+    ok, detail = libdeadvaluescheck.check_dead_values(tmp_path, [])
+
+    assert ok is True
+    assert detail == "0/1 dead"  # "enabled" excluded entirely; only "used" is a real candidate
+    for overlay in seen_overlays:
+        zac_view = overlay.get("zac", overlay)
+        assert zac_view.get("enabled") is not None, f"zac.enabled was nulled in {overlay}"
 
 
 def test_resolve_scope_prefers_own_scope_without_matching_dependency(libdeadvaluescheck, tmp_path):
