@@ -17,20 +17,36 @@ on disk) and re-render; if the rendered manifests come back structurally
 IDENTICAL to the baseline render, nothing anywhere ever dereferenced
 that value, so it's a dead-code candidate.
 
-"Consider everything always enabled" (this check's own design brief):
-uses the exact same baseline extra_args (values.yaml + ci/lint-values.yaml)
-as check_lint/check_render/check_image_upgrades/check_cves — the one
-render this repo already treats as "maximal" (frankgateway on, every
-`required` guard satisfied) — rather than trying to enumerate every
-values combination a real deployment might choose. The one deliberate
-exception: SUBCHART_VISIBILITY_EXEMPT's zaakbrug.staging is NOT force-
-enabled — that subtree is permanently, by hard policy, never going to be
-on (see lib.digest_pinning_check's docstring) regardless of what
-"everything enabled" means elsewhere, so its leaves are excluded from
+"Consider everything always enabled" (this check's own design brief) —
+the actual question this check answers is "can this leaf EVER be read,
+given what the charts' own templates do", not "does it happen to be
+read under today's specific default toggle settings". So the baseline
+this renders against is values.yaml + ci/lint-values.yaml (the same
+"maximal" values check_lint/check_render/check_image_upgrades/check_cves
+already use — every `required` guard satisfied) PLUS every Chart.yaml
+dependency's own "condition:" forced to true (see _enable_overlay) —
+deterministically, straight from Chart.yaml's own dependencies[].condition
+fields, never a name-based guess at which values "look like" a toggle.
+Without this, a dependency that's off by default (this chart has quite
+a few — real, measured examples: openbao, zaakbrug are BOTH off unless
+forced) would never even render, and every leaf under it would look
+"dead" for that reason alone rather than because no template anywhere
+could ever read it. The one deliberate exception: SUBCHART_VISIBILITY_
+EXEMPT's zaakbrug.staging is NOT force-enabled — that's a narrower,
+INTERNAL toggle inside the zaakbrug sub-chart's own values (not a
+Chart.yaml dependency condition at all), permanently off by hard policy
+regardless of what "everything enabled" means elsewhere (see
+lib.digest_pinning_check's docstring), so its leaves are excluded from
 this check's scope entirely rather than reported as a fresh "dead" find
 every time (same exemption check_subchart_image_visibility already
 applies, reused here via subchart_visibility_exempt_reason rather than
-re-deriving the same prefix-match logic).
+re-deriving the same prefix-match logic). Any OTHER internal, non-
+Chart.yaml-condition toggle inside a sub-chart's own values (this repo
+has a few, e.g. objecten's own demo-data flag) is deliberately left
+alone — telling a real per-component feature flag apart from an
+ordinary boolean config value with no name-based heuristic isn't
+something this check tries to do; a leaf gated behind one of those is
+the one remaining case the "human call" caveat below covers.
 
 Cost control has two independent halves:
 
@@ -45,37 +61,56 @@ Cost control has two independent halves:
    part of the tree.
 
 2. Per-subchart scoping (see _resolve_scope): rendering the WHOLE
-   podiumd chart (all ~25 vendored dependencies) to test one leaf under,
-   say, "zac" is wasteful — only the zac sub-chart's own templates can
-   possibly read a zac.* value (with the one known exception below).
-   Where a top-level key matches an actual Chart.yaml dependency with a
-   vendored charts/<name>-<version>.tgz on disk, this renders THAT
-   sub-chart alone (`helm template <name> <its .tgz>`) instead of the
-   full umbrella chart, with a `-f` overlay built from podiumd's own
-   merged values (values.yaml + ci/lint-values.yaml, replicated in
-   Python via _load_merged_values/_deep_merge — Helm's own -f layering
-   can't slice a subset of an already-merged tree, which is what a
-   scoped render needs) sliced down to just that key's own subtree plus
-   "global" (which Helm always propagates into every sub-chart). A
-   sub-chart's own baseline render failing (its values.yaml schema, or
-   any other reconstruction gap) just falls back to the full-chart scope
-   for that key instead — never treated as evidence of anything.
+   podiumd chart (all ~25 vendored dependencies — measured at ~7s per
+   render on the real chart, vs. ~0.1-0.3s for a single sub-chart alone)
+   to test one leaf under, say, "zac" is wasteful — only the zac
+   sub-chart's own templates can possibly read a zac.* value (with the
+   one known exception below). Where a top-level key matches an actual
+   Chart.yaml dependency with a vendored charts/<name>-<version>.tgz on
+   disk, this renders THAT sub-chart alone (`helm template <name> <its
+   .tgz>`) instead of the full umbrella chart, with a `-f` overlay built
+   from podiumd's own merged values (values.yaml + ci/lint-values.yaml,
+   replicated in Python via _load_merged_values/_deep_merge — Helm's own
+   -f layering can't slice a subset of an already-merged tree, which is
+   what a scoped render needs) sliced down to just that key's own
+   subtree plus "global" (which Helm always propagates into every
+   sub-chart). A sub-chart's own baseline render failing (its
+   values.yaml schema, or any other reconstruction gap) just falls back
+   to the full-chart scope for that key instead — never treated as
+   evidence of anything.
 
-   SAFETY NET: a scoped render is only ever trusted to narrow the search
-   faster, never to make the final call. This matters because at least
-   one top-level key in practice is a real, documented exception: e.g.
-   "keycloak" both maps to a vendored dependency AND is read directly by
-   some of podiumd's OWN top-level templates/*.yaml (see
-   lib.image_repository_check's docstring on "adapter"'s siblings) — a
-   leaf like that could look "dead" to an isolated sub-chart render while
-   still being genuinely live in the real, full chart. So every
-   candidate a scoped render finds is re-verified with one more pass
-   against the REAL, authoritative full-chart baseline
-   (_confirm_against_full_chart) before ever being reported — reusing
-   the exact same top-down search, just seeded with only the candidates
-   (as a small pruned tree) instead of the whole chart, and always via
-   the full-chart scope. A candidate already found via the full-chart
-   scope in the first place skips this re-check (nothing to re-confirm).
+   A top-level key that matches NO Chart.yaml dependency at all (e.g.
+   "keycloak", "apiproxy", "global" — real, measured examples: together
+   ~15% of this chart's own leaves) has nothing to scope TO the way
+   above — but it's still wasteful to pull in all ~25 dependencies just
+   to test whether podiumd's OWN templates/*.yaml reference it. See
+   _make_own_scope: a temp chart directory — a copy of podiumd's own
+   chart with "charts/" (the vendored .tgz's) excluded and Chart.yaml's
+   own "dependencies:" list stripped, so Helm never touches any
+   sub-chart at all — renders podiumd's OWN templates alone, with the
+   FULL merged values as its overlay (not sliced to one key, since
+   podiumd's own templates can reference any top-level key). Same
+   fallback discipline: a failure here (e.g. a template that needs
+   something only a real sub-chart provides) just falls back to the
+   full-chart scope, same as a failed sub-chart scope does.
+
+   SAFETY NET: neither scoped render above is ever trusted to make the
+   final call, only to narrow the search faster. This matters because at
+   least one top-level key in practice is a real, documented exception:
+   e.g. "keycloak" — per this chart's own Bitnami-to-Hostzero-Operator
+   migration notes — has values read directly by some of podiumd's OWN
+   top-level templates/*.yaml (see lib.image_repository_check's
+   docstring on "adapter"'s siblings) as well as (historically) a
+   vendored dependency's own templates — a leaf like that could look
+   "dead" to either scoped render while still being genuinely live in
+   the real, full chart. So every candidate either scoped render finds
+   is re-verified with one more pass against the REAL, authoritative
+   full-chart baseline (_confirm_against_full_chart) before ever being
+   reported — reusing the exact same top-down search, just seeded with
+   only the candidates (as a small pruned tree) instead of the whole
+   chart, and always via the full-chart scope. A candidate already found
+   via the full-chart scope in the first place skips this re-check
+   (nothing to re-confirm).
 
 Parallelism: every render this module ever issues is fully independent —
 its own throwaway temp overlay file, no shared state — so
@@ -100,15 +135,24 @@ care about order — so that specific shape can still cost a missed dead-
 code finding, but only ever in the safe direction (never a live value
 wrongly reported dead).
 
+Progress: with real leaf counts in the thousands and this many render
+phases, silence for minutes on end is its own problem — check_dead_values
+prints a line at every phase transition (scope resolution, the top-down
+search, the confirmation pass), and _run_dead_value_search itself prints
+one line per BFS level (how many renders that level took, how many
+leaves are resolved so far out of the total, how many are still being
+narrowed down) rather than only a single line at the very end.
+
 Never fails regardless of findings — same as check_subchart_image_
 visibility/check_image_upgrades/check_cves: whether a candidate is truly
-removable (vs. e.g. read only by a disabled-by-default OWN feature this
-chart's own "everything enabled" baseline doesn't happen to exercise
-either) is a human's call, not something this scan can decide on its
-own."""
+removable (vs. e.g. read only when some internal, non-Chart.yaml-
+condition feature flag this check doesn't force on is itself turned on
+— see above) is a human's call, not something this scan can decide on
+its own."""
 import concurrent.futures
 import copy
 import os
+import shutil
 import tempfile
 from pathlib import Path
 
@@ -197,6 +241,34 @@ def _dependency_by_key(chart_dir):
     return {(dep.get("alias") or dep["name"]): dep for dep in chart_yaml.get("dependencies", [])}
 
 
+def _enable_overlay(chart_dir):
+    """A nested dict setting every Chart.yaml dependency's own
+    "condition:" path to True — e.g. {"openbao": {"enabled": True}} —
+    read straight from dependencies[].condition, never a name-based
+    guess at which values.yaml keys "look like" a toggle. Skips
+    zaakbrug.staging's own SUBCHART_VISIBILITY_EXEMPT entry (an
+    internal, non-Chart.yaml-condition toggle this deliberately never
+    force-enables — see this module's docstring)."""
+    chart_yaml = load_yaml(chart_dir / "Chart.yaml") or {}
+    overlay = {}
+    for dep in chart_yaml.get("dependencies", []):
+        condition = dep.get("condition")
+        if not condition:
+            continue
+        path = tuple(condition.split("."))
+        if subchart_visibility_exempt_reason(path[0], ".".join(path[1:])):
+            continue
+        _set_true(overlay, path)
+    return overlay
+
+
+def _set_true(tree, path):
+    node = tree
+    for key in path[:-1]:
+        node = node.setdefault(key, {})
+    node[path[-1]] = True
+
+
 def _parsed_docs(rendered_text):
     return [doc for doc in yaml.safe_load_all(rendered_text) if doc is not None]
 
@@ -233,32 +305,75 @@ def _render_with_null_overrides(scope, relative_paths):
         overlay_path.unlink()
 
 
-def _make_full_scope(chart_dir, extra_args):
-    """The whole-podiumd-chart scope — the only one used for a top-level
-    key with no matching Chart.yaml dependency (e.g. "global", or one of
-    podiumd's own directly-templated blocks), and the always-authoritative
-    scope _confirm_against_full_chart re-verifies every scoped candidate
-    against."""
+def _make_full_scope(chart_dir, extra_args, enable_overlay):
+    """The whole-podiumd-chart scope — the always-safe fallback for a key
+    neither other scope could handle, and the always-authoritative scope
+    _confirm_against_full_chart re-verifies every scoped candidate
+    against. base_overlay is enable_overlay (see _enable_overlay) rather
+    than {}: this is the render that actually decides which Chart.yaml
+    dependencies show up at all, so forcing every dependency condition
+    true has to happen here to have any effect."""
     scope = {
         "chart_name": CHART_NAME,
         "chart_path": chart_dir,
         "extra_args": extra_args,
-        "base_overlay": {},
+        "base_overlay": enable_overlay,
         "strip": 0,
     }
     scope["baseline_docs"] = _render_with_null_overrides(scope, [])
     return scope
 
 
-def _resolve_scope(chart_dir, merged_values, dep_by_key, key, full_scope):
+def _make_own_scope(chart_dir, merged_values):
+    """Render podiumd's OWN templates/ alone — a temp copy of the whole
+    chart directory with "charts/" (the vendored .tgz's) excluded and
+    Chart.yaml's own "dependencies:" list stripped, so Helm never
+    touches any vendored sub-chart at all — for a top-level key that
+    matches NO Chart.yaml dependency (keycloak, apiproxy, global, ...),
+    which _resolve_scope has nothing to scope those to otherwise. Unlike
+    a sub-chart scope, base_overlay is the WHOLE merged_values tree (not
+    sliced to one key), since podiumd's own templates can read any
+    top-level key, not just one. None if this doesn't work (e.g. a
+    template needs something only a real sub-chart provides, like
+    `.Subcharts` or an `include` on a sub-chart's own named template) —
+    every caller falls back to the full-chart scope in that case, same
+    as a failed sub-chart scope. Caller owns cleanup of the returned
+    scope's "temp_dir" (rmtree once the whole check is done with it —
+    every render against this scope needs it to keep existing)."""
+    chart_yaml = load_yaml(chart_dir / "Chart.yaml") or {}
+    temp_dir = Path(tempfile.mkdtemp(prefix="dead-values-own-"))
+    shutil.copytree(chart_dir, temp_dir, ignore=shutil.ignore_patterns("charts"), dirs_exist_ok=True)
+    own_chart_yaml = {k: v for k, v in chart_yaml.items() if k != "dependencies"}
+    (temp_dir / "Chart.yaml").write_text(yaml.safe_dump(own_chart_yaml), encoding="utf-8")
+    (temp_dir / "values.yaml").write_text("{}\n", encoding="utf-8")
+
+    scope = {
+        "chart_name": CHART_NAME,
+        "chart_path": temp_dir,
+        "extra_args": [],
+        "base_overlay": merged_values,
+        "strip": 0,
+        "temp_dir": temp_dir,
+    }
+    scope["baseline_docs"] = _render_with_null_overrides(scope, [])
+    if scope["baseline_docs"] is None:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        return None
+    return scope
+
+
+def _resolve_scope(chart_dir, merged_values, dep_by_key, key, own_scope, full_scope):
     """The fast, sub-chart-scoped render for `key` if one can be built
     (see this module's docstring) and its own baseline render actually
-    succeeds — else full_scope, the always-safe fallback. Never raises
-    and never returns something unusable: any reconstruction gap just
-    means this key gets tested the slow (but correct) way, same as
-    before this optimization existed."""
+    succeeds; own_scope (see _make_own_scope) if `key` matches no
+    Chart.yaml dependency at all; else full_scope, the always-safe
+    fallback. Never raises and never returns something unusable: any
+    reconstruction gap just means this key gets tested the slow (but
+    correct) way, same as before this optimization existed."""
     dep = dep_by_key.get(key)
-    if dep is None or dep["repository"].startswith("file://"):
+    if dep is None:
+        return own_scope if own_scope is not None else full_scope
+    if dep["repository"].startswith("file://"):
         return full_scope
 
     tgz_path = chart_dir / "charts" / f"{dep['name']}-{dep['version']}.tgz"
@@ -286,16 +401,22 @@ def _resolve_scope(chart_dir, merged_values, dep_by_key, key, full_scope):
     return scope
 
 
-def _run_dead_value_search(executor, roots):
+def _run_dead_value_search(executor, roots, total=None):
     """(scope, full_path) for every candidate "looks dead within its own
     scope" leaf found by walking `roots` (a [(scope, path, node), ...]
     list, one entry per subtree to search) top-down — see this module's
     docstring for the batch-then-recurse-on-diff strategy and why this is
     an iterative, level-by-level walk (never a worker recursively
-    submitting more work to the same executor)."""
+    submitting more work to the same executor). `total` is only for the
+    progress line printed after each level — the denominator for "N/total
+    resolved so far" — omit it (e.g. a small confirmation-pass re-run) to
+    skip printing progress for that call."""
     found = []
+    resolved = 0
     frontier = list(roots)
+    level = 0
     while frontier:
+        level += 1
         pending = []
         for scope, path, node in frontier:
             leaf_paths = list(_candidate_leaves(node, path))
@@ -315,9 +436,14 @@ def _run_dead_value_search(executor, roots):
             docs = future.result()
             if docs is not None and docs == scope["baseline_docs"]:
                 found.extend((scope, p) for p in leaf_paths)
+                resolved += len(leaf_paths)
             elif len(leaf_paths) > 1:
                 next_frontier.extend((scope, path + (key,), child) for key, child in node.items())
-            # a single leaf that differed (or errored): not dead, done with it
+            else:
+                resolved += 1  # single leaf that differed (or errored): not dead, done with it
+        if total is not None:
+            print(f"  level {level}: {len(pending)} render(s) — {resolved}/{total} leaf(ves) resolved so far "
+                  f"({len(found)} dead, {len(next_frontier)} subtree(s) still being narrowed down)")
         frontier = next_frontier
     return found
 
@@ -339,16 +465,16 @@ def _tree_from_paths(paths):
 
 
 def _confirm_against_full_chart(executor, full_scope, candidates):
-    """Re-verify every candidate that was found via some OTHER (sub-
-    chart-scoped) scope against the real, authoritative full-chart
-    render — a scoped render only ever narrows the search, never makes
-    the final call (see this module's docstring's safety-net rationale).
-    A candidate already found via full_scope itself needs no re-check."""
+    """Re-verify every candidate that was found via some OTHER (scoped)
+    scope against the real, authoritative full-chart render — a scoped
+    render only ever narrows the search, never makes the final call (see
+    this module's docstring's safety-net rationale). A candidate already
+    found via full_scope itself needs no re-check."""
     if not candidates:
         return []
     tree = _tree_from_paths(candidates)
     roots = [(full_scope, (key,), node) for key, node in tree.items()]
-    return [path for _scope, path in _run_dead_value_search(executor, roots)]
+    return [path for _scope, path in _run_dead_value_search(executor, roots, len(candidates))]
 
 
 def check_dead_values(chart_dir, extra_args):
@@ -358,27 +484,46 @@ def check_dead_values(chart_dir, extra_args):
     print(f"Null-testing {total} values.yaml leaf(ves) against the baseline render "
           f"(top-down, per-subchart where possible, up to {DEAD_VALUES_MAX_WORKERS} in parallel)...")
 
-    full_scope = _make_full_scope(chart_dir, extra_args)
+    enable_overlay = _enable_overlay(chart_dir)
+    full_scope = _make_full_scope(chart_dir, extra_args, enable_overlay)
     if full_scope["baseline_docs"] is None:
         return True, "skipped — baseline render failed"
 
     merged_values = _load_merged_values(chart_dir, extra_args)
+    _deep_merge(merged_values, enable_overlay)
     dep_by_key = _dependency_by_key(chart_dir)
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=DEAD_VALUES_MAX_WORKERS) as executor:
-        scope_futures = {
-            executor.submit(_resolve_scope, chart_dir, merged_values, dep_by_key, key, full_scope): key
-            for key in values
-        }
-        roots = []
-        for future in concurrent.futures.as_completed(scope_futures):
-            key = scope_futures[future]
-            roots.append((future.result(), (key,), values[key]))
+    own_scope = _make_own_scope(chart_dir, merged_values)
+    if own_scope is None:
+        print("Own-templates-only scope unavailable — falling back to full-chart scope for those keys")
 
-        found = _run_dead_value_search(executor, roots)
-        confirmed = [path for scope, path in found if scope is full_scope]
-        to_confirm = [path for scope, path in found if scope is not full_scope]
-        dead = confirmed + _confirm_against_full_chart(executor, full_scope, to_confirm)
+    try:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=DEAD_VALUES_MAX_WORKERS) as executor:
+            print(f"Resolving render scope for {len(values)} top-level key(s)...")
+            scope_futures = {
+                executor.submit(_resolve_scope, chart_dir, merged_values, dep_by_key, key, own_scope, full_scope): key
+                for key in values
+            }
+            roots = []
+            for future in concurrent.futures.as_completed(scope_futures):
+                key = scope_futures[future]
+                roots.append((future.result(), (key,), values[key]))
+
+            scoped_n = sum(1 for scope, _, _ in roots if scope is not full_scope and scope is not own_scope)
+            own_n = sum(1 for scope, _, _ in roots if scope is own_scope)
+            full_n = sum(1 for scope, _, _ in roots if scope is full_scope)
+            print(f"  {scoped_n} sub-chart-scoped, {own_n} own-templates-scoped, {full_n} full-chart-scoped")
+
+            print("Searching top-down for dead leaves...")
+            found = _run_dead_value_search(executor, roots, total)
+            confirmed = [path for scope, path in found if scope is full_scope]
+            to_confirm = [path for scope, path in found if scope is not full_scope]
+            if to_confirm:
+                print(f"Confirming {len(to_confirm)} candidate(s) against the real full-chart baseline...")
+            dead = confirmed + _confirm_against_full_chart(executor, full_scope, to_confirm)
+    finally:
+        if own_scope is not None:
+            shutil.rmtree(own_scope["temp_dir"], ignore_errors=True)
 
     dead.sort()
 

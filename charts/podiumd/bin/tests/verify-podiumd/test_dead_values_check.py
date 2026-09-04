@@ -151,8 +151,12 @@ def test_check_dead_values_whole_subtree_confirmed_dead_in_one_render(libdeadval
     """Two leaves the fake model never reads at all — nulling both at once
     (the whole "foo" subtree, tested as one unit) still matches baseline,
     so both are confirmed dead without ever recursing into "foo"'s own
-    children (only 2 `run` calls total: baseline + the one combined
-    subtree render)."""
+    children. 4 `run` calls total: the full-chart baseline, the own-
+    templates-scope baseline ("foo" has no Chart.yaml dependency, so it's
+    tested via the own-templates scope — see _make_own_scope), the one
+    combined subtree render, and the one combined re-confirmation against
+    the full-chart baseline (own_scope is never trusted alone — see this
+    module's docstring's safety-net rationale)."""
     chart_dir = make_chart_dir(tmp_path, values="foo:\n  dead1: \"x\"\n  dead2: \"y\"\n")
     call_log = []
     monkeypatch.setattr(libdeadvaluescheck, "run", fake_run(call_log))
@@ -161,17 +165,21 @@ def test_check_dead_values_whole_subtree_confirmed_dead_in_one_render(libdeadval
 
     assert ok is True
     assert detail == "2/2 dead (report only)"
-    assert len(call_log) == 2
+    assert len(call_log) == 4
 
 
 def test_check_dead_values_deep_dead_subtree_confirmed_regardless_of_depth(libdeadvaluescheck, tmp_path, monkeypatch):
     """The whole point of testing top-down: "bar"'s two dead leaves sit 4
     levels deep, but since NEITHER is ever read, nulling the entire "bar"
     subtree in one render already matches baseline — no need to recurse
-    into bar.a, then bar.a.b, then each leaf individually. Only 3 `run`
-    calls total: baseline, "foo" (used, so it's tested and rejected at
-    the top level), "bar" (dead, confirmed in one shot despite its
-    depth)."""
+    into bar.a, then bar.a.b, then each leaf individually. 5 `run` calls
+    total: the full-chart baseline, the own-templates-scope baseline
+    (neither "foo" nor "bar" has a Chart.yaml dependency, so both are
+    tested via the own-templates scope), "foo" (used, rejected at the
+    top level) and "bar" (dead, confirmed in one shot despite its depth)
+    at the search level, and one combined re-confirmation of "bar"'s two
+    leaves against the full-chart baseline (own_scope is never trusted
+    alone)."""
     chart_dir = make_chart_dir(
         tmp_path,
         values=(
@@ -191,7 +199,7 @@ def test_check_dead_values_deep_dead_subtree_confirmed_regardless_of_depth(libde
 
     assert ok is True
     assert detail == "2/3 dead (report only)"
-    assert len(call_log) == 3
+    assert len(call_log) == 5
 
 
 def test_check_dead_values_nothing_dead_prints_ok(libdeadvaluescheck, tmp_path, monkeypatch, capsys):
@@ -288,16 +296,23 @@ def test_check_dead_values_safety_net_rejects_scoped_false_positive(libdeadvalue
     assert detail == "0/2 dead"
 
 
-def test_resolve_scope_falls_back_to_full_scope_without_matching_dependency(libdeadvaluescheck, tmp_path):
+def test_resolve_scope_prefers_own_scope_without_matching_dependency(libdeadvaluescheck, tmp_path):
+    own_scope = {"chart_name": "podiumd", "baseline_docs": []}
     full_scope = {"chart_name": "podiumd", "baseline_docs": []}
-    scope = libdeadvaluescheck._resolve_scope(tmp_path, {}, {}, "zac", full_scope)
+    scope = libdeadvaluescheck._resolve_scope(tmp_path, {}, {}, "keycloak", own_scope, full_scope)
+    assert scope is own_scope
+
+
+def test_resolve_scope_falls_back_to_full_scope_without_matching_dependency_or_own_scope(libdeadvaluescheck, tmp_path):
+    full_scope = {"chart_name": "podiumd", "baseline_docs": []}
+    scope = libdeadvaluescheck._resolve_scope(tmp_path, {}, {}, "keycloak", None, full_scope)
     assert scope is full_scope
 
 
 def test_resolve_scope_falls_back_to_full_scope_without_vendored_tgz(libdeadvaluescheck, tmp_path):
     full_scope = {"chart_name": "podiumd", "baseline_docs": []}
     dep_by_key = {"zac": make_dep("zac", "1.0.0")}
-    scope = libdeadvaluescheck._resolve_scope(tmp_path, {"zac": {"a": "b"}}, dep_by_key, "zac", full_scope)
+    scope = libdeadvaluescheck._resolve_scope(tmp_path, {"zac": {"a": "b"}}, dep_by_key, "zac", None, full_scope)
     assert scope is full_scope
 
 
