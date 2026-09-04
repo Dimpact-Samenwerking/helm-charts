@@ -62,7 +62,13 @@ def test_run_fix_disables_md013_md014_and_md031(sub, tmp_path, monkeypatch):
     monkeypatch.setattr(sub, "run", fake_run)
     sub.run_fix("pymarkdown", [chart_dir / "docs" / "a.md"])
 
-    assert captured["cmd"][:4] == ["pymarkdown", "-d", "md013,md014,md031", "fix"]
+    cmd = captured["cmd"]
+    assert cmd[:3] == ["pymarkdown", "-d", "md013,md014,md031"]
+    assert "fix" in cmd
+    # md024 siblings_only setting is carried into fix mode too, before "fix"
+    assert "plugins.md024.siblings_only=$!True" in cmd
+    assert cmd.index("-s") < cmd.index("fix")
+    assert cmd.index("-d") < cmd.index("fix")
 
 
 # --- dry_run_fix ---

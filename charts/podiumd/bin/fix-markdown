@@ -37,7 +37,9 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from lib.markdown_check import MARKDOWN_DISABLED_RULES, find_markdown_files, find_pymarkdown
+from lib.markdown_check import (
+    MARKDOWN_DISABLED_RULES, MARKDOWN_PLUGIN_SETTINGS, find_markdown_files, find_pymarkdown,
+)
 from lib.procutil import run
 
 CHART_DIR = SCRIPT_DIR.parents[0]
@@ -51,7 +53,8 @@ MARKDOWN_FIX_DISABLED_RULES = MARKDOWN_DISABLED_RULES + ",md031"
 def run_fix(pymarkdown, files):
     """Runs `pymarkdown fix` against files (writes in place) and returns
     the list of paths pymarkdown itself reported as "Fixed: <path>"."""
-    result = run([pymarkdown, "-d", MARKDOWN_FIX_DISABLED_RULES, "fix", *[str(f) for f in files]],
+    result = run([pymarkdown, "-d", MARKDOWN_FIX_DISABLED_RULES, *MARKDOWN_PLUGIN_SETTINGS,
+                  "fix", *[str(f) for f in files]],
                  capture_output=True, text=True)
     output = result.stdout + result.stderr
     fixed = [Path(line[len("Fixed: "):].strip()) for line in output.splitlines()
