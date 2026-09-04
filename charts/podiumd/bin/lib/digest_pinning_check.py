@@ -81,9 +81,12 @@ SUBCHART_VISIBILITY_EXEMPT = {
 }
 
 
-def _subchart_visibility_exempt_reason(scope_key, subpath):
+def subchart_visibility_exempt_reason(scope_key, subpath):
     """The SUBCHART_VISIBILITY_EXEMPT reason string if (scope_key, subpath)
-    matches an exempt prefix for that same dependency, else None."""
+    matches an exempt prefix for that same dependency, else None. Public —
+    also reused by lib.dead_values_check to keep the same permanently-
+    unreachable subtrees out of ITS findings too, rather than duplicating
+    this same prefix-match logic."""
     for (exempt_scope, exempt_prefix), reason in SUBCHART_VISIBILITY_EXEMPT.items():
         if scope_key == exempt_scope and (subpath == exempt_prefix or subpath.startswith(exempt_prefix + ".")):
             return reason
@@ -184,8 +187,8 @@ def check_subchart_image_visibility(chart_dir):
     report, once, and it's recorded in SUBCHART_VISIBILITY_EXEMPT from
     then on."""
     all_findings = find_unresolved_subchart_images(chart_dir)
-    exempt_count = sum(1 for f in all_findings if _subchart_visibility_exempt_reason(f[0], f[1]))
-    findings = [f for f in all_findings if not _subchart_visibility_exempt_reason(f[0], f[1])]
+    exempt_count = sum(1 for f in all_findings if subchart_visibility_exempt_reason(f[0], f[1]))
+    findings = [f for f in all_findings if not subchart_visibility_exempt_reason(f[0], f[1])]
 
     if not findings:
         suffix = f" ({exempt_count} exempt)" if exempt_count else ""
