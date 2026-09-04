@@ -60,6 +60,28 @@ def test_ensure_repos_configured_repo_add_failure(libdependencies, monkeypatch):
     assert "network unreachable" in msg
 
 
+def test_ensure_repos_configured_scopes_repo_update_to_required_repos(libdependencies, monkeypatch):
+    """The final `helm repo update` must never be a blanket, argument-less
+    call — that refreshes EVERY repo this machine has ever had `helm repo
+    add`ed to it (measured live: 19 configured locally, only 9 actually
+    used by this chart — ~6.2s vs ~0.6s scoped). Passing REQUIRED_REPOS'
+    own names restricts it to just the repos this function itself
+    added/verified above."""
+    monkeypatch.setattr(libdependencies, "REQUIRED_REPOS", {"zac": "https://example.invalid/zac/",
+                                                             "kiss": "https://example.invalid/kiss/"})
+    calls = []
+
+    def recording_run(cmd, **kwargs):
+        calls.append(cmd)
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(libdependencies, "run", recording_run)
+    ok, _msg = libdependencies.ensure_repos_configured()
+    assert ok is True
+    update_call = next(cmd for cmd in calls if cmd[1] == "repo" and cmd[2] == "update")
+    assert update_call == ["helm", "repo", "update", "zac", "kiss"]
+
+
 def test_ensure_repos_configured_repo_update_failure(libdependencies, monkeypatch):
     monkeypatch.setattr(libdependencies, "REQUIRED_REPOS", {"zac": "https://example.invalid/zac/"})
 
