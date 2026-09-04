@@ -85,13 +85,22 @@ Cost control has two independent halves:
    above — but it's still wasteful to pull in all ~25 dependencies just
    to test whether podiumd's OWN templates/*.yaml reference it. See
    _make_own_scope: a temp chart directory — a copy of podiumd's own
-   chart with "charts/" (the vendored .tgz's) excluded and Chart.yaml's
-   own "dependencies:" list stripped, so Helm never touches any
-   sub-chart at all — renders podiumd's OWN templates alone, with the
-   FULL merged values as its overlay (not sliced to one key, since
-   podiumd's own templates can reference any top-level key). Same
-   fallback discipline: a failure here (e.g. a template that needs
-   something only a real sub-chart provides) just falls back to the
+   chart with "charts/" (the vendored .tgz's) excluded, and Chart.yaml's
+   own "dependencies:" list stripped down to just whatever podiumd's own
+   templates actually need vendored to render at all — renders podiumd's
+   OWN templates alone, with the FULL coalesced values (see
+   _coalesced_values: each dependency's own vendored default merged in
+   UNDER podiumd's own override — Helm does this same coalescing for
+   `.Values.<dep>` from the parent chart's own templates too, which
+   plain _load_merged_values alone can't replicate) as its overlay (not
+   sliced to one key, since podiumd's own templates can reference any
+   top-level key). Which dependencies (if any) stay vendored starts from
+   a deterministic ".Subcharts.<name>" scan and grows on demand — a
+   render whose error names a missing named template (an `include` on a
+   vendored dependency's own _helpers.tpl) adds that one dependency and
+   retries, same self-healing pattern _make_full_scope's own forced-
+   enable degradation uses. Same fallback discipline throughout: a
+   failure that can't be resolved this way just falls back to the
    full-chart scope, same as a failed sub-chart scope does.
 
    SAFETY NET: neither scoped render above is ever trusted to make the
@@ -152,13 +161,14 @@ its own."""
 import concurrent.futures
 import copy
 import os
+import re
 import shutil
 import tempfile
 from pathlib import Path
 
 import yaml
 
-from lib.chart import load_yaml
+from lib.chart import load_yaml, subchart_values
 from lib.digest_pinning_check import subchart_visibility_exempt_reason
 from lib.procutil import run
 from lib.render_scope import CHART_NAME
@@ -241,6 +251,33 @@ def _dependency_by_key(chart_dir):
     return {(dep.get("alias") or dep["name"]): dep for dep in chart_yaml.get("dependencies", [])}
 
 
+def _coalesced_values(chart_dir, merged_values, dep_by_key):
+    """merged_values, but with each Chart.yaml dependency's OWN default
+    values.yaml (from its vendored .tgz — see lib.chart.subchart_values)
+    merged in UNDER podiumd's own override for that key — replicating
+    what Helm itself does when resolving ".Values.<dep>" from the
+    PARENT chart's own top-level templates, not just from within that
+    dependency's own templates. A real, measured example this exists
+    for: podiumd's own keycloak-operator-servicemonitor-rbac.yaml reads
+    $kcOp.operator.serviceAccount (where $kcOp is
+    `.Values["keycloak-operator"]`) — that field only exists because
+    Helm coalesces keycloak-operator's own vendored default in, not
+    because podiumd's own values.yaml sets it. Only _make_own_scope
+    needs this: the sub-chart scope already gets this coalescing for
+    free (rendering the dependency's own .tgz directly always loads its
+    own values.yaml as the base), and the full-chart scope IS the real
+    render Helm performs this coalescing in already."""
+    coalesced = copy.deepcopy(merged_values)
+    for key, dep in dep_by_key.items():
+        defaults = subchart_values(chart_dir, dep)
+        if defaults is None:
+            continue
+        with_defaults = copy.deepcopy(defaults)
+        _deep_merge(with_defaults, coalesced.get(key) or {})
+        coalesced[key] = with_defaults
+    return coalesced
+
+
 def _enable_overlay(chart_dir):
     """A nested dict setting every Chart.yaml dependency's own
     "condition:" path to True — e.g. {"openbao": {"enabled": True}} —
@@ -273,17 +310,39 @@ def _parsed_docs(rendered_text):
     return [doc for doc in yaml.safe_load_all(rendered_text) if doc is not None]
 
 
+def _helm_template(chart_name, chart_path, extra_args, overlay_path):
+    """The raw `helm template` subprocess result — every other render
+    helper here derives its own return value from this; the raw result
+    (with its stderr) is only needed where a caller must diagnose, or
+    structurally react to, a failure rather than just detect one (see
+    _make_full_scope)."""
+    args = ["helm", "template", chart_name, str(chart_path), *extra_args, "-f", str(overlay_path)]
+    return run(args, capture_output=True, text=True)
+
+
 def _render(chart_name, chart_path, extra_args, overlay_path):
     """Parsed multi-doc render (see _parsed_docs) of `chart_name` at
     `chart_path` (the full podiumd chart dir, or one vendored sub-chart's
     own .tgz — see _resolve_scope) with extra_args plus an extra "-f
     overlay_path" layered on top — None on a render failure (a schema/
     `required` guard tripped by the overlay, or a genuine setup problem)."""
-    args = ["helm", "template", chart_name, str(chart_path), *extra_args, "-f", str(overlay_path)]
-    result = run(args, capture_output=True, text=True)
+    result = _helm_template(chart_name, chart_path, extra_args, overlay_path)
     if result.returncode != 0:
         return None
     return _parsed_docs(result.stdout)
+
+
+def _with_overlay_file(overlay, render_fn):
+    """Dump `overlay` to a throwaway temp file and call
+    render_fn(overlay_path) — the file is always cleaned up, even if
+    render_fn raises."""
+    with tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False) as f:
+        yaml.safe_dump(overlay, f)
+        overlay_path = Path(f.name)
+    try:
+        return render_fn(overlay_path)
+    finally:
+        overlay_path.unlink()
 
 
 def _render_with_null_overrides(scope, relative_paths):
@@ -296,70 +355,217 @@ def _render_with_null_overrides(scope, relative_paths):
     overlay = copy.deepcopy(scope["base_overlay"])
     for path in relative_paths:
         _set_null(overlay, path)
-    with tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False) as f:
-        yaml.safe_dump(overlay, f)
-        overlay_path = Path(f.name)
-    try:
-        return _render(scope["chart_name"], scope["chart_path"], scope["extra_args"], overlay_path)
-    finally:
-        overlay_path.unlink()
+    return _with_overlay_file(
+        overlay, lambda overlay_path: _render(scope["chart_name"], scope["chart_path"],
+                                               scope["extra_args"], overlay_path))
+
+
+# Two different shapes of Helm error each name the offending chart
+# differently — see _error_chart_names, which tries both:
+#  - a values-schema-validation failure lists "<chart>:" lines, one per
+#    offending chart, each followed by its own "- <field>: <reason>"
+#    bullets.
+#  - a template EXECUTION error (e.g. a `required` guard tripped by a
+#    value this chart doesn't set) instead names the exact template
+#    file: "execution error at (<path>/templates/<file>:<line>:<col>):
+#    ...". <path> can be several "charts/" levels deep for a NESTED
+#    (transitive) dependency's own template — the first "charts/<name>/"
+#    segment is always the TOP-LEVEL Chart.yaml dependency (the only
+#    kind _enable_overlay's own keys ever name), even when the actual
+#    failing template lives deeper, inside a transitive dependency of
+#    that one.
+_SCHEMA_ERROR_CHART_RE = re.compile(r"^([A-Za-z0-9_.\-]+):$", re.MULTILINE)
+_EXECUTION_ERROR_PATH_RE = re.compile(r"execution error at \(([^)]+)\):")
+_TOP_LEVEL_CHART_PATH_RE = re.compile(r"charts/([A-Za-z0-9_.\-]+)/")
+
+
+def _error_chart_names(stderr):
+    names = set(_SCHEMA_ERROR_CHART_RE.findall(stderr))
+    for path in _EXECUTION_ERROR_PATH_RE.findall(stderr):
+        chart_match = _TOP_LEVEL_CHART_PATH_RE.search(path)
+        if chart_match:
+            names.add(chart_match.group(1))
+    return names
 
 
 def _make_full_scope(chart_dir, extra_args, enable_overlay):
     """The whole-podiumd-chart scope — the always-safe fallback for a key
     neither other scope could handle, and the always-authoritative scope
     _confirm_against_full_chart re-verifies every scoped candidate
-    against. base_overlay is enable_overlay (see _enable_overlay) rather
-    than {}: this is the render that actually decides which Chart.yaml
-    dependencies show up at all, so forcing every dependency condition
-    true has to happen here to have any effect."""
-    scope = {
-        "chart_name": CHART_NAME,
-        "chart_path": chart_dir,
-        "extra_args": extra_args,
-        "base_overlay": enable_overlay,
-        "strip": 0,
-    }
-    scope["baseline_docs"] = _render_with_null_overrides(scope, [])
-    return scope
+    against. base_overlay starts as enable_overlay (see _enable_overlay)
+    rather than {}: this is the render that actually decides which
+    Chart.yaml dependencies show up at all, so forcing every dependency
+    condition true has to happen here to have any effect.
+
+    Forcing every dependency on isn't risk-free, though: at least two
+    real, measured examples (omc, zaakbrug) are disabled by default
+    specifically because this chart's current CI placeholder values
+    don't satisfy them — a schema (omc's own values.schema.json) in one
+    case, a `required` template guard (zaakbrug's own "DTAP stage") in
+    the other — nobody's ever needed to before, since they were always
+    off. A render failure here would otherwise take down the WHOLE check
+    with no fallback left (unlike the scoped/own-templates renders, this
+    IS the last resort) — so a failure parses Helm's own error (see
+    _error_chart_names — both a schema-validation failure's "<chart>:"
+    lines and a template execution error's file path name the offending
+    chart, just differently) to know exactly which forced-on dependency
+    condition(s) to drop (falling back to that one dependency's own
+    natural, un-forced default — same graceful, per-dependency
+    degradation the other scopes already have) and retries, rather than
+    giving up on the entire render over one dependency's unrelated gap.
+    Every dropped condition is reported once. Prints the real helm error
+    (not just "failed") if the render still can't be attributed to a
+    specific, droppable dependency — this IS the final fallback, so
+    silence here would leave a genuine problem completely invisible."""
+    overlay = copy.deepcopy(enable_overlay)
+    dropped = []
+    while True:
+        result = _with_overlay_file(
+            overlay, lambda overlay_path: _helm_template(CHART_NAME, chart_dir, extra_args, overlay_path))
+        scope = {
+            "chart_name": CHART_NAME,
+            "chart_path": chart_dir,
+            "extra_args": extra_args,
+            "base_overlay": overlay,
+            "strip": 0,
+        }
+        if result.returncode == 0:
+            scope["baseline_docs"] = _parsed_docs(result.stdout)
+            if dropped:
+                print(f"Note: could not force-enable {', '.join(sorted(dropped))} (its own values "
+                      f"aren't satisfied by this chart's current CI placeholder values) — tested at "
+                      f"its natural, un-forced default instead", flush=True)
+            return scope
+
+        failing = (_error_chart_names(result.stderr) & set(overlay)) - set(dropped)
+        if not failing:
+            print(result.stderr, end="" if result.stderr.endswith("\n") else "\n", flush=True)
+            scope["baseline_docs"] = None
+            return scope
+        for name in failing:
+            del overlay[name]
+            dropped.append(name)
 
 
-def _make_own_scope(chart_dir, merged_values):
-    """Render podiumd's OWN templates/ alone — a temp copy of the whole
-    chart directory with "charts/" (the vendored .tgz's) excluded and
-    Chart.yaml's own "dependencies:" list stripped, so Helm never
-    touches any vendored sub-chart at all — for a top-level key that
-    matches NO Chart.yaml dependency (keycloak, apiproxy, global, ...),
-    which _resolve_scope has nothing to scope those to otherwise. Unlike
-    a sub-chart scope, base_overlay is the WHOLE merged_values tree (not
-    sliced to one key), since podiumd's own templates can read any
-    top-level key, not just one. None if this doesn't work (e.g. a
-    template needs something only a real sub-chart provides, like
-    `.Subcharts` or an `include` on a sub-chart's own named template) —
-    every caller falls back to the full-chart scope in that case, same
-    as a failed sub-chart scope. Caller owns cleanup of the returned
-    scope's "temp_dir" (rmtree once the whole check is done with it —
-    every render against this scope needs it to keep existing)."""
-    chart_yaml = load_yaml(chart_dir / "Chart.yaml") or {}
+def _own_template_subchart_refs(chart_dir):
+    """The set of Chart.yaml dependency alias-or-name values podiumd's
+    OWN templates/*.yaml reference via ".Subcharts.<name>" — Helm's
+    mechanism for a parent template to reach into a dependency's own
+    RENDERED context (as opposed to just its values — see
+    _coalesced_values for that, more common, gap) directly. None
+    currently do (this chart accesses a dependency's config the more
+    common way, via ".Values.<dep>" — see _coalesced_values), but
+    _make_own_scope still needs to know exactly which dependencies (if
+    any) it must keep vendored for its own-templates-only render to
+    work should this ever change, rather than either keeping none
+    (breaks on a reference like this) or all ~25 (defeats the whole
+    point of this scope). Deterministic — reads the literal
+    ".Subcharts.X" text these templates already contain, never a
+    name-based guess at which dependency "might" be needed."""
+    templates_dir = chart_dir / "templates"
+    if not templates_dir.is_dir():
+        return set()
+    refs = set()
+    for path in sorted(templates_dir.rglob("*.yaml")):
+        if path.is_file():
+            refs.update(re.findall(r"\.Subcharts\.([A-Za-z0-9_-]+)", path.read_text(encoding="utf-8")))
+    return refs
+
+
+# A named-template `include "<chart>.<suffix>" .` call this chart's own
+# templates make on a vendored dependency's own _helpers.tpl (e.g.
+# "objecttypen.labels") fails this exact way when that dependency isn't
+# vendored into the render at all — see _make_own_scope's retry loop,
+# which parses this the same way _make_full_scope parses its own
+# schema/execution errors: read exactly which dependency Helm itself
+# says is missing, rather than guess.
+_MISSING_TEMPLATE_RE = re.compile(r'no template "([A-Za-z0-9_-]+)\.[A-Za-z0-9_.-]*" associated')
+
+
+def _build_own_scope_chart(chart_dir, chart_yaml, kept_deps):
+    """A fresh temp copy of chart_dir with "charts/" excluded and
+    Chart.yaml's "dependencies:" replaced by kept_deps (their own .tgz's
+    copied back in) — the actual chart directory _make_own_scope tries
+    rendering on each attempt of its retry loop."""
     temp_dir = Path(tempfile.mkdtemp(prefix="dead-values-own-"))
     shutil.copytree(chart_dir, temp_dir, ignore=shutil.ignore_patterns("charts"), dirs_exist_ok=True)
     own_chart_yaml = {k: v for k, v in chart_yaml.items() if k != "dependencies"}
+    if kept_deps:
+        own_chart_yaml["dependencies"] = kept_deps
+        (temp_dir / "charts").mkdir(exist_ok=True)
+        for dep in kept_deps:
+            tgz_name = f"{dep['name']}-{dep['version']}.tgz"
+            src = chart_dir / "charts" / tgz_name
+            if src.is_file():
+                shutil.copy2(src, temp_dir / "charts" / tgz_name)
     (temp_dir / "Chart.yaml").write_text(yaml.safe_dump(own_chart_yaml), encoding="utf-8")
     (temp_dir / "values.yaml").write_text("{}\n", encoding="utf-8")
+    return temp_dir
 
-    scope = {
-        "chart_name": CHART_NAME,
-        "chart_path": temp_dir,
-        "extra_args": [],
-        "base_overlay": merged_values,
-        "strip": 0,
-        "temp_dir": temp_dir,
-    }
-    scope["baseline_docs"] = _render_with_null_overrides(scope, [])
-    if scope["baseline_docs"] is None:
+
+def _make_own_scope(chart_dir, coalesced_values):
+    """Render podiumd's OWN templates/ alone — a temp copy of the whole
+    chart directory with "charts/" (the vendored .tgz's) excluded, and
+    Chart.yaml's own "dependencies:" list stripped down to just whatever
+    podiumd's own templates actually need vendored to render at all — for
+    a top-level key that matches NO Chart.yaml dependency (keycloak,
+    apiproxy, global, ...), which _resolve_scope has nothing to scope
+    those to otherwise. Unlike a sub-chart scope, base_overlay is the
+    WHOLE coalesced_values tree (not sliced to one key), since podiumd's
+    own templates can read any top-level key, not just one — the caller
+    is expected to have already run this through _coalesced_values, not
+    just _load_merged_values, or every dependency key would be missing
+    its own vendored defaults here (this scope has no other way to pick
+    those up, unlike the sub-chart scope, which gets them for free from
+    Helm's own base-values loading).
+
+    Which dependencies (if any) need to stay vendored starts from
+    _own_template_subchart_refs's deterministic ".Subcharts.<name>" scan,
+    then grows on demand: a failed render whose error names a missing
+    named template ("no template \"<chart>.<suffix>\" associated" — an
+    `include` on a vendored dependency's own _helpers.tpl, a real,
+    measured example: podiumd's own create-required-objecttypen.yaml
+    calls "objecttypen.labels") adds that one dependency and retries,
+    same self-healing, error-message-driven pattern _make_full_scope
+    uses for its own forced-enable degradation. Bounded by the real
+    dependency count — each retry can only ever grow the kept set, never
+    loop on the same gap twice. None if a render still fails for some
+    OTHER, unparseable reason (e.g. a genuinely undetected `.Subcharts`
+    field access) — every caller falls back to the full-chart scope in
+    that case, same as a failed sub-chart scope. Caller owns cleanup of
+    the returned scope's "temp_dir" (rmtree once the whole check is done
+    with it — every render against this scope needs it to keep
+    existing)."""
+    chart_yaml = load_yaml(chart_dir / "Chart.yaml") or {}
+    all_deps = chart_yaml.get("dependencies", [])
+    dep_by_name_or_alias = {(dep.get("alias") or dep["name"]): dep for dep in all_deps}
+
+    keep = set(_own_template_subchart_refs(chart_dir)) & set(dep_by_name_or_alias)
+    while True:
+        kept_deps = [dep for dep in all_deps if (dep.get("alias") or dep["name"]) in keep]
+        temp_dir = _build_own_scope_chart(chart_dir, chart_yaml, kept_deps)
+
+        result = _with_overlay_file(
+            coalesced_values, lambda overlay_path: _helm_template(CHART_NAME, temp_dir, [], overlay_path))
+        if result.returncode == 0:
+            return {
+                "chart_name": CHART_NAME,
+                "chart_path": temp_dir,
+                "extra_args": [],
+                "base_overlay": coalesced_values,
+                "strip": 0,
+                "temp_dir": temp_dir,
+                "baseline_docs": _parsed_docs(result.stdout),
+            }
+
+        missing = (set(_MISSING_TEMPLATE_RE.findall(result.stderr)) & set(dep_by_name_or_alias)) - keep
         shutil.rmtree(temp_dir, ignore_errors=True)
-        return None
-    return scope
+        if not missing:
+            print("Note: own-templates-only scope render failed — falling back to full-chart scope "
+                  "for keys with no Chart.yaml dependency:", flush=True)
+            print(result.stderr, end="" if result.stderr.endswith("\n") else "\n", flush=True)
+            return None
+        keep |= missing
 
 
 def _resolve_scope(chart_dir, merged_values, dep_by_key, key, own_scope, full_scope):
@@ -443,7 +649,7 @@ def _run_dead_value_search(executor, roots, total=None):
                 resolved += 1  # single leaf that differed (or errored): not dead, done with it
         if total is not None:
             print(f"  level {level}: {len(pending)} render(s) — {resolved}/{total} leaf(ves) resolved so far "
-                  f"({len(found)} dead, {len(next_frontier)} subtree(s) still being narrowed down)")
+                  f"({len(found)} dead, {len(next_frontier)} subtree(s) still being narrowed down)", flush=True)
         frontier = next_frontier
     return found
 
@@ -482,7 +688,8 @@ def check_dead_values(chart_dir, extra_args):
     total = len(candidate_leaf_paths(values))
 
     print(f"Null-testing {total} values.yaml leaf(ves) against the baseline render "
-          f"(top-down, per-subchart where possible, up to {DEAD_VALUES_MAX_WORKERS} in parallel)...")
+          f"(top-down, per-subchart where possible, up to {DEAD_VALUES_MAX_WORKERS} in parallel)...",
+          flush=True)
 
     enable_overlay = _enable_overlay(chart_dir)
     full_scope = _make_full_scope(chart_dir, extra_args, enable_overlay)
@@ -490,16 +697,22 @@ def check_dead_values(chart_dir, extra_args):
         return True, "skipped — baseline render failed"
 
     merged_values = _load_merged_values(chart_dir, extra_args)
-    _deep_merge(merged_values, enable_overlay)
+    # full_scope["base_overlay"] here, not the raw enable_overlay: it's
+    # already been pruned down to whatever could actually be forced on
+    # without breaking the full-chart render (see _make_full_scope) —
+    # reusing it keeps _make_own_scope's own baseline from hitting the
+    # exact same, already-known-bad forced-enable independently.
+    _deep_merge(merged_values, full_scope["base_overlay"])
     dep_by_key = _dependency_by_key(chart_dir)
 
-    own_scope = _make_own_scope(chart_dir, merged_values)
+    own_scope = _make_own_scope(chart_dir, _coalesced_values(chart_dir, merged_values, dep_by_key))
     if own_scope is None:
-        print("Own-templates-only scope unavailable — falling back to full-chart scope for those keys")
+        print("Own-templates-only scope unavailable — falling back to full-chart scope for those keys",
+              flush=True)
 
     try:
         with concurrent.futures.ThreadPoolExecutor(max_workers=DEAD_VALUES_MAX_WORKERS) as executor:
-            print(f"Resolving render scope for {len(values)} top-level key(s)...")
+            print(f"Resolving render scope for {len(values)} top-level key(s)...", flush=True)
             scope_futures = {
                 executor.submit(_resolve_scope, chart_dir, merged_values, dep_by_key, key, own_scope, full_scope): key
                 for key in values
@@ -512,14 +725,16 @@ def check_dead_values(chart_dir, extra_args):
             scoped_n = sum(1 for scope, _, _ in roots if scope is not full_scope and scope is not own_scope)
             own_n = sum(1 for scope, _, _ in roots if scope is own_scope)
             full_n = sum(1 for scope, _, _ in roots if scope is full_scope)
-            print(f"  {scoped_n} sub-chart-scoped, {own_n} own-templates-scoped, {full_n} full-chart-scoped")
+            print(f"  {scoped_n} sub-chart-scoped, {own_n} own-templates-scoped, {full_n} full-chart-scoped",
+                  flush=True)
 
-            print("Searching top-down for dead leaves...")
+            print("Searching top-down for dead leaves...", flush=True)
             found = _run_dead_value_search(executor, roots, total)
             confirmed = [path for scope, path in found if scope is full_scope]
             to_confirm = [path for scope, path in found if scope is not full_scope]
             if to_confirm:
-                print(f"Confirming {len(to_confirm)} candidate(s) against the real full-chart baseline...")
+                print(f"Confirming {len(to_confirm)} candidate(s) against the real full-chart baseline...",
+                      flush=True)
             dead = confirmed + _confirm_against_full_chart(executor, full_scope, to_confirm)
     finally:
         if own_scope is not None:
