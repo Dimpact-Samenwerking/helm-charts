@@ -169,8 +169,6 @@ def test_main_skips_requested_steps_and_runs_the_rest(vp, monkeypatch, capsys):
     monkeypatch.setattr(vp, "check_image_upgrades", make_check("image-upgrades"))
     monkeypatch.setattr(vp, "check_cves", make_check("cves"))
 
-    monkeypatch.setattr(vp, "check_dead_values", make_check("dead-values"))
-
     def fail_if_called(*args):
         raise AssertionError("this check should have been skipped")
 
@@ -181,7 +179,7 @@ def test_main_skips_requested_steps_and_runs_the_rest(vp, monkeypatch, capsys):
 
     assert ran == ["utf8", "dupe", "dry", "image-refs", "node-selector", "digest-pinning", "tgz",
                     "release-baseline", "docs", "helm-docs", "markdown", "repo-access", "deps",
-                    "subchart-images", "digests", "dead-values", "yamllint", "kubeconform", "shellcheck",
+                    "subchart-images", "digests", "yamllint", "kubeconform", "shellcheck",
                     "kube-score", "image-upgrades", "cves"]
     out = capsys.readouterr().out
     assert "Helm lint" in out and "SKIP" in out
@@ -208,7 +206,7 @@ def test_main_skipped_step_does_not_count_as_failure(vp, monkeypatch):
     for name in ("check_repo_access", "check_duplicate_keys", "check_dry", "check_image_references",
                  "check_node_selector", "check_digest_pinning", "check_vendored_tgz_extraction",
                  "check_release_baseline", "check_helm_docs", "check_markdown",
-                 "check_subchart_image_visibility", "check_image_repository", "check_dead_values",
+                 "check_subchart_image_visibility", "check_image_repository",
                  "check_yamllint", "check_kubeconform", "check_shellcheck", "check_kube_score",
                  "check_image_upgrades", "check_cves"):
         monkeypatch.setattr(vp, name, ok)
@@ -255,7 +253,6 @@ def test_main_continues_past_a_failed_step(vp, monkeypatch, capsys):
     monkeypatch.setattr(vp, "check_release_baseline", make_check("release-baseline"))
     monkeypatch.setattr(vp, "check_lint", make_check("helm-lint"))
     monkeypatch.setattr(vp, "check_render", make_check("full-render"))
-    monkeypatch.setattr(vp, "check_dead_values", make_check("dead-values"))
     monkeypatch.setattr(vp, "check_yamllint", make_check("yamllint"))
     monkeypatch.setattr(vp, "check_kubeconform", make_check("kubeconform"))
     monkeypatch.setattr(vp, "check_shellcheck", make_check("shellcheck"))
@@ -272,7 +269,7 @@ def test_main_continues_past_a_failed_step(vp, monkeypatch, capsys):
     assert ran == ["utf8", "dupe", "dry", "image-refs", "node-selector", "digest-pinning", "tgz",
                     "release-baseline", "docs", "helm-docs", "markdown", "repo-access", "deps",
                     "subchart-images", "image-repository", "digests", "helm-lint", "full-render",
-                    "dead-values", "yamllint", "kubeconform", "shellcheck", "kube-score",
+                    "yamllint", "kubeconform", "shellcheck", "kube-score",
                     "image-upgrades", "cves"]
     out = capsys.readouterr().out
     assert "UTF-8 format" in out and "FAIL" in out
@@ -306,7 +303,7 @@ def test_main_skips_dependents_of_a_failed_prerequisite(vp, monkeypatch, capsys)
 
     monkeypatch.setattr(vp, "check_dependencies", lambda *a: (False, "helm dependency update failed"))
     for name in ("check_subchart_image_visibility", "check_image_repository", "check_image_digests",
-                 "check_lint", "check_render", "check_dead_values", "check_yamllint", "check_kubeconform",
+                 "check_lint", "check_render", "check_yamllint", "check_kubeconform",
                  "check_shellcheck", "check_kube_score", "check_image_upgrades", "check_cves"):
         monkeypatch.setattr(vp, name, fail_if_called)
 
@@ -332,12 +329,6 @@ def test_prerequisites_for_image_digests_needs_dependencies(vp):
     repository fallback (lib.chart.subchart_default_repository) reads
     from directly."""
     assert vp.prerequisites_for("Image digests") == {"Dependencies", "Repo access"}
-
-
-def test_prerequisites_for_dead_values_needs_dependencies(vp):
-    """Its own `helm template` call needs charts/*.tgz populated, same as
-    every other render-based check."""
-    assert vp.prerequisites_for("Dead values") == {"Dependencies", "Repo access"}
 
 
 def test_prerequisites_for_cve_scan_needs_image_upgrades_too(vp):
@@ -392,7 +383,6 @@ def _stub_all_checks(vp, monkeypatch, ran):
     monkeypatch.setattr(vp, "check_release_baseline", make_check("release-baseline"))
     monkeypatch.setattr(vp, "check_lint", make_check("lint"))
     monkeypatch.setattr(vp, "check_render", make_check("render"))
-    monkeypatch.setattr(vp, "check_dead_values", make_check("dead-values"))
     monkeypatch.setattr(vp, "check_yamllint", make_check("yamllint"))
     monkeypatch.setattr(vp, "check_kubeconform", make_check("kubeconform"))
     monkeypatch.setattr(vp, "check_shellcheck", make_check("shellcheck"))

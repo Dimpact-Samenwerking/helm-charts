@@ -1,0 +1,73 @@
+#!/usr/bin/env python3
+"""
+Null-tests every values.yaml leaf against the maximal-baseline render to
+find "dead code" — a value no template (own or vendored sub-chart) ever
+actually reads — see lib.dead_values_check's own module docstring for
+the full top-down/per-subchart-scoping/safety-net design.
+
+Deliberately NOT one of verify-podiumd's own pipeline steps: a full run
+against the real chart takes on the order of 10-40+ minutes (measured:
+~40 minutes on the real chart, almost all of it the safety net's
+full-chart confirmation pass re-verifying every scoped-render "looks
+dead" candidate) — far too slow for every verify-podiumd invocation.
+Run this on its own, occasionally (e.g. after a values.yaml
+reorganization, or when auditing for cleanup), not as part of the
+regular pre-commit loop.
+
+Usage:
+    verify-podiumd-dead-values
+
+Prints its own findings as it goes (phase transitions, one line per
+search level — see lib.dead_values_check.check_dead_values) so a run
+left going in the background shows real progress rather than sitting
+silent for the bulk of that time.
+
+Exit code is always 0 — report-only, same as when this was a
+verify-podiumd step (see lib.dead_values_check.check_dead_values's own
+docstring for why: a candidate's own removal is always a human call,
+not something this scan decides on its own).
+"""
+import shutil
+import sys
+from pathlib import Path
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
+
+from lib.dead_values_check import check_dead_values
+from lib.render_scope import lint_args_for
+
+CHART_DIR = SCRIPT_DIR.parent
+
+
+def main():
+    if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
+        print(__doc__)
+        sys.exit(0)
+    if len(sys.argv) != 1:
+        print(__doc__)
+        sys.exit(1)
+
+    if shutil.which("helm") is None:
+        print("error: helm is not installed", file=sys.stderr)
+        sys.exit(1)
+
+    print("WARNING: this can take a VERY long time to finish — 10 to 40+ "
+          "minutes on the real podiumd chart (measured: ~40 minutes) — since "
+          "every candidate a fast scoped render finds still has to be "
+          "re-verified against a slow full-chart render before being "
+          "reported. Not something to run routinely; consider backgrounding "
+          "this (e.g. `nohup verify-podiumd-dead-values > dead-values.log "
+          "2>&1 &`) if you don't want to keep this terminal occupied.\n",
+          flush=True)
+
+    extra_args = lint_args_for(CHART_DIR)
+    ok, detail = check_dead_values(CHART_DIR, extra_args)
+
+    print()
+    print(f"{'OK' if ok else 'FAIL'}: {detail}")
+    sys.exit(0 if ok else 1)
+
+
+if __name__ == "__main__":
+    main()
