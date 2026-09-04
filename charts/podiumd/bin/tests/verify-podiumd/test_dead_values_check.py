@@ -4,10 +4,16 @@ fake `run` simulates a tiny renderer that only cares about two modeled
 leaves (foo.used — echoed into its output; required.field — makes the
 render fail entirely if nulled), so every other leaf (foo.dead) is
 "dead" by construction. See lib.dead_values_check's own module
-docstring for the top-down/recurse-on-diff strategy this exercises."""
+docstring for the top-down/recurse-on-diff strategy, the per-subchart
+scoped rendering, and the full-chart confirmation safety net this
+exercises."""
+import io
+import tarfile
 from types import SimpleNamespace
 
 import yaml
+
+from dep_helpers import make_dep
 
 CHART_YAML = "apiVersion: v2\nname: podiumd\nversion: 0.0.1\n"
 
@@ -24,6 +30,27 @@ def make_chart_dir(tmp_path, values=VALUES_YAML):
     (tmp_path / "Chart.yaml").write_text(CHART_YAML, encoding="utf-8")
     (tmp_path / "values.yaml").write_text(values, encoding="utf-8")
     return tmp_path
+
+
+def write_chart_yaml_with_dep(tmp_path, dep):
+    (tmp_path / "Chart.yaml").write_text(
+        yaml.safe_dump({"apiVersion": "v2", "name": "podiumd", "version": "0.0.1", "dependencies": [dep]}),
+        encoding="utf-8",
+    )
+
+
+def make_tgz(charts_dir, name, version):
+    """A minimal vendored <name>-<version>.tgz — just enough for
+    _resolve_scope's own `.is_file()` check to find it; its content is
+    irrelevant here since these tests fake `run` directly rather than
+    invoking real helm."""
+    charts_dir.mkdir(parents=True, exist_ok=True)
+    tgz_path = charts_dir / f"{name}-{version}.tgz"
+    data = yaml.safe_dump({}).encode("utf-8")
+    with tarfile.open(tgz_path, "w:gz") as tar:
+        info = tarfile.TarInfo(name=f"{name}/values.yaml")
+        info.size = len(data)
+        tar.addfile(info, io.BytesIO(data))
 
 
 def _overlay_values(cmd):
@@ -190,3 +217,102 @@ def test_check_dead_values_baseline_render_failure_is_skipped_not_failed(libdead
 
     assert ok is True
     assert detail == "skipped — baseline render failed"
+
+
+# --- per-subchart scoped rendering + full-chart confirmation safety net ---
+
+def fake_run_scoped(call_log=None, full_reads_dead=False):
+    """Models "zac" as a real vendored dependency: a SCOPED render
+    (chart_name == "zac", the dependency's own release name) sees its
+    overlay's keys flat (no "zac:" nesting — exactly what _resolve_scope
+    is supposed to build) and echoes "used" (default "abc" if not
+    overridden); "dead" is invisible to it. A FULL-chart render
+    (chart_name == CHART_NAME) does the same for zac.used, but ALSO
+    echoes zac.dead when full_reads_dead is True — modeling the
+    "keycloak"-style exception where podiumd's own top-level templates
+    read a dependency-scoped value directly, invisible to that
+    dependency's own isolated render (see this module's docstring's
+    safety-net rationale)."""
+    def run(cmd, **kwargs):
+        if call_log is not None:
+            call_log.append(cmd)
+        chart_name = cmd[2]
+        overrides = _overlay_values(cmd)
+        if chart_name == "zac":
+            used = _get(overrides, ("used",), "abc")
+            lines = [f"used: {used!r}"]
+        else:
+            used = _get(overrides, ("zac", "used"), "abc")
+            lines = [f"used: {used!r}"]
+            if full_reads_dead:
+                dead = _get(overrides, ("zac", "dead"), "xyz")
+                lines.append(f"dead: {dead!r}")
+        stdout = (
+            "---\n# Source: podiumd/templates/x.yaml\n"
+            "kind: ConfigMap\nmetadata:\n  name: x\ndata:\n"
+            + "".join(f"  {line}\n" for line in lines)
+        )
+        return SimpleNamespace(returncode=0, stdout=stdout, stderr="")
+    return run
+
+
+def make_scoped_chart_dir(tmp_path):
+    write_chart_yaml_with_dep(tmp_path, make_dep("zac", "1.0.0"))
+    make_tgz(tmp_path / "charts", "zac", "1.0.0")
+    (tmp_path / "values.yaml").write_text('zac:\n  used: "abc"\n  dead: "xyz"\n', encoding="utf-8")
+    return tmp_path
+
+
+def test_check_dead_values_uses_scoped_render_for_matching_dependency(libdeadvaluescheck, tmp_path, monkeypatch):
+    chart_dir = make_scoped_chart_dir(tmp_path)
+    call_log = []
+    monkeypatch.setattr(libdeadvaluescheck, "run", fake_run_scoped(call_log))
+
+    ok, detail = libdeadvaluescheck.check_dead_values(chart_dir, [])
+
+    assert ok is True
+    assert detail == "1/2 dead (report only)"
+    assert any(cmd[2] == "zac" for cmd in call_log), "expected at least one scoped (zac) render"
+
+
+def test_check_dead_values_safety_net_rejects_scoped_false_positive(libdeadvaluescheck, tmp_path, monkeypatch):
+    """zac.dead looks dead to zac's own isolated render, but the (faked)
+    full chart actually reads it — the confirmation pass against the
+    real full-chart baseline must catch this and NOT report it."""
+    chart_dir = make_scoped_chart_dir(tmp_path)
+    monkeypatch.setattr(libdeadvaluescheck, "run", fake_run_scoped(full_reads_dead=True))
+
+    ok, detail = libdeadvaluescheck.check_dead_values(chart_dir, [])
+
+    assert ok is True
+    assert detail == "0/2 dead"
+
+
+def test_resolve_scope_falls_back_to_full_scope_without_matching_dependency(libdeadvaluescheck, tmp_path):
+    full_scope = {"chart_name": "podiumd", "baseline_docs": []}
+    scope = libdeadvaluescheck._resolve_scope(tmp_path, {}, {}, "zac", full_scope)
+    assert scope is full_scope
+
+
+def test_resolve_scope_falls_back_to_full_scope_without_vendored_tgz(libdeadvaluescheck, tmp_path):
+    full_scope = {"chart_name": "podiumd", "baseline_docs": []}
+    dep_by_key = {"zac": make_dep("zac", "1.0.0")}
+    scope = libdeadvaluescheck._resolve_scope(tmp_path, {"zac": {"a": "b"}}, dep_by_key, "zac", full_scope)
+    assert scope is full_scope
+
+
+def test_dependency_by_key_uses_alias_when_present(libdeadvaluescheck, tmp_path):
+    write_chart_yaml_with_dep(tmp_path, make_dep("zaakafhandelcomponent", "1.0.0", alias="zac"))
+    dep_by_key = libdeadvaluescheck._dependency_by_key(tmp_path)
+    assert "zac" in dep_by_key
+    assert dep_by_key["zac"]["name"] == "zaakafhandelcomponent"
+
+
+def test_load_merged_values_layers_extra_args_over_values_yaml(libdeadvaluescheck, tmp_path):
+    (tmp_path / "values.yaml").write_text("foo:\n  a: 1\n  b: 2\n", encoding="utf-8")
+    overlay_path = tmp_path / "overlay.yaml"
+    overlay_path.write_text("foo:\n  b: 3\n  c: 4\n", encoding="utf-8")
+
+    merged = libdeadvaluescheck._load_merged_values(tmp_path, ["-f", str(overlay_path)])
+
+    assert merged == {"foo": {"a": 1, "b": 3, "c": 4}}
