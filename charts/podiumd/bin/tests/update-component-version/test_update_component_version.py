@@ -361,6 +361,73 @@ def test_main_invokes_fix_helm_doc(ucv, tmp_path, monkeypatch, block_real_subpro
     assert any(str(ucv.FIX_HELM_DOC_SCRIPT) in cmd for cmd in calls)
 
 
+def setup_native_component_repo(tmp_path, monkeypatch, ucv):
+    """frankgateway (see lib.chart.NATIVE_COMPONENTS): a real component
+    with its own top-level values.yaml key and image, but no Chart.yaml
+    dependency at all — implemented via podiumd's own templates instead
+    of a vendored sub-chart. Chart.yaml still has a real, unrelated
+    dependency (zac) so a test can assert it's left completely
+    untouched, not just absent an entry for frankgateway."""
+    chart_yaml = tmp_path / "Chart.yaml"
+    values_yaml = tmp_path / "values.yaml"
+    chart_yaml.write_text(
+        "version: 4.9.0\n"
+        "dependencies:\n"
+        "  - name: zaakafhandelcomponent\n"
+        "    version: 1.0.297\n"
+        "    repository: \"@example\"\n"
+        "    alias: zac\n",
+        encoding="utf-8",
+    )
+    values_yaml.write_text(
+        "frankgateway:\n"
+        "  image:\n"
+        "    repository: ghcr.io/wearefrank/frank-gateway\n"
+        f'    tag: "100@sha256:{OLD_DIGEST}"\n',
+        encoding="utf-8",
+    )
+    doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
+    doc_dir.mkdir(parents=True)
+    images_dir = tmp_path / "docs" / "images"
+    images_dir.mkdir(parents=True)
+    monkeypatch.setattr(ucv, "CHART_DIR", tmp_path)
+    monkeypatch.setattr(ucv, "CHART_YAML", chart_yaml)
+    monkeypatch.setattr(ucv, "VALUES_YAML", values_yaml)
+    monkeypatch.setattr(ucv, "DOC_DIR", doc_dir)
+    monkeypatch.setattr(ucv, "IMAGES_DIR", images_dir)
+    return chart_yaml, values_yaml
+
+
+def test_main_native_component_bumps_values_yaml_never_touches_chart_yaml(ucv, tmp_path, monkeypatch):
+    """chart-version "native" (case-insensitive) skips find_dependency/
+    update_chart_yaml entirely and resolves the image repository straight
+    from values.yaml instead of pulling a chart — real end-to-end
+    regression coverage for frankgateway, alongside the unit-level
+    make_changes_section/values_delta_bullet/update_images_manifest tests
+    above."""
+    chart_yaml, values_yaml = setup_native_component_repo(tmp_path, monkeypatch, ucv)
+    original_chart_yaml = chart_yaml.read_text(encoding="utf-8")
+    mock_verify_passes(monkeypatch, ucv)
+    mock_registry_passes(monkeypatch, ucv, "b")
+    monkeypatch.setattr("sys.argv", ["update-component-version", "frankgateway", "104", "NATIVE"])
+
+    ucv.main()  # success path does not raise
+
+    assert chart_yaml.read_text(encoding="utf-8") == original_chart_yaml
+    assert f'"104@sha256:{"b" * 64}"' in values_yaml.read_text(encoding="utf-8")
+
+
+def test_main_native_component_rejects_unregistered_component(ucv, tmp_path, monkeypatch):
+    """"native" is only valid for a lib.chart.NATIVE_COMPONENTS component —
+    a real Chart.yaml dependency like zac must be rejected with a clear
+    error rather than silently skipping its own chart-version bump."""
+    setup_native_component_repo(tmp_path, monkeypatch, ucv)
+    monkeypatch.setattr("sys.argv", ["update-component-version", "zac", "5.4.3", "native"])
+
+    with pytest.raises(SystemExit, match="NATIVE_COMPONENTS"):
+        ucv.main()
+
+
 def setup_keycloak_operator_repo(tmp_path, monkeypatch, ucv):
     """The real values.yaml structure: operator.image has NO override at
     all (relies entirely on the vendored adfinis chart's own
@@ -791,6 +858,21 @@ def test_make_changes_section_includes_chart_bullet_when_changed(ucv):
     assert "Helm chart `zaakafhandelcomponent` `1.0.297` → `1.0.257`" in section
 
 
+def test_make_changes_section_native_component_omits_chart_clause(ucv):
+    """new_chart="-" (the literal not-applicable placeholder — see lib.
+    chart.NATIVE_COMPONENTS) drops the "(chart ...)" heading clause and
+    the "Helm chart" bump bullet entirely, rather than rendering the
+    misleading "(chart None, unchanged)"."""
+    section = ucv.make_changes_section(
+        "frankgateway", "4.9.0", "frankgateway", "frankgateway",
+        "100", "104", None, "-", ["image"],
+    )
+    assert section.startswith("### frankgateway 100 → 104\n\n")
+    assert "chart" not in section.split("\n\n", 1)[0].lower()
+    assert "Helm chart" not in section
+    assert "Image tag pin `frankgateway.image.tag` `100` → `104`" in section
+
+
 def test_insert_changes_section_appends_before_next_heading(ucv):
     """No existing block resolves to any dependency here ("zac ..." has no
     real version text to anchor match_dependency, and DEPS/VALUES aren't
@@ -828,6 +910,14 @@ def test_values_delta_bullet_app_and_chart_changed(ucv):
 def test_values_delta_bullet_chart_unchanged(ucv):
     bullet = ucv.values_delta_bullet("openformulieren", "3.4.10", "3.5.6", "1.12.0", "1.12.0")
     assert bullet == "- **openformulieren** app `3.4.10 → 3.5.6` (chart `1.12.0`, unchanged) — image tag only.\n"
+
+
+def test_values_delta_bullet_native_component_omits_chart_clause(ucv):
+    """new_chart="-" (see lib.chart.NATIVE_COMPONENTS) drops the "(chart
+    ...)" clause entirely rather than rendering "(chart `None → -`)"."""
+    bullet = ucv.values_delta_bullet("frankgateway", "100", "104", None, "-")
+    assert bullet == ("- **frankgateway** app `100 → 104` — image tag only "
+                       "(no separate Helm chart for this component).\n")
 
 
 def test_describe_key_changes_reports_added_removed_renamed(ucv):
@@ -944,6 +1034,32 @@ def test_update_images_manifest_updates_existing_entry(ucv, tmp_path):
     assert "1. zac 5.1.0 -> 5.4.3 (chart 1.0.297, unchanged)." in text
     assert '"5.4.3"' in text
     assert '"sha256:cccc"' in text
+
+
+def test_update_images_manifest_native_component_omits_chart_clause(ucv, tmp_path):
+    """new_chart="-" (see lib.chart.NATIVE_COMPONENTS) writes a "# Changes:"
+    header item with no "(chart ...)" clause at all, rather than the
+    misleading "(chart None, unchanged)"."""
+    images_path = tmp_path / "images-4.9.0.yaml"
+    images_path.write_text(
+        "# One change:\n"
+        "#   1. zac 5.0.2 -> 5.1.0 (chart 1.0.297, unchanged).\n"
+        "#\n"
+        "# ZAC — 5.0.2 -> 5.1.0\n"
+        "- name: zac\n"
+        '  version: "5.1.0"\n'
+        '  digest: "sha256:aaaa"\n',
+        encoding="utf-8",
+    )
+    changes_action, entry_updates, missing = ucv.update_images_manifest(
+        images_path, "frankgateway", "frankgateway", "100", "104", None, "-",
+        [], {}, {}, [], {},
+    )
+    assert changes_action == "added"
+    assert entry_updates == []
+    text = images_path.read_text(encoding="utf-8")
+    assert "frankgateway 100 -> 104.\n" in text
+    assert "frankgateway 100 -> 104 (chart" not in text
 
 
 def test_update_images_manifest_recognizes_bare_changes_header(ucv, tmp_path):

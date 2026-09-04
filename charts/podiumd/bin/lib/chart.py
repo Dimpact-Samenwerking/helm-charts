@@ -65,6 +65,27 @@ COMPONENT_IMAGE_PATHS = {
 }
 DEFAULT_IMAGE_PATHS = ["image"]
 
+# values.yaml top-level keys that are real, documentable components — with
+# their own app version, own image(s), own upgrade-doc row — but have NO
+# backing Chart.yaml dependency at all: implemented directly via podiumd's
+# own templates, not vendored as a sub-chart. Every doc-generation/change-
+# detection helper that otherwise enumerates components by walking Chart.
+# yaml's dependencies (lib.upgradedoc.compute_changed_components,
+# component_order_key) must also consult this registry, or such a
+# component's own image-tag changes silently never register as "changed"
+# at all (see lib.component_docs.dep_for_values_key's own docstring, which
+# already anticipated exactly this gap).
+#
+# frankgateway (Frank!Gateway — WeAreFrank's Apache APISIX distribution,
+# ghcr.io/wearefrank/frank-gateway) is the one real case today: it replaced
+# the vendored `apisix` sub-chart in podiumd 4.8.2 (#385) and was ported in
+# as native templates (templates/frankgateway*.yaml) instead, since it
+# needed org-specific OpenBao/Keycloak integration no generic upstream
+# chart provides. A `- name: frankgateway` Chart.yaml dependency was
+# mistakenly added once (podiumd 4.9.0) under the assumption every changed
+# component needs one — it doesn't; see this registry instead.
+NATIVE_COMPONENTS = frozenset({"frankgateway"})
+
 
 def image_paths_for(component):
     return COMPONENT_IMAGE_PATHS.get(component, DEFAULT_IMAGE_PATHS)

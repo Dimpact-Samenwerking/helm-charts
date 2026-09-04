@@ -121,6 +121,27 @@ def test_match_dependency_short_alias_does_not_match_mid_word(libupgradedoc):
     assert libupgradedoc.match_dependency("Python (ensurePodiumdAdminUser init image)", deps) is None
 
 
+# --- match_native_component ---
+
+def test_match_native_component_matches_bare_name(libupgradedoc):
+    assert libupgradedoc.match_native_component("frankgateway", {"frankgateway"}) == "frankgateway"
+
+
+def test_match_native_component_matches_with_version_text(libupgradedoc):
+    assert libupgradedoc.match_native_component("frankgateway 100 → 104", {"frankgateway"}) == "frankgateway"
+
+
+def test_match_native_component_no_match_returns_none(libupgradedoc):
+    assert libupgradedoc.match_native_component("Totally Unknown Thing", {"frankgateway"}) is None
+
+
+def test_match_native_component_does_not_match_mid_word(libupgradedoc):
+    """Same word-boundary protection as match_dependency — a native
+    component name that happens to be a literal substring of an unrelated
+    word must not match."""
+    assert libupgradedoc.match_native_component("somefrankgatewayfoo", {"frankgateway"}) is None
+
+
 # --- changes_heading_identities ---
 
 def test_changes_heading_identities_single_component(libupgradedoc):
@@ -1887,6 +1908,22 @@ def test_compute_changed_components_no_change_is_empty(libupgradedoc):
     assert libupgradedoc.compute_changed_components(deps, deps, values, values) == set()
 
 
+def test_compute_changed_components_detects_native_component_image_change(libupgradedoc):
+    """frankgateway (see lib.chart.NATIVE_COMPONENTS) has no Chart.yaml
+    dependency at all — its own image-tag change must still register as
+    changed, or it could never be documented. deps/baseline_deps are
+    empty on purpose: this must work with no matching dependency at all,
+    real or otherwise."""
+    current = {"frankgateway": {"image": {"tag": "104@sha256:bbbb"}}}
+    baseline = {"frankgateway": {"image": {"tag": "100@sha256:aaaa"}}}
+    assert libupgradedoc.compute_changed_components([], [], current, baseline) == {"frankgateway"}
+
+
+def test_compute_changed_components_native_component_no_change_is_empty(libupgradedoc):
+    values = {"frankgateway": {"image": {"tag": "104@sha256:bbbb"}}}
+    assert libupgradedoc.compute_changed_components([], [], values, values) == set()
+
+
 def test_compute_changed_components_ignores_unrelated_key_changes(libupgradedoc):
     """A values.yaml key change under a component NOT in Chart.yaml's
     dependencies (e.g. a plain feature flag) must not be reported — this
@@ -2083,6 +2120,19 @@ def test_component_order_key_no_canonical_names_given_is_unaffected(libupgradedo
     dependency names and their own sidecars are never affected by this
     parameter either way."""
     assert libupgradedoc.component_order_key("nginx-unprivileged", DEPS, KEY_ORDER) == (len(KEY_ORDER), 0)
+
+
+def test_component_order_key_native_component_uses_its_own_values_position(libupgradedoc):
+    """frankgateway (see lib.chart.NATIVE_COMPONENTS) has no Chart.yaml
+    dependency to match_dependency resolve at all — falls back to
+    match_native_component, so its own row/section still sorts at its
+    real values.yaml position instead of always last."""
+    key_order = KEY_ORDER + ["frankgateway"]
+    assert libupgradedoc.component_order_key("frankgateway", DEPS, key_order) == (len(KEY_ORDER), 0)
+
+    # A "### ..." Changes heading has version/arrow text after the name —
+    # match_native_component's own word-span matching still finds it.
+    assert libupgradedoc.component_order_key("frankgateway 100 → 104", DEPS, key_order) == (len(KEY_ORDER), 0)
 
 
 def test_component_order_key_matched_dep_not_in_key_order_sorts_last(libupgradedoc):

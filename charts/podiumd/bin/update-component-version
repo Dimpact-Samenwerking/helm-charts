@@ -36,12 +36,23 @@ reads its own values.yaml default).
 Usage:
     update-component-version <component> <app-version> <chart-version>
 
+    <chart-version> may also be the literal "native" (case-insensitive)
+    for a lib.chart.NATIVE_COMPONENTS component — one with no Chart.yaml
+    dependency at all, implemented directly via podiumd's own templates
+    instead of a vendored sub-chart (e.g. frankgateway). Chart.yaml is
+    never touched in that case, and every "chart" cell/clause the docs
+    would otherwise show is omitted rather than rendered as a misleading
+    version pair.
+
 Examples:
     update-component-version zac 5.4.3 1.0.297
     update-component-version zgw-office-addin v0.9.352 0.0.92
     update-component-version openformulieren 3.5.6 1.12.0
         # if 1.12.0 is already the pinned chart version, Chart.yaml is left
         # untouched and only values.yaml's image tag is bumped
+    update-component-version frankgateway 104 native
+        # frankgateway has no Chart.yaml dependency to begin with — see
+        # lib.chart.NATIVE_COMPONENTS
 
 After writing, re-render the chart (verify-podiumd or /helm-render-all)
 to confirm before committing.
@@ -59,7 +70,8 @@ from lib.chart import chart_version as _chart_version
 from lib.chart import find_dependency as _find_dependency
 from lib.chart import upgrade_docs_baseline as _read_upgrade_docs_baseline
 from lib.chart import (
-    check_image_versions, get_path, image_paths_for, replace_scalar_value, resolve_chart_values,
+    NATIVE_COMPONENTS, check_image_versions, get_path, image_paths_for, replace_scalar_value,
+    resolve_chart_values,
 )
 from lib.component_docs import NO_CHANGES_CLAIMED_RE
 from lib.component_docs import (
@@ -90,7 +102,31 @@ def find_dependency(name_or_alias):
     return dep
 
 
-def verify_component_version(dep, image_paths, app_version, chart_version):
+def _check_and_print_image_versions(values_for_check, image_paths, app_version):
+    """check_image_versions(values_for_check, image_paths, app_version),
+    printing a "[FOUND/MISSING] host/repo_path:app_version" line per path
+    and exiting 1 with a FAIL message if any of them don't actually exist
+    upstream yet. Returns lib.chart.check_image_versions' own results
+    keyed by path — shared by both branches of verify_component_version
+    below (a real Chart.yaml dependency's pulled chart values, or a
+    NATIVE_COMPONENTS component's own values.yaml subtree — see lib.chart
+    .NATIVE_COMPONENTS), which only differ in WHERE values_for_check comes
+    from, never in how the check itself is run or reported."""
+    image_results = check_image_versions(values_for_check, image_paths, app_version)
+    ok_images = True
+    for r in image_results:
+        status = "FOUND  " if r["exists"] else "MISSING"
+        suffix = f"  digest={r['digest']}" if r["digest"] else ""
+        print(f"  [{status}] {r['host']}/{r['repo_path']}:{app_version}{suffix}")
+        ok_images = ok_images and r["exists"]
+    if not ok_images:
+        print()
+        print("FAIL: one or more app image versions do not exist yet — refusing to change any files")
+        sys.exit(1)
+    return {r["path"]: r for r in image_results}
+
+
+def verify_component_version(dep, image_paths, app_version, chart_version, component_values=None):
     """Resolve the target chart version's own values.yaml once (see
     lib.chart.resolve_chart_values — prefers an already-vendored
     charts/<name>-<chart_version>.tgz over a fresh `helm pull`, the
@@ -103,7 +139,22 @@ def verify_component_version(dep, image_paths, app_version, chart_version):
     check_image_versions) reuse this same resolve/check instead of
     repeating it. Exits 1 (after printing a FAIL) if the chart version
     can't be resolved or an image version doesn't exist; never returns
-    in that case."""
+    in that case.
+
+    `dep is None` means a NATIVE_COMPONENTS component (see lib.chart.
+    NATIVE_COMPONENTS) — one with no Chart.yaml dependency at all, so
+    there's no chart version to pull/verify. `image_paths` already have
+    an explicit "repository:" of their own directly in podiumd's own
+    values.yaml for every such component today (nothing to fall back to
+    a sub-chart's own default for), so `component_values` — that
+    component's own already-loaded values.yaml subtree (i.e.
+    values[values_key]) — is checked directly instead."""
+    if dep is None:
+        print("No Chart.yaml dependency for this component — resolving image repositories "
+              "directly from values.yaml (see lib.chart.NATIVE_COMPONENTS)")
+        print(f"\nChecking app version {app_version!r}:")
+        return _check_and_print_image_versions(component_values or {}, image_paths, app_version)
+
     chart_name = dep["name"]
     print(f"=== Checking chart version {chart_version!r} for {chart_name} ===")
     upstream_values, source, error = resolve_chart_values(CHART_DIR, dep, chart_version)
@@ -116,19 +167,7 @@ def verify_component_version(dep, image_paths, app_version, chart_version):
         sys.exit(1)
 
     print(f"\nChecking app version {app_version!r} for {dep.get('alias', chart_name)}:")
-    image_results = check_image_versions(upstream_values, image_paths, app_version)
-    ok_images = True
-    for r in image_results:
-        status = "FOUND  " if r["exists"] else "MISSING"
-        suffix = f"  digest={r['digest']}" if r["digest"] else ""
-        print(f"  [{status}] {r['host']}/{r['repo_path']}:{app_version}{suffix}")
-        ok_images = ok_images and r["exists"]
-    if not ok_images:
-        print()
-        print("FAIL: one or more app image versions do not exist yet — refusing to change any files")
-        sys.exit(1)
-
-    return {r["path"]: r for r in image_results}
+    return _check_and_print_image_versions(upstream_values, image_paths, app_version)
 
 
 def find_block_end(lines, block_start, indent):
@@ -332,22 +371,55 @@ def main():
         sys.exit(1)
     component, app_version, chart_version = sys.argv[1], sys.argv[2], sys.argv[3]
 
-    dep = find_dependency(component)
+    # The literal chart-version argument "native" (case-insensitive) marks
+    # a lib.chart.NATIVE_COMPONENTS component — one with no Chart.yaml
+    # dependency at all (e.g. frankgateway, ported in as podiumd's own
+    # templates instead of a vendored sub-chart). No chart version to
+    # look up, verify, or write; old_chart/new_chart stay None all the way
+    # through to the doc-writing calls below, which each special-case
+    # that (see component_version_cell, make_changes_section,
+    # values_delta_bullet, lib.component_docs.update_images_manifest).
+    no_chart = chart_version.strip().lower() == "native"
+    # The doc-writing calls below all take an explicit old_chart/new_chart
+    # pair, never chart_version directly — the literal "-" (the same
+    # not-applicable placeholder every chart-less sidecar row's own Helm-
+    # chart cell already uses, paired with old_chart=None below — see
+    # lib.upgradedoc.component_version_cell) is what each of them special-
+    # cases, so every one of them gets this instead of chart_version from
+    # here on.
+    new_chart = "-" if no_chart else chart_version
     deps = yaml.safe_load(CHART_YAML.read_text(encoding="utf-8"))["dependencies"]
-    chart_name = dep["name"]
-    values_key = dep.get("alias", dep["name"])
+    values = yaml.safe_load(VALUES_YAML.read_text(encoding="utf-8")) or {}
+
+    if no_chart:
+        if component not in NATIVE_COMPONENTS:
+            raise SystemExit(f"error: chart-version 'native' is only valid for a component in "
+                              f"lib.chart.NATIVE_COMPONENTS ({', '.join(sorted(NATIVE_COMPONENTS))}); "
+                              f"'{component}' isn't one — did you mean to pass its real chart version?")
+        dep = None
+        chart_name = component
+        values_key = component
+    else:
+        dep = find_dependency(component)
+        chart_name = dep["name"]
+        values_key = dep.get("alias", dep["name"])
     image_paths = image_paths_for(component)
 
-    upstream_images = verify_component_version(dep, image_paths, app_version, chart_version)
+    if no_chart:
+        upstream_images = verify_component_version(
+            None, image_paths, app_version, None, component_values=values.get(values_key, {}))
+    else:
+        upstream_images = verify_component_version(dep, image_paths, app_version, chart_version)
 
     print()
-    chart_unchanged = str(dep["version"]) == str(chart_version)
-    if chart_unchanged:
+    chart_unchanged = True if no_chart else str(dep["version"]) == str(chart_version)
+    if no_chart:
+        print("No Chart.yaml dependency for this component — nothing to bump there")
+    elif chart_unchanged:
         print(f"Chart version already {chart_version} — unchanged")
     else:
         print(f"Chart version: {dep['version']} -> {chart_version}")
 
-    values = yaml.safe_load(VALUES_YAML.read_text(encoding="utf-8")) or {}
     paths_to_update = []
     old_app_by_path = {}
     for path in image_paths:
@@ -436,7 +508,7 @@ def main():
                 r = upstream_images.get(path)
                 if r is None or not r["exists"] or not r["digest"]:
                     raise SystemExit(
-                        f"error: no repository found at {path}.repository in {dep['name']}'s own values.yaml"
+                        f"error: no repository found at {path}.repository in {chart_name}'s own values.yaml"
                     )
                 repos[path] = r["repository"]
                 new_tags_by_path[path] = f"{app_version}@{r['digest']}"
@@ -458,8 +530,11 @@ def main():
     friendly = values_key
     # Fallback "old" values when the upgrade_docs_baseline itself can't be resolved (see
     # below) -- whatever was on disk right before this particular run, the
-    # only prior behavior this script had.
-    old_chart = str(dep["version"])
+    # only prior behavior this script had. None for a NATIVE_COMPONENTS
+    # component (see lib.chart.NATIVE_COMPONENTS) — there's no dep at all,
+    # so no chart version to fall back to; stays None all the way through
+    # (see component_version_cell et al., which each special-case it).
+    old_chart = None if no_chart else str(dep["version"])
     old_app = old_app_by_path.get(image_paths[0])
 
     upgrade_docs_baseline = _read_upgrade_docs_baseline(CHART_DIR)
@@ -513,7 +588,7 @@ def main():
     else:
         text = upgrade_path.read_text(encoding="utf-8")
         new_text, table_action = update_component_table(text, friendly, old_app, app_version,
-                                                          old_chart, chart_version, deps, values)
+                                                          old_chart, new_chart, deps, values)
         if table_action is not None:
             # Always rewritten from scratch against the current upgrade_docs_baseline ->
             # final transition, rather than only ever created once on the
@@ -523,7 +598,7 @@ def main():
             # says "1 -> 2".
             new_text, _ = remove_changes_section(new_text, friendly)
             section = make_changes_section(friendly, target, chart_name, values_key, old_app, app_version,
-                                            old_chart, chart_version, paths_to_update)
+                                            old_chart, new_chart, paths_to_update)
             new_text = insert_changes_section(new_text, section, friendly, deps, values)
             upgrade_path.write_text(new_text, encoding="utf-8")
             print()
@@ -541,7 +616,7 @@ def main():
             print(f"  {friendly} is back at its upgrade_docs_baseline {upgrade_docs_baseline} version — "
                   f"{'removed its bullet' if bullet_removed else 'nothing to remove'}")
         else:
-            new_lines = [values_delta_bullet(friendly, old_app, app_version, old_chart, chart_version)]
+            new_lines = [values_delta_bullet(friendly, old_app, app_version, old_chart, new_chart)]
             current_values_after = yaml.safe_load(VALUES_YAML.read_text(encoding="utf-8")) or {}
             current_subtree = current_values_after.get(values_key, {})
             baseline_values_at_release = (baseline_values if baseline_deps is not None
@@ -584,7 +659,7 @@ def main():
                     print(f"  updated entry '{name}' (now matches upgrade_docs_baseline — no longer a documented change)")
             else:
                 changes_action, entry_updates, missing_entries = update_images_manifest(
-                    images_path, friendly, values_key, old_app, app_version, old_chart, chart_version,
+                    images_path, friendly, values_key, old_app, app_version, old_chart, new_chart,
                     paths_to_update, repos, new_tags_by_path, deps=deps, values=values,
                 )
                 print()
