@@ -5,8 +5,9 @@ import re
 import yaml
 
 from lib.chart import (
-    COMPONENT_IMAGE_PATHS, get_path, global_image_paths, image_paths_for, is_primary_image_path,
-    nested_subchart_registered_paths, subchart_app_version, version_of, version_paths_for,
+    COMPONENT_IMAGE_PATHS, NATIVE_COMPONENTS, get_path, global_image_paths, image_paths_for,
+    is_primary_image_path, nested_subchart_registered_paths, subchart_app_version, version_of,
+    version_paths_for,
 )
 
 
@@ -58,11 +59,13 @@ def values_key_order(values):
 def component_order_key(name, deps, key_order, canonical_names=None):
     """A doc item's (table row name, or "### ..." Changes heading) sort
     position: (values_key_index, is_sidecar) — values_key_index is the
-    values.yaml top-level key match_dependency resolves `name` to, as its
-    index in key_order, or len(key_order) (sorts after every real
-    component) when `name` doesn't resolve to a single Chart.yaml
-    dependency at all (e.g. a row summarizing several shared-image
-    components at once, or free-form prose that doesn't name one).
+    values.yaml top-level key match_dependency resolves `name` to (falling
+    back to match_native_component — see lib.chart.NATIVE_COMPONENTS — for
+    a component with no Chart.yaml dependency at all, e.g. frankgateway),
+    as its index in key_order, or len(key_order) (sorts after every real
+    component) when `name` doesn't resolve to either at all (e.g. a row
+    summarizing several shared-image components at once, or free-form
+    prose that doesn't name one).
     is_sidecar (0 or 1) is a secondary tie-break: a canonical sidecar/
     shared-image name always contains " - " (see lib.chart.
     canonical_sidecar_row_names — "<parent> - <basename>", the only shape
@@ -98,6 +101,8 @@ def component_order_key(name, deps, key_order, canonical_names=None):
     dep = match_dependency(name, deps)
     values_key = dep.get("alias", dep["name"]) if dep else None
     is_sidecar = 1 if " - " in name else 0
+    if values_key is None:
+        values_key = match_native_component(name, NATIVE_COMPONENTS)
     if values_key is None and canonical_names is not None:
         path = match_canonical_sidecar_name(name, canonical_names)
         if path:
@@ -331,6 +336,26 @@ def match_dependency(text, deps):
             norm_c = normalize_name(candidate)
             if norm_c and norm_c in spans and (best is None or len(norm_c) > len(best[1])):
                 best = (dep, norm_c)
+    return best[0] if best else None
+
+
+def match_native_component(text, native_components):
+    """match_dependency's own word-boundary-safe fuzzy match, against
+    lib.chart.NATIVE_COMPONENTS (a values.yaml top-level component with no
+    backing Chart.yaml dependency at all — see that registry's own
+    docstring) instead of Chart.yaml's dependencies list. Kept as its own
+    function rather than one more fallback branch inside match_dependency
+    itself: every existing match_dependency caller already has a
+    considered opinion on whether a native component should match too
+    (component_order_key: yes, so its own row/section still sorts at its
+    real values.yaml position; compute_changed_components: doesn't need
+    this at all, since it already iterates NATIVE_COMPONENTS directly)."""
+    spans = _word_aligned_spans(text)
+    best = None
+    for key in native_components:
+        norm = normalize_name(key)
+        if norm and norm in spans and (best is None or len(norm) > len(best[1])):
+            best = (key, norm)
     return best[0] if best else None
 
 
@@ -625,7 +650,12 @@ def component_version_cell(old, new):
     `new` otherwise (e.g. `new` itself unresolvable). The single place
     both update_component_table (a fresh row) and fix-doc-consistency's
     own fix_component_version_table (correcting an existing one) decide
-    this cell's text, so the two can't drift on when "(new)" applies."""
+    this cell's text, so the two can't drift on when "(new)" applies.
+
+    A NATIVE_COMPONENTS component's own Helm-chart cell (see lib.chart.
+    NATIVE_COMPONENTS — a component with no chart at all to compare)
+    reuses this exact "-" placeholder path too: callers pass old=None,
+    new="-" for it, same as any chart-less sidecar row."""
     if old:
         return canonical_version_cell(old, new)
     if new and new != "-":
@@ -1834,7 +1864,14 @@ def compute_changed_components(deps, baseline_deps, values, baseline_values):
     key's values.yaml subtree changed. This is the ground truth the docs
     are checked against — independent of what they currently say, so it
     also catches a component that changed but was never added to any doc
-    at all."""
+    at all.
+
+    Also checks every lib.chart.NATIVE_COMPONENTS key (a values.yaml top-
+    level component with no backing Chart.yaml dependency at all, e.g.
+    frankgateway) — for those there's no dep to compare, so only the
+    subtree-image-tag check applies; without this, such a component's own
+    version bump could never register as "changed" here at all, since it
+    never appears in current_by_key/baseline_by_key to begin with."""
     current_by_key = {dep.get("alias", dep["name"]): dep for dep in deps}
     baseline_by_key = {dep.get("alias", dep["name"]): dep for dep in baseline_deps}
 
@@ -1845,7 +1882,11 @@ def compute_changed_components(deps, baseline_deps, values, baseline_values):
         return {p: t for p, t in paths.items() if p[0] == key}
 
     changed = set()
-    for key in set(current_by_key) | set(baseline_by_key):
+    for key in set(current_by_key) | set(baseline_by_key) | set(NATIVE_COMPONENTS):
+        if key in NATIVE_COMPONENTS:
+            if subtree_paths(key, current_paths) != subtree_paths(key, baseline_paths):
+                changed.add(key)
+            continue
         cur_dep, base_dep = current_by_key.get(key), baseline_by_key.get(key)
         if cur_dep is None or base_dep is None:
             changed.add(key)

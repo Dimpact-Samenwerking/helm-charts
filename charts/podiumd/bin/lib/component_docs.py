@@ -420,9 +420,20 @@ def make_changes_section(friendly, target, chart_name, values_key, old_app, new_
     component actually shaped like version_paths (or vice versa) would
     silently generate a bullet pointing at a values.yaml path that
     doesn't exist — callers must use lib.chart.image_paths_for/version_
-    paths_for's own registration to know which applies."""
-    chart_changed = normalize_version(old_chart) != normalize_version(new_chart)
-    chart_suffix = f" (chart {old_chart} → {new_chart})" if chart_changed else f" (chart {new_chart}, unchanged)"
+    paths_for's own registration to know which applies.
+
+    `new_chart == "-"` means a NATIVE_COMPONENTS component (see lib.chart
+    .NATIVE_COMPONENTS) with no Chart.yaml dependency/chart version at
+    all — the heading omits the "(chart ...)" parenthetical entirely and
+    chart_changed is forced False, so the "Helm chart `...` bump" bullet
+    (which needs a real chart_name/old_chart/new_chart triple) is never
+    emitted either."""
+    if new_chart == "-":
+        chart_changed = False
+        chart_suffix = ""
+    else:
+        chart_changed = normalize_version(old_chart) != normalize_version(new_chart)
+        chart_suffix = f" (chart {old_chart} → {new_chart})" if chart_changed else f" (chart {new_chart}, unchanged)"
     lines = [f"### {friendly} {old_app} → {new_app}{chart_suffix}\n\n"]
     lines.append(f"PodiumD {target} upgrades **{friendly}** from app version {old_app}\n")
     lines.append(f"to {new_app}.\n\n")
@@ -597,9 +608,15 @@ def add_missing_component_rows(text, chart_dir, target_deps, target_values, base
 
 
 def values_delta_bullet(friendly, old_app, new_app, old_chart, new_chart):
+    """`new_chart == "-"` means a NATIVE_COMPONENTS component (see lib.
+    chart.NATIVE_COMPONENTS) with no Chart.yaml dependency/chart version
+    at all — the "(chart ...)" clause is dropped entirely rather than
+    rendered as the misleading "chart `None → -`"."""
     app_changed = normalize_version(old_app) != normalize_version(new_app)
-    chart_changed = normalize_version(old_chart) != normalize_version(new_chart)
     app_bit = f"`{old_app} → {new_app}`" if app_changed else f"`{new_app}` (unchanged)"
+    if new_chart == "-":
+        return f"- **{friendly}** app {app_bit} — image tag only (no separate Helm chart for this component).\n"
+    chart_changed = normalize_version(old_chart) != normalize_version(new_chart)
     chart_bit = f"`{old_chart} → {new_chart}`" if chart_changed else f"`{new_chart}`, unchanged"
     note = "image tag only" if not chart_changed else "chart + image tag"
     return f"- **{friendly}** app {app_bit} (chart {chart_bit}) — {note}.\n"
@@ -785,9 +802,14 @@ def update_images_manifest(images_path, friendly, values_key, old_app, new_app, 
                 match_idx = idx
                 break
 
-        chart_changed = normalize_version(old_chart) != normalize_version(new_chart)
-        chart_bit = f"{old_chart} -> {new_chart}" if chart_changed else f"{new_chart}, unchanged"
-        item_text = f"{friendly} {old_app} -> {new_app} (chart {chart_bit})."
+        if new_chart == "-":
+            # NATIVE_COMPONENTS component (see lib.chart.NATIVE_COMPONENTS)
+            # — no chart at all, so no "(chart ...)" clause to render.
+            item_text = f"{friendly} {old_app} -> {new_app}."
+        else:
+            chart_changed = normalize_version(old_chart) != normalize_version(new_chart)
+            chart_bit = f"{old_chart} -> {new_chart}" if chart_changed else f"{new_chart}, unchanged"
+            item_text = f"{friendly} {old_app} -> {new_app} (chart {chart_bit})."
 
         if match_idx is not None:
             m = CHANGES_ITEM_RE.match(lines[match_idx])
