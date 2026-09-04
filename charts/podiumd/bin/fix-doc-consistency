@@ -757,7 +757,15 @@ def add_missing_images_manifest_entries(text, chart_dir, deps, target_values, ba
             if full_repo:
                 host, repo_path = parse_repo(full_repo)
                 print(f"  fetching digest for {full_repo}:{current_tag} from the registry...")
-                exists, digest_hex = registry_tag_exists(host, repo_path, current_tag)
+                try:
+                    # OSError covers every urllib.error type (URLError/HTTPError
+                    # are OSError subclasses), incl. lib.registry's non-JSON-
+                    # response case — a registry hiccup must degrade to
+                    # "skipped, pin it by hand", never abort a partial rewrite.
+                    exists, digest_hex = registry_tag_exists(host, repo_path, current_tag)
+                except OSError as e:
+                    print(f"  registry lookup failed ({e}) — skipping {name}")
+                    exists, digest_hex = False, None
                 if exists and digest_hex:
                     pinned_tag = f"{current_tag}@{digest_hex}"
         if repo is None or pinned_tag is None:

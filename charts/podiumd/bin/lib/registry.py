@@ -30,6 +30,34 @@ MANIFEST_HOSTS = {
 BEARER_CHALLENGE_PARAM_RE = re.compile(r'(\w+)="([^"]*)"')
 
 
+def _read_json(resp):
+    """Parse a registry response body as JSON, turning a non-JSON 200 (a
+    rate-limit / interstitial HTML page, a caching proxy's own error page —
+    routine for Docker Hub / Cloudflare-fronted registries under load) into
+    a URLError. That is the exception type every caller in this module
+    already handles, so one bad response degrades to a FETCH-ERR / "can't
+    tell" line instead of aborting the whole verify-podiumd run with a
+    traceback. (URLError is an OSError subclass, so `except OSError` callers
+    catch it too.)"""
+    raw = resp.read()
+    try:
+        return json.loads(raw)
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+        where = getattr(resp, "url", None) or "registry"
+        raise urllib.error.URLError(f"non-JSON response from {where}: {e}") from e
+
+
+def _read_token(resp):
+    """_read_json plus the ["token"] lookup an auth endpoint's response is
+    expected to carry — a response that parsed but has no token is the same
+    kind of "registry misbehaved" failure, raised the same way."""
+    data = _read_json(resp)
+    try:
+        return data["token"]
+    except (TypeError, KeyError) as e:
+        raise urllib.error.URLError(f"auth response carried no token: {e}") from e
+
+
 def _urlopen(url_or_req, timeout=None):
     """urllib.request.urlopen, only passing timeout= when the caller asked
     for one — every existing call site (and its tests, mocking urlopen with
@@ -73,8 +101,8 @@ def _get_with_dynamic_auth(url, repo, headers, timeout=None):
         query = {"scope": challenge.get("scope") or f"repository:{repo}:pull"}
         if challenge.get("service"):
             query["service"] = challenge["service"]
-        token = json.loads(_urlopen(
-            f"{challenge['realm']}?{urllib.parse.urlencode(query)}", timeout=timeout).read())["token"]
+        token = _read_token(_urlopen(
+            f"{challenge['realm']}?{urllib.parse.urlencode(query)}", timeout=timeout))
         headers = {**headers, "Authorization": f"Bearer {token}"}
         return _urlopen(urllib.request.Request(url, headers=headers), timeout=timeout)
 
@@ -117,7 +145,7 @@ def registry_tag_exists(registry_host, repo, tag, timeout=None):
     headers = {"Accept": MANIFEST_ACCEPT}
     token_url_tmpl = TOKEN_ENDPOINTS.get(registry_host)
     if token_url_tmpl:
-        token = json.loads(_urlopen(token_url_tmpl.format(repo=repo), timeout=timeout).read())["token"]
+        token = _read_token(_urlopen(token_url_tmpl.format(repo=repo), timeout=timeout))
         headers["Authorization"] = f"Bearer {token}"
     api_host = MANIFEST_HOSTS.get(registry_host, registry_host)
     url = f"https://{api_host}/v2/{repo}/manifests/{tag}"
@@ -168,12 +196,12 @@ def list_tags(registry_host, repo):
     headers = {}
     token_url_tmpl = TOKEN_ENDPOINTS.get(registry_host)
     if token_url_tmpl:
-        token = json.loads(urllib.request.urlopen(token_url_tmpl.format(repo=repo)).read())["token"]
+        token = _read_token(urllib.request.urlopen(token_url_tmpl.format(repo=repo)))
         headers["Authorization"] = f"Bearer {token}"
     api_host = MANIFEST_HOSTS.get(registry_host, registry_host)
     url = f"https://{api_host}/v2/{repo}/tags/list"
     with _get_with_dynamic_auth(url, repo, headers) as resp:
-        return json.loads(resp.read()).get("tags") or []
+        return _read_json(resp).get("tags") or []
 
 
 NUMERIC_PREFIX_RE = re.compile(r"^(\d+(?:\.\d+)*)")

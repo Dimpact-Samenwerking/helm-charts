@@ -25,10 +25,10 @@ from lib.chart import image_paths_for, replace_scalar_value, version_paths_for
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
 from lib.upgradedoc import (
     _word_aligned_spans, actual_app_version, append_to_doc, component_order_key, component_version_cell,
-    extract_mentioned_dependency_keys, extract_source_version, find_grouped_preceding_comment_line,
-    insertion_index, match_dependency_excluding_sidecar_names, normalize_name, normalize_version,
-    parse_upgrade_doc_changes_blocks, parse_upgrade_doc_rows, replace_version_pair, resolve_entry_path,
-    values_key_order,
+    COMPONENT_VERSIONS_HEADING_RE, extract_mentioned_dependency_keys, extract_source_version,
+    find_grouped_preceding_comment_line, insertion_index, match_dependency_excluding_sidecar_names,
+    normalize_name, normalize_version, parse_upgrade_doc_changes_blocks, parse_upgrade_doc_rows,
+    replace_version_pair, resolve_entry_path, values_key_order,
 )
 
 NUMBER_WORDS = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten",
@@ -367,10 +367,24 @@ def update_component_table(text, friendly, old_app, new_app, old_chart, new_char
         idx = insertion_index(new_key, existing_keys)
         insert_at = rows[idx]["line_index"] if idx < len(rows) else rows[-1]["line_index"] + 1
     else:
+        # Empty "Component versions" table (header + separator, no data
+        # rows yet): insert right after THAT section's separator. Scope the
+        # scan to the section — an unscoped scan keeping the last "| --- |"
+        # in the whole doc would splice the row into an unrelated pipe
+        # table further down (e.g. a settings-migration table under
+        # "## Changes"), same section-scoping parse_upgrade_doc_rows uses.
         insert_at = None
+        in_section = False
         for i, line in enumerate(lines):
-            if re.match(r"^\|\s*:?-+:?\s*\|", line.strip()):
+            stripped = line.strip()
+            if COMPONENT_VERSIONS_HEADING_RE.match(stripped):
+                in_section = True
+                continue
+            if in_section and re.match(r"^##\s+\S", line):
+                break
+            if in_section and re.match(r"^\|\s*:?-+:?\s*\|", stripped):
                 insert_at = i + 1
+                break
         if insert_at is None:
             return text, None
     lines.insert(insert_at, new_row_line)

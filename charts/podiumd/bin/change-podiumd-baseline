@@ -31,6 +31,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
+from lib.chart import SEMVER_RE as BASELINE_VERSION_RE
 from lib.chart import upgrade_docs_baseline as read_upgrade_docs_baseline
 from lib.chart import write_release_baselines
 from lib.gitutil import find_repo_root, resolve_baseline_ref
@@ -49,6 +50,15 @@ def main():
         print(__doc__)
         sys.exit(1)
     new_baseline = sys.argv[1]
+
+    # A baseline is always a released MAJOR.MINOR.PATCH — never an arbitrary
+    # ref. Without this, gitutil.baseline_ref_candidates' unanchored match
+    # lets "main" / "HEAD~2" / "4.9.1-rc.2" resolve as an explicit ref and
+    # get persisted into release-baseline.yaml, where every downstream
+    # consumer assumes semver. Same guard create-doc-version already has.
+    if not BASELINE_VERSION_RE.match(new_baseline):
+        print(f"error: '{new_baseline}' is not a valid MAJOR.MINOR.PATCH version")
+        sys.exit(1)
 
     repo_root = find_repo_root(CHART_DIR)
     if repo_root is None:

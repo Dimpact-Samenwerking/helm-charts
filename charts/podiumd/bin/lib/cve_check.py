@@ -208,10 +208,14 @@ TOP_LEVEL_KEY_RE = re.compile(r"^([a-zA-Z0-9_-]+):")
 
 
 def parse_image_ref(ref):
-    """"<repository>:<version>@sha256:<digest>" -> (repository, version,
-    digest)."""
+    """"<repository>[:<version>]@sha256:<digest>" -> (repository, version,
+    digest). version is None for a tagless digest reference (a valid k8s
+    image ref a vendored sub-chart's helper may emit) — the trailing ":"
+    of a "host:port" registry is not a tag either (a real tag has no "/")."""
     repo_and_tag, digest = ref.rsplit("@sha256:", 1)
-    repository, version = repo_and_tag.rsplit(":", 1)
+    repository, sep, version = repo_and_tag.rpartition(":")
+    if not sep or "/" in version:
+        return repo_and_tag, None, digest
     return repository, version, digest
 
 

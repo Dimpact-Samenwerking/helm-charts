@@ -729,6 +729,32 @@ def test_update_component_table_new_component_no_baseline_is_annotated_new(ucv):
     assert "| openklant | 2.15.0 (new) | 1.11.0 (new) | - |" in new_text
 
 
+def test_update_component_table_empty_table_ignores_unrelated_lower_pipe_table(ucv):
+    """When the "Component versions" table is empty (header + separator
+    only), the new row must be inserted right under THAT separator — not
+    under the last "| --- |" in the whole doc, which would splice it into
+    an unrelated settings-migration table in a "## Changes" subsection."""
+    text = (
+        COMPONENT_VERSIONS_HEADING +
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "\n"
+        "## Changes\n\n"
+        "### openformulieren 3.4.10 -> 3.5.6\n\n"
+        "Settings migration:\n\n"
+        "| Old setting | New setting |\n"
+        "| --- | --- |\n"
+        "| FOO | BAR |\n"
+    )
+    new_text, action = ucv.update_component_table(text, "openformulieren", "3.4.10", "3.5.6", "1.12.0", "1.12.0",
+                                                    DEPS, VALUES)
+    assert action == "added"
+    lines = new_text.splitlines()
+    sep_idx = lines.index("| --- | --- | --- | --- |")
+    assert lines[sep_idx + 1] == "| openformulieren | 3.4.10 → 3.5.6 | 1.12.0 (unchanged) | - |"
+    assert lines[-3:] == ["| Old setting | New setting |", "| --- | --- |", "| FOO | BAR |"]
+
+
 def test_update_component_table_new_sidecar_chart_placeholder_stays_bare(ucv):
     """A sidecar row's own Helm-chart cell is always the literal "-"
     not-applicable placeholder (see add_missing_sidecar_rows) — it must

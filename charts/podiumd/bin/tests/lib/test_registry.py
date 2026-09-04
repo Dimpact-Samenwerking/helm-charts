@@ -261,6 +261,36 @@ def test_list_tags_empty_when_missing_from_response(libregistry, monkeypatch):
     assert libregistry.list_tags("quay.io", "coreos/etcd") == []
 
 
+def test_list_tags_non_json_200_raises_urlerror_not_jsondecodeerror(libregistry, monkeypatch):
+    """A 200 response carrying an HTML rate-limit / interstitial page
+    (routine for Docker Hub / Cloudflare-fronted registries under load)
+    must degrade to a URLError — the type every caller already catches —
+    not a JSONDecodeError that aborts the whole verify-podiumd run."""
+    monkeypatch.setattr(libregistry.urllib.request, "urlopen",
+                         lambda req: FakeResponse(body=b"<html>429 Too Many Requests</html>"))
+    with pytest.raises(urllib.error.URLError):
+        libregistry.list_tags("quay.io", "coreos/etcd")
+
+
+def test_registry_tag_exists_non_json_token_response_raises_urlerror(libregistry, monkeypatch):
+    def fake_urlopen(arg):
+        url = arg if isinstance(arg, str) else arg.full_url
+        if "auth.docker.io" in url:
+            return FakeResponse(body=b"<html>503</html>")
+        raise AssertionError("must not reach the manifest request")
+
+    monkeypatch.setattr(libregistry.urllib.request, "urlopen", fake_urlopen)
+    with pytest.raises(urllib.error.URLError):
+        libregistry.registry_tag_exists("docker.io", "library/python", "3.14-slim")
+
+
+def test_list_tags_token_response_missing_token_key_raises_urlerror(libregistry, monkeypatch):
+    monkeypatch.setattr(libregistry.urllib.request, "urlopen",
+                         lambda arg: FakeResponse(body=json.dumps({"not_token": "x"}).encode()))
+    with pytest.raises(urllib.error.URLError):
+        libregistry.list_tags("docker.io", "library/python")
+
+
 def test_list_tags_discovers_token_via_bearer_challenge(libregistry, monkeypatch):
     def fake_urlopen(arg):
         url = arg if isinstance(arg, str) else arg.full_url

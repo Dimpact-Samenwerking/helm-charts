@@ -184,6 +184,18 @@ def test_parse_image_ref(libcvecheck):
     assert libcvecheck.parse_image_ref(f"org/repo:1.0.0@sha256:{DIGEST_A}") == ("org/repo", "1.0.0", DIGEST_A)
 
 
+def test_parse_image_ref_tagless_digest_reference(libcvecheck):
+    """A valid k8s ref with a digest and no :tag (a vendored sub-chart's
+    helper may emit one) must return version=None, not raise ValueError on
+    the tuple unpack."""
+    assert libcvecheck.parse_image_ref(f"ghcr.io/foo/bar@sha256:{DIGEST_A}") == ("ghcr.io/foo/bar", None, DIGEST_A)
+
+
+def test_parse_image_ref_registry_port_is_not_a_tag(libcvecheck):
+    assert libcvecheck.parse_image_ref(f"registry.example.com:5000/foo/bar@sha256:{DIGEST_A}") == (
+        "registry.example.com:5000/foo/bar", None, DIGEST_A)
+
+
 def test_top_level_key_for_line(libcvecheck):
     lines = ["frankgateway:", "  image:", "    tag: x", "openzaak:", "  image:", "    tag: y"]
     assert libcvecheck.top_level_key_for_line(lines, 3) == "frankgateway"

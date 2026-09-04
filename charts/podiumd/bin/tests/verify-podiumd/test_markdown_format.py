@@ -29,6 +29,27 @@ def test_markdown_format_flags_unbalanced_fence(libdocsconsistency, tmp_path):
     assert any("unbalanced" in i for i in issues)
 
 
+def test_markdown_format_counts_indented_fences(libdocsconsistency, tmp_path):
+    """Upgrade docs nest ``` blocks under numbered list steps, so the fence
+    is indented, not at column 0. A doc with one column-0 pair plus one
+    indented pair is balanced (4 fences) and must not be flagged."""
+    doc = tmp_path / "doc.md"
+    doc.write_text(
+        "# Title\n\n"
+        "```sh\necho hi\n```\n\n"
+        "1. Then run:\n\n"
+        "   ```sh\n   echo step\n   ```\n"
+    )
+    assert libdocsconsistency.check_markdown_format(doc) == []
+
+
+def test_markdown_format_flags_unbalanced_indented_fence(libdocsconsistency, tmp_path):
+    doc = tmp_path / "doc.md"
+    doc.write_text("# Title\n\n1. Run:\n\n   ```sh\n   echo hi\n")
+    issues = libdocsconsistency.check_markdown_format(doc)
+    assert any("unbalanced" in i for i in issues)
+
+
 def test_markdown_format_does_not_false_positive_on_version_like_continuation(libdocsconsistency, tmp_path):
     """A continuation line like "1.17.1-static" must not itself be mistaken
     for markdown structure that breaks the format check."""

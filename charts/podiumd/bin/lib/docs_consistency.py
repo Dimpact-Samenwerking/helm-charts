@@ -71,7 +71,9 @@ def check_markdown_format(doc_path):
     if not first_line.startswith("# "):
         issues.append(f'first line "{first_line}" is not a level-1 heading ("# ...")')
 
-    fence_count = len(re.findall(r"^```", text, re.MULTILINE))
+    # Allow leading indentation: upgrade docs routinely nest ``` blocks
+    # under numbered list steps, so the fence is not at column 0.
+    fence_count = len(re.findall(r"^[ \t]*```", text, re.MULTILINE))
     if fence_count % 2 != 0:
         issues.append(f"{fence_count} fenced code block markers (```) — unbalanced")
 
@@ -101,10 +103,17 @@ IMAGES_REF_RE = re.compile(r"images-(\d+\.\d+\.\d+)\.yaml")
 def check_pointer_consistency(doc_path, upgrade_docs_baseline, podiumd_version, doc_dir, images_dir):
     """Every reference to a sibling <X>-to-<Y>-*.md doc or an images-<Z>.yaml
     manifest found anywhere in this doc — comment, prose, or markdown link.
-    A reference whose target release (Y or Z) isn't podiumd_version is about
-    some other historical hop and is left alone; one that targets the current
-    release must have the current upgrade_docs_baseline as its source, and must actually
-    exist (catches a reference left stale after a rename)."""
+
+    Sibling-doc references may legitimately point at an EARLIER hop (e.g.
+    "see the 4.8.1-to-4.8.2 guide for the older Keycloak steps"), so one
+    whose target Y isn't podiumd_version is left alone; a reference that
+    DOES target the current release must name the current
+    upgrade_docs_baseline as its source and must exist.
+
+    An images-<Z>.yaml reference is different: this doc's own release only
+    ever has one manifest (images-<podiumd_version>.yaml), and there's no
+    reason to point at another release's — so any Z != podiumd_version is
+    flagged (almost always a stale reference left after a rename)."""
     text = doc_path.read_text(encoding="utf-8")
     issues = []
 
@@ -351,8 +360,13 @@ def check_images_manifest_format(images_path, upgrade_docs_baseline, podiumd_ver
     baseline_m = re.search(r"Baseline:\s*podiumd\s+([\w.\-]+)", text)
     if not baseline_m:
         issues.append(f'{images_path.name}: no "Baseline: podiumd <version>" line found')
-    elif normalize_version(baseline_m.group(1)) != normalize_version(upgrade_docs_baseline):
-        issues.append(f'{images_path.name}: upgrade_docs_baseline line says "{baseline_m.group(1)}", expected "{upgrade_docs_baseline}"')
+    else:
+        # .rstrip(".") — the stub template writes "Baseline: podiumd 4.9.0."
+        # (trailing sentence period), and "." is inside the capture class;
+        # same handling as the "... vs ..." line just below.
+        baseline_str = baseline_m.group(1).rstrip(".")
+        if normalize_version(baseline_str) != normalize_version(upgrade_docs_baseline):
+            issues.append(f'{images_path.name}: upgrade_docs_baseline line says "{baseline_str}", expected "{upgrade_docs_baseline}"')
 
     vs_m = re.search(r"podiumd\s+([\w.\-]+)\s+vs\s+([\w.\-]+)", text)
     if not vs_m:
@@ -920,7 +934,13 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
                 print(f'  (images-manifest entry "{name}" — no matching image in values.yaml, skipped)')
                 continue
 
-            expected_tag = f'{entry["version"]}@{entry["digest"]}'
+            version, digest = entry.get("version"), entry.get("digest")
+            if not version or not digest:
+                mismatches.append(
+                    f'{name}: entry in {images_path.name} is missing "version" or "digest"'
+                )
+                continue
+            expected_tag = f'{version}@{digest}'
             actual_tag = current_paths[path]
             if actual_tag != expected_tag:
                 mismatches.append(

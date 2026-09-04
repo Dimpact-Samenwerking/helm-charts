@@ -45,7 +45,13 @@ def find_shell_scripts(obj, source, path=""):
         command = obj.get("command")
         args = obj.get("args")
         if isinstance(command, list) or isinstance(args, list):
-            combined = (command or []) + (args or [])
+            # Take only the halves that are actually lists — a malformed
+            # manifest where one of command/args is a scalar (a bare-rendered
+            # `args: {{ .Values.x }}`, a CRD instance, a hand-written Pod)
+            # would otherwise raise `list + str`; leave reporting that field
+            # to yamllint/kubeconform rather than crashing the scan here.
+            combined = (command if isinstance(command, list) else []) + \
+                       (args if isinstance(args, list) else [])
             shell = _shell_name(combined[0]) if combined else None
             if shell in SHELLCHECK_SHELL_NAMES:
                 for i, tok in enumerate(combined):

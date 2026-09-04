@@ -237,6 +237,20 @@ def test_images_manifest_entry_with_no_real_change_is_caught(vp, chart_repo, cap
             'not found in Chart.yaml or values.yaml') in out
 
 
+def test_images_manifest_entry_missing_version_or_digest_is_reported_not_crashed(vp, chart_repo, capsys):
+    """With no bare-version baseline, check_images_manifest_format's key
+    precheck never runs, so the entry loop is what first touches
+    entry["version"]/entry["digest"] — a manifest entry missing one must
+    produce a mismatch line, not a KeyError that aborts the whole check."""
+    images_path = chart_repo / "docs" / "images" / "images-4.9.0.yaml"
+    images_path.write_text(images_path.read_text().replace('  digest: "sha256:abc"\n', ""))
+
+    ok, detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline=None)
+    assert ok is False
+    out = capsys.readouterr().out
+    assert 'zac: entry in images-4.9.0.yaml is missing "version" or "digest"' in out
+
+
 def test_images_manifest_format_issue_does_not_swallow_other_mismatches(vp, chart_repo, capsys):
     """A format problem in images-<target>.yaml (e.g. a stale header
     comment) must not discard mismatches an earlier, completely unrelated

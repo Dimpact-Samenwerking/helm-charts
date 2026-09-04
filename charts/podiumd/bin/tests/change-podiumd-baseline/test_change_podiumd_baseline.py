@@ -179,6 +179,23 @@ def test_main_unresolvable_baseline_fails_without_writing(cpb, repo, monkeypatch
     assert cpb.read_upgrade_docs_baseline(repo) == "4.8.4"  # untouched
 
 
+@pytest.mark.parametrize("bad", ["main", "HEAD~2", "4.9.1-rc.2", "origin/feature/podiumd-4.9.0", "4.9"])
+def test_main_rejects_a_non_semver_baseline_without_writing(cpb, repo, monkeypatch, capsys, bad):
+    """Only a released MAJOR.MINOR.PATCH is a valid baseline. Without this
+    guard, gitutil.baseline_ref_candidates' unanchored match lets an
+    arbitrary ref resolve and get persisted into release-baseline.yaml,
+    where every downstream consumer assumes semver."""
+    cpb.write_release_baselines(repo, upgrade_docs="4.8.4")
+    set_up(cpb, monkeypatch, repo, [bad])
+
+    with pytest.raises(SystemExit) as exc_info:
+        cpb.main()
+
+    assert exc_info.value.code == 1
+    assert "is not a valid MAJOR.MINOR.PATCH version" in capsys.readouterr().out
+    assert cpb.read_upgrade_docs_baseline(repo) == "4.8.4"  # untouched
+
+
 def test_main_not_a_git_repo_fails(cpb, monkeypatch, tmp_path, capsys):
     monkeypatch.setattr("sys.argv", ["change-podiumd-baseline", "4.8.5"])
     monkeypatch.setattr(cpb, "find_repo_root", lambda chart_dir: None)

@@ -114,6 +114,23 @@ def test_images_manifest_format_trailing_period_not_captured(libdocsconsistency,
     assert not any("4.8.5." in i for i in issues)
 
 
+def test_images_manifest_format_baseline_line_trailing_period_not_captured(libdocsconsistency, tmp_path):
+    """Regression: component_docs.IMAGES_STUB_TEMPLATE writes the baseline
+    line as "# Baseline: podiumd 4.9.0. Re-verify before release." — a
+    period directly after the version. "." is inside the capture class, so
+    without .rstrip(".") every freshly-scaffolded manifest fails the format
+    precheck with 'baseline line says "4.9.0."'."""
+    text = REAL_MANIFEST.replace(
+        "# Baseline: podiumd 4.8.5 (origin/feature/podiumd-4.8.5 @ f27a008).",
+        "# Baseline: podiumd 4.8.5. Re-verify before release.",
+    )
+    images_path = tmp_path / "images-4.9.0.yaml"
+    images_path.write_text(text)
+    issues = libdocsconsistency.check_images_manifest_format(images_path, "4.8.5", "4.9.0", DEPS, VALUES, {})
+    assert not any("4.8.5." in i for i in issues)
+    assert not any("baseline line says" in i for i in issues)
+
+
 def test_images_manifest_format_changes_block_target_mismatch(libdocsconsistency, tmp_path):
     text = REAL_MANIFEST.replace("5.0.2 -> 5.4.3 (chart 1.0.297", "5.0.2 -> 5.9.9 (chart 1.0.297")
     images_path = tmp_path / "images-4.9.0.yaml"
