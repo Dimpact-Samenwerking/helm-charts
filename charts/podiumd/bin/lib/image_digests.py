@@ -232,10 +232,16 @@ def check_image_digests(chart_dir):
     fetch_errors = []
     unverifiable = []
 
-    for (repository, version), group in sorted(targets.items()):
+    sorted_targets = sorted(targets.items())
+    for i, ((repository, version), group) in enumerate(sorted_targets, 1):
         host, repo_path = parse_repo(repository)
         pinned_digest = group[0]["digest"]
         lines_str = ", ".join(str(p["line"]) for p in group)
+
+        # No cache here (unlike check_cves/check_image_upgrades) — every
+        # unique pin always makes a real registry call, so this is worth
+        # announcing for every single one, not just a slow subset.
+        print(f"  [{i}/{len(sorted_targets)}] checking {host}/{repo_path}:{version}...", flush=True)
 
         digest, error = None, None
         for _attempt in range(2):
