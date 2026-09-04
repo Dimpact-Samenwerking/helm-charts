@@ -157,16 +157,12 @@
   digest: "sha256:cb56b4809e0c840cbc72814f8a72495fd18860cb08dfb092c12ba3c2cea785df"
 - name: keycloak/keycloak
   url: quay.io/keycloak/keycloak
-  version: "26.7.2"
-  digest: "sha256:9d1f1b2b7261ff53c66cb1092dfcdc34a5fb77e81f9e6a6e75b8b6a795de8067"
-- name: keycloak/keycloak
-  url: quay.io/keycloak/keycloak
-  version: "26.6.3"
-  digest: "sha256:9b0330756022422149aa6502eb2def8cd47c6e1b000c7c65cdb13e7c0133e992"
+  version: "26.7.3"
+  digest: "sha256:ff4257d0d64efbe99ed1ddfaf07765cc3c36dc7518bf8324d41961327f441c54"
 - name: keycloak/keycloak-operator
   url: quay.io/keycloak/keycloak-operator
-  version: "26.6.3"
-  digest: "sha256:40301d2bb0eeb6eb5c6c47b2ee8bc28f156c3c5626db21dbf6b7b37c0110696c"
+  version: "26.7.3"
+  digest: "sha256:e3856fd1aeb404f0e6ae2180b01875c8eeebd3748b0e5d955da77b5d41095ae4"
 # Kiss's ECK-managed Kibana (contact search).
 - name: kibana/kibana
   url: docker.elastic.co/kibana/kibana

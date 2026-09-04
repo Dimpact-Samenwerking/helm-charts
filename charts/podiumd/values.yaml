@@ -14,7 +14,7 @@ global:
   images:
     nginx: &nginxImage
       repository: nginxinc/nginx-unprivileged
-      tag: "1.31.4@sha256:197f252f060ed357f2ab98d4256762d7d107c76f18ad8f0b9d5178854611566d"
+      tag: "1.31.4@sha256:a7caff5bdcb3e3ba5dafacbdfc8f2d6d4d9f256d63f47cfeee9e1f9c289dd833"
       pullPolicy: IfNotPresent
     curl: &curlImage
       repository: curlimages/curl
@@ -24,6 +24,9 @@ global:
       repository: library/busybox
       tag: "1.38.0-glibc@sha256:3ba030337caebbfc2232b22b1e435eb213b28e5844a34942c74555bf904a265a"
       pullPolicy: IfNotPresent
+    redis: &redisImage
+      repository: redis
+      tag: "8.0@sha256:ae471bdc20de180beed36e347d170ec0bdf8faa327959ea1f24692f22b05b955"
 
 tags:
   eck-operator.enabled: false
@@ -38,10 +41,14 @@ persistentVolume:
 keycloak-operator:
   enabled: true
   # Adfinis Helm chart wrapping the official Keycloak Operator manifests.
-  # Chart: https://charts.adfinis.com / adfinis/keycloak-operator (chart 1.12.1, appVersion 26.6.4)
+  # Chart: https://charts.adfinis.com / adfinis/keycloak-operator (chart 1.13.0, appVersion 26.7.2)
   # Note: it appears that the podname automatically appends -operator.
-  # Official operator image: quay.io/keycloak/keycloak-operator:26.6.4
-  # Note: adfinis chart 1.12.1 targets appVersion 26.6.4; operator + server image pinned to 26.6.4 below.
+  # Official operator image: quay.io/keycloak/keycloak-operator:26.7.3
+  # Note: images are deliberately AHEAD of the chart line here — adfinis
+  # hasn't published a chart targeting 26.7.3 yet (still 1.13.0 / appVersion
+  # 26.7.2 as of 2026-08-31). Operator + server image pinned to 26.7.3 below
+  # for the 20-CVE 26.7.3 security release; bump the keycloak-operator chart
+  # dependency separately once adfinis catches up.
   # override: values-enable-observability.yaml sets enableServiceMonitor: true
   enableServiceMonitor: false
   fullnameOverride: keycloak
@@ -52,12 +59,16 @@ keycloak-operator:
       # `keycloak.image` (which uses the podiumd.image helper, repository:tag),
       # the adfinis subchart appends its own digest from a SEPARATE `operator.image.sha`
       # field: `repository:tag@sha256:{{ .sha }}`. Putting @sha256 in the tag
-      # produces an invalid DOUBLE digest (…:26.6.4@sha256:xxx@sha256:xxx).
-      # The chart's default operator.image.sha already pins the matching 26.6.4
-      # digest (sha256:831827a0a…). To DISABLE digest pinning (e.g. on aks-blue
+      # produces an invalid DOUBLE digest (…:26.7.3@sha256:xxx@sha256:xxx).
+      # The chart's bundled default operator.image.sha for 1.13.0 is stale
+      # (doesn't match any manifest under the 26.7.3 tag — it doesn't even
+      # know this tag exists yet), so it's overridden explicitly below with
+      # the real registry digest. To DISABLE digest pinning (e.g. on aks-blue
       # / ACR-mirror envs where the mirrored digest differs), set
-      # `operator.image.sha: ""`. See docs/_UPGRADE_PATHS/4.7.3-to-4.7.4-upgrade.md.
-      tag: "26.6.4"
+      # `operator.image.sha: ""`. See
+      # docs/_UPGRADE_PATHS/4.7.3-to-4.7.4-upgrade.md.
+      tag: "26.7.3"
+      sha: "e3856fd1aeb404f0e6ae2180b01875c8eeebd3748b0e5d955da77b5d41095ae4"
     resources:
       requests:
         cpu: 100m
@@ -69,18 +80,15 @@ keycloak-operator:
     # Default Keycloak SERVER image the operator stamps onto Keycloak CRs it
     # provisions (RELATED_IMAGE_KEYCLOAK env on the operator Deployment). Must
     # match podiumd's own `keycloak.image` digest above. The adfinis subchart's
-    # built-in default still carries the pre-PR#344 digest (sha256:5fdbf2d…), so
-    # we override it here to the refreshed 26.7.2 digest (sha256:9d1f1b2b…).
-    # Note: quay.io has re-published the 26.7.2 tag under a new digest twice
-    # now (sha256:6efbadc… -> sha256:831330… -> sha256:9d1f1b2b…, as of
-    # 2026-08-28) — re-verify live before trusting this pin at release time.
+    # built-in default still carries a stale digest (doesn't know about 26.7.3
+    # at all yet), so we override it here to the 26.7.3 digest (sha256:ff4257d…).
     # NOTE: sha is a SEPARATE field; the template appends it as @sha256:{{ .sha }},
     # so do NOT embed @sha256 in tag (would produce a double digest).
     config:
       keycloakImage:
         repository: quay.io/keycloak/keycloak
-        tag: "26.7.2"
-        sha: "9d1f1b2b7261ff53c66cb1092dfcdc34a5fb77e81f9e6a6e75b8b6a795de8067"
+        tag: "26.7.3"
+        sha: "ff4257d0d64efbe99ed1ddfaf07765cc3c36dc7518bf8324d41961327f441c54"
   serviceAccount:
     create: false
   jobs:
@@ -225,11 +233,11 @@ keycloak:
   http:
     httpEnabled: true
   # image parameters for keycloak-operator
-  # Official Keycloak image: quay.io/keycloak/keycloak:26.7.2
+  # Official Keycloak image: quay.io/keycloak/keycloak:26.7.3
   image:
     registry: ""
     repository: quay.io/keycloak/keycloak
-    tag: "26.7.2@sha256:9d1f1b2b7261ff53c66cb1092dfcdc34a5fb77e81f9e6a6e75b8b6a795de8067"
+    tag: "26.7.3@sha256:ff4257d0d64efbe99ed1ddfaf07765cc3c36dc7518bf8324d41961327f441c54"
   # -- instances is the new operator-style replica count (falls back to replicaCount)
   instances: "2"
   ingress:
@@ -264,7 +272,7 @@ keycloak:
     metadata:
       labels:
         app: keycloak
-        version: 26.6.4
+        version: 26.7.3
       # override: values-enable-observability.yaml adds prometheus.io scrape annotations
     spec:
       securityContext:
@@ -713,6 +721,8 @@ openzaak:
     storageClassName: podiumd-standard
   image:
     tag: "1.29.3@sha256:7ac22da287ac190a0e1c14849a370c433d3511678dcc8f3897007fd6de6dd4ac"
+  redis:
+    image: *redisImage
   resources:
     requests:
       cpu: 250m
@@ -962,6 +972,8 @@ opennotificaties:
     storageClassName: podiumd-standard
   image:
     tag: "1.16.2@sha256:2988d538b30db30487ed89873877e1d22e12f80dfa42d80ec1a5c97265c7e4cd"
+  redis:
+    image: *redisImage
   resources:
     requests:
       cpu: 100m
@@ -1140,6 +1152,8 @@ objecten:
   image:
     repository: maykinmedia/objects-api
     tag: "3.6.2@sha256:6a3a40081016e5072c5355622c0ca3e1ded89228edce7336fc4d8600217344f8"
+  redis:
+    image: *redisImage
   resources:
     requests:
       cpu: 100m
@@ -1266,6 +1280,8 @@ objecttypen:
   image:
     repository: maykinmedia/objecttypes-api
     tag: "3.4.2@sha256:d366e6ede1bb924ea351495f4e88ceba53bb0df02fa5302929daef379131fda1"
+  redis:
+    image: *redisImage
   # used for create-required-objecttypen podiumd job only
   create_required_objecttypen_job:
     enabled: true
@@ -1455,6 +1471,8 @@ openarchiefbeheer:
   image:
     #repository: maykinmedia/open-archiefbeheer
     tag: "2.0.0@sha256:e5217d748869c62d26393311c3cfdcaacf69d8dde80ca3bc172ff41f3885f0ff"
+  redis:
+    image: *redisImage
 
   resources:
     limits: {}
@@ -1618,6 +1636,8 @@ openklant:
   image:
     repository: maykinmedia/open-klant
     tag: "2.15.0@sha256:ce59a2c60dab1c14e62fe34a99511839390dd2d482983c27334241e0d60c693d"
+  redis:
+    image: *redisImage
   resources:
     requests:
       cpu: 100m
@@ -1856,6 +1876,8 @@ openformulieren:
     storageClassName: podiumd-standard
   image:
     tag: "3.5.6@sha256:f5a5d51a44f39edcfb2143ae5d2ed9525b22ea377faa35fd2cce26b678f7fe83"
+  redis:
+    image: *redisImage
   resources:
     requests:
       cpu: 250m
@@ -2096,6 +2118,8 @@ openinwoner:
     storageClassName: podiumd-standard
   image:
     tag: "2.4.3@sha256:c2ff751143c260874a1ebcdcc7e07dc213cffee70c3ea5a9589948e3f5da43e4"
+  redis:
+    image: *redisImage
   resources:
     requests:
       cpu: 200m
@@ -2289,6 +2313,8 @@ referentielijsten:
     repository: maykinmedia/referentielijsten-api
     pullPolicy: IfNotPresent
     tag: "0.7.3@sha256:66f3a3da2a086e41ee8dc216b52b65d8dca04a4160c04a90693de2e5cd6dfa5e"
+  redis:
+    image: *redisImage
 
   settings:
     allowedHosts: "referentielijsten-nginx.podiumd.svc.cluster.local"
@@ -2416,6 +2442,8 @@ openbeheer:
     repository: maykinmedia/open-beheer
     pullPolicy: IfNotPresent
     tag: "0.9.1@sha256:7c1dfaff1d069afe5d45e421f813078d8112b13c3cf65b5f547e866f6aad4e31"
+  redis:
+    image: *redisImage
   nameOverride: openbeheer
   fullnameOverride: openbeheer
   securityContext:
@@ -3025,6 +3053,13 @@ zac:
         memory: 20Mi
   openForms:
     url: http://open-forms.example.nl
+  opentelemetry-collector:
+    # Already digest-pinned in the zac subchart's own default — mirrored here
+    # explicitly so a future chart bump can't silently drop that pin without
+    # check_digest_pinning (charts/podiumd's own values.yaml only) noticing.
+    image:
+      repository: otel/opentelemetry-collector-contrib
+      tag: "0.158.0@sha256:c5918f78992ee73b0d6f0e599423ac5ec52dd5d9726733114d6eca53d5a32ed5"
   organizations:
     bron:
       rsin: "000000000"
@@ -3174,7 +3209,7 @@ clamav:
   # serviceMonitor requires the Prometheus Operator CRD (monitoring.coreos.com/v1 ServiceMonitor).
   image:
     repository: clamav/clamav
-    tag: "1.5.4@sha256:0e85467cb0d6e7d860a45035707741cd5ffc032ffefc6002a3510c75b6d07027"
+    tag: "1.5.4@sha256:f0954d679017eb6d48221e2b2be3ac5457bf278a844f39b672376f55a085f591"
   metrics:
     enabled: false
     image:
@@ -3812,6 +3847,16 @@ frankgateway:
 zaakbrug:
   enabled: false
   staging:
+    # Permanently off by policy, not just "not currently used" (see the
+    # comment above this block): enabling it pulls in the sub-chart's
+    # bundled bitnami/redis transitive dependency, which Dimpact policy
+    # forbids outright. Deliberately NOT digest-pinning staging.image /
+    # staging.apiProxy.image here as a result — they're just the
+    # sub-chart's own stale upstream defaults (staging.image.tag alone
+    # drifts to "1.9.0" against the actively-maintained main image's
+    # "1.26.15"), never rendered, and pinning them only made
+    # verify-release-table-with-podiumd.py flag a same-basename
+    # version "ambiguity" between the two that doesn't actually matter.
     enabled: false
   image:
     registry: wearefrank
@@ -3855,6 +3900,19 @@ zaakbrug:
     IbisTester: zaakbrug_admin
     IbisDataAdmin: dataadmin
 
+# BRP Personen Mock — a stand-in "BRP Personen" API for gemeentes without
+# their own connection to the real BRP, so dependent components (e.g.
+# ZAC) still have something to query in non-production/demo environments.
+brppersonenmock:
+  # This stub MUST stay in this file: Helm resolves the dependency condition
+  # `brppersonenmock.enabled` against the PARENT chart's values — if the path
+  # were absent here, the subchart would render unconditionally for every
+  # deployment (same reasoning as the `mi:` stub right below).
+  enabled: false
+  image:
+    repository: ghcr.io/brp-api/personen-mock
+    tag: "2.7.0-202606230850@sha256:024308250beab8a6327d8f4ce91e630b4bcbd650015a4e86df6db437dc8bb4d7"
+
 # Management Information (MI) data exports — IN-1650 / IN-2119 / IN-2499.
 #
 # Since 4.8.3 the MI export tooling lives in the standalone `mi-data` chart
@@ -3875,6 +3933,10 @@ mi:
   # PARENT chart's values — if the path were absent here, the subchart would
   # render unconditionally for every deployment.
   enabled: false
+  image:
+    registry: "mcr.microsoft.com"
+    repository: azure-cli
+    tag: "2.71.0@sha256:18ec5cf02ba6b46e9858ddff1125baaa1f14ba919f77ebc67c918c891f8df4a2"
 
 openbao:
   # OpenBao (openbao.org) — secrets vault. Postgres-backed like the other apps,
@@ -3894,6 +3956,24 @@ openbao:
   # cluster-wide if the injector is unhealthy.
   injector:
     enabled: false
+    image:
+      repository: hashicorp/vault-k8s
+      tag: "1.7.2@sha256:ae3d307658b72a1cf35dab9bdf92c995d45cdc7183af0516857714b5bd0ba84d"
+
+  # CSI Provider (upstream subchart default: OFF, same as here). Not currently
+  # used — PodiumD's secrets consumption doesn't go through the Secrets Store
+  # CSI Driver — pinned anyway so it's ready if that ever changes.
+  csi:
+    image:
+      repository: quay.io/openbao/openbao-csi-provider
+      tag: "2.0.2@sha256:3cb312e88c62c926caec03bf69497a16805a29daabb5ad2c7a236ab43bb241db"
+
+  # Scheduled snapshot-to-S3 CronJob (upstream subchart default: OFF, same as
+  # here). Not currently used — pinned anyway so it's ready if that ever changes.
+  snapshotAgent:
+    image:
+      repository: ghcr.io/openbao/openbao-snapshot-agent
+      tag: "0.3.0@sha256:d7a8ca9d26b12cf226ce093b9051f243c53aefbb8a419b3dc0b554e7575c931c"
 
   # --- podiumd-side wiring (consumed by the openbao-* templates) ----------------
   configuration:
