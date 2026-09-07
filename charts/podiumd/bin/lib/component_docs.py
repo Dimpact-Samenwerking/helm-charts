@@ -392,9 +392,26 @@ def find_component_row(rows, friendly):
     normalize_name() containment check can't tell apart from a real
     word-level match — update_component_table would otherwise silently
     overwrite that unrelated row's own cells instead of inserting "mi"'s
-    own new row."""
+    own new row.
+
+    A canonical "<key> - <basename>" sidecar/shared-image row (see lib.
+    chart.canonical_sidecar_row_names) legitimately STARTS with its owning
+    dependency's own name as a leading word-aligned span (e.g. "openbao -
+    openbao-csi-provider" starts with "openbao") — that leading-span match
+    must never satisfy a lookup for the dependency's OWN plain-name
+    friendly ("openbao"), same class of collision as the substring case
+    above, or update_component_table silently overwrites the SIDECAR's row
+    with the DEPENDENCY's own values instead of inserting the dependency's
+    own new row (real bug: exactly this, for openbao, when its own row
+    didn't exist yet but its sidecar rows already did — see lib.upgradedoc.
+    match_dependency_excluding_sidecar_names for the same class of
+    collision on the read side). Such a row only matches when `friendly`
+    is an exact whole-name match for it (i.e. friendly IS that same
+    compound name, not just its leading segment)."""
     norm_friendly = normalize_name(friendly)
     for row in rows:
+        if " - " in row["name"] and normalize_name(row["name"]) != norm_friendly:
+            continue
         if norm_friendly in _word_aligned_spans(row["name"]):
             return row
     return None
