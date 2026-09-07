@@ -334,12 +334,37 @@ def test_main_invokes_fix_helm_doc_after_a_real_write(sid, tmp_path, monkeypatch
         sid.main()
 
     assert exc_info.value.code == 0
-    assert len(calls) == 1
+    assert len(calls) == 2
     assert calls[0] == [sid.sys.executable, str(sid.FIX_HELM_DOC_SCRIPT)]
     assert "fix-helm-doc" in capsys.readouterr().out
 
 
-def test_main_dry_run_does_not_invoke_fix_helm_doc(sid, tmp_path, monkeypatch):
+def test_main_invokes_fix_doc_consistency_after_fix_helm_doc(sid, tmp_path, monkeypatch, capsys):
+    """A real digest rewrite also re-pins that same digest in whichever
+    images-<version>.yaml entry mirrors it — fix-doc-consistency repairs
+    that, same reasoning as the fix-helm-doc call right before it (README
+    embeds the same values.yaml digest string, and goes stale the same
+    way)."""
+    values_path = tmp_path / "values.yaml"
+    write_values(values_path, f'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:{"a" * 64}"\n')
+    monkeypatch.setattr(sid, "VALUES_PATH", values_path)
+    monkeypatch.setattr(sid, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{'b' * 64}"))
+    monkeypatch.setattr(sid, "is_sliding_tag", lambda *a, **k: False)
+    monkeypatch.setattr("sys.argv", ["fix-image-digests"])
+    calls = []
+    monkeypatch.setattr(sid, "run_script",
+                         lambda cmd, *a, **k: (calls.append(cmd), subprocess.CompletedProcess(cmd, 0))[1])
+
+    with pytest.raises(SystemExit) as exc_info:
+        sid.main()
+
+    assert exc_info.value.code == 0
+    assert len(calls) == 2
+    assert calls[1] == [sid.sys.executable, str(sid.FIX_DOC_CONSISTENCY_SCRIPT)]
+    assert "fix-doc-consistency" in capsys.readouterr().out
+
+
+def test_main_dry_run_does_not_invoke_fix_helm_doc_or_fix_doc_consistency(sid, tmp_path, monkeypatch):
     values_path = tmp_path / "values.yaml"
     write_values(values_path, f'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:{"a" * 64}"\n')
     monkeypatch.setattr(sid, "VALUES_PATH", values_path)
@@ -355,7 +380,7 @@ def test_main_dry_run_does_not_invoke_fix_helm_doc(sid, tmp_path, monkeypatch):
     assert calls == []
 
 
-def test_main_nothing_stale_does_not_invoke_fix_helm_doc(sid, tmp_path, monkeypatch):
+def test_main_nothing_stale_does_not_invoke_fix_helm_doc_or_fix_doc_consistency(sid, tmp_path, monkeypatch):
     values_path = tmp_path / "values.yaml"
     digest = "a" * 64
     write_values(values_path, f'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:{digest}"\n')
@@ -379,7 +404,32 @@ def test_main_propagates_fix_helm_doc_failure_exit_code(sid, tmp_path, monkeypat
     monkeypatch.setattr(sid, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{'b' * 64}"))
     monkeypatch.setattr(sid, "is_sliding_tag", lambda *a, **k: False)
     monkeypatch.setattr("sys.argv", ["fix-image-digests"])
-    monkeypatch.setattr(sid, "run_script", lambda cmd, *a, **k: subprocess.CompletedProcess(cmd, 1))
+    calls = []
+    monkeypatch.setattr(sid, "run_script",
+                         lambda cmd, *a, **k: (calls.append(cmd), subprocess.CompletedProcess(cmd, 1))[1])
+
+    with pytest.raises(SystemExit) as exc_info:
+        sid.main()
+
+    assert exc_info.value.code == 1
+    # fix-helm-doc's own failure must abort before fix-doc-consistency ever runs.
+    assert len(calls) == 1
+    assert calls[0] == [sid.sys.executable, str(sid.FIX_HELM_DOC_SCRIPT)]
+
+
+def test_main_propagates_fix_doc_consistency_failure_exit_code(sid, tmp_path, monkeypatch):
+    values_path = tmp_path / "values.yaml"
+    write_values(values_path, f'a:\n  image:\n    repository: org/repo\n    tag: "1.0.0@sha256:{"a" * 64}"\n')
+    monkeypatch.setattr(sid, "VALUES_PATH", values_path)
+    monkeypatch.setattr(sid, "registry_tag_exists", lambda host, repo, tag: (True, f"sha256:{'b' * 64}"))
+    monkeypatch.setattr(sid, "is_sliding_tag", lambda *a, **k: False)
+    monkeypatch.setattr("sys.argv", ["fix-image-digests"])
+
+    def fake_run_script(cmd, *a, **k):
+        code = 1 if cmd == [sid.sys.executable, str(sid.FIX_DOC_CONSISTENCY_SCRIPT)] else 0
+        return subprocess.CompletedProcess(cmd, code)
+
+    monkeypatch.setattr(sid, "run_script", fake_run_script)
 
     with pytest.raises(SystemExit) as exc_info:
         sid.main()
