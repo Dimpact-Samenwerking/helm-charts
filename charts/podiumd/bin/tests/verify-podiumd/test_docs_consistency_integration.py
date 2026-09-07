@@ -211,6 +211,68 @@ def test_undocumented_new_component_is_caught_everywhere(vp, chart_repo, capsys)
     assert "openformulieren" in out and 'changed vs 4.8.5 but has no entry' in out
 
 
+def test_component_with_only_a_new_sidecar_of_its_own_is_not_flagged_missing_a_row(vp, tmp_path, capsys):
+    """Regression test: zac gaining a brand-new sidecar of its own
+    (opentelemetry-collector-contrib) with its OWN app+chart both
+    unchanged must NOT be flagged "changed vs baseline but has no
+    row" — that sidecar already needs (and gets, via fix-doc-
+    consistency) its own separate row; a redundant row for zac itself
+    would be noise, so check-doc must not DEMAND one either (see
+    lib.component_docs.resolve_component_own_version_change, shared
+    with fix-doc-consistency's own add_missing_component_rows so the
+    two can never drift on which components actually need a row)."""
+    repo_root = tmp_path
+    chart_dir = repo_root / "charts" / "podiumd"
+    doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
+    images_dir = chart_dir / "docs" / "images"
+    for d in (doc_dir, images_dir):
+        d.mkdir(parents=True)
+
+    git("init", "-q", cwd=repo_root)
+    git("config", "user.email", "test@example.com", cwd=repo_root)
+    git("config", "user.name", "Test", cwd=repo_root)
+
+    (chart_dir / "Chart.yaml").write_text(CHART_YAML)
+    (chart_dir / "values.yaml").write_text(values_yaml("5.4.3"))
+    git("add", "-A", cwd=repo_root)
+    git("commit", "-q", "-m", "baseline", cwd=repo_root)
+    git("tag", "podiumd-4.8.5", cwd=repo_root)
+
+    # zac's own app version is unchanged; it just gains a brand-new sidecar.
+    (chart_dir / "values.yaml").write_text(
+        "zac:\n"
+        "  image:\n"
+        "    repository: ghcr.io/infonl/zaakafhandelcomponent\n"
+        '    tag: "5.4.3@sha256:abc"\n'
+        "  otel:\n"
+        "    image:\n"
+        "      repository: otel/opentelemetry-collector-contrib\n"
+        '      tag: "0.158.0@sha256:def"\n'
+    )
+    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
+        "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n\n"
+        "## Changes\n\n"
+    )
+    (doc_dir / "4.8.5-to-4.9.0-gemeente-specific.md").write_text(GEMEENTE_DOC.format(baseline="4.8.5"))
+    (doc_dir / "4.8.5-to-4.9.0-values-deltas.md").write_text(
+        "# Values deltas — PodiumD 4.8.5 → 4.9.0\n\nNo gemeente `podiumd.yml` changes are required for this hop.\n"
+    )
+    (images_dir / "images-4.9.0.yaml").write_text(
+        "# Baseline: podiumd 4.8.5 (test @ 0000000).\n#\n"
+        "# Images new or changed in podiumd 4.9.0 vs 4.8.5.\n#\n# Zero changes:\n#\n\n[]\n"
+    )
+    git("add", "-A", cwd=repo_root)
+    git("commit", "-q", "-m", "zac gains a brand-new otel sidecar", cwd=repo_root)
+
+    vp.check_docs_consistency(chart_dir, upgrade_docs_baseline="4.8.5")
+
+    out = capsys.readouterr().out
+    assert 'component "zac" changed vs 4.8.5 but has no row' not in out
+
+
 def test_images_manifest_entry_with_no_real_change_is_caught(vp, chart_repo, capsys):
     """The images manifest must list the EXACT set of changed images —
     an entry that doesn't resolve to any real values-tree image at all

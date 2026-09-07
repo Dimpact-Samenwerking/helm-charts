@@ -29,7 +29,8 @@ from lib.component_docs import (
 from lib.upgradedoc import (
     actual_app_version, changes_heading_has_app_version, changes_heading_identities, extract_source_version,
     find_changes_row_correspondence_gaps, find_image_tag_paths, find_preceding_comment_line, normalize_name,
-    parse_upgrade_doc_changes_blocks, parse_upgrade_doc_rows, replace_version_pair, resolve_component_identity,
+    normalize_version, parse_upgrade_doc_changes_blocks, parse_upgrade_doc_rows, replace_version_pair,
+    resolve_component_identity,
 )
 
 
@@ -40,12 +41,38 @@ def make_image_changes_section(basename, target, old_version, new_version, pinne
     lib.image_version.update_image_version's own return value) — listed
     individually rather than assuming one uniform "old" version, since a
     basename's various pins aren't guaranteed to have all started at the
-    exact same one."""
-    lines = [f"### {basename} {old_version} → {new_version}\n\n"]
-    lines.append(f"PodiumD {target} upgrades the shared **{basename}** image to {new_version},\n")
-    lines.append("pinned at:\n\n")
+    exact same one.
+
+    `old_version` (and, independently, each pin's own `path_old_version`)
+    is None when that specific pin never had a prior value to diff
+    against at all (genuinely new — real case: a brand-new shared
+    "redis" cache sidecar aliased into a dozen components at once) —
+    renders "(new)" there instead of a nonsensical "None → <new>".
+    `old_version`/`path_old_version` already equal to `new_version`
+    (already resolved as "unchanged" by the caller — e.g. the images-
+    baseline.yaml fallback matching a digest-only re-pin, or a
+    genuinely new path pinned to an already-known image) renders
+    "(unchanged)" instead of an equally nonsensical "<version> →
+    <version>" self-transition — same reasoning throughout: this doc is
+    about version changes, and there isn't one to report in either
+    case."""
+    if old_version is None:
+        heading_suffix = f"{new_version} (new)"
+        intro = f"PodiumD {target} introduces the shared **{basename}** image at {new_version},\n"
+    elif normalize_version(old_version) == normalize_version(new_version):
+        heading_suffix = f"{new_version} (unchanged)"
+        intro = f"PodiumD {target} keeps the shared **{basename}** image at {new_version},\n"
+    else:
+        heading_suffix = f"{old_version} → {new_version}"
+        intro = f"PodiumD {target} upgrades the shared **{basename}** image to {new_version},\n"
+    lines = [f"### {basename} {heading_suffix}\n\n", intro, "pinned at:\n\n"]
     for path, path_old_version in pinned:
-        lines.append(f"- `{path}` `{path_old_version}` → `{new_version}`\n")
+        if path_old_version is None:
+            lines.append(f"- `{path}` `{new_version}` (new)\n")
+        elif normalize_version(path_old_version) == normalize_version(new_version):
+            lines.append(f"- `{path}` `{new_version}` (unchanged)\n")
+        else:
+            lines.append(f"- `{path}` `{path_old_version}` → `{new_version}`\n")
     lines.append(f"\n- Image / digest: see [`images-{target}.yaml`](../images/images-{target}.yaml).\n\n")
     return "".join(lines)
 
@@ -123,8 +150,7 @@ def add_missing_sidecar_rows(text, chart_dir, deps, target_values, baseline_valu
 
         text, _ = remove_changes_section(text, name)
         dotted_path = ".".join(path) + ".tag"
-        section = make_image_changes_section(name, target, old_app or new_app, new_app,
-                                              [(dotted_path, old_app or new_app)])
+        section = make_image_changes_section(name, target, old_app, new_app, [(dotted_path, old_app)])
         text = insert_changes_section(text, section, name, deps, target_values, canonical_names)
         added_names.append(name)
 

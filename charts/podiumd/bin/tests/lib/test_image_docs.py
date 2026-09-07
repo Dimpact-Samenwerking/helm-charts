@@ -139,6 +139,34 @@ def test_make_image_changes_section_per_path_old_version_differs(libimagedocs):
     assert "- `b.image.tag` `8.20.0` → `8.21.0`" in section
 
 
+def test_make_image_changes_section_old_version_none_renders_new(libimagedocs):
+    """Regression test: old_version is None when this image never had a
+    prior pin at all (genuinely new — real case: a brand-new shared
+    "redis" cache sidecar aliased into a dozen components at once) —
+    must render "(new)", not a nonsensical "None → 8.0"."""
+    pinned = [("global.images.redis.tag", None)]
+    section = libimagedocs.make_image_changes_section("redis", "4.9.1", None, "8.0", pinned)
+    assert section.startswith("### redis 8.0 (new)")
+    assert "None" not in section
+    assert "→" not in section.split("\n\n")[0]
+    assert "- `global.images.redis.tag` `8.0` (new)" in section
+    assert "introduces the shared **redis** image" in section
+
+
+def test_make_image_changes_section_old_equals_new_renders_unchanged(libimagedocs):
+    """Regression test: old_version already resolved equal to new_version
+    (e.g. the images-baseline.yaml fallback matching a digest-only
+    re-pin, or a genuinely new path pinned to an already-known image)
+    must render "(unchanged)", not a nonsensical "8.0 → 8.0"
+    self-transition."""
+    pinned = [("global.images.redis.tag", "8.0")]
+    section = libimagedocs.make_image_changes_section("redis", "4.9.1", "8.0", "8.0", pinned)
+    assert section.startswith("### redis 8.0 (unchanged)")
+    assert "8.0 → 8.0" not in section
+    assert "- `global.images.redis.tag` `8.0` (unchanged)" in section
+    assert "keeps the shared **redis** image" in section
+
+
 # --- update_image_manifest ---
 
 def write_manifest(path, text):
