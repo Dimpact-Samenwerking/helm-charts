@@ -53,7 +53,7 @@ Each CronJob:
    Both refs are mounted `optional: true`: a component that exposes credentials in none of these shapes (e.g. not deployed in this env) is treated as **not using PostgreSQL** — the job logs `skip: … no DB_* credentials` and exits green instead of hanging in `CreateContainerConfigError`. A *partial* credential set still fails the job (real misconfiguration).
 2. Reads the env's transfer connection envvars from `Secret/mi-export-transfer` (the `SFTP_*` family in the sftp modes, the `FTP_*` family in ftp mode) and — in sftp-key mode — the SSH private key from `Secret/mi-export-transfer-key`. Both rendered by the chart from `mi.transfer.*` values.
 3. Runs `dump.sh` in the chart's `mi-export-scripts` ConfigMap, accumulating per-table CSVs (or a single `pg_dump -Fc` file) under `/tmp` (a 20 GiB `emptyDir` scratch volume).
-4. Uploads the result to `<REMOTE_PATH>/<gemeente>/<YYMMDD>/<component>/<HHMMSS>-<component>.<ext>` — over `sftp -b -` in the sftp modes (host-key checking intentionally **disabled**, see [§ Host-key policy](#host-key-policy)), or via `curl` in ftp mode (`--ftp-create-dirs`; `--ssl-reqd` when `mi.transfer.ftps: true`).
+4. Uploads the result to `<REMOTE_PATH>/<gemeente>/<YYMMDD>/<component>/<HHMMSS>-<component>.<ext>` — over `sftp -b -` in the sftp modes (host-key checking intentionally **disabled**, see [§ Host-key policy](#host-key-policy)), or via `curl` in ftp mode (`--ftp-create-dirs`; `--ssl-reqd` when `mi.transfer.ftps: true`; `--no-epsv` when `mi.transfer.noEpsv: true`).
 5. The scratch volume and the pod are torn down at job end (`ttlSecondsAfterFinished: 86400`); nothing in `/tmp` is preserved.
 
 ## Transfer modes
@@ -64,7 +64,7 @@ Selected via `mi.transfer.mode` — exactly one per environment; the render fail
 |---|---|---|---|
 | `sftp-password` | SFTP (SSH) | `mi.transfer.password` | E.g. Azure Blob SFTP local users. Fed to `sftp` via an `SSH_ASKPASS` helper (on Azure Linux `sshpass` would drag in `openssh-server`, whose install fails in the azure-cli image). |
 | `sftp-key` | SFTP (SSH) | `mi.transfer.privateKey` | The *public* half must be installed in the SFTP user's `authorized_keys`. Key mounted at `/etc/sftp/id`, mode 0400. |
-| `ftp` | FTP, optionally FTPS | `mi.transfer.password` | Uploaded via `curl`. **Plain FTP transmits credentials and data cleartext on the wire — set `mi.transfer.ftps: true` (explicit TLS, `curl --ssl-reqd`) whenever the server supports it.** |
+| `ftp` | FTP, optionally FTPS | `mi.transfer.password` | Uploaded via `curl`. **Plain FTP transmits credentials and data cleartext on the wire — set `mi.transfer.ftps: true` (explicit TLS, `curl --ssl-reqd`) whenever the server supports it.** Set `mi.transfer.noEpsv: true` (`curl --no-epsv`) if the server or the path to it can't handle EPSV (RFC 2428) — e.g. some NAT/firewalls hang or reset the data connection otherwise. |
 
 > **FTP path semantics:** an FTP URL path is relative to the login home directory (RFC 1738), unlike SFTP where `remotePath` is absolute. On servers whose FTP home is not `/`, use a double leading slash to force an absolute path: `remotePath: "//uploads/mi-exports"`.
 
@@ -124,7 +124,7 @@ The chart renders the transfer Secrets itself from `mi.transfer.*` values — yo
 No `known_hosts` is needed — host-key checking is disabled in the sftp modes (see [§ Host-key policy](#host-key-policy)).
 
 From those values the chart renders, in the `podiumd` namespace:
-- `Secret/mi-export-transfer` — the `SFTP_*` connection envvars in the sftp modes, or the `FTP_*` family (`FTP_HOST/PORT/USER/PASSWORD/REMOTE_PATH/FTP_FTPS`) in ftp mode. The unused family is rendered with empty values so a mode switch never leaves stale keys behind.
+- `Secret/mi-export-transfer` — the `SFTP_*` connection envvars in the sftp modes, or the `FTP_*` family (`FTP_HOST/PORT/USER/PASSWORD/REMOTE_PATH/FTP_FTPS/FTP_NO_EPSV`) in ftp mode. The unused family is rendered with empty values so a mode switch never leaves stale keys behind.
 - `Secret/mi-export-transfer-key` — single key `id` (the SSH private key, PEM). sftp-key mode only.
 
 ### 2. Enable in `values-<env>.yml`
@@ -170,6 +170,7 @@ mi:
     remotePath: /mi-exports       # relative to the FTP login home; "//abs/path" forces absolute
     password: "REP_MI_DATA_SFTP_CREDENTIAL_REP"  # pipeline substitutes from KV
     ftps: true                    # explicit TLS (AUTH TLS); omit/false = plain FTP (cleartext!)
+    noEpsv: false                 # true → curl --no-epsv, for servers/paths that mishandle EPSV
 ```
 
 Defaults: weekly schedule (Sunday 02:00 Europe/Amsterdam), `csv` format, all 14 default targets. A target whose component is not deployed in the env runs as a weekly no-op (the job logs `skip: …` and exits 0) — trim `mi.targets` per environment to avoid the no-op runs entirely.
@@ -207,6 +208,7 @@ mi:
     password: ""                      # sftp-password + ftp modes
     privateKey: ""                    # sftp-key mode
     ftps: false                       # ftp mode: explicit TLS
+    noEpsv: false                     # ftp mode: force PASV instead of EPSV
     secretName: mi-export-transfer        # chart-rendered Secret: connection envvars
     keySecretName: mi-export-transfer-key # chart-rendered Secret: `id` (sftp-key mode only)
 ```
@@ -277,7 +279,7 @@ A successful pgdump run logs:
 [ts] done: pg_dump uploaded to <env>/260507/openzaak/095048-openzaak.pgdump
 ```
 
-(ftp mode logs `uploading … to ftp://miuser@ftp.example.com:21 (ftps=true)` instead.)
+(ftp mode logs `uploading … to ftp://miuser@ftp.example.com:21 (ftps=true, no_epsv=false)` instead.)
 
 ## Deployment
 
@@ -290,7 +292,7 @@ How the credential flows in (same path for every mode — only the values field 
 3. The env values file carries the placeholder `"REP_MI_DATA_SFTP_CREDENTIAL_REP"` in `mi.transfer.privateKey` (sftp-key mode) or `mi.transfer.password` (sftp-password / ftp mode); the pipeline substitutes the KV value at deploy time (so the credential never lands in git).
 4. `helm upgrade` renders `Secret/mi-export-transfer` (+ `Secret/mi-export-transfer-key` in sftp-key mode) from the values, and the CronJobs consume them.
 
-The connection params (`mode`, `host`, `port`, `user`, `remotePath`, `ftps`) live directly in the env values file. The server itself (with the gemeente's public key in `authorized_keys` for sftp-key mode) is the only out-of-band prerequisite.
+The connection params (`mode`, `host`, `port`, `user`, `remotePath`, `ftps`, `noEpsv`) live directly in the env values file. The server itself (with the gemeente's public key in `authorized_keys` for sftp-key mode) is the only out-of-band prerequisite.
 
 ### What is *not* needed
 
@@ -348,6 +350,7 @@ This iteration ships **without** alerting. The CronJob's standard Job/Pod failur
 | ftp upload fails with `curl: (9) Server denied you to change to the given directory` | `remotePath` doesn't resolve under the FTP login home — FTP URL paths are home-relative | Use a path relative to the login home, or force absolute with a double leading slash (`remotePath: "//uploads/mi-exports"`). |
 | ftp upload fails with `curl: (64) Requested SSL level failed` (or a TLS handshake error) | `ftps: true` but the server doesn't support explicit TLS (AUTH TLS), or presents an invalid certificate | Fix the server's TLS support/cert, or (trusted networks only) set `ftps: false` — plain FTP transmits credentials cleartext. |
 | ftp upload fails with `curl: (67) Access denied` / login failure | Wrong `mi.transfer.user`/password for the FTP account | Verify the FTP account credentials; check the KV secret `mi-data-sftp-credential` holds the FTP password for this env. |
+| ftp upload hangs or fails with `curl: (28) Connection timed out` / `curl: (12) recv() failed` opening the data connection | Server or NAT/firewall on the path can't handle EPSV (RFC 2428) — the control connection succeeds but the PASV/EPSV data channel doesn't | Set `mi.transfer.noEpsv: true` (`curl --no-epsv`) to force classic PASV. |
 | Job pod fails with `Permissions 0644 for '…' are too open` | Private key Secret's `defaultMode` not 0400 | The chart sets `defaultMode: 0400` on the `sftp-key` volume; if you see this, something replaced the projected volume or a hostPath override is in play. |
 | Job pod fails with `Couldn't get statSet for "/uploads/…": …: Permission denied` | SFTP user's home or remotePath isn't writable by the user | Fix the server-side perms on `remotePath`. The script probes and creates ancestor directories from `/` down, so any ancestor that the user can't enter blocks the upload. |
 | Job pod fails with `password authentication failed for user "<component>"` | The component's K8s Secret has a stale DB password (env was rebuilt but Secret wasn't refreshed) | Re-run the deploy pipeline's "Create PostgreSQL Databases and Users" step; or `kubectl delete secret/<component> -n podiumd` and let the chart recreate it. |
@@ -361,5 +364,6 @@ This iteration ships **without** alerting. The CronJob's standard Job/Pod failur
 - **Iter1 (podiumd chart 4.7.3)** — initial release: weekly per-component CronJobs, `csv` (`;`-separated) / `pgdump` env-wide knob, structured remote-path layout, SFTP egress with a KV-stored keypair (chart-rendered Secrets, host-key checking disabled), 20 GiB ephemeral scratch.
 - **podiumd chart 4.8.1** — password auth added: `mi.sftp.password` (XOR with `privateKey`), rendered as `SFTP_PASSWORD` in the connection Secret and fed to `sftp` via an `SSH_ASKPASS` helper; supports e.g. Azure Blob SFTP local users.
 - **mi-data chart 1.0.0** ([IN-2499](https://dimpact.atlassian.net/browse/IN-2499)) — extracted from the podiumd chart into the standalone `mi-data` chart (podiumd consumes it under alias `mi` from 4.8.3). Unified `mi.transfer` section with explicit `mode: sftp-password | sftp-key | ftp` replaces `mi.sftp.*` (breaking; see the podiumd 4.8.2→4.8.3 upgrade notes). New ftp mode via curl with optional FTPS (`ftps: true`). Secrets renamed `mi-export-transfer` / `mi-export-transfer-key`. Per-target rendering no longer reads the umbrella chart's `<component>.enabled` flags — undeployed components run as no-op skips; trim `mi.targets` to remove them.
+- **mi-data chart 1.1.0** ([IN-2812](https://dimpact.atlassian.net/browse/IN-2812)) — ftp mode: new `mi.transfer.noEpsv` (default `false`) adds `curl --no-epsv`, forcing classic PASV for the data connection — for servers/NAT paths that mishandle EPSV (RFC 2428).
 - **Iter2** *(not started)* — Keycloak-fronted web portal so consumers can browse/download without an SSH key.
 - **Iter3** ([IN-1993](https://dimpact.atlassian.net/browse/IN-1993)) — baked image (drop runtime `tdnf install`); Prometheus alerts on missed/failed runs; per-table allow/deny lists.

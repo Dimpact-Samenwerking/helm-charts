@@ -19,7 +19,7 @@ dependencies:
     condition: brppersonenmock.enabled
     alias: brppersonenmock
   - name: mi-data
-    version: 1.0.0
+    version: 1.1.0
     repository: "file://../mi-data"
     condition: mi.enabled
     alias: mi
