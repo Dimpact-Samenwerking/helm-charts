@@ -104,7 +104,7 @@ from lib.upgradedoc import (
     match_changes_item_display_name,
     match_dependency_excluding_sidecar_names, missing_key_change_lines, normalize_version, parse_upgrade_doc_rows,
     path_display_name, replace_version_pair, resolve_component_row, resolve_entry_image_path, sort_changes_blocks,
-    sort_images_manifest_entries, sort_upgrade_doc_rows, values_key_order,
+    sort_images_manifest_entries, sort_upgrade_doc_rows, sort_values_delta_bullets, values_key_order,
 )
 
 CHART_YAML = SCRIPT_DIR.parents[0] / "Chart.yaml"
@@ -1237,6 +1237,14 @@ def main():
                 print(f"=== Adding missing key-change mentions to {values_deltas_path.name} ===")
                 for line in new_lines:
                     print(f"  {line.rstrip()}")
+
+            text, moved_bullets = sort_values_delta_bullets(text, target_deps, target_values)
+            if moved_bullets:
+                write_needed = True
+                print()
+                print(f"=== Reordering {values_deltas_path.name} to match values.yaml's component order ===")
+                for first_line, old_pos, new_pos in moved_bullets:
+                    print(f"  '{first_line}': position {old_pos} -> {new_pos}")
 
             if write_needed:
                 values_deltas_path.write_text(text, encoding="utf-8")

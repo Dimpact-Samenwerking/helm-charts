@@ -250,6 +250,150 @@ def sort_changes_blocks(text, deps, values, canonical_names=None):
     return prefix + "".join(new_texts) + suffix, moved
 
 
+VALUES_DELTA_KEY_CHANGE_RE = re.compile(r"^- Key `([^`]+)`")
+VALUES_DELTA_VERSION_BULLET_RE = re.compile(r"^- \*\*([^*]+)\*\*")
+
+
+def _values_delta_bullet_order_key(line, deps, key_order):
+    """The values.yaml top-level key `line` (a single values-deltas.md
+    bullet, no trailing newline) belongs to, or None if it isn't one of
+    the two shapes values_delta_bullet/describe_key_changes themselves
+    ever write — see sort_values_delta_bullets, the one caller. A
+    "- Key `<dotted>` ..." bullet's own leading dotted segment already
+    IS the real values_key, no fuzzy resolution needed at all — unlike
+    a "- **<name>** app ..." version bullet, which needs match_
+    dependency/match_native_component the same way component_order_key
+    does for -upgrade.md's own rows."""
+    m = VALUES_DELTA_KEY_CHANGE_RE.match(line)
+    if m:
+        values_key = m.group(1).split(".", 1)[0]
+    else:
+        m = VALUES_DELTA_VERSION_BULLET_RE.match(line)
+        if not m:
+            return None
+        dep = match_dependency(m.group(1), deps)
+        values_key = dep.get("alias", dep["name"]) if dep else None
+        if values_key is None:
+            values_key = match_native_component(m.group(1), NATIVE_COMPONENTS)
+    if values_key is None:
+        return len(key_order)
+    try:
+        return key_order.index(values_key)
+    except ValueError:
+        return len(key_order)
+
+
+def _values_delta_bullet_chunks(lines, deps, key_order):
+    """[(start, end, key), ...] (0-based, end exclusive, relative to
+    `lines`) — each chunk is a maximal run of CONSECUTIVE non-blank
+    lines that all resolve to the SAME component (see
+    _values_delta_bullet_order_key): either a blank line OR a change in
+    resolved key starts a new chunk. The key-change split matters on
+    its own, not just the blank-line one — a real case in the actual
+    doc: an earlier fix-doc-consistency run backfilled several
+    UNRELATED components' key-change bullets back-to-back with no blank
+    line between them (kiss/kiss-eck/openbao/openformulieren/
+    openinwoner/opennotificaties/redis-operator, all in one run). Without
+    splitting on the key change too, that whole 16-line run would move
+    as one atomic block wherever its own FIRST line's component sorts
+    to, dragging six unrelated components' bullets along with it
+    instead of each sorting to its own real position.
+
+    Each chunk's own `end` is its own last non-blank line + 1 — NOT
+    extended through any following blank line(s) the way parse_
+    upgrade_doc_changes_blocks' own "### ..." blocks are: sort_values_
+    delta_bullets rejoins reordered chunks with a normalized single
+    blank line of its own instead, so an original chunk's own (highly
+    variable — anywhere from zero, for whatever happened to be the very
+    last chunk in the file, to several) amount of trailing blank-line
+    filler never travels with it into a new, generally different,
+    neighboring context."""
+    chunks = []
+    start = key = None
+    for i, line in enumerate(lines):
+        stripped = line.rstrip("\n")
+        if not stripped.strip():
+            if start is not None:
+                chunks.append((start, i, key))
+                start = None
+            continue
+        line_key = _values_delta_bullet_order_key(stripped, deps, key_order)
+        if start is not None and line_key == key:
+            continue
+        if start is not None:
+            chunks.append((start, i, key))
+        start, key = i, line_key
+    if start is not None:
+        chunks.append((start, len(lines), key))
+    return chunks
+
+
+def sort_values_delta_bullets(text, deps, values):
+    """Reorder the TRAILING run of auto-generated "- **<name>** app ..."/
+    "- Key `<dotted>` was ..." bullets (see values_delta_bullet/
+    describe_key_changes — the only two shapes this recognizes) to
+    match values.yaml's own top-level component order — the same
+    convention sort_upgrade_doc_rows/sort_changes_blocks apply to
+    -upgrade.md's own rows/Changes sections, and sort_images_manifest_
+    entries applies to images-<target>.yaml's own entries.
+
+    Scoped to the maximal TRAILING block of only blank lines and
+    matching bullet lines, found by scanning backward from the end of
+    the document — the first non-blank, non-matching line (a heading,
+    or hand-written prose, e.g. a "## ZAC ..." section mixing the same
+    bullet shape with extra hand-added prose after it) stops the scan
+    and is never touched, nor is anything above it. This never reorders
+    or otherwise touches hand-written content — only the tail of
+    purely mechanically-appended bullets add_missing_values_delta_
+    bullets/missing_key_change_lines/append_to_doc themselves ever
+    produce, which is always the last thing in the file (append_to_doc
+    only ever appends at the true end).
+
+    Bullets are grouped into chunks (see _values_delta_bullet_chunks)
+    and a chunk is moved as one atomic unit (never further split/
+    merged), keyed by its own component. A chunk whose component can't
+    be resolved sorts last, never dragged around by one that can.
+    Returns (new_text, moved) where moved is [(first_line, old_position,
+    new_position)] (1-based, among just the chunks in scope) for every
+    chunk that actually moved — empty (text unchanged) if already in
+    order, or fewer than 2 chunks are in scope at all."""
+    lines = text.splitlines(keepends=True)
+    key_order = values_key_order(values)
+
+    region_start = len(lines)
+    for i in range(len(lines) - 1, -1, -1):
+        stripped = lines[i].rstrip("\n")
+        if not stripped.strip():
+            region_start = i
+            continue
+        if _values_delta_bullet_order_key(stripped, deps, key_order) is None:
+            break
+        region_start = i
+
+    chunks = [(region_start + s, region_start + e, key)
+              for s, e, key in _values_delta_bullet_chunks(lines[region_start:], deps, key_order)]
+    if len(chunks) < 2:
+        return text, []
+
+    order = sorted(range(len(chunks)), key=lambda i: chunks[i][2])
+    first_lines = [lines[s].rstrip("\n") for s, _, _ in chunks]
+    moved = [(first_lines[i], i + 1, slot + 1) for slot, i in enumerate(order) if i != slot]
+    if not moved:
+        return text, []
+
+    original_texts = ["".join(lines[s:e]) for s, e, _ in chunks]
+    new_texts = [original_texts[i] for i in order]
+    first_start, last_end = chunks[0][0], chunks[-1][1]
+    prefix = "".join(lines[:first_start])
+    suffix = "".join(lines[last_end:])
+    # A normalized single blank line between every reordered chunk —
+    # never each chunk's own original trailing blank-line count (see
+    # _values_delta_bullet_chunks' own docstring for why: the very last
+    # chunk in the file, in particular, always originally had none at
+    # all, since there's nothing after it to separate from).
+    return prefix + "\n".join(new_texts) + suffix, moved
+
+
 COMPONENT_VERSIONS_HEADING_RE = re.compile(r"^##\s+Component versions\b")
 
 
