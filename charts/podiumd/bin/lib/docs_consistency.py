@@ -12,7 +12,7 @@ import yaml
 
 from lib.chart import (
     canonical_sidecar_row_names, global_image_paths, load_images_baseline, load_yaml, paths_by_repository,
-    repo_group_representative, version_of,
+    repo_group_representative, resolved_digest_pin, version_of,
 )
 from lib.component_docs import (
     CHANGES_HEADER_RE, CHANGES_ITEM_RE, find_images_manifest_changes_header, find_images_manifest_changes_items,
@@ -1149,7 +1149,7 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
                 )
                 continue
             expected_tag = f'{version}@{digest}'
-            actual_tag = current_paths[path]
+            actual_tag = resolved_digest_pin(values, path, current_paths[path]) or current_paths[path]
             if actual_tag != expected_tag:
                 mismatches.append(
                     f'{name}: values.yaml tag is "{actual_tag}", '
