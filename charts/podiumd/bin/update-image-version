@@ -78,7 +78,7 @@ from lib.component_docs import (
     remove_values_delta_section, update_component_table, update_images_manifest, values_delta_section_heading,
 )
 from lib.image_docs import (
-    image_delta_section_heading, make_image_changes_section, remove_image_manifest_entry,
+    make_image_changes_section, remove_image_manifest_entry,
     resolve_basename_baseline_version, update_image_manifest,
 )
 from lib.image_version import update_image_version
@@ -233,24 +233,37 @@ def update_docs_single_component(new_version, target, deps, values, dep, values_
                                      if isinstance(baseline_values_at_release, dict) else {})
                 current_subtree = values.get(values_key, {}) if isinstance(values, dict) else {}
                 key_lines = describe_key_changes(values_key, baseline_subtree, current_subtree)
-            no_changes_claimed = bool(NO_CHANGES_CLAIMED_RE.search(text))
-            heading_line = values_delta_section_heading(friendly, old_app, new_version, chart_version_str,
-                                                          chart_version_str, bool(key_lines))
-            text = insert_values_delta_section(text, friendly, heading_line, key_lines, deps, values,
-                                                canonical_names)
-            values_deltas_path.write_text(text, encoding="utf-8")
-            print()
-            print(f"=== Updating {values_deltas_path.name} ===")
-            print(f"  '{heading_line.rstrip()}'")
-            for line in key_lines:
-                print(f"  {line.rstrip()}")
+
+            # A pure image-tag bump with no values-schema change needs no
+            # section here at all — see sync_values_delta_sections' own
+            # docstring for why a heading with nothing under it is worse
+            # than no heading.
+            if key_lines:
+                no_changes_claimed = bool(NO_CHANGES_CLAIMED_RE.search(text))
+                heading_line = values_delta_section_heading(friendly, old_app, new_version, chart_version_str,
+                                                              chart_version_str)
+                text = insert_values_delta_section(text, friendly, heading_line, key_lines, deps, values,
+                                                    canonical_names)
+                values_deltas_path.write_text(text, encoding="utf-8")
+                print()
+                print(f"=== Updating {values_deltas_path.name} ===")
+                print(f"  '{heading_line.rstrip()}'")
+                for line in key_lines:
+                    print(f"  {line.rstrip()}")
+                if no_changes_claimed:
+                    print("  note: doc claims 'no gemeente podiumd.yml changes are required' — that's about "
+                          "gemeente ACTION, not about whether anything changed, so it may still hold; "
+                          "double-check it's still true now that this bullet's been added")
+            elif section_removed:
+                values_deltas_path.write_text(text, encoding="utf-8")
+                print()
+                print(f"=== Updating {values_deltas_path.name} ===")
+                print(f"  removed stale section for {friendly} — no values-schema change to document for "
+                      f"this bump")
             if no_baseline_ref:
+                print()
                 print(f"  note: could not resolve upgrade_docs_baseline {upgrade_docs_baseline} to a git ref — skipping "
                       f"added/removed/renamed key detection for values-deltas.md")
-            if no_changes_claimed:
-                print("  note: doc claims 'no gemeente podiumd.yml changes are required' — that's about "
-                      "gemeente ACTION, not about whether anything changed, so it may still hold; "
-                      "double-check it's still true now that this bullet's been added")
     elif upgrade_path is not None:
         print()
         print(f"No values-deltas.md found for upgrade_docs_baseline {upgrade_docs_baseline} — skipping that update.")
@@ -363,6 +376,13 @@ def update_docs_shared_image(basename, new_version, changes, pinned, target, dep
             print(f"  (re)wrote '### {basename} ...' Changes section")
 
     if values_deltas_path is not None:
+        # A shared image's own basename bump never touches any values.yaml
+        # SCHEMA — there's no per-component subtree to diff, unlike a real
+        # dependency's own key (see lib.component_docs.sync_values_delta_
+        # sections' own docstring for why a version-only change needs no
+        # values-deltas.md section at all) — so this only ever removes a
+        # stale section left over from an earlier bump within this same
+        # release cycle, never creates a new one.
         text = values_deltas_path.read_text(encoding="utf-8")
         text, section_removed = remove_values_delta_section(text, basename, deps, canonical_names)
         if reset_to_baseline:
@@ -371,18 +391,12 @@ def update_docs_shared_image(basename, new_version, changes, pinned, target, dep
             print(f"=== Updating {values_deltas_path.name} ===")
             print(f"  {basename} is back at its upgrade_docs_baseline {upgrade_docs_baseline} version — "
                   f"{'removed its section' if section_removed else 'nothing to remove'}")
-        else:
-            no_changes_claimed = bool(NO_CHANGES_CLAIMED_RE.search(text))
-            heading_line = image_delta_section_heading(basename, old_version, new_version, len(pinned), False)
-            text = insert_values_delta_section(text, basename, heading_line, [], deps, values, canonical_names)
+        elif section_removed:
             values_deltas_path.write_text(text, encoding="utf-8")
             print()
             print(f"=== Updating {values_deltas_path.name} ===")
-            print(f"  '{heading_line.rstrip()}'")
-            if no_changes_claimed:
-                print("  note: doc claims 'no gemeente podiumd.yml changes are required' — that's about "
-                      "gemeente ACTION, not about whether anything changed, so it may still hold; "
-                      "double-check it's still true now that this bullet's been added")
+            print(f"  removed stale section for {basename} — no values-schema change to document for "
+                  f"this bump")
     elif upgrade_path is not None:
         print()
         print(f"No values-deltas.md found for upgrade_docs_baseline {upgrade_docs_baseline} — skipping that update.")

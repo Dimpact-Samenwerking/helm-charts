@@ -147,7 +147,8 @@ def test_values_deltas_content_flags_no_section_at_all(libdocsconsistency, tmp_p
     baseline = {"zac": {"brpApi": {}}}
     current = {"zac": {"brpApi": {"logLevel": "OFF"}}}
     issues = libdocsconsistency.check_values_deltas_content(doc, {"zac"}, baseline, current, DEPS)
-    assert any('component "zac" changed' in i and "no \"## ...\" section" in i for i in issues)
+    assert any('component "zac" has a values.yaml schema change' in i and "no \"## ...\" section" in i
+               for i in issues)
 
 
 def test_values_deltas_content_flags_unmentioned_addition(libdocsconsistency, tmp_path):

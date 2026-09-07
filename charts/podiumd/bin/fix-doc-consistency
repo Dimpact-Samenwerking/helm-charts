@@ -90,7 +90,7 @@ from lib.component_docs import (
     CHANGES_HEADER_RE, CHANGES_ITEM_RE, IMAGES_STUB_TEMPLATE, NUMBER_WORDS, STANDARD_SUFFIXES, STUB_TEMPLATES,
     add_missing_component_rows, existing_doc_baselines,
     find_images_manifest_changes_header, images_manifest_order_key, insert_images_manifest_header_item,
-    sync_values_delta_sections,
+    prune_empty_values_delta_sections, sync_values_delta_sections,
 )
 from lib.docs_consistency import match_changes_item_to_entry
 from lib.gitutil import baseline_ref_candidates, find_repo_root, git_show_yaml, resolve_git_ref
@@ -1242,6 +1242,14 @@ def main():
                     print(f"=== Adding missing key-change mention(s) to {values_deltas_path.name} ===")
                     for name in updated_names:
                         print(f"  {name}")
+
+            text, pruned_headings = prune_empty_values_delta_sections(text)
+            if pruned_headings:
+                write_needed = True
+                print()
+                print(f"=== Removing empty section(s) from {values_deltas_path.name} ===")
+                for heading in pruned_headings:
+                    print(f"  '## {heading}'")
 
             text, moved_sections = sort_values_delta_sections(
                 text, target_deps, target_values, values_delta_canonical_names)

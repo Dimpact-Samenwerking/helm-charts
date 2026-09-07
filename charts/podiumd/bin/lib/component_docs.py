@@ -622,13 +622,13 @@ def add_missing_component_rows(text, chart_dir, target_deps, target_values, base
     return text, added_names
 
 
-def values_delta_section_heading(friendly, old_app, new_app, old_chart, new_chart, has_body_lines):
+def values_delta_section_heading(friendly, old_app, new_app, old_chart, new_chart):
     """The "## <friendly> ..." heading for this component's own values-
-    deltas.md section — carries the SAME app/chart-transition info a
-    flat "- **<friendly>** app ..." bullet used to restate on its own
-    first line: once the heading itself already says it, repeating it
-    as the section's first bullet is pure noise (that's the whole point
-    of giving each component its own section instead of a shared flat
+    deltas.md section — carries the app/chart-transition info a flat
+    "- **<friendly>** app ..." bullet used to restate on its own first
+    line: once the heading itself already says it, repeating it as the
+    section's first bullet is pure noise (that's the whole point of
+    giving each component its own section instead of a shared flat
     list). `new_chart == "-"` means a NATIVE_COMPONENTS component (see
     lib.chart.NATIVE_COMPONENTS) with no Chart.yaml dependency/chart
     version at all — the "(chart ...)" clause is dropped entirely rather
@@ -637,16 +637,15 @@ def values_delta_section_heading(friendly, old_app, new_app, old_chart, new_char
     e.g. a component added since then) — treated as "unchanged against
     the new value" rather than a literal "None → ...".
 
-    A trailing "— <note>" explaining why this heading is the ENTIRE
-    story (nothing else changed besides the image tag/chart version) is
-    included only when `has_body_lines` is false — the moment there IS
-    a "- Key `...`" line below it, that note stops being true and is
-    dropped. `new_app is None` (actual_app_version couldn't resolve
+    Only ever called (see sync_values_delta_sections) when there's a
+    real "- Key `...`" line to put under this heading — a section with
+    nothing else to say needs no section at all, so there's no "— <note>
+    explaining why nothing else changed" suffix here the way an earlier
+    design had. `new_app is None` (actual_app_version couldn't resolve
     anything — see that function's own docstring) falls back to a
-    chart-only heading with an unconditional TODO note instead, since
-    that note isn't about "nothing else changed" but about a real
-    tooling gap (the app version itself is unknown) that stays true
-    regardless of body content."""
+    chart-only heading with its own unconditional TODO note instead,
+    since that one isn't about "nothing else changed" but about a real
+    tooling gap (the app version itself is unknown)."""
     if new_app is None:
         if new_chart == "-":
             return (f"## {friendly} — TODO: describe this component's changes; its app version "
@@ -661,14 +660,11 @@ def values_delta_section_heading(friendly, old_app, new_app, old_chart, new_char
     app_bit = f"{old_app or new_app} → {new_app}" if app_changed else f"{new_app} (unchanged)"
     if new_chart == "-":
         chart_bit = ""
-        note = "image tag only (no separate Helm chart for this component)"
     else:
         chart_changed = normalize_version(old_chart or new_chart) != normalize_version(new_chart)
         chart_bit = f" (chart {old_chart or new_chart} → {new_chart})" if chart_changed \
             else f" (chart {new_chart}, unchanged)"
-        note = "image tag only" if not chart_changed else "chart + image tag"
-    suffix = "" if has_body_lines else f" — {note}"
-    return f"## {friendly} {app_bit}{chart_bit}{suffix}\n"
+    return f"## {friendly} {app_bit}{chart_bit}\n"
 
 
 def find_values_delta_section(text, friendly, deps, canonical_names=None):
@@ -781,17 +777,28 @@ def sync_values_delta_sections(text, chart_dir, target_deps, target_values, base
     NATIVE_COMPONENTS entry either is skipped when it needs a brand-new
     section — nothing here can be generated confidently without a real
     Chart.yaml version to read, or the chart-less convention to fall
-    back to (same skip add_missing_component_rows already applies).
+    back to (same skip add_missing_component_rows already applies). A
+    key with NO key_lines of its own (a pure app/chart version bump,
+    already fully covered by -upgrade.md's own table + Changes section)
+    never gets a brand-new section either — values-deltas.md exists to
+    tell gemeentes what THEIR OWN podiumd.yml needs to react to, and a
+    version-only bump needs no gemeente action at all; a heading with
+    nothing under it is worse than no heading. An EXISTING section
+    (hand-written, or a previous run's own) is still left exactly as it
+    already was in that case — this only ever decides whether a NEW one
+    gets created, never touches one that's already there.
     Returns (new_text, created_names, updated_names)."""
     by_key = missing_key_change_lines_by_key(text, actual_changed_keys, baseline_values, target_values)
     created_names, updated_names = [], []
     for key in sorted(actual_changed_keys):
-        section = find_values_delta_section(text, key, target_deps, canonical_names)
         key_lines = by_key.get(key, [])
+        section = find_values_delta_section(text, key, target_deps, canonical_names)
         if section is not None:
             if key_lines:
                 text = append_values_delta_section_body(text, section, key_lines)
                 updated_names.append(key)
+            continue
+        if not key_lines:
             continue
 
         dep = dep_for_values_key(target_deps, key)
@@ -809,12 +816,38 @@ def sync_values_delta_sections(text, chart_dir, target_deps, target_values, base
 
         old_app = actual_app_version(baseline_values, key, chart_name) if baseline_values else None
         new_app = actual_app_version(target_values, key, chart_name, chart_dir=chart_dir, dep=dep)
-        heading_line = values_delta_section_heading(key, old_app, new_app, old_chart, new_chart, bool(key_lines))
+        heading_line = values_delta_section_heading(key, old_app, new_app, old_chart, new_chart)
         text = insert_values_delta_section(text, key, heading_line, key_lines, target_deps, target_values,
                                             canonical_names)
         created_names.append(key)
 
     return text, created_names, updated_names
+
+
+def prune_empty_values_delta_sections(text):
+    """Delete every "## ..." section (see lib.upgradedoc.parse_values_
+    delta_sections) whose own body is entirely blank — no content at all
+    between its heading and the next "## " heading (or EOF). Only ever
+    hits a section sync_values_delta_sections/update-component-version/
+    update-image-version themselves left behind BEFORE this rule
+    existed (a heading-only section describing a pure version bump with
+    nothing else to say) — a hand-written section always has SOME prose
+    of its own, so this can never accidentally delete one. Also swallows
+    the pruned section's own trailing blank line(s), same as
+    remove_values_delta_section. Returns (new_text, removed_headings)."""
+    lines = text.splitlines(keepends=True)
+    sections = parse_values_delta_sections(text)
+    removed_headings = []
+    for section in reversed(sections):
+        body = "".join(lines[section["start"] + 1:section["end"]]).strip()
+        if body:
+            continue
+        start, end = section["start"], section["end"]
+        while end < len(lines) and not lines[end].strip():
+            end += 1
+        del lines[start:end]
+        removed_headings.append(section["heading"])
+    return "".join(lines), list(reversed(removed_headings))
 
 
 def values_tree_path_for(values_key, image_path):

@@ -789,17 +789,19 @@ def test_chart_only_component_with_no_app_image_is_not_flagged(vp, chart_repo, c
     assert "target app" not in out
 
 
-def test_component_changed_with_no_key_diffs_still_needs_values_deltas_mention(vp, chart_repo):
-    """Even when a component's app/chart bump doesn't touch any values.yaml
-    schema (no keys added/removed/renamed), it must still be mentioned
-    somewhere in values-deltas.md — a plain version bump is still a change
-    gemeentes should be told about."""
+def test_component_changed_with_no_key_diffs_needs_no_values_deltas_mention(vp, chart_repo):
+    """When a component's app/chart bump doesn't touch any values.yaml
+    schema (no keys added/removed/renamed), it needs no mention in
+    values-deltas.md at all — that transition is already covered by
+    -upgrade.md's own table + Changes section, and values-deltas.md
+    exists to tell gemeentes what THEIR OWN podiumd.yml needs to react
+    to (see lib.component_docs.sync_values_delta_sections' own
+    docstring) — a plain version bump alone needs no gemeente action."""
     doc = chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-values-deltas.md"
     doc.write_text("# Values deltas — PodiumD 4.8.5 → 4.9.0\n\n"
                     "No gemeente podiumd.yml changes are required for this hop.\n")
     ok, detail = vp.check_docs_consistency(chart_repo, upgrade_docs_baseline="4.8.5")
-    assert ok is False
-    assert "mismatch" in detail
+    assert ok is True, detail
 
 
 # --- Component versions table / Changes section ordering ---
@@ -1148,19 +1150,26 @@ dependencies:
 """
 
 
-def two_dep_values(zac_app, openformulieren_app):
+def two_dep_values(zac_app, openformulieren_app, with_schema_changes=False):
+    zac_extra = '  newFeature:\n    enabled: true\n' if with_schema_changes else ''
+    openformulieren_extra = '  clamavConfigJob:\n    enabled: true\n' if with_schema_changes else ''
     return (f'zac:\n  image:\n    repository: ghcr.io/infonl/zaakafhandelcomponent\n'
-            f'    tag: "{zac_app}@sha256:abc"\n'
+            f'    tag: "{zac_app}@sha256:abc"\n{zac_extra}'
             f'openformulieren:\n  image:\n    repository: openformulieren/open-forms\n'
-            f'    tag: "{openformulieren_app}@sha256:def"\n')
+            f'    tag: "{openformulieren_app}@sha256:def"\n{openformulieren_extra}')
 
 
 @pytest.fixture
 def two_dep_chart_repo(tmp_path):
     """zac and openformulieren both already exist at the baseline ref
-    (podiumd-4.8.5) and both bump their app version at HEAD — values.yaml
-    lists zac first, openformulieren second, so that's the order their
-    own values-deltas.md sections must follow."""
+    (podiumd-4.8.5) and both bump their app version AND add a real
+    values.yaml schema key at HEAD — values.yaml lists zac first,
+    openformulieren second, so that's the order their own values-
+    deltas.md sections must follow. The schema change matters here (not
+    just the version bump): a pure version-only bump gets no values-
+    deltas.md section at all (see lib.component_docs.sync_values_delta_
+    sections' own docstring), so these tests need real "- Key ..."
+    content to exercise section ordering meaningfully."""
     repo_root = tmp_path
     chart_dir = repo_root / "charts" / "podiumd"
     doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
@@ -1178,7 +1187,7 @@ def two_dep_chart_repo(tmp_path):
     git("commit", "-q", "-m", "baseline", cwd=repo_root)
     git("tag", "podiumd-4.8.5", cwd=repo_root)
 
-    (chart_dir / "values.yaml").write_text(two_dep_values("5.4.3", "3.5.6"))
+    (chart_dir / "values.yaml").write_text(two_dep_values("5.4.3", "3.5.6", with_schema_changes=True))
     (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
         "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
         "## Component versions (4.9.0 vs 4.8.5)\n\n"
@@ -1193,8 +1202,10 @@ def two_dep_chart_repo(tmp_path):
     # SECOND key) comes before zac (values.yaml's FIRST key)
     (doc_dir / "4.8.5-to-4.9.0-values-deltas.md").write_text(
         "# Values deltas — PodiumD 4.8.5 → 4.9.0\n\n"
-        "## openformulieren 3.4.10 → 3.5.6 (chart 1.12.0, unchanged) — image tag only\n\n"
-        "## ZAC 5.0.2 → 5.4.3 (chart 1.0.297, unchanged) — image tag only\n")
+        "## openformulieren 3.4.10 → 3.5.6 (chart 1.12.0, unchanged)\n\n"
+        "- Key `openformulieren.clamavConfigJob` was added.\n\n"
+        "## ZAC 5.0.2 → 5.4.3 (chart 1.0.297, unchanged)\n\n"
+        "- Key `zac.newFeature` was added.\n")
     (images_dir / "images-4.9.0.yaml").write_text(
         "# Baseline: podiumd 4.8.5 (test @ 0000000).\n#\n"
         "# Images new or changed in podiumd 4.9.0 vs 4.8.5.\n#\n"
@@ -1231,7 +1242,9 @@ def test_values_deltas_sections_correctly_ordered_passes(vp, two_dep_chart_repo)
     doc = two_dep_chart_repo / "docs" / "_UPGRADE_PATHS" / "4.8.5-to-4.9.0-values-deltas.md"
     doc.write_text(
         "# Values deltas — PodiumD 4.8.5 → 4.9.0\n\n"
-        "## ZAC 5.0.2 → 5.4.3 (chart 1.0.297, unchanged) — image tag only\n\n"
-        "## openformulieren 3.4.10 → 3.5.6 (chart 1.12.0, unchanged) — image tag only\n")
+        "## ZAC 5.0.2 → 5.4.3 (chart 1.0.297, unchanged)\n\n"
+        "- Key `zac.newFeature` was added.\n\n"
+        "## openformulieren 3.4.10 → 3.5.6 (chart 1.12.0, unchanged)\n\n"
+        "- Key `openformulieren.clamavConfigJob` was added.\n")
     ok, detail = vp.check_docs_consistency(two_dep_chart_repo, upgrade_docs_baseline="4.8.5")
     assert ok is True, detail
