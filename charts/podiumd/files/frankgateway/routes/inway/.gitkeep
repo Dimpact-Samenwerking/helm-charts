@@ -1,0 +1,8 @@
+# Route JSONs for the `inway` instance (north-south traffic entering PodiumD).
+#
+# Empty in the chart on purpose: what the inway fronts is per-environment — the
+# route needs the environment's public hostname in its `host` match and its own
+# upstream Service. Environments seed `inbound-<app>.json` files deploy-side
+# against this instance's Admin API.
+#
+# See charts/podiumd/docs/apps/frankgateway/frankgateway-traffic-classes.md.

@@ -128,6 +128,26 @@ grafana:
           editable: true
           options:
             path: /var/lib/grafana/dashboards/metrics-node
+        - name: "frankgateway"
+          orgId: 1
+          folder: 'PodiumD_Metrics'
+          type: file
+          disableDeletion: false
+          updateIntervalSeconds: 30
+          allowUiUpdates: true
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/frankgateway
+        - name: "frankgateway-alerts"
+          orgId: 1
+          folder: 'PodiumD_Metrics'
+          type: file
+          disableDeletion: false
+          updateIntervalSeconds: 30
+          allowUiUpdates: true
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/frankgateway-alerts
 
   # -- Dashboard opgenomen in ConfigMap
   dashboardsConfigMaps:
@@ -136,6 +156,24 @@ grafana:
     logs: "logging-logs"
     metrics: "monitoring-metrics-dashboards"
     metrics-node: "monitoring-metrics-dashboards-node"
+    # Frank!Gateway (APISIX). Set to "" to skip the dashboard in environments
+    # that do not run the gateway; the provider above is harmless either way.
+    frankgateway: "frankgateway-dashboard"
+    # Frank!Gateway threshold panels — gateways/etcd up, 5xx and 401 rates,
+    # certificate days-to-expiry, failed sync and seeding Jobs.
+    #
+    # EMPTY = OFF, deliberately. These are panels, not alerts: nothing fires and
+    # nothing routes. Production alerting is Datadog and Alertmanager is
+    # disabled in this chart, so a rule here would evaluate into a void and read
+    # as coverage that does not exist. Set to "frankgateway-alerts-dashboard" in
+    # an environment where someone actually looks at Grafana.
+    #
+    # The key is hyphenated, not camelCase, and it has to be: the grafana
+    # subchart derives both the volume name and the mount path from it. A
+    # camelCase key produces an invalid volume name (RFC 1123 forbids capitals)
+    # AND a mount path that does not match the provider's `path` above, so the
+    # provider would scan an empty directory even if the Deployment were valid.
+    frankgateway-alerts: ""
   
   grafana.ini:
     # -- Authentication and Authorization with Keycloak
