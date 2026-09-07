@@ -694,13 +694,35 @@ def resolve_component_own_version_change(key, target_deps, baseline_deps, target
         new_chart = "-"
     else:
         return None
+    chart_unchanged = new_chart == "-" or (old_chart is not None
+                                           and normalize_version(old_chart) == normalize_version(new_chart))
     old_app = actual_app_version(baseline_values, key, chart_name) if baseline_values else None
     new_app = actual_app_version(target_values, key, chart_name, chart_dir=chart_dir, dep=dep)
     if old_app is None and baseline_values:
         old_app = app_version_pin_via_images_baseline(target_values, key, chart_name, chart_dir, target_deps,
                                                        images_baseline)
-    chart_unchanged = new_chart == "-" or (old_chart is not None
-                                           and normalize_version(old_chart) == normalize_version(new_chart))
+    if old_app is None and baseline_values and dep is not None and chart_unchanged:
+        # subchart_app_version's own vendored-.tgz lookup is keyed on
+        # dep["version"] (see lib.chart.subchart_app_version) — never
+        # attempted for the baseline side above (actual_app_version's own
+        # chart_dir/dep params are deliberately omitted there), since
+        # there's normally no vendored artifact for a historical baseline
+        # ref to read at all. But chart_unchanged means dep's own version
+        # here IS the baseline's chart version too — the exact same
+        # vendored .tgz backs both sides — so it's safe to attempt this
+        # fallback using the CURRENT chart_dir/dep after all. Real case:
+        # openbao's own baseline app version was unresolvable through
+        # every other tier (its own "server.image.tag" is deliberately
+        # left blank for the chart's appVersion to supply — see actual_
+        # app_version's own docstring — and it long predates images-
+        # baseline.yaml), wrongly rendering "(new)" for a component whose
+        # own chart version (0.28.4) didn't change at all this hop —
+        # inconsistent with any other component in the exact same
+        # situation (e.g. zac, whose own app version resolves normally at
+        # both ends and so correctly gets skipped instead of a redundant
+        # row) — see resolve_component_own_version_change's own docstring
+        # for why an unchanged own component doesn't get a row/section.
+        old_app = actual_app_version(baseline_values, key, chart_name, chart_dir=chart_dir, dep=dep)
     app_unchanged = (old_app is not None and new_app is not None
                      and normalize_version(old_app) == normalize_version(new_app))
     return dep, chart_name, old_chart, new_chart, old_app, new_app, (chart_unchanged and app_unchanged)
