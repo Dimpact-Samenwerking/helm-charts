@@ -512,9 +512,9 @@ REDIS_IMAGES_MANIFEST = """\
 """
 
 
-def redis_values(tag):
+def redis_values(tag, digest="abc"):
     return (f'redis-operator:\n  redis-ha:\n    image:\n      repository: quay.io/opstree/redis\n'
-            f'      tag: "{tag}@sha256:abc"\n')
+            f'      tag: "{tag}@sha256:{digest}"\n')
 
 
 @pytest.fixture
@@ -598,6 +598,66 @@ def test_sidecar_row_with_old_style_phrasing_is_flagged_as_wrong_phrasing(vp, re
     out = capsys.readouterr().out
     assert ('4.8.5-to-4.9.0-upgrade.md: doc row "Redis (redis-ha)" does not match a Chart.yaml '
             'dependency or a canonical sidecar/shared-image name') in out
+
+
+def test_sidecar_digest_only_repin_is_not_flagged_as_changed(vp, tmp_path, capsys):
+    """Regression test (real bug, real doc): a sidecar image re-pinned to
+    a NEW digest but the SAME version (e.g. nginx-unprivileged in a
+    chart-wide digest-pinning sweep, #437) must never be reported as
+    "changed vs baseline but has no row" — -upgrade.md documents VERSION
+    changes, never a digest-only re-pin alone (see lib.upgradedoc.
+    compute_changed_components/lib.image_docs.add_missing_sidecar_rows,
+    which already got this fix earlier — this check had its own,
+    independent raw-tag comparison that was never updated to match, so
+    it kept flagging this case forever)."""
+    repo_root = tmp_path
+    chart_dir = repo_root / "charts" / "podiumd"
+    doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
+    images_dir = chart_dir / "docs" / "images"
+    for d in (doc_dir, images_dir):
+        d.mkdir(parents=True)
+
+    git("init", "-q", cwd=repo_root)
+    git("config", "user.email", "test@example.com", cwd=repo_root)
+    git("config", "user.name", "Test", cwd=repo_root)
+
+    (chart_dir / "Chart.yaml").write_text(REDIS_CHART_YAML)
+    (chart_dir / "values.yaml").write_text(redis_values("8.6.6", digest="a" * 64))
+    git("add", "-A", cwd=repo_root)
+    git("commit", "-q", "-m", "baseline", cwd=repo_root)
+    git("tag", "podiumd-4.8.5", cwd=repo_root)
+
+    # Same version (8.6.6), digest-only re-pin.
+    (chart_dir / "values.yaml").write_text(redis_values("8.6.6", digest="b" * 64))
+    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
+        "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n\n"
+        "See [`4.8.5-to-4.9.0-values-deltas.md`](4.8.5-to-4.9.0-values-deltas.md).\n"
+    )
+    (doc_dir / "4.8.5-to-4.9.0-gemeente-specific.md").write_text(REDIS_GEMEENTE_DOC.format(baseline="4.8.5"))
+    (doc_dir / "4.8.5-to-4.9.0-values-deltas.md").write_text(
+        "# Values deltas — PodiumD 4.8.5 → 4.9.0\n\n"
+        "No gemeente podiumd.yml changes are required for this hop.\n")
+    (images_dir / "images-4.9.0.yaml").write_text(
+        "# Baseline: podiumd 4.8.5 (test @ 0000000).\n"
+        "#\n"
+        "# Images new or changed in podiumd 4.9.0 vs 4.8.5.\n"
+        "#\n"
+        "# Changes:\n"
+        "#\n"
+        "# See docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md for the operator upgrade notes.\n\n"
+        "[]\n"
+    )
+    git("add", "-A", cwd=repo_root)
+    git("commit", "-q", "-m", "digest-only re-pin, no version change", cwd=repo_root)
+
+    ok, detail = vp.check_docs_consistency(chart_dir, upgrade_docs_baseline="4.8.5")
+
+    assert ok is True, detail
+    out = capsys.readouterr().out
+    assert "redis-operator - redis" not in out
 
 
 def test_sidecar_with_no_row_at_all_is_caught_as_missing(vp, redis_sidecar_chart_repo, capsys):
