@@ -1141,17 +1141,27 @@ def canonical_sidecar_row_names(chart_dir, deps, values, paths, allow_pull=False
         if repo in global_repos:
             continue
         basename = repo.rsplit("/", 1)[-1]
-        # A self-referential name ("keycloak-operator - keycloak-operator" —
-        # real case: keycloak-operator.operator.image, the operator's own
-        # container, whose repo basename happens to equal the dependency's
-        # own values key) is structurally indistinguishable from "this IS
-        # the dependency's own row" — match_dependency already covers that
-        # case via the bare dependency name. Never auto-documented under
-        # the wrong (sidecar/image) template as if it were a genuinely
-        # distinct nested image; register it in COMPONENT_IMAGE_PATHS (or
-        # document it by hand) instead if it ever needs its own row.
         if basename.lower() == path[0].lower():
-            continue
+            # A self-referential name ("keycloak-operator - keycloak-
+            # operator" — real case: keycloak-operator.operator.image,
+            # the operator's own container, whose repo basename happens
+            # to equal the dependency's own values key) reads as a
+            # confusing repeat, not a real distinct-image name. Fall
+            # back to the values-tree path's own second-to-last segment
+            # instead (e.g. "operator" for keycloak-operator.operator.
+            # image — "keycloak-operator - operator"), when that's
+            # actually distinct from the top-level key too. A path with
+            # nothing but the top-level key and the final image key
+            # itself (no segment in between — e.g. a hypothetical bare
+            # "keycloak-operator.image" case) has no useful fallback at
+            # all, so it's skipped entirely, same as before: never
+            # auto-documented under the wrong template; register it in
+            # COMPONENT_IMAGE_PATHS (or document it by hand) instead if
+            # it ever needs its own row.
+            if len(path) >= 3 and path[-2].lower() != path[0].lower():
+                basename = path[-2]
+            else:
+                continue
         names[f"{path[0]} - {basename}"] = path
     for path in global_paths:
         repo = get_path(values, ".".join(path) + ".repository")
