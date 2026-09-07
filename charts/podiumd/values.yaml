@@ -3712,6 +3712,43 @@ frankgateway:
       # (deploy-side today, see the tls block below), so it is not defaulted on.
     outway:
       enabled: true
+      routes:
+        # The three KVK routes differ only in `uri` and `name` — same upstream,
+        # same rewrite, same OpenBao key — so they are one definition merged
+        # three ways rather than three near-identical files under
+        # files/frankgateway/routes/outway/. The BAG route stays a file: it is
+        # the only one of its shape.
+        extra:
+          apiproxy-kvk-basic:
+            <<: &kvkRoute
+              labels:
+                managed-by: iac
+              plugins:
+                proxy-rewrite:
+                  regex_uri:
+                    - "^/(.*)"
+                    - "/test/$1"
+                serverless-pre-function:
+                  phase: rewrite
+                  functions:
+                    - 'local set_secret_header = require("openbao-secret-header") return set_secret_header({ path = "frankgateway", field = "kvk_api_key", header = "apikey" })'
+              upstream:
+                scheme: https
+                pass_host: rewrite
+                upstream_host: api.kvk.nl
+                nodes:
+                  "api.kvk.nl:443": 1
+                type: roundrobin
+            uri: "/api/v1/basisprofielen*"
+            name: apiproxy-kvk-basic
+          apiproxy-kvk-branch:
+            <<: *kvkRoute
+            uri: "/api/v1/vestigingsprofielen*"
+            name: apiproxy-kvk-branch
+          apiproxy-kvk-search:
+            <<: *kvkRoute
+            uri: "/api/v2/zoeken*"
+            name: apiproxy-kvk-search
     internal:
       enabled: true
 
@@ -3725,6 +3762,11 @@ frankgateway:
   # internal. It defaults to the instance key when that key is one of the three,
   # so a custom-named instance must set `class` explicitly or get no policy.
   networkPolicies:
+    # NOT ENFORCED ON aks-blue. The CNI on the aks-blue-* clusters does not
+    # support NetworkPolicy: the API server accepts every object here and
+    # silently ignores it, so `enabled: true` there documents intent and
+    # restricts nothing. Confirm enforcement on the target cluster before
+    # treating this as isolation. See frankgateway-BASICS.md.
     enabled: false
     # Namespace selector label used to match the ingress gateway namespace for
     # `inway` instances.
@@ -3915,6 +3957,9 @@ frankgateway:
       snis: []
       successfulJobsHistoryLimit: 1
       failedJobsHistoryLimit: 3
+      # Node placement for the sync CronJob, like the chart's other custom
+      # CronJobs. aks-blue requires kubernetes.azure.com/mode: user.
+      nodeSelector: {}
 
   # External-API credentials (BAG, KVK, ESB consumers) are read from OpenBao at
   # request time by a serverless function on the route

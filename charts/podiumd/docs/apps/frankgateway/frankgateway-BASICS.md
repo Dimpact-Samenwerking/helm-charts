@@ -395,6 +395,22 @@ traffic, and the gateway CPU request in particular is a placeholder for
 evidence that does not exist yet — revisit after a production environment has
 run for a week.
 
+## NetworkPolicies are not enforced everywhere
+
+`frankgateway.networkPolicies.enabled: true` renders per-traffic-class
+NetworkPolicies. Whether anything acts on them is a property of the cluster's
+CNI, not of the chart.
+
+**The CNI on the `aks-blue-*` clusters does not support NetworkPolicy.** There
+the API server accepts every policy object and silently never enforces it:
+`kubectl get networkpolicy` shows them, `kubectl describe` shows the rules, and
+all traffic still flows. A policy that is not enforced reads exactly like a
+policy that is.
+
+So on those clusters, turning this on buys documentation of intent and nothing
+else. Do not treat it as isolation, and do not use it as a control in a
+security assessment without first confirming enforcement on the target cluster.
+
 ## Integrating Frank!Gateway as a new app
 
 1. **Enable** in the gemeente values file: `frankgateway.enabled: true`.

@@ -50,7 +50,10 @@
      silently drops every inbound request, with no log line on either side. */ -}}
 {{- range $key, $override := .Values.frankgateway.instances -}}
 {{- $fg := include "podiumd.frankgateway.instanceValues" (dict "root" $ "key" $key "override" $override) | fromYaml -}}
-{{- $class := $fg.class | default (ternary $key "" (has $key (list "inway" "outway" "internal"))) -}}
+{{- $class := include "podiumd.frankgateway.class" (dict "key" $key "instance" $fg) -}}
+{{- if and $fg.enabled (not $class) $.Values.frankgateway.networkPolicies.enabled -}}
+{{- fail (printf "frankgateway.instances.%s has no traffic class, so no NetworkPolicy can be written for it, yet frankgateway.networkPolicies.enabled is true. Silently leaving one instance unrestricted while every other is locked down is worse than refusing to render. Set `class` on it to one of inway/outway/internal, or name the instance after its class." $key) -}}
+{{- end -}}
 {{- if and $fg.enabled (eq $class "inway") $.Values.frankgateway.networkPolicies.enabled (not $.Values.frankgateway.networkPolicies.ingressNamespace) -}}
 {{- fail (printf "frankgateway.networkPolicies.ingressNamespace must be set when the %s instance runs with networkPolicies enabled. It is the namespace of the pod that OPENS connections to the inway — for NGINX Gateway Fabric 2.x that is the per-Gateway DATA plane pod, which runs in the Gateway's own namespace (e.g. ingress-basic), NOT the nginx-gateway namespace where the control plane runs. Find it with: kubectl get pods -A | grep gateway-nginx" $key) -}}
 {{- end -}}

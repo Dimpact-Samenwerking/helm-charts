@@ -63,16 +63,11 @@
 {{- $redirect := printf "https://%s/oauth2/callback" $hostname }}
 {{- $redisUrl := $auth.sessionRedisUrl | default (printf "redis://redis-ha-master.%s.svc.cluster.local:6379/3" $root.Release.Namespace) }}
 {{- $creds := include "podiumd.frankgateway.dashboardCreds" (dict "root" $root "instance" $fg "name" $name) | fromYaml }}
-{{- $clientSecret := "" }}
-{{- $existingRealm := lookup "v1" "Secret" $root.Release.Namespace "keycloak-podiumd-realm-secrets" }}
-{{- with $existingRealm }}
-{{-   $clientSecret = index .data (printf "%s-oidc-secret" $clientId) | default "" | b64dec }}
-{{- end }}
-{{- if eq $clientSecret "" }}
-{{- /* keycloak-podiumd-realm-secrets is rendered in this same release — same
-       lookup-or-generate logic keeps first-install ordering safe. */ -}}
-{{-   $clientSecret = randAlphaNum 32 }}
-{{- end }}
+{{- /* One shared definition with keycloak-podiumd-realm-secrets.yaml, which is
+       rendered in this same release: `lookup` cannot see a Secret the release
+       is still rendering, so two independent randAlphaNum fallbacks handed
+       oauth2-proxy and Keycloak different secrets on a fresh install. */ -}}
+{{- $clientSecret := include "podiumd.frankgateway.oidcClientSecret" (dict "root" $root "clientId" $clientId) }}
 {{- $cookieSecret := "" }}
 {{- $existingProxy := lookup "v1" "Secret" $root.Release.Namespace (printf "%s-oauth2-proxy" $name) }}
 {{- with $existingProxy }}

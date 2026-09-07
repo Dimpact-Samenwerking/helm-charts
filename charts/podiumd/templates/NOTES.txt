@@ -14,7 +14,9 @@ Frank!Gateway
 {{- if $fg.enabled }}
 {{- $classes = append $classes $key }}
 {{- if and $fg.tls.enabled $fg.tls.sslSync.enabled }}
-{{- $tlsClasses = append $tlsClasses $key }}
+{{- /* The schedule is a per-instance value like any other, so report each
+       class's EFFECTIVE one rather than the shared default it may override. */ -}}
+{{- $tlsClasses = append $tlsClasses (printf "%s (%s)" $key $fg.tls.sslSync.schedule) }}
 {{- end }}
 {{- end }}
 {{- end }}
@@ -43,9 +45,9 @@ Frank!Gateway
 {{- if $tlsClasses }}
 
   TLS on: {{ $tlsClasses | join ", " }}. The data-plane certificate is served
-  from etcd, not from a file, so a CronJob ({{ .Values.frankgateway.tls.sslSync.schedule }})
-  keeps the SSL object in step with the Secret and renewals take effect without
-  a deploy. Failed runs are retained deliberately — check them:
+  from etcd, not from a file, so a CronJob on the schedule shown against each
+  class keeps the SSL object in step with the Secret, and renewals take effect
+  without a deploy. Failed runs are retained deliberately — check them:
 
       kubectl -n {{ .Release.Namespace }} get jobs | grep ssl-sync
 {{- end }}

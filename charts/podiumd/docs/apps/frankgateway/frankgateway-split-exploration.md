@@ -1,6 +1,8 @@
 # Frank!Gateway — exploration: split into 3 traffic-class instances
 
-> Status: **implemented in 4.8.4** (IN-2547). This document is kept as the
+> Status: **implemented in 4.9.1** (IN-2547). It did not ship in 4.8.4 — that
+> release went out without the split, which is why the work opened a new
+> version slot; nor in 4.8.5, where review sent it to the 4.9 line (IN-2658). This document is kept as the
 > feasibility assessment the design came from; it records why the split is
 > shaped the way it is. For how to actually use it, see
 > [`frankgateway-traffic-classes.md`](frankgateway-traffic-classes.md).

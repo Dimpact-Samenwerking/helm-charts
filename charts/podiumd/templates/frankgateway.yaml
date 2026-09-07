@@ -107,33 +107,47 @@ spec:
         # it is being started before its dependency exists, so this orders the
         # start rather than hiding the failure behind a longer probe.
         - name: wait-for-etcd
-          image: "{{ $fg.routes.job.image.repository }}:{{ $fg.routes.job.image.tag }}"
+          image: {{ include "podiumd.image" $fg.routes.job.image }}
           imagePullPolicy: IfNotPresent
           command: ["sh", "-c"]
           args:
             - |
               set -eu
-              # Every endpoint must answer, and answer with an agreed cluster
-              # version — a subset answering is exactly the half-formed state
-              # this is here to wait out.
+              # Wait for a QUORUM of members to answer with an agreed cluster
+              # version — not for all of them.
+              #
+              # Demanding every endpoint would mean a single member being down
+              # blocks new gateway pods in init, even though a 3-member cluster
+              # still has quorum and APISIX fails over across the remaining
+              # endpoints by itself. That turns one lost node into an inability
+              # to schedule replacements, which is the opposite of what
+              # three members are for. A quorum is also enough to rule out the
+              # half-formed state this exists to wait out: the cluster version
+              # is only agreed once a majority has joined.
               ENDPOINTS="{{ include "podiumd.frankgateway.etcdEndpoints" (dict "root" $root) | fromYamlArray | join " " }}"
+              TOTAL=0
+              for e in ${ENDPOINTS}; do TOTAL=$((TOTAL+1)); done
+              QUORUM=$((TOTAL/2+1))
               i=0
               while [ "${i}" -lt 60 ]; do
-                ok=1
+                ready=0
+                version=""
                 for e in ${ENDPOINTS}; do
                   v=$(curl -s --max-time 3 "${e}/version" 2>/dev/null \
                     | sed -n 's/.*"etcdcluster"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
                   case "${v}" in
-                    3.[4-9]*|3.[1-9][0-9]*|[4-9].*) ;;
-                    *) ok=0; break ;;
+                    3.[4-9]*|3.[1-9][0-9]*|[4-9].*) ready=$((ready+1)); version="${v}" ;;
                   esac
                 done
-                [ "${ok}" = "1" ] && { echo "etcd cluster ready (version ${v})"; exit 0; }
+                if [ "${ready}" -ge "${QUORUM}" ]; then
+                  echo "etcd quorum ready (${ready}/${TOTAL} members at version ${version})"
+                  exit 0
+                fi
                 i=$((i+1))
-                echo "waiting for etcd cluster to agree a version (attempt ${i}/60)"
+                echo "waiting for etcd quorum: ${ready}/${TOTAL} members ready, need ${QUORUM} (attempt ${i}/60)"
                 sleep 5
               done
-              echo "etcd cluster did not become ready within 5 minutes" >&2
+              echo "etcd did not reach quorum within 5 minutes" >&2
               exit 1
           resources:
             requests:

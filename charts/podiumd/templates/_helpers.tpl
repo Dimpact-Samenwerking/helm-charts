@@ -267,25 +267,40 @@ Derivation lives in a helper because both the config Secret and the gateway
 Deployment's config checksum need the same values — computing them twice with
 different logic would let the checksum drift from the config it describes.
 
+The result is memoised for the duration of the render, in a dict hung off
+.Values. Sharing the helper is not enough on its own: each call ran its own
+`lookup` + `randAlphaNum` fallback, so on a FRESH install — where the lookup
+finds nothing — the Secret and the checksum were computed from different
+random values, and the next no-op `helm upgrade` rolled every pod for nothing.
+Helm validates values against the schema before rendering, so the extra key
+affects this pass and nothing else.
+
 Returns YAML; consume with `fromYaml`:
   {{- $creds := include "podiumd.frankgateway.adminCreds"
         (dict "root" $ "instance" $inst "name" $name) | fromYaml }}
 */}}
 {{- define "podiumd.frankgateway.adminCreds" -}}
-{{- $admin := .instance.admin.adminKey | default "" -}}
-{{- $viewer := .instance.admin.viewerKey | default "" -}}
-{{- $existing := lookup "v1" "Secret" .root.Release.Namespace (printf "%s-admin-credentials" .name) -}}
-{{- if and (eq $admin "") $existing -}}
-{{-   $admin = index $existing.data "admin" | default "" | b64dec -}}
+{{- if not (hasKey .root.Values "__frankgatewayCredsAdmin") -}}{{- $_ := set .root.Values "__frankgatewayCredsAdmin" dict -}}{{- end -}}
+{{- $cache := index .root.Values "__frankgatewayCredsAdmin" -}}
+{{- if not (hasKey $cache .name) -}}
+{{-   $admin := .instance.admin.adminKey | default "" -}}
+{{-   $viewer := .instance.admin.viewerKey | default "" -}}
+{{-   $existing := lookup "v1" "Secret" .root.Release.Namespace (printf "%s-admin-credentials" .name) -}}
+{{-   if and (eq $admin "") $existing -}}
+{{-     $admin = index $existing.data "admin" | default "" | b64dec -}}
+{{-   end -}}
+{{-   if and (eq $viewer "") $existing -}}
+{{-     $viewer = index $existing.data "viewer" | default "" | b64dec -}}
+{{-   end -}}
+{{-   if eq $admin "" }}{{- $admin = randAlphaNum 32 }}{{- end -}}
+{{-   if eq $viewer "" }}{{- $viewer = randAlphaNum 32 }}{{- end -}}
+{{-   $_ := set $cache .name (dict "admin" $admin "viewer" $viewer) -}}
 {{- end -}}
-{{- if and (eq $viewer "") $existing -}}
-{{-   $viewer = index $existing.data "viewer" | default "" | b64dec -}}
+{{- $c := get $cache .name -}}
+admin: {{ $c.admin | quote }}
+viewer: {{ $c.viewer | quote }}
 {{- end -}}
-{{- if eq $admin "" }}{{- $admin = randAlphaNum 32 }}{{- end -}}
-{{- if eq $viewer "" }}{{- $viewer = randAlphaNum 32 }}{{- end -}}
-admin: {{ $admin | quote }}
-viewer: {{ $viewer | quote }}
-{{- end -}}
+
 
 {{/*
 Frank!Gateway — APISIX config.yaml body for one gateway instance.
@@ -527,19 +542,70 @@ shim Deployment's checksum, so all three always describe the same password.
 Returns YAML; consume with `fromYaml`.
 */}}
 {{- define "podiumd.frankgateway.dashboardCreds" -}}
-{{- $adminPassword := .instance.dashboard.adminPassword | default "" -}}
-{{- $jwtSecret := "" -}}
-{{- $existing := lookup "v1" "Secret" .root.Release.Namespace (printf "%s-dashboard-conf" .name) -}}
-{{- if $existing -}}
-{{-   if eq $adminPassword "" -}}
-{{-     $adminPassword = index $existing.data "admin-password" | default "" | b64dec -}}
+{{- if not (hasKey .root.Values "__frankgatewayCredsDashboard") -}}{{- $_ := set .root.Values "__frankgatewayCredsDashboard" dict -}}{{- end -}}
+{{- $cache := index .root.Values "__frankgatewayCredsDashboard" -}}
+{{- if not (hasKey $cache .name) -}}
+{{-   $adminPassword := .instance.dashboard.adminPassword | default "" -}}
+{{-   $jwtSecret := "" -}}
+{{-   $existing := lookup "v1" "Secret" .root.Release.Namespace (printf "%s-dashboard-conf" .name) -}}
+{{-   if $existing -}}
+{{-     if eq $adminPassword "" -}}
+{{-       $adminPassword = index $existing.data "admin-password" | default "" | b64dec -}}
+{{-     end -}}
+{{-     $jwtSecret = index $existing.data "jwt-secret" | default "" | b64dec -}}
 {{-   end -}}
-{{-   $jwtSecret = index $existing.data "jwt-secret" | default "" | b64dec -}}
+{{-   if eq $adminPassword "" }}{{- $adminPassword = randAlphaNum 32 }}{{- end -}}
+{{-   if eq $jwtSecret "" }}{{- $jwtSecret = randAlphaNum 32 }}{{- end -}}
+{{-   $_ := set $cache .name (dict "adminPassword" $adminPassword "jwtSecret" $jwtSecret) -}}
 {{- end -}}
-{{- if eq $adminPassword "" }}{{- $adminPassword = randAlphaNum 32 }}{{- end -}}
-{{- if eq $jwtSecret "" }}{{- $jwtSecret = randAlphaNum 32 }}{{- end -}}
-adminPassword: {{ $adminPassword | quote }}
-jwtSecret: {{ $jwtSecret | quote }}
+{{- $c := get $cache .name -}}
+adminPassword: {{ $c.adminPassword | quote }}
+jwtSecret: {{ $c.jwtSecret | quote }}
+{{- end -}}
+
+{{/*
+Frank!Gateway — the Keycloak OIDC client secret for one instance's dashboard.
+
+ONE definition, used by both keycloak-podiumd-realm-secrets.yaml (which is
+what Keycloak imports) and frankgateway-dashboard-auth.yaml (which is what
+oauth2-proxy presents). Both used to generate their own randAlphaNum on a
+fresh install — `lookup` cannot see a Secret that this same release is still
+rendering — so the two sides held different secrets and the dashboard login
+failed until a second upgrade made the lookup succeed.
+
+Usage: {{ include "podiumd.frankgateway.oidcClientSecret" (dict "root" $ "clientId" $clientId) }}
+*/}}
+{{- define "podiumd.frankgateway.oidcClientSecret" -}}
+{{- $root := .root -}}
+{{- $id := .clientId -}}
+{{- if not (hasKey $root.Values "__frankgatewayCredsOidc") -}}{{- $_ := set $root.Values "__frankgatewayCredsOidc" dict -}}{{- end -}}
+{{- $cache := index $root.Values "__frankgatewayCredsOidc" -}}
+{{- if not (hasKey $cache $id) -}}
+{{-   $val := "" -}}
+{{-   $existing := lookup "v1" "Secret" $root.Release.Namespace "keycloak-podiumd-realm-secrets" -}}
+{{-   with $existing -}}
+{{-     $val = index .data (printf "%s-oidc-secret" $id) | default "" | b64dec -}}
+{{-   end -}}
+{{-   if eq $val "" -}}{{- $val = randAlphaNum 32 -}}{{- end -}}
+{{-   $_ := set $cache $id $val -}}
+{{- end -}}
+{{- get $cache $id -}}
+{{- end -}}
+
+{{/*
+Frank!Gateway — traffic class of one instance.
+
+`class` wins; otherwise the instance key, when that key is one of the three
+known classes; otherwise empty, which means "unclassified".
+
+One definition, because frankgateway-networkpolicy.yaml decides whether to
+render a policy from it and validations.yaml decides whether to reject the
+release from it. Held apart, the two drift with nothing in CI to notice.
+
+Usage: {{ include "podiumd.frankgateway.class" (dict "key" $key "instance" $fg) }}
+*/}}
+{{- define "podiumd.frankgateway.class" -}}
+{{- .instance.class | default (ternary .key "" (has .key (list "inway" "outway" "internal"))) -}}
 {{- end -}}
 
 {{/*

@@ -216,14 +216,13 @@ Turning a dashboard off removes its Deployments, Services, config Secret and its
 Keycloak client, so no orphaned realm client is left behind and toggling it back
 and forth is safe.
 
-Two things it does not remove, neither harmful:
+One thing it does not remove, and it is not harmful: routing rows, DNS entries
+and certificate SANs created deploy-side for the hostname are outside the
+chart, so they persist until removed there.
 
-- the `frankgateway-dashboard-oidc-secret` key in the realm secret is always
-  emitted, because the realm import Job references it unconditionally. With no
-  dashboard it is simply unused. Per-instance keys
-  (`frankgateway-dashboard-<class>-oidc-secret`) do disappear with their client.
-- routing rows, DNS entries and certificate SANs created deploy-side for the
-  hostname are outside the chart, so they persist until removed there.
+The realm Secret carries only per-instance keys
+(`frankgateway-dashboard-<class>-oidc-secret`), and each disappears with its
+client — there is no unsuffixed `frankgateway-dashboard-oidc-secret` key.
 
 | Setting | Renders | Needs a hostname |
 |---|---|---|

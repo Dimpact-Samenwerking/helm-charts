@@ -20,7 +20,22 @@
 */ -}}
 {{- $root := . }}
 {{- $cmShared := .Values.frankgateway.tls.certManager }}
-{{- if and .Values.frankgateway.tls.enabled $cmShared.enabled $cmShared.issuer.create }}
+{{- /*
+  Whether to create the shared Issuer is decided from the MERGED per-instance
+  values, not from the top-level block. `issuer.create` is a supported
+  per-instance override, and validations.yaml and the Certificate's issuerRef
+  both read the merged value: gating this on the unmerged one lets an instance
+  pass validation, reference an Issuer that was never created, and never get a
+  certificate.
+*/ -}}
+{{- $issuerWanted := false }}
+{{- range $key, $override := .Values.frankgateway.instances }}
+{{- $inst := include "podiumd.frankgateway.instanceValues" (dict "root" $root "key" $key "override" $override) | fromYaml }}
+{{- if and $inst.enabled $inst.tls.enabled $inst.tls.certManager.enabled $inst.tls.certManager.issuer.create }}
+{{- $issuerWanted = true }}
+{{- end }}
+{{- end }}
+{{- if $issuerWanted }}
 {{- /*
   One OpenBao-backed Issuer for the whole namespace: the three classes want
   certificates from the same CA, and an Issuer holds no per-instance state.
@@ -81,10 +96,10 @@ metadata:
     app.kubernetes.io/name: {{ $name }}
 spec:
   secretName: {{ $secretName }}
-  duration: {{ $fg.tls.certManager.duration }}
+  duration: {{ $fg.tls.certManager.duration | quote }}
   # Renewal starts this far ahead of expiry, so a failing issuer is visible for
   # weeks before it can cause an outage.
-  renewBefore: {{ $fg.tls.certManager.renewBefore }}
+  renewBefore: {{ $fg.tls.certManager.renewBefore | quote }}
   privateKey:
     rotationPolicy: Always
   issuerRef:
@@ -133,7 +148,7 @@ spec:
           restartPolicy: Never
           containers:
             - name: sync
-              image: "{{ $fg.routes.job.image.repository }}:{{ $fg.routes.job.image.tag }}"
+              image: {{ include "podiumd.image" $fg.routes.job.image }}
               imagePullPolicy: IfNotPresent
               env:
                 - name: ADMIN_KEY
@@ -163,6 +178,10 @@ spec:
               secret:
                 secretName: {{ $secretName }}
                 optional: true
+          {{- with $fg.tls.sslSync.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
 {{- end }}
 {{- end }}
 {{- end }}

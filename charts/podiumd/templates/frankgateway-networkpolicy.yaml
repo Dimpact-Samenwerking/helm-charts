@@ -41,7 +41,7 @@
 {{- $np := .Values.frankgateway.networkPolicies }}
 {{- range $key, $override := .Values.frankgateway.instances }}
 {{- $fg := include "podiumd.frankgateway.instanceValues" (dict "root" $root "key" $key "override" $override) | fromYaml }}
-{{- $class := $fg.class | default (ternary $key "" (has $key (list "inway" "outway" "internal"))) }}
+{{- $class := include "podiumd.frankgateway.class" (dict "key" $key "instance" $fg) }}
 {{- if and $fg.enabled $class }}
 {{- $name := include "podiumd.frankgateway.instanceName" (dict "key" $key "instance" $fg) }}
 ---
@@ -133,9 +133,11 @@ spec:
         - protocol: TCP
           port: 443
     {{- end }}
-    {{- if and (eq $class "internal") $np.clusterCidr }}
+    {{- if and (or (eq $class "internal") (eq $class "inway")) $np.clusterCidr }}
     # Explicit cluster CIDR for environments whose in-cluster destinations are
-    # not all in this namespace.
+    # not all in this namespace. Both classes that route to in-cluster backends
+    # need it: the inway's backend Services are as free to live in another
+    # namespace as the internal class's are.
     - to:
         - ipBlock:
             cidr: {{ $np.clusterCidr }}

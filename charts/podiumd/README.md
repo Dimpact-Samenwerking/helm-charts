@@ -25,7 +25,7 @@ PodiumD Helm chart
 | @worth-nl | omc(notifynl-omc-nodep) | 0.14.1 |
 | @zac | zac(zaakafhandelcomponent) | 1.0.297 |
 | @zgw-office-addin | zgw-office-addin | 0.0.89 |
-| file://../mi-data | mi(mi-data) | 1.0.0 |
+| file://../mi-data | mi(mi-data) | 1.1.0 |
 | https://helm.elastic.co | eck-operator | 3.5.0 |
 | https://helm.elastic.co | kiss-eck(eck-stack) | 0.20.0 |
 | https://openbao.github.io/openbao-helm | openbao | 0.28.4 |
@@ -117,12 +117,12 @@ PodiumD Helm chart
 | eck-operator.managedNamespaces[0] | string | `"podiumd"` |  |
 | eck-operator.podMonitor.enabled | bool | `false` |  |
 | eck-operator.webhook.enabled | bool | `false` |  |
+| frankgateway.accessLog.jsonFormat | bool | `false` |  |
 | frankgateway.admin.adminKey | string | `""` |  |
 | frankgateway.admin.viewerKey | string | `""` |  |
-| frankgateway.apiKeys.envNames[0] | string | `"BAG_API_KEY"` |  |
-| frankgateway.apiKeys.envNames[1] | string | `"KVK_API_KEY"` |  |
-| frankgateway.apiKeys.existingSecret | string | `"frankgateway-api-keys"` |  |
 | frankgateway.dashboard.adminPassword | string | `""` |  |
+| frankgateway.dashboard.auth.adminGroup | string | `"fg-admins"` |  |
+| frankgateway.dashboard.auth.adminGroupMembers | list | `[]` |  |
 | frankgateway.dashboard.auth.dnsResolver | string | `"10.0.0.10"` |  |
 | frankgateway.dashboard.auth.enabled | bool | `true` |  |
 | frankgateway.dashboard.auth.hostname | string | `""` |  |
@@ -131,8 +131,9 @@ PodiumD Helm chart
 | frankgateway.dashboard.auth.oauth2Proxy.nodeSelector | object | `{}` |  |
 | frankgateway.dashboard.auth.oauth2Proxy.resources.limits.cpu | string | `"250m"` |  |
 | frankgateway.dashboard.auth.oauth2Proxy.resources.limits.memory | string | `"256Mi"` |  |
-| frankgateway.dashboard.auth.oauth2Proxy.resources.requests.cpu | string | `"25m"` |  |
+| frankgateway.dashboard.auth.oauth2Proxy.resources.requests.cpu | string | `"10m"` |  |
 | frankgateway.dashboard.auth.oauth2Proxy.resources.requests.memory | string | `"64Mi"` |  |
+| frankgateway.dashboard.auth.replicas | int | `2` |  |
 | frankgateway.dashboard.auth.sessionRedisUrl | string | `""` |  |
 | frankgateway.dashboard.auth.shim.image.pullPolicy | string | `"IfNotPresent"` |  |
 | frankgateway.dashboard.auth.shim.image.repository | string | `"nginxinc/nginx-unprivileged"` |  |
@@ -140,39 +141,100 @@ PodiumD Helm chart
 | frankgateway.dashboard.auth.shim.nodeSelector | object | `{}` |  |
 | frankgateway.dashboard.auth.shim.resources.limits.cpu | string | `"250m"` |  |
 | frankgateway.dashboard.auth.shim.resources.limits.memory | string | `"128Mi"` |  |
-| frankgateway.dashboard.auth.shim.resources.requests.cpu | string | `"25m"` |  |
+| frankgateway.dashboard.auth.shim.resources.requests.cpu | string | `"10m"` |  |
 | frankgateway.dashboard.auth.shim.resources.requests.memory | string | `"32Mi"` |  |
-| frankgateway.dashboard.enabled | bool | `true` |  |
+| frankgateway.dashboard.enabled | bool | `false` |  |
 | frankgateway.dashboard.image.repository | string | `"apache/apisix-dashboard"` |  |
 | frankgateway.dashboard.image.tag | string | `"3.0.1-alpine@sha256:b5fafc11b76f998269375192ac33efc992d72aa69bfd7f3eb2ca377906cdbb6d"` |  |
 | frankgateway.dashboard.ingress.clusterIssuer | string | `"letsencrypt-prod"` |  |
 | frankgateway.dashboard.ingress.enabled | bool | `false` |  |
 | frankgateway.dashboard.nodeSelector | object | `{}` |  |
+| frankgateway.dashboard.replicas | int | `2` |  |
 | frankgateway.dashboard.resources.limits.cpu | string | `"500m"` |  |
 | frankgateway.dashboard.resources.limits.memory | string | `"512Mi"` |  |
-| frankgateway.dashboard.resources.requests.cpu | string | `"50m"` |  |
+| frankgateway.dashboard.resources.requests.cpu | string | `"25m"` |  |
 | frankgateway.dashboard.resources.requests.memory | string | `"128Mi"` |  |
 | frankgateway.enabled | bool | `false` |  |
 | frankgateway.etcd.image.repository | string | `"quay.io/coreos/etcd"` |  |
 | frankgateway.etcd.image.tag | string | `"v3.5.16@sha256:d967d98a12dc220a1a290794711dba7eba04b8ce465e12b02383d1bfbb33e159"` |  |
 | frankgateway.etcd.nodeSelector | object | `{}` |  |
+| frankgateway.etcd.podDisruptionBudget.enabled | bool | `true` |  |
+| frankgateway.etcd.podDisruptionBudget.maxUnavailable | int | `1` |  |
+| frankgateway.etcd.podDisruptionBudget.unhealthyPodEvictionPolicy | string | `"AlwaysAllow"` |  |
+| frankgateway.etcd.replicas | int | `3` |  |
 | frankgateway.etcd.resources.limits.cpu | string | `"500m"` |  |
 | frankgateway.etcd.resources.limits.memory | string | `"512Mi"` |  |
 | frankgateway.etcd.resources.requests.cpu | string | `"50m"` |  |
-| frankgateway.etcd.resources.requests.memory | string | `"128Mi"` |  |
+| frankgateway.etcd.resources.requests.memory | string | `"192Mi"` |  |
 | frankgateway.etcd.storage | string | `"2Gi"` |  |
 | frankgateway.etcd.storageClassName | string | `""` |  |
+| frankgateway.etcd.topologySpreadConstraints | list | `[]` |  |
 | frankgateway.image.repository | string | `"ghcr.io/wearefrank/frank-gateway"` |  |
 | frankgateway.image.tag | string | `"104@sha256:a830b90f8820f5cdb0c382ecef02a302c50d129edc9de81d7daa7af1cf267d98"` |  |
+| frankgateway.instances.internal.enabled | bool | `true` |  |
+| frankgateway.instances.inway.enabled | bool | `true` |  |
+| frankgateway.instances.outway.enabled | bool | `true` |  |
+| frankgateway.instances.outway.routes.extra.apiproxy-kvk-basic.<<.labels.managed-by | string | `"iac"` |  |
+| frankgateway.instances.outway.routes.extra.apiproxy-kvk-basic.<<.plugins.proxy-rewrite.regex_uri[0] | string | `"^/(.*)"` |  |
+| frankgateway.instances.outway.routes.extra.apiproxy-kvk-basic.<<.plugins.proxy-rewrite.regex_uri[1] | string | `"/test/$1"` |  |
+| frankgateway.instances.outway.routes.extra.apiproxy-kvk-basic.<<.plugins.serverless-pre-function.functions[0] | string | `"local set_secret_header = require(\"openbao-secret-header\") return set_secret_header({ path = \"frankgateway\", field = \"kvk_api_key\", header = \"apikey\" })"` |  |
+| frankgateway.instances.outway.routes.extra.apiproxy-kvk-basic.<<.plugins.serverless-pre-function.phase | string | `"rewrite"` |  |
+| frankgateway.instances.outway.routes.extra.apiproxy-kvk-basic.<<.upstream.nodes."api.kvk.nl:443" | int | `1` |  |
+| frankgateway.instances.outway.routes.extra.apiproxy-kvk-basic.<<.upstream.pass_host | string | `"rewrite"` |  |
+| frankgateway.instances.outway.routes.extra.apiproxy-kvk-basic.<<.upstream.scheme | string | `"https"` |  |
+| frankgateway.instances.outway.routes.extra.apiproxy-kvk-basic.<<.upstream.type | string | `"roundrobin"` |  |
+| frankgateway.instances.outway.routes.extra.apiproxy-kvk-basic.<<.upstream.upstream_host | string | `"api.kvk.nl"` |  |
+| frankgateway.instances.outway.routes.extra.apiproxy-kvk-basic.name | string | `"apiproxy-kvk-basic"` |  |
+| frankgateway.instances.outway.routes.extra.apiproxy-kvk-basic.uri | string | `"/api/v1/basisprofielen*"` |  |
+| frankgateway.instances.outway.routes.extra.apiproxy-kvk-branch.<<.labels.managed-by | string | `"iac"` |  |
+| frankgateway.instances.outway.routes.extra.apiproxy-kvk-branch.<<.plugins.proxy-rewrite.regex_uri[0] | string | `"^/(.*)"` |  |
+| frankgateway.instances.outway.routes.extra.apiproxy-kvk-branch.<<.plugins.proxy-rewrite.regex_uri[1] | string | `"/test/$1"` |  |
+| frankgateway.instances.outway.routes.extra.apiproxy-kvk-branch.<<.plugins.serverless-pre-function.functions[0] | string | `"local set_secret_header = require(\"openbao-secret-header\") return set_secret_header({ path = \"frankgateway\", field = \"kvk_api_key\", header = \"apikey\" })"` |  |
+| frankgateway.instances.outway.routes.extra.apiproxy-kvk-branch.<<.plugins.serverless-pre-function.phase | string | `"rewrite"` |  |
+| frankgateway.instances.outway.routes.extra.apiproxy-kvk-branch.<<.upstream.nodes."api.kvk.nl:443" | int | `1` |  |
+| frankgateway.instances.outway.routes.extra.apiproxy-kvk-branch.<<.upstream.pass_host | string | `"rewrite"` |  |
+| frankgateway.instances.outway.routes.extra.apiproxy-kvk-branch.<<.upstream.scheme | string | `"https"` |  |
+| frankgateway.instances.outway.routes.extra.apiproxy-kvk-branch.<<.upstream.type | string | `"roundrobin"` |  |
+| frankgateway.instances.outway.routes.extra.apiproxy-kvk-branch.<<.upstream.upstream_host | string | `"api.kvk.nl"` |  |
+| frankgateway.instances.outway.routes.extra.apiproxy-kvk-branch.name | string | `"apiproxy-kvk-branch"` |  |
+| frankgateway.instances.outway.routes.extra.apiproxy-kvk-branch.uri | string | `"/api/v1/vestigingsprofielen*"` |  |
+| frankgateway.instances.outway.routes.extra.apiproxy-kvk-search.<<.labels.managed-by | string | `"iac"` |  |
+| frankgateway.instances.outway.routes.extra.apiproxy-kvk-search.<<.plugins.proxy-rewrite.regex_uri[0] | string | `"^/(.*)"` |  |
+| frankgateway.instances.outway.routes.extra.apiproxy-kvk-search.<<.plugins.proxy-rewrite.regex_uri[1] | string | `"/test/$1"` |  |
+| frankgateway.instances.outway.routes.extra.apiproxy-kvk-search.<<.plugins.serverless-pre-function.functions[0] | string | `"local set_secret_header = require(\"openbao-secret-header\") return set_secret_header({ path = \"frankgateway\", field = \"kvk_api_key\", header = \"apikey\" })"` |  |
+| frankgateway.instances.outway.routes.extra.apiproxy-kvk-search.<<.plugins.serverless-pre-function.phase | string | `"rewrite"` |  |
+| frankgateway.instances.outway.routes.extra.apiproxy-kvk-search.<<.upstream.nodes."api.kvk.nl:443" | int | `1` |  |
+| frankgateway.instances.outway.routes.extra.apiproxy-kvk-search.<<.upstream.pass_host | string | `"rewrite"` |  |
+| frankgateway.instances.outway.routes.extra.apiproxy-kvk-search.<<.upstream.scheme | string | `"https"` |  |
+| frankgateway.instances.outway.routes.extra.apiproxy-kvk-search.<<.upstream.type | string | `"roundrobin"` |  |
+| frankgateway.instances.outway.routes.extra.apiproxy-kvk-search.<<.upstream.upstream_host | string | `"api.kvk.nl"` |  |
+| frankgateway.instances.outway.routes.extra.apiproxy-kvk-search.name | string | `"apiproxy-kvk-search"` |  |
+| frankgateway.instances.outway.routes.extra.apiproxy-kvk-search.uri | string | `"/api/v2/zoeken*"` |  |
 | frankgateway.metrics.enabled | bool | `false` |  |
 | frankgateway.metrics.serviceMonitor.enabled | bool | `false` |  |
 | frankgateway.metrics.serviceMonitor.interval | string | `"30s"` |  |
+| frankgateway.networkPolicies.clusterCidr | string | `""` |  |
+| frankgateway.networkPolicies.dnsNamespace | string | `"kube-system"` |  |
+| frankgateway.networkPolicies.enabled | bool | `false` |  |
+| frankgateway.networkPolicies.ingressNamespace | string | `""` |  |
+| frankgateway.networkPolicies.ingressNamespaceLabel | string | `"kubernetes.io/metadata.name"` |  |
+| frankgateway.networkPolicies.monitoringNamespace | string | `"monitoring"` |  |
 | frankgateway.nodeSelector | object | `{}` |  |
-| frankgateway.replicas | int | `1` |  |
+| frankgateway.openbao.addr | string | `""` |  |
+| frankgateway.openbao.failMode | string | `"closed"` |  |
+| frankgateway.openbao.kvVersion | string | `"2"` |  |
+| frankgateway.openbao.mount | string | `""` |  |
+| frankgateway.openbao.tokenSecret.key | string | `"token"` |  |
+| frankgateway.openbao.tokenSecret.name | string | `"frankgateway-openbao-token"` |  |
+| frankgateway.podDisruptionBudget.enabled | bool | `true` |  |
+| frankgateway.podDisruptionBudget.maxUnavailable | int | `1` |  |
+| frankgateway.podDisruptionBudget.unhealthyPodEvictionPolicy | string | `"AlwaysAllow"` |  |
+| frankgateway.replicas | int | `2` |  |
 | frankgateway.resources.limits.cpu | string | `"1"` |  |
 | frankgateway.resources.limits.memory | string | `"1Gi"` |  |
 | frankgateway.resources.requests.cpu | string | `"100m"` |  |
-| frankgateway.resources.requests.memory | string | `"256Mi"` |  |
+| frankgateway.resources.requests.memory | string | `"384Mi"` |  |
+| frankgateway.routes.extra | object | `{}` |  |
 | frankgateway.routes.job.backoffLimit | int | `3` |  |
 | frankgateway.routes.job.image.pullPolicy | string | `"IfNotPresent"` |  |
 | frankgateway.routes.job.image.repository | string | `"curlimages/curl"` |  |
@@ -180,8 +242,31 @@ PodiumD Helm chart
 | frankgateway.routes.job.nodeSelector | object | `{}` |  |
 | frankgateway.routes.job.ttlSecondsAfterFinished | int | `600` |  |
 | frankgateway.routes.seed | bool | `true` |  |
+| frankgateway.tls.certManager.duration | string | `"2160h"` |  |
+| frankgateway.tls.certManager.enabled | bool | `false` |  |
+| frankgateway.tls.certManager.extraDnsNames | list | `[]` |  |
+| frankgateway.tls.certManager.issuer.caBundleSecretRef | object | `{}` |  |
+| frankgateway.tls.certManager.issuer.create | bool | `false` |  |
+| frankgateway.tls.certManager.issuer.kubernetes.mountPath | string | `"/v1/auth/kubernetes"` |  |
+| frankgateway.tls.certManager.issuer.kubernetes.role | string | `"frankgateway-pki"` |  |
+| frankgateway.tls.certManager.issuer.kubernetes.serviceAccountName | string | `"frankgateway-pki"` |  |
+| frankgateway.tls.certManager.issuer.path | string | `"pki/sign/frankgateway"` |  |
+| frankgateway.tls.certManager.issuer.server | string | `""` |  |
+| frankgateway.tls.certManager.issuerRef.group | string | `"cert-manager.io"` |  |
+| frankgateway.tls.certManager.issuerRef.kind | string | `"ClusterIssuer"` |  |
+| frankgateway.tls.certManager.issuerRef.name | string | `""` |  |
+| frankgateway.tls.certManager.renewBefore | string | `"720h"` |  |
+| frankgateway.tls.certManager.secretName | string | `""` |  |
 | frankgateway.tls.enabled | bool | `false` |  |
 | frankgateway.tls.port | int | `9443` |  |
+| frankgateway.tls.sslSync.enabled | bool | `true` |  |
+| frankgateway.tls.sslSync.failedJobsHistoryLimit | int | `3` |  |
+| frankgateway.tls.sslSync.nodeSelector | object | `{}` |  |
+| frankgateway.tls.sslSync.schedule | string | `"17 3 * * *"` |  |
+| frankgateway.tls.sslSync.secretName | string | `""` |  |
+| frankgateway.tls.sslSync.snis | list | `[]` |  |
+| frankgateway.tls.sslSync.successfulJobsHistoryLimit | int | `1` |  |
+| frankgateway.topologySpreadConstraints | list | `[]` |  |
 | global.configuration.enabled | bool | `true` |  |
 | global.configuration.organization | string | `"Example gemeente"` |  |
 | global.configuration.overwrite | bool | `true` |  |

@@ -5,14 +5,14 @@
   Idempotently PUTs the route JSONs in files/frankgateway/routes/<dir>/ to the
   instance's APISIX Admin API (route id = file name), reproducing the legacy
   api-proxy nginx behaviour: per-path reverse proxy with Host override, upstream
-  TLS/SNI, and API-key injection. Keys are read at request time from env (fed
-  from the apiKeys.existingSecret Secret) by a serverless function — they never
-  land in etcd or git, only the env var NAME appears in the route JSON.
+  TLS/SNI, and API-key injection. Keys are fetched at request time from OpenBao
+  by files/frankgateway/openbao-secret-header.lua — they never land in etcd, git
+  or a Secret, and only the OpenBao path appears in the route JSON.
 
   Which directories an instance seeds comes from its `routes.dirs`; unset means
-  the directory named after the instance key. The single-instance default seeds
-  outway + internal, i.e. all five legacy apiproxy routes, so the route files
-  live in exactly one place and are never duplicated per class.
+  the directory named after the instance key, so each class seeds its own route
+  set and a route file lives in exactly one place. An instance may also define
+  routes inline under `routes.extra`.
 
   Post-install/post-upgrade hook: runs after the gateway is (re)deployed. PUTs
   overwrite, so re-runs are safe; GUI-created routes with other ids are left
@@ -108,6 +108,11 @@ spec:
               done
               rc=0
               for f in /routes/*.json; do
+                # An instance with no route files (the inway default) leaves the
+                # glob unexpanded, and sh then hands curl the literal pattern as
+                # a filename. Under `set -e` that fails this post-install hook
+                # and takes the whole helm install/upgrade with it.
+                [ -e "${f}" ] || continue
                 id=$(basename "${f}" .json)
                 code=$(curl -s -o /dev/null -w "%{http_code}" -X PUT \
                   "http://{{ $name }}:9180/apisix/admin/routes/${id}" \
