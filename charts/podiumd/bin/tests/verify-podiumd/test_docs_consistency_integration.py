@@ -794,6 +794,42 @@ def test_split_tag_sha_path_digest_is_resolved_not_compared_as_bare_tag(vp, keyc
 
     assert ok is True, out
     assert 'values.yaml tag is' not in out
+    # keycloak/keycloak-operator's own repository (quay.io/keycloak/
+    # keycloak-operator) matches its own path exactly via repo_map — the
+    # per-entry loop must resolve it there, not fall back to
+    # resolve_entry_path's fuzzy word-matching (which can't: the entry
+    # name repeats "keycloak" once for the org and once for the repo,
+    # while the values-tree path only has it once, so neither an exact
+    # nor a substring match is ever found).
+    assert 'no matching image in values.yaml, skipped' not in out
+
+
+def test_unresolvable_entry_names_the_manifest_file_its_own_message(vp, keycloak_split_chart_repo, capsys):
+    """Regression test: an images-manifest entry the per-entry loop truly
+    can't resolve to any values-tree path must name the manifest file
+    it's in — the diagnostic used to be a bare "entry ... — no matching
+    image" print with no file, useless once a chart has more than one
+    images-<version>.yaml on disk over its history.
+
+    upgrade_docs_baseline=None (not "4.8.5") is required here: with a
+    bare-version baseline, check_images_manifest_format's own entry-
+    list-diff precheck would catch this same stale entry FIRST (as
+    "wrong or stale") and skip the per-entry loop entirely — see
+    test_images_manifest_entry_missing_version_or_digest_is_reported_
+    not_crashed's own docstring for the same reasoning."""
+    images_path = keycloak_split_chart_repo / "docs" / "images" / "images-4.9.0.yaml"
+    images_path.write_text(images_path.read_text() + (
+        '\n# stale entry — does not correspond to any actual change\n'
+        '- name: does-not-exist\n'
+        '  url: ghcr.io/infonl/does-not-exist\n'
+        '  version: "1.0.0"\n'
+        '  digest: "sha256:deadbeef"\n'
+    ))
+
+    vp.check_docs_consistency(keycloak_split_chart_repo, upgrade_docs_baseline=None)
+    out = capsys.readouterr().out
+
+    assert '(images-4.9.0.yaml: entry "does-not-exist" — no matching image in values.yaml, skipped)' in out
 
 
 def test_split_tag_sha_path_real_mismatch_is_still_caught(vp, keycloak_split_chart_repo, capsys):
@@ -1409,7 +1445,7 @@ NEW_DEP_IMAGES_MANIFEST = """\
 def new_dep_values():
     return ('zac:\n  image:\n    repository: ghcr.io/infonl/zaakafhandelcomponent\n'
             '    tag: "5.0.2@sha256:aaaa"\n'
-            'openklant:\n  image:\n    repository: openklant/open-klant\n    tag: "2.15.0@sha256:bbbb"\n')
+            'openklant:\n  image:\n    repository: openklant/open-klant\n    tag: "2.15.0@sha256:abc"\n')
 
 
 @pytest.fixture
