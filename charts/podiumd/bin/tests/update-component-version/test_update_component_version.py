@@ -866,6 +866,40 @@ def test_make_changes_section_unchanged_app_version_renders_no_transition(ucv):
     assert "is unchanged this hop" in section
 
 
+def test_make_changes_section_old_app_none_renders_new_not_none_arrow(ucv):
+    """Regression test: old_app is None (real case: openbao — its own
+    app version only ever resolves via the subchart_app_version
+    fallback, which is never attempted for the baseline side) renders
+    "<app> (new)", matching component_version_cell's own "(new)"
+    convention for exactly this case — never a nonsensical "None →
+    <app>", and the chart side (unchanged here) keeps its ordinary
+    "(chart ..., unchanged)" clause."""
+    section = ucv.make_changes_section(
+        "openbao", "4.9.1", "openbao", "openbao",
+        None, "v2.5.5", "0.28.4", "0.28.4", ["server.image"],
+    )
+    assert section.startswith("### openbao v2.5.5 (new) (chart 0.28.4, unchanged)")
+    assert "None" not in section
+    assert "introduces **openbao** at app version v2.5.5" in section
+    assert "Image tag pin `openbao.server.image.tag` `v2.5.5` (new)" in section
+
+
+def test_make_changes_section_old_chart_none_renders_new_not_none_arrow(ucv):
+    """Regression test: old_chart is None (a component with no baseline
+    Chart.yaml dependency at all — genuinely brand new this hop) renders
+    "(chart <new_chart>, new)", the chart-side sibling of the old_app is
+    None case above — never a nonsensical "chart None → <new_chart>",
+    and the "Helm chart `...` bump" bullet (which needs a real old_chart
+    to describe a transition) is suppressed."""
+    section = ucv.make_changes_section(
+        "openbao", "4.9.1", "openbao", "openbao",
+        "v2.5.5", "v2.5.5", None, "0.28.4", ["server.image"],
+    )
+    assert section.startswith("### openbao v2.5.5 (unchanged) (chart 0.28.4, new)")
+    assert "None" not in section
+    assert "Helm chart" not in section
+
+
 def test_make_changes_section_includes_chart_bullet_when_changed(ucv):
     section = ucv.make_changes_section(
         "zac", "4.9.0", "zaakafhandelcomponent", "zac",
