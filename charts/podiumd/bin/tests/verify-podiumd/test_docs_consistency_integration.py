@@ -660,6 +660,155 @@ def test_sidecar_digest_only_repin_is_not_flagged_as_changed(vp, tmp_path, capsy
     assert "redis-operator - redis" not in out
 
 
+KEYCLOAK_SPLIT_CHART_YAML = """\
+apiVersion: v2
+name: podiumd
+version: 4.9.0
+dependencies:
+  - name: keycloak-operator
+    version: 1.13.0
+    repository: "@adfinis"
+"""
+
+KEYCLOAK_SPLIT_UPGRADE_DOC = """\
+# Upgrade guide: PodiumD {baseline} → 4.9.0
+
+## Component versions (4.9.0 vs {baseline})
+
+| Component | App version | Helm chart | Notes |
+| --- | --- | --- | --- |
+| keycloak-operator | {app_source} → {app_target} | 1.13.0 (unchanged) | - |
+| keycloak-operator - operator | {op_source} → {op_target} | - | - |
+
+See [`{baseline}-to-4.9.0-values-deltas.md`]({baseline}-to-4.9.0-values-deltas.md).
+"""
+KEYCLOAK_SPLIT_GEMEENTE_DOC = "# Gemeente-specific notes — PodiumD {baseline} → 4.9.0\n\nNone.\n"
+KEYCLOAK_SPLIT_VALUES_DELTAS_DOC = ("# Values deltas — PodiumD {baseline} → 4.9.0\n\n"
+                                    "No gemeente podiumd.yml changes are required for this hop.\n")
+KEYCLOAK_SPLIT_IMAGES_MANIFEST = """\
+# Baseline: podiumd {baseline} (test @ 0000000).
+#
+# Images new or changed in podiumd 4.9.0 vs {baseline}.
+#
+# Changes:
+#   1. keycloak-operator {app_source} -> {app_target}.
+#   2. keycloak-operator - operator {op_source} -> {op_target}.
+#
+
+# keycloak-operator {app_source} -> {app_target}
+- name: keycloak/keycloak
+  url: keycloak/keycloak
+  version: "{app_target}"
+  digest: "sha256:{app_digest}"
+#   sidecar: keycloak-operator - operator {op_source} -> {op_target}
+- name: keycloak/keycloak-operator
+  url: keycloak/keycloak-operator
+  version: "{op_target}"
+  digest: "sha256:{op_digest}"
+"""
+
+
+def keycloak_split_values(app_tag, app_digest, op_tag, op_digest):
+    """keycloak-operator's own split tag:/sha: convention (see
+    lib.chart.SPLIT_TAG_SHA_PATHS) for both its primary app image
+    (operator.config.keycloakImage, aliased into the top-level
+    keycloak.image the same way podiumd's own values.yaml does) and its
+    own operator image (operator.image) — neither ever embeds "@sha256"
+    in "tag:" directly, unlike every other image in the chart."""
+    return (
+        f'keycloak-operator:\n'
+        f'  operator:\n'
+        f'    image:\n'
+        f'      repository: quay.io/keycloak/keycloak-operator\n'
+        f'      tag: "{op_tag}"\n'
+        f'      sha: "{op_digest}"\n'
+        f'    config:\n'
+        f'      keycloakImage:\n'
+        f'        repository: quay.io/keycloak/keycloak\n'
+        f'        tag: "{app_tag}"\n'
+        f'        sha: "{app_digest}"\n'
+        f'keycloak:\n'
+        f'  image:\n'
+        f'    repository: quay.io/keycloak/keycloak\n'
+        f'    tag: "{app_tag}"\n'
+        f'    sha: "{app_digest}"\n'
+    )
+
+
+@pytest.fixture
+def keycloak_split_chart_repo(tmp_path):
+    """keycloak.image (and keycloak-operator's own operator.image) pin
+    their digest via a separate sibling "sha:" field, never embedded in
+    "tag:" (lib.chart.SPLIT_TAG_SHA_PATHS) — the per-entry version/digest
+    check further down in check_docs_consistency must resolve that split
+    shape (lib.chart.resolved_digest_pin) before comparing against the
+    images-manifest entry's own "version@digest", not compare the bare
+    "tag:" value directly (which never has the digest half at all)."""
+    repo_root = tmp_path
+    chart_dir = repo_root / "charts" / "podiumd"
+    doc_dir = chart_dir / "docs" / "_UPGRADE_PATHS"
+    images_dir = chart_dir / "docs" / "images"
+    for d in (doc_dir, images_dir):
+        d.mkdir(parents=True)
+
+    git("init", "-q", cwd=repo_root)
+    git("config", "user.email", "test@example.com", cwd=repo_root)
+    git("config", "user.name", "Test", cwd=repo_root)
+
+    (chart_dir / "Chart.yaml").write_text(KEYCLOAK_SPLIT_CHART_YAML)
+    (chart_dir / "values.yaml").write_text(
+        keycloak_split_values("26.7.2", "a" * 64, "26.6.4", "b" * 64))
+    git("add", "-A", cwd=repo_root)
+    git("commit", "-q", "-m", "baseline", cwd=repo_root)
+    git("tag", "podiumd-4.8.5", cwd=repo_root)
+
+    (chart_dir / "values.yaml").write_text(
+        keycloak_split_values("26.7.3", "c" * 64, "26.7.3", "d" * 64))
+    (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(
+        KEYCLOAK_SPLIT_UPGRADE_DOC.format(
+            baseline="4.8.5", app_source="26.7.2", app_target="26.7.3",
+            op_source="26.6.4", op_target="26.7.3"))
+    (doc_dir / "4.8.5-to-4.9.0-gemeente-specific.md").write_text(
+        KEYCLOAK_SPLIT_GEMEENTE_DOC.format(baseline="4.8.5"))
+    (doc_dir / "4.8.5-to-4.9.0-values-deltas.md").write_text(
+        KEYCLOAK_SPLIT_VALUES_DELTAS_DOC.format(baseline="4.8.5"))
+    (images_dir / "images-4.9.0.yaml").write_text(
+        KEYCLOAK_SPLIT_IMAGES_MANIFEST.format(
+            baseline="4.8.5", app_source="26.7.2", app_target="26.7.3", app_digest="c" * 64,
+            op_source="26.6.4", op_target="26.7.3", op_digest="d" * 64))
+    git("add", "-A", cwd=repo_root)
+    git("commit", "-q", "-m", "bump keycloak-operator's split tag/sha images", cwd=repo_root)
+
+    return chart_dir
+
+
+def test_split_tag_sha_path_digest_is_resolved_not_compared_as_bare_tag(vp, keycloak_split_chart_repo, capsys):
+    """Regression test: keycloak.image's digest lives in a separate
+    "sha:" field (lib.chart.SPLIT_TAG_SHA_PATHS), never embedded in
+    "tag:". The per-entry images-manifest check used to compare the bare
+    "tag:" string directly against the manifest's "version@digest",
+    which can never match for a split-tag/sha path — every correctly
+    up-to-date pin was wrongly reported as a mismatch."""
+    ok, detail = vp.check_docs_consistency(keycloak_split_chart_repo, upgrade_docs_baseline="4.8.5")
+    out = capsys.readouterr().out
+
+    assert ok is True, out
+    assert 'values.yaml tag is' not in out
+
+
+def test_split_tag_sha_path_real_mismatch_is_still_caught(vp, keycloak_split_chart_repo, capsys):
+    """Once resolved via its own sha: field, a REAL digest mismatch must
+    still be caught, not silently swallowed by the fix above."""
+    values_path = keycloak_split_chart_repo / "values.yaml"
+    values_path.write_text(values_path.read_text().replace('"' + "c" * 64 + '"', '"' + "e" * 64 + '"'))
+
+    ok, detail = vp.check_docs_consistency(keycloak_split_chart_repo, upgrade_docs_baseline="4.8.5")
+    out = capsys.readouterr().out
+
+    assert ok is False
+    assert 'keycloak/keycloak: values.yaml tag is "26.7.3@sha256:' + "e" * 64 in out
+
+
 def test_sidecar_with_no_row_at_all_is_caught_as_missing(vp, redis_sidecar_chart_repo, capsys):
     """A changed sidecar image with NO row at all — not even a wrongly-
     phrased one — must still be flagged: the dependency's own row
