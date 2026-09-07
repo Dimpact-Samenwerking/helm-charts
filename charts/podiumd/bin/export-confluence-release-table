@@ -529,6 +529,33 @@ def resolve_image_basenames(rows, chart_dir):
     return result
 
 
+def apply_native_helm_marker(rows):
+    """Mutates `rows` (CSV_HEADER-shaped, post-image_basename-insert) in
+    place: for every row whose source_version_helm AND target_version_
+    helm are BOTH still empty, used_by is empty (a component's own
+    PRIMARY row — a "used_by"-tagged sidecar row is never a component in
+    its own right, so "NATIVE" would be meaningless there), and
+    component is a real, single resolved component (not "MULTIPLE",
+    "UNKNOWN", or blank — same exclusion component_and_alias's own
+    callers already apply, e.g. resolve_image_basenames), sets BOTH helm
+    columns to "NATIVE".
+
+    Distinguishes a component with genuinely no separate Helm sub-chart
+    at all (e.g. frankgateway — templated directly by podiumd's own
+    templates, never a chart of its own to version) from a table that
+    simply has no Helm sub-column to begin with (see extract_release_
+    rows) — both would otherwise leave the exact same blank cell,
+    indistinguishable in the exported CSV."""
+    for row in rows:
+        used_by, component = row[CSV_HEADER.index("used_by")], row[CSV_HEADER.index("component")]
+        if used_by or component in ("MULTIPLE", "UNKNOWN", ""):
+            continue
+        source_idx, target_idx = CSV_HEADER.index("source_version_helm"), CSV_HEADER.index("target_version_helm")
+        if not row[source_idx] and not row[target_idx]:
+            row[source_idx] = "NATIVE"
+            row[target_idx] = "NATIVE"
+
+
 def resolve_token(args):
     if args.token_file:
         return Path(args.token_file).read_text(encoding="utf-8").strip()
@@ -551,10 +578,15 @@ def extract_release_rows(html, headings=None, chart_dir=None):
     REQUIRED_RELEASE_COLUMNS — "Technische component versies" on the
     real page, since 2026-09) still exports, just with blank
     source/target_version_helm cells, same as any other value this
-    export never saw a version for. Prints a one-line report per
-    matching-heading table (rows matched, or which required column it's
-    missing) — using the real, full heading text, not the shortened
-    "section" value — and a large warning (see
+    export never saw a version for — EXCEPT a primary row (used_by
+    blank) for a real, single resolved component whose helm cells are
+    blank for a DIFFERENT reason: it genuinely has no separate Helm
+    sub-chart at all (e.g. frankgateway), rather than this table simply
+    lacking a Helm column — see apply_native_helm_marker, which fills
+    "NATIVE" into both cells for exactly that case. Prints a one-line
+    report per matching-heading table (rows matched, or which required
+    column it's missing) — using the real, full heading text, not the
+    shortened "section" value — and a large warning (see
     check_target_matches_chart_version) if any table's target heading
     doesn't match `chart_dir` (default CHART_DIR) Chart.yaml's version."""
     headings = headings or DEFAULT_HEADINGS
@@ -622,6 +654,7 @@ def extract_release_rows(html, headings=None, chart_dir=None):
     basenames = resolve_image_basenames(rows_out, chart_dir)
     for row, basename in zip(rows_out, basenames):
         row.insert(6, basename)
+    apply_native_helm_marker(rows_out)
     return rows_out
 
 
