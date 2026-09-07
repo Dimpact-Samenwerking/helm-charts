@@ -62,7 +62,7 @@ Yes — a 1 GiB `ReadWriteMany` Azure Files PVC shared by both replicas, rendere
 
 Public. In Dimpact environments an HTTPRoute `hr-openbeheer-nginx` on Gateway
 `public-gateway` (namespace `ingress-basic`, gatewayClass `nginx`) routes
-`<env>-openbeheer.dimpact.nl` (e.g. `ontw-openbeheer.dimpact.nl`) to the app's ClusterIP
+`<env>-openbeheer.<gemeente>.nl` (e.g. `<env>-openbeheer.<gemeente>.nl`) to the app's ClusterIP
 service. The HTTPRoute and DNS record are created by the per-gemeente environment
 deployment (ADO `ExternalsPodiumD`), not by this chart. The public hostname must equal the
 host in `openbeheer.configuration.oidcUrl` — the realm-config job derives the Keycloak
@@ -118,47 +118,191 @@ headroom; the nginx sidecar default (10m/16Mi) is adequate.
    `...Namespace`) authenticates against — the PV is static, the share must pre-exist.
 3. **Provision Key Vault secrets**: Django `SECRET_KEY` (`openssl rand -base64 50`),
    Keycloak client secret `openbeheer-oidc-secret` (`openssl rand -hex 32`), Open Zaak ZGW
-   secret and Objecttypen API token (both `openssl rand -hex 32`).
-4. **Enable and configure** in the environment values file:
-
+   secret, Objecten API Token and Objecttypen API token (all `openssl rand -hex 32`).
+4. **Enable and configure** in the environment values file openbeheer:
    ```yaml
-   openbeheer:
-     enabled: true
-     configuration:
-       oidcUrl: https://<env>-openbeheer.dimpact.nl
-       secrets:
-         keycloak_client_secret: "REP_OPENBEHEER_OIDC_SECRET_REP"
-         openzaak_openbeheer_secret: "REP_OPENZAAK_OPENBEHEER_SECRET_REP"
-         objecttypen_openbeheer_token: "REP_OBJECTTYPEN_OPENBEHEER_TOKEN_REP"
-         objecten_openbeheer_token: "REP_OBJECTEN_OPENBEHEER_TOKEN_REP"
-       data: |-
-         # OIDC provider, zgw_consumers services, api_configuration —
-         # use the commented example in values.yaml (openbeheer.configuration.data)
-     settings:
-       secretKey: "REP_OPENBEHEER_SECRET_KEY_REP"
-       database:
-         host: <pg-host>
-         name: openbeheer
-         username: openbeheer
-         password: "REP_OPENBEHEER_DATABASE_PASSWORD_REP"
-   ```
-
+    openbeheer:
+      enabled: true 
+      image:
+        repository: acrprodmgmt.azurecr.io/maykinmedia/open-beheer
+      nodeSelector:
+        kubernetes.azure.com/mode: user
+      nginx:
+        image:
+          repository: acrprodmgmt.azurecr.io/nginxinc/nginx-unprivileged
+      settings:
+        allowedHosts: "openbeheer.example.nl,openbeheer-nginx.podiumd.svc.cluster.local"
+        database:
+          name: openbeheer
+          username: openbeheer
+          password: "REP_OPENBEHEER_DATABASE_PASSWORD_REP"
+        secretKey: "REP_OPENBEHEER_SECRET_KEY_REP"
+        email:
+          host: mail.example.nl
+          defaultFrom: "noreply@<gemeente>.nl"
+        environment: dimpact-dimp-ontw
+      configuration:
+        enabled: true
+        oidcUrl: "https://openbeheer.example.nl"
+        secrets:
+          keycloak_client_secret: "REP_OPENBEHEER_OIDC_SECRET_REP"
+          openzaak_openbeheer_secret: "REP_OPENZAAK_OPENBEHEER_SECRET_REP"
+          objecttypen_openbeheer_token: "REP_OBJECTTYPEN_OPENBEHEER_TOKEN_REP"
+          objecten_openbeheer_token: "REP_OBJECTEN_OPENBEHEER_TOKEN_REP"
+        data: |
+          oidc_db_config_enable: true
+          oidc_db_config_admin_auth:
+            providers:
+              - identifier: keycloak-provider
+                oidc_use_nonce: true
+                oidc_nonce_size: 32
+                oidc_state_size: 32
+                endpoint_config:
+                  oidc_op_discovery_endpoint: "https://keycloak.example.nl/realms/podiumd/"
+            items:
+              - identifier: admin-oidc
+                enabled: true
+                oidc_rp_client_id: openbeheer
+                oidc_rp_client_secret: {value_from: {env: keycloak_client_secret}}
+                oidc_rp_scopes_list:
+                  - openid
+                  - email
+                  - profile
+                  - roles
+                oidc_rp_sign_algo: RS256
+                oidc_provider_identifier: keycloak-provider
+                userinfo_claims_source: id_token
+                options:
+                  user_settings:
+                    claim_mappings:
+                      username:
+                        - preferred_username
+                      first_name:
+                        - given_name
+                      last_name:
+                        - family_name
+                      email:
+                        - email
+                  groups_settings:
+                    claim_mapping:
+                      - groups
+                    sync: true
+                    sync_pattern: "*"
+                    default_groups: []
+                    make_users_staff: true
+                    superuser_group_names:
+                      - administrators
+          zgw_consumers_config_enable: true
+          zgw_consumers:
+            services:
+              - identifier: objecttypen-service
+                label: Objecttypen API
+                api_root: "https://objecttypen.example.nl/api/v2/"
+                api_type: orc
+                auth_type: api_key
+                header_key: Authorization
+                header_value: "Token REP_OBJECTTYPEN_OPENBEHEER_TOKEN_REP"
+              - identifier: objecten-service
+                label: Objecten API
+                api_root: "https://objecten.example.nl/api/v2/"
+                api_type: orc
+                auth_type: api_key
+                header_key: Authorization
+                header_value: "Token REP_OBJECTEN_OPENBEHEER_TOKEN_REP"
+              - identifier: catalogi-service
+                label: Open Zaak - Catalogi API
+                api_root: "https://openzaak.example.nl/catalogi/api/v1/"
+                api_type: ztc
+                auth_type: zgw
+                client_id: openbeheer
+                secret: {value_from: {env: openzaak_openbeheer_secret}}
+              - identifier: selectielijst-service
+                label: Open Zaak (public) - Selectielijst API
+                api_root: "https://selectielijst.openzaak.nl/api/v1/"
+                api_type: orc
+                auth_type: no_auth
+          api_configuration_enabled: true
+          api_configuration:
+            selectielijst_service_identifier: selectielijst-service
+            objecttypen_service_identifier: objecttypen-service
+     ```
    Secrets inside `configuration.data` use django-setup-configuration's
    `value_from: {env: VAR}` pattern; the Objecttypen `Authorization: Token ...` header is
    the exception and keeps an inline `REP_..._REP` token.
-5. **Keycloak client**: created automatically by the realm-config job from
+5. Configure the matching peer services (openzaak, objecttypen, objecten):
+   **objecttypen side** — register `openbeheer-token`. `token:` is a plain scalar (no prefix), so `value_from` applies directly:
+
+   ```yaml
+   objecttypen:
+     configuration:
+       secrets:
+         objecttypen_openbeheer_token: "REP_OBJECTTYPEN_OPENBEHEER_TOKEN_REP"
+       data: |-
+         tokenauth_config_enable: true
+         tokenauth:
+           items:
+           - identifier: openbeheer-token
+             token: {value_from: {env: objecttypen_openbeheer_token}}
+             contact_person: Open Beheer
+             email: openbeheer@example.com
+             organization: Open Beheer
+             application: Open Beheer
+             administration: Open Beheer
+   ```
+
+   **objecten side** — register `openbeheer-token` with **`is_superuser: true`** so it can read/write across all object types:
+
+   ```yaml
+   objecten:
+     configuration:
+       secrets:
+         objecten_openbeheer_token: "REP_OBJECTEN_OPENBEHEER_TOKEN_REP"
+       data: |-
+         tokenauth_config_enable: true
+         tokenauth:
+           items:
+           - identifier: openbeheer-token
+             token: {value_from: {env: objecten_openbeheer_token}}
+             contact_person: Open Beheer
+             email: openbeheer@example.com
+             application: Open Beheer
+             is_superuser: true
+   ```
+
+   **openzaak side** — register openbeheer as an authorised application with full admin rights:
+   ```yaml
+   openzaak:
+     configuration:
+       secrets:
+         openzaak_openbeheer_secret: "REP_OPENZAAK_OPENBEHEER_SECRET_REP"
+       data: |-
+         vng_api_common_applicaties_config_enable: true
+         vng_api_common_applicaties:
+           items:
+           - uuid: 3690fccd-b625-4896-8829-992b14bca77a
+             client_ids:
+             - openbeheer
+             label: Open Beheer
+             heeft_alle_autorisaties: true
+         vng_api_common_credentials_config_enable: true
+         vng_api_common_credentials:
+           items:
+           - identifier: openbeheer
+             secret: {value_from: {env: openzaak_openbeheer_secret}}
+   ```
+6. **Keycloak client**: created automatically by the realm-config job from
    `configuration.oidcUrl`; populate `openbeheer-oidc-secret` **before** the first deploy
    or the job generates a random secret you must reconcile.
-6. **Register API consumers**: in Open Zaak, add a ZGW application/credential for client id
+7. **Register API consumers**: in Open Zaak, add a ZGW application/credential for client id
    `openbeheer` with the ZGW secret; in Objecttypen, create a token-authorised user holding
    the API token.
-7. **DNS + HTTPRoute**: have the environment deployment create the
-   `<env>-openbeheer.dimpact.nl` DNS record and the HTTPRoute on `public-gateway`; the
+8. **DNS + HTTPRoute**: have the environment deployment create the
+   `<env>-openbeheer.<gemeente>.nl` DNS record and the HTTPRoute on `public-gateway`; the
    hostname must match `configuration.oidcUrl`.
-8. **Verify**: configuration Job completes (`kubectl -n podiumd get jobs -l
+9. **Verify**: configuration Job completes (`kubectl -n podiumd get jobs -l
    app.kubernetes.io/name=openbeheer` → 1/1); 2/2 pods Ready with 0 restarts (uWSGI master
    fix active: `kubectl -n podiumd get cm openbeheer -o jsonpath='{.data.UWSGI_MASTER}'`
-   → `1`); browse to `https://<env>-openbeheer.dimpact.nl/admin/` and confirm the Keycloak
+   → `1`); browse to `https://<env>-openbeheer.<gemeente>.nl/admin/` and confirm the Keycloak
    redirect; in the UI confirm the Catalogi, Objecttypen and Selectielijst services resolve
    and catalogi load from Open Zaak.
 
