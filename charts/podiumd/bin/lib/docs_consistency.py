@@ -423,6 +423,26 @@ def check_images_manifest_format(images_path, upgrade_docs_baseline, podiumd_ver
 
     issues.extend(check_images_manifest_changes_numbering(images_path.name, text))
 
+    # Computed early (moved up from below, where the per-entry checks
+    # further down also need them) so the Changes-item loop right below
+    # can ALSO resolve a canonical "<key> - <basename>" sidecar item name
+    # (see canonical_sidecar_row_names) back to its own real entry
+    # directly via its known values-tree path — needed for a canonical
+    # name whose own "basename" isn't a real image-repository basename
+    # at all (e.g. "keycloak-operator - operator", the values-tree path
+    # SEGMENT fallback canonical_sidecar_row_names uses for a sidecar
+    # whose repo basename would otherwise self-referentially collide
+    # with its own dependency's key — see that function's own
+    # docstring): match_changes_item_to_entry's own text-only basename-
+    # word matching has no way to resolve that, since there's no real
+    # entry whose own name/repository is "operator" to word-match against.
+    current_paths = dict(find_all_image_and_version_paths(values, deps))
+    current_paths.update(global_image_paths(values))
+    repo_groups = paths_by_repository(chart_dir, deps, values, current_paths.keys()) if chart_dir is not None else {}
+    repo_map = {repo: repo_group_representative(paths, deps) for repo, paths in repo_groups.items()}
+    canonical_names = canonical_sidecar_row_names(chart_dir, deps, values, current_paths.keys()) \
+        if chart_dir is not None else {}
+
     items = list(parse_changes_block(text))
     # Same two deterministic gaps as lib.docs_consistency's own upgrade-doc
     # row loop (see find_wrong_or_duplicate_dependency_claims) — a
@@ -463,7 +483,21 @@ def check_images_manifest_format(images_path, upgrade_docs_baseline, podiumd_ver
             # has nothing in Chart.yaml to match against at all; fall back
             # to this same manifest's own entries instead of treating that
             # as an error (see match_changes_item_to_entry).
-            entry = match_changes_item_to_entry(item["name"], entries)
+            #
+            # A KNOWN canonical sidecar name (see canonical_names above)
+            # is tried FIRST, resolved directly via its own real values-
+            # tree path — never guessed at from the item's own free-form
+            # text — since match_changes_item_to_entry's basename-word
+            # matching can't resolve one whose "basename" is a values-
+            # tree path segment, not a real image-repository basename
+            # (see the comment where canonical_names is computed above).
+            entry = None
+            path = canonical_names.get(item["name"])
+            if path is not None:
+                entry = next((e for e in entries
+                               if resolve_entry_image_path(e, current_paths.keys(), repo_map) == path), None)
+            if entry is None:
+                entry = match_changes_item_to_entry(item["name"], entries)
             if entry is None:
                 issues.append(f'{images_path.name}: Changes item "{item["name"]}" — no matching '
                                f'Chart.yaml dependency or images-manifest entry')
@@ -485,25 +519,20 @@ def check_images_manifest_format(images_path, upgrade_docs_baseline, podiumd_ver
 
     lines = text.splitlines()
     entry_line_indices = [i for i, line in enumerate(lines) if re.match(r"^-\s*name:", line)]
-    current_paths = dict(find_all_image_and_version_paths(values, deps))
-    current_paths.update(global_image_paths(values))
     baseline_paths = dict(find_all_image_and_version_paths(baseline_values, deps)) if baseline_values else {}
     baseline_paths.update(global_image_paths(baseline_values) if baseline_values else [])
 
-    # repo_map (see lib.chart.repository_path_map) built once, up front,
-    # and reused everywhere an entry needs matching to its values-tree
-    # path below — the SAME deterministic, exact "name: is a repository"
-    # lookup a doc row's own sidecar name resolves through (see
-    # canonical_sidecar_row_names, also repo_map-based) — never
-    # resolve_entry_path's fuzzy word-matching alone, which two entries
-    # sharing one comment (see same_group) need to be able to trust:
-    # word-matching a group's own free-form header prose to a component
-    # is exactly the kind of guess that stays wrong until the header
-    # itself is fixed to name that component properly.
-    repo_groups = paths_by_repository(chart_dir, deps, values, current_paths.keys()) if chart_dir is not None else {}
-    repo_map = {repo: repo_group_representative(paths, deps) for repo, paths in repo_groups.items()}
-    canonical_names = canonical_sidecar_row_names(chart_dir, deps, values, current_paths.keys()) \
-        if chart_dir is not None else {}
+    # current_paths/repo_map/canonical_names: computed early, above the
+    # Changes-item loop — see the comment there for why. repo_map (see
+    # lib.chart.repository_path_map) is reused everywhere an entry needs
+    # matching to its values-tree path below — the SAME deterministic,
+    # exact "name: is a repository" lookup a doc row's own sidecar name
+    # resolves through (see canonical_sidecar_row_names, also repo_map-
+    # based) — never resolve_entry_path's fuzzy word-matching alone,
+    # which two entries sharing one comment (see same_group) need to be
+    # able to trust: word-matching a group's own free-form header prose
+    # to a component is exactly the kind of guess that stays wrong until
+    # the header itself is fixed to name that component properly.
 
     def same_group(entry_a, entry_b):
         return images_manifest_entries_share_group(entry_a, entry_b, current_paths, repo_map)
