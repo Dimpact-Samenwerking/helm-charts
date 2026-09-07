@@ -361,18 +361,26 @@ def fix_component_version_table(text, chart_dir, target_deps, target_values, bas
         line = lines[row["line_index"]]
         cells = [c.strip() for c in line.strip().strip("|").split("|")]
 
-        if actual_target_app is not None and actual_baseline_app is not None and (
-            normalize_version(row["app_source"]) != normalize_version(actual_baseline_app)
-            or normalize_version(row["app"]) != normalize_version(actual_target_app)
-        ):
-            cells[1] = canonical_version_cell(actual_baseline_app, actual_target_app)
-            row_changed = True
+        if actual_target_app is not None and actual_baseline_app is not None:
+            # Compared as the full rendered CELL TEXT, not just the two
+            # numeric endpoints (row["app_source"]/row["app"]) — a row
+            # whose numbers already match but whose "(new)"/"(unchanged)"
+            # annotation is stale (real case: a sidecar row written
+            # "(new)" by an older fix-doc-consistency run, before this
+            # exact images-baseline.yaml fallback existed, now correctly
+            # resolves as unchanged) must still be corrected; comparing
+            # only the numbers would silently leave a wrong annotation
+            # in place forever, since they'd already "match".
+            new_app_cell = canonical_version_cell(actual_baseline_app, actual_target_app)
+            if cells[1] != new_app_cell:
+                cells[1] = new_app_cell
+                row_changed = True
 
-        if actual_target_chart is not None and actual_baseline_chart is not None and (
-                normalize_version(row["chart_source"]) != normalize_version(actual_baseline_chart)
-                or normalize_version(row["chart"]) != normalize_version(actual_target_chart)):
-            cells[2] = canonical_version_cell(actual_baseline_chart, actual_target_chart)
-            row_changed = True
+        if actual_target_chart is not None and actual_baseline_chart is not None:
+            new_chart_cell = canonical_version_cell(actual_baseline_chart, actual_target_chart)
+            if cells[2] != new_chart_cell:
+                cells[2] = new_chart_cell
+                row_changed = True
         elif resolved["kind"] == "native" and cells[2] != "-":
             # See the identical branch above (the baseline_resolved=False
             # case) — same forced correction, needed here too since a
