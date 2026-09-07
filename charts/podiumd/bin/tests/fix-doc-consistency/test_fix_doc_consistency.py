@@ -263,6 +263,31 @@ def test_main_already_at_new_baseline_still_fixes_a_stale_sibling_reference(cdb,
     assert "4.8.2-to-4.9.0-values-deltas.md: already baseline 4.8.2 — fixed stale sibling doc reference(s)" in out
 
 
+def test_main_already_at_new_baseline_with_correct_sibling_ref_is_a_noop(cdb, repo, monkeypatch, capsys):
+    """Regression test: a doc already at the target baseline whose
+    sibling-doc reference is already correct (nothing stale to fix at
+    all) must print "unchanged", not "fixed stale sibling doc
+    reference(s)" — and must not rewrite the file. Before this fix,
+    update_sibling_doc_refs reported "changed" whenever its own regex
+    merely MATCHED a reference, even one already naming the current
+    baseline, so this doc was falsely reported as "fixed" on every run
+    with no actual file change (confirmed live: 4 real docs, real user
+    session, no diff produced)."""
+    write(repo / "4.8.2-to-4.9.0-values-deltas.md",
+          "# Values deltas — PodiumD 4.8.2 → 4.9.0\n\n"
+          "Background and failure modes in "
+          "[`4.8.2-to-4.9.0-upgrade.md`](4.8.2-to-4.9.0-upgrade.md).\n")
+    original = (repo / "4.8.2-to-4.9.0-values-deltas.md").read_text(encoding="utf-8")
+    set_argv_and_dir(cdb, monkeypatch, repo, "4.8.2")
+
+    cdb.main()
+
+    assert (repo / "4.8.2-to-4.9.0-values-deltas.md").read_text(encoding="utf-8") == original
+    out = capsys.readouterr().out
+    assert "4.8.2-to-4.9.0-values-deltas.md: already baseline 4.8.2 — unchanged" in out
+    assert "fixed stale sibling doc reference(s)" not in out
+
+
 def test_main_no_argument_and_no_release_baseline_errors(cdb, monkeypatch):
     """Zero arguments is otherwise valid (falls back to release-baseline.
     yaml's upgrade_docs content) — only the combination of no argument AND
@@ -721,6 +746,23 @@ def test_update_sibling_doc_refs_rewrites_whatever_baseline_is_named(cdb):
 
 def test_update_sibling_doc_refs_ignores_other_targets(cdb):
     text = "See docs/_UPGRADE_PATHS/4.7.8-to-4.8.0-upgrade.md for an older hop.\n"
+    new_text, changed = cdb.update_sibling_doc_refs(text, "4.9.0", "4.8.5")
+    assert changed is False
+    assert new_text == text
+
+
+def test_update_sibling_doc_refs_already_correct_reference_is_not_reported_changed(cdb):
+    """Regression test: a doc mentioning "<new_baseline>-to-<target>-*.md"
+    (nothing stale left — the reference already names the current
+    baseline) still MATCHES the pattern, but subn's own replacement
+    rebuilds the exact same string — `changed` must reflect whether the
+    TEXT actually differs, not whether the pattern matched anything, or
+    main()'s own "already baseline ... — fixed stale sibling doc
+    reference(s)" print falsely claims a fix for every already-correct
+    mention (real case: a doc that merely references its own sibling
+    doc correctly, with nothing to repair, printed as "fixed" with no
+    file actually changed)."""
+    text = "See docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md for details.\n"
     new_text, changed = cdb.update_sibling_doc_refs(text, "4.9.0", "4.8.5")
     assert changed is False
     assert new_text == text

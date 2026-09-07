@@ -196,10 +196,15 @@ def update_sibling_doc_refs(text, target, new_baseline):
     images-<target>.yaml. Safe unconditionally: this chart supports exactly
     one upgrade path per target, so a reference targeting `target` always
     means the current baseline, never some other still-valid historical
-    hop. Returns (new_text, changed)."""
+    hop. `changed` reflects whether the text actually differs, NOT
+    whether the pattern matched anything — a doc already mentioning
+    "<new_baseline>-to-<target>-*.md" (nothing stale left to fix) still
+    matches the pattern, but subn's own replacement rebuilds the exact
+    same string; counting matches alone falsely reported "fixed" for
+    every such already-correct mention. Returns (new_text, changed)."""
     pattern = re.compile(SIBLING_DOC_RE_TMPL.format(target=re.escape(target)))
-    new_text, count = pattern.subn(lambda m: f"{new_baseline}-to-{target}-{m.group('suffix')}.md", text)
-    return new_text, count > 0
+    new_text = pattern.sub(lambda m: f"{new_baseline}-to-{target}-{m.group('suffix')}.md", text)
+    return new_text, new_text != text
 
 
 def update_images_manifest_baseline(text, target, new_baseline):
