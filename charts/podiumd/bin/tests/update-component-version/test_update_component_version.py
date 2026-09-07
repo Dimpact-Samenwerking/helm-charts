@@ -3,7 +3,9 @@ replace_scalar_value, update_chart_yaml, update_values_yaml, main — mostly
 pure logic plus a mocked-subprocess/mocked-registry integration test (no
 helm or network access needed). load_baseline_values and the values-deltas
 key-change tests use a real, hermetic temp git repo."""
+import io
 import subprocess
+import tarfile
 
 import pytest
 import yaml
@@ -1094,6 +1096,46 @@ def test_update_images_manifest_entry_updates_shared_group_comment(libcomponentd
 
 # --- update_images_manifest ---
 
+def test_update_images_manifest_creates_missing_header(ucv, tmp_path):
+    """Regression test (real bug, real doc): update_images_manifest's own
+    "# Changes:" header-item logic was entirely guarded by "if header_idx
+    is not None:" — a manifest with no header at all (see lib.component_
+    docs.ensure_images_manifest_changes_header's own docstring for the
+    real case: images-4.9.1.yaml gained 5 real entries via fix-doc-
+    consistency this session with no header to add a list item to) got
+    changes_action=None forever, silently, from update-component-version/
+    update-image-version's own writes too, not just fix-doc-consistency's.
+    A missing header must now be created first, so the item still gets
+    added."""
+    images_path = tmp_path / "images-4.9.0.yaml"
+    images_path.write_text(
+        "# Baseline: podiumd 4.8.5. Re-verify before release.\n"
+        "#\n"
+        "# Images new or changed in podiumd 4.9.0 vs 4.8.5.\n"
+        "#\n"
+        "# See docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md for the operator upgrade notes.\n"
+        "#\n\n"
+        "# ZAC — 5.0.2 -> 5.1.0\n"
+        "- name: zac\n"
+        '  version: "5.1.0"\n'
+        '  digest: "sha256:aaaa"\n',
+        encoding="utf-8",
+    )
+    changes_action, entry_updates, missing = ucv.update_images_manifest(
+        images_path, "zac", "zac", "5.1.0", "5.4.3", "1.0.297", "1.0.297",
+        ["image"], {"image": "ghcr.io/infonl/zaakafhandelcomponent"}, {"image": "5.4.3@sha256:cccc"},
+        [], {},
+    )
+    assert changes_action == "added"
+    assert entry_updates == ["zac"]
+    text = images_path.read_text(encoding="utf-8")
+    assert "# Changes:\n" in text
+    header_idx = text.index("# Changes:\n")
+    intro_idx = text.index("# Images new or changed")
+    assert intro_idx < header_idx
+    assert "1. zac 5.1.0 -> 5.4.3 (chart 1.0.297, unchanged)." in text
+
+
 def test_update_images_manifest_updates_existing_entry(ucv, tmp_path):
     images_path = tmp_path / "images-4.9.0.yaml"
     images_path.write_text(
@@ -1664,6 +1706,101 @@ def test_main_collapses_repeated_bump_into_single_baseline_entry(ucv, tmp_path, 
     assert "1. zac 5.0.2 -> 5.5.0 (chart 1.0.296 -> 1.0.297)." in images
     assert '"5.5.0"' in images
     assert f'"sha256:{"c" * 64}"' in images
+
+
+def _make_vendored_tgz(charts_dir, name, version, chart_yaml):
+    charts_dir.mkdir(parents=True, exist_ok=True)
+    tgz_path = charts_dir / f"{name}-{version}.tgz"
+    with tarfile.open(tgz_path, "w:gz") as tar:
+        data = yaml.safe_dump(chart_yaml).encode("utf-8")
+        info = tarfile.TarInfo(name=f"{name}/Chart.yaml")
+        info.size = len(data)
+        tar.addfile(info, io.BytesIO(data))
+    return tgz_path
+
+
+def test_main_resolves_baseline_app_version_via_vendored_subchart_when_chart_unchanged(
+        ucv, tmp_path, monkeypatch):
+    """Regression test (real bug, real doc): openbao's own "server.image.
+    tag" is deliberately left blank at the baseline too (see lib.chart.
+    COMPONENT_IMAGE_PATHS["openbao"]'s own comment) — its real baseline
+    app version only resolves via the vendored-.tgz subchart_app_version
+    fallback, which the raw baseline_values.yaml tag read used to never
+    attempt. Its chart version (0.28.4) isn't bumped by this run either,
+    so the SAME vendored .tgz backs both baseline and target — old_app
+    must resolve to the real "v2.5.0" baked into that file, not None,
+    rendering a real "v2.5.0 -> v2.6.0" transition instead of a false
+    "(new)" one purely because of this resolution gap (the exact same
+    fix already made in lib.component_docs.resolve_component_own_
+    version_change for fix-doc-consistency's own doc-sync path — this
+    is the same gap in update-component-version's own doc-writing
+    path)."""
+    chart_yaml = tmp_path / "Chart.yaml"
+    values_yaml = tmp_path / "values.yaml"
+    chart_yaml.write_text(
+        "version: 4.9.0\n"
+        "dependencies:\n"
+        "  - name: openbao\n"
+        "    version: 0.28.4\n"
+        "    repository: \"@openbao\"\n",
+        encoding="utf-8",
+    )
+    values_yaml.write_text(
+        "openbao:\n"
+        "  server:\n"
+        "    image:\n"
+        "      tag: \"\"\n",
+        encoding="utf-8",
+    )
+    doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
+    doc_dir.mkdir(parents=True)
+    images_dir = tmp_path / "docs" / "images"
+    images_dir.mkdir(parents=True)
+    monkeypatch.setattr(ucv, "CHART_DIR", tmp_path)
+    monkeypatch.setattr(ucv, "CHART_YAML", chart_yaml)
+    monkeypatch.setattr(ucv, "VALUES_YAML", values_yaml)
+    monkeypatch.setattr(ucv, "DOC_DIR", doc_dir)
+    monkeypatch.setattr(ucv, "IMAGES_DIR", images_dir)
+    _make_vendored_tgz(tmp_path / "charts", "openbao", "0.28.4",
+                        {"apiVersion": "v2", "version": "0.28.4", "appVersion": "v2.5.0"})
+    commit_baseline_tag(tmp_path)  # baseline: chart 0.28.4, app version blank (subchart-only v2.5.0)
+
+    setup_docs(
+        ucv, monkeypatch,
+        upgrade_text=(
+            "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+            "## Component versions (4.9.0 vs 4.8.5)\n\n"
+            "| Component | App version | Helm chart | Notes |\n"
+            "| --- | --- | --- | --- |\n\n"
+            "## Changes\n\n"
+        ),
+        values_deltas_text="# Values deltas — PodiumD 4.8.5 → 4.9.0\n\n",
+        images_text=(
+            "# Baseline: podiumd 4.8.5.\n"
+            "#\n"
+            "# Zero changes:\n"
+            "#\n\n"
+            "- name: openbao\n"
+            "  url: quay.io/openbao/openbao\n"
+            '  version: "v2.5.0"\n'
+            f'  digest: "sha256:{OLD_DIGEST}"\n'
+        ),
+    )
+    mock_verify_passes(monkeypatch, ucv)
+    mock_registry_passes(monkeypatch, ucv, "b")
+    monkeypatch.setattr("sys.argv", ["update-component-version", "openbao", "v2.6.0", "0.28.4"])
+
+    ucv.main()
+
+    upgrade = (ucv.DOC_DIR / "4.8.5-to-4.9.0-upgrade.md").read_text(encoding="utf-8")
+    assert "None" not in upgrade
+    assert "(new)" not in upgrade
+    assert "| openbao | v2.5.0 → v2.6.0 | 0.28.4 (unchanged) | - |" in upgrade
+    assert "### openbao v2.5.0 → v2.6.0 (chart 0.28.4, unchanged)" in upgrade
+
+    images = (ucv.IMAGES_DIR / "images-4.9.0.yaml").read_text(encoding="utf-8")
+    assert "None" not in images
+    assert "1. openbao v2.5.0 -> v2.6.0 (chart 0.28.4, unchanged)." in images
 
 
 def test_main_skips_doc_updates_when_no_upgrade_doc_exists(ucv, tmp_path, monkeypatch, capsys):
