@@ -531,6 +531,8 @@ def test_missing_required_release_columns_reports_missing_app(libconfluencetable
     "3.20",               # allowed variation: missing patch component
     "3.14-slim",          # same, with a suffix
     "v.1.25.4",           # allowed variation: stray dot after the "v"
+    "104",                # allowed variation: bare discrete version number (frankgateway)
+    "v104",               # same, with the usual leading "v"
 ])
 def test_is_semver_compatible_accepts_valid_versions(libconfluencetables, version):
     assert libconfluencetables.is_semver_compatible(version) is True
