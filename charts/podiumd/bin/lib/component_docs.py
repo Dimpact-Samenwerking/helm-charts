@@ -46,6 +46,11 @@ CHANGES_HEADER_RE = re.compile(r"^(?P<indent>#\s*)(?P<count_word>\w+)\s+changes?
 BARE_CHANGES_HEADER_RE = re.compile(r"^(?P<indent>#\s*)[Cc]hanges:\s*$")
 CHANGES_ITEM_RE = re.compile(r"^#\s*(?P<num>\d+)\.\s+(?P<rest>.+)$")
 NO_CHANGES_CLAIMED_RE = re.compile(r"no\s+gemeente\s+`?podiumd\.yml`?\s+changes\s+are\s+required", re.IGNORECASE)
+# The intro line IMAGES_STUB_TEMPLATE's own "# Changes:\n#\n" header
+# always follows immediately — see ensure_images_manifest_changes_header,
+# which uses this as its own insertion anchor when a file has lost (or
+# never had) that header.
+IMAGES_MANIFEST_INTRO_RE = re.compile(r"^#\s*Images new or changed in podiumd\b.*$", re.IGNORECASE)
 
 
 def find_images_manifest_changes_header(lines):
@@ -67,6 +72,53 @@ def find_images_manifest_changes_header(lines):
         if BARE_CHANGES_HEADER_RE.match(line):
             return i, False
     return None, False
+
+
+def ensure_images_manifest_changes_header(lines):
+    """Create the images-manifest's own bare "# Changes:\n#\n" header
+    (see find_images_manifest_changes_header/IMAGES_STUB_TEMPLATE),
+    right after the "# Images new or changed in podiumd ... vs ..."
+    intro line, for a file that has NO header at all yet — a no-op if
+    one already exists (either shape).
+
+    insert_images_manifest_header_item's own docstring documents it as
+    a no-op when the file has no header at all — by design, it only
+    ever inserts an item INTO an existing header, never creates one from
+    scratch. That meant a file that somehow lost its header (or never
+    got one in the first place) could never have it added back by any
+    later fix-doc-consistency run, silently, with no error or warning —
+    real, observed case: images-4.9.1.yaml gained 5 real entries (redis,
+    3 openbao sidecars, zac's own otel sidecar) across several runs, each
+    with a correct per-entry "#" comment (proving path_display_name's own
+    component lookup worked fine), but the file's "# Changes:" header
+    itself was simply never there for any of those insertions to land
+    in — so none of them ever got a summary-list item either, and
+    nothing surfaced that gap until lib.docs_consistency's own "has an
+    entry but no mention in the '# Changes:' list" check was pointed at
+    it directly.
+
+    Callers should call this before every insert_images_manifest_header_
+    item call site (both the per-entry pass and the backfill pass in
+    fix-doc-consistency's own add_missing_images_manifest_entries) —
+    it's cheap and idempotent, so unconditionally ensuring first is
+    simpler than threading "did we already ensure this run" state
+    through both call sites.
+
+    Falls through as a no-op (never crashes) if the intro line itself
+    isn't found either — a defensive fallback for a manifest shaped
+    differently than IMAGES_STUB_TEMPLATE's own convention; nothing
+    currently produces that shape, but this must never be where a
+    caller's whole run aborts."""
+    header_idx, _has_count = find_images_manifest_changes_header(lines)
+    if header_idx is not None:
+        return
+    for i, line in enumerate(lines):
+        if IMAGES_MANIFEST_INTRO_RE.match(line.strip()):
+            insert_at = i + 1
+            if insert_at < len(lines) and lines[insert_at].strip() == "#":
+                insert_at += 1
+            lines[insert_at:insert_at] = ["# Changes:\n", "#\n"]
+            return
 
 
 def find_images_manifest_changes_items(lines):
