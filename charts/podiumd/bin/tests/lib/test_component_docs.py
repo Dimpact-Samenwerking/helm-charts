@@ -282,6 +282,84 @@ def test_resolve_component_own_version_change_none_for_unmatched_key(libcomponen
     assert resolved is None
 
 
+def test_resolve_component_own_version_change_vendored_subchart_fallback_applies_to_baseline_too(
+        libcomponentdocs, tmp_path, monkeypatch):
+    """Regression test (real bug, real doc): openbao's own "server.image.
+    tag" is deliberately left blank in both baseline and target values.yaml
+    (see lib.chart.COMPONENT_IMAGE_PATHS["openbao"]'s own comment) — its
+    real app version only ever resolves via the vendored-.tgz subchart_
+    app_version fallback (see lib.upgradedoc.actual_app_version), which
+    the OLD code never even attempted for the baseline side. Its chart
+    version (0.28.4) is unchanged this hop, so the exact same vendored
+    .tgz backs both sides — old_app must resolve to the SAME "v2.5.5" as
+    new_app, not None, and unchanged must be True, exactly like any other
+    component whose own version genuinely didn't change (e.g. zac). Before
+    this fix, old_app stayed None (wrongly rendering "(new)") purely
+    because of this resolution gap, not because openbao's version
+    actually changed."""
+    monkeypatch.setitem(libcomponentdocs.image_paths_for.__globals__["COMPONENT_IMAGE_PATHS"],
+                         "openbao", ["server.image"])
+    import io
+    import tarfile
+
+    import yaml as pyyaml
+    charts_dir = tmp_path / "charts"
+    charts_dir.mkdir()
+    tgz_path = charts_dir / "openbao-0.28.4.tgz"
+    with tarfile.open(tgz_path, "w:gz") as tar:
+        for filename, content in (
+                ("openbao/values.yaml", {"server": {"image": {"tag": ""}}}),
+                ("openbao/Chart.yaml", {"apiVersion": "v2", "version": "0.28.4", "appVersion": "v2.5.5"})):
+            data = pyyaml.safe_dump(content).encode("utf-8")
+            info = tarfile.TarInfo(name=filename)
+            info.size = len(data)
+            tar.addfile(info, io.BytesIO(data))
+
+    dep = {"name": "openbao", "version": "0.28.4"}
+    values = {"openbao": {"server": {"image": {"repository": "quay.io/openbao/openbao", "tag": ""}}}}
+
+    resolved = libcomponentdocs.resolve_component_own_version_change(
+        "openbao", [dep], [dep], values, values, tmp_path, [])
+    _dep, _chart_name, old_chart, new_chart, old_app, new_app, unchanged = resolved
+    assert (old_chart, new_chart, old_app, new_app, unchanged) == ("0.28.4", "0.28.4", "v2.5.5", "v2.5.5", True)
+
+
+def test_resolve_component_own_version_change_vendored_fallback_never_used_when_chart_changed(
+        libcomponentdocs, tmp_path, monkeypatch):
+    """The vendored-subchart fallback above must never fire when the
+    chart version itself changed — the current chart_dir's vendored .tgz
+    (at the TARGET's chart version) is only a valid stand-in for the
+    baseline's own app version when it's the SAME .tgz backing both
+    sides. A real baseline-side chart bump must stay unresolved (old_app
+    None) rather than silently reusing the wrong file's appVersion."""
+    monkeypatch.setitem(libcomponentdocs.image_paths_for.__globals__["COMPONENT_IMAGE_PATHS"],
+                         "openbao", ["server.image"])
+    import io
+    import tarfile
+
+    import yaml as pyyaml
+    charts_dir = tmp_path / "charts"
+    charts_dir.mkdir()
+    tgz_path = charts_dir / "openbao-0.29.0.tgz"
+    with tarfile.open(tgz_path, "w:gz") as tar:
+        for filename, content in (
+                ("openbao/values.yaml", {"server": {"image": {"tag": ""}}}),
+                ("openbao/Chart.yaml", {"apiVersion": "v2", "version": "0.29.0", "appVersion": "v2.6.0"})):
+            data = pyyaml.safe_dump(content).encode("utf-8")
+            info = tarfile.TarInfo(name=filename)
+            info.size = len(data)
+            tar.addfile(info, io.BytesIO(data))
+
+    dep = {"name": "openbao", "version": "0.29.0"}
+    baseline_dep = {"name": "openbao", "version": "0.28.4"}
+    values = {"openbao": {"server": {"image": {"repository": "quay.io/openbao/openbao", "tag": ""}}}}
+
+    resolved = libcomponentdocs.resolve_component_own_version_change(
+        "openbao", [dep], [baseline_dep], values, values, tmp_path, [])
+    _dep, _chart_name, old_chart, new_chart, old_app, new_app, unchanged = resolved
+    assert (old_chart, new_chart, old_app, new_app, unchanged) == ("0.28.4", "0.29.0", None, "v2.6.0", False)
+
+
 def test_add_missing_component_rows_skips_own_unchanged_component(libcomponentdocs, tmp_path):
     """Regression test: zac's subtree gains a brand-new sidecar of its
     own (not modeled here directly — actual_changed_keys already
