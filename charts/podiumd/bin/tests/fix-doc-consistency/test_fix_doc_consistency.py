@@ -602,6 +602,68 @@ def test_fix_component_version_table_new_sidecar_app_annotated_new_chart_cell_un
     assert "| redis-operator - k8s | 1.36.2 (new) | - | ACR mirror only |" in new_text
 
 
+def _write_images_baseline(chart_dir, entries):
+    images_dir = chart_dir / "docs" / "images"
+    images_dir.mkdir(parents=True, exist_ok=True)
+    (images_dir / "images-baseline.yaml").write_text(
+        "".join(f"- name: {e['name']}\n  url: {e['name']}\n  version: \"{e['version']}\"\n"
+                f"  digest: \"{e['digest']}\"\n" for e in entries),
+        encoding="utf-8",
+    )
+
+
+def test_fix_component_version_table_new_dependency_known_in_images_baseline_is_unchanged(cdb, tmp_path):
+    """Regression test: a brand-new Chart.yaml dependency (baseline_deps
+    has no matching entry at all) pinned to an image already known,
+    byte-for-byte, in images-baseline.yaml — its APP cell should read
+    "(unchanged)" instead of "(new)"; its CHART cell still correctly
+    reads "(new)", since the Chart.yaml dependency line genuinely is new."""
+    _write_images_baseline(tmp_path, [
+        {"name": "brp-api/personen-mock", "version": "2.7.0-202606230850", "digest": "sha256:aaaa"}])
+    text = (
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| brppersonenmock | 2.7.0-202606230850 | 1.2.9 | - |\n"
+    )
+    target_deps = [{"name": "brppersonenmock", "version": "1.2.9"}]
+    target_values = {"brppersonenmock": {"image": {
+        "repository": "ghcr.io/brp-api/personen-mock", "tag": "2.7.0-202606230850@sha256:aaaa"}}}
+
+    new_text, changed, unmatched, unresolved = cdb.fix_component_version_table(
+        text, tmp_path, target_deps, target_values, [], {}
+    )
+    assert unmatched == [] and unresolved == []
+    assert len(changed) == 1
+    assert "| brppersonenmock | 2.7.0-202606230850 (unchanged) | 1.2.9 (new) | - |" in new_text
+
+
+def test_fix_component_version_table_new_sidecar_known_in_images_baseline_is_unchanged(cdb, tmp_path):
+    """Same fallback for a brand-new canonical sidecar row (see
+    add_missing_sidecar_rows/lib.upgradedoc.resolve_component_row's own
+    sidecar branch) — real case: redis-operator's own "k8s" sidecar. The
+    row starts stale (a wrong target number) so it's guaranteed to be
+    rewritten regardless of annotation text — the value under test is
+    what it gets rewritten TO."""
+    _write_images_baseline(tmp_path, [{"name": "alpine/k8s", "version": "1.36.2", "digest": "sha256:cccc"}])
+    text = (
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| redis-operator - k8s | 1.36.1 | - | ACR mirror only |\n"
+    )
+    target_deps, target_values, baseline_deps, baseline_values = redis_sidecar_deps_and_values()
+    target_values["redis-operator"]["k8s"] = {
+        "image": {"repository": "quay.io/alpine/k8s", "tag": "1.36.2@sha256:cccc"}}
+
+    new_text, changed, unmatched, unresolved = cdb.fix_component_version_table(
+        text, tmp_path, target_deps, target_values, baseline_deps, baseline_values
+    )
+    assert unmatched == [] and unresolved == []
+    assert len(changed) == 1
+    assert "| redis-operator - k8s | 1.36.2 (unchanged) | - | ACR mirror only |" in new_text
+
+
 # --- current_chart_version ---
 
 def test_current_chart_version_reads_chart_yaml(cdb, tmp_path, monkeypatch):
@@ -955,6 +1017,76 @@ def test_main_adds_missing_sidecar_row_for_global_shared_image(
     upgrade = (repo_with_undocumented_sidecar_bump / "4.8.5-to-4.9.0-upgrade.md").read_text(encoding="utf-8")
     assert "| curl | 8.10.1 → 8.11.0 | - | - |" in upgrade
     assert "### curl 8.10.1 → 8.11.0" in upgrade
+
+
+@pytest.fixture
+def repo_with_new_sidecar_pinned_to_a_known_mirrored_image(tmp_path):
+    """redis-operator's own "k8s" sidecar is added as a brand-new nested
+    path this release (baseline_values has nothing for it at all), but
+    it's pinned to an image version+digest that's ALREADY in docs/
+    images/images-baseline.yaml (from some earlier, unrelated hop) —
+    real case that surfaced this gap. Mirrors repo_with_new_component_
+    pinned_to_a_known_mirrored_image, but for add_missing_sidecar_rows'
+    own "brand new path" shape rather than add_missing_component_rows'."""
+    git("init", "-q", cwd=tmp_path)
+    git("config", "user.email", "test@example.com", cwd=tmp_path)
+    git("config", "user.name", "Test", cwd=tmp_path)
+
+    write(tmp_path / "Chart.yaml", yaml.safe_dump({
+        "dependencies": [{"name": "redis-operator", "version": "1.36.1", "repository": "@opstree"}],
+    }))
+    write(tmp_path / "values.yaml", yaml.safe_dump({
+        "redis-operator": {"redis-ha": {"image": {
+            "repository": "quay.io/opstree/redis", "tag": "8.6.2@sha256:aaaa"}}},
+    }))
+    doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
+    images_dir = tmp_path / "docs" / "images"
+    doc_dir.mkdir(parents=True)
+    images_dir.mkdir(parents=True)
+    git("add", "-A", cwd=tmp_path)
+    git("commit", "-q", "-m", "baseline state", cwd=tmp_path)
+    git("tag", "podiumd-4.8.5", cwd=tmp_path)
+
+    write(tmp_path / "Chart.yaml", yaml.safe_dump({
+        "dependencies": [{"name": "redis-operator", "version": "1.36.2", "repository": "@opstree"}],
+    }))
+    write(tmp_path / "values.yaml", yaml.safe_dump({
+        "redis-operator": {
+            "redis-ha": {"image": {"repository": "quay.io/opstree/redis", "tag": "8.6.2@sha256:aaaa"}},
+            "k8s": {"image": {"repository": "quay.io/alpine/k8s", "tag": "1.36.2@sha256:cccc"}},
+        },
+    }))
+    write(doc_dir / "4.8.5-to-4.9.0-upgrade.md",
+          "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+          "## Component versions (4.9.0 vs 4.8.5)\n\n"
+          "| Component | App version | Helm chart | Notes |\n"
+          "| --- | --- | --- | --- |\n"
+          "| redis-operator | - | 1.36.1 → 1.36.2 | n/a |\n\n"
+          "## Changes\n\n")
+    write(images_dir / "images-4.9.0.yaml", "# Baseline: podiumd 4.8.5.\n#\n# Zero changes:\n#\n\n")
+    write(images_dir / "images-baseline.yaml",
+          "- name: alpine/k8s\n"
+          "  url: quay.io/alpine/k8s\n"
+          '  version: "1.36.2"\n'
+          '  digest: "sha256:cccc"\n')
+    git("add", "-A", cwd=tmp_path)
+    git("commit", "-q", "-m", "add k8s sidecar, pinned to an already-mirrored image", cwd=tmp_path)
+    return doc_dir
+
+
+def test_main_new_sidecar_row_annotated_unchanged_when_known_in_images_baseline(
+        cdb, repo_with_new_sidecar_pinned_to_a_known_mirrored_image, monkeypatch):
+    """The SAME fallback, applied to add_missing_sidecar_rows: redis-
+    operator's own "k8s" sidecar path is brand new (baseline_values has
+    nothing for it), but its image pin is already known in images-
+    baseline.yaml, so its App cell reads "(unchanged)" rather than a
+    nonsensical "(new)"."""
+    doc_dir = repo_with_new_sidecar_pinned_to_a_known_mirrored_image
+    set_argv_and_dir(cdb, monkeypatch, doc_dir, "4.8.5")
+    cdb.main()
+
+    upgrade = (doc_dir / "4.8.5-to-4.9.0-upgrade.md").read_text(encoding="utf-8")
+    assert "| redis-operator - k8s | 1.36.2 (unchanged) | - | - |" in upgrade
 
 
 def test_main_adds_missing_changes_section_for_an_existing_dependency_row(
@@ -1754,6 +1886,23 @@ def test_main_adds_new_component_image_not_in_images_baseline(
 
     images = (images_dir / "images-4.9.0.yaml").read_text(encoding="utf-8")
     assert "brp-api/personen-mock" in images
+
+
+def test_main_new_component_row_annotated_unchanged_when_known_in_images_baseline(
+        cdb, repo_with_new_component_pinned_to_a_known_mirrored_image, monkeypatch):
+    """The SAME fallback, applied to -upgrade.md's own "Component
+    versions" row instead of images-4.9.0.yaml: brppersonenmock's
+    Chart.yaml dependency is brand new (baseline has no matching
+    dependency at all), but its own image pin is already known in
+    images-baseline.yaml, so its App cell reads "(unchanged)" rather
+    than a nonsensical "(new)" — its Helm-chart cell still correctly
+    reads "(new)", since the Chart.yaml dependency line genuinely is."""
+    doc_dir, images_dir = repo_with_new_component_pinned_to_a_known_mirrored_image
+    set_argv_and_dir(cdb, monkeypatch, doc_dir, "4.8.5")
+    cdb.main()
+
+    upgrade_doc = (doc_dir / "4.8.5-to-4.9.0-upgrade.md").read_text(encoding="utf-8")
+    assert "| brppersonenmock | 2.7.0 (unchanged) | 1.2.9 (new) | - |" in upgrade_doc
 
 
 # --- replace_version_pair ---

@@ -194,6 +194,45 @@ def test_image_pin_known_in_images_baseline_empty_list_is_false(libchart):
     assert libchart.image_pin_known_in_images_baseline([], "brp-api/personen-mock", "2.7.0", "sha256:aaaa") is False
 
 
+# --- image_pin_matches_images_baseline ---
+
+def test_image_pin_matches_images_baseline_resolves_path_and_matches(libchart, tmp_path):
+    dep = {"name": "brppersonenmock", "version": "1.2.9"}
+    values = {"brppersonenmock": {"image": {
+        "repository": "ghcr.io/brp-api/personen-mock", "tag": "2.7.0-202606230850@sha256:aaaa"}}}
+    images_baseline = [{"name": "brp-api/personen-mock", "version": "2.7.0-202606230850", "digest": "sha256:aaaa"}]
+
+    assert libchart.image_pin_matches_images_baseline(
+        tmp_path, [dep], values, ("brppersonenmock", "image"),
+        "2.7.0-202606230850@sha256:aaaa", images_baseline) is True
+
+
+def test_image_pin_matches_images_baseline_different_digest_not_matched(libchart, tmp_path):
+    dep = {"name": "brppersonenmock", "version": "1.2.9"}
+    values = {"brppersonenmock": {"image": {
+        "repository": "ghcr.io/brp-api/personen-mock", "tag": "2.7.0-202606230850@sha256:aaaa"}}}
+    images_baseline = [{"name": "brp-api/personen-mock", "version": "2.7.0-202606230850", "digest": "sha256:bbbb"}]
+
+    assert libchart.image_pin_matches_images_baseline(
+        tmp_path, [dep], values, ("brppersonenmock", "image"),
+        "2.7.0-202606230850@sha256:aaaa", images_baseline) is False
+
+
+def test_image_pin_matches_images_baseline_no_digest_in_tag_is_false(libchart, tmp_path):
+    """A tag with no "@sha256:..." at all has nothing to match — never
+    even attempts a repository lookup."""
+    assert libchart.image_pin_matches_images_baseline(
+        tmp_path, [], {}, ("brppersonenmock", "image"), "2.7.0-202606230850", []) is False
+
+
+def test_image_pin_matches_images_baseline_unresolvable_path_is_false(libchart, tmp_path):
+    """No dependency/override resolves a repository for this path at
+    all — paths_by_repository's own group is empty, nothing to match
+    against images_baseline."""
+    assert libchart.image_pin_matches_images_baseline(
+        tmp_path, [], {}, ("brppersonenmock", "image"), "2.7.0-202606230850@sha256:aaaa", []) is False
+
+
 # --- write_release_baselines ---
 
 def test_write_release_baselines_creates_file_with_both_keys(libchart, tmp_path):
