@@ -704,3 +704,55 @@ def test_images_manifest_format_exact_item_wins_over_fuzzy_changes_item(libdocsc
     )
     assert not any("8.19.19" in i for i in issues)
     assert not any(i.startswith('images-4.9.0.yaml: Changes item "KISS"') for i in issues)
+
+
+# --- check_images_manifest_format: images-baseline.yaml fallback for a
+# brand-new component with nothing in baseline_values to diff against ---
+
+NEW_DEP_DEPS = DEPS + [make_dep("brp-personen-mock", "1.2.9", alias="brppersonenmock")]
+NEW_DEP_VALUES = dict(VALUES, brppersonenmock={
+    "image": {"repository": "ghcr.io/brp-api/personen-mock", "tag": "2.7.0@sha256:bbbb"}})
+
+
+def test_images_manifest_format_new_component_image_already_in_images_baseline(libdocsconsistency, tmp_path):
+    """brppersonenmock is a brand-new dependency — baseline_values has
+    no "brppersonenmock" key at all, so there's nothing to diff its
+    image tag against via git. Since the EXACT version+digest already
+    appears in docs/images/images-baseline.yaml, it must NOT be flagged
+    as "changed ... but has no entry", even though the manifest doesn't
+    mention it at all."""
+    (tmp_path / "docs" / "images").mkdir(parents=True)
+    (tmp_path / "Chart.yaml").write_text(yaml.safe_dump({"dependencies": NEW_DEP_DEPS}), encoding="utf-8")
+    (tmp_path / "values.yaml").write_text(yaml.safe_dump(NEW_DEP_VALUES), encoding="utf-8")
+    (tmp_path / "docs" / "images" / "images-baseline.yaml").write_text(
+        "- name: brp-api/personen-mock\n"
+        "  url: ghcr.io/brp-api/personen-mock\n"
+        '  version: "2.7.0"\n'
+        '  digest: "sha256:bbbb"\n',
+        encoding="utf-8",
+    )
+    images_path = tmp_path / "docs" / "images" / "images-4.9.0.yaml"
+    images_path.write_text(REAL_MANIFEST)
+    issues = libdocsconsistency.check_images_manifest_format(
+        images_path, "4.8.5", "4.9.0", NEW_DEP_DEPS, NEW_DEP_VALUES, VALUES, chart_dir=tmp_path)
+    assert not any("brp-api/personen-mock" in i or "brppersonenmock" in i for i in issues)
+
+
+def test_images_manifest_format_new_component_image_not_in_images_baseline(libdocsconsistency, tmp_path):
+    """Same shape, but images-baseline.yaml doesn't have this exact pin
+    — flagged as missing, same as without the fallback."""
+    (tmp_path / "docs" / "images").mkdir(parents=True)
+    (tmp_path / "Chart.yaml").write_text(yaml.safe_dump({"dependencies": NEW_DEP_DEPS}), encoding="utf-8")
+    (tmp_path / "values.yaml").write_text(yaml.safe_dump(NEW_DEP_VALUES), encoding="utf-8")
+    (tmp_path / "docs" / "images" / "images-baseline.yaml").write_text(
+        "- name: brp-api/personen-mock\n"
+        "  url: ghcr.io/brp-api/personen-mock\n"
+        '  version: "2.6.0"\n'
+        '  digest: "sha256:cccc"\n',
+        encoding="utf-8",
+    )
+    images_path = tmp_path / "docs" / "images" / "images-4.9.0.yaml"
+    images_path.write_text(REAL_MANIFEST)
+    issues = libdocsconsistency.check_images_manifest_format(
+        images_path, "4.8.5", "4.9.0", NEW_DEP_DEPS, NEW_DEP_VALUES, VALUES, chart_dir=tmp_path)
+    assert any('image "brppersonenmock" changed vs 4.8.5 but has no entry' in i for i in issues)

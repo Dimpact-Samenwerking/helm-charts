@@ -1568,6 +1568,111 @@ def test_main_ignores_mention_inside_fenced_code_block_and_does_not_duplicate(
     assert "Adding missing key-change mention(s)" not in out
 
 
+# --- main() integration: images-baseline.yaml fallback for a brand-new component ---
+
+@pytest.fixture
+def repo_with_new_component_pinned_to_a_known_mirrored_image(tmp_path):
+    """brppersonenmock is added as a brand-new Chart.yaml dependency in
+    this release, pinned to an image version+digest that's ALREADY in
+    docs/images/images-baseline.yaml (from some earlier, unrelated hop)
+    — real case that surfaced this gap. The git baseline has nothing at
+    all to compare brppersonenmock's own image tag against (the
+    component didn't exist there), but since this EXACT pin is already
+    a known, previously-mirrored image, it must NOT be added to
+    images-4.9.0.yaml as a changed image."""
+    git("init", "-q", cwd=tmp_path)
+    git("config", "user.email", "test@example.com", cwd=tmp_path)
+    git("config", "user.name", "Test", cwd=tmp_path)
+
+    write(tmp_path / "Chart.yaml", yaml.safe_dump({
+        "dependencies": [
+            {"name": "zaakbrug", "version": "2.3.28", "repository": "https://wearefrank.github.io/charts"},
+        ],
+    }))
+    write(tmp_path / "values.yaml", yaml.safe_dump({"zaakbrug": {"image": {"tag": "1.26.15@sha256:aaaa"}}}))
+    doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
+    images_dir = tmp_path / "docs" / "images"
+    doc_dir.mkdir(parents=True)
+    images_dir.mkdir(parents=True)
+    git("add", "-A", cwd=tmp_path)
+    git("commit", "-q", "-m", "baseline state", cwd=tmp_path)
+    git("tag", "podiumd-4.8.5", cwd=tmp_path)
+
+    write(tmp_path / "Chart.yaml", yaml.safe_dump({
+        "dependencies": [
+            {"name": "zaakbrug", "version": "2.3.28", "repository": "https://wearefrank.github.io/charts"},
+            {"name": "brp-personen-mock", "version": "1.2.9", "repository": "@dimpact",
+             "condition": "brppersonenmock.enabled", "alias": "brppersonenmock"},
+        ],
+    }))
+    write(tmp_path / "values.yaml", yaml.safe_dump({
+        "zaakbrug": {"image": {"tag": "1.26.15@sha256:aaaa"}},
+        "brppersonenmock": {"enabled": False, "image": {
+            "repository": "ghcr.io/brp-api/personen-mock", "tag": "2.7.0@sha256:bbbb"}},
+    }))
+    write(doc_dir / "4.8.3-to-4.9.0-upgrade.md",
+          "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
+          "## Component versions (4.9.0 vs 4.8.5)\n\n"
+          "| Component | App version | Helm chart | Notes |\n"
+          "| --- | --- | --- | --- |\n\n"
+          "## Changes\n\n")
+    write(doc_dir / "4.8.3-to-4.9.0-values-deltas.md",
+          "# Values deltas — PodiumD 4.8.3 → 4.9.0\n\nNo unrelated changes.\n")
+    write(images_dir / "images-4.9.0.yaml",
+          "# Baseline: podiumd 4.8.5.\n#\n# Zero changes:\n#\n\n"
+          "- name: zaakbrug\n"
+          "  url: wearefrank/zaakbrug\n"
+          '  version: "1.26.15"\n'
+          '  digest: "sha256:aaaa"\n')
+    write(images_dir / "images-baseline.yaml",
+          "- name: brp-api/personen-mock\n"
+          "  url: ghcr.io/brp-api/personen-mock\n"
+          '  version: "2.7.0"\n'
+          '  digest: "sha256:bbbb"\n')
+    git("add", "-A", cwd=tmp_path)
+    git("commit", "-q", "-m", "add brppersonenmock, pinned to an already-mirrored image", cwd=tmp_path)
+    return doc_dir, images_dir
+
+
+def test_main_does_not_add_new_component_image_already_known_in_images_baseline(
+        cdb, repo_with_new_component_pinned_to_a_known_mirrored_image, monkeypatch, capsys):
+    """brppersonenmock's own SCHEMA is genuinely new, so it still gets a
+    real -upgrade.md row/Changes section and values-deltas.md section
+    (unaffected by this fallback) — only its IMAGE is recognized as
+    already-known and thus skipped from images-4.9.0.yaml specifically."""
+    doc_dir, images_dir = repo_with_new_component_pinned_to_a_known_mirrored_image
+    set_argv_and_dir(cdb, monkeypatch, doc_dir, "4.8.5")
+    cdb.main()
+
+    images = (images_dir / "images-4.9.0.yaml").read_text(encoding="utf-8")
+    assert "brp-api/personen-mock" not in images
+    out = capsys.readouterr().out
+    assert "Adding missing entr(y/ies) to images-4.9.0.yaml" not in out
+
+
+def test_main_adds_new_component_image_not_in_images_baseline(
+        cdb, repo_with_new_component_pinned_to_a_known_mirrored_image, monkeypatch):
+    """Same shape, but the pinned digest genuinely isn't in images-
+    baseline.yaml anywhere — still added as changed, same as before
+    this fallback existed."""
+    doc_dir, images_dir = repo_with_new_component_pinned_to_a_known_mirrored_image
+    (images_dir / "images-baseline.yaml").write_text(
+        "- name: brp-api/personen-mock\n"
+        "  url: ghcr.io/brp-api/personen-mock\n"
+        '  version: "2.6.0"\n'
+        '  digest: "sha256:cccc"\n',
+        encoding="utf-8",
+    )
+    repo_root = doc_dir.parent.parent
+    git("add", "-A", cwd=repo_root)
+    git("commit", "-q", "-m", "images-baseline.yaml doesn't have this pin", cwd=repo_root)
+    set_argv_and_dir(cdb, monkeypatch, doc_dir, "4.8.5")
+    cdb.main()
+
+    images = (images_dir / "images-4.9.0.yaml").read_text(encoding="utf-8")
+    assert "brp-api/personen-mock" in images
+
+
 # --- replace_version_pair ---
 
 def test_replace_version_pair_arrow_form(cdb):

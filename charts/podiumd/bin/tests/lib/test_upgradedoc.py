@@ -619,6 +619,48 @@ def test_find_images_manifest_list_diff_treats_brand_new_path_as_changed(libupgr
     assert unmatched == []
 
 
+def test_find_images_manifest_list_diff_brand_new_path_known_in_images_baseline_is_not_changed(libupgradedoc):
+    """A path with no baseline entry at all (a component that didn't
+    exist in Chart.yaml/values.yaml until this release) is NOT reported
+    as missing when its EXACT version+digest already appears in
+    images-baseline.yaml — real case: brppersonenmock, added in 4.9.0,
+    pinned to a brp-personen-mock version already mirrored from an
+    earlier, unrelated hop. There's nothing new for the images manifest
+    to track, even though the component itself is new to the chart."""
+    entries = []
+    current_paths = {("brppersonenmock", "image"): "2.7.0@sha256:aaaa"}
+    baseline_paths = {}
+    repo_map = {"brp-api/personen-mock": ("brppersonenmock", "image")}
+    repo_groups = {"brp-api/personen-mock": [("brppersonenmock", "image")]}
+    images_baseline = [{"name": "brp-api/personen-mock", "url": "ghcr.io/brp-api/personen-mock",
+                         "version": "2.7.0", "digest": "sha256:aaaa"}]
+    missing, stale, unmatched = libupgradedoc.find_images_manifest_list_diff(
+        entries, current_paths, baseline_paths, repo_map, repo_groups, unresolvable_paths=set(),
+        images_baseline=images_baseline)
+    assert missing == []
+    assert stale == []
+    assert unmatched == []
+
+
+def test_find_images_manifest_list_diff_brand_new_path_not_in_images_baseline_is_changed(libupgradedoc):
+    """Same brand-new-path shape, but the version+digest genuinely isn't
+    in images-baseline.yaml anywhere — still reported as missing, same
+    as when images_baseline is omitted entirely."""
+    entries = []
+    current_paths = {("brppersonenmock", "image"): "2.7.0@sha256:aaaa"}
+    baseline_paths = {}
+    repo_map = {"brp-api/personen-mock": ("brppersonenmock", "image")}
+    repo_groups = {"brp-api/personen-mock": [("brppersonenmock", "image")]}
+    images_baseline = [{"name": "brp-api/personen-mock", "url": "ghcr.io/brp-api/personen-mock",
+                         "version": "2.6.0", "digest": "sha256:bbbb"}]
+    missing, stale, unmatched = libupgradedoc.find_images_manifest_list_diff(
+        entries, current_paths, baseline_paths, repo_map, repo_groups, unresolvable_paths=set(),
+        images_baseline=images_baseline)
+    assert missing == [("brppersonenmock", "image")]
+    assert stale == []
+    assert unmatched == []
+
+
 def test_find_images_manifest_list_diff_uses_repo_map_for_resolution(libupgradedoc):
     """Entry resolution goes through resolve_entry_image_path — a
     strip-registry-shaped name only matches via repo_map, same as that

@@ -150,6 +150,50 @@ def test_release_table_baseline_none_when_key_missing(libchart, tmp_path):
     assert libchart.release_table_baseline(tmp_path) is None
 
 
+# --- load_images_baseline / image_pin_known_in_images_baseline ---
+
+def test_load_images_baseline_reads_entries(libchart, tmp_path):
+    (tmp_path / "docs" / "images").mkdir(parents=True)
+    (tmp_path / "docs" / "images" / "images-baseline.yaml").write_text(
+        "- name: brp-api/personen-mock\n"
+        "  url: ghcr.io/brp-api/personen-mock\n"
+        '  version: "2.7.0"\n'
+        '  digest: "sha256:aaaa"\n',
+        encoding="utf-8",
+    )
+    entries = libchart.load_images_baseline(tmp_path)
+    assert entries == [{"name": "brp-api/personen-mock", "url": "ghcr.io/brp-api/personen-mock",
+                         "version": "2.7.0", "digest": "sha256:aaaa"}]
+
+
+def test_load_images_baseline_empty_when_file_missing(libchart, tmp_path):
+    assert libchart.load_images_baseline(tmp_path) == []
+
+
+def test_image_pin_known_in_images_baseline_exact_match(libchart):
+    images_baseline = [{"name": "brp-api/personen-mock", "version": "2.7.0", "digest": "sha256:aaaa"}]
+    assert libchart.image_pin_known_in_images_baseline(
+        images_baseline, "brp-api/personen-mock", "2.7.0", "sha256:aaaa") is True
+
+
+def test_image_pin_known_in_images_baseline_different_version_not_known(libchart):
+    images_baseline = [{"name": "brp-api/personen-mock", "version": "2.6.0", "digest": "sha256:bbbb"}]
+    assert libchart.image_pin_known_in_images_baseline(
+        images_baseline, "brp-api/personen-mock", "2.7.0", "sha256:aaaa") is False
+
+
+def test_image_pin_known_in_images_baseline_different_repo_not_known(libchart):
+    """The exact same version+digest, but for an UNRELATED image's own
+    name — never a coincidental cross-image match."""
+    images_baseline = [{"name": "some-other/image", "version": "2.7.0", "digest": "sha256:aaaa"}]
+    assert libchart.image_pin_known_in_images_baseline(
+        images_baseline, "brp-api/personen-mock", "2.7.0", "sha256:aaaa") is False
+
+
+def test_image_pin_known_in_images_baseline_empty_list_is_false(libchart):
+    assert libchart.image_pin_known_in_images_baseline([], "brp-api/personen-mock", "2.7.0", "sha256:aaaa") is False
+
+
 # --- write_release_baselines ---
 
 def test_write_release_baselines_creates_file_with_both_keys(libchart, tmp_path):

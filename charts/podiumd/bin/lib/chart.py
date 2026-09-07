@@ -341,6 +341,44 @@ def chart_version(chart_yaml_path):
     return str(load_yaml(chart_yaml_path)["version"])
 
 
+IMAGES_BASELINE_FILE_NAME = "docs/images/images-baseline.yaml"
+
+
+def load_images_baseline(chart_dir):
+    """The parsed contents of chart_dir/docs/images/images-baseline.yaml
+    — the full, CUMULATIVE strip-registry mirror manifest (every image
+    version ever pinned across every release, not just this hop's own
+    changes — see that file's own header comment) — or [] if it doesn't
+    exist. Entries are {name, url, version, digest} dicts; "name:" is
+    already in the same stripped form (strip_registry(url)) images-
+    <target>.yaml's own "name:"/"url:" fields use (see paths_by_
+    repository), so a manifest entry's own repo string is directly
+    comparable against this file's "name:" without re-deriving
+    anything."""
+    path = chart_dir / IMAGES_BASELINE_FILE_NAME
+    if not path.is_file():
+        return []
+    return yaml.safe_load(path.read_text(encoding="utf-8")) or []
+
+
+def image_pin_known_in_images_baseline(images_baseline, repo, version, digest):
+    """Whether this EXACT (repo, version, digest) pin already appears in
+    images_baseline (see load_images_baseline) — the fallback "has this
+    image actually changed" signal for when the git upgrade_docs_
+    baseline has nothing to compare against at all (e.g. a component
+    that didn't exist in Chart.yaml/values.yaml until this release, so
+    there's no prior pinned tag to diff against — see lib.upgradedoc.
+    find_images_manifest_list_diff's own version_changed). A brand-new
+    COMPONENT can still pin an image version that was already mirrored
+    and used elsewhere before (real case: brppersonenmock added in
+    4.9.0, pinned to a brp-personen-mock version already present in
+    images-baseline.yaml from an earlier, unrelated hop) — there's
+    nothing new for the images manifest to track in that case, even
+    though the component itself is new to the chart."""
+    return any(entry.get("name") == repo and entry.get("version") == version
+               and entry.get("digest") == digest for entry in images_baseline)
+
+
 RELEASE_BASELINES_FILE_NAME = "etc/release-baseline.yaml"
 
 
