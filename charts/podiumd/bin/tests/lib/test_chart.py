@@ -1403,20 +1403,37 @@ def test_canonical_sidecar_row_names_excludes_dependencys_own_primary_image(libc
     assert names == {}
 
 
-def test_canonical_sidecar_row_names_excludes_self_referential_basename(libchart, tmp_path):
+def test_canonical_sidecar_row_names_self_referential_basename_falls_back_to_path_segment(libchart, tmp_path):
     """A nested image whose OWN repository basename happens to equal the
     parent dependency's own values key (real case: keycloak-operator.
     operator.image, the operator's own container — NOT registered in
     COMPONENT_IMAGE_PATHS, unlike operator.config.keycloakImage) must
-    never produce a "<key> - <key>" canonical name — that's structurally
-    indistinguishable from "this IS the dependency's own row"
-    (match_dependency already covers that case by the bare dependency
-    name), and auto-documenting it under the sidecar/image template
-    would be wrong regardless of what it's actually for."""
+    never produce a "<key> - <key>" canonical name — that reads as a
+    confusing repeat, not a real distinct-image name. Falls back to the
+    values-tree path's own second-to-last segment instead ("operator"),
+    giving "keycloak-operator - operator" — distinct from "this IS the
+    dependency's own row" (match_dependency already covers that case by
+    the bare dependency name), and clearly still identifies which
+    nested image this is."""
     dep = {"name": "keycloak-operator", "alias": "", "version": "1.12.1"}
     values = {"keycloak-operator": {"operator": {
         "image": {"repository": "quay.io/keycloak/keycloak-operator"}}}}
     paths = [("keycloak-operator", "operator", "image")]
+
+    names = libchart.canonical_sidecar_row_names(tmp_path, [dep], values, paths, allow_pull=False)
+
+    assert names == {"keycloak-operator - operator": ("keycloak-operator", "operator", "image")}
+
+
+def test_canonical_sidecar_row_names_self_referential_basename_no_fallback_segment_is_excluded(
+        libchart, tmp_path):
+    """When the self-referential path has nothing but the top-level key
+    and the final image key itself (no distinct segment in between to
+    fall back to), there's no useful alternative name at all — still
+    excluded entirely, same as before this fallback existed."""
+    dep = {"name": "keycloak-operator", "alias": "", "version": "1.12.1"}
+    values = {"keycloak-operator": {"image": {"repository": "quay.io/keycloak/keycloak-operator"}}}
+    paths = [("keycloak-operator", "image")]
 
     names = libchart.canonical_sidecar_row_names(tmp_path, [dep], values, paths, allow_pull=False)
 
