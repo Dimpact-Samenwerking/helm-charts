@@ -93,7 +93,7 @@ PodiumD Helm chart
 | clamav.freshclamConfig | string | `"###############\n# General\n###############\n\nDatabaseDirectory /var/lib/clamav\nPidFile /tmp/freshclam.pid\n# CUSTOM: Set defined user\nDatabaseOwner 2000\n\n###############\n# Updates\n###############\n\nDatabaseMirror database.clamav.net\nScriptedUpdates yes\nNotifyClamd /etc/clamav/clamd.conf\nBytecode yes\n"` |  |
 | clamav.fullnameOverride | string | `"clamav"` |  |
 | clamav.image.repository | string | `"clamav/clamav"` |  |
-| clamav.image.tag | string | `"1.5.4@sha256:f0954d679017eb6d48221e2b2be3ac5457bf278a844f39b672376f55a085f591"` |  |
+| clamav.image.tag | string | `"1.5.4@sha256:1fdfd24c6f0a0fb60788481487459a6d4eda8a9b448641594e04db8410d34422"` |  |
 | clamav.metrics.enabled | bool | `false` |  |
 | clamav.metrics.image.repository | string | `"docker.io/sergeymakinen/clamav_exporter"` |  |
 | clamav.metrics.image.tag | string | `"v2.1.8@sha256:ac0e23e6b718f265f67de68d9fccbb8e9baccedeba19658fd78dd8a606508e24"` |  |
@@ -275,7 +275,7 @@ PodiumD Helm chart
 | keycloak-operator.jobs.ensurePodiumdAdminUser.image.tag | string | `"16.15@sha256:f1c3376c26f2609ab9f29f71f824103fe2fcd8ee0346485cb6122a4f93df6f94"` |  |
 | keycloak-operator.jobs.ensurePodiumdAdminUser.initImage.registry | string | `""` |  |
 | keycloak-operator.jobs.ensurePodiumdAdminUser.initImage.repository | string | `"python"` |  |
-| keycloak-operator.jobs.ensurePodiumdAdminUser.initImage.tag | string | `"3.14.7-slim@sha256:cae66f2ef0ec51a9891263eeee7f987dacf0a9879e8aa9353d5606e0530619a5"` |  |
+| keycloak-operator.jobs.ensurePodiumdAdminUser.initImage.tag | string | `"3.14.7-slim@sha256:cad9a2c871761c413caa6fdd6441c783451e740a48aaeba60ae62a8b53525ef6"` |  |
 | keycloak-operator.jobs.importMasterRealm.enabled | bool | `true` |  |
 | keycloak-operator.jobs.importPodiumdRealm.enabled | bool | `true` |  |
 | keycloak-operator.jobs.keycloakUrl | string | `""` | Keycloak URL used by the realm-import jobs (keycloak-config-cli). Empty = in-cluster service (http://keycloak-service:8080). Set only when the jobs must reach Keycloak via another URL; note the public admin host can sit behind a gateway IP-allowlist that blocks cluster egress (403). |

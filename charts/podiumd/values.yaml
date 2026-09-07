@@ -112,7 +112,7 @@ keycloak-operator:
         registry: ""
         repository: python
         # Digest-pinned to a specific patch rather than the floating 3.14-slim minor tag.
-        tag: "3.14.7-slim@sha256:cae66f2ef0ec51a9891263eeee7f987dacf0a9879e8aa9353d5606e0530619a5"
+        tag: "3.14.7-slim@sha256:cad9a2c871761c413caa6fdd6441c783451e740a48aaeba60ae62a8b53525ef6"
       # Main container: runs psql to execute the generated SQL against the Keycloak DB.
       image:
         registry: ""
@@ -3220,7 +3220,7 @@ clamav:
   # serviceMonitor requires the Prometheus Operator CRD (monitoring.coreos.com/v1 ServiceMonitor).
   image:
     repository: clamav/clamav
-    tag: "1.5.4@sha256:f0954d679017eb6d48221e2b2be3ac5457bf278a844f39b672376f55a085f591"
+    tag: "1.5.4@sha256:1fdfd24c6f0a0fb60788481487459a6d4eda8a9b448641594e04db8410d34422"
   metrics:
     enabled: false
     image:
