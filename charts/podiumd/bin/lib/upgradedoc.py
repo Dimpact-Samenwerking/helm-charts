@@ -2022,15 +2022,35 @@ def missing_key_change_lines(text, changed_component_keys, baseline_values, valu
     mentioned for the line to count as covered, else it's reported as
     missing so a partial/stale rename mention still gets caught.
 
+    "Mentioned" requires an EXACT match against an existing backtick
+    span — never a substring check either direction. A real bug this
+    fixes: ordinary prose using a short, generic word in backticks
+    elsewhere in the doc (e.g. "environments override `registry`/
+    `repository` ... but never `tag`", describing a general convention,
+    not any one specific key) used to silently mark EVERY dotted key
+    path merely CONTAINING that word — `objecten.image.repository`,
+    `keycloak-operator.operator.image.tag`, ... — as "already covered",
+    dropping real, distinct additions/removals with no trace. A dotted
+    path's own bare trailing segment already mentioned elsewhere without
+    its full prefix (e.g. "ita.verlopenContactverzoekHerinneringNotifi
+    catie" referred to as just "verlopenContactverzoekHerinneringNotifi
+    catie" in prose) is now, deliberately, reported as missing too —
+    the exact same string shape as the bug above, with no mechanical way
+    to tell the two apart, so there's no looser rule that catches one
+    without the other. That trades an occasional harmless duplicate
+    bullet (something already covered by differently-phrased prose gets
+    suggested again) for actually catching every real omission, the
+    much safer failure mode for a correctness check.
+
     A line whose exact text is already present verbatim in `text` is
     never reported either way, even if the "mentioned" check above
     somehow missed it — a second, independent backstop against
     re-adding content that's already there (see strip_fenced_code_blocks
     for the one known way the "mentioned" check itself can be fooled)."""
-    backtick_spans = re.findall(r"`([^`]+)`", strip_fenced_code_blocks(text))
+    backtick_spans = set(re.findall(r"`([^`]+)`", strip_fenced_code_blocks(text)))
 
     def mentioned(span):
-        return any(span in other or other in span for other in backtick_spans)
+        return span in backtick_spans
 
     lines = []
     for values_key in sorted(changed_component_keys):

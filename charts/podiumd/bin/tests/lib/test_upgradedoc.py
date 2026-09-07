@@ -2061,6 +2061,41 @@ def test_missing_key_change_lines_never_reports_a_line_already_present_verbatim(
     assert libupgradedoc.missing_key_change_lines(text, {"zac"}, baseline_values, values) == []
 
 
+def test_missing_key_change_lines_generic_backtick_word_elsewhere_is_not_a_match(libupgradedoc):
+    """Real bug this guards against: ordinary prose using a short, generic
+    word in backticks elsewhere in the doc (describing a general
+    convention, not any one specific key) must never be mistaken for a
+    mention of an unrelated key path that merely CONTAINS that word as
+    its own trailing segment — "mentioned" used to be a substring check
+    either direction, so a sentence like "environments override
+    `registry`/`repository` ... but never `tag`" silently marked EVERY
+    key path containing "repository" as already covered, dropping real
+    additions with no trace (confirmed live: objecten.image.repository,
+    keycloak-operator.operator.image.tag, and 8 other real, distinct
+    key changes across the actual 4.9.0 upgrade all vanished this way)."""
+    baseline_values = {"objecten": {"image": {}}}
+    values = {"objecten": {"image": {"repository": "ghcr.io/maykinmedia/objects-api"}}}
+    text = "Every environment checked overrides `registry`/`repository` for these images but never `tag`.\n"
+    lines = libupgradedoc.missing_key_change_lines(text, {"objecten"}, baseline_values, values)
+    assert lines == ["- Key `objecten.image.repository` was added.\n"]
+
+
+def test_missing_key_change_lines_bare_leaf_mention_is_not_enough(libupgradedoc):
+    """The flip side of the fix above: a key's own bare trailing segment,
+    mentioned in prose WITHOUT its full dotted prefix, is the exact same
+    string shape as the bug case (an existing short span that's a
+    substring of the full path) — there's no mechanical way to tell
+    them apart, so this is now, deliberately, also reported as missing
+    rather than silently trusted. The safe direction to err in: an
+    occasional harmless duplicate bullet beats a real omission with no
+    trace."""
+    baseline_values = {"ita": {}}
+    values = {"ita": {"verlopenContactverzoekHerinneringNotificatie": {"schedule": "0 7 * * 1-5"}}}
+    text = "The new `verlopenContactverzoekHerinneringNotificatie` CronJob is enabled by default.\n"
+    lines = libupgradedoc.missing_key_change_lines(text, {"ita"}, baseline_values, values)
+    assert lines == ["- Key `ita.verlopenContactverzoekHerinneringNotificatie` was added.\n"]
+
+
 # --- values_key_order ---
 
 def test_values_key_order_returns_top_level_keys_in_file_order(libupgradedoc):
