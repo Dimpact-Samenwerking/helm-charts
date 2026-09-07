@@ -716,6 +716,31 @@ def test_find_component_row_no_match_returns_none(libcomponentdocs):
     assert libcomponentdocs.find_component_row(rows, "openformulieren") is None
 
 
+def test_find_component_row_plain_name_does_not_match_its_own_sidecar_rows(libcomponentdocs):
+    """Regression test: a canonical "<key> - <basename>" sidecar row
+    (e.g. "openbao - openbao-csi-provider") legitimately starts with its
+    owning dependency's own name as a leading word-aligned span — that
+    must never satisfy a lookup for the dependency's OWN plain-name
+    friendly ("openbao"), same class of collision lib.upgradedoc.
+    match_dependency_excluding_sidecar_names already guards against on
+    the read side. Real bug: update_component_table silently overwrote
+    the "openbao - openbao-csi-provider" row with openbao's OWN
+    chart/app values instead of inserting openbao's own new row, because
+    this lookup used to return that sidecar row as a false match."""
+    rows = [
+        {"name": "openbao - openbao-csi-provider", "line_index": 0},
+        {"name": "openbao - openbao-snapshot-agent", "line_index": 1},
+    ]
+    assert libcomponentdocs.find_component_row(rows, "openbao") is None
+
+
+def test_find_component_row_sidecar_name_still_matches_its_own_row(libcomponentdocs):
+    """The exact-whole-name exception in the fix above: a lookup for the
+    sidecar's own full canonical name must still find its own row."""
+    rows = [{"name": "openbao - openbao-csi-provider", "line_index": 0}]
+    assert libcomponentdocs.find_component_row(rows, "openbao - openbao-csi-provider")["line_index"] == 0
+
+
 DEPS = [
     {"name": "openformulieren", "version": "1.12.0"},
     {"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"},
@@ -738,6 +763,28 @@ def test_update_component_table_adds_new_row(ucv):
     assert action == "added"
     assert "| openformulieren | 3.4.10 → 3.5.6 | 1.12.0 (unchanged) | - |" in new_text
     assert "| zac | 5.0.2 → 5.1.0 | 1.0.297 (unchanged) | - |" in new_text  # untouched
+
+
+def test_update_component_table_new_row_not_absorbed_by_own_sidecar_rows(ucv):
+    """Regression test (real bug, real doc): when a dependency's own row
+    doesn't exist yet but its sidecar rows already do (e.g. openbao,
+    whose "openbao - openbao-csi-provider"/"...-snapshot-agent"/"...-
+    vault-k8s" rows were added a prior run, before openbao's own app
+    version became independently resolvable), inserting the dependency's
+    own new row must never overwrite one of those sidecar rows instead —
+    each keeps its own values, and the dependency gets its own new row."""
+    text = (
+        COMPONENT_VERSIONS_HEADING +
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| openbao - openbao-csi-provider | 2.0.2 (new) | - | - |\n"
+        "| openbao - openbao-snapshot-agent | 0.3.0 (new) | - | - |\n"
+    )
+    new_text, action = ucv.update_component_table(text, "openbao", None, "v2.5.5", "0.28.4", "0.28.4", DEPS, VALUES)
+    assert action == "added"
+    assert "| openbao | v2.5.5 (new) | 0.28.4 (unchanged) | - |" in new_text
+    assert "| openbao - openbao-csi-provider | 2.0.2 (new) | - | - |" in new_text  # untouched
+    assert "| openbao - openbao-snapshot-agent | 0.3.0 (new) | - | - |" in new_text  # untouched
 
 
 def test_update_component_table_new_row_inserted_in_values_yaml_order(ucv):
