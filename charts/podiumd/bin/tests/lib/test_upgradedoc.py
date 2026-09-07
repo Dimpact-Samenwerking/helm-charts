@@ -2460,6 +2460,141 @@ def test_sort_changes_blocks_fewer_than_two_blocks_is_unchanged(libupgradedoc):
     assert new_text == text
 
 
+# --- sort_values_delta_bullets ---
+
+def test_sort_values_delta_bullets_reorders_out_of_order_chunks(libupgradedoc):
+    text = (
+        "- Key `openinwoner.a` was added.\n"
+        "\n"
+        "- Key `openzaak.b` was added.\n"
+    )
+    new_text, moved = libupgradedoc.sort_values_delta_bullets(text, DEPS, {"openzaak": {}, "openinwoner": {}})
+    assert moved == [("- Key `openzaak.b` was added.", 2, 1), ("- Key `openinwoner.a` was added.", 1, 2)]
+    assert new_text == (
+        "- Key `openzaak.b` was added.\n"
+        "\n"
+        "- Key `openinwoner.a` was added.\n"
+    )
+
+
+def test_sort_values_delta_bullets_already_in_order_is_unchanged(libupgradedoc):
+    text = "- Key `openzaak.b` was added.\n\n- Key `openinwoner.a` was added.\n"
+    new_text, moved = libupgradedoc.sort_values_delta_bullets(text, DEPS, {"openzaak": {}, "openinwoner": {}})
+    assert moved == []
+    assert new_text == text
+
+
+def test_sort_values_delta_bullets_fewer_than_two_chunks_is_unchanged(libupgradedoc):
+    text = "- Key `openzaak.b` was added.\n"
+    new_text, moved = libupgradedoc.sort_values_delta_bullets(text, DEPS, {"openzaak": {}})
+    assert moved == []
+    assert new_text == text
+
+
+def test_sort_values_delta_bullets_never_touches_hand_written_content_above(libupgradedoc):
+    """Real case this guards against: an earlier "## ZAC ..." section
+    mixes the exact same "- **<name>** app ..." bullet shape with extra
+    hand-added prose after some of its own bullets — only the TRAILING
+    run of purely mechanical bullets add_missing_values_delta_bullets/
+    missing_key_change_lines themselves ever produce is ever reordered;
+    anything above the first non-blank, non-bullet line (a heading, or
+    hand-written prose) is left completely untouched."""
+    text = (
+        "## ZAC and ZGW Office Add-in — no changes\n\n"
+        "- **zac** app `5.0.2 → 5.4.4` — sidecars also bump: `opa` etc.\n"
+        "- **openinwoner** app `2.4.2 → 2.4.3` — image tag only.\n\n"
+        "## PABC\n\n"
+        "- Key `openinwoner.a` was added.\n\n"
+        "- Key `openzaak.b` was added.\n"
+    )
+    new_text, moved = libupgradedoc.sort_values_delta_bullets(text, DEPS, {"openzaak": {}, "openinwoner": {}})
+    assert moved == [("- Key `openzaak.b` was added.", 2, 1), ("- Key `openinwoner.a` was added.", 1, 2)]
+    lines = new_text.splitlines()
+    assert lines[2] == "- **zac** app `5.0.2 → 5.4.4` — sidecars also bump: `opa` etc."
+    assert lines[3] == "- **openinwoner** app `2.4.2 → 2.4.3` — image tag only."
+    assert "- Key `openzaak.b` was added." in new_text
+    assert new_text.index("- Key `openzaak.b`") < new_text.index("- Key `openinwoner.a`")
+
+
+def test_sort_values_delta_bullets_version_bullet_and_key_changes_move_together(libupgradedoc):
+    """A component's own version bullet and its key-change bullets are
+    separate chunks (each add_missing_values_delta_bullets/missing_key_
+    change_lines call appends its own new_lines as one chunk) — a stable
+    sort keeps them adjacent, in their existing relative order, once
+    both share the same resolved component."""
+    text = (
+        "- Key `openzaak.b` was added.\n"
+        "\n"
+        "- **openinwoner** app `2.4.2 → 2.4.3` — image tag only.\n"
+        "\n"
+        "- Key `openinwoner.a` was added.\n"
+    )
+    new_text, moved = libupgradedoc.sort_values_delta_bullets(text, DEPS, {"openzaak": {}, "openinwoner": {}})
+    assert new_text == (
+        "- Key `openzaak.b` was added.\n"
+        "\n"
+        "- **openinwoner** app `2.4.2 → 2.4.3` — image tag only.\n"
+        "\n"
+        "- Key `openinwoner.a` was added.\n"
+    )
+    assert moved == []
+
+
+def test_sort_values_delta_bullets_native_component_uses_its_own_values_position(libupgradedoc):
+    """frankgateway (see lib.chart.NATIVE_COMPONENTS) has no Chart.yaml
+    dependency at all — its own version bullet still sorts at its real
+    values.yaml position instead of always last."""
+    text = (
+        "- **frankgateway** app `100 → 104` — image tag only (no separate Helm chart for this component).\n"
+        "\n"
+        "- Key `openzaak.b` was added.\n"
+    )
+    # frankgateway genuinely comes BEFORE openzaak in values.yaml's own
+    # order here — matching the text's existing order, so this is the
+    # "already sorted, nothing moves" case, not "always last".
+    values = {"frankgateway": {}, "openzaak": {}}
+    new_text, moved = libupgradedoc.sort_values_delta_bullets(text, DEPS, values)
+    assert moved == []
+    assert new_text == text
+
+
+def test_sort_values_delta_bullets_splits_mixed_chunk_with_no_blank_line_between_components(libupgradedoc):
+    """Real case found in the actual doc: an earlier fix-doc-consistency
+    run backfilled several UNRELATED components' key-change bullets
+    back-to-back with NO blank line separating them (openinwoner then
+    openzaak then openinwoner again). Each bullet must still sort to its
+    own component's real position — not get dragged along as one atomic
+    block keyed by whichever component the whole run's first line
+    happens to belong to."""
+    text = (
+        "- Key `openinwoner.a` was added.\n"
+        "- Key `openzaak.b` was added.\n"
+        "- Key `openinwoner.c` was added.\n"
+    )
+    new_text, moved = libupgradedoc.sort_values_delta_bullets(text, DEPS, {"openzaak": {}, "openinwoner": {}})
+    assert new_text == (
+        "- Key `openzaak.b` was added.\n"
+        "\n"
+        "- Key `openinwoner.a` was added.\n"
+        "\n"
+        "- Key `openinwoner.c` was added.\n"
+    )
+
+
+def test_sort_values_delta_bullets_unmatched_chunk_stays_last(libupgradedoc):
+    text = (
+        "- Key `totallyunknown.a` was added.\n"
+        "\n"
+        "- Key `openzaak.b` was added.\n"
+    )
+    new_text, moved = libupgradedoc.sort_values_delta_bullets(text, DEPS, {"openzaak": {}})
+    assert new_text == (
+        "- Key `openzaak.b` was added.\n"
+        "\n"
+        "- Key `totallyunknown.a` was added.\n"
+    )
+
+
 # --- resolve_component_row ---
 # The one place fix-doc-consistency's row-rewriter and lib.docs_consistency's
 # row-checker both resolve a "Component versions" table row — see its own
