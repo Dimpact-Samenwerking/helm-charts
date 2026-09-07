@@ -338,7 +338,8 @@ PodiumD Helm chart
 | keycloak.http.httpEnabled | bool | `true` |  |
 | keycloak.image.registry | string | `""` |  |
 | keycloak.image.repository | string | `"quay.io/keycloak/keycloak"` |  |
-| keycloak.image.tag | string | `"26.7.3@sha256:ff4257d0d64efbe99ed1ddfaf07765cc3c36dc7518bf8324d41961327f441c54"` |  |
+| keycloak.image.sha | string | `"ff4257d0d64efbe99ed1ddfaf07765cc3c36dc7518bf8324d41961327f441c54"` |  |
+| keycloak.image.tag | string | `"26.7.3"` |  |
 | keycloak.ingress.enabled | bool | `false` |  |
 | keycloak.instances | string | `"2"` | instances is the new operator-style replica count (falls back to replicaCount) |
 | keycloak.keycloakConfigCli.image.registry | string | `""` |  |
