@@ -103,10 +103,8 @@ def test_main_invokes_fix_doc_consistency(cpb, repo, monkeypatch, capsys):
         cpb.main()
 
     assert exc_info.value.code == 0
-    assert calls[0][0] == cpb.sys.executable
-    assert calls[0][1] == str(cpb.FIX_DOC_CONSISTENCY_SCRIPT)
-    assert calls[0][2] == "4.8.5"
-    assert "fix-doc-consistency 4.8.5" in capsys.readouterr().out
+    assert calls[0] == [cpb.sys.executable, str(cpb.FIX_DOC_CONSISTENCY_SCRIPT)]
+    assert "fix-doc-consistency (upgrade_docs baseline 4.8.5)" in capsys.readouterr().out
 
 
 def test_main_invokes_fix_helm_doc_after_fix_doc_consistency(cpb, repo, monkeypatch, capsys):

@@ -8,13 +8,19 @@ import subprocess
 import pytest
 
 
-def setup_dirs(cdv, tmp_path, monkeypatch):
+def setup_dirs(cdv, tmp_path, monkeypatch, baseline="4.8.5"):
+    """baseline=None skips writing etc/release-baseline.yaml at all — for
+    the "no release-baseline.yaml at all" error case."""
     chart_yaml = tmp_path / "Chart.yaml"
     chart_yaml.write_text("version: 4.9.0\n", encoding="utf-8")
     doc_dir = tmp_path / "docs" / "_UPGRADE_PATHS"
     images_dir = tmp_path / "docs" / "images"
     doc_dir.mkdir(parents=True)
     images_dir.mkdir(parents=True)
+    if baseline is not None:
+        (tmp_path / "etc").mkdir()
+        (tmp_path / "etc" / "release-baseline.yaml").write_text(
+            f'upgrade_docs: "{baseline}"\n', encoding="utf-8")
     monkeypatch.setattr(cdv, "CHART_DIR", tmp_path)
     monkeypatch.setattr(cdv, "CHART_YAML", chart_yaml)
     monkeypatch.setattr(cdv, "DOC_DIR", doc_dir)
@@ -33,8 +39,11 @@ def test_help_flag_prints_docstring_and_exits_zero(cdv, monkeypatch, capsys):
     assert capsys.readouterr().out == cdv.__doc__ + "\n"
 
 
-def test_too_many_arguments_fails(cdv, monkeypatch, capsys):
-    monkeypatch.setattr("sys.argv", ["create-doc-version", "4.8.5", "extra"])
+def test_any_argument_fails(cdv, monkeypatch, capsys):
+    """This script never takes the baseline (or anything else) as an
+    argument — any positional argument (other than -h/--help) is
+    rejected with the usage docstring."""
+    monkeypatch.setattr("sys.argv", ["create-doc-version", "4.8.5"])
     with pytest.raises(SystemExit) as exc_info:
         cdv.main()
     assert exc_info.value.code == 1
@@ -42,36 +51,34 @@ def test_too_many_arguments_fails(cdv, monkeypatch, capsys):
 
 
 def test_invalid_baseline_format_fails(cdv, tmp_path, monkeypatch, capsys):
-    setup_dirs(cdv, tmp_path, monkeypatch)
-    monkeypatch.setattr("sys.argv", ["create-doc-version", "not-a-version"])
+    """A defensive check against a hand-edited or corrupted release-
+    baseline.yaml, now that this can no longer come from a CLI argument."""
+    setup_dirs(cdv, tmp_path, monkeypatch, baseline="not-a-version")
+    monkeypatch.setattr("sys.argv", ["create-doc-version"])
     with pytest.raises(SystemExit) as exc_info:
         cdv.main()
     assert exc_info.value.code == 1
     assert "is not a valid MAJOR.MINOR.PATCH version" in capsys.readouterr().out
 
 
-# --- main(): release-baseline.yaml default ---
+# --- main(): release-baseline.yaml ---
 
-def test_no_baseline_given_and_no_release_baseline_fails(cdv, tmp_path, monkeypatch, capsys):
-    setup_dirs(cdv, tmp_path, monkeypatch)
+def test_no_release_baseline_fails(cdv, tmp_path, monkeypatch, capsys):
+    setup_dirs(cdv, tmp_path, monkeypatch, baseline=None)
     monkeypatch.setattr("sys.argv", ["create-doc-version"])
     with pytest.raises(SystemExit) as exc_info:
         cdv.main()
     assert exc_info.value.code == 1
-    assert ("no <upgrade_docs_baseline> given and release-baseline.yaml's "
-            "upgrade_docs key doesn't exist") in capsys.readouterr().out
+    assert ("release-baseline.yaml has no upgrade_docs key (or the file doesn't exist "
+            "yet)") in capsys.readouterr().out
 
 
-def test_no_baseline_given_uses_release_baseline(cdv, tmp_path, monkeypatch, capsys):
-    doc_dir, images_dir = setup_dirs(cdv, tmp_path, monkeypatch)
-    (tmp_path / "etc").mkdir()
-    (tmp_path / "etc" / "release-baseline.yaml").write_text('upgrade_docs: "4.8.5"\n', encoding="utf-8")
+def test_uses_release_baseline(cdv, tmp_path, monkeypatch, capsys):
+    doc_dir, images_dir = setup_dirs(cdv, tmp_path, monkeypatch, baseline="4.8.5")
     monkeypatch.setattr("sys.argv", ["create-doc-version"])
 
     cdv.main()  # success path: must not raise
 
-    out = capsys.readouterr().out
-    assert "No <upgrade_docs_baseline> given — using release-baseline.yaml's upgrade_docs '4.8.5'" in out
     assert (doc_dir / "4.8.5-to-4.9.0-upgrade.md").is_file()
 
 
@@ -79,7 +86,7 @@ def test_no_baseline_given_uses_release_baseline(cdv, tmp_path, monkeypatch, cap
 
 def test_creates_all_standard_docs_when_none_exist(cdv, tmp_path, monkeypatch, capsys):
     doc_dir, images_dir = setup_dirs(cdv, tmp_path, monkeypatch)
-    monkeypatch.setattr("sys.argv", ["create-doc-version", "4.8.5"])
+    monkeypatch.setattr("sys.argv", ["create-doc-version"])
 
     cdv.main()
 
@@ -93,7 +100,7 @@ def test_creates_all_standard_docs_when_none_exist(cdv, tmp_path, monkeypatch, c
 def test_creates_only_the_missing_doc(cdv, tmp_path, monkeypatch, capsys):
     doc_dir, images_dir = setup_dirs(cdv, tmp_path, monkeypatch)
     (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text("hand-written\n", encoding="utf-8")
-    monkeypatch.setattr("sys.argv", ["create-doc-version", "4.8.5"])
+    monkeypatch.setattr("sys.argv", ["create-doc-version"])
 
     cdv.main()
 
@@ -106,7 +113,7 @@ def test_nothing_to_do_when_everything_already_exists(cdv, tmp_path, monkeypatch
     for suffix in ("upgrade", "gemeente-specific", "values-deltas"):
         (doc_dir / f"4.8.5-to-4.9.0-{suffix}.md").write_text("x", encoding="utf-8")
     (images_dir / "images-4.9.0.yaml").write_text("x", encoding="utf-8")
-    monkeypatch.setattr("sys.argv", ["create-doc-version", "4.8.5"])
+    monkeypatch.setattr("sys.argv", ["create-doc-version"])
 
     cdv.main()
 
@@ -120,7 +127,7 @@ def test_refuses_when_doc_exists_under_a_different_baseline(cdv, tmp_path, monke
     doc_dir, images_dir = setup_dirs(cdv, tmp_path, monkeypatch)
     existing = doc_dir / "4.8.4-to-4.9.0-upgrade.md"
     existing.write_text("real content\n", encoding="utf-8")
-    monkeypatch.setattr("sys.argv", ["create-doc-version", "4.8.5"])
+    monkeypatch.setattr("sys.argv", ["create-doc-version"])
 
     with pytest.raises(SystemExit) as exc_info:
         cdv.main()
@@ -139,7 +146,7 @@ def test_invokes_fix_helm_doc(cdv, tmp_path, monkeypatch):
     setup_dirs(cdv, tmp_path, monkeypatch)
     calls = []
     monkeypatch.setattr(cdv, "run_script", lambda cmd, *a, **k: (calls.append(cmd), subprocess.CompletedProcess(cmd, 0))[1])
-    monkeypatch.setattr("sys.argv", ["create-doc-version", "4.8.5"])
+    monkeypatch.setattr("sys.argv", ["create-doc-version"])
 
     cdv.main()
 
