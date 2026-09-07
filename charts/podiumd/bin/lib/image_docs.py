@@ -20,7 +20,7 @@ import re
 
 from lib.chart import (
     canonical_sidecar_row_names, get_path, global_image_paths, image_paths_for, image_pin_matches_images_baseline,
-    load_images_baseline, replace_scalar_value, version_paths_for,
+    load_images_baseline, replace_scalar_value, version_of, version_paths_for,
 )
 from lib.component_docs import (
     CHANGES_HEADER_RE, CHANGES_ITEM_RE, NUMBER_WORDS, dep_for_values_key, insert_changes_section,
@@ -55,8 +55,14 @@ def add_missing_sidecar_rows(text, chart_dir, deps, target_values, baseline_valu
     Changes section for every canonical sidecar/shared-image name (see
     lib.chart.canonical_sidecar_row_names — "<values_key> - <basename>"
     for a sidecar nested under a real dependency, bare "<basename>" for
-    a shared "global" image) whose tag changed vs baseline but doesn't
-    already have a row of its own. The sidecar/shared-image counterpart
+    a shared "global" image) whose VERSION (lib.chart.version_of — the
+    tag with any "@sha256:..." digest suffix stripped) changed vs
+    baseline but doesn't already have a row of its own. A digest-only
+    re-pin with the same version is deliberately NOT enough on its own
+    to add a row/section here — -upgrade.md documents version changes,
+    never a digest re-pin alone (that's the images-manifest's own
+    concern; see find_images_manifest_list_diff's docstring for the
+    same reasoning). The sidecar/shared-image counterpart
     to lib.component_docs.add_missing_component_rows, which only ever
     covers a real Chart.yaml dependency's own row — this closes exactly
     the "sidecar/shared image ... changed vs ... but has no row" gap
@@ -97,7 +103,7 @@ def add_missing_sidecar_rows(text, chart_dir, deps, target_values, baseline_valu
             continue
         current_tag = current_paths.get(path)
         baseline_tag = baseline_paths.get(path)
-        if current_tag is None or current_tag == baseline_tag:
+        if current_tag is None or (baseline_tag is not None and version_of(current_tag) == version_of(baseline_tag)):
             continue
         new_app = current_tag.split("@", 1)[0]
         old_app = baseline_tag.split("@", 1)[0] if baseline_tag else None

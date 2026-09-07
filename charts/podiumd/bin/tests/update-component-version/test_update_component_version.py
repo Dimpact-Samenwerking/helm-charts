@@ -850,6 +850,22 @@ def test_make_changes_section_includes_bullets(ucv):
     assert "images-4.9.0.yaml" in section
 
 
+def test_make_changes_section_unchanged_app_version_renders_no_transition(ucv):
+    """Regression test: old_app == new_app (real case: a component whose
+    own PRIMARY image is untouched but still qualifies for a row/
+    section because some OTHER path in its subtree changed — e.g. a
+    brand-new sidecar of its own) renders "<app> (unchanged)", matching
+    chart_suffix's own existing "(chart ..., unchanged)" convention,
+    instead of a meaningless "<app> → <app>" self-transition."""
+    section = ucv.make_changes_section(
+        "zac", "4.9.0", "zaakafhandelcomponent", "zac",
+        "5.4.4", "5.4.4", "1.0.297", "1.0.297", ["image"],
+    )
+    assert section.startswith("### zac 5.4.4 (unchanged) (chart 1.0.297, unchanged)")
+    assert "5.4.4 → 5.4.4" not in section
+    assert "is unchanged this hop" in section
+
+
 def test_make_changes_section_includes_chart_bullet_when_changed(ucv):
     section = ucv.make_changes_section(
         "zac", "4.9.0", "zaakafhandelcomponent", "zac",

@@ -2101,17 +2101,23 @@ def compute_changed_components(deps, baseline_deps, values, baseline_values):
     """Top-level component keys (Chart.yaml alias, or name if unaliased) that
     actually differ between the baseline and now: dependency added or
     removed, chart version bumped, or any image tag anywhere under that
-    key's values.yaml subtree changed. This is the ground truth the docs
-    are checked against — independent of what they currently say, so it
-    also catches a component that changed but was never added to any doc
-    at all.
+    key's values.yaml subtree changed VERSION (lib.chart.version_of — the
+    tag with any "@sha256:..." digest suffix stripped; see
+    find_images_manifest_list_diff's own docstring for why: a chart-wide
+    digest-pinning sweep can touch the digest of virtually every image at
+    once with no app-version change behind any of it, and -upgrade.md is
+    about version changes, never a digest re-pin on its own — that's the
+    images-manifest's own concern). This is the ground truth the docs are
+    checked against — independent of what they currently say, so it also
+    catches a component that changed but was never added to any doc at
+    all.
 
     Also checks every lib.chart.NATIVE_COMPONENTS key (a values.yaml top-
     level component with no backing Chart.yaml dependency at all, e.g.
     frankgateway) — for those there's no dep to compare, so only the
-    subtree-image-tag check applies; without this, such a component's own
-    version bump could never register as "changed" here at all, since it
-    never appears in current_by_key/baseline_by_key to begin with.
+    subtree-image-version check applies; without this, such a component's
+    own version bump could never register as "changed" here at all, since
+    it never appears in current_by_key/baseline_by_key to begin with.
 
     A subtree path whose OWN tag matches one of global_image_paths' own
     entries (either side — current or baseline) is excluded from the
@@ -2138,7 +2144,7 @@ def compute_changed_components(deps, baseline_deps, values, baseline_values):
         global_tags |= {tag for _path, tag in global_image_paths(baseline_values)}
 
     def subtree_paths(key, paths):
-        return {p: t for p, t in paths.items() if p[0] == key and t not in global_tags}
+        return {p: version_of(t) for p, t in paths.items() if p[0] == key and t not in global_tags}
 
     changed = set()
     for key in set(current_by_key) | set(baseline_by_key) | set(NATIVE_COMPONENTS):

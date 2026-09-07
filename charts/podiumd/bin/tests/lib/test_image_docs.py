@@ -50,6 +50,38 @@ def test_add_missing_sidecar_rows_global_image_gets_one_row_not_per_alias(libima
     assert "frankgateway - nginx-unprivileged" not in new_text
 
 
+def test_add_missing_sidecar_rows_digest_only_repin_is_not_a_row(libimagedocs, tmp_path):
+    """Regression test: a shared image whose VERSION is unchanged but
+    whose DIGEST was re-pinned (real case: nginx-unprivileged) must NOT
+    get a row/section of its own — -upgrade.md documents version
+    changes, never a digest re-pin alone (that's the images-manifest's
+    own concern; see find_images_manifest_list_diff's docstring). Before
+    this fix, ANY digest difference (even with the exact same version)
+    added a nonsensical "1.31.4 → 1.31.4" row/section."""
+    deps = [{"name": "zaakafhandelcomponent", "alias": "zac", "version": "1.0.297"}]
+    target_values = {
+        "global": {"images": {"nginx": {
+            "repository": "nginxinc/nginx-unprivileged", "tag": "1.31.4@sha256:aaaa"}}},
+        "zac": {"nginx": {"image": {"repository": "nginxinc/nginx-unprivileged", "tag": "1.31.4@sha256:aaaa"}}},
+    }
+    baseline_values = {
+        "global": {"images": {"nginx": {
+            "repository": "nginxinc/nginx-unprivileged", "tag": "1.31.4@sha256:bbbb"}}},
+        "zac": {"nginx": {"image": {"repository": "nginxinc/nginx-unprivileged", "tag": "1.31.4@sha256:bbbb"}}},
+    }
+    text = (
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+    )
+
+    new_text, added = libimagedocs.add_missing_sidecar_rows(
+        text, tmp_path, deps, target_values, baseline_values, "4.9.0")
+
+    assert added == []
+    assert "nginx-unprivileged" not in new_text
+
+
 def test_add_missing_sidecar_rows_global_row_inserted_at_its_own_position_not_last(libimagedocs, tmp_path):
     """Real bug reported live: re-running the fix script placed the new
     "nginx-unprivileged" row at the very END of the table (component_

@@ -496,16 +496,30 @@ def make_changes_section(friendly, target, chart_name, values_key, old_app, new_
     all — the heading omits the "(chart ...)" parenthetical entirely and
     chart_changed is forced False, so the "Helm chart `...` bump" bullet
     (which needs a real chart_name/old_chart/new_chart triple) is never
-    emitted either."""
+    emitted either.
+
+    old_app == new_app (real case: a component whose own PRIMARY image
+    is untouched but still qualifies for a row/section because SOME
+    OTHER path in its subtree changed — e.g. a brand-new sidecar of its
+    own; see compute_changed_components) renders "<app> (unchanged)",
+    matching chart_suffix's own existing "(chart ..., unchanged)"
+    convention, instead of a meaningless "<app> → <app>" self-
+    transition — same reasoning throughout: this doc is about VERSION
+    changes, and there isn't one to report here."""
     if new_chart == "-":
         chart_changed = False
         chart_suffix = ""
     else:
         chart_changed = normalize_version(old_chart) != normalize_version(new_chart)
         chart_suffix = f" (chart {old_chart} → {new_chart})" if chart_changed else f" (chart {new_chart}, unchanged)"
-    lines = [f"### {friendly} {old_app} → {new_app}{chart_suffix}\n\n"]
-    lines.append(f"PodiumD {target} upgrades **{friendly}** from app version {old_app}\n")
-    lines.append(f"to {new_app}.\n\n")
+    app_changed = normalize_version(old_app) != normalize_version(new_app)
+    app_heading = f"{old_app} → {new_app}" if app_changed else f"{new_app} (unchanged)"
+    lines = [f"### {friendly} {app_heading}{chart_suffix}\n\n"]
+    if app_changed:
+        lines.append(f"PodiumD {target} upgrades **{friendly}** from app version {old_app}\n")
+        lines.append(f"to {new_app}.\n\n")
+    else:
+        lines.append(f"**{friendly}**'s own app version ({new_app}) is unchanged this hop.\n\n")
     if chart_changed:
         lines.append(f"- Helm chart `{chart_name}` `{old_chart}` → `{new_chart}` in\n")
         lines.append("  `charts/podiumd/Chart.yaml`.\n")
