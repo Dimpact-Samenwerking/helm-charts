@@ -2111,15 +2111,34 @@ def compute_changed_components(deps, baseline_deps, values, baseline_values):
     frankgateway) — for those there's no dep to compare, so only the
     subtree-image-tag check applies; without this, such a component's own
     version bump could never register as "changed" here at all, since it
-    never appears in current_by_key/baseline_by_key to begin with."""
+    never appears in current_by_key/baseline_by_key to begin with.
+
+    A subtree path whose OWN tag matches one of global_image_paths' own
+    entries (either side — current or baseline) is excluded from the
+    subtree comparison: a shared "global.images.<name>" YAML anchor
+    (e.g. nginx-unprivileged, redis) aliased into a component's own
+    sidecar block is that ONE shared image's own concern (already
+    reported as its own bare-basename row/section — see lib.image_docs.
+    add_missing_sidecar_rows), never a real change specific to THIS
+    component; without this exclusion, a single global image added (or
+    bumped) once ripples into every consuming component's own subtree
+    at once — real case: a new shared "redis" cache sidecar aliased
+    into a dozen unrelated components in the same release, each of
+    which then got a spurious, fully "(unchanged)" table row/Changes
+    section added of its own, purely because its subtree gained that
+    one shared path — confirmed live."""
     current_by_key = {dep.get("alias", dep["name"]): dep for dep in deps}
     baseline_by_key = {dep.get("alias", dep["name"]): dep for dep in baseline_deps}
 
     current_paths = dict(find_all_image_and_version_paths(values, deps))
     baseline_paths = dict(find_all_image_and_version_paths(baseline_values, deps)) if baseline_values else {}
 
+    global_tags = {tag for _path, tag in global_image_paths(values)}
+    if baseline_values:
+        global_tags |= {tag for _path, tag in global_image_paths(baseline_values)}
+
     def subtree_paths(key, paths):
-        return {p: t for p, t in paths.items() if p[0] == key}
+        return {p: t for p, t in paths.items() if p[0] == key and t not in global_tags}
 
     changed = set()
     for key in set(current_by_key) | set(baseline_by_key) | set(NATIVE_COMPONENTS):

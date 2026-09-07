@@ -2045,6 +2045,47 @@ def test_compute_changed_components_ignores_unrelated_key_changes(libupgradedoc)
     assert libupgradedoc.compute_changed_components(deps, deps, current, baseline) == set()
 
 
+def test_compute_changed_components_new_shared_global_sidecar_does_not_flag_every_consumer(libupgradedoc):
+    """Regression test: a brand-new "global.images.redis" YAML anchor
+    aliased into many unrelated components' own sidecar blocks in the
+    same release (real case) must not make EVERY one of those
+    components register as "changed" — the shared image is its own
+    concern (see lib.image_docs.add_missing_sidecar_rows' own bare-
+    basename row), never something specific to a component whose own
+    app/chart is otherwise untouched. Before this fix, gaining that one
+    shared path alone flagged openzaak/opennotificaties/objecten/... —
+    every consumer at once — each getting a spurious, fully
+    "(unchanged)" table row added to -upgrade.md."""
+    deps = [{"name": "zac", "version": "1.0.297"}, {"name": "openzaak", "version": "1.14.2"}]
+    redis_image = {"repository": "redis", "tag": "8.0@sha256:aaaa"}
+    current = {
+        "global": {"images": {"redis": redis_image}},
+        "zac": {"image": {"tag": "5.4.4@sha256:bbbb"}, "redis": {"image": redis_image}},
+        "openzaak": {"image": {"tag": "1.29.3@sha256:cccc"}, "redis": {"image": redis_image}},
+    }
+    baseline = {
+        "zac": {"image": {"tag": "5.4.4@sha256:bbbb"}},
+        "openzaak": {"image": {"tag": "1.29.3@sha256:cccc"}},
+    }
+    assert libupgradedoc.compute_changed_components(deps, deps, current, baseline) == set()
+
+
+def test_compute_changed_components_still_detects_a_components_own_change_alongside_a_shared_sidecar(
+        libupgradedoc):
+    """The shared-image exclusion only ever removes THAT one path from
+    the comparison — a component's own, genuinely different image still
+    registers as changed even when it ALSO happens to gain the same
+    shared sidecar in the same hop."""
+    deps = [{"name": "zac", "version": "1.0.297"}]
+    redis_image = {"repository": "redis", "tag": "8.0@sha256:aaaa"}
+    current = {
+        "global": {"images": {"redis": redis_image}},
+        "zac": {"image": {"tag": "5.4.4@sha256:bbbb"}, "redis": {"image": redis_image}},
+    }
+    baseline = {"zac": {"image": {"tag": "5.0.2@sha256:dddd"}}}
+    assert libupgradedoc.compute_changed_components(deps, deps, current, baseline) == {"zac"}
+
+
 # --- describe_key_changes / append_to_doc ---
 
 def test_describe_key_changes_reports_added_removed_renamed(libupgradedoc):
