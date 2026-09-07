@@ -123,7 +123,7 @@ with production workload measurements.
    `...Namespace`) authenticates against — the PV is static, the share must pre-exist.
 3. **Provision Key Vault secrets**: Django `SECRET_KEY` (`openssl rand -base64 50`),
    Keycloak client secret `openbeheer-oidc-secret` (`openssl rand -hex 32`), Open Zaak ZGW
-   secret, Objecten API Token and Objecttypen API token (all `openssl rand -hex 32`).
+   secret, Objecten API token and Objecttypen API token (all `openssl rand -hex 32`).
 4. **Enable and configure** in the environment values file:
    ```yaml
     openbeheer:
@@ -299,8 +299,8 @@ with production workload measurements.
    `configuration.oidcUrl`; populate `openbeheer-oidc-secret` **before** the first deploy
    or the job generates a random secret you must reconcile.
 7. **Register API consumers**: in Open Zaak, add a ZGW application/credential for client id
-  `openbeheer` with the ZGW secret; in Objecttypen, create a token-authorised user holding
-  the API token; in Objecten, create a token-authorised user with `is_superuser: true`.
+   `openbeheer` with the ZGW secret; in Objecttypen, create a token-authorised user holding
+   the API token; in Objecten, create a token-authorised user with `is_superuser: true`.
 8. **DNS + HTTPRoute**: have the environment deployment create the
    `<env>-openbeheer.<gemeente>.nl` DNS record and the HTTPRoute on `public-gateway`; the
    hostname must match `configuration.oidcUrl`.
@@ -308,8 +308,8 @@ with production workload measurements.
    app.kubernetes.io/name=openbeheer` → 1/1); 2/2 pods Ready with 0 restarts (uWSGI master
    fix active: `kubectl -n podiumd get cm openbeheer -o jsonpath='{.data.UWSGI_MASTER}'`
    → `1`); browse to `https://<env>-openbeheer.<gemeente>.nl/admin/` and confirm the Keycloak
-  redirect; in the UI confirm the Catalogi, Objecttypen, Objecten and Selectielijst services
-  resolve and catalogi load from Open Zaak.
+   redirect; in the UI confirm the Catalogi, Objecttypen, Objecten and Selectielijst services
+   resolve and catalogi load from Open Zaak.
 
 ## Related documents
 
