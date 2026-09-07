@@ -278,9 +278,11 @@ data:
       # is appended after stripping one leading slash, so "//abs/path" in the
       # values forces an absolute path on servers whose home is not "/".
       # FTP_FTPS=true adds --ssl-reqd: explicit TLS (AUTH TLS) on the control
-      # connection, aborting if the server cannot upgrade. Credentials go
-      # through `--config -` on stdin — never on argv (visible in
-      # /proc/*/cmdline) and never on disk, mirroring the SSH_ASKPASS care
+      # connection, aborting if the server cannot upgrade. FTP_NO_EPSV=true
+      # adds --no-epsv, forcing classic PASV for the data connection — needed
+      # behind some NAT/firewalls or servers that mishandle EPSV (RFC 2428).
+      # Credentials go through `--config -` on stdin — never on argv (visible
+      # in /proc/*/cmdline) and never on disk, mirroring the SSH_ASKPASS care
       # taken in upload_sftp.
       local file="$1" remote="$2" size remote_full url
       size="$(stat -c%s "${file}" 2>/dev/null || stat -f%z "${file}")"
@@ -298,7 +300,10 @@ data:
       if [[ "${FTP_FTPS:-false}" == "true" ]]; then
         curl_args+=(--ssl-reqd)
       fi
-      log "uploading ${remote_full} (${size} bytes) to ftp://${FTP_USER}@${FTP_HOST}:${FTP_PORT} (ftps=${FTP_FTPS:-false})"
+      if [[ "${FTP_NO_EPSV:-false}" == "true" ]]; then
+        curl_args+=(--no-epsv)
+      fi
+      log "uploading ${remote_full} (${size} bytes) to ftp://${FTP_USER}@${FTP_HOST}:${FTP_PORT} (ftps=${FTP_FTPS:-false}, no_epsv=${FTP_NO_EPSV:-false})"
       printf 'user = "%s:%s"\nurl = "%s"\n' "${FTP_USER}" "${FTP_PASSWORD}" "${url}" \
         | curl "${curl_args[@]}"
       log "uploaded $(basename "${remote_full}")"

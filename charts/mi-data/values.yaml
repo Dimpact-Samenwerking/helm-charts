@@ -114,10 +114,15 @@ transfer:
   # ftp mode only: true → explicit TLS on the control connection (FTPS,
   # curl --ssl-reqd — the transfer aborts if the server cannot upgrade).
   ftps: false
+  # ftp mode only: true → adds curl --no-epsv, forcing classic PASV instead of
+  # EPSV for the data connection. Needed behind some NAT/firewalls or FTP
+  # servers that mishandle EPSV (RFC 2428) and hang/reset the data channel.
+  noEpsv: false
   # Name of the chart-rendered K8s Secret carrying the connection envvars
   # (SFTP_HOST/PORT/USER/REMOTE_PATH/PASSWORD in the sftp modes, or
-  # FTP_HOST/PORT/USER/PASSWORD/REMOTE_PATH/FTP_FTPS in ftp mode; the unused
-  # family is rendered empty so mode switches never leave stale keys behind).
+  # FTP_HOST/PORT/USER/PASSWORD/REMOTE_PATH/FTP_FTPS/FTP_NO_EPSV in ftp mode;
+  # the unused family is rendered empty so mode switches never leave stale
+  # keys behind).
   secretName: mi-export-transfer
   # Name of the chart-rendered K8s Secret carrying the SSH private key (`id`).
   # Only rendered in sftp-key mode.
