@@ -264,14 +264,15 @@ def test_patch_bump_without_a_recorded_release_table_baseline_refused(cpv, repo,
     assert exc_info.value.code == 1
     out = capsys.readouterr().out
     assert "release_table baseline is not yet recorded" in out
-    assert not (repo / "release-baseline.yaml").is_file()
+    assert not (repo / "etc" / "release-baseline.yaml").is_file()
     assert chart_yaml.read_text().splitlines()[3] == "version: 4.9.0"  # untouched
 
 
 def test_patch_bump_with_unresolvable_existing_release_table_refused(cpv, repo, monkeypatch, capsys):
     chart_yaml = repo / "Chart.yaml"
     write_chart_yaml(chart_yaml, "4.9.0")
-    (repo / "release-baseline.yaml").write_text('release_table: "9.9.9"\n', encoding="utf-8")
+    (repo / "etc").mkdir()
+    (repo / "etc" / "release-baseline.yaml").write_text('release_table: "9.9.9"\n', encoding="utf-8")
     monkeypatch.setattr(cpv, "CHART_YAML", chart_yaml)
     monkeypatch.setattr(cpv, "CHART_DIR", repo)
     monkeypatch.setattr(cpv.sys, "argv", ["create-podiumd-version"])
@@ -316,7 +317,7 @@ def test_minor_bump_writes_both_baselines_and_delegates(cpv, repo, monkeypatch, 
 
     assert exc_info.value.code == 0
     assert chart_yaml.read_text().splitlines()[3] == "version: 4.10.0"
-    baselines = (repo / "release-baseline.yaml").read_text(encoding="utf-8")
+    baselines = (repo / "etc" / "release-baseline.yaml").read_text(encoding="utf-8")
     assert 'upgrade_docs: 4.9.0' in baselines or 'upgrade_docs: "4.9.0"' in baselines
     assert 'release_table: 4.9.0' in baselines or 'release_table: "4.9.0"' in baselines
     assert len(calls) == 1
@@ -333,7 +334,8 @@ def test_minor_bump_writes_both_baselines_and_delegates(cpv, repo, monkeypatch, 
 def test_patch_bump_writes_only_upgrade_docs_leaves_release_table(cpv, repo, monkeypatch, capsys):
     chart_yaml = repo / "Chart.yaml"
     write_chart_yaml(chart_yaml, "4.9.0")
-    (repo / "release-baseline.yaml").write_text('release_table: "4.8.5"\n', encoding="utf-8")
+    (repo / "etc").mkdir()
+    (repo / "etc" / "release-baseline.yaml").write_text('release_table: "4.8.5"\n', encoding="utf-8")
     monkeypatch.setattr(cpv, "CHART_YAML", chart_yaml)
     monkeypatch.setattr(cpv, "CHART_DIR", repo)
     monkeypatch.setattr(cpv.sys, "argv", ["create-podiumd-version"])
@@ -346,7 +348,7 @@ def test_patch_bump_writes_only_upgrade_docs_leaves_release_table(cpv, repo, mon
 
     assert exc_info.value.code == 0
     assert chart_yaml.read_text().splitlines()[3] == "version: 4.9.1"
-    baselines = (repo / "release-baseline.yaml").read_text(encoding="utf-8")
+    baselines = (repo / "etc" / "release-baseline.yaml").read_text(encoding="utf-8")
     assert 'upgrade_docs: 4.9.0' in baselines or 'upgrade_docs: "4.9.0"' in baselines
     assert "4.8.5" in baselines  # release_table untouched
     out = capsys.readouterr().out
@@ -393,4 +395,4 @@ def test_baseline_unresolvable_fails_without_writing_anything(cpv, repo, monkeyp
     assert "upgrade_docs baseline '9.9.9'" in out
     assert "could not resolve" in out
     assert chart_yaml.read_text().splitlines()[3] == "version: 9.9.9"  # untouched
-    assert not (repo / "release-baseline.yaml").is_file()
+    assert not (repo / "etc" / "release-baseline.yaml").is_file()

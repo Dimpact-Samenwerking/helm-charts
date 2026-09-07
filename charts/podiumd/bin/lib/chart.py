@@ -341,11 +341,11 @@ def chart_version(chart_yaml_path):
     return str(load_yaml(chart_yaml_path)["version"])
 
 
-RELEASE_BASELINES_FILE_NAME = "release-baseline.yaml"
+RELEASE_BASELINES_FILE_NAME = "etc/release-baseline.yaml"
 
 
 def _release_baselines(chart_dir):
-    """The parsed contents of chart_dir/release-baseline.yaml — upgrade_
+    """The parsed contents of chart_dir/etc/release-baseline.yaml — upgrade_
     docs (the incremental baseline _UPGRADE_PATHS/*.md and docs/images/
     images-<target>.yaml are written against) and release_table (the
     cumulative baseline release-table.csv was last generated against;
@@ -379,15 +379,21 @@ def release_table_baseline(chart_dir):
 
 
 def write_release_baselines(chart_dir, upgrade_docs=None, release_table=None):
-    """Read-modify-write chart_dir/release-baseline.yaml, updating only
+    """Read-modify-write chart_dir/etc/release-baseline.yaml, updating only
     whichever of upgrade_docs/release_table is given (None leaves that
     key untouched, whatever it already was) — the single write path
     shared by create-podiumd-version (writes upgrade_docs on every
     release cycle, release_table only on a minor bump) and
     change-podiumd-baseline (writes upgrade_docs only, never
     release_table), so neither script risks clobbering the other's own
-    key by writing a fresh two-key file from scratch."""
+    key by writing a fresh two-key file from scratch.
+
+    Creates the etc/ directory first if it doesn't exist yet — true on
+    the real chart (etc/ is a permanent fixture there), but a synthetic
+    test chart_dir has no reason to pre-create a directory this is the
+    only thing that ever writes into."""
     path = chart_dir / RELEASE_BASELINES_FILE_NAME
+    path.parent.mkdir(parents=True, exist_ok=True)
     data = _release_baselines(chart_dir)
     if upgrade_docs is not None:
         data["upgrade_docs"] = upgrade_docs

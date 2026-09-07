@@ -1217,7 +1217,8 @@ def test_update_images_manifest_new_item_inserted_at_values_yaml_position_not_ap
 # --- main() integration: doc updates end-to-end ---
 
 def setup_docs(ucv, monkeypatch, upgrade_text, values_deltas_text=None, images_text=None):
-    write(ucv.CHART_DIR / "release-baseline.yaml", 'upgrade_docs: "4.8.5"\n')
+    (ucv.CHART_DIR / "etc").mkdir(exist_ok=True)
+    write(ucv.CHART_DIR / "etc" / "release-baseline.yaml", 'upgrade_docs: "4.8.5"\n')
     doc_dir = ucv.DOC_DIR
     write(doc_dir / "4.8.5-to-4.9.0-upgrade.md", upgrade_text)
     if values_deltas_text is not None:
@@ -1446,7 +1447,8 @@ def test_main_collapses_repeated_bump_into_single_baseline_entry(ucv, tmp_path, 
 
 def test_main_skips_doc_updates_when_no_upgrade_doc_exists(ucv, tmp_path, monkeypatch, capsys):
     setup_repo(tmp_path, monkeypatch, ucv)
-    write(tmp_path / "release-baseline.yaml", 'upgrade_docs: "4.8.5"\n')  # baseline known, doc itself just missing
+    (tmp_path / "etc").mkdir(exist_ok=True)
+    write(tmp_path / "etc" / "release-baseline.yaml", 'upgrade_docs: "4.8.5"\n')  # baseline known, doc itself just missing
     mock_verify_passes(monkeypatch, ucv)
     mock_registry_passes(monkeypatch, ucv, "e")
     monkeypatch.setattr("sys.argv", ["update-component-version", "zac", "5.4.3", "1.0.297"])
@@ -1516,7 +1518,8 @@ def setup_git_repo_for_baseline_test(tmp_path, monkeypatch, ucv):
         "    enabled: true\n",
         encoding="utf-8",
     )
-    (tmp_path / "release-baseline.yaml").write_text('upgrade_docs: "4.8.5"\n', encoding="utf-8")
+    (tmp_path / "etc").mkdir(exist_ok=True)
+    (tmp_path / "etc" / "release-baseline.yaml").write_text('upgrade_docs: "4.8.5"\n', encoding="utf-8")
 
     monkeypatch.setattr(ucv, "CHART_DIR", tmp_path)
     monkeypatch.setattr(ucv, "CHART_YAML", chart_yaml)
@@ -1552,7 +1555,8 @@ def test_main_notes_when_baseline_unresolvable_for_key_detection(ucv, tmp_path, 
     main() must say so and continue (still write the version bullet), not
     silently skip the note or crash."""
     setup_repo(tmp_path, monkeypatch, ucv)
-    write(tmp_path / "release-baseline.yaml", 'upgrade_docs: "4.8.5"\n')
+    (tmp_path / "etc").mkdir(exist_ok=True)
+    write(tmp_path / "etc" / "release-baseline.yaml", 'upgrade_docs: "4.8.5"\n')
     write(ucv.DOC_DIR / "4.8.5-to-4.9.0-upgrade.md",
           "# Upgrade guide: PodiumD 4.8.5 → 4.9.0\n\n"
           "## Component versions (4.9.0 vs 4.8.5)\n\n"
@@ -1638,7 +1642,8 @@ def test_main_touches_only_the_target_component_end_to_end(ucv, tmp_path, monkey
     (doc_dir / "4.8.5-to-4.9.0-upgrade.md").write_text(upgrade_text, encoding="utf-8")
     (doc_dir / "4.8.5-to-4.9.0-values-deltas.md").write_text(values_deltas_text, encoding="utf-8")
     (images_dir / "images-4.9.0.yaml").write_text(images_text, encoding="utf-8")
-    (tmp_path / "release-baseline.yaml").write_text('upgrade_docs: "4.8.5"\n', encoding="utf-8")
+    (tmp_path / "etc").mkdir(exist_ok=True)
+    (tmp_path / "etc" / "release-baseline.yaml").write_text('upgrade_docs: "4.8.5"\n', encoding="utf-8")
 
     monkeypatch.setattr(ucv, "CHART_DIR", tmp_path)
     monkeypatch.setattr(ucv, "CHART_YAML", chart_yaml)

@@ -207,7 +207,7 @@ module (UTF-8/BOM, duplicate-key scan, release-baseline, lint/render).
 
 Usage:
     verify-podiumd
-        # if charts/podiumd/release-baseline.yaml's upgrade_docs key
+        # if charts/podiumd/etc/release-baseline.yaml's upgrade_docs key
         # exists, its content is also used to check the doc's SOURCE
         # (left-hand) versions for each changed component against the
         # actual baseline release — see step 9's docstring, above.

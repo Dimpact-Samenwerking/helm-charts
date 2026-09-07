@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Query charts/podiumd/release-table.csv (see export-confluence-release-table)
+Query charts/podiumd/etc/release-table.csv (see export-confluence-release-table)
 for rows whose "section", "vendor", or "component" column contains a given
 piece of text, and print each match's name, component, alias,
 image_basename, and four version columns as an aligned table — plus a
@@ -27,7 +27,7 @@ from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 CHART_DIR = SCRIPT_DIR.parents[0]
-DEFAULT_INPUT = CHART_DIR / "release-table.csv"
+DEFAULT_INPUT = CHART_DIR / "etc" / "release-table.csv"
 
 COLUMNS = ("section", "vendor", "component")
 VERSION_COLUMNS = ("source_version_app", "source_version_helm", "target_version_app", "target_version_helm")

@@ -70,7 +70,7 @@ python3 -m venv .venv
 
 ### When release is rebased on a different baseline
 - rebase the branch on the new baseline
-- run `change-podiumd-baseline` to update `charts/podiumd/release-baseline.yaml`'s `upgrade_docs` key and rebase the docs
+- run `change-podiumd-baseline` to update `charts/podiumd/etc/release-baseline.yaml`'s `upgrade_docs` key and rebase the docs
 - run `verify-podiumd` to check consistency, if not ok, fix the issues
 - commit+push the changes
 
@@ -126,10 +126,10 @@ Notes:
 - tools support `--help`
 
 Tools:
-- `change-podiumd-baseline`: change the `upgrade_docs` baseline recorded in `charts/podiumd/release-baseline.yaml` and rebase the docs onto it (runs `fix-doc-consistency`, then `fix-helm-doc`), given a baseline that must resolve to an existing `podiumd-<version>` tag or `feature/podiumd-<version>` branch — never touches `release_table` (that only ever changes via `create-podiumd-version`)
+- `change-podiumd-baseline`: change the `upgrade_docs` baseline recorded in `charts/podiumd/etc/release-baseline.yaml` and rebase the docs onto it (runs `fix-doc-consistency`, then `fix-helm-doc`), given a baseline that must resolve to an existing `podiumd-<version>` tag or `feature/podiumd-<version>` branch — never touches `release_table` (that only ever changes via `create-podiumd-version`)
 - `create-doc-version`: create the standard docs for the current target version, for whichever don't already exist — refuses if docs already exist under a different baseline (use `fix-doc-consistency` for that instead)
-- `create-podiumd-version`: uses version in `charts/podiumd/Chart.yaml` as the outgoing baseline release, updates version in `Chart.yaml`, records that baseline in `charts/podiumd/release-baseline.yaml` and creates upgrade docs (runs `create-doc-version`) — refuses unless the outgoing→target jump is a single patch increment (records `upgrade_docs` only) or a single minor increment (records both `upgrade_docs` and `release_table`); major-version bumps and skipped versions aren't supported
-- `export-confluence-release-table`: fetch release data from confluence and store it in `charts/podiumd/release-table.csv`
+- `create-podiumd-version`: uses version in `charts/podiumd/Chart.yaml` as the outgoing baseline release, updates version in `Chart.yaml`, records that baseline in `charts/podiumd/etc/release-baseline.yaml` and creates upgrade docs (runs `create-doc-version`) — refuses unless the outgoing→target jump is a single patch increment (records `upgrade_docs` only) or a single minor increment (records both `upgrade_docs` and `release_table`); major-version bumps and skipped versions aren't supported
+- `export-confluence-release-table`: fetch release data from confluence and store it in `charts/podiumd/etc/release-table.csv`
 - `fix-doc-consistency`: given a new baseline, rebases doc filenames and components and images in them onto it (creates the standard docs fresh instead, for whichever were never scaffolded under any baseline at all)
 - `fix-helm-doc`: re-generate `charts/podiumd/README.md` using `helm-docs`
 - `fix-image-digests`: updates image digests for one specific image or all stale images (also runs `fix-helm-doc` on any real write)
@@ -139,7 +139,7 @@ Tools:
 - `fix-vendored-tgz`: delete an extracted sub-chart directory shadowing its own pinned `.tgz`
 - `list-helmchart-images`: list images in a helm chart, given chart name and version
 - `list-podiumd-images`: list images in `charts/podiumd`
-- `query-release-table`: query release data from `charts/podiumd/release-table.csv` by section, vendor, component
+- `query-release-table`: query release data from `charts/podiumd/etc/release-table.csv` by section, vendor, component
 - `render-podiumd`: outputs a rendered chart, so that line-numbers in output of verify-podiumd can be matched
 - `show-component-baseline-version`: get the Helm chart AND app image version(s) of a component at BOTH `release-baseline.yaml` baselines (`upgrade_docs`, `release_table`), given the component name
 - `show-image-baseline-version`: get just the app image version(s) of a component at BOTH `release-baseline.yaml` baselines, given the component name (same shape as `show-component-baseline-version`, minus the Helm chart version)
