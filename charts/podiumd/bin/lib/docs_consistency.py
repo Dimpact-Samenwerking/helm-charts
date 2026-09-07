@@ -12,7 +12,7 @@ import yaml
 
 from lib.chart import (
     canonical_sidecar_row_names, global_image_paths, load_images_baseline, load_yaml, paths_by_repository,
-    repo_group_representative,
+    repo_group_representative, version_of,
 )
 from lib.component_docs import (
     CHANGES_HEADER_RE, CHANGES_ITEM_RE, find_images_manifest_changes_header, find_images_manifest_changes_items,
@@ -947,7 +947,20 @@ def check_docs_consistency(chart_dir, upgrade_docs_baseline=None):
             for name, path in sorted(canonical_names.items()):
                 if path in matched_sidecar_paths:
                     continue
-                if baseline_paths.get(path) != current_paths.get(path):
+                baseline_tag, current_tag = baseline_paths.get(path), current_paths.get(path)
+                # Compared by VERSION (lib.chart.version_of — the tag with
+                # any "@sha256:..." digest suffix stripped), never the raw
+                # tag string — a digest-only re-pin (same version, e.g. a
+                # chart-wide digest-pinning sweep) is not a "changed vs
+                # baseline" case -upgrade.md needs a row for. Real bug:
+                # this comparison used to be raw-tag equality, so nginx-
+                # unprivileged (version unchanged, only its digest moved)
+                # was flagged forever — the exact same class of bug already
+                # fixed in lib.upgradedoc.compute_changed_components and
+                # lib.image_docs.add_missing_sidecar_rows, just never
+                # ported to this one, independent copy of the same check.
+                if (version_of(baseline_tag) if baseline_tag is not None else None) != \
+                        (version_of(current_tag) if current_tag is not None else None):
                     mismatches.append(
                         f'{doc_path.name}: sidecar/shared image "{name}" changed vs {baseline_ref} '
                         f'but has no row in the "Component versions" table'
