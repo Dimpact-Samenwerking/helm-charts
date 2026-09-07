@@ -699,6 +699,72 @@ def test_images_manifest_format_changes_item_matching_neither_dep_nor_entry_stil
                for i in issues)
 
 
+def test_images_manifest_format_changes_item_resolves_via_canonical_path_segment_name(
+        libdocsconsistency, tmp_path):
+    """Regression test (real bug, real doc): a canonical sidecar Changes
+    item whose own "basename" is a values-tree PATH SEGMENT, not a real
+    image-repository basename (see lib.chart.canonical_sidecar_row_names'
+    own self-referential-basename fallback — real case: "keycloak-
+    operator - operator" for keycloak-operator.operator.image, whose repo
+    basename "keycloak-operator" would otherwise collide with its own
+    dependency's values key) must resolve directly via its own known
+    values-tree path, not match_changes_item_to_entry's basename-word
+    matching — there's no entry whose own name/repository is "operator"
+    to word-match against at all, so that fallback alone would always,
+    wrongly, report this as unmatched."""
+    deps = [{"name": "keycloak-operator", "version": "1.13.0"}]
+    values = {"keycloak-operator": {"operator": {
+        "image": {"repository": "quay.io/keycloak/keycloak-operator", "tag": "26.7.3"}}}}
+    (tmp_path / "Chart.yaml").write_text(yaml.safe_dump({"dependencies": deps}, sort_keys=False), encoding="utf-8")
+    (tmp_path / "values.yaml").write_text(yaml.safe_dump(values, sort_keys=False), encoding="utf-8")
+    images_path = tmp_path / "images-4.9.0.yaml"
+    images_path.write_text(
+        "# Baseline: podiumd 4.8.5.\n#\n# podiumd 4.9.0 vs 4.8.5.\n\n"
+        "# Changes:\n"
+        "#   1. keycloak-operator - operator 26.6.4 -> 26.7.3.\n"
+        "#\n\n"
+        "#   sidecar: keycloak-operator - operator 26.6.4 -> 26.7.3\n"
+        "- name: keycloak/keycloak-operator\n"
+        "  url: keycloak/keycloak-operator\n"
+        '  version: "26.7.3"\n'
+        '  digest: "sha256:eee"\n'
+    )
+
+    issues = libdocsconsistency.check_images_manifest_format(
+        images_path, "4.8.5", "4.9.0", deps, values, {}, chart_dir=tmp_path)
+
+    assert not any("no matching" in i for i in issues), issues
+
+
+def test_images_manifest_format_changes_item_canonical_path_segment_target_mismatch(
+        libdocsconsistency, tmp_path):
+    """Once resolved via its own known path, a real target-version
+    mismatch must still be caught — the canonical-path-segment
+    resolution isn't a free pass."""
+    deps = [{"name": "keycloak-operator", "version": "1.13.0"}]
+    values = {"keycloak-operator": {"operator": {
+        "image": {"repository": "quay.io/keycloak/keycloak-operator", "tag": "26.7.3"}}}}
+    (tmp_path / "Chart.yaml").write_text(yaml.safe_dump({"dependencies": deps}, sort_keys=False), encoding="utf-8")
+    (tmp_path / "values.yaml").write_text(yaml.safe_dump(values, sort_keys=False), encoding="utf-8")
+    images_path = tmp_path / "images-4.9.0.yaml"
+    images_path.write_text(
+        "# Baseline: podiumd 4.8.5.\n#\n# podiumd 4.9.0 vs 4.8.5.\n\n"
+        "# Changes:\n"
+        "#   1. keycloak-operator - operator 26.6.4 -> 9.9.9.\n"
+        "#\n\n"
+        "#   sidecar: keycloak-operator - operator 26.6.4 -> 9.9.9\n"
+        "- name: keycloak/keycloak-operator\n"
+        "  url: keycloak/keycloak-operator\n"
+        '  version: "26.7.3"\n'
+        '  digest: "sha256:eee"\n'
+    )
+
+    issues = libdocsconsistency.check_images_manifest_format(
+        images_path, "4.8.5", "4.9.0", deps, values, {}, chart_dir=tmp_path)
+
+    assert any("target app" in i and "9.9.9" in i for i in issues), issues
+
+
 # --- exact-vs-fuzzy Changes item collision (real-world case: "Kiss's
 # ECK-managed Elasticsearch/..." fuzzy-matching the real "kiss" dependency
 # even though an exact "KISS ..." item already legitimately claims it) ---
