@@ -9,26 +9,24 @@
 #   4. keycloak-operator - python 3.14-slim -> 3.14.7-slim.
 #   5. redis-operator v0.25.0 -> v0.26.0.
 #   6. redis-operator - redis v8.6.2 -> v8.6.6.
-#   7. redis-operator - k8s 1.36.2 -> 1.36.2.
-#   8. redis-operator - redis-exporter v1.82.0 -> v1.89.0.
-#   9. openzaak 1.27.4 -> 1.29.3.
-#   10. opennotificaties 1.16.1 -> 1.16.2.
-#   11. openformulieren 3.4.10 -> 3.5.6.
-#   12. openinwoner 2.4.2 -> 2.4.3.
-#   13. kiss-eck 8.19.3 -> 8.19.19.
-#   14. kiss-eck - enterprise-search 8.19.3 -> 8.19.19.
-#   15. kiss 2.2.4 -> 3.0.0.
-#   16. kiss - crawler 1.0.0 -> 1.0.0.
-#   17. kiss - kiss-elastic-sync 0.3.3 -> 3.0.0.
-#   18. zac 5.0.2 -> 5.4.4.
-#   19. zac - gotenberg 8.34.0 -> 8.36.0.
-#   20. zac - opa 1.17.1-static -> 1.19.1-static.
-#   21. zgw-office-addin v0.9.313 -> 0.11.0.
-#   22. clamav 1.5.2 -> 1.5.4.
-#   23. clamav - clamav_exporter v2.1.3 -> v2.1.8.
-#   24. ita 3.2.0 -> 3.3.0.
-#   25. pabc 1.1.0 -> 1.1.1.
-#   26. pabc - pabc-migrations 1.1.0 -> 1.1.1.
+#   7. redis-operator - redis-exporter v1.82.0 -> v1.89.0.
+#   8. openzaak 1.27.4 -> 1.29.3.
+#   9. opennotificaties 1.16.1 -> 1.16.2.
+#   10. openformulieren 3.4.10 -> 3.5.6.
+#   11. openinwoner 2.4.2 -> 2.4.3.
+#   12. kiss-eck 8.19.3 -> 8.19.19.
+#   13. kiss-eck - enterprise-search 8.19.3 -> 8.19.19.
+#   14. kiss 2.2.4 -> 3.0.0.
+#   15. kiss - kiss-elastic-sync 0.3.3 -> 3.0.0.
+#   16. zac 5.0.2 -> 5.4.4.
+#   17. zac - gotenberg 8.34.0 -> 8.36.0.
+#   18. zac - opa 1.17.1-static -> 1.19.1-static.
+#   19. zgw-office-addin v0.9.313 -> 0.11.0.
+#   20. clamav 1.5.2 -> 1.5.4.
+#   21. clamav - clamav_exporter v2.1.3 -> v2.1.8.
+#   22. ita 3.2.0 -> 3.3.0.
+#   23. pabc 1.1.0 -> 1.1.1.
+#   24. pabc - pabc-migrations 1.1.0 -> 1.1.1.
 #
 # See docs/_UPGRADE_PATHS/4.8.5-to-4.9.0-upgrade.md for the operator upgrade notes.
 #
@@ -67,11 +65,6 @@
   url: opstree/redis
   version: "v8.6.6"
   digest: "sha256:12724412997e6acc32783f8c3c1ce8a7657029e06f563ffc8cbd81e2e9de7628"
-#   sidecar: redis-operator - k8s 1.36.2 -> 1.36.2
-- name: alpine/k8s
-  url: alpine/k8s
-  version: "1.36.2"
-  digest: "sha256:44ef4942e171939b9c665a4a84beb80e2dcdb9a24330d4651cfdfd2e9deecc47"
 #   sidecar: redis-operator - redis-exporter v1.82.0 -> v1.89.0
 - name: opstree/redis-exporter
   url: opstree/redis-exporter
@@ -123,11 +116,6 @@
   url: klantinteractie-servicesysteem/kiss-frontend
   version: "3.0.0"
   digest: "sha256:56a9c225d9fb19184ee9ad6c84877e7b5853c280cbb5e0d59edb340c7bb8599c"
-#   sidecar: kiss - crawler 1.0.0 -> 1.0.0
-- name: integrations/crawler
-  url: integrations/crawler
-  version: "1.0.0"
-  digest: "sha256:6f3c02f6c783711b8d9e133cf10934b137d6547dc1eb10a0d2ccf99ffe2e2d07"
 #   sidecar: kiss - kiss-elastic-sync 0.3.3 -> 3.0.0
 - name: klantinteractie-servicesysteem/kiss-elastic-sync
   url: klantinteractie-servicesysteem/kiss-elastic-sync
