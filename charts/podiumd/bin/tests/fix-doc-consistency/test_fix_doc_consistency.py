@@ -664,6 +664,33 @@ def test_fix_component_version_table_new_sidecar_known_in_images_baseline_is_unc
     assert "| redis-operator - k8s | 1.36.2 (unchanged) | - | ACR mirror only |" in new_text
 
 
+def test_fix_component_version_table_corrects_a_stale_new_annotation_with_matching_numbers(cdb, tmp_path):
+    """Regression test: a row written "(new)" by an OLDER fix-doc-
+    consistency run (before the images-baseline.yaml fallback existed)
+    whose NUMBER already happens to match the target (both read
+    "1.36.2") must still be corrected to "(unchanged)" — comparing only
+    row["app_source"]/row["app"] (the numeric endpoints alone) would
+    treat this row as already "matching" and never touch it, silently
+    leaving the wrong annotation in place forever."""
+    _write_images_baseline(tmp_path, [{"name": "alpine/k8s", "version": "1.36.2", "digest": "sha256:cccc"}])
+    text = (
+        "## Component versions (4.9.0 vs 4.8.5)\n\n"
+        "| Component | App version | Helm chart | Notes |\n"
+        "| --- | --- | --- | --- |\n"
+        "| redis-operator - k8s | 1.36.2 (new) | - | ACR mirror only |\n"
+    )
+    target_deps, target_values, baseline_deps, baseline_values = redis_sidecar_deps_and_values()
+    target_values["redis-operator"]["k8s"] = {
+        "image": {"repository": "quay.io/alpine/k8s", "tag": "1.36.2@sha256:cccc"}}
+
+    new_text, changed, unmatched, unresolved = cdb.fix_component_version_table(
+        text, tmp_path, target_deps, target_values, baseline_deps, baseline_values
+    )
+    assert unmatched == [] and unresolved == []
+    assert len(changed) == 1
+    assert "| redis-operator - k8s | 1.36.2 (unchanged) | - | ACR mirror only |" in new_text
+
+
 # --- current_chart_version ---
 
 def test_current_chart_version_reads_chart_yaml(cdb, tmp_path, monkeypatch):
