@@ -62,7 +62,7 @@ Yes — a 1 GiB `ReadWriteMany` Azure Files PVC shared by both replicas, rendere
 
 Public. In Dimpact environments an HTTPRoute `hr-openbeheer-nginx` on Gateway
 `public-gateway` (namespace `ingress-basic`, gatewayClass `nginx`) routes
-`<env>-openbeheer.<gemeente>.nl` (e.g. `<env>-openbeheer.<gemeente>.nl`) to the app's ClusterIP
+`<env>-openbeheer.<gemeente>.nl` (e.g. `ontw-openbeheer.assen.nl`) to the app's ClusterIP
 service. The HTTPRoute and DNS record are created by the per-gemeente environment
 deployment (ADO `ExternalsPodiumD`), not by this chart. The public hostname must equal the
 host in `openbeheer.configuration.oidcUrl` — the realm-config job derives the Keycloak
